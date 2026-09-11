@@ -19,7 +19,7 @@
  *
  * DiscoBSD's other targets boot from an SD card, and this board has no
  * socket, so the onboard flash becomes the block device instead. The idea of
- * putting a Unix root on a Pico's flash behind a wear-levelling translation
+ * putting a Unix root on a Pico's flash behind a wear-leveling translation
  * layer is FUZIX's; none of its code is used here, because the FUZIX kernel
  * is GPL-2.0 and this tree is not. Its implementation was deliberately not
  * read. What both need is the same published library, Dhara, which is ISC
@@ -28,7 +28,7 @@
  * The layering is:
  *
  *	bdevsw			block requests in DEV_BSIZE units
- *	  dhara_map_*		logical sectors, wear levelling, garbage
+ *	  dhara_map_*		logical sectors, wear leveling, garbage
  *				collection			(ISC, vendored)
  *	    dhara_nand_*	this file: NOR geometry and erase or program
  *	      bootrom		flash_range_erase, flash_range_program
@@ -326,7 +326,7 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 		dhara_map_init(&flmap, &flnand, flpage, 4);
 		/*
 		 * A fresh chip has no stored state, which dhara_map_resume
-		 * reports by returning -1 after initialising an empty map.
+		 * reports by returning -1 after initializing an empty map.
 		 * That is the newly-formatted case rather than a failure.
 		 */
 		(void)dhara_map_resume(&flmap, &err);

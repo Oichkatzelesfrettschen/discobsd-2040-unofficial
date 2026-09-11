@@ -22,7 +22,7 @@
  *
  * The board carries no SD socket, and DiscoBSD's other targets boot from one,
  * so this driver makes the onboard flash a block device instead. Wear
- * levelling and the logical-to-physical mapping come from Dhara, vendored
+ * leveling and the logical-to-physical mapping come from Dhara, vendored
  * under sys/arch/rp2040/dhara.
  *
  * Geometry is the Winbond W25Q16JV's, measured on the part rather than

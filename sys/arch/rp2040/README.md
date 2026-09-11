@@ -43,7 +43,7 @@ DiscoBSD's other targets boot from an SD card, and its device tree is mostly
 SD and SDIO. This board has no socket, so `dev/flash.c` makes the onboard
 2 MB QSPI flash a block device and the board needs no extra hardware.
 
-The idea of putting a Unix root on a Pico's flash behind a wear-levelling
+The idea of putting a Unix root on a Pico's flash behind a wear-leveling
 translation layer is FUZIX's, and the credit is theirs. None of their code is
 here, and their implementation was deliberately not read.
 
@@ -65,7 +65,7 @@ and two functions it uses, leaving the vendored files untouched.
 The layering, and the license at each level:
 
     bdevsw              block requests           this tree, ISC
-      dhara_map_*       wear levelling, mapping  Dhara, ISC
+      dhara_map_*       wear leveling, mapping  Dhara, ISC
         dhara_nand_*    NOR geometry             dev/flash.c, ISC
           bootrom       erase and program        silicon
 

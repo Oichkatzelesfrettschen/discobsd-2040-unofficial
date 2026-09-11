@@ -23,7 +23,7 @@ awk.h:          y.tab.h
 $(FILES):	awk.h awk.def.h
 
 token.h:	awk.h tokenscript
-		ex - < tokenscript
+		${EX} < tokenscript
 
 install:        awk
 		${INSTALL} awk ${DESTDIR}/usr/bin/

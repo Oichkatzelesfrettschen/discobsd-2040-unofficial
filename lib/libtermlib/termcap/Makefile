@@ -13,7 +13,7 @@ TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 termcap.full: reorder termcap.src
-	ex - termcap.src < reorder
+	${EX} termcap.src < reorder
 
 install: termcap.small termcap.full
 	rm -f ${DESTDIR}/usr/share/misc/termcap

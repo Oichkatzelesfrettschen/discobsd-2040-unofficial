@@ -60,8 +60,19 @@ GCCPREFIX!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "/does/not/exist" ; \
 	fi
 
+# The RP2040's Cortex-M0+ implements ARMv6-M, a strict subset of the
+# Cortex-M4's Thumb-2, so a userland built for cortex-m4 faults on it.
+MACHINE_CPU!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "cortex-m0plus" ; \
+	else \
+		echo "cortex-m4" ; \
+	fi
+
+# The sources predate C23, where an empty parameter list means (void) and
+# old-style definitions are gone. GCC 15 and later default to C23, and the
+# standard rides on CC because several Makefiles replace CFLAGS outright.
 CC!=	if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "${GCCPREFIX}-gcc -mcpu=cortex-m4 -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
+		echo "${GCCPREFIX}-gcc -std=gnu17 -mcpu=${MACHINE_CPU} -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
 		echo "${GCCPREFIX}-gcc -mips32r2 -EL -msoft-float -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
 	else \
@@ -126,8 +137,21 @@ INSTALL=	${TOOLBINDIR}/binstall -U
 
 TAGSFILE=	tags
 
-#MANROFF=	nroff -man -h -Tascii
-MANROFF=	mandoc -Tascii -Ios="DiscoBSD ${OSREV}"
+# groff formats the same pages where mandoc is absent, which on Linux
+# distributions that ship man-db is the common case.
+MANROFF!=	if command -v mandoc >/dev/null 2>&1 ; then \
+			echo 'mandoc -Tascii -Ios="DiscoBSD ${OSREV}"' ; \
+		else \
+			echo 'groff -mandoc -Tascii' ; \
+		fi
+
+# The termcap reorder script is an ex script; vim runs it in ex mode where
+# no ex is installed.
+EX!=		if command -v ex >/dev/null 2>&1 ; then \
+			echo 'ex -' ; \
+		else \
+			echo 'vim -es -u NONE' ; \
+		fi
 
 ELF2AOUT=	${TOOLBINDIR}/elf2aout
 

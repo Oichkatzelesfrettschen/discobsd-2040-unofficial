@@ -90,6 +90,36 @@ $GCC -std=gnu17 -mcpu=$CPU -mthumb -mfloat-abi=soft -Os -Wall \
     -nostdinc -I"$TOPSRC/include" \
     -c -o "$OUT/qemusys.o" "$SRCDIR/qemusys.c"
 
+# The device tier links against build products of lib, which a fresh tree
+# does not have; say so rather than failing inside the linker.
+for f in "$CRT0" "$LIBC" "$LDSCRIPT" "$ELF2AOUT" ; do
+	[ -e "$f" ] || {
+		echo "missing $f"
+		echo "build the target's libraries and tools first:"
+		echo "  bmake MACHINE=$MACHINE tools"
+		echo "  bmake MACHINE=$MACHINE DESTDIR=\$TOPSRC/distrib/obj/destdir.$MACHINE -C include includes"
+		echo "  bmake MACHINE=$MACHINE DESTDIR=\$TOPSRC/distrib/obj/destdir.$MACHINE -C lib"
+		exit 1
+	}
+done
+
+# lib/libc.a is one file shared by every ARM machine, and the linker does not
+# reject an object built for a wider architecture. A libc left over from an
+# stm32 build is Cortex-M4, whose Thumb-2 encodings fault on a Cortex-M0+ but
+# run happily under a full-ARM emulator, so the mismatch would pass the tests
+# and fail on the board. The build attribute is the thing that distinguishes
+# them.
+_arch=$($CROSS-readelf -A "$LIBC" 2>/dev/null |
+    sed -n 's/.*Tag_CPU_arch: *//p' | head -1)
+case "$_arch" in
+v6*)	;;
+"")	note "warning: cannot read the CPU architecture of $LIBC" ;;
+*)	echo "$LIBC is built for $_arch, not the Cortex-M0+'s v6-M"
+	echo "rebuild it for this machine:"
+	echo "  bmake MACHINE=rp2040 DESTDIR=\$TOPSRC/distrib/obj/destdir.rp2040 -C lib"
+	exit 1 ;;
+esac
+
 if command -v qemu-arm >/dev/null 2>&1; then
 	QEMU=qemu-arm
 else

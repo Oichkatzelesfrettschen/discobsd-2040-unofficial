@@ -1,7 +1,7 @@
 # Thumb-1 code generator for Smaller C -- report
 
 Branch `smlrc-thumb`, worktree `~/worktrees/discobsd/smlrc-thumb`, branched
-from `rp2040-port`. Five commits. No hardware was touched.
+from `rp2040-port`. No hardware was touched.
 
 ## Result
 
@@ -14,7 +14,7 @@ programs match that oracle.
 
 ## Deliverables
 
-`usr.bin/smlrc/cgthumb.c`, 1926 lines, selected by `-DTHUMB`, paralleling
+`usr.bin/smlrc/cgthumb.c`, 1884 lines, selected by `-DTHUMB`, paralleling
 `cgmips.c`'s entry points. Clean under `gcc -Wall -Wextra` and
 `clang -Wall -Wextra`; the compiler is clean under valgrind on every test
 input. Smaller C's BSD-2-Clause header is preserved verbatim, and no new file
@@ -33,7 +33,7 @@ commands.
 ## Compiler footprint
 
     text     data      bss      dec      hex
-   51561     1588    26200    79349    135f5
+   51613     1588    26200    79401    13629
 
 77.5 KB of the 96 KB process budget, leaving 18.5 KB of stack. Workable, not
 generous. The bss is nearly all parser tables: at `SYNTAX_STACK_MAX=3200`,
@@ -129,6 +129,26 @@ family does not share. `t16_float` covers it.
 - **Local variable access costs three instructions.** Thumb-1 load and store
   offsets are unsigned, so a local's negative offset from `r7` never encodes
   and the address is computed. Correctness over speed, as scoped.
+
+## Review follow-ups
+
+A review after the first six commits raised four points, all acted on.
+Compound division whose left side is a dereference -- `*p /= b`,
+`sp->x %= b` -- takes a different path from the local and global cases and
+holds the address in a register across the helper call, exactly the hazard
+that produced the defect above; the fuzzer cannot reach it because
+`gen_diff.py` generates no pointers. `t15_divreg.c` now covers it and passes.
+`GenNumLabel` did not flush a literal pool although two comments said it did,
+so it now does, guarded on the text section because the same emitter also
+names static initializers and string literals -- an unguarded flush would put
+a branch and a `.ltorg` into `.data`. Every generated `.s` was checked for
+that and none has one. `bmake -C usr.bin/smlrc test`, the interface as
+stated, was run from the worktree root rather than only from the compiler's
+own directory. And `run.sh` now checks that `crt0.o`, `libc.a`, the linker
+script and `elf2aout` exist before linking, and that `libc.a` carries the
+v6-M build attribute: one `lib/libc.a` serves every ARM machine, the linker
+accepts an object built for a wider architecture without complaint, and a
+Cortex-M4 libc runs under a full-ARM emulator while faulting on the board.
 
 ## What was not run
 

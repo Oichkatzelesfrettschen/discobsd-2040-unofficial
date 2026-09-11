@@ -14,7 +14,7 @@ Other machines are untouched: `MACHINE` chooses `-DMIPS` with `cgmips.c` and
 `arm-none-eabi-size` of the cross-built compiler:
 
     text     data      bss      dec      hex   filename
-   51561     1588    26200    79349    135f5   smlrc.elf
+   51613     1588    26200    79401    13629   smlrc.elf
 
 A process gets 96 KB for text, data, bss and stack together, so the compiler
 occupies 77.5 KB and leaves 18.5 KB of stack. That is workable but not
@@ -131,7 +131,7 @@ unbounded.
 
 **Literal pools.** `LDR` (literal) reaches 1020 bytes forward. Every emitter
 accounts the bytes it writes, and a pool is flushed as a `B` over a `.ltorg`
-whenever the distance passes 850, checked only at the top of the token loop,
+whenever the distance passes 850, checked only at the top of the token loop, at a
 at a numeric label, and at the end of a function -- the points where no
 instruction sequence is open.
 

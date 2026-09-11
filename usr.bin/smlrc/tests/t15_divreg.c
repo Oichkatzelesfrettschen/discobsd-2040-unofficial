@@ -12,6 +12,13 @@
  */
 int printf(char *fmt, ...);
 
+struct rec {
+	int x;
+	int y;
+};
+
+struct rec srec;
+
 int a;
 int b;
 unsigned ua;
@@ -26,6 +33,8 @@ main(void)
 	unsigned u;
 	int arr[4];
 	int i;
+	int *p;
+	struct rec *sp;
 
 	a = 1000;
 	b = 7;
@@ -64,5 +73,35 @@ main(void)
 	r = a;
 	r = r / b + r % b + r / (b + 1);
 	printf("%d\n", r);
+
+	/* Compound division whose left side is a dereference rather than a
+	   plain name takes a different path from the two above: the address
+	   and the right operand stay in registers across the helper call
+	   instead of being reloaded from a frame slot or a label. */
+	p = arr;
+	*p = 1000;
+	*p /= b;
+	printf("%d\n", *p);
+
+	p = arr;
+	*p = 1000;
+	*p %= b;
+	printf("%d\n", *p);
+
+	p = arr + 1;
+	*p = 999;
+	*p /= 4;
+	printf("%d %d\n", arr[0], arr[1]);
+
+	sp = &srec;
+	sp->x = 2000;
+	sp->x /= b;
+	sp->y = 2000;
+	sp->y %= b;
+	printf("%d %d\n", sp->x, sp->y);
+
+	sp->x = 77;
+	sp->x /= (b - 6);
+	printf("%d\n", srec.x);
 	return 0;
 }

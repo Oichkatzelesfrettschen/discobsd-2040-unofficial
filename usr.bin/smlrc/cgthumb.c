@@ -113,6 +113,8 @@ STATIC
 void GenPrintNumLabel(int label);
 STATIC
 void GenLoadConst(int reg, int val);
+STATIC
+void ThumbMaybeFlushPool(void);
 
 int ThumbPoolBytes = 0;   /* bytes emitted since the last literal pool */
 int ThumbLocalLabel = 1;  /* counter for backend-private .LT labels */
@@ -228,6 +230,12 @@ void GenPrintNumLabel(int label)
 STATIC
 void GenNumLabel(int Label)
 {
+  /* A numeric label in the text section is a branch target with no partially
+     emitted sequence open, so a pool may be flushed just above it. The same
+     emitter also names static initializers and string literals, where a
+     branch and a .ltorg would land in .data or .bss, hence the guard. */
+  if (CurHeaderFooter == CodeHeaderFooter)
+    ThumbMaybeFlushPool();
   printf2(".L%d:\n", Label);
 }
 

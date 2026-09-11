@@ -53,10 +53,30 @@
 #define	IPL_SVCALL	IPL_TOP		/* SVC exception at highest prio. */
 #define	IPL_SYSTICK	IPL_CLOCK	/* SysTick exception at clock prio. */
 
+/*
+ * Seven IPL levels do not fit two priority bits.
+ *
+ * The STM32 header forms a priority byte as (IPL_TOP - ipl) << IPL_BITS,
+ * which holds while IPL_BITS is 4 and the shifted level still fits a byte.
+ * With the RP2040's two priority bits IPL_BITS is 6, the shift overflows for
+ * every level below IPL_TTY, and masking to a byte wraps the result: the
+ * mapping becomes 0, 128, 64, 0, 192, 128, 64, so IPL_SOFTCLOCK and IPL_CLOCK
+ * collide and the order is no longer monotonic.
+ *
+ * Four hardware priorities exist here, so the levels are distributed across
+ * them instead, keeping the ordering non-increasing as urgency rises. Zero is
+ * the most urgent on Cortex-M, so IPL_CLOCK and IPL_HIGH map to 0 and
+ * IPL_NONE maps to the least urgent value.
+ *
+ * This costs nothing that ARMv6-M had. PRIMASK masks everything or nothing,
+ * so priorities never implement spl here; they only order preemption among
+ * interrupts that are already enabled.
+ */
+#define	NVIC_PRIO_LEVELS	(1U << NVIC_PRIO_BITS)
+
 #define	IPLTOREG(ipl) \
-	(u_char)((ipl) ? (((IPL_TOP - (ipl)) << IPL_BITS) & 0xFFUL) : 0)
-#define	REGTOIPL(reg) \
-	(u_int)((reg) ? (IPL_TOP - ((reg) >> IPL_BITS)) : 0)
+	(u_char)(((((IPL_HIGH - (ipl)) * (NVIC_PRIO_LEVELS - 1)) / IPL_HIGH) \
+	    << IPL_BITS) & 0xFFUL)
 
 /*
  * RP2040 NVIC, from the RP2040 datasheet Cortex-M0+ register listing.
@@ -135,12 +155,18 @@ static inline void
 arm_intr_set_priority(int irq, int prio)
 {
 	volatile u_int *ipr;
-	u_int shift, word;
+	u_int shift, prio_byte;
 
+	/*
+	 * IPLTOREG already shifts the level into the byte's high bits and
+	 * masks it to eight, so the byte is formed before it is positioned.
+	 * Shifting the level and the byte position in one step would let a
+	 * low-numbered level spill into the next interrupt's priority field.
+	 */
 	ipr = &RP2040_REG32(RP2040_NVIC_IPR0) + ((u_int)irq >> 2);
-	shift = (((u_int)irq & 0x3) * 8) + IPL_BITS;
-	word = *ipr & ~((u_int)0xff << (((u_int)irq & 0x3) * 8));
-	*ipr = word | ((u_int)(IPL_TOP - prio) << shift);
+	shift = ((u_int)irq & 0x3) * 8;
+	prio_byte = (u_int)IPLTOREG(prio);
+	*ipr = (*ipr & ~((u_int)0xff << shift)) | (prio_byte << shift);
 }
 
 /*

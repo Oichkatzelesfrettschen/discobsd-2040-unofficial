@@ -59,7 +59,25 @@ kernel names them and interrupt priorities still order preemption among
 enabled interrupts.
 
 `machparam.h` keeps the macro named `BASEPRI`, which `sys/kern/kern_clock.c`
-calls, and tests PRIMASK underneath.
+calls, and tests PRIMASK underneath. Its user-space window moves to
+0x20020000 with 128 KB, matching `conf/RP2040.ld`, because the STM32 constants
+name an address that is flash on this chip.
+
+Seven IPL levels do not fit two priority bits, and the inherited `IPLTOREG`
+does not survive the reduction. It forms a byte as `(IPL_TOP - ipl) <<
+IPL_BITS`, which holds at four priority bits. At two, `IPL_BITS` is 6, the
+shift overflows for every level below IPL_TTY, and masking wraps the result to
+0, 128, 64, 0, 192, 128, 64: IPL_SOFTCLOCK collides with IPL_CLOCK and the
+ordering inverts. The replacement distributes the seven levels across the four
+priorities the hardware has, non-increasing as urgency rises. Nothing is lost,
+because priorities never implement spl here; they only order preemption among
+interrupts already enabled.
+
+`fault.h` shrinks from 131 lines to 48. ARMv7-M describes four fault
+exceptions through HFSR and CFSR with MMFAR and BFAR for the address. ARMv6-M
+raises only HardFault and defines no fault status or fault address register at
+all, so the decode has nothing to read. That is a capability loss rather than
+a translation, and the exception stack frame is what remains.
 
 `mpuvar.h` is dropped. Neither core has an MPU. DiscoBSD does not isolate
 processes on any target today, so this port inherits the trust model rather

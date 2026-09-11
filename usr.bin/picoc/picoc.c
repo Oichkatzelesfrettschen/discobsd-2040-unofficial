@@ -86,9 +86,11 @@ int picoc(char *SourceStr)
         }
     }
 
-    PicocExitBuf[40] = 0;
-    PicocPlatformSetExitPoint();
-    if (PicocExitBuf[40]) {
+    /*
+     * jmp_buf holds _JBLEN words, 12 here; element 40 lay in whatever
+     * followed it. The return of setjmp says whether a longjmp arrived.
+     */
+    if (PicocPlatformSetExitPoint()) {
         printf("Leaving PicoC\n\r");
         PicocCleanup();
         return PicocExitValue;

@@ -7,18 +7,31 @@
  * is preserved.
  */
 #include <math.h>
+#include <string.h>
 
-/* Get two 32 bit ints from a double.  */
+/*
+ * Get two 32 bit ints from a double, and set a double from two. The high
+ * word is the one holding the sign and exponent whatever the byte order,
+ * which is what the shifts below give; the earlier macros took the low
+ * word as high on a little-endian machine and INSERT_WORDS wrote to x no
+ * matter which double it was given, so *iptr came back unset.
+ */
 
 #define EXTRACT_WORDS(high,low,d) \
-        high = *(unsigned long long*) &d; \
-        low  = (*(unsigned long long*) &d) >> 32
-
-
-/* Set a double from two 32 bit ints.  */
+        do { \
+                unsigned long long ew_; \
+                memcpy(&ew_, &(d), sizeof(ew_)); \
+                high = (long)(ew_ >> 32); \
+                low = (long)(ew_ & 0xffffffffUL); \
+        } while (0)
 
 #define INSERT_WORDS(d,high,low) \
-        *(unsigned long long*) &(x) = (unsigned long long) (high) << 32 | (low)
+        do { \
+                unsigned long long iw_ = \
+                    ((unsigned long long)(unsigned long)(high) << 32) | \
+                    (unsigned long)(low); \
+                memcpy(&(d), &iw_, sizeof(iw_)); \
+        } while (0)
 
 /*
  * modf(double x, double *iptr)

@@ -32,7 +32,12 @@ setjmp:
 	str	r1, [r0]		/*   so longjmp restores sigmask; */
 	adds	r0, r0, #(2 * 4)	/*   skip over sigmask in env[1]. */
 	mov	r1, r0			/* Save env for sigprocmask. */
-	mov	ip, sp			/* Save stack pointer (via ip). */
+	/*
+	 * The stack pointer to keep is the caller's, above the lr pushed
+	 * on entry; saving sp itself put longjmp's return four bytes low.
+	 */
+	add	r3, sp, #4		/* Caller's stack pointer.. */
+	mov	ip, r3			/*   saved via ip. */
 #ifdef __thumb2__
 	stmia	r0, {r4-r11,ip,lr}	/* Save regs in env[2-11]. */
 #else /* __thumb__ */

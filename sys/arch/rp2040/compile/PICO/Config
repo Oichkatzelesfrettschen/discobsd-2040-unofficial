@@ -1,0 +1,42 @@
+#
+# Raspberry Pi Pico board
+# =======================
+#
+# To build the kernel, use:
+#   cd sys/arch/rp2040/compile/PICO
+#   tools/bin/config Config
+#   make clean
+#   make
+#
+architecture    "rp2040"
+cpu             "RP2040"                    # Processor variant
+board           "PICO"                      # Board type
+ldscript        "RP2040.ld"                 # Kernel memory linker script
+
+makeoptions     DEBUG="-g"                  # Debug symbols
+
+# Standard system options
+options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
+options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
+options         "HALTREBOOT"                # If halted, press key to reboot
+
+# Root filesystem at /dev/fl0a, swap at /dev/fl0b.
+# The RP2040 has no SD controller and this board has no socket, so root
+# lives on the onboard QSPI flash; see arch/rp2040/dev/flash.c.
+config          unix    root on fl0a
+                        swap on fl0b
+
+options         "NFL=1"                     # One flash disk.
+
+# Serial console on UART0, the pins the Pico exposes as GP0 and GP1.
+device          uart0
+options         "UART_BAUD=115200"          # default speed
+options         "CONS_MAJOR=UART_MAJOR"     # UART device
+options         "CONS_MINOR=0"              # uart0 is /dev/tty0
+
+# The Pico carries a single LED on GP25, so every activity maps onto it.
+signal          "LED1" pin GP25
+options         "BSP_LED_TTY=LED1"          # Terminal i/o
+options         "BSP_LED_SWAP=LED1"         # Auxiliary swap
+options         "BSP_LED_DISK=LED1"         # Disk i/o
+options         "BSP_LED_KERNEL=LED1"       # Kernel activity

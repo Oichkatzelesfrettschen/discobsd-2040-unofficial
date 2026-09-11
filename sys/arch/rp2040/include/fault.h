@@ -40,8 +40,7 @@
  * ICSR VECTACTIVE identifies the running exception, which is the only
  * discrimination left: a fault is always exception number 3, HardFault.
  */
-#define	RP2040_SCB_ICSR		0xe000ed04UL
-#define	SCB_ICSR_VECTACTIVE	0x0000003fUL
+#include <machine/scb.h>		/* SCB_ICSR, SCB_ICSR_VECTACTIVE */
 
 #define	EXC_HARDFAULT		3	/* The only fault ARMv6-M raises. */
 

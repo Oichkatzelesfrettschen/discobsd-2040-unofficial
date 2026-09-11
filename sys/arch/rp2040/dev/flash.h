@@ -65,4 +65,14 @@
  */
 #define	__ramfunc	__attribute__((noinline, section(".ramfunc")))
 
+#ifdef KERNEL
+struct buf;
+
+int	flopen(dev_t dev, int flags, int mode);
+int	flclose(dev_t dev, int mode, int flag);
+daddr_t	flsize(dev_t dev);
+void	flstrategy(struct buf *bp);
+int	flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
+#endif	/* KERNEL */
+
 #endif	/* !_RP2040_DEV_FLASH_H_ */

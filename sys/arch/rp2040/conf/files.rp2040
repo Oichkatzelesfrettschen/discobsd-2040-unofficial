@@ -1,0 +1,104 @@
+#
+# Kernel sources, architecture-agnostic.
+#
+kern/exec_aout.c			standard
+kern/exec_conf.c			standard
+kern/exec_elf.c				standard
+kern/exec_script.c			standard
+kern/exec_subr.c			standard
+kern/init_main.c			standard
+kern/init_sysent.c			standard
+kern/kern_clock.c			standard
+kern/kern_descrip.c			standard
+kern/kern_exec.c			standard
+kern/kern_exit.c			standard
+kern/kern_fork.c			standard
+kern/kern_mman.c			standard
+kern/kern_proc.c			standard
+kern/kern_prot.c			standard
+kern/kern_prot2.c			standard
+kern/kern_resource.c			standard
+kern/kern_sig.c				standard
+kern/kern_sig2.c			standard
+kern/kern_subr.c			standard
+kern/kern_synch.c			standard
+kern/kern_sysctl.c			standard
+kern/kern_time.c			standard
+kern/subr_log.c				optional log
+kern/subr_prf.c				standard
+kern/subr_rmap.c			standard
+kern/sys_generic.c			standard
+kern/sys_inode.c			standard
+kern/sys_pipe.c				standard
+kern/sys_process.c			standard
+kern/syscalls.c				standard
+kern/tty.c				standard
+kern/tty_pty.c				optional pty
+kern/tty_subr.c				standard
+kern/tty_tty.c				standard
+kern/ufs_alloc.c			standard
+kern/ufs_bio.c				standard
+kern/ufs_bmap.c				standard
+kern/ufs_dsort.c			standard
+kern/ufs_fio.c				standard
+kern/ufs_inode.c			standard
+kern/ufs_mount.c			standard
+kern/ufs_namei.c			standard
+kern/ufs_subr.c				standard
+kern/ufs_syscalls.c			standard
+kern/ufs_syscalls2.c			standard
+kern/vfs_vnops.c			standard
+kern/vm_sched.c				standard
+kern/vm_swap.c				standard
+kern/vm_swp.c				standard
+
+#
+# Driver sources, architecture-agnostic.
+#
+dev/cons.c				standard
+dev/mem.c				standard
+dev/swap.c				standard
+
+#
+# STM32 platform.
+#
+arch/rp2040/rp2040/clock.c		standard
+arch/rp2040/rp2040/conf.c			standard
+arch/rp2040/rp2040/fault.c		standard
+arch/rp2040/rp2040/machdep.c		standard
+arch/rp2040/rp2040/sig_machdep.c		standard
+arch/rp2040/rp2040/syscall.c		standard
+arch/rp2040/rp2040/sysctl.c		standard
+arch/rp2040/rp2040/systick.c		standard
+arch/rp2040/rp2040/locore.S		standard
+
+#
+# Root filesystem on the onboard QSPI flash. Dhara is vendored third-party
+# code under an ISC license; see arch/rp2040/dhara/LICENSE.
+#
+arch/rp2040/dev/flash.c			standard
+arch/rp2040/dhara/error.c		standard
+arch/rp2040/dhara/journal.c		standard
+arch/rp2040/dhara/map.c			standard
+
+#
+# STM32 hardware abstraction layer.
+#
+#arch/stm32/hal/stm32f4xx_ll_rcc.c	standard
+#arch/stm32/hal/stm32f4xx_ll_usart.c	optional uart
+
+#
+# STM32 drivers.
+#
+
+#
+# STM32 BSP LED and Button drivers for boards.
+#
+
+#
+# STM32 SDIO SD driver for boards.
+#
+
+#
+# STM32 SPI SD driver for ADAFRUIT_SD_ID254 board.
+#

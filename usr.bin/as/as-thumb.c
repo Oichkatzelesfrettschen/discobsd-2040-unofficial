@@ -428,12 +428,24 @@ int lastthumbfunc = -1;                 /* symbol awaiting a .thumb_func label *
  */
 int expr_thumb;
 
+/*
+ * Set while the first of the two source passes runs. That pass exists only
+ * to learn label addresses, so an expression it cannot evaluate yet -- the
+ * difference of a forward label and a local one in a switch table -- yields
+ * zero instead of an error. Every construct that reaches this produces a
+ * fixed number of bytes whatever its value, so the addresses the pass
+ * computes are the ones the second pass assembles against.
+ */
+int prescan;
+
 struct reloc relabs = { RABS, 0, 0, 0 };
 
 /* Forward declarations. */
 unsigned getexpr (int *s);
 void ltorg (void);
 int getreg (void);
+void align (int);
+void alignfill (int, int);
 
 /*
  * Fatal error message.
@@ -1233,8 +1245,13 @@ getexpr(int *s)
             s2 = getterm ();
             if (s2 == *s && s2 != SEXT)
                 *s = SABS;
-            else if (s2 != SABS)
-                uerror ("too complex expression");
+            else if (s2 != SABS) {
+                if (! prescan)
+                    uerror ("too complex expression");
+                *s = SABS;
+                rez = 0;
+                intval = 0;
+            }
             rez -= intval;
             break;
         case '&':
@@ -1277,8 +1294,11 @@ getexpr(int *s)
             s2 = getterm ();
             if (*s != SABS || s2 != SABS)
                 uerror ("too complex expression");
-            if (intval == 0)
-                uerror ("division by zero");
+            if (intval == 0) {
+                if (! prescan)
+                    uerror ("division by zero");
+                intval = 1;
+            }
             rez /= intval;
             break;
         default:
@@ -1357,8 +1377,14 @@ peekhalf(int s, unsigned int addr)
 /*
  * Align the current segment to a power-of-two boundary.
  */
+/*
+ * Align the current segment. GNU as fills the padding an .align directive
+ * inserts into code with the nop encoding, and fills the padding it adds
+ * on its own before a literal pool with zeroes; the two assemblers agree
+ * only if that distinction is kept, so usenop says which caller this is.
+ */
 void
-align(int align_bits)
+alignfill(int align_bits, int usenop)
 {
     unsigned nbytes, align_mask, c;
 
@@ -1367,13 +1393,23 @@ align(int align_bits)
     if (nbytes == 0)
         return;
     nbytes = align_mask + 1 - nbytes;
-    if (segm < SBSS) {
+    if (usenop && segm == STEXT &&
+        ! (count[segm] & 1) && ! (nbytes & 1)) {
+        for (c=0; c<nbytes; c+=HALFSZ)
+            emithalf (0x46c0);
+    } else if (segm < SBSS) {
         for (c=0; c<nbytes; c++) {
             count[segm]++;
             putc (0, sfile[segm]);
         }
     } else
         count[segm] += nbytes;
+}
+
+void
+align(int align_bits)
+{
+    alignfill (align_bits, 0);
 }
 
 /*
@@ -1778,11 +1814,16 @@ makecmd(unsigned int opcode, unsigned int type, int cond)
             }
             if (rd > 7 || rn > 7)
                 uerror ("r%d is not encodable here", rd > 7 ? rd : rn);
-            if (imm <= 7)
+            /*
+             * Both encodings fit when the destination repeats the source
+             * and the immediate is small. GNU as takes the two-operand
+             * eight-bit form there, and the assemblers must agree.
+             */
+            if (rd == rn && imm <= 255)
+                emithalf ((type == TADD ? 0x3000 : 0x3800) | (rd << 8) | imm);
+            else if (imm <= 7)
                 emithalf ((type == TADD ? 0x1c00 : 0x1e00) |
                     (imm << 6) | (rn << 3) | rd);
-            else if (rd == rn && imm <= 255)
-                emithalf ((type == TADD ? 0x3000 : 0x3800) | (rd << 8) | imm);
             else
                 uerror ("immediate out of range");
             break;
@@ -1818,7 +1859,8 @@ makecmd(unsigned int opcode, unsigned int type, int cond)
         rm = getreg ();
         if (opcode == 1 && rd <= 7 && rm <= 7) {
             /* movs between low registers is lsls rd, rm, #0. */
-            emithalf (0x0000 | (rm << 3) | rd);
+            /* lsls rd, rm, #0 is the low-register move. */
+            emithalf ((rm << 3) | rd);
             break;
         }
         emithalf (0x4600 | ((rd & 8) << 4) | (rm << 3) | (rd & 7));
@@ -2385,10 +2427,10 @@ done:       segm = STEXT;
             clex = getlex (&cval);
             if (clex != LNUM) {
                 ungetlex (clex, cval);
-                align (2);
+                alignfill (2, 1);
                 break;
             }
-            align (intval);
+            alignfill (intval, 1);
             /* An optional fill value and maximum skip are ignored. */
             clex = getlex (&cval);
             if (clex == ',')
@@ -2588,6 +2630,44 @@ done:       segm = STEXT;
 }
 
 /*
+ * Discard everything pass1 emitted, keeping the symbol table, and rewind
+ * the input so pass1 can run again.
+ *
+ * GCC's -Os switch tables read "(.Lfwd - .Lhere)/2" into a .byte, a
+ * difference of two labels that is constant but unknown while .Lfwd is
+ * still ahead of the cursor; getexpr rejects it as a subtraction of an
+ * undefined symbol. Thumb-1 has no relaxation and this assembler narrows
+ * nothing, so every instruction's size is the same on both runs and the
+ * label values the first run computes are the values the second run
+ * assembles against.
+ */
+void
+rescan(void)
+{
+    int i;
+
+    for (i=STEXT; i<SBSS; i++) {
+        rewind (sfile[i]);
+        if (ftruncate (fileno (sfile[i]), (off_t) 0) != 0)
+            uerror ("cannot rewind a scratch file");
+        rewind (rfile[i]);
+        if (ftruncate (fileno (rfile[i]), (off_t) 0) != 0)
+            uerror ("cannot rewind a scratch file");
+        count[i] = 0;
+        nfixup[i] = 0;
+    }
+    count[SBSS] = 0;
+    nlabels = 0;
+    npool = 0;
+    npoolref = 0;
+    lastthumbfunc = -1;
+    blexflag = 0;
+    segm = STEXT;
+    line = 1;
+    rewind (stdin);
+}
+
+/*
  * Find the relative label address, by the reference address and the
  * label number. Backward references have negative label numbers.
  */
@@ -2643,6 +2723,9 @@ resolvefix(void)
                     value += findlabel (fx.addr, (int) fx.index - RLAB_OFFSET);
                     tsegm = s;
                 } else {
+                    if (fx.index >= (unsigned) stabfree)
+                        uerror ("internal error: symbol index %u out of range",
+                            fx.index);
                     sym = &stab[fx.index];
                     if (sym->n_type == N_EXT+N_UNDF ||
                         sym->n_type == N_EXT+N_COMM ||
@@ -3114,7 +3197,11 @@ main(int argc, char *argv[])
 
     startup ();                         /* Open temporary files */
     hashinit ();                        /* Initialize hash tables */
-    pass1 ();                           /* First pass */
+    prescan = 1;
+    pass1 ();                           /* Learn every label's address */
+    prescan = 0;
+    rescan ();                          /* Discard the output, keep symbols */
+    pass1 ();                           /* Assemble against known labels */
     resolvefix ();                      /* Patch or relocate each reference */
     middle ();                          /* Prepare symbol table */
     pass2 ();                           /* Second pass */

@@ -132,6 +132,7 @@ extern int      arch;
 extern char     *archname;
 #define ARCH_PIC32      1
 #define ARCH_STM32      2
+#define ARCH_RP2040     3
 
 /*
  * For each architecture, a set of CPU's may be specified as supported.
@@ -194,6 +195,7 @@ void    init_dev(struct device *);
 int     yyparse(void);
 void    pic32_ioconf(void);
 void    stm32_ioconf(void);
+void    rp2040_ioconf(void);
 void    makefile(void);
 void    headers(void);
 void    swapconf(void);

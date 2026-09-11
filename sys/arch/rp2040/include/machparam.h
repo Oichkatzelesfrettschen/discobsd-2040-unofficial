@@ -108,11 +108,12 @@
 
 #ifdef KERNEL
 #include <machine/intr.h>
+#include <machine/scb.h>
 
 /*
  * Macros to decode processor status word.
  */
-#define USERMODE(psr)   ((psr & IPSR_ISR_Msk) == 0)     /* No exceptions. */
+#define USERMODE(psr)   ((psr & IPSR_ISR_MASK) == 0)    /* No exceptions. */
 /*
  * ARMv6-M has no BASEPRI register, so "nothing is masked" is PRIMASK zero.
  * The machine-independent kernel calls this macro by its Cortex-M4 name from

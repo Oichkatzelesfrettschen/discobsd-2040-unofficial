@@ -164,6 +164,9 @@ Config_spec:
             } else if (strcmp($2, "stm32") == 0) {
                 arch = ARCH_STM32;
                 archname = "stm32";
+            } else if (strcmp($2, "rp2040") == 0) {
+                arch = ARCH_RP2040;
+                archname = "rp2040";
             } else
                 yyerror("Unknown architecture");
         }

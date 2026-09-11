@@ -90,6 +90,16 @@ inlined inside the RAM functions rather than called into flash.
 `conf/RP2040.ld` splits flash 512K for the kernel and 1536K for the
 filesystem, so the kernel cannot grow into the root.
 
+One detail survives linking and looks alarming until traced. The linker
+inserts long-branch veneers, `__flash_erase_sector_veneer` and
+`__flash_program_page_veneer`, and places them in flash, because a call from
+flash to RAM exceeds a short branch. They are safe: a veneer runs on the way
+in, while XIP is still up, and merely jumps to the RAM function, which takes
+XIP down only after it is already executing from RAM. The return path is a
+plain `bx lr` back into flash after XIP has been restored. What would be
+unsafe is a veneer on a call made from inside the XIP-down window, and there
+is none, because those functions call only the boot ROM and each other.
+
 ## What ARMv6-M changes
 
 ARMv6-M is not a subset of Cortex-M4 that merely runs slower. Six encodings in
@@ -146,12 +156,22 @@ four times, kernel RAM by two, user RAM by a third.
 
 ## State
 
-`rp2040/locore0.S` assembles clean for `cortex-m0plus`, and `include/intr.h`
-compiles clean under `-Wall -Wextra`, generating PRIMASK and NVIC accesses
-with no BASEPRI. That is reset, stack, BSS, data copy, the user-mode switch,
-the vector table, and interrupt masking.
+The kernel links. `tools/config` knows the architecture, `make` in
+`compile/PICO` runs to completion, and the image places as intended:
 
-Not yet written: `SystemInit` and clock bring-up, a boot2 stage, UART, an
-SPI-attached SD card, `fault.c` reduced to the single ARMv6-M fault, the
-kernel configuration files, and the build glue. A kernel that assembles is not
-a kernel that boots.
+| Region | Used | Available |
+|---|---|---|
+| Kernel flash | 84,867 | 524,032 |
+| Kernel RAM | 23,792 | 122,880 |
+
+`.text` lands at 0x10000100, immediately above the 256 bytes the boot ROM
+reserves for the second stage, with the vector table at the image base.
+`.data` loads from flash and lives at 0x20000000, and the three flash-writing
+functions sit inside it in SRAM. The filesystem region and the 128K of user
+RAM are untouched by the kernel.
+
+Still missing before it can boot: a boot2 stage, so the image is loadable at
+all; an SD driver, if anyone wants a second disk; and a filesystem written
+into the flash region for root to be found on. The clock bring-up, the PL011
+console, and the flash block device are written but have never executed. A
+kernel that links is not a kernel that boots.

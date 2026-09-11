@@ -62,6 +62,14 @@
  */
 #define	XPSR_STKALIGN		0x00000200UL
 
+/*
+ * The IPSR field of xPSR holds the active exception number, or zero in thread
+ * mode. ARMv7-M gives it nine bits; ARMv6-M gives it six, which is all the
+ * RP2040's 48-entry vector table needs. The STM32 tree reaches this through
+ * the CMSIS name IPSR_ISR_Msk.
+ */
+#define	IPSR_ISR_MASK		0x0000003fUL
+
 #define	SCB_REG32(a)		(*(volatile u_int *)(a))
 
 /*
@@ -78,6 +86,39 @@ static __inline void
 arm_isb(void)
 {
 	__asm__ volatile ("isb 0xf" ::: "memory");
+}
+
+/*
+ * System exception priorities live in SHPR2 and SHPR3 rather than the NVIC
+ * priority array, so they are set here rather than through
+ * arm_intr_set_priority, which addresses external interrupts only. ARMv6-M
+ * allows only word access to these registers, and only SVCall, PendSV, and
+ * SysTick are configurable; the rest are fixed negative priorities.
+ */
+#define	EXC_SVCALL	11
+#define	EXC_PENDSV	14
+#define	EXC_SYSTICK	15
+
+static __inline void
+arm_set_exception_priority(int exc, u_int prio_byte)
+{
+	volatile u_int *shpr;
+	u_int shift;
+
+	if (exc == EXC_SVCALL) {
+		shpr = &SCB_REG32(SCB_SHPR2);
+		shift = 24;			/* SHPR2 byte 3. */
+	} else if (exc == EXC_PENDSV) {
+		shpr = &SCB_REG32(SCB_SHPR3);
+		shift = 16;			/* SHPR3 byte 2. */
+	} else if (exc == EXC_SYSTICK) {
+		shpr = &SCB_REG32(SCB_SHPR3);
+		shift = 24;			/* SHPR3 byte 3. */
+	} else {
+		return;
+	}
+	*shpr = (*shpr & ~((u_int)0xff << shift)) |
+	    ((prio_byte & 0xff) << shift);
 }
 
 #endif	/* !_MACHINE_SCB_H_ */

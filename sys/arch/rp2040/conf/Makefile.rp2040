@@ -40,7 +40,12 @@ CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
-LDADD=
+# Cortex-M0+ has no divide instruction, so the compiler emits calls to the
+# libgcc helpers __aeabi_idiv and friends. The Cortex-M4 targets divide in
+# hardware and never link against libgcc, which is why the STM32 Makefile
+# leaves LDADD empty.
+LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
+LDADD=		${LIBGCC}
 
 # compile rules: rules are named COMPILE_${SUFFIX}
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).

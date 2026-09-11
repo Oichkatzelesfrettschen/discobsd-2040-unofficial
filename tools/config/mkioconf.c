@@ -165,6 +165,67 @@ pic32_ioconf(void)
     fclose(fp);
 }
 
+/*
+ * RP2040 devices.
+ *
+ * Identical to stm32_ioconf apart from pin naming. The STM32 family names a
+ * pin by a port letter and a bit, so that writer packs them as port<<8|bit
+ * and rejects a bit above fifteen. The RP2040 numbers its pins GP0 through
+ * GP29 with no ports, so a pin is emitted as the plain number it is.
+ */
+void
+rp2040_ioconf(void)
+{
+    register struct device *dp, *mp;
+    FILE *fp;
+    int i;
+
+    fp = fopen("ioconf.c", "w");
+    if (fp == 0) {
+        perror("ioconf.c");
+        exit(1);
+    }
+    fprintf(fp, "#include <sys/types.h>\n");
+    fprintf(fp, "#include <sys/config.h>\n\n");
+    fprintf(fp, "#define C (char *)\n\n");
+
+    ctlr_ioconf(fp);
+
+    fprintf(fp, "\nstruct conf_device conf_device_init[] = {\n");
+    fprintf(fp,
+        "\t/* driver,\tctlr driver,\tunit,\tctlr,\tdrive,\tflags,\tpins,\talive */\n");
+    for (dp = dtab; dp != 0; dp = dp->d_next) {
+        if (dp->d_type == CONTROLLER || dp->d_type == SERVICE)
+            continue;
+
+        mp = dp->d_conn;
+        fprintf(fp, "\t{ &%sdriver,\t", dp->d_name);
+        if (mp) {
+            fprintf(fp, "&%sdriver,\t%d,\t%d,\t",
+                mp->d_name, dp->d_unit, mp->d_unit);
+        } else {
+            fprintf(fp, "0,\t\t%d,\t0,\t", dp->d_unit);
+        }
+        fprintf(fp, "%d,\t0x%x,\t", dp->d_drive, dp->d_flags);
+        if (dp->d_npins > 0) {
+            fprintf(fp, "{");
+            for (i = dp->d_npins - 1; i >= 0; i--) {
+                fprintf(fp, "%d", dp->d_pins[i]);
+                if (i > 0)
+                    fprintf(fp, ",");
+            }
+            fprintf(fp, "},\t");
+        } else
+            fprintf(fp, "{0},\t");
+        fprintf(fp, "0 },\n");
+    }
+    fprintf(fp, "\t{ 0 }\n};\n");
+
+    service_ioconf(fp);
+
+    fclose(fp);
+}
+
 void
 stm32_ioconf(void)
 {

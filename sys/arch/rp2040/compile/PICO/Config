@@ -34,9 +34,6 @@ options         "UART_BAUD=115200"          # default speed
 options         "CONS_MAJOR=UART_MAJOR"     # UART device
 options         "CONS_MINOR=0"              # uart0 is /dev/tty0
 
-# The Pico carries a single LED on GP25, so every activity maps onto it.
-signal          "LED1" pin GP25
-options         "BSP_LED_TTY=LED1"          # Terminal i/o
-options         "BSP_LED_SWAP=LED1"         # Auxiliary swap
-options         "BSP_LED_DISK=LED1"         # Disk i/o
-options         "BSP_LED_KERNEL=LED1"       # Kernel activity
+# The Pico carries a single LED, wired to GP25. There is no choice of pin to
+# record here, so machdep.c names it directly and led_control lights the same
+# one for every activity class.

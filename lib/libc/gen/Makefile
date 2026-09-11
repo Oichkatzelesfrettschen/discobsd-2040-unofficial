@@ -21,7 +21,7 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  getlogin.c getmntinfo.c getpagesize.c getpass.c \
 		  getpwent.c getttyent.c getttynam.c getusershell.c \
 		  getwd.c index.c initgroups.c isatty.c isinff.c isnanf.c \
-		  knlist.c ldexp.c malloc.c mktemp.c modff.c ndbm.c \
+		  knlist.c ldexp.c malloc.c mktemp.c modf.c modff.c ndbm.c \
 		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c \
 		  random.c readdir.c regex.c rindex.c scandir.c seekdir.c \
 		  setenv.c sethostname.c setmode.c siginterrupt.c \
@@ -41,7 +41,7 @@ STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  getlogin.o getmntinfo.o getpagesize.o getpass.o \
 		  getpwent.o getttyent.o getttynam.o getusershell.o \
 		  getwd.o index.o initgroups.o isatty.o isinff.o isnanf.o \
-		  knlist.o ldexp.o malloc.o mktemp.o modff.o ndbm.o \
+		  knlist.o ldexp.o malloc.o mktemp.o modf.o modff.o ndbm.o \
 		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o \
 		  random.o readdir.o regex.o rindex.o scandir.o seekdir.o \
 		  setenv.o sethostname.o setmode.o siginterrupt.o \

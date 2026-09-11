@@ -41,6 +41,7 @@
 #include <machine/scb.h>
 
 void usbdrain(void);
+void usbpoll(void);
 
 /*
  * HardFault_Handler()
@@ -111,7 +112,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	if (infault++) {
 		printf("fault: nested, pc 0x%08x\n", frame->ff_pc);
 		for (;;)
-			usbdrain();
+			usbpoll();
 	}
 	syst = u.u_ru.ru_stime;
 #ifdef UCB_METER
@@ -137,7 +138,8 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	if ((u_int)u.u_frame > (u_int)&u &&
 	    (u_int)u.u_frame < (u_int)&u + USIZE) {
 		printf("syscall %d, user frame r4-r7 %08x %08x %08x %08x\n",
-		    u.u_frame->tf_pc > 2 ?
+		    (u.u_frame->tf_pc > (u_int)__user_data_start + 2 &&
+		    u.u_frame->tf_pc < (u_int)__user_data_end) ?
 		    (*(u_short *)(u.u_frame->tf_pc - 2) & 0xff) : -1,
 		    u.u_frame->tf_r4, u.u_frame->tf_r5, u.u_frame->tf_r6,
 		    u.u_frame->tf_r7);

@@ -50,4 +50,8 @@ float modff (float fx, float *iptr)
 /*
  * For PIC32, double is the same as float.
  */
-double modf (double x, double *iptr) __attribute__((alias ("modff")));
+/*
+ * modf was an alias of this function while double was float. On this
+ * tree double is 64 bits and modf.c carries the real one; the alias made
+ * printf's %g take its result pointer out of the middle of the value.
+ */

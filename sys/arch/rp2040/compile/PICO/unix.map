@@ -128,7 +128,7 @@ Linker script and memory map
  *(.boot2)
  .boot2         0x10000000      0x100 boot2.o
 
-.text           0x10000100    0x15f8c
+.text           0x10000100    0x15fbc
  *(.isr_vector)
  .isr_vector    0x10000100       0xc0 locore0.o
                 0x10000100                g_pfnVectors
@@ -575,315 +575,318 @@ Linker script and memory map
                 0x1000f974                iskmemdev
                 0x1000f988                isdisk
                 0x1000f9a0                chrtoblk
- .text          0x1000f9a8      0x1f0 fault.o
+ .text          0x1000f9a8      0x200 fault.o
                 0x1000f9a8                HardFault_Handler
                 0x1000f9d2                arm_fault
- .text          0x1000fb98      0x754 machdep.o
-                0x1000fbd0                SystemInit
-                0x1000fbe8                startup
-                0x1000fd94                config
-                0x1000fe44                idle
-                0x1000fe78                mdelay
-                0x1000fe98                boot
-                0x1000ffcc                led_control
-                0x1000fff0                addupc
-                0x10010012                ffs
-                0x10010030                copystr
-                0x10010068                strlen
-                0x1001007a                baduaddr
-                0x10010098                badkaddr
-                0x100100cc                insque
-                0x100100d8                remque
-                0x100100e4                strncmp
-                0x1001010c                bcopy
-                0x100101ba                memcpy
-                0x100101ca                bzero
-                0x10010246                bcmp
-                0x10010288                copyout
-                0x100102ba                copyin
- .text          0x100102ec      0x1cc sig_machdep.o
-                0x100102ec                sendsig
-                0x10010404                sigreturn
- .text          0x100104b8      0x220 syscall.o
-                0x100104b8                SVC_Handler
-                0x100104dc                PendSV_Handler
-                0x10010524                syscall
- .text          0x100106d8      0x18c sysctl.o
-                0x100106d8                ucall
-                0x10010728                ufetch
-                0x10010740                ustore
-                0x10010758                sc_msec
-                0x10010768                cpu_sysctl
- .text          0x10010864       0x2c systick.o
-                0x10010864                SysTick_Handler
-                0x1001087e                systick
- .text          0x10010890      0x4f0 uart.o
-                0x100108b8                uartstart
-                0x10010932                uartinit
-                0x10010a58                uartopen
-                0x10010b14                uartclose
-                0x10010b48                uartread
-                0x10010b74                uartwrite
-                0x10010ba0                uartselect
-                0x10010bc8                uartioctl
-                0x10010c00                uartintr
-                0x10010c94                UART0_IRQ_Handler
-                0x10010ca0                UART1_IRQ_Handler
-                0x10010cb0                uartputc
-                0x10010d48                uartgetc
- .text          0x10010d80      0xabc usb.o
-                0x10010f20                usbstart
-                0x10011514                usbintr
-                0x1001152e                USBCTRL_IRQ_Handler
-                0x10011536                usbinit
-                0x10011624                usbopen
-                0x100116c8                usbclose
-                0x100116e0                usbread
-                0x100116f0                usbwrite
-                0x10011700                usbioctl
-                0x10011718                usbselect
-                0x10011728                usbputc
-                0x1001179c                usbdrain
-                0x100117e0                usbgetc
- .text          0x1001183c      0x784 flash.o
-                0x1001183c                rom_func_lookup
-                0x10011a08                dhara_nand_is_bad
-                0x10011a0c                dhara_nand_mark_bad
-                0x10011a0e                dhara_nand_erase
-                0x10011a30                dhara_nand_prog
-                0x10011a64                dhara_nand_is_free
-                0x10011a8c                dhara_nand_read
-                0x10011ad4                dhara_nand_copy
-                0x10011b0c                flopen
-                0x10011b60                flclose
-                0x10011bc0                flsize
-                0x10011c14                flstrategy
-                0x10011f40                flioctl
- .text          0x10011fc0       0x18 error.o
-                0x10011fc0                dhara_strerror
- .text          0x10011fd8      0xa30 journal.o
-                0x1001244a                dhara_journal_init
-                0x10012480                dhara_journal_resume
-                0x1001275e                dhara_journal_capacity
-                0x10012786                dhara_journal_size
-                0x100127b4                dhara_journal_read_meta
-                0x1001281e                dhara_journal_peek
-                0x10012890                dhara_journal_dequeue
-                0x100128d4                dhara_journal_clear
-                0x10012902                dhara_journal_enqueue
-                0x10012970                dhara_journal_copy
-                0x100129d8                dhara_journal_next_recoverable
- .text          0x10012a08      0x780 map.o
-                0x10012dd4                dhara_map_init
-                0x10012dec                dhara_map_resume
-                0x10012e1c                dhara_map_clear
-                0x10012e30                dhara_map_capacity
-                0x10012e5c                dhara_map_find
-                0x10012e6c                dhara_map_read
-                0x10012ecc                dhara_map_sync
-                0x10012f3c                dhara_map_gc
-                0x10013042                dhara_map_write
-                0x100130a2                dhara_map_copy_page
-                0x10013102                dhara_map_trim
-                0x10013140                dhara_map_copy_sector
- .text          0x10013188        0x0 ioconf.o
- .text          0x10013188        0x0 vers.o
- .text          0x10013188       0x8c /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
-                0x10013188                __udivsi3
-                0x10013188                __aeabi_uidiv
-                0x10013200                __aeabi_uidivmod
- .text          0x10013214       0xa8 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
-                0x10013214                __aeabi_idiv
-                0x10013214                __divsi3
-                0x100132a8                __aeabi_idivmod
- .text          0x100132bc        0x4 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
-                0x100132bc                __aeabi_ldiv0
-                0x100132bc                __aeabi_idiv0
- .text          0x100132c0        0x0 swapunix.o
- .text.__stub   0x100132c0       0x30 linker stubs
-                0x100132f0                        . = ALIGN (0x8)
+ .text          0x1000fba8      0x754 machdep.o
+                0x1000fbe0                SystemInit
+                0x1000fbf8                startup
+                0x1000fda4                config
+                0x1000fe54                idle
+                0x1000fe88                mdelay
+                0x1000fea8                boot
+                0x1000ffdc                led_control
+                0x10010000                addupc
+                0x10010022                ffs
+                0x10010040                copystr
+                0x10010078                strlen
+                0x1001008a                baduaddr
+                0x100100a8                badkaddr
+                0x100100dc                insque
+                0x100100e8                remque
+                0x100100f4                strncmp
+                0x1001011c                bcopy
+                0x100101ca                memcpy
+                0x100101da                bzero
+                0x10010256                bcmp
+                0x10010298                copyout
+                0x100102ca                copyin
+ .text          0x100102fc      0x1cc sig_machdep.o
+                0x100102fc                sendsig
+                0x10010414                sigreturn
+ .text          0x100104c8      0x220 syscall.o
+                0x100104c8                SVC_Handler
+                0x100104ec                PendSV_Handler
+                0x10010534                syscall
+ .text          0x100106e8      0x18c sysctl.o
+                0x100106e8                ucall
+                0x10010738                ufetch
+                0x10010750                ustore
+                0x10010768                sc_msec
+                0x10010778                cpu_sysctl
+ .text          0x10010874       0x2c systick.o
+                0x10010874                SysTick_Handler
+                0x1001088e                systick
+ .text          0x100108a0      0x4f0 uart.o
+                0x100108c8                uartstart
+                0x10010942                uartinit
+                0x10010a68                uartopen
+                0x10010b24                uartclose
+                0x10010b58                uartread
+                0x10010b84                uartwrite
+                0x10010bb0                uartselect
+                0x10010bd8                uartioctl
+                0x10010c10                uartintr
+                0x10010ca4                UART0_IRQ_Handler
+                0x10010cb0                UART1_IRQ_Handler
+                0x10010cc0                uartputc
+                0x10010d58                uartgetc
+ .text          0x10010d90      0xad8 usb.o
+                0x10010f30                usbstart
+                0x10011524                usbintr
+                0x1001153e                USBCTRL_IRQ_Handler
+                0x10011546                usbinit
+                0x10011634                usbopen
+                0x100116d8                usbclose
+                0x100116f0                usbread
+                0x10011700                usbwrite
+                0x10011710                usbioctl
+                0x10011728                usbselect
+                0x10011738                usbputc
+                0x100117ac                usbdrain
+                0x100117f0                usbpoll
+                0x1001180a                usbgetc
+ .text          0x10011868      0x784 flash.o
+                0x10011868                rom_func_lookup
+                0x10011a34                dhara_nand_is_bad
+                0x10011a38                dhara_nand_mark_bad
+                0x10011a3a                dhara_nand_erase
+                0x10011a5c                dhara_nand_prog
+                0x10011a90                dhara_nand_is_free
+                0x10011ab8                dhara_nand_read
+                0x10011b00                dhara_nand_copy
+                0x10011b38                flopen
+                0x10011b8c                flclose
+                0x10011bec                flsize
+                0x10011c40                flstrategy
+                0x10011f6c                flioctl
+ .text          0x10011fec       0x18 error.o
+                0x10011fec                dhara_strerror
+ .text          0x10012004      0xa30 journal.o
+                0x10012476                dhara_journal_init
+                0x100124ac                dhara_journal_resume
+                0x1001278a                dhara_journal_capacity
+                0x100127b2                dhara_journal_size
+                0x100127e0                dhara_journal_read_meta
+                0x1001284a                dhara_journal_peek
+                0x100128bc                dhara_journal_dequeue
+                0x10012900                dhara_journal_clear
+                0x1001292e                dhara_journal_enqueue
+                0x1001299c                dhara_journal_copy
+                0x10012a04                dhara_journal_next_recoverable
+ .text          0x10012a34      0x780 map.o
+                0x10012e00                dhara_map_init
+                0x10012e18                dhara_map_resume
+                0x10012e48                dhara_map_clear
+                0x10012e5c                dhara_map_capacity
+                0x10012e88                dhara_map_find
+                0x10012e98                dhara_map_read
+                0x10012ef8                dhara_map_sync
+                0x10012f68                dhara_map_gc
+                0x1001306e                dhara_map_write
+                0x100130ce                dhara_map_copy_page
+                0x1001312e                dhara_map_trim
+                0x1001316c                dhara_map_copy_sector
+ .text          0x100131b4        0x0 ioconf.o
+ .text          0x100131b4        0x0 vers.o
+ .text          0x100131b4       0x8c /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+                0x100131b4                __udivsi3
+                0x100131b4                __aeabi_uidiv
+                0x1001322c                __aeabi_uidivmod
+ .text          0x10013240       0xa8 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+                0x10013240                __aeabi_idiv
+                0x10013240                __divsi3
+                0x100132d4                __aeabi_idivmod
+ .text          0x100132e8        0x4 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+                0x100132e8                __aeabi_ldiv0
+                0x100132e8                __aeabi_idiv0
+ .text          0x100132ec        0x0 swapunix.o
+ *fill*         0x100132ec        0x4 
+ .text.__stub   0x100132f0       0x30 linker stubs
+                0x10013320                        . = ALIGN (0x8)
+ *fill*         0x10013320        0x0 
  *(.rodata*)
  .rodata.str1.4
-                0x100132f0     0x192c exec_aout.o
+                0x10013320     0x192c exec_aout.o
                                  0x17 (size before relaxing)
  .rodata.str1.4
-                0x10014c1c        0x0 exec_conf.o
+                0x10014c4c        0x0 exec_conf.o
                                  0x13 (size before relaxing)
- .rodata        0x10014c1c       0x18 exec_conf.o
-                0x10014c1c                execsw
+ .rodata        0x10014c4c       0x18 exec_conf.o
+                0x10014c4c                execsw
  .rodata.str1.4
-                0x10014c34        0x0 exec_elf.o
+                0x10014c64        0x0 exec_elf.o
                                  0x18 (size before relaxing)
- .rodata        0x10014c34        0x9 exec_elf.o
+ .rodata        0x10014c64        0x9 exec_elf.o
  .rodata.str1.4
-                0x10014c3d        0x0 exec_subr.o
+                0x10014c6d        0x0 exec_subr.o
                                   0xb (size before relaxing)
  .rodata.str1.4
-                0x10014c3d        0x0 init_main.o
+                0x10014c6d        0x0 init_main.o
                                  0xc7 (size before relaxing)
- *fill*         0x10014c3d        0x3 
- .rodata        0x10014c40      0x4e4 init_sysent.o
-                0x10014c40                nsysent
-                0x10014c44                sysent
+ *fill*         0x10014c6d        0x3 
+ .rodata        0x10014c70      0x4e4 init_sysent.o
+                0x10014c70                nsysent
+                0x10014c74                sysent
  .rodata.str1.4
-                0x10015124        0x0 kern_clock.o
+                0x10015154        0x0 kern_clock.o
                                  0x17 (size before relaxing)
  .rodata.str1.4
-                0x10015124        0x0 kern_descrip.o
+                0x10015154        0x0 kern_descrip.o
                                  0x12 (size before relaxing)
- .rodata        0x10015124       0x1c kern_descrip.o
+ .rodata        0x10015154       0x1c kern_descrip.o
  .rodata.str1.4
-                0x10015140        0x0 kern_exit.o
+                0x10015170        0x0 kern_exit.o
                                  0x11 (size before relaxing)
  .rodata.str1.4
-                0x10015140        0x0 kern_fork.o
+                0x10015170        0x0 kern_fork.o
                                  0x2e (size before relaxing)
  .rodata.str1.4
-                0x10015140        0x0 kern_sig.o
+                0x10015170        0x0 kern_sig.o
                                   0xe (size before relaxing)
- .rodata        0x10015140       0x21 kern_sig2.o
-                0x10015140                sigprop
+ .rodata        0x10015170       0x21 kern_sig2.o
+                0x10015170                sigprop
  .rodata.str1.4
-                0x10015161        0x0 kern_subr.o
+                0x10015191        0x0 kern_subr.o
                                  0x10 (size before relaxing)
  .rodata.str1.4
-                0x10015161        0x0 kern_synch.o
+                0x10015191        0x0 kern_synch.o
                                  0x16 (size before relaxing)
- *fill*         0x10015161        0x3 
- .rodata        0x10015164       0xb0 kern_sysctl.o
+ *fill*         0x10015191        0x3 
+ .rodata        0x10015194       0xb0 kern_sysctl.o
  .rodata.str1.4
-                0x10015214        0x0 subr_prf.o
+                0x10015244        0x0 subr_prf.o
                                  0x27 (size before relaxing)
- .rodata        0x10015214      0x160 subr_prf.o
+ .rodata        0x10015244      0x160 subr_prf.o
  .rodata.str1.4
-                0x10015374        0x0 subr_rmap.o
+                0x100153a4        0x0 subr_rmap.o
                                  0x49 (size before relaxing)
- .rodata        0x10015374       0x20 sys_generic.o
-                0x10015374                Fops
-                0x10015384                socketops
- .rodata        0x10015394       0x10 sys_inode.o
-                0x10015394                inodeops
- .rodata        0x100153a4       0x10 sys_pipe.o
-                0x100153a4                pipeops
- .rodata        0x100153b4       0x28 sys_process.o
+ .rodata        0x100153a4       0x20 sys_generic.o
+                0x100153a4                Fops
+                0x100153b4                socketops
+ .rodata        0x100153c4       0x10 sys_inode.o
+                0x100153c4                inodeops
+ .rodata        0x100153d4       0x10 sys_pipe.o
+                0x100153d4                pipeops
+ .rodata        0x100153e4       0x28 sys_process.o
  .rodata.str1.4
-                0x100153dc        0x0 syscalls.o
+                0x1001540c        0x0 syscalls.o
                                 0x535 (size before relaxing)
- .rodata        0x100153dc      0x270 syscalls.o
-                0x100153dc                syscallnames
+ .rodata        0x1001540c      0x270 syscalls.o
+                0x1001540c                syscallnames
  .rodata.str1.4
-                0x1001564c        0x0 tty.o
+                0x1001567c        0x0 tty.o
                                  0x1f (size before relaxing)
- .rodata        0x1001564c      0x214 tty.o
-                0x10015678                ttlowat
-                0x100156ec                tthiwat
-                0x10015760                partab
+ .rodata        0x1001567c      0x214 tty.o
+                0x100156a8                ttlowat
+                0x1001571c                tthiwat
+                0x10015790                partab
  .rodata.str1.4
-                0x10015860        0x0 ufs_alloc.o
+                0x10015890        0x0 ufs_alloc.o
                                  0x85 (size before relaxing)
  .rodata.str1.4
-                0x10015860        0x0 ufs_bio.o
+                0x10015890        0x0 ufs_bio.o
                                   0xc (size before relaxing)
  .rodata.str1.4
-                0x10015860        0x0 ufs_inode.o
+                0x10015890        0x0 ufs_inode.o
                                  0x2d (size before relaxing)
  .rodata.str1.4
-                0x10015860        0x0 ufs_namei.o
+                0x10015890        0x0 ufs_namei.o
                                  0xc8 (size before relaxing)
  .rodata.str1.4
-                0x10015860        0x0 ufs_subr.o
+                0x10015890        0x0 ufs_subr.o
                                  0x3e (size before relaxing)
  .rodata.str1.4
-                0x10015860        0x0 ufs_syscalls.o
+                0x10015890        0x0 ufs_syscalls.o
                                  0x45 (size before relaxing)
- .rodata        0x10015860       0x18 ufs_syscalls.o
-                0x10015860                mastertemplate
+ .rodata        0x10015890       0x18 ufs_syscalls.o
+                0x10015890                mastertemplate
  .rodata.str1.4
-                0x10015878        0x0 ufs_syscalls2.o
+                0x100158a8        0x0 ufs_syscalls2.o
                                  0x17 (size before relaxing)
  .rodata.str1.4
-                0x10015878        0x0 vm_swap.o
+                0x100158a8        0x0 vm_swap.o
                                  0x4a (size before relaxing)
  .rodata.str1.4
-                0x10015878        0x0 vm_swp.o
+                0x100158a8        0x0 vm_swp.o
                                   0xf (size before relaxing)
  .rodata.str1.4
-                0x10015878        0x0 mem.o
+                0x100158a8        0x0 mem.o
                                   0x5 (size before relaxing)
  .rodata.str1.4
-                0x10015878        0x0 swap.o
+                0x100158a8        0x0 swap.o
                                 0x112 (size before relaxing)
- .rodata        0x10015878      0x420 conf.o
-                0x10015878                nchrdev
-                0x1001587c                cdevsw
-                0x10015bec                nblkdev
-                0x10015bf0                bdevsw
+ .rodata        0x100158a8      0x420 conf.o
+                0x100158a8                nchrdev
+                0x100158ac                cdevsw
+                0x10015c1c                nblkdev
+                0x10015c20                bdevsw
  .rodata.str1.4
-                0x10015c98        0x0 fault.o
+                0x10015cc8        0x0 fault.o
                                 0x1d5 (size before relaxing)
  .rodata.str1.4
-                0x10015c98        0x0 machdep.o
+                0x10015cc8        0x0 machdep.o
                                 0x118 (size before relaxing)
  .rodata.str1.4
-                0x10015c98        0x0 syscall.o
+                0x10015cc8        0x0 syscall.o
                                   0xf (size before relaxing)
  .rodata.str1.4
-                0x10015c98        0x0 sysctl.o
+                0x10015cc8        0x0 sysctl.o
                                 0x913 (size before relaxing)
- .rodata        0x10015c98      0x280 sysctl.o
+ .rodata        0x10015cc8      0x280 sysctl.o
  .rodata.str1.4
-                0x10015f18        0x0 uart.o
+                0x10015f48        0x0 uart.o
                                  0x29 (size before relaxing)
- .rodata        0x10015f18       0x10 uart.o
+ .rodata        0x10015f48       0x10 uart.o
  .rodata.str1.4
-                0x10015f28        0x0 usb.o
+                0x10015f58        0x0 usb.o
                                  0x8e (size before relaxing)
- .rodata        0x10015f28       0xb0 usb.o
+ .rodata        0x10015f58       0xb0 usb.o
  .rodata.str1.4
-                0x10015fd8        0x0 flash.o
+                0x10016008        0x0 flash.o
                                  0xb8 (size before relaxing)
- .rodata        0x10015fd8        0x8 flash.o
-                0x10015fd8                flnand
+ .rodata        0x10016008        0x8 flash.o
+                0x10016008                flnand
  .rodata.str1.4
-                0x10015fe0        0x0 error.o
+                0x10016010        0x0 error.o
                                  0xbc (size before relaxing)
- .rodata        0x10015fe0       0x24 error.o
- .rodata        0x10016004       0x88 vers.o
-                0x10016004                osrelease
-                0x10016008                osversion
-                0x10016010                ostype
-                0x1001601c                version
+ .rodata        0x10016010       0x24 error.o
+ .rodata        0x10016034       0x88 vers.o
+                0x10016034                osrelease
+                0x10016038                osversion
+                0x10016040                ostype
+                0x1001604c                version
 
-.glue_7         0x1001608c        0x0
- .glue_7        0x1001608c        0x0 linker stubs
+.glue_7         0x100160bc        0x0
+ .glue_7        0x100160bc        0x0 linker stubs
 
-.glue_7t        0x1001608c        0x0
- .glue_7t       0x1001608c        0x0 linker stubs
+.glue_7t        0x100160bc        0x0
+ .glue_7t       0x100160bc        0x0 linker stubs
 
-.vfp11_veneer   0x1001608c        0x0
- .vfp11_veneer  0x1001608c        0x0 linker stubs
+.vfp11_veneer   0x100160bc        0x0
+ .vfp11_veneer  0x100160bc        0x0 linker stubs
 
-.v4_bx          0x1001608c        0x0
- .v4_bx         0x1001608c        0x0 linker stubs
+.v4_bx          0x100160bc        0x0
+ .v4_bx         0x100160bc        0x0 linker stubs
 
-.iplt           0x1001608c        0x0
- .iplt          0x1001608c        0x0 locore0.o
+.iplt           0x100160bc        0x0
+ .iplt          0x100160bc        0x0 locore0.o
 
-.rel.dyn        0x1001608c        0x0
- .rel.iplt      0x1001608c        0x0 locore0.o
+.rel.dyn        0x100160bc        0x0
+ .rel.iplt      0x100160bc        0x0 locore0.o
 
 .ARM.extab
  *(.ARM.extab* .gnu.linkonce.armextab.*)
 
-.ARM.exidx      0x1001608c        0x0
-                0x1001608c                        __exidx_start = .
+.ARM.exidx      0x100160bc        0x0
+                0x100160bc                        __exidx_start = .
  *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-                0x1001608c                        __exidx_end = .
-                0x1001608c                        . = ALIGN (0x4)
-                0x1001608c                        __etext = .
-                0x1001608c                        _sidata = LOADADDR (.data)
+                0x100160bc                        __exidx_end = .
+                0x100160bc                        . = ALIGN (0x4)
+                0x100160bc                        __etext = .
+                0x100160bc                        _sidata = LOADADDR (.data)
 
-.data           0x20018000      0x200 load address 0x1001608c
+.data           0x20018000      0x200 load address 0x100160bc
                 0x20018000                        __data_start__ = .
                 0x20018000                        _sdata = .
  *(.data*)
@@ -996,10 +999,10 @@ Linker script and memory map
                 0x20018200                        __data_end__ = .
                 0x20018200                        _edata = .
 
-.igot.plt       0x20018200        0x0 load address 0x1001628c
+.igot.plt       0x20018200        0x0 load address 0x100162bc
  .igot.plt      0x20018200        0x0 locore0.o
 
-.bss            0x20018200     0x9ab8 load address 0x1001628c
+.bss            0x20018200     0x9ab8 load address 0x100162bc
                 0x20018200                        . = ALIGN (0x8)
                 0x20018200                        __bss_start__ = .
                 0x20018200                        _sbss = .
@@ -1559,7 +1562,7 @@ LOAD linker stubs
  .comment       0x0000001e        0x0 swapunix.o
                                  0x1f (size before relaxing)
 
-.debug_info     0x00000000    0x501bd
+.debug_info     0x00000000    0x5029b
  .debug_info    0x00000000     0x14c0 exec_aout.o
  .debug_info    0x000014c0      0x8a8 exec_conf.o
  .debug_info    0x00001d68     0x1144 exec_elf.o
@@ -1613,26 +1616,26 @@ LOAD linker stubs
  .debug_info    0x0003cf4b      0xb6c swap.o
  .debug_info    0x0003dab7       0x7b clock.o
  .debug_info    0x0003db32     0x156a conf.o
- .debug_info    0x0003f09c      0xfee fault.o
- .debug_info    0x0004008a     0x2388 machdep.o
- .debug_info    0x00042412      0xb6f sig_machdep.o
- .debug_info    0x00042f81      0xf4a syscall.o
- .debug_info    0x00043ecb     0x1d60 sysctl.o
- .debug_info    0x00045c2b      0x483 systick.o
- .debug_info    0x000460ae     0x1c6c uart.o
- .debug_info    0x00047d1a     0x1f72 usb.o
- .debug_info    0x00049c8c     0x1a3e flash.o
- .debug_info    0x0004b6ca      0x135 error.o
- .debug_info    0x0004b7ff     0x2585 journal.o
- .debug_info    0x0004dd84     0x1fd5 map.o
- .debug_info    0x0004fd59      0x251 ioconf.o
- .debug_info    0x0004ffaa       0xcb vers.o
- .debug_info    0x00050075       0x3d /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
- .debug_info    0x000500b2       0x3e /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
- .debug_info    0x000500f0       0x3c /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
- .debug_info    0x0005012c       0x91 swapunix.o
+ .debug_info    0x0003f09c     0x100d fault.o
+ .debug_info    0x000400a9     0x2388 machdep.o
+ .debug_info    0x00042431      0xb6f sig_machdep.o
+ .debug_info    0x00042fa0      0xf4a syscall.o
+ .debug_info    0x00043eea     0x1d60 sysctl.o
+ .debug_info    0x00045c4a      0x483 systick.o
+ .debug_info    0x000460cd     0x1c6c uart.o
+ .debug_info    0x00047d39     0x2031 usb.o
+ .debug_info    0x00049d6a     0x1a3e flash.o
+ .debug_info    0x0004b7a8      0x135 error.o
+ .debug_info    0x0004b8dd     0x2585 journal.o
+ .debug_info    0x0004de62     0x1fd5 map.o
+ .debug_info    0x0004fe37      0x251 ioconf.o
+ .debug_info    0x00050088       0xcb vers.o
+ .debug_info    0x00050153       0x3d /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_info    0x00050190       0x3e /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_info    0x000501ce       0x3c /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+ .debug_info    0x0005020a       0x91 swapunix.o
 
-.debug_abbrev   0x00000000     0xcb16
+.debug_abbrev   0x00000000     0xcb30
  .debug_abbrev  0x00000000      0x28d exec_aout.o
  .debug_abbrev  0x0000028d      0x1cf exec_conf.o
  .debug_abbrev  0x0000045c      0x276 exec_elf.o
@@ -1686,27 +1689,27 @@ LOAD linker stubs
  .debug_abbrev  0x000098a5      0x249 swap.o
  .debug_abbrev  0x00009aee       0x58 clock.o
  .debug_abbrev  0x00009b46      0x28e conf.o
- .debug_abbrev  0x00009dd4      0x294 fault.o
- .debug_abbrev  0x0000a068      0x5e2 machdep.o
- .debug_abbrev  0x0000a64a      0x210 sig_machdep.o
- .debug_abbrev  0x0000a85a      0x326 syscall.o
- .debug_abbrev  0x0000ab80      0x41e sysctl.o
- .debug_abbrev  0x0000af9e      0x14c systick.o
- .debug_abbrev  0x0000b0ea      0x4c0 uart.o
- .debug_abbrev  0x0000b5aa      0x503 usb.o
- .debug_abbrev  0x0000baad      0x519 flash.o
- .debug_abbrev  0x0000bfc6       0xd3 error.o
- .debug_abbrev  0x0000c099      0x46f journal.o
- .debug_abbrev  0x0000c508      0x446 map.o
- .debug_abbrev  0x0000c94e       0xb3 ioconf.o
- .debug_abbrev  0x0000ca01       0x4f vers.o
- .debug_abbrev  0x0000ca50       0x28 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
- .debug_abbrev  0x0000ca78       0x28 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
- .debug_abbrev  0x0000caa0       0x26 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
- .debug_abbrev  0x0000cac6       0x50 swapunix.o
+ .debug_abbrev  0x00009dd4      0x2ae fault.o
+ .debug_abbrev  0x0000a082      0x5e2 machdep.o
+ .debug_abbrev  0x0000a664      0x210 sig_machdep.o
+ .debug_abbrev  0x0000a874      0x326 syscall.o
+ .debug_abbrev  0x0000ab9a      0x41e sysctl.o
+ .debug_abbrev  0x0000afb8      0x14c systick.o
+ .debug_abbrev  0x0000b104      0x4c0 uart.o
+ .debug_abbrev  0x0000b5c4      0x503 usb.o
+ .debug_abbrev  0x0000bac7      0x519 flash.o
+ .debug_abbrev  0x0000bfe0       0xd3 error.o
+ .debug_abbrev  0x0000c0b3      0x46f journal.o
+ .debug_abbrev  0x0000c522      0x446 map.o
+ .debug_abbrev  0x0000c968       0xb3 ioconf.o
+ .debug_abbrev  0x0000ca1b       0x4f vers.o
+ .debug_abbrev  0x0000ca6a       0x28 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_abbrev  0x0000ca92       0x28 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_abbrev  0x0000caba       0x26 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+ .debug_abbrev  0x0000cae0       0x50 swapunix.o
 
 .debug_loclists
-                0x00000000    0x16eb4
+                0x00000000    0x16edc
  .debug_loclists
                 0x00000000       0x92 exec_aout.o
  .debug_loclists
@@ -1820,15 +1823,15 @@ LOAD linker stubs
  .debug_loclists
                 0x00011775      0xcbf uart.o
  .debug_loclists
-                0x00012434      0xced usb.o
+                0x00012434      0xd15 usb.o
  .debug_loclists
-                0x00013121     0x10c1 flash.o
+                0x00013149     0x10c1 flash.o
  .debug_loclists
-                0x000141e2       0x53 error.o
+                0x0001420a       0x53 error.o
  .debug_loclists
-                0x00014235     0x197d journal.o
+                0x0001425d     0x197d journal.o
  .debug_loclists
-                0x00015bb2     0x1302 map.o
+                0x00015bda     0x1302 map.o
 
 .debug_aranges  0x00000000      0x8d0
  .debug_aranges
@@ -1974,7 +1977,7 @@ LOAD linker stubs
  .debug_aranges
                 0x000008b8       0x18 swapunix.o
 
-.debug_line     0x00000000    0x1bc8a
+.debug_line     0x00000000    0x1bce7
  .debug_line    0x00000000      0x27d exec_aout.o
  .debug_line    0x0000027d       0x80 exec_conf.o
  .debug_line    0x000002fd      0x314 exec_elf.o
@@ -2028,170 +2031,170 @@ LOAD linker stubs
  .debug_line    0x000150d6      0x46d swap.o
  .debug_line    0x00015543       0x83 clock.o
  .debug_line    0x000155c6      0x1b6 conf.o
- .debug_line    0x0001577c      0x1ec fault.o
- .debug_line    0x00015968      0xdf6 machdep.o
- .debug_line    0x0001675e      0x3b6 sig_machdep.o
- .debug_line    0x00016b14      0x35e syscall.o
- .debug_line    0x00016e72      0x38f sysctl.o
- .debug_line    0x00017201       0xb4 systick.o
- .debug_line    0x000172b5      0x91f uart.o
- .debug_line    0x00017bd4      0xef3 usb.o
- .debug_line    0x00018ac7      0xa6b flash.o
- .debug_line    0x00019532       0x89 error.o
- .debug_line    0x000195bb     0x15c1 journal.o
- .debug_line    0x0001ab7c      0xf56 map.o
- .debug_line    0x0001bad2       0x3b ioconf.o
- .debug_line    0x0001bb0d       0x27 vers.o
- .debug_line    0x0001bb34       0x61 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
- .debug_line    0x0001bb95       0x6f /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
- .debug_line    0x0001bc04       0x4a /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
- .debug_line    0x0001bc4e       0x3c swapunix.o
+ .debug_line    0x0001577c      0x1f6 fault.o
+ .debug_line    0x00015972      0xdf6 machdep.o
+ .debug_line    0x00016768      0x3b6 sig_machdep.o
+ .debug_line    0x00016b1e      0x35e syscall.o
+ .debug_line    0x00016e7c      0x38f sysctl.o
+ .debug_line    0x0001720b       0xb4 systick.o
+ .debug_line    0x000172bf      0x91f uart.o
+ .debug_line    0x00017bde      0xf46 usb.o
+ .debug_line    0x00018b24      0xa6b flash.o
+ .debug_line    0x0001958f       0x89 error.o
+ .debug_line    0x00019618     0x15c1 journal.o
+ .debug_line    0x0001abd9      0xf56 map.o
+ .debug_line    0x0001bb2f       0x3b ioconf.o
+ .debug_line    0x0001bb6a       0x27 vers.o
+ .debug_line    0x0001bb91       0x61 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_line    0x0001bbf2       0x6f /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_line    0x0001bc61       0x4a /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+ .debug_line    0x0001bcab       0x3c swapunix.o
 
-.debug_str      0x00000000     0x440e
- .debug_str     0x00000000     0x440e exec_aout.o
+.debug_str      0x00000000     0x4416
+ .debug_str     0x00000000     0x4416 exec_aout.o
                                 0xb01 (size before relaxing)
- .debug_str     0x0000440e        0x0 exec_conf.o
+ .debug_str     0x00004416        0x0 exec_conf.o
                                 0x4dc (size before relaxing)
- .debug_str     0x0000440e        0x0 exec_elf.o
+ .debug_str     0x00004416        0x0 exec_elf.o
                                 0x90f (size before relaxing)
- .debug_str     0x0000440e        0x0 exec_script.o
+ .debug_str     0x00004416        0x0 exec_script.o
                                 0x865 (size before relaxing)
- .debug_str     0x0000440e        0x0 exec_subr.o
+ .debug_str     0x00004416        0x0 exec_subr.o
                                 0xb9d (size before relaxing)
- .debug_str     0x0000440e        0x0 init_main.o
+ .debug_str     0x00004416        0x0 init_main.o
                                 0xc25 (size before relaxing)
- .debug_str     0x0000440e        0x0 init_sysent.o
+ .debug_str     0x00004416        0x0 init_sysent.o
                                 0x469 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_clock.o
+ .debug_str     0x00004416        0x0 kern_clock.o
                                 0x795 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_descrip.o
+ .debug_str     0x00004416        0x0 kern_descrip.o
                                 0x88f (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_exec.o
+ .debug_str     0x00004416        0x0 kern_exec.o
                                 0xb78 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_exit.o
+ .debug_str     0x00004416        0x0 kern_exit.o
                                 0x9b8 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_fork.o
+ .debug_str     0x00004416        0x0 kern_fork.o
                                 0x917 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_mman.o
+ .debug_str     0x00004416        0x0 kern_mman.o
                                 0x696 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_proc.o
+ .debug_str     0x00004416        0x0 kern_proc.o
                                 0x582 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_prot.o
+ .debug_str     0x00004416        0x0 kern_prot.o
                                 0x61b (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_prot2.o
+ .debug_str     0x00004416        0x0 kern_prot2.o
                                 0x59b (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_resource.o
+ .debug_str     0x00004416        0x0 kern_resource.o
                                 0x807 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_sig.o
+ .debug_str     0x00004416        0x0 kern_sig.o
                                 0x9ab (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_sig2.o
+ .debug_str     0x00004416        0x0 kern_sig2.o
                                 0x77c (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_subr.o
+ .debug_str     0x00004416        0x0 kern_subr.o
                                 0x226 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_synch.o
+ .debug_str     0x00004416        0x0 kern_synch.o
                                 0x873 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_sysctl.o
+ .debug_str     0x00004416        0x0 kern_sysctl.o
                                 0xde0 (size before relaxing)
- .debug_str     0x0000440e        0x0 kern_time.o
+ .debug_str     0x00004416        0x0 kern_time.o
                                 0x6fb (size before relaxing)
- .debug_str     0x0000440e        0x0 subr_prf.o
+ .debug_str     0x00004416        0x0 subr_prf.o
                                 0x7b7 (size before relaxing)
- .debug_str     0x0000440e        0x0 subr_rmap.o
+ .debug_str     0x00004416        0x0 subr_rmap.o
                                 0x32b (size before relaxing)
- .debug_str     0x0000440e        0x0 sys_generic.o
+ .debug_str     0x00004416        0x0 sys_generic.o
                                 0xa70 (size before relaxing)
- .debug_str     0x0000440e        0x0 sys_inode.o
+ .debug_str     0x00004416        0x0 sys_inode.o
                                 0xd9f (size before relaxing)
- .debug_str     0x0000440e        0x0 sys_pipe.o
+ .debug_str     0x00004416        0x0 sys_pipe.o
                                 0x991 (size before relaxing)
- .debug_str     0x0000440e        0x0 sys_process.o
+ .debug_str     0x00004416        0x0 sys_process.o
                                 0x882 (size before relaxing)
- .debug_str     0x0000440e        0x0 syscalls.o
+ .debug_str     0x00004416        0x0 syscalls.o
                                 0x122 (size before relaxing)
- .debug_str     0x0000440e        0x0 tty.o
+ .debug_str     0x00004416        0x0 tty.o
                                 0xd26 (size before relaxing)
- .debug_str     0x0000440e        0x0 tty_subr.o
+ .debug_str     0x00004416        0x0 tty_subr.o
                                 0x264 (size before relaxing)
- .debug_str     0x0000440e        0x0 tty_tty.o
+ .debug_str     0x00004416        0x0 tty_tty.o
                                 0x793 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_alloc.o
+ .debug_str     0x00004416        0x0 ufs_alloc.o
                                 0x9a4 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_bio.o
+ .debug_str     0x00004416        0x0 ufs_bio.o
                                 0x77d (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_bmap.o
+ .debug_str     0x00004416        0x0 ufs_bmap.o
                                 0x717 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_dsort.o
+ .debug_str     0x00004416        0x0 ufs_dsort.o
                                 0x245 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_fio.o
+ .debug_str     0x00004416        0x0 ufs_fio.o
                                 0x7b1 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_inode.o
+ .debug_str     0x00004416        0x0 ufs_inode.o
                                 0xa6a (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_mount.o
+ .debug_str     0x00004416        0x0 ufs_mount.o
                                 0xa6d (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_namei.o
+ .debug_str     0x00004416        0x0 ufs_namei.o
                                 0xc45 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_subr.o
+ .debug_str     0x00004416        0x0 ufs_subr.o
                                 0x727 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_syscalls.o
+ .debug_str     0x00004416        0x0 ufs_syscalls.o
                                 0xd08 (size before relaxing)
- .debug_str     0x0000440e        0x0 ufs_syscalls2.o
+ .debug_str     0x00004416        0x0 ufs_syscalls2.o
                                 0xb83 (size before relaxing)
- .debug_str     0x0000440e        0x0 vfs_vnops.o
+ .debug_str     0x00004416        0x0 vfs_vnops.o
                                 0x743 (size before relaxing)
- .debug_str     0x0000440e        0x0 vm_sched.o
+ .debug_str     0x00004416        0x0 vm_sched.o
                                 0x59c (size before relaxing)
- .debug_str     0x0000440e        0x0 vm_swap.o
+ .debug_str     0x00004416        0x0 vm_swap.o
                                 0x902 (size before relaxing)
- .debug_str     0x0000440e        0x0 vm_swp.o
+ .debug_str     0x00004416        0x0 vm_swp.o
                                 0x885 (size before relaxing)
- .debug_str     0x0000440e        0x0 cons.o
+ .debug_str     0x00004416        0x0 cons.o
                                 0x3d5 (size before relaxing)
- .debug_str     0x0000440e        0x0 mem.o
+ .debug_str     0x00004416        0x0 mem.o
                                 0x4eb (size before relaxing)
- .debug_str     0x0000440e        0x0 swap.o
+ .debug_str     0x00004416        0x0 swap.o
                                 0x3d2 (size before relaxing)
- .debug_str     0x0000440e        0x0 clock.o
+ .debug_str     0x00004416        0x0 clock.o
                                 0x16b (size before relaxing)
- .debug_str     0x0000440e        0x0 conf.o
+ .debug_str     0x00004416        0x0 conf.o
                                 0x939 (size before relaxing)
- .debug_str     0x0000440e        0x0 fault.o
-                                0x7e8 (size before relaxing)
- .debug_str     0x0000440e        0x0 machdep.o
+ .debug_str     0x00004416        0x0 fault.o
+                                0x809 (size before relaxing)
+ .debug_str     0x00004416        0x0 machdep.o
                                 0xc72 (size before relaxing)
- .debug_str     0x0000440e        0x0 sig_machdep.o
+ .debug_str     0x00004416        0x0 sig_machdep.o
                                 0x6d6 (size before relaxing)
- .debug_str     0x0000440e        0x0 syscall.o
+ .debug_str     0x00004416        0x0 syscall.o
                                 0x7ec (size before relaxing)
- .debug_str     0x0000440e        0x0 sysctl.o
+ .debug_str     0x00004416        0x0 sysctl.o
                                 0xd58 (size before relaxing)
- .debug_str     0x0000440e        0x0 systick.o
+ .debug_str     0x00004416        0x0 systick.o
                                 0x3be (size before relaxing)
- .debug_str     0x0000440e        0x0 uart.o
+ .debug_str     0x00004416        0x0 uart.o
                                 0x919 (size before relaxing)
- .debug_str     0x0000440e        0x0 usb.o
-                                0xa72 (size before relaxing)
- .debug_str     0x0000440e        0x0 flash.o
+ .debug_str     0x00004416        0x0 usb.o
+                                0xa7a (size before relaxing)
+ .debug_str     0x00004416        0x0 flash.o
                                 0x792 (size before relaxing)
- .debug_str     0x0000440e        0x0 error.o
+ .debug_str     0x00004416        0x0 error.o
                                 0x23b (size before relaxing)
- .debug_str     0x0000440e        0x0 journal.o
+ .debug_str     0x00004416        0x0 journal.o
                                 0x79b (size before relaxing)
- .debug_str     0x0000440e        0x0 map.o
+ .debug_str     0x00004416        0x0 map.o
                                 0x6d1 (size before relaxing)
- .debug_str     0x0000440e        0x0 ioconf.o
+ .debug_str     0x00004416        0x0 ioconf.o
                                 0x25b (size before relaxing)
- .debug_str     0x0000440e        0x0 vers.o
+ .debug_str     0x00004416        0x0 vers.o
                                 0x123 (size before relaxing)
- .debug_str     0x0000440e        0x0 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_str     0x00004416        0x0 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
                                  0x9b (size before relaxing)
- .debug_str     0x0000440e        0x0 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_str     0x00004416        0x0 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
                                  0x99 (size before relaxing)
- .debug_str     0x0000440e        0x0 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
+ .debug_str     0x00004416        0x0 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_dvmd_tls.o)
                                  0x9c (size before relaxing)
- .debug_str     0x0000440e        0x0 swapunix.o
+ .debug_str     0x00004416        0x0 swapunix.o
                                 0x15e (size before relaxing)
 
-.debug_frame    0x00000000     0x3aa8
+.debug_frame    0x00000000     0x3ac0
  .debug_frame   0x00000000       0x30 exec_aout.o
  .debug_frame   0x00000030       0x38 exec_elf.o
  .debug_frame   0x00000068       0x30 exec_script.o
@@ -2249,13 +2252,13 @@ LOAD linker stubs
  .debug_frame   0x00002ef0       0x8c sysctl.o
  .debug_frame   0x00002f7c       0x38 systick.o
  .debug_frame   0x00002fb4      0x198 uart.o
- .debug_frame   0x0000314c      0x244 usb.o
- .debug_frame   0x00003390      0x1fc flash.o
- .debug_frame   0x0000358c       0x20 error.o
- .debug_frame   0x000035ac      0x234 journal.o
- .debug_frame   0x000037e0      0x288 map.o
- .debug_frame   0x00003a68       0x20 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
- .debug_frame   0x00003a88       0x20 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
+ .debug_frame   0x0000314c      0x25c usb.o
+ .debug_frame   0x000033a8      0x1fc flash.o
+ .debug_frame   0x000035a4       0x20 error.o
+ .debug_frame   0x000035c4      0x234 journal.o
+ .debug_frame   0x000037f8      0x288 map.o
+ .debug_frame   0x00003a80       0x20 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_udivsi3.o)
+ .debug_frame   0x00003aa0       0x20 /usr/lib/gcc/arm-none-eabi/16.2.0/thumb/v6-m/nofp/libgcc.a(_divsi3.o)
 
 .debug_rnglists
                 0x00000000      0x661

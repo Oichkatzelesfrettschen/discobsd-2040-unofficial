@@ -862,6 +862,21 @@ usbdrain(void)
 }
 
 /*
+ * Service the controller once from a context that has nothing else to
+ * do, a nested fault among them, so the host keeps its console and the
+ * reset interface.
+ */
+void
+usbpoll(void)
+{
+	int s;
+
+	s = spltty();
+	usb_service();
+	splx(s);
+}
+
+/*
  * Console input: poll the controller until a byte arrives.
  */
 char

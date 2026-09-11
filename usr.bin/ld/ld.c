@@ -849,7 +849,11 @@ relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
                 c = getc (text);
                 putc (c == EOF ? 0 : c, b1);
         }
-        for (n = 0; n < relsize; ) {
+        /*
+         * The relocation section is padded to a word, so a tail shorter
+         * than the smallest record is padding rather than a record.
+         */
+        for (n = 0; n + 5 <= relsize; ) {
                 fgetrel_thumb (reloc, &rel);
                 n += ((rel.flags & RSMASK) == REXT) ? 8 : 5;
                 relthumb (lp, b1, &rel, base, origin);

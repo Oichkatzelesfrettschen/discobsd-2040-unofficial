@@ -17,7 +17,9 @@ VPATH=	${LIBCDIR}/${MACHINE_ARCH}/sys ${LIBCDIR}/${MACHINE_ARCH}/string \
 	${LIBCDIR}/stdlib ${LIBCDIR}/string ${LIBCDIR}/inet \
 	${LIBCDIR}/compat ${LIBCDIR}/runtime
 
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
+# The RP2040 assembles its own objects with the tree's Thumb assembler,
+# which -B puts ahead of the cross toolchain's own as.
+COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" -o x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
 	else \
 		echo "" ; \
@@ -25,6 +27,8 @@ COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
 
 ASOPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
 		echo "-Wa,-x -B${TOOLBINDIR}/ -DLWHI=lwr -DLWLO=lwl -DSWHI=swr -DSWLO=swl" ; \
+	elif [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
 	else \
 		echo "" ; \
 	fi

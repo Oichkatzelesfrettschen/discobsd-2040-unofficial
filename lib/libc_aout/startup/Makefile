@@ -8,7 +8,7 @@
 TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
+COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" -o x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
 	else \
 		echo "" ; \

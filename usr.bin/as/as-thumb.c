@@ -87,6 +87,7 @@ enum {
     LLOCAL,             /* .local */
     LTHUMB,             /* .thumb, .code, .arm */
     LTHUMBFUNC,         /* .thumb_func */
+    LTHUMBSET,          /* .thumb_set */
     LSYNTAX,            /* .syntax */
     LCPU,               /* .cpu, .arch, .fpu, .arch_extension */
     LEABIATTR,          /* .eabi_attribute */
@@ -407,6 +408,7 @@ char name [256];
 unsigned intval;
 int extref;
 int blexflag, backlex, blextype;
+int linestart = 1;               /* the lexer is at the start of a line */
 
 struct labeltab labeltab [MAXRLAB];     /* relative labels */
 int nlabels;
@@ -840,6 +842,7 @@ lookacmd(void)
         if (! strcmp (".type", name)) return (LTYPE);
         if (! strcmp (".thumb", name)) return (LTHUMB);
         if (! strcmp (".thumb_func", name)) return (LTHUMBFUNC);
+        if (! strcmp (".thumb_set", name)) return (LTHUMBSET);
         break;
     case 'w':
         if (! strcmp (".word", name)) return (LWORD);
@@ -1003,13 +1006,21 @@ lookname(void)
 int
 getlex(int *pval)
 {
-    int c;
+    int c, bol;
 
     if (blexflag) {
         blexflag = 0;
         *pval = blextype;
         return (backlex);
     }
+    /*
+     * A hash opens a preprocessor line marker at the start of a line and
+     * prefixes an immediate anywhere else, which is how GNU as reads ARM
+     * input. Leading whitespace keeps the line-start property, so the
+     * snapshot is taken once and the whitespace cases fall through it.
+     */
+    bol = linestart;
+    linestart = 0;
     for (;;) {
         switch (c = getchar()) {
         case '@':
@@ -1019,14 +1030,16 @@ skiptoeol:  while ((c = getchar()) != '\n')
             /* FALLTHROUGH */
         case '\n':
             ++line;
-            c = getchar ();
-            if (c == '@')
-                goto skiptoeol;
-            ungetc (c, stdin);
-            /* FALLTHROUGH */
+            linestart = 1;
+            *pval = line;
+            return (LEOL);
         case ';':
             *pval = line;
             return (LEOL);
+        case '#':
+            if (bol)
+                goto skiptoeol;
+            return ('#');
         case ' ':
         case '\t':
         case '\r':
@@ -1062,9 +1075,6 @@ skiptoeol:  while ((c = getchar()) != '\n')
                 return (LRSHIFT);
             ungetc (c, stdin);
             return ('\\');
-        case '#':
-            /* An immediate prefix carries no value of its own. */
-            return ('#');
         case '\'':      case '^':       case '&':       case '|':
         case '~':       case '+':       case '-':       case '*':
         case '"':       case ',':       case '[':       case ']':
@@ -2259,7 +2269,8 @@ pass1(void)
         case LEOF:
 done:       segm = STEXT;
             ltorg ();
-            align (2);
+            /* Code padded out to the segment's alignment stays code. */
+            alignfill (2, 1);
             segm = SDATA;
             align (2);
             segm = SSTRNG;
@@ -2489,18 +2500,26 @@ done:       segm = STEXT;
             break;
         case LEQU:
         case LSET:
-            /* .equ name,value and .set name,value */
+        case LTHUMBSET:
+            /*
+             * .equ and .set define a name; .thumb_set does the same and
+             * marks the name a Thumb function, which GCC emits to alias
+             * one entry point onto another.
+             */
             if (getlex (&cval) != LNAME)
                 uerror ("bad parameter of .set");
             cval = lookname();
-            clex = getlex (&tval);
-            if (clex != ',')
+            tval = getlex (&nbytes);
+            if (tval != ',')
                 uerror ("bad value of .set");
+            expr_thumb = 0;
             stab[cval].n_value = getexpr (&csegm);
             if (csegm == SEXT)
                 uerror ("indirect equivalence");
-            stab[cval].n_type &= N_EXT;
+            stab[cval].n_type &= N_EXT | N_THUMB;
             stab[cval].n_type |= segmtype [csegm];
+            if (clex == LTHUMBSET || expr_thumb)
+                stab[cval].n_type |= N_THUMB;
             break;
         case LCOMM:
         case LLCOMM:
@@ -2662,6 +2681,7 @@ rescan(void)
     npoolref = 0;
     lastthumbfunc = -1;
     blexflag = 0;
+    linestart = 1;
     segm = STEXT;
     line = 1;
     rewind (stdin);

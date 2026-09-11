@@ -38,9 +38,18 @@ MEMORY {
      */
     USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 96K    /* User space.     */
 
-    RAM     (rw!x): ORIGIN = 0x20018000, LENGTH = 152K   /* Kernel data.    */
-    U0AREA  (rw!x): ORIGIN = 0x2003E000, LENGTH = 4K     /* Process 0 u.    */
-    UAREA   (rw!x): ORIGIN = 0x2003F000, LENGTH = 4K     /* Current u.      */
+    RAM     (rw!x): ORIGIN = 0x20018000, LENGTH = 154K   /* Kernel data.    */
+
+    /*
+     * Each u area is exactly USIZE, 3072 bytes, and the kernel stack of
+     * the current process lives in its top; kern.ldscript puts _estack at
+     * the end of UAREA. longjmp exchanges USIZE bytes between the two
+     * when it switches processes, so a region larger than USIZE would
+     * leave the stack above the exchanged part, shared by every process
+     * and overwritten by whichever ran last.
+     */
+    U0AREA  (rw!x): ORIGIN = 0x2003E800, LENGTH = 3K     /* Process 0 u.    */
+    UAREA   (rw!x): ORIGIN = 0x2003F400, LENGTH = 3K     /* Current u.      */
 
     /*
      * 0x20040000 - 0x20041FFF is SRAM4 and SRAM5, two unstriped 4 KB banks.

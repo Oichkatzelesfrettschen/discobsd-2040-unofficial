@@ -439,6 +439,21 @@ usb_setup(void)
 			usb_ep0_ack();
 			return;
 		}
+	} else if ((kind == 0x20 || kind == 0x40) &&
+	    (type & 0x1f) == 1 && (windex & 0xff) == ITF_RESET) {
+		/*
+		 * picotool sends these as class requests to the interface,
+		 * bmRequestType 0x21, whatever the interface's vendor class
+		 * suggests; the SDK's handler accepts either type.
+		 */
+		switch (request) {
+		case RESET_REQUEST_BOOTSEL:
+			usb_reset_to_bootsel(wvalue);
+			/* NOTREACHED */
+		case RESET_REQUEST_FLASH:
+			usb_reset_to_flash();
+			/* NOTREACHED */
+		}
 	} else if (kind == 0x20) {		/* Class: CDC. */
 		switch (request) {
 		case CDC_SET_LINE_CODING:
@@ -462,15 +477,6 @@ usb_setup(void)
 		case CDC_SEND_BREAK:
 			usb_ep0_ack();
 			return;
-		}
-	} else if (kind == 0x40 && (windex & 0xff) == ITF_RESET) {
-		switch (request) {
-		case RESET_REQUEST_BOOTSEL:
-			usb_reset_to_bootsel(wvalue);
-			/* NOTREACHED */
-		case RESET_REQUEST_FLASH:
-			usb_reset_to_flash();
-			/* NOTREACHED */
 		}
 	}
 	(void)dir;
@@ -766,7 +772,10 @@ usbstart(struct tty *tp)
  * Console output. Bytes go into the ring and out as the host drains it;
  * the wait below only bounds how long a full ring stalls the kernel when
  * the host is present but slow, since a host that is absent is what the
- * ring is for.
+ * ring is for. The controller is serviced on every call, not only while
+ * waiting, so that enumeration and the reset interface keep working from
+ * contexts that run with interrupts masked, a panic or a fault loop among
+ * them.
  */
 void
 usbputc(dev_t dev, char c)
@@ -774,6 +783,7 @@ usbputc(dev_t dev, char c)
 	int s, spin;
 
 	s = spltty();
+	usb_service();
 	for (spin = 0; usbd.configured && usbd.dtr &&
 	    usbd.tx_head - usbd.tx_tail >= USB_TXRING && spin < 20000; spin++)
 		usb_service();

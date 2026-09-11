@@ -103,6 +103,14 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	printf("fault entry EXC_RETURN value:\n");
 	printf(" lr:\t0x%08x\n", fault_lr);
 
+	/*
+	 * Only 0xfffffffd returns to a process on its own stack. Any other
+	 * value is the kernel faulting, in a handler or on the main stack,
+	 * and returning to the faulting address would fault again forever.
+	 */
+	if (fault_lr != 0xfffffffdUL)
+		panic("kernel fault");
+
 	arm_intr_enable();
 
 	psignal(u.u_procp, psig);

@@ -37,6 +37,59 @@ Two sources are deliberately not used:
   and change-statement obligations described above for no gain the Pico SDK
   does not already provide under BSD.
 
+## Root filesystem, and what was taken from where
+
+DiscoBSD's other targets boot from an SD card, and its device tree is mostly
+SD and SDIO. This board has no socket, so `dev/flash.c` makes the onboard
+2 MB QSPI flash a block device and the board needs no extra hardware.
+
+The idea of putting a Unix root on a Pico's flash behind a wear-levelling
+translation layer is FUZIX's, and the credit is theirs. None of their code is
+here, and their implementation was deliberately not read.
+
+That is not a courtesy, it is the license. The FUZIX kernel is GPL-2.0.
+Copying any of it into this tree would relicense the whole kernel as GPL-2.0,
+and no SPDX header or credit line changes that, because attribution is not a
+license grant. GPL-2.0 is separately incompatible with Apache-2.0, so taking
+FUZIX code would also foreclose ever using NuttX.
+
+Neither rewriting nor crediting was necessary, because the part worth having
+is not FUZIX's. Both systems need the same published library, Dhara, which is
+ISC licensed, the same license as this tree's own headers. It is vendored
+verbatim under `dhara/`, pinned at upstream commit 1b166e41b74b, with its
+copyright intact and its sources byte-identical to upstream so it can be
+re-fetched without reapplying edits. Dhara names three standard headers that a
+`-nostdinc` kernel does not have, so `dhara/compat/` supplies only the types
+and two functions it uses, leaving the vendored files untouched.
+
+The layering, and the license at each level:
+
+    bdevsw              block requests           this tree, ISC
+      dhara_map_*       wear levelling, mapping  Dhara, ISC
+        dhara_nand_*    NOR geometry             dev/flash.c, ISC
+          bootrom       erase and program        silicon
+
+Nothing links against the Pico SDK. Its flash routines are thin wrappers over
+boot ROM entry points found through a published table, so `dev/flash.c` looks
+them up itself and the kernel stays self-contained.
+
+Dhara is written for NAND and this part is NOR, which costs nothing. Its
+contract wants pages programmed sequentially within an eraseblock and never
+reprogrammed, which NOR satisfies. NOR has no factory bad blocks and no ECC,
+so the bad-block callbacks are honest constants rather than unfinished stubs.
+
+The constraint that shapes the driver: erasing or programming flash takes the
+QSPI interface out of execute-in-place, so code driving one cannot be fetched
+from flash while it runs. Those functions carry `__ramfunc`, which
+`conf/kern.ldscript` places inside `.data` so the existing copy loop in
+`locore0.S` carries them to RAM with no second mechanism. Verified in the
+object file: the only direct call out of `.ramfunc` is to another `.ramfunc`
+function, every other call is indirect into ROM, and interrupt masking is
+inlined inside the RAM functions rather than called into flash.
+
+`conf/RP2040.ld` splits flash 512K for the kernel and 1536K for the
+filesystem, so the kernel cannot grow into the root.
+
 ## What ARMv6-M changes
 
 ARMv6-M is not a subset of Cortex-M4 that merely runs slower. Six encodings in

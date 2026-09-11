@@ -146,9 +146,13 @@ void clkstart(void);
 #define LED_KERNEL      0x01
 #define LED_ALL         (LED_TTY | LED_SWAP | LED_DISK | LED_KERNEL)
 
+/*
+ * The Pico carries one LED on GP25, so every mask above lights the same one.
+ * The STM32 header also declared LL_GPIO_EnableClock here, which is an ST HAL
+ * entry point for gating a GPIO port's clock. The RP2040 has no such gate and
+ * no such type, so the declaration is gone rather than ported.
+ */
 void led_control(int mask, int on);
-
-void LL_GPIO_EnableClock(GPIO_TypeDef *GPIOx);
 
 #endif /* KERNEL */
 

@@ -20,7 +20,15 @@
 
 MEMORY {
     BOOT2   (rx)  : ORIGIN = 0x10000000, LENGTH = 256    /* Second stage.   */
-    FLASH   (rx)  : ORIGIN = 0x10000100, LENGTH = 2048K - 256
+    FLASH   (rx)  : ORIGIN = 0x10000100, LENGTH = 512K - 256
+
+    /*
+     * The root filesystem occupies flash above the kernel, reached through
+     * dev/flash.c rather than executed, so it is declared here to keep the
+     * kernel from growing into it. 512K matches the STM32F407XE kernel
+     * region, leaving 1536K for the filesystem.
+     */
+    FSFLASH (r)   : ORIGIN = 0x10080000, LENGTH = 1536K
 
     RAM     (rw!x): ORIGIN = 0x20000000, LENGTH = 120K   /* Kernel data.    */
     U0AREA  (rw!x): ORIGIN = 0x2001E000, LENGTH = 4K     /* Process 0 u.    */

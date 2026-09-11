@@ -1,0 +1,3 @@
+# Harness build products: preprocessed sources, generated assembly,
+# both link tiers, the a.outs left for the device, and the host compiler.
+out/

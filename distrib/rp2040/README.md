@@ -42,6 +42,7 @@ Hold BOOTSEL while plugging the board in; it enumerates as `RPI-RP2`. Then:
     picotool load distrib/rp2040/flash.uf2
     picotool load sys/arch/rp2040/compile/PICO/unix.uf2
     picotool reboot
+    minicom -D /dev/ttyACM0
 
 Each `load` programs only the sectors its file covers, so the two do not
 disturb each other; the ROM's mass-storage loader accepts the same files by
@@ -50,13 +51,16 @@ as `none`, which is expected: the kernel carries no SDK metadata block.
 
 ## Console
 
-The console is UART0, transmit on GP0 (pin 1) and receive on GP1 (pin 2),
-ground on pin 3, 115200 baud, 8N1. Connect a 3.3 V USB-serial adapter,
-adapter RX to GP0 and adapter TX to GP1, and open it before rebooting the
-board:
+The console is the same USB cable. After `picotool reboot` the board
+re-enumerates as a CDC-ACM device, vendor 2e8a product 000a, and Linux
+attaches it as `/dev/ttyACM0`:
 
-    minicom -D /dev/ttyUSB0 -b 115200
+    minicom -D /dev/ttyACM0
 
-The board's own USB port carries nothing after the ROM hands over: the
-kernel has no USB device driver. The LED on GP25 lights for kernel, disk,
-and swap activity.
+The kernel keeps the last 4 KB of output until a terminal opens the port,
+so the boot messages are there to read. Holding BOOTSEL through a reset
+with a working kernel selects single-user mode. The board carries the Pico
+SDK's reset interface, so `picotool reboot -u` returns it to BOOTSEL from a
+running kernel; the button held through a power cycle does the same. UART0
+on GP0 and GP1 at 115200 baud is `/dev/tty0` for a serial adapter. The LED
+on GP25 lights for kernel, disk, and swap activity.

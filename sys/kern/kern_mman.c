@@ -25,6 +25,16 @@ brk()
         u.u_error = ENOMEM;
         return;
     }
+    /*
+     * The stack has grown down to p_saddr and grows further as the
+     * process runs; data that reaches it is data the stack will
+     * overwrite. u_ssize alone does not see that: it is the stack's
+     * size so far, not where it ends.
+     */
+    if (u.u_procp->p_daddr + newsize > u.u_procp->p_saddr) {
+        u.u_error = ENOMEM;
+        return;
+    }
 
     u.u_procp->p_dsize = newsize;
 

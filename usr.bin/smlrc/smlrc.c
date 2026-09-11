@@ -2262,11 +2262,18 @@ int GetToken(void)
 #endif
 #include "cgmips.c"
 #else
+#ifdef THUMB
+#ifndef CAN_COMPILE_32BIT
+#error THUMB target requires a 32-bit compiler
+#endif
+#include "cgthumb.c"
+#else
 #ifdef TR3200
 #include "cgtr3k2.c"
 #else
 #include "cgx86.c"
 #endif // #ifdef TR3200
+#endif // #ifdef THUMB
 #endif // #ifdef MIPS
 
 // expr.c code

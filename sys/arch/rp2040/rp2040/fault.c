@@ -40,6 +40,8 @@
 #include <machine/intr.h>
 #include <machine/scb.h>
 
+void usbdrain(void);
+
 /*
  * HardFault_Handler()
  *
@@ -51,12 +53,23 @@
  * does not exist. This is the branch-based form already used by
  * SysTick_Handler in systick.c.
  */
+u_int fault_regs[8];			/* r4-r11 at the fault, for the report. */
+
 void
 HardFault_Handler(void)
 {
 __asm volatile (
 "	.syntax	unified		\n\t"
 "	.thumb			\n\t"
+
+"	ldr	r2, =fault_regs	\n\t"	/* Keep the callee-saved registers, */
+"	stmia	r2!, {r4-r7}	\n\t"	/*   which no frame records, and */
+"	mov	r0, r8		\n\t"	/*   leave them intact: a user fault */
+"	mov	r1, r9		\n\t"	/*   returns to the process. */
+"	stmia	r2!, {r0-r1}	\n\t"
+"	mov	r0, r10		\n\t"
+"	mov	r1, r11		\n\t"
+"	stmia	r2!, {r0-r1}	\n\t"
 
 "	mov	r1, lr		\n\t"	/* Value of lr when fault occurred. */
 "	movs	r0, #0x4	\n\t"	/* Test bit 2 (SPSEL).. */
@@ -78,6 +91,8 @@ __asm volatile (
  * userret. There is no fault cause to report and no faulting address: see the
  * comment at the head of this file.
  */
+static int infault;
+
 void
 arm_fault(struct faultframe *frame, u_int fault_lr)
 {
@@ -86,6 +101,18 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	u_int icsr;
 
 	led_control(LED_KERNEL, 1);
+
+	/*
+	 * A fault while reporting a fault would escalate to lockup, which
+	 * takes the USB console with it. Stay here instead, servicing the
+	 * controller, so the host can read what was printed and reach the
+	 * reset interface.
+	 */
+	if (infault++) {
+		printf("fault: nested, pc 0x%08x\n", frame->ff_pc);
+		for (;;)
+			usbdrain();
+	}
 	syst = u.u_ru.ru_stime;
 #ifdef UCB_METER
 	cnt.v_trap++;
@@ -100,8 +127,24 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	printf(" r1:\t0x%08x\tlr:\t0x%08x\n", frame->ff_r1, frame->ff_lr);
 	printf(" r2:\t0x%08x\tpc:\t0x%08x\n", frame->ff_r2, frame->ff_pc);
 	printf(" r3:\t0x%08x\tpsr:\t0x%08x\n", frame->ff_r3, frame->ff_psr);
+	printf(" r4:\t0x%08x\tr8:\t0x%08x\n", fault_regs[0], fault_regs[4]);
+	printf(" r5:\t0x%08x\tr9:\t0x%08x\n", fault_regs[1], fault_regs[5]);
+	printf(" r6:\t0x%08x\tr10:\t0x%08x\n", fault_regs[2], fault_regs[6]);
+	printf(" r7:\t0x%08x\tr11:\t0x%08x\n", fault_regs[3], fault_regs[7]);
 	printf("fault entry EXC_RETURN value:\n");
 	printf(" lr:\t0x%08x\n", fault_lr);
+	printf("process %d %s\n", u.u_procp ? u.u_procp->p_pid : -1, u.u_comm);
+	if ((u_int)u.u_frame > (u_int)&u &&
+	    (u_int)u.u_frame < (u_int)&u + USIZE) {
+		printf("syscall %d, user frame r4-r7 %08x %08x %08x %08x\n",
+		    u.u_frame->tf_pc > 2 ?
+		    (*(u_short *)(u.u_frame->tf_pc - 2) & 0xff) : -1,
+		    u.u_frame->tf_r4, u.u_frame->tf_r5, u.u_frame->tf_r6,
+		    u.u_frame->tf_r7);
+		printf("user frame r8-r11 %08x %08x %08x %08x, sp %08x pc %08x\n",
+		    u.u_frame->tf_r8, u.u_frame->tf_r9, u.u_frame->tf_r10,
+		    u.u_frame->tf_r11, u.u_frame->tf_sp, u.u_frame->tf_pc);
+	}
 
 	/*
 	 * Only 0xfffffffd returns to a process on its own stack. Any other
@@ -111,6 +154,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	if (fault_lr != 0xfffffffdUL)
 		panic("kernel fault");
 
+	infault = 0;
 	arm_intr_enable();
 
 	psignal(u.u_procp, psig);

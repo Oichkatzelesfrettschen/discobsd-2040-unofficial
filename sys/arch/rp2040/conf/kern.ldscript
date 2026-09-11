@@ -51,10 +51,18 @@ SECTIONS {
 		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
 		__exidx_end = .;
 	} > FLASH
+	/*
+	 * The .data initializers are copied by whole words in locore0.S, and
+	 * ARMv6-M faults on an unaligned word load, before any handler can
+	 * exist. The load address must therefore be aligned, and _sidata
+	 * must be that address rather than the raw location counter, which
+	 * ends wherever .ARM.exidx does.
+	 */
+	. = ALIGN(4);
 	__etext = .;
 
-	_sidata = .;
-	.data : {
+	_sidata = LOADADDR(.data);
+	.data : ALIGN(4) {
 		__data_start__ = .;
 		_sdata = .;
 		*(.data*)

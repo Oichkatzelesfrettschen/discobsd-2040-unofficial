@@ -64,9 +64,8 @@
 /*
  * The boot ROM's erase routine takes a block size and a block erase opcode
  * alongside the range. It erases in 4096-byte sectors by default and uses the
- * larger opcode only for a whole aligned block inside the range. This driver
- * erases 8192 bytes at a time, so the block path never fires, but the pair is
- * passed as the Pico SDK passes it rather than invented.
+ * larger opcode only for a whole aligned block inside the range, which a
+ * large swap write can contain. The pair is passed as the Pico SDK passes it.
  */
 #define	FLASH_BLOCK_BYTES	65536UL		/* W25Q 64K block. */
 #define	FLASH_BLOCK_ERASE_CMD	0xd8		/* Block erase, per SDK. */
@@ -76,8 +75,18 @@
  * filesystem starts above it. Keep in step with conf/RP2040.ld.
  */
 #define	FLASH_FS_OFFSET		(512UL * 1024)
-#define	FLASH_FS_BYTES		(FLASH_TOTAL_BYTES - FLASH_FS_OFFSET)
+#define	FLASH_FS_BYTES		(FLASH_SWAP_OFFSET - FLASH_FS_OFFSET)
 #define	FLASH_FS_BLOCKS		(FLASH_FS_BYTES / FLASH_ERASE_BYTES)
+
+/*
+ * Swap is the top of the chip, written in place by erase and program with
+ * no translation layer: unit 1 of the driver, fl1. A swapped image is
+ * rewritten whole and never read back after a reboot, so journaling it
+ * only costs erases. Measured through Dhara, one 33K swap write erased 21
+ * blocks. Here it erases the nine 4K sectors it covers.
+ */
+#define	FLASH_SWAP_BYTES	(192UL * 1024)
+#define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
 
 /*
  * A function carrying this attribute is linked into .data and copied to RAM

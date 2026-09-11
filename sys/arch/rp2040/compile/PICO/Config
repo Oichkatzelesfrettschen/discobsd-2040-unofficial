@@ -20,13 +20,14 @@ options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
 options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
 options         "HALTREBOOT"                # If halted, press key to reboot
 
-# Root filesystem at /dev/fl0a, swap at /dev/fl0b.
+# Root filesystem at /dev/fl0a, swap on /dev/fl1.
 # The RP2040 has no SD controller and this board has no socket, so root
-# lives on the onboard QSPI flash; see arch/rp2040/dev/flash.c.
+# lives on the onboard QSPI flash behind a translation layer, and swap in
+# a raw region above it; see arch/rp2040/dev/flash.c.
 config          unix    root on fl0a
-                        swap on fl0b
+                        swap on fl1
 
-options         "NFL=1"                     # One flash disk.
+options         "NFL=2"                     # fl0 root, fl1 swap.
 
 # Console over the board's USB cable: a CDC-ACM device on the RP2040's own
 # controller, /dev/ttyACM0 on a Linux host. It also carries the Pico SDK's

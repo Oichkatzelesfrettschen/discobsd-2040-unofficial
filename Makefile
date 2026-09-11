@@ -38,8 +38,10 @@ FS_INODES_ARG!=	if [ ${FS_INODES} -gt 0 ] ; then \
 
 PARTITIONS!=	if [ ${U_KBYTES} -gt 0 ] ; then \
 			echo "fs=${FS_KBYTES}k:swap=${SWAP_KBYTES}k:fs=${U_KBYTES}k" ; \
-		else \
+		elif [ ${SWAP_KBYTES} -gt 0 ] ; then \
 			echo "fs=${FS_KBYTES}k:swap=${SWAP_KBYTES}k" ; \
+		else \
+			echo "fs=${FS_KBYTES}k" ; \
 		fi
 
 # SD card filesystem image for ${MACHINE}.

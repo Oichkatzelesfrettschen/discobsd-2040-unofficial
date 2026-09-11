@@ -96,6 +96,7 @@ struct uio;
 
 void	usbinit(void);
 void	usbintr(void);
+void	usbdrain(void);
 int	usbopen(dev_t dev, int flag, int mode);
 int	usbclose(dev_t dev, int flag, int mode);
 int	usbread(dev_t dev, struct uio *uio, int flag);

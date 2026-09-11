@@ -187,20 +187,19 @@ flash_enter_xip(void)
 }
 
 /*
- * Erase one Dhara block, FLASH_ERASE_BYTES of the filesystem region. Runs
- * from RAM with interrupts masked, because XIP is down for the duration and
- * an interrupt vectoring into flash would fetch from a disabled interface.
+ * Erase len bytes at offset, both multiples of the chip sector. Runs from
+ * RAM with interrupts masked, because XIP is down for the duration and an
+ * interrupt vectoring into flash would fetch from a disabled interface.
  */
 static __ramfunc int
-flash_erase_block(u_int offset)
+flash_erase(u_int offset, u_int len)
 {
 	int s;
 
 	s = splhigh();
 	flrom.connect();
 	flrom.exit_xip();
-	flrom.erase(offset, FLASH_ERASE_BYTES, FLASH_BLOCK_BYTES,
-	    FLASH_BLOCK_ERASE_CMD);
+	flrom.erase(offset, len, FLASH_BLOCK_BYTES, FLASH_BLOCK_ERASE_CMD);
 	flrom.flush();
 	flash_enter_xip();
 	splx(s);
@@ -208,18 +207,18 @@ flash_erase_block(u_int offset)
 }
 
 /*
- * Program one Dhara page, four chip pages, under the same constraints as
- * the erase above. The ROM routine takes any multiple of the chip page.
+ * Program len bytes at offset, a multiple of the chip page, under the same
+ * constraints as the erase above.
  */
 static __ramfunc int
-flash_program_unit(u_int offset, const u_char *data)
+flash_program(u_int offset, const u_char *data, u_int len)
 {
 	int s;
 
 	s = splhigh();
 	flrom.connect();
 	flrom.exit_xip();
-	flrom.program(offset, data, FLASH_UNIT_BYTES);
+	flrom.program(offset, data, len);
 	flrom.flush();
 	flash_enter_xip();
 	splx(s);
@@ -254,7 +253,8 @@ dhara_nand_erase(const struct dhara_nand *n __unused, dhara_block_t b,
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
 	}
-	return flash_erase_block(FLASH_FS_OFFSET + b * FLASH_ERASE_BYTES);
+	return flash_erase(FLASH_FS_OFFSET + b * FLASH_ERASE_BYTES,
+	    FLASH_ERASE_BYTES);
 }
 
 int
@@ -267,7 +267,8 @@ dhara_nand_prog(const struct dhara_nand *n __unused, dhara_page_t p,
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
 	}
-	return flash_program_unit(FLASH_FS_OFFSET + offset, data);
+	return flash_program(FLASH_FS_OFFSET + offset, data,
+	    FLASH_UNIT_BYTES);
 }
 
 int
@@ -332,6 +333,9 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 #define	NPARTITIONS	4
 #define	RAWPART		0			/* Whole device. */
 
+#define	FL_UNIT_FS	0			/* Dhara region, partitioned. */
+#define	FL_UNIT_SWAP	1			/* Raw region, whole device. */
+
 #define	flunit(dev)	(minor(dev) >> 3)
 #define	flpart(dev)	(minor(dev) & 7)
 
@@ -341,6 +345,25 @@ struct fldisk {
 };
 
 static struct fldisk fldrives[NFL];
+static u_char flsect[FLASH_SECTOR_BYTES];	/* Swap read-modify-write. */
+static u_char flpart[FLASH_UNIT_BYTES];		/* A partial trailing unit. */
+
+/*
+ * Dhara makes a write durable only at a checkpoint, which dhara_map_sync
+ * forces, and a reset before one discards everything written since the
+ * last. The root device is never closed, so every write request ends with
+ * a sync. That costs a checkpoint page per request rather than per group,
+ * which the root's write rate, fsck and /tmp, can afford; it runs in the
+ * requester's context, where flash writes already run.
+ */
+static void
+fl_sync(void)
+{
+	dhara_error_t err = DHARA_E_NONE;
+
+	if (flmap_ready)
+		(void)dhara_map_sync(&flmap, &err);
+}
 
 /*
  * Bring the map up and read the partition table. Returns 0 on success.
@@ -352,6 +375,16 @@ fl_setup(int unit)
 	dhara_error_t err = DHARA_E_NONE;
 	u_short buf[DEV_BSIZE / sizeof(u_short)];
 	u_int i;
+
+	if (unit == FL_UNIT_SWAP) {
+		flash_rom_init();
+		bzero(du->part, sizeof(du->part));
+		du->part[RAWPART].dp_offset = 0;
+		du->part[RAWPART].dp_nsectors = FLASH_SWAP_BYTES / 512;
+		printf("fl%d: %u kbytes raw QSPI flash for swap\n", unit,
+		    (u_int)(FLASH_SWAP_BYTES / 1024));
+		return 0;
+	}
 
 	if (! flmap_ready) {
 		flash_rom_init();
@@ -448,6 +481,55 @@ flsize(dev_t dev)
 	return du->part[part].dp_nsectors >> 1;
 }
 
+/*
+ * The raw swap region: reads come out of the XIP window, writes erase the
+ * 4K sectors they cover and program them. A sector only partly covered is
+ * read, merged, and rewritten, which the first and last sector of an image
+ * need, since the kernel writes images in DEV_BSIZE blocks at any offset.
+ * Returns nonzero on failure.
+ */
+static int
+fl_raw(struct buf *bp, u_int off, u_int len)
+{
+	u_char *addr = (u_char *)bp->b_addr;
+	u_int base, sect, head, n;
+	int s;
+
+	if (off + len > FLASH_SWAP_BYTES)
+		return 1;
+	base = FLASH_SWAP_OFFSET + off;
+
+	if (bp->b_flags & B_READ) {
+		bcopy((const void *)(FLASH_XIP_BASE + base), addr, len);
+		return 0;
+	}
+
+	s = splbio();
+	while (len > 0) {
+		sect = base & ~(FLASH_SECTOR_BYTES - 1);
+		head = base - sect;
+		n = FLASH_SECTOR_BYTES - head;
+		if (n > len)
+			n = len;
+		if (n == FLASH_SECTOR_BYTES) {
+			/* A whole sector straight from the buffer. */
+			flash_erase(sect, FLASH_SECTOR_BYTES);
+			flash_program(sect, addr, FLASH_SECTOR_BYTES);
+		} else {
+			bcopy((const void *)(FLASH_XIP_BASE + sect), flsect,
+			    FLASH_SECTOR_BYTES);
+			bcopy(addr, flsect + head, n);
+			flash_erase(sect, FLASH_SECTOR_BYTES);
+			flash_program(sect, flsect, FLASH_SECTOR_BYTES);
+		}
+		base += n;
+		addr += n;
+		len -= n;
+	}
+	splx(s);
+	return 0;
+}
+
 void
 flstrategy(struct buf *bp)
 {
@@ -456,7 +538,7 @@ flstrategy(struct buf *bp)
 	struct diskpart *p = &du->part[flpart(bp->b_dev)];
 	dhara_error_t err = DHARA_E_NONE;
 	u_int per_blk = DEV_BSIZE / FLASH_UNIT_BYTES;
-	u_int sector, nsect, i;
+	u_int sector, nsect, rem, i;
 	u_char *addr;
 	daddr_t part_size, offset;
 	long nblk;
@@ -499,8 +581,26 @@ flstrategy(struct buf *bp)
 	else
 		led_control(LED_DISK, 1);
 
+#ifdef FLASH_DEBUG
+	printf("fl%d%c: %s blk %u n %u\n", unit, flpart(bp->b_dev) + 'a' - 1,
+	    (bp->b_flags & B_READ) ? "read" : "write", (u_int)bp->b_blkno,
+	    (u_int)nblk);
+#endif
+
+	/*
+	 * b_bcount is a byte count and swap moves segments of any length,
+	 * so the transfer is exactly that many bytes. Rounding it up to
+	 * whole blocks would run past the buffer: a stack segment ends at
+	 * the top of the user window, and the kernel's data starts there.
+	 */
+	if (unit == FL_UNIT_SWAP) {
+		fail = fl_raw(bp, (u_int)offset * DEV_BSIZE, bp->b_bcount);
+		goto done;
+	}
+
 	sector = (u_int)offset * per_blk;
-	nsect = (u_int)nblk * per_blk;
+	nsect = bp->b_bcount / FLASH_UNIT_BYTES;
+	rem = bp->b_bcount % FLASH_UNIT_BYTES;
 	addr = (u_char *)bp->b_addr;
 
 	s = splbio();
@@ -515,8 +615,24 @@ flstrategy(struct buf *bp)
 				fail = 1;
 		}
 	}
+	if (rem && ! fail) {
+		/* The trailing partial unit is staged, both ways. */
+		if (dhara_map_read(&flmap, sector + nsect, flpart, &err) < 0)
+			fail = 1;
+		else if (bp->b_flags & B_READ)
+			bcopy(flpart, addr + nsect * FLASH_UNIT_BYTES, rem);
+		else {
+			bcopy(addr + nsect * FLASH_UNIT_BYTES, flpart, rem);
+			if (dhara_map_write(&flmap, sector + nsect, flpart,
+			    &err) < 0)
+				fail = 1;
+		}
+	}
+	if (! (bp->b_flags & B_READ) && ! fail)
+		fl_sync();
 	splx(s);
 
+done:
 	if (bp->b_dev == swapdev)
 		led_control(LED_SWAP, 0);
 	else

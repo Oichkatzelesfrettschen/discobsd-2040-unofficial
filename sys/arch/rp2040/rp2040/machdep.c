@@ -397,6 +397,11 @@ startup(void)
 {
 	SystemClock_Config();
 
+#ifdef UARTUSB_ENABLED
+	/* The console first, so everything after it can be read. */
+	usbinit();
+#endif
+
 	/*
 	 * The STM32 edition enables the MemManage, BusFault, and UsageFault
 	 * handlers here. ARMv6-M defines none of them: HardFault is the only
@@ -410,6 +415,8 @@ startup(void)
 
 	/* SysTick is a system exception, not an NVIC interrupt. */
 	arm_set_exception_priority(EXC_SYSTICK, IPLTOREG(IPL_SYSTICK));
+
+	physmem = 264 * 1024;		/* Six SRAM banks, 264 kbytes. */
 
 	/*
 	 * Configure LED pins.
@@ -442,9 +449,6 @@ startup(void)
 	 */
 #if defined(UART_ENABLED) || defined(UART0_ENABLED)
 	uartinit(0);
-#endif
-#ifdef UARTUSB_ENABLED
-	usbinit();
 #endif
 
 	/*
@@ -580,6 +584,9 @@ boot(dev_t dev, int howto)
 		 * Reset the microcontroller. AIRCR carries a write key in its
 		 * high half and rejects the write without it.
 		 */
+#ifdef UARTUSB_ENABLED
+		usbdrain();
+#endif
 		arm_dsb();
 		SCB_REG32(SCB_AIRCR) = AIRCR_VECTKEY | AIRCR_SYSRESETREQ;
 		arm_dsb();
@@ -597,6 +604,9 @@ boot(dev_t dev, int howto)
 	 * Reset the microcontroller. AIRCR carries a write key in its high
 	 * half and rejects the write without it.
 	 */
+#ifdef UARTUSB_ENABLED
+	usbdrain();
+#endif
 	arm_dsb();
 	SCB_REG32(SCB_AIRCR) = AIRCR_VECTKEY | AIRCR_SYSRESETREQ;
 	arm_dsb();

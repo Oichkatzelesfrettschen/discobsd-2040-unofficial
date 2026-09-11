@@ -33,8 +33,8 @@
  * Output goes through a ring rather than straight to the endpoint, because
  * the host only drains the IN endpoint while a terminal has the port open,
  * and the kernel prints long before anyone has. The ring keeps the last
- * USB_TXRING bytes, so a terminal opened after boot sees the tail of the
- * boot messages rather than nothing.
+ * USB_TXRING bytes, so a terminal opened after boot sees the boot messages
+ * rather than nothing; 16K holds a whole boot with room to spare.
  */
 
 #include <sys/param.h>
@@ -181,7 +181,7 @@ enum ep0_stage {
 	EP0_OUT_STATUS,			/* Zero-length OUT closing an IN reply. */
 };
 
-#define	USB_TXRING	4096
+#define	USB_TXRING	8192
 #define	USB_RXRING	64
 
 static struct {
@@ -433,8 +433,45 @@ usb_setup(void)
 			usbd.reply[0] = 0;
 			usb_ep0_send(usbd.reply, 1, wlength);
 			return;
-		case REQ_SET_INTERFACE:
 		case REQ_CLEAR_FEATURE:
+			/*
+			 * ENDPOINT_HALT cleared on a bulk endpoint resets the
+			 * host's data toggle to DATA0, and the device's must
+			 * follow or the host discards the next packets as
+			 * retransmissions. Linux's cdc_acm clears both at
+			 * open. A buffer already armed is re-armed with the
+			 * new toggle and its bytes untouched.
+			 */
+			if ((type & 0x1f) == 2 && wvalue == 0 &&
+			    (windex & 0x0f) == EP_DATA) {
+				if (windex & 0x80) {
+					u_int bc = DPRAM32(
+					    USB_DPRAM_BUF_CTRL(EP_DATA, 1));
+
+					usbd.data_in_pid = 0;
+					/*
+					 * Only a packet the controller has not
+					 * yet sent is re-armed; one already taken
+					 * would go out twice.
+					 */
+					if (usbd.tx_busy &&
+					    (bc & USB_BUF_CTRL_AVAIL)) {
+						usb_buf_arm(
+						    USB_DPRAM_BUF_CTRL(EP_DATA, 1),
+						    bc & USB_BUF_CTRL_LEN_MASK,
+						    USB_BUF_CTRL_FULL);
+						usbd.data_in_pid = 1;
+					}
+				} else {
+					usb_buf_arm(
+					    USB_DPRAM_BUF_CTRL(EP_DATA, 0),
+					    USB_PACKET_MAX, 0);
+					usbd.data_out_pid = 1;
+				}
+			}
+			usb_ep0_ack();
+			return;
+		case REQ_SET_INTERFACE:
 		case REQ_SET_FEATURE:
 			usb_ep0_ack();
 			return;
@@ -450,9 +487,11 @@ usb_setup(void)
 		case RESET_REQUEST_BOOTSEL:
 			usb_reset_to_bootsel(wvalue);
 			/* NOTREACHED */
+			break;
 		case RESET_REQUEST_FLASH:
 			usb_reset_to_flash();
 			/* NOTREACHED */
+			break;
 		}
 	} else if (kind == 0x20) {		/* Class: CDC. */
 		switch (request) {
@@ -612,12 +651,25 @@ usb_service(void)
 		if (done & USB_BUFF_STATUS_BIT(EP_DATA, 0))
 			usb_rx_done();
 	}
+
+	/* Anything queued while the endpoint was idle goes out now. */
+	usb_tx_kick();
 }
 
+/*
+ * Interrupt entry. The controller is serviced with every interrupt masked,
+ * because the tty layer restarts output from the clock interrupt, which
+ * outranks this one, and a second usb_tx_kick entered inside the first
+ * overwrites the packet the controller is about to send.
+ */
 void
 usbintr(void)
 {
+	int s;
+
+	s = splhigh();
 	usb_service();
+	splx(s);
 }
 
 /*
@@ -789,6 +841,23 @@ usbputc(dev_t dev, char c)
 		usb_service();
 	usb_tx_put(c);
 	usb_tx_kick();
+	splx(s);
+}
+
+/*
+ * Push everything queued out to the host before a reset, which would
+ * otherwise take the ring with it. Bounded, so a host that is not reading
+ * delays the reset by at most a moment.
+ */
+void
+usbdrain(void)
+{
+	int s, spin;
+
+	s = spltty();
+	for (spin = 0; usbd.configured && usbd.tx_head != usbd.tx_tail &&
+	    spin < 200000; spin++)
+		usb_service();
 	splx(s);
 }
 

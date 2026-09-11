@@ -26,15 +26,20 @@ MEMORY {
      * The root filesystem occupies flash above the kernel, reached through
      * dev/flash.c rather than executed, so it is declared here to keep the
      * kernel from growing into it. 512K matches the STM32F407XE kernel
-     * region, leaving 1536K for the filesystem.
+     * region, leaving 1344K for the filesystem and 192K for swap.
      */
-    FSFLASH (r)   : ORIGIN = 0x10080000, LENGTH = 1536K
+    FSFLASH (r)   : ORIGIN = 0x10080000, LENGTH = 1344K
+
+    /* Swap, written in place with no translation layer; dev/flash.c. */
+    SWAPFLASH (r) : ORIGIN = 0x101D0000, LENGTH = 192K
 
     /*
      * User space sits at the bottom of SRAM because lib/elf32-arm.ld links
      * every userland executable at 0x20000000 and machparam.h's
      * USER_DATA_START names the same address on every Arm target. 96K is
-     * the STM32 figure, kept so a process image swaps in the same size.
+     * the STM32 figure. One process is resident at a time and a switch
+     * swaps, so a larger window would only raise the per-process limit,
+     * not lower the swap traffic.
      */
     USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 96K    /* User space.     */
 

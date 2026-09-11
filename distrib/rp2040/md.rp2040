@@ -16,9 +16,9 @@ filemode 0664
 #
 # Major Minor Name  Device
 # -------------------------
-#   0     0   fl0   Whole flash filesystem region
+#   0     0   fl0   Whole flash filesystem region, behind Dhara
 #   0     1   fl0a  Partition 1: root file system
-#   0     2   fl0b  Partition 2: swap space
+#   0     8   fl1   Raw flash region, swap
 #
 bdev /dev/fl0
 major 0
@@ -26,6 +26,6 @@ minor 0
 bdev /dev/fl0a
 major 0
 minor 1
-bdev /dev/fl0b
+bdev /dev/fl1
 major 0
-minor 2
+minor 8

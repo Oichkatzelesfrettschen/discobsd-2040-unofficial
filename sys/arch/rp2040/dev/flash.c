@@ -100,6 +100,16 @@ static u_int boot2_copy[BOOT2_WORDS];
 static struct dhara_map flmap;
 static u_char flpage[FLASH_PAGE_BYTES];
 static int flmap_ready;
+static daddr_t flblocks;		/* Capacity in DEV_BSIZE blocks. */
+
+/*
+ * Garbage collection ratio, the count of collection operations Dhara runs per
+ * write. Smaller trades capacity for more predictable IO. Four is a starting
+ * point and has not been measured on this part. It must stay the same across
+ * every mount of a given chip, so changing it once a chip holds a filesystem
+ * is not safe.
+ */
+#define	FLASH_GC_RATIO	4
 
 /* One eraseblock of the chip, as Dhara sees the filesystem region. */
 const struct dhara_nand flnand = {
@@ -194,7 +204,8 @@ flash_erase_sector(u_int offset)
 	s = splhigh();
 	flrom.connect();
 	flrom.exit_xip();
-	flrom.erase(offset, FLASH_SECTOR_BYTES, FLASH_SECTOR_BYTES, 0x20);
+	flrom.erase(offset, FLASH_SECTOR_BYTES, FLASH_BLOCK_BYTES,
+	    FLASH_BLOCK_ERASE_CMD);
 	flrom.flush();
 	flash_enter_xip();
 	splx(s);
@@ -323,13 +334,15 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 
 	if (! flmap_ready) {
 		flash_rom_init();
-		dhara_map_init(&flmap, &flnand, flpage, 4);
+		dhara_map_init(&flmap, &flnand, flpage, FLASH_GC_RATIO);
 		/*
 		 * A fresh chip has no stored state, which dhara_map_resume
 		 * reports by returning -1 after initializing an empty map.
 		 * That is the newly-formatted case rather than a failure.
 		 */
 		(void)dhara_map_resume(&flmap, &err);
+		flblocks = (daddr_t)dhara_map_capacity(&flmap) /
+		    (DEV_BSIZE / FLASH_PAGE_BYTES);
 		flmap_ready = 1;
 	}
 	return 0;
@@ -353,8 +366,7 @@ flsize(dev_t dev)
 		return -1;
 	if (! flmap_ready && flopen(dev, 0, 0) != 0)
 		return -1;
-	return (daddr_t)dhara_map_capacity(&flmap) /
-	    (DEV_BSIZE / FLASH_PAGE_BYTES);
+	return flblocks;
 }
 
 void
@@ -377,7 +389,7 @@ flstrategy(struct buf *bp)
 		goto bad;
 	}
 
-	limit = flsize(bp->b_dev);
+	limit = flblocks;
 	nblk = btod(bp->b_bcount);
 	if (bp->b_blkno + nblk > limit) {
 		if (bp->b_blkno >= limit) {

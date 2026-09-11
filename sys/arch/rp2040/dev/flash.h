@@ -40,6 +40,16 @@
 #define	FLASH_LOG2_PPB		4		/* log2(FLASH_PAGES_PER_SECTOR) */
 
 /*
+ * The boot ROM's erase routine takes a block size and a block erase opcode
+ * alongside the range. It erases in 4096-byte sectors by default and uses the
+ * larger opcode only for a whole aligned block inside the range. This driver
+ * erases one sector at a time, so the block path never fires, but the pair is
+ * passed as the Pico SDK passes it rather than invented.
+ */
+#define	FLASH_BLOCK_BYTES	65536UL		/* W25Q 64K block. */
+#define	FLASH_BLOCK_ERASE_CMD	0xd8		/* Block erase, per SDK. */
+
+/*
  * The kernel occupies the low 512K, matching the STM32F407XE region, so the
  * filesystem starts above it. Keep in step with conf/RP2040.ld.
  */

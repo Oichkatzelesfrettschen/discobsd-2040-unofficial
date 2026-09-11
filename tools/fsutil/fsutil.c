@@ -45,6 +45,7 @@ int scan;
 int repartition;
 unsigned kbytes;
 unsigned swap_kbytes;
+unsigned inodes;
 unsigned pindex;
 
 static const char *program_version =
@@ -65,6 +66,7 @@ static struct option program_options[] = {
     { "scan",           no_argument,        0,  'S' },
     { "new",            no_argument,        0,  'n' },
     { "size",           required_argument,  0,  's' },
+    { "inodes",         required_argument,  0,  'i' },
     { "manifest",       required_argument,  0,  'M' },
     { "partition",      required_argument,  0,  'p' },
     { "repartition",    required_argument,  0,  'r' },
@@ -84,7 +86,7 @@ static void print_help (char *progname)
     printf ("Usage:\n");
     printf ("  %s [--verbose] [--partition=n] disk.img\n", progname);
     printf ("  %s --check [--fix] [--partition=n] disk.img\n", progname);
-    printf ("  %s --new [--size=kbytes | --partition=n] [--manifest=file] disk.img [dir]\n", progname);
+    printf ("  %s --new [--size=kbytes | --partition=n] [--inodes=n] [--manifest=file] disk.img [dir]\n", progname);
     printf ("  %s --mount [--partition=n] disk.img dir\n", progname);
     printf ("  %s --add [--partition=n] disk.img files...\n", progname);
     printf ("  %s --extract [--partition=n] disk.img\n", progname);
@@ -97,6 +99,8 @@ static void print_help (char *progname)
     printf ("  -n, --new           Create new filesystem; add files from\n");
     printf ("                      specified directory and manifest (optional)\n");
     printf ("  -s NUM, --size=NUM  Size of filesystem in kbytes.\n");
+    printf ("  -i NUM, --inodes=NUM\n");
+    printf ("                      Number of inodes, default one per 16 kbytes.\n");
     printf ("  -M file, --manifest=file\n");
     printf ("                      List of files and attributes to create.\n");
     printf ("  -m, --mount         Mount the filesystem.\n");
@@ -713,7 +717,7 @@ int main (int argc, char **argv)
     char *partition_format = 0;
 
     for (;;) {
-        key = getopt_long (argc, argv, "vaxmSncfs:M:p:r:",
+        key = getopt_long (argc, argv, "vaxmSncfs:i:M:p:r:",
             program_options, 0);
         if (key == -1)
             break;
@@ -744,6 +748,9 @@ int main (int argc, char **argv)
             break;
         case 's':
             kbytes = strtol (optarg, 0, 0);
+            break;
+        case 'i':
+            inodes = strtol (optarg, 0, 0);
             break;
         case 'M':
             manifest = optarg;
@@ -791,7 +798,8 @@ int main (int argc, char **argv)
             return -1;
         }
 
-        if (! fs_create (&fs, argv[i], pindex ? -pindex : kbytes, 0)) {
+        if (! fs_create (&fs, argv[i], pindex ? -pindex : kbytes, 0,
+            inodes)) {
             fprintf (stderr, "%s: cannot create filesystem\n", argv[i]);
             return -1;
         }

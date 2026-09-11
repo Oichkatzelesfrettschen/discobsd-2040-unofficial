@@ -326,7 +326,7 @@ static int create_swap_file (fs_t *fs)
 }
 
 int fs_create (fs_t *fs, const char *filename, int kbytes,
-    unsigned swap_kbytes)
+    unsigned swap_kbytes, unsigned inodes)
 {
     int n;
     unsigned char buf [BSDFS_BSIZE];
@@ -356,7 +356,11 @@ int fs_create (fs_t *fs, const char *filename, int kbytes,
      * and inode block size */
     bytes = (off_t) kbytes * 1024ULL;
     fs->fsize = bytes / BSDFS_BSIZE;
-    fs->isize = 1 + (fs->fsize / 16 + BSDFS_INODES_PER_BLOCK - 1) /
+    /* One inode per 16 kbytes unless the caller asks for a count, which
+     * a small root full of small files needs. */
+    if (inodes == 0)
+        inodes = fs->fsize / 16;
+    fs->isize = 1 + (inodes + BSDFS_INODES_PER_BLOCK - 1) /
         BSDFS_INODES_PER_BLOCK;
     if (fs->isize < 2)
         return 0;

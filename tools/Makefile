@@ -1,5 +1,7 @@
 SUBDIR!=if [ x"${MACHINE}" = x"pic32" ] ; then \
 		echo "binstall aoututils elf2aout fsutil config icache mkrd virtualmips" ; \
+	elif [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "binstall aoututils elf2aout fsutil config boot2sum flashimg" ; \
 	else \
 		echo "binstall aoututils elf2aout fsutil config" ; \
 	fi

@@ -102,8 +102,17 @@ CFLAGS=	${COPTS}
 
 AFLAGS=	${ASFLAGS}
 
+# Floating point printf conversion is a separate libc member, doprnt_float.o,
+# about 10 kbytes with the software double arithmetic it carries. Every
+# machine links it into every program as before, except rp2040, whose root
+# is small enough that only a program declaring PRINTF_FLOAT=yes gets it.
+PRINTF_FLOAT?=	no
+_PRINTF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_FLOAT}" = x"yes" ] ; then \
+			echo "-Wl,-u,__doprnt_cvt" ; \
+		fi
+
 LDFLAGS=-N -nostartfiles -fno-dwarf2-cfi-asm \
-	${LDWARN} \
+	${LDWARN} ${_PRINTF_FLOAT} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \
 	${TOPSRC}/lib/crt0.o -L${TOPSRC}/lib
 

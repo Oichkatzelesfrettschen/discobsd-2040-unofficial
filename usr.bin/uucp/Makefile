@@ -6,6 +6,7 @@
 # Common object files are assembled into a library {uulib.a}
 #
 TOPSRC!=cd ../..; pwd
+PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 ALL=	uucico uucp uux uuxqt uulog uuclean uuname uupoll uusnap \

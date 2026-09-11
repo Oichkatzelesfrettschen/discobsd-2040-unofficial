@@ -71,10 +71,10 @@
 #define	FLASH_BLOCK_ERASE_CMD	0xd8		/* Block erase, per SDK. */
 
 /*
- * The kernel occupies the low 512K, matching the STM32F407XE region, so the
+ * The kernel occupies the low 192K, twice what it measures, so the
  * filesystem starts above it. Keep in step with conf/RP2040.ld.
  */
-#define	FLASH_FS_OFFSET		(512UL * 1024)
+#define	FLASH_FS_OFFSET		(192UL * 1024)
 #define	FLASH_FS_BYTES		(FLASH_SWAP_OFFSET - FLASH_FS_OFFSET)
 #define	FLASH_FS_BLOCKS		(FLASH_FS_BYTES / FLASH_ERASE_BYTES)
 

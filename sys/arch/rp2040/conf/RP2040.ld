@@ -20,15 +20,16 @@
 
 MEMORY {
     BOOT2   (rx)  : ORIGIN = 0x10000000, LENGTH = 256    /* Second stage.   */
-    FLASH   (rx)  : ORIGIN = 0x10000100, LENGTH = 512K - 256
+    FLASH   (rx)  : ORIGIN = 0x10000100, LENGTH = 192K - 256
 
     /*
      * The root filesystem occupies flash above the kernel, reached through
      * dev/flash.c rather than executed, so it is declared here to keep the
-     * kernel from growing into it. 512K matches the STM32F407XE kernel
-     * region, leaving 1344K for the filesystem and 192K for swap.
+     * kernel from growing into it. The kernel measures 90K, so 192K is
+     * twice its size; the STM32F407XE region of 512K would idle 420K of
+     * a 2M chip. 1664K goes to the filesystem and 192K to swap.
      */
-    FSFLASH (r)   : ORIGIN = 0x10080000, LENGTH = 1344K
+    FSFLASH (r)   : ORIGIN = 0x10030000, LENGTH = 1664K
 
     /* Swap, written in place with no translation layer; dev/flash.c. */
     SWAPFLASH (r) : ORIGIN = 0x101D0000, LENGTH = 192K

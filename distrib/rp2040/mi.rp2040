@@ -1,5 +1,5 @@
 #
-# Root file system manifest for a 795-kbyte root on the Raspberry Pi Pico's
+# Root file system manifest for a 1078-kbyte root on the Raspberry Pi Pico's
 # QSPI flash. distrib/base/mi describes a 200-Mbyte SD card; this lists
 # what a boot to a shell on the serial console runs: init, the commands
 # /etc/rc calls, getty and login, and a working set of /bin.
@@ -98,6 +98,7 @@ cdev /dev/tty0
 major 6
 minor 0
 
+
 #
 # Files: /root
 #
@@ -121,42 +122,127 @@ file /etc/rc.local
 file /etc/shadow
 file /etc/shells
 file /etc/ttys
+file /etc/termcap
 
 #
-# Files: /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec
+# /bin/box is one a.out holding the small utilities, dispatched on the
+# name it is invoked by; the names below are hard links to it. See
+# bin/box/Makefile.
 #
 default
 filemode 0775
-file /bin/cat
-file /bin/chmod
-file /bin/date
-file /bin/echo
-file /bin/hostname
-file /bin/kill
-file /bin/ln
-file /bin/ls
-file /bin/mkdir
-file /bin/ps
-file /bin/rm
-file /bin/sh
-file /bin/stty
-file /bin/sync
-file /bin/test
-link /bin/[
-target /bin/test
 
+file /bin/sh
+file /bin/ed
+file /bin/ps
+file /bin/md5
+file /bin/tar
+file /bin/expr
+file /bin/box
+
+file /sbin/reboot
+file /sbin/shutdown
 file /sbin/fsck
 file /sbin/init
-file /sbin/mknod
-file /sbin/mount
-file /sbin/reboot
+file /sbin/sysctl
+
+file /usr/bin/awk
+file /usr/bin/sed
+file /usr/bin/grep
+file /usr/bin/fgrep
+file /usr/bin/find
+file /usr/bin/sort
+file /usr/bin/uniq
+file /usr/bin/head
+file /usr/bin/tail
+file /usr/bin/tr
+file /usr/bin/wc
+file /usr/bin/cmp
+file /usr/bin/diff
+file /usr/bin/more
+file /usr/bin/basename
+file /usr/bin/env
+file /usr/bin/id
+file /usr/bin/printf
+file /usr/bin/tee
+file /usr/bin/touch
+file /usr/bin/xargs
+file /usr/bin/du
+file /usr/bin/rev
+file /usr/bin/split
+file /usr/bin/fold
+file /usr/bin/comm
+file /usr/bin/join
+file /usr/bin/nice
+file /usr/bin/nohup
+file /usr/bin/tty
+file /usr/bin/uname
+file /usr/bin/true
+file /usr/bin/false
+file /usr/bin/login
+file /usr/bin/passwd
+file /usr/bin/make
+file /usr/bin/re
+file /usr/bin/picoc
+
+file /usr/sbin/update
+
+file /usr/libexec/getty
+
+link /bin/cat
+target /bin/box
+link /bin/chgrp
+target /bin/box
+link /bin/chmod
+target /bin/box
+link /bin/cp
+target /bin/box
+link /bin/date
+target /bin/box
+link /bin/dd
+target /bin/box
+link /bin/df
+target /bin/box
+link /bin/echo
+target /bin/box
+link /bin/hostname
+target /bin/box
+link /bin/kill
+target /bin/box
+link /bin/ln
+target /bin/box
+link /bin/ls
+target /bin/box
+link /bin/mkdir
+target /bin/box
+link /bin/mv
+target /bin/box
+link /bin/pwd
+target /bin/box
+link /bin/rm
+target /bin/box
+link /bin/rmdir
+target /bin/box
+link /bin/sleep
+target /bin/box
+link /bin/stty
+target /bin/box
+link /bin/sync
+target /bin/box
+link /bin/test
+target /bin/box
+link /bin/[
+target /bin/box
+link /sbin/chown
+target /bin/box
+link /sbin/mknod
+target /bin/box
+link /sbin/mount
+target /bin/box
+link /sbin/umount
+target /bin/box
 link /sbin/halt
 target /sbin/reboot
-file /sbin/umount
-
-file /usr/bin/login
-file /usr/sbin/update
-file /usr/libexec/getty
 
 #
 # Files: /var

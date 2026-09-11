@@ -1,4 +1,5 @@
 TOPSRC!=cd ../..; pwd
+PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 # Must run set-group-id kmem.

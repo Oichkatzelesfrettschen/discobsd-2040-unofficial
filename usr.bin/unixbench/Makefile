@@ -29,6 +29,7 @@
 #                          Digital Unix 4.x (kahn@zk3.dec.com)
 ##############################################################################
 TOPSRC!=cd ../..; pwd
+PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 ID="@(#)Makefile:3.9 -- 5/15/91 19:30:15";

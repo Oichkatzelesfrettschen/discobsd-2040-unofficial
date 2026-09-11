@@ -102,8 +102,8 @@ Memory Configuration
 
 Name             Origin             Length             Attributes
 BOOT2            0x10000000         0x00000100         xr
-FLASH            0x10000100         0x0007ff00         xr
-FSFLASH          0x10080000         0x00150000         r
+FLASH            0x10000100         0x0002ff00         xr
+FSFLASH          0x10030000         0x001a0000         r
 SWAPFLASH        0x101d0000         0x00030000         r
 USERRAM          0x20000000         0x00018000         xrw
 RAM              0x20018000         0x00026800         rw!x
@@ -114,7 +114,7 @@ UAREA            0x2003f400         0x00000c00         rw!x
 Linker script and memory map
 
                 0x10000100                        __kernel_flash_start = ORIGIN (FLASH)
-                0x10080000                        __kernel_flash_end = (ORIGIN (FLASH) + LENGTH (FLASH))
+                0x10030000                        __kernel_flash_end = (ORIGIN (FLASH) + LENGTH (FLASH))
                 0x20018000                        __kernel_data_start = ORIGIN (RAM)
                 0x2003e800                        __kernel_data_end = (ORIGIN (RAM) + LENGTH (RAM))
                 0x20000000                        __user_data_start = ORIGIN (USERRAM)
@@ -128,7 +128,7 @@ Linker script and memory map
  *(.boot2)
  .boot2         0x10000000      0x100 boot2.o
 
-.text           0x10000100    0x15e05
+.text           0x10000100    0x15e04
  *(.isr_vector)
  .isr_vector    0x10000100       0xc0 locore0.o
                 0x10000100                g_pfnVectors
@@ -848,42 +848,42 @@ Linker script and memory map
                 0x10015e58        0x0 error.o
                                  0xbc (size before relaxing)
  .rodata        0x10015e58       0x24 error.o
- .rodata        0x10015e7c       0x89 vers.o
+ .rodata        0x10015e7c       0x88 vers.o
                 0x10015e7c                osrelease
                 0x10015e80                osversion
                 0x10015e88                ostype
                 0x10015e94                version
 
-.glue_7         0x10015f08        0x0
- .glue_7        0x10015f08        0x0 linker stubs
+.glue_7         0x10015f04        0x0
+ .glue_7        0x10015f04        0x0 linker stubs
 
-.glue_7t        0x10015f08        0x0
- .glue_7t       0x10015f08        0x0 linker stubs
+.glue_7t        0x10015f04        0x0
+ .glue_7t       0x10015f04        0x0 linker stubs
 
-.vfp11_veneer   0x10015f08        0x0
- .vfp11_veneer  0x10015f08        0x0 linker stubs
+.vfp11_veneer   0x10015f04        0x0
+ .vfp11_veneer  0x10015f04        0x0 linker stubs
 
-.v4_bx          0x10015f08        0x0
- .v4_bx         0x10015f08        0x0 linker stubs
+.v4_bx          0x10015f04        0x0
+ .v4_bx         0x10015f04        0x0 linker stubs
 
-.iplt           0x10015f08        0x0
- .iplt          0x10015f08        0x0 locore0.o
+.iplt           0x10015f04        0x0
+ .iplt          0x10015f04        0x0 locore0.o
 
-.rel.dyn        0x10015f08        0x0
- .rel.iplt      0x10015f08        0x0 locore0.o
+.rel.dyn        0x10015f04        0x0
+ .rel.iplt      0x10015f04        0x0 locore0.o
 
 .ARM.extab
  *(.ARM.extab* .gnu.linkonce.armextab.*)
 
-.ARM.exidx      0x10015f05        0x0
-                0x10015f05                        __exidx_start = .
+.ARM.exidx      0x10015f04        0x0
+                0x10015f04                        __exidx_start = .
  *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-                0x10015f05                        __exidx_end = .
-                0x10015f08                        . = ALIGN (0x4)
-                0x10015f08                        __etext = .
-                0x10015f08                        _sidata = LOADADDR (.data)
+                0x10015f04                        __exidx_end = .
+                0x10015f04                        . = ALIGN (0x4)
+                0x10015f04                        __etext = .
+                0x10015f04                        _sidata = LOADADDR (.data)
 
-.data           0x20018000      0x200 load address 0x10015f08
+.data           0x20018000      0x200 load address 0x10015f04
                 0x20018000                        __data_start__ = .
                 0x20018000                        _sdata = .
  *(.data*)
@@ -996,10 +996,10 @@ Linker script and memory map
                 0x20018200                        __data_end__ = .
                 0x20018200                        _edata = .
 
-.igot.plt       0x20018200        0x0 load address 0x10016108
+.igot.plt       0x20018200        0x0 load address 0x10016104
  .igot.plt      0x20018200        0x0 locore0.o
 
-.bss            0x20018200     0x99f0 load address 0x10016108
+.bss            0x20018200     0x99f0 load address 0x10016104
                 0x20018200                        . = ALIGN (0x8)
                 0x20018200                        __bss_start__ = .
                 0x20018200                        _sbss = .

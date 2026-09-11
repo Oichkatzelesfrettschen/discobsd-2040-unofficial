@@ -9,6 +9,7 @@
 # To profile, put -DPROF in DEFS and -pg in CFLAGS, and recompile.
 #
 TOPSRC!=cd ../..; pwd
+PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS          += -DTELL -DVFORK -DFILEC -DNOLIMITS -Os

@@ -13,6 +13,7 @@
 # It allows pForth to work as a standalone image that does not need to load a dictionary file.
 
 TOPSRC!=cd ../..; pwd
+PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 # Options include: PF_SUPPORT_FP PF_NO_MALLOC PF_NO_INIT PF_DEBUG

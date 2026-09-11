@@ -125,9 +125,9 @@ file /etc/ttys
 file /etc/termcap
 
 #
-# /bin/box is one a.out holding the small utilities, dispatched on the
-# name it is invoked by; the names below are hard links to it. See
-# bin/box/Makefile.
+# /bin/box and /bin/sysbox are two a.outs holding the small utilities,
+# dispatched on the name they are invoked by; the names below are hard
+# links. See bin/box/Makefile.
 #
 default
 filemode 0775
@@ -136,9 +136,9 @@ file /bin/sh
 file /bin/ed
 file /bin/ps
 file /bin/md5
-file /bin/tar
 file /bin/expr
 file /bin/box
+file /bin/sysbox
 
 file /sbin/reboot
 file /sbin/shutdown
@@ -158,7 +158,6 @@ file /usr/bin/tail
 file /usr/bin/tr
 file /usr/bin/wc
 file /usr/bin/cmp
-file /usr/bin/diff
 file /usr/bin/more
 file /usr/bin/basename
 file /usr/bin/env
@@ -168,12 +167,6 @@ file /usr/bin/tee
 file /usr/bin/touch
 file /usr/bin/xargs
 file /usr/bin/du
-file /usr/bin/rev
-file /usr/bin/split
-file /usr/bin/fold
-file /usr/bin/comm
-file /usr/bin/join
-file /usr/bin/nice
 file /usr/bin/nohup
 file /usr/bin/tty
 file /usr/bin/uname
@@ -181,7 +174,6 @@ file /usr/bin/true
 file /usr/bin/false
 file /usr/bin/login
 file /usr/bin/passwd
-file /usr/bin/make
 file /usr/bin/re
 file /usr/bin/picoc
 
@@ -198,11 +190,11 @@ target /bin/box
 link /bin/cp
 target /bin/box
 link /bin/date
-target /bin/box
+target /bin/sysbox
 link /bin/dd
-target /bin/box
+target /bin/sysbox
 link /bin/df
-target /bin/box
+target /bin/sysbox
 link /bin/echo
 target /bin/box
 link /bin/hostname
@@ -226,7 +218,7 @@ target /bin/box
 link /bin/sleep
 target /bin/box
 link /bin/stty
-target /bin/box
+target /bin/sysbox
 link /bin/sync
 target /bin/box
 link /bin/test
@@ -236,11 +228,11 @@ target /bin/box
 link /sbin/chown
 target /bin/box
 link /sbin/mknod
-target /bin/box
+target /bin/sysbox
 link /sbin/mount
-target /bin/box
+target /bin/sysbox
 link /sbin/umount
-target /bin/box
+target /bin/sysbox
 link /sbin/halt
 target /sbin/reboot
 

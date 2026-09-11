@@ -83,9 +83,12 @@
  * no translation layer: unit 1 of the driver, fl1. A swapped image is
  * rewritten whole and never read back after a reboot, so journaling it
  * only costs erases. Measured through Dhara, one 33K swap write erased 21
- * blocks. Here it erases the nine 4K sectors it covers.
+ * blocks. Here it erases the nine 4K sectors it covers. Swap is handed
+ * out in contiguous runs and fragments as images of different sizes come
+ * and go; 256K failed a 70K image with 115K free in three runs, so 384K
+ * keeps room for the largest image beside two others and the gaps.
  */
-#define	FLASH_SWAP_BYTES	(192UL * 1024)
+#define	FLASH_SWAP_BYTES	(384UL * 1024)
 #define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
 
 /*

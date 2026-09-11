@@ -14,10 +14,8 @@
 int cat_main(int, char **);
 int chgrp_main(int, char **);
 int chmod_main(int, char **);
+int chown_main(int, char **);
 int cp_main(int, char **);
-int date_main(int, char **);
-int dd_main(int, char **);
-int df_main(int, char **);
 int echo_main(int, char **);
 int hostname_main(int, char **);
 int kill_main(int, char **);
@@ -29,13 +27,8 @@ int pwd_main(int, char **);
 int rm_main(int, char **);
 int rmdir_main(int, char **);
 int sleep_main(int, char **);
-int stty_main(int, char **);
 int sync_main(int, char **);
 int test_main(int, char **);
-int chown_main(int, char **);
-int mknod_main(int, char **);
-int mount_main(int, char **);
-int umount_main(int, char **);
 
 static const struct tool {
 	const char	*name;
@@ -45,10 +38,8 @@ static const struct tool {
 	{ "cat", cat_main },
 	{ "chgrp", chgrp_main },
 	{ "chmod", chmod_main },
+	{ "chown", chown_main },
 	{ "cp", cp_main },
-	{ "date", date_main },
-	{ "dd", dd_main },
-	{ "df", df_main },
 	{ "echo", echo_main },
 	{ "hostname", hostname_main },
 	{ "kill", kill_main },
@@ -60,13 +51,8 @@ static const struct tool {
 	{ "rm", rm_main },
 	{ "rmdir", rmdir_main },
 	{ "sleep", sleep_main },
-	{ "stty", stty_main },
 	{ "sync", sync_main },
 	{ "test", test_main },
-	{ "chown", chown_main },
-	{ "mknod", mknod_main },
-	{ "mount", mount_main },
-	{ "umount", umount_main },
 	{ "[", test_main },
 	{ 0, 0 }
 };
@@ -81,7 +67,8 @@ main(int argc, char **argv)
 	for (p = name; *p; p++)
 		if (*p == '/')
 			name = p + 1;
-	if (strcmp(name, "box") == 0 && argc > 1) {
+	if ((strcmp(name, "box") == 0 || strcmp(name, "sysbox") == 0) &&
+	    argc > 1) {
 		argc--;
 		argv++;
 		name = argv[0];

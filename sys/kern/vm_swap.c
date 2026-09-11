@@ -72,8 +72,16 @@ swapout (p, freecore, odata, ostack)
     if (ostack == (u_int) X_OLDSIZE)
         ostack = p->p_ssize;
     if (malloc3 (swapmap, btod (p->p_dsize), btod (p->p_ssize),
-        btod (USIZE), a) == NULL)
+        btod (USIZE), a) == NULL) {
+        register struct mapent *ep;
+
+        printf ("swapout: pid %d dsize %u ssize %u, free:",
+            p->p_pid, p->p_dsize, p->p_ssize);
+        for (ep = swapmap->m_map; ep->m_size; ep++)
+            printf (" %u@%u", ep->m_size, ep->m_addr);
+        printf ("\n");
         panic ("out of swap space");
+    }
     p->p_flag |= SLOCK;
     if (odata) {
         swap (a[0], p->p_daddr, odata, B_WRITE);

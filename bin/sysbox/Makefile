@@ -1,5 +1,5 @@
 #
-# A multicall binary of the small file utilities. Each tool's own objects,
+# The system tools as one binary; see bin/box/Makefile. Each tool's own objects,
 # already built in its directory, are combined with ld -r, every global
 # except a renamed main is made local, and the results link once against
 # libc. bin/Makefile builds this directory last. bin/sysbox holds the
@@ -13,14 +13,13 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
-TOOLS=		cat chgrp chmod chown cp echo hostname kill ln ls \
-		mkdir mv pwd rm rmdir sleep sync test
+TOOLS=		date dd df mknod mount umount stty
 
 # Other names a tool answers to, as name:tool.
-ALIASES=	[:test
+ALIASES=
 
 OBJS=		${TOOLS:S/$/.tool.o/}
-PROG=		box
+PROG=		sysbox
 
 all:		${PROG}
 
@@ -35,16 +34,16 @@ $t.tool.o:
 	rm -f $@.r
 .endfor
 
-box.c:		box.c.in Makefile
+sysbox.c:	../box/box.c.in Makefile
 	decls=""; table=""; for t in ${TOOLS}; do \
 		decls="$$decls\nint $${t}_main(int, char **);"; \
 		table="$$table\n\t{ \"$$t\", $${t}_main },"; done; \
 	for a in ${ALIASES}; do \
 		table="$$table\n\t{ \"$${a%%:*}\", $${a#*:}_main },"; done; \
-	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" box.c.in > $@
+	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" ../box/box.c.in > $@
 
-${PROG}:	box.o ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf box.o ${OBJS} ${LIBS}
+${PROG}:	sysbox.o ${OBJS}
+	${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf sysbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
@@ -52,4 +51,4 @@ install:	all
 	${INSTALL} -m 755 ${PROG} ${DESTDIR}/bin/${PROG}
 
 clean:
-	rm -f *.o *.r *.elf ${PROG} box.c
+	rm -f *.o *.r *.elf ${PROG} sysbox.c

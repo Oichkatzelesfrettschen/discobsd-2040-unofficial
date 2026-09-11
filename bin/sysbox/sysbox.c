@@ -10,13 +10,27 @@
 #include <string.h>
 #include <unistd.h>
 
-@DECLS@
+
+int date_main(int, char **);
+int dd_main(int, char **);
+int df_main(int, char **);
+int mknod_main(int, char **);
+int mount_main(int, char **);
+int umount_main(int, char **);
+int stty_main(int, char **);
 
 static const struct tool {
 	const char	*name;
 	int		(*main)(int, char **);
 } tools[] = {
-@TABLE@
+
+	{ "date", date_main },
+	{ "dd", dd_main },
+	{ "df", df_main },
+	{ "mknod", mknod_main },
+	{ "mount", mount_main },
+	{ "umount", umount_main },
+	{ "stty", stty_main },
 	{ 0, 0 }
 };
 

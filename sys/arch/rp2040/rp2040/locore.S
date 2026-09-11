@@ -37,15 +37,22 @@ setjmp:
 #ifdef __thumb2__
 	stmea	r0!, {r4-r10,fp,ip,lr}	/* Save regs in env arg. */
 #else /* __thumb__ */
+	/*
+	 * ARMv6-M STM stores low registers only, so the high ones are
+	 * staged through r1-r3, which the calling convention lets a
+	 * function clobber. Staging them through r4-r7, as the STM32 tree's
+	 * Thumb-1 branch did, left the caller with r4-r7 holding r8-r11 on
+	 * the return of zero, and a kernel built for Thumb-2 never ran it.
+	 */
 	stmea	r0!, {r4-r7}		/* Save v1-v4 in env arg. Incr r0. */
-	mov	r4, r8			/* Bring high register v5 to low. */
-	mov	r5, r9			/* Bring high register v6 to low. */
-	mov	r6, r10			/* Bring high register v7 to low. */
-	mov	r7, r11			/* Bring high register v8 to low. */
-	stmea	r0!, {r4-r7}		/* Save v5-v8 in env arg. Incr r0. */
-	mov	r4, ip			/* Bring high register ip to low. */
-	mov	r5, lr			/* Bring high register lr to low. */
-	stmea	r0!, {r4-r5}		/* Save ip and lr in env arg. */
+	mov	r1, r8			/* Bring high register v5 to low. */
+	mov	r2, r9			/* Bring high register v6 to low. */
+	mov	r3, r10			/* Bring high register v7 to low. */
+	stmea	r0!, {r1-r3}		/* Save v5-v7 in env arg. Incr r0. */
+	mov	r1, r11			/* Bring high register v8 to low. */
+	mov	r2, ip			/* Bring high register ip to low. */
+	mov	r3, lr			/* Bring high register lr to low. */
+	stmea	r0!, {r1-r3}		/* Save v8, ip and lr in env arg. */
 #endif
 	movs	r0, #0			/* Returns zero. */
 	bx	lr

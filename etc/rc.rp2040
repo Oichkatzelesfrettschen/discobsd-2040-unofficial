@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# System startup script run by init on autoboot or after single-user.
+#
+# The Raspberry Pi Pico's root holds 795 kbytes, so this is /etc/rc without
+# the motd rewrite, which needs sysctl, sed, cmp, and cp, and without cron.
+#
+HOME=/; export HOME
+PATH=/sbin:/bin:/usr/sbin:/usr/bin; export PATH
+
+exec >/dev/console 2>&1
+
+if test "$1" != "autoboot"; then
+    #
+    # Switch from single-user to multi-user mode.
+    #
+    echo
+    exit 0
+fi
+
+echo "Automatic boot in progress: starting file system checks."
+fsck -p
+case $? in
+0)
+    # Filesystems are clean
+    ;;
+2)
+    echo "--- Critical errors detected: run fsck to repair manually"
+    exit 1 ;;
+4)
+    # Root filesystem modified: NO SYNC!
+    echo "--- Errors repaired, rebooting..."
+    reboot -n ;;
+8)
+    echo "--- Filesystem check failed... help!"
+    exit 1 ;;
+12)
+    echo "--- Interrupted by user"
+    exit 1 ;;
+*)
+    echo "--- Unknown error in fsck"
+    exit 1 ;;
+esac
+
+hostname pico
+umount -a
+mount -a
+rm -f /etc/nologin
+
+echo -n "Starting daemons:"
+update && echo -n " update"
+echo
+date
+exit 0

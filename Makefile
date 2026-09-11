@@ -19,10 +19,28 @@ MACHINE_ARCH=	arm
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASEDIR?=	${TOPSRC}/distrib/obj/releasedir
 
-# Filesystem and swap sizes.
-FS_MBYTES       = 200
-U_MBYTES        = 200
-SWAP_MBYTES     = 2
+# Filesystem and swap sizes, in kbytes. A machine whose disk is smaller
+# than an SD card overrides these from distrib/${MACHINE}/Makefile.inc,
+# and U_KBYTES=0 omits the /home partition.
+FS_KBYTES?=	204800
+U_KBYTES?=	204800
+SWAP_KBYTES?=	2048
+# The machine-independent manifest; a machine with a small disk names a
+# shorter one.
+MI_MANIFEST?=	distrib/base/mi
+# Inodes in the root filesystem; 0 leaves fsutil's one per 16 kbytes.
+FS_INODES?=	0
+-include	distrib/${MACHINE}/Makefile.inc
+
+FS_INODES_ARG!=	if [ ${FS_INODES} -gt 0 ] ; then \
+			echo "--inodes=${FS_INODES}" ; \
+		fi
+
+PARTITIONS!=	if [ ${U_KBYTES} -gt 0 ] ; then \
+			echo "fs=${FS_KBYTES}k:swap=${SWAP_KBYTES}k:fs=${U_KBYTES}k" ; \
+		else \
+			echo "fs=${FS_KBYTES}k:swap=${SWAP_KBYTES}k" ; \
+		fi
 
 # SD card filesystem image for ${MACHINE}.
 FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
@@ -68,13 +86,12 @@ kernel:		tools
 
 fs:		$(FSIMG)
 
-${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} distrib/base/mi.home
+${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home
 		rm -f $@ distrib/$(MACHINE)/_manifest
-		cat distrib/base/mi distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
-		$(FSUTIL) --repartition=fs=$(FS_MBYTES)M:swap=$(SWAP_MBYTES)M:fs=$(U_MBYTES)M $@
-		${FSUTIL} --new --partition=1 --manifest=distrib/${MACHINE}/_manifest $@ ${DESTDIR}
-# In case you need a separate /home partition,
-# uncomment the following line.
+		cat ${MI_MANIFEST} distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
+		$(FSUTIL) --repartition=${PARTITIONS} $@
+		${FSUTIL} --new --partition=1 ${FS_INODES_ARG} --manifest=distrib/${MACHINE}/_manifest $@ ${DESTDIR}
+		[ ${U_KBYTES} -eq 0 ] || \
 		$(FSUTIL) --new --partition=3 --manifest=distrib/base/mi.home $@ distrib/home
 
 release:

@@ -1,0 +1,31 @@
+#
+# Machine dependent RP2040 root file system manifest file.
+#
+# The machine-independent part is distrib/rp2040/mi.rp2040, which the
+# Raspberry Pi Pico's 795-kbyte root limits to a shell and what /etc/rc
+# runs. This part adds the flash block device.
+#
+default
+owner 0
+group 0
+dirmode 0775
+filemode 0664
+
+#
+# Block devices: the onboard QSPI flash behind arch/rp2040/dev/flash.c.
+#
+# Major Minor Name  Device
+# -------------------------
+#   0     0   fl0   Whole flash filesystem region
+#   0     1   fl0a  Partition 1: root file system
+#   0     2   fl0b  Partition 2: swap space
+#
+bdev /dev/fl0
+major 0
+minor 0
+bdev /dev/fl0a
+major 0
+minor 1
+bdev /dev/fl0b
+major 0
+minor 2

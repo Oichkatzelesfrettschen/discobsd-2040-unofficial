@@ -1,0 +1,160 @@
+#
+# Root file system manifest for a 795-kbyte root on the Raspberry Pi Pico's
+# QSPI flash. distrib/base/mi describes a 200-Mbyte SD card; this lists
+# what a boot to a shell on the serial console runs: init, the commands
+# /etc/rc calls, getty and login, and a working set of /bin.
+#
+default
+owner 0
+group 0
+dirmode 0775
+filemode 0664
+
+#
+# Directories.
+#
+dir /bin
+dir /dev
+dir /etc
+dir /sbin
+dir /tmp
+dir /usr
+dir /home
+dir /usr/bin
+dir /usr/sbin
+dir /usr/libexec
+dir /usr/lib
+dir /usr/share
+dir /usr/share/misc
+dir /root
+dir /var
+dir /var/log
+dir /var/run
+
+#
+# Block devices, majors as sys/arch/rp2040/rp2040/conf.c orders bdevsw.
+#
+bdev /dev/swap
+major 4             # Virtual swap device, mapped to real swap partition
+minor 64
+
+#
+# Character devices.
+#
+cdev /dev/console
+major 0
+minor 0
+cdev /dev/mem
+major 1
+minor 0
+cdev /dev/kmem
+major 1
+minor 1
+cdev /dev/null
+major 1
+minor 2
+mode 666
+cdev /dev/zero
+major 1
+minor 3
+mode 666
+cdev /dev/tty
+major 2
+minor 0
+mode 666
+cdev /dev/stdin
+major 3
+minor 0
+cdev /dev/stdout
+major 3
+minor 1
+cdev /dev/stderr
+major 3
+minor 2
+cdev /dev/temp0
+major 4
+minor 0
+cdev /dev/temp1
+major 4
+minor 1
+cdev /dev/temp2
+major 4
+minor 2
+cdev /dev/klog
+major 5
+minor 0
+
+#
+# UART driver: uart0 on GP0 and GP1 is the console.
+#
+cdev /dev/tty0
+major 6
+minor 0
+
+#
+# Files: /root
+#
+default
+filemode 0644
+file /root/.profile
+
+symlink /.profile
+target root/.profile
+
+#
+# Files: /etc
+#
+file /etc/fstab
+file /etc/gettytab
+file /etc/group
+file /etc/motd
+file /etc/passwd
+file /etc/rc
+file /etc/rc.local
+file /etc/shadow
+file /etc/shells
+file /etc/ttys
+
+#
+# Files: /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec
+#
+default
+filemode 0775
+file /bin/cat
+file /bin/chmod
+file /bin/date
+file /bin/echo
+file /bin/hostname
+file /bin/kill
+file /bin/ln
+file /bin/ls
+file /bin/mkdir
+file /bin/ps
+file /bin/rm
+file /bin/sh
+file /bin/stty
+file /bin/sync
+file /bin/test
+link /bin/[
+target /bin/test
+
+file /sbin/fsck
+file /sbin/init
+file /sbin/mknod
+file /sbin/mount
+file /sbin/reboot
+link /sbin/halt
+target /sbin/reboot
+file /sbin/umount
+
+file /usr/bin/login
+file /usr/sbin/update
+file /usr/libexec/getty
+
+#
+# Files: /var
+#
+default
+filemode 0644
+file /var/log/messages
+file /var/log/wtmp

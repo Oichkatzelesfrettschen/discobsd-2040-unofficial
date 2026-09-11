@@ -22,7 +22,21 @@ GRP=		wheel
 TZDIR=		/usr/share/zoneinfo
 LOCALTIME=	Canada/Mountain
 
-FILES=		fstab gettytab group motd passwd rc rc.local shells ttys
+FILES=		gettytab group motd passwd rc.local shells ttys
+
+# A machine whose root is not sd0a, or whose disk is too small for what
+# rc starts, carries its own fstab or rc as fstab.${MACHINE} or
+# rc.${MACHINE}, installed under the plain name.
+FSTAB!=		if [ -f fstab.${MACHINE} ] ; then \
+			echo "fstab.${MACHINE}" ; \
+		else \
+			echo "fstab" ; \
+		fi
+RC!=		if [ -f rc.${MACHINE} ] ; then \
+			echo "rc.${MACHINE}" ; \
+		else \
+			echo "rc" ; \
+		fi
 
 all install depend lint tags:
 
@@ -36,6 +50,8 @@ distribution-etc-root-var: distrib-dirs
 	${INSTALL} -d -o ${OWN} -g ${GRP} -m 755 ${DESTDIR}/etc
 
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${FILES} ${DESTDIR}/etc
+	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${FSTAB} ${DESTDIR}/etc/fstab
+	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${RC} ${DESTDIR}/etc/rc
 	${INSTALL} -c -o root -g wheel -m 600 shadow ${DESTDIR}/etc
 #	${INSTALL} -c -o root -g wheel -m 600 master.passwd ${DESTDIR}/etc
 #	${INSTALL} -c -o ${OWN} -g ${GRP} -m 555 MAKEDEV.local MAKEDEV \
@@ -79,6 +95,8 @@ DIRS_RELEASE!=if [ x"${MACHINE}" = x"stm32" ] ; then \
 		echo "F405WEACTCORE F411RENUCLEO F412GDISCO F412WEACTCORE \
 			F413HDISCO F446RENUCLEO F446WEACTCORE F469IDISCO \
 			F4DISCOVERY F4VEDEVEBOX" ; \
+	elif [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "PICO" ; \
 	elif [ x"${MACHINE}" = x"pic32" ] ; then \
 		echo "BAREMETAL DUINOMITE DUINOMITE_EMEGA EXPLORER16 \
 			FUBARINO MAX32 MAXIMITE MAXIMITE_COLOR MMB_MX7 \

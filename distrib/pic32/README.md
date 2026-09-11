@@ -56,9 +56,9 @@ then the compiler toolchain must be built following [these instructions][19].
 The desired filesystem size and swap area size can be changed, as required.
 Default is:
 ```Makefile
-FS_MBYTES   = 200
-U_MBYTES    = 200
-SWAP_MBYTES = 2
+FS_KBYTES   = 204800
+U_KBYTES    = 204800
+SWAP_KBYTES = 2048
 ```
 To compile the kernel and build a filesystem image, run:
 

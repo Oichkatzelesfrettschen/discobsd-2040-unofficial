@@ -75,6 +75,15 @@ main(void)
 	for (i = 0; i < sizeof(u.u_rlimit)/sizeof(u.u_rlimit[0]); i++)
 		u.u_rlimit[i].rlim_cur = u.u_rlimit[i].rlim_max =
 		    RLIM_INFINITY;
+#ifdef CORE_DEFAULT
+	/*
+	 * A core file is a whole process image; on a root of a few hundred
+	 * kbytes of flash written through a translation layer, dumping one
+	 * costs the space and tens of seconds. Inherited by every process,
+	 * and raised with ulimit when a dump is wanted.
+	 */
+	u.u_rlimit[RLIMIT_CORE].rlim_cur = CORE_DEFAULT;
+#endif
 
 	/* Initialize signal state for process 0 */
 	siginit(p);

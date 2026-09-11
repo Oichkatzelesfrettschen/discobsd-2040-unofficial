@@ -18,6 +18,8 @@
 
 int exec_aout_check(struct exec_params *epp)
 {
+    register struct proc *p;
+    size_t tsize = 0;
     int error;
 
     DEBUG("\texec_aout_check(): start\n");
@@ -36,6 +38,7 @@ int exec_aout_check(struct exec_params *epp)
 
     switch (N_GETMAGIC(epp->hdr.aout)) {
     case OMAGIC:
+        tsize = epp->hdr.aout.a_text;
         epp->hdr.aout.a_data += epp->hdr.aout.a_text;
         epp->hdr.aout.a_text = 0;
         break;
@@ -103,6 +106,18 @@ int exec_aout_check(struct exec_params *epp)
         psignal (u.u_procp, SIGSEGV);
         return error;
     }
+
+    /*
+     * The text at the start of the image is never written, so swapin
+     * reads it back from the executable instead of swapout writing it
+     * to swap; keep the inode for that, one reference per process.
+     */
+    p = u.u_procp;
+    if (p->p_tip)
+        irele(p->p_tip);
+    epp->ip->i_count++;
+    p->p_tip = epp->ip;
+    p->p_tsize = tsize;
 
     exec_clear(epp);
     exec_setupstack(epp->hdr.aout.a_entry, epp);

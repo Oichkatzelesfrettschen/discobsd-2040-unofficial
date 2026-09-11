@@ -11,7 +11,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef PICOC_STACK_SIZE
 #define PICOC_STACK_SIZE (128*1024)              /* space for the the stack */
+#endif
 
 int main(int argc, char **argv)
 {

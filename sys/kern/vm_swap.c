@@ -10,6 +10,23 @@
 #include <sys/buf.h>
 #include <sys/systm.h>
 #include <sys/vm.h>
+#include <sys/inode.h>
+#include <sys/uio.h>
+#include <sys/exec_aout.h>
+
+/*
+ * The clean text at the start of a process's data area: swapout skips it
+ * and swapin reads it from the executable. Zero when there is no
+ * executable to read from, as for process 1 before it execs.
+ */
+static size_t
+swaptext (p)
+    register struct proc *p;
+{
+    if (p->p_tip == NULL || p->p_tsize > p->p_dsize)
+        return 0;
+    return p->p_tsize;
+}
 
 /*
  * Swap a process in.
@@ -25,10 +42,21 @@ swapin (p)
     size_t daddr = (size_t)__user_data_start;
     size_t saddr = (size_t)__user_data_end - p->p_ssize;
     size_t uaddr = (size_t) &u0;
+    size_t tsize = swaptext (p);
 
-    if (p->p_dsize) {
-        swap (p->p_daddr, daddr, p->p_dsize, B_READ);
-        mfree (swapmap, btod (p->p_dsize), p->p_daddr);
+    /*
+     * The text comes back from the executable, which swapout never
+     * wrote; only what follows it is on swap.
+     */
+    if (tsize) {
+        ILOCK (p->p_tip);
+        (void) rdwri (UIO_READ, p->p_tip, (caddr_t) daddr, tsize,
+            (off_t) sizeof (struct exec), IO_UNIT, (int *) 0);
+        IUNLOCK (p->p_tip);
+    }
+    if (p->p_dsize > tsize) {
+        swap (p->p_daddr, daddr + tsize, p->p_dsize - tsize, B_READ);
+        mfree (swapmap, btod (p->p_dsize - tsize), p->p_daddr);
     }
     if (p->p_ssize) {
         swap (p->p_saddr, saddr, p->p_ssize, B_READ);
@@ -66,12 +94,15 @@ swapout (p, freecore, odata, ostack)
     register u_int odata, ostack;
 {
     size_t a[3];
+    size_t tsize = swaptext (p);
 
     if (odata == (u_int) X_OLDSIZE)
         odata = p->p_dsize;
     if (ostack == (u_int) X_OLDSIZE)
         ostack = p->p_ssize;
-    if (malloc3 (swapmap, btod (p->p_dsize), btod (p->p_ssize),
+    /* Only what follows the clean text goes to swap. */
+    odata = odata > tsize ? odata - tsize : 0;
+    if (malloc3 (swapmap, btod (p->p_dsize - tsize), btod (p->p_ssize),
         btod (USIZE), a) == NULL) {
         register struct mapent *ep;
 
@@ -84,7 +115,7 @@ swapout (p, freecore, odata, ostack)
     }
     p->p_flag |= SLOCK;
     if (odata) {
-        swap (a[0], p->p_daddr, odata, B_WRITE);
+        swap (a[0], p->p_daddr + tsize, odata, B_WRITE);
     }
     if (ostack) {
         swap (a[1], p->p_saddr, ostack, B_WRITE);

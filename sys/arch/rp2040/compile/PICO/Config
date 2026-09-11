@@ -28,6 +28,7 @@ config          unix    root on fl0a
                         swap on fl1
 
 options         "NFL=2"                     # fl0 root, fl1 swap.
+options         "CORE_DEFAULT=0"            # No core dumps unless raised.
 
 # Console over the board's USB cable: a CDC-ACM device on the RP2040's own
 # controller, /dev/ttyACM0 on a Linux host. It also carries the Pico SDK's

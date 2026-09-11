@@ -147,6 +147,10 @@ again:
     child->p_ssize = parent->p_ssize;
     child->p_daddr = parent->p_daddr;
     child->p_saddr = parent->p_saddr;
+    child->p_tsize = parent->p_tsize;
+    child->p_tip = parent->p_tip;
+    if (child->p_tip)
+        child->p_tip->i_count++;
 
     /*
      * Partially simulate the environment of the new process so that

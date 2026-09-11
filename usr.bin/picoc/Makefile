@@ -6,7 +6,7 @@ VPATH           = cstdlib platform
 
 CFLAGS          += -DUNIX_HOST -DVER='"1.0"' -DFILENAME_MAX=64 \
                    -DL_tmpnam=30 -DCLOCKS_PER_SEC=80000000 \
-                   -DNO_FP -Os
+                   -DNO_FP -DPICOC_STACK_SIZE="(12*1024)" -Os
 
 LIBS            = -lm -lc
 

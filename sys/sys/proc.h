@@ -51,6 +51,8 @@ struct  proc {
             size_t  P_saddr;        /* address of stack area */
             size_t  P_dsize;        /* size of data area (clicks) */
             size_t  P_ssize;        /* size of stack segment (clicks) */
+            size_t  P_tsize;        /* clean text at the start of data */
+            struct  inode *P_tip;   /* executable the text is read from */
             caddr_t P_wchan;        /* event process is awaiting */
             struct  k_itimerval P_realtimer;
         } p_alive;
@@ -77,6 +79,8 @@ struct  proc {
 #define p_saddr         p_un.p_alive.P_saddr
 #define p_dsize         p_un.p_alive.P_dsize
 #define p_ssize         p_un.p_alive.P_ssize
+#define p_tsize         p_un.p_alive.P_tsize
+#define p_tip           p_un.p_alive.P_tip
 #define p_wchan         p_un.p_alive.P_wchan
 #define p_realtimer     p_un.p_alive.P_realtimer
 #define p_clktim        p_realtimer.it_value

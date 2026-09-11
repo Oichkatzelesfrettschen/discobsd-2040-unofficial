@@ -6,8 +6,7 @@
 TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-SUBDIR=	chown fdisk fsck init mkfs mknod mount \
-	reboot shutdown sysctl umount
+SUBDIR=		chown fdisk fsck init mkfs mknod mount reboot shutdown sysctl umount box sysbox
 
 all:	${SUBDIR}
 

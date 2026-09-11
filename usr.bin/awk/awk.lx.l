@@ -6,8 +6,33 @@
 #include	"awk.h"
 #include	"awk.def.h"
 #define YY_NO_INPUT	/* defeat lex */
+/*
+ * The rules live under the A start condition. flex starts in INITIAL,
+ * where nothing matches and the default rule echoes the program text to
+ * the output, so enter A before the first token.
+ */
+#define YY_USER_INIT	BEGIN A;
 extern int	yylval;
 extern int	mustfld;
+extern char	*lexprog;
+
+/*
+ * flex reads through YY_INPUT, and defaults it to yyin, which it sets to
+ * stdin when NULL: the program text on the command line was never read
+ * and the program came from the input instead. Feed it from lexprog when
+ * main sets that, the way input() below does for AT&T lex.
+ */
+#define YY_INPUT(buf, result, max_size) \
+	{ \
+		int yyc; \
+		if (lexprog != NULL) \
+			yyc = *lexprog ? (unsigned char)*lexprog++ : EOF; \
+		else \
+			yyc = getc(yyin); \
+		if (yyc == '\n') \
+			yylineno++; \
+		result = (yyc == EOF) ? YY_NULL : ((buf)[0] = yyc, 1); \
+	}
 
 int	lineno	= 1;
 #define	CADD	cbuf[clen++]=yytext[0]; if(clen>=CBUFLEN-1) {yyerror("string too long", cbuf); BEGIN A;}
@@ -31,6 +56,16 @@ WS	[ \t]
 		BEGIN A;
 		return('}');
 	} */
+
+	/*
+	 * The commented switch above was AT&T lex's entry hook: a "}"
+	 * returned ';' and moved to state sc, and the next call returned the
+	 * '}' itself. flex has no entry hook, so sc does it with rules: the
+	 * next character, or the end of input, yields the '}' and returns to
+	 * A without consuming anything.
+	 */
+<sc>.|\n	{ yyless(0); BEGIN A; return('}'); }
+<sc><<EOF>>	{ BEGIN A; return('}'); }
 
 <A>^\n		lineno++;
 <A>^{WS}*#.*\n	lineno++;	/* strip comment lines */

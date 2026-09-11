@@ -6,7 +6,7 @@
 TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-SUBDIR=		date2 hostname ls md5 sh stty test box sysbox \
+SUBDIR=		date2 hostname ls md5 sh stty test \
 		cat chgrp chmod cp dd df echo ed expr kill ln mkdir mv ps \
 		pwd rm rmail rmdir sleep sync tar
 

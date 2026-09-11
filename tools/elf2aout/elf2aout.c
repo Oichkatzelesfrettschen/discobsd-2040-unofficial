@@ -508,6 +508,30 @@ usage:                  fprintf(stderr,
 		text.len = data.vaddr - text.vaddr;
         }
 
+	/*
+	 * A program linked with -N carries one segment holding text, rodata
+	 * and data together, and the loop above cannot tell where the
+	 * writable part starts. The .data section header can: everything
+	 * before its address is the text the kernel may read back from the
+	 * file instead of writing to swap, so a_text ends where .data begins.
+	 */
+	for (i = 0; i < ex.e_shnum; i++) {
+		char *name = shstrtab + sh[i].sh_name;
+
+		if (strcmp(name, ".data") == 0 && (sh[i].sh_flags & 0x2 /* SHF_ALLOC */) &&
+		    sh[i].sh_addr >= cur_vma &&
+		    sh[i].sh_addr <= cur_vma + text.len + data.len) {
+			unsigned total = text.len + data.len;
+
+			text.len = sh[i].sh_addr - cur_vma;
+			data.len = total - text.len;
+			if (verbose)
+				printf ("Split at .data: text len = %x, data len = %x\n",
+				    text.len, data.len);
+			break;
+		}
+	}
+
 	/* We now have enough information to cons up an a.out header... */
 	aex.a_magic = OMAGIC;
         if (! symflag) {

@@ -80,6 +80,11 @@ exit (rv)
     if (p->p_flag & SVFORK)
         endvfork();
 
+    if (p->p_tip) {
+        irele(p->p_tip);
+        p->p_tip = NULL;
+    }
+
     if (p->p_pid == 1)
         panic("init died");
     if ((*p->p_prev = p->p_nxt) != NULL)        /* off allproc queue */

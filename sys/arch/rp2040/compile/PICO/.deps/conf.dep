@@ -4,7 +4,8 @@ conf.o: ../../../../arch/rp2040/rp2040/conf.c sys/param.h \
  sys/conf.h sys/buf.h sys/time.h sys/ioctl.h sys/ttychars.h sys/ttydev.h \
  sys/resource.h sys/inode.h sys/proc.h sys/clist.h sys/tty.h sys/types.h \
  sys/ioctl.h sys/systm.h sys/conf.h sys/errno.h sys/swap.h \
- ../../../../arch/rp2040/dev/uart.h ../../../../arch/rp2040/dev/flash.h
+ ../../../../arch/rp2040/dev/uart.h ../../../../arch/rp2040/dev/usb.h \
+ ../../../../arch/rp2040/dev/flash.h
 sys/param.h:
 machine/machparam.h:
 machine/intr.h:
@@ -33,4 +34,5 @@ sys/conf.h:
 sys/errno.h:
 sys/swap.h:
 ../../../../arch/rp2040/dev/uart.h:
+../../../../arch/rp2040/dev/usb.h:
 ../../../../arch/rp2040/dev/flash.h:

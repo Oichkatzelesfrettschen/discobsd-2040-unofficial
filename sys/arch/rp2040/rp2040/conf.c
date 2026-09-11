@@ -22,6 +22,7 @@
 #include <sys/swap.h>
 
 #include <rp2040/dev/uart.h>
+#include <rp2040/dev/usb.h>
 
 /*
  * The flash block device is not optional here: it is the only disk, and the
@@ -184,9 +185,8 @@ const struct cdevsw cdevsw[] = {
 #if UART_MAJOR != 6
 #error Wrong UART_MAJOR value!
 #endif
-#if defined(UART1_ENABLED) || defined(UART2_ENABLED) || \
-    defined(UART3_ENABLED) || defined(UART4_ENABLED) || \
-    defined(UART5_ENABLED) || defined(UART6_ENABLED)
+#if defined(UART_ENABLED) || defined(UART0_ENABLED) || \
+    defined(UART1_ENABLED)
 		uartopen,	uartclose,	uartread,	uartwrite,
 		uartioctl,	nullstop,	uartttys,	uartselect,
 		nostrategy,	uartgetc,	uartputc,
@@ -195,7 +195,16 @@ const struct cdevsw cdevsw[] = {
 #endif
 	},
 	{	/* 7 - tty usb */
+#if UARTUSB_MAJOR != 7
+#error Wrong UARTUSB_MAJOR value!
+#endif
+#ifdef UARTUSB_ENABLED
+		usbopen,	usbclose,	usbread,	usbwrite,
+		usbioctl,	nullstop,	usbttys,	usbselect,
+		nostrategy,	usbgetc,	usbputc,
+#else
 		NOCDEV
+#endif
 	},
 	{	/* 8, 9 - pty */
 #ifdef PTY_ENABLED

@@ -28,11 +28,16 @@ config          unix    root on fl0a
 
 options         "NFL=1"                     # One flash disk.
 
-# Serial console on UART0, the pins the Pico exposes as GP0 and GP1.
+# Console over the board's USB cable: a CDC-ACM device on the RP2040's own
+# controller, /dev/ttyACM0 on a Linux host. It also carries the Pico SDK's
+# reset interface, so picotool reboot -u returns the board to BOOTSEL.
+device          uartusb
+options         "CONS_MAJOR=UARTUSB_MAJOR"  # USB device
+options         "CONS_MINOR=0"              # /dev/ttyUSB0
+
+# UART0 on GP0 and GP1 stays available as /dev/tty0 for a serial adapter.
 device          uart0
 options         "UART_BAUD=115200"          # default speed
-options         "CONS_MAJOR=UART_MAJOR"     # UART device
-options         "CONS_MINOR=0"              # uart0 is /dev/tty0
 
 # The Pico carries a single LED, wired to GP25. There is no choice of pin to
 # record here, so machdep.c names it directly and led_control lights the same

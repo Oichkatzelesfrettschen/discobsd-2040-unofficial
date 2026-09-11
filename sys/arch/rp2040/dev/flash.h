@@ -87,8 +87,17 @@
  */
 #define	__ramfunc	__attribute__((noinline, section(".ramfunc")))
 
+/*
+ * Boot ROM entry points are found by a two-character code through a table
+ * the ROM publishes; datasheet section 2.8.3. flash.c implements the lookup
+ * and usb.c uses it for the USB-boot entry.
+ */
+#define	ROM_CODE(c1, c2)	((u_int)(c1) | ((u_int)(c2) << 8))
+
 #ifdef KERNEL
 struct buf;
+
+void	*rom_func_lookup(u_int code);
 
 int	flopen(dev_t dev, int flags, int mode);
 int	flclose(dev_t dev, int mode, int flag);

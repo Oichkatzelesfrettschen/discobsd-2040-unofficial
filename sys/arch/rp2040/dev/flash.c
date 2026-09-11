@@ -70,8 +70,6 @@
 #define	ROM_FUNC_TABLE_ADDR	0x14
 #define	ROM_TABLE_LOOKUP_ADDR	0x18
 
-#define	ROM_CODE(c1, c2)	((u_int)(c1) | ((u_int)(c2) << 8))
-
 #define	ROM_CONNECT_INTERNAL_FLASH	ROM_CODE('I', 'F')
 #define	ROM_FLASH_EXIT_XIP		ROM_CODE('E', 'X')
 #define	ROM_FLASH_RANGE_ERASE		ROM_CODE('R', 'E')
@@ -128,8 +126,8 @@ const struct dhara_nand flnand = {
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
-static void *
-flash_rom_lookup(u_int code)
+void *
+rom_func_lookup(u_int code)
 {
 	rom_lookup_fn lookup;
 	u_short *table;
@@ -158,13 +156,13 @@ flash_rom_init(void)
 	if (flrom_ready)
 		return;
 
-	flrom.connect = (rom_void_fn)flash_rom_lookup(
+	flrom.connect = (rom_void_fn)rom_func_lookup(
 	    ROM_CONNECT_INTERNAL_FLASH);
-	flrom.exit_xip = (rom_void_fn)flash_rom_lookup(ROM_FLASH_EXIT_XIP);
-	flrom.erase = (rom_erase_fn)flash_rom_lookup(ROM_FLASH_RANGE_ERASE);
-	flrom.program = (rom_program_fn)flash_rom_lookup(
+	flrom.exit_xip = (rom_void_fn)rom_func_lookup(ROM_FLASH_EXIT_XIP);
+	flrom.erase = (rom_erase_fn)rom_func_lookup(ROM_FLASH_RANGE_ERASE);
+	flrom.program = (rom_program_fn)rom_func_lookup(
 	    ROM_FLASH_RANGE_PROGRAM);
-	flrom.flush = (rom_void_fn)flash_rom_lookup(ROM_FLASH_FLUSH_CACHE);
+	flrom.flush = (rom_void_fn)rom_func_lookup(ROM_FLASH_FLUSH_CACHE);
 
 	/*
 	 * Take a copy of the second stage before any write disables XIP,

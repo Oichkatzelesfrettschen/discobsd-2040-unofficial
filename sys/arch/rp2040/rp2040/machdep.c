@@ -31,6 +31,8 @@
 #include <machine/scb.h>
 
 #include <rp2040/dev/uart.h>
+#include <rp2040/dev/usb.h>
+#include <rp2040/dev/flash.h>
 
 /*
  * Kernel-specific uses of LEDs and buttons provided by the
@@ -78,13 +80,12 @@
 #define LED_KERNEL_OFF()	/* Nothing. */
 #endif
 
-#if defined(BSP) && defined(BSP_BUTTON_USER)
-#define BUTTON_USER_INIT()	BSP_PB_Init(BSP_BUTTON_USER)
-#define BUTTON_USER_PRESSED()	BSP_PB_GetState(BSP_BUTTON_USER)
-#else
+/*
+ * The Pico's only button is BOOTSEL, wired to the flash chip select, so
+ * reading it means floating that pin for a moment; see bootsel_pressed.
+ */
 #define BUTTON_USER_INIT()	/* Nothing. */
-#define BUTTON_USER_PRESSED()	(0)	/* Not pressed. */
-#endif
+#define BUTTON_USER_PRESSED()	bootsel_pressed()
 
 char	machine[] = MACHINE;		/* from <machine/machparam.h> */
 char	machine_arch[] = MACHINE_ARCH;	/* from <machine/machparam.h> */
@@ -156,6 +157,7 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	RESETS_DONE		0x8
 #define	RESETS_CLR		0x3000		/* Atomic clear alias. */
 #define	RESETS_PLL_SYS		(1UL << 12)
+#define	RESETS_PLL_USB		(1UL << 13)
 #define	RESETS_IO_BANK0		(1UL << 5)
 #define	RESETS_PADS_BANK0	(1UL << 8)
 #define	RESETS_SYSINFO		(1UL << 19)
@@ -181,6 +183,7 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	XOSC_STATUS_STABLE	(1UL << 31)
 
 #define	PLL_SYS_BASE		0x40028000UL
+#define	PLL_USB_BASE		0x4002c000UL
 #define	PLL_CS			0x00
 #define	PLL_PWR			0x04
 #define	PLL_FBDIV_INT		0x08
@@ -197,6 +200,15 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	CLK_SYS_SELECTED	0x44
 #define	CLK_PERI_CTRL		0x48
 #define	CLK_PERI_ENABLE		(1UL << 11)
+#define	CLK_USB_CTRL		0x54
+#define	CLK_USB_ENABLE		(1UL << 11)	/* Aux source 0 is PLL_USB. */
+
+#define	IO_QSPI_BASE		0x40018000UL
+#define	IO_QSPI_SS_CTRL		0x0c		/* GPIO_QSPI_SS control. */
+#define	IO_QSPI_OEOVER_MASK	(3UL << 12)
+#define	IO_QSPI_OEOVER_DISABLE	(2UL << 12)	/* Output disabled: floats. */
+#define	SIO_GPIO_HI_IN		0x08
+#define	SIO_QSPI_SS_BIT		(1UL << 1)
 
 #define	SIO_BASE		0xd0000000UL
 #define	SIO_GPIO_OUT_SET	0x14
@@ -307,11 +319,51 @@ SystemClock_Config(void)
 	/* The peripheral clock, which the UART divides for its baud rate. */
 	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) = CLK_PERI_ENABLE;
 
+	/*
+	 * The USB PLL: 12 * 100 / (5 * 5) == 48 MHz, the rate the USB
+	 * controller requires of clk_usb (datasheet 4.1.2.1).
+	 */
+	rp_unreset(RESETS_PLL_USB);
+	MREG32(PLL_USB_BASE + PLL_FBDIV_INT) = 100;
+	MREG32(PLL_USB_BASE + PLL_PRIM) = (5UL << 16) | (5UL << 12);
+	MREG32(PLL_USB_BASE + PLL_PWR) &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
+	while ((MREG32(PLL_USB_BASE + PLL_CS) & PLL_CS_LOCK) == 0)
+		continue;
+	MREG32(PLL_USB_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
+	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = CLK_USB_ENABLE;
+
 	/* The LED is a plain output driven from the single-cycle IO block. */
 	rp_unreset(RESETS_IO_BANK0 | RESETS_PADS_BANK0);
 	MREG32(PADS_BANK0_BASE + PADS_BANK0_GPIO(LED_GPIO)) &= ~PADS_OD;
 	MREG32(IO_BANK0_BASE + IO_BANK0_CTRL(LED_GPIO)) = GPIO_FUNC_SIO;
 	MREG32(SIO_BASE + SIO_GPIO_OE_SET) = 1UL << LED_GPIO;
+}
+
+/*
+ * Read the BOOTSEL button. It is the flash chip select, pulled up on the
+ * board and pulled low by the button, so the pad's output is disabled for
+ * a moment and the level sampled through SIO. Flash is unreachable while
+ * the select floats, which is why this runs from RAM with interrupts
+ * masked and calls nothing. The sequence is the Pico SDK's
+ * picoboard/button example, written against the IO_QSPI and SIO registers.
+ */
+static __ramfunc int
+bootsel_pressed(void)
+{
+	volatile u_int *ctrl = (volatile u_int *)(IO_QSPI_BASE + IO_QSPI_SS_CTRL);
+	volatile int i;
+	u_int saved, level;
+	int s;
+
+	s = splhigh();
+	saved = *ctrl;
+	*ctrl = (saved & ~IO_QSPI_OEOVER_MASK) | IO_QSPI_OEOVER_DISABLE;
+	for (i = 0; i < 1000; i++)
+		continue;	/* Let the pull-up settle. */
+	level = MREG32(SIO_BASE + SIO_GPIO_HI_IN);
+	*ctrl = saved;
+	splx(s);
+	return (level & SIO_QSPI_SS_BIT) == 0;
 }
 
 /*
@@ -388,8 +440,11 @@ startup(void)
 	/*
 	 * Early setup for console devices.
 	 */
-#if CONS_MAJOR == UART_MAJOR
-	uartinit(CONS_MINOR);
+#if defined(UART_ENABLED) || defined(UART0_ENABLED)
+	uartinit(0);
+#endif
+#ifdef UARTUSB_ENABLED
+	usbinit();
 #endif
 
 	/*

@@ -7,7 +7,8 @@ machdep.o: ../../../../arch/rp2040/rp2040/machdep.c sys/param.h \
  sys/file.h sys/fcntl.h sys/clist.h sys/callout.h sys/reboot.h \
  sys/msgbuf.h sys/namei.h sys/uio.h sys/types.h sys/mount.h sys/systm.h \
  sys/conf.h sys/config.h sys/tty.h sys/ttychars.h sys/ttydev.h \
- sys/ioctl.h machine/fault.h ../../../../arch/rp2040/dev/uart.h
+ sys/ioctl.h machine/fault.h ../../../../arch/rp2040/dev/uart.h \
+ ../../../../arch/rp2040/dev/usb.h ../../../../arch/rp2040/dev/flash.h
 sys/param.h:
 machine/machparam.h:
 machine/intr.h:
@@ -53,3 +54,5 @@ sys/ttydev.h:
 sys/ioctl.h:
 machine/fault.h:
 ../../../../arch/rp2040/dev/uart.h:
+../../../../arch/rp2040/dev/usb.h:
+../../../../arch/rp2040/dev/flash.h:

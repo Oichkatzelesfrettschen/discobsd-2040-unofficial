@@ -85,7 +85,14 @@ major 5
 minor 0
 
 #
-# UART driver: uart0 on GP0 and GP1 is the console.
+# The console: CDC-ACM over the board's USB cable.
+#
+cdev /dev/ttyUSB0
+major 7
+minor 0
+
+#
+# UART0 on GP0 and GP1, for a serial adapter.
 #
 cdev /dev/tty0
 major 6

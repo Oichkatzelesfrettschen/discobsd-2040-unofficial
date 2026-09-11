@@ -184,6 +184,45 @@ section 4.6.4. The timer and SYSINFO blocks are released from reset with the
 GPIO and pad blocks. `clock.c` arms SysTick from the processor clock for
 `HZ` interrupts a second; nothing in the STM32 tree's HAL is left to do it.
 
+## Console over the USB cable
+
+The Pico has one cable, so the console is a CDC-ACM device on the RP2040's
+own USB controller, `dev/usb.c`, written against the device controller
+model in datasheet section 4.1.2: control and buffer words in DPSRAM, one
+buffer per endpoint, an interrupt per completed buffer, the setup packet at
+DPSRAM offset 0, the device address written only after the status stage of
+SET_ADDRESS has gone out, and AVAILABLE set after the rest of a buffer
+control word with a few cycles between (4.1.2.7.1). A Linux host binds it
+as `/dev/ttyACM0` with no driver of its own. UART0 remains `/dev/tty0`.
+
+The device also carries the Pico SDK's vendor reset interface, class ff,
+subclass 00, protocol 01, on interface 2, and answers its two requests:
+BOOTSEL through the boot ROM's USB-boot entry, and a flash reboot through
+AIRCR. `picotool reboot -u` therefore returns the board to the ROM loader
+with no hand on the button, which matters on a board whose only other route
+back is a power cycle with BOOTSEL held.
+
+Output goes through a 4 KB ring rather than straight to the endpoint, since
+the host drains the IN endpoint only while a terminal holds the port open,
+and the kernel prints long before one does. A terminal opened after boot
+sees the tail of the boot messages. The ring only stalls the kernel when a
+host is present, has asserted DTR, and is slow, and then for a bounded spin.
+
+The compiled descriptors were walked byte by byte: the device descriptor is
+18 bytes with the Raspberry Pi vendor and Pico CDC product identifiers, and
+the configuration is 84 bytes whose interface association, three
+interfaces, four functional descriptors, and three endpoints sum to its
+wTotalLength. The driver has not enumerated against a host. RP2040-E5, the
+enumeration erratum needing 800 us of forced idle after bus reset, applies
+to silicon B0 and B1 and is fixed in the B2 this board carries, so the
+driver does not implement the workaround.
+
+The BOOTSEL button is the flash chip select, so `bootsel_pressed()` in
+`machdep.c` floats that pad for a moment and samples the level through SIO,
+from RAM with interrupts masked, because flash is unreachable meanwhile.
+Holding it at boot enters single-user mode. The disassembly of the routine
+contains no branch-and-link, which is the property the RAM placement needs.
+
 ## Root filesystem layout
 
 `dev/flash.c` presents the flash region as `fl0` with the SD driver's minor
@@ -234,8 +273,8 @@ Kernel, root filesystem, and both flash images build from clean:
 | Root filesystem | 511 KB in 76 inodes | 795 KB, 160 inodes |
 | Swap | 0 | 192 KB |
 
-Nothing here has run on hardware. The clock bring-up, the PL011 console,
-SysTick, the flash block device, and the userland have never executed on
-an RP2040, and the first boot is the test of all of them at once. The
-console is UART0 on GP0 and GP1 at 115200 baud, so a USB-serial adapter is
-required; the kernel drives no USB.
+Nothing here has run on hardware. The clock bring-up, the USB device, the
+PL011, SysTick, the flash block device, and the userland have never
+executed on an RP2040, and the first boot is the test of all of them at
+once. The console is the USB cable; a serial adapter on GP0 and GP1 is an
+alternative, not a requirement.

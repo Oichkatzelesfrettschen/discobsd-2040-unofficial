@@ -159,6 +159,22 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	infault = 0;
 	arm_intr_enable();
 
+	/*
+	 * A fault is synchronous: returning to the instruction repeats it,
+	 * so the signal must be delivered now or the process must die. A
+	 * process that has blocked or ignored SIGSEGV loses that, and one
+	 * whose stack is outside its memory, which no signal frame could be
+	 * built on, is killed outright. Without this a wild stack pointer
+	 * faulted forever and flooded the console.
+	 */
+	if ((u_int)frame < (u_int)__user_data_start ||
+	    (u_int)frame >= (u_int)__user_data_end)
+		psig = SIGKILL;
+	u.u_procp->p_sigmask &= ~sigmask(psig);
+	u.u_procp->p_sigignore &= ~sigmask(psig);
+	if (u.u_signal[psig] == SIG_IGN)
+		u.u_signal[psig] = SIG_DFL;
+
 	psignal(u.u_procp, psig);
 	userret(frame->ff_pc, syst);
 

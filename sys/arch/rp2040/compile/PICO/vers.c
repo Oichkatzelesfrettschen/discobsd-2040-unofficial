@@ -1,4 +1,4 @@
-const char version[] = "DiscoBSD 2.7 (PICO) #4 20: Fri Sep 11 16:32:08 PDT 2026\n     eirikr@x570-5600X3D:/sys/arch/rp2040/compile/PICO\n";
+const char version[] = "DiscoBSD 2.7 (PICO) #1 22: Fri Sep 11 16:45:22 PDT 2026\n     eirikr@x570-5600X3D:/sys/arch/rp2040/compile/PICO\n";
 const char ostype[] = "DiscoBSD";
-const char osversion[] = "PICO#4";
+const char osversion[] = "PICO#1";
 const char osrelease[] = "2.7";

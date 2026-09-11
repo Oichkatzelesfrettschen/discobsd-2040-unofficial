@@ -158,6 +158,19 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	RESETS_PLL_SYS		(1UL << 12)
 #define	RESETS_IO_BANK0		(1UL << 5)
 #define	RESETS_PADS_BANK0	(1UL << 8)
+#define	RESETS_SYSINFO		(1UL << 19)
+#define	RESETS_TIMER		(1UL << 21)
+
+/*
+ * The watchdog block divides clk_ref down to the 1 MHz tick that both the
+ * timer and SysTick's external clock count. Datasheet section 4.6.4: the
+ * timer does not count until this tick runs. Twelve cycles of the 12 MHz
+ * crystal make one microsecond.
+ */
+#define	WATCHDOG_BASE		0x40058000UL
+#define	WATCHDOG_TICK		0x2c
+#define	WATCHDOG_TICK_ENABLE	(1UL << 9)
+#define	WATCHDOG_TICK_CYCLES	12
 
 #define	XOSC_BASE		0x40024000UL
 #define	XOSC_CTRL		0x00
@@ -267,6 +280,11 @@ SystemClock_Config(void)
 	MREG32(CLOCKS_BASE + CLK_REF_CTRL) = 2;		/* xosc_clksrc */
 	while (MREG32(CLOCKS_BASE + CLK_REF_SELECTED) != (1UL << 2))
 		continue;
+
+	/* Start the microsecond tick, then the timer that counts it. */
+	MREG32(WATCHDOG_BASE + WATCHDOG_TICK) =
+	    WATCHDOG_TICK_ENABLE | WATCHDOG_TICK_CYCLES;
+	rp_unreset(RESETS_TIMER | RESETS_SYSINFO);
 
 	/* Program the system PLL: 12 * 125 / (6 * 2) == 125 MHz. */
 	rp_unreset(RESETS_PLL_SYS);

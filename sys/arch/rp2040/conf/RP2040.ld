@@ -14,8 +14,8 @@
  * DiscoBSD asks for at least 128 KB of flash and 128 KB of RAM, reserving 32
  * KB of RAM for the kernel and 96 KB for userland. The STM32F407XE target
  * ships 512 KB of flash and 160 KB of RAM across its regions. This board
- * carries 2 MB and 264 KB, so every region below is larger than the reference
- * target rather than squeezed to fit.
+ * carries 2 MB and 264 KB, so the kernel regions below are larger than the
+ * reference target and the user region is the same size.
  */
 
 MEMORY {
@@ -30,11 +30,17 @@ MEMORY {
      */
     FSFLASH (r)   : ORIGIN = 0x10080000, LENGTH = 1536K
 
-    RAM     (rw!x): ORIGIN = 0x20000000, LENGTH = 120K   /* Kernel data.    */
-    U0AREA  (rw!x): ORIGIN = 0x2001E000, LENGTH = 4K     /* Process 0 u.    */
-    UAREA   (rw!x): ORIGIN = 0x2001F000, LENGTH = 4K     /* Current u.      */
+    /*
+     * User space sits at the bottom of SRAM because lib/elf32-arm.ld links
+     * every userland executable at 0x20000000 and machparam.h's
+     * USER_DATA_START names the same address on every Arm target. 96K is
+     * the STM32 figure, kept so a process image swaps in the same size.
+     */
+    USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 96K    /* User space.     */
 
-    USERRAM (rwx) : ORIGIN = 0x20020000, LENGTH = 128K   /* User space.     */
+    RAM     (rw!x): ORIGIN = 0x20018000, LENGTH = 152K   /* Kernel data.    */
+    U0AREA  (rw!x): ORIGIN = 0x2003E000, LENGTH = 4K     /* Process 0 u.    */
+    UAREA   (rw!x): ORIGIN = 0x2003F000, LENGTH = 4K     /* Current u.      */
 
     /*
      * 0x20040000 - 0x20041FFF is SRAM4 and SRAM5, two unstriped 4 KB banks.

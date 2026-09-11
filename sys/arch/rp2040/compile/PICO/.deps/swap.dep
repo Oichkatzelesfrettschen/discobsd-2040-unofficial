@@ -1,0 +1,32 @@
+swap.o: ../../../../dev/swap.c sys/param.h machine/machparam.h \
+ machine/intr.h sys/types.h machine/types.h sys/select.h machine/scb.h \
+ sys/syslimits.h sys/signal.h machine/signal.h sys/systm.h sys/conf.h \
+ sys/buf.h sys/errno.h sys/dk.h sys/uio.h sys/types.h sys/conf.h \
+ sys/fcntl.h sys/map.h sys/swap.h sys/ioctl.h sys/ttychars.h sys/ttydev.h \
+ sys/disk.h sys/ioctl.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/systm.h:
+sys/conf.h:
+sys/buf.h:
+sys/errno.h:
+sys/dk.h:
+sys/uio.h:
+sys/types.h:
+sys/conf.h:
+sys/fcntl.h:
+sys/map.h:
+sys/swap.h:
+sys/ioctl.h:
+sys/ttychars.h:
+sys/ttydev.h:
+sys/disk.h:
+sys/ioctl.h:

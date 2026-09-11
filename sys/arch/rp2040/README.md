@@ -91,8 +91,8 @@ inlined inside the RAM functions rather than called into flash.
 filesystem, so the kernel cannot grow into the root.
 
 One detail survives linking and looks alarming until traced. The linker
-inserts long-branch veneers, `__flash_erase_sector_veneer` and
-`__flash_program_page_veneer`, and places them in flash, because a call from
+inserts long-branch veneers, `__flash_erase_block_veneer` and
+`__flash_program_unit_veneer`, and places them in flash, because a call from
 flash to RAM exceeds a short branch. They are safe: a veneer runs on the way
 in, while XIP is still up, and merely jumps to the RAM function, which takes
 XIP down only after it is already executing from RAM. The return path is a
@@ -151,27 +151,91 @@ can be added later.
 
 `conf/RP2040.ld` claims the 256 KB striped SRAM region and leaves the two
 4 KB banks above it alone, because the boot ROM stages boot2 in the topmost
-one. Every region is larger than the STM32F407XE reference target: flash by
-four times, kernel RAM by two, user RAM by a third.
+one. User space sits at the bottom, at 0x20000000, because
+`lib/elf32-arm.ld` links every userland executable there and
+`USER_DATA_START` names the same address on every Arm target; it is 96 KB,
+the STM32 figure, so a process image swaps in the same size. The kernel's
+data, the two u areas, and the stack occupy the 160 KB above it.
+
+## Boot
+
+The boot ROM reads 256 bytes from flash offset 0, checks a CRC32 trailer,
+and runs them from SRAM to bring the QSPI interface up for execute-in-place;
+datasheet section 2.8.1.3. `boot2/boot2_w25q080.S` is the Pico SDK's stage
+for the W25Q family with its helper includes folded in and the register
+constants written out, so it assembles with the kernel's include path and
+under the kernel's BSD-3-Clause. It is linked on its own at the SRAM address
+the ROM copies it to, reduced to raw bytes, padded and checksummed by
+`tools/boot2sum`, and assembled into the `.boot2` section that
+`conf/kern.ldscript` places at 0x10000000. The stage assembles
+byte-identical to the SDK's `bs2_default.bin` for `PICO_BOARD=pico`, and
+`boot2sum` produces the same trailer as the SDK's `pad_checksum` on the same
+input; both were checked rather than assumed.
+
+The kernel image is therefore complete from flash offset 0: boot2, then the
+vector table at 0x10000100 where boot2's exit routine loads the stack
+pointer and reset vector from. The build converts it to `unix.uf2` when
+`picotool` is installed.
+
+Before the kernel runs C, `startup()` starts the crystal, runs the reference
+clock from it, and enables the watchdog's microsecond tick, because the
+timer that `mdelay` reads does not count until that tick runs, datasheet
+section 4.6.4. The timer and SYSINFO blocks are released from reset with the
+GPIO and pad blocks. `clock.c` arms SysTick from the processor clock for
+`HZ` interrupts a second; nothing in the STM32 tree's HAL is left to do it.
+
+## Root filesystem layout
+
+`dev/flash.c` presents the flash region as `fl0` with the SD driver's minor
+numbering: partition in the low three bits, unit above, and a PC partition
+table in the first 512 bytes of logical block 0 as `tools/fsutil
+--repartition` writes it. `fl0a` is root and `fl0b` swap.
+
+Dhara's geometry is chosen above the chip's. A 256-byte page carries one
+132-byte metadata entry per checkpoint page, so half of the flash would go
+to checkpoints. The unit is 1024 bytes, DEV_BSIZE, and the erase block two
+chip sectors, which gives seven data pages in eight and keeps Dhara's safety
+margin at 64 KB; `flash.h` records the arithmetic and `tools/flashimg -c`
+prints the outcome, 989 KB of logical blocks from the 1536 KB region.
+
+Because the bytes in flash are Dhara's journal rather than the filesystem,
+a disk image from `fsutil` cannot be programmed as it is. `tools/flashimg`
+runs the same vendored Dhara sources against a memory model of the region,
+writes the disk image through `dhara_map_write`, and emits the region for
+programming at 0x10080000. A separate Dhara instance resumed the emitted
+image and read all 796 sectors back identical to the disk image.
+
+## Userland
+
+`share/mk/sys.mk` selects `-mcpu=cortex-m0plus` for this machine, because a
+Cortex-M4 userland uses Thumb-2 encodings the M0+ faults on. Every
+assembler source under `lib/libc/arm` and `lib/startup-arm` assembles for
+ARMv6-M unchanged; `strcmp.S` already carries a Thumb-1 path. The C
+standard is pinned to gnu17 on the compiler line because several Makefiles
+replace CFLAGS outright, and GCC 15 and later default to C23, which rejects
+the tree's empty parameter lists and old-style definitions. `distrib/rp2040`
+holds a manifest for a 795 KB root: init, getty, login, sh, what `rc` runs,
+and a working set of `/bin`, with an `rc` that skips the motd rewrite and
+cron.
 
 ## State
 
-The kernel links. `tools/config` knows the architecture, `make` in
-`compile/PICO` runs to completion, and the image places as intended:
+Kernel, root filesystem, and both flash images build from clean:
+
+| Image | Bytes | Flash address |
+|---|---|---|
+| `compile/PICO/unix.uf2`, boot2 and kernel | 85,807 | 0x10000000 |
+| `distrib/rp2040/flash.uf2`, root and swap | 1,572,864 | 0x10080000 |
 
 | Region | Used | Available |
 |---|---|---|
-| Kernel flash | 84,867 | 524,032 |
-| Kernel RAM | 23,792 | 122,880 |
+| Kernel flash | 85,807 | 524,288 |
+| Kernel RAM | 25,664 | 155,648 |
+| Root filesystem | 511 KB in 76 inodes | 795 KB, 160 inodes |
+| Swap | 0 | 192 KB |
 
-`.text` lands at 0x10000100, immediately above the 256 bytes the boot ROM
-reserves for the second stage, with the vector table at the image base.
-`.data` loads from flash and lives at 0x20000000, and the three flash-writing
-functions sit inside it in SRAM. The filesystem region and the 128K of user
-RAM are untouched by the kernel.
-
-Still missing before it can boot: a boot2 stage, so the image is loadable at
-all; an SD driver, if anyone wants a second disk; and a filesystem written
-into the flash region for root to be found on. The clock bring-up, the PL011
-console, and the flash block device are written but have never executed. A
-kernel that links is not a kernel that boots.
+Nothing here has run on hardware. The clock bring-up, the PL011 console,
+SysTick, the flash block device, and the userland have never executed on
+an RP2040, and the first boot is the test of all of them at once. The
+console is UART0 on GP0 and GP1 at 115200 baud, so a USB-serial adapter is
+required; the kernel drives no USB.

@@ -1,0 +1,56 @@
+init_main.o: ../../../../kern/init_main.c sys/param.h machine/machparam.h \
+ machine/intr.h sys/types.h machine/types.h sys/select.h machine/scb.h \
+ sys/syslimits.h sys/signal.h machine/signal.h sys/user.h sys/dir.h \
+ sys/exec.h sys/exec_aout.h sys/exec_elf.h machine/elf_machdep.h \
+ sys/time.h sys/resource.h sys/time.h sys/errno.h sys/fs.h sys/mount.h \
+ sys/map.h sys/proc.h sys/ioctl.h sys/ttychars.h sys/ttydev.h sys/inode.h \
+ sys/conf.h sys/buf.h sys/fcntl.h sys/vm.h sys/vmparam.h sys/vmmac.h \
+ sys/vmmeter.h sys/vmsystm.h sys/clist.h sys/reboot.h sys/systm.h \
+ sys/conf.h sys/kernel.h sys/namei.h sys/uio.h sys/types.h sys/stat.h \
+ sys/config.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/user.h:
+sys/dir.h:
+sys/exec.h:
+sys/exec_aout.h:
+sys/exec_elf.h:
+machine/elf_machdep.h:
+sys/time.h:
+sys/resource.h:
+sys/time.h:
+sys/errno.h:
+sys/fs.h:
+sys/mount.h:
+sys/map.h:
+sys/proc.h:
+sys/ioctl.h:
+sys/ttychars.h:
+sys/ttydev.h:
+sys/inode.h:
+sys/conf.h:
+sys/buf.h:
+sys/fcntl.h:
+sys/vm.h:
+sys/vmparam.h:
+sys/vmmac.h:
+sys/vmmeter.h:
+sys/vmsystm.h:
+sys/clist.h:
+sys/reboot.h:
+sys/systm.h:
+sys/conf.h:
+sys/kernel.h:
+sys/namei.h:
+sys/uio.h:
+sys/types.h:
+sys/stat.h:
+sys/config.h:

@@ -62,7 +62,7 @@ COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 #	${SYSTEM_LD_HEAD}
 #	${SYSTEM_LD} swapxxx.o
 #	${SYSTEM_LD_TAIL}
-SYSTEM_OBJ=	locore0.o locore.o ${OBJS} ioconf.o
+SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 SYSTEM_DEP=	Makefile ioconf.c machine sys .deps ${SYSTEM_OBJ}
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
 SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
@@ -70,12 +70,14 @@ SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
 		${OBJCOPY} -O ihex $@ $@.hex; \
 		${OBJCOPY} -O binary $@ $@.bin; \
-		${OBJDUMP} -d -S $@ > $@.dis
+		${OBJDUMP} -d -S $@ > $@.dis; \
+		picotool uf2 convert --quiet $@.elf $@.uf2 || \
+		    echo "picotool absent: $@.uf2 not written" 
 
 %LOAD
 
 clean:
-	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex machine sys
+	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 boot2.S machine sys
 
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
@@ -97,6 +99,28 @@ locore.o: ${_machdir}/${_mach}/locore.S
 	${COMPILE_S}
 
 locore0.o: ${_machdir}/${_mach}/locore0.S
+	${COMPILE_S}
+
+# The second stage the boot ROM runs from SRAM to bring up execute-in-place.
+# It is linked on its own at the SRAM address the ROM copies it to, reduced
+# to raw bytes, then padded to 256 bytes with the CRC32 trailer the ROM
+# checks and assembled into the .boot2 section, which kern.ldscript places
+# at flash offset 0. See boot2/boot2.ld and tools/boot2sum.
+BOOT2SRC=	${_machdir}/boot2/boot2_w25q080.S
+BOOT2LD=	${_machdir}/boot2/boot2.ld
+BOOT2SUM=	$S/../tools/bin/boot2sum
+
+boot2.elf: ${BOOT2SRC} ${BOOT2LD}
+	${CC} ${AFLAGS} ${INCLUDES} -nostdlib -nostartfiles \
+	    -Wl,-T,${BOOT2LD} -o $@ ${BOOT2SRC}
+
+boot2.bin: boot2.elf
+	${OBJCOPY} -O binary boot2.elf $@
+
+boot2.S: boot2.bin ${BOOT2SUM}
+	${BOOT2SUM} boot2.bin $@
+
+boot2.o: boot2.S
 	${COMPILE_S}
 
 ioconf.o: ioconf.c

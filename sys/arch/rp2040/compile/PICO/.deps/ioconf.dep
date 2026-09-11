@@ -1,0 +1,5 @@
+ioconf.o: ioconf.c sys/types.h machine/types.h sys/select.h sys/config.h
+sys/types.h:
+machine/types.h:
+sys/select.h:
+sys/config.h:

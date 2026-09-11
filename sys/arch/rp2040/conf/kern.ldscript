@@ -23,6 +23,17 @@ _estack			= ORIGIN(UAREA) + LENGTH(UAREA);
 ENTRY(Reset_Handler)
 
 SECTIONS {
+	/*
+	 * The 256-byte second stage the boot ROM loads from flash offset 0,
+	 * padded and CRC32-trailed by tools/boot2sum. Placing it here makes
+	 * the objcopy binary of the kernel a complete flash image from
+	 * 0x10000000, with the vector table at 0x10000100 where boot2's exit
+	 * routine expects it.
+	 */
+	.boot2 : {
+		KEEP(*(.boot2))
+	} > BOOT2
+
 	.text : {
 		KEEP(*(.isr_vector))
 		. = ALIGN(8);

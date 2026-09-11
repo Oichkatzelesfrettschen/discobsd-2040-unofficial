@@ -52,6 +52,7 @@
 #include <sys/errno.h>
 #include <sys/conf.h>
 #include <sys/dk.h>
+#include <sys/disk.h>
 
 #include <machine/intr.h>
 
@@ -98,25 +99,21 @@ static int flrom_ready;
 static u_int boot2_copy[BOOT2_WORDS];
 
 static struct dhara_map flmap;
-static u_char flpage[FLASH_PAGE_BYTES];
+static u_char flpage[FLASH_UNIT_BYTES];
+static u_char flcopy[FLASH_UNIT_BYTES];	/* dhara_nand_copy staging. */
 static int flmap_ready;
 static daddr_t flblocks;		/* Capacity in DEV_BSIZE blocks. */
 
-/*
- * Garbage collection ratio, the count of collection operations Dhara runs per
- * write. Smaller trades capacity for more predictable IO. Four is a starting
- * point and has not been measured on this part. It must stay the same across
- * every mount of a given chip, so changing it once a chip holds a filesystem
- * is not safe.
- */
-#define	FLASH_GC_RATIO	4
-
-/* One eraseblock of the chip, as Dhara sees the filesystem region. */
+/* The filesystem region as Dhara sees it; see flash.h for the choice. */
 const struct dhara_nand flnand = {
-	FLASH_LOG2_PAGE,
-	FLASH_LOG2_PPB,
-	FLASH_FS_SECTORS,
+	FLASH_LOG2_UNIT,
+	FLASH_LOG2_UPB,
+	FLASH_FS_BLOCKS,
 };
+
+#if DEV_BSIZE % FLASH_UNIT_BYTES != 0
+#error "DEV_BSIZE must be a multiple of the Dhara page"
+#endif
 
 /*
  * The two reads below take 16-bit pointers from fixed boot ROM addresses.
@@ -192,19 +189,19 @@ flash_enter_xip(void)
 }
 
 /*
- * Erase one sector of the filesystem region. Runs from RAM with interrupts
- * masked, because XIP is down for the duration and an interrupt vectoring
- * into flash would fetch from a disabled interface.
+ * Erase one Dhara block, FLASH_ERASE_BYTES of the filesystem region. Runs
+ * from RAM with interrupts masked, because XIP is down for the duration and
+ * an interrupt vectoring into flash would fetch from a disabled interface.
  */
 static __ramfunc int
-flash_erase_sector(u_int offset)
+flash_erase_block(u_int offset)
 {
 	int s;
 
 	s = splhigh();
 	flrom.connect();
 	flrom.exit_xip();
-	flrom.erase(offset, FLASH_SECTOR_BYTES, FLASH_BLOCK_BYTES,
+	flrom.erase(offset, FLASH_ERASE_BYTES, FLASH_BLOCK_BYTES,
 	    FLASH_BLOCK_ERASE_CMD);
 	flrom.flush();
 	flash_enter_xip();
@@ -212,16 +209,19 @@ flash_erase_sector(u_int offset)
 	return 0;
 }
 
-/* Program one page, under the same constraints as the erase above. */
+/*
+ * Program one Dhara page, four chip pages, under the same constraints as
+ * the erase above. The ROM routine takes any multiple of the chip page.
+ */
 static __ramfunc int
-flash_program_page(u_int offset, const u_char *data)
+flash_program_unit(u_int offset, const u_char *data)
 {
 	int s;
 
 	s = splhigh();
 	flrom.connect();
 	flrom.exit_xip();
-	flrom.program(offset, data, FLASH_PAGE_BYTES);
+	flrom.program(offset, data, FLASH_UNIT_BYTES);
 	flrom.flush();
 	flash_enter_xip();
 	splx(s);
@@ -252,24 +252,24 @@ int
 dhara_nand_erase(const struct dhara_nand *n __unused, dhara_block_t b,
     dhara_error_t *err)
 {
-	if (b >= FLASH_FS_SECTORS) {
+	if (b >= FLASH_FS_BLOCKS) {
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
 	}
-	return flash_erase_sector(FLASH_FS_OFFSET + b * FLASH_SECTOR_BYTES);
+	return flash_erase_block(FLASH_FS_OFFSET + b * FLASH_ERASE_BYTES);
 }
 
 int
 dhara_nand_prog(const struct dhara_nand *n __unused, dhara_page_t p,
     const u_char *data, dhara_error_t *err)
 {
-	u_int offset = p * FLASH_PAGE_BYTES;
+	u_int offset = p * FLASH_UNIT_BYTES;
 
 	if (offset >= FLASH_FS_BYTES) {
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
 	}
-	return flash_program_page(FLASH_FS_OFFSET + offset, data);
+	return flash_program_unit(FLASH_FS_OFFSET + offset, data);
 }
 
 int
@@ -279,8 +279,8 @@ dhara_nand_is_free(const struct dhara_nand *n __unused, dhara_page_t p)
 	u_int i;
 
 	q = (const u_char *)(FLASH_XIP_BASE + FLASH_FS_OFFSET +
-	    p * FLASH_PAGE_BYTES);
-	for (i = 0; i < FLASH_PAGE_BYTES; i++)
+	    p * FLASH_UNIT_BYTES);
+	for (i = 0; i < FLASH_UNIT_BYTES; i++)
 		if (q[i] != 0xff)
 			return 0;
 	return 1;
@@ -292,14 +292,14 @@ dhara_nand_read(const struct dhara_nand *n __unused, dhara_page_t p,
 {
 	const u_char *q;
 
-	if (offset + length > FLASH_PAGE_BYTES ||
-	    p * FLASH_PAGE_BYTES + offset + length > FLASH_FS_BYTES) {
+	if (offset + length > FLASH_UNIT_BYTES ||
+	    p * FLASH_UNIT_BYTES + offset + length > FLASH_FS_BYTES) {
 		dhara_set_error(err, DHARA_E_ECC);
 		return -1;
 	}
 	/* Reads come straight out of the XIP window; NOR carries no ECC. */
 	q = (const u_char *)(FLASH_XIP_BASE + FLASH_FS_OFFSET +
-	    p * FLASH_PAGE_BYTES + offset);
+	    p * FLASH_UNIT_BYTES + offset);
 	bcopy(q, data, length);
 	return 0;
 }
@@ -308,29 +308,52 @@ int
 dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
     dhara_page_t dst, dhara_error_t *err)
 {
-	u_char buf[FLASH_PAGE_BYTES];
-
 	/*
 	 * Staged through RAM rather than copied chip-side. The source cannot
 	 * be read through the XIP window while the destination is being
-	 * programmed, because the program takes XIP down.
+	 * programmed, because the program takes XIP down. The buffer is
+	 * static because a kilobyte does not belong on the kernel stack, and
+	 * every caller holds splbio.
 	 */
-	if (dhara_nand_read(n, src, 0, FLASH_PAGE_BYTES, buf, err) < 0)
+	if (dhara_nand_read(n, src, 0, FLASH_UNIT_BYTES, flcopy, err) < 0)
 		return -1;
-	return dhara_nand_prog(n, dst, buf, err);
+	return dhara_nand_prog(n, dst, flcopy, err);
 }
 
 /*
  * Block device.
+ *
+ * Minor numbers follow the SD driver: unit in bits 3 and up, partition in
+ * the low three, with partition 0 the whole device and 1 to 4 the entries
+ * of a PC partition table in the first 512 bytes of logical sector 0, as
+ * tools/fsutil --repartition writes it. Offsets and sizes in that table are
+ * in 512-byte sectors and are halved for DEV_BSIZE blocks, so fsutil's
+ * even-numbered layout is a requirement rather than a convention.
  */
 
-int
-flopen(dev_t dev, int flags __unused, int mode __unused)
-{
-	dhara_error_t err = DHARA_E_NONE;
+#define	NPARTITIONS	4
+#define	RAWPART		0			/* Whole device. */
 
-	if (minor(dev) != 0)
-		return ENXIO;
+#define	flunit(dev)	(minor(dev) >> 3)
+#define	flpart(dev)	(minor(dev) & 7)
+
+struct fldisk {
+	struct diskpart	part[NPARTITIONS + 1];	/* [0] is the whole device. */
+	u_int		openpart;		/* Bit per open partition. */
+};
+
+static struct fldisk fldrives[NFL];
+
+/*
+ * Bring the map up and read the partition table. Returns 0 on success.
+ */
+static int
+fl_setup(int unit)
+{
+	struct fldisk *du = &fldrives[unit];
+	dhara_error_t err = DHARA_E_NONE;
+	u_short buf[DEV_BSIZE / sizeof(u_short)];
+	u_int i;
 
 	if (! flmap_ready) {
 		flash_rom_init();
@@ -342,17 +365,70 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 		 */
 		(void)dhara_map_resume(&flmap, &err);
 		flblocks = (daddr_t)dhara_map_capacity(&flmap) /
-		    (DEV_BSIZE / FLASH_PAGE_BYTES);
+		    (DEV_BSIZE / FLASH_UNIT_BYTES);
 		flmap_ready = 1;
+	}
+
+	bzero(du->part, sizeof(du->part));
+	du->part[RAWPART].dp_offset = 0;
+	du->part[RAWPART].dp_nsectors = (u_int)flblocks * 2;
+	printf("fl%d: %u kbytes on QSPI flash, %u kbytes raw\n", unit,
+	    (u_int)flblocks, (u_int)(FLASH_FS_BYTES / 1024));
+
+	/* The table lives in the first 512 bytes of logical block 0. */
+	for (i = 0; i < DEV_BSIZE / FLASH_UNIT_BYTES; i++) {
+		err = DHARA_E_NONE;
+		if (dhara_map_read(&flmap, i,
+		    (u_char *)buf + i * FLASH_UNIT_BYTES, &err) < 0) {
+			printf("fl%d: cannot read partition table\n", unit);
+			return ENXIO;
+		}
+	}
+	if (buf[255] == MBR_MAGIC) {
+		bcopy(&buf[223], &du->part[1], 64);
+		for (i = 1; i <= NPARTITIONS; i++) {
+			if (du->part[i].dp_type != 0)
+				printf("fl%d%c: partition type %02x, "
+				    "sector %u, size %u kbytes\n",
+				    unit, i + 'a' - 1, du->part[i].dp_type,
+				    du->part[i].dp_offset,
+				    du->part[i].dp_nsectors / 2);
+		}
 	}
 	return 0;
 }
 
 int
-flclose(dev_t dev __unused, int mode __unused, int flag __unused)
+flopen(dev_t dev, int flags __unused, int mode __unused)
 {
+	int unit = flunit(dev);
+	int part = flpart(dev);
+	struct fldisk *du;
+	int error;
+
+	if (unit >= NFL || part > NPARTITIONS)
+		return ENXIO;
+	du = &fldrives[unit];
+
+	if (du->part[RAWPART].dp_nsectors == 0) {
+		error = fl_setup(unit);
+		if (error)
+			return error;
+	}
+	du->openpart |= 1 << part;
+	return 0;
+}
+
+int
+flclose(dev_t dev, int mode __unused, int flag __unused)
+{
+	int unit = flunit(dev);
+	int part = flpart(dev);
 	dhara_error_t err = DHARA_E_NONE;
 
+	if (unit >= NFL || part > NPARTITIONS)
+		return ENXIO;
+	fldrives[unit].openpart &= ~(1 << part);
 	if (flmap_ready)
 		(void)dhara_map_sync(&flmap, &err);
 	return 0;
@@ -362,47 +438,70 @@ flclose(dev_t dev __unused, int mode __unused, int flag __unused)
 daddr_t
 flsize(dev_t dev)
 {
-	if (minor(dev) != 0)
-		return -1;
-	if (! flmap_ready && flopen(dev, 0, 0) != 0)
-		return -1;
-	return flblocks;
+	int unit = flunit(dev);
+	int part = flpart(dev);
+	struct fldisk *du;
+
+	if (unit >= NFL || part > NPARTITIONS)
+		return 0;
+	du = &fldrives[unit];
+	if (du->part[RAWPART].dp_nsectors == 0 && fl_setup(unit) != 0)
+		return 0;
+	return du->part[part].dp_nsectors >> 1;
 }
 
 void
 flstrategy(struct buf *bp)
 {
+	int unit = flunit(bp->b_dev);
+	struct fldisk *du = &fldrives[unit];
+	struct diskpart *p = &du->part[flpart(bp->b_dev)];
 	dhara_error_t err = DHARA_E_NONE;
-	u_int per_blk = DEV_BSIZE / FLASH_PAGE_BYTES;
+	u_int per_blk = DEV_BSIZE / FLASH_UNIT_BYTES;
 	u_int sector, nsect, i;
 	u_char *addr;
-	daddr_t limit;
+	daddr_t part_size, offset;
 	long nblk;
 	int s, fail = 0;
 
-	if (minor(bp->b_dev) != 0) {
+	if (unit >= NFL || flpart(bp->b_dev) > NPARTITIONS) {
 		bp->b_error = ENXIO;
 		goto bad;
 	}
-	if (! flmap_ready && flopen(bp->b_dev, 0, 0) != 0) {
+	if (du->part[RAWPART].dp_nsectors == 0 && fl_setup(unit) != 0) {
 		bp->b_error = ENXIO;
 		goto bad;
 	}
 
-	limit = flblocks;
+	/*
+	 * Determine the size of the transfer, and make sure it is within
+	 * the boundaries of the partition.
+	 */
+	part_size = p->dp_nsectors >> 1;
+	offset = bp->b_blkno + (p->dp_offset >> 1);
 	nblk = btod(bp->b_bcount);
-	if (bp->b_blkno + nblk > limit) {
-		if (bp->b_blkno >= limit) {
-			/* Exactly at the end reads as end of file. */
+	if (bp->b_blkno + nblk > part_size) {
+		/* Exactly at the end reads as end of file. */
+		if (bp->b_blkno == part_size) {
 			bp->b_resid = bp->b_bcount;
 			biodone(bp);
 			return;
 		}
-		nblk = limit - bp->b_blkno;
+		/* Or truncate if part of it fits. */
+		nblk = part_size - bp->b_blkno;
+		if (nblk <= 0) {
+			bp->b_error = EINVAL;
+			goto bad;
+		}
 		bp->b_bcount = nblk << DEV_BSHIFT;
 	}
 
-	sector = (u_int)bp->b_blkno * per_blk;
+	if (bp->b_dev == swapdev)
+		led_control(LED_SWAP, 1);
+	else
+		led_control(LED_DISK, 1);
+
+	sector = (u_int)offset * per_blk;
 	nsect = (u_int)nblk * per_blk;
 	addr = (u_char *)bp->b_addr;
 
@@ -410,15 +509,20 @@ flstrategy(struct buf *bp)
 	for (i = 0; i < nsect && ! fail; i++) {
 		if (bp->b_flags & B_READ) {
 			if (dhara_map_read(&flmap, sector + i,
-			    addr + i * FLASH_PAGE_BYTES, &err) < 0)
+			    addr + i * FLASH_UNIT_BYTES, &err) < 0)
 				fail = 1;
 		} else {
 			if (dhara_map_write(&flmap, sector + i,
-			    addr + i * FLASH_PAGE_BYTES, &err) < 0)
+			    addr + i * FLASH_UNIT_BYTES, &err) < 0)
 				fail = 1;
 		}
 	}
 	splx(s);
+
+	if (bp->b_dev == swapdev)
+		led_control(LED_SWAP, 0);
+	else
+		led_control(LED_DISK, 0);
 
 	if (fail) {
 		bp->b_error = EIO;
@@ -433,8 +537,30 @@ bad:
 }
 
 int
-flioctl(dev_t dev __unused, u_int cmd __unused, caddr_t addr __unused,
-    int flag __unused)
+flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 {
+	int unit = flunit(dev);
+	int part = flpart(dev);
+	struct diskpart *dp;
+
+	if (unit >= NFL || part > NPARTITIONS)
+		return ENXIO;
+	dp = &fldrives[unit].part[part];
+
+	switch (cmd) {
+	case DIOCGETMEDIASIZE:
+		/* Partition size in kbytes. */
+		*(int *)addr = dp->dp_nsectors >> 1;
+		return 0;
+
+	case DIOCGETPART:
+		*(struct diskpart *)addr = *dp;
+		return 0;
+
+	case DIOCREINIT:
+		/* Forget the table so the next open rereads it. */
+		fldrives[unit].part[RAWPART].dp_nsectors = 0;
+		return 0;
+	}
 	return EINVAL;
 }

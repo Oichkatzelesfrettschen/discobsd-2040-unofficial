@@ -1,0 +1,38 @@
+flash.o: ../../../../arch/rp2040/dev/flash.c sys/param.h \
+ machine/machparam.h machine/intr.h sys/types.h machine/types.h \
+ sys/select.h machine/scb.h sys/syslimits.h sys/signal.h machine/signal.h \
+ sys/systm.h sys/conf.h sys/buf.h sys/errno.h sys/conf.h sys/dk.h \
+ sys/disk.h sys/ioctl.h sys/ttychars.h sys/ttydev.h \
+ ../../../../arch/rp2040/dev/flash.h ../../../../arch/rp2040/dhara/map.h \
+ ../../../../arch/rp2040/dhara/journal.h \
+ ../../../../arch/rp2040/dhara/compat/stdint.h \
+ ../../../../arch/rp2040/dhara/nand.h \
+ ../../../../arch/rp2040/dhara/compat/stddef.h \
+ ../../../../arch/rp2040/dhara/error.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/systm.h:
+sys/conf.h:
+sys/buf.h:
+sys/errno.h:
+sys/conf.h:
+sys/dk.h:
+sys/disk.h:
+sys/ioctl.h:
+sys/ttychars.h:
+sys/ttydev.h:
+../../../../arch/rp2040/dev/flash.h:
+../../../../arch/rp2040/dhara/map.h:
+../../../../arch/rp2040/dhara/journal.h:
+../../../../arch/rp2040/dhara/compat/stdint.h:
+../../../../arch/rp2040/dhara/nand.h:
+../../../../arch/rp2040/dhara/compat/stddef.h:
+../../../../arch/rp2040/dhara/error.h:

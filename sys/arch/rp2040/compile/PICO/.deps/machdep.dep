@@ -1,0 +1,55 @@
+machdep.o: ../../../../arch/rp2040/rp2040/machdep.c sys/param.h \
+ machine/machparam.h machine/intr.h sys/types.h machine/types.h \
+ sys/select.h machine/scb.h sys/syslimits.h sys/signal.h machine/signal.h \
+ sys/dir.h sys/inode.h sys/user.h sys/dir.h sys/exec.h sys/exec_aout.h \
+ sys/exec_elf.h machine/elf_machdep.h sys/time.h sys/resource.h \
+ sys/time.h sys/errno.h sys/proc.h sys/fs.h sys/map.h sys/buf.h \
+ sys/file.h sys/fcntl.h sys/clist.h sys/callout.h sys/reboot.h \
+ sys/msgbuf.h sys/namei.h sys/uio.h sys/types.h sys/mount.h sys/systm.h \
+ sys/conf.h sys/config.h sys/tty.h sys/ttychars.h sys/ttydev.h \
+ sys/ioctl.h machine/fault.h ../../../../arch/rp2040/dev/uart.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/dir.h:
+sys/inode.h:
+sys/user.h:
+sys/dir.h:
+sys/exec.h:
+sys/exec_aout.h:
+sys/exec_elf.h:
+machine/elf_machdep.h:
+sys/time.h:
+sys/resource.h:
+sys/time.h:
+sys/errno.h:
+sys/proc.h:
+sys/fs.h:
+sys/map.h:
+sys/buf.h:
+sys/file.h:
+sys/fcntl.h:
+sys/clist.h:
+sys/callout.h:
+sys/reboot.h:
+sys/msgbuf.h:
+sys/namei.h:
+sys/uio.h:
+sys/types.h:
+sys/mount.h:
+sys/systm.h:
+sys/conf.h:
+sys/config.h:
+sys/tty.h:
+sys/ttychars.h:
+sys/ttydev.h:
+sys/ioctl.h:
+machine/fault.h:
+../../../../arch/rp2040/dev/uart.h:

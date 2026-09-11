@@ -1,0 +1,37 @@
+vm_sched.o: ../../../../kern/vm_sched.c sys/param.h machine/machparam.h \
+ machine/intr.h sys/types.h machine/types.h sys/select.h machine/scb.h \
+ sys/syslimits.h sys/signal.h machine/signal.h sys/user.h sys/dir.h \
+ sys/exec.h sys/exec_aout.h sys/exec_elf.h machine/elf_machdep.h \
+ sys/time.h sys/resource.h sys/time.h sys/errno.h sys/proc.h sys/vm.h \
+ sys/vmparam.h sys/vmmac.h sys/vmmeter.h sys/vmsystm.h sys/kernel.h \
+ sys/systm.h sys/conf.h machine/debug.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/user.h:
+sys/dir.h:
+sys/exec.h:
+sys/exec_aout.h:
+sys/exec_elf.h:
+machine/elf_machdep.h:
+sys/time.h:
+sys/resource.h:
+sys/time.h:
+sys/errno.h:
+sys/proc.h:
+sys/vm.h:
+sys/vmparam.h:
+sys/vmmac.h:
+sys/vmmeter.h:
+sys/vmsystm.h:
+sys/kernel.h:
+sys/systm.h:
+sys/conf.h:
+machine/debug.h:

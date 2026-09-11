@@ -77,8 +77,8 @@
 #define btod(x)         (((x) + DEV_BSIZE-1) >> DEV_BSHIFT)
 
 #if 1 /* XXX Needed for ps, w, smlrc. To be removed. */
-#define USER_DATA_START         (0x20020000)
-#define USER_DATA_SIZE          (128 * 1024)    /* 128kb for user RAM. */
+#define USER_DATA_START         (0x20000000)
+#define USER_DATA_SIZE          (96 * 1024)     /* 96kb for user RAM. */
 #define USER_DATA_END           (USER_DATA_START + USER_DATA_SIZE)
 
 #define stacktop(siz)           (USER_DATA_END)

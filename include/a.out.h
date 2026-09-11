@@ -59,10 +59,27 @@ struct reloc {
 #define RWORD16     0x04        /* word address: bits 17:2 */
 #define RWORD26     0x05        /* word address: bits 27:2 */
 
+/*
+ * Thumb-1 relocation formats, for objects whose a_midmag carries MID_ARM6.
+ * Such objects hold a sparse relocation stream -- each record names the
+ * segment offset it patches -- because a Thumb BL occupies two halfwords
+ * and straddles a word boundary whenever it sits at an odd halfword, which
+ * the MIPS one-record-per-word stream cannot address. The segment bits in
+ * RSMASK keep their meaning; the format field widens to four bits by taking
+ * RGPREL, which the Thumb target never sets.
+ */
+#define RTFMASK 0x0f            /* bitmask for Thumb format */
+#define RTABS32     0x01        /* 32-bit absolute address, shares RBYTE32 */
+#define RTCALL      0x08        /* BL: 22-bit split immediate, two halfwords */
+#define RTJUMP11    0x09        /* B: 11-bit PC-relative halfword offset */
+#define RTJUMP8     0x0a        /* Bcc: 8-bit PC-relative halfword offset */
+
     unsigned index;             /* 24-bit index in symbol table,
                                  * for REXT */
     unsigned offset;            /* 16-bit offset,
                                  * for RIGH16 and RIGH16S */
+    unsigned addr;              /* segment offset patched by this record,
+                                 * for the Thumb sparse stream */
 };
 
 #endif /* !_AOUT_H_ */

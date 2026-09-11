@@ -488,7 +488,7 @@ fputrel(struct reloc *r, FILE *f)
 void
 fputhdr(struct exec *filhdr, FILE *coutb)
 {
-    fputword (filhdr->a_magic, coutb);
+    fputword (filhdr->a_midmag, coutb);
     fputword (filhdr->a_text, coutb);
     fputword (filhdr->a_data, coutb);
     fputword (filhdr->a_bss, coutb);

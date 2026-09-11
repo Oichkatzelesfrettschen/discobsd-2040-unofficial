@@ -114,6 +114,8 @@ int     Xflag;                  /* discard locals starting with 'L' or '.' */
 int     Sflag;                  /* discard all except locals and globals*/
 int     rflag;                  /* preserve relocation bits, don't define commons */
 int     output_relinfo;
+int     thumb_obj;              /* current input object is Thumb (MID_ARM6) */
+int     thumb_out;              /* any Thumb input seen; output is Thumb */
 int     sflag;                  /* discard all symbols */
 int     dflag;                  /* define common even with rflag */
 int     verbose;                /* verbose mode */
@@ -184,7 +186,7 @@ fgethdr(FILE *text, struct exec *h)
 void
 fputhdr(struct exec *hdr, FILE *coutb)
 {
-        fputword (hdr->a_magic, coutb);
+        fputword (hdr->a_midmag, coutb);
         fputword (hdr->a_text, coutb);
         fputword (hdr->a_data, coutb);
         fputword (hdr->a_bss, coutb);
@@ -211,6 +213,51 @@ fgetrel(FILE *f, struct reloc *r)
                 r->offset = getc (f);
                 r->offset |= getc (f) << 8;
         }
+}
+
+/*
+ * Read a Thumb sparse relocation record: 5 or 8 bytes.
+ * The record carries the segment offset it patches, so a BL split across
+ * a word boundary and a halfword branch both address their own bytes.
+ */
+void
+fgetrel_thumb(FILE *f, struct reloc *r)
+{
+        r->flags = getc (f);
+        r->addr = getc (f);
+        r->addr |= getc (f) << 8;
+        r->addr |= getc (f) << 16;
+        r->addr |= getc (f) << 24;
+        r->offset = 0;
+        r->index = 0;
+        if ((r->flags & RSMASK) == REXT) {
+                r->index = getc (f);
+                r->index |= getc (f) << 8;
+                r->index |= getc (f) << 16;
+        }
+}
+
+/*
+ * Emit a Thumb sparse relocation record.
+ * Return a written length.
+ */
+unsigned int
+fputrel_thumb(struct reloc *r, FILE *f)
+{
+        register unsigned nbytes = 5;
+
+        putc (r->flags, f);
+        putc (r->addr, f);
+        putc (r->addr >> 8, f);
+        putc (r->addr >> 16, f);
+        putc (r->addr >> 24, f);
+        if ((r->flags & RSMASK) == REXT) {
+                putc (r->index, f);
+                putc (r->index >> 8, f);
+                putc (r->index >> 16, f);
+                nbytes += 3;
+        }
+        return nbytes;
 }
 
 /*
@@ -644,6 +691,176 @@ relword(struct local *lp, unsigned int word, struct reloc *rel,
 	return word;
 }
 
+/*
+ * Read and write a little-endian halfword at an absolute file offset.
+ */
+unsigned int
+fpeekhalf(FILE *f, long at)
+{
+        unsigned h;
+
+        fseek (f, at, 0);
+        h = getc (f) & 0xff;
+        h |= (getc (f) & 0xff) << 8;
+        return h;
+}
+
+void
+fpokehalf(FILE *f, long at, unsigned int h)
+{
+        fseek (f, at, 0);
+        putc (h, f);
+        putc (h >> 8, f);
+}
+
+/*
+ * Sign-extend the low nbits of v.
+ */
+int
+signext(unsigned int v, int nbits)
+{
+        unsigned m = 1u << (nbits - 1);
+
+        return (int) ((v ^ m) - m);
+}
+
+/*
+ * Apply one Thumb relocation record to the segment already copied into b1
+ * at file position base. origin is the run-time address of that segment,
+ * so PC-relative forms resolve against the final layout.
+ */
+void
+relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
+    unsigned int origin)
+{
+        register struct nlist *sp = 0;
+        unsigned delta, hw1, hw2, word;
+        int addend, disp;
+        long at = base + rel->addr;
+
+        switch (rel->flags & RSMASK) {
+        case RTEXT:
+                delta = ctrel;
+                break;
+        case RDATA:
+                delta = cdrel;
+                break;
+        case RBSS:
+                delta = cbrel;
+                break;
+        case REXT:
+                sp = lookloc (lp, rel->index);
+                if (sp->n_type == N_EXT+N_UNDF ||
+                    sp->n_type == N_EXT+N_COMM) {
+                        rel->index = nsym + (sp - symtab);
+                        sp = 0;
+                        delta = 0;
+                } else {
+                        rel->flags &= RTFMASK;
+                        rel->flags |= reltype (sp->n_type);
+                        delta = sp->n_value;
+                }
+                break;
+        default:
+                delta = 0;
+                break;
+        }
+
+        switch (rel->flags & RTFMASK) {
+        case RTABS32:
+                fseek (b1, at, 0);
+                word = getc (b1) & 0xff;
+                word |= (getc (b1) & 0xff) << 8;
+                word |= (getc (b1) & 0xff) << 16;
+                word |= (getc (b1) & 0xff) << 24;
+                word += delta;
+                fseek (b1, at, 0);
+                putc (word, b1);
+                putc (word >> 8, b1);
+                putc (word >> 16, b1);
+                putc (word >> 24, b1);
+                break;
+
+        case RTCALL:
+                /* An unresolved external keeps its addend for the next link. */
+                if ((rel->flags & RSMASK) == REXT && ! sp)
+                        break;
+                hw1 = fpeekhalf (b1, at);
+                hw2 = fpeekhalf (b1, at + 2);
+                addend = signext (((hw1 & 0x7ff) << 12) |
+                                  ((hw2 & 0x7ff) << 1), 23);
+                disp = (int) ((addend + delta) & ~1u) -
+                       (int) (origin + rel->addr + 4);
+                if (disp < -(1 << 22) || disp >= (1 << 22))
+                        error (2, "Thumb BL out of range");
+                fpokehalf (b1, at, 0xf000 | ((disp >> 12) & 0x7ff));
+                fpokehalf (b1, at + 2, 0xf800 | ((disp >> 1) & 0x7ff));
+                rel->flags = (rel->flags & RTFMASK) | RABS;
+                break;
+
+        case RTJUMP11:
+                if ((rel->flags & RSMASK) == REXT && ! sp)
+                        break;
+                hw1 = fpeekhalf (b1, at);
+                addend = signext ((hw1 & 0x7ff) << 1, 12);
+                disp = (int) ((addend + delta) & ~1u) -
+                       (int) (origin + rel->addr + 4);
+                if (disp < -2048 || disp > 2046)
+                        error (2, "Thumb branch out of range");
+                fpokehalf (b1, at, 0xe000 | ((disp >> 1) & 0x7ff));
+                rel->flags = (rel->flags & RTFMASK) | RABS;
+                break;
+
+        case RTJUMP8:
+                if ((rel->flags & RSMASK) == REXT && ! sp)
+                        break;
+                hw1 = fpeekhalf (b1, at);
+                addend = signext ((hw1 & 0xff) << 1, 9);
+                disp = (int) ((addend + delta) & ~1u) -
+                       (int) (origin + rel->addr + 4);
+                if (disp < -256 || disp > 254)
+                        error (2, "Thumb conditional branch out of range");
+                fpokehalf (b1, at, (hw1 & 0xff00) | ((disp >> 1) & 0xff));
+                rel->flags = (rel->flags & RTFMASK) | RABS;
+                break;
+
+        default:
+                error (2, "unknown Thumb relocation format");
+                break;
+        }
+}
+
+/*
+ * Relocate a Thumb segment. The bytes copy through unchanged and each
+ * sparse record then patches its own offset, so a two-halfword BL at an
+ * odd halfword address needs no lookahead.
+ */
+void
+relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
+    unsigned int origin, unsigned int relsize)
+{
+        struct reloc rel;
+        unsigned n;
+        long base;
+        int c;
+
+        base = ftell (b1);
+        for (n = 0; n < len; n++) {
+                c = getc (text);
+                putc (c == EOF ? 0 : c, b1);
+        }
+        for (n = 0; n < relsize; ) {
+                fgetrel_thumb (reloc, &rel);
+                n += ((rel.flags & RSMASK) == REXT) ? 8 : 5;
+                relthumb (lp, b1, &rel, base, origin);
+                if (output_relinfo) {
+                        rel.addr += base;
+                        fputrel_thumb (&rel, b2);
+                }
+        }
+        fseek (b1, base + len, 0);
+}
+
 void
 relocate(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
     unsigned int origin)
@@ -852,7 +1069,17 @@ readhdr(unsigned int loc)
 		error (2, "bad format");
 	if (N_GETMAGIC(filhdr) != RMAGIC)
 		error (2, "bad magic");
-	if (filhdr.a_text % W)
+	/*
+	 * MID_ARM6 marks a Thumb object, whose relocation stream is sparse.
+	 * Mixing it with a MIPS object would relocate one of the two through
+	 * the wrong stream reader, so the first input fixes the kind.
+	 */
+	thumb_obj = (N_GETMID(filhdr) == MID_ARM6);
+	if (thumb_obj)
+		thumb_out = 1;
+	else if (thumb_out)
+		error (2, "cannot mix Thumb and MIPS objects");
+	if (filhdr.a_text % (thumb_obj ? 2 : W))
 		error (2, "bad length of text");
 	if (filhdr.a_data % W)
 		error (2, "bad length of data");
@@ -1370,13 +1597,21 @@ load2(unsigned int loc)
 		printf ("-- text --\n");
 	fseek (text, loc, 0);
 	fseek (reloc, count, 0);
-	relocate (lp, toutb, troutb, filhdr.a_text, torigin);
+	if (thumb_obj)
+		relocate_thumb (lp, toutb, troutb, filhdr.a_text, torigin,
+			filhdr.a_reltext);
+	else
+		relocate (lp, toutb, troutb, filhdr.a_text, torigin);
 
 	if (trace > 1)
 		printf ("-- data --\n");
 	fseek (text, loc + filhdr.a_text, 0);
 	fseek (reloc, count + filhdr.a_reltext, 0);
-	relocate (lp, doutb, droutb, filhdr.a_data, dorigin);
+	if (thumb_obj)
+		relocate_thumb (lp, doutb, droutb, filhdr.a_data, dorigin,
+			filhdr.a_reldata);
+	else
+		relocate (lp, doutb, droutb, filhdr.a_data, dorigin);
 
 	torigin += filhdr.a_text;
 	dorigin += filhdr.a_data;
@@ -1487,6 +1722,8 @@ finishout(void)
 			putc (0, outb);
 	}
 	filhdr.a_midmag = output_relinfo ? RMAGIC : OMAGIC;
+	if (thumb_out)
+		filhdr.a_midmag |= MID_ARM6 << 16;
 	filhdr.a_text = tsize;
 	filhdr.a_data = dsize;
 	filhdr.a_bss = bsize;

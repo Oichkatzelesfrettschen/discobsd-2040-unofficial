@@ -6,12 +6,13 @@
 TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-# The native toolchain, as cc cpp lcc lcpp ld smallc aout adb smlrc, emits
-# MIPS code, so it is built for the machines that carry it today and left
-# out of rp2040, whose root cannot hold what it cannot run. The peripheral
-# demos are STM32 and PIC32 hardware.
+# The native toolchain, as cc cpp lcc lcpp ld smallc aout adb, emits MIPS
+# code, so it is built for the machines that carry it today and left out of
+# rp2040, whose root cannot hold what it cannot run. smlrc carries a Thumb-1
+# back end and is built for rp2040. The peripheral demos are STM32 and PIC32
+# hardware.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex" ; \
+		echo "lex smlrc" ; \
 	elif [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "lex as cc cpp lcc lcpp ld smallc aout glcdtest gtest portio pwm wiznet smux" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \

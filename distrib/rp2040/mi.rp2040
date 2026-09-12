@@ -180,6 +180,7 @@ file /usr/bin/picoc
 file /usr/sbin/update
 
 file /usr/libexec/getty
+file /usr/libexec/smlrc
 
 link /bin/cat
 target /bin/box

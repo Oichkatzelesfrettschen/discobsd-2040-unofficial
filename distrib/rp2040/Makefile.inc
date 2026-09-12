@@ -24,7 +24,7 @@ FLASH_FS_ADDR=	0x10030000
 
 flash:		${FLASHUF2}
 
-${FLASHBIN}:	${FSIMG}
+${FLASHBIN}:	${TOPSRC}/distrib/${MACHINE}/sdcard.img
 		${FLASHIMG} ${FSIMG} $@
 
 ${FLASHUF2}:	${FLASHBIN}

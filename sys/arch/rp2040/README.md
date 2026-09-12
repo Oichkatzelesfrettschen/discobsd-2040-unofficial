@@ -278,3 +278,7 @@ PL011, SysTick, the flash block device, and the userland have never
 executed on an RP2040, and the first boot is the test of all of them at
 once. The console is the USB cable; a serial adapter on GP0 and GP1 is an
 alternative, not a requirement.
+
+## Documentation
+
+`sys/arch/rp2040/doc/BOOT-MAP.md` is the boot procedure, memory map, build and flash steps, triage ladder and debugging notes; `STORAGE.md` the flash layout and root contents; `research/` the design reports (USB console, editors, compilers, compression, POSIX tools, static analysis).

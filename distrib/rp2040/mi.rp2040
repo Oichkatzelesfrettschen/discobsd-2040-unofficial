@@ -158,6 +158,9 @@ file /usr/bin/re
 file /usr/bin/kilo
 file /usr/bin/textbox
 file /usr/bin/utilbox
+file /usr/bin/tail
+file /usr/bin/tee
+file /usr/bin/du
 file /usr/bin/as
 file /usr/bin/ld
 file /usr/bin/cc
@@ -314,8 +317,6 @@ link /usr/bin/uniq
 target /usr/bin/utilbox
 link /usr/bin/head
 target /usr/bin/utilbox
-link /usr/bin/tail
-target /usr/bin/utilbox
 link /usr/bin/tr
 target /usr/bin/utilbox
 link /usr/bin/wc
@@ -328,13 +329,9 @@ link /usr/bin/env
 target /usr/bin/utilbox
 link /usr/bin/printf
 target /usr/bin/utilbox
-link /usr/bin/tee
-target /usr/bin/utilbox
 link /usr/bin/touch
 target /usr/bin/utilbox
 link /usr/bin/xargs
-target /usr/bin/utilbox
-link /usr/bin/du
 target /usr/bin/utilbox
 link /usr/bin/tty
 target /usr/bin/utilbox

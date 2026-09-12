@@ -31,8 +31,8 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
-TOOLS=		expr id more uniq head tail tr wc cmp \
-		basename env printf tee touch xargs du tty uname md5
+TOOLS=		expr id more uniq head tr wc cmp \
+		basename env printf touch xargs tty uname md5
 
 # Other names a tool answers to, as name:tool.
 ALIASES=

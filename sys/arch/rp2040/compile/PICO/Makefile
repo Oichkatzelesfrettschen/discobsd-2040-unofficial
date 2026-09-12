@@ -2,6 +2,8 @@ PARAM = -DPICO
 PARAM += -DRP2040
 PARAM += -DUARTUSB_ENABLED
 PARAM += -DUART_ENABLED
+PARAM += -DSWAPRAM_KB=64
+PARAM += -DSWAPRAM
 PARAM += -DUART_BAUD=115200
 PARAM += -DCONS_MINOR=0
 PARAM += -DCONS_MAJOR=UARTUSB_MAJOR
@@ -81,7 +83,9 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_namei.o ufs_subr.o ufs_syscalls.o ufs_syscalls2.o \
 	vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o mem.o swap.o \
 	clock.o conf.o fault.o machdep.o sig_machdep.o syscall.o \
-	sysctl.o systick.o uart.o usb.o flash.o error.o journal.o map.o 
+	sysctl.o systick.o uart.o usb.o flash.o error.o journal.o map.o \
+	swapram.o swapram_pool.o heatshrink_encoder.o \
+	heatshrink_decoder.o 
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/init_main.c \
@@ -108,7 +112,10 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/uart.c \
 	$S/arch/rp2040/dev/usb.c $S/arch/rp2040/dev/flash.c \
 	$S/arch/rp2040/dhara/error.c $S/arch/rp2040/dhara/journal.c \
-	$S/arch/rp2040/dhara/map.c swapunix.c 
+	$S/arch/rp2040/dhara/map.c $S/arch/rp2040/rp2040/swapram.c \
+	$S/arch/rp2040/rp2040/swapram_pool.c \
+	$S/arch/rp2040/heatshrink/heatshrink_encoder.c \
+	$S/arch/rp2040/heatshrink/heatshrink_decoder.c swapunix.c 
 
 # load lines for config "xxx" will be emitted as:
 # xxx: ${SYSTEM_DEP} swapxxx.o
@@ -381,6 +388,18 @@ journal.o: $S/arch/rp2040/dhara/journal.c
 	${COMPILE_C}
 
 map.o: $S/arch/rp2040/dhara/map.c
+	${COMPILE_C}
+
+swapram.o: $S/arch/rp2040/rp2040/swapram.c
+	${COMPILE_C}
+
+swapram_pool.o: $S/arch/rp2040/rp2040/swapram_pool.c
+	${COMPILE_C}
+
+heatshrink_encoder.o: $S/arch/rp2040/heatshrink/heatshrink_encoder.c
+	${COMPILE_C}
+
+heatshrink_decoder.o: $S/arch/rp2040/heatshrink/heatshrink_decoder.c
 	${COMPILE_C}
 
 

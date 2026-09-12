@@ -5,6 +5,7 @@
 # cycle 1,1,1,2,2,2,... one color per three shots, independent of
 # rand(), so three shots in a row always match and pop.
 import os
+import re
 import pty
 import sys
 import time
@@ -31,6 +32,10 @@ def read_all(fd, timeout=1.5):
     return buf
 
 
+def strip_ansi(t):
+    return re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', t)
+
+
 def main():
     prog = sys.argv[1] if len(sys.argv) > 1 else "./bubble-host"
     pid, fd = pty.fork()
@@ -38,13 +43,13 @@ def main():
         os.environ["GAMEBOX_TEST"] = "1"
         os.execvp(prog, [prog, SEED])
 
-    text = read_all(fd, 0.5).decode(errors="replace")
+    text = strip_ansi(read_all(fd, 0.5).decode(errors="replace"))
     assert "score 0" in text, "expected an empty starting board"
 
     for _ in range(3):
         os.write(fd, b" ")
         time.sleep(0.01)
-    text += read_all(fd, 0.5).decode(errors="replace")
+    text += strip_ansi(read_all(fd, 0.5).decode(errors="replace"))
 
     assert "score 30" in text, \
         "bubble: three matching shots did not pop (no score 30 in output)"

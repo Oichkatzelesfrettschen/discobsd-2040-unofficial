@@ -84,7 +84,7 @@ page per eight, a reserve of one fifth for garbage collection, and a
 
 ## What ships
 
-64 files and 40 links, 70 KB free (df: 901 of 971 KB used), verified
+51 files and 66 links, 175 KB free (df: 796 of 971 KB used), verified
 booting to a root shell on the board: box, sysbox, textbox, sh, ed, ps,
 md5, expr, init, getty, login, passwd, reboot, shutdown, fsck, sysctl,
 update, and from usr/bin awk, sed, grep, fgrep, find, sort, uniq, head,
@@ -94,7 +94,7 @@ native build chain: /usr/bin/cc driving /usr/libexec/smlrc (53 KB),
 /usr/bin/as (32 KB), /usr/bin/ld (23 KB) against /usr/lib/libc.a (36 KB,
 89 members) and crt0.o. textbox (32 KB) carries cut, paste, seq,
 dirname, nl, cksum, expand, unexpand, uuencode, uudecode, fold, rev and
-comm. On the board: `cc -o h h.c` compiles, assembles and links a
+comm; utilbox also carries md, a Markdown-to-ANSI viewer. On the board: `cc -o h h.c` compiles, assembles and links a
 program with integer division and printf, and `./h` runs; a
 uuencode/uudecode round trip of /bin/box matches by cksum. picoc is no
 longer on the root; the native chain replaces it.

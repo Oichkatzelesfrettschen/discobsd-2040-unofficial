@@ -150,6 +150,10 @@ portable_fini(core_portable *p)
      * omitted entirely. get_time() still returns the final run's elapsed
      * microseconds from the module statics, and the enclosing core_results,
      * recovered from the port pointer, carries the exact iteration count.
+     * The recovery is valid because core_main.c always passes the port
+     * member of a core_results (&results[i].port), never a standalone
+     * core_portable; default_num_contexts is 1 here, so the product below
+     * equals core_main's total_iterations numerator.
      * The rate is scaled by 100 for two fixed-point digits; the product needs
      * 64 bits, but only %lu (32-bit) reaches printf, so no %f or %llu formatter
      * runs -- the %f path is what overflowed the process stack.

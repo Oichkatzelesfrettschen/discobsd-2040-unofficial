@@ -141,6 +141,12 @@ refreshes the account files. Verified: a `DESTDIR` seeded with a stale
 Falsifier: an image built through `fs`/`flash` carries an `etc/passwd` older
 than the source.
 
+Ordering: `${FSIMG}` does not depend on `build`, and `etc distribution`
+reads `DESTDIR/usr/share/misc/termcap`, so `fs`/`flash` now require a prior
+`bmake build`; on a bare tree the new prerequisite fails inside the etc
+install rather than at the manifest step. `bmake -n fs` confirms the etc
+distribution runs before the manifest `cat` and `fsutil`.
+
 ### fptest is a tree regression test with a bit-exact oracle (user flag)
 
 `tests/rp2040/fptest/` replaces the scratchpad harness. It compares the wrapped
@@ -198,8 +204,12 @@ pass.
   build outputs: the divider commit `0a09de3f` changed source without
   regenerating them, so both PICO and PICO_UART committed images predate the
   fix. The reflash flow rebuilds from source, so this is a tracking-hygiene
-  issue, not a flashed-kernel one; regenerate them at release or stop tracking
-  them.
+  issue, not a flashed-kernel one. The audit's gate 1 wording is "rebuild or
+  explicitly retire"; this branch does neither to the tracked bytes, so a
+  reader of the tracked binary still sees the broken ordering. The decision is
+  the maintainer's: regenerate and commit both kernels, or stop tracking the
+  compile artifacts. Until then the source is correct and a build produces a
+  correct kernel, verified above.
 - The `rpi/pico-host/` copies of `discobsd-web`/`discobsd-term` are outside this
   repository; re-sync them from the corrected `distrib/rp2040/host/` copies.
 

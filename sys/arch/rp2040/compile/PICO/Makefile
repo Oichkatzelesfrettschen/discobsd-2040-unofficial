@@ -146,7 +146,8 @@ swapunix.o: swapunix.c
 all: unix
 
 clean:
-	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 boot2.S machine sys
+	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 boot2.S machine sys \
+	    vers.c .compileversion .oldversion
 
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c

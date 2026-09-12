@@ -1,8 +1,0 @@
-error.o: ../../../../arch/rp2040/dhara/error.c \
- ../../../../arch/rp2040/dhara/compat/stddef.h sys/types.h \
- machine/types.h sys/select.h ../../../../arch/rp2040/dhara/error.h
-../../../../arch/rp2040/dhara/compat/stddef.h:
-sys/types.h:
-machine/types.h:
-sys/select.h:
-../../../../arch/rp2040/dhara/error.h:

@@ -12,7 +12,9 @@ extern int errno;
 
 #define active(iop)	((iop)->_flag & (_IOREAD|_IOWRT|_IORW))
 
-#define NSTATIC	20	/* stdin + stdout + stderr + the usual */
+#define NSTATIC	8	/* stdin + stdout + stderr + five more; a
+				   ninth concurrent stream allocates dynamically
+				   through _f_morefiles */
 
 FILE _iob[NSTATIC] = {
 	{ 0, NULL, NULL, 0, _IOREAD,		0 },	/* stdin  */

@@ -12,7 +12,7 @@ import struct, sys
 from unicorn import *
 from unicorn.arm_const import *
 
-BADDR   = 0x7f008000
+BADDR   = 0x20000000
 STACK   = 0x7f0ff000
 BRK     = 0x7f200000
 

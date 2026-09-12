@@ -95,8 +95,12 @@ d = open(sys.argv[1], "rb").read()
 mid, text, data, bss, rt, rd, sy, entry = struct.unpack("<8I", d[:32])
 if (mid & 0xffff) != 0o407:
     sys.exit("link: magic is %#o, expected OMAGIC" % (mid & 0xffff))
-if (mid >> 16) & 0x3ff != 143:
-    sys.exit("link: mid is %d, expected MID_ARM6" % ((mid >> 16) & 0x3ff))
+# An executable carries MID_ZERO, the only machine id exec_aout_check()
+# in sys/kern/exec_aout.c accepts; MID_ARM6 marks relocatable output.
+if (mid >> 16) & 0x3ff != 0:
+    sys.exit("link: mid is %d, expected MID_ZERO" % ((mid >> 16) & 0x3ff))
+if entry >> 16 != 0x2000:
+    sys.exit("link: entry %#x is outside the Cortex-M user window" % entry)
 if rt or rd:
     sys.exit("link: %d text and %d data relocation bytes left over" % (rt, rd))
 if entry & 1 == 0:

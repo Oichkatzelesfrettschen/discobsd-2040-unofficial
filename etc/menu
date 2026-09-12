@@ -1,0 +1,12 @@
+# /etc/menu -- entries for usr.bin/menu, the full-screen menu launcher.
+#
+# One entry per line: "label: command". A blank line or a line starting
+# with '#' is skipped. The command runs through /bin/sh -c, so pipes and
+# redirection work. usr.bin/menu already offers three built-in actions
+# (run a program, show a file with the pager, list a directory) ahead of
+# this file's entries; add a line here for anything else worth one
+# keypress from the console.
+Show disk usage: df
+Show processes: ps
+Show the date: date
+Show system name: uname -a

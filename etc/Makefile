@@ -24,6 +24,16 @@ LOCALTIME=	Canada/Mountain
 
 FILES=		gettytab group motd passwd rc.local shells ttys
 
+# usr.bin/menu reads /etc/menu for its list of launchable commands; only
+# rp2040 ships the menu program (usr.bin/Makefile's SUBDIR), so only its
+# manifest (distrib/rp2040/mi.rp2040) names /etc/menu and only its build
+# needs the file installed into DESTDIR.
+MDFILES!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
+			echo "menu" ; \
+		else \
+			echo "" ; \
+		fi
+
 # A machine whose root is not sd0a, or whose disk is too small for what
 # rc starts, carries its own fstab or rc as fstab.${MACHINE} or
 # rc.${MACHINE}, installed under the plain name.
@@ -50,6 +60,9 @@ distribution-etc-root-var: distrib-dirs
 	${INSTALL} -d -o ${OWN} -g ${GRP} -m 755 ${DESTDIR}/etc
 
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${FILES} ${DESTDIR}/etc
+	if [ -n "${MDFILES}" ] ; then \
+		${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${MDFILES} ${DESTDIR}/etc ; \
+	fi
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${FSTAB} ${DESTDIR}/etc/fstab
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${RC} ${DESTDIR}/etc/rc
 	${INSTALL} -c -o root -g wheel -m 600 shadow ${DESTDIR}/etc

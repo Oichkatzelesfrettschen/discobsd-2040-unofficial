@@ -124,6 +124,7 @@ file /etc/shadow
 file /etc/shells
 file /etc/ttys
 file /etc/termcap
+file /etc/menu
 
 #
 # /bin/box and /bin/sysbox are two a.outs holding the small utilities,
@@ -156,6 +157,7 @@ file /usr/bin/login
 file /usr/bin/passwd
 file /usr/bin/re
 file /usr/bin/kilo
+file /usr/bin/menu
 file /usr/bin/textbox
 file /usr/bin/utilbox
 file /usr/bin/tail

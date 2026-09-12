@@ -683,9 +683,14 @@ translate_syms(int out, int in, off_t symoff, off_t symsize,
 			int     binding, type;
 
 			/* Copy the symbol into the new table, but prepend an
-			 * underscore. */
+			 * underscore. sizeof(nsp - 1) names the pointer
+			 * arithmetic result's type, not a buffer size, and
+			 * caps every copy at sizeof(char *) regardless of
+			 * name length; the bound is the space actually left
+			 * in newstrings. */
 			*nsp = '_';
-			strlcpy(nsp + 1, oldstrings + inbuf[i].st_name, sizeof(nsp - 1));
+			strlcpy(nsp + 1, oldstrings + inbuf[i].st_name,
+			    (size_t)(newstrings + newstringsize - (nsp + 1)));
 			outbuf[i].n_un.n_strx = nsp - newstrings + 4;
 			nsp += strlen(nsp) + 1;
 

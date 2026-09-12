@@ -78,9 +78,9 @@ Sizes come from `tools/bin/flashimg -c`: with 1 KB units in 8 KB erase
 blocks and gc ratio 4, Dhara leaves 989 KB of logical blocks from the
 1536K region. `Makefile.inc` FS_KBYTES takes 988 of those for the single
 root partition; the 1 KB left over is the partition table. `df` on the
-mounted root reports 971 1-KB blocks, 838 used and 133 free, the gap
-against 988 being the 2.11BSD filesystem's own superblock and inode
-overhead. Swap is not in this image: it is the raw 384K region above the
+mounted root reports 971 1-KB blocks: the 17 missing are the superblock
+and the 16 blocks of inodes, 256 inodes (FS_INODES) of 64 bytes each
+(sys/sys/inode.h, struct dinode). Swap is not in this image: it is the raw 384K region above the
 Dhara journal, a second flash unit the kernel erases and programs in
 place at run time. `flash.bin` was resumed by a separate Dhara instance
 and every sector read back identical to `sdcard.img`.

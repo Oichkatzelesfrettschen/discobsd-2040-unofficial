@@ -263,3 +263,13 @@ and the same gap exists on `main` without it.
   `expand`/`unexpand`/`nl`'s tab-stop and line-number upper bound
   cast `SIZE_T_MAX` to a negative `long`, rejecting every call
   including the default tab stop.
+
+## Follow-up after merge
+
+fold, rev and comm joined the box once the root had 102 KB free: the
+three cost 3 KB together because the tools share one libc image, and the
+box measures 32,436 bytes with thirteen tools. mkfifo stays out for a
+reason the host tests could not see: sys/kern knows S_IFIFO only as a
+bit in stat.h, and on the board a writer and a reader on the node it
+makes exchange nothing. The box rule now runs each tool's own make
+before the relocatable link, so a clean tree builds in any order.

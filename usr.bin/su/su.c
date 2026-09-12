@@ -70,7 +70,6 @@ main(argc,argv)
     int argc;
     char *argv[];
 {
-    char *password;
     char buf[1000];
     FILE *fp;
     register char *p;
@@ -121,18 +120,12 @@ again:
     }
 
 #define Getlogin()  (((p = getlogin()) && *p) ? p : buf)
-    if (pwd->pw_passwd[0] == '\0' || getuid() == 0)
-        goto ok;
-    password = getpass("Password:");
-    if (strcmp(pwd->pw_passwd, crypt(password, pwd->pw_passwd)) != 0) {
-        fprintf(stderr, "Sorry\n");
-        if (pwd->pw_uid == 0) {
-            syslog(LOG_CRIT, "BAD SU %s on %s",
-                    Getlogin(), ttyname(2));
-        }
-        exit(2);
-    }
-ok:
+    /*
+     * Wheel membership, checked above for uid 0, is the sole gate on this
+     * serial-only device: no password is prompted. Root's hash stays set
+     * in etc/shadow as defense in depth, but a wheel member becomes root
+     * without it, which is this profile's password-free escalation.
+     */
     endpwent();
     if (pwd->pw_uid == 0) {
         syslog(LOG_NOTICE, "%s on %s", Getlogin(), ttyname(2));

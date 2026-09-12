@@ -155,6 +155,9 @@ file /usr/bin/true
 file /usr/bin/false
 file /usr/bin/login
 file /usr/bin/passwd
+filemode 04755
+file /usr/bin/su
+filemode 0775
 file /usr/bin/re
 file /usr/bin/kilo
 file /usr/bin/menu

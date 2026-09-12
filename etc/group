@@ -1,4 +1,4 @@
-wheel:*:0:root
+wheel:*:0:root,operator
 daemon:*:1:daemon
 kmem:*:2:
 sys:*:3:

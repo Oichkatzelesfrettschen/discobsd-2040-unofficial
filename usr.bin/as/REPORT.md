@@ -64,10 +64,22 @@ it prints `Hello, World!` and its own `argv[0]`, which exercises `crt0`
 computing `__progname`, the string relocation in `main`, libc's `strlen`,
 libc's `write` syscall stub, and `exit`.
 
-**The MIPS target is unchanged.** `as.c` assembles `tests/test1.s` through
-`test5.s` to objects byte-identical with those from the assembler at
-`rp2040-port`, and `bmake -C usr.bin/as test` for any other machine keeps
-the disassembly comparison that was there before.
+**The MIPS target is unchanged, assembler and linker both.** `as.c`
+assembles `tests/test1.s` through `test5.s` to objects byte-identical with
+those from the assembler at `rp2040-port`. `ld.c` gained three lines on the
+MIPS path -- `fputhdr` writing `a_midmag` where it wrote `a_magic`, the
+`thumb_obj` test in `readhdr`, and the `thumb_out` guard on the entry point
+-- so the linker was checked the same way: linking those objects with the
+linker from `rp2040-port` and with this one gives byte-identical output for
+a single-object link, a two-object link and a `-r` link, and the three
+objects that cannot link are refused identically. `bmake -C usr.bin/as test`
+for any other machine keeps the disassembly comparison that was there
+before.
+
+**Unaligned relocated data.** A `.word` naming a symbol at an odd offset
+assembles, matches `arm-none-eabi-as`, and links to the right address with
+the Thumb bit intact. This is reachable only because `.word` no longer
+aligns, and the sparse stream is what makes the relocation expressible.
 
 **Error paths.** A branch out of reach is reported by the assembler naming
 the form (`conditional branch out of range`); a `bl` that only becomes out
@@ -136,6 +148,30 @@ the `write`-based program built by this toolchain runs to completion and
 prints. The stub kernel's zeroed `fstat` and `ioctl` leave stdio without
 usable terminal state; implementing enough of the DiscoBSD kernel ABI to
 carry buffered stdio was out of scope.
+
+**There is no automatic literal pool placement** beyond the end of input,
+although the task named it as a deliverable. A pool emitted on its own lands
+wherever the cursor happens to be, which for a compiler that opens `.rodata`
+in the middle of a function -- as smlrc's Thumb back end does -- is inside
+that function, where the processor would execute it. GNU as does not place
+pools on its own either: it reports `invalid offset, value too big` and
+leaves placement to the source, which was verified directly. A pool is
+therefore emitted at `.ltorg`, `.pool` and end of input, and a load that
+cannot reach its pool is an error naming the distance and the directive.
+
+**`ld -r` followed by a second link double-relocates absolute words**, on
+both targets. `torigin = basaddr` runs whatever `rflag` says, so a
+relocatable output already has the load address folded into its data and
+the next link adds it again. Reproduced identically with the linker from
+`rp2040-port` on MIPS objects, so it is pre-existing rather than anything
+this work introduced, and nothing in the tree performs an a.out `-r` link:
+the `-r` in `games/hunt/Makefile` invokes `${GCCPREFIX}-ld`, the ELF
+linker. The Thumb path had a second, separate `-r` defect that this work
+did introduce and has fixed: a PC-relative field, once resolved, is final
+because a displacement within a segment survives relocation, and its record
+is marked `RABS`; `relthumb` recomputed it on the next link and subtracted
+the program counter twice. It now leaves an `RABS` record alone, which is
+the guard `relword` applies to `RWORD16` by testing for a null symbol.
 
 **The board was not touched**, as instructed. Unicorn is the closest this
 goes; it is not a substitute for running on an RP2040.

@@ -782,7 +782,18 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                 break;
 
         case RTCALL:
-                /* An unresolved external keeps its addend for the next link. */
+                /*
+                 * A displacement between two points of the same segment
+                 * survives relocation, so once it is computed the field is
+                 * final and the record is marked RABS. Recomputing it on a
+                 * later link would subtract the program counter a second
+                 * time, so an RABS record is left alone -- which is the
+                 * guard relword applies to RWORD16 by testing for a null
+                 * symbol. An unresolved external likewise keeps its addend
+                 * for the next link.
+                 */
+                if ((rel->flags & RSMASK) == RABS)
+                        break;
                 if ((rel->flags & RSMASK) == REXT && ! sp)
                         break;
                 hw1 = fpeekhalf (b1, at);
@@ -799,6 +810,8 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                 break;
 
         case RTJUMP11:
+                if ((rel->flags & RSMASK) == RABS)
+                        break;
                 if ((rel->flags & RSMASK) == REXT && ! sp)
                         break;
                 hw1 = fpeekhalf (b1, at);
@@ -812,6 +825,8 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                 break;
 
         case RTJUMP8:
+                if ((rel->flags & RSMASK) == RABS)
+                        break;
                 if ((rel->flags & RSMASK) == REXT && ! sp)
                         break;
                 hw1 = fpeekhalf (b1, at);

@@ -35,3 +35,14 @@ ro:	.word	42
 bv:	.space	8
 	.comm	cv, 16, 4
 	.lcomm	lv, 8
+@ A relocated word at an odd offset. GNU as aligns neither .word nor
+@ .hword, and the sparse relocation stream can name any byte, so this has
+@ to assemble and relocate rather than being quietly padded into place.
+	.data
+odd:
+	.byte	1
+	.word	f
+	.byte	2
+	.word	odd
+	.byte	3
+	.hword	0x1234

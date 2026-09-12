@@ -159,6 +159,7 @@ file /usr/bin/su
 mode 04751
 file /usr/bin/re
 file /usr/bin/kilo
+file /usr/bin/stevie
 file /usr/bin/menu
 file /usr/bin/textbox
 file /usr/bin/utilbox
@@ -345,6 +346,10 @@ link /usr/bin/uname
 target /usr/bin/utilbox
 link /usr/bin/md
 target /usr/bin/utilbox
+link /usr/bin/vi
+target /usr/bin/stevie
+link /usr/bin/vim
+target /usr/bin/stevie
 
 #
 # /usr/games/gamebox is a fourth a.out holding fifteen, keen and

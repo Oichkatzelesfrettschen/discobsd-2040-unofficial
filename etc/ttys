@@ -1,7 +1,7 @@
 #
 # name	getty					type	status		comments
 #
-console	"/usr/libexec/getty std.default"	xterm	on secure	#special
+console	"/usr/libexec/getty std.default"	xterm	on insecure	#special; root login via operator+su
 
 # Enable some of these for additional logins.  Do NOT enable the same one as the
 # console port, or strange things will happen.  You can turn off the console port

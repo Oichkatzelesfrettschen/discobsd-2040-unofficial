@@ -263,21 +263,31 @@ Kernel, root filesystem, and both flash images build from clean:
 
 | Image | Bytes | Flash address |
 |---|---|---|
-| `compile/PICO/unix.uf2`, boot2 and kernel | 85,807 | 0x10000000 |
-| `distrib/rp2040/flash.uf2`, root and swap | 1,572,864 | 0x10080000 |
+| `compile/PICO/unix.uf2`, boot2 and kernel | 90,901 | 0x10000000 |
+| `distrib/rp2040/flash.uf2`, root filesystem | 1,572,864 | 0x10020000 |
+
+Swap is not in either image: `dev/flash.h` FLASH_SWAP_BYTES reserves 384 KB
+at the top of the chip as a second flash unit, `fl1`, that the kernel
+erases and programs in place at run time.
 
 | Region | Used | Available |
 |---|---|---|
-| Kernel flash | 85,807 | 524,288 |
-| Kernel RAM | 25,664 | 155,648 |
-| Root filesystem | 511 KB in 76 inodes | 795 KB, 160 inodes |
-| Swap | 0 | 192 KB |
+| Kernel flash | 90,901 | 39,915 |
+| Kernel RAM | 39,608 | 118,088 |
+| Root filesystem | 838 KB | 133 KB |
+| Swap | 0 | 384 KB |
 
-Nothing here has run on hardware. The clock bring-up, the USB device, the
-PL011, SysTick, the flash block device, and the userland have never
-executed on an RP2040, and the first boot is the test of all of them at
-once. The console is the USB cable; a serial adapter on GP0 and GP1 is an
-alternative, not a requirement.
+The board boots to a login prompt in about 9 seconds over its USB console,
+a CDC-ACM device (VID 2e8a, PID 000a) that Linux binds as `/dev/ttyACM0`;
+`picotool reboot -u -f` returns the board to BOOTSEL from the running
+kernel. `uname` reports `DiscoBSD pico 2.7 PICO#1 rp2040`. Verified on the
+board: `sh` running scripts, pipes, and background jobs; `awk` with
+floating point; `sed`, `sort`, `find`, `ed`, `ps`, `df`, `mount`, and
+`stty`; `picoc` with its 8 KB arena; and `smlrc` at `/usr/libexec/smlrc`
+emitting Thumb-1 assembly identical to the host build. Not yet on the
+board: the Thumb-1 assembler and linker (`usr.bin/as`, `usr.bin/ld`, 32 KB
+and 23 KB, in the tree but not in the manifest), the board link library,
+and the POSIX tools box; UART0 as `/dev/tty0` has not been exercised.
 
 ## Documentation
 

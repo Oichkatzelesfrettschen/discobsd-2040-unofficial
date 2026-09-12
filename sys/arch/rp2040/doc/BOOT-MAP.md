@@ -35,15 +35,16 @@ Port artifacts:
 | Region | Address | Size | Why |
 |---|---|---|---|
 | boot2 | 0x10000000 | 256 | ROM contract |
-| kernel text and rodata | 0x10000100 | 512K minus 256 | `RP2040.ld` FLASH |
-| root and swap, Dhara journal | 0x10080000 | 1536K | `RP2040.ld` FSFLASH, `flash.h` FLASH_FS_OFFSET |
+| kernel text and rodata | 0x10000100 | 128K minus 256 | `RP2040.ld` FLASH |
+| root, Dhara journal | 0x10020000 | 1536K | `RP2040.ld` FSFLASH, `flash.h` FLASH_FS_OFFSET |
+| swap, raw | 0x101a0000 | 384K | `RP2040.ld` SWAPFLASH, `flash.h` FLASH_SWAP_OFFSET |
 | user space | 0x20000000 | 96K | `lib/elf32-arm.ld` links every executable at 0x20000000; `USER_DATA_START` in `machparam.h` |
-| kernel data, bss, RAM-resident flash writers | 0x20018000 | 152K | `RP2040.ld` RAM |
-| process 0 u area | 0x2003e000 | 4K | U0AREA |
-| current u area and stack | 0x2003f000 | 4K, `_estack` = 0x20040000 | UAREA |
+| kernel data, bss, RAM-resident flash writers | 0x20018000 | 154K | `RP2040.ld` RAM |
+| process 0 u area | 0x2003e800 | 3K | U0AREA |
+| current u area and stack | 0x2003f400 | 3K, `_estack` = 0x20040000 | UAREA |
 | SRAM4, SRAM5 | 0x20040000 | 8K | untouched; ROM stages boot2 in SRAM5 |
 
-The kernel is 85,807 bytes of flash and 25,664 of RAM.
+The kernel is 90,901 bytes of flash and 39,608 of RAM.
 
 ## 3. Clocks and ticks, in the order the kernel does them
 
@@ -69,21 +70,27 @@ from the ST HAL.
 
 | Layer | Tool or code | Output |
 |---|---|---|
-| filesystem | `tools/fsutil --repartition=fs=795k:swap=192k`, then `--new --partition=1 --inodes=160 --manifest` | `distrib/rp2040/sdcard.img`, a PC partition table and a 2.11BSD filesystem |
+| filesystem | `tools/fsutil --repartition=fs=988k`, then `--new --partition=1 --inodes=256 --manifest` | `distrib/rp2040/sdcard.img`, a PC partition table and a 2.11BSD filesystem |
 | translation layer | `tools/flashimg`, vendored Dhara over a memory model of the region | `distrib/rp2040/flash.bin`, the 1536K region |
-| flash | `picotool uf2 convert -o 0x10080000` | `distrib/rp2040/flash.uf2` |
+| flash | `picotool uf2 convert -o 0x10020000` | `distrib/rp2040/flash.uf2` |
 
-Sizes come from `tools/bin/flashimg -c`: with 1 KB units in 8 KB erase blocks
-and gc ratio 4, Dhara leaves 989 KB of logical blocks. `Makefile.inc` takes
-795 for root and 192 for swap, two 96K process images; the 1 KB left is the
-partition table. The root holds 76 objects in 511 KB with 284 KB and 84
-inodes free. `flash.bin` was resumed by a separate Dhara instance and every
-sector read back identical to `sdcard.img`.
+Sizes come from `tools/bin/flashimg -c`: with 1 KB units in 8 KB erase
+blocks and gc ratio 4, Dhara leaves 989 KB of logical blocks from the
+1536K region. `Makefile.inc` FS_KBYTES takes 988 of those for the single
+root partition; the 1 KB left over is the partition table. `df` on the
+mounted root reports 971 1-KB blocks, 838 used and 133 free, the gap
+against 988 being the 2.11BSD filesystem's own superblock and inode
+overhead. Swap is not in this image: it is the raw 384K region above the
+Dhara journal, a second flash unit the kernel erases and programs in
+place at run time. `flash.bin` was resumed by a separate Dhara instance
+and every sector read back identical to `sdcard.img`.
 
-The kernel side, `dev/flash.c`: `fl0` with the SD driver's minor numbering,
-partition table read from logical block 0, `fl0a` root, `fl0b` swap, reads
-through the XIP window, erase and program through the boot ROM from
-RAM-resident functions with interrupts masked, cache flushed afterwards.
+The kernel side, `dev/flash.c`: `fl0` is the Dhara region, minor numbers
+following the SD driver, partition table read from logical block 0,
+`fl0a` the root partition; `fl1`, minor 8, is the raw swap unit, the
+whole device with no partition table. Reads go through the XIP window;
+erase and program go through the boot ROM from RAM-resident functions
+with interrupts masked, cache flushed afterwards.
 
 ## 5. Build, from a clean checkout
 
@@ -103,7 +110,9 @@ names, and nothing the root uses; they predate this port.
 
 ## 6. Flash and connect
 
-1. Hold BOOTSEL, plug the Pico in; it enumerates as `2e8a:0003`.
+1. `picotool reboot -u -f` returns a running kernel to BOOTSEL; hold
+   BOOTSEL while plugging the Pico in only if the kernel is hung. Either
+   way it enumerates as `2e8a:0003`.
 2. `picotool load distrib/rp2040/flash.uf2`
 3. `picotool load sys/arch/rp2040/compile/PICO/unix.uf2`
 4. `picotool reboot`
@@ -113,13 +122,15 @@ The console is the same cable. After the reboot the board re-enumerates as
 a CDC-ACM device, `2e8a:000a`, and Linux attaches it as `/dev/ttyACM0`. The
 kernel keeps the last 4 KB of output in a ring until a terminal opens the
 port, so the boot messages are readable after the fact. No serial adapter
-is needed; UART0 on GP0 and GP1 stays available as `/dev/tty0`.
+is needed; UART0 on GP0 and GP1 stays available as `/dev/tty0`. The board
+reaches a login prompt about 9 seconds after the reboot.
 
-Getting back to BOOTSEL: `picotool reboot -u` asks the kernel's reset
-interface, which calls the ROM's USB-boot entry. A hung kernel needs the
-button held through a power cycle, and that always wins, because the ROM
-checks the button before it looks at flash (2.8.1). Holding the button at
-reset with a working kernel selects single-user mode.
+Getting back to BOOTSEL: `picotool reboot -u -f` asks the kernel's reset
+interface, which calls the ROM's USB-boot entry, and this has been
+exercised from a running kernel. A hung kernel needs the button held
+through a power cycle, and that always wins, because the ROM checks the
+button before it looks at flash (2.8.1). Holding the button at reset with
+a working kernel selects single-user mode.
 
 ## 7. What the first lines on the console prove
 
@@ -129,8 +140,9 @@ reset with a working kernel selects single-user mode.
 | any character at all | the bulk IN path, `cnputc`, the output ring |
 | `cpu: RP2040 rev 2` | SYSINFO out of reset, chip id decode |
 | `fl0: 989 kbytes on QSPI flash` | boot ROM table lookup, Dhara resume of the flashed journal |
-| `fl0a: partition type b7` and `fl0b: type b8` | partition table read through Dhara |
-| `phys mem`, `swap size = 192 kbytes` | `flsize` on `fl0b` |
+| `fl0a: partition type b7` | partition table read through Dhara |
+| `fl1: 384 kbytes raw QSPI flash for swap` | `fl_setup` on the raw swap unit |
+| `phys mem`, `swap size = 384 kbytes` | `flsize` on `fl1` |
 | `Automatic boot in progress` | init exec'd from the root: a.out loader, user RAM window, syscalls, SysTick |
 | `login:` | getty on `/dev/console`, tty layer, UART interrupts |
 
@@ -143,7 +155,7 @@ reset with a working kernel selects single-user mode.
 | no `/dev/ttyACM0`, `lsusb` shows nothing | PLL_USB or clk_usb, or enumeration | `dmesg` for "device descriptor read" errors; then a serial adapter on GP0 and GP1 to read the kernel's messages |
 | `ttyACM0` appears but stays silent | output ring never armed, DTR handling | open the port with a terminal, not `cat`; check `SET_CONTROL_LINE_STATE` handling in `dev/usb.c` |
 | HardFault early | a Thumb-2 encoding, an unaligned word access | the fault frame's PC in the `.dis` file |
-| `panic: swap size` | `fl0b` missing or partition table unread | `fl0` lines above it |
+| `panic: swap size` | `fl1` missing or misconfigured | `fl0` and `fl1` lines above it |
 | `panic: root` or init not found | Dhara resume failed, or wrong gc ratio | `flashimg -c` and `FLASH_GC_RATIO` must match what wrote the chip |
 | init runs, then faults | userland built for the wrong CPU, or user window | `arm-none-eabi-readelf -A` on a binary shows `Tag_CPU_arch: v6S-M` |
 | `mdelay` never returns | watchdog tick not running | TICK register bit 10 RUNNING |

@@ -894,6 +894,13 @@ bzero(void *dst0, size_t nbytes)
 	u_int *aligned_dst;
 
 	dst = (u_char *)dst0;
+	/*
+	 * Return before the alignment prefix at length zero. Otherwise an
+	 * unaligned dst writes one byte, then --nbytes wraps 0 to SIZE_MAX and
+	 * the word loops below scribble the whole address space.
+	 */
+	if (nbytes == 0)
+		return;
 	while (UNALIGNED(dst, sizeof(u_int))) {
 		*dst++ = 0;
 		if (--nbytes == 0)
@@ -978,6 +985,8 @@ int
 copyout(caddr_t from, caddr_t to, u_int nbytes)
 {
 	/* printf("copyout(from=%p, to=%p, nbytes=%u)\n", from, to, nbytes); */
+	if (nbytes == 0)	/* Else to + nbytes - 1 underflows to to - 1. */
+		return 0;
 	if (baduaddr(to) || baduaddr(to + nbytes - 1))
 		return EFAULT;
 	bcopy(from, to, nbytes);
@@ -988,6 +997,8 @@ copyout(caddr_t from, caddr_t to, u_int nbytes)
 int
 copyin(caddr_t from, caddr_t to, u_int nbytes)
 {
+	if (nbytes == 0)	/* Else from + nbytes - 1 underflows to from - 1. */
+		return 0;
 	if (baduaddr(from) || baduaddr(from + nbytes - 1))
 		return EFAULT;
 	bcopy(from, to, nbytes);

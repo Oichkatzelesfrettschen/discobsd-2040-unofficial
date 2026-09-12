@@ -5,3 +5,5 @@ export PATH
 HOME=/
 export HOME
 export TERM
+PS1="[1;36mdiscobsd[0m# "
+export PS1

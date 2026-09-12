@@ -1,0 +1,139 @@
+#!/bin/sh
+#
+# cc -- the board's native compile driver.
+#
+# Runs usr.bin/smlrc to turn a .c file into Thumb-1 GNU-syntax assembly,
+# usr.bin/as to assemble it (GNU syntax in, a.out out), and usr.bin/ld to
+# link the objects against the board's own crt0.o and libc.a
+# (distrib/rp2040/Makefile.inc's mkboardlibc.py build). usr.bin/smlrc is
+# built with -DNO_PREPROCESSOR and the rp2040 build carries no cpp, so a
+# source file's own #include and #define directives are not expanded
+# here -- write board programs against what smlrc's own limited
+# directive handling covers, or preprocess off the board first.
+#
+# Usage: cc [-o out] [-S] [-c] file.c|file.s|file.o ...
+#   -o out   name the result (default a.out, or the input stem with -c/-S)
+#   -S       stop after assembly-source generation, one file at a time
+#   -c       stop after assembling to an object, one file at a time
+#   -lNAME   accepted and ignored: libc.a is always linked in
+set -eu
+
+crt0=/usr/lib/crt0.o
+libc=/usr/lib/libc.a
+smlrc=/usr/libexec/smlrc
+as=/usr/bin/as
+ld=/usr/bin/ld
+
+out=
+stop_at_s=0
+stop_at_o=0
+srcs=
+nsrcs=0
+
+while [ $# -gt 0 ]; do
+	case $1 in
+	-o)
+		shift
+		if [ $# -eq 0 ]; then
+			echo "cc: -o needs an argument" >&2
+			exit 1
+		fi
+		out=$1
+		;;
+	-c)
+		stop_at_o=1
+		;;
+	-S)
+		stop_at_s=1
+		;;
+	-l*)
+		;;
+	-*)
+		echo "cc: unknown option $1" >&2
+		exit 1
+		;;
+	*)
+		srcs="$srcs $1"
+		nsrcs=$((nsrcs + 1))
+		;;
+	esac
+	shift
+done
+
+if [ "$nsrcs" -eq 0 ]; then
+	echo "cc: no input files" >&2
+	exit 1
+fi
+
+if [ -n "$out" ] && [ "$nsrcs" -gt 1 ] && { [ "$stop_at_s" -eq 1 ] || [ "$stop_at_o" -eq 1 ]; }; then
+	echo "cc: -o with -c or -S takes exactly one input file" >&2
+	exit 1
+fi
+
+# stem NAME strips a trailing .c, .s or .o suffix, for naming a per-file
+# result when -o was not given.
+stem() {
+	case $1 in
+	*.c | *.s | *.o) printf '%s\n' "${1%.*}" ;;
+	*) printf '%s\n' "$1" ;;
+	esac
+}
+
+objs=
+for src in $srcs; do
+	case $src in
+	*.c)
+		asfile=$src
+		asfile=$(stem "$asfile").s
+		if [ "$stop_at_s" -eq 1 ]; then
+			asfile=${out:-$asfile}
+		else
+			asfile=/tmp/cc$$.$(stem "$(basename "$src")").s
+		fi
+		"$smlrc" "$src" "$asfile"
+		if [ "$stop_at_s" -eq 1 ]; then
+			continue
+		fi
+		;;
+	*.s)
+		asfile=$src
+		;;
+	*.o)
+		objs="$objs $src"
+		continue
+		;;
+	*)
+		echo "cc: $src: unknown file type" >&2
+		exit 1
+		;;
+	esac
+
+	ofile=$(stem "$src").o
+	if [ "$stop_at_o" -eq 1 ]; then
+		ofile=${out:-$ofile}
+	else
+		ofile=/tmp/cc$$.$(stem "$(basename "$src")").o
+	fi
+	"$as" "$asfile" -o "$ofile"
+	case $asfile in
+	/tmp/cc$$.*) rm -f "$asfile" ;;
+	esac
+	if [ "$stop_at_o" -eq 1 ]; then
+		continue
+	fi
+	objs="$objs $ofile"
+done
+
+if [ "$stop_at_s" -eq 1 ] || [ "$stop_at_o" -eq 1 ]; then
+	exit 0
+fi
+
+# shellcheck disable=SC2086
+"$ld" -o "${out:-a.out}" "$crt0" $objs "$libc"
+status=$?
+for o in $objs; do
+	case $o in
+	/tmp/cc$$.*) rm -f "$o" ;;
+	esac
+done
+exit "$status"

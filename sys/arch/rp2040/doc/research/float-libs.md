@@ -498,25 +498,28 @@ and `bootrom/mufplib.S`) and the tree's own object files narrow (b) from
 "the highest-leverage item, ready to ship" to "two divider-free operations
 per precision now, the rest gated on a kernel change."
 
-**The SIO divider is shared state the kernel does not checkpoint.**
+**The SIO divider is per-core state the kernel now checkpoints.**
 `mufp_fdiv` (and every transcendental, which branch into `fdiv_n`) writes
 the SIO hardware divider at `SIO_BASE+DIV_UDIVIDEND`/`DIV_UDIVISOR` and
 reads `DIV_QUOTIENT` (`mufplib.S`, `use_hw_div=1`, lines 1050-1089). The
-RP2040 SIO divider is a single peripheral with result registers; if a
-process is preempted between the divisor write and the quotient read and
-another context divides, the resumed read returns the wrong quotient. The
+RP2040 provides one hardware divider per core (datasheet 2.3.1.5), not one
+peripheral shared across the cores; DiscoBSD runs a single core, so the
+divider is core-local state that same-core preemption -- a context switch or
+an interrupt that itself divides -- corrupts: a process preempted between the
+divisor write and the quotient read gets another context's quotient on
+resume. The
 pico-sdk guards this in its own `__aeabi_fdiv` wrapper
-(`float_aeabi_rp2040.S`, the `fdiv_save_state` path). DiscoBSD's rp2040
-kernel has no SIO-divider save/restore on context switch (grep of
-`sys/arch/rp2040` finds none), and libgcc's current soft-float divide is
-pure software that never touches the peripheral, so nothing today requires
-it. `mufp_fadd`, `mufp_fsub`, `mufp_fmul`, `mufp_fsqrt` and every integer
+(`float_aeabi_rp2040.S`, the `fdiv_save_state` path). libgcc's soft-float divide is pure software that never touches the divider,
+so before the ROM path landed nothing required a checkpoint. `locore.S` now
+saves the four divider registers into the `label_t` (`env[10..13]`) in
+`setjmp` and restores them in `longjmp`/`resume`, spinning on `DIV_CSR`
+READY, so a process preempted mid-divide keeps its own result; the audit
+found no divider-using ISR, but that lexical absence does not license a
+future one without extending the checkpoint to the interrupt path. `mufp_fadd`, `mufp_fsub`, `mufp_fmul`, `mufp_fsqrt` and every integer
 conversion are divider-free; only division (and the transcendentals built
-on it) touch it. So routing `__aeabi_fdiv`/`__aeabi_ddiv` -- the single
-largest win, 475->83 cycles -- through the ROM requires first adding a
-context-switch checkpoint of the divider registers to the kernel, verified
-under a preempt-mid-divide contention test. Add/sub/mul carry no such
-dependency.
+on it) touch it. Routing `__aeabi_fdiv`/`__aeabi_ddiv` -- the single largest win,
+475->83 cycles -- through the ROM was gated on that checkpoint, which has
+since landed; add/sub/mul carried no such dependency and shipped first.
 
 **`mufp_float2int` floors; `__aeabi_f2iz` truncates.** The ROM
 `float2int` converts "rounding towards -Inf, clamping" (`mufplib.S` line

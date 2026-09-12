@@ -1,0 +1,46 @@
+/*
+ * One a.out for the text utilities that came from sbase: cut, paste,
+ * seq, dirname, nl, cksum, expand, unexpand, uuencode and uudecode,
+ * dispatched on the name it was invoked by. mkfifo (also sbase) and
+ * the tree's own comm, rev and fold compile for this target but did
+ * not fit the 30 KB box budget; see research/posix-tools.md. See
+ * sbin/box/box.c.in, whose generated copy this is: each tool's
+ * globals are localized and its main renamed by
+ * sbin/textbox/Makefile, and the sources stay untouched.
+ */
+
+#include <string.h>
+#include <unistd.h>
+
+@DECLS@
+
+static const struct tool {
+	const char	*name;
+	int		(*main)(int, char **);
+} tools[] = {
+@TABLE@
+	{ 0, 0 }
+};
+
+int
+main(int argc, char **argv)
+{
+	const struct tool *t;
+	const char *name, *p;
+
+	name = argv[0];
+	for (p = name; *p; p++)
+		if (*p == '/')
+			name = p + 1;
+	if ((strcmp(name, "box") == 0 || strcmp(name, "sysbox") == 0 ||
+	     strcmp(name, "textbox") == 0) && argc > 1) {
+		argc--;
+		argv++;
+		name = argv[0];
+	}
+	for (t = tools; t->name; t++)
+		if (strcmp(name, t->name) == 0)
+			return t->main(argc, argv);
+	write(2, "textbox: no such tool\n", 22);
+	return 1;
+}

@@ -63,7 +63,13 @@ FSUTIL=		${TOPSRC}/tools/bin/fsutil
 
 -include Makefile.user
 
-SUBDIR=		share lib bin sbin libexec usr.bin usr.sbin games
+#
+# usr.bin builds before sbin: sbin/textbox's TOOLS loop, like
+# sbin/box's and sbin/sysbox's, links each tool's objects out of the
+# directory that already built them (see sbin/textbox/Makefile), and
+# textbox's tools live under usr.bin.
+#
+SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games
 
 all:		build
 

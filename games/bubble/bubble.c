@@ -430,8 +430,10 @@ selftest(void)
 	cell = trajectory();
 	if (cell != 1 * COLS + COLS / 2) { printf("C2: landed %d, want %d\n", cell, 1 * COLS + COLS / 2); fails++; }
 
-	/* C3: a shallow right shot must reach the right wall and reflect --
-	 * a later path cell sits left of the wall it just touched. */
+	/* C3: a shallow right shot must reach the right wall and reverse --
+	 * after touching column COLS-1 the path must travel back to a column
+	 * at or left of COLS-3, which grazing or climbing the wall alone
+	 * (which only re-enters COLS-2) cannot reach. */
 	for (i = 0; i < ROWS * COLS; i++)
 		grid[i] = 0;
 	aim = AIMMAX;
@@ -441,7 +443,7 @@ selftest(void)
 		for (j = 0; j < pathlen; j++) {
 			int pc = pathseq[j] % COLS;
 			if (pc == COLS - 1) hitwall = 1;
-			else if (hitwall) reflected = 1;
+			else if (hitwall && pc <= COLS - 3) reflected = 1;
 		}
 		if (!hitwall) { printf("C3: never reached the wall\n"); fails++; }
 		if (!reflected) { printf("C3: did not reflect off the wall\n"); fails++; }

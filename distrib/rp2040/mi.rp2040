@@ -337,6 +337,8 @@ link /usr/bin/xargs
 target /usr/bin/utilbox
 link /usr/bin/tty
 target /usr/bin/utilbox
+link /usr/bin/resize
+target /usr/bin/utilbox
 link /usr/bin/uname
 target /usr/bin/utilbox
 

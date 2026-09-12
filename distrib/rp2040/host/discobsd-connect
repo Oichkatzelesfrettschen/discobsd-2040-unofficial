@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# discobsd-connect -- open a terminal on the DiscoBSD RP2040 console.
+#
+# The board is a USB CDC-ACM serial device with no network stack, so the
+# console is a serial line, not telnet or ssh. This finds the board by its
+# stable serial and launches the first serial terminal it finds, at the
+# console's fixed 115200 8N1 with no flow control. Size the terminal window
+# to 80x24, or run "resize" once connected to sync a different size.
+#
+# Works with the terminals packaged on Debian (apt install tio picocom
+# minicom cu) and CachyOS/Arch (pacman -S tio picocom minicom).
+set -eu
+
+port="${1:-}"
+if [ -z "$port" ]; then
+	for p in /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_rp2040-if00 \
+	    /dev/ttyACM0; do
+		if [ -e "$p" ]; then
+			port="$p"
+			break
+		fi
+	done
+fi
+if [ -z "$port" ] || [ ! -e "$port" ]; then
+	echo "discobsd-connect: no board found; is it plugged in and running?" >&2
+	echo "  expected /dev/serial/by-id/usb-DiscoBSD_*_rp2040-if00" >&2
+	exit 1
+fi
+
+echo "Connecting to $port at 115200 8N1. Log in as root, empty password." >&2
+
+if command -v tio >/dev/null 2>&1; then
+	# tio reconnects on its own when the board re-enumerates on reboot.
+	exec tio -b 115200 -d 8 -p none -s 1 -f none "$port"
+elif command -v picocom >/dev/null 2>&1; then
+	exec picocom -b 115200 -d 8 -p 1 -f n "$port"
+elif command -v minicom >/dev/null 2>&1; then
+	exec minicom -b 115200 -8 -D "$port"
+elif command -v cu >/dev/null 2>&1; then
+	exec cu -l "$port" -s 115200
+else
+	echo "discobsd-connect: install one of tio, picocom, minicom or cu" >&2
+	exit 1
+fi

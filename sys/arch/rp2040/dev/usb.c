@@ -806,6 +806,14 @@ usbopen(dev_t dev, int flag, int mode)
 		tp->t_state = TS_ISOPEN | TS_CARR_ON;
 		tp->t_flags = ECHO | XTABS | CRMOD | CRTBS | CRTERA |
 		    CTLECH | CRTKIL;
+		/*
+		 * A serial line carries no window size, so the console opens
+		 * at the VT100 standard 80x24. resize(1) syncs it to the
+		 * emulator's real size, and a program reads it through
+		 * TIOCGWINSZ (sys/kern/tty.c).
+		 */
+		tp->t_winsize.ws_row = 24;
+		tp->t_winsize.ws_col = 80;
 	}
 	if ((tp->t_state & TS_XCLUDE) && u.u_uid != 0)
 		return EBUSY;

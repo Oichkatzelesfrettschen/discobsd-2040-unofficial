@@ -205,6 +205,10 @@ uartopen(dev_t dev, int flag, int mode)
         ttychars(tp);
         tp->t_state = TS_ISOPEN | TS_CARR_ON;
         tp->t_flags = ECHO | XTABS | CRMOD | CRTBS | CRTERA | CTLECH | CRTKIL;
+        /* A serial line carries no window size; open at 80x24, which
+         * resize(1) then syncs to the terminal's real size. */
+        tp->t_winsize.ws_row = 24;
+        tp->t_winsize.ws_col = 80;
     }
     if ((tp->t_state & TS_XCLUDE) && u.u_uid != 0)
         return (EBUSY);

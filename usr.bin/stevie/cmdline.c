@@ -91,10 +91,12 @@ int firstc;	/* either ':', '/', or '?' */
 		return;
 	}
 	if ( strcmp(cmd,"w")==0 ) {
-		if ( arg == NULL ) {
+		/* writeit() itself clears Changed only on a successful
+		 * write; do not force it here, or a failed :w (bad path,
+		 * full disk, ...) leaves Changed cleared and a following
+		 * :q exits with no warning that the file was never saved. */
+		if ( arg == NULL )
 			writeit(Filename);
-			UNCHANGED;
-		}
 		else
 			writeit(arg);
 		return;
@@ -136,11 +138,23 @@ int firstc;	/* either ':', '/', or '?' */
 			return;
 		}
 		/* find the beginning of the next line and */
-		/* read file in there */
+		/* read file in there. nextline() returns NULL when
+		 * Curschar is on the last line (true for any brand new
+		 * file) -- that NULL used to flow straight into readfile()
+		 * as the insertion point and get dereferenced. Append at
+		 * Fileend instead, which is exactly where "the next line"
+		 * would be if one existed. */
 		pp = nextline(Curschar);
-		readfile(arg,pp,1);
+		if ( pp == NULL )
+			pp = Fileend;
+		/* readfile() returns 0 only when it actually read
+		 * something in; a failed open (bad path, typo) must not
+		 * mark the buffer Changed, or a plain :w after a botched
+		 * :r overwrites the real file with an unmodified copy
+		 * under a false "modified" flag. */
+		if ( readfile(arg,pp,1) == 0 )
+			CHANGED;
 		updatescreen();
-		CHANGED;
 		return;
 	}
 	if ( strcmp(cmd,".=")==0 ) {

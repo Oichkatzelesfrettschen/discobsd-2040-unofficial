@@ -324,7 +324,15 @@ int nochangename;	/* if 1, don't change the Filename */
 		Filename = strsave(fname);
 
 	if ( (f=fopen(fname,"r")) == NULL ) {
-		Fileend = Filemem;
+		/* Leave the live buffer untouched on a failed open. This
+		 * function also backs :e's initial load, where the caller
+		 * has already reset Fileend=Filemem itself before calling
+		 * in; resetting it again here used to also fire on :r of a
+		 * missing/misspelled filename and erase whatever was
+		 * already in the buffer, so a following :w overwrote the
+		 * real file with nothing. */
+		sprintf(buff,"Can't open \"%s\"",fname);
+		message(buff);
 		return(1);
 	}
  
@@ -334,18 +342,22 @@ int nochangename;	/* if 1, don't change the Filename */
 	for ( n=0; (c=getc(f)) != EOF; n++ ) {
 		if ( ! (isprint(c)||isspace(c)) )
 			unprint++;
-		if ( fromp >= Filemax ) {
+		if ( fromp >= Filemax || Fileend >= Filemax ) {
 			windrestore();
 			fprintf(stderr,"File too long (limit is %d)!\n",FILELENG);
 			exit(1);
 		}
 		/* Insert the char at the current point by shifting
-		/* everything down. */
+		/* everything down, then grow Fileend by the one byte
+		/* just inserted. A mid-buffer :r shifts the whole tail
+		/* right without fromp ever catching up to the old
+		/* Fileend, so the old "if (Fileend < fromp) Fileend =
+		/* fromp" only advanced Fileend for a pure append and
+		/* silently dropped the shifted tail otherwise. */
 		for ( p=Fileend; p>fromp; p-- )
 			*p = *(p-1);
 		*fromp++ = c;
-		if ( Fileend < fromp )
-			Fileend = fromp;
+		Fileend++;
 	}
 	if ( ! Binary && unprint > 0 ) {
 		sprintf(buff,"%d unprintable chars!  Perhaps binary mode (-b) should be used?",unprint);

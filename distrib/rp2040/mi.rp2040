@@ -189,9 +189,12 @@ file /usr/libexec/smlrc
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
 # link a program, so they carry data mode rather than the 0775 above.
 #
+default
 filemode 0664
 file /usr/lib/libc.a
 file /usr/lib/crt0.o
+
+default
 filemode 0775
 
 link /bin/cat

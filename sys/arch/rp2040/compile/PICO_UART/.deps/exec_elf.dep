@@ -1,0 +1,45 @@
+exec_elf.o: ../../../../kern/exec_elf.c sys/param.h machine/machparam.h \
+ machine/intr.h sys/types.h machine/types.h sys/select.h machine/scb.h \
+ sys/syslimits.h sys/signal.h machine/signal.h sys/systm.h sys/conf.h \
+ sys/kernel.h sys/time.h sys/map.h sys/user.h sys/dir.h sys/exec.h \
+ sys/exec_aout.h sys/exec_elf.h machine/elf_machdep.h sys/time.h \
+ sys/resource.h sys/errno.h sys/proc.h sys/inode.h sys/namei.h sys/uio.h \
+ sys/types.h sys/exec.h sys/exec_elf.h sys/fcntl.h sys/signalvar.h \
+ sys/mount.h sys/fs.h sys/stat.h machine/debug.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/systm.h:
+sys/conf.h:
+sys/kernel.h:
+sys/time.h:
+sys/map.h:
+sys/user.h:
+sys/dir.h:
+sys/exec.h:
+sys/exec_aout.h:
+sys/exec_elf.h:
+machine/elf_machdep.h:
+sys/time.h:
+sys/resource.h:
+sys/errno.h:
+sys/proc.h:
+sys/inode.h:
+sys/namei.h:
+sys/uio.h:
+sys/types.h:
+sys/exec.h:
+sys/exec_elf.h:
+sys/fcntl.h:
+sys/signalvar.h:
+sys/mount.h:
+sys/fs.h:
+sys/stat.h:
+machine/debug.h:

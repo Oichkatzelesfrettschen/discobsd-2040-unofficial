@@ -1,0 +1,43 @@
+#
+# Raspberry Pi Pico board
+# =======================
+#
+# To build the kernel, use:
+#   cd sys/arch/rp2040/compile/PICO_UART
+#   tools/bin/config Config
+#   make clean
+#   make
+#
+architecture    "rp2040"
+cpu             "RP2040"                    # Processor variant
+board           "PICO_UART"                      # Board type
+ldscript        "RP2040.ld"                 # Kernel memory linker script
+
+makeoptions     DEBUG="-g"                  # Debug symbols
+
+# Standard system options
+options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
+options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
+options         "HALTREBOOT"                # If halted, press key to reboot
+
+# Root filesystem at /dev/fl0a, swap on /dev/fl1.
+# The RP2040 has no SD controller and this board has no socket, so root
+# lives on the onboard QSPI flash behind a translation layer, and swap in
+# a raw region above it; see arch/rp2040/dev/flash.c.
+config          unix    root on fl0a
+                        swap on fl1
+
+options         "NFL=2"                     # fl0 root, fl1 swap.
+options         "CORE_DEFAULT=0"            # No core dumps unless raised.
+
+# Console on UART0, GP0 and GP1: this board variant carries no USB console,
+# so it emulates far more simply than the flash-shipped PICO board (see
+# ~/Github/rpi/BOOT-MAP.md section 12).
+device          uart0
+options         "UART_BAUD=115200"          # default speed
+options         "CONS_MAJOR=UART_MAJOR"     # /dev/tty0 is the console
+options         "CONS_MINOR=0"
+
+# The Pico carries a single LED, wired to GP25. There is no choice of pin to
+# record here, so machdep.c names it directly and led_control lights the same
+# one for every activity class.

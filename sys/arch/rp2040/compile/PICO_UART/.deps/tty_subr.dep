@@ -1,0 +1,24 @@
+tty_subr.o: ../../../../kern/tty_subr.c sys/param.h machine/machparam.h \
+ machine/intr.h sys/types.h machine/types.h sys/select.h machine/scb.h \
+ sys/syslimits.h sys/signal.h machine/signal.h sys/clist.h sys/ioctl.h \
+ sys/ttychars.h sys/ttydev.h sys/tty.h sys/types.h sys/ioctl.h \
+ sys/systm.h sys/conf.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/clist.h:
+sys/ioctl.h:
+sys/ttychars.h:
+sys/ttydev.h:
+sys/tty.h:
+sys/types.h:
+sys/ioctl.h:
+sys/systm.h:
+sys/conf.h:

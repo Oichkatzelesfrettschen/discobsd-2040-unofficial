@@ -1,0 +1,18 @@
+ufs_dsort.o: ../../../../kern/ufs_dsort.c sys/param.h machine/machparam.h \
+ machine/intr.h sys/types.h machine/types.h sys/select.h machine/scb.h \
+ sys/syslimits.h sys/signal.h machine/signal.h sys/systm.h sys/conf.h \
+ sys/buf.h sys/dk.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:
+sys/systm.h:
+sys/conf.h:
+sys/buf.h:
+sys/dk.h:

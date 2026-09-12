@@ -112,7 +112,11 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	if (infault++) {
 		printf("fault: nested, pc 0x%08x\n", frame->ff_pc);
 		for (;;)
+#ifdef UARTUSB_ENABLED
 			usbpoll();
+#else
+			continue;
+#endif
 	}
 	syst = u.u_ru.ru_stime;
 #ifdef UCB_METER

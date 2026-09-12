@@ -1,0 +1,13 @@
+clock.o: ../../../../arch/rp2040/rp2040/clock.c sys/param.h \
+ machine/machparam.h machine/intr.h sys/types.h machine/types.h \
+ sys/select.h machine/scb.h sys/syslimits.h sys/signal.h machine/signal.h
+sys/param.h:
+machine/machparam.h:
+machine/intr.h:
+sys/types.h:
+machine/types.h:
+sys/select.h:
+machine/scb.h:
+sys/syslimits.h:
+sys/signal.h:
+machine/signal.h:

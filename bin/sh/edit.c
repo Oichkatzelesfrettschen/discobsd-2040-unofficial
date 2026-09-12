@@ -14,6 +14,7 @@
  */
 #ifdef HOSTBUILD
 #include <termios.h>
+#include <sys/ioctl.h>
 #else
 #include <sgtty.h>
 #include <sys/ioctl.h>
@@ -156,6 +157,39 @@ tty_cooked(fd)
 }
 #endif
 
+/*
+ * True if at least one byte is already queued on fd.  Used only
+ * after a bare ESC: sgtty CBREAK gives no VMIN/VTIME equivalent, so
+ * without this a standalone Esc keypress blocks on a second read()
+ * and then silently eats whatever the typist presses next (see
+ * sys/arch/rp2040/doc/research/menu-shell.md's read_key()).  Once an
+ * escape sequence is confirmed underway (an initial '[' has been
+ * seen), the remaining one or two bytes are assumed to arrive in the
+ * same burst and are read with an ordinary blocking read().
+ */
+static int
+bytes_pending(fd)
+	int fd;
+{
+	/*
+	 * FIONREAD's argument is a device `long` (sys/sys/ioctl.h:
+	 * `_IOR('f', 97, long)`) but an `int` under glibc; on a
+	 * 64-bit host, handing ioctl(2) a `long *` when the kernel
+	 * only writes 4 bytes leaves the upper bytes of `n' as stack
+	 * garbage, and n>0 goes essentially random.
+	 */
+#ifdef HOSTBUILD
+	int n;
+#else
+	long n;
+#endif
+
+	n = 0;
+	if (ioctl(fd, FIONREAD, &n) < 0)
+		return 0;
+	return n > 0;
+}
+
 /* ---- SIGINT during editing: clear the line, do not unwind the shell ---- */
 
 static volatile int got_intr;
@@ -167,6 +201,30 @@ edit_onintr(sig)
 	(void)sig;
 	signal(SIGINT, edit_onintr); /* reinstall: this port's signal() is not BSD-reliable */
 	got_intr = 1;
+}
+
+/*
+ * SIGHUP (carrier drop on the USB CDC-ACM console) and SIGTERM both
+ * have shell-level handling installed by stdsigs() before editline()
+ * ever runs (fault.c's sigval[]: SIGHUP -> done(), an immediate
+ * exit; SIGTERM -> fault(), which only marks trapnote for the next
+ * sigchk()).  Neither of those handlers knows about our raw tty
+ * mode, so a HUP or TERM that arrives mid-edit must not run them
+ * directly -- it would exit (or, for TERM, eventually unwind through
+ * sigchk() at some later point) with the tty still in CBREAK/no-echo.
+ * We catch both here, restore the tty and the real dispositions
+ * ourselves, then re-deliver the signal via kill(getpid(), sig) so
+ * the shell's own handler runs exactly as it would have -- with a
+ * cooked tty underneath it.  See the got_fatal check in editline().
+ */
+static volatile int got_fatal;
+
+static void
+edit_onfatal(sig)
+	int sig;
+{
+	signal(sig, edit_onfatal);
+	got_fatal = sig;
 }
 
 /* ---- small output helpers (no stdio) ---- */
@@ -503,6 +561,8 @@ editline(fdin, fdout, prompt, path, buf, bufsz)
 	int len, cur, max, hpos, raw, n, done;
 	unsigned char c;
 	void (*old_intr)(int);
+	void (*old_hup)(int);
+	void (*old_term)(int);
 
 	len = 0;
 	cur = 0;
@@ -517,12 +577,45 @@ editline(fdin, fdout, prompt, path, buf, bufsz)
 
 	raw = tty_raw(fdin);
 	got_intr = 0;
+	got_fatal = 0;
 	old_intr = signal(SIGINT, edit_onintr);
+	old_hup  = signal(SIGHUP, edit_onfatal);
+	old_term = signal(SIGTERM, edit_onfatal);
 
 	redraw(fdout, prompt, work, len, cur);
 
 	while (!done) {
 		n = read(fdin, &c, 1);
+
+		if (got_fatal) {
+			int sig = got_fatal;
+
+			got_fatal = 0;
+			signal(SIGINT, old_intr);
+			signal(SIGHUP, old_hup);
+			signal(SIGTERM, old_term);
+			if (raw)
+				tty_cooked(fdin);
+
+			kill(getpid(), sig);
+
+			/*
+			 * Only reached if the shell's own handler for
+			 * `sig' returned instead of exiting -- an
+			 * untrapped SIGTERM's fault() only marks
+			 * trapnote for the next sigchk().  Resume
+			 * editing exactly as a fresh call would.
+			 */
+			raw = tty_raw(fdin);
+			got_intr = 0;
+			got_fatal = 0;
+			old_intr = signal(SIGINT, edit_onintr);
+			old_hup  = signal(SIGHUP, edit_onfatal);
+			old_term = signal(SIGTERM, edit_onfatal);
+			ed_puts(fdout, "\r\n");
+			redraw(fdout, prompt, work, len, cur);
+			continue;
+		}
 
 		if (got_intr) {
 			got_intr = 0;
@@ -564,6 +657,8 @@ editline(fdin, fdout, prompt, path, buf, bufsz)
 		} else if (c == 033) {                     /* ESC [ ... */
 			unsigned char c2, c3;
 
+			if (!bytes_pending(fdin))
+				continue;       /* standalone ESC: no-op, next byte is a fresh keystroke */
 			if (read(fdin, &c2, 1) != 1 || c2 != '[')
 				continue;
 			if (read(fdin, &c3, 1) != 1)
@@ -640,6 +735,8 @@ editline(fdin, fdout, prompt, path, buf, bufsz)
 	}
 
 	signal(SIGINT, old_intr);
+	signal(SIGHUP, old_hup);
+	signal(SIGTERM, old_term);
 	if (raw)
 		tty_cooked(fdin);
 

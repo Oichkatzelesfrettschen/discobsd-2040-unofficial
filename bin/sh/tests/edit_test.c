@@ -18,6 +18,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
 
 #include "../edit.h"
 
@@ -68,6 +71,63 @@ check(const char *name, const char *path, const unsigned char *script,
 }
 
 #define ESC "\033"
+
+/*
+ * A bare ESC (Esc key alone, no following bytes) must not eat the
+ * next real keystroke.  This needs pacing that the all-at-once
+ * feed() above cannot give: if every scripted byte is written to
+ * the pipe before editline() starts, the bytes after ESC are always
+ * already queued and the FIONREAD check in edit.c can never tell a
+ * standalone ESC from the start of a real escape sequence.  A child
+ * process writes "ab" + ESC, sleeps, then writes "c\n" -- so when
+ * editline() polls FIONREAD right after reading the ESC, nothing is
+ * pending yet, exactly like a person pressing Esc and pausing.
+ */
+static void
+check_bare_esc(void)
+{
+	int p[2];
+	pid_t pid;
+	char buf[64];
+	int n, status;
+
+	if (pipe(p) != 0) {
+		perror("pipe");
+		exit(2);
+	}
+
+	pid = fork();
+	if (pid < 0) {
+		perror("fork");
+		exit(2);
+	}
+	if (pid == 0) {
+		struct timespec ts;
+
+		close(p[0]);
+		write(p[1], "ab\033", 3);
+		ts.tv_sec = 0;
+		ts.tv_nsec = 50000000L; /* 50 ms */
+		nanosleep(&ts, (struct timespec *)0);
+		write(p[1], "c\n", 2);
+		close(p[1]);
+		_exit(0);
+	}
+	close(p[1]);
+
+	memset(buf, 0, sizeof(buf));
+	n = editline(p[0], devnull, "$ ", ".", buf, sizeof(buf));
+	close(p[0]);
+	waitpid(pid, &status, 0);
+
+	if (n == 3 && memcmp(buf, "abc", 3) == 0) {
+		printf("ok   bare-esc\n");
+	} else {
+		printf("FAIL bare-esc: got %d:%.*s want 3:abc\n",
+		    n, n > 0 ? n : 0, buf);
+		failures++;
+	}
+}
 
 int
 main(void)
@@ -163,6 +223,9 @@ main(void)
 
 	/* 7. Ctrl-D on an empty line is EOF */
 	check("eof-empty", ".", (unsigned char *)"\004", 1, (char *)0);
+
+	/* 7b. A standalone ESC does not eat the next keystroke */
+	check_bare_esc();
 
 	/* 8. Filename completion: build a small tmpdir with two names
 	 * sharing a prefix and one that does not. */

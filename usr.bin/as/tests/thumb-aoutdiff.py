@@ -13,6 +13,10 @@ GCC splits code across .text, .text.startup and similar sections while the
 a.out object has one text segment, so the ELF side is concatenated in the
 order the source introduces the sections, word aligned between them.
 
+The data segment is compared the same way. An a.out object holds
+a_data = count[SDATA] + count[SSTRNG], so the ELF side is every .data
+section in source order followed by every .rodata section in source order.
+
 usage: thumb-aoutdiff.py SOURCE.s OBJECT.aout GNUOBJECT.o
 """
 
@@ -22,8 +26,8 @@ import subprocess
 import sys
 
 
-def text_sections(src):
-    """Names of the executable sections, in the order the source opens them.
+def sections_matching(src, want):
+    """Section names the source opens, in order, whose kind is in want.
 
     A semicolon separates statements, so a macro that expands to a whole
     function on one line -- which is how libc's syscall stubs are written --
@@ -39,13 +43,26 @@ def text_sections(src):
             m = re.match(r'\.section\s+"?(\.[\w.$]+)', stmt)
             if m:
                 cur = m.group(1)
-            elif re.match(r"\.text\b", stmt):
-                cur = ".text"
-            elif re.match(r"\.(data|bss|rodata)\b", stmt):
-                cur = None
-            if cur and cur.startswith(".text") and cur not in order:
-                order.append(cur)
+            else:
+                m = re.match(r"\.(text|data|bss|rodata)\b", stmt)
+                if m:
+                    cur = "." + m.group(1)
+            if cur is None:
+                continue
+            for kind in want:
+                if cur.startswith(kind) and cur not in order:
+                    order.append(cur)
     return order
+
+
+def text_sections(src):
+    return sections_matching(src, (".text",))
+
+
+def data_sections(src):
+    """a_data is the data segment then the rodata pseudo-segment."""
+    return (sections_matching(src, (".data",))
+            + sections_matching(src, (".rodata",)))
 
 
 def gnu_text(gnuobj, order, tmp):
@@ -69,8 +86,15 @@ def gnu_text(gnuobj, order, tmp):
     return blob, base
 
 
-def covered_by_relocs(gnuobj, base, aout, textlen):
-    """Byte offsets that hold a relocated field on either side."""
+def covered_by_relocs(gnuobj, base, aout, which):
+    """Byte offsets holding a relocated field on either side of one segment.
+
+    A relocated field cannot agree between the two: an a.out record stores a
+    plain displacement or a segment-relative address, an ELF record stores
+    what R_ARM_THM_CALL and R_ARM_ABS32 prescribe, and neither is wrong. The
+    offsets come from each object's own relocation table, so the exclusion is
+    read from the data rather than assumed.
+    """
     hit = set()
 
     out = subprocess.run(["arm-none-eabi-readelf", "-rW", gnuobj],
@@ -85,12 +109,15 @@ def covered_by_relocs(gnuobj, base, aout, textlen):
             off = base[sec] + int(m.group(1), 16)
             width = 4 if m.group(2) in ("R_ARM_THM_CALL", "R_ARM_ABS32",
                                         "R_ARM_THM_JUMP24") else 2
-            for i in range(off, off + width, 2):
+            for i in range(off, off + width):
                 hit.add(i)
 
     d = open(aout, "rb").read()
-    _, text, data, _, rt, _, _, _ = struct.unpack("<8I", d[:32])
-    buf = d[32 + text + data:32 + text + data + rt]
+    _, text, data, _, rt, rd, _, _ = struct.unpack("<8I", d[:32])
+    if which == "text":
+        buf = d[32 + text + data:32 + text + data + rt]
+    else:
+        buf = d[32 + text + data + rt:32 + text + data + rt + rd]
     i = 0
     while i + 5 <= len(buf):
         flags = buf[i]
@@ -99,36 +126,61 @@ def covered_by_relocs(gnuobj, base, aout, textlen):
         if (flags & 0x70) == 0x70:          # REXT carries a symbol index
             i += 3
         width = 4 if (flags & 0x0f) in (1, 8) else 2
-        for k in range(addr, addr + width, 2):
+        for k in range(addr, addr + width):
             hit.add(k)
     return hit
 
 
+def compare(kind, gnu, mine, hit, step):
+    """Halfword or byte comparison, excluding the relocated fields."""
+    n = min(len(gnu), len(mine))
+    differ = [i for i in range(0, n, step) if gnu[i:i + step] != mine[i:i + step]]
+    bad = [i for i in differ
+           if not any(k in hit for k in range(i, i + step))]
+    return differ, bad, n
+
+
 def main():
     src, aout, gnuobj = sys.argv[1:4]
-    order = text_sections(src)
-    gnu, base = gnu_text(gnuobj, order, aout + ".sec")
 
     d = open(aout, "rb").read()
-    text = struct.unpack("<8I", d[:32])[1]
-    mine = d[32:32 + text]
+    _, text, data, _, _, _, _, _ = struct.unpack("<8I", d[:32])
 
-    hit = covered_by_relocs(gnuobj, base, aout, text)
-    n = min(len(gnu), len(mine))
-    differ = [i for i in range(0, n, 2) if gnu[i:i + 2] != mine[i:i + 2]]
-    bad = [i for i in differ if i not in hit]
+    torder = text_sections(src)
+    gnutext, tbase = gnu_text(gnuobj, torder, aout + ".sec")
+    mytext = d[32:32 + text]
+    thit = covered_by_relocs(gnuobj, tbase, aout, "text")
+    tdiff, tbad, tn = compare("text", gnutext, mytext, thit, 2)
 
     # The a.out text is padded out to a word; GNU as leaves the section short.
-    tail = mine[len(gnu):]
-    if tail and tail not in (b"\0" * len(tail), b"\xc0\x46" * (len(tail) // 2)):
-        bad.append(len(gnu))
+    tail = mytext[len(gnutext):]
+    if tail and tail not in (b"\0" * len(tail),
+                             b"\xc0\x46" * (len(tail) // 2)):
+        tbad.append(len(gnutext))
 
-    print("%-28s %4d halfwords, %3d relocated, %d unexplained"
-          % (src.split("/")[-1], n // 2, len(differ), len(bad)))
-    for i in bad[:8]:
-        print("    @%d expected %s got %s"
-              % (i, gnu[i:i + 2].hex(), mine[i:i + 2].hex()))
-    return 1 if bad else 0
+    dorder = data_sections(src)
+    gnudata, dbase = gnu_text(gnuobj, dorder, aout + ".sec")
+    mydata = d[32 + text:32 + text + data]
+    dhit = covered_by_relocs(gnuobj, dbase, aout, "data")
+    ddiff, dbad, dn = compare("data", gnudata, mydata, dhit, 1)
+
+    # The data segment is padded out to a word in the same way.
+    dtail = mydata[len(gnudata):]
+    if dtail and dtail != b"\0" * len(dtail):
+        dbad.append(len(gnudata))
+    if len(gnudata) > len(mydata):
+        dbad.append(len(mydata))
+
+    print("%-26s text %4d hw %3d reloc %d bad | data %4d B %3d reloc %d bad"
+          % (src.split("/")[-1], tn // 2, len(tdiff), len(tbad),
+             dn, len(ddiff), len(dbad)))
+    for i in tbad[:6]:
+        print("    text @%d expected %s got %s"
+              % (i, gnutext[i:i + 2].hex(), mytext[i:i + 2].hex()))
+    for i in dbad[:6]:
+        print("    data @%d expected %s got %s"
+              % (i, gnudata[i:i + 4].hex(), mydata[i:i + 4].hex()))
+    return 1 if (tbad or dbad) else 0
 
 
 if __name__ == "__main__":

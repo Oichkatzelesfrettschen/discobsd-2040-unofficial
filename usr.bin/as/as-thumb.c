@@ -86,6 +86,7 @@ enum {
     LWEAK,              /* .weak */
     LLOCAL,             /* .local */
     LTHUMB,             /* .thumb, .code, .arm */
+    LARM,               /* .arm */
     LTHUMBFUNC,         /* .thumb_func */
     LTHUMBSET,          /* .thumb_set */
     LSYNTAX,            /* .syntax */
@@ -772,7 +773,7 @@ lookacmd(void)
         if (! strcmp (".ascii", name)) return (LASCII);
         if (! strcmp (".asciz", name)) return (LASCIZ);
         if (! strcmp (".align", name)) return (LALIGN);
-        if (! strcmp (".arm", name)) return (LTHUMB);
+        if (! strcmp (".arm", name)) return (LARM);
         if (! strcmp (".arch", name)) return (LCPU);
         if (! strcmp (".arch_extension", name)) return (LCPU);
         break;
@@ -2380,7 +2381,14 @@ done:       segm = STEXT;
             segm = SBSS;
             break;
         case LWORD:
-            align (2);
+            /*
+             * GNU as places .word and .hword at the cursor and aligns
+             * neither, so ".byte 1; .word x" leaves the word at an odd
+             * offset. The sparse relocation stream addresses any byte, so
+             * an unaligned relocated word is expressible; whether the
+             * program can load it is the source's business, as it is with
+             * GNU as.
+             */
             for (;;) {
                 expr_thumb = 0;
                 getexpr (&cval);
@@ -2418,7 +2426,6 @@ done:       segm = STEXT;
             add_space (nbytes, 0);
             break;
         case LHALF:
-            align (1);
             nbytes = 0;
             for (;;) {
                 getexpr (&cval);
@@ -2597,6 +2604,9 @@ done:       segm = STEXT;
             break;
         case LPREVIOUS:
             break;
+        case LARM:
+            uerror ("ARMv6-M has no ARM state; this target is Thumb only");
+            break;
         case LTHUMB:
             /* .thumb, .code 16 -- the only state this target has. */
             clex = getlex (&cval);
@@ -2680,11 +2690,15 @@ done:       segm = STEXT;
  * label values the first run computes are the values the second run
  * assembles against.
  */
+unsigned passcount [SABS];              /* segment sizes after the first pass */
+
 void
 rescan(void)
 {
     int i;
 
+    for (i=0; i<SABS; i++)
+        passcount[i] = count[i];
     for (i=STEXT; i<SBSS; i++) {
         rewind (sfile[i]);
         if (ftruncate (fileno (sfile[i]), (off_t) 0) != 0)
@@ -2706,6 +2720,27 @@ rescan(void)
     segm = STEXT;
     line = 1;
     rewind (stdin);
+}
+
+/*
+ * The second pass may only reproduce the addresses the first one computed.
+ * That holds because Thumb-1 has no relaxation and nothing here narrows,
+ * but two constructs could still shift a segment: a literal pool slot that
+ * two loads share only once their forward targets are known, and a .space
+ * whose count the first pass could not evaluate. Comparing the segment
+ * sizes turns either into an error naming the segment rather than a
+ * silently wrong forward reference.
+ */
+void
+checkstable(void)
+{
+    static const char *segname [] = { "text", "data", "rodata", "bss" };
+    int i;
+
+    for (i=0; i<SBSS+1 && i<4; i++)
+        if (count[i] != passcount[i])
+            uerror ("%s segment is %u bytes on the second pass and %u on the first; an expression the first pass could not evaluate changed a size",
+                segname[i], count[i], passcount[i]);
 }
 
 /*
@@ -3243,6 +3278,7 @@ main(int argc, char *argv[])
     prescan = 0;
     rescan ();                          /* Discard the output, keep symbols */
     pass1 ();                           /* Assemble against known labels */
+    checkstable ();                     /* Both passes must agree on sizes */
     resolvefix ();                      /* Patch or relocate each reference */
     middle ();                          /* Prepare symbol table */
     pass2 ();                           /* Second pass */

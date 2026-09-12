@@ -14,13 +14,15 @@ together with the directives, local labels, PC-relative forms and literal
 pool, agree halfword for halfword.
 
 **Compiler output.** `arm-none-eabi-gcc -S` for `bin/cat`, `bin/echo` and
-`usr.bin/wc` assembles and agrees: 648, 106 and 232 halfwords, of which 71,
-8 and 29 lie in relocated fields and the rest match exactly.
+`usr.bin/wc` assembles and agrees: 648, 106 and 232 text halfwords, of which
+71, 8 and 29 lie in relocated fields and the rest match exactly, and 117, 0
+and 54 bytes of data.
 
 **The whole of libc.** All 329 translation units of `lib/libc_aout/libc`,
 plus `crt0`, assemble with this assembler and agree with `arm-none-eabi-as`
-on every halfword outside a relocated field. This is the widest of the
-tests: real compiler output plus the hand-written `.S` files across the
+on every byte outside a relocated field, in both the text and the data
+segment -- 43 of them carry data, 5115 bytes of it. This is the widest of
+the tests: real compiler output plus the hand-written `.S` files across the
 entire library.
 
 **Link and run, the acceptance test.** `crt0.o`, a program, and `libc.a`
@@ -50,6 +52,14 @@ and two signedness comparisons).
 
 **Independent decode.** capstone, which shares no code with binutils,
 disassembles the emitted text back to the source instructions.
+
+**Two-pass stability.** The assembler compares the segment sizes its two
+source passes compute and fails with a named error if they differ, so the
+soundness condition for the second pass is checked rather than asserted.
+Both constructs that can break it were built and confirmed to trigger it: a
+literal pool slot that two loads come to share once their forward targets
+resolve, and a `.space` whose count the first pass cannot evaluate. Neither
+occurs in the 338 real inputs.
 
 ## What does not pass, and why
 
@@ -86,13 +96,32 @@ different-but-also-correct layout. The per-object comparison against
 `arm-none-eabi-as` is retained and widened from one program to all 329 libc
 units, so the assembler itself is still held to an external oracle.
 
+**A printf program does not complete under the emulator**, and the cause is
+the harness, not this toolchain. It stops silently in stdio's flush path.
+The same program built entirely by `arm-none-eabi-gcc`, linked by GNU `ld`
+and converted by `elf2aout` -- a path containing none of this work -- stops
+at the same point with the same empty output under the same runner, while
+the `write`-based program built by this toolchain runs to completion and
+prints. The stub kernel's zeroed `fstat` and `ioctl` leave stdio without
+usable terminal state; implementing enough of the DiscoBSD kernel ABI to
+carry buffered stdio was out of scope.
+
 **The board was not touched**, as instructed. Unicorn is the closest this
 goes; it is not a substitute for running on an RP2040.
 
 **Debug information is dropped.** CFI and unwind directives are parsed and
 discarded, so programs assembled here carry no DWARF.
 
-**Thumb-2 is rejected, not narrowed.** ARMv6-M does not have it.
+**Thumb-2 is rejected, not narrowed.** ARMv6-M does not have it, and `.arm`
+and `.code 32` are errors rather than silent no-ops.
+
+**`ld` overstates `a_syms` by four bytes** when the symbol table is already
+word aligned: `while (ssize++ % W)` increments even when the test fails, and
+`ALIGN(ssize, W)` then rounds past the end. This is pre-existing and
+identical at `rp2040-port`, it affects MIPS the same way, and fixing it
+would change every MIPS executable, so it is reported here rather than
+changed as a side effect of Thumb work. Nothing in the tree reads past
+`a_syms`; it was found because a dump script written for this work did.
 
 **One class of difference with `arm-none-eabi-as` is by design and is
 excluded from every comparison**: the contents of a relocated field. An
@@ -152,7 +181,7 @@ is done. A target in the same segment is patched into the segment directly,
 because the segment bases cancel in a PC-relative displacement, and only a
 cross-segment or external target survives as a relocation.
 
-**Five encoding choices follow GNU as rather than the architecture's
+**Six encoding and layout choices follow GNU as rather than the architecture's
 preferred form**, because the two assemblers have to agree byte for byte and
 GNU as is the oracle. `nop` is `mov r8, r8`, not the `0xbf00` hint.
 `ldr rN, =imm` takes a pool slot rather than narrowing to `movs`. An add or
@@ -162,7 +191,10 @@ padding inserted before a literal pool is zero. And `mov rd, rm` between two
 low registers is `adds rd, rm, #0` in the divided pre-UAL syntax that a file
 declaring no `.syntax` assembles in -- which is how every hand-written `.S`
 under `lib/libc/arm` is written -- and the high-register encoding once
-`.syntax unified` is declared.
+`.syntax unified` is declared. Finally `.word` and `.hword` align nothing,
+so `.byte 1` followed by `.word x` leaves the word at an odd offset; the
+sparse stream can address it. That last one was invisible until the
+comparison was extended from text to data.
 
 **The Thumb bit is applied in three places and nowhere else**: the `nlist`
 record `fputsym` writes, an absolute word that stores a function address, and

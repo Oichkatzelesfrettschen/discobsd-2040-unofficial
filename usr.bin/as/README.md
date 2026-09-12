@@ -23,13 +23,19 @@ the condition attached.
 Directives: `.text .data .bss .section .global .globl .local .weak .align
 .p2align .word .long .4byte .short .hword .half .2byte .byte .ascii .asciz
 .string .space .skip .comm .lcomm .equ .set .thumb_set .size .type .thumb
-.code .arm .thumb_func .syntax .cpu .arch .arch_extension .fpu
+.code .thumb_func .syntax .cpu .arch .arch_extension .fpu
 .eabi_attribute .file .ident .ltorg .pool .previous`. The CFI and unwind
 directives are read and discarded, because an a.out object carries no place
 to put them.
 
 Labels may be named or numeric: `1:` with `1b` and `1f` referring backward
 and forward, and the `.L` names GCC generates.
+
+`.word` and `.hword` place their values at the cursor and align nothing, as
+GNU as does, so `.byte 1` followed by `.word x` leaves the word at an odd
+offset. The sparse relocation stream addresses any byte, so an unaligned
+relocated word is expressible; whether the program can load it is the
+source's business, as it is with GNU as.
 
 `ldr rN, =expression` places the value in a literal pool. Identical values
 share a slot. A pool is emitted at `.ltorg` or `.pool`, when the section
@@ -49,6 +55,22 @@ so a program assembled here carries no DWARF.
 
 Macros, `.rept`, `.irp`, `.if` and the other GNU as control directives. The
 compiler emits none of them, and neither does anything under `lib/libc/arm`.
+
+## Two passes over the source
+
+GCC's `-Os` switch tables read `(.Lfwd - .Lhere)/2` into a `.byte`, a
+constant difference whose forward label is undefined when the cursor
+reaches it. The assembler therefore reads the source twice: the first pass
+learns every label's address and tolerates that subtraction, and the second
+assembles against known addresses.
+
+This is sound only if an instruction occupies the same space on both
+passes, which holds because Thumb-1 has no relaxation and nothing here
+narrows. Two constructs could still shift a segment -- a literal pool slot
+that two loads come to share once their forward targets are known, and a
+`.space` whose count the first pass could not evaluate -- so the segment
+sizes from the two passes are compared and a mismatch is an error naming
+the segment, rather than a silently wrong forward reference.
 
 ## Relocations
 
@@ -109,14 +131,19 @@ is installed, and says so when it is not.
 
 Three tests run in order.
 
-**Encoding.** Six inputs name every ARMv6-M instruction form. Each is
-assembled by this assembler and by `arm-none-eabi-as` and the two texts are
-compared halfword by halfword. A field covered by a relocation is excluded,
-because there the a.out addend convention and the ELF one differ by design
-and neither is wrong; every other halfword must match.
+Each comparison covers both the text and the data segment. A field covered
+by a relocation is excluded, because there the a.out addend convention and
+the ELF one differ by design and neither is wrong; the offsets come from
+each object's own relocation table, so the exclusion is read from the data
+rather than assumed. Every other byte must match.
+
+**Encoding.** Six inputs name every ARMv6-M instruction form, along with
+the directives, local labels, PC-relative forms and literal pool. Each is
+assembled by this assembler and by `arm-none-eabi-as` and the results are
+compared.
 
 **Compiler output.** `arm-none-eabi-gcc -S` output for `bin/cat`,
-`bin/echo` and `usr.bin/wc` is assembled and compared the same way. These
+`bin/echo` and `usr.bin/wc` is assembled and compared. These
 carry what hand-written input does not: switch tables that read the
 difference of two labels into a `.byte`, code split across `.text` and
 `.text.startup`, and calls to symbols the object does not define.

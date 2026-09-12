@@ -1,0 +1,5 @@
+menu
+menu.host
+*-host
+*.o
+*.elf

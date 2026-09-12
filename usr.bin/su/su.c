@@ -111,10 +111,15 @@ again:
             for (i = 0; gr->gr_mem[i] != NULL; i++)
                 if (strcmp(buf, gr->gr_mem[i]) == 0)
                     goto userok;
-            fprintf(stderr, "You do not have permission to su %s\n",
-                user);
-            exit(1);
         }
+        /*
+         * No password prompt follows this check on this build, so a
+         * wheel lookup that fails to confirm membership -- gr NULL
+         * (etc/group unreadable) or no match in gr_mem -- must deny,
+         * never fall through to userok.
+         */
+        fprintf(stderr, "You do not have permission to su %s\n", user);
+        exit(1);
     userok:
         setpriority(PRIO_PROCESS, 0, -2);
     }

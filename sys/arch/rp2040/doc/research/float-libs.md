@@ -489,6 +489,70 @@ already uses `float`, with no accuracy regression for code that does not
 depend on denormals or exact NaN payloads (Section 2.1's stated
 narrowing) -- which is effectively all DiscoBSD userland code.
 
+#### 4.1 Implementation findings: the divider hazard, the truncation
+#### mismatch, and the caller census
+
+Three facts found while scoping the tier (b) shim against the actual
+bootrom source (`raspberrypi/pico-bootrom-rp2040`, `bootrom/bootrom_rt0.S`
+and `bootrom/mufplib.S`) and the tree's own object files narrow (b) from
+"the highest-leverage item, ready to ship" to "two divider-free operations
+per precision now, the rest gated on a kernel change."
+
+**The SIO divider is shared state the kernel does not checkpoint.**
+`mufp_fdiv` (and every transcendental, which branch into `fdiv_n`) writes
+the SIO hardware divider at `SIO_BASE+DIV_UDIVIDEND`/`DIV_UDIVISOR` and
+reads `DIV_QUOTIENT` (`mufplib.S`, `use_hw_div=1`, lines 1050-1089). The
+RP2040 SIO divider is a single peripheral with result registers; if a
+process is preempted between the divisor write and the quotient read and
+another context divides, the resumed read returns the wrong quotient. The
+pico-sdk guards this in its own `__aeabi_fdiv` wrapper
+(`float_aeabi_rp2040.S`, the `fdiv_save_state` path). DiscoBSD's rp2040
+kernel has no SIO-divider save/restore on context switch (grep of
+`sys/arch/rp2040` finds none), and libgcc's current soft-float divide is
+pure software that never touches the peripheral, so nothing today requires
+it. `mufp_fadd`, `mufp_fsub`, `mufp_fmul`, `mufp_fsqrt` and every integer
+conversion are divider-free; only division (and the transcendentals built
+on it) touch it. So routing `__aeabi_fdiv`/`__aeabi_ddiv` -- the single
+largest win, 475->83 cycles -- through the ROM requires first adding a
+context-switch checkpoint of the divider registers to the kernel, verified
+under a preempt-mid-divide contention test. Add/sub/mul carry no such
+dependency.
+
+**`mufp_float2int` floors; `__aeabi_f2iz` truncates.** The ROM
+`float2int` converts "rounding towards -Inf, clamping" (`mufplib.S` line
+248), while the C cast `__aeabi_f2iz` rounds toward zero, so they disagree
+on every negative non-integer (`(int)-2.7` is `-2`, `float2int(-2.7)` is
+`-3`). A correct `__aeabi_f2iz` shim needs the sign-dispatch the pico-sdk
+wrapper carries (`float2int_z` in `float_aeabi_rp2040.S`), not a bare
+tail-call. The conversions are cheap in both ROM and libgcc (37-55
+cycles), so they are low-value to shim and easy to get silently wrong;
+leave them on libgcc.
+
+**The tree's float users are double-precision; single-precision callers
+are sparse and incidental.** A census of undefined `__aeabi_f*` (single)
+references across the built objects (`arm-none-eabi-nm` over every `.o`)
+finds 98 reference sites, and among the binaries the rp2040 manifest
+actually ships only `awk`, `vmstat`, `iostat` and `smlrc` reference
+single-precision float at all -- each doing its real arithmetic in
+`double` (awk's number type is `double`; the float refs are incidental
+casts). The float-heavy paths that matter -- printf `%f`/`%e`/`%g` through
+`doprnt`, `awk`, `bc`, `dc` -- are `double`, served by the SF table's
+sibling `soft_double_table` (`'S','D'`), which Table 171 documents as
+present only on bootrom V2+. A V1 part has no double table, so a libc that
+unconditionally owns `__aeabi_d*` cannot fulfill it there; the double shim
+needs a runtime bootrom-version check with a libgcc-double fallback linked
+for the V1 case, which the plain symbol-replacement in (b) does not
+provide.
+
+Net revision to (b): the safe, no-kernel-change, correct-on-every-part
+shim is `__aeabi_fadd`/`fsub`/`fmul` (single) and, on V2+ with a version
+check, `__aeabi_dadd`/`dsub`/`dmul` (double) -- all divider-free -- with
+the source documenting the ROM's denormal/NaN/rounding narrowing
+(Section 2.1) above each symbol. The division ops and the V1 double
+fallback wait on a kernel SIO-divider context-switch checkpoint, which is
+a separate, testable task with its own blast radius, not part of the shim
+itself.
+
 **(c) True general-purpose float/double soft-float, reserved for the
 narrow cases the ROM cannot serve.** Two situations force this tier:
 first, a bootrom V1 part needs double precision (V1 has no `soft_double_table`

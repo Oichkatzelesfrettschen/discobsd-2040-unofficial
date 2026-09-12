@@ -446,6 +446,39 @@ any confidence.
    attempt, after 1-3 have been implemented and measured, since its cost is
    the only one of the four not yet bounded by a real number.
 
+## Measured follow-up: the ratio and the swap time the tier actually gets
+
+Recommendation 1 above is implemented as `options SWAPRAM`; the full record
+is in `zswap.md`, and the numbers that answer this report's open questions
+are repeated here.
+
+The ratio this report could not find for Thumb-1 swap payloads was measured
+against real a.out data segments plus their zero-filled bss: 6.40x for sh,
+29.93x for awk, 9.15x for tclsh over the whole image of data, stack, and u
+area, at heatshrink window 9 and lookahead 8. That is well above the 1.43x
+this report reasoned from whole-binary gzip, because a swap image is not a
+binary: awk's data segment is 96.3 percent zeros once bss is counted.
+
+Lookahead is the parameter that decides it. `get_lookahead_size` in
+heatshrink's encoder caps a match at 2^lookahead bytes, so the lookahead 4
+this report's parameter sketch assumed bounds matches at 16 bytes and drops
+awk from 29.93x to 7.76x. It costs no RAM; only the window sizes the
+encoder's buffer.
+
+Against this report's figure of about 0.5 s for a 33 KB flash swap-out, the
+tier's expected cost for sh's 12,416-byte image is 40 to 90 ms, estimated
+from a measured host encode rate of 15.5 MB/s on the least compressible
+realistic segment and a stated 100-to-200x host-to-M0+ per-byte ratio; the
+same image on flash costs about 190 ms and a 4 KB sector erase per 1 KB
+unit. The estimate is not a measurement and the board test in `zswap.md`
+is what replaces it.
+
+The codec's working RAM came out at the low end of this report's range:
+1,040 bytes for the encoder and 590 for the decoder, with the search index
+off, which also removes the 512-byte `do_indexing` frame this report flagged
+as the robbing-Peter case. The index changes no output byte on these
+payloads, so its cost buys only encode speed.
+
 ## Licenses referenced
 
 - heatshrink: ISC (permissive) -- [atomicobject/heatshrink](https://github.com/atomicobject/heatshrink)

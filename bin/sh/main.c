@@ -13,6 +13,7 @@
 #include <sys/param.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include "edit.h"
 
 #ifdef RES
 #include <sgtty.h>
@@ -124,7 +125,31 @@ BOOL    prof;
 				}
 			}
 
-			prprompt(ps1nod.namval);
+			/*
+			 * Interactive line editing only ever engages here,
+			 * for the top-level command line on a real tty in
+			 * both directions; a script, a pipe, or `sh -i`
+			 * with redirected input falls straight through to
+			 * the original prprompt()+readc() path below,
+			 * unchanged.
+			 */
+			if (isatty(input) && isatty(output))
+			{
+				char    *path = pathnod.namval ? pathnod.namval : defpath;
+				int     n = editline(input, output, ps1nod.namval, path,
+					    standin->fbuf, sizeof(standin->fbuf));
+
+				if (n < 0)
+					eof++;
+				else
+				{
+					standin->fbuf[n] = NL;
+					standin->fnxt = standin->fbuf;
+					standin->fend = standin->fbuf + n + 1;
+				}
+			}
+			else
+				prprompt(ps1nod.namval);
 
 #ifdef TIME_OUT
 			alarm(TIMEOUT);

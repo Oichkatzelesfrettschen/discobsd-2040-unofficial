@@ -1,0 +1,14 @@
+# Stable, resilient host handle for the DiscoBSD RP2040 console.
+#
+# The board keeps the USB serial number "rp2040" across every reboot, so
+# udev names it by that rather than by the ttyACMn that drifts each time
+# the device re-enumerates. Install as /etc/udev/rules.d/71-discobsd-pico.rules
+# and reload with "udevadm control --reload".
+#
+# ATTRS{serial}=="rp2040" matches the running kernel; the BOOTSEL bootrom
+# presents a different serial and is left to picotool. /dev/discobsd points
+# at the live console. power/control "on" disables autosuspend for the
+# port, since a suspend/resume drives a bus reset the console need not
+# absorb during a session.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", ATTRS{serial}=="rp2040", SYMLINK+="discobsd", TAG+="systemd"
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", TEST=="power/control", ATTR{power/control}="on"

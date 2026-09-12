@@ -30,12 +30,13 @@ XTERM = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"
 XTERM_CSS = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
 
 PAGE = """<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=viewport content="width=device-width,initial-scale=1,user-scalable=no">
 <title>DiscoBSD console</title>
 <link rel=stylesheet href="%s">
-<style>html,body{margin:0;height:100%%;background:#000}
-#t{height:100%%;width:100%%}#s{position:fixed;top:4px;right:8px;color:#6a6;
-font:12px monospace;z-index:9}</style></head><body>
+<style>html,body{margin:0;height:100%%;width:100%%;background:#000;overflow:hidden}
+#t{position:absolute;top:0;left:0}
+#s{position:fixed;top:4px;right:8px;color:#6a6;font:12px monospace;z-index:9}
+</style></head><body>
 <div id=s>connecting</div><div id=t></div>
 <script src="%s"></script>
 <script>
@@ -43,10 +44,32 @@ var term=new Terminal({cols:80,rows:24,fontFamily:"monospace",fontSize:14,
  cursorBlink:true,theme:{background:"#000000"}});
 term.open(document.getElementById("t"));
 var stat=document.getElementById("s");
+
+// Fill the window: keep the console 80x24 and pick the largest font at
+// which that grid fits, so the terminal grows and shrinks with the page
+// while the board's size never changes. A monospace cell is about 0.6 of
+// the font wide and about 1.2 tall.
+function fit(){
+ var fw=window.innerWidth/(80*0.6), fh=window.innerHeight/(24*1.2);
+ var fs=Math.max(8,Math.floor(Math.min(fw,fh)));
+ if(fs!==term.options.fontSize){term.options.fontSize=fs;}
+ try{term.resize(80,24);}catch(e){}
+}
+window.addEventListener("resize",fit);
+fit();
+
+// Keep the terminal focused so typing goes to the console, not to
+// Firefox quick-find, when the page is clicked or returned to.
+function grab(){try{term.focus();}catch(e){}}
+window.addEventListener("focus",grab);
+window.addEventListener("load",grab);
+document.addEventListener("click",grab);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)grab();});
+
 var proto=location.protocol==="https:"?"wss":"ws";
 var ws=new WebSocket(proto+"://"+location.host+"/ws");
 ws.binaryType="arraybuffer";
-ws.onopen=function(){stat.textContent="connected";term.focus();};
+ws.onopen=function(){stat.textContent="connected";grab();};
 ws.onclose=function(){stat.textContent="disconnected -- reload to retry";};
 ws.onmessage=function(e){
  var d=typeof e.data==="string"?e.data:
@@ -134,11 +157,24 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         sock = self.connection
         dev = self.server.device
+        # One console at a time: a serial line is a single session. A second
+        # viewer is told the console is busy and closed, rather than fighting
+        # over the same port.
+        if not self.server.console_lock.acquire(blocking=False):
+            try:
+                sock.sendall(ws_frame(
+                    b"\r\n  The console is in use by another session.\r\n"
+                    b"  Try again later.\r\n"))
+                time.sleep(0.2)
+            except Exception:
+                pass
+            return
         try:
             ser = open_serial(dev)
         except Exception as exc:
             sock.sendall(ws_frame(("\r\ncannot open %s: %s\r\n" %
                                    (dev, exc)).encode()))
+            self.server.console_lock.release()
             return
         alive = [True]
 
@@ -183,6 +219,7 @@ class Handler(BaseHTTPRequestHandler):
                 ser.close()
             except Exception:
                 pass
+            self.server.console_lock.release()
 
 
 def lan_ip():
@@ -225,6 +262,7 @@ def main():
         return 1
     httpd = ThreadingHTTPServer((bind, port), Handler)
     httpd.device = dev
+    httpd.console_lock = threading.Lock()
     ip = lan_ip()
     sys.stderr.write("DiscoBSD web console for %s\n" % dev)
     sys.stderr.write("  open http://%s:%d/ from any device on the network\n"

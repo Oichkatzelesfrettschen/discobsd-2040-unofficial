@@ -83,6 +83,17 @@ arch/rp2040/dhara/journal.c		standard
 arch/rp2040/dhara/map.c			standard
 
 #
+# Compressed RAM tier in front of the flash swap unit, selected by
+# "options SWAPRAM" and sized by "options SWAPRAM_KB=N". heatshrink is
+# vendored third-party code under an ISC license, upstream commit
+# 7d419e1fa4830d0b919b9b6a91fe2fb786cf3280; see arch/rp2040/heatshrink/LICENSE.
+#
+arch/rp2040/rp2040/swapram.c		optional swapram
+arch/rp2040/rp2040/swapram_pool.c	optional swapram
+arch/rp2040/heatshrink/heatshrink_encoder.c	optional swapram
+arch/rp2040/heatshrink/heatshrink_decoder.c	optional swapram
+
+#
 # STM32 hardware abstraction layer.
 #
 #arch/stm32/hal/stm32f4xx_ll_rcc.c	standard

@@ -13,6 +13,9 @@
 #include <sys/inode.h>
 #include <sys/uio.h>
 #include <sys/exec_aout.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 
 /*
  * The clean text at the start of a process's data area: swapout skips it
@@ -54,6 +57,17 @@ swapin (p)
             (off_t) sizeof (struct exec), IO_UNIT, (int *) 0);
         IUNLOCK (p->p_tip);
     }
+#ifdef SWAPRAM
+    /*
+     * An image the RAM tier took holds no swapmap blocks, so it comes back
+     * whole from the pool and nothing here is freed.
+     */
+    if (swapram_present (p)) {
+        swapram_in (p, (caddr_t) (daddr + tsize), (caddr_t) saddr,
+            (caddr_t) uaddr);
+    } else
+#endif
+    {
     if (p->p_dsize > tsize) {
         swap (p->p_daddr, daddr + tsize, p->p_dsize - tsize, B_READ);
         mfree (swapmap, btod (p->p_dsize - tsize), p->p_daddr);
@@ -64,6 +78,7 @@ swapin (p)
     }
     swap (p->p_addr, uaddr, USIZE, B_READ);
     mfree (swapmap, btod (USIZE), p->p_addr);
+    }
 
     p->p_daddr = daddr;
     p->p_saddr = saddr;
@@ -95,6 +110,9 @@ swapout (p, freecore, odata, ostack)
 {
     size_t a[3];
     size_t tsize = swaptext (p);
+#ifdef SWAPRAM
+    int ram;
+#endif
 
     if (odata == (u_int) X_OLDSIZE)
         odata = p->p_dsize;
@@ -102,6 +120,17 @@ swapout (p, freecore, odata, ostack)
         ostack = p->p_ssize;
     /* Only what follows the clean text goes to swap. */
     odata = odata > tsize ? odata - tsize : 0;
+#ifdef SWAPRAM
+    /*
+     * The tier reserves the encoder's worst case for the whole image before
+     * a byte is compressed, so a reservation that succeeds cannot run out
+     * part way and swapout never has to unwind. A reservation that fails
+     * leaves the flash path below untouched.
+     */
+    ram = swapram_out (p, odata, ostack, USIZE);
+    a[0] = a[1] = a[2] = 0;
+    if (! ram)
+#endif
     if (malloc3 (swapmap, btod (p->p_dsize - tsize), btod (p->p_ssize),
         btod (USIZE), a) == NULL) {
         register struct mapent *ep;
@@ -115,9 +144,20 @@ swapout (p, freecore, odata, ostack)
     }
     p->p_flag |= SLOCK;
     if (odata) {
+#ifdef SWAPRAM
+        if (ram)
+            swapram_put (p, SWAPRAM_DATA, (caddr_t) (p->p_daddr + tsize),
+                odata);
+        else
+#endif
         swap (a[0], p->p_daddr + tsize, odata, B_WRITE);
     }
     if (ostack) {
+#ifdef SWAPRAM
+        if (ram)
+            swapram_put (p, SWAPRAM_STACK, (caddr_t) p->p_saddr, ostack);
+        else
+#endif
         swap (a[1], p->p_saddr, ostack, B_WRITE);
     }
     /*
@@ -137,7 +177,24 @@ swapout (p, freecore, odata, ostack)
         u.u_ru.ru_nswap++;
         splx (s);
     }
+#ifdef SWAPRAM
+    /*
+     * The u area is captured after the ru_nswap increment above, because
+     * for the current process that increment lands inside these USIZE
+     * bytes.
+     */
+    if (ram) {
+        swapram_put (p, SWAPRAM_U, (caddr_t) p->p_addr, USIZE);
+        swapram_commit (p);
+    } else
+#endif
     swap (a[2], p->p_addr, USIZE, B_WRITE);
+    /*
+     * a[] is zero on the RAM tier, which is how swapin and pstat see that
+     * the process holds no flash swap blocks. A zero p_addr is never jumped
+     * to: swtch longjmps to p_addr only for processes on the run queue, and
+     * setrq is guarded by SLOAD everywhere, which swapout clears below.
+     */
     p->p_daddr = a[0];
     p->p_saddr = a[1];
     p->p_addr = a[2];

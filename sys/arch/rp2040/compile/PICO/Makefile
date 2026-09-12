@@ -33,6 +33,9 @@ include		${_confdir}/compiler.mk
 # Dhara sources name and a -nostdinc kernel does not have.
 INCLUDES=	-nostdinc -I. -I$S -I$S/arch -I${_archdir}/include
 INCLUDES+=	-I${_machdir}/dhara/compat
+# arch/rp2040/heatshrink holds the codec the SWAPRAM tier calls, and its
+# compat directory the two standard headers dhara/compat does not carry.
+INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall

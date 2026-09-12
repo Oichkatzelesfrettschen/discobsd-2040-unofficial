@@ -44,3 +44,10 @@ options         "UART_BAUD=115200"          # default speed
 # The Pico carries a single LED, wired to GP25. There is no choice of pin to
 # record here, so machdep.c names it directly and led_control lights the same
 # one for every activity class.
+
+# Compressed RAM tier in front of the flash swap, off by default. Enabling
+# both lines below costs 4,148 bytes of text and SWAPRAM_KB kilobytes plus
+# about 2,900 bytes of bss; see doc/research/zswap.md for the measurements
+# and the board test sequence.
+#options        SWAPRAM                     # RAM tier ahead of fl1
+#options        "SWAPRAM_KB=64"             # kbytes of bss for the pool

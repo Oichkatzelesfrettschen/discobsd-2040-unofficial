@@ -20,6 +20,8 @@ import socket
 import struct
 import sys
 import threading
+import hmac
+from urllib.parse import urlparse, parse_qs
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -121,7 +123,9 @@ def ws_read(rf):
     if ln == 126:
         ln = struct.unpack(">H", rf.read(2))[0]
     elif ln == 127:
-        ln = struct.unpack(">Q", rf.read(8))[0]
+        return None, None   # 64-bit length marker: refuse before reading it
+    if ln > 65536:
+        return None, None   # keystroke traffic never needs a larger frame
     mask = rf.read(4) if masked else b"\x00\x00\x00\x00"
     data = rf.read(ln)
     if masked:
@@ -135,8 +139,37 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _authorized(self):
+        """Loopback binds need no token; any other bind requires the shared
+        secret as a Bearer header or ?token= query, compared in constant time."""
+        srv = self.server
+        if srv.is_loopback and not srv.token:
+            return True
+        tok = None
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            tok = auth[7:]
+        if tok is None:
+            tok = (parse_qs(urlparse(self.path).query).get("token") or [None])[0]
+        if tok is not None and srv.token and hmac.compare_digest(tok, srv.token):
+            return True
+        self.send_response(401)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return False
+
+    def _origin_ok(self):
+        """Reject a WebSocket upgrade whose Origin is not the page this server
+        itself served, closing cross-site WebSocket hijacking."""
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True
+        return urlparse(origin).netloc == self.headers.get("Host", "")
+
     def do_GET(self):
-        if self.path == "/ws" and \
+        if not self._authorized():
+            return
+        if self.path.split("?")[0] == "/ws" and \
            self.headers.get("Upgrade", "").lower() == "websocket":
             return self.serve_ws()
         body = PAGE.encode()
@@ -147,6 +180,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def serve_ws(self):
+        if not self._authorized():
+            return
+        if not self._origin_ok():
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         key = self.headers.get("Sec-WebSocket-Key", "")
         accept = base64.b64encode(
             hashlib.sha1((key + WS_MAGIC).encode()).digest()).decode()
@@ -236,7 +276,8 @@ def lan_ip():
 def main():
     args = sys.argv[1:]
     port = 7681
-    bind = "0.0.0.0"
+    bind = "127.0.0.1"
+    token = None
     dev = None
     i = 0
     while i < len(args):
@@ -245,6 +286,9 @@ def main():
             i += 2
         elif args[i] == "--bind":
             bind = args[i + 1]
+            i += 2
+        elif args[i] == "--token":
+            token = args[i + 1]
             i += 2
         else:
             dev = args[i]
@@ -260,15 +304,27 @@ def main():
         sys.stderr.write("discobsd-web: pyserial missing -- apt install "
                          "python3-serial, or pacman -S python-pyserial\n")
         return 1
+    is_loopback = bind in ("127.0.0.1", "::1", "localhost")
+    if not is_loopback and not token:
+        sys.stderr.write("discobsd-web: refusing a non-loopback bind without "
+                         "--token; a bare 0.0.0.0 bind exposes a root console "
+                         "to the LAN with no authentication\n")
+        return 1
     httpd = ThreadingHTTPServer((bind, port), Handler)
     httpd.device = dev
+    httpd.token = token
+    httpd.is_loopback = is_loopback
     httpd.console_lock = threading.Lock()
     ip = lan_ip()
+    q = ("?token=" + token) if token else ""
     sys.stderr.write("DiscoBSD web console for %s\n" % dev)
-    sys.stderr.write("  open http://%s:%d/ from any device on the network\n"
-                     % (ip, port))
-    sys.stderr.write("  (local: http://127.0.0.1:%d/ ) -- Ctrl-C to stop\n"
-                     % port)
+    if is_loopback:
+        sys.stderr.write("  open http://127.0.0.1:%d/%s (loopback only; "
+                         "pass --bind 0.0.0.0 --token FILE for LAN) -- Ctrl-C\n"
+                         % (port, q))
+    else:
+        sys.stderr.write("  open http://%s:%d/%s from the LAN "
+                         "(token required) -- Ctrl-C to stop\n" % (ip, port, q))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

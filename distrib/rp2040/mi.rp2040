@@ -135,16 +135,12 @@ filemode 0775
 file /bin/sh
 file /bin/ed
 file /bin/ps
-file /bin/md5
-file /bin/expr
 file /bin/box
 file /bin/sysbox
 
-file /sbin/reboot
-file /sbin/shutdown
 file /sbin/fsck
 file /sbin/init
-file /sbin/sysctl
+file /sbin/adminbox
 
 file /usr/bin/awk
 file /usr/bin/sed
@@ -152,24 +148,7 @@ file /usr/bin/grep
 file /usr/bin/fgrep
 file /usr/bin/find
 file /usr/bin/sort
-file /usr/bin/uniq
-file /usr/bin/head
-file /usr/bin/tail
-file /usr/bin/tr
-file /usr/bin/wc
-file /usr/bin/cmp
-file /usr/bin/more
-file /usr/bin/basename
-file /usr/bin/env
-file /usr/bin/id
-file /usr/bin/printf
-file /usr/bin/tee
-file /usr/bin/touch
-file /usr/bin/xargs
-file /usr/bin/du
 file /usr/bin/nohup
-file /usr/bin/tty
-file /usr/bin/uname
 file /usr/bin/true
 file /usr/bin/false
 file /usr/bin/login
@@ -177,6 +156,7 @@ file /usr/bin/passwd
 file /usr/bin/re
 file /usr/bin/kilo
 file /usr/bin/textbox
+file /usr/bin/utilbox
 file /usr/bin/as
 file /usr/bin/ld
 file /usr/bin/cc
@@ -250,8 +230,20 @@ link /sbin/mount
 target /bin/sysbox
 link /sbin/umount
 target /bin/sysbox
+#
+# /sbin/adminbox is a fourth a.out holding shutdown, reboot and
+# sysctl, dispatched the same way as box and sysbox; halt and
+# fasthalt are names reboot's own argv[0] check answers to, so they
+# link straight to adminbox too. See sbin/adminbox/Makefile.
+#
+link /sbin/shutdown
+target /sbin/adminbox
+link /sbin/reboot
+target /sbin/adminbox
+link /sbin/sysctl
+target /sbin/adminbox
 link /sbin/halt
-target /sbin/reboot
+target /sbin/adminbox
 
 #
 # /usr/bin/textbox is a third a.out holding the sbase text utilities
@@ -287,6 +279,58 @@ link /usr/bin/rev
 target /usr/bin/textbox
 link /usr/bin/comm
 target /usr/bin/textbox
+
+#
+# /usr/bin/utilbox is a fourth a.out holding the usr.bin tools that
+# share the most libc; the names below are hard links, expr and md5
+# among them even though their standalone form lived in /bin, since
+# a hard link crosses directories on one filesystem the way
+# /sbin/chown already links to /bin/box above. See
+# sbin/utilbox/Makefile and sys/arch/rp2040/doc/research/utilbox.md
+# for what stayed out and why: find (colliding globals with bigram
+# and code in its own directory), sed and sort (colliding globals
+# with expr, more and each other), nohup (a shell script, no a.out),
+# and passwd (setuid root, so a shared multicall binary would hand
+# every linked name root).
+#
+link /bin/expr
+target /usr/bin/utilbox
+link /bin/md5
+target /usr/bin/utilbox
+link /usr/bin/id
+target /usr/bin/utilbox
+link /usr/bin/more
+target /usr/bin/utilbox
+link /usr/bin/uniq
+target /usr/bin/utilbox
+link /usr/bin/head
+target /usr/bin/utilbox
+link /usr/bin/tail
+target /usr/bin/utilbox
+link /usr/bin/tr
+target /usr/bin/utilbox
+link /usr/bin/wc
+target /usr/bin/utilbox
+link /usr/bin/cmp
+target /usr/bin/utilbox
+link /usr/bin/basename
+target /usr/bin/utilbox
+link /usr/bin/env
+target /usr/bin/utilbox
+link /usr/bin/printf
+target /usr/bin/utilbox
+link /usr/bin/tee
+target /usr/bin/utilbox
+link /usr/bin/touch
+target /usr/bin/utilbox
+link /usr/bin/xargs
+target /usr/bin/utilbox
+link /usr/bin/du
+target /usr/bin/utilbox
+link /usr/bin/tty
+target /usr/bin/utilbox
+link /usr/bin/uname
+target /usr/bin/utilbox
 
 #
 # Files: /var

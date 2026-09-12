@@ -1,0 +1,47 @@
+/*
+ * One a.out for the small system-administration tools: shutdown,
+ * reboot and sysctl, dispatched on the name it was invoked by. passwd
+ * measures the same size class but is setuid root (mode 04755); a
+ * multicall binary handing setuid to every linked name is refused
+ * here, so passwd stays its own a.out. See sbin/box/box.c.in, whose
+ * generated copy this is: each tool's globals are localized and its
+ * main renamed by sbin/adminbox/Makefile, and the sources stay
+ * untouched. See sys/arch/rp2040/doc/research/utilbox.md.
+ */
+
+#include <string.h>
+#include <unistd.h>
+
+@DECLS@
+
+static const struct tool {
+	const char	*name;
+	int		(*main)(int, char **);
+} tools[] = {
+@TABLE@
+	{ 0, 0 }
+};
+
+int
+main(int argc, char **argv)
+{
+	const struct tool *t;
+	const char *name, *p;
+
+	name = argv[0];
+	for (p = name; *p; p++)
+		if (*p == '/')
+			name = p + 1;
+	if ((strcmp(name, "box") == 0 || strcmp(name, "sysbox") == 0 ||
+	     strcmp(name, "textbox") == 0 || strcmp(name, "utilbox") == 0 ||
+	     strcmp(name, "adminbox") == 0) && argc > 1) {
+		argc--;
+		argv++;
+		name = argv[0];
+	}
+	for (t = tools; t->name; t++)
+		if (strcmp(name, t->name) == 0)
+			return t->main(argc, argv);
+	write(2, "adminbox: no such tool\n", 24);
+	return 1;
+}

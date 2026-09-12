@@ -32,5 +32,12 @@ YACC!=		if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 
 YFLAGS=		-d
 
-#MANROFF=	nroff -man -h -Tascii
-MANROFF=	mandoc -Tascii
+# mandoc where present, else groff, matching share/mk/sys.mk; a hard
+# mandoc dependency silently drops config from tools/bin on a host that
+# ships man-db rather than mandoc, and the kernel build then fails to
+# reconfigure.
+MANROFF!=	if command -v mandoc >/dev/null 2>&1 ; then \
+			echo 'mandoc -Tascii' ; \
+		else \
+			echo 'groff -mandoc -Tascii' ; \
+		fi

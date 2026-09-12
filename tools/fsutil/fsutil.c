@@ -573,13 +573,13 @@ void add_contents (fs_t *fs, const char *dirname, const char *manifest)
         /* Load manifest from file. */
         if (! manifest_load (&m, manifest)) {
             fprintf (stderr, "%s: cannot read\n", manifest);
-            return;
+            exit (1);   /* a bad manifest must fail the build, not build an empty fs */
         }
     } else {
         /* Create manifest from directory contents. */
         if (! manifest_scan (&m, dirname)) {
             fprintf (stderr, "%s: cannot read\n", dirname);
-            return;
+            exit (1);
         }
     }
 

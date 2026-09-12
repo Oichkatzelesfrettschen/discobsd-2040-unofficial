@@ -170,16 +170,16 @@ to match, so the exclusion is derived from the data rather than assumed.
 
 | program | text  | data | bss   | total  |
 |---------|-------|------|-------|--------|
-| `as`    | 31528 | 761  | 29824 | 62113  |
+| `as`    | 31664 | 765  | 30848 | 63277  |
 | `ld`    | 21964 | 745  | 41412 | 64121  |
 
 A program gets 96 kbytes on the device for text, data, bss and stack, so
-`as` leaves about 34 kbytes of stack and `ld` about 32. Neither holds an
+`as` leaves about 33 kbytes of stack and `ld` about 32. Neither holds an
 input segment in memory: both stream through scratch files, as the MIPS
 assembler does. `as`'s bss is almost entirely the fixed symbol table, its
 string area and the two hash tables.
 
-`as-thumb.c` is 3293 lines. The changes to `ld.c` and `a.out.h` are 271
+`as-thumb.c` is 3315 lines. The changes to `ld.c` and `a.out.h` are 271
 lines added and 4 removed.
 
 ## Design

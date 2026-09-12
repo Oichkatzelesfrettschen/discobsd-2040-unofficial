@@ -113,11 +113,11 @@ Built for the RP2040 with `bmake MACHINE=rp2040`, measured by
 
 | program | text  | data | bss   | total  |
 |---------|-------|------|-------|--------|
-| `as`    | 31528 | 761  | 29824 | 62113  |
+| `as`    | 31664 | 765  | 30848 | 63277  |
 | `ld`    | 21964 | 745  | 41412 | 64121  |
 
 A program on the device gets 96 kbytes for text, data, bss and stack
-together, so the assembler leaves about 34 kbytes for its stack and the
+together, so the assembler leaves about 33 kbytes for its stack and the
 linker about 32. The bss is nearly all fixed tables -- the symbol table,
 its string area and the two hash tables -- and neither program holds an
 input segment in memory: both passes stream through scratch files, as the

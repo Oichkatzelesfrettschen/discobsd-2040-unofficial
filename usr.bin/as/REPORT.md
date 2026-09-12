@@ -8,10 +8,41 @@ Branch `thumb-as-ld`, worktree `~/worktrees/discobsd/thumb-as-ld`, on top of
 Every test below runs from `bmake -C usr.bin/as MACHINE=rp2040 test` unless
 noted otherwise, on the build host against `arm-none-eabi-*` 16.2.0.
 
-**Encoding, against `arm-none-eabi-as`.** Six inputs naming every 16-bit
+**Encoding, against `arm-none-eabi-as`.** Seven inputs naming every 16-bit
 ARMv6-M encoding plus the 32-bit `bl`, `msr`, `mrs`, `dmb`, `dsb` and `isb`,
 together with the directives, local labels, PC-relative forms and literal
 pool, agree halfword for halfword.
+
+**The native compiler's output.** All 14 programs of
+`usr.bin/smlrc/tests`, compiled by smlrc's Thumb-1 back end -- the compiler
+this assembler exists to serve -- assemble and agree with
+`arm-none-eabi-as`. That back end landed on `rp2040-port` after this
+branch's base, and testing against it found three defects that neither the
+cross compiler's output nor the hand-written inputs reach, because GCC never
+emits a literal pool of its own:
+
+- `MUL` in UAL is `MULS Rdm, Rn, Rdm`, its destination repeating in the
+  third operand rather than the second as every other data-processing
+  instruction does. The three-operand form was rejected.
+- A pool was flushed when the section changed. smlrc opens `.rodata` in the
+  middle of a function to place a string, so the pool landed inside that
+  function and the processor would have executed it. GNU as keeps a pending
+  pool across a section change and emits it at `.ltorg`; so does this now.
+- A pool was also flushed on its own once a load neared the 1020-byte reach
+  of a PC-relative load. GNU as never does that -- it reports
+  `invalid offset, value too big` and leaves placement to the source -- and
+  an automatic pool has the same hazard of landing in the instruction
+  stream. It is gone, and an unreachable pool is an error naming the
+  distance.
+- The pool's slot-sharing key was the resolved value, which is not the same
+  on both source passes: a forward label is zero on the first and its
+  address on the second, so two slots could merge into one and shift every
+  later address. The key is now the symbol and addend the expression named,
+  which both passes agree on. The two-pass size check caught this on
+  `t14_stress.c` before the comparison did.
+
+One representative smlrc output is checked in as `tests/thumb-native.s`, so
+the coverage survives without the test needing a second compiler.
 
 **Compiler output.** `arm-none-eabi-gcc -S` for `bin/cat`, `bin/echo` and
 `usr.bin/wc` assembles and agrees: 648, 106 and 232 text halfwords, of which
@@ -139,8 +170,8 @@ to match, so the exclusion is derived from the data rather than assumed.
 
 | program | text  | data | bss   | total  |
 |---------|-------|------|-------|--------|
-| `as`    | 31164 | 761  | 29800 | 61725  |
-| `ld`    | 21948 | 745  | 41412 | 64105  |
+| `as`    | 31528 | 761  | 29824 | 62113  |
+| `ld`    | 21964 | 745  | 41412 | 64121  |
 
 A program gets 96 kbytes on the device for text, data, bss and stack, so
 `as` leaves about 34 kbytes of stack and `ld` about 32. Neither holds an
@@ -148,7 +179,7 @@ input segment in memory: both stream through scratch files, as the MIPS
 assembler does. `as`'s bss is almost entirely the fixed symbol table, its
 string area and the two hash tables.
 
-`as-thumb.c` is 3257 lines. The changes to `ld.c` and `a.out.h` are 271
+`as-thumb.c` is 3293 lines. The changes to `ld.c` and `a.out.h` are 271
 lines added and 4 removed.
 
 ## Design
@@ -181,7 +212,7 @@ is done. A target in the same segment is patched into the segment directly,
 because the segment bases cancel in a PC-relative displacement, and only a
 cross-segment or external target survives as a relocation.
 
-**Six encoding and layout choices follow GNU as rather than the architecture's
+**Seven encoding and layout choices follow GNU as rather than the architecture's
 preferred form**, because the two assemblers have to agree byte for byte and
 GNU as is the oracle. `nop` is `mov r8, r8`, not the `0xbf00` hint.
 `ldr rN, =imm` takes a pool slot rather than narrowing to `movs`. An add or

@@ -37,11 +37,15 @@ offset. The sparse relocation stream addresses any byte, so an unaligned
 relocated word is expressible; whether the program can load it is the
 source's business, as it is with GNU as.
 
-`ldr rN, =expression` places the value in a literal pool. Identical values
-share a slot. A pool is emitted at `.ltorg` or `.pool`, when the section
-changes, at end of input, and on its own once the oldest waiting load comes
-within reach of the 1020-byte limit of a PC-relative load. `adr rN, label`
-and `ldr rN, label` resolve against the section they sit in.
+`ldr rN, =expression` places the value in a literal pool. Expressions
+naming the same symbol with the same addend share a slot, and so do equal
+constants. A pool is emitted at `.ltorg` or `.pool` and at end of input,
+and nowhere else: GNU as places one only where the source says to, and a
+pool dropped in on its own would land in the middle of a function, where a
+compiler that opens `.rodata` mid-function would have the processor execute
+it. A load that cannot reach its pool is an error naming the distance, as
+it is in GNU as. `adr rN, label` and `ldr rN, label` resolve against the
+section they sit in.
 
 ### What it does not accept
 
@@ -109,8 +113,8 @@ Built for the RP2040 with `bmake MACHINE=rp2040`, measured by
 
 | program | text  | data | bss   | total  |
 |---------|-------|------|-------|--------|
-| `as`    | 31164 | 761  | 29800 | 61725  |
-| `ld`    | 21948 | 745  | 41412 | 64105  |
+| `as`    | 31528 | 761  | 29824 | 62113  |
+| `ld`    | 21964 | 745  | 41412 | 64121  |
 
 A program on the device gets 96 kbytes for text, data, bss and stack
 together, so the assembler leaves about 34 kbytes for its stack and the
@@ -137,10 +141,12 @@ the ELF one differ by design and neither is wrong; the offsets come from
 each object's own relocation table, so the exclusion is read from the data
 rather than assumed. Every other byte must match.
 
-**Encoding.** Six inputs name every ARMv6-M instruction form, along with
+**Encoding.** Seven inputs name every ARMv6-M instruction form, along with
 the directives, local labels, PC-relative forms and literal pool. Each is
 assembled by this assembler and by `arm-none-eabi-as` and the results are
-compared.
+compared. The last is assembly written by `usr.bin/smlrc`'s Thumb-1 back
+end, the native compiler this assembler exists to serve, whose literal pool
+and section use differ from the cross compiler's.
 
 **Compiler output.** `arm-none-eabi-gcc -S` output for `bin/cat`,
 `bin/echo` and `usr.bin/wc` is assembled and compared. These

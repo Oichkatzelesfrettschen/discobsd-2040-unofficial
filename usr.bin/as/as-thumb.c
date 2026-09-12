@@ -196,6 +196,8 @@ struct poolent {
     int segment;                        /* segment of the expression */
     unsigned index;                     /* symbol index when segment is SEXT */
     unsigned at;                        /* offset where the slot was emitted */
+    int keysym;                         /* symbol the expression named, or -1 */
+    int keyval;                         /* the rest of the expression */
 };
 
 struct poolref {
@@ -418,7 +420,6 @@ struct poolent pool [MAXPOOL];          /* pending literal pool slots */
 int npool;
 struct poolref poolrefs [MAXPOOL];      /* loads waiting for those slots */
 int npoolref;
-unsigned poolfirst;                     /* offset of the oldest pending ldr */
 
 int lastthumbfunc = -1;                 /* symbol awaiting a .thumb_func label */
 
@@ -430,6 +431,17 @@ int lastthumbfunc = -1;                 /* symbol awaiting a .thumb_func label *
  * the way as.c handles its own expression flags.
  */
 int expr_thumb;
+
+/*
+ * The symbol an expression named, and the value that symbol contributed.
+ * A literal pool slot is shared by expressions that name the same symbol
+ * with the same addend, and that has to be decided identically on both
+ * source passes: the resolved value is not, because a forward label is
+ * zero on the first pass and its address on the second, whereas the symbol
+ * index and "value - expr_symval" are the same on both.
+ */
+int expr_symbol = -1;
+unsigned expr_symval;
 
 /*
  * Set while the first of the two source passes runs. That pass exists only
@@ -891,8 +903,6 @@ setsection(void)
         if (strncmp (name, p->name, p->len) == 0 &&
             (name [p->len] == 0 || name [p->len] == '.'))
         {
-            if (segm == STEXT && p->segm != STEXT)
-                ltorg ();
             segm = p->segm;
             return;
         }
@@ -1194,13 +1204,16 @@ getterm(void)
         intval = 0;
         cval = lookname();
         ty = stab[cval].n_type & N_TYPE;
+        expr_symbol = cval;
         if (ty==N_UNDF || ty==N_COMM) {
             extref = cval;
+            expr_symval = 0;
             return (SEXT);
         }
         if (ty == N_TEXT && (stab[cval].n_type & N_THUMB))
             expr_thumb = 1;
         intval = stab[cval].n_value;
+        expr_symval = intval;
         return (typesegm [ty]);
     case '.':
         intval = count[segm];
@@ -1483,7 +1496,7 @@ ltorg(void)
         disp = pool[poolrefs[i].ent].at -
                ((poolrefs[i].ref + 4) & ~3u);
         if (disp > 1020 || (disp & 3))
-            uerror ("literal pool out of reach of its load");
+            uerror ("literal pool is %u bytes from its load, past the 1020 a PC-relative load reaches; place a .ltorg closer", disp);
         hw = peekhalf (STEXT, poolrefs[i].ref);
         patchhalf (STEXT, poolrefs[i].ref, (hw & 0xff00) | (disp >> 2));
     }
@@ -1497,13 +1510,13 @@ ltorg(void)
  * shares its slot; the caller has emitted the placeholder load already.
  */
 void
-poolref(unsigned int value, int segment, unsigned int index, unsigned int ref)
+poolref(unsigned int value, int segment, unsigned int index, unsigned int ref,
+    int keysym, int keyval)
 {
     int i;
 
     for (i=0; i<npool; i++)
-        if (pool[i].value == value && pool[i].segment == segment &&
-            (segment != SEXT || pool[i].index == index))
+        if (pool[i].keysym == keysym && pool[i].keyval == keyval)
             break;
     if (i == npool) {
         if (npool >= MAXPOOL)
@@ -1512,12 +1525,12 @@ poolref(unsigned int value, int segment, unsigned int index, unsigned int ref)
         pool[npool].segment = segment;
         pool[npool].index = index;
         pool[npool].at = 0;
+        pool[npool].keysym = keysym;
+        pool[npool].keyval = keyval;
         npool++;
     }
     if (npoolref >= MAXPOOL)
         uerror ("too many literal loads; add a .ltorg");
-    if (npoolref == 0)
-        poolfirst = ref;
     poolrefs[npoolref].ref = ref;
     poolrefs[npoolref].ent = i;
     npoolref++;
@@ -1747,10 +1760,25 @@ makecmd(unsigned int opcode, unsigned int type, int cond)
         rm = getlow ();
         clex = getlex (&cval);
         if (clex == ',') {
-            /* Three-operand spelling; the destination repeats. */
-            if (rd != rm)
-                uerror ("ARMv6-M data processing writes its first operand");
-            rm = getlow ();
+            /*
+             * Three-operand spelling. These instructions write their first
+             * operand, so it has to appear again: as the second for the
+             * usual "ANDS Rdn, Rdn, Rm", and for MUL as either, because
+             * UAL writes it "MULS Rdm, Rn, Rdm" and GNU as takes both
+             * spellings and encodes the operand that is not the
+             * destination as Rn.
+             */
+            rn = getlow ();
+            if (opcode == 0x4340) {
+                if (rd == rm)
+                    rm = rn;
+                else if (rd != rn)
+                    uerror ("muls writes an operand it also reads");
+            } else {
+                if (rd != rm)
+                    uerror ("ARMv6-M data processing writes its first operand");
+                rm = rn;
+            }
         } else
             ungetlex (clex, cval);
         emithalf (opcode | (rm << 3) | rd);
@@ -1926,11 +1954,14 @@ makecmd(unsigned int opcode, unsigned int type, int cond)
             if (! lst->pcok)
                 uerror ("only ldr takes a literal pool operand");
             expr_thumb = 0;
+            expr_symbol = -1;
+            expr_symval = 0;
             imm = getexpr (&s);
             if (expr_thumb)
                 imm |= 1;
             emithalf (0x4800 | (rd << 8));
-            poolref (imm, s, (s == SEXT) ? (unsigned) extref : 0, at);
+            poolref (imm, s, (s == SEXT) ? (unsigned) extref : 0, at,
+                expr_symbol, (int) (imm - expr_symval));
             break;
         }
         if (clex != '[') {
@@ -2257,18 +2288,6 @@ skipline(void)
         ungetc (c, stdin);
 }
 
-/*
- * Emit the pending pool before it drifts beyond the reach of its oldest
- * load. A PC-relative load reads at most 1020 bytes forward, and the
- * check leaves room for the alignment and the instruction in hand.
- */
-void
-poolcheck(void)
-{
-    if (npoolref > 0 && segm == STEXT &&
-        count[STEXT] - poolfirst > 900)
-        ltorg ();
-}
 
 void
 pass1(void)
@@ -2352,7 +2371,6 @@ done:       segm = STEXT;
                     makecmd (0, TBCOND, csegm);
             } else
                 makecmd (optable[cval].opcode, optable[cval].type, csegm);
-            poolcheck ();
             break;
         case LNUM:
             /* Local label. */
@@ -2367,17 +2385,21 @@ done:       segm = STEXT;
         case LTEXT:
             segm = STEXT;
             break;
+        /*
+         * A pending literal pool belongs to the text segment and waits for
+         * .ltorg or the end of input. GNU as does not flush it when the
+         * section changes, and a compiler that drops a string into .rodata
+         * in the middle of a function -- which smlrc's Thumb back end does
+         * -- would otherwise have the pool land inside that function.
+         */
         case LDATA:
-            ltorg ();
             segm = SDATA;
             break;
         case LSTRNG:
         case LRDATA:
-            ltorg ();
             segm = SSTRNG;
             break;
         case LBSS:
-            ltorg ();
             segm = SBSS;
             break;
         case LWORD:

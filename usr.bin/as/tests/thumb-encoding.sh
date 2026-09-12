@@ -5,7 +5,9 @@
 #
 # The inputs below name each 16-bit encoding the architecture defines plus
 # the 32-bit BL, MSR, MRS, DMB, DSB and ISB, and exercise the directives,
-# local labels, PC-relative forms and literal pool alongside them.
+# local labels, PC-relative forms and literal pool alongside them. The last
+# is assembly written by the tree's own Thumb-1 compiler, whose literal
+# pool and section use differ from the cross compiler's.
 #
 set -eu
 
@@ -18,7 +20,7 @@ work=${WORK:-.}
 fail=0
 for src in "$here"/thumb-shift.s "$here"/thumb-alu.s "$here"/thumb-ldst.s \
            "$here"/thumb-misc.s "$here"/thumb-branch.s \
-           "$here"/thumb-directives.s
+           "$here"/thumb-directives.s "$here"/thumb-native.s
 do
 	name=$(basename "$src" .s)
 	$GNUAS -mcpu="$CPU" -mthumb -o "$work/$name.gnu.o" "$src"
@@ -31,7 +33,7 @@ do
 done
 
 if [ "$fail" -ne 0 ]; then
-	echo "encoding: $fail of 6 inputs disagree with $GNUAS"
+	echo "encoding: $fail of 7 inputs disagree with $GNUAS"
 	exit 1
 fi
-echo "encoding: 6 inputs agree with $GNUAS on every unrelocated halfword"
+echo "encoding: 7 inputs agree with $GNUAS on every unrelocated halfword"

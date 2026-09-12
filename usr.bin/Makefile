@@ -31,7 +31,7 @@ _PICOC!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 	fi
 
 SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
-		  find fold forth fstat id la login m4 make man med more nm passwd \
+		  find fold forth fstat id kilo la login m4 make man med more nm passwd \
 		  pdc ${_PICOC} printf ranlib re renice retroforth scm sed setty sl \
 		  uname xargs xinstall zmodem msec compress tip tclsh uucp virus \
 		  whereis yacc ${MDSUBDIR} basename cal cb cmp col comm diskspeed du \

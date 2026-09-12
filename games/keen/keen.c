@@ -151,20 +151,21 @@ gen_cages(void)
 static void
 gen_clues(void)
 {
-	int i, r, first[MAXN * MAXN], members[MAXN * MAXN], nm;
-	int root, v, sum, prod, lo, hi;
+	int i, r, members[MAXN * MAXN], nm;
+	int v, sum, prod, lo, hi;
 
-	for (i = 0; i < n * n; i++) {
-		first[i] = -1;
+	for (i = 0; i < n * n; i++)
 		cluecell[i] = 0;
-	}
-	for (i = 0; i < n * n; i++) {
-		root = cage[i];
-		if (first[root] < 0)
-			first[root] = i;
-	}
+	/*
+	 * gen_cages roots each cage at its union-find representative, and
+	 * draw() reads a cage's clue from that same root cell (cage[i] == i).
+	 * A representative is not always the cage's lowest cell index, so the
+	 * clue must be assigned per representative here; keying off the lowest
+	 * index instead leaves every cage whose root is not its lowest cell at
+	 * the zero-initialized NONE/0 clue and makes the puzzle unsolvable.
+	 */
 	for (r = 0; r < n * n; r++) {
-		if (first[r] != r)
+		if (cage[r] != r)
 			continue;
 		nm = 0;
 		for (i = 0; i < n * n; i++)
@@ -234,8 +235,9 @@ static void
 draw(void)
 {
 	int r, c, root;
-	char buf[256];
-	int p, w;
+	char buf[512];
+	int p, i, bnd;
+	char clue[8];
 
 	gtty_home();
 	p = 0;
@@ -243,52 +245,82 @@ draw(void)
 	write(1, buf, p);
 
 	for (r = 0; r < n; r++) {
+		/*
+		 * The separator above row r closes every cage: it is solid at
+		 * the outer edge (r == 0) and between two cells in different
+		 * cages, and blank inside a cage so the cage reads as one
+		 * region. A junction character sits at every corner so the
+		 * grid stays aligned whether or not the segments are drawn.
+		 */
 		p = 0;
+		buf[p++] = '+';
 		for (c = 0; c < n; c++) {
+			bnd = (r == 0) ||
+			    (cage[(r - 1) * n + c] != cage[r * n + c]);
+			for (i = 0; i < 4; i++)
+				buf[p++] = bnd ? '-' : ' ';
+			buf[p++] = '+';
+		}
+		buf[p++] = '\r'; buf[p++] = '\n';
+
+		/* Clue line: the cage's target in its labeled cell, padded to
+		 * the four-column cell so a two-digit clue never overflows. */
+		buf[p++] = '|';
+		for (c = 0; c < n; c++) {
+			clue[0] = clue[1] = clue[2] = clue[3] = 0;
 			root = cage[r * n + c];
-			if (cluecell[root]) {
+			/* The clue belongs to the cage's root cell alone,
+			 * so a cage shows its target once, not in every
+			 * cell that shares the root. The whole four-column
+			 * field is cleared first: a shorter clue must not
+			 * leave a previous cell's digits in the tail. */
+			if (r * n + c == root) {
 				char op = clueop[root] == ADD ? '+' :
 				          clueop[root] == SUB ? '-' :
 				          clueop[root] == MUL ? '*' :
-				          clueop[root] == DIV ? '/' : ' ';
-				if (clueop[root] == NONE)
-					p += sprintf(buf + p, "%-4d",
-					    clueval[root]);
+				          clueop[root] == DIV ? '/' : 0;
+				if (op)
+					sprintf(clue, "%d%c", clueval[root], op);
 				else
-					p += sprintf(buf + p, "%d%c  ",
-					    clueval[root], op);
-			} else {
-				p += sprintf(buf + p, "    ");
+					sprintf(clue, "%d", clueval[root]);
 			}
-			w = (c == n - 1 || cage[r * n + c] != cage[r * n + c + 1]);
-			buf[p++] = w ? '|' : ' ';
+			for (i = 0; i < 4; i++)
+				buf[p++] = clue[i] ? clue[i] : ' ';
+			bnd = (c == n - 1) ||
+			    (cage[r * n + c] != cage[r * n + c + 1]);
+			buf[p++] = bnd ? '|' : ' ';
 		}
 		buf[p++] = '\r'; buf[p++] = '\n';
+
+		/* Value line: the entry, or a dot, with the cursor cell in
+		 * brackets. The bracket and dot keep the cell four wide. */
+		buf[p++] = '|';
 		for (c = 0; c < n; c++) {
 			int v = entry[r * n + c];
 			int cur = (r == cy && c == cx);
 			buf[p++] = cur ? '[' : ' ';
-			if (v)
-				buf[p++] = '0' + v;
-			else
-				buf[p++] = '.';
+			buf[p++] = v ? '0' + v : '.';
 			buf[p++] = cur ? ']' : ' ';
 			buf[p++] = ' ';
-			w = (c == n - 1 || cage[r * n + c] != cage[r * n + c + 1]);
-			buf[p++] = w ? '|' : ' ';
-		}
-		buf[p++] = '\r'; buf[p++] = '\n';
-		for (c = 0; c < n; c++) {
-			int wb = (r == n - 1 ||
-			    cage[r * n + c] != cage[(r + 1) * n + c]);
-			int i;
-			for (i = 0; i < 4; i++)
-				buf[p++] = wb ? '-' : ' ';
-			buf[p++] = '+';
+			bnd = (c == n - 1) ||
+			    (cage[r * n + c] != cage[r * n + c + 1]);
+			buf[p++] = bnd ? '|' : ' ';
 		}
 		buf[p++] = '\r'; buf[p++] = '\n';
 		write(1, buf, p);
 	}
+
+	/* Bottom border closes the last row. */
+	p = 0;
+	buf[p++] = '+';
+	for (c = 0; c < n; c++) {
+		for (i = 0; i < 4; i++)
+			buf[p++] = '-';
+		buf[p++] = '+';
+	}
+	buf[p++] = '\r'; buf[p++] = '\n';
+	write(1, buf, p);
+
 	write(1, "\r\narrows move, 1-9 fill, 0 clears, q quits\r\n", 45);
 }
 

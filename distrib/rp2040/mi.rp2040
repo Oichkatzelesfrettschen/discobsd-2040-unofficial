@@ -176,6 +176,7 @@ file /usr/bin/login
 file /usr/bin/passwd
 file /usr/bin/re
 file /usr/bin/picoc
+file /usr/bin/textbox
 
 file /usr/sbin/update
 
@@ -236,6 +237,34 @@ link /sbin/umount
 target /bin/sysbox
 link /sbin/halt
 target /sbin/reboot
+
+#
+# /usr/bin/textbox is a third a.out holding the sbase text utilities
+# this tree lacked, dispatched the same way as box and sysbox; the
+# names below are hard links. See sbin/textbox/Makefile. mkfifo, comm,
+# rev and fold compile for rp2040 but did not fit the 30 KB box
+# budget and ship unlinked; see research/posix-tools.md.
+#
+link /usr/bin/cut
+target /usr/bin/textbox
+link /usr/bin/paste
+target /usr/bin/textbox
+link /usr/bin/seq
+target /usr/bin/textbox
+link /usr/bin/dirname
+target /usr/bin/textbox
+link /usr/bin/nl
+target /usr/bin/textbox
+link /usr/bin/cksum
+target /usr/bin/textbox
+link /usr/bin/expand
+target /usr/bin/textbox
+link /usr/bin/unexpand
+target /usr/bin/textbox
+link /usr/bin/uuencode
+target /usr/bin/textbox
+link /usr/bin/uudecode
+target /usr/bin/textbox
 
 #
 # Files: /var

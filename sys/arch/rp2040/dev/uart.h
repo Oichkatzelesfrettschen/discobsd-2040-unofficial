@@ -58,6 +58,7 @@
 
 #define	UART_INT_RX		0x0010		/* Receive. */
 #define	UART_INT_TX		0x0020		/* Transmit. */
+#define	UART_INT_RT		0x0040		/* Receive timeout. */
 #define	UART_INT_ALL		0x07ff
 
 #define	UART_REG(base, off)	(*(volatile u_int *)((base) + (off)))

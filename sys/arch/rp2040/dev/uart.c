@@ -1,5 +1,5 @@
 /*
- * UART driver for STM32.
+ * Console over UART0, an ARM PL011 on the RP2040.
  *
  * Copyright (c) 1986 Regents of the University of California.
  * All rights reserved.  The Berkeley software License Agreement
@@ -153,25 +153,21 @@ uartinit(int unit)
     arm_intr_set_priority(uip->irq, IPL_TTY);
     arm_intr_enable_irq(uip->irq);
 
-    uart_irq_enable(uip->base, UART_INT_RX);
+    /*
+     * Unmask receive and receive-timeout. PL011 raises RX once the FIFO
+     * passes its trigger level and the timeout once a partial FIFO sits
+     * idle, so the pair delivers both a full burst and a lone keystroke.
+     */
+    uart_irq_enable(uip->base, UART_INT_RX | UART_INT_RT);
     uart_enable(uip->base);
 }
 struct tty uartttys[NUART];
 
-#if 0 // XXX UART
-static unsigned speed_bps [NSPEEDS] = {
-    0,       50,      75,      150,     200,    300,     600,     1200,
-    1800,    2400,    4800,    9600,    19200,  38400,   57600,   115200,
-    230400,  460800,  500000,  576000,  921600, 1000000, 1152000, 1500000,
-    2000000, 2500000, 3000000, 3500000, 4000000
-};
-#endif // XXX UART
-
 void cnstart(struct tty *tp);
 
 /*
- * The RP2040 raises one interrupt per UART rather than the ST family's one
- * per USART. These names match the vector table in rp2040/locore0.S.
+ * The RP2040 raises one interrupt per UART. These names match the vector
+ * table in rp2040/locore0.S.
  */
 void
 UART0_IRQ_Handler(void)
@@ -213,18 +209,13 @@ uartopen(dev_t dev, int flag, int mode)
     if ((tp->t_state & TS_XCLUDE) && u.u_uid != 0)
         return (EBUSY);
 
-    // XXX Clear USART state, then set up new state.
+    /*
+     * uartinit has already set the divisors and line format from the
+     * compile-time baud, so opening the line re-enables the transmitter and
+     * receiver and unmasks receive and receive-timeout.
+     */
     uart_enable(uip->base);
-#if 0 // XXX
-    reg->sta = 0;
-    reg->brg = PIC32_BRG_BAUD (BUS_KHZ * 1000, speed_bps [tp->t_ospeed]);
-    reg->mode = PIC32_UMODE_PDSEL_8NPAR |
-                PIC32_UMODE_ON;
-    reg->staset = PIC32_USTA_URXEN | PIC32_USTA_UTXEN;
-#endif // XXX
-
-    /* Enable receive interrupt. */
-    uart_irq_enable(uip->base, UART_INT_RX);
+    uart_irq_enable(uip->base, UART_INT_RX | UART_INT_RT);
 
     return ttyopen(dev, tp);
 }
@@ -312,19 +303,19 @@ uartintr(dev_t dev)
 
     uip = (struct uart_inst *)tp->t_addr;
 
-    /* Receive */
+    /* Receive: drain the FIFO while UARTFR reports it non-empty. */
     while (uart_rx_ready(uip->base)) {
         c = uart_rx_get(uip->base);
         ttyinput(c, tp);
     }
 
-#if 0 // XXX
-    /* XXX Receive Buffer Overrun */
-    if (reg->sta & PIC32_USTA_OERR)
-        reg->staclr = PIC32_USTA_OERR;
-#endif // XXX
-
-    /* RXNE flag was cleared by reading DR register */
+    /*
+     * Acknowledge the receive sources through UARTICR. Draining the FIFO
+     * drops the RX level interrupt, but PL011 holds the receive-timeout
+     * latched until an explicit clear, so the write is what lets a lone
+     * keystroke raise the next interrupt.
+     */
+    uart_irq_clear(uip->base, UART_INT_RX | UART_INT_RT);
 
     /* Transmit */
     if (uart_tx_ready(uip->base)) {
@@ -443,8 +434,6 @@ uartgetc(dev_t dev)
             break;
         }
     }
-
-    /* RXNE flag was cleared by reading DR register */
 
     splx(s);
     return (unsigned char) c;

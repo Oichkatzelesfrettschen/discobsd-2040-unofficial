@@ -440,6 +440,16 @@ int expr_thumb;
  */
 int prescan;
 
+/*
+ * Set by ".syntax unified". GNU as starts in the divided pre-UAL syntax,
+ * where "mov rd, rm" between two low registers encodes as "adds rd, rm, #0"
+ * and sets the flags, and only the unified syntax gives it the
+ * high-register encoding that leaves them alone. Compiler output always
+ * declares unified; the hand-written .S files under lib/libc/arm do not,
+ * and both must assemble the way GNU as assembles them.
+ */
+int syntax_unified;
+
 struct reloc relabs = { RABS, 0, 0, 0 };
 
 /* Forward declarations. */
@@ -1869,8 +1879,12 @@ makecmd(unsigned int opcode, unsigned int type, int cond)
         rm = getreg ();
         if (opcode == 1 && rd <= 7 && rm <= 7) {
             /* movs between low registers is lsls rd, rm, #0. */
-            /* lsls rd, rm, #0 is the low-register move. */
             emithalf ((rm << 3) | rd);
+            break;
+        }
+        if (opcode == 0 && ! syntax_unified && rd <= 7 && rm <= 7) {
+            /* Divided syntax spells this "adds rd, rm, #0". */
+            emithalf (0x1c00 | (rm << 3) | rd);
             break;
         }
         emithalf (0x4600 | ((rd & 8) << 4) | (rm << 3) | (rd & 7));
@@ -2598,8 +2612,14 @@ done:       segm = STEXT;
             break;
         case LSYNTAX:
             clex = getlex (&cval);
-            if (clex != LNAME || strcmp (name, "unified") != 0)
-                uerror ("only unified syntax is accepted");
+            if (clex != LNAME)
+                uerror ("bad parameter of .syntax");
+            if (! strcmp (name, "unified"))
+                syntax_unified = 1;
+            else if (! strcmp (name, "divided"))
+                syntax_unified = 0;
+            else
+                uerror ("unknown syntax %s", name);
             break;
         case LCPU:
         case LEABIATTR:
@@ -2682,6 +2702,7 @@ rescan(void)
     lastthumbfunc = -1;
     blexflag = 0;
     linestart = 1;
+    syntax_unified = 0;
     segm = STEXT;
     line = 1;
     rewind (stdin);

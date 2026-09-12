@@ -1,0 +1,8 @@
+*.aout
+*.aout.sec
+_diff.txt
+cat.s
+echo.s
+wc.s
+thumb-saved/
+thumb-wrap/

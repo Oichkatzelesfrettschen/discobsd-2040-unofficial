@@ -1741,6 +1741,15 @@ finishout(void)
 		else filhdr.a_entry = entrypt->n_value;
 	} else
 		filhdr.a_entry = basaddr;
+	/*
+	 * A Cortex-M takes the low bit of a branch target as the instruction
+	 * set selector, so the entry point is odd. A named entry symbol is
+	 * already odd because it is a .thumb_func; the default, the base of
+	 * text, is not. elf2aout passes ELF's e_entry through with the bit
+	 * set, so the two paths agree.
+	 */
+	if (thumb_out)
+		filhdr.a_entry |= 1;
 
 	fseek (outb, 0, 0);
 	fputhdr (&filhdr, outb);

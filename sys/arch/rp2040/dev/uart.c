@@ -151,14 +151,13 @@ uartinit(int unit)
     uart_irq_clear(uip->base, UART_INT_ALL);
 
     arm_intr_set_priority(uip->irq, IPL_TTY);
-    arm_intr_enable_irq(uip->irq);
 
     /*
-     * Unmask receive and receive-timeout. PL011 raises RX once the FIFO
-     * passes its trigger level and the timeout once a partial FIFO sits
-     * idle, so the pair delivers both a full burst and a lone keystroke.
+     * The receive interrupt is left masked here and unmasked in uartopen
+     * when a process opens the line. Enabling it at boot would storm the
+     * handler with framing noise from a floating GP0/GP1 on a board that
+     * uses the USB console and never wires the UART, starving the console.
      */
-    uart_irq_enable(uip->base, UART_INT_RX | UART_INT_RT);
     uart_enable(uip->base);
 }
 struct tty uartttys[NUART];
@@ -219,6 +218,10 @@ uartopen(dev_t dev, int flag, int mode)
      * receiver and unmasks receive and receive-timeout.
      */
     uart_enable(uip->base);
+    /* PL011 raises RX past the FIFO trigger level and the timeout when a
+     * partial FIFO sits idle, so the pair catches a burst and a lone key;
+     * the NVIC line is enabled here rather than at boot. */
+    arm_intr_enable_irq(uip->irq);
     uart_irq_enable(uip->base, UART_INT_RX | UART_INT_RT);
 
     return ttyopen(dev, tp);

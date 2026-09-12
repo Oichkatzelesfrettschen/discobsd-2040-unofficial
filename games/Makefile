@@ -10,7 +10,8 @@ SUBDIR          = adventure atc backgammon battlestar boggle btlgammon \
                   caesar cribbage fortune hangman mille monop pom pig quiz \
                   robots rogue sail snake trek \
                   banner aclock arithmetic bcd factor fish morse \
-                  number ppt wump primes rain worm worms canfield
+                  number ppt wump primes rain worm worms canfield \
+                  fifteen keen bubble gamebox
 
 all:            $(SUBDIR)
 

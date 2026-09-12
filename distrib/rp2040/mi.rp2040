@@ -24,6 +24,7 @@ dir /usr/bin
 dir /usr/sbin
 dir /usr/libexec
 dir /usr/lib
+dir /usr/games
 dir /usr/share
 dir /usr/share/misc
 dir /root
@@ -165,6 +166,8 @@ file /usr/sbin/update
 
 file /usr/libexec/getty
 file /usr/libexec/smlrc
+
+file /usr/games/gamebox
 
 #
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
@@ -337,6 +340,19 @@ link /usr/bin/tty
 target /usr/bin/utilbox
 link /usr/bin/uname
 target /usr/bin/utilbox
+
+#
+# /usr/games/gamebox is a fourth a.out holding fifteen, keen and
+# bubble, dispatched the same way as box, sysbox and textbox; the
+# names below are hard links. See games/gamebox/Makefile and
+# sys/arch/rp2040/doc/research/games.md.
+#
+link /usr/games/fifteen
+target /usr/games/gamebox
+link /usr/games/keen
+target /usr/games/gamebox
+link /usr/games/bubble
+target /usr/games/gamebox
 
 #
 # Files: /var

@@ -10,12 +10,12 @@
  * Model, chosen to fit a few hundred lines: each of COLS columns holds
  * a pile that hangs from the ceiling (row 0) and grows downward. A shot
  * attaches beneath the lowest bubble in its column; a 4-way-connected
- * same-color group of 3 or more pops, and every column then settles
- * upward to close the gaps. The board starts with INITROWS rows of
- * random color at the ceiling; the game is won by clearing the board
- * and lost when a column grows down to the floor and touches the
- * shooter. This needs no separate "still attached to the ceiling"
- * pass -- a pile is always contiguous from row 0.
+ * same-color group of 3 or more pops, and every bubble left
+ * unsupported by the pop -- no longer joined to the
+ * ceiling row -- then falls, the defining puzzle-bobble rule. The board
+ * starts with INITROWS rows of random color at the ceiling; it is won by
+ * clearing the board and lost when a column grows down to the floor and
+ * touches the shooter.
  *
  * The console is 80x24 ANSI/VT100 over USB CDC-ACM. Color is SGR: each
  * color carries both a distinct hue and a distinct glyph, so the board
@@ -108,22 +108,50 @@ initboard(void)
 			grid[r * COLS + c] = rand() % NCOLORS + 1;
 }
 
-/* Gravity toward the ceiling: pack each column's bubbles into rows
- * 0..w-1 so a pile is always contiguous from row 0. */
-static void
-settle(void)
-{
-	int c, r, w;
-	int tmp[ROWS];
+/* Puzzle-bobble drop: after a pop, any bubble no longer joined 4-way to
+ * the ceiling row falls away. Flood from every occupied cell in row 0
+ * through occupied neighbors; occupied cells left unvisited are
+ * unsupported and are removed. Returns the count dropped. */
+static int mark2[ROWS * COLS];
 
-	for (c = 0; c < COLS; c++) {
-		w = 0;
-		for (r = 0; r < ROWS; r++)
-			if (grid[r * COLS + c] != 0)
-				tmp[w++] = grid[r * COLS + c];
-		for (r = 0; r < ROWS; r++)
-			grid[r * COLS + c] = (r < w) ? tmp[r] : 0;
+static int
+anchor_and_drop(void)
+{
+	int stk[ROWS * COLS];
+	int sp, i, c, cur, r, cc, dropped;
+
+	for (i = 0; i < ROWS * COLS; i++)
+		mark2[i] = 0;
+	sp = 0;
+	for (c = 0; c < COLS; c++)
+		if (grid[c] != 0 && !mark2[c]) {
+			mark2[c] = 1;
+			stk[sp++] = c;
+		}
+	while (sp > 0) {
+		cur = stk[--sp];
+		r = cur / COLS;
+		cc = cur % COLS;
+		if (r > 0 && grid[cur - COLS] && !mark2[cur - COLS]) {
+			mark2[cur - COLS] = 1; stk[sp++] = cur - COLS;
+		}
+		if (r < ROWS - 1 && grid[cur + COLS] && !mark2[cur + COLS]) {
+			mark2[cur + COLS] = 1; stk[sp++] = cur + COLS;
+		}
+		if (cc > 0 && grid[cur - 1] && !mark2[cur - 1]) {
+			mark2[cur - 1] = 1; stk[sp++] = cur - 1;
+		}
+		if (cc < COLS - 1 && grid[cur + 1] && !mark2[cur + 1]) {
+			mark2[cur + 1] = 1; stk[sp++] = cur + 1;
+		}
 	}
+	dropped = 0;
+	for (i = 0; i < ROWS * COLS; i++)
+		if (grid[i] != 0 && !mark2[i]) {
+			grid[i] = 0;
+			dropped++;
+		}
+	return dropped;
 }
 
 static int mark[ROWS * COLS];
@@ -183,10 +211,16 @@ fire(int c)
 	grid[row * COLS + c] = nextcolor;
 	n = floodfill(row * COLS + c);
 	if (n >= 3) {
+		int dropped;
+
 		for (i = 0; i < n; i++)
 			grid[group[i]] = 0;
 		score += n * 10;
-		settle();
+		/* Popping the top of a pile can strand the bubbles that hung
+		 * below it; anything no longer joined to the ceiling falls,
+		 * and a dropped bubble is worth more than a popped one. */
+		dropped = anchor_and_drop();
+		score += dropped * 20;
 	}
 	nextcolor = pickcolor();
 	return 1;
@@ -234,10 +268,54 @@ draw(void)
 	write(1, "\r\nleft/right aim, space fires, q quits\r\n", 40);
 }
 
+#ifdef BUBBLE_SELFTEST
+/* Verifies the puzzle-bobble drop: a floating cluster falls, and popping a
+ * supporting group strands the bubble beneath it, which then drops. */
+static int
+selftest(void)
+{
+	int i, d, fails = 0;
+
+	/* A: a cluster not joined to the ceiling falls; the anchored one stays. */
+	for (i = 0; i < ROWS * COLS; i++)
+		grid[i] = 0;
+	grid[0 * COLS + 0] = 1;
+	grid[1 * COLS + 0] = 1;
+	grid[3 * COLS + 3] = 2;
+	grid[4 * COLS + 3] = 2;
+	d = anchor_and_drop();
+	if (d != 2) { printf("A: dropped %d, want 2\n", d); fails++; }
+	if (!grid[0 * COLS + 0] || !grid[1 * COLS + 0]) { printf("A: anchored removed\n"); fails++; }
+	if (grid[3 * COLS + 3] || grid[4 * COLS + 3]) { printf("A: floating kept\n"); fails++; }
+
+	/* B: firing the third red pops the row-0 trio and strands the blue that
+	 * hung below the landing cell, which then falls. Score = 3*10 + 1*20. */
+	for (i = 0; i < ROWS * COLS; i++)
+		grid[i] = 0;
+	grid[0 * COLS + 1] = 1;
+	grid[0 * COLS + 2] = 1;
+	grid[1 * COLS + 3] = 2;
+	score = 0;
+	nextcolor = 1;
+	fire(3);
+	if (grid[0*COLS+1] || grid[0*COLS+2] || grid[0*COLS+3]) { printf("B: trio not popped\n"); fails++; }
+	if (grid[1 * COLS + 3]) { printf("B: stranded bubble not dropped\n"); fails++; }
+	if (score != 3 * 10 + 1 * 20) { printf("B: score %ld, want 50\n", score); fails++; }
+
+	printf(fails ? "SELFTEST FAIL\n" : "SELFTEST OK\n");
+	return fails ? 1 : 0;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
 	int k, shots;
+
+#ifdef BUBBLE_SELFTEST
+	(void) argc; (void) argv;
+	return selftest();
+#endif
 
 	testmode = getenv("GAMEBOX_TEST") != 0;
 	srand(argc > 1 ? (unsigned)atoi(argv[1]) : (unsigned)time(NULL));

@@ -1,4 +1,4 @@
-DiscoBSD ?.? (UNKNOWN)
+DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
 
-Welcome to DiscoBSD.
-
+Welcome. Log in as root. Type "menu" for a program launcher that lists
+every command, "ls /usr/games" for the games, or "kilo FILE" to edit.

@@ -29,8 +29,10 @@ before.
 | init | 23,968 | 17,372 |
 
 **The kernel region.** 512 KB was the STM32F407XE figure; the kernel is
-90 KB. The region is now 192 KB, and the Dhara region grows from 1344 KB
-to 1664 KB, which raises the usable root from 860 to 1079 KB.
+90 KB. The region is 128 KB, leaving 38 KB for growth, and the Dhara
+region is 1536 KB, 989 KB of logical blocks; the 64 KB moved from the
+kernel region bought 39 KB of root because Dhara reserves its share of
+every erase block.
 
 ## The multicall binary
 
@@ -71,18 +73,18 @@ costs 90 KB of the 264.
 
 | Region | Address | Size | Content |
 |---|---|---|---|
-| boot2 and kernel | 0x10000000 | 192 KB | 90 KB used |
-| root, Dhara journal | 0x10030000 | 1472 KB | 950 KB of logical blocks |
+| boot2 and kernel | 0x10000000 | 128 KB | 90 KB used |
+| root, Dhara journal | 0x10020000 | 1536 KB | 989 KB of logical blocks |
 | swap, raw | 0x101a0000 | 384 KB | erase and program in place |
 
 Dhara's overhead on the root is fixed by its metadata: one checkpoint
 page per eight, a reserve of one fifth for garbage collection, and a
-64 KB safety margin; 1472 KB of flash yields 950 KB of blocks. The
+64 KB safety margin; 1536 KB of flash yields 989 KB of blocks. The
 `flashimg -c` tool prints the figure for any geometry.
 
 ## What ships
 
-59 files and 27 links, 91 KB free (df: 841 of 932 KB used), verified
+59 files and 27 links, 133 KB free (df: 838 of 971 KB used), verified
 booting to a root shell on the board: box, sysbox, sh, ed, ps, md5, expr,
 init, getty, login, passwd, reboot, shutdown, fsck, sysctl, update, and
 from usr/bin awk, sed, grep, fgrep, find, sort, uniq, head, tail, tr, wc,

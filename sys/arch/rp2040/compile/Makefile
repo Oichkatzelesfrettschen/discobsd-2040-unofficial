@@ -1,7 +1,7 @@
 #
 # Kernels live in subdirectories, and have Makefiles of their own.
 #
-SUBDIR=		PICO
+SUBDIR=		PICO PICO_UART
 
 default:
 

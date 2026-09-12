@@ -1,0 +1,6 @@
+// Board description for the UART0-console DiscoBSD build.
+//
+// Based on Renode_RP2040's boards/raspberry_pico.repl, minus the LED
+// binding: this kernel drives GP25 through SIO directly and needs nothing
+// from Renode's Miscellaneous.LED model to boot to a console.
+using "vendor/Renode_RP2040/cores/rp2040.repl"

@@ -1,0 +1,57 @@
+# Boot the DiscoBSD RP2040 kernel under Renode, from the real boot ROM.
+#
+# This does not shortcut into the kernel's own vector table the way
+# Renode_RP2040's run_firmware.resc does for bare pico-examples binaries.
+# It loads the genuine RP2040 boot ROM ELF (Renode_RP2040's copy of
+# raspberrypi/pico-bootrom-rp2040's second-stage-capable ROM image) at
+# 0x00000000 and lets the CPU reset into it, exactly as silicon does: the
+# ROM reads the 256-byte boot2 image at flash offset 0, checks its CRC32,
+# copies it to SRAM, and jumps to it with lr = 0; boot2
+# (sys/arch/rp2040/boot2/boot2_w25q080.S, linked at the start of
+# unix.bin) configures the SSI for XIP and vectors into the kernel at
+# 0x10000100. Every rom_func_lookup() call in sys/arch/rp2040/dev/flash.c
+# walks this same ROM's real function table, not a stub.
+#
+# Usage:
+#   renode -e "\$unix_bin=@/path/to/unix.bin; \$flash_bin=@/path/to/flash.bin; include @boot.resc"
+# or with the defaults below, from a built tree:
+#   renode --disable-gui -e "include @tools/renode/boot.resc"
+
+$name ?= "rp2040_discobsd"
+$repo_dir ?= $ORIGIN/vendor/Renode_RP2040
+$board_dir ?= $ORIGIN
+
+$unix_bin ?= $ORIGIN/../../sys/arch/rp2040/compile/PICO_UART/unix.bin
+$flash_bin ?= $ORIGIN/../../distrib/rp2040/flash.bin
+
+$uart_port ?= 3456
+$gdb_port ?= 3333
+
+$machine_name = $name
+include $repo_dir/cores/initialize_peripherals.resc
+machine LoadPlatformDescription $board_dir/pico_uart.repl
+
+# The real boot ROM, entry point 0 -- see the file header above.
+sysbus LoadELF $repo_dir/bootroms/rp2040/b2.elf
+
+# The kernel image: boot2 at 0x10000000, unix at 0x10000100, matching what
+# picotool would flash at 0x10000000 on real hardware (BOOT-MAP.md section
+# 2). The filesystem region starts at FLASH_FS_OFFSET, 0x10030000.
+sysbus LoadBinary $unix_bin 0x10000000
+sysbus LoadBinary $flash_bin 0x10030000
+
+# UART0 (GP0/GP1, the DiscoBSD PICO_UART console) on a TCP socket a plain
+# client can attach to: `nc localhost 3456`, or the tools/renode/console.py
+# helper in this directory, which also timestamps and logs every line.
+emulation CreateServerSocketTerminal $uart_port "uart0term" false
+connector Connect sysbus.uart0 uart0term
+
+machine StartGdbServer $gdb_port
+
+# Reset vectors from address 0 -- the real boot ROM's own table -- rather
+# than from the kernel's, so cpu0 begins in the ROM exactly as at power-on.
+sysbus.cpu0 VectorTableOffset 0x00000000
+
+start
+
+echo "rp2040_discobsd: UART0 on tcp://localhost/$uart_port, GDB on tcp://localhost/$gdb_port"

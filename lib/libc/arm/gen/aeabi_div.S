@@ -28,12 +28,12 @@ __aeabi_uidivmod:
 1:	lsrs	r4, r1, #31		/* stop before the divisor overflows */
 	bne	2f
 	cmp	r1, r0
-	bhs	2f
+	bcs	2f			/* r1 >= r0: bhs, the tree's as only knows bcs */
 	lsls	r1, r1, #1
 	lsls	r3, r3, #1
 	b	1b
 2:	cmp	r0, r1
-	blo	3f
+	bcc	3f			/* r0 < r1: blo, the tree's as only knows bcc */
 	subs	r0, r0, r1
 	orrs	r2, r2, r3
 3:	lsrs	r1, r1, #1

@@ -12,6 +12,14 @@ MI_MANIFEST=	distrib/rp2040/mi.rp2040
 # The root holds about eighty objects; one inode per 16 kbytes gives 64.
 FS_INODES=	256
 
+# The top-level Makefile does not include share/mk/sys.mk, so the tool
+# paths and install command it defines are not otherwise in scope here.
+TOOLDIR?=	${TOPSRC}/tools
+TOOLBINDIR?=	${TOOLDIR}/bin
+# Plain "=": bmake's own built-in sys.mk sets INSTALL=install ahead of this
+# file, and "?=" would leave that in place instead of the tree's binstall.
+INSTALL=	${TOOLBINDIR}/binstall -U
+
 # The flash region image and its UF2, from the disk image above. flashimg
 # writes the whole 1536K region so stale journal blocks from an earlier
 # image cannot survive beside the new one.
@@ -34,3 +42,54 @@ cleanflash:
 		rm -f ${FLASHBIN} ${FLASHUF2}
 
 .PHONY:		flash cleanflash
+
+# The board's own /usr/lib/libc.a: distrib/rp2040/mkboardlibc.py compiles
+# just the members distrib/rp2040/boardlibc-members names (the closure
+# distrib/rp2040/libc-sink.c pulls out of the full, 331 KB lib/libc.a, read
+# off a linker map -- see research/board-libc.md) with the tree's own as
+# and ar, in a.out format throughout, since usr.bin/ld on the board reads
+# a.out only. lib/libc_aout/libc's full a.out build does not fit the root
+# and is not installed for rp2040 (see lib/libc_aout/libc/Makefile).
+PYTHON?=	python3
+MKBOARDLIBC=	${TOPSRC}/distrib/rp2040/mkboardlibc.py
+BOARDLIBC_WORK=	${TOPSRC}/distrib/obj/boardlibc.${MACHINE}
+
+# Matches share/mk/sys.mk's own GCCPREFIX branch for MACHINE_ARCH=arm: the
+# top-level Makefile does not include sys.mk, so this repeats the same
+# per-host-OS lookup rather than assuming the Linux path.
+_HOST_OSNAME!=	uname -s
+BOARDLIBC_GCCPREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
+			echo "/usr/local/bin/arm-none-eabi" ; \
+		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
+			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
+		else \
+			echo "/usr/bin/arm-none-eabi" ; \
+		fi
+
+${DESTDIR}/usr/lib/libc.a:	${MKBOARDLIBC} \
+				${TOPSRC}/distrib/rp2040/boardlibc-members \
+				${TOOLBINDIR}/as ${TOOLBINDIR}/ar ${TOOLBINDIR}/ranlib
+		${INSTALL} -d ${DESTDIR}/usr/lib
+		${PYTHON} ${MKBOARDLIBC} --toolbindir=${TOOLBINDIR} \
+			--gccprefix=${BOARDLIBC_GCCPREFIX} \
+			--include=${TOPSRC}/include --workdir=${BOARDLIBC_WORK} \
+			--out=$@
+
+# crt0.o comes from the existing a.out startup build (lib/libc_aout/startup),
+# which already compiles lib/startup-arm/crt0.c with the tree's own as via
+# -B; it needs no reduction since it is one small object.
+${DESTDIR}/usr/lib/crt0.o:	${TOOLBINDIR}/as
+		${MAKE} -C ${TOPSRC}/lib/libc_aout/startup MACHINE=${MACHINE} \
+			TOOLBINDIR=${TOOLBINDIR}
+		${INSTALL} -d ${DESTDIR}/usr/lib
+		${INSTALL} ${TOPSRC}/lib/libc_aout/crt0.o $@
+
+
+# distrib/rp2040/cc is a plain POSIX sh script, not a program a Makefile
+# builds; install it straight from the source tree.
+${DESTDIR}/usr/bin/cc:	${TOPSRC}/distrib/rp2040/cc
+		${INSTALL} -d ${DESTDIR}/usr/bin
+		${INSTALL} -m 555 ${TOPSRC}/distrib/rp2040/cc $@
+
+${FSIMG}:	${DESTDIR}/usr/lib/libc.a ${DESTDIR}/usr/lib/crt0.o \
+		${DESTDIR}/usr/bin/cc

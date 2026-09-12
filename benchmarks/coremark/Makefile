@@ -7,7 +7,6 @@
 # core_portme.c's own comments for why, and
 # sys/arch/rp2040/doc/research/benchmarks.md for the run rules this follows.
 TOPSRC!=cd ../..; pwd
-PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/bin

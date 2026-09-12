@@ -31,17 +31,19 @@ Original Author: Shay Gal-on
 /* Data types and settings */
 /************************/
 /* Configuration: HAS_FLOAT
-        The board carries no hardware FPU, but arm-none-eabi-gcc's soft-float
-   path (and the host's native FPU) both print the canonical
-   "CoreMark 1.0 : N / C / P" score line, which needs %f. Kept at 1 so the
-   score line prints in the upstream-specified format; rp2040's Makefile
-   pulls in doprnt_float.o (PRINTF_FLOAT=yes) for exactly this line. The
-   timing macros below (GETMYTIME/MYTIMEDIFF/CORE_TICKS) stay pure integer;
-   only coremark.h's own time_in_secs divide is float, which is upstream code
-   this port does not touch.
+        Zero on the board: the score line and Iterations/Sec then print as
+   integers (core_main.c's #if HAS_FLOAT else branch), which the run rules
+   allow. HAS_FLOAT=1 routes those through printf %f, and doprnt's float
+   formatter carries a large stack frame; on top of CoreMark's own deep
+   workload stack it overflows the 96 KB process window and faults right
+   after "Correct operation validated". Integer reporting avoids that and
+   drops doprnt_float.o (no PRINTF_FLOAT=yes needed). The timing macros
+   below (GETMYTIME/MYTIMEDIFF/CORE_TICKS) are pure integer microseconds;
+   EE_TICKS_PER_SEC below makes time_in_secs and Iterations/Sec exact in
+   integer form.
 */
 #ifndef HAS_FLOAT
-#define HAS_FLOAT 1
+#define HAS_FLOAT 0
 #endif
 /* Configuration: HAS_TIME_H
         DiscoBSD's <time.h> exists but has no clock_t/clock(3); this port

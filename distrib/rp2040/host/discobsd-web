@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+#
+# discobsd-web -- a portable web terminal for the DiscoBSD RP2040 console.
+#
+# The board is a USB CDC-ACM serial device with no network of its own, so
+# the host it plugs into serves as the gateway: this program bridges the
+# serial line to a browser terminal over a WebSocket, so any device on the
+# local network -- a laptop, a phone, any operating system with a browser
+# -- opens the console at http://<this-host>:7681/. It needs only Python
+# and pyserial; the terminal itself is xterm.js, loaded from a CDN.
+#
+# Run: PYTHON=${PYTHON:-python3}; "$PYTHON" discobsd-web [--port N] [--bind ADDR] [DEVICE]
+# Then open the printed URL. Log in as root with an empty password.
+#
+# pyserial: Debian "apt install python3-serial"; Arch "pacman -S python-pyserial".
+import base64
+import glob
+import hashlib
+import socket
+import struct
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+BY_ID = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+BAUD = 115200
+XTERM = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"
+XTERM_CSS = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
+
+PAGE = """<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>DiscoBSD console</title>
+<link rel=stylesheet href="%s">
+<style>html,body{margin:0;height:100%%;background:#000}
+#t{height:100%%;width:100%%}#s{position:fixed;top:4px;right:8px;color:#6a6;
+font:12px monospace;z-index:9}</style></head><body>
+<div id=s>connecting</div><div id=t></div>
+<script src="%s"></script>
+<script>
+var term=new Terminal({cols:80,rows:24,fontFamily:"monospace",fontSize:14,
+ cursorBlink:true,theme:{background:"#000000"}});
+term.open(document.getElementById("t"));
+var stat=document.getElementById("s");
+var proto=location.protocol==="https:"?"wss":"ws";
+var ws=new WebSocket(proto+"://"+location.host+"/ws");
+ws.binaryType="arraybuffer";
+ws.onopen=function(){stat.textContent="connected";term.focus();};
+ws.onclose=function(){stat.textContent="disconnected -- reload to retry";};
+ws.onmessage=function(e){
+ var d=typeof e.data==="string"?e.data:
+  new TextDecoder("latin1").decode(new Uint8Array(e.data));
+ term.write(d);};
+term.onData(function(d){if(ws.readyState===1)ws.send(d);});
+</script></body></html>""" % (XTERM_CSS, XTERM)
+
+
+def find_port():
+    for name in sorted(glob.glob(BY_ID)):
+        return name
+    acm = sorted(glob.glob("/dev/ttyACM*"))
+    return acm[-1] if acm else None
+
+
+def open_serial(dev):
+    import serial
+    s = serial.Serial(dev, BAUD, timeout=0, write_timeout=2,
+                      rtscts=False, dsrdtr=False)
+    s.dtr = True
+    s.rts = True
+    return s
+
+
+def ws_frame(payload):
+    """Server-to-client text frame, unmasked (RFC 6455 5.2)."""
+    n = len(payload)
+    head = bytearray([0x81])
+    if n < 126:
+        head.append(n)
+    elif n < 65536:
+        head.append(126)
+        head += struct.pack(">H", n)
+    else:
+        head.append(127)
+        head += struct.pack(">Q", n)
+    return bytes(head) + payload
+
+
+def ws_read(rf):
+    """Read one client frame; return (opcode, payload) or (None, None)."""
+    h = rf.read(2)
+    if len(h) < 2:
+        return None, None
+    op = h[0] & 0x0F
+    masked = h[1] & 0x80
+    ln = h[1] & 0x7F
+    if ln == 126:
+        ln = struct.unpack(">H", rf.read(2))[0]
+    elif ln == 127:
+        ln = struct.unpack(">Q", rf.read(8))[0]
+    mask = rf.read(4) if masked else b"\x00\x00\x00\x00"
+    data = rf.read(ln)
+    if masked:
+        data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+    return op, data
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        if self.path == "/ws" and \
+           self.headers.get("Upgrade", "").lower() == "websocket":
+            return self.serve_ws()
+        body = PAGE.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_ws(self):
+        key = self.headers.get("Sec-WebSocket-Key", "")
+        accept = base64.b64encode(
+            hashlib.sha1((key + WS_MAGIC).encode()).digest()).decode()
+        self.send_response(101)
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", accept)
+        self.end_headers()
+        sock = self.connection
+        dev = self.server.device
+        try:
+            ser = open_serial(dev)
+        except Exception as exc:
+            sock.sendall(ws_frame(("\r\ncannot open %s: %s\r\n" %
+                                   (dev, exc)).encode()))
+            return
+        alive = [True]
+
+        def reader():
+            # Serial to browser.
+            while alive[0]:
+                try:
+                    d = ser.read(4096)
+                except Exception:
+                    break
+                if d:
+                    try:
+                        sock.sendall(ws_frame(d))
+                    except Exception:
+                        break
+                else:
+                    time.sleep(0.02)
+            alive[0] = False
+
+        t = threading.Thread(target=reader, daemon=True)
+        t.start()
+        try:
+            while alive[0]:
+                op, data = ws_read(self.rfile)
+                if op is None or op == 0x8:  # closed
+                    break
+                if op == 0x1 or op == 0x2:  # text or binary: keystrokes
+                    try:
+                        ser.write(data)
+                    except Exception:
+                        break
+        finally:
+            alive[0] = False
+            try:
+                ser.close()
+            except Exception:
+                pass
+
+
+def lan_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def main():
+    args = sys.argv[1:]
+    port = 7681
+    bind = "0.0.0.0"
+    dev = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--port":
+            port = int(args[i + 1])
+            i += 2
+        elif args[i] == "--bind":
+            bind = args[i + 1]
+            i += 2
+        else:
+            dev = args[i]
+            i += 1
+    if dev is None:
+        dev = find_port()
+    if not dev:
+        sys.stderr.write("discobsd-web: no board found (plug it in)\n")
+        return 1
+    try:
+        import serial  # noqa: F401
+    except ImportError:
+        sys.stderr.write("discobsd-web: pyserial missing -- apt install "
+                         "python3-serial, or pacman -S python-pyserial\n")
+        return 1
+    httpd = ThreadingHTTPServer((bind, port), Handler)
+    httpd.device = dev
+    ip = lan_ip()
+    sys.stderr.write("DiscoBSD web console for %s\n" % dev)
+    sys.stderr.write("  open http://%s:%d/ from any device on the network\n"
+                     % (ip, port))
+    sys.stderr.write("  (local: http://127.0.0.1:%d/ ) -- Ctrl-C to stop\n"
+                     % port)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        sys.stderr.write("\nstopped\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

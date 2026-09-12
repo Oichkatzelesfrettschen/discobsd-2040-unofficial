@@ -70,6 +70,32 @@ and announces with SIGWINCH. A terminal that does not answer leaves the
 80x24 default in place. Resizing the emulator window later does not reach
 the board on its own; run resize again.
 
+## A Python terminal, and a web terminal for any device
+
+Two host programs in distrib/rp2040/host make connecting friendly, and both
+need only Python and pyserial (Debian "apt install python3-serial", Arch
+"pacman -S python-pyserial"):
+
+- discobsd-term attaches a terminal in the current shell. It finds the board
+  by its by-id path, opens the line, and bridges the local terminal to it,
+  reattaching on its own when the board reboots and re-enumerates. Ctrl-]
+  quits. `discobsd-term --probe` connects, pokes the line, and reports
+  whether the board is reachable without taking over the terminal.
+
+- discobsd-web serves the console as a web terminal, so any device on the
+  network -- a phone, a tablet, a laptop of any operating system -- opens it
+  in a browser with no client to install. The board has no network of its
+  own, so the host it plugs into is the gateway: discobsd-web bridges the
+  serial line to xterm.js in the browser over a WebSocket. Run it and open
+  the printed http://<host>:7681/ URL. It binds every interface by default;
+  --bind 127.0.0.1 keeps it local, --port changes the port, and a trailing
+  device path overrides the by-id default.
+
+For a zero-code alternative, ttyd (https://github.com/tsl0922/ttyd, on
+Debian and Arch) serves any command as a web terminal:
+`ttyd -p 7681 discobsd-term`. discobsd-web is the self-contained option that
+needs only Python.
+
 ## Getting to the bootloader
 
 To reflash, put the board in BOOTSEL: from a running kernel,

@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+#
+# discobsd-term -- attach a terminal to the DiscoBSD RP2040 console.
+#
+# The board is a USB CDC-ACM serial device with no network, so this is a
+# serial terminal, not telnet or ssh. It finds the board by its stable USB
+# serial, opens the line at 115200 8N1, and bridges the local terminal to
+# it. When the board reboots and its USB device re-enumerates, the terminal
+# waits and reattaches on its own rather than dying with a stale-node
+# error, which is the resilient behavior a drifting ttyACM number needs.
+#
+# Run: PYTHON=${PYTHON:-python3}; "$PYTHON" discobsd-term
+# Quit: Ctrl-] (the telnet escape). Log in as root, empty password.
+#
+# Requires pyserial (Debian: apt install python3-serial; CachyOS/Arch:
+# pacman -S python-pyserial).
+import glob
+import os
+import select
+import sys
+import termios
+import time
+import tty
+
+BY_ID = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+BAUD = 115200
+QUIT = 0x1D  # Ctrl-]
+
+
+def note(msg):
+    sys.stderr.write("\r\n[discobsd-term] %s\r\n" % msg)
+    sys.stderr.flush()
+
+
+def find_port():
+    for name in sorted(glob.glob(BY_ID)):
+        return name
+    acm = sorted(glob.glob("/dev/ttyACM*"))
+    return acm[-1] if acm else None
+
+
+def wait_for_port(first):
+    port = find_port()
+    if port:
+        return port
+    if first:
+        note("waiting for the board -- plug it in, or it is rebooting")
+    while True:
+        time.sleep(0.5)
+        port = find_port()
+        if port:
+            return port
+
+
+def open_serial(port):
+    try:
+        import serial
+    except ImportError:
+        note("pyserial is missing: apt install python3-serial, or "
+             "pacman -S python-pyserial")
+        sys.exit(1)
+    # A short read timeout keeps the poll loop responsive; write_timeout
+    # bounds a write to a board that has stopped draining.
+    s = serial.Serial(port, BAUD, timeout=0, write_timeout=2,
+                      rtscts=False, dsrdtr=False)
+    s.dtr = True
+    s.rts = True
+    return s
+
+
+def run():
+    if not sys.stdin.isatty():
+        note("stdin is not a terminal; run this from an interactive shell")
+        sys.exit(1)
+    note("Ctrl-] quits. Log in as root with an empty password.")
+    first = True
+    saved = termios.tcgetattr(sys.stdin.fileno())
+    tty.setraw(sys.stdin.fileno())
+    try:
+        while True:
+            port = wait_for_port(first)
+            first = False
+            try:
+                s = open_serial(port)
+            except Exception as exc:
+                note("cannot open %s: %s" % (port, exc))
+                time.sleep(0.5)
+                continue
+            note("attached to %s" % port)
+            sfd = s.fileno()
+            ifd = sys.stdin.fileno()
+            try:
+                while True:
+                    r, _, _ = select.select([sfd, ifd], [], [], 0.2)
+                    if sfd in r:
+                        data = s.read(4096)
+                        if data:
+                            os.write(1, data)
+                    if ifd in r:
+                        keys = os.read(ifd, 1024)
+                        if QUIT in keys:
+                            note("bye")
+                            return
+                        try:
+                            s.write(keys)
+                        except Exception:
+                            # The board stopped accepting: drop and reattach.
+                            raise IOError("write failed")
+            except (OSError, IOError):
+                note("board went away -- waiting for it to come back")
+                try:
+                    s.close()
+                except Exception:
+                    pass
+                continue
+    finally:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, saved)
+
+
+def probe():
+    """Connect, poke, read a few seconds, and report -- no raw terminal.
+    Answers "is the board reachable?" and is how the tool is tested."""
+    port = find_port()
+    if not port:
+        note("no board found")
+        return 1
+    try:
+        s = open_serial(port)
+    except Exception as exc:
+        note("cannot open %s: %s" % (port, exc))
+        return 1
+    try:
+        s.write(b"\n")
+    except Exception as exc:
+        note("write to %s failed: %s (board may be wedged)" % (port, exc))
+        return 1
+    end = time.time() + 3
+    got = b""
+    while time.time() < end:
+        d = s.read(4096)
+        if d:
+            got += d
+        else:
+            time.sleep(0.05)
+    s.close()
+    if got:
+        note("reachable at %s -- %d bytes, tail: %r" % (port, len(got), got[-60:]))
+        return 0
+    note("attached to %s but the board sent nothing" % port)
+    return 1
+
+
+if __name__ == "__main__":
+    if "--probe" in sys.argv[1:]:
+        sys.exit(probe())
+    run()

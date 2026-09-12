@@ -36,9 +36,10 @@ sysbus LoadELF $repo_dir/bootroms/rp2040/b2.elf
 
 # The kernel image: boot2 at 0x10000000, unix at 0x10000100, matching what
 # picotool would flash at 0x10000000 on real hardware (BOOT-MAP.md section
-# 2). The filesystem region starts at FLASH_FS_OFFSET, 0x10030000.
+# 2). The filesystem region starts at FLASH_FS_OFFSET, flash.h's 128 KB,
+# so the XIP address flash.c reads is 0x10020000 (unix.map's FSFLASH).
 sysbus LoadBinary $unix_bin 0x10000000
-sysbus LoadBinary $flash_bin 0x10030000
+sysbus LoadBinary $flash_bin 0x10020000
 
 # UART0 (GP0/GP1, the DiscoBSD PICO_UART console) on a TCP socket a plain
 # client can attach to: `nc localhost 3456`, or the tools/renode/console.py

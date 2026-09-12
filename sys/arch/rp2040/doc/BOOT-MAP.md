@@ -259,7 +259,7 @@ all (README: "USB: not supported"). A second kernel config,
 
 This produces `sys/arch/rp2040/compile/PICO_UART/unix.bin` (boot2 + kernel,
 the image for flash offset 0x10000000) and `distrib/rp2040/flash.bin` (the
-root and swap region, for flash offset 0x10030000) -- the same two images
+root and swap region, for flash offset 0x10020000) -- the same two images
 `picotool` would flash on real hardware, unmodified.
 
 ### Launch the emulator
@@ -270,7 +270,7 @@ root and swap region, for flash offset 0x10030000) -- the same two images
 
 `boot.resc` loads the real RP2040 boot ROM ELF at 0x00000000 (Renode_RP2040's
 own copy of `raspberrypi/pico-bootrom-rp2040`), loads `unix.bin` at
-0x10000000 and `flash.bin` at 0x10030000, resets the CPU into the ROM's own
+0x10000000 and `flash.bin` at 0x10020000, resets the CPU into the ROM's own
 vector table, opens UART0 on a TCP socket (default port 3456), and starts a
 GDB server (default port 3333). `-P 4567` is Renode's own monitor port, used
 below to query the machine while it runs; it is unrelated to the emulated

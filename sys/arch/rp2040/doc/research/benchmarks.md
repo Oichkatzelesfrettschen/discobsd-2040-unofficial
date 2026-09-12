@@ -23,6 +23,8 @@ handful of `.c` files under Apache License 2.0 (each source file carries a
 `Copyright ... EEMBC` / `Licensed under the Apache License, Version 2.0`
 header, confirmed directly in
 [`core_main.c`](https://github.com/eembc/coremark/blob/main/core_main.c)).
+
+The six core files vendored under `benchmarks/coremark/` are byte-for-byte eembc/coremark `main` at commit `1f483d5b8316753a742cbf5590caf5bd0a4e4777`. Upstream ships a `coremark.md5` whose `coremark.h` entry is stale against its own committed `coremark.h`, so `bmake check` fails upstream and in a faithful copy; the vendored `coremark.md5` is regenerated from the pristine bytes so the six files verify. See `audit-response.md`.
 A separate CoreMark Acceptable Use Agreement governs the CoreMark
 trademark and the right to publish a number as an official "CoreMark"
 score; it specifically bars using the trademark on a modified/derivative

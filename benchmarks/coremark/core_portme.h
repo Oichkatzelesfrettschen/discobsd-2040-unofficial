@@ -38,9 +38,13 @@ Original Author: Shay Gal-on
    workload stack it overflows the 96 KB process window and faults right
    after "Correct operation validated". Integer reporting avoids that and
    drops doprnt_float.o (no PRINTF_FLOAT=yes needed). The timing macros
-   below (GETMYTIME/MYTIMEDIFF/CORE_TICKS) are pure integer microseconds;
-   EE_TICKS_PER_SEC below makes time_in_secs and Iterations/Sec exact in
-   integer form.
+   below (GETMYTIME/MYTIMEDIFF/CORE_TICKS) are pure integer microseconds.
+   core_main.c's own integer report is coarse: time_in_secs() returns whole
+   seconds, which it divides into the iteration count, so its Iterations/Sec
+   truncates (2000 / 8 = 250 for an 8.254 s, 242.3/s run) and its canonical
+   CoreMark 1.0 score line, guarded by HAS_FLOAT, is omitted. core_portme.c's
+   portable_fini() recomputes the rate at microsecond resolution and prints
+   the accurate value.
 */
 #ifndef HAS_FLOAT
 #define HAS_FLOAT 0

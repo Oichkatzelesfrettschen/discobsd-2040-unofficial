@@ -45,7 +45,7 @@ struct subdirs {
 } *subdirs;
 
 char	aflg, dflg, gflg, lflg, sflg, tflg, uflg, iflg, fflg, cflg, rflg = 1;
-char	oflg, qflg, Aflg, Cflg, Fflg, Lflg, Rflg, usetabs;
+char	oflg, qflg, Aflg, Cflg, Fflg, Lflg, Rflg, usetabs, colorflag;
 
 time_t	now, sixmonthsago;
 
@@ -84,7 +84,7 @@ main(argc, argv)
 	(void) time(&now); sixmonthsago = now - 6L*30L*24L*60L*60L; now += 60;
 	twidth = 80;
 	if (isatty(1)) {
-		qflg = Cflg = 1;
+		qflg = Cflg = colorflag = 1;
 		ioctl(1, TIOCGETP, &sgbuf);
 		if (ioctl(1, TIOCGWINSZ, &win) != -1)
 			twidth = (win.ws_col == 0 ? 80 : win.ws_col);
@@ -387,6 +387,29 @@ gstat(fp, file, statarg, pnb)
 	return (fp);
 }
 
+/*
+ * An SGR color for a file's type, or 0 for none. Emitted around the
+ * formatted entry at print time, never folded into the width-measured
+ * string, so column alignment counts only the visible characters.
+ */
+char *
+ls_color(fp)
+	register struct afile *fp;
+{
+	if (!colorflag)
+		return (0);
+	switch (fp->ftype) {
+	case 'd': return ("\033[1;34m");	/* directory: bold blue */
+	case 'l': return ("\033[36m");	/* symlink: cyan */
+	case 'b':
+	case 'c': return ("\033[33m");	/* device: yellow */
+	case 's': return ("\033[35m");	/* socket: magenta */
+	}
+	if (fp->fmode & 0111)
+		return ("\033[1;32m");		/* executable: bold green */
+	return (0);
+}
+
 void
 formatf(fp0, fplast)
 	struct afile *fp0, *fplast;
@@ -429,8 +452,15 @@ formatf(fp0, fplast)
 	for (i = 0; i < lines; i++) {
 		for (j = 0; j < columns; j++) {
 			fp = fp0 + j * lines + i;
+			char *col;
+
 			cp = fmtentry(fp, maxflags);
+			col = ls_color(fp);
+			if (col)
+				fputs(col, stdout);
 			fputs(cp, stdout);
+			if (col)
+				fputs("\033[0m", stdout);
 			if (fp + lines >= fplast) {
 				putchar('\n');
 				break;

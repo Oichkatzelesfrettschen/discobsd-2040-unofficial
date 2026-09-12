@@ -88,6 +88,11 @@ nl(const char *fname, FILE *fp)
 			printf(format, width, number);
 			fwrite(sep, 1, seplen, stdout);
 			number += incr;
+		} else {
+			/* An unnumbered line keeps the text column aligned:
+			 * blanks stand in for the number and the separator,
+			 * as GNU nl prints them. */
+			printf("%*s", (int)(width + seplen), "");
 		}
 		fwrite(line.data, 1, line.len, stdout);
 	}

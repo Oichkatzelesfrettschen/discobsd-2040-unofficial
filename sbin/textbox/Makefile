@@ -34,6 +34,7 @@ all:		${PROG}
 $t.tool.o:
 	d=""; for c in bin sbin usr.bin usr.sbin; do \
 		for n in $t $t2; do [ -d ${TOPSRC}/$$c/$$n ] && d=${TOPSRC}/$$c/$$n; done; done; \
+	${MAKE} -C $$d MACHINE=${MACHINE} all >/dev/null; \
 	${LD} -r -o $@.r $$(ls $$d/*.o | grep -v '\.tool\.o$$'); \
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@; \
 	rm -f $@.r

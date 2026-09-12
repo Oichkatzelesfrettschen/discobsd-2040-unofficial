@@ -12,7 +12,7 @@ include ${TOPSRC}/share/mk/sys.mk
 # back end and is built for rp2040. The peripheral demos are STM32 and PIC32
 # hardware.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc" ; \
+		echo "lex smlrc as ld" ; \
 	elif [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "lex as cc cpp lcc lcpp ld smallc aout glcdtest gtest portio pwm wiznet smux" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
@@ -21,9 +21,18 @@ MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "" ; \
 	fi
 
+# picoc pays 67 KB of root for a C interpreter rp2040 does not need: the
+# native chain (smlrc, as, ld, distrib/rp2040/cc) compiles and runs a
+# program instead of interpreting its source.
+_PICOC!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "" ; \
+	else \
+		echo "picoc" ; \
+	fi
+
 SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  find fold forth fstat id la login m4 make man med more nm passwd \
-		  pdc picoc printf ranlib re renice retroforth scm sed setty sl \
+		  pdc ${_PICOC} printf ranlib re renice retroforth scm sed setty sl \
 		  uname xargs xinstall zmodem msec compress tip tclsh uucp virus \
 		  whereis yacc ${MDSUBDIR} basename cal cb cmp col comm diskspeed du \
 		  fgrep file grep head hostid join last mesg nice od pagesize pr \

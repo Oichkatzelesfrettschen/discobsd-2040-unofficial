@@ -175,13 +175,24 @@ file /usr/bin/false
 file /usr/bin/login
 file /usr/bin/passwd
 file /usr/bin/re
-file /usr/bin/picoc
 file /usr/bin/textbox
+file /usr/bin/as
+file /usr/bin/ld
+file /usr/bin/cc
 
 file /usr/sbin/update
 
 file /usr/libexec/getty
 file /usr/libexec/smlrc
+
+#
+# The native compile chain's library: cc (smlrc, as, ld) needs these to
+# link a program, so they carry data mode rather than the 0775 above.
+#
+filemode 0664
+file /usr/lib/libc.a
+file /usr/lib/crt0.o
+filemode 0775
 
 link /bin/cat
 target /bin/box

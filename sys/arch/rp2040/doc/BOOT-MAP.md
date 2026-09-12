@@ -225,3 +225,74 @@ sort, awk, picoc, df, mount, ps -ax, and the swap path all run. Open:
 - The native Thumb-1 toolchain (assembler, linker relocations, Smaller C
   backend) is in progress in two worktrees, `thumb-as-ld` and
   `smlrc-thumb`, and has not been merged.
+
+## 12. Running the kernel on the host
+
+The worktree is `~/worktrees/discobsd/emulation`, branch `emulation`. The
+emulator is Renode 1.17.0 (AUR `renode-bin`), running the third-party RP2040
+platform from `matgla/Renode_RP2040` (MIT, pinned by commit), not a model
+DiscoBSD carries itself: Renode's own distribution ships no RP2040 platform
+(`find /opt/renode -iname "*rp2040*"` finds nothing). That platform's peripheral
+table (`Renode_RP2040/README.md`) marks XOSC, ROSC, PLL, resets, watchdog,
+UART (PL011), and GPIO as fully modeled; the gap this section's known
+limitation runs into is in its IO_QSPI pad model, not SSI. Full detail,
+including what QEMU and a hand-rolled Unicorn emulator were ruled out for,
+is in `research/emulation.md`.
+
+This build uses a UART0 console rather than the board's USB CDC-ACM one:
+UART0's PL011 is fully modeled in Renode_RP2040, and USB is not modeled at
+all (README: "USB: not supported"). A second kernel config,
+`sys/arch/rp2040/compile/PICO_UART`, sets `CONS_MAJOR=UART_MAJOR` and drops
+`device uartusb`; it is otherwise identical to `PICO`.
+
+### Build
+
+    cd ~/worktrees/discobsd/emulation
+    bmake MACHINE=rp2040 tools
+    tools/bin/binstall -U tools/config/config tools/bin/config   # mandoc absent; see section 5
+    cd sys/arch/rp2040/compile/PICO_UART && ../../../../tools/bin/config Config && cd -
+    bmake MACHINE=rp2040 kernel
+    bmake -k MACHINE=rp2040 build            # -k: three host tools fail their own build; see research/emulation.md
+    bmake -C etc MACHINE=rp2040 DESTDIR=$PWD/distrib/obj/destdir.rp2040 distribution
+    bmake MACHINE=rp2040 fs
+    bmake MACHINE=rp2040 flash
+
+This produces `sys/arch/rp2040/compile/PICO_UART/unix.bin` (boot2 + kernel,
+the image for flash offset 0x10000000) and `distrib/rp2040/flash.bin` (the
+root and swap region, for flash offset 0x10030000) -- the same two images
+`picotool` would flash on real hardware, unmodified.
+
+### Launch the emulator
+
+    cd ~/worktrees/discobsd/emulation/tools/renode
+    sh fetch-renode-rp2040.sh          # clones + builds the peripheral models once
+    renode --disable-gui -P 4567 -e "include @boot.resc"
+
+`boot.resc` loads the real RP2040 boot ROM ELF at 0x00000000 (Renode_RP2040's
+own copy of `raspberrypi/pico-bootrom-rp2040`), loads `unix.bin` at
+0x10000000 and `flash.bin` at 0x10030000, resets the CPU into the ROM's own
+vector table, opens UART0 on a TCP socket (default port 3456), and starts a
+GDB server (default port 3333). `-P 4567` is Renode's own monitor port, used
+below to query the machine while it runs; it is unrelated to the emulated
+UART or GDB ports.
+
+### Read the console
+
+    PYTHON=${PYTHON:-python3}
+    $PYTHON tools/renode/console.py --port 3456
+    # or: nc localhost 3456
+
+### Attach GDB
+
+    arm-none-eabi-gdb -q \
+        -ex "file sys/arch/rp2040/compile/PICO_UART/unix.elf" \
+        -ex "target remote localhost:3333"
+
+### What to expect
+
+The console prints the DiscoBSD banner, CPU identification, and the flash
+and swap partition lines, then the kernel hangs (see `research/emulation.md`
+for the verbatim transcript and the exact spin location). It does not reach
+`login:` in this configuration. `SYSINFO_CHIP_ID` is unmodeled, so
+`cpu: RPxxxx rev N` prints as `RP0000 rev 0` rather than the real chip ID --
+harmless, and expected from the peripheral table's "SysInfo: not supported."

@@ -66,7 +66,7 @@ BOARDLIBC_GCCPREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
 			echo "/usr/bin/arm-none-eabi" ; \
 		fi
 
-${DESTDIR}/usr/lib/libc.a:	${MKBOARDLIBC} \
+${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
 				${TOOLBINDIR}/as ${TOOLBINDIR}/ar ${TOOLBINDIR}/ranlib
 		${INSTALL} -d ${DESTDIR}/usr/lib
@@ -91,5 +91,15 @@ ${DESTDIR}/usr/bin/cc:	${TOPSRC}/distrib/rp2040/cc
 		${INSTALL} -d ${DESTDIR}/usr/bin
 		${INSTALL} -m 555 ${TOPSRC}/distrib/rp2040/cc $@
 
-${FSIMG}:	${DESTDIR}/usr/lib/libc.a ${DESTDIR}/usr/lib/crt0.o \
-		${DESTDIR}/usr/bin/cc
+# lib/libc_aout installs its whole archive at the same path during the
+# build, so the trimmed one is copied over it right before the image is
+# made. The image path is spelled out because FSIMG is defined after this
+# file is included and an expanded dependency would be empty.
+boardlibc-install:	${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/crt0.o \
+			${DESTDIR}/usr/bin/cc
+		${INSTALL} -d ${DESTDIR}/usr/lib
+		${INSTALL} ${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/libc.a
+
+${TOPSRC}/distrib/${MACHINE}/sdcard.img:	boardlibc-install
+
+.PHONY:		boardlibc-install

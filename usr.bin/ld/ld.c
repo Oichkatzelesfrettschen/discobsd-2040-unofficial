@@ -50,6 +50,7 @@
 
 #define W               4               /* word size in bytes */
 #define BADDR           0x7f008000      /* start address in memory */
+#define ARM_BADDR       0x20000000      /* Cortex-M user window, USER_DATA_START */
 #define SYMDEF          "__.SYMDEF"
 #define IS_LOCSYM(s)    ((s)->n_name[0] == 'L' || \
                          (s)->n_name[0] == '.')
@@ -92,6 +93,7 @@ struct nlist *hshtab [NSYM+2];  /* hash table for symbols */
 struct local local [NSYMPR];
 int symindex;                   /* next free entry of symbol table */
 unsigned basaddr = BADDR;       /* base address of loading */
+int     basaddr_set;            /* -T named the base explicitly */
 struct ranlib rantab [RANTABSZ];
 int rancount;                   /* number of elements in rantab */
 
@@ -1345,6 +1347,7 @@ pass1(int argc, char **argv)
 				/* base address of loading */
 			case 'T':
 				basaddr = atol (ap+i+1);
+				basaddr_set = 1;
 				break;
 
 				/* library */
@@ -1461,8 +1464,12 @@ middle(void)
 	}
 
 	/*
-	 * Now set symbols to their final value.
+	 * Now set symbols to their final value. A Thumb link runs on a
+	 * Cortex-M, whose kernel loads text and data at USER_DATA_START
+	 * (sys/kern/exec_aout.c), not at the MIPS user base.
 	 */
+	if (thumb_out && !basaddr_set)
+		basaddr = ARM_BADDR;
 	torigin = basaddr;
 	dorigin = torigin + tsize;
 	gp = dorigin + gpoffset;
@@ -1741,7 +1748,13 @@ finishout(void)
 			putc (0, outb);
 	}
 	filhdr.a_midmag = output_relinfo ? RMAGIC : OMAGIC;
-	if (thumb_out)
+	/*
+	 * MID_ARM6 marks the sparse Thumb relocation stream, which only a
+	 * relocatable output carries. An executable keeps MID_ZERO because
+	 * exec_aout_check() in sys/kern/exec_aout.c accepts no other machine
+	 * id, the same header elf2aout writes.
+	 */
+	if (thumb_out && output_relinfo)
 		filhdr.a_midmag |= MID_ARM6 << 16;
 	filhdr.a_text = tsize;
 	filhdr.a_data = dsize;

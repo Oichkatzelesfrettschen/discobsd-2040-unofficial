@@ -1,21 +1,14 @@
 #!/bin/sh
 #
-# cc -- the board's native compile driver.
+# cc: the board's native C compile driver. It runs Smaller C, the Thumb
+# assembler and the a.out linker in turn against the board's own crt0.o
+# and libc.a. Written for the 2.11BSD sh on the board, which has no $(( ))
+# arithmetic, no $( ) substitution, no ${var%pattern} editing and no
+# ! in an if condition.
 #
-# Runs usr.bin/smlrc to turn a .c file into Thumb-1 GNU-syntax assembly,
-# usr.bin/as to assemble it (GNU syntax in, a.out out), and usr.bin/ld to
-# link the objects against the board's own crt0.o and libc.a
-# (distrib/rp2040/Makefile.inc's mkboardlibc.py build). usr.bin/smlrc is
-# built with -DNO_PREPROCESSOR and the rp2040 build carries no cpp, so a
-# source file's own #include and #define directives are not expanded
-# here -- write board programs against what smlrc's own limited
-# directive handling covers, or preprocess off the board first.
+#   cc [-o out] [-S | -c] file.c ... file.s ... file.o ...
 #
-# Usage: cc [-o out] [-S] [-c] file.c|file.s|file.o ...
-#   -o out   name the result (default a.out, or the input stem with -c/-S)
-#   -S       stop after assembly-source generation, one file at a time
-#   -c       stop after assembling to an object, one file at a time
-#   -lNAME   accepted and ignored: libc.a is always linked in
+# -l options are accepted and ignored: libc.a is the only library.
 set -eu
 
 crt0=/usr/lib/crt0.o
@@ -25,10 +18,11 @@ as=/usr/bin/as
 ld=/usr/bin/ld
 
 out=
-stop_at_s=0
-stop_at_o=0
+stop_s=0
+stop_o=0
 srcs=
 nsrcs=0
+tmp=/tmp/cc$$
 
 while [ $# -gt 0 ]; do
 	case $1 in
@@ -40,58 +34,52 @@ while [ $# -gt 0 ]; do
 		fi
 		out=$1
 		;;
-	-c)
-		stop_at_o=1
-		;;
-	-S)
-		stop_at_s=1
-		;;
-	-l*)
-		;;
+	-c)	stop_o=1 ;;
+	-S)	stop_s=1 ;;
+	-l*)	;;
 	-*)
 		echo "cc: unknown option $1" >&2
 		exit 1
 		;;
 	*)
 		srcs="$srcs $1"
-		nsrcs=$((nsrcs + 1))
+		nsrcs=`expr $nsrcs + 1`
 		;;
 	esac
 	shift
 done
-
 if [ "$nsrcs" -eq 0 ]; then
 	echo "cc: no input files" >&2
 	exit 1
 fi
-
-if [ -n "$out" ] && [ "$nsrcs" -gt 1 ] && { [ "$stop_at_s" -eq 1 ] || [ "$stop_at_o" -eq 1 ]; }; then
+if [ -n "$out" ] && [ "$nsrcs" -gt 1 ] && [ "$stop_s$stop_o" != 00 ]; then
 	echo "cc: -o with -c or -S takes exactly one input file" >&2
 	exit 1
 fi
 
-# stem NAME strips a trailing .c, .s or .o suffix, for naming a per-file
-# result when -o was not given.
+# stem FILE: FILE without its directory and its .c/.s/.o suffix.
 stem() {
-	case $1 in
-	*.c | *.s | *.o) printf '%s\n' "${1%.*}" ;;
-	*) printf '%s\n' "$1" ;;
-	esac
+	basename "$1" | sed 's/\.[cso]$//'
 }
 
 objs=
+status=0
 for src in $srcs; do
+	base=`stem "$src"`
 	case $src in
 	*.c)
-		asfile=$src
-		asfile=$(stem "$asfile").s
-		if [ "$stop_at_s" -eq 1 ]; then
-			asfile=${out:-$asfile}
+		if [ "$stop_s" -eq 1 ]; then
+			asfile=${out:-$base.s}
 		else
-			asfile=/tmp/cc$$.$(stem "$(basename "$src")").s
+			asfile=$tmp.$base.s
 		fi
-		"$smlrc" "$src" "$asfile"
-		if [ "$stop_at_s" -eq 1 ]; then
+		if "$smlrc" "$src" "$asfile"; then
+			:
+		else
+			status=1
+			break
+		fi
+		if [ "$stop_s" -eq 1 ]; then
 			continue
 		fi
 		;;
@@ -104,36 +92,28 @@ for src in $srcs; do
 		;;
 	*)
 		echo "cc: $src: unknown file type" >&2
-		exit 1
+		status=1
+		break
 		;;
 	esac
-
-	ofile=$(stem "$src").o
-	if [ "$stop_at_o" -eq 1 ]; then
-		ofile=${out:-$ofile}
+	if [ "$stop_o" -eq 1 ]; then
+		ofile=${out:-$base.o}
 	else
-		ofile=/tmp/cc$$.$(stem "$(basename "$src")").o
+		ofile=$tmp.$base.o
 	fi
-	"$as" "$asfile" -o "$ofile"
-	case $asfile in
-	/tmp/cc$$.*) rm -f "$asfile" ;;
-	esac
-	if [ "$stop_at_o" -eq 1 ]; then
+	if "$as" "$asfile" -o "$ofile"; then
+		:
+	else
+		status=1
+		break
+	fi
+	if [ "$stop_o" -eq 1 ]; then
 		continue
 	fi
 	objs="$objs $ofile"
 done
-
-if [ "$stop_at_s" -eq 1 ] || [ "$stop_at_o" -eq 1 ]; then
-	exit 0
+if [ "$status" -eq 0 ] && [ "$stop_s$stop_o" = 00 ]; then
+	"$ld" -o "${out:-a.out}" "$crt0" $objs "$libc" || status=1
 fi
-
-# shellcheck disable=SC2086
-"$ld" -o "${out:-a.out}" "$crt0" $objs "$libc"
-status=$?
-for o in $objs; do
-	case $o in
-	/tmp/cc$$.*) rm -f "$o" ;;
-	esac
-done
-exit "$status"
+rm -f $tmp.*
+exit $status

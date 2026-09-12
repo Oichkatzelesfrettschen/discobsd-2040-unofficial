@@ -472,6 +472,24 @@ usb_setup(void)
 			usb_ep0_ack();
 			return;
 		case REQ_SET_INTERFACE:
+			/*
+			 * USB 2.0 9.4.10: SetInterface resets the data
+			 * toggles of the interface's endpoints to DATA0. The
+			 * bulk OUT buffer is re-armed to match, the same
+			 * reset usb_configure performs, so the host and
+			 * device agree on the toggle after the request. The
+			 * Linux cdc_acm host never issues this, so the path
+			 * is spec compliance rather than a live fix.
+			 */
+			usbd.data_in_pid = 0;
+			usbd.data_out_pid = 0;
+			usbd.tx_busy = 0;
+			usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0),
+			    USB_PACKET_MAX, 0);
+			usbd.data_out_pid = 1;
+			usb_ep0_ack();
+			usb_tx_kick();
+			return;
 		case REQ_SET_FEATURE:
 			usb_ep0_ack();
 			return;

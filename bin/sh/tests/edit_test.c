@@ -137,6 +137,30 @@ main(void)
 		}
 	}
 
+	/* 6b. History does not truncate a long recalled line: this must
+	 * hold up to ED_MAX (126); a shorter regression bound (110)
+	 * is enough to catch HIST_COLS < ED_MAX+1. */
+	{
+		char long_line[112];
+		char buf1[160];
+		char buf2[160];
+		int n1, n2, i;
+
+		for (i = 0; i < 110; i++)
+			long_line[i] = 'a' + (i % 26);
+		long_line[110] = '\n';
+
+		n1 = feed(".", (unsigned char *)long_line, 111, buf1, sizeof(buf1));
+		memcpy(script, ESC "[A" "\n", 4);
+		n2 = feed(".", script, 4, buf2, sizeof(buf2));
+		if (n1 == 110 && n2 == 110 && memcmp(buf1, buf2, 110) == 0)
+			printf("ok   history-no-truncate\n");
+		else {
+			printf("FAIL history-no-truncate: first=%d second=%d\n", n1, n2);
+			failures++;
+		}
+	}
+
 	/* 7. Ctrl-D on an empty line is EOF */
 	check("eof-empty", ".", (unsigned char *)"\004", 1, (char *)0);
 

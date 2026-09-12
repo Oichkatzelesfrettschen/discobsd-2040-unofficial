@@ -31,7 +31,8 @@
 #define ED_MAX      126     /* leaves room in a 128-byte fbuf for the NL */
 #define ED_NAMEMAX  63      /* longest completion candidate name kept */
 #define HIST_LINES  32
-#define HIST_COLS   96       /* 32 * 96 = 3072 bytes of history ring */
+#define HIST_COLS   (ED_MAX + 1) /* long enough for any editable line:
+                                   * 32 * 127 = 4064 bytes of ring */
 
 /* ---- history ring ---- */
 
@@ -239,8 +240,15 @@ redraw(fdout, prompt, buf, len, cur)
 
 /* ---- editing primitives on the static work buffer ---- */
 
+/*
+ * Inserts s[0..n) at *pcur, clamped to `max' total buffer bytes.
+ * `fdout' is where a BEL goes if the insert had to be clamped -- a
+ * line at the ED_MAX cap drops further keystrokes rather than
+ * silently discarding them with no signal to the typist.
+ */
 static void
-insert_text(buf, plen, pcur, max, s, n)
+insert_text(fdout, buf, plen, pcur, max, s, n)
+	int fdout;
 	char *buf;
 	int *plen, *pcur, max;
 	const char *s;
@@ -249,8 +257,10 @@ insert_text(buf, plen, pcur, max, s, n)
 	int room, i;
 
 	room = max - *plen;
-	if (n > room)
+	if (n > room) {
 		n = room;
+		ed_write(fdout, "\007", 1);
+	}
 	if (n <= 0)
 		return;
 	for (i = *plen; i > *pcur; i--)
@@ -466,7 +476,7 @@ complete(fdout, path, buf, plen, pcur, max)
 		ed_write(fdout, "\007", 1);
 	} else if (st.count == 1 || st.common_len > prefixlen) {
 		/* caller redraws after complete() returns */
-		insert_text(buf, plen, pcur, max,
+		insert_text(fdout, buf, plen, pcur, max,
 		    st.sole + prefixlen, st.common_len - prefixlen);
 	} else {
 		ed_puts(fdout, "\r\n");
@@ -623,7 +633,7 @@ editline(fdin, fdout, prompt, path, buf, bufsz)
 				break;
 			}
 		} else if (c >= 040 && c < 0177) {         /* printable */
-			insert_text(work, &len, &cur, max, (char *)&c, 1);
+			insert_text(fdout, work, &len, &cur, max, (char *)&c, 1);
 			redraw(fdout, prompt, work, len, cur);
 		}
 		/* other control characters: ignored */

@@ -87,8 +87,8 @@ object file: the only direct call out of `.ramfunc` is to another `.ramfunc`
 function, every other call is indirect into ROM, and interrupt masking is
 inlined inside the RAM functions rather than called into flash.
 
-`conf/RP2040.ld` splits flash 512K for the kernel and 1536K for the
-filesystem, so the kernel cannot grow into the root.
+`conf/RP2040.ld` splits flash 128K for the kernel, 1536K for the
+filesystem and 384K of raw swap, so the kernel cannot grow into the root.
 
 One detail survives linking and looks alarming until traced. The linker
 inserts long-branch veneers, `__flash_erase_block_veneer` and
@@ -228,7 +228,8 @@ contains no branch-and-link, which is the property the RAM placement needs.
 `dev/flash.c` presents the flash region as `fl0` with the SD driver's minor
 numbering: partition in the low three bits, unit above, and a PC partition
 table in the first 512 bytes of logical block 0 as `tools/fsutil
---repartition` writes it. `fl0a` is root and `fl0b` swap.
+--repartition` writes it. `fl0a` is root; swap is `fl1`, the raw 384K at
+the top of the chip, which the kernel erases and programs in place.
 
 Dhara's geometry is chosen above the chip's. A 256-byte page carries one
 132-byte metadata entry per checkpoint page, so half of the flash would go
@@ -241,8 +242,8 @@ Because the bytes in flash are Dhara's journal rather than the filesystem,
 a disk image from `fsutil` cannot be programmed as it is. `tools/flashimg`
 runs the same vendored Dhara sources against a memory model of the region,
 writes the disk image through `dhara_map_write`, and emits the region for
-programming at 0x10080000. A separate Dhara instance resumed the emitted
-image and read all 796 sectors back identical to the disk image.
+programming at 0x10020000. A separate Dhara instance resumes the emitted
+image and reads every sector back identical to the disk image.
 
 ## Userland
 
@@ -253,9 +254,9 @@ ARMv6-M unchanged; `strcmp.S` already carries a Thumb-1 path. The C
 standard is pinned to gnu17 on the compiler line because several Makefiles
 replace CFLAGS outright, and GCC 15 and later default to C23, which rejects
 the tree's empty parameter lists and old-style definitions. `distrib/rp2040`
-holds a manifest for a 795 KB root: init, getty, login, sh, what `rc` runs,
-and a working set of `/bin`, with an `rc` that skips the motd rewrite and
-cron.
+holds a manifest for a 988 KB root: init, getty, login, sh, what `rc` runs,
+the three multicall boxes, awk, sed, the editors and the native toolchain,
+with an `rc` that skips the motd rewrite and cron.
 
 ## State
 

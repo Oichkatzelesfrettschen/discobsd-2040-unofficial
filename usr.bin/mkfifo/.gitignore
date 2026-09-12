@@ -1,0 +1,3 @@
+mkfifo
+*.o
+*.elf

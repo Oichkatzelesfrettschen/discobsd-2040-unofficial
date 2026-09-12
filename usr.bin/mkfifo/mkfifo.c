@@ -4,9 +4,11 @@
  * Adapted from sbase's mkfifo.c: this libc has no mkfifo(3), only the
  * mknod(2) syscall it is built on elsewhere (see chmod(1) and
  * mknod(8)), so the node is made directly with S_IFIFO in the mode.
- * The kernel's mknod() stores the type bit set here in the inode; it
- * does not change what opening a FIFO-typed file does at the vnode
- * layer, so this stays a userland-only fix scoped to node creation.
+ * The kernel's mknod() stores the type bit in the inode and nothing
+ * else in sys/kern knows S_IFIFO, so the node passes no data through:
+ * on the board a writer and a reader on it exchange nothing. The tool
+ * builds so the day the kernel gains FIFOs it ships; until then the
+ * rp2040 manifest leaves it out.
  */
 #include <sys/stat.h>
 

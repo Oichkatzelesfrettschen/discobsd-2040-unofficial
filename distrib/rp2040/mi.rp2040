@@ -241,9 +241,10 @@ target /sbin/reboot
 #
 # /usr/bin/textbox is a third a.out holding the sbase text utilities
 # this tree lacked, dispatched the same way as box and sysbox; the
-# names below are hard links. See sbin/textbox/Makefile. mkfifo, comm,
-# rev and fold compile for rp2040 but did not fit the 30 KB box
-# budget and ship unlinked; see research/posix-tools.md.
+# names below are hard links. See sbin/textbox/Makefile and
+# sys/arch/rp2040/doc/research/posix-tools.md. mkfifo builds but is not
+# shipped: the kernel has no FIFO support, so the node it makes passes
+# nothing through.
 #
 link /usr/bin/cut
 target /usr/bin/textbox
@@ -264,6 +265,12 @@ target /usr/bin/textbox
 link /usr/bin/uuencode
 target /usr/bin/textbox
 link /usr/bin/uudecode
+target /usr/bin/textbox
+link /usr/bin/fold
+target /usr/bin/textbox
+link /usr/bin/rev
+target /usr/bin/textbox
+link /usr/bin/comm
 target /usr/bin/textbox
 
 #

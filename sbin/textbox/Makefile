@@ -18,7 +18,7 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
 TOOLS=		cut paste seq dirname nl cksum expand unexpand \
-		uuencode uudecode
+		uuencode uudecode fold rev comm
 
 # Other names a tool answers to, as name:tool.
 ALIASES=

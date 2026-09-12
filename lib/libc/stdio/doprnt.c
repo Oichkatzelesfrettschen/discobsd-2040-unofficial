@@ -361,6 +361,27 @@ number:			if (sign) {
 		case 'F':
 		case 'g':
 		case 'G': {
+#ifdef NO_DOPRNT_FLOATFMT
+			/*
+			 * A libc built with NO_DOPRNT_FLOATFMT (the board
+			 * library in distrib/rp2040/Makefile.inc) never
+			 * links doprnt_float.c and carries no libgcc, so the
+			 * double comparison and classification below (d < 0,
+			 * isnan, isinf) would pull __aeabi_dcmp*, __eqdf2 and
+			 * __ledf2 out of libgcc's GPL runtime for a feature
+			 * the board never uses. Cutting the branch here,
+			 * before it touches d at all, avoids that pull
+			 * entirely; the result matches what __doprnt_cvt == 0
+			 * already prints below when float support is not
+			 * linked in on any machine.
+			 */
+			(void) va_arg (ap, double);
+			nbuf [0] = '?';
+			nbuf [1] = 0;
+			size = 1;
+			extrazeros = 0;
+			s = nbuf;
+#else
 			double d = va_arg (ap, double);
 			/*
 			 * don't do unrealistic precision; just pad it with
@@ -409,6 +430,7 @@ number:			if (sign) {
 					nbuf [size + 1] = 0;
 				}
 			}
+#endif
 			if (neg || sign)
 				size++;
 			if (! ladjust && width && padding == ' ' &&

@@ -119,8 +119,9 @@ _PRINTF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_FLOAT}" = x"yes" ]
 # kernel's SIO-divider context-switch checkpoint, not before it.
 _ROMFLOAT!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
 			echo "-Wl,--wrap=__aeabi_fadd -Wl,--wrap=__aeabi_fsub" \
-			     "-Wl,--wrap=__aeabi_fmul -Wl,--wrap=__aeabi_dadd" \
-			     "-Wl,--wrap=__aeabi_dsub -Wl,--wrap=__aeabi_dmul" ; \
+			     "-Wl,--wrap=__aeabi_fmul -Wl,--wrap=__aeabi_fdiv" \
+			     "-Wl,--wrap=__aeabi_dadd -Wl,--wrap=__aeabi_dsub" \
+			     "-Wl,--wrap=__aeabi_dmul -Wl,--wrap=__aeabi_ddiv" ; \
 		fi
 
 LDFLAGS=-N -nostartfiles -fno-dwarf2-cfi-asm \

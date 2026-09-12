@@ -20,10 +20,11 @@
  * treated as zero, input NaNs as infinities, output denormals flushed to
  * zero, output NaNs rendered as infinities, and only round-to-nearest-even
  * is supported. The five basic ops are correctly rounded within that.
- * Division is not wrapped here: the ROM divide uses the SIO hardware
- * divider, whose state the kernel checkpoints across a context switch only
- * where locore.S saves and restores it; the -Wl,--wrap for __aeabi_fdiv
- * and __aeabi_ddiv is added alongside that kernel support, not here.
+ * Division goes through the ROM as well: the ROM divide uses the SIO
+ * hardware divider, and locore.S's setjmp/longjmp checkpoint that divider
+ * across a context switch, so a process preempted between the divisor
+ * write and the quotient read keeps its own result -- which makes the ROM
+ * divide safe under preemption.
  *
  * The ROM entries use the soft-float AAPCS -- a float in r0 (and r1), a
  * double in r0:r1 (and r2:r3) -- the same registers the __aeabi symbols
@@ -77,6 +78,7 @@ typedef double (*romdd)(double, double);
 extern double __real___aeabi_dadd(double, double);
 extern double __real___aeabi_dsub(double, double);
 extern double __real___aeabi_dmul(double, double);
+extern double __real___aeabi_ddiv(double, double);
 
 float
 __wrap___aeabi_fadd(float a, float b)
@@ -102,6 +104,17 @@ __wrap___aeabi_fmul(float a, float b)
 	return ((romff)sf_tab[2])(a, b);
 }
 
+/* Division (index 3) uses the SIO hardware divider; locore.S checkpoints
+ * the divider across a context switch, so the ROM path is safe under
+ * preemption. */
+float
+__wrap___aeabi_fdiv(float a, float b)
+{
+	if (!resolved)
+		resolve();
+	return ((romff)sf_tab[3])(a, b);
+}
+
 double
 __wrap___aeabi_dadd(double a, double b)
 {
@@ -124,4 +137,12 @@ __wrap___aeabi_dmul(double a, double b)
 	if (!resolved)
 		resolve();
 	return sd_tab ? ((romdd)sd_tab[2])(a, b) : __real___aeabi_dmul(a, b);
+}
+
+double
+__wrap___aeabi_ddiv(double a, double b)
+{
+	if (!resolved)
+		resolve();
+	return sd_tab ? ((romdd)sd_tab[3])(a, b) : __real___aeabi_ddiv(a, b);
 }

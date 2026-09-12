@@ -594,9 +594,45 @@ usb_rx_done(void)
 }
 
 /*
+ * Re-arm the bulk OUT buffer when it has lost its armed state with no path
+ * back. 4.1.2.7.4: AVAILABLE (bit 10) is the buffer's ownership bit -- the
+ * processor sets it to hand the controller the buffer, and the controller
+ * clears it once it has filled the buffer from an OUT packet. 4.1.2.8.3: an
+ * OUT token enters its data phase only while AVAILABLE is set, and the
+ * completion sets FULL (bit 15) and the endpoint's USB_BUFF_STATUS bit in the
+ * same status phase that clears AVAILABLE. So a bulk OUT buffer with AVAILABLE
+ * clear, FULL clear, and no pending USB_BUFF_STATUS bit belongs to the
+ * processor with no transaction in flight and no received packet waiting:
+ * re-arming it cannot race the controller mid-DMA and drops no packet.
+ *
+ * Every other OUT arm site -- usb_configure, usb_rx_done, the CLEAR_FEATURE
+ * and SET_INTERFACE handlers -- leaves AVAILABLE set, so this guard fires only
+ * on a buffer stuck un-armed and re-arms with the current data_out_pid without
+ * flipping it, since no packet was received to advance the toggle. An un-armed
+ * bulk OUT makes the controller NAK every OUT token (4.1.2.8.3 requires
+ * AVAILABLE for the data phase), which the host reports as a write timeout,
+ * EIO, while EP0 and bulk IN keep running.
+ */
+static void
+usb_rx_rearm_if_idle(void)
+{
+	u_int bc;
+
+	if (! usbd.configured)
+		return;
+	bc = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 0));
+	if ((bc & (USB_BUF_CTRL_AVAIL | USB_BUF_CTRL_FULL)) == 0 &&
+	    (USBREG(USB_BUFF_STATUS) & USB_BUFF_STATUS_BIT(EP_DATA, 0)) == 0)
+		usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0), USB_PACKET_MAX,
+		    usbd.data_out_pid ? USB_BUF_CTRL_DATA1 : 0);
+}
+
+/*
  * Service the controller. Runs from the interrupt, and also polled with
- * interrupts masked by the console routines, which is safe because the
- * masking keeps the two from interleaving.
+ * interrupts masked by the console routines. PRIMASK masks every interrupt on
+ * this ARMv6-M core (machine/intr.h: spltty is a global disable), and core 1
+ * is never launched, so a polled call and the interrupt never interleave and
+ * usbd needs no further guard.
  */
 static void
 usb_service(void)
@@ -672,13 +708,19 @@ usb_service(void)
 
 	/* Anything queued while the endpoint was idle goes out now. */
 	usb_tx_kick();
+
+	/* Recover a bulk OUT buffer that lost its armed state, so a wedged
+	 * console heals on the next host control request or console I/O
+	 * rather than needing a chip reset. */
+	usb_rx_rearm_if_idle();
 }
 
 /*
- * Interrupt entry. The controller is serviced with every interrupt masked,
- * because the tty layer restarts output from the clock interrupt, which
- * outranks this one, and a second usb_tx_kick entered inside the first
- * overwrites the packet the controller is about to send.
+ * Interrupt entry. The controller is serviced with every interrupt masked, so
+ * a second usb_tx_kick entered inside the first cannot overwrite the packet
+ * the controller is about to send. PRIMASK is the only mask ARMv6-M provides
+ * (machine/intr.h), so splhigh here and spltty in the console routines both
+ * disable every interrupt and serialize all access to usbd.
  */
 void
 usbintr(void)

@@ -73,12 +73,13 @@ through the same kernel `cdc_acm`, so its close/reopen is identical.
   (`usb_tx_kick` returns on `!configured`) and no input (no OUT buffer to
   receive keystrokes), recovering only on re-enumeration. This matches the
   symptom, but whether the reopen actually carries a bus reset is unverified.
-- **Device-side reentrancy.** The polled console routines run `usb_service()`
-  at `spltty`; the clock interrupt outranks `IPL_TTY` and can drive
-  `ttstart -> usbstart -> usb_tx_kick`/`usb_tx_put`, which touch `usbd`. A
-  clock preemption of a polled `usb_service()` mid-completion could corrupt
-  `tx_busy` or the ring pointers against the hardware. This is timing-dependent
-  and not reopen-specific, so it is a weaker match.
+- **Device-side reentrancy: ruled out.** ARMv6-M carries only PRIMASK, so
+  `machine/intr.h` maps `spltty`, `splclock`, and `splhigh` all onto a global
+  interrupt disable; the header states priorities "only order preemption among
+  interrupts that are already enabled." A polled `usb_service()` at `spltty`
+  runs with every interrupt masked, the clock among them, and core 1 is never
+  launched, so no `ttstart -> usbstart -> usb_tx_kick` reentrancy can touch
+  `usbd` mid-completion. See `doc/research/usb-outwedge.md`.
 
 ## Decisive probes (parent runs these; no fabricated fix is shipped)
 
@@ -87,9 +88,15 @@ through the same kernel `cdc_acm`, so its close/reopen is identical.
    wedge inspect the driver state directly, no code change:
    - `print usbd` -- `configured`, `dtr`, `tx_busy`, `data_in_pid`,
      `data_out_pid`, `tx_head`, `tx_tail`.
-   - `x/1xw 0x50100088` (bulk-IN buffer control, EP2 IN) and `x/1xw 0x50100084`
-     (bulk-OUT buffer control) -- AVAILABLE bit 10, FULL bit 15, DATA1 bit 13.
-   - `x/1xw 0x50110050` (`USB_SIE_STATUS`) -- bit for `DATA_SEQ_ERROR`.
+   - `x/1xw 0x50100090` (bulk-IN buffer control, EP2 IN) and `x/1xw 0x50100094`
+     (bulk-OUT buffer control) -- AVAILABLE bit 10, FULL bit 15, STALL bit 11,
+     DATA1 bit 13. The addresses follow `USB_DPRAM_BUF_CTRL(2, in)` = 0x80 +
+     2*8 + (in?0:4), so EP2 IN is at 0x90 and EP2 OUT at 0x94 above the DPSRAM
+     base 0x50100000. An earlier revision of this list read 0x50100088 and
+     0x50100084, which are EP1 IN and EP0 OUT -- the wrong endpoints.
+   - `x/1xw 0x50100014` (EP2 OUT endpoint control, `USB_DPRAM_EP_CTRL(2, 0)`)
+     -- ENABLE bit 31, written once in `usbinit` and never cleared in software.
+   - `x/1xw 0x50110050` (`USB_SIE_STATUS`) -- `DATA_SEQ_ERROR` bit 31.
    `configured==0` confirms the bus-reset-without-reconfigure candidate;
    `tx_busy==1` with `AVAILABLE==0` confirms a lost completion; a bulk-OUT
    `DATA_SEQ_ERROR` with `data_out_pid` frozen confirms an OUT-toggle deadlock.
@@ -109,9 +116,10 @@ through the same kernel `cdc_acm`, so its close/reopen is identical.
 - usbmon shows `SET_INTERFACE` to the data interface: the `REQ_SET_INTERFACE`
   case (see latent bug below) must reset both bulk toggles, re-arm bulk OUT to
   DATA0, and reconcile `tx_busy`, matching the `REQ_CLEAR_FEATURE` handler.
-- gdb shows `configured==1` and both toggles synced with the host, yet wedged:
-  the fault is the reentrancy candidate; serialize `usbd` access between the
-  polled routines and `usbstart`.
+- gdb shows `configured==1` and both toggles synced with the host, yet wedged
+  with the bulk-OUT `AVAILABLE` bit clear: the OUT buffer lost its armed state.
+  `usb_service` now re-arms an idle un-armed OUT buffer on its own; see
+  `doc/research/usb-outwedge.md`.
 
 ## Latent bug found en route
 

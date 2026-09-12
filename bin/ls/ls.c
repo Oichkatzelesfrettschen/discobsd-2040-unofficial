@@ -53,6 +53,7 @@ char	*dotp = ".";
 
 struct	winsize win;
 int	twidth;
+int	errs;		/* an argument that stat cannot reach sets the exit status */
 
 struct	afile *gstat();
 int	fcmp();
@@ -209,7 +210,7 @@ main(argc, argv)
 			putchar('\n');
 		}
 	}
-	exit(0);
+	exit(errs);
 }
 
 void
@@ -332,6 +333,7 @@ gstat(fp, file, statarg, pnb)
 		if ((*statf)(file, &stb) < 0) {
 			if (statf == lstat || lstat(file, &stb) < 0) {
 				fprintf(stderr, "%s not found\n", file);
+				errs = 1;
 				return (0);
 			}
 		}

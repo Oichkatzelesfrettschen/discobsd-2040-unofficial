@@ -10,7 +10,7 @@
 
 #ifndef ENDIAN
 
-#define MACHINE         "stm32"
+#define MACHINE         "rp2040"
 #define MACHINE_ARCH    "arm"
 
 /*

@@ -69,7 +69,7 @@ FSUTIL=		${TOPSRC}/tools/bin/fsutil
 # directory that already built them (see sbin/textbox/Makefile), and
 # textbox's tools live under usr.bin.
 #
-SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games
+SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 

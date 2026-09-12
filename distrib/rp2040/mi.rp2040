@@ -145,6 +145,7 @@ file /sbin/init
 file /sbin/adminbox
 
 file /usr/bin/awk
+file /usr/bin/coremark
 file /usr/bin/sed
 file /usr/bin/grep
 file /usr/bin/fgrep

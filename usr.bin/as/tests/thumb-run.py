@@ -4,8 +4,9 @@
 The kernel hands _start its arguments in r0 to r2 over a stack laid out as
 lib/startup-arm/crt0.c documents. A syscall is an SVC whose immediate is the
 call number, with arguments in r0 to r3, the result in r0, and the carry flag
-set on error. Only the calls a hello program reaches are implemented; any
-other stops the run and is named in the result.
+set on error. Only the calls a hello program or a small stdio/exec test
+reaches are implemented; any other stops the run and is named in the
+result.
 """
 import struct, sys
 from unicorn import *
@@ -44,11 +45,25 @@ def svc(uc, intno, user):
     elif n == 1:                                        # exit(status)
         st["exit"] = a0; uc.emu_stop(); return
     elif n == 3:  r = 0                                 # read: end of file
+    elif n == 5:  r = 3                                 # open: fixed fake fd
     elif n == 6:  r = 0                                 # close
+    elif n == 19: r = 0                                 # lseek
     elif n == 20: r = 42                                # getpid
     elif n == 54: r = 0                                 # ioctl
+    elif n == 59:                                       # execve: always fails
+        # No program to load under this stub, so the call reports ENOEXEC
+        # (8, include/sys/errno.h) and the carry stays set; a caller that
+        # checks the result and carries on past a failed exec keeps running.
+        uc.reg_write(UC_ARM_REG_R0, 8)
+        uc.reg_write(UC_ARM_REG_CPSR, uc.reg_read(UC_ARM_REG_CPSR) | (1 << 29))
+        return
     elif n == 62:                                       # fstat
-        uc.mem_write(a1, b"\0" * 128); r = 0
+        # struct stat (include/sys/stat.h) is 14 4-byte members, 56 bytes;
+        # a caller that stack-allocates exactly that much, as
+        # lib/libc/stdio/flsbuf.c does to size its first stdio buffer, has
+        # its saved registers and return address right above the struct,
+        # so writing more than sizeof(struct stat) here corrupts them.
+        uc.mem_write(a1, b"\0" * 56); r = 0
     elif n == 69:                                       # _brk(newbreak)
         # lib/libc/arm/sys/_brk.S passes the new break address and takes
         # zero as success; the heap lives in the slack above the image.

@@ -203,15 +203,59 @@ pass.
 - The tracked kernel binaries under `sys/arch/rp2040/compile/*/unix*` are stale
   build outputs: the divider commit `0a09de3f` changed source without
   regenerating them, so both PICO and PICO_UART committed images predate the
-  fix. The reflash flow rebuilds from source, so this is a tracking-hygiene
-  issue, not a flashed-kernel one. The audit's gate 1 wording is "rebuild or
-  explicitly retire"; this branch does neither to the tracked bytes, so a
-  reader of the tracked binary still sees the broken ordering. The decision is
-  the maintainer's: regenerate and commit both kernels, or stop tracking the
-  compile artifacts. Until then the source is correct and a build produces a
-  correct kernel, verified above.
+  fix. The reflash flow rebuilds from source, so this was a tracking-hygiene
+  issue, not a flashed-kernel one. Decision taken: stop tracking the generated
+  compile outputs rather than commit fresh binaries. The linked images, version
+  stamps, dependency files, boot2 blobs and machine/sys symlinks are removed
+  from tracking and matched by `.gitignore`; `make clean`/`clean-all` remove
+  them; the config scaffolding (Config, Makefile, ioconf.c, swapunix.c) stays
+  tracked because the default build consumes the committed compile dir without
+  rerunning config. A from-clean worktree builds the PICO kernel from that
+  scaffolding alone (verified). This closes gate 1: the stale broken kernel
+  binary no longer ships in git.
 - The `rpi/pico-host/` copies of `discobsd-web`/`discobsd-term` are outside this
   repository; re-sync them from the corrected `distrib/rp2040/host/` copies.
+
+## Follow-up pass: hygiene, constrained-C, and the man-page decision
+
+### Generated kernel build outputs are no longer tracked
+
+See the hygiene note above; this is the implementation of the gate-1 decision.
+
+### Deploy mirrors resynced
+
+The `rpi/pico-host/` copies of `discobsd-web`/`discobsd-term` are resynced from
+the corrected `distrib/rp2040/host/` copies and are byte-identical again. A
+running web/terminal console holds the old text in memory until restarted.
+
+### NSTATIC 20 -> 8 (ranked #21)
+
+`lib/libc/stdio/findiop.c` reserved 20 static FILE slots; eight keep stdin,
+stdout, stderr and five more before `_findiop` falls to the dynamic
+`_f_morefiles` path. `findiop.o`'s `_iob` drops 400 -> 160 bytes and `sbuf`
+20 -> 8. Measured at the image level, not the source-object sum: the coremark
+a.out shrank 17496 -> 17256, exactly 240 initialized data bytes; the 12-byte
+bss drop does not ship in an a.out. Across the audit's 21 proven payers that is
+about 5040 image bytes before filesystem block packing, which is where any
+freed root block would show. Gate remaining: an on-device test that opens nine
+concurrent streams and exercises the `_f_morefiles` allocation and failure
+paths; the code path is unchanged from the >20-stream case, only its threshold
+moved. Printf-float root removal (ranked #22) is a separate pass -- twenty
+relinks with two unresolved cases (`picoc`, `tclsh`) -- and is not bundled
+here so this measurement stays clean.
+
+### man.c descriptor bug fixed; the archive is a decision for the user (ranked #2)
+
+`usr.bin/man/man.c` `cat()` guarded the descriptor with `if (!(fd = open(...)))`,
+true only for descriptor 0 and false for the -1 failure; it now tests `== -1`.
+The compressed-man-page archive itself is not started. The audit falsified the
+10240-byte premise: the seven pages compress to 42728 bytes with per-stream
+integrity metadata, the image has 175 free blocks against 42 data + 1 indirect
++ 1 inode, and the feature also needs a userland decoder (the kernel's is not a
+stable ABI), `man` folded into utilbox, a rewritten `cc.0` that documents this
+board's driver rather than PCC, and attended on-device pager testing. That is a
+feature requiring a board session, not a cleanup item; it stays a scoping
+decision: 42728 bytes and roughly 132 blocks of headroom.
 
 ## Corpus regenerator for fptest
 

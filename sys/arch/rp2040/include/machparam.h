@@ -76,14 +76,19 @@
 /* Bytes to disk blocks */
 #define btod(x)         (((x) + DEV_BSIZE-1) >> DEV_BSHIFT)
 
-#if 1 /* XXX Needed for ps, w, smlrc. To be removed. */
+/*
+ * The user window: one resident process image lives in the 96 KB at
+ * 0x20000000. exec_estab (sys/kern/exec_subr.c) rejects an image whose
+ * text, data, bss, heap and stack exceed USER_DATA_SIZE, and exec_aout
+ * loads data at USER_DATA_START and places the stack against
+ * USER_DATA_END, so these are load-bearing rather than provisional.
+ */
 #define USER_DATA_START         (0x20000000)
 #define USER_DATA_SIZE          (96 * 1024)     /* 96kb for user RAM. */
 #define USER_DATA_END           (USER_DATA_START + USER_DATA_SIZE)
 
 #define stacktop(siz)           (USER_DATA_END)
 #define stackbas(siz)           (USER_DATA_END-(siz))
-#endif /* XXX Needed for ps, w, smlrc. To be removed. */
 
 /*
  * User area: a user structure, followed by the kernel

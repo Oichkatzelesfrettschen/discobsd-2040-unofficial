@@ -32,6 +32,17 @@
 #include <utmp.h>
 #include <paths.h>
 #include <psout.h>
+#include <machine/cpu.h>
+
+/*
+ * sys/sysctl.h pulls in sys/map.h for the kernel eproc/map structures,
+ * whose "struct map" collides with this file's own struct map (the
+ * text/data/stack layout below). Declare only CTL_MACHDEP and the
+ * sysctl(2) prototype the console lookup below needs, matching
+ * sys/sysctl.h's own declarations.
+ */
+#define CTL_MACHDEP 7
+extern int sysctl(int *, unsigned, void *, size_t *, void *, size_t);
 
 #define within(x,y,z)   (((unsigned)(x) >= (y)) && ((unsigned)(x) < (z)))
 #define round(x,y) ((long) ((((long) (x) + (long) (y) - 1L) / (long) (y)) * (long) (y)))
@@ -128,6 +139,19 @@ struct map datmap;
 struct psout *outargs;  /* info for first npr processes */
 
 /*
+ * /dev/console is a fixed cdevsw slot (cnopen(), sys/dev/cons.c) that
+ * redirects every open to the real console driver picked at kernel
+ * build time.  stat("/dev/console") reports the redirector's own
+ * static device number, not the number cnopen() substitutes -- and
+ * ttyopen() (sys/kern/tty.c) records that substituted number, from
+ * CONS_MAJOR/CONS_MINOR, in a session's u_ttyd.  The sysctl(3) triple
+ * {CTL_MACHDEP, CPU_CONSDEV} (cpu_sysctl(), per-machine sysctl.c) reports
+ * that same substituted number, so it is the only reliable way to learn
+ * what "console" resolves to; consdev caches it for gettty() below.
+ */
+dev_t consdev = (dev_t) -1;
+
+/*
  * Attempt to avoid stats by guessing minor device
  * numbers from tty names.  Console is known,
  * know that r(hp|up|mt) are unlikely as are different mem's,
@@ -172,6 +196,14 @@ getdev()
 {
     register DIR *df;
     register struct direct *dbuf;
+    int mib[2];
+    size_t conslen;
+
+    mib[0] = CTL_MACHDEP;
+    mib[1] = CPU_CONSDEV;
+    conslen = sizeof(consdev);
+    if (sysctl(mib, 2, &consdev, &conslen, 0, 0) < 0)
+        consdev = (dev_t) -1;
 
     if (chdir("/dev") < 0) {
         perror("/dev");
@@ -193,6 +225,19 @@ gettty()
     register char *p;
 
     if (u.u_ttyp) {
+        /*
+         * A session opened through the console redirector carries the
+         * redirected device in u_ttyd (ttyopen(), sys/kern/tty.c, called
+         * from usbopen()/uartopen() with the CONS_MAJOR/CONS_MINOR device
+         * cnopen() substitutes -- sys/dev/cons.c), while /dev/console's
+         * own node keeps its static, unrelated device number.  A process
+         * on that session and mytty (ttyname(0) in main(), which matches
+         * by directory entry, not by device number) must name it the same
+         * way, so match consdev before the real device's own /dev entry --
+         * otherwise which name wins depends on /dev's readdir() order.
+         */
+        if (consdev != (dev_t) -1 && u.u_ttyd == consdev)
+            return ("console");
         for (tty_step = 0; tty_step < nttys; ++tty_step) {
             if (allttys[tty_step].ttyd == u.u_ttyd) {
                 p = allttys[tty_step].name;

@@ -24,19 +24,37 @@ main(int argc, char **argv)
 {
 	const struct tool *t;
 	const char *name, *p;
+	size_t n;
 
 	name = argv[0];
 	for (p = name; *p; p++)
 		if (*p == '/')
 			name = p + 1;
-	if (strcmp(name, "gamebox") == 0 && argc > 1) {
+	/*
+	 * Invoked by the multiplexer's own name, which ends in "box": the
+	 * first argument names the tool, so "utilbox uname" runs uname.
+	 */
+	n = strlen(name);
+	if (n > 3 && strcmp(name + n - 3, "box") == 0 && argc > 1) {
 		argc--;
 		argv++;
 		name = argv[0];
+		for (p = name; *p; p++)
+			if (*p == '/')
+				name = p + 1;
 	}
 	for (t = tools; t->name; t++)
 		if (strcmp(name, t->name) == 0)
 			return t->main(argc, argv);
-	write(2, "gamebox: no such game\n", 23);
+	/*
+	 * No such tool: list what this binary provides, so its own name
+	 * typed alone shows its commands instead of an opaque error.
+	 */
+	write(2, "commands:", 9);
+	for (t = tools; t->name; t++) {
+		write(2, " ", 1);
+		write(2, t->name, strlen(t->name));
+	}
+	write(2, "\n", 1);
 	return 1;
 }

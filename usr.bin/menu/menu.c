@@ -43,6 +43,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <sys/dir.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -57,7 +58,7 @@
  * strings, no malloc growth. See sys/arch/rp2040/doc/STORAGE.md on the
  * a.out and bss budget this program stays inside.
  */
-#define MAX_ENTRIES     64
+#define MAX_ENTRIES     192
 #define LABEL_MAX       32
 #define CMD_MAX         80
 #define SCREEN_ROWS     24
@@ -430,6 +431,70 @@ static void load_config(const char *path)
     fclose(fp);
 }
 
+/*
+ * Fill the menu with every command on the PATH so the whole system is
+ * one scrollable list, the box multicall binaries decomposed into the
+ * names they answer to. A name already present -- a built-in, a config
+ * entry, or a command reached through an earlier directory -- is not
+ * added twice, and the box multiplexers themselves are hidden because
+ * running one by its own name only prints "no such tool".
+ */
+static const char *const prog_dirs[] = {
+    "/bin", "/usr/bin", "/sbin", "/usr/sbin", "/usr/games"
+};
+#define NPROGDIRS (int)(sizeof(prog_dirs) / sizeof(prog_dirs[0]))
+
+static int is_box(const char *name)
+{
+    size_t n = strlen(name);
+    return n >= 3 && strcmp(name + n - 3, "box") == 0;
+}
+
+static int already_listed(const char *name)
+{
+    int i;
+    for (i = 0; i < nentries; i++)
+        if (strcmp(entries[i].cmd, name) == 0 ||
+            strcmp(entries[i].label, name) == 0)
+            return 1;
+    return 0;
+}
+
+static int prog_cmp(const void *a, const void *b)
+{
+    return strcmp(((const struct entry *)a)->label,
+                  ((const struct entry *)b)->label);
+}
+
+static void scan_programs(void)
+{
+    int d, start = nentries;
+    DIR *dir;
+    struct direct *dp;
+
+    for (d = 0; d < NPROGDIRS; d++) {
+        dir = opendir(prog_dirs[d]);
+        if (dir == NULL)
+            continue;
+        while ((dp = readdir(dir)) != NULL && nentries < MAX_ENTRIES) {
+            if (dp->d_ino == 0 || dp->d_name[0] == '.')
+                continue;
+            if (is_box(dp->d_name) || already_listed(dp->d_name))
+                continue;
+            entries[nentries].is_builtin = BI_NONE;
+            strlcpy(entries[nentries].label, dp->d_name, LABEL_MAX);
+            strlcpy(entries[nentries].cmd, dp->d_name, CMD_MAX);
+            nentries++;
+        }
+        closedir(dir);
+    }
+    /* Sort just the scanned range so the programs read alphabetically
+     * while the built-ins and config entries keep their order on top. */
+    if (nentries > start + 1)
+        qsort(&entries[start], nentries - start, sizeof(entries[0]),
+              prog_cmp);
+}
+
 static void add_builtins(void)
 {
     int i;
@@ -565,6 +630,7 @@ int main(int argc, char **argv)
 
     add_builtins();
     load_config(menu_file);
+    scan_programs();
 
     if (enable_raw_mode(STDIN_FILENO) == -1) {
         fprintf(stderr, "menu: not a terminal\n");

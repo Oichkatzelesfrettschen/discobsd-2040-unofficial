@@ -1,6 +1,6 @@
 # Running the DiscoBSD RP2040 kernel under emulation
 
-Worktree: `~/worktrees/discobsd/emulation`, branch `emulation`, forked from
+Branch `emulation`, forked from
 `rp2040-port` at `3fcbdb413329fad56b91912a698cd6e0d585e28b`. The board was
 never touched: no `/dev/ttyACM0`, no `picotool`.
 
@@ -201,7 +201,7 @@ already verifies gets a board to `login:` in nine seconds.
 Build (see BOOT-MAP.md section 12 for the fuller version with the
 known build hiccups noted inline):
 
-    cd ~/worktrees/discobsd/emulation
+    cd <tree root>
     bmake MACHINE=rp2040 tools
     tools/bin/binstall -U tools/config/config tools/bin/config
     cd sys/arch/rp2040/compile/PICO_UART && ../../../../tools/bin/config Config && cd -
@@ -213,7 +213,7 @@ known build hiccups noted inline):
 
 Launch:
 
-    cd ~/worktrees/discobsd/emulation/tools/renode
+    cd tools/renode
     sh fetch-renode-rp2040.sh
     renode --disable-gui -P 4567 -e "include @boot.resc"
 

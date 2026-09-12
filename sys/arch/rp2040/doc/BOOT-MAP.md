@@ -228,7 +228,7 @@ sort, awk, picoc, df, mount, ps -ax, and the swap path all run. Open:
 
 ## 12. Running the kernel on the host
 
-The worktree is `~/worktrees/discobsd/emulation`, branch `emulation`. The
+The harness lives in `tools/renode` at the tree root. The
 emulator is Renode 1.17.0 (AUR `renode-bin`), running the third-party RP2040
 platform from `matgla/Renode_RP2040` (MIT, pinned by commit), not a model
 DiscoBSD carries itself: Renode's own distribution ships no RP2040 platform
@@ -247,7 +247,7 @@ all (README: "USB: not supported"). A second kernel config,
 
 ### Build
 
-    cd ~/worktrees/discobsd/emulation
+    cd <tree root>
     bmake MACHINE=rp2040 tools
     tools/bin/binstall -U tools/config/config tools/bin/config   # mandoc absent; see section 5
     cd sys/arch/rp2040/compile/PICO_UART && ../../../../tools/bin/config Config && cd -

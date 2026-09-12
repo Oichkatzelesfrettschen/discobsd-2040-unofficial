@@ -86,10 +86,14 @@ int exec_aout_check(struct exec_params *epp)
     epp->stack.vaddr = (caddr_t)__user_data_end - epp->stack.len;
 
     /*
-     * Allocate core at this point, committed to the new image.
-     * TODO: What to do for errors?
+     * Establish memory. The overflow and layout checks run before core is
+     * allocated, so a rejected image (one whose text, data, bss, heap and
+     * stack exceed MAXMEM) returns here with the old image intact and
+     * execve reports the error, matching exec_elf. Only past this point is
+     * the process committed to the new image.
      */
-    exec_estab(epp);
+    if ((error = exec_estab(epp)) != 0)
+        return error;
 
     /* read in text and data */
     DEBUG("\texec_aout_check(): reading a.out image\n");

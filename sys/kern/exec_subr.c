@@ -245,7 +245,8 @@ int exec_estab(struct exec_params *epp)
     /*
      * Try out for overflow
      */
-    if (epp->text.len + epp->data.len + epp->heap.len + epp->stack.len > MAXMEM) {
+    if (epp->text.len + epp->data.len + epp->bss.len + epp->heap.len +
+      epp->stack.len > MAXMEM) {
         DEBUG("\texec_estab(): error: memory overflow\n");
         return ENOMEM;
     }

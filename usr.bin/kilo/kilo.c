@@ -305,8 +305,18 @@ int getCursorPosition(int ifd, int ofd, int *rows, int *cols) {
     /* Report cursor location */
     if (write(ofd, "\x1b[6n", 4) != 4) return -1;
 
-    /* Read the response: ESC [ rows ; cols R */
+    /* Read the response: ESC [ rows ; cols R. A terminal that does not
+     * answer, such as a logging console, would block a CBREAK read for
+     * good, so each byte is awaited with an FIONREAD poll of at most half
+     * a second and the query fails cleanly instead. */
     while (i < sizeof(buf)-1) {
+        int n = 0, tries = 50;
+        while (tries-- > 0) {
+            if (ioctl(ifd, FIONREAD, &n) == -1) return -1;
+            if (n > 0) break;
+            usleep(10000);
+        }
+        if (n <= 0) return -1;
         if (read(ifd,buf+i,1) != 1) break;
         if (buf[i] == 'R') break;
         i++;
@@ -1061,8 +1071,11 @@ int editorFileWasModified(void) {
 void updateWindowSize(void) {
     if (getWindowSize(STDIN_FILENO,STDOUT_FILENO,
                       &E.screenrows,&E.screencols) == -1) {
-        perror("Unable to query the screen for size (columns / rows)");
-        exit(1);
+        /* Neither TIOCGWINSZ nor the cursor query told the size: the
+         * USB console carries no window size and a dumb terminal sends
+         * no report. 80x24 is the size every terminal emulator opens at. */
+        E.screenrows = 24;
+        E.screencols = 80;
     }
     E.screenrows -= 2; /* Get room for status bar. */
 }

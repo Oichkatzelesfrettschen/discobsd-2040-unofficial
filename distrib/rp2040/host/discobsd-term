@@ -87,6 +87,11 @@ def run():
                 time.sleep(0.5)
                 continue
             note("attached to %s" % port)
+            # Redraw the current prompt into the fresh terminal.
+            try:
+                s.write(b"\r")
+            except Exception:
+                pass
             sfd = s.fileno()
             ifd = sys.stdin.fileno()
             try:

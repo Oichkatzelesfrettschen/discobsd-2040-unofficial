@@ -8,8 +8,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= ${DEFS}
 
-SRCS		= _setjmp.S aeabi_div.S htonl.S htons.S setjmp.S sigsetjmp.S
-OBJS		= _setjmp.o aeabi_div.o htonl.o htons.o setjmp.o sigsetjmp.o
+SRCS		= _setjmp.S aeabi_div.S htonl.S htons.S rom_float.c setjmp.S sigsetjmp.S
+OBJS		= _setjmp.o aeabi_div.o htonl.o htons.o rom_float.o setjmp.o sigsetjmp.o
 
 gen.a:		${OBJS}
 		@echo "building gen.a"

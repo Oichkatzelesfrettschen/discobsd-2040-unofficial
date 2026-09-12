@@ -62,6 +62,7 @@ ufetch ustore ucall umask vfork vhangup rdglob wrglob msec kmemdev
 ARM_SYS_COBJS = set("sbrk execl execle execv".split())
 ARM_SYS_ASMOBJS = set("_exit _brk pipe ptrace sigaction".split())
 ARM_GEN_S = set("_setjmp aeabi_div htonl htons setjmp sigsetjmp".split())
+ARM_GEN_C = set("rom_float".split())
 ARM_STRING_S = set("memmove strcmp".split())
 
 GEN_C = set("""
@@ -104,6 +105,8 @@ def classify(stem):
         return "arm_string", "s_cpp"
     if stem in ARM_GEN_S:
         return "arm_gen", "s_cpp"
+    if stem in ARM_GEN_C:
+        return "arm_gen", "c"
     if stem in ARM_SYS_ASMOBJS:
         return "arm_sys", "s_cpp"
     if stem in ARM_SYS_COBJS:

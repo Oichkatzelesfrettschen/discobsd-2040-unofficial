@@ -83,7 +83,6 @@ build:		symlinks tools
 			${MAKE} -C $$dir DESTDIR=${DESTDIR} install ; done
 
 distribution:	build
-		${MAKE} -C etc DESTDIR=${DESTDIR} distribution
 		$(MAKE) fs
 
 tools:
@@ -94,7 +93,16 @@ kernel:		tools
 
 fs:		$(FSIMG)
 
-${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home
+# The image is staged from ${DESTDIR}; etc/passwd, etc/shadow and etc/group
+# reach ${DESTDIR}/etc only through etc's own distribution target. Depending on
+# it here refreshes them for every image path -- fs, flash, and distribution --
+# rather than only the full distribution target, which is why a bare
+# "bmake flash" used to reflash a stale account database.
+etc-distribution:
+		${MAKE} -C etc DESTDIR=${DESTDIR} distribution
+
+${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
+		etc-distribution
 		rm -f $@ distrib/$(MACHINE)/_manifest
 		cat ${MI_MANIFEST} distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
 		$(FSUTIL) --repartition=${PARTITIONS} $@
@@ -133,6 +141,7 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		all build distribution release tools kernel symlinks \
+		etc-distribution \
 		${FSIMG} fs installfs \
 		clean cleantools cleanfs cleanall
 

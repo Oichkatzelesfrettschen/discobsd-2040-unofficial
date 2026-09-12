@@ -66,7 +66,7 @@ static heatshrink_encoder sr_enc;
 static heatshrink_decoder sr_dec;
 
 /* One line per swapout and swapin names the tier that took the image. */
-int swapramdebug = 1;
+int swapramdebug = 0;		/* off by default; the tier is verified. flip to 1 to trace swaps */
 
 static struct sr_ent *
 sr_slot(struct proc *p)

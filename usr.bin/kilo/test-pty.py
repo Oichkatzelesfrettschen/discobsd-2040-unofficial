@@ -17,6 +17,7 @@ Run with ${PYTHON:-python3} after `bmake kilo.host` in this directory.
 import fcntl
 import os
 import pty
+import re
 import struct
 import sys
 import tempfile
@@ -32,6 +33,13 @@ CTRL_F = "\x06"
 ESC = "\x1b"
 ARROW_DOWN = "\x1b[B"
 PAGE_UP = "\x1b[5~"
+
+# kilo.c's editorSyntaxToColor emits a plain "\x1b[NNm" -- no bold prefix,
+# no 256-color form. KEYWORD1 (int, return, ...) is yellow 33, MLCOMMENT
+# is cyan 36; any of 31-37 covers the rest of the HL_* palette.
+COLOR_ESCAPE_RE = re.compile(rb"\x1b\[3[1-7]m")
+KEYWORD_COLOR_RE = re.compile(rb"\x1b\[33m")
+COMMENT_COLOR_RE = re.compile(rb"\x1b\[36m")
 
 
 def set_winsize(fd, rows=24, cols=80):
@@ -58,6 +66,60 @@ def read_available(fd, timeout=0.3):
 
 def send(fd, s):
     os.write(fd, s.encode("latin-1"))
+
+
+def test_syntax_highlighting():
+    """editorOpen calls editorSelectSyntaxHighlight(E.filename) before the
+    first editorRefreshScreen, so opening a .c file paints its keywords
+    and comments in color on the very first screen, with nothing typed.
+    A .txt file opened with the same content hits HL_NORMAL for every
+    character and paints no color at all -- editorSelectSyntaxHighlight
+    matches C_HL_extensions (".c", ".h", ...) and nothing else."""
+    c_content = "int main(void) {\n    /* a comment */\n    return 0;\n}\n"
+    c_path = os.path.join(tempfile.gettempdir(),
+                           "kilo-test-pty-%d.c" % os.getpid())
+    txt_path = os.path.join(tempfile.gettempdir(),
+                             "kilo-test-pty-%d.txt" % os.getpid())
+    with open(c_path, "w") as f:
+        f.write(c_content)
+    with open(txt_path, "w") as f:
+        f.write(c_content)
+
+    try:
+        for path in (c_path, txt_path):
+            pid, master = pty.fork()
+            if pid == 0:
+                os.execv(KILO, [KILO, path])
+                os._exit(127)
+
+            set_winsize(master)
+            time.sleep(0.2)
+            screen = read_available(master)
+            send(master, CTRL_Q)
+            read_available(master)
+            os.waitpid(pid, 0)
+            os.close(master)
+
+            if path == c_path:
+                if not KEYWORD_COLOR_RE.search(screen):
+                    print("FAIL: %s: no color escape around a C keyword "
+                          "(int/return, expected \\x1b[33m)" % path)
+                    sys.exit(1)
+                if not COMMENT_COLOR_RE.search(screen):
+                    print("FAIL: %s: no color escape around the /* */ "
+                          "comment (expected \\x1b[36m)" % path)
+                    sys.exit(1)
+            else:
+                if COLOR_ESCAPE_RE.search(screen):
+                    print("FAIL: %s: a .txt file painted a syntax color "
+                          "escape; HL_NORMAL should leave it plain" % path)
+                    sys.exit(1)
+    finally:
+        os.unlink(c_path)
+        os.unlink(txt_path)
+
+    print("PASS: .c file highlights keywords and comments, "
+          ".txt file stays plain")
 
 
 def main():
@@ -160,6 +222,8 @@ def main():
 
     print("PASS: kilo.host wrote the expected content after "
           "type/page/arrow/search/save/quit")
+
+    test_syntax_highlighting()
 
 
 if __name__ == "__main__":

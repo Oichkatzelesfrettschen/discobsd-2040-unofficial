@@ -36,12 +36,16 @@
  * Ported from antirez/kilo commit 323d93b29bd89a2cb446de90c4ed4fea1764176e
  * (the tip of "master" at the time of this port) to DiscoBSD on rp2040.
  *
- * Removed: syntax highlighting (editorSyntax, HLDB, the C keyword tables,
+ * Syntax highlighting (editorSyntax, HLDB, the C keyword tables,
  * editorUpdateSyntax, editorRowHasOpenComment, editorSyntaxToColor,
- * editorSelectSyntaxHighlight and is_separator) -- it is most of upstream's
- * code and none of it fits the 20 KB a.out budget documented in
- * sys/arch/rp2040/doc/STORAGE.md. A non-printable byte still renders in
- * reverse video so a stray control character does not corrupt the screen.
+ * editorSelectSyntaxHighlight and is_separator) is restored from the same
+ * upstream commit now that the board carries a C compiler (cc, smlrc, as,
+ * ld) and editing C on the board is a real workflow. The C++ keyword half
+ * of upstream's C_HL_keywords is trimmed to keep the a.out inside the
+ * 20 KB budget documented in sys/arch/rp2040/doc/STORAGE.md; the C
+ * keywords and the common type names stay. A non-printable byte still
+ * renders in reverse video so a stray control character does not corrupt
+ * the screen.
  *
  * Replaced: glibc's getline(3), which this libc does not carry, with a
  * small local line reader (kiloReadLine); termios(3), which this libc does
@@ -82,6 +86,29 @@
 
 #define KILO_VERSION "0.0.1"
 
+/* Syntax highlight types, one per byte of erow.hl. */
+#define HL_NORMAL 0
+#define HL_NONPRINT 1
+#define HL_COMMENT 2   /* Single line comment. */
+#define HL_MLCOMMENT 3 /* Multi-line comment. */
+#define HL_KEYWORD1 4
+#define HL_KEYWORD2 5
+#define HL_STRING 6
+#define HL_NUMBER 7
+#define HL_MATCH 8      /* Search match. */
+
+#define HL_HIGHLIGHT_STRINGS (1<<0)
+#define HL_HIGHLIGHT_NUMBERS (1<<1)
+
+struct editorSyntax {
+    char **filematch;
+    char **keywords;
+    char singleline_comment_start[2];
+    char multiline_comment_start[3];
+    char multiline_comment_end[3];
+    int flags;
+};
+
 /* This structure represents a single line of the file we are editing. */
 typedef struct erow {
     int idx;            /* Row index in the file, zero-based. */
@@ -89,6 +116,10 @@ typedef struct erow {
     int rsize;          /* Size of the rendered row. */
     char *chars;        /* Row content. */
     char *render;       /* Row content "rendered" for screen (for TABs). */
+    unsigned char *hl;  /* Syntax highlight type for each char in render.
+                            Grown with realloc alongside render, one byte
+                            per rendered character -- not a static table. */
+    int hl_oc;          /* Row had an open comment at end in last check. */
 } erow;
 
 struct editorConfig {
@@ -104,6 +135,7 @@ struct editorConfig {
     char *filename; /* Currently open filename */
     char statusmsg[80];
     time_t statusmsg_time;
+    struct editorSyntax *syntax;    /* Current syntax highlight, or NULL. */
 };
 
 static struct editorConfig E;
@@ -136,6 +168,48 @@ enum KEY_ACTION{
 };
 
 void editorSetStatusMessage(const char *fmt, ...);
+
+/* =========================== Syntax highlights DB =========================
+ *
+ * A stanza names a set of filename matches and keywords: a match pattern
+ * starting with a dot matches the last part of the filename (".c"),
+ * otherwise the pattern is searched anywhere in the filename. A keyword
+ * with a trailing '|' highlights in the second keyword color (types,
+ * here) instead of the first (control-flow keywords). Single and multi
+ * line comment markers are exactly two characters each. */
+
+/* C / C++. The C++-only keyword half of upstream's list is cut here to
+ * keep the a.out inside the 20 KB budget in sys/arch/rp2040/doc/STORAGE.md;
+ * the C keywords and the common type names stay. */
+char *C_HL_extensions[] = {".c",".h",".cpp",".hpp",".cc",NULL};
+char *C_HL_keywords[] = {
+	/* C keywords */
+	"auto","break","case","continue","default","do","else","enum",
+	"extern","for","goto","if","register","return","sizeof","static",
+	"struct","switch","typedef","union","volatile","while","NULL",
+
+	/* C types */
+        "int|","long|","double|","float|","char|","unsigned|","signed|",
+        "void|","short|","auto|","const|","bool|",NULL
+};
+
+/* An array of syntax highlights by extensions, keywords, comment
+ * delimiters and flags. */
+struct editorSyntax HLDB[] = {
+    {
+        /* C / C++. The comment-marker fields are fixed-size char arrays
+         * with no room for a NUL terminator (editorUpdateSyntax indexes
+         * them by [0]/[1] only), so they take a brace initializer instead
+         * of a string literal -- a string literal's implicit NUL would
+         * overflow multiline_comment_start[3]. */
+        C_HL_extensions,
+        C_HL_keywords,
+        {'/','/'},{'/','*'},{'*','/'},
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS
+    }
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB)/sizeof(HLDB[0]))
 
 /* ======================= Low level terminal handling ====================== */
 
@@ -365,9 +439,198 @@ failed:
     return -1;
 }
 
+/* ====================== Syntax highlight color scheme  ==================== */
+
+int is_separator(int c) {
+    return c == '\0' || isspace(c) || strchr(",.()+-/*=~%[];",c) != NULL;
+}
+
+/* Return true if the specified row's last char is part of a multi line
+ * comment that starts at this row or at one before, and does not end at
+ * the end of the row but spawns to the next row. */
+int editorRowHasOpenComment(erow *row) {
+    if (row->hl && row->rsize && row->hl[row->rsize-1] == HL_MLCOMMENT &&
+        (row->rsize < 2 || (row->render[row->rsize-2] != '*' ||
+                            row->render[row->rsize-1] != '/'))) return 1;
+    return 0;
+}
+
+/* Set every byte of row->hl (one per character of row->render) to the
+ * right syntax highlight type (HL_* defines). */
+void editorUpdateSyntax(erow *row) {
+    row->hl = realloc(row->hl,row->rsize);
+    memset(row->hl,HL_NORMAL,row->rsize);
+
+    if (E.syntax == NULL) return; /* No syntax, everything is HL_NORMAL. */
+
+    int i, prev_sep, in_string, in_comment;
+    char *p;
+    char **keywords = E.syntax->keywords;
+    char *scs = E.syntax->singleline_comment_start;
+    char *mcs = E.syntax->multiline_comment_start;
+    char *mce = E.syntax->multiline_comment_end;
+
+    /* Point to the first non-space char. */
+    p = row->render;
+    i = 0; /* Current char offset */
+    while(*p && isspace(*p)) {
+        p++;
+        i++;
+    }
+    prev_sep = 1; /* Tell the parser if 'i' points to start of word. */
+    in_string = 0; /* Are we inside "" or '' ? */
+    in_comment = 0; /* Are we inside multi-line comment? */
+
+    /* If the previous line has an open comment, this line starts
+     * with an open comment state. */
+    if (row->idx > 0 && editorRowHasOpenComment(&E.row[row->idx-1]))
+        in_comment = 1;
+
+    while(*p) {
+        /* Handle // comments. */
+        if (prev_sep && *p == scs[0] && *(p+1) == scs[1]) {
+            /* From here to end is a comment */
+            memset(row->hl+i,HL_COMMENT,row->size-i);
+            return;
+        }
+
+        /* Handle multi line comments. */
+        if (in_comment) {
+            row->hl[i] = HL_MLCOMMENT;
+            if (*p == mce[0] && *(p+1) == mce[1]) {
+                row->hl[i+1] = HL_MLCOMMENT;
+                p += 2; i += 2;
+                in_comment = 0;
+                prev_sep = 1;
+                continue;
+            } else {
+                prev_sep = 0;
+                p++; i++;
+                continue;
+            }
+        } else if (*p == mcs[0] && *(p+1) == mcs[1]) {
+            row->hl[i] = HL_MLCOMMENT;
+            row->hl[i+1] = HL_MLCOMMENT;
+            p += 2; i += 2;
+            in_comment = 1;
+            prev_sep = 0;
+            continue;
+        }
+
+        /* Handle "" and '' */
+        if (in_string) {
+            row->hl[i] = HL_STRING;
+            if (*p == '\\') {
+                row->hl[i+1] = HL_STRING;
+                p += 2; i += 2;
+                prev_sep = 0;
+                continue;
+            }
+            if (*p == in_string) in_string = 0;
+            p++; i++;
+            continue;
+        } else {
+            if (*p == '"' || *p == '\'') {
+                in_string = *p;
+                row->hl[i] = HL_STRING;
+                p++; i++;
+                prev_sep = 0;
+                continue;
+            }
+        }
+
+        /* Handle non printable chars. */
+        if (!isprint((unsigned char)*p)) {
+            row->hl[i] = HL_NONPRINT;
+            p++; i++;
+            prev_sep = 0;
+            continue;
+        }
+
+        /* Handle numbers */
+        if ((isdigit((unsigned char)*p) && (prev_sep || row->hl[i-1] == HL_NUMBER)) ||
+            (*p == '.' && i >0 && row->hl[i-1] == HL_NUMBER)) {
+            row->hl[i] = HL_NUMBER;
+            p++; i++;
+            prev_sep = 0;
+            continue;
+        }
+
+        /* Handle keywords and lib calls */
+        if (prev_sep) {
+            int j;
+            for (j = 0; keywords[j]; j++) {
+                int klen = strlen(keywords[j]);
+                int kw2 = keywords[j][klen-1] == '|';
+                if (kw2) klen--;
+
+                if (!memcmp(p,keywords[j],klen) &&
+                    is_separator((unsigned char)*(p+klen)))
+                {
+                    /* Keyword */
+                    memset(row->hl+i,kw2 ? HL_KEYWORD2 : HL_KEYWORD1,klen);
+                    p += klen;
+                    i += klen;
+                    break;
+                }
+            }
+            if (keywords[j] != NULL) {
+                prev_sep = 0;
+                continue; /* We had a keyword match */
+            }
+        }
+
+        /* Not special chars */
+        prev_sep = is_separator((unsigned char)*p);
+        p++; i++;
+    }
+
+    /* Propagate syntax change to the next row if the open comment
+     * state changed. This may recursively affect all the following rows
+     * in the file. */
+    int oc = editorRowHasOpenComment(row);
+    if (row->hl_oc != oc && row->idx+1 < E.numrows)
+        editorUpdateSyntax(&E.row[row->idx+1]);
+    row->hl_oc = oc;
+}
+
+/* Maps syntax highlight token types to terminal colors. */
+int editorSyntaxToColor(int hl) {
+    switch(hl) {
+    case HL_COMMENT:
+    case HL_MLCOMMENT: return 36;     /* cyan */
+    case HL_KEYWORD1: return 33;    /* yellow */
+    case HL_KEYWORD2: return 32;    /* green */
+    case HL_STRING: return 35;      /* magenta */
+    case HL_NUMBER: return 31;      /* red */
+    case HL_MATCH: return 34;      /* blue */
+    default: return 37;             /* white */
+    }
+}
+
+/* Select the syntax highlight scheme depending on the filename,
+ * setting it in the global state E.syntax. */
+void editorSelectSyntaxHighlight(char *filename) {
+    for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
+        struct editorSyntax *s = HLDB+j;
+        unsigned int i = 0;
+        while(s->filematch[i]) {
+            char *p;
+            int patlen = strlen(s->filematch[i]);
+            if ((p = strstr(filename,s->filematch[i])) != NULL) {
+                if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
+                    E.syntax = s;
+                    return;
+                }
+            }
+            i++;
+        }
+    }
+}
+
 /* ======================= Editor rows implementation ======================= */
 
-/* Update the rendered version of a row. */
+/* Update the rendered version and the syntax highlight of a row. */
 void editorUpdateRow(erow *row) {
     unsigned int tabs = 0;
     int j, idx;
@@ -397,6 +660,9 @@ void editorUpdateRow(erow *row) {
     }
     row->rsize = idx;
     row->render[idx] = '\0';
+
+    /* Update the syntax highlighting attributes of the row. */
+    editorUpdateSyntax(row);
 }
 
 /* Insert a row at the specified position, shifting the other rows on the bottom
@@ -413,6 +679,8 @@ void editorInsertRow(int at, char *s, size_t len) {
     memcpy(E.row[at].chars,s,len+1);
     E.row[at].render = NULL;
     E.row[at].rsize = 0;
+    E.row[at].hl = NULL;
+    E.row[at].hl_oc = 0;
     E.row[at].idx = at;
     editorUpdateRow(E.row+at);
     E.numrows++;
@@ -423,6 +691,7 @@ void editorInsertRow(int at, char *s, size_t len) {
 void editorFreeRow(erow *row) {
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 /* Remove the row at the specified position, shifting the remainign on the
@@ -641,6 +910,8 @@ int editorOpen(char *filename) {
     E.filename = malloc(fnlen);
     memcpy(E.filename,filename,fnlen);
 
+    editorSelectSyntaxHighlight(E.filename);
+
     fp = fopen(filename,"r");
     if (!fp) {
         if (errno != ENOENT) {
@@ -667,6 +938,7 @@ int editorOpen(char *filename) {
 /* Save the current file on disk. Return 0 on success, 1 on error. */
 int editorSave(void) {
     int len;
+    editorSelectSyntaxHighlight(E.filename);
     char *buf = editorRowsToString(&len);
     int fd = open(E.filename,O_RDWR|O_CREAT,0644);
     if (fd == -1) goto writeerr;
@@ -749,9 +1021,11 @@ void editorRefreshScreen(void) {
         r = &E.row[filerow];
 
         int len = r->rsize - E.coloff;
+        int current_color = -1;
         if (len > 0) {
             if (len > E.screencols) len = E.screencols;
             char *c = r->render+E.coloff;
+            unsigned char *hl = r->hl+E.coloff;
             int j;
             for (j = 0; j < len; j++) {
                 if (!isprint((unsigned char)c[j])) {
@@ -763,10 +1037,25 @@ void editorRefreshScreen(void) {
                         sym = '?';
                     abAppend(&ab,&sym,1);
                     abAppend(&ab,"\x1b[0m",4);
+                    current_color = -1;
+                } else if (hl[j] == HL_NORMAL) {
+                    if (current_color != -1) {
+                        abAppend(&ab,"\x1b[39m",5);
+                        current_color = -1;
+                    }
+                    abAppend(&ab,c+j,1);
                 } else {
+                    int color = editorSyntaxToColor(hl[j]);
+                    if (color != current_color) {
+                        char buf[16];
+                        int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",color);
+                        current_color = color;
+                        abAppend(&ab,buf,clen);
+                    }
                     abAppend(&ab,c+j,1);
                 }
             }
+            if (current_color != -1) abAppend(&ab,"\x1b[39m",5);
         }
         abAppend(&ab,"\x1b[0K",4);
         abAppend(&ab,"\r\n",2);

@@ -251,7 +251,9 @@ target /sbin/adminbox
 # names below are hard links. See sbin/textbox/Makefile and
 # sys/arch/rp2040/doc/research/posix-tools.md. mkfifo builds but is not
 # shipped: the kernel has no FIFO support, so the node it makes passes
-# nothing through.
+# nothing through. look and deroff (Seventh Edition Unix, Caldera
+# ancient-Unix grant) join the same box; see
+# sys/arch/rp2040/doc/research/v7-tools.md.
 #
 link /usr/bin/cut
 target /usr/bin/textbox
@@ -278,6 +280,10 @@ target /usr/bin/textbox
 link /usr/bin/rev
 target /usr/bin/textbox
 link /usr/bin/comm
+target /usr/bin/textbox
+link /usr/bin/look
+target /usr/bin/textbox
+link /usr/bin/deroff
 target /usr/bin/textbox
 
 #

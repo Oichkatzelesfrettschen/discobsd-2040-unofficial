@@ -10,6 +10,13 @@
 # libc. usr.bin/Makefile builds usr.bin before sbin, so this
 # directory sees built objects when it runs.
 #
+# look and deroff are Seventh Edition Unix utilities (Caldera
+# ancient-Unix grant, BSD-style; see usr.bin/look/LICENSE and
+# usr.bin/deroff/LICENSE) rewritten with ANSI prototypes for Smaller
+# C; see sys/arch/rp2040/doc/research/v7-tools.md. Standing alone
+# each would cost about 8 KB of duplicated libc, so they join this
+# box instead of shipping as their own a.out.
+#
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
@@ -18,7 +25,7 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
 TOOLS=		cut paste seq dirname nl cksum expand unexpand \
-		uuencode uudecode fold rev comm
+		uuencode uudecode fold rev comm look deroff
 
 # Other names a tool answers to, as name:tool.
 ALIASES=

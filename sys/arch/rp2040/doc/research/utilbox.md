@@ -309,3 +309,18 @@ shutdown -h now  # or: reboot ; or: halt   -- run this LAST, it ends the session
 Each command should behave exactly as its standalone version did
 before the fold; `ps` output for any of them while running should
 show the invoked name, not `utilbox` or `adminbox`.
+
+## The 96 KB window ceiling (found on the board)
+
+A multicall box links every member's text, data and bss contiguously from
+USER_DATA_START, and exec_aout loads the whole image into the 96 KB user
+window (USER_DATA_SIZE); the process's globals live at their linked
+addresses. So a box's _end symbol must stay below USER_DATA_END
+(0x20018000). The first utilbox held tail (a 32769-byte line buffer), tee
+(two 8192-byte buffers) and du (an 8000-byte link table); its _end reached
+0x2001cd00, 18 KB past the window, and exec of any member wrote a global
+into kernel RAM and wedged the kernel with no message. The three
+big-buffer tools now ship standalone, where each fits alone, and utilbox's
+_end is 0x2000de50. Check a box with `arm-none-eabi-nm box.elf | sort |
+tail`: the highest B/D address must be below 0x20018000. box, sysbox,
+textbox and gamebox were already within it.

@@ -37,6 +37,7 @@ tools/renode/vendor/
 sys/arch/*/compile/*/unix
 sys/arch/*/compile/*/unix.bin
 sys/arch/*/compile/*/unix.uf2
+sys/arch/*/compile/*/unix.map
 sys/arch/*/compile/*/vers.c
 sys/arch/*/compile/*/boot2.bin
 sys/arch/*/compile/*/boot2.S
@@ -46,3 +47,9 @@ sys/arch/*/compile/*/.deps/
 sys/arch/*/compile/*/*.dep
 sys/arch/*/compile/*/machine
 sys/arch/*/compile/*/sys
+
+# Benchmark and test program build outputs (a.out PROG targets have no
+# extension; *.elf/*.o are already covered above).
+benchmarks/coremark/coremark
+benchmarks/coremark/coremark-host
+tests/rp2040/fptest/fptest

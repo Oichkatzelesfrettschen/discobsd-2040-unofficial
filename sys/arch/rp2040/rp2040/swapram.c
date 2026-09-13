@@ -39,8 +39,11 @@
 /*
  * heatshrink emits a literal as nine bits, so the encoder's worst case is
  * the input plus an eighth, and the flush adds at most one byte per stream.
- * A reservation this size can never overflow, which is what lets swapout
- * commit to the tier before it knows any compressed length.
+ * The u area is reserved at this size, because the clock interrupt keeps
+ * writing into the current process's u between the counting pass and the
+ * capture, so its exact length is not knowable in advance. The data and
+ * stack segments, which are the bulk of an image, are reserved at the
+ * length a counting encode measures instead.
  */
 #define SR_WORST(n)     ((n) + (n) / 8 + 4)
 
@@ -56,6 +59,7 @@ static int              sr_ready;
 static struct sr_ent {
     unsigned int    e_off;              /* pool offset of the reservation */
     unsigned int    e_res;              /* bytes reserved */
+    unsigned int    e_cap[SR_NSEG];     /* bytes reserved per segment */
     unsigned int    e_clen[SR_NSEG];    /* compressed bytes per segment */
     unsigned int    e_rlen[SR_NSEG];    /* the length swapin must produce */
     unsigned int    e_fill;             /* bytes of the reservation used */
@@ -79,53 +83,57 @@ sr_slot(struct proc *p)
 }
 
 /*
- * Compress len bytes at src into the pool at off, writing at most cap
- * bytes. Returns the compressed length, or -1 when it does not fit.
- * The loop follows heatshrink's own driver: poll until the result stops
- * saying HSER_POLL_MORE, because a poll that copies nothing may still have
- * output pending.
+ * Encode len bytes at src. With dst set, the output goes to dst and the
+ * call returns the compressed length, or -1 when that would exceed cap:
+ * once cap bytes are out, the encoder is polled into a one-byte scratch
+ * and any byte it yields is the overflow. With dst NULL nothing is kept,
+ * every poll lands in the scratch, and the return value is the length
+ * the same input would produce: the encoder is deterministic, so a
+ * counting pass and a writing pass over unchanged bytes agree exactly,
+ * which swapram_put checks. The loop follows heatshrink's own driver:
+ * poll until the result stops saying HSER_POLL_MORE, because a poll that
+ * copies nothing may still have output pending.
  */
 static int
-sr_compress (caddr_t src, unsigned int len, unsigned int off,
-    unsigned int cap)
+sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
 {
     unsigned int in = 0, out = 0, moved = 0;
-    size_t n;
+    u_char scratch[64];
+    u_char *buf;
+    size_t room, n;
     HSE_poll_res pres;
     HSE_finish_res fres;
 
     heatshrink_encoder_reset (&sr_enc);
-    while (in < len) {
-        if (heatshrink_encoder_sink (&sr_enc, (uint8_t *) src + in,
-            len - in, &n) < 0)
-            return -1;
-        if (n == 0 && out == moved)
-            return -1;          /* neither side advanced: no termination */
-        in += n;
+    for (;;) {
+        if (in < len) {
+            if (heatshrink_encoder_sink (&sr_enc, (uint8_t *) src + in,
+                len - in, &n) < 0)
+                return -1;
+            if (n == 0 && out == moved)
+                return -1;      /* neither side advanced: no termination */
+            in += n;
+        } else {
+            fres = heatshrink_encoder_finish (&sr_enc);
+            if (fres < 0)
+                return -1;
+            if (fres == HSER_FINISH_DONE)
+                break;
+        }
         moved = out;
         do {
-            if (out == cap)
-                return -1;
-            pres = heatshrink_encoder_poll (&sr_enc, sr_pool + off + out,
-                cap - out, &n);
+            if (dst != NULL && out < cap) {
+                buf = dst + out;
+                room = cap - out;
+            } else {
+                buf = scratch;
+                room = dst != NULL ? 1 : sizeof scratch;
+            }
+            pres = heatshrink_encoder_poll (&sr_enc, buf, room, &n);
             if (pres < 0)
                 return -1;
-            out += n;
-        } while (pres == HSER_POLL_MORE);
-    }
-    for (;;) {
-        fres = heatshrink_encoder_finish (&sr_enc);
-        if (fres < 0)
-            return -1;
-        if (fres == HSER_FINISH_DONE)
-            break;
-        do {
-            if (out == cap)
-                return -1;
-            pres = heatshrink_encoder_poll (&sr_enc, sr_pool + off + out,
-                cap - out, &n);
-            if (pres < 0)
-                return -1;
+            if (buf == scratch && dst != NULL && n > 0)
+                return -1;      /* more than cap bytes: overflow */
             out += n;
         } while (pres == HSER_POLL_MORE);
     }
@@ -189,14 +197,19 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
 /*
  * Claim pool space for a whole image before any of it is compressed.
  * Returns 1 when the tier takes the image, 0 when swapout must use flash.
- * The reservation is the encoder's worst case, so every later put fits by
- * construction and swapout never has to unwind a half-written image.
+ * The data and stack segments are counted first and reserved at exactly
+ * the length they will compress to; the u area gets the encoder's worst
+ * case. Every later put therefore fits by construction and swapout never
+ * has to unwind a half-written image, while a compressible image is
+ * admitted whenever its real size fits rather than its raw size.
  */
 int
-swapram_out (struct proc *p, size_t dlen, size_t slen, size_t ulen)
+swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
+    size_t slen, size_t ulen)
 {
     struct sr_ent *e = sr_slot (p);
     unsigned int want;
+    int dn = 0, sn = 0;
 
     if (! sr_ready) {
         swapram_pool_init (&sr_map, sr_pool, sizeof sr_pool, sr_seg,
@@ -206,11 +219,15 @@ swapram_out (struct proc *p, size_t dlen, size_t slen, size_t ulen)
     if (e->e_live)
         panic ("swapram: image already resident");
 
-    want = SR_WORST (dlen) + SR_WORST (slen) + SR_WORST (ulen);
+    if (dlen && (dn = sr_encode (dsrc, dlen, NULL, 0)) < 0)
+        return 0;
+    if (slen && (sn = sr_encode (ssrc, slen, NULL, 0)) < 0)
+        return 0;
+    want = dn + sn + SR_WORST (ulen);
     if (swapram_pool_alloc (&sr_map, want, &e->e_off) < 0) {
         if (swapramdebug)
-            printf ("swapram: pid %d flash %u bytes, pool %u free\n",
-                p->p_pid, (u_int) (dlen + slen + ulen),
+            printf ("swapram: pid %d flash %u bytes (%u compressed), pool %u free\n",
+                p->p_pid, (u_int) (dlen + slen + ulen), want,
                 swapram_pool_avail (&sr_map));
         return 0;
     }
@@ -219,6 +236,9 @@ swapram_out (struct proc *p, size_t dlen, size_t slen, size_t ulen)
     e->e_rlen[SR_DATA] = dlen;
     e->e_rlen[SR_STACK] = slen;
     e->e_rlen[SR_U] = ulen;
+    e->e_cap[SR_DATA] = dn;
+    e->e_cap[SR_STACK] = sn;
+    e->e_cap[SR_U] = SR_WORST (ulen);
     e->e_clen[SR_DATA] = 0;
     e->e_clen[SR_STACK] = 0;
     e->e_clen[SR_U] = 0;
@@ -226,9 +246,12 @@ swapram_out (struct proc *p, size_t dlen, size_t slen, size_t ulen)
 }
 
 /*
- * Compress one segment into the reservation swapram_out made. The
- * reservation covers the encoder's worst case for every segment, so a
- * failure here is a codec or accounting bug rather than a full pool.
+ * Compress one segment into the reservation swapram_out made. The data
+ * and stack segments must produce exactly the length the counting pass
+ * measured: a shorter or longer result means the bytes changed between
+ * the passes or the encoder is not deterministic, and either is a bug
+ * rather than a full pool. The u area may come out shorter than its
+ * worst-case reservation and never longer.
  */
 void
 swapram_put (struct proc *p, int seg, caddr_t src, size_t len)
@@ -242,16 +265,19 @@ swapram_put (struct proc *p, int seg, caddr_t src, size_t len)
         e->e_clen[seg] = 0;
         return;
     }
-    n = sr_compress (src, len, e->e_off + e->e_fill,
-        e->e_res - e->e_fill);
+    n = sr_encode (src, len, sr_pool + e->e_off + e->e_fill,
+        e->e_cap[seg]);
     if (n < 0)
         panic ("swapram: reservation overflow");
+    if (seg != SR_U && (unsigned int) n != e->e_cap[seg])
+        panic ("swapram: count mismatch");
     e->e_clen[seg] = n;
     e->e_fill += n;
 }
 
 /*
- * Release the unused tail of the reservation and mark the image resident.
+ * Release the unused tail of the reservation, which is the u area's slack
+ * alone, and mark the image resident.
  */
 void
 swapram_commit (struct proc *p)

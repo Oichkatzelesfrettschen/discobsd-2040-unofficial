@@ -74,12 +74,14 @@ struct proc;
 
 /*
  * swapram.c, called only from kern/vm_swap.c, in this order: swapram_out
- * reserves the pool space for a whole image and returns 0 when swapout must
- * use flash instead, swapram_put compresses one segment into that
- * reservation, and swapram_commit releases the unused tail. swapin calls
- * swapram_in for any process swapram_present reports on.
+ * counts the compressed length of the data and stack segments at the
+ * addresses given, reserves the pool space for the whole image and
+ * returns 0 when swapout must use flash instead, swapram_put compresses
+ * one segment into that reservation, and swapram_commit releases the
+ * unused tail. swapin calls swapram_in for any process swapram_present
+ * reports on.
  */
-int swapram_out(struct proc *, size_t, size_t, size_t);
+int swapram_out(struct proc *, caddr_t, size_t, caddr_t, size_t, size_t);
 void swapram_put(struct proc *, int, caddr_t, size_t);
 void swapram_commit(struct proc *);
 int swapram_present(struct proc *);

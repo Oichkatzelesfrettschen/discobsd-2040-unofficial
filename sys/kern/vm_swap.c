@@ -122,12 +122,14 @@ swapout (p, freecore, odata, ostack)
     odata = odata > tsize ? odata - tsize : 0;
 #ifdef SWAPRAM
     /*
-     * The tier reserves the encoder's worst case for the whole image before
-     * a byte is compressed, so a reservation that succeeds cannot run out
-     * part way and swapout never has to unwind. A reservation that fails
-     * leaves the flash path below untouched.
+     * The tier counts what the data and stack compress to and reserves
+     * that plus the encoder's worst case for the u area before a byte is
+     * stored, so a reservation that succeeds cannot run out part way and
+     * swapout never has to unwind. A reservation that fails leaves the
+     * flash path below untouched.
      */
-    ram = swapram_out (p, odata, ostack, USIZE);
+    ram = swapram_out (p, (caddr_t) (p->p_daddr + tsize), odata,
+        (caddr_t) p->p_saddr, ostack, USIZE);
     a[0] = a[1] = a[2] = 0;
     if (! ram)
 #endif

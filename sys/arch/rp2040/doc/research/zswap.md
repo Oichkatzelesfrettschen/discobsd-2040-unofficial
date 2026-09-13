@@ -135,17 +135,25 @@ the stack, and the USIZE u area -- and the tier compresses each as its own
 stream into one pool allocation, because swapin writes each to a different
 address and a single stream would have to be cut at the same boundaries.
 
-`swapram_out` reserves the encoder's worst case for the whole image before a
-byte is compressed. heatshrink emits a literal as nine bits, so that bound
-is the input plus an eighth plus four bytes per stream. A reservation that
-succeeds therefore cannot run out part way, and `swapout` never has to
-unwind a half-written image; `swapram_commit` returns the unused tail once
-every length is known. The consequence is that the tier refuses an image
-whenever no single free run holds the raw size, even when the compressed
-image would have fit -- at which point `swapout` uses flash, which is
-correct rather than optimal. The alternative, reserving a guessed fraction
-and unwinding on overflow, trades that for a failure path in the middle of
-a swapout, and the flash path is right there.
+`swapram_out` reserves the whole image before a byte is stored. The data
+and stack segments are encoded once into a discarding sink to measure
+their exact compressed length and reserved at that length; the u area is
+reserved at the encoder's worst case, the input plus an eighth plus four
+bytes, because the clock interrupt keeps writing accounting fields into
+the current process's u between the counting pass and the capture, so its
+exact length is not knowable in advance. A reservation that succeeds
+therefore cannot run out part way, and `swapout` never has to unwind a
+half-written image; `swapram_commit` returns the u area's slack once its
+length is known. The counting pass costs a second encode of the data and
+stack, which buys admission whenever the compressed image fits rather than
+only when the raw size does. heatshrink is deterministic, so the writing
+pass must produce exactly the counted length for data and stack;
+`swapram_put` panics with `count mismatch` when it does not, which would
+mean the bytes changed between the passes. When no single free run holds
+the counted size, `swapout` uses flash, which is correct rather than
+optimal. The alternative, reserving a guessed fraction and unwinding on
+overflow, trades that for a failure path in the middle of a swapout, and
+the flash path is right there.
 
 `swapram_pool.c` is a first-fit byte allocator over an address-ordered free
 list held outside the pool, so an allocation never writes a header into the
@@ -263,7 +271,8 @@ line naming the tier that took the image.
 | Symptom | Meaning |
 |---|---|
 | `panic: swapram: short expand` | a compressed image did not decode to the length swapout recorded; the codec or the pool offsets are wrong, and the image is lost |
-| `panic: swapram: reservation overflow` | the encoder produced more than input plus an eighth; either `SR_WORST` is wrong or a segment length changed between `swapram_out` and `swapram_put` |
+| `panic: swapram: reservation overflow` | the encoder produced more than its reservation: for the u area more than input plus an eighth, so `SR_WORST` is wrong; for data or stack more than the counting pass measured, so the bytes changed between `swapram_out` and `swapram_put` |
+| `panic: swapram: count mismatch` | the data or stack segment compressed to fewer bytes than the counting pass measured, so the bytes changed between the passes or the encoder is not deterministic |
 | `panic: swapram: image already resident` | a process was swapped out twice without an intervening swapin -- a leak in the tier's table, not in the pool |
 | `panic: swapram: free` or `: trim` | the free list disagrees with an offset the table holds; the host test's misuse cases cover exactly these returns |
 | `pool F free` falls and never rises | swapin is not freeing; every forked child that never runs would leak its reservation |

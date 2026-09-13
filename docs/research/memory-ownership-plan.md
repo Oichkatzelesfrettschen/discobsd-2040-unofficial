@@ -100,7 +100,7 @@ leaves the shell at a continuation prompt, and `distrib/rp2040/flash.uf2`
 carries the filesystem alone, so a kernel change needs `unix.uf2` loaded
 in the same BOOTSEL visit.
 
-### 8. Flash staging buffers overlaid (port PR pending)
+### 8. Flash staging buffers overlaid (port PR #32)
 
 flash.c's raw swap path stages a partial sector in a 4 KB buffer and the
 Dhara path stages a partial trailing unit and a page move in two 1 KB
@@ -112,7 +112,9 @@ dhara_nand_copy, which Dhara also reaches from dhara_map_sync at close
 and dhara_map_resume at setup, panics if the swap path holds it. Kernel
 .bss fell from 51,008 to 48,960 bytes. Dhara's own page buffer and the
 boot2 copy stay separate: the first lives as long as the map, the second
-is read on every XIP re-entry.
+is read on every XIP re-entry. On the board with six background processes
+forcing swap traffic, copies of /bin/sh, /etc/rc, /etc/passwd and ten
+copies of /etc/group compare equal by cmp and md5 after sync.
 
 ### 9. COMMON symbol inventory
 

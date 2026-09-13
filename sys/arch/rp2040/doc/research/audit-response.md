@@ -158,17 +158,29 @@ NaN, infinity, overflow, and halfway-rounding cases, whose expected bits follow
 the ROM's flush/map contract and need on-device characterization before they
 can be an oracle.
 
-## Accepted limitation, not a code change
-
 ### tsleep panic path (ranked #8)
 
-`kern_synch.c` is machine-independent. On pic32 and stm32 the panic path's
-`splnet()` after `splhigh()` genuinely lowers to a network IPL and opens an
-interrupt window; the path is a no-op only on rp2040, whose PRIMASK masks
-everything or nothing, so no partial `spl` window exists. Editing the shared
-file to suit one port would regress the others. This is an accepted rp2040
-architectural limitation: on a panic the "give interrupts a chance" comment
-cannot be honored, which is acceptable on a path that is about to reset.
+An earlier revision of this file recorded #8 as an accepted rp2040 limitation
+on the ground that `splnet()` after `splhigh()` opens a real interrupt window
+on pic32 and stm32. That holds for pic32, where `splnet()` is
+`mips_intr_enable()`. It does not hold for stm32: `arch/stm32/include/intr.h`
+defines `splnet()` as `splraise(IPL_NET)`, which writes BASEPRI_MAX, and
+BASEPRI_MAX takes effect only when it raises masking, so after
+`splraise(IPL_HIGH)` it changes nothing; that header's Cortex-M0 branch
+defines `splnet()` as a global disable instead. On rp2040 `splnet()` is
+`arm_intr_disable()` because PRIMASK masks all or nothing. The window existed
+on one of the three machines.
+
+The resolution is a machine-independent policy rather than a port-local guard:
+no interrupt runs between the panic test and the return. Every console putc in
+the tree polls its device under `spltty()` -- `uartputc()` in
+`arch/pic32/dev/uart.c`, `arch/stm32/dev/uart.c`, and `arch/rp2040/dev/uart.c`,
+`usbputc()` and `usbdrain()` in `arch/rp2040/dev/usb.c` -- so the panic message
+reaches the user without an interrupt, and `boot()` opens its own window before
+`sync()` on all three machines, which is where panic-time device work is
+driven. The `splnet()` and `noop()` calls are gone from `kern_synch.c` and the
+comment states the mechanism. `noop()` now has no call site; its definitions
+remain in the three `machparam.h` headers.
 
 ## Deferred, with the reason each stays open
 

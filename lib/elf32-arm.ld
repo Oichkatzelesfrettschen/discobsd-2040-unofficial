@@ -11,12 +11,19 @@ OUTPUT_FORMAT("elf32-littlearm", "elf32-bigarm",
 OUTPUT_ARCH(arm)
 ENTRY(_start)
 SEARCH_DIR("/usr/local/arm-none-eabi/lib");
+/* elf2aout preserves the contiguous image while these headers keep the
+   intermediate ELF's executable bytes outside writable segments.  */
+PHDRS
+{
+  text PT_LOAD FLAGS(5);
+  data PT_LOAD FLAGS(6);
+}
 SECTIONS
 {
   /* Read-only sections, merged into text segment: */
 /* XXX PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x8000)); . = SEGMENT_START("text-segment", 0x8000); */
   PROVIDE (__executable_start = 0x20000000); . = 0x20000000;
-  .interp         : { *(.interp) }
+  .interp         : { *(.interp) } :text
   .note.gnu.build-id : { *(.note.gnu.build-id) }
   .hash           : { *(.hash) }
   .gnu.hash       : { *(.gnu.hash) }
@@ -112,33 +119,33 @@ XXX */
      the same address within the page on the next page up.  */
 /* XXX  . = ALIGN(CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 1)); XXX */
   /* Exception handling  */
-  .eh_frame       : ONLY_IF_RW { KEEP (*(.eh_frame)) *(.eh_frame.*) }
-  .gnu_extab      : ONLY_IF_RW { *(.gnu_extab) }
-  .gcc_except_table   : ONLY_IF_RW { *(.gcc_except_table .gcc_except_table.*) }
-  .exception_ranges   : ONLY_IF_RW { *(.exception_ranges .exception_ranges*) }
+  .eh_frame       : ONLY_IF_RW { KEEP (*(.eh_frame)) *(.eh_frame.*) } :data
+  .gnu_extab      : ONLY_IF_RW { *(.gnu_extab) } :data
+  .gcc_except_table   : ONLY_IF_RW { *(.gcc_except_table .gcc_except_table.*) } :data
+  .exception_ranges   : ONLY_IF_RW { *(.exception_ranges .exception_ranges*) } :data
   /* Thread Local Storage sections  */
-  .tdata	  : { *(.tdata .tdata.* .gnu.linkonce.td.*) }
-  .tbss		  : { *(.tbss .tbss.* .gnu.linkonce.tb.*) *(.tcommon) }
+  .tdata	  : { *(.tdata .tdata.* .gnu.linkonce.td.*) } :data
+  .tbss		  : { *(.tbss .tbss.* .gnu.linkonce.tb.*) *(.tcommon) } :data
   .preinit_array     :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array))
     PROVIDE_HIDDEN (__preinit_array_end = .);
-  }
+  } :data
   .init_array     :
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
     KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
     PROVIDE_HIDDEN (__init_array_end = .);
-  }
+  } :data
   .fini_array     :
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
     KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
     PROVIDE_HIDDEN (__fini_array_end = .);
-  }
+  } :data
   .ctors          :
   {
     /* gcc uses crtbegin.o to find the start of
@@ -159,7 +166,7 @@ XXX */
     KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors))
     KEEP (*(SORT(.ctors.*)))
     KEEP (*(.ctors))
-  }
+  } :data
   .dtors          :
   {
     KEEP (*crtbegin.o(.dtors))
@@ -167,18 +174,18 @@ XXX */
     KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors))
     KEEP (*(SORT(.dtors.*)))
     KEEP (*(.dtors))
-  }
-  .jcr            : { KEEP (*(.jcr)) }
-  .data.rel.ro : { *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*) *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*) }
-  .dynamic        : { *(.dynamic) }
-  .got            : { *(.got.plt) *(.igot.plt) *(.got) *(.igot) }
+  } :data
+  .jcr            : { KEEP (*(.jcr)) } :data
+  .data.rel.ro : { *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*) *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*) } :data
+  .dynamic        : { *(.dynamic) } :data
+  .got            : { *(.got.plt) *(.igot.plt) *(.got) *(.igot) } :data
   .data           :
   {
     __data_start = . ;
     *(.data .data.* .gnu.linkonce.d.*)
     SORT(CONSTRUCTORS)
-  }
-  .data1          : { *(.data1) }
+  } :data
+  .data1          : { *(.data1) } :data
   _edata = .; PROVIDE (edata = .);
   . = .;
   __bss_start = .;
@@ -194,7 +201,7 @@ XXX */
       FIXME: Why do we need it? When there is no .bss section, we don't
       pad the .data section.  */
    . = ALIGN(. != 0 ? 32 / 8 : 1);
-  }
+  } :data
   _bss_end__ = . ; __bss_end__ = . ;
   . = ALIGN(32 / 8);
   . = SEGMENT_START("ldata-segment", .);

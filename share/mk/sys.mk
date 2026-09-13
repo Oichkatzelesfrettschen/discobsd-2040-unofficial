@@ -88,7 +88,9 @@ COPTS!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "" ; \
 	fi
 
-LDWARN!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
+LDWARN!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "-Wl,--warn-rwx-segments -Wl,--fatal-warnings" ; \
+	elif [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		if [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
 			echo "" ; \
 		else \
@@ -96,6 +98,12 @@ LDWARN!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		fi \
 	else \
 		echo "-Wl,--no-warn-rwx-segments" ; \
+	fi
+
+LDTEXT!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+		printf '%s\n' '-n' ; \
+	else \
+		echo "-N" ; \
 	fi
 
 CFLAGS=	${COPTS}
@@ -111,7 +119,7 @@ _PRINTF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_FLOAT}" = x"yes" ]
 			echo "-Wl,-u,__doprnt_cvt" ; \
 		fi
 
-LDFLAGS=-N -nostartfiles -fno-dwarf2-cfi-asm \
+LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm \
 	${LDWARN} ${_PRINTF_FLOAT} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \
 	${TOPSRC}/lib/crt0.o -L${TOPSRC}/lib

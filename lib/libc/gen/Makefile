@@ -16,10 +16,10 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  bzero.c calloc.c closedir.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
-		  frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
+		  fnmatch.c frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
 		  getgrnam.c getgrouplist.c gethostname.c getloadavg.c \
 		  getlogin.c getmntinfo.c getpagesize.c getpass.c \
-		  getpwent.c getttyent.c getttynam.c getusershell.c \
+		  getcwd.c getpwent.c getttyent.c getttynam.c getusershell.c \
 		  getwd.c index.c initgroups.c isatty.c isinff.c isnanf.c \
 		  knlist.c ldexp.c malloc.c mktemp.c modf.c modff.c ndbm.c \
 		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c \
@@ -29,17 +29,18 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  strcat.c strcmp.c strcpy.c strdup.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysctl.c syslog.c \
 		  system.c telldir.c time.c timezone.c ttyname.c ttyslot.c \
-		  ualarm.c uname.c usleep.c wait.c wait3.c waitpid.c
+		  ualarm.c uname.c unvis.c usleep.c vis.c \
+		  wait.c wait3.c waitpid.c
 
 STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o \
 		  bzero.o calloc.o closedir.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
-		  frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
+		  fnmatch.o frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
 		  getgrnam.o getgrouplist.o gethostname.o getloadavg.o \
 		  getlogin.o getmntinfo.o getpagesize.o getpass.o \
-		  getpwent.o getttyent.o getttynam.o getusershell.o \
+		  getcwd.o getpwent.o getttyent.o getttynam.o getusershell.o \
 		  getwd.o index.o initgroups.o isatty.o isinff.o isnanf.o \
 		  knlist.o ldexp.o malloc.o mktemp.o modf.o modff.o ndbm.o \
 		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o \
@@ -49,7 +50,8 @@ STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  strcat.o strcmp.o strcpy.o strdup.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysctl.o syslog.o \
 		  system.o telldir.o time.o timezone.o ttyname.o ttyslot.o \
-		  ualarm.o uname.o usleep.o wait.o wait3.o waitpid.o
+		  ualarm.o uname.o unvis.o usleep.o vis.o \
+		  wait.o wait3.o waitpid.o
 
 gen.a:		${OBJS}
 		@echo "building gen.a"

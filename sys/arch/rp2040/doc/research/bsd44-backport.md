@@ -376,3 +376,100 @@ silently leaves the array unsorted on the failure path.
 5. `heapsort()` -- 184 lines, O(1) extra memory, worst-case-bounded
    alternative to `qsort()` for the one caller (`ls`) that sorts
    externally-influenced data; optional hardening, add opportunistically.
+
+## Landed
+
+Branch `backport-bsd44`, eleven candidates surveyed above, nine landed as
+nine commits plus three follow-ups that fix defects the ported text carried
+in. Sizes are cross-gcc output for MACHINE=rp2040: `text` bytes
+from `arm-none-eabi-size` for a libc object, on-disk a.out bytes after
+`elf2aout` for a program. The build gate for every commit is
+`bmake MACHINE=rp2040 build`, exit 0, with the warning set a subset of the
+pre-change baseline; the final clean build emits 214 warning lines, the same
+count as the pre-change clean baseline, and none of them names a file this
+branch added.
+
+| Item | Commit subject | Size | In mi.rp2040 |
+| --- | --- | --- | --- |
+| `<err.h>` | `include: give the err(3) family its own <err.h>` | 0 (header) | header, not a manifest entry |
+| `<sys/queue.h>` | `sys: add 4.4BSD-Lite2 <sys/queue.h>` | 0 (header) | header, not a manifest entry |
+| vis(3) | `libc: add the 4.4BSD-Lite2 vis(3) and unvis(3) encoders` | vis.o 420, unvis.o 428 | in libc.a, linked on demand |
+| fmt(1) | `fmt: port the 4.4BSD-Lite2 paragraph formatter` | 11700 | no |
+| heapsort(3) | `libc: add heapsort(3) beside qsort(3)` | 388 | in libc.a, linked on demand |
+| bsearch(3) | `libc: add bsearch(3) to complete the sort and search pair` | 48 | in libc.a, linked on demand |
+| fnmatch(3) | `libc: add fnmatch(3) for POSIX shell-pattern matching` | 384 | in libc.a, linked on demand |
+| column(1) | `column: port the 4.4BSD-Lite2 list columnator` | 11140 | no |
+| getcwd(3), realpath(3) | `libc: add getcwd(3) and realpath(3) beside getwd(3)` | 1101 | in libc.a, linked on demand |
+
+`fmt` and `column` build from `usr.bin`'s SUBDIR and install into
+`${DESTDIR}`, and neither appears in `distrib/rp2040/mi.rp2040`, so neither
+spends a block of the root filesystem image. A libc object costs nothing
+until a program references one of its symbols.
+
+### Corrections to the survey
+
+Item 1's premise is wrong. `include/unistd.h` already declared all eight
+err(3) functions with the same `va_list` guard the port needed, so the
+fifteen call sites had a prototype in scope and the baseline build shows no
+implicit-declaration warning for `err`, `warn`, `errx` or `warnx`. The
+commit moves those eight declarations into `include/err.h` and has
+`<unistd.h>` include it, which gives `#include <err.h>` the header it names
+without changing what any existing caller sees.
+
+fmt(1) needs `ishead()`, which 4.4BSD-Lite2 builds from `../mail/head.c`.
+This tree's `usr.bin/mail` is a single-file mailer with no `head.c`, so the
+port carries `usr.bin/fmt/head.c` from mail 8.2, self-contained: everything
+but `ishead` is static, and the three declarations it drew from `rcv.h` and
+`def.h` are spelled out in the file.
+
+column(1) carries an upstream precedence bug, `realloc(cols, (u_int)maxcols
++ DEFCOLS * sizeof(char *))`, which grows the column and length arrays by
+`maxcols` bytes plus `DEFCOLS` elements instead of `maxcols + DEFCOLS`
+elements and overruns them past the 25th field. The port parenthesizes both
+reallocs.
+
+`LINE_MAX` is absent from this tree's `<limits.h>`, so column's
+`MAXLINELEN` derives from `BUFSIZ` rather than 4.4BSD's 2048.
+
+### Defects fixed in the ported text
+
+Three, each with a check that fails on the upstream text and passes on the
+ported one.
+
+`getcwd_physical()` reset `bup` to the start of the scratch buffer when it
+grew it, discarding every `../` built so far. With `MAXNAMLEN` 63 and
+`MAXPATHLEN` 256 the grow fires around 63 levels down, inside the depth a
+256-byte path reaches, so the reset is reachable here rather than
+theoretical. Over a host shim carrying those two values, a 70-level
+directory returns the correct path from the ported text and ENOENT from the
+upstream text.
+
+`fmt`'s `ispref()` advanced only `s1`, comparing every character of the
+headname against `s2[0]`, so any headname whose first character matched
+answered yes and a line like `Tx: hello` was held on its own unwrapped line
+as a mail header. Walking both strings wraps it as ordinary text and still
+holds a real `To:` header.
+
+`column`'s `maketbl()` reallocs, described above.
+
+`<err.h>` shipped first with `<unistd.h>`'s `_VA_LIST_` guard around a
+`va_list` definition it then undefined. Nothing in this tree defines
+`_VA_LIST_`, so the undef fired unconditionally and a file including only
+`<err.h>` could not declare the `va_list` it must pass to `verr()`. The
+header includes `<stdarg.h>` instead, which is what the survey's own porting
+note prescribed.
+
+### Skipped
+
+Everything on the reject list above stays rejected for the reason given
+there: POSIX regex (9x the code of the engine already shipped), Berkeley DB
+(mmap), locale and wide characters (fixed C locale), gprof and ktrace
+(absent kernel hooks), every networking tool (no mbuf stack), disk quotas
+(no vnode layer), window(1) (no room), xstr(1) (no shared text segment),
+patch(1) (size against `diff`-only workflow), and fgetln() (written against
+a stdio layout this tree does not have).
+
+A man page for vis(3), heapsort(3), bsearch(3), fnmatch(3), getcwd(3),
+fmt(1) or column(1) is not added. `lib/libc` carries no man directory; the
+tree's libc pages live in `share/man/man3`, and adding one there is a
+separate decision about root filesystem space.

@@ -30,7 +30,17 @@ symbol:
 #define ROM_FLOAT_CELL_NAME(member) __rp2040_rom_float_##member##_cell
 #define ROM_FLOAT_FIRST_NAME(member) Lrp2040_rom_float_##member##_first
 
+/*
+ * The resolver reads the descriptor at lr - 1, the byte after the bl, with
+ * a word load, so the word must sit on a four-byte boundary. mov ip, lr is
+ * two bytes and bl four; starting the trampoline two bytes past a word
+ * boundary puts the descriptor at +8. The nop is that two-byte offset. A
+ * descriptor at +6 faults the Cortex-M0+ on the unaligned ldr, which is
+ * what a bare-cell member such as clz did when nothing preceded it.
+ */
 #define ROM_FLOAT_TARGET_DESCRIPTOR(member, table_code, table_offset, feature) \
+	.p2align 2; \
+	nop; \
 	.type ROM_FLOAT_FIRST_NAME(member), %function; \
 	.thumb_func; \
 ROM_FLOAT_FIRST_NAME(member):; \

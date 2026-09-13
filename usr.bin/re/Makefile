@@ -6,7 +6,6 @@
 # Alex P. Roudnev, Moscow, KIAE, 1984
 #
 TOPSRC!=cd ../..; pwd
-PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -Wall -DMULTIWIN=0

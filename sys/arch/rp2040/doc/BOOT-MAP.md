@@ -38,11 +38,11 @@ Port artifacts:
 | kernel text and rodata | 0x10000100 | 128K minus 256 | `RP2040.ld` FLASH |
 | root, Dhara journal | 0x10020000 | 1536K | `RP2040.ld` FSFLASH, `flash.h` FLASH_FS_OFFSET |
 | swap, raw | 0x101a0000 | 384K | `RP2040.ld` SWAPFLASH, `flash.h` FLASH_SWAP_OFFSET |
-| user space | 0x20000000 | 96K | `lib/elf32-arm.ld` links every executable at 0x20000000; `USER_DATA_START` in `machparam.h` |
-| kernel data, bss, RAM-resident flash writers | 0x20018000 | 154K | `RP2040.ld` RAM |
+| user space | 0x20000000 | 144K | `lib/elf32-arm.ld` links every executable at 0x20000000; `USER_DATA_START` and `USER_DATA_SIZE` in `machparam.h`, checked against the linker at boot |
+| kernel data, bss, RAM-resident flash writers | 0x20024000 | 106K | `RP2040.ld` RAM |
 | process 0 u area | 0x2003e800 | 3K | U0AREA |
 | current u area and stack | 0x2003f400 | 3K, `_estack` = 0x20040000 | UAREA |
-| SRAM4, SRAM5 | 0x20040000 | 8K | untouched; ROM stages boot2 in SRAM5 |
+| SRAM4, SRAM5 | 0x20040000 | 8K | `RP2040.ld` SCRATCH: the USB console transmit ring, `.scratch` in `kern.ldscript`; ROM stages boot2 in SRAM5 only until it jumps to the kernel |
 
 The kernel is 90,901 bytes of flash and 39,608 of RAM.
 
@@ -217,7 +217,7 @@ The board boots to a root shell over USB in 9 seconds; ls, pipes, sed,
 sort, awk, picoc, df, mount, ps -ax, and the swap path all run. Open:
 
 - picoc runs a program with its 8 KB arena; a larger arena
-  (`STACKSIZE=`) or `-s` script mode overruns the 96 KB window, which the
+  (`STACKSIZE=`) or `-s` script mode overruns the 144 KB window, which the
   kernel now ends with a memory fault rather than a flood.
 - `ps` without arguments lists nothing because it filters on the terminal
   name; `ps -ax` shows every process.

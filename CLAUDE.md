@@ -15,7 +15,7 @@ repository.
 
 RP2040: Cortex-M0+ (ARMv6-M, Thumb-1), no FPU, MMU or MPU, 264 KB SRAM,
 2 MB QSPI flash. Layout: 128 KB kernel, 1536 KB Dhara root (989 KB usable),
-384 KB raw swap. A process gets one 96 KB window for text, data, bss and
+384 KB raw swap. A process gets one 144 KB window for text, data, bss and
 stack; user programs are a.out OMAGIC. Boot ROM V3 on the verified board.
 The console is CDC-ACM over the board's own USB cable (/dev/ttyACM*,
 resolved by /dev/serial/by-id/*DiscoBSD*); UART0 on GP0/GP1 is the

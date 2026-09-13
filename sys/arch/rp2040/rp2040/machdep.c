@@ -423,6 +423,16 @@ startup(void)
 	physmem = 264 * 1024;		/* Six SRAM banks, 264 kbytes. */
 
 	/*
+	 * conf/RP2040.ld's USERRAM and machparam.h's USER_DATA_SIZE state the
+	 * user window once each; exec admits images against the latter and
+	 * the linker laid out kernel data by the former, so a mismatch would
+	 * let a process overrun the kernel's own bss.
+	 */
+	if ((size_t)__user_data_end - (size_t)__user_data_start !=
+	    USER_DATA_SIZE)
+		panic("user window: linker and machparam.h disagree");
+
+	/*
 	 * Configure LED pins.
 	 */
 	LED_TTY_INIT();			/* Green.   Terminal i/o */

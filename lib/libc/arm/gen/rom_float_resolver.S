@@ -4,6 +4,7 @@
  * and the V2/V3 single- and double-precision surfaces.
  */
 #include "rom_float.inc"
+#include <machine/machparam.h>
 
 ROM_FLOAT_SETUP
 ROM_FLOAT_TEXT
@@ -40,10 +41,10 @@ ROM_FLOAT_FUNCTION(__rp2040_rom_float_resolve)
 	movs	r2, #3
 	tst	r1, r2
 	bne	Lrom_float_invalid
-	ldr	r2, =0x20000000
+	ldr	r2, =USER_DATA_START
 	cmp	r1, r2
 	bcc	Lrom_float_invalid
-	ldr	r2, =0x20018000
+	ldr	r2, =USER_DATA_END
 	cmp	r1, r2
 	bcs	Lrom_float_invalid
 

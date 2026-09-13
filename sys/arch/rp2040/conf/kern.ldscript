@@ -125,6 +125,21 @@ SECTIONS {
 		. = ALIGN(4);
 		__scratch_end__ = .;
 	} > SCRATCH :scratch
+	/*
+	 * The SRAM regions of RP2040.ld are edited as a set: the user window
+	 * ends where the kernel data begins, the kernel data ends at the
+	 * process 0 u area, that at the current u area, and that at the
+	 * scratch banks. A gap would idle memory and an overlap would let two
+	 * regions share bytes, so both are refused at link time.
+	 */
+	ASSERT(ORIGIN(USERRAM) + LENGTH(USERRAM) == ORIGIN(RAM),
+	    "USERRAM and RAM do not meet")
+	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
+	    "RAM and U0AREA do not meet")
+	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),
+	    "U0AREA and UAREA do not meet")
+	ASSERT(ORIGIN(UAREA) + LENGTH(UAREA) == ORIGIN(SCRATCH),
+	    "UAREA and SCRATCH do not meet")
 	ASSERT(DEFINED(usb_tx_ring) ?
 	    (usb_tx_ring >= ORIGIN(SCRATCH) &&
 	     usb_tx_ring + 8192 <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) : 1,

@@ -15,7 +15,7 @@
  * KB of RAM for the kernel and 96 KB for userland. The STM32F407XE target
  * ships 512 KB of flash and 160 KB of RAM across its regions. This board
  * carries 2 MB and 264 KB, so the kernel regions below are larger than the
- * reference target and the user region is the same size.
+ * reference target and the user region is half again as large.
  */
 
 MEMORY {
@@ -37,14 +37,18 @@ MEMORY {
     /*
      * User space sits at the bottom of SRAM because lib/elf32-arm.ld links
      * every userland executable at 0x20000000 and machparam.h's
-     * USER_DATA_START names the same address on every Arm target. 96K is
-     * the STM32 figure. One process is resident at a time and a switch
-     * swaps, so a larger window would only raise the per-process limit,
-     * not lower the swap traffic.
+     * USER_DATA_START names the same address on every Arm target. The
+     * window is 144K, the STM32 figure of 96K plus the 48K that shrinking
+     * the SwapRAM pool from 64K to 16K freed: one process is resident at
+     * a time and a switch swaps, so the window sets the per-process limit
+     * and a larger one lets a program run resident that used to be
+     * refused at exec. machparam.h's USER_DATA_SIZE must equal this
+     * length; machdep.c panics at boot when the two disagree, and
+     * kern.ldscript asserts that the regions below tile SRAM with no gap.
      */
-    USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 96K    /* User space.     */
+    USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 144K   /* User space.     */
 
-    RAM     (rw!x): ORIGIN = 0x20018000, LENGTH = 154K   /* Kernel data.    */
+    RAM     (rw!x): ORIGIN = 0x20024000, LENGTH = 106K   /* Kernel data.    */
 
     /*
      * Each u area is exactly USIZE, 3072 bytes, and the kernel stack of

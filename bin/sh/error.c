@@ -7,8 +7,9 @@
 
 /* ========     error handling  ======== */
 
-failed(s1, s2)
+failure(s1, s2, xno)
 char    *s1, *s2;
+int     xno;
 {
 	prp();
 	prs_cntl(s1);
@@ -18,7 +19,13 @@ char    *s1, *s2;
 		prs(s2);
 	}
 	newline();
-	exitsh(ERROR);
+	exitsh(xno);
+}
+
+failed(s1, s2)
+char    *s1, *s2;
+{
+	failure(s1, s2, ERROR);
 }
 
 error(s)

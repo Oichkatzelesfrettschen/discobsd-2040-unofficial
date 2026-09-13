@@ -60,9 +60,8 @@ addblok(reqd)
 {
 	if (stakbot == NIL)
 	{
-                extern int end;
 		brkbegin = setbrk(BRKINCR * 5);
-		bloktop = (struct blk *) &end;
+		bloktop = (struct blk *)brkbegin;
 	}
 
 	if (stakbas != staktop)

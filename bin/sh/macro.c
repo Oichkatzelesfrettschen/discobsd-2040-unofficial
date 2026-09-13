@@ -126,12 +126,35 @@ retry:
 			int             dolg = 0;
 			BOOL            bra;
 			BOOL            nulflg;
+			BOOL            lenflg = 0;
 			register char   *argp, *v;
 			char            idb[2];
 			char            *id = idb;
 
 			if (bra = (c == BRACE))
+			{
 				c = cii(readc());   /* @@@ */
+
+				/*
+				 * XCU 2.6.2 string length: in ${#parameter}
+				 * the '#' introduces the length of the
+				 * parameter that follows, while a '#' that
+				 * is itself the whole parameter is the
+				 * positional parameter count.
+				 */
+				if (c == '#')
+				{
+					register int    inner = cii(readc());
+
+					if (inner == '}')
+						peekc = inner | MARK;
+					else
+					{
+						lenflg = 1;
+						c = inner;
+					}
+				}
+			}
 			if (letter(c))
 			{
 				argp = (char *)relstak();
@@ -189,6 +212,114 @@ retry:
 			}
 			else
 				nulflg = 0;
+			if (lenflg)
+			{
+				if (c != '}')
+					error(badsub);
+				if (dolg)
+					itos(dolc);     /* ${#*} and ${#@} */
+				else if (v == NIL)
+				{
+					if (flags & setflg)
+						failed(id, unset);
+					itos(0);
+				}
+				else
+					itos(length(v) - 1);
+				v = numbuf;
+				dolg = 0;
+				nulflg = 0;
+			}
+			/*
+			 * XCU 2.6.2 prefix and suffix pattern removal:
+			 * '#' drops a matching prefix of the value and '%'
+			 * a matching suffix, the doubled operator taking the
+			 * largest match where the single one takes the
+			 * smallest. The pattern is left on the stack by
+			 * copyto() and matched by expand.c's gmatch() in the
+			 * same untrimmed form a case pattern uses.
+			 */
+			if (bra && !lenflg && (c == '#' || c == '%'))
+			{
+				char            op = c;
+				BOOL            big;
+				int             pat;
+				register char   *p;
+				int             n, k, hit, m;
+				char            keep;
+
+				big = ((c = cii(readc())) == op);
+				if (!big)
+					peekc = c | MARK;
+				pat = (int)relstak();
+				copyto('}');
+				p = absstak((char *)pat);
+
+				if (v == NIL)
+				{
+					setstak((char *)pat);
+					if (flags & setflg)
+						failed(id, unset);
+					goto retry;
+				}
+
+				n = length(v) - 1;
+				hit = -1;
+				if (op == '%')
+				{
+					if (big)
+					{
+						for (k = 0; k <= n; k++)
+							if (gmatch(v + k, p))
+							{
+								hit = k;
+								break;
+							}
+					}
+					else
+					{
+						for (k = n; k >= 0; k--)
+							if (gmatch(v + k, p))
+							{
+								hit = k;
+								break;
+							}
+					}
+					if (hit < 0)
+						hit = n;
+				}
+				else
+				{
+					for (m = 0; m <= n; m++)
+					{
+						k = big ? n - m : m;
+						keep = v[k];
+						v[k] = 0;
+						hit = gmatch(v, p) ? k : -1;
+						v[k] = keep;
+						if (hit >= 0)
+							break;
+					}
+					if (hit < 0)
+						hit = 0;
+				}
+
+				setstak((char *)pat);
+				if (op == '%')
+				{
+					for (k = 0; k < hit; k++)
+					{
+						m = v[k];
+						pushstak(quote ? qmask(m) : m);
+					}
+				}
+				else
+				{
+					for (p = v + hit; m = *p++; )
+						pushstak(quote ? qmask(m) : m);
+				}
+				goto retry;
+			}
 			if (!defchar(c) && bra)
 				error(badsub);
 			argp = NIL;

@@ -5,6 +5,13 @@
 /* error exits from various parts of shell */
 #define ERROR           1
 #define SYNBAD          2
+/*
+ * Exit statuses the sh utility page fixes for a command that the
+ * search in service.c could not run: 126 once a file was found and
+ * exec refused it, 127 while no file was found at all.
+ */
+#define EXNOEXEC        126
+#define EXNOTFOUND      127
 #define SIGFAIL         2000
 #define SIGFLG          0200
 

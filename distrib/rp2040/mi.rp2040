@@ -159,8 +159,6 @@ file /usr/bin/login
 file /usr/bin/passwd
 file /usr/bin/su
 mode 04751
-file /usr/bin/re
-file /usr/bin/kilo
 file /usr/bin/stevie
 file /usr/bin/menu
 file /usr/bin/textbox

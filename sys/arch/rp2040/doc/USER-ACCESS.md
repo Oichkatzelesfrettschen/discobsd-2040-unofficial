@@ -46,8 +46,8 @@ refused.
 
 The console entry in /etc/ttys sets the login's TERM to xterm, and
 /etc/termcap on the root carries xterm, vt100, vt102 and ansi entries, so
-the screen editors re and kilo and the pager more drive the terminal
-correctly. The board's own full-screen programs -- kilo, the menu shell,
+the screen editor stevie (vi) and the pager more drive the terminal
+correctly. The board's own full-screen programs -- stevie, the menu shell,
 the games -- emit plain ANSI escapes that every xterm-family and vt100
 terminal renders. Leave the emulator at its default type; only the board's
 TERM matters over a serial line, since the line carries no terminal-type

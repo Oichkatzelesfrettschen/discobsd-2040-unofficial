@@ -20,13 +20,22 @@ fail() {
 }
 
 #
+# The LZW filter -z and -Z fork. On the board it is /usr/bin/compress, the
+# tree's own usr.bin/compress; here it is whatever host program answers to
+# the name, which reads and writes the same format.
+#
+ZPROG=$(command -v compress 2>/dev/null || true)
+
+#
 # The tool under test.
 #
 if [ $# -ge 1 ]; then
 	TAR=$1
 else
 	TAR=$work/tar
-	${CC:-cc} -std=gnu17 -O1 -w -o "$TAR" "$srcdir/tar.c" ||
+	${CC:-cc} -std=gnu17 -O1 -w \
+	    ${ZPROG:+-DCOMPRESS=\"$ZPROG\"} \
+	    -o "$TAR" "$srcdir/tar.c" ||
 	    fail "host build of tar.c"
 fi
 echo "tartest: tool under test: $TAR"
@@ -176,5 +185,39 @@ grep -q "tree/zzz-after" t.list ||
 echo "tartest: both formats read without a format flag"
 "$TAR" tf u.tar > /dev/null || fail "reading ustar needs a flag"
 "$TAR" tf v.tar > /dev/null || fail "reading v7 needs a flag"
+
+#
+# -z and -Z pipe the archive through the LZW filter as a separate process
+# rather than linking the codec in, so a truncated result means tar exited
+# before the child drained; the diff is what catches that.
+#
+if [ -n "$ZPROG" ] && [ -z "${1:-}" ]; then
+	echo "tartest: LZW filter through $ZPROG"
+	(cd ustar && "$TAR" cZf ../z.tar tree)
+	#
+	# The decompressed stream is a plain archive the host tar reads.
+	# It is not byte-identical to u.tar: getbuf() takes the blocking
+	# factor from the archive fd's st_blksize, which differs between a
+	# pipe and a regular file, so the trailing pad differs in length.
+	#
+	"$ZPROG" -d < z.tar > z.plain
+	mkdir -p x-zplain
+	(cd x-zplain && "$HOSTTAR" xf ../z.plain)
+	diff -r ustar/tree x-zplain/tree ||
+	    fail "the decompressed -Z archive differs"
+	[ "$(wc -c < z.tar)" -lt "$(wc -c < u.tar)" ] ||
+	    fail "-Z did not compress the archive"
+	mkdir -p x-z
+	(cd x-z && "$TAR" xZf ../z.tar)
+	diff -r ustar/tree x-z/tree || fail "-Z round trip differs"
+
+	(cd ustar && "$TAR" czf ../z2.tar tree)
+	cmp -s z2.tar z.tar || fail "-z and -Z wrote different archives"
+	rm -f z2.tar
+	echo "tartest: -Z archive is $(wc -c < z.tar) bytes against \
+$(wc -c < u.tar) uncompressed"
+else
+	echo "tartest: SKIP the LZW filter: no compress on this host"
+fi
 
 echo "tartest: PASS"

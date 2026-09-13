@@ -24,6 +24,7 @@
 #include <time.h>
 #include <pwd.h>
 #include <grp.h>
+#include <sys/wait.h>
 
 #define TBLOCK  512
 #define NBLOCK  20
@@ -37,6 +38,17 @@
  * alone is the v7 limit.
  */
 #define PATHSIZ (TPFSZ + 1 + NAMSIZ + 1)
+
+/*
+ * The LZW codec is a separate program reached through a pipe rather than a
+ * library linked in: usr.bin/compress carries 30 kbytes of bss for its
+ * string table, and tar and the filter are separate processes with a
+ * 96-kbyte window each, where linking the codec would have to fit both
+ * tables and the block buffer in one.
+ */
+#ifndef COMPRESS
+#define COMPRESS        "/usr/bin/compress"
+#endif
 
 #define TMAGIC          "ustar"
 #define TMAGLEN         6
@@ -119,6 +131,8 @@ int      checkdir(char *);
 void     tomodes(struct stat *);
 void     putoctal(char *, int, unsigned long);
 int      putheader(char *, int);
+void     zfilter(int);
+void     zreap();
 int      isustar();
 char    *uidname(uid_t);
 char    *gidname(gid_t);
@@ -160,6 +174,9 @@ int hflag;
 int Bflag;
 int Fflag;
 int Oflag;              /* write the v7 header instead of ustar */
+int zflag;              /* pipe the archive through COMPRESS */
+
+int zpid = -1;          /* the filter, while it runs */
 
 /*
  * The full path of the header last read: the prefix field, a slash and the
@@ -350,6 +367,16 @@ char    *argv[];
             Oflag++;
             break;
 
+        /*
+         * The tree carries no gzip, so -z names the same LZW filter as
+         * -Z: usr.bin/compress, the 4.3BSD codec whose output is what
+         * uncompress(1) and zcat(1) read.
+         */
+        case 'z':
+        case 'Z':
+            zflag++;
+            break;
+
         default:
             fprintf(stderr, "tar: %c: unknown option\n", *cp);
             usage();
@@ -386,7 +413,7 @@ void
 usage()
 {
     fprintf(stderr,
-"tar: usage: tar -{txru}[cvfblmhopwBiO] [tapefile] [blocksize] file1 file2...\n");
+"tar: usage: tar -{txru}[cvfblmhopwBiOzZ] [tapefile] [blocksize] file1 file2...\n");
     done(1);
 }
 
@@ -429,7 +456,86 @@ openmt(tape, writing)
             done(1);
         }
     }
+    if (zflag)
+        zfilter(writing);
     return(mt);
+}
+
+/*
+ * Replace mt with one end of a pipe to a COMPRESS child holding the other
+ * end and the archive itself, so the codec stays a separate process with
+ * its own 96-kbyte window. Creating, the child compresses what tar writes;
+ * reading, it decompresses what tar reads.
+ */
+void
+zfilter(writing)
+    int writing;
+{
+    int fd[2];
+
+    if (pipe(fd) < 0) {
+        fprintf(stderr, "tar: ");
+        perror("pipe");
+        done(1);
+    }
+    if ((zpid = fork()) < 0) {
+        fprintf(stderr, "tar: ");
+        perror("fork");
+        done(1);
+    }
+    if (zpid == 0) {
+        if (writing) {
+            dup2(fd[0], 0);
+            dup2(mt, 1);
+        } else {
+            dup2(mt, 0);
+            dup2(fd[1], 1);
+        }
+        close(fd[0]);
+        close(fd[1]);
+        close(mt);
+        if (writing)
+            execl(COMPRESS, "compress", (char *) 0);
+        else
+            execl(COMPRESS, "compress", "-d", (char *) 0);
+        fprintf(stderr, "tar: ");
+        perror(COMPRESS);
+        _exit(1);
+    }
+    close(mt);
+    if (writing) {
+        close(fd[0]);
+        mt = fd[1];
+    } else {
+        close(fd[1]);
+        mt = fd[0];
+        /*
+         * A pipe returns short reads whatever the block size, so the
+         * archive is reblocked on the way in as it is for a -B stream.
+         */
+        Bflag++;
+    }
+}
+
+/*
+ * Close the pipe so the filter sees end of file, then wait for it. Exiting
+ * without the wait loses whatever the codec still holds buffered, which
+ * truncates the compressed archive at its last full block.
+ */
+void
+zreap()
+{
+    int status, w;
+
+    if (mt >= 0) {
+        close(mt);
+        mt = -1;
+    }
+    if (zpid > 0) {
+        while ((w = wait(&status)) != zpid && w != -1)
+            ;
+        zpid = -1;
+    }
 }
 
 char *
@@ -1350,6 +1456,7 @@ void
 done(n)
     int n;
 {
+    zreap();
     unlink(tname);
     exit(n);
 }

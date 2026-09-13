@@ -182,29 +182,113 @@ driven. The `splnet()` and `noop()` calls are gone from `kern_synch.c` and the
 comment states the mechanism. `noop()` now has no call site; its definitions
 remain in the three `machparam.h` headers.
 
+## Resolved on hardware in the integration pass
+
+Every item below was built into one image, flashed, and exercised on the
+board; the negative controls ran on the previous kernel from the same tree.
+
+### Signal frame no longer aliases the exception frame (ranked #1)
+
+`sendsig` reserved four words below the sigcontext; the SVC return path
+writes the eight-word hardware frame at tf_sp, so the frame covered
+sc_onstack, sc_mask, sc_r0 and sc_r1. Negative control on the old kernel,
+tests/rp2040/sigtest: after one caught SIGALRM, sigblock(0) returned
+0x20000475 (the sigtramp address) and the interrupted sigsuspend returned
+with errno 0x20000576. struct sigframe now reserves the eight frame words,
+sigreturn reads the context at tf_sp + 32, the frame base is eight-byte
+aligned, and the handler enters with XPSR STKALIGN clear while sc_psr keeps
+the original bit. On the fixed kernel all nine sigtest checks pass;
+kern.systrace=2 shows sc = frame + 0x20 and interrupted sp = frame + 104.
+
+### Smaller C call sites keep SP 8-byte aligned (ranked #2)
+
+cgthumb.c pads the argument block when the pushed word count is odd and
+reclaims pad plus arguments after the call; the prologue was already
+8-aligned. Oracle: usr.bin/smlrc/tests/t17_align (31 probes) and
+spalign.py over the generated corpus: 49 misaligned calls of 242 before,
+0 after; differential fuzz 60/60 seeds match the host. Code-size cost
++0.04 to +0.45 percent per program.
+
+### Exception entry stubs are naked functions (ranked #3)
+
+PendSV_Handler, SysTick_Handler and HardFault_Handler carry
+`__attribute__((naked))` and an explicit exception return. At -O0 the
+previous form emitted `push {r7, lr}; add r7, sp, #0` before the entry
+sequence, which moved MSP under the clockframe and faultframe reads; with
+the attribute the first eight instructions are identical at -O0, -O and
+-O2. On the board: boot, login, sigtest, fptest, streamtest, CoreMark
+241.93 (242.30 before, noise), and an unaligned `str` in
+tests/rp2040 scratch reports "fault: HardFault, exception 3" with a sane
+register bank and exits 139 with the shell alive.
+
+### Bulk IN arms avoid the RP2040-E15 window (ranked #7)
+
+usb.c defers the AVAILABLE write when the microsecond delta since the last
+SOF is inside the upstream TinyUSB window (800 to 998 us), enables DEV_SOF
+for the configured lifetime, and arms the held word from the SOF handler.
+Counters machdep.usb_e15_deferred and machdep.usb_bulkin_arms are sysctls.
+On the board a 140 KB console transfer raised the deferral counter from 7
+to 11 and `cat /usr/bin/awk | cksum` matched the host checksum
+1679832249 52724. The VL805-host corruption case itself is not reproduced
+here; the guard is proven active and byte-preserving, not proven necessary
+on this host.
+
+### tsleep panic path keeps interrupts masked (ranked #8)
+
+The ineffective splnet() and noop() are gone; every console putc in the
+tree polls its device under spltty(), and boot() opens its own splnet()
+window before sync(). The earlier note that stm32 lowered to a network IPL
+there was wrong: splraise(IPL_NET) after splraise(IPL_HIGH) changes nothing
+under BASEPRI_MAX. Not run on hardware: the panic branch itself.
+
+### PendSV is pended with a direct write-one-to-set store (ranked #18)
+
+SVC_Handler stores SCB_ICSR_PENDSVSET instead of a read-modify-write that
+carried the write-one-to-clear PENDSVCLR and PENDSTCLR bits back.
+
+### Native ROM float qualified on the board (gate 4 / ranked #25)
+
+The resolver read the byte before every floating table as its length; only
+the single table carries one, and on the V3 ROM the byte before the double
+table is 0, so every double entry failed and fptest exited 70 silently.
+tests/rp2040/romprobe prints the header and tables the resolver walks
+(version 3, SF at 0x1cc with length byte 0x20, SD at 0x24c with byte[-2]
+0); the resolver now uses the SDK's fixed 0x54 (V1) and 0x80 (V2+) sizes
+and fptest prints FPTEST OK for both corpora. fptest shrank from 14092 to
+8340 bytes once libgcc soft-float and the --wrap seam left the link.
+
+### Console trace facility (instrumentation the risky items needed)
+
+kern.systrace (1 = syscalls with names, arguments and results; 2 = sendsig
+and sigreturn frames) and kern.systracepid, under "options SYSTRACE",
+56 text bytes on PICO because syscallnames[] was already linked. This is
+the ktrace substitute for a 96 KB window: no trace file, no kdump.
+
+### libc footprint (ranked #21, #22 and the size audit)
+
+doprnt drops the kernel-only conversions, re(1) stops forcing the
+printf-float conversion into its link, and the audit in
+libc-size-audit.md records 25166 bytes off the root across 28 shipped
+programs with the rejected candidates and their measured reasons.
+NSTATIC=8 is gated by tests/rp2040/streamtest, which passes on the board.
+
 ## Deferred, with the reason each stays open
 
-These are the audit's remaining correctness items. Each needs an attended
-hardware session or a codegen/exception-entry change whose falsifier is a
-differential-execution matrix, not static reasoning, so each belongs on its own
-branch behind a byte-range or differential oracle rather than mixed into this
-pass.
-
-- Signal frame aliases the exception frame (ranked #1). A genuine
-  memory-corruption bug; a wrong signal-frame change breaks signal delivery in
-  a way only an attended `sigreturn` test on hardware reveals.
-- Smaller-C AAPCS call-site misalignment (ranked #2) and exception entry in
-  ordinary C (ranked #3). Codegen and exception-entry changes; falsifiers are
-  compile-matrix disassembly and differential execution.
-- RP2040-E15 Bulk-IN frame guard (ranked #7). Needs affected B2/VL805 hardware
-  to prove the time-window guard.
 - A forced-collision `divrace` oracle with a negative control remains the
-  attended hardware gate for the source- and link-enforced no-divider-owner
-  invariant. A future kernel, IRQ, NMI, callout, preemptive switch, or second
-  core divider consumer invalidates direct ROM division.
-- The duplicate-BSS-clear (ranked #12), the `resume` exchange loop (#13), and
-  every unrelated optimization item #14-30 remain behind exact relinked
-  measurement.
+  attended hardware gate for the no-divider-owner invariant. A future
+  kernel, IRQ, NMI, callout, preemptive switch, or second core divider
+  consumer invalidates direct ROM division.
+- The panic branch of tsleep (ranked #8) has a source argument, not a
+  hardware run.
+- The duplicate-BSS-clear (ranked #12), the `resume` exchange loop (#13),
+  and the optimization items #14-17, #19, #20, #23, #26-30 remain behind
+  exact relinked measurement. tools/analysis carries the audit's analyzers
+  for that work.
+- ctime's 2036-byte static state plus a tzload alloca of the same size is
+  the largest remaining libc cost; shrinking it needs a decision about
+  zoneinfo on the board (libc-size-audit.md).
+- The curated man-page archive (task) remains a decision about 42728
+  bytes of root.
 
 ## Hygiene notes
 

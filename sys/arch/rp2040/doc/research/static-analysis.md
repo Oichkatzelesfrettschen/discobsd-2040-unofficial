@@ -124,10 +124,13 @@ Host reproduction (the exact call, extracted into a standalone harness):
 buggy   sizeof(nsp-1)=8 -> copied symbol: "_a_very_" (expected "_a_very_long_symbol_name_over_seven_chars")
 ```
 
-Fix: bound the copy by the space actually left in `newstrings`
-(`newstrings + newstringsize - (nsp + 1)`), which the surrounding allocation
-(`newstringsize = strsize + remaining`) already guarantees is large enough for every
-symbol. Same harness with the corrected bound copies the name intact. `elf2aout`
+The first fix bounded the copy by the space left in `newstrings`, but the
+surrounding `strsize + remaining` allocation is sufficient only when every
+symbol uses a distinct ELF string-table offset. The RP2040 `fptest` ELF shares
+offsets, and an AddressSanitizer symbol-mode conversion reached the end of that
+allocation. `elf2aout` now validates each source name, grows the destination
+for the bytes actually required, and writes only the initialized extent. The
+layout verifier checks every emitted `n_strx` against that extent. `elf2aout`
 converts the kernel's and userland's ELF output to the a.out `unix`/program images
 `nm` and `addr2line` read for BOOT-MAP.md section 10's fault-report workflow;
 `exec_aout.c` never reads symbol names, so the kernel and userland this tool produces
@@ -254,11 +257,14 @@ inferred from source.
 
 ## Summary
 
-One CONFIRMED defect, fixed and committed: `tools/elf2aout/elf2aout.c`'s
+One initial CONFIRMED defect, fixed and committed:
+`tools/elf2aout/elf2aout.c`'s
 `translate_syms` truncated every a.out symbol name past 7 characters because
 `sizeof(nsp - 1)` names a pointer type, not a buffer size (commit `e2ad7dd`). Host
-harness reproduced the truncation and confirmed the fix. Rebuilding the kernel and
-`elf2aout` shows zero new warnings.
+harness reproduced the truncation and confirmed the copy-bound fix. The RP2040
+layout follow-up then falsified the allocation-size premise and added dynamic
+growth plus an exact string-extent gate. Rebuilding `elf2aout` with strict
+warnings and running AddressSanitizer and Valgrind now complete cleanly.
 
 Two PLAUSIBLE findings, described but not fixed because disassembly disproves the
 practical risk under the tree's actual build flags: a type-mismatched (but

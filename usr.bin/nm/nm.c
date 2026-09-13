@@ -42,7 +42,7 @@ union {
 int	narg, errs;
 
 void
-error(int n, char *s)
+error(char *s)
 {
 	fprintf(stderr, "nm: %s:", *xargv);
 	if (archive_input) {
@@ -51,9 +51,14 @@ error(int n, char *s)
 	} else
 		fprintf(stderr, " ");
 	fprintf(stderr, "%s\n", s);
-	if (n)
-		exit(2);
 	errs = 1;
+}
+
+static void
+fatal(char *s)
+{
+	error(s);
+	exit(2);
 }
 
 /*
@@ -265,23 +270,23 @@ namelist(void)
 	archive_input = 0;
 	fi = fopen(*xargv, "r");
 	if (fi == NULL) {
-		error(0, "cannot open");
+		error("cannot open");
 		return;
 	}
 	setbuf(fi, ibuf);
 
 	off = 0;
 	if (fread((char *)&mag_un, 1, sizeof(mag_un), fi) != sizeof(mag_un)) {
-		error(0, "read error");
+		error("read error");
 		goto out;
 	}
 
 	if (strncmp(mag_un.mag_armag, ARMAG, SARMAG)==0) {
-		archive_input++;
+		archive_input = 1;
 		off = SARMAG;
 	}
 	else if (N_BADMAG(mag_un.mag_exp)) {
-		error(0, "bad format");
+		error("bad format");
 		goto out;
 	}
 	rewind(fi);
@@ -308,7 +313,7 @@ namelist(void)
 		fseek(fi, curpos + o, SEEK_SET);
 		n = mag_un.mag_exp.a_syms;
 		if (n == 0) {
-			error(0, "no name list");
+			error("no name list");
 			continue;
 		}
 
@@ -331,7 +336,7 @@ namelist(void)
 		fseek(fi, curpos + o, SEEK_SET);
 		symp = (struct nlist *)malloc((i+1) * sizeof (struct nlist));
 		if (symp == 0)
-			error(1, "out of memory");
+			fatal("out of memory");
 		i = 0;
 		n = mag_un.mag_exp.a_syms;
 		while (n > 0) {
@@ -349,7 +354,7 @@ namelist(void)
 
                         symp[i].n_name = malloc(c - 5);
                         if (! symp[i].n_name)
-                                error(1, "out of memory");
+				fatal("out of memory");
 			memcpy(symp[i].n_name, name, c - 6);
 			symp[i].n_name[c - 6] = '\0';
 			i++;

@@ -12,6 +12,9 @@
 %left CAT
 %left STAR PLUS QUEST
 
+%expect 0
+%expect-rr 0
+
 %{
 #include <stdio.h>
 #include <stdlib.h>
@@ -126,7 +129,6 @@ r:  r OR r
         { $$ = unary(QUEST, $1); }
     | '(' r ')'
         { $$ = $2; }
-    | error
     ;
 
 %%

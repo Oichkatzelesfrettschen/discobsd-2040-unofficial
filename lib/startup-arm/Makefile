@@ -8,7 +8,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -O ${DEFS}
+CFLAGS		+= -O -ffreestanding -Wall -Wextra -Werror -Wformat=2 ${DEFS}
 
 SRCS		= crt0.c
 OBJS		= crt0.o

@@ -2,7 +2,7 @@ TOPSRC!=cd ../..; pwd
 
 -include ../Makefile.inc
 
-CFLAGS=		-O -Wall
+CFLAGS=		-O -Wall -Wextra -Werror -Wformat=2
 
 # libbsd-dev package on Linux in overlay mode.
 CFLAGS+=	${_LIBBSD_CFLAGS}

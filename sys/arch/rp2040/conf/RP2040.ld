@@ -58,7 +58,18 @@ MEMORY {
     UAREA   (rw!x): ORIGIN = 0x2003F400, LENGTH = 3K     /* Current u.      */
 
     /*
-     * 0x20040000 - 0x20041FFF is SRAM4 and SRAM5, two unstriped 4 KB banks.
-     * The boot ROM stages boot2 in SRAM5, so neither is claimed here.
+     * SRAM4 and SRAM5 are the two unstriped 4 KB banks above the striped
+     * 256 KB (RP2040 datasheet section 2.6.2). The boot ROM stages boot2
+     * at the top of SRAM5 and runs it there, and boot2 ends by jumping
+     * through the kernel's vector table, whose first word points the
+     * main stack at _estack in UAREA; from that instruction on nothing
+     * runs from or depends on these banks until the next reset. The
+     * kernel therefore owns them as SCRATCH for storage that is written
+     * before it is read and needs no initializer, which kern.ldscript
+     * places as the NOLOAD .scratch section and the reset code never
+     * clears: the USB console's transmit ring, whose head and tail
+     * indexes live in .bss. Moving the ring here returns its 8 KB to
+     * the striped banks and keeps console traffic off them.
      */
+    SCRATCH (rw!x): ORIGIN = 0x20040000, LENGTH = 8K    /* SRAM4, SRAM5.   */
 }

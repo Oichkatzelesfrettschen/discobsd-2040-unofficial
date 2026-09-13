@@ -28,6 +28,7 @@ PHDRS {
 	data PT_LOAD FLAGS(6);
 	ramfunc PT_LOAD FLAGS(5);
 	bss PT_LOAD FLAGS(6);
+	scratch PT_LOAD FLAGS(6);
 	stack PT_GNU_STACK FLAGS(6);
 }
 
@@ -105,4 +106,27 @@ SECTIONS {
 		__bss_end__ = .;
 		_ebss = .;
 	} > RAM :bss
+
+	/*
+	 * Storage in the scratch banks, see SCRATCH in RP2040.ld. NOLOAD
+	 * keeps it out of the flash image and out of the .data copy, and
+	 * locore0.S's zero-fill loops stop at _ebss, so a variable here
+	 * starts with whatever the banks held and its owner must write
+	 * every byte before reading it. The assertion pins the USB ring to
+	 * the banks whenever the kernel carries it; a kernel configured
+	 * without uartusb defines no such symbol, and the conditional
+	 * keeps ld from evaluating the reference in that case, which it
+	 * would do inside a plain || and reject as undefined.
+	 */
+	.scratch (NOLOAD) : {
+		. = ALIGN(4);
+		__scratch_start__ = .;
+		*(.scratch*)
+		. = ALIGN(4);
+		__scratch_end__ = .;
+	} > SCRATCH :scratch
+	ASSERT(DEFINED(usb_tx_ring) ?
+	    (usb_tx_ring >= ORIGIN(SCRATCH) &&
+	     usb_tx_ring + 8192 <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) : 1,
+	    "usb_tx_ring is not inside the SRAM4/SRAM5 scratch banks")
 }

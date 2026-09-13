@@ -34,7 +34,7 @@
  * the host only drains the IN endpoint while a terminal has the port open,
  * and the kernel prints long before anyone has. The ring keeps the last
  * USB_TXRING bytes, so a terminal opened after boot sees the boot messages
- * rather than nothing; 16K holds a whole boot with room to spare.
+ * rather than nothing; 8K holds a whole boot with room to spare.
  */
 
 #include <sys/param.h>
@@ -215,13 +215,26 @@ static struct {
 	u_int		tx_pending_ctrl;/* Its buffer control word, less AVAILABLE. */
 	u_int		tx_pending_us;	/* TIMERAWL when it was deferred. */
 	u_int		tx_head, tx_tail;
-	u_char		tx_ring[USB_TXRING];
 
 	u_int		rx_head, rx_tail;
 	u_char		rx_ring[USB_RXRING];
 
 	u_char		reply[64];	/* Small control replies. */
 } usbd;
+
+/*
+ * The transmit ring lives in the SRAM4 and SRAM5 scratch banks, which
+ * conf/RP2040.ld names SCRATCH and kern.ldscript fills from .scratch
+ * input sections, so its 8 KB leave the striped banks the kernel and
+ * user space share. Only the CPU touches it: usb_tx_kick copies bytes
+ * from it into DPSRAM, so the controller never addresses it. It is not
+ * cleared at reset. tx_head and tx_tail in usbd are, and every byte of
+ * the ring is written by usb_tx_put before usb_tx_kick reads it, so no
+ * initial contents can reach the host. It is a global rather than a
+ * static so that kern.ldscript can assert its placement.
+ */
+u_char usb_tx_ring[USB_TXRING]
+	__attribute__((section(".scratch.usb_tx_ring"), aligned(4)));
 
 struct tty usbttys[1];
 
@@ -627,7 +640,7 @@ usb_tx_kick(void)
 		n = USB_PACKET_MAX;
 	for (i = 0; i < n; i++)
 		DPRAM8(BUF_DATA_IN + i) =
-		    usbd.tx_ring[(usbd.tx_tail + i) % USB_TXRING];
+		    usb_tx_ring[(usbd.tx_tail + i) % USB_TXRING];
 	usbd.tx_tail += n;
 	usbd.tx_busy = 1;
 	ctrl = (n & USB_BUF_CTRL_LEN_MASK) | USB_BUF_CTRL_FULL |
@@ -654,7 +667,7 @@ usb_tx_put(u_char c)
 {
 	if (usbd.tx_head - usbd.tx_tail >= USB_TXRING)
 		usbd.tx_tail++;
-	usbd.tx_ring[usbd.tx_head % USB_TXRING] = c;
+	usb_tx_ring[usbd.tx_head % USB_TXRING] = c;
 	usbd.tx_head++;
 }
 

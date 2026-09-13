@@ -421,12 +421,28 @@ void GenLocalAddr(int reg, int ofs)
   }
   else if (ofs > 0)
   {
+    if (ofs <= 7)
+    {
+      printf2("\tadds\tr%d, r%d, #%d\n", reg, ThumbOpRegFp, ofs);
+      ThumbSpend(2);
+      return;
+    }
     GenLoadConst(reg, ofs);
     printf2("\tadds\tr%d, r%d, r%d\n", reg, ThumbOpRegFp, reg);
     ThumbSpend(2);
   }
   else
   {
+    /* ADDS and SUBS (register plus 3-bit immediate) name the destination and
+       the source separately, so a slot within seven bytes of the frame
+       pointer is one halfword instead of a materialized constant and a
+       register subtract. The first local sits at -4 and is the common case. */
+    if (ofs >= -7)
+    {
+      printf2("\tsubs\tr%d, r%d, #%d\n", reg, ThumbOpRegFp, -ofs);
+      ThumbSpend(2);
+      return;
+    }
     GenLoadConst(reg, -ofs);
     printf2("\tsubs\tr%d, r%d, r%d\n", reg, ThumbOpRegFp, reg);
     ThumbSpend(2);

@@ -87,7 +87,9 @@ device or the built-in VCP USB serial port on development boards can be used.
 Depending on the host system, other serial port utilities such as `screen`,
 `minicom`, `putty`, or `teraterm` may be used.
 
-Log in to DiscoBSD with user `root` and a blank password.
+Log in as user `operator` with no password, then `su` to root: operator is
+in the wheel group, so `su` needs no password. Direct root login on the
+console is refused.
 Shutdown DiscoBSD with the `halt`, `shutdown`, or `reboot` commands.
 
 Manual pages on DiscoBSD are available through the `man` command.

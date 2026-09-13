@@ -10,7 +10,7 @@
 # and pyserial; the terminal itself is xterm.js, loaded from a CDN.
 #
 # Run: PYTHON=${PYTHON:-python3}; "$PYTHON" discobsd-web [--port N] [--bind ADDR] [DEVICE]
-# Then open the printed URL. Log in as root with an empty password.
+# Then open the printed URL. Log in as operator (no password); su for root.
 #
 # pyserial: Debian "apt install python3-serial"; Arch "pacman -S python-pyserial".
 import base64
@@ -307,7 +307,7 @@ def main():
     is_loopback = bind in ("127.0.0.1", "::1", "localhost")
     if not is_loopback and not token:
         sys.stderr.write("discobsd-web: refusing a non-loopback bind without "
-                         "--token; a bare 0.0.0.0 bind exposes a root console "
+                         "--token; a bare 0.0.0.0 bind exposes a login console "
                          "to the LAN with no authentication\n")
         return 1
     httpd = ThreadingHTTPServer((bind, port), Handler)
@@ -320,7 +320,7 @@ def main():
     sys.stderr.write("DiscoBSD web console for %s\n" % dev)
     if is_loopback:
         sys.stderr.write("  open http://127.0.0.1:%d/%s (loopback only; "
-                         "pass --bind 0.0.0.0 --token FILE for LAN) -- Ctrl-C\n"
+                         "pass --bind 0.0.0.0 --token SECRET for LAN) -- Ctrl-C\n"
                          % (port, q))
     else:
         sys.stderr.write("  open http://%s:%d/%s from the LAN "

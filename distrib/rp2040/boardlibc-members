@@ -10,7 +10,6 @@
 # perror, qsort, the strtol family, and getenv -- what libc-sink.c calls.
 #
 aeabi_div
-rom_float
 atoi
 atol
 bcopy

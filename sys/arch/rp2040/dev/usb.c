@@ -964,7 +964,7 @@ usbgetc(dev_t dev)
 static int
 usbprobe(struct conf_device *config)
 {
-	printf("uartusb: CDC-ACM on the USB device controller, interrupt %u",
+	printf("uartusb: CDC-ACM on the USB device controller, interrupt %d",
 	    USBCTRL_IRQ);
 	if (CONS_MAJOR == UARTUSB_MAJOR)
 		printf(", console");

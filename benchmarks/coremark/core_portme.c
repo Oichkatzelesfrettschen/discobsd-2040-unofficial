@@ -25,6 +25,7 @@ Original Author: Shay Gal-on
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>	/* offsetof, for the accurate rate below */
 #include <sys/time.h>
 #include "coremark.h"
 
@@ -140,5 +141,39 @@ portable_init(core_portable *p, int *argc, char *argv[])
 void
 portable_fini(core_portable *p)
 {
+    /*
+     * Emit a microsecond-accurate rate here, where the port owns the output.
+     * core_main.c is unmodifiable, and with HAS_FLOAT=0 its report divides the
+     * iteration count by time_in_secs(), a whole-second integer, so an 8.254 s
+     * run at 242.3 iterations/s prints "Iterations/Sec : 250" (2000 / 8) and
+     * the canonical "CoreMark 1.0" score line, guarded by HAS_FLOAT, is
+     * omitted entirely. get_time() still returns the final run's elapsed
+     * microseconds from the module statics, and the enclosing core_results,
+     * recovered from the port pointer, carries the exact iteration count.
+     * The recovery is valid because core_main.c always passes the port
+     * member of a core_results (&results[i].port), never a standalone
+     * core_portable; default_num_contexts is 1 here, so the product below
+     * equals core_main's total_iterations numerator.
+     * The rate is scaled by 100 for two fixed-point digits; the product needs
+     * 64 bits, but only %lu (32-bit) reaches printf, so no %f or %llu formatter
+     * runs -- the %f path is what overflowed the process stack.
+     */
+    core_results *res = (core_results *)((char *)p - offsetof(core_results, port));
+    CORE_TICKS    ticks = get_time();
+
+    if (ticks > 0) {
+        unsigned long long scaled =
+            (unsigned long long)res->iterations
+            * (unsigned long long)default_num_contexts
+            * (unsigned long long)EE_TICKS_PER_SEC * 100ULL;
+        unsigned long rate_x100 = (unsigned long)(scaled / (unsigned long long)ticks);
+
+        ee_printf("Iterations/Sec   : %lu.%02lu (microsecond-accurate)\n",
+                  rate_x100 / 100, rate_x100 % 100);
+        ee_printf("CoreMark 1.0     : %lu.%02lu / %s / %s (integer report)\n",
+                  rate_x100 / 100, rate_x100 % 100,
+                  COMPILER_VERSION, MEM_LOCATION);
+    }
+
     p->portable_id = 0;
 }

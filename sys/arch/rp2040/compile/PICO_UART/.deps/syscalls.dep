@@ -1,1 +1,0 @@
-syscalls.o: ../../../../kern/syscalls.c

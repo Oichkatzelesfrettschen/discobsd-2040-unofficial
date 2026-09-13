@@ -10,7 +10,7 @@
 # error, which is the resilient behavior a drifting ttyACM number needs.
 #
 # Run: PYTHON=${PYTHON:-python3}; "$PYTHON" discobsd-term
-# Quit: Ctrl-] (the telnet escape). Log in as root, empty password.
+# Quit: Ctrl-] (the telnet escape). Log in as operator, no password (su for root).
 #
 # Requires pyserial (Debian: apt install python3-serial; CachyOS/Arch:
 # pacman -S python-pyserial).
@@ -72,7 +72,7 @@ def run():
     if not sys.stdin.isatty():
         note("stdin is not a terminal; run this from an interactive shell")
         sys.exit(1)
-    note("Ctrl-] quits. Log in as root with an empty password.")
+    note("Ctrl-] quits. Log in as operator with no password; su for root.")
     first = True
     saved = termios.tcgetattr(sys.stdin.fileno())
     tty.setraw(sys.stdin.fileno())

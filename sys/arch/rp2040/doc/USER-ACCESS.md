@@ -38,7 +38,9 @@ distrib/rp2040/host/discobsd-connect wraps this: it finds the board by its
 by-id path and launches the first of tio, picocom, minicom or cu that is
 installed, at the right line settings.
 
-Log in as root with an empty password.
+Log in as `operator` with no password, then `su` to root: operator is in the
+wheel group, so `su` needs no password. Direct root login on the console is
+refused.
 
 ## Terminal type
 
@@ -87,9 +89,10 @@ need only Python and pyserial (Debian "apt install python3-serial", Arch
   in a browser with no client to install. The board has no network of its
   own, so the host it plugs into is the gateway: discobsd-web bridges the
   serial line to xterm.js in the browser over a WebSocket. Run it and open
-  the printed http://<host>:7681/ URL. It binds every interface by default;
-  --bind 127.0.0.1 keeps it local, --port changes the port, and a trailing
-  device path overrides the by-id default.
+  the printed http://127.0.0.1:7681/ URL. It binds loopback (127.0.0.1) by
+  default; a non-loopback --bind requires --token SECRET to set a shared
+  secret, --port changes the port, and a trailing device path overrides the
+  by-id default.
 
 For a zero-code alternative, ttyd (https://github.com/tsl0922/ttyd, on
 Debian and Arch) serves any command as a web terminal:

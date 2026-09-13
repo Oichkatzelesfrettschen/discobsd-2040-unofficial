@@ -72,7 +72,7 @@ cat(fname)
 	register int fd, n;
 	char buf[BUFSIZ];
 
-	if (!(fd = open(fname, O_RDONLY, 0))) {
+	if ((fd = open(fname, O_RDONLY, 0)) == -1) {
 		perror("man: open");
 		exit(1);
 	}

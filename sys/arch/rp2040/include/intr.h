@@ -68,6 +68,14 @@
  * the most urgent on Cortex-M, so IPL_CLOCK and IPL_HIGH map to 0 and
  * IPL_NONE maps to the least urgent value.
  *
+ * IPL_SVCALL is IPL_TOP, one above IPL_HIGH, so IPL_HIGH - ipl is negative for
+ * it. NVIC_PRIO_LEVELS carries the 1U unsigned type into the product, which
+ * converts that -1 to a large unsigned value; the divide and shift then leave
+ * 0x80 in the byte rather than 0. That makes SVC less urgent than SysTick and
+ * breaks the highest-priority SVC contract. The ipl >= IPL_HIGH branch maps
+ * every level at or above IPL_HIGH to the most urgent byte 0 and keeps the
+ * negative difference out of the unsigned arithmetic.
+ *
  * This costs nothing that ARMv6-M had. PRIMASK masks everything or nothing,
  * so priorities never implement spl here; they only order preemption among
  * interrupts that are already enabled.
@@ -75,8 +83,9 @@
 #define	NVIC_PRIO_LEVELS	(1U << NVIC_PRIO_BITS)
 
 #define	IPLTOREG(ipl) \
-	(u_char)(((((IPL_HIGH - (ipl)) * (NVIC_PRIO_LEVELS - 1)) / IPL_HIGH) \
-	    << IPL_BITS) & 0xFFUL)
+	(u_char)(((ipl) >= IPL_HIGH ? 0U \
+	    : ((((IPL_HIGH - (ipl)) * (NVIC_PRIO_LEVELS - 1)) / IPL_HIGH) \
+	    << IPL_BITS)) & 0xFFUL)
 
 /*
  * RP2040 NVIC, from the RP2040 datasheet Cortex-M0+ register listing.

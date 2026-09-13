@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Board test for a.out admission.
+
+usage: PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
+Flashes the named images in one BOOTSEL visit when given, then logs in as
+operator on the USB console. Header-only images travel as uuencoded
 text; a truncated, an oversized and an even-entry image must be refused
 with distinct errors while the shell keeps running."""
 import binascii, glob, re, struct, subprocess, sys, time

@@ -14,10 +14,10 @@ Other machines are untouched: `MACHINE` chooses `-DMIPS` with `cgmips.c` and
 `arm-none-eabi-size` of the cross-built compiler:
 
     text     data      bss      dec      hex   filename
-   51613     1588    26200    79401    13629   smlrc.elf
+   48753     1372    26328    76453    12aa5   smlrc.elf
 
 A process gets 96 KB for text, data, bss and stack together, so the compiler
-occupies 77.5 KB and leaves 18.5 KB of stack. That is workable but not
+occupies 74.7 KB and leaves 21.3 KB of stack. That is workable but not
 generous. The bss is almost entirely the parser's tables, and
 `SYNTAX_STACK_MAX` in the Makefile is the knob: at the current 3200 entries,
 `SyntaxStack0` is 3200 bytes and `SyntaxStack1` is 12800, and `IdentTable`
@@ -47,6 +47,37 @@ The full Smaller C language subset the MIPS back end supports:
   in a home area contiguous with the stacked parameters, so `va_arg` walking
   up from the last named parameter is correct.
 - `float`, lowered to the libgcc soft-float helpers. See the note below.
+- 8-byte stack alignment at every call boundary, which AAPCS32 5.2.1.2
+  requires of `sp` at a public interface. The argument area is built from
+  one-word pushes, so the alignment is a property of the generator rather
+  than of the instruction set: the call site reserves one padding word
+  whenever the depth it would reach is 4 modulo 8, before the arguments so
+  that the pad sits above them and argument five still lands at the callee's
+  entry `sp`, and reclaims the pad with them after the call. Whether a pad is
+  needed follows from the depth the enclosing expression has already reached
+  and not from the argument count alone: a call passing nothing on the stack
+  needs one when it is issued from inside another call's argument list. The
+  `__aeabi` division and modulo helpers, which the back end reaches by `BL`
+  without an argument area, take the same pad. The prolog keeps the invariant
+  for the callee's own frame -- 16 bytes of home area, 8 of saved `r7` and
+  `lr`, a frame size the epilog rounds up to a multiple of eight, and 16 more
+  of saved registers.
+
+  The one unpadded call site is the structure-pushing helper `GenFin` writes.
+  It returns with `sp` deliberately lowered by the structure it just built,
+  so a pad above its arguments could only be reclaimed by cutting into that
+  structure. It is back-end-private, a leaf that calls nothing and executes
+  only `MOV`, `SUBS`, `BICS`, `LDRB` and `STRB`, so its entry carries no
+  public-interface obligation.
+
+  Two tests hold the contract. `tests/t17_align.c` calls naked probes that
+  `tests/t17_align.gnu.c` supplies through the cross compiler, each returning
+  the caller's `sp & 7`, across zero to ten arguments, calls issued from an
+  odd depth, indirect calls, variadic calls, a structure passed by value and
+  a frame too large for a Thumb-1 immediate. `tests/spalign.py` walks the
+  generated assembly of every test, models each `sp`-moving form the back end
+  emits, errors on any form it does not recognize, and reports a `BL` or
+  `BLX` reached at an offset that is not a multiple of eight.
 
 `char` is **unsigned**, because `arm-none-eabi-gcc` makes it unsigned and
 every object the tree's libc contributes was compiled under that rule.
@@ -71,14 +102,6 @@ with libc about `char` comparisons.
   ARMv6-M exception entry sequence is not the frame the prolog builds.
 - **Double precision.** Smaller C has no `double` beyond treating it as
   `float`.
-- **8-byte stack alignment at public interfaces.** The argument area is built
-  from 4-byte pushes, so `sp` at a call is 4-byte aligned and only sometimes
-  8-byte aligned, which is what the MIPS back end also does. On ARMv6-M this
-  has no observable effect: the architecture has no `LDRD` or `STRD` and no
-  FPU, so nothing in the instruction set requires the stronger alignment.
-  Code that passes a `double` to a gcc-compiled variadic function is the
-  case that would notice, and the rp2040 link line omits floating-point
-  printf unless `PRINTF_FLOAT=yes`.
 
 ### Floating point
 

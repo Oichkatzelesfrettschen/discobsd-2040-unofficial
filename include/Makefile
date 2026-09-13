@@ -20,7 +20,7 @@ TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 STD=	a.out.h alloca.h ar.h assert.h \
-	ctype.h curses.h \
+	ctype.h curses.h err.h \
 	fcntl.h float.h fstab.h \
 	grp.h kmem.h lastlog.h libgen.h limits.h \
 	math.h mtab.h ndbm.h nlist.h \

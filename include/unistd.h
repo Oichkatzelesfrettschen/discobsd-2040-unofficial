@@ -156,25 +156,9 @@ int     getopt (int argc, char * const argv[], const char *optstring);
 extern  char    *optarg;                /* getopt(3) external variables */
 extern  int     opterr, optind, optopt;
 
-#ifndef _VA_LIST_
-# ifdef __GNUC__
-#  define va_list   __builtin_va_list   /* For Gnu C */
-# endif
-# ifdef __SMALLER_C__
-#  define va_list   char *              /* For Smaller C */
-# endif
-#endif
-
-void    err (int eval, const char *fmt, ...);
-void    errx (int eval, const char *fmt, ...);
-void    warn (const char *fmt, ...);
-void    warnx (const char *fmt, ...);
-void    verr (int eval, const char *fmt, va_list ap);
-void    verrx (int eval, const char *fmt, va_list ap);
-void    vwarn (const char *fmt, va_list ap);
-void    vwarnx (const char *fmt, va_list ap);
-
-#ifndef _VA_LIST_
-# undef va_list
-#endif
+/*
+ * The err(3) family declared itself here before <err.h> existed; the
+ * callers that reach it through <unistd.h> keep working.
+ */
+#include <err.h>
 #endif /* !_UNISTD_H_ */

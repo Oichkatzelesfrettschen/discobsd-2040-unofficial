@@ -2,7 +2,7 @@
 # Verify that a linked RP2040 kernel carries exactly the SwapRAM tier its
 # PARAM selects. With -DSWAPRAM the kernel must define the five entry points
 # vm_swap.c calls, vm_swap.o must reference each of them, and the pool
-# sr_pool must measure SWAPRAM_KB kilobytes (64 when the option is absent,
+# swapram_pool_mem must measure SWAPRAM_KB kilobytes (64 when the option is absent,
 # matching machine/swapram.h). Without -DSWAPRAM none of those symbols may
 # appear anywhere. An object compiled under an earlier PARAM is the fault
 # this catches: it links cleanly and runs the wrong tier.
@@ -50,15 +50,15 @@ if [ "$enabled" -eq 1 ]; then
 		printf '%s\n' "$relocs" | grep -q "[[:space:]]$e\$" ||
 		    { echo "$object: no relocation to $e" >&2; fail=1; }
 	done
-	size=$(printf '%s\n' "$syms" | awk '$4 == "sr_pool" { print $2 }')
+	size=$(printf '%s\n' "$syms" | awk '$4 == "swapram_pool_mem" { print $2 }')
 	want=$(printf '%x' $((kb * 1024)))
-	[ -n "$size" ] || { echo "$elf: sr_pool is not linked" >&2; fail=1; }
+	[ -n "$size" ] || { echo "$elf: swapram_pool_mem is not linked" >&2; fail=1; }
 	if [ -n "$size" ] && [ "$((0x$size))" -ne "$((0x$want))" ]; then
-		echo "$elf: sr_pool is 0x$size bytes, PARAM asks for ${kb} KB" >&2
+		echo "$elf: swapram_pool_mem is 0x$size bytes, PARAM asks for ${kb} KB" >&2
 		fail=1
 	fi
 else
-	for e in $entries sr_pool; do
+	for e in $entries swapram_pool_mem; do
 		printf '%s\n' "$syms" | grep -q "[[:space:]]$e\$" &&
 		    { echo "$elf: $e is linked without -DSWAPRAM" >&2; fail=1; }
 		printf '%s\n' "$relocs" | grep -q "[[:space:]]$e\$" &&

@@ -125,6 +125,10 @@ int	securelevel = -1;
 int	securelevel = 0;
 #endif
 
+/* Console trace mask and pid filter, see sys/systm.h and kern.systrace. */
+int	systrace;
+int	systrace_pid;
+
 struct mapent	swapent[SMAPSIZ];
 struct map	swapmap[1] = {
 	{ swapent,

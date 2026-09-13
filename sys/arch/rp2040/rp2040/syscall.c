@@ -219,6 +219,22 @@ syscall(struct trapframe *frame)
 		(*callp->sy_call)();		/* Make syscall. */
 	}
 
+	if (SYSTRACE_ON(SYSTRACE_SYSCALL)) {
+		printf("[%u] %s(", u.u_procp->p_pid,
+		    code < nsysent ? syscallnames[code] : "?");
+		for (int i = 0; i < callp->sy_narg && i < 6; i++)
+			printf("%s%#x", i ? ", " : "", u.u_arg[i]);
+		if (u.u_error == 0)
+			printf(") = %#x\n", u.u_rval);
+		else if (u.u_error == EJUSTRETURN)
+			printf(") sigreturn pc=%#x sp=%#x\n",
+			    u.u_frame->tf_pc, u.u_frame->tf_sp);
+		else if (u.u_error == ERESTART)
+			printf(") restart\n");
+		else
+			printf(") errno %d\n", u.u_error);
+	}
+
 	switch (u.u_error) {
 	case 0:
 		u.u_frame->tf_psr &= ~PSR_C;	/* Clear carry bit. */

@@ -136,7 +136,9 @@ struct ctlname {
 #define	KERN_TEXT		23	/* struct: text entries */
 #define	KERN_ACCTTHRESH		24	/* int: accounting daemon threshold */
 #define	KERN_OSVERSION		25	/* string: kernel build version */
-#define	KERN_MAXID		26	/* number of valid kern ids */
+#define	KERN_SYSTRACE		26	/* int: console trace mask */
+#define	KERN_SYSTRACEPID	27	/* int: trace only this pid */
+#define	KERN_MAXID		28	/* number of valid kern ids */
 
 #ifndef	KERNEL
 #define	CTL_KERN_NAMES { \
@@ -166,6 +168,8 @@ struct ctlname {
 	{ "text", CTLTYPE_STRUCT }, \
 	{ "acctthresh", CTLTYPE_INT }, \
 	{ "osversion", CTLTYPE_STRING }, \
+	{ "systrace", CTLTYPE_INT }, \
+	{ "systracepid", CTLTYPE_INT }, \
 }
 #endif
 

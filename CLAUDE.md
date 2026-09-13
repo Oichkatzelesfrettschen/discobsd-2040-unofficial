@@ -29,6 +29,7 @@ escape sequences stripped.
     bmake MACHINE=rp2040 flash             # distrib/rp2040/flash.uf2
     bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
     bmake MACHINE=rp2040 check-divider     # no kernel SIO divider use
+    bmake MACHINE=rp2040 check-swapram     # linked SwapRAM tier matches Config
     bmake MACHINE=rp2040 check-elf2aout    # a.out layout gate
 
 Reflash from a running kernel: `picotool reboot -u -f`, `picotool load

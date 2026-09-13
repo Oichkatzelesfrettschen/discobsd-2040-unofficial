@@ -4,6 +4,7 @@
 SUBDIR=		PICO PICO_UART
 TOPSRC!=	cd ../../../..; pwd
 DIVIDER_OWNERSHIP_VERIFIER=	${TOPSRC}/tools/verify_rp2040_divider_ownership.py
+SWAPRAM_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_swapram_link.sh
 
 default:
 
@@ -31,4 +32,16 @@ check-divider:
 		    --elf PICO/unix.elf --dependency-directory PICO/.deps \
 		    --elf PICO_UART/unix.elf --dependency-directory PICO_UART/.deps
 
-.PHONY:		default all install clean clean-all reconfig check-divider
+# Each kernel's PARAM decides whether vm_swap.o calls the SwapRAM tier and
+# how large its pool is; the verifier reads the linked kernel and the
+# object and refuses a kernel whose bytes disagree with its Config.
+check-swapram:
+		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		@set -e; for i in ${SUBDIR}; do \
+			param=$$(${MAKE} -C $$i -V PARAM); \
+			sh "${SWAPRAM_LINK_VERIFIER}" --elf $$i/unix.elf \
+			    --object $$i/vm_swap.o --param "$$param"; \
+		done
+
+.PHONY:		default all install clean clean-all reconfig check-divider \
+		check-swapram

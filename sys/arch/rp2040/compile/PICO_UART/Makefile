@@ -70,6 +70,16 @@ LDADD=		${LIBGCC}
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
+# PARAM reaches every object as -D flags, and .deps records only the headers
+# an object read, so an option edited in Config and re-emitted by config
+# left every existing object stale. ${PARAMSTAMP} holds the PARAM text and
+# is rewritten at parse time only when that text differs, so its mtime
+# moves exactly when an option changes and every object below depends on
+# it. tools/verify_rp2040_swapram_link.sh checks the linked result.
+PARAMSTAMP=	.params
+_paramstamp!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || \
+		printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; echo ${PARAMSTAMP}
+
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	init_main.o init_sysent.o kern_clock.o kern_descrip.o \
 	kern_exec.o kern_exit.o kern_fork.o kern_mman.o kern_proc.o \
@@ -116,6 +126,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD} swapxxx.o
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
+${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
@@ -140,7 +151,7 @@ all: unix
 
 clean:
 	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 boot2.S machine sys \
-	    vers.c .compileversion .oldversion
+	    vers.c .compileversion .oldversion ${PARAMSTAMP}
 
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c

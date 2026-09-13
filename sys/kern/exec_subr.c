@@ -16,6 +16,9 @@
 #include <machine/debug.h>
 #include <machine/frame.h>
 
+/* Stack alignment the ARM EABI and the MIPS o32 ABI hand _start. */
+#define STACKALIGN 8
+
 /*
  * How memory is set up.
  *
@@ -88,7 +91,7 @@
 void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
 {
     int i;
-    u_int len;
+    u_int len, pad;
     char *ucp;
     char **argp, **envp, ***topp;
 
@@ -103,6 +106,19 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     ucp = (char *)((unsigned)topp - roundup(epp->envbc + epp->argbc,NBPW)); /* arg string space */
     envp = (char **)(ucp - (epp->envc+1)*NBPW); /* Make place for envp[...], +1 for the 0 */
     argp = envp - (epp->argc+1)*NBPW;           /* Make place for argv[...] */
+
+    /*
+     * The ARM EABI and the MIPS o32 ABI hand _start an 8-byte aligned
+     * stack, and va_arg rounds a double's address up to 8 bytes: with
+     * the entry frame a multiple of 8 below argp, argp itself must be
+     * 8-byte aligned. The string byte count decides where argp lands,
+     * so when it lands on a 4-byte boundary the whole block moves down
+     * one word and the strings end one word below topp.
+     */
+    pad = ((unsigned)argp & (STACKALIGN - 1)) ? NBPW : 0;
+    ucp -= pad;
+    envp = (char **)((char *)envp - pad);
+    argp = (char **)((char *)argp - pad);
 
 #ifdef __mips__
     u.u_frame->tf_sp = (int)(argp-16);
@@ -143,7 +159,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     }
     envp[epp->envc] = NULL;
 
-    ucp = (caddr_t)roundup((unsigned)ucp, NBPW);
+    ucp = (caddr_t)roundup((unsigned)ucp, NBPW) + pad;
     if ((caddr_t)ucp != (caddr_t)topp) {
         DEBUG("\texec_setupstack(): error: copy arg list, ucp = %#x, topp = %#x\n", ucp, topp);
         panic("exec check");

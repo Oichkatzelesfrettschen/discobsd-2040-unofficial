@@ -172,6 +172,24 @@ word. PR #36 pads the argument block down one word when argv lands on
 a 4-byte boundary; tests/rp2040/exec_stack_align/board_stack_align.py runs
 awk and printf under twelve environment lengths on the board, all correct.
 
+### a.out admission hardened (port PR #37)
+
+N_GETFLAG shifted the masked flag field left by 26, so it read zero for
+every header and exec_aout_check's flag test never rejected anything;
+it now shifts right, N_SETMAGIC is its inverse, and tests/aout_header
+round-trips every flag and machine id through six magics and checks a
+million words decode into fields that reassemble them (`bmake
+check-aout`). aout_layout_check in exec_aout.h refuses, before
+exec_estab, a header whose size sums wrap, whose text+data+bss exceed
+the window, whose file ends inside text or data, or whose entry lies
+outside the text or lacks the Thumb bit; the process keeps its old
+image. exec_check moved to the next format on any error, so an a.out
+verdict such as ENOMEM was overwritten by the script checker's
+ENOEXEC; it now continues only on ENOEXEC. On the board
+(tests/rp2040/aout_admission) a header with no body and one with an
+even entry get ENOEXEC, one with a 1 MB bss gets sh's "too big", and
+the shell survives. Kernel text +72 bytes.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

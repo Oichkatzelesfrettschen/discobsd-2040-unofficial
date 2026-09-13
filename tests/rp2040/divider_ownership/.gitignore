@@ -1,0 +1,4 @@
+.deps/
+*.elf
+*.stderr
+*.stdout

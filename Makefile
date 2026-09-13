@@ -91,6 +91,13 @@ tools:
 kernel:		tools
 		${MAKE} -C sys/arch/${MACHINE}/compile all
 
+check-divider:	tools
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-divider requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C sys/arch/rp2040/compile check-divider
+
 check-elf2aout:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-elf2aout requires MACHINE=rp2040" >&2; \
@@ -147,8 +154,8 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		all build distribution release tools kernel check-elf2aout \
-		symlinks \
+.PHONY:		all build distribution release tools kernel check-divider \
+		check-elf2aout symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \
 		clean cleantools cleanfs cleanall

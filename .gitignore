@@ -44,6 +44,7 @@ sys/arch/*/compile/*/boot2.S
 sys/arch/*/compile/*/.compileversion
 sys/arch/*/compile/*/.oldversion
 sys/arch/*/compile/*/.deps/
+sys/arch/*/compile/*/.params
 sys/arch/*/compile/*/*.dep
 sys/arch/*/compile/*/machine
 sys/arch/*/compile/*/sys

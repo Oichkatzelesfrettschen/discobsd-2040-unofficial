@@ -1,4 +1,4 @@
 DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
 
 Welcome. Log in as root. Type "menu" for a program launcher that lists
-every command, "ls /usr/games" for the games, or "kilo FILE" to edit.
+every command, "ls /usr/games" for the games, or "vi FILE" to edit.

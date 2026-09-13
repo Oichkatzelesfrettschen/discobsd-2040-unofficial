@@ -1,0 +1,28 @@
+# The same reported puzzle with the thirteen cells the player had filled
+# in (the digits visible in the screenshot). These thirteen are exactly
+# the cells that hold the same value in all five solutions -- the forced
+# cells -- so imposing them removes no solution and five grids remain over
+# the other twelve cells. This is the "13 of 25 solved, 5 outcomes left"
+# the player described.
+size 5
+cages
+aabbc
+aabdc
+eeedd
+feggd
+ffggh
+clues
+a 40*
+b 11+
+c 2/
+d 15*
+e 24*
+f 12+
+g 9+
+h 5
+entries
+..53.
+.531.
+..45.
+5.24.
+..125

@@ -3,10 +3,11 @@
 # taken twice, by the host build's --count mode and by keensolve.py,
 # which shares no code with it, and the two must agree.
 #
-#   fixtures/ambiguous-5x5.keen          the pre-check generator's puzzle
-#                                        for seed 10: at least two grids
-#   fixtures/ambiguous-5x5-entries.keen  the same with 13 cells imposed:
-#                                        exactly five grids
+#   fixtures/reported-5x5.keen           the puzzle a player reported with
+#                                        multiple solutions: exactly five grids
+#   fixtures/reported-5x5-entries.keen   the same with the player's 13 cells
+#                                        imposed: still five grids, because the
+#                                        13 are the cells common to all five
 #   fixtures/unique-5x5.keen             exactly one grid
 #   fixtures/inconsistent-5x5.keen       no grid
 #
@@ -62,14 +63,35 @@ def fixture(name):
 def main():
     prog = sys.argv[1] if len(sys.argv) > 1 else "./keen-host"
 
-    amb = both(prog, fixture("ambiguous-5x5.keen"))
-    assert amb >= 2, "ambiguous fixture: expected at least two grids, got %d" % amb
-    ent = both(prog, fixture("ambiguous-5x5-entries.keen"))
-    assert ent == 5, "ambiguous fixture with entries: expected five grids, got %d" % ent
+    # The reported puzzle: its clues alone admit exactly five grids. The
+    # original request expected "at least two" here, before the puzzle was
+    # transcribed; the real count is five, which the assertion pins exactly.
+    reported = fixture("reported-5x5.keen")
+    amb = both(prog, reported)
+    assert amb >= 2, "reported fixture: expected multiple grids, got %d" % amb
+    assert amb == 5, "reported fixture: expected exactly five grids, got %d" % amb
+
+    # The player's thirteen entries are the cells that hold the same value in
+    # every solution, so imposing them removes no grid: five remain. This is
+    # checked two ways -- the count with entries is five, and the thirteen
+    # forced cells (identical across all five clue-only solutions) are exactly
+    # the thirteen the fixture imposes.
+    ent = both(prog, fixture("reported-5x5-entries.keen"))
+    assert ent == 5, "reported fixture with entries: expected five grids, got %d" % ent
+    sols = keensolve.solutions(reported, 100)
+    n = 5
+    forced = {(r, c): sols[0][r][c] for r in range(n) for c in range(n)
+              if len({g[r][c] for g in sols}) == 1}
+    _, _, _, imposed = keensolve.parse(fixture("reported-5x5-entries.keen"))
+    assert forced == imposed, \
+        "the imposed entries are not the cells forced by the clues: forced %s, imposed %s" \
+        % (sorted(forced), sorted(imposed))
+    assert len(forced) == 13, "expected thirteen forced cells, got %d" % len(forced)
+
     assert both(prog, fixture("unique-5x5.keen")) == 1, "unique fixture"
     assert both(prog, fixture("inconsistent-5x5.keen")) == 0, "inconsistent fixture"
-    print("keen: fixtures OK (ambiguous %d, with entries %d, unique 1, inconsistent 0)"
-          % (amb, ent))
+    print("keen: fixtures OK (reported %d grids, 13 forced cells match entries, "
+          "unique 1, inconsistent 0)" % amb)
 
     seeds = range(1, 41)
     old_ambiguous = 0

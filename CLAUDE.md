@@ -45,7 +45,9 @@ when Config changes.
 
 - Host: `bmake -C usr.bin/smlrc test`, `bmake -C usr.bin/stevie test`,
   `sh bin/sh/tests/posix-sh.sh`, `bmake -C usr.bin/as/tests test
-  MACHINE=rp2040`, `bin/tar/tests/tartest.sh`.
+  MACHINE=rp2040`, `bin/tar/tests/tartest.sh`, and
+  `bmake -C tests/rp2040/uarea_exchange check MACHINE=rp2040` (the longjmp
+  u-area exchange loop under qemu-arm).
 - On the board, from tests/rp2040: fptest (Boot ROM float, bit-exact),
   sigtest (signal frames), streamtest (NSTATIC), tartest, romprobe (ROM
   table dump). They are not in the root manifest; stage them by adding

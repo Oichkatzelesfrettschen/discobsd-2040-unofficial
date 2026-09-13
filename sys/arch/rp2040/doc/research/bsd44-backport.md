@@ -380,7 +380,8 @@ silently leaves the array unsorted on the failure path.
 ## Landed
 
 Branch `backport-bsd44`, eleven candidates surveyed above, nine landed as
-nine commits. Sizes are cross-gcc output for MACHINE=rp2040: `text` bytes
+nine commits plus three follow-ups that fix defects the ported text carried
+in. Sizes are cross-gcc output for MACHINE=rp2040: `text` bytes
 from `arm-none-eabi-size` for a libc object, on-disk a.out bytes after
 `elf2aout` for a program. The build gate for every commit is
 `bmake MACHINE=rp2040 build`, exit 0, with the warning set a subset of the
@@ -393,12 +394,12 @@ branch added.
 | `<err.h>` | `include: give the err(3) family its own <err.h>` | 0 (header) | header, not a manifest entry |
 | `<sys/queue.h>` | `sys: add 4.4BSD-Lite2 <sys/queue.h>` | 0 (header) | header, not a manifest entry |
 | vis(3) | `libc: add the 4.4BSD-Lite2 vis(3) and unvis(3) encoders` | vis.o 420, unvis.o 428 | in libc.a, linked on demand |
-| fmt(1) | `fmt: port the 4.4BSD-Lite2 paragraph formatter` | 11696 | no |
+| fmt(1) | `fmt: port the 4.4BSD-Lite2 paragraph formatter` | 11700 | no |
 | heapsort(3) | `libc: add heapsort(3) beside qsort(3)` | 388 | in libc.a, linked on demand |
 | bsearch(3) | `libc: add bsearch(3) to complete the sort and search pair` | 48 | in libc.a, linked on demand |
 | fnmatch(3) | `libc: add fnmatch(3) for POSIX shell-pattern matching` | 384 | in libc.a, linked on demand |
 | column(1) | `column: port the 4.4BSD-Lite2 list columnator` | 11140 | no |
-| getcwd(3), realpath(3) | `libc: add getcwd(3) and realpath(3) beside getwd(3)` | 1093 | in libc.a, linked on demand |
+| getcwd(3), realpath(3) | `libc: add getcwd(3) and realpath(3) beside getwd(3)` | 1101 | in libc.a, linked on demand |
 
 `fmt` and `column` build from `usr.bin`'s SUBDIR and install into
 `${DESTDIR}`, and neither appears in `distrib/rp2040/mi.rp2040`, so neither
@@ -429,6 +430,34 @@ reallocs.
 
 `LINE_MAX` is absent from this tree's `<limits.h>`, so column's
 `MAXLINELEN` derives from `BUFSIZ` rather than 4.4BSD's 2048.
+
+### Defects fixed in the ported text
+
+Three, each with a check that fails on the upstream text and passes on the
+ported one.
+
+`getcwd_physical()` reset `bup` to the start of the scratch buffer when it
+grew it, discarding every `../` built so far. With `MAXNAMLEN` 63 and
+`MAXPATHLEN` 256 the grow fires around 63 levels down, inside the depth a
+256-byte path reaches, so the reset is reachable here rather than
+theoretical. Over a host shim carrying those two values, a 70-level
+directory returns the correct path from the ported text and ENOENT from the
+upstream text.
+
+`fmt`'s `ispref()` advanced only `s1`, comparing every character of the
+headname against `s2[0]`, so any headname whose first character matched
+answered yes and a line like `Tx: hello` was held on its own unwrapped line
+as a mail header. Walking both strings wraps it as ordinary text and still
+holds a real `To:` header.
+
+`column`'s `maketbl()` reallocs, described above.
+
+`<err.h>` shipped first with `<unistd.h>`'s `_VA_LIST_` guard around a
+`va_list` definition it then undefined. Nothing in this tree defines
+`_VA_LIST_`, so the undef fired unconditionally and a file including only
+`<err.h>` could not declare the `va_list` it must pass to `verr()`. The
+header includes `<stdarg.h>` instead, which is what the survey's own porting
+note prescribed.
 
 ### Skipped
 

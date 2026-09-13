@@ -62,6 +62,9 @@
 %type   <val>   dump_device_spec
 %type   <file>  swap_device_spec
 
+%expect 0
+%expect-rr 0
+
 %{
 
 /*
@@ -516,8 +519,6 @@ Dev_info:
     Con_info Info_list
         |
     Info_list
-        |
-    /* lambda */
     ;
 
 Con_info:

@@ -247,6 +247,32 @@ text +1,144, bss +1,328 (the stage block and the extent words). The
 layout is unchanged: 144 KB window, 16 KB pool. Next: the SMALL/LARGE
 state machine and per-process ceiling, then the 160 KB layout.
 
+### SMALL/LARGE epoch and per-process ceiling (port PR #42)
+
+Step 2, with SWAPRAM_BONUS at zero so no size decision changes yet.
+`swapram_enter_large` asks the swapper for LARGE and sleeps; the
+swapper evacuates, keeps the pool closed and switches the epoch, or
+reopens and the request returns ENOMEM. P_LARGE (p_flag 0x0040) marks
+a process admitted under LARGE; newproc inherits it, exit and an exec
+that fits the window again drop it, and the last large process out
+asks for SMALL. exec_estab and brk compare against
+`swapram_ceiling(p)` = MAXMEM + bonus for P_LARGE and ask for LARGE
+when a size exceeds the window but not the bonus. `machdep.swapram_epoch`
+reads and, as root, requests; SMALL is refused while a large process
+lives. Host test: entering evacuates and closes, a second process
+joins free, a child inherits, leaving one of three keeps LARGE, the
+last leaver reopens, a short map returns ENOMEM with SMALL and the
+images intact, operator requests honored; valgrind clean. Board
+(tests/rp2040/swapram_epoch, as root): 3-5 images, LARGE empties and
+closes, children forked under LARGE never enter, SMALL reopens (3-4
+images again), all patterns intact. Kernel text +484, bss +24.
+
+Step 3 is the layout: place sr_pool at the start of the RAM region so
+it abuts the window's end, set SWAPRAM_BONUS to its size, and make the
+window top a value the epoch selects at the sites that use
+__user_data_end (exec_aout, exec_subr, exec_elf, vm_swap, syscall.c and
+sig_machdep.c stack growth, fault.c, kern_sig core dump, machdep).
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

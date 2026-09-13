@@ -223,6 +223,30 @@ program with the first substitution. genbuf is execution-only (sed0.c
 touches it once, to set lcomend), so the only phase-exclusive pair is
 genbuf against compile-time state that is small. No change.
 
+### Pool evacuation to flash, transactional (port PR #40)
+
+Step 1 of the exclusive SMALL/LARGE epoch: `swapram_evacuate` reserves
+the flash extents for every pool image first (malloc3 at the expanded
+sizes swapin reads) and unwinds them all on one shortage with the pool,
+the map and every process untouched; then expands each image a block
+at a time through a 1 KB stage into its extents, switches the process
+to them after its last block (p_daddr, p_saddr, p_addr, as the flash
+path of swapout sets them) and frees the pool entry last, so a process
+is on exactly one tier at every instant. `swapram_admit` closes the
+pool to new images for the duration; the swapper services the request
+at the top of its loop; `machdep.swapram_evacuate` posts it (root) and
+reads DONE or NOFLASH back, `machdep.swapram_images` counts the pool.
+The host test (`bmake check-swapram-evac`) compiles the kernel's
+swapram.c and subr_rmap.c against stand-in headers: byte-exact round
+trip of eight images twice, five short maps refused whole with images
+still restorable, exact-fit map taken whole, admission gating, and the
+request path; valgrind clean. Board: tests/rp2040/swapram_evacuate
+evactest, four patterned children, three in the pool at the request,
+DONE and zero images after, all patterns intact from flash. Kernel
+text +1,144, bss +1,328 (the stage block and the extent words). The
+layout is unchanged: 144 KB window, 16 KB pool. Next: the SMALL/LARGE
+state machine and per-process ceiling, then the 160 KB layout.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

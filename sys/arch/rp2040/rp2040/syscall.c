@@ -34,8 +34,15 @@
 void
 SVC_Handler(void)
 {
-	/* Set a PendSV exception to immediately tail-chain into. */
-	SCB_REG32(SCB_ICSR) |= SCB_ICSR_PENDSVSET;
+	/*
+	 * Set a PendSV exception to immediately tail-chain into. PENDSVSET is
+	 * write-one-to-set (ARMv6-M ARM B3.2.4), so a plain store of the bit
+	 * pends the exception and leaves every other field alone. Reading
+	 * ICSR first and writing the value back would carry PENDSVCLR and
+	 * PENDSTCLR, which are write-one-to-clear in the same word, and would
+	 * add a load from the private peripheral bus to the syscall path.
+	 */
+	SCB_REG32(SCB_ICSR) = SCB_ICSR_PENDSVSET;
 
 	arm_dsb();
 	arm_isb();

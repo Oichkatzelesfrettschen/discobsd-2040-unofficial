@@ -144,7 +144,7 @@ the 37 `file` entries in `distrib/rp2040/mi.rp2040` have no a.out to link.
 | `ndbm.o` | 2262 | 0 | 0 | 0 | none |
 | `crypt.o` | 1704 | 0 | 1130 | 2 | login passwd |
 | `ctime.o` | 1517 | 164 | 2112 | 9 | adminbox box find fsck getty init login su sysbox |
-| `doprnt_float.o` | 1512 | 0 | 0 | 2 | awk re |
+| `doprnt_float.o` | 1512 | 0 | 0 | 2 | awk, re (re only through the forced -u, removed in section 3; the branch head leaves awk alone) |
 | `doscan.o` | 1276 | 256 | 0 | 4 | adminbox awk kilo utilbox |
 | `setmode.o` | 1212 | 0 | 0 | 0 | none |
 | `regex.o` | 1131 | 0 | 585 | 1 | utilbox |
@@ -191,8 +191,15 @@ conversion in the same call, not merely misprint one. Three checks
 established that no caller can:
 
 - A literal scan of every shipped program's C, header, yacc and lex sources
-  plus `lib/libc` finds `%D` in `usr.bin/find` and `usr.bin/grep` and none
-  of `%b`, `%r`, `%z`, `%Z` in any format string.
+  finds `%D` and none of `%b`, `%r`, `%z`, `%Z`. The scan covers the 65 tool
+  source directories the six multicall a.outs compile from as well as the 33
+  program directories: `sbin/{box,sysbox,adminbox,textbox,utilbox}` and
+  `games/gamebox` build each tool from `bin/<name>` or `usr.bin/<name>`, so
+  scanning only the box directories would have missed some 60 linked names.
+  The `%D` users are `usr.bin/find`, `usr.bin/grep`, `bin/dd` (in sysbox) and
+  `bin/expr` (in utilbox), and `%D` is kept. Tree-wide, `%b` appears only as
+  a strftime month abbreviation and `%r`, `%z` only in `usr.bin/{lccom,lcpp,
+  ccom}`, none of which ships.
 - The three shipped programs that could route a runtime-built format into
   libc do not. `usr.bin/printf` accepts only `c s d i o u x X` and the float
   conversions and rejects everything else with `illegal format character`.
@@ -323,6 +330,6 @@ shared by every machine the tree builds. `ctime` is absent from
 so the gate runs from a worktree checked out fresh at the branch head, which
 reproduces the baseline's 1811 compiler invocations exactly rather than an
 incremental subset. The baseline captured before the first change emitted
-214 warnings; the tree after both changes emits 214, and the set of distinct
-warning texts is unchanged. `mkboardlibc.py` runs clean and produces
+214 warnings; the tree after both changes emits 214, and no warning text
+appears that the baseline did not already contain. `mkboardlibc.py` runs clean and produces
 artifact B at 50008 bytes, down from 51528.

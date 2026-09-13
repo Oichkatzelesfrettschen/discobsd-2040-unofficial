@@ -186,6 +186,14 @@ int zpid = -1;          /* the filter, while it runs */
  */
 char curname[PATHSIZ];
 
+/*
+ * The link target of the header last read. The linkname field carries no
+ * terminator when a target fills its 100 bytes, so reading it in place runs
+ * into the magic field and hands symlink() and link() a target with "ustar"
+ * appended.
+ */
+char curlink[NAMSIZ+1];
+
 int mt;
 int term;
 int chksum;
@@ -682,6 +690,13 @@ top:
     }
     *cp = '\0';
 
+    for (i = 0; i < (int) sizeof(dblock.dbuf.linkname); i++) {
+        if (dblock.dbuf.linkname[i] == '\0')
+            break;
+        curlink[i] = dblock.dbuf.linkname[i];
+    }
+    curlink[i] = '\0';
+
     /*
      * checkdir() and dodirtimes() recognize a directory by the trailing
      * slash the v7 header carries in the name. An ustar producer marks a
@@ -693,7 +708,8 @@ top:
     }
 
     if (tfile != NULL)
-        fprintf(tfile, "%s %s\n", curname, dblock.dbuf.mtime);
+        fprintf(tfile, "%s %.12s\n", curname,
+            dblock.dbuf.mtime);
 }
 
 /*
@@ -819,24 +835,30 @@ putfile(longname, shortname, parent)
         break;
 
     case S_IFLNK:
-        if (stbuf.st_size + 1 >= NAMSIZ) {
+        /*
+         * The linkname field is NAMSIZ bytes and carries no terminator
+         * when a target fills it, so a target of exactly NAMSIZ bytes is
+         * storable; getdir() reads the field bounded by its width.
+         */
+        if (stbuf.st_size > NAMSIZ) {
             fprintf(stderr, "tar: %s: symbolic link too long\n",
                 longname);
             return;
         }
         stbuf.st_size = 0;
         tomodes(&stbuf);
-        i = readlink(shortname, dblock.dbuf.linkname, NAMSIZ - 1);
+        i = readlink(shortname, dblock.dbuf.linkname, NAMSIZ);
         if (i < 0) {
             fprintf(stderr, "tar: can't read symbolic link ");
             perror(longname);
             return;
         }
-        dblock.dbuf.linkname[i] = '\0';
+        if (i < NAMSIZ)
+            dblock.dbuf.linkname[i] = '\0';
         dblock.dbuf.linkflag = SYMTYPE;
         if (vflag)
-            fprintf(vfile, "a %s symbolic link to %s\n",
-                longname, dblock.dbuf.linkname);
+            fprintf(vfile, "a %s symbolic link to %.*s\n",
+                longname, NAMSIZ, dblock.dbuf.linkname);
         (void) putheader(longname, SYMTYPE);
         break;
 
@@ -983,7 +1005,7 @@ doxtract(argv)
                 if (errno == ENOTDIR)
                     unlink(curname);
             }
-            if (symlink(dblock.dbuf.linkname, curname)<0) {
+            if (symlink(curlink, curname)<0) {
                 fprintf(stderr, "tar: %s: symbolic link failed: ",
                     curname);
                 perror("");
@@ -991,7 +1013,7 @@ doxtract(argv)
             }
             if (vflag)
                 fprintf(vfile, "x %s symbolic link to %s\n",
-                    curname, dblock.dbuf.linkname);
+                    curname, curlink);
 #ifdef notdef
             /* ignore alien orders */
             chown(curname, stbuf.st_uid, stbuf.st_gid);
@@ -1011,15 +1033,15 @@ doxtract(argv)
                 if (errno == ENOTDIR)
                     unlink(curname);
             }
-            if (link(dblock.dbuf.linkname, curname) < 0) {
+            if (link(curlink, curname) < 0) {
                 fprintf(stderr, "tar: can't link %s to %s: ",
-                    curname, dblock.dbuf.linkname);
+                    curname, curlink);
                 perror("");
                 continue;
             }
             if (vflag)
                 fprintf(vfile, "%s linked to %s\n",
-                    curname, dblock.dbuf.linkname);
+                    curname, curlink);
             continue;
         }
         if ((ofile = creat(curname,stbuf.st_mode&0xfff)) < 0) {
@@ -1080,9 +1102,9 @@ dotable(argv)
             longt(&stbuf);
         printf("%s", curname);
         if (dblock.dbuf.linkflag == LNKTYPE)
-            printf(" linked to %s", dblock.dbuf.linkname);
+            printf(" linked to %s", curlink);
         if (dblock.dbuf.linkflag == SYMTYPE)
-            printf(" symbolic link to %s", dblock.dbuf.linkname);
+            printf(" symbolic link to %s", curlink);
         printf("\n");
         passtape();
     }

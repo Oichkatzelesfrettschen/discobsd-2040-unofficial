@@ -87,9 +87,25 @@ cd "$work"
 #
 # ustar: the full tree, long path included.
 #
+#
+# A link target of exactly 100 bytes fills the linkname field, which then
+# carries no terminator: read in place it runs on into the ustar magic and
+# the link comes back with "ustar" appended. The target has to exist, since
+# diff -r follows the link. The v7 tree leaves this out: the path is 105
+# bytes, which that header cannot hold at all.
+#
+full=L
+while [ ${#full} -lt 91 ]; do
+	full=$full/aaaaaaaaa
+done
+full=$full/ffffffff
+[ ${#full} -eq 100 ] || fail "the link target is ${#full} bytes, not 100"
+
 mkdir -p ustar
 (cd ustar && mkshort tree && mkdir -p "tree/$deep" &&
-    echo 'buried' > "tree/$deep/leaf.txt")
+    echo 'buried' > "tree/$deep/leaf.txt" &&
+    mkdir -p "tree/$(dirname "$full")" && echo 'linked-to' > "tree/$full" &&
+    ln -s "$full" tree/fulltarget)
 (cd ustar && "$TAR" cf ../u.tar tree)
 
 #
@@ -121,6 +137,9 @@ echo "tartest: ustar listed by the host tar"
 [ ! -s u.hosterr ] || fail "host tar warned on the archive: $(cat u.hosterr)"
 grep -q "leaf.txt" u.hostlist ||
     fail "host tar did not see the prefix-split path"
+[ "$(readlink x-self/tree/fulltarget | wc -c)" -eq 101 ] ||
+    fail "the 100-byte link target did not survive: \
+$(readlink x-self/tree/fulltarget)"
 
 echo "tartest: ustar extracted by the host tar"
 mkdir -p x-host

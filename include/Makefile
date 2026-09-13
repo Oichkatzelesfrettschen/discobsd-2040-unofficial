@@ -21,7 +21,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 STD=	a.out.h alloca.h ar.h assert.h \
 	ctype.h curses.h err.h \
-	fcntl.h float.h fstab.h \
+	fcntl.h float.h fnmatch.h fstab.h \
 	grp.h kmem.h lastlog.h libgen.h limits.h \
 	math.h mtab.h ndbm.h nlist.h \
 	paths.h psout.h pwd.h \

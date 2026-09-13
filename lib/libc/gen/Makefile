@@ -16,7 +16,7 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  bzero.c calloc.c closedir.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
-		  frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
+		  fnmatch.c frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
 		  getgrnam.c getgrouplist.c gethostname.c getloadavg.c \
 		  getlogin.c getmntinfo.c getpagesize.c getpass.c \
 		  getpwent.c getttyent.c getttynam.c getusershell.c \
@@ -37,7 +37,7 @@ STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  bzero.o calloc.o closedir.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
-		  frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
+		  fnmatch.o frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
 		  getgrnam.o getgrouplist.o gethostname.o getloadavg.o \
 		  getlogin.o getmntinfo.o getpagesize.o getpass.o \
 		  getpwent.o getttyent.o getttynam.o getusershell.o \

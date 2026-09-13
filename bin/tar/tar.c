@@ -21,27 +21,69 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
+#include <pwd.h>
+#include <grp.h>
 
 #define TBLOCK  512
 #define NBLOCK  20
 #define NAMSIZ  100
+#define TPFSZ   155                     /* ustar prefix field */
+#define UGSZ    32                      /* ustar uname and gname fields */
+
+/*
+ * A path an ustar header can carry: a full prefix field, a joining slash, a
+ * full name field, and the terminator neither field leaves room for. NAMSIZ
+ * alone is the v7 limit.
+ */
+#define PATHSIZ (TPFSZ + 1 + NAMSIZ + 1)
+
+#define TMAGIC          "ustar"
+#define TMAGLEN         6
+#define TVERSION        "00"
+#define TVERSLEN        2
+
+/*
+ * typeflag values. The v7 header calls the field linkflag and writes only
+ * '\0', '1' and '2' into it; ustar adds the rest.
+ */
+#define REGTYPE         '0'
+#define AREGTYPE        '\0'
+#define LNKTYPE         '1'
+#define SYMTYPE         '2'
+#define DIRTYPE         '5'
 
 #define writetape(b)    writetbuf(b, 1)
 #define min(a,b)  ((a) < (b) ? (a) : (b))
 #define max(a,b)  ((a) > (b) ? (a) : (b))
 
+/*
+ * The v7 header and the POSIX.1-1990 ustar header agree byte for byte over
+ * the first 257 bytes, name through linkname, so one struct describes both:
+ * a v7 header leaves the tail from magic onward zero, and readers tell the
+ * two apart by the magic field alone. Field widths follow HD_USTAR in
+ * 4.4BSD-Lite2 bin/pax/tar.h; the fields sum to 500 bytes and pad to 512.
+ */
 union hblock {
     char dummy[TBLOCK];
     struct header {
-        char name[NAMSIZ];
-        char mode[8];
-        char uid[8];
-        char gid[8];
-        char size[12];
-        char mtime[12];
-        char chksum[8];
-        char linkflag;
-        char linkname[NAMSIZ];
+        char name[NAMSIZ];              /*   0 */
+        char mode[8];                   /* 100 */
+        char uid[8];                    /* 108 */
+        char gid[8];                    /* 116 */
+        char size[12];                  /* 124 */
+        char mtime[12];                 /* 136 */
+        char chksum[8];                 /* 148 */
+        char linkflag;                  /* 156 */
+        char linkname[NAMSIZ];          /* 157 */
+        char magic[TMAGLEN];            /* 257 */
+        char version[TVERSLEN];         /* 263 */
+        char uname[UGSZ];               /* 265 */
+        char gname[UGSZ];               /* 297 */
+        char devmajor[8];               /* 329 */
+        char devminor[8];               /* 337 */
+        char prefix[TPFSZ];             /* 345 */
+        char pad[12];                   /* 500 */
     } dbuf;
 };
 
@@ -49,7 +91,7 @@ struct linkbuf {
     ino_t   inum;
     dev_t   devnum;
     int count;
-    char    pathname[NAMSIZ];
+    char    pathname[PATHSIZ];
     struct  linkbuf *nextp;
 };
 
@@ -60,7 +102,7 @@ struct  stat stbuf;
 
 void     usage();
 int      openmt(char *, int);
-char    *getcwd(char *);
+char    *tarcwd(char *);
 void     dorep(char **);
 int      endtape();
 void     getdir();
@@ -76,6 +118,10 @@ void     selectbits(int *, struct stat *);
 int      checkdir(char *);
 void     tomodes(struct stat *);
 void     putoctal(char *, int, unsigned long);
+int      putheader(char *, int);
+int      isustar();
+char    *uidname(uid_t);
+char    *gidname(gid_t);
 long     getoctal(char *, int);
 int      checksum();
 int      checkw(int, char *);
@@ -96,7 +142,7 @@ void     flushtape();
 void     mterr(char *, int, int);
 int      bread(int, char *, int);
 void     getbuf();
-void     dodirtimes(union hblock *);
+void     dodirtimes(char *);
 void     setimes(char *, time_t);
 
 int rflag;
@@ -113,6 +159,15 @@ int wflag;
 int hflag;
 int Bflag;
 int Fflag;
+int Oflag;              /* write the v7 header instead of ustar */
+
+/*
+ * The full path of the header last read: the prefix field, a slash and the
+ * name field for an ustar header, the name field alone for a v7 one. The
+ * extract and table paths work from this rather than from dbuf.name, which
+ * holds at most the trailing NAMSIZ-1 bytes of an ustar path.
+ */
+char curname[PATHSIZ];
 
 int mt;
 int term;
@@ -127,7 +182,7 @@ daddr_t low;
 daddr_t high;
 daddr_t bsrch();
 
-FILE    *vfile = stdout;
+FILE    *vfile;
 FILE    *tfile;
 char    tname[] = "/tmp/tarXXXXXX";
 char    *usefile;
@@ -177,6 +232,7 @@ char    *argv[];
     if (argc < 2)
         usage();
 
+    vfile = stdout;
     tfile = NULL;
     usefile =  magtape;
     argv[argc] = 0;
@@ -290,6 +346,10 @@ char    *argv[];
             Fflag++;
             break;
 
+        case 'O':
+            Oflag++;
+            break;
+
         default:
             fprintf(stderr, "tar: %c: unknown option\n", *cp);
             usage();
@@ -326,7 +386,7 @@ void
 usage()
 {
     fprintf(stderr,
-"tar: usage: tar -{txru}[cvfblmhopwBi] [tapefile] [blocksize] file1 file2...\n");
+"tar: usage: tar -{txru}[cvfblmhopwBiO] [tapefile] [blocksize] file1 file2...\n");
     done(1);
 }
 
@@ -373,7 +433,7 @@ openmt(tape, writing)
 }
 
 char *
-getcwd(buf)
+tarcwd(buf)
     char *buf;
 {
     if (getwd(buf) == NULL) {
@@ -413,7 +473,7 @@ dorep(argv)
         }
     }
 
-    (void) getcwd(wdir);
+    (void) tarcwd(wdir);
     while (*argv && ! term) {
         cp2 = *argv;
         if (!strcmp(cp2, "-C") && argv[1]) {
@@ -422,7 +482,7 @@ dorep(argv)
                 fprintf(stderr, "tar: can't change directories to ");
                 perror(*argv);
             } else
-                (void) getcwd(wdir);
+                (void) tarcwd(wdir);
             argv++;
             continue;
         }
@@ -443,7 +503,7 @@ dorep(argv)
                 perror(*argv);
                 continue;
             }
-            parent = getcwd(tempdir);
+            parent = tarcwd(tempdir);
             *cp2 = '/';
             cp2++;
         }
@@ -475,6 +535,7 @@ void
 getdir()
 {
     register struct stat *sp;
+    register char *cp;
     int i;
 top:
     readtape((char *)&dblock);
@@ -494,8 +555,50 @@ top:
             goto top;
         done(2);
     }
+    /*
+     * Assemble the full path. ustar splits a path longer than NAMSIZ-1 at
+     * a slash into prefix and name; neither field is terminated when it is
+     * filled to its width, so both copies are bounded by the field size.
+     */
+    cp = curname;
+    if (isustar() && dblock.dbuf.prefix[0] != '\0') {
+        for (i = 0; i < (int) sizeof(dblock.dbuf.prefix); i++) {
+            if (dblock.dbuf.prefix[i] == '\0')
+                break;
+            *cp++ = dblock.dbuf.prefix[i];
+        }
+        *cp++ = '/';
+    }
+    for (i = 0; i < (int) sizeof(dblock.dbuf.name); i++) {
+        if (dblock.dbuf.name[i] == '\0')
+            break;
+        *cp++ = dblock.dbuf.name[i];
+    }
+    *cp = '\0';
+
+    /*
+     * checkdir() and dodirtimes() recognize a directory by the trailing
+     * slash the v7 header carries in the name. An ustar producer marks a
+     * directory with typeflag DIRTYPE instead and need not add the slash.
+     */
+    if (dblock.dbuf.linkflag == DIRTYPE && cp > curname && cp[-1] != '/') {
+        *cp++ = '/';
+        *cp = '\0';
+    }
+
     if (tfile != NULL)
-        fprintf(tfile, "%s %s\n", dblock.dbuf.name, dblock.dbuf.mtime);
+        fprintf(tfile, "%s %s\n", curname, dblock.dbuf.mtime);
+}
+
+/*
+ * An ustar header carries "ustar\0" in the magic field at offset 257, where
+ * a v7 header carries the zero bytes that follow a name shorter than
+ * NAMSIZ. The magic alone decides which layout the tail holds.
+ */
+int
+isustar()
+{
+    return (strncmp(dblock.dbuf.magic, TMAGIC, TMAGLEN) == 0);
 }
 
 void
@@ -504,7 +607,7 @@ passtape()
     long blocks;
     char *bufp;
 
-    if (dblock.dbuf.linkflag == '1')
+    if (dblock.dbuf.linkflag == LNKTYPE)
         return;
     blocks = stbuf.st_size;
     blocks += TBLOCK-1;
@@ -543,7 +646,7 @@ putfile(longname, shortname, parent)
     DIR *dirp;
     register int i;
     long l;
-    char newparent[NAMSIZ+64];
+    char newparent[PATHSIZ];
     int maxread;
     int hint;       /* amount to write to get "in sync" */
 
@@ -570,18 +673,12 @@ putfile(longname, shortname, parent)
         *--cp = '/';
         *++cp = 0  ;
         if (!oflag) {
-            if ((cp - buf) >= NAMSIZ) {
-                fprintf(stderr, "tar: %s: file name too long\n",
-                    longname);
-                return;
-            }
             stbuf.st_size = 0;
             tomodes(&stbuf);
-            strcpy(dblock.dbuf.name,buf);
-            sprintf(dblock.dbuf.chksum, "%6o", checksum());
-            (void) writetape((char *)&dblock);
+            if (putheader(buf, DIRTYPE) == 0)
+                return;
         }
-        sprintf(newparent, "%s/%s", parent, shortname);
+        snprintf(newparent, sizeof(newparent), "%s/%s", parent, shortname);
         if (chdir(shortname) < 0) {
             perror(shortname);
             return;
@@ -616,18 +713,13 @@ putfile(longname, shortname, parent)
         break;
 
     case S_IFLNK:
-        tomodes(&stbuf);
-        if (strlen(longname) >= NAMSIZ) {
-            fprintf(stderr, "tar: %s: file name too long\n",
-                longname);
-            return;
-        }
-        strcpy(dblock.dbuf.name, longname);
         if (stbuf.st_size + 1 >= NAMSIZ) {
             fprintf(stderr, "tar: %s: symbolic link too long\n",
                 longname);
             return;
         }
+        stbuf.st_size = 0;
+        tomodes(&stbuf);
         i = readlink(shortname, dblock.dbuf.linkname, NAMSIZ - 1);
         if (i < 0) {
             fprintf(stderr, "tar: can't read symbolic link ");
@@ -635,13 +727,11 @@ putfile(longname, shortname, parent)
             return;
         }
         dblock.dbuf.linkname[i] = '\0';
-        dblock.dbuf.linkflag = '2';
+        dblock.dbuf.linkflag = SYMTYPE;
         if (vflag)
             fprintf(vfile, "a %s symbolic link to %s\n",
                 longname, dblock.dbuf.linkname);
-        sprintf(dblock.dbuf.size, "%11lo", 0L);
-        sprintf(dblock.dbuf.chksum, "%6o", checksum());
-        (void) writetape((char *)&dblock);
+        (void) putheader(longname, SYMTYPE);
         break;
 
     case S_IFREG:
@@ -651,13 +741,6 @@ putfile(longname, shortname, parent)
             return;
         }
         tomodes(&stbuf);
-        if (strlen(longname) >= NAMSIZ) {
-            fprintf(stderr, "tar: %s: file name too long\n",
-                longname);
-            close(infile);
-            return;
-        }
-        strcpy(dblock.dbuf.name, longname);
         if (stbuf.st_nlink > 1) {
             struct linkbuf *lp;
             int found = 0;
@@ -669,10 +752,15 @@ putfile(longname, shortname, parent)
                     break;
                 }
             if (found) {
-                strcpy(dblock.dbuf.linkname, lp->pathname);
-                dblock.dbuf.linkflag = '1';
-                sprintf(dblock.dbuf.chksum, "%6o", checksum());
-                (void) writetape( (char *) &dblock);
+                strncpy(dblock.dbuf.linkname, lp->pathname,
+                    sizeof(dblock.dbuf.linkname));
+                dblock.dbuf.linkflag = LNKTYPE;
+                putoctal(dblock.dbuf.size,
+                    sizeof(dblock.dbuf.size), 0);
+                if (putheader(longname, LNKTYPE) == 0) {
+                    close(infile);
+                    return;
+                }
                 if (vflag)
                     fprintf(vfile, "a %s link to %s\n",
                         longname, lp->pathname);
@@ -687,14 +775,16 @@ putfile(longname, shortname, parent)
                 lp->inum = stbuf.st_ino;
                 lp->devnum = stbuf.st_dev;
                 lp->count = stbuf.st_nlink - 1;
-                strcpy(lp->pathname, longname);
+                strlcpy(lp->pathname, longname, sizeof(lp->pathname));
             }
         }
         blocks = (stbuf.st_size + (TBLOCK-1)) / TBLOCK;
         if (vflag)
             fprintf(vfile, "a %s %ld blocks\n", longname, blocks);
-        sprintf(dblock.dbuf.chksum, "%6o", checksum());
-        hint = writetape((char *)&dblock);
+        if ((hint = putheader(longname, Oflag ? AREGTYPE : REGTYPE)) == 0) {
+            close(infile);
+            return;
+        }
         maxread = max(stbuf.st_blksize, (nblock * TBLOCK));
         if (maxread > NBLOCK * TBLOCK)
             maxread = NBLOCK * TBLOCK;
@@ -745,15 +835,15 @@ doxtract(argv)
             continue;
         if (i == -1)
             break;      /* end of tape */
-        if (checkw('x', dblock.dbuf.name) == 0) {
+        if (checkw('x', curname) == 0) {
             passtape();
             continue;
         }
         if (Fflag) {
             char *s;
 
-            if ((s = rindex(dblock.dbuf.name, '/')) == 0)
-                s = dblock.dbuf.name;
+            if ((s = rindex(curname, '/')) == 0)
+                s = curname;
             else
                 s++;
             if (checkf(s, stbuf.st_mode, Fflag) == 0) {
@@ -761,71 +851,71 @@ doxtract(argv)
                 continue;
             }
         }
-        if (checkdir(dblock.dbuf.name)) {   /* have a directory */
+        if (checkdir(curname)) {   /* have a directory */
             if (mflag == 0)
-                dodirtimes(&dblock);
+                dodirtimes(curname);
             continue;
         }
-        if (dblock.dbuf.linkflag == '2') {  /* symlink */
+        if (dblock.dbuf.linkflag == SYMTYPE) {  /* symlink */
             /*
              * only unlink non directories or empty
              * directories
              */
-            if (rmdir(dblock.dbuf.name) < 0) {
+            if (rmdir(curname) < 0) {
                 if (errno == ENOTDIR)
-                    unlink(dblock.dbuf.name);
+                    unlink(curname);
             }
-            if (symlink(dblock.dbuf.linkname, dblock.dbuf.name)<0) {
+            if (symlink(dblock.dbuf.linkname, curname)<0) {
                 fprintf(stderr, "tar: %s: symbolic link failed: ",
-                    dblock.dbuf.name);
+                    curname);
                 perror("");
                 continue;
             }
             if (vflag)
                 fprintf(vfile, "x %s symbolic link to %s\n",
-                    dblock.dbuf.name, dblock.dbuf.linkname);
+                    curname, dblock.dbuf.linkname);
 #ifdef notdef
             /* ignore alien orders */
-            chown(dblock.dbuf.name, stbuf.st_uid, stbuf.st_gid);
+            chown(curname, stbuf.st_uid, stbuf.st_gid);
             if (mflag == 0)
-                setimes(dblock.dbuf.name, stbuf.st_mtime);
+                setimes(curname, stbuf.st_mtime);
             if (pflag)
-                chmod(dblock.dbuf.name, stbuf.st_mode & 07777);
+                chmod(curname, stbuf.st_mode & 07777);
 #endif
             continue;
         }
-        if (dblock.dbuf.linkflag == '1') {  /* regular link */
+        if (dblock.dbuf.linkflag == LNKTYPE) {  /* regular link */
             /*
              * only unlink non directories or empty
              * directories
              */
-            if (rmdir(dblock.dbuf.name) < 0) {
+            if (rmdir(curname) < 0) {
                 if (errno == ENOTDIR)
-                    unlink(dblock.dbuf.name);
+                    unlink(curname);
             }
-            if (link(dblock.dbuf.linkname, dblock.dbuf.name) < 0) {
+            if (link(dblock.dbuf.linkname, curname) < 0) {
                 fprintf(stderr, "tar: can't link %s to %s: ",
-                    dblock.dbuf.name, dblock.dbuf.linkname);
+                    curname, dblock.dbuf.linkname);
                 perror("");
                 continue;
             }
             if (vflag)
                 fprintf(vfile, "%s linked to %s\n",
-                    dblock.dbuf.name, dblock.dbuf.linkname);
+                    curname, dblock.dbuf.linkname);
             continue;
         }
-        if ((ofile = creat(dblock.dbuf.name,stbuf.st_mode&0xfff)) < 0) {
+        if ((ofile = creat(curname,stbuf.st_mode&0xfff)) < 0) {
             fprintf(stderr, "tar: can't create %s: ",
-                dblock.dbuf.name);
+                curname);
             perror("");
             passtape();
             continue;
         }
-        chown(dblock.dbuf.name, stbuf.st_uid, stbuf.st_gid);
+        chown(curname, stbuf.st_uid, stbuf.st_gid);
         blocks = ((bytes = stbuf.st_size) + TBLOCK-1)/TBLOCK;
         if (vflag)
             fprintf(vfile, "x %s, %ld bytes, %ld tape blocks\n",
-                dblock.dbuf.name, bytes, blocks);
+                curname, bytes, blocks);
         for (; blocks > 0;) {
             register int nread;
             char    *bufp;
@@ -838,7 +928,7 @@ doxtract(argv)
             if (write(ofile, bufp, (int)min(nread, bytes)) < 0) {
                 fprintf(stderr,
                     "tar: %s: HELP - extract write error",
-                    dblock.dbuf.name);
+                    curname);
                 perror("");
                 done(2);
             }
@@ -847,13 +937,13 @@ doxtract(argv)
         }
         close(ofile);
         if (mflag == 0)
-            setimes(dblock.dbuf.name, stbuf.st_mtime);
+            setimes(curname, stbuf.st_mtime);
         if (pflag)
-            chmod(dblock.dbuf.name, stbuf.st_mode & 07777);
+            chmod(curname, stbuf.st_mode & 07777);
     }
     if (mflag == 0) {
-        dblock.dbuf.name[0] = '\0'; /* process the whole stack */
-        dodirtimes(&dblock);
+        curname[0] = '\0'; /* process the whole stack */
+        dodirtimes(curname);
     }
 }
 
@@ -870,10 +960,10 @@ dotable(argv)
             break;      /* end of tape */
         if (vflag)
             longt(&stbuf);
-        printf("%s", dblock.dbuf.name);
-        if (dblock.dbuf.linkflag == '1')
+        printf("%s", curname);
+        if (dblock.dbuf.linkflag == LNKTYPE)
             printf(" linked to %s", dblock.dbuf.linkname);
-        if (dblock.dbuf.linkflag == '2')
+        if (dblock.dbuf.linkflag == SYMTYPE)
             printf(" symbolic link to %s", dblock.dbuf.linkname);
         printf("\n");
         passtape();
@@ -1009,6 +1099,107 @@ register struct stat *sp;
     putoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid), sp->st_gid);
     putoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size), sp->st_size);
     putoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime), sp->st_mtime);
+}
+
+/*
+ * Split name across the ustar prefix and name fields, fill the ustar tail,
+ * checksum the header and write it. ustar stores a path longer than
+ * NAMSIZ-1 by splitting it at a slash so that at most NAMSIZ-1 bytes land
+ * in name and at most TPFSZ in prefix; a single path component longer than
+ * NAMSIZ-1 has no such split point and is refused, as is any path at all
+ * over NAMSIZ-1 bytes under -O, which writes the v7 header. Returns the
+ * writetape hint, or 0 when the name does not fit.
+ */
+int
+putheader(name, typeflag)
+    char *name;
+    int typeflag;
+{
+    int len = strlen(name);
+    int split = 0;
+    register int i;
+
+    if (len >= NAMSIZ) {
+        if (Oflag || len > TPFSZ + NAMSIZ) {
+            fprintf(stderr, "tar: %s: file name too long\n", name);
+            return (0);
+        }
+        /*
+         * Take the first slash that leaves a tail the name field holds,
+         * so the prefix stays as short as the split allows. The search
+         * starts at len-NAMSIZ, which leaves at most NAMSIZ-1 bytes in
+         * name, and stops before the last byte: a directory arrives with
+         * a trailing slash, and splitting there would leave name empty,
+         * which endtape() reads as the end of the archive and which would
+         * silently drop every entry that follows.
+         */
+        i = len - NAMSIZ;
+        if (i < 1)
+            i = 1;
+        for (; i < len - 1; i++)
+            if (name[i] == '/' && i <= TPFSZ) {
+                split = i;
+                break;
+            }
+        if (split == 0) {
+            fprintf(stderr, "tar: %s: file name too long\n", name);
+            return (0);
+        }
+        memcpy(dblock.dbuf.prefix, name, split);
+        memcpy(dblock.dbuf.name, name + split + 1, len - split - 1);
+    } else
+        memcpy(dblock.dbuf.name, name, len);
+
+    if (!Oflag) {
+        memcpy(dblock.dbuf.magic, TMAGIC, TMAGLEN);
+        memcpy(dblock.dbuf.version, TVERSION, TVERSLEN);
+        dblock.dbuf.linkflag = typeflag;
+        strncpy(dblock.dbuf.uname, uidname(stbuf.st_uid), UGSZ);
+        strncpy(dblock.dbuf.gname, gidname(stbuf.st_gid), UGSZ);
+        putoctal(dblock.dbuf.devmajor, sizeof(dblock.dbuf.devmajor), 0);
+        putoctal(dblock.dbuf.devminor, sizeof(dblock.dbuf.devminor), 0);
+    }
+    sprintf(dblock.dbuf.chksum, "%6o", checksum());
+    return (writetape((char *) &dblock));
+}
+
+/*
+ * Name the owner and group for the ustar uname and gname fields, each
+ * cached for the one id a run of putfile() repeats. An unknown id yields
+ * the empty string, which POSIX reads as "use the numeric field".
+ */
+char *
+uidname(uid)
+    uid_t uid;
+{
+    static uid_t last = (uid_t) -1;
+    static char name[UGSZ];
+    struct passwd *pw;
+
+    if (uid != last) {
+        last = uid;
+        name[0] = '\0';
+        if ((pw = getpwuid(uid)) != NULL)
+            strncpy(name, pw->pw_name, sizeof(name) - 1);
+    }
+    return (name);
+}
+
+char *
+gidname(gid)
+    gid_t gid;
+{
+    static gid_t last = (gid_t) -1;
+    static char name[UGSZ];
+    struct group *gr;
+
+    if (gid != last) {
+        last = gid;
+        name[0] = '\0';
+        if ((gr = getgrgid(gid)) != NULL)
+            strncpy(name, gr->gr_name, sizeof(name) - 1);
+    }
+    return (name);
 }
 
 /*
@@ -1167,7 +1358,7 @@ wantit(argv)
     if (*argv == 0)
         return (1);
     for (cp = argv; *cp; cp++)
-        if (prefix(*cp, dblock.dbuf.name))
+        if (prefix(*cp, curname))
             return (1);
     passtape();
     return (0);
@@ -1474,16 +1665,16 @@ getbuf()
  * directories are not.  This avoids saving every directory record on
  * the tape and setting all the times at the end.
  */
-char dirstack[NAMSIZ];
-#define NTIM (NAMSIZ/2+1)       /* a/b/c/d/... */
+char dirstack[PATHSIZ];
+#define NTIM (PATHSIZ/2+1)      /* a/b/c/d/... */
 time_t mtime[NTIM];
 
 void
-dodirtimes(hp)
-    union hblock *hp;
+dodirtimes(name)
+    char *name;
 {
     register char *p = dirstack;
-    register char *q = hp->dbuf.name;
+    register char *q = name;
     register int ndir = 0;
     char *savp;
     int savndir;

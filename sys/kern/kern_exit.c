@@ -10,6 +10,9 @@
 #include <sys/proc.h>
 #include <sys/inode.h>
 #include <sys/vm.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <sys/kernel.h>
@@ -35,6 +38,9 @@ endvfork()
      * The parent has taken back our data+stack, set our sizes to 0.
      */
     u.u_dsize = rpp->p_dsize = 0;
+#ifdef SWAPRAM
+    swapram_leave_large (rpp);
+#endif
     u.u_ssize = rpp->p_ssize = 0;
     rpp->p_flag &= ~(SVFDONE | SLOCK);
 }

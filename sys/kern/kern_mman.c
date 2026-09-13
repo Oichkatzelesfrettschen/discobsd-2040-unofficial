@@ -8,6 +8,9 @@
 #include <sys/proc.h>
 #include <sys/vm.h>
 #include <sys/systm.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 
 void
 brk()
@@ -21,7 +24,18 @@ brk()
     newsize = ((struct a*)u.u_arg)->naddr - u.u_procp->p_daddr;
     if (newsize < 0)
         newsize = 0;
+#ifdef SWAPRAM
+    /* Growth past the window but within the bonus asks for LARGE. */
+    if (u.u_tsize + newsize + u.u_ssize > MAXMEM &&
+        u.u_tsize + newsize + u.u_ssize <= MAXMEM + SWAPRAM_BONUS &&
+        swapram_enter_large (u.u_procp) != 0) {
+        u.u_error = ENOMEM;
+        return;
+    }
+    if (u.u_tsize + newsize + u.u_ssize > swapram_ceiling (u.u_procp)) {
+#else
     if (u.u_tsize + newsize + u.u_ssize > MAXMEM) {
+#endif
         u.u_error = ENOMEM;
         return;
     }

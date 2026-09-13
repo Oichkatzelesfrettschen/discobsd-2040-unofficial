@@ -29,7 +29,8 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  strcat.c strcmp.c strcpy.c strdup.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysctl.c syslog.c \
 		  system.c telldir.c time.c timezone.c ttyname.c ttyslot.c \
-		  ualarm.c uname.c usleep.c wait.c wait3.c waitpid.c
+		  ualarm.c uname.c unvis.c usleep.c vis.c \
+		  wait.c wait3.c waitpid.c
 
 STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o \
@@ -49,7 +50,8 @@ STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  strcat.o strcmp.o strcpy.o strdup.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysctl.o syslog.o \
 		  system.o telldir.o time.o timezone.o ttyname.o ttyslot.o \
-		  ualarm.o uname.o usleep.o wait.o wait3.o waitpid.o
+		  ualarm.o uname.o unvis.o usleep.o vis.o \
+		  wait.o wait3.o waitpid.o
 
 gen.a:		${OBJS}
 		@echo "building gen.a"

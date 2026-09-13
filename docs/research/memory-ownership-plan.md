@@ -210,6 +210,19 @@ Board: a 31 KB piped tail takes 12.9 s against 6.2 s for the pipe alone
 and 7.8 s for a copy to /tmp; the board's pipe throughput is about
 5 KB/s. utilbox excluded tail for its bss; it is a candidate again.
 
+### sed's compile/execute union: disproved
+
+The proposed union of respace[10000] (compile) with genbuf[4000]
+(execute) assumed respace is dead once the script is compiled. It is
+not: sed0.c stores the compiled program in it (`rep->A.ad1 = respace`,
+and each command's ad2, re1 and rhs are pointers into the same space),
+and sed1.c reads it for every input line, through `match(ipc->A.re1)`
+at line 360 and `dosub(ipc->A.rhs)` at 363, while genbuf holds the
+substitution being built (lines 382-421). A union would overwrite the
+program with the first substitution. genbuf is execution-only (sed0.c
+touches it once, to set lcomend), so the only phase-exclusive pair is
+genbuf against compile-time state that is small. No change.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

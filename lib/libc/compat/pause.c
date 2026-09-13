@@ -6,7 +6,8 @@
 #include <signal.h>
 
 /*
- * Backwards compatible pause.
+ * Backwards compatible pause. sigsuspend(2) only returns once a handler
+ * has run, always -1 with errno EINTR, and pause(2) reports the same.
  */
 int
 pause()
@@ -14,6 +15,5 @@ pause()
 	sigset_t set;
 
 	(void)sigemptyset(&set);
-	sigsuspend(&set);
-	return 0;
+	return (sigsuspend(&set));
 }

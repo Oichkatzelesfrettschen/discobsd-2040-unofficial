@@ -159,7 +159,7 @@ The multicall boxes localize each tool's globals with `objcopy
 Makefile excludes sed, sort and find for exactly that aliasing, so they
 are now candidates.
 
-### Found by the board tests: the initial user stack is 4-byte aligned
+### Found by the board tests: the initial user stack was 4-byte aligned (port PR #36)
 
 `awk 'BEGIN{print 1+1}'` prints `1.6e-154` or `2` depending on the byte
 length of the environment, for the pre-PR-#35 binary and the new one
@@ -168,8 +168,9 @@ places argv wherever the string byte count leaves it and sets the entry
 SP a multiple of 8 below it, while the ARM EABI hands `_start` an 8-byte
 aligned stack and `va_arg(ap, double)` rounds the address up to 8; the
 decoded garbage is the double's high word followed by the next stack
-word. The fix pads the argument block down one word when argv lands on
-a 4-byte boundary.
+word. PR #36 pads the argument block down one word when argv lands on
+a 4-byte boundary; tests/rp2040/exec_stack_align/board_stack_align.py runs
+awk and printf under twelve environment lengths on the board, all correct.
 
 ## Open
 

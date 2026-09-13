@@ -273,6 +273,36 @@ window top a value the epoch selects at the sites that use
 __user_data_end (exec_aout, exec_subr, exec_elf, vm_swap, syscall.c and
 sig_machdep.c stack growth, fault.c, kern_sig core dump, machdep).
 
+### The 160 KB LARGE window (port PR #43, verifier #44)
+
+Step 3. The pool lives in a NOLOAD section kern.ldscript places first
+in RAM, so its 16 KB sit at 0x20024000 where the 144 KB window ends
+(link assert, and swapram_init checks the running image at boot);
+SWAPRAM_BONUS is the pool's size, and USER_TOP(p) in sys/systm.h is
+__user_data_end plus the bonus for P_LARGE. Every site that laid out or
+bounded the window against __user_data_end asks USER_TOP: swapin's
+stack, the a.out and ELF exec layouts, the stack-growth checks in
+syscall.c and sig_machdep.c, the fault handler's frame bounds, the core
+dump, and baduaddr (which otherwise would let a small process name the
+pool's bytes to copyin). exec_estab decides the epoch before laying the
+stack. The bonus is a fresh exec's alone: a running process's stack
+already sits under 144 KB and the pool is above it, so brk never asks
+(the brk hook from #42 came out). A leak found on the board: the exit
+release had landed in endvfork, which a normal exit never passes, so
+P_LARGE leaked and the epoch stuck LARGE; it lives in exit() now, and
+machdep.swapram_large counts holders. Board, as root: bigtest (bss
+150,000) runs under LARGE with the pool empty and its forked child's
+copy intact from flash, three runs; hugetest (170,000) is refused as
+"too big"; epochtest and evactest pass afterward with the pool
+admitting again. Kernel text +240; _sdata moves up 16 KB. PR #44 fixed
+the link verifier, which still measured sr_pool; the #43 merge went in
+on a red check-swapram because the chain echoed the status instead of
+gating on it.
+
+Step 4 (three-extent SwapRAM) is deferred by decision until
+fragmentation measurements justify it. Step 5, compressed executables,
+is next.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

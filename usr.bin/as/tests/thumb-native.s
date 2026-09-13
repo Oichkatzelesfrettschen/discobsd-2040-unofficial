@@ -21,13 +21,10 @@ main:
 	push	{r7, lr}
 	mov	r7, sp
 	ldr	r3, =.LF0
-	mov	r2, sp
-	subs	r2, r2, r3
-	mov	sp, r2
+	add	sp, r3
 	push	{r0, r4, r5, r6}
 	movs	r0, #47
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	movs	r0, #5
 	movs	r1, #8
@@ -41,13 +38,11 @@ main:
 
 	.text
 	sub	sp, #4
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	negs	r0, r0
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -56,8 +51,7 @@ main:
 	pop	{r5}
 	muls	r0, r5, r0
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -66,8 +60,7 @@ main:
 	pop	{r5}
 	subs	r0, r5, r0
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -92,8 +85,7 @@ main:
 	.space	1
 
 	.text
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -106,8 +98,7 @@ main:
 	bl	__aeabi_idivmod
 	mov	r0, r1
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -130,8 +121,7 @@ main:
 	bl	printf
 	movs	r0, #47
 	negs	r0, r0
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 
 	.section	.rodata,"a",%progbits
@@ -140,8 +130,7 @@ main:
 	.space	1
 
 	.text
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -154,8 +143,7 @@ main:
 	bl	__aeabi_idivmod
 	mov	r0, r1
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -177,8 +165,7 @@ main:
 	add	sp, #12
 	bl	printf
 	movs	r0, #47
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	movs	r0, #5
 	negs	r0, r0
@@ -192,8 +179,7 @@ main:
 	.space	1
 
 	.text
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -206,8 +192,7 @@ main:
 	bl	__aeabi_idivmod
 	mov	r0, r1
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -280,8 +265,7 @@ main:
 	add	sp, #12
 	bl	printf
 	movs	r0, #1
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 
 	.section	.rodata,"a",%progbits
@@ -295,8 +279,7 @@ main:
 	push	{r0}
 	movs	r0, #128
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	lsls	r0, r0, #10
 	push	{r0}
@@ -331,8 +314,7 @@ main:
 	add	sp, #8
 	bl	printf
 	ldr	r0, =61680
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	ldr	r0, =4080
 	movs	r1, #8
@@ -346,13 +328,11 @@ main:
 
 	.text
 	sub	sp, #4
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	mvns	r0, r0
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -361,8 +341,7 @@ main:
 	pop	{r5}
 	eors	r0, r5
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -371,8 +350,7 @@ main:
 	pop	{r5}
 	orrs	r0, r5
 	push	{r0}
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	movs	r1, #8
@@ -391,58 +369,44 @@ main:
 	bl	printf
 	add	sp, #8
 	movs	r0, #5
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	movs	r0, #3
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r6, [r1, #0]
 	adds	r0, r6, r0
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	movs	r0, #1
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r6, [r1, #0]
 	subs	r0, r6, r0
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	movs	r0, #4
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r6, [r1, #0]
 	muls	r0, r6, r0
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 	movs	r0, #7
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r6, [r1, #0]
 	mov	r12, r0
 	mov	r0, r6
 	mov	r1, r12
 	bl	__aeabi_idiv
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
-	b	.LT1
-	.ltorg
-.LT1:
 	movs	r0, #3
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r6, [r1, #0]
 	mov	r12, r0
 	mov	r0, r6
 	mov	r1, r12
 	bl	__aeabi_idivmod
 	mov	r0, r1
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	str	r0, [r1, #0]
 
 	.section	.rodata,"a",%progbits
@@ -451,11 +415,13 @@ main:
 	.space	1
 
 	.text
-	movs	r1, #4
-	subs	r1, r7, r1
+	subs	r1, r7, #4
 	ldr	r0, [r1, #0]
 	push	{r0}
 	ldr	r0, =.L11
+	b	.LT1
+	.ltorg
+.LT1:
 	push	{r0}
 	ldr	r0, [sp, #0]
 	ldr	r1, [sp, #4]
@@ -471,7 +437,7 @@ main:
 	pop	{r3}
 	add	sp, #16
 	bx	r3
-	.equ	.LF0, 16
+	.equ	.LF0, -16
 	.ltorg
 
  @ Next label number: 12

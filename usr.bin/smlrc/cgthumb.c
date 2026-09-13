@@ -370,8 +370,8 @@ void GenLoadLabelAddr(int reg, int label)
 }
 
 /* sp += n, for any n. ADD/SUB (SP plus immediate) encodes a word-aligned
-   0..508; anything larger goes through a register, and SP has no register
-   subtract, so it is staged through r2. */
+   0..508; anything larger goes through a register. ARMv6-M has ADD (SP plus
+   register) and no SUB (SP plus register), so a decrease adds a negative. */
 STATIC
 void GenAddSp(int n)
 {
@@ -401,11 +401,9 @@ void GenAddSp(int n)
     }
     else
     {
-      GenLoadConst(ThumbOpRegAddr, -n);
-      printf2("\tmov\tr%d, sp\n", ThumbOpRegCnst);
-      printf2("\tsubs\tr%d, r%d, r%d\n", ThumbOpRegCnst, ThumbOpRegCnst, ThumbOpRegAddr);
-      printf2("\tmov\tsp, r%d\n", ThumbOpRegCnst);
-      ThumbSpend(6);
+      GenLoadConst(ThumbOpRegAddr, n);
+      printf2("\tadd\tsp, r%d\n", ThumbOpRegAddr);
+      ThumbSpend(2);
     }
   }
 }
@@ -423,12 +421,28 @@ void GenLocalAddr(int reg, int ofs)
   }
   else if (ofs > 0)
   {
+    if (ofs <= 7)
+    {
+      printf2("\tadds\tr%d, r%d, #%d\n", reg, ThumbOpRegFp, ofs);
+      ThumbSpend(2);
+      return;
+    }
     GenLoadConst(reg, ofs);
     printf2("\tadds\tr%d, r%d, r%d\n", reg, ThumbOpRegFp, reg);
     ThumbSpend(2);
   }
   else
   {
+    /* ADDS and SUBS (register plus 3-bit immediate) name the destination and
+       the source separately, so a slot within seven bytes of the frame
+       pointer is one halfword instead of a materialized constant and a
+       register subtract. The first local sits at -4 and is the common case. */
+    if (ofs >= -7)
+    {
+      printf2("\tsubs\tr%d, r%d, #%d\n", reg, ThumbOpRegFp, -ofs);
+      ThumbSpend(2);
+      return;
+    }
     GenLoadConst(reg, -ofs);
     printf2("\tsubs\tr%d, r%d, r%d\n", reg, ThumbOpRegFp, reg);
     ThumbSpend(2);
@@ -663,13 +677,15 @@ void GenFxnProlog(void)
   puts2("\tpush\t{r0, r1, r2, r3}");
   puts2("\tpush\t{r7, lr}");
   printf2("\tmov\tr%d, sp\n", ThumbOpRegFp);
+  /* The frame symbol carries the negated size so that the reserve is the
+     one SP-by-register form ARMv6-M offers. Thumb-1 encodes ADD (SP plus
+     register) and no SUB (SP plus register), so adding a negative is what
+     replaces a materialize-subtract-writeback triple. */
   printf2("\tldr\tr%d, =.LF%d\n", ThumbOpRegCall, ThumbFrameLabel);
-  printf2("\tmov\tr%d, sp\n", ThumbOpRegCnst);
-  printf2("\tsubs\tr%d, r%d, r%d\n", ThumbOpRegCnst, ThumbOpRegCnst, ThumbOpRegCall);
-  printf2("\tmov\tsp, r%d\n", ThumbOpRegCnst);
+  printf2("\tadd\tsp, r%d\n", ThumbOpRegCall);
   /* r0 is a pad keeping the push a multiple of eight bytes. */
   puts2("\tpush\t{r0, r4, r5, r6}");
-  ThumbSpend(20);
+  ThumbSpend(16);
 }
 
 STATIC
@@ -686,7 +702,7 @@ void GenFxnEpilog(void)
   /* Discard the home area the prolog pushed; the caller removed the rest. */
   puts2("\tadd\tsp, #16");
   printf2("\tbx\tr%d\n", ThumbOpRegCall);
-  printf2("\t.equ\t.LF%d, %u\n", ThumbFrameLabel, size);
+  printf2("\t.equ\t.LF%d, -%u\n", ThumbFrameLabel, size);
   puts2("\t.ltorg");
   ThumbPoolBytes = 0;
 }

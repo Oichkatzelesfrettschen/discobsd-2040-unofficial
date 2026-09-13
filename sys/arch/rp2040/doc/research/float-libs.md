@@ -158,7 +158,7 @@ microseconds -- the table header's "Cycles (Avg)" is correct, its column
 subhead mislabels "us" in the PDF's extracted text):
 
 | Operation | float, V1 | float, V2/V3 | double, V2/V3 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | add | 71 | 71 | 91 |
 | sub | 74 | 74 | 95 |
 | mul | 69 | 58 | 155 |
@@ -198,7 +198,7 @@ published comparison table (measured on an LPC11U68, Cortex-M0, single-cycle
 flash, from its GitHub README) gives a same-class-of-core data point:
 
 | Function | qfplib-m0-full | GCC libgcc | GoFast |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | fadd | 76 | 102 | 182 |
 | fsub | 78 | 108 | 181 |
 | fmul | 62 | 166 | 144 |
@@ -476,14 +476,16 @@ compiler-runtime names, so both cross-linked programs and programs linked on
 the board resolve through `-lc` without a linker-specific `--wrap` seam. The
 48-member partition exposes 92 public names while allowing the archive linker
 to extract only the operations and shared helpers a program reaches. The full
-provider contains 1,784 text bytes and 76 initialized-data bytes, but those
-totals are not the per-program cost. Each ROM-backed target contributes one
-four-byte demand-filled cache cell; direct comparisons and sign changes use no
-writable storage. Arithmetic remains 1.5x-8x faster than the software routines
-measured in Section 2.3, subject to the ROM numerical contract in Section 2.1.
+provider contains 1,800 text bytes and 76 initialized-data bytes, but those
+totals are not the per-program cost. GNU objdump, LLVM objdump, Capstone,
+radare2, and Rizin agree on all 720 Thumb instruction boundaries: 679
+instructions are 16-bit and 41 are 32-bit. Each ROM-backed target contributes
+one four-byte demand-filled cache cell; direct comparisons and sign changes use
+no writable storage. Arithmetic remains 1.5x-8x faster than the software
+routines measured in Section 2.3, subject to the ROM numerical contract in
+Section 2.1.
 
-#### 4.1 Implementation findings: the divider hazard, the truncation
-#### mismatch, and the caller census
+### 4.1 Implementation findings: divider safety, conversion, and caller census
 
 Three facts from the bootrom source (`raspberrypi/pico-bootrom-rp2040`,
 `bootrom/bootrom_rt0.S` and `bootrom/mufplib.S`), the SDK, and the DiscoBSD
@@ -511,6 +513,28 @@ The earlier context-switch-only checkpoint did not protect against an IRQ
 divider consumer and added work to every kernel save and restore, so the native
 provider removes it. `mufp_fadd`, `mufp_fsub`, `mufp_fmul`, `mufp_fsqrt`, and
 the conversion entries are divider-free.
+
+The scheduler and exception paths make the narrower invariant precise.
+`Reset_Handler` writes `CONTROL=3`, which selects unprivileged Thread mode and
+the process stack. SysTick enters `SysTick_Handler`, passes the stacked frame to
+`systick`, and calls `hardclock`; exception return resumes the interrupted
+process. `hardclock` and its callouts can set `runrun`, but the linked image
+contains `swtch` calls only in exit, signal stop or trace handling, `userret`,
+and blocking sleep. The syscall and fault return paths call `userret`, which
+consumes `runrun`. A successful ROM divide therefore finishes before another
+user process can execute. The source and linked-image divider gates cover 155
+dependency-closed kernel files and reject any SIO divider register access or
+reachable divider runtime symbol in kernel, IRQ, NMI, and callout code.
+
+**Attended-hardware falsifier.** A B2 board running Boot ROM V3 must resolve the
+single- and double-precision table entries to valid Thumb targets and preserve
+results while a forced SysTick, USB, or UART interrupt lands between divider
+input and result access. A changed result, an unexpected table target, an IRQ
+divider owner, or a process switch before exception return falsifies the direct
+design. The retained hardware run must record the ROM version, resolved target
+addresses, interrupt count, expected and observed float bits, and the injected
+collision location. Offline evidence does not substitute for that authorized
+board run.
 
 **`mufp_float2int` floors; `__aeabi_f2iz` truncates.** The ROM
 `float2int` converts "rounding towards -Inf, clamping" (`mufplib.S` line

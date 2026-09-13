@@ -77,15 +77,19 @@
 #define btod(x)         (((x) + DEV_BSIZE-1) >> DEV_BSHIFT)
 
 /*
- * The user window: one resident process image lives in the 96 KB at
+ * The user window: one resident process image lives in the 144 KB at
  * 0x20000000. exec_estab (sys/kern/exec_subr.c) rejects an image whose
- * text, data, bss, heap and stack exceed USER_DATA_SIZE, and exec_aout
- * loads data at USER_DATA_START and places the stack against
- * USER_DATA_END, so these are load-bearing rather than provisional.
+ * text, data, bss, heap and stack exceed MAXMEM, which sys/param.h takes
+ * from here, and exec_aout loads data at USER_DATA_START and places the
+ * stack against USER_DATA_END. conf/RP2040.ld's USERRAM region states
+ * the same size for the linker and machdep.c panics at boot when the two
+ * disagree; lib/libc/arm/gen/rom_float_resolver.S bounds a descriptor
+ * check with USER_DATA_END.
  */
 #define USER_DATA_START         (0x20000000)
-#define USER_DATA_SIZE          (96 * 1024)     /* 96kb for user RAM. */
+#define USER_DATA_SIZE          (144 * 1024)    /* 144kb for user RAM. */
 #define USER_DATA_END           (USER_DATA_START + USER_DATA_SIZE)
+#define MAXMEM                  USER_DATA_SIZE
 
 #define stacktop(siz)           (USER_DATA_END)
 #define stackbas(siz)           (USER_DATA_END-(siz))

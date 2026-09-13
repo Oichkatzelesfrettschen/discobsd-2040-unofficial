@@ -48,7 +48,9 @@ options         "UART_BAUD=115200"          # default speed
 
 # Compressed RAM tier in front of the flash swap, off by default. Enabling
 # both lines below costs 4,148 bytes of text and SWAPRAM_KB kilobytes plus
-# about 2,900 bytes of bss; see doc/research/zswap.md for the measurements
-# and the board test sequence.
+# about 3,200 bytes of bss; see doc/research/zswap.md for the measurements
+# and the board test sequence. 16 KB holds about three shell-sized images
+# at their counted size; the 48 KB a 64 KB pool used to take went to the
+# user window in conf/RP2040.ld instead.
 options        SWAPRAM                     # RAM tier ahead of fl1
-options        "SWAPRAM_KB=64"             # kbytes of bss for the pool
+options        "SWAPRAM_KB=16"             # kbytes of bss for the pool

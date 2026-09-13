@@ -153,9 +153,11 @@ can be added later.
 4 KB banks above it alone, because the boot ROM stages boot2 in the topmost
 one. User space sits at the bottom, at 0x20000000, because
 `lib/elf32-arm.ld` links every userland executable there and
-`USER_DATA_START` names the same address on every Arm target; it is 96 KB,
-the STM32 figure, so a process image swaps in the same size. The kernel's
-data, the two u areas, and the stack occupy the 160 KB above it.
+`USER_DATA_START` names the same address on every Arm target; it is 144 KB,
+the STM32 figure of 96 KB plus the 48 KB freed by shrinking the SwapRAM
+pool, so one process image can be half again as large. The kernel's data,
+the two u areas, and the stack occupy the 112 KB above it, and the USB
+console's transmit ring sits in the 8 KB scratch banks above those.
 
 ## Boot
 

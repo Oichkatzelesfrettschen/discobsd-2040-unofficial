@@ -44,7 +44,8 @@ DiscoBSD Resource Requirements
 A basic, minimal system uses 128 Kbytes of flash and 128 Kbytes of RAM.
 
 The kernel is loaded into the flash and only uses 32 Kbytes of RAM.
-User programs each use the remaining 96 Kbytes of RAM, via swapping.
+User programs each use the remaining 96 Kbytes of RAM, via swapping; the
+RP2040 port gives them 144 Kbytes.
 Devices with more RAM can be used to run larger user programs.
 
 An SD card, at least 512 Mbytes in size, is required for the root file system.

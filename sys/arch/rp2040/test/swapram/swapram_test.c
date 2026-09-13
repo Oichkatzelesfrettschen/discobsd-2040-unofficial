@@ -28,48 +28,50 @@ static heatshrink_encoder hse;
 static heatshrink_decoder hsd;
 
 /*
- * Compress src into dst, refusing to write past cap. Returns the compressed
- * length, or -1 when the output does not fit. This is the same loop
- * swapram.c runs in the kernel, kept in step by review rather than by
+ * Compress src into dst, refusing to write past cap, or with dst NULL
+ * count the output without keeping it. Returns the compressed length, or
+ * -1 when the output does not fit. This is the same loop swapram.c runs
+ * in the kernel as sr_encode, kept in step by review rather than by
  * sharing a translation unit, because the kernel copy takes kernel types.
  */
 static long
 compress(const uint8_t *src, size_t len, uint8_t *dst, size_t cap)
 {
-    size_t in = 0, out = 0, moved = 0, n;
+    size_t in = 0, out = 0, moved = 0, n, room;
+    uint8_t scratch[64], *buf;
     HSE_poll_res pres;
     HSE_finish_res fres;
 
     heatshrink_encoder_reset(&hse);
-    while (in < len) {
-        if (heatshrink_encoder_sink(&hse, (uint8_t *)src + in, len - in, &n)
-            < 0)
-            return -1;
-        if (n == 0 && out == moved)
-            return -1;          /* neither side advanced: no termination */
-        in += n;
+    for (;;) {
+        if (in < len) {
+            if (heatshrink_encoder_sink(&hse, (uint8_t *)src + in, len - in,
+                &n) < 0)
+                return -1;
+            if (n == 0 && out == moved)
+                return -1;      /* neither side advanced: no termination */
+            in += n;
+        } else {
+            fres = heatshrink_encoder_finish(&hse);
+            if (fres < 0)
+                return -1;
+            if (fres == HSER_FINISH_DONE)
+                break;
+        }
         moved = out;
         do {
-            if (out == cap)
-                return -1;
-            pres = heatshrink_encoder_poll(&hse, dst + out, cap - out, &n);
+            if (dst != NULL && out < cap) {
+                buf = dst + out;
+                room = cap - out;
+            } else {
+                buf = scratch;
+                room = dst != NULL ? 1 : sizeof scratch;
+            }
+            pres = heatshrink_encoder_poll(&hse, buf, room, &n);
             if (pres < 0)
                 return -1;
-            out += n;
-        } while (pres == HSER_POLL_MORE);
-    }
-    for (;;) {
-        fres = heatshrink_encoder_finish(&hse);
-        if (fres < 0)
-            return -1;
-        if (fres == HSER_FINISH_DONE)
-            break;
-        do {
-            if (out == cap)
-                return -1;
-            pres = heatshrink_encoder_poll(&hse, dst + out, cap - out, &n);
-            if (pres < 0)
-                return -1;
+            if (buf == scratch && dst != NULL && n > 0)
+                return -1;      /* more than cap bytes: overflow */
             out += n;
         } while (pres == HSER_POLL_MORE);
     }
@@ -165,6 +167,20 @@ measure(const char *name, const uint8_t *src, size_t len, long *clenp)
         free(back);
         return 1;
     }
+    /*
+     * The kernel reserves the data and stack segments at the length a
+     * counting pass measures and panics when the writing pass disagrees,
+     * so the two passes must agree here, an exact-size buffer must take
+     * the stream, and one byte less must be refused.
+     */
+    if (compress(src, len, NULL, 0) != clen ||
+        compress(src, len, dst, (size_t)clen) != clen ||
+        (clen > 0 && compress(src, len, dst, (size_t)clen - 1) != -1)) {
+        printf("%-6s COUNT/WRITE MISMATCH\n", name);
+        free(dst);
+        free(back);
+        return 1;
+    }
     while (reps < 4096) {
         t0 = now();
         for (i = 0; i < reps; i++)
@@ -198,7 +214,8 @@ struct aout {
 };
 
 /*
- * Pool allocator checks. The tier's live pattern is reserve worst case,
+ * Pool allocator checks. The tier's live pattern is reserve the counted
+ * data and stack plus the u area's worst case,
  * trim to the compressed length, free on swapin, so the cases below are
  * that sequence plus the fragmentation and misuse it must survive.
  */

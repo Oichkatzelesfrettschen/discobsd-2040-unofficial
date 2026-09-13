@@ -40,6 +40,7 @@ main:
 	.space	1
 
 	.text
+	sub	sp, #4
 	movs	r1, #4
 	subs	r1, r7, r1
 	ldr	r0, [r1, #0]
@@ -83,7 +84,7 @@ main:
 	ldr	r3, [sp, #12]
 	add	sp, #16
 	bl	printf
-	add	sp, #4
+	add	sp, #8
 
 	.section	.rodata,"a",%progbits
 .L4:
@@ -116,7 +117,9 @@ main:
 	mov	r12, r0
 	mov	r0, r5
 	mov	r1, r12
+	sub	sp, #4
 	bl	__aeabi_idiv
+	add	sp, #4
 	push	{r0}
 	ldr	r0, =.L4
 	push	{r0}
@@ -162,7 +165,9 @@ main:
 	mov	r12, r0
 	mov	r0, r5
 	mov	r1, r12
+	sub	sp, #4
 	bl	__aeabi_idiv
+	add	sp, #4
 	push	{r0}
 	ldr	r0, =.L5
 	push	{r0}
@@ -212,7 +217,9 @@ main:
 	mov	r12, r0
 	mov	r0, r5
 	mov	r1, r12
+	sub	sp, #4
 	bl	__aeabi_idiv
+	add	sp, #4
 	push	{r0}
 	ldr	r0, =.L6
 	push	{r0}
@@ -261,7 +268,9 @@ main:
 	mov	r12, r0
 	mov	r0, r5
 	mov	r1, r12
+	sub	sp, #4
 	bl	__aeabi_uidiv
+	add	sp, #4
 	push	{r0}
 	ldr	r0, =.L7
 	push	{r0}
@@ -336,6 +345,7 @@ main:
 	.space	1
 
 	.text
+	sub	sp, #4
 	movs	r1, #4
 	subs	r1, r7, r1
 	ldr	r0, [r1, #0]
@@ -379,7 +389,7 @@ main:
 	ldr	r3, [sp, #12]
 	add	sp, #16
 	bl	printf
-	add	sp, #4
+	add	sp, #8
 	movs	r0, #5
 	movs	r1, #4
 	subs	r1, r7, r1

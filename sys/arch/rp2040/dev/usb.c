@@ -64,6 +64,15 @@
 #define	RESETS_USBCTRL	(1UL << 24)
 #define	USBCTRL_IRQ	5
 
+/*
+ * The free-running microsecond timer, datasheet 4.6. machdep.c leaves it out
+ * of reset and never stops it, so TIMERAWL is a monotonic microsecond count
+ * readable with no side effect; the RP2040-E15 guard measures a frame
+ * position with it.
+ */
+#define	TIMER_BASE		0x40054000UL
+#define	TIMER_TIMERAWL		0x28
+
 #define	AIRCR_VECTKEY		0x05fa0000UL
 #define	AIRCR_SYSRESETREQ	(1UL << 2)
 
@@ -202,6 +211,9 @@ static struct {
 	u_char		line_coding[7];
 
 	int		tx_busy;	/* A bulk IN buffer is armed. */
+	int		tx_pending;	/* An arm deferred by the E15 guard. */
+	u_int		tx_pending_ctrl;/* Its buffer control word, less AVAILABLE. */
+	u_int		tx_pending_us;	/* TIMERAWL when it was deferred. */
 	u_int		tx_head, tx_tail;
 	u_char		tx_ring[USB_TXRING];
 
@@ -213,6 +225,11 @@ static struct {
 
 struct tty usbttys[1];
 
+u_int usb_e15_deferred;			/* Bulk IN arms the E15 guard held. */
+u_int usb_e15_bulkin_arms;		/* Bulk IN arms attempted, held or not. */
+
+static u_int usb_sof_us;		/* TIMERAWL at the last SOF interrupt. */
+
 static void usb_tx_kick(void);
 
 /*
@@ -221,13 +238,53 @@ static void usb_tx_kick(void);
  * word, wait a few cycles, and only then set AVAILABLE.
  */
 static void
-usb_buf_arm(u_int off, u_int len, u_int flags)
+usb_buf_arm_word(u_int off, u_int v)
 {
-	u_int v = (len & USB_BUF_CTRL_LEN_MASK) | flags;
-
 	DPRAM32(off) = v;
 	__asm__ volatile ("nop; nop; nop; nop; nop; nop");
 	DPRAM32(off) = v | USB_BUF_CTRL_AVAIL;
+}
+
+static void
+usb_buf_arm(u_int off, u_int len, u_int flags)
+{
+	usb_buf_arm_word(off, (len & USB_BUF_CTRL_LEN_MASK) | flags);
+}
+
+/*
+ * RP2040-E15, B0 through B2 silicon: a bulk IN buffer made available in the
+ * last 200 us of a full-speed frame lets the host issue an IN token whose
+ * handshake phase crosses the next SOF. The device state machine cannot
+ * recover from the wrong PID where it expects an ACK, which corrupts the
+ * transfer and can leave the controller wedged; VL805-based hosts, the hub on
+ * a Raspberry Pi 4 among them, reproduce it. The controller exposes no
+ * position within the frame -- USB_SOF_RD (offset 0x48) counts whole frames --
+ * so the position is the microsecond timer's distance from the last SOF
+ * interrupt, and the window is the one the Pico SDK measures, 800 us to 998 us
+ * into the 1 ms frame.
+ *
+ * A distance past 998 us means the recorded stamp is stale: no SOF has arrived
+ * yet, or the host has stopped sending them. A stale stamp carries no frame
+ * position, so the buffer is armed. That direction keeps the console alive on
+ * a host that stops the bus; the other direction strands console output behind
+ * an SOF that never comes, with no path back short of BOOTSEL.
+ */
+static int
+usb_e15_critical(void)
+{
+	u_int delta = REG32(TIMER_BASE + TIMER_TIMERAWL) - usb_sof_us;
+
+	return delta >= 800 && delta <= 998;
+}
+
+/* Arm a bulk IN buffer the E15 guard held back. */
+static void
+usb_tx_release(void)
+{
+	if (! usbd.tx_pending)
+		return;
+	usbd.tx_pending = 0;
+	usb_buf_arm_word(USB_DPRAM_BUF_CTRL(EP_DATA, 1), usbd.tx_pending_ctrl);
 }
 
 static void
@@ -335,14 +392,23 @@ usb_configure(int on)
 	usbd.configured = on;
 	usbd.dtr = 0;
 	usbd.tx_busy = 0;
+	usbd.tx_pending = 0;
 	usbd.data_in_pid = 0;
 	usbd.data_out_pid = 0;
 	if (on) {
 		/* Ready to receive one packet from the host. */
 		usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0), USB_PACKET_MAX, 0);
 		usbd.data_out_pid = 1;
+		/*
+		 * SOF stays enabled for the whole configured life of the
+		 * device rather than per transfer, so the stamp the E15 guard
+		 * reads is fresh for the first bulk IN after an idle gap --
+		 * the packet most likely to land in the critical window.
+		 */
+		USBSET(USB_INTE) = USB_INTS_DEV_SOF;
 		usb_tx_kick();
-	}
+	} else
+		USBCLR(USB_INTE) = USB_INTS_DEV_SOF;
 }
 
 static void
@@ -452,9 +518,16 @@ usb_setup(void)
 					/*
 					 * Only a packet the controller has not
 					 * yet sent is re-armed; one already taken
-					 * would go out twice.
+					 * would go out twice. A packet the E15
+					 * guard still holds carries its toggle
+					 * in the saved word, so the reset lands
+					 * there instead of in DPSRAM.
 					 */
-					if (usbd.tx_busy &&
+					if (usbd.tx_pending) {
+						usbd.tx_pending_ctrl &=
+						    ~USB_BUF_CTRL_DATA1;
+						usbd.data_in_pid = 1;
+					} else if (usbd.tx_busy &&
 					    (bc & USB_BUF_CTRL_AVAIL)) {
 						usb_buf_arm(
 						    USB_DPRAM_BUF_CTRL(EP_DATA, 1),
@@ -484,6 +557,7 @@ usb_setup(void)
 			usbd.data_in_pid = 0;
 			usbd.data_out_pid = 0;
 			usbd.tx_busy = 0;
+			usbd.tx_pending = 0;
 			usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0),
 			    USB_PACKET_MAX, 0);
 			usbd.data_out_pid = 1;
@@ -544,7 +618,7 @@ usb_setup(void)
 static void
 usb_tx_kick(void)
 {
-	u_int n, i;
+	u_int n, i, ctrl;
 
 	if (! usbd.configured || usbd.tx_busy || usbd.tx_head == usbd.tx_tail)
 		return;
@@ -556,9 +630,22 @@ usb_tx_kick(void)
 		    usbd.tx_ring[(usbd.tx_tail + i) % USB_TXRING];
 	usbd.tx_tail += n;
 	usbd.tx_busy = 1;
-	usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 1), n, USB_BUF_CTRL_FULL |
-	    (usbd.data_in_pid ? USB_BUF_CTRL_DATA1 : 0));
+	ctrl = (n & USB_BUF_CTRL_LEN_MASK) | USB_BUF_CTRL_FULL |
+	    (usbd.data_in_pid ? USB_BUF_CTRL_DATA1 : 0);
 	usbd.data_in_pid ^= 1;
+	usb_e15_bulkin_arms++;
+	/*
+	 * RP2040-E15: the packet is in DPSRAM and the ring has advanced, so
+	 * only the AVAILABLE handoff waits. tx_busy already blocks a second
+	 * kick, which is what keeps the held word the only one outstanding.
+	 */
+	if (usb_e15_critical()) {
+		usbd.tx_pending = 1;
+		usbd.tx_pending_ctrl = ctrl;
+		usbd.tx_pending_us = REG32(TIMER_BASE + TIMER_TIMERAWL);
+		usb_e15_deferred++;
+	} else
+		usb_buf_arm_word(USB_DPRAM_BUF_CTRL(EP_DATA, 1), ctrl);
 }
 
 /* Queue one byte for the host, dropping the oldest when nobody drains. */
@@ -642,6 +729,18 @@ usb_service(void)
 
 	ints = USBREG(USB_INTS);
 
+	/*
+	 * SOF is serviced first so a kick later in this same pass measures the
+	 * frame that just started. Reading USB_SOF_RD is what clears DEV_SOF;
+	 * leaving the bit set re-enters the interrupt without end, so the read
+	 * happens unconditionally.
+	 */
+	if (ints & USB_INTS_DEV_SOF) {
+		(void)USBREG(USB_SOF_RD);
+		usb_sof_us = REG32(TIMER_BASE + TIMER_TIMERAWL);
+		usb_tx_release();
+	}
+
 	if (ints & USB_INTS_BUS_RESET) {
 		USBCLR(USB_SIE_STATUS) = USB_SIE_STATUS_BUS_RESET;
 		USBREG(USB_ADDR_ENDP) = 0;
@@ -705,6 +804,15 @@ usb_service(void)
 		if (done & USB_BUFF_STATUS_BIT(EP_DATA, 0))
 			usb_rx_done();
 	}
+
+	/*
+	 * A deferral older than two frames has outlived the SOF timing it was
+	 * based on: the host has stopped sending SOF, so no frame position is
+	 * known and the E15 window cannot be identified. Arm the buffer.
+	 */
+	if (usbd.tx_pending && (u_int)(REG32(TIMER_BASE + TIMER_TIMERAWL) -
+	    usbd.tx_pending_us) > 2000)
+		usb_tx_release();
 
 	/* Anything queued while the endpoint was idle goes out now. */
 	usb_tx_kick();
@@ -914,8 +1022,11 @@ usbputc(dev_t dev, char c)
 
 /*
  * Push everything queued out to the host before a reset, which would
- * otherwise take the ring with it. Bounded, so a host that is not reading
- * delays the reset by at most a moment.
+ * otherwise take the ring with it. A packet the E15 guard holds has already
+ * left the ring, so tx_pending is waited on beside it or the last console line
+ * before a reset is the one that never goes out; usb_service releases it on
+ * the next SOF or on the two-frame deadline, so the wait ends either way.
+ * Bounded, so a host that is not reading delays the reset by at most a moment.
  */
 void
 usbdrain(void)
@@ -923,7 +1034,8 @@ usbdrain(void)
 	int s, spin;
 
 	s = spltty();
-	for (spin = 0; usbd.configured && usbd.tx_head != usbd.tx_tail &&
+	for (spin = 0; usbd.configured &&
+	    (usbd.tx_head != usbd.tx_tail || usbd.tx_pending) &&
 	    spin < 200000; spin++)
 		usb_service();
 	splx(s);

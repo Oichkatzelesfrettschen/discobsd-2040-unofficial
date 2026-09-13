@@ -28,6 +28,9 @@
 #endif
 
 #include <machine/cpu.h>
+#ifdef UARTUSB_ENABLED
+#include <rp2040/dev/usb.h>
+#endif
 
 /*
  * Errno messages.
@@ -266,6 +269,9 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
 	int i, khz;
+#ifdef UARTUSB_ENABLED
+	u_int count;
+#endif
 	dev_t dev;
 
 	/* Every sysctl name at this level is terminal. */
@@ -324,6 +330,28 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		khz = BUS_KHZ;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &khz, sizeof khz);
+
+#ifdef UARTUSB_ENABLED
+	/*
+	 * RP2040-E15 accounting. usb_e15_deferred counts the bulk IN arms the
+	 * guard held until the next SOF; usb_e15_bulkin_arms counts every bulk
+	 * IN arm, so the ratio says how much of the console's output met the
+	 * critical window.
+	 */
+	case CPU_USB_E15_DEFERRED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = usb_e15_deferred;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
+
+	case CPU_USB_BULKIN_ARMS:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = usb_e15_bulkin_arms;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
+#endif	/* UARTUSB_ENABLED */
 
 	default:
 		return EOPNOTSUPP;

@@ -788,6 +788,9 @@ putfile(longname, shortname, parent)
         maxread = max(stbuf.st_blksize, (nblock * TBLOCK));
         if (maxread > NBLOCK * TBLOCK)
             maxread = NBLOCK * TBLOCK;
+        maxread -= maxread % TBLOCK;
+        if (maxread < TBLOCK)
+            maxread = TBLOCK;
         if ((bigbuf = malloc((unsigned)maxread)) == 0) {
             maxread = TBLOCK;
             bigbuf = buf;
@@ -800,6 +803,15 @@ putfile(longname, shortname, parent)
             nblks = ((i-1)/TBLOCK)+1;
             if (nblks > blocks)
                 nblks = blocks;
+            /*
+             * The last block of a file that is not a multiple of TBLOCK
+             * is written whole, so the bytes past the file's end have to
+             * be cleared: bigbuf comes from malloc, and writing it as it
+             * stands puts heap contents into the archive and makes two
+             * runs over the same tree produce different bytes.
+             */
+            if (i % TBLOCK)
+                bzero(bigbuf + i, TBLOCK - (i % TBLOCK));
             hint = writetbuf(bigbuf, nblks);
             blocks -= nblks;
         }

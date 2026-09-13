@@ -83,6 +83,16 @@ mkdir -p ustar
     echo 'buried' > "tree/$deep/leaf.txt")
 (cd ustar && "$TAR" cf ../u.tar tree)
 
+#
+# Two runs over an unchanged tree must produce the same bytes. The block a
+# short file's data ends in is written whole, so anything left unset in it
+# is heap contents, which differ run to run and leak into the archive.
+#
+echo "tartest: archive bytes are reproducible"
+(cd ustar && "$TAR" cf ../u2.tar tree)
+cmp -s u.tar u2.tar || fail "two runs over one tree wrote different bytes"
+rm -f u2.tar
+
 echo "tartest: ustar magic check"
 dd if=u.tar bs=1 skip=257 count=5 2>/dev/null | grep -q '^ustar$' ||
     fail "no ustar magic at offset 257"

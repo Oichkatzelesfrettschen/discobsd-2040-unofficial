@@ -31,7 +31,7 @@ _PICOC!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 	fi
 
 SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
-		  find fold forth fstat id kilo la login m4 make man med menu more nm passwd \
+		  column find fmt fold forth fstat id kilo la login m4 make man med menu more nm passwd \
 		  pdc ${_PICOC} printf ranlib re renice retroforth scm sed setty sl \
 		  stevie \
 		  uname xargs xinstall zmodem msec compress tip tclsh uucp virus \
@@ -40,7 +40,7 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  printenv rev size sort split sum tail tee time touch tr tsort tty \
 		  uniq w wc who bc egrep mail su vmstat wall write strip false nohup \
 		  true cut paste seq dirname nl cksum expand unexpand mkfifo \
-		  uuencode uudecode
+		  uuencode uudecode cpio
 
 # TODO: ccom lccom pforth sre unixbench adc-demo
 #       lorder mkdep

@@ -139,6 +139,7 @@ file /bin/ed
 file /bin/ps
 file /bin/box
 file /bin/sysbox
+file /bin/tar
 
 file /sbin/fsck
 file /sbin/init
@@ -171,6 +172,17 @@ file /usr/bin/as
 file /usr/bin/ld
 file /usr/bin/cc
 
+#
+# Archivers. /bin/tar writes POSIX ustar by default and reads the v7
+# header too; its -z and -Z fork /usr/bin/compress over a pipe, so the
+# codec has to be here for those flags to work. compress dispatches on
+# argv[0], so uncompress and zcat are hard links to it rather than three
+# copies of a 13280-byte a.out. /usr/bin/cpio reads and writes the POSIX
+# odc format.
+#
+file /usr/bin/compress
+file /usr/bin/cpio
+
 file /usr/sbin/update
 
 file /usr/libexec/getty
@@ -190,6 +202,10 @@ file /usr/lib/crt0.o
 default
 filemode 0775
 
+link /usr/bin/uncompress
+target /usr/bin/compress
+link /usr/bin/zcat
+target /usr/bin/compress
 link /bin/cat
 target /bin/box
 link /bin/chgrp

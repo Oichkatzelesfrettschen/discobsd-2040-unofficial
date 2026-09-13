@@ -121,6 +121,24 @@ int ThumbLocalLabel = 1;  /* counter for backend-private .LT labels */
 int ThumbFrameLabel = 0;  /* .LF symbol naming the current frame size */
 int ThumbFrameSeq = 0;
 
+/* AAPCS32 5.2.1.2 requires SP to be 8-byte aligned at every public
+   interface. The expression evaluator builds an argument area out of
+   single-word pushes, so the depth it reaches at a BL is whatever the
+   argument count and the enclosing expression make it. ThumbSpDepth counts
+   the bytes the evaluator has pushed below the function's own frame base,
+   which GenFxnProlog leaves 8-byte aligned, and every call site reserves a
+   padding word when the depth it would reach is 4 modulo 8. The pad is
+   reserved before the arguments, so it sits above them and argument five
+   still lands at the callee's entry SP.
+
+   The pad depends on the depth at the opening parenthesis, and nothing at
+   the closing parenthesis can recover that depth, so each open call carries
+   its pad on ThumbCallPad. One entry per open call is bounded by STACK_SIZE
+   because every call holds a '(' in the expression stack. */
+int ThumbSpDepth = 0;
+unsigned char ThumbCallPad[STACK_SIZE];
+int ThumbCallSp = 0;
+
 STATIC
 void GenInit(void)
 {
@@ -352,8 +370,8 @@ void GenLoadLabelAddr(int reg, int label)
 }
 
 /* sp += n, for any n. ADD/SUB (SP plus immediate) encodes a word-aligned
-   0..508; anything larger goes through a register, and SP has no register
-   subtract, so it is staged through r2. */
+   0..508; anything larger goes through a register. ARMv6-M has ADD (SP plus
+   register) and no SUB (SP plus register), so a decrease adds a negative. */
 STATIC
 void GenAddSp(int n)
 {
@@ -383,11 +401,9 @@ void GenAddSp(int n)
     }
     else
     {
-      GenLoadConst(ThumbOpRegAddr, -n);
-      printf2("\tmov\tr%d, sp\n", ThumbOpRegCnst);
-      printf2("\tsubs\tr%d, r%d, r%d\n", ThumbOpRegCnst, ThumbOpRegCnst, ThumbOpRegAddr);
-      printf2("\tmov\tsp, r%d\n", ThumbOpRegCnst);
-      ThumbSpend(6);
+      GenLoadConst(ThumbOpRegAddr, n);
+      printf2("\tadd\tsp, r%d\n", ThumbOpRegAddr);
+      ThumbSpend(2);
     }
   }
 }
@@ -405,12 +421,28 @@ void GenLocalAddr(int reg, int ofs)
   }
   else if (ofs > 0)
   {
+    if (ofs <= 7)
+    {
+      printf2("\tadds\tr%d, r%d, #%d\n", reg, ThumbOpRegFp, ofs);
+      ThumbSpend(2);
+      return;
+    }
     GenLoadConst(reg, ofs);
     printf2("\tadds\tr%d, r%d, r%d\n", reg, ThumbOpRegFp, reg);
     ThumbSpend(2);
   }
   else
   {
+    /* ADDS and SUBS (register plus 3-bit immediate) name the destination and
+       the source separately, so a slot within seven bytes of the frame
+       pointer is one halfword instead of a materialized constant and a
+       register subtract. The first local sits at -4 and is the common case. */
+    if (ofs >= -7)
+    {
+      printf2("\tsubs\tr%d, r%d, #%d\n", reg, ThumbOpRegFp, -ofs);
+      ThumbSpend(2);
+      return;
+    }
     GenLoadConst(reg, -ofs);
     printf2("\tsubs\tr%d, r%d, r%d\n", reg, ThumbOpRegFp, reg);
     ThumbSpend(2);
@@ -645,13 +677,15 @@ void GenFxnProlog(void)
   puts2("\tpush\t{r0, r1, r2, r3}");
   puts2("\tpush\t{r7, lr}");
   printf2("\tmov\tr%d, sp\n", ThumbOpRegFp);
+  /* The frame symbol carries the negated size so that the reserve is the
+     one SP-by-register form ARMv6-M offers. Thumb-1 encodes ADD (SP plus
+     register) and no SUB (SP plus register), so adding a negative is what
+     replaces a materialize-subtract-writeback triple. */
   printf2("\tldr\tr%d, =.LF%d\n", ThumbOpRegCall, ThumbFrameLabel);
-  printf2("\tmov\tr%d, sp\n", ThumbOpRegCnst);
-  printf2("\tsubs\tr%d, r%d, r%d\n", ThumbOpRegCnst, ThumbOpRegCnst, ThumbOpRegCall);
-  printf2("\tmov\tsp, r%d\n", ThumbOpRegCnst);
+  printf2("\tadd\tsp, r%d\n", ThumbOpRegCall);
   /* r0 is a pad keeping the push a multiple of eight bytes. */
   puts2("\tpush\t{r0, r4, r5, r6}");
-  ThumbSpend(20);
+  ThumbSpend(16);
 }
 
 STATIC
@@ -668,7 +702,7 @@ void GenFxnEpilog(void)
   /* Discard the home area the prolog pushed; the caller removed the rest. */
   puts2("\tadd\tsp, #16");
   printf2("\tbx\tr%d\n", ThumbOpRegCall);
-  printf2("\t.equ\t.LF%d, %u\n", ThumbFrameLabel, size);
+  printf2("\t.equ\t.LF%d, -%u\n", ThumbFrameLabel, size);
   puts2("\t.ltorg");
   ThumbPoolBytes = 0;
 }
@@ -833,19 +867,28 @@ void ThumbBinOpConst(int tok, int rd, int rl, int val)
 
 /* Integer division and modulo go to the libgcc AAPCS helpers, which take the
    numerator in r0 and the denominator in r1. The denominator is staged
-   through ip so that a right operand already sitting in r0 survives. */
+   through ip so that a right operand already sitting in r0 survives. These
+   helpers are public interfaces reached from an arbitrary expression depth,
+   so the BL takes the same 8-byte alignment pad an ordinary call site gets;
+   they pass nothing on the stack, so the pad is the whole adjustment. */
 STATIC
 void ThumbDivMod(int rd, int rl, int rr, int isSigned, int wantMod)
 {
+  int pad = ThumbSpDepth & 4;
+
   ThumbMov(ThumbOpRegIp, rr);
   ThumbMov(ThumbOpRegW0, rl);
   ThumbMov(ThumbOpRegAddr, ThumbOpRegIp);
+  if (pad)
+    puts2("\tsub\tsp, #4");
   if (wantMod)
     printf2("\tbl\t%s\n", isSigned ? "__aeabi_idivmod" : "__aeabi_uidivmod");
   else
     printf2("\tbl\t%s\n", isSigned ? "__aeabi_idiv" : "__aeabi_uidiv");
+  if (pad)
+    puts2("\tadd\tsp, #4");
   ThumbMov(rd, wantMod ? ThumbOpRegAddr : ThumbOpRegW0);
-  ThumbSpend(12);
+  ThumbSpend(pad ? 16 : 12);
 }
 
 STATIC
@@ -944,6 +987,7 @@ void GenPushReg(void)
 
   printf2("\tpush\t{r%d}\n", GenWreg);
   ThumbSpend(2);
+  ThumbSpDepth += 4;
   TempsUsed++;
 }
 
@@ -962,6 +1006,7 @@ void GenPopReg(void)
 
   printf2("\tpop\t{r%d}\n", TEMP_REG_A);
   ThumbSpend(2);
+  ThumbSpDepth -= 4;
   GenLreg = TEMP_REG_A;
   GenRreg = GenWreg;
 }
@@ -1284,6 +1329,84 @@ int GenIsCmp(int t)
     t == tokNEQ;
 }
 
+#ifndef NO_STRUCT_BY_VAL
+/* The structure-pushing helper of GenFin is the one callee that does not
+   leave the stack as it found it: it grows the stack by the word-rounded
+   size of the structure, returns the first word for the evaluator to push
+   as an argument, and leaves the rest in place as part of the caller's
+   argument area. Recognizing its call sites takes the numeric identifier
+   the front end plants for it, and its size argument is the constant the
+   front end plants immediately after the opening parenthesis. */
+STATIC
+int ThumbIsStructPushCall(int closeIdx)
+{
+  return StructPushLabel &&
+         closeIdx > 0 &&
+         stack[closeIdx - 1][0] == tokIdent &&
+         stack[closeIdx - 1][1] == AddNumericIdent(StructPushLabel);
+}
+
+STATIC
+int ThumbMatchingClose(int openIdx)
+{
+  int depth = 0;
+  int j;
+
+  for (j = openIdx + 1; j < sp; j++)
+  {
+    if (stack[j][0] == '(')
+    {
+      depth++;
+    }
+    else if (stack[j][0] == ')')
+    {
+      if (!depth)
+        break;
+      depth--;
+    }
+  }
+  return j;
+}
+
+STATIC
+int ThumbMatchingOpen(int closeIdx)
+{
+  int depth = 0;
+  int j;
+
+  for (j = closeIdx - 1; j > 0; j--)
+  {
+    if (stack[j][0] == ')')
+    {
+      depth++;
+    }
+    else if (stack[j][0] == '(')
+    {
+      if (!depth)
+        break;
+      depth--;
+    }
+  }
+  return j;
+}
+
+/* Bytes the structure-pushing helper leaves behind beyond the word the
+   evaluator pushes for its result. The front end has already counted them
+   in the enclosing call's argument size, so the enclosing closing
+   parenthesis reclaims them with everything else. */
+STATIC
+int ThumbCallLeavesBytes(int closeIdx)
+{
+  unsigned sz;
+
+  if (!ThumbIsStructPushCall(closeIdx))
+    return 0;
+
+  sz = truncUint(stack[ThumbMatchingOpen(closeIdx) + 1][1]);
+  return (int)(((sz + 3u) & ~3u) - 4u);
+}
+#endif
+
 STATIC
 void GenExpr0(void)
 {
@@ -1329,6 +1452,8 @@ void GenExpr0(void)
 
   CanUseTempRegs = maxCallDepth == 0;
   TempsUsed = 0;
+  ThumbSpDepth = 0;
+  ThumbCallSp = 0;
   if (GenWreg != ThumbOpRegW0)
     errorInternal(102);
 
@@ -1412,8 +1537,36 @@ void GenExpr0(void)
       if (gotUnary)
         GenPushReg();
       gotUnary = 0;
-      /* AAPCS has no reserved home area at the call site, so nothing is
-         allocated here; every argument simply lands on the stack. */
+      /* AAPCS reserves no home area at the call site, so the only thing
+         allocated here is the word that keeps SP 8-byte aligned at the BL.
+         Reserving it before the arguments puts it above them, which leaves
+         argument five at the callee's entry SP. Whether it is needed is a
+         property of the depth this expression has already reached and not of
+         the argument count alone: a call passing nothing on the stack still
+         needs the pad when it is issued from an odd depth. */
+      {
+        int inRegs = (v > 16) ? 16 : v;
+        int pad = (ThumbSpDepth + v - inRegs) & 4;
+
+#ifndef NO_STRUCT_BY_VAL
+        /* The structure-pushing helper returns with SP lowered by the
+           structure it built, so a pad above its arguments could only be
+           reclaimed by cutting into that structure. It is back-end-private
+           code, a leaf that calls nothing and executes only MOV, SUBS, BICS,
+           LDRB and STRB, so its entry carries no public-interface
+           obligation and it is the one call site left unpadded. */
+        if (ThumbIsStructPushCall(ThumbMatchingClose(i)))
+          pad = 0;
+#endif
+        if (ThumbCallSp >= STACK_SIZE)
+          errorInternal(107);
+        ThumbCallPad[ThumbCallSp++] = (unsigned char)pad;
+        if (pad)
+        {
+          GenAddSp(-pad);
+          ThumbSpDepth += pad;
+        }
+      }
       break;
 
     case ',':
@@ -1423,8 +1576,11 @@ void GenExpr0(void)
       {
         /* Arguments occupy v bytes from sp upward, argument one lowest.
            The first four words move into r0-r3 and are then dropped, which
-           leaves argument five at sp as AAPCS requires. */
+           leaves argument five at sp as AAPCS requires. The pad the opening
+           parenthesis reserved sits above the whole block and is reclaimed
+           with it, so SP returns to the depth the enclosing expression had. */
         int inRegs = (v > 16) ? 16 : v;
+        int pad = ThumbCallPad[--ThumbCallSp];
         int k;
         int indirect = (stack[i - 1][0] != tokIdent);
 
@@ -1441,6 +1597,7 @@ void GenExpr0(void)
         }
 
         GenAddSp(inRegs);
+        ThumbSpDepth -= inRegs;
 
         if (indirect)
         {
@@ -1454,7 +1611,12 @@ void GenExpr0(void)
         }
         ThumbSpend(4);
 
-        GenAddSp(v - inRegs);
+#ifndef NO_STRUCT_BY_VAL
+        ThumbSpDepth += ThumbCallLeavesBytes(i);
+#endif
+
+        GenAddSp(v - inRegs + pad);
+        ThumbSpDepth -= v - inRegs + pad;
 
         /* The result is in r0, which is GenWreg here because an expression
            containing a call never uses the temporary registers. */
@@ -1780,6 +1942,10 @@ void GenExpr0(void)
 
   if (GenWreg != ThumbOpRegW0)
     errorInternal(104);
+  /* Every push the evaluator made has been reclaimed and every call site
+     has popped its pad; an imbalance here would misalign the next call. */
+  if (ThumbSpDepth || ThumbCallSp)
+    errorInternal(108);
 }
 
 STATIC

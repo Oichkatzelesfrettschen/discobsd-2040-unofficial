@@ -34,8 +34,15 @@
 void
 SVC_Handler(void)
 {
-	/* Set a PendSV exception to immediately tail-chain into. */
-	SCB_REG32(SCB_ICSR) |= SCB_ICSR_PENDSVSET;
+	/*
+	 * Set a PendSV exception to immediately tail-chain into. PENDSVSET is
+	 * write-one-to-set (ARMv6-M ARM B3.2.4), so a plain store of the bit
+	 * pends the exception and leaves every other field alone. Reading
+	 * ICSR first and writing the value back would carry PENDSVCLR and
+	 * PENDSTCLR, which are write-one-to-clear in the same word, and would
+	 * add a load from the private peripheral bus to the syscall path.
+	 */
+	SCB_REG32(SCB_ICSR) = SCB_ICSR_PENDSVSET;
 
 	arm_dsb();
 	arm_isb();
@@ -51,8 +58,20 @@ SVC_Handler(void)
  * System call handler (via SVC_Handler pending a PendSV exception).
  * Save the processor state in a trap frame and pass it to syscall().
  * Restore processor state from returned trap frame on return from syscall().
+ *
+ * The body is the exception entry sequence itself, so the function carries
+ * no AAPCS boundary: it takes no argument, returns no value, and the
+ * compiler emits neither prologue nor epilogue. The sequence owns the whole
+ * register file. It reaches MSP and PSP through MRS and MSR, pushes r4-r11
+ * onto MSP so that the eight words the hardware stacked on PSP and the eight
+ * it pushes here form one struct trapframe (machine/frame.h) in MSP order,
+ * and hands MSP to syscall() as that frame. On the way out it writes the
+ * frame back to PSP, restores r4-r11, and loads EXC_RETURN 0xfffffffd into
+ * lr. The closing BX LR is the exception return (ARMv6-M ARM B1.5.8), which
+ * without the naked attribute was supplied by the compiler epilogue and is
+ * written out here instead.
  */
-void
+__attribute__((naked)) void
 PendSV_Handler(void)
 {
 __asm volatile (
@@ -87,7 +106,7 @@ __asm volatile (
 	 * and then switches back to Thread Mode (exception completed).
 	 */
 "	mov	lr, #0xFFFFFFFD	\n\t"	/* EXC_RETURN Thread Mode, PSP */
-					/* Return to Thread Mode. */
+"	bx	lr		\n\t"	/* Return to Thread Mode. */
 #else /* __thumb__ */
 	/*
 	 * ARMv6-M hardware already pushed r0-r3, ip, lr, pc, psr on PSP,
@@ -131,7 +150,8 @@ __asm volatile (
 	 * and then switches back to Thread Mode (exception completed).
 	 */
 "	ldr	r1, =0xFFFFFFFD	\n\t"	/* EXC_RETURN Thread Mode, PSP */
-"	mov	lr, r1		\n\t"	/* Return to Thread Mode. */
+"	mov	lr, r1		\n\t"
+"	bx	lr		\n\t"	/* Return to Thread Mode. */
 #endif
 );
 }
@@ -217,6 +237,22 @@ syscall(struct trapframe *frame)
 
 	if (setjmp(&u.u_qsave) == 0) {
 		(*callp->sy_call)();		/* Make syscall. */
+	}
+
+	if (SYSTRACE_ON(SYSTRACE_SYSCALL)) {
+		printf("[%u] %s(", u.u_procp->p_pid,
+		    code < nsysent ? syscallnames[code] : "?");
+		for (int i = 0; i < callp->sy_narg && i < 6; i++)
+			printf("%s%#x", i ? ", " : "", u.u_arg[i]);
+		if (u.u_error == 0)
+			printf(") = %#x\n", u.u_rval);
+		else if (u.u_error == EJUSTRETURN)
+			printf(") sigreturn pc=%#x sp=%#x\n",
+			    u.u_frame->tf_pc, u.u_frame->tf_sp);
+		else if (u.u_error == ERESTART)
+			printf(") restart\n");
+		else
+			printf(") errno %d\n", u.u_error);
 	}
 
 	switch (u.u_error) {

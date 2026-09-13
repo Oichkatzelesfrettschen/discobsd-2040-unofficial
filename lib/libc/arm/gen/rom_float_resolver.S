@@ -90,13 +90,17 @@ Lrom_float_table_pointer:
 	bne	Lrom_float_invalid
 	lsrs	r2, r0, #14
 	bne	Lrom_float_invalid
+	/* Table length by ROM version. Boot ROM V1 exposes 0x54 bytes of the
+	 * single table. V2 and V3 expose 0x80 bytes of both the single and
+	 * the double table (Pico SDK sf_table.h SF_TABLE_V2_SIZE and
+	 * double_init_rom_rp2040.c). Only the single table carries a length
+	 * byte before it; on a V3 ROM the byte before the double table
+	 * reads 0, so a length read there rejects every double entry. */
 	movs	r1, #0x13
 	ldrb	r1, [r1]
 	cmp	r1, #2
 	bcc	Lrom_float_v1_size
-	subs	r2, r0, #2
-	ldrb	r1, [r2]
-	lsls	r1, r1, #2
+	movs	r1, #0x80
 	b	Lrom_float_check_size
 Lrom_float_v1_size:
 	movs	r1, #0x54

@@ -1,0 +1,31 @@
+PASS p0
+PASS p1
+PASS p2
+PASS p3
+PASS p4
+PASS p5
+PASS p6
+PASS p7
+PASS p8
+PASS p9
+PASS p10
+PASS p0 nested
+PASS p4 nested
+PASS p5 nested
+PASS p6 nested
+PASS indirect p5
+PASS indirect p6
+PASS indirect p5 nested
+PASS indirect p6 nested
+PASS variadic 5
+PASS variadic 7
+PASS variadic 5 nested
+PASS variadic 7 nested
+PASS struct by value
+PASS struct by value nested
+PASS odd struct first
+PASS odd struct in the middle
+PASS odd struct first nested
+PASS odd struct in the middle nested
+PASS p3 of probes
+PASS p5 from a large frame

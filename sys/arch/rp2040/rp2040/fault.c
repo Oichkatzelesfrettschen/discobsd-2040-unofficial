@@ -53,10 +53,19 @@ void usbpoll(void);
  * inside an IT block. ARMv6-M has neither: TST takes two registers, and IT
  * does not exist. This is the branch-based form already used by
  * SysTick_Handler in systick.c.
+ *
+ * The body is the entry sequence itself, so the function carries no AAPCS
+ * boundary: the compiler emits neither prologue nor epilogue, and the
+ * sequence owns r0-r2 and reads r4-r11 as the fault left them. It banks
+ * r4-r11 into fault_regs, selects the stack holding the exception frame from
+ * bit 2 (SPSEL) of EXC_RETURN in lr (ARMv6-M ARM B1.5.8), and tail-branches
+ * into arm_fault() with that frame pointer in r0 and EXC_RETURN in r1. Both
+ * branches leave through BX, so control never falls off the end and no
+ * return instruction follows.
  */
 u_int fault_regs[8];			/* r4-r11 at the fault, for the report. */
 
-void
+__attribute__((naked)) void
 HardFault_Handler(void)
 {
 __asm volatile (

@@ -15,6 +15,7 @@
 #include <sys/syslog.h>
 
 #include <machine/frame.h>
+#include <machine/scb.h>
 
 #if 0
 #define DIAGNOSTIC
@@ -33,8 +34,20 @@
 void
 sendsig(sig_t p, int sig, long mask)
 {
+	/*
+	 * The exception return that enters the handler pops an eight-word
+	 * frame (r0-r3, r12, lr, pc, xPSR; ARMv6-M ARM B1.5.6) from the
+	 * PSP the kernel sets in tf_sp. That frame is written at sfp, so
+	 * sf_hwframe reserves its 32 bytes and the saved context starts
+	 * above it. A four-word gap here let the hardware frame land on
+	 * sc_onstack, sc_mask, sc_r0 and sc_r1, so every sigreturn restored
+	 * the trampoline address as the signal mask and the handler address
+	 * as r0. sizeof(struct sigframe) is 104, a multiple of eight, so a
+	 * frame carved from an eight-byte-aligned tf_sp keeps AAPCS
+	 * alignment at the handler entry.
+	 */
 	struct sigframe {
-		int	sf_space[4];
+		u_int	sf_hwframe[8];
 		struct	sigcontext sf_sc;
 	};
 
@@ -54,11 +67,11 @@ sendsig(sig_t p, int sig, long mask)
 	if ((u.u_psflags & SAS_ALTSTACK) &&
 	    !(u.u_sigstk.ss_flags & SA_ONSTACK) &&
 	    (u.u_sigonstack & sigmask(sig))) {
-		sfp = (struct sigframe *)(u.u_sigstk.ss_base +
-		    u.u_sigstk.ss_size);
+		sfp = (struct sigframe *)(((u_int)u.u_sigstk.ss_base +
+		    u.u_sigstk.ss_size) & ~7U);
 		u.u_sigstk.ss_flags |= SA_ONSTACK;
 	} else
-		sfp = (struct sigframe *)regs->tf_sp;
+		sfp = (struct sigframe *)(regs->tf_sp & ~7U);
 
 	sfp--;
 	if (!(u.u_sigstk.ss_flags & SA_ONSTACK)) {
@@ -106,6 +119,21 @@ sendsig(sig_t p, int sig, long mask)
 	regs->tf_lr = (int)u.u_sigtramp;	/* $lr - sigtramp */
 	regs->tf_sp = (int)sfp;			/* $sp - stack */
 	regs->tf_pc = (int)p;			/* $pc - handler */
+	/*
+	 * The original xPSR is in sc_psr. The frame popped into the
+	 * handler must not carry STKALIGN (xPSR bit 9), or the exception
+	 * return adds four to sp (ARMv6-M ARM B1.5.8) and the handler
+	 * starts on a misaligned stack; sigreturn restores sc_psr, so the
+	 * interrupted context gets its own adjustment back.
+	 */
+	regs->tf_psr &= ~XPSR_STKALIGN;
+
+	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+		printf("[%u] sendsig %d handler=%#x frame=%#x sc=%#x "
+		    "from pc=%#x sp=%#x psr=%#x mask=%#x\n",
+		    u.u_procp->p_pid, sig, (u_int)p, (u_int)sfp,
+		    (u_int)&sfp->sf_sc, sfp->sf_sc.sc_pc, sfp->sf_sc.sc_sp,
+		    sfp->sf_sc.sc_psr, (u_int)mask);
 #ifdef DIAGNOSTIC
 	printf("    ...call handler %p (sig=%d, code=%#x, context=%p)\n",
 	    p, sig, u.u_code, &sfp->sf_sc);
@@ -127,8 +155,14 @@ void
 sigreturn(void)
 {
 	struct trapframe *regs = u.u_frame;
+	/*
+	 * sigtramp issues the sigreturn SVC with sp at the handler entry
+	 * value, sfp + 32, and the SVC entry pushes its own eight-word
+	 * frame there, so tf_sp is sfp again and the context sits past
+	 * sf_hwframe.
+	 */
 	struct sigcontext *scp =
-	    (struct sigcontext *)(regs->tf_sp + 16);
+	    (struct sigcontext *)(regs->tf_sp + 32);
 
 #ifdef DIAGNOSTIC
 	printf("(%u)sigreturn stack=%#x, context=%p\n",
@@ -145,6 +179,12 @@ sigreturn(void)
 	else
 		u.u_sigstk.ss_flags &= ~SA_ONSTACK;
 	u.u_procp->p_sigmask = scp->sc_mask & ~sigcantmask;
+
+	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+		printf("[%u] sigreturn sc=%#x to pc=%#x sp=%#x psr=%#x "
+		    "mask=%#x onstack=%d\n", u.u_procp->p_pid, (u_int)scp,
+		    scp->sc_pc, scp->sc_sp, scp->sc_psr, (u_int)scp->sc_mask,
+		    scp->sc_onstack);
 
 	/* Return from signal handler. */
 	regs->tf_r0  = scp->sc_r0;

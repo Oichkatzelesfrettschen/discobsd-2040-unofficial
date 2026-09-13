@@ -75,7 +75,7 @@ print(char **argv)
 			(void)printf("\n<%s>\n\n", file);
 			(void)fflush(stdout);
 		}
-		copy_ar(&cf, chdr.size);
+		copy_ar(&cf, chdr.size, chdr.lname);
 		if (!all && !*argv)
 			break;
 	}

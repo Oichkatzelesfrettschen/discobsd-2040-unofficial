@@ -445,15 +445,16 @@ get_arobj(int fd)
 	return(1);
 }
 
-static int extended_name_length;
-
 /*
  * copy_ar --
- *	Copy size bytes from one file to another - taking care to handle the
- *	extra byte (for odd size files) when reading archives and writing an
- *	extra byte if necessary when adding files to archive.  The length of
- *	the object is the long name plus the object itself; the variable
- *	extended_name_length records the long name when one was written.
+ *	Copy size bytes of member payload from one file to another - taking
+ *	care to handle the extra byte (for odd size members) when reading
+ *	archives and writing an extra byte if necessary when adding files to
+ *	an archive.  A member occupies lname + size bytes after its header,
+ *	so the caller passes the extended name length that belongs with this
+ *	payload: chdr.lname when reading a member out of an archive, the name
+ *	just written when writing one, and zero for a bulk copy of bytes that
+ *	already carry their own padding.
  *
  *	The padding is really unnecessary, and is almost certainly a remnant
  *	of early archive formats where the header included binary data which
@@ -462,7 +463,7 @@ static int extended_name_length;
  *	have been ripped out long ago.
  */
 void
-copy_ar(CF *cfp, off_t size)
+copy_ar(CF *cfp, off_t size, int lname)
 {
 	static char pad = '\n';
 	off_t sz;
@@ -503,13 +504,13 @@ copy_ar(CF *cfp, off_t size)
 		error(cfp->rname);
 	}
 
-	if ((cfp->flags & RPAD) && ((size + extended_name_length) & 1) &&
+	if ((cfp->flags & RPAD) && ((size + lname) & 1) &&
 	    (nr = read(from, buf, 1)) != 1) {
 		if (nr == 0)
 			badfmt();
 		error(cfp->rname);
 	}
-	if ((cfp->flags & WPAD) && ((size + extended_name_length) & 1))
+	if ((cfp->flags & WPAD) && ((size + lname) & 1))
 		write_all(to, &pad, 1, cfp->wname);
 }
 
@@ -571,12 +572,9 @@ put_arobj(CF *cfp, struct stat *sb)
 	}
 
 	write_all(cfp->wfd, hb, sizeof(HDR), cfp->wname);
-	if (lname) {
+	if (lname)
 		write_all(cfp->wfd, name, (size_t)lname, cfp->wname);
-		extended_name_length = lname;
-	}
-	copy_ar(cfp, size);
-	extended_name_length = 0;
+	copy_ar(cfp, size, lname);
 }
 
 /*

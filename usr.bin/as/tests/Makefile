@@ -26,6 +26,8 @@ test:
 			@AR=${AOUT_AR} HOST_CC="${HOST_CC}" \
 			    RANLIB=${AOUT_RANLIB} SOURCE_ROOT=${.CURDIR} WORK=. \
 			    sh ./archive-transactional-rewrite.sh
+			@AR=${AOUT_AR} RANLIB=${AOUT_RANLIB} WORK=. \
+			    sh ./archive-extract-all.sh
 			@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
 			    CPU=${MACHINE_CPU} WORK=. sh ./thumb-encoding.sh
 		@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
@@ -43,6 +45,7 @@ clean:
 			rm -rf thumb-wrap thumb-saved
 			rm -rf archive-extended-name-padding
 			rm -rf archive-transactional-rewrite
+			rm -rf archive-extract-all
 
 hello.s:        hello.c
 		${CC} ${CFLAGS} -S hello.c

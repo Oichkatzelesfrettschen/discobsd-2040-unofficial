@@ -21,6 +21,7 @@ TOPSRC=${TOPSRC:?TOPSRC must be set}
 MACHINE=${MACHINE:-rp2040}
 HOST_CC=${HOST_CC:-cc}
 CROSS=${CROSS:-arm-none-eabi}
+PYTHON=${PYTHON:-python3}
 CPU=${CPU:-cortex-m0plus}
 SRCDIR=$(cd "$(dirname "$0")" && pwd)
 OUT=$SRCDIR/out
@@ -151,11 +152,26 @@ run_one()
 		return
 	fi
 
+	# A companion compiled by the cross compiler, for a test that needs
+	# something smlrc cannot express. t17_align's alignment probes are
+	# naked functions, and smlrc reads no inline assembly.
+	extra=""
+	if [ -f "$SRCDIR/$name.gnu.c" ]; then
+		if ! $GCC -std=gnu17 -mcpu=$CPU -mthumb -mfloat-abi=soft -Os \
+		    -Wall -Wextra -nostdinc -I"$TOPSRC/include" \
+		    -c -o "$base.gnu.o" "$SRCDIR/$name.gnu.c" \
+		    > "$base.gnu.log" 2>&1; then
+			fail_test "$name" "companion failed, see $base.gnu.log"
+			return
+		fi
+		extra="$base.gnu.o"
+	fi
+
 	# Device tier: the tree's own link line.
 	if ! $GCC -mcpu=$CPU -mthumb -mfloat-abi=soft \
 	    -N -nostartfiles -fno-dwarf2-cfi-asm -Wl,--no-warn-rwx-segments \
 	    -T"$LDSCRIPT" "$CRT0" -L"$TOPSRC/lib" \
-	    -o "$base.elf" "$base.o" -lc > "$base.ld.log" 2>&1; then
+	    -o "$base.elf" "$base.o" $extra -lc > "$base.ld.log" 2>&1; then
 		fail_test "$name" "device link failed, see $base.ld.log"
 		return
 	fi
@@ -177,7 +193,7 @@ run_one()
 	# Execution tier.
 	if ! $GCC -mcpu=$CPU -mthumb -mfloat-abi=soft \
 	    -nostartfiles -nostdlib -Wl,--no-warn-rwx-segments \
-	    -o "$base.qemu.elf" "$base.o" "$OUT/qemusys.o" \
+	    -o "$base.qemu.elf" "$base.o" $extra "$OUT/qemusys.o" \
 	    -L"$TOPSRC/lib" -lc -lgcc > "$base.qld.log" 2>&1; then
 		fail_test "$name" "qemu link failed, see $base.qld.log"
 		return
@@ -211,8 +227,22 @@ run_one()
 for src in "$SRCDIR"/t[0-9][0-9]_*.c ; do
 	[ -e "$src" ] || continue
 	name=$(basename "$src" .c)
+	# A .gnu.c is a companion the cross compiler builds for the test of
+	# the same name, not a test of its own.
+	case "$name" in
+	*.gnu)	continue ;;
+	esac
 	run_one "$name" "$src"
 done
+
+# Every call the back end wrote, in every test, reaches its callee with SP
+# 8-byte aligned. The checker models the generator's own SP-moving forms and
+# errors on anything it does not recognize, so a new emitter cannot pass by
+# being skipped.
+if ! $PYTHON "$SRCDIR/spalign.py" "$OUT"/*.s ; then
+	fail=$((fail + 1))
+	failed="$failed spalign"
+fi
 
 note ""
 note "passed $pass, failed $fail, link-only $skiprun"

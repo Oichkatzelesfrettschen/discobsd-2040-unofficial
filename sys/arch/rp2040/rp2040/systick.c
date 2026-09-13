@@ -26,7 +26,19 @@
 
 #include <machine/scb.h>
 
-void
+/*
+ * SysTick_Handler()
+ *
+ * Exception entry for the system time base. The body is the entry sequence
+ * itself, so the function carries no AAPCS boundary: the compiler emits
+ * neither prologue nor epilogue, and the sequence selects the stack that
+ * holds the exception frame from bit 2 (SPSEL) of EXC_RETURN in lr (ARMv6-M
+ * ARM B1.5.8), places that pointer in r0 as the struct clockframe argument
+ * of machine/frame.h, and tail-branches into systick(). Both branches leave
+ * through BX, so control never falls off the end and no return instruction
+ * follows.
+ */
+__attribute__((naked)) void
 SysTick_Handler(void)
 {
 __asm volatile (

@@ -33,6 +33,7 @@
 
 #define	USB_ADDR_ENDP		0x00
 #define	USB_MAIN_CTRL		0x40
+#define	USB_SOF_RD		0x48
 #define	USB_SIE_CTRL		0x4c
 #define	USB_SIE_STATUS		0x50
 #define	USB_BUFF_STATUS		0x58
@@ -50,6 +51,7 @@
 #define	USB_INTS_BUFF_STATUS		(1UL << 4)
 #define	USB_INTS_BUS_RESET		(1UL << 12)
 #define	USB_INTS_SETUP_REQ		(1UL << 16)
+#define	USB_INTS_DEV_SOF		(1UL << 17)
 #define	USB_MUXING_TO_PHY		(1UL << 0)
 #define	USB_MUXING_SOFTCON		(1UL << 3)
 #define	USB_PWR_VBUS_DETECT		(1UL << 2)
@@ -108,6 +110,13 @@ void	usbputc(dev_t dev, char c);
 char	usbgetc(dev_t dev);
 
 extern struct tty usbttys[];
+
+/*
+ * RP2040-E15 accounting, readable as machdep.usb_e15_deferred and
+ * machdep.usb_bulkin_arms.
+ */
+extern u_int usb_e15_deferred;
+extern u_int usb_e15_bulkin_arms;
 #endif	/* KERNEL */
 
 #endif	/* !_RP2040_DEV_USB_H_ */

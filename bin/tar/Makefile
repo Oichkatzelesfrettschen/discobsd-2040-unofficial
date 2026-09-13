@@ -5,6 +5,8 @@ BINDIR=		/bin
 
 PROG=		tar
 
+CFLAGS+=	-Wall -Wextra -Werror
+
 OBJS=		${PROG}.o
 
 all:		${PROG}

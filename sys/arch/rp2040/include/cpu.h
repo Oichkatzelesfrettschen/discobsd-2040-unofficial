@@ -17,9 +17,15 @@
 /*
  * The STM32 tree defines CPU_MPU 6 here for a memory protection unit node.
  * Neither RP2040 core has an MPU, so the identifier is absent rather than
- * present and always failing, and CPU_MAXID shrinks to match.
+ * present and always failing, and 6 carries USB accounting instead.
+ *
+ * The two counters below come from the USB device driver's RP2040-E15 guard,
+ * arch/rp2040/dev/usb.c. A kernel configured without uartusb does not link the
+ * driver and answers both with EOPNOTSUPP.
  */
-#define	CPU_MAXID		6	/* number of valid machdep ids */
+#define	CPU_USB_E15_DEFERRED	6	/* int: bulk IN arms the guard held */
+#define	CPU_USB_BULKIN_ARMS	7	/* int: bulk IN arms attempted */
+#define	CPU_MAXID		8	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -29,5 +35,7 @@
 	{ 0, 0 }, \
 	{ "cpu_khz", CTLTYPE_INT }, \
 	{ "bus_khz", CTLTYPE_INT }, \
+	{ "usb_e15_deferred", CTLTYPE_INT }, \
+	{ "usb_bulkin_arms", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

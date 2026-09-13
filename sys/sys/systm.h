@@ -108,6 +108,26 @@ extern const struct sysent
 
 extern const char *syscallnames[];
 
+/*
+ * Console trace of system calls and signal delivery, set through
+ * sysctl kern.systrace (a mask of the SYSTRACE_* bits) and narrowed to
+ * one process by kern.systracepid; zero traces every process. The
+ * output is the console, the same line as the interactive shell, so a
+ * traced session reads like ktrace(1) without a trace file or kdump.
+ * The kernel carries the hooks only with "options SYSTRACE".
+ */
+#define	SYSTRACE_SYSCALL	0x1	/* every syscall: name, args, result */
+#define	SYSTRACE_SIGNAL		0x2	/* sendsig and sigreturn frames */
+extern int systrace;
+extern int systrace_pid;
+#ifdef SYSTRACE
+#define	SYSTRACE_ON(bit) \
+	((systrace & (bit)) && \
+	(systrace_pid == 0 || systrace_pid == u.u_procp->p_pid))
+#else
+#define	SYSTRACE_ON(bit)	0
+#endif
+
 extern int  noproc;                 /* no one is running just now */
 extern char *panicstr;
 extern int  boothowto;              /* reboot flags, from boot */

@@ -105,7 +105,7 @@ extract(char **argv)
 
 		cf.wfd = tfd;
 		cf.wname = file;
-		copy_ar(&cf, chdr.size);
+		copy_ar(&cf, chdr.size, chdr.lname);
 
 		if (fchmod(tfd, (short)chdr.mode)) {
 			(void)fprintf(stderr, "ar: %s: chmod: %s\n",

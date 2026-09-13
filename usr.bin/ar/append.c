@@ -82,7 +82,7 @@ append(char **argv)
 			error(archive);
 		payload_size = archive_stat.st_size - SARMAG;
 		SETCF(afd, archive, replacement_fd, archive, NOPAD);
-		copy_ar(&cf, payload_size);
+		copy_ar(&cf, payload_size, 0);
 	}
 
 	/* Read from disk, write to an archive; pad on write. */

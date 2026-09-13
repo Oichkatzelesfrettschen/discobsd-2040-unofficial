@@ -31,7 +31,7 @@
 
 CHDR	chdr;
 
-char	gflg, nflg, oflg, pflg, uflg, rflg = 1, archive;
+char	gflg, nflg, oflg, pflg, uflg, rflg = 1, archive_input;
 char	**xargv;
 
 union {
@@ -45,7 +45,7 @@ void
 error(int n, char *s)
 {
 	fprintf(stderr, "nm: %s:", *xargv);
-	if (archive) {
+	if (archive_input) {
 		fprintf(stderr, "(%s)", chdr.name);
 		fprintf(stderr, ": ");
 	} else
@@ -236,9 +236,9 @@ psyms(struct nlist *symp, int nsyms)
 		if (uflg && c!='u')
 			continue;
 		if (oflg) {
-			if (archive)
+			if (archive_input)
 				printf("%s:", *xargv);
-			printf("%s:", archive ? chdr.name : *xargv);
+			printf("%s:", archive_input ? chdr.name : *xargv);
 		}
 		if (symp[n].n_type & N_WEAK)
 			c = 'w';
@@ -262,7 +262,7 @@ namelist(void)
 	char	ibuf[BUFSIZ];
 	register FILE	*fi;
 
-	archive = 0;
+	archive_input = 0;
 	fi = fopen(*xargv, "r");
 	if (fi == NULL) {
 		error(0, "cannot open");
@@ -277,7 +277,7 @@ namelist(void)
 	}
 
 	if (strncmp(mag_un.mag_armag, ARMAG, SARMAG)==0) {
-		archive++;
+		archive_input++;
 		off = SARMAG;
 	}
 	else if (N_BADMAG(mag_un.mag_exp)) {
@@ -286,7 +286,7 @@ namelist(void)
 	}
 	rewind(fi);
 
-	if (archive) {
+	if (archive_input) {
 		off = nextel(fi, off);
 		if (narg > 1)
 			printf("\n%s:\n", *xargv);
@@ -357,8 +357,8 @@ namelist(void)
 
 		if (pflg==0)
 			qsort(symp, i, sizeof(struct nlist), compare);
-		if ((archive || narg>1) && oflg==0)
-			printf("\n%s:\n", archive ? chdr.name : *xargv);
+		if ((archive_input || narg>1) && oflg==0)
+			printf("\n%s:\n", archive_input ? chdr.name : *xargv);
 
 		psyms(symp, i);
 		if (symp) {
@@ -367,7 +367,7 @@ namelist(void)
 			free((char *)symp);
                         symp = NULL;
                 }
-	} while(archive && (off = nextel(fi, off)) != 0);
+	} while(archive_input && (off = nextel(fi, off)) != 0);
 out:
 	fclose(fi);
 }

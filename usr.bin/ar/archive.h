@@ -131,7 +131,7 @@ int	begin_archive_rewrite(int);
 void	abort_archive_rewrite(int, int);
 void	commit_archive_rewrite(int, int);
 void	skip_arobj(int);
-void	copy_ar(CF *, off_t);
+void	copy_ar(CF *, off_t, int);
 int	get_arobj(int);
 int	open_archive(int);
 void	put_arobj(CF *, struct stat *);

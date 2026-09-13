@@ -129,21 +129,21 @@ move(char **argv)
 	if (size == (off_t)-1 ||
 	    lseek(tfd1, (off_t)0, SEEK_SET) == (off_t)-1)
 		error(tname);
-	copy_ar(&cf, size);
+	copy_ar(&cf, size, 0);
 
 	size = lseek(tfd2, (off_t)0, SEEK_CUR);
 	if (size == (off_t)-1 ||
 	    lseek(tfd2, (off_t)0, SEEK_SET) == (off_t)-1)
 		error(tname);
 	cf.rfd = tfd2;
-	copy_ar(&cf, size);
+	copy_ar(&cf, size, 0);
 
 	size = lseek(tfd3, (off_t)0, SEEK_CUR);
 	if (size == (off_t)-1 ||
 	    lseek(tfd3, (off_t)0, SEEK_SET) == (off_t)-1)
 		error(tname);
 	cf.rfd = tfd3;
-	copy_ar(&cf, size);
+	copy_ar(&cf, size, 0);
 
 	if (close(tfd1) < 0 || close(tfd2) < 0 || close(tfd3) < 0)
 		error(tname);

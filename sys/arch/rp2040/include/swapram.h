@@ -77,14 +77,21 @@ unsigned int swapram_pool_largest(struct swapram_pool *);
  * The two epochs of the resident window. SMALL: the window is
  * USER_DATA_SIZE and the pool takes images. LARGE: the pool is empty
  * and closed, and a process admitted under it (P_LARGE) may use
- * USER_DATA_SIZE + SWAPRAM_BONUS. The bonus is the pool's own bytes
- * once the pool sits at the end of the window; until that layout lands
- * it is zero, and the epoch machinery runs with nothing to hand out.
+ * USER_DATA_SIZE + SWAPRAM_BONUS. The bonus is the pool's own bytes:
+ * kern.ldscript places the pool first in RAM, abutting the window, so
+ * a large process's stack extends over it (USER_TOP in sys/systm.h).
  * The pool and a large process never own the bonus at the same time.
+ * A bonus is usable only by a fresh exec, which lays the stack under
+ * the higher top; a running process's stack already sits under the
+ * window and its data cannot grow through it, so brk never asks.
  */
 #define SWAPRAM_SMALL           0
 #define SWAPRAM_LARGE           1
+#ifdef SWAPRAM
+#define SWAPRAM_BONUS           (SWAPRAM_KB * 1024)
+#else
 #define SWAPRAM_BONUS           0
+#endif
 
 #ifdef KERNEL
 #include <sys/types.h>          /* size_t and caddr_t for the prototypes */
@@ -107,6 +114,7 @@ int swapram_present(struct proc *);
 void swapram_in(struct proc *, caddr_t, caddr_t, caddr_t);
 void swapram_admit(int);
 int swapram_images(void);
+int swapram_nlarge(void);
 int swapram_evacuate(void);
 void swapram_service(void);
 size_t swapram_ceiling(struct proc *);
@@ -114,7 +122,10 @@ int swapram_enter_large(struct proc *);
 void swapram_leave_large(struct proc *);
 void swapram_inherit(struct proc *, struct proc *);
 void swapram_set_epoch(int);
+void swapram_init(void);
+size_t user_top(struct proc *);
 extern int swapram_evac, swapram_epoch;
+extern unsigned char swapram_pool_mem[];
 #endif
 
 #endif /* _MACHINE_SWAPRAM_H_ */

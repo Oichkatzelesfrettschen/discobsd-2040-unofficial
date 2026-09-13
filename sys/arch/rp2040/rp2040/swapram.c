@@ -55,7 +55,15 @@ void swap (size_t, size_t, int, int);   /* kern/vm_swp.c */
  */
 #define SR_WORST(n)     ((n) + (n) / 8 + 4)
 
-static u_char           sr_pool[SWAPRAM_KB * 1024];
+/*
+ * The pool, in the section kern.ldscript places first in RAM so that it
+ * abuts the user window; under the LARGE epoch it is the top of a large
+ * process's stack. NOLOAD there and outside the bss clearing, which is
+ * fine because every byte is written before it is read.
+ */
+u_char                  swapram_pool_mem[SWAPRAM_KB * 1024]
+                            __attribute__ ((section (".swapram_pool")));
+#define sr_pool         swapram_pool_mem
 static struct swapram_seg sr_seg[NPROC + 1];
 static struct swapram_pool sr_map;
 static int              sr_ready;
@@ -550,11 +558,38 @@ swapram_service (void)
     }
 }
 
+/* Processes holding the bonus. */
+int
+swapram_nlarge (void)
+{
+    return sr_nlarge;
+}
+
 /* The bytes of window a process may hold: the bonus only under P_LARGE. */
 size_t
 swapram_ceiling (struct proc *p)
 {
     return MAXMEM + ((p->p_flag & P_LARGE) ? SWAPRAM_BONUS : 0);
+}
+
+/* The top of the window for p: the pool's end under P_LARGE. */
+size_t
+user_top (struct proc *p)
+{
+    return (size_t) __user_data_end + ((p->p_flag & P_LARGE) ?
+        SWAPRAM_BONUS : 0);
+}
+
+/*
+ * Called once at boot: the bonus is the pool only if the linker put the
+ * pool exactly at the window's end, which kern.ldscript asserts and
+ * this checks against the running image.
+ */
+void
+swapram_init (void)
+{
+    if ((size_t) sr_pool != (size_t) __user_data_end)
+        panic ("swapram: pool is not at the window end");
 }
 
 static void

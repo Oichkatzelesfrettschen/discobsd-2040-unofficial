@@ -38,9 +38,6 @@ endvfork()
      * The parent has taken back our data+stack, set our sizes to 0.
      */
     u.u_dsize = rpp->p_dsize = 0;
-#ifdef SWAPRAM
-    swapram_leave_large (rpp);
-#endif
     u.u_ssize = rpp->p_ssize = 0;
     rpp->p_flag &= ~(SVFDONE | SLOCK);
 }
@@ -100,6 +97,10 @@ exit (rv)
         p->p_nxt->p_prev = &p->p_nxt;
     p->p_prev = &zombproc;
     zombproc = p;
+#ifdef SWAPRAM
+    /* The image is gone with the process; the bonus goes with it. */
+    swapram_leave_large (p);
+#endif
     p->p_stat = SZOMB;
 
     noproc = 1;

@@ -152,7 +152,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	    (u_int)u.u_frame < (u_int)&u + USIZE) {
 		printf("syscall %d, user frame r4-r7 %08x %08x %08x %08x\n",
 		    (u.u_frame->tf_pc > (u_int)__user_data_start + 2 &&
-		    u.u_frame->tf_pc < (u_int)__user_data_end) ?
+		    u.u_frame->tf_pc < (u_int)USER_TOP(u.u_procp)) ?
 		    (*(u_short *)(u.u_frame->tf_pc - 2) & 0xff) : -1,
 		    u.u_frame->tf_r4, u.u_frame->tf_r5, u.u_frame->tf_r6,
 		    u.u_frame->tf_r7);
@@ -181,7 +181,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	 * faulted forever and flooded the console.
 	 */
 	if ((u_int)frame < (u_int)__user_data_start ||
-	    (u_int)frame >= (u_int)__user_data_end)
+	    (u_int)frame >= (u_int)USER_TOP(u.u_procp))
 		psig = SIGKILL;
 	u.u_procp->p_sigmask &= ~sigmask(psig);
 	u.u_procp->p_sigignore &= ~sigmask(psig);

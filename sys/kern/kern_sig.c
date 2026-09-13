@@ -606,7 +606,7 @@ core()
     if (u.u_error)
         goto out;
 
-    u.u_error = rdwri (UIO_WRITE, ip, (caddr_t)__user_data_end - u.u_ssize,
+    u.u_error = rdwri (UIO_WRITE, ip, (caddr_t)USER_TOP (u.u_procp) - u.u_ssize,
         u.u_ssize, (off_t) USIZE + u.u_dsize,
         IO_UNIT, (int*) 0);
 out:

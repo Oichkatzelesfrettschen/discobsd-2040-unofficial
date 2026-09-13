@@ -25,13 +25,11 @@ brk()
     if (newsize < 0)
         newsize = 0;
 #ifdef SWAPRAM
-    /* Growth past the window but within the bonus asks for LARGE. */
-    if (u.u_tsize + newsize + u.u_ssize > MAXMEM &&
-        u.u_tsize + newsize + u.u_ssize <= MAXMEM + SWAPRAM_BONUS &&
-        swapram_enter_large (u.u_procp) != 0) {
-        u.u_error = ENOMEM;
-        return;
-    }
+    /*
+     * A large process may grow to its ceiling; a small one cannot ask
+     * for LARGE here, because its stack already sits under the window
+     * and the bonus lies above that stack.
+     */
     if (u.u_tsize + newsize + u.u_ssize > swapram_ceiling (u.u_procp)) {
 #else
     if (u.u_tsize + newsize + u.u_ssize > MAXMEM) {

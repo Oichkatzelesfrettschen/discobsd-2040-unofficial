@@ -43,7 +43,7 @@ swapin (p)
     register struct proc *p;
 {
     size_t daddr = (size_t)__user_data_start;
-    size_t saddr = (size_t)__user_data_end - p->p_ssize;
+    size_t saddr = USER_TOP (p) - p->p_ssize;
     size_t uaddr = (size_t) &u0;
     size_t tsize = swaptext (p);
 

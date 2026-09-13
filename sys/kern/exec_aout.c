@@ -42,7 +42,7 @@ int exec_aout_check(struct exec_params *epp)
     thumb = 0;
 #endif
     error = aout_layout_check(&epp->hdr.aout, (unsigned)__user_data_start,
-        (unsigned)(__user_data_end - __user_data_start),
+        (unsigned)USER_WINDOW_MAX,
         (unsigned long)epp->ip->i_size, thumb);
     if (error != AOUT_OK) {
         DEBUG("\texec_aout_check(): error: layout check %d\n", error);
@@ -97,7 +97,7 @@ int exec_aout_check(struct exec_params *epp)
     epp->heap.vaddr = epp->bss.vaddr + epp->bss.len;
     epp->heap.len = 0;
     epp->stack.len = SSIZE + roundup(epp->argbc + epp->envbc, NBPW) + (epp->argc + epp->envc+4)*NBPW;
-    epp->stack.vaddr = (caddr_t)__user_data_end - epp->stack.len;
+    epp->stack.vaddr = (caddr_t)USER_TOP (u.u_procp) - epp->stack.len;
 
     /*
      * Establish memory. The overflow and layout checks run before core is

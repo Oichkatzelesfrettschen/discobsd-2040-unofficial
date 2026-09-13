@@ -22,6 +22,15 @@ _estack			= ORIGIN(UAREA) + LENGTH(UAREA);
 
 ENTRY(Reset_Handler)
 
+PHDRS {
+	boot2 PT_LOAD FLAGS(5);
+	flash PT_LOAD FLAGS(5);
+	data PT_LOAD FLAGS(6);
+	ramfunc PT_LOAD FLAGS(5);
+	bss PT_LOAD FLAGS(6);
+	stack PT_GNU_STACK FLAGS(6);
+}
+
 SECTIONS {
 	/*
 	 * The 256-byte second stage the boot ROM loads from flash offset 0,
@@ -32,7 +41,7 @@ SECTIONS {
 	 */
 	.boot2 : {
 		KEEP(*(.boot2))
-	} > BOOT2
+	} > BOOT2 :boot2
 
 	.text : {
 		KEEP(*(.isr_vector))
@@ -40,17 +49,17 @@ SECTIONS {
 		*(.text*)
 		. = ALIGN(8);
 		*(.rodata*)
-	} > FLASH
+	} > FLASH :flash
 
 	.ARM.extab : {
 		*(.ARM.extab* .gnu.linkonce.armextab.*)
-	} > FLASH
+	} > FLASH :flash
 
 	.ARM.exidx : {
 		__exidx_start = .;
 		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
 		__exidx_end = .;
-	} > FLASH
+	} > FLASH :flash
 	/*
 	 * The .data initializers are copied by whole words in locore0.S, and
 	 * ARMv6-M faults on an unaligned word load, before any handler can
@@ -67,6 +76,9 @@ SECTIONS {
 		_sdata = .;
 		*(.data*)
 		. = ALIGN(8);
+	} > RAM AT > FLASH :data
+
+	.ramfunc : AT(LOADADDR(.data) + SIZEOF(.data)) {
 		/*
 		 * Code that must not execute from flash. Every flash erase or
 		 * program on the RP2040 takes the QSPI interface out of
@@ -81,7 +93,7 @@ SECTIONS {
 		__ramfunc_end__ = .;
 		__data_end__ = .;
 		_edata = .;
-	} > RAM AT > FLASH
+	} > RAM :ramfunc
 
 	.bss : {
 		. = ALIGN(8);
@@ -92,5 +104,5 @@ SECTIONS {
 		. = ALIGN(8);
 		__bss_end__ = .;
 		_ebss = .;
-	} > RAM
+	} > RAM :bss
 }

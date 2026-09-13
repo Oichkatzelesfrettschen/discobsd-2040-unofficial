@@ -41,7 +41,7 @@ INCLUDES+=	-I${_machdir}/dhara/compat
 INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall
+CWARNFLAGS=	-Wall -Werror
 
 CMACHCPU=	-mcpu=cortex-m0plus
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
@@ -60,6 +60,7 @@ CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
+LDFLAGS+=	--warn-rwx-segments --fatal-warnings
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends. The Cortex-M4 targets divide in
 # hardware and never link against libgcc, which is why the STM32 Makefile
@@ -124,7 +125,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD} swapxxx.o
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
-SYSTEM_DEP=	Makefile ioconf.c machine sys .deps ${SYSTEM_OBJ} \
+SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
 SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \

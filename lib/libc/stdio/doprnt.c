@@ -8,30 +8,14 @@
  */
 
 /*
- * Two additional formats:
+ * One additional format beyond printf(3): %D prints a long decimal, the
+ * same conversion %ld names, so a caller passing a long needs no length
+ * modifier. usr.bin/find and usr.bin/grep both print block counts with it.
  *
- * The format %b is supported to decode error registers.
- * Its usage is:
- *
- *	printf("reg=%b\n", regval, "<base><arg>*");
- *
- * where <base> is the output base expressed as a control character, e.g.
- * \10 gives octal; \20 gives hex.  Each arg is a sequence of characters,
- * the first of which gives the bit number to be inspected (origin 1), and
- * the next characters (up to a control character, i.e. a character <= 32),
- * give the name of the register.  Thus:
- *
- *	kvprintf("reg=%b\n", 3, "\10\2BITTWO\1BITONE\n");
- *
- * would produce output:
- *
- *	reg=3<BITTWO,BITONE>
- *
- * The format %D -- Hexdump, takes a pointer. Sharp flag - use `:' as
- * a separator, instead of a space. For example:
- *
- *	("%6D", ptr)       -> XX XX XX XX XX XX
- *	("%#*D", len, ptr) -> XX:XX:XX:XX ...
+ * The 4.4BSD kernel conversions %b (register bit decode), %r (saturated
+ * counter) and %z (signed hexadecimal) live in the kernel's own printf,
+ * sys/kern/subr_prf.c, and are absent here: no userland caller names them,
+ * and each one cost text in all 27 shipped programs that link _doprnt.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,7 +49,7 @@ int
 _doprnt (char const *fmt, va_list ap, FILE *stream)
 {
 #define PUTC(c) { putc (c, stream); ++retval; }
-	unsigned char nbuf [MAXNBUF], padding, *q;
+	unsigned char nbuf [MAXNBUF], padding;
 	const unsigned char *s;
 	unsigned char c, base, lflag, ladjust, sharpflag, neg, dot, size;
 	int n, width, dwidth, retval, uppercase, extrazeros, sign;
@@ -141,30 +125,6 @@ reswitch:	switch (c = *fmt++) {
 				width = n;
 			goto reswitch;
 
-		case 'b':
-			ul = va_arg (ap, int);
-			s = va_arg (ap, const unsigned char*);
-			q = ksprintn (nbuf, ul, *s++, -1, 0);
-			while (*q)
-				PUTC (*q--);
-
-			if (! ul)
-				break;
-			size = 0;
-			while (*s) {
-				n = *s++;
-				if ((char) (ul >> (n-1)) & 1) {
-					PUTC (size ? ',' : '<');
-					for (; (n = *s) > ' '; ++s)
-						PUTC (n);
-					size = 1;
-				} else
-					while (*s > ' ')
-						++s;
-			}
-			if (size)
-				PUTC ('>');
-			break;
 
 		case 'c':
 			if (! ladjust && width > 0)
@@ -238,36 +198,6 @@ string:			if (! dot)
 					PUTC (' ');
 			break;
 
-		case 'r':
-			/* Saturated counters. */
-			base = 10;
-			if (lflag) {
-				ul = va_arg (ap, unsigned long);
-				if (ul == (unsigned long) -1) {
-cnt_unknown:				if (ladjust)
-						PUTC ('-');
-					while (--width > 0)
-						PUTC (' ');
-					if (! ladjust)
-						PUTC ('-');
-					break;
-				}
-				if (ul >= (unsigned long) -2) {
-					ul = (unsigned long) -3;
-					neg = '>';
-					goto nosign;
-				}
-			} else {
-				ul = va_arg (ap, unsigned int);
-				if (ul == (unsigned short) -1)
-					goto cnt_unknown;
-				if (ul >= (unsigned short) -2) {
-					ul = (unsigned short) -3;
-					neg = '>';
-					goto nosign;
-				}
-			}
-			goto nosign;
 
 		case 'u':
 			ul = lflag ? va_arg (ap, unsigned long) :
@@ -282,15 +212,6 @@ cnt_unknown:				if (ladjust)
 			base = 16;
 			uppercase = (c == 'X');
 			goto nosign;
-		case 'z':
-		case 'Z':
-			ul = lflag ? va_arg (ap, unsigned long) :
-				sign ? (unsigned long) va_arg (ap, int) :
-				va_arg (ap, unsigned int);
-			base = 16;
-			uppercase = (c == 'Z');
-			goto number;
-
 nosign:			sign = 0;
 number:			if (sign) {
 				if ((long) ul < 0L) {

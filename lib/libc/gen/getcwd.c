@@ -290,9 +290,20 @@ getcwd_physical(pt, size)
 		 * possible component name, plus a trailing NULL.
 		 */
 		if (bup + 3  + MAXNAMLEN + 1 >= eup) {
-			if ((up = realloc(up, upsize *= 2)) == NULL)
+			char *nup;
+
+			/*
+			 * Keep bup's offset across the move: the upstream
+			 * text reset it to the start of the buffer, which
+			 * discards the "../" prefix built so far. With
+			 * MAXPATHLEN 256 and upsize 1020 the first grow
+			 * lands around 62 levels deep, inside the depth a
+			 * 256-byte path reaches.
+			 */
+			if ((nup = realloc(up, upsize *= 2)) == NULL)
 				goto err;
-			bup = up;
+			bup = nup + (bup - up);
+			up = nup;
 			eup = up + upsize;
 		}
 		*bup++ = '.';

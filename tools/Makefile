@@ -7,7 +7,7 @@ SUBDIR!=if [ x"${MACHINE}" = x"pic32" ] ; then \
 	fi
 
 all install depend: ${SUBDIR}
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i ${MFLAGS} $@; done
+		set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i ${MFLAGS} $@; done
 
 clean:
 		rm -f *~ bin/*

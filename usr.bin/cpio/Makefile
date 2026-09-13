@@ -1,9 +1,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-BINDIR=		/bin
-
-PROG=		tar
+PROG=		cpio
 
 CFLAGS+=	-Wall -Wextra -Werror
 
@@ -21,4 +19,4 @@ clean:
 		rm -f *.o *.elf ${PROG} *.dis tags *~
 
 install:	all
-		${INSTALL} ${PROG} ${DESTDIR}${BINDIR}/${PROG}
+		${INSTALL} ${PROG} ${DESTDIR}/usr/bin/${PROG}

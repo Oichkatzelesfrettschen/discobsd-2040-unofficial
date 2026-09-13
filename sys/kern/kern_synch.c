@@ -140,14 +140,16 @@ tsleep (ident, priority, timo)
     s = splhigh();
     if (panicstr) {
         /*
-         * After a panic just give interrupts a chance then just return.  Don't
-         * run any other procs (or panic again below) in case this is the idle
-         * process and already asleep.  The splnet should be spl0 if the network
-         * was being used but for now avoid network interrupts that might cause
-         * another panic.
+         * After a panic return at once without running any other proc, which
+         * would panic again below if this is the idle process and already
+         * asleep.  No interrupt runs in between.  Every console putc in this
+         * tree polls its device under spltty() -- uartputc() on pic32, stm32,
+         * and rp2040, usbputc() and usbdrain() on rp2040 -- so the panic
+         * message reaches the user without one, and an interrupt taken here
+         * could only lead to the recursive panic this path avoids.  boot()
+         * opens its own window before sync() on every machine, which is where
+         * panic-time device work is driven.
          */
-        (void) splnet();
-        noop();
         splx(s);
         return(0);
     }

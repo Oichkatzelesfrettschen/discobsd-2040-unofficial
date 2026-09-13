@@ -237,6 +237,9 @@ ok status_pipeline_last '0' 'false | true; echo $?'
 ok status_function_return '3' 'f(){ return 3; }; f; echo $?'
 xfail status_negation 2.9.2 '0' '! false; echo $?'
 
+ok status_signal_terminated 'ok' \
+    'exec 2>/dev/null; sh -c "kill -9 \$\$"; case $? in 137) echo ok;; *) echo bad;; esac'
+
 # ---- XCU 2.9 shell commands ----
 ok cmd_and_or 'y' 'true && echo y || echo n'
 ok cmd_or_short 'n' 'false && echo y || echo n'
@@ -253,6 +256,7 @@ ok cmd_if_elif 'e' 'if false; then echo t; elif true; then echo e; else echo f; 
 ok cmd_case 'm' 'case a in b) echo b;; a) echo m;; esac'
 ok cmd_case_star 'd' 'case zz in a) echo a;; *) echo d;; esac'
 ok cmd_function_args 'p' 'f(){ echo $1; }; f p'
+xfail func_beats_regular_builtin 2.9.1.1 'mycd' 'cd(){ echo mycd; }; cd /'
 ok cmd_break 'ok' 'for i in 1 2 3; do break; done; echo ok'
 ok cmd_continue '2' 'for i in 1 2; do case $i in 1) continue;; esac; echo $i; done'
 
@@ -291,6 +295,7 @@ xfail bi_command 2.14 'hi' 'command echo hi'
 
 # ---- sh utility options ----
 ok opt_c_string 'c' 'echo c'
+ok opt_c_command_name 'myname arg1' 'sh -c "echo \$0 \$1" myname arg1'
 ok opt_s_reads_stdin 'sfromstdin' 'echo "echo sfromstdin" | sh -s'
 ok opt_x_traces '+ echo t 
 t' 'set -x; echo t'

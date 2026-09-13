@@ -27,7 +27,7 @@ outside the TSVs cite the XCU section number alone.
 Evidence is one of two kinds. A source citation names the file and line that
 decides the behavior. A test citation names a case in
 `bin/sh/tests/posix-sh.sh`, which builds these same sources for the build host
-and compares the exact bytes and exit status of 118 snippets. A case declared
+and compares the exact bytes and exit status of 121 snippets. A case declared
 with `xfail()` there carries the POSIX answer this shell does not give and
 fails the moment the shell starts giving it, so a landed fix forces its row in
 this ledger to move.
@@ -40,13 +40,19 @@ for one that does not bind a shell without the underlying facility.
 
 | Status | Rows |
 |---|---|
-| pass | 77 |
-| partial | 13 |
+| pass | 79 |
+| partial | 12 |
 | fail | 11 |
 | n/a | 1 |
-| total | 102 |
+| total | 103 |
 
-Harness result at the head of this branch: 105 pass, 0 fail, 13 xfail.
+Harness result at the head of this branch: 107 pass, 0 fail, 14 xfail.
+
+## 2.1 Shell Introduction
+
+| Id | Requirement | Status | Evidence |
+|---|---|---|---|
+| tag_18_01 | The shell reads input from a file, from `-c` or from `system()`, breaks it into tokens, parses them into commands, expands the words, redirects, executes, waits, and reports a status | pass | `main.c:46` `exfile()` is that loop: `cmd()` in `cmd.c:518` parses, `execute()` in `xec.c` expands and runs, `main.c:112` `exitset()` publishes the status; cases `opt_c_string`, `opt_s_reads_stdin`, `status_exit_value` |
 
 ## 2.2 Quoting
 
@@ -134,14 +140,14 @@ delimiter rows below fail.
 |---|---|---|---|
 | tag_18_08 | The shell reports the status of the last command executed | pass | `xec.c` `exitval`, `main.c:112` `exitset()`; cases `status_exit_value`, `status_pipeline_last` |
 | tag_18_08_01 | A shell error in a non-interactive shell exits it; a utility error does not | pass | `error.c:37` `exitsh()` distinguishes `forked`, `errflg` and `ttyflg`; cases `expand_colon_question`, `sb_readonly` |
-| tag_18_08_02 | A command not found exits 127, a command found but not executable exits 126, and a command terminated by a signal exits above 128 | partial | `error.c:10` `failure()` with `EXNOTFOUND` and `EXNOEXEC` from `defs.h:13`, used at `xec.c:110` and `service.c:270`; cases `status_not_found`, `status_not_executable`, `status_not_found_in_pipeline`. A signal-terminated command still reports the raw wait status through `service.c:380` rather than 128 plus the signal number |
+| tag_18_08_02 | A command not found exits 127, a command found but not executable exits 126, and a command terminated by a signal exits above 128 | pass | `error.c:10` `failure()` with `EXNOTFOUND` and `EXNOEXEC` from `defs.h:13`, used at `xec.c:110` and `service.c:270`; `service.c:402` reports `sig \| SIGFLG` and `defs.h:16` makes SIGFLG 0200, so a killed command exits 128 plus the signal; cases `status_not_found`, `status_not_executable`, `status_not_found_in_pipeline`, `status_signal_terminated` |
 
 ## 2.9 Shell Commands
 
 | Id | Requirement | Status | Evidence |
 |---|---|---|---|
 | tag_18_09_01 | A simple command is variable assignments, redirections and words, expanded in that order | pass | `cmd.c:239` `item()`, `xec.c:88` `getarg()`/`scan()` |
-| tag_18_09_01_01 | Command search tries functions, special built-ins, regular built-ins, then PATH | partial | `hashserv.c:56` `pathlook()` checks the hash, then built-ins through `syslook()`, then `findpath()`; functions and built-ins share one table, so the standard's ordering among them is not observable |
+| tag_18_09_01_01 | Command search tries special built-ins, then functions, then regular built-ins, then PATH | fail | `hashserv.c:56` `pathlook()` returns the hash entry before `syslook()` runs, and the two share one `h->data` word, so a function never displaces a regular built-in of the same name: `cd(){ echo mycd; }; cd /` runs the built-in. Case `func_beats_regular_builtin` |
 | tag_18_09_02 | A pipeline connects each command's standard output to the next command's standard input, optionally preceded by `!` | partial | `xec.c` TFIL handling; `!` is not a reserved word, see 2.4; cases `cmd_pipeline`, `status_negation` |
 | tag_18_09_02_01 | A pipeline's exit status is that of its last command, negated by `!` | partial | case `status_pipeline_last` passes; the `!` half cannot be reached |
 | tag_18_09_03 | Lists are commands separated by `;`, `&`, `&&`, `\|\|` and newline | pass | `cmd.c:499` `list()`, `cmd.c:518` `cmd()` |
@@ -228,7 +234,7 @@ also carries `cd`, `echo`, `hash`, `login`, `newgrp`, `pwd`, `read`, `test`,
 | sh | `set -v` echoes input as it is read | pass | `args.c:15` `readpr`; case `opt_v_verbose` |
 | sh | `set -x` traces each command | pass | `args.c:15` `execpr`, `xec.c:104` `execprint()`; case `opt_x_traces` |
 | sh | `set -b`, `-h`, `-m`, `-C`, `-o option` | fail | `args.c:15` `flagchar[]` carries `x n v t s i e r k u h f a` only; there is no `-o`, no `-C` noclobber and no job-control `-m` |
-| sh | `$0` is the shell name or the `-c` command name operand | fail | `main.c` sets `cmdadr` to the whole `-c` string, so `$0` and every diagnostic prefix repeat the command text rather than a name |
+| sh | `$0` is set from the `command_name` operand after a `-c` command string | partial | `sh -c 'echo $0 $1' myname arg1` prints `myname arg1`, case `opt_c_command_name`; with the operand omitted `main.c` leaves `cmdadr` as the whole command string, so `$0` and every diagnostic prefix repeat the command text |
 
 ## The "not found" message that lost a character
 

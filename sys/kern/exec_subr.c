@@ -87,7 +87,7 @@
  */
 void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
 {
-    int nc,i;
+    int i;
     u_int len;
     char *ucp;
     char **argp, **envp, ***topp;
@@ -127,11 +127,9 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     /*
      * copy the arguments into the structure
      */
-    nc = 0;
     for (i = 0; i < epp->argc; i++) {
         argp[i] = (caddr_t)ucp;
         if (copystr((caddr_t)epp->argp[i], (caddr_t)ucp, (caddr_t)topp-ucp, &len) == 0) {
-            nc += len;
             ucp += len;
         }
     }
@@ -140,7 +138,6 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     for (i = 0; i < epp->envc; i++) {
         envp[i] = ucp;
         if (copystr((caddr_t)epp->envp[i], (caddr_t)ucp, (caddr_t)topp-ucp, &len) == 0) {
-            nc += len;
             ucp += len;
         }
     }

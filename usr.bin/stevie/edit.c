@@ -51,6 +51,8 @@ edit()
 	case INSERT:
 		/* We're in insert mode. */
 		switch(c){
+		case '\003':	/* vim leaves insert mode on Ctrl-C too, which is
+				 * the key a touch keyboard without Escape has. */
 		case '\033':	/* an ESCape ends input mode */
 
 			/* If we're past the end of the file, (which should */

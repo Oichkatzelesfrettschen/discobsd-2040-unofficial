@@ -22,7 +22,7 @@ int firstc;	/* either ':', '/', or '?' */
 	/* collect the command string, handling '\b' and @ */
 	for ( ; ; ) {
 		c = vgetc();
-		if ( c=='\n'||c=='\r'||c==EOF||c=='\033' )
+		if ( c=='\n'||c=='\r'||c==EOF||c=='\033'||c=='\003' )
 			break;
 		if ( c=='\b' || c==0177 ) {
 			if ( p > buff ) {

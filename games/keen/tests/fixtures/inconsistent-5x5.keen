@@ -1,0 +1,18 @@
+# The unique puzzle with cage c changed from 1- to 5-, a difference no
+# two cells of a 5x5 can have, so no grid satisfies the clues.
+size 5
+cages
+aabcc
+aadge
+fddge
+ffdgg
+fhhhh
+clues
+a 15+
+b 1
+c 5-
+d 10+
+e 10*
+f 45*
+g 11+
+h 120*

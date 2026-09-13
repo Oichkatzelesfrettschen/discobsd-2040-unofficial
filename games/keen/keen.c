@@ -10,16 +10,30 @@
  *     symbol labels of a cyclic base square (a standard construction:
  *     permuting a Latin square's rows, columns or symbols yields
  *     another Latin square). This needs no backtracking search.
- *   - Cages are grown by random adjacent unions with no uniqueness
- *     check, so a puzzle can (rarely) admit solutions besides the one
- *     generated. "Solved" therefore means "matches the generated
- *     grid", not "satisfies every clue", which is the same shortcut
- *     most small ASCII KenKen clones take. Tatham's keen.c instead
- *     runs a constraint solver over every candidate grid to guarantee
- *     a unique solution; that solver and its latin.c helper are
- *     bigger than this whole box and are not reused here.
+ *   - Cages are grown by random adjacent unions, then the clues are
+ *     checked by a small backtracking solver and the cages are regrown
+ *     until exactly one grid satisfies them. Without that check a
+ *     puzzle often admits several grids, and a player who has deduced
+ *     everything the clues give still faces a guess between them; a
+ *     KenKen is only a puzzle when its clues force one answer.
+ *     "Solved" means every row and column is a permutation and every
+ *     cage meets its clue, which the uniqueness check makes the same
+ *     thing as matching the generated grid.
  *
  * usage: keen [size 3..6] [seed]
+ *
+ * The host build (-DHOSTBUILD) adds two modes for the tests:
+ *   keen --dump [size] [seed]   print the generated puzzle as text
+ *   keen --count FILE [limit]   count the grids that satisfy a puzzle
+ *                               read from FILE, stopping at limit
+ * The text format is "size N", a "cages" block of N rows of letters
+ * (a-z, then A-Z: a 6x6 has up to 36 cages) naming each cell's cage, a
+ * "clues" block of "<letter> <target><op>" lines, and an optional
+ * "entries" block of N rows of digits with
+ * "." for an empty cell that the count must honor. KEEN_NOUNIQUE=1
+ * in the environment skips the uniqueness loop, which reproduces the
+ * generator as it was before the check and is how the ambiguous
+ * fixture in tests/ was made.
  *
  * Cursor keys move the selection, digits 1..size enter a value, 0 or
  * backspace clears a cell, q quits. A clue reads like "6+", "12*",
@@ -32,6 +46,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include "../gametty.h"
@@ -43,6 +58,7 @@
 #define SUB	2
 #define MUL	3
 #define DIV	4
+#define GEN_TRIES	64		/* cage regrowths before a new square */
 
 static int n;				/* grid size, 3..6 */
 static int sol[MAXN * MAXN];		/* solution, 0-based values */
@@ -51,7 +67,15 @@ static int cage[MAXN * MAXN];		/* cage id (union-find root) per cell */
 static int clueop[MAXN * MAXN];	/* op for the cage rooted here */
 static int clueval[MAXN * MAXN];	/* clue number for the cage rooted here */
 static int cluecell[MAXN * MAXN];	/* is this cell the labeled one */
+static int cmem[MAXN * MAXN][MAXCAGE];	/* member cells of the cage rooted here */
+static int cnm[MAXN * MAXN];		/* how many members */
 static int cx, cy;			/* cursor column, row */
+
+/* Solver state: the grid being tried, fixed cells, and row/column masks. */
+static int work[MAXN * MAXN];
+static int fixedv[MAXN * MAXN];		/* imposed value per cell, 0 = free */
+static int rowmask[MAXN], colmask[MAXN];
+static int nfound, nlimit;
 
 static int
 find(int *uf, int x)
@@ -172,6 +196,9 @@ gen_clues(void)
 			if (cage[i] == r)
 				members[nm++] = i;
 		cluecell[r] = 1;
+		cnm[r] = nm;
+		for (i = 0; i < nm; i++)
+			cmem[r][i] = members[i];
 		if (nm == 1) {
 			clueop[r] = NONE;
 			clueval[r] = sol[members[0]] + 1;
@@ -208,15 +235,155 @@ gen_clues(void)
 	}
 }
 
+/*
+ * Does the cage rooted at r accept the values in g? With every member
+ * filled the clue must hold exactly; with some still zero a partial
+ * check prunes what can no longer work: a sum already past its
+ * target, a product that does not divide its target. Subtraction and
+ * division cages have two cells and are judged only when both are in.
+ */
+static int
+cage_ok(const int *g, int r)
+{
+	int i, v, sum = 0, prod = 1, filled = 0, lo = 0, hi = 0;
+
+	for (i = 0; i < cnm[r]; i++) {
+		v = g[cmem[r][i]];
+		if (v == 0)
+			continue;
+		filled++;
+		sum += v;
+		prod *= v;
+		if (lo == 0 || v < lo)
+			lo = v;
+		if (v > hi)
+			hi = v;
+	}
+	switch (clueop[r]) {
+	case NONE:
+		return filled == 0 || sum == clueval[r];
+	case ADD:
+		if (sum > clueval[r])
+			return 0;
+		return filled < cnm[r] || sum == clueval[r];
+	case MUL:
+		if (clueval[r] % prod != 0)
+			return 0;
+		return filled < cnm[r] || prod == clueval[r];
+	case SUB:
+		return filled < 2 || hi - lo == clueval[r];
+	default:
+		return filled < 2 || (hi % lo == 0 && hi / lo == clueval[r]);
+	}
+}
+
+/* Every row and column a permutation, every cage at its clue. */
+static int
+grid_ok(const int *g)
+{
+	int r, c, i, m;
+
+	for (r = 0; r < n; r++) {
+		m = 0;
+		for (c = 0; c < n; c++)
+			m |= 1 << g[r * n + c];
+		if (m != ((2 << n) - 2))
+			return 0;
+	}
+	for (c = 0; c < n; c++) {
+		m = 0;
+		for (r = 0; r < n; r++)
+			m |= 1 << g[r * n + c];
+		if (m != ((2 << n) - 2))
+			return 0;
+	}
+	for (i = 0; i < n * n; i++)
+		if (cage[i] == i && !cage_ok(g, i))
+			return 0;
+	return 1;
+}
+
+/*
+ * Count the grids that satisfy every clue, honoring fixedv, until
+ * nlimit are found. Cells are filled row-major; each placement is
+ * checked against its row, its column, and its cage's partial clue,
+ * which is enough pruning for a 6x6 with cages of at most four cells.
+ */
+static void
+search(int i)
+{
+	int r, c, v, lo, hi;
+
+	if (nfound >= nlimit)
+		return;
+	if (i == n * n) {
+		nfound++;
+		return;
+	}
+	r = i / n; c = i % n;
+	lo = fixedv[i] ? fixedv[i] : 1;
+	hi = fixedv[i] ? fixedv[i] : n;
+	for (v = lo; v <= hi; v++) {
+		if ((rowmask[r] | colmask[c]) & (1 << v))
+			continue;
+		work[i] = v;
+		rowmask[r] |= 1 << v;
+		colmask[c] |= 1 << v;
+		if (cage_ok(work, cage[i]))
+			search(i + 1);
+		rowmask[r] &= ~(1 << v);
+		colmask[c] &= ~(1 << v);
+		work[i] = 0;
+	}
+}
+
+static int
+count_solutions(int limit)
+{
+	int i;
+
+	for (i = 0; i < n * n; i++)
+		work[i] = 0;
+	for (i = 0; i < n; i++)
+		rowmask[i] = colmask[i] = 0;
+	nfound = 0;
+	nlimit = limit;
+	search(0);
+	return nfound;
+}
+
+/*
+ * Generate until the clues admit exactly one grid. The first attempt
+ * is the same puzzle the generator produced before the check existed,
+ * so a seed's puzzle only changes when that puzzle was ambiguous. The
+ * Latin square is regrown after GEN_TRIES cage layouts fail, which
+ * keeps a square that happens to resist unique cages from looping.
+ */
+static void
+gen_puzzle(void)
+{
+	int tries = 0;
+
+	gen_latin();
+	for (;;) {
+		gen_cages();
+		gen_clues();
+		if (count_solutions(2) == 1)
+			return;
+		if (++tries % GEN_TRIES == 0)
+			gen_latin();
+	}
+}
+
 static int
 solved(void)
 {
 	int i;
 
 	for (i = 0; i < n * n; i++)
-		if (entry[i] != sol[i] + 1)
+		if (entry[i] == 0)
 			return 0;
-	return 1;
+	return grid_ok(entry);
 }
 
 static void
@@ -324,19 +491,186 @@ draw(void)
 	write(1, "\r\narrows move, 1-9 fill, 0 clears, q quits\r\n", 45);
 }
 
+#ifdef HOSTBUILD
+static const char labels[] =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/* Print the puzzle in the text format the --count mode reads; cages
+ * are lettered in the order of their root cells. */
+static void
+dumppuzzle(void)
+{
+	int r, c, i, root, k = 0, letter[MAXN * MAXN];
+	char opc;
+
+	for (i = 0; i < n * n; i++)
+		if (cage[i] == i)
+			letter[i] = labels[k++];
+	printf("size %d\ncages\n", n);
+	for (r = 0; r < n; r++) {
+		for (c = 0; c < n; c++)
+			putchar(letter[cage[r * n + c]]);
+		putchar('\n');
+	}
+	printf("clues\n");
+	for (i = 0; i < n * n; i++) {
+		if (cage[i] != i)
+			continue;
+		root = i;
+		opc = clueop[root] == ADD ? '+' : clueop[root] == SUB ? '-' :
+		    clueop[root] == MUL ? '*' : clueop[root] == DIV ? '/' : 0;
+		if (opc)
+			printf("%c %d%c\n", letter[root], clueval[root], opc);
+		else
+			printf("%c %d\n", letter[root], clueval[root]);
+	}
+}
+
+/*
+ * Read a puzzle in that format. Cage letters are labels only: a cage's
+ * root becomes its lowest cell, as gen_cages would make it. Returns 0
+ * on success, otherwise the line number of the first fault, or -1 when
+ * the file ends with a cage or clue missing.
+ */
+static int
+loadpuzzle(FILE *f)
+{
+	char line[128];
+	int label[MAXN * MAXN], rootof[128];
+	int r, c, i, lineno = 0, root, val;
+	char lab, opc;
+
+	n = 0;
+	for (i = 0; i < 128; i++)
+		rootof[i] = -1;
+	for (i = 0; i < MAXN * MAXN; i++) {
+		fixedv[i] = 0;
+		cnm[i] = 0;
+		cage[i] = -1;
+		clueop[i] = -1;
+	}
+	while (fgets(line, sizeof line, f) != NULL) {
+		lineno++;
+		if (line[0] == '#' || line[0] == '\n')
+			continue;
+		if (sscanf(line, "size %d", &n) == 1) {
+			if (n < 3 || n > MAXN)
+				return lineno;
+			continue;
+		}
+		if (n == 0)
+			return lineno;
+		if (strncmp(line, "cages", 5) == 0) {
+			for (r = 0; r < n; r++) {
+				if (fgets(line, sizeof line, f) == NULL)
+					return -1;
+				lineno++;
+				for (c = 0; c < n; c++) {
+					lab = line[c];
+					if (strchr(labels, lab) == NULL || lab == 0)
+						return lineno;
+					label[r * n + c] = lab;
+					if (rootof[(int)lab] < 0)
+						rootof[(int)lab] = r * n + c;
+				}
+			}
+			for (i = 0; i < n * n; i++) {
+				root = rootof[label[i]];
+				cage[i] = root;
+				if (cnm[root] >= MAXCAGE)
+					return lineno;
+				cmem[root][cnm[root]++] = i;
+			}
+			continue;
+		}
+		if (strncmp(line, "clues", 5) == 0)
+			continue;
+		if (strncmp(line, "entries", 7) == 0) {
+			for (r = 0; r < n; r++) {
+				if (fgets(line, sizeof line, f) == NULL)
+					return -1;
+				lineno++;
+				for (c = 0; c < n; c++) {
+					if (line[c] >= '1' && line[c] <= '0' + n)
+						fixedv[r * n + c] = line[c] - '0';
+					else if (line[c] != '.')
+						return lineno;
+				}
+			}
+			continue;
+		}
+		opc = 0;
+		if (sscanf(line, "%c %d%c", &lab, &val, &opc) < 2 ||
+		    strchr(labels, lab) == NULL || rootof[(int)lab] < 0)
+			return lineno;
+		root = rootof[(int)lab];
+		clueval[root] = val;
+		clueop[root] = opc == '+' ? ADD : opc == '-' ? SUB :
+		    opc == '*' ? MUL : opc == '/' ? DIV : NONE;
+		if (opc != 0 && opc != '\n' && clueop[root] == NONE)
+			return lineno;
+		if (clueop[root] == NONE && cnm[root] != 1)
+			return lineno;
+		if ((clueop[root] == SUB || clueop[root] == DIV) &&
+		    cnm[root] != 2)
+			return lineno;
+	}
+	if (n == 0)
+		return -1;
+	for (i = 0; i < n * n; i++)
+		if (cage[i] < 0 || (cage[i] == i && clueop[i] < 0))
+			return -1;
+	return 0;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
 	int k;
+
+#ifdef HOSTBUILD
+	if (argc > 1 && strcmp(argv[1], "--count") == 0) {
+		FILE *f;
+		int limit = argc > 3 ? atoi(argv[3]) : 1000, bad;
+
+		if (argc < 3 || (f = fopen(argv[2], "r")) == NULL) {
+			fprintf(stderr, "usage: keen --count FILE [limit]\n");
+			return 2;
+		}
+		bad = loadpuzzle(f);
+		fclose(f);
+		if (bad) {
+			fprintf(stderr, "%s: bad puzzle at line %d\n", argv[2], bad);
+			return 2;
+		}
+		printf("solutions %d\n", count_solutions(limit));
+		return 0;
+	}
+	if (argc > 1 && strcmp(argv[1], "--dump") == 0) {
+		argv++;
+		argc--;
+		n = argc > 1 ? atoi(argv[1]) : 5;
+		if (n < 3) n = 3;
+		if (n > MAXN) n = MAXN;
+		srand(argc > 2 ? (unsigned)atoi(argv[2]) : (unsigned)time(NULL));
+		if (getenv("KEEN_NOUNIQUE") != NULL) {
+			gen_latin();
+			gen_cages();
+			gen_clues();
+		} else
+			gen_puzzle();
+		dumppuzzle();
+		return 0;
+	}
+#endif
 
 	n = argc > 1 ? atoi(argv[1]) : 5;
 	if (n < 3) n = 3;
 	if (n > MAXN) n = MAXN;
 	srand(argc > 2 ? (unsigned)atoi(argv[2]) : (unsigned)time(NULL));
 
-	gen_latin();
-	gen_cages();
-	gen_clues();
+	gen_puzzle();
 	if (getenv("GAMEBOX_TEST") != 0)
 		dumpsolution();
 

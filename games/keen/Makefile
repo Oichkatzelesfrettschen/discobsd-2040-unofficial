@@ -21,6 +21,7 @@ host:		${PROG}.c ${TOPSRC}/games/gametty.h
 
 test:		host
 		${PYTHON} tests/play.py ./${HOSTBIN}
+		${PYTHON} tests/uniqueness.py ./${HOSTBIN}
 
 clean:
 		rm -f *.o *.elf ${PROG} ${HOSTBIN}

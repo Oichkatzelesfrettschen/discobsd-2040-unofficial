@@ -449,13 +449,19 @@ leadin()
 
 /*
  * Is s1 a prefix of s2??
+ *
+ * The upstream text never advanced s2, so it compared every character of
+ * s1 against s2[0] and answered yes for any s1 whose first character
+ * matched: "Tx: hello" read as the headname "To". Walk both strings.
  */
 static int
 ispref(s1, s2)
 	register char *s1, *s2;
 {
 
-	while (*s1++ == *s2)
-		;
-	return (*s1 == '\0');
+	while (*s1 != '\0') {
+		if (*s1++ != *s2++)
+			return (0);
+	}
+	return (1);
 }

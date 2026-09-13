@@ -62,6 +62,7 @@ struct exec filhdr;             /* aout header */
 
 struct archdr {                 /* archive header */
 	char *  ar_name;
+	int     ar_lname;       /* extended name bytes stored after the header */
 	long	ar_date;
 	int     ar_uid;
 	int     ar_gid;
@@ -362,29 +363,26 @@ fgetarhdr(FILE *fd, struct archdr *h)
 	register char *p;
 	char buf[20];
 
+	h->ar_name = 0;
+	h->ar_lname = 0;
+
 	/* Read archive name.  Spaces should never happen. */
 	nr = fread (buf, 1, sizeof (hdr.ar_name), fd);
 	if (nr != sizeof (hdr.ar_name) || buf[0] == ' ')
 		return 0;
         buf[nr] = 0;
 
-	/* Long name support.  Set the "real" size of the file,
-	 * and the long name flag/size. */
-	h->ar_size = 0;
+	/*
+	 * Long name support.  An extended name occupies the first ar_lname
+	 * bytes of the member body, which follows the whole header, so the
+	 * name is read once the remaining fields are consumed and the size
+	 * field -- which counts the name -- is known.
+	 */
 	if (strncmp (buf, AR_EFMT1, sizeof(AR_EFMT1) - 1) == 0) {
 		len = atoi (buf + sizeof(AR_EFMT1) - 1);
 		if (len <= 0 || len > MAXNAMLEN)
 			return 0;
-                h->ar_name = malloc (len + 1);
-                if (! h->ar_name)
-                        return 0;
-		nr = fread (h->ar_name, 1, len, fd);
-		if (nr != len) {
-failed:                 free (h->ar_name);
-                        return 0;
-		}
-		h->ar_name[len] = 0;
-		h->ar_size -= len;
+		h->ar_lname = len;
 	} else {
 		/* Strip trailing spaces, null terminate. */
 		p = buf + nr - 1;
@@ -442,7 +440,24 @@ failed:                 free (h->ar_name);
 	if (strcmp (buf, ARFMAG) != 0)
 		goto failed;
 
+	if (h->ar_lname) {
+		if (h->ar_size < h->ar_lname)
+			goto failed;
+		h->ar_name = malloc (h->ar_lname + 1);
+		if (! h->ar_name)
+			return 0;
+		nr = fread (h->ar_name, 1, h->ar_lname, fd);
+		if (nr != h->ar_lname)
+			goto failed;
+		h->ar_name[h->ar_lname] = 0;
+		h->ar_size -= h->ar_lname;
+	}
 	return 1;
+
+failed:
+	free (h->ar_name);
+	h->ar_name = 0;
+	return 0;
 }
 
 void
@@ -1240,7 +1255,8 @@ step(unsigned int nloc)
 	if (! fgetarhdr (text, &archdr)) {
 		return (0);
 	}
-	if (load1 (nloc + ARHDRSZ, 1, mkfsym (archdr.ar_name, 0))) {
+	if (load1 (nloc + ARHDRSZ + archdr.ar_lname, 1,
+	    mkfsym (archdr.ar_name, 0))) {
 		addlibp (nloc);
                 if (trace)
                         printf ("load '%s' offset %08x\n", archdr.ar_name, nloc);
@@ -1280,7 +1296,8 @@ load1lib(unsigned int off0)
                 oldp = libp;
                 offset = off0;
                 while (step (offset))
-                        offset += archdr.ar_size + ARHDRSZ;
+                        offset += ARHDRSZ + archdr.ar_lname + archdr.ar_size +
+                            ((archdr.ar_lname + archdr.ar_size) & 1);
         } while (libp != oldp);
         addlibp (LIBLIST_END);
 }
@@ -1307,7 +1324,8 @@ load1arg(char *cp)
 		break;
 	case 3:                 /* out of date table of contents */
 		error (0, "out of date (warning)");
-                load1lib (SARMAG + archdr.ar_size + ARHDRSZ);
+                load1lib (SARMAG + ARHDRSZ + archdr.ar_size +
+                    (archdr.ar_size & 1));
 		break;
 	}
 	fclose (text);
@@ -1685,7 +1703,7 @@ load2arg(char *arname)
 				printf ("%s(%s):\n", arname, archdr.ar_name);
 			mkfsym (archdr.ar_name, 1);
                         free (archdr.ar_name);
-			load2 (*lp + ARHDRSZ);
+			load2 (*lp + ARHDRSZ + archdr.ar_lname);
 		}
 		libp = ++lp;
 	}

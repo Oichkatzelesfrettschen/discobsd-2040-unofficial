@@ -225,13 +225,13 @@ register char   *t[];
 		longjmp(subshell, 1);
 
 	case ENOMEM:
-		failed(p, toobig);
+		failure(p, toobig, EXNOEXEC);
 
 	case E2BIG:
-		failed(p, arglist);
+		failure(p, arglist, EXNOEXEC);
 
 	case ETXTBSY:
-		failed(p, txtbsy);
+		failure(p, txtbsy, EXNOEXEC);
 
 	default:
 		xecmsg = badexec;
@@ -267,7 +267,8 @@ int     execa(at, pos)
 		}
 		while (path = execs(path,t))
 			;
-		failed(*t, xecmsg);
+		failure(*t, xecmsg,
+		    xecmsg == notfound ? EXNOTFOUND : EXNOEXEC);
 	}
 }
 

@@ -213,6 +213,14 @@ xfail redir_readwrite 2.7.7 'ok' ': > f4; exec 3<>f4; echo ok >&3; exec 3<&-; ca
 ok redir_close 'ok' 'exec 3>f5; exec 3<&-; echo ok'
 xfail redir_clobber_override 2.7.2 'c' 'echo c >| f6; cat f6'
 
+# ---- XCU 2.8.1 consequences of shell errors, sh utility exit status ----
+okrc status_not_found 'nosuchcmd_xyz 2>/dev/null: nosuchcmd_xyz: not found' 127 \
+    'nosuchcmd_xyz 2>/dev/null'
+okrc status_not_executable '' 126 ': > f7; chmod 644 f7; exec ./f7 2>/dev/null'
+ok status_not_found_in_pipeline \
+    'echo hi | cat | qquncompress 2>&1 | tail -1: qquncompress: not found' \
+    'echo hi | cat | qquncompress 2>&1 | tail -1'
+
 # ---- XCU 2.8.2 exit status ----
 ok status_exit_value '7' 'sh -c "exit 7" > /dev/null 2>&1 || echo $?'
 ok status_pipeline_last '0' 'false | true; echo $?'

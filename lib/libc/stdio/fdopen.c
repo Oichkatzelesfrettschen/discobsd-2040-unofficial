@@ -42,9 +42,9 @@ fdopen(fd, mode)
 		iop->_flag = _IOREAD;
 		break;
 	case 'a':
-		lseek(fd, (off_t)0, L_XTND);
-		/* fall into ... */
 	case 'w':
+		if (*mode == 'a')
+			lseek(fd, (off_t)0, L_XTND);
 		iop->_flag = _IOWRT;
 		break;
 	default:

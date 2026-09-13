@@ -18,12 +18,8 @@
 #define	_ARM_TYPES_H_
 
 typedef	struct label_t {
-	/* regs v1-v7, FP, IP/SP, LR (r4-r10, r11, r12, r14) in val[0..9],
-	 * then the SIO hardware divider state (UDIVIDEND, UDIVISOR,
-	 * REMAINDER, QUOTIENT) in val[10..13], which locore.S's setjmp saves
-	 * and longjmp restores so a process preempted mid float-divide keeps
-	 * its own divider result across a context switch. */
-	long val[14];
+	/* regs v1-v7, FP, IP/SP, LR (r4-r10, r11, r12, r14). */
+	long val[10];
 } label_t;
 
 #endif	/* !_ARM_TYPES_H_ */

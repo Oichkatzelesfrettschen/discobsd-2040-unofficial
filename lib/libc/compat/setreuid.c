@@ -38,9 +38,9 @@ int
 setreuid(ruid, euid)
 	register uid_t ruid, euid;
 {
-	static uid_t saveduid = -1;
+	static uid_t saveduid = (uid_t)-1;
 
-	if (saveduid == -1)
+	if (saveduid == (uid_t)-1)
 		saveduid = geteuid();
 	/*
 	 * we assume that the intent here is to be able to
@@ -48,11 +48,11 @@ setreuid(ruid, euid)
 	 * we will be able to do so, but do not actually
 	 * set the ruid.
 	 */
-	if (ruid != -1 && ruid != getuid() && ruid != saveduid) {
+	if (ruid != (uid_t)-1 && ruid != getuid() && ruid != saveduid) {
 		errno = EPERM;
 		return (-1);
 	}
-	if (euid != -1 && seteuid(euid) < 0)
+	if (euid != (uid_t)-1 && seteuid(euid) < 0)
 		return (-1);
 	return (0);
 }

@@ -53,9 +53,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-
 /*
  * contents --
  *	Handles t[v] option - opens the archive and then reads headers,

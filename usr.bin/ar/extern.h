@@ -31,8 +31,14 @@
  * SUCH DAMAGE.
  */
 
-void	 badfmt(void);
-void	 error(char *);
+#ifdef __GNUC__
+#define AR_NORETURN __attribute__((__noreturn__))
+#else
+#define AR_NORETURN
+#endif
+
+void	 badfmt(void) AR_NORETURN;
+void	 error(char *) AR_NORETURN;
 void	 orphans(char **);
 int	 compare(char *);
 int	 tmp(void);

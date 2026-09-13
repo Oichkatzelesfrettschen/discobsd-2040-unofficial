@@ -55,8 +55,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern int errno;
-
 CHDR chdr;
 unsigned options;
 char *archive, *envtmp, *posarg, *posname;
@@ -112,8 +110,11 @@ main(int argc, char *argv[])
 {
 	extern int optind;
 	int c;
-	char *p;
-	int (*fcall)(char **) = 0;
+	char *normalized_options;
+	int (*fcall)(char **) = NULL;
+	int result;
+
+	normalized_options = NULL;
 
 	if (argc < 3)
 		usage();
@@ -121,18 +122,20 @@ main(int argc, char *argv[])
 	/*
 	 * Historic versions didn't require a '-' in front of the options.
 	 * Fix it, if necessary.
-	*/
+	 */
 	if (*argv[1] != '-') {
-		size_t len;
+		size_t normalized_size;
 
-		len = (u_int)(strlen(argv[1]) + 2);
-		if (!(p = malloc(len))) {
+		normalized_size = strlen(argv[1]) + 2;
+		normalized_options = malloc(normalized_size);
+		if (normalized_options == NULL) {
 			(void)fprintf(stderr, "ar: %s.\n", strerror(errno));
 			exit(1);
 		}
-		*p = '-';
-		(void)strlcpy(p + 1, argv[1], len - 1);
-		argv[1] = p;
+		*normalized_options = '-';
+		(void)strlcpy(normalized_options + 1, argv[1],
+		    normalized_size - 1);
+		argv[1] = normalized_options;
 	}
 
 	while ((c = getopt(argc, argv, "abcdilmopqrTtuvx")) != EOF) {
@@ -196,7 +199,6 @@ main(int argc, char *argv[])
 	}
 
 	argv += optind;
-	argc -= optind;
 
 	/* One of -dmpqrtx required. */
 	if (!(options & (AR_D|AR_M|AR_P|AR_Q|AR_R|AR_T|AR_X))) {
@@ -253,5 +255,7 @@ main(int argc, char *argv[])
 	}
 	if (! fcall)
 		exit(1);
-	exit((*fcall)(argv));
+	result = (*fcall)(argv);
+	free(normalized_options);
+	return(result);
 }

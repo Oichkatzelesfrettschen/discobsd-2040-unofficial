@@ -59,11 +59,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern int errno;
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-extern char *tname;                     /* temporary file "name" */
-
 /*
  * replace --
  *	Replace or add named members to archive.  Entries already in the
@@ -79,21 +74,44 @@ replace(char **argv)
 	register int afd, curfd, mods, sfd;
 	struct stat sb;
 	CF cf;
-	off_t size, tsize;
-	int err, exists, tfd1, tfd2;
+	off_t size;
+	int err, replacement_fd, tfd1, tfd2;
 
 	err = 0;
-	/*
-	 * If doesn't exist, simply append to the archive.  There's
-	 * a race here, but it's pretty short, and not worth fixing.
-	 */
-	exists = !stat(archive, &sb);
 	afd = open_archive(O_CREAT|O_RDWR);
 
-	if (!exists) {
-		tfd1 = -1;
-		tfd2 = tmp();
-		goto append;
+	if (afd < 0) {
+		if (options & (AR_A|AR_B)) {
+			(void)fprintf(stderr,
+			    "ar: %s: archive member not found.\n", posarg);
+			return(1);
+		}
+		replacement_fd = begin_archive_rewrite(afd);
+		SETCF(0, NULL, replacement_fd, archive, WPAD);
+		while ((file = *argv++) != NULL) {
+			if (options & AR_V)
+				(void)printf("a - %s\n", file);
+			sfd = open(file, O_RDONLY);
+			if (sfd < 0) {
+				err = 1;
+				(void)fprintf(stderr, "ar: %s: %s.\n",
+				    file, strerror(errno));
+				continue;
+			}
+			if (fstat(sfd, &sb) < 0)
+				error(file);
+			cf.rfd = sfd;
+			cf.rname = file;
+			put_arobj(&cf, &sb);
+			if (close(sfd) < 0)
+				error(file);
+		}
+		if (err) {
+			abort_archive_rewrite(afd, replacement_fd);
+			return(err);
+		}
+		commit_archive_rewrite(afd, replacement_fd);
+		return(0);
 	}
 
 	tfd1 = tmp();			/* Files before key file. */
@@ -115,9 +133,11 @@ replace(char **argv)
 				    file, strerror(errno));
 				goto useold;
 			}
-			(void)fstat(sfd, &sb);
+			if (fstat(sfd, &sb) < 0)
+				error(file);
 			if (options & AR_U && sb.st_mtime <= chdr.date) {
-				(void)close(sfd);
+				if (close(sfd) < 0)
+					error(file);
 				goto useold;
 			}
 
@@ -127,7 +147,8 @@ replace(char **argv)
 			/* Read from disk, write to an archive; pad on write */
 			SETCF(sfd, file, curfd, tname, WPAD);
 			put_arobj(&cf, &sb);
-			(void)close(sfd);
+			if (close(sfd) < 0)
+				error(file);
 			skip_arobj(afd);
 			continue;
 		}
@@ -151,12 +172,14 @@ useold:			SETCF(afd, archive, curfd, tname, RPAD|WPAD);
 	if (mods) {
 		(void)fprintf(stderr, "ar: %s: archive member not found.\n",
 		    posarg);
-                close_archive(afd);
-                return(1);
-        }
+		if (close(tfd1) < 0 || close(tfd2) < 0)
+			error(tname);
+		close_archive(afd);
+		return(1);
+	}
 
 	/* Append any left-over arguments to the end of the after file. */
-append:	while ((file = *argv++) != 0) {
+	while ((file = *argv++) != NULL) {
 		if (options & AR_V)
 			(void)printf("a - %s\n", file);
                 sfd = open(file, O_RDONLY);
@@ -166,31 +189,39 @@ append:	while ((file = *argv++) != 0) {
 			    file, strerror(errno));
 			continue;
 		}
-		(void)fstat(sfd, &sb);
+		if (fstat(sfd, &sb) < 0)
+			error(file);
 		/* Read from disk, write to an archive; pad on write. */
 		SETCF(sfd, file,
 		    options & (AR_A|AR_B) ? tfd1 : tfd2, tname, WPAD);
 		put_arobj(&cf, &sb);
-		(void)close(sfd);
+		if (close(sfd) < 0)
+			error(file);
+	}
+	if (err) {
+		if (close(tfd1) < 0 || close(tfd2) < 0)
+			error(tname);
+		close_archive(afd);
+		return(err);
 	}
 
-	(void)lseek(afd, (off_t)SARMAG, SEEK_SET);
+	replacement_fd = begin_archive_rewrite(afd);
+	SETCF(tfd1, tname, replacement_fd, archive, NOPAD);
+	size = lseek(tfd1, (off_t)0, SEEK_CUR);
+	if (size == (off_t)-1 ||
+	    lseek(tfd1, (off_t)0, SEEK_SET) == (off_t)-1)
+		error(tname);
+	copy_ar(&cf, size);
 
-	SETCF(tfd1, tname, afd, archive, NOPAD);
-	if (tfd1 != -1) {
-		tsize = size = lseek(tfd1, (off_t)0, SEEK_CUR);
-		(void)lseek(tfd1, (off_t)0, SEEK_SET);
-		copy_ar(&cf, size);
-	} else
-		tsize = 0;
-
-	tsize += size = lseek(tfd2, (off_t)0, SEEK_CUR);
-	(void)lseek(tfd2, (off_t)0, SEEK_SET);
+	size = lseek(tfd2, (off_t)0, SEEK_CUR);
+	if (size == (off_t)-1 ||
+	    lseek(tfd2, (off_t)0, SEEK_SET) == (off_t)-1)
+		error(tname);
 	cf.rfd = tfd2;
 	copy_ar(&cf, size);
 
-	if (ftruncate(afd, tsize + SARMAG) < 0)
-	        /* ignore */;
-	close_archive(afd);
+	if (close(tfd1) < 0 || close(tfd2) < 0)
+		error(tname);
+	commit_archive_rewrite(afd, replacement_fd);
 	return(err);
 }

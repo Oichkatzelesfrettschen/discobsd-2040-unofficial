@@ -58,10 +58,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern int errno;
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-
 /*
  * extract --
  *	Extract files from the named archive - if member names given only
@@ -84,7 +80,7 @@ extract(char **argv)
 	afd = open_archive(O_RDONLY);
 
 	/* Read from an archive, write to disk; pad on read. */
-	SETCF(afd, archive, 0, 0, RPAD);
+	SETCF(afd, archive, 0, NULL, RPAD);
 	for (all = !*argv; get_arobj(afd);) {
 		if (all)
 			file = chdr.name;

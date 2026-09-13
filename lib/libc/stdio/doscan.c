@@ -256,17 +256,19 @@ _getccl(s)
 register unsigned char *s;
 {
 	register int c, t;
+	size_t table_index;
 
 	t = 0;
 	if (*s == '^') {
 		t++;
 		s++;
 	}
-	for (c = 0; c < (sizeof _sctab / sizeof _sctab[0]); c++)
+	for (table_index = 0;
+	    table_index < sizeof _sctab / sizeof _sctab[0]; table_index++)
 		if (t)
-			_sctab[c] &= ~STP;
+			_sctab[table_index] &= ~STP;
 		else
-			_sctab[c] |= STP;
+			_sctab[table_index] |= STP;
 	if ((c = *s) == ']' || c == '-') {	/* first char is special */
 		if (t)
 			_sctab[c] |= STP;

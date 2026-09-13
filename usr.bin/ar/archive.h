@@ -105,6 +105,18 @@ typedef struct {
 	char name[MAXNAMLEN + 1];	/* name */
 } CHDR;
 
+extern CHDR chdr;
+extern char *archive;
+extern char *envtmp;
+extern char *posarg;
+extern char *posname;
+extern char *tname;
+
+/* Linux ar.h omits the BSD extended-name format marker. */
+#ifndef AR_EFMT1
+#define AR_EFMT1 "#1/"
+#endif
+
 /* Header format strings. */
 #define	HDR1	"%s%-13d%-12ld%-6u%-6u%-8o%-10ld%2s"
 #define	HDR2	"%-16.16s%-12ld%-6u%-6u%-8o%-10ld%2s"
@@ -115,6 +127,9 @@ typedef struct {
 struct	stat;
 
 void	close_archive(int);
+int	begin_archive_rewrite(int);
+void	abort_archive_rewrite(int, int);
+void	commit_archive_rewrite(int, int);
 void	skip_arobj(int);
 void	copy_ar(CF *, off_t);
 int	get_arobj(int);

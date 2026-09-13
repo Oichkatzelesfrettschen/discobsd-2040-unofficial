@@ -8,12 +8,21 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= ${DEFS}
 
-SRCS		= _setjmp.S aeabi_div.S htonl.S htons.S rom_float.c setjmp.S sigsetjmp.S
-OBJS		= _setjmp.o aeabi_div.o htonl.o htons.o rom_float.o setjmp.o sigsetjmp.o
+BASE_SRCS	= _setjmp.S aeabi_div.S htonl.S htons.S setjmp.S sigsetjmp.S
+BASE_OBJS	= ${BASE_SRCS:.S=.o}
+ROM_FLOAT_OBJS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+			awk 'NF { print $$1 ".o" }' rom_float_members ; \
+		fi
+ROM_FLOAT_SRCS	= ${ROM_FLOAT_OBJS:.o=.S}
+SRCS		= ${BASE_SRCS} ${ROM_FLOAT_SRCS}
+OBJS		= ${BASE_OBJS} ${ROM_FLOAT_OBJS}
 
 gen.a:		${OBJS}
 		@echo "building gen.a"
+		@rm -f gen.a
 		@${AR} cr gen.a ${OBJS}
+
+${ROM_FLOAT_OBJS}: rom_float.inc rom_float_members
 
 tags:
 		cwd=`pwd`; \

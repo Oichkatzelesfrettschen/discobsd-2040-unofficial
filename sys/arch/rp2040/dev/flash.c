@@ -356,13 +356,14 @@ static u_char flpart[FLASH_UNIT_BYTES];		/* A partial trailing unit. */
  * which the root's write rate, fsck and /tmp, can afford; it runs in the
  * requester's context, where flash writes already run.
  */
-static void
+static int
 fl_sync(void)
 {
 	dhara_error_t err = DHARA_E_NONE;
 
-	if (flmap_ready)
-		(void)dhara_map_sync(&flmap, &err);
+	if (flmap_ready && dhara_map_sync(&flmap, &err) < 0)
+		return EIO;
+	return 0;
 }
 
 /*
@@ -455,14 +456,11 @@ flclose(dev_t dev, int mode __unused, int flag __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
-	dhara_error_t err = DHARA_E_NONE;
 
 	if (unit >= NFL || part > NPARTITIONS)
 		return ENXIO;
 	fldrives[unit].openpart &= ~(1 << part);
-	if (flmap_ready)
-		(void)dhara_map_sync(&flmap, &err);
-	return 0;
+	return fl_sync();
 }
 
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
@@ -628,8 +626,8 @@ flstrategy(struct buf *bp)
 				fail = 1;
 		}
 	}
-	if (! (bp->b_flags & B_READ) && ! fail)
-		fl_sync();
+	if (! (bp->b_flags & B_READ) && ! fail && fl_sync() != 0)
+		fail = 1;
 	splx(s);
 
 done:

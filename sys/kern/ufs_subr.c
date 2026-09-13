@@ -59,7 +59,7 @@ sync()
  *  overlap the inode. This brings the inode up to
  *  date with recent mods to the cooked device.
  */
-void
+int
 syncip(ip)
     struct inode *ip;
 {
@@ -67,13 +67,19 @@ syncip(ip)
     register struct buf *lastbufp;
     long lbn, lastlbn;
     register int s;
-    daddr_t blkno;
+    daddr_t blkno, mapped_block;
+    int error;
 
     lastlbn = howmany(ip->i_size, DEV_BSIZE);
     if (lastlbn < NBUF / 2) {
         for (lbn = 0; lbn < lastlbn; lbn++) {
-            blkno = fsbtodb(bmap(ip, lbn, B_READ, 0));
-            blkflush(ip->i_dev, blkno);
+            mapped_block = bmap(ip, lbn, B_READ, 0);
+            if (mapped_block < 0)
+                return (u.u_error ? u.u_error : EIO);
+            blkno = fsbtodb(mapped_block);
+            error = blkflush(ip->i_dev, blkno);
+            if (error)
+                return (error);
         }
     } else {
         lastbufp = &buf[NBUF];
@@ -91,11 +97,13 @@ syncip(ip)
             }
             splx(s);
             notavail(bp);
-            bwrite(bp);
+            error = bwrite(bp);
+            if (error)
+                return (error);
         }
     }
     ip->i_flag |= ICHG;
-    iupdat(ip, &time, &time, 1);
+    return (iupdat(ip, &time, &time, 1));
 }
 
 /*
@@ -106,7 +114,8 @@ badblock (fp, bn)
     register struct fs *fp;
     daddr_t bn;
 {
-    if (bn < fp->fs_isize || bn >= fp->fs_fsize) {
+    if (bn < 0 || (u_long)bn < fp->fs_isize ||
+        (u_long)bn >= fp->fs_fsize) {
         printf("bad block %D, ",bn);
         fserr(fp, "bad block");
         return (1);
@@ -140,6 +149,7 @@ getfs(dev)
         }
         return(fs);
     }
-    printf("no fs on dev (%u,%u)\n", major(dev), minor(dev));
+    printf("no fs on dev (%u,%u)\n", (u_int)major(dev),
+        (u_int)minor(dev));
     return((struct fs *) NULL);
 }

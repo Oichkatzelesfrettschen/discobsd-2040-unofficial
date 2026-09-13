@@ -229,6 +229,7 @@ found:
     fs->fs_nbehind = 0;
     fs->fs_lasti = 1;
     fs->fs_flags = flags;
+    mp->m_write_error = 0;
     if (ip) {
         ip->i_flag |= IMOUNT;
         cacheinval(ip);
@@ -274,7 +275,11 @@ found:
     nchinval (dev); /* flush the name cache */
     aflag = mp->m_flags & MNT_ASYNC;
     mp->m_flags &= ~MNT_ASYNC;  /* Don't want async when unmounting */
-    ufs_sync(mp);
+    error = ufs_sync(mp);
+    if (error) {
+        mp->m_flags |= aflag;
+        return (error);
+    }
 
     if (iflush(dev) < 0) {
         mp->m_flags |= aflag;

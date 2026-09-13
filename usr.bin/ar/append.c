@@ -55,11 +55,9 @@
 #   include <errno.h>
 #   include <fcntl.h>
 #endif
+#include <ar.h>
 #include "archive.h"
 #include "extern.h"
-
-extern char *archive;			/* archive name */
-extern int errno;
 
 /*
  * append --
@@ -71,17 +69,25 @@ append(char **argv)
 {
 	register int fd, afd;
 	register char *file;
+	struct stat archive_stat;
 	struct stat sb;
 	CF cf;
-	int eval;
+	int eval, replacement_fd;
+	off_t payload_size;
 
 	afd = open_archive(O_CREAT|O_RDWR);
-	if (lseek(afd, (off_t)0, L_XTND) == (off_t)-1)
-		error(archive);
+	replacement_fd = begin_archive_rewrite(afd);
+	if (afd >= 0) {
+		if (fstat(afd, &archive_stat) < 0)
+			error(archive);
+		payload_size = archive_stat.st_size - SARMAG;
+		SETCF(afd, archive, replacement_fd, archive, NOPAD);
+		copy_ar(&cf, payload_size);
+	}
 
 	/* Read from disk, write to an archive; pad on write. */
-	SETCF(0, 0, afd, archive, WPAD);
-	for (eval = 0; (file = *argv++) != 0;) {
+	SETCF(0, NULL, replacement_fd, archive, WPAD);
+	for (eval = 0; (file = *argv++) != NULL;) {
 		if ((fd = open(file, O_RDONLY)) < 0) {
 			(void)fprintf(stderr,
 			    "ar: %s: %s.\n", file, strerror(errno));
@@ -93,8 +99,16 @@ append(char **argv)
 		cf.rfd = fd;
 		cf.rname = file;
 		put_arobj(&cf, &sb);
-		(void)close(fd);
+		if (close(fd) < 0) {
+			(void)fprintf(stderr,
+			    "ar: %s: %s.\n", file, strerror(errno));
+			eval = 1;
+		}
 	}
-	close_archive(afd);
+	if (eval) {
+		abort_archive_rewrite(afd, replacement_fd);
+		return(eval);
+	}
+	commit_archive_rewrite(afd, replacement_fd);
 	return(eval);
 }

@@ -28,6 +28,7 @@ sleep(seconds)
 	u_int seconds;
 {
 	struct timeval f, s;
+	u_long elapsed_seconds;
 
 	if (seconds) {
 		gettimeofday(&f, NULL);
@@ -35,13 +36,13 @@ sleep(seconds)
 		s.tv_usec = 0;
 		select(0, NULL, NULL, NULL, &s);
 		gettimeofday(&s, NULL);
-		seconds -= (s.tv_sec - f.tv_sec);
-/*
- * ONLY way this can happen is if the system time gets set back while we're
- * in the select() call.  In this case return 0 instead of a bogus number.
- */
-		if (seconds < 0)
-			seconds = 0;
+		/* Clock reversal and oversleep must not wrap the unsigned result. */
+		if (s.tv_sec < f.tv_sec)
+			return 0;
+		elapsed_seconds = (u_long)s.tv_sec - (u_long)f.tv_sec;
+		if (elapsed_seconds >= seconds)
+			return 0;
+		seconds -= (u_int)elapsed_seconds;
 	}
 	return(seconds);
 }

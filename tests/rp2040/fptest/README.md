@@ -1,14 +1,14 @@
 # fptest -- RP2040 bootrom float verification
 
 fptest checks that the AEABI single- and double-precision arithmetic routed
-through the RP2040 bootrom (lib/libc/arm/gen/rom_float.c, wired by the
-share/mk/sys.mk --wrap seam) returns the correct IEEE-754 result, bit for
-bit, for a corpus of finite normal and signed-zero operands.
+through the RP2040 bootrom by the fine-grained
+`lib/libc/arm/gen/rom_float_*.S` archive members returns the expected result,
+bit for bit, for a corpus of finite normal and signed-zero operands.
 
 ## Why bit-exact, not tolerance
 
 An absolute-error check computes `fabs(got - want)`, whose own subtraction
-runs the wrapped code under test -- a self-referential oracle. fptest instead
+runs the native code under test -- a self-referential oracle. fptest instead
 compares the raw result bits against a value computed independently on the
 host under IEEE-754 round-to-nearest-even, which the bootrom reproduces
 exactly for these operands (datasheet 2.8.3.2.1). Comparing bits also

@@ -62,37 +62,247 @@
 #include "archive.h"
 #include "extern.h"
 
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-extern int errno;
-
 typedef struct ar_hdr HDR;
 static char hb[sizeof(HDR) + 1];	/* real header */
+static char archive_rewrite_path[MAXPATHLEN];
+static char archive_rewrite_directory[MAXPATHLEN];
+static int archive_rewrite_cleanup_registered;
+static int archive_rewrite_directory_fd = -1;
+static dev_t archive_source_device;
+static ino_t archive_source_inode;
+static int archive_source_identity_valid;
+
+static void
+write_all(int fd, const void *buffer, size_t size, const char *name)
+{
+	const char *next_byte;
+	ssize_t bytes_written;
+
+	next_byte = buffer;
+	while (size != 0) {
+		bytes_written = write(fd, next_byte, size);
+		if (bytes_written < 0)
+			error((char *)name);
+		if (bytes_written == 0) {
+			errno = EIO;
+			error((char *)name);
+		}
+		next_byte += bytes_written;
+		size -= (size_t)bytes_written;
+	}
+}
+
+static void
+check_archive_source_identity(int source_fd)
+{
+	struct stat path_stat;
+	struct stat source_stat;
+
+	if (fstat(source_fd, &source_stat) < 0)
+		error(archive);
+	if (!S_ISREG(source_stat.st_mode)) {
+		errno = EINVAL;
+		error(archive);
+	}
+	if (source_stat.st_nlink != 1) {
+		errno = EMLINK;
+		error(archive);
+	}
+	if (lstat(archive, &path_stat) < 0)
+		error(archive);
+	if (S_ISLNK(path_stat.st_mode)) {
+		errno = ELOOP;
+		error(archive);
+	}
+	if (source_stat.st_dev != path_stat.st_dev ||
+	    source_stat.st_ino != path_stat.st_ino) {
+		errno = ESTALE;
+		error(archive);
+	}
+	if (archive_source_identity_valid &&
+	    (source_stat.st_dev != archive_source_device ||
+	    source_stat.st_ino != archive_source_inode)) {
+		errno = ESTALE;
+		error(archive);
+	}
+	archive_source_device = source_stat.st_dev;
+	archive_source_inode = source_stat.st_ino;
+	archive_source_identity_valid = 1;
+}
+
+static void
+cleanup_archive_rewrite(void)
+{
+	if (archive_rewrite_path[0] != '\0')
+		(void)unlink(archive_rewrite_path);
+	if (archive_rewrite_directory_fd >= 0)
+		(void)close(archive_rewrite_directory_fd);
+}
+
+/*
+ * Build archive replacements beside the destination so rename(2) commits
+ * one complete byte sequence without exposing a partly rewritten archive.
+ */
+int
+begin_archive_rewrite(int source_fd)
+{
+	static const char rewrite_template[] = ".ar.XXXXXX";
+	struct stat source_stat;
+	char rewrite_path[MAXPATHLEN];
+	const char *path_separator;
+	size_t directory_length;
+	size_t rewrite_directory_length;
+	mode_t creation_mask;
+	int replacement_fd;
+
+	if (!archive_rewrite_cleanup_registered) {
+		if (atexit(cleanup_archive_rewrite) != 0) {
+			errno = ENOMEM;
+			error(archive);
+		}
+		archive_rewrite_cleanup_registered = 1;
+	}
+	if (archive_rewrite_path[0] != '\0' ||
+	    archive_rewrite_directory_fd >= 0) {
+		errno = EBUSY;
+		error(archive);
+	}
+
+	path_separator = strrchr(archive, '/');
+	directory_length = path_separator == NULL ?
+	    0 : (size_t)(path_separator - archive + 1);
+	if (directory_length + sizeof(rewrite_template) >
+	    sizeof(rewrite_path)) {
+		errno = ENAMETOOLONG;
+		error(archive);
+	}
+	if (directory_length != 0)
+		memcpy(rewrite_path, archive, directory_length);
+	memcpy(rewrite_path + directory_length, rewrite_template,
+	    sizeof(rewrite_template));
+	if (path_separator == NULL) {
+		(void)strlcpy(archive_rewrite_directory, ".",
+		    sizeof(archive_rewrite_directory));
+	} else {
+		rewrite_directory_length = path_separator == archive ?
+		    1 : (size_t)(path_separator - archive);
+		if (rewrite_directory_length >=
+		    sizeof(archive_rewrite_directory)) {
+			errno = ENAMETOOLONG;
+			error(archive);
+		}
+		if (snprintf(archive_rewrite_directory,
+		    sizeof(archive_rewrite_directory), "%.*s",
+		    (int)rewrite_directory_length, archive) !=
+		    (int)rewrite_directory_length) {
+			errno = ENAMETOOLONG;
+			error(archive);
+		}
+	}
+
+	archive_rewrite_directory_fd = open(archive_rewrite_directory, O_RDONLY);
+	if (archive_rewrite_directory_fd < 0)
+		error(archive_rewrite_directory);
+	if (fsync(archive_rewrite_directory_fd) < 0)
+		error(archive_rewrite_directory);
+	if (source_fd >= 0)
+		check_archive_source_identity(source_fd);
+
+	replacement_fd = mkstemp(rewrite_path);
+	if (replacement_fd < 0)
+		error(rewrite_path);
+	(void)strlcpy(archive_rewrite_path, rewrite_path,
+	    sizeof(archive_rewrite_path));
+	if (flock(replacement_fd, LOCK_EX|LOCK_NB) && errno != EOPNOTSUPP)
+		error(archive_rewrite_path);
+	if (source_fd >= 0) {
+		if (fstat(source_fd, &source_stat) < 0 ||
+		    fchown(replacement_fd, source_stat.st_uid,
+		    source_stat.st_gid) < 0 ||
+		    fchmod(replacement_fd, source_stat.st_mode & 07777) < 0)
+			error(archive_rewrite_path);
+	} else {
+		creation_mask = umask(0);
+		(void)umask(creation_mask);
+		if (fchmod(replacement_fd, 0666 & ~creation_mask) < 0)
+			error(archive_rewrite_path);
+	}
+	write_all(replacement_fd, ARMAG, SARMAG, archive_rewrite_path);
+	return(replacement_fd);
+}
+
+void
+abort_archive_rewrite(int source_fd, int replacement_fd)
+{
+	int saved_errno;
+
+	saved_errno = 0;
+	if (close(replacement_fd) < 0)
+		saved_errno = errno;
+	if (archive_rewrite_path[0] != '\0') {
+		if (unlink(archive_rewrite_path) < 0 && saved_errno == 0)
+			saved_errno = errno;
+		archive_rewrite_path[0] = '\0';
+	}
+	if (fsync(archive_rewrite_directory_fd) < 0 && saved_errno == 0)
+		saved_errno = errno;
+	if (close(archive_rewrite_directory_fd) < 0 && saved_errno == 0)
+		saved_errno = errno;
+	archive_rewrite_directory_fd = -1;
+	archive_source_identity_valid = 0;
+	if (source_fd >= 0 && close(source_fd) < 0 && saved_errno == 0)
+		saved_errno = errno;
+	if (saved_errno != 0) {
+		errno = saved_errno;
+		error(archive);
+	}
+}
+
+void
+commit_archive_rewrite(int source_fd, int replacement_fd)
+{
+	int created;
+
+	created = source_fd < 0;
+	if (fsync(replacement_fd) < 0)
+		error(archive_rewrite_path);
+	if (source_fd >= 0) {
+		check_archive_source_identity(source_fd);
+		if (rename(archive_rewrite_path, archive) < 0)
+			error(archive_rewrite_path);
+		archive_rewrite_path[0] = '\0';
+	} else {
+		if (link(archive_rewrite_path, archive) < 0)
+			error(archive_rewrite_path);
+		if (unlink(archive_rewrite_path) < 0)
+			error(archive_rewrite_path);
+		archive_rewrite_path[0] = '\0';
+	}
+	if (fsync(archive_rewrite_directory_fd) < 0)
+		error(archive_rewrite_directory);
+	if (close(archive_rewrite_directory_fd) < 0)
+		error(archive_rewrite_directory);
+	archive_rewrite_directory_fd = -1;
+	archive_source_identity_valid = 0;
+	if (source_fd >= 0 && close(source_fd) < 0)
+		error(archive);
+	if (close(replacement_fd) < 0)
+		error(archive);
+	if (created && !(options & AR_C))
+		(void)fprintf(stderr, "ar: creating archive %s.\n", archive);
+}
 
 int
 open_archive(int mode)
 {
-	int created, fd, nr;
+	int allow_missing, fd, nr;
 	char buf[SARMAG];
 
-	created = 0;
-	if (mode & O_CREAT) {
-		mode |= O_EXCL;
-		fd = open(archive, mode, 0666);
-		if (fd >= 0) {
-			/* POSIX.2 puts create message on stderr. */
-			if (!(options & AR_C))
-				(void)fprintf(stderr,
-				    "ar: creating archive %s.\n", archive);
-			created = 1;
-			goto opened;
-		}
-		if (errno != EEXIST)
-			error(archive);
-		mode &= ~O_EXCL;
-	}
-
+	allow_missing = mode & O_CREAT;
+	mode &= ~O_CREAT;
 	fd = open(archive, mode, 0666);
+	if (fd < 0 && allow_missing && errno == ENOENT)
+		return(-1);
 	if (fd < 0)
 		error(archive);
 
@@ -101,37 +311,52 @@ open_archive(int mode)
 	 * error then someone is already working on this library (or
 	 * it's going across NFS).
 	 */
-opened: if (flock(fd, LOCK_EX|LOCK_NB) && errno != EOPNOTSUPP)
+	if (flock(fd, LOCK_EX|LOCK_NB) && errno != EOPNOTSUPP)
 		error(archive);
 
 	/*
 	 * If not created, O_RDONLY|O_RDWR indicates that it has to be
 	 * in archive format.
 	 */
-	if (!created &&
-	    ((mode & 3) == O_RDONLY || (mode & 3) == O_RDWR)) {
-		if ((nr = read(fd, buf, SARMAG) != SARMAG)) {
+	if ((mode & 3) == O_RDONLY || (mode & 3) == O_RDWR) {
+		if ((nr = read(fd, buf, SARMAG)) != SARMAG) {
 			if (nr >= 0)
 				badfmt();
 			error(archive);
-		} else if (bcmp(buf, ARMAG, SARMAG))
+		} else if (memcmp(buf, ARMAG, SARMAG) != 0)
 			badfmt();
-	} else if (write(fd, ARMAG, SARMAG) != SARMAG)
-		error(archive);
+	}
 	return(fd);
 }
 
 void
 close_archive(int fd)
 {
-	(void)close(fd);			/* Implicit unlock. */
+	if (close(fd) < 0)			/* Implicit unlock. */
+		error(archive);
 }
 
-/* Convert ar header field to an integer. */
-#define	AR_ATOI(from, to, len, base) { \
-	bcopy(from, buf, len); \
-	buf[len] = '\0'; \
-	to = strtol(buf, (char **)NULL, base); \
+static long
+parse_archive_number(const char *field, size_t field_size, int base)
+{
+	char number[21];
+	char *end;
+	long value;
+
+	if (field_size >= sizeof(number))
+		badfmt();
+	if (snprintf(number, sizeof(number), "%.*s", (int)field_size,
+	    field) != (int)field_size)
+		badfmt();
+	errno = 0;
+	value = strtol(number, &end, base);
+	if (errno == ERANGE || end == number || value < 0)
+		badfmt();
+	while (*end == ' ')
+		end++;
+	if (*end != '\0')
+		badfmt();
+	return(value);
 }
 
 /*
@@ -141,10 +366,10 @@ close_archive(int fd)
 int
 get_arobj(int fd)
 {
-	struct ar_hdr *hdr;
+	const struct ar_hdr *hdr;
 	register int len, nr;
 	register char *p;
-	char buf[20];
+	long value;
 
 	nr = read(fd, hb, sizeof(HDR));
 	if (nr != sizeof(HDR)) {
@@ -155,19 +380,34 @@ get_arobj(int fd)
 		badfmt();
 	}
 
-	hdr = (struct ar_hdr *)hb;
-	if (strncmp(hdr->ar_fmag, ARFMAG, sizeof(ARFMAG) - 1))
+	hdr = (const struct ar_hdr *)hb;
+	if (strncmp(hdr->ar_fmag, ARFMAG, sizeof(ARFMAG) - 1) != 0)
 		badfmt();
 
 	/* Convert the header into the internal format. */
 #define	DECIMAL	10
 #define	OCTAL	 8
 
-	AR_ATOI(hdr->ar_date, chdr.date, sizeof(hdr->ar_date), DECIMAL);
-	AR_ATOI(hdr->ar_uid, chdr.uid, sizeof(hdr->ar_uid), DECIMAL);
-	AR_ATOI(hdr->ar_gid, chdr.gid, sizeof(hdr->ar_gid), DECIMAL);
-	AR_ATOI(hdr->ar_mode, chdr.mode, sizeof(hdr->ar_mode), OCTAL);
-	AR_ATOI(hdr->ar_size, chdr.size, sizeof(hdr->ar_size), DECIMAL);
+	value = parse_archive_number(hdr->ar_date, sizeof(hdr->ar_date), DECIMAL);
+	chdr.date = (time_t)value;
+	if ((long)chdr.date != value)
+		badfmt();
+	value = parse_archive_number(hdr->ar_uid, sizeof(hdr->ar_uid), DECIMAL);
+	chdr.uid = (int)value;
+	if ((long)chdr.uid != value)
+		badfmt();
+	value = parse_archive_number(hdr->ar_gid, sizeof(hdr->ar_gid), DECIMAL);
+	chdr.gid = (int)value;
+	if ((long)chdr.gid != value)
+		badfmt();
+	value = parse_archive_number(hdr->ar_mode, sizeof(hdr->ar_mode), OCTAL);
+	chdr.mode = (unsigned short)value;
+	if ((long)chdr.mode != value)
+		badfmt();
+	value = parse_archive_number(hdr->ar_size, sizeof(hdr->ar_size), DECIMAL);
+	chdr.size = (off_t)value;
+	if ((long)chdr.size != value)
+		badfmt();
 
 	/* Leading spaces should never happen. */
 	if (hdr->ar_name[0] == ' ')
@@ -177,9 +417,14 @@ get_arobj(int fd)
 	 * Long name support.  Set the "real" size of the file, and the
 	 * long name flag/size.
 	 */
-	if (!bcmp(hdr->ar_name, AR_EFMT1, sizeof(AR_EFMT1) - 1)) {
-		chdr.lname = len = atoi(hdr->ar_name + sizeof(AR_EFMT1) - 1);
-		if (len <= 0 || len > MAXNAMLEN)
+	if (memcmp(hdr->ar_name, AR_EFMT1, sizeof(AR_EFMT1) - 1) == 0) {
+		value = parse_archive_number(
+		    hdr->ar_name + sizeof(AR_EFMT1) - 1,
+		    sizeof(hdr->ar_name) - (sizeof(AR_EFMT1) - 1), DECIMAL);
+		if (value <= 0 || value > MAXNAMLEN)
+			badfmt();
+		chdr.lname = len = (int)value;
+		if (chdr.size < len)
 			badfmt();
 		nr = read(fd, chdr.name, (size_t)len);
 		if (nr != len) {
@@ -191,7 +436,7 @@ get_arobj(int fd)
 		chdr.size -= len;
 	} else {
 		chdr.lname = 0;
-		bcopy(hdr->ar_name, chdr.name, sizeof(hdr->ar_name));
+		memcpy(chdr.name, hdr->ar_name, sizeof(hdr->ar_name));
 
 		/* Strip trailing spaces, null terminate. */
 		for (p = chdr.name + sizeof(hdr->ar_name) - 1; *p == ' '; --p);
@@ -200,7 +445,7 @@ get_arobj(int fd)
 	return(1);
 }
 
-static int already_written;
+static int extended_name_length;
 
 /*
  * copy_ar --
@@ -208,7 +453,7 @@ static int already_written;
  *	extra byte (for odd size files) when reading archives and writing an
  *	extra byte if necessary when adding files to archive.  The length of
  *	the object is the long name plus the object itself; the variable
- *	already_written gets set if a long name was written.
+ *	extended_name_length records the long name when one was written.
  *
  *	The padding is really unnecessary, and is almost certainly a remnant
  *	of early archive formats where the header included binary data which
@@ -222,25 +467,35 @@ copy_ar(CF *cfp, off_t size)
 	static char pad = '\n';
 	off_t sz;
 	register int from, nr, nw, off, to;
+	size_t bytes_to_read;
 #ifdef	pdp11
 	char buf[2*1024];
 #else
 	char buf[8*1024];
 #endif
 
-	if (!(sz = size))
-		return;
+	if (size < 0)
+		badfmt();
+	sz = size;
 
 	from = cfp->rfd;
 	to = cfp->wfd;
 	while (sz) {
-	        nr = read(from, buf, sz < sizeof(buf) ? sz : sizeof(buf));
+		bytes_to_read = sz < (off_t)sizeof(buf) ?
+		    (size_t)sz : sizeof(buf);
+		nr = read(from, buf, bytes_to_read);
 		if (nr <= 0)
 		        break;
 		sz -= nr;
-		for (off = 0; off < nr; nr -= off, off += nw)
-			if ((nw = write(to, buf + off, (size_t)nr)) < 0)
+		for (off = 0; off < nr; off += nw) {
+			nw = write(to, buf + off, (size_t)(nr - off));
+			if (nw < 0)
 				error(cfp->wname);
+			if (nw == 0) {
+				errno = EIO;
+				error(cfp->wname);
+			}
+		}
 	}
 	if (sz) {
 		if (nr == 0)
@@ -248,14 +503,14 @@ copy_ar(CF *cfp, off_t size)
 		error(cfp->rname);
 	}
 
-	if (cfp->flags & RPAD && size & 1 && (nr = read(from, buf, 1)) != 1) {
+	if ((cfp->flags & RPAD) && ((size + extended_name_length) & 1) &&
+	    (nr = read(from, buf, 1)) != 1) {
 		if (nr == 0)
 			badfmt();
 		error(cfp->rname);
 	}
-	if (cfp->flags & WPAD && (size + already_written) & 1 &&
-	    write(to, &pad, 1) != 1)
-		error(cfp->wname);
+	if ((cfp->flags & WPAD) && ((size + extended_name_length) & 1))
+		write_all(to, &pad, 1, cfp->wname);
 }
 
 /*
@@ -278,7 +533,8 @@ put_arobj(CF *cfp, struct stat *sb)
 	 */
 	if (sb) {
 		name = rname(cfp->rname);
-		(void)fstat(cfp->rfd, sb);
+		if (fstat(cfp->rfd, sb) < 0)
+			error(cfp->rname);
 
 		/*
 		 * If not truncating names and the name is too long or contains
@@ -297,7 +553,7 @@ put_arobj(CF *cfp, struct stat *sb)
 			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
 			    sb->st_mode, (long)sb->st_size, ARFMAG);
 			lname = 0;
-		} else if (lname > sizeof(hdr->ar_name) || index(name, ' '))
+		} else if (lname > (int)sizeof(hdr->ar_name) || index(name, ' '))
 			(void)snprintf(hb, sizeof(hb), HDR1, AR_EFMT1,
 			    lname, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
 			    sb->st_mode, (long) sb->st_size + lname, ARFMAG);
@@ -314,15 +570,13 @@ put_arobj(CF *cfp, struct stat *sb)
 		size = chdr.size;
 	}
 
-	if (write(cfp->wfd, hb, sizeof(HDR)) != sizeof(HDR))
-		error(cfp->wname);
+	write_all(cfp->wfd, hb, sizeof(HDR), cfp->wname);
 	if (lname) {
-		if (write(cfp->wfd, name, (size_t)lname) != lname)
-			error(cfp->wname);
-		already_written = lname;
+		write_all(cfp->wfd, name, (size_t)lname, cfp->wname);
+		extended_name_length = lname;
 	}
 	copy_ar(cfp, size);
-	already_written = 0;
+	extended_name_length = 0;
 }
 
 /*
@@ -334,7 +588,7 @@ skip_arobj(int fd)
 {
 	off_t len;
 
-	len = chdr.size + (chdr.lname & 1);
+	len = chdr.size + ((chdr.size + chdr.lname) & 1);
 	if (lseek(fd, len, SEEK_CUR) == (off_t)-1)
 		error(archive);
 }

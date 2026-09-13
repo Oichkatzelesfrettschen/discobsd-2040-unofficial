@@ -84,6 +84,8 @@ struct local {
 #define NSYMPR          500
 #define NLIBS           256
 #define RANTABSZ        500
+#define LIBLIST_END     (~0U)
+#define MAXSYMLEN       255
 
 struct nlist cursym;            /* current symbol */
 struct nlist symtab [NSYM];     /* table of symbols */
@@ -121,6 +123,7 @@ int     thumb_out;              /* any Thumb input seen; output is Thumb */
 int     sflag;                  /* discard all symbols */
 int     dflag;                  /* define common even with rflag */
 int     verbose;                /* verbose mode */
+int     default_output_created; /* linker owns the temporary l.out */
 
 /*
  * cumulative sizes set in pass 1
@@ -290,7 +293,9 @@ fputrel(struct reloc *r, FILE *f)
 void
 delexit(int sig)
 {
-	unlink ("l.out");
+	(void)sig;
+	if (default_output_created)
+		unlink ("l.out");
 	if (! delarg && ! rflag)
                 chmod (ofilename, 0777 & ~umask(0));
 	exit (delarg);
@@ -531,7 +536,7 @@ reltype(int stype)
 }
 
 struct nlist *
-lookloc(struct local *lp, int sn)
+lookloc(struct local *lp, unsigned int sn)
 {
 	register struct local *clp;
 
@@ -539,7 +544,7 @@ lookloc(struct local *lp, int sn)
 		if (clp->locindex == sn)
 			return (clp->locsymbol);
 	if (trace) {
-		fprintf (stderr, "*** %d ***\n", sn);
+		fprintf (stderr, "*** %u ***\n", sn);
 		for (clp=local; clp<lp; clp++)
 			fprintf (stderr, "%u, ", clp->locindex);
 		fprintf (stderr, "\n");
@@ -1050,21 +1055,11 @@ hash_rot13(const char *s)
 struct nlist **
 lookup(void)
 {
-	int clash;
-	register char *cp, *cp1;
 	register struct nlist **hp;
 
         hp = &hshtab[hash_rot13 (cursym.n_name) % NSYM + 2];
 	while (*hp != 0) {
-		cp1 = (*hp)->n_name;
-		clash = 0;
-		for (cp = cursym.n_name; *cp;) {
-			if (*cp++ != *cp1++) {
-				clash = 1;
-				break;
-			}
-                }
-		if (! clash)
+		if (strcmp (cursym.n_name, (*hp)->n_name) == 0)
 			break;
 		if (++hp >= &hshtab[NSYM+2])
 			hp = hshtab;
@@ -1075,7 +1070,11 @@ lookup(void)
 struct nlist **
 slookup(char *s)
 {
-	cursym.n_len = strlen (s) + 1;
+	size_t symbol_length = strlen (s);
+
+	if (symbol_length > MAXSYMLEN)
+		error (2, "symbol name exceeds %d bytes", MAXSYMLEN);
+	cursym.n_len = symbol_length;
 	cursym.n_name = s;
 	cursym.n_type = N_EXT+N_UNDF;
 	cursym.n_value = 0;
@@ -1267,7 +1266,7 @@ load1lib(unsigned int off0)
                 while (step (offset))
                         offset += archdr.ar_size + ARHDRSZ;
         } while (libp != oldp);
-        addlibp (-1);
+        addlibp (LIBLIST_END);
 }
 
 /*
@@ -1288,7 +1287,7 @@ load1arg(char *cp)
 		while (ldrand ())
                         continue;
 		freerantab ();
-		addlibp (-1);
+		addlibp (LIBLIST_END);
 		break;
 	case 3:                 /* out of date table of contents */
 		error (0, "out of date (warning)");
@@ -1532,6 +1531,8 @@ void
 setupout(void)
 {
 	tcreat (&outb, 0);
+	if (! ofilfnd)
+		default_output_created = 1;
 	int fd = mkstemp (tfname);
     if (fd == -1) {
         error(2, "internal error: unable to create temporary file %s", tfname);
@@ -1661,7 +1662,7 @@ load2arg(char *arname)
 		load2 (0L);
 	} else {
 		/* scan archive members referenced */
-		for (lp = libp; *lp != -1; lp++) {
+		for (lp = libp; *lp != LIBLIST_END; lp++) {
 			fseek (text, *lp, 0);
 			fgetarhdr (text, &archdr);
 			if (trace || verbose)

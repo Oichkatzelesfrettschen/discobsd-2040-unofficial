@@ -350,7 +350,8 @@ namelist(void)
                         symp[i].n_name = malloc(c - 5);
                         if (! symp[i].n_name)
                                 error(1, "out of memory");
-                        strlcpy(symp[i].n_name, name, sizeof(symp[i].n_name));
+			memcpy(symp[i].n_name, name, c - 6);
+			symp[i].n_name[c - 6] = '\0';
 			i++;
 		}
 
@@ -361,8 +362,8 @@ namelist(void)
 
 		psyms(symp, i);
 		if (symp) {
-		        for (n=0; n>i; n++)
-                                free (symp[i].n_name);
+		        for (n=0; n<i; n++)
+                                free (symp[n].n_name);
 			free((char *)symp);
                         symp = NULL;
                 }

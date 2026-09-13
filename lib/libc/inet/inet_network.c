@@ -17,10 +17,10 @@ u_long
 inet_network(cp)
 	register char *cp;
 {
-	register u_long val, base, n;
+	register u_long val, base;
 	register char c;
 	u_long parts[4], *pp = parts;
-	register int i;
+	size_t part_index, part_count;
 
 again:
 	val = 0; base = 10;
@@ -50,12 +50,12 @@ again:
 	if (*cp && !isspace(*cp))
 		return (-1);
 	*pp++ = val;
-	n = pp - parts;
-	if (n > 4)
+	part_count = pp - parts;
+	if (part_count > 4)
 		return (-1);
-	for (val = 0, i = 0; i < n; i++) {
+	for (val = 0, part_index = 0; part_index < part_count; part_index++) {
 		val <<= 8;
-		val |= parts[i] & 0xff;
+		val |= parts[part_index] & 0xff;
 	}
 	return (val);
 }

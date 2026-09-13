@@ -24,7 +24,22 @@ int isnanf (float x)
 	return ul >> 31;
 }
 
-/*
- * For PIC32, double is the same as float.
- */
+#if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_FLOAT__) && \
+    __SIZEOF_DOUBLE__ == __SIZEOF_FLOAT__
 int isnan (double x) __attribute__((alias ("isnanf")));
+#else
+int isnan (double x)
+{
+	union {
+		double f64;
+		unsigned long long u64;
+	} value;
+	unsigned long long high_word, low_word, fraction;
+
+	value.f64 = x;
+	high_word = value.u64 >> 32;
+	low_word = value.u64 & 0xffffffffULL;
+	fraction = (high_word & 0xfffffULL) | low_word;
+	return (high_word & 0x7ff00000ULL) == 0x7ff00000ULL && fraction != 0;
+}
+#endif

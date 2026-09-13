@@ -9,6 +9,7 @@ TESTS           = test1 test2 test3 test4 test5
 # in ${TOOLBINDIR}. The RP2040 has the three described in ../README.md;
 # every other machine keeps the MIPS disassembly comparison.
 _THUMB!=if [ x"${MACHINE}" = x"rp2040" ] ; then echo yes ; else echo no ; fi
+HOST_CC?=	cc
 
 all:
 		for i in $(TESTS); do \
@@ -20,8 +21,13 @@ all:
 
 .if ${_THUMB} == "yes"
 test:
-		@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
-		    CPU=${MACHINE_CPU} WORK=. sh ./thumb-encoding.sh
+			@AR=${AOUT_AR} RANLIB=${AOUT_RANLIB} WORK=. \
+			    sh ./archive-extended-name-padding.sh
+			@AR=${AOUT_AR} HOST_CC="${HOST_CC}" \
+			    RANLIB=${AOUT_RANLIB} SOURCE_ROOT=${.CURDIR} WORK=. \
+			    sh ./archive-transactional-rewrite.sh
+			@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
+			    CPU=${MACHINE_CPU} WORK=. sh ./thumb-encoding.sh
 		@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
 		    CPU=${MACHINE_CPU} WORK=. sh ./thumb-compile.sh
 		@TOPSRC=${TOPSRC} MACHINE=${MACHINE} TOOLBINDIR=${TOOLBINDIR} \
@@ -33,8 +39,10 @@ test:		all
 
 clean:
 		rm -f *.o *.dis *.gcc-dis *.aout *.aout.sec _diff.txt
-		rm -f cat.s echo.s wc.s
-		rm -rf thumb-wrap thumb-saved
+			rm -f cat.s echo.s wc.s
+			rm -rf thumb-wrap thumb-saved
+			rm -rf archive-extended-name-padding
+			rm -rf archive-transactional-rewrite
 
 hello.s:        hello.c
 		${CC} ${CFLAGS} -S hello.c

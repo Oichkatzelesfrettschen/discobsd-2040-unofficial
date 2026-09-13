@@ -96,36 +96,33 @@ core files are byte-for-byte eembc/coremark `main` at commit
 `1f483d5b8316753a742cbf5590caf5bd0a4e4777`. Falsifier: any core file differs
 from that upstream tree, or `bmake check` fails.
 
-### Native AEABI float seam (gate 4, first half)
+### Native AEABI ROM float provider
 
-The board carries no libgcc, `smlrc` emits the bare `__aeabi_fadd/fsub/fmul/
-fdiv` names (`cgthumb.c`), and `rom_float.o` exports only `__wrap___aeabi_*`
-with dangling `__real___aeabi_d*` references. The board's native `ld` has no
-`--wrap`, so it can never select the wrappers: an on-board float link resolves
-`__aeabi_fadd`, which the board libc.a never provided, before or after the
-shim. This is a pre-existing reachability gap, not a regression -- nothing
-on-board references `__wrap___aeabi_*`, so `rom_float.o` is never pulled from
-the archive and its `__real` references never become undefined (verified by
-`nm` over the built board archive). `rom_float` is therefore inert dead weight
-in the board libc, so it is removed from `boardlibc-members` and
-`mkboardlibc.py`; the rebuilt board archive returns to the pristine 36412 bytes
-/ 89 members with no `__wrap`/`__real`/`__aeabi_f` symbols. The shipped
-userland is unaffected: it cross-links against the host ELF `lib/libc.a`, where
-`--wrap` (share/mk/sys.mk, host links only) routes the AEABI arithmetic through
-`rom_float.o`. On-board float via the ROM remains possible through a separate
-board-only object that exports the bare `__aeabi_*` names, plus a V1
-double-fallback source; that needs on-device qualification and is deferred
-(gate 25).
+The board carries no libgcc and its native linker implements no `--wrap` seam.
+The RP2040 libc therefore exports the bare AEABI and compiler-runtime names
+from 48 fine-grained assembly members. A complete runtime link can resolve 92
+public names without libgcc; the member partition preserves all 54 names from
+the former compiler-rt subset and adds the double, 64-bit conversion, and
+AEABI comparison surfaces. Each executable extracts only the members reached
+from its unresolved symbols.
 
-### PICO_UART divider restore ordering (gate 1)
+The common resolver validates the public Boot ROM magic, compatibility byte,
+version, table bounds, Thumb targets, and cache-cell address before publishing
+one aligned target word. Boot ROM V1 supports the single-precision entries.
+Double-precision entry resolution requires Boot ROM V2 or V3 and exits with
+status 70 when the requested interface is unavailable. The verified B2 board
+reports Boot ROM V3.
 
-The shared `locore.S` restores the SIO divider through `env` (r10) before the
-register restore reloads r10; the committed PICO_UART binary predates that fix
-and still reloads r10 first. A rebuild from current source produces the correct
-order: in the relinked PICO_UART, `mov r3, sl; adds r3, #40` at `0x10000ec0`
-runs before `mov sl, r6` at `0x10000eec`. The reflash flow rebuilds the kernel
-from source rather than flashing the committed artifact, so parity holds once
-built; the stale tracked binary is a hygiene matter (below).
+### Divider ownership
+
+User Thread mode runs with `CONTROL[0]=1`, so a user helper cannot mask
+interrupts. Direct ROM division instead relies on the bounded single-core
+kernel invariant: healthy user instructions do not switch processes, and the
+IRQ, NMI, callout, and kernel graph contains no SIO-divider consumer. Source
+and linked-image gates enforce that absence. The obsolete four-word divider
+checkpoint is removed from each `label_t`, which restores 48 bytes of stack
+headroom per resident u-area and removes the save/restore work from every
+kernel `setjmp` and `longjmp`.
 
 ### etc distribution refreshes the account database for every image (user flag)
 
@@ -149,14 +146,14 @@ distribution runs before the manifest `cat` and `fsutil`.
 
 ### fptest is a tree regression test with a bit-exact oracle (user flag)
 
-`tests/rp2040/fptest/` replaces the scratchpad harness. It compares the wrapped
+`tests/rp2040/fptest/` replaces the scratchpad harness. It compares the native
 ROM float result bits against host-computed IEEE-754 round-to-nearest-even
 expected bits -- an oracle independent of the code under test, unlike an
 absolute-error check whose own subtraction runs the wrapped path. Bit
 comparison also distinguishes signed zero. Operands pass through volatile
 locals so the compiler emits run-time `__aeabi` calls rather than folding the
-table. It builds clean through the cross toolchain and `--wrap` seam (14332-byte
-a.out) and is not in the shipped manifest. Deferred within the test: subnormal,
+table. It builds through the cross toolchain against the native AEABI provider
+and is not in the shipped manifest. Deferred within the test: subnormal,
 NaN, infinity, overflow, and halfway-rounding cases, whose expected bits follow
 the ROM's flush/map contract and need on-device characterization before they
 can be an oracle.
@@ -189,14 +186,13 @@ pass.
   compile-matrix disassembly and differential execution.
 - RP2040-E15 Bulk-IN frame guard (ranked #7). Needs affected B2/VL805 hardware
   to prove the time-window guard.
-- Kernel-owned divider transactions across IRQ, signal, fork, exec, exit, and
-  DIRTY/READY transitions (gate 2), and a forced-collision `divrace` oracle
-  with a negative control (gate 3). The context-switch checkpoint has landed and
-  is verified under load; the remaining paths and a collision oracle that
-  observes a switch inside the ROM divide window are separate work.
-- Native on-board float via ROM (gate 25), the duplicate-BSS-clear (ranked #12),
-  the `resume` exchange loop (#13), and every optimization item #14-30, which
-  the audit gates behind exact relinked measurement.
+- A forced-collision `divrace` oracle with a negative control remains the
+  attended hardware gate for the source- and link-enforced no-divider-owner
+  invariant. A future kernel, IRQ, NMI, callout, preemptive switch, or second
+  core divider consumer invalidates direct ROM division.
+- The duplicate-BSS-clear (ranked #12), the `resume` exchange loop (#13), and
+  every unrelated optimization item #14-30 remain behind exact relinked
+  measurement.
 
 ## Hygiene notes
 

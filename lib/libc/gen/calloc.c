@@ -24,5 +24,7 @@ cfree(p, num, size)
 	unsigned num;
 	unsigned size;
 {
+	(void)num;
+	(void)size;
 	free(p);
 }

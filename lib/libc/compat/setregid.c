@@ -38,9 +38,9 @@ int
 setregid(rgid, egid)
 	register gid_t rgid, egid;
 {
-	static gid_t savedgid = -1;
+	static gid_t savedgid = (gid_t)-1;
 
-	if (savedgid == -1)
+	if (savedgid == (gid_t)-1)
 		savedgid = getegid();
 	/*
 	 * we assume that the intent here is to be able to
@@ -48,11 +48,11 @@ setregid(rgid, egid)
 	 * we will be able to do so, but do not actually
 	 * set the rgid.
 	 */
-	if (rgid != -1 && rgid != getgid() && rgid != savedgid) {
+	if (rgid != (gid_t)-1 && rgid != getgid() && rgid != savedgid) {
 		errno = EPERM;
 		return (-1);
 	}
-	if (egid != -1 && setegid(egid) < 0)
+	if (egid != (gid_t)-1 && setegid(egid) < 0)
 		return (-1);
 	return (0);
 }

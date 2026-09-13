@@ -997,7 +997,7 @@ direnter(ip, ndp)
     bwrite(bp);
     dp->i_flag |= IUPD|ICHG;
     if (ndp->ni_endoff && ndp->ni_endoff < dp->i_size)
-        itrunc(dp, (u_long)ndp->ni_endoff, 0);
+        itrunc(dp, ndp->ni_endoff, 0);
     iput(dp);
     return (error);
 }

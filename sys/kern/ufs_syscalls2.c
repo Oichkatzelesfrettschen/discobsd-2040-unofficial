@@ -116,11 +116,14 @@ getfsstat()
  * filesystem but it didn't seem worth a page or two of code on something
  * which only happens every 30 seconds.
  */
-static void
+static int
 syncinodes(fs)
     struct  fs *fs;
 {
     register struct inode *ip;
+    int error, first_error;
+
+    first_error = 0;
 
     /*
      * Write back each (modified) inode.
@@ -137,9 +140,12 @@ syncinodes(fs)
             continue;
         ip->i_flag |= ILOCKED;
         ip->i_count++;
-        iupdat(ip, &time, &time, 0);
+        error = iupdat(ip, &time, &time, 0);
         iput(ip);
+        if (error && first_error == 0)
+            first_error = error;
     }
+    return (first_error);
 }
 
 /*
@@ -153,15 +159,19 @@ ufs_sync(mp)
 {
     register struct fs *fs;
     struct  buf *bp;
-    int error = 0;
+    int error, flush_error;
 
     fs = &mp->m_filsys;
     if (fs->fs_fmod && (mp->m_flags & MNT_RDONLY)) {
         printf("fs = %s\n", fs->fs_fsmnt);
         panic("sync: rofs");
     }
-    syncinodes(fs);     /* sync the inodes for this filesystem */
-    bflush(mp->m_dev);  /* flush dirty data blocks */
+    error = syncinodes(fs); /* sync the inodes for this filesystem */
+    flush_error = bflush(mp->m_dev); /* flush dirty data blocks */
+    if (error == 0)
+        error = flush_error;
+    if (error)
+        return (error);
     /*
      * And lastly the superblock, if the filesystem was modified.
      * Write back modified superblocks. Consistency check that the superblock
@@ -172,9 +182,12 @@ ufs_sync(mp)
         fs->fs_fmod = 0;
         fs->fs_time = time.tv_sec;
         bcopy(fs, bp->b_addr, sizeof (struct fs));
-        bwrite(bp);
-        error = geterror(bp);
+        error = bwrite(bp);
+        if (error)
+            fs->fs_fmod = 1;
     }
+    if (error == 0)
+        error = mp->m_write_error;
     return(error);
 }
 
@@ -239,12 +252,20 @@ fsync()
         int     fd;
     } *uap = (struct a *)u.u_arg;
     register struct inode *ip;
+    struct mount *mp;
+    int error;
 
     if ((ip = getinode(uap->fd)) == NULL)
         return;
+    mp = (struct mount *)((int)ip->i_fs -
+        offsetof(struct mount, m_filsys));
     ilock(ip);
-    syncip(ip);
+    error = syncip(ip);
     iunlock(ip);
+    if (error == 0)
+        error = ufs_sync(mp);
+    if (error)
+        u.u_error = error;
 }
 
 void

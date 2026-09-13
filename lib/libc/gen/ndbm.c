@@ -80,7 +80,7 @@ makdatum(buf, n)
 	datum item;
 
 	sp = (short *)buf;
-	if ((unsigned)n >= sp[0]) {
+	if ((unsigned)n >= (unsigned)sp[0]) {
 		item.dptr = NULL;
 		item.dsize = 0;
 		return (item);
@@ -257,7 +257,7 @@ delitem(buf, n)
 
 	sp = (short *)buf;
 	i2 = sp[0];
-	if ((unsigned)n >= i2 || (n & 1))
+	if ((unsigned)n >= (unsigned)i2 || (n & 1))
 		return (0);
 	if (n == i2-2) {
 		sp[0] -= 2;

@@ -1,6 +1,6 @@
 # fptest: on-device bit-exact check of the RP2040 bootrom float path
-# (lib/libc/arm/gen/rom_float.c). Built with the tree's arm-none-eabi cross
-# toolchain and --wrap seam, then converted to an a.out to run as a DiscoBSD
+# (lib/libc/arm/gen/rom_float_*.S). Built with the tree's arm-none-eabi cross
+# toolchain, then converted to an a.out to run as a DiscoBSD
 # userland program. It is a regression tool, not part of the shipped root
 # (distrib/rp2040/mi.rp2040 does not list it); copy fptest to the board over
 # the console or a rebuilt image to run it, and expect "FPTEST OK".

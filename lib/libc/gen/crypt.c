@@ -242,6 +242,9 @@ int edflag;
 	int i, ii;
 	register int t, j, k;
 
+	/* The ABI retains the direction argument; only encryption is supported. */
+	(void)edflag;
+
 	/*
 	 * First, permute the bits in the input
 	 */

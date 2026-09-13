@@ -64,7 +64,7 @@ getgrouplist(uname, agroup, groups, grpcnt)
 	 */
 	setgrent();
 	while ((grp = getgrent())) {
-		if (grp->gr_gid == agroup)
+		if ((gid_t)grp->gr_gid == agroup)
 			continue;
 		for (i = 0; grp->gr_mem[i]; i++) {
 			if (!strcmp(grp->gr_mem[i], uname)) {

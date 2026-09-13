@@ -274,7 +274,7 @@ irele (ip)
     if (ip->i_count == 1) {
         ip->i_flag |= ILOCKED;
         if (ip->i_nlink <= 0 && ip->i_fs->fs_ronly == 0) {
-            itrunc (ip, (u_long) 0, 0);
+            itrunc (ip, (off_t) 0, 0);
             ip->i_mode = 0;
             ip->i_rdev = 0;
             ip->i_flag |= IUPD|ICHG;
@@ -315,7 +315,7 @@ irele (ip)
  * If waitfor set, then must insure
  * i/o order so wait for the write to complete.
  */
-void
+int
 iupdat (ip, ta, tm, waitfor)
     struct inode *ip;
     struct timeval *ta, *tm;
@@ -324,15 +324,19 @@ iupdat (ip, ta, tm, waitfor)
     register struct buf *bp;
     register struct dinode *dp;
     register struct inode *tip = ip;
+    int dirty_flags, error;
 
-    if ((tip->i_flag & (IUPD|IACC|ICHG|IMOD)) == 0)
-        return;
+    dirty_flags = tip->i_flag & (IUPD|IACC|ICHG|IMOD);
+    if (dirty_flags == 0)
+        return (0);
     if (tip->i_fs->fs_ronly)
-        return;
+        return (0);
     bp = bread(tip->i_dev, itod(tip->i_number));
     if (bp->b_flags & B_ERROR) {
+        int error = geterror(bp);
+
         brelse(bp);
-        return;
+        return (error);
     }
     if (tip->i_flag&IACC)
         tip->i_atime = ta->tv_sec;
@@ -346,10 +350,14 @@ iupdat (ip, ta, tm, waitfor)
     dp->di_flags = tip->i_flags;
     dp->di_ic2 = tip->i_ic2;
     bcopy(ip->i_addr, dp->di_addr, NADDR * sizeof (daddr_t));
-    if (waitfor && ((ip->i_fs->fs_flags & MNT_ASYNC) == 0))
-        bwrite(bp);
-    else
-        bdwrite(bp);
+    if (waitfor) {
+        error = bwrite(bp);
+        if (error)
+            tip->i_flag |= dirty_flags;
+        return (error);
+    }
+    bdwrite(bp);
+    return (0);
 }
 
 #define SINGLE  0   /* index of single indirect block */
@@ -357,11 +365,10 @@ iupdat (ip, ta, tm, waitfor)
 #define TRIPLE  2   /* index of triple indirect block */
 
 static void
-trsingle (ip, bp, last, aflags)
+trsingle (ip, bp, last)
     register struct inode *ip;
     struct buf *bp;
     daddr_t last;
-    int aflags;
 {
     register const daddr_t *bstart, *bstop;
     const daddr_t *blarray = (const daddr_t*) bp->b_addr;
@@ -449,7 +456,7 @@ indirtrunc (ip, bn, lastbn, level, aflags)
      * and that doesn't work well with recursion.
      */
     if (level == SINGLE)
-        trsingle (ip, bp, last, aflags);
+        trsingle (ip, bp, last);
     else {
         register daddr_t *bstart, *bstop;
 
@@ -491,7 +498,7 @@ indirtrunc (ip, bn, lastbn, level, aflags)
 void
 itrunc (oip, length, ioflags)
     register struct inode *oip;
-    u_long length;
+    off_t length;
     int ioflags;
 {
     daddr_t lastblock;
@@ -502,6 +509,11 @@ itrunc (oip, length, ioflags)
     int offset, level;
     struct inode tip;
     int aflags;
+
+    if (length < 0) {
+        u.u_error = EINVAL;
+        return;
+    }
 
     aflags = B_CLRBUF;
     if (ioflags & IO_SYNC)

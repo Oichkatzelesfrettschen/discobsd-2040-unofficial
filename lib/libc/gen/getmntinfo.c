@@ -50,7 +50,7 @@ getmntinfo(mntbufp, flags)
 		return (0);
 	if (bufsize > 0 && (mntsize = getfsstat(mntbuf, bufsize, flags)) < 0)
 		return (0);
-	while (bufsize <= mntsize * sizeof(struct statfs)) {
+	while ((size_t)bufsize <= (size_t)mntsize * sizeof(struct statfs)) {
 		if (mntbuf)
 			free(mntbuf);
 		bufsize = (mntsize + 1) * sizeof(struct statfs);

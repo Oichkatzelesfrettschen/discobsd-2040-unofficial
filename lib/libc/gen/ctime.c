@@ -29,11 +29,15 @@ asctime(timeptr)
     register const struct tm *timeptr;
 {
 	static char	wday_name[DAYS_PER_WEEK][3] = {
-		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+		{'S', 'u', 'n'}, {'M', 'o', 'n'}, {'T', 'u', 'e'},
+		{'W', 'e', 'd'}, {'T', 'h', 'u'}, {'F', 'r', 'i'},
+		{'S', 'a', 't'}
 	};
 	static char	mon_name[MONS_PER_YEAR][3] = {
-		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+		{'J', 'a', 'n'}, {'F', 'e', 'b'}, {'M', 'a', 'r'},
+		{'A', 'p', 'r'}, {'M', 'a', 'y'}, {'J', 'u', 'n'},
+		{'J', 'u', 'l'}, {'A', 'u', 'g'}, {'S', 'e', 'p'},
+		{'O', 'c', 't'}, {'N', 'o', 'v'}, {'D', 'e', 'c'}
 	};
 	static char	result[26];
 
@@ -140,21 +144,23 @@ register char *	name;
 		register char *			p;
 		register struct tzhead *	tzhp;
 		char *				buf;
+		ssize_t				bytes_read;
 
 		buf = alloca(sizeof s);
-		i = read(fid, buf, sizeof s);
-		if (close(fid) != 0 || i < sizeof *tzhp)
+		bytes_read = read(fid, buf, sizeof s);
+		if (close(fid) != 0 || bytes_read < 0 ||
+		    (size_t)bytes_read < sizeof *tzhp)
 			return -1;
 		tzhp = (struct tzhead *) buf;
 		s.timecnt = (int) detzcode(tzhp->tzh_timecnt);
 		s.typecnt = (int) detzcode(tzhp->tzh_typecnt);
 		s.charcnt = (int) detzcode(tzhp->tzh_charcnt);
-		if (s.timecnt > TZ_MAX_TIMES ||
-			s.typecnt == 0 ||
+		if (s.timecnt < 0 || s.timecnt > TZ_MAX_TIMES ||
+			s.typecnt <= 0 ||
 			s.typecnt > TZ_MAX_TYPES ||
-			s.charcnt > TZ_MAX_CHARS)
+			s.charcnt < 0 || s.charcnt > TZ_MAX_CHARS)
 				return -1;
-		if (i < sizeof *tzhp +
+		if ((size_t)bytes_read < sizeof *tzhp +
 			s.timecnt * (4 + sizeof (char)) +
 			s.typecnt * (4 + 2 * sizeof (char)) +
 			s.charcnt * sizeof (char))

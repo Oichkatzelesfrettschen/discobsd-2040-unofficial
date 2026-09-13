@@ -19,6 +19,7 @@ reaches the double comparison and classification libgcc would otherwise
 have to supply (__aeabi_dcmp*, __eqdf2, __ledf2): see the
 NO_DOPRNT_FLOATFMT block in lib/libc/stdio/doprnt.c.
 """
+
 import argparse
 import os
 import subprocess
@@ -44,7 +45,8 @@ DIRS = {
     "arm_string": "lib/libc/arm/string",
 }
 
-SYSOBJS = set("""
+SYSOBJS = set(
+    """
 __sysctl accept access adjtime bind chdir chflags chmod chown chroot close
 connect dup dup2 execve fchdir fchflags fchmod fchown fcntl flock fork fstat
 fsync ftruncate getdtablesize getgroups getitimer getsockname getpeername
@@ -57,14 +59,23 @@ socketpair stat symlink sigprocmask sigstack sigwait statfs fstatfs
 getfsstat truncate umount unlink utimes wait4 write writev lseek sigsuspend
 getgid getegid getpgrp getpid getppid getuid geteuid profil sigpending sync
 ufetch ustore ucall umask vfork vhangup rdglob wrglob msec kmemdev
-""".split())
+""".split()
+)
 
 ARM_SYS_COBJS = set("sbrk execl execle execv".split())
 ARM_SYS_ASMOBJS = set("_exit _brk pipe ptrace sigaction".split())
+with open(os.path.join(TOPSRC, "lib/libc/arm/gen/rom_float_members")) as fh:
+    ROM_FLOAT_S = {
+        line.strip()
+        for line in fh
+        if line.strip() and not line.lstrip().startswith("#")
+    }
 ARM_GEN_S = set("_setjmp aeabi_div htonl htons setjmp sigsetjmp".split())
+ARM_GEN_S.update(ROM_FLOAT_S)
 ARM_STRING_S = set("memmove strcmp".split())
 
-GEN_C = set("""
+GEN_C = set(
+    """
 abort alarm atof atoi atol basename bcmp bcopy bzero calloc closedir crypt
 ctime ctype_ daemon devname dirname ecvt err execvp fakcu ffs frexp fstab
 gcvt getenv getgrent getgrgid getgrnam getgrouplist gethostname getloadavg
@@ -75,27 +86,34 @@ readdir regex rindex scandir seekdir setenv sethostname setmode siginterrupt
 siglist signal sigsetops sleep strcasecmp strcat strcmp strcpy strdup
 strftime strlen strncat strncmp strncpy swab sysctl syslog system telldir
 time timezone ttyname ttyslot ualarm uname usleep wait3 wait waitpid
-""".split())
+""".split()
+)
 
-STDIO_C = set("""
+STDIO_C = set(
+    """
 clrerr doprnt_float doprnt doscan exit fdopen feof ferror fgetc fgets filbuf
 fileno findiop flsbuf fopen fprintf fputc fputs fread freopen fseek ftell
 fwrite getchar gets getw printf putchar puts putw remove rew scanf setbuffer
 setbuf setvbuf snprintf sprintf strout ungetc vfprintf vprintf vsprintf
-""".split())
+""".split()
+)
 
 STDLIB_C = set("getopt getsubopt strtod strtol strtoul".split())
 
-STRING_C = set("""
+STRING_C = set(
+    """
 strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr strtok
 strtok_r
-""".split())
+""".split()
+)
 
-COMPAT_C = set("""
+COMPAT_C = set(
+    """
 creat ftime gethostid memccpy memchr memcmp memcpy memset nice pause rand
 sethostid setregid setreuid setrgid setruid sigcompat strchr strrchr times
 tmpnam utime
-""".split())
+""".split()
+)
 
 
 def classify(stem):
@@ -154,9 +172,10 @@ def main():
         "-Os",
         "-fcommon",
         "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wformat=2",
         "-ffreestanding",
-        "-Wno-attributes",
-        "-Wno-attribute-alias",
         "-fno-jump-tables",
     ]
     as_tool = os.path.join(args.toolbindir, "as")
@@ -185,14 +204,22 @@ def main():
             with open(sfile, "w") as fh:
                 run(
                     gcc
-                    + ["-x", "assembler-with-cpp", "-E", "-P", "-I%s" % srcdir, sourcefile],
+                    + [
+                        "-x",
+                        "assembler-with-cpp",
+                        "-E",
+                        "-P",
+                        "-I%s" % srcdir,
+                        sourcefile,
+                    ],
                     stdout=fh,
                 )
         elif kind == "sysobj":
             snippet = '#include "SYS.h"\nSYS(%s)\n' % m
             with open(sfile, "w") as fh:
                 run(
-                    gcc + ["-x", "assembler-with-cpp", "-E", "-P", "-I%s" % srcdir, "-"],
+                    gcc
+                    + ["-x", "assembler-with-cpp", "-E", "-P", "-I%s" % srcdir, "-"],
                     input=snippet.encode(),
                     stdout=fh,
                 )
@@ -207,8 +234,7 @@ def main():
     run([ar_tool, "rc", args.out] + objs)
     run([ranlib_tool, args.out])
     print(
-        "mkboardlibc: %d members, %d bytes"
-        % (len(objs), os.path.getsize(args.out)),
+        "mkboardlibc: %d members, %d bytes" % (len(objs), os.path.getsize(args.out)),
         file=sys.stderr,
     )
 

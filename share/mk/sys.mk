@@ -111,21 +111,8 @@ _PRINTF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_FLOAT}" = x"yes" ]
 			echo "-Wl,-u,__doprnt_cvt" ; \
 		fi
 
-# The RP2040 bootrom carries a float library faster than libgcc soft-float
-# (see lib/libc/arm/gen/rom_float.c and doc/research/float-libs.md). --wrap
-# routes the AEABI arithmetic through it and leaves __real___aeabi_* as the
-# libgcc fallback. rp2040 only; the codes and the ROM do not exist on the
-# other machines. Division (__aeabi_fdiv/ddiv) is added here alongside the
-# kernel's SIO-divider context-switch checkpoint, not before it.
-_ROMFLOAT!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
-			echo "-Wl,--wrap=__aeabi_fadd -Wl,--wrap=__aeabi_fsub" \
-			     "-Wl,--wrap=__aeabi_fmul -Wl,--wrap=__aeabi_fdiv" \
-			     "-Wl,--wrap=__aeabi_dadd -Wl,--wrap=__aeabi_dsub" \
-			     "-Wl,--wrap=__aeabi_dmul -Wl,--wrap=__aeabi_ddiv" ; \
-		fi
-
 LDFLAGS=-N -nostartfiles -fno-dwarf2-cfi-asm \
-	${LDWARN} ${_PRINTF_FLOAT} ${_ROMFLOAT} \
+	${LDWARN} ${_PRINTF_FLOAT} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \
 	${TOPSRC}/lib/crt0.o -L${TOPSRC}/lib
 

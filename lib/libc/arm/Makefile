@@ -11,15 +11,17 @@ include ${TOPSRC}/share/mk/sys.mk
 ALL		= gen string sys
 
 arm.a:		${ALL}
-		-mkdir tmp
-		for i in ${ALL}; do (cd tmp; $(AR) x ../$$i/$$i.a); done
+		rm -rf tmp
+		mkdir tmp
+		set -e; for i in ${ALL}; do (cd tmp; $(AR) x ../$$i/$$i.a); done
+		rm -f arm.a
 		$(AR) cr arm.a `ls tmp/*.o | sort`
 		rm -rf tmp
 
-${ALL}:	FRC
+${ALL}:
 	cd $@; ${MAKE} ${MFLAGS} DEFS="${DEFS}"
 
-FRC:
+.PHONY:	${ALL}
 
 tags:
 		for i in ${ALL}; do \

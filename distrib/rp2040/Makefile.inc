@@ -68,6 +68,9 @@ BOARDLIBC_GCCPREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
+				${TOPSRC}/lib/libc/arm/gen/rom_float_members \
+				${TOPSRC}/lib/libc/arm/gen/rom_float.inc \
+				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
 				${TOOLBINDIR}/as ${TOOLBINDIR}/ar ${TOOLBINDIR}/ranlib
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${PYTHON} ${MKBOARDLIBC} --toolbindir=${TOOLBINDIR} \

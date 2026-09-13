@@ -470,35 +470,26 @@ math, filter coefficients, fixed-length counters -- and it is the only one
 of the three tiers that has zero call overhead into ROM and zero cycles
 lost to IEEE bit-format decode.
 
-**(b) Wire libc's `float` path to the RP2040 ROM table as the default,
-replacing libgcc soft-float outright.** Write the dozen-line lookup shown
-in Section 2.4 once, in `lib/libc/arm/gen/` alongside the other
-hand-written arch-specific pieces `board-libc.md` already lists, exposing
-it as the standard RTABI symbol set (`__aeabi_fadd`, `__aeabi_fmul`, ...,
-and the `d*` doubles if targeting bootrom V2+ specifically) so that any C
-source compiled against `float`/`double` picks it up automatically with no
-source change, and so that `-lc` alone (no `-lgcc` soft-float object
-pull-in) satisfies every float symbol a normal program needs. This costs
-under a hundred bytes of flash (the shim plus the fixed-offset table
-walk) against libgcc's soft-float object files, which run to several KB
-even with a tight `--gc-sections` link, and it is 1.5x-8x faster per the
-comparison in Section 2.3. This single change is the highest-leverage item
-in this whole report: it is strictly smaller *and* strictly faster than
-the status quo (linking libgcc), for every program in the tree that
-already uses `float`, with no accuracy regression for code that does not
-depend on denormals or exact NaN payloads (Section 2.1's stated
-narrowing) -- which is effectively all DiscoBSD userland code.
+**(b) Use the RP2040 ROM tables as libc's native floating-point provider.**
+The `lib/libc/arm/gen/rom_float_*.S` members export the standard AEABI and
+compiler-runtime names, so both cross-linked programs and programs linked on
+the board resolve through `-lc` without a linker-specific `--wrap` seam. The
+48-member partition exposes 92 public names while allowing the archive linker
+to extract only the operations and shared helpers a program reaches. The full
+provider contains 1,784 text bytes and 76 initialized-data bytes, but those
+totals are not the per-program cost. Each ROM-backed target contributes one
+four-byte demand-filled cache cell; direct comparisons and sign changes use no
+writable storage. Arithmetic remains 1.5x-8x faster than the software routines
+measured in Section 2.3, subject to the ROM numerical contract in Section 2.1.
 
 #### 4.1 Implementation findings: the divider hazard, the truncation
 #### mismatch, and the caller census
 
-Three facts found while scoping the tier (b) shim against the actual
-bootrom source (`raspberrypi/pico-bootrom-rp2040`, `bootrom/bootrom_rt0.S`
-and `bootrom/mufplib.S`) and the tree's own object files narrow (b) from
-"the highest-leverage item, ready to ship" to "two divider-free operations
-per precision now, the rest gated on a kernel change."
+Three facts from the bootrom source (`raspberrypi/pico-bootrom-rp2040`,
+`bootrom/bootrom_rt0.S` and `bootrom/mufplib.S`), the SDK, and the DiscoBSD
+kernel determine the provider design.
 
-**The SIO divider is per-core state the kernel now checkpoints.**
+**The SIO divider is per-core state with one bounded owner.**
 `mufp_fdiv` (and every transcendental, which branch into `fdiv_n`) writes
 the SIO hardware divider at `SIO_BASE+DIV_UDIVIDEND`/`DIV_UDIVISOR` and
 reads `DIV_QUOTIENT` (`mufplib.S`, `use_hw_div=1`, lines 1050-1089). The
@@ -509,52 +500,40 @@ an interrupt that itself divides -- corrupts: a process preempted between the
 divisor write and the quotient read gets another context's quotient on
 resume. The
 pico-sdk guards this in its own `__aeabi_fdiv` wrapper
-(`float_aeabi_rp2040.S`, the `fdiv_save_state` path). libgcc's soft-float divide is pure software that never touches the divider,
-so before the ROM path landed nothing required a checkpoint. `locore.S` now
-saves the four divider registers into the `label_t` (`env[10..13]`) in
-`setjmp` and restores them in `longjmp`/`resume`, spinning on `DIV_CSR`
-READY, so a process preempted mid-divide keeps its own result; the audit
-found no divider-using ISR, but that lexical absence does not license a
-future one without extending the checkpoint to the interrupt path. `mufp_fadd`, `mufp_fsub`, `mufp_fmul`, `mufp_fsqrt` and every integer
-conversion are divider-free; only division (and the transcendentals built
-on it) touch it. Routing `__aeabi_fdiv`/`__aeabi_ddiv` -- the single largest win,
-475->83 cycles -- through the ROM was gated on that checkpoint, which has
-since landed; add/sub/mul carried no such dependency and shipped first.
+(`float_aeabi_rp2040.S`, the `fdiv_save_state` path), but that wrapper cannot
+protect against an interrupt handler that does not follow the same protocol.
+DiscoBSD user Thread mode runs with `CONTROL[0]=1`, so user code also cannot
+mask interrupts. The native provider admits direct division under a narrower
+invariant: the single-core kernel does not switch processes inside a healthy
+user instruction sequence, and the kernel, IRQ, NMI, and callout graph has no
+SIO-divider consumer. Source and linked-image gates reject a new divider owner.
+The earlier context-switch-only checkpoint did not protect against an IRQ
+divider consumer and added work to every kernel save and restore, so the native
+provider removes it. `mufp_fadd`, `mufp_fsub`, `mufp_fmul`, `mufp_fsqrt`, and
+the conversion entries are divider-free.
 
 **`mufp_float2int` floors; `__aeabi_f2iz` truncates.** The ROM
 `float2int` converts "rounding towards -Inf, clamping" (`mufplib.S` line
 248), while the C cast `__aeabi_f2iz` rounds toward zero, so they disagree
 on every negative non-integer (`(int)-2.7` is `-2`, `float2int(-2.7)` is
-`-3`). A correct `__aeabi_f2iz` shim needs the sign-dispatch the pico-sdk
-wrapper carries (`float2int_z` in `float_aeabi_rp2040.S`), not a bare
-tail-call. The conversions are cheap in both ROM and libgcc (37-55
-cycles), so they are low-value to shim and easy to get silently wrong;
-leave them on libgcc.
+`-3`). The native signed 32-bit helpers therefore use the SDK-style bitwise
+truncation algorithm. Unsigned and 64-bit conversions use only ROM entries
+whose domain and saturation behavior matches the declared symbol contract,
+with explicit signed adapters where needed.
 
-**The tree's float users are double-precision; single-precision callers
+**The tree's float users are mostly double-precision; single-precision callers
 are sparse and incidental.** A census of undefined `__aeabi_f*` (single)
 references across the built objects (`arm-none-eabi-nm` over every `.o`)
 finds 98 reference sites, and among the binaries the rp2040 manifest
 actually ships only `awk`, `vmstat`, `iostat` and `smlrc` reference
 single-precision float at all -- each doing its real arithmetic in
-`double` (awk's number type is `double`; the float refs are incidental
-casts). The float-heavy paths that matter -- printf `%f`/`%e`/`%g` through
-`doprnt`, `awk`, `bc`, `dc` -- are `double`, served by the SF table's
-sibling `soft_double_table` (`'S','D'`), which Table 171 documents as
-present only on bootrom V2+. A V1 part has no double table, so a libc that
-unconditionally owns `__aeabi_d*` cannot fulfill it there; the double shim
-needs a runtime bootrom-version check with a libgcc-double fallback linked
-for the V1 case, which the plain symbol-replacement in (b) does not
-provide.
-
-Net revision to (b): the safe, no-kernel-change, correct-on-every-part
-shim is `__aeabi_fadd`/`fsub`/`fmul` (single) and, on V2+ with a version
-check, `__aeabi_dadd`/`dsub`/`dmul` (double) -- all divider-free -- with
-the source documenting the ROM's denormal/NaN/rounding narrowing
-(Section 2.1) above each symbol. The division ops and the V1 double
-fallback wait on a kernel SIO-divider context-switch checkpoint, which is
-a separate, testable task with its own blast radius, not part of the shim
-itself.
+`double` (awk's number type is `double`; the float refs are incidental casts).
+The float-heavy paths that matter -- printf `%f`/`%e`/`%g` through `doprnt`,
+`awk`, `bc`, and `dc` -- use the `soft_double_table` (`'S','D'`), which Table
+171 documents as present only on Boot ROM V2+. The resolver validates the ROM
+version and the requested table entry before publishing a target. A requested
+double entry on a V1 part exits deterministically with status 70 rather than
+calling through a missing table. The B2 target reports Boot ROM V3.
 
 **(c) True general-purpose float/double soft-float, reserved for the
 narrow cases the ROM cannot serve.** Two situations force this tier:

@@ -119,13 +119,21 @@ OBJS            += creat.o ftime.o gethostid.o memccpy.o memchr.o \
                    sigcompat.o strchr.o strrchr.o times.o tmpnam.o \
                    utime.o
 
-# libc/runtime
-OBJS+=		addsf3.o comparesf2.o divsf3.o fixsfsi.o fixunssfsi.o \
-		floatsisf.o floatunsisf.o mulsf3.o negsf2.o subsf3.o \
-		adddf3.o comparedf2.o divdf3.o fixdfsi.o fixunsdfsi.o \
-		floatsidf.o floatunsidf.o muldf3.o negdf2.o subdf3.o \
-		ashldi3.o lshrdi3.o \
-		sc_case.o
+# libc/runtime supplies software floating point on targets without the RP2040
+# Boot ROM. RP2040 uses the exact native provider inventory from arm/gen.
+SOFT_FLOAT_OBJS!=if [ x"${MACHINE}" != x"rp2040" ] ; then \
+			echo "addsf3.o comparesf2.o divsf3.o fixsfsi.o" \
+			     "fixunssfsi.o floatsisf.o floatunsisf.o mulsf3.o" \
+			     "negsf2.o subsf3.o adddf3.o comparedf2.o divdf3.o" \
+			     "fixdfsi.o fixunsdfsi.o floatsidf.o floatunsidf.o" \
+			     "muldf3.o negdf2.o subdf3.o" ; \
+		fi
+ROM_FLOAT_OBJS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+			awk 'NF { print $$1 ".o" }' \
+			    ${LIBCDIR}/arm/gen/rom_float_members ; \
+		fi
+OBJS+=		${SOFT_FLOAT_OBJS} ${ROM_FLOAT_OBJS} \
+		ashldi3.o lshrdi3.o sc_case.o
 
 all:            ../libc.a
 
@@ -141,6 +149,9 @@ FRC:
 $(SYSOBJS):	$(LIBCDIR)/$(MACHINE_ARCH)/sys/SYS.h
 #		@echo creating $*.o
 		@printf '#include "SYS.h"\nSYS($*)\n' | $(AS) $(ASFLAGS) - -c -o $*.o
+
+${ROM_FLOAT_OBJS}: ${LIBCDIR}/arm/gen/rom_float.inc \
+		    ${LIBCDIR}/arm/gen/rom_float_members
 
 # Build objects here instead of ${LIBCDIR} with BSD make.
 .OBJDIR:	${.CURDIR}

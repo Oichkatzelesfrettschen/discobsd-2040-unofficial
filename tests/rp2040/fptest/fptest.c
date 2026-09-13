@@ -1,9 +1,9 @@
 /*
  * fptest: bit-exact verification of the RP2040 bootrom float path.
  *
- * lib/libc/arm/gen/rom_float.c routes __aeabi_fadd/fsub/fmul/fdiv and the
- * double forms through the bootrom float library (see
- * sys/arch/rp2040/doc/research/float-libs.md). This exercises each wrapped
+ * The lib/libc/arm/gen/rom_float_*.S members provide
+ * __aeabi_fadd/fsub/fmul/fdiv and the double forms through the bootrom float
+ * library (see sys/arch/rp2040/doc/research/float-libs.md). This exercises each
  * operation and compares the result bit pattern against an independently
  * computed expected value, rather than an absolute-error tolerance whose
  * own subtraction would run the code under test. The expected values are

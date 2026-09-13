@@ -34,15 +34,16 @@ all:            ../libc.a
 ../libc.a:      ${ALL}
 		rm -rf tmp
 		mkdir tmp
-		cd tmp; for i in ${ALL}; do $(AR) x ../$$i/$$i.a; done; \
+		cd tmp; set -e; for i in ${ALL}; do $(AR) x ../$$i/$$i.a; done; \
+			rm -f ../$@; \
 			$(AR) cr ../$@ *.o
 #			$(AR) cr ../$@ `sh ../../cmd/lorder.sh *.o | tsort`
 		rm -rf tmp
 
-${ALL}:		FRC
+${ALL}:
 		cd $@; ${MAKE} ${MFLAGS} DEFS="${DEFS}"
 
-FRC:
+.PHONY:		${ALL}
 
 install:	../libc.a
 #		${INSTALL} -d ${DESTDIR}/usr/lib

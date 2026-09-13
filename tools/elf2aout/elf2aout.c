@@ -349,6 +349,8 @@ main(int argc, char **argv)
 	uint32_t cur_vma = UINT32_MAX;
 	int     verbose = 0;
 	int     symflag = 0;
+	int     have_text_load = 0;
+	int     have_data_load = 0;
 
 	strtabix = symtabix = 0;
 	text.len = data.len = bss.len = 0;
@@ -453,10 +455,15 @@ usage:                  fprintf(stderr,
 		/* Section types we can't handle... */
 		if (ph[i].p_type != PT_LOAD && ph[i].p_type != PT_GNU_EH_FRAME)
 			errx(1, "Program header %d type %x can't be converted.", i, ph[i].p_type);
+		if (ph[i].p_filesz > ph[i].p_memsz)
+			errx(1, "Program header %d has file size larger than memory size.", i);
+		if (ph[i].p_type == PT_LOAD && ph[i].p_memsz == 0)
+			continue;
 
 		/* Writable (data) segment? */
 		if (ph[i].p_flags & PF_W) {
 			struct sect ndata, nbss;
+			have_data_load = 1;
 
 			ndata.vaddr = ph[i].p_vaddr;
 			ndata.len = ph[i].p_filesz;
@@ -467,6 +474,7 @@ usage:                  fprintf(stderr,
 			combine(&bss, &nbss, 1);
 		} else {
 			struct sect ntxt;
+			have_text_load = 1;
 
 			ntxt.vaddr = ph[i].p_vaddr;
 			ntxt.len = ph[i].p_filesz;
@@ -476,6 +484,14 @@ usage:                  fprintf(stderr,
 		/* Remember the lowest segment start address. */
 		if (ph[i].p_vaddr < cur_vma)
 			cur_vma = ph[i].p_vaddr;
+	}
+	if (cur_vma == UINT32_MAX)
+		errx(1, "Executable has no non-empty loadable segments.");
+	if (!have_text_load)
+		text.vaddr = cur_vma;
+	if (!have_data_load) {
+		data.vaddr = text.vaddr + text.len;
+		bss.vaddr = data.vaddr;
 	}
         if (! symflag) {
                 /* Sections must be in order to be converted... */
@@ -562,13 +578,9 @@ usage:                  fprintf(stderr,
         }
 
 	/* Make the output file... */
-	if ((outfile = open(argv[1], O_WRONLY | O_CREAT, 0777)) < 0) {
+	if ((outfile = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0777)) < 0) {
 		fprintf(stderr, "Unable to create %s: %s\n", argv[1], strerror(errno));
 		exit(1);
-	}
-	/* Truncate file... */
-	if (ftruncate(outfile, 0)) {
-		warn("ftruncate %s", argv[1]);
 	}
 	/* Write the header... */
 	i = write(outfile, &aex, sizeof aex);
@@ -615,6 +627,14 @@ usage:                  fprintf(stderr,
                         sh[symtabix].sh_offset, sh[symtabix].sh_size,
                         sh[strtabix].sh_offset, sh[strtabix].sh_size);
         }
+	if (close(outfile) < 0)
+		err(1, "close %s", argv[1]);
+	if (close(infile) < 0)
+		err(1, "close %s", argv[0]);
+	free(symTypeTable);
+	free(shstrtab);
+	free(sh);
+	free(ph);
 	/* Looks like we won... */
 	return 0;
 }
@@ -634,8 +654,9 @@ translate_syms(int out, int in, off_t symoff, off_t symsize,
 	struct nlist outbuf[64];
 	int     i, remaining, cur;
 	char   *oldstrings;
-	char   *newstrings, *nsp;
-	int     newstringsize, stringsizebuf;
+	char   *newstrings;
+	size_t  newstring_capacity, newstring_size;
+	uint32_t stringsizebuf;
 
 	/* Zero the unused fields in the output buffer.. */
 	memset(outbuf, 0, sizeof outbuf);
@@ -646,18 +667,19 @@ translate_syms(int out, int in, off_t symoff, off_t symsize,
 	/* Suck in the old string table... */
 	oldstrings = save_read(in, stroff, strsize, "string table");
 
-	/* Allocate space for the new one.   XXX We make the wild assumption
-	 * that no two symbol table entries will point at the same place in
-	 * the string table - if that assumption is bad, this could easily
-	 * blow up. */
-	newstringsize = strsize + remaining;
-	newstrings = malloc(newstringsize);
+	/* Each translated name gains an underscore. Repeated ELF string-table
+	 * offsets can make the initialized output larger than the input table
+	 * plus one byte per symbol, so grow the buffer when a name needs it. */
+	if (strsize <= 0 || (uint64_t)strsize > UINT32_MAX - 4U ||
+	    (uint32_t)remaining > UINT32_MAX - 4U - (uint32_t)strsize)
+		errx(1, "String table is too large to convert.");
+	newstring_capacity = (size_t)strsize + (size_t)remaining;
+	newstrings = malloc(newstring_capacity);
 	if (newstrings == NULL) {
 		fprintf(stderr, "No memory for new string table!\n");
 		exit(1);
 	}
-	/* Initialize the table pointer... */
-	nsp = newstrings;
+	newstring_size = 0;
 
 	/* Go the start of the ELF symbol table... */
 	if (lseek(in, symoff, SEEK_SET) < 0) {
@@ -681,18 +703,46 @@ translate_syms(int out, int in, off_t symoff, off_t symsize,
 		/* Do the translation... */
 		for (i = 0; i < cur; i++) {
 			int     binding, type;
+			char   *name_end, *resized_strings;
+			size_t  name_length, required_size, resized_capacity;
 
-			/* Copy the symbol into the new table, but prepend an
-			 * underscore. sizeof(nsp - 1) names the pointer
-			 * arithmetic result's type, not a buffer size, and
-			 * caps every copy at sizeof(char *) regardless of
-			 * name length; the bound is the space actually left
-			 * in newstrings. */
-			*nsp = '_';
-			strlcpy(nsp + 1, oldstrings + inbuf[i].st_name,
-			    (size_t)(newstrings + newstringsize - (nsp + 1)));
-			outbuf[i].n_un.n_strx = nsp - newstrings + 4;
-			nsp += strlen(nsp) + 1;
+			if (inbuf[i].st_name >= (uint32_t)strsize)
+				errx(1, "Symbol %d has an invalid string-table offset.", i);
+			name_end = memchr(oldstrings + inbuf[i].st_name, '\0',
+			    (size_t)strsize - inbuf[i].st_name);
+			if (name_end == NULL) {
+				fprintf(stderr, "Symbol %d has an unterminated name.\n", i);
+				exit(1);
+			}
+			name_length = (size_t)(name_end -
+			    (oldstrings + inbuf[i].st_name));
+			if (newstring_size > UINT32_MAX - 6U ||
+			    name_length > UINT32_MAX - 4U - newstring_size - 2U)
+				errx(1, "Translated string table is too large.");
+			required_size = newstring_size + name_length + 2;
+			if (required_size > newstring_capacity) {
+				resized_capacity = newstring_capacity;
+				while (resized_capacity < required_size) {
+					if (resized_capacity > UINT32_MAX / 2) {
+						resized_capacity = required_size;
+						break;
+					}
+					resized_capacity *= 2;
+				}
+				resized_strings = realloc(newstrings, resized_capacity);
+				if (resized_strings == NULL) {
+					fprintf(stderr,
+					    "No memory for translated string table.\n");
+					exit(1);
+				}
+				newstrings = resized_strings;
+				newstring_capacity = resized_capacity;
+			}
+			outbuf[i].n_un.n_strx = (uint32_t)newstring_size + 4;
+			newstrings[newstring_size++] = '_';
+			memcpy(newstrings + newstring_size,
+			    oldstrings + inbuf[i].st_name, name_length + 1);
+			newstring_size += name_length + 1;
 
 			type = ELF32_ST_TYPE(inbuf[i].st_info);
 			binding = ELF32_ST_BIND(inbuf[i].st_info);
@@ -728,18 +778,20 @@ translate_syms(int out, int in, off_t symoff, off_t symsize,
 		}
 	}
 	/* Write out the string table length... */
-	stringsizebuf = newstringsize;
+	stringsizebuf = (uint32_t)newstring_size;
 	if (write(out, &stringsizebuf, sizeof stringsizebuf)
-	    != sizeof stringsizebuf) {
+	    != (ssize_t)sizeof stringsizebuf) {
 		fprintf(stderr,
 		    "translate_syms: newstringsize: %s\n", strerror(errno));
 		exit(1);
 	}
 	/* Write out the string table... */
-	if (write(out, newstrings, newstringsize) != newstringsize) {
+	if (write(out, newstrings, newstring_size) != (ssize_t)newstring_size) {
 		fprintf(stderr, "translate_syms: newstrings: %s\n", strerror(errno));
 		exit(1);
 	}
+	free(newstrings);
+	free(oldstrings);
 }
 
 void

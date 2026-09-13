@@ -91,6 +91,13 @@ tools:
 kernel:		tools
 		${MAKE} -C sys/arch/${MACHINE}/compile all
 
+check-elf2aout:	tools
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-elf2aout requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C tests/rp2040/elf2aout_layout check
+
 fs:		$(FSIMG)
 
 # The image is staged from ${DESTDIR}; etc/passwd, etc/shadow and etc/group
@@ -140,7 +147,8 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		all build distribution release tools kernel symlinks \
+.PHONY:		all build distribution release tools kernel check-elf2aout \
+		symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \
 		clean cleantools cleanfs cleanall

@@ -8,7 +8,7 @@ four handback notes with the audit's more detailed working -- a libgcc
 `__aeabi_idiv`/`__aeabi_idivmod` size correction, an `NSTATIC` file-table
 cross-check, an OMAGIC section-retention cross-check against Ghidra/cscope/
 GNU Global, and a `PRINTF_FLOAT` linker-root classification -- live under
-`sys/arch/rp2040/doc/research/audit-handbacks/`.
+`research/discobsd-rp2040/audit-handbacks/` in the rpi notes repository.
 
 Every script takes the ELF or a.out image (and, where relevant, a tree root)
 as command-line arguments; none hard-code a local path. Run `make check` in

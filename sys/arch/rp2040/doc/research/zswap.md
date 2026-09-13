@@ -120,7 +120,7 @@ MHz with no cache against a wide out-of-order core at several GHz -- the
 worst measured segment lands at 77 to 155 KB/s and the typical one at 0.8 to
 1.6 MB/s. sh's 12,416-byte image then compresses in roughly 40 to 90 ms.
 
-`ram-compression.md` gives the flash path as about 0.5 s for a 33 KB image,
+`ram-compression.md` (rpi notes repository) gives the flash path as about 0.5 s for a 33 KB image,
 page-program dominated, which is 190 ms for the same 12,416 bytes, plus a
 4 KB sector erase per 1 KB unit written and the wear that carries. The tier
 is therefore expected to be two to five times faster on the slowest image
@@ -282,6 +282,6 @@ off. That is the first check on any of the above.
   model is zeros with a plausible live top.
 - The Cortex-M0+ throughput rests on a 100-to-200x host ratio stated as
   reasoning, not measurement. The board test's step 5 is what replaces it.
-- The flash path's 0.5 s per 33 KB comes from `ram-compression.md` and was
+- The flash path's 0.5 s per 33 KB comes from `ram-compression.md` (rpi notes repository) and was
   not re-measured here.
 - `swapramdebug` has no runtime control; changing it needs a rebuild.

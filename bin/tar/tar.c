@@ -75,6 +75,8 @@ void     pmode(struct stat *);
 void     selectbits(int *, struct stat *);
 int      checkdir(char *);
 void     tomodes(struct stat *);
+void     putoctal(char *, int, unsigned long);
+long     getoctal(char *, int);
 int      checksum();
 int      checkw(int, char *);
 int      response();
@@ -135,7 +137,7 @@ void
 onintr (sig)
     int sig;
 {
-    (void) signal(SIGINT, SIG_IGN);
+    (void) signal(sig, SIG_IGN);
     term++;
 }
 
@@ -143,7 +145,7 @@ void
 onquit (sig)
     int sig;
 {
-    (void) signal(SIGQUIT, SIG_IGN);
+    (void) signal(sig, SIG_IGN);
     term++;
 }
 
@@ -151,7 +153,7 @@ void
 onhup (sig)
     int sig;
 {
-    (void) signal(SIGHUP, SIG_IGN);
+    (void) signal(sig, SIG_IGN);
     term++;
 }
 
@@ -479,15 +481,12 @@ top:
     if (dblock.dbuf.name[0] == '\0')
         return;
     sp = &stbuf;
-    sscanf(dblock.dbuf.mode, "%o", &i);
-    sp->st_mode = i;
-    sscanf(dblock.dbuf.uid, "%o", &i);
-    sp->st_uid = i;
-    sscanf(dblock.dbuf.gid, "%o", &i);
-    sp->st_gid = i;
-    sscanf(dblock.dbuf.size, "%lo", &sp->st_size);
-    sscanf(dblock.dbuf.mtime, "%lo", &sp->st_mtime);
-    sscanf(dblock.dbuf.chksum, "%o", &chksum);
+    sp->st_mode = getoctal(dblock.dbuf.mode, sizeof(dblock.dbuf.mode));
+    sp->st_uid = getoctal(dblock.dbuf.uid, sizeof(dblock.dbuf.uid));
+    sp->st_gid = getoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid));
+    sp->st_size = getoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size));
+    sp->st_mtime = getoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime));
+    chksum = getoctal(dblock.dbuf.chksum, sizeof(dblock.dbuf.chksum));
     if (chksum != (i = checksum())) {
         fprintf(stderr, "tar: directory checksum error (%d != %d)\n",
             chksum, i);
@@ -545,7 +544,6 @@ putfile(longname, shortname, parent)
     register int i;
     long l;
     char newparent[NAMSIZ+64];
-    extern int errno;
     int maxread;
     int hint;       /* amount to write to get "in sync" */
 
@@ -567,7 +565,7 @@ putfile(longname, shortname, parent)
 
     switch (stbuf.st_mode & S_IFMT) {
     case S_IFDIR:
-        for (i = 0, cp = buf; *cp++ = longname[i++];)
+        for (i = 0, cp = buf; (*cp++ = longname[i++]) != '\0';)
             ;
         *--cp = '/';
         *++cp = 0  ;
@@ -698,6 +696,8 @@ putfile(longname, shortname, parent)
         sprintf(dblock.dbuf.chksum, "%6o", checksum());
         hint = writetape((char *)&dblock);
         maxread = max(stbuf.st_blksize, (nblock * TBLOCK));
+        if (maxread > NBLOCK * TBLOCK)
+            maxread = NBLOCK * TBLOCK;
         if ((bigbuf = malloc((unsigned)maxread)) == 0) {
             maxread = TBLOCK;
             bigbuf = buf;
@@ -739,7 +739,6 @@ doxtract(argv)
 {
     long blocks, bytes;
     int ofile, i;
-    extern int errno;
 
     for (;;) {
         if ((i = wantit(argv)) == 0)
@@ -1005,11 +1004,54 @@ register struct stat *sp;
 
     for (cp = dblock.dummy; cp < &dblock.dummy[TBLOCK]; cp++)
         *cp = '\0';
-    sprintf(dblock.dbuf.mode, "%6o ", sp->st_mode & 07777);
-    sprintf(dblock.dbuf.uid, "%6o ", sp->st_uid);
-    sprintf(dblock.dbuf.gid, "%6o ", sp->st_gid);
-    sprintf(dblock.dbuf.size, "%11lo ", sp->st_size);
-    sprintf(dblock.dbuf.mtime, "%11lo ", sp->st_mtime);
+    putoctal(dblock.dbuf.mode, sizeof(dblock.dbuf.mode), sp->st_mode & 07777);
+    putoctal(dblock.dbuf.uid, sizeof(dblock.dbuf.uid), sp->st_uid);
+    putoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid), sp->st_gid);
+    putoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size), sp->st_size);
+    putoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime), sp->st_mtime);
+}
+
+/*
+ * Fill a header field with right-justified zero-padded octal in width-1
+ * bytes and terminate it with a NUL in the last, the encoding GNU tar and
+ * bsdtar write and every tar reader accepts. sprintf("%11lo ") into the
+ * 12-byte size and mtime fields writes its terminator one byte past the
+ * field and overwrites the first byte of the field that follows.
+ */
+void
+putoctal(field, width, value)
+    char *field;
+    int width;
+    unsigned long value;
+{
+    register int i;
+
+    field[--width] = '\0';
+    for (i = width - 1; i >= 0; i--) {
+        field[i] = (char) ('0' + (int) (value & 7));
+        value >>= 3;
+    }
+}
+
+/*
+ * Read a header field of width bytes as octal. A field filled to its width
+ * carries no terminator, so sscanf on the field in place runs into the
+ * field that follows; copy it out with an explicit terminator first.
+ */
+long
+getoctal(field, width)
+    char *field;
+    int width;
+{
+    char buf[24];
+    register int i;
+
+    if (width > (int) sizeof(buf) - 1)
+        width = sizeof(buf) - 1;
+    for (i = 0; i < width; i++)
+        buf[i] = field[i];
+    buf[width] = '\0';
+    return (strtol(buf, (char **) 0, 8));
 }
 
 int
@@ -1017,13 +1059,15 @@ checksum()
 {
     register int i;
     register char *cp;
+    register unsigned char *up;
 
     for (cp = dblock.dbuf.chksum;
          cp < &dblock.dbuf.chksum[sizeof(dblock.dbuf.chksum)]; cp++)
         *cp = ' ';
     i = 0;
-    for (cp = dblock.dummy; cp < &dblock.dummy[TBLOCK]; cp++)
-        i += *cp;
+    for (up = (unsigned char *) dblock.dummy;
+         up < (unsigned char *) &dblock.dummy[TBLOCK]; up++)
+        i += *up;
     return (i);
 }
 
@@ -1397,6 +1441,14 @@ getbuf()
                 nblock = NBLOCK;
         }
     }
+    /*
+     * One rp2040 process owns a single 96-kbyte window for text, data,
+     * bss and stack together, so the block buffer is capped at the
+     * 20-block 10240-byte default however large the archive file's
+     * st_blksize is and however large a -b argument asks for.
+     */
+    if (nblock > NBLOCK)
+        nblock = NBLOCK;
     tbuf = (union hblock *)malloc((unsigned)nblock*TBLOCK);
     if (tbuf == NULL) {
         fprintf(stderr, "tar: blocksize %d too big, can't get memory\n",
@@ -1461,7 +1513,7 @@ dodirtimes(hp)
     ndir = savndir;
 
     /* Push this one on the "stack" */
-    while (*p = *q++)   /* append the rest of the new dir */
+    while ((*p = *q++) != '\0')  /* append the rest of the new dir */
         if (*p++ == '/')
             mtime[++ndir] = -1;
     mtime[ndir] = stbuf.st_mtime;   /* overwrite the last one */

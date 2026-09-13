@@ -38,8 +38,12 @@ PAGE = """<!doctype html><html><head><meta charset=utf-8>
 <style>html,body{margin:0;height:100%%;width:100%%;background:#000;overflow:hidden}
 #t{position:absolute;top:0;left:0}
 #s{position:fixed;top:4px;right:8px;color:#6a6;font:12px monospace;z-index:9}
+#k{position:fixed;bottom:0;left:0;right:0;display:none;background:#111;padding:4px;z-index:9}
+#k button{font:16px monospace;color:#ddd;background:#333;border:1px solid #555;margin:2px;padding:6px 10px}
+@media (pointer:coarse){#k{display:block}}
 </style></head><body>
 <div id=s>connecting</div><div id=t></div>
+<div id=k><button data-k="\u001b">Esc</button><button data-k="\t">Tab</button><button data-k="\u0003">^C</button><button data-k="\u0004">^D</button><button data-k="\u001a">^Z</button><button data-k="\u001b[A">&uarr;</button><button data-k="\u001b[B">&darr;</button><button data-k="\u001b[D">&larr;</button><button data-k="\u001b[C">&rarr;</button></div>
 <script src="%s"></script>
 <script>
 var term=new Terminal({cols:80,rows:24,fontFamily:"monospace",fontSize:14,
@@ -52,7 +56,8 @@ var stat=document.getElementById("s");
 // while the board's size never changes. A monospace cell is about 0.6 of
 // the font wide and about 1.2 tall.
 function fit(){
- var fw=window.innerWidth/(80*0.6), fh=window.innerHeight/(24*1.2);
+ var bar=document.getElementById("k"), bh=bar&&getComputedStyle(bar).display!=="none"?bar.offsetHeight:0;
+ var fw=window.innerWidth/(80*0.6), fh=(window.innerHeight-bh)/(24*1.2);
  var fs=Math.max(8,Math.floor(Math.min(fw,fh)));
  if(fs!==term.options.fontSize){term.options.fontSize=fs;}
  try{term.resize(80,24);}catch(e){}
@@ -78,6 +83,11 @@ ws.onmessage=function(e){
   new TextDecoder("latin1").decode(new Uint8Array(e.data));
  term.write(d);};
 term.onData(function(d){if(ws.readyState===1)ws.send(d);});
+// Key bar for touch keyboards, which have no Escape, Tab or Ctrl: each
+// button sends the bytes a hardware key would and hands focus back.
+Array.prototype.forEach.call(document.querySelectorAll("#k button"),function(b){
+ b.addEventListener("click",function(e){e.preventDefault();
+  if(ws.readyState===1)ws.send(b.getAttribute("data-k"));grab();});});
 </script></body></html>""" % (XTERM_CSS, XTERM)
 
 

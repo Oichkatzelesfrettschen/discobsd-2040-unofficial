@@ -126,12 +126,35 @@ retry:
 			int             dolg = 0;
 			BOOL            bra;
 			BOOL            nulflg;
+			BOOL            lenflg = 0;
 			register char   *argp, *v;
 			char            idb[2];
 			char            *id = idb;
 
 			if (bra = (c == BRACE))
+			{
 				c = cii(readc());   /* @@@ */
+
+				/*
+				 * XCU 2.6.2 string length: in ${#parameter}
+				 * the '#' introduces the length of the
+				 * parameter that follows, while a '#' that
+				 * is itself the whole parameter is the
+				 * positional parameter count.
+				 */
+				if (c == '#')
+				{
+					register int    inner = cii(readc());
+
+					if (inner == '}')
+						peekc = inner | MARK;
+					else
+					{
+						lenflg = 1;
+						c = inner;
+					}
+				}
+			}
 			if (letter(c))
 			{
 				argp = (char *)relstak();
@@ -189,6 +212,24 @@ retry:
 			}
 			else
 				nulflg = 0;
+			if (lenflg)
+			{
+				if (c != '}')
+					error(badsub);
+				if (dolg)
+					itos(dolc);     /* ${#*} and ${#@} */
+				else if (v == NIL)
+				{
+					if (flags & setflg)
+						failed(id, unset);
+					itos(0);
+				}
+				else
+					itos(length(v) - 1);
+				v = numbuf;
+				dolg = 0;
+				nulflg = 0;
+			}
 			if (!defchar(c) && bra)
 				error(badsub);
 			argp = NIL;

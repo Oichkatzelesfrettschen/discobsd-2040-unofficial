@@ -54,25 +54,6 @@ setjmp:
 	mov	r3, lr			/* Bring high register lr to low. */
 	stmea	r0!, {r1-r3}		/* Save v8, ip and lr in env arg. */
 #endif
-	/*
-	 * Save the SIO hardware divider state at env[10..13]. r0 now points
-	 * at env[10] (past the ten saved registers). The RP2040 bootrom
-	 * float divide is the only divider user (integer divide is software,
-	 * ISRs never divide), so a process here is either not mid-divide or
-	 * its result is long ready; either way the read is valid. longjmp
-	 * writes it back so a process preempted between the divisor write and
-	 * the quotient read in a float divide is not handed another process's
-	 * quotient when it resumes. SIO base 0xd0000000: UDIVIDEND 0x60,
-	 * UDIVISOR 0x64, QUOTIENT 0x70, REMAINDER 0x74.
-	 */
-	movs	r1, #0xd0
-	lsls	r1, r1, #24		/* r1 = SIO base 0xd0000000. */
-	ldr	r2, [r1, #0x60]		/* DIV_UDIVIDEND. */
-	ldr	r3, [r1, #0x64]		/* DIV_UDIVISOR. */
-	stmea	r0!, {r2-r3}		/* -> env[10], env[11]. */
-	ldr	r2, [r1, #0x74]		/* DIV_REMAINDER. */
-	ldr	r3, [r1, #0x70]		/* DIV_QUOTIENT. */
-	stmea	r0!, {r2-r3}		/* -> env[12], env[13]. */
 	movs	r0, #0			/* Returns zero. */
 	bx	lr
 	.size	setjmp, . - setjmp
@@ -143,32 +124,6 @@ resume:
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
 	str	r2, [r3, #60]		/* Save &u in u.u_procp->p_addr. */
 2:
-	/*
-	 * Restore the incoming process's SIO hardware divider state from
-	 * env[10..13] before the register restore below overwrites r10, which
-	 * still holds env here. Interrupts are disabled, so this is atomic.
-	 * Write the dividend and divisor -- the divisor write starts a
-	 * division -- then spin on DIV_CSR READY so that division completes
-	 * before its result is overwritten with the saved remainder and
-	 * quotient. r0-r3 are scratch; the register restore reloads a2 from
-	 * r10 just below. SIO base 0xd0000000: UDIVIDEND 0x60, UDIVISOR 0x64,
-	 * QUOTIENT 0x70, REMAINDER 0x74, CSR 0x78 (bit 0 READY).
-	 */
-	mov	r3, r10			/* r3 = env base (r10 holds env here). */
-	adds	r3, #(10 * 4)		/* r3 = &env[10]. */
-	ldmia	r3!, {r0-r1}		/* r0=UDIVIDEND, r1=UDIVISOR (saved). */
-	movs	r2, #0xd0
-	lsls	r2, r2, #24		/* r2 = SIO base 0xd0000000. */
-	str	r0, [r2, #0x60]		/* DIV_UDIVIDEND. */
-	str	r1, [r2, #0x64]		/* DIV_UDIVISOR -- starts a division. */
-3:
-	ldr	r0, [r2, #0x78]		/* DIV_CSR. */
-	lsrs	r0, r0, #1		/* READY (bit 0) -> carry. */
-	bcc	3b			/* Spin until the division is ready. */
-	ldmia	r3!, {r0-r1}		/* r0=REMAINDER, r1=QUOTIENT (saved). */
-	str	r0, [r2, #0x74]		/* DIV_REMAINDER. */
-	str	r1, [r2, #0x70]		/* DIV_QUOTIENT. */
-
 	mov	a2, r10			/* Restore env (second arg). */
 #ifdef __thumb2__
 	ldmia	a2!, {r4-r10,fp,ip,lr}	/* Restore regs from env arg. */

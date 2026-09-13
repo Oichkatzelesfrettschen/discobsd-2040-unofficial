@@ -25,17 +25,35 @@ generator (KEEN_NOUNIQUE=1) finds:
 "keen 5 10" admits thirteen grids. This is the reproduction the user hit:
 they solved 13 of 25 cells and the rest still had multiple outcomes.
 
-## The five outcomes
+## The reported puzzle: exactly five solutions
 
-The exact count of five is a property of the clues plus the player's own
-entries, not of the clues alone. Taking the thirteen-grid puzzle from
-"keen 5 10" and imposing thirteen cells of one of its grids as player
-entries leaves exactly five grids consistent with clues and entries. The
-regression asserts at least two grids for the clues alone and exactly
-five once the reconstructed entries are imposed, matching the user's
-statement. The entries are a reconstruction chosen to leave five; they
-are not a transcript of the played game, which the photographs did not
-capture.
+The player's screenshot (Screenshot_20260913_093427) is the actual 5x5
+puzzle, transcribed into tests/fixtures/reported-5x5.keen. Its cages and
+clues:
+
+    aabbc    a 40*   b 11+   c 2/
+    aabdc    d 15*   e 24*   f 12+
+    eeedd    g 9+    h 5
+    feggd
+    ffggh
+
+The clues alone admit exactly five grids, confirmed by both the host
+--count and the independent tests/keensolve.py. The five solutions:
+
+    12534  12534  14532  21534  41532
+    45312  45312  25314  45312  25314
+    21453  23451  32451  12453  12453
+    53241  51243  51243  53241  53241
+    34125  34125  43125  34125  34125
+
+The thirteen cells the player had filled in are exactly the thirteen
+cells that hold the same value in all five solutions -- the cells the
+clues force -- and the other twelve vary across the five. So the player
+had deduced everything the clues determine and correctly saw that the
+rest had five possible outcomes. Imposing the thirteen entries
+(reported-5x5-entries.keen) therefore still counts five. This is the
+"13 of 25 solved, 5 outcomes" report, confirmed cell for cell against the
+puzzle rather than reconstructed.
 
 ## Fix
 
@@ -57,9 +75,10 @@ puzzle is solvable at all, without a difficulty rating.
 - `bmake -C games/keen test` runs two host tests. tests/keensolve.py is
   an independent solution counter sharing no code with keen.c;
   tests/uniqueness.py requires the two to agree on every count.
-- Four fixtures: ambiguous (>= 2 grids), the same with thirteen entries
-  imposed (exactly 5), unique (1), inconsistent (0, a unique puzzle with
-  one cage's subtraction target changed to an impossible value).
+- Four fixtures: the reported puzzle (exactly 5 grids), the same with the
+  player's thirteen entries imposed (still 5, and the test checks those
+  thirteen are the cells the clues force), unique (1), and inconsistent
+  (0, a unique puzzle with one cage's subtraction target made impossible).
 - The generator sweep: the unchecked generator is ambiguous in 54 of 80
   puzzles at sizes 4 and 5; the checked generator is unique in all 160
   puzzles across sizes 3 to 6 and forty seeds, by both counters.
@@ -69,13 +88,19 @@ puzzle is solvable at all, without a difficulty rating.
 - Object size grew from 2,217 to 2,909 text bytes and 740 to 1,660 bss;
   the board a.out is 9,008 bytes and still shares gamebox.
 
-## Uncertain because of the photographs
+## What the screenshot did and did not fix
 
-The photographs the user referenced are not of the puzzle: the files in
-~/Pictures and ~/Downloads from the period are insurance cards, a Pico
-board, and qwen-apu screenshots, and the earlier session's only attached
-image was a device shell screenshot. The specific grid the user played,
-their thirteen solved cells, and which five outcomes they saw are
-therefore not reconstructed from source data. The ambiguity is confirmed
-against the actual generator; the exact five-outcome fixture is a faithful
-reconstruction of the described situation, not a transcript.
+The screenshot resolves what an earlier pass could not: the puzzle is now
+transcribed from the image, the five solutions are enumerated, and the
+thirteen filled cells are shown to be exactly the forced cells, so the
+diagnosis is confirmed against the real data, not a reconstruction from a
+different seed. The transcription is self-validating: a wrong cage border
+or clue would not produce a solution set whose forced cells match the
+thirteen visible entries.
+
+One thing the screenshot cannot give is the seed and RNG that generated
+this exact board. The board uses newlib's rand(), the host glibc's, so
+the seed that drew this puzzle on the device does not reproduce it on the
+host, and the pre-fix generator is gone from the current tree. This does
+not weaken the diagnosis: the defect is that the shipped generator
+emitted a puzzle with five solutions, and that puzzle is now a fixture.

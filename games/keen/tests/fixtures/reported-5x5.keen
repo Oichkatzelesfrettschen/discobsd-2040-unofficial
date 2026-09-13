@@ -1,0 +1,22 @@
+# The actual 5x5 puzzle a player reported as having multiple solutions
+# (Screenshot_20260913_093427). Transcribed from the drawn grid: the cage
+# letters below follow the borders and the clues are read from the labeled
+# cells. The clues alone admit exactly five grids, so a solver that has
+# applied every deduction still faces a choice -- the defect this puzzle
+# proves against real data rather than a reconstruction.
+size 5
+cages
+aabbc
+aabdc
+eeedd
+feggd
+ffggh
+clues
+a 40*
+b 11+
+c 2/
+d 15*
+e 24*
+f 12+
+g 9+
+h 5

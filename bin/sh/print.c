@@ -96,19 +96,25 @@ prn(n)
 	prs(numbuf);
 }
 
+/*
+ * Decimal conversion of a full int into numbuf[12]: ten digits and the
+ * terminator.  The divisor starts at the largest power of ten an
+ * unsigned int holds, so a process id or line number at or above 100000
+ * keeps its leading digits instead of folding them into one byte.
+ */
 itos(n)
+	int	n;
 {
-	register char *abuf;
-	register unsigned a, i;
-	int pr, d;
+	register char		*abuf = numbuf;
+	register unsigned int	a = n;
+	register unsigned int	i;
+	int			pr = FALSE;
 
-	abuf = numbuf;
-
-	pr = FALSE;
-	a = n;
-	for (i = 10000; i != 1; i /= 10)
+	for (i = 1000000000; i != 1; i /= 10)
 	{
-		if ((pr |= (d = a / i)))
+		register unsigned int	d = a / i;
+
+		if (pr |= (d != 0))
 			*abuf++ = d + '0';
 		a %= i;
 	}

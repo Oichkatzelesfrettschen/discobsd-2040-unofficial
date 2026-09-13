@@ -151,6 +151,7 @@ ok param_question_true '0' 'true; echo $?'
 ok param_question_false '1' 'false; echo $?'
 ok param_dash_has_flags 'yes' 'set -f; case $- in *f*) echo yes;; *) echo no;; esac'
 ok param_dollar_pid 'ok' 'echo $$ > /dev/null; echo ok'
+ok param_dollar_is_decimal 'ok' 'case $$ in *[!0-9]*) echo bad;; ?*) echo ok;; esac'
 
 # ---- XCU 2.6.1 tilde expansion ----
 xfail tilde_home 2.6.1 "$HOME" 'echo ~'

@@ -97,9 +97,46 @@ static int flrom_ready;
 static u_int boot2_copy[BOOT2_WORDS];
 
 static struct dhara_map flmap;
-static u_char flpage[FLASH_UNIT_BYTES];
-static u_char flcopy[FLASH_UNIT_BYTES];	/* dhara_nand_copy staging. */
+static u_char flpage[FLASH_UNIT_BYTES];	/* Dhara's own page buffer, live for the map's lifetime. */
 static int flmap_ready;
+
+/*
+ * Staging storage the two write paths share. fl_raw stages a partial
+ * swap sector in flsect; the Dhara path stages a partial trailing unit
+ * in flpart and dhara_nand_copy, which Dhara calls from inside
+ * dhara_map_write, stages a page move in flcopy, so flpart and flcopy
+ * are live at once. Both paths run inside flstrategy under splbio from
+ * entry to exit and neither sleeps, since flash_erase and flash_program
+ * spin, so a swap write and a filesystem write never interleave and the
+ * sector buffer can lie over the two unit buffers. flscratch_owner names
+ * the path holding the union: the two flstrategy paths refuse to enter
+ * while it is held, and dhara_nand_copy, which Dhara also reaches from
+ * dhara_map_sync at close and from dhara_map_resume at setup, refuses to
+ * run while the swap path holds it, so a violation of the argument above
+ * is a panic rather than silent corruption.
+ */
+static union {
+	u_char	sect[FLASH_SECTOR_BYTES];	/* Swap read-modify-write. */
+	struct {
+		u_char	part[FLASH_UNIT_BYTES];	/* A partial trailing unit. */
+		u_char	copy[FLASH_UNIT_BYTES];	/* dhara_nand_copy staging. */
+	} map;
+} flscratch;
+static int flscratch_owner;
+#define	FLS_FREE	0
+#define	FLS_SWAP	1			/* fl_raw holds flsect. */
+#define	FLS_MAP		2			/* flstrategy holds flpartbuf. */
+#define	flsect	flscratch.sect
+#define	flpartbuf	flscratch.map.part
+#define	flcopy	flscratch.map.copy
+
+static void
+flscratch_take(int owner)
+{
+	if (flscratch_owner != FLS_FREE)
+		panic("flash: scratch buffer reentered");
+	flscratch_owner = owner;
+}
 static daddr_t flblocks;		/* Capacity in DEV_BSIZE blocks. */
 
 /* The filesystem region as Dhara sees it; see flash.h for the choice. */
@@ -314,6 +351,8 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 	 * static because a kilobyte does not belong on the kernel stack, and
 	 * every caller holds splbio.
 	 */
+	if (flscratch_owner == FLS_SWAP)
+		panic("flash: page copy during a swap write");
 	if (dhara_nand_read(n, src, 0, FLASH_UNIT_BYTES, flcopy, err) < 0)
 		return -1;
 	return dhara_nand_prog(n, dst, flcopy, err);
@@ -345,8 +384,6 @@ struct fldisk {
 };
 
 static struct fldisk fldrives[NFL];
-static u_char flsect[FLASH_SECTOR_BYTES];	/* Swap read-modify-write. */
-static u_char flpart[FLASH_UNIT_BYTES];		/* A partial trailing unit. */
 
 /*
  * Dhara makes a write durable only at a checkpoint, which dhara_map_sync
@@ -503,6 +540,7 @@ fl_raw(struct buf *bp, u_int off, u_int len)
 	}
 
 	s = splbio();
+	flscratch_take(FLS_SWAP);
 	while (len > 0) {
 		sect = base & ~(FLASH_SECTOR_BYTES - 1);
 		head = base - sect;
@@ -524,6 +562,7 @@ fl_raw(struct buf *bp, u_int off, u_int len)
 		addr += n;
 		len -= n;
 	}
+	flscratch_owner = FLS_FREE;
 	splx(s);
 	return 0;
 }
@@ -602,6 +641,7 @@ flstrategy(struct buf *bp)
 	addr = (u_char *)bp->b_addr;
 
 	s = splbio();
+	flscratch_take(FLS_MAP);
 	for (i = 0; i < nsect && ! fail; i++) {
 		if (bp->b_flags & B_READ) {
 			if (dhara_map_read(&flmap, sector + i,
@@ -615,19 +655,20 @@ flstrategy(struct buf *bp)
 	}
 	if (rem && ! fail) {
 		/* The trailing partial unit is staged, both ways. */
-		if (dhara_map_read(&flmap, sector + nsect, flpart, &err) < 0)
+		if (dhara_map_read(&flmap, sector + nsect, flpartbuf, &err) < 0)
 			fail = 1;
 		else if (bp->b_flags & B_READ)
-			bcopy(flpart, addr + nsect * FLASH_UNIT_BYTES, rem);
+			bcopy(flpartbuf, addr + nsect * FLASH_UNIT_BYTES, rem);
 		else {
-			bcopy(addr + nsect * FLASH_UNIT_BYTES, flpart, rem);
-			if (dhara_map_write(&flmap, sector + nsect, flpart,
+			bcopy(addr + nsect * FLASH_UNIT_BYTES, flpartbuf, rem);
+			if (dhara_map_write(&flmap, sector + nsect, flpartbuf,
 			    &err) < 0)
 				fail = 1;
 		}
 	}
 	if (! (bp->b_flags & B_READ) && ! fail && fl_sync() != 0)
 		fail = 1;
+	flscratch_owner = FLS_FREE;
 	splx(s);
 
 done:

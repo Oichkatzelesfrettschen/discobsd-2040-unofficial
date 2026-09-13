@@ -111,7 +111,7 @@ struct buf *breada (dev_t dev, daddr_t blkno, daddr_t rablkno);
 /*
  * Write the buffer, waiting for completion. Then release the buffer.
  */
-void bwrite (struct buf *bp);
+int bwrite (struct buf *bp);
 
 /*
  * Release the buffer, with delayed write.
@@ -141,12 +141,12 @@ int incore (dev_t dev, daddr_t blkno);
 /*
  * Make sure all write-behind blocks on dev are flushed out.
  */
-void bflush (dev_t dev);
+int bflush (dev_t dev);
 
 /*
  * Insure that no part of a specified block is in an incore buffer.
  */
-void blkflush (dev_t dev, daddr_t blkno);
+int blkflush (dev_t dev, daddr_t blkno);
 
 /*
  * Invalidate in core blocks belonging to closed or umounted filesystem.

@@ -53,6 +53,7 @@ struct  mount
 #define m_flags m_filsys.fs_flags
     struct  inode *m_inodp;         /* pointer to mounted on inode */
     struct  inode *m_qinod;         /* QUOTA: pointer to quota file */
+    int     m_write_error;           /* first write error until next mount */
     char    m_mntfrom [MNAMELEN];   /* /dev/xxxx mounted from */
     char    m_mnton [MNAMELEN];     /* directory mounted on - this is the
                                      * full(er) version of fs_fsmnt. */

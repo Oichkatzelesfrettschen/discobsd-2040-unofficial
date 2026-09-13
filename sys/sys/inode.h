@@ -232,13 +232,13 @@ int ino_stat (struct inode *ip, struct stat *sb);
 /*
  * Truncate the inode ip to at most length size.
  */
-void itrunc (struct inode *oip, u_long length, int ioflags);
+void itrunc (struct inode *oip, off_t length, int ioflags);
 
 /*
  * Update the inode with the current time.
  */
 struct timeval;
-void iupdat (struct inode *ip, struct timeval *ta, struct timeval *tm,
+int iupdat (struct inode *ip, struct timeval *ta, struct timeval *tm,
     int waitfor);
 
 void irele (struct inode *ip);
@@ -256,7 +256,7 @@ void free (struct inode *ip, daddr_t bno);
 /*
  * Flush all the blocks associated with an inode.
  */
-void syncip (struct inode *ip);
+int syncip (struct inode *ip);
 
 /*
  * Remove any inodes in the inode cache belonging to dev.

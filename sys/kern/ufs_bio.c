@@ -8,6 +8,7 @@
 #include <sys/user.h>
 #include <sys/conf.h>
 #include <sys/fs.h>
+#include <sys/mount.h>
 #include <sys/dk.h>
 #include <sys/systm.h>
 #include <sys/map.h>
@@ -96,13 +97,15 @@ breada(dev, blkno, rablkno)
  * Write the buffer, waiting for completion.
  * Then release the buffer.
  */
-void
+int
 bwrite(bp)
     register struct buf *bp;
 {
     register int flag;
+    int error;
 
     flag = bp->b_flags;
+    error = 0;
     bp->b_flags &= ~(B_READ | B_DONE | B_ERROR | B_DELWRI);
     if ((flag&B_DELWRI) == 0)
         u.u_ru.ru_oublock++;                /* noone paid yet */
@@ -116,9 +119,11 @@ bwrite(bp)
      */
     if ((flag&B_ASYNC) == 0) {
         biowait(bp);
+        error = geterror(bp);
         brelse(bp);
     } else if (flag & B_DELWRI)
         bp->b_flags |= B_AGE;
+    return (error);
 }
 
 /*
@@ -354,9 +359,24 @@ void
 biodone(bp)
     register struct buf *bp;
 {
+    struct mount *mount_entry;
+    int write_error;
+
     if (bp->b_flags & B_DONE)
         panic("dup biodone");
     bp->b_flags |= B_DONE;
+    if ((bp->b_flags & (B_READ | B_ERROR)) == B_ERROR) {
+        write_error = geterror(bp);
+        for (mount_entry = mount;
+            mount_entry < &mount[NMOUNT]; mount_entry++) {
+            if (mount_entry->m_inodp == NULL ||
+                mount_entry->m_dev != bp->b_dev)
+                continue;
+            if (mount_entry->m_write_error == 0)
+                mount_entry->m_write_error = write_error;
+            break;
+        }
+    }
     if (bp->b_flags & B_ASYNC)
         brelse(bp);
     else {
@@ -368,7 +388,7 @@ biodone(bp)
 /*
  * Insure that no part of a specified block is in an incore buffer.
  */
-void
+int
 blkflush (dev, blkno)
     register dev_t dev;
     daddr_t blkno;
@@ -376,6 +396,7 @@ blkflush (dev, blkno)
     register struct buf *ep;
     struct buf *dp;
     register int s;
+    int error;
 
     dp = BUFHASH(dev, blkno);
     blkno = fsbtodb(blkno);
@@ -394,24 +415,29 @@ loop:
         if (ep->b_flags & B_DELWRI) {
             splx(s);
             notavail(ep);
-            bwrite(ep);
+            error = bwrite(ep);
+            if (error)
+                return (error);
             goto loop;
         }
         splx(s);
     }
+    return (0);
 }
 
 /*
  * Make sure all write-behind blocks on dev are flushed out.
  * (from umount and sync)
  */
-void
+int
 bflush(dev)
     register dev_t dev;
 {
     register struct buf *bp;
     register struct buf *flist;
-    int s;
+    int error, first_error, s;
+
+    first_error = 0;
 
 loop:
     s = splbio();
@@ -420,15 +446,17 @@ loop:
             if ((bp->b_flags & B_DELWRI) == 0)
                 continue;
             if (dev == bp->b_dev) {
-                bp->b_flags |= B_ASYNC;
                 notavail(bp);
-                bwrite(bp);
+                error = bwrite(bp);
                 splx(s);
+                if (error && first_error == 0)
+                    first_error = error;
                 goto loop;
             }
         }
     }
     splx(s);
+    return (first_error);
 }
 
 /*

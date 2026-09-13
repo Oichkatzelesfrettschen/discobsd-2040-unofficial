@@ -54,10 +54,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-extern char *tname;                     /* temporary file "name" */
-
 /*-
  * delete --
  *	Deletes named members from the archive.
@@ -66,15 +62,14 @@ int
 delete(char **argv)
 {
 	CF cf;
-	off_t size;
-	int afd, tfd;
+	int afd, replacement_fd;
 	char *file;
 
 	afd = open_archive(O_RDWR);
-	tfd = tmp();
+	replacement_fd = begin_archive_rewrite(afd);
 
 	/* Read and write to an archive; pad on both. */
-	SETCF(afd, archive, tfd, tname, RPAD|WPAD);
+	SETCF(afd, archive, replacement_fd, archive, RPAD|WPAD);
 	while (get_arobj(afd)) {
 		if (*argv && (file = files(argv))) {
 			if (options & AR_V)
@@ -84,20 +79,12 @@ delete(char **argv)
 		}
 		put_arobj(&cf, (struct stat *)NULL);
 	}
-
-	size = lseek(tfd, (off_t)0, SEEK_CUR);
-	(void)lseek(tfd, (off_t)0, SEEK_SET);
-	(void)lseek(afd, (off_t)SARMAG, SEEK_SET);
-	SETCF(tfd, tname, afd, archive, NOPAD);
-	copy_ar(&cf, size);
-	(void)close(tfd);
-	if (ftruncate(afd, size + SARMAG) < 0)
-                /* ignore */;
-	close_archive(afd);
-
 	if (*argv) {
 		orphans(argv);
+		abort_archive_rewrite(afd, replacement_fd);
 		return(1);
 	}
+	commit_archive_rewrite(afd, replacement_fd);
+
 	return(0);
 }

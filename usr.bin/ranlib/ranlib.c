@@ -71,8 +71,10 @@
 
 #ifdef CROSS
 #   include "../ar/archive.h"
+#   include "../ar/extern.h"
 #else
 #   include "archive.h"
+#   include "extern.h"
 #endif
 
 u_int options;				/* UNUSED -- keep open_archive happy */
@@ -87,12 +89,32 @@ typedef struct _rlib {
 	char *sym;			/* symbol */
 	int symlen;			/* strlen(sym) */
 } RLIB;
-RLIB *rhead, **pnext;
+static RLIB *rhead, **pnext;
 
-FILE *fp;
-long symcnt;				/* symbol count */
-long tsymlen;				/* total string length */
-int verbose;
+static FILE *fp;
+static long symcnt;			/* symbol count */
+static long tsymlen;			/* total string length */
+static int verbose;
+
+static void
+write_bytes(int fd, const void *buffer, size_t size, char *name)
+{
+	const char *next_byte;
+	ssize_t bytes_written;
+
+	next_byte = buffer;
+	while (size != 0) {
+		bytes_written = write(fd, next_byte, size);
+		if (bytes_written < 0)
+			error(name);
+		if (bytes_written == 0) {
+			errno = EIO;
+			error(name);
+		}
+		next_byte += bytes_written;
+		size -= (size_t)bytes_written;
+	}
+}
 
 void
 error(char *name)
@@ -101,7 +123,7 @@ error(char *name)
 	exit(1);
 }
 
-void *
+static void *
 emalloc(int len)
 {
 	char *p;
@@ -112,23 +134,7 @@ emalloc(int len)
 	return((void *)p);
 }
 
-int
-sgets(char *buf, int n, FILE *fp)
-{
-	register int i, c;
-
-	n--;				/* room for null */
-	for (i = 0; i < n; i++) {
-		c = getc(fp);
-		if (c == EOF || c == 0)
-			break;
-		*buf++ = c;
-	}
-	*buf = '\0';
-	return(i + 1);
-}
-
-unsigned int
+static unsigned int
 fgetword(FILE *f)
 {
         register unsigned int h;
@@ -149,7 +155,7 @@ fgetword(FILE *f)
  *  4 bytes: value
  *  N bytes: name
  */
-int
+static int
 fgetsym(FILE *fi, char *name, unsigned int *value, unsigned short *type)
 {
         register int len;
@@ -177,7 +183,7 @@ fgetsym(FILE *fi, char *name, unsigned int *value, unsigned short *type)
 /*
  * Read the exec structure; ignore any files that don't look exactly right.
  */
-void
+static void
 rexec(int rfd, int wfd)
 {
 	register RLIB *rp;
@@ -237,7 +243,7 @@ rexec(int rfd, int wfd)
 		rp->pos = w_off;
 		rp->symlen = symlen;
 		rp->sym = (char*) emalloc(symlen + 1);
-		bcopy(name, rp->sym, symlen + 1);
+		memcpy(rp->sym, name, (size_t)symlen + 1);
 		tsymlen += symlen;
 
 		/* Build in forward order for "ar -m" command. */
@@ -253,12 +259,13 @@ bad1:	(void)lseek(rfd, (off_t)r_off, SEEK_SET);
  *	Write the symbol table into the archive, computing offsets as
  *	writing.
  */
-void
+static void
 symobj(void)
 {
 	register RLIB *rp;
 	char hb[sizeof(struct ar_hdr) + 1];
 	long ransize, baseoff;
+	mode_t creation_mask;
 
 	/* Rewind the archive, leaving the magic number. */
 	if (fseek(fp, (off_t)SARMAG, SEEK_SET) == (off_t)-1)
@@ -272,8 +279,10 @@ symobj(void)
         ransize += 4 - (ransize & 3);
 
 	/* Put out the ranlib archive file header. */
+	creation_mask = umask(0);
+	(void)umask(creation_mask);
 	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0L, getuid(), getgid(),
-	    0666 & ~umask(0), ransize, ARFMAG);
+	    0666 & ~creation_mask, ransize, ARFMAG);
 	if (! fwrite(hb, sizeof(struct ar_hdr), 1, fp))
 		error(tname);
 
@@ -290,7 +299,8 @@ symobj(void)
                  * 4 bytes - seek in archive.
                  * 'len' bytes - symbol name. */
 	        unsigned offset = baseoff + rp->pos;
-	        fputc (rp->symlen, fp);
+		if (fputc(rp->symlen, fp) == EOF)
+			error(tname);
 		if (! fwrite((char *)&offset, 4, 1, fp))
 			error(archive);
 		if (! fwrite(rp->sym, rp->symlen, 1, fp))
@@ -302,12 +312,27 @@ symobj(void)
 
         /* Align to word boundary. */
 	while (ransize-- > 0)
-                fputc (0, fp);
+		if (fputc(0, fp) == EOF)
+			error(tname);
 
-	(void)fflush(fp);
+	if (fflush(fp) == EOF)
+		error(tname);
 }
 
-void
+static void
+free_symbol_list(void)
+{
+	RLIB *entry, *next_entry;
+
+	for (entry = rhead; entry != NULL; entry = next_entry) {
+		next_entry = entry->next;
+		free(entry->sym);
+		free(entry);
+	}
+	rhead = NULL;
+}
+
+static void
 settime(int afd)
 {
 	struct ar_hdr *hdr;
@@ -319,8 +344,7 @@ settime(int afd)
 		error(archive);
 	(void)snprintf(buf, sizeof(buf), "%-12ld",
 	    time((time_t *)NULL) + RANLIBSKEW);
-	if (write(afd, buf, sizeof(hdr->ar_date)) != sizeof(hdr->ar_date))
-		error(archive);
+	write_bytes(afd, buf, sizeof(hdr->ar_date), archive);
 }
 
 int
@@ -332,7 +356,7 @@ tmp(void)
 	int fd;
 	char path[MAXPATHLEN];
 
-	bcopy(_PATH_RANTMP, path, sizeof(_PATH_RANTMP));
+	memcpy(path, _PATH_RANTMP, sizeof(_PATH_RANTMP));
 
 #ifndef CROSS
 	set = sigmask(SIGHUP) | sigmask(SIGINT) |
@@ -342,22 +366,28 @@ tmp(void)
 	fd = mkstemp(path);
 	if (fd < 0)
 		error(tname);
-        (void)unlink(path);
+	if (unlink(path) < 0)
+		error(path);
 #ifndef CROSS
 	(void)sigsetmask(oset);
 #endif
 	return(fd);
 }
 
-int
+static int
 build(void)
 {
 	CF cf;
-	int afd, tfd;
+	int afd, replacement_fd, replacement_stream_fd, source_stream_fd, tfd;
 	off_t size;
 
 	afd = open_archive(O_RDWR);
-	fp = fdopen(afd, "r+");
+	source_stream_fd = dup(afd);
+	if (source_stream_fd < 0)
+		error(archive);
+	fp = fdopen(source_stream_fd, "r");
+	if (fp == NULL)
+		error(archive);
 	tfd = tmp();
 
 	SETCF(afd, archive, tfd, tname, RPAD|WPAD);
@@ -374,43 +404,70 @@ build(void)
 		put_arobj(&cf, (struct stat *)NULL);
 	}
 	*pnext = NULL;
+	if (fclose(fp) < 0)
+		error(archive);
 
-	/* Create the symbol table. */
+	replacement_fd = begin_archive_rewrite(afd);
+	replacement_stream_fd = dup(replacement_fd);
+	if (replacement_stream_fd < 0)
+		error(archive);
+	fp = fdopen(replacement_stream_fd, "r+");
+	if (fp == NULL)
+		error(archive);
+
+	/* Create the symbol table in the complete replacement archive. */
 	symobj();
+	free_symbol_list();
 
-	/* Copy the saved objects into the archive. */
+	/* Copy the saved objects into the replacement archive. */
 	size = lseek(tfd, (off_t)0, SEEK_CUR);
-	(void)lseek(tfd, (off_t)0, SEEK_SET);
-	SETCF(tfd, tname, afd, archive, RPAD|WPAD);
+	if (size == (off_t)-1 ||
+	    lseek(tfd, (off_t)0, SEEK_SET) == (off_t)-1)
+		error(tname);
+	SETCF(tfd, tname, replacement_fd, archive, RPAD|WPAD);
 	copy_ar(&cf, size);
-	if (ftruncate(afd, lseek(afd, (off_t)0, SEEK_CUR)) < 0)
-	        /* ignore */;
-	(void)close(tfd);
+	if (close(tfd) < 0)
+		error(tname);
 
 	/* Set the time. */
-	settime(afd);
-	close_archive(afd);
+	settime(replacement_fd);
+	if (fclose(fp) < 0)
+		error(archive);
+	commit_archive_rewrite(afd, replacement_fd);
 	return(0);
 }
 
-int
+static int
 touch(void)
 {
-	int afd;
+	CF cf;
+	struct stat archive_stat;
+	int afd, replacement_fd;
+	off_t payload_size;
 
 	afd = open_archive(O_RDWR);
 
 	if (!get_arobj(afd) ||
-	    strncmp(RANLIBMAG, chdr.name, sizeof(RANLIBMAG) - 1)) {
+	    strncmp(RANLIBMAG, chdr.name, sizeof(RANLIBMAG) - 1) != 0) {
 		(void)fprintf(stderr,
-		    "ranlib: %s: no symbol table.\n", archive);
+			    "ranlib: %s: no symbol table.\n", archive);
+		close_archive(afd);
 		return(1);
 	}
-	settime(afd);
+	if (fstat(afd, &archive_stat) < 0)
+		error(archive);
+	payload_size = archive_stat.st_size - SARMAG;
+	if (lseek(afd, (off_t)SARMAG, SEEK_SET) == (off_t)-1)
+		error(archive);
+	replacement_fd = begin_archive_rewrite(afd);
+	SETCF(afd, archive, replacement_fd, archive, NOPAD);
+	copy_ar(&cf, payload_size);
+	settime(replacement_fd);
+	commit_archive_rewrite(afd, replacement_fd);
 	return(0);
 }
 
-void
+static void
 usage(void)
 {
         fprintf(stderr, "Usage:\n");
@@ -440,7 +497,6 @@ main(int argc, char *argv[])
 		default:
 			usage();
 		}
-	argc -= optind;
 	argv += optind;
 
 	if (! *argv)
@@ -459,7 +515,7 @@ rname(char *path)
 {
 	register char *ind;
 
-	ind = rindex(path, '/');
+	ind = strrchr(path, '/');
 	if (! ind)
 	        return path;
 	return ind + 1;

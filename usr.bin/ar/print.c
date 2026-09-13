@@ -48,9 +48,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-
 /*
  * print --
  *	Prints archive members on stdout - if member names given only

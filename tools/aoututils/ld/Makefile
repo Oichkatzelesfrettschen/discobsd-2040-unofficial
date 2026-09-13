@@ -7,3 +7,5 @@ PROG=	ld
 OBJS=	ld.o
 
 include	../Makefile.inc
+
+ld.o: ld.c ${TOPSRC}/usr.bin/ld/ld.c

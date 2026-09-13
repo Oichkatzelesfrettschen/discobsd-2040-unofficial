@@ -57,14 +57,11 @@
 #include "archive.h"
 #include "extern.h"
 
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
 char *tname = "temporary file";		/* temporary file "name" */
 
 int
 tmp(void)
 {
-	extern char *envtmp;
 #ifndef CROSS
 	sigset_t set, oset;
 #endif
@@ -91,7 +88,8 @@ tmp(void)
 	fd = mkstemp(path);
 	if (fd == -1)
 		error(tname);
-        (void)unlink(path);
+	if (unlink(path) < 0)
+		error(path);
 #ifndef CROSS
 	(void)sigprocmask(SIG_SETMASK, &oset, NULL);
 #endif
@@ -112,7 +110,7 @@ files(char **argv)
 	for (list = argv; *list; ++list)
 		if (compare(*list)) {
 			p = *list;
-			while ((list[0] = list[1]) != 0)
+			while ((list[0] = list[1]) != NULL)
                             list++;
 			return(p);
 		}

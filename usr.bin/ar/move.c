@@ -54,10 +54,6 @@
 #include "archive.h"
 #include "extern.h"
 
-extern CHDR chdr;			/* converted header */
-extern char *archive;			/* archive name */
-extern char *tname;                     /* temporary file "name" */
-
 /*
  * move --
  *	Change location of named members in archive - if 'b' or 'i' option
@@ -68,10 +64,9 @@ extern char *tname;                     /* temporary file "name" */
 int
 move(char **argv)
 {
-	extern char *posarg, *posname;	/* positioning file names */
 	CF cf;
-	off_t size, tsize;
-	int afd, curfd, mods, tfd1, tfd2, tfd3;
+	off_t size;
+	int afd, curfd, mods, replacement_fd, tfd1, tfd2, tfd3;
 	char *file;
 
 	afd = open_archive(O_RDWR);
@@ -116,33 +111,43 @@ move(char **argv)
 	if (mods) {
 		(void)fprintf(stderr, "ar: %s: archive member not found.\n",
 		    posarg);
+		if (close(tfd1) < 0 || close(tfd2) < 0 || close(tfd3) < 0)
+			error(tname);
 		close_archive(afd);
 		return(1);
 	}
-	(void)lseek(afd, (off_t)SARMAG, SEEK_SET);
-
-	SETCF(tfd1, tname, afd, archive, NOPAD);
-	tsize = size = lseek(tfd1, (off_t)0, SEEK_CUR);
-	(void)lseek(tfd1, (off_t)0, SEEK_SET);
+	if (*argv) {
+		orphans(argv);
+		if (close(tfd1) < 0 || close(tfd2) < 0 || close(tfd3) < 0)
+			error(tname);
+		close_archive(afd);
+		return(1);
+	}
+	replacement_fd = begin_archive_rewrite(afd);
+	SETCF(tfd1, tname, replacement_fd, archive, NOPAD);
+	size = lseek(tfd1, (off_t)0, SEEK_CUR);
+	if (size == (off_t)-1 ||
+	    lseek(tfd1, (off_t)0, SEEK_SET) == (off_t)-1)
+		error(tname);
 	copy_ar(&cf, size);
 
-	tsize += size = lseek(tfd2, (off_t)0, SEEK_CUR);
-	(void)lseek(tfd2, (off_t)0, SEEK_SET);
+	size = lseek(tfd2, (off_t)0, SEEK_CUR);
+	if (size == (off_t)-1 ||
+	    lseek(tfd2, (off_t)0, SEEK_SET) == (off_t)-1)
+		error(tname);
 	cf.rfd = tfd2;
 	copy_ar(&cf, size);
 
-	tsize += size = lseek(tfd3, (off_t)0, SEEK_CUR);
-	(void)lseek(tfd3, (off_t)0, SEEK_SET);
+	size = lseek(tfd3, (off_t)0, SEEK_CUR);
+	if (size == (off_t)-1 ||
+	    lseek(tfd3, (off_t)0, SEEK_SET) == (off_t)-1)
+		error(tname);
 	cf.rfd = tfd3;
 	copy_ar(&cf, size);
 
-	if (ftruncate(afd, tsize + SARMAG) < 0)
-	        /* ignore */;
-	close_archive(afd);
+	if (close(tfd1) < 0 || close(tfd2) < 0 || close(tfd3) < 0)
+		error(tname);
+	commit_archive_rewrite(afd, replacement_fd);
 
-	if (*argv) {
-		orphans(argv);
-		return(1);
-	}
 	return(0);
 }

@@ -6,3 +6,5 @@ PROG=	nm
 OBJS=	nm.o
 
 include	../Makefile.inc
+
+nm.o: nm.c ${TOPSRC}/usr.bin/nm/nm.c

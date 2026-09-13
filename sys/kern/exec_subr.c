@@ -10,6 +10,9 @@
 #include <sys/mount.h>
 #include <sys/file.h>
 #include <sys/resource.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 #include <sys/exec.h>
 #include <sys/dir.h>
 #include <sys/uio.h>
@@ -231,6 +234,7 @@ void exec_alloc_freeall(struct exec_params *epp)
  */
 int exec_estab(struct exec_params *epp)
 {
+    size_t need;
     DEBUG("\texec_estab(): start\n");
 
     DEBUG("\texec_estab(): text  = %#x..%#x, len = %d\n", epp->text.vaddr,
@@ -258,8 +262,23 @@ int exec_estab(struct exec_params *epp)
     /*
      * Try out for overflow
      */
-    if (epp->text.len + epp->data.len + epp->bss.len + epp->heap.len +
-      epp->stack.len > MAXMEM) {
+    need = epp->text.len + epp->data.len + epp->bss.len + epp->heap.len +
+      epp->stack.len;
+#ifdef SWAPRAM
+    /*
+     * An image past the window but within the bonus asks for the LARGE
+     * epoch, which sleeps until the pool is on flash; one that fits the
+     * window again gives the bonus back.
+     */
+    if (need > MAXMEM && need <= MAXMEM + SWAPRAM_BONUS) {
+        if (swapram_enter_large (u.u_procp) != 0)
+            return ENOMEM;
+    } else if (need <= MAXMEM)
+        swapram_leave_large (u.u_procp);
+    if (need > swapram_ceiling (u.u_procp)) {
+#else
+    if (need > MAXMEM) {
+#endif
         DEBUG("\texec_estab(): error: memory overflow\n");
         return ENOMEM;
     }

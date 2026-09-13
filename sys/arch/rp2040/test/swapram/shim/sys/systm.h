@@ -4,4 +4,5 @@
 void panic(const char *);
 extern char runin, runout;
 void wakeup(caddr_t);
+void sleep(caddr_t, int);
 #endif

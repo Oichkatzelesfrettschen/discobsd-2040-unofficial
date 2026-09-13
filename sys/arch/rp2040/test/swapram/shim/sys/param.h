@@ -20,4 +20,7 @@
 #define btod(x) (((x) + DEV_BSIZE - 1) >> DEV_BSHIFT)
 #define USIZE 3072
 #define SSIZE 2048
+#define MAXMEM (144 * 1024)
+#define PSWP 0
+#include <errno.h>
 #endif

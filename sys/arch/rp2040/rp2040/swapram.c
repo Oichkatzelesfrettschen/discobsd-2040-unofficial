@@ -12,13 +12,16 @@
  * no swapmap blocks, and swapout leaves p_daddr, p_saddr, and p_addr zero
  * to say so.
  *
- * Nothing on this path sleeps or allocates. The encoder, the decoder, and
- * the segment table are file-scope statics, which is safe only because
- * swapout and swapin run to completion without a context switch: the flash
- * path sleeps inside swap() on B_DONE, and this path has no geteblk, no
- * sleep, and no buffer. The same property keeps the kernel stack out of it,
- * which matters because USIZE is 3072 bytes for the u structure and the
- * kernel stack together.
+ * Nothing on the swapout and swapin paths sleeps or allocates. The
+ * encoder, the decoder, and the segment table are file-scope statics,
+ * which is safe only because swapout and swapin run to completion without
+ * a context switch: the flash path sleeps inside swap() on B_DONE, and
+ * this path has no geteblk, no sleep, and no buffer. The same property
+ * keeps the kernel stack out of it, which matters because USIZE is 3072
+ * bytes for the u structure and the kernel stack together. The evacuation
+ * and the epoch requests run in the swapper and in process context, where
+ * sleeping in swap() is the norm; they use the decoder while no swapin
+ * can, and the pool is closed to new images for their duration.
  */
 
 #include <sys/param.h>
@@ -28,6 +31,7 @@
 #include <sys/vm.h>
 #include <sys/map.h>
 #include <sys/buf.h>
+#include <sys/errno.h>
 #include <machine/swapram.h>
 
 void swap (size_t, size_t, int, int);   /* kern/vm_swp.c */
@@ -88,6 +92,19 @@ static u_char           sr_stage[DEV_BSIZE];
  * then the result.
  */
 int                     swapram_evac = SWAPRAM_EVAC_IDLE;
+
+/*
+ * The epoch, the processes admitted under LARGE, and the requests the
+ * swapper answers: sr_large_want asks for LARGE (an evacuation first),
+ * sr_small_want asks for SMALL once no large process remains. Every
+ * completed attempt at LARGE steps sr_large_seq, which is how a process
+ * asleep on swapram_epoch tells a refusal from a wakeup it did not ask
+ * for.
+ */
+int                     swapram_epoch = SWAPRAM_SMALL;
+static int              sr_nlarge;
+static int              sr_large_want, sr_small_want;
+static unsigned int     sr_large_seq;
 
 static heatshrink_encoder sr_enc;
 static heatshrink_decoder sr_dec;
@@ -495,19 +512,121 @@ swapram_evacuate (void)
 }
 
 /*
- * The swapper calls this at the top of its loop: a pending request
- * closes admission, evacuates, and records the result. The request
- * comes from the machdep.swapram_evacuate sysctl, which wakes the
- * swapper after posting it.
+ * The swapper calls this at the top of its loop and answers what was
+ * posted: an evacuation request from the sysctl records its result;
+ * a request for LARGE evacuates and, when that succeeds, keeps the
+ * pool closed and switches the epoch, otherwise reopens the pool; a
+ * request for SMALL is granted once no large process remains. Every
+ * answer wakes the processes asleep on swapram_epoch.
  */
 void
 swapram_service (void)
 {
-    if (swapram_evac != SWAPRAM_EVAC_PENDING)
-        return;
-    swapram_admit (0);
-    swapram_evac = swapram_evacuate () == 0 ? SWAPRAM_EVAC_DONE :
-        SWAPRAM_EVAC_NOFLASH;
-    swapram_admit (1);
+    if (swapram_evac == SWAPRAM_EVAC_PENDING) {
+        swapram_admit (0);
+        swapram_evac = swapram_evacuate () == 0 ? SWAPRAM_EVAC_DONE :
+            SWAPRAM_EVAC_NOFLASH;
+        swapram_admit (swapram_epoch == SWAPRAM_SMALL);
+    }
+    if (sr_large_want) {
+        sr_large_want = 0;
+        if (swapram_epoch == SWAPRAM_SMALL) {
+            swapram_admit (0);
+            if (swapram_evacuate () == 0)
+                swapram_epoch = SWAPRAM_LARGE;
+            else
+                swapram_admit (1);
+        }
+        sr_large_seq++;
+        wakeup ((caddr_t) &swapram_epoch);
+    }
+    if (sr_small_want) {
+        sr_small_want = 0;
+        if (swapram_epoch == SWAPRAM_LARGE && sr_nlarge == 0) {
+            swapram_epoch = SWAPRAM_SMALL;
+            swapram_admit (1);
+        }
+        wakeup ((caddr_t) &swapram_epoch);
+    }
 }
 
+/* The bytes of window a process may hold: the bonus only under P_LARGE. */
+size_t
+swapram_ceiling (struct proc *p)
+{
+    return MAXMEM + ((p->p_flag & P_LARGE) ? SWAPRAM_BONUS : 0);
+}
+
+static void
+sr_poke (void)
+{
+    wakeup ((caddr_t) &runout);
+    wakeup ((caddr_t) &runin);
+}
+
+/*
+ * Admit p to the LARGE epoch, entering it first when the window is
+ * SMALL: the pool must be evacuated and closed before the bonus can be
+ * anyone's. Sleeps until the swapper answers; 0 when p holds the
+ * bonus, ENOMEM when the pool could not be moved to flash. The caller
+ * has not committed to anything yet, so it can still refuse.
+ */
+int
+swapram_enter_large (struct proc *p)
+{
+    unsigned int seq;
+
+    if (p->p_flag & P_LARGE)
+        return 0;
+    for (;;) {
+        if (swapram_epoch == SWAPRAM_LARGE) {
+            p->p_flag |= P_LARGE;
+            sr_nlarge++;
+            return 0;
+        }
+        seq = sr_large_seq;
+        sr_large_want = 1;
+        sr_poke ();
+        sleep ((caddr_t) &swapram_epoch, PSWP);
+        if (swapram_epoch == SWAPRAM_SMALL && seq != sr_large_seq)
+            return ENOMEM;
+    }
+}
+
+/* p no longer needs the bonus; the last such process frees the epoch. */
+void
+swapram_leave_large (struct proc *p)
+{
+    if ((p->p_flag & P_LARGE) == 0)
+        return;
+    p->p_flag &= ~P_LARGE;
+    if (--sr_nlarge == 0) {
+        sr_small_want = 1;
+        sr_poke ();
+    }
+}
+
+/* A child of a large process is the same size: it holds the bonus too. */
+void
+swapram_inherit (struct proc *child, struct proc *parent)
+{
+    if (parent->p_flag & P_LARGE) {
+        child->p_flag |= P_LARGE;
+        sr_nlarge++;
+    }
+}
+
+/*
+ * The operator's request through machdep.swapram_epoch: LARGE asks for
+ * the evacuation and the switch, SMALL for the return, which waits for
+ * the large processes to go.
+ */
+void
+swapram_set_epoch (int e)
+{
+    if (e == SWAPRAM_LARGE)
+        sr_large_want = 1;
+    else
+        sr_small_want = 1;
+    sr_poke ();
+}

@@ -73,6 +73,19 @@ unsigned int swapram_pool_largest(struct swapram_pool *);
 #define SWAPRAM_EVAC_DONE       2
 #define SWAPRAM_EVAC_NOFLASH    3
 
+/*
+ * The two epochs of the resident window. SMALL: the window is
+ * USER_DATA_SIZE and the pool takes images. LARGE: the pool is empty
+ * and closed, and a process admitted under it (P_LARGE) may use
+ * USER_DATA_SIZE + SWAPRAM_BONUS. The bonus is the pool's own bytes
+ * once the pool sits at the end of the window; until that layout lands
+ * it is zero, and the epoch machinery runs with nothing to hand out.
+ * The pool and a large process never own the bonus at the same time.
+ */
+#define SWAPRAM_SMALL           0
+#define SWAPRAM_LARGE           1
+#define SWAPRAM_BONUS           0
+
 #ifdef KERNEL
 #include <sys/types.h>          /* size_t and caddr_t for the prototypes */
 
@@ -96,7 +109,12 @@ void swapram_admit(int);
 int swapram_images(void);
 int swapram_evacuate(void);
 void swapram_service(void);
-extern int swapram_evac;
+size_t swapram_ceiling(struct proc *);
+int swapram_enter_large(struct proc *);
+void swapram_leave_large(struct proc *);
+void swapram_inherit(struct proc *, struct proc *);
+void swapram_set_epoch(int);
+extern int swapram_evac, swapram_epoch;
 #endif
 
 #endif /* _MACHINE_SWAPRAM_H_ */

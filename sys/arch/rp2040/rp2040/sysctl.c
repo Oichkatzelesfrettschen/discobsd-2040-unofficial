@@ -372,6 +372,20 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		i = swapram_images();
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+	case CPU_SWAPRAM_EPOCH:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = swapram_epoch;
+		if (newp != NULL) {
+			int want = i;
+
+			i = sysctl_int(oldp, oldlenp, newp, newlen, &want);
+			if (i == 0)
+				swapram_set_epoch(want == SWAPRAM_LARGE ?
+				    SWAPRAM_LARGE : SWAPRAM_SMALL);
+			return i;
+		}
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 #endif	/* SWAPRAM */
 
 	default:

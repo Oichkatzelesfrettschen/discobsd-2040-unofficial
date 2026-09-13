@@ -8,4 +8,5 @@ struct proc {
 };
 extern struct proc proc[];
 #define SLOAD 0x0001
+#define P_LARGE 0x0040
 #endif

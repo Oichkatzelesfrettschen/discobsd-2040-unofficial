@@ -78,15 +78,18 @@ int exec_check(struct exec_params *epp)
      * loop through the exec file handlers to find
      * someone who can handle this file format.
      */
+    /*
+     * ENOEXEC from a checker means the image is not its format and the
+     * next one gets a look; any other error is that format's verdict on
+     * an image it did recognize, and it stands.
+     */
     error = ENOEXEC;
     DEBUG("\texec_check(): trying %d exec formats\n", nexecs);
-    for (i = 0; i < nexecs && error != 0; i++) {
+    for (i = 0; i < nexecs && error == ENOEXEC; i++) {
         DEBUG("\texec_check(): trying format %d: %s\n", i, execsw[i].es_name);
         if (execsw[i].es_check == NULL)
             continue;
         error = (*execsw[i].es_check)(epp);
-        if (error == 0)
-            break;
     }
 
     DEBUG("\texec_check(): end\n");

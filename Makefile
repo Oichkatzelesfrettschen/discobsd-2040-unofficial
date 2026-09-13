@@ -105,6 +105,9 @@ check-swapram:	tools
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-swapram
 
+check-aout:
+		${MAKE} -C tests/aout_header check
+
 check-elf2aout:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-elf2aout requires MACHINE=rp2040" >&2; \

@@ -20,7 +20,7 @@ int exec_aout_check(struct exec_params *epp)
 {
     register struct proc *p;
     size_t tsize = 0;
-    int error;
+    int error, thumb;
 
     DEBUG("\texec_aout_check(): start\n");
 
@@ -29,11 +29,25 @@ int exec_aout_check(struct exec_params *epp)
         DEBUG("\texec_aout_check(): end\n");
         return ENOEXEC;
     }
-    if (!(N_GETMID(epp->hdr.aout) == MID_ZERO &&
-          N_GETFLAG(epp->hdr.aout) == 0)) {
-        DEBUG("\texec_aout_check(): error: not an a.out\n");
+
+    /*
+     * Refuse a header whose sizes wrap, whose image exceeds the window
+     * or the file, or whose entry leaves the text before anything is
+     * committed: exec_estab runs later, and the process keeps its old
+     * image when this returns.
+     */
+#if defined(__thumb__) || defined(__thumb2__)
+    thumb = 1;
+#else
+    thumb = 0;
+#endif
+    error = aout_layout_check(&epp->hdr.aout, (unsigned)__user_data_start,
+        (unsigned)(__user_data_end - __user_data_start),
+        (unsigned long)epp->ip->i_size, thumb);
+    if (error != AOUT_OK) {
+        DEBUG("\texec_aout_check(): error: layout check %d\n", error);
         DEBUG("\texec_aout_check(): end\n");
-        return ENOEXEC;
+        return error == AOUT_TOOBIG ? ENOMEM : ENOEXEC;
     }
 
     switch (N_GETMAGIC(epp->hdr.aout)) {

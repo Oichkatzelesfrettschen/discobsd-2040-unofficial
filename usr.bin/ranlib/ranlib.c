@@ -424,8 +424,8 @@ build(void)
 	if (size == (off_t)-1 ||
 	    lseek(tfd, (off_t)0, SEEK_SET) == (off_t)-1)
 		error(tname);
-	SETCF(tfd, tname, replacement_fd, archive, RPAD|WPAD);
-	copy_ar(&cf, size);
+	SETCF(tfd, tname, replacement_fd, archive, NOPAD);
+	copy_ar(&cf, size, 0);
 	if (close(tfd) < 0)
 		error(tname);
 
@@ -461,7 +461,7 @@ touch(void)
 		error(archive);
 	replacement_fd = begin_archive_rewrite(afd);
 	SETCF(afd, archive, replacement_fd, archive, NOPAD);
-	copy_ar(&cf, payload_size);
+	copy_ar(&cf, payload_size, 0);
 	settime(replacement_fd);
 	commit_archive_rewrite(afd, replacement_fd);
 	return(0);

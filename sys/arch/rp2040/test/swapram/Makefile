@@ -28,7 +28,16 @@ HSFLAGS= $(CFLAGS) -Wno-implicit-fallthrough
 OBJS=	swapram_test.o swapram_pool.o heatshrink_encoder.o \
 	heatshrink_decoder.o
 
-all: run
+# The evacuation test compiles the kernel's swapram.c and subr_rmap.c
+# against the stand-in headers in shim/, which come first on the include
+# path so <sys/param.h> and its neighbors resolve there. Their printf
+# formats are written for the kernel's 32-bit size_t, so -Wformat is off
+# for those two objects alone.
+EVACOBJS= swapram_evac_test.o swapram_kern.o subr_rmap.o swapram_pool_k.o \
+	heatshrink_encoder.o heatshrink_decoder.o
+KCFLAGS= -std=gnu11 -g -O2 -Wall -Wextra -Werror -DSWAPRAM_KB=64 -Ishim -I. -I$(HS) $(HSOPTS)
+
+all: run evac
 
 machine:
 	ln -sf $(INC) machine
@@ -51,6 +60,24 @@ swapram_test: $(OBJS)
 run: swapram_test
 	./swapram_test $(IMAGE) $(STACK)
 
+swapram_evac_test.o: swapram_evac_test.c machine $(INC)/swapram.h
+	$(CC) $(KCFLAGS) -c -o $@ swapram_evac_test.c
+
+swapram_kern.o: ../../rp2040/swapram.c machine $(INC)/swapram.h
+	$(CC) $(KCFLAGS) -Wno-format -c -o $@ ../../rp2040/swapram.c
+
+swapram_pool_k.o: ../../rp2040/swapram_pool.c machine $(INC)/swapram.h
+	$(CC) $(KCFLAGS) -c -o $@ ../../rp2040/swapram_pool.c
+
+subr_rmap.o: $(TOP)/sys/kern/subr_rmap.c
+	$(CC) $(KCFLAGS) -Wno-format -c -o $@ $(TOP)/sys/kern/subr_rmap.c
+
+swapram_evac_test: $(EVACOBJS)
+	$(CC) $(KCFLAGS) -o $@ $(EVACOBJS)
+
+evac: swapram_evac_test
+	./swapram_evac_test
+
 valgrind: swapram_test
 	valgrind -q --error-exitcode=9 --leak-check=full \
 	    ./swapram_test $(IMAGE) $(STACK)
@@ -67,6 +94,6 @@ sweep:
 	  fi; done; done
 
 clean:
-	rm -f swapram_test $(OBJS) machine
+	rm -f swapram_test swapram_evac_test $(OBJS) $(EVACOBJS) machine
 
 .PHONY: all run valgrind sweep clean

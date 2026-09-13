@@ -25,7 +25,15 @@
  */
 #define	CPU_USB_E15_DEFERRED	6	/* int: bulk IN arms the guard held */
 #define	CPU_USB_BULKIN_ARMS	7	/* int: bulk IN arms attempted */
-#define	CPU_MAXID		8	/* number of valid machdep ids */
+/*
+ * The compressed swap tier, arch/rp2040/rp2040/swapram.c. Writing any
+ * value to swapram_evacuate asks the swapper to move every pool image to
+ * flash; reading gives SWAPRAM_EVAC_PENDING until it has, then DONE or
+ * NOFLASH. A kernel without SWAPRAM answers both with EOPNOTSUPP.
+ */
+#define	CPU_SWAPRAM_EVACUATE	8	/* int: evacuation request and result */
+#define	CPU_SWAPRAM_IMAGES	9	/* int: images the pool holds */
+#define	CPU_MAXID		10	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -37,5 +45,7 @@
 	{ "bus_khz", CTLTYPE_INT }, \
 	{ "usb_e15_deferred", CTLTYPE_INT }, \
 	{ "usb_bulkin_arms", CTLTYPE_INT }, \
+	{ "swapram_evacuate", CTLTYPE_INT }, \
+	{ "swapram_images", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

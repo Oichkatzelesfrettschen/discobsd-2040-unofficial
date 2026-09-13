@@ -7,6 +7,9 @@
 #include <sys/user.h>
 #include <sys/proc.h>
 #include <sys/vm.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 #include <sys/kernel.h>
 #include <sys/systm.h>
 #include <machine/debug.h>
@@ -40,6 +43,9 @@ sched()
     for (;;) {
         /* Perform swap-out/swap-in action. */
         spl0();
+#ifdef SWAPRAM
+        swapram_service ();
+#endif
         if (in_core)
             swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE);
         if (swapped_out)

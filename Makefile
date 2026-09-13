@@ -108,6 +108,11 @@ check-swapram:	tools
 check-aout:
 		${MAKE} -C tests/aout_header check
 
+# The evacuation test compiles the kernel's swapram.c and subr_rmap.c on
+# the host; its Makefile is written for GNU make.
+check-swapram-evac:
+		make -C sys/arch/rp2040/test/swapram evac
+
 check-elf2aout:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-elf2aout requires MACHINE=rp2040" >&2; \

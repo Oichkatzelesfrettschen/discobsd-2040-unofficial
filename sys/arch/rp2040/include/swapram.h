@@ -67,6 +67,12 @@ unsigned int swapram_pool_largest(struct swapram_pool *);
 #define SWAPRAM_U       2
 #define SWAPRAM_NSEG    3
 
+/* machdep.swapram_evacuate: written as PENDING, read back as the result. */
+#define SWAPRAM_EVAC_IDLE       0
+#define SWAPRAM_EVAC_PENDING    1
+#define SWAPRAM_EVAC_DONE       2
+#define SWAPRAM_EVAC_NOFLASH    3
+
 #ifdef KERNEL
 #include <sys/types.h>          /* size_t and caddr_t for the prototypes */
 
@@ -86,6 +92,11 @@ void swapram_put(struct proc *, int, caddr_t, size_t);
 void swapram_commit(struct proc *);
 int swapram_present(struct proc *);
 void swapram_in(struct proc *, caddr_t, caddr_t, caddr_t);
+void swapram_admit(int);
+int swapram_images(void);
+int swapram_evacuate(void);
+void swapram_service(void);
+extern int swapram_evac;
 #endif
 
 #endif /* _MACHINE_SWAPRAM_H_ */

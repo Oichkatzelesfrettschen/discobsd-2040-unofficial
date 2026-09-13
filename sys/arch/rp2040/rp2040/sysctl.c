@@ -28,6 +28,9 @@
 #endif
 
 #include <machine/cpu.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 #ifdef UARTUSB_ENABLED
 #include <rp2040/dev/usb.h>
 #endif
@@ -352,6 +355,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
 		    sizeof count);
 #endif	/* UARTUSB_ENABLED */
+#ifdef SWAPRAM
+	case CPU_SWAPRAM_EVACUATE:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = sysctl_int(oldp, oldlenp, newp, newlen, &swapram_evac);
+		if (i == 0 && newp != NULL) {
+			/* Any write posts a request; the swapper answers. */
+			swapram_evac = SWAPRAM_EVAC_PENDING;
+			wakeup((caddr_t)&runout);
+			wakeup((caddr_t)&runin);
+		}
+		return i;
+	case CPU_SWAPRAM_IMAGES:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = swapram_images();
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+#endif	/* SWAPRAM */
 
 	default:
 		return EOPNOTSUPP;

@@ -116,18 +116,60 @@ is read on every XIP re-entry. On the board with six background processes
 forcing swap traffic, copies of /bin/sh, /etc/rc, /etc/passwd and ten
 copies of /etc/group compare equal by cmp and md5 after sync.
 
-### 9. COMMON symbol inventory
+### 9. COMMON symbols converted, -fno-common on by default (port PR #35)
 
-A userland build with `-fno-common` (`bmake MACHINE=rp2040
-COPTS="-Os -fno-common" build`) fails to link 27 programs on multiple
-definitions: atc, awk, backgammon, basic, battlestar, caesar, canfield,
-cribbage, diff, forth, fsck, hangman, med, mille, pom, primes, re,
-robots, sail, sed, sh, sl, snake, tail, tip, trek, worm. The games
-dominate; sail alone carries a dozen shared structures declared without
-extern in its header. Each is a header that defines rather than declares
-a variable, so the conversion is mechanical per program: one definition
-in a .c file, extern in the header, static where the name is private.
-Multicall consolidation of these tools waits on that conversion.
+The arm userland compiled with `-Os -fcommon` because eleven programs
+define their shared state in a header every translation unit includes
+(fsck.h, sed.h, diff.h, tip.h, r.defs.h, snake.h, back.h, the battlestar
+and sail externs.h, player.h, trek.h, sh's ctype.h: 408 multiply defined
+names) and because sixteen more link against libraries that each carried
+a tentative definition of a name another library owns: `errno` in ten
+libm files and libc's exit.c, the termcap tuple `BC UP PC ospeed` in both
+libtermcap and libcurses, `_win` in two curses files, and `nswaps` and
+`nmapsegs` defined in vmf.h itself. The linker's `multiple definition`
+messages under `COPTS="-Os -fno-common"` are the denominator; nm type C
+counts alone overstate it, since a single tentative definition is legal.
+
+Every header now declares `extern` and one .c file per program defines
+(fsck main.c, sed0.c, diff.c, tip.c, r.main.c, snake.c, backgammon
+subs.c, the battlestar and sail globals.c, pl_main.c, trek externs.c with
+tags for its six anonymous structs, sh ctype.c); libc owns `errno`,
+libtermcap the termcap tuple, refresh.c `_win`, vmf.c its counters.
+`-fcommon` had merged backgammon's `char ospeed` with libtermcap's
+`short ospeed` and snake's and backgammon's private `PC`/`UP`/`BC` with
+the library's. share/mk/sys.mk now passes `-Os -fno-common` for arm; the
+kernel's CMACHFLAGS keep `-fcommon`.
+
+`tools/verify_userland_no_common.sh` rebuilds the seven libraries and the
+27 programs by directory (lib/Makefile's FRC rule skips a subdirectory
+whose mtime moved during the build, which is why a clean `bmake -C lib`
+produced between one and twelve archives) and fails on any type C
+symbol or link error: 34 rows ok. The full rp2040 build has zero COMMON
+symbols in any userland object; each program's exported name set is
+unchanged except `med` (nswaps, nmapsegs), `snake` (PC, UP) and `tail`
+(errno) now importing from their owner; all 27 also compile with
+`-Werror` after a dead counter left robots' rnd_pos.c. The 27 a.outs
+total about 9 KB less text, GCC using section anchors once a global is
+no longer common. On the board sh, sed, tail, diff, fsck at boot and awk
+field arithmetic run from the flashed root (96 files, 814 used, 157
+free blocks).
+
+The multicall boxes localize each tool's globals with `objcopy
+--keep-global-symbol`, which a COMMON symbol escaped; sbin/utilbox's
+Makefile excludes sed, sort and find for exactly that aliasing, so they
+are now candidates.
+
+### Found by the board tests: the initial user stack is 4-byte aligned
+
+`awk 'BEGIN{print 1+1}'` prints `1.6e-154` or `2` depending on the byte
+length of the environment, for the pre-PR-#35 binary and the new one
+alike, with a 4-byte period. `exec_setupstack` (sys/kern/exec_subr.c)
+places argv wherever the string byte count leaves it and sets the entry
+SP a multiple of 8 below it, while the ARM EABI hands `_start` an 8-byte
+aligned stack and `va_arg(ap, double)` rounds the address up to 8; the
+decoded garbage is the double's high word followed by the next stack
+word. The fix pads the argument block down one word when argv lands on
+a 4-byte boundary.
 
 ## Open
 
@@ -137,4 +179,5 @@ pool at 16 KB, and an arena would let a process that fits in 160 KB run
 while the pool is empty. Step 7 needs a container format, bounded
 decoder output, and corrupt-stream rejection before process commitment;
 the decoder is already linked and costs no further text. Step 9's
-conversion is inventoried above and unstarted.
+conversion landed in PR #35; extending the multicall boxes with sed,
+sort and find is the remaining part.

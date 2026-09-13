@@ -190,6 +190,26 @@ ENOEXEC; it now continues only on ENOEXEC. On the board
 even entry get ENOEXEC, one with a 1 MB bss gets sh's "too big", and
 the shell survives. Kernel text +72 bytes.
 
+### tail scans backward by block (port PR #39)
+
+tail kept the whole tail of its input in a 32,769-byte buffer chosen by
+`#ifdef pdp11` rather than by the memory model, 32,960 bytes of bss in
+every pipeline ending in it, and cut a run of lines longer than that.
+It now finds the end of a seekable file by reading 1 KB blocks backward
+and counting newlines, spools a pipe into a 4 KB buffer and past that
+into an unlinked /tmp file, and keeps the newest 4 KB with an errno
+report when the file cannot be made. Output is byte-identical to the
+old tail on 1,248 differential cases (every option form, file and
+pipe); usr.bin/tail/tests/tailcheck.py models the semantics (-n is the
+bytes after the (n+1)-th newline from the end; -r supplies a newline to
+a final partial line and one newline for empty input; -0 nothing) and
+passes 2,016 cases with 70 KB lines, ringcheck.sh takes /tmp away under
+bwrap. RP2040: bss 32,960 -> 5,244, a.out 4,040 -> 3,968 (a formatted
+print would have linked the 3.5 KB _doprnt; messages go through write).
+Board: a 31 KB piped tail takes 12.9 s against 6.2 s for the pipe alone
+and 7.8 s for a copy to /tmp; the board's pipe throughput is about
+5 KB/s. utilbox excluded tail for its bss; it is a candidate again.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

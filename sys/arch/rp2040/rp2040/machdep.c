@@ -431,6 +431,9 @@ startup(void)
 	if ((size_t)__user_data_end - (size_t)__user_data_start !=
 	    USER_DATA_SIZE)
 		panic("user window: linker and machparam.h disagree");
+#ifdef SWAPRAM
+	swapram_init();
+#endif
 
 	/*
 	 * Configure LED pins.
@@ -762,7 +765,7 @@ int
 baduaddr(caddr_t addr)
 {
 	if (addr >= (caddr_t)__user_data_start &&
-	    addr < (caddr_t)__user_data_end)
+	    addr < (caddr_t)USER_TOP(u.u_procp))
 		return 0;
 
 	return 1;

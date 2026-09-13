@@ -25,6 +25,7 @@
 struct proc proc[NPROC];
 struct user u, u0;
 char runin, runout;
+char __user_data_start[1], __user_data_end[1];
 
 #define NSWAP   512                     /* blocks in the stand-in unit */
 static struct mapent swapent[NPROC * 3 + 2];
@@ -371,6 +372,16 @@ epoch(void)
     swapram_service();
     CHECK(swapram_epoch == SWAPRAM_SMALL);
     printf("epoch: enter evacuates and closes, joins, inherits, last leaver reopens, refusal keeps SMALL, operator requests honored\n");
+
+    /* the window top follows the mark, and the bonus is the pool's size */
+    proc[12].p_flag = 0;
+    CHECK(user_top(&proc[12]) == (size_t)__user_data_end);
+    proc[12].p_flag = P_LARGE;
+    CHECK(user_top(&proc[12]) == (size_t)__user_data_end + SWAPRAM_BONUS);
+    CHECK(SWAPRAM_BONUS == SWAPRAM_KB * 1024);
+    CHECK(swapram_ceiling(&proc[12]) == MAXMEM + SWAPRAM_KB * 1024);
+    proc[12].p_flag = 0;
+    printf("window: top and ceiling rise by the pool's %d bytes under P_LARGE\n", SWAPRAM_BONUS);
 }
 
 int

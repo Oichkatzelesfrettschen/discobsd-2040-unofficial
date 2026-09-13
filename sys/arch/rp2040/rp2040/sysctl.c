@@ -386,6 +386,11 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return i;
 		}
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+	case CPU_SWAPRAM_LARGE:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = swapram_nlarge();
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 #endif	/* SWAPRAM */
 
 	default:

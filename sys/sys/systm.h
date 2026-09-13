@@ -92,6 +92,21 @@ extern char     __user_data_start[];
 extern char     __user_data_end[];
 #endif /* XXX PIC32 */
 
+/*
+ * The top of the resident user window for a process: __user_data_end,
+ * and under the LARGE epoch of the compressed swap tier the pool's bytes
+ * above it. USER_WINDOW_MAX is the most any process may be given.
+ */
+struct proc;
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#define USER_TOP(p)     user_top(p)
+#define USER_WINDOW_MAX (MAXMEM + SWAPRAM_BONUS)
+#else
+#define USER_TOP(p)     ((size_t)__user_data_end)
+#define USER_WINDOW_MAX MAXMEM
+#endif
+
 struct inode;
 daddr_t bmap (struct inode *ip, daddr_t bn, int rwflg, int flags);
 

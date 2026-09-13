@@ -249,27 +249,15 @@ int exec_estab(struct exec_params *epp)
       epp->stack.vaddr + epp->stack.len, epp->stack.len);
 
     /*
-     * Right now we can only handle the simple original a.out
-     * case, so we double check for that case here.
-     */
-    if (epp->text.vaddr != NO_ADDR || epp->data.vaddr == NO_ADDR ||
-      epp->data.vaddr != (caddr_t)__user_data_start ||
-      epp->stack.vaddr != (caddr_t)__user_data_end - epp->stack.len) {
-        DEBUG("\texec_estab(): error: not an a.out executable\n");
-        return ENOMEM;
-    }
-
-    /*
-     * Try out for overflow
+     * The epoch decides the window before the layout is final: an image
+     * past the window but within the bonus asks for LARGE, which sleeps
+     * until the pool is on flash; one that fits the window again gives
+     * the bonus back. The stack is then laid under the top that choice
+     * yields.
      */
     need = epp->text.len + epp->data.len + epp->bss.len + epp->heap.len +
       epp->stack.len;
 #ifdef SWAPRAM
-    /*
-     * An image past the window but within the bonus asks for the LARGE
-     * epoch, which sleeps until the pool is on flash; one that fits the
-     * window again gives the bonus back.
-     */
     if (need > MAXMEM && need <= MAXMEM + SWAPRAM_BONUS) {
         if (swapram_enter_large (u.u_procp) != 0)
             return ENOMEM;
@@ -280,6 +268,18 @@ int exec_estab(struct exec_params *epp)
     if (need > MAXMEM) {
 #endif
         DEBUG("\texec_estab(): error: memory overflow\n");
+        return ENOMEM;
+    }
+    epp->stack.vaddr = (caddr_t)USER_TOP (u.u_procp) - epp->stack.len;
+
+    /*
+     * Right now we can only handle the simple original a.out
+     * case, so we double check for that case here.
+     */
+    if (epp->text.vaddr != NO_ADDR || epp->data.vaddr == NO_ADDR ||
+      epp->data.vaddr != (caddr_t)__user_data_start ||
+      epp->stack.vaddr != (caddr_t)USER_TOP (u.u_procp) - epp->stack.len) {
+        DEBUG("\texec_estab(): error: not an a.out executable\n");
         return ENOMEM;
     }
 

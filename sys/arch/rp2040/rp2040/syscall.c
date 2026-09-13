@@ -193,9 +193,9 @@ syscall(struct trapframe *frame)
 		psig = SIGSEGV;
 		goto bad;
 	}
-	if (u.u_procp->p_ssize < (size_t)__user_data_end - sp) {
+	if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - sp) {
 		/* Expand stack. */
-		u.u_procp->p_ssize = (size_t)__user_data_end - sp;
+		u.u_procp->p_ssize = USER_TOP(u.u_procp) - sp;
 		u.u_procp->p_saddr = sp;
 		u.u_ssize = u.u_procp->p_ssize;
 	}

@@ -83,8 +83,8 @@ sendsig(sig_t p, int sig, long mask)
 			fatalsig(SIGILL);
 			return;
 		}
-		if (u.u_procp->p_ssize < (size_t)__user_data_end - (u_int)sfp) {
-			u.u_procp->p_ssize = (size_t)__user_data_end - (u_int)sfp;
+		if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - (u_int)sfp) {
+			u.u_procp->p_ssize = USER_TOP(u.u_procp) - (u_int)sfp;
 			u.u_procp->p_saddr = (u_int)sfp;
 			u.u_ssize = u.u_procp->p_ssize;
 		}

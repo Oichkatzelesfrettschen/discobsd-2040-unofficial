@@ -28,6 +28,7 @@ PHDRS {
 	data PT_LOAD FLAGS(6);
 	ramfunc PT_LOAD FLAGS(5);
 	bss PT_LOAD FLAGS(6);
+	pool PT_LOAD FLAGS(6);
 	scratch PT_LOAD FLAGS(6);
 	stack PT_GNU_STACK FLAGS(6);
 }
@@ -72,6 +73,17 @@ SECTIONS {
 	__etext = .;
 
 	_sidata = LOADADDR(.data);
+	/*
+	 * The compressed swap pool sits first in RAM, abutting the user
+	 * window, so that a process admitted to the LARGE epoch can extend
+	 * its stack over it (machine/swapram.h SWAPRAM_BONUS, sys/systm.h
+	 * USER_TOP). NOLOAD like .scratch: the tier writes every byte before
+	 * it reads it, and the reset code's zero fill stops at _ebss.
+	 */
+	.swapram_pool (NOLOAD) : ALIGN(8) {
+		*(.swapram_pool)
+	} > RAM :pool
+
 	.data : ALIGN(4) {
 		__data_start__ = .;
 		_sdata = .;
@@ -134,6 +146,9 @@ SECTIONS {
 	 */
 	ASSERT(ORIGIN(USERRAM) + LENGTH(USERRAM) == ORIGIN(RAM),
 	    "USERRAM and RAM do not meet")
+	ASSERT(DEFINED(swapram_pool_mem) ?
+	    swapram_pool_mem == ORIGIN(RAM) : 1,
+	    "the swap pool is not at the start of RAM, so the LARGE epoch would hand out kernel data")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),

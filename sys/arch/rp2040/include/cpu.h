@@ -34,7 +34,8 @@
 #define	CPU_SWAPRAM_EVACUATE	8	/* int: evacuation request and result */
 #define	CPU_SWAPRAM_IMAGES	9	/* int: images the pool holds */
 #define	CPU_SWAPRAM_EPOCH	10	/* int: 0 SMALL, 1 LARGE; a write asks */
-#define	CPU_MAXID		11	/* number of valid machdep ids */
+#define	CPU_SWAPRAM_LARGE	11	/* int: processes holding the bonus */
+#define	CPU_MAXID		12	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -49,5 +50,6 @@
 	{ "swapram_evacuate", CTLTYPE_INT }, \
 	{ "swapram_images", CTLTYPE_INT }, \
 	{ "swapram_epoch", CTLTYPE_INT }, \
+	{ "swapram_large", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

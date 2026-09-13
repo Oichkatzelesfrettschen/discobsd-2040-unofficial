@@ -13,12 +13,12 @@ fread (vptr, size, count, iop)
 	register FILE *iop;
 {
 	register char *ptr = vptr;
-	register unsigned s;
+	register size_t s;
 	int c;
 
 	s = size * count;
 	while (s > 0) {
-		if (iop->_cnt < s) {
+		if (iop->_cnt <= 0 || (size_t)iop->_cnt < s) {
 			if (iop->_cnt > 0) {
 				bcopy(iop->_ptr, ptr, iop->_cnt);
 				ptr += iop->_cnt;
@@ -33,7 +33,7 @@ fread (vptr, size, count, iop)
 			*ptr++ = c;
 			s--;
 		}
-		if (iop->_cnt >= s) {
+		if (iop->_cnt >= 0 && (size_t)iop->_cnt >= s) {
 			bcopy(iop->_ptr, ptr, s);
 			iop->_ptr += s;
 			iop->_cnt -= s;

@@ -42,5 +42,6 @@ int
 setlogin (name)
 	const char *name;
 {
+        (void)name;
         return 0;
 }

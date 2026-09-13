@@ -14,8 +14,11 @@ atoi(p)
 			continue;
 		case '-':
 			f++;
+			p++;
+			break;
 		case '+':
 			p++;
+			break;
 		}
 		break;
 	}

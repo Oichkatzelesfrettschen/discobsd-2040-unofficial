@@ -18,8 +18,8 @@
 
 static  int		(*qcmp)();		/* the comparison routine */
 static  int		qsz;			/* size of each record */
-static  int		thresh;			/* THRESHold in chars */
-static  int		mthresh;		/* MTHRESHold in chars */
+static  unsigned int	thresh;			/* THRESHold in chars */
+static  unsigned int	mthresh;		/* MTHRESHold in chars */
 
 /*
  * qst:

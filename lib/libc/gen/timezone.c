@@ -62,7 +62,7 @@ static struct zone {
 	{ -10*60,	"EST",	"EST"       },	/* Aust: Eastern */
         { -10*60+30,	"CST",	"CST"       },	/* Aust: Central */
 	{ -8*60,	"WST",	0           },	/* Aust: Western */
-	{ -1 },
+	{ -1, NULL, NULL },
 };
 
 /*

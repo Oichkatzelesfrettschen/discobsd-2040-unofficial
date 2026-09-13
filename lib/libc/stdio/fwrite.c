@@ -13,7 +13,7 @@ fwrite(vptr, size, count, iop)
 	register FILE *iop;
 {
 	register const char *ptr = vptr;
-	register unsigned s;
+	register size_t s;
 
 	s = size * count;
 	if (iop->_flag & _IOLBF)
@@ -25,7 +25,7 @@ fwrite(vptr, size, count, iop)
 			s--;
 		}
 	else while (s > 0) {
-		if (iop->_cnt < s) {
+		if (iop->_cnt <= 0 || (size_t)iop->_cnt < s) {
 			if (iop->_cnt > 0) {
 				bcopy(ptr, iop->_ptr, iop->_cnt);
 				ptr += iop->_cnt;
@@ -36,7 +36,7 @@ fwrite(vptr, size, count, iop)
 				break;
 			s--;
 		}
-		if (iop->_cnt >= s) {
+		if (iop->_cnt >= 0 && (size_t)iop->_cnt >= s) {
 			bcopy(ptr, iop->_ptr, s);
 			iop->_ptr += s;
 			iop->_cnt -= s;

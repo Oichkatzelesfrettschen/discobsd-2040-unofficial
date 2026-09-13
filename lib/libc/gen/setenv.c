@@ -24,15 +24,16 @@ setenv(name, value, rewrite)
 	static int	alloced;		/* if allocated space before */
 	register char	*C;
 	register const char *E;
-	int l_value, offset;
+	size_t value_length;
+	int offset;
 
 	if (*value == '=')			/* no `=' in value */
 		++value;
-	l_value = strlen(value);
+	value_length = strlen(value);
 	if ((C = _findenv(name,&offset))) {	/* find if already exists */
 		if (!rewrite)
 			return(0);
-		if (strlen(C) >= l_value) {	/* old larger; copy over */
+		if (strlen(C) >= value_length) {	/* old larger; copy over */
 			while ((*C++ = *value++));
 			return(0);
 		}
@@ -62,7 +63,7 @@ setenv(name, value, rewrite)
 	}
 	for (E = name; *E && *E != '='; ++E);	/* no `=' in name */
 	if (!(environ[offset] =			/* name + `=' + value */
-	    malloc((u_int)((int)(E - name) + l_value + 2))))
+	    malloc((size_t)(E - name) + value_length + 2)))
 		return(-1);
 	for (C = environ[offset]; (*C = *name++) && *C != '='; ++C);
 	for (*C++ = '='; (*C++ = *value++); );

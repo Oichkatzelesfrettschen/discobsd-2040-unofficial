@@ -336,7 +336,8 @@ apply:		if (!*p)
 static BITCMD *
 addcmd(set, op, who, oparg, mask)
 	BITCMD *set;
-	register int oparg, who;
+	register int oparg;
+	register u_int who;
 	register int op;
 	u_int mask;
 {

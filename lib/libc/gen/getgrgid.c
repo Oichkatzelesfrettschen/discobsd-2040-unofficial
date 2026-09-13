@@ -8,7 +8,7 @@ getgrgid(gid)
 	register struct group *p;
 
 	setgrent();
-	while ((p = getgrent()) && p->gr_gid != gid);
+	while ((p = getgrent()) && (gid_t)p->gr_gid != gid);
 	endgrent();
 	return(p);
 }

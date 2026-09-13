@@ -49,6 +49,7 @@ devname(dev, type)
         char filename[40];
         struct stat st;
 
+        (void)type;
         dir = opendir("/dev");
         if (dir == NULL) {
                 perror("/dev");

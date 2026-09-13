@@ -64,7 +64,7 @@ nlist(name, list)
 		if ((len = strlen(p->n_name)) > maxlen)
 			maxlen = len;
 	}
-	if (++maxlen > sizeof(sbuf)) {		/* for the NULL */
+	if ((size_t)++maxlen > sizeof(sbuf)) {	/* for the NULL */
 		(void)fprintf(stderr, "nlist: sym 2 big\n");
 		entries = -1;
 		goto done;

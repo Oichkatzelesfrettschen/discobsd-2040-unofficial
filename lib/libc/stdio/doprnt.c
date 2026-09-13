@@ -123,12 +123,12 @@ reswitch:	switch (c = *fmt++) {
 			goto reswitch;
 
 		case '0':
-			if (! dot) {
+		case '1': case '2': case '3': case '4':
+		case '5': case '6': case '7': case '8': case '9':
+			if (c == '0' && ! dot) {
 				padding = '0';
 				goto reswitch;
 			}
-		case '1': case '2': case '3': case '4':
-		case '5': case '6': case '7': case '8': case '9':
 			for (n=0; ; ++fmt) {
 				n = n * 10 + c - '0';
 				c = *fmt;
@@ -243,7 +243,7 @@ string:			if (! dot)
 			base = 10;
 			if (lflag) {
 				ul = va_arg (ap, unsigned long);
-				if (ul == -1) {
+				if (ul == (unsigned long) -1) {
 cnt_unknown:				if (ladjust)
 						PUTC ('-');
 					while (--width > 0)
@@ -252,8 +252,8 @@ cnt_unknown:				if (ladjust)
 						PUTC ('-');
 					break;
 				}
-				if (ul >= -2) {
-					ul = -3;
+				if (ul >= (unsigned long) -2) {
+					ul = (unsigned long) -3;
 					neg = '>';
 					goto nosign;
 				}

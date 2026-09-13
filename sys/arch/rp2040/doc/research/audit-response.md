@@ -268,7 +268,7 @@ the ktrace substitute for a 96 KB window: no trace file, no kdump.
 
 doprnt drops the kernel-only conversions, re(1) stops forcing the
 printf-float conversion into its link, and the audit in
-libc-size-audit.md records 25166 bytes off the root across 28 shipped
+libc-size-audit.md (rpi notes repository, research/discobsd-rp2040/) records 25166 bytes off the root across 28 shipped
 programs with the rejected candidates and their measured reasons.
 NSTATIC=8 is gated by tests/rp2040/streamtest, which passes on the board.
 
@@ -286,7 +286,7 @@ NSTATIC=8 is gated by tests/rp2040/streamtest, which passes on the board.
   for that work.
 - ctime's 2036-byte static state plus a tzload alloca of the same size is
   the largest remaining libc cost; shrinking it needs a decision about
-  zoneinfo on the board (libc-size-audit.md).
+  zoneinfo on the board (libc-size-audit.md in the rpi notes repository).
 - The curated man-page archive (task) remains a decision about 42728
   bytes of root.
 

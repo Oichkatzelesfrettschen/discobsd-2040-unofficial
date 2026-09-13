@@ -48,30 +48,17 @@ END(sigaction)
  * routine, sigtramp will execute a sigreturn with the sigcontext structure
  * given to us by the kernel.
  *
- * When the kernel transfers control to sigtramp the stack looks like:
- *
- *	-------------------------
- *	| sigcontext structure	| SIG_SC = sp + 8
- *	|-----------------------|
- *	| unused		|
- *	|-----------------------|
- *	| $a3: ptr to sigcontext|
- *	|-----------------------|
- *	| $a2: code		|
- *	|-----------------------|
- *sp ->	| $a1: signal number	|
- *	-------------------------
- *
- * The important features of this as far as sigtramp is concerned are:
- * 1.	The fact that the signal number, signal code, and signal context
- *	pointer are already set up as parameters to the signal action
- *	routine.
- * 2.   There's no need to save r0 & r1 because the kernel's already saved
- *      them for us in the sigcontext structure (C routines save all
- *      registers except r0 & r1 automatically).
- *
- * Note that the stack offset SIG_SC will NOT have to be recomputed if the
- * sigcontext structure changes.
+ * On the Cortex-M ports the kernel builds a struct sigframe (see
+ * sys/arch/rp2040/rp2040/sig_machdep.c) below the interrupted stack
+ * pointer: eight words the exception return consumes as the hardware
+ * frame that enters the handler, then the sigcontext. The handler runs
+ * with sp just above those eight words, with r0 = signal number,
+ * r1 = code, r2 = pointer to the sigcontext, and lr = sigtramp. When the
+ * handler returns here, sp is back at the handler entry value; the
+ * sigreturn SVC pushes its own hardware frame into the same eight words
+ * and the kernel finds the sigcontext at tf_sp + 32. sigtramp itself
+ * keeps no state: r0 and r1 are already in the sigcontext, and C
+ * handlers preserve every other register.
  */
 ENTRY(sigtramp)
 	svc	SYS_sigreturn		/* Attempt the sigreturn. */

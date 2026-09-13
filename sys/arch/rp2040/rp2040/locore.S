@@ -93,31 +93,36 @@ resume:
 	mov	r10, a2			/* Save env (second arg). */
 	ldr	r1, =u0			/* Pointer to u0. area start addr. */
 	ldr	r2, =u			/* Pointer to u. area start addr. */
-	cmp	a1, r2			/* If u (first arg) is not u. area, */
-	bne	1f			/*   then remap u. area. */
-	ldr	r3, =(2f + 1)		/*   else no need to remap u. area. */
-	bx	r3			/*   The +1 sets Thumb mode bit. */
-	.pool				/* Insert literal pool for labels. */
-1:
+	cmp	a1, r2			/* If u (first arg) is the u. area, */
+	beq	2f			/*   there is nothing to remap. */
+
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
 	str	r1, [r3, #60]		/* Save &u0 in u.u_procp->p_addr. */
 
-	/* Exchange contents of u. and u0. */
+	/*
+	 * Exchange the USIZE bytes of u. and u0. three words at a time.
+	 * r0 walks u., r1 walks u0., and r8 holds the end of u.; the loop
+	 * body is the twelve-byte exchange the .rept expansion used to
+	 * repeat 256 times, which cost 3,072 bytes of flash to save the
+	 * two instructions of loop control per iteration. r8 is free here
+	 * because the env restore below reloads it before longjmp returns.
+	 * The markers bound the lines tests/rp2040/uarea_exchange assembles
+	 * into its harness, so the test runs these bytes and no copy.
+	 */
 	mov	r0, r2			/* Pointer to u. area start addr. */
-
-	.rept	USIZE / 3 / 4		/* 4 * 3 * 256 = 3072 = USIZE */
-#ifdef __thumb2__
-	ldmia	r0, {r2-r4}
-	ldmia	r1, {r5-r7}
-#else /* __thumb__ */
-	ldmia	r0!, {r2-r4}
-	ldmia	r1!, {r5-r7}
-	subs	r0, #(3 * 4)
-	subs	r1, #(3 * 4)
-#endif
-	stmia	r1!, {r2-r4}
-	stmia	r0!, {r5-r7}
-	.endr
+	ldr	r2, =(u + USIZE)	/* End of the u. area. */
+	mov	r8, r2
+	/* uarea-exchange-begin */
+3:
+	ldmia	r0!, {r2-r4}		/* Three words of u. */
+	ldmia	r1!, {r5-r7}		/* Three words of u0. */
+	subs	r0, #(3 * 4)		/* ARMv6-M LDM writes back; step back */
+	subs	r1, #(3 * 4)		/*   to store over the words read. */
+	stmia	r1!, {r2-r4}		/* u. words into u0. */
+	stmia	r0!, {r5-r7}		/* u0. words into u. */
+	cmp	r0, r8
+	bne	3b
+	/* uarea-exchange-end */
 
 	ldr	r2, =u			/* Pointer to u. area start addr. */
 

@@ -9,8 +9,8 @@ include ${TOPSRC}/share/mk/sys.mk
 DEFS		=
 CFLAGS		+= ${DEFS} -Os
 
-SRCS		= getopt.c getsubopt.c strtol.c strtoul.c strtod.c
-OBJS		= getopt.o getsubopt.o strtol.o strtoul.o strtod.o
+SRCS		= getopt.c getsubopt.c heapsort.c strtol.c strtoul.c strtod.c
+OBJS		= getopt.o getsubopt.o heapsort.o strtol.o strtoul.o strtod.o
 
 all:		stdlib.a
 

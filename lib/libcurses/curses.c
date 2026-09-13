@@ -34,13 +34,12 @@ SGTTY	_tty;			/* tty modes				*/
 
 bool	AM, BS, CA, DA, DB, EO, HC, HZ, IN, MI, MS, NC, NS, OS, UL, XB, XN,
 	XT, XS, XX;
-char	*AL, *BC, *BT, *CD, *CE, *CL, *CM, *CR, *CS, *DC, *DL, *DM,
+char	*AL, *BT, *CD, *CE, *CL, *CM, *CR, *CS, *DC, *DL, *DM,
 	*DO, *ED, *EI, *K0, *K1, *K2, *K3, *K4, *K5, *K6, *K7, *K8,
 	*K9, *HO, *IC, *IM, *IP, *KD, *KE, *KH, *KL, *KR, *KS, *KU,
 	*LL, *MA, *ND, *NL, *RC, *SC, *SE, *SF, *SO, *SR, *TA, *TE,
-	*TI, *UC, *UE, *UP, *US, *VB, *VS, *VE, *AL_PARM, *DL_PARM,
+	*TI, *UC, *UE, *US, *VB, *VS, *VE, *AL_PARM, *DL_PARM,
 	*UP_PARM, *DOWN_PARM, *LEFT_PARM, *RIGHT_PARM;
-char	PC;
 
 /*
  * From the tty modes...

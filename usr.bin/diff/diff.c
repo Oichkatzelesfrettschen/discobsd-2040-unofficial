@@ -3,6 +3,30 @@
  */
 #include "diff.h"
 
+/* Shared state declared in diff.h. */
+int opt;
+int tflag;
+int hflag;
+int bflag;
+int wflag;
+int iflag;
+int lflag;
+int rflag;
+int sflag;
+char *start;
+int wantelses;
+char *ifdef1;
+char *ifdef2;
+char *endifname;
+int inifdef;
+int context;
+int status;
+int anychange;
+char *tempfile;
+char **diffargv;
+char *file1, *file2, *efile1, *efile2;
+struct stat stb1, stb2;
+
 void	noroom();
 
 char	diff[] = DIFF;

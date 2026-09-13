@@ -11,6 +11,43 @@
 #include <unistd.h>
 #include "back.h"
 
+/* Shared state declared in back.h. */
+char args[100];
+int board[26];
+int dice[2];
+int mvlim;
+int mvl;
+int p[5];
+int g[5];
+int h[4];
+int cturn;
+int d0;
+int table[6][6];
+int rscore;
+int wscore;
+int gvalue;
+int dlast;
+int bar;
+int home;
+int off[2];
+int *offptr;
+int *offopp;
+int in[2];
+int *inptr;
+int *inopp;
+int ncin;
+char cin[100];
+char **colorptr;
+char **Colorptr;
+int colen;
+struct sgttyb tty;
+int old;
+int noech;
+int raw;
+int curr;
+int curc;
+int begscr;
+
 int	buffnum;
 char	outbuff[BUFSIZ];
 

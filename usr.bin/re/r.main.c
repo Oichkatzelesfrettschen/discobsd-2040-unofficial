@@ -12,6 +12,39 @@
  * Alex P. Roudnev, Moscow, KIAE, 1984
  */
 #include "r.defs.h"
+
+/* Shared state declared in r.defs.h. */
+file_t file[MAXFILES];
+int curfile;
+workspace_t *curwksp, *pickwksp;
+window_t *winlist[MAXWINLIST];
+int nwinlist;
+window_t *curwin;
+window_t wholescreen;
+window_t paramwin;
+clipboard_t *pickbuf, *deletebuf;
+int cursorline;
+int cursorcol;
+int NCOLS, NLINES;
+char intrflag;
+int highlight_position;
+int message_displayed;
+int param_len;
+char *param_str, param_type;
+int param_c0, param_r0, param_c1, param_r1;
+char *cline;
+int cline_max;
+int cline_len;
+int cline_incr;
+char cline_modified;
+int clineno;
+int tempfile;
+off_t tempseek;
+int journal;
+int inputfile;
+char *searchkey;
+int userid, groupid;
+char *tmpname;
 #include <signal.h>
 #include <sys/stat.h>
 

@@ -8,8 +8,8 @@
 #include <unistd.h>
 #include <term.h>
 
-char	PC;			/* padding character */
-char	*BC;			/* backspace sequence */
+extern char	PC;			/* padding character */
+extern char	*BC;			/* backspace sequence */
 char	*CD;			/* clear to end of screen sequence */
 char	*CE;			/* clear to end of line sequence */
 char	*CL;			/* clear screen sequence */
@@ -18,7 +18,7 @@ char	*HO;			/* home cursor sequence */
 char	*MC;			/* column cursor movement map */
 char	*ML;			/* row cursor movement map */
 char	*ND;			/* forward cursor sequence */
-char	*UP;			/* up cursor sequence */
+extern char	*UP;			/* up cursor sequence */
 
 int	lHO;			/* length of HO */
 int	lBC;			/* length of BC */
@@ -34,8 +34,7 @@ char	tcap[] = "bccdceclcmhomcmlndup";
 				/* corresponding strings */
 char	**tstr[] = { &BC, &CD, &CE, &CL, &CM, &HO, &MC, &ML, &ND, &UP };
 
-int	buffnum;		/* pointer to output buffer */
-
+extern int	buffnum;		/* output buffer fill, defined in subs.c */
 char	tbuf[1024];		/* buffer for decoded termcap entries */
 
 int	oldb[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};

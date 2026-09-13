@@ -2,6 +2,60 @@
 #include <stdlib.h>
 #include "sed.h"
 
+/* Shared state declared in sed.h. */
+FILE *fin;
+union reptr *abuf[ABUFSIZE];
+union reptr **aptr;
+char *lastre;
+char ibuf[BUFSIZ];
+char *cbp;
+char *ebp;
+char genbuf[LBSIZE];
+char *loc1;
+char *loc2;
+char *locs;
+char seof;
+char *reend;
+char *lbend;
+char *hend;
+char *lcomend;
+union reptr *ptrend;
+int eflag;
+int dolflag;
+int sflag;
+int jflag;
+int numbra;
+int delflag;
+long lnum;
+char linebuf[LBSIZE+1];
+char holdsp[LBSIZE+1];
+char *spend;
+char *hspend;
+int nflag;
+int gflag;
+char *braelist[NBRA];
+char *braslist[NBRA];
+long tlno[NLINES];
+int nlno;
+char fname[12][40];
+FILE *fcode[12];
+int nfiles;
+char *cp;
+char respace[RESIZE];
+struct label *lab;
+struct label *labend;
+int f;
+int depth;
+int eargc;
+char **eargv;
+union reptr **cmpend[DEPTH];
+union reptr *pending;
+char *badp;
+char bad;
+char compfl;
+union reptr ptrspace[PTRSIZE], *rep;
+struct label ltab[LABSIZE];
+
 struct label	*labtab = ltab;
 char	CGMES[]	= "command garbled: %s\n";
 char	TMMES[]	= "Too much text: %s\n";

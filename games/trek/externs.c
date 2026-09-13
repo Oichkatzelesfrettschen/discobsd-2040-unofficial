@@ -5,6 +5,18 @@
  */
 # include	"trek.h"
 
+/* Shared state declared in trek.h. */
+struct quad Quad[NQUADS][NQUADS];
+char Sect[NSECTS][NSECTS];
+struct event Event[MAXEVENTS];
+int Trace;
+struct ship Ship;
+struct game Game;
+struct move Move;
+struct param Param;
+struct now Now;
+struct etc Etc;
+
 /*
 **	global variable definitions
 */

@@ -22,6 +22,52 @@
 #include <paths.h>
 #include "fsck.h"
 
+/* Shared state declared in fsck.h. */
+BUFAREA inoblk;
+BUFAREA fileblk;
+BUFAREA sblk;
+BUFAREA *poolhead;
+daddr_t duplist[DUPTBLSIZE];
+daddr_t *enddup;
+daddr_t *muldup;
+ino_t zlnlist[MAXLNCNT];
+ino_t *zlnp;
+daddr_t startib;
+unsigned int memsize;
+char *devnam;
+char nflag;
+char yflag;
+char sflag;
+int debug;
+char preen;
+char hotroot;
+char fixfree;
+char *membase;
+char *blockmap;
+char *freemap;
+char *statemap;
+short *lncntp;
+char pathname[MAXPATHLEN];
+char scrfile[80];
+char *pathp;
+daddr_t fsmin;
+daddr_t fsmax;
+ino_t imax;
+ino_t lastino;
+ino_t lfdir;
+off_t bmapsz;
+daddr_t bmapblk;
+daddr_t smapblk;
+daddr_t lncntblk;
+daddr_t fmapblk;
+daddr_t n_blks;
+daddr_t n_files;
+daddr_t n_free;
+int badblk, dupblk;
+struct dinode zino;
+struct filecntl dfile, sfile;
+char inobuf[NINOBLK*INOPB*sizeof (struct dinode)];
+
 extern  int returntosingle;
 
 static char memdata[16 * sizeof(BUFAREA)];

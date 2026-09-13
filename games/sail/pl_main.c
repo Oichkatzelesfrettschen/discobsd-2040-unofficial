@@ -4,6 +4,22 @@
  * specifies the terms and conditions for redistribution.
  */
 #include "player.h"
+
+/* Shared state declared in player.h. */
+WINDOW *view_w;
+WINDOW *slot_w;
+WINDOW *scroll_w;
+WINDOW *stat_w;
+WINDOW *turn_w;
+char done_curses;
+char loaded, fired, changed, repaired;
+char dont_adjust;
+int viewrow, viewcol;
+int player;
+struct ship *ms;
+struct File *mf;
+struct shipspecs *mc;
+char movebuf[sizeof SHIP(0)->file->movebuf];
 #include <sys/types.h>
 #include <sys/wait.h>
 

@@ -16,6 +16,20 @@
  */
 
 #include "snake.h"
+
+/* Shared state declared in snake.h. */
+char *CL, *DO, *ND, *BS, *HO, *CM, *LL, *KL, *KR, *KU, *KD, *TI, *TE, *KS, *KE;
+int LINES, COLUMNS;
+int lcnt, ccnt;
+char xBC;
+int BW;
+char tbuf[1024], tcapbuf[128];
+int Klength;
+int chunk;
+struct point cursor;
+struct sgttyb origtty, newtty;
+struct ltchars olttyc, nlttyc;
+struct tbuffer tbuffer;
 #include <pwd.h>
 #include <stdlib.h>
 #include <signal.h>

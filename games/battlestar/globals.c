@@ -5,6 +5,37 @@
  */
 #include "externs.h"
 
+/* Shared state declared in externs.h. */
+struct room *location;
+char words[NWORD][15];
+int wordvalue[NWORD];
+int wordtype[NWORD];
+int wordcount, wordnumber;
+int Time;
+int position;
+int direction;
+int left, right, ahead, back;
+int fuel, torps;
+int carrying, encumber;
+int rythmn;
+int ate;
+int snooze;
+int meetgirl;
+int godready;
+int wintime;
+int wiz;
+int tempwiz;
+int matchlight, matchcount;
+int loved;
+int pleasure, power, ego;
+int notes[NUMOFNOTES];
+unsigned int inven[NUMOFWORDS];
+unsigned int wear[NUMOFWORDS];
+char beenthere[NUMOFROOMS+1];
+char injuries[NUMOFINJURIES];
+char uname[9];
+struct wlist *hashtab[HASHSIZE];
+
 #define strstr(x) x
 
 int WEIGHT = MAXWEIGHT;

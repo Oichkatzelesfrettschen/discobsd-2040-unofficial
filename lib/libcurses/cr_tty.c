@@ -38,7 +38,7 @@ static int	destcol, destline;
  * calculation of flags at entry.  It is almost entirely stolen from
  * Bill Joy's ex version 2.6.
  */
-short	ospeed = -1;
+extern short	ospeed;
 
 void
 gettmode()

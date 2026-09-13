@@ -15,20 +15,20 @@
 #include "machdep.h"
 
 	/* program mode */
-int mode;
-jmp_buf restart;
+extern int mode;
+extern jmp_buf restart;
 #define MODE_PLAYER	1
 #define MODE_DRIVER	2
 #define MODE_LOGGER	3
 
 	/* command line flags */
-char debug;				/* -D */
-char randomize;				/* -x, give first available ship */
-char longfmt;				/* -l, print score in long format */
-char nobells;				/* -b, don't ring bell before Signal */
+extern char debug;				/* -D */
+extern char randomize;				/* -x, give first available ship */
+extern char longfmt;				/* -l, print score in long format */
+extern char nobells;				/* -b, don't ring bell before Signal */
 
 	/* other initial modes */
-char issetuid;				/* running setuid */
+extern char issetuid;				/* running setuid */
 #define MAXNAMESIZE	20
 
 #define die()		((rand() >> 3) % 6 + 1)
@@ -205,7 +205,7 @@ struct scenario {
 	struct ship ship[NSHIP];	/* 16 */
 };
 extern struct scenario scene[];
-int nscene;
+extern int nscene;
 
 struct shipspecs {
 	char bs;
@@ -230,8 +230,8 @@ struct shipspecs {
 };
 extern struct shipspecs specs[];
 
-struct scenario *cc;		/* the current scenario */
-struct ship *ls;		/* &cc->ship[cc->vessels] */
+extern struct scenario *cc;		/* the current scenario */
+extern struct ship *ls;		/* &cc->ship[cc->vessels] */
 
 #define SHIP(s)		(&cc->ship[(int)s])
 #define foreachship(sp)	for ((sp) = cc->ship; (sp) < ls; (sp)++)
@@ -239,19 +239,19 @@ struct ship *ls;		/* &cc->ship[cc->vessels] */
 struct windeffects {
 	char A, B, C, D;
 };
-struct windeffects WET[7][6];
+extern struct windeffects WET[7][6];
 
 struct Tables {
 	char H, G, C, R;
 };
-struct Tables RigTable[11][6];
-struct Tables HullTable[11][6];
+extern struct Tables RigTable[11][6];
+extern struct Tables HullTable[11][6];
 
-char AMMO[9][4];
-char HDT[9][10];
-char HDTrake[9][10];
-char QUAL[9][5];
-char MT[9][3];
+extern char AMMO[9][4];
+extern char HDT[9][10];
+extern char HDTrake[9][10];
+extern char QUAL[9][5];
+extern char MT[9][3];
 
 extern char *countryname[];
 extern char *classname[];
@@ -263,13 +263,13 @@ extern char rangeofshot[];
 
 extern char dr[], dc[];
 
-int winddir;
-int windspeed;
-int turn;
-int game;
-int alive;
-int people;
-char hasdriver;
+extern int winddir;
+extern int windspeed;
+extern int turn;
+extern int game;
+extern int alive;
+extern int people;
+extern char hasdriver;
 
 char *info();
 char *quality();

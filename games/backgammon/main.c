@@ -18,7 +18,7 @@
 
 extern const char *instr[];			/* text of instructions */
 extern const char *message[];			/* update message */
-char	ospeed;					/* tty output speed */
+extern short	ospeed;				/* tty output speed, owned by libtermcap */
 
 const char	*helpm[] = {			/* help message */
 	"Enter a space or newline to roll, or",

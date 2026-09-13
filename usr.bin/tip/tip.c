@@ -14,6 +14,62 @@
 #include <string.h>
 #include "tip.h"
 
+/* Shared state declared in tip.h. */
+char *DV;
+char *EL;
+char *CM;
+char *IE;
+char *OE;
+char *CU;
+char *AT;
+char *PN;
+char *DI;
+char *PA;
+char *PH;
+char *HO;
+int BR;
+int FS;
+char DU;
+char HW;
+char *ES;
+char *EX;
+char *FO;
+char *RC;
+char *RE;
+char *PR;
+int DL;
+int CL;
+int ET;
+char HD;
+struct sgttyb arg;
+struct sgttyb defarg;
+struct tchars tchars;
+struct tchars defchars;
+struct ltchars ltchars;
+struct ltchars deflchars;
+FILE *fscript;
+int fildes[2];
+int repdes[2];
+int FD;
+int AC;
+int vflag;
+int sfd;
+int pid;
+uid_t uid, euid;
+gid_t gid, egid;
+int stop;
+int quit;
+int intflag;
+int stoprompt;
+int timedout;
+int cumode;
+char fname[80];
+char copyname[80];
+char ccc;
+char ch;
+char *uucplock;
+int odisc;
+
 /*
  * Baud rate mapping table
  */

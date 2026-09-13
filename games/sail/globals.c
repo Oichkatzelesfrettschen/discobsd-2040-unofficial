@@ -5,6 +5,33 @@
  */
 #include "externs.h"
 
+/* Shared state declared in externs.h. */
+int mode;
+jmp_buf restart;
+char debug;
+char randomize;
+char longfmt;
+char nobells;
+char issetuid;
+int nscene;
+struct scenario *cc;
+struct ship *ls;
+struct windeffects WET[7][6];
+struct Tables RigTable[11][6];
+struct Tables HullTable[11][6];
+char AMMO[9][4];
+char HDT[9][10];
+char HDTrake[9][10];
+char QUAL[9][5];
+char MT[9][3];
+int winddir;
+int windspeed;
+int turn;
+int game;
+int alive;
+int people;
+char hasdriver;
+
 struct scenario scene[] = {
 	/*
 	 * int winddir;

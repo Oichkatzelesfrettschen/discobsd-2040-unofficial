@@ -7,7 +7,6 @@
 #include <errno.h>
 #include <math.h>
 
-int errno;
 
 double
 sqrt(arg)

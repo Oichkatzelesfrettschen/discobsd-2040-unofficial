@@ -29,7 +29,6 @@
 #include <math.h>
 #include <errno.h>
 
-int	errno;
 
 double
 jn(n,x) int n; double x;{

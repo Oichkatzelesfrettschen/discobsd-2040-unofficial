@@ -32,7 +32,7 @@ import sys
 REG = re.compile(r"^r(\d+)$")
 LABEL = re.compile(r"^([A-Za-z_.$][A-Za-z0-9_.$]*):")
 NUMLABEL = re.compile(r"^\.L\d+$")
-EQU = re.compile(r"^\s*\.equ\s+(\S+)\s*,\s*(\d+)")
+EQU = re.compile(r"^\s*\.equ\s+(\S+)\s*,\s*(-?\d+)")
 IMM = re.compile(r"^#(-?\d+)$")
 SPOFS = re.compile(r"^\[sp,\s*#(\d+)\]$")
 
@@ -155,12 +155,15 @@ def walk(path, lines, equs, funcs, dynamic):
                     raise Fail("%s:%d: SP moved by an unknown register"
                                % (path, lineno))
                 n = held[1]
+            # The frame reserve adds a negative constant, so the direction
+            # is the sign of the product rather than of the mnemonic.
+            delta = sign * n
             if off is not None:
-                off += sign * n
-            if sign > 0:
-                drop(n // 4)
+                off += delta
+            if delta > 0:
+                drop(delta // 4)
             else:
-                vals.extend([None] * (n // 4))
+                vals.extend([None] * (-delta // 4))
         elif mnem == "mov" and ops[:1] == ["sp"]:
             held = regs.get(regnum(ops[1]))
             if not held or held[0] != "sp":

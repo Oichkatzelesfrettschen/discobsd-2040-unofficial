@@ -21,9 +21,7 @@ main:
 	push	{r7, lr}
 	mov	r7, sp
 	ldr	r3, =.LF0
-	mov	r2, sp
-	subs	r2, r2, r3
-	mov	sp, r2
+	add	sp, r3
 	push	{r0, r4, r5, r6}
 	movs	r0, #47
 	movs	r1, #4
@@ -471,7 +469,7 @@ main:
 	pop	{r3}
 	add	sp, #16
 	bx	r3
-	.equ	.LF0, 16
+	.equ	.LF0, -16
 	.ltorg
 
  @ Next label number: 12

@@ -83,7 +83,6 @@ struct local {
 #define NSYM            1500
 #define NSYMPR          500
 #define NLIBS           256
-#define RANTABSZ        500
 #define LIBLIST_END     (~0U)
 #define MAXSYMLEN       255
 
@@ -96,8 +95,9 @@ struct local local [NSYMPR];
 int symindex;                   /* next free entry of symbol table */
 unsigned basaddr = BADDR;       /* base address of loading */
 int     basaddr_set;            /* -T named the base explicitly */
-struct ranlib rantab [RANTABSZ];
+struct ranlib *rantab;          /* ranlib table of the library being read */
 int rancount;                   /* number of elements in rantab */
+int rantabsz;                   /* elements rantab was allocated to hold */
 
 /*
  * library management
@@ -452,6 +452,10 @@ freerantab(void)
 
 	for (p=rantab; p<rantab+rancount; ++p)
 		free (p->ran_name);
+	free (rantab);
+	rantab = 0;
+	rancount = 0;
+	rantabsz = 0;
 }
 
 int
@@ -479,12 +483,24 @@ fgetran(FILE *text, struct ranlib *sym)
 	return (1);
 }
 
+/*
+ * Read the __.SYMDEF member of the archive whose header sits in archdr.
+ * Each entry spends one byte on the name length, four on the archive offset
+ * and at least one on the name, so the member's size divided by six bounds
+ * the entry count and sizes the table; a member that yields more entries
+ * than that contradicts its own header and stops the link.
+ */
 void
 getrantab(void)
 {
 	register struct ranlib *p;
 
-	for (p=rantab; p<rantab+RANTABSZ; ++p) {
+	rancount = 0;
+	rantabsz = (int) (archdr.ar_size / 6 + 1);
+	rantab = malloc ((size_t) rantabsz * sizeof (struct ranlib));
+	if (! rantab)
+		error (2, "out of memory");
+	for (p=rantab; p<rantab+rantabsz; ++p) {
 		if (! fgetran (text, p)) {
 			rancount = p - rantab;
 			return;

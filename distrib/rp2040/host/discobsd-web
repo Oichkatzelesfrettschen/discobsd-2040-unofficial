@@ -69,7 +69,7 @@ document.addEventListener("click",grab);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)grab();});
 
 var proto=location.protocol==="https:"?"wss":"ws";
-var ws=new WebSocket(proto+"://"+location.host+"/ws");
+var ws=new WebSocket(proto+"://"+location.host+"/ws"+location.search);
 ws.binaryType="arraybuffer";
 ws.onopen=function(){stat.textContent="connected";grab();};
 ws.onclose=function(){stat.textContent="disconnected -- reload to retry";};

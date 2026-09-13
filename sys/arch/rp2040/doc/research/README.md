@@ -12,6 +12,8 @@ manifest cite as the authority for a shipped mechanism:
   rockbox-ui.md -- what each multicall binary in distrib/rp2040/mi.rp2040
   carries and why.
 - zswap.md and emulation.md -- the RAM-tier swap design and the Renode flow.
+- sh-posix-audit.md -- the bin/sh POSIX ledger whose rows bin/sh/tests/posix-sh.sh
+  tests and whose xfail cases pin the open items.
 
 Every other note written during the port (option surveys, backport and size
 audits, tuning reports, handback notes, USB and storage investigations)

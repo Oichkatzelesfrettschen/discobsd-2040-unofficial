@@ -38,7 +38,9 @@ touch_stdio(void)
 {
 	FILE *f = fopen("/tmp/x", "r");
 	char buf[64];
+	char terminal_name[L_ctermid];
 
+	sink += (long)ctermid(terminal_name);
 	sink += (long)fgets(buf, sizeof(buf), f);
 	sink += fputs(buf, stdout);
 	sink += fputc('x', stdout);
@@ -146,6 +148,7 @@ touch_syscalls(void)
 	sink += wait(&status);
 	sink += getpid();
 	sink += kill(pid, SIGTERM);
+	sink += raise(0);
 	sink += (long)signal(SIGINT, SIG_IGN);
 	sink += time(NULL);
 	sink += sleep(0);

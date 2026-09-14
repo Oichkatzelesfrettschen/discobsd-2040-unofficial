@@ -20,6 +20,7 @@ static int _IOFBFValue = _IOFBF;
 static int _IOLBFValue = _IOLBF;
 static int _IONBFValue = _IONBF;
 static int L_tmpnamValue = L_tmpnam;
+static int L_ctermidValue = L_ctermid;
 static int GETS_MAXValue = 255;     /* arbitrary maximum size of a gets() file */
 
 static FILE *stdinValue;
@@ -413,6 +414,11 @@ void StdioTmpfile(struct ParseState *Parser, struct Value *ReturnValue, struct V
     ReturnValue->Val->Pointer = tmpfile();
 }
 
+void StdioCtermid(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+{
+    ReturnValue->Val->Pointer = ctermid(Param[0]->Val->Pointer);
+}
+
 void StdioClearerr(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
     clearerr((FILE *)Param[0]->Val->Pointer);
@@ -648,6 +654,7 @@ struct LibraryFunction StdioFunctions[] =
     { StdioRename,  "int rename(char *, char *);" },
     { StdioRewind,  "void rewind(FILE *);" },
     { StdioTmpfile, "FILE *tmpfile();" },
+    { StdioCtermid, "char *ctermid(char *);" },
     { StdioClearerr,"void clearerr(FILE *);" },
     { StdioFeof,    "int feof(FILE *);" },
     { StdioFerror,  "int ferror(FILE *);" },
@@ -710,6 +717,7 @@ void StdioSetupFunc(void)
     VariableDefinePlatformVar(NULL, "_IOLBF", &IntType, (union AnyValue *)&_IOLBFValue, FALSE);
     VariableDefinePlatformVar(NULL, "_IONBF", &IntType, (union AnyValue *)&_IONBFValue, FALSE);
     VariableDefinePlatformVar(NULL, "L_tmpnam", &IntType, (union AnyValue *)&L_tmpnamValue, FALSE);
+    VariableDefinePlatformVar(NULL, "L_ctermid", &IntType, (union AnyValue *)&L_ctermidValue, FALSE);
     VariableDefinePlatformVar(NULL, "GETS_MAX", &IntType, (union AnyValue *)&GETS_MAXValue, FALSE);
 
     /* define stdin, stdout and stderr */

@@ -17,6 +17,7 @@ _brk
 bzero
 calloc
 close
+ctermid
 ctype_
 doprnt
 doscan
@@ -59,6 +60,7 @@ perror
 printf
 puts
 qsort
+raise
 read
 remove
 rew

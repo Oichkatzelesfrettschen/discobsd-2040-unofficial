@@ -11,7 +11,8 @@ fi
 source_root=${1:-$(cd "$(dirname "$0")/.." && pwd)}
 manifest_path=$source_root/distrib/rp2040/mi.rp2040
 tracked_configs=$(mktemp)
-trap 'rm -f "$tracked_configs"' EXIT HUP INT TERM
+makefile_objects=$(mktemp)
+trap 'rm -f "$tracked_configs" "$makefile_objects"' EXIT HUP INT TERM
 
 if [ ! -f "$manifest_path" ] || [ ! -r "$manifest_path" ]; then
 	echo "$0: cannot read $manifest_path" >&2
@@ -50,8 +51,41 @@ while IFS= read -r relative_config_path; do
 		echo "$0: $configuration_name Makefile lacks -DEXEC_HSAOUT" >&2
 		exit 1
 	fi
+	if ! awk '
+		BEGIN { assignment_count = 0; continuation = 0; parse_error = 0 }
+		{
+			if (continuation) {
+				line = $0
+			} else if ($0 ~ /^[[:space:]]*OBJS[[:space:]]*=/) {
+				assignment_count++
+				if (assignment_count > 1) {
+					parse_error = 1
+					exit
+				}
+				line = $0
+				sub(/^[[:space:]]*OBJS[[:space:]]*=[[:space:]]*/, "", line)
+			} else {
+				next
+			}
+			line_continues = line ~ /\\[[:space:]]*$/
+			sub(/\\[[:space:]]*$/, "", line)
+			sub(/[[:space:]]*#.*/, "", line)
+			field_count = split(line, fields)
+			for (field_index = 1; field_index <= field_count; field_index++)
+				if (fields[field_index] != "")
+					print fields[field_index]
+			continuation = line_continues
+		}
+		END {
+			if (parse_error || assignment_count != 1 || continuation)
+				exit 1
+		}
+	' "$makefile_path" >"$makefile_objects"; then
+		echo "$0: $configuration_name Makefile has an invalid OBJS assignment" >&2
+		exit 1
+	fi
 	for object_name in subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o; do
-		if ! grep -Eq "(^|[[:space:]])$object_name([[:space:]]|$)" "$makefile_path"; then
+		if ! grep -Fqx "$object_name" "$makefile_objects"; then
 			echo "$0: $configuration_name Makefile lacks $object_name" >&2
 			exit 1
 		fi

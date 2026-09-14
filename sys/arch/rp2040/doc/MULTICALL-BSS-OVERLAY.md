@@ -33,7 +33,9 @@ The build preserves the following boundaries:
   linker warning as fatal.
 - The generated extent relies on the enclosing linker script's segment
   assignment. It therefore works with both the ARM script's named PHDRS and
-  the MIPS script's implicit program headers.
+  the MIPS script's implicit program headers. The ELF layout gate compiles
+  MIPS32r2 objects, links the overlay through `elf32-mips.ld`, and compares the
+  converted a.out header and payload with the MIPS ELF load image.
 - The generated section retains each input symbol's alignment. The ELF layout
   test includes an eight-byte-aligned member and checks shared virtual
   addresses, maximum extent size, shared-BSS separation, initialized-data

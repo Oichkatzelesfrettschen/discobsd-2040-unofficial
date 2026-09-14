@@ -2,6 +2,7 @@ TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 VERIFIER=       ${.CURDIR}/verify_layout.py
+MIPS_GCCPREFIX?=mipsel-elf
 
 check-python:
 	@if [ -z "${PYTHON}" ]; then \
@@ -9,7 +10,15 @@ check-python:
 		exit 2; \
 	fi
 
-check: check-python
+check-mips-tools:
+	@for tool_name in gcc ld nm objcopy readelf; do \
+		command -v ${MIPS_GCCPREFIX}-$$tool_name >/dev/null || { \
+			echo "missing ${MIPS_GCCPREFIX}-$$tool_name" >&2; \
+			exit 2; \
+		}; \
+	done
+
+check: check-python check-mips-tools
 	test -x ${ELF2AOUT}
 	"${PYTHON}" "${VERIFIER}" \
 	    --cc "${GCCPREFIX}-gcc" \
@@ -21,8 +30,14 @@ check: check-python
 	    --linker-script "${TOPSRC}/lib/elf32-arm.ld" \
 	    --elf2aout "${ELF2AOUT}" \
 	    --overlay-generator "${TOPSRC}/tools/generate_multicall_bss_overlay.sh" \
-	    --overlay-verifier "${TOPSRC}/tools/verify_multicall_bss_objects.sh"
+	    --overlay-verifier "${TOPSRC}/tools/verify_multicall_bss_objects.sh" \
+	    --mips-cc "${MIPS_GCCPREFIX}-gcc" \
+	    --mips-ld "${MIPS_GCCPREFIX}-ld" \
+	    --mips-nm "${MIPS_GCCPREFIX}-nm" \
+	    --mips-objcopy "${MIPS_GCCPREFIX}-objcopy" \
+	    --mips-readelf "${MIPS_GCCPREFIX}-readelf" \
+	    --mips-linker-script "${TOPSRC}/lib/elf32-mips.ld"
 
 all: check
 
-.PHONY: all check check-python
+.PHONY: all check check-mips-tools check-python

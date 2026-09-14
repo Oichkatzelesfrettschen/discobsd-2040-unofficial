@@ -78,10 +78,26 @@ for required_object in subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o; do
 			printf ' %s' "$candidate_object" >>"$pico_directory/Makefile"
 		fi
 	done
-	printf '\n' >>"$pico_directory/Makefile"
+	printf '\n# retained rule and comment decoys: %s\n%s:\n' \
+		"$required_object" "$required_object" >>"$pico_directory/Makefile"
 	expect_rejection "PICO Makefile lacks $required_object" \
 		sh "$verifier" "$temporary_root"
 done
+
+printf '%s\n' \
+	'PARAM += -DEXEC_HSAOUT' \
+	'OBJS = subr_crc32.o exec_hsaout.o \' \
+	'       hsx_stream.o hsx_decoder.o' \
+	>"$pico_directory/Makefile"
+sh "$verifier" "$temporary_root"
+
+printf '%s\n' \
+	'PARAM += -DEXEC_HSAOUT' \
+	'OBJS = subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o' \
+	'OBJS = subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o' \
+	>"$pico_directory/Makefile"
+expect_rejection 'PICO Makefile has an invalid OBJS assignment' \
+	sh "$verifier" "$temporary_root"
 
 write_valid_makefile
 sh "$verifier" "$temporary_root"

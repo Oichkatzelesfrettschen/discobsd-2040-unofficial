@@ -39,6 +39,11 @@ access (ip, mode)
             u.u_error = EPERM;
             return(1);
         }
+        /* A running executable's text, exec_text_hold. */
+        if (ip->i_flag & ITEXT) {
+            u.u_error = ETXTBSY;
+            return(1);
+        }
         /*
          * Disallow write attempts on read-only
          * file systems; unless the file is a block

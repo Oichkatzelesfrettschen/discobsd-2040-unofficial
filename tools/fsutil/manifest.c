@@ -35,13 +35,13 @@
  */
 struct _entry_t {
     entry_t *next;
-    int     type;               /* d, f, l, s, b or c */
+    int     type;               /* d, f, p, l, s, b or c */
     int     mode;
     int     owner;
     int     group;
     int     major;
     int     minor;
-    char    *link;              /* Target for link or symlink */
+    char    *link;              /* Target for link or symlink, source for pack */
     char    path[BSDFS_MAXNAMLEN + 1];
 };
 
@@ -415,6 +415,15 @@ baddef:         fprintf (stderr, "%s: command '%s' not allowed in default sectio
             target = strdup (arg);
             continue;
         }
+        if (strcmp ("source", cmd) == 0) {
+            if (type != 'p') {
+                fprintf (stderr, "%s: command '%s' allowed only for pack\n", filename, cmd);
+                fclose (fd);
+                return 0;
+            }
+            target = strdup (arg);
+            continue;
+        }
 
         /*
          * End of section: add new object.
@@ -477,6 +486,12 @@ newobj:     /* Check parameters. */
         }
         else if (strcmp ("file", cmd) == 0) {
             type = 'f';
+            path = strdup (arg);
+        }
+        else if (strcmp ("pack", cmd) == 0) {
+            /* A raw a.out installed as a packed one; "source" names the
+             * raw file when it differs from the installed path. */
+            type = 'p';
             path = strdup (arg);
         }
         else if (strcmp ("link", cmd) == 0) {

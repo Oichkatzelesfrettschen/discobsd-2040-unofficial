@@ -54,3 +54,4 @@ options         "UART_BAUD=115200"          # default speed
 # user window in conf/RP2040.ld instead.
 options        SWAPRAM                     # RAM tier ahead of fl1
 options        "SWAPRAM_KB=16"             # kbytes of bss for the pool
+options        EXEC_HSAOUT                 # packed a.out executables

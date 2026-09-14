@@ -94,6 +94,16 @@ arch/rp2040/heatshrink/heatshrink_encoder.c	optional swapram
 arch/rp2040/heatshrink/heatshrink_decoder.c	optional swapram
 
 #
+# Packed a.out executables, selected by "options EXEC_HSAOUT": the loader,
+# the CRC, the stream expander and a second heatshrink decoder instance
+# compiled with the container's lookahead.
+#
+kern/subr_crc32.c			optional exec_hsaout
+arch/rp2040/rp2040/exec_hsaout.c	optional exec_hsaout
+arch/rp2040/rp2040/hsx_stream.c		optional exec_hsaout
+arch/rp2040/rp2040/hsx_decoder.c	optional exec_hsaout
+
+#
 # STM32 hardware abstraction layer.
 #
 #arch/stm32/hal/stm32f4xx_ll_rcc.c	standard

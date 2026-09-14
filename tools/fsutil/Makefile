@@ -20,7 +20,10 @@ LIBS!=		PKG_CONFIG_PATH=${FUSE_PATH} pkg-config fuse --libs
 
 # libbsd-dev package on Linux in overlay mode.
 CFLAGS+=	${_LIBBSD_CFLAGS}
-LIBS+=		${_LIBBSD_LIBS}
+LIBS+=		${_LIBBSD_LIBS} ../hsaout/libhsaout.a
+
+../hsaout/libhsaout.a:
+		${MAKE} -C ../hsaout libhsaout.a
 
 all:		$(PROG)
 
@@ -30,7 +33,7 @@ install:	all
 clean:
 		rm -f *~ *.o ${PROG} ${PROG}.dSYM
 
-$(PROG):	$(OBJS)
+$(PROG):	$(OBJS) ../hsaout/libhsaout.a
 		$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
 root.bin:       $(PROG)

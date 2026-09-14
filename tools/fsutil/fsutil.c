@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <fts.h>
+#include "../hsaout/libhsaout.h"
 #include "bsdfs.h"
 #include "manifest.h"
 
@@ -414,26 +415,36 @@ void add_device (fs_t *fs, char *name, int mode, int owner, int group,
 /*
  * Copy regular file to filesystem.
  */
+/*
+ * Copy the host file at source (path when null) under dirname into the
+ * image at path. With pack set the file is a raw a.out and the image gets
+ * its packed form; a source that does not pack fails the build.
+ */
 void add_file (fs_t *fs, const char *path, const char *dirname,
-    int mode, int owner, int group)
+    int mode, int owner, int group, const char *source, int pack)
 {
     fs_file_t file;
     FILE *fd;
     char accpath [BSDFS_BSIZE];
     unsigned char data [BSDFS_BSIZE];
+    unsigned char *raw = NULL, *packed = NULL;
+    size_t rawlen = 0, packedlen = 0, done;
+    const char *err;
     struct stat st;
     int len;
 
+    if (source == NULL)
+        source = path;
     if (dirname && *dirname) {
         /* Concatenate directory name and file name. */
         strlcpy (accpath, dirname, sizeof(accpath));
         len = strlen (accpath);
-        if (accpath[len-1] != '/' && path[0] != '/')
+        if (accpath[len-1] != '/' && source[0] != '/')
             strlcat (accpath, "/", sizeof(accpath));
-        strlcat (accpath, path, sizeof(accpath));
+        strlcat (accpath, source, sizeof(accpath));
     } else {
         /* Use filename relative to current directory. */
-        strlcpy (accpath, path, sizeof(accpath));
+        strlcpy (accpath, source, sizeof(accpath));
     }
     fd = fopen (accpath, "r");
     if (! fd) {
@@ -445,11 +456,36 @@ void add_file (fs_t *fs, const char *path, const char *dirname,
         mode = st.st_mode;
     mode &= 07777;
     mode |= INODE_MODE_FREG;
+    if (pack) {
+        raw = malloc (st.st_size);
+        if (raw == NULL || fread (raw, 1, st.st_size, fd) != (size_t) st.st_size) {
+            fprintf (stderr, "%s: cannot read\n", accpath);
+            exit (1);
+        }
+        rawlen = st.st_size;
+        packed = hsaout_pack (raw, rawlen, &packedlen, &err);
+        if (packed == NULL) {
+            fprintf (stderr, "%s: pack: %s\n", accpath, err);
+            exit (1);
+        }
+    }
     if (! fs_file_create (fs, &file, path, mode)) {
         fprintf (stderr, "%s: cannot create\n", path);
         return;
     }
-    for (;;) {
+    for (done = 0; pack; ) {
+        len = packedlen - done < sizeof (data) ? packedlen - done : sizeof (data);
+        if (len == 0)
+            break;
+        if (! fs_file_write (&file, packed + done, len)) {
+            fprintf (stderr, "%s: write error\n", path);
+            break;
+        }
+        done += len;
+    }
+    free (raw);
+    free (packed);
+    for (; ! pack; ) {
         len = fread (data, 1, sizeof (data), fd);
 /*      printf ("read %d bytes from %s\n", len, accpath);*/
         if (len < 0)
@@ -554,7 +590,7 @@ void add_object (fs_t *fs, char *name)
         add_device (fs, name, 0666, 0, 0, type, majr, minr);
         return;
     }
-    add_file (fs, name, 0, -1, 0, 0);
+    add_file (fs, name, 0, -1, 0, 0, NULL, 0);
 }
 
 /*
@@ -595,7 +631,11 @@ void add_contents (fs_t *fs, const char *dirname, const char *manifest)
             ndirs++;
             break;
         case 'f':
-            add_file (fs, path, dirname, mode, owner, group);
+            add_file (fs, path, dirname, mode, owner, group, NULL, 0);
+            nfiles++;
+            break;
+        case 'p':
+            add_file (fs, path, dirname, mode, owner, group, link, 1);
             nfiles++;
             break;
         case 'l':

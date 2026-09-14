@@ -42,13 +42,13 @@ do
 		fi
 	done
 
-	linked_object=$temporary_directory/linked-$archive_index.o
-	"$linker" -r -o "$linked_object" \
+	linked_image=$temporary_directory/linked-$archive_index
+	"$linker" -T20000000 -o "$linked_image" \
 	    "$temporary_directory/aout_link_contract.o" "$archive_path"
-	if "$symbol_reader" -u "$linked_object" |
-	    awk '$NF == "ctermid" || $NF == "raise" { found = 1 } END { exit !found }'
-	then
-		echo "$archive_path: process contracts remain undefined" >&2
+	undefined_symbols=$("$symbol_reader" -u "$linked_image")
+	if [ -n "$undefined_symbols" ]; then
+		echo "$archive_path: linked contract has undefined symbols" >&2
+		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
 	archive_index=$((archive_index + 1))

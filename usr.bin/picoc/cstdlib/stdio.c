@@ -20,7 +20,6 @@ static int _IOFBFValue = _IOFBF;
 static int _IOLBFValue = _IOLBF;
 static int _IONBFValue = _IONBF;
 static int L_tmpnamValue = L_tmpnam;
-static int L_ctermidValue = L_ctermid;
 static int GETS_MAXValue = 255;     /* arbitrary maximum size of a gets() file */
 
 static FILE *stdinValue;
@@ -632,10 +631,14 @@ void StdioVsscanf(struct ParseState *Parser, struct Value *ReturnValue, struct V
 }
 
 /* handy structure definitions */
-const char StdioDefs[] = "\
+#define PICOC_STRINGIFY_INNER(Value) #Value
+#define PICOC_STRINGIFY(Value) PICOC_STRINGIFY_INNER(Value)
+const char StdioDefs[] = "#define L_ctermid " PICOC_STRINGIFY(L_ctermid) "\n\
 typedef struct __va_listStruct va_list; \
 typedef struct __FILEStruct FILE;\
 ";
+#undef PICOC_STRINGIFY
+#undef PICOC_STRINGIFY_INNER
 
 /* all stdio functions */
 struct LibraryFunction StdioFunctions[] =
@@ -717,7 +720,6 @@ void StdioSetupFunc(void)
     VariableDefinePlatformVar(NULL, "_IOLBF", &IntType, (union AnyValue *)&_IOLBFValue, FALSE);
     VariableDefinePlatformVar(NULL, "_IONBF", &IntType, (union AnyValue *)&_IONBFValue, FALSE);
     VariableDefinePlatformVar(NULL, "L_tmpnam", &IntType, (union AnyValue *)&L_tmpnamValue, FALSE);
-    VariableDefinePlatformVar(NULL, "L_ctermid", &IntType, (union AnyValue *)&L_ctermidValue, FALSE);
     VariableDefinePlatformVar(NULL, "GETS_MAX", &IntType, (union AnyValue *)&GETS_MAXValue, FALSE);
 
     /* define stdin, stdout and stderr */

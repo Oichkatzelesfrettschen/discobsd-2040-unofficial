@@ -30,12 +30,18 @@
 #include <sys/param.h>
 #include <sys/inode.h>
 #include <sys/exec.h>
+#ifdef EXEC_HSAOUT
+#include <sys/exec_hsaout.h>
+#endif
 
 int exec_script_check(struct exec_params *epp);
 int exec_aout_check(struct exec_params *epp);
 int exec_elf_check(struct exec_params *epp);
 
 const struct execsw execsw[] = {
+#ifdef EXEC_HSAOUT
+    { exec_hsaout_check,    "a.out.hs" },   /* packed a.out binaries */
+#endif
     { exec_aout_check,      "a.out" },      /* a.out binaries */
     { exec_elf_check,       "elf" },        /* 32bit ELF bins */
     { exec_script_check,    "script" },     /* shell scripts */

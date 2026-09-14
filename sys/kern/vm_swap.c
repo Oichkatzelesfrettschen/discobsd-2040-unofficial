@@ -12,7 +12,8 @@
 #include <sys/vm.h>
 #include <sys/inode.h>
 #include <sys/uio.h>
-#include <sys/exec_aout.h>
+#include <sys/exec.h>
+#include <sys/signal.h>
 #ifdef SWAPRAM
 #include <machine/swapram.h>
 #endif
@@ -51,11 +52,15 @@ swapin (p)
      * The text comes back from the executable, which swapout never
      * wrote; only what follows it is on swap.
      */
-    if (tsize) {
-        ILOCK (p->p_tip);
-        (void) rdwri (UIO_READ, p->p_tip, (caddr_t) daddr, tsize,
-            (off_t) sizeof (struct exec), IO_UNIT, (int *) 0);
-        IUNLOCK (p->p_tip);
+    if (tsize && exec_text_restore (p, (caddr_t) daddr, tsize) != 0) {
+        /*
+         * The file no longer yields the text the process ran: a flipped
+         * bit in a packed stream, a short raw image. The process comes
+         * back with garbage text and SIGKILL takes it before that text
+         * runs, while the swapper and every other process go on.
+         */
+        printf ("swapin: pid %d: executable text corrupt\n", p->p_pid);
+        psignal (p, SIGKILL);
     }
 #ifdef SWAPRAM
     /*

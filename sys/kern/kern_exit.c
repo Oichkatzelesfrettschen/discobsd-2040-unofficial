@@ -8,6 +8,7 @@
 #include <sys/map.h>
 #include <sys/user.h>
 #include <sys/proc.h>
+#include <sys/exec.h>
 #include <sys/inode.h>
 #include <sys/vm.h>
 #ifdef SWAPRAM
@@ -83,10 +84,7 @@ exit (rv)
     if (p->p_flag & SVFORK)
         endvfork();
 
-    if (p->p_tip) {
-        irele(p->p_tip);
-        p->p_tip = NULL;
-    }
+    exec_text_release(p, NULL);
 
     if (p->p_pid == 1)
         panic("init died");

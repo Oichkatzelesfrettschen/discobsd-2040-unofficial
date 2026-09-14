@@ -80,6 +80,13 @@ int exec_estab(struct exec_params *epp);
 void exec_save_args(struct exec_params *epp);
 void exec_clear(struct exec_params *epp);
 
+struct inode;
+struct proc;
+int exec_text_hold(struct inode *ip);
+void exec_text_unhold(struct inode *ip);
+void exec_text_release(struct proc *p, struct inode *next);
+int exec_text_restore(struct proc *p, caddr_t dst, size_t len);
+
 #else /* KERNEL */
 #include <sys/exec_aout.h>
 #endif

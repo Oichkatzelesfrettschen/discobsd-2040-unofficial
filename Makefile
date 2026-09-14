@@ -108,6 +108,11 @@ check-swapram:	tools
 check-aout:
 		${MAKE} -C tests/aout_header check
 
+# The packed a.out container: the loader's stream loop and the packer
+# against header and stream corruption, truncation and forged lengths.
+check-hsaout:
+		${MAKE} -C tests/hsaout check
+
 # The evacuation test compiles the kernel's swapram.c and subr_rmap.c on
 # the host; its Makefile is written for GNU make.
 check-swapram-evac:

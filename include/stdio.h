@@ -54,6 +54,8 @@ typedef unsigned size_t;
 #define SEEK_CUR    1   /* set file offset to current plus offset */
 #define SEEK_END    2   /* set file offset to EOF plus offset */
 
+#define L_ctermid   9   /* including the terminator for /dev/tty */
+
 void    clearerr(FILE *);
 int     feof(FILE *);
 int     ferror(FILE *);
@@ -65,6 +67,7 @@ FILE    *freopen (const char *, const char *, FILE *);
 FILE    *popen (const char *, const char *);
 int     pclose (FILE *);
 FILE    *tmpfile (void);
+char    *ctermid (char *);
 int     fclose (FILE *);
 long    ftell (FILE *);
 int     fflush (FILE *);

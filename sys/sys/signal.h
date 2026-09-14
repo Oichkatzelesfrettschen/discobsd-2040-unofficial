@@ -129,6 +129,7 @@ void sendsig (sig_t p, int sig, long mask);
 #else /* KERNEL */
 
 sig_t   signal (int, sig_t);
+int     raise (int sig);
 int     sigaction (int signum, const struct sigaction *act,
                    struct sigaction *oldact);
 int     sigvec (int sig, struct sigvec *vec, struct sigvec *ovec);

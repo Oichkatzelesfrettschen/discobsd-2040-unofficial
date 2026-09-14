@@ -303,13 +303,77 @@ Step 4 (three-extent SwapRAM) is deferred by decision until
 fragmentation measurements justify it. Step 5, compressed executables,
 is next.
 
+### Packed a.out executables (port PR #45)
+
+A packed executable is `struct exec` with the `EX_HSPACK` flag, then
+`struct hsx` (signature, version, header length, codec, heatshrink window
+and lookahead, the two packed stream lengths, the two expanded-stream
+CRC-32s, a zero reserved field, and a header CRC-32), then the text and
+the initialized data as two heatshrink streams. `a_text`, `a_data`,
+`a_bss` and `a_entry` keep the raw image's values, so the loader lays the
+process out from `struct exec` alone. Files:
+`sys/sys/exec_hsaout.h` (container, `hsx_check`), `sys/kern/subr_crc32.c`
+(tableless CRC-32), `sys/arch/rp2040/rp2040/hsx_stream.c` (the stream
+loop), `sys/arch/rp2040/rp2040/hsx_decoder.c` and
+`sys/arch/rp2040/include/hsx_decoder.h` (heatshrink built a second time
+with lookahead 3), `sys/arch/rp2040/rp2040/exec_hsaout.c` (loader).
+
+The checker recognizes the format by the flag and returns `EFTYPE` for
+every recognized-but-malformed container; the dispatcher passes `EFTYPE`
+through, so corruption never reaches the next format. The loader
+preflights both streams into a discard buffer while the old image stands,
+reproducing each stream's length and CRC-32; it calls `exec_estab` only
+after preflight, expands again into the user window, and `SIGKILL`s the
+process before entry if the second pass disagrees.
+
+Executable-write exclusion lives in `sys/kern/exec_aout.c`:
+`exec_text_hold` refuses a file open for writing and marks it `ITEXT`;
+`access()` in `sys/kern/ufs_fio.c` turns `ITEXT` into `ETXTBSY` for every
+later writer; `exec_text_release`, called from exec, `exit()` and a
+replacing exec, clears the mark once the last `p_tip` referencing the
+inode is gone. Clean-text restoration is one format-aware function,
+`exec_text_restore`, that `swapin` calls for raw and packed alike: raw
+text is read from behind the header, packed text is expanded through a
+**swapper-private static decoder**, because the swapper (proc 0) must not
+wait on a buffer, while exec decodes into a caller-owned buffer-cache
+block so two concurrent execs never share decoder state. Every packed
+restoration recomputes and checks the text CRC.
+
+The lookahead is the one parameter that differs from the swap tier.
+Sweeping the shipped a.outs, lookahead 3 packs them into 148 fewer root
+blocks than the swap tier's 8: swap images are long zero runs where a
+long match wins, Thumb text has short matches where a short lookahead
+packs tighter. `tools/hsaout` packs and unpacks and fsutil's `pack`
+manifest command installs a raw a.out as a packed one; both run the
+kernel's own `hsx_stream.c` and `hsx_decoder.c` as a self-check.
+
+Evidence. Host `bmake -C tests/hsaout check`: every header and stream bit
+of a small image (16934 rejected, 10 equivalent LZSS encodings, none
+accepted with different bytes), every truncation and extension, forged
+near-`UINT_MAX` lengths, wrong parameters, a fill failing at each chunk,
+and a round-trip of all 244 shipped a.outs. Board
+(`tests/rp2040/exec_hsaout`, textcrc raw and packed, bigtest packed):
+foreground and background packed exec; text CRC `a1ae2b8e` unchanged
+across 21 swap-ins; a write to a running executable refused and allowed
+after it exits; appended and truncated containers refused; a 150000-byte
+packed image run under LARGE. Packing the 33 root programs frees 148 of
+756 root blocks, 20 percent. Kernel text +2626 bytes, plus ~1 KB bss for
+the swapper's decoder.
+
+Concern recorded, not a defect: `getnewbuf` in the exec path can wait for
+a free buffer; in every run it completed and was never the cause of a
+stall. The one observed slowness was a 300000-iteration awk thrashing the
+single-process window, unrelated to packing; the swap-owned-text idea
+(setting `p_tsize=0`) is rejected because it would enlarge swapped images
+and worsen exactly that thrash. Restoration performance belongs to a
+separate measurement of swap count, compressed bytes, and elapsed time
+under a bounded workload.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident
 expansion taking precedence: the window is now fixed at 144 KB and the
 pool at 16 KB, and an arena would let a process that fits in 160 KB run
-while the pool is empty. Step 7 needs a container format, bounded
-decoder output, and corrupt-stream rejection before process commitment;
-the decoder is already linked and costs no further text. Step 9's
+while the pool is empty. Step 7 landed as PR #45 above. Step 9's
 conversion landed in PR #35; extending the multicall boxes with sed,
 sort and find is the remaining part.

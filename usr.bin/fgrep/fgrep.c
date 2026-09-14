@@ -12,6 +12,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <unistd.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -46,6 +47,45 @@ int nsucc;
 long    tln;
 FILE    *wordf;
 char    *argptr;
+
+static unsigned long
+pattern_bytes(pattern_file, pattern, size_known)
+FILE *pattern_file;
+char *pattern;
+int *size_known;
+{
+    struct stat pattern_stat;
+
+    *size_known = 1;
+    if (pattern_file == NULL)
+        return ((unsigned long)strlen(pattern));
+    if (fstat(fileno(pattern_file), &pattern_stat) == 0 &&
+        S_ISREG(pattern_stat.st_mode) && pattern_stat.st_size >= 0)
+        return ((unsigned long)pattern_stat.st_size);
+    *size_known = 0;
+    return (0);
+}
+
+static unsigned long
+pattern_states(bytes, size_known, whole_line, state_limit)
+unsigned long bytes;
+int size_known;
+int whole_line;
+unsigned long state_limit;
+{
+    unsigned long multiplier;
+    unsigned long states;
+
+    if (!size_known)
+        return (MAXSIZ);
+    multiplier = whole_line ? 2 : 1;
+    if (bytes > (ULONG_MAX - 8) / multiplier)
+        return (0);
+    states = bytes * multiplier + 8;
+    if (states > state_limit)
+        return (0);
+    return (states);
+}
 
 int
 main(argc, argv)
@@ -122,28 +162,28 @@ out:
      * The Aho-Corasick trie holds at most one state per pattern byte, plus
      * a terminal state per line under -x, so bound it by the pattern
      * source rather than the fixed MAXSIZ that cost 64 kbytes of resident
-     * bss on every invocation. -f names a file whose size bounds the count;
-     * a pattern argument bounds it by its length. overflo() still guards
-     * the walk if the estimate is somehow low. A non-regular -f source
-     * reports no size, so the old fixed ceiling stands for it.
+     * bss on every invocation. -f names a regular file whose size, including
+     * zero, bounds the count; a pattern argument is bounded by its length.
+     * overflo() still guards the walk if the estimate is somehow low. A
+     * non-regular -f source reports no size, so the old fixed state ceiling
+     * stands for it.
      */
     {
-        struct stat pstb;
         unsigned long bytes;
         unsigned long nstates;
+        int size_known;
 
-        if (fflag) {
-            if (fstat(fileno(wordf), &pstb) == 0 && pstb.st_size > 0)
-                bytes = (unsigned long)pstb.st_size;
-            else
-                bytes = MAXSIZ;
-        } else
-            bytes = (unsigned long)strlen(argptr);
+        bytes = pattern_bytes(fflag ? wordf : NULL, argptr, &size_known);
         /*
          * At most one trie state per pattern byte, plus one terminal state
-         * per line under -x, so double the estimate only then.
+         * per line under -x, so double a known byte estimate only then. Check
+         * both arithmetic steps because this libc's calloc() does not reject
+         * a wrapped element-count multiplication.
          */
-        nstates = (xflag ? 2 * bytes : bytes) + 8;
+        nstates = pattern_states(bytes, size_known, xflag,
+            (size_t)-1 / sizeof *w);
+        if (nstates == 0)
+            overflo();
         w = (struct words *)calloc(nstates, sizeof *w);
         if (w == NULL)
             overflo();
@@ -173,7 +213,6 @@ char *file;
 {
     register struct words *c;
     register int ccount;
-    register char ch;
     register char *p;
     static char *buf;
     static int blksize;
@@ -280,14 +319,16 @@ char *file;
             failed = 0;
             continue;
         }
-        if (*p++ == '\n')
-            if (vflag) goto succeed;
+        if (*p++ == '\n') {
+            if (vflag)
+                goto succeed;
             else {
                 lnum++;
                 nlp = p;
                 c = w;
                 failed = 0;
             }
+        }
     }
     close(f);
     if (cflag) {

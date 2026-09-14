@@ -53,7 +53,6 @@ tmpfile, tmpnam \- System V compatibility routines
 .PP
 .B char *tmpnam(str)
 .B char *str;
-.PP
 .SH COMMENT
 The \fI#defines\fP \fIP_tmpdir\fP and \fIL_tmpnam\fP, used by the routines
 \fItempnam\fP, \fItmpfile\fP, and \fItmpnam\fP are not available in
@@ -61,18 +60,31 @@ The \fI#defines\fP \fIP_tmpdir\fP and \fIL_tmpnam\fP, used by the routines
 .PP
 #include <sys/param.h>
 .br
-#define	P_tmpdir	"/usr/tmp"
-#define	L_tmpnam	MAXPATHLEN
+#define P_tmpdir "/usr/tmp"
+#define L_tmpnam MAXPATHLEN
 .PP
 Also, note that the caveat in the System V manual page that these functions
 can start recycling previously used names is untrue in this system.
 .SH DESCRIPTION
 The above routines are available and behave as in System V.
 .PP
+.BR tmpfile ()
+creates a file with
+.BR mkstemp (3),
+unlinks the name before returning, and closes the descriptor if stream
+construction fails.
+.BR tmpnam ()
+and
+.BR tempnam ()
+only choose unused names.  A different process can create those names before
+the caller opens them, so callers that create files must use
+.BR mkstemp (3)
+instead.
+.PP
 .BR strchr ()
 and
 .BR strrchr ()
-are simply an alternate entry points into 
+are alternate entry points into
 .BR index ()
 and
 .BR rindex ()

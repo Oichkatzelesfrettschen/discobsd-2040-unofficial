@@ -172,6 +172,10 @@ scan_descriptor(int descriptor, const char *name, unsigned minimum,
 		if (raw_aout)
 			remaining -= (unsigned)amount;
 	}
+	if (state.failed) {
+		(void)write_text(STDERR_FILENO, "strings: write failed\n");
+		return 1;
+	}
 	if (raw_aout && remaining != 0) {
 		report_file_error(name, ": truncated a.out\n");
 		return 1;

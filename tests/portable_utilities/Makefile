@@ -1,12 +1,13 @@
 HOSTCC?= cc
 CFLAGS= -std=gnu17 -Wall -Wextra -Werror
 PROGRAMS= getopt_host yes_host strings_host users_host yes_error_test \
-	fixture_writer strings_stream_test
+	fixture_writer strings_stream_test strings_output_error_test
 
 check: ${PROGRAMS}
 	sh ./check.sh
 	./yes_error_test
 	./strings_stream_test
+	./strings_output_error_test
 
 getopt_host: ../../usr.bin/getopt/getopt.c
 	${HOSTCC} ${CFLAGS} -o $@ ../../usr.bin/getopt/getopt.c
@@ -24,6 +25,10 @@ strings_stream.o: ../../usr.bin/strings/strings.c
 
 strings_stream_test: strings_stream_test.c strings_stream.o
 	${HOSTCC} ${CFLAGS} -o $@ strings_stream_test.c strings_stream.o
+
+strings_output_error_test: strings_output_error_test.c strings_stream.o
+	${HOSTCC} ${CFLAGS} -idirafter ../../sys -o $@ \
+		strings_output_error_test.c strings_stream.o
 
 users_host: ../../usr.bin/users/users.c
 	${HOSTCC} ${CFLAGS} -o $@ ../../usr.bin/users/users.c

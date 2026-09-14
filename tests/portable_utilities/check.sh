@@ -7,6 +7,9 @@ fail()
 	exit 1
 }
 
+temporary_directory=$(mktemp -d)
+trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+
 compare_getopt()
 {
 	actual=$(./getopt_host "$@")
@@ -18,6 +21,8 @@ compare_getopt 'ab:c' -a -b value operand
 compare_getopt 'ab:' -abvalue tail
 compare_getopt 'a' -- -a operand
 compare_getopt 'ab:' operand
+compare_getopt 'a' - tail
+compare_getopt 'a-' -a tail
 if output=$(./getopt_host 'ab:' -z 2>&1); then
 	fail "getopt accepts an unknown option"
 fi
@@ -32,6 +37,36 @@ case "$output" in
 *"option b requires an argument"*" --"*) ;;
 *) fail "getopt missing-argument result" ;;
 esac
+if output=$(./getopt_host 'a' --a tail 2>&1); then
+	fail "getopt accepts an unsupported long option"
+fi
+case "$output" in
+*"option --a is invalid"*" -- tail"*) ;;
+*) fail "getopt long-option result" ;;
+esac
+case "$output" in
+*" -a"*) fail "getopt partially parses an unsupported long option" ;;
+esac
+
+status=0
+./getopt_host 'a' --bad -a tail >"$temporary_directory/getopt.out" \
+    2>"$temporary_directory/getopt.err" || status=$?
+[ "$status" -eq 1 ] || fail "getopt accepts an unsupported long option"
+[ "$(cat "$temporary_directory/getopt.out")" = " -a -- tail" ] ||
+	fail "getopt does not resume after an unsupported long option"
+grep -Fq "option --bad is invalid" "$temporary_directory/getopt.err" ||
+	fail "getopt long-option diagnostic"
+
+output=$(./getopt_host 'b:' -b --bad tail)
+[ "$output" = " -b --bad -- tail" ] ||
+	fail "getopt rejects a double-dash option argument"
+
+status=0
+./getopt_host 'a' --- tail >"$temporary_directory/getopt.out" \
+    2>"$temporary_directory/getopt.err" || status=$?
+[ "$status" -eq 1 ] || fail "getopt accepts a triple-dash token"
+[ "$(cat "$temporary_directory/getopt.out")" = " -- tail" ] ||
+	fail "getopt partially parses a triple-dash token"
 
 output=$(./yes_host one two | head -n 3)
 expected='one two

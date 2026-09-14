@@ -50,6 +50,14 @@ report_invalid(char option, int missing_argument)
 	    " requires an argument\n" : " is invalid\n");
 }
 
+static void
+report_invalid_token(const char *token)
+{
+	(void)write_text(STDERR_FILENO, "getopt: option ");
+	(void)write_text(STDERR_FILENO, token);
+	(void)write_text(STDERR_FILENO, " is invalid\n");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -74,9 +82,15 @@ main(int argc, char **argv)
 		argument = argv[argument_index];
 		if (argument[0] != '-' || argument[1] == '\0')
 			break;
-		if (argument[1] == '-' && argument[2] == '\0') {
+		if (argument[1] == '-') {
+			if (argument[2] == '\0') {
+				++argument_index;
+				break;
+			}
+			report_invalid_token(argument);
+			status = 1;
 			++argument_index;
-			break;
+			continue;
 		}
 		for (option_cursor = argument + 1; *option_cursor != '\0';
 		    ++option_cursor) {

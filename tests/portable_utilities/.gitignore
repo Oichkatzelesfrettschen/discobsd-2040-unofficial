@@ -6,6 +6,7 @@ raw.aout
 regular.bin
 strings_host
 strings_stream_test
+strings_output_error_test
 users-overflow.utmp
 users.utmp
 users_host

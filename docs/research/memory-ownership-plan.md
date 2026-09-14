@@ -11,13 +11,13 @@ a board session over the USB console.
 ## Baseline (port main at 63447526, 2026-09-13)
 
 | quantity | value |
-|---|---|
+| --- | --- |
 | kernel .text | 95,754 bytes (0x1760a) |
 | kernel .bss | 108,048 bytes (0x1a610), 65,536 of it the SwapRAM pool |
 | `longjmp`/`resume` | 3,152 bytes, 3,072 of them the expanded u-area exchange |
 | `usbd` | 8,392 bytes, 8,192 of them the TX ring |
 | user window | 96 KB |
-| SwapRAM admission | worst case: input plus an eighth plus four bytes per segment |
+| SwapRAM admission | input + input/8 + four bytes per segment |
 
 ## Order
 
@@ -161,7 +161,7 @@ The multicall boxes localize each tool's globals with `objcopy
 Makefile excludes sed, sort and find for exactly that aliasing, so they
 are now candidates.
 
-### Found by the board tests: the initial user stack was 4-byte aligned (port PR #36)
+### Board tests found 4-byte initial user-stack alignment (port PR #36)
 
 `awk 'BEGIN{print 1+1}'` prints `1.6e-154` or `2` depending on the byte
 length of the environment, for the pre-PR-#35 binary and the new one
@@ -281,8 +281,8 @@ Step 3. The pool lives in a NOLOAD section kern.ldscript places first
 in RAM, so its 16 KB sit at 0x20024000 where the 144 KB window ends
 (link assert, and swapram_init checks the running image at boot);
 SWAPRAM_BONUS is the pool's size, and USER_TOP(p) in sys/systm.h is
-__user_data_end plus the bonus for P_LARGE. Every site that laid out or
-bounded the window against __user_data_end asks USER_TOP: swapin's
+`__user_data_end` plus the bonus for P_LARGE. Every site that laid out or
+bounded the window against `__user_data_end` asks USER_TOP: swapin's
 stack, the a.out and ELF exec layouts, the stack-growth checks in
 syscall.c and sig_machdep.c, the fault handler's frame bounds, the core
 dump, and baduaddr (which otherwise would let a small process name the
@@ -296,7 +296,7 @@ machdep.swapram_large counts holders. Board, as root: bigtest (bss
 150,000) runs under LARGE with the pool empty and its forked child's
 copy intact from flash, three runs; hugetest (170,000) is refused as
 "too big"; epochtest and evactest pass afterward with the pool
-admitting again. Kernel text +240; _sdata moves up 16 KB. PR #44 fixed
+admitting again. Kernel text +240; `_sdata` moves up 16 KB. PR #44 fixed
 the link verifier, which still measured sr_pool; the #43 merge went in
 on a red check-swapram because the chain echoed the status instead of
 gating on it.
@@ -398,7 +398,7 @@ Screening the remaining standalone executables (mutable = a_data+a_bss,
 packed blocks from `hsaout -s`):
 
 | Tool | packed blk | mutable B | verdict |
-|---|---:|---:|---|
+| --- | ---: | ---: | --- |
 | smlrc | 42 | 27,700 | reject: mutable dwarfs any box |
 | awk | 35 | 13,572 | reject |
 | as | 24 | 31,364 | reject |
@@ -465,7 +465,7 @@ grepbox then folds grep and fgrep on the utilbox pattern. The engines
 differ, so the code does not deduplicate; the win is one libc copy and,
 because fgrep's trie now leaves bss, an overlay extent of grep's 1,796
 bytes. egrep stays standalone: it is absent from the root manifest, and
-its gotofn[NSTATES][NCHARS] is algorithmic, not oversizing, so folding it
+its `gotofn[NSTATES][NCHARS]` is algorithmic, not oversizing, so folding it
 would add text and reset the extent.
 
 Three numbers: raw root blocks -8, packed root blocks -6, resident

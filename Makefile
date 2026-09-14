@@ -123,6 +123,12 @@ check-id-aliases:
 check-portable-utilities:
 		${MAKE} -C tests/portable_utilities check
 
+check-pdp11-reference:
+		${MAKE} -C tests/pdp11_reference check
+
+check-pdp11-v7:
+		${MAKE} -C tests/pdp11_reference reference
+
 check-fgrep-capacity:
 		${MAKE} -C usr.bin/fgrep test
 
@@ -200,7 +206,7 @@ installfs:
 		check-swapram check-elf2aout check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
 		check-fgrep-capacity check-hsaout check-config-makefile \
-		check-portable-utilities \
+		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
 		symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \

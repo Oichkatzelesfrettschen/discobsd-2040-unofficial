@@ -1,0 +1,22 @@
+PDP11_ORACLE_BEGIN
+SHELL
+SORT
+alpha
+alpha
+beta
+gamma
+SED
+alpha
+beta
+AWK
+4
+TAIL
+beta
+alpha
+FILESYSTEM
+CMP:0
+<same-inode> /oracle.dir/a
+<same-inode> /oracle.dir/b
+BYTES
+     23
+PDP11_ORACLE_END

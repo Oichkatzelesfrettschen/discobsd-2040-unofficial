@@ -26,10 +26,11 @@ Commentary scan the survey described.
 
 ## Extraction
 
-No V6/V7 filesystem reader existed on the host or in the tools
-catalog (`~/Documents/AI/Notes/1_TOOLS.md`; checked, no PDP-11 disk
-tool, no `simh`, no pip-installable V6/V7 fs library). A reader was
-written against the documented V7 on-disk layout, then corrected twice
+No V6/V7 filesystem reader existed on the host or in the tools catalog when
+the images were extracted. Open SIMH was installed later and now supplies the
+host-only behavioral path in `tests/pdp11_reference`; it does not expose files
+from an offline filesystem image. A reader was written against the documented
+V7 on-disk layout, then corrected twice
 against decisive checks against the images themselves:
 
 - Root directory is inode 2 on V7 (inode 1 is unused), inode 1 on V6.

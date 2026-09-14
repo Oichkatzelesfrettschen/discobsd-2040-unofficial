@@ -1,0 +1,37 @@
+set quiet
+set cpu 11/45
+set cpu 256K
+set xq disabled
+set rl0 rl02
+attach rl0 v7.dsk
+send delay=10000
+expect "@" send "boot\r"; continue
+expect "\r: " send "rl(0,0)rl2unix\r"; continue
+expect "# " send "stty -echo\r"; continue
+expect "# " send "echo; PS1=PDP11_PROMPT; export PS1\r"; continue
+expect "PDP11_PROMPT" send "echo PDP11_ORACLE_BEGIN\r"; continue
+expect "PDP11_PROMPT" send "mkdir /tmp\r"; continue
+expect "PDP11_PROMPT" send "echo gamma >/oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo alpha >>/oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo beta >>/oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo alpha >>/oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo SHELL\r"; continue
+expect "PDP11_PROMPT" send "echo SORT\r"; continue
+expect "PDP11_PROMPT" send "sort /oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo SED\r"; continue
+expect "PDP11_PROMPT" send "sed -n '2,3p' /oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo AWK\r"; continue
+expect "PDP11_PROMPT" send "awk '{n=n+1} END {print n}' /oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo TAIL\r"; continue
+expect "PDP11_PROMPT" send "tail -2 /oracle.in\r"; continue
+expect "PDP11_PROMPT" send "echo FILESYSTEM\r"; continue
+expect "PDP11_PROMPT" send "mkdir /oracle.dir\r"; continue
+expect "PDP11_PROMPT" send "cp /oracle.in /oracle.dir/a\r"; continue
+expect "PDP11_PROMPT" send "ln /oracle.dir/a /oracle.dir/b\r"; continue
+expect "PDP11_PROMPT" send "cmp /oracle.dir/a /oracle.dir/b; echo CMP:$?\r"; continue
+expect "PDP11_PROMPT" send "ls -i /oracle.dir/a /oracle.dir/b\r"; continue
+expect "PDP11_PROMPT" send "echo BYTES\r"; continue
+expect "PDP11_PROMPT" send "wc -c </oracle.dir/a\r"; continue
+expect "PDP11_PROMPT" send "echo PDP11_ORACLE_END\r"; continue
+expect "PDP11_PROMPT" exit
+boot rl0

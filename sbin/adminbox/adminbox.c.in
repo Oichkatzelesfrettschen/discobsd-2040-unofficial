@@ -1,12 +1,13 @@
 /*
- * One a.out for the small system-administration tools: shutdown,
- * reboot and sysctl, dispatched on the name it was invoked by. passwd
- * measures the same size class but is setuid root (mode 04755); a
+ * One a.out for the small system-administration tools shutdown, reboot
+ * and sysctl and the zero-BSS applets true, false and nohup, dispatched
+ * on the name it was invoked by. Passwd measures the same size class but
+ * is setuid root (mode 04755); a
  * multicall binary handing setuid to every linked name is refused
  * here, so passwd stays its own a.out. See sbin/box/box.c.in, whose
- * generated copy this is: each tool's globals are localized and its
- * main renamed by sbin/adminbox/Makefile, and the sources stay
- * untouched. See sys/arch/rp2040/doc/research/utilbox.md.
+ * generated copy this is: each source tool's globals are localized and
+ * its main renamed by sbin/adminbox/Makefile. See
+ * sys/arch/rp2040/doc/research/utilbox.md.
  */
 
 #include <string.h>

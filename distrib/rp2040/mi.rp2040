@@ -153,9 +153,6 @@ pack /usr/bin/coremark
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find
-file /usr/bin/nohup
-file /usr/bin/true
-file /usr/bin/false
 pack /usr/bin/login
 pack /usr/bin/passwd
 pack /usr/bin/su
@@ -322,8 +319,8 @@ target /usr/bin/textbox
 # sbin/utilbox/Makefile and sys/arch/rp2040/doc/research/utilbox.md
 # for what stayed out and why: find needs bounded ownership for its
 # user and group caches, sed keeps its compiled program live alongside
-# its work buffers, nohup is a shell script with no a.out, passwd stays
-# isolated from general applets, and su retains its own setuid inode. sort
+# its work buffers, passwd stays isolated from general applets, and su
+# retains its own setuid inode. sort
 # joins after its private globals are localized and its byte tables and
 # merge-pointer array are reduced.
 #
@@ -369,6 +366,12 @@ link /usr/bin/uname
 target /usr/bin/utilbox
 link /usr/bin/md
 target /usr/bin/utilbox
+link /usr/bin/true
+target /sbin/adminbox
+link /usr/bin/false
+target /sbin/adminbox
+link /usr/bin/nohup
+target /sbin/adminbox
 link /usr/bin/vi
 target /usr/bin/stevie
 link /usr/bin/vim

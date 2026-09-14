@@ -77,6 +77,50 @@ utilbox and adminbox together recovered **147,528 bytes** (about 144
 KiB) of root by folding 22 standalone a.outs into two multicall
 binaries totaling 77,113 bytes.
 
+## Tiny script applets in adminbox
+
+The RP2040 root previously stored true, false, and nohup as three shell
+scripts. Each script occupied one 1,024-byte filesystem block even though the
+files contained only 7, 7, and 148 bytes. Adminbox now dispatches built-in C
+applets for all three names. True and false return 0 and 1. Nohup ignores
+SIGHUP and SIGTERM, increments process niceness by five, preserves command
+argument boundaries and exit status, and appends terminal output to
+`nohup.out` with standard error joined to standard output.
+
+The built-ins add no BSS. A clean RP2040 build measured the following OMAGIC
+and packed-root changes against the preceding main image:
+
+| Quantity | Preceding main | Built-in applets | Change |
+| --- | ---: | ---: | ---: |
+| `a_text` | 22,560 | 23,380 | +820 |
+| `a_data` | 1,976 | 1,984 | +8 |
+| `a_bss` | 4,508 | 4,508 | 0 |
+| Resident image | 29,044 | 29,872 | +828 |
+| Mutable image | 6,484 | 6,492 | +8 |
+| Packed adminbox | 19,774 | 20,473 | +699 |
+| Packed adminbox blocks | 21 | 21 | 0 |
+
+The packed-size increase stays inside adminbox's existing twentieth data
+block; one indirect metadata block keeps the total at 21. Removing the three
+script inodes therefore recovers three root blocks while adding only eight
+bytes to every adminbox process's mutable image. The choice exploits two
+independent granularity effects: file blocks make tiny scripts expensive,
+while the packed multicall payload had 706 unused bytes in its final block.
+Utilbox would have crossed from 43 to 44 packed blocks, so placing the same
+applets there would have recovered only two root blocks.
+
+The C implementation also repairs the script's unquoted `$*` expansion, which
+lost empty arguments and split arguments containing spaces or wildcard
+characters. The direct terminal notice writer retries interrupted writes. The
+host test exercises exact argument vectors, status 0, 1, and 37, ignored
+signals, the five-point priority increment, joined streams, terminal
+redirection, and failed exec diagnostics.
+
+The adminbox build rejects BSS or COMMON symbols from the built-in applet
+object. The RP2040 build also rejects a packed image above 21 root blocks. The
+paired gates protect mutable RAM and the block-granularity storage result
+independently.
+
 ## What stayed out, and why
 
 **find** (usr.bin/find, standalone, 19,556 bytes measured in this
@@ -126,8 +170,11 @@ allocation for a shared name. Dropping sed and sort clears every
 symbol in the table above (each remaining occurrence becomes unique);
 both stay standalone a.outs.
 
-**nohup** (usr.bin/nohup). `usr.bin/nohup/Makefile` installs
-`nohup.sh` directly; there is no C source and no a.out to fold.
+**nohup at the original boundary** (usr.bin/nohup).
+`usr.bin/nohup/Makefile` installs `nohup.sh` directly, so the source-tool
+localization mechanism had no C object to fold. The later built-in applet
+described above removes that constraint without changing utilbox's generic
+source-tool rule.
 
 **passwd** (usr.bin/passwd, 15,340 bytes measured in this worktree,
 installs mode 04755 -- setuid root). A multicall binary handing one
@@ -219,7 +266,7 @@ appears exactly once per its own `.tool.o` and nowhere else; no bare
 `main` symbol survives the `objcopy --redefine-sym` step. Confirmed
 with `arm-none-eabi-nm utilbox.o` / `adminbox.o`: the dispatcher
 object itself defines exactly one global `T main` and one `r tools`
-table, referencing the 19 (or 3) declared `_main` entry points from
+table, referencing the 19 (or 6) declared `_main` entry points from
 `@DECLS@`/`@TABLE@`.
 
 `utilbox.o`'s and `adminbox.o`'s "no such tool" fallback strings
@@ -241,16 +288,17 @@ independent copies:
 - `/usr/bin/utilbox` and all 19 linked names (`/usr/bin/id`,
   `/usr/bin/more`, ..., `/bin/expr`, `/bin/md5` across directories)
   report `Links: 20` and identical size (51,125 bytes).
-- `/sbin/adminbox`, `/sbin/shutdown`, `/sbin/reboot`, `/sbin/sysctl`
-  and `/sbin/halt` report `Links: 5` and identical size (25,988
-  bytes).
+- `/sbin/adminbox`, `/sbin/shutdown`, `/sbin/reboot`, `/sbin/sysctl`,
+  `/sbin/halt`, `/usr/bin/true`, `/usr/bin/false`, and `/usr/bin/nohup`
+  report `Links: 8`, inode 43, and identical packed size (20,473 bytes).
 
-At merged main `93c0064b`, `bmake -j8 MACHINE=rp2040 distribution` installs
-18 directories, 53 files, 19 devices, 73 hard links, and one symlink into the
-988 KB root partition. `fsutil --check --partition=1` reports 94 filesystem
-objects, 665 allocated blocks, and 306 free blocks. Run size-producing builds
-in an isolated worktree so generated kernels and filesystem images stay
-outside the canonical checkout.
+A clean `bmake MACHINE=rp2040 distribution` with the built-in applets installs
+18 directories, 50 files, 19 devices, 76 hard links, and one symlink into the
+988 KB root partition. `fsutil --check --partition=1` reports 91 files, 662
+allocated blocks, and 309 free blocks. The preceding main image reports 94
+files, 665 allocated blocks, and 306 free blocks. Run size-producing builds in
+an isolated worktree so generated kernels and filesystem images stay outside
+the canonical checkout.
 
 `ps` reads `p_comm`, which the kernel sets from the exec'd `argv[0]`
 in `exec_setupstack()` (`sys/kern/exec_subr.c`), independent of the
@@ -284,6 +332,9 @@ tty
 uname -a
 expr 2 + 2
 md5 /etc/motd
+true; echo $?             # prints 0
+false; echo $?            # prints 1
+rm -f nohup.out; nohup echo applet-test; cat nohup.out
 ps | grep -E ' id$| more$| head$| tail$'   # confirm p_comm shows the linked name
 sysctl -a | head -1
 shutdown -h now  # or: reboot ; or: halt   -- run this LAST, it ends the session

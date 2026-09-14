@@ -12,8 +12,8 @@
 # tables and oversized merge-pointer array. find stays standalone until
 # its user and group caches have bounded ownership. sed stays standalone
 # because its compiled program and three work buffers overlap in time.
-# nohup is a shell script with no a.out to fold in. passwd, shutdown,
-# reboot and sysctl stay out; see
+# Adminbox supplies nohup without importing a shell script. passwd,
+# shutdown, reboot and sysctl stay out; see
 # sys/arch/rp2040/doc/research/utilbox.md for the measurement that
 # excluded them.
 #

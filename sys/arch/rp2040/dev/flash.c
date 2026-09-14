@@ -59,6 +59,7 @@
 #define	__unused	__attribute__((__unused__))	/* XXX as in conf.c */
 
 #include <rp2040/dev/flash.h>
+#include <rp2040/dev/flash_swap.h>
 #include <rp2040/dhara/map.h>
 
 /*
@@ -101,34 +102,20 @@ static u_char flpage[FLASH_UNIT_BYTES];	/* Dhara's own page buffer, live for the
 static int flmap_ready;
 
 /*
- * Staging storage the two write paths share. fl_raw stages a partial
- * swap sector in flsect; the Dhara path stages a partial trailing unit
- * in flpart and dhara_nand_copy, which Dhara calls from inside
- * dhara_map_write, stages a page move in flcopy, so flpart and flcopy
- * are live at once. Both paths run inside flstrategy under splbio from
- * entry to exit and neither sleeps, since flash_erase and flash_program
- * spin, so a swap write and a filesystem write never interleave and the
- * sector buffer can lie over the two unit buffers. flscratch_owner names
- * the path holding the union: the two flstrategy paths refuse to enter
+ * One physical program page shared by the raw-swap tail and Dhara's page
+ * copy. Both paths run inside flstrategy under splbio from entry to exit and
+ * neither sleeps, since flash_erase and flash_program spin. flscratch_owner
+ * names the path holding the page: each flstrategy path refuses to enter
  * while it is held, and dhara_nand_copy, which Dhara also reaches from
- * dhara_map_sync at close and from dhara_map_resume at setup, refuses to
- * run while the swap path holds it, so a violation of the argument above
- * is a panic rather than silent corruption.
+ * dhara_map_sync at close and from dhara_map_resume at setup, refuses to run
+ * while the swap path holds it. The owner check turns a broken lifetime
+ * argument into a panic rather than silent corruption.
  */
-static union {
-	u_char	sect[FLASH_SECTOR_BYTES];	/* Swap read-modify-write. */
-	struct {
-		u_char	part[FLASH_UNIT_BYTES];	/* A partial trailing unit. */
-		u_char	copy[FLASH_UNIT_BYTES];	/* dhara_nand_copy staging. */
-	} map;
-} flscratch;
+static u_char flscratch[FLASH_PROG_BYTES];
 static int flscratch_owner;
 #define	FLS_FREE	0
-#define	FLS_SWAP	1			/* fl_raw holds flsect. */
-#define	FLS_MAP		2			/* flstrategy holds flpartbuf. */
-#define	flsect	flscratch.sect
-#define	flpartbuf	flscratch.map.part
-#define	flcopy	flscratch.map.copy
+#define	FLS_SWAP	1			/* fl_raw programs a tail. */
+#define	FLS_MAP		2			/* Dhara may copy a page. */
 
 static void
 flscratch_take(int owner)
@@ -148,6 +135,15 @@ const struct dhara_nand flnand = {
 
 #if DEV_BSIZE % FLASH_UNIT_BYTES != 0
 #error "DEV_BSIZE must be a multiple of the Dhara page"
+#endif
+#if FLASH_UNIT_BYTES % FLASH_PROG_BYTES != 0
+#error "The Dhara page must contain whole flash program pages"
+#endif
+#if FLASH_SECTOR_BYTES % FLASH_PROG_BYTES != 0
+#error "The erase sector must contain whole flash program pages"
+#endif
+#if SWAP_IMAGE_ALIGN * DEV_BSIZE != FLASH_SECTOR_BYTES
+#error "SWAP_IMAGE_ALIGN must describe one flash erase sector"
 #endif
 
 /*
@@ -262,6 +258,21 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	return 0;
 }
 
+static int
+flash_read(u_int offset, u_char *data, u_int len)
+{
+	if (offset > FLASH_TOTAL_BYTES || len > FLASH_TOTAL_BYTES - offset)
+		return -1;
+	bcopy((const void *)(FLASH_XIP_BASE + offset), data, len);
+	return 0;
+}
+
+static const struct flash_swap_ops flswap_ops = {
+	flash_read,
+	flash_erase,
+	flash_program,
+};
+
 /*
  * Dhara's driver interface. Pages and blocks below are numbered within the
  * filesystem region, so every address gains FLASH_FS_OFFSET before it reaches
@@ -344,18 +355,32 @@ int
 dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
     dhara_page_t dst, dhara_error_t *err)
 {
+	u_int offset;
+
 	/*
-	 * Staged through RAM rather than copied chip-side. The source cannot
-	 * be read through the XIP window while the destination is being
-	 * programmed, because the program takes XIP down. The buffer is
-	 * static because a kilobyte does not belong on the kernel stack, and
-	 * every caller holds splbio.
+	 * Move one physical program page at a time. The source cannot be read
+	 * through the XIP window while the destination is being programmed,
+	 * because the program takes XIP down. Every caller holds splbio, and the
+	 * one-page static buffer is written before each program call.
 	 */
 	if (flscratch_owner == FLS_SWAP)
 		panic("flash: page copy during a swap write");
-	if (dhara_nand_read(n, src, 0, FLASH_UNIT_BYTES, flcopy, err) < 0)
+	if (dst >= FLASH_FS_BYTES / FLASH_UNIT_BYTES) {
+		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
-	return dhara_nand_prog(n, dst, flcopy, err);
+	}
+	for (offset = 0; offset < FLASH_UNIT_BYTES;
+	    offset += FLASH_PROG_BYTES) {
+		if (dhara_nand_read(n, src, offset, FLASH_PROG_BYTES,
+		    flscratch, err) < 0)
+			return -1;
+		if (flash_program(FLASH_FS_OFFSET + dst * FLASH_UNIT_BYTES +
+		    offset, flscratch, FLASH_PROG_BYTES) < 0) {
+			dhara_set_error(err, DHARA_E_BAD_BLOCK);
+			return -1;
+		}
+	}
+	return 0;
 }
 
 /*
@@ -517,20 +542,20 @@ flsize(dev_t dev)
 }
 
 /*
- * The raw swap region: reads come out of the XIP window, writes erase the
- * 4K sectors they cover and program them. A sector only partly covered is
- * read, merged, and rewritten, which the first and last sector of an image
- * need, since the kernel writes images in DEV_BSIZE blocks at any offset.
- * Returns nonzero on failure.
+ * The raw swap region: reads come out of the XIP window. A process image owns
+ * a contiguous erase-aligned run, so flash_swap_append can erase sectors as
+ * its pieces reach them. Other callers retain ordinary rewrite semantics by
+ * copying each affected sector through the first erase sector, which the
+ * resource map cannot allocate. Returns nonzero on failure.
  */
 static int
 fl_raw(struct buf *bp, u_int off, u_int len)
 {
 	u_char *addr = (u_char *)bp->b_addr;
-	u_int base, sect, head, n;
+	u_int base;
 	int s;
 
-	if (off + len > FLASH_SWAP_BYTES)
+	if (off > FLASH_SWAP_BYTES || len > FLASH_SWAP_BYTES - off)
 		return 1;
 	base = FLASH_SWAP_OFFSET + off;
 
@@ -538,29 +563,21 @@ fl_raw(struct buf *bp, u_int off, u_int len)
 		bcopy((const void *)(FLASH_XIP_BASE + base), addr, len);
 		return 0;
 	}
+	if (off < FLASH_SECTOR_BYTES)
+		return 1;
 
 	s = splbio();
 	flscratch_take(FLS_SWAP);
-	while (len > 0) {
-		sect = base & ~(FLASH_SECTOR_BYTES - 1);
-		head = base - sect;
-		n = FLASH_SECTOR_BYTES - head;
-		if (n > len)
-			n = len;
-		if (n == FLASH_SECTOR_BYTES) {
-			/* A whole sector straight from the buffer. */
-			flash_erase(sect, FLASH_SECTOR_BYTES);
-			flash_program(sect, addr, FLASH_SECTOR_BYTES);
-		} else {
-			bcopy((const void *)(FLASH_XIP_BASE + sect), flsect,
-			    FLASH_SECTOR_BYTES);
-			bcopy(addr, flsect + head, n);
-			flash_erase(sect, FLASH_SECTOR_BYTES);
-			flash_program(sect, flsect, FLASH_SECTOR_BYTES);
-		}
-		base += n;
-		addr += n;
-		len -= n;
+	if ((bp->b_flags & B_SWAPIMAGE) != 0) {
+		if (flash_swap_append(&flswap_ops, base, addr, len,
+		    flscratch) != 0)
+			goto fail;
+	} else if (flash_swap_rewrite(&flswap_ops, base, addr, len,
+	    FLASH_SWAP_SCRATCH_OFFSET, flscratch) != 0) {
+	fail:
+		flscratch_owner = FLS_FREE;
+		splx(s);
+		return 1;
 	}
 	flscratch_owner = FLS_FREE;
 	splx(s);
@@ -575,7 +592,7 @@ flstrategy(struct buf *bp)
 	struct diskpart *p = &du->part[flpart(bp->b_dev)];
 	dhara_error_t err = DHARA_E_NONE;
 	u_int per_blk = DEV_BSIZE / FLASH_UNIT_BYTES;
-	u_int sector, nsect, rem, i;
+	u_int sector, nsect, i;
 	u_char *addr;
 	daddr_t part_size, offset;
 	long nblk;
@@ -636,8 +653,11 @@ flstrategy(struct buf *bp)
 	}
 
 	sector = (u_int)offset * per_blk;
+	if (bp->b_bcount % FLASH_UNIT_BYTES != 0) {
+		fail = 1;
+		goto done;
+	}
 	nsect = bp->b_bcount / FLASH_UNIT_BYTES;
-	rem = bp->b_bcount % FLASH_UNIT_BYTES;
 	addr = (u_char *)bp->b_addr;
 
 	s = splbio();
@@ -650,19 +670,6 @@ flstrategy(struct buf *bp)
 		} else {
 			if (dhara_map_write(&flmap, sector + i,
 			    addr + i * FLASH_UNIT_BYTES, &err) < 0)
-				fail = 1;
-		}
-	}
-	if (rem && ! fail) {
-		/* The trailing partial unit is staged, both ways. */
-		if (dhara_map_read(&flmap, sector + nsect, flpartbuf, &err) < 0)
-			fail = 1;
-		else if (bp->b_flags & B_READ)
-			bcopy(flpartbuf, addr + nsect * FLASH_UNIT_BYTES, rem);
-		else {
-			bcopy(addr + nsect * FLASH_UNIT_BYTES, flpartbuf, rem);
-			if (dhara_map_write(&flmap, sector + nsect, flpartbuf,
-			    &err) < 0)
 				fail = 1;
 		}
 	}

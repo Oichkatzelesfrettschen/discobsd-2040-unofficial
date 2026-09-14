@@ -96,8 +96,8 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_namei.o ufs_subr.o ufs_syscalls.o ufs_syscalls2.o \
 	vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o mem.o swap.o \
 	clock.o conf.o fault.o machdep.o sig_machdep.o syscall.o \
-	sysctl.o systick.o uart.o usb.o flash.o error.o journal.o map.o \
-	swapram.o swapram_pool.o heatshrink_encoder.o \
+	sysctl.o systick.o uart.o usb.o flash.o flash_swap.o error.o \
+	journal.o map.o swapram.o swapram_pool.o heatshrink_encoder.o \
 	heatshrink_decoder.o subr_crc32.o exec_hsaout.o hsx_stream.o \
 	hsx_decoder.o
 
@@ -125,8 +125,9 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
 	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/uart.c \
 	$S/arch/rp2040/dev/usb.c $S/arch/rp2040/dev/flash.c \
-	$S/arch/rp2040/dhara/error.c $S/arch/rp2040/dhara/journal.c \
-	$S/arch/rp2040/dhara/map.c $S/arch/rp2040/rp2040/swapram.c \
+	$S/arch/rp2040/dev/flash_swap.c $S/arch/rp2040/dhara/error.c \
+	$S/arch/rp2040/dhara/journal.c $S/arch/rp2040/dhara/map.c \
+	$S/arch/rp2040/rp2040/swapram.c \
 	$S/arch/rp2040/rp2040/swapram_pool.c \
 	$S/arch/rp2040/heatshrink/heatshrink_encoder.c \
 	$S/arch/rp2040/heatshrink/heatshrink_decoder.c \
@@ -398,6 +399,9 @@ usb.o: $S/arch/rp2040/dev/usb.c
 	${COMPILE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c
+	${COMPILE_C}
+
+flash_swap.o: $S/arch/rp2040/dev/flash_swap.c
 	${COMPILE_C}
 
 error.o: $S/arch/rp2040/dhara/error.c

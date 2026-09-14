@@ -18,6 +18,7 @@
 #define DEV_BSHIFT 10
 #define DEV_BSIZE (1 << DEV_BSHIFT)
 #define btod(x) (((x) + DEV_BSIZE - 1) >> DEV_BSHIFT)
+#define SWAP_IMAGE_ALIGN 4
 #define USIZE 3072
 #define SSIZE 2048
 #define PSWP 0

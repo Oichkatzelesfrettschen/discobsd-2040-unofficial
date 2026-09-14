@@ -50,4 +50,11 @@ void mfree (struct map *mp, size_t nbytes, size_t addr);
  */
 size_t malloc3 (struct map *mp, size_t d_size, size_t s_size, size_t u_size, size_t a[3]);
 
+/*
+ * Allocate the same three segments in one aligned, rounded run. The return
+ * value is the run size, or zero when the map cannot satisfy the request.
+ */
+size_t malloc3_contiguous (struct map *mp, size_t d_size, size_t s_size,
+    size_t u_size, size_t align, size_t a[3]);
+
 #endif

@@ -32,6 +32,22 @@ swaptext (p)
     return p->p_tsize;
 }
 
+#ifdef SWAP_IMAGE_ALIGN
+#define SWAP_IMAGE_WRITE (B_WRITE | B_SWAPIMAGE)
+
+/* Blocks held by one erase-aligned flash image. */
+static size_t
+swapimagespan (dsize, ssize)
+    size_t dsize, ssize;
+{
+    size_t blocks = btod (dsize) + btod (ssize) + btod (USIZE);
+
+    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
+}
+#else
+#define SWAP_IMAGE_WRITE B_WRITE
+#endif
+
 /*
  * Swap a process in.
  * Allocate data and possible text separately.  It would be better
@@ -75,14 +91,23 @@ swapin (p)
     {
     if (p->p_dsize > tsize) {
         swap (p->p_daddr, daddr + tsize, p->p_dsize - tsize, B_READ);
+#ifndef SWAP_IMAGE_ALIGN
         mfree (swapmap, btod (p->p_dsize - tsize), p->p_daddr);
+#endif
     }
     if (p->p_ssize) {
         swap (p->p_saddr, saddr, p->p_ssize, B_READ);
+#ifndef SWAP_IMAGE_ALIGN
         mfree (swapmap, btod (p->p_ssize), p->p_saddr);
+#endif
     }
     swap (p->p_addr, uaddr, USIZE, B_READ);
+#ifdef SWAP_IMAGE_ALIGN
+    mfree (swapmap, swapimagespan (p->p_dsize - tsize, p->p_ssize),
+        p->p_daddr);
+#else
     mfree (swapmap, btod (USIZE), p->p_addr);
+#endif
     }
 
     p->p_daddr = daddr;
@@ -138,8 +163,13 @@ swapout (p, freecore, odata, ostack)
     a[0] = a[1] = a[2] = 0;
     if (! ram)
 #endif
+#ifdef SWAP_IMAGE_ALIGN
+    if (malloc3_contiguous (swapmap, btod (p->p_dsize - tsize),
+        btod (p->p_ssize), btod (USIZE), SWAP_IMAGE_ALIGN, a) == 0) {
+#else
     if (malloc3 (swapmap, btod (p->p_dsize - tsize), btod (p->p_ssize),
         btod (USIZE), a) == NULL) {
+#endif
         register struct mapent *ep;
 
         printf ("swapout: pid %d dsize %u ssize %u, free:",
@@ -157,7 +187,7 @@ swapout (p, freecore, odata, ostack)
                 odata);
         else
 #endif
-        swap (a[0], p->p_daddr + tsize, odata, B_WRITE);
+        swap (a[0], p->p_daddr + tsize, odata, SWAP_IMAGE_WRITE);
     }
     if (ostack) {
 #ifdef SWAPRAM
@@ -165,7 +195,7 @@ swapout (p, freecore, odata, ostack)
             swapram_put (p, SWAPRAM_STACK, (caddr_t) p->p_saddr, ostack);
         else
 #endif
-        swap (a[1], p->p_saddr, ostack, B_WRITE);
+        swap (a[1], p->p_saddr, ostack, SWAP_IMAGE_WRITE);
     }
     /*
      * Increment u_ru.ru_nswap for process being tossed out of core.
@@ -195,7 +225,7 @@ swapout (p, freecore, odata, ostack)
         swapram_commit (p);
     } else
 #endif
-    swap (a[2], p->p_addr, USIZE, B_WRITE);
+    swap (a[2], p->p_addr, USIZE, SWAP_IMAGE_WRITE);
     /*
      * a[] is zero on the RAM tier, which is how swapin and pstat see that
      * the process holds no flash swap blocks. A zero p_addr is never jumped

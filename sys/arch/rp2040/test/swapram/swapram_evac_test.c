@@ -66,7 +66,8 @@ sleep(caddr_t chan, int pri)
 void
 swap(size_t blkno, size_t coreaddr, int count, int rdflg)
 {
-    if (rdflg != B_WRITE || blkno + btod(count) > NSWAP)
+    if ((rdflg & B_READ) != 0 || (rdflg & B_SWAPIMAGE) == 0 ||
+        blkno + btod(count) > NSWAP)
         panic("swap: bad write");
     memcpy(flash + blkno * DEV_BSIZE, (void *)coreaddr, count);
     writes++;
@@ -85,6 +86,14 @@ mapfree(void)
     for (ep = swapmap->m_map; ep->m_size; ep++)
         n += ep->m_size;
     return n;
+}
+
+static size_t
+image_span(size_t dlen, size_t slen)
+{
+    size_t blocks = btod(dlen) + btod(slen) + btod(USIZE);
+
+    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
 }
 
 /* An image: data, stack and u bytes with a compressible texture. */
@@ -161,9 +170,34 @@ static void
 reset_map(size_t blocks)
 {
     memset(swapent, 0, sizeof swapent);
-    mfree(swapmap, blocks, 1);
+    blocks &= ~(SWAP_IMAGE_ALIGN - 1);
+    if (blocks != 0)
+        mfree(swapmap, blocks, SWAP_IMAGE_ALIGN);
     memset(flash, 0xee, sizeof flash);
     writes = 0;
+}
+
+static void
+allocator_contract(void)
+{
+    size_t addresses[3], before;
+
+    reset_map(16);
+    before = mapfree();
+    CHECK(malloc3_contiguous(swapmap, 0, 0, 0, SWAP_IMAGE_ALIGN,
+        addresses) == 0);
+    CHECK(malloc3_contiguous(swapmap, (size_t)-1, 1, 1,
+        SWAP_IMAGE_ALIGN, addresses) == 0);
+    CHECK(mapfree() == before);
+    CHECK(malloc3_contiguous(swapmap, 1, 2, 0, SWAP_IMAGE_ALIGN,
+        addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[1] == addresses[0] + 1);
+    CHECK(addresses[2] == addresses[1] + 2);
+    CHECK(mapfree() == before - SWAP_IMAGE_ALIGN);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(mapfree() == before);
+    printf("allocator: aligned rounded runs reject empty and overflowing sizes\n");
 }
 
 static void
@@ -171,7 +205,7 @@ roundtrip(void)
 {
     struct image im[8];
     int i, n = 0, taken;
-    size_t before, expect = 0;
+    size_t before, held = 0, written = 0;
 
     reset_map(NSWAP - 1);
     for (i = 0; i < 8; i++) {
@@ -179,7 +213,8 @@ roundtrip(void)
         taken = admit(i, &im[i]);
         CHECK(taken);
         n += taken;
-        expect += btod(im[i].dlen) + btod(im[i].slen) + btod(USIZE);
+        held += image_span(im[i].dlen, im[i].slen);
+        written += btod(im[i].dlen) + btod(im[i].slen) + btod(USIZE);
     }
     CHECK(swapram_images() == n);
     before = mapfree();
@@ -189,16 +224,20 @@ roundtrip(void)
         CHECK(onflash(i, &im[i]));
         CHECK(proc[i].p_addr != 0);
         CHECK(proc[i].p_daddr != proc[i].p_addr);
+        CHECK((proc[i].p_daddr & (SWAP_IMAGE_ALIGN - 1)) == 0);
+        CHECK(proc[i].p_saddr == proc[i].p_daddr + btod(im[i].dlen));
+        CHECK(proc[i].p_addr == proc[i].p_saddr + btod(im[i].slen));
     }
-    CHECK(before - mapfree() == expect);
-    CHECK((size_t)writes == expect);
+    CHECK(before - mapfree() == held);
+    CHECK((size_t)writes == written);
     /* the pool is whole again: the same images fit a second time */
     for (i = 0; i < 8; i++)
         CHECK(admit(i, &im[i]));
     CHECK(swapram_images() == 8);
     CHECK(swapram_evacuate() == 0);
     CHECK(swapram_images() == 0);
-    printf("roundtrip: 8 images twice, %zu blocks each pass\n", expect);
+    printf("roundtrip: 8 aligned images twice, %zu blocks held and %zu written each pass\n",
+        held, written);
 }
 
 static void
@@ -236,7 +275,7 @@ shortage(void)
         CHECK(swapram_images() == 0);
     }
     /* exactly enough: every image moves */
-    reset_map(6 * (btod(1500) + btod(400) + btod(USIZE)));
+    reset_map(6 * image_span(1500, 400));
     for (i = 0; i < 6; i++)
         CHECK(admit(i, &im[i]));
     CHECK(swapram_evacuate() == 0);
@@ -391,6 +430,7 @@ main(void)
         printf("FAIL: panic: %s\n", panicmsg);
         return 1;
     }
+    allocator_contract();
     roundtrip();
     shortage();
     admission();

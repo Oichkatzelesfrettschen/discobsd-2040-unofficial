@@ -121,19 +121,41 @@ main(void)
 	boottime = time;
 
 	/* Find a swap file. */
+	/*
+	 * A target with erase-aligned swap leaves the reserved map address and
+	 * the rest of its first erase sector unused. Every free run then starts
+	 * aligned, and rounded whole-image allocations preserve that property.
+	 */
+#ifdef SWAP_IMAGE_ALIGN
+	swapstart = SWAP_IMAGE_ALIGN;
+#else
 	swapstart = 1;
+#endif
 	(*bdevsw[major(swapdev)].d_open)(swapdev, FREAD|FWRITE, S_IFBLK);
 	nswap = (*bdevsw[major(swapdev)].d_psize)(swapdev);
+#ifdef SWAP_IMAGE_ALIGN
+	if (nswap <= swapstart)
+#else
 	if (nswap <= 0)
+#endif
 		panic("swap size");	/* don't want to panic, but what ? */
+#ifdef SWAP_IMAGE_ALIGN
+	mfree(swapmap, nswap - swapstart, swapstart);
+#else
 	mfree(swapmap, nswap, swapstart);
+#endif
 
 	printf("phys mem  = %u kbytes\n", physmem / 1024);
 	printf("user mem  = %u kbytes\n", MAXMEM / 1024);
 	printf("root dev  = (%d,%d)\n", major(rootdev), minor(rootdev));
 	printf("swap dev  = (%d,%d)\n", major(swapdev), minor(swapdev));
 	printf("root size = %u kbytes\n", fs->fs_fsize * DEV_BSIZE / 1024);
+#ifdef SWAP_IMAGE_ALIGN
+	printf("swap size = %u kbytes\n",
+	    (nswap - swapstart) * DEV_BSIZE / 1024);
+#else
 	printf("swap size = %u kbytes\n", nswap * DEV_BSIZE / 1024);
+#endif
 
 	/* Kick off timeout driven events by calling first time. */
 	schedcpu(0);

@@ -92,8 +92,8 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_namei.o ufs_subr.o ufs_syscalls.o ufs_syscalls2.o \
 	vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o mem.o swap.o \
 	clock.o conf.o fault.o machdep.o sig_machdep.o syscall.o \
-	sysctl.o systick.o uart.o flash.o error.o journal.o map.o \
-	subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o
+	sysctl.o systick.o uart.o flash.o flash_swap.o error.o journal.o \
+	map.o subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/init_main.c \
@@ -118,9 +118,10 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
 	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/uart.c \
-	$S/arch/rp2040/dev/flash.c $S/arch/rp2040/dhara/error.c \
-	$S/arch/rp2040/dhara/journal.c $S/arch/rp2040/dhara/map.c \
-	$S/kern/subr_crc32.c $S/arch/rp2040/rp2040/exec_hsaout.c \
+	$S/arch/rp2040/dev/flash.c $S/arch/rp2040/dev/flash_swap.c \
+	$S/arch/rp2040/dhara/error.c $S/arch/rp2040/dhara/journal.c \
+	$S/arch/rp2040/dhara/map.c $S/kern/subr_crc32.c \
+	$S/arch/rp2040/rp2040/exec_hsaout.c \
 	$S/arch/rp2040/rp2040/hsx_stream.c \
 	$S/arch/rp2040/rp2040/hsx_decoder.c swapunix.c
 
@@ -385,6 +386,9 @@ uart.o: $S/arch/rp2040/dev/uart.c
 	${COMPILE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c
+	${COMPILE_C}
+
+flash_swap.o: $S/arch/rp2040/dev/flash_swap.c
 	${COMPILE_C}
 
 error.o: $S/arch/rp2040/dhara/error.c

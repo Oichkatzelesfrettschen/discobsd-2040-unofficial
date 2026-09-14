@@ -20,4 +20,6 @@ extern struct map swapmap[];
 size_t rmap_malloc (struct map *mp, size_t nbytes);
 void mfree (struct map *mp, size_t nbytes, size_t addr);
 size_t malloc3 (struct map *mp, size_t d_size, size_t s_size, size_t u_size, size_t a[3]);
+size_t malloc3_contiguous (struct map *mp, size_t d_size, size_t s_size,
+    size_t u_size, size_t align, size_t a[3]);
 #endif

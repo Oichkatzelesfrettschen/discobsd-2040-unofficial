@@ -230,3 +230,40 @@ resolve:
     }
     return(a[2]);
 }
+
+/*
+ * Allocate data, stack and u area as one run, rounded to align units.
+ *
+ * The map must start aligned and callers must return the complete run. Those
+ * two conditions preserve alignment without splitting a free-map entry, which
+ * also keeps the maximum map-entry count to one per live allocation. The
+ * three addresses retain the layout the swap code expects, including zero
+ * length data or stack segments.
+ */
+size_t
+malloc3_contiguous (mp, d_size, s_size, u_size, align, a)
+    struct map *mp;
+    size_t d_size, s_size, u_size, align, a[3];
+{
+    size_t total, span, base;
+
+    if (align == 0 || (align & (align - 1)) != 0)
+        panic ("malloc3_contiguous: bad alignment");
+    if (d_size > (size_t)-1 - s_size ||
+        d_size + s_size > (size_t)-1 - u_size)
+        return 0;
+    total = d_size + s_size + u_size;
+    if (total == 0 || total > (size_t)-1 - (align - 1))
+        return 0;
+    span = (total + align - 1) & ~(align - 1);
+    base = malloc (mp, span);
+    if (base == 0)
+        return 0;
+    if ((base & (align - 1)) != 0)
+        panic ("malloc3_contiguous: unaligned map");
+
+    a[0] = base;
+    a[1] = base + d_size;
+    a[2] = a[1] + s_size;
+    return span;
+}

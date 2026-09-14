@@ -6,6 +6,7 @@ TOPSRC!=	cd ../../../..; pwd
 DIVIDER_OWNERSHIP_VERIFIER=	${TOPSRC}/tools/verify_rp2040_divider_ownership.py
 SWAPRAM_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_swapram_link.sh
 CACHE_FOOTPRINT_VERIFIER=	${TOPSRC}/tools/verify_rp2040_cache_footprint.sh
+FLASH_SWAP_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_flash_swap_link.sh
 CACHE_FOOTPRINT_TEST=	${TOPSRC}/tests/rp2040/cache_footprint
 
 default:
@@ -55,5 +56,20 @@ check-cache-footprint:
 		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
 		    KERNEL_BUILD="${.CURDIR}/PICO"
 
+check-flash-swap:
+		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		@set -e; for i in ${SUBDIR}; do \
+			tool_prefix=$$(${MAKE} -C $$i -V ARM_GCC_PREFIX); \
+			swapram_arg=; \
+			if [ -r $$i/swapram.o ]; then \
+				swapram_arg="--swapram-object $$i/swapram.o"; \
+			fi; \
+			NM="$${tool_prefix}-nm" OBJDUMP="$${tool_prefix}-objdump" \
+			    sh "${FLASH_SWAP_LINK_VERIFIER}" --elf $$i/unix.elf \
+			    --flash-object $$i/flash.o \
+			    --vm-swap-object $$i/vm_swap.o \
+			    --swap-object $$i/swap.o $$swapram_arg; \
+		done
+
 .PHONY:		default all install clean clean-all reconfig check-divider \
-		check-swapram check-cache-footprint
+		check-swapram check-cache-footprint check-flash-swap

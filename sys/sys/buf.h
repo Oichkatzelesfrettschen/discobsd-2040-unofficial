@@ -185,6 +185,7 @@ int geterror (struct buf *bp);
 #define B_LOCKED    0x02000     /* locked in core (not reusable) */
 #define B_UBAREMAP  0x04000     /* addr UNIBUS virtual, not physical */
 #define B_RAMREMAP  0x08000     /* remapped into ramdisk */
+#define B_SWAPIMAGE 0x10000     /* ascending write in an erase-aligned image */
 
 /*
  * Insq/Remq for the buffer hash lists.

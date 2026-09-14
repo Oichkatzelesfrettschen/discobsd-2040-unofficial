@@ -108,6 +108,9 @@ check-swapram:	tools
 check-aout:
 		${MAKE} -C tests/aout_header check
 
+check-libc-environment:
+		${MAKE} -C tests/libc_environment check
+
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
@@ -175,7 +178,7 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		all build distribution release tools kernel check-divider \
-		check-swapram check-elf2aout symlinks \
+		check-swapram check-elf2aout check-libc-environment symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \
 		clean cleantools cleanfs cleanall

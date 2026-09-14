@@ -369,6 +369,75 @@ and worsen exactly that thrash. Restoration performance belongs to a
 separate measurement of swap count, compressed bytes, and elapsed time
 under a bounded workload.
 
+### Multicall consolidation: the three-number screen (port PR #46)
+
+PR #46 overlays each box's applet-private BSS into one shared extent (only
+one applet runs per process, so their zero-initialized storage has disjoint
+lifetimes) and packs all 33 OMAGIC root executables. It also folds sort
+into utilbox and rewrites sort to drop four 256-byte classification tables,
+bound the merge array at the seven-way fan-in, and size the temp-name
+buffer from the chosen directory.
+
+Every consolidation candidate is judged on three numbers: raw root blocks
+saved, packed root blocks saved, and resident data+bss added when the tool
+runs through the box instead of standalone. The third number is the guard:
+a box's overlaid extent is sized to its largest applet, so folding a
+large-BSS tool raises the resident cost of every applet in that box, and
+an apparent flash win then eats the RAM the exclusive epoch and tail
+recovered.
+
+sort into utilbox, the completed candidate: raw -10 blocks, packed -7
+blocks, resident +0. The overlay drops utilbox's own mutable image from
+9,484 to 5,336 bytes, and sort's standalone mutable falls from 3,432 to
+1,080; sort's applet BSS overlays the other applets, so the box gains no
+resident cost. A clear pass on all three numbers.
+
+Screening the remaining standalone executables (mutable = a_data+a_bss,
+packed blocks from `hsaout -s`):
+
+| Tool | packed blk | mutable B | verdict |
+|---|---:|---:|---|
+| smlrc | 42 | 27,700 | reject: mutable dwarfs any box |
+| awk | 35 | 13,572 | reject |
+| as | 24 | 31,364 | reject |
+| ld | 17 | 35,928 | reject |
+| fsck | 25 | 28,924 | reject |
+| sed | 13 | 32,068 | reject: the respace/genbuf workspace |
+| compress | 11 | 30,576 | reject |
+| find | 16 | 12,248 | reject: mutable exceeds the box |
+| grep | 9 | 2,240 | fold candidate |
+| fgrep | 8 | ~1,900 | fold candidate |
+| ed | 9 | 3,316 | fold candidate |
+| cpio | 8 | 1,072 | fold candidate |
+| su, passwd, login | 13/12/19 | 4,800/2,216/6,280 | keep: set-id surface |
+| init, update | 14/2 | 3,452/120 | keep: never invoked by name |
+
+The tools with the largest flash footprint all carry 13-36 KB mutable
+images, so folding any of them raises a box's resident extent by that much:
+they fail the third number and are rejected. The RAM-free candidates are
+those whose mutable is at or below utilbox's 5,336 bytes: grep, fgrep, ed,
+cpio add no resident cost when folded there. The grep family (grep, egrep,
+fgrep) is better consolidated as its own multicall binary because the three
+share one regex engine, collapsing about 30 packed blocks toward 13 at a
+resident cost of the shared engine alone. Set-id programs stay separate to
+keep the privilege surface narrow, and init and update are never run by
+name. The screen therefore endorses PR #46, names one further worthwhile
+step (a grep-family box), and rejects folding the compilers and filesystem
+tools.
+
+Board gate (packed root, kernel and filesystem UF2s, run as root): every
+hard-link name across all six boxes dispatched and ran correctly, with
+halt, reboot and shutdown-action held out and the same adminbox dispatcher
+proven through sysctl and shutdown usage; games dispatched on EOF without
+hanging. Sort of 24,000 lines, more than seven times the ~3,225-line
+in-core run capacity, produced 24,000 correctly ordered lines through the
+multi-pass seven-way merge. Each box was swapped out and back in: five
+against a concurrent 24,000-line sort, gamebox held resident on a
+sleep-fed pipe while foreground applets displaced it. Host gates:
+shellcheck, the sort differential test, the elf2aout layout test including
+the BSS overlay, check-swapram, check-divider, check-hsaout, and
+swapram-evac all pass.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

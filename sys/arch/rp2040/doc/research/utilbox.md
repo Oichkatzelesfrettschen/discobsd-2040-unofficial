@@ -307,6 +307,18 @@ directory entry and its own `argv[0]` when invoked by that name, so
 `ps` continues to show `id`, `more`, `sysctl`, and so on rather than
 `utilbox` or `adminbox`.
 
+`sbin/utilbox/Makefile`'s `ALIASES=whoami:id groups:id logname:id`
+compiles all three names into the dispatch table, so the box answers to
+each when invoked as that `argv[0]`. The root manifest links only the
+names that produce output: `whoami` prints the effective user and
+`groups` prints the group names. `logname` stays out of the manifest
+because `getlogin()` is a libc stub returning NULL
+(`lib/libc/gen/getlogin.c`) over the `nosys` `setlogin` at syscall 43
+(`sys/kern/init_sysent.c`), so a `logname` link would surface
+`getlogin: Unknown error` rather than a login name. Every other utilbox
+dispatch name carries a manifest link; `logname` is the one intentional
+exception, and wiring it waits on kernel login-name storage.
+
 ## Board verification procedure
 
 Flash the rebuilt image, then from the board's shell. Run the whole

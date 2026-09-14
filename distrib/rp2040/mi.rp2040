@@ -330,6 +330,10 @@ link /bin/md5
 target /usr/bin/utilbox
 link /usr/bin/id
 target /usr/bin/utilbox
+link /usr/bin/whoami
+target /usr/bin/utilbox
+link /usr/bin/groups
+target /usr/bin/utilbox
 link /usr/bin/more
 target /usr/bin/utilbox
 link /usr/bin/uniq

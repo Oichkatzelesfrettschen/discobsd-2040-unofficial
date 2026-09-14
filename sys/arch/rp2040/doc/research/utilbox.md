@@ -5,13 +5,14 @@ packed-root layout, sort admission, and mutable-image measurements live in
 `../MULTICALL-BSS-OVERLAY.md`; those measurements supersede the pre-overlay size
 and memory discussion in this document.
 
-`sbin/utilbox` links 19 usr.bin tools into one a.out of 51,125 bytes
-(text 50,004 + data 1,089 + a.out header), built the same way as
+At the original consolidation boundary, `sbin/utilbox` linked 19 usr.bin
+tools into one a.out of 51,125 bytes (text 50,004 + data 1,089 + a.out
+header), built the same way as
 `sbin/box`, `sbin/sysbox` and `sbin/textbox`: each tool builds in its
 own directory under `bin` or `usr.bin`, `ld -r` combines its objects,
 `objcopy --redefine-sym main=<tool>_main --keep-global-symbol=<tool>_main`
 localizes everything else, and `sbin/utilbox/utilbox.c.in` generates
-the dispatch table. `sbin/adminbox` folds shutdown, reboot and sysctl
+the dispatch table. `sbin/adminbox` folded shutdown, reboot and sysctl
 the same way, into a second, smaller a.out of 25,988 bytes (text
 23,804 + data 2,152 + a.out header).
 
@@ -23,7 +24,7 @@ libc links in). The standalone column is the tool's own a.out, built
 and installed the same way every other `bin`/`usr.bin` program is.
 
 | Tool | Source | In box (text+data) | Standalone a.out |
-|---|---|---:|---:|
+| --- | --- | ---: | ---: |
 | expr | bin/expr | 9,330 | 16,892 |
 | more | usr.bin/more | 11,515 | 22,592 |
 | md5 | bin/md5 | 3,241 | 11,444 |
@@ -56,7 +57,7 @@ standalone bytes once that copy is shared.
 ## adminbox: tool list, source, and size
 
 | Tool | Source | In box (text+data) | Standalone a.out |
-|---|---|---:|---:|
+| --- | --- | ---: | ---: |
 | sysctl | sbin/sysctl | 3,764 | 17,332 |
 | shutdown | sbin/shutdown | 2,727 | 18,284 |
 | reboot | sbin/reboot | 1,063 | 15,788 |
@@ -70,10 +71,10 @@ check already answers to; the manifest links `/sbin/halt` straight to
 puts `halt` in the dispatch table too, so both invocation paths reach
 `reboot_main`.
 
-## Combined result
+## Original combined result
 
-utilbox and adminbox together recover **147,528 bytes** (about 144
-KiB) of root, folding 22 standalone a.outs into two multicall
+utilbox and adminbox together recovered **147,528 bytes** (about 144
+KiB) of root by folding 22 standalone a.outs into two multicall
 binaries totaling 77,113 bytes.
 
 ## What stayed out, and why
@@ -86,7 +87,7 @@ directory (`ls $d/*.o | grep -v '.tool.o$'`) on the assumption that a
 directory holds one program. `ld -r` on find's three objects together
 fails outright:
 
-```
+```text
 multiple definition of `prefix_length'
 multiple definition of `main'
 multiple definition of `oldpath'
@@ -110,8 +111,8 @@ scope. Combining all candidate tool.o files once (before deciding the
 final set) surfaced three collision groups:
 
 | Symbols | Tools sharing them |
-|---|---|
-| `loc1`, `loc2`, `locs`, `braslist`, `braelist` | expr, sed (both carry the old regexp.c BRE engine) |
+| --- | --- |
+| `loc1`, `loc2`, `locs`, `braslist`, `braelist` | expr, sed (old BRE engine) |
 | `eargc`, `eargv`, `ibuf` | sed, sort |
 | `nfiles` | more, sed, sort |
 | `fields` | sort, uniq |
@@ -141,63 +142,41 @@ stays out unless the dispatcher is shown to drop privilege first.
 **init, sh, login, getty, fsck, awk, the editors and the toolchain**
 excluded per the task's scope, unchanged.
 
-## Memory footprint at exec
+## Current exec and swap footprint
 
-Root savings are flash bytes; the number that decides whether utilbox
-actually runs is RAM committed at exec time. `sbin/box/Makefile`'s
-own header names the risk this port already designed around: "two
-images of 40 kbytes swap where one of 70 could not find a contiguous
-run in the swap map." rp2040's `exec_aout.c` sets `epp->text.len = 0`
-for a.out images -- text executes in place from flash, not from the
-264-kbyte SRAM (`physmem = 264 * 1024` in
-`sys/arch/rp2040/rp2040/machdep.c`) -- so the byte count that matters
-per exec is `data + bss`, which becomes `p_dsize` in
-`exec_subr.c:264`. Linking the elf before `elf2aout` strips it:
+Root savings measure flash bytes, while exec admission measures the complete
+resident OMAGIC image plus its initial stack. The current utilbox header at
+merged main `93c0064b` reports:
 
-| Binary | text | data | bss | data+bss (p_dsize) |
-|---|---:|---:|---:|---:|
-| box (existing) | 34,528 | 1,764 | 10,192 | 11,956 |
-| utilbox | 50,004 | 1,089 | 67,772 | 68,861 |
-| adminbox | 23,804 | 2,152 | 5,724 | 7,876 |
+| Quantity | Bytes |
+| --- | ---: |
+| `a_text` | 53,016 |
+| `a_data` | 1,073 |
+| `a_bss` | 4,271 |
+| Resident image | 58,360 |
+| Mutable image | 5,344 |
+| Packed file | 42,998 |
 
-`sys/sys/param.h` sets `MAXMEM (96*1024)`, the kernel's declared
-per-process core ceiling, and rp2040 carries no override. `exec_estab()`
-does check an overflow bound before committing a new image, but for
-the a.out loader that check is `text.len + data.len + heap.len +
-stack.len > MAXMEM` (`exec_subr.c:248`) with `text.len` and
-`heap.len` both forced to 0 in `exec_aout.c`; `bss.len` never enters
-that sum, so utilbox's 67,772 bytes of bss pass through unexamined by
-that gate. The number that actually decides pass or fail is `p_dsize`
-(`exec_subr.c:264`), the value the core allocator sizes the process's
-memory request from once `exec_estab()` returns. utilbox's 68,861
-bytes fits the *declared* 96 KB budget with about 27 KB to spare for
-heap and stack, but that is arithmetic against the documented
-ceiling, not confirmation the allocator's own accounting agrees;
-adminbox's 7,876 is nowhere near either number and is not in
-question. Per-tool `.tool.o` bss
-(`arm-none-eabi-size sbin/utilbox/*.tool.o`) sums to well under 5 KB
-across all 19 tools, confirming the 67,772-byte total is dominated by
-COMMON symbols that only resolve to real `.bss` addresses at the
-final link -- `expr`'s own copy of the old regexp.c engine
-(`loc1`, `loc2`, `locs`, `braslist`, `braelist`) and a handful of
-large static buffers in `more` and `cmp` account for most of it (see
-`arm-none-eabi-nm --size-sort -S` on the linked elf).
+`exec_aout.c` and `exec_hsaout.c` fold `a_text` into the single OMAGIC data
+segment. `exec_estab()` therefore admits `a_text + a_data + a_bss + heap +
+stack`, then records 58,360 bytes in `p_dsize` and 53,016 clean bytes in
+`p_tsize`. The SMALL epoch supplies 144 KB. An image above that ceiling and
+within the 16 KB SwapRAM bonus requests the exclusive LARGE epoch before the
+kernel commits the old process image. Utilbox remains far below the SMALL
+ceiling.
 
-Unlike a standalone tool -- one process, one fixed data+bss size, sized
-for that tool alone -- utilbox commits the combined bss of all 19
-members on every exec, whichever name invoked it: running `tty`
-through utilbox costs the same 68,861 bytes as running `more`. This
-port's swap is not a partition inside the filesystem image
-(`SWAP_KBYTES=0`, `U_KBYTES=0` in `distrib/rp2040/Makefile.inc`); it
-is a dedicated 384-kbyte flash region the kernel manages directly, and
-`box.c.in`'s comment is about whether that region's free-block map has
-one contiguous run big enough for the image being swapped in, not
-about SRAM capacity. That is a runtime allocator question this
-worktree's static checks cannot answer -- it depends on what else has
-run and what the swap map looks like at the time -- so the board
-verification below runs every utilbox and adminbox member name back
-to back, without a reboot in between, as the actual test of whether
-68,861 bytes finds room.
+The clean-text contract creates the important RAM and swap intersection.
+`vm_swap.c` writes `p_dsize - p_tsize`, so utilbox swaps only its 5,344-byte
+mutable interval, stack, and u-area. Swap-in restores clean text from the
+retained raw or packed executable and verifies the packed text CRC. The BSS
+overlay therefore saves resident RAM, dirty swap extent, flash writes, and
+compressed-swap churn simultaneously without pretending that text executes
+in place.
+
+The original 68,861-byte mutable utilbox measurement described the
+pre-overlay COMMON layout. That image helped expose the lifetime opportunity,
+but the current linker verifier rejects COMMON and writable NOBITS outside the
+applet-private overlay before the final link.
 
 ## tool.o against libc: the other place a COMMON symbol can collide
 
@@ -207,9 +186,11 @@ resolve remaining undefined references; a tool's own un-localized
 COMMON symbol sharing a name with a libc global would merge with it
 the same way, silently:
 
-```
-arm-none-eabi-nm -g --defined-only *.tool.o | awk '{print $3}' | sort -u > /tmp/tsyms
-arm-none-eabi-nm -g --defined-only ../../lib/libc.a | awk '$2 ~ /^[TDBC]$/ {print $3}' | sort -u > /tmp/lsyms
+```sh
+arm-none-eabi-nm -g --defined-only *.tool.o |
+    awk '{print $3}' | sort -u > /tmp/tsyms
+arm-none-eabi-nm -g --defined-only ../../lib/libc.a |
+    awk '$2 ~ /^[TDBC]$/ {print $3}' | sort -u > /tmp/lsyms
 comm -12 /tmp/tsyms /tmp/lsyms
 ```
 
@@ -227,7 +208,7 @@ else linked in.
 
 For the 19 tools that shipped in utilbox and the 3 in adminbox:
 
-```
+```sh
 for f in *.tool.o; do
     arm-none-eabi-nm -g --defined-only "$f" | awk -v f="$f" '{print $3, f}'
 done | awk '{print $1}' | sort | uniq -c | sort -rn | awk '$1>1'
@@ -264,15 +245,12 @@ independent copies:
   and `/sbin/halt` report `Links: 5` and identical size (25,988
   bytes).
 
-`bmake MACHINE=rp2040 distribution` and `bmake MACHINE=rp2040 fs`
-both complete with no missing-file warnings and no manifest errors,
-installing "17 directories, 44 files, 19 devices, 62 links, 1
-symlinks" into a 988-kbyte root partition. `distribution` also
-rebuilds the kernel and re-dirties the tracked build products under
-`sys/arch/rp2040/compile/PICO*` (version counters, `unix`, `unix.bin`,
-`unix.map`, `unix.uf2`) as a side effect of the ordinary build
-sequence -- unrelated to this change and reverted with `git checkout
--- sys/arch/rp2040/compile/` before committing.
+At merged main `93c0064b`, `bmake -j8 MACHINE=rp2040 distribution` installs
+18 directories, 53 files, 19 devices, 73 hard links, and one symlink into the
+988 KB root partition. `fsutil --check --partition=1` reports 94 filesystem
+objects, 665 allocated blocks, and 306 free blocks. Run size-producing builds
+in an isolated worktree so generated kernels and filesystem images stay
+outside the canonical checkout.
 
 `ps` reads `p_comm`, which the kernel sets from the exec'd `argv[0]`
 in `exec_setupstack()` (`sys/kern/exec_subr.c`), independent of the
@@ -281,14 +259,14 @@ directory entry and its own `argv[0]` when invoked by that name, so
 `ps` continues to show `id`, `more`, `sysctl`, and so on rather than
 `utilbox` or `adminbox`.
 
-## Board verification (not run here -- these commands were not executed against the board)
+## Board verification procedure
 
 Flash the rebuilt image, then from the board's shell. Run the whole
 block in one session, without a reboot in between: back-to-back execs
 of different utilbox and adminbox members is the actual test of the
 swap-map contiguity question above.
 
-```
+```sh
 id                      # prints uid/gid, not "utilbox"
 more /etc/motd          # pages the file
 uniq /etc/passwd | wc -l
@@ -315,17 +293,17 @@ Each command should behave exactly as its standalone version did
 before the fold; `ps` output for any of them while running should
 show the invoked name, not `utilbox` or `adminbox`.
 
-## The 96 KB window ceiling (found on the board)
+## Historical 96 KB admission failure
 
-A multicall box links every member's text, data and bss contiguously from
-USER_DATA_START, and exec_aout loads the whole image into the 96 KB user
-window (USER_DATA_SIZE); the process's globals live at their linked
-addresses. So a box's _end symbol must stay below USER_DATA_END
-(0x20018000). The first utilbox held tail (a 32769-byte line buffer), tee
-(two 8192-byte buffers) and du (an 8000-byte link table); its _end reached
-0x2001cd00, 18 KB past the window, and exec of any member wrote a global
-into kernel RAM and wedged the kernel with no message. The three
-big-buffer tools now ship standalone, where each fits alone, and utilbox's
-_end is 0x2000de50. Check a box with `arm-none-eabi-nm box.elf | sort |
-tail`: the highest B/D address must be below 0x20018000. box, sysbox,
-textbox and gamebox were already within it.
+The first utilbox predated both the BSS overlay and the 144 KB SMALL window.
+Tail's 32,769-byte line buffer, tee's two 8,192-byte buffers, and du's
+8,000-byte link table pushed `_end` to 0x2001cd00, 18 KB beyond the former
+0x20018000 ceiling. The former admission calculation omitted `a_bss`, so an
+exec could cross that ceiling and write globals into kernel RAM.
+
+Current `exec_estab()` includes text, data, BSS, heap, and stack before
+commit. The current utilbox resident image ends at 0x2000e3f8, well below the
+SMALL top at 0x20024000. The LARGE epoch extends that top to 0x20028000 only
+after SwapRAM evacuation. The overlay verifier and ELF layout fixtures also
+reject COMMON, escaped NOBITS, cross-applet relocations, and an image that
+exceeds its declared window before a packed root image can ship.

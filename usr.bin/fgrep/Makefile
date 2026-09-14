@@ -17,6 +17,12 @@ ${PROG}:	${OBJS}
 
 clean:
 		rm -f *.o *.elf ${PROG} *.dis tags *~
+		${MAKE} -C tests clean
 
 install:	all
 		${INSTALL} ${PROG} ${DESTDIR}${BINDIR}/${PROG}
+
+test:
+		${MAKE} -C tests check
+
+.PHONY: test

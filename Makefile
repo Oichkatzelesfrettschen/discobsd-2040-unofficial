@@ -123,6 +123,9 @@ check-id-aliases:
 check-portable-utilities:
 		${MAKE} -C tests/portable_utilities check
 
+check-fgrep-capacity:
+		${MAKE} -C usr.bin/fgrep test
+
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
@@ -196,7 +199,8 @@ installfs:
 .PHONY:		all build distribution release tools kernel check-divider \
 		check-swapram check-elf2aout check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
-		check-hsaout check-config-makefile check-portable-utilities \
+		check-fgrep-capacity check-hsaout check-config-makefile \
+		check-portable-utilities \
 		symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \

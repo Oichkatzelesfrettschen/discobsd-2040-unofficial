@@ -65,9 +65,11 @@ class ReferenceRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory_name:
             fixture_path = pathlib.Path(directory_name) / "disk"
             fixture_path.write_bytes(b"wrong")
-            with mock.patch.object(run, "EXPECTED_IMAGE_SIZE", 5):
-                with self.assertRaisesRegex(ValueError, "image SHA-256"):
-                    run.validate_image(fixture_path)
+            with (
+                mock.patch.object(run, "EXPECTED_IMAGE_SIZE", 5),
+                self.assertRaisesRegex(ValueError, "image SHA-256"),
+            ):
+                run.validate_image(fixture_path)
 
     def test_validate_profile_rejects_unreviewed_commands(self) -> None:
         with tempfile.TemporaryDirectory() as directory_name:

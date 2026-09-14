@@ -77,14 +77,20 @@ Cross-checked against `bin`, `sbin`, `usr.bin`, `games` (the tree's
 name for what the task calls `usr.games`) and `lib/libc` in this
 worktree. Of the survey's own candidate list:
 
-| Candidate | Status in this tree |
-|---|---|
-| `factor`, `primes`, `hangman`, `quiz`, `wump`, `banner`, `bcd` | already built in `games/`, unshipped on the rp2040 image (`STORAGE.md`) |
-| `tsort`, `col` | already in `usr.bin/` |
-| `units` | absent, but V7's `usr/src/cmd/units.c` is `double`-heavy (conversion factors, a 601-entry table read from `/usr/lib/units` at run time) -- a poor fit for a target where floating-point `printf` costs about 10 KB and is opted out of by default. Not ported; flagged for anyone who wants a fixed-point rewrite instead of a straight port. |
-| `look` | absent. Ported (below). |
-| `deroff` | absent. Ported (below). |
-| `bj` (V7 blackjack) | absent from the tree, and absent from both images as C source -- only a V6 man page (`usr/doc/man/man6/bj.6`) survived on `unix3_v6_rk.dsk`. Porting it would mean a clean-room rewrite from the man page rather than an adaptation under the Caldera grant (which covers redistribution and modification of actual source, not a description of behavior); out of scope for this pass given the time budget, left for a follow-up task. |
+- `factor`, `primes`, `hangman`, `quiz`, `wump`, `banner`, and `bcd` already
+  build in `games/`; the RP2040 image omits them (`STORAGE.md`).
+- `tsort` and `col` already build in `usr.bin/`.
+- `units` is absent. V7's `usr/src/cmd/units.c` uses `double` conversion
+  factors and reads a 601-entry table from `/usr/lib/units` at run time. A
+  direct port fits poorly on a target where floating-point `printf` costs
+  about 10 KB and remains disabled by default. A fixed-point rewrite remains
+  separate work.
+- `look` was absent and is now ported below.
+- `deroff` was absent and is now ported below.
+- `bj`, the V7 blackjack game, is absent from the tree and both images as C
+  source. Only the V6 manual `usr/doc/man/man6/bj.6` survives on
+  `unix3_v6_rk.dsk`. Porting `bj` requires a clean-room implementation from
+  the manual rather than modification of source covered by the Caldera grant.
 
 A pass over the rest of V7's `usr/src/cmd` (89 further utilities)
 found nothing else that is simultaneously absent from the tree, free
@@ -142,8 +148,10 @@ size measurement) but are not what ships.
 Cross build, `arm-none-eabi-gcc -Os -Wall`, zero warnings from either
 file:
 
-    bmake -C usr.bin/look MACHINE=rp2040     # standalone: text+data+bss = 9,821 bytes
-    bmake -C usr.bin/deroff MACHINE=rp2040   # standalone: text+data+bss = 13,750 bytes
+    bmake -C usr.bin/look MACHINE=rp2040
+    # standalone: text+data+bss = 9,821 bytes
+    bmake -C usr.bin/deroff MACHINE=rp2040
+    # standalone: text+data+bss = 13,750 bytes
 
 `sbin/textbox`, before (12 sbase tools) and after (14, with `look` and
 `deroff` added to `TOOLS=` in `sbin/textbox/Makefile`):

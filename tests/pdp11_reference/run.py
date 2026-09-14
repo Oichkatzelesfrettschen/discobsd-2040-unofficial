@@ -12,7 +12,6 @@ import subprocess
 import sys
 import tempfile
 
-
 EXPECTED_IMAGE_SHA256 = (
     "235426852d2fdc2b7b3432f46bb2174d579a6e730f84d66f1464a2ae564a1c81"
 )

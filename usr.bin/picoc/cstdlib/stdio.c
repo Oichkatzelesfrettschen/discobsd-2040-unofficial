@@ -413,6 +413,11 @@ void StdioTmpfile(struct ParseState *Parser, struct Value *ReturnValue, struct V
     ReturnValue->Val->Pointer = tmpfile();
 }
 
+void StdioCtermid(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+{
+    ReturnValue->Val->Pointer = ctermid(Param[0]->Val->Pointer);
+}
+
 void StdioClearerr(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
     clearerr((FILE *)Param[0]->Val->Pointer);
@@ -626,10 +631,14 @@ void StdioVsscanf(struct ParseState *Parser, struct Value *ReturnValue, struct V
 }
 
 /* handy structure definitions */
-const char StdioDefs[] = "\
+#define PICOC_STRINGIFY_INNER(Value) #Value
+#define PICOC_STRINGIFY(Value) PICOC_STRINGIFY_INNER(Value)
+const char StdioDefs[] = "#define L_ctermid " PICOC_STRINGIFY(L_ctermid) "\n\
 typedef struct __va_listStruct va_list; \
 typedef struct __FILEStruct FILE;\
 ";
+#undef PICOC_STRINGIFY
+#undef PICOC_STRINGIFY_INNER
 
 /* all stdio functions */
 struct LibraryFunction StdioFunctions[] =
@@ -648,6 +657,7 @@ struct LibraryFunction StdioFunctions[] =
     { StdioRename,  "int rename(char *, char *);" },
     { StdioRewind,  "void rewind(FILE *);" },
     { StdioTmpfile, "FILE *tmpfile();" },
+    { StdioCtermid, "char *ctermid(char *);" },
     { StdioClearerr,"void clearerr(FILE *);" },
     { StdioFeof,    "int feof(FILE *);" },
     { StdioFerror,  "int ferror(FILE *);" },

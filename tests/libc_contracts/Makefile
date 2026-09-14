@@ -1,10 +1,23 @@
+TOPSRC!= cd ../..; pwd
+include ${TOPSRC}/share/mk/sys.mk
+
 HOSTCC?= cc
+ARM_COMPILER?= ${GCCPREFIX}-gcc
+TARGET_MACHINE?= rp2040
 PROG= libc_contracts_test
 TARGET_DIR= ../../lib/libc/gen
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 
-check: ${PROG} header_contract.o
+check: ${PROG} header_contract.o check-aout
 	./${PROG}
+
+check-aout:
+	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} cleantools
+	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} symlinks tools
+	${MAKE} -C ${TOPSRC}/lib/libc_aout/libc MACHINE=${TARGET_MACHINE}
+	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} \
+	    ${TOPSRC}/distrib/obj/boardlibc.${TARGET_MACHINE}/libc.a
+	sh ./aout_contracts.sh ${TOPSRC} ${ARM_COMPILER} ${TARGET_MACHINE}
 
 ${PROG}: libc_contracts_test.c raise.o ctermid.o
 	${HOSTCC} ${CFLAGS} -DL_ctermid=9 -o $@ \
@@ -26,4 +39,4 @@ clean:
 
 all: check
 
-.PHONY: all check clean
+.PHONY: all check check-aout clean

@@ -10,10 +10,10 @@ check-python:
 	fi
 
 check: check-python
-	"${PYTHON}" -m unittest -v test_runner.py
+	"${PYTHON}" -B -m unittest -v test_runner.py
 
 reference: check check-image
-	"${PYTHON}" "${RUNNER}" \
+	"${PYTHON}" -B "${RUNNER}" \
 	    --simulator "${SIMULATOR}" \
 	    --image "${PDP11_V7_IMAGE}" \
 	    --profile "${PROFILE}" \

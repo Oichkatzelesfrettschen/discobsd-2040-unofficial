@@ -943,7 +943,14 @@ alpha.tool.o:
     for _ in range(2):
         require_clean_command(
             run_command(
-                [arguments.make, "-f", str(fixture_makefile), "all"],
+                [
+                    arguments.make,
+                    "-C",
+                    str(rebuild_directory),
+                    "-f",
+                    fixture_makefile.name,
+                    "all",
+                ],
             ),
             "multicall object rebuild",
         )

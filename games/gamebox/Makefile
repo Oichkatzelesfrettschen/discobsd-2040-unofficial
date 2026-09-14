@@ -26,7 +26,7 @@ include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 $t.tool.o:
 	${MAKE} -C ${TOPSRC}/games/$t MACHINE=${MACHINE} clean >/dev/null
 	${MAKE} -C ${TOPSRC}/games/$t MACHINE=${MACHINE} \
-	    COPTS="${MULTICALL_APPLET_COPTS}" $t.o >/dev/null
+	    COPTS="${MULTICALL_APPLET_COPTS}" all >/dev/null
 	${LD} -r -o $@.r ${TOPSRC}/games/$t/$t.o
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@
 	${OBJCOPY} --rename-section .bss=.app_bss_$t \

@@ -438,6 +438,47 @@ shellcheck, the sort differential test, the elf2aout layout test including
 the BSS overlay, check-swapram, check-divider, check-hsaout, and
 swapram-evac all pass.
 
+### The grep-family box, and a corrected screen (port PR #47)
+
+The earlier screen guessed the grep family shared a regex engine and was
+RAM-neutral to fold. Measurement corrected both: grep (basic REs), egrep
+(a yacc DFA) and fgrep (Aho-Corasick) are three distinct engines, and
+egrep and fgrep carry large fixed tables in bss, 43,388 and 64,156 bytes,
+against grep's 1,808. Folding them naively would set the overlay extent to
+64 KB and make grep, the most-used member, 26 times heavier. The value is
+not the box; it is bounding fgrep's table.
+
+fgrep sized its Aho-Corasick trie at a fixed w[MAXSIZ] of 4000 states,
+64,064 bytes on every invocation. The trie holds at most one state per
+pattern byte plus a terminal per line under -x, so w becomes a pointer
+allocated from the pattern source (the -f file size, or the argument
+length), guarded by the existing overflo(). fgrep's mutable image falls
+from 64,832 to 588 bytes. This also moves fgrep's COMMON tables into .bss
+under -fno-common, which the overlay requires: ld -r leaves a COMMON
+unallocated, so it escapes the .app_bss rename and sums into the final
+.bss rather than overlaying. grep and fgrep were added to
+tools/verify_userland_no_common.sh.
+
+grepbox then folds grep and fgrep on the utilbox pattern. The engines
+differ, so the code does not deduplicate; the win is one libc copy and,
+because fgrep's trie now leaves bss, an overlay extent of grep's 1,796
+bytes. egrep stays standalone: it is absent from the root manifest, and
+its gotofn[NSTATES][NCHARS] is algorithmic, not oversizing, so folding it
+would add text and reset the extent.
+
+Three numbers: raw root blocks -8, packed root blocks -6, resident
+data+bss +4 bytes for grep and +1,656 for fgrep, both far under the ~64 KB
+the bounding returns. Board: grepbox alone lists its commands; grep and
+fgrep as links match correctly; fgrep -f with 200 patterns allocates and
+matches; a 600-pattern set overruns the window and exits 2 with "wordlist
+too large" rather than corrupting memory. Host: the no-common verifier and
+the elf2aout layout test pass.
+
+The lesson for the screen: measure a_bss per member before folding, not
+just packed blocks. A tool's fixed worst-case table, not its file count,
+is what a box would spend, and bounding that table is the larger and often
+the only real win.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident

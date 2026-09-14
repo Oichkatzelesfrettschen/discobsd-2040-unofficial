@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -32,7 +33,7 @@ struct words {
     struct  words *nst;
     struct  words *link;
     struct  words *fail;
-} w[MAXSIZ], *smax, *q;
+} *w, *smax, *q, *wlim;
 
 long    lnum;
 int bflag, cflag, fflag, lflag, nflag, vflag, xflag, yflag;
@@ -116,6 +117,38 @@ out:
     else argptr = *argv;
     argc--;
     argv++;
+
+    /*
+     * The Aho-Corasick trie holds at most one state per pattern byte, plus
+     * a terminal state per line under -x, so bound it by the pattern
+     * source rather than the fixed MAXSIZ that cost 64 kbytes of resident
+     * bss on every invocation. -f names a file whose size bounds the count;
+     * a pattern argument bounds it by its length. overflo() still guards
+     * the walk if the estimate is somehow low. A non-regular -f source
+     * reports no size, so the old fixed ceiling stands for it.
+     */
+    {
+        struct stat pstb;
+        unsigned long bytes;
+        unsigned long nstates;
+
+        if (fflag) {
+            if (fstat(fileno(wordf), &pstb) == 0 && pstb.st_size > 0)
+                bytes = (unsigned long)pstb.st_size;
+            else
+                bytes = MAXSIZ;
+        } else
+            bytes = (unsigned long)strlen(argptr);
+        /*
+         * At most one trie state per pattern byte, plus one terminal state
+         * per line under -x, so double the estimate only then.
+         */
+        nstates = (xflag ? 2 * bytes : bytes) + 8;
+        w = (struct words *)calloc(nstates, sizeof *w);
+        if (w == NULL)
+            overflo();
+        wlim = w + (nstates - 1);
+    }
 
     cgotofn();
     cfail();
@@ -295,7 +328,7 @@ nword:  for(;;) {
                     }
                     if (s->inp == 0) goto nenter;
                     if (s->link == 0) {
-                        if (smax >= &w[MAXSIZ -1]) overflo();
+                        if (smax >= wlim) overflo();
                         s->link = ++smax;
                         s = smax;
                         goto nenter;
@@ -312,7 +345,7 @@ nword:  for(;;) {
             }
             if (s->inp == 0) goto enter;
             if (s->link == 0) {
-                if (smax >= &w[MAXSIZ - 1]) overflo();
+                if (smax >= wlim) overflo();
                 s->link = ++smax;
                 s = smax;
                 goto enter;
@@ -325,13 +358,13 @@ nword:  for(;;) {
     enter:
     do {
         s->inp = c;
-        if (smax >= &w[MAXSIZ - 1]) overflo();
+        if (smax >= wlim) overflo();
         s->nst = ++smax;
         s = smax;
     } while ((c = getargc()) != '\n' && c!=EOF);
     if (xflag) {
     nenter: s->inp = '\n';
-        if (smax >= &w[MAXSIZ -1]) overflo();
+        if (smax >= wlim) overflo();
         s->nst = ++smax;
     }
     smax->out = 1;

@@ -22,7 +22,7 @@ PROGRAMS="games/atc usr.bin/awk games/backgammon usr.bin/basic
 games/battlestar games/caesar games/canfield games/cribbage usr.bin/diff
 usr.bin/forth sbin/fsck games/hangman usr.bin/med games/mille games/pom
 games/primes usr.bin/re games/robots games/sail usr.bin/sed bin/sh
-usr.bin/sl games/snake usr.bin/tail usr.bin/tip games/trek games/worm"
+usr.bin/sl games/snake usr.bin/tail usr.bin/tip games/trek games/worm usr.bin/grep usr.bin/fgrep"
 
 status=0
 

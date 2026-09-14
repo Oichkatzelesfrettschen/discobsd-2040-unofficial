@@ -45,12 +45,10 @@ void UnistdConfstr(struct ParseState *Parser, struct Value *ReturnValue, struct 
 }
 */
 
-/*
 void UnistdCtermid(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = ctermid(Param[0]->Val->Pointer);
 }
-*/
 #if 0
 void UnistdCuserid(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
@@ -436,7 +434,7 @@ struct LibraryFunction UnistdFunctions[] =
     { UnistdChown,         "int chown(char *, uid_t, gid_t);" },
     { UnistdClose,         "int close(int);" },
 /*    { UnistdConfstr,       "size_t confstr(int, char *, size_t);" }, */
-/*    { UnistdCtermid,       "char *ctermid(char *);" }, */
+    { UnistdCtermid,       "char *ctermid(char *);" },
 /*    { UnistdCuserid,       "char *cuserid(char *);" }, */
     { UnistdDup,           "int dup(int);" },
     { UnistdDup2,          "int dup2(int, int);" },
@@ -530,4 +528,3 @@ void UnistdSetupFunc(void)
 }
 
 #endif /* !BUILTIN_MINI_STDLIB */
-

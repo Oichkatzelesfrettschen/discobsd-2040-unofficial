@@ -12,7 +12,7 @@ SRCS		= ${STDSRC}
 OBJS		= ${STDOBJ}
 
 STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
-		  basename.c bcmp.c bcopy.c \
+		  basename.c bcmp.c bcopy.c ctermid.c \
 		  bzero.c calloc.c closedir.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
@@ -22,7 +22,7 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  getcwd.c getpwent.c getttyent.c getttynam.c getusershell.c \
 		  getwd.c index.c initgroups.c isatty.c isinff.c isnanf.c \
 		  knlist.c ldexp.c malloc.c mktemp.c modf.c modff.c ndbm.c \
-		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c \
+		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c raise.c \
 		  random.c readdir.c regex.c rindex.c scandir.c seekdir.c \
 		  setenv.c sethostname.c setmode.c siginterrupt.c \
 		  siglist.c signal.c sigsetops.c sleep.c strcasecmp.c \
@@ -33,7 +33,7 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  wait.c wait3.c waitpid.c
 
 STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
-		  basename.o bcmp.o bcopy.o \
+		  basename.o bcmp.o bcopy.o ctermid.o \
 		  bzero.o calloc.o closedir.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
@@ -43,7 +43,7 @@ STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
 		  getcwd.o getpwent.o getttyent.o getttynam.o getusershell.o \
 		  getwd.o index.o initgroups.o isatty.o isinff.o isnanf.o \
 		  knlist.o ldexp.o malloc.o mktemp.o modf.o modff.o ndbm.o \
-		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o \
+		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o raise.o \
 		  random.o readdir.o regex.o rindex.o scandir.o seekdir.o \
 		  setenv.o sethostname.o setmode.o siginterrupt.o \
 		  siglist.o signal.o sigsetops.o sleep.o strcasecmp.o \

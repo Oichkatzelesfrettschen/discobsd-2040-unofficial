@@ -108,7 +108,7 @@ REMO3=	getgrnam.0 getpwnam.0 getpwuid.0 setfsent.0 setgrent.0 setpwent.0 \
 	setprotoent.0 setusershell.0 endhostent.0 gethostbyaddr.0 gethostent.0 \
 	sethostent.0 sethostfile.0 memccpy.0 memchr.0 memcmp.0 memcpy.0 \
 	memset.0 strchr.0 strrchr.0 tmpnam.0 tmpfile.0 \
-	tempnam.0 getmode.0 usleep.0 setenv.0 unsetenv.0
+	tempnam.0 getmode.0 usleep.0 putenv.0 setenv.0 unsetenv.0
 
 REMO4=	verr.0 errx.0 verrx.0 warn.0 warnx.0 vwarnx.0
 
@@ -383,6 +383,7 @@ install: _make_01 _make_02
 	ln -f ${DESTDIR}${MDIR}/compat-sys5.0 ${DESTDIR}${MDIR}/tmpfile.0
 	ln -f ${DESTDIR}${MDIR}/compat-sys5.0 ${DESTDIR}${MDIR}/tempnam.0
 	ln -f ${DESTDIR}${MDIR}/sleep.0 ${DESTDIR}${MDIR}/usleep.0
+	ln -f ${DESTDIR}${MDIR}/getenv.0 ${DESTDIR}${MDIR}/putenv.0
 	ln -f ${DESTDIR}${MDIR}/getenv.0 ${DESTDIR}${MDIR}/setenv.0
 	ln -f ${DESTDIR}${MDIR}/getenv.0 ${DESTDIR}${MDIR}/unsetenv.0
 	ln -f ${DESTDIR}${MDIR}/setruid.0 ${DESTDIR}${MDIR}/setrgid.0

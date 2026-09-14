@@ -200,7 +200,7 @@ putenv(char *string)
 		environ[offset + 1] = NULL;
 	} else {
 		old_entry = environ[offset];
-		if (managed_owned[offset])
+		if (managed_owned[offset] && old_entry != string)
 			free(old_entry);
 	}
 	environ[offset] = string;

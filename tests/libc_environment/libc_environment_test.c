@@ -69,6 +69,7 @@ main(void)
 	char duplicate_second[] = "REMOVE=two";
 	char failure_entry[] = "FAIL=old";
 	char putenv_failure_entry[] = "PUTFAIL=value";
+	char *alias_environment[] = { NULL };
 	char *initial_environment[] = { initial_first, initial_second, NULL };
 	char *mode_environment[] = { mode_entry, NULL };
 	char *duplicate_environment[] = {
@@ -78,6 +79,7 @@ main(void)
 	char *putenv_failure_environment[] = { putenv_failure_entry, NULL };
 	char **preserved_environment;
 	char *preserved_entry;
+	char *alias_entry;
 	unsigned long frees_before;
 
 	test_environ = initial_environment;
@@ -91,11 +93,17 @@ main(void)
 	require(discobsd_setenv("BAD=NAME", "value", 1) == -1 &&
 	    errno == EINVAL, "setenv accepts '=' in a name");
 	errno = 0;
+	require(discobsd_setenv("BAD=", "value", 1) == -1 &&
+	    errno == EINVAL, "setenv accepts a trailing '=' in a name");
+	errno = 0;
 	require(discobsd_unsetenv("") == -1 && errno == EINVAL,
 	    "unsetenv accepts an empty name");
 	errno = 0;
 	require(discobsd_unsetenv(NULL) == -1 && errno == EINVAL,
 	    "unsetenv accepts a null name");
+	errno = 0;
+	require(discobsd_unsetenv("BAD=") == -1 && errno == EINVAL,
+	    "unsetenv accepts a trailing '=' in a name");
 	errno = 0;
 	require(discobsd_putenv((char *)"MALFORMED") == -1 && errno == EINVAL,
 	    "putenv accepts a string without '='");
@@ -193,6 +201,24 @@ main(void)
 	require(discobsd_setenv("LEADING", "=value", 1) == 0,
 	    "setenv leading-equals value fails");
 	require_value("LEADING", "=value");
+
+	test_environ = alias_environment;
+	require(discobsd_setenv("ALIAS", "owned", 1) == 0,
+	    "alias setup fails");
+	alias_entry = test_environ[0];
+	frees_before = free_count;
+	require(discobsd_putenv(alias_entry) == 0,
+	    "putenv rejects the active owned entry");
+	require(test_environ[0] == alias_entry,
+	    "putenv replaces its aliased entry pointer");
+	require(free_count == frees_before,
+	    "putenv frees the aliased entry it republishes");
+	require_value("ALIAS", "owned");
+	require(discobsd_unsetenv("ALIAS") == 0,
+	    "unsetenv rejects the borrowed alias");
+	require(free_count == frees_before,
+	    "unsetenv frees an entry transferred to borrowed ownership");
+	free(alias_entry);
 	puts("libc environment tests passed");
 	return 0;
 }

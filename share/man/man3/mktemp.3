@@ -6,11 +6,11 @@
 mktemp \- make a unique file name
 .SH SYNOPSIS
 .nf
-.B char *mktemp(template)
-.B char *template;
-.sp
-.B mkstemp(template)
-.B char *template;
+.B #include <stdlib.h>
+.PP
+.B char *mktemp(char *template)
+.PP
+.B int mkstemp(char *template)
 .fi
 .SH DESCRIPTION
 \fIMktemp\fP creates a unique file name and returns the address of

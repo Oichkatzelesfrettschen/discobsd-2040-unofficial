@@ -16,11 +16,8 @@
 #define	NO	0
 
 static int
-_gettemp(as, doopen)
-	char	*as;
-	register int	*doopen;
+_gettemp(char *as, int *doopen)
 {
-	extern int	errno;
 	register char	*start, *trv;
 	struct stat	sbuf;
 	u_int	pid;
@@ -78,8 +75,7 @@ _gettemp(as, doopen)
 }
 
 int
-mkstemp(as)
-	char	*as;
+mkstemp(char *as)
 {
 	int	fd;
 
@@ -87,8 +83,7 @@ mkstemp(as)
 }
 
 char *
-mktemp(as)
-	char	*as;
+mktemp(char *as)
 {
 	return(_gettemp(as, (int *)NULL) ? as : (char *)NULL);
 }

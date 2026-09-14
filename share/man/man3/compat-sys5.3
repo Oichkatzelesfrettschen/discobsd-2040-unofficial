@@ -22,6 +22,8 @@ memccpy, memchr, memcmp, memcpy, memset, strchr, strrchr, tempnam,
 tmpfile, tmpnam \- System V compatibility routines
 .SH SYNOPSIS
 .nf
+.B #include <stdio.h>
+.PP
 .B char *memccpy(from, to, ch, count)
 .B char *from, *to;
 .B int ch, count;
@@ -46,22 +48,21 @@ tmpfile, tmpnam \- System V compatibility routines
 .B char *str;
 .B int ch;
 .PP
-.B char *tempnam(tmpdir, prefix)
-.B char *tmpdir, *prefix;
+.B char *tempnam(const char *tmpdir, const char *prefix)
 .PP
-.B char *tmpfile()
+.B FILE *tmpfile(void)
 .PP
-.B char *tmpnam(str)
-.B char *str;
+.B char *tmpnam(char *str)
 .SH COMMENT
-The \fI#defines\fP \fIP_tmpdir\fP and \fIL_tmpnam\fP, used by the routines
-\fItempnam\fP, \fItmpfile\fP, and \fItmpnam\fP are not available in
-\fI<stdio.h>\fP.  If the code requires them, just use:
-.PP
-#include <sys/param.h>
-.br
-#define P_tmpdir "/usr/tmp"
-#define L_tmpnam MAXPATHLEN
+.I <stdio.h>
+defines
+.I P_tmpdir
+as
+.I /tmp/
+and defines
+.I L_tmpnam
+as the 12 bytes required for
+.IR /tmp/XXXXXX .
 .PP
 Also, note that the caveat in the System V manual page that these functions
 can start recycling previously used names is untrue in this system.
@@ -80,6 +81,15 @@ only choose unused names.  A different process can create those names before
 the caller opens them, so callers that create files must use
 .BR mkstemp (3)
 instead.
+.PP
+When the argument to
+.BR tmpnam ()
+is NULL, the function returns a library-owned buffer.  A later call overwrites
+the same buffer.
+.BR tempnam ()
+returns an allocation sized for the selected pathname; the caller releases the
+allocation with
+.BR free (3).
 .PP
 .BR strchr ()
 and

@@ -105,6 +105,13 @@ check-swapram:	tools
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-swapram
 
+check-cache-footprint:	tools
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-cache-footprint requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C sys/arch/rp2040/compile check-cache-footprint
+
 check-aout:
 		${MAKE} -C tests/aout_header check
 
@@ -206,7 +213,8 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		all build distribution release tools kernel check-divider \
-		check-swapram check-elf2aout check-libc-environment \
+		check-swapram check-cache-footprint check-elf2aout \
+		check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \

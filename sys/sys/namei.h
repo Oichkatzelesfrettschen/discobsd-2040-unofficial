@@ -64,6 +64,30 @@ struct  namecache {
 };
 
 #ifdef KERNEL
+#ifndef NCHHASH
+#define NCHHASH         16      /* pathname hash buckets */
+#endif
+#if NCHHASH < 1
+#error "NCHHASH must be positive"
+#endif
+
+#if ((NCHHASH) & ((NCHHASH) - 1)) != 0
+#define NCHHASH_INDEX(name_hash, inode_number, device) \
+    ((unsigned)((name_hash) + (inode_number) + 13 * (int)(device)) % \
+        (NCHHASH))
+#else
+#define NCHHASH_INDEX(name_hash, inode_number, device) \
+    ((unsigned)((name_hash) + (inode_number) + 13 * (int)(device)) & \
+        ((NCHHASH) - 1))
+#endif
+
+union nchash {
+    union nchash *nch_head[2];
+    struct namecache *nch_chain[2];
+};
+
+extern union nchash nchash[NCHHASH];
+
 extern struct   namecache namecache [];
 struct  nchstats nchstats;      /* cache effectiveness statistics */
 

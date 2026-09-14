@@ -44,8 +44,22 @@
 /*
  * System parameter formulae.
  */
+/*
+ * A packed exec can hold all six exec allocator blocks, one decoder block,
+ * and one filesystem I/O block. Ten buffers preserve two additional blocks
+ * for work that runs while rdwri sleeps; changing that bound needs a separate
+ * reservation or exec-scratch design.
+ */
 #ifndef NBUF
 #define NBUF            10                      /* number of i/o buffers */
+#endif
+/*
+ * Four buffer hash heads retain constant-time bucket selection for ten data
+ * blocks. Longer collision chains cost cycles, while data capacity stays
+ * unchanged.
+ */
+#ifndef BUFHSZ
+#define BUFHSZ          4                       /* buffer hash buckets */
 #endif
 #ifndef MAXUSERS
 #define MAXUSERS        1                       /* number of user logins */
@@ -59,7 +73,16 @@
 #ifndef NFILE
 #define NFILE           24
 #endif
-#define NNAMECACHE      (NINODE * 11/10)
+/*
+ * Four pathname entries cover a short working set. Four hash heads avoid
+ * spending more SRAM on empty buckets than the cache can populate.
+ */
+#ifndef NNAMECACHE
+#define NNAMECACHE      4                       /* pathname cache entries */
+#endif
+#ifndef NCHHASH
+#define NCHHASH         4                       /* pathname hash buckets */
+#endif
 #define NCALL           (16 + 2 * MAXUSERS)
 #define NCLIST          32                      /* number or CBSIZE blocks */
 #ifndef SMAPSIZ

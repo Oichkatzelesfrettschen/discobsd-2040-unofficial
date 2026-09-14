@@ -5,6 +5,8 @@ SUBDIR=		PICO PICO_UART
 TOPSRC!=	cd ../../../..; pwd
 DIVIDER_OWNERSHIP_VERIFIER=	${TOPSRC}/tools/verify_rp2040_divider_ownership.py
 SWAPRAM_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_swapram_link.sh
+CACHE_FOOTPRINT_VERIFIER=	${TOPSRC}/tools/verify_rp2040_cache_footprint.sh
+CACHE_FOOTPRINT_TEST=	${TOPSRC}/tests/rp2040/cache_footprint
 
 default:
 
@@ -43,5 +45,13 @@ check-swapram:
 			    --object $$i/vm_swap.o --param "$$param"; \
 		done
 
+check-cache-footprint:
+		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		@set -e; for i in ${SUBDIR}; do \
+			sh "${CACHE_FOOTPRINT_VERIFIER}" --elf $$i/unix.elf; \
+		done
+		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
+		    KERNEL_BUILD="${.CURDIR}/PICO"
+
 .PHONY:		default all install clean clean-all reconfig check-divider \
-		check-swapram
+		check-swapram check-cache-footprint

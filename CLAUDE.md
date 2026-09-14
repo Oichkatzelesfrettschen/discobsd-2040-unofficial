@@ -30,6 +30,7 @@ escape sequences stripped.
     bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
     bmake MACHINE=rp2040 check-divider     # no kernel SIO divider use
     bmake MACHINE=rp2040 check-swapram     # linked SwapRAM tier matches Config
+    bmake MACHINE=rp2040 check-cache-footprint # cache ABI and chain invariants
     bmake MACHINE=rp2040 check-elf2aout    # a.out layout gate
 
 Reflash from a running kernel: `picotool reboot -u -f`, `picotool load
@@ -65,7 +66,7 @@ when Config changes.
 
 ## Conventions
 
-- Work in a worktree under ~/worktrees/discobsd-pico-unofficial/<branch>,
+- Work in a worktree under `~/worktrees/discobsd-pico-unofficial/<branch>`,
   push the branch, open a PR against `pico` main, merge, delete branch and
   worktree. Never commit to main directly.
 - Build outputs are ignored per directory (a .gitignore holding the

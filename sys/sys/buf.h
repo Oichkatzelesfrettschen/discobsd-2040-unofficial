@@ -74,7 +74,12 @@ struct buf
 #ifdef KERNEL
 struct inode;
 
+#ifndef BUFHSZ
 #define BUFHSZ      16              /* must be power of 2 */
+#endif
+#if (BUFHSZ < 1) || ((BUFHSZ & (BUFHSZ - 1)) != 0)
+#error "BUFHSZ must be a positive power of two"
+#endif
 #define BUFHASH(dev,bn) ((struct buf*) &bufhash [((dev) + bn) & (BUFHSZ - 1)])
 
 extern struct   buf buf[];          /* the buffer pool itself */

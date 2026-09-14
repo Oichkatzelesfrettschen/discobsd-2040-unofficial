@@ -19,18 +19,11 @@ int dirchk = 0;
 /*
  * Structures associated with name cacheing.
  */
-#define NCHHASH         16  /* size of hash table */
-
-#if ((NCHHASH)&((NCHHASH)-1)) != 0
-#define NHASH(h, i, d)  ((unsigned)((h) + (i) + 13 * (int)(d)) % (NCHHASH))
-#else
-#define NHASH(h, i, d)  ((unsigned)((h) + (i) + 13 * (int)(d)) & ((NCHHASH)-1))
+#if NNAMECACHE < 2
+#error "NNAMECACHE must provide at least two LRU entries"
 #endif
 
-union nchash {
-    union   nchash *nch_head[2];
-    struct  namecache *nch_chain[2];
-} nchash[NCHHASH];
+union nchash nchash[NCHHASH];
 
 #define nch_forw    nch_chain[0]
 #define nch_back    nch_chain[1]
@@ -309,7 +302,7 @@ dirloop2:
         nchstats.ncs_long++;
         makeentry = 0;
     } else {
-        nhp = &nchash[NHASH(hash, dp->i_number, dp->i_dev)];
+        nhp = &nchash[NCHHASH_INDEX(hash, dp->i_number, dp->i_dev)];
         for (ncp = nhp->nch_forw; ncp != (struct namecache *)nhp;
             ncp = ncp->nc_forw) {
             if (ncp->nc_ino == dp->i_number &&

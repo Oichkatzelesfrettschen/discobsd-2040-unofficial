@@ -1,0 +1,5 @@
+cache_footprint
+cache_footprint_modulo
+*.stderr
+ufs_namei.test.o
+ufs_namei.modulo.test.o

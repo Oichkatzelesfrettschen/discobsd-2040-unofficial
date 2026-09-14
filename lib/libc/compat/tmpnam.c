@@ -15,62 +15,124 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 #include <sys/param.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <errno.h>
 #include <paths.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#ifndef _PATH_USRTMP
+#define _PATH_USRTMP _PATH_TMP
+#endif
+#ifndef L_tmpnam
+#define L_tmpnam MAXPATHLEN
+#endif
+
+#define TEMPORARY_SUFFIX "XXXXXX"
 
 FILE *
-tmpfile()
+tmpfile(void)
 {
-	FILE *fp;
-	char *f, *tmpnam();
+	FILE *stream;
+	char pathname[] = _PATH_USRTMP TEMPORARY_SUFFIX;
+	int descriptor;
+	int saved_errno;
 
-	if (!(f = tmpnam((char *)NULL)) || !(fp = fopen(f, "w+"))) {
-		fprintf(stderr, "tmpfile: cannot open %s.\n", f);
-		return(NULL);
+	descriptor = mkstemp(pathname);
+	if (descriptor < 0)
+		return NULL;
+	if (unlink(pathname) < 0) {
+		saved_errno = errno;
+		(void)close(descriptor);
+		errno = saved_errno;
+		return NULL;
 	}
-	(void)unlink(f);
-	return(fp);
+	errno = 0;
+	stream = fdopen(descriptor, "w+");
+	if (stream == NULL) {
+		saved_errno = errno != 0 ? errno : EMFILE;
+		(void)close(descriptor);
+		errno = saved_errno;
+	}
+	return stream;
 }
 
 char *
-tmpnam(s)
-	char *s;
+tmpnam(char pathname[L_tmpnam])
 {
-	if (!s && !(s = malloc((u_int)MAXPATHLEN)))
-		return(NULL);
-	strcpy(s, _PATH_USRTMP "XXXXXX");
-	return mktemp(s);
+	int allocated;
+
+	allocated = pathname == NULL;
+	if (allocated) {
+		pathname = (char *)malloc((size_t)MAXPATHLEN);
+		if (pathname == NULL)
+			return NULL;
+	}
+	memcpy(pathname, _PATH_USRTMP TEMPORARY_SUFFIX,
+	    sizeof(_PATH_USRTMP TEMPORARY_SUFFIX));
+	if (mktemp(pathname) != NULL)
+		return pathname;
+	if (allocated)
+		free(pathname);
+	return NULL;
+}
+
+static char *
+try_directory(char *pathname, const char *directory, const char *prefix)
+{
+	size_t directory_length;
+	size_t prefix_length;
+	size_t separator_length;
+	size_t suffix_length;
+	size_t available_length;
+	char *cursor;
+
+	if (directory == NULL || directory[0] == '\0')
+		return NULL;
+	if (prefix == NULL)
+		prefix = "";
+	directory_length = strlen(directory);
+	prefix_length = strlen(prefix);
+	separator_length = directory[directory_length - 1] == '/' ? 0 : 1;
+	suffix_length = sizeof(TEMPORARY_SUFFIX) - 1;
+	if (directory_length >= (size_t)MAXPATHLEN) {
+		errno = ENAMETOOLONG;
+		return NULL;
+	}
+	available_length = (size_t)MAXPATHLEN - directory_length;
+	if (separator_length + suffix_length + 1 > available_length ||
+	    prefix_length >
+	    available_length - separator_length - suffix_length - 1) {
+		errno = ENAMETOOLONG;
+		return NULL;
+	}
+	cursor = pathname;
+	memcpy(cursor, directory, directory_length);
+	cursor += directory_length;
+	if (separator_length != 0)
+		*cursor++ = '/';
+	memcpy(cursor, prefix, prefix_length);
+	cursor += prefix_length;
+	memcpy(cursor, TEMPORARY_SUFFIX, suffix_length + 1);
+	return mktemp(pathname);
 }
 
 char *
-tempnam(dir, pfx)
-	char *dir, *pfx;
+tempnam(char *directory, char *prefix)
 {
-	char *f, *name;
+	char *environment_directory;
+	char *pathname;
 
-	if (!(name = malloc((u_int)MAXPATHLEN)))
-		return(NULL);
-
-        f = getenv("TMPDIR");
-	if (f) {
-		(void)sprintf(name, "%s/%sXXXXXX", f, pfx ? "" : pfx);
-		f = mktemp(name);
-		if (f)
-			return(f);
-	}
-	if (dir) {
-		(void)sprintf(name, "%s/%sXXXXXX", dir, pfx ? "" : pfx);
-		f = mktemp(name);
-		if (f)
-			return(f);
-	}
-	(void)sprintf(name, _PATH_USRTMP "%sXXXXXX", pfx ? "" : pfx);
-	f = mktemp(name);
-	if (f)
-		return(f);
-	(void)sprintf(name, "/tmp/%sXXXXXX", pfx ? "" : pfx);
-	return(mktemp(name));
+	pathname = (char *)malloc((size_t)MAXPATHLEN);
+	if (pathname == NULL)
+		return NULL;
+	environment_directory = getenv("TMPDIR");
+	if (try_directory(pathname, environment_directory, prefix) != NULL ||
+	    try_directory(pathname, directory, prefix) != NULL ||
+	    try_directory(pathname, _PATH_USRTMP, prefix) != NULL ||
+	    try_directory(pathname, _PATH_TMP, prefix) != NULL)
+		return pathname;
+	free(pathname);
+	return NULL;
 }

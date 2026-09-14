@@ -68,6 +68,11 @@ sysctlfn net_sysctl;
 #endif
 sysctlfn cpu_sysctl;
 
+#ifdef SYSTRACE
+int systrace;
+int systrace_pid;
+#endif
+
 struct sysctl_args {
 	int	*name;
 	u_int	 namelen;
@@ -205,10 +210,12 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		return (sysctl_rdint(oldp, oldlenp, newp, NFILE));
 	case KERN_ARGMAX:
 		return (sysctl_rdint(oldp, oldlenp, newp, NCARGS));
+#ifdef SYSTRACE
 	case KERN_SYSTRACE:
 		return (sysctl_int(oldp, oldlenp, newp, newlen, &systrace));
 	case KERN_SYSTRACEPID:
 		return (sysctl_int(oldp, oldlenp, newp, newlen, &systrace_pid));
+#endif
 	case KERN_SECURELVL:
 		level = securelevel;
 		if ((error = sysctl_int(oldp, oldlenp, newp, newlen, &level)) ||

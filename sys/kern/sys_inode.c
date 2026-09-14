@@ -413,7 +413,7 @@ closei (ip, flag)
     register struct file *fp;
     int mode, error;
     dev_t   dev;
-    int (*cfunc)();
+    int (*cfunc) (dev_t, int, int);
 
     mode = ip->i_mode & IFMT;
     dev = ip->i_rdev;

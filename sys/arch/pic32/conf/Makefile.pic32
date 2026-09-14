@@ -19,13 +19,14 @@ INCLUDES=	-nostdinc -I. -I$S -I$S/arch
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall
+CSTD?=		-std=gnu17
 
 CMACHCPU=	-march=mips32r2 -EL
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
 CMACHFLAGS+=	${CMACHCPU}
 
 COPTS?=		-O
-CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CMACHFLAGS} ${COPTS}
+CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTD} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT}
 LDFLAGS+=	-nostdlib -Map=$@.map
@@ -55,7 +56,7 @@ DEVCFG!=if [ -f devcfg.c ] ; then \
 SYSTEM_OBJ=	locore.o ${OBJS} ioconf.o ${DEVCFG}
 SYSTEM_DEP=	Makefile ioconf.c machine sys .deps ${SYSTEM_OBJ}
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
-SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
+SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
 		${OBJCOPY} -O ihex --change-addresses=0x80000000 $@ $@.hex; \

@@ -16,9 +16,11 @@ string-table extent, including ELF symbols that share one source name offset.
 The MIPS gate forces a small-data `.sbss` input and checks its absorption into
 the private overlay, shared applet VMAs, maximum private BSS extent, separation
 from shared BSS, initialized-data retention, and the exact a.out header and
-payload. `MIPS_GCCPREFIX` follows the repository's platform-specific
-`mips-elf` toolchain mapping and can name another GNU little-endian MIPS
-cross-tool prefix.
+payload. The shared `MIPS_GCCPREFIX` uses `mipsel-elf` on Linux and the
+platform-specific `mips-elf` paths on BSD hosts. An environment or make
+argument can name another GNU little-endian MIPS cross-tool prefix explicitly.
+The PIC32 kernel, MIPS userland, and ARM-hosted MIPS overlay fixture all consume
+that mapping.
 
 Build the host converter and run the gate with an explicitly selected machine
 and interpreter:

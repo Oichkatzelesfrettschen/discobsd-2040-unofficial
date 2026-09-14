@@ -9,15 +9,19 @@ SUBDIR=		BAREMETAL DUINOMITE DUINOMITE_EMEGA EXPLORER16 \
 default:
 
 all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		set -eu; for kernel_config in ${SUBDIR}; do \
+			${MAKE} -C $$kernel_config all; done
 
 install:
 
 clean:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean; done
+		set -eu; for kernel_config in ${SUBDIR}; do \
+			${MAKE} -C $$kernel_config clean; done
 
 clean-all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean-all; done
+		set -eu; for kernel_config in ${SUBDIR}; do \
+			${MAKE} -C $$kernel_config clean-all; done
 
 reconfig:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i reconfig; done
+		set -eu; for kernel_config in ${SUBDIR}; do \
+			${MAKE} -C $$kernel_config reconfig; done

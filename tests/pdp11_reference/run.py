@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import dataclasses
+import errno
 import hashlib
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -19,10 +23,28 @@ EXPECTED_IMAGE_SIZE = 10_485_760
 EXPECTED_PROFILE_SHA256 = (
     "2e51125dfa47c7efd99cfa62021fd3725b6f124e4ea08902c6086bd1428ef0d7"
 )
+EXPECTED_TRANSCRIPT_SHA256 = (
+    "22cbde3ee4913104173cd4cf9787705261c03ad8a1a36076076f3e16f8f5b781"
+)
+EXPECTED_SIMULATOR_VERSION = (
+    "PDP-11 simulator Open SIMH V4.1-0 Current git commit id: a1f57fa3"
+)
 BEGIN_MARKER = "PDP11_ORACLE_BEGIN"
 END_MARKER = "PDP11_ORACLE_END"
 GUEST_PROMPT = "PDP11_PROMPT"
 INODE_PATTERN = re.compile(r"^\s*([0-9]+) (/oracle\.dir/[ab])$")
+AT_FDCWD = -100
+RENAME_NOREPLACE = 1
+
+
+@dataclasses.dataclass(frozen=True)
+class ReferenceResult:
+    """Outputs and admitted simulator identity from one private run."""
+
+    raw_output: bytes
+    normalized_output: str
+    simulator_sha256: str
+    simulator_version: str
 
 
 def file_sha256(path: pathlib.Path) -> str:
@@ -48,11 +70,22 @@ def normalize_transcript(raw_output: bytes) -> str:
             output_line = output_line[len(GUEST_PROMPT) :]
         output_lines.append(output_line)
 
-    try:
-        begin_index = output_lines.index(BEGIN_MARKER)
-        end_index = output_lines.index(END_MARKER, begin_index + 1)
-    except ValueError as error:
-        raise ValueError("guest transcript lacks complete oracle markers") from error
+    begin_indices = [
+        line_index
+        for line_index, output_line in enumerate(output_lines)
+        if output_line == BEGIN_MARKER
+    ]
+    end_indices = [
+        line_index
+        for line_index, output_line in enumerate(output_lines)
+        if output_line == END_MARKER
+    ]
+    if len(begin_indices) != 1 or len(end_indices) != 1:
+        raise ValueError("guest transcript requires exactly one begin and end marker")
+    begin_index = begin_indices[0]
+    end_index = end_indices[0]
+    if begin_index >= end_index:
+        raise ValueError("guest transcript oracle markers are out of order")
 
     oracle_lines = output_lines[begin_index : end_index + 1]
     inode_values: list[str] = []
@@ -79,11 +112,30 @@ def simulator_version(simulator_path: pathlib.Path) -> str:
         check=False,
         timeout=10,
     )
-    banner_lines = completed.stdout.decode("utf-8", errors="replace").splitlines()
-    for banner_line in banner_lines:
-        if "PDP-11 simulator" in banner_line:
-            return banner_line.strip()
-    raise RuntimeError("simulator invocation did not report a PDP-11 banner")
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"simulator version probe exited with status {completed.returncode}"
+        )
+    output_lines = completed.stdout.decode("utf-8", errors="replace").splitlines()
+    banner_lines = [
+        " ".join(output_line.split())
+        for output_line in output_lines
+        if "PDP-11 simulator" in output_line
+    ]
+    if len(banner_lines) != 1:
+        raise RuntimeError("simulator invocation did not report exactly one banner")
+    return banner_lines[0]
+
+
+def validate_simulator_version(simulator_path: pathlib.Path) -> str:
+    """Admit the pinned Open SIMH release before any guest command runs."""
+    version = simulator_version(simulator_path)
+    if version != EXPECTED_SIMULATOR_VERSION:
+        raise ValueError(
+            f"simulator version {version!r} differs from expected "
+            f"{EXPECTED_SIMULATOR_VERSION!r}"
+        )
+    return version
 
 
 def package_identity(simulator_path: pathlib.Path) -> str:
@@ -139,56 +191,170 @@ def validate_image(image_path: pathlib.Path) -> str:
     return image_digest
 
 
-def validate_profile(profile_path: pathlib.Path) -> str:
+def validate_profile(profile_path: pathlib.Path) -> tuple[str, bytes]:
     """Admit only the reviewed SIMH command surface."""
     if not profile_path.is_file():
         raise ValueError(f"profile is not a regular file: {profile_path}")
-    profile_digest = file_sha256(profile_path)
+    profile_contents = profile_path.read_bytes()
+    profile_digest = hashlib.sha256(profile_contents).hexdigest()
     if profile_digest != EXPECTED_PROFILE_SHA256:
         raise ValueError(
             f"profile SHA-256 {profile_digest} differs from expected "
             f"{EXPECTED_PROFILE_SHA256}"
         )
-    return profile_digest
+    return profile_digest, profile_contents
+
+
+def validate_expected(expected_path: pathlib.Path) -> tuple[str, str]:
+    """Read and admit the exact reviewed transcript before guest execution."""
+    if not expected_path.is_file():
+        raise ValueError(f"expected transcript is not a regular file: {expected_path}")
+    expected_bytes = expected_path.read_bytes()
+    expected_digest = hashlib.sha256(expected_bytes).hexdigest()
+    if expected_digest != EXPECTED_TRANSCRIPT_SHA256:
+        raise ValueError(
+            f"expected transcript SHA-256 {expected_digest} differs from expected "
+            f"{EXPECTED_TRANSCRIPT_SHA256}"
+        )
+    try:
+        expected_output = expected_bytes.decode("ascii")
+    except UnicodeDecodeError as error:
+        raise ValueError("expected transcript is not ASCII") from error
+    return expected_digest, expected_output
+
+
+def preflight_evidence_directory(evidence_directory: pathlib.Path) -> None:
+    """Require an absent destination under an existing directory."""
+    if os.path.lexists(evidence_directory):
+        raise FileExistsError(
+            f"retained evidence destination already exists: {evidence_directory}"
+        )
+    if not evidence_directory.parent.is_dir():
+        raise ValueError(
+            f"retained evidence parent is not a directory: {evidence_directory.parent}"
+        )
+
+
+def write_exclusive_file(output_path: pathlib.Path, contents: bytes) -> None:
+    """Create one staged file and flush its complete contents."""
+    with output_path.open("xb") as output_file:
+        output_file.write(contents)
+        output_file.flush()
+        os.fsync(output_file.fileno())
+
+
+def sync_directory(directory_path: pathlib.Path) -> None:
+    """Flush directory entries required by a retained evidence transaction."""
+    open_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_descriptor = os.open(directory_path, open_flags)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+
+
+def publish_directory_noreplace(
+    staging_directory: pathlib.Path,
+    evidence_directory: pathlib.Path,
+) -> None:
+    """Publish one Linux directory rename without replacing any destination."""
+    if not sys.platform.startswith("linux"):
+        raise RuntimeError(
+            "retained evidence publication requires Linux renameat2 support"
+        )
+    standard_library = ctypes.CDLL(None, use_errno=True)
+    try:
+        renameat2 = standard_library.renameat2
+    except AttributeError as error:
+        raise RuntimeError("the C library does not expose Linux renameat2") from error
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        AT_FDCWD,
+        os.fsencode(staging_directory),
+        AT_FDCWD,
+        os.fsencode(evidence_directory),
+        RENAME_NOREPLACE,
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number == errno.EEXIST:
+        raise FileExistsError(
+            error_number,
+            os.strerror(error_number),
+            evidence_directory,
+        )
+    if error_number == errno.ENOSYS:
+        raise RuntimeError("the Linux kernel does not support renameat2")
+    raise OSError(
+        error_number,
+        os.strerror(error_number),
+        evidence_directory,
+    )
 
 
 def run_reference(
     simulator_path: pathlib.Path,
     image_path: pathlib.Path,
-    profile_path: pathlib.Path,
+    profile_contents: bytes,
     timeout_seconds: int,
-) -> tuple[bytes, str]:
-    """Run SIMH against a private image copy and preserve the supplied image."""
+) -> ReferenceResult:
+    """Probe and run one private simulator snapshot against admitted inputs."""
     original_digest = file_sha256(image_path)
     if original_digest != EXPECTED_IMAGE_SHA256:
         raise RuntimeError("the image changed after admission")
-    with tempfile.TemporaryDirectory(
-        prefix="discobsd-pdp11-reference-"
-    ) as directory_name:
-        temporary_directory = pathlib.Path(directory_name)
-        working_image = temporary_directory / "v7.dsk"
-        shutil.copyfile(image_path, working_image)
-        if file_sha256(working_image) != EXPECTED_IMAGE_SHA256:
-            raise RuntimeError("the private image copy differs from the admitted image")
-        completed = subprocess.run(
-            [str(simulator_path), str(profile_path)],
-            cwd=temporary_directory,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=False,
-            timeout=timeout_seconds,
-        )
+    if hashlib.sha256(profile_contents).hexdigest() != EXPECTED_PROFILE_SHA256:
+        raise RuntimeError("the simulator profile changed after admission")
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="discobsd-pdp11-reference-"
+        ) as directory_name:
+            temporary_directory = pathlib.Path(directory_name)
+            working_image = temporary_directory / "v7.dsk"
+            shutil.copyfile(image_path, working_image)
+            if file_sha256(working_image) != EXPECTED_IMAGE_SHA256:
+                raise RuntimeError(
+                    "the private image copy differs from the admitted image"
+                )
+            working_profile = temporary_directory / "v7_rl02.simh"
+            write_exclusive_file(working_profile, profile_contents)
+            simulator_snapshot = temporary_directory / "simh-pdp11"
+            shutil.copyfile(simulator_path, simulator_snapshot)
+            simulator_snapshot.chmod(0o700)
+            simulator_digest = file_sha256(simulator_snapshot)
+            admitted_simulator_version = validate_simulator_version(simulator_snapshot)
+            completed = subprocess.run(
+                [str(simulator_snapshot), str(working_profile)],
+                cwd=temporary_directory,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+                timeout=timeout_seconds,
+            )
+    finally:
+        final_digest = file_sha256(image_path)
+        if final_digest != original_digest:
+            raise RuntimeError(
+                "the externally supplied image changed during the oracle run"
+            )
     if completed.returncode != 0:
         raise RuntimeError(
             f"simulator exited with status {completed.returncode}:\n"
             + completed.stdout.decode("utf-8", errors="replace")
         )
-    final_digest = file_sha256(image_path)
-    if final_digest != original_digest:
-        raise RuntimeError(
-            "the externally supplied image changed during the oracle run"
-        )
-    return completed.stdout, normalize_transcript(completed.stdout)
+    return ReferenceResult(
+        raw_output=completed.stdout,
+        normalized_output=normalize_transcript(completed.stdout),
+        simulator_sha256=simulator_digest,
+        simulator_version=admitted_simulator_version,
+    )
 
 
 def write_evidence(
@@ -197,20 +363,35 @@ def write_evidence(
     raw_output: bytes,
     normalized_output: str,
 ) -> None:
-    """Write bounded evidence only when the caller names its destination."""
-    evidence_directory.mkdir(parents=True, exist_ok=True)
-    raw_output_path = evidence_directory / "simulator-output.bin"
-    normalized_output_path = evidence_directory / "normalized-transcript.txt"
-    provenance_path = evidence_directory / "provenance.json"
-    for evidence_path in (raw_output_path, normalized_output_path, provenance_path):
-        if evidence_path.exists():
-            raise FileExistsError(f"retained evidence already exists: {evidence_path}")
-    with raw_output_path.open("xb") as raw_output_file:
-        raw_output_file.write(raw_output)
-    with normalized_output_path.open("x", encoding="ascii") as normalized_output_file:
-        normalized_output_file.write(normalized_output)
-    with provenance_path.open("x", encoding="ascii") as provenance_file:
-        provenance_file.write(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
+    """Stage a complete evidence bundle and publish it with one rename."""
+    preflight_evidence_directory(evidence_directory)
+    staging_name = tempfile.mkdtemp(
+        prefix=f".{evidence_directory.name}.stage-",
+        dir=evidence_directory.parent,
+    )
+    staging_directory = pathlib.Path(staging_name)
+    try:
+        write_exclusive_file(
+            staging_directory / "simulator-output.bin",
+            raw_output,
+        )
+        write_exclusive_file(
+            staging_directory / "normalized-transcript.txt",
+            normalized_output.encode("ascii"),
+        )
+        provenance_bytes = (
+            json.dumps(provenance, indent=2, sort_keys=True) + "\n"
+        ).encode("ascii")
+        write_exclusive_file(
+            staging_directory / "provenance.json",
+            provenance_bytes,
+        )
+        sync_directory(staging_directory)
+        publish_directory_noreplace(staging_directory, evidence_directory)
+        sync_directory(evidence_directory.parent)
+    finally:
+        if staging_directory.exists():
+            shutil.rmtree(staging_directory)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -227,40 +408,50 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> int:
     arguments = parse_arguments()
     try:
+        if arguments.timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        evidence_directory = None
+        if arguments.evidence_dir is not None:
+            evidence_directory = pathlib.Path(os.path.abspath(arguments.evidence_dir))
+            preflight_evidence_directory(evidence_directory)
         image_path = arguments.image.resolve()
         profile_path = arguments.profile.resolve()
         expected_path = arguments.expected.resolve()
-        simulator_path = resolve_simulator(arguments.simulator)
         image_digest = validate_image(image_path)
-        profile_digest = validate_profile(profile_path)
-        raw_output, normalized_output = run_reference(
-            simulator_path, image_path, profile_path, arguments.timeout
+        profile_digest, profile_contents = validate_profile(profile_path)
+        expected_digest, expected_output = validate_expected(expected_path)
+        simulator_path = resolve_simulator(arguments.simulator)
+        reference_result = run_reference(
+            simulator_path,
+            image_path,
+            profile_contents,
+            arguments.timeout,
         )
-        expected_output = expected_path.read_text(encoding="ascii")
-        if normalized_output != expected_output:
+        if reference_result.normalized_output != expected_output:
             raise RuntimeError(
                 "normalized guest output differs from the pinned transcript:\n"
-                + normalized_output
+                + reference_result.normalized_output
             )
 
         provenance: dict[str, object] = {
+            "expected_sha256": expected_digest,
             "image_sha256": image_digest,
             "image_size": image_path.stat().st_size,
             "package_identity": package_identity(simulator_path),
             "profile_sha256": profile_digest,
             "simulator_path": str(simulator_path),
-            "simulator_sha256": file_sha256(simulator_path),
-            "simulator_version": simulator_version(simulator_path),
+            "simulator_sha256": reference_result.simulator_sha256,
+            "simulator_version": reference_result.simulator_version,
             "transcript_sha256": hashlib.sha256(
-                normalized_output.encode("ascii")
+                reference_result.normalized_output.encode("ascii")
             ).hexdigest(),
         }
-        if arguments.evidence_dir is not None:
+        if evidence_directory is not None:
             write_evidence(
-                arguments.evidence_dir.resolve(),
+                evidence_directory,
                 provenance,
-                raw_output,
-                normalized_output,
+                reference_result.raw_output,
+                reference_result.normalized_output,
             )
         print(json.dumps(provenance, indent=2, sort_keys=True))
         print("PDP-11 V7 reference behavior passed")

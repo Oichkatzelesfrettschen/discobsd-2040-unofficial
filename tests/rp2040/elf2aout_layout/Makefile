@@ -2,15 +2,6 @@ TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 VERIFIER=       ${.CURDIR}/verify_layout.py
-MIPS_GCCPREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ]; then \
-		echo "/usr/local/bin/mips-elf"; \
-	elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ]; then \
-		echo "/usr/local/mips-elf/bin/mips-elf"; \
-	elif [ x"${_HOST_OSNAME}" = x"Linux" ]; then \
-		echo "/usr/local/mips-gcc-4.8.1/bin/mips-elf"; \
-	else \
-		echo "/does/not/exist"; \
-	fi
 
 check-python:
 	@if [ -z "${PYTHON}" ]; then \

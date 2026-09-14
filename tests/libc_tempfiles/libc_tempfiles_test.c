@@ -7,7 +7,7 @@
 
 FILE *discobsd_tmpfile(void);
 char *discobsd_tmpnam(char *);
-char *discobsd_tempnam(char *, char *);
+char *discobsd_tempnam(const char *, const char *);
 
 static char operation_log[16];
 static size_t operation_count;
@@ -20,6 +20,8 @@ static FILE *fdopen_result;
 static const char *environment_tmpdir;
 static int mktemp_success_call;
 static unsigned long free_count;
+static size_t allocation_sizes[8];
+static size_t allocation_count;
 
 static void
 record_operation(char operation)
@@ -92,6 +94,9 @@ test_mktemp(char *pathname)
 void *
 test_malloc(size_t size)
 {
+	if (allocation_count < sizeof(allocation_sizes) / sizeof(allocation_sizes[0]))
+		allocation_sizes[allocation_count] = size;
+	++allocation_count;
 	return malloc(size);
 }
 
@@ -128,6 +133,7 @@ reset_mocks(void)
 	fdopen_result = (FILE *)(uintptr_t)1;
 	environment_tmpdir = NULL;
 	mktemp_success_call = 0;
+	allocation_count = 0;
 }
 
 int
@@ -136,6 +142,8 @@ main(void)
 	char caller_path[MAXPATHLEN];
 	char oversized_directory[MAXPATHLEN + 1];
 	char *allocated_path;
+	char *first_internal_path;
+	char *second_internal_path;
 	FILE *stream;
 	unsigned long frees_before;
 
@@ -177,19 +185,30 @@ main(void)
 	require(strcmp(caller_path, "/tmp/XXXXXX") == 0,
 	    "tmpnam template");
 	reset_mocks();
+	first_internal_path = discobsd_tmpnam(NULL);
+	require(first_internal_path != NULL, "tmpnam internal storage result");
+	reset_mocks();
+	second_internal_path = discobsd_tmpnam(NULL);
+	require(second_internal_path == first_internal_path,
+	    "tmpnam internal storage reuse");
+	require(allocation_count == 0, "tmpnam internal storage allocation");
+	reset_mocks();
 	mktemp_success_call = -1;
 	frees_before = free_count;
 	require(discobsd_tmpnam(NULL) == NULL,
 	    "tmpnam failure result");
-	require(free_count == frees_before + 1,
-	    "tmpnam failure allocation cleanup");
+	require(free_count == frees_before && allocation_count == 0,
+	    "tmpnam failure uses internal storage");
 
 	reset_mocks();
 	environment_tmpdir = "/environment";
-	allocated_path = discobsd_tempnam((char *)"/argument", (char *)"pre");
+	allocated_path = discobsd_tempnam("/argument", "pre");
 	require(allocated_path != NULL, "tempnam TMPDIR result");
 	require(strcmp(candidate_paths[0], "/environment/preXXXXXX") == 0,
 	    "tempnam TMPDIR candidate");
+	require(allocation_count == 1 &&
+	    allocation_sizes[0] == sizeof("/environment/preXXXXXX"),
+	    "tempnam TMPDIR exact allocation");
 	free(allocated_path);
 
 	reset_mocks();
@@ -198,27 +217,40 @@ main(void)
 	require(allocated_path != NULL, "tempnam null prefix result");
 	require(strcmp(candidate_paths[0], "/environment/XXXXXX") == 0,
 	    "tempnam null prefix candidate");
+	require(allocation_count == 1 &&
+	    allocation_sizes[0] == sizeof("/environment/XXXXXX"),
+	    "tempnam null prefix exact allocation");
 	free(allocated_path);
 
 	reset_mocks();
 	environment_tmpdir = "/environment";
 	mktemp_success_call = 1;
-	allocated_path = discobsd_tempnam((char *)"/argument", (char *)"p");
+	frees_before = free_count;
+	allocated_path = discobsd_tempnam("/argument", "p");
 	require(allocated_path != NULL, "tempnam directory fallback result");
 	require(strcmp(candidate_paths[0], "/environment/pXXXXXX") == 0 &&
 	    strcmp(candidate_paths[1], "/argument/pXXXXXX") == 0,
 	    "tempnam directory fallback order");
+	require(allocation_count == 2 &&
+	    allocation_sizes[0] == sizeof("/environment/pXXXXXX") &&
+	    allocation_sizes[1] == sizeof("/argument/pXXXXXX"),
+	    "tempnam fallback exact allocations");
+	require(free_count == frees_before + 1,
+	    "tempnam rejected fallback allocation cleanup");
 	free(allocated_path);
 
 	memset(oversized_directory, 'x', sizeof(oversized_directory) - 1);
 	oversized_directory[sizeof(oversized_directory) - 1] = '\0';
 	reset_mocks();
 	environment_tmpdir = oversized_directory;
-	allocated_path = discobsd_tempnam((char *)"/argument", (char *)"p");
+	allocated_path = discobsd_tempnam("/argument", "p");
 	require(allocated_path != NULL, "tempnam oversized TMPDIR fallback");
 	require(candidate_count == 1 &&
 	    strcmp(candidate_paths[0], "/argument/pXXXXXX") == 0,
 	    "tempnam uses an oversized TMPDIR");
+	require(allocation_count == 1 &&
+	    allocation_sizes[0] == sizeof("/argument/pXXXXXX"),
+	    "tempnam skips oversized allocation");
 	free(allocated_path);
 
 	reset_mocks();
@@ -226,7 +258,7 @@ main(void)
 	frees_before = free_count;
 	require(discobsd_tempnam(NULL, NULL) == NULL,
 	    "tempnam exhaustion result");
-	require(free_count == frees_before + 1,
+	require(allocation_count == 2 && free_count == frees_before + 2,
 	    "tempnam exhaustion allocation cleanup");
 
 	puts("libc tempfiles tests passed");

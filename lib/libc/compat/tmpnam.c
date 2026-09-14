@@ -25,11 +25,9 @@
 #ifndef _PATH_USRTMP
 #define _PATH_USRTMP _PATH_TMP
 #endif
-#ifndef L_tmpnam
-#define L_tmpnam MAXPATHLEN
-#endif
-
 #define TEMPORARY_SUFFIX "XXXXXX"
+
+static char tmpnam_pathname[sizeof(_PATH_USRTMP TEMPORARY_SUFFIX)];
 
 FILE *
 tmpfile(void)
@@ -61,32 +59,25 @@ tmpfile(void)
 char *
 tmpnam(char pathname[L_tmpnam])
 {
-	int allocated;
-
-	allocated = pathname == NULL;
-	if (allocated) {
-		pathname = (char *)malloc((size_t)MAXPATHLEN);
-		if (pathname == NULL)
-			return NULL;
-	}
+	if (pathname == NULL)
+		pathname = tmpnam_pathname;
 	memcpy(pathname, _PATH_USRTMP TEMPORARY_SUFFIX,
 	    sizeof(_PATH_USRTMP TEMPORARY_SUFFIX));
-	if (mktemp(pathname) != NULL)
-		return pathname;
-	if (allocated)
-		free(pathname);
-	return NULL;
+	return mktemp(pathname);
 }
 
 static char *
-try_directory(char *pathname, const char *directory, const char *prefix)
+try_directory(const char *directory, const char *prefix)
 {
 	size_t directory_length;
 	size_t prefix_length;
 	size_t separator_length;
 	size_t suffix_length;
 	size_t available_length;
+	size_t pathname_length;
+	char *pathname;
 	char *cursor;
+	int saved_errno;
 
 	if (directory == NULL || directory[0] == '\0')
 		return NULL;
@@ -107,6 +98,11 @@ try_directory(char *pathname, const char *directory, const char *prefix)
 		errno = ENAMETOOLONG;
 		return NULL;
 	}
+	pathname_length = directory_length + separator_length + prefix_length +
+	    suffix_length + 1;
+	pathname = (char *)malloc(pathname_length);
+	if (pathname == NULL)
+		return NULL;
 	cursor = pathname;
 	memcpy(cursor, directory, directory_length);
 	cursor += directory_length;
@@ -115,24 +111,25 @@ try_directory(char *pathname, const char *directory, const char *prefix)
 	memcpy(cursor, prefix, prefix_length);
 	cursor += prefix_length;
 	memcpy(cursor, TEMPORARY_SUFFIX, suffix_length + 1);
-	return mktemp(pathname);
+	if (mktemp(pathname) != NULL)
+		return pathname;
+	saved_errno = errno;
+	free(pathname);
+	errno = saved_errno;
+	return NULL;
 }
 
 char *
-tempnam(char *directory, char *prefix)
+tempnam(const char *directory, const char *prefix)
 {
-	char *environment_directory;
+	const char *environment_directory;
 	char *pathname;
 
-	pathname = (char *)malloc((size_t)MAXPATHLEN);
-	if (pathname == NULL)
-		return NULL;
 	environment_directory = getenv("TMPDIR");
-	if (try_directory(pathname, environment_directory, prefix) != NULL ||
-	    try_directory(pathname, directory, prefix) != NULL ||
-	    try_directory(pathname, _PATH_USRTMP, prefix) != NULL ||
-	    try_directory(pathname, _PATH_TMP, prefix) != NULL)
+	if ((pathname = try_directory(environment_directory, prefix)) != NULL ||
+	    (pathname = try_directory(directory, prefix)) != NULL ||
+	    (pathname = try_directory(_PATH_USRTMP, prefix)) != NULL ||
+	    (pathname = try_directory(_PATH_TMP, prefix)) != NULL)
 		return pathname;
-	free(pathname);
 	return NULL;
 }

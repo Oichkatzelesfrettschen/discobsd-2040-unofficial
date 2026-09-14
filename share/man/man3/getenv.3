@@ -3,17 +3,20 @@
 .TH GETENV 3 "March 20, 1987"
 .AT 3
 .SH NAME
-getenv, setenv, unsetenv \- manipulate environmental variables
+getenv, putenv, setenv, unsetenv \- manipulate environmental variables
 .SH SYNOPSIS
 .nf
 .B char *getenv(name)
 .B char *name;
 .PP
-.B setenv(name, value, overwrite)
+.B int setenv(name, value, overwrite)
 .B char *name, value;
 .B int overwrite;
 .PP
-.B void unsetenv(name)
+.B int putenv(string)
+.B char *string;
+.PP
+.B int unsetenv(name)
 .B char *name;
 .fi
 .SH DESCRIPTION
@@ -30,8 +33,15 @@ found, and \fIoverwrite\fP is non-zero, its value is changed to
 where failure is caused by an inability to allocate space for the
 environment.
 .PP
+\fIPutenv\fP installs the caller's \fIstring\fP directly in the environment.
+The string must have the form \fIname\fP\fB=\fP\fIvalue\fP.  Later changes to
+the caller's string change the environment, so the caller must preserve the
+storage while the entry remains installed.  \fIPutenv\fP returns 0 on success
+and -1 on failure.
+.PP
 \fIUnsetenv\fP removes all occurrences of the string \fIname\fP from
-the environment.  There is no library provision for completely removing
+the environment and returns 0 on success or -1 on failure.  There is no
+library provision for completely removing
 the current environment.  It is suggested that the following code be
 used to do so.
 .PP
@@ -41,7 +51,14 @@ used to do so.
 	environ = envinit;
 .fi
 .PP
-All of these routines permit, but do not require, a trailing equals
-(``='') sign on \fIname\fP or a leading equals sign on \fIvalue\fP.
+For historical compatibility, \fIgetenv\fP treats the first equals sign in
+\fIname\fP as the end of the name.  \fISetenv\fP and \fIunsetenv\fP require a
+nonempty name without an equals sign.  \fISetenv\fP permits a leading equals
+sign in \fIvalue\fP.
+.SH ERRORS
+\fISetenv\fP and \fIunsetenv\fP set \fIerrno\fP to EINVAL when \fIname\fP is
+empty or contains an equals sign.  \fIPutenv\fP sets EINVAL when \fIstring\fP
+does not contain a nonempty name followed by an equals sign.  A routine that
+cannot allocate the environment vector or an owned entry sets ENOMEM.
 .SH SEE ALSO
 csh(1), sh(1), execve(2), environ(7)

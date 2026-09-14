@@ -40,19 +40,29 @@ executes
 .I command
 immune to hangup and terminate signals from the controlling terminal.
 The priority is incremented by 5.
+When standard output is a terminal,
+.I nohup
+appends standard output to
+.IR nohup.out .
 .I Nohup
-should be invoked from the shell with `&' in order to 
-prevent it from responding to interrupts by or
+joins standard error to standard output.
+.I Nohup
+should be invoked from the shell with `&' in order to
+prevent the command from responding to interrupts by or
 stealing the input from
 the next person who logs in on the same terminal.
 .SH FILES
-nohup.out	standard output and standard error file under
-.I nohup
+.TP
+.I nohup.out
+standard output and standard error file under nohup
 .SH "SEE ALSO"
 csh(1), setpriority(2), renice(8)
 .SH DIAGNOSTICS
 .I Nice
 returns the exit status of the subject command.
+.I Nohup
+returns the exit status of the subject command and returns 1 when setup or
+execution fails.
 .SH BUGS
 .I Nice
 and

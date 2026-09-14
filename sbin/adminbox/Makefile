@@ -1,6 +1,7 @@
 #
 # A multicall binary of the small system-administration tools:
-# shutdown, reboot and sysctl. sysctl (17332), shutdown (18284) and
+# shutdown, reboot and sysctl, plus the zero-BSS true, false and nohup
+# applets. sysctl (17332), shutdown (18284) and
 # reboot (15788) each carry their own libc, and their globals do not
 # collide once localized. passwd measures in the same size class
 # (15340) but installs 04755 (setuid root); a multicall binary would
@@ -18,11 +19,19 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 # on its own; the manifest decides which form ships.
 TOOLS=		shutdown reboot sysctl
 
+# The built-in applets replace one-block scripts without adding private BSS.
+BUILTIN_TOOLS=	true false nohup
+
 # Other names a tool answers to, as name:tool.
 ALIASES=	halt:reboot
 
 OBJS=		${TOOLS:S/$/.tool.o/}
+BUILTIN_OBJS=	tiny_applets.o
 PROG=		adminbox
+HSAOUT=		${TOPSRC}/tools/bin/hsaout
+MAX_PACKED_ROOT_BLOCKS= 21
+
+CFLAGS+=	-Wall -Wextra -Werror -Wformat=2
 
 all:		${PROG}
 include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
@@ -43,20 +52,41 @@ $t.tool.o:
 .endfor
 
 adminbox.c:	adminbox.c.in Makefile
-	decls=""; table=""; for t in ${TOOLS}; do \
+	decls=""; table=""; for t in ${TOOLS} ${BUILTIN_TOOLS}; do \
 		decls="$$decls\nint $${t}_main(int, char **);"; \
 		table="$$table\n\t{ \"$$t\", $${t}_main },"; done; \
 	for a in ${ALIASES}; do \
 		table="$$table\n\t{ \"$${a%%:*}\", $${a#*:}_main },"; done; \
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" adminbox.c.in > $@
 
-${PROG}:	adminbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf adminbox.o ${OBJS} ${LIBS}
+verify-builtin-bss: ${BUILTIN_OBJS}
+	@bss_symbols=`${GCCPREFIX}-nm -S --format=posix ${BUILTIN_OBJS} | \
+	    awk '$$2 ~ /^[BbC]$$/ { print $$1 }'`; \
+	if [ -n "$$bss_symbols" ]; then \
+		echo "adminbox: built-in applets define mutable BSS:" >&2; \
+		printf '%s\n' "$$bss_symbols" >&2; \
+		exit 1; \
+	fi
+
+${PROG}:	adminbox.o ${OBJS} ${BUILTIN_OBJS} verify-builtin-bss \
+		${MULTICALL_BSS_LDSCRIPT}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf \
+	    adminbox.o ${OBJS} ${BUILTIN_OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
+.if ${MACHINE} == "rp2040"
+	@packed_blocks=`${HSAOUT} -s $@ | awk 'NR == 2 { print $$5 }'`; \
+	if [ -z "$$packed_blocks" ] || \
+	    [ "$$packed_blocks" -gt ${MAX_PACKED_ROOT_BLOCKS} ]; then \
+		echo "adminbox: packed root image exceeds ${MAX_PACKED_ROOT_BLOCKS} blocks" >&2; \
+		exit 1; \
+	fi
+.endif
 
 install:	all
 	${INSTALL} -m 755 ${PROG} ${DESTDIR}/sbin/${PROG}
 
 clean:
 	rm -f *.o *.r *.elf ${PROG} adminbox.c
+
+.PHONY:		verify-builtin-bss

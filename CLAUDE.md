@@ -45,9 +45,11 @@ when Config changes.
 
 - Host: `bmake -C usr.bin/smlrc test`, `bmake -C usr.bin/stevie test`,
   `sh bin/sh/tests/posix-sh.sh`, `bmake -C usr.bin/as/tests test
-  MACHINE=rp2040`, `bin/tar/tests/tartest.sh`, and
+  MACHINE=rp2040`, `bin/tar/tests/tartest.sh`,
+  `bmake check-tiny-utility-multicall` (true, false, and nohup dispatch,
+  argument, signal, priority, stream, terminal, and exit-status contracts),
   `bmake -C tests/rp2040/uarea_exchange check MACHINE=rp2040` (the longjmp
-  u-area exchange loop under qemu-arm), `bmake -C games/keen test` (plays a
+  u-area exchange loop under qemu-arm), and `bmake -C games/keen test` (plays a
   seeded puzzle and checks solution uniqueness against an independent
   counter, with ambiguous, unique and inconsistent fixtures).
 - On the board, from tests/rp2040: fptest (Boot ROM float, bit-exact),

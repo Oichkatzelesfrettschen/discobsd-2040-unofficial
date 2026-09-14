@@ -120,6 +120,9 @@ check-libc-contracts:
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
 
+check-tiny-utility-multicall:
+		${MAKE} -C tests/tiny_utility_multicall check
+
 check-portable-utilities:
 		${MAKE} -C tests/portable_utilities check
 
@@ -205,6 +208,7 @@ installfs:
 .PHONY:		all build distribution release tools kernel check-divider \
 		check-swapram check-elf2aout check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
+		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \
 		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
 		symlinks \

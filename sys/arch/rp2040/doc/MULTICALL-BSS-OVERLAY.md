@@ -59,7 +59,9 @@ swapped for every invocation of that box.
 
 A clean build after the identity aliases makes utilbox's mutable image 5,344
 bytes. That current capacity measurement supersedes the historical 5,336-byte
-overlay total in the table. A clean grepbox build has 448 bytes of initialized
+overlay total in the table. Adding the zero-BSS true, false, and nohup applets
+to adminbox makes its mutable image 6,492 bytes; the eight-byte increase is
+initialized dispatch data. A clean grepbox build has 448 bytes of initialized
 data and 1,796 bytes of BSS. Its grep member supplies 1,669 bytes of private
 BSS, while fgrep supplies 92 bytes; the linker shares their starting address
 and the a.out image allocates only the larger private interval plus shared BSS.
@@ -91,6 +93,7 @@ Reproduce the host gates with:
 ```sh
 bmake -C tests/rp2040/elf2aout_layout check MACHINE=rp2040 PYTHON="${PYTHON}"
 bmake -C usr.bin/sort test MACHINE=rp2040 HOST_CC=cc PYTHON="${PYTHON}"
+bmake check-tiny-utility-multicall
 shellcheck -S error tools/generate_multicall_bss_overlay.sh \
     tools/verify_multicall_bss_objects.sh \
     tools/verify_packed_root_configs.sh

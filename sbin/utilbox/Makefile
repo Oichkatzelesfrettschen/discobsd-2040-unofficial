@@ -28,7 +28,7 @@ TOOLS=		expr id more uniq head tr wc cmp sort \
 		basename env printf touch xargs tty uname md5 resize md
 
 # Other names a tool answers to, as name:tool.
-ALIASES=
+ALIASES=	whoami:id groups:id logname:id
 
 OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		utilbox

@@ -1,0 +1,21 @@
+.TH LOGNAME 1 "September 13, 2026"
+.SH NAME
+logname \- display the login session name
+.SH SYNOPSIS
+.B logname
+.SH DESCRIPTION
+The
+.B logname
+utility writes the name associated with the login session to standard output.
+The login session name can differ from the real or effective user name after
+commands such as
+.BR su (1).
+.PP
+The
+.B logname
+utility exits 0 on success and greater than 0 when the login session name is
+unavailable.
+.SH SEE ALSO
+id(1),
+whoami(1),
+getlogin(3)

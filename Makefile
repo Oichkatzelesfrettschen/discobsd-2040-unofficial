@@ -156,6 +156,10 @@ check-config-makefile:
 check-swapram-evac:
 		make -C sys/arch/rp2040/test/swapram evac
 
+check-flash-swap:
+		${MAKE} -C tests/rp2040/flash_swap check
+		${MAKE} -C sys/arch/rp2040/compile check-flash-swap
+
 check-elf2aout:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-elf2aout requires MACHINE=rp2040" >&2; \

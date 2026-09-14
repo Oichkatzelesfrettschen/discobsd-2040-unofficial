@@ -83,6 +83,17 @@ static struct sr_ent {
     char            e_live;             /* an image is here */
 } sr_tab[NPROC];
 
+#ifdef SWAP_IMAGE_ALIGN
+static size_t
+sr_flash_span (struct sr_ent *e)
+{
+    size_t blocks = btod (e->e_rlen[SR_DATA]) +
+        btod (e->e_rlen[SR_STACK]) + btod (e->e_rlen[SR_U]);
+
+    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
+}
+#endif
+
 /*
  * Admission: swapram_out takes an image only while this is set. An
  * evacuation clears it first, so no image enters the pool behind the
@@ -222,7 +233,8 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
         if (dst == NULL) { \
             fill += (n); \
             if (fill == sizeof sr_stage || out == rlen) { \
-                swap (blk, (size_t) sr_stage, fill, B_WRITE); \
+                swap (blk, (size_t) sr_stage, fill, \
+                    B_WRITE | B_SWAPIMAGE); \
                 blk += btod (fill); \
                 fill = 0; \
             } \
@@ -469,17 +481,27 @@ swapram_evacuate (void)
         p = &proc[i];
         if (p->p_flag & SLOAD)
             panic ("swapram: evacuate loaded");
+#ifdef SWAP_IMAGE_ALIGN
+        if (malloc3_contiguous (swapmap, btod (e->e_rlen[SR_DATA]),
+            btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
+            SWAP_IMAGE_ALIGN, e->e_blk) == 0) {
+#else
         if (malloc3 (swapmap, btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
             e->e_blk) == 0) {
+#endif
             for (j = 0; j < i; j++) {
                 e = &sr_tab[j];
                 if (! e->e_live)
                     continue;
+#ifdef SWAP_IMAGE_ALIGN
+                mfree (swapmap, sr_flash_span (e), e->e_blk[SR_DATA]);
+#else
                 for (seg = 0; seg < SR_NSEG; seg++)
                     if (e->e_rlen[seg])
                         mfree (swapmap, btod (e->e_rlen[seg]),
                             e->e_blk[seg]);
+#endif
             }
             if (swapramdebug)
                 printf ("swapram: evacuate: no flash for pid %d\n",

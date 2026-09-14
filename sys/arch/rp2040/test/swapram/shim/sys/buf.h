@@ -2,4 +2,5 @@
 #define _SHIM_SYS_BUF_H_
 #define B_WRITE 0
 #define B_READ 1
+#define B_SWAPIMAGE 0x10000
 #endif

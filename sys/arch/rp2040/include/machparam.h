@@ -100,6 +100,14 @@
 #define btod(x)         (((x) + DEV_BSIZE-1) >> DEV_BSHIFT)
 
 /*
+ * Raw swap images occupy one contiguous run rounded to the QSPI flash erase
+ * sector. The first run starts at this alignment because resource maps reserve
+ * address zero as their terminator. Every later allocation and free preserves
+ * the alignment, so two live images never share an erase sector.
+ */
+#define SWAP_IMAGE_ALIGN        4       /* 4096 bytes in DEV_BSIZE blocks. */
+
+/*
  * The user window: one resident process image lives in the 144 KB at
  * 0x20000000. exec_estab (sys/kern/exec_subr.c) rejects an image whose
  * text, data, bss, heap and stack exceed MAXMEM, which sys/param.h takes

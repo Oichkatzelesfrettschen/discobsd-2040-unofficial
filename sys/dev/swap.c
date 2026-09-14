@@ -200,6 +200,10 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	u_int		*uival;
 	off_t		*offtval;
+	off_t		 requested;
+#ifdef SWAP_IMAGE_ALIGN
+	size_t		 extent[3];
+#endif
 
 	int unit = minor(dev);
 
@@ -213,21 +217,40 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 
 	switch (cmd) {
 	case TFALLOC:
-		if (tdstart[unit] > 0)
+		if (tdstart[unit] > 0) {
+#ifdef SWAP_IMAGE_ALIGN
+			mfree(swapmap,
+			    (tdsize[unit] + SWAP_IMAGE_ALIGN - 1) &
+			    ~(SWAP_IMAGE_ALIGN - 1), tdstart[unit]);
+#else
 			mfree(swapmap, tdsize[unit], tdstart[unit]);
+#endif
+			tdstart[unit] = 0;
+			tdsize[unit] = 0;
+		}
 
 		if (*offtval > 0) {
-			tdstart[unit] = malloc(swapmap, *offtval);
+			requested = *offtval;
+#ifdef SWAP_IMAGE_ALIGN
+			extent[0] = extent[1] = extent[2] = 0;
+			if (malloc3_contiguous(swapmap,
+			    (size_t)requested, 0, 0, SWAP_IMAGE_ALIGN,
+			    extent) != 0)
+				tdstart[unit] = extent[0];
+#else
+			tdstart[unit] = malloc(swapmap, requested);
+#endif
 			if (tdstart[unit] > 0) {
-				tdsize[unit] = *offtval;
+				tdsize[unit] = requested;
 				/* printf("temp%d: allocated %lu blocks\n",
 				    unit, tdsize[unit]); */
 
 				return 0;
 			}
+			tdstart[unit] = 0;
 			*offtval = 0;
 			printf("temp%d: failed to allocate %lu blocks\n",
-			    tdsize[unit]);
+			    (u_long)requested);
 
 			return 0;
 		} else {

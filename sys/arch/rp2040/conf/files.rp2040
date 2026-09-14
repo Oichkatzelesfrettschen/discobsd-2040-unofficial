@@ -78,6 +78,7 @@ arch/rp2040/rp2040/systick.c		standard
 arch/rp2040/dev/uart.c			optional uart
 arch/rp2040/dev/usb.c			optional uartusb
 arch/rp2040/dev/flash.c			standard
+arch/rp2040/dev/flash_swap.c		standard
 arch/rp2040/dhara/error.c		standard
 arch/rp2040/dhara/journal.c		standard
 arch/rp2040/dhara/map.c			standard

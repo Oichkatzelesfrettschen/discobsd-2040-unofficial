@@ -85,12 +85,16 @@
  * rewritten whole and never read back after a reboot, so journaling it
  * only costs erases. Measured through Dhara, one 33K swap write erased 21
  * blocks. Here it erases the nine 4K sectors it covers. Swap is handed
- * out in contiguous runs and fragments as images of different sizes come
- * and go; 256K failed a 70K image with 115K free in three runs, so 384K
- * keeps room for the largest image beside two others and the gaps.
+ * out as erase-aligned contiguous images. The resource map starts at block
+ * four, so its reserved first erase sector stages rewrites from /dev/tempN
+ * through the same 256-byte physical-page buffer. Images of different sizes
+ * still fragment the remaining space; 256K failed a 70K image with 115K free
+ * in three runs, so 384K keeps room for the largest image beside two others
+ * and the gaps.
  */
 #define	FLASH_SWAP_BYTES	(384UL * 1024)
 #define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
+#define	FLASH_SWAP_SCRATCH_OFFSET FLASH_SWAP_OFFSET
 
 /*
  * A function carrying this attribute is linked into .data and copied to RAM

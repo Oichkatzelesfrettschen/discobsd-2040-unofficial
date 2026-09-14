@@ -19,6 +19,8 @@ from shared BSS, initialized-data retention, and the exact a.out header and
 payload. The shared `MIPS_GCCPREFIX` uses `mipsel-elf` on Linux and the
 platform-specific `mips-elf` paths on BSD hosts. An environment or make
 argument can name another GNU little-endian MIPS cross-tool prefix explicitly.
+The PIC32 kernel, MIPS userland, and ARM-hosted MIPS overlay fixture all consume
+that mapping.
 
 Build the host converter and run the gate with an explicitly selected machine
 and interpreter:

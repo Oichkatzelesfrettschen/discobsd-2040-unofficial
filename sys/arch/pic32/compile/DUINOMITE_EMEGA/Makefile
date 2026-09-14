@@ -43,13 +43,14 @@ INCLUDES=	-nostdinc -I. -I$S -I$S/arch
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall
+CSTD?=		-std=gnu17
 
 CMACHCPU=	-march=mips32r2 -EL
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
 CMACHFLAGS+=	${CMACHCPU}
 
 COPTS?=		-O
-CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CMACHFLAGS} ${COPTS}
+CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTD} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT}
 LDFLAGS+=	-nostdlib -Map=$@.map
@@ -73,7 +74,7 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o mem.o swap.o \
 	clock.o conf.o exception.o machdep.o sig_machdep.o sysctl.o \
 	usb_device.o usb_function_cdc.o adc.o gpio.o pwm.o sd.o spi.o \
-	spi_bus.o usb_uart.o 
+	spi_bus.o usb_uart.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/init_main.c \
@@ -100,7 +101,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/pic32/dev/gpio.c $S/arch/pic32/dev/pwm.c \
 	$S/arch/pic32/dev/sd.c $S/arch/pic32/dev/spi.c \
 	$S/arch/pic32/dev/spi_bus.c $S/arch/pic32/dev/usb_uart.c \
-	swapunix.c 
+	swapunix.c
 
 DEVCFG!=if [ -f devcfg.c ] ; then \
 		echo "devcfg.o" ; \
@@ -116,7 +117,7 @@ DEVCFG!=if [ -f devcfg.c ] ; then \
 SYSTEM_OBJ=	locore.o ${OBJS} ioconf.o ${DEVCFG}
 SYSTEM_DEP=	Makefile ioconf.c machine sys .deps ${SYSTEM_OBJ}
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
-SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
+SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
 		${OBJCOPY} -O ihex --change-addresses=0x80000000 $@ $@.hex; \

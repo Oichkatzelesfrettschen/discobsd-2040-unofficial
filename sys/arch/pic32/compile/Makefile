@@ -9,15 +9,15 @@ SUBDIR=		BAREMETAL DUINOMITE DUINOMITE_EMEGA EXPLORER16 \
 default:
 
 all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 
 install:
 
 clean:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean; done
+		set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i clean; done
 
 clean-all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean-all; done
+		set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i clean-all; done
 
 reconfig:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i reconfig; done
+		set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i reconfig; done

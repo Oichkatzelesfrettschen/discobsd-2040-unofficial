@@ -36,16 +36,7 @@ _LIBBSD_LIBS!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 			echo "" ; \
 		fi
 
-_DEFAULT_MIPS_GCCPREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
-		echo "/usr/local/bin/mips-elf" ; \
-	elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
-		echo "/usr/local/mips-elf/bin/mips-elf" ; \
-	elif [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
-		echo "mipsel-elf" ; \
-	else \
-		echo "/does/not/exist" ; \
-	fi
-MIPS_GCCPREFIX?=	${_DEFAULT_MIPS_GCCPREFIX}
+include ${TOPSRC}/share/mk/mips-toolchain.mk
 
 GCCPREFIX!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \

@@ -175,6 +175,8 @@ namei (ndp)
 /* these variables refer to things which must be freed or unlocked */
     struct inode *dp = 0;       /* the directory we are searching */
     struct namecache *ncp = 0;  /* cache slot for entry */
+    struct inode *cached_inode = 0; /* inode snapshot across igrab() */
+    u_short cached_inode_id = 0; /* generation snapshot across igrab() */
     struct fs *fs;              /* file system that directory is in */
     struct buf *bp = 0;         /* a buffer of directory entries */
     struct direct *ep;          /* the current directory entry */
@@ -322,6 +324,14 @@ dirloop2:
                 nchstats.ncs_badhits++;
             else {
                 /*
+                 * igrab() can sleep after the LRU slot becomes reusable.
+                 * Preserve the selected inode and generation so a recycled
+                 * slot forces a directory rescan.
+                 */
+                cached_inode = ncp->nc_ip;
+                cached_inode_id = ncp->nc_id;
+
+                /*
                  * move this slot to end of LRU
                  * chain, if not already there
                  */
@@ -344,7 +354,7 @@ dirloop2:
                  */
                 pdp = dp;
                 if (!isdotdot || dp != u.u_rdir)
-                    dp = ncp->nc_ip;
+                    dp = cached_inode;
                 if (dp == NULL)
                     panic("namei: null cache ino");
                 if (pdp == dp)
@@ -362,7 +372,8 @@ dirloop2:
                  * did not change while we were waiting
                  * for it to be locked.
                  */
-                if (ncp->nc_id != ncp->nc_ip->i_id) {
+                if (!NCH_CACHE_HIT_VALID(ncp, cached_inode,
+                    cached_inode_id)) {
                     iput(dp);
                     ILOCK(pdp);
                     dp = pdp;

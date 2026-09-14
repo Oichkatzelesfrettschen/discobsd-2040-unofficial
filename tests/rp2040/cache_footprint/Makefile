@@ -34,6 +34,18 @@ cache_footprint_modulo: cache_footprint.modulo.o ufs_namei.modulo.test.o
 	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.modulo.o \
 	    ufs_namei.modulo.test.o
 
+cache_footprint.large_hash.o: cache_footprint.c
+	${HOST_CC} ${HOST_CFLAGS} -DNCHHASH=37 -c -o $@ ${.ALLSRC}
+
+ufs_namei.large_hash.test.o: ${TOPSRC}/sys/kern/ufs_namei.c
+	${HOST_CC} ${HOST_CFLAGS} -Wno-sign-compare -DNCHHASH=37 \
+	    -c -o $@ ${.ALLSRC}
+
+cache_footprint_large_hash: cache_footprint.large_hash.o \
+    ufs_namei.large_hash.test.o
+	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.large_hash.o \
+	    ufs_namei.large_hash.test.o
+
 check-invalid-config:
 	@if ${HOST_CC} ${HOST_CFLAGS} -DBUFHSZ=3 -c invalid_cache_config.c \
 	    -o invalid_bufhsz.o 2> invalid_bufhsz.stderr; then \
@@ -53,13 +65,16 @@ check-invalid-config:
 	grep -F 'NNAMECACHE must provide at least two LRU entries' \
 	    invalid_namecache.stderr
 
-check: cache_footprint cache_footprint_modulo check-invalid-config
+check: cache_footprint cache_footprint_modulo cache_footprint_large_hash \
+    check-invalid-config
 	./cache_footprint
 	./cache_footprint_modulo
+	./cache_footprint_large_hash
 
 all: check
 
 clean:
-	rm -f cache_footprint cache_footprint_modulo *.o *.stderr
+	rm -f cache_footprint cache_footprint_modulo cache_footprint_large_hash \
+	    *.o *.stderr
 
 .PHONY: all check check-invalid-config clean

@@ -48,7 +48,9 @@ check-swapram:
 check-cache-footprint:
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 		@set -e; for i in ${SUBDIR}; do \
-			sh "${CACHE_FOOTPRINT_VERIFIER}" --elf $$i/unix.elf; \
+			nm_command=$$(${MAKE} -C $$i -V ARM_GCC_PREFIX)-nm; \
+			NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+			    --elf $$i/unix.elf; \
 		done
 		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
 		    KERNEL_BUILD="${.CURDIR}/PICO"

@@ -1,5 +1,7 @@
 cache_footprint
 cache_footprint_modulo
+cache_footprint_large_hash
 *.stderr
 ufs_namei.test.o
 ufs_namei.modulo.test.o
+ufs_namei.large_hash.test.o

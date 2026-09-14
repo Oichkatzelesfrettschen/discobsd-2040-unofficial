@@ -14,7 +14,8 @@ bmake MACHINE=rp2040 check-cache-footprint
 The gate builds both kernel configurations, checks the linked ARM symbols, and
 compiles the real `nchinit()` into a host executable. The host executable checks
 every LRU forward and back link, every empty hash sentinel, every representative
-hash result, and bucket coverage.
+hash result, bucket coverage for small and 37-bucket tables, and rejection of a
+cache hit whose entry or inode generation changes while `igrab()` sleeps.
 
 | Allocation | Previous RP2040 bytes | New RP2040 bytes | Saved bytes |
 | --- | ---: | ---: | ---: |

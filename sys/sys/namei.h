@@ -64,6 +64,11 @@ struct  namecache {
 };
 
 #ifdef KERNEL
+#define NCH_CACHE_HIT_VALID(entry, inode, identifier) \
+    ((entry)->nc_ip == (inode) && \
+        (entry)->nc_id == (identifier) && \
+        (inode)->i_id == (identifier))
+
 #ifndef NCHHASH
 #define NCHHASH         16      /* pathname hash buckets */
 #endif

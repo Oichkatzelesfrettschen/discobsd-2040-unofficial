@@ -123,6 +123,7 @@ check-id-aliases:
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
+		sh tools/verify_packed_root_configs.sh
 		${MAKE} -C tests/hsaout check
 
 # The evacuation test compiles the kernel's swapram.c and subr_rmap.c on

@@ -173,6 +173,55 @@ alpha_canary:
 """
 
 
+OVERLAY_COMMON_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.common,"ax",%progbits
+	.global common_main
+	.type common_main,%function
+	.thumb_func
+common_main:
+	bx	lr
+
+	.comm common_canary,64,4
+"""
+
+
+OVERLAY_ESCAPED_NOBITS_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.escaped,"ax",%progbits
+	.global escaped_main
+	.type escaped_main,%function
+	.thumb_func
+escaped_main:
+	bx	lr
+
+	.section .bss,"aw",%nobits
+	.global expected_canary
+expected_canary:
+	.space 4
+
+	.section .escaped_bss,"aw",%nobits
+	.global escaped_canary
+escaped_canary:
+	.space 64
+"""
+
+
+NO_PHDR_LINKER_SCRIPT = r"""
+ENTRY(_start)
+SECTIONS
+{
+  . = 0x20000000;
+  .text : { *(.text .text.*) }
+  .rodata : { *(.rodata .rodata.*) }
+  .data : { *(.data .data.*) }
+  .bss : { *(.bss .bss.*) *(COMMON) }
+}
+"""
+
+
 @dataclasses.dataclass(frozen=True)
 class LayoutVariant:
     name: str
@@ -230,10 +279,14 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cc", required=True)
     parser.add_argument("--ld", required=True)
+    parser.add_argument("--make", required=True)
+    parser.add_argument("--nm", required=True)
     parser.add_argument("--objcopy", required=True)
+    parser.add_argument("--readelf", required=True)
     parser.add_argument("--linker-script", type=pathlib.Path, required=True)
     parser.add_argument("--elf2aout", type=pathlib.Path, required=True)
     parser.add_argument("--overlay-generator", type=pathlib.Path, required=True)
+    parser.add_argument("--overlay-verifier", type=pathlib.Path, required=True)
     return parser.parse_args()
 
 
@@ -757,6 +810,163 @@ def read_aout_symbol_types(symbol_path: pathlib.Path) -> dict[str, int]:
     return symbol_types
 
 
+def verify_multicall_object_rebuild(
+    arguments: argparse.Namespace, temporary_directory: pathlib.Path
+) -> None:
+    rebuild_directory = temporary_directory / "rebuild"
+    rebuild_directory.mkdir()
+    rebuild_log = rebuild_directory / "rebuild.log"
+    shared_makefile = (
+        arguments.overlay_generator.parent.parent
+        / "share"
+        / "mk"
+        / "multicall-bss-overlay.mk"
+    )
+    fixture_makefile = rebuild_directory / "Makefile"
+    fixture_makefile.write_text(
+        f"""TOPSRC={arguments.overlay_generator.parent.parent}
+OBJS=alpha.tool.o
+all: ${{OBJS}}
+include {shared_makefile}
+
+alpha.tool.o:
+\t@printf '%s\\n' rebuilt >> {rebuild_log}
+\t@: > ${{.TARGET}}
+""",
+        encoding="ascii",
+    )
+    for _ in range(2):
+        require_clean_command(
+            run_command(
+                [arguments.make, "-f", str(fixture_makefile), "all"],
+            ),
+            "multicall object rebuild",
+        )
+    if rebuild_log.read_text(encoding="ascii").splitlines() != [
+        "rebuilt",
+        "rebuilt",
+    ]:
+        raise SystemExit("localized applet object was reused across box builds")
+
+
+def verify_no_phdr_overlay_link(
+    arguments: argparse.Namespace,
+    temporary_directory: pathlib.Path,
+    overlay_script: pathlib.Path,
+    dispatcher_object: pathlib.Path,
+    alpha_tool_object: pathlib.Path,
+    beta_tool_object: pathlib.Path,
+) -> None:
+    no_phdr_script = temporary_directory / "no-phdr.ld"
+    no_phdr_script.write_text(NO_PHDR_LINKER_SCRIPT, encoding="ascii")
+    no_phdr_elf = temporary_directory / "no-phdr.elf"
+    require_clean_command(
+        run_command(
+            [
+                arguments.ld,
+                "-n",
+                "--no-warn-rwx-segments",
+                "-T",
+                str(overlay_script),
+                "-T",
+                str(no_phdr_script),
+                "-o",
+                str(no_phdr_elf),
+                str(dispatcher_object),
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "overlay link without named program headers",
+    )
+    no_phdr_image = parse_elf(no_phdr_elf)
+    alpha_section = section_by_name(no_phdr_image, ".app_bss_alpha")
+    beta_section = section_by_name(no_phdr_image, ".app_bss_beta")
+    extent_section = section_by_name(no_phdr_image, ".app_bss_extent")
+    if alpha_section.virtual_address != beta_section.virtual_address:
+        raise SystemExit("no-PHDR applet sections do not share one address")
+    if extent_section.size != max(alpha_section.size, beta_section.size):
+        raise SystemExit("no-PHDR overlay extent is not the largest applet BSS")
+
+
+def verify_multicall_object_rejections(
+    arguments: argparse.Namespace,
+    temporary_directory: pathlib.Path,
+    beta_tool_object: pathlib.Path,
+) -> None:
+    common_object = compile_overlay_object(
+        arguments,
+        temporary_directory,
+        "common",
+        OVERLAY_COMMON_SOURCE,
+    )
+    common_tool_object = rename_overlay_bss(
+        arguments, common_object, "common", temporary_directory
+    )
+    common_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            arguments.nm,
+            arguments.readelf,
+            str(common_tool_object),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "contains COMMON storage" not in common_rejection.stderr:
+        raise SystemExit("multicall verifier accepted COMMON storage")
+
+    escaped_object = compile_overlay_object(
+        arguments,
+        temporary_directory,
+        "escaped",
+        OVERLAY_ESCAPED_NOBITS_SOURCE,
+    )
+    escaped_tool_object = rename_overlay_bss(
+        arguments, escaped_object, "escaped", temporary_directory
+    )
+    escaped_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            arguments.nm,
+            arguments.readelf,
+            str(escaped_tool_object),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "zero-initialized storage outside" not in escaped_rejection.stderr:
+        raise SystemExit("multicall verifier accepted escaped NOBITS storage")
+
+    missing_nm_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            str(temporary_directory / "missing-nm"),
+            arguments.readelf,
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "failed for" not in missing_nm_rejection.stderr:
+        raise SystemExit("multicall verifier hid an nm execution failure")
+
+    missing_readelf_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            arguments.nm,
+            str(temporary_directory / "missing-readelf"),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "failed for" not in missing_readelf_rejection.stderr:
+        raise SystemExit("multicall verifier hid a readelf execution failure")
+
+
 def verify_multicall_bss_overlay(
     arguments: argparse.Namespace, temporary_directory: pathlib.Path
 ) -> None:
@@ -777,6 +987,22 @@ def verify_multicall_bss_overlay(
     )
     beta_tool_object = rename_overlay_bss(
         arguments, beta_object, "beta", temporary_directory
+    )
+    require_clean_command(
+        run_command(
+            [
+                "sh",
+                str(arguments.overlay_verifier),
+                arguments.nm,
+                arguments.readelf,
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "overlay object verification",
+    )
+    verify_multicall_object_rejections(
+        arguments, temporary_directory, beta_tool_object
     )
     overlay_script = temporary_directory / "multicall-bss-overlay.ld"
     require_clean_command(
@@ -809,6 +1035,14 @@ def verify_multicall_bss_overlay(
         str(beta_tool_object),
     ]
     require_clean_command(run_command(link_command), "overlay link")
+    verify_no_phdr_overlay_link(
+        arguments,
+        temporary_directory,
+        overlay_script,
+        dispatcher_object,
+        alpha_tool_object,
+        beta_tool_object,
+    )
 
     elf_image = parse_elf(overlay_elf)
     alpha_section = section_by_name(elf_image, ".app_bss_alpha")
@@ -931,10 +1165,12 @@ def main() -> int:
             arguments, temporary_directory, elf_paths["text_data_bss"]
         )
         verify_multicall_bss_overlay(arguments, temporary_directory)
+        verify_multicall_object_rebuild(arguments, temporary_directory)
 
     print(
         "elf2aout layout: 7 variants, 3 rejection controls, "
-        "shorter overwrite, symbol conversion, and multicall BSS overlay passed"
+        "shorter overwrite, symbol conversion, multicall BSS overlay, "
+        "object rejection, and rebuild freshness passed"
     )
     return 0
 

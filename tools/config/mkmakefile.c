@@ -288,7 +288,7 @@ do_objs(FILE *fp)
     register char *cp, och, *sp;
     char swapname[32];
 
-    fprintf(fp, "OBJS = ");
+    fprintf(fp, "OBJS =");
     lpos = 6;
     for (tp = ftab; tp != 0; tp = tp->f_next) {
         if (tp->f_type == INVISIBLE)
@@ -304,12 +304,15 @@ do_objs(FILE *fp)
         cp = sp + (len = strlen(sp)) - 1;
         och = *cp;
         *cp = 'o';
-        if (len + lpos > 72) {
+        if (len + lpos + 1 > 72) {
             lpos = 8;
-            fprintf(fp, "\\\n\t");
+            fprintf(fp, " \\\n\t");
+        } else {
+            putc(' ', fp);
+            ++lpos;
         }
-        fprintf(fp, "%s ", sp);
-        lpos += len + 1;
+        fprintf(fp, "%s", sp);
+        lpos += len;
         *cp = och;
 cont:
         ;
@@ -325,33 +328,39 @@ do_cfiles(FILE *fp)
     register int lpos, len;
     char swapname[32];
 
-    fputs("CFILES = ", fp);
+    fputs("CFILES =", fp);
     lpos = 8;
     for (tp = ftab; tp; tp = tp->f_next)
         if (tp->f_type != INVISIBLE) {
             len = strlen(tp->f_fn);
             if (tp->f_fn[len - 1] != 'c')
                 continue;
-            if ((len = 3 + len) + lpos > 72) {
+            if ((len = 3 + len) + lpos + 1 > 72) {
                 lpos = 8;
-                fputs("\\\n\t", fp);
+                fputs(" \\\n\t", fp);
+            } else {
+                putc(' ', fp);
+                ++lpos;
             }
-            fprintf(fp, "$S/%s ", tp->f_fn);
-            lpos += len + 1;
+            fprintf(fp, "$S/%s", tp->f_fn);
+            lpos += len;
         }
     for (fl = conf_list; fl; fl = fl->f_next)
         if (fl->f_type == SYSTEMSPEC) {
             (void)snprintf(swapname, sizeof(swapname), "swap%s.c", fl->f_fn);
-            if ((len = 3 + strlen(swapname)) + lpos > 72) {
+            if ((len = 3 + strlen(swapname)) + lpos + 1 > 72) {
                 lpos = 8;
-                fputs("\\\n\t", fp);
+                fputs(" \\\n\t", fp);
+            } else {
+                putc(' ', fp);
+                ++lpos;
             }
             if (eq(fl->f_fn, "generic"))
-                fprintf(fp, "$A/%s/%s ",
+                fprintf(fp, "$A/%s/%s",
                     archname, swapname);
             else
-                fprintf(fp, "%s ", swapname);
-            lpos += len + 1;
+                fprintf(fp, "%s", swapname);
+            lpos += len;
         }
     if (lpos != 8)
         putc('\n', fp);
@@ -398,12 +407,11 @@ void
 do_load(FILE *f)
 {
     register struct file_list *fl;
-    register int first;
-    struct file_list *do_systemspec(FILE *, struct file_list *, int);
+    struct file_list *do_systemspec(FILE *, struct file_list *);
 
-    for (first = 1, fl = conf_list; fl; first = 0)
+    for (fl = conf_list; fl;)
         fl = fl->f_type == SYSTEMSPEC ?
-            do_systemspec(f, fl, first) : fl->f_next;
+            do_systemspec(f, fl) : fl->f_next;
     fputs("all:", f);
     for (fl = conf_list; fl; fl = fl->f_next)
         if (fl->f_type == SYSTEMSPEC)
@@ -556,13 +564,9 @@ do_swapspec(FILE *f, char *name)
 }
 
 struct file_list *
-do_systemspec(FILE *f, struct file_list *fl, int first)
+do_systemspec(FILE *f, struct file_list *fl)
 {
     fprintf(f, "%s: ${SYSTEM_DEP} swap%s.o", fl->f_needs, fl->f_fn);
-    /* Don't use newvers target. */
-    /* A preferred way is to run newvers.sh from SYSTEM_LD_HEAD macro. */
-    /*if (first)*/
-    /*  fprintf(f, " newvers");*/
     fprintf(f, "\n\t${SYSTEM_LD_HEAD}\n");
     fprintf(f, "\t${SYSTEM_LD} swap%s.o\n", fl->f_fn);
     fprintf(f, "\t${SYSTEM_LD_TAIL}\n\n");

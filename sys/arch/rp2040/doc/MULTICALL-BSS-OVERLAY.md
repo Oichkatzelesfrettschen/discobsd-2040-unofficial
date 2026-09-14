@@ -49,7 +49,7 @@ measurements. Mutable bytes are `a_data + a_bss`, the bytes allocated and
 swapped for every invocation of that box.
 
 | Executable | Base mutable bytes | Overlay mutable bytes | Reduction |
-|---|---:|---:|---:|
+| --- | ---: | ---: | ---: |
 | gamebox | 3,932 | 2,192 | 1,740 |
 | adminbox | 7,684 | 6,484 | 1,200 |
 | box | 11,800 | 10,316 | 1,484 |
@@ -88,7 +88,7 @@ change those totals independently of packing and overlay savings.
 
 Reproduce the host gates with:
 
-```
+```sh
 bmake -C tests/rp2040/elf2aout_layout check MACHINE=rp2040 PYTHON="${PYTHON}"
 bmake -C usr.bin/sort test MACHINE=rp2040 HOST_CC=cc PYTHON="${PYTHON}"
 shellcheck -S error tools/generate_multicall_bss_overlay.sh \

@@ -43,8 +43,17 @@ do
 	done
 
 	linked_image=$temporary_directory/linked-$archive_index
-	"$linker" -T20000000 -o "$linked_image" \
+	# The legacy linker parses -T with atol(), so name 0x20000000 in decimal.
+	"$linker" -T536870912 -o "$linked_image" \
 	    "$temporary_directory/aout_link_contract.o" "$archive_path"
+	first_defined_address=$(
+		"$symbol_reader" -n "$linked_image" |
+		    awk 'NF == 3 && $2 != "U" { print $1; exit }'
+	)
+	if [ "$first_defined_address" != 20000000 ]; then
+		echo "$archive_path: first symbol starts at $first_defined_address, expected 20000000" >&2
+		exit 1
+	fi
 	undefined_symbols=$("$symbol_reader" -u "$linked_image")
 	if [ -n "$undefined_symbols" ]; then
 		echo "$archive_path: linked contract has undefined symbols" >&2

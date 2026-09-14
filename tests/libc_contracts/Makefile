@@ -1,9 +1,11 @@
+TOPSRC!= cd ../..; pwd
+include ${TOPSRC}/share/mk/sys.mk
+
 HOSTCC?= cc
-ARM_COMPILER?= arm-none-eabi-gcc
+ARM_COMPILER?= ${GCCPREFIX}-gcc
 TARGET_MACHINE?= rp2040
 PROG= libc_contracts_test
 TARGET_DIR= ../../lib/libc/gen
-TOPSRC!= cd ../..; pwd
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 
 check: ${PROG} header_contract.o check-aout

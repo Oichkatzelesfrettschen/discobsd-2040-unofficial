@@ -20,12 +20,14 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		gamebox
 
 all:		${PROG}
+include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 
 .for t in ${TOOLS}
 $t.tool.o:
 	${MAKE} -C ${TOPSRC}/games/$t MACHINE=${MACHINE} $t.o >/dev/null
 	${LD} -r -o $@.r ${TOPSRC}/games/$t/$t.o
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@
+	${OBJCOPY} --rename-section .bss=.app_bss_$t $@
 	rm -f $@.r
 .endfor
 
@@ -35,8 +37,8 @@ gamebox.c:	gamebox.c.in Makefile
 		table="$$table\n\t{ \"$$t\", $${t}_main },"; done; \
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" gamebox.c.in > $@
 
-${PROG}:	gamebox.o ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf gamebox.o ${OBJS} ${LIBS}
+${PROG}:	gamebox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf gamebox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

@@ -11,6 +11,8 @@ manifest cite as the authority for a shipped mechanism:
 - utilbox.md, posix-tools.md, v7-tools.md, games.md, menu-shell.md,
   rockbox-ui.md -- what each multicall binary in distrib/rp2040/mi.rp2040
   carries and why.
+- multicall-bss-overlay.md -- why applet-private zero-initialized storage can
+  share one address range and the gates that preserve applet isolation.
 - zswap.md and emulation.md -- the RAM-tier swap design and the Renode flow.
 - sh-posix-audit.md -- the bin/sh POSIX ledger whose rows bin/sh/tests/posix-sh.sh
   tests and whose xfail cases pin the open items.

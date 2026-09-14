@@ -1,26 +1,19 @@
 #
-# A multicall binary of the usr.bin tools that share the most libc:
-# expr, id, more, uniq, head, tail, tr, wc, cmp, basename, env, printf,
-# tee, touch, xargs, du, tty, uname and md5. See sbin/box/Makefile:
-# each tool's own objects, already built in its directory, are
-# combined with ld -r, every global except a renamed main is made
-# local, and the results link once against libc. usr.bin/Makefile
-# builds usr.bin before sbin, so this directory sees built objects
-# when it runs.
+# A multicall binary of the usr.bin tools that share the most libc.
+# See sbin/box/Makefile: each tool's own objects, already built in its
+# directory, are combined with ld -r, every global except a renamed main
+# is made local, and the results link once against libc. usr.bin/Makefile
+# builds usr.bin before sbin, so this directory sees built objects when it
+# runs. TOOLS below is the authoritative member list.
 #
-# Four tools stay out after nm found their globals collide once every
-# *.o in a directory is swept up and combined with the rest: sed and
-# expr both carry the old regexp.c BRE engine's loc1, loc2, locs,
-# braslist and braelist; sed and sort share eargc, eargv and ibuf;
-# sort, sed and more each define their own nfiles; sort and uniq both
-# define fields. Dropping sort and sed clears every one of those
-# names, so both stay standalone rather than risk two tools sharing
-# one variable through -fcommon merging at final link. find shares its
-# directory with bigram and code, three programs each defining main
-# and colliding globals (prefix_length, oldpath) once ld -r sweeps up
-# every *.o in usr.bin/find; it stays a standalone a.out too. nohup is
-# a shell script (usr.bin/nohup/nohup.sh) with no a.out to fold in.
-# passwd, shutdown, reboot and sysctl stay out; see
+# The relocatable link and symbol localization isolate applet globals,
+# and the BSS overlay gives their zero-initialized private storage one
+# shared address range. sort joins after replacing its resident byte
+# tables and oversized merge-pointer array. find stays standalone until
+# its user and group caches have bounded ownership. sed stays standalone
+# because its compiled program and three work buffers overlap in time.
+# nohup is a shell script with no a.out to fold in. passwd, shutdown,
+# reboot and sysctl stay out; see
 # sys/arch/rp2040/doc/research/utilbox.md for the measurement that
 # excluded them.
 #
@@ -31,7 +24,7 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
-TOOLS=		expr id more uniq head tr wc cmp \
+TOOLS=		expr id more uniq head tr wc cmp sort \
 		basename env printf touch xargs tty uname md5 resize md
 
 # Other names a tool answers to, as name:tool.
@@ -41,6 +34,7 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		utilbox
 
 all:		${PROG}
+include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 
 # Localize a tool: relocatable link of its objects, main renamed to
 # <tool>_main and kept as the only global definition.
@@ -51,6 +45,7 @@ $t.tool.o:
 	${MAKE} -C $$d MACHINE=${MACHINE} all >/dev/null; \
 	${LD} -r -o $@.r $$(ls $$d/*.o | grep -v '\.tool\.o$$'); \
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@; \
+	${OBJCOPY} --rename-section .bss=.app_bss_$t $@; \
 	rm -f $@.r
 .endfor
 
@@ -62,8 +57,8 @@ utilbox.c:	utilbox.c.in Makefile
 		table="$$table\n\t{ \"$${a%%:*}\", $${a#*:}_main },"; done; \
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" utilbox.c.in > $@
 
-${PROG}:	utilbox.o ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf utilbox.o ${OBJS} ${LIBS}
+${PROG}:	utilbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf utilbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

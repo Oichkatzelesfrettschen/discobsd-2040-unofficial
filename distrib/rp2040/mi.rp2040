@@ -129,45 +129,47 @@ file /etc/menu
 #
 # /bin/box and /bin/sysbox are two a.outs holding the small utilities,
 # dispatched on the name they are invoked by; the names below are hard
-# links. See bin/box/Makefile.
+# links. Every `pack` entry is a raw OMAGIC build artifact that fsutil
+# installs as a versioned, CRC-checked packed executable. Scripts, archives,
+# and other data retain `file`. See bin/box/Makefile and
+# sys/sys/exec_hsaout.h.
 #
 default
 filemode 0775
 
-file /bin/sh
-file /bin/ed
-file /bin/ps
-file /bin/box
-file /bin/sysbox
-file /bin/tar
+pack /bin/sh
+pack /bin/ed
+pack /bin/ps
+pack /bin/box
+pack /bin/sysbox
+pack /bin/tar
 
-file /sbin/fsck
-file /sbin/init
-file /sbin/adminbox
+pack /sbin/fsck
+pack /sbin/init
+pack /sbin/adminbox
 
-file /usr/bin/awk
-file /usr/bin/coremark
-file /usr/bin/sed
-file /usr/bin/grep
-file /usr/bin/fgrep
-file /usr/bin/find
-file /usr/bin/sort
+pack /usr/bin/awk
+pack /usr/bin/coremark
+pack /usr/bin/sed
+pack /usr/bin/grep
+pack /usr/bin/fgrep
+pack /usr/bin/find
 file /usr/bin/nohup
 file /usr/bin/true
 file /usr/bin/false
-file /usr/bin/login
-file /usr/bin/passwd
-file /usr/bin/su
+pack /usr/bin/login
+pack /usr/bin/passwd
+pack /usr/bin/su
 mode 04751
-file /usr/bin/stevie
-file /usr/bin/menu
-file /usr/bin/textbox
-file /usr/bin/utilbox
-file /usr/bin/tail
-file /usr/bin/tee
-file /usr/bin/du
-file /usr/bin/as
-file /usr/bin/ld
+pack /usr/bin/stevie
+pack /usr/bin/menu
+pack /usr/bin/textbox
+pack /usr/bin/utilbox
+pack /usr/bin/tail
+pack /usr/bin/tee
+pack /usr/bin/du
+pack /usr/bin/as
+pack /usr/bin/ld
 file /usr/bin/cc
 
 #
@@ -178,15 +180,15 @@ file /usr/bin/cc
 # copies of a 13280-byte a.out. /usr/bin/cpio reads and writes the POSIX
 # odc format.
 #
-file /usr/bin/compress
-file /usr/bin/cpio
+pack /usr/bin/compress
+pack /usr/bin/cpio
 
-file /usr/sbin/update
+pack /usr/sbin/update
 
-file /usr/libexec/getty
-file /usr/libexec/smlrc
+pack /usr/libexec/getty
+pack /usr/libexec/smlrc
 
-file /usr/games/gamebox
+pack /usr/games/gamebox
 
 #
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
@@ -319,11 +321,12 @@ target /usr/bin/textbox
 # a hard link crosses directories on one filesystem the way
 # /sbin/chown already links to /bin/box above. See
 # sbin/utilbox/Makefile and sys/arch/rp2040/doc/research/utilbox.md
-# for what stayed out and why: find (colliding globals with bigram
-# and code in its own directory), sed and sort (colliding globals
-# with expr, more and each other), nohup (a shell script, no a.out),
-# and passwd (setuid root, so a shared multicall binary would hand
-# every linked name root).
+# for what stayed out and why: find needs bounded ownership for its
+# user and group caches, sed keeps its compiled program live alongside
+# its work buffers, nohup is a shell script with no a.out, passwd stays
+# isolated from general applets, and su retains its own setuid inode. sort
+# joins after its private globals are localized and its byte tables and
+# merge-pointer array are reduced.
 #
 link /bin/expr
 target /usr/bin/utilbox
@@ -342,6 +345,8 @@ target /usr/bin/utilbox
 link /usr/bin/wc
 target /usr/bin/utilbox
 link /usr/bin/cmp
+target /usr/bin/utilbox
+link /usr/bin/sort
 target /usr/bin/utilbox
 link /usr/bin/basename
 target /usr/bin/utilbox

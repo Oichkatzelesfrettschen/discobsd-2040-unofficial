@@ -51,7 +51,7 @@ output=$(./strings_host raw.aout)
 expected='TEXT
 DATA'
 [ "$output" = "$expected" ] || fail "strings raw a.out range"
-dd if=raw.aout of=raw-truncated.aout bs=1 count=35 status=none
+dd if=raw.aout of=raw-truncated.aout bs=1 count=35 2>/dev/null
 if output=$(./strings_host raw-truncated.aout 2>&1); then
 	fail "strings accepts a truncated raw a.out"
 fi

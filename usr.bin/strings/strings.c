@@ -125,29 +125,33 @@ scan_descriptor(int descriptor, const char *name, unsigned minimum,
 
 	memset(&state, 0, sizeof(state));
 	state.minimum = minimum;
-	prefix_length = read_prefix(descriptor, prefix, sizeof(prefix));
-	if (prefix_length < 0) {
-		report_file_error(name, ": read failed\n");
-		return 1;
-	}
 	raw_aout = 0;
 	remaining = 0;
-	if ((size_t)prefix_length == sizeof(header)) {
-		memcpy(&header, prefix, sizeof(header));
-		if (N_GETMAGIC(header) == OMAGIC && N_GETMID(header) == MID_ZERO) {
-			if (N_GETFLAG(header) == EX_HSPACK && !scan_all) {
-				report_file_error(name,
-				    ": packed a.out requires -a\n");
-				return 1;
-			}
-			if (N_GETFLAG(header) == 0 &&
-			    header.a_text <= 0xffffffffU - header.a_data) {
-				raw_aout = !scan_all;
-				remaining = header.a_text + header.a_data;
+	prefix_length = 0;
+	if (!scan_all) {
+		prefix_length = read_prefix(descriptor, prefix, sizeof(prefix));
+		if (prefix_length < 0) {
+			report_file_error(name, ": read failed\n");
+			return 1;
+		}
+		if ((size_t)prefix_length == sizeof(header)) {
+			memcpy(&header, prefix, sizeof(header));
+			if (N_GETMAGIC(header) == OMAGIC &&
+			    N_GETMID(header) == MID_ZERO) {
+				if (N_GETFLAG(header) == EX_HSPACK) {
+					report_file_error(name,
+					    ": packed a.out requires -a\n");
+					return 1;
+				}
+				if (N_GETFLAG(header) == 0 &&
+				    header.a_text <= 0xffffffffU - header.a_data) {
+					raw_aout = 1;
+					remaining = header.a_text + header.a_data;
+				}
 			}
 		}
 	}
-	if (!raw_aout)
+	if (!raw_aout && prefix_length != 0)
 		consume_bytes(&state, prefix, (size_t)prefix_length);
 	while (!state.failed && (!raw_aout || remaining != 0)) {
 		size_t request;

@@ -33,6 +33,7 @@
 #include <sys/param.h>
 
 #include <errno.h>
+#include <err.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -40,52 +41,88 @@
 #include <string.h>
 #include <unistd.h>
 
-#define	__P(protos) ()
+static void current(void);
+static void pretty(struct passwd *);
+static void group(struct passwd *, int);
+static void usage(void);
+static void user(struct passwd *);
+static struct passwd *who(char *);
 
-void	current __P((void));
-void	pretty __P((struct passwd *));
-void	group __P((struct passwd *, int));
-void	usage __P((void));
-void	user __P((struct passwd *));
-struct passwd *
-	who __P((char *));
+static const char *
+invocation_name(const char *pathname)
+{
+	const char *cursor;
+	const char *name;
+
+	name = pathname;
+	for (cursor = pathname; *cursor != '\0'; ++cursor)
+		if (*cursor == '/')
+			name = cursor + 1;
+	return name;
+}
 
 int
-main(argc, argv)
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
 	struct group *gr;
 	struct passwd *pw;
-	int Gflag, ch, gflag, id, nflag, pflag, rflag, uflag;
+	const char *program_name;
+	char *login_name;
+	u_int id;
+	int Gflag, ch, gflag, nflag, pflag, rflag, uflag;
 
 	Gflag = gflag = nflag = pflag = rflag = uflag = 0;
-	while ((ch = getopt(argc, argv, "Ggnpru")) != EOF)
-		switch(ch) {
-		case 'G':
-			Gflag = 1;
-			break;
-		case 'g':
-			gflag = 1;
-			break;
-		case 'n':
-			nflag = 1;
-			break;
-		case 'p':
-			pflag = 1;
-			break;
-		case 'r':
-			rflag = 1;
-			break;
-		case 'u':
-			uflag = 1;
-			break;
-		case '?':
-		default:
+	program_name = invocation_name(argv[0]);
+	if (strcmp(program_name, "whoami") == 0) {
+		if (argc != 1)
+			errx(1, "usage: whoami");
+		nflag = uflag = 1;
+		--argc;
+		++argv;
+	} else if (strcmp(program_name, "groups") == 0) {
+		if (argc > 2)
+			errx(1, "usage: groups [user]");
+		Gflag = nflag = 1;
+		--argc;
+		++argv;
+	} else if (strcmp(program_name, "logname") == 0) {
+		if (argc != 1)
+			errx(1, "usage: logname");
+		login_name = getlogin();
+		if (login_name == NULL)
+			err(1, "getlogin");
+		(void)puts(login_name);
+		return 0;
+	} else {
+		while ((ch = getopt(argc, argv, "Ggnpru")) != EOF)
+			switch(ch) {
+			case 'G':
+				Gflag = 1;
+				break;
+			case 'g':
+				gflag = 1;
+				break;
+			case 'n':
+				nflag = 1;
+				break;
+			case 'p':
+				pflag = 1;
+				break;
+			case 'r':
+				rflag = 1;
+				break;
+			case 'u':
+				uflag = 1;
+				break;
+			case '?':
+			default:
+				usage();
+			}
+		argc -= optind;
+		argv += optind;
+		if (argc > 1)
 			usage();
-		}
-	argc -= optind;
-	argv += optind;
+	}
 
 	switch(Gflag + gflag + pflag + uflag) {
 	case 1:
@@ -98,23 +135,23 @@ main(argc, argv)
 		usage();
 	}
 
-	pw = *argv ? who(*argv) : NULL;
+	pw = argc != 0 ? who(*argv) : NULL;
 
 	if (gflag) {
-		id = pw ? pw->pw_gid : rflag ? getgid() : getegid();
+		id = pw ? (u_int)pw->pw_gid : rflag ? getgid() : getegid();
 		if (nflag && (gr = getgrgid(id)))
 			(void)printf("%s\n", gr->gr_name);
 		else
-			(void)printf("%u\n", id);
+			(void)printf("%u\n", (unsigned)id);
 		exit(0);
 	}
 
 	if (uflag) {
-		id = pw ? pw->pw_uid : rflag ? getuid() : geteuid();
+		id = pw ? (u_int)pw->pw_uid : rflag ? getuid() : geteuid();
 		if (nflag && (pw = getpwuid(id)))
 			(void)printf("%s\n", pw->pw_name);
 		else
-			(void)printf("%u\n", id);
+			(void)printf("%u\n", (unsigned)id);
 		exit(0);
 	}
 
@@ -136,8 +173,7 @@ main(argc, argv)
 }
 
 void
-pretty(pw)
-	struct passwd *pw;
+pretty(struct passwd *pw)
 {
 	struct group *gr;
 	u_int eid, rid;
@@ -159,23 +195,25 @@ pretty(pw)
 		else
 			(void)printf("uid\t%u\n", rid);
 
-		if ((eid = geteuid()) != rid)
-			if (pw = getpwuid(eid))
+		if ((eid = geteuid()) != rid) {
+			if ((pw = getpwuid(eid)) != NULL)
 				(void)printf("euid\t%s", pw->pw_name);
 			else
 				(void)printf("euid\t%u", eid);
-		if ((rid = getgid()) != (eid = getegid()))
-			if (gr = getgrgid(rid))
+		}
+		if ((rid = getgid()) != (eid = getegid())) {
+			if ((gr = getgrgid(rid)) != NULL)
 				(void)printf("rgid\t%s\n", gr->gr_name);
 			else
 				(void)printf("rgid\t%u\n", rid);
+		}
 		(void)printf("groups\t");
 		group(NULL, 1);
 	}
 }
 
 void
-current()
+current(void)
 {
 	struct group *gr;
 	struct passwd *pw;
@@ -184,21 +222,21 @@ current()
 	char *fmt;
 
 	id = getuid();
-	(void)printf("uid=%u", id);
-	if (pw = getpwuid(id))
+	(void)printf("uid=%u", (unsigned)id);
+	if ((pw = getpwuid(id)) != NULL)
 		(void)printf("(%s)", pw->pw_name);
 	if ((eid = geteuid()) != id) {
-		(void)printf(" euid=%u", eid);
-		if (pw = getpwuid(eid))
+		(void)printf(" euid=%u", (unsigned)eid);
+		if ((pw = getpwuid(eid)) != NULL)
 			(void)printf("(%s)", pw->pw_name);
 	}
 	id = getgid();
-	(void)printf(" gid=%u", id);
-	if (gr = getgrgid(id))
+	(void)printf(" gid=%u", (unsigned)id);
+	if ((gr = getgrgid(id)) != NULL)
 		(void)printf("(%s)", gr->gr_name);
 	if ((eid = getegid()) != id) {
-		(void)printf(" egid=%u", eid);
-		if (gr = getgrgid(eid))
+		(void)printf(" egid=%u", (unsigned)eid);
+		if ((gr = getgrgid(eid)) != NULL)
 			(void)printf("(%s)", gr->gr_name);
 	}
 	ngroups = getgroups(NGROUPS, groups);
@@ -208,16 +246,15 @@ current()
 			id = groups[cnt++];
 			if (lastid == id)
 				continue;
-			(void)printf(fmt, id);
-			if (gr = getgrgid(id))
+			(void)printf(fmt, (unsigned)id);
+			if ((gr = getgrgid(id)) != NULL)
 				(void)printf("(%s)", gr->gr_name);
 		}
 	(void)printf("\n");
 }
 
 void
-user(pw)
-	register struct passwd *pw;
+user(struct passwd *pw)
 {
 	struct group *gr;
 	gid_t groups[NGROUPS + 1];
@@ -225,8 +262,8 @@ user(pw)
 	char *fmt;
 
 	id = pw->pw_uid;
-	(void)printf("uid=%u(%s)", id, pw->pw_name);
-	(void)printf(" gid=%u", pw->pw_gid);
+	(void)printf("uid=%u(%s)", (unsigned)id, pw->pw_name);
+	(void)printf(" gid=%u", (unsigned)pw->pw_gid);
 	if ((gr = getgrgid(pw->pw_gid)) != NULL)
 		(void)printf("(%s)", gr->gr_name);
 	ngroups = NGROUPS + 1;
@@ -235,9 +272,9 @@ user(pw)
 	for (lastid = -1, cnt = 0; cnt < ngroups; ++cnt) {
 		if (lastid == (id = groups[cnt]))
 			continue;
-		(void)printf(fmt, id);
+		(void)printf(fmt, (unsigned)id);
 		fmt = " %u";
-		if (gr = getgrgid(id))
+		if ((gr = getgrgid(id)) != NULL)
 			(void)printf("(%s)", gr->gr_name);
 		lastid = id;
 	}
@@ -245,9 +282,7 @@ user(pw)
 }
 
 void
-group(pw, nflag)
-	struct passwd *pw;
-	int nflag;
+group(struct passwd *pw, int nflag)
 {
 	struct group *gr;
 	int cnt, id, lastid, ngroups;
@@ -266,14 +301,14 @@ group(pw, nflag)
 		if (lastid == (id = groups[cnt]))
 			continue;
 		if (nflag) {
-			if (gr = getgrgid(id))
+			if ((gr = getgrgid(id)) != NULL)
 				(void)printf(fmt, gr->gr_name);
 			else
 				(void)printf(*fmt == ' ' ? " %u" : "%u",
-				    id);
+				    (unsigned)id);
 			fmt = " %s";
 		} else {
-			(void)printf(fmt, id);
+			(void)printf(fmt, (unsigned)id);
 			fmt = " %u";
 		}
 		lastid = id;
@@ -282,8 +317,7 @@ group(pw, nflag)
 }
 
 struct passwd *
-who(u)
-	char *u;
+who(char *u)
 {
 	struct passwd *pw;
 	long id;
@@ -293,16 +327,17 @@ who(u)
 	 * Translate user argument into a pw pointer.  First, try to
 	 * get it as specified.  If that fails, try it as a number.
 	 */
-	if (pw = getpwnam(u))
+	if ((pw = getpwnam(u)) != NULL)
 		return(pw);
 	id = strtol(u, &ep, 10);
 	if (*u && !*ep && (pw = getpwuid(id)))
 		return(pw);
 	errx(1, "%s: No such user", u);
+	return NULL;
 }
 
 void
-usage()
+usage(void)
 {
 	(void)fprintf(stderr, "usage: id [user]\n");
 	(void)fprintf(stderr, "       id -G [-n] [user]\n");

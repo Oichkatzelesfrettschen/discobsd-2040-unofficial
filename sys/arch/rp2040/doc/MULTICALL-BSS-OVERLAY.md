@@ -6,18 +6,20 @@ disjoint lifetimes even though every applet's code resides in one executable.
 The linker may give those objects one shared address extent. Dispatcher and
 libc BSS remain live across the call and stay outside the extent.
 
-The build first cleans and rebuilds each applet, relocatably links its current
-objects, localizes every definition except its renamed entry point, and
-renames that object's `.bss` to `.app_bss_<applet>`. The localized objects are
-phony build targets because compiler flags and recursive source objects are
-outside the box Makefile's dependency graph. A verifier rejects COMMON and
-any allocatable writable NOBITS section outside the named overlay before the
-link. `tools/generate_multicall_bss_overlay.sh` emits one NOLOAD output section
-per applet at `__app_bss_start`, sizes `.app_bss_extent` to the largest member,
-and inserts the extent before ordinary `.bss`. Initialized data remains in
-independent `.data` input sections and retains its bytes. The a.out loader sees
-one ordinary contiguous mutable image whose BSS size includes the maximum
-private extent plus shared BSS.
+The build first cleans and rebuilds each applet with a final `-fno-common`,
+relocatably links its current objects, localizes every definition except its
+renamed entry point, and renames that object's `.bss` to
+`.app_bss_<applet>`. Parent Makefile dependencies complete local standalone
+members before a box can clean their directories under an inherited `-j`
+build. The localized objects are phony build targets because compiler flags
+and recursive source objects are outside the box Makefile's dependency graph.
+A verifier rejects COMMON and any allocatable writable NOBITS section outside
+the named overlay before the link. `tools/generate_multicall_bss_overlay.sh`
+emits one NOLOAD output section per applet at `__app_bss_start`, sizes
+`.app_bss_extent` to the largest member, and inserts the extent before ordinary
+`.bss`. Initialized data remains in independent `.data` input sections and
+retains its bytes. The a.out loader sees one ordinary contiguous mutable image
+whose BSS size includes the maximum private extent plus shared BSS.
 
 The build preserves the following boundaries:
 

@@ -826,10 +826,12 @@ def verify_multicall_object_rebuild(
     fixture_makefile.write_text(
         f"""TOPSRC={arguments.overlay_generator.parent.parent}
 OBJS=alpha.tool.o
+COPTS=-fcommon
 all: ${{OBJS}}
 include {shared_makefile}
 
 alpha.tool.o:
+\t@test "${{MULTICALL_APPLET_COPTS}}" = "-fcommon -fno-common"
 \t@printf '%s\\n' rebuilt >> {rebuild_log}
 \t@: > ${{.TARGET}}
 """,

@@ -325,7 +325,7 @@ void
 do_cfiles(FILE *fp)
 {
     register struct file_list *tp, *fl;
-    register int lpos, len;
+    register size_t lpos, len;
     char swapname[32];
 
     fputs("CFILES =", fp);
@@ -348,7 +348,11 @@ do_cfiles(FILE *fp)
     for (fl = conf_list; fl; fl = fl->f_next)
         if (fl->f_type == SYSTEMSPEC) {
             (void)snprintf(swapname, sizeof(swapname), "swap%s.c", fl->f_fn);
-            if ((len = 3 + strlen(swapname)) + lpos + 1 > 72) {
+            if (eq(fl->f_fn, "generic"))
+                len = 4 + strlen(archname) + strlen(swapname);
+            else
+                len = strlen(swapname);
+            if (len + lpos + 1 > 72) {
                 lpos = 8;
                 fputs(" \\\n\t", fp);
             } else {

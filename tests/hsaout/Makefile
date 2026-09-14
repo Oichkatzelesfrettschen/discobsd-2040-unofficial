@@ -9,6 +9,8 @@ PROG=		hsaout_test
 LIB=		${TOPSRC}/tools/hsaout/libhsaout.a
 
 check:		${PROG}
+		sh ./packed_root_configs_test.sh \
+		    ${TOPSRC}/tools/verify_packed_root_configs.sh
 		./${PROG} ${IMAGES}
 
 ${PROG}:	${PROG}.c ${LIB} ${TOPSRC}/sys/sys/exec_hsaout.h

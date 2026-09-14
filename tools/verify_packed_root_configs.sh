@@ -10,18 +10,34 @@ fi
 
 source_root=${1:-$(cd "$(dirname "$0")/.." && pwd)}
 manifest_path=$source_root/distrib/rp2040/mi.rp2040
-compile_root=$source_root/sys/arch/rp2040/compile
+tracked_configs=$(mktemp)
+trap 'rm -f "$tracked_configs"' EXIT HUP INT TERM
 
-if ! grep -Eq '^[[:space:]]*pack[[:space:]]+/' "$manifest_path"; then
+if [ ! -f "$manifest_path" ] || [ ! -r "$manifest_path" ]; then
+	echo "$0: cannot read $manifest_path" >&2
+	exit 1
+fi
+
+manifest_status=0
+grep -Eq '^[[:space:]]*pack[[:space:]]+/' "$manifest_path" || manifest_status=$?
+if [ "$manifest_status" -eq 1 ]; then
 	exit 0
+fi
+if [ "$manifest_status" -ne 0 ]; then
+	echo "$0: cannot inspect $manifest_path" >&2
+	exit 1
+fi
+
+if ! git -C "$source_root" ls-files -- \
+    'sys/arch/rp2040/compile/*/Config' >"$tracked_configs"; then
+	echo "$0: cannot enumerate tracked RP2040 kernel configurations" >&2
+	exit 1
 fi
 
 configuration_count=0
-for config_path in "$compile_root"/*/Config; do
-	if [ ! -f "$config_path" ]; then
-		continue
-	fi
+while IFS= read -r relative_config_path; do
 	configuration_count=$((configuration_count + 1))
+	config_path=$source_root/$relative_config_path
 	configuration_directory=${config_path%/Config}
 	makefile_path=$configuration_directory/Makefile
 	configuration_name=${configuration_directory##*/}
@@ -40,7 +56,7 @@ for config_path in "$compile_root"/*/Config; do
 			exit 1
 		fi
 	done
-done
+done <"$tracked_configs"
 
 if [ "$configuration_count" -eq 0 ]; then
 	echo "$0: no tracked RP2040 kernel configurations found" >&2

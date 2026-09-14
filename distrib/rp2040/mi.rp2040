@@ -151,8 +151,7 @@ pack /sbin/adminbox
 pack /usr/bin/awk
 pack /usr/bin/coremark
 pack /usr/bin/sed
-pack /usr/bin/grep
-pack /usr/bin/fgrep
+pack /usr/bin/grepbox
 pack /usr/bin/find
 file /usr/bin/nohup
 file /usr/bin/true
@@ -348,6 +347,10 @@ link /usr/bin/cmp
 target /usr/bin/utilbox
 link /usr/bin/sort
 target /usr/bin/utilbox
+link /usr/bin/grep
+target /usr/bin/grepbox
+link /usr/bin/fgrep
+target /usr/bin/grepbox
 link /usr/bin/basename
 target /usr/bin/utilbox
 link /usr/bin/env

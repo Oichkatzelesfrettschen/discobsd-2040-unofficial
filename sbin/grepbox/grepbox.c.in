@@ -1,0 +1,66 @@
+/*
+ * One a.out for the pattern matchers, dispatched on the name it was
+ * invoked by. grep (basic regular expressions) and fgrep (fixed strings,
+ * Aho-Corasick) are distinct engines, but each links its own copy of
+ * libc, so folding them shares that copy. egrep stays out: it is not in
+ * the root manifest, and its DFA tables are algorithmic rather than
+ * oversized, so it would add text and set the overlay extent. The tools
+ * keep their sources; sbin/grepbox/Makefile localizes each tool's globals
+ * and renames its main, and the BSS overlay gives their private storage
+ * one shared address range. fgrep's Aho-Corasick trie is bounded by the
+ * pattern source rather than a fixed table, so the shared extent is
+ * grep's small bss, not fgrep's former 64 kbytes.
+ */
+
+#include <string.h>
+#include <unistd.h>
+
+@DECLS@
+
+static const struct tool {
+	const char	*name;
+	int		(*main)(int, char **);
+} tools[] = {
+@TABLE@
+	{ 0, 0 }
+};
+
+int
+main(int argc, char **argv)
+{
+	const struct tool *t;
+	const char *name, *p;
+	size_t n;
+
+	name = argv[0];
+	for (p = name; *p; p++)
+		if (*p == '/')
+			name = p + 1;
+	/*
+	 * Invoked by the multiplexer's own name, which ends in "box": the
+	 * first argument names the tool, so "grepbox fgrep" runs fgrep.
+	 */
+	n = strlen(name);
+	if (n > 3 && strcmp(name + n - 3, "box") == 0 && argc > 1) {
+		argc--;
+		argv++;
+		name = argv[0];
+		for (p = name; *p; p++)
+			if (*p == '/')
+				name = p + 1;
+	}
+	for (t = tools; t->name; t++)
+		if (strcmp(name, t->name) == 0)
+			return t->main(argc, argv);
+	/*
+	 * No such tool: list what this binary provides, so its own name
+	 * typed alone shows its commands instead of an opaque error.
+	 */
+	write(2, "commands:", 9);
+	for (t = tools; t->name; t++) {
+		write(2, " ", 1);
+		write(2, t->name, strlen(t->name));
+	}
+	write(2, "\n", 1);
+	return 1;
+}

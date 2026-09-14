@@ -35,6 +35,8 @@ a board session over the USB console.
 8. Flash-buffer lifetime graph and overlay of mutually exclusive buffers.
 9. Convert tool-private COMMON globals to static, verify with
    `-fno-common`, then extend multicall consolidation.
+10. Replace the flash erase-sector staging buffer with one physical-page
+    buffer and erase-aligned process images.
 
 ## Results
 
@@ -478,6 +480,53 @@ The lesson for the screen: measure a_bss per member before folding, not
 just packed blocks. A tool's fixed worst-case table, not its file count,
 is what a box would spend, and bounding that table is the larger and often
 the only real win.
+
+### Physical-page flash staging and erase-aligned swap images (port PR #63)
+
+The prior flash overlay still held one 4,096-byte erase sector because a
+process image could share that sector with another live image. The resource
+map now allocates data, stack and u area as one contiguous run, rounds the run
+to four 1,024-byte blocks, and starts the free map at block four. Every live
+process image therefore owns every sector that its writes erase. SwapRAM
+evacuation reserves the same whole-image runs, and `/dev/tempN` allocations
+also preserve the map alignment.
+
+Process writes carry `B_SWAPIMAGE`; `flash_swap_append` erases a sector when
+the ascending stream reaches its boundary and programs it 256 bytes at a
+time. Arbitrary `/dev/tempN` rewrites preserve their block semantics by
+copying the destination sector through the first swap sector, which the
+resource map already leaves unavailable, and then restoring it through the
+same 256-byte SRAM page. The flash copy path also moves each 1,024-byte Dhara
+page as four physical program pages. The mapped root device has only a block
+entry, whose buffer-cache requests are 1,024-byte blocks; the driver rejects
+a partial Dhara page instead of retaining a second staging page.
+
+Against clean port main `028bd2d9d5ae4627ad672acf7441a87e7ff29151`, both
+linked kernels reduce the size tool's bss column by 3,840 bytes:
+
+| kernel | bss before | bss after | text cost |
+| --- | ---: | ---: | ---: |
+| PICO | 58,144 | 54,304 | +732 bytes |
+| PICO_UART | 28,712 | 24,872 | +724 bytes |
+
+`flscratch` is exactly 256 bytes in each linked ELF. The host NOR model
+enforces 4 KiB erase alignment, 256-byte program alignment, one-to-zero
+programming, adjacent-image preservation, run reuse, cross-sector temporary
+rewrites, and operation-error propagation. The allocator and evacuation test
+checks empty and overflowing sizes, exact addresses, all-or-none shortage,
+zero-length segments, two complete round trips, and the append-only write
+flag. The linked verifier checks `flscratch`, both flash algorithms, and the
+allocator relocations in `flash.o`, `vm_swap.o`, `swap.o`, and `swapram.o`.
+The direct PICO and PICO_UART builds and the flash-swap, SwapRAM, divider,
+cache-footprint, packed-root, config, and ELF-to-a.out gates pass.
+
+The storage price is explicit: the first 4 KiB swap sector is the rewrite
+scratch sector, and each live process or temporary-device allocation holds
+zero to three padding blocks. The eight-image evacuation fixture writes 52
+blocks and holds 64, so that specimen spends 12 KiB on erase isolation. The
+scratch sector adds erase and program cycles to arbitrary block rewrites but
+adds no further reserved flash. Hardware flash behavior remains an attended
+validation gate; the implementation pass did not flash a device.
 
 ## Open
 

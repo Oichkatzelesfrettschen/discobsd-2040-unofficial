@@ -36,7 +36,7 @@ trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
 		    "$applet_name"
 	done
 	printf '%s\n' \
-	    '  .app_bss_extent __app_bss_start (NOLOAD) : { . = __app_bss_end - __app_bss_start; } :data' \
+	    '  .app_bss_extent __app_bss_start (NOLOAD) : { . = __app_bss_end - __app_bss_start; }' \
 	    '}'
 	printf 'NOCROSSREFS('
 	for object_path do

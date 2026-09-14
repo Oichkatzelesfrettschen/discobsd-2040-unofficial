@@ -28,12 +28,14 @@ include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 # <tool>_main and kept as the only global definition.
 .for t in ${TOOLS}
 $t.tool.o:
-	d=""; for c in bin sbin usr.bin usr.sbin; do \
+	set -e; d=""; for c in bin sbin usr.bin usr.sbin; do \
 		for n in $t $t2; do [ -d ${TOPSRC}/$$c/$$n ] && d=${TOPSRC}/$$c/$$n; done; done; \
-	${MAKE} -C $$d MACHINE=${MACHINE} all >/dev/null; \
+	${MAKE} -C $$d MACHINE=${MACHINE} clean >/dev/null; \
+	${MAKE} -C $$d MACHINE=${MACHINE} COPTS="${MULTICALL_APPLET_COPTS}" all >/dev/null; \
 	${LD} -r -o $@.r $$(ls $$d/*.o | grep -v '\.tool\.o$$'); \
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@; \
-	${OBJCOPY} --rename-section .bss=.app_bss_$t $@; \
+	${OBJCOPY} --rename-section .bss=.app_bss_$t \
+	    --rename-section .sbss=.app_bss_$t $@; \
 	rm -f $@.r
 .endfor
 

@@ -2,7 +2,7 @@
 
 The original selection and collision analysis remains below. The current
 packed-root layout, sort admission, and mutable-image measurements live in
-`multicall-bss-overlay.md`; those measurements supersede the pre-overlay size
+`../MULTICALL-BSS-OVERLAY.md`; those measurements supersede the pre-overlay size
 and memory discussion in this document.
 
 `sbin/utilbox` links 19 usr.bin tools into one a.out of 51,125 bytes

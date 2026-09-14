@@ -123,7 +123,11 @@ check-id-aliases:
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
+		sh tools/verify_packed_root_configs.sh
 		${MAKE} -C tests/hsaout check
+
+check-config-makefile:
+		${MAKE} -C tools/config check
 
 # The evacuation test compiles the kernel's swapram.c and subr_rmap.c on
 # the host; its Makefile is written for GNU make.
@@ -189,6 +193,7 @@ installfs:
 .PHONY:		all build distribution release tools kernel check-divider \
 		check-swapram check-elf2aout check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
+		check-hsaout check-config-makefile \
 		symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \

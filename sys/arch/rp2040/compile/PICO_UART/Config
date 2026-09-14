@@ -29,10 +29,11 @@ config          unix    root on fl0a
 
 options         "NFL=2"                     # fl0 root, fl1 swap.
 options         "CORE_DEFAULT=0"            # No core dumps unless raised.
+options         EXEC_HSAOUT                 # packed a.out executables
 
 # Console on UART0, GP0 and GP1: this board variant carries no USB console,
 # so it emulates far more simply than the flash-shipped PICO board (see
-# ~/Github/rpi/BOOT-MAP.md section 12).
+# sys/arch/rp2040/doc/BOOT-MAP.md).
 device          uart0
 options         "UART_BAUD=115200"          # default speed
 options         "CONS_MAJOR=UART_MAJOR"     # /dev/tty0 is the console

@@ -18,6 +18,10 @@ all:            $(SUBDIR)
 $(SUBDIR):      FRC
 		$(MAKE) -C $@ $(MFLAGS)
 
+# gamebox cleans and rebuilds its three members. Complete sibling builds first
+# so an inherited -j setting cannot remove an object another make is writing.
+gamebox:        fifteen keen bubble
+
 FRC:
 
 install:

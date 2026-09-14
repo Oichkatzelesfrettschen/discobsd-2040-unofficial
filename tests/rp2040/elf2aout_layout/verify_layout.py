@@ -173,6 +173,91 @@ alpha_canary:
 """
 
 
+OVERLAY_COMMON_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.common,"ax",%progbits
+	.global common_main
+	.type common_main,%function
+	.thumb_func
+common_main:
+	bx	lr
+
+	.comm common_canary,64,4
+"""
+
+
+OVERLAY_ESCAPED_NOBITS_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.escaped,"ax",%progbits
+	.global escaped_main
+	.type escaped_main,%function
+	.thumb_func
+escaped_main:
+	bx	lr
+
+	.section .bss,"aw",%nobits
+	.global expected_canary
+expected_canary:
+	.space 4
+
+	.section .escaped_bss,"aw",%nobits
+	.global escaped_canary
+escaped_canary:
+	.space 64
+"""
+
+
+NO_PHDR_LINKER_SCRIPT = r"""
+ENTRY(_start)
+SECTIONS
+{
+  . = 0x20000000;
+  .text : { *(.text .text.*) }
+  .rodata : { *(.rodata .rodata.*) }
+  .data : { *(.data .data.*) }
+  .bss : { *(.bss .bss.*) *(COMMON) }
+}
+"""
+
+
+MIPS_OVERLAY_DISPATCHER_SOURCE = r"""
+void
+_start(void)
+{
+}
+
+unsigned char shared_canary[20];
+"""
+
+
+MIPS_OVERLAY_ALPHA_SOURCE = r"""
+unsigned int alpha_seed = 0x11223344;
+unsigned char alpha_canary[64];
+unsigned int alpha_small_canary;
+
+void
+alpha_main(void)
+{
+	alpha_canary[0] = (unsigned char)alpha_seed;
+	alpha_small_canary = alpha_seed;
+}
+"""
+
+
+MIPS_OVERLAY_BETA_SOURCE = r"""
+unsigned int beta_seed = 0x55667788;
+unsigned char beta_canary[112] __attribute__((aligned(8)));
+
+void
+beta_main(void)
+{
+	beta_canary[0] = (unsigned char)beta_seed;
+}
+"""
+
+
 @dataclasses.dataclass(frozen=True)
 class LayoutVariant:
     name: str
@@ -230,10 +315,20 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cc", required=True)
     parser.add_argument("--ld", required=True)
+    parser.add_argument("--make", required=True)
+    parser.add_argument("--nm", required=True)
     parser.add_argument("--objcopy", required=True)
+    parser.add_argument("--readelf", required=True)
     parser.add_argument("--linker-script", type=pathlib.Path, required=True)
     parser.add_argument("--elf2aout", type=pathlib.Path, required=True)
     parser.add_argument("--overlay-generator", type=pathlib.Path, required=True)
+    parser.add_argument("--overlay-verifier", type=pathlib.Path, required=True)
+    parser.add_argument("--mips-cc", required=True)
+    parser.add_argument("--mips-ld", required=True)
+    parser.add_argument("--mips-nm", required=True)
+    parser.add_argument("--mips-objcopy", required=True)
+    parser.add_argument("--mips-readelf", required=True)
+    parser.add_argument("--mips-linker-script", type=pathlib.Path, required=True)
     return parser.parse_args()
 
 
@@ -275,7 +370,7 @@ def parse_elf(elf_path: pathlib.Path) -> ElfImage:
     section_header_size = header_fields[11]
     section_header_count = header_fields[12]
     section_name_index = header_fields[13]
-    if program_header_size != PROGRAM_HEADER.size:
+    if program_header_count > 0 and program_header_size != PROGRAM_HEADER.size:
         raise SystemExit(f"unexpected program-header size: {program_header_size}")
     if section_header_size != SECTION_HEADER.size:
         raise SystemExit(f"unexpected section-header size: {section_header_size}")
@@ -723,6 +818,67 @@ def rename_overlay_bss(
     return destination_path
 
 
+def compile_mips_overlay_object(
+    arguments: argparse.Namespace,
+    temporary_directory: pathlib.Path,
+    object_name: str,
+    source: str,
+) -> pathlib.Path:
+    source_path = temporary_directory / f"{object_name}.c"
+    object_path = temporary_directory / f"{object_name}.o"
+    source_path.write_text(source, encoding="ascii")
+    require_clean_command(
+        run_command(
+            [
+                arguments.mips_cc,
+                "-std=gnu17",
+                "-mips32r2",
+                "-EL",
+                "-msoft-float",
+                "-ffreestanding",
+                "-fno-pic",
+                "-mno-abicalls",
+                "-G8",
+                "-Os",
+                "-fno-common",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-c",
+                str(source_path),
+                "-o",
+                str(object_path),
+            ]
+        ),
+        f"MIPS {object_name} overlay compile",
+    )
+    return object_path
+
+
+def rename_mips_overlay_bss(
+    arguments: argparse.Namespace,
+    source_path: pathlib.Path,
+    applet_name: str,
+    destination_directory: pathlib.Path,
+) -> pathlib.Path:
+    destination_path = destination_directory / f"{applet_name}.tool.o"
+    require_clean_command(
+        run_command(
+            [
+                arguments.mips_objcopy,
+                "--rename-section",
+                f".bss=.app_bss_{applet_name}",
+                "--rename-section",
+                f".sbss=.app_bss_{applet_name}",
+                str(source_path),
+                str(destination_path),
+            ]
+        ),
+        f"MIPS {applet_name} BSS rename",
+    )
+    return destination_path
+
+
 def section_by_name(elf_image: ElfImage, section_name: str) -> SectionHeader:
     matching_sections = [
         section for section in elf_image.section_headers if section.name == section_name
@@ -757,6 +913,285 @@ def read_aout_symbol_types(symbol_path: pathlib.Path) -> dict[str, int]:
     return symbol_types
 
 
+def verify_multicall_object_rebuild(
+    arguments: argparse.Namespace, temporary_directory: pathlib.Path
+) -> None:
+    rebuild_directory = temporary_directory / "rebuild"
+    rebuild_directory.mkdir()
+    rebuild_log = rebuild_directory / "rebuild.log"
+    shared_makefile = (
+        arguments.overlay_generator.parent.parent
+        / "share"
+        / "mk"
+        / "multicall-bss-overlay.mk"
+    )
+    fixture_makefile = rebuild_directory / "Makefile"
+    fixture_makefile.write_text(
+        f"""TOPSRC={arguments.overlay_generator.parent.parent}
+OBJS=alpha.tool.o
+COPTS=-fcommon
+all: ${{OBJS}}
+include {shared_makefile}
+
+alpha.tool.o:
+\t@test "${{MULTICALL_APPLET_COPTS}}" = "-fcommon -fno-common"
+\t@printf '%s\\n' rebuilt >> {rebuild_log}
+\t@: > ${{.TARGET}}
+""",
+        encoding="ascii",
+    )
+    for _ in range(2):
+        require_clean_command(
+            run_command(
+                [
+                    arguments.make,
+                    "-C",
+                    str(rebuild_directory),
+                    "-f",
+                    fixture_makefile.name,
+                    "all",
+                ],
+            ),
+            "multicall object rebuild",
+        )
+    if rebuild_log.read_text(encoding="ascii").splitlines() != [
+        "rebuilt",
+        "rebuilt",
+    ]:
+        raise SystemExit("localized applet object was reused across box builds")
+
+
+def verify_no_phdr_overlay_link(
+    arguments: argparse.Namespace,
+    temporary_directory: pathlib.Path,
+    overlay_script: pathlib.Path,
+    dispatcher_object: pathlib.Path,
+    alpha_tool_object: pathlib.Path,
+    beta_tool_object: pathlib.Path,
+) -> None:
+    no_phdr_script = temporary_directory / "no-phdr.ld"
+    no_phdr_script.write_text(NO_PHDR_LINKER_SCRIPT, encoding="ascii")
+    no_phdr_elf = temporary_directory / "no-phdr.elf"
+    require_clean_command(
+        run_command(
+            [
+                arguments.ld,
+                "-n",
+                "--no-warn-rwx-segments",
+                "-T",
+                str(overlay_script),
+                "-T",
+                str(no_phdr_script),
+                "-o",
+                str(no_phdr_elf),
+                str(dispatcher_object),
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "overlay link without named program headers",
+    )
+    no_phdr_image = parse_elf(no_phdr_elf)
+    alpha_section = section_by_name(no_phdr_image, ".app_bss_alpha")
+    beta_section = section_by_name(no_phdr_image, ".app_bss_beta")
+    extent_section = section_by_name(no_phdr_image, ".app_bss_extent")
+    if alpha_section.virtual_address != beta_section.virtual_address:
+        raise SystemExit("no-PHDR applet sections do not share one address")
+    if extent_section.size != max(alpha_section.size, beta_section.size):
+        raise SystemExit("no-PHDR overlay extent is not the largest applet BSS")
+
+
+def verify_mips_overlay_link(
+    arguments: argparse.Namespace, temporary_directory: pathlib.Path
+) -> None:
+    mips_directory = temporary_directory / "mips"
+    mips_directory.mkdir()
+    dispatcher_object = compile_mips_overlay_object(
+        arguments,
+        mips_directory,
+        "dispatcher",
+        MIPS_OVERLAY_DISPATCHER_SOURCE,
+    )
+    alpha_object = compile_mips_overlay_object(
+        arguments, mips_directory, "alpha", MIPS_OVERLAY_ALPHA_SOURCE
+    )
+    beta_object = compile_mips_overlay_object(
+        arguments, mips_directory, "beta", MIPS_OVERLAY_BETA_SOURCE
+    )
+    small_bss_section = section_by_name(parse_elf(alpha_object), ".sbss")
+    if small_bss_section.section_type != SHT_NOBITS or small_bss_section.size < 4:
+        raise SystemExit("MIPS fixture did not create small zero-initialized storage")
+    alpha_tool_object = rename_mips_overlay_bss(
+        arguments, alpha_object, "alpha", mips_directory
+    )
+    beta_tool_object = rename_mips_overlay_bss(
+        arguments, beta_object, "beta", mips_directory
+    )
+    require_clean_command(
+        run_command(
+            [
+                "sh",
+                str(arguments.overlay_verifier),
+                arguments.mips_nm,
+                arguments.mips_readelf,
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "MIPS overlay object verification",
+    )
+
+    overlay_script = mips_directory / "multicall-bss-overlay.ld"
+    require_clean_command(
+        run_command(
+            [
+                "sh",
+                str(arguments.overlay_generator),
+                str(overlay_script),
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "MIPS overlay script generation",
+    )
+    overlay_elf = mips_directory / "multicall-bss-overlay.elf"
+    require_clean_command(
+        run_command(
+            [
+                arguments.mips_ld,
+                "-N",
+                "--no-warn-rwx-segments",
+                "--fatal-warnings",
+                "-T",
+                str(overlay_script),
+                "-T",
+                str(arguments.mips_linker_script),
+                "-o",
+                str(overlay_elf),
+                str(dispatcher_object),
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "MIPS overlay link",
+    )
+
+    elf_image = parse_elf(overlay_elf)
+    alpha_section = section_by_name(elf_image, ".app_bss_alpha")
+    beta_section = section_by_name(elf_image, ".app_bss_beta")
+    extent_section = section_by_name(elf_image, ".app_bss_extent")
+    shared_section = section_by_name(elf_image, ".bss")
+    if alpha_section.virtual_address != beta_section.virtual_address:
+        raise SystemExit("MIPS applet BSS sections do not share one address")
+    if extent_section.virtual_address != alpha_section.virtual_address:
+        raise SystemExit("MIPS loadable BSS extent does not cover the overlay")
+    if extent_section.size != max(alpha_section.size, beta_section.size):
+        raise SystemExit("MIPS overlay extent is not the largest applet BSS")
+    if (
+        shared_section.virtual_address
+        < extent_section.virtual_address + extent_section.size
+    ):
+        raise SystemExit("MIPS shared BSS overlaps the applet BSS extent")
+
+    overlay_aout = mips_directory / "multicall-bss-overlay.aout"
+    require_clean_command(
+        run_command([str(arguments.elf2aout), str(overlay_elf), str(overlay_aout)]),
+        "MIPS overlay conversion",
+    )
+    expected_header, expected_payload = expected_aout_image(elf_image)
+    overlay_content = overlay_aout.read_bytes()
+    if AOUT_HEADER.unpack_from(overlay_content) != expected_header:
+        raise SystemExit("MIPS overlay a.out header does not match its load segments")
+    if overlay_content[AOUT_HEADER.size :] != expected_payload:
+        raise SystemExit("MIPS overlay a.out payload does not match its load segments")
+    if (
+        expected_header[3]
+        >= alpha_section.size + beta_section.size + shared_section.size
+    ):
+        raise SystemExit("MIPS overlay a.out BSS still sums exclusive applets")
+    for initialized_word in (0x11223344, 0x55667788):
+        if struct.pack("<I", initialized_word) not in expected_payload:
+            raise SystemExit("MIPS overlay discarded independent initialized data")
+
+
+def verify_multicall_object_rejections(
+    arguments: argparse.Namespace,
+    temporary_directory: pathlib.Path,
+    beta_tool_object: pathlib.Path,
+) -> None:
+    common_object = compile_overlay_object(
+        arguments,
+        temporary_directory,
+        "common",
+        OVERLAY_COMMON_SOURCE,
+    )
+    common_tool_object = rename_overlay_bss(
+        arguments, common_object, "common", temporary_directory
+    )
+    common_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            arguments.nm,
+            arguments.readelf,
+            str(common_tool_object),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "contains COMMON storage" not in common_rejection.stderr:
+        raise SystemExit("multicall verifier accepted COMMON storage")
+
+    escaped_object = compile_overlay_object(
+        arguments,
+        temporary_directory,
+        "escaped",
+        OVERLAY_ESCAPED_NOBITS_SOURCE,
+    )
+    escaped_tool_object = rename_overlay_bss(
+        arguments, escaped_object, "escaped", temporary_directory
+    )
+    escaped_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            arguments.nm,
+            arguments.readelf,
+            str(escaped_tool_object),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "zero-initialized storage outside" not in escaped_rejection.stderr:
+        raise SystemExit("multicall verifier accepted escaped NOBITS storage")
+
+    missing_nm_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            str(temporary_directory / "missing-nm"),
+            arguments.readelf,
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "failed for" not in missing_nm_rejection.stderr:
+        raise SystemExit("multicall verifier hid an nm execution failure")
+
+    missing_readelf_rejection = run_command(
+        [
+            "sh",
+            str(arguments.overlay_verifier),
+            arguments.nm,
+            str(temporary_directory / "missing-readelf"),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "failed for" not in missing_readelf_rejection.stderr:
+        raise SystemExit("multicall verifier hid a readelf execution failure")
+
+
 def verify_multicall_bss_overlay(
     arguments: argparse.Namespace, temporary_directory: pathlib.Path
 ) -> None:
@@ -778,6 +1213,20 @@ def verify_multicall_bss_overlay(
     beta_tool_object = rename_overlay_bss(
         arguments, beta_object, "beta", temporary_directory
     )
+    require_clean_command(
+        run_command(
+            [
+                "sh",
+                str(arguments.overlay_verifier),
+                arguments.nm,
+                arguments.readelf,
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "overlay object verification",
+    )
+    verify_multicall_object_rejections(arguments, temporary_directory, beta_tool_object)
     overlay_script = temporary_directory / "multicall-bss-overlay.ld"
     require_clean_command(
         run_command(
@@ -809,6 +1258,14 @@ def verify_multicall_bss_overlay(
         str(beta_tool_object),
     ]
     require_clean_command(run_command(link_command), "overlay link")
+    verify_no_phdr_overlay_link(
+        arguments,
+        temporary_directory,
+        overlay_script,
+        dispatcher_object,
+        alpha_tool_object,
+        beta_tool_object,
+    )
 
     elf_image = parse_elf(overlay_elf)
     alpha_section = section_by_name(elf_image, ".app_bss_alpha")
@@ -821,7 +1278,10 @@ def verify_multicall_bss_overlay(
         raise SystemExit("loadable BSS extent does not cover the applet overlay")
     if extent_section.size != max(alpha_section.size, beta_section.size):
         raise SystemExit("loadable BSS extent is not the largest applet BSS")
-    if shared_section.virtual_address < extent_section.virtual_address + extent_section.size:
+    if (
+        shared_section.virtual_address
+        < extent_section.virtual_address + extent_section.size
+    ):
         raise SystemExit("shared BSS overlaps the applet BSS extent")
 
     overlay_aout = temporary_directory / "multicall-bss-overlay.aout"
@@ -835,7 +1295,10 @@ def verify_multicall_bss_overlay(
         raise SystemExit("overlay a.out header does not match its load segments")
     if overlay_content[AOUT_HEADER.size :] != expected_payload:
         raise SystemExit("overlay a.out payload does not match its load segments")
-    if expected_header[3] >= alpha_section.size + beta_section.size + shared_section.size:
+    if (
+        expected_header[3]
+        >= alpha_section.size + beta_section.size + shared_section.size
+    ):
         raise SystemExit("overlay a.out BSS still sums mutually exclusive applets")
     for initialized_word in (0x11223344, 0x55667788):
         if struct.pack("<I", initialized_word) not in expected_payload:
@@ -931,10 +1394,13 @@ def main() -> int:
             arguments, temporary_directory, elf_paths["text_data_bss"]
         )
         verify_multicall_bss_overlay(arguments, temporary_directory)
+        verify_mips_overlay_link(arguments, temporary_directory)
+        verify_multicall_object_rebuild(arguments, temporary_directory)
 
     print(
         "elf2aout layout: 7 variants, 3 rejection controls, "
-        "shorter overwrite, symbol conversion, and multicall BSS overlay passed"
+        "shorter overwrite, symbol conversion, multicall BSS overlay, "
+        "MIPS production-script overlay, object rejection, and rebuild freshness passed"
     )
     return 0
 

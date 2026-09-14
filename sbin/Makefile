@@ -13,6 +13,12 @@ all:	${SUBDIR}
 ${SUBDIR}: FRC
 	cd $@; ${MAKE} ${MFLAGS} all
 
+# Local multicall members finish before a box recipe cleans and rebuilds their
+# source directories. The dependencies keep inherited -j builds deterministic.
+box: chown
+sysbox: mknod mount umount
+adminbox: reboot shutdown sysctl
+
 FRC:
 
 install: FRC

@@ -20,3 +20,14 @@ clean:
 
 install:	all
 		${INSTALL} ${PROG} ${DESTDIR}${BINDIR}/${PROG}
+
+check-python:
+		@if [ -z "${PYTHON}" ]; then \
+			echo "PYTHON must name the interpreter for sort tests" >&2; \
+			exit 2; \
+		fi
+
+test: check-python
+		"${PYTHON}" tests/run.py --cc "${HOST_CC}" --source "${.CURDIR}/sort.c"
+
+.PHONY: check-python test

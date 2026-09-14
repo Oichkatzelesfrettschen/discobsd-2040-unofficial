@@ -14,8 +14,10 @@ check: check-python
 	"${PYTHON}" "${VERIFIER}" \
 	    --cc "${GCCPREFIX}-gcc" \
 	    --ld "${GCCPREFIX}-ld" \
+	    --objcopy "${GCCPREFIX}-objcopy" \
 	    --linker-script "${TOPSRC}/lib/elf32-arm.ld" \
-	    --elf2aout "${ELF2AOUT}"
+	    --elf2aout "${ELF2AOUT}" \
+	    --overlay-generator "${TOPSRC}/tools/generate_multicall_bss_overlay.sh"
 
 all: check
 

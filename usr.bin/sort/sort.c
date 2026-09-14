@@ -12,10 +12,12 @@
 #define L   1024
 #define N   7
 #define C   20
+#ifndef MEM
 #ifndef pdp11
 #define MEM (32*2048)
 #else
 #define MEM (16*2048)
+#endif
 #endif
 #define NF  10
 
@@ -24,8 +26,7 @@
 FILE    *is, *os;
 char    *dirtry[] = {_PATH_USRTMP, _PATH_TMP, NULL};
 char    **dirs;
-char    file1[30];
-char    *file = file1;
+char    *file;
 char    *filep;
 int nfiles;
 unsigned    nlines;
@@ -40,119 +41,19 @@ int unsafeout;  /*kludge to assure -m -o works*/
 char    tabchar;
 int     eargc;
 char    **eargv;
+#ifdef SORT_HOST_TEST
+static char sort_host_arena[MEM];
+#endif
 
-char zero[256];
+#define CODE_IDENTITY 0
+#define CODE_FOLD     1
 
-char    fold[256] = {
-    0200,0201,0202,0203,0204,0205,0206,0207,
-    0210,0211,0212,0213,0214,0215,0216,0217,
-    0220,0221,0222,0223,0224,0225,0226,0227,
-    0230,0231,0232,0233,0234,0235,0236,0237,
-    0240,0241,0242,0243,0244,0245,0246,0247,
-    0250,0251,0252,0253,0254,0255,0256,0257,
-    0260,0261,0262,0263,0264,0265,0266,0267,
-    0270,0271,0272,0273,0274,0275,0276,0277,
-    0300,0301,0302,0303,0304,0305,0306,0307,
-    0310,0311,0312,0313,0314,0315,0316,0317,
-    0320,0321,0322,0323,0324,0325,0326,0327,
-    0330,0331,0332,0333,0334,0335,0336,0337,
-    0340,0341,0342,0343,0344,0345,0346,0347,
-    0350,0351,0352,0353,0354,0355,0356,0357,
-    0360,0361,0362,0363,0364,0365,0366,0367,
-    0370,0371,0372,0373,0374,0375,0376,0377,
-    0000,0001,0002,0003,0004,0005,0006,0007,
-    0010,0011,0012,0013,0014,0015,0016,0017,
-    0020,0021,0022,0023,0024,0025,0026,0027,
-    0030,0031,0032,0033,0034,0035,0036,0037,
-    0040,0041,0042,0043,0044,0045,0046,0047,
-    0050,0051,0052,0053,0054,0055,0056,0057,
-    0060,0061,0062,0063,0064,0065,0066,0067,
-    0070,0071,0072,0073,0074,0075,0076,0077,
-    0100,0101,0102,0103,0104,0105,0106,0107,
-    0110,0111,0112,0113,0114,0115,0116,0117,
-    0120,0121,0122,0123,0124,0125,0126,0127,
-    0130,0131,0132,0133,0134,0135,0136,0137,
-    0140,0101,0102,0103,0104,0105,0106,0107,
-    0110,0111,0112,0113,0114,0115,0116,0117,
-    0120,0121,0122,0123,0124,0125,0126,0127,
-    0130,0131,0132,0173,0174,0175,0176,0177
-};
-char nofold[256] = {
-    0200,0201,0202,0203,0204,0205,0206,0207,
-    0210,0211,0212,0213,0214,0215,0216,0217,
-    0220,0221,0222,0223,0224,0225,0226,0227,
-    0230,0231,0232,0233,0234,0235,0236,0237,
-    0240,0241,0242,0243,0244,0245,0246,0247,
-    0250,0251,0252,0253,0254,0255,0256,0257,
-    0260,0261,0262,0263,0264,0265,0266,0267,
-    0270,0271,0272,0273,0274,0275,0276,0277,
-    0300,0301,0302,0303,0304,0305,0306,0307,
-    0310,0311,0312,0313,0314,0315,0316,0317,
-    0320,0321,0322,0323,0324,0325,0326,0327,
-    0330,0331,0332,0333,0334,0335,0336,0337,
-    0340,0341,0342,0343,0344,0345,0346,0347,
-    0350,0351,0352,0353,0354,0355,0356,0357,
-    0360,0361,0362,0363,0364,0365,0366,0367,
-    0370,0371,0372,0373,0374,0375,0376,0377,
-    0000,0001,0002,0003,0004,0005,0006,0007,
-    0010,0011,0012,0013,0014,0015,0016,0017,
-    0020,0021,0022,0023,0024,0025,0026,0027,
-    0030,0031,0032,0033,0034,0035,0036,0037,
-    0040,0041,0042,0043,0044,0045,0046,0047,
-    0050,0051,0052,0053,0054,0055,0056,0057,
-    0060,0061,0062,0063,0064,0065,0066,0067,
-    0070,0071,0072,0073,0074,0075,0076,0077,
-    0100,0101,0102,0103,0104,0105,0106,0107,
-    0110,0111,0112,0113,0114,0115,0116,0117,
-    0120,0121,0122,0123,0124,0125,0126,0127,
-    0130,0131,0132,0133,0134,0135,0136,0137,
-    0140,0141,0142,0143,0144,0145,0146,0147,
-    0150,0151,0152,0153,0154,0155,0156,0157,
-    0160,0161,0162,0163,0164,0165,0166,0167,
-    0170,0171,0172,0173,0174,0175,0176,0177
-};
-
-char    nonprint[256] = {
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
-};
-
-char    dict[256] = {
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,
-    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1
-};
-
+#define IGNORE_NONE       0
+#define IGNORE_NONPRINT   1
+#define IGNORE_DICTIONARY 2
 struct  field {
-    char *code;
-    char *ignore;
+    unsigned char code;
+    unsigned char ignore;
     int nflg;
     int rflg;
     int bflg[2];
@@ -160,8 +61,8 @@ struct  field {
     int n[2];
 }   fields[NF];
 struct field proto = {
-    nofold+128,
-    zero+128,
+    CODE_IDENTITY,
+    IGNORE_NONE,
     0,
     1,
     0,0,
@@ -173,6 +74,9 @@ int     error = 1;
 char    *setfil();
 
 #define blank(c)    ((c) == ' ' || (c) == '\t')
+
+static int sort_code(unsigned char, unsigned char);
+static int sort_ignored(unsigned char, unsigned char);
 
 void     sort();
 void     merge(int, int);
@@ -201,11 +105,14 @@ int argc;
 char **argv;
 {
     register int a;
+#ifndef SORT_HOST_TEST
     extern char end[1];
+#endif
     char *ep;
     char *arg;
     struct field *p, *q;
     int i;
+    size_t file_capacity;
 
     copyproto();
     eargv = argv;
@@ -265,6 +172,10 @@ char **argv;
     }
     safeoutfil();
 
+#ifdef SORT_HOST_TEST
+    lspace = (int *)sort_host_arena;
+    ep = (char *)lspace + MEM;
+#else
     ep = end + MEM;
     lspace = (int *)sbrk(0);
     while((int)brk(ep) == -1)
@@ -272,19 +183,29 @@ char **argv;
 #ifndef vax
     brk(ep -= 512); /* for recursion */
 #endif
+#endif
     a = ep - (char*)lspace;
     nlines = (a-L);
-    nlines /= (5*(sizeof(char *)/sizeof(char)));
-    ntext = nlines * 4 * (sizeof(char *)/sizeof(char));
-    tspace = (char *)(lspace + nlines);
+    nlines /= 5 * sizeof(char *);
+    ntext = nlines * 4 * sizeof(char *);
+    tspace = (char *)((char **)lspace + nlines);
     a = -1;
     for(dirs=dirtry; *dirs; dirs++) {
-        sprintf(filep=file1, "%s/stm%05uaa", *dirs, getpid());
+        file_capacity = strlen(*dirs) + 26;
+        file = malloc(file_capacity);
+        if(file == NULL) {
+            diag("can't allocate temp name", "");
+            exit(1);
+        }
+        sprintf(file, "%s/stm%05u.", *dirs, (unsigned)getpid());
+        filep = file;
         while (*filep)
             filep++;
-        filep -= 2;
+        strcpy(filep, "probe");
         if ( (a=creat(file, 0600)) >=0)
             break;
+        free(file);
+        file = NULL;
     }
     if(a < 0) {
         diag("can't locate temp","");
@@ -397,7 +318,7 @@ struct merg
 {
     char    l[L];
     FILE    *b;
-} *ibuf[256];
+} *ibuf[N];
 
 void
 merge(a,b)
@@ -533,8 +454,7 @@ int i;
         else
             return(eargv[i]);
     i -= eargc;
-    filep[0] = i/26 + 'a';
-    filep[1] = i%26 + 'a';
+    sprintf(filep, "%u", (unsigned)i);
     return(file);
 }
 
@@ -604,13 +524,39 @@ int sig;
     _exit(error);
 }
 
+/*
+ * The V7 tables indexed signed bytes through a pointer to element 128.
+ * ARM uses unsigned char, so direct indexing could read beyond each table.
+ * Explicit unsigned predicates also define -d and -i for every input byte.
+ */
+static int
+sort_code(unsigned char code_kind, unsigned char input_byte)
+{
+    if(code_kind == CODE_FOLD && input_byte >= 'a' && input_byte <= 'z')
+        return(input_byte - 'a' + 'A');
+    return(input_byte);
+}
+
+static int
+sort_ignored(unsigned char ignore_kind, unsigned char input_byte)
+{
+    if(ignore_kind == IGNORE_NONE)
+        return(0);
+    if(ignore_kind == IGNORE_NONPRINT)
+        return(input_byte < ' ' || input_byte > '~');
+    return(!(input_byte == '\t' || input_byte == ' ' ||
+        (input_byte >= '0' && input_byte <= '9') ||
+        (input_byte >= 'A' && input_byte <= 'Z') ||
+        (input_byte >= 'a' && input_byte <= 'z')));
+}
+
 int
 cmp(i, j)
 char *i, *j;
 {
     register char *pa, *pb;
     char *skip();
-    char *code, *ignore;
+    unsigned char code, ignore;
     int a, b;
     int k;
     char *la, *lb;
@@ -688,9 +634,9 @@ char *i, *j;
         code = fp->code;
         ignore = fp->ignore;
 loop:
-        while(ignore[*pa])
+        while(pa < la && sort_ignored(ignore, (unsigned char)*pa))
             pa++;
-        while(ignore[*pb])
+        while(pb < lb && sort_ignored(ignore, (unsigned char)*pb))
             pb++;
         if(pa>=la || *pa=='\n')
             if(pb<lb && *pb!='\n')
@@ -698,7 +644,8 @@ loop:
             else continue;
         if(pb>=lb || *pb=='\n')
             return(-fp->rflg);
-        if((sa = code[*pb++]-code[*pa++]) == 0)
+        if((sa = sort_code(code, (unsigned char)*pb++) -
+            sort_code(code, (unsigned char)*pa++)) == 0)
             goto loop;
         return(sa*fp->rflg);
     }
@@ -719,7 +666,7 @@ register char *pa, *pb;
     return(
         *pa == '\n' ? fields[0].rflg:
         *pb == '\n' ?-fields[0].rflg:
-        *pb > *pa   ? fields[0].rflg:
+        (unsigned char)*pb > (unsigned char)*pa ? fields[0].rflg:
         -fields[0].rflg
     );
 }
@@ -777,13 +724,7 @@ register char *p;
 void
 copyproto()
 {
-    register int i;
-    register int *p, *q;
-
-    p = (int *)&proto;
-    q = (int *)&fields[nfields];
-    for(i=0; i<sizeof(proto)/sizeof(*p); i++)
-        *q++ = *p++;
+    fields[nfields] = proto;
 }
 
 void
@@ -805,14 +746,14 @@ int k;
             break;
 
         case 'd':
-            p->ignore = dict+128;
+            p->ignore = IGNORE_DICTIONARY;
             break;
 
         case 'f':
-            p->code = fold+128;
+            p->code = CODE_FOLD;
             break;
         case 'i':
-            p->ignore = nonprint+128;
+            p->ignore = IGNORE_NONPRINT;
             break;
 
         case 'c':

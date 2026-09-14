@@ -430,7 +430,8 @@ usage:                  fprintf(stderr,
                          !strcmp(name, ".lit4") || !strcmp(name, ".lit8"))
                         symTypeTable[i] = N_DATA;
 
-                else if (!strcmp(name, ".bss") || !strcmp(name, ".sbss"))
+                else if (!strcmp(name, ".bss") || !strcmp(name, ".sbss") ||
+                         !strncmp(name, ".app_bss_", 9))
                         symTypeTable[i] = N_BSS;
 	}
 

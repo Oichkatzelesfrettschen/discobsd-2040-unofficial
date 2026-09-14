@@ -1,5 +1,10 @@
 # A fourth and fifth multicall box: utilbox and adminbox
 
+The original selection and collision analysis remains below. The current
+packed-root layout, sort admission, and mutable-image measurements live in
+`multicall-bss-overlay.md`; those measurements supersede the pre-overlay size
+and memory discussion in this document.
+
 `sbin/utilbox` links 19 usr.bin tools into one a.out of 51,125 bytes
 (text 50,004 + data 1,089 + a.out header), built the same way as
 `sbin/box`, `sbin/sysbox` and `sbin/textbox`: each tool builds in its

@@ -25,6 +25,8 @@ SHF_ALLOC = 2
 SHF_EXECINSTR = 4
 SHT_NOBITS = 8
 OMAGIC = 0o407
+N_BSS = 0x04
+N_EXT = 0x20
 
 
 ASSEMBLY_SOURCE = r"""
@@ -93,6 +95,84 @@ SECTIONS
 """
 
 
+OVERLAY_DISPATCHER_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.startup,"ax",%progbits
+	.global _start
+	.type _start,%function
+	.thumb_func
+_start:
+	bx	lr
+
+	.section .bss.shared,"aw",%nobits
+	.balign 4
+	.global shared_canary
+shared_canary:
+	.space 20
+"""
+
+
+OVERLAY_ALPHA_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.alpha,"ax",%progbits
+	.global alpha_main
+	.type alpha_main,%function
+	.thumb_func
+alpha_main:
+	ldr	r0, =alpha_canary
+	bx	lr
+
+	.section .data.alpha,"aw",%progbits
+	.global alpha_seed
+alpha_seed:
+	.word 0x11223344
+
+	.section .bss,"aw",%nobits
+	.balign 4
+	.global alpha_canary
+alpha_canary:
+	.space 64
+"""
+
+
+OVERLAY_BETA_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .text.beta,"ax",%progbits
+	.global beta_main
+	.type beta_main,%function
+	.thumb_func
+beta_main:
+	ldr	r0, =beta_canary
+	bx	lr
+
+	.section .data.beta,"aw",%progbits
+	.global beta_seed
+beta_seed:
+	.word 0x55667788
+
+	.section .bss,"aw",%nobits
+	.balign 8
+	.global beta_canary
+beta_canary:
+	.space 112
+"""
+
+
+OVERLAY_CROSS_REFERENCE_SOURCE = r"""
+	.syntax unified
+	.thumb
+	.section .bss,"aw",%nobits
+	.balign 4
+	.global alpha_canary
+alpha_canary:
+	.reloc alpha_canary, R_ARM_ABS32, beta_canary
+	.space 64
+"""
+
+
 @dataclasses.dataclass(frozen=True)
 class LayoutVariant:
     name: str
@@ -150,8 +230,10 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cc", required=True)
     parser.add_argument("--ld", required=True)
+    parser.add_argument("--objcopy", required=True)
     parser.add_argument("--linker-script", type=pathlib.Path, required=True)
     parser.add_argument("--elf2aout", type=pathlib.Path, required=True)
+    parser.add_argument("--overlay-generator", type=pathlib.Path, required=True)
     return parser.parse_args()
 
 
@@ -589,6 +671,239 @@ def verify_symbol_conversion(
             raise SystemExit("symbol name is unterminated or lacks its ABI prefix")
 
 
+def compile_overlay_object(
+    arguments: argparse.Namespace,
+    temporary_directory: pathlib.Path,
+    object_name: str,
+    source: str,
+) -> pathlib.Path:
+    source_path = temporary_directory / f"{object_name}.S"
+    object_path = temporary_directory / f"{object_name}.o"
+    source_path.write_text(source, encoding="ascii")
+    require_clean_command(
+        run_command(
+            [
+                arguments.cc,
+                "-x",
+                "assembler",
+                "-mcpu=cortex-m0plus",
+                "-mthumb",
+                "-mfloat-abi=soft",
+                "-Wa,--fatal-warnings",
+                "-c",
+                str(source_path),
+                "-o",
+                str(object_path),
+            ]
+        ),
+        f"{object_name} overlay compile",
+    )
+    return object_path
+
+
+def rename_overlay_bss(
+    arguments: argparse.Namespace,
+    source_path: pathlib.Path,
+    applet_name: str,
+    destination_directory: pathlib.Path,
+) -> pathlib.Path:
+    destination_path = destination_directory / f"{applet_name}.tool.o"
+    require_clean_command(
+        run_command(
+            [
+                arguments.objcopy,
+                "--rename-section",
+                f".bss=.app_bss_{applet_name}",
+                str(source_path),
+                str(destination_path),
+            ]
+        ),
+        f"{applet_name} BSS rename",
+    )
+    return destination_path
+
+
+def section_by_name(elf_image: ElfImage, section_name: str) -> SectionHeader:
+    matching_sections = [
+        section for section in elf_image.section_headers if section.name == section_name
+    ]
+    if len(matching_sections) != 1:
+        raise SystemExit(
+            f"expected one {section_name} section, found {len(matching_sections)}"
+        )
+    return matching_sections[0]
+
+
+def read_aout_symbol_types(symbol_path: pathlib.Path) -> dict[str, int]:
+    content = symbol_path.read_bytes()
+    header = AOUT_HEADER.unpack_from(content)
+    symbol_bytes = header[6]
+    native_nlist_size = struct.calcsize("@PBBI")
+    type_offset = struct.calcsize("@P")
+    string_table_offset = AOUT_HEADER.size + symbol_bytes
+    string_table_size = struct.unpack_from("<I", content, string_table_offset)[0]
+    string_table_end = string_table_offset + 4 + string_table_size
+    symbol_types: dict[str, int] = {}
+    for symbol_offset in range(
+        AOUT_HEADER.size, string_table_offset, native_nlist_size
+    ):
+        string_index = struct.unpack_from("<I", content, symbol_offset)[0]
+        name_offset = string_table_offset + string_index
+        name_end = content.find(b"\0", name_offset, string_table_end)
+        if name_end < 0:
+            raise SystemExit("overlay symbol has an unterminated name")
+        symbol_name = content[name_offset:name_end].decode("ascii")
+        symbol_types[symbol_name] = content[symbol_offset + type_offset]
+    return symbol_types
+
+
+def verify_multicall_bss_overlay(
+    arguments: argparse.Namespace, temporary_directory: pathlib.Path
+) -> None:
+    dispatcher_object = compile_overlay_object(
+        arguments,
+        temporary_directory,
+        "dispatcher",
+        OVERLAY_DISPATCHER_SOURCE,
+    )
+    alpha_object = compile_overlay_object(
+        arguments, temporary_directory, "alpha", OVERLAY_ALPHA_SOURCE
+    )
+    beta_object = compile_overlay_object(
+        arguments, temporary_directory, "beta", OVERLAY_BETA_SOURCE
+    )
+    alpha_tool_object = rename_overlay_bss(
+        arguments, alpha_object, "alpha", temporary_directory
+    )
+    beta_tool_object = rename_overlay_bss(
+        arguments, beta_object, "beta", temporary_directory
+    )
+    overlay_script = temporary_directory / "multicall-bss-overlay.ld"
+    require_clean_command(
+        run_command(
+            [
+                "sh",
+                str(arguments.overlay_generator),
+                str(overlay_script),
+                str(alpha_tool_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "overlay script generation",
+    )
+
+    overlay_elf = temporary_directory / "multicall-bss-overlay.elf"
+    link_command = [
+        arguments.ld,
+        "-n",
+        "--warn-rwx-segments",
+        "--fatal-warnings",
+        "-T",
+        str(overlay_script),
+        "-T",
+        str(arguments.linker_script),
+        "-o",
+        str(overlay_elf),
+        str(dispatcher_object),
+        str(alpha_tool_object),
+        str(beta_tool_object),
+    ]
+    require_clean_command(run_command(link_command), "overlay link")
+
+    elf_image = parse_elf(overlay_elf)
+    alpha_section = section_by_name(elf_image, ".app_bss_alpha")
+    beta_section = section_by_name(elf_image, ".app_bss_beta")
+    extent_section = section_by_name(elf_image, ".app_bss_extent")
+    shared_section = section_by_name(elf_image, ".bss")
+    if alpha_section.virtual_address != beta_section.virtual_address:
+        raise SystemExit("applet BSS sections do not share one virtual address")
+    if extent_section.virtual_address != alpha_section.virtual_address:
+        raise SystemExit("loadable BSS extent does not cover the applet overlay")
+    if extent_section.size != max(alpha_section.size, beta_section.size):
+        raise SystemExit("loadable BSS extent is not the largest applet BSS")
+    if shared_section.virtual_address < extent_section.virtual_address + extent_section.size:
+        raise SystemExit("shared BSS overlaps the applet BSS extent")
+
+    overlay_aout = temporary_directory / "multicall-bss-overlay.aout"
+    require_clean_command(
+        run_command([str(arguments.elf2aout), str(overlay_elf), str(overlay_aout)]),
+        "overlay conversion",
+    )
+    expected_header, expected_payload = expected_aout_image(elf_image)
+    overlay_content = overlay_aout.read_bytes()
+    if AOUT_HEADER.unpack_from(overlay_content) != expected_header:
+        raise SystemExit("overlay a.out header does not match its load segments")
+    if overlay_content[AOUT_HEADER.size :] != expected_payload:
+        raise SystemExit("overlay a.out payload does not match its load segments")
+    if expected_header[3] >= alpha_section.size + beta_section.size + shared_section.size:
+        raise SystemExit("overlay a.out BSS still sums mutually exclusive applets")
+    for initialized_word in (0x11223344, 0x55667788):
+        if struct.pack("<I", initialized_word) not in expected_payload:
+            raise SystemExit("overlay discarded independent initialized data")
+
+    overlay_symbols = temporary_directory / "multicall-bss-overlay-symbols.aout"
+    require_clean_command(
+        run_command(
+            [
+                str(arguments.elf2aout),
+                "-s",
+                str(overlay_elf),
+                str(overlay_symbols),
+            ]
+        ),
+        "overlay symbol conversion",
+    )
+    symbol_types = read_aout_symbol_types(overlay_symbols)
+    for symbol_name in ("_alpha_canary", "_beta_canary"):
+        if symbol_types.get(symbol_name) != N_BSS | N_EXT:
+            raise SystemExit(f"{symbol_name} did not convert to external N_BSS")
+
+    negative_directory = temporary_directory / "negative"
+    negative_directory.mkdir()
+    cross_reference_object = compile_overlay_object(
+        arguments,
+        negative_directory,
+        "alpha-cross-reference",
+        OVERLAY_CROSS_REFERENCE_SOURCE,
+    )
+    negative_alpha_object = rename_overlay_bss(
+        arguments, cross_reference_object, "alpha", negative_directory
+    )
+    negative_script = negative_directory / "multicall-bss-overlay.ld"
+    require_clean_command(
+        run_command(
+            [
+                "sh",
+                str(arguments.overlay_generator),
+                str(negative_script),
+                str(negative_alpha_object),
+                str(beta_tool_object),
+            ]
+        ),
+        "cross-reference script generation",
+    )
+    rejected_link = run_command(
+        [
+            arguments.ld,
+            "-n",
+            "--warn-rwx-segments",
+            "--fatal-warnings",
+            "-T",
+            str(negative_script),
+            "-T",
+            str(arguments.linker_script),
+            "-o",
+            str(negative_directory / "cross-reference.elf"),
+            str(dispatcher_object),
+            str(negative_alpha_object),
+            str(beta_tool_object),
+        ],
+        expected_status=1,
+    )
+    if "prohibited cross reference" not in rejected_link.stderr:
+        raise SystemExit("NOCROSSREFS did not reject an applet BSS reference")
+
+
 def main() -> int:
     arguments = parse_arguments()
     with tempfile.TemporaryDirectory(prefix="elf2aout-layout-") as directory_name:
@@ -615,10 +930,11 @@ def main() -> int:
         verify_symbol_conversion(
             arguments, temporary_directory, elf_paths["text_data_bss"]
         )
+        verify_multicall_bss_overlay(arguments, temporary_directory)
 
     print(
         "elf2aout layout: 7 variants, 3 rejection controls, "
-        "shorter overwrite, and symbol conversion passed"
+        "shorter overwrite, symbol conversion, and multicall BSS overlay passed"
     )
     return 0
 

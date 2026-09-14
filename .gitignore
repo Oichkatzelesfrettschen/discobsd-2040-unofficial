@@ -24,6 +24,7 @@
 *.dis
 *.0
 *.img
+multicall-bss-overlay.ld
 
 Makefile.user
 tools/renode/vendor/

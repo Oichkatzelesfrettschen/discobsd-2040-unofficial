@@ -34,6 +34,7 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		textbox
 
 all:		${PROG}
+include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 
 # Localize a tool: relocatable link of its objects, main renamed to
 # <tool>_main and kept as the only global definition.
@@ -44,6 +45,7 @@ $t.tool.o:
 	${MAKE} -C $$d MACHINE=${MACHINE} all >/dev/null; \
 	${LD} -r -o $@.r $$(ls $$d/*.o | grep -v '\.tool\.o$$'); \
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@; \
+	${OBJCOPY} --rename-section .bss=.app_bss_$t $@; \
 	rm -f $@.r
 .endfor
 
@@ -55,8 +57,8 @@ textbox.c:	textbox.c.in Makefile
 		table="$$table\n\t{ \"$${a%%:*}\", $${a#*:}_main },"; done; \
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" textbox.c.in > $@
 
-${PROG}:	textbox.o ${OBJS}
-	${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf textbox.o ${OBJS} ${LIBS}
+${PROG}:	textbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf textbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

@@ -1,0 +1,20 @@
+.TH USERS 1 "September 13, 2026"
+.SH NAME
+users \- list login-session names
+.SH SYNOPSIS
+.B users
+.RI [ file ]
+.SH DESCRIPTION
+The
+.B users
+utility reads
+.B utmp
+records from
+.B /var/run/utmp
+or the named file, removes duplicate nonempty names, sorts the names, and
+writes one space-separated line.
+.PP
+The utility stores at most
+.B NPROC
+distinct names.  A larger or partial input is rejected, so malformed files
+cannot grow resident memory.

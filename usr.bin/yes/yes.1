@@ -1,0 +1,19 @@
+.TH YES 1 "September 13, 2026"
+.SH NAME
+yes \- repeat arguments until output fails
+.SH SYNOPSIS
+.B yes
+.RI [ string ...]
+.SH DESCRIPTION
+The
+.B yes
+utility repeatedly writes its arguments separated by spaces and followed by a
+newline.  With zero arguments,
+.B yes
+writes
+.BR y .
+.PP
+The utility reports a surfaced write failure and exits with status 1.  A
+default
+.B SIGPIPE
+action can terminate the process before the write call returns an error.

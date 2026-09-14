@@ -1,0 +1,23 @@
+.TH GETOPT 1 "September 13, 2026"
+.SH NAME
+getopt \- parse short command options
+.SH SYNOPSIS
+.B getopt
+.I optstring
+.RI [ parameters ...]
+.SH DESCRIPTION
+The
+.B getopt
+utility parses traditional single-letter options according to
+.IR optstring .
+A letter followed by a colon requires an argument.  The utility writes parsed
+options, then
+.BR -- ,
+then the remaining operands.
+.PP
+The output follows the historical compatibility interface and does not add
+shell quoting.  Callers must keep arguments containing shell metacharacters or
+white space out of a command substitution that re-evaluates the output.
+.PP
+The utility exits with status 1 after an unknown option, a missing argument,
+an output failure, or invalid invocation.

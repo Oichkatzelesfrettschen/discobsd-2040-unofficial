@@ -1,0 +1,25 @@
+.TH STRINGS 1 "September 13, 2026"
+.SH NAME
+strings \- find bounded ASCII runs in files
+.SH SYNOPSIS
+.B strings
+.RB [ \-a ]
+.RB [ \-n
+.IR length ]
+.RI [ file ...]
+.SH DESCRIPTION
+The
+.B strings
+utility writes runs of printable ASCII bytes.  The default minimum length is
+four.  The accepted
+.I length
+range is 1 through 255, which bounds the pending-run buffer independently of
+input size.
+.PP
+For an unpacked OMAGIC executable, the default scan covers text and initialized
+data and excludes the header and trailing tables.  A packed executable stores
+compressed bytes rather than the expanded program image, so the default scan
+rejects it.  The
+.B \-a
+option scans every container byte of any input, including a packed executable;
+it does not decompress the image.

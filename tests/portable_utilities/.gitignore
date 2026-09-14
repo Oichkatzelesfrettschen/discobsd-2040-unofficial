@@ -1,0 +1,14 @@
+fixture_writer
+getopt_host
+packed.aout
+raw-truncated.aout
+raw.aout
+regular.bin
+strings_host
+strings_stream_test
+strings_output_error_test
+users-overflow.utmp
+users.utmp
+users_host
+yes_error_test
+yes_host

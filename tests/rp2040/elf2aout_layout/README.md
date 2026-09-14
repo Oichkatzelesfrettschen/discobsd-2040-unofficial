@@ -13,7 +13,8 @@ sizes and unsupported program headers to fail before changing the output, and
 an overwrite with a shorter conversion to remove the complete old tail.
 Symbol-mode validation checks every translated name against the initialized
 string-table extent, including ELF symbols that share one source name offset.
-The MIPS gate checks shared applet VMAs, maximum private BSS extent, separation
+The MIPS gate forces a small-data `.sbss` input and checks its absorption into
+the private overlay, shared applet VMAs, maximum private BSS extent, separation
 from shared BSS, initialized-data retention, and the exact a.out header and
 payload. `MIPS_GCCPREFIX` defaults to `mipsel-elf` and can name another GNU
 little-endian MIPS cross-tool prefix.

@@ -17,6 +17,9 @@ all:		${PROG} ${MAN}
 
 check:		${PROG}
 		sh ./mkmakefile_test.sh ${.CURDIR}/${PROG} ${TOPSRC}
+		rm -f y.tab.h
+		${MAKE} y.tab.h
+		test -f y.tab.c && test -f y.tab.h
 
 install:	all
 		${INSTALL} ${PROG} ${TOOLBINDIR}/${PROG}
@@ -34,6 +37,7 @@ y.tab.c:	config.y
 		${YACC} -d config.y
 
 y.tab.h:	y.tab.c
+		test -f $@ || ${YACC} -d config.y
 		test -f $@
 
 config.o:	y.tab.c y.tab.h

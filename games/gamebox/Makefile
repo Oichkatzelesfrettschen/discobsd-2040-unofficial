@@ -29,7 +29,8 @@ $t.tool.o:
 	    COPTS="${MULTICALL_APPLET_COPTS}" $t.o >/dev/null
 	${LD} -r -o $@.r ${TOPSRC}/games/$t/$t.o
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@
-	${OBJCOPY} --rename-section .bss=.app_bss_$t $@
+	${OBJCOPY} --rename-section .bss=.app_bss_$t \
+	    --rename-section .sbss=.app_bss_$t $@
 	rm -f $@.r
 .endfor
 

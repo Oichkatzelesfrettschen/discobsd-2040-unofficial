@@ -46,7 +46,8 @@ $t.tool.o:
 	${MAKE} -C $$d MACHINE=${MACHINE} COPTS="${MULTICALL_APPLET_COPTS}" all >/dev/null; \
 	${LD} -r -o $@.r $$(ls $$d/*.o | grep -v '\.tool\.o$$'); \
 	${OBJCOPY} --redefine-sym main=$t_main --keep-global-symbol=$t_main $@.r $@; \
-	${OBJCOPY} --rename-section .bss=.app_bss_$t $@; \
+	${OBJCOPY} --rename-section .bss=.app_bss_$t \
+	    --rename-section .sbss=.app_bss_$t $@; \
 	rm -f $@.r
 .endfor
 

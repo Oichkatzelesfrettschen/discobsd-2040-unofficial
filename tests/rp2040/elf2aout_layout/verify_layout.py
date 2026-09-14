@@ -235,11 +235,13 @@ unsigned char shared_canary[20];
 MIPS_OVERLAY_ALPHA_SOURCE = r"""
 unsigned int alpha_seed = 0x11223344;
 unsigned char alpha_canary[64];
+unsigned int alpha_small_canary;
 
 void
 alpha_main(void)
 {
 	alpha_canary[0] = (unsigned char)alpha_seed;
+	alpha_small_canary = alpha_seed;
 }
 """
 
@@ -368,7 +370,7 @@ def parse_elf(elf_path: pathlib.Path) -> ElfImage:
     section_header_size = header_fields[11]
     section_header_count = header_fields[12]
     section_name_index = header_fields[13]
-    if program_header_size != PROGRAM_HEADER.size:
+    if program_header_count > 0 and program_header_size != PROGRAM_HEADER.size:
         raise SystemExit(f"unexpected program-header size: {program_header_size}")
     if section_header_size != SECTION_HEADER.size:
         raise SystemExit(f"unexpected section-header size: {section_header_size}")
@@ -836,7 +838,7 @@ def compile_mips_overlay_object(
                 "-ffreestanding",
                 "-fno-pic",
                 "-mno-abicalls",
-                "-G0",
+                "-G8",
                 "-Os",
                 "-fno-common",
                 "-Wall",
@@ -866,6 +868,8 @@ def rename_mips_overlay_bss(
                 arguments.mips_objcopy,
                 "--rename-section",
                 f".bss=.app_bss_{applet_name}",
+                "--rename-section",
+                f".sbss=.app_bss_{applet_name}",
                 str(source_path),
                 str(destination_path),
             ]
@@ -1007,6 +1011,9 @@ def verify_mips_overlay_link(
     beta_object = compile_mips_overlay_object(
         arguments, mips_directory, "beta", MIPS_OVERLAY_BETA_SOURCE
     )
+    small_bss_section = section_by_name(parse_elf(alpha_object), ".sbss")
+    if small_bss_section.section_type != SHT_NOBITS or small_bss_section.size < 4:
+        raise SystemExit("MIPS fixture did not create small zero-initialized storage")
     alpha_tool_object = rename_mips_overlay_bss(
         arguments, alpha_object, "alpha", mips_directory
     )

@@ -43,10 +43,11 @@ PAGE = f"""<!doctype html><html><head><meta charset=utf-8>
 #k{{position:fixed;bottom:0;left:0;right:0;display:block;background:#111;padding:4px;z-index:9}}
 #k button.on{{background:#6a6;color:#000}}
 #k .g{{color:#888;font:12px monospace;margin:0 4px 0 8px}}
+#h{{display:none;position:fixed;left:8px;right:8px;bottom:56px;background:#222;color:#ddd;font:14px monospace;padding:8px;border:1px solid #555;z-index:10}}
 #k button{{font:16px monospace;color:#ddd;background:#333;border:1px solid #555;margin:2px;padding:6px 10px}}
 </style></head><body>
 <div id=s>connecting</div><div id=t></div>
-<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g>V6</span><button data-k="&#127;" title="V6 interrupt (DEL)">DEL</button><button data-k="&#28;" title="V6 quit (Ctrl-backslash)">^&#92;</button><button data-k="&#31;" title="leave the V6 emulator (Ctrl-underscore)">^_ exit V6</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="close the console session so another can connect">Disconnect</button><button id=hide>hide</button></div>
+<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g>V6</span><button data-k="&#127;" title="V6 interrupt: DEL">DEL intr</button><button data-k="#" title="V6 erase one character: #"># erase</button><button data-k="@" title="V6 erase the line: @">@ kill</button><button data-k="&#28;" title="V6 quit: Ctrl-backslash">^&#92; quit</button><button data-k="&#31;" title="leave the V6 emulator: Ctrl-underscore">^_ exit V6</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, leave V6 if inside it, sync, log out of DiscoBSD, then close the session">Sync &amp; leave</button><button id=help>keys</button><button id=hide>hide</button></div><div id=h><b>DiscoBSD</b> ($ or # prompt, whoami works): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>V6</b> (# prompt, whoami not found, dates in 1970): DEL interrupt (Backspace sends DEL), # erase, @ kill line, Ctrl-D log out, Ctrl-&#92; quit. Ctrl-C, Ctrl-U and arrows do nothing.<br><b>Leave</b>: in V6 type sync then press ^_ exit V6 (or type ~. at a line start); in DiscoBSD type exit to reach login:. Sync &amp; leave does all of that and closes the session. Unplug only after sync.</div>
 <script src="{XTERM}"></script>
 <script>
 var term=new Terminal({{cols:80,rows:24,fontFamily:"monospace",fontSize:14,
@@ -81,7 +82,7 @@ var ws=new WebSocket(proto+"://"+location.host+"/ws"+location.search);
 ws.binaryType="arraybuffer";
 ws.onopen=function(){{stat.textContent="connected";grab();}};
 var byebye=false;
-ws.onclose=function(){{stat.textContent=byebye?"disconnected -- reload to reconnect":"disconnected -- reload to retry";}};
+ws.onclose=function(){{stat.textContent=byebye?"left cleanly -- reload to reconnect":"disconnected -- reload to retry";}};
 ws.onmessage=function(e){{
  var d=typeof e.data==="string"?e.data:
   new TextDecoder("latin1").decode(new Uint8Array(e.data));
@@ -106,11 +107,25 @@ ctl.addEventListener("click",function(e){{e.preventDefault();ctrlArmed=!ctrlArme
 document.getElementById("paste").addEventListener("click",function(e){{e.preventDefault();
  if(navigator.clipboard&&navigator.clipboard.readText){{navigator.clipboard.readText().then(function(t){{sendkeys(t);grab();}});}}
  else{{var t=window.prompt("Paste text to send:");if(t!==null)sendkeys(t);grab();}}}});
-// Disconnect closes the socket on purpose: the server frees the console
-// for the next session and the page says so, instead of a closed tab
-// leaving the server to notice a dead socket.
+// Sync & leave types the clean exit from either system, since the page
+// cannot tell which one has the console: sync (both systems), Ctrl-_
+// (leaves V6, nothing in DiscoBSD), sync again (now DiscoBSD if we were
+// in V6), exit (back to login:), then closes the socket so the server
+// frees the console for the next session. It assumes a shell prompt.
+var leaving=false;
+function later(f,ms){{return new Promise(function(r){{setTimeout(function(){{f();r();}},ms);}});}}
 document.getElementById("bye").addEventListener("click",function(e){{e.preventDefault();
- byebye=true;try{{ws.close();}}catch(x){{}}}});
+ if(leaving)return;leaving=true;stat.textContent="syncing and leaving";
+ later(function(){{sendkeys("\\r");}},0)
+ .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
+ .then(function(){{return later(function(){{sendkeys("\\x1f");}},2500);}})
+ .then(function(){{return later(function(){{sendkeys("\\r");}},1500);}})
+ .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
+ .then(function(){{return later(function(){{sendkeys("exit\\r");}},2500);}})
+ .then(function(){{return later(function(){{byebye=true;try{{ws.close();}}catch(x){{}}}},1000);}});}});
+var help=document.getElementById("h");
+document.getElementById("help").addEventListener("click",function(e){{e.preventDefault();
+ help.style.display=help.style.display==="block"?"none":"block";grab();}});
 document.getElementById("hide").addEventListener("click",function(e){{e.preventDefault();
  document.getElementById("k").style.display="none";fit();grab();}});
 </script></body></html>"""

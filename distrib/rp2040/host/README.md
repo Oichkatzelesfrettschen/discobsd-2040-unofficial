@@ -116,10 +116,14 @@ terminal programs and the Windows console delivers neither reliably:
 | Ctrl-] ? | print this list |
 
 The web console's key bar sends the same bytes from buttons, grouped as
-DiscoBSD (Esc, Tab, Ctrl, ^C, ^D, ^Z, ^L, ^U, ^R) and V6 (DEL, ^\,
-^_ exit V6), because browsers keep Ctrl-C, Ctrl-D, Ctrl-W, Ctrl-minus and
-Ctrl-underscore for themselves. Ctrl arms a one-shot modifier for the next
-typed key. Disconnect closes the session on purpose.
+DiscoBSD (Esc, Tab, Ctrl, ^C, ^D, ^Z, ^L, ^U, ^R) and V6 (DEL intr,
+# erase, @ kill, ^\ quit, ^_ exit V6), because browsers keep Ctrl-C,
+Ctrl-D, Ctrl-W, Ctrl-minus and Ctrl-underscore for themselves. Ctrl arms
+a one-shot modifier for the next typed key. The `keys` button shows this
+reference in the page. `Sync & leave` types the whole exit for you: `sync`,
+Ctrl-_ (leaves V6, harmless in DiscoBSD), `sync` again, `exit`, and then
+closes the session about eight seconds later; it assumes a shell prompt,
+so finish `ed` or `vi` first.
 
 Leave cleanly, in this order:
 
@@ -130,9 +134,9 @@ Leave cleanly, in this order:
    back, so the next person starts at login. `sync` first if you wrote
    files.
 3. Leave the console: `discobsd-term` with Ctrl-] q; the web console
-   with the Disconnect button, then close the tab. Closing the tab alone
-   also frees the console, a few seconds later, when the server notices
-   the dead socket.
+   with `Sync & leave` (which also does steps 1 and 2), then close the
+   tab. Closing the tab alone also frees the console, a few seconds
+   later, when the server notices the dead socket, but syncs nothing.
 4. Unplug the board only after `sync` or `halt` in DiscoBSD.
 
 ## Development

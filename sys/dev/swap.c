@@ -286,7 +286,7 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 			td[unit].t_next = TD_APPEND_DISABLED;
 			*offtval = 0;
 			printf("temp%d: failed to allocate %lu blocks\n",
-			    (u_long)requested);
+			    unit, (u_long)requested);
 
 			return 0;
 		} else {

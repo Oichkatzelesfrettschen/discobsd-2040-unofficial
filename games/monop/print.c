@@ -122,7 +122,7 @@ spec:
 		printmorg(sqp);
 		rnt = 25;
 		rnt <<= play[(int)sqp->owner].num_rr - 1;
-		printf("%d %4d", play[(int)sqp->owner].num_rr, 25 << (play[(int)sqp->owner].num_rr - 1));
+		printf("%d %4d", play[(int)sqp->owner].num_rr, rnt);
 		break;
 	}
 	if (eoln)

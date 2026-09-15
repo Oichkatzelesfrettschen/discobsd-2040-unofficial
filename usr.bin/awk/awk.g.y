@@ -1,5 +1,7 @@
 /*	awk.g.y	4.1	82/05/07	*/
 
+/* The grammar's dangling-else and print-list ambiguities resolve by shift. */
+%expect 96
 %token	FIRSTTOKEN	/*must be first*/
 %token	FINAL FATAL
 %token	LT LE GT GE EQ NE

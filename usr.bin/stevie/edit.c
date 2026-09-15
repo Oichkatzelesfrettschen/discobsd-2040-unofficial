@@ -8,7 +8,8 @@
 #include <ctype.h>
 #include "stevie.h"
 
-edit()
+void
+edit(void)
 {
 	int c, c1, c2;
 	char *p, *q;
@@ -144,8 +145,8 @@ edit()
 	}
 }
 
-insertchar(c)
-int c;
+void
+insertchar(int c)
 {
 	char *p;
 
@@ -171,7 +172,8 @@ int c;
 	updatescreen();
 }
 
-gethexchar()
+int
+gethexchar(void)
 {
 	int c;
 
@@ -188,7 +190,8 @@ gethexchar()
 	return(c);
 }
 
-getout()
+void
+getout(void)
 {
 	windgoto(Rows-1,0);
 	putchar('\r');
@@ -197,7 +200,8 @@ getout()
 	windexit(0);
 }
 
-cursupdate()
+void
+cursupdate(void)
 {
 	char *p;
 	int inc, c, nlines;
@@ -261,8 +265,8 @@ cursupdate()
 	}
 }
 
-scrolldown(nlines)
-int nlines;
+void
+scrolldown(int nlines)
 {
 	int n;
 	char *p;
@@ -285,7 +289,8 @@ int nlines;
  * sucessful, 0 when we hit a boundary (of a line, or the file).
  */
 
-oneright()
+int
+oneright(void)
 {
 	char *p;
 
@@ -296,7 +301,8 @@ oneright()
 	return(1);
 }
 
-oneleft()
+int
+oneleft(void)
 {
 	char *p;
 
@@ -307,13 +313,15 @@ oneleft()
 	return(1);
 }
 
-beginline()
+void
+beginline(void)
 {
 	while ( oneleft() )
 		;
 }
 
-oneup(n)
+int
+oneup(int n)
 {
 	char *p, *np;
 	int savevcol, k;
@@ -341,7 +349,8 @@ oneup(n)
 	return(1);
 }
 
-onedown(n)
+int
+onedown(int n)
 {
 	char *p, *np;
 	int k;

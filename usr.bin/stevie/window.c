@@ -27,7 +27,8 @@ static struct sgttyb tty_saved;
 
 static int tty_israw = 0;
 
-windinit()
+void
+windinit(void)
 {
 #ifdef HOSTBUILD
 	struct termios t;
@@ -60,7 +61,8 @@ windinit()
  * Upstream has no restore path at all, so every :q left the terminal
  * raw and unechoed; windexit and every error exit route through here.
  */
-windrestore()
+void
+windrestore(void)
 {
 	if (!tty_israw)
 		return;
@@ -79,20 +81,21 @@ windrestore()
  * "\033[%d;%dH" collided rows 0 and 1 and put the status line one row
  * above the bottom.
  */
-windgoto(r,c)
-int r,c;
+void
+windgoto(int r, int c)
 {
 	printf("\033[%d;%dH", r+1, c+1);
 }
 
-windexit(r)
-int r;
+void
+windexit(int r)
 {
 	windrestore();
 	exit(r);
 }
 
-windclear()
+void
+windclear(void)
 {
 	printf("\033[2J");
 }
@@ -102,7 +105,8 @@ windclear()
  * the terminal when this flushes it. Upstream left windrefresh empty,
  * which works only where the tty is unbuffered.
  */
-windrefresh()
+void
+windrefresh(void)
 {
 	fflush(stdout);
 }
@@ -111,7 +115,8 @@ windrefresh()
  * Read one byte straight from the descriptor. vpeekc and anyinput only
  * inspect the stuffin() replay buffer, so no readahead poll is needed.
  */
-windgetc()
+int
+windgetc(void)
 {
 	char c;
 
@@ -124,19 +129,20 @@ windgetc()
 	return (unsigned char)c;
 }
 
-windstr(s)
-char *s;
+void
+windstr(char *s)
 {
 	printf("%s",s);
 }
 
-windputc(c)
-int c;
+void
+windputc(int c)
 {
 	putchar(c);
 }
 
-beep()
+void
+beep(void)
 {
 	putchar('\007');
 	windrefresh();

@@ -15,8 +15,7 @@
  */
 
 char *
-nextline(curr)
-char *curr;
+nextline(char *curr)
 {
 	while ( curr<Fileend ) {
 		if ( *curr++ == '\n' )
@@ -35,8 +34,7 @@ char *curr;
  */
 
 char *
-prevline(curr)
-char *curr;
+prevline(char *curr)
 {
 	int nnl = 0;
 
@@ -71,9 +69,7 @@ char *curr;
  */
 
 char *
-coladvance(p,col)
-char *p;
-int col;
+coladvance(char *p, int col)
 {
 	int c, inc;
 
@@ -102,8 +98,7 @@ int col;
 /* stdlib.h and string.h, via stevie.h, declare these. */
 
 char *
-alloc(size)
-unsigned size;
+alloc(unsigned size)
 {
 	char *p;		/* pointer to new storage space */
 
@@ -115,8 +110,7 @@ unsigned size;
 }
 
 char *
-strsave(string)
-char *string;
+strsave(char *string)
 {
 	return(strcpy(alloc((unsigned)(strlen(string)+1)),string));
 }
@@ -125,9 +119,7 @@ static char *laststr = NULL;
 static int lastdir;
 
 char *
-ssearch(dir,str)
-int dir;	/* FORWARD or BACKWARD */
-char *str;
+ssearch(int dir, char *str)	/* dir is FORWARD or BACKWARD */
 {
 	if ( laststr != NULL )
 		free(laststr);
@@ -139,9 +131,8 @@ char *str;
 		return(fwdsearch(str));
 }
 
-dosearch(dir,str)
-int dir;
-char *str;
+void
+dosearch(int dir, char *str)
 {
 	char *p;
 
@@ -165,7 +156,8 @@ char *str;
 }
 
 
-repsearch()
+void
+repsearch(void)
 {
 	if ( laststr == NULL )
 		beep();
@@ -175,8 +167,7 @@ repsearch()
 }
 
 char *
-fwdsearch(str)
-char *str;
+fwdsearch(char *str)
 {
 	register char *sofar = str;
 	register char *infile = Curschar+1;
@@ -209,8 +200,7 @@ char *str;
 }
 
 char *
-bcksearch(str)
-char *str;
+bcksearch(char *str)
 {
 	int leng = strlen(str);
 	char *infile = Curschar+1;

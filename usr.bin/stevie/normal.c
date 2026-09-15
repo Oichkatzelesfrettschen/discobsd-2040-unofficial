@@ -14,8 +14,8 @@
  * Execute a command in normal mode.
  */
 
-normal(c)
-int c;
+void
+normal(int c)
 {
 	char *p, *q;
 	int nchar, n;
@@ -136,10 +136,10 @@ int c;
 		if ( *Curschar == '\n' )
 			beep();
 		else {
-			addtobuff(Redobuff,'x',NULL);
+			addtobuff(Redobuff,'x','\0','\0','\0','\0','\0');
 			/* To undo it, we insert the same character back. */
 			resetundo();
-			addtobuff(Undobuff,'i',*Curschar,'\033',NULL);
+			addtobuff(Undobuff,'i',*Curschar,'\033','\0','\0','\0');
 			Uncurschar = Curschar;
 			delchar();
 			updatescreen();
@@ -184,10 +184,10 @@ int c;
 			}
 			else
 				nchar = 'P';
-			addtobuff(Undobuff,nchar,NULL);
+			addtobuff(Undobuff,(char)nchar,'\0','\0','\0','\0','\0');
 			break;
 		case 'w':
-			addtobuff(Redobuff,'d','w',NULL);
+			addtobuff(Redobuff,'d','w','\0','\0','\0','\0');
 			resetundo();
 			delword(1);
 			Uncurschar = Curschar;
@@ -282,7 +282,7 @@ int c;
 			nchar = '\n';	/* convert \r to \n */
 			/* Save stuff necessary to undo it, by joining */
 			Uncurschar = Curschar-1;
-			addtobuff(Undobuff,'J','i',*Curschar,'\033',NULL);
+			addtobuff(Undobuff,'J','i',*Curschar,'\033','\0','\0');
 			/* Change current character. */
 			*Curschar = nchar;
 			/* We don't want to end up on the '\n' */
@@ -293,13 +293,13 @@ int c;
 		}
 		else {
 			/* Replacing with a normal character */
-			addtobuff(Undobuff,'r',*Curschar,NULL);
+			addtobuff(Undobuff,'r',*Curschar,'\0','\0','\0','\0');
 			Uncurschar = Curschar;
 			/* Change current character. */
 			*Curschar = nchar;
 		}
 		/* Save stuff necessary to redo it */
-		addtobuff(Redobuff,'r',nchar,NULL);
+		addtobuff(Redobuff,'r',(char)nchar,'\0','\0','\0','\0');
 		updatescreen();
 		break;
 	case 'p':
@@ -319,8 +319,8 @@ int c;
 		delchar();
 		resetundo();
 		Uncurschar = Curschar;
-		addtobuff(Undobuff,'i','\n','\033',NULL);
-		addtobuff(Redobuff,'J',NULL);
+		addtobuff(Undobuff,'i','\n','\033','\0','\0','\0');
+		addtobuff(Redobuff,'J','\0','\0','\0','\0','\0');
 		updatescreen();
 		break;
 	case '.':
@@ -364,7 +364,8 @@ int c;
  * If inout==1, delete a tab from the begining of the next num lines.
  */
 
-tabinout(inout,num)
+void
+tabinout(int inout, int num)
 {
 	int ntodo = num;
 	char *savecurs, *p;
@@ -396,8 +397,8 @@ tabinout(inout,num)
 	sprintf(Undobuff,"%d%s",num,inout==0?"<<":">>");
 }
 
-startinsert(initstr)
-char *initstr;
+void
+startinsert(char *initstr)
 {
 	char *p, c;
 
@@ -410,7 +411,8 @@ char *initstr;
 	windrefresh();
 }
 
-resetundo()
+void
+resetundo(void)
 {
 	Undelchars = 0;
 	*Undobuff = '\0';

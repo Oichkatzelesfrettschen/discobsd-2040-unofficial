@@ -73,9 +73,8 @@ int Ninsert = 0;	/* Number of characters in the current insertion. */
 int Undelchars = 0;	/* Number of characters to delete, when undoing. */
 char *Insptr = NULL;
 
-main(argc,argv)
-int argc;
-char **argv;
+int
+main(int argc, char **argv)
 {
 	int mode = 16;
 
@@ -138,6 +137,7 @@ char **argv;
 	edit();
 
 	windexit(0);
+	return 0;
 }
 
 /*
@@ -147,7 +147,8 @@ char **argv;
  * stuff from Filemem to Nextscreen, and update Botchar.
  */
 
-filetonext()
+void
+filetonext(void)
 {
 	int row, col;
 	char *screenp = Nextscreen;
@@ -235,7 +236,8 @@ filetonext()
  * to avoid unnecessary output.
  */
 
-nexttoscreen()
+void
+nexttoscreen(void)
 {
 	char *np = Nextscreen;
 	char *rp = Realscreen;
@@ -266,13 +268,15 @@ nexttoscreen()
 	windrefresh();
 }
 
-updatescreen()
+void
+updatescreen(void)
 {
 	filetonext();
 	nexttoscreen();
 }
 
-screenclear()
+void
+screenclear(void)
 {
 	int n;
 
@@ -284,7 +288,8 @@ screenclear()
 	}
 }
 
-filealloc()
+void
+filealloc(void)
 {
 	if ( (Filemem=malloc((unsigned)FILELENG)) == NULL ) {
 		windrestore();
@@ -295,7 +300,8 @@ filealloc()
 	Filemax = Filemem + FILELENG;
 }
 
-screenalloc()
+void
+screenalloc(void)
 {
 	Realscreen = malloc((unsigned)(Rows*Columns));
 	Nextscreen = malloc((unsigned)(Rows*Columns));
@@ -306,10 +312,8 @@ screenalloc()
 	}
 }
 
-readfile(fname,fromp,nochangename)
-char *fname;
-char *fromp;
-int nochangename;	/* if 1, don't change the Filename */
+int
+readfile(char *fname, char *fromp, int nochangename)	/* nochangename: if 1, don't change the Filename */
 {
 	FILE *f;
 	char buff[128];
@@ -348,12 +352,12 @@ int nochangename;	/* if 1, don't change the Filename */
 			exit(1);
 		}
 		/* Insert the char at the current point by shifting
-		/* everything down, then grow Fileend by the one byte
-		/* just inserted. A mid-buffer :r shifts the whole tail
-		/* right without fromp ever catching up to the old
-		/* Fileend, so the old "if (Fileend < fromp) Fileend =
-		/* fromp" only advanced Fileend for a pure append and
-		/* silently dropped the shifted tail otherwise. */
+		 * everything down, then grow Fileend by the one byte
+		 * just inserted. A mid-buffer :r shifts the whole tail
+		 * right without fromp ever catching up to the old
+		 * Fileend, so the old "if (Fileend < fromp) Fileend =
+		 * fromp" only advanced Fileend for a pure append and
+		 * silently dropped the shifted tail otherwise. */
 		for ( p=Fileend; p>fromp; p-- )
 			*p = *(p-1);
 		*fromp++ = c;
@@ -377,8 +381,8 @@ int nochangename;	/* if 1, don't change the Filename */
 static char getcbuff[1024];
 static char *getcnext = NULL;
 
-stuffin(s)
-char *s;
+void
+stuffin(char *s)
 {
 	if ( getcnext == NULL ) {
 		strcpy(getcbuff,s);
@@ -388,9 +392,8 @@ char *s;
 		strcat(getcbuff,s);
 }
 
-addtobuff(s,c1,c2,c3,c4,c5,c6)
-char *s;
-char c1, c2, c3, c4, c5, c6;
+void
+addtobuff(char *s, char c1, char c2, char c3, char c4, char c5, char c6)
 {
 	char *p = s;
 	if ( (*p++ = c1) == '\0' )
@@ -407,7 +410,8 @@ char c1, c2, c3, c4, c5, c6;
 		return;
 }
 
-vgetc()
+int
+vgetc(void)
 {
 	if ( getcnext != NULL ) {
 		int nextc = *getcnext++;
@@ -420,7 +424,8 @@ vgetc()
 	return(windgetc());
 }
 
-vpeekc()
+int
+vpeekc(void)
 {
 	if ( getcnext != NULL )
 		return(*getcnext);
@@ -433,7 +438,8 @@ vpeekc()
  * Return non-zero if input is pending.
  */
 
-anyinput()
+int
+anyinput(void)
 {
 	if ( getcnext != NULL )
 		return(1);

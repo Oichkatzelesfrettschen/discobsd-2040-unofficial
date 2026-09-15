@@ -153,7 +153,8 @@ main(int argc, char **argv)
 	}
 	gettimeofday(&last, NULL);
 	started = last;
-	printf("pdp11: %d KB, RK05 %s, Ctrl-_ exits\r\n", MEMSIZE / 1024, image);
+	printf("pdp11: %d KB, RK05 %s; Ctrl-_ or ~. at a line start exits\r\n",
+	    MEMSIZE / 1024, image);
 	cpu_reset();
 	run();
 	return 0;

@@ -6,4 +6,4 @@ discobsd-web serves the console to a browser, discobsd-link publishes a
 short URL for it, and discobsd-console runs the two servers detached.
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"

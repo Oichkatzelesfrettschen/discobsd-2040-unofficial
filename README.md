@@ -81,7 +81,8 @@ and follow the steps for your platform.
 
    `--list` prints the device path; `--probe` reports "reachable" with the
    bytes the board answered.
-4. Open a terminal on the console. Ctrl-] quits.
+4. Open a terminal on the console. Ctrl-] q quits; Ctrl-] ? lists the
+   other escapes.
 
        discobsd-term
 
@@ -91,7 +92,8 @@ and follow the steps for your platform.
 
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
    any browser on the same network. `discobsd-console down` stops it,
-   `discobsd-console status` reports. One browser session at a time.
+   `discobsd-console status` reports. One browser session at a time;
+   press Disconnect in the page to hand it to the next.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
 join the `discobsd` group instead and log in again:
@@ -114,8 +116,9 @@ join the `discobsd` group instead and log in again:
        .\discobsd-term.exe --list
        .\discobsd-term.exe --probe
 
-4. Open a terminal on the console. Ctrl-] quits. Use Windows Terminal
-   rather than the legacy console host for correct screen handling.
+4. Open a terminal on the console. Ctrl-] q quits; Ctrl-] ? lists the
+   other escapes. Use Windows Terminal rather than the legacy console
+   host for correct screen handling.
 
        .\discobsd-term.exe
 
@@ -175,11 +178,22 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 
 ### Run Sixth Edition UNIX
 
-The board carries a PDP-11/40 emulator and a Sixth Edition (1975) root
-pack. Log in as `operator` and start it:
+The board carries `pdp11`, a PDP-11/40 emulator, and a Sixth Edition
+(1975) root pack. The machine it emulates:
+
+| part | what V6 sees |
+| --- | --- |
+| processor | PDP-11/40, KT11-D memory management (8 kernel and 8 user pages), no floating point |
+| core | 64 KB; V6 reports `mem = 116`, 11.6 K words free for programs |
+| disk | one RK05 pack of 4872 blocks on an RK11, backed by `/usr/v6/root.rk`, a 1 MB sparse file |
+| console | a KL11 on your terminal; V6 sees it as `tty8` |
+| clock | KW11-L line clock at 60 Hz, from the board's clock |
+| pack contents | `/unix`, `/etc`, `/bin` (34 tools), `/usr/bin` (10), `/usr/games` (3); no compiler |
+
+Start it from the DiscoBSD prompt as `operator`:
 
     $ pdp11
-    pdp11: 64 KB, RK05 /usr/v6/root.rk, Ctrl-_ exits
+    pdp11: 64 KB, RK05 /usr/v6/root.rk; Ctrl-_ or ~. at a line start exits
     @unix
 
     login: root
@@ -188,9 +202,17 @@ pack. Log in as `operator` and start it:
 1. Type `unix` at the `@` prompt. The kernel boots in about five seconds.
 2. Type `root` at `login:`; there is no password.
 3. Use the 1975 shell: `ls /bin`, `who`, `ed`, `cal 9 2026`, `ls /usr/games`.
-   The interrupt key is DEL, `#` erases a character and `@` erases the line.
-4. Type `sync`, then Ctrl-_ (control and underscore) to leave. The emulator
-   prints its instruction count and rate and returns to the DiscoBSD shell.
+4. Leave with `sync`, then one of: Ctrl-_ (web console: the `^_ exit V6`
+   button; discobsd-term: Ctrl-] _), or `~.` typed at the start of a
+   line. The emulator prints its instruction count and the DiscoBSD `$`
+   prompt returns.
+
+Keys differ in V6. DEL interrupts (Backspace sends DEL on most
+terminals, so Backspace interrupts too), `#` erases a character, `@`
+erases the line, Ctrl-\ quits, Ctrl-D logs out. Ctrl-C, Ctrl-U and the
+arrow keys mean nothing to it. A `#` prompt where `whoami` is "not found"
+is V6, not DiscoBSD's root shell. The full key table per system is in
+`distrib/rp2040/host/README.md` under "Keys and exits".
 
 What you write on the V6 pack stays on it. The pack is a 1 MB sparse file
 in `/usr/v6`; its untouched blocks cost nothing, and a session that swaps

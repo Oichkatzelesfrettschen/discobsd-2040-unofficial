@@ -1,0 +1,153 @@
+$ uname -a
+DiscoBSD pico 2.7 PICO#1 rp2040
+$ df
+Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
+root              979      665      314    67%    /
+$ ls -l /dev
+total 0
+crw--w----  1 operator   0,   0 Sep 14 22:56 console
+brw-rw-r--  1 root       0,   0 Sep 14 22:50 fl0
+brw-rw-r--  1 root       0,   1 Sep 14 22:50 fl0a
+brw-rw-r--  1 root       0,   8 Sep 14 22:50 fl1
+crw-rw-r--  1 root       5,   0 Sep 14 22:50 klog
+crw-rw-r--  1 root       1,   1 Sep 14 22:50 kmem
+crw-rw-r--  1 root       1,   0 Sep 14 22:50 mem
+crw-rw-rw-  1 root       1,   2 Sep 14 22:50 null
+crw-rw-r--  1 root       3,   2 Sep 14 22:50 stderr
+crw-rw-r--  1 root       3,   0 Sep 14 22:50 stdin
+crw-rw-r--  1 root       3,   1 Sep 14 22:50 stdout
+brw-rw-r--  1 root       4,  64 Sep 14 22:50 swap
+crw-rw-r--  1 root       4,   0 Sep 14 22:50 temp0
+crw-rw-r--  1 root       4,   1 Sep 14 22:50 temp1
+crw-rw-r--  1 root       4,   2 Sep 14 22:50 temp2
+crw-rw-rw-  1 root       2,   0 Sep 14 22:50 tty
+crw-rw-r--  1 root       6,   0 Sep 14 22:50 tty0
+crw-rw-r--  1 root       7,   0 Sep 14 22:50 ttyUSB0
+crw-rw-rw-  1 root       1,   3 Sep 14 22:50 zero
+$ ls /bin
+[         chmod     df        hostname  md5       pwd       sleep     tar
+box       cp        echo      kill      mkdir     rm        stty      test
+cat       date      ed        ln        mv        rmdir     sync
+chgrp     dd        expr      ls        ps        sh        sysbox
+$ ls /sbin
+adminbox  fsck      init      mount     shutdown  umount
+chown     halt      mknod     reboot    sysctl
+$ ls /usr/bin
+as          deroff      groups      passwd      tee         uudecode
+awk         dirname     head        paste       textbox     uuencode
+basename    du          id          printf      touch       vi
+cc          env         ld          resize      tr          vim
+cksum       expand      login       rev         true        wc
+cmp         false       look        sed         tty         whoami
+comm        fgrep       md          seq         uname       xargs
+compress    find        menu        sort        uncompress  zcat
+coremark    fold        more        stevie      unexpand
+cpio        grep        nl          su          uniq
+cut         grepbox     nohup       tail        utilbox
+$ ls /usr/sbin
+update
+$ ls /usr/libexec
+getty  smlrc
+$ ls /usr/games
+bubble   fifteen  gamebox  keen
+$ ls /usr/lib /usr/share/misc
+/usr/lib:
+crt0.o  libc.a
+/usr/share/misc:
+$ ls -l /etc
+total 20
+-rw-r--r--  1 root           29 Sep 14 22:50 fstab
+-rw-r--r--  1 root         3553 Sep 14 22:50 gettytab
+-rw-r--r--  1 root          131 Sep 14 22:50 group
+-rw-r--r--  1 root          545 Sep 14 22:50 menu
+-rw-r--r--  1 root          183 Sep 14 22:50 motd
+-rw-r--r--  1 root          326 Sep 14 22:50 passwd
+-rw-r--r--  1 root         1068 Sep 14 22:50 rc
+-rw-r--r--  1 root           54 Sep 14 22:50 rc.local
+-rw-r--r--  1 root          335 Sep 14 22:50 shadow
+-rw-r--r--  1 root          141 Sep 14 22:50 shells
+-rw-r--r--  1 root         4993 Sep 14 22:50 termcap
+-rw-r--r--  1 root          762 Sep 14 22:50 ttys
+$ cat /etc/ttys
+#
+# name  getty                                   type    status          comments
+#
+console "/usr/libexec/getty std.default"        xterm   on insecure     #special; root login via operator+su
+# Enable some of these for additional logins.  Do NOT enable the same one as the
+# console port, or strange things will happen.  You can turn off the console port
+# if you would rather use the getty on the real tty - it's up to you.
+tty0    "/usr/libexec/getty std.default"        xterm   off secure
+tty1    "/usr/libexec/getty std.default"        xterm   off secure
+tty2    "/usr/libexec/getty std.default"        xterm   off secure
+tty3    "/usr/libexec/getty std.default"        xterm   off secure
+tty4    "/usr/libexec/getty std.default"        xterm   off secure
+tty5    "/usr/libexec/getty std.default"        xterm   off secure
+ttyUSB0 "/usr/libexec/getty std.default"        xterm   off secure
+$ cat /etc/fstab
+/dev/fl0a       /       ufs     rw,async        1       1
+$ ls /root /home /tmp /var/run
+/home:
+/root:
+/tmp:
+/var/run:
+utmp
+$ sysctl -a
+kern.ostype=DiscoBSD
+kern.osrelease=2.7
+kern.osrevision=202608
+kern.version=DiscoBSD 2.7 (PICO) #1 1085: Mon Sep 14 23:49:12 PDT 2026
+     eirikr@x570-5600X3D:/sys/arch/rp2040/compile/PICO
+kern.maxinodes=24
+kern.maxproc=25
+kern.maxfiles=24
+kern.argmax=5120
+kern.securelevel=1
+kern.hostname=pico
+kern.hostid=0
+kern.clockrate=tick = 1000, hz = 1000, profhz = 0, stathz = 1000
+kern.posix1version=0
+kern.ngroups=16
+kern.job_control=1
+kern.saved_ids=0
+kern.boottime=Mon Sep 14 22:55:53 2026
+kern.osversion=PICO#1
+kern.systrace=0
+kern.systracepid=0
+vm.loadavg=0.19 0.07 0.00
+hw.machine=rp2040
+hw.model=
+hw.ncpu=1
+hw.byteorder=1234
+hw.physmem=270336
+hw.usermem=0
+hw.pagesize=1024
+hw.machine_arch=arm
+machdep.console_device=ttyUSB0
+machdep.cpu_khz=125000
+machdep.bus_khz=125000
+machdep.usb_e15_deferred=31
+machdep.usb_bulkin_arms=357
+machdep.swapram_evacuate=0
+machdep.swapram_images=2
+machdep.swapram_epoch=0
+machdep.swapram_large=0
+user.cs_path=/usr/bin:/bin:/usr/sbin:/sbin:/local
+user.bc_base_max=99
+user.bc_dim_max=2048
+user.bc_scale_max=99
+user.bc_string_max=1000
+user.coll_weights_max=0
+user.expr_nest_max=32
+user.line_max=1024
+user.re_dup_max=255
+user.posix2_version=0
+user.posix2_c_bind=0
+user.posix2_c_dev=0
+user.posix2_char_term=0
+user.posix2_fort_dev=0
+user.posix2_fort_run=0
+user.posix2_localedef=0
+user.posix2_sw_dev=0
+user.posix2_upe=0
+user.stream_max=20
+user.tzname_max=63

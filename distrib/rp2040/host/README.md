@@ -55,7 +55,8 @@ advertised address live in `web.env` under the per-user configuration
 directory (`~/.config/discobsd` on Linux, `~/Library/Application Support/
 discobsd` on macOS, `%APPDATA%\discobsd` on Windows), created with
 owner-only permissions on the first run. `discobsd-console down` stops
-both servers; `status` reports.
+both servers; `status` reports; `--detached` on any of the three bypasses
+the systemd units.
 
 On Linux with the packaged systemd user units, `discobsd-console up`
 restarts the units instead of spawning detached processes; enable them at

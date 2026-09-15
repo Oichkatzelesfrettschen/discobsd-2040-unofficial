@@ -198,7 +198,7 @@ def cmd_up(args) -> int:
         ip = lan_ip()
     write_env(env_path, {"DISCOBSD_WEB_TOKEN": token, "DISCOBSD_HOST_IP": ip})
     links = urls(ip, token, args.port, args.link_port)
-    if systemd_units_installed():
+    if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "daemon-reload"])
         rc = subprocess.call(["systemctl", "--user", "restart", *UNITS])
         if rc != 0:
@@ -245,9 +245,8 @@ def cmd_up(args) -> int:
 
 
 def cmd_down(args) -> int:
-    del args
     conf = config_dir()
-    if systemd_units_installed():
+    if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "stop", *reversed(UNITS)])
         print("DiscoBSD console stopped (systemd user units).")
         return 0
@@ -261,7 +260,7 @@ def cmd_status(args) -> int:
     values = read_env(conf / "web.env")
     ip = values.get("DISCOBSD_HOST_IP") or lan_ip()
     short = "http://%s:%d/" % (ip, args.link_port)
-    if systemd_units_installed():
+    if systemd_units_installed() and not args.detached:
         rc = subprocess.call(["systemctl", "--user", "is-active", "--quiet", UNITS[0]])
         running = rc == 0
     else:
@@ -296,6 +295,12 @@ def parser() -> argparse.ArgumentParser:
     status = sub.add_parser("status", help="report whether the console answers")
     status.add_argument("--link-port", type=int, default=LINK_PORT)
     status.set_defaults(func=cmd_status)
+    for command in (up, down, status):
+        command.add_argument(
+            "--detached",
+            action="store_true",
+            help="run or address detached processes even when the systemd units are installed",
+        )
     return p
 
 

@@ -7,7 +7,11 @@ name = "discobsd-host"
 version = "1.0.0"
 description = "Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 readme = "README.md"
-license = "BSD-3-Clause"
+# The table form, not the PEP 639 string: setuptools 68.1, the version
+# Ubuntu 24.04 ships and the one pybuild builds the .deb with, rejects
+# a bare string here ("project.license must be valid exactly by one
+# definition"). Current setuptools still accepts the table.
+license = { text = "BSD-3-Clause" }
 requires-python = ">=3.9"
 dependencies = ["pyserial>=3.5"]
 classifiers = [

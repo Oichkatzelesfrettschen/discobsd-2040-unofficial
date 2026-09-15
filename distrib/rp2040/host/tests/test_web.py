@@ -151,8 +151,12 @@ def ws_connect(port, token="tok", origin=None):
     return s, status
 
 
-def read_frames(s, want: bytes, timeout=3.0):
-    got = b""
+# The handshake response and the first frames the server writes can arrive
+# in one TCP segment, so ws_connect's recv carries part of the payload. The
+# caller seeds the accumulator with what it already holds; without the seed
+# the wanted bytes sit in the caller's hand while this loop waits out its
+# deadline on a socket that has nothing further to send.
+def read_frames(s, want: bytes, timeout=3.0, got: bytes = b""):
     s.settimeout(timeout)
     while want not in got:
         try:
@@ -171,14 +175,14 @@ def test_websocket_bridges_bytes_and_holds_one_session(server):
     s, status = ws_connect(port)
     assert status.startswith(b"HTTP/1.1 101")
     assert b"s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" in status
-    got = read_frames(s, b"login: ")
+    got = read_frames(s, b"login: ", got=status)
     assert b"login: " in got
     s.sendall(masked(b"operator\r"))
     got = read_frames(s, b"operator\r")
     assert lines[0].written.endswith(b"operator\r")
     second, status2 = ws_connect(port)
     assert status2.startswith(b"HTTP/1.1 101")
-    busy = read_frames(second, b"in use")
+    busy = read_frames(second, b"in use", got=status2)
     assert b"in use" in busy
     second.close()
     s.sendall(masked(b"", opcode=0x8))
@@ -190,7 +194,7 @@ def test_websocket_bridges_bytes_and_holds_one_session(server):
     assert lines[0].closed
     third, status3 = ws_connect(port)
     assert status3.startswith(b"HTTP/1.1 101")
-    assert b"login: " in read_frames(third, b"login: ")
+    assert b"login: " in read_frames(third, b"login: ", got=status3)
     third.close()
 
 

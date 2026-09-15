@@ -580,6 +580,25 @@ The same board pass found a manifest bug older than the port: fsutil read
 as 01232 and operator could not redirect from `/dev/null`. Port PR #67
 parses manifest modes in base 8.
 
+### A warning-free tree (port PRs #68 and #69)
+
+A clean `bmake MACHINE=rp2040 build` reported 209 warnings, 206 of them
+from `usr.bin/stevie`, whose Makefile demoted implicit-int,
+implicit-function-declaration, and return-mismatch from errors as a
+documented scope cut. PR #69 gives `stevie.h` a prototype for all 65
+functions, makes every definition ANSI with an explicit type, and builds
+the directory under `-Wall -Wextra -Werror`; `-Wall` then exposed an
+8-byte `messbuff` receiving an int and `addtobuff` calls passing fewer
+arguments than the callee reads. The a.out grows 48 bytes of text. PR #68
+clears the rest: `dev/swap.c` printed a failed temporary-device
+allocation with the unit argument missing, monop's railroad rent was
+computed and recomputed, rogue's `print_stats` buffer could overflow by
+two bytes, awk's 96 shift/reduce conflicts are declared with `%expect`,
+and make's Makefile used the obsolescent `fgrep`. The clean build is now
+0 warnings, 0 errors; the board at 8fe1e211 boots, redirects from
+`/dev/null`, runs awk, sorts 24,000 lines through raw swap, and compiles
+with the native cc.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident
@@ -587,6 +606,4 @@ expansion taking precedence: the window is now fixed at 144 KB and the
 pool at 16 KB, and an arena would let a process that fits in 160 KB run
 while the pool is empty. Step 7 landed as PR #45 above. Step 9's
 conversion landed in PR #35; extending the multicall boxes with sed,
-sort and find is the remaining part. `dev/swap.c` prints a failed
-temporary-device allocation with a missing `unit` argument, a latent
-format bug the wear work left in place.
+sort and find is the remaining part.

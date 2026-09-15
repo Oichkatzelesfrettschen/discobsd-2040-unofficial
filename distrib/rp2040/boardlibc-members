@@ -68,7 +68,11 @@ rmdir
 sbrk
 scanf
 select
+_setjmp
+setjmp
 sigaction
+sigprocmask
+sigsetjmp
 signal
 sleep
 snprintf

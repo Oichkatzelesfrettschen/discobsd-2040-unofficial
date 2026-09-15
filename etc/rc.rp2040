@@ -2,7 +2,7 @@
 #
 # System startup script run by init on autoboot or after single-user.
 #
-# The Raspberry Pi Pico's root holds 795 kbytes, so this is /etc/rc without
+# The Raspberry Pi Pico's root holds 979 kbytes, so this is /etc/rc without
 # the motd rewrite, which needs sysctl, sed, cmp, and cp, and without cron.
 #
 HOME=/; export HOME

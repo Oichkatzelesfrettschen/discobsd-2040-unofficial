@@ -22,7 +22,7 @@ GRP=		wheel
 TZDIR=		/usr/share/zoneinfo
 LOCALTIME=	Canada/Mountain
 
-FILES=		gettytab group motd passwd rc.local shells ttys
+FILES=		gettytab group motd rc.local ttys
 
 # usr.bin/menu reads /etc/menu for its list of launchable commands; only
 # rp2040 ships the menu program (usr.bin/Makefile's SUBDIR), so only its
@@ -36,11 +36,22 @@ MDFILES!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
 
 # A machine whose root is not sd0a, or whose disk is too small for what
 # rc starts, carries its own fstab or rc as fstab.${MACHINE} or
-# rc.${MACHINE}, installed under the plain name.
+# rc.${MACHINE}, installed under the plain name; passwd and shells follow
+# the same rule for a root whose home directories or shells differ.
 FSTAB!=		if [ -f fstab.${MACHINE} ] ; then \
 			echo "fstab.${MACHINE}" ; \
 		else \
 			echo "fstab" ; \
+		fi
+PASSWD!=	if [ -f passwd.${MACHINE} ] ; then \
+			echo "passwd.${MACHINE}" ; \
+		else \
+			echo "passwd" ; \
+		fi
+SHELLS!=	if [ -f shells.${MACHINE} ] ; then \
+			echo "shells.${MACHINE}" ; \
+		else \
+			echo "shells" ; \
 		fi
 RC!=		if [ -f rc.${MACHINE} ] ; then \
 			echo "rc.${MACHINE}" ; \
@@ -65,6 +76,8 @@ distribution-etc-root-var: distrib-dirs
 	fi
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${FSTAB} ${DESTDIR}/etc/fstab
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${RC} ${DESTDIR}/etc/rc
+	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${PASSWD} ${DESTDIR}/etc/passwd
+	${INSTALL} -c -o ${OWN} -g ${GRP} -m 644 ${SHELLS} ${DESTDIR}/etc/shells
 	${INSTALL} -c -o root -g wheel -m 600 shadow ${DESTDIR}/etc
 #	${INSTALL} -c -o root -g wheel -m 600 master.passwd ${DESTDIR}/etc
 #	${INSTALL} -c -o ${OWN} -g ${GRP} -m 555 MAKEDEV.local MAKEDEV \

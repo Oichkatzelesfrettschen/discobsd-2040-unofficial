@@ -1,9 +1,10 @@
 # DiscoBSD on the Pico: the map from source to a shell prompt
 
-The port lives in this DiscoBSD tree on branch `rp2040-port`,
-branch `rp2040-port`. Machine-readable copies of the RP2040 and Pico
-datasheets are under `docs/rp2040/`, with `INDEX.md` resolving every section
-number to a line in the text. Section numbers below refer to the RP2040
+The port lives in `sys/arch/rp2040` of this DiscoBSD tree. Machine-readable
+copies of the RP2040 and Pico datasheets, with an `INDEX.md` resolving every
+section number to a line in the text, live in the companion notes repository
+(discobsd-pico-notes, `docs/rp2040/`); `DATASHEET-INDEX.md` here lists the
+sections this port cites. Section numbers below refer to the RP2040
 datasheet unless marked Pico.
 
 ## 1. What the boot ROM needs from flash

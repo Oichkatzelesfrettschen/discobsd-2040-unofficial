@@ -34,24 +34,25 @@ region is 1536 KB, 989 KB of logical blocks; the 64 KB moved from the
 kernel region bought 39 KB of root because Dhara reserves its share of
 every erase block.
 
-## The multicall binary
+## The multicall executables
 
-`bin/box` and `bin/sysbox` link the small utilities into two a.outs of
-36 KB each, dispatched on the name invoked by; `[` is an alias of `test`.
-One box of 58 KB linked and ran, and then could not be swapped: the swap
-map hands out contiguous runs, and after a few forks 256 KB of swap held
-115 KB free in three pieces, none of 70 KB. Two images of 36 KB fit
-where one of 70 did not, and swap is 384 KB. Each tool's own objects are combined with `ld -r`, `main` is
-renamed to `<tool>_main`, and `objcopy --keep-global-symbol` makes every
-other global local, so the sources are untouched and the tools still
-build on their own. The manifest hard-links the twenty-six names to it.
-Separately those programs cost about 390 KB.
+Seven multicall a.outs hold most of the root's commands, each dispatched
+on the name it is invoked by and hard-linked under every name by the
+manifest: `sbin/box` (cat, cp, ls, rm and the other /bin tools; `[` is
+an alias of test), `sbin/sysbox` (date, dd, df, stty, mknod, mount,
+umount), `sbin/adminbox` (shutdown, reboot, halt, sysctl, true, false,
+nohup), `sbin/textbox` (the sbase text tools), `sbin/utilbox` (expr, id,
+sort, more, uniq, head, tr, wc and the rest of usr.bin), `sbin/grepbox`
+(grep, fgrep), and `games/gamebox`. Each tool's objects are combined with
+`ld -r`, `main` becomes `<tool>_main`, and every other global goes local,
+so the sources build on their own as well. A box's applet-private bss
+shares one overlaid extent (MULTICALL-BSS-OVERLAY.md), and every box is a
+packed a.out that the kernel expands at exec.
 
 The limit on a box is the swap map before the process window: the
 largest image must find a contiguous run beside the shell and init after
-fragmentation, so images stay near 40 KB. A third box for the text tools
-(sed, grep, sort, uniq, head, tail, tr, wc, cmp) is the next step; awk at
-62 KB and the editors stay separate.
+fragmentation, so images stay near 40 KB; awk, sed, the editors, the
+set-id programs, and the native toolchain stay separate.
 
 ## What compression would and would not do
 
@@ -84,34 +85,13 @@ page per eight, a reserve of one fifth for garbage collection, and a
 
 ## What ships
 
-51 files and 66 links, 175 KB free (df: 796 of 971 KB used), verified
-booting to a root shell on the board: box, sysbox, textbox, sh, ed, ps,
-md5, expr, init, getty, login, passwd, reboot, shutdown, fsck, sysctl,
-update, and from usr/bin awk, sed, grep, fgrep, find, sort, uniq, head,
-tail, tr, wc, cmp, more, basename, env, id, printf, tee, touch, xargs,
-du, nohup, tty, uname, true, false, the `re` screen editor, and the
-native build chain: /usr/bin/cc driving /usr/libexec/smlrc (53 KB),
-/usr/bin/as (32 KB), /usr/bin/ld (23 KB) against /usr/lib/libc.a (36 KB,
-89 members) and crt0.o. textbox (32 KB) carries cut, paste, seq,
-dirname, nl, cksum, expand, unexpand, uuencode, uudecode, fold, rev and
-comm; utilbox also carries md, a Markdown-to-ANSI viewer. On the board: `cc -o h h.c` compiles, assembles and links a
-program with integer division and printf, and `./h` runs; a
-uuencode/uudecode round trip of /bin/box matches by cksum. picoc is no
-longer on the root; the native chain replaces it.
-
-Left out and available in the tree: make (25 KB), diff (24 KB), tar
-(24 KB), emg (MicroEMACS, public domain, 24 KB), med (curses editor,
-23 KB), virus (busybox-derived tiny vi, GPL, 25 KB), scm (Scheme, 34 KB),
-tclsh (72 KB), basic (43 KB), forth (43 KB), bc and dc (35 and 22 KB),
-m4, lex, yacc, ar, and the games. A core dump costs a process image of
-flash in /tmp; the first one on the board took 64 KB.
-
-## Not shipped: the MIPS toolchain
-
-`cc`, `ccom`, `cpp`, `as`, `ld`, `smallc`, `lcc`, `adb`: the tree's
-native toolchain emits MIPS code and assembles MIPS, inherited from
-RetroBSD, and is left out of the rp2040 build. Smaller C gained a Thumb-1
-back end (usr.bin/smlrc/cgthumb.c, 16 host tests plus 200 generated
-programs matching a host oracle under qemu-arm) and ships; a Thumb-1
-assembler and the a.out linker extensions for ARM relocations are the
-remaining pieces of a native build chain.
+The manifest installs 19 directories, 50 files, 18 device nodes, 78 hard
+links, and 1 symlink; df on the board reports 979 blocks, 665 used, 314
+free. The root holds sh, ed, ps, tar, init, fsck, getty, login, passwd,
+su, update, awk, sed, find, tail, tee, du, compress, cpio, the seven
+multicall boxes above, the stevie screen editor as vi, the menu shell,
+and the native build chain: /usr/bin/cc driving /usr/libexec/smlrc,
+/usr/bin/as and /usr/bin/ld against /usr/lib/libc.a and crt0.o. On the
+board `cc -o h h.c` compiles, assembles and links a program with integer
+division and printf, and `./h` runs. picoc is not on the root; the native
+chain replaces it.

@@ -2,7 +2,7 @@
 # Machine dependent RP2040 root file system manifest file.
 #
 # The machine-independent part is distrib/rp2040/mi.rp2040, which the
-# Raspberry Pi Pico's 795-kbyte root limits to a shell and what /etc/rc
+# Raspberry Pi Pico's 979-kbyte root limits to a shell and what /etc/rc
 # runs. This part adds the flash block device.
 #
 default

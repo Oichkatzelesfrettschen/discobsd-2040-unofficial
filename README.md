@@ -93,7 +93,8 @@ and follow the steps for your platform.
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
    any browser on the same network. `discobsd-console down` stops it,
    `discobsd-console status` reports. One browser session at a time;
-   press Disconnect in the page to hand it to the next.
+   press `Sync & leave` in the page to sync, log out, and hand it to the
+   next; `keys` shows the key reference.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
 join the `discobsd` group instead and log in again:

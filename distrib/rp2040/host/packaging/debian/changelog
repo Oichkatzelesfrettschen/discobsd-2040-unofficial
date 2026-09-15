@@ -1,3 +1,11 @@
+discobsd-host (1.0.3) noble; urgency=medium
+
+  * discobsd-web: "Sync & leave" types sync, leaves V6, syncs, logs out of
+    DiscoBSD and closes the session; V6 group gains # erase and @ kill;
+    a "keys" button shows the per-system key reference in the page.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 17:00:00 -0700
+
 discobsd-host (1.0.2) noble; urgency=medium
 
   * discobsd-term: Ctrl-] is a telnet-style escape (q quits, _ leaves the

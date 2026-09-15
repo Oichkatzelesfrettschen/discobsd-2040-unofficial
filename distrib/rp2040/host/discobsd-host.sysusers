@@ -1,0 +1,2 @@
+# The udev rule grants the DiscoBSD console to this group.
+g discobsd - -

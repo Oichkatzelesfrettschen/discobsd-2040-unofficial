@@ -1,0 +1,59 @@
+# Maintainer: Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>
+#
+# The package tree lives two directories up, at distrib/rp2040/host, so the
+# build copies it out of "$startdir/../.." in prepare() rather than naming a
+# source= entry. makepkg resolves a local source= file only next to the
+# PKGBUILD -- a relative path such as ../../pyproject.toml reduces to its
+# basename and is then looked for in "$startdir", where it does not exist --
+# so an out-of-tree source entry would need a tarball staged into
+# packaging/arch first. Copying in prepare() keeps "makepkg -si" inside
+# packaging/arch working with no preparatory step, in CI and for a user
+# alike, and keeps the checked-in tree free of a generated tarball.
+
+pkgname=discobsd-host
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
+arch=('any')
+url="https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial"
+license=('BSD-3-Clause')
+depends=('python' 'python-pyserial')
+makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
+checkdepends=('python-pytest')
+source=()
+sha256sums=()
+
+_srctree="$startdir/../.."
+
+prepare() {
+	rm -rf "$srcdir/$pkgname-$pkgver"
+	mkdir -p "$srcdir/$pkgname-$pkgver"
+	# The copy carries the sources, the tests and the packaged data files
+	# and leaves behind the caches and the output of an earlier build.
+	(cd "$_srctree" && tar --exclude=build --exclude=dist --exclude=packaging \
+	    --exclude='*.egg-info' --exclude='__pycache__' --exclude='.pytest_cache' \
+	    --exclude='.ruff_cache' -cf - .) | tar -xf - -C "$srcdir/$pkgname-$pkgver"
+}
+
+build() {
+	cd "$srcdir/$pkgname-$pkgver"
+	python -m build --wheel --no-isolation
+}
+
+check() {
+	cd "$srcdir/$pkgname-$pkgver"
+	PYTHONPATH="$PWD/src" python -m pytest -q
+}
+
+package() {
+	cd "$srcdir/$pkgname-$pkgver"
+	python -m installer --destdir="$pkgdir" dist/*.whl
+	install -Dm644 71-discobsd-pico.rules \
+	    "$pkgdir/usr/lib/udev/rules.d/71-discobsd-pico.rules"
+	install -Dm644 systemd/discobsd-web.service \
+	    "$pkgdir/usr/lib/systemd/user/discobsd-web.service"
+	install -Dm644 systemd/discobsd-link.service \
+	    "$pkgdir/usr/lib/systemd/user/discobsd-link.service"
+	install -Dm755 discobsd-connect "$pkgdir/usr/bin/discobsd-connect"
+	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

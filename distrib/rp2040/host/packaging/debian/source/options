@@ -1,0 +1,10 @@
+# The native source package tars the whole build directory. The caches and
+# the build output of a local run carry no source and are left out.
+extend-diff-ignore = "^(build|dist|packaging/arch/[^/]*\.pkg\.tar|.*\.egg-info)/"
+tar-ignore = "build"
+tar-ignore = "dist"
+tar-ignore = "*.egg-info"
+tar-ignore = "__pycache__"
+tar-ignore = ".pytest_cache"
+tar-ignore = ".ruff_cache"
+tar-ignore = ".git*"

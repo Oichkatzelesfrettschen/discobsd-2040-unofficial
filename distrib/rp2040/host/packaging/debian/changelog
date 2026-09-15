@@ -1,0 +1,7 @@
+discobsd-host (1.0.0) noble; urgency=medium
+
+  * Initial release: discobsd-term, discobsd-web, discobsd-link and
+    discobsd-console, with the udev rule, the systemd user units and
+    the discobsd-connect shell wrapper.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Mon, 15 Sep 2026 00:00:00 +0000

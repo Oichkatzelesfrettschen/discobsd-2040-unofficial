@@ -1,0 +1,117 @@
+# The RP2040 kernel, the flash image and the host-only gates. The tree
+# builds warning-free, so the job counts "warning:" in the build log and
+# fails on the first one.
+name: firmware
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'ci/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  PICOTOOL_VERSION: '2.3.1'
+
+jobs:
+  rp2040:
+    name: rp2040 kernel, flash image and gates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # bmake drives the tree; share/mk/sys.mk picks byacc over bison on
+      # Linux, flex as LEX, mandoc for the manual pages and "vim -es -u
+      # NONE" where no ex is installed, and pulls the BSD string and
+      # arc4random functions from libbsd-overlay through pkg-config.
+      # sys/arch/rp2040/test/swapram's Makefile is written for GNU make,
+      # which check-swapram-evac invokes directly, and
+      # tools/verify_rp2040_divider_ownership.py needs python3.
+      - name: Install the host toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bmake make build-essential cmake git \
+            gcc-arm-none-eabi binutils-arm-none-eabi \
+            byacc bison flex libbsd-dev pkg-config mandoc vim python3 \
+            libusb-1.0-0-dev
+
+      # Ubuntu 24.04 packages no picotool, and the kernel and flash image
+      # rules call "picotool uf2 convert", which arrived in picotool 2.
+      # The build is the upstream one: picotool links against the pico-sdk
+      # at the matching tag. A default install lands the binary in
+      # ${prefix}/bin; PICOTOOL_FLAT_INSTALL moves the whole set under
+      # ${prefix}/picotool instead and is left off.
+      - name: Cache picotool
+        id: picotool-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/picotool-install
+          key: picotool-${{ env.PICOTOOL_VERSION }}-ubuntu-24.04
+      - name: Build picotool
+        if: steps.picotool-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$HOME/picotool-src"
+          cd "$HOME/picotool-src"
+          git clone --depth 1 --branch "$PICOTOOL_VERSION" \
+            --recurse-submodules --shallow-submodules \
+            https://github.com/raspberrypi/pico-sdk.git pico-sdk
+          git clone --depth 1 --branch "$PICOTOOL_VERSION" \
+            https://github.com/raspberrypi/picotool.git picotool
+          cmake -S picotool -B picotool/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPICO_SDK_PATH="$HOME/picotool-src/pico-sdk" \
+            -DCMAKE_INSTALL_PREFIX="$HOME/picotool-install"
+          cmake --build picotool/build --parallel "$(nproc)"
+          cmake --install picotool/build
+      - name: Put picotool on PATH
+        run: |
+          echo "$HOME/picotool-install/bin" >> "$GITHUB_PATH"
+      - name: Report the toolchain
+        run: |
+          arm-none-eabi-gcc --version | head -1
+          bmake -V MACHINE 2>/dev/null || true
+          picotool version
+
+      - name: Build the kernel and the userland
+        run: |
+          set -o pipefail
+          bmake MACHINE=rp2040 build 2>&1 | tee build.log
+
+      - name: Assert the build is warning-free
+        run: |
+          # grep -c exits 1 on a zero count, which would end the step
+          # before the assertion runs, so the count is captured first.
+          count=$(grep -c 'warning:' build.log || true)
+          echo "warning: lines in the build log: $count"
+          test "$count" -eq 0
+
+      - name: Build the flash image
+        run: bmake MACHINE=rp2040 flash 2>&1 | tee -a build.log
+
+      # Host-only gates: the packed a.out container and its loader, the
+      # config-generated kernel makefile, the swapram evacuation model
+      # compiled natively, and the flash swap link map.
+      - name: Run the host gates
+        run: |
+          bmake MACHINE=rp2040 check-hsaout check-config-makefile \
+            check-swapram-evac check-flash-swap
+
+      - name: Confirm the images exist
+        run: |
+          ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
+                sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
+                distrib/rp2040/flash.uf2
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-rp2040-firmware
+          path: |
+            sys/arch/rp2040/compile/PICO/unix.uf2
+            sys/arch/rp2040/compile/PICO_UART/unix.uf2
+            distrib/rp2040/flash.uf2
+          if-no-files-found: error

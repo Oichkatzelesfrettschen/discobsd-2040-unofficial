@@ -1,0 +1,253 @@
+# discobsd-host: test the Python package on the three host platforms, build
+# every native artifact, install each one and run the installed commands,
+# then attach the set to a release on a host-v* tag.
+name: host
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'ci/**'
+    paths:
+      - 'distrib/rp2040/host/**'
+      - '.github/workflows/host.yml'
+    tags:
+      - 'host-v*'
+  pull_request:
+    paths:
+      - 'distrib/rp2040/host/**'
+      - '.github/workflows/host.yml'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: distrib/rp2040/host
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the package and its test extra
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: python -m pytest -q
+
+  wheel:
+    name: wheel and sdist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the distributions
+        run: |
+          python -m pip install --upgrade pip build pipx
+          python -m build
+      - name: Install the wheel and run every command
+        run: |
+          wheel=$(ls dist/*.whl)
+          python -m pipx install "$wheel"
+          export PATH="$HOME/.local/bin:$PATH"
+          discobsd-term --version
+          discobsd-web --version
+          discobsd-link --version
+          discobsd-console --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-wheel
+          path: |
+            distrib/rp2040/host/dist/*.whl
+            distrib/rp2040/host/dist/*.tar.gz
+          if-no-files-found: error
+
+  deb:
+    name: deb (ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential debhelper dh-python devscripts \
+            pybuild-plugin-pyproject python3-all python3-pytest \
+            python3-serial python3-setuptools
+      - name: Build the package
+        run: |
+          cp -a packaging/debian debian
+          dpkg-buildpackage -us -uc -b
+          rm -rf debian
+      - name: Install it and run the smoke checks
+        run: |
+          deb=$(ls ../discobsd-host_*.deb)
+          sudo apt-get install -y "$(readlink -f "$deb")"
+          discobsd-term --version
+          discobsd-console --version
+          test -f /usr/lib/udev/rules.d/71-discobsd-pico.rules
+          test -f /usr/lib/systemd/user/discobsd-web.service
+          test -f /usr/lib/systemd/user/discobsd-link.service
+          test -x /usr/bin/discobsd-connect
+      - name: Stage the artifact
+        run: |
+          mkdir -p deb-out
+          cp ../discobsd-host_*.deb deb-out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-deb
+          path: distrib/rp2040/host/deb-out/*.deb
+          if-no-files-found: error
+
+  arch:
+    name: pkg.tar.zst (arch)
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    steps:
+      - name: Install the build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm git sudo python python-build \
+            python-installer python-wheel python-setuptools python-pyserial \
+            python-pytest
+        working-directory: /
+      - uses: actions/checkout@v4
+      - name: Build the package as an unprivileged user
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          su - builder -c "cd '$PWD/packaging/arch' && makepkg -sf --noconfirm"
+      - name: Install it and run the smoke checks
+        run: |
+          pacman -U --noconfirm packaging/arch/discobsd-host-*.pkg.tar.zst
+          discobsd-term --version
+          discobsd-console --version
+          test -f /usr/lib/udev/rules.d/71-discobsd-pico.rules
+          test -f /usr/lib/systemd/user/discobsd-web.service
+          test -f /usr/lib/systemd/user/discobsd-link.service
+          test -x /usr/bin/discobsd-connect
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-arch
+          path: distrib/rp2040/host/packaging/arch/*.pkg.tar.zst
+          if-no-files-found: error
+
+  windows:
+    name: windows executables
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the package and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller
+      - name: Freeze the four commands
+        run: pyinstaller --clean --noconfirm packaging/pyinstaller/discobsd-host.spec
+      - name: Run each executable
+        shell: pwsh
+        working-directory: distrib/rp2040/host/dist
+        run: |
+          .\discobsd-term.exe --version
+          .\discobsd-web.exe --version
+          .\discobsd-link.exe --version
+          .\discobsd-console.exe --version
+          # No board is attached to a runner, so --list finds nothing and
+          # exits 1. Any other status is a failure, and the step ends on a
+          # clean status of its own: pwsh hands the last $LASTEXITCODE to
+          # the runner, which would fail the step on the tolerated 1.
+          .\discobsd-term.exe --list
+          if ($LASTEXITCODE -ne 1 -and $LASTEXITCODE -ne 0) { exit 1 }
+          exit 0
+      - name: Zip the bundle
+        shell: pwsh
+        run: Compress-Archive -Path dist\* -DestinationPath discobsd-host-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-windows
+          path: distrib/rp2040/host/discobsd-host-windows.zip
+          if-no-files-found: error
+
+  macos:
+    name: macos executables
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the package and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller
+      - name: Freeze the four commands
+        run: pyinstaller --clean --noconfirm packaging/pyinstaller/discobsd-host.spec
+      - name: Run each executable
+        run: |
+          cd dist
+          ./discobsd-term --version
+          ./discobsd-web --version
+          ./discobsd-link --version
+          ./discobsd-console --version
+          # No board is attached to a runner, so --list finds nothing and
+          # exits 1. Any other status is a failure.
+          set +e
+          ./discobsd-term --list
+          status=$?
+          set -e
+          test "$status" -eq 0 -o "$status" -eq 1
+      - name: Zip the bundle
+        run: |
+          cd dist
+          zip -r ../discobsd-host-macos.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-macos
+          path: distrib/rp2040/host/discobsd-host-macos.zip
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: [test, wheel, deb, arch, windows, macos]
+    if: startsWith(github.ref, 'refs/tags/host-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    # The job checks nothing out, so the workflow-wide working directory
+    # under distrib/rp2040/host does not exist here.
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: List what the release carries
+        run: ls -lR artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.whl
+            artifacts/**/*.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.pkg.tar.zst
+            artifacts/**/*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true

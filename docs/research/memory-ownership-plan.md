@@ -528,6 +528,58 @@ scratch sector adds erase and program cycles to arbitrary block rewrites but
 adds no further reserved flash. Hardware flash behavior remains an attended
 validation gate; the implementation pass did not flash a device.
 
+### Raw swap rotation and its residency (port PR #66)
+
+Raw NOR swap returned every released image to the lowest free sector, so
+one busy process wore the same 4 KiB sectors while the rest of the 384 KB
+partition idled. `malloc3_contiguous_next` in `kern/subr_rmap.c` allocates
+each aligned run at or after a cyclic cursor and wraps below it; with no
+spare descriptor in the fixed map it takes a run edge instead of splitting,
+so descriptor pressure weakens rotation and never manufactures a shortage.
+swapout, the exec spool, the temporary devices, and the SwapRAM evacuation
+allocate through the cursor. `machdep.c` keeps the cursor in watchdog
+scratch0 under a "SWP" tag across a software reset and seeds a cold boot
+from ROSC rejection sampling: no SRAM table, no flash metadata. The
+temporary devices append erase-once while writes arrive in block order
+from zero and fall back to copy-through-scratch on the first partial,
+duplicate, or out-of-order write.
+
+Residency at af086a09 -> 15ce5c1d (`arm-none-eabi-size`):
+
+| Kernel | text before | text after | bss before | bss after |
+| --- | --- | --- | --- | --- |
+| PICO | 99,402 | 101,118 | 43,976 | 39,544 |
+| PICO_UART | 88,292 | 89,664 | 16,152 | 14,528 |
+
+The PICO bss saving decomposes exactly: `sr_stage` 1,024, `flpage` 1,024,
+`swapram_codec_work` 1,040, `sr_tab` 1,600 -> 600, `flscratch` 256,
+`swapent` 200 -> 116 (COMPACT_SWAPMAP, two u_shorts per descriptor,
+SMAPSIZ 29), and the temporary-device arrays 24 -> 18. The Dhara page,
+program-page buffer, and heatshrink workspace sit in the USB DPSRAM tail
+above the last endpoint buffer (0x50100240 up; datasheet 4.1.2.7 allows
+byte access) on the USB kernel and in SRAM4/SRAM5 on the UART kernel.
+
+One defect surfaced in review before the merge: the branch had also moved
+the 256-byte boot2 copy into DPSRAM, and `flash_enter_xip` calls that copy
+as code. DPSRAM lies in the ARMv6-M peripheral region, which is
+execute-never, so the first flash write would have HardFaulted. The USB
+kernel keeps the copy in bss; a `static` definition then let the linker's
+`PROVIDE` plant a second copy inside the transmit ring, which the new link
+assertion caught, so the definition is global. Rule for later: a buffer
+that is ever branched to stays in SRAM.
+
+Board (15ce5c1d, USB console): boot, `uname`, `df` 314 free, native `cc`
+compile and run, a 24,000-line `sort -n` under the rotating allocator
+(maximum 996, correct), and a software `reboot` that returns with the same
+root. Twelve host gates pass, including the flash-swap NOR model with the
+append-then-rewrite mix and the evacuation test's next-fit rotation, wrap,
+split, and descriptor-full cases.
+
+The same board pass found a manifest bug older than the port: fsutil read
+`mode 666` in base 0, so `/dev/null`, `/dev/zero`, and `/dev/tty` shipped
+as 01232 and operator could not redirect from `/dev/null`. Port PR #67
+parses manifest modes in base 8.
+
 ## Open
 
 Step 6 needs the pool and window to share one arena with resident
@@ -535,4 +587,6 @@ expansion taking precedence: the window is now fixed at 144 KB and the
 pool at 16 KB, and an arena would let a process that fits in 160 KB run
 while the pool is empty. Step 7 landed as PR #45 above. Step 9's
 conversion landed in PR #35; extending the multicall boxes with sed,
-sort and find is the remaining part.
+sort and find is the remaining part. `dev/swap.c` prints a failed
+temporary-device allocation with a missing `unit` argument, a latent
+format bug the wear work left in place.

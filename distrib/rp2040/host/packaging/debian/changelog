@@ -1,3 +1,10 @@
+discobsd-host (1.0.1) noble; urgency=medium
+
+  * udev rule: TAG+="uaccess" grants the seat user the console without a
+    group or a re-login; the discobsd group remains for other users.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 12:00:00 -0700
+
 discobsd-host (1.0.0) noble; urgency=medium
 
   * Initial release: discobsd-term, discobsd-web, discobsd-link and

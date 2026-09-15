@@ -20,46 +20,184 @@ Source code to the system is freely available under a BSD-like license.
 DiscoBSD/rp2040: this fork
 --------------------------
 
-This repository carries the port to the Raspberry Pi Pico (RP2040, Cortex-M0+).
-The kernel lives in `sys/arch/rp2040`, the root file system is a 1.5 MB
-Dhara-managed region of the Pico's own QSPI flash with 384 KB of raw swap
-behind it, and the console is the board's USB cable (CDC-ACM), with UART0
-on GP0/GP1 as a fallback kernel. `sys/arch/rp2040/doc/` holds the boot map,
-storage layout, and console notes; `sys/arch/rp2040/doc/USER-ACCESS.md` is
-the connection guide.
+This repository carries the port to the Raspberry Pi Pico (RP2040,
+Cortex-M0+). The kernel lives in `sys/arch/rp2040`, the root file system is
+a 1.5 MB region of the Pico's own QSPI flash with 384 KB of raw swap behind
+it, and the console is the board's USB cable: the Pico enumerates as a
+standard USB serial device (CDC-ACM), which Linux, Windows 10 and later,
+and macOS drive with no added driver. `sys/arch/rp2040/doc/USER-ACCESS.md`
+is the full connection guide; `sys/arch/rp2040/doc/` holds the boot map and
+storage notes.
 
-### Build and flash
+### Use a board you were handed
 
-    $ bmake MACHINE=rp2040 build      # kernels, userland, DESTDIR
-    $ bmake MACHINE=rp2040 flash      # distrib/rp2040/flash.uf2, the root image
+The board arrives flashed. Plug it into a USB port with a data cable. It
+boots within a few seconds and waits at a login prompt on the USB serial
+line. Log in as `operator` with no password; run `su` (no password) for
+root. Run `sync` or `halt` before unplugging so pending writes reach the
+flash.
 
-The build needs bmake, arm-none-eabi-gcc, byacc or bison, flex, mandoc,
-and Python 3; it is warning-free, and `.github/workflows/firmware.yml`
-builds it on every push and publishes the two UF2 files as an artifact.
+Install the host tools for your operating system from the latest
+`host-v*` release at
+<https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial/releases>
+and follow the steps for your platform.
 
-Two UF2 files load in one BOOTSEL visit: the kernel
-`sys/arch/rp2040/compile/PICO/unix.uf2` and the file system
-`distrib/rp2040/flash.uf2`. From a running kernel, `picotool reboot -u -f`
-enters BOOTSEL; otherwise hold BOOTSEL while plugging the cable in. Then:
+#### Linux Mint, Ubuntu 24.04, Debian
 
-    $ picotool load sys/arch/rp2040/compile/PICO/unix.uf2
-    $ picotool load distrib/rp2040/flash.uf2
-    $ picotool reboot
+1. Download `discobsd-host_<version>_all.deb` from the release page.
+2. Install it. The package pulls in Python and pyserial and adds the udev
+   rule that names the board `/dev/discobsd`:
 
-A file-system-only change needs only `flash.uf2` reloaded. Log in as
-`operator` with no password and `su` to root.
+       sudo apt install ./discobsd-host_*.deb
 
-### Host tools: terminal and web console on Linux, Windows, and macOS
+3. Plug the board in. The rule grants the console to the user at the
+   desktop the moment it appears, so no group and no re-login is needed.
+   Confirm the tools see it:
 
-The board is a standard CDC-ACM device, so no driver is installed on any
-host. `distrib/rp2040/host` is the `discobsd-host` package:
-`discobsd-term` attaches a terminal that survives board reboots,
-`discobsd-web` serves the console to any browser on the LAN behind a token,
-`discobsd-link` publishes a short URL for it, and `discobsd-console up`
-runs both. Releases tagged `host-v*` carry a wheel, an Arch package, an
-Ubuntu 24.04 `.deb`, and standalone Windows and macOS builds, each built
-and smoke-installed by `.github/workflows/host.yml` on its own operating
-system. See `distrib/rp2040/host/README.md` for installation and use.
+       discobsd-term --list
+       discobsd-term --probe
+
+   `--list` prints the device path; `--probe` reports "reachable" with the
+   bytes the board answered.
+4. Open a terminal on the console. Ctrl-] quits.
+
+       discobsd-term
+
+5. Optional: serve the console to phones and laptops on your LAN.
+
+       discobsd-console up
+
+   It prints a short URL such as `http://192.168.1.20:42069/`; open it in
+   any browser on the same network. `discobsd-console down` stops it,
+   `discobsd-console status` reports. One browser session at a time.
+
+Over ssh, or as a user who is not logged in at the machine's own screen,
+join the `discobsd` group instead and log in again:
+
+    sudo usermod -aG discobsd "$USER"
+
+#### Windows 11
+
+1. Download `discobsd-host-windows.zip` from the release page and extract
+   it, for example to `C:\discobsd-host`. It holds four standalone
+   programs; no Python install is needed.
+2. Windows Defender SmartScreen stops an unsigned program the first time:
+   choose "More info", then "Run anyway". The programs are built by the
+   repository's public CI from the tagged source.
+3. Plug the board in. Windows loads its built-in USB serial driver and
+   assigns a COM port. Open Windows Terminal or PowerShell in the folder
+   and confirm the tools see the board:
+
+       cd C:\discobsd-host
+       .\discobsd-term.exe --list
+       .\discobsd-term.exe --probe
+
+4. Open a terminal on the console. Ctrl-] quits. Use Windows Terminal
+   rather than the legacy console host for correct screen handling.
+
+       .\discobsd-term.exe
+
+5. Optional: serve the console on your LAN, then open the printed short
+   URL from any browser on the same network. Allow the two ports through
+   Windows Firewall when it asks; `discobsd-console.exe down` stops the
+   servers.
+
+       .\discobsd-console.exe up
+
+#### macOS
+
+1. Download `discobsd-host-macos.zip`, extract it, and open Terminal in
+   the folder. Gatekeeper blocks an unsigned download the first time:
+   control-click each program, choose Open, or run
+   `xattr -dr com.apple.quarantine .` in the folder.
+2. Plug the board in; it appears as `/dev/cu.usbmodem...`.
+
+       ./discobsd-term --list
+       ./discobsd-term --probe
+       ./discobsd-term
+
+#### Arch Linux, CachyOS
+
+    sudo pacman -U discobsd-host-<version>-1-any.pkg.tar.zst
+    discobsd-term --probe
+    discobsd-term
+
+#### Any system with Python 3.9 or later
+
+    pipx install discobsd_host-<version>-py3-none-any.whl
+    discobsd-term --probe
+
+The wheel installs no udev rule; on Linux, add your user to the group
+your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
+`uucp` on Arch) and log in again.
+
+#### If something does not work
+
+- `discobsd-term --list` prints nothing: the cable is power-only, or the
+  board is in the bootloader. Try another cable; a board in BOOTSEL mode
+  shows up as a USB drive named `RPI-RP2`, so unplug and replug it without
+  the button held.
+- "Permission denied" on Linux: you installed the wheel rather than the
+  `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `discobsd` (with
+  the `.deb`) and log in again.
+- The console prints nothing after attaching: press Enter once. The board
+  printed its prompt before you connected.
+- The screen is garbled in a full-screen program such as `vi`: the board
+  assumes 80 columns by 24 rows. Size the window to that, or run `resize`
+  on the board after changing the window.
+- The web page says the console is in use: another browser tab or a
+  `discobsd-term` holds the serial line. Close it; the line is a single
+  session.
+
+### Build the firmware and flash a board
+
+1. Install the cross toolchain and the build tools. Ubuntu 24.04:
+
+       sudo apt install bmake gcc-arm-none-eabi binutils-arm-none-eabi \
+           byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
+           python3 picotool
+
+   Arch: `pacman -S bmake arm-none-eabi-gcc arm-none-eabi-binutils byacc
+   bison flex libbsd mandoc vim python picotool`. Ubuntu's `picotool` is
+   too old for `picotool uf2 convert`; `.github/workflows/firmware.yml`
+   shows how CI builds picotool 2 from source.
+
+2. Build the kernels, the userland, and the root image. The tree builds
+   with zero warnings; CI enforces that.
+
+       bmake MACHINE=rp2040 build
+       bmake MACHINE=rp2040 flash
+
+3. Put the board in BOOTSEL: hold the BOOTSEL button while plugging the
+   cable in, or from a running system run `picotool reboot -u -f`. The
+   board mounts as a USB drive named `RPI-RP2`.
+
+4. Load both images in the same BOOTSEL visit, the kernel and the file
+   system, then reboot into the system:
+
+       picotool load sys/arch/rp2040/compile/PICO/unix.uf2
+       picotool load distrib/rp2040/flash.uf2
+       picotool reboot
+
+   A change to the file system alone needs only `flash.uf2` reloaded.
+   Copying the two `.uf2` files onto the `RPI-RP2` drive in a file
+   manager works as well, one after the other, re-entering BOOTSEL
+   between them because the board reboots after each copy.
+
+5. Connect with `discobsd-term`. Every push to `main` also builds both
+   `.uf2` files in CI and publishes them as the `discobsd-rp2040-firmware`
+   artifact under Actions, so a tester can flash without a toolchain.
+
+### Host tools: the discobsd-host package
+
+`distrib/rp2040/host` is the source of the tools above: `discobsd-term`
+attaches a terminal that survives board reboots, `discobsd-web` serves
+the console to any browser on the LAN behind a token, `discobsd-link`
+publishes a short URL for it, and `discobsd-console` runs both. Its README
+covers development, the tests, and the packaging; `.github/workflows/host.yml`
+tests the package on Linux, Windows, and macOS and builds and
+smoke-installs every artifact, and `host-release.yml` attaches them to a
+release on a `host-v*` tag.
 
 History
 -------

@@ -113,6 +113,12 @@ jobs:
           bmake MACHINE=rp2040 check-hsaout check-config-makefile \
             check-swapram-evac check-flash-swap
 
+      # The PDP-11 emulator built with the host compiler boots the shipped
+      # V6 pack on a pseudo-terminal: bootstrap prompt, login, ed, a
+      # pipeline and a disk write.
+      - name: Boot V6 through the host build of pdp11
+        run: bmake -C usr.bin/pdp11 MACHINE=rp2040 test
+
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \

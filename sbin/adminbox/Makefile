@@ -29,7 +29,10 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 BUILTIN_OBJS=	tiny_applets.o
 PROG=		adminbox
 HSAOUT=		${TOPSRC}/tools/bin/hsaout
-MAX_PACKED_ROOT_BLOCKS= 21
+# Root budget for the packed image: 21 blocks from arm-none-eabi-gcc 16
+# (Arch), 22 from gcc 13 (Ubuntu 24.04, the CI toolchain), so the gate
+# holds the larger of the two.
+MAX_PACKED_ROOT_BLOCKS= 22
 
 CFLAGS+=	-Wall -Wextra -Werror -Wformat=2
 

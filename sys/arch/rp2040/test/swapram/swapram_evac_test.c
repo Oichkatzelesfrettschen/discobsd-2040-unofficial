@@ -26,15 +26,27 @@ struct proc proc[NPROC];
 struct user u, u0;
 char runin, runout;
 char __user_data_start[1], __user_data_end[1];
+size_t swapnext;
+
+void
+swap_cursor_publish(size_t next)
+{
+    (void)next;
+}
 
 #define NSWAP   512                     /* blocks in the stand-in unit */
 static struct mapent swapent[NPROC * 3 + 2];
 struct map swapmap[1] = { { swapent, &swapent[NPROC * 3 + 1], "swapmap" } };
 static unsigned char flash[NSWAP * DEV_BSIZE];
 static int writes;
+static struct buf evacuation_buf;
+static unsigned char evacuation_payload[DEV_BSIZE];
 
 static jmp_buf onpanic;
 static const char *panicmsg;
+static int failures;
+#define CHECK(cond) do { if (!(cond)) { \
+    failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
 
 void
 panic(const char *s)
@@ -62,20 +74,33 @@ sleep(caddr_t chan, int pri)
     swapram_service();
 }
 
+struct buf *
+geteblk(void)
+{
+    evacuation_buf.b_addr = (caddr_t)evacuation_payload;
+    return &evacuation_buf;
+}
+
+void
+brelse(struct buf *bp)
+{
+    if (bp != &evacuation_buf)
+        panic("brelse: wrong buffer");
+}
+
 /* kern/vm_swp.c stand-in: count bytes from coreaddr to block blkno. */
 void
-swap(size_t blkno, size_t coreaddr, int count, int rdflg)
+swap_with_buf(struct buf *bp, size_t blkno, size_t coreaddr, int count,
+    int rdflg)
 {
-    if ((rdflg & B_READ) != 0 || (rdflg & B_SWAPIMAGE) == 0 ||
+    if (bp != &evacuation_buf || coreaddr != (size_t)bp->b_addr ||
+        count > DEV_BSIZE || (rdflg & B_READ) != 0 ||
+        (rdflg & B_SWAPIMAGE) == 0 ||
         blkno + btod(count) > NSWAP)
         panic("swap: bad write");
     memcpy(flash + blkno * DEV_BSIZE, (void *)coreaddr, count);
     writes++;
 }
-
-static int failures;
-#define CHECK(cond) do { if (!(cond)) { \
-    failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
 
 static void reset_map(size_t blocks);
 
@@ -178,12 +203,17 @@ spool_coexistence(void)
     mkimage(&im, 1800, 300, 42);
     CHECK(admit(0, &im));
     memset(destination, 0, sizeof destination);
+    CHECK(swapram_uarea_prefix(&proc[0], destination,
+        sizeof destination) == 0);
+    CHECK(memcmp(destination, im.ub, sizeof destination) == 0);
+    memset(destination, 0, sizeof destination);
     swapram_spool_read(spool_offset, 0, destination,
         sizeof destination);
     CHECK(memcmp(source, destination, sizeof source) == 0);
     swapram_in(&proc[0], (caddr_t)im.d, (caddr_t)im.s,
         (caddr_t)im.ub);
     CHECK(swapram_images() == 0);
+    CHECK(swapram_uarea_prefix(&proc[0], destination, 1) == -1);
 
     swapram_set_epoch(SWAPRAM_LARGE);
     swapram_service();
@@ -224,7 +254,8 @@ reset_map(size_t blocks)
 static void
 allocator_contract(void)
 {
-    size_t addresses[3], before;
+    struct mapent *saved_limit;
+    size_t addresses[3], before, cursor;
 
     reset_map(16);
     before = mapfree();
@@ -241,7 +272,70 @@ allocator_contract(void)
     CHECK(mapfree() == before - SWAP_IMAGE_ALIGN);
     mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
     CHECK(mapfree() == before);
-    printf("allocator: aligned rounded runs reject empty and overflowing sizes\n");
+
+    /* A released short extent advances through every sector before wrap. */
+    cursor = SWAP_IMAGE_ALIGN;
+    CHECK(malloc3_contiguous_next(swapmap, 1, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 4 && cursor == 8);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(malloc3_contiguous_next(swapmap, 1, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 8 && cursor == 12);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(malloc3_contiguous_next(swapmap, 1, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 12 && cursor == 16);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(malloc3_contiguous_next(swapmap, 1, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 16 && cursor == 20);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(malloc3_contiguous_next(swapmap, 1, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 4 && cursor == 8);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+
+    /* An interior cursor splits a free run and mfree joins it exactly. */
+    reset_map(24);
+    cursor = 12;
+    before = mapfree();
+    CHECK(malloc3_contiguous_next(swapmap, 1, 2, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 12 && cursor == 16);
+    CHECK(swapmap->m_map[0].m_addr == 4 &&
+        swapmap->m_map[0].m_size == 8);
+    CHECK(swapmap->m_map[1].m_addr == 16 &&
+        swapmap->m_map[1].m_size == 12);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(mapfree() == before);
+    CHECK(swapmap->m_map[1].m_size == 0);
+
+    /* A full descriptor array chooses a run edge instead of false ENOMEM. */
+    memset(swapent, 0, sizeof swapent);
+    swapent[0].m_addr = 4;
+    swapent[0].m_size = 20;
+    swapent[1].m_addr = 40;
+    swapent[1].m_size = 4;
+    saved_limit = swapmap->m_limit;
+    swapmap->m_limit = &swapent[2];
+    cursor = 12;
+    before = mapfree();
+    CHECK(malloc3_contiguous_next(swapmap, 1, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == SWAP_IMAGE_ALIGN);
+    CHECK(addresses[0] == 20 && cursor == 24);
+    CHECK(mapfree() == before - SWAP_IMAGE_ALIGN);
+    mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
+    CHECK(mapfree() == before);
+    swapmap->m_limit = saved_limit;
+
+    cursor = 12;
+    reset_map(4);
+    before = mapfree();
+    CHECK(malloc3_contiguous_next(swapmap, 5, 0, 0,
+        SWAP_IMAGE_ALIGN, &cursor, addresses) == 0);
+    CHECK(cursor == 12 && mapfree() == before);
+    printf("allocator: aligned next-fit rotates, wraps, splits, and preserves capacity when descriptor-full\n");
 }
 
 static void

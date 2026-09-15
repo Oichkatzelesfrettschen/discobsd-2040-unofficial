@@ -267,3 +267,109 @@ malloc3_contiguous (mp, d_size, s_size, u_size, align, a)
     a[2] = a[1] + s_size;
     return span;
 }
+
+/*
+ * Allocate one aligned run using a cyclic next-fit search.  Raw NOR swap
+ * callers use the cursor to move short-lived images across erase sectors
+ * instead of returning to the lowest free sector after every release.
+ *
+ * An allocation in the middle of a free run needs one additional map
+ * descriptor.  When the fixed map has no spare descriptor, the search uses
+ * a fitting run boundary instead.  Descriptor pressure can therefore weaken
+ * rotation, but it cannot turn a fitting allocation into a false shortage.
+ */
+size_t
+malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
+    size_t u_size, size_t align, size_t *nextp, size_t a[3])
+{
+    struct mapent *bp, *endp, *selected;
+    size_t base, candidate, end, selected_base, span, total;
+    int pass, spare;
+
+    if (align == 0 || (align & (align - 1)) != 0)
+        panic ("malloc3_contiguous_next: bad alignment");
+    if (nextp == NULL)
+        panic ("malloc3_contiguous_next: no cursor");
+    if (d_size > (size_t)-1 - s_size ||
+        d_size + s_size > (size_t)-1 - u_size)
+        return 0;
+    total = d_size + s_size + u_size;
+    if (total == 0 || total > (size_t)-1 - (align - 1))
+        return 0;
+    span = (total + align - 1) & ~(align - 1);
+
+    for (endp = mp->m_map; endp->m_size; endp++)
+        continue;
+    spare = endp < mp->m_limit;
+    selected = NULL;
+    selected_base = 0;
+
+    /* Pass zero searches at and above the cursor; pass one wraps below it. */
+    for (pass = 0; pass < 2 && selected == NULL; pass++) {
+        for (bp = mp->m_map; bp->m_size; bp++) {
+            if ((bp->m_addr & (align - 1)) != 0 ||
+                (bp->m_size & (align - 1)) != 0)
+                panic ("malloc3_contiguous_next: unaligned map");
+            if (bp->m_addr > (size_t)-1 - bp->m_size)
+                panic ("malloc3_contiguous_next: corrupt map");
+            end = bp->m_addr + bp->m_size;
+            if (bp->m_size < span)
+                continue;
+
+            if (pass == 0) {
+                candidate = *nextp > bp->m_addr ? *nextp : bp->m_addr;
+                if (candidate > (size_t)-1 - (align - 1))
+                    continue;
+                candidate = (candidate + align - 1) & ~(align - 1);
+                if (candidate > end - span)
+                    continue;
+            } else {
+                candidate = bp->m_addr;
+                if (candidate >= *nextp)
+                    continue;
+            }
+
+            /* Prefer the cursor, but avoid an interior split when full. */
+            if (!spare && candidate != bp->m_addr &&
+                candidate != end - span) {
+                candidate = end - span;
+                if ((pass == 0 && candidate < *nextp) ||
+                    (pass == 1 && candidate >= *nextp))
+                    continue;
+            }
+            selected = bp;
+            selected_base = candidate;
+            break;
+        }
+    }
+    if (selected == NULL)
+        return 0;
+
+    bp = selected;
+    base = bp->m_addr;
+    end = base + bp->m_size;
+    if (selected_base == base) {
+        bp->m_addr += span;
+        bp->m_size -= span;
+        if (bp->m_size == 0)
+            do {
+                *bp = bp[1];
+            } while ((bp++)->m_size != 0);
+    } else if (selected_base == end - span) {
+        bp->m_size -= span;
+    } else {
+        struct mapent *move;
+
+        for (move = endp; move > bp; move--)
+            move[1] = move[0];
+        bp[1].m_addr = selected_base + span;
+        bp[1].m_size = end - bp[1].m_addr;
+        bp->m_size = selected_base - base;
+    }
+
+    a[0] = selected_base;
+    a[1] = selected_base + d_size;
+    a[2] = a[1] + s_size;
+    *nextp = selected_base + span;
+    return span;
+}

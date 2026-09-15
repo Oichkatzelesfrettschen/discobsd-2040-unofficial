@@ -3,6 +3,8 @@
 #include <stdio.h>
 void panic(const char *);
 extern char runin, runout;
+extern size_t swapnext;
+void swap_cursor_publish(size_t);
 void wakeup(caddr_t);
 void sleep(caddr_t, int);
 void bcopy(const void *, void *, size_t);

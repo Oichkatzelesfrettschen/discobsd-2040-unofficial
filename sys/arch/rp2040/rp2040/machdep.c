@@ -34,6 +34,8 @@
 #include <rp2040/dev/usb.h>
 #include <rp2040/dev/flash.h>
 
+#define	MREG32(a)		(*(volatile u_int *)(a))
+
 /*
  * Kernel-specific uses of LEDs and buttons provided by the
  * board support package and defined in the kernel Config.
@@ -128,9 +130,15 @@ int	securelevel = 0;
 #endif
 
 struct mapent	swapent[SMAPSIZ];
+#ifdef COMPACT_SWAPMAP
+_Static_assert(sizeof(struct mapent) == 4,
+    "compact RP2040 swap descriptors must remain four bytes");
+_Static_assert(FLASH_SWAP_BYTES / FLASH_UNIT_BYTES <= (u_short)-1,
+    "RP2040 raw swap must fit compact descriptors");
+#endif
 struct map	swapmap[1] = {
 	{ swapent,
-	  &swapent[SMAPSIZ],
+	  &swapent[SMAPSIZ - 1],
 	  "swapmap" },
 };
 
@@ -172,9 +180,65 @@ daddr_t	dumplo = (daddr_t)1024;
  * crystal make one microsecond.
  */
 #define	WATCHDOG_BASE		0x40058000UL
+#define	WATCHDOG_SCRATCH0	0x0c
 #define	WATCHDOG_TICK		0x2c
 #define	WATCHDOG_TICK_ENABLE	(1UL << 9)
 #define	WATCHDOG_TICK_CYCLES	12
+
+#define	ROSC_BASE		0x40060000UL
+#define	ROSC_RANDOMBIT		0x1c
+
+/* "SWP" plus one sector index in the low byte. */
+#define	SWAP_CURSOR_TAG		0x53575000UL
+#define	SWAP_CURSOR_TAG_MASK	0xffffff00UL
+
+/*
+ * Watchdog scratch0 preserves the next-fit position across a software reset.
+ * A cold boot rejects an untagged word and uses bounded ROSC rejection
+ * sampling, spreading the first allocation without adding an SRAM table or
+ * writing flash metadata.  Boot ROM custom reboot state occupies scratch4-7,
+ * so scratch0 has a separate owner.
+ */
+void
+swap_cursor_init(u_int blocks)
+{
+	u_int index, sample, sectors, scratch, tries;
+
+	sectors = (blocks - SWAP_IMAGE_ALIGN) / SWAP_IMAGE_ALIGN;
+	scratch = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH0);
+	index = scratch & 0xff;
+	if ((scratch & SWAP_CURSOR_TAG_MASK) != SWAP_CURSOR_TAG ||
+	    index >= sectors) {
+		index = 0;
+		for (tries = 0; tries < 8; tries++) {
+			sample = 0;
+			for (u_int bit = 0; bit < 7; bit++)
+				sample = (sample << 1) |
+				    (MREG32(ROSC_BASE + ROSC_RANDOMBIT) & 1);
+			if (sample < sectors) {
+				index = sample;
+				break;
+			}
+		}
+	}
+	swapnext = SWAP_IMAGE_ALIGN + index * SWAP_IMAGE_ALIGN;
+	swap_cursor_publish(swapnext);
+}
+
+void
+swap_cursor_publish(size_t next)
+{
+	u_int index;
+
+	if (next < SWAP_IMAGE_ALIGN || next > nswap ||
+	    (next & (SWAP_IMAGE_ALIGN - 1)) != 0)
+		index = 0;
+	else if (next == nswap)
+		index = 0;
+	else
+		index = (next - SWAP_IMAGE_ALIGN) / SWAP_IMAGE_ALIGN;
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH0) = SWAP_CURSOR_TAG | index;
+}
 
 #define	XOSC_BASE		0x40024000UL
 #define	XOSC_CTRL		0x00
@@ -236,8 +300,6 @@ daddr_t	dumplo = (daddr_t)1024;
 
 #define	TIMER_BASE		0x40054000UL
 #define	TIMER_TIMERAWL		0x28		/* Free-running microseconds. */
-
-#define	MREG32(a)		(*(volatile u_int *)(a))
 
 static void
 rp_unreset(u_int mask)

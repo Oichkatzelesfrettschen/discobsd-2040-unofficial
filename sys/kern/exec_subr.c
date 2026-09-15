@@ -30,11 +30,12 @@ exec_spool_reserve_flash (struct exec_params *epp)
 
     blocks = btod (epp->spool.size);
 #ifdef SWAP_IMAGE_ALIGN
-    epp->spool.span = malloc3_contiguous (swapmap, blocks, 0, 0,
-        SWAP_IMAGE_ALIGN, addresses);
+    epp->spool.span = malloc3_contiguous_next (swapmap, blocks, 0, 0,
+        SWAP_IMAGE_ALIGN, &swapnext, addresses);
     if (epp->spool.span == 0)
         return ENOMEM;
     epp->spool.blkno = addresses[0];
+    swap_cursor_publish (swapnext);
 #else
     epp->spool.blkno = malloc (swapmap, blocks);
     if (epp->spool.blkno == 0)

@@ -156,7 +156,8 @@ main(void)
 	unsigned char rewrite[2 * FLASH_UNIT_BYTES];
 	unsigned char sector_before[FLASH_SECTOR_BYTES];
 	unsigned char scratch[FLASH_PROG_BYTES];
-	unsigned int calls_before;
+	unsigned int calls_before, destination_erases_before;
+	unsigned int scratch_erases_before, temp_block;
 
 	memset(modeled_flash, 0, sizeof modeled_flash);
 	fill(data, sizeof data, 11);
@@ -198,7 +199,37 @@ main(void)
 	    5 * FLASH_SECTOR_BYTES, replacement, sizeof replacement,
 	    scratch) == -1);
 
+	/*
+	 * A temporary extent initialized in strict block order uses append mode:
+	 * one destination erase, sixteen programs, and no scratch-sector wear.
+	 * A later duplicate block uses the rewrite path and preserves its peers.
+	 */
+	fill(sector_before, sizeof sector_before, 53);
+	scratch_erases_before = erase_count[0];
+	destination_erases_before = erase_count[6];
+	calls_before = program_calls;
+	for (temp_block = 0; temp_block < 4; temp_block++)
+		CHECK(flash_swap_append(&modeled_ops, FLASH_SWAP_OFFSET +
+		    6 * FLASH_SECTOR_BYTES + temp_block * FLASH_UNIT_BYTES,
+		    sector_before + temp_block * FLASH_UNIT_BYTES,
+		    FLASH_UNIT_BYTES, scratch) == 0);
+	CHECK(erase_count[0] == scratch_erases_before);
+	CHECK(erase_count[6] == destination_erases_before + 1);
+	CHECK(program_calls == calls_before + 16);
+	check_bytes(6 * FLASH_SECTOR_BYTES, sector_before,
+	    sizeof sector_before);
+	fill(rewrite, FLASH_UNIT_BYTES, 199);
+	CHECK(flash_swap_rewrite(&modeled_ops, FLASH_SWAP_OFFSET +
+	    6 * FLASH_SECTOR_BYTES + FLASH_UNIT_BYTES, rewrite,
+	    FLASH_UNIT_BYTES, FLASH_SWAP_SCRATCH_OFFSET, scratch) == 0);
+	check_bytes(6 * FLASH_SECTOR_BYTES, sector_before, FLASH_UNIT_BYTES);
+	check_bytes(6 * FLASH_SECTOR_BYTES + FLASH_UNIT_BYTES, rewrite,
+	    FLASH_UNIT_BYTES);
+	check_bytes(6 * FLASH_SECTOR_BYTES + 2 * FLASH_UNIT_BYTES,
+	    sector_before + 2 * FLASH_UNIT_BYTES, 2 * FLASH_UNIT_BYTES);
+
 	/* Ordinary swap clients can rewrite one block without changing neighbors. */
+	destination_erases_before = erase_count[6];
 	fill(modeled_flash + 6 * FLASH_SECTOR_BYTES, FLASH_SECTOR_BYTES, 149);
 	memcpy(sector_before, modeled_flash + 6 * FLASH_SECTOR_BYTES,
 	    sizeof sector_before);
@@ -212,7 +243,7 @@ main(void)
 	check_bytes(6 * FLASH_SECTOR_BYTES + 2 * FLASH_UNIT_BYTES,
 	    sector_before + 2 * FLASH_UNIT_BYTES, 2 * FLASH_UNIT_BYTES);
 	CHECK(erase_count[0] >= 1);
-	CHECK(erase_count[6] == 1);
+	CHECK(erase_count[6] == destination_erases_before + 1);
 
 	/* A rewrite can cross a sector and reports each operation failure. */
 	fill(rewrite, sizeof rewrite, 17);

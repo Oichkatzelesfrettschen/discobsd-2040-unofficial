@@ -23,8 +23,34 @@
 
 extern struct buf *getnewbuf(void);
 
-static u_int	tdsize[NTMP];		/* Number of blocks allocated */
-static u_int	tdstart[NTMP];		/* Starting location in map */
+/*
+ * Raw flash has only 384 swap blocks.  Sixteen-bit extent fields therefore
+ * retain the complete range while making room for an append high-water mark
+ * in less SRAM than the former two u_int arrays used.  A newly allocated
+ * temporary device may use erase-once append writes only in strict block
+ * order from zero; any partial, duplicate, or out-of-order write permanently
+ * switches the extent to ordinary copy-through-scratch rewrites.
+ */
+#define TD_APPEND_DISABLED 0xffffU
+struct swtemp {
+	u_short	t_start;
+	u_short	t_size;
+	u_short	t_next;
+};
+static struct swtemp td[NTMP];
+
+static int
+swtemp_write_flags(struct swtemp *temp, u_int block, u_int blocks)
+{
+	if (blocks == 0 || temp->t_next == TD_APPEND_DISABLED ||
+	    block != temp->t_next || block > temp->t_size ||
+	    blocks > temp->t_size - block) {
+		temp->t_next = TD_APPEND_DISABLED;
+		return B_WRITE;
+	}
+	temp->t_next += blocks;
+	return B_WRITE | B_SWAPIMAGE;
+}
 
 extern dev_t	swapdev;
 
@@ -72,7 +98,7 @@ swsize(dev_t dev)
 	if (unit >= NTMP)
 		return ENODEV;
 
-	return tdsize[unit];
+	return td[unit].t_size;
 }
 
 int
@@ -115,10 +141,10 @@ swcread(dev_t dev, struct uio *uio, int flag)
 		return ENODEV;
 	}
 
-	if (tdstart[unit] == 0)
+	if (td[unit].t_start == 0)
 		return EIO;
 
-	if (uio->uio_offset >= tdsize[unit] << 10)
+	if (uio->uio_offset >= td[unit].t_size << 10)
 		return EIO;
 
 	bp = getnewbuf();
@@ -126,17 +152,16 @@ swcread(dev_t dev, struct uio *uio, int flag)
 	block = uio->uio_offset >> 10;
 	boff = uio->uio_offset - (block << 10);
 
-	rsize = DEV_BSIZE - boff;
 	rlen = uio->uio_iov->iov_len;
 
-	while ((rlen > 0) && (block < tdsize[unit])) {
-		swap(tdstart[unit] + block, (size_t)bp->b_addr,
+	while ((rlen > 0) && (block < td[unit].t_size)) {
+		rsize = MIN(DEV_BSIZE - boff, rlen);
+		swap(td[unit].t_start + block, (size_t)bp->b_addr,
 		    DEV_BSIZE, B_READ);
 		uiomove(bp->b_addr + boff, rsize, uio);
 		boff = 0;
 		block++;
 		rlen -= rsize;
-		rsize = rlen >= DEV_BSIZE ? DEV_BSIZE : rlen;
 	}
 
 	brelse(bp);
@@ -160,13 +185,13 @@ swcwrite(dev_t dev, struct uio *uio, int flag)
 		return ENODEV;
 	}
 
-	if (tdstart[unit] == 0) {
+	if (td[unit].t_start == 0) {
 		printf("temp%d: attempt to write with no allocation\n",
 		    unit);
 		return EIO;
 	}
 
-	if (uio->uio_offset >= tdsize[unit] << 10) {
+	if (uio->uio_offset >= td[unit].t_size << 10) {
 		printf("temp%d: attempt to write past end of allocation\n",
 		    unit);
 		return EIO;
@@ -177,17 +202,22 @@ swcwrite(dev_t dev, struct uio *uio, int flag)
 	block = uio->uio_offset >> 10;
 	boff = uio->uio_offset - (block << 10);
 
-	rsize = DEV_BSIZE - boff;
 	rlen = uio->uio_iov->iov_len;
 
-	while (rlen > 0 && block < tdsize[unit]) {
+	while (rlen > 0 && block < td[unit].t_size) {
+		rsize = MIN(DEV_BSIZE - boff, rlen);
+		if (boff != 0 || rsize != DEV_BSIZE) {
+			td[unit].t_next = TD_APPEND_DISABLED;
+			swap(td[unit].t_start + block, (size_t)bp->b_addr,
+			    DEV_BSIZE, B_READ);
+		}
 		uiomove(bp->b_addr + boff, rsize, uio);
-		swap(tdstart[unit] + block, (size_t)bp->b_addr,
-		    DEV_BSIZE, B_WRITE);
+		swap(td[unit].t_start + block, (size_t)bp->b_addr,
+		    DEV_BSIZE, boff == 0 && rsize == DEV_BSIZE ?
+		    swtemp_write_flags(&td[unit], block, 1) : B_WRITE);
 		boff = 0;
 		block++;
 		rlen -= rsize;
-		rsize = rlen >= DEV_BSIZE ? DEV_BSIZE : rlen;
 	}
 
 	brelse(bp);
@@ -217,37 +247,43 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 
 	switch (cmd) {
 	case TFALLOC:
-		if (tdstart[unit] > 0) {
+		if (td[unit].t_start > 0) {
 #ifdef SWAP_IMAGE_ALIGN
 			mfree(swapmap,
-			    (tdsize[unit] + SWAP_IMAGE_ALIGN - 1) &
-			    ~(SWAP_IMAGE_ALIGN - 1), tdstart[unit]);
+			    (td[unit].t_size + SWAP_IMAGE_ALIGN - 1) &
+			    ~(SWAP_IMAGE_ALIGN - 1), td[unit].t_start);
 #else
-			mfree(swapmap, tdsize[unit], tdstart[unit]);
+			mfree(swapmap, td[unit].t_size, td[unit].t_start);
 #endif
-			tdstart[unit] = 0;
-			tdsize[unit] = 0;
+			td[unit].t_start = 0;
+			td[unit].t_size = 0;
+			td[unit].t_next = TD_APPEND_DISABLED;
 		}
 
 		if (*offtval > 0) {
 			requested = *offtval;
 #ifdef SWAP_IMAGE_ALIGN
 			extent[0] = extent[1] = extent[2] = 0;
-			if (malloc3_contiguous(swapmap,
+			if (malloc3_contiguous_next(swapmap,
 			    (size_t)requested, 0, 0, SWAP_IMAGE_ALIGN,
-			    extent) != 0)
-				tdstart[unit] = extent[0];
+			    &swapnext, extent) != 0)
+				td[unit].t_start = extent[0];
 #else
-			tdstart[unit] = malloc(swapmap, requested);
+			td[unit].t_start = malloc(swapmap, requested);
 #endif
-			if (tdstart[unit] > 0) {
-				tdsize[unit] = requested;
+			if (td[unit].t_start > 0) {
+				td[unit].t_size = requested;
+				td[unit].t_next = 0;
+#ifdef SWAP_IMAGE_ALIGN
+				swap_cursor_publish(swapnext);
+#endif
 				/* printf("temp%d: allocated %lu blocks\n",
-				    unit, tdsize[unit]); */
+				    unit, td[unit].t_size); */
 
 				return 0;
 			}
-			tdstart[unit] = 0;
+			td[unit].t_start = 0;
+			td[unit].t_next = TD_APPEND_DISABLED;
 			*offtval = 0;
 			printf("temp%d: failed to allocate %lu blocks\n",
 			    (u_long)requested);
@@ -280,24 +316,29 @@ swstrategy(struct buf *bp)
 		if (unit >= NTMP)
 			return;
 
-		if (tdstart[unit] == 0) {
+		if (td[unit].t_start == 0) {
 			printf("swap%d: attempt to access unallocated device\n",
 			    unit);
 			return;
 		}
 
-		if (bp->b_blkno > tdsize[unit]) {
+		if (bp->b_blkno >= td[unit].t_size ||
+		    btod(bp->b_bcount) > td[unit].t_size - bp->b_blkno) {
 			printf("swap%d: attempt to access past end of allocation\n",
 			    unit);
 			return;
 		}
 
 		if (bp->b_flags & B_READ) {
-			swap(tdstart[unit] + bp->b_blkno, (size_t)bp->b_addr,
+			swap(td[unit].t_start + bp->b_blkno, (size_t)bp->b_addr,
 			    bp->b_bcount, B_READ);
 		} else {
-			swap(tdstart[unit] + bp->b_blkno, (size_t)bp->b_addr,
-			    bp->b_bcount, B_WRITE);
+			swap(td[unit].t_start + bp->b_blkno, (size_t)bp->b_addr,
+			    bp->b_bcount,
+			    (bp->b_bcount & (DEV_BSIZE - 1)) == 0 ?
+			    swtemp_write_flags(&td[unit], bp->b_blkno,
+			    btod(bp->b_bcount)) :
+			    (td[unit].t_next = TD_APPEND_DISABLED, B_WRITE));
 		}
 
 		biodone(bp);

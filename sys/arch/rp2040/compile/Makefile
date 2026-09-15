@@ -47,7 +47,8 @@ check-swapram:
 			param=$$(${MAKE} -C $$i -V PARAM); \
 			sh "${SWAPRAM_LINK_VERIFIER}" --elf $$i/unix.elf \
 			    --object $$i/vm_swap.o \
-			    --exec-object $$i/exec_hsaout.o --param "$$param"; \
+			    --exec-object $$i/exec_hsaout.o \
+			    --sysctl-object $$i/kern_sysctl.o --param "$$param"; \
 		done
 
 check-cache-footprint:
@@ -87,6 +88,7 @@ check-flash-swap:
 			    sh "${FLASH_SWAP_LINK_VERIFIER}" --elf $$i/unix.elf \
 			    --flash-object $$i/flash.o \
 			    --vm-swap-object $$i/vm_swap.o \
+			    --exec-object $$i/exec_subr.o \
 			    --swap-object $$i/swap.o $$swapram_arg; \
 		done
 

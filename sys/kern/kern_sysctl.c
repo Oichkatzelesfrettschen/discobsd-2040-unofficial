@@ -54,6 +54,9 @@
 #include <sys/map.h>
 #include <sys/sysctl.h>
 #include <machine/cpu.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 #include <sys/conf.h>
 
 sysctlfn kern_sysctl;
@@ -811,6 +814,7 @@ fill_from_u(struct proc *p, uid_t *rup, struct tty **ttp, dev_t *tdp)
 	uid_t ruid;
 	struct tty *ttyp;
 	struct user *up;
+	int error;
 
 	if (p->p_stat == SZOMB) {
 		ruid = (uid_t)-2;
@@ -824,6 +828,13 @@ fill_from_u(struct proc *p, uid_t *rup, struct tty **ttp, dev_t *tdp)
 		ruid = ((struct user *)p->p_addr)->u_ruid;
 	} else {
 		bp = geteblk();
+		error = 0;
+#ifdef SWAPRAM
+		if (swapram_present(p)) {
+			error = swapram_uarea_prefix(p, bp->b_addr, DEV_BSIZE);
+		} else
+#endif
+		{
 		bp->b_dev = swapdev;
 		bp->b_blkno = (daddr_t)p->p_addr;
 		bp->b_bcount = DEV_BSIZE;	/* XXX */
@@ -831,8 +842,10 @@ fill_from_u(struct proc *p, uid_t *rup, struct tty **ttp, dev_t *tdp)
 
 		(*bdevsw[major(swapdev)].d_strategy)(bp);
 		biowait(bp);
+		error = u.u_error;
+		}
 
-		if (u.u_error) {
+		if (error) {
 			ttyd = NODEV;
 			ttyp = NULL;
 			ruid = (uid_t)-2;

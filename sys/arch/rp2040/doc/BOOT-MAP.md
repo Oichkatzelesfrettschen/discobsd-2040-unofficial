@@ -42,7 +42,8 @@ Port artifacts:
 | kernel data, bss, RAM-resident flash writers | 0x20024000 | 106K | `RP2040.ld` RAM |
 | process 0 u area | 0x2003e800 | 3K | U0AREA |
 | current u area and stack | 0x2003f400 | 3K, `_estack` = 0x20040000 | UAREA |
-| SRAM4, SRAM5 | 0x20040000 | 8K | `RP2040.ld` SCRATCH: the USB console transmit ring, `.scratch` in `kern.ldscript`; ROM stages boot2 in SRAM5 only until it jumps to the kernel |
+| SRAM4, SRAM5 | 0x20040000 | 8K | `RP2040.ld` SCRATCH: the USB console transmit ring; the UART-only kernel uses 1,536 bytes for the Dhara page, boot2 copy, and flash program-page buffer |
+| USB DPSRAM tail | 0x50100240 | 3,520 bytes | endpoint controls and buffers stop at 0x50100240; the USB kernel uses 2,320 tail bytes for the Dhara page, shared heatshrink workspace, and flash program-page buffer; the boot2 copy is called as code and DPSRAM is execute-never, so it stays in bss |
 
 The kernel is 90,901 bytes of flash and 39,608 of RAM.
 

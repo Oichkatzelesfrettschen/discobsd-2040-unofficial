@@ -122,6 +122,7 @@ int swapram_out(struct proc *, caddr_t, size_t, caddr_t, size_t, size_t);
 void swapram_put(struct proc *, int, caddr_t, size_t);
 void swapram_commit(struct proc *);
 int swapram_present(struct proc *);
+int swapram_uarea_prefix(struct proc *, void *, unsigned int);
 void swapram_in(struct proc *, caddr_t, caddr_t, caddr_t);
 void swapram_admit(int);
 int swapram_images(void);

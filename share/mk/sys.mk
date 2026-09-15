@@ -65,7 +65,7 @@ MACHINE_CPU!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
 # RP2040 diagnostics read kernel structures through /dev/kmem and sysctl.
 # Keep every target program on the same fixed-table layout as the kernel.
 KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DSINGLE_UFS_ROOT -DNMOUNT=1" ; \
+		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DCOMPACT_SWAPMAP -DSINGLE_UFS_ROOT -DNMOUNT=1" ; \
 	else \
 		echo "" ; \
 	fi

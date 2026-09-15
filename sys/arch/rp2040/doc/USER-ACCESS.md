@@ -46,7 +46,7 @@ refused.
 ## Terminal type
 
 The console entry in /etc/ttys sets the login's TERM to xterm, and
-/etc/termcap on the root carries xterm, vt100, vt102 and ansi entries, so
+/etc/termcap on the root carries xterm, vt100, ansi and linux entries, so
 the screen editor stevie (vi) and the pager more drive the terminal
 correctly. The board's own full-screen programs -- stevie, the menu shell,
 the games -- emit plain ANSI escapes that every xterm-family and vt100
@@ -106,7 +106,7 @@ Windows, and macOS, and `DISCOBSD_PORT` overrides discovery.
   reports. On Linux with the packaged systemd user units it drives the
   units, elsewhere it runs the servers detached with pid files.
 
-For a zero-code alternative, ttyd (https://github.com/tsl0922/ttyd, on
+For a zero-code alternative, ttyd (<https://github.com/tsl0922/ttyd>, on
 Debian and Arch) serves any command as a web terminal:
 `ttyd -p 7681 discobsd-term`.
 

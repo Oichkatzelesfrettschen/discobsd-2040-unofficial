@@ -34,7 +34,7 @@ What runs on it
 | kernel | `sys/arch/rp2040`, PICO (USB console) and PICO_UART (UART0 on GP0/GP1) |
 | root | 1.5 MB flash region, wear-leveled by Dhara, about 980 KB of blocks |
 | swap | 384 KB of raw flash behind the root, plus a 16 KB compressed in-RAM tier |
-| user program | 144 KB window (160 KB for a program that asks), one resident process, swap for the rest |
+| user program | 144 KB window, one resident process, swap for the rest |
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
 | commands | 111 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
 | native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board |
@@ -161,8 +161,10 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 - "Permission denied" on Linux: you installed the wheel rather than the
   `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `discobsd` (with
   the `.deb`) and log in again.
-- The console prints nothing after attaching: press Enter once. The board
-  printed its prompt before you connected.
+- The console prints nothing after attaching: press Enter once to redraw
+  the prompt. The kernel keeps the boot messages in an 8 KB ring and
+  sends them to the first terminal that opens; a terminal opened while
+  the board is still enumerating can lose some of those bytes.
 - The screen is garbled in a full-screen program such as `vi`: the board
   assumes 80 columns by 24 rows. Size the window to that, or run `resize`
   on the board after changing the window.

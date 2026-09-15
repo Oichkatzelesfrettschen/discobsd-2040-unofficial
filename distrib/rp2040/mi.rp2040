@@ -1,6 +1,6 @@
 #
-# Root file system manifest for a 1078-kbyte root on the Raspberry Pi Pico's
-# QSPI flash. distrib/base/mi describes a 200-Mbyte SD card; this lists
+# Root file system manifest for the Raspberry Pi Pico's QSPI flash: a
+# 1536 KB Dhara region that yields 979 KB of blocks (df on the board). distrib/base/mi describes a 200-Mbyte SD card; this lists
 # what a boot to a shell on the serial console runs: init, the commands
 # /etc/rc calls, getty and login, and a working set of /bin.
 #
@@ -20,6 +20,9 @@ dir /sbin
 dir /tmp
 dir /usr
 dir /home
+dir /home/operator
+owner 2
+group 5
 dir /usr/bin
 dir /usr/sbin
 dir /usr/libexec
@@ -72,6 +75,11 @@ minor 1
 cdev /dev/stderr
 major 3
 minor 2
+#
+# The temporary devices carve extents from raw swap on TFALLOC (dev/swap.c).
+# fsck uses temp0 for its tables on a large root; temp1 and temp2 have no
+# consumer on this root and are kept for programs that ask for them.
+#
 cdev /dev/temp0
 major 4
 minor 0
@@ -81,9 +89,11 @@ minor 1
 cdev /dev/temp2
 major 4
 minor 2
-cdev /dev/klog
-major 5
-minor 0
+#
+# No /dev/klog: cdevsw major 5 is the kernel message log, which the PICO
+# kernel does not build (LOG_ENABLED is unset), and the root ships no
+# dmesg. The USB console's transmit ring carries the boot messages.
+#
 
 #
 # The console: CDC-ACM over the board's USB cable.
@@ -131,7 +141,7 @@ file /etc/menu
 # dispatched on the name they are invoked by; the names below are hard
 # links. Every `pack` entry is a raw OMAGIC build artifact that fsutil
 # installs as a versioned, CRC-checked packed executable. Scripts, archives,
-# and other data retain `file`. See bin/box/Makefile and
+# and other data retain `file`. See sbin/box/Makefile and
 # sys/sys/exec_hsaout.h.
 #
 default
@@ -255,10 +265,10 @@ target /bin/sysbox
 link /sbin/umount
 target /bin/sysbox
 #
-# /sbin/adminbox is a fourth a.out holding shutdown, reboot and
-# sysctl, dispatched the same way as box and sysbox; halt and
-# fasthalt are names reboot's own argv[0] check answers to, so they
-# link straight to adminbox too. See sbin/adminbox/Makefile.
+# /sbin/adminbox holds shutdown, reboot, sysctl, true, false and nohup,
+# dispatched the same way as box and sysbox; halt is a name reboot's own
+# argv[0] check answers to, so it links straight to adminbox too. See
+# sbin/adminbox/Makefile.
 #
 link /sbin/shutdown
 target /sbin/adminbox
@@ -270,7 +280,7 @@ link /sbin/halt
 target /sbin/adminbox
 
 #
-# /usr/bin/textbox is a third a.out holding the sbase text utilities
+# /usr/bin/textbox holds the sbase text utilities
 # this tree lacked, dispatched the same way as box and sysbox; the
 # names below are hard links. See sbin/textbox/Makefile and
 # sys/arch/rp2040/doc/research/posix-tools.md. mkfifo builds but is not
@@ -311,7 +321,7 @@ link /usr/bin/deroff
 target /usr/bin/textbox
 
 #
-# /usr/bin/utilbox is a fourth a.out holding the usr.bin tools that
+# /usr/bin/utilbox holds the usr.bin tools that
 # share the most libc; the names below are hard links, expr and md5
 # among them even though their standalone form lived in /bin, since
 # a hard link crosses directories on one filesystem the way
@@ -382,7 +392,7 @@ link /usr/bin/vim
 target /usr/bin/stevie
 
 #
-# /usr/games/gamebox is a fourth a.out holding fifteen, keen and
+# /usr/games/gamebox holds fifteen, keen and
 # bubble, dispatched the same way as box, sysbox and textbox; the
 # names below are hard links. See games/gamebox/Makefile and
 # sys/arch/rp2040/doc/research/games.md.

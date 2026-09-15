@@ -1,0 +1,3 @@
+# List of acceptable shells for chsh/passwd -s
+# The Pico root ships one shell.
+/bin/sh

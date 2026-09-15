@@ -24,5 +24,5 @@ install:        all
 
 gram.c:         gram.y
 		${YACC} ${YFLAGS} gram.y
-		fgrep -v "static char yaccpar_sccsid" y.tab.c >gram.c
+		grep -F -v "static char yaccpar_sccsid" y.tab.c >gram.c
 		rm -f y.tab.c

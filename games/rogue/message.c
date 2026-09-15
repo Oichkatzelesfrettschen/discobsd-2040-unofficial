@@ -221,7 +221,7 @@ void
 print_stats(stat_mask)
         register int stat_mask;
 {
-	char buf[16];
+	char buf[24];	/* "%d/%ld": 5 + 1 + 11 digits and a sign. */
 	boolean label;
 	int row = DROWS - 1;
 

@@ -36,9 +36,11 @@ operating system.
 | macOS | unzip `discobsd-host-macos.zip`, or `pipx install` the wheel |
 
 The Arch and Debian packages also install the udev rule that names the
-board `/dev/discobsd` and the systemd user units for the web console. On
-Linux the rule grants the `discobsd` group access; add your user to it and
-replug the board, or use `dialout`/`uucp` as your distribution prefers.
+board `/dev/discobsd`, the `discobsd` group the rule grants it to (a
+sysusers entry on Arch, a postinst on Debian), and the systemd user units
+for the web console. Add your user to the group and replug the board:
+
+    sudo usermod -aG discobsd "$USER"
 
 From a checkout of the port:
 

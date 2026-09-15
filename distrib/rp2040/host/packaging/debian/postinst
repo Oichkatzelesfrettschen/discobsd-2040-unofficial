@@ -1,0 +1,8 @@
+#!/bin/sh
+# The udev rule grants /dev/discobsd to the discobsd group, so the group
+# must exist before the rule is applied to a plugged-in board.
+set -e
+if [ "$1" = configure ] && ! getent group discobsd >/dev/null; then
+	addgroup --quiet --system discobsd
+fi
+#DEBHELPER#

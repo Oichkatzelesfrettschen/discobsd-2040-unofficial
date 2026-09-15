@@ -104,6 +104,7 @@ jobs:
           discobsd-term --version
           discobsd-console --version
           test -f /usr/lib/udev/rules.d/71-discobsd-pico.rules
+          getent group discobsd
           test -f /usr/lib/systemd/user/discobsd-web.service
           test -f /usr/lib/systemd/user/discobsd-link.service
           test -x /usr/bin/discobsd-connect
@@ -141,6 +142,7 @@ jobs:
           discobsd-term --version
           discobsd-console --version
           test -f /usr/lib/udev/rules.d/71-discobsd-pico.rules
+          getent group discobsd
           test -f /usr/lib/systemd/user/discobsd-web.service
           test -f /usr/lib/systemd/user/discobsd-link.service
           test -x /usr/bin/discobsd-connect

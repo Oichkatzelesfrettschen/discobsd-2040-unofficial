@@ -354,7 +354,9 @@ int manifest_load (manifest_t *m, const char *filename)
         }
 
         /*
-         * Process options.
+         * Process options.  A mode is octal with or without a leading
+         * zero, as in chmod(1): "mode 666" and "mode 0666" agree, where
+         * base 0 read the first as decimal 666, which is 01232.
          */
         if (strcmp ("dirmode", cmd) == 0) {
             if (type != 0) {
@@ -362,13 +364,13 @@ notdef:         fprintf (stderr, "%s: command '%s' allowed only in default secti
                 fclose (fd);
                 return 0;
             }
-            default_dirmode = strtoul (arg, 0, 0);
+            default_dirmode = strtoul (arg, 0, 8);
             continue;
         }
         if (strcmp ("filemode", cmd) == 0) {
             if (type != 0)
                 goto notdef;
-            default_filemode = strtoul (arg, 0, 0);
+            default_filemode = strtoul (arg, 0, 8);
             continue;
         }
         if (strcmp ("owner", cmd) == 0) {
@@ -391,7 +393,7 @@ baddef:         fprintf (stderr, "%s: command '%s' not allowed in default sectio
                 fclose (fd);
                 return 0;
             }
-            mode = strtoul (arg, 0, 0);
+            mode = strtoul (arg, 0, 8);
             continue;
         }
         if (strcmp ("major", cmd) == 0) {

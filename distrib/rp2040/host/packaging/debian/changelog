@@ -1,3 +1,10 @@
+discobsd-host (1.0.4) noble; urgency=medium
+
+  * discobsd-web: Sync & leave narrates each step in the terminal and the
+    status line (sync, leaving V6, logging out, session closed).
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 18:00:00 -0700
+
 discobsd-host (1.0.3) noble; urgency=medium
 
   * discobsd-web: "Sync & leave" types sync, leaves V6, syncs, logs out of

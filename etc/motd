@@ -1,4 +1,6 @@
 DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
 
-Welcome. Log in as root. Type "menu" for a program launcher that lists
-every command, "ls /usr/games" for the games, or "vi FILE" to edit.
+You are operator, in /home/operator, which starts empty; the system is
+under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, "vi FILE" edits, "pdp11" boots Sixth Edition
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.

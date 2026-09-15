@@ -82,7 +82,7 @@ var ws=new WebSocket(proto+"://"+location.host+"/ws"+location.search);
 ws.binaryType="arraybuffer";
 ws.onopen=function(){{stat.textContent="connected";grab();}};
 var byebye=false;
-ws.onclose=function(){{stat.textContent=byebye?"left cleanly -- reload to reconnect":"disconnected -- reload to retry";}};
+ws.onclose=function(){{if(!byebye)stat.textContent="disconnected -- reload to retry";}};
 ws.onmessage=function(e){{
  var d=typeof e.data==="string"?e.data:
   new TextDecoder("latin1").decode(new Uint8Array(e.data));
@@ -115,14 +115,15 @@ document.getElementById("paste").addEventListener("click",function(e){{e.prevent
 var leaving=false;
 function later(f,ms){{return new Promise(function(r){{setTimeout(function(){{f();r();}},ms);}});}}
 document.getElementById("bye").addEventListener("click",function(e){{e.preventDefault();
- if(leaving)return;leaving=true;stat.textContent="syncing and leaving";
- later(function(){{sendkeys("\\r");}},0)
+ if(leaving)return;leaving=true;
+ function say(m){{stat.textContent=m;term.write("\\r\\n\\x1b[33m[console: "+m+"]\\x1b[0m\\r\\n");}}
+ later(function(){{say("sync");sendkeys("\\r");}},0)
  .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
- .then(function(){{return later(function(){{sendkeys("\\x1f");}},2500);}})
- .then(function(){{return later(function(){{sendkeys("\\r");}},1500);}})
+ .then(function(){{return later(function(){{say("leaving V6 if inside it");sendkeys("\\x1f");}},2500);}})
+ .then(function(){{return later(function(){{say("sync");sendkeys("\\r");}},1500);}})
  .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
- .then(function(){{return later(function(){{sendkeys("exit\\r");}},2500);}})
- .then(function(){{return later(function(){{byebye=true;try{{ws.close();}}catch(x){{}}}},1000);}});}});
+ .then(function(){{return later(function(){{say("logging out of DiscoBSD");sendkeys("exit\\r");}},2500);}})
+ .then(function(){{return later(function(){{say("session closed -- reload to reconnect");byebye=true;try{{ws.close();}}catch(x){{}}}},1500);}});}});
 var help=document.getElementById("h");
 document.getElementById("help").addEventListener("click",function(e){{e.preventDefault();
  help.style.display=help.style.display==="block"?"none":"block";grab();}});

@@ -115,6 +115,22 @@ terminal programs and the Windows console delivers neither reliably:
 | Ctrl-] ] | send a literal Ctrl-] |
 | Ctrl-] ? | print this list |
 
+The web console is built for more than a mouse and good eyes. The status
+line at the top right is a live region that names the system the console
+is in ("connected -- DiscoBSD", "connected -- inside V6 (pdp11)") and
+narrates Sync & leave, so a screen reader hears each change without
+moving focus. Every key-bar button carries an accessible name that says
+what the key does in the system that reads it ("Control C, interrupt in
+DiscoBSD"; "Delete, interrupt in V6"), the Ctrl modifier reports its
+armed state, and Tab moves through the bar with a visible focus ring.
+The `reader` button turns on xterm.js's screen reader mode, which builds
+an accessibility tree of the screen and announces output as it arrives;
+the choice is remembered in the browser. Colors are rendered at a
+minimum contrast of 4.5:1 against the black background (WCAG AA), which
+lifts V6's and `ls`'s dimmer colors. `hide` folds the bar down to a
+single `keys` tab so a phone gets the screen back and keeps a way to the
+keys and to leaving.
+
 The web console's key bar sends the same bytes from buttons, grouped as
 DiscoBSD (Esc, Tab, Ctrl, ^C, ^D, ^Z, ^L, ^U, ^R) and V6 (DEL intr,
 # erase, @ kill, ^\ quit, ^_ exit V6), because browsers keep Ctrl-C,

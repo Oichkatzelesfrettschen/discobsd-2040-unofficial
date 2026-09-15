@@ -136,6 +136,11 @@ def test_page_has_no_raw_control_characters():
     assert 'id=bye' in web.PAGE and 'Sync &amp; leave' in web.PAGE
     assert 'data-k="#"' in web.PAGE and 'data-k="@"' in web.PAGE  # V6 erase and kill
     assert 'id=help' in web.PAGE and 'id=h' in web.PAGE
+    assert '<html lang=en>' in web.PAGE
+    assert 'role=status aria-live=polite' in web.PAGE
+    assert 'id=reader' in web.PAGE and 'screenReaderMode:reader' in web.PAGE
+    assert 'minimumContrastRatio:4.5' in web.PAGE
+    assert 'focus-visible' in web.PAGE and 'id=show' in web.PAGE
 
 
 def ws_connect(port, token="tok", origin=None):

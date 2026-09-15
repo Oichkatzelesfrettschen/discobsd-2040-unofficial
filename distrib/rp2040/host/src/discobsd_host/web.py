@@ -33,7 +33,7 @@ MAX_CLIENT_FRAME = 65536
 XTERM = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"
 XTERM_CSS = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
 
-PAGE = f"""<!doctype html><html><head><meta charset=utf-8>
+PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1,user-scalable=no">
 <title>DiscoBSD console</title>
 <link rel=stylesheet href="{XTERM_CSS}">
@@ -42,16 +42,20 @@ PAGE = f"""<!doctype html><html><head><meta charset=utf-8>
 #s{{position:fixed;top:4px;right:8px;color:#6a6;font:12px monospace;z-index:9}}
 #k{{position:fixed;bottom:0;left:0;right:0;display:block;background:#111;padding:4px;z-index:9}}
 #k button.on{{background:#6a6;color:#000}}
+#k button:focus-visible,#show:focus-visible{{outline:3px solid #fc0;outline-offset:1px}}
+#show{{display:none;position:fixed;bottom:0;right:0;font:16px monospace;color:#ddd;background:#333;border:1px solid #555;padding:6px 10px;z-index:9}}
 #k .g{{color:#888;font:12px monospace;margin:0 4px 0 8px}}
 #h{{display:none;position:fixed;left:8px;right:8px;bottom:56px;background:#222;color:#ddd;font:14px monospace;padding:8px;border:1px solid #555;z-index:10}}
 #k button{{font:16px monospace;color:#ddd;background:#333;border:1px solid #555;margin:2px;padding:6px 10px}}
 </style></head><body>
-<div id=s>connecting</div><div id=t></div>
-<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g>V6</span><button data-k="&#127;" title="V6 interrupt: DEL">DEL intr</button><button data-k="#" title="V6 erase one character: #"># erase</button><button data-k="@" title="V6 erase the line: @">@ kill</button><button data-k="&#28;" title="V6 quit: Ctrl-backslash">^&#92; quit</button><button data-k="&#31;" title="leave the V6 emulator: Ctrl-underscore">^_ exit V6</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, leave V6 if inside it, sync, log out of DiscoBSD, then close the session">Sync &amp; leave</button><button id=help>keys</button><button id=hide>hide</button></div><div id=h><b>DiscoBSD</b> ($ or # prompt, whoami works): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>V6</b> (# prompt, whoami not found, dates in 1970): DEL interrupt (Backspace sends DEL), # erase, @ kill line, Ctrl-D log out, Ctrl-&#92; quit. Ctrl-C, Ctrl-U and arrows do nothing.<br><b>Leave</b>: in V6 type sync then press ^_ exit V6 (or type ~. at a line start); in DiscoBSD type exit to reach login:. Sync &amp; leave does all of that and closes the session. Unplug only after sync.</div>
+<div id=s role=status aria-live=polite>connecting</div><div id=t role=application aria-label="DiscoBSD console"></div>
+<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl aria-pressed=false>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g>V6</span><button data-k="&#127;" title="V6 interrupt: DEL">DEL intr</button><button data-k="#" title="V6 erase one character: #"># erase</button><button data-k="@" title="V6 erase the line: @">@ kill</button><button data-k="&#28;" aria-label="Control backslash, quit in V6" title="V6 quit: Ctrl-backslash">^&#92; quit</button><button data-k="&#31;" title="leave the V6 emulator: Ctrl-underscore">^_ exit V6</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, leave V6 if inside it, sync, log out of DiscoBSD, then close the session">Sync &amp; leave</button><button id=help aria-expanded=false aria-controls=h>keys</button><button id=reader aria-pressed=false title="screen reader mode: announce output and expose the screen to assistive technology">reader</button><button id=hide>hide</button></div><button id=show aria-label="show the key bar">keys</button><div id=h role=region aria-label="key reference"><b>DiscoBSD</b> ($ or # prompt, whoami works): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>V6</b> (# prompt, whoami not found, dates in 1970): DEL interrupt (Backspace sends DEL), # erase, @ kill line, Ctrl-D log out, Ctrl-&#92; quit. Ctrl-C, Ctrl-U and arrows do nothing.<br><b>Leave</b>: in V6 type sync then press ^_ exit V6 (or type ~. at a line start); in DiscoBSD type exit to reach login:. Sync &amp; leave does all of that and closes the session. Unplug only after sync.</div>
 <script src="{XTERM}"></script>
 <script>
+var reader=false;try{{reader=localStorage.getItem("reader")==="1";}}catch(e){{}}
 var term=new Terminal({{cols:80,rows:24,fontFamily:"monospace",fontSize:14,
- cursorBlink:true,theme:{{background:"#000000"}}}});
+ cursorBlink:true,theme:{{background:"#000000"}},minimumContrastRatio:4.5,
+ screenReaderMode:reader}});
 term.open(document.getElementById("t"));
 var stat=document.getElementById("s");
 
@@ -80,12 +84,17 @@ document.addEventListener("visibilitychange",function(){{if(!document.hidden)gra
 var proto=location.protocol==="https:"?"wss":"ws";
 var ws=new WebSocket(proto+"://"+location.host+"/ws"+location.search);
 ws.binaryType="arraybuffer";
-ws.onopen=function(){{stat.textContent="connected";grab();}};
+ws.onopen=function(){{stat.textContent="connected -- DiscoBSD";grab();}};
 var byebye=false;
 ws.onclose=function(){{if(!byebye)stat.textContent="disconnected -- reload to retry";}};
+// The page tells DiscoBSD from V6 by the emulator's own banner and exit
+// line, and says so in the status line for a screen reader or a glance.
+var inv6=false;
 ws.onmessage=function(e){{
  var d=typeof e.data==="string"?e.data:
   new TextDecoder("latin1").decode(new Uint8Array(e.data));
+ if(!inv6&&d.indexOf("pdp11: ")>=0&&d.indexOf("RK05")>=0){{inv6=true;stat.textContent="connected -- inside V6 (pdp11)";}}
+ else if(inv6&&d.indexOf("[pdp11: ")>=0){{inv6=false;stat.textContent="connected -- DiscoBSD";}}
  term.write(d);}};
 // Key bar: every browser keeps some Ctrl combinations for itself (Ctrl-C
 // with a selection copies, Ctrl-D bookmarks, Ctrl-W closes the tab, Ctrl
@@ -103,7 +112,22 @@ term.onData(function(d){{
  sendkeys(d);}});
 Array.prototype.forEach.call(document.querySelectorAll("#k button[data-k]"),function(b){{
  b.addEventListener("click",function(e){{e.preventDefault();sendkeys(b.getAttribute("data-k"));grab();}});}});
-ctl.addEventListener("click",function(e){{e.preventDefault();ctrlArmed=!ctrlArmed;ctl.className=ctrlArmed?"on":"";grab();}});
+ctl.addEventListener("click",function(e){{e.preventDefault();ctrlArmed=!ctrlArmed;ctl.className=ctrlArmed?"on":"";
+ ctl.setAttribute("aria-pressed",ctrlArmed?"true":"false");grab();}});
+// Accessible names for the keys: the label says what the key does in the
+// system that reads it, so a screen reader hears more than "caret C".
+var NAMES={{"Esc":"Escape","Tab":"Tab","^C":"Control C, interrupt in DiscoBSD","^D":"Control D, end of input or log out",
+ "^Z":"Control Z, suspend in DiscoBSD","^L":"Control L, redraw","^U":"Control U, erase the line in DiscoBSD","^R":"Control R, history search in DiscoBSD",
+ "DEL intr":"Delete, interrupt in V6","# erase":"number sign, erase a character in V6","@ kill":"at sign, erase the line in V6",
+ "^\\ quit":"Control backslash, quit in V6","^_ exit V6":"Control underscore, leave the V6 emulator","Paste":"paste from the clipboard",
+ "\u2191":"up arrow","\u2193":"down arrow","\u2190":"left arrow","\u2192":"right arrow","Sync & leave":"sync, leave V6, log out, close the session",
+ "keys":"show the key reference","reader":"screen reader mode","hide":"hide the key bar","Ctrl":"control modifier for the next key"}};
+Array.prototype.forEach.call(document.querySelectorAll("#k button"),function(b){{var n=NAMES[b.textContent];if(n)b.setAttribute("aria-label",n);}});
+var rb=document.getElementById("reader");
+function setreader(on){{reader=on;term.options.screenReaderMode=on;rb.className=on?"on":"";rb.setAttribute("aria-pressed",on?"true":"false");
+ try{{localStorage.setItem("reader",on?"1":"0");}}catch(e){{}}stat.textContent=on?"screen reader mode on":"screen reader mode off";}}
+rb.addEventListener("click",function(e){{e.preventDefault();setreader(!reader);grab();}});
+if(reader){{rb.className="on";rb.setAttribute("aria-pressed","true");}}
 document.getElementById("paste").addEventListener("click",function(e){{e.preventDefault();
  if(navigator.clipboard&&navigator.clipboard.readText){{navigator.clipboard.readText().then(function(t){{sendkeys(t);grab();}});}}
  else{{var t=window.prompt("Paste text to send:");if(t!==null)sendkeys(t);grab();}}}});
@@ -126,9 +150,16 @@ document.getElementById("bye").addEventListener("click",function(e){{e.preventDe
  .then(function(){{return later(function(){{say("session closed -- reload to reconnect");byebye=true;try{{ws.close();}}catch(x){{}}}},1500);}});}});
 var help=document.getElementById("h");
 document.getElementById("help").addEventListener("click",function(e){{e.preventDefault();
- help.style.display=help.style.display==="block"?"none":"block";grab();}});
+ var on=help.style.display!=="block";help.style.display=on?"block":"none";
+ e.target.setAttribute("aria-expanded",on?"true":"false");if(on)help.focus();else grab();}});
+help.setAttribute("tabindex","-1");
+// hide folds the bar down to one "keys" tab, so a phone gets the screen
+// back and still has a way to the keys and to leaving.
+var showb=document.getElementById("show");
 document.getElementById("hide").addEventListener("click",function(e){{e.preventDefault();
- document.getElementById("k").style.display="none";fit();grab();}});
+ document.getElementById("k").style.display="none";showb.style.display="block";fit();grab();}});
+showb.addEventListener("click",function(e){{e.preventDefault();
+ document.getElementById("k").style.display="block";showb.style.display="none";fit();grab();}});
 </script></body></html>"""
 
 

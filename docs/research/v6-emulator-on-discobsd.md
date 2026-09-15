@@ -69,11 +69,17 @@ Design decisions that the measurements settled:
 - The stock TUHS `v6root` has no boot block; `/usr/mdec/rkuboot`'s
   text is written to block 0 and it prompts `@` for the kernel name.
 
-Defects found in the port tree on the way: the install loops in bin,
-sbin, usr.bin and usr.sbin swallowed a subdirectory failure behind a
-leading `-`, so the emulator's first failed cross build still reported
-a successful tree; `fsutil` printed and continued on a missing source
-file. Both are fixed in PR #75. The board's `ps` prints "nproc not in
+Defects found in the port tree on the way: the top-level, bin, sbin,
+usr.bin and usr.sbin loops ran every subdirectory and ignored its
+status, so the emulator's first failed cross build still reported a
+successful tree; `fsutil` printed and continued on a missing source
+file. Together they had hidden a worse one: on CI's arm-none-eabi-gcc
+13, `sbin/adminbox` packs to 22 blocks against a 21-block gate (gcc 16
+locally packs it to 21), the link had failed on every CI run, and the
+published UF2 artifacts carried a root whose shutdown, reboot, sysctl,
+true, false, nohup and halt links pointed at a file that was not there.
+A board flashed from a CI artifact rather than a local build would have
+had no `reboot`. All three are fixed in PR #75; the gate is 22. The board's `ps` prints "nproc not in
 namelist", unrelated and still open.
 
 ## Method and provenance

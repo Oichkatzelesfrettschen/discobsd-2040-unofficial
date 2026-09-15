@@ -3,23 +3,15 @@
 # domain, see LICENSE). window.c and hexchars.c are this port's; the
 # other files carry upstream's text with the fixes named in each one.
 #
-# The vendored sources are K&R throughout, so this directory builds
-# without -Wall -Wextra -Werror: old-style definitions and missing
-# prototypes are the source's shape, not defects to fix.
+# stevie.h carries an ANSI prototype for every function defined in the
+# nine sources below, and every definition itself is ANSI style with an
+# explicit return type, so this directory builds warning-free under
+# -Wall -Wextra -Werror.
 #
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-# GCC 14 and later diagnose implicit int, unprototyped calls and a bare
-# return from a defaulted-int function as errors by default. All three are the K&R
-# shape of the vendored source rather than defects, and rewriting 51
-# kbytes of 1987 C into prototypes is the scope cut taken here; every
-# other warning stays an error.
-KRFLAGS=	-Wno-error=implicit-int \
-		-Wno-error=implicit-function-declaration \
-		-Wno-error=return-mismatch
-
-CFLAGS+=	${KRFLAGS}
+CFLAGS+=	-Wall -Wextra -Werror
 
 BINDIR=		/usr/bin
 
@@ -44,9 +36,11 @@ ${OBJS}:	stevie.h
 # Host build for the pty-driven test: the same sources, compiled with the
 # host cc against the host's <termios.h>. HOSTBUILD selects that half of
 # window.c's terminal code instead of the sgtty ioctls the target build
-# uses; nothing else differs. -std=gnu17 is required because GCC 15 and
-# later default to C23, where old-style definitions are gone.
-HOST_CFLAGS=	-std=gnu17 -O0 -g -DHOSTBUILD ${KRFLAGS}
+# uses; nothing else differs. -std=gnu17 pins the dialect so the host
+# build tracks the same language rules as the target's arm-none-eabi-gcc
+# rather than drifting to whatever C standard the host compiler defaults
+# to next.
+HOST_CFLAGS=	-std=gnu17 -O0 -g -DHOSTBUILD -Wall -Wextra
 
 ${PROG}.host:	${SRCS} stevie.h
 		${HOST_CC} ${HOST_CFLAGS} -o $@ ${SRCS}

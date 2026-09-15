@@ -23,8 +23,7 @@ struct charinfo chars[256];
 static char charstr[256][6];
 
 static void
-setchars(base)
-int base;
+setchars(int base)
 {
 	int n;
 
@@ -50,23 +49,26 @@ int base;
 	}
 }
 
-octchars()
+void
+octchars(void)
 {
 	setchars(8);
 }
 
-hexchars()
+void
+hexchars(void)
 {
 	setchars(16);
 }
 
-decchars()
+void
+decchars(void)
 {
 	setchars(10);
 }
 
-hextoint(c)
-int c;
+int
+hextoint(int c)
 {
 	if ( c>='0' && c<='9' )
 		return(c-'0');

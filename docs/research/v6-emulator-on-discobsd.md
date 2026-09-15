@@ -22,7 +22,7 @@ Estimated = derived from a confirmed measurement, with the basis stated.
 | avr11 correctness | Two MMU permission checks and the odd-address write fault are dead code; rkerror is empty | Confirmed (pinned source) |
 | DiscoBSD longjmp | Returned a stale r1 instead of val; fixed in the port | Confirmed, fixed |
 | Board libc.a | Shipped no setjmp family; added to the member closure | Confirmed, fixed |
-| Recommended shape | avr11 in C, 64 KB core in `.bss` | Recommended |
+| Recommended shape | avr11 in C, 64 KB core in `.bss` | Built and measured (PR #75) |
 | Disk image | 2.4 MB RK05 logical size against 313 KB free; sparse holes cost nothing in the kernel, everything in fsutil | Confirmed |
 | Swap image size | Mutable data + stack + 3 KB u-area, erase-aligned; clean text is excluded | Confirmed (vm_swap.c) |
 | Spare flash | None; 128 + 1536 + 384 = 2048 KB | Confirmed |
@@ -30,6 +30,51 @@ Estimated = derived from a confirmed measurement, with the basis stated.
 | Build with smlrc | Blocked; avr11 is C++, and the board cc rejects `#include` (no preprocessor, no headers) | Confirmed (board) |
 | Board test of the fix | longjmp returns 42, 1, 2, 255, 300 and 1-for-0; _longjmp 7; pasted source loses lines over the USB console | Measured |
 | Bare-metal dual boot | All 264 KB, a full 248 KB 11/40 | Recommended |
+
+## Outcome: it runs
+
+Port PR #75 ships `usr.bin/pdp11` and a V6 pack, and the board boots
+Sixth Edition. Measured on the Pico at 8f78422b's kernel with the new
+root:
+
+| Measurement | Value |
+| --- | --- |
+| Emulator | 14,686 text, 176 data, 66,412 bss; packed a.out 12,301 bytes on the root |
+| Pack | 2000 blocks (1 MB logical), 150 KB of root blocks after the sparse import |
+| Root after install | 837 KB used, 142 KB free (was 667 / 312) |
+| Root after a session | 868 KB used: V6's utmp, /tmp and swap writes allocate once |
+| Launch to `@` prompt | 2.1 s |
+| `unix` to `login:` | 5.3 s |
+| Instruction rate | 309 K/s busy (boot prompt spin), 141 K/s averaged over a 17 s session with WAIT idling |
+| Host build, same pack | 3.06 M instructions/s |
+| V6 `mem =` at 64 KB | 116 (11.6 K words for user programs) |
+
+Design decisions that the measurements settled:
+
+- 64 KB core, as design (a) predicted: V6 comes up multi-user with
+  getty on the console, and `ed`, pipelines and the games run. The
+  process is 81 KB of the 144 KB window.
+- The pack is the sparse-import design from the review: `mkv6pack.py`
+  writes only nonzero blocks, `fsutil` leaves a zero 1 KB block as a
+  hole, and the kernel's `bmap` reads it as zeros. The kernel's
+  `swplo`/`nswap` words are patched to 120 blocks at 2000 so swap stays
+  inside the file; each swapped or written sector allocates a root
+  block the first time and is reused after, which is the 31 KB growth
+  in the table.
+- Traps use `_longjmp`, which PR #74 made return its value; a
+  `-Wclobbered` error from gcc 16 moved the poll counter to file scope.
+- Multi-user boot needs the switch register to read 0; avr11's 0173030
+  selects single user, whose console comes up in LCASE mode and
+  upper-cases every echo.
+- The stock TUHS `v6root` has no boot block; `/usr/mdec/rkuboot`'s
+  text is written to block 0 and it prompts `@` for the kernel name.
+
+Defects found in the port tree on the way: the install loops in bin,
+sbin, usr.bin and usr.sbin swallowed a subdirectory failure behind a
+leading `-`, so the emulator's first failed cross build still reported
+a successful tree; `fsutil` printed and continued on a missing source
+file. Both are fixed in PR #75. The board's `ps` prints "nproc not in
+namelist", unrelated and still open.
 
 ## Method and provenance
 

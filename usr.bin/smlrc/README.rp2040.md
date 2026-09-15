@@ -92,11 +92,18 @@ with libc about `char` comparisons.
   limitation, not a back-end one: the MIPS back end rejects them at the same
   token. `tests/t12_echo.c` and `tests/t13_cat.c` are those two programs with
   their definitions rewritten as prototypes and nothing else changed.
-- **Function-like macros in smlrc's own preprocessor.** `<stdio.h>` defines
-  `getc` and `putc` as function-like macros, which smlrc's built-in
-  preprocessor does not expand. On the device `usr.bin/cc` runs `usr.bin/cpp`
-  first and smlrc is built with `-DNO_PREPROCESSOR`; the test harness mirrors
-  that by preprocessing with the cross compiler.
+- **No preprocessor on the device.** The board smlrc is built with
+  `-DNO_PREPROCESSOR`, `distrib/rp2040/cc` hands the source to it directly,
+  and the root carries neither `cpp` nor `/usr/include`, so a native compile
+  rejects `#include` and `#define` at the first directive ("Invalid or
+  unsupported preprocessor directive") and every declaration is written out
+  in the source. The test harness preprocesses with the cross compiler
+  instead. Building the preprocessor in costs 2,680 bytes of text and 6,772
+  of bss (measured at -Os, MAX_INCLUDES 8) and needs a header set on the
+  root; `include/` is 332 KB, a minimal stdio, stdlib, string, setjmp,
+  unistd and sys/types set is 19 KB. Smaller C's own preprocessor also
+  leaves function-like macros such as `<stdio.h>`'s `getc` and `putc`
+  unexpanded.
 - **The `interrupt` attribute.** `GenIsrProlog` and `GenIsrEpilog` report an
   internal error. A DiscoBSD user process installs no handler, and the
   ARMv6-M exception entry sequence is not the frame the prolog builds.

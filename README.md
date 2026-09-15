@@ -37,7 +37,7 @@ What runs on it
 | user program | 144 KB window, one resident process, swap for the rest |
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
 | commands | 111 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
-| native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board |
+| native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and use no `#include` |
 
 The console at first login, from `uname -a` and `df`:
 

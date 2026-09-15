@@ -27,9 +27,16 @@
 #include <sys/signal.h>
 #include <machine/hsx_decoder.h>
 #include <machine/debug.h>
+#ifdef SWAPRAM
+#include <machine/swapram.h>
+#endif
 
 _Static_assert (HSX_WORK_SIZE <= MAXBSIZE,
     "the decoder work area must fit one buffer cache block");
+#ifdef SWAPRAM
+_Static_assert (sizeof (struct hsx_work) <= SWAPRAM_CODEC_WORK_BYTES,
+    "the packed-text decoder must fit the shared codec workspace");
+#endif
 
 /* Read len packed bytes at off from the executable; short is an error. */
 static int
@@ -153,7 +160,11 @@ exec_hsaout_check (struct exec_params *epp)
         return EFTYPE;
     }
 
-    exec_save_args (epp);
+    if ((error = exec_save_args (epp)) != 0) {
+        brelse (bp);
+        exec_text_unhold (epp->ip);
+        return error;
+    }
 
     /* The same single-segment layout as a raw OMAGIC image. */
     epp->text.vaddr = epp->heap.vaddr = NO_ADDR;
@@ -212,17 +223,34 @@ int
 exec_hsaout_text (struct inode *ip, const struct exec *e, char *dst,
     unsigned len)
 {
+    struct hsx_work *swapwork;
+    int result;
+
     /*
      * swapin runs in the swapper, proc 0, whose getnewbuf would sleep on
      * a scarce buffer and stall the mechanism that frees memory. The
-     * swapper is the only caller and never re-enters, so one static work
-     * area serves it, as the swap tier's own decoder does.
+     * swapper is the only caller and never re-enters. A SwapRAM kernel uses
+     * the owner-checked codec workspace because packed-text restoration and
+     * SwapRAM expansion are consecutive stages of the same swapin. A swapout
+     * scheduled while rdwri sleeps observes the packed-text owner and uses
+     * flash until restoration releases the workspace.
      */
-    static struct hsx_work swapwork;
+#ifndef SWAPRAM
+    static struct hsx_work private_swapwork;
+#endif
     struct hsx x;
 
     if (hsx_headers (ip, e, &x) != HSX_OK || e->a_text != len)
         return -1;
-    return hsx_load (&swapwork, ip, (unsigned) HSX_HDRSIZE, x.x_ctext, dst,
-        len, x.x_textcrc);
+#ifdef SWAPRAM
+    swapwork = swapram_codec_acquire (SWAPRAM_CODEC_PACKED_TEXT);
+#else
+    swapwork = &private_swapwork;
+#endif
+    result = hsx_load (swapwork, ip, (unsigned) HSX_HDRSIZE, x.x_ctext,
+        dst, len, x.x_textcrc);
+#ifdef SWAPRAM
+    swapram_codec_release (SWAPRAM_CODEC_PACKED_TEXT);
+#endif
+    return result;
 }

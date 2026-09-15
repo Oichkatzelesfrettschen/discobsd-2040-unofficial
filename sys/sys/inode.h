@@ -34,14 +34,36 @@ struct icommon2 {
     time_t  ic_ctime;       /* time created */
 };
 
+struct fs;
+
+#ifdef COMPACT_INODE_FIELDS
+#define INODE_PERSISTENT_FLAGS_SUPPORTED(flags) \
+    (((u_int)(flags) & ~0xffffU) == 0)
+#endif
+
 struct inode {
+#ifndef LINEAR_INODE_CACHE
     struct inode    *i_chain[2];    /* must be first */
+#endif
+#ifdef COMPACT_INODE_FIELDS
+    u_short         i_flag;         /* transient flags fit bits 0..15 */
+    u_short         i_count;        /* bounded by the fixed kernel tables */
+    u_short         i_id;           /* name-cache generation */
+    u_short         i_flags;        /* persistent flags fit bits 0..15 */
+#else
     u_int           i_flag;
     u_int           i_count;        /* reference count */
+#endif
+#ifndef SINGLE_UFS_ROOT
     dev_t           i_dev;          /* device where inode resides */
+#endif
     ino_t           i_number;       /* i number, 1-to-1 with device address */
+#ifndef COMPACT_INODE_FIELDS
     u_int           i_id;           /* unique identifier */
+#endif
+#ifndef SINGLE_UFS_ROOT
     struct fs       *i_fs;          /* file sys associated with this inode */
+#endif
     union {
         struct {
             u_short I_shlockc;      /* count of shared locks */
@@ -76,7 +98,9 @@ struct inode {
         } i_fr;
     } i_un3;
     struct icommon1 i_ic1;
+#ifndef COMPACT_INODE_FIELDS
     u_int           i_flags;        /* user changeable flags */
+#endif
     struct icommon2 i_ic2;
 };
 
@@ -110,10 +134,20 @@ struct dinode {
 #define i_addr      i_un2.I_addr
 #define i_dummy     i_un2.i_d.I_dummy
 #define i_lastr     i_un3.if_lastr
+#ifndef LINEAR_INODE_CACHE
 #define i_forw      i_chain[0]
 #define i_back      i_chain[1]
+#endif
 #define i_freef     i_un3.i_fr.if_freef
 #define i_freeb     i_un3.i_fr.if_freeb
+
+#ifdef SINGLE_UFS_ROOT
+#define INODE_DEVICE(inode_pointer)       (mount[0].m_dev)
+#define INODE_FILESYSTEM(inode_pointer)   (&mount[0].m_filsys)
+#else
+#define INODE_DEVICE(inode_pointer)       ((inode_pointer)->i_dev)
+#define INODE_FILESYSTEM(inode_pointer)   ((inode_pointer)->i_fs)
+#endif
 
 #define di_ic1      di_icom1
 #define di_ic2      di_icom2
@@ -138,16 +172,12 @@ struct stat;
  * Assumes the cacheinvalall routine will map the namei cache.
  */
 void cinvalall (void);
+void cacheinval (struct inode *ip);
 
-#define cacheinval(ip) \
-    (ip)->i_id = ++nextinodeid; \
-    if (nextinodeid == 0) \
-        cinvalall();
-
-u_int nextinodeid;              /* unique id generator */
+extern u_int nextinodeid;       /* unique id generator */
 
 extern struct inode inode[];    /* the inode table itself */
-struct inode *rootdir;          /* pointer to inode of root directory */
+extern struct inode *rootdir;   /* pointer to inode of root directory */
 
 /*
  * Initialize hash links for inodes and build inode free list.
@@ -168,6 +198,9 @@ struct inode *ialloc (struct inode *pip);
  * Look up an inode by device, inumber.
  */
 struct inode *iget (dev_t dev, struct fs *fs, ino_t ino);
+
+/* Find an inode in the in-memory cache without changing its reference count. */
+struct inode *ifind(dev_t dev, ino_t ino);
 
 /*
  * Dereference an inode structure. On the last reference,

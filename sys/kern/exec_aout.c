@@ -161,7 +161,8 @@ int exec_aout_check(struct exec_params *epp)
     /*
      * Save arglist
      */
-    exec_save_args(epp);
+    if ((error = exec_save_args(epp)) != 0)
+        return error;
 
     DEBUG("\texec_aout_check(): exec file header\n");
     /* magic number */

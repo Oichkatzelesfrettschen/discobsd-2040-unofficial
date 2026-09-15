@@ -34,15 +34,34 @@ check_symbol()
 	fi
 }
 
-# RP2040 uses 32-bit pointers. These sizes prove NBUF=10, BUFHSZ=4,
-# NNAMECACHE=4, and NCHHASH=4 against the linked target structures.
-check_symbol buf 1b8
-check_symbol bufdata 2800
-check_symbol bufhash 30
-check_symbol namecache d0
-check_symbol nchash 20
+check_absent()
+{
+	symbol_name=$1
+	if printf '%s\n' "$symbols" |
+	    awk -v name="$symbol_name" '$1 == name { found = 1 } END { exit !found }'; then
+		echo "$elf: $symbol_name remains linked" >&2
+		fail=1
+	fi
+}
+
+# RP2040 uses 32-bit pointers. These sizes prove NBUF=4, NNAMECACHE=4,
+# NMOUNT=1, linear cache layouts, and compact inode fields against the linked
+# target structures.
+check_symbol buf 90
+check_symbol bfreelist 6c
+check_symbol bufdata 1000
+check_symbol namecache 90
+check_symbol nchclock 4
+check_symbol mount 40c
+check_symbol inode 7e0
+
+check_absent bufhash
+check_absent nchash
+check_absent nchhead
+check_absent nchtail
+check_absent ihead
 
 if [ "$fail" -eq 0 ]; then
-	echo "$elf: cache_index_bytes=288 previous_index_bytes=1672 saved_bytes=1384 nbuf=10"
+	echo "$elf: cache_bytes=400 buffer_pool_bytes=4240 inode_bytes=2016 mount_bytes=1036 allocation_saved_bytes=8720 nbuf=4 nmount=1"
 fi
 exit "$fail"

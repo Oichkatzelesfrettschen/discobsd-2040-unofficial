@@ -31,7 +31,6 @@ struct exec_params {
         struct elf_ehdr elf;
     } hdr;                      /* head of file to exec */
     int hdr_len;                /* number of bytes valid in image_header */
-    char **argp, **envp;
     u_short argc, envc;         /* count of argument and environment strings */
     u_short argbc, envbc;       /* total number of chars in argc and envc string pool */
     union {
@@ -53,11 +52,25 @@ struct exec_params {
 
     gid_t gid;
     uid_t uid;
-#define MAXALLOCBUF 6
+#define MAXALLOCBUF 1
     struct {
         struct buf *bp;         /* Memory allocator buffer */
         u_short fill;           /* Memory allocator "free" pointer */
     } alloc[MAXALLOCBUF];
+    struct {
+#define EXEC_SPOOL_NONE     0
+#define EXEC_SPOOL_SWAPRAM  1
+#define EXEC_SPOOL_FLASH    2
+        u_char backing;
+        u_int size;
+        u_int pos;
+        u_int ramoff;
+        size_t blkno;
+        size_t span;
+        struct buf *bp;
+        u_short fill;
+        u_short readblock;
+    } spool;
     u_long ep_taddr, ep_tsize, ep_daddr, ep_dsize;
     struct inode *ip;           /* executable file ip */
     struct memsect text, data, bss, heap, stack;
@@ -77,7 +90,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp);
 void exec_alloc_freeall(struct exec_params *epp);
 void *exec_alloc(int size, int ru, struct exec_params *epp);
 int exec_estab(struct exec_params *epp);
-void exec_save_args(struct exec_params *epp);
+int exec_save_args(struct exec_params *epp);
 void exec_clear(struct exec_params *epp);
 
 struct inode;

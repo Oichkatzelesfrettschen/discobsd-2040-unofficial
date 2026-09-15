@@ -70,16 +70,16 @@ from the ST HAL.
 
 | Layer | Tool or code | Output |
 |---|---|---|
-| filesystem | `tools/fsutil --repartition=fs=988k`, then `--new --partition=1 --inodes=256 --manifest` | `distrib/rp2040/sdcard.img`, a PC partition table and a 2.11BSD filesystem |
+| filesystem | `tools/fsutil --repartition=fs=988k`, then `--new --partition=1 --inodes=128 --manifest` | `distrib/rp2040/sdcard.img`, a PC partition table and a 2.11BSD filesystem |
 | translation layer | `tools/flashimg`, vendored Dhara over a memory model of the region | `distrib/rp2040/flash.bin`, the 1536K region |
 | flash | `picotool uf2 convert -o 0x10020000` | `distrib/rp2040/flash.uf2` |
 
 Sizes come from `tools/bin/flashimg -c`: with 1 KB units in 8 KB erase
 blocks and gc ratio 4, Dhara leaves 989 KB of logical blocks from the
 1536K region. `Makefile.inc` FS_KBYTES takes 988 of those for the single
-root partition; the 1 KB left over is the partition table. `df` on the
-mounted root reports 971 1-KB blocks: the 17 missing are the superblock
-and the 16 blocks of inodes, 256 inodes (FS_INODES) of 64 bytes each
+root partition; the 1 KB left over is the partition table. The filesystem
+exposes 979 1-KB data blocks: the nine missing blocks are the superblock
+and eight blocks of inodes, 128 inodes (FS_INODES) of 64 bytes each
 (sys/sys/inode.h, struct dinode). Swap is not in this image: it is the raw 384K region above the
 Dhara journal, a second flash unit the kernel erases and programs in
 place at run time. `flash.bin` was resumed by a separate Dhara instance

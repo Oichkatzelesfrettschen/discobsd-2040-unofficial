@@ -58,6 +58,7 @@
 
 sysctlfn kern_sysctl;
 sysctlfn hw_sysctl;
+struct sysctl_lock memlock;
 #ifdef DEBUG
 sysctlfn debug_sysctl;
 #endif

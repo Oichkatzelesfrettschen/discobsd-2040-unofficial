@@ -9,6 +9,12 @@ PARAM += -DUART_BAUD=115200
 PARAM += -DCONS_MINOR=0
 PARAM += -DCONS_MAJOR=UARTUSB_MAJOR
 PARAM += -DCORE_DEFAULT=0
+PARAM += -DLINEAR_NAME_CACHE
+PARAM += -DLINEAR_BUFFER_CACHE
+PARAM += -DCOMPACT_INODE_FIELDS
+PARAM += -DLINEAR_INODE_CACHE
+PARAM += -DSINGLE_UFS_ROOT
+PARAM += -DNMOUNT=1
 PARAM += -DNFL=2
 PARAM += -DSYSTRACE
 PARAM += -DHALTREBOOT
@@ -51,7 +57,7 @@ CMACHCPU=	-mcpu=cortex-m0plus
 # STM32 tree too. Pin the standard the sources were written against.
 CSTDFLAGS=	-std=gnu17
 
-CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
+CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common
 CMACHFLAGS+=	-mfloat-abi=soft
 CMACHFLAGS+=	-mthumb -mabi=aapcs -mlittle-endian
 CMACHFLAGS+=	${CMACHCPU}
@@ -145,7 +151,7 @@ ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
-SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
+SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
 		${OBJCOPY} -O ihex $@ $@.hex; \

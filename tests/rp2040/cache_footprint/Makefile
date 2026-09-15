@@ -9,8 +9,11 @@ KERNEL_INCLUDES=	-I${KERNEL_BUILD} -I${TOPSRC}/sys -I${TOPSRC}/sys/arch \
 		-I${TOPSRC}/sys/arch/rp2040/heatshrink \
 		-I${TOPSRC}/sys/arch/rp2040/heatshrink/compat
 HOST_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -ffreestanding -fno-builtin \
-		-fcommon -ffunction-sections -fdata-sections -DKERNEL \
+		-fno-common -ffunction-sections -fdata-sections -DKERNEL \
 		${KERNEL_INCLUDES}
+LINEAR_CFLAGS=	-DLINEAR_NAME_CACHE -DLINEAR_BUFFER_CACHE \
+		-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS \
+		-DSINGLE_UFS_ROOT -DNMOUNT=1 -DNAMECACHE_TEST
 
 # The host's 64-bit off_t changes two unrelated comparisons in ufs_namei.c.
 # The target compiler still checks those lines with -Wall -Werror.
@@ -22,6 +25,17 @@ cache_footprint.o: cache_footprint.c
 
 cache_footprint: cache_footprint.o ufs_namei.test.o
 	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.o ufs_namei.test.o
+
+cache_footprint.linear.o: cache_footprint.c
+	${HOST_CC} ${HOST_CFLAGS} ${LINEAR_CFLAGS} -c -o $@ ${.ALLSRC}
+
+ufs_namei.linear.test.o: ${TOPSRC}/sys/kern/ufs_namei.c
+	${HOST_CC} ${HOST_CFLAGS} ${LINEAR_CFLAGS} -Wno-sign-compare \
+	    -c -o $@ ${.ALLSRC}
+
+cache_footprint_linear: cache_footprint.linear.o ufs_namei.linear.test.o
+	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.linear.o \
+	    ufs_namei.linear.test.o
 
 cache_footprint.modulo.o: cache_footprint.c
 	${HOST_CC} ${HOST_CFLAGS} -DNCHHASH=3 -c -o $@ ${.ALLSRC}
@@ -62,19 +76,30 @@ check-invalid-config:
 	    2> invalid_namecache.stderr; then \
 		echo "NNAMECACHE=1 unexpectedly compiled" >&2; exit 1; \
 	fi
-	grep -F 'NNAMECACHE must provide at least two LRU entries' \
+	grep -F 'NNAMECACHE must provide at least two entries' \
 	    invalid_namecache.stderr
+	@if ${HOST_CC} ${HOST_CFLAGS} -DSINGLE_UFS_ROOT -DNMOUNT=2 \
+	    -c invalid_cache_config.c -o invalid_single_root.o \
+	    2> invalid_single_root.stderr; then \
+		echo "SINGLE_UFS_ROOT with NMOUNT=2 unexpectedly compiled" >&2; \
+		exit 1; \
+	fi
+	grep -F 'SINGLE_UFS_ROOT requires NMOUNT=1' \
+	    invalid_single_root.stderr
 
-check: cache_footprint cache_footprint_modulo cache_footprint_large_hash \
+check: cache_footprint cache_footprint_linear cache_footprint_modulo \
+    cache_footprint_large_hash \
     check-invalid-config
 	./cache_footprint
+	./cache_footprint_linear
 	./cache_footprint_modulo
 	./cache_footprint_large_hash
 
 all: check
 
 clean:
-	rm -f cache_footprint cache_footprint_modulo cache_footprint_large_hash \
+	rm -f cache_footprint cache_footprint_linear cache_footprint_modulo \
+	    cache_footprint_large_hash \
 	    *.o *.stderr
 
 .PHONY: all check check-invalid-config clean

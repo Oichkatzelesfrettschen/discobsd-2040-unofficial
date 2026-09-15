@@ -9,6 +9,9 @@
 #include <sys/tty.h>
 #include <sys/systm.h>
 
+struct cblock *cfreelist;
+int cfreecount;
+
 char    cwaiting;
 
 /*

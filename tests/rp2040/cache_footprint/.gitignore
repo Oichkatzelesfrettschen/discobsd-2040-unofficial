@@ -1,4 +1,5 @@
 cache_footprint
+cache_footprint_linear
 cache_footprint_modulo
 cache_footprint_large_hash
 *.stderr

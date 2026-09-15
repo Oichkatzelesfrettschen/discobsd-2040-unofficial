@@ -24,9 +24,7 @@
 daddr_t rablock;        /* block to be read ahead */
 
 int
-ino_rw(fp, uio)
-    struct file *fp;
-    register struct uio *uio;
+ino_rw(struct file *fp, register struct uio *uio)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
     u_int count, error;
@@ -46,7 +44,7 @@ ino_rw(fp, uio)
         if (fp->f_flag & FNONBLOCK)
             ioflag |= IO_NDELAY;
         if (fp->f_flag & FFSYNC ||
-            (ip->i_fs->fs_flags & MNT_SYNCHRONOUS))
+            (INODE_FILESYSTEM(ip)->fs_flags & MNT_SYNCHRONOUS))
             ioflag |= IO_SYNC;
         error = rwip(ip, uio, ioflag);
         if (ioflag & IO_APPEND)
@@ -60,10 +58,7 @@ ino_rw(fp, uio)
 }
 
 int
-ino_ioctl(fp, com, data)
-    register struct file *fp;
-    register u_int com;
-    caddr_t data;
+ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
 {
     register struct inode *ip = ((struct inode *)fp->f_data);
     dev_t dev;
@@ -114,9 +109,7 @@ ino_ioctl(fp, com, data)
 }
 
 int
-ino_select(fp, which)
-    struct file *fp;
-    int which;
+ino_select(struct file *fp, int which)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
     register dev_t dev;
@@ -137,14 +130,7 @@ const struct fileops inodeops = {
 };
 
 int
-rdwri (rw, ip, base, len, offset, ioflg, aresid)
-    enum uio_rw rw;
-    struct inode *ip;
-    caddr_t base;
-    int len;
-    off_t offset;
-    int ioflg;
-    register int *aresid;
+rdwri(enum uio_rw rw, struct inode *ip, caddr_t base, int len, off_t offset, int ioflg, register int *aresid)
 {
     struct uio auio;
     struct iovec aiov;
@@ -167,10 +153,7 @@ rdwri (rw, ip, base, len, offset, ioflg, aresid)
 }
 
 int
-rwip (ip, uio, ioflag)
-    register struct inode *ip;
-    register struct uio *uio;
-    int ioflag;
+rwip(register struct inode *ip, register struct uio *uio, int ioflag)
 {
     dev_t dev = (dev_t)ip->i_rdev;
     register struct buf *bp;
@@ -189,7 +172,7 @@ rwip (ip, uio, ioflag)
      * We do not panic on non-sync directory i/o - the sync bit is forced on.
      */
     if (uio->uio_rw == UIO_READ) {
-        if (! (ip->i_fs->fs_flags & MNT_NOATIME))
+        if (! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))
             ip->i_flag |= IACC;
     } else {
         switch (type) {
@@ -224,12 +207,13 @@ rwip (ip, uio, ioflag)
      * This behaviour should probably be selectable via "sysctl fs.async.dirs" and
      * "fs.async.ofsync".  A project for a rainy day.
      */
-    if (type == IFREG || (type == IFDIR && (ip->i_fs->fs_flags & MNT_ASYNC)))
+    if (type == IFREG ||
+        (type == IFDIR && (INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC)))
         ioflag &= ~IO_SYNC;
 
     if (type == IFCHR) {
         if (uio->uio_rw == UIO_READ) {
-            if (! (ip->i_fs->fs_flags & MNT_NOATIME))
+            if (! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))
                 ip->i_flag |= IACC;
             error = (*cdevsw[major(dev)].d_read)(dev, uio, ioflag);
         } else {
@@ -247,7 +231,7 @@ rwip (ip, uio, ioflag)
         return (EFBIG);
     }
     if (type != IFBLK)
-        dev = ip->i_dev;
+        dev = INODE_DEVICE(ip);
     resid = uio->uio_resid;
     osize = ip->i_size;
 
@@ -357,9 +341,7 @@ rwip (ip, uio, ioflag)
 }
 
 int
-ino_stat(ip, sb)
-    register struct inode *ip;
-    register struct stat *sb;
+ino_stat(register struct inode *ip, register struct stat *sb)
 {
     register struct icommon2 *ic2;
 
@@ -378,7 +360,7 @@ ino_stat(ip, sb)
             ic2->ic_ctime = time.tv_sec;
         ip->i_flag &= ~(IUPD|IACC|ICHG);
     }
-    sb->st_dev = ip->i_dev;
+    sb->st_dev = INODE_DEVICE(ip);
     sb->st_ino = ip->i_number;
     sb->st_mode = ip->i_mode;
     sb->st_nlink = ip->i_nlink;
@@ -405,9 +387,7 @@ ino_stat(ip, sb)
  * they have their own close routines.
 */
 int
-closei (ip, flag)
-    register struct inode *ip;
-    int flag;
+closei(register struct inode *ip, int flag)
 {
     register struct mount *mp;
     register struct file *fp;
@@ -481,9 +461,7 @@ closei (ip, flag)
  *       error return ERESTART.
  */
 int
-ino_lock(fp, cmd)
-    register struct file *fp;
-    int cmd;
+ino_lock(register struct file *fp, int cmd)
 {
     register int priority = PLOCK;
     register struct inode *ip = (struct inode *)fp->f_data;
@@ -557,9 +535,7 @@ again:
  * Unlock a file.
  */
 void
-ino_unlock(fp, kind)
-    register struct file *fp;
-    int kind;
+ino_unlock(register struct file *fp, int kind)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
     register int flags;
@@ -591,9 +567,7 @@ ino_unlock(fp, kind)
  * validate before actual IO.
  */
 int
-openi (ip, mode)
-    register struct inode *ip;
-    int mode;
+openi(register struct inode *ip, int mode)
 {
     register dev_t dev = ip->i_rdev;
     register int maj = major(dev);
@@ -603,7 +577,7 @@ openi (ip, mode)
     switch (ip->i_mode&IFMT) {
 
     case IFCHR:
-        if (ip->i_fs->fs_flags & MNT_NODEV)
+        if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NODEV)
             return(ENXIO);
         if ((u_int)maj >= nchrdev)
             return (ENXIO);
@@ -631,7 +605,7 @@ openi (ip, mode)
         return ((*cdevsw[maj].d_open)(dev, mode, S_IFCHR));
 
     case IFBLK:
-        if (ip->i_fs->fs_flags & MNT_NODEV)
+        if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NODEV)
             return(ENXIO);
         if ((u_int)maj >= nblkdev)
             return (ENXIO);
@@ -659,8 +633,7 @@ openi (ip, mode)
 }
 
 static void
-forceclose(dev)
-    register dev_t dev;
+forceclose(register dev_t dev)
 {
     register struct file *fp;
     register struct inode *ip;
@@ -687,7 +660,7 @@ forceclose(dev)
  * to give ``clean'' terminals at login.
  */
 void
-vhangup()
+vhangup(void)
 {
     if (! suser())
         return;

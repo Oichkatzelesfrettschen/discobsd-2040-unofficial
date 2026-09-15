@@ -12,12 +12,14 @@
 #undef	KERNEL
 #include <sys/proc.h>
 #include <sys/inode.h>
+#include <sys/mount.h>
 #include <sys/map.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/conf.h>
 #include <sys/vm.h>
 #include <nlist.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -55,6 +57,8 @@ struct nlist nl[] = {
 	{ "_swapmap" },
 #define	SNPROC	6
 	{ "_nproc" },
+#define	SMOUNT	7
+	{ "_mount" },
 	{ "" }
 };
 
@@ -177,14 +181,31 @@ doinode()
 	struct inode *xinode;
 	register int nin;
 	u_int ainode;
+#ifdef SINGLE_UFS_ROOT
+	struct mount root_mount;
+	u_int mount_address;
+
+	_Static_assert(sizeof(struct inode) == 84,
+	    "pstat must use the RP2040 kernel inode layout");
+#endif
 
 	nin = 0;
 	xinode = (struct inode *)calloc(NINODE, sizeof (struct inode));
-	ainode = nl[SINODE].n_value;
 	if (xinode == NULL) {
 		fprintf(stderr, "can't allocate memory for inode table\n");
 		return;
 	}
+	ainode = nl[SINODE].n_value;
+#ifdef SINGLE_UFS_ROOT
+	mount_address = nl[SMOUNT].n_value;
+	if (mount_address == 0 ||
+	    lseek(fc, (off_t)mount_address, 0) < 0 ||
+	    read(fc, &root_mount, sizeof(root_mount)) != sizeof(root_mount)) {
+		fprintf(stderr, "can't read root mount record\n");
+		free(xinode);
+		return;
+	}
+#endif
 	lseek(fc, (off_t)ainode, 0);
 	read(fc, xinode, NINODE * sizeof(struct inode));
 	for (ip = xinode; ip < &xinode[NINODE]; ip++)
@@ -215,7 +236,12 @@ doinode()
 		putf((long)ip->i_flag&IRENAME, 'r');
 		putf((long)ip->i_flag&IXMOD, 'x');
 		printf("%4d", ip->i_count);
+#ifdef SINGLE_UFS_ROOT
+		printf("%4d,%3d", major(root_mount.m_dev),
+		    minor(root_mount.m_dev));
+#else
 		printf("%4d,%3d", major(ip->i_dev), minor(ip->i_dev));
+#endif
 		printf("%4d", ip->i_flag&IPIPE ? 0 : ip->i_shlockc);
 		printf("%4d", ip->i_flag&IPIPE ? 0 : ip->i_exlockc);
 		printf("%6u ", ip->i_number);
@@ -226,7 +252,11 @@ doinode()
 			printf("%6d,%3d", major(ip->i_rdev), minor(ip->i_rdev));
 		else
 			printf("%10ld", ip->i_size);
+#ifdef SINGLE_UFS_ROOT
+		printf(" %08x", mount_address + offsetof(struct mount, m_filsys));
+#else
 		printf(" %08x", ip->i_fs);
+#endif
 		printf("\n");
 	}
 	free(xinode);

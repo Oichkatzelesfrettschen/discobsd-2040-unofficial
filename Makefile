@@ -112,6 +112,20 @@ check-cache-footprint:	tools
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-cache-footprint
 
+check-exec-spool:	tools
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-exec-spool requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C sys/arch/rp2040/compile check-exec-spool
+
+check-ufs-prototypes:	tools
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-ufs-prototypes requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C sys/arch/rp2040/compile check-ufs-prototypes
+
 check-aout:
 		${MAKE} -C tests/aout_header check
 
@@ -217,7 +231,9 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		all build distribution release tools kernel check-divider \
-		check-swapram check-cache-footprint check-elf2aout \
+		check-swapram check-cache-footprint check-exec-spool \
+		check-ufs-prototypes \
+		check-elf2aout \
 		check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
 		check-tiny-utility-multicall \

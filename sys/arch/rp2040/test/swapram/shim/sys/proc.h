@@ -9,4 +9,5 @@ struct proc {
 extern struct proc proc[];
 #define SLOAD 0x0001
 #define P_LARGE 0x0040
+void swap(size_t blkno, size_t coreaddr, int count, int rdflg);
 #endif

@@ -136,12 +136,12 @@ execve()
     eparam.uid = u.u_uid;
     eparam.gid = u.u_groups[0];
 
-    if (ip->i_fs->fs_flags & MNT_NOEXEC) {
+    if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOEXEC) {
         u.u_error = EACCES;
         DEBUG("\texecve(): EACCES\n");
         goto done;
     }
-    if ((ip->i_fs->fs_flags & MNT_NOSUID) == 0) {
+    if ((INODE_FILESYSTEM(ip)->fs_flags & MNT_NOSUID) == 0) {
         if (ip->i_mode & ISUID)
             eparam.uid = ip->i_uid;
         if (ip->i_mode & ISGID)

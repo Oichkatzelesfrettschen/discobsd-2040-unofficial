@@ -108,7 +108,9 @@ struct inode		inode[NINODE];
 struct callout		callout[NCALL];
 struct mount		mount[NMOUNT];
 struct buf		buf[NBUF], bfreelist[BQUEUES];
+#ifndef LINEAR_BUFFER_CACHE
 struct bufhd		bufhash[BUFHSZ];
+#endif
 struct cblock		cfree[NCLIST];
 struct proc		proc[NPROC];
 struct file		file[NFILE];
@@ -551,7 +553,8 @@ idle(void)
 void
 boot(dev_t dev, int howto)
 {
-	if ((howto & RB_NOSYNC) == 0 && waittime < 0 && bfreelist[0].b_forw) {
+	if ((howto & RB_NOSYNC) == 0 && waittime < 0 &&
+	    bfreelist[0].av_forw) {
 		struct fs *fp;
 		struct buf *bp;
 		int iter, nbusy;

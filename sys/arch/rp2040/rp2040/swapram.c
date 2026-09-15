@@ -34,8 +34,6 @@
 #include <sys/errno.h>
 #include <machine/swapram.h>
 
-void swap (size_t, size_t, int, int);   /* kern/vm_swp.c */
-
 #include "heatshrink_encoder.h"
 #include "heatshrink_decoder.h"
 
@@ -67,6 +65,8 @@ u_char                  swapram_pool_mem[SWAPRAM_KB * 1024]
 static struct swapram_seg sr_seg[NPROC + 1];
 static struct swapram_pool sr_map;
 static int              sr_ready;
+static int              sr_spools;
+static void             sr_poke (void);
 
 /*
  * One entry per proc slot, indexed by p - proc, because a swapped-out
@@ -125,11 +125,90 @@ static int              sr_nlarge;
 static int              sr_large_want, sr_small_want;
 static unsigned int     sr_large_seq;
 
-static heatshrink_encoder sr_enc;
-static heatshrink_decoder sr_dec;
+unsigned char swapram_codec_work[SWAPRAM_CODEC_WORK_BYTES]
+    __attribute__ ((aligned (4)));
+static u_char sr_codec_owner;
+
+_Static_assert (sizeof (heatshrink_encoder) <= SWAPRAM_CODEC_WORK_BYTES,
+    "SwapRAM encoder must fit the shared codec workspace");
+_Static_assert (sizeof (heatshrink_decoder) <= SWAPRAM_CODEC_WORK_BYTES,
+    "SwapRAM decoder must fit the shared codec workspace");
+
+void *
+swapram_codec_acquire (unsigned int owner)
+{
+    if (owner == 0 || sr_codec_owner != 0)
+        panic ("swapram: codec workspace busy");
+    sr_codec_owner = owner;
+    return swapram_codec_work;
+}
+
+void
+swapram_codec_release (unsigned int owner)
+{
+    if (owner == 0 || sr_codec_owner != owner)
+        panic ("swapram: codec workspace owner");
+    sr_codec_owner = 0;
+}
 
 /* One line per swapout and swapin names the tier that took the image. */
 int swapramdebug = 0;		/* off by default; the tier is verified. flip to 1 to trace swaps */
+
+static void
+sr_pool_init_once (void)
+{
+    if (sr_ready)
+        return;
+    swapram_pool_init (&sr_map, sr_pool, sizeof sr_pool, sr_seg,
+        NPROC + 1);
+    sr_ready = 1;
+}
+
+/*
+ * Exec argument spools share the byte allocator with compressed images.
+ * A live spool keeps the SMALL epoch because the LARGE user window overlaps
+ * every byte of the pool. The exec path moves its spool to flash before it
+ * asks for LARGE and releases every reservation on its common cleanup path.
+ */
+int
+swapram_spool_alloc (unsigned int size, unsigned int *offp)
+{
+    sr_pool_init_once ();
+    if (! sr_admit || swapram_epoch != SWAPRAM_SMALL ||
+        swapram_pool_alloc (&sr_map, size, offp) < 0)
+        return -1;
+    sr_spools++;
+    return 0;
+}
+
+void
+swapram_spool_write (unsigned int off, unsigned int pos, const void *src,
+    unsigned int len)
+{
+    if (off > sizeof sr_pool || pos > sizeof sr_pool - off ||
+        len > sizeof sr_pool - off - pos)
+        panic ("swapram: spool write");
+    bcopy (src, sr_pool + off + pos, len);
+}
+
+void
+swapram_spool_read (unsigned int off, unsigned int pos, void *dst,
+    unsigned int len)
+{
+    if (off > sizeof sr_pool || pos > sizeof sr_pool - off ||
+        len > sizeof sr_pool - off - pos)
+        panic ("swapram: spool read");
+    bcopy (sr_pool + off + pos, dst, len);
+}
+
+void
+swapram_spool_free (unsigned int off, unsigned int size)
+{
+    if (sr_spools <= 0 || swapram_pool_free (&sr_map, off, size) < 0)
+        panic ("swapram: spool free");
+    if (--sr_spools == 0 && sr_large_want)
+        sr_poke ();
+}
 
 static struct sr_ent *
 sr_slot(struct proc *p)
@@ -156,26 +235,29 @@ sr_slot(struct proc *p)
 static int
 sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
 {
+    heatshrink_encoder *encoder;
     unsigned int in = 0, out = 0, moved = 0;
     u_char scratch[64];
     u_char *buf;
     size_t room, n;
     HSE_poll_res pres;
     HSE_finish_res fres;
+    int result = -1;
 
-    heatshrink_encoder_reset (&sr_enc);
+    encoder = swapram_codec_acquire (SWAPRAM_CODEC_ENCODER);
+    heatshrink_encoder_reset (encoder);
     for (;;) {
         if (in < len) {
-            if (heatshrink_encoder_sink (&sr_enc, (uint8_t *) src + in,
+            if (heatshrink_encoder_sink (encoder, (uint8_t *) src + in,
                 len - in, &n) < 0)
-                return -1;
+                goto done;
             if (n == 0 && out == moved)
-                return -1;      /* neither side advanced: no termination */
+                goto done;      /* neither side advanced: no termination */
             in += n;
         } else {
-            fres = heatshrink_encoder_finish (&sr_enc);
+            fres = heatshrink_encoder_finish (encoder);
             if (fres < 0)
-                return -1;
+                goto done;
             if (fres == HSER_FINISH_DONE)
                 break;
         }
@@ -188,15 +270,18 @@ sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
                 buf = scratch;
                 room = dst != NULL ? 1 : sizeof scratch;
             }
-            pres = heatshrink_encoder_poll (&sr_enc, buf, room, &n);
+            pres = heatshrink_encoder_poll (encoder, buf, room, &n);
             if (pres < 0)
-                return -1;
+                goto done;
             if (buf == scratch && dst != NULL && n > 0)
-                return -1;      /* more than cap bytes: overflow */
+                goto done;      /* more than cap bytes: overflow */
             out += n;
         } while (pres == HSER_POLL_MORE);
     }
-    return (int) out;
+    result = (int) out;
+done:
+    swapram_codec_release (SWAPRAM_CODEC_ENCODER);
+    return result;
 }
 
 /*
@@ -210,12 +295,14 @@ static int
 sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
     unsigned int rlen, size_t blk)
 {
+    heatshrink_decoder *decoder;
     unsigned int in = 0, out = 0, moved = 0, fill = 0;
     size_t n;
     u_char *buf;
     size_t room;
     HSD_poll_res pres;
     HSD_finish_res fres;
+    int result = -1;
 
 #define SR_ROOM() do { \
         if (dst != NULL) { \
@@ -241,46 +328,50 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
         } \
     } while (0)
 
-    heatshrink_decoder_reset (&sr_dec);
+    decoder = swapram_codec_acquire (SWAPRAM_CODEC_DECODER);
+    heatshrink_decoder_reset (decoder);
     while (in < clen && out < rlen) {
-        if (heatshrink_decoder_sink (&sr_dec, sr_pool + off + in,
+        if (heatshrink_decoder_sink (decoder, sr_pool + off + in,
             clen - in, &n) < 0)
-            return -1;
+            goto done;
         if (n == 0 && out == moved)
-            return -1;          /* neither side advanced: no termination */
+            goto done;          /* neither side advanced: no termination */
         in += n;
         moved = out;
         do {
             if (out == rlen)
                 break;
             SR_ROOM ();
-            pres = heatshrink_decoder_poll (&sr_dec, buf, room, &n);
+            pres = heatshrink_decoder_poll (decoder, buf, room, &n);
             if (pres < 0)
-                return -1;
+                goto done;
             SR_TOOK (n);
         } while (pres == HSDR_POLL_MORE);
     }
     for (moved = out + 1; out < rlen; moved = out) {
         if (out == moved)
-            return -1;          /* finish says more and poll yields none */
-        fres = heatshrink_decoder_finish (&sr_dec);
+            goto done;          /* finish says more and poll yields none */
+        fres = heatshrink_decoder_finish (decoder);
         if (fres < 0)
-            return -1;
+            goto done;
         if (fres == HSDR_FINISH_DONE)
             break;
         do {
             if (out == rlen)
                 break;
             SR_ROOM ();
-            pres = heatshrink_decoder_poll (&sr_dec, buf, room, &n);
+            pres = heatshrink_decoder_poll (decoder, buf, room, &n);
             if (pres < 0)
-                return -1;
+                goto done;
             SR_TOOK (n);
         } while (pres == HSDR_POLL_MORE);
     }
+    result = (int) out;
+done:
 #undef SR_ROOM
 #undef SR_TOOK
-    return (int) out;
+    swapram_codec_release (SWAPRAM_CODEC_DECODER);
+    return result;
 }
 
 /*
@@ -300,14 +391,15 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     unsigned int want;
     int dn = 0, sn = 0;
 
-    if (! sr_ready) {
-        swapram_pool_init (&sr_map, sr_pool, sizeof sr_pool, sr_seg,
-            NPROC + 1);
-        sr_ready = 1;
-    }
+    sr_pool_init_once ();
     if (e->e_live)
         panic ("swapram: image already resident");
-    if (! sr_admit)
+    /*
+     * Packed-text restoration holds the shared decoder across rdwri sleeps.
+     * A swapout scheduled during that interval must use flash instead of
+     * entering the owner-checked codec workspace.
+     */
+    if (! sr_admit || sr_codec_owner == SWAPRAM_CODEC_PACKED_TEXT)
         return 0;
 
     if (dlen && (dn = sr_encode (dsrc, dlen, NULL, 0)) < 0)
@@ -558,7 +650,8 @@ swapram_service (void)
             SWAPRAM_EVAC_NOFLASH;
         swapram_admit (swapram_epoch == SWAPRAM_SMALL);
     }
-    if (sr_large_want) {
+    if (sr_large_want &&
+        (swapram_epoch != SWAPRAM_SMALL || sr_spools == 0)) {
         sr_large_want = 0;
         if (swapram_epoch == SWAPRAM_SMALL) {
             swapram_admit (0);
@@ -569,6 +662,9 @@ swapram_service (void)
         }
         sr_large_seq++;
         wakeup ((caddr_t) &swapram_epoch);
+    } else if (sr_large_want) {
+        /* The spool owner will wake the swapper after moving to flash. */
+        swapram_admit (0);
     }
     if (sr_small_want) {
         sr_small_want = 0;

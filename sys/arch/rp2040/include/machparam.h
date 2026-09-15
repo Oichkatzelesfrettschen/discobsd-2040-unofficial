@@ -45,16 +45,15 @@
  * System parameter formulae.
  */
 /*
- * A packed exec can hold all six exec allocator blocks, one decoder block,
- * and one filesystem I/O block. Ten buffers preserve two additional blocks
- * for work that runs while rdwri sleeps; changing that bound needs a separate
- * reservation or exec-scratch design.
+ * The exec argument spool owns one staging block instead of retaining six
+ * argument blocks. One packed-image decoder block and one filesystem I/O
+ * block can remain live with it; the fourth block preserves one sleep margin.
  */
 #ifndef NBUF
-#define NBUF            10                      /* number of i/o buffers */
+#define NBUF            4                       /* number of i/o buffers */
 #endif
 /*
- * Four buffer hash heads retain constant-time bucket selection for ten data
+ * Four buffer hash heads retain constant-time bucket selection for four data
  * blocks. Longer collision chains cost cycles, while data capacity stays
  * unchanged.
  */

@@ -6,13 +6,16 @@ TOPSRC!=	cd ../../../..; pwd
 DIVIDER_OWNERSHIP_VERIFIER=	${TOPSRC}/tools/verify_rp2040_divider_ownership.py
 SWAPRAM_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_swapram_link.sh
 CACHE_FOOTPRINT_VERIFIER=	${TOPSRC}/tools/verify_rp2040_cache_footprint.sh
+UFS_PROTOTYPE_VERIFIER=	${TOPSRC}/tools/verify_ufs_prototypes.sh
 FLASH_SWAP_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_flash_swap_link.sh
 CACHE_FOOTPRINT_TEST=	${TOPSRC}/tests/rp2040/cache_footprint
+EXEC_SPOOL_TEST=	${TOPSRC}/tests/rp2040/exec_spool
+SWAPRAM_TEST=	${TOPSRC}/sys/arch/rp2040/test/swapram
 
 default:
 
 all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 
 install:
 
@@ -43,7 +46,8 @@ check-swapram:
 		@set -e; for i in ${SUBDIR}; do \
 			param=$$(${MAKE} -C $$i -V PARAM); \
 			sh "${SWAPRAM_LINK_VERIFIER}" --elf $$i/unix.elf \
-			    --object $$i/vm_swap.o --param "$$param"; \
+			    --object $$i/vm_swap.o \
+			    --exec-object $$i/exec_hsaout.o --param "$$param"; \
 		done
 
 check-cache-footprint:
@@ -55,6 +59,21 @@ check-cache-footprint:
 		done
 		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
 		    KERNEL_BUILD="${.CURDIR}/PICO"
+		${MAKE} -C "${EXEC_SPOOL_TEST}" check \
+		    KERNEL_BUILD="${.CURDIR}/PICO"
+		${MAKE} -C "${SWAPRAM_TEST}" evac
+
+check-exec-spool:
+		${MAKE} -C PICO all
+		${MAKE} -C "${EXEC_SPOOL_TEST}" check \
+		    KERNEL_BUILD="${.CURDIR}/PICO"
+		${MAKE} -C "${SWAPRAM_TEST}" evac
+
+check-ufs-prototypes:
+		@set -e; for i in ${SUBDIR}; do \
+			MAKE="${MAKE}" sh "${UFS_PROTOTYPE_VERIFIER}" \
+			    "${.CURDIR}/$$i"; \
+		done
 
 check-flash-swap:
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
@@ -72,4 +91,6 @@ check-flash-swap:
 		done
 
 .PHONY:		default all install clean clean-all reconfig check-divider \
-		check-swapram check-cache-footprint check-flash-swap
+		check-swapram check-cache-footprint check-exec-spool \
+		check-ufs-prototypes \
+		check-flash-swap

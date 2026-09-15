@@ -16,6 +16,7 @@
 #include <sys/proc.h>
 #include <sys/stat.h>
 #include <sys/inode.h>
+#include <sys/mount.h>
 #if HAVE_NETWORK
 #include <sys/socket.h>
 #include <sys/socketvar.h>
@@ -60,6 +61,8 @@ static struct nlist nl[] = {
 	{ "_proc" },
 #define	X_NPROC		1
 	{ "_nproc" },
+#define	X_MOUNT		2
+	{ "_mount" },
 	{ "" },
 };
 
@@ -71,6 +74,12 @@ extern int	errno;
 static int	fflg, vflg;
 static int	kmem, mem, nproc, swap;
 static char	*uname;
+#ifdef SINGLE_UFS_ROOT
+static dev_t	root_inode_device;
+
+_Static_assert(sizeof(struct inode) == 84,
+    "fstat must use the RP2040 kernel inode layout");
+#endif
 
 static int
 getu()
@@ -319,7 +328,7 @@ itrans(ftype, g, fno)
 	struct inode	*g;		/* if ftype is inode */
 {
 	struct inode inode;
-	dev_t idev;
+	dev_t idev = NODEV;
 	char *comm;
 	char *name = (char *)NULL;	/* set by devmatch() on a match */
 
@@ -329,7 +338,11 @@ itrans(ftype, g, fno)
 			rerr2(errno, (int)g, "inode");
 			return;
 		}
+#ifdef SINGLE_UFS_ROOT
+		idev = root_inode_device;
+#else
 		idev = inode.i_dev;
+#endif
 		if (fflg && !devmatch(idev, inode.i_number, &name))
 			return;
 	}
@@ -356,8 +369,8 @@ itrans(ftype, g, fno)
 	switch(ftype) {
 	case DTYPE_INODE:
 	case DTYPE_PIPE:
-		printf("\t%2d, %2d\t%5lu\t%6ld\t%3s %s\n", major(inode.i_dev),
-		    minor(inode.i_dev), (long)inode.i_number,
+		printf("\t%2d, %2d\t%5lu\t%6ld\t%3s %s\n", major(idev),
+		    minor(idev), (long)inode.i_number,
 		    inode.i_mode == IFSOCK ? 0L : inode.i_size,
 		    ftype == DTYPE_PIPE ? "pip" :
 		    itype(inode.i_mode), name ? name : "");
@@ -508,6 +521,19 @@ main(argc, argv)
 		fprintf(stderr, "%s: No namelist\n", N_UNIX);
 		exit(1);
 	}
+#ifdef SINGLE_UFS_ROOT
+	{
+		struct mount root_mount;
+
+		if (nl[X_MOUNT].n_value == 0 ||
+		    lseek(kmem, (off_t)nl[X_MOUNT].n_value, L_SET) < 0 ||
+		    read(kmem, &root_mount, sizeof(root_mount)) != sizeof(root_mount)) {
+			fprintf(stderr, "fstat: cannot read root mount record\n");
+			exit(1);
+		}
+		root_inode_device = root_mount.m_dev;
+	}
+#endif
 	nproc = (int)lgetw((off_t)nl[X_NPROC].n_value);
 
 	(void)lseek(kmem, (off_t)nl[X_PROC].n_value, L_SET);

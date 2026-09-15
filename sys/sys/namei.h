@@ -49,15 +49,20 @@ struct nameidata {
  * names looked up by namei.
  */
 struct  namecache {
+#ifndef LINEAR_NAME_CACHE
     struct  namecache *nc_forw; /* hash chain, MUST BE FIRST */
     struct  namecache *nc_back; /* hash chain, MUST BE FIRST */
     struct  namecache *nc_nxt;  /* LRU chain */
     struct  namecache **nc_prev; /* LRU chain */
+#endif
     struct  inode *nc_ip;       /* inode the name refers to */
     ino_t   nc_ino;             /* ino of parent of name */
     dev_t   nc_dev;             /* dev of parent of name */
     dev_t   nc_idev;            /* dev of the name ref'd */
     u_short nc_id;              /* referenced inode's id */
+#ifdef LINEAR_NAME_CACHE
+    u_char  nc_used;            /* second-chance replacement bit */
+#endif
     char    nc_nlen;            /* length of name */
 #define NCHNAMLEN   15          /* maximum name segment length we bother with */
     char    nc_name[NCHNAMLEN]; /* segment name */
@@ -86,15 +91,17 @@ struct  namecache {
         ((NCHHASH) - 1))
 #endif
 
+#ifndef LINEAR_NAME_CACHE
 union nchash {
     union nchash *nch_head[2];
     struct namecache *nch_chain[2];
 };
 
 extern union nchash nchash[NCHHASH];
+#endif
 
 extern struct   namecache namecache [];
-struct  nchstats nchstats;      /* cache effectiveness statistics */
+extern struct nchstats nchstats; /* cache effectiveness statistics */
 
 /*
  * Name cache initialization.

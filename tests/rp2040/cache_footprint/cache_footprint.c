@@ -1,10 +1,95 @@
 #include <sys/param.h>
+#include <sys/buf.h>
 #include <sys/dir.h>
 #include <sys/inode.h>
+#include <sys/mount.h>
 #include <sys/namei.h>
+#include <sys/stat.h>
 
 struct namecache namecache[NNAMECACHE];
+u_int nextinodeid;
 
+#ifdef LINEAR_NAME_CACHE
+struct namecache *nchrecycle_test(void);
+
+static int
+check_linear_cache_init(void)
+{
+    unsigned entry_index;
+
+    for (entry_index = 0; entry_index < NNAMECACHE; entry_index++) {
+        struct namecache *entry = &namecache[entry_index];
+
+        if (entry->nc_ip != 0)
+            return 1;
+        if (entry->nc_dev != NODEV || entry->nc_idev != NODEV)
+            return 2;
+        if (entry->nc_used != 0)
+            return 3;
+    }
+    return 0;
+}
+
+static int
+check_linear_replacement(void)
+{
+    struct inode cached_inodes[NNAMECACHE] = {{0}};
+    struct namecache *entry;
+    unsigned entry_index;
+
+    for (entry_index = 0; entry_index < NNAMECACHE; entry_index++) {
+        namecache[entry_index].nc_ip = &cached_inodes[entry_index];
+        namecache[entry_index].nc_used = 1;
+    }
+    entry = nchrecycle_test();
+    if (entry != &namecache[0])
+        return 18;
+    for (entry_index = 0; entry_index < NNAMECACHE; entry_index++)
+        if (namecache[entry_index].nc_used != 0)
+            return 19;
+
+    entry = nchrecycle_test();
+    if (entry != &namecache[1])
+        return 20;
+    namecache[2].nc_ip = 0;
+    namecache[2].nc_used = 1;
+    entry = nchrecycle_test();
+    if (entry != &namecache[2])
+        return 21;
+    return 0;
+}
+
+static int
+check_linear_device_invalidation(void)
+{
+    struct inode cached_inodes[NNAMECACHE] = {{0}};
+    unsigned entry_index;
+
+    for (entry_index = 0; entry_index < NNAMECACHE; entry_index++) {
+        namecache[entry_index].nc_ip = &cached_inodes[entry_index];
+        namecache[entry_index].nc_dev = (dev_t)(entry_index + 3);
+        namecache[entry_index].nc_idev = (dev_t)(entry_index + 4);
+        namecache[entry_index].nc_id = (u_short)(entry_index + 1);
+        namecache[entry_index].nc_ino = (ino_t)(entry_index + 1);
+        namecache[entry_index].nc_used = 1;
+    }
+    namecache[1].nc_idev = 3;
+    nchinval(3);
+    for (entry_index = 0; entry_index < 2; entry_index++) {
+        if (namecache[entry_index].nc_ip != 0 ||
+            namecache[entry_index].nc_dev != NODEV ||
+            namecache[entry_index].nc_idev != NODEV ||
+            namecache[entry_index].nc_id != 0 ||
+            namecache[entry_index].nc_ino != 0 ||
+            namecache[entry_index].nc_used != 0)
+            return 22;
+    }
+    if (namecache[2].nc_ip != &cached_inodes[2] ||
+        namecache[3].nc_ip != &cached_inodes[3])
+        return 23;
+    return 0;
+}
+#else
 extern struct namecache *nchhead;
 extern struct namecache **nchtail;
 
@@ -81,6 +166,7 @@ check_hash_indices(void)
             return 9;
     return 0;
 }
+#endif
 
 static int
 check_cache_hit_validation(void)
@@ -120,12 +206,56 @@ check_cache_hit_validation(void)
     return 0;
 }
 
+static int
+check_generation_wrap(void)
+{
+    struct inode target_inode = {0};
+    unsigned entry_index;
+
+    for (entry_index = 0; entry_index < NNAMECACHE; entry_index++)
+        namecache[entry_index].nc_id = 17;
+    namecache[0].nc_ip = &target_inode;
+    nextinodeid = 0xffff;
+    cacheinval(&target_inode);
+    if (target_inode.i_id == 0)
+        return 15;
+    for (entry_index = 0; entry_index < NNAMECACHE; entry_index++)
+        if (namecache[entry_index].nc_id != 0)
+            return 16;
+    if (NCH_CACHE_HIT_VALID(&namecache[0], &target_inode, 0))
+        return 17;
+    return 0;
+}
+
+static int
+check_compact_flags(void)
+{
+#ifdef COMPACT_INODE_FIELDS
+    if (!INODE_PERSISTENT_FLAGS_SUPPORTED(0))
+        return 24;
+    if (!INODE_PERSISTENT_FLAGS_SUPPORTED(UF_SETTABLE | SF_SETTABLE))
+        return 25;
+    if (INODE_PERSISTENT_FLAGS_SUPPORTED(0x10000U))
+        return 26;
+#endif
+    return 0;
+}
+
 int
 main(void)
 {
     int status;
 
     nchinit();
+#ifdef LINEAR_NAME_CACHE
+    status = check_linear_cache_init();
+    if (status != 0)
+        return status;
+    status = check_linear_replacement();
+    if (status != 0)
+        return status;
+    status = check_linear_device_invalidation();
+#else
     status = check_lru_chain();
     if (status != 0)
         return status;
@@ -133,7 +263,14 @@ main(void)
     if (status != 0)
         return status;
     status = check_hash_indices();
+#endif
     if (status != 0)
         return status;
-    return check_cache_hit_validation();
+    status = check_cache_hit_validation();
+    if (status != 0)
+        return status;
+    status = check_generation_wrap();
+    if (status != 0)
+        return status;
+    return check_compact_flags();
 }

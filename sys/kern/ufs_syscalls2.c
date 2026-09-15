@@ -15,15 +15,14 @@
 #include <sys/proc.h>
 
 static int
-statfs1 (mp, sbp)
-    struct  mount   *mp;
-    struct  statfs  *sbp;
+statfs1(struct mount *mp, struct statfs *sbp)
 {
     struct  statfs  sfs;
     register struct statfs  *sfsp;
     struct  fs  *fs = &mp->m_filsys;
 
     sfsp = &sfs;
+    bzero((caddr_t)sfsp, sizeof(*sfsp));
     sfsp->f_type = MOUNT_UFS;
     sfsp->f_bsize = MAXBSIZE;
     sfsp->f_iosize = MAXBSIZE;
@@ -33,14 +32,19 @@ statfs1 (mp, sbp)
     sfsp->f_files = (fs->fs_isize - 1) * INOPB;
     sfsp->f_ffree = fs->fs_tinode;
 
+#ifdef SINGLE_UFS_ROOT
+    bcopy("/", sfsp->f_mntonname, 2);
+    bcopy("root", sfsp->f_mntfromname, 5);
+#else
     bcopy (mp->m_mnton, sfsp->f_mntonname, MNAMELEN);
     bcopy (mp->m_mntfrom, sfsp->f_mntfromname, MNAMELEN);
+#endif
     sfsp->f_flags = mp->m_flags & MNT_VISFLAGMASK;
     return copyout ((caddr_t) sfsp, (caddr_t) sbp, sizeof (struct statfs));
 }
 
 void
-statfs()
+statfs(void)
 {
     register struct a {
         char    *path;
@@ -55,13 +59,14 @@ statfs()
     ip = namei(ndp);
     if (! ip)
         return;
-    mp = (struct mount *)((int)ip->i_fs - offsetof(struct mount, m_filsys));
+    mp = (struct mount *)((int)INODE_FILESYSTEM(ip) -
+        offsetof(struct mount, m_filsys));
     iput(ip);
     u.u_error = statfs1 (mp, uap->buf);
 }
 
 void
-fstatfs()
+fstatfs(void)
 {
     register struct a {
         int     fd;
@@ -73,12 +78,13 @@ fstatfs()
     ip = getinode(uap->fd);
     if (! ip)
         return;
-    mp = (struct mount *)((int)ip->i_fs - offsetof(struct mount, m_filsys));
+    mp = (struct mount *)((int)INODE_FILESYSTEM(ip) -
+        offsetof(struct mount, m_filsys));
     u.u_error = statfs1 (mp, uap->buf);
 }
 
 void
-getfsstat()
+getfsstat(void)
 {
     register struct a {
         struct  statfs  *buf;
@@ -86,11 +92,11 @@ getfsstat()
         u_int   flags;
     } *uap = (struct a *)u.u_arg;
     register struct mount *mp;
-    caddr_t sfsp;
+    struct statfs *sfsp;
     int count, maxcount, error;
 
     maxcount = uap->bufsize / sizeof (struct statfs);
-    sfsp = (caddr_t)uap->buf;
+    sfsp = uap->buf;
     count = 0;
     for (mp = mount; mp < &mount[NMOUNT]; mp++) {
         if (mp->m_inodp == NULL)
@@ -101,7 +107,7 @@ getfsstat()
                 u.u_error = error;
                 return;
             }
-            sfsp += sizeof (struct statfs);
+            sfsp++;
         }
         count++;
     }
@@ -117,8 +123,7 @@ getfsstat()
  * which only happens every 30 seconds.
  */
 static int
-syncinodes(fs)
-    struct  fs *fs;
+syncinodes(struct fs *fs)
 {
     register struct inode *ip;
     int error, first_error;
@@ -133,7 +138,7 @@ syncinodes(fs)
          * Attempt to reduce the overhead by short circuiting the scan if the
          * inode is not for the filesystem being processed.
          */
-        if (ip->i_fs != fs)
+        if (INODE_FILESYSTEM(ip) != fs)
             continue;
         if ((ip->i_flag & ILOCKED) != 0 || ip->i_count == 0 ||
                (ip->i_flag & (IMOD|IACC|IUPD|ICHG)) == 0)
@@ -154,8 +159,7 @@ syncinodes(fs)
  * sync _every_ filesystem when unmounting just one filesystem.
  */
 int
-ufs_sync(mp)
-    register struct mount *mp;
+ufs_sync(register struct mount *mp)
 {
     register struct fs *fs;
     struct  buf *bp;
@@ -195,7 +199,7 @@ ufs_sync(mp)
  * mode mask for creation of files
  */
 void
-umask()
+umask(void)
 {
     register struct a {
         int     mask;
@@ -209,7 +213,7 @@ umask()
  * Seek system call
  */
 void
-lseek()
+lseek(void)
 {
     register struct file *fp;
     register struct a {
@@ -246,7 +250,7 @@ lseek()
  * Synch an open file.
  */
 void
-fsync()
+fsync(void)
 {
     register struct a {
         int     fd;
@@ -257,7 +261,7 @@ fsync()
 
     if ((ip = getinode(uap->fd)) == NULL)
         return;
-    mp = (struct mount *)((int)ip->i_fs -
+    mp = (struct mount *)((int)INODE_FILESYSTEM(ip) -
         offsetof(struct mount, m_filsys));
     ilock(ip);
     error = syncip(ip);
@@ -269,7 +273,7 @@ fsync()
 }
 
 void
-utimes()
+utimes(void)
 {
     register struct a {
         char    *fname;

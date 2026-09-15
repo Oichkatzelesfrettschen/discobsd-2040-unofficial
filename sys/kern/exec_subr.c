@@ -21,6 +21,175 @@
 
 /* Stack alignment the ARM EABI and the MIPS o32 ABI hand _start. */
 #define STACKALIGN 8
+#define EXEC_SPOOL_BLOCK_NONE 0xffff
+
+static int
+exec_spool_reserve_flash (struct exec_params *epp)
+{
+    size_t addresses[3], blocks;
+
+    blocks = btod (epp->spool.size);
+#ifdef SWAP_IMAGE_ALIGN
+    epp->spool.span = malloc3_contiguous (swapmap, blocks, 0, 0,
+        SWAP_IMAGE_ALIGN, addresses);
+    if (epp->spool.span == 0)
+        return ENOMEM;
+    epp->spool.blkno = addresses[0];
+#else
+    epp->spool.blkno = malloc (swapmap, blocks);
+    if (epp->spool.blkno == 0)
+        return ENOMEM;
+    epp->spool.span = blocks;
+#endif
+    epp->spool.bp = geteblk ();
+    if (epp->spool.bp == NULL) {
+        mfree (swapmap, epp->spool.span, epp->spool.blkno);
+        epp->spool.blkno = epp->spool.span = 0;
+        return ENOMEM;
+    }
+    epp->spool.backing = EXEC_SPOOL_FLASH;
+    epp->spool.fill = 0;
+    epp->spool.readblock = EXEC_SPOOL_BLOCK_NONE;
+    return 0;
+}
+
+static void
+exec_spool_flush (struct exec_params *epp)
+{
+    u_int base;
+
+    if (epp->spool.backing != EXEC_SPOOL_FLASH || epp->spool.fill == 0)
+        return;
+    base = epp->spool.pos - epp->spool.fill;
+    swap_with_buf (epp->spool.bp, epp->spool.blkno + btod (base),
+        (size_t) epp->spool.bp->b_addr, epp->spool.fill,
+        B_WRITE | B_SWAPIMAGE);
+    epp->spool.fill = 0;
+}
+
+static void
+exec_spool_write (struct exec_params *epp, const void *source, u_int len)
+{
+    const u_char *input = source;
+    u_int chunk;
+
+    if (len > epp->spool.size - epp->spool.pos)
+        panic ("exec spool write");
+#ifdef SWAPRAM
+    if (epp->spool.backing == EXEC_SPOOL_SWAPRAM) {
+        swapram_spool_write (epp->spool.ramoff, epp->spool.pos, source,
+            len);
+        epp->spool.pos += len;
+        return;
+    }
+#endif
+    while (len != 0) {
+        chunk = MIN (len, MAXBSIZE - epp->spool.fill);
+        bcopy (input, epp->spool.bp->b_addr + epp->spool.fill, chunk);
+        input += chunk;
+        len -= chunk;
+        epp->spool.fill += chunk;
+        epp->spool.pos += chunk;
+        if (epp->spool.fill == MAXBSIZE)
+            exec_spool_flush (epp);
+    }
+}
+
+static void
+exec_spool_read (struct exec_params *epp, void *destination, u_int len)
+{
+    u_char *output = destination;
+    u_int block, blockbase, blocklen, chunk, offset;
+
+    if (len > epp->spool.size - epp->spool.pos)
+        panic ("exec spool read");
+#ifdef SWAPRAM
+    if (epp->spool.backing == EXEC_SPOOL_SWAPRAM) {
+        swapram_spool_read (epp->spool.ramoff, epp->spool.pos,
+            destination, len);
+        epp->spool.pos += len;
+        return;
+    }
+#endif
+    while (len != 0) {
+        block = epp->spool.pos / MAXBSIZE;
+        blockbase = block * MAXBSIZE;
+        if (epp->spool.readblock != block) {
+            blocklen = MIN (MAXBSIZE, epp->spool.size - blockbase);
+            swap_with_buf (epp->spool.bp,
+                epp->spool.blkno + btod (blockbase),
+                (size_t) epp->spool.bp->b_addr, blocklen, B_READ);
+            epp->spool.readblock = block;
+        }
+        offset = epp->spool.pos - blockbase;
+        chunk = MIN (len, MAXBSIZE - offset);
+        bcopy (epp->spool.bp->b_addr + offset, output, chunk);
+        output += chunk;
+        len -= chunk;
+        epp->spool.pos += chunk;
+    }
+}
+
+static int
+exec_spool_alloc (struct exec_params *epp, u_int size)
+{
+    epp->spool.size = size;
+    epp->spool.pos = 0;
+    if (size == 0)
+        return 0;
+#ifdef SWAPRAM
+    if (swapram_spool_alloc (size, &epp->spool.ramoff) == 0) {
+        epp->spool.backing = EXEC_SPOOL_SWAPRAM;
+        return 0;
+    }
+#endif
+    return exec_spool_reserve_flash (epp);
+}
+
+#ifdef SWAPRAM
+static int
+exec_spool_to_flash (struct exec_params *epp)
+{
+    unsigned int oldoff, position, chunk;
+    int error;
+
+    if (epp->spool.backing != EXEC_SPOOL_SWAPRAM)
+        return 0;
+    oldoff = epp->spool.ramoff;
+    epp->spool.backing = EXEC_SPOOL_NONE;
+    if ((error = exec_spool_reserve_flash (epp)) != 0) {
+        epp->spool.backing = EXEC_SPOOL_SWAPRAM;
+        return error;
+    }
+    for (position = 0; position < epp->spool.size; position += chunk) {
+        chunk = MIN (MAXBSIZE, epp->spool.size - position);
+        swapram_spool_read (oldoff, position, epp->spool.bp->b_addr,
+            chunk);
+        swap_with_buf (epp->spool.bp,
+            epp->spool.blkno + btod (position),
+            (size_t) epp->spool.bp->b_addr, chunk,
+            B_WRITE | B_SWAPIMAGE);
+    }
+    swapram_spool_free (oldoff, epp->spool.size);
+    epp->spool.pos = 0;
+    return 0;
+}
+#endif
+
+static void
+exec_spool_discard (struct exec_params *epp)
+{
+#ifdef SWAPRAM
+    if (epp->spool.backing == EXEC_SPOOL_SWAPRAM)
+        swapram_spool_free (epp->spool.ramoff, epp->spool.size);
+#endif
+    if (epp->spool.backing == EXEC_SPOOL_FLASH) {
+        if (epp->spool.bp != NULL)
+            brelse (epp->spool.bp);
+        mfree (swapmap, epp->spool.span, epp->spool.blkno);
+    }
+    bzero (&epp->spool, sizeof epp->spool);
+}
 
 /*
  * How memory is set up.
@@ -94,7 +263,8 @@
 void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
 {
     int i;
-    u_int len, pad;
+    u_int pad;
+    u_short len;
     char *ucp;
     char **argp, **envp, ***topp;
 
@@ -146,19 +316,29 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     /*
      * copy the arguments into the structure
      */
+    epp->spool.pos = 0;
+    epp->spool.readblock = EXEC_SPOOL_BLOCK_NONE;
     for (i = 0; i < epp->argc; i++) {
         argp[i] = (caddr_t)ucp;
-        if (copystr((caddr_t)epp->argp[i], (caddr_t)ucp, (caddr_t)topp-ucp, &len) == 0) {
-            ucp += len;
-        }
+        exec_spool_read (epp, &len, sizeof len);
+        if (len == 0 || len > (u_int)((caddr_t)topp - ucp))
+            panic ("exec spool arg length");
+        exec_spool_read (epp, ucp, len);
+        if (ucp[len - 1] != '\0')
+            panic ("exec spool arg terminator");
+        ucp += len;
     }
     argp[epp->argc] = NULL;
 
     for (i = 0; i < epp->envc; i++) {
         envp[i] = ucp;
-        if (copystr((caddr_t)epp->envp[i], (caddr_t)ucp, (caddr_t)topp-ucp, &len) == 0) {
-            ucp += len;
-        }
+        exec_spool_read (epp, &len, sizeof len);
+        if (len == 0 || len > (u_int)((caddr_t)topp - ucp))
+            panic ("exec spool env length");
+        exec_spool_read (epp, ucp, len);
+        if (ucp[len - 1] != '\0')
+            panic ("exec spool env terminator");
+        ucp += len;
     }
     envp[epp->envc] = NULL;
 
@@ -167,6 +347,8 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
         DEBUG("\texec_setupstack(): error: copy arg list, ucp = %#x, topp = %#x\n", ucp, topp);
         panic("exec check");
     }
+    if (epp->spool.pos != epp->spool.size)
+        panic ("exec spool trailing data");
 
     u.u_frame->tf_pc = entryaddr;
     DEBUG("\texec_setupstack(): new PC = %#x\n", entryaddr);
@@ -174,7 +356,8 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     /*
      * Remember file name for accounting.
      */
-    (void) copystr(argp[0], u.u_comm, MAXCOMLEN, 0);
+    if (epp->argc != 0)
+        (void) copystr(argp[0], u.u_comm, MAXCOMLEN, 0);
 
     DEBUG("\texec_setupstack(): end\n");
 }
@@ -218,6 +401,8 @@ void *exec_alloc(int size, int ru, struct exec_params *epp)
 void exec_alloc_freeall(struct exec_params *epp)
 {
     int i;
+
+    exec_spool_discard (epp);
     for (i = 0; i < MAXALLOCBUF; i++) {
         if (epp->alloc[i].bp) {
             brelse(epp->alloc[i].bp);
@@ -259,6 +444,8 @@ int exec_estab(struct exec_params *epp)
       epp->stack.len;
 #ifdef SWAPRAM
     if (need > MAXMEM && need <= MAXMEM + SWAPRAM_BONUS) {
+        if (exec_spool_to_flash (epp) != 0)
+            return ENOMEM;
         if (swapram_enter_large (u.u_procp) != 0)
             return ENOMEM;
     } else if (need <= MAXMEM)
@@ -311,102 +498,165 @@ int exec_estab(struct exec_params *epp)
 }
 
 
-/*
- * Save argv[] and envp[]
- */
-void exec_save_args(struct exec_params *epp)
+struct exec_arg_iter {
+    struct exec_params *params;
+    char **next;
+    u_short index;
+    u_short prefix_count;
+};
+
+static void
+exec_arg_iter_init (struct exec_arg_iter *iterator,
+    struct exec_params *epp)
 {
-    unsigned len;
-    caddr_t cp;
-    int argc, i, l;
-    char **argp, *ap;
+    iterator->params = epp;
+    iterator->index = 0;
+    iterator->prefix_count = epp->sh.interpreted ?
+        2 + (epp->sh.interparg[0] != '\0') : 0;
+    if (epp->sh.interpreted)
+        iterator->next = epp->userargp != NULL && epp->userargp[0] != NULL ?
+            epp->userargp + 1 : NULL;
+    else
+        iterator->next = epp->userargp;
+}
+
+static char *
+exec_arg_iter_next (struct exec_arg_iter *iterator)
+{
+    struct exec_params *epp = iterator->params;
+    char *argument;
+
+    if (iterator->index < iterator->prefix_count) {
+        if (iterator->index == 0)
+            argument = epp->sh.interpname;
+        else if (epp->sh.interparg[0] != '\0' && iterator->index == 1)
+            argument = epp->sh.interparg;
+        else
+            argument = epp->userfname;
+    } else if (iterator->next != NULL)
+        argument = *iterator->next++;
+    else
+        argument = NULL;
+    if (argument != NULL)
+        iterator->index++;
+    return argument;
+}
+
+static int
+exec_string_length (const char *string, u_int limit, u_short *lengthp)
+{
+    u_int length;
+
+    for (length = 0; length < limit; length++) {
+        if (string[length] == '\0') {
+            *lengthp = length + 1;
+            return 0;
+        }
+    }
+    return E2BIG;
+}
+
+static int
+exec_count_string (const char *string, u_int *byte_count,
+    u_int *record_bytes, u_short *string_count)
+{
+    u_short length;
+    int error;
+
+    if (*string_count == (u_short)-1)
+        return E2BIG;
+    error = exec_string_length (string, NCARGS - *byte_count, &length);
+    if (error != 0)
+        return error;
+    *byte_count += length;
+    *record_bytes += sizeof length + length;
+    (*string_count)++;
+    return 0;
+}
+
+static int
+exec_write_string (struct exec_params *epp, const char *string,
+    u_int *byte_count)
+{
+    u_short length;
+    int error;
+
+    error = exec_string_length (string, NCARGS - *byte_count, &length);
+    if (error != 0)
+        return error;
+    exec_spool_write (epp, &length, sizeof length);
+    exec_spool_write (epp, string, length);
+    *byte_count += length;
+    return 0;
+}
+
+/*
+ * Serialize argv and envp before the old user window can be overwritten.
+ * Each length-prefixed record is replayed once into the committed stack.
+ */
+int
+exec_save_args (struct exec_params *epp)
+{
+    struct exec_arg_iter iterator;
+    char **environment;
+    char *string;
+    u_int arg_bytes = 0, env_bytes = 0, record_bytes = 0;
+    u_int written_arg_bytes = 0, written_env_bytes = 0;
+    u_short arg_count = 0, env_count = 0;
+    int error;
 
     DEBUG("\texec_save_args(): start\n");
-
-    epp->argc = epp->envc = 0;
-    epp->argbc = epp->envbc = 0;
-
-    argc = 0;
-    if ((argp = epp->userargp) != NULL)
-        while (argp[argc])
-            argc++;
-    if (epp->sh.interpreted) {
-        argc++;
-        if (epp->sh.interparg[0])
-            argc++;
+    exec_arg_iter_init (&iterator, epp);
+    while ((string = exec_arg_iter_next (&iterator)) != NULL) {
+        error = exec_count_string (string, &arg_bytes, &record_bytes,
+            &arg_count);
+        if (error != 0)
+            return error;
     }
-    if (argc != 0) {
-        if ((epp->argp = (char **)exec_alloc(argc * sizeof(char *), NBPW, epp)) == NULL)
-            return;
-        for (;;) {
-            /*
-             * For a interpreter script, the arg list is changed to
-             * #! <interpreter name> <interpreter arg>
-             * arg[0] - the interpreter executable name (path)
-             * arg[1] - interpreter arg (optional)
-             * arg[2 or 1] - script name
-             * arg[3 or 2...] - script arg[1...]
-             */
-            if (argp)
-                ap = *argp++;
-            else
-                ap = NULL;
-
-            if (epp->sh.interpreted) {
-                if (epp->argc == 0)
-                    ap = epp->sh.interpname;
-                else if (epp->argc == 1 && epp->sh.interparg[0]) {
-                    ap = epp->sh.interparg;
-                    --argp;
-                } else if ((epp->argc == 1 || (epp->argc == 2 && epp->sh.interparg[0]))) {
-                    ap = epp->userfname;
-                    --argp;
-                }
-            }
-            if (ap == 0)
-                break;
-            l = strlen(ap)+1;
-            if ((cp = exec_alloc(l, 1, epp)) == NULL)
-                return;
-            if (copystr(ap, cp, l, &len) != 0)
-                return;
-            epp->argp[epp->argc++] = cp;
-            epp->argbc += len;;
-        }
+    environment = epp->userenvp;
+    while (environment != NULL && *environment != NULL) {
+        error = exec_count_string (*environment++, &env_bytes,
+            &record_bytes, &env_count);
+        if (error != 0)
+            return error;
     }
-    argc = 0;
-    if ((argp = epp->userenvp) != NULL)
-        while (argp[argc])
-            argc++;
-    epp->envc = 0;
-    epp->envbc = 0;
-    if (argc != 0) {
-        if ((epp->envp = (char **)exec_alloc(argc * sizeof(char *), NBPW, epp)) == NULL)
-            return;
-        for (;;) {
-            if (argp)
-                ap = *argp++;
-            else
-                ap = NULL;
-            if (ap == 0)
-                break;
-            l = strlen(ap)+1;
-            if ((cp = exec_alloc(l, 1, epp)) == NULL)
-                return;
-            if (copystr(ap, cp, l, &len) != 0)
-                return;
-            epp->envp[epp->envc++] = cp;
-            epp->envbc += len;
-        }
+    if (arg_bytes + env_bytes > NCARGS)
+        return E2BIG;
+
+    epp->argc = arg_count;
+    epp->envc = env_count;
+    epp->argbc = arg_bytes;
+    epp->envbc = env_bytes;
+    if ((error = exec_spool_alloc (epp, record_bytes)) != 0)
+        return error;
+
+    exec_arg_iter_init (&iterator, epp);
+    while ((string = exec_arg_iter_next (&iterator)) != NULL) {
+        error = exec_write_string (epp, string, &written_arg_bytes);
+        if (error != 0)
+            goto fail;
     }
+    environment = epp->userenvp;
+    while (environment != NULL && *environment != NULL) {
+        error = exec_write_string (epp, *environment++,
+            &written_env_bytes);
+        if (error != 0)
+            goto fail;
+    }
+    if (written_arg_bytes != arg_bytes || written_env_bytes != env_bytes ||
+        epp->spool.pos != epp->spool.size) {
+        error = EFAULT;
+        goto fail;
+    }
+    exec_spool_flush (epp);
+    epp->spool.pos = 0;
+    DEBUG("\texec_save_args(): %u args, %u env, %u spool bytes\n",
+        epp->argc, epp->envc, epp->spool.size);
+    return 0;
 
-    for (i = 0; i < epp->argc; i++)
-        DEBUG("\texec_save_args(): arg[%d] = \"%s\"\n", i, epp->argp[i]);
-
-    for (i = 0; i < epp->envc; i++)
-        DEBUG("\texec_save_args(): env[%d] = \"%s\"\n", i, epp->envp[i]);
-
-    DEBUG("\texec_save_args(): end\n");
+fail:
+    exec_spool_discard (epp);
+    return error;
 }
 
 void exec_clear(struct exec_params *epp)

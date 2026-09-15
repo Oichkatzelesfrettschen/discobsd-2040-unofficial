@@ -170,7 +170,7 @@ def main():
     ]
     cflags = [
         "-Os",
-        "-fcommon",
+        "-fno-common",
         "-Wall",
         "-Wextra",
         "-Werror",

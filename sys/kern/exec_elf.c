@@ -139,6 +139,9 @@ exec_elf_check(struct exec_params *epp)
     if ((error = rdwri(UIO_READ, epp->ip, (caddr_t)ph, phsize, epp->hdr.elf.e_phoff, IO_UNIT, 0)) != 0)
         return ENOEXEC;
 
+    if ((error = exec_save_args(epp)) != 0)
+        return error;
+
     epp->text.len = epp->data.len = epp->bss.len = epp->stack.len = epp->heap.len = 0;
     epp->text.vaddr = epp->data.vaddr = epp->bss.vaddr = epp->stack.vaddr = epp->heap.vaddr = NO_ADDR;
 
@@ -169,11 +172,6 @@ exec_elf_check(struct exec_params *epp)
          */
         return ENOEXEC;
     }
-
-    /*
-     * Save arglist
-     */
-    exec_save_args(epp);
 
     /*
      * Establish memory

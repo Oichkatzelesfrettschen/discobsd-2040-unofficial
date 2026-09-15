@@ -9,8 +9,9 @@ FS_KBYTES=	988
 SWAP_KBYTES=	0
 U_KBYTES=	0
 MI_MANIFEST=	distrib/rp2040/mi.rp2040
-# The root holds about eighty objects; one inode per 16 kbytes gives 64.
-FS_INODES=	256
+# The shipped root uses fewer than 100 objects. Eight inode blocks provide
+# 128 slots while recovering eight 1-KB data blocks from the fixed image.
+FS_INODES=	128
 
 # The top-level Makefile does not include share/mk/sys.mk, so the tool
 # paths and install command it defines are not otherwise in scope here.

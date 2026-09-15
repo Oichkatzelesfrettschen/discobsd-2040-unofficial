@@ -15,29 +15,54 @@
 #include <sys/proc.h>
 
 int dirchk = 0;
+struct nchstats nchstats;
 
 /*
  * Structures associated with name cacheing.
  */
 #if NNAMECACHE < 2
-#error "NNAMECACHE must provide at least two LRU entries"
+#error "NNAMECACHE must provide at least two entries"
 #endif
 
+#ifndef LINEAR_NAME_CACHE
 union nchash nchash[NCHHASH];
 
 #define nch_forw    nch_chain[0]
 #define nch_back    nch_chain[1]
 
 struct  namecache *nchhead, **nchtail;  /* LRU chain pointers */
+#else
+static unsigned nchclock;
+
+static struct namecache *
+nchrecycle(void)
+{
+    struct namecache *ncp;
+
+    for (;;) {
+        ncp = &namecache[nchclock];
+        if (++nchclock == NNAMECACHE)
+            nchclock = 0;
+        if (ncp->nc_ip == NULL || ncp->nc_used == 0)
+            return (ncp);
+        ncp->nc_used = 0;
+    }
+}
+
+#ifdef NAMECACHE_TEST
+struct namecache *
+nchrecycle_test(void)
+{
+    return (nchrecycle());
+}
+#endif
+#endif
 
 static void
-dirbad (ip, offset, how)
-    struct inode *ip;
-    off_t offset;
-    char *how;
+dirbad(struct inode *ip, off_t offset, char *how)
 {
     printf ("%s: bad dir I=%u off %ld: %s\n",
-        ip->i_fs->fs_fsmnt, ip->i_number, offset, how);
+        INODE_FILESYSTEM(ip)->fs_fsmnt, ip->i_number, offset, how);
 }
 
 /*
@@ -47,10 +72,7 @@ dirbad (ip, offset, how)
  * remaining space in the directory.
  */
 static struct buf *
-blkatoff(ip, offset, res)
-    struct inode *ip;
-    off_t offset;
-    char **res;
+blkatoff(struct inode *ip, off_t offset, char **res)
 {
     daddr_t lbn = lblkno(offset);
     register struct buf *bp;
@@ -64,7 +86,7 @@ blkatoff(ip, offset, res)
         dirbad(ip, offset, "hole in dir");
         return (0);
     }
-    bp = bread(ip->i_dev, bn);
+    bp = bread(INODE_DEVICE(ip), bn);
     if (bp->b_flags & B_ERROR) {
         brelse(bp);
         return (0);
@@ -84,9 +106,7 @@ blkatoff(ip, offset, res)
  *  name must be as long as advertised, and null terminated
  */
 static int
-dirbadentry (ep, entryoffsetinblock)
-    register struct direct *ep;
-    int entryoffsetinblock;
+dirbadentry(register struct direct *ep, int entryoffsetinblock)
 {
     register int i;
 
@@ -125,9 +145,9 @@ dirbadentry (ep, entryoffsetinblock)
  *
  * Names found by directory scans are retained in a cache
  * for future reference.  It is managed LRU, so frequently
- * used names will hang around.  Cache is indexed by hash value
- * obtained from (ino,dev,name) where ino & dev refer to the
- * directory containing name.
+ * used names will hang around. LINEAR_NAME_CACHE scans the bounded
+ * table and uses a second-chance clock; other configurations index the
+ * cache by a hash of (ino,dev,name), where ino and dev identify the parent.
  *
  * For simplicity (and economy of storage), names longer than
  * a maximum length of NCHNAMLEN are not cached; they occur
@@ -168,8 +188,7 @@ dirbadentry (ep, entryoffsetinblock)
  *   but unlocked.
  */
 struct inode *
-namei (ndp)
-    register struct nameidata *ndp;
+namei(register struct nameidata *ndp)
 {
     register char *cp;          /* pointer into pathname argument */
 /* these variables refer to things which must be freed or unlocked */
@@ -198,8 +217,10 @@ namei (ndp)
     int lockparent;
     int docache;                /* == 0 do not cache last component */
     int makeentry;              /* != 0 if name to be added to cache */
+#ifndef LINEAR_NAME_CACHE
     unsigned hash;              /* value of name hash for entry */
     union nchash *nhp = 0;      /* cache chain head for entry */
+#endif
     int isdotdot;               /* != 0 if current name is ".." */
     int flag;                   /* op ie, LOOKUP, CREATE, or DELETE */
     off_t enduseful;            /* pointer past last used dir slot */
@@ -230,7 +251,7 @@ namei (ndp)
             dp = rootdir;
     } else
         dp = u.u_cdir;
-    fs = dp->i_fs;
+    fs = INODE_FILESYSTEM(dp);
     ILOCK(dp);
     dp->i_count++;
     ndp->ni_endoff = 0;
@@ -238,7 +259,7 @@ namei (ndp)
     /*
      * We come to dirloop to search a new directory.
      * The directory must be locked so that it can be
-     * iput, and fs must be already set to dp->i_fs.
+     * iput, and fs must already identify the directory's filesystem.
      */
 dirloop:
     /*
@@ -255,7 +276,9 @@ dirloop2:
     /*
      * Copy next component of name to ndp->ni_dent.
      */
+#ifndef LINEAR_NAME_CACHE
     hash = 0;
+#endif
     for (i = 0; *cp != 0 && *cp != '/'; cp++) {
         if (i >= MAXNAMLEN) {
             u.u_error = ENAMETOOLONG;
@@ -267,7 +290,9 @@ dirloop2:
                 goto bad;
             }
         ndp->ni_dent.d_name[i++] = *cp;
+#ifndef LINEAR_NAME_CACHE
         hash += (unsigned char)*cp * i;
+#endif
     }
     ndp->ni_dent.d_namlen = i;
     ndp->ni_dent.d_name[i] = '\0';
@@ -304,17 +329,30 @@ dirloop2:
         nchstats.ncs_long++;
         makeentry = 0;
     } else {
-        nhp = &nchash[NCHHASH_INDEX(hash, dp->i_number, dp->i_dev)];
+#ifdef LINEAR_NAME_CACHE
+        for (ncp = namecache; ncp < &namecache[NNAMECACHE]; ncp++) {
+            if (ncp->nc_ip != NULL && ncp->nc_ino == dp->i_number &&
+                ncp->nc_dev == INODE_DEVICE(dp) &&
+                ncp->nc_nlen == ndp->ni_dent.d_namlen &&
+                !bcmp(ncp->nc_name, ndp->ni_dent.d_name,
+                (unsigned)ncp->nc_nlen))
+                break;
+        }
+        if (ncp == &namecache[NNAMECACHE]) {
+#else
+        nhp = &nchash[NCHHASH_INDEX(hash, dp->i_number,
+            INODE_DEVICE(dp))];
         for (ncp = nhp->nch_forw; ncp != (struct namecache *)nhp;
             ncp = ncp->nc_forw) {
             if (ncp->nc_ino == dp->i_number &&
-                ncp->nc_dev == dp->i_dev &&
+                ncp->nc_dev == INODE_DEVICE(dp) &&
                 ncp->nc_nlen == ndp->ni_dent.d_namlen &&
                 !bcmp(ncp->nc_name, ndp->ni_dent.d_name,
                 (unsigned)ncp->nc_nlen))
                 break;
         }
         if (ncp == (struct namecache *)nhp) {
+#endif
             nchstats.ncs_miss++;
             ncp = NULL;
         } else {
@@ -331,10 +369,11 @@ dirloop2:
                 cached_inode = ncp->nc_ip;
                 cached_inode_id = ncp->nc_id;
 
-                /*
-                 * move this slot to end of LRU
-                 * chain, if not already there
-                 */
+                /* Retain recently used entries for another clock pass. */
+#ifdef LINEAR_NAME_CACHE
+                ncp->nc_used = 1;
+#else
+                /* Move this slot to the end of the LRU chain. */
                 if (ncp->nc_nxt) {
                     /* remove from LRU chain */
                     *ncp->nc_prev = ncp->nc_nxt;
@@ -346,6 +385,7 @@ dirloop2:
                     *nchtail = ncp;
                     nchtail = &ncp->nc_nxt;
                 }
+#endif
 
                 /*
                  * Get the next inode in the path.
@@ -391,6 +431,10 @@ dirloop2:
              * the cache entry is invalid, or otherwise don't
              * want cache entry to exist.
              */
+#ifdef LINEAR_NAME_CACHE
+            ncp->nc_ip = NULL;
+            ncp->nc_used = 0;
+#else
             /* remove from LRU chain */
             *ncp->nc_prev = ncp->nc_nxt;
             if (ncp->nc_nxt)
@@ -406,6 +450,7 @@ dirloop2:
             /* and make a dummy hash chain */
             ncp->nc_forw = ncp;
             ncp->nc_back = ncp;
+#endif
             ncp = NULL;
         }
     }
@@ -433,7 +478,7 @@ dirloop2:
      * and hence has been removed in the interest of simplicity.
      */
     if (flag != LOOKUP || dp->i_number != u.u_ncache.nc_inumber ||
-        dp->i_dev != u.u_ncache.nc_dev) {
+        INODE_DEVICE(dp) != u.u_ncache.nc_dev) {
             ndp->ni_offset = 0;
             numdirpasses = 1;
     } else {
@@ -618,7 +663,7 @@ found:
     if (*cp == '\0' && flag == LOOKUP) {
         u.u_ncache.nc_prevoffset = ndp->ni_offset &~ (DIRBLKSIZ - 1);
         u.u_ncache.nc_inumber = dp->i_number;
-        u.u_ncache.nc_dev = dp->i_dev;
+        u.u_ncache.nc_dev = INODE_DEVICE(dp);
     }
     /*
      * Save directory entry's inode number and reclen in ndp->ni_dent,
@@ -657,7 +702,7 @@ found:
             if (dp->i_number == ndp->ni_dent.d_ino)
                 dp->i_count++;
             else {
-                dp = iget(dp->i_dev, fs, ndp->ni_dent.d_ino);
+                dp = iget(INODE_DEVICE(dp), fs, ndp->ni_dent.d_ino);
                 if (dp == NULL) {
                     iput(ndp->ni_pdir);
                     goto bad;
@@ -695,14 +740,14 @@ found:
             register struct mount *mp;
             register dev_t d;
 
-            d = dp->i_dev;
+            d = INODE_DEVICE(dp);
             for (mp = &mount[1]; mp < &mount[NMOUNT]; mp++)
                 if (mp->m_inodp && mp->m_dev == d) {
                     iput(dp);
                     dp = mp->m_inodp;
                     ILOCK(dp);
                     dp->i_count++;
-                    fs = dp->i_fs;
+                    fs = INODE_FILESYSTEM(dp);
                     cp -= 2;    /* back over .. */
                     goto dirloop2;
                 }
@@ -727,7 +772,7 @@ found:
             u.u_error = EISDIR;     /* XXX */
             goto bad;
         }
-        dp = iget(dp->i_dev, fs, ndp->ni_dent.d_ino);
+        dp = iget(INODE_DEVICE(dp), fs, ndp->ni_dent.d_ino);
         if (dp == NULL) {
             iput(ndp->ni_pdir);
             goto bad;
@@ -758,13 +803,13 @@ found:
     pdp = dp;
     if (isdotdot) {
         IUNLOCK(pdp);   /* race to get the inode */
-        dp = iget(dp->i_dev, fs, ndp->ni_dent.d_ino);
+        dp = iget(INODE_DEVICE(dp), fs, ndp->ni_dent.d_ino);
         if (dp == NULL)
             goto bad2;
     } else if (dp->i_number == ndp->ni_dent.d_ino) {
         dp->i_count++;  /* we want ourself, ie "." */
     } else {
-        dp = iget(dp->i_dev, fs, ndp->ni_dent.d_ino);
+        dp = iget(INODE_DEVICE(dp), fs, ndp->ni_dent.d_ino);
         IUNLOCK(pdp);
         if (dp == NULL)
             goto bad2;
@@ -776,11 +821,14 @@ found:
     if (makeentry) {
         if (ncp != NULL)
             panic("namei: duplicating cache");
-        /*
-         * Free the cache slot at head of lru chain.
-         */
+        /* Select a reusable cache slot. */
+#ifdef LINEAR_NAME_CACHE
+        ncp = nchrecycle();
+#else
         ncp = nchhead;
+#endif
         if (ncp) {
+#ifndef LINEAR_NAME_CACHE
             /* remove from lru chain */
             *ncp->nc_prev = ncp->nc_nxt;
             if (ncp->nc_nxt)
@@ -788,16 +836,20 @@ found:
             else
                 nchtail = ncp->nc_prev;
             remque(ncp);        /* remove from old hash chain */
+#endif
             /* grab the inode we just found */
             ncp->nc_ip = dp;
             /* fill in cache info */
             ncp->nc_ino = pdp->i_number;    /* parents inum */
-            ncp->nc_dev = pdp->i_dev;   /* & device */
-            ncp->nc_idev = dp->i_dev;   /* our device */
+            ncp->nc_dev = INODE_DEVICE(pdp); /* parent device */
+            ncp->nc_idev = INODE_DEVICE(dp); /* target device */
             ncp->nc_id = dp->i_id;      /* identifier */
             ncp->nc_nlen = ndp->ni_dent.d_namlen;
             bcopy(ndp->ni_dent.d_name, ncp->nc_name,
                 (unsigned)ncp->nc_nlen);
+#ifdef LINEAR_NAME_CACHE
+            ncp->nc_used = 1;
+#else
             /* link at end of lru chain */
             ncp->nc_nxt = NULL;
             ncp->nc_prev = nchtail;
@@ -805,11 +857,12 @@ found:
             nchtail = &ncp->nc_nxt;
             /* and insert on hash chain */
             insque(ncp, nhp);
+#endif
         }
     }
 
 haveino:
-    fs = dp->i_fs;
+    fs = INODE_FILESYSTEM(dp);
 
     /*
      * Check for symbolic link
@@ -827,7 +880,7 @@ haveino:
             goto bad2;
         }
 
-        bp = bread(dp->i_dev, bmap(dp, (daddr_t)0, B_READ, 0));
+        bp = bread(INODE_DEVICE(dp), bmap(dp, (daddr_t)0, B_READ, 0));
         if (bp->b_flags & B_ERROR) {
             brelse(bp);
             bp = NULL;
@@ -855,7 +908,7 @@ haveino:
             dp = pdp;
             ILOCK(dp);
         }
-        fs = dp->i_fs;
+        fs = INODE_FILESYSTEM(dp);
         goto dirloop;
     }
 
@@ -899,9 +952,7 @@ retNULL:
  * how the space for the new entry is to be gotten.
  */
 int
-direnter(ip, ndp)
-    struct inode *ip;
-    register struct nameidata *ndp;
+direnter(struct inode *ip, register struct nameidata *ndp)
 {
     register struct direct *ep, *nep;
     register struct inode *dp = ndp->ni_pdir;
@@ -1019,8 +1070,7 @@ direnter(ip, ndp)
  * to the size of the previous entry.
  */
 int
-dirremove (ndp)
-    register struct nameidata *ndp;
+dirremove(register struct nameidata *ndp)
 {
     register struct inode *dp = ndp->ni_pdir;
     register struct buf *bp;
@@ -1054,10 +1104,7 @@ dirremove (ndp)
  * set up by a call to namei.
  */
 void
-dirrewrite(dp, ip, ndp)
-    register struct inode *dp;
-    struct inode *ip;
-    register struct nameidata *ndp;
+dirrewrite(register struct inode *dp, struct inode *ip, register struct nameidata *ndp)
 {
     ndp->ni_dent.d_ino = ip->i_number;
     u.u_error = rdwri (UIO_WRITE, dp, (caddr_t) &ndp->ni_dent,
@@ -1076,9 +1123,7 @@ dirrewrite(dp, ip, ndp)
  * NB: does not handle corrupted directories.
  */
 int
-dirempty (ip, parentino)
-    register struct inode *ip;
-    ino_t parentino;
+dirempty(register struct inode *ip, ino_t parentino)
 {
     register off_t off;
     struct dirtemplate dbuf;
@@ -1126,8 +1171,7 @@ dirempty (ip, parentino)
  * The target is always iput() before returning.
  */
 int
-checkpath (source, target)
-    struct inode *source, *target;
+checkpath(struct inode *source, struct inode *target)
 {
     struct dirtemplate dirbuf;
     register struct inode *ip;
@@ -1164,7 +1208,8 @@ checkpath (source, target)
         if (dirbuf.dotdot_ino == ROOTINO)
             break;
         iput(ip);
-        ip = iget(ip->i_dev, ip->i_fs, dirbuf.dotdot_ino);
+        ip = iget(INODE_DEVICE(ip), INODE_FILESYSTEM(ip),
+            dirbuf.dotdot_ino);
         if (ip == NULL) {
             error = u.u_error;
             break;
@@ -1183,11 +1228,22 @@ out:
  * Name cache initialization, from main() when we are booting
  */
 void
-nchinit()
+nchinit(void)
 {
+#ifndef LINEAR_NAME_CACHE
     register union nchash *nchp;
+#endif
     register struct namecache *ncp;
 
+#ifdef LINEAR_NAME_CACHE
+    nchclock = 0;
+    for (ncp = namecache; ncp < &namecache[NNAMECACHE]; ncp++) {
+        ncp->nc_ip = NULL;
+        ncp->nc_dev = NODEV;
+        ncp->nc_idev = NODEV;
+        ncp->nc_used = 0;
+    }
+#else
     nchhead = 0;
     nchtail = &nchhead;
     for (ncp = namecache; ncp < &namecache[NNAMECACHE]; ncp++) {
@@ -1203,6 +1259,7 @@ nchinit()
         nchp->nch_head[0] = nchp;
         nchp->nch_head[1] = nchp;
     }
+#endif
 }
 
 /*
@@ -1214,9 +1271,23 @@ nchinit()
  * inode.  This makes the algorithm O(n^2), but do you think I care?
  */
 void
-nchinval (dev)
-    register dev_t dev;
+nchinval(register dev_t dev)
 {
+#ifdef LINEAR_NAME_CACHE
+    register struct namecache *ncp;
+
+    for (ncp = namecache; ncp < &namecache[NNAMECACHE]; ncp++) {
+        if (ncp->nc_ip == NULL ||
+            (ncp->nc_idev != dev && ncp->nc_dev != dev))
+            continue;
+        ncp->nc_idev = NODEV;
+        ncp->nc_dev = NODEV;
+        ncp->nc_id = 0;
+        ncp->nc_ino = 0;
+        ncp->nc_ip = NULL;
+        ncp->nc_used = 0;
+    }
+#else
     register struct namecache *ncp, *nxtcp;
 
     for (ncp = nchhead; ncp; ncp = nxtcp) {
@@ -1247,16 +1318,30 @@ nchinval (dev)
         nxtcp->nc_prev = &ncp->nc_nxt;
         nchhead = ncp;
     }
+#endif
 }
 
 /*
  * Name cache invalidation of all entries.
  */
 void
-cinvalall()
+cinvalall(void)
 {
     register struct namecache *ncp, *encp = &namecache[NNAMECACHE];
 
     for (ncp = namecache; ncp < encp; ncp++)
         ncp->nc_id = 0;
+}
+
+void
+cacheinval(struct inode *ip)
+{
+    u_short identifier;
+
+    identifier = ++nextinodeid;
+    if (identifier == 0) {
+        cinvalall();
+        identifier = ++nextinodeid;
+    }
+    ip->i_id = identifier;
 }

@@ -17,6 +17,13 @@
 #define MINFINITY   -32767      /* minus infinity */
 
 int     maxslp = MAXSLP;
+size_t freemem;
+u_short avefree;
+u_short avefree30;
+struct forkstat forkstat;
+struct vmrate cnt, rate;
+struct vmsum sum;
+struct vmtotal total;
 char    runin;                  /* scheduling flag */
 char    runout;                 /* scheduling flag */
 

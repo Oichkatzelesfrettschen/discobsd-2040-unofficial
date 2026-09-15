@@ -273,8 +273,10 @@ pipe()
             return;
         }
     }
+#ifndef SINGLE_UFS_ROOT
     itmp.i_fs = &mp->m_filsys;
     itmp.i_dev = mp->m_dev;
+#endif
     ip = ialloc (&itmp);
     if (ip == NULL)
         return;

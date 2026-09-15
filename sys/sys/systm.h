@@ -110,7 +110,7 @@ struct proc;
 struct inode;
 daddr_t bmap (struct inode *ip, daddr_t bn, int rwflg, int flags);
 
-extern void kmemdev();
+extern void kmemdev(void);
 
 /*
  * Structure of the system-entry table
@@ -292,7 +292,7 @@ void    vfork (void);           /* awaiting fork w/ copy on write */
 struct buf;
 struct uio;
 
-void cninit();
+void cninit(void);
 int cnopen (dev_t dev, int flag, int mode);
 int cnclose (dev_t dev, int flag, int mode);
 int cnread (dev_t dev, struct uio *uio, int flag);

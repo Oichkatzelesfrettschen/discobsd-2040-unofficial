@@ -37,7 +37,9 @@ struct bufhd
 struct buf
 {
     int     b_flags;                /* see defines below */
+#ifndef LINEAR_BUFFER_CACHE
     struct  buf *b_forw, *b_back;   /* hash chain (2 way street) */
+#endif
     struct  buf *av_forw, *av_back; /* position on free list if not BUSY */
 #define b_actf  av_forw             /* alternate names for driver queue */
 #define b_actl  av_back             /* head - isn't history wonderful */
@@ -80,11 +82,15 @@ struct inode;
 #if (BUFHSZ < 1) || ((BUFHSZ & (BUFHSZ - 1)) != 0)
 #error "BUFHSZ must be a positive power of two"
 #endif
+#ifndef LINEAR_BUFFER_CACHE
 #define BUFHASH(dev,bn) ((struct buf*) &bufhash [((dev) + bn) & (BUFHSZ - 1)])
+#endif
 
 extern struct   buf buf[];          /* the buffer pool itself */
 extern char     bufdata[];          /* core data */
+#ifndef LINEAR_BUFFER_CACHE
 extern struct   bufhd bufhash[];    /* heads of hash lists */
+#endif
 extern struct   buf bfreelist[];    /* heads of available lists */
 
 /*
@@ -187,9 +193,8 @@ int geterror (struct buf *bp);
 #define B_RAMREMAP  0x08000     /* remapped into ramdisk */
 #define B_SWAPIMAGE 0x10000     /* ascending write in an erase-aligned image */
 
-/*
- * Insq/Remq for the buffer hash lists.
- */
+/* Insq/Remq for the buffer hash lists. */
+#ifndef LINEAR_BUFFER_CACHE
 #define bremhash(bp) { \
     (bp)->b_back->b_forw = (bp)->b_forw; \
     (bp)->b_forw->b_back = (bp)->b_back; \
@@ -200,6 +205,7 @@ int geterror (struct buf *bp);
     (dp)->b_forw->b_back = (bp); \
     (dp)->b_forw = (bp); \
 }
+#endif
 
 /*
  * Insq/Remq for the buffer free lists.

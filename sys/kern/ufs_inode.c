@@ -9,11 +9,25 @@
 #include <sys/inode.h>
 #include <sys/fs.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/kernel.h>
 #include <sys/buf.h>
 #include <sys/systm.h>
 #include <sys/syslog.h>
 
+#ifdef COMPACT_INODE_FIELDS
+_Static_assert (IXMOD <= 0xffffU,
+    "transient inode flags must fit i_flag");
+_Static_assert ((UF_SETTABLE | SF_SETTABLE) <= 0xffffU,
+    "persistent inode flags must fit i_flags");
+_Static_assert ((NPROC * (NFILE + 3)) <= 0xffffU,
+    "fixed references must fit i_count");
+#endif
+
+u_int nextinodeid;
+struct inode *rootdir;
+
+#ifndef LINEAR_INODE_CACHE
 #define INOHSZ              16      /* must be power of two */
 #define INOHASH(dev,ino)    (((dev)+(ino))&(INOHSZ-1))
 
@@ -21,6 +35,7 @@ union ihead {                       /* inode LRU cache, stolen */
     union  ihead *ih_head[2];
     struct inode *ih_chain[2];
 } ihead[INOHSZ];
+#endif
 
 struct inode *ifreeh, **ifreet;
 
@@ -29,25 +44,31 @@ struct inode *ifreeh, **ifreet;
  * and build inode free list.
  */
 void
-ihinit()
+ihinit(void)
 {
     register int i;
     register struct inode *ip = inode;
+#ifndef LINEAR_INODE_CACHE
     register union  ihead *ih = ihead;
 
     for (i = INOHSZ; --i >= 0; ih++) {
         ih->ih_head[0] = ih;
         ih->ih_head[1] = ih;
     }
+#endif
     ifreeh = ip;
     ifreet = &ip->i_freef;
     ip->i_freeb = &ifreeh;
+#ifndef LINEAR_INODE_CACHE
     ip->i_forw = ip;
     ip->i_back = ip;
+#endif
     for (i = NINODE; --i > 0; ) {
         ++ip;
+#ifndef LINEAR_INODE_CACHE
         ip->i_forw = ip;
         ip->i_back = ip;
+#endif
         *ifreet = ip;
         ip->i_freeb = ifreet;
         ifreet = &ip->i_freef;
@@ -59,16 +80,18 @@ ihinit()
  * Find an inode if it is incore.
  */
 struct inode *
-ifind(dev, ino)
-    register dev_t dev;
-    register ino_t ino;
+ifind(register dev_t dev, register ino_t ino)
 {
     register struct inode *ip;
+#ifndef LINEAR_INODE_CACHE
     union ihead *ih;
 
     ih = &ihead[INOHASH(dev, ino)];
     for (ip = ih->ih_chain[0]; ip != (struct inode *)ih; ip = ip->i_forw)
-        if (ino == ip->i_number && dev == ip->i_dev)
+#else
+    for (ip = inode; ip < &inode[NINODE]; ip++)
+#endif
+        if (ino == ip->i_number && dev == INODE_DEVICE(ip))
             return(ip);
     return((struct inode *)NULL);
 }
@@ -89,19 +112,22 @@ ifind(dev, ino)
  *  "cannot happen"
  */
 struct inode *
-iget(dev, fs, ino)
-    dev_t dev;
-    register struct fs *fs;
-    ino_t ino;
+iget(dev_t dev, register struct fs *fs, ino_t ino)
 {
     register struct inode *ip;
+#ifndef LINEAR_INODE_CACHE
     union ihead *ih;
+#endif
     struct buf *bp;
     struct dinode *dp;
 loop:
+#ifndef LINEAR_INODE_CACHE
     ih = &ihead[INOHASH(dev, ino)];
     for (ip = ih->ih_chain[0]; ip != (struct inode *)ih; ip = ip->i_forw)
-        if (ino == ip->i_number && dev == ip->i_dev) {
+#else
+    for (ip = inode; ip < &inode[NINODE]; ip++)
+#endif
+        if (ino == ip->i_number && dev == INODE_DEVICE(ip)) {
             /*
              * Following is essentially an inline expanded
              * copy of igrab(), expanded inline for speed,
@@ -161,17 +187,18 @@ loop:
     }
     ip->i_freef = NULL;
     ip->i_freeb = NULL;
-    /*
-     * Now to take inode off the hash chain it was on
-     * (initially, or after an iflush, it is on a "hash chain"
-     * consisting entirely of itself, and pointed to by no-one,
-     * but that doesn't matter), and put it on the chain for
-     * its new (ino, dev) pair
-     */
+#ifndef LINEAR_INODE_CACHE
+    /* Move the reused inode to the chain for its new (ino, dev) pair. */
     remque(ip);
     insque(ip, ih);
+#endif
+#ifdef SINGLE_UFS_ROOT
+    if (dev != mount[0].m_dev || fs != &mount[0].m_filsys)
+        panic("iget: filesystem identity");
+#else
     ip->i_dev = dev;
     ip->i_fs = fs;
+#endif
     ip->i_number = ino;
     cacheinval(ip);
     ip->i_flag = ILOCKED;
@@ -183,14 +210,12 @@ loop:
      */
     if ((bp->b_flags&B_ERROR) != 0) {
         brelse(bp);
-        /*
-         * the inode doesn't contain anything useful, so it would
-         * be misleading to leave it on its hash chain.
-         * 'iput' will take care of putting it back on the free list.
-         */
+#ifndef LINEAR_INODE_CACHE
+        /* Remove the failed inode from its hash chain. */
         remque(ip);
         ip->i_forw = ip;
         ip->i_back = ip;
+#endif
         /*
          * we also loose its inumber, just in case (as iput
          * doesn't do that any more) - but as it isn't on its
@@ -203,6 +228,20 @@ loop:
     }
     dp = (struct dinode*) bp->b_addr;
     dp += itoo(ino);
+#ifdef COMPACT_INODE_FIELDS
+    if (!INODE_PERSISTENT_FLAGS_SUPPORTED(dp->di_flags)) {
+        brelse(bp);
+        u.u_error = EIO;
+#ifndef LINEAR_INODE_CACHE
+        remque(ip);
+        ip->i_forw = ip;
+        ip->i_back = ip;
+#endif
+        ip->i_number = 0;
+        iput(ip);
+        return(NULL);
+    }
+#endif
     ip->i_ic1 = dp->di_ic1;
     ip->i_flags = dp->di_flags;
     ip->i_ic2 = dp->di_ic2;
@@ -220,8 +259,7 @@ loop:
  * the inode pointer is valid.
  */
 void
-igrab (ip)
-    register struct inode *ip;
+igrab(register struct inode *ip)
 {
     while ((ip->i_flag&ILOCKED) != 0) {
         ip->i_flag |= IWANT;
@@ -251,8 +289,7 @@ igrab (ip)
  * truncate and deallocate the file.
  */
 void
-iput (ip)
-    register struct inode *ip;
+iput(register struct inode *ip)
 {
 #ifdef notnow
     /*
@@ -268,12 +305,11 @@ iput (ip)
 }
 
 void
-irele (ip)
-    register struct inode *ip;
+irele(register struct inode *ip)
 {
     if (ip->i_count == 1) {
         ip->i_flag |= ILOCKED;
-        if (ip->i_nlink <= 0 && ip->i_fs->fs_ronly == 0) {
+        if (ip->i_nlink <= 0 && INODE_FILESYSTEM(ip)->fs_ronly == 0) {
             itrunc (ip, (off_t) 0, 0);
             ip->i_mode = 0;
             ip->i_rdev = 0;
@@ -316,10 +352,7 @@ irele (ip)
  * i/o order so wait for the write to complete.
  */
 int
-iupdat (ip, ta, tm, waitfor)
-    struct inode *ip;
-    struct timeval *ta, *tm;
-    int waitfor;
+iupdat(struct inode *ip, struct timeval *ta, struct timeval *tm, int waitfor)
 {
     register struct buf *bp;
     register struct dinode *dp;
@@ -329,9 +362,9 @@ iupdat (ip, ta, tm, waitfor)
     dirty_flags = tip->i_flag & (IUPD|IACC|ICHG|IMOD);
     if (dirty_flags == 0)
         return (0);
-    if (tip->i_fs->fs_ronly)
+    if (INODE_FILESYSTEM(tip)->fs_ronly)
         return (0);
-    bp = bread(tip->i_dev, itod(tip->i_number));
+    bp = bread(INODE_DEVICE(tip), itod(tip->i_number));
     if (bp->b_flags & B_ERROR) {
         int error = geterror(bp);
 
@@ -365,10 +398,7 @@ iupdat (ip, ta, tm, waitfor)
 #define TRIPLE  2   /* index of triple indirect block */
 
 static void
-trsingle (ip, bp, last)
-    register struct inode *ip;
-    struct buf *bp;
-    daddr_t last;
+trsingle(register struct inode *ip, struct buf *bp, daddr_t last)
 {
     register const daddr_t *bstart, *bstop;
     const daddr_t *blarray = (const daddr_t*) bp->b_addr;
@@ -391,11 +421,7 @@ trsingle (ip, bp, last)
  * NB: triple indirect blocks are untested.
  */
 void
-indirtrunc (ip, bn, lastbn, level, aflags)
-    struct inode *ip;
-    daddr_t bn, lastbn;
-    int level;
-    int aflags;
+indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
 {
     register struct buf *bp;
     daddr_t nb, last;
@@ -430,7 +456,7 @@ indirtrunc (ip, bn, lastbn, level, aflags)
         register daddr_t *bap;
         register struct buf *cpy;
 
-        bp = bread(ip->i_dev, bn);
+        bp = bread(INODE_DEVICE(ip), bn);
         if (bp->b_flags&B_ERROR) {
             brelse(bp);
             return;
@@ -496,10 +522,7 @@ indirtrunc (ip, bn, lastbn, level, aflags)
  * NB: triple indirect blocks are untested.
  */
 void
-itrunc (oip, length, ioflags)
-    register struct inode *oip;
-    off_t length;
-    int ioflags;
+itrunc(register struct inode *oip, off_t length, int ioflags)
 {
     daddr_t lastblock;
     register int i;
@@ -566,7 +589,7 @@ itrunc (oip, length, ioflags)
         bn = bmap(oip, lblkno(length), B_WRITE, aflags);
         if (u.u_error || bn < 0)
             return;
-        bp = bread(oip->i_dev, bn);
+        bp = bread(INODE_DEVICE(oip), bn);
         if (bp->b_flags & B_ERROR) {
             u.u_error = EIO;
             brelse(bp);
@@ -655,20 +678,23 @@ updret:
  * this is called from sumount() when dev is being unmounted
  */
 int
-iflush (dev)
-    dev_t dev;
+iflush(dev_t dev)
 {
     register struct inode *ip;
     register int open = 0;
 
     for (ip = inode; ip < inode+NINODE; ip++) {
-        if (ip->i_dev == dev)
+        if (INODE_DEVICE(ip) == dev)
             if (ip->i_count)
                 return(-1);
             else {
+#ifndef LINEAR_INODE_CACHE
                 remque(ip);
                 ip->i_forw = ip;
                 ip->i_back = ip;
+#else
+                ip->i_number = 0;
+#endif
                 /*
                  * as i_count == 0, the inode was on the free
                  * list already, just leave it there, it will
@@ -690,8 +716,7 @@ iflush (dev)
  * Lock an inode. If its already locked, set the WANT bit and sleep.
  */
 void
-ilock(ip)
-    register struct inode *ip;
+ilock(register struct inode *ip)
 {
     ILOCK(ip);
 }
@@ -700,8 +725,7 @@ ilock(ip)
  * Unlock an inode.  If WANT bit is on, wakeup.
  */
 void
-iunlock(ip)
-    register struct inode *ip;
+iunlock(register struct inode *ip)
 {
     IUNLOCK(ip);
 }

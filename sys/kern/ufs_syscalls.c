@@ -9,6 +9,7 @@
 #include <sys/inode.h>
 #include <sys/namei.h>
 #include <sys/fs.h>
+#include <sys/mount.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/kernel.h>
@@ -18,8 +19,7 @@
  * Common routine for chroot and chdir.
  */
 static void
-chdirec(ipp)
-    register struct inode **ipp;
+chdirec(register struct inode **ipp)
 {
     register struct inode *ip;
     struct a {
@@ -52,13 +52,13 @@ bad:
  * Change current working directory (``.'').
  */
 void
-chdir()
+chdir(void)
 {
     chdirec (&u.u_cdir);
 }
 
 void
-fchdir()
+fchdir(void)
 {
     register struct a {
         int     fd;
@@ -89,7 +89,7 @@ bad:
  * Change notion of root (``/'') directory.
  */
 void
-chroot()
+chroot(void)
 {
     if (suser())
         chdirec (&u.u_rdir);
@@ -100,10 +100,7 @@ chroot()
  * and call the device open routine if any.
  */
 static int
-copen (mode, cmode, fname)
-    int mode;
-    int cmode;
-    caddr_t fname;
+copen(int mode, int cmode, caddr_t fname)
 {
     register struct inode *ip;
     register struct file *fp;
@@ -179,7 +176,7 @@ copen (mode, cmode, fname)
  * Open system call.
  */
 void
-open()
+open(void)
 {
     register struct a {
         char    *fname;
@@ -194,7 +191,7 @@ open()
  * Mknod system call
  */
 void
-mknod()
+mknod(void)
 {
     register struct inode *ip;
     register struct a {
@@ -241,7 +238,7 @@ out:
  * link system call
  */
 void
-link()
+link(void)
 {
     register struct inode *ip, *xp;
     register struct a {
@@ -278,7 +275,7 @@ link()
     }
     if (u.u_error)
         goto out;
-    if (ndp->ni_pdir->i_dev != ip->i_dev) {
+    if (INODE_DEVICE(ndp->ni_pdir) != INODE_DEVICE(ip)) {
         iput(ndp->ni_pdir);
         u.u_error = EXDEV;
         goto out;
@@ -296,7 +293,7 @@ out:
  * symlink -- make a symbolic link
  */
 void
-symlink()
+symlink(void)
 {
     register struct a {
         char    *target;
@@ -345,7 +342,7 @@ symlink()
  * in unlinking directories.
  */
 void
-unlink()
+unlink(void)
 {
     register struct a {
         char    *fname;
@@ -364,7 +361,7 @@ unlink()
     /*
      * Don't unlink a mounted file.
      */
-    if (ip->i_dev != dp->i_dev) {
+    if (INODE_DEVICE(ip) != INODE_DEVICE(dp)) {
         u.u_error = EBUSY;
         goto out;
     }
@@ -388,7 +385,7 @@ out:
  * Access system call
  */
 void
-saccess()
+saccess(void)
 {
     uid_t t_uid;
     gid_t t_gid;
@@ -421,8 +418,7 @@ done:
 }
 
 static void
-stat1 (follow)
-    int follow;
+stat1(int follow)
 {
     register struct inode *ip;
     register struct a {
@@ -446,7 +442,7 @@ stat1 (follow)
  * Stat system call.  This version follows links.
  */
 void
-stat()
+stat(void)
 {
     stat1 (FOLLOW);
 }
@@ -455,7 +451,7 @@ stat()
  * Lstat system call.  This version does not follow links.
  */
 void
-lstat()
+lstat(void)
 {
     stat1 (NOFOLLOW);
 }
@@ -464,7 +460,7 @@ lstat()
  * Return target name of a symbolic link
  */
 void
-readlink()
+readlink(void)
 {
     register struct inode *ip;
     register struct a {
@@ -492,9 +488,7 @@ out:
 }
 
 static int
-chflags1 (ip, flags)
-    register struct inode *ip;
-    u_short flags;
+chflags1(register struct inode *ip, u_short flags)
 {
     struct  vattr   vattr;
 
@@ -507,7 +501,7 @@ chflags1 (ip, flags)
  * change flags of a file given pathname.
  */
 void
-chflags()
+chflags(void)
 {
     register struct inode *ip;
     register struct a {
@@ -528,7 +522,7 @@ chflags()
  * change flags of a file given file descriptor.
  */
 void
-fchflags()
+fchflags(void)
 {
     register struct a {
         int     fd;
@@ -548,7 +542,7 @@ fchflags()
  * Change mode of a file given path name.
  */
 void
-chmod()
+chmod(void)
 {
     register struct inode *ip;
     register struct a {
@@ -573,7 +567,7 @@ chmod()
  * Change mode of a file given a file descriptor.
  */
 void
-fchmod()
+fchmod(void)
 {
     register struct a {
         int     fd;
@@ -596,9 +590,7 @@ fchmod()
  * Inode must be locked before calling.
  */
 int
-chmod1(ip, mode)
-    register struct inode *ip;
-    register int mode;
+chmod1(register struct inode *ip, register int mode)
 {
     if (u.u_uid != ip->i_uid && !suser())
         return(u.u_error);
@@ -618,7 +610,7 @@ chmod1(ip, mode)
  * Set ownership given a path name.
  */
 void
-chown()
+chown(void)
 {
     register struct inode *ip;
     register struct a {
@@ -645,7 +637,7 @@ chown()
  * Set ownership given a file descriptor.
  */
 void
-fchown()
+fchown(void)
 {
     register struct a {
         int     fd;
@@ -670,9 +662,7 @@ fchown()
  * inode must be locked prior to call.
  */
 int
-chown1 (ip, uid, gid)
-    register struct inode *ip;
-    register int uid, gid;
+chown1(register struct inode *ip, register int uid, register int gid)
 {
     int ouid, ogid;
 
@@ -705,7 +695,7 @@ chown1 (ip, uid, gid)
  * Truncate a file given its path name.
  */
 void
-truncate()
+truncate(void)
 {
     register struct a {
         char    *fname;
@@ -733,7 +723,7 @@ bad:
  * Truncate a file given a file descriptor.
  */
 void
-ftruncate()
+ftruncate(void)
 {
     register struct a {
         int     fd;
@@ -785,7 +775,7 @@ ftruncate()
  * not be directories.  If target is a directory, it must be empty.
  */
 void
-rename()
+rename(void)
 {
     struct a {
         char    *from;
@@ -911,7 +901,7 @@ rename()
      *    expunge the original entry's existence.
      */
     if (xp == NULL) {
-        if (dp->i_dev != ip->i_dev) {
+        if (INODE_DEVICE(dp) != INODE_DEVICE(ip)) {
             error = EXDEV;
             goto bad;
         }
@@ -929,7 +919,8 @@ rename()
         if (error)
             goto out;
     } else {
-        if (xp->i_dev != dp->i_dev || xp->i_dev != ip->i_dev) {
+        if (INODE_DEVICE(xp) != INODE_DEVICE(dp) ||
+            INODE_DEVICE(xp) != INODE_DEVICE(ip)) {
             error = EXDEV;
             goto bad;
         }
@@ -1082,9 +1073,7 @@ out:
  * Make a new file.
  */
 struct inode *
-maknode (mode, ndp)
-    int mode;
-    register struct nameidata *ndp;
+maknode(int mode, register struct nameidata *ndp)
 {
     register struct inode *ip;
     register struct inode *pdir = ndp->ni_pdir;
@@ -1134,7 +1123,7 @@ const struct dirtemplate mastertemplate = {
  * Mkdir system call
  */
 void
-mkdir()
+mkdir(void)
 {
     register struct a {
         char    *name;
@@ -1235,7 +1224,7 @@ bad:
  * Rmdir system call.
  */
 void
-rmdir()
+rmdir(void)
 {
     struct a {
         char    *name;
@@ -1265,7 +1254,7 @@ rmdir()
     /*
      * Don't remove a mounted on directory.
      */
-    if (ip->i_dev != dp->i_dev) {
+    if (INODE_DEVICE(ip) != INODE_DEVICE(dp)) {
         u.u_error = EBUSY;
         goto out;
     }
@@ -1320,8 +1309,7 @@ out:
  * Get an inode pointer of a file descriptor.
  */
 struct inode *
-getinode(fdes)
-    int fdes;
+getinode(int fdes)
 {
     register struct file *fp;
 

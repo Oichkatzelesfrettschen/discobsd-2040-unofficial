@@ -67,6 +67,17 @@ unsigned int swapram_pool_largest(struct swapram_pool *);
 #define SWAPRAM_U       2
 #define SWAPRAM_NSEG    3
 
+/*
+ * The swapper runs the SwapRAM encoder, SwapRAM decoder, and packed-text
+ * decoder sequentially. One owner-checked workspace therefore replaces the
+ * three permanent codec objects. Size assertions beside each user catch any
+ * codec configuration that outgrows the shared extent.
+ */
+#define SWAPRAM_CODEC_WORK_BYTES    1040
+#define SWAPRAM_CODEC_ENCODER       1
+#define SWAPRAM_CODEC_DECODER       2
+#define SWAPRAM_CODEC_PACKED_TEXT   3
+
 /* machdep.swapram_evacuate: written as PENDING, read back as the result. */
 #define SWAPRAM_EVAC_IDLE       0
 #define SWAPRAM_EVAC_PENDING    1
@@ -124,8 +135,16 @@ void swapram_inherit(struct proc *, struct proc *);
 void swapram_set_epoch(int);
 void swapram_init(void);
 size_t user_top(struct proc *);
+int swapram_spool_alloc(unsigned int, unsigned int *);
+void swapram_spool_write(unsigned int, unsigned int, const void *,
+    unsigned int);
+void swapram_spool_read(unsigned int, unsigned int, void *, unsigned int);
+void swapram_spool_free(unsigned int, unsigned int);
+void *swapram_codec_acquire(unsigned int);
+void swapram_codec_release(unsigned int);
 extern int swapram_evac, swapram_epoch;
 extern unsigned char swapram_pool_mem[];
+extern unsigned char swapram_codec_work[];
 #endif
 
 #endif /* _MACHINE_SWAPRAM_H_ */

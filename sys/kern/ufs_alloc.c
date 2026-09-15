@@ -25,16 +25,14 @@ typedef struct fblk *FBLKP;
  * obtain NICFREE more...
  */
 struct buf *
-balloc(ip, flags)
-    struct inode *ip;
-    int flags;
+balloc(struct inode *ip, int flags)
 {
     register struct fs *fs;
     register struct buf *bp;
     int async;
     daddr_t bno;
 
-    fs = ip->i_fs;
+    fs = INODE_FILESYSTEM(ip);
     async = fs->fs_flags & MNT_ASYNC;
 
     while (fs->fs_flock)
@@ -52,7 +50,7 @@ balloc(ip, flags)
     } while (badblock(fs, bno));
     if (fs->fs_nfree <= 0) {
         fs->fs_flock++;
-        bp = bread(ip->i_dev, bno);
+        bp = bread(INODE_DEVICE(ip), bno);
         if (((bp->b_flags&B_ERROR) == 0) && (bp->b_resid==0)) {
             register struct fblk *fbp;
 
@@ -67,7 +65,7 @@ balloc(ip, flags)
          * use some of the blocks in this freeblock, then crash
          * without a sync.
          */
-        bp = getblk(ip->i_dev, SUPERB);
+        bp = getblk(INODE_DEVICE(ip), SUPERB);
         fs->fs_fmod = 0;
         fs->fs_time = time.tv_sec;
         {
@@ -85,7 +83,7 @@ balloc(ip, flags)
         if (fs->fs_nfree <=0)
             goto nospace;
     }
-    bp = getblk(ip->i_dev, bno);
+    bp = getblk(INODE_DEVICE(ip), bno);
     bp->b_resid = 0;
     if (flags & B_CLRBUF)
         bzero (bp->b_addr, MAXBSIZE);
@@ -122,8 +120,7 @@ nospace:
  * is instituted to pick up NICINOD more.
  */
 struct inode *
-ialloc (pip)
-    struct inode *pip;
+ialloc(struct inode *pip)
 {
     register struct fs *fs;
     register struct buf *bp;
@@ -134,10 +131,9 @@ ialloc (pip)
     daddr_t adr;
     ino_t inobas;
     int first;
-    struct inode *ifind();
     char    *emsg = "no inodes free";
 
-    fs = pip->i_fs;
+    fs = INODE_FILESYSTEM(pip);
     while (fs->fs_ilock)
         sleep((caddr_t)&fs->fs_ilock, PINOD);
 loop:
@@ -145,7 +141,7 @@ loop:
         ino = fs->fs_inode[--fs->fs_ninode];
         if (ino <= ROOTINO)
             goto loop;
-        ip = iget(pip->i_dev, fs, ino);
+        ip = iget(INODE_DEVICE(pip), fs, ino);
         if (ip == NULL)
             return(NULL);
         if (ip->i_mode == 0) {
@@ -181,7 +177,7 @@ fromtop:
     inobas = 0;
     for (; adr < fs->fs_isize; adr++) {
         inobas = ino;
-        bp = bread(pip->i_dev, adr);
+        bp = bread(INODE_DEVICE(pip), adr);
         if ((bp->b_flags & B_ERROR) || bp->b_resid) {
             brelse(bp);
             ino += INOPB;
@@ -191,7 +187,7 @@ fromtop:
         for (i = 0;i < INOPB;i++) {
             if (dp->di_mode != 0)
                 goto cont;
-            if (ifind(pip->i_dev, ino))
+            if (ifind(INODE_DEVICE(pip), ino))
                 goto cont;
             fs->fs_inode[fs->fs_ninode++] = ino;
             if (fs->fs_ninode >= NICINOD)
@@ -224,15 +220,13 @@ fromtop:
  * specified device.
  */
 void
-free (ip, bno)
-    struct inode *ip;
-    daddr_t bno;
+free(struct inode *ip, daddr_t bno)
 {
     register struct fs *fs;
     register struct buf *bp;
     struct fblk *fbp;
 
-    fs = ip->i_fs;
+    fs = INODE_FILESYSTEM(ip);
     if (badblock (fs, bno)) {
         printf("bad block %D, ino %d\n", bno, ip->i_number);
         return;
@@ -245,7 +239,7 @@ free (ip, bno)
     }
     if (fs->fs_nfree >= NICFREE) {
         fs->fs_flock++;
-        bp = getblk(ip->i_dev, bno);
+        bp = getblk(INODE_DEVICE(ip), bno);
         fbp = (FBLKP) bp->b_addr;
         *fbp = *((FBLKP)&fs->fs_nfree);
         fs->fs_nfree = 0;
@@ -268,13 +262,11 @@ free (ip, bno)
  * stores up to NICINOD I nodes in the super block and throws away any more.
  */
 void
-ifree (ip, ino)
-    struct inode *ip;
-    ino_t ino;
+ifree(struct inode *ip, ino_t ino)
 {
     register struct fs *fs;
 
-    fs = ip->i_fs;
+    fs = INODE_FILESYSTEM(ip);
     fs->fs_tinode++;
     if (fs->fs_ilock)
         return;
@@ -294,9 +286,7 @@ ifree (ip, ino)
  *  fs: error message
  */
 void
-fserr (fp, cp)
-    struct fs *fp;
-    char *cp;
+fserr(struct fs *fp, char *cp)
 {
     printf ("%s: %s\n", fp->fs_fsmnt, cp);
 }

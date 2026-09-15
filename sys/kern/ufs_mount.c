@@ -23,9 +23,7 @@
  * thing on which to mount, otherwise return error.
  */
 static int
-getmdev (pdev, fname)
-    caddr_t fname;
-    dev_t *pdev;
+getmdev(dev_t *pdev, caddr_t fname)
 {
     register dev_t dev;
     register struct inode *ip;
@@ -54,24 +52,41 @@ getmdev (pdev, fname)
 }
 
 void
-mount_updname (fs, on, from, lenon, lenfrom)
-    struct  fs  *fs;
-    char    *on, *from;
-    int lenon, lenfrom;
+mount_updname(struct fs *fs, char *on, char *from, int lenon, int lenfrom)
 {
+    int fslen = lenon;
+#ifndef SINGLE_UFS_ROOT
     struct  mount   *mp;
+#else
+    (void)from;
+    (void)lenfrom;
+#endif
 
     bzero (fs->fs_fsmnt, sizeof (fs->fs_fsmnt));
-    bcopy (on, fs->fs_fsmnt, sizeof (fs->fs_fsmnt) - 1);
+    if (fslen < 0)
+        fslen = 0;
+    else if ((u_int)fslen >= sizeof (fs->fs_fsmnt))
+        fslen = sizeof (fs->fs_fsmnt) - 1;
+    bcopy (on, fs->fs_fsmnt, fslen);
+#ifndef SINGLE_UFS_ROOT
     mp = (struct mount*) ((int) fs - offsetof (struct mount, m_filsys));
     bzero (mp->m_mnton, sizeof (mp->m_mnton));
     bzero (mp->m_mntfrom, sizeof (mp->m_mntfrom));
+    if (lenon < 0)
+        lenon = 0;
+    else if ((u_int)lenon >= sizeof (mp->m_mnton))
+        lenon = sizeof (mp->m_mnton) - 1;
     bcopy (on, mp->m_mnton, lenon);
+    if (lenfrom < 0)
+        lenfrom = 0;
+    else if ((u_int)lenfrom >= sizeof (mp->m_mntfrom))
+        lenfrom = sizeof (mp->m_mntfrom) - 1;
     bcopy (from, mp->m_mntfrom, lenfrom);
+#endif
 }
 
 void
-smount()
+smount(void)
 {
     register struct a {
         char    *fspec;
@@ -102,7 +117,7 @@ smount()
     copystr (uap->fspec, mntfrom, sizeof (mntfrom) - 1, &lenfrom);
 
     if (uap->flags & MNT_UPDATE) {
-        fs = ip->i_fs;
+        fs = INODE_FILESYSTEM(ip);
         mp = (struct mount *)
             ((int)fs - offsetof(struct mount, m_filsys));
         if (ip->i_number != ROOTINO) {
@@ -176,10 +191,7 @@ cmnout:
  * this routine has races if running twice
  */
 struct fs *
-mountfs (dev, flags, ip)
-    dev_t dev;
-    int flags;
-    struct inode *ip;
+mountfs(dev_t dev, int flags, struct inode *ip)
 {
     register struct mount *mp = 0;
     struct buf *tp = 0;
@@ -255,8 +267,7 @@ out:
 }
 
 static int
-unmount1 (fname)
-    caddr_t fname;
+unmount1(caddr_t fname)
 {
     dev_t dev = 0;
     register struct mount *mp;
@@ -296,7 +307,7 @@ found:
 }
 
 void
-umount()
+umount(void)
 {
     struct a {
         char    *fspec;

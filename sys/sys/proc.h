@@ -97,9 +97,9 @@ struct  proc {
 #define X_FREECORE      1       /* free core space after swap */
 
 #ifdef KERNEL
-struct  proc *pidhash [PIDHSZ];
+extern struct proc *pidhash[PIDHSZ];
 extern struct   proc proc[];    /* the proc table itself */
-struct  proc *freeproc, *zombproc, *allproc, *qs;
+extern struct proc *freeproc, *zombproc, *allproc, *qs;
                                 /* lists of procs in various states */
 extern int nproc;
 
@@ -200,7 +200,10 @@ void exit (int rv);
 /*
  * Swap I/O.
  */
+struct buf;
 void swap (size_t blkno, size_t coreaddr, int count, int rdflg);
+void swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr,
+    int count, int rdflg);
 
 /*
  * Kill a process when ran out of swap space.

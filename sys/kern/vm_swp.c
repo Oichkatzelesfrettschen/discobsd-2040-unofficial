@@ -12,17 +12,11 @@
 #include <sys/vm.h>
 #include <sys/uio.h>
 
-/*
- * swap I/O
- */
 void
-swap (blkno, coreaddr, count, rdflg)
-    size_t blkno, coreaddr;
-    register int count;
-    int rdflg;
+swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
+    int rdflg)
 {
-    register struct buf *bp;
-    int s;
+    int s, transfer_count;
 
 //printf ("swap (%u, %08x, %d, %s)\n", blkno, coreaddr, count, (rdflg & B_READ) ? "R" : "W");
 #ifdef UCB_METER
@@ -32,12 +26,11 @@ swap (blkno, coreaddr, count, rdflg)
         cnt.v_kbout += (count + 1023) / 1024;
     }
 #endif
-    bp = geteblk();         /* allocate a buffer header */
-
     while (count) {
+        transfer_count = count;
         bp->b_flags = B_BUSY | B_PHYS | B_INVAL | rdflg;
         bp->b_dev = swapdev;
-        bp->b_bcount = count;
+        bp->b_bcount = transfer_count;
         bp->b_blkno = blkno;
         bp->b_addr = (caddr_t) coreaddr;
         (*bdevsw[major(swapdev)].d_strategy) (bp);
@@ -47,10 +40,23 @@ swap (blkno, coreaddr, count, rdflg)
         splx (s);
         if ((bp->b_flags & B_ERROR) || bp->b_resid)
             panic ("hard err: swap");
-        count -= count;
-        coreaddr += count;
-        blkno += btod (count);
+        count -= transfer_count;
+        coreaddr += transfer_count;
+        blkno += btod (transfer_count);
     }
+}
+
+/*
+ * Transfer swap bytes through a temporary cache header. Callers which already
+ * own a busy header use swap_with_buf() and avoid a redundant cache claim.
+ */
+void
+swap (size_t blkno, size_t coreaddr, int count, int rdflg)
+{
+    struct buf *bp;
+
+    bp = geteblk ();
+    swap_with_buf (bp, blkno, coreaddr, count, rdflg);
     brelse(bp);
 }
 

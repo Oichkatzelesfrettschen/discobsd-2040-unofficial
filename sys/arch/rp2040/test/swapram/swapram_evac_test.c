@@ -77,6 +77,8 @@ static int failures;
 #define CHECK(cond) do { if (!(cond)) { \
     failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
 
+static void reset_map(size_t blocks);
+
 static size_t
 mapfree(void)
 {
@@ -154,6 +156,48 @@ admit(int i, struct image *im)
     return 1;
 }
 
+static void
+spool_coexistence(void)
+{
+    struct image im;
+    unsigned char source[1537], destination[1537];
+    unsigned int spool_offset;
+
+    reset_map(NSWAP - 1);
+    fill(source, sizeof source, 41);
+    memset(destination, 0, sizeof destination);
+    CHECK(swapram_epoch == SWAPRAM_SMALL);
+    CHECK(swapram_spool_alloc(sizeof source, &spool_offset) == 0);
+    swapram_spool_write(spool_offset, 0, source, 700);
+    swapram_spool_write(spool_offset, 700, source + 700,
+        sizeof source - 700);
+    swapram_spool_read(spool_offset, 0, destination,
+        sizeof destination);
+    CHECK(memcmp(source, destination, sizeof source) == 0);
+
+    mkimage(&im, 1800, 300, 42);
+    CHECK(admit(0, &im));
+    memset(destination, 0, sizeof destination);
+    swapram_spool_read(spool_offset, 0, destination,
+        sizeof destination);
+    CHECK(memcmp(source, destination, sizeof source) == 0);
+    swapram_in(&proc[0], (caddr_t)im.d, (caddr_t)im.s,
+        (caddr_t)im.ub);
+    CHECK(swapram_images() == 0);
+
+    swapram_set_epoch(SWAPRAM_LARGE);
+    swapram_service();
+    CHECK(swapram_epoch == SWAPRAM_SMALL);
+    CHECK(swapram_spool_alloc(16, &spool_offset) == -1);
+    swapram_spool_free(spool_offset, sizeof source);
+    swapram_service();
+    CHECK(swapram_epoch == SWAPRAM_LARGE);
+    swapram_set_epoch(SWAPRAM_SMALL);
+    swapram_service();
+    CHECK(swapram_epoch == SWAPRAM_SMALL);
+    printf("spool coexistence: records share SMALL with images and defer LARGE until release\n");
+}
+
 static int
 onflash(int i, struct image *im)
 {
@@ -198,6 +242,25 @@ allocator_contract(void)
     mfree(swapmap, SWAP_IMAGE_ALIGN, addresses[0]);
     CHECK(mapfree() == before);
     printf("allocator: aligned rounded runs reject empty and overflowing sizes\n");
+}
+
+static void
+codec_workspace(void)
+{
+    unsigned char *encoder_work, *decoder_work, *packed_work;
+
+    encoder_work = swapram_codec_acquire(SWAPRAM_CODEC_ENCODER);
+    encoder_work[SWAPRAM_CODEC_WORK_BYTES - 1] = 0x5a;
+    swapram_codec_release(SWAPRAM_CODEC_ENCODER);
+    decoder_work = swapram_codec_acquire(SWAPRAM_CODEC_DECODER);
+    CHECK(decoder_work == encoder_work);
+    CHECK(decoder_work[SWAPRAM_CODEC_WORK_BYTES - 1] == 0x5a);
+    swapram_codec_release(SWAPRAM_CODEC_DECODER);
+    packed_work = swapram_codec_acquire(SWAPRAM_CODEC_PACKED_TEXT);
+    CHECK(packed_work == encoder_work);
+    CHECK(swapram_out(&proc[0], NULL, 0, NULL, 0, 0) == 0);
+    swapram_codec_release(SWAPRAM_CODEC_PACKED_TEXT);
+    printf("codec workspace: owners share one extent and packed-text sleeps force flash swapout\n");
 }
 
 static void
@@ -431,6 +494,8 @@ main(void)
         return 1;
     }
     allocator_contract();
+    codec_workspace();
+    spool_coexistence();
     roundtrip();
     shortage();
     admission();

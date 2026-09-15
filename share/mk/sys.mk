@@ -62,11 +62,20 @@ MACHINE_CPU!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "cortex-m4" ; \
 	fi
 
+# RP2040 diagnostics read kernel structures through /dev/kmem and sysctl.
+# Keep every target program on the same fixed-table layout as the kernel.
+KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DSINGLE_UFS_ROOT -DNMOUNT=1" ; \
+	else \
+		echo "" ; \
+	fi
+
 # The sources predate C23, where an empty parameter list means (void) and
-# old-style definitions are gone. GCC 15 and later default to C23, and the
-# standard rides on CC because several Makefiles replace CFLAGS outright.
+# old-style definitions are gone. GCC 15 and later default to C23. The dialect
+# and tentative-definition policy ride on CC because several Makefiles replace
+# CFLAGS outright.
 CC!=	if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "${GCCPREFIX}-gcc -std=gnu17 -mcpu=${MACHINE_CPU} -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
+		echo "${GCCPREFIX}-gcc -std=gnu17 -fno-common -mcpu=${MACHINE_CPU} -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft ${KERNEL_LAYOUT_CFLAGS} -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
 		echo "${GCCPREFIX}-gcc -mips32r2 -EL -msoft-float -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
 	else \

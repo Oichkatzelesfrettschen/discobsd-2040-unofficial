@@ -1,9 +1,11 @@
 # RP2040 cache footprint
 
-The RP2040 kernel spends cycles on additional linear scans to recover 1,384
-bytes of permanent SRAM. The buffer data pool stays at ten 1,024-byte blocks;
-only its hash heads shrink. The pathname cache keeps four entries and four
-hash heads.
+The RP2040 kernel spends cycles on smaller caches and bounded linear lookup and
+limits the shipped image to its one UFS root to recover 8,720 bytes from the
+named buffer, inode, mount, and pathname allocations.
+The exec argument spool reduces the buffer data pool from ten to four
+1,024-byte blocks. The pathname cache keeps four entries and replaces its hash
+and LRU structures with a second-chance clock.
 
 Run the complete host gate from the repository root:
 
@@ -12,24 +14,67 @@ bmake MACHINE=rp2040 check-cache-footprint
 ```
 
 The gate builds both kernel configurations, checks the linked ARM symbols, and
-compiles the real `nchinit()` into a host executable. The host executable checks
-every LRU forward and back link, every empty hash sentinel, every representative
-hash result, bucket coverage for small and 37-bucket tables, and rejection of a
-cache hit whose entry or inode generation changes while `igrab()` sleeps.
+compiles the real `nchinit()` into host executables. The ARM symbol gate checks
+the target structure widths. The host executables directly execute linear
+empty-slot reuse, the second-chance clock sweep and replacement order,
+`nchinval()`, 16-bit inode-generation wrap, and compact persistent-flag
+rejection. They also check legacy hash configurations, configuration bounds,
+and rejection of a cache hit whose entry or inode generation changes while
+`igrab()` sleeps.
 
-| Allocation | Previous RP2040 bytes | New RP2040 bytes | Saved bytes |
-| --- | ---: | ---: | ---: |
-| `bufhash` | 192 | 48 | 144 |
-| `namecache` | 1,352 | 208 | 1,144 |
-| `nchash` | 128 | 32 | 96 |
-| Total | 1,672 | 288 | 1,384 |
+| Mechanism | Saved allocation bytes |
+| --- | ---: |
+| Exec spool and `NBUF=4` | 6,408 |
+| One mount record | 1,220 |
+| Synthesized root names and omitted quota pointer | 184 |
+| Linear inode lookup | 320 |
+| Compact inode fields | 192 |
+| Derived inode filesystem identity | 192 |
+| Linear buffer lookup | 104 |
+| Linear pathname lookup and clock replacement | 100 |
+| Total | 8,720 |
 
-`NBUF` remains 10. `MAXALLOCBUF` permits six blocks to remain owned by one
-exec, the packed decoder owns another block, and `rdwri()` can own a filesystem
-I/O block while the decoder remains live. A value of four therefore cannot run
-a legal packed exec path. Eight only covers that single path and leaves no
-concurrency margin when `rdwri()` sleeps. A future reduction needs dedicated
-exec scratch storage or buffer reservations before changing `NBUF`.
+The earlier RP2040 cache-count sizing from 16 buffer hash heads, 26 pathname
+entries, and 16 pathname hash heads to four of each saved another 1,384 bytes.
+The 8,720-byte total above measures only the mechanisms implemented by the
+exec-spool, single-mount, and linear-layout work.
+
+`NBUF` is four. The exec argument spool owns one staging block instead of
+retaining six argument blocks. A packed decoder and `rdwri()` can each own one
+additional block while the fourth block preserves one sleep margin. The host
+exec-spool gate verifies serialization, replay, SwapRAM coexistence, raw-swap
+fallback, SwapRAM-to-flash migration, cleanup, script argument ordering,
+`NCARGS`, and records that cross block boundaries.
+
+`NMOUNT` is one in both shipped RP2040 configurations. The onboard image has
+one UFS filesystem on `fl0a`; `fl1` is raw swap rather than a mountable
+filesystem. Root remount, `df`, `statfs`, mount listing, and `umount -a` retain
+the root record. An additional mount exhausts the existing table and returns
+the existing table-full result. `SINGLE_UFS_ROOT` derives each inode's device
+and filesystem from that record, synthesizes `"root"` and `"/"` for `statfs`,
+and omits the unused quota pointer and mount-name arrays. `iget()` rejects an
+identity outside the root record before populating an inode.
+
+`LINEAR_INODE_CACHE` removes two hash pointers from each of the 24 cached
+inodes and removes the 16 hash heads. `ifind()` and `iget()` scan the bounded
+24-entry table instead. The free-list pointers remain because inode allocation
+and release use them independently of lookup.
+
+`COMPACT_INODE_FIELDS` stores `i_flag`, `i_count`, `i_id`, and `i_flags` as
+four adjacent 16-bit fields. Compile-time assertions bind the transient and
+persistent flag masks and the fixed-table reference bound to that width. The
+generation wrap check observes the narrowed `i_id`, so the pathname cache is
+invalidated when its stored 16-bit generation wraps rather than after a
+32-bit wrap.
+
+`LINEAR_BUFFER_CACHE` scans four buffer headers by device and disk block. The
+free queues retain their independent doubly linked pointers, while each buffer
+loses its two hash pointers and the four hash heads disappear.
+
+`LINEAR_NAME_CACHE` scans four pathname entries and uses one second-chance bit
+per entry. The clock preserves recently hit names without hash links, a doubly
+linked LRU, or global LRU pointers. Inode pointer and generation snapshots
+still detect an entry recycled while `igrab()` sleeps.
 
 ## Board pressure procedure
 

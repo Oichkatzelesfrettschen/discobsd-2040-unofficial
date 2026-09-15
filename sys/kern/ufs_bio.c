@@ -18,9 +18,7 @@
  * Read in (if necessary) the block and return a buffer pointer.
  */
 struct buf *
-bread (dev, blkno)
-    dev_t dev;
-    daddr_t blkno;
+bread(dev_t dev, daddr_t blkno)
 {
     register struct buf *bp;
 
@@ -41,10 +39,7 @@ bread (dev, blkno)
  * read-ahead block (which is not allocated to the caller)
  */
 struct buf *
-breada(dev, blkno, rablkno)
-    register dev_t dev;
-    daddr_t blkno;
-    daddr_t rablkno;
+breada(register dev_t dev, daddr_t blkno, daddr_t rablkno)
 {
     register struct buf *bp, *rabp;
 
@@ -98,8 +93,7 @@ breada(dev, blkno, rablkno)
  * Then release the buffer.
  */
 int
-bwrite(bp)
-    register struct buf *bp;
+bwrite(register struct buf *bp)
 {
     register int flag;
     int error;
@@ -135,8 +129,7 @@ bwrite(bp)
  * in the same order as requested.
  */
 void
-bdwrite (bp)
-    register struct buf *bp;
+bdwrite(register struct buf *bp)
 {
 
     if ((bp->b_flags&B_DELWRI) == 0)
@@ -154,8 +147,7 @@ bdwrite (bp)
  * Release the buffer, with no I/O implied.
  */
 void
-brelse (bp)
-    register struct buf *bp;
+brelse(register struct buf *bp)
 {
     register struct buf *flist;
     register int s;
@@ -202,16 +194,20 @@ brelse (bp)
  * (mainly to avoid getting hung up on a wait in breada)
  */
 int
-incore (dev, blkno)
-    register dev_t dev;
-    daddr_t blkno;
+incore(register dev_t dev, daddr_t blkno)
 {
     register struct buf *bp;
+#ifndef LINEAR_BUFFER_CACHE
     register struct buf *dp;
 
     dp = BUFHASH(dev, blkno);
+#endif
     blkno = fsbtodb(blkno);
+#ifdef LINEAR_BUFFER_CACHE
+    for (bp = buf; bp < &buf[NBUF]; bp++)
+#else
     for (bp = dp->b_forw; bp != dp; bp = bp->b_forw)
+#endif
         if (bp->b_blkno == blkno && bp->b_dev == dev &&
             (bp->b_flags & B_INVAL) == 0)
             return (1);
@@ -268,11 +264,12 @@ loop:
  * want to lower the ipl back to 0.
  */
 struct buf *
-getblk(dev, blkno)
-    register dev_t dev;
-    daddr_t blkno;
+getblk(register dev_t dev, daddr_t blkno)
 {
-    register struct buf *bp, *dp;
+    register struct buf *bp;
+#ifndef LINEAR_BUFFER_CACHE
+    register struct buf *dp;
+#endif
     daddr_t dblkno;
     int s;
 
@@ -285,10 +282,16 @@ getblk(dev, blkno)
      * the buffer is in use for i/o, then we wait until
      * the i/o has completed.
      */
+#ifndef LINEAR_BUFFER_CACHE
     dp = BUFHASH(dev, blkno);
+#endif
     dblkno = fsbtodb(blkno);
 loop:
+#ifdef LINEAR_BUFFER_CACHE
+    for (bp = buf; bp < &buf[NBUF]; bp++) {
+#else
     for (bp = dp->b_forw; bp != dp; bp = bp->b_forw) {
+#endif
         if (bp->b_blkno != dblkno || bp->b_dev != dev ||
             bp->b_flags&B_INVAL)
             continue;
@@ -305,8 +308,10 @@ loop:
     }
     bp = getnewbuf();
     bfree(bp);
+#ifndef LINEAR_BUFFER_CACHE
     bremhash(bp);
     binshash(bp, dp);
+#endif
     bp->b_dev = dev;
     bp->b_blkno = dblkno;
     bp->b_error = 0;
@@ -318,16 +323,21 @@ loop:
  * not assigned to any particular device
  */
 struct buf *
-geteblk()
+geteblk(void)
 {
-    register struct buf *bp, *flist;
+    register struct buf *bp;
+#ifndef LINEAR_BUFFER_CACHE
+    register struct buf *flist;
+#endif
 
     bp = getnewbuf();
     bp->b_flags |= B_INVAL;
     bfree(bp);
+#ifndef LINEAR_BUFFER_CACHE
     bremhash(bp);
     flist = &bfreelist[BQ_AGE];
     binshash(bp, flist);
+#endif
     bp->b_dev = (dev_t)NODEV;
     bp->b_error = 0;
     return (bp);
@@ -338,8 +348,7 @@ geteblk()
  * to the user.
  */
 void
-biowait(bp)
-    register struct buf *bp;
+biowait(register struct buf *bp)
 {
     register int s;
 
@@ -356,8 +365,7 @@ biowait(bp)
  * Wake up anyone waiting for it.
  */
 void
-biodone(bp)
-    register struct buf *bp;
+biodone(register struct buf *bp)
 {
     struct mount *mount_entry;
     int write_error;
@@ -389,19 +397,25 @@ biodone(bp)
  * Insure that no part of a specified block is in an incore buffer.
  */
 int
-blkflush (dev, blkno)
-    register dev_t dev;
-    daddr_t blkno;
+blkflush(register dev_t dev, daddr_t blkno)
 {
     register struct buf *ep;
+#ifndef LINEAR_BUFFER_CACHE
     struct buf *dp;
+#endif
     register int s;
     int error;
 
+#ifndef LINEAR_BUFFER_CACHE
     dp = BUFHASH(dev, blkno);
+#endif
     blkno = fsbtodb(blkno);
 loop:
+#ifdef LINEAR_BUFFER_CACHE
+    for (ep = buf; ep < &buf[NBUF]; ep++) {
+#else
     for (ep = dp->b_forw; ep != dp; ep = ep->b_forw) {
+#endif
         if (ep->b_blkno != blkno || ep->b_dev != dev ||
             (ep->b_flags&B_INVAL))
             continue;
@@ -430,8 +444,7 @@ loop:
  * (from umount and sync)
  */
 int
-bflush(dev)
-    register dev_t dev;
+bflush(register dev_t dev)
 {
     register struct buf *bp;
     register struct buf *flist;
@@ -464,8 +477,7 @@ loop:
  * if there is an error but the number is 0 set a generalized code.
  */
 int
-geterror (bp)
-    register struct buf *bp;
+geterror(register struct buf *bp)
 {
     register int error = 0;
 
@@ -487,15 +499,18 @@ geterror (bp)
  * correctness.                     ... kre
  */
 void
-binval(dev)
-    register dev_t dev;
+binval(register dev_t dev)
 {
     register struct buf *bp;
+#ifndef LINEAR_BUFFER_CACHE
     register struct bufhd *hp;
 #define dp ((struct buf *)hp)
 
     for (hp = bufhash; hp < &bufhash[BUFHSZ]; hp++)
         for (bp = dp->b_forw; bp != dp; bp = bp->b_forw)
-            if (bp->b_dev == dev)
-                bp->b_flags |= B_INVAL;
+#else
+    for (bp = buf; bp < &buf[NBUF]; bp++)
+#endif
+        if (bp->b_dev == dev)
+            bp->b_flags |= B_INVAL;
 }

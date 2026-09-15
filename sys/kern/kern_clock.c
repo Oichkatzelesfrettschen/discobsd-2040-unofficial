@@ -16,7 +16,25 @@ int     noproc;         /* no one is running just now */
 struct  callout *callfree, calltodo;
 
 #ifdef UCB_METER
+long hostid;
+char hostname[MAXHOSTNAMELEN];
+int hostnamelen;
+struct timeval boottime;
+struct timeval time;
+int adjdelta;
+int lbolt;
+short avenrun[3];
+
+long cp_time[CPUSTATES];
 int dk_ndrive = DK_NDRIVE;
+int dk_busy;
+long dk_xfer[DK_NDRIVE];
+long dk_bytes[DK_NDRIVE];
+char *dk_name[DK_NDRIVE];
+int dk_unit[DK_NDRIVE];
+int dk_n;
+long tk_nin;
+long tk_nout;
 
 /*
  * Gather statistics on resource utilization.

@@ -206,11 +206,13 @@ main(void)
 static void
 bhinit(void)
 {
+#ifndef LINEAR_BUFFER_CACHE
 	int i;
 	struct bufhd *bp;
 
 	for (bp = bufhash, i = 0; i < BUFHSZ; i++, bp++)
 		bp->b_forw = bp->b_back = (struct buf *)bp;
+#endif
 }
 
 /*
@@ -224,8 +226,12 @@ binit(void)
 	int i;
 	caddr_t paddr;
 
-	for (bp = bfreelist; bp < &bfreelist[BQUEUES]; bp++)
-		bp->b_forw = bp->b_back = bp->av_forw = bp->av_back = bp;
+	for (bp = bfreelist; bp < &bfreelist[BQUEUES]; bp++) {
+#ifndef LINEAR_BUFFER_CACHE
+		bp->b_forw = bp->b_back = bp;
+#endif
+		bp->av_forw = bp->av_back = bp;
+	}
 
 	paddr = bufdata;
 
@@ -234,7 +240,9 @@ binit(void)
 		bp->b_dev = NODEV;
 		bp->b_bcount = 0;
 		bp->b_addr = paddr;
+#ifndef LINEAR_BUFFER_CACHE
 		binshash(bp, &bfreelist[BQ_AGE]);
+#endif
 		bp->b_flags = B_BUSY|B_INVAL;
 		brelse(bp);
 	}

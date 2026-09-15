@@ -26,9 +26,7 @@
  * permissions.
  */
 int
-access (ip, mode)
-    register struct inode *ip;
-    int mode;
+access(register struct inode *ip, int mode)
 {
     register int m;
     register gid_t *gp;
@@ -50,7 +48,7 @@ access (ip, mode)
          * or character device resident on the
          * file system.
          */
-        if (ip->i_fs->fs_ronly != 0) {
+        if (INODE_FILESYSTEM(ip)->fs_ronly != 0) {
             if ((ip->i_mode & IFMT) != IFCHR &&
                 (ip->i_mode & IFMT) != IFBLK) {
                 u.u_error = EROFS;
@@ -93,7 +91,7 @@ found:
  * super user.
  */
 int
-suser()
+suser(void)
 {
     if (u.u_uid == 0) {
         return (1);
@@ -107,16 +105,18 @@ suser()
  * is too large already (it will probably be split into two files eventually).
  */
 int
-ufs_setattr (ip, vap)
-    register struct inode *ip;
-    register struct vattr *vap;
+ufs_setattr(register struct inode *ip, register struct vattr *vap)
 {
     int error;
     struct  timeval atimeval, mtimeval;
 
-    if (ip->i_fs->fs_ronly) /* can't change anything on a RO fs */
+    if (INODE_FILESYSTEM(ip)->fs_ronly) /* can't change anything on a RO fs */
         return(EROFS);
     if (vap->va_flags != VNOVAL) {
+#ifdef COMPACT_INODE_FIELDS
+        if (!INODE_PERSISTENT_FLAGS_SUPPORTED(vap->va_flags))
+            return(EINVAL);
+#endif
         if (u.u_uid != ip->i_uid && !suser())
             return(u.u_error);
         if (u.u_uid == 0) {
@@ -158,7 +158,7 @@ ufs_setattr (ip, vap)
              access(ip, IWRITE)))
             return(u.u_error);
         if (vap->va_atime != (time_t)VNOVAL &&
-            ! (ip->i_fs->fs_flags & MNT_NOATIME))
+            ! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))
             ip->i_flag |= IACC;
         if (vap->va_mtime != (time_t)VNOVAL)
             ip->i_flag |= (IUPD|ICHG);
@@ -176,8 +176,7 @@ ufs_setattr (ip, vap)
  * Return EBUSY if mounted, 0 otherwise.
  */
 int
-ufs_mountedon (dev)
-    dev_t dev;
+ufs_mountedon(dev_t dev)
 {
     register struct mount *mp;
 

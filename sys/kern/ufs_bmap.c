@@ -23,17 +23,14 @@
  * for use in read-ahead.
  */
 daddr_t
-bmap(ip, bn, rwflg, flags)
-    register struct inode *ip;
-    daddr_t bn;
-    int rwflg, flags;
+bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
 {
     register int i;
     register struct buf *bp;
     struct buf *nbp;
     int j, sh;
     daddr_t nb, *bap, ra;
-    int async = ip->i_fs->fs_flags & MNT_ASYNC;
+    int async = INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC;
 
     if (bn < 0) {
         u.u_error = EFBIG;
@@ -113,7 +110,7 @@ bmap(ip, bn, rwflg, flags)
      * fetch through the indirect blocks
      */
     for(;j <= 3;j++) {
-        bp = bread(ip->i_dev, nb);
+        bp = bread(INODE_DEVICE(ip), nb);
         if ((bp->b_flags & B_ERROR) || bp->b_resid) {
             brelse(bp);
             return((daddr_t)0);

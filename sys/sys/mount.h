@@ -11,6 +11,10 @@
 
 #define MNAMELEN 90 /* length of buffer for returned name */
 
+#if defined(SINGLE_UFS_ROOT) && NMOUNT != 1
+#error "SINGLE_UFS_ROOT requires NMOUNT=1"
+#endif
+
 struct statfs {
     short   f_type;         /* type of filesystem (see below) */
     u_short f_flags;        /* copy of mount flags */
@@ -52,11 +56,15 @@ struct  mount
     struct  fs m_filsys;            /* superblock data */
 #define m_flags m_filsys.fs_flags
     struct  inode *m_inodp;         /* pointer to mounted on inode */
+#ifndef SINGLE_UFS_ROOT
     struct  inode *m_qinod;         /* QUOTA: pointer to quota file */
+#endif
     int     m_write_error;           /* first write error until next mount */
+#ifndef SINGLE_UFS_ROOT
     char    m_mntfrom [MNAMELEN];   /* /dev/xxxx mounted from */
     char    m_mnton [MNAMELEN];     /* directory mounted on - this is the
                                      * full(er) version of fs_fsmnt. */
+#endif
 };
 
 /*
@@ -93,7 +101,7 @@ struct  mount
 
 #ifdef KERNEL
 
-struct  mount mount[NMOUNT];
+extern struct mount mount[NMOUNT];
 
 #else
 

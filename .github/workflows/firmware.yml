@@ -97,26 +97,28 @@ jobs:
           bmake MACHINE=rp2040 flash 2>&1 | tee -a build.log
 
       # Every warning the tree emits is accounted for. The cross build and
-      # the kernel emit none. The host tools emit three, all from
-      # usr.bin/ranlib/ranlib.c compiled for the host: -Wformat-truncation=
-      # on the '%-10ld' directive at lines 419 and 506, and
-      # -Wmaybe-uninitialized on 'value' and 'type' at lines 215 and 216.
-      # gcc 13.3.0 and gcc 14.2.0, the two compilers Ubuntu 24.04 offers,
-      # both emit exactly those three; gcc 16.2.1 emits none, which is why
-      # the tree reads as warning-free off this runner. The gate prints
-      # every warning, names those three, and fails on a fourth.
+      # the kernel emit none. The host build of usr.bin/ranlib emits three
+      # distinct diagnostics over five lines, since gcc prints a path as
+      # the compilation spelled it and ranlib's objects are built from two
+      # directories: -Wformat-truncation= on the '%-10ld' directive at
+      # usr.bin/ar/archive.h:122, and -Wmaybe-uninitialized on 'type' and
+      # 'value' at ranlib.c:216 and ranlib.c:238. gcc 13.3.0 and gcc 14.2.0,
+      # the two compilers Ubuntu 24.04 offers, both emit exactly those;
+      # gcc 16.2.1 emits none, which is why the tree reads as warning-free
+      # off this runner. The gate prints every warning line, matches those
+      # three diagnostics by file and switch, and fails on a fourth.
       - name: Assert the build is warning-free
         run: |
           # grep -c and grep both exit 1 on no match, which would end the
           # step before the assertion runs, so each count is captured with
           # a fallback.
-          known='usr\.bin/ranlib/ranlib\.c:[0-9]+:[0-9]+: warning: .*\[-W(format-truncation=|maybe-uninitialized)\]'
+          known='(ranlib\.c|archive\.h):[0-9]+:[0-9]+: warning: .*\[-W(format-truncation=|maybe-uninitialized)\]'
           total=$(grep -c 'warning:' build.log || true)
           rest=$(grep 'warning:' build.log | grep -vE "$known" || true)
           echo "warning: lines in the build log: $total"
           echo "$rest"
           test -z "$rest"
-          test "$(grep -cE "$known" build.log || true)" -le 3
+          test "$(grep -cE "$known" build.log || true)" -le 5
 
       # Host-only gates: the packed a.out container and its loader, the
       # config-generated kernel makefile, the swapram evacuation model

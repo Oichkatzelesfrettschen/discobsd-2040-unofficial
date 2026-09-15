@@ -16,8 +16,9 @@ does not change when the device re-enumerates on reboot:
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.
-Installing distrib/rp2040/host/71-discobsd-pico.rules adds the shorter
-symlink /dev/discobsd and turns off USB autosuspend for the port.
+Installing distrib/rp2040/host/71-discobsd-pico.rules (the Arch and Debian
+packages do) adds the shorter symlink /dev/discobsd and turns off USB
+autosuspend for the port.
 
 ## Terminals, by platform
 
@@ -72,32 +73,42 @@ and announces with SIGWINCH. A terminal that does not answer leaves the
 80x24 default in place. Resizing the emulator window later does not reach
 the board on its own; run resize again.
 
-## A Python terminal, and a web terminal for any device
+## The discobsd-host tools: terminal and web console on any host
 
-Two host programs in distrib/rp2040/host make connecting friendly, and both
-need only Python and pyserial (Debian "apt install python3-serial", Arch
-"pacman -S python-pyserial"):
+distrib/rp2040/host is the `discobsd-host` package (Python 3.9 or later
+and pyserial; see its README for the wheel, Arch, Ubuntu, Windows, and
+macOS installs). It finds the board by USB identity -- vendor 2e8a,
+product 000a, serial `rp2040` -- so the same commands work on Linux,
+Windows, and macOS, and `DISCOBSD_PORT` overrides discovery.
 
-- discobsd-term attaches a terminal in the current shell. It finds the board
-  by its by-id path, opens the line, and bridges the local terminal to it,
-  reattaching on its own when the board reboots and re-enumerates. Ctrl-]
-  quits. `discobsd-term --probe` connects, pokes the line, and reports
-  whether the board is reachable without taking over the terminal.
+- discobsd-term attaches a terminal in the current shell and reattaches on
+  its own when the board reboots and re-enumerates. Ctrl-] quits.
+  `discobsd-term --probe` connects, pokes the line, and reports whether the
+  board answers; `--list` prints the attached boards. On Windows it runs
+  in a console with virtual-terminal processing and translates the arrow
+  keys to VT100 sequences.
 
 - discobsd-web serves the console as a web terminal, so any device on the
   network -- a phone, a tablet, a laptop of any operating system -- opens it
   in a browser with no client to install. The board has no network of its
   own, so the host it plugs into is the gateway: discobsd-web bridges the
-  serial line to xterm.js in the browser over a WebSocket. Run it and open
-  the printed http://127.0.0.1:7681/ URL. It binds loopback (127.0.0.1) by
-  default; a non-loopback --bind requires --token SECRET to set a shared
-  secret, --port changes the port, and a trailing device path overrides the
-  by-id default.
+  serial line to xterm.js in the browser over a WebSocket. It binds
+  loopback by default; a non-loopback --bind requires --token SECRET, and
+  a WebSocket upgrade must carry the Origin of the page the server served.
+  One session holds the console at a time.
+
+- discobsd-link redirects a short URL on port 42069 to the tokenized
+  console URL; anyone who can reach it learns the token, so open the port
+  to the LAN only.
+
+- discobsd-console up starts both servers, generates and stores the token
+  in a per-user web.env, and prints the URLs; down stops them; status
+  reports. On Linux with the packaged systemd user units it drives the
+  units, elsewhere it runs the servers detached with pid files.
 
 For a zero-code alternative, ttyd (https://github.com/tsl0922/ttyd, on
 Debian and Arch) serves any command as a web terminal:
-`ttyd -p 7681 discobsd-term`. discobsd-web is the self-contained option that
-needs only Python.
+`ttyd -p 7681 discobsd-term`.
 
 ## Getting to the bootloader
 

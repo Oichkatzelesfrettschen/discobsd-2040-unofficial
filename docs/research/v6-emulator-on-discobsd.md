@@ -15,15 +15,20 @@ Estimated = derived from a confirmed measurement, with the basis stated.
 | --- | --- | --- |
 | User window | 144 KB; 160 KB under the LARGE epoch | Confirmed |
 | Stock SIMH PDP-11 | Does not fit, and does not compile | Confirmed |
-| SIMH five-file floor | 127,337 bytes before any core | Measured |
-| Full 11/40 core | 248 KB, alone 1.72x the window | Confirmed |
+| SIMH five-file floor | 53,117 text + 21,712 data + 52,508 bss = 127,337 bytes, 51,200 of it dispatch tables | Measured |
+| Full 11/40 core | 248 KB is the full-memory configuration, 1.72x the window when resident | Confirmed |
 | V6 minimum user core | 24 KB, not 128 KB | Confirmed (V6 setup doc) |
-| avr11 core, Thumb-1 -Os | 6,548 text, 66 data, 176 bss | Measured |
+| avr11 core, Thumb-1 -Os | 6,548 text, 66 data, 176 bss; five objects, main loop and back ends excluded | Measured |
+| avr11 correctness | Two MMU permission checks and the odd-address write fault are dead code; rkerror is empty | Confirmed (pinned source) |
+| DiscoBSD longjmp | Returned a stale r1 instead of val; fixed in the port | Confirmed, fixed |
+| Board libc.a | Shipped no setjmp family; added to the member closure | Confirmed, fixed |
 | Recommended shape | avr11 in C, 64 KB core in `.bss` | Recommended |
-| Disk image | 2.4 MB RK05 against 314 KB free | Confirmed |
+| Disk image | 2.4 MB RK05 logical size against 313 KB free; sparse holes cost nothing in the kernel, everything in fsutil | Confirmed |
+| Swap image size | Mutable data + stack + 3 KB u-area, erase-aligned; clean text is excluded | Confirmed (vm_swap.c) |
 | Spare flash | None; 128 + 1536 + 384 = 2048 KB | Confirmed |
 | SD card on rp2040 | No driver; `pic32` has one to port | Confirmed |
-| Build with smlrc | Blocked; avr11 is C++ | Confirmed |
+| Build with smlrc | Blocked; avr11 is C++, and the board cc rejects `#include` (no preprocessor, no headers) | Confirmed (board) |
+| Board test of the fix | longjmp returns 42, 1, 2, 255, 300 and 1-for-0; _longjmp 7; pasted source loses lines over the USB console | Measured |
 | Bare-metal dual boot | All 264 KB, a full 248 KB 11/40 | Recommended |
 
 ## Method and provenance
@@ -79,9 +84,16 @@ for the Dhara-backed root, 384K for raw swap. 128 + 1536 + 384 = 2048 KB
 between the two windows. A 58 KB multicall binary "linked and ran, and
 then could not be swapped: the swap map hands out contiguous runs, and
 after a few forks 256 KB of swap held 115 KB free in three pieces, none
-of 70 KB." Swap is now 384 KB. A 148 KB image needs a single 148 KB run
-in that 384 KB beside `sh` and `init` after fragmentation, which is the
-same failure one scale up.
+of 70 KB." Swap is now 384 KB, of which the first 4 KB sector is temp-device
+staging, so 380 KB is allocatable. The run a process needs is smaller
+than its image: `sys/kern/vm_swap.c`'s `swapout` asks the map for
+`dsize - tsize` plus stack plus `USIZE` (3 KB), each rounded to a block,
+the whole erase-aligned to 4 KB, and clean text is reloaded from the
+executable. A 64 KB core plus 2 KB of mutable state and 8 KB of stack
+needs about 80 KB of contiguous swap, not 96 KB. The failure path is
+still a panic: a `swapout` that finds no run prints the free extents
+and stops the kernel, so "usually finds a run" is not a release
+criterion, and section 7 below makes admission a correctness property.
 
 `ram-compression.md` prices the write: 45 ms per 4 KB sector erase. An
 88 KB image costs 22 sectors, about 1.0 s per swap out; a 148 KB image
@@ -194,9 +206,41 @@ write, seek and reset against a linear block image.
 The console and disk stubs are the honest gap. Restoring them costs the
 DiscoBSD side: `read`/`write` on the tty and `lseek`/`read`/`write` on an
 image file, which the 2.11BSD libc supplies directly. Budget 2 KB of
-glue. avr11's trap path calls `longjmp(trapbuf, INTFAULT)`;
-`lib/libc/arm/gen` ships `setjmp.S`, `_setjmp.S` and `sigsetjmp.S`, so
-the mechanism ports unchanged.
+glue. avr11's trap path calls `longjmp(trapbuf, INTFAULT)`, and that is the
+one libc mechanism the emulator leans on, so it was read rather than
+assumed. `lib/libc/arm/gen/setjmp.S`'s `longjmp` at 8f78422b saved env
+in r3, rewrote r1 with `&env[1]` for the `sigprocmask` call, and then
+used r1 as the return value: `setjmp` returned whatever `sigprocmask`
+left in r1, never `val`. The fix keeps val in r4 across the call (r4 is
+callee-saved, and longjmp restores it from env afterwards). The second
+gap was the board itself: `distrib/rp2040/boardlibc-members`, generated
+from what `libc-sink.c` calls, listed no jump member, so the installed
+`/usr/lib/libc.a` at 8f78422b could not link a native emulator at all.
+The sink now calls all three variants and the list carries `setjmp`,
+`_setjmp`, `sigsetjmp` and `sigprocmask`. `_setjmp`/`_longjmp` skip the
+signal-mask syscall and are the right pair for a synchronous trap path,
+subject to a board test of the return value and stack restoration.
+
+### avr11 is a size measurement, not yet a correct machine
+
+The pinned source carries defects that the 6,548-byte figure silently
+includes, because dead code costs nothing:
+
+| File | Finding | Consequence |
+| --- | --- | --- |
+| `mmu.cpp:26`, `:37` | `!pages[i].pdr.bytes.low & 6` and `& 2`: unary `!` yields 0 or 1, so both expressions are always 0 | Both permission-fault paths never fire; the compiler may drop them. The repair implements the PDR access-control encodings, not a parenthesis move. |
+| `unibus.cpp:46` | `if (a % 1)` is always false | Odd-address word writes never fault. |
+| `unibus.cpp:13` | Guest core is `int *` into AVR banked memory | Replace with explicitly sized `uint16_t` storage and an audited byte order. |
+| `unibus.cpp:39-41` | Odd-address byte write calls `read16(a)` with the odd address | Access-width-aware device I/O; read-modify-write is unsafe on registers with read side effects. |
+| `rk05.cpp:48` | `rkerror()` is an empty body | Geometry and drive faults vanish; a full backing store cannot report ENOSPC to the guest. |
+| `rk05.cpp:105` | `rkdata.read() \| (rkdata.read() << 8)` has unsequenced reads and no EOF check | Read a sector into a bounded buffer and decode explicitly. |
+| `avr11.cpp` | Clock delivery, interrupt dispatch, polling and top-level traps live outside the five measured objects | The linked size must include the loop and the real back ends. |
+
+A smaller configured machine also needs a nonexistent-memory boundary:
+V6 probes physical memory at boot, and masking every address into a
+64 KB array turns that probe into silent aliasing. Milestone one is a
+corrected, warning-clean C implementation with differential tests
+against host SIMH, not a defense of 6,548 bytes.
 
 ### The budget, three ways
 
@@ -241,9 +285,9 @@ half-second-per-command 128 KB design; it is not worth it while design
 ### The disk image
 
 `usr/sys/dmr/rk.c` sets `NRKBLK 4872`; at 512 bytes a block an RK05 pack
-is 2,494,464 bytes, 2,436 KB. The board's root has 314 KB free
+is 2,494,464 bytes, 2,436 KB. The board's root has 313 KB free
 (`board-inventory-2026-09-15.txt`: `df` reports 979 blocks, 665 used,
-314 available; `STORAGE.md`'s 175 KB figure predates that root). The
+313 available (313 after the PR #73 rebuild); `STORAGE.md`'s 175 KB figure predates that root). The
 image must lose 87 percent of the pack.
 
 The distribution's setup document says the tape holds 12,100 records and
@@ -255,10 +299,36 @@ remains is `/unix`, `/etc`, `/bin` and `/usr/bin`. A root of the kernel
 plus about twenty-five utilities at PDP-11 a.out sizes lands near 220 KB
 with its i-list (estimated; the basis is the 64 KB kernel bound and
 typical V6 binaries of 2 to 10 KB, and this is checkpoint 3 below).
-220 KB against 314 KB free is tight and survivable, and it leaves no room
+220 KB against 313 KB free is tight and survivable, and it leaves no room
 for the user to write much -- and V6 must write: `/etc/utmp`, `/tmp` and
 `/dev` are written on every login, so a read-only image never reaches a
 usable shell.
+
+The RK05's 2,436 KB is a logical size and need not be an allocated one.
+`sys/kern/ufs_bmap.c`'s `bmap` returns an unmapped block for a hole and
+`sys_inode.c`'s `rwip` supplies zeros when reading it, so the kernel already serves a
+sparse image. What defeats it is the importer: `tools/fsutil/fsutil.c`'s
+`add_file` copies every chunk of the source, so a sparse host file
+arrives on the root fully allocated. A sparse-import mode with the
+contract "preserve every logical byte and the exact length, allocate no
+block for an all-zero 1 KB region" is the first storage experiment, and
+it is a `fsutil` change, not a driver port. The unit is the host's 1 KB
+block against the guest's 512-byte sector, so one nonzero sector
+allocates its zero neighbor; the lower bound is 1 KB per nonzero 1 KB
+region plus indirect-block metadata. Two restrictions: the importer must
+keep logical EOF when the tail or the whole file is a hole, and it must
+not zero blocks because V6's free list names them, since V6 stores the
+list's continuation inside some of those blocks. Sparsity is thin
+provisioning: a guest that fills empty sectors still exhausts the host,
+so the RK back end must turn ENOSPC into an RK error rather than drop
+the write, which makes the empty `rkerror()` a storage blocker.
+
+A second stage, only if measurement demands it, is an immutable base of
+independently compressed blocks under a bounded writable overlay with
+implicit zero blocks. A flat 4-byte index per 512-byte sector is 19,488
+bytes of SRAM, per 1 KB block 9,744; the index belongs on disk with a
+small cache. A RAM overlay is part of the process image and swaps with
+it, so it reduces guest-originated flash writes without removing wear.
 
 The alternatives are all worse or absent. The 384 KB swap region is live
 swap; taking it means the emulator itself cannot be swapped. Shrinking
@@ -305,8 +375,15 @@ documented limits matter: avr11 is C++, using namespaces, default
 arguments, `bool`, and member functions, and Smaller C compiles C.
 `usr.bin/smlrc/README.rp2040.md` then adds the limits that would apply
 after a C translation -- no old-style function definitions, no
-function-like macros in smlrc's own preprocessor (the on-device `cc` runs
-`cpp` first and builds smlrc with `-DNO_PREPROCESSOR`), no `double`, and
+function-like macros in smlrc's own preprocessor (`usr.bin/smlrc/README.rp2040.md` said
+the on-device `cc` runs `cpp` first; the shipped `distrib/rp2040/cc`
+invokes `smlrc` directly, smlrc is built with `-DNO_PREPROCESSOR`, and
+the root carries neither `cpp` nor `/usr/include`, so a native compile
+stops at the first `#include` with "Invalid or unsupported preprocessor
+directive" -- measured on the board. Building the preprocessor in costs
+2,680 bytes of text and 6,772 of bss, and a minimal header set is 19 KB
+of the 312 KB free; a native emulator build writes its declarations out
+until that lands), no `double`, and
 no `interrupt` attribute -- none of which an emulator needs once it is C.
 The real obstacle is size: the compiler itself is 48,753 text, 1,372
 data and 26,328 bss, and a 1,252-line `cpu.cpp` is near the largest
@@ -334,9 +411,47 @@ the measurements allow.
    bare-metal SRAM-resident image per `dual-boot.md` and load it with
    `picotool load -x`.
 
+Three rules for the integration, each from a property of the port:
+
+- **Own packed executable, never a multicall applet.** A box's
+  applet-private bss shares one overlaid extent sized by the largest
+  member (`MULTICALL-BSS-OVERLAY.md`); a 64 KB core in a box makes every
+  `ls` carry it. Deleting hard-link aliases recovers nothing: the 111
+  names are 32 packed bodies, the `cc` script and 78 links.
+- **Admission is a correctness property.** Admit the emulator only when
+  its worst permitted mutable image, plus exec staging, stack growth,
+  live processes and temp-device allocations, fits an erase-aligned run,
+  and keep the reservation across the process lifetime, because the
+  map frees the span on swap-in and a later swap-out can panic. A
+  bounded list of separately allocated 4 KB extents would remove the
+  contiguous-run requirement and keeps the erase-once programming
+  model, at the cost of an allocator and swap-format change with its
+  own tests.
+- **Guest processes stay in the guest.** A V6 `fork` never becomes a
+  DiscoBSD `fork`; the emulator is one host process.
+
+Two levers beyond the emulator. V6's own kernel configuration (15
+buffers, 100 inodes, 100 files, 50 processes, 40 text entries, five
+mounts in `usr/sys/param.h`) is sized for a shared machine; a matrix of
+reduced tables tested under host SIMH through boot, login, pipelines,
+`ed`, file creation and allocation pressure sets the guest's residency
+before any host-side paging is considered. And fixed-address XIP user
+text is open: an executable linked for an immutable flash address with
+its data in the user window needs a descriptor format, a validating
+loader and a swapper that never restores flash text, not
+position-independent code (`STORAGE.md` now says so). The kernel's
+128 KB reservation held about 90 KB at last measurement, so the reserve
+exists; XIP is the later optimization, and the RAM-loaded build stays
+the reference.
+
 The falsifiable checkpoints, in the order they should be measured,
 because each one can kill the design:
 
+0. **The emulator is correct before it is small.** Differential
+   instruction and device tests against host SIMH, with the MMU
+   permission checks, the odd-address faults, sized guest storage and
+   a real `rkerror` in place, and a board test that `_longjmp` returns
+   its val. The 6,548-byte figure is the before number.
 1. **The V6 kernel's real size.** Boot the trimmed V6 under host SIMH
    with `SET CPU 64K` and read the `mem =` line. The design needs the
    kernel plus 12K words inside 64 KB. If the kernel exceeds about 40 KB,

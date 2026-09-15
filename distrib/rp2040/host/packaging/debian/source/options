@@ -1,6 +1,6 @@
-# The native source package tars the whole build directory. The caches and
-# the build output of a local run carry no source and are left out.
-extend-diff-ignore = "^(build|dist|packaging/arch/[^/]*\.pkg\.tar|.*\.egg-info)/"
+# A native source package tars the whole build directory. The caches and
+# the output of an earlier local build carry no source and are left out.
+# A native package carries no diff, so no diff-ignore belongs here.
 tar-ignore = "build"
 tar-ignore = "dist"
 tar-ignore = "*.egg-info"

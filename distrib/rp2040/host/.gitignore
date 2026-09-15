@@ -1,0 +1,5 @@
+# Python packaging output for distrib/rp2040/host.
+*.egg-info/
+__pycache__/
+/distrib/rp2040/host/dist/
+/distrib/rp2040/host/build/

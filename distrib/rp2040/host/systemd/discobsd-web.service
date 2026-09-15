@@ -1,0 +1,13 @@
+[Unit]
+Description=DiscoBSD web console (serial to browser)
+Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/discobsd/web.env
+ExecStart=/usr/bin/discobsd-web --bind 0.0.0.0 --port 7681 --token ${DISCOBSD_WEB_TOKEN}
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -154,6 +155,25 @@ touch_syscalls(void)
 	sink += sleep(0);
 }
 
+static jmp_buf jb;
+static sigjmp_buf sjb;
+
+/*
+ * setjmp, _setjmp and sigsetjmp with their longjmp partners: an emulator or
+ * interpreter conveys a trap out of a deep call chain through them, so the
+ * board libc carries all three variants.
+ */
+static void
+touch_jmp(void)
+{
+	if (setjmp(jb) == 0)
+		longjmp(jb, 1);
+	if (_setjmp(jb) == 0)
+		_longjmp(jb, 1);
+	if (sigsetjmp(sjb, 1) == 0)
+		siglongjmp(sjb, 1);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -162,6 +182,7 @@ main(int argc, char **argv)
 	touch_malloc();
 	touch_stdlib();
 	touch_syscalls();
+	touch_jmp();
 	if (argc > 1)
 		perror(argv[1]);
 	exit(0);

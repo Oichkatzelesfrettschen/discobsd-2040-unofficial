@@ -74,6 +74,9 @@ setjmp:
 	.type	longjmp, %function
 longjmp:
 	mov	r3, r0			/* Save env before sigprocmask. */
+	mov	r4, r1			/* Keep val: r1 is rewritten below and
+					   sigprocmask clobbers it; r4 survives
+					   the call and is restored from env. */
 
 	movs	r2, #0			/* Null for oset. */
 	adds	r1, r0, #(1 * 4)	/* &env[1] signal mask for set. */
@@ -81,6 +84,7 @@ longjmp:
 	bl	sigprocmask		/* Restore sigmask from env[1]. */
 
 	mov	r0, r3			/* Restore env after sigprocmask. */
+	mov	r1, r4			/* Bring val back for the return. */
 
 	adds	r0, r0, #(2 * 4)	/* Skip savesigs and signal mask. */
 #ifdef __thumb2__

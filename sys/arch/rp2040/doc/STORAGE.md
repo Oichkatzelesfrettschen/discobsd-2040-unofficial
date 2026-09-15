@@ -54,17 +54,20 @@ largest image must find a contiguous run beside the shell and init after
 fragmentation, so images stay near 40 KB; awk, sed, the editors, the
 set-id programs, and the native toolchain stay separate.
 
-## What compression would and would not do
+## What compression does and does not do
 
 gzip -9 takes 30 to 35 percent off an a.out and xz 36 to 44 percent.
-A decompressor at exec time (heatshrink or LZ4, 1 to 2 KB of kernel)
-would recover that across the whole root, at a cost of tens of
-milliseconds per exec on the M0+. It is a smaller win than the two above
-and it comes after them; it is not done.
+The heatshrink expander in the kernel recovers that across the whole
+root: every installed executable is a packed a.out that exec expands, at
+a cost of tens of milliseconds per exec on the M0+ (see the packed a.out
+notes above).
 
 Executing userland in place from flash would free RAM rather than
-flash, and is not possible with a.out linked at 0x20000000; it would need
-position-independent binaries and a different loader.
+flash. An a.out linked at 0x20000000 cannot do it; a binary linked for
+a fixed flash address with its data in the user window could, at the
+cost of a new executable format, a loader that validates it, and a
+swapper that never restores flash text into the data window. It is
+not done.
 
 The kernel itself compresses 35 percent, but it executes in place from
 flash and a compressed kernel would have to be copied to RAM, which

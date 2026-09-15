@@ -263,7 +263,8 @@ static void
 symobj(void)
 {
 	register RLIB *rp;
-	char hb[sizeof(struct ar_hdr) + 1];
+	/* Wider than the header so a wide field never truncates the format. */
+	char hb[2 * sizeof(struct ar_hdr)];
 	long ransize, baseoff;
 	mode_t creation_mask;
 

@@ -1,7 +1,7 @@
 # The RP2040 kernel, the flash image and the host-only gates. The build
 # log is gated on its warnings: the cross build and the kernel emit none,
-# and the three usr.bin/ranlib/ranlib.c diagnostics that Ubuntu's gcc adds
-# are named one by one, so a fourth warning fails the job.
+# and the three ranlib diagnostics that Ubuntu's gcc adds are named one by
+# one, so a warning beyond those five lines fails the job.
 name: firmware
 
 on:
@@ -106,7 +106,7 @@ jobs:
       # the two compilers Ubuntu 24.04 offers, both emit exactly those;
       # gcc 16.2.1 emits none, which is why the tree reads as warning-free
       # off this runner. The gate prints every warning line, matches those
-      # three diagnostics by file and switch, and fails on a fourth.
+      # three diagnostics by file and switch, and fails on any other.
       - name: Assert the build is warning-free
         run: |
           # grep -c and grep both exit 1 on no match, which would end the

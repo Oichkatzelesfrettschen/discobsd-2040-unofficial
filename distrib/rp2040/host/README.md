@@ -36,9 +36,11 @@ operating system.
 | macOS | unzip `discobsd-host-macos.zip`, or `pipx install` the wheel |
 
 The Arch and Debian packages also install the udev rule that names the
-board `/dev/discobsd`, the `discobsd` group the rule grants it to (a
-sysusers entry on Arch, a postinst on Debian), and the systemd user units
-for the web console. Add your user to the group and replug the board:
+board `/dev/discobsd` and the systemd user units for the web console. The
+rule tags the node `uaccess`, so the user logged in at the machine's own
+seat gets access the moment the board is plugged in, with no group and no
+re-login. A user who is not at the seat (an ssh session, a service) joins
+the `discobsd` group the packages create, then logs in again:
 
     sudo usermod -aG discobsd "$USER"
 

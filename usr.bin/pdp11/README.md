@@ -6,7 +6,7 @@ program. It boots the V6 pack installed at `/usr/v6/root.rk` on the
 process's own terminal:
 
     $ pdp11
-    pdp11: 64 KB, RK05 /usr/v6/root.rk, Ctrl-_ exits
+    pdp11: 64 KB, RK05 /usr/v6/root.rk; Ctrl-_ or ~. at a line start exits
     @unix
 
     login: root
@@ -16,9 +16,10 @@ process's own terminal:
 
 Type `unix` at the `@` prompt, `root` at `login:` (no password). V6's
 interrupt character is DEL, its quit character is Ctrl-\, and it erases
-with `#` and kills a line with `@` -- the shell you get is 1975's. Ctrl-_
-leaves the emulator and restores the terminal; the pack keeps what you
-wrote, so `sync` before you leave.
+with `#` and kills a line with `@` -- the shell you get is 1975's. Ctrl-_,
+or `~.` at the start of a line, leaves the emulator and restores the
+terminal; the pack keeps what you wrote, so `sync` before you leave. A
+tilde anywhere else, or followed by anything but a period, reaches V6.
 
 ## What is emulated
 

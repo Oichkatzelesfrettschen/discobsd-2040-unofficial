@@ -130,3 +130,22 @@ def test_urls_carry_token_and_short_link():
 def test_console_cli_requires_a_command():
     with pytest.raises(SystemExit):
         console.main([])
+
+
+def test_escape_menu_quits_sends_and_helps():
+    e = term.Escape()
+    assert e.feed(b"ls\r") == (b"ls\r", None)
+    assert e.feed(b"\x1d") == (b"", None)  # armed, nothing sent
+    assert e.feed(b"_") == (b"\x1f", None)  # leave V6
+    assert e.feed(b"\x1dd") == (b"\x7f", None)  # DEL
+    assert e.feed(b"\x1d\\") == (b"\x1c", None)  # Ctrl-backslash
+    assert e.feed(b"\x1d]") == (b"\x1d", None)  # literal Ctrl-]
+    assert e.feed(b"\x1d?") == (b"", "help")
+    assert e.feed(b"ab\x1dq") == (b"ab", "quit")
+    assert term.Escape().feed(b"\x1d\x1d") == (b"", "quit")
+
+
+def test_escape_arms_across_reads():
+    e = term.Escape()
+    assert e.feed(b"\x1d") == (b"", None)
+    assert e.feed(b"q") == (b"", "quit")

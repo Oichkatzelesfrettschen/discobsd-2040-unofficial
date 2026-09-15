@@ -6,7 +6,8 @@ opens the line at 115200 8N1, and bridges the local terminal to it. When
 the board reboots and its USB device re-enumerates, the terminal waits and
 reattaches on its own rather than dying with a stale-node error.
 
-Quit with Ctrl-] (the telnet escape). Log in as operator with no password;
+Ctrl-] is the escape (as in telnet): Ctrl-] q quits, Ctrl-] _ leaves the V6
+emulator, Ctrl-] ? lists the rest. Log in as operator with no password;
 su for root.
 
 POSIX hosts put the terminal in raw mode through termios and multiplex
@@ -25,7 +26,49 @@ import time
 
 from . import __version__, ports
 
-QUIT = 0x1D  # Ctrl-]
+ESCAPE = 0x1D  # Ctrl-]
+
+# Ctrl-] is the escape, as in telnet: the next key says what to do. Every
+# terminal on every operating system delivers Ctrl-] and a plain letter,
+# where Ctrl-_ and Ctrl-\ are zoom or quit shortcuts in many of them.
+ESCAPES = {
+    b"q": ("quit", b""),
+    b"\x1d": ("quit", b""),
+    b"_": ("send", b"\x1f"),  # leave the V6 emulator (pdp11)
+    b"d": ("send", b"\x7f"),  # DEL: V6 interrupt
+    b"\\": ("send", b"\x1c"),  # Ctrl-\: V6 quit
+    b"]": ("send", b"\x1d"),  # a literal Ctrl-]
+}
+HELP = "Ctrl-] then: q quit, _ leave V6, d DEL, \\ Ctrl-\\, ] literal Ctrl-]"
+
+
+class Escape:
+    """Split keyboard bytes into what goes to the board and what the escape
+    asks for. feed() returns (bytes to send, action) where action is None,
+    "quit", or "help"."""
+
+    def __init__(self) -> None:
+        self.armed = False
+
+    def feed(self, keys: bytes):
+        out = bytearray()
+        action = None
+        for b in keys:
+            ch = bytes([b])
+            if self.armed:
+                self.armed = False
+                kind, data = ESCAPES.get(ch, ("help", b""))
+                if kind == "quit":
+                    return bytes(out), "quit"
+                if kind == "help":
+                    action = "help"
+                else:
+                    out += data
+            elif b == ESCAPE:
+                self.armed = True
+            else:
+                out.append(b)
+        return bytes(out), action
 
 # Windows msvcrt reports an extended key as a 0x00 or 0xE0 prefix byte and
 # a scan code; the board expects the VT100 sequences a real terminal sends.
@@ -75,6 +118,7 @@ def _session_posix(open_line) -> None:
     fd_in = sys.stdin.fileno()
     saved = termios.tcgetattr(fd_in)
     tty.setraw(fd_in)
+    esc = Escape()
     try:
         first = True
         while True:
@@ -100,14 +144,17 @@ def _session_posix(open_line) -> None:
                         if data:
                             os.write(1, data)
                     if fd_in in ready:
-                        keys = os.read(fd_in, 1024)
-                        if QUIT in keys:
+                        keys, action = esc.feed(os.read(fd_in, 1024))
+                        if action == "quit":
                             note("bye")
                             return
-                        try:
-                            line.write(keys)
-                        except Exception as exc:
-                            raise OSError("write failed") from exc
+                        if action == "help":
+                            note(HELP)
+                        if keys:
+                            try:
+                                line.write(keys)
+                            except Exception as exc:
+                                raise OSError("write failed") from exc
             except OSError:
                 note("board went away -- waiting for it to come back")
                 try:
@@ -137,6 +184,7 @@ def _session_windows(open_line) -> None:
     quit_flag = threading.Event()
     keys = []
     keys_lock = threading.Lock()
+    esc = Escape()
 
     def keyboard():
         while not quit_flag.is_set():
@@ -149,11 +197,15 @@ def _session_windows(open_line) -> None:
                 data = translate_windows_key(ch[0], code[0])
             else:
                 data = ch
-            if data == bytes([QUIT]):
+            data, action = esc.feed(data)
+            if action == "quit":
                 quit_flag.set()
                 return
-            with keys_lock:
-                keys.append(data)
+            if action == "help":
+                note(HELP)
+            if data:
+                with keys_lock:
+                    keys.append(data)
 
     threading.Thread(target=keyboard, daemon=True).start()
     first = True
@@ -199,7 +251,7 @@ def run(open_line=ports.open_serial) -> int:
     if not sys.stdin.isatty():
         note("stdin is not a terminal; run this from an interactive shell")
         return 1
-    note("Ctrl-] quits. Log in as operator with no password; su for root.")
+    note("Ctrl-] q quits; Ctrl-] ? lists the escapes. Log in as operator, no password.")
     if sys.platform == "win32":
         _session_windows(open_line)
     else:

@@ -3,8 +3,9 @@
  * FIONREAD between instructions, so the emulator never blocks in read;
  * output goes straight to fd 1 and the transmitter is ready again at once.
  * The terminal runs raw for the emulator's lifetime and is restored on
- * exit; Ctrl-_ (037) leaves the emulator, since V6 uses DEL and Ctrl-\
- * itself and discobsd-term owns Ctrl-].
+ * exit; Ctrl-_ (037), or "~." at the start of a line, leaves the
+ * emulator, since V6 uses DEL and Ctrl-\ itself and discobsd-term owns
+ * Ctrl-].
  *
  *   TKS 0777560  receiver status   bit 7 done, bit 6 interrupt enable
  *   TKB 0777562  receiver buffer   reading it clears done
@@ -29,6 +30,9 @@ static struct sgttyb saved;
 static uint16_t TKS, TKB, TPS, TPB;
 static int tty_raw;
 static int input_eof;
+static int at_line_start = 1;	/* "~." at the start of a line also exits */
+static int tilde_pending;
+static int pushback = -1;
 
 void
 cons_reset(void)
@@ -95,7 +99,10 @@ addchar(uint8_t c)
 /*
  * Take one character if the receiver is empty. A character the guest has
  * not read yet stays in TKB and the tty keeps the rest queued, so nothing
- * is lost when the guest is slow.
+ * is lost when the guest is slow. "~." at the start of a line leaves, the
+ * ssh way, for a terminal or browser that keeps Ctrl-_ for itself: the
+ * tilde is held until the next byte says whether it was the escape, and
+ * that byte waits in pushback until the guest has taken the tilde.
  */
 void
 cons_poll(void)
@@ -105,6 +112,13 @@ cons_poll(void)
 
 	if (input_eof || (TKS & 0x80))
 		return;
+	if (pushback >= 0) {
+		c = pushback;
+		pushback = -1;
+		at_line_start = (c == '\r' || c == '\n');
+		addchar(c);
+		return;
+	}
 	if (ioctl(0, FIONREAD, &n) < 0 || n <= 0)
 		return;
 	if (read(0, &c, 1) != 1) {
@@ -113,6 +127,20 @@ cons_poll(void)
 	}
 	if (c == EXITKEY)
 		fatal("exit", 0);
+	if (tilde_pending) {
+		tilde_pending = 0;
+		if (c == '.')
+			fatal("exit", 0);
+		addchar('~');
+		pushback = c;
+		return;
+	}
+	if (at_line_start && c == '~') {
+		tilde_pending = 1;
+		at_line_start = 0;
+		return;
+	}
+	at_line_start = (c == '\r' || c == '\n');
 	addchar(c);
 }
 

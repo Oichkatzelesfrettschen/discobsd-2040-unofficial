@@ -1,3 +1,12 @@
+discobsd-host (1.0.2) noble; urgency=medium
+
+  * discobsd-term: Ctrl-] is a telnet-style escape (q quits, _ leaves the
+    V6 emulator, d sends DEL, backslash sends Ctrl-backslash).
+  * discobsd-web: key bar gains the V6 keys (DEL, Ctrl-backslash, Ctrl-_)
+    and a Disconnect button that frees the console for the next session.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 16:00:00 -0700
+
 discobsd-host (1.0.1) noble; urgency=medium
 
   * udev rule: TAG+="uaccess" grants the seat user the console without a

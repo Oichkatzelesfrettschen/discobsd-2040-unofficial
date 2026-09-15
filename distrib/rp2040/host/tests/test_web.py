@@ -131,6 +131,9 @@ def test_page_requires_token_off_loopback(server):
 def test_page_has_no_raw_control_characters():
     assert not any(0 < b < 0x20 and b not in (9, 10, 13) for b in web.PAGE.encode())
     assert 'data-k="&#27;"' in web.PAGE
+    for code in (127, 28, 31):  # DEL, Ctrl-backslash, Ctrl-underscore: the V6 keys
+        assert 'data-k="&#%d;"' % code in web.PAGE
+    assert 'id=bye' in web.PAGE
 
 
 def ws_connect(port, token="tok", origin=None):

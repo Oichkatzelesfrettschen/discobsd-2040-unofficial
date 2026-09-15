@@ -42,10 +42,11 @@ PAGE = f"""<!doctype html><html><head><meta charset=utf-8>
 #s{{position:fixed;top:4px;right:8px;color:#6a6;font:12px monospace;z-index:9}}
 #k{{position:fixed;bottom:0;left:0;right:0;display:block;background:#111;padding:4px;z-index:9}}
 #k button.on{{background:#6a6;color:#000}}
+#k .g{{color:#888;font:12px monospace;margin:0 4px 0 8px}}
 #k button{{font:16px monospace;color:#ddd;background:#333;border:1px solid #555;margin:2px;padding:6px 10px}}
 </style></head><body>
 <div id=s>connecting</div><div id=t></div>
-<div id=k><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=hide>hide</button></div>
+<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g>V6</span><button data-k="&#127;" title="V6 interrupt (DEL)">DEL</button><button data-k="&#28;" title="V6 quit (Ctrl-backslash)">^&#92;</button><button data-k="&#31;" title="leave the V6 emulator (Ctrl-underscore)">^_ exit V6</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="close the console session so another can connect">Disconnect</button><button id=hide>hide</button></div>
 <script src="{XTERM}"></script>
 <script>
 var term=new Terminal({{cols:80,rows:24,fontFamily:"monospace",fontSize:14,
@@ -79,14 +80,18 @@ var proto=location.protocol==="https:"?"wss":"ws";
 var ws=new WebSocket(proto+"://"+location.host+"/ws"+location.search);
 ws.binaryType="arraybuffer";
 ws.onopen=function(){{stat.textContent="connected";grab();}};
-ws.onclose=function(){{stat.textContent="disconnected -- reload to retry";}};
+var byebye=false;
+ws.onclose=function(){{stat.textContent=byebye?"disconnected -- reload to reconnect":"disconnected -- reload to retry";}};
 ws.onmessage=function(e){{
  var d=typeof e.data==="string"?e.data:
   new TextDecoder("latin1").decode(new Uint8Array(e.data));
  term.write(d);}};
 // Key bar: every browser keeps some Ctrl combinations for itself (Ctrl-C
-// with a selection copies, Ctrl-D bookmarks, Ctrl-W closes the tab), and a
-// touch keyboard has none, so each button sends the bytes the key would.
+// with a selection copies, Ctrl-D bookmarks, Ctrl-W closes the tab, Ctrl
+// with minus or underscore zooms), and a touch keyboard has none, so each
+// button sends the bytes the key would. The V6 group is what Sixth
+// Edition inside pdp11 answers to: DEL interrupts, Ctrl-backslash quits,
+// and Ctrl-_ leaves the emulator.
 // Ctrl arms a one-shot modifier: the next typed character goes out as its
 // control code. Paste reads the clipboard and sends it as typed input.
 var ctrlArmed=false, ctl=document.getElementById("ctl");
@@ -101,6 +106,11 @@ ctl.addEventListener("click",function(e){{e.preventDefault();ctrlArmed=!ctrlArme
 document.getElementById("paste").addEventListener("click",function(e){{e.preventDefault();
  if(navigator.clipboard&&navigator.clipboard.readText){{navigator.clipboard.readText().then(function(t){{sendkeys(t);grab();}});}}
  else{{var t=window.prompt("Paste text to send:");if(t!==null)sendkeys(t);grab();}}}});
+// Disconnect closes the socket on purpose: the server frees the console
+// for the next session and the page says so, instead of a closed tab
+// leaving the server to notice a dead socket.
+document.getElementById("bye").addEventListener("click",function(e){{e.preventDefault();
+ byebye=true;try{{ws.close();}}catch(x){{}}}});
 document.getElementById("hide").addEventListener("click",function(e){{e.preventDefault();
  document.getElementById("k").style.display="none";fit();grab();}});
 </script></body></html>"""

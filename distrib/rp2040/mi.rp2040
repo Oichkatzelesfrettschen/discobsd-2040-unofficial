@@ -121,6 +121,10 @@ file /root/.profile
 symlink /.profile
 target root/.profile
 
+file /home/operator/.profile
+owner 2
+group 5
+
 #
 # Files: /etc
 #

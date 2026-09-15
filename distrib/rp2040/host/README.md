@@ -120,9 +120,10 @@ DiscoBSD (Esc, Tab, Ctrl, ^C, ^D, ^Z, ^L, ^U, ^R) and V6 (DEL intr,
 # erase, @ kill, ^\ quit, ^_ exit V6), because browsers keep Ctrl-C,
 Ctrl-D, Ctrl-W, Ctrl-minus and Ctrl-underscore for themselves. Ctrl arms
 a one-shot modifier for the next typed key. The `keys` button shows this
-reference in the page. `Sync & leave` types the whole exit for you: `sync`,
-Ctrl-_ (leaves V6, harmless in DiscoBSD), `sync` again, `exit`, and then
-closes the session about eight seconds later; it assumes a shell prompt,
+reference in the page. `Sync & leave` types the whole exit for you and
+says so in yellow in the terminal as it goes: `sync`, Ctrl-_ (leaves V6,
+harmless in DiscoBSD), `sync` again, `exit`, then "session closed" and
+the socket closes, about nine seconds in all. It assumes a shell prompt,
 so finish `ed` or `vi` first.
 
 Leave cleanly, in this order:

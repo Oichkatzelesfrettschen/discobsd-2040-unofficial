@@ -40,6 +40,24 @@ What runs on it
 | Sixth Edition UNIX | `pdp11` boots a V6 root pack on an emulated PDP-11/40 with 64 KB of core; see "Run Sixth Edition UNIX" below |
 | native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and use no `#include` |
 
+What the login screen tells you, line by line:
+
+    2.11 BSD UNIX (pico) (console)          getty: the kernel lineage, the hostname, the line
+    login: operator                         type operator; no password is asked
+    DiscoBSD 2.7 -- Raspberry Pi Pico       /etc/motd, first line
+    You are operator, in /home/operator...  /etc/motd: where you are and what to type
+    operator:~$                             the shell: user, working directory, $ for operator
+
+The prompt is `user:directory$`, green user and blue directory on a
+color terminal, and `~` is your home. `cd /` turns it into
+`operator:/$`; `su` turns it into `root:/home/operator#`, since the
+shell reads the real user and directory each time it prompts. `/home/operator` starts
+empty by design: the system lives under `/bin`, `/usr/bin` and
+`/usr/games`, and `menu` lists every program. `ls` colors directories
+blue, executables green, devices yellow, on any terminal that renders
+ANSI color, which the web console and every terminal program listed
+below do.
+
 The console at first login, from `uname -a` and `df`:
 
     DiscoBSD pico 2.7 PICO#1 rp2040
@@ -94,7 +112,7 @@ and follow the steps for your platform.
    any browser on the same network. `discobsd-console down` stops it,
    `discobsd-console status` reports. One browser session at a time;
    press `Sync & leave` in the page to sync, log out, and hand it to the
-   next; `keys` shows the key reference.
+   next, watching each step it types; `keys` shows the key reference.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
 join the `discobsd` group instead and log in again:

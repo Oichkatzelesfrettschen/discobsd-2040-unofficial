@@ -14,9 +14,76 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "edit.h"
+#include <string.h>
+
+#include <pwd.h>
+
+/*
+ * promptexpand: PS1 with "\w" replaced by the working directory (the
+ * home directory shown as "~"), "\u" by the effective user's name and
+ * "\$" by "#" for root and "$" otherwise, so a prompt inherited across
+ * su still tells the truth. The rest of PS1 passes through, escapes
+ * included, so a colored prompt is PS1's own business.
+ */
+static char promptbuf[256];
+static char promptuser[32];
+
+static char *
+promptexpand(ps1)
+	char *ps1;
+{
+	char cwd[MAXPATHLEN];
+	char *home = homenod.namval;
+	char *o = promptbuf, *end = promptbuf + sizeof(promptbuf) - 1;
+	char *p, *w;
+
+	if (ps1 == NULL || strchr(ps1, '\\') == NULL)
+		return (ps1);
+	for (p = ps1; *p && o < end; p++) {
+		if (p[0] == '\\' && p[1] == '$') {
+			*o++ = geteuid() ? '$' : '#';
+			p++;
+			continue;
+		}
+		if (p[0] == '\\' && p[1] == 'u') {
+			struct passwd *pw;
+
+			p++;
+			if (promptuser[0] == 0) {
+				pw = getpwuid(geteuid());
+				strncpy(promptuser, pw ? pw->pw_name : "?",
+				    sizeof(promptuser) - 1);
+			}
+			for (w = promptuser; *w && o < end; )
+				*o++ = *w++;
+			continue;
+		}
+		if (p[0] != '\\' || p[1] != 'w') {
+			*o++ = *p;
+			continue;
+		}
+		p++;
+		if (getwd(cwd) == NULL)
+			strcpy(cwd, "?");
+		w = cwd;
+		if (home && *home && strcmp(home, "/") != 0) {
+			int n = strlen(home);
+
+			if (strncmp(cwd, home, n) == 0 && (cwd[n] == '/' || cwd[n] == 0)) {
+				*o++ = '~';
+				w = cwd + n;
+			}
+		}
+		while (*w && o < end)
+			*o++ = *w++;
+	}
+	*o = 0;
+	return (promptbuf);
+}
 
 #ifdef RES
 #include <sgtty.h>
+
 #endif
 
 static BOOL     beenhere = FALSE;
@@ -136,7 +203,7 @@ BOOL    prof;
 			if (isatty(input) && isatty(output))
 			{
 				char    *path = pathnod.namval ? pathnod.namval : defpath;
-				int     n = editline(input, output, ps1nod.namval, path,
+				int     n = editline(input, output, promptexpand(ps1nod.namval), path,
 					    standin->fbuf, sizeof(standin->fbuf));
 
 				if (n < 0)
@@ -149,7 +216,7 @@ BOOL    prof;
 				}
 			}
 			else
-				prprompt(ps1nod.namval);
+				prprompt(promptexpand(ps1nod.namval));
 
 #ifdef TIME_OUT
 			alarm(TIMEOUT);

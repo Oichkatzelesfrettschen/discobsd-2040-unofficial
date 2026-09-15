@@ -288,7 +288,7 @@ getdir(dir, pfp0, pfplast, isadir)
 		    (Aflg == 0 || dp->d_name[1]==0 ||
 		     dp->d_name[1]=='.' && dp->d_name[2]==0))
 			continue;
-		if (gstat(fp, cat(dir, dp->d_name), Fflg+Rflg, &nb) == 0)
+		if (gstat(fp, cat(dir, dp->d_name), Fflg+Rflg+colorflag, &nb) == 0)
 			continue;
 		fp->fnum = dp->d_ino;
 		fp->fname = savestr(dp->d_name);

@@ -89,6 +89,9 @@ distribution-etc-root-var: distrib-dirs
 		    ${DESTDIR}/root/.profile; \
 		${INSTALL} -c -o root -g wheel -m 644 dot.profile \
 		    ${DESTDIR}/.profile
+	${INSTALL} -d -m 755 ${DESTDIR}/home/operator
+	${INSTALL} -c -m 644 operator/dot.profile \
+	    ${DESTDIR}/home/operator/.profile
 	ln -sf ${TZDIR}/${LOCALTIME} ${DESTDIR}/etc/localtime
 	${INSTALL} -c -m 444 ${DESTDIR}/usr/share/misc/termcap \
 	    ${DESTDIR}/etc/termcap

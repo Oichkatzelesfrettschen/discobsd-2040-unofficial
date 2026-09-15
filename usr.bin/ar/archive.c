@@ -63,7 +63,11 @@
 #include "extern.h"
 
 typedef struct ar_hdr HDR;
-static char hb[sizeof(HDR) + 1];	/* real header */
+/*
+ * The header is exactly sizeof(HDR) bytes on the wire; the buffer is wider
+ * so a wide field can never truncate the snprintf that formats it.
+ */
+static char hb[2 * sizeof(HDR)];	/* real header */
 static char archive_rewrite_path[MAXPATHLEN];
 static char archive_rewrite_directory[MAXPATHLEN];
 static int archive_rewrite_cleanup_registered;

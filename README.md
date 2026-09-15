@@ -17,6 +17,50 @@ DiscoBSD is multi-platform, as it also supports Arm Cortex-M4 STM32F4 devices.
 
 Source code to the system is freely available under a BSD-like license.
 
+DiscoBSD/rp2040: this fork
+--------------------------
+
+This repository carries the port to the Raspberry Pi Pico (RP2040, Cortex-M0+).
+The kernel lives in `sys/arch/rp2040`, the root file system is a 1.5 MB
+Dhara-managed region of the Pico's own QSPI flash with 384 KB of raw swap
+behind it, and the console is the board's USB cable (CDC-ACM), with UART0
+on GP0/GP1 as a fallback kernel. `sys/arch/rp2040/doc/` holds the boot map,
+storage layout, and console notes; `sys/arch/rp2040/doc/USER-ACCESS.md` is
+the connection guide.
+
+### Build and flash
+
+    $ bmake MACHINE=rp2040 build      # kernels, userland, DESTDIR
+    $ bmake MACHINE=rp2040 flash      # distrib/rp2040/flash.uf2, the root image
+
+The build needs bmake, arm-none-eabi-gcc, byacc or bison, flex, mandoc,
+and Python 3; it is warning-free, and `.github/workflows/firmware.yml`
+builds it on every push and publishes the two UF2 files as an artifact.
+
+Two UF2 files load in one BOOTSEL visit: the kernel
+`sys/arch/rp2040/compile/PICO/unix.uf2` and the file system
+`distrib/rp2040/flash.uf2`. From a running kernel, `picotool reboot -u -f`
+enters BOOTSEL; otherwise hold BOOTSEL while plugging the cable in. Then:
+
+    $ picotool load sys/arch/rp2040/compile/PICO/unix.uf2
+    $ picotool load distrib/rp2040/flash.uf2
+    $ picotool reboot
+
+A file-system-only change needs only `flash.uf2` reloaded. Log in as
+`operator` with no password and `su` to root.
+
+### Host tools: terminal and web console on Linux, Windows, and macOS
+
+The board is a standard CDC-ACM device, so no driver is installed on any
+host. `distrib/rp2040/host` is the `discobsd-host` package:
+`discobsd-term` attaches a terminal that survives board reboots,
+`discobsd-web` serves the console to any browser on the LAN behind a token,
+`discobsd-link` publishes a short URL for it, and `discobsd-console up`
+runs both. Releases tagged `host-v*` carry a wheel, an Arch package, an
+Ubuntu 24.04 `.deb`, and standalone Windows and macOS builds, each built
+and smoke-installed by `.github/workflows/host.yml` on its own operating
+system. See `distrib/rp2040/host/README.md` for installation and use.
+
 History
 -------
 

@@ -1,0 +1,26 @@
+Source: discobsd-host
+Section: utils
+Priority: optional
+Maintainer: Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-pytest,
+               python3-serial,
+               python3-setuptools
+Standards-Version: 4.6.2
+Homepage: https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+Rules-Requires-Root: no
+
+Package: discobsd-host
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}, python3-serial
+Description: host tools for the DiscoBSD RP2040 console
+ The DiscoBSD RP2040 board presents its console on a USB CDC-ACM serial
+ line. This package carries the tools that drive it from a host: a serial
+ terminal, a browser console served over HTTP, a short-link redirector,
+ and a supervisor that starts the pair and prints the URLs.
+ .
+ A udev rule names the board /dev/discobsd by its stable USB serial, and
+ systemd user units carry the web console and the short link.

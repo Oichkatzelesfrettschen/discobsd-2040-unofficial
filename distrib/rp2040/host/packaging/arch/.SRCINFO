@@ -1,0 +1,16 @@
+pkgbase = discobsd-host
+	pkgdesc = Host tools for the DiscoBSD RP2040 console: terminal, web console, short link
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+	arch = any
+	license = BSD-3-Clause
+	checkdepends = python-pytest
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-wheel
+	makedepends = python-setuptools
+	depends = python
+	depends = python-pyserial
+
+pkgname = discobsd-host

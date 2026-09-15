@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+#
+# pybuild with the pyproject plugin drives the setuptools backend named in
+# pyproject.toml; dh_auto_test runs pytest against the staged build tree,
+# so the package is tested from the same bytes it ships.
+
+export PYBUILD_NAME=discobsd_host
+export PYBUILD_TEST_PYTEST=1
+export PYBUILD_TEST_ARGS={dir}/tests
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+# Two tests start an HTTP server on 127.0.0.1 and fetch from it. The build
+# environment points http_proxy at a dead port to catch a network fetch
+# during a build, and urllib honors it for a loopback URL too, so the
+# fetches come back "Connection refused". Clearing the proxy variables for
+# the test step keeps the loopback fetches direct and still reaches no
+# network: no test names a host other than 127.0.0.1.
+override_dh_auto_test:
+	env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+	    no_proxy=127.0.0.1,localhost dh_auto_test

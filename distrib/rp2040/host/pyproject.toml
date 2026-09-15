@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "discobsd-host"
+version = "1.0.0"
+description = "Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
+readme = "README.md"
+# The table form, not the PEP 639 string: setuptools 68.1, the version
+# Ubuntu 24.04 ships and the one pybuild builds the .deb with, rejects
+# a bare string here ("project.license must be valid exactly by one
+# definition"). Current setuptools still accepts the table.
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.9"
+dependencies = ["pyserial>=3.5"]
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware",
+    "Topic :: Terminals :: Serial",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "ruff>=0.4"]
+bundle = ["pyinstaller>=6"]
+
+[project.urls]
+Homepage = "https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial"
+
+[project.scripts]
+discobsd-term = "discobsd_host.term:main"
+discobsd-web = "discobsd_host.web:main"
+discobsd-link = "discobsd_host.link:main"
+discobsd-console = "discobsd_host.console:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "I"]
+# %d formatting stays where a width or a byte count is printed.
+ignore = ["UP031"]
+
+[tool.ruff.lint.per-file-ignores]
+# The embedded console page carries minified HTML and JavaScript lines.
+"src/discobsd_host/web.py" = ["E501"]

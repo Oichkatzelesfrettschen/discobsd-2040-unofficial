@@ -60,9 +60,13 @@ when Config changes.
   image and revert those lines before committing.
 - Kernel trace: `sysctl -w kern.systrace=1` (syscalls) or 2 (signal
   frames), `kern.systracepid` to filter; under "options SYSTRACE".
-- Host console helpers: distrib/rp2040/host/discobsd-web (web terminal,
-  `--bind 0.0.0.0 --token SECRET` for the LAN), discobsd-link (short
-  redirect URL), discobsd-term, the udev rule.
+- Host tools: distrib/rp2040/host is the discobsd-host Python package
+  (discobsd-term, discobsd-web with `--bind 0.0.0.0 --token SECRET` for the
+  LAN, discobsd-link, discobsd-console up/down/status), with the udev rule,
+  systemd user units, packaging/ (PKGBUILD, debian/, PyInstaller spec), and
+  tests (`ruff check . && pytest` there). CI: .github/workflows/host.yml
+  builds and smoke-installs every platform artifact; firmware.yml builds
+  the UF2 files.
 
 ## Conventions
 

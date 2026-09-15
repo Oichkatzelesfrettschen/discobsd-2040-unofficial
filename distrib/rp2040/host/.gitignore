@@ -1,0 +1,21 @@
+# Build output under distrib/rp2040/host. A leading slash anchors a pattern
+# at the directory holding this file, so the entries name paths relative to
+# distrib/rp2040/host rather than repeating that prefix.
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+/dist/
+/build/
+
+# dpkg-buildpackage reads debian/ from the source package root, so the deb
+# build copies packaging/debian to distrib/rp2040/host/debian. That copy is
+# build output and never a commit; packaging/debian is the original.
+/debian/
+
+# makepkg and PyInstaller output, from a build run inside packaging/.
+/packaging/arch/src/
+/packaging/arch/pkg/
+/packaging/arch/*.pkg.tar.*
+/packaging/pyinstaller/build/
+/packaging/pyinstaller/dist/

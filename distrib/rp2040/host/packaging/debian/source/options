@@ -1,0 +1,10 @@
+# A native source package tars the whole build directory. The caches and
+# the output of an earlier local build carry no source and are left out.
+# A native package carries no diff, so no diff-ignore belongs here.
+tar-ignore = "build"
+tar-ignore = "dist"
+tar-ignore = "*.egg-info"
+tar-ignore = "__pycache__"
+tar-ignore = ".pytest_cache"
+tar-ignore = ".ruff_cache"
+tar-ignore = ".git*"

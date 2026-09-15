@@ -1,0 +1,4 @@
+71-discobsd-pico.rules usr/lib/udev/rules.d
+systemd/discobsd-web.service usr/lib/systemd/user
+systemd/discobsd-link.service usr/lib/systemd/user
+discobsd-connect usr/bin

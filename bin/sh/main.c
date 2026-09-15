@@ -20,13 +20,15 @@
 
 /*
  * promptexpand: PS1 with "\w" replaced by the working directory (the
- * home directory shown as "~"), "\u" by the effective user's name and
- * "\$" by "#" for root and "$" otherwise, so a prompt inherited across
- * su still tells the truth. The rest of PS1 passes through, escapes
+ * home directory shown as "~"), "\u" by the effective user's name, "\h"
+ * by the hostname to its first dot and "\$" by "#" for root and "$"
+ * otherwise -- bash's letters -- so a prompt inherited across su still
+ * tells the truth. The rest of PS1 passes through, escapes
  * included, so a colored prompt is PS1's own business.
  */
 static char promptbuf[256];
 static char promptuser[32];
+static char prompthost[32];
 
 static char *
 promptexpand(ps1)
@@ -43,6 +45,19 @@ promptexpand(ps1)
 		if (p[0] == '\\' && p[1] == '$') {
 			*o++ = geteuid() ? '$' : '#';
 			p++;
+			continue;
+		}
+		if (p[0] == '\\' && p[1] == 'h') {
+			p++;
+			if (prompthost[0] == 0) {
+				if (gethostname(prompthost, sizeof(prompthost) - 1) < 0)
+					strcpy(prompthost, "?");
+				prompthost[sizeof(prompthost) - 1] = 0;
+				if ((w = strchr(prompthost, '.')) != NULL)
+					*w = 0;
+			}
+			for (w = prompthost; *w && o < end; )
+				*o++ = *w++;
 			continue;
 		}
 		if (p[0] == '\\' && p[1] == 'u') {

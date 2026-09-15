@@ -1,3 +1,12 @@
+discobsd-host (1.0.5) noble; urgency=medium
+
+  * discobsd-web: accessible names on every key, aria-pressed on Ctrl,
+    visible focus ring, live status line that names the system (DiscoBSD
+    or V6), a reader toggle for xterm.js screen reader mode, minimum
+    contrast 4.5, hide leaves a keys tab.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 19:00:00 -0700
+
 discobsd-host (1.0.4) noble; urgency=medium
 
   * discobsd-web: Sync & leave narrates each step in the terminal and the

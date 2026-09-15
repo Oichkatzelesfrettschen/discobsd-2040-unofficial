@@ -46,12 +46,15 @@ What the login screen tells you, line by line:
     login: operator                         type operator; no password is asked
     DiscoBSD 2.7 -- Raspberry Pi Pico       /etc/motd, first line
     You are operator, in /home/operator...  /etc/motd: where you are and what to type
-    operator:~$                             the shell: user, working directory, $ for operator
+    operator@pico:~$                        the shell: user@host, working directory, $ for operator
 
-The prompt is `user:directory$`, green user and blue directory on a
-color terminal, and `~` is your home. `cd /` turns it into
-`operator:/$`; `su` turns it into `root:/home/operator#`, since the
-shell reads the real user and directory each time it prompts. `/home/operator` starts
+The prompt is `user@host:directory$`, the bash convention: green
+`operator@pico`, a colon, the blue working directory, and `$`. `~` is
+your home. `cd /` turns it into `operator@pico:/$`. `su` turns it into
+`root@pico:/home/operator#`: you are root, the directory is still the
+one you were in, exactly as `su` behaves on Linux, and `#` marks root.
+The shell reads the real user, host and directory each time it prompts,
+so the prompt never lies after `su` or `cd`. `/home/operator` starts
 empty by design: the system lives under `/bin`, `/usr/bin` and
 `/usr/games`, and `menu` lists every program. `ls` colors directories
 blue, executables green, devices yellow, on any terminal that renders
@@ -112,7 +115,9 @@ and follow the steps for your platform.
    any browser on the same network. `discobsd-console down` stops it,
    `discobsd-console status` reports. One browser session at a time;
    press `Sync & leave` in the page to sync, log out, and hand it to the
-   next, watching each step it types; `keys` shows the key reference.
+   next, watching each step it types; `keys` shows the key reference;
+   `reader` turns on screen reader mode. The status line at the top
+   right says whether the console is in DiscoBSD or inside V6.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
 join the `discobsd` group instead and log in again:

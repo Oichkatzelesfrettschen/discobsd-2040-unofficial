@@ -55,3 +55,7 @@ sys/arch/*/compile/*/sys
 benchmarks/coremark/coremark
 benchmarks/coremark/coremark-host
 tests/rp2040/fptest/fptest
+
+# usr.bin/pdp11: the host build of the PDP-11 emulator (bmake host).
+usr.bin/pdp11/pdp11-host
+usr.bin/pdp11/pdp11

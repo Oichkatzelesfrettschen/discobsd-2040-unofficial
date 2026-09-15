@@ -28,6 +28,7 @@ dir /usr/sbin
 dir /usr/libexec
 dir /usr/lib
 dir /usr/games
+dir /usr/v6
 dir /usr/share
 dir /usr/share/misc
 dir /root
@@ -193,6 +194,7 @@ pack /usr/sbin/update
 
 pack /usr/libexec/getty
 pack /usr/libexec/smlrc
+pack /usr/bin/pdp11
 
 pack /usr/games/gamebox
 
@@ -203,6 +205,8 @@ pack /usr/games/gamebox
 default
 filemode 0664
 file /usr/lib/libc.a
+# The V6 pack pdp11 boots: 1 MB logical, about 150 KB of blocks.
+file /usr/v6/root.rk
 file /usr/lib/crt0.o
 
 default

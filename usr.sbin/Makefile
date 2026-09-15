@@ -19,8 +19,8 @@ ${SUBDIR}: FRC
 FRC:
 
 install: FRC
-	-for i in ${SUBDIR}; do \
-		(cd $$i; ${MAKE} ${MFLAGS} DESTDIR=${DESTDIR} install); done
+	for i in ${SUBDIR}; do \
+		(cd $$i; ${MAKE} ${MFLAGS} DESTDIR=${DESTDIR} install) || exit 1; done
 
 clean:
 	/bin/rm -f a.out core *.s *.o *.dis *.elf *~ errs

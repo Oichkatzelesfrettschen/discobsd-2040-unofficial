@@ -420,6 +420,16 @@ void add_device (fs_t *fs, char *name, int mode, int owner, int group,
  * image at path. With pack set the file is a raw a.out and the image gets
  * its packed form; a source that does not pack fails the build.
  */
+static int block_is_zero (const unsigned char *data, size_t len)
+{
+    size_t i;
+
+    for (i = 0; i < len; i++)
+        if (data[i] != 0)
+            return 0;
+    return 1;
+}
+
 void add_file (fs_t *fs, const char *path, const char *dirname,
     int mode, int owner, int group, const char *source, int pack)
 {
@@ -449,7 +459,7 @@ void add_file (fs_t *fs, const char *path, const char *dirname,
     fd = fopen (accpath, "r");
     if (! fd) {
         perror (accpath);
-        return;
+        exit (1);
     }
     fstat (fileno(fd), &st);
     if (mode == -1)
@@ -471,7 +481,7 @@ void add_file (fs_t *fs, const char *path, const char *dirname,
     }
     if (! fs_file_create (fs, &file, path, mode)) {
         fprintf (stderr, "%s: cannot create\n", path);
-        return;
+        exit (1);
     }
     for (done = 0; pack; ) {
         len = packedlen - done < sizeof (data) ? packedlen - done : sizeof (data);
@@ -479,23 +489,38 @@ void add_file (fs_t *fs, const char *path, const char *dirname,
             break;
         if (! fs_file_write (&file, packed + done, len)) {
             fprintf (stderr, "%s: write error\n", path);
-            break;
+            exit (1);
         }
         done += len;
     }
     free (raw);
     free (packed);
+    /*
+     * A block of zeros is left as a hole: the kernel's bmap() reads an
+     * unmapped block as zeros, so the file reads the same and costs the
+     * root only its nonzero blocks. A hole at the end still counts in
+     * the size, which fs_file_close() writes from the inode.
+     */
     for (; ! pack; ) {
         len = fread (data, 1, sizeof (data), fd);
-/*      printf ("read %d bytes from %s\n", len, accpath);*/
         if (len < 0)
             perror (accpath);
         if (len <= 0)
             break;
+        if (len == sizeof (data) && block_is_zero (data, len)) {
+            file.offset += len;
+            if (file.inode.size < file.offset)
+                file.inode.size = file.offset;
+            continue;
+        }
         if (! fs_file_write (&file, data, len)) {
             fprintf (stderr, "%s: write error\n", path);
-            break;
+            exit (1);
         }
+    }
+    if (ferror (fd)) {
+        perror (accpath);
+        exit (1);
     }
     file.inode.uid = owner;
     file.inode.gid = group;

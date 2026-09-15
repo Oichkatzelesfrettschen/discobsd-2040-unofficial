@@ -36,14 +36,15 @@ What runs on it
 | swap | 384 KB of raw flash behind the root, plus a 16 KB compressed in-RAM tier |
 | user program | 144 KB window, one resident process, swap for the rest |
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
-| commands | 111 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
+| commands | 112 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
+| Sixth Edition UNIX | `pdp11` boots a V6 root pack on an emulated PDP-11/40 with 64 KB of core; see "Run Sixth Edition UNIX" below |
 | native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and use no `#include` |
 
 The console at first login, from `uname -a` and `df`:
 
     DiscoBSD pico 2.7 PICO#1 rp2040
     Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
-    root              979      665      314    67%    /
+    root              979      837      142    85%    /
 
 Documentation for the port lives in `sys/arch/rp2040/doc/`: `BOOT-MAP.md`
 (flash and SRAM layout), `STORAGE.md` (Dhara root and raw swap),
@@ -171,6 +172,31 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 - The web page says the console is in use: another browser tab or a
   `discobsd-term` holds the serial line. Close it; the line is a single
   session.
+
+### Run Sixth Edition UNIX
+
+The board carries a PDP-11/40 emulator and a Sixth Edition (1975) root
+pack. Log in as `operator` and start it:
+
+    $ pdp11
+    pdp11: 64 KB, RK05 /usr/v6/root.rk, Ctrl-_ exits
+    @unix
+
+    login: root
+    #
+
+1. Type `unix` at the `@` prompt. The kernel boots in about five seconds.
+2. Type `root` at `login:`; there is no password.
+3. Use the 1975 shell: `ls /bin`, `who`, `ed`, `cal 9 2026`, `ls /usr/games`.
+   The interrupt key is DEL, `#` erases a character and `@` erases the line.
+4. Type `sync`, then Ctrl-_ (control and underscore) to leave. The emulator
+   prints its instruction count and rate and returns to the DiscoBSD shell.
+
+What you write on the V6 pack stays on it. The pack is a 1 MB sparse file
+in `/usr/v6`; its untouched blocks cost nothing, and a session that swaps
+or writes allocates about 30 KB of the root the first time, reused after.
+`usr.bin/pdp11/README.md` documents the emulator, the pack and how it was
+built from the TUHS distribution.
 
 ### Build the firmware and flash a board
 

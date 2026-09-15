@@ -22,8 +22,8 @@ adminbox: reboot shutdown sysctl
 FRC:
 
 install: FRC
-	-for i in ${SUBDIR}; do \
-		(cd $$i; ${MAKE} ${MFLAGS} DESTDIR=${DESTDIR} install); done
+	for i in ${SUBDIR}; do \
+		(cd $$i; ${MAKE} ${MFLAGS} DESTDIR=${DESTDIR} install) || exit 1; done
 
 clean:
 	for i in ${SUBDIR}; do (cd $$i; ${MAKE} ${MFLAGS} clean); done

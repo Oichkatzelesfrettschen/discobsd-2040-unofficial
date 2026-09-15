@@ -212,8 +212,8 @@ rexec(int rfd, int wfd)
 	/* For each symbol read the nlist entry and save it as necessary. */
 	nsyms = ebuf.a_syms;
 	while (nsyms > 4) {
-                unsigned value;
-                unsigned short type;
+                unsigned value = 0;
+                unsigned short type = 0;
 	        char name [256];
 
                 int c = fgetsym(fp, name, &value, &type);

@@ -1,0 +1,39 @@
+# discobsd-host release: on a host-v* tag, run the host workflow (tests on
+# three platforms, every native artifact built and smoke-installed) and
+# attach the artifacts to a GitHub release named by the tag.
+name: host-release
+
+on:
+  push:
+    tags:
+      - 'host-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/host.yml
+
+  release:
+    name: release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: List what the release carries
+        run: ls -lR artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.whl
+            artifacts/**/*.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.pkg.tar.zst
+            artifacts/**/*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true

@@ -28,8 +28,13 @@ struct map {
 };
 
 struct mapent {
+#ifdef COMPACT_SWAPMAP
+    u_short m_size;             /* size of this segment of the map */
+    u_short m_addr;             /* resource-space addr of start of segment */
+#else
     size_t  m_size;             /* size of this segment of the map */
     size_t  m_addr;             /* resource-space addr of start of segment */
+#endif
 };
 
 #ifdef KERNEL
@@ -56,5 +61,13 @@ size_t malloc3 (struct map *mp, size_t d_size, size_t s_size, size_t u_size, siz
  */
 size_t malloc3_contiguous (struct map *mp, size_t d_size, size_t s_size,
     size_t u_size, size_t align, size_t a[3]);
+
+/*
+ * Allocate an aligned run at or after *nextp, wrapping to the lowest
+ * suitable address.  A successful allocation advances *nextp.
+ */
+size_t malloc3_contiguous_next (struct map *mp, size_t d_size,
+    size_t s_size, size_t u_size, size_t align, size_t *nextp,
+    size_t a[3]);
 
 #endif

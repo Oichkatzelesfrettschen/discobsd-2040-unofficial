@@ -33,6 +33,7 @@ options         "NMOUNT=1"                  # One UFS root; fl1 is raw swap.
 options         SINGLE_UFS_ROOT             # Derive inode and root mount identity.
 options         LINEAR_INODE_CACHE           # Scan 24 entries; omit hash links.
 options         COMPACT_INODE_FIELDS         # Four bounded fields use 16 bits.
+options         COMPACT_SWAPMAP              # 16-bit entries cover 384 blocks.
 options         LINEAR_BUFFER_CACHE          # Scan four buffers; omit hash links.
 options         LINEAR_NAME_CACHE            # Scan four names; use second chance.
 options         "CORE_DEFAULT=0"            # No core dumps unless raised.

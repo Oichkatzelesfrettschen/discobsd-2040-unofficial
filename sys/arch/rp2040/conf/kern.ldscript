@@ -137,6 +137,40 @@ SECTIONS {
 		. = ALIGN(4);
 		__scratch_end__ = .;
 	} > SCRATCH :scratch
+
+	/*
+	 * flash.c owns a 1 KB Dhara page and a 256-byte physical-program-page
+	 * buffer, both data.  The USB kernel places them above 0x5010023f, the
+	 * highest DPSRAM byte assigned to an endpoint; DPSRAM takes byte,
+	 * halfword, and word accesses (RP2040 datasheet 4.1.2.7).  The UART-only
+	 * kernel uses otherwise idle SRAM4/SRAM5.  Each owner initializes its
+	 * range before reading it, so these absolute ranges consume no ordinary
+	 * bss.  The 256-byte boot2 copy is code that flash_enter_xip calls, and
+	 * the ARMv6-M peripheral region holding DPSRAM is execute-never: the
+	 * UART-only kernel keeps the copy in SRAM4 after the Dhara page, while
+	 * the USB kernel, whose transmit ring fills both scratch banks, defines
+	 * it in flash.c as ordinary bss.
+	 */
+	flpage = DEFINED(usb_tx_ring) ? 0x50100240 : ORIGIN(SCRATCH);
+	flpage_end = flpage + 1024;
+	PROVIDE(boot2_copy = ORIGIN(SCRATCH) + 1024);
+	boot2_copy_end = boot2_copy + 256;
+	/* The linker emits this address only when SwapRAM references it. */
+	PROVIDE(swapram_codec_work = 0x50100740);
+	flscratch = DEFINED(usb_tx_ring) ? 0x50100f00 :
+	    ORIGIN(SCRATCH) + LENGTH(SCRATCH) - 256;
+	flscratch_end = flscratch + 256;
+	ASSERT(DEFINED(usb_tx_ring) ?
+	    (flpage >= 0x50100240 && flpage_end <= 0x50100740 &&
+	     (DEFINED(swapram_codec_work) ?
+	      swapram_codec_work + 1040 <= flscratch : 1) &&
+	     flscratch_end <= 0x50101000 &&
+	     boot2_copy >= ORIGIN(RAM) &&
+	     boot2_copy_end <= ORIGIN(RAM) + LENGTH(RAM)) :
+	    (__scratch_end__ <= flpage && flpage_end <= boot2_copy &&
+	     boot2_copy_end <= flscratch &&
+	     flscratch_end <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)),
+	    "flash work buffers overlap active memory")
 	/*
 	 * The SRAM regions of RP2040.ld are edited as a set: the user window
 	 * ends where the kernel data begins, the kernel data ends at the

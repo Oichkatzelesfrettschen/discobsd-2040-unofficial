@@ -29,7 +29,12 @@ static void	bhinit(void);
 static void	binit(void);
 static void	cinit(void);
 
+#ifdef SWAP_IMAGE_ALIGN
+size_t		swapnext;		/* next preferred raw-swap block */
+u_int		nswap;			/* size of swap space */
+#else
 u_int		swapstart, nswap;	/* start and size of swap space */
+#endif
 size_t		physmem;		/* total amount of physical memory */
 int		boothowto;		/* reboot flags, from boot */
 
@@ -126,21 +131,20 @@ main(void)
 	 * the rest of its first erase sector unused. Every free run then starts
 	 * aligned, and rounded whole-image allocations preserve that property.
 	 */
-#ifdef SWAP_IMAGE_ALIGN
-	swapstart = SWAP_IMAGE_ALIGN;
-#else
+#ifndef SWAP_IMAGE_ALIGN
 	swapstart = 1;
 #endif
 	(*bdevsw[major(swapdev)].d_open)(swapdev, FREAD|FWRITE, S_IFBLK);
 	nswap = (*bdevsw[major(swapdev)].d_psize)(swapdev);
 #ifdef SWAP_IMAGE_ALIGN
-	if (nswap <= swapstart)
+	if (nswap <= SWAP_IMAGE_ALIGN)
 #else
 	if (nswap <= 0)
 #endif
 		panic("swap size");	/* don't want to panic, but what ? */
 #ifdef SWAP_IMAGE_ALIGN
-	mfree(swapmap, nswap - swapstart, swapstart);
+	swap_cursor_init(nswap);
+	mfree(swapmap, nswap - SWAP_IMAGE_ALIGN, SWAP_IMAGE_ALIGN);
 #else
 	mfree(swapmap, nswap, swapstart);
 #endif
@@ -152,7 +156,7 @@ main(void)
 	printf("root size = %u kbytes\n", fs->fs_fsize * DEV_BSIZE / 1024);
 #ifdef SWAP_IMAGE_ALIGN
 	printf("swap size = %u kbytes\n",
-	    (nswap - swapstart) * DEV_BSIZE / 1024);
+	    (nswap - SWAP_IMAGE_ALIGN) * DEV_BSIZE / 1024);
 #else
 	printf("swap size = %u kbytes\n", nswap * DEV_BSIZE / 1024);
 #endif

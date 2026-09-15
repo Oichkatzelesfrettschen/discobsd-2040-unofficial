@@ -93,12 +93,24 @@ struct flash_rom {
 static struct flash_rom flrom;
 static int flrom_ready;
 
-/* The second stage, copied out so XIP can be restored after a write. */
+/*
+ * The second stage, copied out so XIP can be restored after a write.
+ * flash_enter_xip calls the copy, so it needs executable SRAM: USB DPSRAM
+ * sits in the ARMv6-M peripheral region, which is execute-never, and the
+ * USB console's transmit ring fills both scratch banks.  The USB kernel
+ * therefore keeps the copy in bss; the UART-only kernel places it in SRAM4
+ * through kern.ldscript.
+ */
 #define	BOOT2_WORDS	64
-static u_int boot2_copy[BOOT2_WORDS];
+#ifdef UARTUSB_ENABLED
+u_int boot2_copy[BOOT2_WORDS];	/* Global: kern.ldscript's PROVIDE yields. */
+#else
+extern u_int boot2_copy[BOOT2_WORDS];
+#endif
 
 static struct dhara_map flmap;
-static u_char flpage[FLASH_UNIT_BYTES];	/* Dhara's own page buffer, live for the map's lifetime. */
+/* Dhara owns this page for the map's lifetime; the linker keeps it out of bss. */
+extern u_char flpage[FLASH_UNIT_BYTES];
 static int flmap_ready;
 
 /*
@@ -111,7 +123,17 @@ static int flmap_ready;
  * while the swap path holds it. The owner check turns a broken lifetime
  * argument into a panic rather than silent corruption.
  */
-static u_char flscratch[FLASH_PROG_BYTES];
+/*
+ * The linker places this physical program page outside ordinary SRAM:
+ * in the unused top of USB DPSRAM for the USB kernel, or at the top of
+ * SRAM5 for the UART-only kernel.  DPSRAM supports byte, halfword, and
+ * word accesses (RP2040 datasheet 4.1.2.7), no flash operation sleeps
+ * while it owns the page, and the USB endpoint descriptors never address
+ * its DPSRAM range.  Keeping the address in the linker script makes both
+ * placements visible to the linked-image verifier and returns the page to
+ * kernel RAM.
+ */
+extern u_char flscratch[FLASH_PROG_BYTES];
 static int flscratch_owner;
 #define	FLS_FREE	0
 #define	FLS_SWAP	1			/* fl_raw programs a tail. */

@@ -20,8 +20,8 @@
  * keeps the kernel stack out of it, which matters because USIZE is 3072
  * bytes for the u structure and the kernel stack together. The evacuation
  * and the epoch requests run in the swapper and in process context, where
- * sleeping in swap() is the norm; they use the decoder while no swapin
- * can, and the pool is closed to new images for their duration.
+ * sleeping in swap_with_buf() is the norm; they use the decoder while no
+ * swapin can, and the pool is closed to new images for their duration.
  */
 
 #include <sys/param.h>
@@ -72,16 +72,41 @@ static void             sr_poke (void);
  * One entry per proc slot, indexed by p - proc, because a swapped-out
  * process keeps its slot and struct proc has no room for three more fields.
  */
+#if SWAPRAM_KB * 1024 <= 65535
+typedef u_short sr_offset_t;
+#else
+typedef unsigned int sr_offset_t;
+#endif
+
 static struct sr_ent {
-    unsigned int    e_off;              /* pool offset of the reservation */
-    unsigned int    e_res;              /* bytes reserved */
-    unsigned int    e_cap[SR_NSEG];     /* bytes reserved per segment */
-    unsigned int    e_clen[SR_NSEG];    /* compressed bytes per segment */
     unsigned int    e_rlen[SR_NSEG];    /* the length swapin must produce */
-    unsigned int    e_fill;             /* bytes of the reservation used */
-    size_t          e_blk[SR_NSEG];     /* flash blocks an evacuation took */
-    char            e_live;             /* an image is here */
+    sr_offset_t     e_off;              /* pool offset of the reservation */
+    sr_offset_t     e_res;              /* bytes reserved, then bytes used */
+    sr_offset_t     e_clen[SR_NSEG];    /* capacity, then compressed bytes */
+    u_char          e_live;             /* an image is here */
 } sr_tab[NPROC];
+
+#if SWAPRAM_KB * 1024 <= 65535
+_Static_assert (sizeof (struct sr_ent) == 24,
+    "SwapRAM process records must remain compact");
+#endif
+
+static unsigned int
+sr_compressed_before (struct sr_ent *e, int stop)
+{
+    unsigned int size = 0;
+    int seg;
+
+    for (seg = 0; seg < stop; seg++)
+        size += e->e_clen[seg];
+    return size;
+}
+
+static unsigned int
+sr_compressed_size (struct sr_ent *e)
+{
+    return sr_compressed_before (e, SR_NSEG);
+}
 
 #ifdef SWAP_IMAGE_ALIGN
 static size_t
@@ -101,9 +126,6 @@ sr_flash_span (struct sr_ent *e)
  * stay empty.
  */
 static int              sr_admit = 1;
-
-/* One block of expanded bytes on the way to flash. */
-static u_char           sr_stage[DEV_BSIZE];
 
 /*
  * The evacuation request the sysctl posts and the swapper services:
@@ -125,8 +147,12 @@ static int              sr_nlarge;
 static int              sr_large_want, sr_small_want;
 static unsigned int     sr_large_seq;
 
+#ifdef RP2040
+extern unsigned char swapram_codec_work[SWAPRAM_CODEC_WORK_BYTES];
+#else
 unsigned char swapram_codec_work[SWAPRAM_CODEC_WORK_BYTES]
     __attribute__ ((aligned (4)));
+#endif
 static u_char sr_codec_owner;
 
 _Static_assert (sizeof (heatshrink_encoder) <= SWAPRAM_CODEC_WORK_BYTES,
@@ -286,14 +312,14 @@ done:
 
 /*
  * Expand clen bytes at pool offset off, refusing to produce more than
- * rlen. With dst set the bytes land there; with dst NULL they go
- * through sr_stage a block at a time to the flash blocks from blk, the
- * path an evacuation takes. Returns the expanded length, which the
- * caller checks against the length swapout recorded.
+ * rlen. With dst set the bytes land there. With dst NULL they go through
+ * the payload of the busy cache buffer bp a block at a time to the flash
+ * blocks from blk, the path an evacuation takes. Returns the expanded
+ * length, which the caller checks against the length swapout recorded.
  */
 static int
 sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
-    unsigned int rlen, size_t blk)
+    unsigned int rlen, size_t blk, struct buf *bp)
 {
     heatshrink_decoder *decoder;
     unsigned int in = 0, out = 0, moved = 0, fill = 0;
@@ -309,8 +335,8 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
             buf = (u_char *) dst + out; \
             room = rlen - out; \
         } else { \
-            buf = sr_stage + fill; \
-            room = sizeof sr_stage - fill; \
+            buf = (u_char *) bp->b_addr + fill; \
+            room = DEV_BSIZE - fill; \
             if (room > rlen - out) \
                 room = rlen - out; \
         } \
@@ -319,8 +345,8 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
         out += (n); \
         if (dst == NULL) { \
             fill += (n); \
-            if (fill == sizeof sr_stage || out == rlen) { \
-                swap (blk, (size_t) sr_stage, fill, \
+            if (fill == DEV_BSIZE || out == rlen) { \
+                swap_with_buf (bp, blk, (size_t) bp->b_addr, fill, \
                     B_WRITE | B_SWAPIMAGE); \
                 blk += btod (fill); \
                 fill = 0; \
@@ -388,7 +414,7 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     size_t slen, size_t ulen)
 {
     struct sr_ent *e = sr_slot (p);
-    unsigned int want;
+    unsigned int off, want;
     int dn = 0, sn = 0;
 
     sr_pool_init_once ();
@@ -407,24 +433,21 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     if (slen && (sn = sr_encode (ssrc, slen, NULL, 0)) < 0)
         return 0;
     want = dn + sn + SR_WORST (ulen);
-    if (swapram_pool_alloc (&sr_map, want, &e->e_off) < 0) {
+    if (swapram_pool_alloc (&sr_map, want, &off) < 0) {
         if (swapramdebug)
             printf ("swapram: pid %d flash %u bytes (%u compressed), pool %u free\n",
                 p->p_pid, (u_int) (dlen + slen + ulen), want,
                 swapram_pool_avail (&sr_map));
         return 0;
     }
+    e->e_off = off;
     e->e_res = want;
-    e->e_fill = 0;
     e->e_rlen[SR_DATA] = dlen;
     e->e_rlen[SR_STACK] = slen;
     e->e_rlen[SR_U] = ulen;
-    e->e_cap[SR_DATA] = dn;
-    e->e_cap[SR_STACK] = sn;
-    e->e_cap[SR_U] = SR_WORST (ulen);
-    e->e_clen[SR_DATA] = 0;
-    e->e_clen[SR_STACK] = 0;
-    e->e_clen[SR_U] = 0;
+    e->e_clen[SR_DATA] = dn;
+    e->e_clen[SR_STACK] = sn;
+    e->e_clen[SR_U] = SR_WORST (ulen);
     return 1;
 }
 
@@ -440,6 +463,7 @@ void
 swapram_put (struct proc *p, int seg, caddr_t src, size_t len)
 {
     struct sr_ent *e = sr_slot (p);
+    unsigned int cap, fill;
     int n;
 
     if (len != e->e_rlen[seg])
@@ -448,14 +472,14 @@ swapram_put (struct proc *p, int seg, caddr_t src, size_t len)
         e->e_clen[seg] = 0;
         return;
     }
-    n = sr_encode (src, len, sr_pool + e->e_off + e->e_fill,
-        e->e_cap[seg]);
+    cap = e->e_clen[seg];
+    fill = sr_compressed_before (e, seg);
+    n = sr_encode (src, len, sr_pool + e->e_off + fill, cap);
     if (n < 0)
         panic ("swapram: reservation overflow");
-    if (seg != SR_U && (unsigned int) n != e->e_cap[seg])
+    if (seg != SR_U && (unsigned int) n != cap)
         panic ("swapram: count mismatch");
     e->e_clen[seg] = n;
-    e->e_fill += n;
 }
 
 /*
@@ -466,17 +490,18 @@ void
 swapram_commit (struct proc *p)
 {
     struct sr_ent *e = sr_slot (p);
+    unsigned int used = sr_compressed_size (e);
 
-    if (swapram_pool_trim (&sr_map, e->e_off, e->e_res, e->e_fill) < 0)
+    if (swapram_pool_trim (&sr_map, e->e_off, e->e_res, used) < 0)
         panic ("swapram: trim");
-    e->e_res = e->e_fill;
+    e->e_res = used;
     e->e_live = 1;
     if (swapramdebug)
         printf ("swapram: pid %d ram %u -> %u bytes, pool %u free\n",
             p->p_pid,
             (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
                 e->e_rlen[SR_U]),
-            e->e_fill, swapram_pool_avail (&sr_map));
+            used, swapram_pool_avail (&sr_map));
 }
 
 /* True when swapin must read this process back out of the pool. */
@@ -484,6 +509,27 @@ int
 swapram_present (struct proc *p)
 {
     return sr_slot (p)->e_live;
+}
+
+/*
+ * Copy a prefix of a resident image's u area without removing the image.
+ * Process sysctl needs fields from the first block while a process remains
+ * swapped out; p_addr is deliberately zero for a SwapRAM image and therefore
+ * cannot name raw flash.  Stopping the decoder after the requested prefix
+ * avoids a permanent u-area staging buffer.
+ */
+int
+swapram_uarea_prefix (struct proc *p, void *dst, unsigned int len)
+{
+    struct sr_ent *e = sr_slot (p);
+    unsigned int off;
+    int n;
+
+    if (! e->e_live || len > e->e_rlen[SR_U])
+        return -1;
+    off = e->e_off + e->e_clen[SR_DATA] + e->e_clen[SR_STACK];
+    n = sr_expand (off, e->e_clen[SR_U], dst, len, 0, NULL);
+    return n == (int) len ? 0 : -1;
 }
 
 /*
@@ -507,7 +553,8 @@ swapram_in (struct proc *p, caddr_t ddst, caddr_t sdst, caddr_t udst)
     for (seg = 0; seg < SR_NSEG; seg++) {
         if (e->e_rlen[seg] == 0)
             continue;
-        n = sr_expand (off, e->e_clen[seg], dst[seg], e->e_rlen[seg], 0);
+        n = sr_expand (off, e->e_clen[seg], dst[seg], e->e_rlen[seg], 0,
+            NULL);
         if (n != (int) e->e_rlen[seg])
             panic ("swapram: short expand");
         off += e->e_clen[seg];
@@ -516,12 +563,11 @@ swapram_in (struct proc *p, caddr_t ddst, caddr_t sdst, caddr_t udst)
         panic ("swapram: free");
     if (swapramdebug)
         printf ("swapram: pid %d in %u -> %u bytes, pool %u free\n",
-            p->p_pid, e->e_fill,
+            p->p_pid, e->e_res,
             (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
                 e->e_rlen[SR_U]),
             swapram_pool_avail (&sr_map));
     e->e_live = 0;
-    e->e_fill = 0;
     e->e_res = 0;
 }
 
@@ -554,53 +600,75 @@ swapram_images (void)
  * or the other at every moment and a panic part way strands nothing.
  * The pool entry is freed last. Admission stays as the caller set it;
  * an evacuation with images still admissible is a moment's emptiness.
- * Runs in the swapper, the one context that swaps in, so no image
- * leaves the pool under it; swap() sleeps, and a swapout from another
- * process meanwhile finds admission closed and takes flash.
+ * Runs in the swapper, the one context that swaps in, so no image leaves
+ * the pool under it; swap_with_buf() sleeps, and a swapout from another
+ * process meanwhile finds admission closed and takes flash. One cache
+ * buffer supplies both the busy I/O header and the expansion payload for
+ * the complete evacuation.
  */
 int
 swapram_evacuate (void)
 {
     struct sr_ent *e;
-    struct proc *p;
+    struct proc *p, *reserved;
+    struct buf *bp;
     unsigned int off;
-    int i, j, seg, n;
+    size_t blocks[SR_NSEG], next;
+    int i, images = 0, j, seg, n;
 
+    next = swapnext;
     for (i = 0; i < NPROC; i++) {
         e = &sr_tab[i];
         if (! e->e_live)
             continue;
+        images++;
         p = &proc[i];
         if (p->p_flag & SLOAD)
             panic ("swapram: evacuate loaded");
+        if (p->p_daddr || p->p_saddr || p->p_addr)
+            panic ("swapram: flash blocks already assigned");
 #ifdef SWAP_IMAGE_ALIGN
-        if (malloc3_contiguous (swapmap, btod (e->e_rlen[SR_DATA]),
+        if (malloc3_contiguous_next (swapmap, btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
-            SWAP_IMAGE_ALIGN, e->e_blk) == 0) {
+            SWAP_IMAGE_ALIGN, &next, blocks) == 0) {
 #else
         if (malloc3 (swapmap, btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
-            e->e_blk) == 0) {
+            blocks) == 0) {
 #endif
             for (j = 0; j < i; j++) {
                 e = &sr_tab[j];
                 if (! e->e_live)
                     continue;
+                reserved = &proc[j];
 #ifdef SWAP_IMAGE_ALIGN
-                mfree (swapmap, sr_flash_span (e), e->e_blk[SR_DATA]);
+                mfree (swapmap, sr_flash_span (e), reserved->p_daddr);
 #else
                 for (seg = 0; seg < SR_NSEG; seg++)
                     if (e->e_rlen[seg])
                         mfree (swapmap, btod (e->e_rlen[seg]),
-                            e->e_blk[seg]);
+                            seg == SR_DATA ? reserved->p_daddr :
+                            seg == SR_STACK ? reserved->p_saddr :
+                            reserved->p_addr);
 #endif
+                reserved->p_daddr = 0;
+                reserved->p_saddr = 0;
+                reserved->p_addr = 0;
             }
             if (swapramdebug)
                 printf ("swapram: evacuate: no flash for pid %d\n",
                     p->p_pid);
             return -1;
         }
+        p->p_daddr = blocks[SR_DATA];
+        p->p_saddr = blocks[SR_STACK];
+        p->p_addr = blocks[SR_U];
     }
+    if (images == 0)
+        return 0;
+    swapnext = next;
+    swap_cursor_publish (swapnext);
+    bp = geteblk ();
     for (i = 0; i < NPROC; i++) {
         e = &sr_tab[i];
         if (! e->e_live)
@@ -611,25 +679,23 @@ swapram_evacuate (void)
             if (e->e_rlen[seg] == 0)
                 continue;
             n = sr_expand (off, e->e_clen[seg], NULL, e->e_rlen[seg],
-                e->e_blk[seg]);
+                seg == SR_DATA ? p->p_daddr :
+                seg == SR_STACK ? p->p_saddr : p->p_addr, bp);
             if (n != (int) e->e_rlen[seg])
                 panic ("swapram: evacuate expand");
             off += e->e_clen[seg];
         }
-        p->p_daddr = e->e_blk[SR_DATA];
-        p->p_saddr = e->e_blk[SR_STACK];
-        p->p_addr = e->e_blk[SR_U];
         if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
             panic ("swapram: evacuate free");
         if (swapramdebug)
             printf ("swapram: pid %d evacuated %u -> %u bytes at %u\n",
-                p->p_pid, e->e_fill,
+                p->p_pid, e->e_res,
                 (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
-                    e->e_rlen[SR_U]), (u_int) e->e_blk[SR_DATA]);
+                    e->e_rlen[SR_U]), (u_int) p->p_daddr);
         e->e_live = 0;
-        e->e_fill = 0;
         e->e_res = 0;
     }
+    brelse (bp);
     return 0;
 }
 

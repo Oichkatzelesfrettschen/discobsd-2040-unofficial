@@ -62,7 +62,14 @@ extern char runout;                 /* scheduling flag */
 extern int  runrun;                 /* scheduling flag */
 extern char curpri;                 /* more scheduling */
 
+#ifdef SWAP_IMAGE_ALIGN
+extern size_t   swapnext;           /* next preferred raw-swap block */
+extern u_int    nswap;              /* size of swap space */
+void swap_cursor_init(u_int);
+void swap_cursor_publish(size_t);
+#else
 extern u_int    swapstart, nswap;   /* start and size of swap space */
+#endif
 extern int      updlock;            /* lock for sync */
 extern daddr_t  rablock;            /* block to be read ahead */
 extern dev_t    rootdev;            /* device of the root */

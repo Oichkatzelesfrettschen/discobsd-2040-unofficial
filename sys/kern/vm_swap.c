@@ -164,8 +164,9 @@ swapout (p, freecore, odata, ostack)
     if (! ram)
 #endif
 #ifdef SWAP_IMAGE_ALIGN
-    if (malloc3_contiguous (swapmap, btod (p->p_dsize - tsize),
-        btod (p->p_ssize), btod (USIZE), SWAP_IMAGE_ALIGN, a) == 0) {
+    if (malloc3_contiguous_next (swapmap, btod (p->p_dsize - tsize),
+        btod (p->p_ssize), btod (USIZE), SWAP_IMAGE_ALIGN, &swapnext,
+        a) == 0) {
 #else
     if (malloc3 (swapmap, btod (p->p_dsize - tsize), btod (p->p_ssize),
         btod (USIZE), a) == NULL) {
@@ -179,6 +180,12 @@ swapout (p, freecore, odata, ostack)
         printf ("\n");
         panic ("out of swap space");
     }
+#ifdef SWAP_IMAGE_ALIGN
+#ifdef SWAPRAM
+    if (! ram)
+#endif
+        swap_cursor_publish (swapnext);
+#endif
     p->p_flag |= SLOCK;
     if (odata) {
 #ifdef SWAPRAM

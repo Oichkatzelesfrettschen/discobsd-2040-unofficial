@@ -1,3 +1,12 @@
+discobsd-host (1.0.6) noble; urgency=medium
+
+  * ports: match the board on Windows, where the PnP manager reports the
+    USB serial number upper-cased ("RP2040") and usbser.sys exposes no
+    product string; discobsd-term --list and the web console found no
+    board there since 1.0.0.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Wed, 16 Sep 2026 07:00:00 -0700
+
 discobsd-host (1.0.5) noble; urgency=medium
 
   * discobsd-web: accessible names on every key, aria-pressed on Ctrl,

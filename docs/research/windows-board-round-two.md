@@ -137,12 +137,18 @@ was in.
 
 ## Running the console from the port checkout on Windows
 
-    cd ..\discobsd-pico-unofficial\distrib\rp2040\host
-    python -m pip install --user .
+    cd ..\discobsd-pico-unofficial
+    python -m pip install --user pyserial      # the one dependency
 
-    discobsd-console up        # web console and short link, detached
-    discobsd-console status    # running or stopped, the URLs
-    discobsd-console down      # stop both
+    .\discobsd-console up        # web console and short link, detached
+    .\discobsd-console status    # running or stopped, the URLs
+    .\discobsd-console down      # stop both
+
+PR #84 put discobsd-console (POSIX sh) and discobsd-console.cmd at the
+root of the tree; they run the package from distrib/rp2040/host/src
+with no install. Under Git Bash the sh one is ./discobsd-console with
+PYTHON=python. A detached server keeps the directory it was started
+from open, so start it from the main checkout, not a worktree.
 
 `up` prints a short URL (port 42069) that redirects to the tokenized
 console URL (port 7681) on the machine's LAN address, and creates

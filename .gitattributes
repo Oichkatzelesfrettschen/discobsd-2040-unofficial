@@ -1,0 +1,2 @@
+# The root wrapper is a POSIX sh script run on Windows too: keep LF.
+/discobsd-console text eol=lf

@@ -112,6 +112,47 @@ COM3 again: 2 minutes 43 seconds end to end. Every later flash needs
 no hand on the board: `bootloader` from the console or `picotool
 reboot -u -f` from the host, then a file copy.
 
+## 5. The web console held a session for a page that had left
+
+Running the console the packaged way surfaced one more defect. A page
+that reached the console through the short link was redirected to the
+LAN address, opened its socket, and was navigated away from; Chrome
+kept the socket open, and every later viewer saw "The console is in use
+by another session" until the server was restarted. discobsd-web read
+the viewer's frames with no bound, so any viewer that never closed (a
+tab kept in the back-forward cache, a device that left the LAN) held
+the one console forever.
+
+Fix, PR #83, discobsd-host 1.0.7: the session loop reads through a
+select()-based reader (the request handler's socket file refuses every
+read after one timeout, a CPython rule, so it could not be reused with
+a timeout), sends a WebSocket ping after 15 seconds of silence, and
+ends the session after another 15 silent seconds; a pong or any frame
+resets the count, a client ping is answered, and the serial reader and
+the control replies share a lock so frames never interleave. Bytes the
+handler read ahead with the handshake are carried into the reader. The
+page closes its socket on pagehide and reloads on a pageshow from the
+cache. Five tests cover it. On this host: down, up, and the next viewer
+was in.
+
+## Running the console from the port checkout on Windows
+
+    cd ..\discobsd-pico-unofficial\distrib\rp2040\host
+    python -m pip install --user .
+
+    discobsd-console up        # web console and short link, detached
+    discobsd-console status    # running or stopped, the URLs
+    discobsd-console down      # stop both
+
+`up` prints a short URL (port 42069) that redirects to the tokenized
+console URL (port 7681) on the machine's LAN address, and creates
+%APPDATA%\discobsd\web.env with the token, plus web.log, link.log and
+the pid files. Open the full URL, or the short one from another device
+on the LAN; on the machine itself http://127.0.0.1:7681/?token=... also
+works. `discobsd-term` attaches the current terminal instead, with
+Ctrl-] q to leave. Every command works the same from the release zip's
+.exe files with no Python installed.
+
 ## Build environment
 
 This host has no C compiler, bmake or ARM toolchain, so the port was

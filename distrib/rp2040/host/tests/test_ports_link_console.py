@@ -20,8 +20,11 @@ def test_board_is_selected_by_usb_identity():
         info("/dev/ttyACM3", ports.USB_VID, ports.USB_PID, "rp2040", "DiscoBSD RP2040 console"),
         info("/dev/ttyACM1", ports.USB_VID, 0x0003, "E66", "Pico"),  # BOOTSEL bootrom
         info("COM7", ports.USB_VID, ports.USB_PID, "rp2040", None),
+        # Windows: the PnP manager upper-cases the instance ID the serial
+        # number is read from, and usbser.sys exposes no product string.
+        info("COM3", ports.USB_VID, ports.USB_PID, "RP2040", None),
     ]
-    assert ports.list_boards(lambda: listing) == ["/dev/ttyACM3", "COM7"]
+    assert ports.list_boards(lambda: listing) == ["/dev/ttyACM3", "COM3", "COM7"]
     assert ports.find_board(lambda: listing, environ={}) == "/dev/ttyACM3"
 
 

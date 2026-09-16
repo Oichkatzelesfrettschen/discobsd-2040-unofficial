@@ -33,7 +33,7 @@ operating system.
 | Arch, CachyOS | `sudo pacman -U discobsd-host-*.pkg.tar.zst` (or `makepkg -si` in `packaging/arch`) |
 | Ubuntu 24.04, Debian | `sudo apt install ./discobsd-host_*.deb` |
 | any OS with Python 3.9+ | `pipx install discobsd_host-*.whl` (or `pip install discobsd-host`) |
-| Windows | unzip `discobsd-host-windows.zip`; run the `.exe` files from a terminal (no Python needed) |
+| Windows | unzip `discobsd-host-windows.zip`; run the `.exe` files from a terminal (no Python needed); the board is a `USB Serial Device (COMn)` under the inbox usbser driver, and the `Reset` interface it also exposes stays without a driver, which only picotool needs |
 | macOS | unzip `discobsd-host-macos.zip`, or `pipx install` the wheel |
 
 The Arch and Debian packages also install the udev rule that names the

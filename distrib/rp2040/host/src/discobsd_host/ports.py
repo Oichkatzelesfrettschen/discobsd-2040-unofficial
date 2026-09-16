@@ -3,9 +3,13 @@
 The kernel enumerates as USB vendor 0x2e8a, product 0x000a, with the fixed
 serial number "rp2040" and the product string "DiscoBSD RP2040 console".
 pyserial's port enumeration exposes those on Linux, Windows, and macOS, so
-identity, not the drifting device number, selects the board. The
-DISCOBSD_PORT environment variable overrides discovery for a board behind
-an adapter or a test fixture.
+identity, not the drifting device number, selects the board. Windows
+reports the serial number from the device instance ID, which the PnP
+manager upper-cases ("RP2040"), and its inbox usbser driver exposes no
+product string, so the serial number is compared without regard to case
+and the product string is only a second chance. The DISCOBSD_PORT
+environment variable overrides discovery for a board behind an adapter
+or a test fixture.
 """
 
 from __future__ import annotations
@@ -31,7 +35,7 @@ def _is_board(info) -> bool:
     serial_number = getattr(info, "serial_number", None) or ""
     product = getattr(info, "product", None) or ""
     if vid == USB_VID and pid == USB_PID:
-        return serial_number == USB_SERIAL or "DiscoBSD" in product
+        return serial_number.lower() == USB_SERIAL or "DiscoBSD" in product
     return False
 
 

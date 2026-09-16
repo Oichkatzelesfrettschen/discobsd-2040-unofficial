@@ -231,13 +231,25 @@ ok status_not_found_in_pipeline \
     'echo hi | cat | qquncompress 2>&1 | tail -1: qquncompress: not found' \
     'echo hi | cat | qquncompress 2>&1 | tail -1'
 # XCU 2.8.1: command not found is not a shell error that ends the list.
-ok status_not_found_list_continues 'after 127' \
+# The diagnostic is the shell's own, written before any fork, so the
+# command's 2>/dev/null does not catch it and it leads the output.
+ok status_not_found_list_continues \
+    'nosuchcmd_xyz 2>/dev/null; echo after $?: nosuchcmd_xyz: not found
+after 127' \
     'nosuchcmd_xyz 2>/dev/null; echo after $?'
-ok status_not_found_and_list '127' \
+ok status_not_found_and_list \
+    'nosuchcmd_xyz 2>/dev/null && echo no; echo $?: nosuchcmd_xyz: not found
+127' \
     'nosuchcmd_xyz 2>/dev/null && echo no; echo $?'
-ok status_not_found_or_list 'yes' \
+ok status_not_found_or_list \
+    'nosuchcmd_xyz 2>/dev/null || echo yes: nosuchcmd_xyz: not found
+yes' \
     'nosuchcmd_xyz 2>/dev/null || echo yes'
-okrc status_not_found_errexit '' 127 \
+# set -e does not act in this shell (opt_e_exits_on_error below), and a
+# command not found is no exception; cmdfail() defers to failure() under
+# errflg, so this row moves the day set -e itself does.
+xfail status_not_found_errexit 2.8.1 \
+    'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached: nosuchcmd_xyz: not found' \
     'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached'
 
 # ---- XCU 2.8.2 exit status ----

@@ -107,11 +107,11 @@ int     *pf1, *pf2;
 					{
 						pos = hashdata(cmdhash);
 						if (pos == 1)
-							failure(*com, notfound, EXNOTFOUND);
+							cmdfail(*com, notfound, EXNOTFOUND);
 						else if (pos == 2)
-							failure(*com, badexec, EXNOEXEC);
+							cmdfail(*com, badexec, EXNOEXEC);
 						else
-							failure(*com, badperm, EXNOEXEC);
+							cmdfail(*com, badperm, EXNOEXEC);
 						break;
 					}
 

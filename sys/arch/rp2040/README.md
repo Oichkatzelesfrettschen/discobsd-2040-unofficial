@@ -202,7 +202,18 @@ subclass 00, protocol 01, on interface 2, and answers its two requests:
 BOOTSEL through the boot ROM's USB-boot entry, and a flash reboot through
 AIRCR. `picotool reboot -u` therefore returns the board to the ROM loader
 with no hand on the button, which matters on a board whose only other route
-back is a power cycle with BOOTSEL held.
+back is a power cycle with BOOTSEL held. The device reports USB 2.1 and
+carries a BOS descriptor with the Microsoft OS 2.0 platform capability,
+and answers the vendor request for the descriptor set with the Pico SDK's
+own: the reset interface is a WinUSB function with the SDK's interface
+GUID, so Windows binds its inbox WinUSB driver to it at plug-in and
+picotool works there with no Zadig and no INF, the way it does with an
+SDK program. The CDC interfaces are not named in the set and keep usbser.
+
+From the board itself, `bootloader` (reboot's RB_BOOTLOADER, a name
+adminbox answers to) syncs the disks and calls the same ROM entry, so the
+board reappears as the RPI-RP2 drive and takes a UF2 by file copy on any
+host with no tool at all.
 
 Output goes through a 4 KB ring rather than straight to the endpoint, since
 the host drains the IN endpoint only while a terminal holds the port open,

@@ -23,7 +23,7 @@ TOOLS=		shutdown reboot sysctl
 BUILTIN_TOOLS=	true false nohup
 
 # Other names a tool answers to, as name:tool.
-ALIASES=	halt:reboot
+ALIASES=	halt:reboot bootloader:reboot
 
 OBJS=		${TOOLS:S/$/.tool.o/}
 BUILTIN_OBJS=	tiny_applets.o

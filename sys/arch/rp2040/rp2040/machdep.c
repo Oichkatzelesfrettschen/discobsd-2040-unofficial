@@ -646,6 +646,25 @@ boot(dev_t dev, int howto)
 		printf("done\n");
 	}
 	(void)splhigh();
+	if (howto & RB_BOOTLOADER) {
+		/*
+		 * Enter the boot ROM's USB loader (datasheet 2.8.3.1,
+		 * reset_usb_boot): the board reappears as the RPI-RP2
+		 * mass-storage device and takes a UF2, on any host with no
+		 * driver and no tool. Argument 0 keeps every interface and
+		 * lights no LED. The USB cable is about to drop, so the
+		 * console is drained first. The ROM never returns.
+		 */
+		void (*rom_reset)(u_int, u_int);
+
+#ifdef UARTUSB_ENABLED
+		usbdrain();
+#endif
+		rom_reset = (void (*)(u_int, u_int))
+		    rom_func_lookup(ROM_CODE('U', 'B'));
+		rom_reset(0, 0);
+		/* NOTREACHED */
+	}
 	if (!(howto & RB_HALT)) {
 		if ((howto & RB_DUMP) && dumpdev != NODEV) {
 			/*

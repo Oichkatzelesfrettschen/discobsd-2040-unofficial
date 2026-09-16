@@ -23,6 +23,11 @@ reboot \- stopping and restarting the system
 [
 .B \-lqndarsRD
 ]
+.br
+.B /sbin/bootloader
+[
+.B \-lqn
+]
 .SH DESCRIPTION
 2.11BSD is started by placing it in memory at location zero and transferring to
 its entry point.  Since the system is not reentrant, it is necessary to read
@@ -118,6 +123,17 @@ case.
 and
 .I fastboot
 are synonymous with ``\fBreboot \-h\fP'' and ``\fBreboot \-f\fP'', respectively.
+.PP
+.I Bootloader
+syncs the disks, then hands the processor to the firmware's loader
+instead of restarting the system.  On the Raspberry Pi Pico this is the
+boot ROM's USB loader: the board reappears on the host as the RPI-RP2
+mass-storage device and accepts a UF2 file, on any host operating system
+with no driver and no tool.  Copy the new kernel or file system image to
+that drive; the board restarts into it when the copy completes.  A hung
+system, which cannot run
+.I bootloader,
+reaches the same loader by holding BOOTSEL through a replug.
 .PP
 .B "Power fail and crash recovery:"
 Normally, the system will reboot itself at power-up or after crashes

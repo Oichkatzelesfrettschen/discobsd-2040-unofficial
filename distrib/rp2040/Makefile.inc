@@ -59,7 +59,9 @@ BOARDLIBC_WORK=	${TOPSRC}/distrib/obj/boardlibc.${MACHINE}
 # top-level Makefile does not include sys.mk, so this repeats the same
 # per-host-OS lookup rather than assuming the Linux path.
 _HOST_OSNAME!=	uname -s
-BOARDLIBC_GCCPREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
+BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
+			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
+		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
 			echo "/usr/local/bin/arm-none-eabi" ; \
 		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
 			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \

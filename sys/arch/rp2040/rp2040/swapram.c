@@ -60,7 +60,10 @@
  * fine because every byte is written before it is read.
  */
 u_char                  swapram_pool_mem[SWAPRAM_KB * 1024]
-                            __attribute__ ((section (".swapram_pool")));
+#ifdef __ELF__          /* the host test on macOS builds this as Mach-O */
+                            __attribute__ ((section (".swapram_pool")))
+#endif
+                            ;
 #define sr_pool         swapram_pool_mem
 static struct swapram_seg sr_seg[NPROC + 1];
 static struct swapram_pool sr_map;

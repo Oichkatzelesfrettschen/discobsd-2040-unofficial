@@ -15,7 +15,9 @@
 #include <sys/stat.h>
 #include <sys/dir.h>
 #include <sys/ioctl.h>
+#ifndef __APPLE__		/* no tape ioctls on macOS; backtape seeks */
 #include <sys/mtio.h>
+#endif
 #include <sys/time.h>
 #include <signal.h>
 #include <errno.h>
@@ -821,11 +823,20 @@ putfile(longname, shortname, parent)
                 !strcmp("..", dp->d_name))
                 continue;
             strcpy(cp, dp->d_name);
+#ifdef __APPLE__
+            /*
+             * The stream stays open across the recursion: a telldir
+             * cookie is only good on the stream that issued it there,
+             * and a descriptor per directory level is nothing on a host.
+             */
+            putfile(buf, cp, newparent);
+#else
             l = telldir(dirp);
             closedir(dirp);
             putfile(buf, cp, newparent);
             dirp = opendir(".");
             seekdir(dirp, l);
+#endif
         }
         closedir(dirp);
         if (chdir(parent) < 0) {
@@ -1696,6 +1707,7 @@ writetbuf(buffer, n)
 void
 backtape()
 {
+#ifndef __APPLE__
     static int mtdev = 1;
     static struct mtop mtop = {MTBSR, 1};
     struct mtget mtget;
@@ -1709,6 +1721,7 @@ backtape()
             done(4);
         }
     } else
+#endif
         lseek(mt, (daddr_t) -TBLOCK*nblock, 1);
     recno--;
 }

@@ -155,15 +155,28 @@ join the `discobsd` group instead and log in again:
 
 #### macOS
 
-1. Download `discobsd-host-macos.zip`, extract it, and open Terminal in
-   the folder. Gatekeeper blocks an unsigned download the first time:
-   control-click each program, choose Open, or run
-   `xattr -dr com.apple.quarantine .` in the folder.
-2. Plug the board in; it appears as `/dev/cu.usbmodem...`.
+No driver and nothing to sign: macOS binds its own USB serial driver to
+the board and creates `/dev/cu.usbmodemrp20401`, world-writable, the
+moment it is plugged in.
 
-       ./discobsd-term --list
-       ./discobsd-term --probe
-       ./discobsd-term
+1. Install the tools through Homebrew's pipx (Apple's own Python 3.9 has
+   no pyserial), and picotool if you will reflash:
+
+       brew install pipx picotool
+       pipx ensurepath          # once, then open a new terminal
+       pipx install discobsd-host
+
+2. Plug the board in and connect. Ctrl-] q quits; Ctrl-] ? lists the
+   other escapes.
+
+       discobsd-term --list
+       discobsd-term --probe
+       discobsd-term
+
+The `discobsd-host-macos.zip` on the release page holds the same four
+programs as Apple silicon executables for a terminal (`./discobsd-term`
+in the extracted folder); Gatekeeper refuses them from the Finder, and
+an Intel Mac needs the pipx install.
 
 #### Arch Linux, CachyOS
 

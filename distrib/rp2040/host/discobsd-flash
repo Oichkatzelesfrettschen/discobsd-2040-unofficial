@@ -1,0 +1,138 @@
+#!/bin/sh
+#
+# discobsd-flash -- reflash the DiscoBSD RP2040 board with picotool, on
+# Linux and macOS, and eject the RPI-RP2 volume the way the host wants.
+#
+# The running kernel answers picotool's reset request and reboots into
+# BOOTSEL, where the boot ROM offers a mass-storage volume named RPI-RP2
+# and the PICOBOOT interface that picotool loads through. The host mounts
+# the volume on its own; taking the board out of BOOTSEL with it mounted
+# earns a "Disk Not Ejected Properly" complaint on macOS and a stale
+# mount on Linux. This script unmounts the volume before every reboot out
+# of BOOTSEL, and waits for the boot ROM itself, because picotool's own
+# wait after a forced reboot is shorter than macOS takes to enumerate it.
+#
+#   discobsd-flash FILE.uf2 ...   load each image in order, then reboot
+#   discobsd-flash --bootsel      into BOOTSEL and stop, volume mounted,
+#                                 for a copy by hand; --eject afterwards
+#   discobsd-flash --eject        unmount the volume, reboot into the kernel
+#
+# A hung kernel does not answer the reset request: hold BOOTSEL through a
+# replug, then run this the same way.
+set -eu
+
+VOLUME=RPI-RP2
+
+die() {
+	echo "discobsd-flash: $*" >&2
+	exit 1
+}
+
+in_bootsel() {
+	picotool info >/dev/null 2>&1
+}
+
+# picotool exits nonzero, with a hint, when the only board is running a
+# kernel; it exits zero once the boot ROM answers.
+wait_bootsel() {
+	i=0
+	until in_bootsel; do
+		i=$((i + 1))
+		[ "$i" -lt 40 ] || die "the board did not reach BOOTSEL; hold BOOTSEL through a replug"
+		sleep 0.5
+	done
+}
+
+enter_bootsel() {
+	if in_bootsel; then
+		return
+	fi
+	echo "discobsd-flash: rebooting the kernel into BOOTSEL" >&2
+	picotool reboot -u -f >/dev/null 2>&1 || true
+	wait_bootsel
+}
+
+# Where the host mounted the boot ROM's volume, or nothing.
+mounted_at() {
+	case "$(uname -s)" in
+	Darwin)
+		[ -d "/Volumes/$VOLUME" ] && echo "/Volumes/$VOLUME"
+		;;
+	Linux)
+		findmnt -rn -S "LABEL=$VOLUME" -o TARGET 2>/dev/null | head -1
+		;;
+	esac
+	return 0
+}
+
+# The mount follows enumeration by a moment; wait for it so an unmount
+# is not overtaken by a mount that arrives a second later.
+wait_mount() {
+	i=0
+	while [ -z "$(mounted_at)" ]; do
+		i=$((i + 1))
+		[ "$i" -lt 20 ] || return 0
+		sleep 0.5
+	done
+}
+
+eject() {
+	wait_mount
+	m=$(mounted_at)
+	[ -n "$m" ] || return 0
+	echo "discobsd-flash: unmounting $m" >&2
+	case "$(uname -s)" in
+	Darwin)
+		diskutil unmount "$m" >/dev/null
+		;;
+	Linux)
+		if command -v udisksctl >/dev/null 2>&1; then
+			udisksctl unmount -b "$(findmnt -rn -S "LABEL=$VOLUME" -o SOURCE | head -1)" >/dev/null
+		else
+			umount "$m"
+		fi
+		;;
+	esac
+}
+
+leave_bootsel() {
+	eject
+	echo "discobsd-flash: rebooting into the kernel" >&2
+	picotool reboot >/dev/null 2>&1 || true
+}
+
+command -v picotool >/dev/null 2>&1 || die "picotool is not installed (brew install picotool; apt or pacman likewise)"
+
+case "${1:-}" in
+"")
+	die "usage: discobsd-flash FILE.uf2 ... | --bootsel | --eject"
+	;;
+--bootsel)
+	enter_bootsel
+	wait_mount
+	echo "discobsd-flash: in BOOTSEL; $VOLUME is at $(mounted_at); copy a UF2 there, then discobsd-flash --eject" >&2
+	;;
+--eject)
+	in_bootsel || die "the board is not in BOOTSEL"
+	leave_bootsel
+	;;
+-*)
+	die "unknown option $1"
+	;;
+*)
+	for f in "$@"; do
+		[ -r "$f" ] || die "cannot read $f"
+		case "$f" in *.uf2) ;; *) die "$f is not a .uf2 file" ;; esac
+	done
+	enter_bootsel
+	# The volume goes first: picotool loads through PICOBOOT, and a volume
+	# still mounted during the write is a stale view of the flash anyway.
+	eject
+	for f in "$@"; do
+		echo "discobsd-flash: loading $f" >&2
+		picotool load "$f"
+	done
+	echo "discobsd-flash: rebooting into the kernel" >&2
+	picotool reboot >/dev/null 2>&1 || true
+	;;
+esac

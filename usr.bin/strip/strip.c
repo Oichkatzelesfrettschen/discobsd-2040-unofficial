@@ -3,11 +3,7 @@
  * All rights reserved.  The Berkeley software License Agreement
  * specifies the terms and conditions for redistribution.
  */
-#ifdef CROSS
-#   include </usr/include/stdio.h>
-#else
-#   include <stdio.h>
-#endif
+#include <stdio.h>
 #include <a.out.h>
 #include <signal.h>
 #include <stdlib.h>

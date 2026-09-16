@@ -4,7 +4,13 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -Os -ansi
 
-YACC            = bison -y -Wno-yacc  # %expect is a bison extension in -y mode.
+# %expect is a bison extension in -y mode, and -Wno-yacc needs bison 3.
+# Apple's command line tools carry bison 2.3, and Homebrew keeps its
+# bison out of PATH (keg-only), so that keg is looked for first.
+BISON!=		for b in /opt/homebrew/opt/bison/bin/bison /usr/local/opt/bison/bin/bison ; do \
+			if [ -x "$$b" ] ; then echo "$$b" ; exit 0 ; fi ; \
+		done ; echo bison
+YACC            = ${BISON} -y -Wno-yacc
 LIBS            = -lm -lc
 FILES           = awk.lx.o b.o main.o tran.o lib.o run.o parse.o proctab.o freeze.o
 SOURCE          = awk.def.h awk.g.y awk.lx.l b.c lib.c main.c parse.c \

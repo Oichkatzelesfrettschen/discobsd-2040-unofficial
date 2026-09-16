@@ -17,7 +17,9 @@ STACK?=	4096
 CC?=	cc
 # machine/ mirrors what compile/PICO/Makefile links, so swapram_pool.c
 # reaches <machine/swapram.h> by the same path the kernel build gives it.
-CFLAGS=	-std=gnu17 -g -O2 -Wall -Wextra -Werror -I. -I$(HS) $(HSOPTS)
+# It sits behind the host's headers (-idirafter): macOS's <sys/signal.h>
+# includes <machine/signal.h>, which a front-of-path link would shadow.
+CFLAGS=	-std=gnu17 -g -O2 -Wall -Wextra -Werror -idirafter . -I$(HS) $(HSOPTS)
 
 # The codec is vendored verbatim, and upstream falls through a switch case
 # without the attribute GCC 7 and later want, so that one warning is waived
@@ -35,7 +37,9 @@ OBJS=	swapram_test.o swapram_pool.o heatshrink_encoder.o \
 # for those two objects alone.
 EVACOBJS= swapram_evac_test.o swapram_kern.o subr_rmap.o swapram_pool_k.o \
 	heatshrink_encoder.o heatshrink_decoder.o
-KCFLAGS= -std=gnu17 -g -O2 -Wall -Wextra -Werror -DSWAPRAM_KB=64 -Ishim -I. -I$(HS) $(HSOPTS)
+# -Wno-deprecated-non-prototype: subr_rmap.c keeps its K&R definitions,
+# which clang 17 rejects under -Werror; gcc ignores an unknown -Wno- flag.
+KCFLAGS= -std=gnu17 -g -O2 -Wall -Wextra -Werror -Wno-deprecated-non-prototype -DSWAPRAM_KB=64 -Ishim -idirafter . -I$(HS) $(HSOPTS)
 
 all: run evac
 

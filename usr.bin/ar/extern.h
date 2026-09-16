@@ -44,4 +44,6 @@ int	 compare(char *);
 int	 tmp(void);
 char	*files(char **);
 char	*rname(char *);
+#ifndef __APPLE__	/* macOS declares its own strmode(int, char *) in <string.h> */
 void	 strmode(mode_t, char *);
+#endif

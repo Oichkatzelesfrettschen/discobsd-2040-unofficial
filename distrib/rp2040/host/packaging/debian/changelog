@@ -1,3 +1,17 @@
+discobsd-host (1.0.8) noble; urgency=medium
+
+  * discobsd-web: a viewer whose socket is reset (a tab closed with data
+    unread, which macOS reports as ECONNRESET) ends the session quietly
+    instead of printing a traceback for every such disconnect.
+  * README: a macOS section; the console needs no driver there, the node
+    is /dev/cu.usbmodemrp20401, and pipx from Homebrew is the install.
+  * discobsd-flash: reflash through picotool on Linux and macOS, waiting
+    for the boot ROM and unmounting the RPI-RP2 volume before each reboot.
+  * DEVELOPMENT.md: how to work on the tools and the port from each host,
+    the release artifacts, and what every test needs per operating system.
+
+ -- DiscoBSD RP2040 port <noreply@github.com>  Tue, 16 Sep 2026 10:30:00 +0000
+
 discobsd-host (1.0.7) noble; urgency=medium
 
   * discobsd-web: a viewer that goes silent is pinged and, if it does not

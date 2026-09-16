@@ -966,7 +966,12 @@ int main (int argc, char **argv)
             print_help (argv[0]);
             return -1;
         }
+#ifdef HAVE_FUSE
         return fs_mount(&fs, argv[i+1]);
+#else
+        fprintf (stderr, "fsutil: built without FUSE, --mount is unavailable on this host\n");
+        return -1;
+#endif
     }
 
     /* Print the structure of flesystem. */

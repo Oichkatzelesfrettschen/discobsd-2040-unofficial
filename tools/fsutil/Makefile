@@ -4,7 +4,7 @@ TOPSRC!=cd ../..; pwd
 
 CFLAGS		= -O -Wall
 OBJS		= fsutil.o superblock.o block.c inode.o create.o check.o \
-                  file.o mount.o manifest.o
+                  file.o manifest.o
 PROG		= fsutil
 
 # For Mac OS X
@@ -14,9 +14,20 @@ FUSE_PATH!=if [ x"${_HOST_OSNAME}" = x"Darwin" ] ; then \
 		echo "" ; \
 	fi
 
-# Fuse
+# The --mount command needs FUSE. It is built when pkg-config finds it
+# (libfuse-dev on Linux, macFUSE on macOS) and left out otherwise, so
+# creating, checking and packing images works on a host without it.
+HAVE_FUSE!=	if PKG_CONFIG_PATH=${FUSE_PATH} pkg-config fuse --exists 2>/dev/null ; then \
+		echo yes ; \
+	else \
+		echo no ; \
+	fi
+.if ${HAVE_FUSE} == "yes"
+OBJS+=		mount.o
+CFLAGS+=	-DHAVE_FUSE
 MOUNT_CFLAGS!=	PKG_CONFIG_PATH=${FUSE_PATH} pkg-config fuse --cflags
 LIBS!=		PKG_CONFIG_PATH=${FUSE_PATH} pkg-config fuse --libs
+.endif
 
 # libbsd-dev package on Linux in overlay mode.
 CFLAGS+=	${_LIBBSD_CFLAGS}

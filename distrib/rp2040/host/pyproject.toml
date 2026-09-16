@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "discobsd-host"
-version = "1.0.7"
+version = "1.0.8"
 description = "Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 readme = "README.md"
 # The table form, not the PEP 639 string: setuptools 68.1, the version

@@ -16,6 +16,7 @@ browser on the local network.
 | `discobsd-link` | redirect a short URL (port 42069) to the tokenized console URL |
 | `discobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
 | `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board |
+| `discobsd-flash` | reflash with picotool: `FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
 
 Log in as `operator` with no password, then `su` to root. The console
 serves one session at a time; leave it cleanly as described under "Keys
@@ -49,6 +50,45 @@ From a checkout of the port:
 
     cd distrib/rp2040/host
     python3 -m pip install --user .          # or: pipx install .
+
+## macOS
+
+Nothing kernel-side is installed and nothing needs signing: macOS binds
+its own CDC-ACM driver to the board and creates `/dev/cu.usbmodemrp20401`
+(and a `tty.` twin, which the tools skip because it blocks on carrier),
+world-writable, the moment it is plugged in. `discobsd-term --list`
+prints that node; `--probe` prints the login banner.
+
+Apple's command line tools ship Python 3.9, the oldest release the
+package accepts, without pyserial. Use Homebrew's pipx, which brings a
+current Python and keeps the tools out of the system interpreter:
+
+    brew install pipx picotool     # picotool only to reflash
+    pipx ensurepath                # once; ~/.local/bin on PATH, new shell
+    pipx install discobsd-host     # or, from a checkout: pipx install distrib/rp2040/host
+    discobsd-term
+
+The same four commands install with `uv tool install discobsd-host`;
+both put their links in `~/.local/bin`, so choose one.
+
+picotool talks to the board through libusb and needs no driver either.
+Reflash with `discobsd-flash flash.uf2` (or the kernel's `unix.uf2`,
+or both in order): it reboots the kernel into BOOTSEL, waits for the
+boot ROM, unmounts the `RPI-RP2` volume so macOS does not complain that
+a disk was not ejected properly, loads each image, and reboots. The
+one-shot `picotool info -f` form is not reliable on macOS, whose
+enumeration outlasts picotool's wait; `picotool reboot -u -f` and then
+the command always is, and the script does that. For a copy by hand,
+`discobsd-flash --bootsel` leaves the volume mounted and
+`discobsd-flash --eject` unmounts it and reboots.
+
+The release zip holds PyInstaller executables built on Apple silicon and
+signed ad hoc, not notarized. Run them from a terminal: an Intel Mac and
+a Finder double-click (which Gatekeeper refuses for an unnotarized
+download) both want the pipx install instead. `discobsd-console up`
+keeps its state under `~/Library/Application Support/discobsd`.
+`discobsd-connect` finds `cu` on every Mac and `tio` or `picocom` from
+Homebrew.
 
 ## Web console on the LAN
 

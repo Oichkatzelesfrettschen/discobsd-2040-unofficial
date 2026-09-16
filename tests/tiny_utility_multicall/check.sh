@@ -3,6 +3,7 @@ set -eu
 
 driver=$1
 probe=$2
+top=$(cd "$(dirname "$0")/../.." && pwd)
 temporary_directory=$(mktemp -d)
 trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 
@@ -73,8 +74,11 @@ grep -q 'missing-nohup-command' "$temporary_directory/missing.out" ||
 	cd "$temporary_directory"
 	ln -s "$driver" driver
 	ln -s "$probe" probe
-	script -q -e -c './driver nohup ./probe streams' /dev/null \
-		>terminal.out
+	# A pseudo-terminal through tools/ptyrun.py, the same on every host;
+	# script(1) differs between util-linux and BSD and the latter wants a
+	# terminal of its own on stdin.
+	${PYTHON:-python3} "$top/tools/ptyrun.py" -- \
+		./driver nohup ./probe streams < /dev/null > terminal.out
 )
 tr -d '\r' <"$temporary_directory/terminal.out" \
 	>"$temporary_directory/terminal.clean"

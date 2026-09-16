@@ -1,11 +1,7 @@
 /*
  * size
  */
-#ifdef CROSS
-#   include </usr/include/stdio.h>
-#else
-#   include <stdio.h>
-#endif
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <a.out.h>

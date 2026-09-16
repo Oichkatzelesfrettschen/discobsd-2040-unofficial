@@ -8,7 +8,10 @@ KERNEL_INCLUDES=	-I${KERNEL_BUILD} -I${TOPSRC}/sys -I${TOPSRC}/sys/arch \
 		-I${TOPSRC}/sys/arch/rp2040/dhara/compat \
 		-I${TOPSRC}/sys/arch/rp2040/heatshrink \
 		-I${TOPSRC}/sys/arch/rp2040/heatshrink/compat
+# Dead-section stripping is spelled per linker: GNU ld's and Apple's.
+GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; else echo -Wl,--gc-sections ; fi
 HOST_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -ffreestanding -fno-builtin \
+		-Wno-asm-operand-widths \
 		-fno-common -ffunction-sections -fdata-sections -DKERNEL \
 		${KERNEL_INCLUDES}
 LINEAR_CFLAGS=	-DLINEAR_NAME_CACHE -DLINEAR_BUFFER_CACHE \
@@ -24,7 +27,7 @@ cache_footprint.o: cache_footprint.c
 	${HOST_CC} ${HOST_CFLAGS} -c -o $@ ${.ALLSRC}
 
 cache_footprint: cache_footprint.o ufs_namei.test.o
-	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.o ufs_namei.test.o
+	${HOST_CC} ${GC_SECTIONS} -o $@ cache_footprint.o ufs_namei.test.o
 
 cache_footprint.linear.o: cache_footprint.c
 	${HOST_CC} ${HOST_CFLAGS} ${LINEAR_CFLAGS} -c -o $@ ${.ALLSRC}
@@ -34,7 +37,7 @@ ufs_namei.linear.test.o: ${TOPSRC}/sys/kern/ufs_namei.c
 	    -c -o $@ ${.ALLSRC}
 
 cache_footprint_linear: cache_footprint.linear.o ufs_namei.linear.test.o
-	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.linear.o \
+	${HOST_CC} ${GC_SECTIONS} -o $@ cache_footprint.linear.o \
 	    ufs_namei.linear.test.o
 
 cache_footprint.modulo.o: cache_footprint.c
@@ -45,7 +48,7 @@ ufs_namei.modulo.test.o: ${TOPSRC}/sys/kern/ufs_namei.c
 	    -c -o $@ ${.ALLSRC}
 
 cache_footprint_modulo: cache_footprint.modulo.o ufs_namei.modulo.test.o
-	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.modulo.o \
+	${HOST_CC} ${GC_SECTIONS} -o $@ cache_footprint.modulo.o \
 	    ufs_namei.modulo.test.o
 
 cache_footprint.large_hash.o: cache_footprint.c
@@ -57,7 +60,7 @@ ufs_namei.large_hash.test.o: ${TOPSRC}/sys/kern/ufs_namei.c
 
 cache_footprint_large_hash: cache_footprint.large_hash.o \
     ufs_namei.large_hash.test.o
-	${HOST_CC} -Wl,--gc-sections -o $@ cache_footprint.large_hash.o \
+	${HOST_CC} ${GC_SECTIONS} -o $@ cache_footprint.large_hash.o \
 	    ufs_namei.large_hash.test.o
 
 check-invalid-config:

@@ -10,9 +10,11 @@ TOPSRC!=cd ../..; pwd
 HS=		${TOPSRC}/sys/arch/rp2040/heatshrink
 KRP=		${TOPSRC}/sys/arch/rp2040/rp2040
 
-# -idirafter keeps the host's own <sys/...> headers ahead of the kernel's;
-# only exec_hsaout.h and exec_aout.h resolve into the kernel tree.
-CFLAGS		= -O -Wall -Wextra -Werror -I. -I${HS} -idirafter ${TOPSRC}/sys \
+# -idirafter keeps the host's own <sys/...> and <machine/...> headers ahead
+# of the kernel's (macOS's <sys/signal.h> includes <machine/signal.h>);
+# only exec_hsaout.h, exec_aout.h and machine/hsx_decoder.h resolve into
+# the kernel tree, the last through the machine link made below.
+CFLAGS		= -O -Wall -Wextra -Werror -idirafter . -I${HS} -idirafter ${TOPSRC}/sys \
 		  -DHEATSHRINK_STATIC_WINDOW_BITS=9 -DHEATSHRINK_STATIC_LOOKAHEAD_BITS=3
 HSFLAGS		= ${CFLAGS} -Wno-implicit-fallthrough
 LIBOBJS		= libhsaout.o subr_crc32.o hsx_stream.o hsx_decoder.o \

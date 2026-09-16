@@ -1,9 +1,12 @@
-# GCC arm-none-eabi toolchain on OpenBSD, FreeBSD, and Linux
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# GCC arm-none-eabi toolchain: the one on PATH (Homebrew on macOS), else
+# the packaged path on OpenBSD, FreeBSD, and Linux
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 _HOST_OSNAME!=	uname -s
 
-ARM_GCC_PREFIX!=if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
+ARM_GCC_PREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
+			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
+		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
 			echo "/usr/local/bin/arm-none-eabi" ; \
 		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
 			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \

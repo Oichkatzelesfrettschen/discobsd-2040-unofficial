@@ -72,7 +72,7 @@ and exits cleanly there.
 | `bmake MACHINE=rp2040 build`, `flash` | passes, warning-free | host tools ported: binstall, ar, size, strip, hsaout, fsutil, config; toolchain found on PATH; byacc preferred; bison from Homebrew's keg for awk; `date` in newvers.sh; the tree's tzfile.h ahead of the SDK's; `git rev-list -- HEAD` on a case-insensitive filesystem |
 | check-hsaout, check-config-makefile, check-swapram, check-flash-swap | pass | kernel headers behind the host's (`-idirafter`) in hsaout and its test |
 | check-swapram-evac | passes | the same header order; the swap pool's ELF section attribute under `__ELF__`; clang's K&R-definition error relaxed for subr_rmap.c |
-| check-cache-footprint | cache footprint passes; the exec-spool subtest links only where the linker strips before it resolves (GNU ld) | Apple's linker spelling for dead-section stripping; clang's operand-width check off for Cortex-M inline assembly it never emits |
+| check-cache-footprint | the cache footprint checks pass; the exec-spool subtest is broken on every host (it links kernel code whose callees `swapnext`, `swap_cursor_publish` and `malloc3_contiguous_next` are undefined, on Linux CI as here, and with them stubbed it crashes), so the gate is not in CI until that test is repaired | Apple's linker spelling for dead-section stripping; clang's operand-width check off for Cortex-M inline assembly it never emits |
 | check-divider | passes | a Python with `capstone` and `pyelftools` named in `PYTHON` |
 | check-elf2aout | needs the MIPS cross toolchain on any host | not a macOS matter |
 | `usr.bin/pdp11` V6 boot | passes | `cons_poll` read FIONREAD into a `long`; termios for every host build |

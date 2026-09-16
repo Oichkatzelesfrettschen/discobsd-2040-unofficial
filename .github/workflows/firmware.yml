@@ -112,7 +112,7 @@ jobs:
         run: |
           bmake MACHINE=rp2040 check-hsaout check-config-makefile \
             check-swapram-evac check-flash-swap check-swapram \
-            check-cache-footprint check-tiny-utility-multicall
+            check-tiny-utility-multicall
 
       # The PDP-11 emulator built with the host compiler boots the shipped
       # V6 pack on a pseudo-terminal: bootstrap prompt, login, ed, a

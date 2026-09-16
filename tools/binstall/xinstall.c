@@ -65,6 +65,7 @@
  */
 #define	st_atim	st_atimespec
 #define	st_mtim	st_mtimespec
+#define	vfork	fork	/* vfork is deprecated there; the child only execs */
 
 static int
 uid_from_user(const char *name, uid_t *uid)

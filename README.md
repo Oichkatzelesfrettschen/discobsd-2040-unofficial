@@ -74,7 +74,10 @@ Documentation for the port lives in `sys/arch/rp2040/doc/`: `BOOT-MAP.md`
 
 ### Use a board you were handed
 
-The board arrives flashed. Plug it into a USB port with a data cable. It
+A board handed to you by the project's testers arrives flashed; any
+other Pico is flashed in two minutes under "Build the firmware and flash
+a board" below, or from the UF2 files a release carries. Plug the board
+into a USB port with a data cable. It
 boots within a few seconds and waits at a login prompt on the USB serial
 line. Log in as `operator` with no password; run `su` (no password) for
 root. Run `sync` or `halt` before unplugging so pending writes reach the
@@ -199,6 +202,28 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 - The web page says the console is in use: another browser tab or a
   `discobsd-term` holds the serial line. Close it; the line is a single
   session.
+
+### Hardware, care and recovery
+
+- The board is a stock Raspberry Pi Pico: RP2040 at 125 MHz, 264 KB of
+  SRAM, 2 MB of QSPI flash, powered from the USB connector at 5 V and
+  drawing under 100 mA. Nothing is soldered to it and nothing else is
+  needed; the USB cable must carry data, not only power.
+- The root file system lives in the Pico's flash behind a wear-leveling
+  layer. Type `sync` before unplugging; `halt` is safer still. Pulling
+  the cable during a write loses at most that write, and `fsck` runs at
+  the next boot.
+- The V6 pack and anything you write are on the board, not in the host
+  tools; unplugging carries them with it.
+- A board that no longer answers on USB is not lost: hold BOOTSEL while
+  plugging it in, it appears as the `RPI-RP2` drive, and the two UF2
+  files from a release or a build restore it in under a minute ("Build
+  the firmware and flash a board" below).
+- Which firmware is on a board: `uname -a` prints the kernel and
+  `cat /etc/COPYRIGHT` the license notice; the release or commit the
+  images came from is stated wherever they were downloaded.
+- Questions and problems go to the issue tracker of this repository;
+  say what `discobsd-term --probe` printed and what the screen showed.
 
 ### Run Sixth Edition UNIX
 
@@ -352,13 +377,63 @@ References
 [7]: https://www.tuhs.org/cgi-bin/utree.pl
 [8]: https://developer.arm.com/documentation/ddi0419
 
-License
--------
+License and redistribution
+--------------------------
 
-DiscoBSD is distributed under a BSD-style license; see the source files.
-Vendored components carry their own: Dhara and heatshrink (ISC), stevie
-(public domain), the sbase utilities (MIT/X), and the Smaller C compiler
-(BSD).
+Everything in the image is under a permissive license and nothing is
+under the GPL. `NOTICE` at the top of the tree reproduces every notice
+that binary redistribution requires; `/etc/COPYRIGHT` on the board is
+its short form. The parts and their licenses:
+
+| part | holder | license |
+| --- | --- | --- |
+| the system, the rp2040 port, the host tools | DiscoBSD, RetroBSD | BSD 3-Clause (`LICENSE`); port files marked 2026 DiscoBSD are ISC |
+| kernel, libc, most of /bin and /usr/bin | The Regents of the University of California | Berkeley licenses of 1980-1993; the advertising clause was withdrawn by the University in 1999 |
+| the AT&T-descended programs (sh, ed, sed, awk, find, cpio, dd, look, deroff) and the V6 pack | Caldera International, Inc. | Caldera ancient-UNIX license, 2002: BSD-style with an acknowledgement in advertising |
+| second-stage boot code | Raspberry Pi (Trading) Ltd. | BSD 3-Clause |
+| Dhara, heatshrink | Daniel Beer, Scott Vokes | ISC |
+| compiler_rt soft float | LLVM Team, University of Illinois | NCSA or MIT |
+| Smaller C | Alexey Frunze | BSD 2-Clause |
+| as, ld | Serge Vakulenko | MIT/X-style |
+| textbox tools | sbase contributors | MIT |
+| stevie | public domain | Unlicense |
+| pdp11 emulator | Julius Schmidt, Dave Cheney | WTFPL |
+| coremark | EEMBC | Apache 2.0, plus a trademark agreement on the CoreMark name |
+| libgcc | Free Software Foundation | GPL-3 with the Runtime Library Exception 3.1 |
+
+To redistribute the firmware, as UF2 files or on a board:
+
+1. Ship `NOTICE` (or a document reproducing it) with the files or in
+   the product's documentation. The board carries `/etc/COPYRIGHT`,
+   which satisfies the "other materials provided with the
+   distribution" wording of every license above when the buyer can
+   read it, and the printed or online documentation must carry the
+   full `NOTICE`.
+2. Put the two acknowledgement sentences in any advertising that
+   mentions the software's features: "This product includes software
+   developed or owned by Caldera International, Inc." (required by the
+   Caldera license) and "This product includes software developed by
+   the University of California, Berkeley and its contributors" (no
+   longer required since 1999, kept as courtesy). A Tindie listing that
+   describes what the board runs is advertising in this sense.
+3. Do not use the names DiscoBSD, RetroBSD, the University of
+   California, Caldera, Raspberry Pi, or any contributor to endorse or
+   promote the product; that clause is in every license.
+4. Name the product without "Raspberry Pi" or "Pico" in the product
+   name and use referential wording in the description ("runs on a
+   Raspberry Pi Pico"), which is what Raspberry Pi's trademark rules
+   permit without a license; the Raspberry Pi logo may appear only on
+   a listing that sells the genuine board itself. Reselling a genuine
+   Pico with this firmware installed is a resale of a genuine product.
+5. Either satisfy EEMBC's CoreMark acceptable-use agreement (unmodified
+   benchmark, trademark notices) or leave `coremark` out of a product
+   image by removing its `pack` line from `distrib/rp2040/mi.rp2040`.
+6. UNIX is a registered trademark of The Open Group; describe the
+   system as "2.11BSD-derived" rather than "UNIX" in a product name.
+
+The source for the exact image is the tag or commit the UF2 files were
+built from; state it in the listing so the licenses' "source code"
+conditions can be met by pointing at it.
 
 Other platforms: STM32 and PIC32
 --------------------------------

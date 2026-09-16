@@ -22,7 +22,7 @@ GRP=		wheel
 TZDIR=		/usr/share/zoneinfo
 LOCALTIME=	Canada/Mountain
 
-FILES=		gettytab group motd rc.local ttys
+FILES=		COPYRIGHT gettytab group motd rc.local ttys
 
 # usr.bin/menu reads /etc/menu for its list of launchable commands; only
 # rp2040 ships the menu program (usr.bin/Makefile's SUBDIR), so only its

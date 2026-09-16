@@ -127,6 +127,13 @@ static struct sgttyb saved_sg;
  * erase/kill) processing and, with ECHO cleared below, our own
  * redraw replaces the kernel's echo -- SIGINT still reaches
  * edit_onintr() the normal way.
+ *
+ * TIOCSETN, not TIOCSETP, in both directions: TIOCSETP flushes the
+ * input queue (sys/kern/tty.c), which threw away a command typed
+ * ahead of the prompt, during the motd or a slow command.  TIOCSETN
+ * keeps it: going into CBREAK the kernel moves the pending canonical
+ * line into the raw queue the editor reads, and coming back it marks
+ * the queue PENDIN for canonical reprocessing.
  */
 static int
 tty_raw(fd)
@@ -144,7 +151,7 @@ tty_raw(fd)
 	sg = saved_sg;
 	sg.sg_flags |= CBREAK;
 	sg.sg_flags &= ~(ECHO | CRMOD | RAW);
-	ioctl(fd, TIOCSETP, &sg);
+	ioctl(fd, TIOCSETN, &sg);
 	return 1;
 }
 
@@ -153,7 +160,7 @@ tty_cooked(fd)
 	int fd;
 {
 	if (have_saved)
-		ioctl(fd, TIOCSETP, &saved_sg);
+		ioctl(fd, TIOCSETN, &saved_sg);
 }
 #endif
 

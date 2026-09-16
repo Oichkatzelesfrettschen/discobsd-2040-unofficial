@@ -78,6 +78,11 @@ Internet, because the short link hands out the token. On a ufw host:
 
 Set `DISCOBSD_PORT` to a device path to bypass discovery.
 
+The console serves one viewer at a time. Leaving the page releases it at
+once; a viewer that vanishes without closing (a tab the browser kept in
+its cache, a device that left the LAN) is pinged after 15 seconds of
+silence and dropped 15 seconds later, and the next viewer gets in.
+
 ## Keys and exits
 
 The board runs two systems that read the keyboard differently: DiscoBSD

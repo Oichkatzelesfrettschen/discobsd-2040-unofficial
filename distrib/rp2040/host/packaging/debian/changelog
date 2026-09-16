@@ -1,3 +1,13 @@
+discobsd-host (1.0.7) noble; urgency=medium
+
+  * discobsd-web: a viewer that goes silent is pinged and, if it does not
+    answer, dropped after two intervals (30 s), so a page kept alive by
+    the browser's cache or a device that left the LAN no longer holds the
+    one console forever; the page closes its socket on pagehide and
+    reloads when restored from the cache; client pings get pongs.
+
+ -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Wed, 16 Sep 2026 08:00:00 -0700
+
 discobsd-host (1.0.6) noble; urgency=medium
 
   * ports: match the board on Windows, where the PnP manager reports the

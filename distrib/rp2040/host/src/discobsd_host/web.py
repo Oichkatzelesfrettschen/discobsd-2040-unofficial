@@ -18,6 +18,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import select
 import socket
 import struct
 import sys
@@ -30,6 +31,12 @@ from . import __version__, ports
 
 WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_CLIENT_FRAME = 65536
+# A viewer that says nothing for this long is sent a ping (RFC 6455
+# section 5.5.2); one that answers nothing for another interval is gone,
+# and its session is released. A page kept alive without its socket being
+# closed (a tab restored from the back-forward cache, a laptop that left
+# the LAN) otherwise holds the one console forever.
+PING_INTERVAL = 15.0
 XTERM = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"
 XTERM_CSS = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
 
@@ -87,6 +94,11 @@ ws.binaryType="arraybuffer";
 ws.onopen=function(){{stat.textContent="connected -- DiscoBSD";grab();}};
 var byebye=false;
 ws.onclose=function(){{if(!byebye)stat.textContent="disconnected -- reload to retry";}};
+// Leaving the page releases the console at once; a page the browser
+// brings back from its back-forward cache reloads and reconnects rather
+// than resuming a socket the server has since dropped.
+window.addEventListener("pagehide",function(){{byebye=true;try{{ws.close();}}catch(x){{}}}});
+window.addEventListener("pageshow",function(e){{if(e.persisted)location.reload();}});
 // The page tells DiscoBSD from V6 by the emulator's own banner and exit
 // line, and says so in the status line for a screen reader or a glance.
 var inv6=false;
@@ -206,6 +218,56 @@ def ws_read(rf):
     return op, data
 
 
+class Silence(Exception):
+    """No byte from the viewer for one ping interval, at a frame boundary."""
+
+
+class FrameReader:
+    """Bytes from the viewer's socket for ws_read, with silence detection.
+
+    The HTTP handler's rfile cannot serve here: a socket file object
+    refuses every read after one timeout ("cannot read from timed out
+    object"), so a timed-out read would end the session on the spot. This
+    reader waits with select() instead and raises Silence when nothing
+    arrives within the interval at the start of a frame; inside a frame it
+    keeps waiting, so a keystroke split across segments is never lost.
+    `pre` is whatever the handler had already buffered past the handshake.
+    """
+
+    def __init__(self, sock, pre: bytes, interval: float):
+        self.sock = sock
+        self.buf = bytearray(pre)
+        self.interval = interval
+
+    def read(self, n: int) -> bytes:
+        while len(self.buf) < n:
+            ready, _, _ = select.select([self.sock], [], [], self.interval)
+            if not ready:
+                if not self.buf:
+                    raise Silence()
+                continue
+            d = self.sock.recv(65536)
+            if not d:
+                break
+            self.buf += d
+        out = bytes(self.buf[:n])
+        del self.buf[:n]
+        return out
+
+
+def buffered_after_handshake(rfile, sock) -> bytes:
+    """Bytes the request handler read ahead of the handshake, without
+    blocking: the socket is made non-blocking for one read1(), which
+    returns the buffer if there is one and nothing if there is not."""
+    sock.setblocking(False)
+    try:
+        return rfile.read1(MAX_CLIENT_FRAME) or b""
+    except (BlockingIOError, OSError):
+        return b""
+    finally:
+        sock.setblocking(True)
+
+
 def ws_accept(key: str) -> str:
     return base64.b64encode(hashlib.sha1((key + WS_MAGIC).encode()).digest()).decode()
 
@@ -306,6 +368,14 @@ class Handler(BaseHTTPRequestHandler):
             srv.console_lock.release()
             return
         alive = [True]
+        # Two threads write to the socket, the serial reader and the
+        # control replies below; a frame must not be interleaved with
+        # another.
+        send_lock = threading.Lock()
+
+        def send(frame):
+            with send_lock:
+                sock.sendall(frame)
 
         def reader():
             while alive[0]:
@@ -315,7 +385,7 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 if d:
                     try:
-                        sock.sendall(ws_frame(d))
+                        send(ws_frame(d))
                     except OSError:
                         break
                 else:
@@ -329,11 +399,37 @@ class Handler(BaseHTTPRequestHandler):
             ser.write(b"\r")
         except Exception:
             pass
+        # Silence for one interval draws a ping; silence through a second
+        # one ends the session. The socket timeout bounds sendall in the
+        # reader thread, so a viewer that stops draining is dropped from
+        # that side as well.
+        frames = FrameReader(
+            sock, buffered_after_handshake(self.rfile, sock), srv.ping_interval
+        )
+        sock.settimeout(srv.ping_interval)
+        awaiting_pong = False
         try:
             while alive[0]:
-                op, data = ws_read(self.rfile)
+                try:
+                    op, data = ws_read(frames)
+                except Silence:
+                    if awaiting_pong:
+                        break
+                    try:
+                        send(ws_frame(b"", 0x9))
+                    except OSError:
+                        break
+                    awaiting_pong = True
+                    continue
+                awaiting_pong = False
                 if op is None or op == 0x8:
                     break
+                if op == 0x9:
+                    try:
+                        send(ws_frame(data, 0xA))
+                    except OSError:
+                        break
+                    continue
                 if op in (0x1, 0x2):
                     try:
                         ser.write(data)
@@ -359,6 +455,7 @@ class ConsoleServer(ThreadingHTTPServer):
         self.is_loopback = is_loopback(address[0])
         self.console_lock = threading.Lock()
         self.open_serial = open_serial
+        self.ping_interval = PING_INTERVAL
 
 
 def lan_ip() -> str:

@@ -208,6 +208,63 @@ def test_websocket_bridges_bytes_and_holds_one_session(server):
     third.close()
 
 
+def test_silent_viewer_is_pinged_then_dropped(server):
+    """A viewer that stops talking, and does not close, gets a ping after
+    one interval and loses the console after a second one; the next
+    viewer then connects. A viewer that answers the ping keeps it."""
+    httpd, lines = server
+    httpd.ping_interval = 0.2
+    port = httpd.server_address[1]
+    s, status = ws_connect(port)
+    got = read_frames(s, b"\x89\x00", timeout=1.0, got=status)
+    assert b"\x89\x00" in got, "no ping after one silent interval"
+    s.sendall(masked(b"", opcode=0xA))
+    got = read_frames(s, b"\x89\x00", timeout=1.0)
+    assert b"\x89\x00" in got, "no second ping after the pong"
+    assert not lines[0].closed, "a viewer that answered its ping was dropped"
+    deadline = 40
+    while not lines[0].closed and deadline:
+        threading.Event().wait(0.05)
+        deadline -= 1
+    assert lines[0].closed, "a viewer that ignored its ping kept the console"
+    s.close()
+    second, status2 = ws_connect(port)
+    assert status2.startswith(b"HTTP/1.1 101")
+    assert b"login: " in read_frames(second, b"login: ", got=status2)
+    second.close()
+
+
+def test_frame_sent_with_the_handshake_reaches_the_board(server):
+    """A frame in the same segment as the upgrade request lands in the
+    handler's read-ahead buffer; the session reader must start from it."""
+    httpd, lines = server
+    port = httpd.server_address[1]
+    s = socket.create_connection(("127.0.0.1", port))
+    request = (
+        "GET /ws?token=tok HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nUpgrade: websocket\r\n"
+        "Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+        "Sec-WebSocket-Version: 13\r\n\r\n" % port
+    ).encode()
+    s.sendall(request + masked(b"early\r"))
+    read_frames(s, b"login: ")
+    deadline = 40
+    while not lines or not lines[0].written.endswith(b"early\r") and deadline:
+        threading.Event().wait(0.05)
+        deadline -= 1
+    assert lines[0].written.endswith(b"early\r")
+    s.close()
+
+
+def test_client_ping_is_answered_with_pong(server):
+    httpd, _ = server
+    port = httpd.server_address[1]
+    s, status = ws_connect(port)
+    read_frames(s, b"login: ", got=status)
+    s.sendall(masked(b"hi", opcode=0x9))
+    assert b"\x8a\x02hi" in read_frames(s, b"\x8a\x02hi")
+    s.close()
+
+
 def test_websocket_rejects_foreign_origin(server):
     httpd, _ = server
     s, status = ws_connect(httpd.server_address[1], origin="http://evil.example")

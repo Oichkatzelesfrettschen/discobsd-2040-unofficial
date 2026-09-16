@@ -14,8 +14,8 @@ check:		${PROG}
 		./${PROG} ${IMAGES}
 
 ${PROG}:	${PROG}.c ${LIB} ${TOPSRC}/sys/sys/exec_hsaout.h
-		${HOSTCC} -std=gnu11 -Wall -Wextra -Werror -I${TOPSRC}/tools/hsaout \
-		    -I${TOPSRC}/tools/hsaout -idirafter ${TOPSRC}/sys \
+		${HOSTCC} -std=gnu11 -Wall -Wextra -Werror \
+		    -idirafter ${TOPSRC}/tools/hsaout -idirafter ${TOPSRC}/sys \
 		    -DHEATSHRINK_STATIC_WINDOW_BITS=9 -DHEATSHRINK_STATIC_LOOKAHEAD_BITS=3 \
 		    -o $@ ${PROG}.c ${LIB}
 

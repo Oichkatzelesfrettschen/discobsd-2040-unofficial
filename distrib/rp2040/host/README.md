@@ -16,6 +16,7 @@ browser on the local network.
 | `discobsd-link` | redirect a short URL (port 42069) to the tokenized console URL |
 | `discobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
 | `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board |
+| `discobsd-flash` | reflash with picotool: `FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
 
 Log in as `operator` with no password, then `su` to root. The console
 serves one session at a time; leave it cleanly as described under "Keys
@@ -68,9 +69,18 @@ current Python and keeps the tools out of the system interpreter:
     discobsd-term
 
 The same four commands install with `uv tool install discobsd-host`;
-both put their links in `~/.local/bin`, so choose one. picotool talks to
-the board through libusb and needs no driver either: `picotool info -f`
-reboots a running kernel into BOOTSEL and reports it.
+both put their links in `~/.local/bin`, so choose one.
+
+picotool talks to the board through libusb and needs no driver either.
+Reflash with `discobsd-flash flash.uf2` (or the kernel's `unix.uf2`,
+or both in order): it reboots the kernel into BOOTSEL, waits for the
+boot ROM, unmounts the `RPI-RP2` volume so macOS does not complain that
+a disk was not ejected properly, loads each image, and reboots. The
+one-shot `picotool info -f` form is not reliable on macOS, whose
+enumeration outlasts picotool's wait; `picotool reboot -u -f` and then
+the command always is, and the script does that. For a copy by hand,
+`discobsd-flash --bootsel` leaves the volume mounted and
+`discobsd-flash --eject` unmounts it and reboots.
 
 The release zip holds PyInstaller executables built on Apple silicon and
 signed ad hoc, not notarized. Run them from a terminal: an Intel Mac and

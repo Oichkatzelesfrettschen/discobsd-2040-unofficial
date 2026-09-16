@@ -19,6 +19,17 @@ trap 'rm -rf "$test_root"' 0 1 2 3 15
 "$HOST_CC" -shared -fPIC -Wall -Wextra -Werror \
 	-o "$fault_library" "$SOURCE_ROOT/archive-transaction-failure.c" -ldl
 
+# The library interposes rename, link and fsync through LD_PRELOAD, an
+# ELF dynamic linker mechanism. macOS's dyld does not insert it into an
+# ad-hoc signed local binary, so the test says so and is not run there.
+case $(uname -s) in
+Darwin)
+	echo "archive: fault injection needs LD_PRELOAD; not run on macOS" >&2
+	exit 0
+	;;
+esac
+preload="LD_PRELOAD=$fault_library"
+
 assert_no_rewrite_temp()
 {
 	archive_directory=$1
@@ -59,7 +70,7 @@ check_failed_existing_rewrite()
 		ranlib-touch) set -- "$RANLIB" -t "$archive" ;;
 		*) echo "archive: unknown operation $operation" >&2; exit 1 ;;
 		esac
-		if ARCHIVE_FAIL_OPERATION=rename LD_PRELOAD="$fault_library" \
+		if env ARCHIVE_FAIL_OPERATION=rename $preload \
 		    "$@" > command.out 2> command.err
 		then
 			echo "archive: $case_name accepted a failed rename" >&2
@@ -92,7 +103,7 @@ check_precommit_failure()
 		cd "$case_root"
 		"$AR" rc "$archive" first.bin second.bin
 		cp "$archive" archive.before
-		if ARCHIVE_FAIL_OPERATION="$failure" LD_PRELOAD="$fault_library" \
+		if env ARCHIVE_FAIL_OPERATION="$failure" $preload \
 		    "$AR" q "$archive" third.bin > command.out 2> command.err
 		then
 			echo "archive: $case_name accepted a failed $failure" >&2
@@ -115,7 +126,7 @@ printf 'first' > "$unowned_candidate_root/first.bin"
 	"$AR" rc libtransaction.a first.bin
 	printf 'unrelated sentinel' > .ar.XXXXXX
 	cp .ar.XXXXXX sentinel.before
-	if ARCHIVE_FAIL_OPERATION=directory-fsync LD_PRELOAD="$fault_library" \
+	if env ARCHIVE_FAIL_OPERATION=directory-fsync $preload \
 	    "$AR" q libtransaction.a first.bin > command.out 2> command.err
 	then
 		echo 'archive: preflight directory sync failure returned success' >&2
@@ -130,7 +141,7 @@ mkdir -p "$new_failure_root"
 printf 'first' > "$new_failure_root/first.bin"
 (
 	cd "$new_failure_root"
-	if ARCHIVE_FAIL_OPERATION=link LD_PRELOAD="$fault_library" \
+	if env ARCHIVE_FAIL_OPERATION=link $preload \
 	    "$AR" rc libtransaction.a first.bin > command.out 2> command.err
 	then
 		echo 'archive: new archive accepted a failed link' >&2
@@ -152,7 +163,7 @@ printf 'second' > "$post_sync_root/second.bin"
 	cd "$post_sync_root"
 	"$AR" rc libtransaction.a first.bin
 	if ARCHIVE_FAIL_OPERATION=post-commit-directory-fsync \
-	    LD_PRELOAD="$fault_library" "$AR" q libtransaction.a second.bin \
+	    env $preload "$AR" q libtransaction.a second.bin \
 	    > command.out 2> command.err
 	then
 		echo 'archive: post-commit directory sync failure returned success' >&2

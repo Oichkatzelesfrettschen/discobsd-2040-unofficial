@@ -13,7 +13,9 @@ OSrev=		${OSMAJOR}${OSMINOR}
 
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASE=	${OSREV}
-BUILD!=		git rev-list HEAD --count
+# The -- keeps HEAD a revision in a directory that holds a file named head
+# (usr.bin/head after a build) on a case-insensitive filesystem.
+BUILD!=		git rev-list --count HEAD --
 VERSION=	${RELEASE}-${BUILD}
 
 TOOLDIR?=	${TOPSRC}/tools
@@ -38,8 +40,12 @@ _LIBBSD_LIBS!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 
 include ${TOPSRC}/share/mk/mips-toolchain.mk
 
+# The arm toolchain on PATH first (Homebrew on macOS, or any prefix the
+# developer chose), then the path each operating system's package uses.
 GCCPREFIX!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		if [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
+		if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
+			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
+		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
 			echo "/usr/local/bin/arm-none-eabi" ; \
 		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
 			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
@@ -138,7 +144,10 @@ OBJDUMP!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "/does/not/exist" ; \
 	fi
 
-YACC!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
+# byacc where present (Linux ships it as such; Homebrew too), else the
+# system yacc; the yacc in Apple's command line tools is a shim that
+# insists on a full Xcode.
+YACC!=	if command -v byacc >/dev/null 2>&1 ; then \
 		echo "byacc" ; \
 	else \
 		echo "yacc" ; \

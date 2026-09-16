@@ -139,8 +139,9 @@ run_one()
 		return
 	fi
 
-	# Compile with the freshly built Thumb-1 back end.
-	if ! "$OUT/smlrc-host" "$base.i" "$base.s" > "$base.smlrc.log" 2>&1; then
+	# Compile with the freshly built Thumb-1 back end, from inside $OUT:
+	# smlrc keeps file names under 96 bytes, which a deep checkout exceeds.
+	if ! (cd "$OUT" && ./smlrc-host "$name.i" "$name.s") > "$base.smlrc.log" 2>&1; then
 		fail_test "$name" "smlrc failed, see $base.smlrc.log"
 		return
 	fi

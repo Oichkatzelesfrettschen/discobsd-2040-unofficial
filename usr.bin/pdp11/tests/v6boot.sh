@@ -12,7 +12,7 @@ emu=${1:?usage: v6boot.sh EMULATOR}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 gunzip -c "$here/../v6.rk.gz" > "$work/root.rk"
-$PYTHON "$here/ptyrun.py" -t 60 -- "$emu" "$work/root.rk" > "$work/out" <<'EOF'
+$PYTHON "$here/../../../tools/ptyrun.py" -t 60 -- "$emu" "$work/root.rk" > "$work/out" <<'EOF'
 expect @
 send unix\r
 expect login:

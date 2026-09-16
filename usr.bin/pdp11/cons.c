@@ -15,7 +15,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <termios.h>
 static struct termios saved;
 #else
@@ -46,7 +46,7 @@ cons_reset(void)
 int
 cons_open(void)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	struct termios t;
 
 	if (tcgetattr(0, &saved) < 0)
@@ -79,7 +79,7 @@ cons_close(void)
 {
 	if (!tty_raw)
 		return;
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	tcsetattr(0, TCSANOW, &saved);
 #else
 	ioctl(0, TIOCSETP, &saved);
@@ -107,7 +107,7 @@ addchar(uint8_t c)
 void
 cons_poll(void)
 {
-	long n;
+	int n;		/* FIONREAD fills an int; a long kept half of it uninitialized */
 	uint8_t c;
 
 	if (input_eof || (TKS & 0x80))

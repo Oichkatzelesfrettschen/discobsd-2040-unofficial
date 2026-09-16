@@ -379,14 +379,18 @@ static int
 build(void)
 {
 	CF cf;
-	int afd, replacement_fd, replacement_stream_fd, source_stream_fd, tfd;
+	int afd, replacement_fd, replacement_stream_fd, tfd;
 	off_t size;
 
 	afd = open_archive(O_RDWR);
-	source_stream_fd = dup(afd);
-	if (source_stream_fd < 0)
-		error(archive);
-	fp = fdopen(source_stream_fd, "r");
+	/*
+	 * The symbol reader's stream gets an open file description of its
+	 * own. On a dup of afd the two would share one file offset, which
+	 * get_arobj and rexec move underneath the stream; a stdio that keeps
+	 * a seek inside its buffer without a fresh lseek (macOS) then refills
+	 * from the wrong place and the table comes out of other members.
+	 */
+	fp = fopen(archive, "r");
 	if (fp == NULL)
 		error(archive);
 	tfd = tmp();

@@ -33,9 +33,14 @@ escape sequences stripped.
     bmake MACHINE=rp2040 check-cache-footprint # cache ABI and chain invariants
     bmake MACHINE=rp2040 check-elf2aout    # a.out layout gate
 
-Reflash from a running kernel: `picotool reboot -u -f`, `picotool load
-<uf2>` for the kernel and the filesystem image, `picotool reboot`; a hung
-kernel needs BOOTSEL held through a replug. `bmake build` does not relink
+Reflash from a running kernel: `distrib/rp2040/host/discobsd-flash
+<uf2>...` (kernel, filesystem image, or both), which reboots into
+BOOTSEL, unmounts the RPI-RP2 volume, loads and reboots; by hand it is
+`picotool reboot -u -f`, `picotool load <uf2>`, `picotool reboot`. A hung
+kernel needs BOOTSEL held through a replug. On macOS the toolchain is
+`brew install bmake byacc bison flex groff mandoc pkgconf picotool` plus
+`brew install --cask gcc-arm-embedded` (not the arm-none-eabi-gcc
+formula); distrib/rp2040/host/DEVELOPMENT.md has the per-OS table. `bmake build` does not relink
 programs when libc changes; run `bmake MACHINE=rp2040 clean` first when a
 libc or header change must reach every program, and rebuild sbin/sysctl and
 sbin/adminbox from clean after a sysctl.h or machine/cpu.h change. The

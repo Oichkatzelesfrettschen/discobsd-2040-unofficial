@@ -21,7 +21,9 @@ LOCALTIME=	Canada/Mountain
 CFLAGS= -O
 LINTFLAGS=	-phbaxc
 CC=		${HOST_CC}
-CFLAGS+=	-Wall -idirafter ${TOPSRC}/include
+# -iquote: zic.c and zdump.c include "tzfile.h", the tree's own; macOS
+# ships a tzfile.h of its own that would win under -idirafter alone.
+CFLAGS+=	-Wall -iquote ${TOPSRC}/include -idirafter ${TOPSRC}/include
 
 # libbsd-dev package on Linux in overlay mode.
 CFLAGS+=	${_LIBBSD_CFLAGS}

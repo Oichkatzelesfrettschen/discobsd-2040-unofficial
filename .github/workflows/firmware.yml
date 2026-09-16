@@ -111,13 +111,24 @@ jobs:
       - name: Run the host gates
         run: |
           bmake MACHINE=rp2040 check-hsaout check-config-makefile \
-            check-swapram-evac check-flash-swap
+            check-swapram-evac check-flash-swap check-swapram \
+            check-cache-footprint check-tiny-utility-multicall
 
       # The PDP-11 emulator built with the host compiler boots the shipped
       # V6 pack on a pseudo-terminal: bootstrap prompt, login, ed, a
       # pipeline and a disk write.
       - name: Boot V6 through the host build of pdp11
         run: bmake -C usr.bin/pdp11 MACHINE=rp2040 test
+
+      # The suites the port's guide lists as host tests, so a host seam
+      # (the ones macOS showed) is caught on every platform.
+      - name: Run the host test suites
+        run: |
+          bmake -C usr.bin/as/tests test MACHINE=rp2040
+          bmake -C usr.bin/smlrc test
+          bmake -C usr.bin/stevie test
+          bmake -C games/keen test
+          sh bin/tar/tests/tartest.sh
 
       - name: Confirm the images exist
         run: |
@@ -133,3 +144,56 @@ jobs:
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
             distrib/rp2040/flash.uf2
           if-no-files-found: error
+
+  # The same tree on macOS, with the toolchain Homebrew provides: bmake,
+  # byacc, Arm's own GNU toolchain (the arm-none-eabi-gcc formula is built
+  # with an absolute --with-as and ignores the -B that substitutes the
+  # port's a.out assembler), picotool from its bottle. No FUSE: fsutil
+  # builds without its --mount command. The gate is the same warning-free
+  # kernel, world and flash image.
+  rp2040-macos:
+    name: rp2040 kernel, flash image on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the host toolchain
+        run: |
+          brew install bmake byacc bison flex groff mandoc pkgconf picotool
+          brew install --cask gcc-arm-embedded
+      - name: Report the toolchain
+        run: |
+          cc --version | head -1
+          arm-none-eabi-gcc --version | head -1
+          bmake -V MAKE_VERSION
+          picotool version
+      - name: Build the kernel and the userland
+        run: |
+          set -o pipefail
+          bmake MACHINE=rp2040 build 2>&1 | tee build.log
+      - name: Build the flash image
+        run: |
+          set -o pipefail
+          bmake MACHINE=rp2040 flash 2>&1 | tee -a build.log
+      - name: Assert the build is warning-free
+        run: |
+          total=$(grep -c 'warning:' build.log || true)
+          echo "warning: lines in the build log: $total"
+          grep 'warning:' build.log || true
+          test "$total" -eq 0
+      - name: Run the host gates
+        run: |
+          bmake MACHINE=rp2040 check-hsaout check-config-makefile \
+            check-swapram-evac check-flash-swap check-swapram \
+            check-tiny-utility-multicall
+      - name: Boot V6 through the host build of pdp11
+        run: bmake -C usr.bin/pdp11 MACHINE=rp2040 test
+      - name: Run the host test suites
+        run: |
+          bmake -C usr.bin/as/tests test MACHINE=rp2040
+          bmake -C usr.bin/smlrc test
+          bmake -C usr.bin/stevie test
+          bmake -C games/keen test
+          sh bin/tar/tests/tartest.sh
+      - name: Confirm the images exist
+        run: |
+          ls -l sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2

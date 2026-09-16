@@ -55,6 +55,7 @@ package() {
 	install -Dm644 systemd/discobsd-link.service \
 	    "$pkgdir/usr/lib/systemd/user/discobsd-link.service"
 	install -Dm755 discobsd-connect "$pkgdir/usr/bin/discobsd-connect"
+	install -Dm755 discobsd-flash "$pkgdir/usr/bin/discobsd-flash"
 	install -Dm644 discobsd-host.sysusers \
 	    "$pkgdir/usr/lib/sysusers.d/discobsd-host.conf"
 	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

@@ -2,3 +2,4 @@
 systemd/discobsd-web.service usr/lib/systemd/user
 systemd/discobsd-link.service usr/lib/systemd/user
 discobsd-connect usr/bin
+discobsd-flash usr/bin

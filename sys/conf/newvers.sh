@@ -39,7 +39,7 @@ then
 fi
 OV=`cat .oldversion`
 
-GITREV=`git rev-list HEAD --count`
+GITREV=`git rev-list --count HEAD --`
 GITDIR=`git rev-parse --show-toplevel`
 
 if [ "x$GITREV" = "x" ]
@@ -58,14 +58,17 @@ H=`hostname`
 D=${PWD#$GITDIR}
 ID=`basename "${D}"`
 
+# The date comes from date(1): strftime() is a gawk extension that the
+# awk on macOS and the BSDs does not have.
+NOW=`date`
+
 echo $GITREV $CV ${USER-root} $H $D $OST $OSR $ID $S| \
-awk '{
+awk -v date="$NOW" '{
     gitrev = $1;
     cv = $2;
     user = $3;
     host = $4;
     dir = $5;
-    date = strftime();
     ost = $6;
     osr = $7;
     id = toupper($8);

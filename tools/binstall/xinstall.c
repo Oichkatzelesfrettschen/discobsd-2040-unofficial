@@ -57,6 +57,38 @@
 #undef	HAVE_ISSETUGID
 #endif
 
+#ifdef	__APPLE__
+/*
+ * macOS keeps chflags(2) but has no pwcache(3), names the timespec
+ * members of struct stat after the BSD 4.3 spelling, and takes the flag
+ * words of strtofflags(3) as unsigned long.
+ */
+#define	st_atim	st_atimespec
+#define	st_mtim	st_mtimespec
+
+static int
+uid_from_user(const char *name, uid_t *uid)
+{
+	struct passwd *pw = getpwnam(name);
+
+	if (pw == NULL)
+		return (-1);
+	*uid = pw->pw_uid;
+	return (0);
+}
+
+static int
+gid_from_group(const char *name, gid_t *gid)
+{
+	struct group *gr = getgrnam(name);
+
+	if (gr == NULL)
+		return (-1);
+	*gid = gr->gr_gid;
+	return (0);
+}
+#endif
+
 #ifndef	UID_MAX
 #define	UID_MAX		UINT_MAX
 #endif
@@ -95,7 +127,7 @@ main(int argc, char *argv[])
 {
 	struct stat from_sb, to_sb;
 	void *set;
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__APPLE__)
 	u_long fset = 0;
 #else
 	u_int32_t fset = 0;

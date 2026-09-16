@@ -24,7 +24,10 @@ _LIBBSD_LIBS!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 
 INSTALL=	${TOOLBINDIR}/binstall -U
 
-YACC!=		if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
+# byacc where present (Linux ships it as such; Homebrew too), else the
+# system yacc; the yacc in Apple's command line tools is a shim that
+# insists on a full Xcode.
+YACC!=		if command -v byacc >/dev/null 2>&1 ; then \
 			echo "byacc" ; \
 		else \
 			echo "yacc" ; \

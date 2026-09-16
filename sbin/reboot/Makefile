@@ -17,12 +17,13 @@ reboot:         ${OBJS}
 		${ELF2AOUT} reboot.elf $@
 		ln -f $@ halt
 		ln -f $@ poweroff
+		ln -f $@ bootloader
 
 ${MAN}:         ${MANSRC}
 		${MANROFF} ${MANSRC} > ${MAN}
 
 clean:
-		rm -f *.o *~ *.elf *.dis ${MAN} reboot halt poweroff tags
+		rm -f *.o *~ *.elf *.dis ${MAN} reboot halt poweroff bootloader tags
 
 depend:         ${SRCS}
 		mkdep ${CFLAGS} ${SRCS}
@@ -33,7 +34,7 @@ install:        all
 		ln ${DESTDIR}/usr/share/man/cat8/reboot.0 ${DESTDIR}/usr/share/man/cat8/fastboot.0
 		ln ${DESTDIR}/usr/share/man/cat8/reboot.0 ${DESTDIR}/usr/share/man/cat8/halt.0
 		${INSTALL} reboot ${DESTDIR}/sbin/reboot
-		@-rm -f ${DESTDIR}/sbin/fastboot ${DESTDIR}/sbin/halt ${DESTDIR}/sbin/poweroff
+		@-rm -f ${DESTDIR}/sbin/fastboot ${DESTDIR}/sbin/halt ${DESTDIR}/sbin/poweroff ${DESTDIR}/sbin/bootloader
 		ln -f ${DESTDIR}/sbin/reboot ${DESTDIR}/sbin/halt
 		ln -f ${DESTDIR}/sbin/reboot ${DESTDIR}/sbin/fastboot
 		ln -f ${DESTDIR}/sbin/reboot ${DESTDIR}/sbin/poweroff

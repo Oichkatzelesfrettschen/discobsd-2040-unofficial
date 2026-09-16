@@ -102,6 +102,38 @@
 #define	DESC_DEVICE		1
 #define	DESC_CONFIGURATION	2
 #define	DESC_STRING		3
+#define	DESC_BOS		15	/* USB 3.2 9.6.2, also USB 2.1. */
+#define	DESC_DEVICE_CAPABILITY	16
+#define	CAP_PLATFORM		5	/* USB 3.2 9.6.2.4. */
+
+/*
+ * Microsoft OS 2.0 descriptors ("Microsoft OS 2.0 Descriptors
+ * Specification", Microsoft Hardware Dev Center). Windows asks for the
+ * BOS descriptor of a device whose bcdUSB is 0x0210 or above, finds the
+ * MS OS 2.0 platform capability in it, and fetches the descriptor set
+ * with a vendor request carrying bMS_VendorCode; the set names the
+ * reset interface a WinUSB function, so the inbox WinUSB driver binds
+ * to it and picotool can open it with no Zadig and no signed INF. The
+ * set below is byte for byte the Pico SDK's (pico/usb_reset_tusb.h,
+ * RPI_RESET_MS_OS_20_DESCRIPTOR), so a board carrying this kernel looks
+ * to Windows exactly like one carrying a Pico SDK program: the
+ * interface GUID is the SDK's, and picotool's own matching is on it.
+ */
+#define	MS_OS_20_VENDOR_CODE		1
+#define	MS_OS_20_DESCRIPTOR_INDEX	7
+#define	MS_OS_20_SET_HEADER_DESCRIPTOR	0x00
+#define	MS_OS_20_SUBSET_HEADER_FUNCTION	0x02
+#define	MS_OS_20_FEATURE_COMPATIBLE_ID	0x03
+#define	MS_OS_20_FEATURE_REG_PROPERTY	0x04
+#define	MS_OS_20_REG_SZ			1
+
+#define	U16LE(x)	((x) & 0xff), (((x) >> 8) & 0xff)
+#define	U32LE(x)	U16LE((x) & 0xffff), U16LE(((x) >> 16) & 0xffff)
+
+/* Function subset 8 + compatible ID 20 + registry property 128. */
+#define	MS_OS_20_FUNCTION_LEN	(8 + 20 + 128)
+#define	MS_OS_20_SET_LEN	(10 + MS_OS_20_FUNCTION_LEN)
+#define	BOS_TOTAL_LEN		(5 + 28)
 
 /* CDC PSTN class requests. */
 #define	CDC_SET_LINE_CODING		0x20
@@ -126,14 +158,83 @@
  */
 static const u_char usb_device_desc[18] = {
 	18, DESC_DEVICE,
-	0x00, 0x02,			/* USB 2.0 */
+	/*
+	 * USB 2.1: at 0x0210 and above Windows requests the BOS
+	 * descriptor, which carries the MS OS 2.0 platform capability
+	 * below. The Pico SDK sets the same value for the same reason.
+	 */
+	0x10, 0x02,
 	0xef, 0x02, 0x01,		/* Miscellaneous, common, IAD. */
 	USB_PACKET_MAX,
 	0x8a, 0x2e,			/* Raspberry Pi */
 	0x0a, 0x00,			/* Pico SDK CDC, RP2040 */
-	0x00, 0x01,			/* Device release 1.0 */
+	/*
+	 * Device release 1.1. Windows records what a device answered
+	 * about OS descriptors under usbflags\VVVVPPPPRRRR, keyed on
+	 * vendor, product and this release, so a release the earlier
+	 * kernels never enumerated with makes every host ask afresh
+	 * instead of trusting a cached "none".
+	 */
+	0x01, 0x01,
 	1, 2, 3,			/* Manufacturer, product, serial. */
 	1,
+};
+
+/*
+ * Binary device object store: one platform capability, the MS OS 2.0
+ * descriptor set information (spec section 2.2: the platform UUID
+ * D8DD60DF-4589-4CC7-9CD2-659D9E648A9F, then a descriptor set
+ * information block naming Windows 8.1, the set's length, the vendor
+ * code, and no alternate enumeration).
+ */
+static const u_char usb_bos_desc[BOS_TOTAL_LEN] = {
+	5, DESC_BOS, U16LE(BOS_TOTAL_LEN), 1,
+
+	28, DESC_DEVICE_CAPABILITY, CAP_PLATFORM, 0,
+	0xdf, 0x60, 0xdd, 0xd8, 0x89, 0x45, 0xc7, 0x4c,
+	0x9c, 0xd2, 0x65, 0x9d, 0x9e, 0x64, 0x8a, 0x9f,
+	U32LE(0x06030000),		/* Windows 8.1 and later. */
+	U16LE(MS_OS_20_SET_LEN),
+	MS_OS_20_VENDOR_CODE,
+	0,				/* No alternate enumeration. */
+};
+
+/*
+ * The MS OS 2.0 descriptor set: a set header, then one function subset
+ * for the reset interface carrying the compatible ID "WINUSB" and the
+ * registry property DeviceInterfaceGUID (REG_SZ) with the Pico SDK's
+ * GUID. The CDC interfaces are not named and keep the inbox usbser
+ * driver Windows already gives them.
+ */
+static const u_char usb_ms_os_20_desc[MS_OS_20_SET_LEN] = {
+	/* Set header: length, type, Windows version, total length. */
+	U16LE(10), U16LE(MS_OS_20_SET_HEADER_DESCRIPTOR),
+	U32LE(0x06030000), U16LE(MS_OS_20_SET_LEN),
+
+	/* Function subset header: length, type, first interface,
+	 * reserved, subset length. */
+	U16LE(8), U16LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_RESET, 0,
+	U16LE(MS_OS_20_FUNCTION_LEN),
+
+	/* Compatible ID: length, type, compatible ID, sub-compatible ID. */
+	U16LE(20), U16LE(MS_OS_20_FEATURE_COMPATIBLE_ID),
+	'W', 'I', 'N', 'U', 'S', 'B', 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+
+	/* Registry property: length, type, data type, name length,
+	 * name "DeviceInterfaceGUID" in UTF-16, data length, data. */
+	U16LE(128), U16LE(MS_OS_20_FEATURE_REG_PROPERTY),
+	U16LE(MS_OS_20_REG_SZ), U16LE(40),
+	'D', 0, 'e', 0, 'v', 0, 'i', 0, 'c', 0, 'e', 0, 'I', 0, 'n', 0,
+	't', 0, 'e', 0, 'r', 0, 'f', 0, 'a', 0, 'c', 0, 'e', 0, 'G', 0,
+	'U', 0, 'I', 0, 'D', 0, 0, 0,
+	U16LE(78),
+	/* {bc7398c1-73cd-4cb7-98b8-913a8fca7bf6}, the SDK's. */
+	'{', 0, 'b', 0, 'c', 0, '7', 0, '3', 0, '9', 0, '8', 0, 'c', 0,
+	'1', 0, '-', 0, '7', 0, '3', 0, 'c', 0, 'd', 0, '-', 0, '4', 0,
+	'c', 0, 'b', 0, '7', 0, '-', 0, '9', 0, '8', 0, 'b', 0, '8', 0,
+	'-', 0, '9', 0, '1', 0, '3', 0, 'a', 0, '8', 0, 'f', 0, 'c', 0,
+	'a', 0, '7', 0, 'b', 0, 'f', 0, '6', 0, '}', 0, 0, 0,
 };
 
 #define	CONFIG_DESC_LEN	(9 + 8 + 9 + 5 + 5 + 4 + 5 + 7 + 9 + 7 + 7 + 9)
@@ -488,6 +589,10 @@ usb_setup(void)
 			case DESC_STRING:
 				usb_string_desc(wvalue & 0xff, wlength);
 				return;
+			case DESC_BOS:
+				usb_ep0_send(usb_bos_desc,
+				    sizeof(usb_bos_desc), wlength);
+				return;
 			}
 			break;
 		case REQ_SET_ADDRESS:
@@ -581,6 +686,16 @@ usb_setup(void)
 			usb_ep0_ack();
 			return;
 		}
+	} else if (type == 0xc0 && request == MS_OS_20_VENDOR_CODE &&
+	    windex == MS_OS_20_DESCRIPTOR_INDEX) {
+		/*
+		 * Windows fetching the MS OS 2.0 descriptor set: a vendor
+		 * request to the device, device to host, with the vendor
+		 * code the BOS descriptor named and wIndex 7 (spec 2.3).
+		 */
+		usb_ep0_send(usb_ms_os_20_desc, sizeof(usb_ms_os_20_desc),
+		    wlength);
+		return;
 	} else if ((kind == 0x20 || kind == 0x40) &&
 	    (type & 0x1f) == 1 && (windex & 0xff) == ITF_RESET) {
 		/*

@@ -230,6 +230,15 @@ okrc status_not_executable '' 126 ': > f7; chmod 644 f7; exec ./f7 2>/dev/null'
 ok status_not_found_in_pipeline \
     'echo hi | cat | qquncompress 2>&1 | tail -1: qquncompress: not found' \
     'echo hi | cat | qquncompress 2>&1 | tail -1'
+# XCU 2.8.1: command not found is not a shell error that ends the list.
+ok status_not_found_list_continues 'after 127' \
+    'nosuchcmd_xyz 2>/dev/null; echo after $?'
+ok status_not_found_and_list '127' \
+    'nosuchcmd_xyz 2>/dev/null && echo no; echo $?'
+ok status_not_found_or_list 'yes' \
+    'nosuchcmd_xyz 2>/dev/null || echo yes'
+okrc status_not_found_errexit '' 127 \
+    'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached'
 
 # ---- XCU 2.8.2 exit status ----
 ok status_exit_value '7' 'sh -c "exit 7" > /dev/null 2>&1 || echo $?'

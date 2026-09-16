@@ -174,7 +174,13 @@ main(argc, argv)
 	sgttyb.sg_kill = CKILL;
 	(void)ioctl(0, TIOCSLTC, &ltc);
 	(void)ioctl(0, TIOCSETC, &tc);
-	(void)ioctl(0, TIOCSETP, &sgttyb);
+	/*
+	 * TIOCSETN, not TIOCSETP: the kernel flushes the input queue on
+	 * every TIOCSETP (sys/kern/tty.c), and a name typed ahead of the
+	 * prompt, or a command typed while the motd and profile run,
+	 * would be lost. Nothing here changes RAW, so no flush is needed.
+	 */
+	(void)ioctl(0, TIOCSETN, &sgttyb);
 
 	for (cnt = getdtablesize(); cnt > 2; cnt--)
 		close(cnt);

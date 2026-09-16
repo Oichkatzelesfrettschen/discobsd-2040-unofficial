@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Run the DiscoBSD console tools from this checkout without installing
+# them: discobsd-console up | down | status, and the same for discobsd-term,
+# discobsd-web and discobsd-link when this script is invoked under one of
+# those names (a symlink or a hard link). The package lives at
+# distrib/rp2040/host/src; the only dependency is pyserial
+# (${PYTHON} -m pip install --user pyserial). discobsd-console launches
+# web and link through the interpreter running it, so nothing else needs
+# to be on PATH. On Windows the discobsd-console.cmd beside this file does
+# the same for cmd and PowerShell.
+
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+name=$(basename "$0")
+case "$name" in
+	discobsd-term|discobsd-web|discobsd-link|discobsd-console) ;;
+	*) name=discobsd-console ;;
+esac
+module=discobsd_host.${name#discobsd-}
+
+PYTHONPATH="$here/distrib/rp2040/host/src${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
+exec "${PYTHON:-python3}" -m "$module" "$@"

@@ -297,6 +297,19 @@ attaches them to a GitHub release on a `host-v*` tag.
     python3 -m pip install -e ".[test]"
     ruff check . && pytest
 
+Nothing needs installing to run the console from the checkout itself:
+`discobsd-console` at the root of the tree is a POSIX sh wrapper that
+runs the package from `distrib/rp2040/host/src` with the interpreter in
+`${PYTHON}` (default python3), and `discobsd-console.cmd` beside it does
+the same for cmd and PowerShell (default python). The one dependency is
+pyserial. Linked or copied under the names discobsd-term, discobsd-web
+or discobsd-link, the sh wrapper runs that tool instead.
+
+    ./discobsd-console up          # Linux, macOS, Git Bash
+    .\discobsd-console up          # PowerShell, cmd
+    ./discobsd-console status
+    ./discobsd-console down
+
 Source tree
 -----------
 

@@ -50,6 +50,36 @@ From a checkout of the port:
     cd distrib/rp2040/host
     python3 -m pip install --user .          # or: pipx install .
 
+## macOS
+
+Nothing kernel-side is installed and nothing needs signing: macOS binds
+its own CDC-ACM driver to the board and creates `/dev/cu.usbmodemrp20401`
+(and a `tty.` twin, which the tools skip because it blocks on carrier),
+world-writable, the moment it is plugged in. `discobsd-term --list`
+prints that node; `--probe` prints the login banner.
+
+Apple's command line tools ship Python 3.9, the oldest release the
+package accepts, without pyserial. Use Homebrew's pipx, which brings a
+current Python and keeps the tools out of the system interpreter:
+
+    brew install pipx picotool     # picotool only to reflash
+    pipx ensurepath                # once; ~/.local/bin on PATH, new shell
+    pipx install discobsd-host     # or, from a checkout: pipx install distrib/rp2040/host
+    discobsd-term
+
+The same four commands install with `uv tool install discobsd-host`;
+both put their links in `~/.local/bin`, so choose one. picotool talks to
+the board through libusb and needs no driver either: `picotool info -f`
+reboots a running kernel into BOOTSEL and reports it.
+
+The release zip holds PyInstaller executables built on Apple silicon and
+signed ad hoc, not notarized. Run them from a terminal: an Intel Mac and
+a Finder double-click (which Gatekeeper refuses for an unnotarized
+download) both want the pipx install instead. `discobsd-console up`
+keeps its state under `~/Library/Application Support/discobsd`.
+`discobsd-connect` finds `cu` on every Mac and `tio` or `picocom` from
+Homebrew.
+
 ## Web console on the LAN
 
     discobsd-console up

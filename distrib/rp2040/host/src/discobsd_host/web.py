@@ -246,7 +246,13 @@ class FrameReader:
                 if not self.buf:
                     raise Silence()
                 continue
-            d = self.sock.recv(65536)
+            try:
+                d = self.sock.recv(65536)
+            except OSError:
+                # A reset from the viewer's side (ECONNRESET, which macOS
+                # raises for a socket closed with data unread) is the end
+                # of the stream, not an error worth a traceback.
+                d = b""
             if not d:
                 break
             self.buf += d

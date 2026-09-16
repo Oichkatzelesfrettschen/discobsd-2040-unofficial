@@ -11,7 +11,7 @@
 # alike, and keeps the checked-in tree free of a generated tarball.
 
 pkgname=discobsd-host
-pkgver=1.0.7
+pkgver=1.0.8
 pkgrel=1
 pkgdesc="Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 arch=('any')

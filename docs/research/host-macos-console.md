@@ -227,14 +227,15 @@ attribute under `__ELF__`; smlrc run from its output directory, under
 its 95-byte file name limit that a worktree path exceeds. Three tests
 are Linux mechanisms and now say so: the LD_PRELOAD fault injection in
 the ar tests, the 32-bit host `sh` build, and the qemu-arm u-area loop.
-One is open: the exec-spool subtest of check-cache-footprint links only
-where the linker strips dead code before it resolves symbols (GNU ld);
-Apple's resolves first and wants three kernel symbols the test does not
-define. Whether it passes on Linux CI is what the widened Linux job in
-firmware.yml now answers.
+One was already broken everywhere: the exec-spool subtest of
+check-cache-footprint links kernel code whose callees (`swapnext`,
+`swap_cursor_publish`, `malloc3_contiguous_next`) the test never
+defines. Linux CI, asked to run the gate on this PR, failed the same
+link; with the three stubbed the test crashes. The gate is not in CI
+until that test is repaired, which is work of its own.
 
 CI: firmware.yml has a macOS job with the Homebrew toolchain above that
 builds kernel, world and flash image, asserts a warning-free log, and
 runs the gates and suites that pass here; the Linux job runs the same
-widened set. host.yml ships the flash scripts in both zips and runs
+widened set, minus check-cache-footprint. host.yml ships the flash scripts in both zips and runs
 their usage check.

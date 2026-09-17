@@ -180,10 +180,15 @@ clock bring-up, the real boot ROM's function table, Dhara, and on into
 the CPU thread and its own clocking thread with no mutual exclusion and
 loses bytes to the race, so the boot ROM ends up waiting under `splhigh()`
 for data that no longer exists, which masks SysTick and stops the kernel
-clock as well. Serializing the FIFOs clears the wedge, and init then forks
-a shell, but no run with or without that change has produced userland
-console output. The highest line every run reaches is `swap size = 380
-kbytes`, which is not enough to gate on.
+clock as well. Serializing the FIFOs clears that wedge and init then forks
+a shell, but no run with or without the change has produced userland
+console output, so no tier can assert on a prompt.
+
+What every run does reach, in about two and a half seconds of host time, is
+`swap size = 380 kbytes`, and reaching it exercises boot2, XIP entry, clock
+bring-up, the real boot ROM's function table, the Dhara root and the device
+probe. A `renode-test` Robot file asserting the banner and the device lines
+gates that much; it is not wired into a tier here and is its own change.
 sys/arch/rp2040/doc/research/emulation.md carries the measurements, the
 diff, the replayable commands, and two further model defects.
 

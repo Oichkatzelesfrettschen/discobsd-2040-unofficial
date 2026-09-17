@@ -42,6 +42,7 @@ GATE_CFLAGS=	${KERN_BASE} ${GATE_WARN}
 HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
 
 RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
+UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
 
 # The resource map allocator runs in three shapes across the tree's ports:
 # the sixteen-bit descriptors sys/arch/rp2040/compile/PICO configures, the
@@ -51,7 +52,7 @@ COMPACT_DEFS=		-DCOMPACT_SWAPMAP
 WIDE_DEFS=
 DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
-PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic
+PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test
 
 all: ${PROGS}
 
@@ -91,6 +92,12 @@ rmap_test_diagnostic: rmap_test.c ${RMAP_SRC} hostkern_kern.c hostkern.o \
 	${HOST_CC} ${GATE_CFLAGS} ${DIAGNOSTIC_DEFS} -o $@ \
 	    rmap_test.c hostkern_kern.c rmap_kernel_diagnostic.o hostkern.o
 
+uio_test: uio_test.c ${UIO_SRC} hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -c -o uio_kernel.o ${UIO_SRC}
+	${HOST_CC} ${GATE_CFLAGS} -o $@ \
+	    uio_test.c hostkern_kern.c uio_kernel.o hostkern.o
+
 check: ${PROGS}
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
@@ -100,6 +107,7 @@ check: ${PROGS}
 clean:
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
+	rm -f uio_kernel.o
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

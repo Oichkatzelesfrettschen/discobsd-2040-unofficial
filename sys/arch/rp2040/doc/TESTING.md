@@ -49,7 +49,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
-| `check-kernel` | sys/kern/subr_rmap.c, the swap allocator, compiled from the kernel source and run against 411 assertions in three descriptor shapes |
+| `check-kernel` | sys/kern/subr_rmap.c, the swap allocator, in three descriptor shapes, and sys/kern/kern_subr.c, the uio machinery under every read and write; both compiled from the kernel source |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |

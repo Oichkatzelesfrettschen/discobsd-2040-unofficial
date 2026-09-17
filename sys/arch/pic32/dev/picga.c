@@ -32,7 +32,6 @@
 
 #include <machine/debug.h>
 
-extern int uwritec(struct uio *);
 
 struct spiio picga_io;
 

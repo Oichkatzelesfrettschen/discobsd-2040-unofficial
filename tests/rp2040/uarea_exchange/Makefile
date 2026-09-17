@@ -16,16 +16,28 @@ harness: harness.S loop.S
 	${GCCPREFIX}-gcc -x assembler-with-cpp -mcpu=cortex-m0plus -mthumb \
 	    -nostdlib -nostartfiles -static -Wl,--build-id=none -o $@ harness.S
 
+# qemu-user writes the guest core itself, into the guest process's working
+# directory, so the host's kernel.core_pattern never sees it. The harness
+# faults whenever the loop under test overruns, which is the failure the
+# test exists to catch, so the run happens with cores/ as the working
+# directory and every dump lands there instead of in the source tree.
 check: harness
 	@if ! command -v ${QEMU} >/dev/null 2>&1; then \
 		echo "${QEMU} is required for the u-area exchange test" >&2; \
 		exit 2; \
 	fi
-	${QEMU} ./harness; echo "harness exit $$?"; ${QEMU} ./harness
+	@mkdir -p cores
+	@cd cores && ${QEMU} ../harness || { \
+		status=$$?; \
+		echo "u-area exchange failed: harness exit $$status" >&2; \
+		echo "1 byte mismatch, 2 pointer overrun, 128+n killed by signal n" >&2; \
+		exit 1; \
+	}
+	@echo "u-area exchange ok"
 
 all: check
 
 clean:
-	rm -f harness loop.S
+	rm -rf harness loop.S cores
 
 .PHONY: all check clean

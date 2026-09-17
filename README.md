@@ -74,9 +74,13 @@ Documentation for the port lives in `sys/arch/rp2040/doc/`: `BOOT-MAP.md`
 
 ### Use a board you were handed
 
-A board handed to you by the project's testers arrives flashed; any
-other Pico is flashed in two minutes under "Build the firmware and flash
-a board" below, or from the UF2 files a release carries. Plug the board
+This firmware is designed to be flashed onto your own Raspberry Pi
+Pico: two UF2 files from a release, or a build of this tree, and two
+minutes under "Build the firmware and flash a board" below. You may
+instead have obtained a Pico with it already installed, from the
+project's testers or from a seller; such a board is a genuine Raspberry
+Pi Pico carrying this software, its `/etc/release` names the exact
+build, and everything below applies to it unchanged. Plug the board
 into a USB port with a data cable. It
 boots within a few seconds and waits at a login prompt on the USB serial
 line. Log in as `operator` with no password; run `su` (no password) for

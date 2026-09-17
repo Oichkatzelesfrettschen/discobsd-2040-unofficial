@@ -4,7 +4,7 @@
  * around it. Linker section collection removes unrelated exec routines whose
  * target-address assumptions cannot run on the host.
  *
- * The raw-swap reservation is not modelled: the Makefile links
+ * The raw-swap reservation is not modeled: the Makefile links
  * sys/kern/subr_rmap.c, so the run the spool gets is the one the kernel's own
  * cyclic next-fit allocator picks. What remains here is a pair of wrappers
  * that record the arguments and the result, which is what the scenarios below

@@ -17,3 +17,7 @@ cred_test
 resource_kernel.o
 resource_proc.o
 resource_test
+prf_kernel.o
+prf_shim.o
+hostkern32.o
+prf_test

@@ -31,10 +31,10 @@ KERNEL_RENAMES=	-Dprintf=hk_kprintf \
 # port's PRIMASK inlines have to be excused even though hostintr.h redefines
 # every macro that would call them. tests/rp2040/exec_spool and cache_footprint
 # excuse the same header the same way.
-KERN_BASE=	-std=gnu17 -ffreestanding -fno-builtin \
+KERN_COMMON=	-std=gnu17 -ffreestanding -fno-builtin \
 		-Wno-asm-operand-widths \
-		-DKERNEL -I. -I${TOPSRC}/sys -I${TOPSRC}/sys/arch \
-		${KERNEL_RENAMES}
+		-DKERNEL -I. -I${TOPSRC}/sys -I${TOPSRC}/sys/arch
+KERN_BASE=	${KERN_COMMON} ${KERNEL_RENAMES}
 
 # A kernel source is held to the warning set the kernel is built with, and no
 # more: a gate that rejected code the production build accepts would fail for
@@ -51,6 +51,28 @@ GATE_WARN=	-Wall -Wextra -Werror
 KERN_CFLAGS=	${KERN_BASE} ${KERN_WARN}
 GATE_CFLAGS=	${KERN_BASE} ${GATE_WARN}
 HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
+
+# sys/kern/subr_prf.c walks its own arguments as an array of four-byte slots,
+# so it is faithful only where a pointer, a long and an int are four bytes
+# and arguments sit on the stack. That is the target, and it is what -m32
+# gives on an x86-64 host: an ordinary 32-bit userspace binary, no virtual
+# machine and no second operating system. A host without 32-bit support
+# builds the rest of the tier and says so.
+ILP32=		-m32
+ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
+		if ${HOST_CC} -m32 -o /dev/null /tmp/ilp32probe$$$$.c 2>/dev/null; \
+		then echo yes; else echo no; fi; \
+		rm -f /tmp/ilp32probe$$$$.c
+
+# printf and panic are both defined by subr_prf.c and both owned by libc in a
+# host binary, so they move aside the way malloc does elsewhere in this tier.
+#
+# subr_prf.c defines printf and panic itself, so this gate cannot carry the
+# tier's printf rename as well; it takes KERN_COMMON with its own pair.
+PRF_RENAMES=	-Dprintf=kern_printf -Dpanic=kern_panic
+PRF_KERN_CFLAGS=	${KERN_COMMON} ${PRF_RENAMES} ${KERN_WARN} ${ILP32}
+PRF_GATE_CFLAGS=	${KERN_COMMON} ${PRF_RENAMES} ${GATE_WARN} ${ILP32}
+PRF_SRC=	${TOPSRC}/sys/kern/subr_prf.c
 
 RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
@@ -140,6 +162,27 @@ resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ resource_test.c hostkern_kern.c \
 	    resource_kernel.o resource_proc.o hostkern.o
 
+# The harness again at the narrower width, since every object in one binary
+# has to agree.
+hostkern32.o: hostkern.c hostkern.h
+	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -c -o $@ hostkern.c
+
+prf_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${PRF_KERN_CFLAGS} -c -o prf_kernel.o ${PRF_SRC}
+	${HOST_CC} ${PRF_KERN_CFLAGS} -c -o prf_shim.o hostkern_kern.c
+	${HOST_CC} ${PRF_GATE_CFLAGS} -o $@ \
+	    prf_test.c prf_kernel.o prf_shim.o hostkern32.o
+
+# The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
+check-ilp32:
+.if ${ILP32_OK} == "yes"
+	@${MAKE} prf_test
+	./prf_test
+.else
+	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
+.endif
+
 check: ${PROGS}
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
@@ -152,7 +195,8 @@ clean:
 	rm -f uio_kernel.o clist_kernel.o
 	rm -f cred_prot.o cred_prot2.o cred_proc.o
 	rm -f resource_kernel.o resource_proc.o
+	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 
-.PHONY: all check clean
+.PHONY: all check check-ilp32 clean

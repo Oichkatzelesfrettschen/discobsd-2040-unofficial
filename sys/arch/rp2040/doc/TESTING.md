@@ -23,6 +23,13 @@ build; `host.yml` owns the discobsd-host package and packages it on
 three platforms. `PYTHON` defaults to `python3` in share/mk/sys.mk and
 the root Makefile and reaches every sub-make.
 
+Windows appears in `host.yml` and nowhere else. The firmware tiers want
+bmake, an arm-none-eabi cross toolchain and a POSIX sh userland to test,
+so the platform that runs them on a Windows machine is WSL, which is the
+Ubuntu job already. What Windows does carry on its own is the
+discobsd-host package: the pytest matrix runs there, and a separate job
+builds the PyInstaller executables that talk to a board over USB.
+
 ## Lint
 
 `tools/check-lint.sh` runs shellcheck at error severity over every
@@ -42,6 +49,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
+| `check-kernel` | sys/kern/subr_rmap.c, the swap allocator, compiled from the kernel source and run against 411 assertions in three descriptor shapes |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
@@ -65,6 +73,41 @@ against XCU chapter 2, which builds the shell as a 32-bit host binary;
 a case the shell does not yet answer as POSIX does is declared `xfail`
 and fails the moment the shell starts producing the POSIX answer.
 
+### Kernel sources on the host
+
+`check-kernel` compiles a file from sys/kern unchanged and links it
+against the harness in tests/kernel, so the gate measures the code the
+board runs instead of a second copy of its algorithm. `check-swapram-evac`
+links kernel sources the same way. Three properties of the tree decide the
+shape of the harness, and a new gate that ignores any of them fails in a
+way that looks like a bug in the kernel:
+
+- sys/sys/types.h reads `typedef u_int size_t`, so a kernel source sees a
+  32-bit size_t where a host source sees a wider one. hostkern.h therefore
+  includes no system header and names no type the kernel names, and
+  hostkern_kern.c is the only translation unit that includes both sides.
+  A gate that reached `<stddef.h>` before `<sys/param.h>` would hand
+  `malloc3()` an array of one width and get two of its three addresses
+  written into the first element.
+- A host binary links libc, which owns `printf`, `malloc` and `mfree`. The
+  Makefile moves those names aside for the kernel source; hostkern_kern.c
+  compiles with the same renames and includes both headers, so a signature
+  that drifts from sys/systm.h becomes a conflicting declaration.
+- sys/param.h reaches the port's headers as `<machine/*.h>`, a name
+  config(8) makes in the kernel build directory. This tier has to run in an
+  unconfigured tree, so its Makefile generates one forwarding header per
+  port header instead.
+
+A kernel source compiles here under `-Wall -Werror`, the set
+sys/arch/rp2040/conf builds the kernel with, while the gate's own sources
+take `-Wall -Wextra -Werror`. A gate that rejected code the production
+build accepts would fail for something that ships.
+
+`panic()` returns control to the harness inside `HK_EXPECT_PANIC`, which
+is what lets a gate assert on the defensive checks rather than only on the
+paths that return. Outside one it prints and exits, so an unexpected panic
+fails the gate rather than unwinding into unrelated code.
+
 ## Cross tier
 
 | gate | proves |
@@ -72,7 +115,7 @@ and fails the moment the shell starts producing the POSIX answer.
 | `check-divider` | neither linked kernel reaches the SIO divider registers, from the ELF and from the dependency files |
 | `check-swapram` | vm_swap.o, exec_hsaout.o and kern_sysctl.o agree with each kernel's Config on the SwapRAM tier and pool size |
 | `check-cache-footprint` | the name, buffer and inode caches' ABI and chain invariants, the exec argument spool over modeled SwapRAM, raw swap and buffers (including the swap cursor's rotation, publication and wrap), and the evacuation model |
-| `check-exec-spool` | the spool and evacuation models alone |
+| `check-exec-spool` | sys/kern/exec_subr.c spooling arguments through the real sys/kern/subr_rmap.c reservation, over modeled SwapRAM and buffers |
 | `check-ufs-prototypes` | every UFS function the kernel links has a prototype |
 | `check-hsaout` | the packed a.out container against header and stream corruption, truncation and forged lengths, over every image in the distribution tree |
 | `check-libc-contracts` | raise and ctermid on the host, and the board libc's a.out contracts after a rebuild from clean |

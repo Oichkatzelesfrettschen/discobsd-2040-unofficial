@@ -1,0 +1,8 @@
+machine/
+hostkern.o
+rmap_kernel_compact.o
+rmap_kernel_wide.o
+rmap_kernel_diagnostic.o
+rmap_test_compact
+rmap_test_wide
+rmap_test_diagnostic

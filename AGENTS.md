@@ -1,1 +1,244 @@
-CLAUDE.md
+# Agent guide: DiscoBSD RP2040 port
+
+This is the DiscoBSD port to the Raspberry Pi Pico (RP2040), a fork of
+chettrick/discobsd (remote `origin`, branch master) published as
+github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial (remote `rp2040`,
+branch main). Its research and notes live in the sibling repository
+github.com/Oichkatzelesfrettschen/discobsd-2040-notes, checked out beside
+this one as ../discobsd-2040-notes; this tree keeps code, man pages, the
+necessary documentation under sys/arch/rp2040/doc, and the thirteen
+research documents listed in sys/arch/rp2040/doc/research/README.md that
+code, Makefiles or the root manifest cite. New research goes to the notes
+repository.
+
+AGENTS.md owns these rules. CLAUDE.md is a tracked repository-relative
+symbolic link to it, so every agent reads one body and no loader copies
+rules that drift.
+
+## Target
+
+RP2040: Cortex-M0+ (ARMv6-M, Thumb-1), no FPU, MMU or MPU, 264 KB SRAM,
+2 MB QSPI flash. Layout: 128 KB kernel, 1536 KB Dhara root (989 KB usable),
+384 KB raw swap. A process gets one 144 KB window for text, data, bss and
+stack; user programs are a.out OMAGIC. Boot ROM V3 on the verified board.
+The console is CDC-ACM over the board's own USB cable (/dev/ttyACM*,
+resolved by /dev/serial/by-id/*DiscoBSD*); UART0 on GP0/GP1 is the
+fallback. Login as operator (no password) and `su` for root (blank
+password). The console shell echoes keystrokes, so serial captures need
+escape sequences stripped.
+
+## Build, image, flash
+
+    bmake MACHINE=rp2040 distribution      # tools, kernel, world, sdcard.img
+    bmake MACHINE=rp2040 flash             # distrib/rp2040/flash.uf2
+    bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
+    bmake MACHINE=rp2040 check-divider     # no kernel SIO divider use
+    bmake MACHINE=rp2040 check-swapram     # linked SwapRAM tier matches Config
+    bmake MACHINE=rp2040 check-cache-footprint # cache ABI and chain invariants
+    bmake MACHINE=rp2040 check-elf2aout    # a.out layout gate
+
+Reflash from a running kernel: `distrib/rp2040/host/discobsd-flash
+<uf2>...` (kernel, filesystem image, or both), which reboots into
+BOOTSEL, unmounts the RPI-RP2 volume, loads and reboots; by hand it is
+`picotool reboot -u -f`, `picotool load <uf2>`, `picotool reboot`. A hung
+kernel needs BOOTSEL held through a replug. On macOS the toolchain is
+`brew install bmake byacc bison flex groff mandoc pkgconf picotool` plus
+`brew install --cask gcc-arm-embedded` (not the arm-none-eabi-gcc
+formula); distrib/rp2040/host/DEVELOPMENT.md has the per-OS table. `bmake build` does not relink
+programs when libc changes; run `bmake MACHINE=rp2040 clean` first when a
+libc or header change must reach every program, and rebuild sbin/sysctl and
+sbin/adminbox from clean after a sysctl.h or machine/cpu.h change. The
+config-generated sys/arch/rp2040/compile/PICO/Makefile is tracked; commit it
+when Config changes.
+
+## Tests
+
+- `bmake MACHINE=rp2040 check` runs every tier; the tiers are check-lint
+  (shellcheck -S error, ruff), check-host (host cc and python),
+  check-posix-sh (32-bit Linux), check-cross (after build), check-qemu,
+  check-mips, check-host-package and check-board-build. check-renode boots
+  the kernel under Renode and stands outside check, because it wants the
+  emulator and a fetched model tree.
+  sys/arch/rp2040/doc/TESTING.md lists each gate and what it proves;
+  a new test joins a tier there and in the root Makefile. CI runs the
+  tiers in .github/workflows/firmware.yml.
+- On the board, from tests/rp2040: fptest (Boot ROM float, bit-exact),
+  sigtest (signal frames), streamtest (NSTATIC), tartest, romprobe (ROM
+  table dump). They are not in the root manifest; stage them by adding
+  `file /usr/bin/<name>` lines to distrib/rp2040/mi.rp2040 for the test
+  image and revert those lines before committing.
+- Kernel trace: `sysctl -w kern.systrace=1` (syscalls) or 2 (signal
+  frames), `kern.systracepid` to filter; under "options SYSTRACE".
+- Host tools: distrib/rp2040/host is the discobsd-host Python package
+  (discobsd-term, discobsd-web with `--bind 0.0.0.0 --token SECRET` for the
+  LAN, discobsd-link, discobsd-console up/down/status), with the udev rule,
+  systemd user units, packaging/ (PKGBUILD, debian/, PyInstaller spec), and
+  tests (`ruff check . && pytest` there). CI: .github/workflows/host.yml
+  builds and smoke-installs every platform artifact; firmware.yml builds
+  the UF2 files.
+
+## Evidence
+
+Sources rank; the higher rank settles a conflict:
+
+1. Board measurement: a console capture, `picotool` output, romprobe's ROM
+   table dump, a gate run on the hardware.
+2. Specification: the RP2040 datasheet by section number, the ARMv6-M
+   Architecture Reference Manual, datasheet 2.8 for the Boot ROM.
+   sys/arch/rp2040/doc/DATASHEET-INDEX.md resolves a section to its page.
+3. DiscoBSD kernel source under sys/, which the port inherits.
+4. Port source under sys/arch/rp2040 and host tools under distrib/rp2040.
+5. Gate output from the check tiers.
+6. Documentation and source comments that agree with ranks 1 to 5.
+
+A claim that changes an interface, a memory layout or a driver path cites
+rank 1 through 3. A claim resting on rank 4 or below stays labeled a
+hypothesis until a higher rank confirms it.
+
+Build, host-gate, cross, qemu, Renode and board results are separate
+evidence classes, and each stands for itself. A warning-free build proves
+compilation. A qemu-user run proves the instruction sequence. check-renode
+boots the PICO_UART kernel from the real RP2040 boot ROM and asserts the
+console through the device probe, against third-party peripheral models.
+A board run proves the silicon. sys/arch/rp2040/doc/TESTING.md is the
+authority for what a given gate proves.
+
+A new gate, linter or probe is calibrated against a known-good and a
+known-bad input before its verdict counts, because a gate that passes on
+input it should reject reports nothing.
+
+### Falsification record
+
+A kernel or driver change that rests on board behavior records, before the
+edit:
+
+- the direct observation;
+- the governing datasheet section, ARM ARM clause or kernel invariant;
+- the implementation hypothesis;
+- the criterion that falsifies it;
+- the command or capture that decides it;
+- the gate movement it predicts, named by target.
+
+A result that deviates from the prediction is the finding; it opens the
+next investigation rather than rewriting the prediction after the fact.
+
+### Stop points
+
+Report instead of continuing to implement when a hypothesis survives three
+independent falsification attempts, when it fails in a way the model does
+not admit, when the fix needs an architecture choice the tree does not
+already settle, or when a measurement contradicts the datasheet or the ARM
+ARM. Name the evidence chain, the alternatives, and the next measurement.
+
+### Review checks
+
+- Read the specification before the kernel, the kernel before the port
+  code, and the port code before the gate oracle. A model that survives
+  reading in reverse order holds.
+- Three independent "nothing failed here" results compose into a false
+  positive. Argue the strongest contrary case against a synthesis before
+  it counts as settled.
+- Bounded confidence needs independent sources; two gates that link the
+  same object file measure one thing.
+- Record the discovery mechanism beside a symbol claim: `(rg
+  --fixed-strings flash_swap_append sys/)`, `(git log -S SYMBOL)`,
+  `(arm-none-eabi-nm -g <object>)`.
+
+## Remotes and publication
+
+`rp2040` is the owned fork and the only push target. `origin`
+(chettrick/discobsd, branch master) is the upstream this port forked from
+and is fetch-only: upstream reaches `main` through a deliberate rebase
+that records the divergence, and a submission back to it happens under an
+explicit request naming the scope.
+
+## Source comments
+
+Code says what happens; a comment says why the code has that shape -- the
+silicon constraint, the datasheet rule, the format invariant, the lifetime
+boundary, or the conformance cost a workaround pays. Three files in the
+port set the shape and the density: sys/arch/rp2040/dev/usb.c states the
+DPSRAM buffer model and cites datasheet section 4.1.2;
+sys/arch/rp2040/dev/flash_swap.c states the erase-alignment invariant and
+why the geometry loop sits outside the flash driver;
+sys/arch/rp2040/rp2040/exec_hsaout.c states the preflight-then-commit order
+and the verdict each failure produces.
+
+A model that spans a file lives at file scope; a call-site comment stays on
+the local linkage. A register layout, a packet field or a state transition
+becomes a compact table, free of ASCII borders.
+
+An unverified claim carries `hypothesis:` in the comment or resolves before
+the commit lands.
+
+A TODO names the function, register, datasheet section or URL carrying the
+missing work, the constraint that defers it, and the durable artifact that
+tracks it.
+
+## Safety stop-line
+
+Stop feature work and report on finding a secret, token or private host
+name in a tracked file or a log; an unquoted expansion reaching `sh -c`,
+`eval` or a generated script; a path built from untrusted input; or a
+flash, BOOTSEL or /dev/ttyACM* path a caller reaches without asking for it.
+
+A gate or test that reaches the board opens that path on an exact opt-in
+value; unset, empty and zero stay closed. No root Makefile target reaches
+the board: check-board-build builds the board tests and stops. A tool the user invokes to flash --
+distrib/rp2040/host/discobsd-flash, picotool -- carries the request in
+the invocation and needs no gate.
+
+## Tools
+
+Reach for the tool that matches the claim.
+
+- Symbols and call paths: `clangd`, `git grep`, `rg`, `fd`, `git log -S`,
+  `git log -G`, `git blame`, and `ast-grep` for a structural pattern.
+- Compiled output: `arm-none-eabi-objdump -d`, `readelf`, `nm`, `size`, the
+  tree's own gates under tools/, and capstone and pyelftools under
+  `${PYTHON}` as the cross tier uses them.
+- Behavior: qemu-arm for the instruction sequence, `bmake check-renode`
+  for a boot from the real boot ROM, the board over
+  /dev/serial/by-id/*DiscoBSD* for everything else, `sysctl -w
+  kern.systrace=1` for the syscall stream, romprobe for the ROM table.
+- Hygiene: `shellcheck -S error`, `ruff`, `-Wall -Wextra -Werror`.
+
+A tool the host lacks is an environment fact: name the package, install it,
+run the check. A check that stays unrun is reported `not run` with the
+blocker.
+
+## Conventions
+
+- Work in a worktree under `~/worktrees/discobsd-2040-unofficial/<branch>`,
+  push the branch, open a PR against `rp2040` main, merge, delete branch and
+  worktree. Never commit to main directly.
+- Build outputs are ignored per directory (a .gitignore holding the
+  program name); never commit compile outputs, the sdcard image or test
+  a.outs.
+- Multicall binaries: box, sysbox, adminbox, textbox, utilbox, gamebox; the
+  manifest's `link` lines name their entry points. Editors shipped: ed and
+  stevie (vi and vim are hard links to stevie); re and kilo build but are
+  not shipped.
+- Retire a worktree when its branch merges: confirm the tree is clean and
+  HEAD is reachable from a pushed ref, `git worktree remove` it without
+  `--force`, and confirm the removal through `git worktree list --porcelain`.
+- After a fix, read `git diff --staged` adversarially: every removed line is
+  an intended correction, every test label names the command that actually
+  runs, and every symbol a comment or document names resolves in the source.
+  A defect worth fixing is worth the gate that catches its class.
+- A subagent collects evidence read-only unless the task grants it more, and
+  carries an explicit `model`. Synthesis, edits, commits and the final claim
+  stay with the parent.
+- A new file under sys/arch/rp2040 written for this port carries
+  `Copyright (c) <year> DiscoBSD` and the ISC permission notice. NOTICE
+  section 1 names those files as an ISC-licensed category beside the
+  BSD 3-Clause LICENSE, so the header is the grant a redistributor relies
+  on rather than an invented attribution, and the global no-copyright-line
+  rule yields to it here.
+- The ledgers under sys/arch/rp2040/doc/research are retained evidence.
+  audit-findings.md is a verbatim capture with its source SHA-256 in the
+  header, so it records the tree as it stood at the commit it names.
+  Corrections go to audit-response.md; the ledger stays as captured.
+- The user's global instructions apply (emoji-free text, `--` not em dash,
+  American English, POSIX sh with set -eu, ${PYTHON}, no local paths or
+  secrets in commits, `Assisted-by:` trailers).

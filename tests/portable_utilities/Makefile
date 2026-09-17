@@ -31,10 +31,12 @@ strings_output_error_test: strings_output_error_test.c strings_stream.o
 		strings_output_error_test.c strings_stream.o
 
 # macOS marks struct utmp deprecated in <utmp.h>; users.c reads the
-# board's utmp records, which is the point of the program.
+# board's utmp records, which is the point of the program, and
+# fixture_writer.c writes the records the test feeds it.
+UTMP_CFLAGS= -Wno-deprecated-declarations
+
 users_host: ../../usr.bin/users/users.c
-	${HOSTCC} ${CFLAGS} -Wno-deprecated-declarations -o $@ \
-	    ../../usr.bin/users/users.c
+	${HOSTCC} ${CFLAGS} ${UTMP_CFLAGS} -o $@ ../../usr.bin/users/users.c
 
 yes_error.o: ../../usr.bin/yes/yes.c
 	${HOSTCC} ${CFLAGS} -Dmain=discobsd_yes_main -Dwrite=test_write \
@@ -44,7 +46,8 @@ yes_error_test: yes_error_test.c yes_error.o
 	${HOSTCC} ${CFLAGS} -o $@ yes_error_test.c yes_error.o
 
 fixture_writer: fixture_writer.c
-	${HOSTCC} ${CFLAGS} -idirafter ../../sys -o $@ fixture_writer.c
+	${HOSTCC} ${CFLAGS} ${UTMP_CFLAGS} -idirafter ../../sys -o $@ \
+	    fixture_writer.c
 
 clean:
 	rm -f ${PROGRAMS} strings_stream.o yes_error.o regular.bin raw.aout raw-truncated.aout \

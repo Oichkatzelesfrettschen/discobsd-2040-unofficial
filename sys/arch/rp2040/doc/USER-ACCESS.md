@@ -16,7 +16,7 @@ does not change when the device re-enumerates on reboot:
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.
-Installing distrib/rp2040/host/71-discobsd-pico.rules (the Arch and Debian
+Installing distrib/rp2040/host/71-discobsd-rp2040.rules (the Arch and Debian
 packages do) adds the shorter symlink /dev/discobsd and turns off USB
 autosuspend for the port.
 

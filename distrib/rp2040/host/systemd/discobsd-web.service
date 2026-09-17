@@ -1,6 +1,6 @@
 [Unit]
 Description=DiscoBSD web console (serial to browser)
-Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 After=network-online.target
 
 [Service]

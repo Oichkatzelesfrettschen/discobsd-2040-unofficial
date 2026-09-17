@@ -38,14 +38,14 @@ discobsd-host (1.0.5) noble; urgency=medium
     or V6), a reader toggle for xterm.js screen reader mode, minimum
     contrast 4.5, hide leaves a keys tab.
 
- -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 19:00:00 -0700
+ -- Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>  Tue, 15 Sep 2026 19:00:00 -0700
 
 discobsd-host (1.0.4) noble; urgency=medium
 
   * discobsd-web: Sync & leave narrates each step in the terminal and the
     status line (sync, leaving V6, logging out, session closed).
 
- -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 18:00:00 -0700
+ -- Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>  Tue, 15 Sep 2026 18:00:00 -0700
 
 discobsd-host (1.0.3) noble; urgency=medium
 
@@ -53,7 +53,7 @@ discobsd-host (1.0.3) noble; urgency=medium
     DiscoBSD and closes the session; V6 group gains # erase and @ kill;
     a "keys" button shows the per-system key reference in the page.
 
- -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 17:00:00 -0700
+ -- Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>  Tue, 15 Sep 2026 17:00:00 -0700
 
 discobsd-host (1.0.2) noble; urgency=medium
 
@@ -62,14 +62,14 @@ discobsd-host (1.0.2) noble; urgency=medium
   * discobsd-web: key bar gains the V6 keys (DEL, Ctrl-backslash, Ctrl-_)
     and a Disconnect button that frees the console for the next session.
 
- -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 16:00:00 -0700
+ -- Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>  Tue, 15 Sep 2026 16:00:00 -0700
 
 discobsd-host (1.0.1) noble; urgency=medium
 
   * udev rule: TAG+="uaccess" grants the seat user the console without a
     group or a re-login; the discobsd group remains for other users.
 
- -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Tue, 15 Sep 2026 12:00:00 -0700
+ -- Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>  Tue, 15 Sep 2026 12:00:00 -0700
 
 discobsd-host (1.0.0) noble; urgency=medium
 
@@ -77,4 +77,4 @@ discobsd-host (1.0.0) noble; urgency=medium
     discobsd-console, with the udev rule, the systemd user units and
     the discobsd-connect shell wrapper.
 
- -- Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>  Mon, 15 Sep 2026 00:00:00 +0000
+ -- Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>  Mon, 15 Sep 2026 00:00:00 +0000

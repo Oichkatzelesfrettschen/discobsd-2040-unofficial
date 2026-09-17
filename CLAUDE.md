@@ -2,10 +2,10 @@
 
 This is the DiscoBSD port to the Raspberry Pi Pico (RP2040), a fork of
 chettrick/discobsd (remote `origin`, branch master) published as
-github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial (remote `pico`,
+github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial (remote `rp2040`,
 branch main). Its research and notes live in the sibling repository
-github.com/Oichkatzelesfrettschen/discobsd-pico-notes, checked out beside
-this one as ../discobsd-pico-notes; this tree keeps code, man pages, the
+github.com/Oichkatzelesfrettschen/discobsd-2040-notes, checked out beside
+this one as ../discobsd-2040-notes; this tree keeps code, man pages, the
 necessary documentation under sys/arch/rp2040/doc, and the thirteen
 research documents listed in sys/arch/rp2040/doc/research/README.md that
 code, Makefiles or the root manifest cite. New research goes to the notes
@@ -75,7 +75,7 @@ when Config changes.
 
 ## Conventions
 
-- Work in a worktree under `~/worktrees/discobsd-pico-unofficial/<branch>`,
+- Work in a worktree under `~/worktrees/discobsd-2040-unofficial/<branch>`,
   push the branch, open a PR against `pico` main, merge, delete branch and
   worktree. Never commit to main directly.
 - Build outputs are ignored per directory (a .gitignore holding the

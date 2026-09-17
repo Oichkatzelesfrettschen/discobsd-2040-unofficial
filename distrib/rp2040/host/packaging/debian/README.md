@@ -31,7 +31,7 @@ version in `debian/changelog` carries no Debian revision: `1.0.0`, never
 What the binary package installs beyond the Python modules and the four
 console scripts, through `debian/discobsd-host.install`:
 
-- `/usr/lib/udev/rules.d/71-discobsd-pico.rules`
+- `/usr/lib/udev/rules.d/71-discobsd-rp2040.rules`
 - `/usr/lib/systemd/user/discobsd-web.service`
 - `/usr/lib/systemd/user/discobsd-link.service`
 - `/usr/bin/discobsd-connect`

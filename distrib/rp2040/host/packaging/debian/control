@@ -1,7 +1,7 @@
 Source: discobsd-host
 Section: utils
 Priority: optional
-Maintainer: Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>
+Maintainer: Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                dh-python,
                pybuild-plugin-pyproject,
@@ -10,7 +10,7 @@ Build-Depends: debhelper-compat (= 13),
                python3-serial,
                python3-setuptools
 Standards-Version: 4.6.2
-Homepage: https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+Homepage: https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 Rules-Requires-Root: no
 
 Package: discobsd-host

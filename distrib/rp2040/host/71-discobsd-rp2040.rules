@@ -2,7 +2,7 @@
 #
 # The board keeps the USB serial number "rp2040" across every reboot, so
 # udev names it by that rather than by the ttyACMn that drifts each time
-# the device re-enumerates. Install as /etc/udev/rules.d/71-discobsd-pico.rules
+# the device re-enumerates. Install as /etc/udev/rules.d/71-discobsd-rp2040.rules
 # and reload with "udevadm control --reload".
 #
 # ATTRS{serial}=="rp2040" matches the running kernel; the BOOTSEL bootrom

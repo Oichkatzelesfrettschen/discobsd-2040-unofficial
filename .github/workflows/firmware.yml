@@ -49,9 +49,15 @@ jobs:
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
             shellcheck pipx qemu-user python3-capstone python3-pyelftools \
-            gcc-multilib gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
+            gcc-multilib gcc-13-mipsel-linux-gnu binutils-mipsel-linux-gnu
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # Noble's unversioned gcc-mipsel-linux-gnu depends on a gcc-12
+          # the runner cannot install; the versioned package ships only
+          # mipsel-linux-gnu-gcc-13, and the gate names the compiler by
+          # its prefix, so the unversioned name points at it here.
+          sudo ln -s "$(command -v mipsel-linux-gnu-gcc-13)" \
+            /usr/local/bin/mipsel-linux-gnu-gcc
 
       # Ubuntu 24.04 packages no picotool, and the kernel and flash image
       # rules call "picotool uf2 convert", which arrived in picotool 2.
@@ -167,7 +173,7 @@ jobs:
       - name: Install the host toolchain
         run: |
           brew install bmake byacc bison flex groff mandoc pkgconf picotool \
-            shellcheck ruff coreutils sharutils cpio
+            shellcheck ruff coreutils cpio
           brew install --cask gcc-arm-embedded
       - name: Report the toolchain
         run: |
@@ -189,6 +195,8 @@ jobs:
           echo "warning: lines in the build log: $total"
           grep 'warning:' build.log || true
           test "$total" -eq 0
+      # coreutils gives the textbox suite its GNU references and cpio the
+      # GNU cpio the cpio suite drives; macOS ships uuencode itself.
       # The tiers macOS can run. Left out: check-posix-sh (a 32-bit
       # Linux binary), check-qemu (Homebrew's qemu has no user-mode
       # emulation) and check-mips (no MIPS cross compiler in Homebrew).

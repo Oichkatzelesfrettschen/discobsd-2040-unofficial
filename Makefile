@@ -226,6 +226,13 @@ check-host:	${HOST_GATES}
 		sh usr.bin/textbox/tests/run.sh
 		sh usr.bin/cpio/tests/cpiotest.sh
 
+# sys/kern/subr_prf.c walks its arguments as four-byte slots, so the kernel's
+# own printf is faithful only at ILP32. The gate is an ordinary 32-bit
+# userspace binary, not a virtual machine: what it needs is the width of a
+# pointer. A host that cannot build 32-bit says so and skips.
+check-kernel-ilp32:
+		${MAKE} -C tests/kernel check-ilp32
+
 # The POSIX conformance run of bin/sh builds the shell as a 32-bit host
 # binary (it keeps pointers in int), so it needs a Linux x86-64 host with
 # the 32-bit libraries and stands apart from the portable host tier.
@@ -327,7 +334,7 @@ installfs:
 		check-swapram check-cache-footprint check-exec-spool \
 		check-ufs-prototypes \
 		check-elf2aout \
-		check-kernel check-libc-environment \
+		check-kernel check-kernel-ilp32 check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \

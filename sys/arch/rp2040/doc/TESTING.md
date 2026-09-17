@@ -11,6 +11,7 @@ the kernels, the board libc and the distribution tree the gates read.
 | --- | --- | --- | --- | --- |
 | lint | `check-lint` | shellcheck, ruff | yes | yes |
 | host | `check-host` | host cc, `${PYTHON}` | yes | yes |
+| ILP32 host | `check-kernel-ilp32` | a host cc that can build 32-bit binaries | yes, in the 32-bit job | no: clang on Apple silicon builds no 32-bit target |
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
@@ -73,6 +74,34 @@ Each gate compiles the tree's own source for the host, with `-Wall
 against XCU chapter 2, which builds the shell as a 32-bit host binary;
 a case the shell does not yet answer as POSIX does is declared `xfail`
 and fails the moment the shell starts producing the POSIX answer.
+
+### The kernel's printf, and why it needs a narrower host
+
+`check-kernel-ilp32` is separate from `check-kernel` for one file.
+sys/kern/subr_prf.c carries its own argument walk,
+
+    #define va_arg(ap,type) *(type*) (void*) (ap++)
+
+over a `u_int *`, and `printf()` hands it `&fmt + 1`, the address just past
+its own first parameter. Both hold where a pointer, a long and an int are
+four bytes and arguments sit on the stack. That is the target; it is also
+what `cc -m32` produces on an x86-64 host. At the host's natural width a
+`%s` would read four bytes of an eight-byte pointer and every argument after
+it would be wrong.
+
+The binary this builds is ordinary 32-bit userspace. It is not a container,
+a virtual machine or a second operating system, and it needs none: what the
+gate wants from the platform is the width of a pointer, and an x86-64 kernel
+runs an i386 binary directly. That is the same reason bin/sh's conformance
+tier builds 32-bit, and the two share a CI job because they share the
+`gcc-multilib` requirement.
+
+Two paths that sound equivalent are not. GitHub's own runner ships
+`linux-arm` (32-bit Arm) and no `linux-386`, so a genuinely 32-bit x86
+worker would have to be driven from a supported controller or run a
+different agent altogether; and a 32-bit Arm worker would give ILP32 at the
+cost of hardware to maintain, for a property `-m32` already provides
+exactly. Neither buys fidelity this gate lacks.
 
 ### Kernel sources on the host
 
@@ -137,6 +166,19 @@ fails the gate rather than unwinding into unrelated code.
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |
 
 ## qemu tier
+
+This tier runs **user-mode** qemu, which is not an emulated machine.
+qemu-arm loads one Arm program and translates its instructions on the host
+processor, turning each Linux system call the program makes into the host
+kernel's. It never boots this kernel and cannot: the guest's kernel is the
+one already running the runner. What the tier therefore proves is that a
+piece of Arm code computes what it should, which is exactly the right tool
+for an instruction sequence and the wrong tool for a system call.
+
+Full-system emulation is the other thing, and for this port it means
+Renode: a modelled RP2040 that resets into the real boot ROM and runs this
+kernel. `check-renode` uses it. See the Renode tier below for how far it
+gets and why.
 
 tests/rp2040/uarea_exchange assembles the u-area exchange loop cut from
 locore.S between its markers and runs it under qemu-arm, checking every

@@ -152,7 +152,7 @@ jobs:
   # with the MIPS cross compiler the main job installs, so the tier has a
   # job of its own; it needs no cross toolchain and no picotool.
   posix-sh:
-    name: bin/sh POSIX conformance (32-bit host build)
+    name: 32-bit host gates (bin/sh conformance, the kernel's printf)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -170,6 +170,13 @@ jobs:
           python3 -c 'import os, signal, sys
           signal.signal(signal.SIGPIPE, signal.SIG_DFL)
           os.execvp(sys.argv[1], sys.argv[1:])' bmake check-posix-sh
+      # sys/kern/subr_prf.c walks its arguments as four-byte slots, so the
+      # kernel's own printf is faithful only where a pointer and a long are
+      # four bytes. The binary is ordinary 32-bit userspace, which is why it
+      # belongs in the job that already carries gcc-multilib rather than in
+      # anything that boots.
+      - name: Run the ILP32 kernel gate
+        run: bmake MACHINE=rp2040 check-kernel-ilp32
 
   # The same tree on macOS, with the toolchain Homebrew provides: bmake,
   # byacc, Arm's own GNU toolchain (the arm-none-eabi-gcc formula is built

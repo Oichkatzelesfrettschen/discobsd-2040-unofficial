@@ -129,6 +129,7 @@ group 5
 # Files: /etc
 #
 file /etc/COPYRIGHT
+file /etc/release
 file /etc/fstab
 file /etc/gettytab
 file /etc/group

@@ -232,9 +232,10 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   plugging it in, it appears as the `RPI-RP2` drive, and the two UF2
   files from a release or a build restore it in under a minute ("Build
   the firmware and flash a board" below).
-- Which firmware is on a board: `uname -a` prints the kernel and
-  `cat /etc/COPYRIGHT` the license notice; the release or commit the
-  images came from is stated wherever they were downloaded.
+- Which firmware is on a board: `cat /etc/release` prints the commit,
+  date and builder of the root file system, `uname -a` the kernel, and
+  `cat /etc/COPYRIGHT` the license notice. A release or a listing states
+  the same commit, so the two can be compared.
 - Questions and problems go to the issue tracker of this repository;
   say what `discobsd-term --probe` printed and what the screen showed.
 

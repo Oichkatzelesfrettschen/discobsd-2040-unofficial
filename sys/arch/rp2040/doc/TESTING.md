@@ -208,6 +208,15 @@ things this tree does not carry, and reports whichever is missing by name:
 the `renode-test` harness, the models `tools/renode/fetch-renode-rp2040.sh`
 clones, a PICO_UART kernel, and a flash image.
 
+Nothing in this tree pins Renode itself, and the third-party models are
+built against whichever one is installed, so the gate names both before it
+runs anything: the emulator build it found and the commit the models are
+pinned at. A build other than the one it was last verified against is a
+note rather than a refusal, because a newer emulator is the ordinary case;
+what matters is that a gate which starts failing after a package upgrade
+says so instead of sending the reader into the kernel. It was last verified
+against Renode 1.17.0+20260907gitf1dd1b4af.
+
 tools/renode/machine.resc builds the machine and stops there. boot.resc
 includes it and adds a socket console and a GDB server for a person;
 boot.robot includes the same file and attaches a terminal tester, so the

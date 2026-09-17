@@ -171,6 +171,20 @@ flash a board and check it over the USB console: board_aout_admission.py
 errors), board_exec_hsaout.py (textcrc raw and packed across a swap) and
 board_stack_align.py.
 
+No tier runs the kernel under an emulator. Renode with the third-party
+RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is the only
+option that boots this kernel at all -- QEMU ships no rp2040 machine and
+rp2040js models no flash writes -- and it does boot: through boot2, XIP,
+clock bring-up, the real boot ROM's function table, Dhara, and on into
+`execve`. What no run has yet observed is a console prompt. The
+fifteen banner lines arrive by 6.8 virtual milliseconds, which costs about
+0.4 seconds of host wall clock, and the console then stays quiet through a
+long stretch of decompression and swap writes; a board reaches `login:` in
+nine seconds, and no measurement here establishes what that costs under
+the emulator. sys/arch/rp2040/doc/research/emulation.md carries the
+measurements, the replayable commands, and the two model defects found
+along the way.
+
 Suites that run only on the board, because their program has no host
 build or their reference output holds board addresses: usr.bin/cpp
 `test`, usr.bin/picoc `test`, usr.bin/scm `tests` (closure names carry

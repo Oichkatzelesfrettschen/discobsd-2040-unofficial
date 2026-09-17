@@ -4,7 +4,7 @@ HOSTCC?=	cc
 BIN=		edit_test-host
 
 host:		edit_test.c ../edit.c ../edit.h
-		${HOSTCC} -std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra \
+		${HOSTCC} -std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
 		    -DHOSTBUILD -I.. -o ${BIN} edit_test.c ../edit.c
 
 test:		host

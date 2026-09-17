@@ -11,7 +11,7 @@ struct fdescr {
 };
 
 static void
-sequential(struct fdescr *dsc, int fdescrlen, Rune *delim, size_t delimlen)
+sequential(struct fdescr *dsc, size_t fdescrlen, Rune *delim, size_t delimlen)
 {
 	Rune c, last;
 	size_t i, d;
@@ -38,7 +38,7 @@ sequential(struct fdescr *dsc, int fdescrlen, Rune *delim, size_t delimlen)
 }
 
 static void
-parallel(struct fdescr *dsc, int fdescrlen, Rune *delim, size_t delimlen)
+parallel(struct fdescr *dsc, size_t fdescrlen, Rune *delim, size_t delimlen)
 {
 	Rune c, d;
 	size_t i, m;
@@ -120,7 +120,7 @@ main(int argc, char *argv[])
 	/* populate file list */
 	dsc = ereallocarray(NULL, argc, sizeof(*dsc));
 
-	for (i = 0; i < argc; i++) {
+	for (i = 0; i < (size_t)argc; i++) {
 		if (!strcmp(argv[i], "-")) {
 			argv[i] = "<stdin>";
 			dsc[i].fp = stdin;
@@ -136,7 +136,7 @@ main(int argc, char *argv[])
 		parallel(dsc, argc, delim_rune, delim_runelen);
 	}
 
-	for (i = 0; i < argc; i++)
+	for (i = 0; i < (size_t)argc; i++)
 		if (dsc[i].fp != stdin && fshut(dsc[i].fp, argv[i]))
 			ret |= fshut(dsc[i].fp, argv[i]);
 

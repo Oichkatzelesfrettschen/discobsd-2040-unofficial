@@ -1,0 +1,4 @@
+# The board's own scripts (usr.bin/true, false, nohup, lorder, unixbench)
+# carry no shebang: the kernel runs them through /bin/sh. Declare the
+# dialect here so shellcheck reads them as sh; a shebang in a script wins.
+shell=sh

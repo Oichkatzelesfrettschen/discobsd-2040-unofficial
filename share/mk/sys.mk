@@ -23,6 +23,11 @@ TOOLBINDIR?=	${TOOLDIR}/bin
 
 HOST_CC?=	cc
 
+# The interpreter for every verifier and harness, declared once and passed
+# to each sub-make; a Makefile names it as ${PYTHON} and never by a literal.
+PYTHON?=	python3
+.export PYTHON
+
 _HOST_OSNAME!=	uname -s
 
 # libbsd-dev package on Linux in overlay mode.

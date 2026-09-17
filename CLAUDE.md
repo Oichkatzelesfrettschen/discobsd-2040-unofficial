@@ -49,15 +49,13 @@ when Config changes.
 
 ## Tests
 
-- Host: `bmake -C usr.bin/smlrc test`, `bmake -C usr.bin/stevie test`,
-  `sh bin/sh/tests/posix-sh.sh`, `bmake -C usr.bin/as/tests test
-  MACHINE=rp2040`, `bin/tar/tests/tartest.sh`,
-  `bmake check-tiny-utility-multicall` (true, false, and nohup dispatch,
-  argument, signal, priority, stream, terminal, and exit-status contracts),
-  `bmake -C tests/rp2040/uarea_exchange check MACHINE=rp2040` (the longjmp
-  u-area exchange loop under qemu-arm), and `bmake -C games/keen test` (plays a
-  seeded puzzle and checks solution uniqueness against an independent
-  counter, with ambiguous, unique and inconsistent fixtures).
+- `bmake MACHINE=rp2040 check` runs every tier; the tiers are check-lint
+  (shellcheck -S error, ruff), check-host (host cc and python),
+  check-posix-sh (32-bit Linux), check-cross (after build), check-qemu,
+  check-mips, check-host-package and check-board-build.
+  sys/arch/rp2040/doc/TESTING.md lists each gate and what it proves;
+  a new test joins a tier there and in the root Makefile. CI runs the
+  tiers in .github/workflows/firmware.yml.
 - On the board, from tests/rp2040: fptest (Boot ROM float, bit-exact),
   sigtest (signal frames), streamtest (NSTATIC), tartest, romprobe (ROM
   table dump). They are not in the root manifest; stage them by adding

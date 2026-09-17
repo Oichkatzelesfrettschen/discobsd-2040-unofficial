@@ -6,9 +6,9 @@
 # top-to-bottom path, so it needs no puzzle solver of its own.
 import os
 import pty
+import select
 import sys
 import time
-import select
 
 SEED = "20260911"
 SIZE = "5"

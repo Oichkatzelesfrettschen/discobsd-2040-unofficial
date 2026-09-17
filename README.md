@@ -374,16 +374,21 @@ Source tree
 Verification gates
 ------------------
 
-The tree builds with zero warnings and CI enforces it. The host-side
-checks that guard the port's invariants run from the tree root:
+The tree builds with zero warnings and CI enforces it. Every test is a
+root Makefile target, grouped into tiers by what the host needs:
 
-    bmake MACHINE=rp2040 check-swapram check-flash-swap check-swapram-evac
-    bmake MACHINE=rp2040 check-cache-footprint check-exec-spool check-divider
-    bmake MACHINE=rp2040 check-hsaout check-config-makefile check-ufs-prototypes
-    PYTHON=python3 bmake MACHINE=rp2040 check-elf2aout
+    bmake MACHINE=rp2040 check              # every tier
+    bmake MACHINE=rp2040 check-lint         # shellcheck -S error, ruff
+    bmake MACHINE=rp2040 check-host         # host cc and python only
+    bmake MACHINE=rp2040 check-cross        # arm toolchain, after build
+    bmake MACHINE=rp2040 check-qemu         # qemu-arm
+    bmake MACHINE=rp2040 check-mips         # a MIPS cross compiler
+    bmake MACHINE=rp2040 check-board-build  # the on-device programs
 
-On-board tests live in `tests/rp2040`; each has a host driver that flashes,
-logs in over the USB console, and checks the result.
+sys/arch/rp2040/doc/TESTING.md is the matrix: each gate, what it
+proves, and which tiers CI runs on Linux and macOS. On-board tests live
+in `tests/rp2040`; each has a host driver that flashes, logs in over the
+USB console, and checks the result.
 
 References
 ----------

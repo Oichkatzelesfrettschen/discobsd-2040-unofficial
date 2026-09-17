@@ -17,7 +17,7 @@ ${PROG}:	${OBJS}
 
 # Same source, host compiler; see games/fifteen/Makefile.
 host:		${PROG}.c ${TOPSRC}/games/gametty.h
-		${HOSTCC} -std=c99 -Wall -Wextra -DHOSTBUILD -o ${HOSTBIN} ${PROG}.c
+		${HOSTCC} -std=c99 -Wall -Wextra -Werror -DHOSTBUILD -o ${HOSTBIN} ${PROG}.c
 
 test:		host
 		${PYTHON} tests/play.py ./${HOSTBIN}

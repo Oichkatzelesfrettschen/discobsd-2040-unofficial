@@ -141,7 +141,7 @@ main(int argc, char *argv[])
 		tl = EARGF(usage());
 		if (!*tl)
 			eprintf("tablist cannot be empty\n");
-		/* Fallthrough: -t implies -a */
+		/* fallthrough -- -t implies -a */
 	case 'a':
 		aflag = 1;
 		break;

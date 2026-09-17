@@ -61,6 +61,10 @@ DEFS		=
 
 FSUTIL=		${TOPSRC}/tools/bin/fsutil
 
+# The interpreter for every verifier and harness, passed to each sub-make.
+PYTHON?=	python3
+.export PYTHON
+
 -include Makefile.user
 
 #
@@ -181,6 +185,74 @@ check-elf2aout:	tools
 		fi
 		${MAKE} -C tests/rp2040/elf2aout_layout check
 
+# Test tiers. Each gate above is its own target; the tiers group them by
+# what the host needs, so a machine without the arm cross toolchain,
+# qemu-arm or the MIPS compiler runs the tiers it has and names the rest.
+# The cross, qemu, mips and board-build tiers run after
+# "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
+# the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
+HOST_GATES=	check-aout check-libc-environment check-libc-tempfiles \
+		check-id-aliases check-tiny-utility-multicall \
+		check-portable-utilities check-pdp11-reference \
+		check-fgrep-capacity check-config-makefile check-swapram-evac
+CROSS_GATES=	check-divider check-swapram check-cache-footprint \
+		check-exec-spool check-ufs-prototypes check-hsaout \
+		check-libc-contracts check-flash-swap
+
+# Shell scripts under shellcheck at error severity and Python under ruff.
+check-lint:
+		sh tools/check-lint.sh
+
+# Host C compiler and ${PYTHON}: the libc, utility and kernel-model gates,
+# the pdp11 V6 boot, and every program with a host build and a suite.
+check-host:	${HOST_GATES}
+		${MAKE} -C usr.bin/pdp11 test
+		${MAKE} -C usr.bin/stevie test
+		${MAKE} -C usr.bin/kilo test
+		${MAKE} -C usr.bin/menu test
+		${MAKE} -C usr.bin/tail test
+		${MAKE} -C usr.bin/sort test
+		${MAKE} -C games/keen test
+		${MAKE} -C games/bubble test
+		${MAKE} -C games/fifteen test
+		${MAKE} -C bin/sh/tests test
+		sh bin/tar/tests/tartest.sh
+		sh usr.bin/textbox/tests/run.sh
+		sh usr.bin/cpio/tests/cpiotest.sh
+
+# The POSIX conformance run of bin/sh builds the shell as a 32-bit host
+# binary (it keeps pointers in int), so it needs a Linux x86-64 host with
+# the 32-bit libraries and stands apart from the portable host tier.
+check-posix-sh:
+		sh bin/sh/tests/posix-sh.sh
+
+# The arm cross toolchain and a built tree: the linked kernels, the board
+# libc, the packed a.out images, the assembler and the divider fixtures.
+check-cross:	${CROSS_GATES}
+		${MAKE} -C usr.bin/as/tests test
+		${MAKE} -C tests/rp2040/divider_ownership check
+
+# qemu-arm: the u-area exchange loop and the Smaller C suite executed
+# rather than only linked.
+check-qemu:
+		${MAKE} -C tests/rp2040/uarea_exchange check
+		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
+
+# The MIPS cross compiler beside the arm one: elf2aout's layout on both.
+check-mips:	check-elf2aout
+
+# The discobsd-host Python package: its own lint and tests.
+check-host-package:
+		cd distrib/rp2040/host && ruff check . && ${PYTHON} -m pytest -q
+
+# The on-device regression programs under tests/rp2040 build and convert
+# to a.out; the board runs them.
+check-board-build:
+		${MAKE} -C tests/rp2040 all
+
+check:		check-lint check-host check-posix-sh check-cross check-qemu \
+		check-mips check-host-package check-board-build
+
 fs:		$(FSIMG)
 
 # The image is staged from ${DESTDIR}; etc/passwd, etc/shadow and etc/group
@@ -247,6 +319,8 @@ installfs:
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \
 		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
+		check-lint check-host check-posix-sh check-cross check-qemu \
+		check-mips check-host-package check-board-build check \
 		symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \

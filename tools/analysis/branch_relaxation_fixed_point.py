@@ -27,7 +27,6 @@ from thumb_peepholes import (
     load_sized_function_symbols,
 )
 
-
 INVERSE_CONDITION = {
     "beq": "bne",
     "bne": "beq",

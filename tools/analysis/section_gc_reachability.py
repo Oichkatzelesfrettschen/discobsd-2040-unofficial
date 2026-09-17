@@ -24,7 +24,6 @@ import struct
 import capstone
 from elftools.elf.elffile import ELFFile
 
-
 EXECUTABLE_FLAG = 0x4
 ALLOCATED_FLAG = 0x2
 MAPPING_SYMBOL_PATTERN = re.compile(r"^\$([atd])(?:\..*)?$")

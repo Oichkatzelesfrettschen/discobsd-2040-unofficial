@@ -5,11 +5,11 @@
 # cycle 1,1,1,2,2,2,... one color per three shots, independent of
 # rand(), so three shots in a row always match and pop.
 import os
-import re
 import pty
+import re
+import select
 import sys
 import time
-import select
 
 SEED = "20260911"
 

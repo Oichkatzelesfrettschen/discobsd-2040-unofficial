@@ -65,21 +65,22 @@ macOS particulars, each verified on macOS 26 with Apple silicon:
 Every host test the port's guide lists was run on macOS 26 with the
 toolchain above, after the fixes this table names. "Linux only" marks a
 test whose mechanism does not exist on macOS; the test says so itself
-and exits cleanly there.
+and exits with a failure status, so the tiers in
+sys/arch/rp2040/doc/TESTING.md leave it out on macOS.
 
 | test | macOS | what it took |
 | --- | --- | --- |
 | `bmake MACHINE=rp2040 build`, `flash` | passes, warning-free | host tools ported: binstall, ar, size, strip, hsaout, fsutil, config; toolchain found on PATH; byacc preferred; bison from Homebrew's keg for awk; `date` in newvers.sh; the tree's tzfile.h ahead of the SDK's; `git rev-list -- HEAD` on a case-insensitive filesystem |
 | check-hsaout, check-config-makefile, check-swapram, check-flash-swap | pass | kernel headers behind the host's (`-idirafter`) in hsaout and its test |
 | check-swapram-evac | passes | the same header order; the swap pool's ELF section attribute under `__ELF__`; clang's K&R-definition error relaxed for subr_rmap.c |
-| check-cache-footprint | the cache footprint checks pass; the exec-spool subtest is broken on every host (it links kernel code whose callees `swapnext`, `swap_cursor_publish` and `malloc3_contiguous_next` are undefined, on Linux CI as here, and with them stubbed it crashes), so the gate is not in CI until that test is repaired | Apple's linker spelling for dead-section stripping; clang's operand-width check off for Cortex-M inline assembly it never emits |
+| check-cache-footprint, check-exec-spool | pass | Apple's linker spelling for dead-section stripping; clang's operand-width check off for Cortex-M inline assembly it never emits; the exec-spool test's swap model grew the kernel's cursor allocator (`malloc3_contiguous_next`, `swapnext`, `swap_cursor_publish`) |
 | check-divider | passes | a Python with `capstone` and `pyelftools` named in `PYTHON` |
 | check-elf2aout | needs the MIPS cross toolchain on any host | not a macOS matter |
 | `usr.bin/pdp11` V6 boot | passes | `cons_poll` read FIONREAD into a `long`; termios for every host build |
 | `usr.bin/as/tests` | pass; the LD_PRELOAD fault injection is Linux only; the Unicorn run needs `pip install unicorn` | ranlib read the archive through a stream sharing the descriptor's offset, wrong on Apple's stdio |
 | `bin/tar/tests/tartest.sh` | passes | tape ioctls left out; the directory stream kept open across recursion (a telldir cookie is per stream on macOS) |
 | `check-tiny-utility-multicall` | passes | the pty step through `tools/ptyrun.py` instead of util-linux `script -c` |
-| `usr.bin/smlrc`, `usr.bin/stevie`, `games/keen` | pass (smlrc link-only: no qemu-arm on macOS) | smlrc run from its output directory, under its 95-byte file name limit |
+| `usr.bin/smlrc`, `usr.bin/stevie`, `games/keen` | pass (smlrc link-only: no qemu-arm on macOS; `REQUIRE_QEMU=1` refuses that run) | smlrc run from its output directory, under its 95-byte file name limit |
 | `bin/sh/tests/posix-sh.sh` | Linux x86-64 only: it builds a 32-bit host binary | none |
 | `tests/rp2040/uarea_exchange` | Linux only: needs qemu-arm user-mode emulation, which Homebrew's qemu does not build | none |
 

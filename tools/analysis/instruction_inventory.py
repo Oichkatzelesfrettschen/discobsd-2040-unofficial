@@ -24,7 +24,6 @@ from reconcile_disassembly import (
     mapping_ranges,
 )
 
-
 ADDR2LINE_PATTERN = re.compile(r"^(0x[0-9a-f]+): (.*?) at (.*)$")
 
 
@@ -42,8 +41,7 @@ def source_locations(elf_path, addresses):
             *[f"0x{address:x}" for address in addresses],
         ],
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     locations = {}

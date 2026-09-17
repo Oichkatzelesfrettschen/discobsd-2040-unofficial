@@ -31,7 +31,6 @@ from unicorn.arm_const import (
     UC_ARM_REG_SP,
 )
 
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_TREE_ROOT = SCRIPT_DIR.parent.parent
 PAGE_NAMES = ("sh", "ed", "awk", "sed", "grep", "find", "cc")

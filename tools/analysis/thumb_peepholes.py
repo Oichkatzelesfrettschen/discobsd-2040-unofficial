@@ -23,9 +23,7 @@ import sys
 import capstone
 import capstone.arm
 from elftools.elf.elffile import ELFFile
-
 from reconcile_disassembly import bytes_for_range, load_elf_metadata, mapping_ranges
-
 
 CONDITIONAL_BRANCHES = {
     "beq",

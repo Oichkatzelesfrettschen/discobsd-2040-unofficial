@@ -12,13 +12,21 @@ set -eu
 
 PYTHON=${PYTHON:-python3}
 CC=${CC:-cc}
+
+# The references are GNU's. On macOS Homebrew installs coreutils under
+# g-prefixed names and keeps the unprefixed set in libexec/gnubin, so that
+# directory goes ahead on PATH where it exists.
+if command -v brew >/dev/null 2>&1; then
+	gnubin=$(brew --prefix coreutils 2>/dev/null)/libexec/gnubin
+	[ -d "$gnubin" ] && PATH=$gnubin:$PATH
+fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 TB="$HERE/.."
 UB="$TB/.."
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
-CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -I$TB -o"
+CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
 fail=0
 
 # build name tool.c compat1.c compat2.c ...

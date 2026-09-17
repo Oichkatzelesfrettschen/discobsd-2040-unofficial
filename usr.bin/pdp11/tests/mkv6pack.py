@@ -315,7 +315,7 @@ def main():
     src = SrcFS(open(args[0], "rb").read())
     root = load_list(src, args[1])
     if swap:
-        for name, node in list(root.children.items()):
+        for _name, node in list(root.children.items()):
             if node.data[:2] == b"\x07\x01":
                 node.data = patch_swap(node.data, *swap)
     b = Builder(fsize)

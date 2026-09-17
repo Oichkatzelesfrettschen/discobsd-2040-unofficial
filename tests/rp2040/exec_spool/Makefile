@@ -16,13 +16,27 @@ HOST_CFLAGS= -std=gnu17 -Wall -Wextra -Werror -ffreestanding -fno-builtin \
 	-Wno-asm-operand-widths \
 	${KERNEL_INCLUDES}
 
-exec_spool_test: exec_spool_test.c
-	${HOST_CC} ${HOST_CFLAGS} ${GC_SECTIONS} -o $@ ${.ALLSRC}
+# The reservation the spool makes is the kernel's own. libc owns malloc and
+# mfree in a host binary, so sys/kern/subr_rmap.c compiles with those names
+# and its three companions moved aside; exec_spool_test.c declares the moved
+# names and wraps the two it needs.
+RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
+RMAP_RENAMES=	-Dmalloc=rmap_malloc -Dmfree=rmap_mfree \
+		-Dmalloc3=rmap_malloc3 \
+		-Dmalloc3_contiguous=rmap_malloc3_contiguous \
+		-Dmalloc3_contiguous_next=rmap_malloc3_contiguous_next
+
+subr_rmap.o: ${RMAP_SRC}
+	${HOST_CC} ${HOST_CFLAGS} ${RMAP_RENAMES} -c -o $@ ${RMAP_SRC}
+
+exec_spool_test: exec_spool_test.c subr_rmap.o
+	${HOST_CC} ${HOST_CFLAGS} ${GC_SECTIONS} -o $@ \
+	    exec_spool_test.c subr_rmap.o
 
 check: exec_spool_test
 	./exec_spool_test
 
 clean:
-	rm -f exec_spool_test
+	rm -f exec_spool_test subr_rmap.o
 
 .PHONY: check clean

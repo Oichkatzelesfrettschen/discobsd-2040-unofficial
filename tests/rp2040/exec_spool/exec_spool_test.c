@@ -1,13 +1,32 @@
 /*
  * Host test for the production exec argument spool. The test includes the
- * shipped implementation and supplies bounded SwapRAM, raw-swap, map, and
- * buffer models around it. Linker section collection removes unrelated exec
- * routines whose target-address assumptions cannot run on the host.
+ * shipped implementation and supplies bounded SwapRAM and buffer models
+ * around it. Linker section collection removes unrelated exec routines whose
+ * target-address assumptions cannot run on the host.
+ *
+ * The raw-swap reservation is not modelled: the Makefile links
+ * sys/kern/subr_rmap.c, so the run the spool gets is the one the kernel's own
+ * cyclic next-fit allocator picks. What remains here is a pair of wrappers
+ * that record the arguments and the result, which is what the scenarios below
+ * assert on. A model stood here until the allocator gained its cursor, and
+ * then described an allocator the kernel no longer had.
+ *
+ * A plain malloc() from the spool would be a regression -- the reservation
+ * has to go through the cursor, or two images in a row land on one erase
+ * unit -- so that name is bound to a refusal rather than to the allocator.
  */
 
-#define malloc rmap_malloc
+#define malloc spool_forbidden_malloc
 #include "../../../sys/kern/exec_subr.c"
 #undef malloc
+
+/*
+ * sys/kern/subr_rmap.c compiles with these names moved aside, because libc
+ * owns malloc and mfree in a host binary. The Makefile carries the renames.
+ */
+size_t rmap_malloc3_contiguous_next (struct map *mp, size_t d_size,
+    size_t s_size, size_t u_size, size_t align, size_t *nextp, size_t a[3]);
+void rmap_mfree (struct map *mp, size_t size, size_t addr);
 
 #define FLASH_BLOCKS 32
 #define SPOOL_RAM_BYTES (NCARGS * 3)
@@ -44,9 +63,17 @@ static size_t allocated_flash_span;
 size_t swapnext;
 static size_t published_cursor;
 static int cursor_publications;
-static struct mapent modeled_map_entries[2];
+/*
+ * The swap map the real allocator works on. Eight descriptors is more
+ * headroom than a spool that holds one reservation at a time can use, so a
+ * refusal here is a shortage of space rather than of descriptors.
+ */
+#define SPOOL_MAP_SLOTS 8
+static struct mapent spool_map_entries[SPOOL_MAP_SLOTS];
+static struct mapent exhausted_map_entries[1];
 struct map swapmap[1] = {
-    { modeled_map_entries, &modeled_map_entries[1], "exec-spool-map" }
+    { spool_map_entries, &spool_map_entries[SPOOL_MAP_SLOTS - 1],
+      "exec-spool-map" }
 };
 
 static void
@@ -133,7 +160,7 @@ brelse (struct buf *bp)
 }
 
 size_t
-rmap_malloc (struct map *map, size_t blocks)
+spool_forbidden_malloc (struct map *map, size_t blocks)
 {
     (void) map;
     (void) blocks;
@@ -142,43 +169,34 @@ rmap_malloc (struct map *map, size_t blocks)
 }
 
 /*
- * The raw-swap reservation is the kernel's cyclic next-fit allocator:
- * exec_spool_reserve_flash hands it the swap cursor, the run starts at the
- * cursor rounded up to the image alignment, wraps to the first aligned run
- * when the unit's end is too close, and the cursor advances past the run.
- * The model keeps one live run and refuses a second, since the spool holds
- * at most one reservation at a time.
+ * Record what the spool asked for, then let sys/kern/subr_rmap.c decide.
+ * Injected failure empties the map rather than short-circuiting the call, so
+ * the refusal comes from the allocator for the reason the board would see.
  */
 size_t
 malloc3_contiguous_next (struct map *map, size_t data_blocks,
     size_t stack_blocks, size_t user_blocks, size_t alignment,
     size_t *cursor, size_t addresses[3])
 {
-    size_t base, span;
+    size_t span;
 
     if (map != swapmap || stack_blocks != 0 || user_blocks != 0 ||
         alignment != SWAP_IMAGE_ALIGN || cursor != &swapnext ||
-        flash_allocation_live) {
+        flash_allocation_live)
         backend_error = 1;
-        return 0;
-    }
+
     if (flash_allocation_failure)
+        swapmap->m_map = exhausted_map_entries;
+    span = rmap_malloc3_contiguous_next (map, data_blocks, stack_blocks,
+        user_blocks, alignment, cursor, addresses);
+    if (flash_allocation_failure)
+        swapmap->m_map = spool_map_entries;
+
+    if (span == 0)
         return 0;
-    span = (data_blocks + alignment - 1) & ~(alignment - 1);
-    if (data_blocks == 0 || span + alignment > FLASH_BLOCKS) {
-        backend_error = 1;
-        return 0;
-    }
-    base = (*cursor + alignment - 1) & ~(alignment - 1);
-    if (base < alignment || base + span > FLASH_BLOCKS)
-        base = alignment;
-    addresses[0] = base;
-    addresses[1] = addresses[0] + data_blocks;
-    addresses[2] = addresses[1];
-    allocated_flash_block = base;
+    allocated_flash_block = addresses[0];
     allocated_flash_span = span;
     flash_allocation_live = 1;
-    *cursor = base + span;
     return span;
 }
 
@@ -191,15 +209,23 @@ swap_cursor_publish (size_t next)
     cursor_publications++;
 }
 
+/*
+ * The spool returns the whole run it reserved. Anything else is a fault in
+ * the spool, and passing it through to the allocator would only turn a
+ * readable failure into a panic, so the wrapper records it and stops.
+ */
 void
 mfree (struct map *map, size_t span, size_t block)
 {
     if (map != swapmap || !flash_allocation_live ||
-        span != allocated_flash_span || block != allocated_flash_block)
+        span != allocated_flash_span || block != allocated_flash_block) {
         backend_error = 1;
+        return;
+    }
     flash_allocation_live = 0;
     allocated_flash_block = 0;
     allocated_flash_span = 0;
+    rmap_mfree (map, span, block);
 }
 
 void
@@ -299,6 +325,11 @@ reset_models (void)
     allocated_flash_block = 0;
     allocated_flash_span = 0;
     swapnext = SWAP_IMAGE_ALIGN;
+    bytes_zero (spool_map_entries, sizeof spool_map_entries);
+    bytes_zero (exhausted_map_entries, sizeof exhausted_map_entries);
+    swapmap->m_map = spool_map_entries;
+    /* init_main.c seeds the live map with exactly this call. */
+    rmap_mfree (swapmap, FLASH_BLOCKS - SWAP_IMAGE_ALIGN, SWAP_IMAGE_ALIGN);
     published_cursor = 0;
     cursor_publications = 0;
 }

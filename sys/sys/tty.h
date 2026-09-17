@@ -152,6 +152,17 @@ void catq (struct clist *from, struct clist *to);
 int b_to_q (char *cp, int nbytes, struct clist *q);
 
 /*
+ * Count the characters the list holds contiguously from its first, stopping
+ * early at a character the flag selects.
+ */
+int ndqb (struct clist *q, int flag);
+
+/*
+ * Drop characters from the front of the list.
+ */
+void ndflush (struct clist *q, int cc);
+
+/*
  * Common code for tty ioctls.
  */
 int ttioctl (struct tty *tp, u_int com, caddr_t data, int flag);

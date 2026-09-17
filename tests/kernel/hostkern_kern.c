@@ -48,3 +48,12 @@ bzero(void *s, size_t nbytes)
 	while (nbytes--)
 		*p++ = '\0';
 }
+
+/*
+ * The interrupt level hostintr.h keeps in place of PRIMASK. hk_ipl is
+ * nonzero while a kernel source holds interrupts masked; hk_ipl_raises counts
+ * the raises so a gate can tell a balanced routine from one that returned
+ * with the level still up.
+ */
+int hk_ipl;
+unsigned hk_ipl_raises;

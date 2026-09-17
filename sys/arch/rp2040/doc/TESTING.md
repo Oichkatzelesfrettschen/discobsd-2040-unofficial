@@ -49,7 +49,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
-| `check-kernel` | sys/kern/subr_rmap.c, the swap allocator, in three descriptor shapes, and sys/kern/kern_subr.c, the uio machinery under every read and write; both compiled from the kernel source |
+| `check-kernel` | three sys/kern sources compiled from the kernel tree and run against 831 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
@@ -97,11 +97,23 @@ way that looks like a bug in the kernel:
   config(8) makes in the kernel build directory. This tier has to run in an
   unconfigured tree, so its Makefile generates one forwarding header per
   port header instead.
+- The port's interrupt primitives are ARM inline assembly no host assembler
+  accepts. The generated `<machine/intr.h>` includes the port's header for
+  its constants and then hostintr.h, which redefines the six spl macros; the
+  port's own inline functions survive as static inlines nothing calls, so no
+  assembly is emitted. The stand-in counts the level rather than discarding
+  it, which turns "this routine lowered priority again" into something a
+  gate states rather than a property of the shim.
 
 A kernel source compiles here under `-Wall -Werror`, the set
 sys/arch/rp2040/conf builds the kernel with, while the gate's own sources
 take `-Wall -Wextra -Werror`. A gate that rejected code the production
-build accepts would fail for something that ships.
+build accepts would fail for something that ships, which is also why the
+tier carries two suppressions that apply to no other tree: clang rejects
+sys/kern's old-style function definitions, which the arm-none-eabi gcc the
+kernel is built with accepts, and it checks the operand widths of the
+port's PRIMASK inline assembly even where hostintr.h has redefined every
+macro that would call it.
 
 `panic()` returns control to the harness inside `HK_EXPECT_PANIC`, which
 is what lets a gate assert on the defensive checks rather than only on the

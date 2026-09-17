@@ -259,11 +259,11 @@ binit(void)
 static void
 cinit(void)
 {
-	int ccp;
+	u_long ccp;
 	struct cblock *cp;
 
-	ccp = (int)cfree;
-	ccp = (ccp + CROUND) & ~CROUND;
+	ccp = (u_long)cfree;
+	ccp = (ccp + CROUND) & ~(u_long)CROUND;
 	for (cp = (struct cblock *)ccp; cp <= &cfree[NCLIST - 1]; cp++) {
 		cp->c_next = cfreelist;
 		cfreelist = cp;

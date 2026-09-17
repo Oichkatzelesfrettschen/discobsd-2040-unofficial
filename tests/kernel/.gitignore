@@ -4,7 +4,9 @@ rmap_kernel_compact.o
 rmap_kernel_wide.o
 rmap_kernel_diagnostic.o
 uio_kernel.o
+clist_kernel.o
 rmap_test_compact
 rmap_test_wide
 rmap_test_diagnostic
 uio_test
+clist_test

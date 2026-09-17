@@ -33,7 +33,7 @@ getc(p)
         c = *p->c_cf++ & 0377;
         if (--p->c_cc<=0) {
             bp = (struct cblock *)(p->c_cf-1);
-            bp = (struct cblock *)((int)bp & ~CROUND);
+            bp = (struct cblock *)((u_long)bp & ~(u_long)CROUND);
             p->c_cf = NULL;
             p->c_cl = NULL;
             bp->c_next = cfreelist;
@@ -43,7 +43,7 @@ getc(p)
                 wakeup (&cwaiting);
                 cwaiting = 0;
             }
-        } else if (((int)p->c_cf & CROUND) == 0){
+        } else if (((u_long)p->c_cf & CROUND) == 0){
             bp = (struct cblock *)(p->c_cf);
             bp--;
             p->c_cf = bp->c_next->c_info;
@@ -87,7 +87,7 @@ q_to_b (q, cp, cc)
     acp = cp;
 
     while (cc) {
-        nc = sizeof (struct cblock) - ((int)q->c_cf & CROUND);
+        nc = sizeof (struct cblock) - ((u_long)q->c_cf & CROUND);
         nc = MIN(nc, cc);
         nc = MIN(nc, q->c_cc);
         (void) bcopy(q->c_cf, cp, (unsigned)nc);
@@ -97,7 +97,7 @@ q_to_b (q, cp, cc)
         cp += nc;
         if (q->c_cc <= 0) {
             bp = (struct cblock *)(q->c_cf - 1);
-            bp = (struct cblock *)((int)bp & ~CROUND);
+            bp = (struct cblock *)((u_long)bp & ~(u_long)CROUND);
             q->c_cf = q->c_cl = NULL;
             bp->c_next = cfreelist;
             cfreelist = bp;
@@ -108,7 +108,7 @@ q_to_b (q, cp, cc)
             }
             break;
         }
-        if (((int)q->c_cf & CROUND) == 0) {
+        if (((u_long)q->c_cf & CROUND) == 0) {
             bp = (struct cblock *)(q->c_cf);
             bp--;
             q->c_cf = bp->c_next->c_info;
@@ -142,8 +142,8 @@ int ndqb (q, flag)
         cc = -q->c_cc;
         goto out;
     }
-    cc = ((int)q->c_cf + CBSIZE) & ~CROUND;
-    cc -= (int)q->c_cf;
+    cc = (int)(((((u_long)q->c_cf + CBSIZE) & ~(u_long)CROUND)) -
+        (u_long)q->c_cf);
     if (q->c_cc < cc)
         cc = q->c_cc;
     if (flag) {
@@ -154,8 +154,7 @@ int ndqb (q, flag)
         end += cc;
         while (p < end) {
             if (*p & flag) {
-                cc = (int)p;
-                cc -= (int)q->c_cf;
+                cc = (int)(p - q->c_cf);
                 break;
             }
             p++;
@@ -182,11 +181,11 @@ ndflush (q, cc)
     if (q->c_cc <= 0)
         goto out;
     while (cc>0 && q->c_cc) {
-        bp = (struct cblock *)((int)q->c_cf & ~CROUND);
-        if ((int)bp == (((int)q->c_cl-1) & ~CROUND)) {
+        bp = (struct cblock *)((u_long)q->c_cf & ~(u_long)CROUND);
+        if ((u_long)bp == (((u_long)q->c_cl - 1) & ~(u_long)CROUND)) {
             end = q->c_cl;
         } else {
-            end = (char *)((int)bp + sizeof (struct cblock));
+            end = (char *)bp + sizeof (struct cblock);
         }
         rem = end - q->c_cf;
         if (cc >= rem) {
@@ -245,7 +244,7 @@ putc (c, p)
         cfreecount -= CBSIZE;
         bp->c_next = NULL;
         p->c_cf = cp = bp->c_info;
-    } else if (((int)cp & CROUND) == 0) {
+    } else if (((u_long)cp & CROUND) == 0) {
         bp = (struct cblock *)cp - 1;
         if ((bp->c_next = cfreelist) == NULL) {
             splx(s);
@@ -293,7 +292,7 @@ b_to_q (cp, cc, q)
     }
 
     while (cc) {
-        if (((int)cq & CROUND) == 0) {
+        if (((u_long)cq & CROUND) == 0) {
             bp = (struct cblock *)cq - 1;
             if ((bp->c_next = cfreelist) == NULL)
                 goto out;
@@ -303,7 +302,7 @@ b_to_q (cp, cc, q)
             bp->c_next = NULL;
             cq = bp->c_info;
         }
-        nc = MIN(cc, sizeof (struct cblock) - ((int)cq & CROUND));
+        nc = MIN(cc, sizeof (struct cblock) - ((u_long)cq & CROUND));
         (void) bcopy(cp, cq, (unsigned)nc);
         cp += nc;
         cq += nc;
@@ -332,7 +331,7 @@ nextc (p, cp)
     register char *rcp;
 
     if (p->c_cc && ++cp != p->c_cl) {
-        if (((int)cp & CROUND) == 0)
+        if (((u_long)cp & CROUND) == 0)
             rcp = ((struct cblock *)cp)[-1].c_next->c_info;
         else
             rcp = cp;
@@ -359,15 +358,15 @@ unputc (p)
         c = *--p->c_cl;
         if (--p->c_cc <= 0) {
             bp = (struct cblock *)p->c_cl;
-            bp = (struct cblock *)((int)bp & ~CROUND);
+            bp = (struct cblock *)((u_long)bp & ~(u_long)CROUND);
             p->c_cl = p->c_cf = NULL;
             bp->c_next = cfreelist;
             cfreelist = bp;
             cfreecount += CBSIZE;
-        } else if (((int)p->c_cl & CROUND) == sizeof(bp->c_next)) {
-            p->c_cl = (char *)((int)p->c_cl & ~CROUND);
+        } else if (((u_long)p->c_cl & CROUND) == sizeof(bp->c_next)) {
+            p->c_cl = (char *)((u_long)p->c_cl & ~(u_long)CROUND);
             bp = (struct cblock *)p->c_cf;
-            bp = (struct cblock *)((int)bp & ~CROUND);
+            bp = (struct cblock *)((u_long)bp & ~(u_long)CROUND);
             while (bp->c_next != (struct cblock *)p->c_cl)
                 bp = bp->c_next;
             obp = bp;

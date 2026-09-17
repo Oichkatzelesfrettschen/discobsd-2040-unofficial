@@ -27,14 +27,25 @@ KERNEL_RENAMES=	-Dprintf=hk_kprintf \
 # -ffreestanding and -fno-builtin are what sys/arch/${MACHINE}/conf builds the
 # kernel with, and they are also what keeps the compiler from holding
 # sys/systm.h's declarations of printf, log and strncmp against its own.
+# clang checks the operand widths of an asm statement it never emits, so the
+# port's PRIMASK inlines have to be excused even though hostintr.h redefines
+# every macro that would call them. tests/rp2040/exec_spool and cache_footprint
+# excuse the same header the same way.
 KERN_BASE=	-std=gnu17 -ffreestanding -fno-builtin \
+		-Wno-asm-operand-widths \
 		-DKERNEL -I. -I${TOPSRC}/sys -I${TOPSRC}/sys/arch \
 		${KERNEL_RENAMES}
 
 # A kernel source is held to the warning set the kernel is built with, and no
 # more: a gate that rejected code the production build accepts would fail for
 # something that ships. The gate's own sources take the stricter set.
-KERN_WARN=	-Wall -Werror
+#
+# sys/kern still defines functions the old way, and clang rejects that by
+# default while the arm-none-eabi gcc the kernel is built with does not. The
+# gate excuses it rather than rewriting kernel sources a host compiler is the
+# only thing to complain about; bin/sh/tests and usr.bin/sort's runner excuse
+# it for the same reason.
+KERN_WARN=	-Wall -Werror -Wno-deprecated-non-prototype
 GATE_WARN=	-Wall -Wextra -Werror
 
 KERN_CFLAGS=	${KERN_BASE} ${KERN_WARN}
@@ -43,6 +54,7 @@ HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
 
 RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
+CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 
 # The resource map allocator runs in three shapes across the tree's ports:
 # the sixteen-bit descriptors sys/arch/rp2040/compile/PICO configures, the
@@ -52,16 +64,18 @@ COMPACT_DEFS=		-DCOMPACT_SWAPMAP
 WIDE_DEFS=
 DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
-PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test
+PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
+	clist_test
 
 all: ${PROGS}
 
-${MACHINE_STAMP}:
+${MACHINE_STAMP}: hostintr.h
 	@mkdir -p machine
 	@for header in ${PORT_INCLUDE}/*.h; do \
 		name=`basename $$header`; \
 		echo "#include <${MACHINE}/include/$$name>" > machine/$$name; \
 	done
+	@echo '#include "../hostintr.h"' >> machine/intr.h
 	@touch $@
 
 # The harness carries no kernel header, so it compiles without the renames
@@ -98,6 +112,12 @@ uio_test: uio_test.c ${UIO_SRC} hostkern_kern.c hostkern.o hostkern.h \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    uio_test.c hostkern_kern.c uio_kernel.o hostkern.o
 
+clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -c -o clist_kernel.o ${CLIST_SRC}
+	${HOST_CC} ${GATE_CFLAGS} -o $@ \
+	    clist_test.c hostkern_kern.c clist_kernel.o hostkern.o
+
 check: ${PROGS}
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
@@ -107,7 +127,7 @@ check: ${PROGS}
 clean:
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
-	rm -f uio_kernel.o
+	rm -f uio_kernel.o clist_kernel.o
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

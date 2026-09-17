@@ -70,8 +70,8 @@ artifact points at.
 
 ## Research corpus: `docs/research`
 
-Forty-eight documents, carried with their history from the notes
-repository. Grouped by what they investigate.
+Carried with their history from the notes repository, and added to since.
+Grouped by what they investigate.
 
 ### Hardware and the board
 
@@ -130,6 +130,7 @@ repository. Grouped by what they investigate.
 | `integration-review.md` | sh-lineedit, stevie-vi and swapram reviewed together |
 | `static-analysis.md` | the static analysis run over the port and what it found |
 | `downloads-survey.md` | the downloads folder surveyed for usable material |
+| `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
 
 ### Audit ledgers and handbacks
 

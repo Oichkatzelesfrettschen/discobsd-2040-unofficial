@@ -69,7 +69,7 @@ WIDE_DEFS=
 DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
-	clist_test cred_test
+	clist_test cred_test resource_test
 
 all: ${PROGS}
 
@@ -130,6 +130,16 @@ cred_test: cred_test.c ${CRED_SRC} hostkern_kern.c hostkern.o hostkern.h \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ cred_test.c hostkern_kern.c \
 	    cred_prot.o cred_prot2.o cred_proc.o hostkern.o
 
+resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
+    ${TOPSRC}/sys/kern/kern_proc.c hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -c -o resource_kernel.o \
+	    ${TOPSRC}/sys/kern/kern_resource.c
+	${HOST_CC} ${KERN_CFLAGS} -c -o resource_proc.o \
+	    ${TOPSRC}/sys/kern/kern_proc.c
+	${HOST_CC} ${GATE_CFLAGS} -o $@ resource_test.c hostkern_kern.c \
+	    resource_kernel.o resource_proc.o hostkern.o
+
 check: ${PROGS}
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
@@ -141,6 +151,7 @@ clean:
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f uio_kernel.o clist_kernel.o
 	rm -f cred_prot.o cred_prot2.o cred_proc.o
+	rm -f resource_kernel.o resource_proc.o
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

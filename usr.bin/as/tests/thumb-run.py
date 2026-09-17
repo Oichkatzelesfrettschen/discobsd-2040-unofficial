@@ -8,9 +8,27 @@ set on error. Only the calls a hello program or a small stdio/exec test
 reaches are implemented; any other stops the run and is named in the
 result.
 """
-import struct, sys
-from unicorn import *
-from unicorn.arm_const import *
+import struct
+import sys
+
+from unicorn import (
+    UC_ARCH_ARM,
+    UC_HOOK_INTR,
+    UC_HOOK_MEM_UNMAPPED,
+    UC_MODE_LITTLE_ENDIAN,
+    UC_MODE_THUMB,
+    Uc,
+    UcError,
+)
+from unicorn.arm_const import (
+    UC_ARM_REG_CPSR,
+    UC_ARM_REG_LR,
+    UC_ARM_REG_PC,
+    UC_ARM_REG_R0,
+    UC_ARM_REG_R1,
+    UC_ARM_REG_R2,
+    UC_ARM_REG_SP,
+)
 
 BADDR   = 0x20000000
 STACK   = 0x7f0ff000
@@ -33,7 +51,8 @@ st = {"brk": BRK, "exit": None, "fault": None}
 
 def svc(uc, intno, user):
     if intno != 2:
-        uc.emu_stop(); return
+        uc.emu_stop()
+        return
     pc = uc.reg_read(UC_ARM_REG_PC)
     n = struct.unpack("<H", uc.mem_read(pc - 2, 2))[0] & 0xff
     a0 = uc.reg_read(UC_ARM_REG_R0)
@@ -41,15 +60,24 @@ def svc(uc, intno, user):
     a2 = uc.reg_read(UC_ARM_REG_R2)
     cpsr = uc.reg_read(UC_ARM_REG_CPSR) & ~(1 << 29)    # clear carry: success
     if n == 4:                                          # write(fd, buf, len)
-        out.extend(uc.mem_read(a1, a2)); r = a2
+        out.extend(uc.mem_read(a1, a2))
+        r = a2
     elif n == 1:                                        # exit(status)
-        st["exit"] = a0; uc.emu_stop(); return
-    elif n == 3:  r = 0                                 # read: end of file
-    elif n == 5:  r = 3                                 # open: fixed fake fd
-    elif n == 6:  r = 0                                 # close
-    elif n == 19: r = 0                                 # lseek
-    elif n == 20: r = 42                                # getpid
-    elif n == 54: r = 0                                 # ioctl
+        st["exit"] = a0
+        uc.emu_stop()
+        return
+    elif n == 3:
+        r = 0                                           # read: end of file
+    elif n == 5:
+        r = 3                                           # open: fixed fake fd
+    elif n == 6:
+        r = 0                                           # close
+    elif n == 19:
+        r = 0                                           # lseek
+    elif n == 20:
+        r = 42                                          # getpid
+    elif n == 54:
+        r = 0                                           # ioctl
     elif n == 59:                                       # execve: always fails
         # No program to load under this stub, so the call reports ENOEXEC
         # (8, include/sys/errno.h) and the carry stays set; a caller that
@@ -63,7 +91,8 @@ def svc(uc, intno, user):
         # lib/libc/stdio/flsbuf.c does to size its first stdio buffer, has
         # its saved registers and return address right above the struct,
         # so writing more than sizeof(struct stat) here corrupts them.
-        uc.mem_write(a1, b"\0" * 56); r = 0
+        uc.mem_write(a1, b"\0" * 56)
+        r = 0
     elif n == 69:                                       # _brk(newbreak)
         # lib/libc/arm/sys/_brk.S passes the new break address and takes
         # zero as success; the heap lives in the slack above the image.
@@ -71,7 +100,8 @@ def svc(uc, intno, user):
         r = 0 if a0 < BADDR + 0x18000 else -1
     else:
         st["exit"] = "unimplemented syscall %d at %#x" % (n, pc)
-        uc.emu_stop(); return
+        uc.emu_stop()
+        return
     uc.reg_write(UC_ARM_REG_R0, r)
     uc.reg_write(UC_ARM_REG_CPSR, cpsr)
 
@@ -101,5 +131,6 @@ except UcError as e:
 
 sys.stdout.write(out.decode("latin1"))
 if st["fault"]:
-    sys.stderr.write("FAULT: %s\n" % st["fault"]); sys.exit(2)
+    sys.stderr.write("FAULT: %s\n" % st["fault"])
+    sys.exit(2)
 sys.exit(0)

@@ -1,0 +1,10 @@
+# The tree's Python: verifiers, harnesses and analysis tools. The host
+# package under distrib/rp2040/host keeps its own pyproject.toml, which
+# ruff picks over this file beneath that directory.
+line-length = 100
+target-version = "py39"
+
+[lint]
+select = ["E", "F", "W", "B", "UP", "I"]
+# %d formatting stays where a width or a byte count is printed.
+ignore = ["UP031"]

@@ -42,6 +42,10 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The tests import the checkout's package, not whichever discobsd-host the
+# host has installed: an older system copy would otherwise shadow src/ and
+# fail on behavior it predates.
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100

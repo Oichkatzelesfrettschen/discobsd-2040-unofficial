@@ -28,6 +28,13 @@ else
 fi
 echo "cpiotest: tool under test: $CPIO"
 
+# The reference is GNU cpio. Homebrew's formula is keg-only because macOS
+# ships a cpio of its own (bsdcpio, which has no --no-absolute-filenames),
+# so on that host the keg's binary is the reference when HOSTCPIO is unset.
+if [ -z "${HOSTCPIO:-}" ] && command -v brew >/dev/null 2>&1 &&
+    [ -x "$(brew --prefix cpio 2>/dev/null)/bin/cpio" ]; then
+	HOSTCPIO=$(brew --prefix cpio)/bin/cpio
+fi
 HOSTCPIO=${HOSTCPIO:-cpio}
 command -v "$HOSTCPIO" >/dev/null 2>&1 || fail "no host cpio named $HOSTCPIO"
 

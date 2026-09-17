@@ -46,6 +46,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define STATIC static
 #endif
 
+// error() and errorUnexpectedVoid() end the run. GCC learns that here, so
+// a case that ends in one of them is no fallthrough under -Wextra; Smaller C
+// compiling itself reads an empty attribute.
+#ifdef __GNUC__
+#define NORETURN __attribute__((noreturn))
+#else
+#define NORETURN
+#endif
+
 #ifdef NO_EXTRAS
 #define NO_PPACK
 #define NO_TYPEDEF_ENUM
@@ -466,7 +475,7 @@ int puts2(char*);
 STATIC
 int printf2(char*, ...);
 
-STATIC
+STATIC NORETURN
 void error(char* format, ...);
 STATIC
 void warning(char* format, ...);
@@ -492,7 +501,7 @@ STATIC
 void errorVarSize(void);
 STATIC
 void errorInit(void);
-STATIC
+STATIC NORETURN
 void errorUnexpectedVoid(void);
 STATIC
 void errorOpType(void);
@@ -1145,7 +1154,7 @@ void IncludeFile(int quot)
       }
       for (i = 0; i < pl; )
       {
-        int plen = strlen(paths + i);
+        size_t plen = strlen(paths + i);
         if (plen + 1 + nlen < MAX_FILE_NAME_LEN)
         {
           strcpy(FileNames[FileCnt], paths + i);
@@ -5688,7 +5697,7 @@ int printf2(char* format, ...)
   return res;
 }
 
-STATIC
+STATIC NORETURN
 void error(char* format, ...)
 {
   int i, fidx = FileCnt - 1 + !FileCnt;
@@ -5878,7 +5887,7 @@ void errorInit(void)
   error("Invalid or unsupported initialization\n");
 }
 
-STATIC
+STATIC NORETURN
 void errorUnexpectedVoid(void)
 {
   error("Unexpected declaration or expression of type void\n");
@@ -6848,9 +6857,8 @@ lcont:
       tok = GetToken();
       break;
     }
-    // fallthrough to default
 #endif
-
+    // fallthrough
   default:
     valid = 0;
     break;

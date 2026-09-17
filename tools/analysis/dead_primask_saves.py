@@ -19,9 +19,8 @@ import pathlib
 import re
 import subprocess
 
-from thumb_peepholes import decode_all
 from reconcile_disassembly import load_elf_metadata, mapping_ranges
-
+from thumb_peepholes import decode_all
 
 LOCATION_PATTERN = re.compile(r"^(.*):(\d+)(?: \(discriminator \d+\))?$")
 
@@ -37,8 +36,7 @@ def inline_chain(elf_path, address):
             f"0x{address:x}",
         ],
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     output_lines = completed_process.stdout.splitlines()

@@ -75,7 +75,7 @@ fail_test()
 # undefined again and the Smaller C identity put in its place, which makes
 # the headers expand to the same declarations the device build sees.
 note "building smlrc for the host with -DTHUMB"
-$HOST_CC -O1 -Wall -Wextra -DTHUMB -DNO_ANNOTATIONS -DNO_PPACK -DSTATIC \
+$HOST_CC -O1 -Wall -Wextra -Werror -DTHUMB -DNO_ANNOTATIONS -DNO_PPACK -DSTATIC \
     -DNO_EXTRA_WARNS -DSYNTAX_STACK_MAX=3200 \
     -o "$OUT/smlrc-host" "$SRCDIR/../smlrc.c" 2> "$OUT/smlrc-host.log" ||
     { cat "$OUT/smlrc-host.log"; exit 1; }
@@ -87,7 +87,7 @@ if grep -q 'cgthumb\.c' "$OUT/smlrc-host.log"; then
 fi
 
 # The Linux EABI syscall layer used only by the execution tier.
-$GCC -std=gnu17 -mcpu=$CPU -mthumb -mfloat-abi=soft -Os -Wall \
+$GCC -std=gnu17 -mcpu=$CPU -mthumb -mfloat-abi=soft -Os -Wall -Wextra -Werror \
     -nostdinc -I"$TOPSRC/include" \
     -c -o "$OUT/qemusys.o" "$SRCDIR/qemusys.c"
 
@@ -121,8 +121,17 @@ v6*)	;;
 	exit 1 ;;
 esac
 
+# The execution tier's copy of libc leaves out the Boot ROM float members;
+# the link line below says why.
+AR="$CROSS-ar"
+cp "$LIBC" "$OUT/libc_qemu.a"
+$AR d "$OUT/libc_qemu.a" $($AR t "$LIBC" | grep '^rom_float_')
+
 if command -v qemu-arm >/dev/null 2>&1; then
 	QEMU=qemu-arm
+elif [ "${REQUIRE_QEMU:-0}" = 1 ]; then
+	echo "qemu-arm is required: REQUIRE_QEMU=1 refuses the link-only run"
+	exit 2
 else
 	QEMU=""
 	note "qemu-arm not found: linking only, a.outs left in $OUT for the device"
@@ -191,12 +200,20 @@ run_one()
 		return
 	fi
 
-	# Execution tier.
+	# Execution tier. The link takes the qemu copy of libc, from which
+	# the Boot ROM float members are removed: the tree's libc answers the
+	# __aeabi_* float helpers with trampolines into the RP2040 Boot ROM,
+	# whose table at address 0x10 qemu-arm never maps, so libgcc's
+	# soft-float has to satisfy those symbols instead.
 	if ! $GCC -mcpu=$CPU -mthumb -mfloat-abi=soft \
 	    -nostartfiles -nostdlib -Wl,--no-warn-rwx-segments \
 	    -o "$base.qemu.elf" "$base.o" $extra "$OUT/qemusys.o" \
-	    -L"$TOPSRC/lib" -lc -lgcc > "$base.qld.log" 2>&1; then
+	    -L"$OUT" -lc_qemu -lgcc > "$base.qld.log" 2>&1; then
 		fail_test "$name" "qemu link failed, see $base.qld.log"
+		return
+	fi
+	if $NM "$base.qemu.elf" 2>/dev/null | grep -q rom_float; then
+		fail_test "$name" "qemu link reached the Boot ROM float path"
 		return
 	fi
 

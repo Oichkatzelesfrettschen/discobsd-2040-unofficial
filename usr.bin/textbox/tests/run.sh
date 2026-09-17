@@ -12,13 +12,29 @@ set -eu
 
 PYTHON=${PYTHON:-python3}
 CC=${CC:-cc}
+
+# The references are GNU's. On macOS Homebrew installs coreutils under
+# g-prefixed names and keeps the unprefixed set in libexec/gnubin, so that
+# directory goes ahead on PATH where it exists.
+if command -v brew >/dev/null 2>&1; then
+	gnubin=$(brew --prefix coreutils 2>/dev/null)/libexec/gnubin
+	[ -d "$gnubin" ] && PATH=$gnubin:$PATH
+fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 TB="$HERE/.."
 UB="$TB/.."
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
-CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -I$TB -o"
+CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
+
+# glibc carries reallocarray(3), so the host build takes only the
+# ereallocarray wrapper and leaves the libc copy; macOS's libc has none,
+# and the tree's reallocarray.c supplies both there.
+case $(uname -s) in
+Darwin)	EREALLOCARRAY=reallocarray.c ;;
+*)	EREALLOCARRAY=tests/ereallocarray_host.c ;;
+esac
 fail=0
 
 # build name tool.c compat1.c compat2.c ...
@@ -57,7 +73,7 @@ check() {
 
 # --- cut ---
 build cut cut.c eprintf.c fshut.c unescape.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 printf 'a:b:c\nd:e:f\n' > "$WORK/cut.in"
 "$WORK/cut" -d: -f2 "$WORK/cut.in" > "$WORK/cut.got"
 cut -d: -f2 "$WORK/cut.in" > "$WORK/cut.want"
@@ -68,7 +84,7 @@ check "cut -c1-3" "$WORK/cut.got2" "$WORK/cut.want2"
 
 # --- paste ---
 build paste paste.c eprintf.c fshut.c unescape.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 printf '1\n2\n3\n' > "$WORK/paste.a"
 printf 'x\ny\nz\n' > "$WORK/paste.b"
 "$WORK/paste" -d, "$WORK/paste.a" "$WORK/paste.b" > "$WORK/paste.got"
@@ -112,14 +128,14 @@ check "cksum" "$WORK/cksum.got" "$WORK/cksum.want"
 
 # --- expand / unexpand ---
 build expand expand.c eprintf.c ealloc.c fshut.c strtonum.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 printf 'a\tb\tc\n\td\n' > "$WORK/tabs.in"
 "$WORK/expand" "$WORK/tabs.in" > "$WORK/expand.got"
 expand "$WORK/tabs.in" > "$WORK/expand.want"
 check "expand" "$WORK/expand.got" "$WORK/expand.want"
 
 build unexpand unexpand.c eprintf.c ealloc.c fshut.c strtonum.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 "$WORK/expand" "$WORK/tabs.in" | "$WORK/unexpand" -a > "$WORK/unexpand.got"
 expand "$WORK/tabs.in" | unexpand -a > "$WORK/unexpand.want"
 check "unexpand -a" "$WORK/unexpand.got" "$WORK/unexpand.want"
@@ -159,9 +175,14 @@ if command -v uuencode >/dev/null 2>&1 && command -v uudecode >/dev/null 2>&1; t
 	( cd "$WORK" && uudecode -o bin.sys.out < bin.uu )
 	check "system uudecode reads our uuencode output" "$WORK/bin.sys.out" "$WORK/bin.orig"
 
+	# The base64 payload is compared with the line breaks removed: RFC
+	# 2045 allows any wrap up to 76 columns, sharutils and this uuencode
+	# break at 60 and BSD's at 76, and every decoder reads both.
 	uuencode -m "$WORK/bin.orig" bin.orig > "$WORK/bin.sys.b64.uu"
-	check "uuencode -m output matches system uuencode -m" \
-		"$WORK/bin.b64.uu" "$WORK/bin.sys.b64.uu"
+	tr -d '\n' < "$WORK/bin.b64.uu" > "$WORK/bin.b64.joined"
+	tr -d '\n' < "$WORK/bin.sys.b64.uu" > "$WORK/bin.sys.b64.joined"
+	check "uuencode -m payload matches system uuencode -m" \
+		"$WORK/bin.b64.joined" "$WORK/bin.sys.b64.joined"
 	( cd "$WORK" && "$WORK/uudecode" -o bin.fromsys.out < bin.sys.b64.uu )
 	check "our uudecode reads system uuencode -m output" \
 		"$WORK/bin.fromsys.out" "$WORK/bin.orig"

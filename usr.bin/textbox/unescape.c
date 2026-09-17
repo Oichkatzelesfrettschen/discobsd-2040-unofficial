@@ -39,7 +39,7 @@ unescape(char *s)
 		} else if (is_odigit(*r)) {
 			for (q = 0, m = 3; m && is_odigit(*r); m--, r++)
 				q = q * 8 + (*r - '0');
-			*w++ = MIN(q, 255);
+			*w++ = (char)MIN(q, 255);
 		} else if (*r == 'x' && isxdigit((unsigned char)r[1])) {
 			r++;
 			for (q = 0, m = 2; m && isxdigit((unsigned char)*r); m--, r++)

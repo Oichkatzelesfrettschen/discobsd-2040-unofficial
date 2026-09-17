@@ -196,6 +196,9 @@ def main() -> int:
             "-Wno-dangling-else",
             "-Wno-unused-parameter",
             "-Wno-implicit-fallthrough",
+            # sort.c keeps its K&R definitions, which clang 17 and later
+            # reject under -Werror; gcc ignores the unknown -Wno- flag.
+            "-Wno-deprecated-non-prototype",
             '-D_PATH_USRTMP="/tmp"',
             "-DSORT_HOST_TEST",
             "-DMEM=16384",

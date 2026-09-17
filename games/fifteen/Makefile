@@ -18,7 +18,7 @@ ${PROG}:	${OBJS}
 # Same source, host compiler, for host-side play and the pty test in
 # tests/play.py; -DHOSTBUILD picks the termios branch of ../gametty.h.
 host:		${PROG}.c ${TOPSRC}/games/gametty.h
-		${HOSTCC} -std=c99 -Wall -Wextra -DHOSTBUILD -o ${HOSTBIN} ${PROG}.c
+		${HOSTCC} -std=c99 -Wall -Wextra -Werror -DHOSTBUILD -o ${HOSTBIN} ${PROG}.c
 
 test:		host
 		${PYTHON} tests/play.py ./${HOSTBIN}

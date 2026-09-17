@@ -27,7 +27,6 @@ from thumb_peepholes import (
     load_sized_function_symbols,
 )
 
-
 CALLER_SAVED_REGISTER_NAMES = {"r0", "r1", "r2", "r3", "r12", "ip"}
 
 

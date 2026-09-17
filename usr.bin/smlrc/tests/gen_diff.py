@@ -49,7 +49,7 @@ def main():
     out.append("\tint acc;")
     out.append("")
     out.append("\tacc = 0;")
-    for i, t in enumerate(TYPES):
+    for i, _t in enumerate(TYPES):
         out.append("\tv%d = %d;" % (i, rnd.randint(-100000, 100000)))
     out.append("\tfor (i = 0; i < 6; i++) {")
     for _ in range(12):

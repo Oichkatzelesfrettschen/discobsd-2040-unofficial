@@ -27,7 +27,6 @@ import capstone
 import lief
 from elftools.elf.elffile import ELFFile
 
-
 MAPPING_SYMBOL_PATTERN = re.compile(r"^\$([atd])(?:\..*)?$")
 DISASSEMBLY_ADDRESS_PATTERN = re.compile(r"^\s*([0-9a-fA-F]+):\s")
 BOOT_CODE_START = 0x10000000
@@ -38,8 +37,7 @@ def run_command(command):
     completed_process = subprocess.run(
         command,
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     return completed_process.stdout

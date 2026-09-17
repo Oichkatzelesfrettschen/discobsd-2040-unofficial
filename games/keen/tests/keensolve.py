@@ -15,7 +15,7 @@ def parse(text):
     cages = []
     clues = {}
     entries = None
-    lines = [l.rstrip("\n") for l in text.splitlines()]
+    lines = [line.rstrip("\n") for line in text.splitlines()]
     i = 0
     while i < len(lines):
         line = lines[i]

@@ -3,6 +3,10 @@ PROGS= libc_tempfiles_test native_tempfiles_test
 TARGET= ../../lib/libc/compat/tmpnam.c
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 NATIVE_CFLAGS= -D_DEFAULT_SOURCE -include native_shim.h
+# tmpnam.c calls mktemp, which macOS's <unistd.h> declares deprecated;
+# the attribute lands on the renamed symbol too, and the test supplies
+# its own mktemp, so that one warning is off for the two tmpnam objects.
+MKTEMP_CFLAGS= -Wno-deprecated-declarations
 RENAMES= -Dtmpfile=discobsd_tmpfile -Dtmpnam=discobsd_tmpnam \
 	-Dtempnam=discobsd_tempnam -Dmkstemp=test_mkstemp \
 	-Dunlink=test_unlink -Dfdopen=test_fdopen -Dclose=test_close \
@@ -17,7 +21,7 @@ libc_tempfiles_test: libc_tempfiles_test.c tmpnam.o
 	${HOSTCC} ${CFLAGS} -o $@ libc_tempfiles_test.c tmpnam.o
 
 tmpnam.o: ${TARGET} test_shim.h
-	${HOSTCC} ${CFLAGS} ${RENAMES} -c -o $@ ${TARGET}
+	${HOSTCC} ${CFLAGS} ${MKTEMP_CFLAGS} ${RENAMES} -c -o $@ ${TARGET}
 
 native_tempfiles_test: native_tempfiles_test.c native_tmpnam.o \
 		native_mktemp.o native_shim.h
@@ -25,7 +29,7 @@ native_tempfiles_test: native_tempfiles_test.c native_tmpnam.o \
 		native_tempfiles_test.c native_tmpnam.o native_mktemp.o
 
 native_tmpnam.o: ${TARGET} native_shim.h
-	${HOSTCC} ${CFLAGS} -Dtmpfile=discobsd_tmpfile \
+	${HOSTCC} ${CFLAGS} ${MKTEMP_CFLAGS} -Dtmpfile=discobsd_tmpfile \
 		-Dtmpnam=discobsd_tmpnam -Dtempnam=discobsd_tempnam \
 		${NATIVE_CFLAGS} -c -o $@ ${TARGET}
 

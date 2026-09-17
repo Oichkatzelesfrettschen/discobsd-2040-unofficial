@@ -40,7 +40,7 @@ ${OBJS}:	stevie.h
 # build tracks the same language rules as the target's arm-none-eabi-gcc
 # rather than drifting to whatever C standard the host compiler defaults
 # to next.
-HOST_CFLAGS=	-std=gnu17 -O0 -g -DHOSTBUILD -Wall -Wextra
+HOST_CFLAGS=	-std=gnu17 -O0 -g -DHOSTBUILD -Wall -Wextra -Werror
 
 ${PROG}.host:	${SRCS} stevie.h
 		${HOST_CC} ${HOST_CFLAGS} -o $@ ${SRCS}

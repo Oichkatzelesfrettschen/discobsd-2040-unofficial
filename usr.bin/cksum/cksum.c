@@ -72,7 +72,7 @@ cksum(int fd, const char *s)
 	unsigned char buf[BUFSIZ];
 
 	while ((n = read(fd, buf, sizeof(buf))) > 0) {
-		for (i = 0; i < n; i++)
+		for (i = 0; i < (size_t)n; i++)
 			ck = (ck << 8) ^ crctab[(ck >> 24) ^ buf[i]];
 		len += n;
 	}

@@ -22,7 +22,7 @@ ${PROG}:	${OBJS}
 # Host build for the pty-driven test: the same kilo.c, compiled with the
 # host cc against the host's <termios.h> (TERMIOS selects that half of
 # kilo.c's terminal code instead of the sgtty ioctls the target build uses).
-HOST_CFLAGS=	-Wall -Wextra -O0 -g -DTERMIOS
+HOST_CFLAGS=	-Wall -Wextra -Werror -O0 -g -DTERMIOS
 
 kilo.host:	kilo.c
 		${HOST_CC} ${HOST_CFLAGS} -o $@ kilo.c

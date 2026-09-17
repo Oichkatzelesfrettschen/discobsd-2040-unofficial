@@ -41,6 +41,9 @@ static u_int swapram_size;
 static const u_int swapram_offset = 37;
 static size_t allocated_flash_block;
 static size_t allocated_flash_span;
+size_t swapnext;
+static size_t published_cursor;
+static int cursor_publications;
 static struct mapent modeled_map_entries[2];
 struct map swapmap[1] = {
     { modeled_map_entries, &modeled_map_entries[1], "exec-spool-map" }
@@ -138,33 +141,54 @@ rmap_malloc (struct map *map, size_t blocks)
     return 0;
 }
 
+/*
+ * The raw-swap reservation is the kernel's cyclic next-fit allocator:
+ * exec_spool_reserve_flash hands it the swap cursor, the run starts at the
+ * cursor rounded up to the image alignment, wraps to the first aligned run
+ * when the unit's end is too close, and the cursor advances past the run.
+ * The model keeps one live run and refuses a second, since the spool holds
+ * at most one reservation at a time.
+ */
 size_t
-malloc3_contiguous (struct map *map, size_t data_blocks,
+malloc3_contiguous_next (struct map *map, size_t data_blocks,
     size_t stack_blocks, size_t user_blocks, size_t alignment,
-    size_t addresses[3])
+    size_t *cursor, size_t addresses[3])
 {
-    size_t blocks, span;
+    size_t base, span;
 
     if (map != swapmap || stack_blocks != 0 || user_blocks != 0 ||
-        alignment != SWAP_IMAGE_ALIGN || flash_allocation_live) {
+        alignment != SWAP_IMAGE_ALIGN || cursor != &swapnext ||
+        flash_allocation_live) {
         backend_error = 1;
         return 0;
     }
     if (flash_allocation_failure)
         return 0;
-    blocks = data_blocks;
-    span = (blocks + alignment - 1) & ~(alignment - 1);
-    if (blocks == 0 || span + alignment > FLASH_BLOCKS) {
+    span = (data_blocks + alignment - 1) & ~(alignment - 1);
+    if (data_blocks == 0 || span + alignment > FLASH_BLOCKS) {
         backend_error = 1;
         return 0;
     }
-    addresses[0] = alignment;
+    base = (*cursor + alignment - 1) & ~(alignment - 1);
+    if (base < alignment || base + span > FLASH_BLOCKS)
+        base = alignment;
+    addresses[0] = base;
     addresses[1] = addresses[0] + data_blocks;
     addresses[2] = addresses[1];
-    allocated_flash_block = addresses[0];
+    allocated_flash_block = base;
     allocated_flash_span = span;
     flash_allocation_live = 1;
+    *cursor = base + span;
     return span;
+}
+
+/* The kernel publishes the cursor to the watchdog scratch register after
+ * every reservation; the model records the value and the count. */
+void
+swap_cursor_publish (size_t next)
+{
+    published_cursor = next;
+    cursor_publications++;
 }
 
 void
@@ -274,6 +298,9 @@ reset_models (void)
     swapram_size = 0;
     allocated_flash_block = 0;
     allocated_flash_span = 0;
+    swapnext = SWAP_IMAGE_ALIGN;
+    published_cursor = 0;
+    cursor_publications = 0;
 }
 
 static void
@@ -346,6 +373,8 @@ raw_boundary_fallback (void)
     CHECK (buffer_claims == 1 && buffer_busy);
     CHECK (flash_allocation_live && flash_writes == 2);
     CHECK (allocated_flash_block == SWAP_IMAGE_ALIGN);
+    CHECK (swapnext == SWAP_IMAGE_ALIGN + allocated_flash_span);
+    CHECK (cursor_publications == 1 && published_cursor == swapnext);
     expect_records (&params, arguments, 3, environment, 1);
     CHECK (flash_reads >= 2);
     CHECK (buffer_claims == 1);
@@ -390,10 +419,52 @@ swapram_to_flash_migration (void)
     CHECK (exec_spool_to_flash (&params) == ENOMEM);
     CHECK (params.spool.backing == EXEC_SPOOL_SWAPRAM);
     CHECK (swapram_live && swapram_frees == 0);
+    CHECK (cursor_publications == 0);
     expect_records (&params, arguments, 2, environment, 1);
     exec_spool_discard (&params);
     CHECK (swapram_frees == 1 && !backend_error);
     printf ("migration: SwapRAM moves to flash and survives allocation refusal\n");
+}
+
+static void
+flash_cursor_rotation (void)
+{
+    struct exec_params params;
+    char *arguments[] = { "rotate", NULL };
+    size_t first_block, first_span;
+
+    reset_models ();
+    swapram_allowed = 0;
+    bzero (&params, sizeof params);
+    params.userargp = arguments;
+    CHECK (exec_save_args (&params) == 0);
+    CHECK (params.spool.backing == EXEC_SPOOL_FLASH);
+    first_block = allocated_flash_block;
+    first_span = allocated_flash_span;
+    CHECK (first_block == SWAP_IMAGE_ALIGN);
+    CHECK (swapnext == first_block + first_span);
+    CHECK (cursor_publications == 1 && published_cursor == swapnext);
+    exec_spool_discard (&params);
+
+    /* The freed run stays behind the cursor: the next spool lands after it
+     * rather than returning to the lowest free sector. */
+    bzero (&params, sizeof params);
+    params.userargp = arguments;
+    CHECK (exec_save_args (&params) == 0);
+    CHECK (allocated_flash_block == first_block + first_span);
+    CHECK (cursor_publications == 2 && published_cursor == swapnext);
+    exec_spool_discard (&params);
+
+    /* A cursor at the end of the unit wraps to the first aligned run. */
+    swapnext = FLASH_BLOCKS;
+    bzero (&params, sizeof params);
+    params.userargp = arguments;
+    CHECK (exec_save_args (&params) == 0);
+    CHECK (allocated_flash_block == SWAP_IMAGE_ALIGN);
+    CHECK (published_cursor == SWAP_IMAGE_ALIGN + allocated_flash_span);
+    exec_spool_discard (&params);
+    CHECK (!flash_allocation_live && !backend_error);
+    printf ("flash rotation: the swap cursor advances, publishes and wraps\n");
 }
 
 static void
@@ -505,6 +576,7 @@ main (void)
     swapram_serialization ();
     raw_boundary_fallback ();
     swapram_to_flash_migration ();
+    flash_cursor_rotation ();
     script_argument_order ();
     argument_limits ();
     allocation_failures ();

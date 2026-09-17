@@ -14,8 +14,8 @@ pyelftools (elftools, via reconcile_disassembly). Requires cstool, r2, and
 rizin on PATH.
 """
 
-import json
 import itertools
+import json
 import pathlib
 import re
 import subprocess
@@ -23,9 +23,7 @@ import sys
 
 import capstone
 from elftools.elf.elffile import ELFFile
-
 from reconcile_disassembly import bytes_for_range, load_elf_metadata, mapping_ranges
-
 
 CSTOOL_LINE_PATTERN = re.compile(
     r"^([0-9a-fA-F]+)\s+((?:[0-9a-fA-F]{2}(?:\s+|$))+)", re.MULTILINE
@@ -53,8 +51,7 @@ def run_command(command):
     completed_process = subprocess.run(
         command,
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     return completed_process.stdout

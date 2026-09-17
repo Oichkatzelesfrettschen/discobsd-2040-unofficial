@@ -24,7 +24,7 @@ ${PROG}:	${OBJS}
 # host cc against the host's <termios.h> (TERMIOS selects that half of
 # menu.c's terminal code instead of the sgtty ioctls the target build
 # uses), the same split usr.bin/kilo/kilo.c uses.
-HOST_CFLAGS=	-Wall -Wextra -O0 -g -DTERMIOS
+HOST_CFLAGS=	-Wall -Wextra -Werror -O0 -g -DTERMIOS
 
 menu.host:	menu.c
 		${HOST_CC} ${HOST_CFLAGS} -o $@ menu.c

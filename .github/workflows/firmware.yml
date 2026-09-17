@@ -1,5 +1,7 @@
-# The RP2040 kernel, the flash image and the host-only gates. The build
-# log is gated on its warnings: the build must emit none.
+# The RP2040 kernel, the flash image and the test tiers the root Makefile
+# groups (sys/arch/rp2040/doc/TESTING.md). The build log is gated on its
+# warnings: the build must emit none. The discobsd-host package has its
+# own workflow, host.yml, which is the check-host-package tier.
 name: firmware
 
 on:
@@ -28,11 +30,18 @@ jobs:
       # NONE" where no ex is installed, and pulls the BSD string and
       # arc4random functions from libbsd-overlay through pkg-config.
       # sys/arch/rp2040/test/swapram's Makefile is written for GNU make,
-      # which check-swapram-evac invokes directly, and
-      # tools/verify_rp2040_divider_ownership.py needs python3.
+      # which check-swapram-evac invokes directly.
       # tools/fsutil/mount.c includes fuse.h and its Makefile asks
       # pkg-config for the fuse flags, so libfuse-dev is a build dependency
       # of the host tools the kernel build runs first.
+      # The tiers add: shellcheck and ruff (check-lint), qemu-user for
+      # qemu-arm (check-qemu), and capstone and pyelftools for the divider
+      # verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
+      # packages no ruff and pip refuses the system interpreter. The MIPS
+      # tier stays off the runner: Ubuntu's mipsel-linux-gnu binutils
+      # know only the elf32-tradlittlemips format, not the elf32-littlemips
+      # that lib/elf32-mips.ld names. The 32-bit shell conformance run is
+      # the posix-sh job below.
       - name: Install the host toolchain
         run: |
           sudo apt-get update
@@ -40,7 +49,10 @@ jobs:
             bmake make build-essential cmake git \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
-            python3 libusb-1.0-0-dev
+            python3 libusb-1.0-0-dev \
+            shellcheck pipx qemu-user python3-capstone python3-pyelftools
+          pipx install ruff
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # Ubuntu 24.04 packages no picotool, and the kernel and flash image
       # rules call "picotool uf2 convert", which arrived in picotool 2.
@@ -77,6 +89,9 @@ jobs:
         run: |
           cc --version | head -1
           arm-none-eabi-gcc --version | head -1
+          qemu-arm --version | head -1
+          shellcheck --version | sed -n 2p
+          ruff --version
           bmake -V MACHINE 2>/dev/null || true
           picotool version
 
@@ -105,30 +120,17 @@ jobs:
           grep 'warning:' build.log || true
           test "$total" -eq 0
 
-      # Host-only gates: the packed a.out container and its loader, the
-      # config-generated kernel makefile, the swapram evacuation model
-      # compiled natively, and the flash swap link map.
-      - name: Run the host gates
+      # The tiers, each a root Makefile target: lint (shellcheck at error
+      # severity, ruff), host (libc, utility and kernel-model gates, the V6
+      # boot through pdp11, every program with a host build and a suite),
+      # the 32-bit shell conformance run, cross (the linked kernels, the
+      # board libc, the packed images, the assembler), qemu (the u-area
+      # exchange loop and the Smaller C suite executed), and the board
+      # regression programs built to a.out.
+      - name: Run the lint, host, cross, qemu and board-build tiers
         run: |
-          bmake MACHINE=rp2040 check-hsaout check-config-makefile \
-            check-swapram-evac check-flash-swap check-swapram \
-            check-tiny-utility-multicall
-
-      # The PDP-11 emulator built with the host compiler boots the shipped
-      # V6 pack on a pseudo-terminal: bootstrap prompt, login, ed, a
-      # pipeline and a disk write.
-      - name: Boot V6 through the host build of pdp11
-        run: bmake -C usr.bin/pdp11 MACHINE=rp2040 test
-
-      # The suites the port's guide lists as host tests, so a host seam
-      # (the ones macOS showed) is caught on every platform.
-      - name: Run the host test suites
-        run: |
-          bmake -C usr.bin/as/tests test MACHINE=rp2040
-          bmake -C usr.bin/smlrc test
-          bmake -C usr.bin/stevie test
-          bmake -C games/keen test
-          sh bin/tar/tests/tartest.sh
+          bmake MACHINE=rp2040 check-lint check-host check-cross \
+            check-qemu check-board-build
 
       - name: Confirm the images exist
         run: |
@@ -145,6 +147,30 @@ jobs:
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
+  # bin/sh keeps pointers in int, so its POSIX conformance run builds the
+  # shell as a 32-bit host binary. gcc-multilib supplies that and conflicts
+  # with the MIPS cross compiler the main job installs, so the tier has a
+  # job of its own; it needs no cross toolchain and no picotool.
+  posix-sh:
+    name: bin/sh POSIX conformance (32-bit host build)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bmake and the 32-bit compiler support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bmake build-essential gcc-multilib
+      # The runner starts every step with SIGPIPE ignored, so a reader
+      # that exits early makes the writer report "write error: Broken
+      # pipe" instead of dying quietly, and the harness's pipeline cases
+      # read that as output. The tier runs with the default disposition.
+      - name: Run the shell conformance tier
+        run: |
+          python3 -c 'import os, signal, sys
+          signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+          os.execvp(sys.argv[1], sys.argv[1:])' bmake check-posix-sh
+
   # The same tree on macOS, with the toolchain Homebrew provides: bmake,
   # byacc, Arm's own GNU toolchain (the arm-none-eabi-gcc formula is built
   # with an absolute --with-as and ignores the -B that substitutes the
@@ -158,8 +184,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install the host toolchain
         run: |
-          brew install bmake byacc bison flex groff mandoc pkgconf picotool
+          brew install bmake byacc bison flex groff mandoc pkgconf picotool \
+            shellcheck ruff coreutils cpio
           brew install --cask gcc-arm-embedded
+          # The divider verifier reads the kernels through capstone and
+          # pyelftools; Homebrew's Python refuses pip installs into itself,
+          # so they live in a venv the tiers name as PYTHON.
+          python3 -m venv "$HOME/gates-venv"
+          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools
+          echo "PYTHON=$HOME/gates-venv/bin/python3" >> "$GITHUB_ENV"
       - name: Report the toolchain
         run: |
           cc --version | head -1
@@ -180,20 +213,18 @@ jobs:
           echo "warning: lines in the build log: $total"
           grep 'warning:' build.log || true
           test "$total" -eq 0
-      - name: Run the host gates
+      # coreutils gives the textbox suite its GNU references and cpio the
+      # GNU cpio the cpio suite drives; macOS ships uuencode itself.
+      # The tiers macOS can run. Left out: check-posix-sh (a 32-bit
+      # Linux binary), check-qemu (Homebrew's qemu has no user-mode
+      # emulation) and check-mips (no MIPS cross compiler in Homebrew).
+      # The Smaller C suite runs link-only here and says so.
+      - name: Run the lint, host, cross and board-build tiers
         run: |
-          bmake MACHINE=rp2040 check-hsaout check-config-makefile \
-            check-swapram-evac check-flash-swap check-swapram \
-            check-tiny-utility-multicall
-      - name: Boot V6 through the host build of pdp11
-        run: bmake -C usr.bin/pdp11 MACHINE=rp2040 test
-      - name: Run the host test suites
-        run: |
-          bmake -C usr.bin/as/tests test MACHINE=rp2040
-          bmake -C usr.bin/smlrc test
-          bmake -C usr.bin/stevie test
-          bmake -C games/keen test
-          sh bin/tar/tests/tartest.sh
+          bmake MACHINE=rp2040 check-lint check-host check-cross \
+            check-board-build
+      - name: Link the Smaller C suite
+        run: bmake -C usr.bin/smlrc test
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2

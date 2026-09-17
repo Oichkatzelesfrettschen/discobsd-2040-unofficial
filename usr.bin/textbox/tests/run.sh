@@ -175,9 +175,14 @@ if command -v uuencode >/dev/null 2>&1 && command -v uudecode >/dev/null 2>&1; t
 	( cd "$WORK" && uudecode -o bin.sys.out < bin.uu )
 	check "system uudecode reads our uuencode output" "$WORK/bin.sys.out" "$WORK/bin.orig"
 
+	# The base64 payload is compared with the line breaks removed: RFC
+	# 2045 allows any wrap up to 76 columns, sharutils and this uuencode
+	# break at 60 and BSD's at 76, and every decoder reads both.
 	uuencode -m "$WORK/bin.orig" bin.orig > "$WORK/bin.sys.b64.uu"
-	check "uuencode -m output matches system uuencode -m" \
-		"$WORK/bin.b64.uu" "$WORK/bin.sys.b64.uu"
+	tr -d '\n' < "$WORK/bin.b64.uu" > "$WORK/bin.b64.joined"
+	tr -d '\n' < "$WORK/bin.sys.b64.uu" > "$WORK/bin.sys.b64.joined"
+	check "uuencode -m payload matches system uuencode -m" \
+		"$WORK/bin.b64.joined" "$WORK/bin.sys.b64.joined"
 	( cd "$WORK" && "$WORK/uudecode" -o bin.fromsys.out < bin.sys.b64.uu )
 	check "our uudecode reads system uuencode -m output" \
 		"$WORK/bin.fromsys.out" "$WORK/bin.orig"

@@ -1,0 +1,38 @@
+# The emulated board, with nothing started.
+#
+# boot.resc and boot.robot both include this, so the machine the gate tests is
+# the machine a person debugs. It stops short of "start" because the gate has
+# to attach its terminal tester before the first character leaves the UART.
+#
+# The kernel is the UART0-console build: Renode_RP2040 models no USB, and the
+# board's own console is CDC-ACM over USB.
+
+$name ?= "rp2040_discobsd"
+$repo_dir ?= $ORIGIN/vendor/Renode_RP2040
+$board_dir ?= $ORIGIN
+
+$unix_bin ?= $ORIGIN/../../sys/arch/rp2040/compile/PICO_UART/unix.bin
+$flash_bin ?= $ORIGIN/../../distrib/rp2040/flash.bin
+
+$machine_name = $name
+include $repo_dir/cores/initialize_peripherals.resc
+
+# pico_uart.repl is Renode_RP2040's core platform without the LED binding
+# boards/raspberry_pico.repl adds on GP25; this kernel drives that pin through
+# SIO and needs nothing from Renode's LED model to reach a console.
+machine LoadPlatformDescription $board_dir/pico_uart.repl
+
+# The real boot ROM, entry point 0. Renode_RP2040's copy of
+# raspberrypi/pico-bootrom-rp2040's image, so every rom_func_lookup() in
+# sys/arch/rp2040/dev/flash.c walks a real function table rather than a stub.
+sysbus LoadELF $repo_dir/bootroms/rp2040/b2.elf
+
+# boot2 at 0x10000000 and unix at 0x10000100, which is what picotool flashes
+# at 0x10000000 on hardware (BOOT-MAP.md section 2). The filesystem starts at
+# FLASH_FS_OFFSET, flash.h's 128 KB, so its XIP address is 0x10020000.
+sysbus LoadBinary $unix_bin 0x10000000
+sysbus LoadBinary $flash_bin 0x10020000
+
+# Reset from address 0, the boot ROM's own vector table, rather than from the
+# kernel's, so cpu0 begins where it does at power-on.
+sysbus.cpu0 VectorTableOffset 0x00000000

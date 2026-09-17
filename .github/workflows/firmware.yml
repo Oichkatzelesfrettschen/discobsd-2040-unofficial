@@ -235,3 +235,40 @@ jobs:
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+
+  # The flash-id probe is the one artifact here built against the Pico SDK
+  # rather than the tree's own bmake. It lives in the notes repository and
+  # ships in no image, so this job is the only place the SDK route is
+  # exercised: it checks that repository out, fetches the SDK at the commit
+  # tools/pico-sdk/fetch-pico-sdk.sh pins, and asserts the probe still
+  # links and still fits SRAM. The job depends on the notes repository
+  # staying public; check-flash-id reports `not run` rather than failing
+  # when it or the SDK is absent, so a rename shows up as a skipped gate.
+  flash-id:
+    name: flash-id against the Pico SDK
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the notes repository for the probe source
+        uses: actions/checkout@v4
+        with:
+          repository: Oichkatzelesfrettschen/discobsd-2040-notes
+          path: notes
+      - name: Install the host toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bmake cmake ninja-build git \
+            gcc-arm-none-eabi binutils-arm-none-eabi
+      - name: Fetch the Pico SDK at the pinned commit
+        run: sh tools/pico-sdk/fetch-pico-sdk.sh
+      - name: Report the toolchain
+        run: |
+          cmake --version | head -1
+          ninja --version
+          arm-none-eabi-gcc --version | head -1
+          sh tools/pico-sdk/sdk-path.sh
+      - name: Build flash-id and check it fits SRAM
+        env:
+          FLASH_ID_SRC: ${{ github.workspace }}/notes/tools/flash-id
+        run: bmake MACHINE=rp2040 check-flash-id

@@ -265,6 +265,12 @@ check-qemu:
 check-renode:
 		sh tools/renode/check-boot.sh
 
+# The flash-id probe from the notes repository, built against a Pico SDK
+# that tools/pico-sdk/sdk-path.sh resolves. Outside check for the reason
+# check-renode is: it wants cmake and a fetched SDK.
+check-flash-id:
+		sh tools/pico-sdk/check-flash-id.sh
+
 # The MIPS cross compiler beside the arm one: elf2aout's layout on both.
 check-mips:	check-elf2aout
 

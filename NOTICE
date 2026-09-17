@@ -333,6 +333,15 @@ of raspberrypi/pico-bootrom-rp2040; the emulator loads that image so
 that the kernel's rom_func_lookup() in sys/arch/rp2040/dev/flash.c
 resolves against real boot ROM machine code rather than a stub.
 
+tools/pico-sdk/fetch-pico-sdk.sh clones raspberrypi/pico-sdk at a pinned
+commit into tools/pico-sdk/vendor, which .gitignore excludes, and
+initializes its lib/tinyusb submodule. The SDK is BSD 3-Clause, copyright
+Raspberry Pi (Trading) Ltd., and TinyUSB is MIT, copyright Ha Thach. Only
+the flash-id probe in the notes repository builds against them; no byte of
+either reaches a board through this tree. The second-stage boot code that
+does reach a board is section 4 above, carried in the tree under its own
+notice.
+
 Renode, the arm-none-eabi toolchain, qemu, bmake, shellcheck, ruff and
 the Python packages distrib/rp2040/host depends on are installed by a
 package manager under their own terms and are named in

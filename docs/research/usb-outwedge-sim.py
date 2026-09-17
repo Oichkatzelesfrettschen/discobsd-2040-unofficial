@@ -83,7 +83,7 @@ def main():
     # Steady state: five host OUT packets, each drained and re-armed. The guard
     # never fires here, because the buffer is armed whenever it is idle.
     fired = 0
-    for i in range(5):
+    for _i in range(5):
         r = ep.host_out(b"x" * 3, ep.data_out_pid)
         assert r == "ACK", "armed buffer must ACK, got %s" % r
         ep.rx_done()

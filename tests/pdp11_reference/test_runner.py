@@ -294,6 +294,12 @@ class ReferenceRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "transcript SHA-256"):
                 run.validate_expected(fixture_path)
 
+    @unittest.skipUnless(
+
+        sys.platform == "linux", "evidence publication uses Linux renameat2"
+
+    )
+
     def test_fake_simulator_covers_successful_process_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as directory_name:
             fixture_directory = pathlib.Path(directory_name)

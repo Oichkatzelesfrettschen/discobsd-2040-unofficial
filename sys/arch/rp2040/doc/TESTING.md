@@ -47,7 +47,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
 | `check-tiny-utility-multicall` | true, false and nohup dispatch, arguments, signals, priority, streams, terminal and exit status |
 | `check-portable-utilities` | getopt, yes, strings and users, with write-error injection |
-| `check-pdp11-reference` | the unit tests of the PDP-11 V7 reference runner (the simh run itself is `check-pdp11-v7` with `PDP11_V7_IMAGE`) |
+| `check-pdp11-reference` | the unit tests of the PDP-11 V7 reference runner (the simh run itself is `check-pdp11-v7` with `PDP11_V7_IMAGE`); the three tests that publish evidence use Linux renameat2 and skip elsewhere, saying so |
 | `check-fgrep-capacity` | fgrep's allocation boundaries and its command path over regular, empty and fifo pattern sources |
 | `check-config-makefile` | the config tool regenerates the tracked kernel Makefile byte for byte |
 | `check-swapram-evac` | the compressed swap pool's evacuation to flash, linking the kernel's swapram.c and subr_rmap.c |

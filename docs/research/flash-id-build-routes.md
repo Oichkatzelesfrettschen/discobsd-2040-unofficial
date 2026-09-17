@@ -81,16 +81,25 @@ and most of that is the TinyUSB device stack and `printf` that
 `pico_enable_stdio_usb` pulls in, not the probe. The probe itself is two
 `flash_do_cmd` calls.
 
-Moving flash-id into this tree is therefore not a build-file change. The
-port has its own CDC-ACM driver in `sys/arch/rp2040/dev/usb.c` and its own
-flash driver in `dev/flash.c`, and a port-native probe would be written
-against those rather than against `pico_stdlib` and `hardware_flash`. That
-is a rewrite of the probe, and the measurements say it would buy an image
-in romprobe's size class rather than route 1's, at no meaningful change in
-build time.
+The SDK is not a barrier to either. It is BSD 3-Clause, and this tree
+already carries SDK-derived code: `sys/arch/rp2040/boot2/boot2_w25q080.S`
+is the Pico SDK second-stage boot code, attributed in NOTICE section 4.
+Redistribution was never the obstacle, and the dependency is toolchain
+surface -- cmake, ninja and a checkout of the SDK -- which a pinned fetch
+resolves the same way `tools/renode/fetch-renode-rp2040.sh` resolves the
+Renode peripheral models. `check-flash-id` builds the probe against an SDK
+resolved through `tools/pico-sdk/sdk-path.sh`, and stands outside `check`
+for the same reason `check-renode` does.
 
-Until someone wants that rewrite, flash-id stays where it is, and the
-reason is its SDK dependency rather than its build system.
+What a move would cost is a rewrite, not a build-file change. The port has
+its own CDC-ACM driver in `sys/arch/rp2040/dev/usb.c` and its own flash
+driver in `dev/flash.c`; a port-native probe would be written against
+those rather than against `pico_stdlib` and `hardware_flash`, and the
+measurements say it would buy an image in romprobe's size class rather
+than route 1's, at no meaningful change in build time.
+
+So flash-id stays in the notes repository because nothing requires it to
+move, not because the SDK keeps it out.
 
 ## Reproducing
 

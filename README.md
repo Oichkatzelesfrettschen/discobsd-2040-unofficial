@@ -461,6 +461,23 @@ To redistribute the firmware, as UF2 files or on a board:
    image by removing its `pack` line from `distrib/rp2040/mi.rp2040`.
 6. UNIX is a registered trademark of The Open Group; describe the
    system as "2.11BSD-derived" rather than "UNIX" in a product name.
+7. Do not name Serge Vakulenko (the author of `as` and `ld`) in
+   advertising: his license forbids the author's name "in advertising
+   or publicity pertaining to distribution of the software" without
+   written permission, the opposite of the Caldera clause. Attribution
+   belongs in `NOTICE`, not in the listing.
+8. Ship the Apache License text with anything that carries `coremark`:
+   `LICENSE-APACHE-2.0` at the top of the tree satisfies section 4(a);
+   a listing links to it. A CoreMark score may be published only from a
+   run that meets EEMBC's run rules (ten seconds or more, compiler
+   version and flags reported); the port's 8.25 s runs do not, so no
+   score goes in a listing.
+
+The legal memorandum behind these steps, with the Caldera title
+analysis, the CoreMark determination, trademark, consumer-law and
+export conclusions and the items a licensed attorney must confirm, is
+`research/discobsd-rp2040/legal-memo-redistribution.md` in the notes
+repository.
 
 The source for the exact image is the tag or commit the UF2 files were
 built from; state it in the listing so the licenses' "source code"

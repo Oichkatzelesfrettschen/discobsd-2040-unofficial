@@ -244,6 +244,13 @@ check-qemu:
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 
+# Renode with the third-party RP2040 models: the kernel boots from the real
+# boot ROM and the gate asserts the console lines through the device probe.
+# Not in "check": it wants an emulator, a fetched model tree and a built
+# image, and tools/renode/check-boot.sh names whichever is missing.
+check-renode:
+		sh tools/renode/check-boot.sh
+
 # The MIPS cross compiler beside the arm one: elf2aout's layout on both.
 check-mips:	check-elf2aout
 
@@ -326,7 +333,7 @@ installfs:
 		check-fgrep-capacity check-hsaout check-config-makefile \
 		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
 		check-lint check-host check-posix-sh check-cross check-qemu \
-		check-mips check-host-package check-board-build check \
+		check-mips check-renode check-host-package check-board-build check \
 		symlinks \
 		etc-distribution \
 		${FSIMG} fs installfs \

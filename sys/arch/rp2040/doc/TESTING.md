@@ -14,6 +14,7 @@ the kernels, the board libc and the distribution tree the gates read.
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
+| renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | no: the models are a git clone and a dotnet build | no |
 | mips | `check-mips` | a bare-metal MIPS cross compiler (`MIPS_GCCPREFIX`, mipsel-elf) | no: Ubuntu's mipsel-linux-gnu binutils know only elf32-tradlittlemips, not the elf32-littlemips that lib/elf32-mips.ld names | no MIPS toolchain in Homebrew |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
@@ -156,6 +157,32 @@ Linux-target mipsel-linux-gnu binutils reject the elf32-littlemips
 output format the linker script names, so the tier runs locally and
 not in CI.
 
+## Renode tier
+
+`check-renode` runs tools/renode/check-boot.sh, which boots the UART0
+console kernel from the real RP2040 boot ROM and asserts the console
+through the device probe. It stands outside `check` because it wants four
+things this tree does not carry, and reports whichever is missing by name:
+the `renode-test` harness, the models `tools/renode/fetch-renode-rp2040.sh`
+clones, a PICO_UART kernel, and a flash image.
+
+tools/renode/machine.resc builds the machine and stops there. boot.resc
+includes it and adds a socket console and a GDB server for a person;
+boot.robot includes the same file and attaches a terminal tester, so the
+machine someone debugs is the machine the gate asserts on.
+
+`renode-test` drives the suite through whatever `python3` resolves to, and
+Renode's own harness needs robotframework and four other packages no
+distribution installs with the emulator. check-boot.sh builds a virtual
+environment from Renode's own `tests/requirements.txt` under
+tools/renode/vendor, which .gitignore already excludes, rather than naming
+versions here that would drift from the installed emulator.
+
+One trap worth knowing: Robot Framework separates arguments on two or more
+spaces, so a console line like `phys mem  = 264 kbytes` has to spell its
+padding `${SPACE}${SPACE}`. Written plainly, the rest of the line is parsed
+as the next argument and the failure reads as a type error inside Renode.
+
 ## Board tier
 
 `check-board-build` builds the on-device regression programs to a.out
@@ -184,11 +211,12 @@ clock as well. Serializing the FIFOs clears that wedge and init then forks
 a shell, but no run with or without the change has produced userland
 console output, so no tier can assert on a prompt.
 
-What every run does reach, in about two and a half seconds of host time, is
-`swap size = 380 kbytes`, and reaching it exercises boot2, XIP entry, clock
-bring-up, the real boot ROM's function table, the Dhara root and the device
-probe. A `renode-test` Robot file asserting the banner and the device lines
-gates that much; it is not wired into a tier here and is its own change.
+What every run does reach, in about two seconds of host time, is `swap size
+= 380 kbytes`, and `check-renode` gates exactly that much. Reaching those
+twelve lines exercises boot2, XIP entry, clock bring-up, the real boot ROM's
+function table, the Dhara root and the device probe, and the sizes are
+asserted rather than only the line names, so a flash layout change that
+nothing else notices fails here.
 sys/arch/rp2040/doc/research/emulation.md carries the measurements, the
 diff, the replayable commands, and two further model defects.
 

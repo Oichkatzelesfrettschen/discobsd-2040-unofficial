@@ -248,12 +248,20 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # The kernel builds -nostdinc against the tree's own libc, so the
+      # rp2040 job needs no target C library. This one does: the SDK links
+      # newlib and the target libstdc++, which the flash_id.elf map shows
+      # as libc.a, libg.a, libm.a and libstdc++.a under thumb/v6-m/nofp.
+      # Debian and Ubuntu ship those apart from the compiler and
+      # gcc-arm-none-eabi does not depend on them, so naming the compiler
+      # alone leaves the link without a C library.
       - name: Install the host toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bmake cmake ninja-build git \
-            gcc-arm-none-eabi binutils-arm-none-eabi
+            gcc-arm-none-eabi binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
       - name: Fetch the Pico SDK at the pinned commit
         run: sh tools/pico-sdk/fetch-pico-sdk.sh
       - name: Report the toolchain

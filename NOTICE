@@ -300,7 +300,11 @@ the License at http://www.apache.org/licenses/LICENSE-2.0. The
 Acceptable Use Agreement permits the COREMARK trademark only in
 connection with unmodified copies of the software and reserves the
 right to revoke it; a product that carries the benchmark must satisfy
-that agreement or omit the program.
+that agreement or omit the program. Section 4(a) of the Apache License
+requires that a copy of the License accompany the work: the full text
+is LICENSE-APACHE-2.0 beside this file and benchmarks/coremark/
+LICENSE.md in the tree. COREMARK is a registered trademark of the
+Embedded Microprocessor Benchmark Consortium (Reg. No. 4,179,307).
 
 ------------------------------------------------------------------------
 14. The GCC runtime library (libgcc, linked into every binary)

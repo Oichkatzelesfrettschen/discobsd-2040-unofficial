@@ -191,9 +191,17 @@ fs:		$(FSIMG)
 etc-distribution:
 		${MAKE} -C etc DESTDIR=${DESTDIR} distribution
 
+# /etc/release names the build the root came from: the commit (with
+# -dirty when the tree had changes), the date, and the builder's host OS,
+# so a board answers "which firmware is this?" with "cat /etc/release".
+# A tree without git history says so rather than failing.
 ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
 		etc-distribution
 		rm -f $@ distrib/$(MACHINE)/_manifest
+		commit=`git -C ${TOPSRC} describe --always --dirty --tags 2>/dev/null || echo unknown`; \
+		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
+		    "`date -u +%Y-%m-%dT%H:%M:%SZ`" "$$commit" "`uname -s`" \
+		    > ${DESTDIR}/etc/release
 		cat ${MI_MANIFEST} distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
 		$(FSUTIL) --repartition=${PARTITIONS} $@
 		${FSUTIL} --new --partition=1 ${FS_INODES_ARG} --manifest=distrib/${MACHINE}/_manifest $@ ${DESTDIR}

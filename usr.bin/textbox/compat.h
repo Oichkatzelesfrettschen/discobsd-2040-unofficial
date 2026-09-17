@@ -45,6 +45,13 @@ void *ereallocarray(void *, size_t, size_t);
 
 int    fshut(FILE *, const char *);
 
+/* macOS's libc declares a strtonum over long long; the host build of
+ * the suite keeps the tree's long one under another name, with the
+ * libc declaration parsed first so the rename never reaches it. */
+#ifdef __APPLE__
+#include <stdlib.h>
+#define strtonum textbox_strtonum
+#endif
 long   strtonum(const char *, long, long, const char **);
 long   estrtonum(const char *, long, long);
 

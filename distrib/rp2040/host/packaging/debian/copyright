@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: discobsd-host
-Source: https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+Source: https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 
 Files: *
 License: BSD-3-Clause

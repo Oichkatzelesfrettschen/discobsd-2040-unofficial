@@ -1,6 +1,6 @@
 [Unit]
 Description=DiscoBSD console short link (port 42069)
-Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial
+Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 After=discobsd-web.service
 
 [Service]

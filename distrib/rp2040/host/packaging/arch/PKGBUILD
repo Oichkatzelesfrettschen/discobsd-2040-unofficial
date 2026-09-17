@@ -1,4 +1,4 @@
-# Maintainer: Oichkatzelesfrettschen <discobsd-pico@users.noreply.github.com>
+# Maintainer: Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>
 #
 # The package tree lives two directories up, at distrib/rp2040/host, so the
 # build copies it out of "$startdir/../.." in prepare() rather than naming a
@@ -15,7 +15,7 @@ pkgver=1.0.5
 pkgrel=1
 pkgdesc="Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 arch=('any')
-url="https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial"
+url="https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"
 license=('BSD-3-Clause')
 depends=('python' 'python-pyserial')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
@@ -48,8 +48,8 @@ check() {
 package() {
 	cd "$srcdir/$pkgname-$pkgver"
 	python -m installer --destdir="$pkgdir" dist/*.whl
-	install -Dm644 71-discobsd-pico.rules \
-	    "$pkgdir/usr/lib/udev/rules.d/71-discobsd-pico.rules"
+	install -Dm644 71-discobsd-rp2040.rules \
+	    "$pkgdir/usr/lib/udev/rules.d/71-discobsd-rp2040.rules"
 	install -Dm644 systemd/discobsd-web.service \
 	    "$pkgdir/usr/lib/systemd/user/discobsd-web.service"
 	install -Dm644 systemd/discobsd-link.service \

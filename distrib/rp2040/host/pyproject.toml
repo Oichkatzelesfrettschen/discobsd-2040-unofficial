@@ -29,7 +29,7 @@ test = ["pytest>=7", "ruff>=0.4"]
 bundle = ["pyinstaller>=6"]
 
 [project.urls]
-Homepage = "https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial"
+Homepage = "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"
 
 [project.scripts]
 discobsd-term = "discobsd_host.term:main"

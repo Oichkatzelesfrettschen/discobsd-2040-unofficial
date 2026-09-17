@@ -3,7 +3,7 @@
 The port lives in `sys/arch/rp2040` of this DiscoBSD tree. Machine-readable
 copies of the RP2040 and Pico datasheets, with an `INDEX.md` resolving every
 section number to a line in the text, live in the companion notes repository
-(discobsd-pico-notes, `docs/rp2040/`); `DATASHEET-INDEX.md` here lists the
+(discobsd-2040-notes, `docs/rp2040/`); `DATASHEET-INDEX.md` here lists the
 sections this port cites. Section numbers below refer to the RP2040
 datasheet unless marked Pico.
 

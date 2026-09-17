@@ -103,7 +103,7 @@ jobs:
           sudo apt-get install -y "$(readlink -f "$deb")"
           discobsd-term --version
           discobsd-console --version
-          test -f /usr/lib/udev/rules.d/71-discobsd-pico.rules
+          test -f /usr/lib/udev/rules.d/71-discobsd-rp2040.rules
           getent group discobsd
           test -f /usr/lib/systemd/user/discobsd-web.service
           test -f /usr/lib/systemd/user/discobsd-link.service
@@ -141,7 +141,7 @@ jobs:
           pacman -U --noconfirm packaging/arch/discobsd-host-*.pkg.tar.zst
           discobsd-term --version
           discobsd-console --version
-          test -f /usr/lib/udev/rules.d/71-discobsd-pico.rules
+          test -f /usr/lib/udev/rules.d/71-discobsd-rp2040.rules
           getent group discobsd
           test -f /usr/lib/systemd/user/discobsd-web.service
           test -f /usr/lib/systemd/user/discobsd-link.service

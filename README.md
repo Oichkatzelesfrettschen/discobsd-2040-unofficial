@@ -82,7 +82,7 @@ flash.
 
 Install the host tools for your operating system from the latest
 `host-v*` release at
-<https://github.com/Oichkatzelesfrettschen/discobsd-pico-unofficial/releases>
+<https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/releases>
 and follow the steps for your platform.
 
 #### Linux Mint, Ubuntu 24.04, Debian

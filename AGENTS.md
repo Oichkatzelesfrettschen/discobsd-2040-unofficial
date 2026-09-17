@@ -95,11 +95,13 @@ A claim that changes an interface, a memory layout or a driver path cites
 rank 1 through 3. A claim resting on rank 4 or below stays labeled a
 hypothesis until a higher rank confirms it.
 
-Build, host-gate, cross, qemu and board results are separate evidence
-classes: a warning-free build proves compilation, a qemu run proves the
-instruction sequence, and a board run proves the silicon. Each stands for
-itself. sys/arch/rp2040/doc/TESTING.md is the authority for what a given
-gate proves.
+Build, host-gate, cross, qemu, Renode and board results are separate
+evidence classes, and each stands for itself. A warning-free build proves
+compilation. A qemu-user run proves the instruction sequence. check-renode
+boots the PICO_UART kernel from the real RP2040 boot ROM and asserts the
+console through the device probe, against third-party peripheral models.
+A board run proves the silicon. sys/arch/rp2040/doc/TESTING.md is the
+authority for what a given gate proves.
 
 A new gate, linter or probe is calibrated against a known-good and a
 known-bad input before its verdict counts, because a gate that passes on
@@ -195,7 +197,8 @@ Reach for the tool that matches the claim.
 - Compiled output: `arm-none-eabi-objdump -d`, `readelf`, `nm`, `size`, the
   tree's own gates under tools/, and capstone and pyelftools under
   `${PYTHON}` as the cross tier uses them.
-- Behavior: qemu-arm for the instruction sequence, the board over
+- Behavior: qemu-arm for the instruction sequence, `bmake check-renode`
+  for a boot from the real boot ROM, the board over
   /dev/serial/by-id/*DiscoBSD* for everything else, `sysctl -w
   kern.systrace=1` for the syscall stream, romprobe for the ROM table.
 - Hygiene: `shellcheck -S error`, `ruff`, `-Wall -Wextra -Werror`.
@@ -226,6 +229,16 @@ blocker.
 - A subagent collects evidence read-only unless the task grants it more, and
   carries an explicit `model`. Synthesis, edits, commits and the final claim
   stay with the parent.
+- A new file under sys/arch/rp2040 written for this port carries
+  `Copyright (c) <year> DiscoBSD` and the ISC permission notice. NOTICE
+  section 1 names those files as an ISC-licensed category beside the
+  BSD 3-Clause LICENSE, so the header is the grant a redistributor relies
+  on rather than an invented attribution, and the global no-copyright-line
+  rule yields to it here.
+- The ledgers under sys/arch/rp2040/doc/research are retained evidence.
+  audit-findings.md is a verbatim capture with its source SHA-256 in the
+  header, so it records the tree as it stood at the commit it names.
+  Corrections go to audit-response.md; the ledger stays as captured.
 - The user's global instructions apply (emoji-free text, `--` not em dash,
   American English, POSIX sh with set -eu, ${PYTHON}, no local paths or
   secrets in commits, `Assisted-by:` trailers).

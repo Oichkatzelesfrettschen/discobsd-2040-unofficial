@@ -4,7 +4,7 @@
 #
 # The routes differ in what drives the compiler, not in what the compiler
 # does. Route 1 is the Pico SDK through CMake and Ninja, as tools/flash-id
-# in the notes repository ships it. Route 2 replays that build's own
+# builds. Route 2 replays that build's own
 # compile and link commands from a Makefile, which isolates the driver:
 # CMake still supplies the generated headers and the boot2 stage, because
 # the SDK sources do not compile without them. Route 3 is the port's own
@@ -14,7 +14,7 @@
 # cache as much as the build.
 #
 # Usage: sh tools/bench-flash-id-build.sh [flash-id source directory]
-# The source directory defaults to ../discobsd-2040-notes/tools/flash-id.
+# The source directory defaults to tools/flash-id.
 # Route 3 links against lib/crt0.o and so wants a tree that `bmake
 # MACHINE=rp2040 build` has already populated; PORT_ROOT names that tree
 # when it is not the one holding this script. The SDK comes from
@@ -25,7 +25,7 @@ set -eu
 PYTHON=${PYTHON:-python3}
 TOPSRC=$(cd "$(dirname "$0")/.." && pwd)
 PORT_ROOT=${PORT_ROOT:-$TOPSRC}
-FLASH_ID=${1:-$TOPSRC/../discobsd-2040-notes/tools/flash-id}
+FLASH_ID=${1:-$TOPSRC/tools/flash-id}
 RUNS=3
 
 WORK=$(mktemp -d)

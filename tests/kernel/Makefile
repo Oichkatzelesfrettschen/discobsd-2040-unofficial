@@ -56,6 +56,10 @@ RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
 CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 
+# The protection syscalls and the process lookups they decide with.
+CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
+		${TOPSRC}/sys/kern/kern_proc.c
+
 # The resource map allocator runs in three shapes across the tree's ports:
 # the sixteen-bit descriptors sys/arch/rp2040/compile/PICO configures, the
 # wide descriptors stm32 and pic32 use, and a DIAGNOSTIC kernel, where
@@ -65,7 +69,7 @@ WIDE_DEFS=
 DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
-	clist_test
+	clist_test cred_test
 
 all: ${PROGS}
 
@@ -118,6 +122,14 @@ clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    clist_test.c hostkern_kern.c clist_kernel.o hostkern.o
 
+cred_test: cred_test.c ${CRED_SRC} hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -c -o cred_prot.o ${TOPSRC}/sys/kern/kern_prot.c
+	${HOST_CC} ${KERN_CFLAGS} -c -o cred_prot2.o ${TOPSRC}/sys/kern/kern_prot2.c
+	${HOST_CC} ${KERN_CFLAGS} -c -o cred_proc.o ${TOPSRC}/sys/kern/kern_proc.c
+	${HOST_CC} ${GATE_CFLAGS} -o $@ cred_test.c hostkern_kern.c \
+	    cred_prot.o cred_prot2.o cred_proc.o hostkern.o
+
 check: ${PROGS}
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
@@ -128,6 +140,7 @@ clean:
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f uio_kernel.o clist_kernel.o
+	rm -f cred_prot.o cred_prot2.o cred_proc.o
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

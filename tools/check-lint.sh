@@ -30,7 +30,9 @@ is_shell_script() {
 	return 1
 }
 scripts=$(git ls-files | while read -r f; do
-	is_shell_script "$f" && echo "$f"
+	if is_shell_script "$f"; then
+		echo "$f"
+	fi
 done)
 # shellcheck disable=SC2086
 shellcheck -S error $scripts

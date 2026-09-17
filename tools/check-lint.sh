@@ -17,14 +17,20 @@ for tool in shellcheck ruff; do
 	}
 done
 
-scripts=$(git ls-files | while read -r f; do
-	case $f in
-	*.sh) echo "$f" ;;
-	*.sed) ;;
-	*) case $(head -c 24 "$f" 2>/dev/null | tr -d '\000' | head -n 1) in
-	   '#!/bin/sh'*|'#!/usr/bin/env sh'*|'#! /bin/sh'*) echo "$f" ;;
-	   esac ;;
+# A case statement inside $( ) trips the bash 3.2 that macOS runs as sh,
+# so the test is a function and the substitution only calls it.
+is_shell_script() {
+	case $1 in
+	*.sh) return 0 ;;
+	*.sed) return 1 ;;
 	esac
+	case $(head -c 24 "$1" 2>/dev/null | tr -d '\000' | head -n 1) in
+	'#!/bin/sh'*|'#!/usr/bin/env sh'*|'#! /bin/sh'*) return 0 ;;
+	esac
+	return 1
+}
+scripts=$(git ls-files | while read -r f; do
+	is_shell_script "$f" && echo "$f"
 done)
 # shellcheck disable=SC2086
 shellcheck -S error $scripts

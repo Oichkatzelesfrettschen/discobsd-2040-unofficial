@@ -70,6 +70,19 @@ int uiomove (caddr_t cp, u_int n, struct uio *uio);
  */
 int ureadc (int c, struct uio *uio);
 
+/*
+ * Take the next character the user wrote, or -1 once the transfer is spent.
+ * The byte is widened without sign, so a caller holding the result in an int
+ * tells 0xff from the end of the transfer.
+ */
+int uwritec (struct uio *uio);
+
+/*
+ * Copy between one segment and the kernel, leaving the transfer's own
+ * accounting to the caller.
+ */
+int uiofmove (caddr_t cp, int n, struct uio *uio, struct iovec *iov);
+
 #else /* !KERNEL */
 
 ssize_t readv (int fd, const struct iovec *iov, int iovcnt);

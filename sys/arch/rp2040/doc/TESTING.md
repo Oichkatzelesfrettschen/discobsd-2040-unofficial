@@ -23,6 +23,13 @@ build; `host.yml` owns the discobsd-host package and packages it on
 three platforms. `PYTHON` defaults to `python3` in share/mk/sys.mk and
 the root Makefile and reaches every sub-make.
 
+Windows appears in `host.yml` and nowhere else. The firmware tiers want
+bmake, an arm-none-eabi cross toolchain and a POSIX sh userland to test,
+so the platform that runs them on a Windows machine is WSL, which is the
+Ubuntu job already. What Windows does carry on its own is the
+discobsd-host package: the pytest matrix runs there, and a separate job
+builds the PyInstaller executables that talk to a board over USB.
+
 ## Lint
 
 `tools/check-lint.sh` runs shellcheck at error severity over every
@@ -42,6 +49,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
+| `check-kernel` | three sys/kern sources compiled from the kernel tree and run against 831 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
@@ -65,6 +73,53 @@ against XCU chapter 2, which builds the shell as a 32-bit host binary;
 a case the shell does not yet answer as POSIX does is declared `xfail`
 and fails the moment the shell starts producing the POSIX answer.
 
+### Kernel sources on the host
+
+`check-kernel` compiles a file from sys/kern unchanged and links it
+against the harness in tests/kernel, so the gate measures the code the
+board runs instead of a second copy of its algorithm. `check-swapram-evac`
+links kernel sources the same way. Three properties of the tree decide the
+shape of the harness, and a new gate that ignores any of them fails in a
+way that looks like a bug in the kernel:
+
+- sys/sys/types.h reads `typedef u_int size_t`, so a kernel source sees a
+  32-bit size_t where a host source sees a wider one. hostkern.h therefore
+  includes no system header and names no type the kernel names, and
+  hostkern_kern.c is the only translation unit that includes both sides.
+  A gate that reached `<stddef.h>` before `<sys/param.h>` would hand
+  `malloc3()` an array of one width and get two of its three addresses
+  written into the first element.
+- A host binary links libc, which owns `printf`, `malloc` and `mfree`. The
+  Makefile moves those names aside for the kernel source; hostkern_kern.c
+  compiles with the same renames and includes both headers, so a signature
+  that drifts from sys/systm.h becomes a conflicting declaration.
+- sys/param.h reaches the port's headers as `<machine/*.h>`, a name
+  config(8) makes in the kernel build directory. This tier has to run in an
+  unconfigured tree, so its Makefile generates one forwarding header per
+  port header instead.
+- The port's interrupt primitives are ARM inline assembly no host assembler
+  accepts. The generated `<machine/intr.h>` includes the port's header for
+  its constants and then hostintr.h, which redefines the six spl macros; the
+  port's own inline functions survive as static inlines nothing calls, so no
+  assembly is emitted. The stand-in counts the level rather than discarding
+  it, which turns "this routine lowered priority again" into something a
+  gate states rather than a property of the shim.
+
+A kernel source compiles here under `-Wall -Werror`, the set
+sys/arch/rp2040/conf builds the kernel with, while the gate's own sources
+take `-Wall -Wextra -Werror`. A gate that rejected code the production
+build accepts would fail for something that ships, which is also why the
+tier carries two suppressions that apply to no other tree: clang rejects
+sys/kern's old-style function definitions, which the arm-none-eabi gcc the
+kernel is built with accepts, and it checks the operand widths of the
+port's PRIMASK inline assembly even where hostintr.h has redefined every
+macro that would call it.
+
+`panic()` returns control to the harness inside `HK_EXPECT_PANIC`, which
+is what lets a gate assert on the defensive checks rather than only on the
+paths that return. Outside one it prints and exits, so an unexpected panic
+fails the gate rather than unwinding into unrelated code.
+
 ## Cross tier
 
 | gate | proves |
@@ -72,7 +127,7 @@ and fails the moment the shell starts producing the POSIX answer.
 | `check-divider` | neither linked kernel reaches the SIO divider registers, from the ELF and from the dependency files |
 | `check-swapram` | vm_swap.o, exec_hsaout.o and kern_sysctl.o agree with each kernel's Config on the SwapRAM tier and pool size |
 | `check-cache-footprint` | the name, buffer and inode caches' ABI and chain invariants, the exec argument spool over modeled SwapRAM, raw swap and buffers (including the swap cursor's rotation, publication and wrap), and the evacuation model |
-| `check-exec-spool` | the spool and evacuation models alone |
+| `check-exec-spool` | sys/kern/exec_subr.c spooling arguments through the real sys/kern/subr_rmap.c reservation, over modeled SwapRAM and buffers |
 | `check-ufs-prototypes` | every UFS function the kernel links has a prototype |
 | `check-hsaout` | the packed a.out container against header and stream corruption, truncation and forged lengths, over every image in the distribution tree |
 | `check-libc-contracts` | raise and ctermid on the host, and the board libc's a.out contracts after a rebuild from clean |
@@ -115,6 +170,27 @@ flash a board and check it over the USB console: board_aout_admission.py
 (a truncated, an oversized and an even-entry image refused with distinct
 errors), board_exec_hsaout.py (textcrc raw and packed across a swap) and
 board_stack_align.py.
+
+No tier runs the kernel under an emulator. Renode with the third-party
+RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is the only
+option that boots this kernel at all -- QEMU ships no rp2040 machine and
+rp2040js models no flash writes -- and it does boot: through boot2, XIP,
+clock bring-up, the real boot ROM's function table, Dhara, and on into
+`execve`, and then it stops. `RP2040XIPSSI` shares its two FIFOs between
+the CPU thread and its own clocking thread with no mutual exclusion and
+loses bytes to the race, so the boot ROM ends up waiting under `splhigh()`
+for data that no longer exists, which masks SysTick and stops the kernel
+clock as well. Serializing the FIFOs clears that wedge and init then forks
+a shell, but no run with or without the change has produced userland
+console output, so no tier can assert on a prompt.
+
+What every run does reach, in about two and a half seconds of host time, is
+`swap size = 380 kbytes`, and reaching it exercises boot2, XIP entry, clock
+bring-up, the real boot ROM's function table, the Dhara root and the device
+probe. A `renode-test` Robot file asserting the banner and the device lines
+gates that much; it is not wired into a tier here and is its own change.
+sys/arch/rp2040/doc/research/emulation.md carries the measurements, the
+diff, the replayable commands, and two further model defects.
 
 Suites that run only on the board, because their program has no host
 build or their reference output holds board addresses: usr.bin/cpp

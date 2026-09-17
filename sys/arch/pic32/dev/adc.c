@@ -33,7 +33,6 @@
 
 #include <pic32/dev/adc.h>
 
-extern int uwritec(struct uio *);
 
 unsigned short adcactive = 0;
 

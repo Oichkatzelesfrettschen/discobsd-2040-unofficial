@@ -133,6 +133,11 @@ check-ufs-prototypes:	tools
 check-aout:
 		${MAKE} -C tests/aout_header check
 
+# Machine-independent kernel sources compiled from sys/kern and linked
+# against a host harness, so the gate measures the code the board runs.
+check-kernel:
+		${MAKE} -C tests/kernel check
+
 check-libc-environment:
 		${MAKE} -C tests/libc_environment check
 
@@ -191,7 +196,8 @@ check-elf2aout:	tools
 # The cross, qemu, mips and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
-HOST_GATES=	check-aout check-libc-environment check-libc-tempfiles \
+HOST_GATES=	check-aout check-kernel check-libc-environment \
+		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
 		check-fgrep-capacity check-config-makefile check-swapram-evac
@@ -314,7 +320,7 @@ installfs:
 		check-swapram check-cache-footprint check-exec-spool \
 		check-ufs-prototypes \
 		check-elf2aout \
-		check-libc-environment \
+		check-kernel check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \

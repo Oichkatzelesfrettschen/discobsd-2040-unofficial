@@ -313,3 +313,27 @@ Embedded Microprocessor Benchmark Consortium (Reg. No. 4,179,307).
 The binaries are produced by an Eligible Compilation Process (GCC with
 no proprietary plugins), so the Exception permits their distribution
 under the terms above. No GCC source is part of the image.
+
+------------------------------------------------------------------------
+Appendix. Build and test dependencies, which no image contains
+
+The sections above cover everything a redistributed image carries. The
+tools below run on a development or CI host, produce no bytes that reach
+a board, and are redistributed by nobody here; they are named so that a
+contributor knows what running the test tiers fetches and under which
+terms.
+
+tools/renode/fetch-renode-rp2040.sh clones matgla/Renode_RP2040 at a
+pinned commit into tools/renode/vendor, which .gitignore excludes.
+That project supplies the RP2040 peripheral models Renode itself does
+not ship. Its C# models are under the MIT license, copyright Mateusz
+Stadnik, with parts derived from Antmicro's Renode peripherals, also
+MIT. It carries a built image of the RP2040 boot ROM under the license
+of raspberrypi/pico-bootrom-rp2040; the emulator loads that image so
+that the kernel's rom_func_lookup() in sys/arch/rp2040/dev/flash.c
+resolves against real boot ROM machine code rather than a stub.
+
+Renode, the arm-none-eabi toolchain, qemu, bmake, shellcheck, ruff and
+the Python packages distrib/rp2040/host depends on are installed by a
+package manager under their own terms and are named in
+sys/arch/rp2040/doc/TESTING.md beside the tier that needs each.

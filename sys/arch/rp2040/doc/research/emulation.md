@@ -137,10 +137,10 @@ than spinning forever), the real boot ROM's function table lookup (`fl0`
 only prints once `rom_func_lookup` has resolved 'IF' and the erase/program
 pointers and Dhara has resumed its journal through them), and UART0 output.
 
-Past that line, the kernel does not reach `login:`; `dotnet`'s CPU usage
-stays pinned near 150% (`ps aux` on the Renode process) after the console
-goes quiet, i.e. the emulated CPU is spinning, not stopped. GDB confirms it,
-and pins down exactly where:
+Past that line the console goes quiet, and no run recorded here has yet
+reached `login:`. `dotnet`'s CPU usage stays pinned near 150% (`ps aux` on
+the Renode process), so the emulated CPU is executing rather than stopped.
+GDB catches it inside the boot ROM:
 
     (gdb) print/x $pc
     $1 = 0x17ce
@@ -197,38 +197,76 @@ waiting on a value that never arrives. An earlier pass of this report read
 the branch the other way and named RP2040QspiPads as the model at fault; it
 is not, and this section supersedes that reading.
 
-What the spin means is that `tx_count` and `rx_count` never reach zero:
-the SSI transfer under way makes no progress, so the ROM has nothing to do
-each time around and keeps checking whether it was aborted. The models to
-examine are the SSI and the chip select framing it drives, `RP2040XIPSSI`
-and `W25QXX`, not the pad bank. `flash_do_cmd()` asserts chip select
-through the IO_QSPI SS pad override rather than through SSIENR or SER,
-which are the only writes `RP2040XIPSSI` forwards to the flash model's
-GPIO; a command whose framing the flash model never sees would leave its
-command state machine out of step, which is what the warnings below
-suggest. The two runs captured for this report hung at slightly different
+The obvious next inference, that `tx_count` and `rx_count` therefore never
+reach zero, is also wrong, and a later pass measured it rather than
+reasoning about it. With the CPU paused inside `flash_put_get` the SSI
+registers read:
+
+    CTRLR0 0x18000000 = 0x00070000  DFS_32 7, TMOD 0 (TX_AND_RX), FRF 0
+    SSIENR 0x18000008 = 0x00000001
+    BAUDR  0x18000014 = 0x00000006
+    TXFLR  0x18000020 = 0x00000000
+    RXFLR  0x18000024 = 0x00000004
+    SR     0x18000028 = 0x0000000E  TFNF | TFE | RFNE
+
+An empty transmit FIFO with four bytes waiting in the receive FIFO is a
+transfer draining normally. The chip select framing works too: with
+`sysbus.gpio_qspi` and `sysbus.xip_ssi.xip_flash` at noisy level the log
+shows `0x06` WriteEnable recognized, GPIO1's output override raising and
+lowering the line, `CS# deasserted` reaching the flash model, then `0x02`
+PageProgram decoded with `write enabled: True`, three address bytes and the
+data. `RP2040GPIO`'s OUTOVER write callback does reach the connected
+peripheral, so the ROM's `flash_cs_force` frames its commands the way
+silicon does.
+
+The CPU sits in `flash_put_get` because that is the ROM's byte pump and it
+is where a flash-heavy kernel spends its cycles, not because the loop is
+stuck. What the kernel is doing while the console is quiet resolves, under
+`cpu0 LogFunctionNames`, to `namei`, `iget`, `bread` through
+`dhara_map_read`, `exec_check` into `exec_hsaout_check`, then thousands of
+`get_bits` and `hsx_expand` calls interleaved with `flash_swap_append` and
+`SysTick_Handler`: an execve of a compressed a.out being written to raw
+swap. `lbolt` advances about 990 ticks per virtual second against an HZ of
+1000, `time.tv_sec` increments, and `proc[1]` moves from SRUN to sleeping
+on `selwait` and then on `&proc[1]`, which is init sleeping and then
+waiting on a child. The premise this report opened with, that the kernel
+hangs, came from runs bounded by host wall clock rather than by virtual
+time: the longest reached 1.25 virtual seconds.
+
+The earlier runs stopped at slightly different
 points (`$pc` 0x17ce one run, 0x17ca and 0x17cc another,
 `u.u_procp->p_pid` 2 in one run, 0 in another), all consistent with
 reaching this same ROM routine from different call sites. One run's log
 also showed 271
 `xip_ssi.xip_flash: Writing to address 0x900lo exceedes its size` errors
-(addresses 0x900005 through 0x900113) immediately before the hang; a
-second, otherwise identical run reached the same hang with no such errors
-logged at all, so that message is a symptom of an earlier SPI framing
-problem on some runs, not the cause of the hang itself.
+(addresses 0x900005 through 0x900113) just before the console went quiet; a
+second, otherwise identical run reached the same point with no such errors
+logged at all, which is the run-to-run variation the managed transfer
+thread produces rather than a fault in the boot path.
 
-Every caller that reaches this routine runs under `splhigh()`
-(`flash_program()` and `flash_erase()` in `sys/arch/rp2040/dev/flash.c`
-both call it through the real ROM with interrupts masked), so once the CPU
-is in this loop nothing else in the kernel runs either. Renode's own log
-for the run reports `xip_ssi.xip_flash: Transmission finished in unexpected
-state: RecognizeOperation` and `Unhandled operation: 0x0`, which is a flash
-command state machine that has lost its framing rather than one waiting on
-a pad.
+Three log messages read as faults and are not. `Unhandled operation: 0xFF`
+comes from the ROM's `flash_exit_xip`, which clocks 0xff bytes on purpose
+to break a QSPI continuation mode the model has no command for.
+`Transmission finished in unexpected state: RecognizeOperation` comes from
+`RP2040XIPSSI` signalling chip select from its SSIENR and SER write
+callbacks as well as through the pad, so the flash model takes a redundant
+deassert while already idle. `Unhandled operation while processing byte:
+0x7` is a real model gap: `W25QXX.HandleCommand` has no case for
+`ReadRegister`, so every status read returns zero and the ROM's
+`flash_wait_ready` sees the write-in-progress bit clear forever. That makes
+the model finish sooner than silicon, never later, so it cannot stall a
+boot; it is worth reporting upstream along with `EraseChip` zeroing its
+memory where `EraseBytesInRange` fills with 0xff.
 
-This is a Renode peripheral-model gap, not a DiscoBSD kernel bug: the same
-ROM call path, against the real chip, is what section 7 of BOOT-MAP.md
-already verifies gets a board to `login:` in nine seconds.
+What remains open is how far the console gets. Fifteen lines arrive by 6.8
+virtual milliseconds, ending at `swap size = 380 kbytes`, and then the
+system does a long stretch of decompression and swap writes that prints
+nothing. During that stretch Renode advances roughly one virtual
+millisecond per sixty of host wall clock, so reaching the nine seconds
+section 7 of BOOT-MAP.md measures on hardware costs minutes rather than
+seconds here. A gate built on this emulator has to assert on console
+content and budget for that, and no run recorded in this report has yet
+crossed the quiet stretch.
 
 ## Exact, replayable commands
 
@@ -264,7 +302,7 @@ GDB attach:
 
 ## Worked GDB example
 
-With the emulator hung at the boot ROM spin above, a fresh
+With the emulator paused in the boot ROM byte pump above, a fresh
 `arm-none-eabi-gdb` session against the same running instance:
 
     $ arm-none-eabi-gdb -q -batch \
@@ -289,15 +327,22 @@ With the emulator hung at the boot ROM spin above, a fresh
 "Current process" in this 2.11BSD-derived kernel is `u.u_procp`
 (`sys/sys/user.h`: `struct user { ...; struct proc *u_procp; ...} u, u0;`),
 a pointer into the reachable `proc` array rather than a separate `curproc`
-global. `p_pid == 0` here is process 0 (the kernel/swapper context), which
-is correct: this hang is in `dhara_map_resume()` during `config()`'s device
-probe, before `init` has been exec'd, so no user process yet exists to be
-"current." The fault handler, `arm_fault` at `sys/arch/rp2040/rp2040/fault.c:99`,
-is not hit by this particular hang (a masked-interrupt busy-wait, not a
-HardFault), but the breakpoint sets cleanly and would trigger on any genuine
-fault taken later in boot -- confirmed by GDB resolving the exact source
-line rather than only an address, meaning debug info from this kernel build
-is present and correct end to end.
+global. `p_pid == 0` here is process 0, the swapper context, which this
+early sample caught while `dhara_map_resume()` ran during `config()`'s
+device probe. A later sample taken further into the same boot finds
+`proc[1]` sleeping on `selwait` and then waiting on a child, which is init
+running. The fault handler, `arm_fault` at
+`sys/arch/rp2040/rp2040/fault.c:99`, is not reached, but the breakpoint
+sets cleanly and would trigger on any genuine fault taken later in boot --
+confirmed by GDB resolving the exact source line rather than only an
+address, meaning debug info from this kernel build is present and correct
+end to end.
+
+Renode's own monitor answers the same questions without GDB, and a
+free-running target needs no async-continue plumbing there:
+`sysbus.cpu0 PC` and `sysbus ReadDoubleWord <addr>` against symbol
+addresses from `arm-none-eabi-nm` on `unix.elf` read out `lbolt`, `time`
+and any `proc[]` field.
 
 A kernel-side bug independent of the emulator was found and fixed along the
 way: `arm_fault()`'s nested-fault path (`fault.c:115`, before this change)
@@ -328,15 +373,23 @@ build, on real hardware or emulated, not a workaround for this report.
   Renode.
 - **SysInfo is not modeled.** `SYSINFO_CHIP_ID` reads back 0, so
   `cpu: RPxxxx rev N` prints as `RP0000 rev 0`.
-- **An SSI transfer started from the boot ROM never completes**, so
-  `flash_put_get`'s loop never retires its byte counts. Reads through the
-  XIP window work (the kernel's `.text`/`.rodata` execute from flash, and
-  `dhara_nand_read()`'s direct XIP reads succeed); any boot ROM call that
-  reaches `flash_put_get` -- both `flash_program()` and `flash_erase()` in
-  `sys/arch/rp2040/dev/flash.c` go through it -- hangs the caller under
-  `splhigh()`. This is the reason the kernel does not reach `login:` under
-  this emulator. The register the ROM reads in that loop is the abort flag,
-  not a pad the model has to drive; see the correction above.
+- **The flash path works.** Reads through the XIP window execute the
+  kernel's `.text` and `.rodata` and serve `dhara_nand_read()`; the boot
+  ROM's own erase and program calls frame their chip select through the
+  IO_QSPI pad override and the flash model receives it. The SSI drains its
+  FIFOs. No model change is needed to get past `swap size = 380 kbytes`.
+- **`W25QXX` answers every status-register read with zero**, because
+  `HandleCommand` has no `ReadRegister` case even though the model builds a
+  status register in its constructor. The ROM's `flash_wait_ready`
+  therefore never sees the write-in-progress bit set, which makes the model
+  faster than silicon rather than slower. `EraseChip` also zeroes its
+  memory where `EraseBytesInRange` fills with 0xff; DiscoBSD issues neither
+  0x60 nor 0xc7, so that one does not reach this port. Both belong upstream.
+- **Runs are not bit-reproducible.** `RP2040XIPSSI` drives transfers from a
+  managed thread rather than from the bus access, so the interleaving with
+  the CPU depends on host timing: two replays of one script put the same
+  page program at different flash offsets and different virtual times. A
+  gate has to assert on console content, never on timings or addresses.
 - **PWM, RTC, and DMA-adjacent IRQ/DREQ wiring for SSI are unfinished**
   per Renode_RP2040's own table; none of these are on the boot path this
   report exercises, so their absence was not independently confirmed here.
@@ -351,10 +404,10 @@ build, on real hardware or emulated, not a workaround for this report.
   stopping rule ("stop at the first candidate that gets the kernel to a
   login prompt" -- read here as "the furthest, most informative boot") was
   met without it.
-- **The hang was localized from the boot ROM disassembly, from `$pc`,
-  `$r12` and `$r6` at the hang point, and from the published boot ROM
-  source.** What has not been established is which SSI or chip-select
-  write the models drop; that needs the transfer traced through
-  `RP2040XIPSSI` and `W25QXX` with those peripherals at noisy log level,
-  and a fix means changing a third-party emulator's peripheral model
-  rather than this port's own kernel or build.
+- **What the console prints after the swap-size line is not established.**
+  Every run recorded here was bounded by host wall clock rather than by
+  virtual time, and Renode advances roughly one virtual millisecond per
+  sixty of host wall clock through the flash-heavy stretch, so crossing the
+  nine seconds a board takes to reach `login:` costs minutes. Establishing
+  it means an `emulation RunFor` long enough to finish, run detached, with
+  the UART captured by `LoggingUartAnalyzer` into the log file.

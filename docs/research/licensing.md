@@ -109,9 +109,29 @@ plus a product.
   rather avoid: a trademark license that is revocable and forbids the
   name on a modified benchmark. Removing it from a product image is a
   one-line manifest change and frees about 20 KB of root.
-- Tindie's own terms could not be fetched (403); the general seller
-  guidance found says a seller is responsible for third-party license
-  compliance. Nothing found imposes more than the licenses themselves.
+- Tindie's terms (https://www.tindie.com/about/terms/, effective June
+  30, 2026, operator EETREE LLC of Washington; the site sits behind a
+  Cloudflare challenge, fetched through headless Firefox on 2026-09-16)
+  add three seller undertakings beyond the licenses: section 6, sellers
+  "must own or be authorized to sell each product and must provide
+  accurate photos, descriptions, specifications" and "are responsible
+  for product safety, labeling, warranties they offer, ... consumer laws,
+  intellectual-property rights"; section 13, a representation that
+  listed content "does not infringe another party's rights"; section
+  18, an indemnity of EETREE LLC for claims "arising from your products,
+  listings, ... infringement". Section 7 lets Tindie remove "infringing"
+  or "deceptive" products. The terms say nothing about third-party
+  software licenses or exclusivity and name no governing law. The
+  warranty and consumer-law exposure is the seller's alone.
+- CoreMark's core sources are byte-identical to EEMBC's upstream main
+  (MD5 of core_main.c, core_list_join.c, core_matrix.c, core_state.c,
+  core_util.c and coremark.h compared on 2026-09-16); only the porting
+  layer core_portme.c and core_portme.h differ, which CoreMark's run
+  rules reserve for the port. The benchmark is unmodified in the
+  Acceptable Use Agreement's sense, so the program may keep its name
+  and the listing may say it runs CoreMark, with the trademark notice.
+  The legal memorandum (legal-memo-redistribution.md) carries the full
+  analysis.
 - This is an engineering reading of the license texts, not legal
   advice; a product launch deserves a lawyer's hour over `NOTICE`.
 

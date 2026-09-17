@@ -245,16 +245,20 @@ RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is the only
 option that boots this kernel at all -- QEMU ships no rp2040 machine and
 rp2040js models no flash writes -- and it does boot: through boot2, XIP,
 clock bring-up, the real boot ROM's function table, Dhara, and on into
-`execve`, and then it stops. `RP2040XIPSSI` shares its two FIFOs between
+`execve`, and then it stops. `RP2040XIPSSI` shared its two FIFOs between
 the CPU thread and its own clocking thread with no mutual exclusion and
-loses bytes to the race, so the boot ROM ends up waiting under `splhigh()`
-for data that no longer exists, which masks SysTick and stops the kernel
-clock as well. Serializing the FIFOs clears that wedge and init then forks
-a shell, but no run with or without the change has produced userland
-console output, so no tier can assert on a prompt.
+lost bytes to the race, so the boot ROM ended up waiting under `splhigh()`
+for data that no longer existed, which masks SysTick and stops the kernel
+clock as well. tools/renode/patches/0001-xip-ssi-serialize-fifos.patch
+serializes them and the fetch script applies it, so the corrected model is
+what a fresh checkout builds. That clears the wedge; it does not produce a
+prompt. No run, patched or not, has yet shown userland console output, so
+no tier can assert on one.
 
 What every run does reach, in about two seconds of host time, is `swap size
-= 380 kbytes`, and `check-renode` gates exactly that much. Reaching those
+= 380 kbytes`, and `check-renode` gates exactly that much. The name says
+Renode rather than "boot" on purpose: this is a smoke gate over bring-up,
+not evidence that a userland runs. Reaching those
 twelve lines exercises boot2, XIP entry, clock bring-up, the real boot ROM's
 function table, the Dhara root and the device probe, and the sizes are
 asserted rather than only the line names, so a flash layout change that

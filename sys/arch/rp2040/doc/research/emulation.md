@@ -243,9 +243,29 @@ offsets and different virtual times, and the point at which a run wedges
 moves between runs. One run was still healthy at 1.25 virtual seconds;
 others were wedged before five.
 
-Serializing both FIFOs on one lock fixes it. The diff is in the
-investigation notes; it is a change to a third-party model, not to this
-port. Measured over the same eight virtual seconds it takes DR0 writes from
+Serializing both FIFOs on one lock fixes it, and the effect is visible
+without instrumentation. With the patch applied, a run stopped at six
+virtual seconds reports
+
+    (monitor) sysbus.cpu0 PC
+    0x1000F9BE
+
+which `arm-none-eabi-nm` places at `idle+0x22` in the kernel, just past the
+`wfi`. Without it the CPU is parked at 0x17ca, inside the boot ROM image
+loaded at address 0, in `flash_put_get`. The kernel is therefore alive and
+idle rather than spinning with interrupts masked. It is still silent: the
+console stops at `swap size = 380 kbytes` either way, so the patch removes
+the wedge without yet producing userland output.
+
+The diff is tracked here as
+tools/renode/patches/0001-xip-ssi-serialize-fifos.patch and
+tools/renode/fetch-renode-rp2040.sh applies it, so a fresh checkout
+reproduces the corrected model rather than somebody's local edit. The
+script checks each patch before applying it and stops the fetch if one no
+longer matches the pinned revision, because a half-corrected tree builds
+and then misbehaves. It is a change to a third-party model, not to this
+port, and the right upstream repair is probably to drive transfers from the
+bus access so the cross-thread FIFO disappears rather than being locked. Measured over the same eight virtual seconds it takes DR0 writes from
 30958 to 119074 and frames shifted from 30777 to 118802, and the program
 counter at the sample moves out of the boot ROM into a kernel `__ramfunc`
 in RAM. The proper upstream repair is probably to drive transfers from the
@@ -428,13 +448,21 @@ build, on real hardware or emulated, not a workaround for this report.
   shared FIFO entirely. Chip select framing and the XIP read path are both
   fine: reads through the window execute the kernel's `.text` and serve
   `dhara_nand_read()`, and the pad override reaches the flash model.
-- **`W25QXX` answers every status-register read with zero**, because
-  `HandleCommand` has no `ReadRegister` case even though the model builds a
-  status register in its constructor. The ROM's `flash_wait_ready`
-  therefore never sees the write-in-progress bit set, which makes the model
-  faster than silicon rather than slower. `EraseChip` also zeroes its
-  memory where `EraseBytesInRange` fills with 0xff; DiscoBSD issues neither
-  0x60 nor 0xc7, so that one does not reach this port. Both belong upstream.
+- **`W25QXX` has four fidelity gaps**, none of which blocks this boot and
+  all of which belong upstream. `HandleCommand` has no `ReadRegister` case
+  even though the model builds a status register in its constructor, so
+  every status read answers zero and the ROM's `flash_wait_ready` never sees
+  the write-in-progress bit set; that makes the model faster than silicon
+  rather than slower. `EraseChip` zeroes its memory where
+  `EraseBytesInRange` fills with 0xff, and zero is not the erased state of
+  NOR; DiscoBSD issues neither 0x60 nor 0xc7, so that one does not reach
+  this port. `WriteMemory` calls `underlyingMemory.WriteByte` directly and
+  so never enforces the rule that a programmed zero cannot return to one
+  without an erase, which means a kernel that programmed the same page twice
+  would look correct here and corrupt on silicon. And the read and write
+  bounds guards test `position > underlyingMemory.Size`, so an address equal
+  to the size passes and the backing store decides what happens; the guard
+  should be `>=`.
 - **Runs are not bit-reproducible.** `RP2040XIPSSI` drives transfers from a
   managed thread rather than from the bus access, so the interleaving with
   the CPU depends on host timing: two replays of one script put the same

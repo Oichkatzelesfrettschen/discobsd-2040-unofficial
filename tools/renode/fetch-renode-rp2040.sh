@@ -45,6 +45,27 @@ sed -i 's#<TargetFramework>netstandard2\.1</TargetFramework>#<TargetFramework>ne
 	"$DEST/emulation/Peripherals.csproj"
 sed -i 's#"netstandard2\.1"#"net9.0"#' "$DEST/cores/load_peripherals.py"
 
+# Corrections this port carries against the pinned revision. Each is checked
+# before it is applied, so a patch that no longer matches stops the fetch
+# rather than leaving a half-corrected tree that builds and misbehaves.
+# sys/arch/rp2040/doc/research/emulation.md records what each one fixes and
+# how it was measured.
+for patch in "$SCRIPT_DIR"/patches/*.patch; do
+	[ -e "$patch" ] || break
+	name=$(basename "$patch")
+	if git -C "$DEST" apply --reverse --check "$patch" 2>/dev/null; then
+		echo "$name: already applied"
+		continue
+	fi
+	git -C "$DEST" apply --check "$patch" || {
+		echo "$name does not apply to $RP2040_COMMIT; the pin and the" >&2
+		echo "patch have to move together." >&2
+		exit 1
+	}
+	git -C "$DEST" apply "$patch"
+	echo "$name: applied"
+done
+
 dotnet build "$DEST/emulation/Peripherals.csproj" -c Release
 
 echo "built: $DEST/emulation/bin/Release/net9.0/Peripherals.dll"

@@ -1,0 +1,160 @@
+diff --git a/emulation/peripherals/spi/rp2040_xip_ssi.cs b/emulation/peripherals/spi/rp2040_xip_ssi.cs
+index 7ae73b9..9f19de2 100644
+--- a/emulation/peripherals/spi/rp2040_xip_ssi.cs
++++ b/emulation/peripherals/spi/rp2040_xip_ssi.cs
+@@ -162,8 +162,11 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+     public override void Reset()
+     {
+-      receiveBuffer.Clear();
+-      transmitBuffer.Clear();
++      lock (fifoLock)
++      {
++        receiveBuffer.Clear();
++        transmitBuffer.Clear();
++      }
+       DmaTransmitDreq.Unset();
+       DmaStreamDreq.Unset();
+       dreqThread.Stop();
+@@ -202,7 +205,7 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+     private ulong PeripheralDataRead()
+     {
+-      lock (receiveBuffer)
++      lock (fifoLock)
+       {
+         if (receiveBuffer.TryDequeue(out var value))
+         {
+@@ -225,21 +228,29 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+     private void PeripheralDataWrite(ulong data)
+     {
+-      if (transmitBuffer.Count < 16)
++      bool enqueued;
++      lock (fifoLock)
+       {
+-        transmitBuffer.Enqueue((uint)data);
+-        if (ssiEnabled)
++        enqueued = transmitBuffer.Count < 16;
++        if (enqueued)
+         {
+-          clockingThread.Start();
++          transmitBuffer.Enqueue((uint)data);
+         }
+       }
++      if (enqueued && ssiEnabled)
++      {
++        clockingThread.Start();
++      }
+     }
+ 
+     void PushToReceiveFifo(uint data)
+     {
+-      if (receiveBuffer.Count < 16)
++      lock (fifoLock)
+       {
+-        receiveBuffer.Enqueue(data);
++        if (receiveBuffer.Count < 16)
++        {
++          receiveBuffer.Enqueue(data);
++        }
+       }
+       if (rxDmaEnabled)
+       {
+@@ -300,7 +311,10 @@ namespace Antmicro.Renode.Peripherals.SPI
+         {
+           case State.Instruction:
+             {
+-              if (!transmitBuffer.TryDequeue(out var data))
++              uint data;
++              bool got;
++              lock (fifoLock) { got = transmitBuffer.TryDequeue(out data); }
++              if (!got)
+               {
+                 clockingThread.Stop();
+                 return;
+@@ -341,7 +355,10 @@ namespace Antmicro.Renode.Peripherals.SPI
+             }
+           case State.Address:
+             {
+-              if (!transmitBuffer.TryDequeue(out var data))
++              uint data;
++              bool got;
++              lock (fifoLock) { got = transmitBuffer.TryDequeue(out data); }
++              if (!got)
+               {
+                 this.Log(LogLevel.Error, "Requested address transmission, but there is no data in FIFO");
+                 return;
+@@ -378,7 +395,8 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+               this.Log(LogLevel.Noisy, "Transmiting data frames left: {0}", framesToTransfer);
+ 
+-              var freeReceiveSlots = 16 - receiveBuffer.Count;
++              int freeReceiveSlots;
++              lock (fifoLock) { freeReceiveSlots = 16 - receiveBuffer.Count; }
+               if (freeReceiveSlots <= 0)
+               {
+                 return;
+@@ -400,7 +418,10 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+     void ProcessTransmit()
+     {
+-      if (!transmitBuffer.TryDequeue(out var data))
++      uint data;
++      bool got;
++      lock (fifoLock) { got = transmitBuffer.TryDequeue(out data); }
++      if (!got)
+       {
+         return;
+       }
+@@ -464,8 +485,11 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+           if (ssiEnabled != value)
+           {
+-            receiveBuffer.Clear();
+-            transmitBuffer.Clear();
++            lock (fifoLock)
++            {
++              receiveBuffer.Clear();
++              transmitBuffer.Clear();
++            }
+             chipSelect.OnGPIO(0, value);
+             if (value && clockDivider.Value != 0)
+             {
+@@ -516,22 +540,22 @@ namespace Antmicro.Renode.Peripherals.SPI
+         .WithReservedBits(8, 24);
+ 
+       Registers.TXFLR.Define(registers)
+-        .WithValueField(0, 8, valueProviderCallback: _ => (byte)transmitBuffer.Count, name: "TXFTL")
++        .WithValueField(0, 8, valueProviderCallback: _ => { lock (fifoLock) { return (byte)transmitBuffer.Count; } }, name: "TXFTL")
+         .WithReservedBits(8, 24);
+ 
+       Registers.RXFLR.Define(registers)
+-        .WithValueField(0, 8, valueProviderCallback: _ => (byte)receiveBuffer.Count, name: "RXFTL")
++        .WithValueField(0, 8, valueProviderCallback: _ => { lock (fifoLock) { return (byte)receiveBuffer.Count; } }, name: "RXFTL")
+         .WithReservedBits(8, 24);
+ 
+       Registers.SR.Define(registers)
+         .WithFlag(0, out busy, name: "BUSY")
+-        .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => transmitBuffer.Count < 16,
++        .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => { lock (fifoLock) { return transmitBuffer.Count < 16; } },
+             name: "TFNF")
+-        .WithFlag(2, FieldMode.Read, valueProviderCallback: _ => transmitBuffer.Count == 0,
++        .WithFlag(2, FieldMode.Read, valueProviderCallback: _ => { lock (fifoLock) { return transmitBuffer.Count == 0; } },
+             name: "TFE")
+-        .WithFlag(3, FieldMode.Read, valueProviderCallback: _ => receiveBuffer.Count > 0,
++        .WithFlag(3, FieldMode.Read, valueProviderCallback: _ => { lock (fifoLock) { return receiveBuffer.Count > 0; } },
+             name: "RFNE")
+-        .WithFlag(4, FieldMode.Read, valueProviderCallback: _ => receiveBuffer.Count == 16,
++        .WithFlag(4, FieldMode.Read, valueProviderCallback: _ => { lock (fifoLock) { return receiveBuffer.Count == 16; } },
+             name: "RFF")
+         .WithTaggedFlag("TXE", 5)
+         .WithTaggedFlag("DCOL", 6)
+@@ -665,6 +689,7 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+     private CircularBuffer<UInt32> receiveBuffer;
+     private CircularBuffer<UInt32> transmitBuffer;
++    private readonly object fifoLock = new object();
+ 
+     private bool ssiEnabled;
+     private IFlagRegisterField slaveEnabled;

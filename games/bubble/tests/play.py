@@ -54,9 +54,17 @@ def main():
     assert "score 30" in text, \
         "bubble: three matching shots did not pop (no score 30 in output)"
 
-    os.write(fd, b"q")
+    # The quit key reaches a game that may already have ended: macOS
+    # answers a write to a pty whose child has exited with EIO, where
+    # Linux accepts it. The exit status below is the evidence either way.
+    try:
+        os.write(fd, b"q")
+    except OSError:
+        pass
     read_all(fd, 0.5)
-    os.waitpid(pid, 0)
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, \
+        "bubble: the game did not exit cleanly (status %d)" % status
     print("bubble: OK (three shots popped, score 30)")
 
 

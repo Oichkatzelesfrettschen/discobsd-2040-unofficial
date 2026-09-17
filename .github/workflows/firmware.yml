@@ -187,6 +187,12 @@ jobs:
           brew install bmake byacc bison flex groff mandoc pkgconf picotool \
             shellcheck ruff coreutils cpio
           brew install --cask gcc-arm-embedded
+          # The divider verifier reads the kernels through capstone and
+          # pyelftools; Homebrew's Python refuses pip installs into itself,
+          # so they live in a venv the tiers name as PYTHON.
+          python3 -m venv "$HOME/gates-venv"
+          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools
+          echo "PYTHON=$HOME/gates-venv/bin/python3" >> "$GITHUB_ENV"
       - name: Report the toolchain
         run: |
           cc --version | head -1

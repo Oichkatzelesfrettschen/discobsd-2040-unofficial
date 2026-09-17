@@ -30,8 +30,11 @@ strings_output_error_test: strings_output_error_test.c strings_stream.o
 	${HOSTCC} ${CFLAGS} -idirafter ../../sys -o $@ \
 		strings_output_error_test.c strings_stream.o
 
+# macOS marks struct utmp deprecated in <utmp.h>; users.c reads the
+# board's utmp records, which is the point of the program.
 users_host: ../../usr.bin/users/users.c
-	${HOSTCC} ${CFLAGS} -o $@ ../../usr.bin/users/users.c
+	${HOSTCC} ${CFLAGS} -Wno-deprecated-declarations -o $@ \
+	    ../../usr.bin/users/users.c
 
 yes_error.o: ../../usr.bin/yes/yes.c
 	${HOSTCC} ${CFLAGS} -Dmain=discobsd_yes_main -Dwrite=test_write \

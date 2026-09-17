@@ -2,25 +2,22 @@
 # Build the flash-id probe against a resolved Pico SDK and assert it links.
 #
 # flash-id reads the QSPI chip's JEDEC identity and Winbond unique id and
-# reports them over USB CDC. It lives in the notes repository, which this
-# tree expects beside it in the same workspace, and it links no_flash so
-# the image runs entirely from SRAM. Nothing here ships it: the gate proves
-# the SDK route still compiles and links for this board, and that the
-# resulting image still fits the part.
+# reports them over USB CDC. It lives in tools/flash-id and links no_flash,
+# so the image runs entirely from SRAM. The root manifest does not carry
+# it: the gate proves the SDK route still compiles and links for this
+# board, and that the resulting image still fits the part.
 #
 # The SDK comes from tools/pico-sdk/sdk-path.sh, so this gate and
 # tools/bench-flash-id-build.sh measure and build against the same SDK.
 #
 # Usage: sh tools/pico-sdk/check-flash-id.sh
-# FLASH_ID_SRC names the probe source when it is not the workspace sibling.
+# FLASH_ID_SRC names the probe source when it is not tools/flash-id.
 
 set -eu
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 TOPSRC=$(cd "$SCRIPT_DIR/../.." && pwd)
-WORKSPACE=$(cd "$TOPSRC/.." && pwd)
-
-FLASH_ID_SRC=${FLASH_ID_SRC:-$WORKSPACE/discobsd-2040-notes/tools/flash-id}
+FLASH_ID_SRC=${FLASH_ID_SRC:-$TOPSRC/tools/flash-id}
 
 # The RP2040 carries 264 KB of SRAM, and a no_flash image occupies it all
 # at once: text, data and bss together must fit with room for the stack.

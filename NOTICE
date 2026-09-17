@@ -134,7 +134,8 @@ countries.
 
 ------------------------------------------------------------------------
 4. Raspberry Pi (Trading) Ltd. (the second-stage boot code,
-   sys/arch/rp2040/boot2, from the Raspberry Pi Pico SDK)
+   sys/arch/rp2040/boot2, and tools/flash-id/pico_sdk_import.cmake,
+   from the Raspberry Pi Pico SDK)
    License: BSD 3-Clause
 
 Copyright (c) 2019-2021 Raspberry Pi (Trading) Ltd.
@@ -337,8 +338,9 @@ tools/pico-sdk/fetch-pico-sdk.sh clones raspberrypi/pico-sdk at a pinned
 commit into tools/pico-sdk/vendor, which .gitignore excludes, and
 initializes its lib/tinyusb submodule. The SDK is BSD 3-Clause, copyright
 Raspberry Pi (Trading) Ltd., and TinyUSB is MIT, copyright Ha Thach. Only
-the flash-id probe in the notes repository builds against them; no byte of
-either reaches a board through this tree. The second-stage boot code that
+the flash-id probe in tools/flash-id builds against them; no byte of
+either reaches a board through this tree, because the root manifest does
+not carry the probe. The second-stage boot code that
 does reach a board is section 4 above, carried in the tree under its own
 notice.
 

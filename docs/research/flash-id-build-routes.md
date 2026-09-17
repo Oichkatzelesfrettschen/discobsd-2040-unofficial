@@ -1,9 +1,11 @@
 # Three build routes to an RP2040 image, measured
 
-`tools/flash-id` in the notes repository builds against the Pico SDK
-through CMake, outside this tree's build. This measures what that route
-costs against the alternatives, so a decision about where the probe lives
-rests on numbers rather than on the impression that CMake is heavy.
+`tools/flash-id` builds against the Pico SDK through CMake rather than
+through this tree's own bmake. This measures what that route costs against
+the alternatives, so a decision about how the probe is built rests on
+numbers rather than on the impression that CMake is heavy. The probe lived
+in the notes repository when these figures were taken; the paths changed
+with the move and the numbers did not.
 
 `tools/bench-flash-id-build.sh` produces every figure below.
 
@@ -98,8 +100,10 @@ those rather than against `pico_stdlib` and `hardware_flash`, and the
 measurements say it would buy an image in romprobe's size class rather
 than route 1's, at no meaningful change in build time.
 
-So flash-id stays in the notes repository because nothing requires it to
-move, not because the SDK keeps it out.
+flash-id is in tools/flash-id for a reason that has nothing to do with
+either: this repository is public and the notes repository is not, so a CI
+job here cannot check the probe out of there. The gate needs the source
+where the gate runs.
 
 ## Reproducing
 

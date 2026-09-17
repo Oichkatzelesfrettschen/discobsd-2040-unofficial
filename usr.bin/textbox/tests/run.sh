@@ -27,6 +27,14 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
 CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
+
+# glibc carries reallocarray(3), so the host build takes only the
+# ereallocarray wrapper and leaves the libc copy; macOS's libc has none,
+# and the tree's reallocarray.c supplies both there.
+case $(uname -s) in
+Darwin)	EREALLOCARRAY=reallocarray.c ;;
+*)	EREALLOCARRAY=tests/ereallocarray_host.c ;;
+esac
 fail=0
 
 # build name tool.c compat1.c compat2.c ...
@@ -65,7 +73,7 @@ check() {
 
 # --- cut ---
 build cut cut.c eprintf.c fshut.c unescape.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 printf 'a:b:c\nd:e:f\n' > "$WORK/cut.in"
 "$WORK/cut" -d: -f2 "$WORK/cut.in" > "$WORK/cut.got"
 cut -d: -f2 "$WORK/cut.in" > "$WORK/cut.want"
@@ -76,7 +84,7 @@ check "cut -c1-3" "$WORK/cut.got2" "$WORK/cut.want2"
 
 # --- paste ---
 build paste paste.c eprintf.c fshut.c unescape.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 printf '1\n2\n3\n' > "$WORK/paste.a"
 printf 'x\ny\nz\n' > "$WORK/paste.b"
 "$WORK/paste" -d, "$WORK/paste.a" "$WORK/paste.b" > "$WORK/paste.got"
@@ -120,14 +128,14 @@ check "cksum" "$WORK/cksum.got" "$WORK/cksum.want"
 
 # --- expand / unexpand ---
 build expand expand.c eprintf.c ealloc.c fshut.c strtonum.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 printf 'a\tb\tc\n\td\n' > "$WORK/tabs.in"
 "$WORK/expand" "$WORK/tabs.in" > "$WORK/expand.got"
 expand "$WORK/tabs.in" > "$WORK/expand.want"
 check "expand" "$WORK/expand.got" "$WORK/expand.want"
 
 build unexpand unexpand.c eprintf.c ealloc.c fshut.c strtonum.c rune.c \
-	tests/ereallocarray_host.c
+	$EREALLOCARRAY
 "$WORK/expand" "$WORK/tabs.in" | "$WORK/unexpand" -a > "$WORK/unexpand.got"
 expand "$WORK/tabs.in" | unexpand -a > "$WORK/unexpand.want"
 check "unexpand -a" "$WORK/unexpand.got" "$WORK/unexpand.want"

@@ -26,8 +26,12 @@ RMAP_RENAMES=	-Dmalloc=rmap_malloc -Dmfree=rmap_mfree \
 		-Dmalloc3_contiguous=rmap_malloc3_contiguous \
 		-Dmalloc3_contiguous_next=rmap_malloc3_contiguous_next
 
+# sys/kern still defines functions the old way, which clang rejects by
+# default and the arm-none-eabi gcc the kernel is built with does not.
+RMAP_WARN=	-Wno-deprecated-non-prototype
+
 subr_rmap.o: ${RMAP_SRC}
-	${HOST_CC} ${HOST_CFLAGS} ${RMAP_RENAMES} -c -o $@ ${RMAP_SRC}
+	${HOST_CC} ${HOST_CFLAGS} ${RMAP_WARN} ${RMAP_RENAMES} -c -o $@ ${RMAP_SRC}
 
 exec_spool_test: exec_spool_test.c subr_rmap.o
 	${HOST_CC} ${HOST_CFLAGS} ${GC_SECTIONS} -o $@ \

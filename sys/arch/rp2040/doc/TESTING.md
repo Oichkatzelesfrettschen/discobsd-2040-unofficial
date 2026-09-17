@@ -14,7 +14,7 @@ the kernels, the board libc and the distribution tree the gates read.
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
-| mips | `check-mips` | a MIPS cross compiler (`MIPS_GCCPREFIX`) | yes, as mipsel-linux-gnu | no MIPS toolchain in Homebrew |
+| mips | `check-mips` | a bare-metal MIPS cross compiler (`MIPS_GCCPREFIX`, mipsel-elf) | no: Ubuntu's mipsel-linux-gnu binutils know only elf32-tradlittlemips, not the elf32-littlemips that lib/elf32-mips.ld names | no MIPS toolchain in Homebrew |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 
@@ -95,8 +95,11 @@ link-only run the tier would otherwise silently accept.
 
 tests/rp2040/elf2aout_layout links the same fixtures with the arm and
 the MIPS toolchains and checks elf2aout's layout and the multicall bss
-overlay on both. Linux distributions name the MIPS compiler
-mipsel-linux-gnu; pass `MIPS_GCCPREFIX=mipsel-linux-gnu` there.
+overlay on both. It needs a bare-metal toolchain (Arch's mipsel-elf,
+the OpenBSD and FreeBSD prefixes in share/mk/mips-toolchain.mk): the
+Linux-target mipsel-linux-gnu binutils reject the elf32-littlemips
+output format the linker script names, so the tier runs locally and
+not in CI.
 
 ## Board tier
 

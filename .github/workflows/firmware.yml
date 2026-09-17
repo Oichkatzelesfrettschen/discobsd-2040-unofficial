@@ -35,12 +35,13 @@ jobs:
       # pkg-config for the fuse flags, so libfuse-dev is a build dependency
       # of the host tools the kernel build runs first.
       # The tiers add: shellcheck and ruff (check-lint), qemu-user for
-      # qemu-arm (check-qemu), capstone and pyelftools for the divider
-      # verifier (check-cross), and the mipsel-linux-gnu cross compiler for
-      # the elf2aout layout gate (check-mips). ruff comes through pipx:
-      # Ubuntu 24.04 packages no ruff and pip refuses the system
-      # interpreter. gcc-multilib conflicts with the cross compiler, so
-      # the 32-bit shell conformance run is the posix-sh job below.
+      # qemu-arm (check-qemu), and capstone and pyelftools for the divider
+      # verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
+      # packages no ruff and pip refuses the system interpreter. The MIPS
+      # tier stays off the runner: Ubuntu's mipsel-linux-gnu binutils
+      # know only the elf32-tradlittlemips format, not the elf32-littlemips
+      # that lib/elf32-mips.ld names. The 32-bit shell conformance run is
+      # the posix-sh job below.
       - name: Install the host toolchain
         run: |
           sudo apt-get update
@@ -49,16 +50,9 @@ jobs:
             gcc-arm-none-eabi binutils-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
-            shellcheck pipx qemu-user python3-capstone python3-pyelftools \
-            gcc-13-mipsel-linux-gnu binutils-mipsel-linux-gnu
+            shellcheck pipx qemu-user python3-capstone python3-pyelftools
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          # Noble's unversioned gcc-mipsel-linux-gnu depends on a gcc-12
-          # the runner cannot install; the versioned package ships only
-          # mipsel-linux-gnu-gcc-13, and the gate names the compiler by
-          # its prefix, so the unversioned name points at it here.
-          sudo ln -s "$(command -v mipsel-linux-gnu-gcc-13)" \
-            /usr/local/bin/mipsel-linux-gnu-gcc
 
       # Ubuntu 24.04 packages no picotool, and the kernel and flash image
       # rules call "picotool uf2 convert", which arrived in picotool 2.
@@ -95,7 +89,6 @@ jobs:
         run: |
           cc --version | head -1
           arm-none-eabi-gcc --version | head -1
-          mipsel-linux-gnu-gcc --version | head -1
           qemu-arm --version | head -1
           shellcheck --version | sed -n 2p
           ruff --version
@@ -139,12 +132,6 @@ jobs:
           bmake MACHINE=rp2040 check-lint check-host check-cross \
             check-qemu check-board-build
 
-      # The elf2aout layout gate links the same fixtures for MIPS; Ubuntu's
-      # cross compiler carries the mipsel-linux-gnu prefix rather than the
-      # mipsel-elf the Makefiles default to.
-      - name: Run the MIPS tier
-        run: bmake MACHINE=rp2040 MIPS_GCCPREFIX=mipsel-linux-gnu check-mips
-
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
@@ -174,8 +161,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bmake build-essential gcc-multilib
+      # The runner starts every step with SIGPIPE ignored, so a reader
+      # that exits early makes the writer report "write error: Broken
+      # pipe" instead of dying quietly, and the harness's pipeline cases
+      # read that as output. The tier runs with the default disposition.
       - name: Run the shell conformance tier
-        run: bmake check-posix-sh
+        run: |
+          python3 -c 'import os, signal, sys
+          signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+          os.execvp(sys.argv[1], sys.argv[1:])' bmake check-posix-sh
 
   # The same tree on macOS, with the toolchain Homebrew provides: bmake,
   # byacc, Arm's own GNU toolchain (the arm-none-eabi-gcc formula is built

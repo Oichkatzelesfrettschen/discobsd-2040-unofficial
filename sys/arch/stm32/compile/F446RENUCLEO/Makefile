@@ -39,6 +39,13 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall
 
+# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# than an unspecified one. GCC 15 and later default to C23 and reject the
+# driver dispatch in machdep.c, which calls d_init through a pointer
+# declared with no parameters. sys/arch/rp2040/conf pins the same standard
+# for the same reason and its comment names this tree.
+CSTDFLAGS=	-std=gnu17
+
 CMACHCPU=	-mcpu=cortex-m4
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
 CMACHFLAGS+=	-mfloat-abi=soft
@@ -46,7 +53,7 @@ CMACHFLAGS+=	-mthumb -mabi=aapcs -mlittle-endian
 CMACHFLAGS+=	${CMACHCPU}
 
 COPTS?=		-O
-CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CMACHFLAGS} ${COPTS}
+CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
@@ -71,7 +78,7 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	clock.o conf.o fault.o machdep.o mpu.o sig_machdep.o syscall.o \
 	sysctl.o systick.o stm32f4xx_hal.o stm32f4xx_hal_spi.o \
 	stm32f4xx_ll_utils.o system_stm32f4xx.o sd.o sdio_card.o spi.o \
-	uart.o stm32_bsp.o stm32_adafruit_sd.o stm32f4xx_nucleo_sd.o 
+	uart.o stm32_bsp.o stm32_adafruit_sd.o stm32f4xx_nucleo_sd.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/init_main.c \
@@ -102,7 +109,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/stm32/dev/sdio_card.c $S/arch/stm32/dev/spi.c \
 	$S/arch/stm32/dev/uart.c $S/arch/stm32/dev/stm32_bsp.c \
 	$S/arch/stm32/dev/stm32_adafruit_sd.c \
-	$S/arch/stm32/dev/stm32f4xx_nucleo_sd.c swapunix.c 
+	$S/arch/stm32/dev/stm32f4xx_nucleo_sd.c swapunix.c
 
 # load lines for config "xxx" will be emitted as:
 # xxx: ${SYSTEM_DEP} swapxxx.o

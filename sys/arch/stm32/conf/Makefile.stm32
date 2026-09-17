@@ -20,6 +20,13 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall
 
+# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# than an unspecified one. GCC 15 and later default to C23 and reject the
+# driver dispatch in machdep.c, which calls d_init through a pointer
+# declared with no parameters. sys/arch/rp2040/conf pins the same standard
+# for the same reason and its comment names this tree.
+CSTDFLAGS=	-std=gnu17
+
 CMACHCPU=	-mcpu=cortex-m4
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
 CMACHFLAGS+=	-mfloat-abi=soft
@@ -27,7 +34,7 @@ CMACHFLAGS+=	-mthumb -mabi=aapcs -mlittle-endian
 CMACHFLAGS+=	${CMACHCPU}
 
 COPTS?=		-O
-CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CMACHFLAGS} ${COPTS}
+CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack

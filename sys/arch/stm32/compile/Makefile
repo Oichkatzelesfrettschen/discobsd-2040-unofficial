@@ -8,7 +8,7 @@ SUBDIR=		F405WEACTCORE F411RENUCLEO F412GDISCO F412WEACTCORE \
 default:
 
 all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
+		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 
 install:
 

@@ -162,35 +162,69 @@ and pins down exactly where:
 `ip` (r12) holds `0x4001801c` throughout the spin: `IO_QSPI_BASE + 0x1c`,
 the CTRL register of QSPI pin 3 (SD1) in the RP2040's IO_QSPI pad bank
 (pins are 8 bytes apart, STATUS then CTRL, so pin 3's CTRL sits at
-`0x18 + 4`). This is not the SSI status register -- an earlier pass of this
-report guessed SSI, before actually reading `$r12`; the register the boot
-ROM is polling is IO_QSPI's pad override readback, tested against mask
-`0xc0 << 10 == 0x30000` (bits 16-17, IO_BANK0/IO_QSPI's `INOVER` field
-layout). `flash_put_get` is the boot ROM's shared low-level SPI byte-shuffle
-routine, used by both the flash bring-up path (`connect_internal_flash`,
-which bit-bangs a pad override to sense the chip before the SSI clock is
-configured) and later program/erase paths; the two runs captured for this
-report hung inside it at slightly different points (`$pc` 0x17ce one run,
-0x17ca $ 0x17cc another, `u.u_procp->p_pid` 2 in one run, 0 in another --
-consistent with reaching this same ROM routine from different call sites at
-slightly different wall-clock/host-timing offsets), but every run agrees on
-`$r12 == 0x4001801c` and on `$r6` reading back a value that never satisfies
-the `tst` the ROM is waiting on. One run's log also showed 271
+`0x18 + 4`), and the mask is `0xc0 << 10 == 0x30000`, the INOVER field at
+bits 16-17.
+
+These five instructions are `flash_was_aborted()`, and the branch runs the
+way the source says it should. raspberrypi/pico-bootrom-rp2040,
+`bootrom/program_flash_generic.c`, reads:
+
+    int flash_was_aborted() {
+        return *(io_rw_32 *) (IO_QSPI_BASE +
+            IO_QSPI_GPIO_QSPI_SD1_CTRL_OFFSET)
+               & IO_QSPI_GPIO_QSPI_SD1_CTRL_INOVER_BITS;
+    }
+
+    void flash_put_get(const uint8_t *tx, uint8_t *rx, size_t count,
+        size_t rx_skip) {
+        const uint max_in_flight = 16 - 2;
+        size_t tx_count = count, rx_count = count;
+        while (tx_count || rx_skip || rx_count) {
+            uint32_t tx_level = ssi_hw->txflr;
+            uint32_t rx_level = ssi_hw->rxflr;
+            bool did_something = false;
+            if (tx_count && tx_level + rx_level < max_in_flight) { ... }
+            if (rx_level) { ... }
+            if (!did_something && flash_was_aborted()) break;
+        }
+        flash_cs_force(OUTOVER_HIGH);
+    }
+
+SD1's INOVER is the abort flag `flash_abort()` sets; nothing in the kernel
+calls it, so it reads back clear, and the `beq` at 0x17ce takes the branch
+back to the loop top. That is the loop continuing normally, not a poll
+waiting on a value that never arrives. An earlier pass of this report read
+the branch the other way and named RP2040QspiPads as the model at fault; it
+is not, and this section supersedes that reading.
+
+What the spin means is that `tx_count` and `rx_count` never reach zero:
+the SSI transfer under way makes no progress, so the ROM has nothing to do
+each time around and keeps checking whether it was aborted. The models to
+examine are the SSI and the chip select framing it drives, `RP2040XIPSSI`
+and `W25QXX`, not the pad bank. `flash_do_cmd()` asserts chip select
+through the IO_QSPI SS pad override rather than through SSIENR or SER,
+which are the only writes `RP2040XIPSSI` forwards to the flash model's
+GPIO; a command whose framing the flash model never sees would leave its
+command state machine out of step, which is what the warnings below
+suggest. The two runs captured for this report hung at slightly different
+points (`$pc` 0x17ce one run, 0x17ca and 0x17cc another,
+`u.u_procp->p_pid` 2 in one run, 0 in another), all consistent with
+reaching this same ROM routine from different call sites. One run's log
+also showed 271
 `xip_ssi.xip_flash: Writing to address 0x900lo exceedes its size` errors
 (addresses 0x900005 through 0x900113) immediately before the hang; a
 second, otherwise identical run reached the same hang with no such errors
 logged at all, so that message is a symptom of an earlier SPI framing
 problem on some runs, not the cause of the hang itself.
 
-`RP2040QspiPads`
-(`tools/renode/vendor/Renode_RP2040/emulation/peripherals/gpio/rp2040_qspi_pads.cs`)
-is the model whose CTRL-register readback the boot ROM is waiting on; it
-never returns a value with bits 16-17 set the way the ROM expects, so
-`flash_put_get` never falls through to `17d0` and returns. Every caller
-that reaches this routine runs under `splhigh()` (`flash_program()` and
-`flash_erase()` in `sys/arch/rp2040/dev/flash.c` both call it through the
-real ROM with interrupts masked), so once the CPU is in this loop nothing
-else in the kernel runs either.
+Every caller that reaches this routine runs under `splhigh()`
+(`flash_program()` and `flash_erase()` in `sys/arch/rp2040/dev/flash.c`
+both call it through the real ROM with interrupts masked), so once the CPU
+is in this loop nothing else in the kernel runs either. Renode's own log
+for the run reports `xip_ssi.xip_flash: Transmission finished in unexpected
+state: RecognizeOperation` and `Unhandled operation: 0x0`, which is a flash
+command state machine that has lost its framing rather than one waiting on
+a pad.
 
 This is a Renode peripheral-model gap, not a DiscoBSD kernel bug: the same
 ROM call path, against the real chip, is what section 7 of BOOT-MAP.md
@@ -294,15 +328,15 @@ build, on real hardware or emulated, not a workaround for this report.
   Renode.
 - **SysInfo is not modeled.** `SYSINFO_CHIP_ID` reads back 0, so
   `cpu: RPxxxx rev N` prints as `RP0000 rev 0`.
-- **The IO_QSPI pad override readback the boot ROM polls in
-  `flash_put_get` never reflects the value the ROM is waiting for**
-  (`RP2040QspiPads`, register `IO_QSPI_BASE + 0x1c`, mask `0x30000`). Reads
-  through the XIP window work (the kernel's `.text`/`.rodata` execute from
-  flash, and `dhara_nand_read()`'s direct XIP reads succeed); any boot ROM
-  call that reaches `flash_put_get` -- both `flash_program()` and
-  `flash_erase()` in `sys/arch/rp2040/dev/flash.c` go through it -- hangs
-  the caller under `splhigh()`. This is the reason the kernel does not
-  reach `login:` under this emulator.
+- **An SSI transfer started from the boot ROM never completes**, so
+  `flash_put_get`'s loop never retires its byte counts. Reads through the
+  XIP window work (the kernel's `.text`/`.rodata` execute from flash, and
+  `dhara_nand_read()`'s direct XIP reads succeed); any boot ROM call that
+  reaches `flash_put_get` -- both `flash_program()` and `flash_erase()` in
+  `sys/arch/rp2040/dev/flash.c` go through it -- hangs the caller under
+  `splhigh()`. This is the reason the kernel does not reach `login:` under
+  this emulator. The register the ROM reads in that loop is the abort flag,
+  not a pad the model has to drive; see the correction above.
 - **PWM, RTC, and DMA-adjacent IRQ/DREQ wiring for SSI are unfinished**
   per Renode_RP2040's own table; none of these are on the boot path this
   report exercises, so their absence was not independently confirmed here.
@@ -317,11 +351,10 @@ build, on real hardware or emulated, not a workaround for this report.
   stopping rule ("stop at the first candidate that gets the kernel to a
   login prompt" -- read here as "the furthest, most informative boot") was
   met without it.
-- **The hang's root cause was diagnosed by reading the boot ROM
-  disassembly and by reading back `$pc`, `$r12`, and `$r6` from GDB at the
-  hang point, not by reading or patching `RP2040QspiPads`'s C# source
-  line-by-line**; a full fix (making that model's CTRL-register readback
-  reflect whatever override state the ROM's `connect_internal_flash`/
-  `flash_put_get` sequence expects) was not attempted, since it means
-  changing a third-party emulator's peripheral model rather than this
-  port's own kernel or build.
+- **The hang was localized from the boot ROM disassembly, from `$pc`,
+  `$r12` and `$r6` at the hang point, and from the published boot ROM
+  source.** What has not been established is which SSI or chip-select
+  write the models drop; that needs the transfer traced through
+  `RP2040XIPSSI` and `W25QXX` with those peripherals at noisy log level,
+  and a fix means changing a third-party emulator's peripheral model
+  rather than this port's own kernel or build.

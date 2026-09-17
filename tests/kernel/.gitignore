@@ -14,3 +14,6 @@ rmap_test_diagnostic
 uio_test
 clist_test
 cred_test
+resource_kernel.o
+resource_proc.o
+resource_test

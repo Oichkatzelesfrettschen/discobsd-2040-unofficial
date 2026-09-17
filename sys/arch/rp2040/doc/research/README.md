@@ -17,5 +17,5 @@ manifest cite as the authority for a shipped mechanism:
 
 Every other note written during the port (option surveys, backport and size
 audits, tuning reports, handback notes, USB and storage investigations)
-lives in the rpi notes repository under research/discobsd-rp2040/, which is
-the canonical home for research on this port.
+lives in docs/research at the top of this tree. docs/INDEX.md maps both
+directories.

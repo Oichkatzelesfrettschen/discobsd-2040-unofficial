@@ -3,13 +3,20 @@
 This is the DiscoBSD port to the Raspberry Pi Pico (RP2040), a fork of
 chettrick/discobsd (remote `origin`, branch master) published as
 github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial (remote `rp2040`,
-branch main). Its research and notes live in the sibling repository
-github.com/Oichkatzelesfrettschen/discobsd-2040-notes, checked out beside
-this one as ../discobsd-2040-notes; this tree keeps code, man pages, the
-necessary documentation under sys/arch/rp2040/doc, and the thirteen
-research documents listed in sys/arch/rp2040/doc/research/README.md that
-code, Makefiles or the root manifest cite. New research goes to the notes
-repository.
+branch main). The tree carries the code, the man pages, the port
+documentation under sys/arch/rp2040/doc, and the research corpus under
+docs/research. docs/INDEX.md maps every document in both and is the
+entry point for a reader who does not yet know which one holds an answer.
+
+Two doc homes, one rule: a document that code, a Makefile or the root
+manifest cites as the authority for a shipped mechanism lives in
+sys/arch/rp2040/doc and is listed in its research/README.md. Every other
+note -- an option survey, a size audit, a tuning report, a handback, an
+investigation -- lives in docs/research. The sibling repository
+github.com/Oichkatzelesfrettschen/discobsd-2040-notes keeps the vendored
+RP2040 and Pico datasheets under docs/rp2040/, which
+sys/arch/rp2040/doc/DATASHEET-INDEX.md cites by section and page rather
+than carrying them here.
 
 AGENTS.md owns these rules. CLAUDE.md is a tracked repository-relative
 symbolic link to it, so every agent reads one body and no loader copies

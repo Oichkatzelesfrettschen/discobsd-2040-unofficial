@@ -59,3 +59,10 @@ tests/rp2040/fptest/fptest
 # usr.bin/pdp11: the host build of the PDP-11 emulator (bmake host).
 usr.bin/pdp11/pdp11-host
 usr.bin/pdp11/pdp11
+
+# Core dumps. qemu-user writes a guest core named qemu_<prog>_<stamp>_<pid>.core
+# into the guest's working directory whichever host core_pattern is set, so a
+# faulting test under usr.bin/smlrc/tests or tests/rp2040 drops one in the tree.
+# tests/rp2040/uarea_exchange/ confines its own to cores/; this catches the rest.
+*.core
+core.[0-9]*

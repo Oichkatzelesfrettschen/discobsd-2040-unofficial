@@ -176,14 +176,16 @@ RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is the only
 option that boots this kernel at all -- QEMU ships no rp2040 machine and
 rp2040js models no flash writes -- and it does boot: through boot2, XIP,
 clock bring-up, the real boot ROM's function table, Dhara, and on into
-`execve`. What no run has yet observed is a console prompt. The
-fifteen banner lines arrive by 6.8 virtual milliseconds, which costs about
-0.4 seconds of host wall clock, and the console then stays quiet through a
-long stretch of decompression and swap writes; a board reaches `login:` in
-nine seconds, and no measurement here establishes what that costs under
-the emulator. sys/arch/rp2040/doc/research/emulation.md carries the
-measurements, the replayable commands, and the two model defects found
-along the way.
+`execve`, and then it stops. `RP2040XIPSSI` shares its two FIFOs between
+the CPU thread and its own clocking thread with no mutual exclusion and
+loses bytes to the race, so the boot ROM ends up waiting under `splhigh()`
+for data that no longer exists, which masks SysTick and stops the kernel
+clock as well. Serializing the FIFOs clears the wedge, and init then forks
+a shell, but no run with or without that change has produced userland
+console output. The highest line every run reaches is `swap size = 380
+kbytes`, which is not enough to gate on.
+sys/arch/rp2040/doc/research/emulation.md carries the measurements, the
+diff, the replayable commands, and two further model defects.
 
 Suites that run only on the board, because their program has no host
 build or their reference output holds board addresses: usr.bin/cpp

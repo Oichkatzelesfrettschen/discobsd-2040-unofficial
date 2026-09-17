@@ -137,10 +137,10 @@ than spinning forever), the real boot ROM's function table lookup (`fl0`
 only prints once `rom_func_lookup` has resolved 'IF' and the erase/program
 pointers and Dhara has resumed its journal through them), and UART0 output.
 
-Past that line the console goes quiet, and no run recorded here has yet
-reached `login:`. `dotnet`'s CPU usage stays pinned near 150% (`ps aux` on
-the Renode process), so the emulated CPU is executing rather than stopped.
-GDB catches it inside the boot ROM:
+Past that line the console goes quiet and no run reaches `login:`.
+`dotnet`'s CPU usage stays pinned near 150% (`ps aux` on the Renode
+process), so the emulated CPU is executing rather than stopped. GDB catches
+it inside the boot ROM:
 
     (gdb) print/x $pc
     $1 = 0x17ce
@@ -197,41 +197,81 @@ waiting on a value that never arrives. An earlier pass of this report read
 the branch the other way and named RP2040QspiPads as the model at fault; it
 is not, and this section supersedes that reading.
 
-The obvious next inference, that `tx_count` and `rx_count` therefore never
-reach zero, is also wrong, and a later pass measured it rather than
-reasoning about it. With the CPU paused inside `flash_put_get` the SSI
-registers read:
+The conclusion drawn from that reading -- that `tx_count` and `rx_count`
+never retire -- is right at the moment of the stall and wrong everywhere
+before it, and the difference is the whole finding. Sampled early in the
+boot, inside the same loop, the SSI reads `PC` 0x178e, `TXFLR` 0, `RXFLR`
+4, `SR` 0x0E (TFNF | TFE | RFNE): a transfer in flight, draining normally.
+Sampled at eight virtual seconds, twice, twenty virtual milliseconds apart,
+it reads `PC` 0x17ca, `TXFLR` 0, `RXFLR` 0, `SR` 0x06 with RFNE clear: both
+FIFOs empty, and the ROM still waiting. With `tx_count` zero the loop would
+have written DR0 and raised TXFLR; with RXFLR zero no byte will ever come.
+The SSI owes the ROM bytes it will never deliver.
 
-    CTRLR0 0x18000000 = 0x00070000  DFS_32 7, TMOD 0 (TX_AND_RX), FRF 0
-    SSIENR 0x18000008 = 0x00000001
-    BAUDR  0x18000014 = 0x00000006
-    TXFLR  0x18000020 = 0x00000000
-    RXFLR  0x18000024 = 0x00000004
-    SR     0x18000028 = 0x0000000E  TFNF | TFE | RFNE
+The chip select framing is not the reason. With `sysbus.gpio_qspi` and
+`sysbus.xip_ssi.xip_flash` at noisy level the log shows `0x06` WriteEnable
+recognized, GPIO1's output override raising and lowering the line, `CS#
+deasserted` reaching the flash model, then `0x02` PageProgram decoded with
+`write enabled: True`, three address bytes accumulating into a raw-swap
+offset, and data handled as a program. `RP2040GPIO`'s OUTOVER write
+callback reaches the connected peripheral, so `flash_cs_force` frames its
+commands the way silicon does.
 
-An empty transmit FIFO with four bytes waiting in the receive FIFO is a
-transfer draining normally. The chip select framing works too: with
-`sysbus.gpio_qspi` and `sysbus.xip_ssi.xip_flash` at noisy level the log
-shows `0x06` WriteEnable recognized, GPIO1's output override raising and
-lowering the line, `CS# deasserted` reaching the flash model, then `0x02`
-PageProgram decoded with `write enabled: True`, three address bytes and the
-data. `RP2040GPIO`'s OUTOVER write callback does reach the connected
-peripheral, so the ROM's `flash_cs_force` frames its commands the way
-silicon does.
+The bytes are lost inside the model. `RP2040XIPSSI` was instrumented with
+four counters and an explicit log on each FIFO-full branch, rebuilt, and
+run to eight virtual seconds:
 
-The CPU sits in `flash_put_get` because that is the ROM's byte pump and it
-is where a flash-heavy kernel spends its cycles, not because the loop is
-stuck. What the kernel is doing while the console is quiet resolves, under
+    DR0 write callbacks          30958
+    DR0 value-provider reads     30777
+    frames dequeued and shifted  30777
+    frames shifted in and pushed 30777
+
+The FIFO-full branches never fired. 181 bytes entered `transmitBuffer`,
+were not rejected, are not in the FIFO, and were never dequeued. The
+container is `CircularBuffer<UInt32>`, which is not thread-safe, and two
+threads touch it: the CPU thread through the DR0 register callbacks and the
+TXFLR, RXFLR and SR value providers, and the SSI's own clocking thread from
+`machine.ObtainManagedThread(TransferClock, 1)` through `ProcessTransmit`,
+`ProcessReceive` and `PushToReceiveFifo`. `PeripheralDataRead` takes
+`lock (receiveBuffer)` and nothing on the producing side takes that lock, so
+it excludes nothing; `transmitBuffer` is never locked at all. Concurrent
+enqueue and dequeue on one such buffer loses elements.
+
+That also accounts for the non-determinism seen throughout this report: the
+same script replayed twice puts the same page program at different flash
+offsets and different virtual times, and the point at which a run wedges
+moves between runs. One run was still healthy at 1.25 virtual seconds;
+others were wedged before five.
+
+Serializing both FIFOs on one lock fixes it. The diff is in the
+investigation notes; it is a change to a third-party model, not to this
+port. Measured over the same eight virtual seconds it takes DR0 writes from
+30958 to 119074 and frames shifted from 30777 to 118802, and the program
+counter at the sample moves out of the boot ROM into a kernel `__ramfunc`
+in RAM. The proper upstream repair is probably to drive transfers from the
+bus access rather than from a managed thread, which removes the cross-thread
+FIFO entirely.
+
+What the kernel is doing before it wedges resolves, under
 `cpu0 LogFunctionNames`, to `namei`, `iget`, `bread` through
 `dhara_map_read`, `exec_check` into `exec_hsaout_check`, then thousands of
 `get_bits` and `hsx_expand` calls interleaved with `flash_swap_append` and
-`SysTick_Handler`: an execve of a compressed a.out being written to raw
+`SysTick_Handler`: an `execve` of a compressed a.out being written to raw
 swap. `lbolt` advances about 990 ticks per virtual second against an HZ of
-1000, `time.tv_sec` increments, and `proc[1]` moves from SRUN to sleeping
-on `selwait` and then on `&proc[1]`, which is init sleeping and then
-waiting on a child. The premise this report opened with, that the kernel
-hangs, came from runs bounded by host wall clock rather than by virtual
-time: the longest reached 1.25 virtual seconds.
+1000, and `proc[1]` moves from SRUN to sleeping on `selwait`, which is
+libc's `sleep()`, and then on `&proc[1]`, which is `wait()` for a child. So
+init execs, sleeps, forks and waits before the SSI loses its first byte.
+
+Once wedged, the kernel clock stops as well: `flash_program` and
+`flash_erase` call the ROM under `splhigh()`, so SysTick is masked for the
+duration, and `time.tv_sec` read the same value `inittodr` set at boot at 5,
+10 and 15 virtual seconds alike. Any userland wait measured in wall-clock
+time therefore never completes either.
+
+With the lock applied the emulation stops wedging and init forks a shell
+which forks children of its own, but no userland console output appeared
+within 30 virtual seconds. The highest console line any run reaches is
+still `swap size = 380 kbytes`, and it is reached in every run.
 
 The earlier runs stopped at slightly different
 points (`$pc` 0x17ce one run, 0x17ca and 0x17cc another,
@@ -373,11 +413,21 @@ build, on real hardware or emulated, not a workaround for this report.
   Renode.
 - **SysInfo is not modeled.** `SYSINFO_CHIP_ID` reads back 0, so
   `cpu: RPxxxx rev N` prints as `RP0000 rev 0`.
-- **The flash path works.** Reads through the XIP window execute the
-  kernel's `.text` and `.rodata` and serve `dhara_nand_read()`; the boot
-  ROM's own erase and program calls frame their chip select through the
-  IO_QSPI pad override and the flash model receives it. The SSI drains its
-  FIFOs. No model change is needed to get past `swap size = 380 kbytes`.
+- **`RP2040XIPSSI` loses bytes to a data race**, which is what stops the
+  boot. Its two FIFOs are `CircularBuffer<UInt32>`, touched from the CPU
+  thread through the DR0 callbacks and the TXFLR, RXFLR and SR value
+  providers and from its own managed clocking thread, with no mutual
+  exclusion; `PeripheralDataRead`'s `lock (receiveBuffer)` has no partner on
+  the producing side. Over eight virtual seconds 181 of 30958 bytes written
+  to DR0 were neither rejected as FIFO-full nor ever dequeued. The boot ROM
+  then waits in `flash_put_get` for bytes that no longer exist, under
+  `splhigh()`, which also masks SysTick and stops the kernel clock.
+  Serializing both FIFOs on one lock quadruples the traffic in the same
+  virtual time and moves the program counter out of the ROM; driving
+  transfers from the bus access instead of a managed thread would remove the
+  shared FIFO entirely. Chip select framing and the XIP read path are both
+  fine: reads through the window execute the kernel's `.text` and serve
+  `dhara_nand_read()`, and the pad override reaches the flash model.
 - **`W25QXX` answers every status-register read with zero**, because
   `HandleCommand` has no `ReadRegister` case even though the model builds a
   status register in its constructor. The ROM's `flash_wait_ready`
@@ -404,10 +454,11 @@ build, on real hardware or emulated, not a workaround for this report.
   stopping rule ("stop at the first candidate that gets the kernel to a
   login prompt" -- read here as "the furthest, most informative boot") was
   met without it.
-- **What the console prints after the swap-size line is not established.**
-  Every run recorded here was bounded by host wall clock rather than by
-  virtual time, and Renode advances roughly one virtual millisecond per
-  sixty of host wall clock through the flash-heavy stretch, so crossing the
-  nine seconds a board takes to reach `login:` costs minutes. Establishing
-  it means an `emulation RunFor` long enough to finish, run detached, with
-  the UART captured by `LoggingUartAnalyzer` into the log file.
+- **No run has produced userland console output**, with or without the lock
+  applied: with it, init forks a shell and the shell forks children, and 30
+  virtual seconds passed without a prompt. The highest line any run reaches
+  is `swap size = 380 kbytes`, and every run reaches it. Whether a prompt
+  follows is not established, and finding out costs real time: under flash
+  load this host needs roughly 20 to 40 host seconds per virtual second, so
+  any run past about three virtual seconds has to be detached or a
+  120-second foreground limit truncates it silently.

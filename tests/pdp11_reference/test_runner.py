@@ -8,6 +8,7 @@ import hashlib
 import io
 import os
 import pathlib
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -47,7 +48,12 @@ if [ "$#" -eq 0 ]; then
 fi
 printf 'guest\nargc=%s\nprofile=%s\ncwd=%s\n' \
     "$#" "$1" "$PWD" >> "${{PDP11_FAKE_TRACE}}"
-if [ "$#" -ne 1 ] || [ "$1" != "$PWD/v7_rl02.simh" ]; then
+# The profile must sit in the working directory. Both sides are
+# compared as physical paths: macOS hands the temporary directory out
+# under /var, which is a symlink to /private/var, and the shell's PWD
+# carries the resolved form.
+if [ "$#" -ne 1 ] || [ "$(basename -- "$1")" != v7_rl02.simh ] ||
+    [ "$(cd "$(dirname -- "$1")" && pwd -P)" != "$(pwd -P)" ]; then
     exit 91
 fi
 if ! cmp -s "$1" "${{PDP11_FAKE_EXPECTED_PROFILE}}"; then
@@ -523,6 +529,12 @@ class ReferenceRunnerTests(unittest.TestCase):
             self.assertFalse(fixture_paths["trace"].exists())
             self.assertEqual(unrelated_path.read_bytes(), b"retained")
 
+    @unittest.skipUnless(
+
+        sys.platform == "linux", "evidence publication uses Linux renameat2"
+
+    )
+
     def test_write_evidence_publishes_complete_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory_name:
             evidence_directory = pathlib.Path(directory_name) / "evidence"
@@ -612,6 +624,12 @@ class ReferenceRunnerTests(unittest.TestCase):
                 run.write_evidence(evidence_directory, {}, b"raw", "normalized\n")
             self.assertFalse(evidence_directory.exists())
             self.assert_no_staging_directory(evidence_directory)
+
+    @unittest.skipUnless(
+
+        sys.platform == "linux", "evidence publication uses Linux renameat2"
+
+    )
 
     def test_write_evidence_preserves_destination_created_during_publish(self) -> None:
         with tempfile.TemporaryDirectory() as directory_name:

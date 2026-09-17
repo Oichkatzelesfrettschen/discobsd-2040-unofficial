@@ -180,9 +180,11 @@ name in a tracked file or a log; an unquoted expansion reaching `sh -c`,
 `eval` or a generated script; a path built from untrusted input; or a
 flash, BOOTSEL or /dev/ttyACM* path a caller reaches without asking for it.
 
-A script that flashes the board, reboots it into BOOTSEL or writes the raw
-flash device opens that path on an exact opt-in value; unset, empty and
-zero stay closed.
+A gate or test that reaches the board opens that path on an exact opt-in
+value; unset, empty and zero stay closed. No root Makefile target reaches
+the board: check-board-build builds the board tests and stops. A tool the user invokes to flash --
+distrib/rp2040/host/discobsd-flash, picotool -- carries the request in
+the invocation and needs no gate.
 
 ## Tools
 

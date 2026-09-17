@@ -17,7 +17,8 @@
 # The source directory defaults to ../discobsd-2040-notes/tools/flash-id.
 # Route 3 links against lib/crt0.o and so wants a tree that `bmake
 # MACHINE=rp2040 build` has already populated; PORT_ROOT names that tree
-# when it is not the one holding this script.
+# when it is not the one holding this script. The SDK comes from
+# tools/pico-sdk/sdk-path.sh, the same resolver check-flash-id uses.
 
 set -eu
 
@@ -55,7 +56,13 @@ done
 	note "bench: no flash-id source at $FLASH_ID; not run"
 	exit 1
 }
-[ -n "${PICO_SDK_PATH:-}" ] || { note "bench: PICO_SDK_PATH unset; not run"; exit 1; }
+# One resolver for the gate and the benchmark, so they cannot measure and
+# build against different SDKs.
+PICO_SDK_PATH=$(sh "$TOPSRC/tools/pico-sdk/sdk-path.sh") || {
+	note "bench: no complete Pico SDK; not run"
+	exit 1
+}
+export PICO_SDK_PATH
 
 printf 'tool versions\n'
 printf '  cmake            %s\n' "$(cmake --version | head -1)"

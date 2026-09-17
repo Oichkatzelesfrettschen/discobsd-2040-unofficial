@@ -16,6 +16,7 @@ the kernels, the board libc and the distribution tree the gates read.
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | no: the models are a git clone and a dotnet build | no |
+| flash-id | `check-flash-id` | cmake, the Pico SDK, the notes repository beside this tree | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | mips | `check-mips` | a bare-metal MIPS cross compiler (`MIPS_GCCPREFIX`, mipsel-elf) | no: Ubuntu's mipsel-linux-gnu binutils know only elf32-tradlittlemips, not the elf32-littlemips that lib/elf32-mips.ld names | no MIPS toolchain in Homebrew |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
@@ -199,6 +200,36 @@ the OpenBSD and FreeBSD prefixes in share/mk/mips-toolchain.mk): the
 Linux-target mipsel-linux-gnu binutils reject the elf32-littlemips
 output format the linker script names, so the tier runs locally and
 not in CI.
+
+## flash-id tier
+
+`check-flash-id` runs tools/pico-sdk/check-flash-id.sh, which builds the
+flash-id probe from the notes repository against a Pico SDK and asserts
+that the no_flash image still links and still fits SRAM. It stands outside
+`check` for the reason the Renode tier does: it wants cmake and an SDK this
+tree does not carry.
+
+tools/pico-sdk/sdk-path.sh resolves the SDK from `PICO_SDK_PATH`, then
+tools/pico-sdk/vendor/pico-sdk, then a pico-sdk beside this tree in the
+same workspace, and names every candidate it checked when none is usable.
+It tests for `lib/tinyusb/src/tusb.h` rather than for the directory,
+because a clone whose submodule is not initialized otherwise passes the
+guard and fails inside CMake. tools/pico-sdk/fetch-pico-sdk.sh writes that
+vendor copy, pinned by commit rather than by the 2.3.0 tag, and initializes
+only lib/tinyusb.
+
+The probe source comes from the workspace sibling
+../discobsd-2040-notes/tools/flash-id, or from `FLASH_ID_SRC`, which is how
+the CI job names the checkout. A missing SDK or a missing probe is `not
+run` rather than a failure, so the gate reports a broken workspace instead
+of a broken build. `SRAM_BYTES` and `STACK_MARGIN_BYTES` override the
+budget so the size branch can be calibrated against an image known to be
+too large.
+
+tools/bench-flash-id-build.sh measures this route against two others and
+uses the same resolver, so the benchmark and the gate cannot disagree about
+which SDK they mean; docs/research/flash-id-build-routes.md carries the
+numbers.
 
 ## Renode tier
 

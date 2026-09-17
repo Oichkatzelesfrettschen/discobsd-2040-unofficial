@@ -2,7 +2,7 @@
 
 Date: 2026-09-16. Host: Windows 11 Pro 26200, Python 3.13, Chrome.
 Board: Raspberry Pi Pico running the DiscoBSD 2.7 image, attached over
-its own USB cable. Port fix: discobsd-pico-unofficial PR #81
+its own USB cable. Port fix: discobsd-2040-unofficial PR #81
 (distrib/rp2040/host, discobsd-host 1.0.6).
 
 ## What Windows shows

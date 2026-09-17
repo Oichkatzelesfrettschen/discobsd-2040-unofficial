@@ -9,7 +9,7 @@ the documentation that describes them.
 
 Board evidence is `research/discobsd-rp2040/board-inventory-2026-09-15.txt`
 in this repository, captured today from a running board. Source evidence is
-the port checkout `../discobsd-pico-unofficial` at HEAD `c2a196f7`; paths
+the port checkout `../discobsd-2040-unofficial` at HEAD `c2a196f7`; paths
 below are relative to that tree unless they name this repository. The
 README audited is `README.md` in the port tree, read from the
 `host-readme` worktree before that worktree was removed mid-session and
@@ -387,7 +387,7 @@ alternative languages (`bc`, `dc`, `basic`, `forth`, `scm`, `tclsh`,
 | line is 115200 8N1, no flow control | VERIFIED | `usbopen` sets `B115200`; CDC line coding is accepted and stored, not enforced |
 | the kernel reports USB serial `rp2040` | VERIFIED | `sys/arch/rp2040/dev/usb.c` `usb_strings[3]` is `"rp2040"` |
 | USB vendor 2e8a, product 000a | VERIFIED | `usb_device_desc` bytes `0x8a, 0x2e` and `0x0a, 0x00` |
-| `71-discobsd-pico.rules` adds `/dev/discobsd` | VERIFIED | the file is in `distrib/rp2040/host/` |
+| `71-discobsd-rp2040.rules` adds `/dev/discobsd` | VERIFIED | the file is in `distrib/rp2040/host/` |
 | `discobsd-connect` wraps tio, picocom, minicom, cu | VERIFIED | the script is in `distrib/rp2040/host/` |
 | operator is in `wheel` | VERIFIED | `/etc/group` line `wheel:*:0:root,operator` |
 | direct root login on the console is refused | VERIFIED | `/etc/ttys` marks `console` `insecure` and `usr.bin/login/login.c:241` refuses uid 0 on a terminal `rootterm` rejects |

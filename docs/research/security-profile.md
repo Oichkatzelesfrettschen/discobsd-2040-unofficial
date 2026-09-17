@@ -6,7 +6,7 @@ keeps `chmod`, `chown`, and file permission checks honest, but it stops
 nothing that can execute arbitrary code, since arbitrary code can simply
 read or write any address it likes. The profile below assumes this and
 does not pretend otherwise: it is an administrative-mistake guard, not a
-sandbox. The host (pico-host/discobsd-web, discobsd-term,
+sandbox. The host (rp2040-host/discobsd-web, discobsd-term,
 discobsd-connect) is the only place HTTP, WebSocket, TLS, and multi-user
 authentication belong; the device runs a serial console and nothing that
 resembles a network stack.
@@ -69,7 +69,7 @@ This contradicts the shipped documentation:
     README.md:90:              Log in to DiscoBSD with user `root` and a blank password.
     sys/arch/rp2040/doc/USER-ACCESS.md:41:  Log in as root with an empty password.
     distrib/stm32/README.md:67:            Log in to DiscoBSD with user `root` and a blank password.
-    pico-host/discobsd-web:13 (comment): Log in as root with an empty password.
+    rp2040-host/discobsd-web:13 (comment): Log in as root with an empty password.
 
 `login.c:260` only skips the password prompt when `!*pwd->pw_passwd` --
 the resolved password string is empty. Root's resolved string is
@@ -140,7 +140,7 @@ prompting even after `operator` joins wheel. The fix is not a `passwd`/
 `shadow` edit -- it is deleting `su.c`'s password codepath, covered in
 Section 3.
 
-### 1.6 pico-host/discobsd-web binds 0.0.0.0, has no auth, and does not validate Origin or frame length -- confirmed
+### 1.6 rp2040-host/discobsd-web binds 0.0.0.0, has no auth, and does not validate Origin or frame length -- confirmed
 
 File: `<local path>` (9423 bytes, 280
 lines).
@@ -176,8 +176,8 @@ lines).
   control, not an authentication control -- it stops two anonymous
   sessions from colliding, not an unauthorized one from opening.
 
-`distrib/rp2040/host/71-discobsd-pico.rules` and
-`pico-host/71-discobsd-pico.rules` are byte-identical. The rule
+`distrib/rp2040/host/71-discobsd-rp2040.rules` and
+`rp2040-host/71-discobsd-rp2040.rules` are byte-identical. The rule
 (line 13) is:
 
     SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", ATTRS{serial}=="rp2040", SYMLINK+="discobsd", TAG+="systemd"
@@ -431,7 +431,7 @@ trimmed replacement. If `login` stays for a transition period (Section
 5), keep both entries and switch `etc/ttys` only after the migration
 test sequence passes.
 
-## 4. Host WebUI hardening: pico-host/discobsd-web
+## 4. Host WebUI hardening: rp2040-host/discobsd-web
 
 Ordered by how much of the exposure each change closes; the first two
 are the changes that matter most given the finding in Section 1.6 that
@@ -500,15 +500,15 @@ and never catches the oversize case it was meant for:
 `XTERM`/`XTERM_CSS` (lines 29-30) load from `cdn.jsdelivr.net` at
 runtime. This is a supply-chain and offline-availability issue more than
 a direct auth issue, but it belongs in the same hardening pass: vendor
-`xterm.min.js`/`xterm.min.css` into `pico-host/` and serve them from a
+`xterm.min.js`/`xterm.min.css` into `rp2040-host/` and serve them from a
 new `do_GET` branch (`self.path == "/xterm.js"` etc.), removing the
 external fetch and the CDN as a trust dependency for a tool whose entire
 job is a root-capable console.
 
 ### 4.6 udev rule: dedicated group
 
-`distrib/rp2040/host/71-discobsd-pico.rules` and
-`pico-host/71-discobsd-pico.rules` line 13 gains `GROUP=` and `MODE=`,
+`distrib/rp2040/host/71-discobsd-rp2040.rules` and
+`rp2040-host/71-discobsd-rp2040.rules` line 13 gains `GROUP=` and `MODE=`,
 and the symlink-only line becomes:
 
     SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", ATTRS{serial}=="rp2040", SYMLINK+="discobsd", GROUP="discobsd", MODE="0660", TAG+="systemd"
@@ -630,7 +630,7 @@ neither should say "root" once this profile lands:
     README.md:90                                    Log in to DiscoBSD with user `root` and a blank password.
     distrib/stm32/README.md:67                       Log in to DiscoBSD with user `root` and a blank password.
     sys/arch/rp2040/doc/USER-ACCESS.md:41             Log in as root with an empty password.
-    pico-host/discobsd-web:13 (comment)               Log in as root with an empty password.
+    rp2040-host/discobsd-web:13 (comment)               Log in as root with an empty password.
 
 `distrib/stm32/README.md` documents a different port (STM32, not
 RP2040); confirm whether that board's own account model actually has a

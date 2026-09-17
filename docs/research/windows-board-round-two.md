@@ -3,7 +3,7 @@
 Date: 2026-09-16. Follows host-windows-board-identity.md, which fixed
 host-side discovery (PR #81). This round fixes what the first session
 observed on the board and what stood between Windows and picotool.
-Port PR: discobsd-pico-unofficial #82.
+Port PR: discobsd-2040-unofficial #82.
 
 ## 1. bin/sh stopped a list at a command not found
 
@@ -137,7 +137,7 @@ was in.
 
 ## Running the console from the port checkout on Windows
 
-    cd ..\discobsd-pico-unofficial
+    cd ..\discobsd-2040-unofficial
     python -m pip install --user pyserial      # the one dependency
 
     .\discobsd-console up        # web console and short link, detached

@@ -21,6 +21,21 @@ the kernels, the board libc and the distribution tree the gates read.
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 
+The build runs in parallel. `bmake -j"$(getconf _NPROCESSORS_ONLN)"` takes
+the job count from the machine; `getconf` is POSIX and answers on Linux and
+macOS alike, where `nproc` is coreutils and absent from macOS. On a
+12-thread host the kernel goes from 8.07 s to 1.55 s and the whole world
+from 136.94 s to 31.10 s.
+
+The tree is safe to build that way. Every kernel object is byte-identical
+across a serial build and three parallel ones. Two parallel builds of the
+world differ in 9 of 3736 artifacts and every one is a timestamp: seven
+`.a` archives, whose per-member mtimes the tree's `ar` records with no
+deterministic mode to suppress them, and `pdc`, whose y.tab.c prints
+`__DATE__` and `__TIME__`. The 1286 library objects those archives wrap
+are identical. A linked kernel is never byte-reproducible either way,
+because conf/newvers.sh regenerates vers.c on every link.
+
 `.github/workflows/firmware.yml` runs the tiers after the warning-free
 build; `host.yml` owns the discobsd-host package and packages it on
 three platforms. `PYTHON` defaults to `python3` in share/mk/sys.mk and
@@ -257,7 +272,12 @@ tree does not carry.
 
 tools/pico-sdk/sdk-path.sh resolves the SDK from `PICO_SDK_PATH`, then
 tools/pico-sdk/vendor/pico-sdk, then a pico-sdk beside this tree in the
-same workspace, and names every candidate it checked when none is usable.
+same workspace, then /usr/share/pico-sdk, /usr/local/share/pico-sdk and
+/opt/pico-sdk, and names every candidate it checked when none is usable.
+The packaged paths are named because a package that installs the SDK also
+exports `PICO_SDK_PATH` from a profile snippet, and a profile snippet
+reaches a login shell alone: a systemd unit, a cron job or a container
+would otherwise be told to fetch an SDK the disk already holds.
 It tests for `lib/tinyusb/src/tusb.h` rather than for the directory,
 because a clone whose submodule is not initialized otherwise passes the
 guard and fails inside CMake. tools/pico-sdk/fetch-pico-sdk.sh writes that

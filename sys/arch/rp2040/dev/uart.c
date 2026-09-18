@@ -457,7 +457,14 @@ uartgetc(dev_t dev)
 static int
 uartprobe(struct conf_device *config)
 {
-    int unit = config->dev_unit - 1;
+    /*
+     * The RP2040's blocks are UART0 and UART1 and uart[] is indexed the
+     * same way, so "device uart0" in the configuration names index 0. The
+     * ST ports count their USARTs from one and subtract here; carrying that
+     * subtraction over left every unit one below its own index, so unit 0
+     * failed the range test below and the line never attached.
+     */
+    int unit = config->dev_unit;
     int is_console = (CONS_MAJOR == UART_MAJOR &&
                       CONS_MINOR == unit);
 

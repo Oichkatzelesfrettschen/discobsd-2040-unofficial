@@ -1,11 +1,17 @@
 [Unit]
 Description=DiscoBSD console short link (port 42069)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
-After=discobsd-web.service
+# The link has nothing to redirect to without the board and without
+# discobsd-web up, so it carries the same device gate discobsd-web.service
+# does; see that unit for why dev-discobsd.device is the right handle.
+After=network-online.target dev-discobsd.device discobsd-web.service
+BindsTo=dev-discobsd.device
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 EnvironmentFile=%h/.config/discobsd/web.env
-ExecStart=/usr/bin/discobsd-link --to http://${DISCOBSD_HOST_IP}:7681/?token=${DISCOBSD_WEB_TOKEN}
+ExecStart=/usr/bin/discobsd-link --host http://${DISCOBSD_HOST_IP}:7681/
 Restart=always
 RestartSec=3
 

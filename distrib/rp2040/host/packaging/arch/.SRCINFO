@@ -1,6 +1,6 @@
 pkgbase = discobsd-host
 	pkgdesc = Host tools for the DiscoBSD RP2040 console: terminal, web console, short link
-	pkgver = 1.0.5
+	pkgver = 1.0.9
 	pkgrel = 1
 	url = https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 	arch = any

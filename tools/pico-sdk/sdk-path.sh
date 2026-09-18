@@ -2,10 +2,18 @@
 # Resolve a usable Raspberry Pi Pico SDK and print its path, or say which
 # candidates were checked and exit nonzero.
 #
-# Three candidates, in order: PICO_SDK_PATH, the tree's own fetched copy
-# under tools/pico-sdk/vendor/pico-sdk, and a pico-sdk checked out beside
-# this repository in the same workspace. No candidate is an absolute path
-# written into the tree, so a checkout moves without editing anything.
+# Candidates, in order: PICO_SDK_PATH, the tree's own fetched copy under
+# tools/pico-sdk/vendor/pico-sdk, a pico-sdk checked out beside this
+# repository in the same workspace, and the paths a distribution package
+# installs to. The first three carry no absolute path, so a checkout moves
+# without editing anything.
+#
+# The packaged paths are named because a package that installs the SDK also
+# tends to export PICO_SDK_PATH from a profile snippet -- Arch's pico-sdk
+# ships /etc/profile.d/pico-sdk.sh -- and a profile snippet reaches a login
+# shell alone. A systemd unit, a cron job, a container, or a shell that
+# unset the variable would otherwise miss an SDK already on the disk and be
+# told to fetch a second copy of it.
 #
 # A directory alone is not an SDK. A distribution package materializes the
 # submodules as plain directories, while a fresh clone leaves lib/tinyusb
@@ -29,7 +37,11 @@ usable() {
 	[ -n "${1:-}" ] && [ -f "$1/pico_sdk_init.cmake" ] && [ -f "$1/$SENTINEL" ]
 }
 
-CANDIDATES="${PICO_SDK_PATH:-} $SCRIPT_DIR/vendor/pico-sdk $WORKSPACE/pico-sdk"
+# A wrong guess among the packaged paths costs nothing: usable() rejects
+# anything without both pico_sdk_init.cmake and the sentinel.
+SYSTEM_PATHS="/usr/share/pico-sdk /usr/local/share/pico-sdk /opt/pico-sdk"
+
+CANDIDATES="${PICO_SDK_PATH:-} $SCRIPT_DIR/vendor/pico-sdk $WORKSPACE/pico-sdk $SYSTEM_PATHS"
 
 for c in $CANDIDATES; do
 	if usable "$c"; then
@@ -49,7 +61,8 @@ done
 			printf '  %s (no %s: submodule not initialized)\n' "$c" "$SENTINEL"
 		fi
 	done
-	printf 'Set PICO_SDK_PATH, check a pico-sdk out beside this tree, or run\n'
+	printf 'Set PICO_SDK_PATH, install the SDK, check one out beside this tree,\n'
+	printf 'or run\n'
 	printf '  sh tools/pico-sdk/fetch-pico-sdk.sh\n'
 } >&2
 exit 1

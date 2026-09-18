@@ -154,8 +154,18 @@ and fails the moment the shell starts producing the POSIX answer.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for one file.
-sys/kern/subr_prf.c carries its own argument walk,
+`check-kernel-ilp32` is separate from `check-kernel` for two files that
+compile only at the target's width. sys/kern/kern_sig.c casts pointers to
+int in issignal() and core(); sigauth_test links it with kern_prot2.c and
+kern_proc.c and judges seteuid() by what kill() does afterwards, since
+cansignal() reads the effective uid from p_uid in the proc entry rather
+than from the u area: a process that drops root with seteuid() is refused
+a SIGUSR1 to an unrelated process owned by a third uid, is refused a uid
+it never held with every field left as it was, takes root back through
+its saved id, and is then allowed the signal; a broadcast from the
+dropped process reaches its child and not the stranger, and SIGCONT
+passes to a descendant alone. The other file, sys/kern/subr_prf.c,
+carries its own argument walk,
 
     #define va_arg(ap,type) *(type*) (void*) (ap++)
 

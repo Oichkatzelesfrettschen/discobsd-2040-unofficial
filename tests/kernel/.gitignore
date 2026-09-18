@@ -21,3 +21,8 @@ prf_kernel.o
 prf_shim.o
 hostkern32.o
 prf_test
+sigauth_test
+sigauth_sig.o
+sigauth_prot2.o
+sigauth_proc.o
+sigauth_shim.o

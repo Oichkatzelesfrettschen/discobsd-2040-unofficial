@@ -80,7 +80,18 @@ SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
-SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
+# The version step is one && chain, so the status a step returns is the
+# status of the line and a failed step stops the ones after it: a failed
+# newvers.sh compiles no vers.c, and a failed vers.o compile ends the
+# recipe before the link line. The chain starts by removing the kernel and
+# vers.o, so a failed invocation leaves no output of an older link in the
+# place a new one was asked for, and newvers.sh writes to a .tmp name that
+# mv publishes on success, so a partial vers.c is never compiled.
+# tests/build_failure injects a failure into each step and asserts the
+# ones after it never run.
+SYSTEM_LD_HEAD=	rm -f $@ vers.o && \
+		sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
+		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \

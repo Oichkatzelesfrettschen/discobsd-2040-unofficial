@@ -17,10 +17,10 @@ fortune:        $(OBJS)
 		$(ELF2AOUT) fortune.elf $@ && rm fortune.elf
 
 strfile:	strfile.c
-		${HOST_CC} -o strfile strfile.c
+		${HOST_CC} ${WARNERR} -o strfile strfile.c
 
 unstr:		unstr.c
-		${HOST_CC} -ansi -o unstr unstr.c
+		${HOST_CC} ${WARNERR} -ansi -o unstr unstr.c
 
 fortunes.dat:   #fortunes strfile
 		./strfile -r fortunes

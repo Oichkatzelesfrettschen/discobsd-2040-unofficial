@@ -80,7 +80,7 @@ getgroups()
     for (gp = &u.u_groups[NGROUPS]; gp > u.u_groups; gp--)
         if (gp[-1] != NOGROUP)
             break;
-    if (uap->gidsetsize < gp - u.u_groups) {
+    if (uap->gidsetsize < (u_int)(gp - u.u_groups)) {
         u.u_error = EINVAL;
         return;
     }
@@ -109,7 +109,7 @@ setpgrp()
         return;
     }
     /* need better control mechanisms for process groups */
-    if (p->p_uid != u.u_uid && u.u_uid && !inferior(p)) {
+    if ((uid_t)p->p_uid != u.u_uid && u.u_uid && !inferior(p)) {
         u.u_error = EPERM;
         return;
     }

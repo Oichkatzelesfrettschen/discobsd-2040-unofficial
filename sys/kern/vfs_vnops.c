@@ -59,9 +59,13 @@
  * Common code for vnode open operations.
  * Check permissions, and call the VOP_OPEN (openi for 2.11) or VOP_CREATE
  * (maknode) routine.
+ *
+ * Pathname resolution rewrites fmode before the returns-twice checkpoint.
+ * Keep its storage stable for that checkpoint. Moving setjmp into a helper
+ * would leave u_qsave pointing at a returned frame during error cleanup.
  */
 int
-vn_open(register struct nameidata *ndp, int fmode, int cmode)
+vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
 {
     register struct inode *ip;
     register int error;

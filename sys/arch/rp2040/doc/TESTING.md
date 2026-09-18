@@ -44,6 +44,48 @@ it is excluded by name), then ruff over every tracked Python file.
 of the tree selects E, F, W, B, UP and I at line length 100; the host
 package's pyproject.toml carries the same rules for its own directory.
 
+## Compiler warning policy
+
+The RP2040 config template and its tracked PICO/PICO_UART Makefiles use
+`-Wall -Wextra -Werror`. The host kernel-source harness uses the same
+warning groups, with its existing host-compiler compatibility exceptions.
+The other ports' kernel templates still select their own warning groups.
+
+`share/mk/warnings.mk` defines `WARNERR=-Werror`. `share/mk/sys.mk` and
+`tools/Makefile.inc` put it on the compiler command rather than in
+`CFLAGS`: several leaf Makefiles replace `CFLAGS`, including on a
+command-line optimization override. Host-only `CC` replacements and host
+build generators carry the same policy. This makes the warnings selected
+by each legacy userland Makefile fatal; it does not claim that every
+legacy source is clean under `-Wall -Wextra`.
+
+`check-warning-policy-host` belongs to the host tier and
+`check-warning-policy-cross` to the cross tier. They compile clean
+controls and require a deliberately emitted warning to fail using the
+evaluated commands of representative tools, shared target rules and
+CFLAGS-replacing leaves. Each shared route is checked again with
+`CFLAGS=-O0`. Both kernel configurations must reject separate `-Wall`
+and `-Wextra` probes, and their warning assignments must agree with the
+config template. A missing compiler or a broken clean control fails;
+it is not mistaken for successful warning rejection. The tests compile
+objects in temporary directories and neither link nor access a board.
+
+The CI build-log assertion remains useful for diagnostics from generators
+and linkers outside the C compiler's warning policy. It is not a substitute
+for enabling warning groups. These gates do not prohibit deliberate
+command-line replacement of `CC`, `CWARNFLAGS`, or `WARNERR`, or an
+explicit `-Wno-*` override; such overrides are not a validated build.
+
+Validate warning-policy changes from clean objects. The inherited userland
+Makefiles do not track compiler flags as object dependencies:
+
+```
+bmake MACHINE=rp2040 cleanall
+bmake MACHINE=rp2040 build
+bmake MACHINE=rp2040 check-warning-policy-host check-warning-policy-cross
+bmake MACHINE=rp2040 check-kernel check-config-makefile
+```
+
 ## Host tier
 
 Each gate compiles the tree's own source for the host, with `-Wall
@@ -51,9 +93,10 @@ Each gate compiles the tree's own source for the host, with `-Wall
 
 | gate | proves |
 | --- | --- |
+| `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
-| `check-kernel` | seven sys/kern sources compiled from the kernel tree and run against 977 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting |
+| `check-kernel` | seven sys/kern sources compiled from the kernel tree and run against 984 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
@@ -153,6 +196,9 @@ paths that return. Outside one it prints and exits, so an unexpected panic
 fails the gate rather than unwinding into unrelated code.
 
 ## Cross tier
+
+`check-warning-policy-cross` checks shared target warning enforcement and
+both kernels' `-Wall -Wextra -Werror` behavior as described above.
 
 | gate | proves |
 | --- | --- |

@@ -139,6 +139,7 @@ names; a correction goes in a new document rather than in the ledger.
 
 | Document | Establishes |
 | --- | --- |
+| `warning-policy-audit.md` | the warning-enforcement gaps, the RP2040 extra-warning inventory, repair scope and remaining migrations |
 | `root-audit-2026-09-15.md` | the root audit, with each claim ruled on |
 | `manual-assessment-2026-09-16.md` | the manual assessed for a tester and for a buyer |
 | `codex-findings.txt` | raw findings as the tool emitted them |

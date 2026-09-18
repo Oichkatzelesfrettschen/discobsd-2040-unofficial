@@ -142,7 +142,7 @@ ok:
     /* force exit */
     case PT_KILL:
         exit(u.u_procp->p_ptracesig);
-        /*NOTREACHED*/
+        return(0); /* exit does not return. */
 
     default:
 error:

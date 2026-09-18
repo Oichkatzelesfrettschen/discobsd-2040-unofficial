@@ -138,6 +138,7 @@ swapout (p, freecore, odata, ostack)
     int freecore;
     register u_int odata, ostack;
 {
+    (void)freecore;
     size_t a[3];
     size_t tsize = swaptext (p);
 #ifdef SWAPRAM

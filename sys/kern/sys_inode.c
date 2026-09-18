@@ -61,7 +61,7 @@ int
 ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
 {
     register struct inode *ip = ((struct inode *)fp->f_data);
-    dev_t dev;
+    const dev_t dev = ip->i_rdev;
 
     switch (ip->i_mode & IFMT) {
 
@@ -76,13 +76,12 @@ ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
         }
         if (com == FIONBIO || com == FIOASYNC)  /* XXX */
             return (0);         /* XXX */
-        /* fall into ... */
+        /* FALLTHROUGH */
 
     default:
         return (ENOTTY);
 
     case IFCHR:
-        dev = ip->i_rdev;
         u.u_rval = 0;
         if (setjmp(&u.u_qsave)) {
             /*
@@ -94,7 +93,6 @@ ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
         }
         return((*cdevsw[major(dev)].d_ioctl)(dev,com,data,fp->f_flag));
     case IFBLK:
-        dev = ip->i_rdev;
         u.u_rval = 0;
         if (setjmp(&u.u_qsave)) {
             /*
@@ -226,7 +224,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
         return (0);
     if (uio->uio_rw == UIO_WRITE && type == IFREG &&
         uio->uio_offset + uio->uio_resid >
-          u.u_rlimit[RLIMIT_FSIZE].rlim_cur) {
+          (u_long)u.u_rlimit[RLIMIT_FSIZE].rlim_cur) {
         psignal(u.u_procp, SIGXFSZ);
         return (EFBIG);
     }
@@ -285,7 +283,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
                 bzero (bp->b_addr, MAXBSIZE);
             }
         }
-        n = MIN(n, DEV_BSIZE - bp->b_resid);
+        n = MIN((u_int)n, DEV_BSIZE - bp->b_resid);
         if (bp->b_flags & B_ERROR) {
             error = EIO;
             brelse(bp);
@@ -393,14 +391,12 @@ closei(register struct inode *ip, int flag)
     register struct file *fp;
     int mode, error;
     dev_t   dev;
-    int (*cfunc) (dev_t, int, int);
 
     mode = ip->i_mode & IFMT;
     dev = ip->i_rdev;
 
     switch (mode) {
     case IFCHR:
-        cfunc = cdevsw[major(dev)].d_close;
         break;
     case IFBLK:
         /*
@@ -410,7 +406,6 @@ closei(register struct inode *ip, int flag)
         for (mp = mount; mp < &mount[NMOUNT]; mp++)
             if (mp->m_inodp != NULL && mp->m_dev == dev)
                 return(0);
-        cfunc = bdevsw[major(dev)].d_close;
         break;
     default:
         return(0);
@@ -443,6 +438,8 @@ closei(register struct inode *ip, int flag)
      *    Apparently the only time "errno" is meaningful after a "close" is
      *    when the process is interrupted.
      */
+    int (*const cfunc)(dev_t, int, int) = mode == IFCHR ?
+        cdevsw[major(dev)].d_close : bdevsw[major(dev)].d_close;
     if (setjmp (&u.u_qsave)) {
         /*
          * If device close routine is interrupted,
@@ -579,7 +576,7 @@ openi(register struct inode *ip, int mode)
     case IFCHR:
         if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NODEV)
             return(ENXIO);
-        if ((u_int)maj >= nchrdev)
+        if ((u_int)maj >= (u_int)nchrdev)
             return (ENXIO);
         if (mode & FWRITE) {
             /*
@@ -607,7 +604,7 @@ openi(register struct inode *ip, int mode)
     case IFBLK:
         if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NODEV)
             return(ENXIO);
-        if ((u_int)maj >= nblkdev)
+        if ((u_int)maj >= (u_int)nblkdev)
             return (ENXIO);
         /*
          * When running in very secure mode, do not allow

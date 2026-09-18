@@ -23,7 +23,7 @@ monop:          $(OBJS)
 		$(ELF2AOUT) monop.elf $@ && rm monop.elf
 
 initdeck:       initdeck.c deck.h
-		${HOST_CC} -o initdeck initdeck.c
+		${HOST_CC} ${WARNERR} -o initdeck initdeck.c
 
 cards.pck:      #initdeck cards.inp
 		./initdeck

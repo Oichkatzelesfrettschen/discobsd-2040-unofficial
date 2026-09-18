@@ -32,7 +32,7 @@ const char *dhara_strerror(dhara_error_t err)
 	};
 	const char *msg = NULL;
 
-	if ((err >= 0) && (err < DHARA_E_MAX))
+	if ((unsigned int)err < DHARA_E_MAX)
 		msg = messages[err];
 
 	if (msg)

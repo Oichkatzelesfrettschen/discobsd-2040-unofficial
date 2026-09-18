@@ -649,7 +649,7 @@ found:
      * Check that directory length properly reflects presence
      * of this entry.
      */
-    if (entryoffsetinblock + DIRSIZ(ep) > dp->i_size) {
+    if (entryoffsetinblock + DIRSIZ(ep) > (u_long)dp->i_size) {
         dirbad(dp, ndp->ni_offset, "i_size too small");
         dp->i_size = entryoffsetinblock + DIRSIZ(ep);
         dp->i_flag |= IUPD|ICHG;
@@ -1038,7 +1038,7 @@ direnter(struct inode *ip, register struct nameidata *ndp)
      * copy in the new entry, and write out the block.
      */
     if (ep->d_ino == 0) {
-        if (spacefree + dsize < newentrysize)
+        if (spacefree + dsize < (u_int)newentrysize)
             panic("wdir: compact1");
         ndp->ni_dent.d_reclen = spacefree + dsize;
     } else {

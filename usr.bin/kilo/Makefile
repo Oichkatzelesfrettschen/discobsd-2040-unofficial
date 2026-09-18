@@ -25,7 +25,7 @@ ${PROG}:	${OBJS}
 HOST_CFLAGS=	-Wall -Wextra -Werror -O0 -g -DTERMIOS
 
 kilo.host:	kilo.c
-		${HOST_CC} ${HOST_CFLAGS} -o $@ kilo.c
+		${HOST_CC} ${WARNERR} ${HOST_CFLAGS} -o $@ kilo.c
 
 PYTHON?=	python3
 

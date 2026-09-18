@@ -122,7 +122,7 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
         /*
          * calculate read-ahead
          */
-        if (i < NINDIR-1)
+        if ((u_int)i < NINDIR-1)
             ra = bap[i+1];
         if (nb == 0) {
             if (rwflg == B_READ || (nbp = balloc(ip, flags | B_CLRBUF)) == NULL) {

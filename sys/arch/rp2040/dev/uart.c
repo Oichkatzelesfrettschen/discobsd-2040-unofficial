@@ -183,6 +183,8 @@ UART1_IRQ_Handler(void)
 int
 uartopen(dev_t dev, int flag, int mode)
 {
+    (void)flag;
+    (void)mode;
     register const struct uart_inst *uip;
     register struct tty *tp;
     register int unit = minor(dev);
@@ -231,6 +233,8 @@ uartopen(dev_t dev, int flag, int mode)
 int
 uartclose(dev_t dev, int flag, int mode)
 {
+    (void)flag;
+    (void)mode;
     register int unit = minor(dev);
     register struct tty *tp = &uartttys[unit];
 

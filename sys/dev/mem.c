@@ -23,6 +23,7 @@ kmemdev(void)
 int
 mmrw(dev_t dev, struct uio *uio, int flag)
 {
+	(void)flag;
 	struct iovec *iov;
 	int error = 0;
 	u_int c;

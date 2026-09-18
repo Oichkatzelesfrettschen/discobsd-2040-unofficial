@@ -48,11 +48,11 @@ struct timeb {
  * If everything fails, it uses "unknown" for the system name.
  */
 #define	GETHOSTNAME	/**/
-/* #define UNAME	/**/
-/* #define WHOAMI	/**/
-/* #define CCWHOAMI	/**/
-/* #define UUNAME	/**/
-/* #define GETMYHNAME	/**/
+/* #define UNAME	*/
+/* #define WHOAMI	*/
+/* #define CCWHOAMI	*/
+/* #define UUNAME	*/
+/* #define GETMYHNAME	*/
 /* If the above fails ... */
 #define	MYNAME	"wlonex"
 
@@ -62,38 +62,38 @@ struct timeb {
  * Otherwise, define EX_NOHOST, EX_CANTCREAT, and EX_NOINPUT.
  */
 #include <sysexits.h>
-/*#define EX_NOINPUT	66	/**/
-/*#define EX_NOHOST	68	/**/
-/*#define EX_CANTCREAT	73	/**/
+/*#define EX_NOINPUT	66	*/
+/*#define EX_NOHOST	68	*/
+/*#define EX_CANTCREAT	73	*/
 
 /*
  * Define the various kinds of connections to include.
  * The complete list is in the condevs array in condevs.c
  */
-/* #define ATT2224		/* AT&T 2224 */
+/* #define ATT2224		-- AT&T 2224 */
 /* XXX #define BSDTCP */		/* 4.2bsd or 2.9bsd TCP/IP */
-/* #define CDS224		/* Concord Data Systems 2400 */
-/* #define DATAKIT	/* ATT's datakit */
-/* #define DF02		/* Dec's DF02/DF03 */
-/* #define DF112		/* Dec's DF112 */
-/* #define DN11		/* "standard" DEC dialer */
+/* #define CDS224		-- Concord Data Systems 2400 */
+/* #define DATAKIT	-- ATT's datakit */
+/* #define DF02		-- Dec's DF02/DF03 */
+/* #define DF112		-- Dec's DF112 */
+/* #define DN11		-- "standard" DEC dialer */
 #define HAYES		/* Hayes' Smartmodem */
-/* #define HAYES2400	/* Hayes' 2400 baud Smartmodem */
-/* #define MICOM	/* Micom Mux port */
-/* #define NOVATION	/* Novation modem */
-/* #define PAD		/* X.25 PAD */
-/* #define PENRIL		/* PENRIL Dialer */
-/* #define PNET		/* Purdue network */
-/* #define RVMACS		/* Racal-Vadic MACS  820 dialer, 831 adaptor */
-/* #define SYTEK	/* Sytek Local Area Net */
-/* #define UNETTCP	/* 3Com's UNET */
-/* #define USR2400		/* USRobotics Courier 2400 */
-/* #define VA212		/* Racal-Vadic 212 */
-/* #define VA811S		/* Racal-Vadic 811S dialer, 831 adaptor */
-/* #define VA820		/* Racal-Vadic 820 dialer, 831 adaptor */
-/* #define VADIC		/* Racal-Vadic 345x */
-/* #define VENTEL		/* Ventel Dialer */
-/* #define VMACS		/* Racal-Vadic MACS  811 dialer, 831 adaptor */
+/* #define HAYES2400	-- Hayes' 2400 baud Smartmodem */
+/* #define MICOM	-- Micom Mux port */
+/* #define NOVATION	-- Novation modem */
+/* #define PAD		-- X.25 PAD */
+/* #define PENRIL		-- PENRIL Dialer */
+/* #define PNET		-- Purdue network */
+/* #define RVMACS		-- Racal-Vadic MACS  820 dialer, 831 adaptor */
+/* #define SYTEK	-- Sytek Local Area Net */
+/* #define UNETTCP	-- 3Com's UNET */
+/* #define USR2400		-- USRobotics Courier 2400 */
+/* #define VA212		-- Racal-Vadic 212 */
+/* #define VA811S		-- Racal-Vadic 811S dialer, 831 adaptor */
+/* #define VA820		-- Racal-Vadic 820 dialer, 831 adaptor */
+/* #define VADIC		-- Racal-Vadic 345x */
+/* #define VENTEL		-- Ventel Dialer */
+/* #define VMACS		-- Racal-Vadic MACS  811 dialer, 831 adaptor */
 
 #if defined(USR2400) && !defined(HAYES)
 #define HAYES
@@ -114,9 +114,9 @@ struct timeb {
  * Look at uucpdelay() in condevs.c for details.
  */
 #define INTERVALTIMER /**/
-/*#define FASTTIMER /**/
-/*#define FTIME /**/
-/*#define BUSYLOOP /**/
+/*#define FASTTIMER */
+/*#define FTIME */
+/*#define BUSYLOOP */
 
 /*
  * If your site is using "ndir.h" to retrofit the Berkeley
@@ -124,12 +124,12 @@ struct timeb {
  * You will probably also have to set LIBNDIR in Makefile.
  * Otherwise, <dir.h> is assumed to have the Berkeley directory definitions.
  */
-/*#define	NDIR	/**/
+/*#define	NDIR	*/
 
 /*
  * If yours is a BTL system III, IV, V or so-on site, define USG.
  */
-/*#define	USG	/**/
+/*#define	USG	*/
 
 /*
  * If you are running 4.3bsd, define BSD4_3 and BSD4_2
@@ -139,7 +139,7 @@ struct timeb {
  */
 #define BSD4_3 	/**/
 #define BSD4_2 	/**/
-/*#define BRL4_2 /**/
+/*#define BRL4_2 */
 
 #if defined(BRL4_2) && !defined(BSD4_2)
 #define BSD4_2
@@ -149,12 +149,12 @@ struct timeb {
 /*
  * If you are running 2.9bsd define BSD2_9
  */
-/*#define BSD2_9 	/**/
+/*#define BSD2_9 	*/
 
 /*
  * If you are using 'inetd' with 4.2bsd, define BSDINETD
  */
-/* #define BSDINETD	/**/
+/* #define BSDINETD	*/
 
 /*
  * If you are running 4.3bsd, 2.11bsd or BRL 4.2, you are running 'inetd'
@@ -164,18 +164,18 @@ struct timeb {
 #define BSDINETD
 #endif
 
-/*#define VMSDTR	/* Turn on modem control on vms(works DTR) for
+/*#define VMSDTR	-- Turn on modem control on vms(works DTR) for
 			   develcon and gandalf ports to gain access */
 /*
  *	If you want to use the same modem for dialing in and out define
  *	DIALINOUT to be the localtion of the acucntrl program
  */
-/* #define DIALINOUT	"/usr/libexec/acucntrl" /**/
+/* #define DIALINOUT	"/usr/libexec/acucntrl" */
 
 /*
  *	If you want all ACU lines to be DIALINOUT, define ALLACUINOUT
  */
-/* #define ALLACUINOUT	/**/
+/* #define ALLACUINOUT	*/
 
 /* define the value of WFMASK - for umask call - used for all uucp work files */
 #define WFMASK 0137
@@ -205,7 +205,7 @@ struct timeb {
  * know where the LCK files are kept, and you have to change your /etc/rc
  * if your rc cleans out the lock files (as it should).
  */
-/*#define	LOCKDIR	"LCK"	/**/
+/*#define	LOCKDIR	"LCK"	*/
 #define LOCKDIR	"." /**/
 
 /*
@@ -221,14 +221,14 @@ struct timeb {
  * If you are not going to use it (hint: you are not),
  * do not define GNXSEQ.  This saves precious room on PDP11s.
  */
-/*#define	GNXSEQ	/* comment this out to save space */
+/*#define	GNXSEQ	-- comment this out to save space */
 
 /*
  * If you want the logfile stored in a file for each site instead
  * of one file
  * define LOGBYSITE as the directory to put the files in
  */
-/*#define LOGBYSITE	"/usr/spool/uucp/LOG" /**/
+/*#define LOGBYSITE	"/usr/spool/uucp/LOG" */
 
 #define XQTDIR		"/usr/spool/uucp/XTMP"
 #define SQFILE		"/etc/uucp/SQFILE"

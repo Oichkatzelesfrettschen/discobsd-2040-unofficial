@@ -19,10 +19,12 @@
  * $Id: compat.h,v 1.8 1994/01/15 20:43:43 vixie Exp $
  */
 
-#ifndef __P
-#define __P(x) ()
-#define const
-#endif
+/*
+ * The tree's compiler takes prototypes and const, and its headers never
+ * define __P, so the pre-ANSI shim that emptied both here also emptied
+ * the prototypes of every tree header included after it.
+ */
+#define __P(x) x
 
 /*****************************************************************/
 

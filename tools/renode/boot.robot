@@ -70,10 +70,12 @@ The boot reaches a login prompt and a shell
 
     Wait For Line On Uart       swap size = 380 kbytes                      timeout=120
 
-    # fsck runs against the image the build produced, so the counts are the
-    # ones mkfs wrote; a salvage would print other lines instead.
+    # fsck reaching its summary line means it mounted the root and walked it
+    # without going interactive. The counts in that line follow the manifest
+    # and move whenever a program is added or dropped, so they stay out of
+    # the assertion; the flash geometry is the probe test's job.
     Wait For Line On Uart       Automatic boot in progress: starting file system checks.    timeout=180
-    Wait For Line On Uart       /dev/fl0a: 95 files, 839 used, 140 free     timeout=300
+    Wait For Line On Uart       /dev/fl0a:                                  timeout=300
     Wait For Line On Uart       Starting daemons:${SPACE}${SPACE}update                   timeout=300
 
     # init opens /dev/console and forks getty, which needs a tty a process

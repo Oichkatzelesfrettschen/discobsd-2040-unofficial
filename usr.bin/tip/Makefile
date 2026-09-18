@@ -69,6 +69,8 @@ log.o remote.o: Makefile
 
 aculib: FRC
 	cd aculib; ${MAKE} ${MFLAGS}
+# aculib is a directory; see lib/Makefile on why it must be phony.
+.PHONY:	aculib
 
 clean: FRC
 	rm -f ${OBJS} core tip tip.elf tip.dis

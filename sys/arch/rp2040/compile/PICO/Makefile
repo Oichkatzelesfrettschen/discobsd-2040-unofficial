@@ -151,26 +151,44 @@ SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
-# The version step is one && chain, so the status a step returns is the
-# status of the line and a failed step stops the ones after it: a failed
-# newvers.sh compiles no vers.c, and a failed vers.o compile ends the
-# recipe before the link line. The chain starts by removing the kernel and
-# vers.o, so a failed invocation leaves no output of an older link in the
-# place a new one was asked for, and newvers.sh writes to a .tmp name that
-# mv publishes on success, so a partial vers.c is never compiled.
-# tests/build_failure injects a failure into each step and asserts the
-# ones after it never run.
-SYSTEM_LD_HEAD=	rm -f $@ vers.o && \
+# The link is one recipe of three lines, and each line is one && chain, so
+# the status a step returns is the status of the line and a failed step
+# stops the ones after it: a failed newvers.sh compiles no vers.c, a failed
+# vers.o compile links nothing, and a failed conversion writes no later
+# artifact. The chain starts by removing the kernel, vers.o and every
+# derived image, so a failed invocation leaves no output of an older link
+# in the place a new one was asked for. Every converter writes to a .tmp
+# name that mv publishes on success, so a partial file is never found
+# under a finished artifact's name. tests/build_failure injects a failure
+# into each step and asserts the ones after it never run.
+#
+# picotool is the one optional tool, with three outcomes that the recipe
+# keeps apart: absent, which "all" reports and tolerates because a host
+# without it still builds a kernel to inspect; present and successful,
+# which publishes $@.uf2; and present but failed, which fails the build.
+# The .elf.uf2 rule below is the explicit request, and it admits no skip.
+# picotool types a file by its extension, so the .tmp output names its
+# type with -t uf2; picotool 2.3.1 rejects the name without it.
+PICOTOOL?=	picotool
+SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o && \
 		sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
 		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
-SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
-		${OBJCOPY} -O ihex $@ $@.hex; \
-		${OBJCOPY} -O binary $@ $@.bin; \
-		${OBJDUMP} -d -S $@ > $@.dis; \
-		picotool uf2 convert --quiet $@.elf $@.uf2 || \
-		    echo "picotool absent: $@.uf2 not written" 
+SYSTEM_LD_TAIL=	${SIZE} $@ && cp $@ $@.elf && \
+		${OBJCOPY} -O ihex $@ $@.hex.tmp && mv $@.hex.tmp $@.hex && \
+		${OBJCOPY} -O binary $@ $@.bin.tmp && mv $@.bin.tmp $@.bin && \
+		${OBJDUMP} -d -S $@ > $@.dis.tmp && mv $@.dis.tmp $@.dis && \
+		if command -v ${PICOTOOL} >/dev/null 2>&1; then \
+		    ${PICOTOOL} uf2 convert --quiet $@.elf $@.uf2.tmp -t uf2 && \
+		    mv $@.uf2.tmp $@.uf2; \
+		else \
+		    echo "${PICOTOOL} absent: $@.uf2 not written" >&2; \
+		fi
+
+.SUFFIXES:	.elf .uf2
+.elf.uf2:
+	${PICOTOOL} uf2 convert --quiet $< $@.tmp -t uf2 && mv $@.tmp $@
 
 unix: ${SYSTEM_DEP} swapunix.o
 	${SYSTEM_LD_HEAD}
@@ -183,7 +201,7 @@ swapunix.o: swapunix.c
 all: unix
 
 clean:
-	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 boot2.S machine sys \
+	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 *.tmp boot2.S machine sys \
 	    vers.c .compileversion .oldversion ${PARAMSTAMP}
 
 clean-all: clean

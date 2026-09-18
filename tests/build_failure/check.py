@@ -213,8 +213,15 @@ ARTIFACTS = ("unix", "unix.elf", "unix.hex", "unix.bin", "unix.dis", "unix.uf2")
 ORDER = ["newvers", "cc", "ld", "size", "objcopy", "objcopy", "objdump", "picotool"]
 
 
+def absent_line(picotool):
+    """The recipe's own report, which bmake's echo of the recipe text also
+    contains inside a longer line; the report stands as a line of its own."""
+    return f"{picotool} absent: unix.uf2 not written"
+
+
 def check_kernel(root, make, scratch):
     build, stubs, blocks = kernel_driver(root, scratch)
+    absent = scratch / "absent/picotool"
 
     def invoke(target, fail, picotool=stubs / "picotool", stale=()):
         for name in (*ARTIFACTS, "vers.c", "vers.o", *(p.name for p in build.glob("*.tmp"))):
@@ -246,14 +253,18 @@ def check_kernel(root, make, scratch):
 
     # Each step in turn, with the artifacts of an earlier link in place so
     # a failed step is seen to remove them rather than leave them as new.
-    # The steps after the link join when SYSTEM_LD_TAIL is one chain.
     # (label, failure, stubs that must not run, finished names that must
     # be absent). A failed step may leave its own .tmp behind, as objdump
     # does when the shell has already opened the redirect; the finished
     # name is what the invariant governs.
     cases = [
-        ("newvers", ["newvers"], ["cc", "ld"], ("vers.o", "unix")),
-        ("cc", ["cc"], ["ld"], ("vers.o", "unix")),
+        ("newvers", ["newvers"], ["cc", "ld"], ("vers.o", *ARTIFACTS)),
+        ("cc", ["cc"], ["ld"], ("vers.o", *ARTIFACTS)),
+        ("size", ["size"], ["objcopy", "objdump", "picotool"], ARTIFACTS[1:]),
+        ("objcopy ihex", ["objcopy:1"], ["objdump", "picotool"], ARTIFACTS[2:]),
+        ("objcopy binary", ["objcopy:2"], ["objdump", "picotool"], ARTIFACTS[3:]),
+        ("objdump", ["objdump"], ["picotool"], ARTIFACTS[4:]),
+        ("picotool", ["picotool"], [], ARTIFACTS[5:]),
     ]
     for label, fail, forbidden, unpublished in cases:
         for stale in ((), ("vers.o", "vers.c", *ARTIFACTS)):
@@ -262,6 +273,8 @@ def check_kernel(root, make, scratch):
                    f"kernel, {label} failing: rc {result.returncode}", result.stdout)
             expect(not any(c in forbidden for c in calls),
                    f"kernel, {label} failing: later steps ran, calls {calls}", result.stdout)
+            expect(absent_line(stubs / "picotool") not in result.stdout.splitlines(),
+                   f"kernel, {label} failing: reported as tool absence", result.stdout)
             published = [name for name in unpublished if (build / name).exists()]
             expect(not published, f"kernel, {label} failing: {published} published, "
                    f"outputs {present()}", result.stdout)
@@ -269,9 +282,30 @@ def check_kernel(root, make, scratch):
                 vers = build / "vers.c"
                 expect(vers.read_text() == "stale\n" if stale else not vers.exists(),
                        "kernel, newvers failing: vers.c was published", result.stdout)
-    print("PASS kernel link: a failed newvers.sh or vers.c compile links nothing, with and "
-          "without stale outputs")
+    print("PASS kernel link: each of the seven steps fails the link, with and without "
+          "stale outputs")
 
+    result, calls = invoke("unix", [], picotool=absent)
+    expect(result.returncode == 0 and calls == ORDER[:-1],
+           f"kernel, picotool absent: rc {result.returncode}, calls {calls}", result.stdout)
+    expect(absent_line(absent) in result.stdout.splitlines() and "unix.uf2" not in present()
+           and all(a in present() for a in ARTIFACTS[:-1]),
+           f"kernel, picotool absent: outputs {present()}", result.stdout)
+    print("PASS kernel link: an absent picotool is reported and the other outputs stand")
+
+    expect(all(k in blocks for k in (".SUFFIXES:", ".elf.uf2:", "PICOTOOL?=")),
+           "explicit uf2: the template carries no .elf.uf2 rule", "")
+    result, calls = invoke("unix.uf2", [], stale=("unix.elf",))
+    expect(result.returncode == 0 and calls == ["picotool"] and (build / "unix.uf2").exists(),
+           f"explicit uf2: rc {result.returncode}, calls {calls}", result.stdout)
+    result, calls = invoke("unix.uf2", ["picotool"], stale=("unix.elf",))
+    expect(result.returncode != 0 and INJECTED in result.stdout
+           and not (build / "unix.uf2").exists() and not list(build.glob("*.tmp")),
+           f"explicit uf2, picotool failing: rc {result.returncode}", result.stdout)
+    result, calls = invoke("unix.uf2", [], picotool=absent, stale=("unix.elf",))
+    expect(result.returncode != 0 and not (build / "unix.uf2").exists(),
+           f"explicit uf2, picotool absent: rc {result.returncode}", result.stdout)
+    print("PASS explicit unix.uf2: a failed or absent picotool fails the request")
 
 
 def main():

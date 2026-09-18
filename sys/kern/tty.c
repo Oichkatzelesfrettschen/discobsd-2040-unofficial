@@ -615,7 +615,7 @@ ttioctl(tp, com, data, flag)
             return (EPERM);
         p = pfind(pgrp);
         if (p && p->p_pgrp == pgrp &&
-            (uid_t)p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+            p->p_uid != u.u_uid && u.u_uid && !inferior(p))
             return (EPERM);
         tp->t_pgrp = pgrp;
         break;

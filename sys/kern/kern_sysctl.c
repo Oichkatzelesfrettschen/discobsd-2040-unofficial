@@ -732,7 +732,7 @@ again:
 			break;
 
 		case KERN_PROC_UID:
-			if ((uid_t)p->p_uid != (uid_t)name[1])
+			if (p->p_uid != (uid_t)name[1])
 				continue;
 			break;
 

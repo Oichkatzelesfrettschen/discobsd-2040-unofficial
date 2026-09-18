@@ -46,7 +46,7 @@ getpriority()
         if (uap->who == 0)
             uap->who = u.u_uid;
         for (p = allproc; p != NULL; p = p->p_nxt) {
-            if (p->p_uid == uap->who &&
+            if (p->p_uid == (uid_t)uap->who &&
                 p->p_nice < low)
                 low = p->p_nice;
         }
@@ -68,7 +68,7 @@ donice(p, n)
     register int n;
 {
     if (u.u_uid && u.u_ruid &&
-        u.u_uid != (uid_t)p->p_uid && u.u_ruid != (uid_t)p->p_uid) {
+        u.u_uid != p->p_uid && u.u_ruid != p->p_uid) {
         u.u_error = EPERM;
         return;
     }
@@ -118,7 +118,7 @@ setpriority()
         if (uap->who == 0)
             uap->who = u.u_uid;
         for (p = allproc; p != NULL; p = p->p_nxt)
-            if (p->p_uid == uap->who) {
+            if (p->p_uid == (uid_t)uap->who) {
                 donice(p, uap->prio);
                 found++;
             }

@@ -21,3 +21,8 @@ prf_kernel.o
 prf_shim.o
 hostkern32.o
 prf_test
+rwuio_test
+rwuio_test32
+rwuio_kernel.o
+rwuio_kernel32.o
+rwuio_shim32.o

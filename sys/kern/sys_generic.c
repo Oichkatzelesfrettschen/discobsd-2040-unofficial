@@ -17,6 +17,9 @@
 
 int selwait;
 
+/* The largest transfer a ssize_t return can report: SSIZE_MAX. */
+#define RWUIO_MAX   0x7fffffffU
+
 static void
 rwuio (uio)
     register struct uio *uio;
@@ -27,22 +30,33 @@ rwuio (uio)
     register struct file *fp;
     register struct iovec *iov;
     u_int i, count;
-    off_t   total;
 
     GETF(fp, ((struct a *)u.u_arg)->fdes);
     if ((fp->f_flag & (uio->uio_rw == UIO_READ ? FREAD : FWRITE)) == 0) {
         u.u_error = EBADF;
         return;
     }
-    total = 0;
+    /*
+     * The transfer count returns through u_rval, an int, and read(2),
+     * readv(2) and their write counterparts declare ssize_t, so the sum
+     * of the vector lengths is bounded by RWUIO_MAX, the SSIZE_MAX of
+     * machine/limits.h. Each length is compared with the room left
+     * before it is added: iov_len, the sum and uio_resid are all 32
+     * bits wide on the target, so a check made after the addition would
+     * compare a wrapped sum with itself and reject nothing, and a
+     * request of 0xffffffff plus 1 bytes reached the file operation as
+     * a request of 0. A rejected request reaches no file operation and
+     * moves no offset. The sum accumulates in uio_resid itself: a local
+     * that the setjmp below sees live is one -Wclobbered rejects.
+     * tests/kernel/rwuio_test.c holds this at the host width and at ILP32.
+     */
     uio->uio_resid = 0;
-    for (iov = uio->uio_iov, i = 0; i < (u_int)uio->uio_iovcnt; i++, iov++)
-        total += iov->iov_len;
-
-    uio->uio_resid = total;
-    if (uio->uio_resid != (u_long)total) {      /* check wraparound */
-        u.u_error = EINVAL;
-        return;
+    for (iov = uio->uio_iov, i = 0; i < (u_int)uio->uio_iovcnt; i++, iov++) {
+        if (iov->iov_len > RWUIO_MAX - uio->uio_resid) {
+            u.u_error = EINVAL;
+            return;
+        }
+        uio->uio_resid += iov->iov_len;
     }
     count = uio->uio_resid;
     if (setjmp (&u.u_qsave)) {

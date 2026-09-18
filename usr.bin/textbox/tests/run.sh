@@ -71,6 +71,46 @@ check() {
 	fi
 }
 
+# --- getline: the tree's own, since the tools above take glibc's ---
+# getline_test.c includes ../getline.c over an allocator the test owns
+# and pins ownership after a refused growth and the capacity policy at
+# SSIZE_MAX + 1. The policy is a width fact, so the gate runs again at
+# -m32 where the host cc can build it.
+if $CC -std=gnu17 -Wall -Wextra -Werror -I"$TB" -o "$WORK/getline_test" \
+    "$TB/tests/getline_test.c" 2>"$WORK/getline_test.cc.log" \
+    && [ ! -s "$WORK/getline_test.cc.log" ]; then
+	if "$WORK/getline_test"; then
+		echo "ok: getline_test"
+	else
+		echo "FAIL: getline_test"
+		fail=1
+	fi
+else
+	echo "BUILD FAIL: getline_test"
+	cat "$WORK/getline_test.cc.log"
+	fail=1
+fi
+printf 'int main(void){return 0;}\n' > "$WORK/ilp32probe.c"
+if $CC -m32 -o "$WORK/ilp32probe" "$WORK/ilp32probe.c" 2>/dev/null; then
+	if $CC -m32 -std=gnu17 -Wall -Wextra -Werror -DHK_ILP32 -I"$TB" \
+	    -o "$WORK/getline_test32" "$TB/tests/getline_test.c" \
+	    2>"$WORK/getline_test32.cc.log" \
+	    && [ ! -s "$WORK/getline_test32.cc.log" ]; then
+		if "$WORK/getline_test32"; then
+			echo "ok: getline_test at -m32"
+		else
+			echo "FAIL: getline_test at -m32"
+			fail=1
+		fi
+	else
+		echo "BUILD FAIL: getline_test at -m32"
+		cat "$WORK/getline_test32.cc.log"
+		fail=1
+	fi
+else
+	echo "skip: getline_test at -m32 ($CC builds no 32-bit binary)"
+fi
+
 # --- cut ---
 build cut cut.c eprintf.c fshut.c unescape.c rune.c \
 	$EREALLOCARRAY

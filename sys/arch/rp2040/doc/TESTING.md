@@ -128,7 +128,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-build-failure` | a failed step cannot pass as success: lib/Makefile's install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
-| `check-kernel` | seven sys/kern sources compiled from the kernel tree and run against 984 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting |
+| `check-kernel` | eight sys/kern sources compiled from the kernel tree and run against 1194 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
@@ -154,8 +154,12 @@ and fails the moment the shell starts producing the POSIX answer.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for one file.
-sys/kern/subr_prf.c carries its own argument walk,
+`check-kernel-ilp32` is separate from `check-kernel` for two files. The
+second is sys/kern/sys_generic.c, built again as rwuio_test32: off_t,
+size_t and u_int are all four bytes on the target, so the vector sum that
+wrapped there is reproduced only at this width, and the gate asserts those
+widths statically before it runs. The first is
+sys/kern/subr_prf.c, which carries its own argument walk,
 
     #define va_arg(ap,type) *(type*) (void*) (ap++)
 

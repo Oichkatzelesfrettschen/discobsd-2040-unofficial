@@ -25,9 +25,19 @@ CROSS_ROUTES = ("bin/cat", "usr.bin/smlrc", "lib/libc")
 KERNEL_ROUTES = ("sys/arch/rp2040/compile/PICO", "sys/arch/rp2040/compile/PICO_UART")
 
 
+# A parent make running with -j exports its jobserver in MAKEFLAGS as
+# "-j N -J fd,fd". subprocess closes inherited descriptors, so the child
+# bmake finds the jobserver gone and prints "Invalid internal option -J"
+# onto the output this gate parses, which turns a compiler command into the
+# token bmake[1]:. The query answers a question about a Makefile's variables
+# and never wants the parent's job control, so both variables are dropped.
+ENVIRONMENT = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS")}
+
+
 def run(argv, cwd):
     return subprocess.run(argv, cwd=cwd, text=True, stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT, check=False, timeout=60)
+                          stderr=subprocess.STDOUT, check=False, timeout=60,
+                          env=ENVIRONMENT)
 
 
 def check_route(root, make, directory, overrides, kinds):

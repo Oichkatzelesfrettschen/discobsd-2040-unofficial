@@ -54,7 +54,12 @@ test_sbrk(int incr)
 	return old;
 }
 
-/* The _brk() under sbrk.c: refuses everything above brk_ceiling. */
+/*
+ * The _brk() under sbrk.c: refuses everything above brk_ceiling. The
+ * initial break, _end on the target, is this array, so the test decides
+ * where the break starts on every host.
+ */
+char test_end[BLOCK];
 static const char *brk_ceiling;
 static const char *brk_seen;
 

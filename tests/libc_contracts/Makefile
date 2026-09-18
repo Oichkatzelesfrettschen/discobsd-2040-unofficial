@@ -20,7 +20,10 @@ MALLOC_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Wno-deprecated-non-prototype
 MALLOC_RENAMES=	-Dmalloc=db_malloc -Dfree=db_free -Drealloc=db_realloc \
 		-Dcalloc=db_calloc -Dcfree=db_cfree
 MALLOC_ARENA=	malloc_arena.c ${TARGET_DIR}/malloc.c
-SBRK_RENAMES=	-Dsbrk=port_sbrk -Dbrk=port_brk -D_brk=test_brk
+# sbrk.c starts the break at _end, the linker's end of bss on the target
+# and on ELF hosts, which Mach-O never defines; the test supplies the
+# initial break as well as the _brk() beneath it.
+SBRK_RENAMES=	-Dsbrk=port_sbrk -Dbrk=port_brk -D_brk=test_brk -D_end=test_end
 SBRK_SRC=	${TOPSRC}/lib/libc/arm/sys/sbrk.c
 MALLOC_OBJS=	malloc_arena.o malloc_calloc.o malloc_sbrk.o
 MALLOC_OBJS32=	malloc_arena32.o malloc_calloc32.o malloc_sbrk32.o

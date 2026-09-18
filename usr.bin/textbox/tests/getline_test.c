@@ -1,8 +1,8 @@
 /*
  * Host gate for usr.bin/textbox/getline.c, included here so its static
  * capacity policy is reachable, over a malloc()/realloc() the test owns
- * so a refused growth is a value the test sets. Input comes from
- * fmemopen(); a stream that fails part way through a line comes from
+ * so a refused growth is a value the test sets. Input comes from a
+ * temporary file; a stream that fails part way through a line comes from
  * fopencookie() on glibc and funopen() elsewhere.
  *
  * The decisive cases: a refused growth returns -1 and leaves the caller
@@ -134,15 +134,22 @@ check(int cond, const char *what)
 	}
 }
 
+/*
+ * A stream over the text, through a temporary file: fmemopen() refuses a
+ * zero-length buffer on Darwin, and the empty stream is one of the cases.
+ */
 static FILE *
 input(const char *text)
 {
-	FILE *f = fmemopen((void *)text, strlen(text), "r");
+	FILE *f = tmpfile();
+	size_t len = strlen(text);
 
-	if (f == NULL) {
-		perror("fmemopen");
+	if (f == NULL || (len > 0 && fwrite(text, 1, len, f) != len) ||
+	    fflush(f) != 0) {
+		perror("tmpfile");
 		exit(2);
 	}
+	rewind(f);
 	return f;
 }
 

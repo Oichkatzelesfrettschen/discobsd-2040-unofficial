@@ -14,15 +14,16 @@
  * The file operation is a stub that consumes what it is told to, and for the
  * interrupted case it does what sleep() does on the board: it sets u_error
  * and longjmps to u_qsave. The kernel's setjmp is the port's assembly
- * routine, so the Makefile compiles sys_generic.c with setjmp mapped onto the
- * compiler's __builtin_setjmp, and the stub answers it with
- * __builtin_longjmp while rwuio's frame is still live.
+ * routine, so the Makefile compiles sys_generic.c with setjmp mapped onto
+ * the host's setjmp over a jmp_buf rwuio_jump.c owns, and the stub answers
+ * through the host's longjmp while rwuio's frame is still live.
  *
  * Built again at -m32 as rwuio_test32, where off_t, size_t and u_int are all
  * four bytes as they are on the target; the wide build exercises the same
  * paths but the wraparound the check exists for is an ILP32 fact.
  */
 #include "hostkern.h"
+#include "rwuio_jump.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -71,7 +72,7 @@ stub_rw(struct file *f, struct uio *uio)
 	f->f_offset += n;
 	if (rw_interrupt) {
 		u.u_error = EINTR;
-		__builtin_longjmp((void **)&u.u_qsave, 1);
+		hk_qsave_longjmp(&u.u_qsave, 1);
 	}
 	return rw_error;
 }

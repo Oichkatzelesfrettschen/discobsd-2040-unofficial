@@ -1,8 +1,10 @@
 # Reports drafted for matgla/Renode_RP2040
 
-Two issue texts, written to be filed against
-github.com/matgla/Renode_RP2040 and held here until the repository owner
-asks for them to be sent. Each carries its fix as a patch series under
+Two issue texts, filed against github.com/matgla/Renode_RP2040 on
+2026-09-17 as issues 26 (the SSI series) and 27 (the flash model), with
+the patches inline and permalinked, and kept here as sent, with the
+disclosure line reworded on the tracker to thank the maintainer for the
+models. Each carries its fix as a patch series under
 tools/renode/patches, produced by `git format-patch` so `git am` applies
 it with its message. Everything below was measured against commit
 205a5e4b25440582008a4292074bb07f80a72328, the revision

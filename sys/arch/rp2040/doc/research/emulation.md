@@ -462,8 +462,8 @@ in two of six free-running runs and check-warnings.py now fails on any
 error-level line.
 
 The defects and their patches are written up as two issue texts for
-matgla/Renode_RP2040 in docs/research/renode-rp2040-upstream-reports.md.
-They are drafts: nothing has been submitted.
+matgla/Renode_RP2040 in docs/research/renode-rp2040-upstream-reports.md, filed on 2026-09-17 as
+matgla/Renode_RP2040 issues 26 and 27.
 
 ## Exact, replayable commands
 

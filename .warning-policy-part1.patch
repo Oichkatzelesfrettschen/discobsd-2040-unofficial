@@ -1,0 +1,161 @@
+diff --git a/Makefile b/Makefile
+index 2c344d6..8f0ce5a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -182,0 +183,8 @@ check-config-makefile:
++# Clean controls must compile; deliberate warnings must fail using the actual
++# evaluated commands, including leaves that replace CFLAGS.
++check-warning-policy-host:
++		${MAKE} -C tests/warning_policy check-host
++
++check-warning-policy-cross:
++		${MAKE} -C tests/warning_policy check-cross
++
+@@ -205 +213 @@ check-elf2aout:	tools
+-HOST_GATES=	check-aout check-kernel check-fs-stress \
++HOST_GATES=	check-warning-policy-host check-aout check-kernel check-fs-stress \
+@@ -211 +219 @@ HOST_GATES=	check-aout check-kernel check-fs-stress \
+-CROSS_GATES=	check-divider check-swapram check-cache-footprint \
++CROSS_GATES=	check-warning-policy-cross check-divider check-swapram check-cache-footprint \
+@@ -346 +354,2 @@ installfs:
+-.PHONY:		all build distribution release tools kernel check-divider \
++.PHONY:		check-warning-policy-host check-warning-policy-cross \
++		all build distribution release tools kernel check-divider \
+diff --git a/docs/INDEX.md b/docs/INDEX.md
+index 301e98a..90f0468 100644
+--- a/docs/INDEX.md
++++ b/docs/INDEX.md
+@@ -141,0 +142 @@ names; a correction goes in a new document rather than in the ledger.
++| `warning-policy-audit.md` | the warning-enforcement gaps, the RP2040 extra-warning inventory, repair scope and remaining migrations |
+diff --git a/docs/research/warning-policy-audit.md b/docs/research/warning-policy-audit.md
+new file mode 100644
+index 0000000..bdcd4c4
+--- /dev/null
++++ b/docs/research/warning-policy-audit.md
+@@ -0,0 +1,102 @@
++# Compiler warning audit
++
++## Baseline and scope
++
++Baseline: `4197a91f662bf81f19de1409efd8a331b6dca16e`.
++The root Makefile orchestrates submakes; adding unused root CFLAGS would
++not establish a compiler policy. `share/mk/sys.mk` selected optimization
++flags but no common fatal-warning policy. Several leaves replaced CFLAGS.
++The RP2040 kernel selected `-Wall -Werror`, without `-Wextra`. The STM32
++and PIC32 kernel warning sets were less strict and remain a separate
++migration; this change does not claim those kernels are extra-warning clean.
++
++Standalone tools use `tools/Makefile.inc`, not the shared target compiler.
++Zoneinfo and the Linux smux build replace CC with HOST_CC. The awk and game
++build generators invoke HOST_CC directly. These are separate enforcement
++paths, and all receive the common fatal-warning flag in the repair.
++Existing stricter per-tool flags, C dialects, ABI flags and optimization
++choices remain in place.
++
++## Measured warning inventory
++
++An isolated Ubuntu 24.04 build with ARM GCC 13.2.1 enabled the extra
++warning groups in both RP2040 kernels and the shared ARM userland command.
++Warnings were nonfatal only in that disposable diagnostic checkout. The
++build completed and its final warning assertion intentionally failed.
++GitHub Actions run: `35296347256`, investigation commit
++`a4503baa2e11ac7cb22dfc75bde711e41b265b8b`.
++
++The two kernel configurations emitted 231 warning instances:
++
++| Group | Instances |
++| --- | ---: |
++| unused parameter | 108 |
++| signed/unsigned comparison | 100 |
++| implicit fallthrough | 11 |
++| setjmp clobber analysis | 8 |
++| empty body | 2 |
++| enum type limits | 2 |
++
++The full expanded-warning build emitted 8,559 compiler-warning instances,
++including repeated headers and both kernel configurations. These counts
++are not counts of distinct defects. Enabling every warning group throughout
++the inherited userland in one patch would conflate a much larger source
++migration with this enforcement repair. The userland change instead makes
++its currently selected warnings fatal, with no new group-wide suppression.
++
++## Source decisions
++
++Device and legacy interface parameters remain in their signatures; explicit
++void uses mark arguments that a configuration does not consume. Intentional
++switch fallthroughs are annotated. A dead default-path log in dupfdopen now
++has an explicit return, rather than an unrecognized fallthrough comment.
++
++Bounded indices, syscall sizes, and signed sentinels use explicit matching
++types. `sysctl_file` and `sysctl_doproc` keep buffer lengths in size_t
++rather than narrowing user-supplied lengths to int. The executable-header
++checks compare against a bounded signed sizeof value, also rejecting a
++negative supplied header length rather than promoting it to unsigned.
++
++The narrow signed p_uid field is not changed: its layout belongs to the
++kernel ABI. Explicit uid_t conversions preserve the previous unsigned
++comparison semantics. Full-range UID representation and negative resource
++limit policy are not repaired or certified by this warning cleanup.
++
++The next-fit allocator checks unsigned addition wrap directly. Its host
++gate now distinguishes a genuinely wrapping wide descriptor from a compact
++descriptor whose end crosses 16 bits but still fits size_t.
++
++Device and syscall dispatch pointers are initialized once before setjmp.
++The rewritten vn_open mode stays in volatile storage for the existing
++returns-twice checkpoint. The checkpoint is not extracted into a helper:
++cleanup can still sleep, so u_qsave must not reference a returned frame.
++This is not a claim that GCC's prior clobber warnings prove an observed
++board failure.
++
++## Validation and remaining boundaries
++
++The repair adds clean-control/deliberate-warning gates to the root host and
++cross tiers. Original-tree host and shared-target commands accept the bad
++probe; the repaired commands reject it. Both kernel builds reject separate
++Wall-only and Wextra-only probes. Host probes also pass with Clang.
++`sys/arch/rp2040/doc/TESTING.md` defines the policy and gate contract.
++
++Local ARM GCC 13.2.1 builds of both kernels are warning-free. The measured
++ELF section sizes are:
++
++| Configuration | Baseline text | Repaired text | Data (unchanged) | BSS (unchanged) |
++| --- | ---: | ---: | ---: | ---: |
++| PICO | 103058 | 103026 | 248 | 39544 |
++| PICO_UART | 90928 | 90888 | 192 | 14528 |
++
++These are compilation/link measurements, not board or emulator execution.
++The kernel-source host gates, config generator test, swapram evacuation
++and a.out header tests were run separately. The local full-world build
++requires nroff beyond the recovered toolchain; the standard firmware CI
++is the full-build authority, not a partial local log. No UF2 conversion,
++Renode boot, or physical board result is inferred from linking an ELF.
++
++Remaining work: migrate userland warning groups in bounded source families;
++validate the inherited STM32/PIC32 build matrices; review existing local
++warning suppressions; track compiler flags as userland object dependencies;
++and add build-generator probes where direct HOST_CC recipes are introduced.
+diff --git a/games/battlestar/Makefile b/games/battlestar/Makefile
+index 648bbbf..66c38e7 100644
+--- a/games/battlestar/Makefile
++++ b/games/battlestar/Makefile
+@@ -35 +35 @@ mkstr:          mkstr.c
+-		${HOST_CC} -O ${HOST_CFLAGS} mkstr.c -o $@ ${HOST_LIBS}
++		${HOST_CC} ${WARNERR} -O ${HOST_CFLAGS} mkstr.c -o $@ ${HOST_LIBS}
+diff --git a/games/boggle/Makefile b/games/boggle/Makefile
+index f163975..bd87871 100644
+--- a/games/boggle/Makefile
++++ b/games/boggle/Makefile
+@@ -28 +28 @@ comp:           comp.c
+-		${HOST_CC} -O comp.c -o comp
++		${HOST_CC} ${WARNERR} -O comp.c -o comp
+diff --git a/games/fortune/Makefile b/games/fortune/Makefile
+index 7ed1cf5..35d7847 100644
+--- a/games/fortune/Makefile
++++ b/games/fortune/Makefile
+@@ -20 +20 @@ strfile:	strfile.c
+-		${HOST_CC} -o strfile strfile.c
++		${HOST_CC} ${WARNERR} -o strfile strfile.c
+@@ -23 +23 @@ unstr:		unstr.c
+-		${HOST_CC} -ansi -o unstr unstr.c
++		${HOST_CC} ${WARNERR} -ansi -o unstr unstr.c

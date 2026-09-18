@@ -23,6 +23,10 @@ typedef unsigned long       uintptr_t;
 #define INT32_MAX           0x7FFFFFFF
 #define UINT32_MAX          0xFFFFFFFFU
 
+/* size_t is unsigned int on every port (sys/types.h), so its ceiling is
+ * UINT32_MAX; C99 7.18.3 puts the name here, and calloc() divides by it. */
+#define SIZE_MAX            UINT32_MAX
+
 #define UINT32_C(x)         (x##U)
 #define UINT64_C(x)         (x##ULL)
 

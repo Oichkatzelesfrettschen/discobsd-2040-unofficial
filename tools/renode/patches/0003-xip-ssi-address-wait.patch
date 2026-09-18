@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 17 Sep 2026 21:44:39 -0700
+Subject: [PATCH 3/4] xip_ssi: treat an address word that has not arrived yet
+ as a wait
+
+ProcessReceive moves to State.Address when it dequeues the instruction word.
+The CPU writes the instruction and the address to DR0 as two bus writes, and
+the clocking thread can tick between them, so the Address branch can find
+the FIFO empty. The state holds and the next tick retries, which is the
+ordinary case, but the branch logged it at Error level and a guest driver's
+log fills with faults that are nothing of the kind. It logs at Noisy now,
+like the Instruction branch does for the same condition.
+
+Assisted-by: Claude Code (claude-opus-5)
+---
+ emulation/peripherals/spi/rp2040_xip_ssi.cs | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/emulation/peripherals/spi/rp2040_xip_ssi.cs b/emulation/peripherals/spi/rp2040_xip_ssi.cs
+index 8a06b3e..31da11b 100644
+--- a/emulation/peripherals/spi/rp2040_xip_ssi.cs
++++ b/emulation/peripherals/spi/rp2040_xip_ssi.cs
+@@ -360,7 +360,12 @@ namespace Antmicro.Renode.Peripherals.SPI
+               lock (fifoLock) { got = transmitBuffer.TryDequeue(out data); }
+               if (!got)
+               {
+-                this.Log(LogLevel.Error, "Requested address transmission, but there is no data in FIFO");
++                // The instruction word arrived on one tick and the address
++                // word has not been written yet: the clocking thread has run
++                // ahead of the CPU, as it does whenever a bus write lands
++                // between two ticks. The state holds and the next tick
++                // retries, so this is a wait rather than a fault.
++                this.Log(LogLevel.Noisy, "Address transmission requested before the address reached the FIFO, waiting");
+                 return;
+               }
+ 

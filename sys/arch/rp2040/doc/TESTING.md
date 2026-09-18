@@ -281,10 +281,26 @@ not in CI.
 ## flash-id tier
 
 `check-flash-id` runs tools/pico-sdk/check-flash-id.sh, which builds the
-flash-id probe in tools/flash-id against a Pico SDK and asserts
-that the no_flash image still links and still fits SRAM. It stands outside
-`check` for the reason the Renode tier does: it wants cmake and an SDK this
-tree does not carry.
+two SRAM-resident board probes, flash-id in tools/flash-id and
+flash-semantics in tools/flash-semantics, against a Pico SDK and asserts
+that each no_flash image still links and still fits SRAM. It stands
+outside `check` for the reason the Renode tier does: it wants cmake and an
+SDK this tree does not carry.
+
+flash-id reads the flash chip's JEDEC identity and unique id.
+flash-semantics measures what a model of that chip has to reproduce: the
+status register's WEL after 0x06 and 0x04, WIP and its duration across a
+sector erase and a page program, the erased state, that a program only
+clears bits, page wrap at 256 bytes, and the JEDEC and SFDP answers. It
+erases and programs one sector, the last 4 KB of the kernel region, which
+the image does not reach, and leaves it erased. Neither probe is in the
+root manifest and no gate runs either on the board:
+tools/flash-semantics/run-on-board.sh reboots the attached Pico into
+BOOTSEL, executes the probe from SRAM, reads its report over USB CDC and
+waits for the resident kernel's console to return, and it runs only when
+a person invokes it. Its report for the board on hand is recorded in the
+notes repository's DEVICE.md and cited by
+docs/research/renode-rp2040-upstream-reports.md.
 
 tools/pico-sdk/sdk-path.sh resolves the SDK from `PICO_SDK_PATH`, then
 tools/pico-sdk/vendor/pico-sdk, then a pico-sdk beside this tree in the
@@ -300,9 +316,10 @@ guard and fails inside CMake. tools/pico-sdk/fetch-pico-sdk.sh writes that
 vendor copy, pinned by commit rather than by the 2.3.0 tag, and initializes
 only lib/tinyusb.
 
-The probe source is tools/flash-id, or `FLASH_ID_SRC` when it is
-elsewhere. A missing SDK or a missing probe is `not
-run` rather than a failure, so the gate reports a broken workspace instead
+The probe sources are tools/flash-id and tools/flash-semantics, or the
+directories `PROBE_DIRS` lists; each CMake project is named after its
+directory with `-` replaced by `_`. A missing SDK or a missing probe is
+`not run` rather than a failure, so the gate reports a broken workspace instead
 of a broken build. `SRAM_BYTES` and `STACK_MARGIN_BYTES` override the
 budget so the size branch can be calibrated against an image known to be
 too large.
@@ -356,7 +373,9 @@ boot that reaches a shell still produces some thirty-six thousand of them,
 so the gate cannot forbid warnings; tools/renode/warning-classes.txt names
 every class the boot is known to produce, says what the model is missing
 and what the kernel sees because of it, and caps how many times each may
-appear. An unlisted class fails, and so does a listed one over its ceiling.
+appear. An unlisted class fails, and so does a listed one over its ceiling,
+and any line the models log at error level fails on its own, because a
+boot that reaches a shell produces none.
 Three classes mark state the kernel reads and gets wrong -- RESETS is
 absent so RESET_DONE reads back all-ones, XIP_CTRL:FLUSH is decoded with no
 behavior, and SYSINFO:CHIP_ID answers from the SVD reset value, which is
@@ -398,9 +417,13 @@ process could open /dev/console. And `RP2040XIPSSI` stored its BUSY flag
 across a transfer that two CPU threads could interrupt, so a stall left it
 set and the boot ROM's `wait_ssi_ready` spun forever;
 tools/renode/patches/0002-xip-ssi-derive-busy-from-transfer-state.patch
-derives the flag instead and serializes the transfer, and the fetch script
-applies it alongside patch 0001. Free-running boots went from 0 of 6
-reaching getty to 6 of 6.
+derives the flag instead and serializes the transfer. Free-running boots
+went from 0 of 6 reaching getty to 6 of 6. The fetch script applies the
+whole series under tools/renode/patches in order: the FIFO lock, the
+derived flag, a wait that the SSI model had logged as an error, and the
+W25QXX corrections that tools/flash-semantics measured against the part.
+Each patch is `git format-patch` output, so it carries its own message and
+`git am` applies it upstream unchanged.
 
 `check-renode` gates the console from the first banner line to a logged-in
 shell that answers `uname -sr`. Reaching the device-probe lines exercises

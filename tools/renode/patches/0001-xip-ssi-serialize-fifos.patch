@@ -1,3 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 17 Sep 2026 21:44:39 -0700
+Subject: [PATCH 1/4] xip_ssi: serialize the transmit and receive FIFOs on one
+ lock
+
+RP2040XIPSSI keeps its two FIFOs in CircularBuffer<UInt32>, which is not
+thread-safe, and two threads touch both: the CPU thread through the DR0
+register callbacks and the TXFLR, RXFLR and SR value providers, and the
+clocking thread through ProcessTransmit, ProcessReceive and PushToReceiveFifo.
+PeripheralDataRead locks receiveBuffer and nothing on the producing side takes
+that lock, so it excludes nothing; transmitBuffer is never locked.
+
+Counters over eight virtual seconds of an RP2040 boot ROM flash program:
+30958 DR0 writes, 30777 frames dequeued and shifted, and the FIFO-full
+branches never taken. 181 bytes entered the transmit FIFO and left no trace,
+so the boot ROM's flash_put_get waited for a reply that was never clocked.
+
+One lock now covers every enqueue, dequeue, clear and count on both buffers.
+The same run afterwards shows 119074 DR0 writes against 118802 frames
+shifted, the difference being the frames still queued at the sample.
+
+Assisted-by: Claude Code (claude-opus-5)
+---
+ emulation/peripherals/spi/rp2040_xip_ssi.cs | 67 ++++++++++++++-------
+ 1 file changed, 46 insertions(+), 21 deletions(-)
+
 diff --git a/emulation/peripherals/spi/rp2040_xip_ssi.cs b/emulation/peripherals/spi/rp2040_xip_ssi.cs
 index 7ae73b9..9f19de2 100644
 --- a/emulation/peripherals/spi/rp2040_xip_ssi.cs

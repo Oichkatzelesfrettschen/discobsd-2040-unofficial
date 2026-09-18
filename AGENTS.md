@@ -172,16 +172,78 @@ why the geometry loop sits outside the flash driver;
 sys/arch/rp2040/rp2040/exec_hsaout.c states the preflight-then-commit order
 and the verdict each failure produces.
 
-A model that spans a file lives at file scope; a call-site comment stays on
-the local linkage. A register layout, a packet field or a state transition
-becomes a compact table, free of ASCII borders.
+A comment is one movement. It names the thing that is governed -- the
+register, the buffer, the frame -- then the constraint that shapes it --
+the datasheet rule, the ARM ARM clause, the kernel invariant, the measured
+value -- then the consequence the code enforces because of it. The order
+is claim, authority, consequence, then the test or knob that pins it, and
+the comment stops when those are stated. Two facts that share one cause or
+one lifetime share one comment; a change of subject, owner or evidence tier
+starts another. A local fact is one line beside the line it explains; a
+block is reserved for a mechanism a reader cannot recover from the code.
+sys/arch/rp2040/dev/uart.c's `int unit = config->dev_unit;` carries the
+shape at its smallest: what the RP2040 numbers, what the sibling ports
+number differently, and what failed when the subtraction was carried over.
 
-An unverified claim carries `hypothesis:` in the comment or resolves before
+Third person, present tense, indicative: `the boot ROM reads SR` rather
+than `we read SR` or `this reads SR`. State what the code does and let the
+positive form carry what it does not; a prohibition stays only where
+absence is the whole fact, as at a safety stop. `we` names the execution
+path alone.
+
+Authority is named by its identifier so the comment stands with the
+document closed: a datasheet section, an ARM ARM clause, a function, a
+register field by its field name, a measured number with its unit. A
+workaround separates what was observed, on which silicon and which path,
+from the rule the code now enforces, and marks what remains inferred. An
+unverified claim carries `hypothesis:` in the comment or resolves before
 the commit lands.
+
+A model that spans a file lives at file scope; a call-site comment stays on
+the local linkage; a branch comment sits at the branch and states the
+invariant that discriminates it. A register layout, a packet field or a
+state transition becomes a compact table, free of ASCII borders.
+
+Chronology stays out of source. Task numbers, PR numbers, session dates,
+reviewer and agent names, and deictic words such as `currently` or `now`
+belong to the commit message; a comment reads the same in five years.
 
 A TODO names the function, register, datasheet section or URL carrying the
 missing work, the constraint that defers it, and the durable artifact that
-tracks it.
+tracks it. New work lands complete; a placeholder is a defect.
+
+## Commit messages
+
+The subject carries a component prefix and the mechanism:
+`rp2040: attach uart0, which the configuration names and the probe never
+accepted`. The body is the review: the invariant that held or failed, the
+change at the depth a maintainer needs, the evidence by rank (a register
+dump, a measurement, a gate name), and the test outcome, in one to five
+paragraphs. Build invocations, logs and environment tables go in the PR
+description. Historical debate and rejected alternatives live here rather
+than in the source. AI participation is disclosed in trailers,
+`Assisted-by: TOOL (MODEL)` or `Generated-by:`, and `Co-authored-by:`
+names humans only. A commit builds and bisects on its own, and a
+formatting change is its own commit.
+
+## Reports and patches sent upstream
+
+A report to another project is written for a maintainer who has minutes
+and owes this port nothing. It leads with the finding in one sentence,
+then the mechanism, then the consequence a user of their project sees. It
+carries the environment by exact version, including where it differs from
+what the project pins; the evidence at its rank, a disassembly and
+register dump before a stack sample and a stack sample before an
+inference; a reproduction the maintainer can run; the fix as a `git am`
+patch with its own message; the measurement before and after; and what
+the patch leaves open. Every claim about a part comes from the datasheet
+or the board, and the report says which. The project's own conventions
+win where they exist -- its file headers, its test layout, its subject
+tags -- and the report says where it could not follow them.
+
+A report drafted with an assistant opens with one line that says so and
+leaves the decision with the maintainer. It is saved under docs/research
+before it is sent, and sent only on an explicit request that names it.
 
 ## Safety stop-line
 

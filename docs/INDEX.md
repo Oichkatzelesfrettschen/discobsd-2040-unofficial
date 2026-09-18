@@ -148,7 +148,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `audit-handbacks/step5-nstatic-handback.md` | the NSTATIC resident-footprint audit |
 | `audit-handbacks/step5-omagic-crosscheck-handback.md` | the OMAGIC candidate cross-check |
 | `audit-handbacks/step5-printf-float-handback.md` | printf floating conversion, its source and linkage |
-| `renode-rp2040-upstream-reports.md` | the defects found in matgla/Renode_RP2040 and the reports drafted for them, unsent |
+| `renode-rp2040-upstream-reports.md` | two issue texts for matgla/Renode_RP2040 with their `git am` patch series and the board measurement behind them, unsent |
 
 ### Accounts, licensing and the host side
 

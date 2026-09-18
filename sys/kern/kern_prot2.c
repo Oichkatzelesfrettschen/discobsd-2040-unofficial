@@ -73,8 +73,14 @@ seteuid()
     if (euid != u.u_ruid && euid != u.u_svuid && ! suser())
         return;
     /*
-     * Everything's okay, do it.
+     * The effective uid lives twice: u_uid in the u area, and p_uid in the
+     * proc entry, which cansignal() in kern_sig.c and the tty signal paths
+     * read because the target's u area may be swapped out. setuid() writes
+     * both; a seteuid() that wrote only u_uid left a process that had
+     * dropped root still able to signal anyone, and one that had regained
+     * it unable to.
      */
+    u.u_procp->p_uid = euid;
     u.u_uid = euid;
     u.u_error = 0;
 }

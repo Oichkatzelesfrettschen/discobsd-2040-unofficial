@@ -74,6 +74,12 @@ PRF_KERN_CFLAGS=	${KERN_COMMON} ${PRF_RENAMES} ${KERN_WARN} ${ILP32}
 PRF_GATE_CFLAGS=	${KERN_COMMON} ${PRF_RENAMES} ${GATE_WARN} ${ILP32}
 PRF_SRC=	${TOPSRC}/sys/kern/subr_prf.c
 
+# kill() and the cansignal() it decides with, over seteuid() and the
+# process lookups. kern_sig.c casts pointers to int in issignal() and
+# core(), so it compiles at the target's width alone, beside subr_prf.c.
+SIGAUTH_SRC=	${TOPSRC}/sys/kern/kern_sig.c ${TOPSRC}/sys/kern/kern_prot2.c \
+		${TOPSRC}/sys/kern/kern_proc.c
+
 RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
 CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
@@ -189,6 +195,18 @@ prf_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
 	${HOST_CC} ${PRF_GATE_CFLAGS} -o $@ \
 	    prf_test.c prf_kernel.o prf_shim.o hostkern32.o
 
+sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_sig.o \
+	    ${TOPSRC}/sys/kern/kern_sig.c
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_prot2.o \
+	    ${TOPSRC}/sys/kern/kern_prot2.c
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_proc.o \
+	    ${TOPSRC}/sys/kern/kern_proc.c
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_shim.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -o $@ sigauth_test.c \
+	    sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o hostkern32.o
+
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
 rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
@@ -203,8 +221,9 @@ rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test rwuio_test32
+	@${MAKE} prf_test rwuio_test32 sigauth_test
 	./prf_test
+	./sigauth_test
 	./rwuio_test32
 .else
 	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
@@ -223,6 +242,7 @@ clean:
 	rm -f cred_prot.o cred_prot2.o cred_proc.o
 	rm -f resource_kernel.o resource_proc.o
 	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
+	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o
 	rm -f machine/*.h ${MACHINE_STAMP}

@@ -151,7 +151,10 @@ cut(FILE *fp, const char *fname)
 		}
 		putchar('\n');
 	}
-	if (ferror(fp))
+	/* getline() ends the loop with -1 at end of file and on a stream
+	 * error alike, and also when it could not grow the line; feof()
+	 * is what tells the first from the other two. */
+	if (len < 0 && !feof(fp))
 		eprintf("getline %s:", fname);
 }
 

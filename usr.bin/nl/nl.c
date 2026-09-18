@@ -97,7 +97,10 @@ nl(const char *fname, FILE *fp)
 		fwrite(line.data, 1, line.len, stdout);
 	}
 	free(line.data);
-	if (ferror(fp))
+	/* getline() ends the loop with -1 at end of file and on a stream
+	 * error alike, and also when it could not grow the line; feof()
+	 * is what tells the first from the other two. */
+	if (len < 0 && !feof(fp))
 		eprintf("getline %s:", fname);
 }
 

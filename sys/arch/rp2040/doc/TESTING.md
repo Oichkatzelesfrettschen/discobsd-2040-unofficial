@@ -144,7 +144,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's solution uniqueness against an independent counter |
 | bin/sh/tests `test` | the line editor through a pipe |
 | bin/tar/tests/tartest.sh | the header formats |
-| usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils |
+| usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils, and getline_test over the tree's own getline.c: buffer ownership after a refused growth, the byte that did not fit pushed back, the bytes before a stream error terminated, and the capacity policy held at SSIZE_MAX + 1 at the host width and at -m32 |
 | usr.bin/cpio/tests/cpiotest.sh | odc archives round-tripped through the host cpio |
 
 `check-posix-sh` runs bin/sh/tests/posix-sh.sh, the conformance harness

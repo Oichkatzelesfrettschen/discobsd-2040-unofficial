@@ -97,7 +97,13 @@ evaluated commands of representative tools, shared target rules and
 CFLAGS-replacing leaves. Each shared route is checked again with
 `CFLAGS=-O0`. Both kernel configurations must reject separate `-Wall`
 and `-Wextra` probes, and their warning assignments must agree with the
-config template. A missing compiler or a broken clean control fails;
+config template. The cross tier also compiles each route with the
+override `tools/warning-census.sh` uses, `WARNERR=-Wall -Wextra
+-Wno-error`, and requires the `-Wall` and `-Wextra` probes to raise their
+diagnostics and still produce an object: that is what makes the census a
+measurement of every compile the policy governs, including the
+CFLAGS-replacing leaves, rather than of the compiles COPTS happens to
+reach. A missing compiler or a broken clean control fails;
 it is not mistaken for successful warning rejection. The tests compile
 objects in temporary directories and neither link nor access a board.
 

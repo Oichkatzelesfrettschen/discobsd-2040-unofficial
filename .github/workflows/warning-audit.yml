@@ -1,0 +1,89 @@
+name: warning policy investigation
+
+on:
+  push:
+    branches: [fix/warning-policy-audit]
+    paths:
+      - '.github/workflows/warning-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve the pristine tracked source
+        run: |
+          mkdir -p audit/packages
+          git archive --format=tar.gz --output=audit/source.tar.gz HEAD
+          git rev-parse HEAD > audit/source-commit.txt
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bmake make build-essential git gcc-arm-none-eabi \
+            binutils-arm-none-eabi byacc bison flex libbsd-dev libmd-dev \
+            libfuse-dev pkg-config mandoc vim python3
+          cd audit/packages
+          for pkg in bmake gcc-arm-none-eabi binutils-arm-none-eabi \
+              byacc bison flex libbsd-dev libmd-dev libfuse-dev libfuse2t64 mandoc; do
+            apt-get download "$pkg=$(dpkg-query -W -f='${Version}' "$pkg")"
+          done
+          sha256sum *.deb > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: warning-audit-reproduction
+          path: |
+            audit/source.tar.gz
+            audit/source-commit.txt
+            audit/packages/
+          if-no-files-found: error
+          retention-days: 3
+      - name: Enable diagnostics only in this disposable checkout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = [Path('sys/arch/rp2040/conf/Makefile.rp2040')]
+          paths += list(Path('sys/arch/rp2040/compile').glob('*/Makefile'))
+          for path in paths:
+              text = path.read_text()
+              assert '-Wall -Werror' in text, path
+              path.write_text(text.replace('-Wall -Werror', '-Wall -Wextra -Wno-error'))
+          path = Path('share/mk/sys.mk')
+          text = path.read_text()
+          assert '-gcc -std=gnu17' in text
+          text = text.replace('-gcc -std=gnu17', '-gcc -Wall -Wextra -Wno-error -std=gnu17')
+          text = text.replace('HOST_CC?=\tcc', 'HOST_CC?=\tcc -Wall -Wextra -Wno-error')
+          path.write_text(text)
+          PY
+      - name: Compile and preserve all emitted diagnostics
+        shell: bash
+        run: |
+          set +e
+          bmake MACHINE=rp2040 build > audit/build.log 2>&1
+          status=$?
+          printf '%s\n' "$status" > audit/build-status.txt
+          grep 'warning:\|error:' audit/build.log > audit/diagnostics.txt || true
+          cat audit/diagnostics.txt
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: warning-audit-diagnostics
+          path: |
+            audit/build.log
+            audit/build-status.txt
+            audit/diagnostics.txt
+          if-no-files-found: error
+          retention-days: 3
+      - name: Reject remaining warnings
+        run: |
+          test -f audit/build-status.txt
+          test "$(cat audit/build-status.txt)" -eq 0
+          if grep -q 'warning:' audit/build.log; then
+            echo 'The strict warning inventory is not clean.' >&2
+            exit 1
+          fi

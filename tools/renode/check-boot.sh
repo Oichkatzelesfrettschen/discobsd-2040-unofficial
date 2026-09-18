@@ -22,6 +22,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
+RP2040_COMMIT=$(sed -n 's/^RP2040_COMMIT=//p' "$SCRIPT_DIR/fetch-renode-rp2040.sh")
 VENV="$SCRIPT_DIR/vendor/robotvenv"
 KERNEL="$TOP/sys/arch/rp2040/compile/PICO_UART/unix.bin"
 IMAGE="$TOP/distrib/rp2040/flash.bin"
@@ -33,6 +34,20 @@ missing() {
 
 command -v renode-test >/dev/null 2>&1 ||
 	missing "no renode-test in PATH; install Renode 1.17 or later"
+
+# Name what is about to run. The models are built against whichever Renode
+# is installed, and nothing in this tree pins that, so a gate that starts
+# failing after a package upgrade should say which emulator it used before
+# anyone goes looking in the kernel. VERIFIED_RENODE is the build this gate
+# was last checked against; a mismatch is a note, not a refusal, because a
+# newer Renode is the ordinary case and usually works.
+VERIFIED_RENODE="1.17.0+20260907gitf1dd1b4af"
+RUNNING_RENODE=$(renode --version 2>/dev/null | sed -n 's/.*build: *//p' | head -1)
+echo "check-renode: Renode ${RUNNING_RENODE:-unknown}, models pinned at $RP2040_COMMIT"
+if [ -n "$RUNNING_RENODE" ] && [ "$RUNNING_RENODE" != "$VERIFIED_RENODE" ]; then
+	echo "check-renode: last verified against $VERIFIED_RENODE" >&2
+fi
+
 
 [ -d "$VENDOR/cores" ] ||
 	missing "no RP2040 models; run sh tools/renode/fetch-renode-rp2040.sh"

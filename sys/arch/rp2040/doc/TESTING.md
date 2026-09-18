@@ -253,8 +253,10 @@ numbers.
 ## Renode tier
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
-console kernel from the real RP2040 boot ROM and asserts the console
-through the device probe. It stands outside `check` because it wants four
+console kernel from the real RP2040 boot ROM, asserts the console through
+the device probe and on to a shell prompt, then holds the Renode log to a
+fixed set of warning classes. It stands outside `check` because it wants
+four
 things this tree does not carry, and reports whichever is missing by name:
 the `renode-test` harness, the models `tools/renode/fetch-renode-rp2040.sh`
 clones, a PICO_UART kernel, and a flash image.
@@ -285,6 +287,28 @@ spaces, so a console line like `phys mem  = 264 kbytes` has to spell its
 padding `${SPACE}${SPACE}`. Written plainly, the rest of the line is parsed
 as the next argument and the failure reads as a type error inside Renode.
 
+Each test case opens a Renode log under tools/renode/vendor/results, and
+check-boot.sh runs tools/renode/check-warnings.py over both when the suite
+finishes. The models warn wherever they fall short of the silicon, and a
+boot that reaches a shell still produces some thirty-six thousand of them,
+so the gate cannot forbid warnings; tools/renode/warning-classes.txt names
+every class the boot is known to produce, says what the model is missing
+and what the kernel sees because of it, and caps how many times each may
+appear. An unlisted class fails, and so does a listed one over its ceiling.
+Three classes mark state the kernel reads and gets wrong -- RESETS is
+absent so RESET_DONE reads back all-ones, XIP_CTRL:FLUSH is decoded with no
+behavior, and SYSINFO:CHIP_ID answers from the SVD reset value, which is
+why the banner reports manufacturer 0x000 where silicon reports 0x493. The
+rest are pins and bits nothing reads back. Ceilings ratchet down as the
+models improve.
+
+What `check-renode` does not decide is SSI concurrency. `Create Terminal
+Tester` pauses the emulation at every wait, which serializes the two CPU
+threads enough that a race between them rarely fires: the suite passed
+against a model whose BUSY flag latched and hung every free-running boot.
+The measurement that decides it is a free-running `RunFor` with no tester
+attached, recorded in emulation.md.
+
 ## Board tier
 
 `check-board-build` builds the on-device regression programs to a.out
@@ -300,31 +324,34 @@ flash a board and check it over the USB console: board_aout_admission.py
 errors), board_exec_hsaout.py (textcrc raw and packed across a swap) and
 board_stack_align.py.
 
-No tier runs the kernel under an emulator. Renode with the third-party
-RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is the only
-option that boots this kernel at all -- QEMU ships no rp2040 machine and
-rp2040js models no flash writes -- and it does boot: through boot2, XIP,
-clock bring-up, the real boot ROM's function table, Dhara, and on into
-`execve`, and then it stops. `RP2040XIPSSI` shared its two FIFOs between
-the CPU thread and its own clocking thread with no mutual exclusion and
-lost bytes to the race, so the boot ROM ended up waiting under `splhigh()`
-for data that no longer existed, which masks SysTick and stops the kernel
-clock as well. tools/renode/patches/0001-xip-ssi-serialize-fifos.patch
-serializes them and the fetch script applies it, so the corrected model is
-what a fresh checkout builds. That clears the wedge; it does not produce a
-prompt. No run, patched or not, has yet shown userland console output, so
-no tier can assert on one.
+The board tier is the only one that reaches silicon. Renode with the
+third-party RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is
+the only emulator that boots this kernel at all -- QEMU ships no rp2040
+machine and rp2040js models no flash writes -- and it now boots all the way
+to a shell. Two corrections took it there. `uartprobe()` counted its units
+from one, as the STM32 ports do, so `device uart0` resolved to index -1 and
+the console tty never attached; `cnputc()` writes the data register
+directly, so the kernel's own output looked correct throughout while no
+process could open /dev/console. And `RP2040XIPSSI` stored its BUSY flag
+across a transfer that two CPU threads could interrupt, so a stall left it
+set and the boot ROM's `wait_ssi_ready` spun forever;
+tools/renode/patches/0002-xip-ssi-derive-busy-from-transfer-state.patch
+derives the flag instead and serializes the transfer, and the fetch script
+applies it alongside patch 0001. Free-running boots went from 0 of 6
+reaching getty to 6 of 6.
 
-What every run does reach, in about two seconds of host time, is `swap size
-= 380 kbytes`, and `check-renode` gates exactly that much. The name says
-Renode rather than "boot" on purpose: this is a smoke gate over bring-up,
-not evidence that a userland runs. Reaching those
-twelve lines exercises boot2, XIP entry, clock bring-up, the real boot ROM's
-function table, the Dhara root and the device probe, and the sizes are
-asserted rather than only the line names, so a flash layout change that
-nothing else notices fails here.
+`check-renode` gates the console from the first banner line to a logged-in
+shell that answers `uname -sr`. Reaching the device-probe lines exercises
+boot2, XIP entry, clock bring-up, the real boot ROM's function table, the
+Dhara root and the device probe, and the sizes are asserted rather than
+only the line names, so a flash layout change that nothing else notices
+fails here. Reaching the shell adds exec of a compressed a.out through the
+swap writer, the tty layer, fork and wait, and the filesystem under write
+traffic. It remains an emulator result: the models are third-party, three
+warning classes mark registers whose answers differ from the chip's, and a
+board run is still what settles a claim about silicon.
 sys/arch/rp2040/doc/research/emulation.md carries the measurements, the
-diff, the replayable commands, and two further model defects.
+diffs, the replayable commands and the model defects that remain.
 
 Suites that run only on the board, because their program has no host
 build or their reference output holds board addresses: usr.bin/cpp

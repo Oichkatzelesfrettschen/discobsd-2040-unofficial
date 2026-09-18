@@ -32,9 +32,16 @@ RP2040_COMMIT=205a5e4b25440582008a4292074bb07f80a72328
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 DEST=${1:-"$SCRIPT_DIR/vendor/Renode_RP2040"}
 
+# --force because the patches below overlap: once 0002 has rewritten lines
+# 0001 introduced, neither one applies to nor reverses out of the resulting
+# tree, and a second fetch would stop on a patch that is in fact applied.
+# Discarding tracked edits returns the tree to the pin every time, so the
+# patch series is always applied to the revision it was written against.
+# This directory is a fetched vendor tree; work meant to survive belongs in
+# patches/ rather than in an edit here.
 if [ -d "$DEST/.git" ]; then
 	git -C "$DEST" fetch --depth 1 origin "$RP2040_COMMIT"
-	git -C "$DEST" checkout "$RP2040_COMMIT"
+	git -C "$DEST" checkout --force "$RP2040_COMMIT"
 else
 	rm -rf "$DEST"
 	git clone "$RP2040_REPO" "$DEST"
@@ -45,9 +52,12 @@ sed -i 's#<TargetFramework>netstandard2\.1</TargetFramework>#<TargetFramework>ne
 	"$DEST/emulation/Peripherals.csproj"
 sed -i 's#"netstandard2\.1"#"net9.0"#' "$DEST/cores/load_peripherals.py"
 
-# Corrections this port carries against the pinned revision. Each is checked
-# before it is applied, so a patch that no longer matches stops the fetch
-# rather than leaving a half-corrected tree that builds and misbehaves.
+# Corrections this port carries against the pinned revision, applied in
+# filename order because 0002 rewrites lines 0001 introduces. Each is
+# checked before it is applied, so a patch that no longer matches stops the
+# fetch rather than leaving a half-corrected tree that builds and
+# misbehaves. The already-applied case survives for a tree somebody patched
+# by hand; the forced checkout above means the ordinary run never hits it.
 # sys/arch/rp2040/doc/research/emulation.md records what each one fixes and
 # how it was measured.
 for patch in "$SCRIPT_DIR"/patches/*.patch; do

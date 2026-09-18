@@ -106,12 +106,12 @@ exec_elf_check(struct exec_params *epp)
      * Check that this is an ELF file that we can handle,
      * and do some sanity checks on the header
      */
-    if (epp->hdr_len < sizeof(struct elf_ehdr)) {
+    if (epp->hdr_len < (int)sizeof(struct elf_ehdr)) {
         DEBUG("\texec_elf_check(): error: wrong header length\n");
         DEBUG("\texec_elf_check(): end\n");
         return ENOEXEC;
     }
-    for (i = 0; i < sizeof elfident; i++) {
+    for (i = 0; i < (int)sizeof elfident; i++) {
         if (epp->hdr.elf.e_ident[i] !=  elfident[i]) {
             DEBUG("\texec_elf_check(): error: not an elf\n");
             DEBUG("\texec_elf_check(): end\n");

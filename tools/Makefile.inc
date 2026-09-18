@@ -7,7 +7,9 @@ TOOLBINDIR?=	${TOOLDIR}/bin
 
 HOST_CC?=	cc
 
-CC=		${HOST_CC}
+include ${TOPSRC}/share/mk/warnings.mk
+
+CC=		${HOST_CC} ${WARNERR}
 
 # libbsd-dev package on Linux in overlay mode.
 _LIBBSD_CFLAGS!=if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \

@@ -49,7 +49,7 @@ INCLUDES+=	-I${_machdir}/dhara/compat
 INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall -Werror
+CWARNFLAGS=	-Wall -Wextra -Werror
 
 CMACHCPU=	-mcpu=cortex-m0plus
 # DiscoBSD predates C23, where an empty parameter list means (void) rather

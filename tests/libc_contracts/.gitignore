@@ -7,3 +7,7 @@ malloc_sbrk.o
 malloc_arena32.o
 malloc_calloc32.o
 malloc_sbrk32.o
+qsort_test
+qsort_test32
+qsort_sort.o
+qsort_sort32.o

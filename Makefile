@@ -156,6 +156,9 @@ check-libc-contracts:
 check-libc-malloc:
 		${MAKE} -C tests/libc_contracts check-malloc
 
+check-libc-qsort:
+		${MAKE} -C tests/libc_contracts check-qsort
+
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
 
@@ -224,6 +227,7 @@ check-elf2aout:	tools
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
 HOST_GATES=	check-warning-policy-host check-build-failure check-libc-malloc \
+		check-libc-qsort \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles \
@@ -374,6 +378,7 @@ installfs:
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-libc-malloc \
+		check-libc-qsort \
 		check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \

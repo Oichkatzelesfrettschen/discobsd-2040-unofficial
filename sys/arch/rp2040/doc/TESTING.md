@@ -36,6 +36,22 @@ deterministic mode to suppress them, and `pdc`, whose y.tab.c prints
 are identical. A linked kernel is never byte-reproducible either way,
 because conf/newvers.sh regenerates vers.c on every link.
 
+The gates run serially. `check` and its tiers carry no `-j`, because a gate
+may rebuild what another gate is reading: `tests/libc_contracts/Makefile`
+runs `symlinks tools` in the top of the tree, and a sibling gate linking
+against `tools/bin/config` at that moment is told the file cannot be made.
+Making the tiers parallel-safe means giving each gate that rebuilds shared
+state its own tree, which no gate does yet.
+
+One failure under `-j` was not a race and is fixed: bmake advertises its
+jobserver to children as `-j N -J fd,fd` in `MAKEFLAGS`, and the two
+consumers in this tree that are not bmake both choke on it. GNU make, which
+`check-swapram-evac` calls, rejects `-J` and prints its usage;
+`tests/warning_policy/check.py` runs bmake through `subprocess`, which
+closes the inherited descriptors, so the child reports `Invalid internal
+option "-J"` onto the output the gate parses. Both clear `MAKEFLAGS` and
+`MFLAGS` for the child.
+
 `.github/workflows/firmware.yml` runs the tiers after the warning-free
 build; `host.yml` owns the discobsd-host package and packages it on
 three platforms. `PYTHON` defaults to `python3` in share/mk/sys.mk and

@@ -99,15 +99,24 @@ jobs:
       # tee would report tee's status and hide a failed bmake. Both build
       # steps set pipefail themselves, and the assertion runs over the
       # whole log once both have appended to it.
+      # The job count comes from the runner. getconf _NPROCESSORS_ONLN is
+      # POSIX and answers on both runners, where nproc is coreutils and
+      # absent from macOS. Measured on a 12-thread host: the kernel alone
+      # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
+      # of the world differ from each other in 9 of 3736 artifacts, all of
+      # them timestamps -- seven .a archives, whose member mtimes the
+      # tree's ar records and cannot suppress, and pdc, which prints
+      # __DATE__ and __TIME__; the 1286 library objects those archives
+      # wrap are identical, as is every kernel object.
       - name: Build the kernel and the userland
         run: |
           set -o pipefail
-          bmake MACHINE=rp2040 build 2>&1 | tee build.log
+          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 build 2>&1 | tee build.log
 
       - name: Build the flash image
         run: |
           set -o pipefail
-          bmake MACHINE=rp2040 flash 2>&1 | tee -a build.log
+          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
 
       # The tree builds warning-free on gcc 13, 14, and 16: the cross build,
       # the kernel, and the host tools. Any warning line fails the job.
@@ -206,14 +215,23 @@ jobs:
           arm-none-eabi-gcc --version | head -1
           bmake -V MAKE_VERSION
           picotool version
+      # The job count comes from the runner. getconf _NPROCESSORS_ONLN is
+      # POSIX and answers on both runners, where nproc is coreutils and
+      # absent from macOS. Measured on a 12-thread host: the kernel alone
+      # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
+      # of the world differ from each other in 9 of 3736 artifacts, all of
+      # them timestamps -- seven .a archives, whose member mtimes the
+      # tree's ar records and cannot suppress, and pdc, which prints
+      # __DATE__ and __TIME__; the 1286 library objects those archives
+      # wrap are identical, as is every kernel object.
       - name: Build the kernel and the userland
         run: |
           set -o pipefail
-          bmake MACHINE=rp2040 build 2>&1 | tee build.log
+          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 build 2>&1 | tee build.log
       - name: Build the flash image
         run: |
           set -o pipefail
-          bmake MACHINE=rp2040 flash 2>&1 | tee -a build.log
+          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
       - name: Assert the build is warning-free
         run: |
           total=$(grep -c 'warning:' build.log || true)

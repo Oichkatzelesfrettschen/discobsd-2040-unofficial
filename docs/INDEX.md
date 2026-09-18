@@ -127,6 +127,7 @@ Grouped by what they investigate.
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |
 | `bsd44-backport.md` | the 4.4BSD-Lite2 candidates worth backporting |
+| `netbsd110-tinyspace.md` | NetBSD 1.0, the 1994 release and not NetBSD 10 or 11.0, compared to this port, and what still fits the 144 KB window as C17 |
 | `integration-review.md` | sh-lineedit, stevie-vi and swapram reviewed together |
 | `static-analysis.md` | the static analysis run over the port and what it found |
 | `downloads-survey.md` | the downloads folder surveyed for usable material |

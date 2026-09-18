@@ -9,14 +9,17 @@ TARGET_DIR= ../../lib/libc/gen
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 
 # The arena allocator compiled from the tree over an sbrk() the test owns.
-# The four allocation names and sbrk move aside so the host's libc keeps its
-# own; the host's unistd.h fixes sbrk's parameter as intptr_t, which is int
-# on the target and what the test's sbrk takes. sbrk.c itself compiles
+# The four allocation names move aside on the command line so the host's
+# libc keeps its own. sbrk is renamed inside malloc_arena.c instead, after
+# the host headers, because the host's unistd.h declares sbrk(intptr_t) and
+# a command-line rename would turn that declaration into test_sbrk's, with
+# the host's width and Darwin's deprecation attached. sbrk.c itself compiles
 # against the tree's unistd.h, whose sbrk takes int, over the test's _brk().
 # The kernel tier's old-style-definition excuse applies here too.
 MALLOC_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Wno-deprecated-non-prototype
 MALLOC_RENAMES=	-Dmalloc=db_malloc -Dfree=db_free -Drealloc=db_realloc \
-		-Dcalloc=db_calloc -Dcfree=db_cfree -Dsbrk=test_sbrk
+		-Dcalloc=db_calloc -Dcfree=db_cfree
+MALLOC_ARENA=	malloc_arena.c ${TARGET_DIR}/malloc.c
 SBRK_RENAMES=	-Dsbrk=port_sbrk -Dbrk=port_brk -D_brk=test_brk
 SBRK_SRC=	${TOPSRC}/lib/libc/arm/sys/sbrk.c
 MALLOC_OBJS=	malloc_arena.o malloc_calloc.o malloc_sbrk.o
@@ -50,8 +53,8 @@ malloc_test: malloc_test.c ${MALLOC_OBJS}
 malloc_test32: malloc_test.c ${MALLOC_OBJS32}
 	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} -DHK_ILP32 -o $@ malloc_test.c ${MALLOC_OBJS32}
 
-malloc_arena.o: ${TARGET_DIR}/malloc.c
-	${HOSTCC} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ ${TARGET_DIR}/malloc.c
+malloc_arena.o: ${MALLOC_ARENA}
+	${HOSTCC} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ malloc_arena.c
 
 malloc_calloc.o: ${TARGET_DIR}/calloc.c
 	${HOSTCC} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ ${TARGET_DIR}/calloc.c
@@ -60,8 +63,8 @@ malloc_sbrk.o: ${SBRK_SRC}
 	${HOSTCC} ${MALLOC_CFLAGS} -nostdinc -isystem ${TOPSRC}/include \
 		${SBRK_RENAMES} -c -o $@ ${SBRK_SRC}
 
-malloc_arena32.o: ${TARGET_DIR}/malloc.c
-	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ ${TARGET_DIR}/malloc.c
+malloc_arena32.o: ${MALLOC_ARENA}
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ malloc_arena.c
 
 malloc_calloc32.o: ${TARGET_DIR}/calloc.c
 	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ ${TARGET_DIR}/calloc.c

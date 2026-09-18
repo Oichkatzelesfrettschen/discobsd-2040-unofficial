@@ -283,18 +283,28 @@ realloc_zero_contract(void)
  * still allocated by allocating again and requiring the result to lie
  * outside it. The historical allocator freed p first, so this second
  * allocation landed on p.
+ *
+ * The phase lays out its own arena: p, a live guard behind it so growth
+ * cannot happen in place, and a spare block that is freed before the
+ * ceiling freezes, so the allocation after the refusal has a legitimate
+ * home. Without the spare, the phase run alone in a fresh process has no
+ * free extent for it and a correct allocator fails the check; run after
+ * the earlier phases it borrows their freed blocks, which is an order the
+ * check must not depend on.
  */
 static void
 realloc_failure_preserves(void)
 {
-	unsigned char *p, *guard, *r, *m;
+	unsigned char *p, *guard, *spare, *r, *m;
 	int calls;
 
 	reset_arena();
 	p = db_malloc(2000);
 	guard = db_malloc(16);
-	check(p != NULL && guard != NULL, "setup allocations");
+	spare = db_malloc(1200);
+	check(p != NULL && guard != NULL && spare != NULL, "setup allocations");
 	fill(p, 2000, 17);
+	db_free(spare);
 
 	/* Growth cannot happen in place (guard) and cannot extend (ceiling). */
 	arena_ceiling = arena_break;
@@ -307,13 +317,20 @@ realloc_failure_preserves(void)
 	check(holds(p, 2000, 17), "the original bytes are intact");
 
 	m = db_malloc(1000);
-	check(m != NULL, "an allocation that fits p's block still succeeds");
+	check(m != NULL, "an allocation that fits the freed spare succeeds");
 	check(m == NULL || !inside(m, p, 2000),
 	    "the allocation after a refused resize lands outside p");
 	check(m == NULL || !inside(p, m, 1000),
 	    "p does not lie inside the new allocation");
+	/* Writing every byte of m is what shows p is not aliased by it:
+	 * unchanged bytes right after the refusal prove nothing until
+	 * something else has written. */
+	if (m != NULL)
+		fill(m, 1000, 91);
 	check(holds(p, 2000, 17),
-	    "the original bytes survive the next allocation");
+	    "the original bytes survive a write through the next allocation");
+	check(m == NULL || holds(m, 1000, 91),
+	    "the next allocation holds its own bytes");
 	db_free(m);
 
 	/* An arithmetic refusal never reaches the arena. */

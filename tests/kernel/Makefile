@@ -221,8 +221,7 @@ rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test sigauth_test
-	@${MAKE} prf_test rwuio_test32
+	@${MAKE} prf_test rwuio_test32 sigauth_test
 	./prf_test
 	./sigauth_test
 	./rwuio_test32

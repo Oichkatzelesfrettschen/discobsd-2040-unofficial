@@ -1,0 +1,147 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 17 Sep 2026 21:44:39 -0700
+Subject: [PATCH 4/4] w25qxx: answer status, identity and program the way the
+ part does
+
+Measured on a Raspberry Pi Pico's W25Q16JV with a SRAM-resident probe that
+issues the raw commands through flash_do_cmd and reads the sector back:
+
+  JEDEC_ID 0x9F      ef 40 15
+  SFDP 0x5A          53 46 44 50 05 01 00 ff
+  status 1           00 idle, 02 after 0x06, 00 after 0x04
+  sector erase       first poll 03, 29072 us, 00 after, 4096 of 4096 bytes 0xff
+  page program       first poll 03, 375 us, 00 after
+  program over data  0xf0 over 0x0f without an erase reads back 0x00
+  page wrap          32 bytes from offset 0xf0 fill 0xf0..0xff then 0x00..0x0f
+                     of the same page; the next page stays 0xff
+
+The model diverged from each of those. A status read fell through
+HandleCommand's switch, logged "Unhandled operation while processing byte:
+0x7" (ReadRegister's ordinal) and returned zero; it now serves status
+register 1, whose WEL follows 0x06 and 0x04 and clears when a program, erase
+or register write ends. EraseChip called ZeroAll where every other erase
+fills with EmptyByte; it fills with EmptyByte. WriteMemory stored the raw
+byte; it stores old & data, since a NOR program only clears bits. The
+program address advanced linearly across pages; it wraps within the 256-byte
+page. The bounds guards compared with > where Size is one past the last
+byte; they compare with >=. ReadID logged a TODO and returned zero; it
+returns manufacturer, memory type and log2 of the size, and memoryType is
+0x40, the W25Q family code the board reports, rather than 0x28.
+
+WIP still never sets, because every erase and program completes inside the
+command that issues it, and SFDP still answers zero; both remain gaps.
+
+A DiscoBSD boot to a shell logs 9972 fewer warnings with this change and
+the same console transcript.
+
+Assisted-by: Claude Code (claude-opus-5)
+---
+ emulation/externals/w25q16.cs | 58 ++++++++++++++++++++++++++++++-----
+ 1 file changed, 50 insertions(+), 8 deletions(-)
+
+diff --git a/emulation/externals/w25q16.cs b/emulation/externals/w25q16.cs
+index b523b29..69eebea 100644
+--- a/emulation/externals/w25q16.cs
++++ b/emulation/externals/w25q16.cs
+@@ -68,7 +68,9 @@ namespace Antmicro.Renode.Peripherals.SPI
+                 this.Log(LogLevel.Error, "Can't erase chip with locked sectors");
+                 return;
+             }
+-            underlyingMemory.ZeroAll();
++            // A NOR erase raises every bit; ZeroAll() would leave the array
++            // reading 0x00 where the part reads 0xFF after 0xC7 or 0x60.
++            EraseBytesInRange(new Range(0, (uint)underlyingMemory.Size));
+         }
+ 
+         public void EraseSector(int sectorSize)
+@@ -313,7 +315,7 @@ namespace Antmicro.Renode.Peripherals.SPI
+         protected virtual byte ReadFromMemory()
+         {
+             var position = currentOperation.ExecutionAddress + currentOperation.CommandBytesHandled;
+-            if (position > underlyingMemory.Size)
++            if (position >= underlyingMemory.Size)
+             {
+                 this.Log(LogLevel.Error, "Reading from address 0x{0:X} exceedes its size", position);
+                 return 0;
+@@ -323,8 +325,14 @@ namespace Antmicro.Renode.Peripherals.SPI
+ 
+         protected bool TryVerifyWriteToMemory(out long position)
+         {
+-            position = currentOperation.ExecutionAddress + currentOperation.CommandBytesHandled;
+-            if (position > underlyingMemory.Size)
++            // Page Program clocks data into one 256-byte page: the low byte of
++            // the address advances and wraps, the page base stays. Bytes past
++            // the page boundary land at the start of the same page, as they
++            // do on the part, rather than running into the next one.
++            var page = currentOperation.ExecutionAddress & ~(uint)(PageSize - 1);
++            var offset = (currentOperation.ExecutionAddress + (uint)currentOperation.CommandBytesHandled) & (uint)(PageSize - 1);
++            position = page + offset;
++            if (position >= underlyingMemory.Size)
+             {
+                 this.Log(LogLevel.Error, "Writing to address 0x{0:X} exceedes its size", position);
+                 return false;
+@@ -348,8 +356,13 @@ namespace Antmicro.Renode.Peripherals.SPI
+                 return 0;
+             }
+ 
+-            underlyingMemory.WriteByte(position, data);
+-            return data;
++            // Programming a NOR cell can only clear bits; a bit already at
++            // zero stays there until an erase. A store of the raw byte would
++            // let a second program over unerased data read back as if the
++            // erase had happened.
++            var programmed = (byte)(underlyingMemory.ReadByte(position) & data);
++            underlyingMemory.WriteByte(position, programmed);
++            return programmed;
+         }
+ 
+         protected virtual byte HandleCommand(byte data)
+@@ -383,7 +396,35 @@ namespace Antmicro.Renode.Peripherals.SPI
+                     result = ReadFromMemory();
+                     break;
+                 case DecodedOperation.OperationType.ReadID:
+-                    this.Log(LogLevel.Info, "TODO: implement READ ID");
++                    // 0x9F returns manufacturer, memory type and capacity and
++                    // repeats the three bytes while the clock runs. Capacity
++                    // is the Winbond convention, log2 of the size in bytes:
++                    // 0x15 for the 2 MB W25Q16.
++                    switch (currentOperation.CommandBytesHandled % 3)
++                    {
++                        case 0: result = manufacturerId; break;
++                        case 1: result = memoryType; break;
++                        default: result = (byte)Misc.Logarithm2((int)underlyingMemory.Size); break;
++                    }
++                    break;
++                case DecodedOperation.OperationType.ReadRegister:
++                    // Status register 1 carries WIP and WEL. WIP never sets
++                    // because every erase and program completes inside the
++                    // command that issued it; WEL follows 0x06 and 0x04 and
++                    // clears when a program, erase or register write ends.
++                    // Status registers 2 and 3 hold protection and
++                    // configuration bits the model does not implement, so
++                    // they read as zero.
++                    if (currentOperation.Register == (uint)Register.Status1)
++                    {
++                        result = statusRegister.Read();
++                    }
++                    break;
++                case DecodedOperation.OperationType.WriteRegister:
++                    // A status register write carries block-protect and
++                    // configuration bits the model does not implement. The
++                    // byte is consumed so the command completes cleanly, and
++                    // FinishTransmission clears WEL as the part does.
+                     break;
+                 case DecodedOperation.OperationType.ReadSerialFlashDiscoveryParameter:
+                     this.Log(LogLevel.Info, "TODO: implement READ SFDP");
+@@ -483,8 +524,9 @@ namespace Antmicro.Renode.Peripherals.SPI
+         protected Range? lockedRange;
+ 
+         private const byte manufacturerId = 0xEF;
+-        private const byte memoryType = 0x28;
++        private const byte memoryType = 0x40;
+         private const byte EmptyByte = 0xff;
++        private const int PageSize = 256;
+     }
+ 
+ }

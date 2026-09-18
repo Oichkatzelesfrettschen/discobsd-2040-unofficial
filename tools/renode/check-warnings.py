@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hold the Renode boot log to a fixed set of warnings.
+"""Hold the Renode boot log to a fixed set of warnings and to no errors.
 
 Renode logs a warning wherever the RP2040 models fall short of the silicon:
 an unimplemented register, a bus address no peripheral claims, a flash
@@ -17,6 +17,10 @@ Counting needs the volatile parts of a message gone, so the addresses,
 values and program counters Renode prints become a single token before a
 line is matched or tallied.
 
+An error-level line has no class list: the models log at that level when
+a transfer or a write cannot proceed, and a boot that reaches a shell
+produces none, so one is a regression whatever it says.
+
 Usage: check-warnings.py CLASSES LOG
 """
 
@@ -24,6 +28,7 @@ import re
 import sys
 
 WARNING = re.compile(r"\[WARNING\]\s+(.*?)\s*$")
+ERROR = re.compile(r"\[ERROR\]\s+(.*?)\s*$")
 PROGRAM_COUNTER = re.compile(r"\[cpu\d+: 0x[0-9A-Fa-f]+\]\s*")
 REPEAT_COUNT = re.compile(r"\s*\(\d+\)\s*$")
 HEX = re.compile(r"0x[0-9A-Fa-f]+")
@@ -81,9 +86,15 @@ def main(argv):
     classes = read_classes(argv[1])
     counts = [0] * len(classes)
     unmatched = {}
+    errors = {}
 
     with open(argv[2], encoding="utf-8", errors="replace") as handle:
         for line in handle:
+            failed = ERROR.search(line)
+            if failed:
+                text = normalize(failed.group(1))
+                errors[text] = errors.get(text, 0) + 1
+                continue
             found = WARNING.search(line)
             if not found:
                 continue
@@ -104,9 +115,12 @@ def main(argv):
             )
     for text, count in sorted(unmatched.items(), key=lambda item: -item[1]):
         failures.append(f"unclassified warning ({count}x): {text}")
+    for text, count in sorted(errors.items(), key=lambda item: -item[1]):
+        failures.append(f"error ({count}x): {text}")
 
     total = sum(counts) + sum(unmatched.values())
-    print(f"check-warnings: {total} warnings, {len(classes)} classes")
+    print(f"check-warnings: {total} warnings, {len(classes)} classes, "
+          f"{sum(errors.values())} errors")
     for index, (ceiling, pattern, _) in enumerate(classes):
         print(f"  {counts[index]:6d} / {ceiling:6d}  {pattern.pattern}")
 

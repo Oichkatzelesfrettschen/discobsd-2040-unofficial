@@ -405,8 +405,8 @@ attached:
 
 | model | boots reaching the getty banner |
 | --- | --- |
-| pinned revision with patch 0001 | 0 of 6 |
-| with patch 0002 as well | 6 of 6 |
+| pinned revision with patch 0001, the FIFO lock | 0 of 6 |
+| with patch 0002, the derived flag, as well | 6 of 6 |
 
 The Robot harness hides this defect: `Create Terminal Tester` pauses the
 emulation at every wait, which serializes the two CPU threads enough that
@@ -429,11 +429,41 @@ The sections above this one recorded that no run reached `login:` and that
 the console stopped at `swap size = 380 kbytes`. Both statements were
 accurate for the tree as it stood; the two fixes here supersede them.
 
-The model defects behind the SSI patches, and six more in the W25QXX flash
-model that change what a guest observes without stopping a boot, are written
-up as reports for matgla/Renode_RP2040 in
-docs/research/renode-rp2040-upstream-reports.md. They are drafts: nothing
-has been submitted.
+### The flash model, measured against the part
+
+Six behaviors of the W25QXX model differ from the W25Q16JV on the board,
+and none of them stops a boot; five make the model more forgiving than the
+part. tools/flash-semantics, a no_flash probe run from SRAM through
+tools/flash-semantics/run-on-board.sh, read the part's answers off one
+scratch sector, the last 4 KB of the kernel region:
+
+| claim | the part, measured | the model at 205a5e4b |
+| --- | --- | --- |
+| status register 1 | 00 idle, 02 after WREN, 00 after WRDI; 03 during an erase or program, 00 after | never served: a read falls through `HandleCommand`, logs operation 0x7 and returns 0 |
+| sector erase 0x20 | 29072 us with WIP set, 4096 of 4096 bytes 0xff after | erase state 0xff; chip erase 0xc7 leaves 0x00 |
+| page program 0x02 | 375 us with WIP set | stored, no WIP |
+| program over unerased data | 0xf0 over 0x0f reads 0x00 | stores the raw byte |
+| 32 bytes from page+0xf0 | fills 0xf0..0xff then 0x00..0x0f of the same page; the next page stays 0xff | runs into the next page |
+| JEDEC 0x9F | ef 40 15 | 0, with `memoryType` 0x28 in the source |
+| SFDP 0x5A | 53 46 44 50 05 01 00 ff | 0 |
+
+tools/renode/patches/0004-w25qxx-status-identity-program.patch serves
+status register 1, fills a chip erase with 0xff, stores `old & data`,
+wraps the program address within its page, corrects the bounds guards from
+`>` to `>=`, and answers 0x9F with `ef 40 <log2 size>`. It leaves WIP
+unset, because every erase and program completes inside the command that
+issued it, and SFDP at zero. The boot that logged 44567 warnings logs
+34624 with it, the difference being the 9972 status reads, with the same
+console transcript. 0003-xip-ssi-address-wait.patch, in the same series,
+turns the SSI model's `Address` state finding an empty FIFO -- the
+clocking thread ticking between the CPU's instruction write and its
+address write -- from an error-level log into the wait it is; it appeared
+in two of six free-running runs and check-warnings.py now fails on any
+error-level line.
+
+The defects and their patches are written up as two issue texts for
+matgla/Renode_RP2040 in docs/research/renode-rp2040-upstream-reports.md.
+They are drafts: nothing has been submitted.
 
 ## Exact, replayable commands
 

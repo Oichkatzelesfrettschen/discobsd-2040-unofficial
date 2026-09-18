@@ -1,3 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 17 Sep 2026 21:44:39 -0700
+Subject: [PATCH 2/4] xip_ssi: derive the BUSY flag from transfer state instead
+ of storing it
+
+SR.BUSY was a register field that ProcessTransmit set before a transfer and
+cleared after it. Renode runs a managed thread's action from
+BaseClockSource.Update on whichever CPU thread reports time progress, so both
+RP2040 cores can enter TransferClock at once, while RecalculateFrequencies
+and the SSIENR write callback stop the clocking thread from a third path.
+Anything that interrupts a transfer between the two assignments leaves BUSY
+set with nothing left to clear it.
+
+The RP2040 boot ROM's wait_ssi_ready spins until TFE is set and BUSY is
+clear. At the stall the guest reads TXFLR 0, RXFLR 1, SR 0x0f: the transmit
+FIFO is empty and BUSY is latched, so the loop cannot exit.
+
+DW_apb_ssi reports BUSY while a serial transfer is in progress. The flag is
+now derived from a count of transfers in flight, raised and dropped in one
+try/finally, plus the depth of the transmit queue, so it cannot latch. The
+transfer state machine runs under one lock so two cores cannot interleave
+the bytes of one command, and an SSIENR edge stops the clocking thread
+before it clears the queues rather than after.
+
+Free-running boots of a DiscoBSD kernel, RunFor "30", no terminal tester:
+0 of 6 reached userland before this change, 6 of 6 after.
+
+Assisted-by: Claude Code (claude-opus-5)
+---
+ emulation/peripherals/spi/rp2040_xip_ssi.cs | 70 ++++++++++++++-------
+ 1 file changed, 47 insertions(+), 23 deletions(-)
+
 diff --git a/emulation/peripherals/spi/rp2040_xip_ssi.cs b/emulation/peripherals/spi/rp2040_xip_ssi.cs
 index 9f19de2..8a06b3e 100644
 --- a/emulation/peripherals/spi/rp2040_xip_ssi.cs

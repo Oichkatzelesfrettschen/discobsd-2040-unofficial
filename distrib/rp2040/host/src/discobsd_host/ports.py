@@ -23,6 +23,11 @@ USB_PID = 0x000A
 USB_SERIAL = "rp2040"
 BAUD = 115200
 ENV_PORT = "DISCOBSD_PORT"
+# discobsd-web and discobsd-link share one bearer secret: the unit files'
+# EnvironmentFile sets DISCOBSD_WEB_TOKEN, and LoadCredential=web-token:...
+# would expose the same secret as a file, never in argv or `ps`.
+TOKEN_ENV = "DISCOBSD_WEB_TOKEN"
+TOKEN_CREDENTIAL = "web-token"
 
 # Linux keeps a by-id symlink for the console; it is the fallback when the
 # enumeration library is unavailable or reports no USB attributes.
@@ -106,3 +111,26 @@ def pyserial_hint() -> str:
         "pyserial is missing: pip install pyserial, apt install python3-serial, "
         "or pacman -S python-pyserial"
     )
+
+
+def credential(name: str, env: str, environ=None) -> str | None:
+    """A secret from a systemd credential, or an environment variable.
+
+    LoadCredential=/SetCredential= in a systemd unit exposes a credential as
+    a file named `name` under $CREDENTIALS_DIRECTORY, readable only by the
+    service's own user and never visible in argv or `ps`; it is checked
+    first. `env` is the fallback for a shell launch or a unit that still
+    uses EnvironmentFile, such as this package's own web.env.
+    """
+    environ = os.environ if environ is None else environ
+    directory = environ.get("CREDENTIALS_DIRECTORY")
+    if directory:
+        try:
+            with open(os.path.join(directory, name), encoding="utf-8") as f:
+                value = f.read().strip()
+            if value:
+                return value
+        except OSError:
+            pass
+    value = environ.get(env)
+    return value or None

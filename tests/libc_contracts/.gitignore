@@ -1,1 +1,9 @@
 libc_contracts_test
+malloc_test
+malloc_test32
+malloc_arena.o
+malloc_calloc.o
+malloc_sbrk.o
+malloc_arena32.o
+malloc_calloc32.o
+malloc_sbrk32.o

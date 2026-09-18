@@ -1,3 +1,6 @@
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -65,8 +68,13 @@ char *s;
  *
  * Different implementations may need to redefine ALIGN, NALIGN, BLOCK,
  * BUSY, INT where INT is integer type to which a pointer can be cast.
+ *
+ * The tag lives in bit 0 of a pointer value, so the integer that carries a
+ * pointer has to hold every bit of it: uintptr_t, not int. A 32-bit target
+ * cannot tell the two apart; a 64-bit host running this file as a test can,
+ * and truncating a pointer through int there returns a different pointer.
  */
-#define	INT		int
+#define	INT		uintptr_t
 #define	ALIGN		int
 #define	NALIGN		1
 #define	WORD		sizeof(union store)
@@ -76,7 +84,19 @@ char *s;
 
 #define	testbusy(p)	((INT)(p)&BUSY)
 #define	setbusy(p)	(union store *)((INT)(p)|BUSY)
-#define	clearbusy(p)	(union store *)((INT)(p)&~BUSY)
+#define	clearbusy(p)	(union store *)((INT)(p)&~(INT)BUSY)
+
+/*
+ * The largest request the arithmetic below can carry. A request is rounded
+ * up to whole words, given a header word, and the arena extension that
+ * serves it is rounded up to BLOCK and handed to sbrk() as an int. Every one
+ * of those steps stays inside size_t and int for nbytes at or under
+ * MAXBYTES, so the bound is tested once, at entry, and the arena is touched
+ * only by a request whose every intermediate value is representable.
+ * Anything larger is ENOMEM before the search starts: the address space
+ * that would hold it does not exist on the target either.
+ */
+#define	MAXBYTES	((size_t)INT_MAX / 2 - BLOCK - 2 * WORD)
 
 union store {
 	union store	*ptr;
@@ -89,16 +109,27 @@ static union store	*allocp;	/* search ptr */
 static union store	*alloct;	/* arena top */
 static union store	*allocx;	/* for benefit of realloc */
 
+/*
+ * A zero-byte request returns NULL with errno untouched, and a failed
+ * request returns NULL with errno set to ENOMEM. The first is the arena's
+ * historical answer and every caller in the tree is written against it; the
+ * second is what the C standard and POSIX name, and what a caller that
+ * reports the failure prints. tests/libc_contracts/malloc_test.c pins both.
+ */
 void *
 malloc(nbytes)
 	size_t nbytes;
 {
 	register union store *p, *q;
-	register int nw;
-	static int temp;	/* coroutines assume no auto */
+	register size_t nw;
+	static size_t temp;	/* coroutines assume no auto */
 
 	if (nbytes == 0)
 		return(NULL);
+	if (nbytes > MAXBYTES) {
+		errno = ENOMEM;
+		return(NULL);
+	}
 	if (allocs[0].ptr == 0) {	/* first time */
 		allocs[0].ptr = setbusy(&allocs[1]);
 		allocs[1].ptr = setbusy(&allocs[0]);
@@ -115,7 +146,7 @@ malloc(nbytes)
 					ASSERT(q > p && q < alloct);
 					p->ptr = q->ptr;
 				}
-				if (q >= p+nw && p+nw >= p)
+				if ((size_t)(q - p) >= nw)
 					goto found;
 			}
 			q = p;
@@ -124,6 +155,7 @@ malloc(nbytes)
 				ASSERT(p <= alloct);
 			else if (q != alloct || p != allocs) {
 				ASSERT(q == alloct && p == allocs);
+				errno = ENOMEM;
 				return(NULL);
 			} else if (++temp > 1)
 				break;
@@ -133,13 +165,17 @@ malloc(nbytes)
 		 * Line up on page boundry so we can get the last drip at
 		 * the end ...
 		 */
-		temp = ((((unsigned)q + WORD*nw + BLOCK-1)/BLOCK)*BLOCK
-			- (unsigned)q) / WORD;
-		if (q+temp+GRANULE < q)
+		temp = ((((INT)q + WORD*nw + BLOCK-1)/BLOCK)*BLOCK
+			- (INT)q) / WORD;
+		if ((INT)q + (temp+GRANULE)*WORD < (INT)q) {
+			errno = ENOMEM;
 			return(NULL);
-		q = (union store *)sbrk(temp*WORD);
-		if ((INT)q == -1)
+		}
+		q = (union store *)sbrk((int)(temp*WORD));
+		if (q == (union store *)-1) {
+			errno = ENOMEM;
 			return(NULL);
+		}
 		ASSERT(q > alloct);
 		alloct->ptr = q;
 		if (q != alloct+1)
@@ -177,9 +213,27 @@ void free(ap)
 }
 
 /*
- * Realloc(p, nbytes) reallocates a block obtained from malloc() and freed
- * since last call of malloc() to have new size nbytes, and old content
- * returns new location, or 0 on failure.
+ * realloc(p, nbytes) resizes a block obtained from malloc() and returns
+ * its new location, or NULL. The block stays allocated, at its address
+ * and with its contents, until a replacement holds a copy: a NULL return
+ * for a positive size leaves p valid and owned by the caller, and errno
+ * says why. The historical version freed p before searching, so a failed
+ * resize handed the caller a pointer whose block the next malloc() could
+ * reuse. tests/libc_contracts/malloc_test.c allocates after a forced
+ * failure and checks the old block is not what it gets.
+ *
+ * A zero size frees p and returns NULL, which is what it did before, as
+ * malloc(0) is NULL. A block the caller has already freed is resized the
+ * way the historical contract allowed, into a fresh block, and allocx
+ * restores the header word that a new block overlapping the old one has
+ * overwritten; a busy block never overlaps its replacement, so that path
+ * is reached only from a freed block.
+ *
+ * The block grows in place when the free blocks after it hold the
+ * difference, and shrinks in place by splitting a free block off its end,
+ * so a resize inside a 144 KB window costs the difference and not the sum.
+ * Both leave allocp at this block's header, because the free blocks the
+ * growth absorbs may include the one the search pointer stands on.
  */
 void *
 realloc(vp, nbytes)
@@ -189,20 +243,57 @@ realloc(vp, nbytes)
 	register union store *p = vp;
 	register union store *q;
 	union store *s, *t;
-	register unsigned nw;
-	unsigned onw;
+	register size_t nw;
+	size_t onw;
 
 	if (p == NULL)
 	        return malloc(nbytes);
-	if (testbusy(p[-1].ptr))
+	if (nbytes == 0) {
+		if (testbusy(p[-1].ptr))
+			free((char *)p);
+		return(NULL);
+	}
+	if (nbytes > MAXBYTES) {
+		errno = ENOMEM;
+		return(NULL);
+	}
+	nw = (nbytes+WORD-1)/WORD;
+	onw = (size_t)(clearbusy(p[-1].ptr) - p);
+	if (testbusy(p[-1].ptr)) {
+		if (nw <= onw) {
+			if (nw < onw) {
+				q = p + nw;
+				q->ptr = clearbusy(p[-1].ptr);
+				p[-1].ptr = setbusy(q);
+				allocp = p - 1;
+			}
+			return((char *)p);
+		}
+		q = clearbusy(p[-1].ptr);
+		while (!testbusy(q->ptr))
+			q = q->ptr;
+		if ((size_t)(q - p) >= nw) {
+			if (q > p + nw)
+				(p + nw)->ptr = q;
+			p[-1].ptr = setbusy(p + nw);
+			allocp = p - 1;
+			return((char *)p);
+		}
+		q = (union store *)malloc(nbytes);
+		if (q == NULL)
+			return(NULL);
+		s = p;
+		t = q;
+		while (onw-- != 0)
+			*t++ = *s++;
 		free((char *)p);
-	onw = p[-1].ptr - p;
+		return((char *)q);
+	}
 	q = (union store *)malloc(nbytes);
 	if (q == NULL || q == p)
 		return((char *)q);
 	s = p;
 	t = q;
-	nw = (nbytes+WORD-1)/WORD;
 	if (nw < onw)
 		onw = nw;
 	while (onw-- != 0)

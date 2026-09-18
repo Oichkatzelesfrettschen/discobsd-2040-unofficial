@@ -180,6 +180,14 @@ check-hsaout:
 check-config-makefile:
 		${MAKE} -C tools/config check
 
+# Clean controls must compile; deliberate warnings must fail using the actual
+# evaluated commands, including leaves that replace CFLAGS.
+check-warning-policy-host:
+		${MAKE} -C tests/warning_policy check-host
+
+check-warning-policy-cross:
+		${MAKE} -C tests/warning_policy check-cross
+
 # The evacuation test compiles the kernel's swapram.c and subr_rmap.c on
 # the host; its Makefile is written for GNU make.
 check-swapram-evac:
@@ -202,13 +210,13 @@ check-elf2aout:	tools
 # The cross, qemu, mips and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
-HOST_GATES=	check-aout check-kernel check-fs-stress \
+HOST_GATES=	check-warning-policy-host check-aout check-kernel check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
 		check-fgrep-capacity check-config-makefile check-swapram-evac
-CROSS_GATES=	check-divider check-swapram check-cache-footprint \
+CROSS_GATES=	check-warning-policy-cross check-divider check-swapram check-cache-footprint \
 		check-exec-spool check-ufs-prototypes check-hsaout \
 		check-libc-contracts check-flash-swap
 
@@ -343,7 +351,8 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		all build distribution release tools kernel check-divider \
+.PHONY:		check-warning-policy-host check-warning-policy-cross \
+		all build distribution release tools kernel check-divider \
 		check-swapram check-cache-footprint check-exec-spool \
 		check-ufs-prototypes \
 		check-elf2aout \

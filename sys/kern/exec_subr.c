@@ -85,7 +85,7 @@ exec_spool_write (struct exec_params *epp, const void *source, u_int len)
     }
 #endif
     while (len != 0) {
-        chunk = MIN (len, MAXBSIZE - epp->spool.fill);
+        chunk = MIN (len, (u_int)(MAXBSIZE - epp->spool.fill));
         bcopy (input, epp->spool.bp->b_addr + epp->spool.fill, chunk);
         input += chunk;
         len -= chunk;

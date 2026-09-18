@@ -427,6 +427,8 @@ fdopen(dev, mode, type)
     dev_t dev;
     int mode, type;
 {
+    (void)mode;
+    (void)type;
     /*
      * XXX Kludge: set u.u_dupfd to contain the value of the
      * the file descriptor being sought for duplication. The error
@@ -516,7 +518,7 @@ dupfdopen (indx, dfd, mode, error)
         return (0);
 #else
         log(LOG_NOTICE, "dupfdopen");
-        /* FALLTHROUGH */
+        return(error);
 #endif
     default:
         return(error);

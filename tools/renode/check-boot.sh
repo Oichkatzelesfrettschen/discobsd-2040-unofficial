@@ -74,7 +74,25 @@ fi
 OUTPUT="$SCRIPT_DIR/vendor/results"
 mkdir -p "$OUTPUT"
 
+# boot.robot names these, one per test case. Remove them first so a suite
+# that dies before it opens one cannot leave the previous run's log to be
+# classified as this run's.
+rm -f "$OUTPUT/probe.log" "$OUTPUT/login.log"
+
 PATH="$VENV/bin:$PATH"
 export PATH
 cd "$OUTPUT"
-exec renode-test "$SCRIPT_DIR/boot.robot"
+renode-test "$SCRIPT_DIR/boot.robot"
+
+# The console assertions say the kernel reached a shell; the warning classes
+# say the models it reached it through behaved the way they did when those
+# ceilings were measured. A new class of infidelity fails here even when
+# every console line still arrives.
+status=0
+for log in "$OUTPUT/probe.log" "$OUTPUT/login.log"; do
+	[ -r "$log" ] || missing "no $log; boot.robot did not open its log"
+	echo "check-renode: $(basename "$log")"
+	"$PYTHON" "$SCRIPT_DIR/check-warnings.py" \
+		"$SCRIPT_DIR/warning-classes.txt" "$log" || status=1
+done
+exit "$status"

@@ -302,7 +302,7 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		if (namelen != 2)
 			return ENOTDIR;
 		if (name[1] < 1 ||
-		    name[1] >= sizeof(errlist) / sizeof(errlist[0]))
+		    (u_int)name[1] >= sizeof(errlist) / sizeof(errlist[0]))
 			return EOPNOTSUPP;
 		return sysctl_string(oldp, oldlenp, 0, 0,
 		    (char *)errlist[name[1]], 1 + strlen(errlist[name[1]]));

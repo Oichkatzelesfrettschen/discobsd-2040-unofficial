@@ -1,0 +1,83 @@
+# Warning classes the Renode boot is allowed to produce.
+#
+# check-warnings.py matches each warning against these patterns in order and
+# tallies the first that matches. A warning matching none of them fails the
+# gate; so does a class that appears more often than its ceiling. The point
+# is to catch a new kind of infidelity, and a flood of an old one, without
+# forbidding the ones this boot is known to survive: a run that reaches a
+# shell logs some forty-five thousand warnings.
+#
+# Ceilings sit at about twice the count a passing run produces. The counts
+# track how many times the boot ROM re-enters XIP, which moves by a percent
+# or two between runs, so a tight ceiling would fail on scheduling rather
+# than on behavior. Lowering one after a model improvement is the intended
+# direction; raising one records that something started warning more.
+#
+# Each entry says what the model is missing and what the kernel sees because
+# of it. Three mark state the kernel reads and gets a wrong answer for; the
+# rest are registers and pad bits this kernel writes and never reads back.
+#
+# A message carries its peripheral as a prefix once the platform has named
+# it and arrives bare when it comes from the loader or from a model still
+# being constructed, so the prefixes below are optional.
+#
+# Format: CEILING  PATTERN, a Python regex searched against the message with
+# the program counter dropped and every hex literal except a bus address
+# replaced by 0xN. A line whose first non-blank character is # is a comment;
+# a pattern may contain one.
+
+# The boot ROM's flash_exit_xip clocks 0xff bytes to break the QSPI
+# continuation mode a previous XIP session left the flash in, and W25QXX
+# decodes no such command. It reports the mode bytes that follow as opcodes.
+# Silicon ignores them the same way, so the sequence works regardless.
+26000   ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte:
+6000    ^(xip_ssi\.xip_flash: )?Unhandled operation: 0xN
+
+# RP2040XIPSSI signals chip select from its SSIENR and SER write callbacks
+# as well as through the pad, so the flash model takes a second deassert
+# while already idle and reports the state it was in.
+18000   ^(xip_ssi\.xip_flash: )?Transmission finished in unexpected state: RecognizeOperation
+
+# RESETS (datasheet 2.14) is absent from the platform. Its RESET_DONE reads
+# back all-ones from the SVD tag, so every wait-for-reset loop in the boot
+# ROM and the kernel clears on the first read, and the two writes below --
+# the atomic SET and CLEAR aliases at RESETS+0x2000 and RESETS+0x3000, which
+# the boot ROM uses to reset io_qspi and pads_qspi -- reach nothing. The
+# models come up already usable, so a kernel that forgot to bring a
+# peripheral out of reset would still pass here.
+6000    ^sysbus: \(tag: 'RESET_DONE'\) ReadDoubleWord from non existing peripheral at 0x4000C008,
+6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000E000,
+6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000F000,
+
+# XIP_CTRL:FLUSH (datasheet 2.6.3) is decoded from the SVD with no behavior,
+# and its SET alias at XIP_CTRL+0x2000 reaches nothing. The model serves
+# flash reads straight through with no cache in front of them, so a flush
+# that does nothing returns the same bytes a real flush would.
+6000    ^sysbus: WriteDoubleWord .*XIP_CTRL:FLUSH
+6000    ^sysbus: ReadDoubleWord .*XIP_CTRL:FLUSH
+6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x14002000,
+
+# The QSPI pad model implements neither the slew-rate bit the boot ROM sets
+# when it raises the flash clock nor, on the GPIO bank, the input-enable and
+# a few reserved offsets. Pad drive strength has no meaning in an emulator
+# whose flash answers instantly.
+6000    ^qspi_pads: Unhandled write to offset 0xN\. Unhandled bits: \[0\] .*SLEWFAST
+16      ^pads: Unhandled (read from|write to) offset 0xN \(unknown\)
+8       ^pads: Unhandled write to offset 0xN\. Unhandled bits: \[6\] .*IE
+
+# Read once each during bring-up, answered from the SVD's reset value.
+# SYSINFO:CHIP_ID is the one the kernel prints: it decodes into the "cpu:
+# RP0000 rev 0, manufacturer 0x000" banner line, where silicon reports part
+# 0x0002 and manufacturer 0x493. An assertion on that line would be an
+# assertion about the emulator rather than about the chip.
+4       ^sysbus: WriteDoubleWord .*SYSCFG:PROC[01]_NMI_MASK
+4       ^sysbus: ReadDoubleWord .*VREG_AND_CHIP_RESET:CHIP_RESET
+4       ^sysbus: ReadDoubleWord .*TBMAN:PLATFORM
+4       ^sysbus: ReadDoubleWord .*SYSINFO:CHIP_ID
+
+# Loader messages, logged while the platform description is read. The models
+# declare a cpuId parameter that Renode's own platform files spell id, and
+# the Peripherals assembly is named by more than one line of the platform so
+# Renode reports the second mention.
+8       ^Using alias '[A-Za-z]+' for parameter '[A-Za-z]+'$
+4       ^Assembly .* was already analyzed\.$

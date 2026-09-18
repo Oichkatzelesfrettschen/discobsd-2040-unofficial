@@ -68,7 +68,7 @@ donice(p, n)
     register int n;
 {
     if (u.u_uid && u.u_ruid &&
-        u.u_uid != p->p_uid && u.u_ruid != p->p_uid) {
+        u.u_uid != (uid_t)p->p_uid && u.u_ruid != (uid_t)p->p_uid) {
         u.u_error = EPERM;
         return;
     }

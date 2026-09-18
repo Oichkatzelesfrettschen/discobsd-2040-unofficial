@@ -50,6 +50,7 @@ gatherstats(pc, ps)
     caddr_t pc;
     int ps;
 {
+    (void)pc;
     register int cpstate;
 
     /*

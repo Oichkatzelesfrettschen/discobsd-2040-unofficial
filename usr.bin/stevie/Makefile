@@ -43,7 +43,7 @@ ${OBJS}:	stevie.h
 HOST_CFLAGS=	-std=gnu17 -O0 -g -DHOSTBUILD -Wall -Wextra -Werror
 
 ${PROG}.host:	${SRCS} stevie.h
-		${HOST_CC} ${HOST_CFLAGS} -o $@ ${SRCS}
+		${HOST_CC} ${WARNERR} ${HOST_CFLAGS} -o $@ ${SRCS}
 
 PYTHON?=	python3
 

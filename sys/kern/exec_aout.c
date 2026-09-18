@@ -121,7 +121,7 @@ int exec_aout_check(struct exec_params *epp)
 
     DEBUG("\texec_aout_check(): start\n");
 
-    if (epp->hdr_len < sizeof(struct exec)) {
+    if (epp->hdr_len < (int)sizeof(struct exec)) {
         DEBUG("\texec_aout_check(): error: wrong header length\n");
         DEBUG("\texec_aout_check(): end\n");
         return ENOEXEC;
@@ -230,9 +230,8 @@ int exec_aout_check(struct exec_params *epp)
     error = rdwri (UIO_READ, epp->ip,
                (caddr_t)epp->data.vaddr, epp->hdr.aout.a_data,
                sizeof(struct exec) + epp->hdr.aout.a_text, IO_UNIT, 0);
-    if (error)
-        DEBUG("\texec_aout_check(): error: read image returned: %d\n", error);
     if (error) {
+        DEBUG("\texec_aout_check(): error: read image returned: %d\n", error);
         /*
          * All is lost: the old image is overwritten and the new one is
          * incomplete. Its signal handlers still stand until exec_clear,

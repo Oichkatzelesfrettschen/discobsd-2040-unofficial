@@ -32,7 +32,7 @@ battle_strings _globals.c _dayfile.c _nightfile.c: mkstr globals.c dayfile.c nig
 		./mkstr battle_strings _ globals.c dayfile.c nightfile.c
 
 mkstr:          mkstr.c
-		${HOST_CC} -O ${HOST_CFLAGS} mkstr.c -o $@ ${HOST_LIBS}
+		${HOST_CC} ${WARNERR} -O ${HOST_CFLAGS} mkstr.c -o $@ ${HOST_LIBS}
 
 ${MAN}:         ${MANSRC}
 		${MANROFF} ${MANSRC} > $@

@@ -277,6 +277,7 @@ int
 hw_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
+	(void)newlen;
 	extern char machine[], machine_arch[], cpu_model[];
 
 	/* All sysctl names at this level are terminal. */
@@ -363,6 +364,7 @@ int
 vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
 {
+	(void)newlen;
 	struct loadavg averunnable;		/* loadavg in resource.h */
 
 	/* All sysctl names at this level are terminal. */
@@ -483,12 +485,13 @@ int
 sysctl_string(void *oldp, size_t *oldlenp, void *newp, size_t newlen,
     char *str, int maxlen)
 {
-	int len, error = 0;
+	size_t len;
+	int error = 0;
 
 	len = strlen(str) + 1;
 	if (oldp && *oldlenp < len)
 		return (ENOMEM);
-	if (newp && newlen >= maxlen)
+	if (newp && newlen >= (size_t)maxlen)
 		return (EINVAL);
 	if (oldp) {
 		*oldlenp = len;
@@ -507,7 +510,8 @@ sysctl_string(void *oldp, size_t *oldlenp, void *newp, size_t newlen,
 int
 sysctl_rdstring(void *oldp, size_t *oldlenp, void *newp, const char *str)
 {
-	int len, error = 0;
+	size_t len;
+	int error = 0;
 
 	len = strlen(str) + 1;
 	if (oldp && *oldlenp < len)
@@ -530,9 +534,9 @@ sysctl_struct(void *oldp, size_t *oldlenp, void *newp, size_t newlen,
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < len)
+	if (oldp && *oldlenp < (size_t)len)
 		return (ENOMEM);
-	if (newp && newlen > len)
+	if (newp && newlen > (size_t)len)
 		return (EINVAL);
 	if (oldp) {
 		*oldlenp = len;
@@ -551,7 +555,7 @@ sysctl_rdstruct(void *oldp, size_t *oldlenp, void *newp, void *sp, int len)
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < len)
+	if (oldp && *oldlenp < (size_t)len)
 		return (ENOMEM);
 	if (newp)
 		return (EPERM);
@@ -567,7 +571,8 @@ sysctl_rdstruct(void *oldp, size_t *oldlenp, void *newp, void *sp, int len)
 int
 sysctl_file(char *where, size_t *sizep)
 {
-	int buflen, error;
+	size_t buflen;
+	int error;
 	struct file *fp;
 	struct file *fpp;
 	char *start = where;
@@ -685,8 +690,8 @@ sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
 {
 	struct proc *p;
 	struct kinfo_proc *dp = (struct kinfo_proc *)where;
-	int needed = 0;
-	int buflen = where != NULL ? *sizep : 0;
+	size_t needed = 0;
+	size_t buflen = where != NULL ? *sizep : 0;
 	int doingzomb;
 	struct eproc eproc;
 	int error = 0;
@@ -729,7 +734,7 @@ again:
 			break;
 
 		case KERN_PROC_UID:
-			if (p->p_uid != (uid_t)name[1])
+			if ((uid_t)p->p_uid != (uid_t)name[1])
 				continue;
 			break;
 

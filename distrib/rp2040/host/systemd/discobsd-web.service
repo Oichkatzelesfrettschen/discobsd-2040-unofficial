@@ -1,11 +1,23 @@
 [Unit]
 Description=DiscoBSD web console (serial to browser)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
-After=network-online.target
+# 71-discobsd-rp2040.rules tags the console tty TAG+="systemd" and names it
+# SYMLINK+="discobsd", so udev (and, for a uaccess-tagged device, the user
+# service manager too) carries a dev-discobsd.device unit for it. BindsTo=
+# plus After= starts this service only once that device is active and stops
+# it the moment the device goes away, instead of racing ExecStart against a
+# board that is not plugged in yet.
+After=network-online.target dev-discobsd.device
+BindsTo=dev-discobsd.device
+# A start that fails for a reason the device gate does not cover (a bad
+# token file, a port already bound) still retries, but gives up after
+# StartLimitBurst attempts in the interval rather than looping forever.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 EnvironmentFile=%h/.config/discobsd/web.env
-ExecStart=/usr/bin/discobsd-web --bind 0.0.0.0 --port 7681 --token ${DISCOBSD_WEB_TOKEN}
+ExecStart=/usr/bin/discobsd-web --bind 0.0.0.0 --port 7681
 Restart=always
 RestartSec=3
 

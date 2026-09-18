@@ -105,9 +105,10 @@ hypothesis until a higher rank confirms it.
 Build, host-gate, cross, qemu, Renode and board results are separate
 evidence classes, and each stands for itself. A warning-free build proves
 compilation. A qemu-user run proves the instruction sequence. check-renode
-boots the PICO_UART kernel from the real RP2040 boot ROM and asserts the
-console through the device probe, against third-party peripheral models.
-A board run proves the silicon. sys/arch/rp2040/doc/TESTING.md is the
+boots the PICO_UART kernel from the real RP2040 boot ROM against
+third-party peripheral models, asserts the console from the device probe
+through a logged-in shell, and holds the emulator's warnings to a named set
+of classes. A board run proves the silicon. sys/arch/rp2040/doc/TESTING.md is the
 authority for what a given gate proves.
 
 A new gate, linter or probe is calibrated against a known-good and a

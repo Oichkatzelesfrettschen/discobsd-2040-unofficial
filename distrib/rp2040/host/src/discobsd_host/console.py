@@ -122,10 +122,20 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
-def _spawn_detached(argv: list[str], log: Path) -> int:
+def _spawn_detached(argv: list[str], log: Path, extra_env: dict[str, str] | None = None) -> int:
+    """Launch a sibling tool detached from this shell.
+
+    `extra_env` carries the token to the child's environment rather than its
+    argv, so it is not the process's command line as `ps` (or, on Windows,
+    the process list) reports it. The child still inherits this process's
+    full environment; DISCOBSD_WEB_TOKEN reaches only this user's own
+    processes, the same exposure a systemd EnvironmentFile has.
+    """
     log.parent.mkdir(parents=True, exist_ok=True)
     out = open(log, "ab")
     kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": out, "stderr": subprocess.STDOUT}
+    if extra_env:
+        kwargs["env"] = {**os.environ, **extra_env}
     if sys.platform == "win32":
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | NEW_PROCESS_GROUP
     else:
@@ -213,19 +223,25 @@ def cmd_up(args) -> int:
             args.bind,
             "--port",
             str(args.port),
-            "--token",
-            token,
         ]
         link = _tool("discobsd-link") + [
-            "--to",
-            links["full"],
+            "--host",
+            "http://%s:%d/" % (ip, args.port),
             "--port",
             str(args.link_port),
             "--bind",
             args.bind,
         ]
-        (conf / "web.pid").write_text(str(_spawn_detached(web, conf / "web.log")))
-        (conf / "link.pid").write_text(str(_spawn_detached(link, conf / "link.log")))
+        # The token goes to each child's environment, not its argv: passing
+        # --token/--to here would put it back in ps for these two processes,
+        # the exact exposure this package's systemd units were fixed to avoid.
+        extra_env = {"DISCOBSD_WEB_TOKEN": token}
+        (conf / "web.pid").write_text(
+            str(_spawn_detached(web, conf / "web.log", extra_env))
+        )
+        (conf / "link.pid").write_text(
+            str(_spawn_detached(link, conf / "link.log", extra_env))
+        )
         mode = f"detached, pid files in {conf}"
     time.sleep(1.0)
     if not _http_answers(links["short"]):

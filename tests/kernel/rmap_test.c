@@ -536,6 +536,26 @@ cursor_panics(void)
 	scratch_cursor = ALIGN;
 	HK_EXPECT_PANIC("malloc3_contiguous_next: unaligned map",
 	    call_next_on_unaligned_map);
+
+#ifndef COMPACT_SWAPMAP
+	/* Both operands are aligned; only their size_t sum is corrupt. */
+	reset(SLOTS);
+	ent[0].m_addr = (size_t)-ALIGN;
+	ent[0].m_size = ALIGN;
+	scratch_cursor = ALIGN;
+	HK_EXPECT_PANIC("malloc3_contiguous_next: corrupt map",
+	    call_next_on_unaligned_map);
+#else
+	/* Compact descriptors can cross 16 bits without overflowing size_t. */
+	reset(SLOTS);
+	ent[0].m_addr = 65536U - ALIGN;
+	ent[0].m_size = ALIGN;
+	scratch_cursor = ent[0].m_addr;
+	HK_CHECK(malloc3_contiguous_next(fixture, ALIGN, 0, 0, ALIGN,
+	    &scratch_cursor, scratch_a) == ALIGN);
+	HK_CHECK(scratch_a[0] == 65536U - ALIGN);
+	HK_CHECK(scratch_cursor == 65536U);
+#endif
 }
 
 /*

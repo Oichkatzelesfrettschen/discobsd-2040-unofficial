@@ -675,7 +675,7 @@ chown1(register struct inode *ip, register int uid, register int gid)
      * of the file, or are not a member of the target group,
      * the caller must be superuser or the call fails.
      */
-    if ((u.u_uid != ip->i_uid || uid != ip->i_uid ||
+    if ((u.u_uid != ip->i_uid || (uid_t)uid != ip->i_uid ||
         !groupmember((gid_t)gid)) && !suser())
         return (u.u_error);
     ouid = ip->i_uid;
@@ -783,7 +783,8 @@ rename(void)
     } *uap = (struct a *)u.u_arg;
     register struct inode *ip, *xp, *dp;
     struct dirtemplate dirbuf;
-    int doingdirectory = 0, oldparent = 0, newparent = 0;
+    int doingdirectory = 0;
+    ino_t oldparent = 0, newparent = 0;
     struct  nameidata nd;
     register struct nameidata *ndp = &nd;
     int error = 0;

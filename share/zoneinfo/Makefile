@@ -20,7 +20,7 @@ LOCALTIME=	Canada/Mountain
 
 CFLAGS= -O
 LINTFLAGS=	-phbaxc
-CC=		${HOST_CC}
+CC=		${HOST_CC} ${WARNERR}
 # -iquote: zic.c and zdump.c include "tzfile.h", the tree's own; macOS
 # ships a tzfile.h of its own that would win under -idirafter alone.
 CFLAGS+=	-Wall -iquote ${TOPSRC}/include -idirafter ${TOPSRC}/include

@@ -27,7 +27,7 @@ ${PROG}:	${OBJS}
 HOST_CFLAGS=	-Wall -Wextra -Werror -O0 -g -DTERMIOS
 
 menu.host:	menu.c
-		${HOST_CC} ${HOST_CFLAGS} -o $@ menu.c
+		${HOST_CC} ${WARNERR} ${HOST_CFLAGS} -o $@ menu.c
 
 PYTHON?=	python3
 

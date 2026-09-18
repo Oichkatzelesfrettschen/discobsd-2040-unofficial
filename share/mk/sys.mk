@@ -21,6 +21,8 @@ VERSION=	${RELEASE}-${BUILD}
 TOOLDIR?=	${TOPSRC}/tools
 TOOLBINDIR?=	${TOOLDIR}/bin
 
+include ${TOPSRC}/share/mk/warnings.mk
+
 HOST_CC?=	cc
 
 # The interpreter for every verifier and harness, declared once and passed
@@ -86,9 +88,9 @@ KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 # and tentative-definition policy ride on CC because several Makefiles replace
 # CFLAGS outright.
 CC!=	if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "${GCCPREFIX}-gcc -std=gnu17 -fno-common -mcpu=${MACHINE_CPU} -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft ${KERNEL_LAYOUT_CFLAGS} -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
+		echo "${GCCPREFIX}-gcc ${WARNERR} -std=gnu17 -fno-common -mcpu=${MACHINE_CPU} -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft ${KERNEL_LAYOUT_CFLAGS} -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "${GCCPREFIX}-gcc -mips32r2 -EL -msoft-float -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
+		echo "${GCCPREFIX}-gcc ${WARNERR} -mips32r2 -EL -msoft-float -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
 	else \
 		echo "/does/not/exist" ; \
 	fi

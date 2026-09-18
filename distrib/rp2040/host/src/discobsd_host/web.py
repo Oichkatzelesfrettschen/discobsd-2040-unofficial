@@ -486,7 +486,12 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("device", nargs="?", help="serial device (default: find the board)")
     p.add_argument("--port", type=int, default=7681, help="TCP port (default 7681)")
     p.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")
-    p.add_argument("--token", help="shared secret required for a non-loopback bind")
+    p.add_argument(
+        "--token",
+        help="shared secret required for a non-loopback bind (deprecated: visible to "
+        "every local user via ps; set DISCOBSD_WEB_TOKEN or a systemd credential "
+        "named web-token instead)",
+    )
     p.add_argument("--version", action="version", version="discobsd-web " + __version__)
     return p
 
@@ -502,14 +507,24 @@ def main(argv=None) -> int:
     if not device:
         sys.stderr.write("discobsd-web: no board found (plug it in, or set DISCOBSD_PORT)\n")
         return 1
-    if not is_loopback(args.bind) and not args.token:
+    if args.token:
         sys.stderr.write(
-            "discobsd-web: refusing a non-loopback bind without --token; a bare "
-            "0.0.0.0 bind exposes a login console to the LAN with no authentication\n"
+            "discobsd-web: --token on the command line is deprecated and visible to "
+            "every local user via ps; set DISCOBSD_WEB_TOKEN or a systemd credential "
+            "named web-token instead\n"
+        )
+        token = args.token
+    else:
+        token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
+    if not is_loopback(args.bind) and not token:
+        sys.stderr.write(
+            "discobsd-web: refusing a non-loopback bind without a token; a bare "
+            "0.0.0.0 bind exposes a login console to the LAN with no authentication. "
+            "Set DISCOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )
         return 1
-    httpd = ConsoleServer((args.bind, args.port), device, args.token)
-    q = ("?token=" + args.token) if args.token else ""
+    httpd = ConsoleServer((args.bind, args.port), device, token)
+    q = ("?token=" + token) if token else ""
     sys.stderr.write(f"DiscoBSD web console for {device}\n")
     if httpd.is_loopback:
         sys.stderr.write(

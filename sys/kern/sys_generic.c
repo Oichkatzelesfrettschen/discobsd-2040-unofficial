@@ -36,11 +36,11 @@ rwuio (uio)
     }
     total = 0;
     uio->uio_resid = 0;
-    for (iov = uio->uio_iov, i = 0; i < uio->uio_iovcnt; i++, iov++)
+    for (iov = uio->uio_iov, i = 0; i < (u_int)uio->uio_iovcnt; i++, iov++)
         total += iov->iov_len;
 
     uio->uio_resid = total;
-    if (uio->uio_resid != total) {      /* check wraparound */
+    if (uio->uio_resid != (u_long)total) {      /* check wraparound */
         u.u_error = EINVAL;
         return;
     }
@@ -429,6 +429,8 @@ seltrue(dev, flag)
     dev_t dev;
     int flag;
 {
+    (void)dev;
+    (void)flag;
     return (1);
 }
 
@@ -459,6 +461,8 @@ sorw(fp, uio)
     register struct file *fp;
     register struct uio *uio;
 {
+    (void)fp;
+    (void)uio;
 #ifdef  INET
     if (uio->uio_rw == UIO_READ)
         return(SORECEIVE((struct socket *)fp->f_socket, 0, uio, 0, 0));
@@ -474,6 +478,9 @@ soctl(fp, com, data)
     u_int   com;
     char    *data;
 {
+    (void)com;
+    (void)data;
+    (void)fp;
 #ifdef  INET
     return (SOO_IOCTL(fp, com, data));
 #else
@@ -486,6 +493,8 @@ sosel(fp, flag)
     struct file *fp;
     int     flag;
 {
+    (void)flag;
+    (void)fp;
 #ifdef  INET
     return (SOO_SELECT(fp, flag));
 #else
@@ -497,6 +506,7 @@ int
 socls(fp)
     register struct file *fp;
 {
+    (void)fp;
     register int error = 0;
 
 #ifdef  INET
@@ -529,6 +539,7 @@ void
 nostrategy (bp)
     struct buf *bp;
 {
+    (void)bp;
     /* Empty. */
 }
 

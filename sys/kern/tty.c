@@ -615,7 +615,7 @@ ttioctl(tp, com, data, flag)
             return (EPERM);
         p = pfind(pgrp);
         if (p && p->p_pgrp == pgrp &&
-            p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+            (uid_t)p->p_uid != u.u_uid && u.u_uid && !inferior(p))
             return (EPERM);
         tp->t_pgrp = pgrp;
         break;
@@ -1543,7 +1543,8 @@ ttwrite (tp, uio, flag)
 {
     char *cp;
     register int cc, ce;
-    int i, hiwat, cnt, error, s;
+    int i, hiwat, error, s;
+    u_int cnt;
     char obuf[OBUFSIZ];
 
     hiwat = TTHIWAT(tp);

@@ -45,7 +45,7 @@ KERN_BASE=	${KERN_COMMON} ${KERNEL_RENAMES}
 # gate excuses it rather than rewriting kernel sources a host compiler is the
 # only thing to complain about; bin/sh/tests and usr.bin/sort's runner excuse
 # it for the same reason.
-KERN_WARN=	-Wall -Werror -Wno-deprecated-non-prototype
+KERN_WARN=	-Wall -Wextra -Werror -Wno-deprecated-non-prototype
 GATE_WARN=	-Wall -Wextra -Werror
 
 KERN_CFLAGS=	${KERN_BASE} ${KERN_WARN}

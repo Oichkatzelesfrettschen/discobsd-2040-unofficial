@@ -77,7 +77,7 @@ main(void)
 	u.u_lastfile = -1;
 	for (i = 1; i < NGROUPS; i++)
 		u.u_groups[i] = NOGROUP;
-	for (i = 0; i < sizeof(u.u_rlimit)/sizeof(u.u_rlimit[0]); i++)
+	for (i = 0; i < (int)(sizeof(u.u_rlimit)/sizeof(u.u_rlimit[0])); i++)
 		u.u_rlimit[i].rlim_cur = u.u_rlimit[i].rlim_max =
 		    RLIM_INFINITY;
 #ifdef CORE_DEFAULT

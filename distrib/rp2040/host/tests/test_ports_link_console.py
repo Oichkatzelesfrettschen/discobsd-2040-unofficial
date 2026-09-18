@@ -37,6 +37,23 @@ def test_no_board_is_none(monkeypatch):
     assert ports.find_board(lambda: [], environ={}) is None
 
 
+def test_credential_prefers_the_systemd_credential_file(tmp_path):
+    (tmp_path / ports.TOKEN_CREDENTIAL).write_text("from-credential\n")
+    environ = {"CREDENTIALS_DIRECTORY": str(tmp_path), ports.TOKEN_ENV: "from-env"}
+    assert ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV, environ) == "from-credential"
+
+
+def test_credential_falls_back_to_the_environment_variable(tmp_path):
+    # CREDENTIALS_DIRECTORY is set (as it is under any systemd credential),
+    # but this particular credential was never loaded into it.
+    environ = {"CREDENTIALS_DIRECTORY": str(tmp_path), ports.TOKEN_ENV: "from-env"}
+    assert ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV, environ) == "from-env"
+
+
+def test_credential_is_none_when_neither_source_has_it():
+    assert ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV, {}) is None
+
+
 def test_windows_arrow_keys_become_vt100():
     assert term.translate_windows_key(0xE0, 0x48) == b"\x1b[A"
     assert term.translate_windows_key(0xE0, 0x4B) == b"\x1b[D"
@@ -94,9 +111,53 @@ def test_link_redirects_to_the_console(redirect):
     assert err.value.headers["Cache-Control"] == "no-store"
 
 
-def test_link_requires_target():
-    with pytest.raises(SystemExit):
-        link.main([])
+def test_link_requires_target(capsys):
+    # Neither --to (deprecated, token embedded) nor --host (token resolved
+    # from the environment or a systemd credential) was given.
+    assert link.main([]) == 1
+    assert "--to or --host is required" in capsys.readouterr().err
+
+
+def test_link_host_needs_a_token(capsys, monkeypatch):
+    monkeypatch.delenv(ports.TOKEN_ENV, raising=False)
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
+    assert link.main(["--host", "http://10.0.0.5:7681/"]) == 1
+    assert "no token" in capsys.readouterr().err
+
+
+def test_link_host_builds_the_tokenized_target(monkeypatch):
+    monkeypatch.setenv(ports.TOKEN_ENV, "abc")
+    captured = {}
+
+    class FakeServer:
+        def __init__(self, address, target):
+            captured["target"] = target
+
+        def serve_forever(self):
+            raise KeyboardInterrupt()
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(link, "RedirectServer", FakeServer)
+    assert link.main(["--host", "http://10.0.0.5:7681/"]) == 0
+    assert captured["target"] == "http://10.0.0.5:7681/?token=abc"
+
+
+def test_link_to_with_embedded_token_is_deprecated_but_still_works(capsys, monkeypatch):
+    class FakeServer:
+        def __init__(self, address, target):
+            pass
+
+        def serve_forever(self):
+            raise KeyboardInterrupt()
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(link, "RedirectServer", FakeServer)
+    assert link.main(["--to", "http://10.0.0.5:7681/?token=abc"]) == 0
+    assert "deprecated" in capsys.readouterr().err
 
 
 def test_config_dir_per_platform(tmp_path):

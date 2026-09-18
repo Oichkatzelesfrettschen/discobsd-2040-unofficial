@@ -23,6 +23,7 @@ syopen (dev, flag)
     dev_t dev;
     int flag;
 {
+    (void)dev;
     if (u.u_ttyp == NULL)
         return (ENXIO);
     return((*cdevsw[major(u.u_ttyd)].d_open)(u.u_ttyd, flag, 0));
@@ -35,6 +36,7 @@ syread (dev, uio, flag)
     struct uio *uio;
     int flag;
 {
+    (void)dev;
     if (u.u_ttyp == NULL)
         return (ENXIO);
     return ((*cdevsw[major(u.u_ttyd)].d_read)(u.u_ttyd, uio, flag));
@@ -47,6 +49,7 @@ sywrite (dev, uio, flag)
     struct uio *uio;
     int flag;
 {
+    (void)dev;
     if (u.u_ttyp == NULL)
         return (ENXIO);
     return ((*cdevsw[major(u.u_ttyd)].d_write)(u.u_ttyd, uio, flag));
@@ -60,6 +63,7 @@ syioctl (dev, cmd, addr, flag)
     caddr_t addr;
     int flag;
 {
+    (void)dev;
     if (cmd == TIOCNOTTY) {
         u.u_ttyp = 0;
         u.u_ttyd = 0;
@@ -77,6 +81,7 @@ syselect (dev, flag)
     dev_t dev;
     int flag;
 {
+    (void)dev;
 
     if (u.u_ttyp == NULL) {
         u.u_error = ENXIO;

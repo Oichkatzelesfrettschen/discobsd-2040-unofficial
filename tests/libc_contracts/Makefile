@@ -28,6 +28,10 @@ SBRK_SRC=	${TOPSRC}/lib/libc/arm/sys/sbrk.c
 MALLOC_OBJS=	malloc_arena.o malloc_calloc.o malloc_sbrk.o
 MALLOC_OBJS32=	malloc_arena32.o malloc_calloc32.o malloc_sbrk32.o
 
+# The sort compiled from the tree under another name, host width and -m32,
+# where size_t is the target's four bytes.
+QSORT_RENAMES=	-Dqsort=db_qsort
+
 # The target's size_t, int and pointers are four bytes; -m32 on an x86-64
 # host is that width, so the same test runs there when the compiler can.
 ILP32=		-m32
@@ -36,7 +40,7 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check: ${PROG} header_contract.o check-malloc check-aout
+check: ${PROG} header_contract.o check-malloc check-qsort check-aout
 	./${PROG}
 
 # The host allocator gate, which the root Makefile reaches as
@@ -49,6 +53,28 @@ check-malloc: malloc_test
 .else
 	@echo "check-libc-malloc: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
 .endif
+
+# The host sort gate, which the root Makefile reaches as check-libc-qsort.
+check-qsort: qsort_test
+	./qsort_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} qsort_test32
+	./qsort_test32
+.else
+	@echo "check-libc-qsort: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+qsort_test: qsort_test.c qsort_sort.o
+	${HOSTCC} ${MALLOC_CFLAGS} -o $@ qsort_test.c qsort_sort.o
+
+qsort_test32: qsort_test.c qsort_sort32.o
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} -o $@ qsort_test.c qsort_sort32.o
+
+qsort_sort.o: ${TARGET_DIR}/qsort.c
+	${HOSTCC} ${MALLOC_CFLAGS} ${QSORT_RENAMES} -c -o $@ ${TARGET_DIR}/qsort.c
+
+qsort_sort32.o: ${TARGET_DIR}/qsort.c
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${QSORT_RENAMES} -c -o $@ ${TARGET_DIR}/qsort.c
 
 malloc_test: malloc_test.c ${MALLOC_OBJS}
 	${HOSTCC} ${MALLOC_CFLAGS} -o $@ malloc_test.c ${MALLOC_OBJS}
@@ -102,7 +128,8 @@ header_contract.o: header_contract.c
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
+	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 
 all: check
 
-.PHONY: all check check-aout check-malloc clean
+.PHONY: all check check-aout check-malloc check-qsort clean

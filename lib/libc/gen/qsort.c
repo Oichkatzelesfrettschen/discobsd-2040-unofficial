@@ -12,14 +12,25 @@
  * for records of size 48 bytes.
  * The MTHREShold is where we stop finding a better median.
  */
+#include <stdlib.h>
 
 #define		THRESH		4		/* threshold for insertion */
 #define		MTHRESH		6		/* threshold for median */
 
-static  int		(*qcmp)();		/* the comparison routine */
-static  int		qsz;			/* size of each record */
-static  unsigned int	thresh;			/* THRESHold in chars */
-static  unsigned int	mthresh;		/* MTHRESHold in chars */
+/*
+ * The parameters of one sort. They travel with the call rather than
+ * living at file scope, because a comparison routine may itself call
+ * qsort() on records of another size, and file-scope state written by
+ * the inner call is what the outer partition loop then reads for its own
+ * record size and comparator. tests/libc_contracts/qsort_test.c sorts
+ * through a comparator that sorts, at two record sizes.
+ */
+struct qsort_state {
+	int		(*qcmp)(const void *, const void *);
+	size_t		qsz;			/* size of each record */
+	size_t		thresh;			/* THRESHold in chars */
+	size_t		mthresh;		/* MTHRESHold in chars */
+};
 
 /*
  * qst:
@@ -36,13 +47,14 @@ static  unsigned int	mthresh;		/* MTHRESHold in chars */
  * (And there are only three places where this is done).
  */
 static void
-qst(base, max)
-	char *base, *max;
+qst(const struct qsort_state *st, char *base, char *max)
 {
 	register char c, *i, *j, *jj;
-	register int ii;
+	register size_t ii;
+	const size_t qsz = st->qsz;
+	int (*const qcmp)(const void *, const void *) = st->qcmp;
 	char *mid, *tmp;
-	unsigned int lo, hi;
+	size_t lo, hi;
 
 	/*
 	 * At the top here, lo is the number of characters of elements in the
@@ -56,7 +68,7 @@ qst(base, max)
 	lo = max - base;		/* number of elements as chars */
 	do	{
 		mid = i = base + qsz * ((lo / qsz) >> 1);
-		if (lo >= mthresh) {
+		if (lo >= st->mthresh) {
 			j = (qcmp((jj = base), i) > 0 ? jj : i);
 			if (qcmp(j, (tmp = max - qsz)) > 0) {
 				/* switch to first loser */
@@ -122,44 +134,43 @@ qst(base, max)
 		 */
 		i = (j = mid) + qsz;
 		if ((lo = j - base) <= (hi = max - i)) {
-			if (lo >= thresh)
-				qst(base, j);
+			if (lo >= st->thresh)
+				qst(st, base, j);
 			base = i;
 			lo = hi;
 		} else {
-			if (hi >= thresh)
-				qst(i, max);
+			if (hi >= st->thresh)
+				qst(st, i, max);
 			max = j;
 		}
-	} while (lo >= thresh);
+	} while (lo >= st->thresh);
 }
 
 /*
  * qsort:
- * First, set up some global parameters for qst to share.  Then, quicksort
+ * First, set up the parameters for qst to share.  Then, quicksort
  * with qst(), and then a cleanup insertion sort ourselves.  Sound simple?
  * It's not...
  */
 void
-qsort(base, n, size, compar)
-	char	*base;
-	int	n;
-	int	size;
-	int	(*compar)();
+qsort(void *vbase, size_t n, size_t size,
+    int (*compar)(const void *, const void *))
 {
+	struct qsort_state st;
 	register char c, *i, *j, *lo, *hi;
-	char *min, *max;
+	char *base = vbase, *min, *max;
+	const size_t qsz = size;
 
-	if (n <= 1)
+	if (n <= 1 || size == 0)
 		return;
-	qsz = size;
-	qcmp = compar;
-	thresh = qsz * THRESH;
-	mthresh = qsz * MTHRESH;
+	st.qsz = qsz;
+	st.qcmp = compar;
+	st.thresh = qsz * THRESH;
+	st.mthresh = qsz * MTHRESH;
 	max = base + n * qsz;
 	if (n >= THRESH) {
-		qst(base, max);
-		hi = base + thresh;
+		qst(&st, base, max);
+		hi = base + st.thresh;
 	} else {
 		hi = max;
 	}
@@ -170,7 +181,7 @@ qsort(base, n, size, compar)
 	 * the min, and swapping it into the first position.
 	 */
 	for (j = lo = base; (lo += qsz) < hi; )
-		if (qcmp(j, lo) > 0)
+		if (compar(j, lo) > 0)
 			j = lo;
 	if (j != base) {
 		/* swap j into place */
@@ -188,7 +199,7 @@ qsort(base, n, size, compar)
 	 * basis for each element in the frob.
 	 */
 	for (min = base; (hi = min += qsz) < max; ) {
-		while (qcmp(hi -= qsz, min) > 0)
+		while (compar(hi -= qsz, min) > 0)
 			/* void */;
 		if ((hi += qsz) != min) {
 			for (lo = min + qsz; --lo >= min; ) {

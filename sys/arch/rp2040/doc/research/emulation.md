@@ -429,6 +429,12 @@ The sections above this one recorded that no run reached `login:` and that
 the console stopped at `swap size = 380 kbytes`. Both statements were
 accurate for the tree as it stood; the two fixes here supersede them.
 
+The model defects behind the SSI patches, and six more in the W25QXX flash
+model that change what a guest observes without stopping a boot, are written
+up as reports for matgla/Renode_RP2040 in
+docs/research/renode-rp2040-upstream-reports.md. They are drafts: nothing
+has been submitted.
+
 ## Exact, replayable commands
 
 Build (see BOOT-MAP.md section 12 for the fuller version with the

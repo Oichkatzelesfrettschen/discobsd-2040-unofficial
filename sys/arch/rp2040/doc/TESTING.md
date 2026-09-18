@@ -211,7 +211,12 @@ tree does not carry.
 
 tools/pico-sdk/sdk-path.sh resolves the SDK from `PICO_SDK_PATH`, then
 tools/pico-sdk/vendor/pico-sdk, then a pico-sdk beside this tree in the
-same workspace, and names every candidate it checked when none is usable.
+same workspace, then /usr/share/pico-sdk, /usr/local/share/pico-sdk and
+/opt/pico-sdk, and names every candidate it checked when none is usable.
+The packaged paths are named because a package that installs the SDK also
+exports `PICO_SDK_PATH` from a profile snippet, and a profile snippet
+reaches a login shell alone: a systemd unit, a cron job or a container
+would otherwise be told to fetch an SDK the disk already holds.
 It tests for `lib/tinyusb/src/tusb.h` rather than for the directory,
 because a clone whose submodule is not initialized otherwise passes the
 guard and fails inside CMake. tools/pico-sdk/fetch-pico-sdk.sh writes that

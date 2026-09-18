@@ -189,9 +189,13 @@ check-warning-policy-cross:
 		${MAKE} -C tests/warning_policy check-cross
 
 # The evacuation test compiles the kernel's swapram.c and subr_rmap.c on
-# the host; its Makefile is written for GNU make.
+# the host; its Makefile is written for GNU make. bmake under -j advertises
+# its jobserver to children as "-j N -J fd,fd" in MAKEFLAGS, and GNU make
+# rejects -J and prints its usage, so the environment is cleared for the one
+# recipe in this tree that runs a foreign make.
 check-swapram-evac:
-		make -C sys/arch/rp2040/test/swapram evac
+		env -u MAKEFLAGS -u MFLAGS \
+		    make -C sys/arch/rp2040/test/swapram evac
 
 check-flash-swap:
 		${MAKE} -C tests/rp2040/flash_swap check

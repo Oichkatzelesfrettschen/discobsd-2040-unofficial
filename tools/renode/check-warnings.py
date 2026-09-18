@@ -29,20 +29,27 @@ REPEAT_COUNT = re.compile(r"\s*\(\d+\)\s*$")
 HEX = re.compile(r"0x[0-9A-Fa-f]+")
 
 
+# Phrases after which a hex literal names the class rather than carrying a
+# payload: the bus address of an unmapped register, and the decoded operation
+# W25QXX failed to handle, where 0x7 (a status read the model never serves)
+# and 0x0 (a byte after an opcode it did not recognize) are separate defects.
+IDENTIFYING = ("at ", "byte: ")
+
+
 def normalize(text):
     """Drop what varies run to run and keep what names the class.
 
-    A bus address is the identity of a warning about an unmapped register,
-    so the literal after "at " survives; every other hex number is a value,
-    a program counter or a payload and becomes one token.
+    Every hex number is a value, a program counter or a payload and becomes
+    one token, except where IDENTIFYING says the literal is the identity.
     """
     text = REPEAT_COUNT.sub("", PROGRAM_COUNTER.sub("", text))
     pieces = []
     end = 0
     for found in HEX.finditer(text):
-        is_address = text[max(0, found.start() - 3):found.start()] == "at "
+        before = text[:found.start()]
+        identifies = any(before.endswith(phrase) for phrase in IDENTIFYING)
         pieces.append(text[end:found.start()])
-        pieces.append(found.group(0) if is_address else "0xN")
+        pieces.append(found.group(0) if identifies else "0xN")
         end = found.end()
     pieces.append(text[end:])
     return "".join(pieces).strip()

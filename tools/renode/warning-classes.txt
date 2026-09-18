@@ -14,8 +14,10 @@
 # direction; raising one records that something started warning more.
 #
 # Each entry says what the model is missing and what the kernel sees because
-# of it. Three mark state the kernel reads and gets a wrong answer for; the
+# of it. Four mark state the kernel reads and gets a wrong answer for; the
 # rest are registers and pad bits this kernel writes and never reads back.
+# docs/research/renode-rp2040-upstream-reports.md carries the reports those
+# four are drawn from.
 #
 # A message carries its peripheral as a prefix once the platform has named
 # it and arrives bare when it comes from the loader or from a model still
@@ -26,11 +28,27 @@
 # replaced by 0xN. A line whose first non-blank character is # is a comment;
 # a pattern may contain one.
 
-# The boot ROM's flash_exit_xip clocks 0xff bytes to break the QSPI
-# continuation mode a previous XIP session left the flash in, and W25QXX
-# decodes no such command. It reports the mode bytes that follow as opcodes.
-# Silicon ignores them the same way, so the sequence works regardless.
-26000   ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte:
+# The number this message prints is W25QXX's decoded operation type, not the
+# byte on the wire, so the two values below are two different defects.
+#
+# 0x7 is ReadRegister. W25QXX builds a status register in its constructor and
+# never reads it: HandleCommand switches on Read, ReadFast, ReadID, SFDP and
+# Program, and a status read falls through to the default branch and returns
+# zero. WIP therefore reads clear forever, and every flash_wait_ready in the
+# boot ROM and in sys/arch/rp2040/dev/flash.c returns on its first poll. The
+# model finishes sooner than silicon, never later, so it cannot stall a boot;
+# it also means a driver that skipped the wait would pass here.
+20000   ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte: 0x7
+# 0x0 is None: a byte arriving after an opcode the model did not recognize.
+# The boot ROM's flash_exit_xip clocks 0xff to break the QSPI continuation
+# mode a previous XIP session left the flash in, W25QXX decodes no such
+# command, and the mode bytes that follow land here. Silicon ignores them the
+# same way, so the sequence works regardless.
+6000    ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte: 0x0
+# Any other operation type is a defect this boot has not produced, so one
+# occurrence fails: the two above are understood and a third is not.
+0       ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte:
+# The 0xff of flash_exit_xip itself, rejected by RecognizeOperation.
 6000    ^(xip_ssi\.xip_flash: )?Unhandled operation: 0xN
 
 # RP2040XIPSSI signals chip select from its SSIENR and SER write callbacks

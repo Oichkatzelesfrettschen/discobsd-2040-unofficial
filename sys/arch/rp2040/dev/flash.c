@@ -56,8 +56,6 @@
 
 #include <machine/intr.h>
 
-#define	__unused	__attribute__((__unused__))	/* XXX as in conf.c */
-
 #include <rp2040/dev/flash.h>
 #include <rp2040/dev/flash_swap.h>
 #include <rp2040/dhara/map.h>

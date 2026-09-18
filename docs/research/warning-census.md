@@ -37,20 +37,31 @@ configurations to `-Wall -Wextra -Werror`, so the kernel half of this census
 is now history rather than a backlog. `docs/research/warning-policy-audit.md`
 records that repair.
 
-## The header levers are still open
+## The header levers
 
 98ef831e silenced the kernel's unused parameters one at a time, adding 60
-`(void)parameter;` statements. The tree now carries 138 of them across 25
-files under `sys/`, because it has no `sys/cdefs.h`: `__unused` is
+`(void)parameter;` statements. The tree carried 99 of them across 24 tracked
+files under `sys/`, because it had no `sys/cdefs.h`: `__unused` was
 `#define`d separately in `sys/arch/pic32/pic32/conf.c`,
 `sys/arch/stm32/stm32/conf.c`, `sys/arch/rp2040/rp2040/conf.c` and
 `sys/arch/rp2040/dev/flash.c`, each marked `XXX`, and three of those four
-comments already name the duplication they are working around.
+comments already named the duplication they were working around.
 
-One header carrying `__unused` replaces every one of those statements with
-an attribute on the parameter that is actually unused, and retires four
-duplicate definitions. It is the single largest remaining reduction in the
-kernel, and nothing in 98ef831e forecloses it.
+`sys/sys/cdefs.h` now carries `__unused`, reached through `sys/types.h`,
+and the four duplicate definitions are gone. Of the 99 statements, 62 in
+16 files become an attribute on the parameter that is actually unused. The
+remaining 37 stay, for reasons rather than by omission: 34 are in vendored
+source -- TinyUSB, the ST HAL, heatshrink and Dhara -- where a local
+rewrite makes the next import harder, and 3 are in
+`sys/arch/rp2040/test/swapram`, which compiles against its own
+`shim/sys/param.h` and so never sees the tree's headers.
+
+The attribute also says something the statement could not. `sorw` and
+`soctl` in `sys/kern/sys_generic.c` use their parameters under `#ifdef
+INET`, so `(void)fp;` claimed unconditionally that a parameter was unused
+while `__unused` says it may be. Nothing changes in the compiled output:
+with the debug sections stripped, every one of the 79 PICO and 74
+PICO_UART objects is byte-identical to a build of 98ef831e.
 
 The second lever is narrower and already spent: all 12 of the kernel's
 `-Wsign-compare` warnings reported against `param.h:100` came from the one
@@ -93,9 +104,10 @@ The reconciliation lives here rather than in the audit, because the audit
 is a ledger: it names the tree at 4197a91f, and `docs/INDEX.md` files it
 where a correction goes in a new document instead of in the ledger.
 
-## Three ways the measurement lied before the script existed
+## Four ways the measurement lied
 
-Recorded because each produced a confident number that was wrong.
+Recorded because each produced a confident number that was wrong. The first
+three predate the script; the fourth is a count this document itself carried.
 
 **A parallel build cannot attribute a warning to a source file.** Reading
 back from a warning to the nearest preceding compile line gives whichever
@@ -115,5 +127,13 @@ that recompiles more than it needs to counts each emission. That put
 userland at 674 rather than 188, and
 `-Wbuiltin-declaration-mismatch` at 178 rather than 4.
 
-A warning's own `file:line` is the compiler's output and survives all
-three failures. Only inference from a log's ordering does not.
+**Counting the working tree counts the build.** This document first reported
+138 `(void)parameter;` statements across 25 files, from a `grep -r` over
+`sys/`. A built tree holds more than its sources: the match list included
+`sys/arch/rp2040/compile/PICO/unix.dis`, a disassembly the build writes.
+Restricting the same search to `git ls-files` gives 99 across 24 files. A
+question about the source is asked of the index, not of the directory.
+
+A warning's own `file:line` is the compiler's output and survives the first
+three failures. Only inference from a log's ordering does not, and only a
+tracked-file list answers the fourth.

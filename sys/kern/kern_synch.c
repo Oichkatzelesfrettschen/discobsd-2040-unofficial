@@ -27,9 +27,8 @@ char    curpri;                 /* more scheduling */
  * Recompute process priorities, once a second
  */
 void
-schedcpu (caddr_t arg)
+schedcpu (caddr_t arg __unused)
 {
-    (void)arg;
     register struct proc *p;
     register int a;
 

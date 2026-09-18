@@ -102,10 +102,8 @@ swsize(dev_t dev)
 }
 
 int
-swcopen(dev_t dev, int mode, int flag)
+swcopen(dev_t dev, int mode __unused, int flag __unused)
 {
-	(void)flag;
-	(void)mode;
 	int unit = minor(dev);
 
 	if (unit >= NTMP) {
@@ -117,10 +115,8 @@ swcopen(dev_t dev, int mode, int flag)
 }
 
 int
-swcclose(dev_t dev, int mode, int flag)
+swcclose(dev_t dev, int mode __unused, int flag __unused)
 {
-	(void)flag;
-	(void)mode;
 	int unit = minor(dev);
 
 	if (unit >= NTMP)
@@ -130,9 +126,8 @@ swcclose(dev_t dev, int mode, int flag)
 }
 
 int
-swcread(dev_t dev, struct uio *uio, int flag)
+swcread(dev_t dev, struct uio *uio, int flag __unused)
 {
-	(void)flag;
 	u_int		 block;
 	u_int		 boff;
 	struct buf	*bp;
@@ -175,9 +170,8 @@ swcread(dev_t dev, struct uio *uio, int flag)
 }
 
 int
-swcwrite(dev_t dev, struct uio *uio, int flag)
+swcwrite(dev_t dev, struct uio *uio, int flag __unused)
 {
-	(void)flag;
 	u_int		 block;
 	u_int		 boff;
 	struct buf	*bp;
@@ -232,9 +226,8 @@ swcwrite(dev_t dev, struct uio *uio, int flag)
 }
 
 int
-swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
+swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 {
-	(void)flag;
 	u_int		*uival;
 	off_t		*offtval;
 	off_t		 requested;

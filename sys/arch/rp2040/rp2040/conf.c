@@ -38,8 +38,6 @@
 #ifdef SDIO_ENABLED
 #endif
 
-#define __unused	__attribute__((__unused__))	/* XXX */
-
 int
 nullopen(dev_t dev __unused, int flag __unused, int mode __unused)
 {

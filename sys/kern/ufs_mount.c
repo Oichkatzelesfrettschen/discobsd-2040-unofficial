@@ -52,14 +52,12 @@ getmdev(dev_t *pdev, caddr_t fname)
 }
 
 void
-mount_updname(struct fs *fs, char *on, char *from, int lenon, int lenfrom)
+mount_updname(struct fs *fs, char *on, char *from __unused, int lenon, int lenfrom __unused)
 {
     int fslen = lenon;
 #ifndef SINGLE_UFS_ROOT
     struct  mount   *mp;
 #else
-    (void)from;
-    (void)lenfrom;
 #endif
 
     bzero (fs->fs_fsmnt, sizeof (fs->fs_fsmnt));

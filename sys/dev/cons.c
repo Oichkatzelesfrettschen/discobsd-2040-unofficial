@@ -20,54 +20,48 @@
 struct tty cnttys[1];
 
 int
-cnopen(dev_t cn, int flag, int mode)
+cnopen(dev_t cn __unused, int flag, int mode)
 {
-	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_open(dev, flag, mode);
 }
 
 int
-cnclose(dev_t cn, int flag, int mode)
+cnclose(dev_t cn __unused, int flag, int mode)
 {
-	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_close(dev, flag, mode);
 }
 
 int
-cnread(dev_t cn, struct uio *uio, int flag)
+cnread(dev_t cn __unused, struct uio *uio, int flag)
 {
-	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_read(dev, uio, flag);
 }
 
 int
-cnwrite(dev_t cn, struct uio *uio, int flag)
+cnwrite(dev_t cn __unused, struct uio *uio, int flag)
 {
-	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_write(dev, uio, flag);
 }
 
 int
-cnselect(dev_t cn, int rw)
+cnselect(dev_t cn __unused, int rw)
 {
-	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_select(dev, rw);
 }
 
 int
-cnioctl(dev_t cn, u_int cmd, caddr_t addr, int flag)
+cnioctl(dev_t cn __unused, u_int cmd, caddr_t addr, int flag)
 {
-	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_ioctl(dev, cmd, addr, flag);

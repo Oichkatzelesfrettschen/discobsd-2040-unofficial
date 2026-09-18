@@ -426,11 +426,9 @@ pselect()
 /*ARGSUSED*/
 int
 seltrue(dev, flag)
-    dev_t dev;
-    int flag;
+    dev_t dev __unused;
+    int flag __unused;
 {
-    (void)dev;
-    (void)flag;
     return (1);
 }
 
@@ -458,11 +456,9 @@ selwakeup (p, coll)
 
 int
 sorw(fp, uio)
-    register struct file *fp;
-    register struct uio *uio;
+    register struct file *fp __unused;
+    register struct uio *uio __unused;
 {
-    (void)fp;
-    (void)uio;
 #ifdef  INET
     if (uio->uio_rw == UIO_READ)
         return(SORECEIVE((struct socket *)fp->f_socket, 0, uio, 0, 0));
@@ -474,13 +470,10 @@ sorw(fp, uio)
 
 int
 soctl(fp, com, data)
-    struct file *fp;
-    u_int   com;
-    char    *data;
+    struct file *fp __unused;
+    u_int   com __unused;
+    char    *data __unused;
 {
-    (void)com;
-    (void)data;
-    (void)fp;
 #ifdef  INET
     return (SOO_IOCTL(fp, com, data));
 #else
@@ -490,11 +483,9 @@ soctl(fp, com, data)
 
 int
 sosel(fp, flag)
-    struct file *fp;
-    int     flag;
+    struct file *fp __unused;
+    int     flag __unused;
 {
-    (void)flag;
-    (void)fp;
 #ifdef  INET
     return (SOO_SELECT(fp, flag));
 #else
@@ -504,9 +495,8 @@ sosel(fp, flag)
 
 int
 socls(fp)
-    register struct file *fp;
+    register struct file *fp __unused;
 {
-    (void)fp;
     register int error = 0;
 
 #ifdef  INET
@@ -537,9 +527,8 @@ const struct fileops *const Fops[] = {
  */
 void
 nostrategy (bp)
-    struct buf *bp;
+    struct buf *bp __unused;
 {
-    (void)bp;
     /* Empty. */
 }
 

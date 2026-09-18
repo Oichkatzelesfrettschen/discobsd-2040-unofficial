@@ -275,9 +275,8 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
  */
 int
 hw_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
+    void *newp, size_t newlen __unused)
 {
-	(void)newlen;
 	extern char machine[], machine_arch[], cpu_model[];
 
 	/* All sysctl names at this level are terminal. */
@@ -362,9 +361,8 @@ debug_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
  */
 int
 vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
-    void *newp, size_t newlen)
+    void *newp, size_t newlen __unused)
 {
-	(void)newlen;
 	struct loadavg averunnable;		/* loadavg in resource.h */
 
 	/* All sysctl names at this level are terminal. */

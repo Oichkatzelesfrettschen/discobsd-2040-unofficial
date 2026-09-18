@@ -25,9 +25,8 @@ typedef struct fblk *FBLKP;
  * obtain NICFREE more...
  */
 struct buf *
-balloc(struct inode *ip, int flags)
+balloc(struct inode *ip __unused, int flags)
 {
-    (void)ip;
     register struct fs *fs;
     register struct buf *bp;
     int async;
@@ -121,9 +120,8 @@ nospace:
  * is instituted to pick up NICINOD more.
  */
 struct inode *
-ialloc(struct inode *pip)
+ialloc(struct inode *pip __unused)
 {
-    (void)pip;
     register struct fs *fs;
     register struct buf *bp;
     register struct inode *ip;
@@ -264,9 +262,8 @@ free(struct inode *ip, daddr_t bno)
  * stores up to NICINOD I nodes in the super block and throws away any more.
  */
 void
-ifree(struct inode *ip, ino_t ino)
+ifree(struct inode *ip __unused, ino_t ino)
 {
-    (void)ip;
     register struct fs *fs;
 
     fs = INODE_FILESYSTEM(ip);

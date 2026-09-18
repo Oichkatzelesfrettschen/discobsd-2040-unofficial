@@ -174,9 +174,8 @@ int
 rawrw (dev, uio, flag)
     dev_t dev;
     register struct uio *uio;
-    int flag;
+    int flag __unused;
 {
-    (void)flag;
     return (physio(cdevsw[major(dev)].d_strategy, (struct buf *)NULL, dev,
         uio->uio_rw == UIO_READ ? B_READ : B_WRITE, uio));
 }

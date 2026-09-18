@@ -41,8 +41,10 @@ scandir(dirname, namelist, select, dcomp)
 	 */
 	arraysz = (stb.st_size / 24);
 	names = (struct direct **)malloc(arraysz * sizeof(struct direct *));
-	if (names == NULL)
+	if (names == NULL) {
+		closedir(dirp);
 		return(-1);
+	}
 
 	nitems = 0;
 	while ((d = readdir(dirp)) != NULL) {
@@ -53,7 +55,7 @@ scandir(dirname, namelist, select, dcomp)
 		 */
 		p = (struct direct *)malloc(DIRSIZ(d));
 		if (p == NULL)
-			return(-1);
+			goto fail;
 		p->d_ino = d->d_ino;
 		p->d_reclen = d->d_reclen;
 		p->d_namlen = d->d_namlen;
@@ -64,13 +66,22 @@ scandir(dirname, namelist, select, dcomp)
 		 * realloc the maximum size.
 		 */
 		if (++nitems >= arraysz) {
-			if (fstat(dirp->dd_fd, &stb) < 0)
-				return(-1);	/* just might have grown */
+			struct direct **nnames;
+
+			if (fstat(dirp->dd_fd, &stb) < 0) {
+				free(p);
+				nitems--;
+				goto fail;	/* just might have grown */
+			}
 			arraysz = stb.st_size / 12;
-			names = (struct direct **)realloc((char *)names,
+			nnames = (struct direct **)realloc((char *)names,
 				arraysz * sizeof(struct direct *));
-			if (names == NULL)
-				return(-1);
+			if (nnames == NULL) {
+				free(p);
+				nitems--;
+				goto fail;
+			}
+			names = nnames;
 		}
 		names[nitems-1] = p;
 	}
@@ -79,6 +90,14 @@ scandir(dirname, namelist, select, dcomp)
 		qsort(names, nitems, sizeof(struct direct *), dcomp);
 	*namelist = names;
 	return(nitems);
+fail:
+	/* Every entry copied so far, the array and the directory are the
+	 * caller's to lose only through *namelist, which stays unset. */
+	while (nitems > 0)
+		free(names[--nitems]);
+	free(names);
+	closedir(dirp);
+	return(-1);
 }
 
 /*

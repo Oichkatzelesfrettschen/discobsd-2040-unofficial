@@ -8,8 +8,99 @@ PROG= libc_contracts_test
 TARGET_DIR= ../../lib/libc/gen
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 
-check: ${PROG} header_contract.o check-aout
+# The arena allocator compiled from the tree over an sbrk() the test owns.
+# The four allocation names move aside on the command line so the host's
+# libc keeps its own. sbrk is renamed inside malloc_arena.c instead, after
+# the host headers, because the host's unistd.h declares sbrk(intptr_t) and
+# a command-line rename would turn that declaration into test_sbrk's, with
+# the host's width and Darwin's deprecation attached. sbrk.c itself compiles
+# against the tree's unistd.h, whose sbrk takes int, over the test's _brk().
+# The kernel tier's old-style-definition excuse applies here too.
+MALLOC_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Wno-deprecated-non-prototype
+MALLOC_RENAMES=	-Dmalloc=db_malloc -Dfree=db_free -Drealloc=db_realloc \
+		-Dcalloc=db_calloc -Dcfree=db_cfree
+MALLOC_ARENA=	malloc_arena.c ${TARGET_DIR}/malloc.c
+# sbrk.c starts the break at _end, the linker's end of bss on the target
+# and on ELF hosts, which Mach-O never defines; the test supplies the
+# initial break as well as the _brk() beneath it.
+SBRK_RENAMES=	-Dsbrk=port_sbrk -Dbrk=port_brk -D_brk=test_brk -D_end=test_end
+SBRK_SRC=	${TOPSRC}/lib/libc/arm/sys/sbrk.c
+MALLOC_OBJS=	malloc_arena.o malloc_calloc.o malloc_sbrk.o
+MALLOC_OBJS32=	malloc_arena32.o malloc_calloc32.o malloc_sbrk32.o
+
+# The sort compiled from the tree under another name, host width and -m32,
+# where size_t is the target's four bytes.
+QSORT_RENAMES=	-Dqsort=db_qsort
+
+# The target's size_t, int and pointers are four bytes; -m32 on an x86-64
+# host is that width, so the same test runs there when the compiler can.
+ILP32=		-m32
+ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
+		if ${HOSTCC} -m32 -o /dev/null /tmp/ilp32probe$$$$.c 2>/dev/null; \
+		then echo yes; else echo no; fi; \
+		rm -f /tmp/ilp32probe$$$$.c
+
+check: ${PROG} header_contract.o check-malloc check-qsort check-aout
 	./${PROG}
+
+# The host allocator gate, which the root Makefile reaches as
+# check-libc-malloc.
+check-malloc: malloc_test
+	./malloc_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} malloc_test32
+	./malloc_test32
+.else
+	@echo "check-libc-malloc: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+# The host sort gate, which the root Makefile reaches as check-libc-qsort.
+check-qsort: qsort_test
+	./qsort_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} qsort_test32
+	./qsort_test32
+.else
+	@echo "check-libc-qsort: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+qsort_test: qsort_test.c qsort_sort.o
+	${HOSTCC} ${MALLOC_CFLAGS} -o $@ qsort_test.c qsort_sort.o
+
+qsort_test32: qsort_test.c qsort_sort32.o
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} -o $@ qsort_test.c qsort_sort32.o
+
+qsort_sort.o: ${TARGET_DIR}/qsort.c
+	${HOSTCC} ${MALLOC_CFLAGS} ${QSORT_RENAMES} -c -o $@ ${TARGET_DIR}/qsort.c
+
+qsort_sort32.o: ${TARGET_DIR}/qsort.c
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${QSORT_RENAMES} -c -o $@ ${TARGET_DIR}/qsort.c
+
+malloc_test: malloc_test.c ${MALLOC_OBJS}
+	${HOSTCC} ${MALLOC_CFLAGS} -o $@ malloc_test.c ${MALLOC_OBJS}
+
+malloc_test32: malloc_test.c ${MALLOC_OBJS32}
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} -DHK_ILP32 -o $@ malloc_test.c ${MALLOC_OBJS32}
+
+malloc_arena.o: ${MALLOC_ARENA}
+	${HOSTCC} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ malloc_arena.c
+
+malloc_calloc.o: ${TARGET_DIR}/calloc.c
+	${HOSTCC} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ ${TARGET_DIR}/calloc.c
+
+malloc_sbrk.o: ${SBRK_SRC}
+	${HOSTCC} ${MALLOC_CFLAGS} -nostdinc -isystem ${TOPSRC}/include \
+		${SBRK_RENAMES} -c -o $@ ${SBRK_SRC}
+
+malloc_arena32.o: ${MALLOC_ARENA}
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ malloc_arena.c
+
+malloc_calloc32.o: ${TARGET_DIR}/calloc.c
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${MALLOC_RENAMES} -c -o $@ ${TARGET_DIR}/calloc.c
+
+malloc_sbrk32.o: ${SBRK_SRC}
+	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} -nostdinc -isystem ${TOPSRC}/include \
+		${SBRK_RENAMES} -c -o $@ ${SBRK_SRC}
 
 check-aout:
 	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} cleantools
@@ -36,7 +127,9 @@ header_contract.o: header_contract.c
 
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
+	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
+	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 
 all: check
 
-.PHONY: all check check-aout clean
+.PHONY: all check check-aout check-malloc check-qsort clean

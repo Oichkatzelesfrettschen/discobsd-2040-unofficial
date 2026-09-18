@@ -26,3 +26,10 @@ sigauth_sig.o
 sigauth_prot2.o
 sigauth_proc.o
 sigauth_shim.o
+rwuio_test
+rwuio_test32
+rwuio_kernel.o
+rwuio_kernel32.o
+rwuio_shim32.o
+rwuio_jump.o
+rwuio_jump32.o

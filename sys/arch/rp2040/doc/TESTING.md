@@ -128,7 +128,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-build-failure` | a failed step cannot pass as success: lib/Makefile's install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
-| `check-kernel` | seven sys/kern sources compiled from the kernel tree and run against 984 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting |
+| `check-kernel` | eight sys/kern sources compiled from the kernel tree and run against 1194 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
@@ -144,7 +144,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's solution uniqueness against an independent counter |
 | bin/sh/tests `test` | the line editor through a pipe |
 | bin/tar/tests/tartest.sh | the header formats |
-| usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils |
+| usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils, and getline_test over the tree's own getline.c: buffer ownership after a refused growth, the byte that did not fit pushed back, the bytes before a stream error terminated, and the capacity policy held at SSIZE_MAX + 1 at the host width and at -m32 |
 | usr.bin/cpio/tests/cpiotest.sh | odc archives round-tripped through the host cpio |
 
 `check-posix-sh` runs bin/sh/tests/posix-sh.sh, the conformance harness
@@ -154,18 +154,22 @@ and fails the moment the shell starts producing the POSIX answer.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for two files that
-compile only at the target's width. sys/kern/kern_sig.c casts pointers to
-int in issignal() and core(); sigauth_test links it with kern_prot2.c and
-kern_proc.c and judges seteuid() by what kill() does afterwards, since
-cansignal() reads the effective uid from p_uid in the proc entry rather
-than from the u area: a process that drops root with seteuid() is refused
-a SIGUSR1 to an unrelated process owned by a third uid, is refused a uid
-it never held with every field left as it was, takes root back through
-its saved id, and is then allowed the signal; a broadcast from the
-dropped process reaches its child and not the stranger, and SIGCONT
-passes to a descendant alone. The other file, sys/kern/subr_prf.c,
-carries its own argument walk,
+`check-kernel-ilp32` is separate from `check-kernel` for three files
+that compile or hold only at the target's width. sys/kern/sys_generic.c
+is built again as rwuio_test32: off_t, size_t and u_int are all four
+bytes on the target, so the vector sum that wrapped there is reproduced
+only at this width, and the gate asserts those widths statically before
+it runs. sys/kern/kern_sig.c casts pointers to int in issignal() and
+core(); sigauth_test links it with kern_prot2.c and kern_proc.c and
+judges seteuid() by what kill() does afterwards, since cansignal() reads
+the effective uid from p_uid in the proc entry rather than from the u
+area: a process that drops root with seteuid() is refused a SIGUSR1 to
+an unrelated process owned by a third uid, is refused a uid it never
+held with every field left as it was, takes root back through its saved
+id, and is then allowed the signal; a broadcast from the dropped process
+reaches its child and not the stranger, and SIGCONT passes to a
+descendant alone. The third file, sys/kern/subr_prf.c, carries its own
+argument walk,
 
     #define va_arg(ap,type) *(type*) (void*) (ap++)
 
@@ -251,6 +255,8 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-ufs-prototypes` | every UFS function the kernel links has a prototype |
 | `check-hsaout` | the packed a.out container against header and stream corruption, truncation and forged lengths, over every image in the distribution tree |
 | `check-libc-contracts` | raise and ctermid on the host, and the board libc's a.out contracts after a rebuild from clean |
+| `check-libc-malloc` | lib/libc/gen/malloc.c, calloc.c and lib/libc/arm/sys/sbrk.c compiled from the tree over an sbrk() and _brk() the test owns, so exhaustion is a ceiling the test sets: a refused realloc() leaves the block allocated, shown by allocating again and requiring the result outside it; an oversized malloc(), calloc() or realloc() is ENOMEM before any arena call; calloc() rejects a product that wraps; growth into free neighbors and shrinking stay in place; a moved block frees its origin; 4000 mixed operations keep every live pattern; sbrk() returns -1 with brk's errno on refusal. The same binary runs at -m32 where the host can build it, which is the target's width. Against the allocator before the change the preservation phase fails and the oversized resize hangs, and sbrk.c before the change returns the old break on refusal |
+| `check-libc-qsort` | lib/libc/gen/qsort.c compiled from the tree under another name: a sort of 48-byte records whose comparator sorts an array of ints before answering, which an implementation with file-scope record size and comparator finishes with the inner call's values; ordering against a reference at record sizes 1, 2, 4, 7 and 48 for counts from 0 to 300 around the insertion threshold; equal, sorted, reversed and three-key inputs; and size 0 or n under 2 as a no-op. Host width and -m32 |
 | `check-flash-swap` | the raw flash swap driver's arithmetic on the host and the kernels' link map |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |

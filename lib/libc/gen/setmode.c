@@ -147,8 +147,10 @@ common:			if (set->cmd2 & CMD2_CLR) {
 		register BITCMD *newset;				\
 		setlen += SET_LEN_INCR;					\
 		newset = (BITCMD *)realloc(saveset, sizeof(BITCMD) * setlen); \
-		if (!saveset)						\
+		if (!newset) {						\
+			free(saveset);					\
 			return ((void *)NULL);				\
+		}							\
 		set = newset + (set - saveset);				\
 		saveset = newset;					\
 		endset = newset + (setlen - 2);				\

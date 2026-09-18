@@ -131,6 +131,7 @@ Grouped by what they investigate.
 | `static-analysis.md` | the static analysis run over the port and what it found |
 | `downloads-survey.md` | the downloads folder surveyed for usable material |
 | `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
+| `warning-census.md` | what -Wall -Wextra costs the tree, where the warnings are, and three ways of measuring it that lied |
 
 ### Audit ledgers and handbacks
 

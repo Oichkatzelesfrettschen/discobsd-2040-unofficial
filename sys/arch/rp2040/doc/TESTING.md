@@ -174,7 +174,12 @@ an unrelated process owned by a third uid, is refused a uid it never
 held with every field left as it was, takes root back through its saved
 id, and is then allowed the signal; a broadcast from the dropped process
 reaches its child and not the stranger, and SIGCONT passes to a
-descendant alone. The third file, sys/kern/subr_prf.c, carries its own
+descendant alone. p_uid is a uid_t, as u_uid and the real uid cansignal()
+compares it with are, and the gate holds it at uid 40000, above what a
+16-bit field represents: a caller whose effective uid is the stranger's
+real uid, and one whose real uid is the stranger's effective uid, are
+each allowed the signal, and seteuid() to that uid lands in p_uid
+whole. The third file, sys/kern/subr_prf.c, carries its own
 argument walk,
 
     #define va_arg(ap,type) *(type*) (void*) (ap++)

@@ -38,8 +38,8 @@ cansignal (q, signum)
     fill_from_u(q, &ruid, NULL, NULL);  /* XXX */
     if (curp->p_uid == 0 ||     /* c effective root */
         u.u_ruid == ruid ||     /* c real = t real */
-        (uid_t)curp->p_uid == ruid ||      /* c effective = t real */
-        u.u_ruid == (uid_t)q->p_uid || /* c real = t effective */
+        curp->p_uid == ruid ||      /* c effective = t real */
+        u.u_ruid == q->p_uid ||     /* c real = t effective */
         curp->p_uid == q->p_uid ||  /* c effective = t effective */
         (signum == SIGCONT && inferior(q)))
         return(1);

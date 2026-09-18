@@ -109,7 +109,7 @@ setpgrp()
         return;
     }
     /* need better control mechanisms for process groups */
-    if ((uid_t)p->p_uid != u.u_uid && u.u_uid && !inferior(p)) {
+    if (p->p_uid != u.u_uid && u.u_uid && !inferior(p)) {
         u.u_error = EPERM;
         return;
     }

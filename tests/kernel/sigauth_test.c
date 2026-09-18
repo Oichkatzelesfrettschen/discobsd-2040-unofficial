@@ -42,6 +42,8 @@ char __user_data_end[1];
 #define ROOT_UID	0
 #define REAL_UID	1000
 #define OTHER_UID	2000
+/* Above SHRT_MAX: a uid that a 16-bit p_uid stores as a negative value. */
+#define WIDE_UID	40000
 
 /* The real uid fill_from_u() reports for each process, by table index. */
 static uid_t real_uid_of[3];
@@ -138,14 +140,14 @@ reset(uid_t effective, uid_t saved)
 	proc[0].p_pid = SELF_PID;
 	proc[0].p_ppid = 1;
 	proc[0].p_pgrp = SELF_PID;
-	proc[0].p_uid = (short)effective;
+	proc[0].p_uid = effective;
 	proc[0].p_stat = SRUN;
 	real_uid_of[0] = REAL_UID;
 
 	proc[1].p_pid = CHILD_PID;
 	proc[1].p_ppid = SELF_PID;
 	proc[1].p_pgrp = SELF_PID;
-	proc[1].p_uid = (short)effective;
+	proc[1].p_uid = effective;
 	proc[1].p_pptr = &proc[0];
 	proc[1].p_stat = SRUN;
 	real_uid_of[1] = REAL_UID;
@@ -153,7 +155,7 @@ reset(uid_t effective, uid_t saved)
 	proc[2].p_pid = OTHER_PID;
 	proc[2].p_ppid = 0;
 	proc[2].p_pgrp = OTHER_PID;
-	proc[2].p_uid = (short)OTHER_UID;
+	proc[2].p_uid = OTHER_UID;
 	proc[2].p_pptr = NULL;
 	proc[2].p_stat = SRUN;
 	real_uid_of[2] = OTHER_UID;
@@ -200,7 +202,7 @@ static void
 check_identity(uid_t effective, uid_t saved)
 {
 	HK_CHECK(u.u_uid == effective);
-	HK_CHECK(proc[0].p_uid == (short)effective);
+	HK_CHECK(proc[0].p_uid == effective);
 	HK_CHECK(u.u_ruid == REAL_UID);
 	HK_CHECK(u.u_svuid == saved);
 }
@@ -277,6 +279,38 @@ regain_from_unprivileged(void)
 	HK_CHECK(u.u_error == 0);
 }
 
+/*
+ * uid_t is u_int, and passwd(5) admits any value it holds, so a uid above
+ * SHRT_MAX is legitimate; cansignal() compares p_uid with the real uid it
+ * reads from the u area, and a p_uid narrower than uid_t makes the
+ * comparison fail for such a uid in both directions. The caller's
+ * effective uid equals the stranger's real uid, then the caller's real
+ * uid equals the stranger's effective uid; each alone authorizes kill(2).
+ */
+static void
+wide_uid(void)
+{
+	reset(WIDE_UID, WIDE_UID);
+	check_identity(WIDE_UID, WIDE_UID);
+	real_uid_of[2] = WIDE_UID;
+	call_kill(OTHER_PID, SIGUSR1);
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK((proc[2].p_sig & sigmask(SIGUSR1)) != 0);
+
+	reset(REAL_UID, REAL_UID);
+	u.u_ruid = WIDE_UID;
+	proc[2].p_uid = WIDE_UID;
+	call_kill(OTHER_PID, SIGUSR1);
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK((proc[2].p_sig & sigmask(SIGUSR1)) != 0);
+
+	/* seteuid() to the wide uid lands in p_uid whole. */
+	reset(REAL_UID, WIDE_UID);
+	call_seteuid(WIDE_UID);
+	HK_CHECK(u.u_error == 0);
+	check_identity(WIDE_UID, WIDE_UID);
+}
+
 /* The SIGCONT exception is the descendant's alone, whatever the uid. */
 static void
 sigcont_exception(void)
@@ -295,5 +329,6 @@ main(void)
 	broadcast_after_drop();
 	regain_from_unprivileged();
 	sigcont_exception();
+	wide_uid();
 	return hk_verdict("sigauth");
 }

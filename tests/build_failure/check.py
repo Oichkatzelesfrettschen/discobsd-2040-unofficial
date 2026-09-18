@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ENVIRONMENT = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS")}
@@ -112,7 +113,7 @@ def check_lib(root, make, scratch):
     expect(query.returncode == 0 and len(subdirs) >= 3, "lib: cannot read SUBDIR", query.stdout)
     positions = {"first": 0, "middle": len(subdirs) // 2, "last": len(subdirs) - 1}
 
-    def invoke(target, fail):
+    def invoke(target, fail, child_target=None):
         journal = scratch / f"journal-{target}-{'-'.join(fail) or 'none'}"
         journal.unlink(missing_ok=True)
         result = run([*make, "MACHINE=rp2040", f"MAKE={stubs / 'make'}", "DESTDIR=/nonexistent",
@@ -120,27 +121,49 @@ def check_lib(root, make, scratch):
         visited = []
         for entry in journal_of(journal):
             argv = shlex.split(entry[1]) if len(entry) > 1 else []
-            expect(target in argv, f"lib {target}: child asked for {argv}", result.stdout)
+            if child_target is not None:
+                expect(child_target in argv, f"lib {target}: child asked for {argv}",
+                       result.stdout)
             visited.append(argv[argv.index("-C") + 1])
         return result, visited
 
-    result, visited = invoke("install", [])
+    # The all target reaches a child through "$(MAKE) -C child", with no
+    # target word, and each child is a directory that exists. bmake judges
+    # an existing target by mtime unless it is phony, against FRC, which is
+    # stamped with the second the make began; a directory whose mtime is
+    # not older than that stamp, as a clean's rm in the same second leaves
+    # it, is skipped. The directories are dated an hour ahead so the case
+    # does not depend on winning that second, and every child must still
+    # be entered.
+    ahead = time.time() + 3600
+    for name in subdirs:
+        child = lib / name
+        child.mkdir()
+        os.utime(child, (ahead, ahead))
+    result, visited = invoke("all", [])
+    expect(result.returncode == 0 and visited == subdirs,
+           f"lib all with subdirectories newer than the make: rc {result.returncode}, "
+           f"visited {visited}", result.stdout)
+    print(f"PASS lib all: every one of {len(subdirs)} children is entered whatever "
+          "its directory mtime")
+
+    result, visited = invoke("install", [], "install")
     expect(result.returncode == 0 and visited == subdirs,
            f"lib install control: rc {result.returncode}, visited {visited}", result.stdout)
     for label, index in positions.items():
-        result, visited = invoke("install", [f"make:{index + 1}"])
+        result, visited = invoke("install", [f"make:{index + 1}"], "install")
         expect(result.returncode != 0 and INJECTED in result.stdout,
                f"lib install, {label} child failing: rc {result.returncode}", result.stdout)
         expect(visited == subdirs[:index + 1],
                f"lib install, {label} child failing: visited {visited}", result.stdout)
     print(f"PASS lib install: first, middle and last of {len(subdirs)} children stop the loop")
 
-    result, visited = invoke("clean", [])
+    result, visited = invoke("clean", [], "clean")
     expect(result.returncode == 0 and visited == subdirs,
            f"lib clean control: rc {result.returncode}, visited {visited}", result.stdout)
     for label, fail in (("first", [1]), ("middle and last", [positions["middle"] + 1,
                                                               len(subdirs)])):
-        result, visited = invoke("clean", [f"make:{n}" for n in fail])
+        result, visited = invoke("clean", [f"make:{n}" for n in fail], "clean")
         expect(result.returncode != 0 and INJECTED in result.stdout,
                f"lib clean, {label} failing: rc {result.returncode}", result.stdout)
         expect(visited == subdirs, f"lib clean, {label} failing: visited {visited}",

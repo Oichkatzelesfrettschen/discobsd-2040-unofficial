@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Exercise the evaluated compiler commands, not just warning-flag text."""
+"""Exercise the evaluated compiler commands, not just warning-flag text.
+
+The cross tier also proves the census lever: tools/warning-census.sh
+widens the warning set through WARNERR, the variable share/mk/sys.mk puts
+on the CC command, so the same routes are compiled with that override and
+must both emit the -Wextra diagnostic and keep the object, since the
+census demotes errors to keep every directory building. A route that
+replaces CFLAGS outright, usr.bin/smlrc, is in the set for that reason.
+"""
 
 import argparse
 import os
@@ -23,6 +31,7 @@ HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo
                "usr.bin/smux/linux")
 CROSS_ROUTES = ("bin/cat", "usr.bin/smlrc", "lib/libc")
 KERNEL_ROUTES = ("sys/arch/rp2040/compile/PICO", "sys/arch/rp2040/compile/PICO_UART")
+CENSUS_OVERRIDE = "WARNERR=-Wall -Wextra -Wno-error"
 
 
 # A parent make running with -j exports its jobserver in MAKEFLAGS as
@@ -70,6 +79,35 @@ def check_route(root, make, directory, overrides, kinds):
     print(f"PASS {directory} ({profile}): {', '.join(kinds)}")
 
 
+def check_census_route(root, make, directory):
+    """The census override reaches the route and demotes the error."""
+    cwd = root / directory
+    query = run([*make, "MACHINE=rp2040", CENSUS_OVERRIDE, "-V", "${CC} ${CFLAGS}"], cwd)
+    if query.returncode:
+        raise RuntimeError(f"{directory}: cannot evaluate census command:\n{query.stdout}")
+    command = shlex.split(query.stdout.strip())
+    with tempfile.TemporaryDirectory(prefix="discobsd-census-") as name:
+        temporary = Path(name)
+        source, output = temporary / "probe.c", temporary / "probe.o"
+        argv = [*command, "-c", str(source), "-o", str(output)]
+        for kind in ("wall", "extra"):
+            output.unlink(missing_ok=True)
+            text, diagnostic = PROBES[kind]
+            source.write_text(text)
+            result = run(argv, cwd)
+            if diagnostic not in result.stdout:
+                raise RuntimeError(
+                    f"{directory}: census {kind} probe raised no {diagnostic}\n"
+                    f"command: {shlex.join(argv)}\n{result.stdout}"
+                )
+            if result.returncode or not output.is_file():
+                raise RuntimeError(
+                    f"{directory}: census {kind} probe was fatal, so -Wno-error did not land\n"
+                    f"command: {shlex.join(argv)}\n{result.stdout}"
+                )
+    print(f"PASS {directory} (census lever): wall, extra reach and stay non-fatal")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tier", choices=("host", "cross"))
@@ -82,6 +120,8 @@ def main():
         for overrides in ([], ["CFLAGS=-O0"]):
             check_route(args.root, make, directory, overrides, ("fatal",))
     if args.tier == "cross":
+        for directory in routes:
+            check_census_route(args.root, make, directory)
         template = args.root / "sys/arch/rp2040/conf/Makefile.rp2040"
         expected = re.search(r"^CWARNFLAGS=.*$", template.read_text(), re.MULTILINE)
         if expected is None:

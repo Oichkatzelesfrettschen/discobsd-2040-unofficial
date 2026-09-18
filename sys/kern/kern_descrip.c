@@ -425,10 +425,8 @@ flock()
 int
 fdopen(dev, mode, type)
     dev_t dev;
-    int mode, type;
+    int mode __unused, type __unused;
 {
-    (void)mode;
-    (void)type;
     /*
      * XXX Kludge: set u.u_dupfd to contain the value of the
      * the file descriptor being sought for duplication. The error

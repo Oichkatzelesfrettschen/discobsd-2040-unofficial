@@ -21,9 +21,8 @@ kmemdev(void)
  * Read/write routine for /dev/mem family.
  */
 int
-mmrw(dev_t dev, struct uio *uio, int flag)
+mmrw(dev_t dev, struct uio *uio, int flag __unused)
 {
-	(void)flag;
 	struct iovec *iov;
 	int error = 0;
 	u_int c;

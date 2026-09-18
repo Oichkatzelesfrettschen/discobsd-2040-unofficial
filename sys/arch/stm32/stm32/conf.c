@@ -36,8 +36,6 @@
 #include <stm32/dev/sdio.h>
 #endif
 
-#define __unused	__attribute__((__unused__))	/* XXX */
-
 int
 nullopen(dev_t dev __unused, int flag __unused, int mode __unused)
 {

@@ -20,10 +20,9 @@
 /*ARGSUSED*/
 int
 syopen (dev, flag)
-    dev_t dev;
+    dev_t dev __unused;
     int flag;
 {
-    (void)dev;
     if (u.u_ttyp == NULL)
         return (ENXIO);
     return((*cdevsw[major(u.u_ttyd)].d_open)(u.u_ttyd, flag, 0));
@@ -32,11 +31,10 @@ syopen (dev, flag)
 /*ARGSUSED*/
 int
 syread (dev, uio, flag)
-    dev_t dev;
+    dev_t dev __unused;
     struct uio *uio;
     int flag;
 {
-    (void)dev;
     if (u.u_ttyp == NULL)
         return (ENXIO);
     return ((*cdevsw[major(u.u_ttyd)].d_read)(u.u_ttyd, uio, flag));
@@ -45,11 +43,10 @@ syread (dev, uio, flag)
 /*ARGSUSED*/
 int
 sywrite (dev, uio, flag)
-    dev_t dev;
+    dev_t dev __unused;
     struct uio *uio;
     int flag;
 {
-    (void)dev;
     if (u.u_ttyp == NULL)
         return (ENXIO);
     return ((*cdevsw[major(u.u_ttyd)].d_write)(u.u_ttyd, uio, flag));
@@ -58,12 +55,11 @@ sywrite (dev, uio, flag)
 /*ARGSUSED*/
 int
 syioctl (dev, cmd, addr, flag)
-    dev_t dev;
+    dev_t dev __unused;
     u_int cmd;
     caddr_t addr;
     int flag;
 {
-    (void)dev;
     if (cmd == TIOCNOTTY) {
         u.u_ttyp = 0;
         u.u_ttyd = 0;
@@ -78,10 +74,9 @@ syioctl (dev, cmd, addr, flag)
 /*ARGSUSED*/
 int
 syselect (dev, flag)
-    dev_t dev;
+    dev_t dev __unused;
     int flag;
 {
-    (void)dev;
 
     if (u.u_ttyp == NULL) {
         u.u_error = ENXIO;

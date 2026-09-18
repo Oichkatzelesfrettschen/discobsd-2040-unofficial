@@ -135,10 +135,9 @@ swapin (p)
 void
 swapout (p, freecore, odata, ostack)
     register struct proc *p;
-    int freecore;
+    int freecore __unused;
     register u_int odata, ostack;
 {
-    (void)freecore;
     size_t a[3];
     size_t tsize = swaptext (p);
 #ifdef SWAPRAM

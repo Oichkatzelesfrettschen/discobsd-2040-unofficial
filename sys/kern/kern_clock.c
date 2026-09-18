@@ -47,10 +47,9 @@ long tk_nout;
 /*ARGSUSED*/
 void
 gatherstats(pc, ps)
-    caddr_t pc;
+    caddr_t pc __unused;
     int ps;
 {
-    (void)pc;
     register int cpstate;
 
     /*

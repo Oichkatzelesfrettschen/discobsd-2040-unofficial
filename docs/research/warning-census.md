@@ -7,7 +7,8 @@ ways worth recording, because each failure mode is easy to repeat.
 ## The measurement
 
 Userland, `-Wall -Wextra`, 718 compiles: **188 warnings**, and 10 build
-errors that stop their directories, so 188 is a floor.
+errors that stop their directories, so 188 is a floor. The same run against
+98ef831e reports the same 718, 188 and 10, with the same category counts.
 
 | category | count |
 | --- | --- |
@@ -22,18 +23,43 @@ errors that stop their directories, so 188 is a floor.
 | `-Wcomment` | 2 |
 | `-Wtype-limits`, `-Wmissing-braces`, `-Wchar-subscripts`, `-Warray-bounds=` | 1 each |
 
-The kernel is measured separately, because its Makefile carries its own
+The kernel was measured separately, because its Makefile carries its own
 `CWARNFLAGS`:
 
 ```sh
 bmake MACHINE=rp2040 kernel CWARNFLAGS='-Wall -Wextra -Wno-error'
 ```
 
-That reports 231 warnings: 108 `-Wunused-parameter`, 100 `-Wsign-compare`,
+That reported 231 warnings: 108 `-Wunused-parameter`, 100 `-Wsign-compare`,
 11 `-Wimplicit-fallthrough=`, 8 `-Wclobbered`, 2 `-Wtype-limits`, 2
-`-Wempty-body`.
+`-Wempty-body`. Commit 98ef831e closed all 231 and moved both kernel
+configurations to `-Wall -Wextra -Werror`, so the kernel half of this census
+is now history rather than a backlog. `docs/research/warning-policy-audit.md`
+records that repair.
 
-## Where they are
+## The header levers are still open
+
+98ef831e silenced the kernel's unused parameters one at a time, adding 60
+`(void)parameter;` statements. The tree now carries 138 of them across 25
+files under `sys/`, because it has no `sys/cdefs.h`: `__unused` is
+`#define`d separately in `sys/arch/pic32/pic32/conf.c`,
+`sys/arch/stm32/stm32/conf.c`, `sys/arch/rp2040/rp2040/conf.c` and
+`sys/arch/rp2040/dev/flash.c`, each marked `XXX`, and three of those four
+comments already name the duplication they are working around.
+
+One header carrying `__unused` replaces every one of those statements with
+an attribute on the parameter that is actually unused, and retires four
+duplicate definitions. It is the single largest remaining reduction in the
+kernel, and nothing in 98ef831e forecloses it.
+
+The second lever is narrower and already spent: all 12 of the kernel's
+`-Wsign-compare` warnings reported against `param.h:100` came from the one
+`MIN` macro there, which a single definition would have fixed.
+
+Userland has no such lever. Macros contribute almost nothing there --
+`ATOI2` three times, `SELECT` and `CREATE` twice each.
+
+## Where the userland warnings are
 
 The 25 noisiest files carry 180 of the 188. They are concentrated in
 vendored programs rather than spread through the tree: `usr.bin/ccom` and
@@ -47,14 +73,25 @@ are worth fixing, while a vendored interpreter is worth either a scoped
 warning level or an upstream-shaped patch, not a local rewrite that makes
 the next import harder.
 
-Macros contribute almost nothing in userland -- `ATOI2` three times,
-`SELECT` and `CREATE` twice each -- so there is no header lever there. The
-kernel has exactly one: all 12 `-Wsign-compare` warnings reported against
-`param.h:100` come from the `MIN` macro, and one definition fixes all of
-them. `__unused` is a second: it is `#define`d separately in
-`sys/arch/pic32/pic32/conf.c`, `sys/arch/rp2040/rp2040/conf.c` and
-`sys/arch/rp2040/dev/flash.c`, each marked `XXX`, because the tree has no
-`sys/cdefs.h` to hold it.
+## Reconciling this with the audit's 8,559
+
+`docs/research/warning-policy-audit.md` reports that "the full
+expanded-warning build emitted 8,559 compiler-warning instances, including
+repeated headers and both kernel configurations." That figure and this
+document's 188 measure different things and neither corrects the other.
+
+The audit's number names no flag set, and the evidence bundle behind it
+carries no log that produces it, so it cannot be reproduced from what is
+recorded; the census is a script anyone can rerun. The audit also counts
+instances, and the three failure modes below are exactly how an instance
+count inflates: one header diagnostic is emitted once per translation unit,
+and a parallel build recompiles more than it needs to. Treat 8,559 as an
+order-of-magnitude statement that the broader warning groups are a large
+migration, and 188 as the measured cost of `-Wall -Wextra` over userland.
+
+The reconciliation lives here rather than in the audit, because the audit
+is a ledger: it names the tree at 4197a91f, and `docs/INDEX.md` files it
+where a correction goes in a new document instead of in the ledger.
 
 ## Three ways the measurement lied before the script existed
 

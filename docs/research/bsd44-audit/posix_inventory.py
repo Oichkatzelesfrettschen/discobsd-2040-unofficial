@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Read-only inventory for Discobsd versus 4.4BSD-Lite2 APIs."""
-from pathlib import Path
-import re
 import json
+import re
+from pathlib import Path
 
 DISC = Path('~/Github/discobsd-pico-unofficial')
 BSD44 = Path('~/Github/4.4BSD-Lite2')

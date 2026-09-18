@@ -20,14 +20,14 @@ extern char *tzname[2];
 extern char *imalloc(int);
 extern void tzset(void);
 
-static int	longest;
+static size_t	longest;
 
 static void
 show(char *zone, time_t t, int v)
 {
 	struct tm *		tmp;
 
-	(void) printf("%-*s  ", longest, zone);
+	(void) printf("%-*s  ", (int) longest, zone);
 	if (v)
 		(void) printf("%.24s GMT = ", asctime(gmtime(&t)));
 	tmp = localtime(&t);
@@ -126,7 +126,7 @@ main(int argc, char *argv[])
 			fp = fopen(argv[i], "r");
 		else {
 			j = strlen(TZDIR) + 1 + strlen(argv[i]) + 1;
-			if (j > sizeof buf) {
+			if ((size_t) j > sizeof buf) {
 				(void) fprintf(stderr,
 					"%s: timezone name %s/%s is too long\n",
 					argv[0], TZDIR, argv[i]);

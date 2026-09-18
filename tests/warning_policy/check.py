@@ -29,7 +29,13 @@ PROBES = {
 }
 HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo",
                "usr.bin/smux/linux")
-CROSS_ROUTES = ("bin/cat", "usr.bin/smlrc", "lib/libc")
+# Full routes compile clean under -Wall -Wextra, so share/mk/warnings.mk
+# makes both groups fatal there; legacy routes declare WARNLEVEL=legacy
+# before their sys.mk include and are held to -Werror alone. bin/sh holds
+# the largest open site count of the small programs, usr.bin/uucp the
+# largest of all.
+CROSS_ROUTES = ("bin/echo", "usr.bin/smlrc", "lib/libc")
+LEGACY_ROUTES = ("bin/sh", "usr.bin/uucp")
 KERNEL_ROUTES = ("sys/arch/rp2040/compile/PICO", "sys/arch/rp2040/compile/PICO_UART")
 CENSUS_OVERRIDE = "WARNERR=-Wall -Wextra -Wno-error"
 
@@ -79,6 +85,61 @@ def check_route(root, make, directory, overrides, kinds):
     print(f"PASS {directory} ({profile}): {', '.join(kinds)}")
 
 
+def check_legacy_route(root, make, directory):
+    """A legacy route rejects the fatal probe and accepts the -Wextra probe."""
+    check_route(root, make, directory, [], ("fatal",))
+    cwd = root / directory
+    query = run([*make, "MACHINE=rp2040", "-V", "${CC} ${CFLAGS}"], cwd)
+    if query.returncode:
+        raise RuntimeError(f"{directory}: cannot evaluate compiler command:\n{query.stdout}")
+    command = shlex.split(query.stdout.strip())
+    with tempfile.TemporaryDirectory(prefix="discobsd-legacy-") as name:
+        temporary = Path(name)
+        source, output = temporary / "probe.c", temporary / "probe.o"
+        argv = [*command, "-c", str(source), "-o", str(output)]
+        text, _ = PROBES["extra"]
+        source.write_text(text)
+        result = run(argv, cwd)
+        if result.returncode or not output.is_file():
+            raise RuntimeError(
+                f"{directory}: extra probe was fatal on a legacy route, so WARNLEVEL "
+                f"did not reach CC\ncommand: {shlex.join(argv)}\n{result.stdout}"
+            )
+    print(f"PASS {directory} (legacy level): fatal rejected, extra accepted")
+
+
+def check_level_declarations(root):
+    """Every WARNLEVEL assignment precedes the include that composes CC.
+
+    sys.mk, and tools/Makefile.inc for the host tools, compose CC when
+    they are included, so an assignment after the include line selects
+    nothing and the directory silently builds at the default level; the
+    value is also held to the two warnings.mk accepts.
+    """
+    listing = subprocess.run(["git", "ls-files", "--", "*Makefile", "*.mk"], cwd=root,
+                             text=True, stdout=subprocess.PIPE, check=True).stdout
+    declared = 0
+    for name in listing.split():
+        if name == "share/mk/warnings.mk":
+            continue
+        lines = (root / name).read_text().splitlines()
+        include_at = next((i for i, line in enumerate(lines)
+                           if ("share/mk/sys.mk" in line or "Makefile.inc" in line)
+                           and line.lstrip().startswith(("include", ".include", "-include"))), None)
+        for i, line in enumerate(lines):
+            match = re.match(r"^WARNLEVEL\s*[?:]?=\s*(\S+)", line)
+            if match is None:
+                continue
+            declared += 1
+            if match.group(1) not in ("full", "legacy"):
+                raise RuntimeError(f"{name}:{i + 1}: WARNLEVEL is {match.group(1)}, "
+                                   "not full or legacy")
+            if include_at is None or i > include_at:
+                raise RuntimeError(f"{name}:{i + 1}: WARNLEVEL is assigned after the sys.mk "
+                                   "include, where CC has already been composed")
+    print(f"PASS {declared} WARNLEVEL declarations precede their sys.mk include")
+
+
 def check_census_route(root, make, directory):
     """The census override reaches the route and demotes the error."""
     cwd = root / directory
@@ -119,8 +180,14 @@ def main():
     for directory in routes:
         for overrides in ([], ["CFLAGS=-O0"]):
             check_route(args.root, make, directory, overrides, ("fatal",))
+    if args.tier == "host":
+        check_level_declarations(args.root)
     if args.tier == "cross":
         for directory in routes:
+            check_route(args.root, make, directory, [], ("wall", "extra"))
+        for directory in LEGACY_ROUTES:
+            check_legacy_route(args.root, make, directory)
+        for directory in (*routes, *LEGACY_ROUTES):
             check_census_route(args.root, make, directory)
         template = args.root / "sys/arch/rp2040/conf/Makefile.rp2040"
         expected = re.search(r"^CWARNFLAGS=.*$", template.read_text(), re.MULTILINE)

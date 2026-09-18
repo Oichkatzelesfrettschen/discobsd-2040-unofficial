@@ -13,22 +13,36 @@
 
 typedef void *(*lookup_fn)(unsigned short *table, unsigned code);
 
+/*
+ * The boot ROM sits at address 0, datasheet 2.8.1, so its magic and
+ * table pointers are reads of small constant addresses. GCC folds a
+ * constant through the cast and reports the object at address 0 as an
+ * empty array under -Warray-bounds; the empty asm hides the value from
+ * the folder and the read stays a plain volatile load of the address.
+ */
+static unsigned
+rom_address(unsigned a)
+{
+	__asm__("" : "+r"(a));
+	return a;
+}
+
 static unsigned
 b(unsigned a)
 {
-	return *(volatile unsigned char *)a;
+	return *(volatile unsigned char *)rom_address(a);
 }
 
 static unsigned
 h(unsigned a)
 {
-	return *(volatile unsigned short *)a;
+	return *(volatile unsigned short *)rom_address(a);
 }
 
 static unsigned
 w(unsigned a)
 {
-	return *(volatile unsigned *)a;
+	return *(volatile unsigned *)rom_address(a);
 }
 
 static void

@@ -56,7 +56,12 @@ main(void)
 	register unsigned keep7 __asm__("r7");
 	unsigned marker = 0x5a5a1234u;
 
-	sa.sa_handler = (void (*)(int))handler;
+	/*
+	 * The kernel calls the handler with the BSD three arguments while
+	 * sa_handler is declared with one; the cast passes through void * so
+	 * the compiler does not compare the two function types.
+	 */
+	sa.sa_handler = (sig_t)(void *)handler;
 	sa.sa_mask = 0;
 	sa.sa_flags = 0;
 	if (sigaction(SIGALRM, &sa, 0) < 0) {

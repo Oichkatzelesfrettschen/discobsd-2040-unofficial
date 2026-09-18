@@ -15,6 +15,9 @@
 # FITNESS FOR A PARTICULAR PURPOSE.
 #
 TOPSRC!=cd ../..; pwd
+# -Wall -Wextra raises 2 distinct sites in this directory, so the fatal set
+# stays at the groups CFLAGS names until they are repaired.
+WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 SRCS		= mkpasswd.c

@@ -6,6 +6,9 @@
 #	@(#)Makefile	5.2 (Berkeley) 5/15/86
 #
 TOPSRC!=cd ../..; pwd
+# -Wall -Wextra raises 4 distinct sites in this directory, so the fatal set
+# stays at the groups CFLAGS names until they are repaired.
+WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS  	+= -DMAX_PER_UID=5 -Wall

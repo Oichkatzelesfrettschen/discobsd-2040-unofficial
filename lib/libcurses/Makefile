@@ -5,6 +5,9 @@
 # curses package
 #
 TOPSRC!=cd ../..; pwd
+# -Wall -Wextra raises 2 distinct sites in this directory, so the fatal set
+# stays at the groups CFLAGS names until they are repaired.
+WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 CFILES=	addch.c addstr.c box.c clear.c clrtobot.c clrtoeol.c cr_put.c \

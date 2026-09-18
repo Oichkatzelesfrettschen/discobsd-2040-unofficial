@@ -13,7 +13,7 @@ import argparse
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from . import __version__
+from . import __version__, ports
 
 
 class RedirectServer(HTTPServer):
@@ -43,7 +43,20 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="discobsd-link", description="Redirect a short URL to the discobsd-web console."
     )
-    p.add_argument("--to", required=True, metavar="URL", help="the tokenized console URL")
+    p.add_argument(
+        "--to",
+        metavar="URL",
+        help="the tokenized console URL (deprecated: a token embedded here is "
+        "visible to every local user via ps; use --host with DISCOBSD_WEB_TOKEN "
+        "set or a systemd credential named web-token instead)",
+    )
+    p.add_argument(
+        "--host",
+        metavar="URL",
+        help="the console URL with no token, e.g. http://192.0.2.5:7681/; the "
+        "token is read from DISCOBSD_WEB_TOKEN or a systemd credential named "
+        "web-token and appended as a query string",
+    )
     p.add_argument("--port", type=int, default=42069, help="TCP port (default 42069)")
     p.add_argument("--bind", default="0.0.0.0", help="bind address (default 0.0.0.0)")
     p.add_argument("--version", action="version", version="discobsd-link " + __version__)
@@ -52,8 +65,30 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
-    httpd = RedirectServer((args.bind, args.port), args.to)
-    print("discobsd-link: http://%s:%d/ -> %s" % (args.bind, args.port, args.to), flush=True)
+    target = args.to
+    if target:
+        if "token=" in target:
+            sys.stderr.write(
+                "discobsd-link: --to with an embedded token is deprecated and "
+                "visible to every local user via ps; use --host with "
+                "DISCOBSD_WEB_TOKEN set or a systemd credential named web-token "
+                "instead\n"
+            )
+    elif args.host:
+        token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
+        if not token:
+            sys.stderr.write(
+                "discobsd-link: --host given but no token in DISCOBSD_WEB_TOKEN "
+                "or a systemd credential named web-token\n"
+            )
+            return 1
+        sep = "&" if "?" in args.host else "?"
+        target = f"{args.host}{sep}token={token}"
+    else:
+        sys.stderr.write("discobsd-link: --to or --host is required\n")
+        return 1
+    httpd = RedirectServer((args.bind, args.port), target)
+    print("discobsd-link: http://%s:%d/ -> %s" % (args.bind, args.port, target), flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -341,7 +341,7 @@ error(char *string)
 	++errors;
 }
 
-static void
+static void __attribute__((noreturn))
 usage(void)
 {
 	(void) fprintf(stderr,

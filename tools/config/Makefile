@@ -1,5 +1,8 @@
 TOPSRC!=cd ../..; pwd
 
+# -Wall -Wextra raises 3 distinct sites in this directory, so the fatal set
+# stays at the groups CFLAGS names until they are repaired.
+WARNLEVEL=	legacy
 -include ../Makefile.inc
 
 CFLAGS		= -O -Wall

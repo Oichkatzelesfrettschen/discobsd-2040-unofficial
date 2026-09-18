@@ -1,6 +1,9 @@
 # Description file for the Make command
 # Makefile 4.5 94/1/3
 TOPSRC!=cd ../..; pwd
+# -Wall -Wextra raises 5 distinct sites in this directory, so the fatal set
+# stays at the groups CFLAGS names until they are repaired.
+WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -Wall -I../ar

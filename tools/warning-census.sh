@@ -227,7 +227,7 @@ for d in "$@"; do
 		failed=$((failed + 1))
 	fi
 	cat "$log" >> "$RECORD/log.txt"
-	inst=$(grep -c "$CROSS .* -c " "$ilog" || true)
+	inst=$(grep -c -E "$CROSS .*(-c |[.][cS]( |\$))" "$ilog" || true)
 
 	cross=0; cov=0; host=0; cw=0; hw=0; class=other; cwd=$TOPSRC/$d
 	while IFS= read -r line; do
@@ -235,7 +235,10 @@ for d in "$@"; do
 		"warning-census-cwd "*)
 			cwd=${line#warning-census-cwd }
 			;;
-		*"$CROSS "*" -c "*)
+		*"$CROSS "*" -c "*|*"$CROSS "*.c|*"$CROSS "*.c" "*|*"$CROSS "*.S|*"$CROSS "*.S" "*)
+			# A compile is a cross line that carries -c or names a
+			# source; usr.bin/retroforth compiles and links in one
+			# command, and a test on -c alone misses its warnings.
 			class=cross
 			cross=$((cross + 1))
 			if covered_line "$line"; then

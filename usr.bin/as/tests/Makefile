@@ -1,4 +1,7 @@
 TOPSRC!=cd ../../..; pwd
+# -Wall -Wextra raises 8 distinct sites in this directory, which assembles other
+# programs' sources as fixtures, so the fatal set stays at the groups CFLAGS names.
+WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -Wall -Os

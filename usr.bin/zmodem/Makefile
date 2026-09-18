@@ -2,6 +2,9 @@
 # Driver makefile for zmodem.  Calls makefile.generic.
 #
 TOPSRC!=cd ../..; pwd
+# -Wall -Wextra raises 197 distinct sites in this directory, so the fatal set
+# stays at the groups CFLAGS names until they are repaired.
+WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -ansi -DV7 -DMD=2 -DTXBSIZE=4096  -DNFGVMIN -DSEGMENTS=2

@@ -84,11 +84,10 @@ distribution-etc-root-var: distrib-dirs
 #	    ${DESTDIR}/dev
 	${INSTALL} -c -o ${OWN} -g ${GRP} -m 555 MAKEDEV \
 	    ${DESTDIR}/etc
-	cd root; \
-		${INSTALL} -c -o root -g wheel -m 644 dot.profile \
-		    ${DESTDIR}/root/.profile; \
-		${INSTALL} -c -o root -g wheel -m 644 dot.profile \
-		    ${DESTDIR}/.profile
+	${INSTALL} -c -o root -g wheel -m 644 root/dot.profile \
+	    ${DESTDIR}/root/.profile
+	${INSTALL} -c -o root -g wheel -m 644 root/dot.profile \
+	    ${DESTDIR}/.profile
 	${INSTALL} -d -m 755 ${DESTDIR}/home/operator
 	${INSTALL} -c -m 644 operator/dot.profile \
 	    ${DESTDIR}/home/operator/.profile

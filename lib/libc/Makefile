@@ -34,9 +34,9 @@ all:            ../libc.a
 ../libc.a:      ${ALL}
 		rm -rf tmp
 		mkdir tmp
-		cd tmp; set -e; for i in ${ALL}; do $(AR) x ../$$i/$$i.a; done; \
+		(cd tmp; set -e; for i in ${ALL}; do $(AR) x ../$$i/$$i.a; done; \
 			rm -f ../$@; \
-			$(AR) cr ../$@ *.o
+			$(AR) cr ../$@ *.o)
 #			$(AR) cr ../$@ `sh ../../cmd/lorder.sh *.o | tsort`
 		rm -rf tmp
 

@@ -14,15 +14,16 @@
  * The file operation is a stub that consumes what it is told to, and for the
  * interrupted case it does what sleep() does on the board: it sets u_error
  * and longjmps to u_qsave. The kernel's setjmp is the port's assembly
- * routine, so the Makefile compiles sys_generic.c with setjmp mapped onto the
- * compiler's __builtin_setjmp, and the stub answers it with
- * __builtin_longjmp while rwuio's frame is still live.
+ * routine, so the Makefile compiles sys_generic.c with setjmp mapped onto
+ * the host's setjmp over a jmp_buf rwuio_jump.c owns, and the stub answers
+ * through the host's longjmp while rwuio's frame is still live.
  *
  * Built again at -m32 as rwuio_test32, where off_t, size_t and u_int are all
  * four bytes as they are on the target; the wide build exercises the same
  * paths but the wraparound the check exists for is an ILP32 fact.
  */
 #include "hostkern.h"
+#include "rwuio_jump.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -71,7 +72,7 @@ stub_rw(struct file *f, struct uio *uio)
 	f->f_offset += n;
 	if (rw_interrupt) {
 		u.u_error = EINTR;
-		__builtin_longjmp((void **)&u.u_qsave, 1);
+		hk_qsave_longjmp(&u.u_qsave, 1);
 	}
 	return rw_error;
 }
@@ -227,13 +228,28 @@ call_write(int fd, unsigned count)
 	write();
 }
 
-/* readv over the given lengths; true when the kernel accepted the request. */
+/*
+ * The direction the vector cases run in. readv and writev share rwuio()
+ * and its bound, so every bound case runs once each way and the offset
+ * and direction checks tell the two apart.
+ */
+static enum uio_rw direction = UIO_READ;
+#define START_OFFSET	4096
+
+/*
+ * readv or writev over the given lengths from a nonzero offset; true when
+ * the kernel accepted the request.
+ */
 static int
 accepted(const u_int *lengths, unsigned n)
 {
-	reset(FREAD);
+	reset(direction == UIO_READ ? FREAD : FWRITE);
+	fp.f_offset = START_OFFSET;
 	vectorize(lengths, n);
-	call_readv(FD, n);
+	if (direction == UIO_READ)
+		call_readv(FD, n);
+	else
+		call_writev(FD, n);
 	return u.u_error == 0;
 }
 
@@ -246,7 +262,7 @@ check_rejected(const char *label, const u_int *lengths, unsigned n)
 	hk_checks++;
 	HK_CHECK(u.u_error == EINVAL);
 	HK_CHECK(rw_calls == 0);
-	HK_CHECK(fp.f_offset == 0);
+	HK_CHECK(fp.f_offset == START_OFFSET);
 	HK_CHECK(u.u_rval == 0);
 }
 
@@ -257,9 +273,10 @@ check_accepted(const char *label, const u_int *lengths, unsigned n, u_int total)
 		hk_fail(__FILE__, __LINE__, label);
 	hk_checks++;
 	HK_CHECK(rw_calls == 1);
+	HK_CHECK(rw_direction == direction);
 	HK_CHECK(rw_resid_seen == total);
 	HK_CHECK((u_int)u.u_rval == total);
-	HK_CHECK((u_int)fp.f_offset == total);
+	HK_CHECK((u_int)fp.f_offset == START_OFFSET + total);
 }
 
 static void
@@ -364,12 +381,18 @@ single_count_cases(void)
 	HK_CHECK(u.u_rval == 5 && fp.f_offset == 5);
 }
 
-/* The descriptor, the count and the copy, before any length is summed. */
+/*
+ * The descriptor, the count and the copy, before any length is summed; and
+ * the sixteen-vector boundary with every element counted, where a sum that
+ * stopped early would still accept the leading element alone.
+ */
 static void
 entry_cases(void)
 {
 	static const u_int three[] = { 1, 2, 3 };
 	static const u_int many[MAXVEC + 1] = { 1 };
+	u_int sixteen[MAXVEC];
+	unsigned i;
 
 	/* A closed descriptor and one open the other way. */
 	reset(FREAD);
@@ -397,6 +420,27 @@ entry_cases(void)
 	vectorize(many, MAXVEC);
 	call_readv(FD, MAXVEC);
 	HK_CHECK(u.u_error == 0 && rw_calls == 1 && rw_resid_seen == 1);
+
+	/* Every element nonzero: the sum is sixteen, not the first element. */
+	for (i = 0; i < MAXVEC; i++)
+		sixteen[i] = 1;
+	check_accepted("sixteen vectors of one byte", sixteen, MAXVEC, MAXVEC);
+
+	/* Only the last element nonzero: the tail is what is summed. */
+	for (i = 0; i < MAXVEC - 1; i++)
+		sixteen[i] = 0;
+	sixteen[MAXVEC - 1] = 7;
+	check_accepted("only the sixteenth vector nonzero", sixteen, MAXVEC, 7);
+
+	/* Fifteen ones and a tail that lands the sum exactly on the limit,
+	 * then one byte more in the tail alone. */
+	for (i = 0; i < MAXVEC - 1; i++)
+		sixteen[i] = 1;
+	sixteen[MAXVEC - 1] = LIMIT - (MAXVEC - 1);
+	check_accepted("sixteen vectors summing to the limit", sixteen, MAXVEC, LIMIT);
+	sixteen[MAXVEC - 1] = LIMIT - (MAXVEC - 1) + 1;
+	check_rejected("the sixteenth vector takes the sum over the limit",
+	    sixteen, MAXVEC);
 
 	/* No vectors: a request of zero bytes, which reaches the file. */
 	reset(FREAD);
@@ -461,9 +505,15 @@ main(void)
 	hk_note("widths: size_t %u off_t %u u_int %u long %u",
 	    (unsigned)sizeof(size_t), (unsigned)sizeof(off_t),
 	    (unsigned)sizeof(u_int), (unsigned)sizeof(long));
+	direction = UIO_READ;
 	bound_cases();
 	split_cases();
 	reference_cases();
+	direction = UIO_WRITE;
+	bound_cases();
+	split_cases();
+	reference_cases();
+	direction = UIO_READ;
 	single_count_cases();
 	entry_cases();
 	transfer_cases();

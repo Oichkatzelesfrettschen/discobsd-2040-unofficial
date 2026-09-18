@@ -95,10 +95,11 @@ PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
 
 # The read, write, readv and writev entry points. rwuio() calls the port's
 # setjmp on u_qsave and sleep() longjmps back to it, so rwuio_setjmp.h maps
-# the call onto the compiler's __builtin_setjmp and the gate's file
-# operation stub answers with __builtin_longjmp.
+# the call onto the host's setjmp over a jmp_buf rwuio_jump.c owns, and the
+# gate's file operation stub answers through the host's longjmp.
 RWUIO_SRC=	${TOPSRC}/sys/kern/sys_generic.c
 RWUIO_DEFS=	-include rwuio_setjmp.h
+RWUIO_JUMP=	rwuio_jump.c rwuio_jump.h
 
 all: ${PROGS}
 
@@ -169,11 +170,12 @@ resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ resource_test.c hostkern_kern.c \
 	    resource_kernel.o resource_proc.o hostkern.o
 
-rwuio_test: rwuio_test.c rwuio_setjmp.h ${RWUIO_SRC} hostkern_kern.c hostkern.o \
-    hostkern.h ${MACHINE_STAMP}
+rwuio_test: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} -c -o rwuio_kernel.o ${RWUIO_SRC}
+	${HOST_CC} ${HARNESS_CFLAGS} -c -o rwuio_jump.o rwuio_jump.c
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
-	    rwuio_test.c hostkern_kern.c rwuio_kernel.o hostkern.o
+	    rwuio_test.c hostkern_kern.c rwuio_kernel.o rwuio_jump.o hostkern.o
 
 # The harness again at the narrower width, since every object in one binary
 # has to agree.
@@ -189,13 +191,14 @@ prf_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
 
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
-rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_SRC} hostkern_kern.c hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
+rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} ${ILP32} -c -o rwuio_kernel32.o \
 	    ${RWUIO_SRC}
+	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -c -o rwuio_jump32.o rwuio_jump.c
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o rwuio_shim32.o hostkern_kern.c
 	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -DHK_ILP32 -o $@ \
-	    rwuio_test.c rwuio_kernel32.o rwuio_shim32.o hostkern32.o
+	    rwuio_test.c rwuio_kernel32.o rwuio_shim32.o rwuio_jump32.o hostkern32.o
 
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
@@ -221,6 +224,7 @@ clean:
 	rm -f resource_kernel.o resource_proc.o
 	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
+	rm -f rwuio_jump.o rwuio_jump32.o
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

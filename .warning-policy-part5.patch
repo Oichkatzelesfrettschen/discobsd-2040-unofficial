@@ -1,0 +1,194 @@
+diff --git a/sys/kern/sys_inode.c b/sys/kern/sys_inode.c
+index 3f51790..3dd1a8f 100644
+--- a/sys/kern/sys_inode.c
++++ b/sys/kern/sys_inode.c
+@@ -64 +64 @@ ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
+-    dev_t dev;
++    const dev_t dev = ip->i_rdev;
+@@ -79 +79 @@ ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
+-        /* fall into ... */
++        /* FALLTHROUGH */
+@@ -85 +84,0 @@ ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
+-        dev = ip->i_rdev;
+@@ -97 +95,0 @@ ino_ioctl(register struct file *fp, register u_int com, caddr_t data)
+-        dev = ip->i_rdev;
+@@ -229 +227 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
+-          u.u_rlimit[RLIMIT_FSIZE].rlim_cur) {
++          (u_long)u.u_rlimit[RLIMIT_FSIZE].rlim_cur) {
+@@ -288 +286 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
+-        n = MIN(n, DEV_BSIZE - bp->b_resid);
++        n = MIN((u_int)n, DEV_BSIZE - bp->b_resid);
+@@ -396 +393,0 @@ closei(register struct inode *ip, int flag)
+-    int (*cfunc) (dev_t, int, int);
+@@ -403 +399,0 @@ closei(register struct inode *ip, int flag)
+-        cfunc = cdevsw[major(dev)].d_close;
+@@ -413 +408,0 @@ closei(register struct inode *ip, int flag)
+-        cfunc = bdevsw[major(dev)].d_close;
+@@ -445,0 +441,2 @@ closei(register struct inode *ip, int flag)
++    int (*const cfunc)(dev_t, int, int) = mode == IFCHR ?
++        cdevsw[major(dev)].d_close : bdevsw[major(dev)].d_close;
+@@ -582 +579 @@ openi(register struct inode *ip, int mode)
+-        if ((u_int)maj >= nchrdev)
++        if ((u_int)maj >= (u_int)nchrdev)
+@@ -610 +607 @@ openi(register struct inode *ip, int mode)
+-        if ((u_int)maj >= nblkdev)
++        if ((u_int)maj >= (u_int)nblkdev)
+diff --git a/sys/kern/sys_process.c b/sys/kern/sys_process.c
+index e8d5440..2c0afb0 100644
+--- a/sys/kern/sys_process.c
++++ b/sys/kern/sys_process.c
+@@ -145 +145 @@ ok:
+-        /*NOTREACHED*/
++        return(0); /* exit does not return. */
+diff --git a/sys/kern/tty.c b/sys/kern/tty.c
+index efaf37e..09c664d 100644
+--- a/sys/kern/tty.c
++++ b/sys/kern/tty.c
+@@ -618 +618 @@ ttioctl(tp, com, data, flag)
+-            p->p_uid != u.u_uid && u.u_uid && !inferior(p))
++            (uid_t)p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+@@ -1546 +1546,2 @@ ttwrite (tp, uio, flag)
+-    int i, hiwat, cnt, error, s;
++    int i, hiwat, error, s;
++    u_int cnt;
+diff --git a/sys/kern/tty_subr.c b/sys/kern/tty_subr.c
+index 30f924c..95f71ff 100644
+--- a/sys/kern/tty_subr.c
++++ b/sys/kern/tty_subr.c
+@@ -305 +305 @@ b_to_q (cp, cc, q)
+-        nc = MIN(cc, sizeof (struct cblock) - ((u_long)cq & CROUND));
++        nc = MIN((u_long)cc, sizeof (struct cblock) - ((u_long)cq & CROUND));
+diff --git a/sys/kern/tty_tty.c b/sys/kern/tty_tty.c
+index 244e5b6..a8095e6 100644
+--- a/sys/kern/tty_tty.c
++++ b/sys/kern/tty_tty.c
+@@ -25,0 +26 @@ syopen (dev, flag)
++    (void)dev;
+@@ -37,0 +39 @@ syread (dev, uio, flag)
++    (void)dev;
+@@ -49,0 +52 @@ sywrite (dev, uio, flag)
++    (void)dev;
+@@ -62,0 +66 @@ syioctl (dev, cmd, addr, flag)
++    (void)dev;
+@@ -79,0 +84 @@ syselect (dev, flag)
++    (void)dev;
+diff --git a/sys/kern/ufs_alloc.c b/sys/kern/ufs_alloc.c
+index 2f741cd..6f0d812 100644
+--- a/sys/kern/ufs_alloc.c
++++ b/sys/kern/ufs_alloc.c
+@@ -29,0 +30 @@ balloc(struct inode *ip, int flags)
++    (void)ip;
+@@ -124,0 +126 @@ ialloc(struct inode *pip)
++    (void)pip;
+@@ -178 +180 @@ fromtop:
+-    for (; adr < fs->fs_isize; adr++) {
++    for (; (u_long)adr < fs->fs_isize; adr++) {
+@@ -266,0 +269 @@ ifree(struct inode *ip, ino_t ino)
++    (void)ip;
+diff --git a/sys/kern/ufs_bmap.c b/sys/kern/ufs_bmap.c
+index 5d5a3a2..8cb3dbc 100644
+--- a/sys/kern/ufs_bmap.c
++++ b/sys/kern/ufs_bmap.c
+@@ -125 +125 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
+-        if (i < NINDIR-1)
++        if ((u_int)i < NINDIR-1)
+diff --git a/sys/kern/ufs_fio.c b/sys/kern/ufs_fio.c
+index 62408a6..7a825c5 100644
+--- a/sys/kern/ufs_fio.c
++++ b/sys/kern/ufs_fio.c
+@@ -115 +115 @@ ufs_setattr(register struct inode *ip, register struct vattr *vap)
+-    if (vap->va_flags != VNOVAL) {
++    if (vap->va_flags != (u_int)VNOVAL) {
+diff --git a/sys/kern/ufs_namei.c b/sys/kern/ufs_namei.c
+index f2ff047..7e77a5d 100644
+--- a/sys/kern/ufs_namei.c
++++ b/sys/kern/ufs_namei.c
+@@ -652 +652 @@ found:
+-    if (entryoffsetinblock + DIRSIZ(ep) > dp->i_size) {
++    if (entryoffsetinblock + DIRSIZ(ep) > (u_long)dp->i_size) {
+@@ -1041 +1041 @@ direnter(struct inode *ip, register struct nameidata *ndp)
+-        if (spacefree + dsize < newentrysize)
++        if (spacefree + dsize < (u_int)newentrysize)
+diff --git a/sys/kern/ufs_syscalls.c b/sys/kern/ufs_syscalls.c
+index 8dfc41a..a8f176d 100644
+--- a/sys/kern/ufs_syscalls.c
++++ b/sys/kern/ufs_syscalls.c
+@@ -678 +678 @@ chown1(register struct inode *ip, register int uid, register int gid)
+-    if ((u.u_uid != ip->i_uid || uid != ip->i_uid ||
++    if ((u.u_uid != ip->i_uid || (uid_t)uid != ip->i_uid ||
+@@ -786 +786,2 @@ rename(void)
+-    int doingdirectory = 0, oldparent = 0, newparent = 0;
++    int doingdirectory = 0;
++    ino_t oldparent = 0, newparent = 0;
+diff --git a/sys/kern/vfs_vnops.c b/sys/kern/vfs_vnops.c
+index b3cc4b5..961b24f 100644
+--- a/sys/kern/vfs_vnops.c
++++ b/sys/kern/vfs_vnops.c
+@@ -61,0 +62,4 @@
++ *
++ * Pathname resolution rewrites fmode before the returns-twice checkpoint.
++ * Keep its storage stable for that checkpoint. Moving setjmp into a helper
++ * would leave u_qsave pointing at a returned frame during error cleanup.
+@@ -64 +68 @@ int
+-vn_open(register struct nameidata *ndp, int fmode, int cmode)
++vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
+diff --git a/sys/kern/vm_swap.c b/sys/kern/vm_swap.c
+index 375c74b..9e1a2f4 100644
+--- a/sys/kern/vm_swap.c
++++ b/sys/kern/vm_swap.c
+@@ -140,0 +141 @@ swapout (p, freecore, odata, ostack)
++    (void)freecore;
+diff --git a/sys/kern/vm_swp.c b/sys/kern/vm_swp.c
+index 57be011..4f2e8fe 100644
+--- a/sys/kern/vm_swp.c
++++ b/sys/kern/vm_swp.c
+@@ -178,0 +179 @@ rawrw (dev, uio, flag)
++    (void)flag;
+diff --git a/tests/kernel/Makefile b/tests/kernel/Makefile
+index 84941ab..45f1f1d 100644
+--- a/tests/kernel/Makefile
++++ b/tests/kernel/Makefile
+@@ -48 +48 @@ KERN_BASE=	${KERN_COMMON} ${KERNEL_RENAMES}
+-KERN_WARN=	-Wall -Werror -Wno-deprecated-non-prototype
++KERN_WARN=	-Wall -Wextra -Werror -Wno-deprecated-non-prototype
+diff --git a/tests/kernel/rmap_test.c b/tests/kernel/rmap_test.c
+index d2c866d..fd84f6c 100644
+--- a/tests/kernel/rmap_test.c
++++ b/tests/kernel/rmap_test.c
+@@ -538,0 +539,20 @@ cursor_panics(void)
++
++#ifndef COMPACT_SWAPMAP
++	/* Both operands are aligned; only their size_t sum is corrupt. */
++	reset(SLOTS);
++	ent[0].m_addr = (size_t)-ALIGN;
++	ent[0].m_size = ALIGN;
++	scratch_cursor = ALIGN;
++	HK_EXPECT_PANIC("malloc3_contiguous_next: corrupt map",
++	    call_next_on_unaligned_map);
++#else
++	/* Compact descriptors can cross 16 bits without overflowing size_t. */
++	reset(SLOTS);
++	ent[0].m_addr = 65536U - ALIGN;
++	ent[0].m_size = ALIGN;
++	scratch_cursor = ent[0].m_addr;
++	HK_CHECK(malloc3_contiguous_next(fixture, ALIGN, 0, 0, ALIGN,
++	    &scratch_cursor, scratch_a) == ALIGN);
++	HK_CHECK(scratch_a[0] == 65536U - ALIGN);
++	HK_CHECK(scratch_cursor == 65536U);
++#endif
+diff --git a/tests/warning_policy/Makefile b/tests/warning_policy/Makefile
+new file mode 100644
+index 0000000..d70cc72
+--- /dev/null
++++ b/tests/warning_policy/Makefile
+@@ -0,0 +1,10 @@
++TOPSRC!=cd ../..; pwd
++PYTHON?=python3
++
++check-host:
++	${PYTHON} check.py host --make "${MAKE}"
++
++check-cross:
++	${PYTHON} check.py cross --make "${MAKE}"
++
++.PHONY: check-host check-cross

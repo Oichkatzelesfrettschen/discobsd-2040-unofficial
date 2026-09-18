@@ -515,21 +515,24 @@ addchan(name, caddr)
 {
     static  int left = 0;
     register WCHAN  *wp;
+    WCHAN   *nwchand;
 
     if (left == 0) {
         if (wchand) {
-            left = 50;
-            wchand = (WCHAN *)realloc(wchand, (nchans + left) *
+            nwchand = (WCHAN *)realloc(wchand, (nchans + 50) *
                         sizeof (struct wchan));
         } else {
-            left = 300;
-            wchand = (WCHAN *)malloc(left * sizeof (struct wchan));
+            nwchand = (WCHAN *)malloc(300 * sizeof (struct wchan));
         }
-        if (! wchand) {
+        if (! nwchand) {
+            /* left stays 0: the table is unchanged, so the next call
+             * must not index past its end. */
             fprintf(stderr, "ps: out of wait channel memory\n");
             nflg++;
             return;
         }
+        left = wchand ? 50 : 300;
+        wchand = nwchand;
     }
     wp = &wchand[nchans++];
     left--;

@@ -796,7 +796,10 @@ int (*f)();
             int *ozero = zero;
             nlall += 512;
             if ((zero = (int *)realloc((char *)zero, nlall*sizeof(int)))==NULL) {
+                /* error() longjmps back to the command loop, so the
+                 * capacity has to describe the block that survives. */
                 lastc = '\n';
+                nlall -= 512;
                 zero = ozero;
                 error("MEM?");
             }

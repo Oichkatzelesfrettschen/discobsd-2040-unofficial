@@ -355,6 +355,7 @@ getcwd_physical(pt, size)
 		 */
 		if (bpt - pt <= dp->d_namlen + (first ? 1 : 2)) {
 			size_t len, off;
+			char *npt;
 
 			if (!ptsize) {
 				errno = ERANGE;
@@ -362,8 +363,9 @@ getcwd_physical(pt, size)
 			}
 			off = bpt - pt;
 			len = ept - bpt;
-			if ((pt = realloc(pt, ptsize *= 2)) == NULL)
+			if ((npt = realloc(pt, ptsize *= 2)) == NULL)
 				goto err;
+			pt = npt;
 			bpt = pt + off;
 			ept = pt + ptsize;
 			(void)bcopy(bpt, ept - len, len);

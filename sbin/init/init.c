@@ -115,16 +115,25 @@ rmut(p)
 	if (f >= 0) {
 		fstat(f, &statbf);
 		if (utmpsize < statbf.st_size) {
-			utmpsize = statbf.st_size + 10 * sizeof(struct utmp);
+			unsigned nsize = statbf.st_size + 10 * sizeof(struct utmp);
+			struct utmp *nutmp;
+
 			if (utmp)
-				utmp = (struct utmp *)realloc(utmp, utmpsize);
+				nutmp = (struct utmp *)realloc(utmp, nsize);
 			else
-				utmp = (struct utmp *)malloc(utmpsize);
-			if (!utmp)
+				nutmp = (struct utmp *)malloc(nsize);
+			/* utmpsize grows only with the buffer: the read below
+			 * is bounded by st_size, which the old buffer may not
+			 * hold, and the old buffer is what init keeps. */
+			if (nutmp) {
+				utmp = nutmp;
+				utmpsize = nsize;
+			} else
 				syslog(LOG_ERR, "utmp malloc failed");
 		}
 		if (statbf.st_size && utmp) {
-			nutmp = read(f, utmp, (int)statbf.st_size);
+			nutmp = read(f, utmp, statbf.st_size < utmpsize ?
+			    (int)statbf.st_size : (int)utmpsize);
 			nutmp /= sizeof(struct utmp);
 			for (u = utmp ; u < &utmp[nutmp] ; u++) {
 				if (SCMPN(u->ut_line, p->line) ||

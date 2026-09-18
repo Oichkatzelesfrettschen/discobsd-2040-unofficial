@@ -188,6 +188,12 @@ check-warning-policy-host:
 check-warning-policy-cross:
 		${MAKE} -C tests/warning_policy check-cross
 
+# A failure injected into each step of lib/Makefile's install and clean
+# loops and of the kernel link recipe, with the steps after it asserted
+# never to run and the parent make asserted to fail.
+check-build-failure:
+		${MAKE} -C tests/build_failure check
+
 # The evacuation test compiles the kernel's swapram.c and subr_rmap.c on
 # the host; its Makefile is written for GNU make. bmake under -j advertises
 # its jobserver to children as "-j N -J fd,fd" in MAKEFLAGS, and GNU make
@@ -214,7 +220,8 @@ check-elf2aout:	tools
 # The cross, qemu, mips and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
-HOST_GATES=	check-warning-policy-host check-aout check-kernel check-fs-stress \
+HOST_GATES=	check-warning-policy-host check-build-failure \
+		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
@@ -356,6 +363,7 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		check-warning-policy-host check-warning-policy-cross \
+		check-build-failure \
 		all build distribution release tools kernel check-divider \
 		check-swapram check-cache-footprint check-exec-spool \
 		check-ufs-prototypes \

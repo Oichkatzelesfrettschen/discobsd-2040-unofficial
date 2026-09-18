@@ -27,6 +27,7 @@ typedef struct fblk *FBLKP;
 struct buf *
 balloc(struct inode *ip, int flags)
 {
+    (void)ip;
     register struct fs *fs;
     register struct buf *bp;
     int async;
@@ -122,6 +123,7 @@ nospace:
 struct inode *
 ialloc(struct inode *pip)
 {
+    (void)pip;
     register struct fs *fs;
     register struct buf *bp;
     register struct inode *ip;
@@ -175,7 +177,7 @@ fromtop:
         fs->fs_nbehind = 0;
     }
     inobas = 0;
-    for (; adr < fs->fs_isize; adr++) {
+    for (; (u_long)adr < (u_long)fs->fs_isize; adr++) {
         inobas = ino;
         bp = bread(INODE_DEVICE(pip), adr);
         if ((bp->b_flags & B_ERROR) || bp->b_resid) {
@@ -264,6 +266,7 @@ free(struct inode *ip, daddr_t bno)
 void
 ifree(struct inode *ip, ino_t ino)
 {
+    (void)ip;
     register struct fs *fs;
 
     fs = INODE_FILESYSTEM(ip);

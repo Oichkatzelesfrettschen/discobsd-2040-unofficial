@@ -6,8 +6,8 @@ SUBDIR=	startup libc libm libcurses libtermlib \
 	libreadline libgpanel libwiznet
 
 all install:
-	-for dir in ${SUBDIR}; do \
-		${MAKE} -C $$dir ${MFLAGS} $@; \
+	for dir in ${SUBDIR}; do \
+		${MAKE} -C $$dir ${MFLAGS} $@ || exit $$?; \
 	done
 
 clean:

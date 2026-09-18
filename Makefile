@@ -208,7 +208,7 @@ HOST_GATES=	check-aout check-kernel check-fs-stress \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
 		check-fgrep-capacity check-config-makefile check-swapram-evac
-CROSS_GATES=	check-divider check-swapram check-cache-footprint \
+CROSS_GATES=	check-warning-policy check-divider check-swapram check-cache-footprint \
 		check-exec-spool check-ufs-prototypes check-hsaout \
 		check-libc-contracts check-flash-swap
 
@@ -245,6 +245,10 @@ check-kernel-ilp32:
 # the 32-bit libraries and stands apart from the portable host tier.
 check-posix-sh:
 		sh bin/sh/tests/posix-sh.sh
+
+# Includes real compilation, injected failures and effective-flag probes.
+check-warning-policy:
+		${MAKE} -C tests/warning_policy check
 
 # The arm cross toolchain and a built tree: the linked kernels, the board
 # libc, the packed a.out images, the assembler and the divider fixtures.
@@ -346,7 +350,7 @@ installfs:
 .PHONY:		all build distribution release tools kernel check-divider \
 		check-swapram check-cache-footprint check-exec-spool \
 		check-ufs-prototypes \
-		check-elf2aout \
+		check-elf2aout check-warning-policy \
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-id-aliases \

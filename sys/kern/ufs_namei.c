@@ -649,7 +649,7 @@ found:
      * Check that directory length properly reflects presence
      * of this entry.
      */
-    if (entryoffsetinblock + DIRSIZ(ep) > dp->i_size) {
+    if (entryoffsetinblock + DIRSIZ(ep) > (u_long)dp->i_size) {
         dirbad(dp, ndp->ni_offset, "i_size too small");
         dp->i_size = entryoffsetinblock + DIRSIZ(ep);
         dp->i_flag |= IUPD|ICHG;
@@ -958,8 +958,7 @@ direnter(struct inode *ip, register struct nameidata *ndp)
     register struct inode *dp = ndp->ni_pdir;
     struct buf *bp;
     int loc, spacefree, error = 0;
-    u_int dsize;
-    int newentrysize;
+    int dsize, newentrysize;
     char *dirbuf;
 
     ndp->ni_dent.d_ino = ip->i_number;

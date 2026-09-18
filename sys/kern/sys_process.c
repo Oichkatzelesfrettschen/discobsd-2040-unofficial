@@ -143,6 +143,7 @@ ok:
     case PT_KILL:
         exit(u.u_procp->p_ptracesig);
         /*NOTREACHED*/
+        break;
 
     default:
 error:

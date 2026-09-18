@@ -29,6 +29,7 @@ char    curpri;                 /* more scheduling */
 void
 schedcpu (caddr_t arg)
 {
+    (void)arg;
     register struct proc *p;
     register int a;
 
@@ -346,6 +347,7 @@ setrun (p)
     case SZOMB:
     default:
         panic("setrun");
+        break;
 
     case SSTOP:
     case SSLEEP:

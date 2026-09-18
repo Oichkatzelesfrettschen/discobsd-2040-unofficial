@@ -7,7 +7,8 @@ TOOLBINDIR?=	${TOOLDIR}/bin
 
 HOST_CC?=	cc
 
-CC=		${HOST_CC}
+# A tool may replace CFLAGS without opting out of fatal diagnostics.
+CC=		${HOST_CC} -Werror
 
 # libbsd-dev package on Linux in overlay mode.
 _LIBBSD_CFLAGS!=if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \

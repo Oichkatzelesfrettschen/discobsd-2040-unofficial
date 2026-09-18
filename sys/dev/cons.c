@@ -22,6 +22,7 @@ struct tty cnttys[1];
 int
 cnopen(dev_t cn, int flag, int mode)
 {
+	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_open(dev, flag, mode);
@@ -30,6 +31,7 @@ cnopen(dev_t cn, int flag, int mode)
 int
 cnclose(dev_t cn, int flag, int mode)
 {
+	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_close(dev, flag, mode);
@@ -38,6 +40,7 @@ cnclose(dev_t cn, int flag, int mode)
 int
 cnread(dev_t cn, struct uio *uio, int flag)
 {
+	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_read(dev, uio, flag);
@@ -46,6 +49,7 @@ cnread(dev_t cn, struct uio *uio, int flag)
 int
 cnwrite(dev_t cn, struct uio *uio, int flag)
 {
+	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_write(dev, uio, flag);
@@ -54,6 +58,7 @@ cnwrite(dev_t cn, struct uio *uio, int flag)
 int
 cnselect(dev_t cn, int rw)
 {
+	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_select(dev, rw);
@@ -62,6 +67,7 @@ cnselect(dev_t cn, int rw)
 int
 cnioctl(dev_t cn, u_int cmd, caddr_t addr, int flag)
 {
+	(void)cn;
 	dev_t dev = makedev(CONS_MAJOR, CONS_MINOR);
 
 	return cdevsw[CONS_MAJOR].d_ioctl(dev, cmd, addr, flag);

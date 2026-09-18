@@ -49,7 +49,7 @@ INCLUDES+=	-I${_machdir}/dhara/compat
 INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall -Werror
+CWARNFLAGS=	-Wall -Wextra -Werror
 
 CMACHCPU=	-mcpu=cortex-m0plus
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
@@ -65,7 +65,8 @@ CMACHFLAGS+=	${CMACHCPU}
 
 COPTS?=		-O
 CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
-AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
+# GCC -Werror does not make GNU as diagnostics fatal.
+AFLAGS=		-x assembler-with-cpp -Wa,--fatal-warnings ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
 LDFLAGS+=	--warn-rwx-segments --fatal-warnings
@@ -82,15 +83,15 @@ LDADD=		${LIBGCC}
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags, and .deps records only the headers
-# an object read, so an option edited in Config and re-emitted by config
-# left every existing object stale. ${PARAMSTAMP} holds the PARAM text and
-# is rewritten at parse time only when that text differs, so its mtime
-# moves exactly when an option changes and every object below depends on
-# it. tools/verify_rp2040_swapram_link.sh checks the linked result.
+# Header dependencies cannot detect compiler-option changes. Keep the
+# configuration, compiler and effective flags in the object prerequisite,
+# including command-line overrides, so enabling a diagnostic rebuilds the
+# sources rather than merely relinking objects compiled without it. :Q
+# quotes each value as one shell argument, including embedded quotes.
 PARAMSTAMP=	.params
-_paramstamp!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || \
-		printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; echo ${PARAMSTAMP}
+_BUILD_SIGNATURE=	${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${INCLUDES:Q} ${AS:Q} ${AFLAGS:Q}
+_paramstamp!=	printf '%s\n' ${_BUILD_SIGNATURE} | cmp -s - ${PARAMSTAMP} 2>/dev/null || \
+		printf '%s\n' ${_BUILD_SIGNATURE} > ${PARAMSTAMP}; echo ${PARAMSTAMP}
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	init_main.o init_sysent.o kern_clock.o kern_descrip.o \
@@ -151,7 +152,7 @@ SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
-SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
+SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c && ${CC} ${CFLAGS} -c vers.c && rm -f $@
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \

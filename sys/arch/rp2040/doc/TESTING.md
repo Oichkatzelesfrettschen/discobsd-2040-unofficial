@@ -48,6 +48,38 @@ Ubuntu job already. What Windows does carry on its own is the
 discobsd-host package: the pytest matrix runs there, and a separate job
 builds the PyInstaller executables that talk to a board over USB.
 
+## Compiler warning policy
+
+The RP2040 kernel uses `-Wall -Wextra -Werror`. Its GNU assembler also
+uses `--fatal-warnings`; GCC's `-Werror` alone does not cover assembler
+warnings. Kernel linker warnings remain fatal independently.
+
+`share/mk/sys.mk` appends `-Werror` to the target compiler command, and
+its default `HOST_CC` includes `-Werror` for host-generated sources.
+`tools/Makefile.inc` appends `-Werror` to the host tool compiler command.
+Leaf makefiles may replace `CFLAGS` without accidentally removing this
+severity policy. Their existing diagnostic groups and narrowly scoped
+compatibility exceptions remain in place: this does not claim that all
+historic userland sources have been converted to `-Wextra`.
+
+Explicit command-line compiler overrides still belong to the caller.
+An overridden `CC` or `HOST_CC`, `-w`, `-Wno-error`, or disabled warning
+class is not evidence of a default-policy build. Toolchain qualification
+uses unmodified defaults and a clean build of host tools and userland.
+The kernel's `.params` prerequisite includes compiler commands, C and
+assembly flags, includes and configuration defines; changing those values
+recompiles its objects. An identical invocation leaves the stamp intact.
+
+`bmake MACHINE=rp2040 check-warning-policy` uses host and ARM compilers
+with temporary fixtures derived from the actual makefiles. It accepts
+known-good C and assembly, rejects injected warnings, tests replaced
+`CFLAGS`, checks the native a.out assembler route, verifies that changed
+kernel flags invalidate objects, and checks that failed `vers.c` and
+library builds reach the parent. Both serial and jobs-mode recursion are
+covered. The gate belongs to `check-cross`, but does not require a full
+world build or a board. Its calibration and remaining warning debt are
+recorded in `docs/research/warning-policy-audit.md`.
+
 ## Lint
 
 `tools/check-lint.sh` runs shellcheck at error severity over every
@@ -171,6 +203,7 @@ fails the gate rather than unwinding into unrelated code.
 
 | gate | proves |
 | --- | --- |
+| `check-warning-policy` | default C/assembler warning enforcement, leaf flag replacement, cache invalidation and serial/parallel failure propagation, with positive and negative controls |
 | `check-divider` | neither linked kernel reaches the SIO divider registers, from the ELF and from the dependency files |
 | `check-swapram` | vm_swap.o, exec_hsaout.o and kern_sysctl.o agree with each kernel's Config on the SwapRAM tier and pool size |
 | `check-cache-footprint` | the name, buffer and inode caches' ABI and chain invariants, the exec argument spool over modeled SwapRAM, raw swap and buffers (including the swap cursor's rotation, publication and wrap), and the evacuation model |

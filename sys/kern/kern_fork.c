@@ -212,10 +212,10 @@ fork1 (isvfork)
     a = 0;
     if (u.u_uid != 0) {
         for (p1 = allproc; p1; p1 = p1->p_nxt)
-            if (p1->p_uid == u.u_uid)
+            if ((uid_t)p1->p_uid == u.u_uid)
                 a++;
         for (p1 = zombproc; p1; p1 = p1->p_nxt)
-            if (p1->p_uid == u.u_uid)
+            if ((uid_t)p1->p_uid == u.u_uid)
                 a++;
     }
     /*

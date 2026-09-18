@@ -119,7 +119,7 @@ static int trace_path(struct dhara_map *m, dhara_sector_t target,
 		      dhara_error_t *err)
 {
 	uint8_t meta[DHARA_META_SIZE];
-	int depth = 0;
+	unsigned int depth = 0;
 	dhara_page_t p = dhara_journal_root(&m->journal);
 
 	if (new_meta)
@@ -411,7 +411,7 @@ static int try_delete(struct dhara_map *m, dhara_sector_t s,
 	dhara_page_t alt_page;
 	uint8_t alt_meta[DHARA_META_SIZE];
 	int level = DHARA_RADIX_DEPTH - 1;
-	int i;
+	unsigned int i;
 
 	if (trace_path(m, s, NULL, meta, &my_err) < 0) {
 		if (my_err == DHARA_E_NOT_FOUND)

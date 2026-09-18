@@ -147,6 +147,7 @@ int	waittime = -1;
 static int
 nodump(dev_t dev)
 {
+	(void)dev;
 	printf("\ndumping to dev %o off %D: not implemented\n",
 	    dumpdev, dumplo);
 
@@ -615,6 +616,7 @@ idle(void)
 void
 boot(dev_t dev, int howto)
 {
+	(void)dev;
 	if ((howto & RB_NOSYNC) == 0 && waittime < 0 &&
 	    bfreelist[0].av_forw) {
 		struct fs *fp;

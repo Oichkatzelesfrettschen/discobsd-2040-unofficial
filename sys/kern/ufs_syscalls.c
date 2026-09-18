@@ -675,7 +675,7 @@ chown1(register struct inode *ip, register int uid, register int gid)
      * of the file, or are not a member of the target group,
      * the caller must be superuser or the call fails.
      */
-    if ((u.u_uid != ip->i_uid || uid != ip->i_uid ||
+    if ((u.u_uid != ip->i_uid || (uid_t)uid != ip->i_uid ||
         !groupmember((gid_t)gid)) && !suser())
         return (u.u_error);
     ouid = ip->i_uid;
@@ -874,7 +874,7 @@ rename(void)
      * to namei, as the parent directory is unlocked by the
      * call to checkpath().
      */
-    if (oldparent != dp->i_number)
+    if ((ino_t)oldparent != dp->i_number)
         newparent = dp->i_number;
     if (doingdirectory && newparent) {
         if (access(ip, IWRITE))

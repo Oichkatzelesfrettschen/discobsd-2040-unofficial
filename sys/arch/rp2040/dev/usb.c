@@ -1031,6 +1031,8 @@ void	usbstart(struct tty *tp);
 int
 usbopen(dev_t dev, int flag, int mode)
 {
+	(void)flag;
+	(void)mode;
 	struct tty *tp = &usbttys[0];
 	int c;
 
@@ -1066,6 +1068,9 @@ usbopen(dev_t dev, int flag, int mode)
 int
 usbclose(dev_t dev, int flag, int mode)
 {
+	(void)dev;
+	(void)flag;
+	(void)mode;
 	struct tty *tp = &usbttys[0];
 
 	ttywflush(tp);
@@ -1076,18 +1081,21 @@ usbclose(dev_t dev, int flag, int mode)
 int
 usbread(dev_t dev, struct uio *uio, int flag)
 {
+	(void)dev;
 	return ttread(&usbttys[0], uio, flag);
 }
 
 int
 usbwrite(dev_t dev, struct uio *uio, int flag)
 {
+	(void)dev;
 	return ttwrite(&usbttys[0], uio, flag);
 }
 
 int
 usbioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
+	(void)dev;
 	int error;
 
 	error = ttioctl(&usbttys[0], cmd, addr, flag);
@@ -1099,6 +1107,7 @@ usbioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 int
 usbselect(dev_t dev, int rw)
 {
+	(void)dev;
 	return ttyselect(&usbttys[0], rw);
 }
 
@@ -1136,6 +1145,7 @@ usbstart(struct tty *tp)
 void
 usbputc(dev_t dev, char c)
 {
+	(void)dev;
 	int s, spin;
 
 	s = spltty();
@@ -1190,6 +1200,7 @@ usbpoll(void)
 char
 usbgetc(dev_t dev)
 {
+	(void)dev;
 	int s, c;
 
 	s = spltty();
@@ -1204,6 +1215,7 @@ usbgetc(dev_t dev)
 static int
 usbprobe(struct conf_device *config)
 {
+	(void)config;
 	printf("uartusb: CDC-ACM on the USB device controller, interrupt %d",
 	    USBCTRL_IRQ);
 	if (CONS_MAJOR == UARTUSB_MAJOR)

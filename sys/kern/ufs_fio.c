@@ -112,7 +112,7 @@ ufs_setattr(register struct inode *ip, register struct vattr *vap)
 
     if (INODE_FILESYSTEM(ip)->fs_ronly) /* can't change anything on a RO fs */
         return(EROFS);
-    if (vap->va_flags != VNOVAL) {
+    if (vap->va_flags != (u_int)VNOVAL) {
 #ifdef COMPACT_INODE_FIELDS
         if (!INODE_PERSISTENT_FLAGS_SUPPORTED(vap->va_flags))
             return(EINVAL);

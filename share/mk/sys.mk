@@ -21,7 +21,7 @@ VERSION=	${RELEASE}-${BUILD}
 TOOLDIR?=	${TOPSRC}/tools
 TOOLBINDIR?=	${TOOLDIR}/bin
 
-HOST_CC?=	cc
+HOST_CC?=	cc -Werror
 
 # The interpreter for every verifier and harness, declared once and passed
 # to each sub-make; a Makefile names it as ${PYTHON} and never by a literal.
@@ -119,6 +119,10 @@ LDTEXT!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 	else \
 		echo "-N" ; \
 	fi
+
+# Keep severity on CC: leaf Makefiles replace CFLAGS for the native
+# a.out compiler/assembler path as well as ordinary cross-built programs.
+CC+=	-Werror
 
 CFLAGS=	${COPTS}
 

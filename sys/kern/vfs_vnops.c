@@ -58,10 +58,11 @@
 /*
  * Common code for vnode open operations.
  * Check permissions, and call the VOP_OPEN (openi for 2.11) or VOP_CREATE
- * (maknode) routine.
+ * (maknode) routine. fmode is normalized below and remains live at setjmp;
+ * keep its storage explicit across an interrupted driver open.
  */
 int
-vn_open(register struct nameidata *ndp, int fmode, int cmode)
+vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
 {
     register struct inode *ip;
     register int error;

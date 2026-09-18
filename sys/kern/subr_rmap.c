@@ -310,9 +310,9 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
             if ((bp->m_addr & (align - 1)) != 0 ||
                 (bp->m_size & (align - 1)) != 0)
                 panic ("malloc3_contiguous_next: unaligned map");
-            if (bp->m_addr > (size_t)-1 - bp->m_size)
+            end = (size_t)bp->m_addr + (size_t)bp->m_size;
+            if (end < (size_t)bp->m_addr)
                 panic ("malloc3_contiguous_next: corrupt map");
-            end = bp->m_addr + bp->m_size;
             if (bp->m_size < span)
                 continue;
 

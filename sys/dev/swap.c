@@ -104,6 +104,8 @@ swsize(dev_t dev)
 int
 swcopen(dev_t dev, int mode, int flag)
 {
+	(void)flag;
+	(void)mode;
 	int unit = minor(dev);
 
 	if (unit >= NTMP) {
@@ -117,6 +119,8 @@ swcopen(dev_t dev, int mode, int flag)
 int
 swcclose(dev_t dev, int mode, int flag)
 {
+	(void)flag;
+	(void)mode;
 	int unit = minor(dev);
 
 	if (unit >= NTMP)
@@ -128,6 +132,7 @@ swcclose(dev_t dev, int mode, int flag)
 int
 swcread(dev_t dev, struct uio *uio, int flag)
 {
+	(void)flag;
 	u_int		 block;
 	u_int		 boff;
 	struct buf	*bp;
@@ -172,6 +177,7 @@ swcread(dev_t dev, struct uio *uio, int flag)
 int
 swcwrite(dev_t dev, struct uio *uio, int flag)
 {
+	(void)flag;
 	u_int		 block;
 	u_int		 boff;
 	struct buf	*bp;
@@ -228,6 +234,7 @@ swcwrite(dev_t dev, struct uio *uio, int flag)
 int
 swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
+	(void)flag;
 	u_int		*uival;
 	off_t		*offtval;
 	off_t		 requested;
@@ -323,7 +330,7 @@ swstrategy(struct buf *bp)
 		}
 
 		if (bp->b_blkno >= td[unit].t_size ||
-		    btod(bp->b_bcount) > td[unit].t_size - bp->b_blkno) {
+		    (u_long)btod(bp->b_bcount) > (u_long)(td[unit].t_size - bp->b_blkno)) {
 			printf("swap%d: attempt to access past end of allocation\n",
 			    unit);
 			return;

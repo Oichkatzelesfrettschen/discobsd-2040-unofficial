@@ -202,10 +202,7 @@ syscall(struct trapframe *frame)
 
 	code = *(int *)u.u_code & 0377;		/* Bottom 8 bits are index. */
 
-	const struct sysent *callp = &sysent[0];
-
-	if (code < nsysent)
-		callp += code;
+	const struct sysent *const callp = &sysent[code < nsysent ? code : 0];
 
 	if (callp->sy_narg) {
 		/* In AAPCS, first four args are from trapframe regs r0-r3. */

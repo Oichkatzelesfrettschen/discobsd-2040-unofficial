@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import pathlib
+import shlex
 import shutil
 import signal
 import subprocess
@@ -14,9 +15,12 @@ import time
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cc", required=True)
+    parser.add_argument("--cc", type=shlex.split, required=True)
     parser.add_argument("--source", type=pathlib.Path, required=True)
-    return parser.parse_args()
+    arguments = parser.parse_args()
+    if not arguments.cc:
+        parser.error("--cc must contain a compiler command")
+    return arguments
 
 
 def run_command(
@@ -185,7 +189,7 @@ def main() -> int:
         temporary_directory = pathlib.Path(directory_name)
         executable = temporary_directory / "sort"
         compile_command = [
-            arguments.cc,
+            *arguments.cc,
             "-std=gnu17",
             "-O2",
             "-Wall",

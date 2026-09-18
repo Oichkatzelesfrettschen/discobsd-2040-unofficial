@@ -5,7 +5,11 @@
 set -eu
 
 AR=${AR:?set AR to the tree's archive tool}
-HOST_CC=${HOST_CC:?set HOST_CC to the host C compiler}
+# The make recipe passes the compiler command as argv, retaining flags and
+# quoted executable paths. Keep the original single-executable env interface.
+if [ "$#" -eq 0 ]; then
+	set -- "${HOST_CC:?set HOST_CC or pass a host compiler command}"
+fi
 RANLIB=${RANLIB:?set RANLIB to the tree's archive index tool}
 SOURCE_ROOT=${SOURCE_ROOT:?set SOURCE_ROOT to this test directory}
 work_root=$(cd "${WORK:-.}" && pwd)
@@ -16,7 +20,7 @@ rm -rf "$test_root"
 mkdir -p "$test_root"
 trap 'rm -rf "$test_root"' 0 1 2 3 15
 
-"$HOST_CC" -shared -fPIC -Wall -Wextra -Werror \
+"$@" -shared -fPIC -Wall -Wextra -Werror \
 	-o "$fault_library" "$SOURCE_ROOT/archive-transaction-failure.c" -ldl
 
 # The library interposes rename, link and fsync through LD_PRELOAD, an

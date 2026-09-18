@@ -10,6 +10,7 @@ import argparse
 import os
 import shlex
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -92,6 +93,31 @@ class WarningPolicy(unittest.TestCase):
     def test_host_generators_use_shared_policy(self):
         self.simple_fixture("share/mk/sys.mk", "HOST_CC")
         self.check_pair()
+
+    def test_sort_accepts_shared_host_command(self):
+        result = self.make("test", f"PYTHON={sys.executable}", cwd=ROOT / "usr.bin/sort")
+        self.assert_success(result)
+        self.assertIn("sort: byte domain", result.stdout)
+
+    def test_archive_accepts_host_command_arguments(self):
+        # Exercise the same argv interface as the production make recipe.
+        result = self.make("-V", "${HOST_CC}", cwd=ROOT / "usr.bin/as/tests")
+        self.assert_success(result)
+        command = shlex.split(result.stdout.strip())
+        self.assertIn("-Werror", command)
+        environment = self.environment | {
+            "AR": str(ROOT / "tools/bin/ar"),
+            "RANLIB": str(ROOT / "tools/bin/ranlib"),
+            "SOURCE_ROOT": str(ROOT / "usr.bin/as/tests"),
+            "WORK": str(self.work),
+        }
+        result = subprocess.run(
+            ["sh", str(ROOT / "usr.bin/as/tests/archive-transactional-rewrite.sh"),
+             *command], env=environment, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, timeout=60, check=False,
+        )
+        self.assert_success(result)
+        self.assertIn("archive:", result.stdout)
 
     def kernel_fixture(self, config="PICO", suffix="c"):
         self.write(

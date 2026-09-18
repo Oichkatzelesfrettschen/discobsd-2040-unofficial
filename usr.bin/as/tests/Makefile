@@ -23,9 +23,9 @@ all:
 test:
 			@AR=${AOUT_AR} RANLIB=${AOUT_RANLIB} WORK=. \
 			    sh ./archive-extended-name-padding.sh
-			@AR=${AOUT_AR} HOST_CC="${HOST_CC}" \
+			@AR=${AOUT_AR} \
 			    RANLIB=${AOUT_RANLIB} SOURCE_ROOT=${.CURDIR} WORK=. \
-			    sh ./archive-transactional-rewrite.sh
+			    sh ./archive-transactional-rewrite.sh ${HOST_CC}
 			@AR=${AOUT_AR} RANLIB=${AOUT_RANLIB} WORK=. \
 			    sh ./archive-extract-all.sh
 			@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \

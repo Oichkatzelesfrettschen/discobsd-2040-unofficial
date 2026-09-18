@@ -1,0 +1,20 @@
+rules:
+  - id: posix-gap-calls
+    languages: [c]
+    message: candidate API call
+    severity: INFO
+    patterns:
+      - pattern-either:
+          - pattern: confstr(...)
+          - pattern: ctermid(...)
+          - pattern: difftime(...)
+          - pattern: fgetln(...)
+          - pattern: fgetpos(...)
+          - pattern: fsetpos(...)
+          - pattern: fpurge(...)
+          - pattern: funopen(...)
+          - pattern: glob(...)
+          - pattern: raise(...)
+          - pattern: radixsort(...)
+          - pattern: setlocale(...)
+          - pattern: sysconf(...)

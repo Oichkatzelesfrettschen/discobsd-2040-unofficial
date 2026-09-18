@@ -107,6 +107,11 @@ Not needed: Renode reached a real, informative boot -- see below.
 
 ## How far the kernel boots
 
+This section records the boot as it stood before uart0 was attached
+and before the SSI model stopped latching BUSY. "The console reaches a
+login prompt" below supersedes its conclusions and keeps its
+measurements.
+
 Console output, `PICO_UART` config, captured verbatim while
 `tools/renode/boot.resc` ran, with `PYTHON=${PYTHON:-python3}` then
 `$PYTHON tools/renode/console.py --port 3456` (this exact transcript
@@ -327,6 +332,102 @@ section 7 of BOOT-MAP.md measures on hardware costs minutes rather than
 seconds here. A gate built on this emulator has to assert on console
 content and budget for that, and no run recorded in this report has yet
 crossed the quiet stretch.
+
+## The console reaches a login prompt
+
+Two defects stood between the device probe and userland, one in this port
+and one in the third-party model. Both are fixed, and the emulator now
+boots to a shell.
+
+### uart0 was configured and never attached
+
+`uartprobe()` in sys/arch/rp2040/dev/uart.c read its unit as
+`config->dev_unit - 1`, carried over from the STM32 ports, whose USARTs
+count from one. The RP2040 has UART0 and UART1 and `uart[]` is indexed the
+same way, so `device uart0` in PICO_UART's Config named index 0, the probe
+turned that into -1, the range test rejected it, and the line never
+attached. Nothing reported the failure: `cnputc()` writes the UART data
+register directly, so the banner, the device lines and every `printf` from
+the kernel appeared exactly as they would have with a working console,
+while `/dev/console` could not be opened by any process. init's first
+`open` of the console failed on both RP2040 configurations, and userland
+had nowhere to write.
+
+The fix is one line. With it, the console's tty reports `t_state` 0x14
+(`TS_ISOPEN | TS_CARR_ON`) and `t_addr` pointing at the uart softc, and
+`/etc/rc` output reaches the console for the first time.
+
+### The SSI model latched BUSY and the boot ROM waited forever
+
+With the console attached, `/etc/rc` ran to its last line and the boot then
+stopped, at a point that moved between runs: after `Starting daemons`, or
+after the `date`, or during the filesystem check. The emulator kept
+burning 1.4 host cores and logged nothing further.
+
+GDB, attached through `machine StartGdbServer`, puts the guest at
+`0x200404ae` with `r3` = 0x18000000:
+
+    0x200404aa:  push  {r0, r1, lr}
+    0x200404ac:  ldr   r1, [r3, #0x28]   ; SSI SR
+    0x200404ae:  movs  r0, #4            ; TFE
+    0x200404b0:  tst   r1, r0
+    0x200404b2:  beq.n 0x200404ac
+    0x200404b4:  movs  r0, #1            ; BUSY
+    0x200404b6:  tst   r1, r0
+    0x200404b8:  bne.n 0x200404ac
+
+That is the boot ROM's `wait_ssi_ready`, copied into SRAM so it runs with
+XIP disabled: spin until the transmit FIFO is empty and the SSI is no
+longer busy. The registers at the stall read `TXFLR` 0, `RXFLR` 1, `SR`
+0x0f -- transmit FIFO empty, one frame still in the receive FIFO, and BUSY
+set. TFE is satisfied; BUSY never clears, so the loop cannot exit.
+
+`RP2040XIPSSI` stored BUSY in a register field that `ProcessTransmit` set
+before a transfer and cleared after it. Renode runs a managed thread's
+action from `BaseClockSource.Update` on whichever CPU thread reports time
+progress -- visible in a host stack sample as `CpuThreadBody` ->
+`ReportTimeProgress` -> `SynchronizeVirtualTime` -> `BaseClockSource.Update`
+-- so both cores enter that state machine, and `RecalculateFrequencies` and
+the SSIENR write callback stop the clocking thread from a third path.
+Whatever interrupts a transfer between the two assignments leaves the flag
+set with nothing left to clear it.
+
+The repair is to stop storing it. DW_apb_ssi reports BUSY while a serial
+transfer is in progress, which the model can derive: a count of transfers
+in flight, raised and dropped in one `try`/`finally`, plus the depth of the
+transmit queue. A derived flag cannot latch. The same patch takes one lock
+across the whole transfer state machine, so two cores cannot interleave one
+command's bytes, and retires the clocking thread before an SSIENR edge
+clears the queues rather than after.
+
+Measured over free-running boots with `RunFor "30"`, no terminal tester
+attached:
+
+| model | boots reaching the getty banner |
+| --- | --- |
+| pinned revision with patch 0001 | 0 of 6 |
+| with patch 0002 as well | 6 of 6 |
+
+The Robot harness hides this defect: `Create Terminal Tester` pauses the
+emulation at every wait, which serializes the two CPU threads enough that
+the race rarely fires. A gate built only on renode-test would have passed
+against the broken model, which is why the table above comes from
+free-running runs.
+
+### What the boot now proves
+
+`bmake MACHINE=rp2040 check-renode` asserts, past the device probe, that
+the filesystem check runs to completion, that `/etc/rc` starts its daemons,
+that getty prints its banner and a `login:` prompt, that `operator` logs
+in, and that the shell it forks answers `uname -sr` with `DiscoBSD 2.7`.
+Reaching a shell prompt exercises the exec path for a compressed a.out,
+Dhara's read and write path through the real boot ROM flash functions, the
+swap writer, the tty layer, and process creation, none of which the earlier
+gate touched.
+
+The sections above this one recorded that no run reached `login:` and that
+the console stopped at `swap size = 380 kbytes`. Both statements were
+accurate for the tree as it stood; the two fixes here supersede them.
 
 ## Exact, replayable commands
 

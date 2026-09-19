@@ -11,6 +11,10 @@ qsort_test
 qsort_test32
 qsort_sort.o
 qsort_sort32.o
+printf_contract_test
+printf_contract_test32
+syslog_contract_test
+syslog_syslog.o
 strtox_test
 strtox_test32
 strtox_strtol.o

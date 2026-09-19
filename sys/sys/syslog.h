@@ -142,9 +142,13 @@ CODE facilitynames[] = {
 #ifdef KERNEL
 #define LOG_PRINTF      -1  /* pseudo-priority to indicate use of printf */
 #else
-void syslog (int pri, const char *fmt, ...);
-void openlog (const char *ident, int logstat, int logfac);
-void closelog (void);
+#include <stdarg.h>
+
+void syslog(int pri, const char *fmt, ...);
+void vsyslog(int pri, const char *fmt, va_list ap);
+void openlog(const char *ident, int logstat, int logfac);
+void closelog(void);
+int setlogmask(int pmask);
 #endif
 
 /*

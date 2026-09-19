@@ -16,16 +16,24 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
+#include <errno.h>
+#include <limits.h>
 
 int
 vsnprintf(char *str, size_t nbytes, const char *fmt, va_list ap)
 {
-	FILE _strbuf;
+	FILE stream;
+	char dummy;
+	int length;
 
-	_strbuf._flag = _IOWRT+_IOSTRG;
-	_strbuf._ptr = str;
-	_strbuf._cnt = nbytes;
-	_doprnt(fmt, ap, &_strbuf);
-	*_strbuf._ptr = 0;
-	return _strbuf._ptr - str;
+	if (nbytes > INT_MAX) {
+		errno = EINVAL;
+		return -1;
+	}
+	stream._flag = _IOWRT | _IOSTRG;
+	stream._ptr = nbytes == 0 ? &dummy : str;
+	stream._cnt = nbytes == 0 ? 0 : (int)nbytes - 1;
+	length = _doprnt(fmt, ap, &stream);
+	*stream._ptr = 0;
+	return length;
 }

@@ -1,7 +1,8 @@
 # NetBSD 11 micro-backports for a C17 DiscoBSD process window
 
-The first adopted NetBSD 11 backport repairs `strtol()` and `strtoul()` as
-one bounded mechanism. Five small historical changes compose into a C17
+The first two adopted NetBSD 11 backports repair `strtol()`/`strtoul()` and
+bounded `syslog()` formatting. Five small historical integer-conversion
+changes compose into a C17
 implementation that rejects invalid bases, preserves the input end pointer,
 recognizes a hexadecimal prefix only when a digit follows, treats input bytes
 as unsigned, and classifies digits without the ctype table. The DiscoBSD
@@ -79,14 +80,78 @@ both signed-byte ctype calls, both missing `EINVAL` reports, the `strtoul()`
 invalid-base input position, and both incomplete hexadecimal prefix positions.
 The adopted functions pass all 51 checks at each width.
 
+## Bounded syslog formatting
+
+NetBSD commits `e0ecee6373cfb4b1f55d2590d28c23960d9d3488` and
+`ed4b77539f5bd502b52d39170f36631b6e38ee3f` establish the governing
+invariant: every fixed field, expanded `%m`, formatted body, and final line
+ending must share one explicit bound, and a formatter's required length must
+never advance a pointer beyond the bytes actually stored. The DiscoBSD
+adaptation keeps that invariant while avoiding NetBSD's separate format-copy
+array. A 512-byte record reserves its final two payload bytes for CRLF, and a
+bounded string `FILE` sends the caller's format directly through `_doprnt()`.
+The stream carries the saved error string in `_base` and marks the private
+contract with `_IOSYSLOG`. `_doprnt()` expands `%m` only for that stream;
+ordinary `snprintf("%m")` retains the historical literal `%m` result, and a
+percent character inside `strerror()` remains data rather than a second
+format string.
+
+```sh
+git -C ../netbsd-src show --stat e0ecee6373cf ed4b77539f5
+rg -n 'sprintf|vsprintf|strcat|tbuf|fmt_cpy' lib/libc/gen/syslog.c
+```
+
+The `%m` check lives in `_doprnt()`'s existing unknown-conversion arm. A new
+top-level `case 'm'` widened GCC's Thumb-1 switch dispatch and made
+`doprnt.o` 184 bytes larger. Reusing the default arm limits that increase to
+92 bytes. `snprintf()` and `vsnprintf()` each own their small bounded stream
+setup rather than forcing `snprintf.o` to pull `vsnprintf.o` from a static
+archive. The duplication costs source lines but preserves member-level
+selection for programs that use only one interface. Both functions now
+reserve the terminator, report the required length after truncation, accept
+`(NULL, 0)`, and reject a capacity that the signed stream count cannot
+represent. `_flsbuf()` recognizes an exhausted string stream and leaves its
+pointer at the terminator slot.
+
+The pre-change syslog shim prints literal `%m` and then triggers the host
+stack protector on a long tag or message. The adopted gate compiles the exact
+tree sources as strict C17 and checks fixed fields, maximum target PID, CRLF,
+`LOG_PERROR`, repeated and escaped `%m`, a percent character in the error
+text, long tag, literal format, argument and error-text truncation, and retry
+after a failed logfile open. The companion
+formatter gate runs at host and ILP32 widths and checks exact fit, truncation,
+size one, `(NULL, 0)`, destination guards, required-length returns, and the
+unrepresentable-capacity rejection.
+
+Target `-fstack-usage` reports a 608-byte `vsyslog()` frame, down from 1,216
+bytes because the 512-byte format-copy array is gone. The board library keeps
+143 members and grows from 52,020 to 52,116 bytes. The linked programs below
+measure the complete ARM a.out result; window delta is
+`a_text + a_data + a_bss`, not file length.
+
+| Program | Baseline text/data/bss | Adopted text/data/bss | Window delta |
+| --- | ---: | ---: | ---: |
+| `date` | 12968 / 1100 / 2344 | 13048 / 1080 / 2340 | +56 |
+| `getty` | 16024 / 2008 / 5280 | 16120 / 1988 / 5276 | +72 |
+| `init` | 15276 / 608 / 2844 | 15376 / 588 / 2840 | +76 |
+| `reboot` | 13956 / 528 / 2676 | 14060 / 508 / 2672 | +80 |
+| `shutdown` | 16016 / 944 / 4496 | 16120 / 924 / 4492 | +80 |
+| `login` | 21484 / 889 / 5399 | 21568 / 869 / 5395 | +60 |
+| `su` | 13928 / 1016 / 3784 | 14012 / 996 / 3780 | +60 |
+
+The formatter safety therefore costs 56 to 80 process-window bytes in the
+seven measured consumers while reclaiming 608 bytes of peak `vsyslog()`
+stack. The initialized-data reduction comes from removing the mutable logfile
+path and redundant connection state; a failed open remains represented by
+`LogFile == -1`, which also makes the next call retry without another flag.
+
 ## Remaining high-value frontier
 
 | Priority | Surface | NetBSD evidence | Local finding | Required proof before adoption |
 | --- | --- | --- | --- | --- |
-| 1 | `lib/libc/gen/syslog.c` | `e0ecee6373cfb4b1f55d2590d28c23960d9d3488` bounds fixed buffers | Local `sprintf()`, `%m` expansion, `vsprintf()`, and `strcat()` write into 512- and 640-byte arrays. Six shipped programs link `syslog.o`. | A formatter shim must exercise long tag, PID, format, `%m`, and CRLF truncation independently, then an a.out link must measure the code and stack costs. |
-| 2 | `bin/cat/cat.c` | `75b95f389418367440fe5a480bdc00ebbc79060b`, `9efe55fa450c8b18848289880417188c41e05758`, `54817e25fc331082c64c35ce80695b65f7c15a82` | Local `fastcat()` narrows `st_blksize` into signed `int` and accepts zero as a `malloc()` and `read()` size. | An `fstat()`/`malloc()`/`read()`/`write()` shim must prove zero, negative, oversized, short-write, empty-file, and read-error paths before a C17 refactor. |
-| 3 | `rmdir -p` | NetBSD has component-wise removal with defined diagnostics | Local `rmdir` has no `-p`; the change adds a user interface rather than repairing an existing contract. | Choose the feature explicitly, then add filesystem integration cases for partial removal and preserved failure paths. |
-| 4 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
+| 1 | `bin/cat/cat.c` | `75b95f389418367440fe5a480bdc00ebbc79060b`, `9efe55fa450c8b18848289880417188c41e05758`, `54817e25fc331082c64c35ce80695b65f7c15a82` | Local `fastcat()` narrows `st_blksize` into signed `int` and accepts zero as a `malloc()` and `read()` size. | An `fstat()`/`malloc()`/`read()`/`write()` shim must prove zero, negative, oversized, short-write, empty-file, and read-error paths before a C17 refactor. |
+| 2 | `rmdir -p` | NetBSD has component-wise removal with defined diagnostics | Local `rmdir` has no `-p`; the change adds a user interface rather than repairing an existing contract. | Choose the feature explicitly, then add filesystem integration cases for partial removal and preserved failure paths. |
+| 3 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
 
 Two tempting searches produced no applicable repair. NetBSD's `LIST_MOVE`
 hardening cannot backport as a line because DiscoBSD's queue header has no
@@ -98,13 +163,10 @@ The following commands reproduce the remaining frontier:
 
 ```sh
 git -C ../netbsd-src show --stat 75b95f389418 9efe55fa450c 54817e25fc33
-git -C ../netbsd-src show --stat e0ecee6373cf
 rg -n 'st_blksize|malloc\(|read\(|write\(' bin/cat/cat.c
-rg -n 'sprintf|vsprintf|strcat|tbuf|fmt_cpy' lib/libc/gen/syslog.c
 rg -n 'LIST_MOVE|pgrp|INT_MIN|rmdir|vis\(' sys bin lib include
 ```
 
-The `syslog()` overflow surface has the highest consequence and the larger
-proof burden. The `cat` repair has the smaller implementation surface. Each
-belongs on a separate branch so its gate can be calibrated against its own
-known-bad source and its target footprint can be judged independently.
+The `cat` repair has the next bounded implementation surface. It belongs on
+its own branch so its gate can be calibrated against the known-bad source and
+its target footprint can be judged independently of the formatter change.

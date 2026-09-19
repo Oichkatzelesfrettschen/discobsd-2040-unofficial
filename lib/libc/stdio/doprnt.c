@@ -160,7 +160,7 @@ reswitch:	switch (c = *fmt++) {
 			goto nosign;
 
 		case 'p':
-			ul = (size_t) va_arg (ap, void*);
+			ul = (unsigned long) va_arg (ap, void*);
 			if (! ul) {
 				s = (const unsigned char*) "(nil)";
 				goto string;
@@ -197,7 +197,6 @@ string:			if (! dot)
 				while (width--)
 					PUTC (' ');
 			break;
-
 
 		case 'u':
 			ul = lflag ? va_arg (ap, unsigned long) :
@@ -391,6 +390,12 @@ number:			if (sign) {
 			break;
 		}
 		default:
+			if (c == 'm' && (stream->_flag & _IOSYSLOG) != 0) {
+				s = (const unsigned char *)stream->_base;
+				if (!s)
+					s = (const unsigned char *)"(null)";
+				goto string;
+			}
 			PUTC ('%');
 			if (lflag)
 				PUTC ('l');
@@ -435,4 +440,3 @@ mkhex (unsigned char ch)
 		return ch + 'a' - 10;
 	return ch + '0';
 }
-

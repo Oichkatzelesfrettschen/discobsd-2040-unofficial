@@ -24,6 +24,7 @@ extern  struct  _iobuf {
 #define _IOSTRG     0100
 #define _IOLBF      0200
 #define _IORW       0400
+#define _IOSYSLOG   01000  /* string stream carries syslog %m text */
 
 /*
  * The following definition is for ANSI C, which took them

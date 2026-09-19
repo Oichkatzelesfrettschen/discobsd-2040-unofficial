@@ -40,7 +40,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check: ${PROG} header_contract.o check-malloc check-qsort check-strtox check-aout
+check: ${PROG} header_contract.o check-malloc check-printf check-syslog \
+	check-qsort check-strtox check-aout
 	./${PROG}
 
 # The string-to-integer functions compiled from the tree under names that
@@ -52,6 +53,83 @@ STRTOX_CFLAGS=	-std=c17 -Wall -Wextra -Werror -fsigned-char \
 		-Istrtox_include
 STRTOX_OBJS=	strtox_strtol.o strtox_strtoul.o
 STRTOX_OBJS32=	strtox_strtol32.o strtox_strtoul32.o
+
+# The bounded printf functions and their exact string-stream output path.
+# Tree headers expose the FILE layout to the tree sources; the test itself
+# uses write(2), so the host stdio ABI never crosses that boundary.
+PRINTF_DIR=	${TOPSRC}/lib/libc/stdio
+PRINTF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include -DNO_DOPRNT_FLOATFMT \
+		-Derrno=printf_test_errno
+PRINTF_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_doprnt.o \
+		printf_flsbuf.o
+PRINTF_OBJS32=	printf_snprintf32.o printf_vsnprintf32.o printf_doprnt32.o \
+		printf_flsbuf32.o
+
+# syslog compiled from the tree over deterministic transport, clock and errno
+# shims.  The formatter objects stay exact tree objects from check-printf.
+SYSLOG_DIR=	${TOPSRC}/lib/libc/gen
+SYSLOG_RENAMES=	-Dsyslog=db_syslog -Dvsyslog=db_vsyslog \
+		-Dopenlog=db_openlog -Dcloselog=db_closelog \
+		-Dsetlogmask=db_setlogmask -Dopen=test_open \
+		-Dwrite=test_write -Dwritev=test_writev -Dfcntl=test_fcntl \
+		-Dclose=test_close -Dtime=test_time -Dlocaltime=test_localtime \
+		-Dstrftime=test_strftime -Dgetpid=test_getpid \
+		-Dvfork=test_vfork -Dwaitpid=test_waitpid -D_exit=test_exit \
+		-Dstrerror=test_strerror -Derrno=syslog_test_errno
+SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
+SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o
+
+check-syslog: syslog_contract_test
+	./syslog_contract_test
+
+syslog_contract_test: syslog_contract_test.c syslog_syslog.o ${SYSLOG_FORMAT_OBJS}
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -nostdinc \
+	    -isystem ${TOPSRC}/include -o $@ syslog_contract_test.c \
+	    syslog_syslog.o ${SYSLOG_FORMAT_OBJS}
+
+syslog_syslog.o: ${SYSLOG_DIR}/syslog.c
+	${HOSTCC} ${SYSLOG_CFLAGS} -c -o $@ ${SYSLOG_DIR}/syslog.c
+
+check-printf: printf_contract_test
+	./printf_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} printf_contract_test32
+	./printf_contract_test32
+.else
+	@echo "check-libc-printf: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+printf_contract_test: printf_contract_test.c ${PRINTF_OBJS}
+	${HOSTCC} ${PRINTF_CFLAGS} -o $@ printf_contract_test.c ${PRINTF_OBJS}
+
+printf_contract_test32: printf_contract_test.c ${PRINTF_OBJS32}
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -o $@ printf_contract_test.c ${PRINTF_OBJS32}
+
+printf_snprintf.o: ${PRINTF_DIR}/snprintf.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/snprintf.c
+
+printf_vsnprintf.o: ${PRINTF_DIR}/vsnprintf.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/vsnprintf.c
+
+printf_doprnt.o: ${PRINTF_DIR}/doprnt.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
+
+printf_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
+printf_snprintf32.o: ${PRINTF_DIR}/snprintf.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/snprintf.c
+
+printf_vsnprintf32.o: ${PRINTF_DIR}/vsnprintf.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/vsnprintf.c
+
+printf_doprnt32.o: ${PRINTF_DIR}/doprnt.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
+
+printf_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
 check-strtox: strtox_test
 	./strtox_test
@@ -165,9 +243,12 @@ header_contract.o: header_contract.c
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
+	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
+	rm -f syslog_contract_test syslog_syslog.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
 
 all: check
 
-.PHONY: all check check-aout check-malloc check-qsort check-strtox clean
+.PHONY: all check check-aout check-malloc check-printf check-qsort check-strtox \
+	check-syslog clean

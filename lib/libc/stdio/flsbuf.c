@@ -9,9 +9,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-int _flsbuf(c, iop)
-    unsigned char c;
-    register FILE *iop;
+int
+_flsbuf(unsigned char c, FILE *iop)
 {
 	register char *base;
 	register int n, rn;
@@ -25,6 +24,8 @@ int _flsbuf(c, iop)
 	}
 
 	if ((iop->_flag&_IOWRT)==0)
+		return(EOF);
+	if (iop->_flag&_IOSTRG)
 		return(EOF);
 tryagain:
 	if (iop->_flag&_IOLBF) {
@@ -76,8 +77,7 @@ tryagain:
 }
 
 int
-fflush(iop)
-register FILE *iop;
+fflush(FILE *iop)
 {
 	register char *base;
 	register int n;
@@ -95,8 +95,7 @@ register FILE *iop;
 }
 
 int
-fclose(iop)
-	register FILE *iop;
+fclose(FILE *iop)
 {
 	register int r;
 

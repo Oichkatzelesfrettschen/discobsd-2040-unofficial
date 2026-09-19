@@ -16,19 +16,28 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
+#include <errno.h>
+#include <limits.h>
 
 int
-snprintf (char *str, size_t nbytes, const char *fmt, ...)
+snprintf(char *str, size_t nbytes, const char *fmt, ...)
 {
-	FILE _strbuf;
+	FILE stream;
+	char dummy;
 	va_list args;
+	int length;
 
-	_strbuf._flag = _IOWRT+_IOSTRG;
-	_strbuf._ptr = str;
-	_strbuf._cnt = nbytes;
-	va_start (args, fmt);
-	_doprnt (fmt, args, &_strbuf);
-	va_end (args);
-	*_strbuf._ptr = 0;
-	return _strbuf._ptr - str;
+	if (nbytes > INT_MAX) {
+		errno = EINVAL;
+		return -1;
+	}
+	/* Local setup keeps a static snprintf link from pulling in vsnprintf. */
+	stream._flag = _IOWRT | _IOSTRG;
+	stream._ptr = nbytes == 0 ? &dummy : str;
+	stream._cnt = nbytes == 0 ? 0 : (int)nbytes - 1;
+	va_start(args, fmt);
+	length = _doprnt(fmt, args, &stream);
+	va_end(args);
+	*stream._ptr = 0;
+	return length;
 }

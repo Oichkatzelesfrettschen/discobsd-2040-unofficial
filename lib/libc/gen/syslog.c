@@ -46,16 +46,40 @@
 #include <stdarg.h>
 
 #define	STDERR_FILENO	2
+#define	SYSLOG_BUFSIZE	512
 
 static	int	LogFile = -1;		/* fd for log */
-static	int	connected;		/* have done connect */
 static	int	LogStat = 0;		/* status bits, set by openlog() */
 static	const char *LogTag = NULL;	/* string to tag the entry with */
 static	int	LogFacility = LOG_USER;	/* default facility code */
 static	int	LogMask = 0xff;		/* mask of priorities to be logged */
-static	char	logfile[] = _PATH_MESSAGES;
 
 extern	int	errno;			/* error number */
+
+static char *advance_buffer(char *, size_t *, int);
+static char *append_string(char *, size_t *, const char *);
+
+static char *
+advance_buffer(char *cursor, size_t *remaining, int length)
+{
+	size_t used;
+
+	used = length < 0 ? 0 : (size_t)length;
+	if (used >= *remaining)
+		used = *remaining - 1;
+	*remaining -= used;
+	return cursor + used;
+}
+
+static char *
+append_string(char *cursor, size_t *remaining, const char *source)
+{
+	while (*source != '\0' && *remaining > 1) {
+		*cursor++ = *source++;
+		(*remaining)--;
+	}
+	return cursor;
+}
 
 /*
  * syslog, vsyslog --
@@ -63,18 +87,17 @@ extern	int	errno;			/* error number */
  *	No sockets: logfile is used.
  */
 void
-vsyslog(pri, fmt, ap)
-	int pri;
-	register const char *fmt;
-	va_list ap;
+vsyslog(int pri, const char *fmt, va_list ap)
 {
-	int cnt;
-	char ch;
-	register char *p, *t;
+	char tbuf[SYSLOG_BUFSIZE];
+	char number[13];	/* delimiters, ten uint32 digits, and NUL */
+	char *cursor, *message, *stdp = tbuf;
+	FILE message_stream;
+	size_t remaining;
 	time_t now;
-	int fd, saved_errno;
-	char *stdp = 0, tbuf[640], fmt_cpy[512];
-	pid_t	pid;
+	struct tm *local_time;
+	int cnt, fd, length, saved_errno;
+	pid_t pid;
 
 #define	INTERNALLOG	LOG_ERR|LOG_CONS|LOG_PERROR|LOG_PID
 	/* Check for invalid bits. */
@@ -94,35 +117,47 @@ vsyslog(pri, fmt, ap)
 	if ((pri & LOG_FACMASK) == 0)
 		pri |= LogFacility;
 
-	/* Build the message. */
+	/* Two bytes remain outside the formatter for the logfile CRLF. */
+	cursor = tbuf;
+	remaining = sizeof(tbuf) - 2;
+	(void)sprintf(number, "<%u>", (unsigned int)pri);
+	cursor = append_string(cursor, &remaining, number);
+
 	(void)time(&now);
-	p = tbuf + sprintf(tbuf, "<%d>", pri);
-	p += strftime(p, sizeof (tbuf) - (p - tbuf), "%h %e %T ",
-	    localtime(&now));
+	local_time = localtime(&now);
+	if (local_time != NULL) {
+		length = (int)strftime(cursor, remaining, "%h %e %T ",
+		    local_time);
+		cursor = advance_buffer(cursor, &remaining, length);
+	}
 	if (LogStat & LOG_PERROR)
-		stdp = p;
+		stdp = cursor;
 	if (LogTag == NULL)
 		LogTag = __progname;
 	if (LogTag != NULL)
-		p += sprintf(p, "%s", LogTag);
-	if (LogStat & LOG_PID)
-		p += sprintf(p, "[%d]", getpid());
-	if (LogTag != NULL) {
-		*p++ = ':';
-		*p++ = ' ';
+		cursor = append_string(cursor, &remaining, LogTag);
+	if (LogStat & LOG_PID) {
+		(void)sprintf(number, "[%u]", (unsigned int)getpid());
+		cursor = append_string(cursor, &remaining, number);
+	}
+	if (LogTag != NULL && remaining > 1) {
+		*cursor++ = ':';
+		remaining--;
+	}
+	if (LogTag != NULL && remaining > 1) {
+		*cursor++ = ' ';
+		remaining--;
 	}
 
-	/* Substitute error message for %m. */
-	for (t = fmt_cpy; (ch = *fmt); ++fmt)
-		if (ch == '%' && fmt[1] == 'm') {
-			++fmt;
-			t += sprintf(t, "%s", strerror(saved_errno));
-		} else
-			*t++ = ch;
-	*t = '\0';
-
-	p += vsprintf(p, fmt_cpy, ap);
-	cnt = p - tbuf;
+	/* An exhausted string stream leaves _base free to carry saved errno text. */
+	message_stream._flag = _IOWRT | _IOSTRG | _IOSYSLOG;
+	message_stream._ptr = cursor;
+	message_stream._base = strerror(saved_errno);
+	message_stream._cnt = (int)remaining - 1;
+	(void)_doprnt(fmt, ap, &message_stream);
+	cursor = message_stream._ptr;
+	*cursor = '\0';
+	cnt = (int)(cursor - tbuf);
 
 	/* Output to stderr if requested. */
 	if (LogStat & LOG_PERROR) {
@@ -138,10 +173,12 @@ vsyslog(pri, fmt, ap)
 	}
 
 	/* Get connected, output the message to the local logger. */
-	if (!connected)
+	if (LogFile == -1)
 		openlog(LogTag, LogStat | LOG_NDELAY, 0);
-        (void)strcat(tbuf, "\r\n");
-        cnt += 2;
+	*cursor++ = '\r';
+	*cursor++ = '\n';
+	*cursor = '\0';
+	cnt += 2;
 	if (write(LogFile, tbuf, cnt) == cnt)
 		return;
 
@@ -161,10 +198,17 @@ vsyslog(pri, fmt, ap)
 		if (pid == -1)
 			return;
 		if (pid == 0) {
-	   		fd = open(_PATH_CONSOLE, O_WRONLY, 0);
-			p = index(tbuf, '>') + 1;
-			(void)write(fd, p, cnt - (p - tbuf));
-			(void)close(fd);
+			fd = open(_PATH_CONSOLE, O_WRONLY, 0);
+			if (fd >= 0) {
+				message = strchr(tbuf, '>');
+				if (message != NULL)
+					message++;
+				else
+					message = tbuf;
+				(void)write(fd, message,
+				    cnt - (message - tbuf));
+				(void)close(fd);
+			}
 			_exit(0);
 		}
 		while (waitpid(pid, NULL, NULL) == -1 && (errno == EINTR))
@@ -173,20 +217,17 @@ vsyslog(pri, fmt, ap)
 }
 
 void
-syslog (int pri, const char *fmt, ...)
+syslog(int pri, const char *fmt, ...)
 {
 	va_list ap;
 
-	va_start (ap, fmt);
-	vsyslog (pri, fmt, ap);
-	va_end (ap);
+	va_start(ap, fmt);
+	vsyslog(pri, fmt, ap);
+	va_end(ap);
 }
 
 void
-openlog(ident, logstat, logfac)
-	const char *ident;
-	int logstat;
-	register int logfac;
+openlog(const char *ident, int logstat, int logfac)
 {
 	if (ident != NULL)
 		LogTag = ident;
@@ -196,33 +237,27 @@ openlog(ident, logstat, logfac)
 
 	if (LogFile == -1) {
 		if (LogStat & LOG_NDELAY) {
-			LogFile = open(logfile, O_WRONLY|O_APPEND);
-			connected = 1;
+			LogFile = open(_PATH_MESSAGES, O_WRONLY|O_APPEND);
 			if (LogFile == -1)
 				return;
 			(void)fcntl(LogFile, F_SETFD, 1);
 		}
 	}
-	if (LogFile != -1 && !connected) {
-		(void)close(LogFile);
-		LogFile = -1;
-	}
 }
 
 void
-closelog()
+closelog(void)
 {
-	(void)close(LogFile);
+	if (LogFile != -1)
+		(void)close(LogFile);
 	LogFile = -1;
-	connected = 0;
 }
 
 /* setlogmask -- set the log mask level */
 int
-setlogmask(pmask)
-	register int pmask;
+setlogmask(int pmask)
 {
-	register int omask;
+	int omask;
 
 	omask = LogMask;
 	if (pmask != 0)

@@ -13,14 +13,18 @@
 # overflow an 8k slot with an HTTP 400) and the server has to honor the
 # tools field, which llama-server does only under --jinja.
 
-# Route 1: the qwen-nvidia appliance on this workstation. Launch it with
-# native tool calls on, which llama-server needs before it reads a request's
-# tools field, then let its consumer script prove the endpoint and emit the
-# four GRAFT_* exports; the key is read from the appliance's own key file.
-#   QWEN_CHAT_TOOLS=on scripts/qwen-launch.sh default    # in the qwen-nvidia checkout
-#   eval "$(scripts/graft-consumer-env.sh)"              # same checkout, probes first
+# Route 1: the qwen-nvidia appliance on this workstation. Launch it with the
+# 4B distill, which records a forced tool call (the 2B distill answers it in
+# prose), at its registry ceiling of 32768 tokens, and with native tool calls
+# on, which llama-server needs before it reads a request's tools field; then
+# let its consumer script prove the endpoint and emit the four GRAFT_*
+# exports, with the key read from the appliance's own key file.
+#   QWEN_CHAT_TOOLS=on QWEN_CONTEXT_SIZE=32768 \
+#   QWEN_MODEL_PATH=$HOME/models/Qwen3.8-4B-Distill-GGUF/Qwen3.8-4B-Q4_K_M.gguf \
+#       scripts/qwen-launch.sh default              # in the qwen-nvidia checkout
+#   eval "$(scripts/graft-consumer-env.sh)"          # same checkout, probes first
 # The static form below is what that script emits for the default listener;
-# the served single-model slot is 24576 tokens, which meets graft's request.
+# the served single slot at 32768 tokens meets graft's whole-file requests.
 export GRAFT_PROVIDER=openai
 export GRAFT_BASE_URL=http://127.0.0.1:8080/v1
 export GRAFT_MODEL=qwen-nvidia

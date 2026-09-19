@@ -166,11 +166,38 @@ callers of a name that a header prototype and a definition both carry.
   TIMERAWL to decide when an EP0 IN may be armed.
 - Source evidence (rank 2): datasheet 4.1.2.7.1, 4.1.2.7.4, 4.1.2.8.3
   as the comments cite. Rank 4: usb.c as cited. Rank 1: the console
-  itself on the board, and docs/research/usb-outwedge-sim.py models the
-  wedge that motivated `usb_rx_rearm_if_idle`.
+  itself on the board, which is indirect evidence for every ownership
+  transition it happens to exercise. docs/research/usb-outwedge-sim.py
+  is a host model of the mechanism `usb_rx_rearm_if_idle` answers, not
+  an observation of the silicon. `check-renode` bears on none of this:
+  tools/renode/machine.resc boots the PICO_UART kernel and states that
+  Renode_RP2040 models no USB, so its console is UART0.
 - Existing test: none on the host reaches the buffer words; the board
-  console and the Renode boot (`check-renode` asserts the console from the
-  device probe through a logged-in shell) are the evidence.
+  console is the evidence, and the board observation below is what it
+  looked like on 2026-09-19.
+- Board observation (rank 1, kernel `DiscoBSD 2.7 (PICO) #1 1108: Wed
+  Sep 16 09:05:20 PM PDT 2026`, which carries a56808da, the re-arm fix):
+  eight host sessions in a row over /dev/ttyACM0 through pyserial, each
+  an open, a paced byte stream (3 ms per byte, 50 ms per line, three
+  uuencoded 7 KB programs sent with `cat >` and decoded on the board with
+  matching cksum), commands, and a close, all answered. The ninth open
+  received nothing: a carriage return produced no echo, a one-byte
+  host write was accepted and never drained (close blocked until the
+  host timeout), `lsusb -v` string reads timed out, and `picotool reboot
+  -f` reported the request sent while the host recorded no disconnect
+  and the device number stayed 2. The device stayed enumerated at full
+  speed with its three interfaces. This is neither the bulk-OUT wedge of
+  docs/research/usb-outwedge.md (there IN keeps delivering and the host
+  write fails with EIO) nor the quirk of
+  docs/research/console-silent-after-web-session.md (there the reset
+  interface answered and rebooted the board): here no endpoint answered,
+  the reset interface included. Hypothesis: the kernel stopped servicing
+  the USB interrupt or stopped altogether, after a session that ran
+  textcrc in the background across console-driven swapping and after
+  `sysctl -n hw.machine` answered at 15:27. The decisive probe is the
+  UART0 fallback on GP0/GP1 during the next occurrence, or a BOOTSEL
+  replug followed by the same sequence on the current kernel; until then
+  the observation is a hang of unknown site, not an ownership defect.
 - Open: the ownership handoff on the IN side after a SET_INTERFACE or
   reset, where the comment at L822 says the guard "fires only" after the
   handlers leave `AVAILABLE` set, is a claim about every reset path; a
@@ -206,10 +233,119 @@ callers of a name that a header prototype and a definition both carry.
   trampoline address, EINTR returns the handler address, and so on).
 - Existing test: sigtest on the board, "SIGTEST OK"; `sysctl -w
   kern.systrace=2` shows each frame.
+- Board observation (rank 1, 2026-09-19, the PICO #1 kernel named in
+  section 3): sigtest built from this tree (7280 bytes, cksum
+  1576466912), sent over the console and verified by cksum on the board,
+  printed every check ok and `SIGTEST OK`: pause returns -1 with EINTR,
+  the mask is preserved, the handler sp is eight-byte aligned
+  (0x20023d88), sc_psr is Thumb (0x61000000), sc_sp sits 0x48 above the
+  handler sp, which is the 104-byte frame less the 32-byte hardware
+  frame, sc_pc is in text, and r7 survives. fptest from the same session
+  printed `FPTEST OK`, which is the Boot ROM float contract rather than
+  this entry. textcrc ran in the background across console-driven
+  swapping in the session that preceded the hang recorded in section 3;
+  its output was not captured, so the packed-text restoration claim of
+  section 2 has no new board result.
 - Open: sigreturn checks that the context is readable, not that it was
   written by sendsig; a handler that rewrites `sc_psr` chooses its own
   xPSR, and what the exception return does with an arbitrary value there
   is a question for the ARM ARM rather than the port.
+
+## 5. Heap growth: the kernel refuses, libc keeps the refusal, malloc keeps its arena
+
+- Claim: a refused heap extension advances nothing. The kernel refuses a
+  break that would exceed the process's permitted size or reach its
+  stack; libc's `sbrk` then returns `(void *)-1` without moving its
+  recorded break; `malloc` then returns NULL with ENOMEM without linking
+  the refused region into its arena.
+- Enforced by: `brk` in sys/kern/kern_mman.c L16-L60, two independent
+  refusals before any state changes: `u_tsize + newsize + u_ssize` above
+  the ceiling (`swapram_ceiling(p)` under `SWAPRAM`, `MAXMEM` otherwise,
+  L33-L38), and `p_daddr + newsize` above `p_saddr` (L46-L49), the
+  stack's current boundary, which the size sum alone does not see. Only
+  after both does it set `p_dsize`, clear the new bytes, and return the
+  new break (L51-L59). lib/libc/arm/sys/sbrk.c: `sbrk` returns
+  `(void *)-1` when `_brk` refuses and moves `_curbrk` only on success
+  (its comment records the version that returned the old break and let
+  malloc carve blocks from memory the process did not own).
+  lib/libc/gen/malloc.c L163-L177: the arena grows only when `sbrk`
+  answers with an address, and a `-1` answer is ENOMEM before any link.
+- Caller obligation: none beyond the interface; the chain is three
+  enforcers in series, and each keeps the refusal a refusal.
+- Relevant configuration: `SWAPRAM`. `swapram_ceiling` (swapram.c
+  L756-L760) is `MAXMEM` plus `SWAPRAM_BONUS` only under `P_LARGE`; the
+  kernel comment at kern_mman.c L28-L32 states the asymmetry: a large
+  process may grow to its ceiling, and a small one cannot acquire LARGE
+  through `brk`, because its stack already sits under the window and the
+  bonus lies above that stack.
+- Source evidence (rank 3 and 4): as cited.
+- Existing test: `check-libc-malloc` (TESTING.md L283) compiles malloc.c,
+  calloc.c and the ARM sbrk.c from the tree over an `sbrk` and `_brk`
+  the test owns, so exhaustion is a ceiling the test sets; it proves
+  `sbrk` returns -1 with brk's errno on refusal and that an oversized
+  request is ENOMEM before any arena call. It is a host binary: the
+  kernel's two refusals and the syscall boundary are outside it.
+  swapram_evac_test.c checks `swapram_ceiling` at both values.
+- Open: no board run drives a process to its ceiling and reads the
+  ENOMEM back through malloc; and the ceiling check reads `u_ssize`,
+  the stack's size so far, so a process whose stack later grows toward a
+  data segment admitted under the second check is a case the stack-fault
+  path, not `brk`, decides.
+
+## 6. SwapRAM: what a RAM-tier image excludes, and what it does not
+
+- Claim: a swapout the RAM tier accepts allocates no flash swap-map
+  extent, writes no raw-flash swap image, and publishes no flash cursor;
+  the process holds its image as compressed bytes in the pool and its
+  flash addresses stay zero.
+- Enforced by: sys/kern/vm_swap.c L160-L165: when `swapram_out` accepts,
+  the flash addresses `a[0..2]` are zero and the `malloc3_contiguous_next`
+  branch, the `swap_cursor_publish` call, and the three `swap` writes are
+  skipped (L166-L235, each under `if (! ram)`); swapram.c L11-L13 states
+  that an image in the pool holds no swapmap blocks and that swapout
+  leaves `p_daddr`, `p_saddr` and `p_addr` zero to say so. On swapin
+  (vm_swap.c L86-L89) a present image comes back whole from the pool and
+  nothing is freed.
+- What the claim does not cover, each with its enforcer:
+  - Executable text. `swapin` restores text from the executable through
+    `exec_text_restore` before it consults the pool (L71-L80): the pool
+    holds the mutable image alone, so a RAM-tier swapin still reads the
+    executable, packed or raw, and a corrupt text kills the process.
+  - Evacuation and the epoch. swapram.c L15-L24: the ordinary swapout and
+    swapin paths neither sleep nor allocate, which is what lets the codec
+    and segment table be file-scope statics; the evacuation
+    (`swapram_evacuate`, L613-L692) and the epoch requests run in the
+    swapper and in process context, sleep in `swap_with_buf`, use the
+    decoder while no swapin can, and close the pool to new images for
+    their duration. An evacuated image is written to flash through the
+    `B_SWAPIMAGE` path of section 1b (the evacuation test panics on any
+    other write shape).
+  - The LARGE window. Under `P_LARGE` the pool is the top of a large
+    process's stack (swapram.c L57-L60; `user_top`, L764-L768), so the
+    same bytes cannot hold compressed images and serve as a process's
+    bonus memory at once; the epoch machinery (L141-L148, L198-L206)
+    keeps a live spool SMALL because the LARGE window overlaps it, and
+    admission is closed whenever the epoch is not SMALL.
+- Caller obligation: a user of the pool's address range (a LARGE process,
+  the spool) obtains it through the epoch, never by reading
+  `swapram_epoch` and assuming; a caller of `swapram_evacuate` waits for
+  the answer the sysctl reads back (swapram.h L81).
+- Relevant configuration: `SWAPRAM`, `SWAP_IMAGE_ALIGN`; `swapram_init`
+  panics unless the linker placed the pool exactly at the window's end
+  (L772-L778), which is the geometry every claim above rests on.
+- Source evidence (rank 3 and 4): as cited. Rank 1: the board programs
+  evactest, epochtest, bigtest and hugetest (tests/rp2040/swapram_*),
+  each of which patterns memory, drives the transition, and verifies the
+  pattern; `check-swapram` ties the linked tier to Config.
+- Existing test: swapram_evac_test.c on the host (the evacuation and
+  ceiling arithmetic); the four board programs above. evactest was sent
+  to the board on 2026-09-19 and verified by cksum but not run: the
+  console hang of section 3 intervened, so its result is owed.
+- Open: whether an image admitted to the pool and then evacuated lands
+  in flash with the same bytes is proven by evactest's pattern check and
+  by nothing on the host; and the claim that nothing on the swapout
+  path sleeps is a property of every function it calls, which a new
+  call into a sleeping path breaks silently.
 
 ## How to use this map
 
@@ -218,7 +354,12 @@ cited spans, and treats the "open" field as the falsifier still owed. A
 model's answer that turns a caller obligation into a guarantee of the
 callee (section 1a is the discriminator: "validates ascending erase-aligned
 writes" is false; "validates page alignment and relies on the caller for
-ordering" is true) fails the entry. The next entries owed are the libc
-allocator against the kernel's break limit and the SwapRAM tier's
-exclusion of flash, both crossing the kernel and libc boundary where the
-graft synthesis batches split.
+ordering" is true) fails the entry; so does one that turns "the RAM tier
+writes no flash" into "SwapRAM never touches flash" (section 6), or that
+reads the size ceiling as the only refusal in `brk` (section 5). The
+console transfer that put the board programs in place is replayable:
+uuencode the a.out, send it to `cat > /tmp/NAME.uu` one byte per 3 ms
+and one line per 50 ms, decode with uudecode, and compare cksum against
+the host before running it; a faster stream drops bytes in the console's
+input path. docs/research/graft-concept-review.md reads the graft concept
+layer against these six entries.

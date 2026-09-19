@@ -1,0 +1,4 @@
+cat_contract_test
+cat_source.o
+cat_target_contract.o
+cat_host

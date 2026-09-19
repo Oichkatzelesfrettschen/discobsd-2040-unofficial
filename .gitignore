@@ -67,3 +67,9 @@ usr.bin/pdp11/pdp11
 # tests/rp2040/uarea_exchange/ confines its own to cores/; this catches the rest.
 *.core
 core.[0-9]*
+
+# direnv: .envrc is the filled copy of .envrc.template
+.envrc
+
+# graft context graph, a regenerable local cache
+graft/

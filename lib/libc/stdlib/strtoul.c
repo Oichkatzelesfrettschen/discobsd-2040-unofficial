@@ -31,7 +31,6 @@
  * SUCH DAMAGE.
  */
 #include <limits.h>
-#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 
@@ -42,61 +41,82 @@
  * alphabets and digits are each contiguous.
  */
 unsigned long
-strtoul(nptr, endptr, base)
-	const char *nptr;
-	char **endptr;
-	register int base;
+strtoul(const char *string, char **end_pointer, int base)
 {
-	register const char *s = nptr;
-	register unsigned long acc;
-	register int c;
-	register unsigned long cutoff;
-	register int neg = 0, any, cutlim;
+	const unsigned char *cursor;
+	unsigned long value, cutoff;
+	unsigned char character;
+	int digit, negative, converted, cutoff_digit;
+
+	if (base != 0 && (base < 2 || base > 36)) {
+		errno = EINVAL;
+		if (end_pointer != NULL)
+			*end_pointer = (char *)string;
+		return 0;
+	}
 
 	/*
 	 * See strtol for comments as to the logic used.
 	 */
+	cursor = (const unsigned char *)string;
+	/*
+	 * The library has no setlocale() implementation, so the six C-locale
+	 * whitespace bytes preserve its only supported contract while keeping
+	 * ctype_.o's writable lookup table out of ctype-independent processes.
+	 */
 	do {
-		c = *s++;
-	} while (isspace(c));
-	if (c == '-') {
-		neg = 1;
-		c = *s++;
-	} else if (c == '+')
-		c = *s++;
-	if ((base == 0 || base == 16) &&
-	    c == '0' && (*s == 'x' || *s == 'X')) {
-		c = s[1];
-		s += 2;
-		base = 16;
+		character = *cursor++;
+	} while (character == ' ' || character == '\t' ||
+	    character == '\n' || character == '\v' ||
+	    character == '\f' || character == '\r');
+	if (character == '-') {
+		negative = 1;
+		character = *cursor++;
+	} else {
+		negative = 0;
+		if (character == '+')
+			character = *cursor++;
 	}
-	if (base == 0)
-		base = c == '0' ? 8 : 10;
-	cutoff = (unsigned long)ULONG_MAX / (unsigned long)base;
-	cutlim = (unsigned long)ULONG_MAX % (unsigned long)base;
-	for (acc = 0, any = 0;; c = *s++) {
-		if (isdigit(c))
-			c -= '0';
-		else if (isalpha(c))
-			c -= isupper(c) ? 'A' - 10 : 'a' - 10;
+	if ((base == 0 || base == 16) &&
+	    character == '0' && (*cursor == 'x' || *cursor == 'X') &&
+	    ((cursor[1] >= '0' && cursor[1] <= '9') ||
+	    (cursor[1] >= 'a' && cursor[1] <= 'f') ||
+	    (cursor[1] >= 'A' && cursor[1] <= 'F'))) {
+		character = cursor[1];
+		cursor += 2;
+		base = 16;
+	} else if (base == 0)
+		base = character == '0' ? 8 : 10;
+	cutoff = ULONG_MAX / (unsigned long)base;
+	cutoff_digit = (int)(ULONG_MAX % (unsigned long)base);
+	for (value = 0, converted = 0;; character = *cursor++) {
+		if (character >= '0' && character <= '9')
+			digit = character - '0';
+		else if (character >= 'a' && character <= 'z')
+			digit = character - 'a' + 10;
+		else if (character >= 'A' && character <= 'Z')
+			digit = character - 'A' + 10;
 		else
 			break;
-		if (c >= base)
+		if (digit >= base)
 			break;
-		if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
-			any = -1;
-		else {
-			any = 1;
-			acc *= base;
-			acc += c;
+		if (converted < 0)
+			continue;
+		if (value > cutoff ||
+		    (value == cutoff && digit > cutoff_digit)) {
+			value = ULONG_MAX;
+			converted = -1;
+			errno = ERANGE;
+		} else {
+			converted = 1;
+			value *= (unsigned long)base;
+			value += (unsigned long)digit;
 		}
 	}
-	if (any < 0) {
-		acc = ULONG_MAX;
-		errno = ERANGE;
-	} else if (neg)
-		acc = -acc;
-	if (endptr != 0)
-		*endptr = (char *)(any ? s - 1 : nptr);
-	return (acc);
+	if (negative && converted > 0)
+		value = 0UL - value;
+	if (end_pointer != NULL)
+		*end_pointer = (char *)(converted ? cursor - 1 :
+		    (const unsigned char *)string);
+	return value;
 }

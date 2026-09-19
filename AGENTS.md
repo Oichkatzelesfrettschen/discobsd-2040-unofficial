@@ -1,8 +1,8 @@
 # Agent guide: DiscoBSD RP2040 port
 
 This is the DiscoBSD port to the Raspberry Pi Pico (RP2040), a fork of
-chettrick/discobsd (remote `origin`, branch master) published as
-github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial (remote `rp2040`,
+chettrick/discobsd (remote `upstream`, branch master) published as
+github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial (remote `origin`,
 branch main). The tree carries the code, the man pages, the port
 documentation under sys/arch/rp2040/doc, and the research corpus under
 docs/research. docs/INDEX.md maps every document in both and is the
@@ -154,9 +154,9 @@ ARM. Name the evidence chain, the alternatives, and the next measurement.
 
 ## Remotes and publication
 
-`rp2040` is the owned fork and the only push target. `origin`
-(chettrick/discobsd, branch master) is the upstream this port forked from
-and is fetch-only: upstream reaches `main` through a deliberate rebase
+`origin` is the owned fork, its default branch is `main`, and it is the
+only push target. `upstream` (chettrick/discobsd, branch master) is the
+project this port forked from and is fetch-only: upstream reaches `main` through a deliberate rebase
 that records the divergence, and a submission back to it happens under an
 explicit request naming the scope.
 
@@ -280,7 +280,7 @@ blocker.
 ## Conventions
 
 - Work in a worktree under `~/worktrees/discobsd-2040-unofficial/<branch>`,
-  push the branch, open a PR against `rp2040` main, merge, delete branch and
+  push the branch, open a PR against `origin` main, merge, delete branch and
   worktree. Never commit to main directly.
 - Build outputs are ignored per directory (a .gitignore holding the
   program name); never commit compile outputs, the sdcard image or test

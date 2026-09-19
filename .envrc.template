@@ -1,0 +1,38 @@
+# direnv template for the graft context graph. Copy it to .envrc, fill the
+# values, and run `direnv allow` once; .envrc is ignored by Git and the
+# template carries placeholders only, so a key never reaches a commit.
+#
+#   cp .envrc.template .envrc && direnv allow
+#
+# graft's structural commands (build, ask, grep, callers, skeleton, map,
+# blast, check) read no model and need none of this. `graft build --deep`
+# is the one command that calls a model, through GRAFT_PROVIDER,
+# GRAFT_BASE_URL, GRAFT_API_KEY and GRAFT_MODEL. graft sends a whole file
+# per request, so a slot needs 16k tokens or more; usb.c and flash.c
+# under sys/arch/rp2040/dev overflow an 8k slot with an HTTP 400.
+
+# Route 1: a local llama-server on loopback (the qwen-nvidia appliance).
+# The launch that meets the slot size, run from that checkout:
+#   llama-server -m MODEL.gguf --host 127.0.0.1 --port 18099 --jinja \
+#     -ngl 99 -c 65536 --parallel 2 -ctk q8_0 -ctv q8_0 -fa on \
+#     --alias qwen38-4b-distill
+# The key is a placeholder the OpenAI wire format requires and the server
+# ignores.
+export GRAFT_PROVIDER=openai
+export GRAFT_BASE_URL=http://127.0.0.1:18099/v1
+export GRAFT_API_KEY=local
+export GRAFT_MODEL=qwen38-4b-distill
+
+# Route 2: the Anthropic API under your own key.
+#export GRAFT_PROVIDER=anthropic
+#export GRAFT_API_KEY=sk-ant-REPLACE-ME
+#export GRAFT_MODEL=claude-haiku-4-5-20251001
+
+# Route 3: any OpenAI-compatible gateway (OpenAI, OpenRouter, LiteLLM).
+#export GRAFT_PROVIDER=openai
+#export GRAFT_BASE_URL=https://api.openai.com/v1
+#export GRAFT_API_KEY=sk-REPLACE-ME
+#export GRAFT_MODEL=gpt-4o-mini
+
+# graft phones home with anonymous usage buckets unless told not to.
+export DO_NOT_TRACK=1

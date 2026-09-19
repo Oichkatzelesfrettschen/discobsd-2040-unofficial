@@ -163,6 +163,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `windows-board-round-two.md` | shell lists, typeahead, BOOTSEL and WinUSB on Windows 11 |
 | `web-console-ux.md` | the web console as a first-time user meets it |
 | `keen-unique-solution.md` | keen generated ambiguous puzzles; the fix and its evidence |
+| `graft-context-graph.md` | graft as the context layer: what each surface answers, the appliance route, and where it misreads C |
 
 ## Other documentation in the tree
 

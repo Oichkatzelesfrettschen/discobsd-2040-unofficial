@@ -95,7 +95,7 @@ command rather than in `CFLAGS`: several leaf Makefiles replace
 `CFLAGS`, including on a command-line optimization override. Host-only
 `CC` replacements and host build generators carry the same policy.
 `docs/research/warning-census.md` records the measurement behind the
-split: 99 of the 241 leaf directories build at the full level and 142
+split: 100 of the 241 leaf directories build at the full level and 141
 at legacy.
 
 `check-warning-policy-host` belongs to the host tier and
@@ -153,6 +153,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-libc-printf` | snprintf and vsnprintf compiled from the tree at host and ILP32 widths: required-length returns, exact fit, truncation termination, size one, `(NULL, 0)` measurement, destination guards, and rejection of a size that cannot fit the formatter's signed count. The pre-change ILP32 binary fails three checks before its zero-size null write faults; the corrected sources pass every check at both widths |
 | `check-libc-syslog` | syslog compiled as strict C17 over deterministic clock, errno and transport shims: priority, timestamp, tag, maximum target PID, CRLF, LOG_PERROR, repeated and escaped `%m`, long tag, literal format, argument and error-text bounds, and retry after a failed logfile open |
+| `check-cat-contracts` | cat's fixed-block raw path over read, write, descriptor and diagnostic shims: empty input, target-size reads, complete short writes, read and write failures, zero writes and invalid descriptors; a host executable also pins raw multi-file copying, every historical display option and self-output refusal |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
 | `check-tiny-utility-multicall` | true, false and nohup dispatch, arguments, signals, priority, streams, terminal and exit status |
 | `check-portable-utilities` | getopt, yes, strings and users, with write-error injection |
@@ -287,6 +288,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-libc-strtox` | strtol and strtoul compiled as strict C17 at host and ILP32 widths: unsigned-byte ctype arguments, invalid bases, incomplete hexadecimal prefixes, end pointers, overflow, deterministic portable-character-set cases and a host-libc differential for inputs that perform a conversion. Against the pre-change sources, 7 of 51 focused checks fail; the corrected sources pass all 51 checks at each width |
 | `check-libc-printf` | the bounded string formatter contract at host and ILP32 widths; the host-width compile also rejects pointer narrowing in `%p` |
 | `check-libc-syslog` | the bounded logfile and stderr record contract over the tree's string formatter |
+| `check-cat-contracts-cross` | the exact cat source compiled as strict C17 for Cortex-M0+ with full warnings; its static assertions bind the transfer buffer to the target's BUFSIZ, MAXBSIZE and DEV_BSIZE |
 | `check-flash-swap` | the raw flash swap driver's arithmetic on the host and the kernels' link map |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |

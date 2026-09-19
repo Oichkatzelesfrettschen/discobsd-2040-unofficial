@@ -226,13 +226,13 @@ against the directories that raise it before the header is blamed.
 because sys.mk composes `CC` at include time. The default, `full`, is
 `-Wall -Wextra -Werror`; `legacy` is `-Werror` alone, so only the groups
 the Makefile's own CFLAGS name are fatal. Of the 241 leaf directories the
-census compiles, 99 compile clean under both groups and build at the
-full level; 142 declare `legacy` and state, in the two comment lines
+census compiles, 100 compile clean under both groups and build at the
+full level; 141 declare `legacy` and state, in the two comment lines
 above the assignment, the number of distinct sites the census measured
 there, so the ledger of what remains open is the Makefiles themselves
 and `git grep WARNLEVEL` reads it. The three directories with the most
 sites, usr.bin/uucp with 1003, games/battlestar with 745 and bin/sh with
-617, hold 54 percent of the total; 112 of the 142 hold under twenty each.
+617, hold 54 percent of the total; 111 of the 141 hold under twenty each.
 The census overrides `WARNERR` on the command line, which wins over both
 levels, so it measures every directory at one level whatever the
 Makefile declares. `check-warning-policy-host` requires every

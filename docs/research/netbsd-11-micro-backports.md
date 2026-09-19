@@ -1,8 +1,8 @@
 # NetBSD 11 micro-backports for a C17 DiscoBSD process window
 
-The first two adopted NetBSD 11 backports repair `strtol()`/`strtoul()` and
-bounded `syslog()` formatting. Five small historical integer-conversion
-changes compose into a C17
+The first three adopted NetBSD 11 backports repair `strtol()`/`strtoul()`,
+bounded `syslog()` formatting and `cat` block I/O. Five small historical
+integer-conversion changes compose into a C17
 implementation that rejects invalid bases, preserves the input end pointer,
 recognizes a hexadecimal prefix only when a digit follows, treats input bytes
 as unsigned, and classifies digits without the ctype table. The DiscoBSD
@@ -145,13 +145,69 @@ stack. The initialized-data reduction comes from removing the mutable logfile
 path and redundant connection state; a failed open remains represented by
 `LogFile == -1`, which also makes the next call retry without another flag.
 
+## Fixed-block cat I/O
+
+NetBSD commits `75b95f389418367440fe5a480bdc00ebbc79060b`,
+`9efe55fa450c8b18848289880417188c41e05758` and
+`54817e25fc331082c64c35ce80695b65f7c15a82` repair zero, signed and
+allocation-fallback cases in `raw_cat()`. Commits
+`273bf08b7182e95d78e30c97a14b12a365cf4804`,
+`8ba3eae714939b0271b57fd0b51b29ef0f06a54d` and
+`05619d690de0699913a71835cbf9a5d9df021b59` then limit allocation to a
+profitable size and reject invalid standard descriptors. NetBSD must preserve
+dynamic sizing because its output block size varies. DiscoBSD has a stronger
+invariant: `sys_inode.c` assigns `MAXBSIZE` to every inode's `st_blksize`, while
+`MAXBSIZE`, RP2040 `DEV_BSIZE` and libc `BUFSIZ` are all 1,024 bytes.
+
+The target adaptation turns that invariant into two static assertions and one
+automatic `BUFSIZ` transfer buffer. Removing `ibsize`, `obsize`, `malloc()`
+and `free()` deletes the zero-size and signed-narrowing paths rather than
+adding recovery code for target states the kernel cannot produce. `size_t`
+tracks offsets and remaining lengths; `ssize_t` carries `read()` and `write()`
+results. Every positive read drains through complete short writes, and a zero
+write establishes `EIO` and returns an output error rather than spinning.
+`fastcat()` returns read and write failures to `main()` so the multicall applet
+unwinds normally rather than calling `exit()` from a helper.
+
+The option and line state lives in an 8-byte caller-owned object. Bit flags
+replace nine mutable boolean globals, the unused `col` disappears, and modern
+function definitions let `bin/cat` move from the legacy warning set to
+`-Wall -Wextra -Werror`. The caller-owned state also makes repeated in-process
+entry possible without inheriting a preceding invocation's line state.
+
+The host shim forces the target's 1,024-byte transfer size and injects empty
+input, 17-byte short writes, a read failure after valid data, invalid input and
+output descriptors, a negative write and a zero write. A host executable pins
+raw multi-file output, `-n`, `-b`, `-s`, `-e`, `-t`, `-v`, `-u` and self-output
+refusal. The pre-change source fails the transfer-size and invalid-output
+checks, then terminates the harness with status 2 on the write failure. The
+adopted source passes the host suite, and the cross gate compiles the exact
+source as strict C17 for Cortex-M0+ so the three size assertions use target
+headers.
+
+The linked ARM a.out measurements include all selected libc members. The
+automatic buffer replaces a 1,024-byte heap request with a 1,024-byte stack
+object; the static stack reports therefore describe the transient trade.
+
+| Artifact | Baseline text/data/bss | Adopted text/data/bss | Loaded delta |
+| --- | ---: | ---: | ---: |
+| standalone `cat` | 8668 / 172 / 176 | 8600 / 172 / 124 | -120 |
+| multicall `/bin/box` | 33296 / 1524 / 8776 | 33228 / 1524 / 8776 | -68 |
+| `cat.o` | 1317 / 0 / 52 | 1250 / 0 / 0 | -119 |
+
+`fastcat()`'s static frame rises from 32 to 1,056 bytes and `main()` rises
+from 96 to 112 bytes. Conservative peak accounting adds 16 transient bytes
+after replacing the old 1,024-byte allocation, before allocator metadata.
+The standalone raw-copy process window therefore falls by at least 104 bytes;
+the multicall window falls by at least 52 bytes because another applet already
+sets the BSS overlay maximum. The raw path also stops linking allocator calls.
+
 ## Remaining high-value frontier
 
 | Priority | Surface | NetBSD evidence | Local finding | Required proof before adoption |
 | --- | --- | --- | --- | --- |
-| 1 | `bin/cat/cat.c` | `75b95f389418367440fe5a480bdc00ebbc79060b`, `9efe55fa450c8b18848289880417188c41e05758`, `54817e25fc331082c64c35ce80695b65f7c15a82` | Local `fastcat()` narrows `st_blksize` into signed `int` and accepts zero as a `malloc()` and `read()` size. | An `fstat()`/`malloc()`/`read()`/`write()` shim must prove zero, negative, oversized, short-write, empty-file, and read-error paths before a C17 refactor. |
-| 2 | `rmdir -p` | NetBSD has component-wise removal with defined diagnostics | Local `rmdir` has no `-p`; the change adds a user interface rather than repairing an existing contract. | Choose the feature explicitly, then add filesystem integration cases for partial removal and preserved failure paths. |
-| 3 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
+| 1 | `rmdir -p` | NetBSD has component-wise removal with defined diagnostics | Local `rmdir` has no `-p`; the change adds a user interface rather than repairing an existing contract. | Choose the feature explicitly, then add filesystem integration cases for partial removal and preserved failure paths. |
+| 2 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
 
 Two tempting searches produced no applicable repair. NetBSD's `LIST_MOVE`
 hardening cannot backport as a line because DiscoBSD's queue header has no
@@ -162,11 +218,5 @@ without the triggering operation is not a backport candidate.
 The following commands reproduce the remaining frontier:
 
 ```sh
-git -C ../netbsd-src show --stat 75b95f389418 9efe55fa450c 54817e25fc33
-rg -n 'st_blksize|malloc\(|read\(|write\(' bin/cat/cat.c
 rg -n 'LIST_MOVE|pgrp|INT_MIN|rmdir|vis\(' sys bin lib include
 ```
-
-The `cat` repair has the next bounded implementation surface. It belongs on
-its own branch so its gate can be calibrated against the known-bad source and
-its target footprint can be judged independently of the formatter change.

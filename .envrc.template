@@ -15,16 +15,22 @@
 
 # Route 1: the qwen-nvidia appliance on this workstation. Launch it with the
 # 4B distill, which records a forced tool call (the 2B distill answers it in
-# prose), at its registry ceiling of 32768 tokens, and with native tool calls
-# on, which llama-server needs before it reads a request's tools field; then
-# let its consumer script prove the endpoint and emit the four GRAFT_*
+# prose), at its registry ceiling of 32768 tokens, with native tool calls on,
+# which llama-server needs before it reads a request's tools field, and with
+# the thought block bounded at 8000 tokens: a thinking model otherwise spends
+# the client's whole reply cap on thought and returns empty content, and the
+# 0.8B runs to tens of thousands of tokens per file once the cap is lifted.
+# Then let its consumer script prove the endpoint and emit the four GRAFT_*
 # exports, with the key read from the appliance's own key file.
-#   QWEN_CHAT_TOOLS=on QWEN_CONTEXT_SIZE=32768 \
+#   QWEN_CHAT_TOOLS=on QWEN_CHAT_REASONING_BUDGET=8000 QWEN_CONTEXT_SIZE=32768 \
 #   QWEN_MODEL_PATH=$HOME/models/Qwen3.8-4B-Distill-GGUF/Qwen3.8-4B-Q4_K_M.gguf \
 #       scripts/qwen-launch.sh default              # in the qwen-nvidia checkout
 #   eval "$(scripts/graft-consumer-env.sh)"          # same checkout, probes first
-# The static form below is what that script emits for the default listener;
-# the served single slot at 32768 tokens meets graft's whole-file requests.
+# The static form below is what that script emits for the default listener.
+# graft 0.18.0 caps a summarize reply at 2048 tokens in dist/ai/summarize.js
+# (8192 in crux.js and synthesize.js) with no setting; a thought budget of
+# 8000 needs that cap raised to 32768 in the installed copy, which is the
+# served slot, so the answer follows the thought instead of being cut off.
 export GRAFT_PROVIDER=openai
 export GRAFT_BASE_URL=http://127.0.0.1:8080/v1
 export GRAFT_MODEL=qwen-nvidia

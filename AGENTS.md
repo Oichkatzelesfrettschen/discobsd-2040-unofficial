@@ -156,9 +156,9 @@ ARM. Name the evidence chain, the alternatives, and the next measurement.
 
 `origin` is the owned fork, its default branch is `main`, and it is the
 only push target. `upstream` (chettrick/discobsd, branch master) is the
-project this port forked from and is fetch-only: upstream reaches `main` through a deliberate rebase
-that records the divergence, and a submission back to it happens under an
-explicit request naming the scope.
+project this port forked from and is fetch-only: upstream reaches `main`
+through a deliberate rebase that records the divergence, and a submission
+back to it happens under an explicit request naming the scope.
 
 ## Source comments
 

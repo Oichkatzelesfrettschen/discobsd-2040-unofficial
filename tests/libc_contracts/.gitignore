@@ -11,3 +11,9 @@ qsort_test
 qsort_test32
 qsort_sort.o
 qsort_sort32.o
+strtox_test
+strtox_test32
+strtox_strtol.o
+strtox_strtol32.o
+strtox_strtoul.o
+strtox_strtoul32.o

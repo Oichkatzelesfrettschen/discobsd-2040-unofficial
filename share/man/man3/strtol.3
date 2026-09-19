@@ -35,7 +35,7 @@
 .\"
 .\"     @(#)strtol.3	8.1.1 (2.11BSD) 1996/1/12
 .\"
-.TH STRTOL 3 "January 12, 1996"
+.TH STRTOL 3 "September 19, 2026"
 .UC 7
 .SH NAME
 \fBstrtol\fP \- convert string value to a long
@@ -46,13 +46,7 @@
 .sp
 .B long
 .br
-\fBstrtol\fP(nptr, endptr, base)
-.br
-.I char *nptr;
-.br
-.I char **endptr;
-.br
-.I int base;
+\fBstrtol\fP(const char *nptr, char **endptr, int base)
 .SH DESCRIPTION
 The
 .BR strtol ()
@@ -141,6 +135,11 @@ In both cases,
 is set to
 .B ERANGE .
 .SH ERRORS
+.TP 15
+[EINVAL]
+The
+.I base
+is outside the supported value 0 or the range 2 through 36.
 .TP 15
 [ERANGE]
 The given string was out of range; the value converted has been clamped.

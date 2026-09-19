@@ -40,8 +40,45 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check: ${PROG} header_contract.o check-malloc check-qsort check-aout
+check: ${PROG} header_contract.o check-malloc check-qsort check-strtox check-aout
 	./${PROG}
+
+# The string-to-integer functions compiled from the tree under names that
+# leave the host libc available to the test process.  -fsigned-char makes the
+# source contract independent of the host default and exposes an uncast input
+# byte before the ctype shim can index outside its 0..UCHAR_MAX domain.
+STRTOX_DIR=	${TOPSRC}/lib/libc/stdlib
+STRTOX_CFLAGS=	-std=c17 -Wall -Wextra -Werror -fsigned-char \
+		-Istrtox_include
+STRTOX_OBJS=	strtox_strtol.o strtox_strtoul.o
+STRTOX_OBJS32=	strtox_strtol32.o strtox_strtoul32.o
+
+check-strtox: strtox_test
+	./strtox_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} strtox_test32
+	./strtox_test32
+.else
+	@echo "check-libc-strtox: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+strtox_test: strtox_test.c ${STRTOX_OBJS}
+	${HOSTCC} ${STRTOX_CFLAGS} -o $@ strtox_test.c ${STRTOX_OBJS}
+
+strtox_test32: strtox_test.c ${STRTOX_OBJS32}
+	${HOSTCC} ${ILP32} ${STRTOX_CFLAGS} -o $@ strtox_test.c ${STRTOX_OBJS32}
+
+strtox_strtol.o: ${STRTOX_DIR}/strtol.c
+	${HOSTCC} ${STRTOX_CFLAGS} -Dstrtol=db_strtol -c -o $@ ${STRTOX_DIR}/strtol.c
+
+strtox_strtoul.o: ${STRTOX_DIR}/strtoul.c
+	${HOSTCC} ${STRTOX_CFLAGS} -Dstrtoul=db_strtoul -c -o $@ ${STRTOX_DIR}/strtoul.c
+
+strtox_strtol32.o: ${STRTOX_DIR}/strtol.c
+	${HOSTCC} ${ILP32} ${STRTOX_CFLAGS} -Dstrtol=db_strtol -c -o $@ ${STRTOX_DIR}/strtol.c
+
+strtox_strtoul32.o: ${STRTOX_DIR}/strtoul.c
+	${HOSTCC} ${ILP32} ${STRTOX_CFLAGS} -Dstrtoul=db_strtoul -c -o $@ ${STRTOX_DIR}/strtoul.c
 
 # The host allocator gate, which the root Makefile reaches as
 # check-libc-malloc.
@@ -129,7 +166,8 @@ clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
+	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
 
 all: check
 
-.PHONY: all check check-aout check-malloc check-qsort clean
+.PHONY: all check check-aout check-malloc check-qsort check-strtox clean

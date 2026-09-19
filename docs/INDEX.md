@@ -165,7 +165,8 @@ names; a correction goes in a new document rather than in the ledger.
 | `web-console-ux.md` | the web console as a first-time user meets it |
 | `keen-unique-solution.md` | keen generated ambiguous puzzles; the fix and its evidence |
 | `graft-context-graph.md` | graft as the context layer: what each surface answers, the appliance route, and where it misreads C |
-| `invariant-map.md` | four contracts (raw swap, packed exec, USB buffers, signal frames): what enforces each, what callers owe, what tests it, what stays open |
+| `invariant-map.md` | six contracts (raw swap, packed exec, USB buffers, signal frames, heap growth, SwapRAM): what enforces each, what callers owe, what tests it, what stays open, with board results |
+| `graft-concept-review.md` | the graft concept layer read against the six entries: what it retrieved, what it conflated, what it omitted |
 
 ## Other documentation in the tree
 

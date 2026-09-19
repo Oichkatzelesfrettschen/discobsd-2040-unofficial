@@ -8,20 +8,23 @@
 # blast, check) read no model and need none of this. `graft build --deep`
 # is the one command that calls a model, through GRAFT_PROVIDER,
 # GRAFT_BASE_URL, GRAFT_API_KEY and GRAFT_MODEL. graft sends a whole file
-# per request, so a slot needs 16k tokens or more; usb.c and flash.c
-# under sys/arch/rp2040/dev overflow an 8k slot with an HTTP 400.
+# per request and records the answer through a forced tool call, so a slot
+# needs 16k tokens or more (usb.c and flash.c under sys/arch/rp2040/dev
+# overflow an 8k slot with an HTTP 400) and the server has to honor the
+# tools field, which llama-server does only under --jinja.
 
-# Route 1: a local llama-server on loopback (the qwen-nvidia appliance).
-# The launch that meets the slot size, run from that checkout:
-#   llama-server -m MODEL.gguf --host 127.0.0.1 --port 18099 --jinja \
-#     -ngl 99 -c 65536 --parallel 2 -ctk q8_0 -ctv q8_0 -fa on \
-#     --alias qwen38-4b-distill
-# The key is a placeholder the OpenAI wire format requires and the server
-# ignores.
+# Route 1: the qwen-nvidia appliance on this workstation. Launch it with
+# native tool calls on, which llama-server needs before it reads a request's
+# tools field, then let its consumer script prove the endpoint and emit the
+# four GRAFT_* exports; the key is read from the appliance's own key file.
+#   QWEN_CHAT_TOOLS=on scripts/qwen-launch.sh default    # in the qwen-nvidia checkout
+#   eval "$(scripts/graft-consumer-env.sh)"              # same checkout, probes first
+# The static form below is what that script emits for the default listener;
+# the served single-model slot is 24576 tokens, which meets graft's request.
 export GRAFT_PROVIDER=openai
-export GRAFT_BASE_URL=http://127.0.0.1:18099/v1
-export GRAFT_API_KEY=local
-export GRAFT_MODEL=qwen38-4b-distill
+export GRAFT_BASE_URL=http://127.0.0.1:8080/v1
+export GRAFT_MODEL=qwen-nvidia
+export GRAFT_API_KEY=$(cat "$HOME/qwen-webui-state/api.key")
 
 # Route 2: the Anthropic API under your own key.
 #export GRAFT_PROVIDER=anthropic

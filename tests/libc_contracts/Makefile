@@ -171,6 +171,22 @@ check-ctime: check-asctime ctime_contract_test
 .endif
 
 check-ctime-cross: asctime_target.o ctime_target.o
+	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
+	@if ${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c \
+	    -o asctime_format_bad_target.o asctime_format_bad.c \
+	    2>asctime_format_bad_target.log; then \
+		echo "ctime target format-overflow negative control passed" >&2; \
+		rm -f asctime_format_bad_target.o asctime_format_bad_target.log; \
+		exit 1; \
+	fi
+	@if ! grep -q -- 'format-overflow=' asctime_format_bad_target.log; then \
+		cat asctime_format_bad_target.log >&2; \
+		echo "ctime target negative control failed for an unexpected reason" >&2; \
+		rm -f asctime_format_bad_target.o asctime_format_bad_target.log; \
+		exit 1; \
+	fi
+	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
+	@echo "ctime target format-overflow negative control rejected"
 	@echo "ctime Cortex-M0+ C17 and bounded-format compile passed"
 
 check-asctime: asctime_contract_test asctime_contract_bad_test
@@ -573,7 +589,8 @@ clean:
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
-	rm -f asctime_target.o ctime_target.o
+	rm -f asctime_target.o ctime_target.o asctime_format_bad_target.o \
+		asctime_format_bad_target.log
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o

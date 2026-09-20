@@ -41,7 +41,9 @@ struct tm *gmtime(const time_t *);
 struct tm *localtime(const time_t *);
 char *asctime(const struct tm *);
 char *ctime(const time_t *);
+char *timezone(int, int);
 time_t time(time_t *);
+void tzset(void);
 
 size_t strftime (char *s, size_t maxsize, const char *format,
     const struct tm *timeptr);

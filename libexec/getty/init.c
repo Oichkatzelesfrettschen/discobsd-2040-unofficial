@@ -16,66 +16,66 @@ extern	struct ltchars ltc;
 extern	char hostname[];
 
 struct	gettystrs gettystrs[] = {
-	{ "nx" },			/* next table */
-	{ "cl" },			/* screen clear characters */
-	{ "im" },			/* initial message */
-	{ "lm", "login: " },		/* login message */
-	{ "er", &tmode.sg_erase },	/* erase character */
-	{ "kl", &tmode.sg_kill },	/* kill character */
-	{ "et", &tc.t_eofc },		/* eof chatacter (eot) */
-	{ "pc", "" },			/* pad character */
-	{ "tt" },			/* terminal type */
-	{ "ev" },			/* enviroment */
-	{ "lo", "/usr/bin/login" },	/* login program */
-	{ "hn", hostname },		/* host name */
-	{ "he" },			/* host name edit */
-	{ "in", &tc.t_intrc },		/* interrupt char */
-	{ "qu", &tc.t_quitc },		/* quit char */
-	{ "xn", &tc.t_startc },		/* XON (start) char */
-	{ "xf", &tc.t_stopc },		/* XOFF (stop) char */
-	{ "bk", &tc.t_brkc },		/* brk char (alt \n) */
-	{ "su", &ltc.t_suspc },		/* suspend char */
-	{ "ds", &ltc.t_dsuspc },	/* delayed suspend */
-	{ "rp", &ltc.t_rprntc },	/* reprint char */
-	{ "fl", &ltc.t_flushc },	/* flush output */
-	{ "we", &ltc.t_werasc },	/* word erase */
-	{ "ln", &ltc.t_lnextc },	/* literal next */
-	{ 0 }
+	{ .field = "nx" },			/* next table */
+	{ .field = "cl" },			/* screen clear characters */
+	{ .field = "im" },			/* initial message */
+	{ .field = "lm", .defalt = "login: " }, /* login message */
+	{ .field = "er", .defalt = &tmode.sg_erase }, /* erase character */
+	{ .field = "kl", .defalt = &tmode.sg_kill }, /* kill character */
+	{ .field = "et", .defalt = &tc.t_eofc }, /* eof character (eot) */
+	{ .field = "pc", .defalt = "" },	/* pad character */
+	{ .field = "tt" },			/* terminal type */
+	{ .field = "ev" },			/* environment */
+	{ .field = "lo", .defalt = "/usr/bin/login" }, /* login program */
+	{ .field = "hn", .defalt = hostname },	/* host name */
+	{ .field = "he" },			/* host name edit */
+	{ .field = "in", .defalt = &tc.t_intrc }, /* interrupt char */
+	{ .field = "qu", .defalt = &tc.t_quitc }, /* quit char */
+	{ .field = "xn", .defalt = &tc.t_startc }, /* XON (start) char */
+	{ .field = "xf", .defalt = &tc.t_stopc }, /* XOFF (stop) char */
+	{ .field = "bk", .defalt = &tc.t_brkc }, /* brk char (alt \n) */
+	{ .field = "su", .defalt = &ltc.t_suspc }, /* suspend char */
+	{ .field = "ds", .defalt = &ltc.t_dsuspc }, /* delayed suspend */
+	{ .field = "rp", .defalt = &ltc.t_rprntc }, /* reprint char */
+	{ .field = "fl", .defalt = &ltc.t_flushc }, /* flush output */
+	{ .field = "we", .defalt = &ltc.t_werasc }, /* word erase */
+	{ .field = "ln", .defalt = &ltc.t_lnextc }, /* literal next */
+	{ .field = 0 }
 };
 
 struct	gettynums gettynums[] = {
-	{ "is" },			/* input speed */
-	{ "os" },			/* output speed */
-	{ "sp" },			/* both speeds */
-	{ "to" },			/* timeout */
-	{ "f0" },			/* output flags */
-	{ "f1" },			/* input flags */
-	{ "f2" },			/* user mode flags */
-	{ "pf" },			/* delay before flush at 1st prompt */
-	{ 0 }
+	{ .field = "is" },			/* input speed */
+	{ .field = "os" },			/* output speed */
+	{ .field = "sp" },			/* both speeds */
+	{ .field = "to" },			/* timeout */
+	{ .field = "f0" },			/* output flags */
+	{ .field = "f1" },			/* input flags */
+	{ .field = "f2" },			/* user mode flags */
+	{ .field = "pf" },			/* delay before flush at 1st prompt */
+	{ .field = 0 }
 };
 
 struct	gettyflags gettyflags[] = {
-	{ "ht",	0 },			/* has tabs */
-	{ "nl",	1 },			/* has newline char */
-	{ "ep",	0 },			/* even parity */
-	{ "op",	0 },			/* odd parity */
-	{ "ap",	0 },			/* any parity */
-	{ "ec",	1 },			/* no echo */
-	{ "co",	0 },			/* console special */
-	{ "cb",	0 },			/* crt backspace */
-	{ "ck",	0 },			/* crt kill */
-	{ "ce",	0 },			/* crt erase */
-	{ "pe",	0 },			/* printer erase */
-	{ "rw",	1 },			/* don't use raw */
-	{ "xc",	1 },			/* don't ^X ctl chars */
-	{ "ig",	0 },			/* ignore garbage */
-	{ "ps",	0 },			/* do port selector speed select */
-	{ "hc",	1 },			/* don't set hangup on close */
-	{ "ub", 0 },			/* unbuffered output */
-	{ "ab", 0 },			/* auto-baud detect with '\r' */
-	{ "dx", 0 },			/* set decctlq */
-	{ "hf", 0 },			/* set HardwareFlowcontrol */
-	{ "np", 0 },			/* no parity (ie. pass8) */
-	{ 0 }
+	{ .field = "ht", .invrt = 0 },	/* has tabs */
+	{ .field = "nl", .invrt = 1 },	/* has newline char */
+	{ .field = "ep", .invrt = 0 },	/* even parity */
+	{ .field = "op", .invrt = 0 },	/* odd parity */
+	{ .field = "ap", .invrt = 0 },	/* any parity */
+	{ .field = "ec", .invrt = 1 },	/* no echo */
+	{ .field = "co", .invrt = 0 },	/* console special */
+	{ .field = "cb", .invrt = 0 },	/* crt backspace */
+	{ .field = "ck", .invrt = 0 },	/* crt kill */
+	{ .field = "ce", .invrt = 0 },	/* crt erase */
+	{ .field = "pe", .invrt = 0 },	/* printer erase */
+	{ .field = "rw", .invrt = 1 },	/* do not use raw */
+	{ .field = "xc", .invrt = 1 },	/* do not ^X ctl chars */
+	{ .field = "ig", .invrt = 0 },	/* ignore garbage */
+	{ .field = "ps", .invrt = 0 },	/* do port selector speed select */
+	{ .field = "hc", .invrt = 1 },	/* do not set hangup on close */
+	{ .field = "ub", .invrt = 0 },	/* unbuffered output */
+	{ .field = "ab", .invrt = 0 },	/* auto-baud detect with '\r' */
+	{ .field = "dx", .invrt = 0 },	/* set decctlq */
+	{ .field = "hf", .invrt = 0 },	/* set hardware flow control */
+	{ .field = "np", .invrt = 0 },	/* no parity (PASS8) */
+	{ .field = 0 }
 };

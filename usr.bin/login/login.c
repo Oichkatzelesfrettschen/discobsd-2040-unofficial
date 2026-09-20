@@ -43,6 +43,8 @@
 #include <lastlog.h>
 #include <paths.h>
 
+#include "tty_modes.h"
+
 #ifdef	KERBEROS
 #include <kerberos/krb.h>
 #include <sys/termios.h>
@@ -114,7 +116,7 @@ main(argc, argv)
 	register int ch;
 	register char *p;
 	int ask, fflag, hflag, pflag, cnt, authenticated;
-	int quietlog, passwd_req, ioctlval;
+	int quietlog, passwd_req, ioctlval, saved_local_modes;
 	char *domain, *salt, *envinit[1], *ttyn, *pp;
 	char tbuf[MAXPATHLEN + 2], tname[sizeof(_PATH_TTY) + 10];
 	char *ctime(), *ttyname(), *stypeof(), *crypt(), *getpass();
@@ -175,7 +177,7 @@ main(argc, argv)
 		ask = 1;
 
 	ioctlval = 0;
-	(void)ioctl(0, TIOCLSET, &ioctlval);
+	login_local_modes_clear(0, &saved_local_modes);
 	(void)ioctl(0, TIOCNXCL, 0);
 	(void)fcntl(0, F_SETFL, ioctlval);
 	(void)ioctl(0, TIOCGETP, &sgttyb);
@@ -402,6 +404,8 @@ nouser:
 		ioctlval = NTTYDISC;
 		(void)ioctl(0, TIOCSETD, &ioctlval);
 	}
+
+	login_local_modes_restore(0, saved_local_modes);
 
 	/* destroy environment unless user has requested preservation */
 	if (!pflag)

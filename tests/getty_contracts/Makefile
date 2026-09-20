@@ -1,44 +1,67 @@
 TOPSRC!= cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-# subr.c, gettytab.c and init.c, the flag tables, compiled from the tree against the tree's headers,
-# so the mode constants are sys/ioctl.h's; the test supplies main and the
-# globals main.c would.
+# The real getty mode path, tables and parsers compile against the tree's
+# headers, so the mode constants come from sys/ioctl.h. The test supplies
+# ioctl behavior and records each transition.
 HOSTCC?= cc
 GETTY_DIR= ${TOPSRC}/libexec/getty
-# The tree sources compile under the getty directory's own legacy warning
-# profile, -Wall without -Werror; the test itself takes the full profile.
-TREE_CFLAGS= -std=gnu17 -Wall -nostdinc -isystem ${TOPSRC}/include -I${GETTY_DIR} \
-	-Dioctl=test_ioctl
+LOGIN_DIR= ${TOPSRC}/usr.bin/login
+GETTY_HEADERS= ${GETTY_DIR}/gettytab.h ${GETTY_DIR}/extern.h
+# The exact tree sources and the test use a fatal host warning profile.
+TREE_CFLAGS= -std=gnu17 -Wall -Wextra -Werror -ffunction-sections -fdata-sections \
+	-nostdinc -isystem ${TOPSRC}/include -I${GETTY_DIR} -Dioctl=test_ioctl
 TEST_CFLAGS= -std=gnu17 -Wall -Wextra -Werror -nostdinc -isystem ${TOPSRC}/include \
 	-I${GETTY_DIR}
-OBJS= getty_subr.o getty_gettytab.o getty_init.o getty_ctype.o
+GC_SECTIONS!= if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
+	else echo -Wl,--gc-sections ; fi
+OBJS= getty_main.o getty_subr.o getty_gettytab.o getty_init.o getty_ctype.o
 
-check: setflags_test
+check: setflags_test setflags_bad_test login_modes_test
 	./setflags_test
-# main.c reaches TIOCLSET only through applyflags(), which the test drives;
-# a raw TIOCLSET in main.c would be a local-mode application this gate
-# cannot see, so the grep holds the count at zero.
-	@if grep -q 'TIOCLSET' ${GETTY_DIR}/main.c; then \
-		echo "getty contract: main.c applies local modes outside applyflags()" >&2; exit 1; fi
+	@if ./setflags_bad_test >/dev/null 2>&1; then \
+		echo "getty contract: local-mode negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "getty local-mode negative control passed"
+	./login_modes_test
 
-setflags_test: setflags_test.c ${OBJS}
-	${HOSTCC} ${TEST_CFLAGS} -o $@ setflags_test.c ${OBJS}
+setflags_test: setflags_test.c ${GETTY_HEADERS} ${OBJS}
+	${HOSTCC} ${TEST_CFLAGS} ${GC_SECTIONS} -o $@ setflags_test.c ${OBJS}
 
-getty_subr.o: ${GETTY_DIR}/subr.c
+setflags_bad_test: setflags_test.c ${GETTY_HEADERS} getty_modes_bad.o \
+	getty_subr.o getty_gettytab.o getty_init.o getty_ctype.o
+	${HOSTCC} ${TEST_CFLAGS} ${GC_SECTIONS} -o $@ setflags_test.c \
+	    getty_modes_bad.o getty_subr.o getty_gettytab.o getty_init.o \
+	    getty_ctype.o
+
+getty_main.o: ${GETTY_DIR}/main.c ${GETTY_HEADERS}
+	${HOSTCC} ${TREE_CFLAGS} -Dmain=getty_program_main -c -o $@ ${GETTY_DIR}/main.c
+
+getty_modes_bad.o: getty_modes_bad.c ${GETTY_HEADERS}
+	${HOSTCC} ${TEST_CFLAGS} -c -o $@ getty_modes_bad.c
+
+getty_subr.o: ${GETTY_DIR}/subr.c ${GETTY_HEADERS}
 	${HOSTCC} ${TREE_CFLAGS} -c -o $@ ${GETTY_DIR}/subr.c
 
-getty_init.o: ${GETTY_DIR}/init.c
+getty_init.o: ${GETTY_DIR}/init.c ${GETTY_DIR}/gettytab.h
 	${HOSTCC} ${TREE_CFLAGS} -c -o $@ ${GETTY_DIR}/init.c
 
 # gettytab.c classifies bytes through the tree's ctype table.
 getty_ctype.o: ${TOPSRC}/lib/libc/gen/ctype_.c
 	${HOSTCC} ${TREE_CFLAGS} -c -o $@ ${TOPSRC}/lib/libc/gen/ctype_.c
 
-getty_gettytab.o: ${GETTY_DIR}/gettytab.c
+getty_gettytab.o: ${GETTY_DIR}/gettytab.c ${GETTY_HEADERS}
 	${HOSTCC} ${TREE_CFLAGS} -c -o $@ ${GETTY_DIR}/gettytab.c
 
+login_modes_test: login_modes_test.c login_tty_modes.o
+	${HOSTCC} ${TEST_CFLAGS} -I${LOGIN_DIR} -o $@ login_modes_test.c login_tty_modes.o
+
+login_tty_modes.o: ${LOGIN_DIR}/tty_modes.c ${LOGIN_DIR}/tty_modes.h
+	${HOSTCC} ${TEST_CFLAGS} -I${LOGIN_DIR} -Dioctl=test_ioctl -c -o $@ ${LOGIN_DIR}/tty_modes.c
+
 clean:
-	rm -f setflags_test ${OBJS}
+	rm -f setflags_test setflags_bad_test getty_modes_bad.o login_modes_test \
+	    login_tty_modes.o ${OBJS}
 
 .PHONY: check clean

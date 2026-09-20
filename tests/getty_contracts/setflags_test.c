@@ -1,8 +1,8 @@
 /*
  * Contract gate for getty's tty mode derivation and its application:
  * setflags() in libexec/getty/subr.c, the defaults that fill an omitted
- * capability, and splitflags()/applyflags(), which divide the mode word
- * and set both halves with TIOCSETP and TIOCLSET. Compiled from the tree
+ * capability, and main.c's applymode(), which divides the mode word and
+ * sets both halves with TIOCSETP and TIOCLSET. Compiled from the tree
  * against the tree's headers, so the constants are the kernel's; ioctl is
  * answered here and its calls recorded, since no terminal is open.
  *
@@ -21,13 +21,9 @@
 #include "gettytab.h"
 #include "extern.h"
 
-/* main.c's terminal state, which subr.c's character table points into. */
-struct sgttyb tmode;
-struct tchars tc;
-struct ltchars ltc;
-char hostname[32];
+extern struct sgttyb tmode;
 
-/* The ioctl calls applyflags makes, as the driver would see them. */
+/* The ioctl calls main.c makes, as the driver would see them. */
 static unsigned int last_setp_req;
 static short last_setp_flags;
 static unsigned int last_lset_req;
@@ -97,6 +93,22 @@ explicit(int index)
 	gettyflags[index].set = 1;
 }
 
+/* The shipped default contains ap; a named entry can replace that parity. */
+static void
+shipped_default_then(int parity_index)
+{
+	struct gettyflags *flag;
+
+	fresh();
+	explicit(4);	/* ap in etc/gettytab's default entry */
+	gendefaults();
+	for (flag = gettyflags; flag->field != 0; flag++)
+		flag->set = 0;
+	explicit(parity_index);
+	resolveparity();
+	setdefaults();
+}
+
 int
 main(void)
 {
@@ -122,11 +134,9 @@ main(void)
 	check((f & PASS8) != 0, "getty contract: np does not select PASS8 on the final mode");
 	check((setflags(0) & PASS8) == 0, "getty contract: PASS8 leaks into the message-writing mode");
 
-	fresh();
-	explicit(3);	/* op */
+	shipped_default_then(3);	/* op */
 	check((setflags(0) & (ANYP|ODDP|EVENP)) == ODDP, "getty contract: op does not select odd parity");
-	fresh();
-	explicit(2);	/* ep */
+	shipped_default_then(2);	/* ep */
 	check((setflags(0) & (ANYP|ODDP|EVENP)) == EVENP, "getty contract: ep does not select even parity");
 	fresh();
 	explicit(4);	/* ap */
@@ -163,11 +173,12 @@ main(void)
 	check(tmode.sg_flags == (short)(f & 0xffff) && local == (int)(f >> 16) &&
 	    (local & LPASS8) != 0,
 	    "getty contract: splitflags does not divide the mode word at the local half");
-	applyflags(&tmode, local);
+	applymode(f, &tmode, CRMOD);
 	check(ioctl_calls == 2 && last_setp_req == (unsigned int)TIOCSETP && last_lset_req == (unsigned int)TIOCLSET &&
-	    last_setp_flags == tmode.sg_flags && last_lset_word == local &&
+	    last_setp_flags == tmode.sg_flags && (last_setp_flags & CRMOD) != 0 &&
+	    last_lset_word == local &&
 	    (last_lset_word & LPASS8) != 0,
-	    "getty contract: applyflags does not set both halves through TIOCSETP and TIOCLSET");
+	    "getty contract: main.c does not apply low then local modes through TIOCSETP and TIOCLSET");
 
 	if (failures != 0) {
 		(void)write(2, "getty contracts: fail\n", 22);

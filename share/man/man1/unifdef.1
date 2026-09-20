@@ -16,8 +16,8 @@ unifdef \- remove ifdef'ed lines
 .B \-c
 .BI \-D sym
 .BI \-U sym
-.BI \-id sym
-.BI \-iu sym
+.BI \-iD sym
+.BI \-iU sym
 ] ...  [ file ]
 .SH DESCRIPTION
 .I Unifdef
@@ -63,9 +63,9 @@ for quotes and comments
 in those ifdef'ed lines.
 You specify that you want the lines inside certain ifdefs to be ignored
 but copied out with
-.BI \-id sym
+.BI \-iD sym
 and
-.BI \-iu sym
+.BI \-iU sym
 similar to
 .BI \-D sym
 and
@@ -96,14 +96,21 @@ argument is specified, then the operation of
 is complemented,
 i.e. the lines that would have been removed or blanked
 are retained and vice versa.
+.PP
+The implementation accepts at most 100 distinct command-line symbols, 64 nested
+conditionals, and 4096 bytes in one input line. It reports an error instead
+of truncating input beyond those bounds.
 .SH "SEE ALSO"
 diff(1)
 .SH DIAGNOSTICS
 Premature EOF, inappropriate else or endif.
+.B #elif
+is reported as unsupported because this bounded implementation does not
+evaluate preprocessor expressions.
 .PP
 Exit status is 0 if output is exact copy of input, 1 if not, 2 if trouble.
 .SH BUGS
-Does not know how to deal with \fIcpp\fP consructs such as
+Does not know how to deal with \fIcpp\fP constructs such as
 .br
 .sp
 .nf

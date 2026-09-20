@@ -124,6 +124,7 @@ Grouped by what they investigate.
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |
 | `ondevice-c-compilers.md` | native C compilers that can run on the board |
+| `unifdef-off-manifest-measurement.md` | the bounded C17 unifdef port, its calibrated contracts, and its measured but unshipped RP2040 cost |
 | `smlrc-rp2040-tuning.md` | tuning the native Smaller C Thumb-1 back end |
 | `llama89-and-toolchain.md` | llama89.c and a native Thumb-1 toolchain |
 | `ondevice-languages.md` | language runtimes beyond C |

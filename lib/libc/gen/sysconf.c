@@ -1,8 +1,5 @@
-/*	$OpenBSD: syslimits.h,v 1.14 2020/04/02 18:00:00 deraadt Exp $	*/
-/*	$NetBSD: syslimits.h,v 1.12 1995/10/05 05:26:19 thorpej Exp $	*/
-
-/*
- * Copyright (c) 1988, 1993
+/*-
+ * Copyright (c) 1993
  *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -13,7 +10,11 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the University nor the names of its contributors
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *	This product includes software developed by the University of
+ *	California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -28,11 +29,29 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- *	@(#)syslimits.h	8.1 (Berkeley) 6/2/93
  */
 
-#define	PATH_MAX		 256	/* max bytes in pathname */
-#define	ARG_MAX			5120	/* max bytes in exec arguments */
-#define	NGROUPS_MAX		  16	/* max groups in a credential */
-#define	OPEN_MAX		  30	/* max descriptors in a process */
+#include <sys/syslimits.h>
+
+#include <errno.h>
+#include <unistd.h>
+
+long
+sysconf(int name)
+{
+	volatile int selector = name;
+
+	/* Volatile comparisons keep Thumb-1 from importing a switch helper. */
+	if (selector == _SC_ARG_MAX)
+		return ARG_MAX;
+	if (selector == _SC_CLK_TCK)
+		return CLK_TCK;
+	if (selector == _SC_NGROUPS_MAX)
+		return NGROUPS_MAX;
+	if (selector == _SC_OPEN_MAX)
+		return OPEN_MAX;
+	if (selector == _SC_JOB_CONTROL)
+		return 1;
+	errno = EINVAL;
+	return -1;
+}

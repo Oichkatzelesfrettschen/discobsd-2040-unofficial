@@ -136,6 +136,7 @@ static void
 touch_stdlib(void)
 {
 	int v[4] = { 4, 3, 2, 1 };
+	char path[32];
 
 	qsort(v, 4, sizeof(v[0]), cmp);
 	sink += v[0];
@@ -144,6 +145,8 @@ touch_stdlib(void)
 	sink += atoi("42");
 	sink += atol("42");
 	sink += (long)getenv("PATH");
+	sink += confstr(_CS_PATH, path, sizeof(path));
+	sink += sysconf(_SC_OPEN_MAX);
 }
 
 static void

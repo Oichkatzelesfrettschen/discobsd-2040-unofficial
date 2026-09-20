@@ -13,7 +13,7 @@ OBJS		= ${STDOBJ}
 
 STDSRC		= abort.c alarm.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c ctermid.c \
-		  bzero.c calloc.c closedir.c crypt.c ctime.c ctype_.c \
+		  bzero.c calloc.c closedir.c confstr.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
 		  fnmatch.c frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
@@ -27,14 +27,14 @@ STDSRC		= abort.c alarm.c asctime.c atof.c atoi.c atol.c \
 		  setenv.c sethostname.c setmode.c siginterrupt.c \
 		  siglist.c signal.c sigsetops.c sleep.c strcasecmp.c \
 		  strcat.c strcmp.c strcpy.c strdup.c strftime.c strlen.c \
-		  strncat.c strncmp.c strncpy.c swab.c sysctl.c syslog.c \
+		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
 		  system.c telldir.c time.c timezone.c ttyname.c ttyslot.c \
 		  ualarm.c uname.c unvis.c usleep.c vis.c \
 		  wait.c wait3.c waitpid.c
 
 STDOBJ		= abort.o alarm.o asctime.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o ctermid.o \
-		  bzero.o calloc.o closedir.o crypt.o ctime.o ctype_.o \
+		  bzero.o calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
 		  fnmatch.o frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
@@ -48,7 +48,7 @@ STDOBJ		= abort.o alarm.o asctime.o atof.o atoi.o atol.o \
 		  setenv.o sethostname.o setmode.o siginterrupt.o \
 		  siglist.o signal.o sigsetops.o sleep.o strcasecmp.o \
 		  strcat.o strcmp.o strcpy.o strdup.o strftime.o strlen.o \
-		  strncat.o strncmp.o strncpy.o swab.o sysctl.o syslog.o \
+		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \
 		  system.o telldir.o time.o timezone.o ttyname.o ttyslot.o \
 		  ualarm.o uname.o unvis.o usleep.o vis.o \
 		  wait.o wait3.o waitpid.o

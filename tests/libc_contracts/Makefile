@@ -52,7 +52,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-ctime check-malloc check-random check-printf \
+check-host: ${PROG} header_contract.o check-ctime check-runtime-limits \
+	check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
 	check-qsort check-strtox check-string-security
 	./${PROG}
@@ -173,6 +174,14 @@ CTIME_TARGET_DIAGNOSTIC_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 	-Dsnprintf=__builtin_snprintf
 CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 	-Dsprintf=__builtin_sprintf
+RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
+	-Derrno=runtime_limits_errno
+RUNTIME_LIMITS_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
+	-Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition \
+	-nostdinc -isystem ${TOPSRC}/include ${RUNTIME_LIMITS_RENAMES}
+RUNTIME_LIMITS_TARGET_CFLAGS=	${RUNTIME_LIMITS_CFLAGS} -fno-common \
+	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
+	-mfloat-abi=soft -ffreestanding -Os
 GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 	else echo -Wl,--gc-sections ; fi
 
@@ -204,6 +213,62 @@ check-ctime-cross: asctime_target.o asctime_target_diagnostic.o ctime_target.o \
 	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
 	@echo "ctime target builtin format-overflow negative control rejected"
 	@echo "ctime Cortex-M0+ production and diagnostic C17 compiles passed"
+
+check-runtime-limits: runtime_limits_test runtime_limits_bad_test
+	./runtime_limits_test
+	@if ./runtime_limits_bad_test >/dev/null 2>&1; then \
+		echo "runtime limits permissive-selector negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "runtime limits permissive-selector negative control rejected"
+.if ${ILP32_OK} == "yes"
+	@${MAKE} runtime_limits_test32
+	./runtime_limits_test32
+.else
+	@echo "check-libc-runtime-limits: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+check-runtime-limits-cross: runtime_sysconf_target.o runtime_confstr_target.o
+	@test "$$(${GCCPREFIX}-nm -u runtime_sysconf_target.o | wc -l)" -eq 1
+	@${GCCPREFIX}-nm -u runtime_sysconf_target.o | grep -q ' U runtime_limits_errno$$'
+	@test "$$(${GCCPREFIX}-nm -u runtime_confstr_target.o | wc -l)" -eq 1
+	@${GCCPREFIX}-nm -u runtime_confstr_target.o | grep -q ' U runtime_limits_errno$$'
+	@echo "runtime limit objects use constant storage and import only errno"
+
+runtime_limits_test: runtime_limits_contract_test.c runtime_sysconf.o \
+	runtime_confstr.o
+	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -o $@ runtime_limits_contract_test.c \
+	    runtime_sysconf.o runtime_confstr.o
+
+runtime_limits_test32: runtime_limits_contract_test.c runtime_sysconf32.o \
+	runtime_confstr32.o
+	${HOSTCC} ${ILP32} ${RUNTIME_LIMITS_CFLAGS} -o $@ \
+	    runtime_limits_contract_test.c \
+	    runtime_sysconf32.o runtime_confstr32.o
+
+runtime_limits_bad_test: runtime_limits_contract_test.c runtime_limits_bad.c
+	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -o $@ \
+	    runtime_limits_contract_test.c runtime_limits_bad.c
+
+runtime_sysconf.o: ${TARGET_DIR}/sysconf.c
+	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -c -o $@ ${TARGET_DIR}/sysconf.c
+
+runtime_confstr.o: ${TARGET_DIR}/confstr.c
+	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -c -o $@ ${TARGET_DIR}/confstr.c
+
+runtime_sysconf32.o: ${TARGET_DIR}/sysconf.c
+	${HOSTCC} ${ILP32} ${RUNTIME_LIMITS_CFLAGS} -c -o $@ ${TARGET_DIR}/sysconf.c
+
+runtime_confstr32.o: ${TARGET_DIR}/confstr.c
+	${HOSTCC} ${ILP32} ${RUNTIME_LIMITS_CFLAGS} -c -o $@ ${TARGET_DIR}/confstr.c
+
+runtime_sysconf_target.o: ${TARGET_DIR}/sysconf.c
+	${ARM_COMPILER} ${RUNTIME_LIMITS_TARGET_CFLAGS} -c -o $@ \
+	    ${TARGET_DIR}/sysconf.c
+
+runtime_confstr_target.o: ${TARGET_DIR}/confstr.c
+	${ARM_COMPILER} ${RUNTIME_LIMITS_TARGET_CFLAGS} -c -o $@ \
+	    ${TARGET_DIR}/confstr.c
 
 check-asctime: asctime_contract_test asctime_contract_bad_test
 	./asctime_contract_test
@@ -674,6 +739,10 @@ clean:
 	rm -f asctime_target.o asctime_target_diagnostic.o ctime_target.o \
 		asctime_format_bad_target.o asctime_format_bad_target.log \
 		stdio_format_extensions.o
+	rm -f runtime_limits_test runtime_limits_test32 runtime_limits_bad_test \
+		runtime_sysconf.o runtime_confstr.o runtime_sysconf32.o \
+		runtime_confstr32.o runtime_sysconf_target.o \
+		runtime_confstr_target.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
@@ -695,7 +764,8 @@ clean:
 all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
-	check-ctime-cross check-malloc check-printf check-qsort \
+	check-ctime-cross check-runtime-limits check-runtime-limits-cross \
+	check-malloc check-printf check-qsort \
 	check-random check-random-cross \
 	check-printf-float check-rwmode check-scanf check-string-security \
 	check-string-security-cross check-strtox check-syslog check-vis clean

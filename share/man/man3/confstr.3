@@ -1,0 +1,32 @@
+.TH CONFSTR 3 "September 20, 2026"
+.UC 4
+.SH NAME
+confstr \- return a DiscoBSD configuration string
+.SH SYNOPSIS
+.nf
+.B #include <unistd.h>
+.PP
+.B size_t confstr(int name, char *buffer, size_t length);
+.fi
+.SH DESCRIPTION
+.I Confstr
+supports
+.B _CS_PATH
+and returns the required buffer size, including the terminating null byte,
+for the standard utility path
+.BR /usr/bin:/bin:/usr/sbin:/sbin .
+.PP
+A zero
+.I length
+or a null
+.I buffer
+performs a size query.  A short buffer receives as much of the path as fits
+and always ends with a null byte.
+.PP
+An unsupported selector returns zero, sets
+.I errno
+to
+.BR EINVAL ,
+and leaves the output buffer unchanged.
+.SH SEE ALSO
+paths(3), sysconf(3)

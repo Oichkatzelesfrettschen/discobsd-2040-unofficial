@@ -43,8 +43,10 @@ do
 		exit 2
 	fi
 	for required_source in \
+	    "$source_root/lib/libc/gen/confstr.c" \
 	    "$source_root/lib/libc/gen/ctermid.c" \
 	    "$source_root/lib/libc/gen/raise.c" \
+	    "$source_root/lib/libc/gen/sysconf.c" \
 	    "$source_root/lib/libc/gen/vis.c" \
 	    "$source_root/lib/libc/string/explicit_bzero.c" \
 	    "$source_root/lib/libc/string/timingsafe_bcmp.c"
@@ -54,7 +56,8 @@ do
 			exit 1
 		fi
 	done
-	for required_member in ctermid.o explicit_bzero.o raise.o \
+	for required_member in confstr.o ctermid.o explicit_bzero.o raise.o \
+	    sysconf.o \
 	    timingsafe_bcmp.o vis.o
 	do
 		member_count=$(

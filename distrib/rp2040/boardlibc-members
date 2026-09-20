@@ -17,6 +17,7 @@ _brk
 bzero
 calloc
 close
+confstr
 ctermid
 ctype_
 doprnt
@@ -98,6 +99,7 @@ strtol
 strtoul
 __sysctl
 sysctl
+sysconf
 time
 timingsafe_bcmp
 ungetc

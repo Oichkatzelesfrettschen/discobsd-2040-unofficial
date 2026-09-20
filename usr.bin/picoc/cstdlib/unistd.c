@@ -38,12 +38,12 @@ void UnistdClose(struct ParseState *Parser, struct Value *ReturnValue, struct Va
     ReturnValue->Val->Integer = close(Param[0]->Val->Integer);
 }
 
-/*
 void UnistdConfstr(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
+    (void)Parser;
+    (void)NumArgs;
     ReturnValue->Val->Integer = confstr(Param[0]->Val->Integer, Param[1]->Val->Pointer, Param[2]->Val->Integer);
 }
-*/
 
 #if 0
 void UnistdCuserid(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -342,12 +342,12 @@ void UnistdSync(struct ParseState *Parser, struct Value *ReturnValue, struct Val
     sync();
 }
 
-/*
 void UnistdSysconf(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
+    (void)Parser;
+    (void)NumArgs;
     ReturnValue->Val->Integer = sysconf(Param[0]->Val->Integer);
 }
-*/
 
 /*
 void UnistdTcgetpgrp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -417,6 +417,8 @@ typedef int size_t; \
 typedef int ssize_t; \
 typedef int useconds_t;\
 typedef int intptr_t;\
+enum { _SC_ARG_MAX = 1, _SC_CLK_TCK = 3, _SC_NGROUPS_MAX = 4,\
+       _SC_OPEN_MAX = 5, _SC_JOB_CONTROL = 6, _CS_PATH = 1 };\
 ";
 
 /* all unistd.h functions */
@@ -429,7 +431,7 @@ struct LibraryFunction UnistdFunctions[] =
     { UnistdChroot,        "int chroot(char *);" },
     { UnistdChown,         "int chown(char *, uid_t, gid_t);" },
     { UnistdClose,         "int close(int);" },
-/*    { UnistdConfstr,       "size_t confstr(int, char *, size_t);" }, */
+    { UnistdConfstr,       "size_t confstr(int, char *, size_t);" },
 /*    { UnistdCuserid,       "char *cuserid(char *);" }, */
     { UnistdDup,           "int dup(int);" },
     { UnistdDup2,          "int dup2(int, int);" },
@@ -494,7 +496,7 @@ struct LibraryFunction UnistdFunctions[] =
 /*    { UnistdSwab,          "void swab(void *, void *, ssize_t);" }, */
     { UnistdSymlink,       "int symlink(char *, char *);" },
     { UnistdSync,          "void sync(void);" },
-/*    { UnistdSysconf,       "long sysconf(int);" }, */
+    { UnistdSysconf,       "long sysconf(int);" },
 /*    { UnistdTcgetpgrp,     "pid_t tcgetpgrp(int);" }, */
 /*    { UnistdTcsetpgrp,     "int tcsetpgrp(int, pid_t);" },*/
     { UnistdTruncate,      "int truncate(char *, off_t);" },

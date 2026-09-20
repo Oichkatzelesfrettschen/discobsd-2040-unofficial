@@ -110,8 +110,18 @@ operands retain separate working directories through the historical child
 process boundary, and the parent propagates every child failure. `waitpid`
 retries `EINTR`.
 
-The resident image changes from 18,264 to 9,708 bytes. The 9,020-byte BSS
-reduction exceeds the 464-byte text growth, so the process window gains 8,556
+The traversal closes a parent directory before descending so directory depth
+never consumes the process descriptor table. POSIX binds a `telldir()` cookie
+to the same directory stream passed to `seekdir()`; the historical code closed
+that stream and applied its cookie to a new one. The replacement reopens the
+parent, scans through the unique child name just processed, and resumes at the
+following entry. This preserves one-stream ownership without relying on the
+cross-stream behavior that Linux happens to accept and macOS leaves
+unspecified. A calibrated symbol-closure gate rejects both directory-cookie
+functions from the exact host object.
+
+The resident image changes from 18,264 to 9,720 bytes. The 9,020-byte BSS
+reduction exceeds the 476-byte text growth, so the process window gains 8,544
 bytes while hard-link capacity becomes dynamic.
 
 ## `resize`: grammar replaces general scanning
@@ -189,11 +199,11 @@ in the measured executable set.
 | Artifact | Resident delta | Raw delta | Packed delta | Packed block delta |
 | --- | ---: | ---: | ---: | ---: |
 | `tee` | -15,324 | +44 | +122 | 0 |
-| `du` | -8,556 | +464 | +357 | 0 |
+| `du` | -8,544 | +476 | +354 | 0 |
 | `utilbox` | -1,776 | -1,776 | -1,489 | -1 |
 | `login` | +188 | +188 | +171 | 0 |
 | `passwd` | +360 | +360 | +311 | 0 |
-| Five executable images | -25,108 | -720 | -528 | -1 |
+| Five executable images | -25,096 | -708 | -531 | -1 |
 
 The board libc is an uncompressed archive, not a process image. Its 366-byte
 growth stays at 54 charged blocks on both sides: 53 data blocks plus one
@@ -201,8 +211,8 @@ single-indirect block. The combined shipped-payload delta is therefore:
 
 ```text
 root_payload_delta = executable_packed_delta + board_libc_raw_delta
-                   = -528 + 366
-                   = -162 bytes
+                   = -531 + 366
+                   = -165 bytes
 ```
 
 `fsutil --check --partition=1` independently reports the exact-base image at
@@ -238,9 +248,11 @@ I/O failure falsifies the implementation.
 The `du` contract exercises ordinary, `-a`, and `-s` output; 1,001 distinct
 simultaneously live hard-linked identities; incomplete link sets; forced
 allocation exhaustion; multiple operands; trailing-slash restoration; and
-both sides of the path boundary. A duplicate count with tracking active, an
-omitted count after allocation failure, an accepted over-capacity path, or a
-swallowed child failure falsifies the implementation.
+both sides of the path boundary. A fixture that imports `telldir` and `seekdir`
+calibrates the directory-resume closure. A duplicate count with tracking
+active, an omitted count after allocation failure, an accepted over-capacity
+path, a swallowed child failure, or either directory-cookie symbol in the
+exact object falsifies the implementation.
 
 The `resize` contract spans all accepted boundary values and malformed field,
 delimiter, prefix, suffix, and range classes. A closure containing `_ctype_`

@@ -102,6 +102,31 @@ append_component(const char *component, char **saved_end,
 	return 0;
 }
 
+static int
+resume_directory_after(const char *component)
+{
+	const struct direct *entry;
+
+	directory_stream = opendir(".");
+	if (directory_stream == NULL) {
+		perror(path);
+		traversal_error = 1;
+		return -1;
+	}
+	while ((entry = readdir(directory_stream)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 ||
+		    strcmp(entry->d_name, "..") == 0)
+			continue;
+		if (strcmp(entry->d_name, component) == 0)
+			return 0;
+	}
+	fprintf(stderr, "du: directory changed while reading %s\n", path);
+	traversal_error = 1;
+	(void)closedir(directory_stream);
+	directory_stream = NULL;
+	return -1;
+}
+
 static long
 descend(const char *name)
 {
@@ -140,7 +165,6 @@ descend(const char *name)
 		return 0;
 	}
 	while ((entry = readdir(directory_stream)) != NULL) {
-		long directory_offset;
 		const char *nested_name;
 		char *saved_end;
 
@@ -150,18 +174,14 @@ descend(const char *name)
 		if (append_component(entry->d_name, &saved_end,
 		    &nested_name) < 0)
 			continue;
-		directory_offset = telldir(directory_stream);
 		blocks += descend(nested_name);
-		*saved_end = '\0';
 		if (directory_stream == NULL) {
-			directory_stream = opendir(".");
-			if (directory_stream == NULL) {
-				perror(path);
-				traversal_error = 1;
+			if (resume_directory_after(nested_name) < 0) {
+				*saved_end = '\0';
 				break;
 			}
-			seekdir(directory_stream, directory_offset);
 		}
+		*saved_end = '\0';
 	}
 	if (directory_stream != NULL)
 		(void)closedir(directory_stream);

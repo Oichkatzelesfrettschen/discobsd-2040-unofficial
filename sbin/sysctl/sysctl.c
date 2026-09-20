@@ -95,6 +95,29 @@ struct list secondlevel[] = {
 	{ username, USER_MAXID },	/* CTL_USER_NAMES */
 };
 
+/*
+ * listall() and findname() index a table up to the size beside it, so a
+ * table shorter than its own MAXID is read past its end. A retired id keeps
+ * an empty slot rather than shrinking the table, which is why the two counts
+ * are equal rather than merely ordered.
+ */
+#define NELEM(a)	(sizeof(a) / sizeof((a)[0]))
+_Static_assert(NELEM(topname) == CTL_MAXID, "CTL_NAMES is short of CTL_MAXID");
+_Static_assert(NELEM(kernname) == KERN_MAXID,
+    "CTL_KERN_NAMES is short of KERN_MAXID");
+_Static_assert(NELEM(vmname) == VM_MAXID,
+    "CTL_VM_NAMES is short of VM_MAXID");
+_Static_assert(NELEM(hwname) == HW_MAXID,
+    "CTL_HW_NAMES is short of HW_MAXID");
+_Static_assert(NELEM(username) == USER_MAXID,
+    "CTL_USER_NAMES is short of USER_MAXID");
+_Static_assert(NELEM(machdepname) == CPU_MAXID,
+    "CTL_MACHDEP_NAMES is short of CPU_MAXID");
+#ifdef CTL_NET_NAMES
+_Static_assert(NELEM(netname) == NET_MAXID,
+    "CTL_NET_NAMES is short of NET_MAXID");
+#endif
+
 void	listall(char *, struct list *);
 void	parse(char *, int);
 void	debuginit(void);
@@ -286,6 +309,13 @@ parse(char *string, int flags)
 			    loads[2] / 100, loads[2] % 100);
 			return;
 		}
+		/*
+		 * vm.nswap is an integer and prints here. The rest of the
+		 * level returns a structure this program has no layout for,
+		 * so it names the tool that does.
+		 */
+		if (mib[1] == VM_NSWAP)
+			break;
 		if (flags == 0)
 			return;
 		fprintf(stderr,

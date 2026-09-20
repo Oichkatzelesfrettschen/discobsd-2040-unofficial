@@ -1,4 +1,14 @@
 libc_contracts_test
+asctime_contract_test
+asctime_contract_bad_test
+asctime_asctime.o
+asctime_bad.o
+ctime_contract_test
+ctime_contract_test32
+ctime_ctime.o
+ctime_ctime32.o
+asctime_target.o
+ctime_target.o
 malloc_test
 malloc_test32
 malloc_arena.o

@@ -23,9 +23,10 @@ license while replacing those two mechanisms.
 
 ## Resource invariants
 
-- One 4,096-byte buffer owns the current input line. A 4,096-byte final line is
-  accepted; a longer line returns status 2 before any bytes from that line are
-  emitted.
+- One 4,096-byte buffer owns the current logical preprocessing line. Physical
+  lines join only across phase-2 backslash-newline splices or a block comment
+  between directive tokens. A 4,096-byte final line is accepted; a longer
+  logical line returns status 2 before any bytes from that line are emitted.
 - One 64-frame iterative stack owns conditional nesting. Frame scans derive
   repeated-symbol activity, removing a duplicate active-symbol table and the
   stale-state path an early error would create.
@@ -36,6 +37,9 @@ license while replacing those two mechanisms.
   and line comments. Every nonignored arm updates input lexical state; the
   inactive arm selected by an ignored option is copied without lexical
   interpretation.
+- Directive recognition removes backslash-newline splices before classifying
+  tokens and carries block-comment spacing across physical lines. Output keeps
+  the original bytes of every retained fragment.
 - `#elif` returns status 2. Supporting it correctly requires the expression and
   branch-selection machinery that this bounded port deliberately excludes.
 - Status 0 means byte-identical output, status 1 means transformed output, and
@@ -53,20 +57,20 @@ completed with status 0 and composed the board libc from 149 members totaling
 
 | Surface | Measured value |
 | --- | ---: |
-| target object text | 3,149 bytes |
+| target object text | 3,625 bytes |
 | target object data | 0 bytes |
 | target object BSS | 5,112 bytes |
-| OMAGIC text | 10,532 bytes |
+| OMAGIC text | 10,984 bytes |
 | OMAGIC data | 464 bytes |
 | OMAGIC BSS | 5,172 bytes |
-| raw a.out | 11,028 bytes |
-| packed a.out | 9,025 bytes |
-| raw root cost | 12 blocks |
-| packed root cost | 10 blocks |
+| raw a.out | 11,480 bytes |
+| packed a.out | 9,386 bytes |
+| raw root cost | 13 blocks |
+| packed root cost | 11 blocks |
 
 The production image reports 107 free blocks and 31 free inodes. The manifest
 contains no `/usr/bin/unifdef` entry, and image inspection finds no executable
-by that name. Hypothetical admission as a packed executable would leave 97 free
+by that name. Hypothetical admission as a packed executable would leave 96 free
 blocks and consume one inode.
 
 The off-manifest state adds zero executable blocks to the flashed root and
@@ -96,9 +100,11 @@ tools/bin/fsutil --verbose --partition=1 distrib/rp2040/sdcard.img
 The host suite also passes under address and undefined-behavior sanitizers. It
 pins ignored-arm lexical suppression, comments between directive tokens,
 comments that close before a directive, complete trailing comments on removed
-directives, spliced line comments, horizontal preprocessing whitespace, and
-byte-exact complemented status in addition to the listed command surface. The
-Cortex-M0+ object imports no compiler division helper. These results prove the
-source contracts, target compilation, bounded object storage, clean image
-construction, and hypothetical block cost. They do not prove board execution;
-the measurement neither accesses nor flashes a board.
+directives, phase-2 splices across comment delimiters and directive tokens,
+multiline directive comments, preprocessing whitespace, source-order `-l`
+line preservation, and byte-exact complemented status in addition to the
+listed command surface. The exact 4,096-byte spliced boundary terminates and
+round-trips. The Cortex-M0+ object imports no compiler division helper. These
+results prove the source contracts, target compilation, bounded object storage,
+clean image construction, and hypothetical block cost. They do not prove board
+execution; the measurement neither accesses nor flashes a board.

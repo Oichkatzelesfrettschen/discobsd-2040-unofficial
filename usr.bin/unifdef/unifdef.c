@@ -38,7 +38,7 @@
 #include <string.h>
 
 /* The RP2040 process window keeps every input-dependent structure bounded:
- * one 4,096-byte line, 100 argument-backed symbols, and 64 iterative frames.
+ * one 4,096-byte logical line, 100 argument-backed symbols, and 64 frames.
  * #elif requires expression selection and therefore returns an error. The
  * check-unifdef-contracts gate pins each bound and verdict. */
 #define UNIFDEF_MAX_DEPTH 64
@@ -79,6 +79,7 @@ struct directive {
 	size_t symbol_length;
 	size_t prefix_length;
 	size_t suffix_offset;
+	int needs_more;
 };
 
 struct conditional_frame {
@@ -115,16 +116,21 @@ static int unifdef_error(const char *, unsigned long, const char *);
 static int unifdef_usage(const char *);
 static int symbol_name_valid(const char *);
 static int symbol_lookup(const unsigned char *, size_t);
-static int read_line(FILE *, size_t *);
+static int logical_name_equal(const unsigned char *, size_t, const char *);
+static int read_line(FILE *, size_t, size_t *);
 static int directive_space(unsigned char);
+static size_t skip_splices(const unsigned char *, size_t, size_t);
+static int line_splices(const unsigned char *, size_t);
 static size_t skip_directive_spacing(const unsigned char *, size_t, size_t,
-	int *);
+	int *, int *);
 static size_t directive_comment_suffix(const unsigned char *, size_t, size_t);
 static int line_comment_continues(const unsigned char *, size_t);
 static struct directive parse_directive(const unsigned char *, size_t,
 	enum lexical_state);
 static void scan_lexical_state(const unsigned char *, size_t, int);
 static int emit_line(FILE *, const unsigned char *, size_t, int, int *);
+static int emit_segment(FILE *, const unsigned char *, size_t, size_t, int,
+	int *, int *, int *);
 static int push_conditional(enum frame_kind, int, int);
 static int enter_else(void);
 static void pop_conditional(void);
@@ -193,8 +199,8 @@ symbol_lookup(const unsigned char *name, size_t name_length)
 	size_t symbol_index;
 
 	for (symbol_index = 0; symbol_index < symbol_count; symbol_index++) {
-		if (strlen(symbol_names[symbol_index]) == name_length &&
-		    memcmp(symbol_names[symbol_index], name, name_length) == 0)
+		if (logical_name_equal(name, name_length,
+		    symbol_names[symbol_index]))
 			break;
 	}
 	if (symbol_index == symbol_count)
@@ -210,10 +216,27 @@ symbol_lookup(const unsigned char *name, size_t name_length)
 }
 
 static int
-read_line(FILE *input, size_t *line_length)
+logical_name_equal(const unsigned char *name, size_t name_length,
+	const char *expected)
+{
+	size_t cursor = 0;
+
+	for (;;) {
+		cursor = skip_splices(name, name_length, cursor);
+		if (cursor == name_length || *expected == '\0')
+			return cursor == name_length && *expected == '\0';
+		if (name[cursor] != (unsigned char)*expected)
+			return 0;
+		cursor++;
+		expected++;
+	}
+}
+
+static int
+read_line(FILE *input, size_t offset, size_t *line_length)
 {
 	int character;
-	size_t length = 0;
+	size_t length = offset;
 
 	while (length < sizeof(line_buffer)) {
 		character = fgetc(input);
@@ -221,7 +244,7 @@ read_line(FILE *input, size_t *line_length)
 			if (ferror(input))
 				return -1;
 			*line_length = length;
-			return length == 0 ? 0 : 1;
+			return length == offset ? 0 : 1;
 		}
 		line_buffer[length++] = (unsigned char)character;
 		if (character == '\n') {
@@ -232,7 +255,7 @@ read_line(FILE *input, size_t *line_length)
 	character = fgetc(input);
 	if (character == EOF && !ferror(input)) {
 		*line_length = length;
-		return 1;
+		return length == offset ? 0 : 1;
 	}
 	return ferror(input) ? -1 : -2;
 }
@@ -244,26 +267,72 @@ identifier_character(unsigned char character)
 }
 
 static size_t
+skip_splices(const unsigned char *line, size_t line_length, size_t cursor)
+{
+	while (cursor + 1 < line_length && line[cursor] == '\\') {
+		if (line[cursor + 1] == '\n')
+			cursor += 2;
+		else if (cursor + 2 < line_length &&
+		    line[cursor + 1] == '\r' && line[cursor + 2] == '\n')
+			cursor += 3;
+		else
+			break;
+	}
+	return cursor;
+}
+
+static int
+line_splices(const unsigned char *line, size_t line_length)
+{
+	size_t cursor = line_length;
+
+	if (cursor == 0 || line[--cursor] != '\n')
+		return 0;
+	if (cursor != 0 && line[cursor - 1] == '\r')
+		cursor--;
+	return cursor != 0 && line[cursor - 1] == '\\';
+}
+
+static size_t
 skip_directive_spacing(const unsigned char *line, size_t line_length,
-	size_t cursor, int *saw_comment)
+	size_t cursor, int *saw_comment, int *needs_more)
 {
 	for (;;) {
+		cursor = skip_splices(line, line_length, cursor);
 		while (cursor < line_length && directive_space(line[cursor]))
-			cursor++;
+			cursor = skip_splices(line, line_length, cursor + 1);
 		if (text_input)
 			return cursor;
-		if (cursor + 1 >= line_length || line[cursor] != '/' ||
-		    line[cursor + 1] != '*')
+		if (cursor >= line_length || line[cursor] != '/')
 			return cursor;
+		{
+			size_t next = skip_splices(line, line_length, cursor + 1);
+
+			if (next >= line_length || line[next] != '*')
+				return cursor;
+			cursor = next + 1;
+		}
 		if (saw_comment != NULL)
 			*saw_comment = 1;
-		cursor += 2;
-		while (cursor + 1 < line_length &&
-		    !(line[cursor] == '*' && line[cursor + 1] == '/'))
+		for (;;) {
+			size_t next;
+
+			cursor = skip_splices(line, line_length, cursor);
+			if (cursor >= line_length) {
+				if (needs_more != NULL)
+					*needs_more = 1;
+				return line_length;
+			}
+			next = skip_splices(line, line_length, cursor + 1);
+			if (line[cursor] == '*' && next < line_length &&
+			    line[next] == '/') {
+				cursor = next + 1;
+				break;
+			}
 			cursor++;
-		if (cursor + 1 >= line_length)
+		}
+		if (cursor >= line_length)
 			return line_length;
-		cursor += 2;
 	}
 }
 
@@ -278,12 +347,16 @@ static size_t
 directive_comment_suffix(const unsigned char *line, size_t line_length,
 	size_t cursor)
 {
+	size_t next;
+
 	if (text_input)
 		return line_length;
+	cursor = skip_splices(line, line_length, cursor);
 	while (cursor < line_length && directive_space(line[cursor]))
-		cursor++;
-	if (cursor + 1 < line_length && line[cursor] == '/' &&
-	    (line[cursor + 1] == '*' || line[cursor + 1] == '/'))
+		cursor = skip_splices(line, line_length, cursor + 1);
+	next = skip_splices(line, line_length, cursor + 1);
+	if (cursor < line_length && next < line_length &&
+	    line[cursor] == '/' && (line[next] == '*' || line[next] == '/'))
 		return cursor;
 	return line_length;
 }
@@ -291,14 +364,7 @@ directive_comment_suffix(const unsigned char *line, size_t line_length,
 static int
 line_comment_continues(const unsigned char *line, size_t line_length)
 {
-	size_t cursor = line_length;
-
-	if (cursor == 0 || line[cursor - 1] != '\n')
-		return 0;
-	cursor--;
-	if (cursor != 0 && line[cursor - 1] == '\r')
-		cursor--;
-	return cursor != 0 && line[cursor - 1] == '\\';
+	return line_splices(line, line_length);
 }
 
 static struct directive
@@ -317,7 +383,7 @@ parse_directive(const unsigned char *line, size_t line_length,
 		{ "endif", DIRECTIVE_ENDIF }
 	};
 	struct directive result = {
-		DIRECTIVE_PLAIN, 0, 0, 0, line_length
+		DIRECTIVE_PLAIN, 0, 0, 0, line_length, 0
 	};
 	size_t cursor = 0;
 	size_t hash_offset;
@@ -327,33 +393,45 @@ parse_directive(const unsigned char *line, size_t line_length,
 	int prefix_has_comment = 0;
 
 	if (starting_state == LEXICAL_BLOCK_COMMENT) {
-		while (cursor + 1 < line_length &&
-		    !(line[cursor] == '*' && line[cursor + 1] == '/'))
+		for (;;) {
+			size_t next;
+
+			cursor = skip_splices(line, line_length, cursor);
+			if (cursor >= line_length)
+				return result;
+			next = skip_splices(line, line_length, cursor + 1);
+			if (line[cursor] == '*' && next < line_length &&
+			    line[next] == '/') {
+				cursor = next + 1;
+				break;
+			}
 			cursor++;
-		if (cursor + 1 >= line_length)
-			return result;
-		cursor += 2;
+		}
 		prefix_has_comment = 1;
 	} else if (starting_state != LEXICAL_CODE) {
 		return result;
 	}
 	cursor = skip_directive_spacing(line, line_length, cursor,
-	    &prefix_has_comment);
+	    &prefix_has_comment, NULL);
 	if (cursor == line_length || line[cursor] != '#')
 		return result;
 	hash_offset = cursor;
 	cursor++;
-	cursor = skip_directive_spacing(line, line_length, cursor, NULL);
+	cursor = skip_directive_spacing(line, line_length, cursor, NULL,
+	    &result.needs_more);
+	if (result.needs_more)
+		return result;
 	keyword_start = cursor;
-	while (cursor < line_length && identifier_character(line[cursor]))
+	while (cursor < line_length && identifier_character(line[cursor])) {
 		cursor++;
+		cursor = skip_splices(line, line_length, cursor);
+	}
 	keyword_length = cursor - keyword_start;
 	for (keyword_index = 0;
 	    keyword_index < sizeof(keywords) / sizeof(keywords[0]);
 	    keyword_index++) {
-		if (strlen(keywords[keyword_index].name) == keyword_length &&
-		    memcmp(keywords[keyword_index].name,
-		    line + keyword_start, keyword_length) == 0) {
+		if (logical_name_equal(line + keyword_start, keyword_length,
+		    keywords[keyword_index].name)) {
 			result.kind = keywords[keyword_index].kind;
 			break;
 		}
@@ -370,13 +448,18 @@ parse_directive(const unsigned char *line, size_t line_length,
 		    line_length, cursor);
 		return result;
 	}
-	cursor = skip_directive_spacing(line, line_length, cursor, NULL);
+	cursor = skip_directive_spacing(line, line_length, cursor, NULL,
+	    &result.needs_more);
+	if (result.needs_more)
+		return result;
 	result.symbol_offset = cursor;
 	if (cursor < line_length &&
 	    (isalpha(line[cursor]) || line[cursor] == '_')) {
-		cursor++;
-		while (cursor < line_length && identifier_character(line[cursor]))
+		cursor = skip_splices(line, line_length, cursor + 1);
+		while (cursor < line_length && identifier_character(line[cursor])) {
 			cursor++;
+			cursor = skip_splices(line, line_length, cursor);
+		}
 		result.symbol_length = cursor - result.symbol_offset;
 	}
 	result.suffix_offset = directive_comment_suffix(line, line_length,
@@ -394,8 +477,16 @@ scan_lexical_state(const unsigned char *line, size_t line_length,
 		return;
 	while (cursor < line_length &&
 	    (!continuation_only || lexical_state != LEXICAL_CODE)) {
-		unsigned char character = line[cursor];
-		unsigned char next = cursor + 1 < line_length ? line[cursor + 1] : 0;
+		size_t next_offset;
+		unsigned char character;
+		unsigned char next;
+
+		cursor = skip_splices(line, line_length, cursor);
+		if (cursor >= line_length)
+			break;
+		character = line[cursor];
+		next_offset = skip_splices(line, line_length, cursor + 1);
+		next = next_offset < line_length ? line[next_offset] : 0;
 
 		if (lexical_state == LEXICAL_LINE_COMMENT) {
 			cursor = line_length;
@@ -404,7 +495,7 @@ scan_lexical_state(const unsigned char *line, size_t line_length,
 		if (lexical_state == LEXICAL_BLOCK_COMMENT) {
 			if (character == '*' && next == '/') {
 				lexical_state = LEXICAL_CODE;
-				cursor += 2;
+				cursor = next_offset + 1;
 			} else {
 				cursor++;
 			}
@@ -415,8 +506,8 @@ scan_lexical_state(const unsigned char *line, size_t line_length,
 			unsigned char terminator = lexical_state == LEXICAL_STRING ?
 			    '"' : '\'';
 
-			if (character == '\\' && cursor + 1 < line_length) {
-				cursor += 2;
+			if (character == '\\' && next_offset < line_length) {
+				cursor = next_offset + 1;
 				continue;
 			}
 			if (character == terminator)
@@ -426,7 +517,7 @@ scan_lexical_state(const unsigned char *line, size_t line_length,
 		}
 		if (character == '/' && next == '*') {
 			lexical_state = LEXICAL_BLOCK_COMMENT;
-			cursor += 2;
+			cursor = next_offset + 1;
 		} else if (character == '/' && next == '/') {
 			lexical_state = LEXICAL_LINE_COMMENT;
 			cursor = line_length;
@@ -450,6 +541,7 @@ emit_line(FILE *output, const unsigned char *line, size_t line_length,
 	int raw_keep, int *changed)
 {
 	int keep = complement_output ? !raw_keep : raw_keep;
+	size_t cursor;
 
 	if (keep) {
 		if (line_length != 0 &&
@@ -457,13 +549,49 @@ emit_line(FILE *output, const unsigned char *line, size_t line_length,
 			return UNIFDEF_ERROR;
 		return UNIFDEF_UNCHANGED;
 	}
-	if (blank_deleted_lines && line_length != 0 &&
-	    line[line_length - 1] == '\n') {
-		if (fputc('\n', output) == EOF)
-			return UNIFDEF_ERROR;
-		if (line_length != 1 || line[0] != '\n')
-			*changed = 1;
+	if (blank_deleted_lines) {
+		for (cursor = 0; cursor < line_length; cursor++) {
+			if (line[cursor] == '\n') {
+				if (fputc('\n', output) == EOF)
+					return UNIFDEF_ERROR;
+			} else {
+				*changed = 1;
+			}
+		}
 	} else if (line_length != 0) {
+		*changed = 1;
+	}
+	return UNIFDEF_UNCHANGED;
+}
+
+static int
+emit_segment(FILE *output, const unsigned char *line, size_t start, size_t end,
+	int keep, int *emitted, int *emitted_newline, int *changed)
+{
+	size_t cursor;
+
+	if (keep) {
+		if (end != start &&
+		    fwrite(line + start, 1, end - start, output) != end - start)
+			return UNIFDEF_ERROR;
+		if (end != start) {
+			*emitted = 1;
+			*emitted_newline = line[end - 1] == '\n';
+		}
+		return UNIFDEF_UNCHANGED;
+	}
+	if (blank_deleted_lines) {
+		for (cursor = start; cursor < end; cursor++) {
+			if (line[cursor] == '\n') {
+				if (fputc('\n', output) == EOF)
+					return UNIFDEF_ERROR;
+				*emitted = 1;
+				*emitted_newline = 1;
+			} else {
+				*changed = 1;
+			}
+		}
+	} else if (end != start) {
 		*changed = 1;
 	}
 	return UNIFDEF_UNCHANGED;
@@ -548,24 +676,36 @@ unifdef_process(FILE *input, FILE *output, const char *source_name)
 	content_emits = 1;
 	content_scans = 1;
 	lexical_state = LEXICAL_CODE;
-	while ((read_result = read_line(input, &line_length)) != 0) {
-		struct directive directive;
+	for (;;) {
+		struct directive directive = {
+			DIRECTIVE_PLAIN, 0, 0, 0, 0, 0
+		};
 		enum lexical_state starting_state;
 		int emit_result;
 		int line_emits;
 		int line_scans;
 		int raw_keep = 0;
 
-		if (read_result < 0)
-			return unifdef_error(source_name, line_number + 1,
-			    read_result == -2 ? "line exceeds 4096 bytes" :
-			    "input read error");
-		line_number++;
 		starting_state = lexical_state;
 		line_emits = content_emits;
 		line_scans = content_scans;
-		directive = parse_directive(line_buffer, line_length,
-		    starting_state);
+		line_length = 0;
+		do {
+			read_result = read_line(input, line_length, &line_length);
+			if (read_result < 0)
+				return unifdef_error(source_name, line_number + 1,
+				    read_result == -2 ?
+				    "logical line exceeds 4096 bytes" :
+				    "input read error");
+			if (read_result == 0)
+				break;
+			line_number++;
+			directive = parse_directive(line_buffer, line_length,
+			    starting_state);
+		} while (line_splices(line_buffer, line_length) ||
+		    directive.needs_more);
+		if (read_result == 0 && line_length == 0)
+			break;
 		if (line_scans)
 			scan_lexical_state(line_buffer, line_length, 0);
 		else
@@ -644,43 +784,44 @@ unifdef_process(FILE *input, FILE *output, const char *source_name)
 			break;
 		}
 		}
-		if (!line_scans &&
+		if (!line_scans && content_scans &&
 		    (directive.kind == DIRECTIVE_ELSE ||
 		    directive.kind == DIRECTIVE_ENDIF) &&
 		    directive.suffix_offset < line_length)
 			scan_lexical_state(line_buffer + directive.suffix_offset,
 			    line_length - directive.suffix_offset, 0);
-		if (!(complement_output ? !raw_keep : raw_keep) &&
-		    !complement_output &&
-		    ((line_emits && directive.prefix_length != 0) ||
-		    (content_emits &&
-		    directive.suffix_offset < line_length))) {
-			int prefix_emitted = line_emits &&
-			    directive.prefix_length != 0;
-			int suffix_emitted = content_emits &&
-			    directive.suffix_offset < line_length;
+		if (!raw_keep && (directive.prefix_length != 0 ||
+		    directive.suffix_offset < line_length)) {
+			int prefix_keep = line_emits;
+			int middle_keep = 0;
+			int suffix_keep = content_emits;
+			int emitted = 0;
+			int emitted_newline = 0;
 
-			if (prefix_emitted &&
-			    fwrite(line_buffer, 1, directive.prefix_length,
-			    output) != directive.prefix_length)
+			if (complement_output) {
+				prefix_keep = !prefix_keep;
+				middle_keep = 1;
+				suffix_keep = !suffix_keep;
+			}
+			if (emit_segment(output, line_buffer, 0,
+			    directive.prefix_length, prefix_keep, &emitted,
+			    &emitted_newline, &changed) == UNIFDEF_ERROR ||
+			    emit_segment(output, line_buffer,
+			    directive.prefix_length, directive.suffix_offset,
+			    middle_keep, &emitted, &emitted_newline,
+			    &changed) == UNIFDEF_ERROR ||
+			    emit_segment(output, line_buffer,
+			    directive.suffix_offset, line_length, suffix_keep,
+			    &emitted, &emitted_newline,
+			    &changed) == UNIFDEF_ERROR)
 				return unifdef_error(source_name, line_number,
 				    "output write error");
-			if (suffix_emitted) {
-				size_t suffix_length = line_length -
-				    directive.suffix_offset;
-
-				if (fwrite(line_buffer + directive.suffix_offset, 1,
-				    suffix_length, output) != suffix_length)
-					return unifdef_error(source_name,
-					    line_number, "output write error");
-			} else if (prefix_emitted &&
+			if (!blank_deleted_lines && emitted && !emitted_newline &&
 			    line_length != 0 &&
 			    line_buffer[line_length - 1] == '\n' &&
-			    fputc('\n', output) == EOF) {
+			    fputc('\n', output) == EOF)
 				return unifdef_error(source_name, line_number,
 				    "output write error");
-			}
-			changed = 1;
 			continue;
 		}
 		emit_result = emit_line(output, line_buffer, line_length,

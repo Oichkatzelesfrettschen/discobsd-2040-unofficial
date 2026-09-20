@@ -101,6 +101,7 @@ check_error_boundaries(void)
 	static const unsigned char missing_endif[] = "#ifdef KNOWN\nyes\n";
 	static const unsigned char open_comment[] = "/* open\n";
 	unsigned char long_line[UNIFDEF_MAX_LINE + 1];
+	unsigned char exact_splice[UNIFDEF_MAX_LINE];
 	unsigned char exact_depth[UNIFDEF_MAX_DEPTH * 13];
 	unsigned char deep_input[(UNIFDEF_MAX_DEPTH + 1) * 6];
 	size_t input_length = 0;
@@ -120,6 +121,11 @@ check_error_boundaries(void)
 	    0, "4096-byte line was rejected");
 	check_case(long_line, sizeof(long_line), (const unsigned char *)"", 0,
 	    2, "overlong line was accepted");
+	memset(exact_splice, 'x', sizeof(exact_splice));
+	exact_splice[sizeof(exact_splice) - 2] = '\\';
+	exact_splice[sizeof(exact_splice) - 1] = '\n';
+	check_case(exact_splice, sizeof(exact_splice), exact_splice,
+	    sizeof(exact_splice), 0, "4096-byte spliced line did not terminate");
 	for (depth = 0; depth < UNIFDEF_MAX_DEPTH; depth++) {
 		memcpy(exact_depth + exact_length, "#if 1\n", 6);
 		exact_length += 6;

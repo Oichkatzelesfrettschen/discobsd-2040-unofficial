@@ -104,7 +104,37 @@ comment */
 ignored
 #endif
 '
+run_case 0 '-iUOUTER' '#ifdef OUTER
+#if UNKNOWN
+#else /* ignored opener
+#endif
+#endif
+' '#ifdef OUTER
+#if UNKNOWN
+#else /* ignored opener
+#endif
+#endif
+'
 run_case 1 '-DFOO' '# /* gap */ ifdef /* gap */ FOO
+kept
+#endif
+' 'kept
+'
+run_case 1 '-DFOO' '# /* gap
+*/ ifdef FOO
+kept
+#endif
+' 'kept
+'
+run_case 1 '-DFOO' '#ifdef /* gap
+*/ FOO
+kept
+#endif
+' 'kept
+'
+run_case 1 '-DFOO' '#ifd\
+ef F\
+OO
 kept
 #endif
 ' 'kept
@@ -127,6 +157,16 @@ comment */
 int kept;
 #endif
 ' '/* open
+comment */
+int kept;
+'
+run_case 1 '-DFOO' '#ifdef FOO /\
+* open
+comment */
+int kept;
+#endif
+' '/\
+* open
 comment */
 int kept;
 '
@@ -195,6 +235,31 @@ no
 no
 #endif
 '
+run_case 0 '-c -UFOO' '#ifdef FOO/* comment */
+no
+#endif
+' '#ifdef FOO/* comment */
+no
+#endif
+'
+run_case 1 '-l -DFOO' '#ifdef /* gap
+*/ FOO
+kept
+#endif
+' '
+
+kept
+
+'
+run_case 1 '-l -DFOO' '#if\
+def FOO /* keep */
+kept
+#endif
+' '
+/* keep */
+kept
+
+'
 run_case 0 '-iUFOO -DKNOWN' '#ifdef FOO
 ignored
 #endif /* open
@@ -223,6 +288,34 @@ int kept;
 ' '// comment \\
 #ifdef FOO
 int kept;
+'
+run_case 0 '-DFOO' '/\
+*
+#ifdef FOO
+int commented;
+*/
+' '/\
+*
+#ifdef FOO
+int commented;
+*/
+'
+run_case 1 '-DFOO' '/* prefix
+*\
+/ #ifdef FOO
+kept
+#endif
+' '/* prefix
+*\
+/
+kept
+'
+run_case 1 '-c -DFOO' '#ifdef FOO/* open
+comment */
+kept
+#endif
+' '#ifdef FOO
+#endif
 '
 run_case 1 '-c -DFOO' '/*
 #ifdef FOO

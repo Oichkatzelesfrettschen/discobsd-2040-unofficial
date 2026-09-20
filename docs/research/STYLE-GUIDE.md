@@ -130,7 +130,9 @@ Datasheet section 2.4.1 lists the eight regions among the core features,
 2.4.2.5 states the MPU features, and 2.4.6 gives MPU_TYPE, MPU_CTRL, MPU_RNR,
 MPU_RBAR and MPU_RASR. An MPU is not an MMU and does not create virtual
 address translation. Its presence does not establish that a particular kernel
-configures effective process isolation; this port leaves it unprogrammed.
+configures effective process isolation; this port programs it to fence the
+user window from the kernel, the peripherals and the flash
+(sys/arch/rp2040/doc/MPU.md), and no more.
 Check actual registers, privilege transitions, region coverage, and deliberate
 fault tests before claiming protection. ELF segment flags and linker-region
 annotations alone are not such proof.

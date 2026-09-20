@@ -35,8 +35,10 @@ want bit patterns, and the program exits non-zero.
 
 Covered: fadd/fsub/fmul/fdiv and dadd/dsub/dmul/ddiv over finite normal
 operands, signed zero, and a rounding case per type; `__aeabi_i2d` over zero,
-both signs, signed 32-bit limits, powers of two, and adjacent integers.
-Deferred, because the
+both signs, signed 32-bit limits, powers of two, and adjacent integers; and
+the shipped `difftime`, whose endpoints span the signed 32-bit range so a
+subtract-before-convert implementation returns a wrapped result the expected
+bits reject. Deferred, because the
 bootrom's declared contract flushes input and output subnormals to zero and
 maps NaNs to infinities (datasheet 2.8.3.2.1) and the exact result bits for
 those need on-device characterization before they can be an oracle:

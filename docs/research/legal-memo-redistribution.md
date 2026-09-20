@@ -672,7 +672,7 @@ The practical significance is that section 17200 gives a private plaintiff a cau
 
 *Condition and provenance.* State that the board is a genuine Raspberry Pi Pico purchased new and flashed by the seller, and that the firmware can be removed by the buyer via BOOTSEL. Both are true and both forestall complaints.
 
-*Software limitations.* State plainly what the system does not do: no networking, one process resident at a time, no memory protection, no preprocessor or headers for the on-board compiler. Omitting known material limitations from a listing is itself a deceptive practice, and these are limitations a buyer would care about.
+*Software limitations.* State plainly what the system does not do: no networking, one process resident at a time, no memory protection programmed, no preprocessor or headers for the on-board compiler. Omitting known material limitations from a listing is itself a deceptive practice, and these are limitations a buyer would care about.
 
 ### 7.6 Statutes that do not apply, and two that were not asked about
 
@@ -702,7 +702,7 @@ The board ships without an enclosure, with exposed conductors and components, po
 >
 > **Safety.** The board is supplied without an enclosure. It is powered at 5 V from the USB connector and draws under 100 mA. Exposed conductors and components can be damaged by static discharge, and shorting the pins can damage the board or your computer's USB port. Handle it by the edges, do not place it on a conductive surface while powered, and use a USB cable that carries data as well as power. It is not a toy and is not intended for children.
 >
-> **What it does not do.** There is no networking. One user program is resident at a time, in a 144 KB window. There is no memory protection unit. The on-board C compiler has no preprocessor and no header files. This is a 1980s-era operating system on a microcontroller, and it behaves like one.
+> **What it does not do.** There is no networking. One user program is resident at a time, in a 144 KB window. The memory protection unit closes the kernel, the peripherals and the flash to a user program and leaves the program its own 144 KB window and the boot ROM (sys/arch/rp2040/doc/MPU.md); it grants no address translation, so a program still sees the same addresses as the kernel and cannot be isolated from another program, since one process is resident at a time. The on-board C compiler has no preprocessor and no header files. This is a 1980s-era operating system on a microcontroller, and it behaves like one.
 >
 > **Support.** Questions and problems go to the project's public issue tracker. This is an independent, unofficial port and is not supported by the DiscoBSD project, by Raspberry Pi Ltd., or by any other party.
 

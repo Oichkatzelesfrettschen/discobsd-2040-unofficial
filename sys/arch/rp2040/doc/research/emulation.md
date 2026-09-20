@@ -117,6 +117,8 @@ Console output, `PICO_UART` config, captured verbatim while
 `$PYTHON tools/renode/console.py --port 3456` (this exact transcript
 reproduced byte-for-byte across two separate runs):
 
+(The banner line `no MMU and no MPU` in this capture is what the kernel printed then; datasheet 2.4.1 and 2.4.6 give the Cortex-M0+ an eight-region MPU, and the kernel now prints `no MMU` and an `mpu:` line stating what it programmed; sys/arch/rp2040/doc/MPU.md.)
+
 ```
 
 DiscoBSD 2.7 (PICO_UART) #1 818: Fri Sep 11 17:41:10 PDT 2026

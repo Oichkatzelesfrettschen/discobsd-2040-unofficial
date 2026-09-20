@@ -16,6 +16,7 @@
 
 #define UBASE 0x20000000	/* User space base address. */
 #define USIZE 3072		/* From user.h */
+#include <sys/proc_asm.h>
 
 	.syntax	unified
 	.thumb
@@ -97,7 +98,7 @@ resume:
 	beq	2f			/*   there is nothing to remap. */
 
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
-	str	r1, [r3, #60]		/* Save &u0 in u.u_procp->p_addr. */
+	str	r1, [r3, #P_ADDR_OFFSET]		/* Save &u0 in u.u_procp->p_addr. */
 
 	/*
 	 * Exchange the USIZE bytes of u. and u0. three words at a time.
@@ -127,7 +128,7 @@ resume:
 	ldr	r2, =u			/* Pointer to u. area start addr. */
 
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
-	str	r2, [r3, #60]		/* Save &u in u.u_procp->p_addr. */
+	str	r2, [r3, #P_ADDR_OFFSET]		/* Save &u in u.u_procp->p_addr. */
 2:
 	mov	a2, r10			/* Restore env (second arg). */
 #ifdef __thumb2__
@@ -158,6 +159,13 @@ resume:
 /*
  * icode() is copied out to process 1 to exec /sbin/init.
  * If the exec fails, process 1 exits.
+ *
+ * locore0.S enters it on the process stack but privileged, because the
+ * MPU map (mpu.c) closes kernel flash to unprivileged fetches and the
+ * instruction after the CONTROL write must already lie in the user window.
+ * The first four instructions here run from that window and set nPRIV, so
+ * every instruction from the SVC on, and every process after exec, runs
+ * unprivileged under the map.
  */
 	.text
 	.align	2
@@ -167,6 +175,11 @@ icode:
 	.thumb_func
 	.type	icode1, %function
 icode1:
+	mrs	r0, CONTROL
+	movs	r1, #0x1		/* CONTROL[0] nPRIV: unprivileged. */
+	orrs	r0, r1
+	msr	CONTROL, r0
+	isb				/* Unprivileged from the next fetch. */
 	movs.n	r0, #(sbininit - icode)	/* Offset for /sbin/init path. */
 	movs.n	r1, #(argv - icode)	/* Offset for *argv[] array. */
 	ldr	r2, =UBASE		/* User space base address. */

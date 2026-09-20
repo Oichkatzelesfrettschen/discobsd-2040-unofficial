@@ -12,7 +12,7 @@ include ${TOPSRC}/share/mk/sys.mk
 # back end and is built for rp2040. The peripheral demos are STM32 and PIC32
 # hardware.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld pdp11" ; \
+		echo "lex smlrc as ld pdp11 mputest" ; \
 	elif [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "lex as cc cpp lcc lcpp ld smallc aout glcdtest gtest portio pwm wiznet smux" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
@@ -35,10 +35,10 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  pdc ${_PICOC} printf ranlib re renice retroforth scm sed setty sl \
 		  stevie \
 		  uname xargs xinstall zmodem msec compress tip tclsh uucp virus \
-		  whereis yacc ${MDSUBDIR} basename cal cb cmp col comm diskspeed du \
+		  whereis yacc ${MDSUBDIR} basename cal cb cmp col colrm comm diskspeed du \
 		  fgrep file grep head hostid join last mesg nice od pagesize pr \
 		  printenv rev size sort split sum tail tee time touch tr tsort tty \
-		  uniq w wc who bc egrep mail su vmstat wall write strip false nohup \
+		  uniq unifdef w wc who bc egrep mail su vmstat wall write strip false nohup \
 		  true cut paste seq dirname nl cksum expand unexpand mkfifo \
 		uuencode uudecode cpio getopt yes strings users
 

@@ -104,9 +104,9 @@ named linker object, explicit adjacent-bound assertions, initialization after
 that clear, and a defined response to USB reinitialization. The gaps do not
 form a generic heap.
 
-The RP2040 contains an eight-region MPU. The submitted port programs no MPU
-isolation, so the correct operating-system claim concerns configuration rather
-than hardware absence. USB DPRAM is execute-never under the default map, but
+The RP2040 contains an eight-region MPU, which the port programs to fence the
+user window from the kernel (sys/arch/rp2040/doc/MPU.md), so an operating-system
+claim concerns configuration rather than hardware absence. USB DPRAM is execute-never under the default map, but
 the hardware can change the relevant attributes; the program keeps executable
 flash-recovery code in ordinary SRAM.
 

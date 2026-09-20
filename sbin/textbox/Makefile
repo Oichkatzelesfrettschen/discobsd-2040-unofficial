@@ -1,9 +1,9 @@
 #
-# A multicall binary of the text utilities sbase (suckless.org, MIT/X)
-# supplies that this port's tree does not: cut, paste, seq, dirname,
-# nl, cksum, expand, unexpand, uuencode and uudecode. sbase's mkfifo
-# and the tree's own comm, rev and fold compile for this target too
-# but did not fit the 30 KB box budget; see research/posix-tools.md.
+# A multicall binary shares one libc image across small text utilities.
+# The original sbase set, the tree's fold, rev and comm, the V7 look and
+# deroff ports and the bounded BSD colrm filter use this executable.
+# sbase's mkfifo remains unshipped because the kernel has no FIFO support.
+# See research/posix-tools.md for the original admission measurements.
 # See sbin/box/Makefile: each tool's own objects, already built in
 # its directory, are combined with ld -r, every global except a
 # renamed main is made local, and the results link once against
@@ -25,7 +25,7 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
 TOOLS=		cut paste seq dirname nl cksum expand unexpand \
-		uuencode uudecode fold rev comm look deroff
+		uuencode uudecode fold rev comm look deroff colrm
 
 # Other names a tool answers to, as name:tool.
 ALIASES=

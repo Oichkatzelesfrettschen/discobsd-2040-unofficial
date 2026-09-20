@@ -15,9 +15,9 @@
 #define	CPU_FREQ_KHZ		4	/* processor clock in kHz */
 #define	CPU_BUS_KHZ		5	/* i/o bus clock in kHz */
 /*
- * The STM32 tree defines CPU_MPU 6 here for a memory protection unit node.
- * Neither RP2040 core has an MPU, so the identifier is absent rather than
- * present and always failing, and 6 carries USB accounting instead.
+ * The STM32 tree numbers its memory protection unit node CPU_MPU 6; here 6
+ * and 7 carry USB accounting and the node is 12, below, so a mib compiled
+ * for one port does not read as the other's.
  *
  * The two counters below come from the USB device driver's RP2040-E15 guard,
  * arch/rp2040/dev/usb.c. A kernel configured without uartusb does not link the
@@ -35,7 +35,12 @@
 #define	CPU_SWAPRAM_IMAGES	9	/* int: images the pool holds */
 #define	CPU_SWAPRAM_EPOCH	10	/* int: 0 SMALL, 1 LARGE; a write asks */
 #define	CPU_SWAPRAM_LARGE	11	/* int: processes holding the bonus */
-#define	CPU_MAXID		12	/* number of valid machdep ids */
+/*
+ * The Cortex-M0+ MPU as arch/rp2040/rp2040/mpu.c programmed it and read
+ * it back; machine/mpuvar.h names the leaves.
+ */
+#define	CPU_MPU			12	/* node: memory protection unit */
+#define	CPU_MAXID		13	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -51,5 +56,6 @@
 	{ "swapram_images", CTLTYPE_INT }, \
 	{ "swapram_epoch", CTLTYPE_INT }, \
 	{ "swapram_large", CTLTYPE_INT }, \
+	{ "mpu", CTLTYPE_NODE }, \
 }
 #endif	/* !KERNEL */

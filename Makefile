@@ -236,6 +236,18 @@ check-getty-contracts:
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
+check-colrm-contracts:
+		${MAKE} -C tests/colrm_contracts check
+
+check-colrm-contracts-cross:
+		${MAKE} -C tests/colrm_contracts check-cross
+
+check-unifdef-contracts:
+		${MAKE} -C tests/unifdef_contracts check
+
+check-unifdef-contracts-cross:
+		${MAKE} -C tests/unifdef_contracts check-cross
+
 check-rmdir-contracts:
 		${MAKE} -C tests/rmdir_contracts check
 
@@ -346,7 +358,8 @@ check-elf2aout:	tools
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \
-		check-cat-contracts check-rmdir-contracts check-tee-contracts \
+		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
+		check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
@@ -365,7 +378,8 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
 		check-dirent-contracts-cross \
-		check-cat-contracts-cross \
+		check-cat-contracts-cross check-colrm-contracts-cross \
+		check-unifdef-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross
@@ -559,6 +573,8 @@ installfs:
 		check-libc-scanf check-libc-rwmode check-libc-syslog check-libc-vis \
 		check-libc-printf-float \
 		check-dirent-contracts check-dirent-contracts-cross \
+		check-colrm-contracts check-colrm-contracts-cross \
+		check-unifdef-contracts check-unifdef-contracts-cross \
 		check-libc-string-security check-libc-string-security-cross \
 		check-id-aliases \
 		check-tiny-utility-multicall \

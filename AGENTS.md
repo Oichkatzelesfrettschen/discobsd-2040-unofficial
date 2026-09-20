@@ -29,12 +29,17 @@ rules that drift.
 RP2040: Cortex-M0+ (ARMv6-M, Thumb-1), no FPU, no MMU, 264 KB SRAM,
 2 MB QSPI flash. Datasheet 2.4.1 lists eight MPU regions and 2.4.6 gives
 MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR and MPU_RASR, so the core carries a
-Protected Memory System Architecture MPU that this port leaves unprogrammed.
-An MPU grants region permissions and faults a violation to HardFault; it
-supplies no address translation, so one flat process window stays the layout
-whether or not a kernel programs it. A protection claim cites the register
-values written, the privilege transition, the region coverage and a
-deliberate fault test; a linker region annotation proves none of them.
+Protected Memory System Architecture MPU. sys/arch/rp2040/rp2040/mpu.c
+programs it once at startup with a static three-region map (boot ROM
+read-execute, the 144 KB user window read-write-execute as a 128 KB and a
+16 KB region) over the privileged default map, reads every register back,
+and reports the result on the console and through `machdep.mpu`;
+sys/arch/rp2040/doc/MPU.md is the authority. An MPU grants region
+permissions and faults a violation to HardFault; it supplies no address
+translation, so one flat process window stays the layout. A protection
+claim cites the register values written, the privilege transition, the
+region coverage and a deliberate fault test (usr.bin/mputest, run by
+check-renode); a linker region annotation proves none of them.
 Layout: 128 KB kernel, 1536 KB Dhara root (989 KB usable),
 384 KB raw swap. A process gets one 144 KB window for text, data, bss and
 stack; user programs are a.out OMAGIC. Boot ROM V3 on the verified board.

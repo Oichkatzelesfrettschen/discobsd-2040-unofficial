@@ -18,9 +18,17 @@
  * Operands are copied into volatile locals before each operation so the
  * compiler emits a run-time __aeabi call instead of constant-folding the
  * table entry at build time, which would bypass the code under test.
+ *
+ * The last corpus checks the shipped difftime (lib/libc/gen/difftime.c),
+ * which is the only libc member whose result depends on both helpers at
+ * once: it converts each time_t endpoint through __aeabi_i2d and subtracts
+ * through __aeabi_dsub. Its endpoints span the signed 32-bit range, where
+ * the difference exceeds time_t, so an implementation that subtracts before
+ * converting returns a wrapped result these bit patterns reject.
  */
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -31,6 +39,7 @@ enum { OP_ADD, OP_SUB, OP_MUL, OP_DIV };
 struct scase { u32 a, b; int op; u32 expected; };
 struct dcase { u64 a, b; int op; u64 expected; };
 struct i2dcase { i32 input; u64 expected; };
+struct dtcase { time_t end, beginning; u64 expected; };
 
 static const struct scase singles[] = {
 #include "corpus_single.h"
@@ -52,6 +61,23 @@ static const struct i2dcase integers[] = {
 	{ 16777217, 0x4170000010000000ULL },
 	{ 1073741824, 0x41d0000000000000ULL },
 	{ -1073741824, 0xc1d0000000000000ULL },
+};
+
+/*
+ * The last three endpoints differ by more than time_t holds: 2^31 and
+ * 2^32-1 in both directions. Subtracting before converting wraps to -2^31
+ * and to -1, whose bit patterns are 0xc1e0000000000000 and
+ * 0xbff0000000000000, so each case names its own falsifier.
+ */
+static const struct dtcase difftimes[] = {
+	{ 0, 0, 0x0000000000000000ULL },			/* +0.0 */
+	{ 1, 0, 0x3ff0000000000000ULL },			/* +1.0 */
+	{ 0, 1, 0xbff0000000000000ULL },			/* -1.0 */
+	{ 0, (-2147483647L - 1), 0x41e0000000000000ULL },	/* 2^31 */
+	{ 2147483647L, (-2147483647L - 1),
+	    0x41efffffffe00000ULL },				/* 2^32-1 */
+	{ (-2147483647L - 1), 2147483647L,
+	    0xc1efffffffe00000ULL },				/* -(2^32-1) */
 };
 
 static float
@@ -146,6 +172,27 @@ main(void)
 				printf("i2d[%d:%d]: input=%08x got=%016llx want=%016llx\n",
 				    pass, i, (u32)integers[i].input, got,
 				    integers[i].expected);
+			}
+		}
+	}
+
+	/*
+	 * The loops above have resolved both helper cells, so these passes
+	 * decide difftime's own arithmetic rather than the resolver.
+	 */
+	n = sizeof(difftimes) / sizeof(difftimes[0]);
+	for (pass = 0; pass < 2; pass++) {
+		for (i = 0; i < n; i++) {
+			volatile time_t end = difftimes[i].end;
+			volatile time_t beginning = difftimes[i].beginning;
+			u64 got = d_bits(difftime(end, beginning));
+
+			if (got != difftimes[i].expected) {
+				fails++;
+				printf("difftime[%d:%d]: %ld,%ld got=%016llx want=%016llx\n",
+				    pass, i, (long)difftimes[i].end,
+				    (long)difftimes[i].beginning, got,
+				    difftimes[i].expected);
 			}
 		}
 	}

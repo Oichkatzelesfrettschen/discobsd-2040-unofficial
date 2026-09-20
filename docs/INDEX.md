@@ -30,6 +30,7 @@ page in those files without carrying them here.
 | How do I connect to the console? | `sys/arch/rp2040/doc/USER-ACCESS.md` |
 | Which datasheet section covers this register? | `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
+| What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
 | Where do the 2 MB of flash go? | `sys/arch/rp2040/doc/STORAGE.md` |
 | How do I work on this tree? | `AGENTS.md` (`CLAUDE.md` links to it) |
 | What license travels with an image I hand someone? | `NOTICE`, then `docs/research/legal-memo-redistribution.md` |
@@ -41,6 +42,7 @@ page in those files without carrying them here.
 | --- | --- | --- |
 | `BOOT-MAP.md` | the path from the boot ROM through boot2, kernel entry and init to a login prompt | reader entry point |
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
+| `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
 | `STORAGE.md` | the flash budget and the 128 KB / 1536 KB / 384 KB layout chosen | `distrib/rp2040/Makefile.inc` |
 | `TESTING.md` | each gate, its tier, its prerequisites, and what a pass proves | the root `Makefile` and both CI workflows |
@@ -110,8 +112,9 @@ Grouped by what they investigate.
 | `STYLE-GUIDE.md` | the constrained-C and C17 style proposal: resource accounts, the four language profiles, the migration unit, and the evidence a size claim owes |
 | `211bsd-patch-scope.md` | the fork point from 2.11BSD, what each patch since then touches here, what patch 499's stdio would cost this target, and the measured `_doscan` migration unit |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |
+| `211bsd-fwalk.patch` | the `_fwalk` fix for 2.11BSD patch 499 as a standalone `patch -p0` file with its message, the companion to the report |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
-| `renode-login-regression.md` | the Renode login test fails at `/etc/rc`'s first line on every tree tried, the pre-#150 control included, so the getty patches carry build evidence only |
+| `renode-login-regression.md` | the Renode login timeout was `panic: wakeup` behind a reboot prompt: three locores stored p_addr at a literal 60 after #129 moved it to 64; sys/proc_asm.h and a _Static_assert in kern_proc.c pin the offset, and boot.robot logs the UART transcript on failure |
 | `stdio-core-c17-unit.md` | the V7 stdio core converted to C17 with a one-byte pushback slot in `FILE`: what changed, the calibrated gate, and the measured +32 data and +20 to +92 text per program |
 
 ### Userland, tools and languages
@@ -123,6 +126,7 @@ Grouped by what they investigate.
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |
 | `ondevice-c-compilers.md` | native C compilers that can run on the board |
+| `unifdef-off-manifest-measurement.md` | the bounded C17 unifdef port, its calibrated contracts, and its measured but unshipped RP2040 cost |
 | `smlrc-rp2040-tuning.md` | tuning the native Smaller C Thumb-1 back end |
 | `llama89-and-toolchain.md` | llama89.c and a native Thumb-1 toolchain |
 | `ondevice-languages.md` | language runtimes beyond C |

@@ -1,7 +1,8 @@
 # A constrained account profile for the RP2040 port
 
-The RP2040 has no MMU and no MPU. Every process runs in the same physical
-address space as the kernel and as every other process; UID separation
+The RP2040 has no MMU. Its MPU (datasheet 2.4.6) is programmed to close the kernel, the peripherals and the flash to
+user code (sys/arch/rp2040/doc/MPU.md), and every process runs in the same physical address space as every other process
+and at the same addresses as the kernel; UID separation
 keeps `chmod`, `chown`, and file permission checks honest, but it stops
 nothing that can execute arbitrary code, since arbitrary code can simply
 read or write any address it likes. The profile below assumes this and

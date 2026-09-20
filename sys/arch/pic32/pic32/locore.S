@@ -23,6 +23,7 @@
 # this software.
 #
 #include <machine/io.h>
+#include <sys/proc_asm.h>
 
 #define UBASE   0x7f008000      /* User space base address */
 
@@ -382,7 +383,7 @@ longjmp:        .globl  longjmp
                 la      $a0, u0                 # pointer to &u0
 
                 lw      $v1, 0($v0)             # u.u_procp
-                sw      $a0, 60($v1)            # u.u_procp->p_addr = &u0
+                sw      $a0, P_ADDR_OFFSET($v1)            # u.u_procp->p_addr = &u0
 
                 # exchange contents of u and u0
                 move    $v1, $v0
@@ -408,7 +409,7 @@ longjmp:        .globl  longjmp
                 addiu   $a0, $a0, 16
 
                 lw      $v1, 0($v0)             # u.u_procp
-                sw      $v0, 60($v1)            # u.u_procp->p_addr = &u
+                sw      $v0, P_ADDR_OFFSET($v1)            # u.u_procp->p_addr = &u
 2:
                 lw      $s0, (0 * 4) ($a1)      # restore register variables s0-s8
                 lw      $s1, (1 * 4) ($a1)

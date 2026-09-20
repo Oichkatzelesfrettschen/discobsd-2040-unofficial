@@ -1,0 +1,27 @@
+libc: advance and test the dynamic stream list in _fwalk
+
+The second loop of _fwalk used g->next as its increment expression,
+which evaluates and discards the pointer rather than advancing g, so
+the loop never terminated once fpole was non-empty. It also tested
+_flags == 0, which marks a free stream, where the static-array loop
+above and 4.4BSD both test _flags != 0.
+
+fflush(NULL) and _cleanup, which exit() calls, both reach _fwalk, so
+a program holding more than FOPEN_MAX streams hung at exit with its
+buffered output unwritten.
+
+Against /usr/src/lib/libc/stdio/findfp.c at patch level 499.
+
+--- lib/libc/stdio/findfp.c.orig
++++ lib/libc/stdio/findfp.c
+@@ -140,8 +140,8 @@
+ 	for (n = 0, fp = __sF; n < FOPEN_MAX; n++, fp++)
+ 		if (fp->_flags != 0)
+ 			ret |= (*function)(fp);
+-	for (g = fpole; g; g->next)
+-		if (g->sfile._flags == 0)
++	for (g = fpole; g; g = g->next)
++		if (g->sfile._flags != 0)
+ 			ret |= (*function)(&g->sfile);
+ 	return (ret);
+ }

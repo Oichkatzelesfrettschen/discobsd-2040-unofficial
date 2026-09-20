@@ -2,9 +2,9 @@
 
 This report was drafted with an AI assistant. The finding and the patch are
 offered for your judgment; nothing here has run on a PDP-11 or under SIMH, and
-the report says so wherever it matters. It has not been sent: it is retained
-here under `AGENTS.md`, which requires an explicit request naming it before a
-report leaves this tree.
+the report says so wherever it matters. `211bsd-fwalk.patch` beside this
+file is the standalone patch, with the message above its hunk; it applies to
+`lib/libc/stdio/findfp.c` at patch level 499 with `patch -p0`.
 
 ---
 
@@ -137,7 +137,9 @@ know it.
 
 Against `/usr/src/lib/libc/stdio/findfp.c` at patch level 499. 2.11BSD
 distributes patches as diffs rather than as `git am` mailboxes, so this is a
-plain unified diff and carries no git metadata.
+plain unified diff and carries no git metadata; `211bsd-fwalk.patch` is the
+same hunk as a file, cut from the pre-fix and post-fix `findfp.c` with
+`diff -u` so the line numbers are exact.
 
 ```diff
 --- lib/libc/stdio/findfp.c.orig

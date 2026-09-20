@@ -16,15 +16,18 @@ It forks one child per probe address and records whether the child read the
 word or died of
 .Dv SIGSEGV .
 .Pp
-Kernel RAM above the process window, kernel text in XIP flash and the SIO
-block must be closed when
+Kernel RAM above the process window, kernel text in XIP flash and SIO CPUID
+must be closed when
 .Va machdep.mpu.enable
 reads 1 and open when it reads 0.
-The boot ROM and the top of the process window must be open in both states.
+The boot ROM, the top of the process window and the SIO divider status
+register must be open in both states, and a float and a double division
+through the boot ROM must return the expected bits: the ROM's own divide
+routine writes the divider, so a map that closes it faults every division.
 .Va machdep.mpu.nregions
 must read the datasheet's eight, and enable must be set only when
 .Va machdep.mpu.programmed
-equals the three regions the kernel's map holds.
+equals the four regions the kernel's map holds.
 .Pp
 Each probe prints one line ending in
 .Dq ok

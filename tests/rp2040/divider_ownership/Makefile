@@ -11,6 +11,7 @@ FIXTURE_FLAGS+=	-Wl,--build-id=none
 FIXTURE_ELFS=	divider_safe.elf divider_negative.elf \
 		divider_control_flow_negative.elf divider_residual_negative.elf
 DEPENDENCY_FILE=	.deps/source_negative.dep
+COMMENT_DEPENDENCY_FILE=	.deps-comment/source_comment_safe.dep
 
 all: check
 
@@ -21,7 +22,8 @@ check-python:
 	fi
 	@"${PYTHON}" -c 'import capstone, elftools'
 
-check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE}
+check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE} \
+	    ${COMMENT_DEPENDENCY_FILE}
 	"${PYTHON}" "${VERIFIER}" --elf divider_safe.elf \
 	    > safe.stdout 2> safe.stderr
 	test ! -s safe.stderr
@@ -70,6 +72,12 @@ check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE}
 	grep -F 'source_files=1 source_divider_findings=2' source_negative.stdout
 	grep -F 'divider symbol: #define DIV_QUOTIENT_OFFSET 0x70' \
 	    source_negative.stderr
+	"${PYTHON}" "${VERIFIER}" --elf divider_safe.elf \
+	    --dependency-directory .deps-comment \
+	    > source_comment_safe.stdout 2> source_comment_safe.stderr
+	test ! -s source_comment_safe.stderr
+	grep -F 'source_files=1 source_divider_findings=0' \
+	    source_comment_safe.stdout
 	@if "${PYTHON}" "${VERIFIER}" --elf divider_safe.elf \
 	    --dependency-directory missing-dependencies \
 	    > missing_dependencies.stdout 2> missing_dependencies.stderr; then \
@@ -91,7 +99,13 @@ ${DEPENDENCY_FILE}: source_negative.c
 	    -mfloat-abi=soft -ffreestanding -nostdinc -M \
 	    -MT source_negative.o -MF $@ source_negative.c
 
+${COMMENT_DEPENDENCY_FILE}: source_comment_safe.c
+	mkdir -p .deps-comment
+	${FIXTURE_CC} -std=gnu17 -mcpu=cortex-m0plus -mthumb \
+	    -mfloat-abi=soft -ffreestanding -nostdinc -M \
+	    -MT source_comment_safe.o -MF $@ source_comment_safe.c
+
 clean:
-	rm -rf .deps *.elf *.stderr *.stdout
+	rm -rf .deps .deps-comment *.elf *.stderr *.stdout
 
 .PHONY: all check check-python clean

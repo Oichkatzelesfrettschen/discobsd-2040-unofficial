@@ -36,10 +36,44 @@ fault status or fault address register.
 | 0 | 0x00000000 | 16 KB | AP 110, XN 0, SIZE 13 | r-x | the boot ROM (datasheet 2.8), whose float routines libc calls through lib/libc/arm/gen/rom_float_resolver.S |
 | 1 | 0x20000000 | 128 KB | AP 011, XN 0, SIZE 16 | rwx | the user window, low part |
 | 2 | 0x20020000 | 16 KB | AP 011, XN 0, SIZE 13 | rwx | the user window, high part |
-| 3 to 7 | | | RASR 0 | | disabled |
+| 3 | 0xd0000000 | 256 B | AP 011, XN 1, SIZE 7, SRD 0xf7 | rw- | SIO offsets 0x060 to 0x07f, the hardware divider |
+| 4 to 7 | | | RASR 0 | | disabled |
 
 MPU_CTRL is written 0x5, PRIVDEFENA and ENABLE, and HFNMIENA stays clear so
 the HardFault handler runs with the MPU off.
+
+## Why the divider is in the map
+
+The boot ROM's float division runs in the calling process's context and
+drives the SIO hardware divider: `mufp_fdiv`, and every transcendental that
+branches into `fdiv_n`, writes DIV_UDIVIDEND and DIV_UDIVISOR and reads
+DIV_QUOTIENT (doc/research/float-libs.md section 4.1, from
+pico-bootrom-rp2040's `mufplib.S`; datasheet 2.3.1.5 places those registers
+at SIO offsets 0x060 to 0x078). The first map closed SIO to unprivileged
+code, and the board answered: `fptest` died of SIGSEGV with pc 0x00002cec,
+r0 0x40f00000 and r1 0x40200000, and the boot ROM image disassembles there
+as
+
+    00002cda <fdiv_n>:
+        2ce8:  movs r5, #208    @ 0xd0
+        2cea:  lsls r5, r5, #24        ; r5 = 0xd0000000
+        2cec:  str  r6, [r5, #96]      @ 0x60, DIV_UDIVIDEND
+        2cee:  str  r3, [r5, #100]     @ 0x64, DIV_UDIVISOR
+
+so the faulting instruction is the dividend write, with 7.5f and 2.5f in the
+argument registers. `fadd`, `fsub`, `fmul` and the conversions are
+divider-free and kept working, which is why only the division cases failed.
+
+Region 3 grants one 32-byte subregion of a 256-byte region: PMSAv6 divides a
+region into eight (datasheet table 117, SRD), and only subregion 3, offsets
+0x060 to 0x07f, is enabled, so CPUID, the GPIO control registers, the
+inter-core FIFO, the spinlocks and the interpolators beside it stay closed.
+XN is set because nothing fetches instructions from a peripheral. The grant
+restores what user mode held before the MPU was programmed rather than
+adding a capability, and the divider already has exactly one owner: the
+kernel, its interrupts and its callouts contain no divider consumer, which
+`tools/verify_rp2040_divider_ownership.py` enforces on every linked kernel
+through `check-divider`.
 
 144 KB is not a power of two, so the window takes two regions; a static
 assertion in mpu.c pins their sum to USER_DATA_SIZE and the low base to
@@ -60,14 +94,14 @@ mpu.c writes MPU_CTRL 0, then each region through RBAR with VALID set and
 its RASR, then MPU_CTRL 0x5, with DSB after the region writes and DSB then
 ISB after the enable (ARMv6-M ARM B3.5.4). Every write is read back: a
 region counts as programmed only when RNR, RBAR and RASR return what was
-written, and the enable is written only when all three regions do. A map
+written, and the enable is written only when every region does. A map
 missing a user region would fault the first user instruction, so a core or
 emulator that drops the writes runs with the MPU off and says so.
 
 What was read back, not what was written, is what the kernel reports. The
 console line after the `cpu:` banner reads
 
-    mpu: 8 regions, 3 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx
+    mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx, sio div rw
 
 and `sysctl machdep.mpu` answers `enable`, `ctrl`, `nregions`, `separate`
 and `programmed` from the same readback. The first four names are the
@@ -101,9 +135,14 @@ probe:
 | SIO CPUID | 0xd0000000 | SIGSEGV | reads |
 | boot ROM magic | 0x00000010 | reads | reads |
 | window top | USER_DATA_END - 4 | reads | reads |
+| SIO DIV_CSR | 0xd0000078 | reads | reads |
+| ROM float and double divide | 7.5 / 2.5 | 3.0, bit-exact | 3.0, bit-exact |
 
-It also requires `nregions` to read 8 and `enable` to be set only with
-`programmed` equal to 3, and ends with `MPUTEST OK (mpu on)` or
+CPUID and DIV_CSR lie 0x78 bytes apart inside the same 256-byte region, so
+the pair decides the subregion disables rather than the region's presence,
+and the division that follows is what the boot ROM actually does with the
+register it was granted. The test also requires `nregions` to read 8 and
+`enable` to be set only with `programmed` equal to 4, and ends with `MPUTEST OK (mpu on)` or
 `MPUTEST OK (mpu off)` when every line agrees, so the same program on the
 same image distinguishes a map the registers accepted from one they
 dropped. Each closed probe under an enabled MPU is a real HardFault, and
@@ -146,10 +185,39 @@ programming the regions: the banner read `MPU_CTRL 0x0: protection off`,
 mputest ended `MPUTEST OK (mpu off)`, so neither line the gate asserts
 appeared and the gate fails on that kernel.
 
+Board, a Raspberry Pi Pico with Boot ROM V3, reflashed from this tree and
+driven over its CDC-ACM console:
+
+    $ sysctl machdep.mpu
+    machdep.mpu.enable=1
+    machdep.mpu.ctrl=0x5
+    machdep.mpu.nregions=8
+    machdep.mpu.separate=0
+    machdep.mpu.programmed=4
+    $ mputest
+    machdep.mpu: enable 1, nregions 8, programmed 4, ctrl 0x5
+    nregions                 0x00000000 ok (want 8, got 8)
+    enable implies map       0x00000000 ok (want 1, got 1)
+    kernel ram               0x20024000 ok (want 11, got 11)
+    kernel text              0x10000100 ok (want 11, got 11)
+    sio cpuid                0xd0000000 ok (want 11, got 11)
+    boot rom                 0x00000010 ok (want 0, got 0)
+    window top               0x20023ffc ok (want 0, got 0)
+    sio divider              0xd0000078 ok (want 0, got 0)
+    rom float divide         0x00000000 ok (want 0, got 0)
+    MPUTEST OK (mpu on)
+    $ fptest
+    FPTEST OK
+
+Silicon reports the datasheet's eight regions, takes all four writes, and
+faults every closed probe. CPUID and DIV_CSR sit in one region and answer
+differently, so the subregion disables are decided on hardware rather than
+inferred. The same board ran `fptest` to SIGSEGV at ROM pc 0x00002cec
+before region 3 existed.
+
 Renode's Cortex-M0+ model implements the region registers through its NVIC
 peripheral, so the emulator decides the register-level claim and the fault
-path. A board run of mputest is the silicon evidence and is recorded here
-when it is taken; the map, the readback and the test carry no
+path ahead of the board; the map, the readback and the test carry no
 emulator-specific assumption.
 
 Cost: 656 bytes of text and 16 of bss in the PICO kernel, 688 and 16 in

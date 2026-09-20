@@ -868,10 +868,76 @@ def dependency_sources(dependency_directory: Path) -> set[Path]:
     return sources
 
 
+ASSEMBLY_SUFFIXES = frozenset({".S", ".s"})
+
+
+def strip_comments(source_text: str, assembly: bool) -> str:
+    """Blank comment text, keeping every line and column position.
+
+    A divider register named in a comment is documentation: the compiler
+    emits nothing for it, so an access has to appear in code. Scanning the
+    stripped text keeps the gate on code and lets a file state which
+    registers the boot ROM writes without being read as writing them.
+
+    Block-comment state carries across lines because C comments do. String
+    state resets at each newline, so an unbalanced quote costs one line
+    rather than hiding the rest of the file. Text inside a string literal
+    survives the strip and is still scanned, which keeps the gate
+    conservative where it cannot prove intent.
+    """
+    stripped_lines = []
+    in_block = False
+    for source_line in source_text.split("\n"):
+        output: list[str] = []
+        in_string = False
+        index = 0
+        length = len(source_line)
+        while index < length:
+            character = source_line[index]
+            pair = source_line[index : index + 2]
+            if in_block:
+                if pair == "*/":
+                    in_block = False
+                    output.append("  ")
+                    index += 2
+                    continue
+                output.append(" ")
+                index += 1
+                continue
+            if in_string:
+                if character == "\\" and index + 1 < length:
+                    output.append("  ")
+                    index += 2
+                    continue
+                if character == '"':
+                    in_string = False
+                output.append(character)
+                index += 1
+                continue
+            if pair == "/*":
+                in_block = True
+                output.append("  ")
+                index += 2
+                continue
+            if pair == "//" or (assembly and character == "@"):
+                output.append(" " * (length - index))
+                index = length
+                continue
+            if character == '"':
+                in_string = True
+            output.append(character)
+            index += 1
+        stripped_lines.append("".join(output))
+    return "\n".join(stripped_lines)
+
+
 def scan_sources(source_paths: Iterable[Path]) -> list[str]:
     findings = []
     for source_path in sorted(set(source_paths)):
-        source_text = source_path.read_text(encoding="utf-8", errors="replace")
+        source_text = strip_comments(
+            source_path.read_text(encoding="utf-8", errors="replace"),
+            source_path.suffix in ASSEMBLY_SUFFIXES,
+        )
         for line_number, source_line in enumerate(source_text.splitlines(), 1):
             matched_patterns = []
             if DIVIDER_SYMBOL_PATTERN.search(source_line):

@@ -46,3 +46,5 @@ rwmode_filbuf.o
 rwmode_flsbuf.o
 rwmode_filbuf32.o
 rwmode_flsbuf32.o
+rwmode_ungetc.o
+rwmode_ungetc32.o

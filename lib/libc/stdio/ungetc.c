@@ -25,6 +25,21 @@ ungetc(int c, FILE *iop)
 	if (iop->_flag & _IOUNGET)
 		return (EOF);
 
+	/*
+	 * An r+ stream still in write mode: the pushback is the first act
+	 * of input, so the switch _filbuf would make happens here, writing
+	 * pending output and emptying the buffer, or the byte parked below
+	 * would be flushed as output by the next refill.
+	 */
+	if ((iop->_flag & (_IORW|_IOWRT)) == (_IORW|_IOWRT)) {
+		if (fflush(iop) == EOF)
+			return (EOF);
+		iop->_flag &= ~_IOWRT;
+		iop->_flag |= _IOREAD;
+		iop->_ptr = iop->_base;
+		iop->_cnt = 0;
+	}
+
 	if (iop->_ptr > iop->_base && iop->_ptr[-1] == (char) c) {
 		iop->_ptr--;
 		iop->_cnt++;

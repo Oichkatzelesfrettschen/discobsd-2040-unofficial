@@ -273,11 +273,12 @@ scanf_ctype_asan.o: ${SCANF_GEN_DIR}/ctype_.c
 # fflush stays the tree's so the free-count discipline under test is the
 # one that ships; the buffer members are renamed so getc and putc reach them.
 RWMODE_RENAMES=	-D_filbuf=db_filbuf -D_flsbuf=db_flsbuf -Dfflush=db_fflush \
-		-Dfclose=db_fclose -Dfstat=test_fstat -Derrno=rwmode_test_errno
+		-Dfclose=db_fclose -Dungetc=db_ungetc -Dfstat=test_fstat \
+		-Derrno=rwmode_test_errno
 RWMODE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${RWMODE_RENAMES}
-RWMODE_OBJS=	rwmode_filbuf.o rwmode_flsbuf.o
-RWMODE_OBJS32=	rwmode_filbuf32.o rwmode_flsbuf32.o
+RWMODE_OBJS=	rwmode_filbuf.o rwmode_flsbuf.o rwmode_ungetc.o
+RWMODE_OBJS32=	rwmode_filbuf32.o rwmode_flsbuf32.o rwmode_ungetc32.o
 
 check-rwmode: rwmode_contract_test
 	./rwmode_contract_test
@@ -299,6 +300,12 @@ rwmode_filbuf.o: ${PRINTF_DIR}/filbuf.c
 
 rwmode_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
+rwmode_ungetc.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+rwmode_ungetc32.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
 
 rwmode_filbuf32.o: ${PRINTF_DIR}/filbuf.c
 	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/filbuf.c

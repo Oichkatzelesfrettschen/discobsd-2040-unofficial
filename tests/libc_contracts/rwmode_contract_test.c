@@ -38,6 +38,8 @@ test_fstat(int fd, struct stat *st)
 	return 0;
 }
 
+int db_ungetc(int, FILE *);
+
 static int checks;
 static int failures;
 
@@ -88,6 +90,49 @@ main(void)
 	n = (int)read(fd, back, sizeof back - 1);
 	check(n == 7 && memcmp(back, "abc456Q", 7) == 0,
 	    "file content after write, read, write is not abc456Q");
+
+	/*
+	 * Output, fflush, then a pushback before any read: the stream is
+	 * still in write mode when ungetc arrives, so ungetc must make the
+	 * switch itself, or the next refill writes the pushed byte as output.
+	 */
+	check(lseek(fd, 0L, SEEK_SET) == 0 && ftruncate(fd, 0) == 0, "second seed rewind failed");
+	check(write(fd, "a23", 3) == 3 && lseek(fd, 0L, SEEK_SET) == 0, "second seed failed");
+	f._flag = _IORW;
+	f._cnt = 0;
+	f._ptr = f._base;
+	check(putc('a', &f) == 'a' && fflush(&f) == 0, "second output fails");
+	check(db_ungetc('X', &f) == 'X', "ungetc in write mode is refused");
+	check(getc(&f) == 'X', "the pushed-back byte does not come back");
+	check(getc(&f) == '2', "the byte after the pushback is not the file's next byte");
+	check(fflush(&f) == 0, "fflush after the read fails");
+	check(lseek(fd, 0L, SEEK_SET) == 0, "third rewind failed");
+	memset(back, 0, sizeof back);
+	n = (int)read(fd, back, sizeof back - 1);
+	check(n == 3 && memcmp(back, "a23", 3) == 0,
+	    "a pushed-back byte reached the file as output");
+
+	/*
+	 * A line-buffered r+ stream queues bytes through the putc macro
+	 * without calling _flsbuf until the newline; entering write mode
+	 * there must keep the queued prefix.
+	 */
+	check(lseek(fd, 0L, SEEK_SET) == 0 && ftruncate(fd, 0) == 0, "truncate failed");
+	{
+		static char lbuf[64];
+
+		f._flag = _IORW | _IOLBF;
+		f._base = f._ptr = lbuf;
+		f._bufsiz = (int)sizeof lbuf;
+		f._cnt = 0;
+	}
+	check(putc('a', &f) == 'a' && putc('b', &f) == 'b' && putc('c', &f) == 'c' &&
+	    putc('\n', &f) == '\n', "line-buffered putc fails");
+	check(lseek(fd, 0L, SEEK_SET) == 0, "fourth rewind failed");
+	memset(back, 0, sizeof back);
+	n = (int)read(fd, back, sizeof back - 1);
+	check(n == 4 && memcmp(back, "abc\n", 4) == 0,
+	    "a line-buffered r+ stream lost the bytes queued before the newline");
 
 	(void)close(fd);
 	if (failures == 0) {

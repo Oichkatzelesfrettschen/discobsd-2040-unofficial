@@ -33,16 +33,16 @@ _flsbuf(unsigned char c, FILE *iop)
 	int n, rn;
 
 	/*
-	 * An r+ stream entering write mode. C17 7.21.5.3p7 allows this
-	 * without a positioning call only at end of file, which is the
-	 * one way getc() leaves _cnt at zero with the buffer consumed. The
-	 * consumed read-ahead is discarded whenever write mode is not yet
-	 * on, so it is never written back as if it were output; _filbuf
-	 * has already dropped _IOREAD at end of file, so the test is on
-	 * _IOWRT rather than on the read flag.
+	 * An r+ stream entering write mode from read mode. C17 7.21.5.3p7
+	 * allows the switch without a positioning call only at end of
+	 * file, where _filbuf has already emptied the buffer; a switch
+	 * mid-buffer is undefined, and discarding the read-ahead is the
+	 * harmless answer to it. The test is on _IOREAD alone: a
+	 * line-buffered stream queues bytes through the putc macro before
+	 * write mode is on, and those are output, not read-ahead.
 	 */
 	if (iop->_flag & _IORW) {
-		if ((iop->_flag & _IOWRT) == 0) {
+		if (iop->_flag & _IOREAD) {
 			iop->_ptr = iop->_base;
 			iop->_cnt = 0;
 		}

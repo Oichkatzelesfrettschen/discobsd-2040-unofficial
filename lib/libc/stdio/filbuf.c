@@ -97,8 +97,16 @@ _filbuf(FILE *iop)
 	if (--iop->_cnt < 0) {
 		if (iop->_cnt == -1) {
 			iop->_flag |= _IOEOF;
-			if (iop->_flag & _IORW)
+			/*
+			 * End of file on an r+ stream ends read mode, and
+			 * the cursor returns to the buffer's base so that
+			 * no consumed read-ahead is left for _flsbuf to
+			 * mistake for queued output.
+			 */
+			if (iop->_flag & _IORW) {
 				iop->_flag &= ~_IOREAD;
+				iop->_ptr = iop->_base;
+			}
 		} else
 			iop->_flag |= _IOERR;
 		iop->_cnt = 0;

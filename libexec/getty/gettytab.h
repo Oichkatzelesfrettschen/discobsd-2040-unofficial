@@ -78,10 +78,17 @@ struct gettyflags {
 #define	EP	gettyflags[2].value
 #define	EPset	gettyflags[2].set
 #define	OP	gettyflags[3].value
-#define	OPset	gettyflags[2].set
+#define	OPset	gettyflags[3].set
 #define	AP	gettyflags[4].value
-#define	APset	gettyflags[2].set
+#define	APset	gettyflags[4].set
+/*
+ * telnetd includes this header and defines its own EC, a telnet option,
+ * before it; the getty flag of that name is never read there, so the
+ * guard lets the two definitions coexist without a redefinition error.
+ */
+#ifndef EC
 #define	EC	gettyflags[5].value
+#endif
 #define	CO	gettyflags[6].value
 #define	CB	gettyflags[7].value
 #define	CK	gettyflags[8].value
@@ -95,7 +102,8 @@ struct gettyflags {
 #define UB	gettyflags[16].value
 #define AB	gettyflags[17].value
 #define DX	gettyflags[18].value
-#define	HF	gettyflags[19].value
+#define HF	gettyflags[19].value
+#define NP	gettyflags[20].value
 
 int	getent(char *, char *);
 long	getnum(char *);

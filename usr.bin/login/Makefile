@@ -22,8 +22,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 LIBS            := -lutil $(LIBS)
 
-SRCS		= login.c
-OBJS		= login.o
+SRCS		= login.c tty_modes.c
+OBJS		= login.o tty_modes.o
 
 all:            login
 

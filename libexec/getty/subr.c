@@ -6,6 +6,7 @@
  * specifies the terms and conditions for redistribution.
  */
 #include <string.h>
+#include <strings.h>
 #include <sgtty.h>
 #include <unistd.h>
 
@@ -20,8 +21,7 @@ extern	struct ltchars ltc;
  * Get a table entry.
  */
 void
-gettable(name, buf, area)
-	char *name, *buf, *area;
+gettable(char *name, char *buf, char *area)
 {
 	register struct gettystrs *sp;
 	register struct gettynums *np;
@@ -123,8 +123,7 @@ setchars()
 }
 
 long
-setflags(n)
-	int n;
+setflags(int n)
 {
 	register long f;
 
@@ -182,14 +181,15 @@ setflags(n)
 		f |= CTLECH;
 	if (DX)
 		f |= DECCTQ;
+	if (NP)
+		f |= PASS8;
 	return (f);
 }
 
 char	editedhost[32];
 
 void
-edithost(pat)
-	register char *pat;
+edithost(char *pat)
 {
 	register char *host = HN;
 	register char *res = editedhost;
@@ -231,40 +231,38 @@ struct speedtab {
 	int	speed;
 	int	uxname;
 } speedtab[] = {
-	50,	B50,
-	75,	B75,
-	150,	B150,
-	200,	B200,
-	300,	B300,
-	600,	B600,
-	1200,	B1200,
-	1800,	B1800,
-	2400,	B2400,
-	4800,	B4800,
-	9600,	B9600,
-	19200,	B19200,
-	38400,	B38400,
-        57600,  B57600,
-        115200, B115200,
-        230400, B230400,
-        460800, B460800,
-        500000, B500000,
-        576000, B576000,
-        921600, B921600,
-        1000000, B1000000,
-        1152000, B1152000,
-        1500000, B1500000,
-        2000000, B2000000,
-        2500000, B2500000,
-        3000000, B3000000,
-        3500000, B3500000,
-        4000000, B4000000,
-	0
-};
+	{ 50,	B50 },
+	{ 75,	B75 },
+	{ 150,	B150 },
+	{ 200,	B200 },
+	{ 300,	B300 },
+	{ 600,	B600 },
+	{ 1200,	B1200 },
+	{ 1800,	B1800 },
+	{ 2400,	B2400 },
+	{ 4800,	B4800 },
+	{ 9600,	B9600 },
+	{ 19200,	B19200 },
+	{ 38400,	B38400 },
+	{ 57600,	B57600 },
+	{ 115200,	B115200 },
+	{ 230400,	B230400 },
+	{ 460800,	B460800 },
+	{ 500000,	B500000 },
+	{ 576000,	B576000 },
+	{ 921600,	B921600 },
+	{ 1000000,	B1000000 },
+	{ 1152000,	B1152000 },
+	{ 1500000,	B1500000 },
+	{ 2000000,	B2000000 },
+	{ 2500000,	B2500000 },
+	{ 3000000,	B3000000 },
+	{ 3500000,	B3500000 },
+	{ 4000000,	B4000000 },
+	{ 0,	0 }};
 
 long
-speed(val)
-	long val;
+speed(long val)
 {
 	register struct speedtab *sp;
 
@@ -279,22 +277,20 @@ speed(val)
 }
 
 void
-makeenv(env)
-	char *env[];
+makeenv(char *env[])
 {
 	static char termbuf[128] = "TERM=";
 	register char *p, *q;
 	register char **ep;
-	char *index();
 
 	ep = env;
 	if (TT && *TT) {
 		strcat(termbuf, TT);
 		*ep++ = termbuf;
 	}
-	if (p = EV) {
+	if ((p = EV) != 0) {
 		q = p;
-		while (q = index(q, ',')) {
+		while ((q = index(q, ',')) != 0) {
 			*q++ = '\0';
 			*ep++ = p;
 			p = q;
@@ -333,7 +329,7 @@ portselector()
 {
 	char c, baud[20], *type = "default";
 	register struct portselect *ps;
-	int len;
+	size_t len;
 
 	alarm(5*60);
 	for (len = 0; len < sizeof (baud) - 1; len++) {

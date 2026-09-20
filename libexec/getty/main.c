@@ -17,6 +17,7 @@
 #include <ctype.h>
 #include <setjmp.h>
 #include <syslog.h>
+#include <strings.h>
 #include <sys/file.h>
 
 #include "gettytab.h"
@@ -57,6 +58,54 @@ char	tabstrs[TABBUFSIZ];
 
 char	*env[128];
 
+/*
+ * A setflags() word carries the sgtty flags in its low half and the local
+ * mode word in its high half. TIOCSETP must precede TIOCLSET so a PASS8
+ * request reaches the driver after the base terminal mode is installed.
+ */
+void
+splitflags(long allflags, struct sgttyb *tp, int *localp)
+{
+	tp->sg_flags = (short)(allflags & 0xffff);
+	*localp = (int)(allflags >> 16);
+}
+
+void
+applyflags(struct sgttyb *tp, int local)
+{
+	ioctl(0, TIOCSETP, tp);
+	ioctl(0, TIOCLSET, &local);
+}
+
+void
+applymode(long allflags, struct sgttyb *tp, int lowflags)
+{
+	int local;
+
+	splitflags(allflags, tp, &local);
+	tp->sg_flags |= (short)lowflags;
+	applyflags(tp, local);
+}
+
+/*
+ * gettable() preserves default values for capabilities a named entry omits.
+ * An explicit parity capability replaces that mutually exclusive default,
+ * so the omitted alternatives must clear before setdefaults() runs.
+ */
+void
+resolveparity(void)
+{
+	if (!(OPset || EPset || APset))
+		return;
+	if (!OPset)
+		OP = 0;
+	if (!EPset)
+		EP = 0;
+	if (!APset)
+		AP = 0;
+	APset = OPset = EPset = 1;
+}
+
 char partab[] = {
 	0001,0201,0201,0001,0201,0001,0001,0201,
 	0202,0004,0003,0205,0005,0206,0201,0001,
@@ -82,9 +131,10 @@ char partab[] = {
 
 jmp_buf timeout;
 
-void dingdong(sig)
-        int sig;
+void
+dingdong(int sig)
 {
+	(void)sig;
 	alarm(0);
 	signal(SIGALRM, SIG_DFL);
 	longjmp(timeout, 1);
@@ -92,9 +142,10 @@ void dingdong(sig)
 
 jmp_buf	intrupt;
 
-void interrupt(sig)
-        int sig;
+void
+interrupt(int sig)
 {
+	(void)sig;
 	signal(SIGINT, interrupt);
 	longjmp(intrupt, 1);
 }
@@ -108,16 +159,12 @@ static void	prompt(void);
 static void	putf(char *);
 
 int
-main(argc, argv)
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
-	int vhangup();
+	int vhangup(void);
 
-	register char *tname;
-	long allflags;
+	char *volatile tname;
 	int repcnt = 0;
-	int someflags;
 
 	signal(SIGINT, SIG_IGN);
 /*
@@ -174,8 +221,7 @@ main(argc, argv)
 		int ldisp = NTTYDISC;
 
 		gettable(tname, tabent, tabstrs);
-		if (OPset || EPset || APset)
-			APset++, OPset++, EPset++;
+		resolveparity();
 		setdefaults();
 		ioctl(0, TIOCFLUSH, 0);		/* clear out the crap */
 		if (IS)
@@ -186,8 +232,7 @@ main(argc, argv)
 			tmode.sg_ospeed = speed(OS);
 		else if (SP)
 			tmode.sg_ospeed = speed(SP);
-		tmode.sg_flags = setflags(0);
-		ioctl(0, TIOCSETP, &tmode);
+		applymode(setflags(0), &tmode, 0);
 		setchars();
 		ioctl(0, TIOCSETC, &tc);
 		ioctl(0, TIOCSETD, &ldisp);
@@ -225,14 +270,9 @@ main(argc, argv)
 			signal(SIGALRM, SIG_DFL);
 			if (!(upper || lower || digit))
 				continue;
-			allflags = setflags(2);
-			tmode.sg_flags = allflags & 0xffff;
-			someflags = allflags >> 16;
-			if (crmod || NL)
-				tmode.sg_flags |= CRMOD;
-			ioctl(0, TIOCSETP, &tmode);
+			applymode(setflags(2), &tmode,
+			    crmod || NL ? CRMOD : 0);
 			ioctl(0, TIOCSLTC, &ltc);
-			ioctl(0, TIOCLSET, &someflags);
 			signal(SIGINT, SIG_DFL);
 			for (i = 0; environ[i] != (char *)0; i++)
 				env[i] = environ[i];
@@ -249,8 +289,7 @@ main(argc, argv)
 }
 
 static void
-putstr(s)
-	register const char *s;
+putstr(const char *s)
 {
 	while (*s)
 		putchr(*s++);
@@ -262,6 +301,7 @@ getname(void)
 	register char *np;
 	register int c;
 	char cs;
+	long readflags;
 
 	/*
 	 * Interrupt may happen if we use CBREAK mode
@@ -271,16 +311,15 @@ getname(void)
 		return (0);
 	}
 	signal(SIGINT, interrupt);
-	tmode.sg_flags = setflags(0);
-	ioctl(0, TIOCSETP, &tmode);
-	tmode.sg_flags = setflags(1);
+	applymode(setflags(0), &tmode, 0);
+	readflags = setflags(1);
 	prompt();
 	if (PF > 0) {
 		oflush();
 		sleep((int)PF);
 		PF = 0;
 	}
-	ioctl(0, TIOCSETP, &tmode);
+	applymode(readflags, &tmode, 0);
 	crmod = 0;
 	upper = 0;
 	lower = 0;
@@ -342,8 +381,7 @@ short	tmspc10[] = {
 };
 
 static void
-putpad(s)
-	register char *s;
+putpad(char *s)
 {
 	register int pad = 0;
 	register int mspc10;
@@ -368,7 +406,8 @@ putpad(s)
 	if (pad == 0)
 		return;
 	if (tmode.sg_ospeed <= 0 ||
-	    tmode.sg_ospeed >= (sizeof tmspc10 / sizeof tmspc10[0]))
+	    (unsigned char)tmode.sg_ospeed >=
+	    (sizeof tmspc10 / sizeof tmspc10[0]))
 		return;
 
 	/*
@@ -378,7 +417,7 @@ putpad(s)
 	 * Transmitting pad characters slows many
 	 * terminals down and also loads the system.
 	 */
-	mspc10 = tmspc10[tmode.sg_ospeed];
+	mspc10 = tmspc10[(unsigned char)tmode.sg_ospeed];
 	pad += mspc10 / 2;
 	for (pad /= mspc10; pad > 0; pad--)
 		putchr(*PC);
@@ -388,8 +427,7 @@ char	outbuf[OBUFSIZ];
 int	obufcnt = 0;
 
 static void
-putchr(cc)
-	int cc;
+putchr(int cc)
 {
 	char c;
 
@@ -423,13 +461,11 @@ prompt(void)
 }
 
 static void
-putf(cp)
-	register char *cp;
+putf(char *cp)
 {
 	char *ttyn, *slash;
 	char datebuffer[60];
 	extern char editedhost[];
-	extern char *ttyname(), *rindex();
 
 	while (*cp) {
 		if (*cp != '%') {

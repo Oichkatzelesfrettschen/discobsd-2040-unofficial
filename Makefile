@@ -210,6 +210,11 @@ check-dirent-contracts-cross:
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
 
+# getty's tty mode derivation, setflags() in libexec/getty/subr.c, over the
+# flag tables it reads, on the host.
+check-getty-contracts:
+		${MAKE} -C tests/getty_contracts check
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -312,7 +317,7 @@ check-elf2aout:	tools
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
-		check-dirent-contracts \
+		check-dirent-contracts check-getty-contracts \
 		check-cat-contracts check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \

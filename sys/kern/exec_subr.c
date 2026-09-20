@@ -676,6 +676,21 @@ void exec_clear(struct exec_params *epp)
     bzero((void *)epp->stack.vaddr, epp->stack.len);
 
     /*
+     * Clear the gap between the image and its stack. One resident process
+     * holds one window at a fixed address, and a swap carries an image's
+     * data and stack alone, so the bytes here belong to whichever program
+     * ran last. A process reaches them by growing its break or through a
+     * stray pointer, and must find zero rather than another program's
+     * memory. usr.bin/mputest residue is the oracle.
+     */
+    cp = (epp->heap.vaddr != NO_ADDR) ? epp->heap.vaddr + epp->heap.len :
+                                        epp->bss.vaddr + epp->bss.len;
+    if (cp < epp->stack.vaddr) {
+        cc = epp->stack.vaddr - cp;
+        bzero((void *)cp, cc);
+    }
+
+    /*
      * set SUID/SGID protections, if no tracing
      */
     if ((u.u_procp->p_flag & P_TRACED) == 0) {

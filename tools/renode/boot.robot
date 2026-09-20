@@ -105,6 +105,13 @@ The boot reaches a login prompt and a shell
     Write Line To Uart          mputest
     Wait For Line On Uart       MPUTEST OK (mpu on)                         timeout=300
 
+    # The residue probe fills the span between the image and its stack,
+    # execs, and counts what the new image still reads there. exec_clear
+    # zeroes that span, so a kernel that hands a program the last one's
+    # bytes reports a surviving count and fails here.
+    Write Line To Uart          mputest residue
+    Wait For Line On Uart       RESIDUE OK                                  timeout=300
+
 *** Keywords ***
 Teardown With Transcript
     Run Keyword If Test Failed  Log Uart Transcript

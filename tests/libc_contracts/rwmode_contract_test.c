@@ -134,6 +134,52 @@ main(void)
 	check(n == 4 && memcmp(back, "abc\n", 4) == 0,
 	    "a line-buffered r+ stream lost the bytes queued before the newline");
 
+	/*
+	 * A partial line on a line-buffered r+ stream: the putc macro queues
+	 * it without _flsbuf, so _IOWRT is still off when fflush and then
+	 * getc arrive. Both must treat the queued bytes as output.
+	 */
+	check(lseek(fd, 0L, SEEK_SET) == 0 && ftruncate(fd, 0) == 0, "fifth truncate failed");
+	check(write(fd, "123", 3) == 3 && lseek(fd, 0L, SEEK_SET) == 0, "fifth seed failed");
+	{
+		static char lbuf2[64];
+
+		f._flag = _IORW | _IOLBF;
+		f._base = f._ptr = lbuf2;
+		f._bufsiz = (int)sizeof lbuf2;
+		f._cnt = 0;
+	}
+	check(putc('a', &f) == 'a', "partial-line putc fails");
+	check(fflush(&f) == 0, "fflush of a partial line fails");
+	check(getc(&f) == '2', "getc after a flushed partial line does not continue at offset 1");
+	check(lseek(fd, 0L, SEEK_SET) == 0, "sixth rewind failed");
+	memset(back, 0, sizeof back);
+	n = (int)read(fd, back, sizeof back - 1);
+	check(n == 3 && memcmp(back, "a23", 3) == 0,
+	    "a flushed partial line on a line-buffered r+ stream did not reach the file");
+
+	/*
+	 * Pushback after end of file, then consumed: the stream was in
+	 * neither mode, and the consumed byte must not be taken for
+	 * queued output by fflush or by the next refill.
+	 */
+	check(lseek(fd, 0L, SEEK_SET) == 0 && ftruncate(fd, 0) == 0, "seventh truncate failed");
+	check(write(fd, "q", 1) == 1 && lseek(fd, 0L, SEEK_SET) == 0, "seventh seed failed");
+	f._flag = _IORW;
+	f._base = f._ptr = NULL;
+	f._bufsiz = 0;
+	f._cnt = 0;
+	check(getc(&f) == 'q' && getc(&f) == EOF, "read to end of file fails");
+	check(db_ungetc('Z', &f) == 'Z', "ungetc after end of file is refused");
+	check(getc(&f) == 'Z', "the byte pushed back after end of file does not come back");
+	check(fflush(&f) == 0, "fflush after consuming the pushback fails");
+	check(getc(&f) == EOF, "end of file does not persist after the pushback is consumed");
+	check(lseek(fd, 0L, SEEK_SET) == 0, "eighth rewind failed");
+	memset(back, 0, sizeof back);
+	n = (int)read(fd, back, sizeof back - 1);
+	check(n == 1 && back[0] == 'q',
+	    "a consumed pushback after end of file reached the file as output");
+
 	(void)close(fd);
 	if (failures == 0) {
 		(void)write(1, "rwmode contracts: pass\n", 23);

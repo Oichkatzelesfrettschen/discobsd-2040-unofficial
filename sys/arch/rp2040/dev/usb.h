@@ -117,6 +117,18 @@ extern struct tty usbttys[];
  */
 extern u_int usb_e15_deferred;
 extern u_int usb_e15_bulkin_arms;
+
+/*
+ * Console robustness accounting, readable as machdep.usb_service_reentered
+ * and machdep.usb_tx_recovered. The first counts services refused to a
+ * caller that interrupted the driver, which only a fault can be; the second
+ * counts bulk IN buffers released after a completion that never arrived.
+ * Both read zero on a healthy boot.
+ */
+extern u_int usb_service_reentered;
+extern u_int usb_tx_recovered;
+
+void	usbabandon(void);
 #endif	/* KERNEL */
 
 #endif	/* !_RP2040_DEV_USB_H_ */

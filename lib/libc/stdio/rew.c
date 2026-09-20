@@ -2,11 +2,10 @@
 #include <unistd.h>
 
 void
-rewind(iop)
-        register FILE *iop;
+rewind(FILE *iop)
 {
 	fflush(iop);
-	lseek(fileno(iop), 0L, 0);
+	lseek(fileno(iop), 0L, SEEK_SET);
 	iop->_cnt = 0;
 	iop->_ptr = iop->_base;
 	iop->_flag &= ~(_IOERR|_IOEOF);

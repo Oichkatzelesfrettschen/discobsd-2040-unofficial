@@ -417,6 +417,37 @@ source. The `0x` with no following hexadecimal digit consumes the `x`, which
 departs from the longest-subject-sequence rule by one character and is the
 documented cost of a single-character pushback.
 
+### Further defects in patch 499 reported by automated review
+
+When the fork carrying patch 499 opened its pull request, Codex reviewed
+the whole 499 lineage and left twelve inline findings, all against 499's
+stdio and none against the `_fwalk` fix. They are recorded here as reported,
+at evidence rank 4 (a reviewer's reading of source), unverified by
+execution; each names a file and line in the 499 tree and a concrete input.
+
+| File | Claim |
+| --- | --- |
+| `vfprintf.c:132` | an integer precision above `SZBUF` allocates `max(width, precision)` bytes and then prepends the sign or `0x` outside it; `printf("%.100d", -1)` writes one byte before the buffer |
+| `vfprintf.c:91` | the return is the intended count even when the stream took an error; the old `vfprintf` returned `EOF` on `ferror` |
+| `vfprintf.c:108` | flags accumulate by addition, so a repeated flag such as `%00d` sums into a different bit (`MLONG`) and the argument list is read wrong |
+| `vfprintf.c:119` | a negative `*` precision is stored and `NDFND` set, where C requires it treated as absent |
+| `vfprintf.c:193` | `%ln` and other modified `%n` always store through `int *` |
+| `sscanf.c:55` | the static `strops` carries the mutable `_ub` pushback buffer, so a rollback such as `sscanf("+.", "%f", ...)` leaves a buffer attached to a destroyed stack `FILE` for the next call |
+| `fseek.c:138` | a seek leaves `__SUNC` set, so the next refill restores the pre-seek `_up`/`_ur` |
+| `fpurge.c:60` | `__SUNC` state survives a purge for the same reason |
+| `freopen.c:131` | a failed reopen of a stream with private fileops leaks them |
+| `freopen.c:151` | `freopen` in append mode does not seek to the end as `fopen` does |
+| `tempnam.c:61` | an empty `TMPDIR` or `dir` indexes `strlen(f) - 1` before the string |
+| `man/man3/Makefile:23` | `fgetln(3)` and `funopen(3)` are installed with no implementation in libc |
+
+Three of these bear on this tree's own choices. The `sscanf.c` finding is
+the hazard `scanf.c` here avoids by never letting the scanner push back a
+byte it did not read; the `vfprintf.c:91` finding is the contract
+`vfprintf.c` here keeps by returning `EOF` on `ferror`; and `tempnam.c:61`
+is not inherited: `compat/tmpnam.c`'s `try_directory` returns NULL on an
+empty directory before it indexes the last character. The rest belong in the report to the
+2.11BSD maintainer, `211bsd-fwalk-report.md`, when that report is sent.
+
 ## Queued campaigns
 
 Each names its gate. None is started.
@@ -425,7 +456,7 @@ Each names its gate. None is started.
 | --- | --- | --- |
 | Torek FILE evaluation | Done and declined: `stdio-torek-evaluation.md`. The prototype on `eval/stdio-torek` builds and passes the stdio gates, and costs a median +534 bytes per program, +256 data in every program, and pushes `adminbox` to 23 packed blocks against its budget of 22. Two small mechanisms from it are queued below | The full build and the three stdio contract gates ran; the `adminbox` packed-root gate was the deciding measurement |
 | One-byte pushback slot | Done: `_ub[1]` and `_IOUNGET` in `struct _iobuf`, the saved count parked in `_bufsiz`, which a string stream never refills from; `FILE` 20 to 24 bytes. `filbuf.c`, `flsbuf.c`, `findiop.c`, `ungetc.c` and `exit.c` are C17 with prototypes in the same change, and `_f_morefiles` now fails whole rather than leaving `_smallbuf` short of the descriptor table | `check-libc-scanf` carries the differing-byte pushback over a literal at every tier; the V7 `ungetc` faults on it |
-| `r+` mode discipline | Flush before read and discard the read buffer before write on one stream, as 499's `__srefill` and `__swsetup` do | A host contract that writes, reads back and writes again on one `r+` stream |
+| `r+` mode discipline | Done: `_filbuf` flushes pending output and drops `_IOWRT` when an r+ stream turns to input; `_flsbuf` discards consumed read-ahead when it turns to output; `fflush` leaves an r+ stream with no free count so the switch is seen. `fseek.c`, `ftell.c` and `rew.c` take prototypes in the same change | `check-libc-rwmode`: write, `fflush`, read to end, write again over a host file; the V7 core fails four of its checks |
 | `vfprintf` conformance | 499's `vfprintf` against this tree's `_doprnt`: `%a`, the `'` and `z`/`j`/`t` modifiers, and the return-value contract | Extend `check-libc-printf` with the directives `_doprnt` lacks, calibrated against the current formatter |
 | Patch 460 ANSI sweep | The 17 shared files of the upstream ANSI groundwork, as a source of prototypes rather than a patch application | `check-warning-policy-host` at `full` for each directory touched |
 | getty console fixes | Patches 480, 484, 487 and 493 against `libexec/getty`, which this port's console path descends from | A console gate; none exists, and this is the reason to build one |

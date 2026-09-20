@@ -42,8 +42,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		rm -f /tmp/ilp32probe$$$$.c
 
 check-host: ${PROG} header_contract.o check-malloc check-printf check-scanf \
-	check-syslog check-vis check-qsort check-strtox check-string-security
-
+	check-rwmode check-syslog check-vis check-qsort check-strtox \
+	check-string-security
 	./${PROG}
 
 check: check-host check-aout
@@ -319,6 +319,50 @@ scanf_strtod_asan.o: ${SCANF_STDLIB_DIR}/strtod.c
 scanf_ctype_asan.o: ${SCANF_GEN_DIR}/ctype_.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
 
+# The r+ mode switch in _filbuf and _flsbuf over a host temporary file.
+# fflush stays the tree's so the free-count discipline under test is the
+# one that ships; the buffer members are renamed so getc and putc reach them.
+RWMODE_RENAMES=	-D_filbuf=db_filbuf -D_flsbuf=db_flsbuf -Dfflush=db_fflush \
+		-Dfclose=db_fclose -Dungetc=db_ungetc -Dfstat=test_fstat \
+		-Derrno=rwmode_test_errno
+RWMODE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include ${RWMODE_RENAMES}
+RWMODE_OBJS=	rwmode_filbuf.o rwmode_flsbuf.o rwmode_ungetc.o
+RWMODE_OBJS32=	rwmode_filbuf32.o rwmode_flsbuf32.o rwmode_ungetc32.o
+
+check-rwmode: rwmode_contract_test
+	./rwmode_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} rwmode_contract_test32
+	./rwmode_contract_test32
+.else
+	@echo "check-libc-rwmode: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+rwmode_contract_test: rwmode_contract_test.c ${RWMODE_OBJS}
+	${HOSTCC} ${RWMODE_CFLAGS} -o $@ rwmode_contract_test.c ${RWMODE_OBJS}
+
+rwmode_contract_test32: rwmode_contract_test.c ${RWMODE_OBJS32}
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -o $@ rwmode_contract_test.c ${RWMODE_OBJS32}
+
+rwmode_filbuf.o: ${PRINTF_DIR}/filbuf.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/filbuf.c
+
+rwmode_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
+rwmode_ungetc.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+rwmode_ungetc32.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+rwmode_filbuf32.o: ${PRINTF_DIR}/filbuf.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/filbuf.c
+
+rwmode_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
 check-strtox: strtox_test
 	./strtox_test
 .if ${ILP32_OK} == "yes"
@@ -434,11 +478,12 @@ clean:
 		string_timingsafe_bcmp_bad_target.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
+	rm -f rwmode_contract_test rwmode_contract_test32 ${RWMODE_OBJS} ${RWMODE_OBJS32}
 	rm -f scanf_contract_test scanf_contract_test32 scanf_contract_test_asan \
 		${SCANF_OBJS} ${SCANF_OBJS32} ${SCANF_OBJS_ASAN}
 
 all: check
 
-.PHONY: all check check-host check-aout check-malloc check-printf check-qsort check-scanf \
-	check-string-security check-string-security-cross check-strtox \
-	check-syslog check-vis clean
+.PHONY: all check check-host check-aout check-malloc check-printf check-qsort \
+	check-rwmode check-scanf check-string-security \
+	check-string-security-cross check-strtox check-syslog check-vis clean

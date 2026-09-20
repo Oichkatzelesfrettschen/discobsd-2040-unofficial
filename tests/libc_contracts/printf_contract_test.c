@@ -1,5 +1,7 @@
+#include <sys/types.h>
 #include <errno.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -88,6 +90,74 @@ main(void)
 	length = bounded_format(exact, (size_t)INT_MAX + 1U, "%s", "x");
 	check(length == -1 && errno == EINVAL,
 	    "printf contract: unrepresentable stream size reports EINVAL");
+
+	/*
+	 * Length modifiers of C17 7.21.6.1p7. The formatter before this gate
+	 * knew only l: %zu fell to the default case and printed the letters
+	 * with the argument unconsumed, %lld read four bytes of an
+	 * eight-byte argument, and %n printed a number.
+	 */
+	{
+		char out[64];
+		int count = -1;
+		long lcount = -1;
+		signed char ccount = -1;
+
+		bounded_format(out, sizeof out, "%hhd %hd %hu", 200, 70000, 70000);
+		check(strcmp(out, "-56 4464 4464") == 0,
+		    "printf contract: hh and h narrow the promoted argument");
+		bounded_format(out, sizeof out, "%lld|%llu|%llx",
+		    -(1LL << 40), (unsigned long long)1 << 63, 0xdeadbeefcafeULL);
+		check(strcmp(out, "-1099511627776|9223372036854775808|deadbeefcafe") == 0,
+		    "printf contract: ll converts a 64-bit value");
+		bounded_format(out, sizeof out, "%#llo", (unsigned long long)1 << 35);
+		check(strcmp(out, "0400000000000") == 0,
+		    "printf contract: # applies to a 64-bit octal");
+		bounded_format(out, sizeof out, "%lld", 7LL);
+		check(strcmp(out, "7") == 0,
+		    "printf contract: a small ll value takes the word path");
+		bounded_format(out, sizeof out, "%zu %zd %td %jd",
+		    (size_t)1234567, (ssize_t)-5, (ptrdiff_t)-9, (long long)-3);
+		check(strcmp(out, "1234567 -5 -9 -3") == 0,
+		    "printf contract: z, t and j convert their types");
+		bounded_format(out, sizeof out, "ab%ncd%lnef%hhn", &count, &lcount, &ccount);
+		check(strcmp(out, "abcdef") == 0 && count == 2 && lcount == 4 && ccount == 6,
+		    "printf contract: %n stores the count and prints nothing");
+		bounded_format(out, sizeof out, "%.*s|%.*d|%5.3d", -1, "abc", -1, 7, 4);
+		check(strcmp(out, "abc|7|  004") == 0,
+		    "printf contract: a negative * precision is taken as omitted");
+		bounded_format(out, sizeof out, "% d % d %+d", 5, -5, 5);
+		check(strcmp(out, " 5 -5 +5") == 0,
+		    "printf contract: the space flag reserves a sign position");
+		bounded_format(out, sizeof out, "%D", 123456789L);
+		check(strcmp(out, "123456789") == 0,
+		    "printf contract: the %D long extension survives");
+	}
+#ifdef PRINTF_FLOAT_TEST
+	{
+		char out[64];
+
+		bounded_format(out, sizeof out, "%a %A", 1.0, 1.0);
+		check(strcmp(out, "0x1p+0 0X1P+0") == 0,
+		    "printf contract: %a of one");
+		bounded_format(out, sizeof out, "%a", 0.1);
+		check(strcmp(out, "0x1.999999999999ap-4") == 0,
+		    "printf contract: %a prints every digit the value has");
+		bounded_format(out, sizeof out, "%.3a %.0a", 1.0, 1.5);
+		check(strcmp(out, "0x1.000p+0 0x2p+0") == 0 ||
+		    strcmp(out, "0x1.000p+0 0x1p+1") == 0,
+		    "printf contract: %a honors precision and rounds to even");
+		bounded_format(out, sizeof out, "%.1a", 0x1.f8p0);
+		check(strcmp(out, "0x1.0p+1") == 0,
+		    "printf contract: %a carries a rounding overflow into the exponent");
+		bounded_format(out, sizeof out, "%a %a", -0.0, 0.0);
+		check(strcmp(out, "-0x0p+0 0x0p+0") == 0,
+		    "printf contract: %a keeps the sign of a negative zero");
+		bounded_format(out, sizeof out, "%.2f %e", 3.14159, 1234.5);
+		check(strcmp(out, "3.14 1.234500e+03") == 0,
+		    "printf contract: %f and %e still convert");
+	}
+#endif
 
 	if (failures != 0) {
 		(void)write(2, "printf contract tests failed\n", 29);

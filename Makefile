@@ -165,6 +165,10 @@ check-libc-strtox:
 check-libc-printf:
 		${MAKE} -C tests/libc_contracts check-printf
 
+# The formatter with doprnt_float linked: %a and the decimal conversions.
+check-libc-printf-float:
+		${MAKE} -C tests/libc_contracts check-printf-float
+
 # The formatted input scanner at host width, at ILP32 and under the address
 # sanitizer. The sanitizer tier is the one that sees a scratch overrun
 # inside the scanner's own frame.
@@ -261,7 +265,7 @@ check-elf2aout:	tools
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-malloc \
-		check-libc-qsort check-libc-strtox check-libc-printf \
+		check-libc-qsort check-libc-strtox check-libc-printf check-libc-printf-float \
 		check-libc-scanf \
 		check-libc-syslog check-libc-vis check-cat-contracts \
 		check-rmdir-contracts \

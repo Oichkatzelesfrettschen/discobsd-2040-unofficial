@@ -44,8 +44,9 @@ has driven the machine here, and it records only the lines it waits for.
 `check-renode` cannot currently distinguish a getty change that breaks the
 console from one that does not, on this host, because the run never reaches
 getty. The getty patches from 2.11BSD 480, 484, 487 and 493 are therefore
-proposed with their build and size evidence and with this gate recorded as
-failing on `main` before them, not as passing after them.
+proposed with their build and size evidence, with `check-getty-contracts`
+pinning the mode derivation they change on the host, and with this gate
+recorded as failing on `main` before them, not as passing after them.
 
 ## Next measurement
 

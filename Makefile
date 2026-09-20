@@ -183,6 +183,11 @@ check-libc-vis:
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
 
+# getty's tty mode derivation, setflags() in libexec/getty/subr.c, over the
+# flag tables it reads, on the host.
+check-getty-contracts:
+		${MAKE} -C tests/getty_contracts check
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -262,7 +267,7 @@ check-elf2aout:	tools
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-scanf \
+		check-libc-scanf check-getty-contracts \
 		check-libc-syslog check-libc-vis check-cat-contracts \
 		check-rmdir-contracts \
 		check-aout check-kernel check-fs-stress \

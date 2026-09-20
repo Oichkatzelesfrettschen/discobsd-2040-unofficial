@@ -32,10 +32,16 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 BUILTIN_OBJS=	tiny_applets.o
 PROG=		adminbox
 HSAOUT=		${TOPSRC}/tools/bin/hsaout
-# Root budget for the packed image: 21 blocks from arm-none-eabi-gcc 16
-# (Arch), 22 from gcc 13 (Ubuntu 24.04, the CI toolchain), so the gate
-# holds the larger of the two.
-MAX_PACKED_ROOT_BLOCKS= 22
+# Root budget for the packed image, a regression watermark rather than a
+# hardware limit: hsaout -s reports 23 blocks from arm-none-eabi-gcc 16
+# (Arch) for this tree, against 22 for the same toolchain before the C17
+# _doprnt landed. The growth is in doprnt.c itself -- the hh, h, ll, z, t
+# and j length modifiers, a standard %n, the space flag and a negative *
+# precision -- and it is 472 raw bytes, 372 packed. It cannot be opted out
+# of the way the 64-bit and float digit paths can: doprnt_llong.o and
+# doprnt_float.o stay behind PRINTF_LLONG and PRINTF_FLOAT with weak
+# __doprnt_ll and __doprnt_fp, so adminbox links neither.
+MAX_PACKED_ROOT_BLOCKS= 23
 
 CFLAGS+=	-Wall -Wextra -Werror -Wformat=2
 

@@ -7,6 +7,8 @@ branch main). The tree carries the code, the man pages, the port
 documentation under sys/arch/rp2040/doc, and the research corpus under
 docs/research. docs/INDEX.md maps every document in both and is the
 entry point for a reader who does not yet know which one holds an answer.
+The constrained-C and C17 proposal and its migration evidence live at
+@./docs/research/STYLE-GUIDE.md.
 
 Two doc homes, one rule: a document that code, a Makefile or the root
 manifest cites as the authority for a shipped mechanism lives in

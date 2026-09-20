@@ -102,8 +102,8 @@ STDLIB_C = set("getopt getsubopt strtod strtol strtoul".split())
 
 STRING_C = set(
     """
-strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr strtok
-strtok_r
+explicit_bzero strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr
+strtok strtok_r timingsafe_bcmp
 """.split()
 )
 

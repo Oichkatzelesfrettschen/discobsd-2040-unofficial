@@ -192,6 +192,30 @@ check-rmdir-contracts:
 check-rmdir-contracts-cross:
 		${MAKE} -C tests/rmdir_contracts check-cross
 
+check-tee-contracts:
+		${MAKE} -C tests/tee_contracts check
+
+check-tee-contracts-cross:
+		${MAKE} -C tests/tee_contracts check-cross
+
+check-du-contracts:
+		${MAKE} -C tests/du_contracts check
+
+check-du-contracts-cross:
+		${MAKE} -C tests/du_contracts check-cross
+
+check-resize-contracts:
+		${MAKE} -C tests/resize_contracts check
+
+check-resize-contracts-cross:
+		${MAKE} -C tests/resize_contracts check-cross
+
+check-libc-string-security:
+		${MAKE} -C tests/libc_contracts check-string-security
+
+check-libc-string-security-cross:
+		${MAKE} -C tests/libc_contracts check-string-security-cross
+
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
 
@@ -263,8 +287,9 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-scanf \
-		check-libc-syslog check-libc-vis check-cat-contracts \
-		check-rmdir-contracts \
+		check-libc-syslog check-libc-vis check-libc-string-security \
+		check-cat-contracts check-rmdir-contracts check-tee-contracts \
+		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles \
@@ -274,7 +299,9 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 CROSS_GATES=	check-warning-policy-cross check-divider check-swapram check-cache-footprint \
 		check-exec-spool check-ufs-prototypes check-hsaout \
 		check-libc-contracts check-cat-contracts-cross \
-		check-rmdir-contracts-cross check-flash-swap
+		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-du-contracts-cross check-resize-contracts-cross \
+		check-libc-string-security-cross check-flash-swap
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:

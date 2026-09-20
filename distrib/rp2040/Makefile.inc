@@ -77,6 +77,8 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
 				${TOPSRC}/lib/libc/gen/raise.c \
 				${TOPSRC}/lib/libc/gen/vis.c \
+				${TOPSRC}/lib/libc/string/explicit_bzero.c \
+				${TOPSRC}/lib/libc/string/timingsafe_bcmp.c \
 				${TOOLBINDIR}/as ${TOOLBINDIR}/ar ${TOOLBINDIR}/ranlib
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${PYTHON} ${MKBOARDLIBC} --toolbindir=${TOOLBINDIR} \

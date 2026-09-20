@@ -41,6 +41,15 @@ char *nenv[] = {
 };
 extern char **environ;
 
+static int
+password_matches(const char *computed, const char *stored)
+{
+	size_t length = strlen(stored);
+
+	return strlen(computed) == length &&
+	    timingsafe_bcmp(computed, stored, length) == 0;
+}
+
 main(argc, argv)
 int argc;
 char **argv;
@@ -150,6 +159,7 @@ struct sockaddr_in *sinp;
 	char *xpasswd, *crypt();
 	struct passwd *pw, *getpwnam();
 
+	passwd[0] = '\0';
 	alarm(60);
 	printf("login: "); fflush(stdout);
 	if (readline(user, sizeof user) < 0) {
@@ -171,10 +181,12 @@ struct sockaddr_in *sinp;
 		printf("Password: "); fflush(stdout);
 		if (readline(passwd, sizeof passwd) < 0) {
 			fprintf(stderr, "passwd read\n");
+			explicit_bzero(passwd, sizeof(passwd));
 			return;
 		}
 		xpasswd = crypt(passwd, pw->pw_passwd);
-		if (strcmp(xpasswd, pw->pw_passwd)) {
+		explicit_bzero(passwd, sizeof(passwd));
+		if (!password_matches(xpasswd, pw->pw_passwd)) {
 			fprintf(stderr, "Login incorrect.");
 			return;
 		}

@@ -170,6 +170,11 @@ project this port forked from and is fetch-only: upstream reaches `main`
 through a deliberate rebase that records the divergence, and a submission
 back to it happens under an explicit request naming the scope.
 
+Pull requests use merge commits so `main` retains the reviewed commit
+boundaries and their individual validation records. Squash merging is
+forbidden. A branch that needs a smaller or clearer history rewrites that
+history before review rather than replacing it at integration time.
+
 ## Source comments
 
 Code says what happens; a comment says why the code has that shape -- the

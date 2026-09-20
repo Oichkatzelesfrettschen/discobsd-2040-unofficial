@@ -23,6 +23,47 @@
 
 extern struct sgttyb tmode;
 
+#define GETTYTAB_DESCRIPTOR 31
+#define GETTYTAB_BUFFER_SIZE 512
+
+static const char *gettytab_fixture;
+static size_t gettytab_offset;
+static char entry_buffer[GETTYTAB_BUFFER_SIZE];
+static char entry_strings[GETTYTAB_BUFFER_SIZE];
+static char default_buffer[GETTYTAB_BUFFER_SIZE];
+static char default_strings[GETTYTAB_BUFFER_SIZE];
+
+int
+test_open(const char *path, int flags, ...)
+{
+	(void)flags;
+	if (strcmp(path, "/etc/gettytab") != 0)
+		return -1;
+	gettytab_offset = 0;
+	return GETTYTAB_DESCRIPTOR;
+}
+
+ssize_t
+test_read(int descriptor, void *buffer, size_t capacity)
+{
+	size_t remaining;
+	size_t transferred;
+
+	if (descriptor != GETTYTAB_DESCRIPTOR)
+		return -1;
+	remaining = strlen(gettytab_fixture) - gettytab_offset;
+	transferred = remaining < capacity ? remaining : capacity;
+	memcpy(buffer, gettytab_fixture + gettytab_offset, transferred);
+	gettytab_offset += transferred;
+	return (ssize_t)transferred;
+}
+
+int
+test_close(int descriptor)
+{
+	return descriptor == GETTYTAB_DESCRIPTOR ? 0 : -1;
+}
+
 /* The ioctl calls main.c makes, as the driver would see them. */
 static unsigned int last_setp_req;
 static short last_setp_flags;
@@ -69,45 +110,49 @@ check(int condition, const char *message)
 	}
 }
 
-/* An empty gettytab entry: every capability omitted, then the defaults filled in. */
 static void
-fresh(void)
+reset_capabilities(void)
 {
 	struct gettyflags *f;
 	struct gettynums *n;
+	struct gettystrs *s;
 
 	for (f = gettyflags; f->field != 0; f++) {
 		f->value = 0;
 		f->set = 0;
+		f->defalt = 0;
 	}
 	for (n = gettynums; n->field != 0; n++) {
 		n->value = 0;
 		n->set = 0;
+		n->defalt = 0;
 	}
+	for (s = gettystrs; s->field != 0; s++) {
+		s->value = 0;
+		s->defalt = 0;
+	}
+}
+
+/* Public entries pass through getent(), getflag(), getnum() and getstr(). */
+static void
+parse_entry(const char *fixture)
+{
+	reset_capabilities();
+	gettytab_fixture = fixture;
+	gettable("entry", entry_buffer, entry_strings);
 	gendefaults();
 	setdefaults();
 }
 
-/* An explicit boolean capability, as the parser stores it: the inverse for an inverted one. */
-static void
-explicit(int index)
-{
-	gettyflags[index].value = !gettyflags[index].invrt;
-	gettyflags[index].set = 1;
-}
-
 /* The shipped default contains ap; a named entry can replace that parity. */
 static void
-shipped_default_then(int parity_index)
+shipped_default_then(const char *fixture)
 {
-	struct gettyflags *flag;
-
-	fresh();
-	explicit(4);	/* ap in etc/gettytab's default entry */
+	reset_capabilities();
+	gettytab_fixture = fixture;
+	gettable("default", default_buffer, default_strings);
 	gendefaults();
-	for (flag = gettyflags; flag->field != 0; flag++)
-		flag->set = 0;
-	explicit(parity_index);
+	gettable("entry", entry_buffer, entry_strings);
 	resolveparity();
 	setdefaults();
 }
@@ -123,7 +168,7 @@ main(void)
 	    strcmp(gettyflags[19].field, "hf") == 0 && strcmp(gettyflags[20].field, "np") == 0,
 	    "getty contract: flag table names do not match the header's indexes");
 
-	fresh();
+	parse_entry("entry:::\n");
 	f = setflags(2);
 	check((f & PASS8) == 0 && (f & (ANYP|ODDP|EVENP)) == 0 && (f & XTABS) != 0,
 	    "getty contract: an empty entry derives parity-free, tab-expanding modes");
@@ -131,45 +176,33 @@ main(void)
 	    "getty contract: an omitted rw does not select RAW for the read mode");
 	check((f & ECHO) != 0, "getty contract: an omitted ec does not leave echo on");
 
-	fresh();
-	explicit(20);	/* np */
+	parse_entry("entry:np:\n");
 	f = setflags(2);
 	check((f & PASS8) != 0, "getty contract: np does not select PASS8 on the final mode");
 	check((setflags(0) & PASS8) == 0, "getty contract: PASS8 leaks into the message-writing mode");
 
-	shipped_default_then(3);	/* op */
+	shipped_default_then("default:ap:\nentry:op:\n");
 	check((setflags(0) & (ANYP|ODDP|EVENP)) == ODDP, "getty contract: op does not select odd parity");
-	shipped_default_then(2);	/* ep */
+	shipped_default_then("default:ap:\nentry:ep:\n");
 	check((setflags(0) & (ANYP|ODDP|EVENP)) == EVENP, "getty contract: ep does not select even parity");
-	fresh();
-	explicit(4);	/* ap */
-	explicit(3);	/* op */
+	parse_entry("entry:ap:op:\n");
 	check((setflags(0) & (ANYP|ODDP|EVENP)) == ANYP, "getty contract: ap does not win over op");
 
-	fresh();
-	explicit(0);	/* ht */
+	parse_entry("entry:ht:\n");
 	check((setflags(0) & XTABS) == 0, "getty contract: ht leaves tab expansion on");
-	fresh();
-	explicit(19);	/* hf */
+	parse_entry("entry:hf:\n");
 	check((setflags(0) & RTSCTS) != 0, "getty contract: hf does not select RTS/CTS");
-	fresh();
-	explicit(5);	/* ec */
+	parse_entry("entry:ec:\n");
 	check((setflags(2) & ECHO) == 0, "getty contract: an explicit ec does not turn echo off");
-	fresh();
-	for (struct gettyflags *p = gettyflags; p->field != 0; p++)
-		if (strcmp(p->field, "rw") == 0)
-			explicit((int)(p - gettyflags));
+	parse_entry("entry:rw:\n");
 	check((setflags(1) & (RAW|CBREAK)) == CBREAK,
 	    "getty contract: an explicit rw does not select CBREAK");
 
-	fresh();
-	F0 = 0x1234;
-	F0set = 1;
+	parse_entry("entry:f0#4660:\n");
 	check(setflags(0) == 0x1234, "getty contract: an explicit f0 does not override the derivation");
 
 	/* The split and the application: the local half reaches TIOCLSET with PASS8 in it. */
-	fresh();
-	explicit(20);	/* np */
+	parse_entry("entry:np:\n");
 	ioctl_calls = 0;
 	f = setflags(2);
 	splitflags(f, &tmode, &local);

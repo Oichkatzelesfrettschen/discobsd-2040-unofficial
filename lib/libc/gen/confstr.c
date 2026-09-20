@@ -1,8 +1,5 @@
-/*	$OpenBSD: syslimits.h,v 1.14 2020/04/02 18:00:00 deraadt Exp $	*/
-/*	$NetBSD: syslimits.h,v 1.12 1995/10/05 05:26:19 thorpej Exp $	*/
-
-/*
- * Copyright (c) 1988, 1993
+/*-
+ * Copyright (c) 1993
  *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -13,7 +10,11 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the University nor the names of its contributors
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *	This product includes software developed by the University of
+ *	California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -28,11 +29,31 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- *	@(#)syslimits.h	8.1 (Berkeley) 6/2/93
  */
 
-#define	PATH_MAX		 256	/* max bytes in pathname */
-#define	ARG_MAX			5120	/* max bytes in exec arguments */
-#define	NGROUPS_MAX		  16	/* max groups in a credential */
-#define	OPEN_MAX		  30	/* max descriptors in a process */
+#include <errno.h>
+#include <paths.h>
+#include <unistd.h>
+
+size_t
+confstr(int name, char *buffer, size_t length)
+{
+	static const char path[] = _PATH_STDPATH;
+	size_t copy_length;
+	size_t index;
+
+	if (name != _CS_PATH) {
+		errno = EINVAL;
+		return 0;
+	}
+	if (buffer == NULL || length == 0)
+		return sizeof(path);
+
+	copy_length = sizeof(path);
+	if (copy_length > length)
+		copy_length = length;
+	for (index = 0; index + 1 < copy_length; index++)
+		buffer[index] = path[index];
+	buffer[index] = '\0';
+	return sizeof(path);
+}

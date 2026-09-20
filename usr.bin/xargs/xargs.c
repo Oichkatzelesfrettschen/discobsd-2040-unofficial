@@ -50,17 +50,6 @@
 #include <varargs.h>
 #endif
 
-/*
- * This is defined for pdp11s.  ARG_MAX is usually defined in
- * an include file.  I have left it here until such times as
- * the system limits stuff in machparam etc is changed to the
- * same names as 4.4. Note that
- * this is much smaller than the normal value cos it's only a
- * small computer (sigh).
- */
-
-#define ARG_MAX NCARGS
-
 int tflag, rval;
 
 void

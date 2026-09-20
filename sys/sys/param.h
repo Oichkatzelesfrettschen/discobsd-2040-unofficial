@@ -27,9 +27,9 @@
 #endif
 
 #define MAXUPRC     20      /* max processes per user */
-#define NOFILE      30      /* max open files per process */
-#define NCARGS      5120    /* # characters in exec arglist */
-#define NGROUPS     16      /* max number groups */
+#define NOFILE      OPEN_MAX        /* max open files per process */
+#define NCARGS      ARG_MAX         /* # characters in exec arglist */
+#define NGROUPS     NGROUPS_MAX     /* max number groups */
 
 #define NOGROUP     65535   /* marker for empty group set member */
 

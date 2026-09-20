@@ -1,0 +1,38 @@
+.TH SYSCONF 3 "September 20, 2026"
+.UC 4
+.SH NAME
+sysconf \- return a DiscoBSD runtime limit
+.SH SYNOPSIS
+.nf
+.B #include <unistd.h>
+.PP
+.B long sysconf(int name);
+.fi
+.SH DESCRIPTION
+.I Sysconf
+returns the value of a runtime limit selected by
+.IR name .
+DiscoBSD exposes only limits backed by a fixed kernel or libc contract:
+.TP
+.B _SC_ARG_MAX
+The maximum combined argument and environment size, 5120 bytes.
+.TP
+.B _SC_CLK_TCK
+The 60 ticks per second returned by
+.IR times (3).
+.TP
+.B _SC_NGROUPS_MAX
+The 16 group slots in a process credential.
+.TP
+.B _SC_OPEN_MAX
+The 30 descriptor slots in a process file table.
+.TP
+.B _SC_JOB_CONTROL
+One, because the kernel implements job control.
+.PP
+An unsupported selector returns -1 and sets
+.I errno
+to
+.BR EINVAL .
+.SH SEE ALSO
+times(3), unistd(5)

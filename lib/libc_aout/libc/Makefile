@@ -75,7 +75,7 @@ OBJS            += _setjmp.o htonl.o htons.o
 
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
-                   calloc.o closedir.o crypt.o ctime.o ctype_.o \
+                   calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
                    ctermid.o daemon.o devname.o dirname.o ecvt.o err.o \
                    execvp.o fakcu.o frexp.o fstab.o gcvt.o getenv.o getgrent.o \
                    getgrgid.o getgrnam.o getlogin.o \
@@ -87,7 +87,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    psignal.o qsort.o raise.o random.o readdir.o regex.o scandir.o \
                    seekdir.o setmode.o sethostname.o setenv.o siglist.o \
                    signal.o siginterrupt.o sigsetops.o \
-                   sleep.o strcasecmp.o strftime.o swab.o sysctl.o syslog.o system.o \
+                   sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \
                    telldir.o time.o timezone.o ttyname.o ttyslot.o ualarm.o usleep.o \
                    strdup.o uname.o vis.o wait.o wait3.o waitpid.o

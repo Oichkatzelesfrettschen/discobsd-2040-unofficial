@@ -22,7 +22,7 @@ include ${TOPSRC}/share/mk/sys.mk
 MDIR=	/usr/share/man/cat3
 SRCS1=	abort.3 abs.3 alarm.3 asinh.3 assert.3 atof.3 \
 	basename.3 bstring.3 byteorder.3 \
-	compat-sys5.3 crypt.3 ctime.3 ctype.3 curses.3 dbm.3 daemon.3 \
+	compat-sys5.3 confstr.3 crypt.3 ctime.3 ctype.3 curses.3 dbm.3 daemon.3 \
 	devname.3 directory.3 dirname.3 \
 	ecvt.3 end.3 erf.3 err.3 execl.3 exit.3 \
 	exp.3 fclose.3 ferror.3 floor.3 \
@@ -41,12 +41,12 @@ SRCS2=	insque.3 intro.3 j0.3 l3tol.3 ldfps.3 lgamma.3 lib2648.3 \
 	strcspn.3 strlcpy.3 strpbrk.3 \
 	strsep.3 strspn.3 strtol.3 strtoul.3 strstr.3 \
 	swab.3 sysctl.3 syslog.3 \
-	system.3 termcap.3 time.3 times.3 ttyname.3 ualarm.3 uname.3 ungetc.3 vis.3 \
+	system.3 sysconf.3 termcap.3 time.3 times.3 ttyname.3 ualarm.3 uname.3 ungetc.3 vis.3 \
 	syserrlst.3 \
 	utime.3 valloc.3 varargs.3
 OBJS1=	abort.0 abs.0 alarm.0 asinh.0 assert.0 atof.0 \
 	basename.0 bstring.0 byteorder.0 \
-	compat-sys5.0 crypt.0 ctime.0 ctype.0 curses.0 dbm.0 daemon.0 \
+	compat-sys5.0 confstr.0 crypt.0 ctime.0 ctype.0 curses.0 dbm.0 daemon.0 \
 	devname.0 directory.0 dirname.0 \
 	ecvt.0 end.0 erf.0 err.0 execl.0 exit.0 \
 	exp.0 fclose.0 ferror.0 floor.0 \
@@ -65,7 +65,7 @@ OBJS2=	insque.0 intro.0 j0.0 l3tol.0 ldfps.0 lgamma.0 lib2648.0 \
 	strcspn.0 strlcpy.0 strpbrk.0 \
 	strsep.0 strspn.0 strtol.0 strtoul.0 strstr.0 \
 	swab.0 sysctl.0 syslog.0 \
-	system.0 termcap.0 time.0 times.0 ttyname.0 ualarm.0 uname.0 ungetc.0 vis.0 \
+	system.0 sysconf.0 termcap.0 time.0 times.0 ttyname.0 ualarm.0 uname.0 ungetc.0 vis.0 \
 	syserrlst.0 \
 	utime.0 valloc.0 varargs.0
 REMO1=	edata.0 etext.0 j1.0 jn.0 ns_addr.0 ns_ntoa.0 y0.0 y1.0 yn.0 acos.0 \

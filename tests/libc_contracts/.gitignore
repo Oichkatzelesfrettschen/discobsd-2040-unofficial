@@ -11,6 +11,15 @@ asctime_target.o
 asctime_target_diagnostic.o
 ctime_target.o
 stdio_format_extensions.o
+runtime_limits_test
+runtime_limits_test32
+runtime_limits_bad_test
+runtime_sysconf.o
+runtime_confstr.o
+runtime_sysconf32.o
+runtime_confstr32.o
+runtime_sysconf_target.o
+runtime_confstr_target.o
 malloc_test
 malloc_test32
 malloc_arena.o

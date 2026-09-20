@@ -57,6 +57,17 @@
 #define X_OK            1       /* Test for execute permission.  */
 #define F_OK            0       /* Test for existence.  */
 
+/* Runtime limits that DiscoBSD can report without fabricating a contract. */
+#define _SC_ARG_MAX             1
+#define _SC_CLK_TCK             3
+#define _SC_NGROUPS_MAX         4
+#define _SC_OPEN_MAX            5
+#define _SC_JOB_CONTROL         6
+
+#define _CS_PATH                1
+
+#define CLK_TCK                 60      /* times(3) ticks per second */
+
 void    _exit (int);
 int     access();
 unsigned int alarm();
@@ -76,6 +87,8 @@ char    *ttyname();
 ssize_t write (int fd, const void *buf, size_t count);
 int     truncate (const char *path, off_t length);
 int     ftruncate (int fd, off_t length);
+long    sysconf (int name);
+size_t  confstr (int name, char *buffer, size_t length);
 
 void    *brk (const void *addr);
 int     _brk (const void *addr);

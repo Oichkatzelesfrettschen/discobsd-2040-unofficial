@@ -156,6 +156,12 @@ check-libc-ctime:
 check-libc-ctime-cross:
 		${MAKE} -C tests/libc_contracts check-ctime-cross
 
+check-libc-runtime-limits:
+		${MAKE} -C tests/libc_contracts check-runtime-limits
+
+check-libc-runtime-limits-cross:
+		${MAKE} -C tests/libc_contracts check-runtime-limits-cross
+
 check-libc-contracts:
 		${MAKE} -C tests/libc_contracts check
 
@@ -350,6 +356,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-aout-contracts \
 		check-libc-ctime-cross \
 		check-libc-random-cross \
+		check-libc-runtime-limits-cross \
 		check-dirent-contracts-cross \
 		check-cat-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
@@ -535,6 +542,7 @@ installfs:
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
+		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-contracts \
 		check-libc-host-contracts check-libc-aout-contracts \
 		check-libc-malloc \

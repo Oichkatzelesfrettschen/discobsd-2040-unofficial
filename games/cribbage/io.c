@@ -378,16 +378,8 @@ void doadd(char *fmt, va_list ap)
 #ifdef CROSS
     vsnprintf(Msgbuf, BUFSIZ, fmt, ap);
 #else
-    static FILE	junk;
-
-    /*
-     * Do the printf into Msgbuf
-     */
-    junk._flag = _IOWRT + _IOSTRG;
-    junk._ptr = &Msgbuf[Newpos];
-    junk._cnt = BUFSIZ - 1;
-    _doprnt(fmt, ap, &junk);
-    putc('\0', &junk);
+    /* Append to Msgbuf, bounded by what remains of it. */
+    (void) vsnprintf(&Msgbuf[Newpos], (size_t)(BUFSIZ - Newpos), fmt, ap);
 #endif
     Newpos = strlen(Msgbuf);
 }

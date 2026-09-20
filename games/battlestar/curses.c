@@ -621,17 +621,12 @@ delwin(w)
 int printw (char *fmt, ...)
 {
         va_list args;
-        FILE junk;
         char buf[512];
 
         va_start (args, fmt);
-        junk._flag = _IOWRT + _IOSTRG;
-        junk._ptr = buf;
-        junk._cnt = 32767;
-        _doprnt(fmt, args, &junk);
+        (void) vsnprintf(buf, sizeof buf, fmt, args);
         va_end (args);
 
-        putc('\0', &junk);
         waddstr(stdscr, buf);
         return 0;
 }

@@ -1,58 +1,82 @@
-/*
- * Copyright (c) 1980 Regents of the University of California.
- * All rights reserved.  The Berkeley software License Agreement
- * specifies the terms and conditions for redistribution.
+/*-
+ * Copyright (c) 1990, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Chris Torek.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *	This product includes software developed by the University of
+ *	California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  */
 
-/*
- * Unix routine to do an "fopen" on file descriptor
- * The mode has to be repeated because you can't query its
- * status
- */
+#if defined(LIBC_SCCS) && !defined(lint)
+static char sccsid[] = "@(#)fdopen.c	8.2 (2.11BSD) 2025/12/26";
+#endif
+
 #include <sys/types.h>
-#include <sys/file.h>
-#include <stdio.h>
+#include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+#include "local.h"
 
 FILE *
-fdopen(fd, mode)
-	int fd;
-	register const char *mode;
+fdopen(int fd, const char *mode)
 {
-	static int nofile = -1;
-	register FILE *iop;
+	register FILE *fp;
+	static int nofile;
+	int flags, oflags, fdflags, tmp;
 
-	if (nofile < 0)
+	if (nofile == 0)
 		nofile = getdtablesize();
 
-	if (fd < 0 || fd >= nofile)
+	if ((flags = __sflags(mode, &oflags)) == 0)
 		return (NULL);
 
-	iop = _findiop();
-	if (iop == NULL)
+	/* Make sure the mode the user wants is a subset of the actual mode. */
+	if ((fdflags = fcntl(fd, F_GETFL, 0)) < 0)
 		return (NULL);
-
-	iop->_cnt = 0;
-	iop->_file = fd;
-	iop->_bufsiz = 0;
-	iop->_base = iop->_ptr = NULL;
-
-	switch (*mode) {
-	case 'r':
-		iop->_flag = _IOREAD;
-		break;
-	case 'a':
-	case 'w':
-		if (*mode == 'a')
-			lseek(fd, (off_t)0, L_XTND);
-		iop->_flag = _IOWRT;
-		break;
-	default:
+	tmp = fdflags & O_ACCMODE;
+	if (tmp != O_RDWR && (tmp != (oflags & O_ACCMODE))) {
+		errno = EINVAL;
 		return (NULL);
 	}
 
-	if (mode[1] == '+')
-		iop->_flag = _IORW;
-
-	return (iop);
+	if ((fp = __sfp()) == NULL)
+		return (NULL);
+	fp->_flags = flags;
+	/*
+	 * If opened for appending, but underlying descriptor does not have
+	 * O_APPEND bit set, assert __SAPP so that __swrite() will lseek to
+	 * end before each write.
+	 */
+	if ((oflags & O_APPEND) && !(fdflags & O_APPEND))
+		fp->_flags |= __SAPP;
+	fp->_file = fd;
+	return (fp);
 }

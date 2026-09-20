@@ -33,25 +33,26 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
+#if defined(LIBC_SCCS) && !defined(lint)
+static char sccsid[] = "@(#)setbuffer.c	8.2 (2.11BSD) 2025/12/26";
+#endif
+
 #include <stdio.h>
-#include <sys/types.h>
 
 void
-setbuffer(fp, buf, size)
-	register FILE *fp;
-	char *buf;
-	size_t size;
+setbuffer(register FILE *fp, char *buf, int size)
 {
-	setvbuf(fp, buf, buf ? _IOFBF : _IONBF, size);
+
+	(void)setvbuf(fp, buf, buf ? _IOFBF : _IONBF, size);
 }
 
 /*
  * set line buffering
  */
-void
-setlinebuf(fp)
-	FILE *fp;
+int
+setlinebuf(FILE *fp)
 {
 
-	setvbuf(fp, (char *)NULL, _IOLBF, (size_t)0);
+	return (setvbuf(fp, (char *)NULL, _IOLBF, (size_t)0));
 }

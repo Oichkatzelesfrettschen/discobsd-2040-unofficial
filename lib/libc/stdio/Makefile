@@ -8,23 +8,21 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= ${DEFS} -Os
 
-SRCS		= ${STDSRC} fgetc.c fgets.c fputc.c fputs.c gets.c puts.c \
-                  feof.c ferror.c fileno.c
-OBJS		= ${STDOBJ} fgetc.o fgets.o fputc.o fputs.o gets.o puts.o \
-                  feof.o ferror.o fileno.o
-
-STDSRC		= clrerr.c doscan.c exit.c clnup.c fdopen.c filbuf.c findiop.c \
-		  flsbuf.c fopen.c fprintf.c fread.c freopen.c fseek.c \
-		  ftell.c fwrite.c getchar.c getw.c printf.c putchar.c putw.c \
-		  rew.c scanf.c setbuf.c setbuffer.c setvbuf.c snprintf.c sprintf.c \
-		  strout.c ungetc.c vfprintf.c vprintf.c vsprintf.c vsnprintf.c \
-		  doprnt.c doprnt_float.c doscan_float.c remove.c
-STDOBJ		= clrerr.o doscan.o exit.o fdopen.o filbuf.o findiop.o \
-		  flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
-		  ftell.o fwrite.o getchar.o getw.o printf.o putchar.o putw.o \
-		  rew.o scanf.o setbuf.o setbuffer.o setvbuf.o snprintf.o sprintf.o \
-		  strout.o ungetc.o vfprintf.o vprintf.o vsprintf.o vsnprintf.o \
-		  doprnt.o doprnt_float.o doscan_float.o remove.o
+# The stream core is the 4.4BSD stdio as 2.11BSD patch 499 shrinks it for a
+# small machine: one shared default fileops block, no block-size buffer
+# probing, no fseek optimization. The formatter (doprnt.c) and the scanner
+# (doscan.c) are this tree's own and sit on the core's getc and putc.
+CORESRC		= clrerr.c exit.c fclose.c fdopen.c findfp.c fflush.c fopen.c \
+		  fpurge.c fread.c freopen.c fseek.c ftell.c fwrite.c fvwrite.c \
+		  getc.c getchar.c getw.c makebuf.c rget.c fputc.c putc.c \
+		  putchar.c putw.c rewind.c setbuf.c setbuffer.c setvbuf.c \
+		  stdio.c ungetc.c wbuf.c flags.c \
+		  refill.c wsetup.c puts.c fputs.c fgetc.c fgets.c gets.c remove.c \
+		  clnup.c
+FMTSRC		= doprnt.c doprnt_float.c fprintf.c printf.c snprintf.c \
+		  sprintf.c vfprintf.c vprintf.c doscan.c doscan_float.c scanf.c
+SRCS		= ${CORESRC} ${FMTSRC}
+OBJS		= ${SRCS:.c=.o}
 
 TAGSFILE	= tags
 

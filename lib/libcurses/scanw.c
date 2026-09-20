@@ -49,12 +49,8 @@ _sscans(win, fmt, args)
         va_list	args; /* XXX */
 {
 	char	buf[100];
-	FILE	junk;
 
-	junk._flag = _IOREAD|_IOSTRG;
-	junk._base = junk._ptr = buf;
 	if (wgetstr(win, buf) == ERR)
 		return ERR;
-	junk._cnt = strlen(buf);
-	return _doscan(&junk, fmt, args); /* XXX */
+	return vsscanf(buf, fmt, args);
 }

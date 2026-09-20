@@ -35,18 +35,31 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)fpurge.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "local.h"
 
 /*
- * A subroutine version of the macro getchar.
+ * fpurge: like fflush, but without writing anything: leave the
+ * given FILE's buffer empty.
  */
-#include <stdio.h>
-
-#undef getchar
-
 int
-getchar(void)
+fpurge(fp)
+	register FILE *fp;
 {
-	return (__sgetc(stdin));
+	if (!fp->_flags) {
+		errno = EBADF;
+		return(EOF);
+	}
+
+	if (HASUB(fp))
+		FREEUB(fp);
+	fp->_p = fp->_bf._base;
+	fp->_r = 0;
+	fp->_w = fp->_flags & (__SLBF|__SNBF) ? 0 : fp->_bf._size;
+	return (0);
 }

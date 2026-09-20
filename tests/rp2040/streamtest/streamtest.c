@@ -1,7 +1,7 @@
 /*
- * streamtest: exercise stdio past the NSTATIC static FILE count.
+ * streamtest: exercise stdio past the FOPEN_MAX static FILE count.
  *
- * lib/libc/stdio/findiop.c keeps NSTATIC static FILE slots (8: stdin,
+ * lib/libc/stdio/findfp.c keeps FOPEN_MAX static FILE slots (8: stdin,
  * stdout, stderr and five more); the ninth concurrent stream falls to the
  * dynamic _f_morefiles path. This opens twelve streams at once, so slots
  * nine through twelve come from _f_morefiles, writes and reads each back to

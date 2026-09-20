@@ -390,8 +390,8 @@ number:			if (sign) {
 			break;
 		}
 		default:
-			if (c == 'm' && (stream->_flag & _IOSYSLOG) != 0) {
-				s = (const unsigned char *)stream->_base;
+			if (c == 'm' && (stream->_flags & __SSYSLOG) != 0) {
+				s = (const unsigned char *)stream->_up;
 				if (!s)
 					s = (const unsigned char *)"(null)";
 				goto string;

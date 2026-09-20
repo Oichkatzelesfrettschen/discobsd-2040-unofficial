@@ -22,23 +22,10 @@
 #include <string.h>
 #include <unistd.h>
 
-/* The tree's stdio references these; the gate never opens a real file. */
-struct _iobuf _iob[3];
-char *_smallbuf;
+/* The tree's errno, kept apart from the host's thread-local one. */
+int scanf_test_errno;
 
 int db_sscanf(const char *, const char *, ...);
-
-/*
- * filbuf.c reaches fflush for a line-buffered stdout before a read. A
- * string stream returns EOF before that point, so the gate supplies the
- * symbol rather than the buffered-output path behind it.
- */
-int
-fflush(FILE *stream)
-{
-	(void)stream;
-	return 0;
-}
 
 static int checks;
 static int failures;

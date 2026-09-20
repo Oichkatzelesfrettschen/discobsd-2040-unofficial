@@ -539,7 +539,7 @@ int *clearfirst;
 
     /* Try to see whether it is an ASCII file */
 
-    switch ((c | *f->_ptr << 8) & 0177777) {
+    switch ((c | *f->_p << 8) & 0177777) {
     case 0405:
     case 0407:
     case 0410:
@@ -1407,7 +1407,7 @@ register int n;
     }
     if (feof (file)) {
 	if (!no_intty) {
-	    file->_flag &= ~_IOEOF; /* why doesn't fseek do this ??!!??! */
+	    file->_flags &= ~__SEOF; /* why doesn't fseek do this ??!!??! */
 	    Currline = saveln;
 	    Fseek (file, startline);
 	}

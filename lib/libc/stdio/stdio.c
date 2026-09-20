@@ -35,18 +35,80 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)stdio.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "local.h"
 
 /*
- * A subroutine version of the macro getchar.
+ * The default file operations behind __sdefops. A stream on a descriptor
+ * passes itself as the cookie, so each operation recovers the FILE and
+ * keeps _offset, the known seek position, current for fseek and ftell.
  */
-#include <stdio.h>
+int
+__sread(void *cookie, char *buf, int n)
+{
+	FILE *fp = cookie;
+	int ret;
 
-#undef getchar
+	ret = read(fp->_file, buf, n);
+	/* if the read succeeded, update the current offset */
+	if (ret >= 0)
+		fp->_offset += ret;
+	else
+		fp->_flags &= ~__SOFF;	/* paranoia */
+	return (ret);
+}
 
 int
-getchar(void)
+__swrite(void *cookie, char const *buf, int n)
 {
-	return (__sgetc(stdin));
+	FILE *fp = cookie;
+
+	if (fp->_flags & __SAPP)
+		(void) lseek(fp->_file, (off_t)0, SEEK_END);
+	fp->_flags &= ~__SOFF;	/* in case FAPPEND mode is set */
+	return (write(fp->_file, buf, n));
+}
+
+fpos_t
+__sseek(void *cookie, fpos_t offset, int whence)
+{
+	FILE *fp = cookie;
+	off_t ret;
+
+	ret = lseek(fp->_file, (off_t)offset, whence);
+	fp->_flags &= ~__SOFF;
+	if (ret != -1L) {
+		fp->_flags |= __SOFF;
+		fp->_offset = ret;
+	}
+	return (ret);
+}
+
+int
+__sclose(void *cookie)
+{
+	return (close(((FILE *)cookie)->_file));
+}
+
+int
+__shasub(FILE *fp)
+{
+	return HASUB(fp);
+}
+
+void
+__sfreeub(FILE *fp)
+{
+	struct __sfops *fops = fp->_fops;
+
+	if (fops->_ub._base == NULL)
+		return;
+	free(fops->_ub._base);
+	fops->_ub._base = NULL;
 }

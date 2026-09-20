@@ -35,18 +35,42 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)fclose.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
 
-/*
- * A subroutine version of the macro getchar.
- */
+#include <errno.h>
 #include <stdio.h>
-
-#undef getchar
+#include <stdlib.h>
+#include "local.h"
 
 int
-getchar(void)
+fclose(register FILE *fp)
 {
-	return (__sgetc(stdin));
+	register int r = 0;
+	register struct __sfops *sf;
+	void *c;
+
+	if (fp->_flags == 0) {	/* not open! */
+		errno = EBADF;
+		return (EOF);
+	}
+	if (fp->_flags & __SWR)
+		r = __sflush(fp);
+	sf = fp->_fops;
+	c = COOKIE(fp);
+	if (sf->_close != NULL && (*sf->_close)(c) < 0)
+		r = EOF;
+	if (sf->_ub._base)
+		free(sf->_ub._base);
+	if (HASLB(sf))
+		FREELB(sf);
+	if (ISFALL(fp))
+		free(fp->_fops);
+
+	if (fp->_flags & __SMBF)
+		free((char *)fp->_bf._base);
+	fp->_fops = &__sdefops;
+	fp->_flags = 0;		/* Release this FILE for reuse. */
+	fp->_r = fp->_w = 0;	/* Mess up if reaccessed. */
+	return (r);
 }

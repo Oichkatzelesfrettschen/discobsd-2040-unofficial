@@ -19,25 +19,54 @@
 #include <errno.h>
 #include <limits.h>
 
-int
-snprintf(char *str, size_t nbytes, const char *fmt, ...)
+/*
+ * A write-only string stream over the caller's array. _w and _bf._size
+ * carry the capacity, __SSTR makes __swbuf drop a character at capacity
+ * instead of flushing, and _fops stays NULL because no write function is
+ * ever reached. The formatter's return value is the count it would have
+ * produced, which is the C99 contract for the bounded forms.
+ */
+static void
+strstream(FILE *fp, char *str, int capacity)
 {
-	FILE stream;
+	fp->_flags = __SWR | __SSTR;
+	fp->_p = fp->_bf._base = (unsigned char *)str;
+	fp->_w = fp->_bf._size = capacity;
+	fp->_r = 0;
+	fp->_lbfsize = 0;
+	fp->_file = -1;
+	fp->_fops = NULL;
+	fp->_up = NULL;
+	fp->_ur = 0;
+}
+
+int
+vsnprintf(char *str, size_t nbytes, const char *fmt, va_list ap)
+{
+	FILE f;
 	char dummy;
-	va_list args;
 	int length;
 
 	if (nbytes > INT_MAX) {
 		errno = EINVAL;
 		return -1;
 	}
-	/* Local setup keeps a static snprintf link from pulling in vsnprintf. */
-	stream._flag = _IOWRT | _IOSTRG;
-	stream._ptr = nbytes == 0 ? &dummy : str;
-	stream._cnt = nbytes == 0 ? 0 : (int)nbytes - 1;
-	va_start(args, fmt);
-	length = _doprnt(fmt, args, &stream);
-	va_end(args);
-	*stream._ptr = 0;
+	/* A zero capacity writes its terminator into dummy, never into str. */
+	strstream(&f, nbytes == 0 ? &dummy : str,
+	    nbytes == 0 ? 0 : (int)nbytes - 1);
+	length = _doprnt(fmt, ap, &f);
+	*f._p = '\0';
+	return length;
+}
+
+int
+snprintf(char *str, size_t nbytes, const char *fmt, ...)
+{
+	va_list ap;
+	int length;
+
+	va_start(ap, fmt);
+	length = vsnprintf(str, nbytes, fmt, ap);
+	va_end(ap);
 	return length;
 }

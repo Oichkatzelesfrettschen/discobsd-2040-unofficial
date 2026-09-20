@@ -20,8 +20,5 @@
 int
 vprintf(const char *fmt, va_list ap)
 {
-	int len;
-
-	len = _doprnt(fmt, ap, stdout);
-	return (ferror(stdout) ? EOF : len);
+	return vfprintf(stdout, fmt, ap);
 }

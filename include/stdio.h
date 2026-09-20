@@ -1,162 +1,329 @@
-/*
- * Copyright (c) 1980 Regents of the University of California.
- * All rights reserved.  The Berkeley software License Agreement
- * specifies the terms and conditions for redistribution.
+/*-
+ * Copyright (c) 1990, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Chris Torek.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *	This product includes software developed by the University of
+ *	California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)stdio.h	8.6 (2.11BSD) 2025/12/25
  */
-#ifndef FILE
 
-#define BUFSIZ  1024
-extern  struct  _iobuf {
-    int     _cnt;
-    char    *_ptr;      /* should be unsigned char */
-    char    *_base;     /* ditto */
-    int     _bufsiz;
-    short   _flag;
-    short   _file;
-} _iob[];
+#ifndef	_STDIO_H_
+#define	_STDIO_H_
 
-#define _IOREAD     01
-#define _IOWRT      02
-#define _IONBF      04
-#define _IOMYBUF    010
-#define _IOEOF      020
-#define _IOERR      040
-#define _IOSTRG     0100
-#define _IOLBF      0200
-#define _IORW       0400
-#define _IOSYSLOG   01000  /* string stream carries syslog %m text */
+#include <sys/types.h>
+#include <stdarg.h>
+
+/* C99 7.19.1 clause 2 */
+#ifndef NULL
+#define	NULL	0
+#endif
+typedef off_t fpos_t;
 
 /*
- * The following definition is for ANSI C, which took them
+ * NB: to fit things in six character monocase externals, the stdio
+ * code uses the prefix `__s' for stdio objects, typically followed
+ * by a three-character attempt at a mnemonic.
+ */
+
+/* stdio buffers */
+struct __sbuf {
+	unsigned char *_base;
+	int	_size;
+};
+
+/*
+ * Break out some parts of the FILE structure to keep the static allocated
+ * structure small. ANSI C requires us to be able to open FOPEN_MAX without
+ * failing, but everything here is an extension to the ANSI C
+ * standard, so it is OK for us to fail.
+ */
+struct __sfops {
+	/* operations */
+	void	*_cookie;	/* cookie passed to io functions */
+	int	(*_close) (void *);
+	int	(*_read)  (void *, char *, int);
+	fpos_t	(*_seek)  (void *, fpos_t, int);
+	int	(*_write) (void *, const char *, int);
+
+	/* separate buffer for long sequences of ungetc() */
+	struct	__sbuf _ub;	/* ungetc buffer */
+
+	/* separate buffer for fgetln() when line crosses buffer boundary */
+	struct	__sbuf _lb;	/* buffer for fgetln() */
+
+};
+
+/*
+ * stdio state variables.
+ *
+ * The following always hold:
+ *
+ *	if (_flags&(__SLBF|__SWR)) == (__SLBF|__SWR),
+ *		_lbfsize is -_bf._size, else _lbfsize is 0
+ *	if _flags&__SRD, _w is 0
+ *	if _flags&__SWR, _r is 0
+ *
+ * This ensures that the getc and putc macros (or inline functions) never
+ * try to write or read from a file that is in `read' or `write' mode.
+ * (Moreover, they can, and do, automatically switch from read mode to
+ * write mode, and back, on "r+" and "w+" files.)
+ *
+ * _lbfsize is used only to make the inline line-buffered output stream
+ * code as compact as possible.
+ *
+ * _ub, _up, and _ur are used when ungetc() pushes back more characters
+ * than fit in the current _bf, or when ungetc() pushes back a character
+ * that does not match the previous one in _bf.  When this happens,
+ * _ub._base becomes non-nil (i.e., a stream has ungetc() data iff
+ * _ub._base!=NULL) and _up and _ur save the current values of _p and _r.
+ */
+typedef	struct __sFILE {
+	unsigned char *_p;	/* current position in (some) buffer */
+	int	_r;		/* read space left for getc() */
+	int	_w;		/* write space left for putc() */
+	short	_flags;		/* flags, below; this FILE is free if 0 */
+	short	_file;		/* fileno, if Unix descriptor, else -1 */
+	struct	__sbuf _bf;	/* the buffer (at least 1 byte, if !NULL) */
+	int	_lbfsize;	/* 0 or -_bf._size, for inline putc */
+
+	struct __sfops *_fops;
+
+	unsigned char *_up;	/* saved _p when _p is doing ungetc data */
+	int	_ur;		/* saved _r when _r is counting ungetc data */
+
+	/* tricks to meet minimum requirements even when malloc() fails */
+	unsigned char _ubuf[1];	/* guarantee an ungetc() buffer */
+	unsigned char _nbuf[1];	/* guarantee a getc() buffer */
+
+	/* Unix stdio files get aligned to block boundaries on fseek() */
+	fpos_t	_offset;	/* current lseek offset (see WARNING) */
+} FILE;
+
+extern FILE __sF[];
+
+#define	__SLBF	0x0001		/* line buffered */
+#define	__SNBF	0x0002		/* unbuffered */
+#define	__SRD	0x0004		/* OK to read */
+#define	__SWR	0x0008		/* OK to write */
+	/* RD and WR are never simultaneously asserted */
+#define	__SRW	0x0010		/* open for reading & writing */
+#define	__SEOF	0x0020		/* found EOF */
+#define	__SERR	0x0040		/* found error */
+#define	__SMBF	0x0080		/* _buf is from malloc */
+#define	__SAPP	0x0100		/* fdopen()ed in append mode */
+#define	__SSTR	0x0200		/* this is an sprintf/snprintf string */
+#define	__SOPT	0x0400		/* do fseek() optimisation */
+#define	__SNPT	0x0800		/* do not do fseek() optimisation */
+#define	__SOFF	0x1000		/* set iff _offset is in fact correct */
+#define	__SMOD	0x2000		/* true => fgetln modified _p text */
+#define	__SUNC	0x4000		/* ungetc()'d char without fops alloc */
+#define	__SSYSLOG 0x8000	/* syslog string stream: _up holds %m text */
+
+/*
+ * The following three definitions are for ANSI C, which took them
  * from System V, which brilliantly took internal interface macros and
  * made them official arguments to setvbuf(), without renaming them.
  * Hence, these ugly _IOxxx names are *supposed* to appear in user code.
-*/
-#define _IOFBF      0   /* setvbuf should set fully buffered */
-                        /* _IONBF and _IOLBF are used from the flags above */
+ *
+ * Although numbered as their counterparts above, the implementation
+ * does not rely on this.
+ */
+#define	_IOFBF	0		/* setvbuf should set fully buffered */
+#define	_IOLBF	1		/* setvbuf should set line buffered */
+#define	_IONBF	2		/* setvbuf should set unbuffered */
 
-#ifndef NULL
-#define NULL        0
+#define	BUFSIZ	1024		/* size of buffer used by setbuf */
+#define	EOF	(-1)
+
+/*
+ * FOPEN_MAX is a minimum maximum, and is the number of streams that
+ * stdio can provide without attempting to allocate further resources
+ * (which could fail).  Do not use this for anything.
+ */
+				/* must be == _POSIX_STREAM_MAX <limits.h> */
+#define	FOPEN_MAX	8	/* Min requirement by ANSI C */
+#define	FILENAME_MAX	256	/* must be <= PATH_MAX <sys/syslimits.h> */
+
+/* System V/ANSI C; this is the wrong way to do this, do *not* use these. */
+#ifndef _ANSI_SOURCE
+#define	P_tmpdir	"/tmp/"		/* _PATH_TMP; this root has no /var/tmp */
 #endif
+#define	L_tmpnam	12	/* /tmp/XXXXXX and its terminator; lib/libc/compat/tmpnam.c */
+#define	TMP_MAX		308915776
 
-#ifndef _SIZE_T
-#define _SIZE_T
-typedef unsigned size_t;
+#define	SEEK_SET	0	/* set file offset to offset */
+#define	SEEK_CUR	1	/* set file offset to current plus offset */
+#define	SEEK_END	2	/* set file offset to EOF plus offset */
+
+#define	stdin	(&__sF[0])
+#define	stdout	(&__sF[1])
+#define	stderr	(&__sF[2])
+
+/*
+ * Functions defined in ANSI C standard.
+ */
+void	 clearerr(FILE *);
+int	 fclose(FILE *);
+int	 feof(FILE *);
+int	 ferror(FILE *);
+int	 fflush(FILE *);
+int	 fgetc(FILE *);
+int	 fgetpos(FILE *, fpos_t *);
+char	*fgets(char *, int, FILE *);
+FILE	*fopen(const char *, const char *);
+int	 fprintf(FILE *, const char *, ...);
+int	 fputc(int, FILE *);
+int	 fputs(const char *, FILE *);
+size_t	 fread(void *, size_t, size_t, FILE *);
+FILE	*freopen(const char *, const char *, FILE *);
+int	 fscanf(FILE *, const char *, ...);
+int	 fseek(FILE *, long, int);
+int	 fsetpos(FILE *, const fpos_t *);
+long	 ftell(FILE *);
+size_t	 fwrite(const void *, size_t, size_t, FILE *);
+int	 getc(FILE *);
+int	 getchar(void);
+char	*gets(char *);
+#if !defined(_ANSI_SOURCE) && !defined(_POSIX_SOURCE)
+extern int sys_nerr;			/* perror(3) external variables */
+extern const char *const sys_errlist[];
 #endif
+void	 perror(const char *);
+int	 printf(const char *, ...);
+int	 putc(int, FILE *);
+int	 putchar(int);
+int	 puts(const char *);
+int	 remove(const char *);
+int	 rename (const char *, const char *);
+void	 rewind(FILE *);
+int	 scanf(const char *, ...);
+void	 setbuf(FILE *, char *);
+int	 setvbuf(FILE *, char *, int, size_t);
+int	 sprintf(char *, const char *, ...);
+int	 sscanf(const char *, const char *, ...);
+FILE	*tmpfile(void);
+char	*tmpnam(char [L_tmpnam]);
+int	 ungetc(int, FILE *);
+int	 vfprintf(FILE *, const char *, va_list);
+int	 vprintf(const char *, va_list);
+int	 vsprintf(char *, const char *, va_list);
 
-#define FILE        struct _iobuf
-#define EOF         (-1)
+/*
+ * Functions defined in POSIX 1003.1.
+ */
+#ifndef _ANSI_SOURCE
+#define	L_cuserid	9	/* size for cuserid(); UT_NAMESIZE + 1 */
+#define	L_ctermid	1024	/* size for ctermid(); PATH_MAX */
 
-#define stdin       (&_iob[0])
-#define stdout      (&_iob[1])
-#define stderr      (&_iob[2])
+char	*ctermid(char *);
+FILE	*fdopen(int, const char *);
+int	 fileno(FILE *);
+#endif /* not ANSI */
 
-#define SEEK_SET    0   /* set file offset to offset */
-#define SEEK_CUR    1   /* set file offset to current plus offset */
-#define SEEK_END    2   /* set file offset to EOF plus offset */
+/*
+ * Routines that are purely local.
+ */
+#if !defined (_ANSI_SOURCE) && !defined(_POSIX_SOURCE)
+char	*fgetln(FILE *, size_t *);
+int	 fpurge(FILE *);
+int	 getw(FILE *);
+int	 pclose(FILE *);
+FILE	*popen(const char *, const char *);
+int	 putw(int, FILE *);
+void	 setbuffer(FILE *, char *, int);
+int	 setlinebuf(FILE *);
+char	*tempnam(const char *, const char *);
+int	 snprintf(char *, size_t, const char *, ...);
+int	 vsnprintf(char *, size_t, const char *, va_list);
+int	 vscanf(const char *, va_list);
+int	 vsscanf(const char *, const char *, va_list);
+FILE	*zopen(const char *, const char *, int);
 
-#define P_tmpdir    "/tmp/"
-#define L_tmpnam    12  /* including the terminator for /tmp/XXXXXX */
-#define L_ctermid   9   /* including the terminator for /dev/tty */
 
-void    clearerr(FILE *);
-int     feof(FILE *);
-int     ferror(FILE *);
-int     fileno(FILE *);
+/*
+ * Stdio function-access interface.
+ */
+FILE	*funopen(const void *,
+		int (*)(void *, char *, int),
+		int (*)(void *, const char *, int),
+		fpos_t (*)(void *, fpos_t, int),
+		int (*)(void *));
+#define	fropen(cookie, fn) funopen(cookie, fn, 0, 0, 0)
+#define	fwopen(cookie, fn) funopen(cookie, 0, fn, 0, 0)
+#endif /* !_ANSI_SOURCE && !_POSIX_SOURCE */
 
-FILE    *fopen (const char *, const char *);
-FILE    *fdopen (int, const char *);
-FILE    *freopen (const char *, const char *, FILE *);
-FILE    *popen (const char *, const char *);
-int     pclose (FILE *);
-FILE    *tmpfile (void);
-char    *tmpnam (char [L_tmpnam]);
-char    *tempnam (const char *, const char *);
-char    *ctermid (char *);
-int     fclose (FILE *);
-long    ftell (FILE *);
-int     fflush (FILE *);
-int     fgetc (FILE *);
-int     ungetc (int, FILE *);
-int     fputc (int, FILE *);
-int     fputs (const char *, FILE *);
-int     puts (const char *);
-char    *fgets (char *, int, FILE *);
-char    *gets (char *);
-FILE    *_findiop (void);
-int     _filbuf (FILE *);
-int     _flsbuf (unsigned char, FILE *);
-void    setbuf (FILE *, char *);
-void    setbuffer (FILE *, char *, size_t);
-void    setlinebuf (FILE *);
-int     setvbuf (FILE *, char *, int, size_t);
-int     fseek (FILE *, long, int);
-void    rewind (FILE *);
-int     remove (const char *);
-int     rename (const char *, const char *);
-int     getw(FILE *stream);
-int     putw(int w, FILE *stream);
+/*
+ * Functions internal to the implementation.
+ */
+int	__srget(FILE *);
+int	__swbuf(int, FILE *);
+int	_doprnt(const char *, va_list, FILE *);
+int	_doscan(FILE *, const char *, va_list);
 
-size_t  fread (void *, size_t, size_t, FILE *);
-size_t  fwrite (const void *, size_t, size_t, FILE *);
+/*
+ * The __sfoo macros are here so that we can 
+ * define function versions in the C library.
+ */
+#define	__sgetc(p) (--(p)->_r < 0 ? __srget(p) : (int)(*(p)->_p++))
+/*
+ * This has been tuned to generate reasonable code on the vax using pcc.
+ */
+#define	__sputc(c, p) \
+	(--(p)->_w < 0 ? \
+		(p)->_w >= (p)->_lbfsize ? \
+			((*(p)->_p = (c)), *(p)->_p != '\n') ? \
+				(int)*(p)->_p++ : \
+				__swbuf('\n', p) : \
+			__swbuf((int)(c), p) : \
+		(*(p)->_p = (c), (int)*(p)->_p++))
 
-int     fprintf (FILE *, const char *, ...);
-int     printf (const char *, ...);
-int     sprintf (char *, const char *, ...);
-int     snprintf (char *, size_t, const char *, ...);
+#define	__sfeof(p)	(((p)->_flags & __SEOF) != 0)
+#define	__sferror(p)	(((p)->_flags & __SERR) != 0)
+#define	__sclearerr(p)	((void)((p)->_flags &= ~(__SERR|__SEOF)))
+#define	__sfileno(p)	((p)->_file)
 
-int     fscanf (FILE *, const char *, ...);
-int     scanf (const char *, ...);
-int     sscanf (const char *, const char *, ...);
+#define	feof(p)		__sfeof(p)
+#define	ferror(p)	__sferror(p)
+#define	clearerr(p)	__sclearerr(p)
 
-#ifndef _VA_LIST_
-# ifdef __GNUC__
-#  define va_list   __builtin_va_list   /* For Gnu C */
-# endif
-# ifdef __SMALLER_C__
-#  define va_list   char *              /* For Smaller C */
-# endif
+#ifndef _ANSI_SOURCE
+#define	fileno(p)	__sfileno(p)
 #endif
-
-int     vfprintf (FILE *, const char *, va_list);
-int     vprintf (const char *, va_list);
-int     vsprintf (char *, const char *, va_list);
-int     vsnprintf (char *, size_t, const char *, va_list);
-
-int     vfscanf (FILE *, const char *, va_list);
-int     vscanf (const char *, va_list);
-int     vsscanf (const char *, const char *, va_list);
-
-int     _doprnt (const char *, va_list, FILE *);
-int     _doscan (FILE *, const char *, va_list);
-
-#ifndef _VA_LIST_
-# undef va_list
-#endif
-
-void    perror (const char *);
 
 #ifndef lint
-#define getc(p)     (--(p)->_cnt>=0? (int)(*(unsigned char *)(p)->_ptr++):_filbuf(p))
-#define putc(x, p)  (--(p)->_cnt >= 0 ?\
-    (int)(*(unsigned char *)(p)->_ptr++ = (x)) :\
-    (((p)->_flag & _IOLBF) && -(p)->_cnt < (p)->_bufsiz ?\
-        ((*(p)->_ptr = (x)) != '\n' ?\
-            (int)(*(unsigned char *)(p)->_ptr++) :\
-            _flsbuf(*(unsigned char *)(p)->_ptr, p)) :\
-        _flsbuf((unsigned char)(x), p)))
-#endif /* not lint */
+#define	getc(fp)	__sgetc(fp)
+#define putc(x, fp)	__sputc(x, fp)
+#endif /* lint */
 
-#define getchar()       getc(stdin)
-#define putchar(x)      putc(x,stdout)
-#define __sfeof(p)      (((p)->_flag&_IOEOF)!=0)
-#define __sferror(p)    (((p)->_flag&_IOERR)!=0)
-#define __sfileno(p)    ((p)->_file)
-#define __sclearerr(p)  ((p)->_flag &= ~(_IOERR|_IOEOF))
-
-#define feof(p)         __sfeof(p)
-#define ferror(p)       __sferror(p)
-#define fileno(p)       __sfileno(p)
-#define clearerr(p)     __sclearerr(p)
-
-#endif /* _FILE */
+#define	getchar()	getc(stdin)
+#define	putchar(x)	putc(x, stdout)
+#endif /* _STDIO_H_ */

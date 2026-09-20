@@ -8,7 +8,6 @@
 static int checks;
 static int failures;
 int printf_test_errno;
-struct _iobuf _iob[3];
 
 /* The indirect call keeps the compiler from replacing the function under test
  * with its builtin or rejecting deliberate truncation before the gate runs. */

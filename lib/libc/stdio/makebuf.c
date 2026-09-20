@@ -35,18 +35,50 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)makebuf.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "local.h"
 
 /*
- * A subroutine version of the macro getchar.
+ * ragge 200607
+ * Remove optimal buffer selection based on filesystem block size,
+ * makes little sense on pdp11.
  */
-#include <stdio.h>
 
-#undef getchar
-
-int
-getchar(void)
+/*
+ * Allocate a file buffer, or switch to unbuffered I/O.
+ * Per the ANSI C standard, ALL tty devices default to line buffered.
+ *
+ * As a side effect, we set __SOPT or __SNPT (en/dis-able fseek
+ * optimisation) right after the fstat() that finds the buffer size.
+ */
+void
+__smakebuf(register FILE *fp)
 {
-	return (__sgetc(stdin));
+	register void *p;
+	register size_t size;
+
+	fp->_bf._size = 1;
+	fp->_bf._base = fp->_p = fp->_nbuf;
+	size = BUFSIZ;
+
+	if ((fp->_flags & __SNBF) || (p = malloc(size)) == NULL) {
+		fp->_flags |= __SNBF;
+		return;
+	}
+
+#if 0
+	__cleanup = _cleanup;
+#endif
+	fp->_flags |= (__SMBF|__SNPT);
+	fp->_bf._base = fp->_p = p;
+	fp->_bf._size = size;
+	if (isatty(fp->_file))
+		fp->_flags |= __SLBF;
 }

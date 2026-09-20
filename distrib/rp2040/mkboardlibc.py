@@ -91,10 +91,11 @@ time timezone ttyname ttyslot ualarm uname usleep vis wait3 wait waitpid
 
 STDIO_C = set(
     """
-clrerr doprnt_float doprnt doscan exit fdopen feof ferror fgetc fgets filbuf
-fileno findiop flsbuf fopen fprintf fputc fputs fread freopen fseek ftell
-fwrite getchar gets getw printf putchar puts putw remove rew scanf setbuffer
-setbuf setvbuf snprintf sprintf strout ungetc vfprintf vprintf vsprintf
+clnup clrerr doprnt_float doprnt doscan doscan_float exit fclose fdopen
+fflush fgetc fgets findfp flags fopen fprintf fpurge fputc fputs fread
+freopen fseek ftell fvwrite fwrite getc getchar gets getw makebuf printf
+putc putchar puts putw refill remove rewind rget scanf setbuf setbuffer
+setvbuf snprintf sprintf stdio ungetc vfprintf vprintf wbuf wsetup
 """.split()
 )
 

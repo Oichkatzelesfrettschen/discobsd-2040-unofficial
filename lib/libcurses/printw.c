@@ -18,14 +18,9 @@
  */
 int _sprintw (WINDOW *win, char *fmt, va_list args)
 {
-	FILE	junk;
 	char	buf[512];
 
-	junk._flag = _IOWRT + _IOSTRG;
-	junk._ptr = buf;
-	junk._cnt = 32767;
-	_doprnt(fmt, args, &junk);
-	putc('\0', &junk);
+	(void) vsnprintf(buf, sizeof buf, fmt, args);
 	return waddstr(win, buf);
 }
 

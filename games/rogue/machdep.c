@@ -93,7 +93,7 @@ md_slurp()
 #endif
 
 #ifndef CROSS
-        ln += stdin->_cnt;
+        ln += stdin->_r;
 #endif
 	for (; ln > 0; ln--) {
 		(void) getchar();

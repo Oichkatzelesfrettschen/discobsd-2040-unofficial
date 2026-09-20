@@ -32,21 +32,25 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ *	@(#)fvwrite.h	8.2 (2.11BSD) 2025/12/25
  */
-
-#if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
 
 /*
- * A subroutine version of the macro getchar.
+ * I/O descriptors for __sfvwrite().
  */
-#include <stdio.h>
+struct __siov {
+	void	*iov_base;
+	size_t	iov_len;
+};
+struct __suio {
+	struct	__siov *uio_iov;
+	int	uio_iovcnt;
+	int	uio_resid;
+};
 
-#undef getchar
-
-int
-getchar(void)
-{
-	return (__sgetc(stdin));
-}
+#if __STDC__ || c_plusplus
+extern int __sfvwrite(FILE *, struct __suio *);
+#else
+extern int __sfvwrite();
+#endif

@@ -149,13 +149,19 @@ vsyslog(int pri, const char *fmt, va_list ap)
 		remaining--;
 	}
 
-	/* An exhausted string stream leaves _base free to carry saved errno text. */
-	message_stream._flag = _IOWRT | _IOSTRG | _IOSYSLOG;
-	message_stream._ptr = cursor;
-	message_stream._base = strerror(saved_errno);
-	message_stream._cnt = (int)remaining - 1;
+	/*
+	 * A write-only string stream over the rest of tbuf. _up is the saved
+	 * read pointer, unused on a write stream, so it carries the errno text
+	 * that %m expands; __SSYSLOG tells _doprnt to look there.
+	 */
+	message_stream._flags = __SWR | __SSTR | __SSYSLOG;
+	message_stream._p = message_stream._bf._base = (unsigned char *)cursor;
+	message_stream._w = message_stream._bf._size = (int)remaining - 1;
+	message_stream._lbfsize = 0;
+	message_stream._fops = NULL;
+	message_stream._up = (unsigned char *)strerror(saved_errno);
 	(void)_doprnt(fmt, ap, &message_stream);
-	cursor = message_stream._ptr;
+	cursor = (char *)message_stream._p;
 	*cursor = '\0';
 	cnt = (int)(cursor - tbuf);
 

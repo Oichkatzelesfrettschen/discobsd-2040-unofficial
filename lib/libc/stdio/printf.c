@@ -2,12 +2,13 @@
 #include <stdarg.h>
 
 int
-printf (const char *fmt, ...)
+printf(const char *fmt, ...)
 {
-	va_list args;
+	va_list ap;
+	int ret;
 
-	va_start (args, fmt);
-	_doprnt (fmt, args, stdout);
-	va_end (args);
-	return ferror (stdout) ? EOF : 0;
+	va_start(ap, fmt);
+	ret = vfprintf(stdout, fmt, ap);
+	va_end(ap);
+	return ret;
 }

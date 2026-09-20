@@ -20,7 +20,7 @@ void db_closelog(void);
 
 const char *__progname = "contract";
 int syslog_test_errno;
-struct _iobuf _iob[3];
+int printf_test_errno;	/* the shared stream-core objects carry this name */
 
 static char log_capture[CAPTURE_SIZE];
 static char stderr_capture[CAPTURE_SIZE];

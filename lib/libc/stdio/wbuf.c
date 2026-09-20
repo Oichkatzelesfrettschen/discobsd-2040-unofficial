@@ -35,18 +35,62 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)wbuf.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
+
+#include <stdio.h>
+#include "local.h"
 
 /*
- * A subroutine version of the macro getchar.
+ * Write the given character into the (probably full) buffer for
+ * the given file.  Flush the buffer out if it is or becomes full,
+ * or if c=='\n' and the file is line buffered.
  */
-#include <stdio.h>
-
-#undef getchar
-
 int
-getchar(void)
+__swbuf(register int c, register FILE *fp)
 {
-	return (__sgetc(stdin));
+	register int n;
+
+	/*
+	 * In case we cannot write, or longjmp takes us out early,
+	 * make sure _w is 0 (if fully- or un-buffered) or -_bf._size
+	 * (if line buffered) so that we will get called again.
+	 * If we did not do this, a sufficient number of putc()
+	 * calls might wrap _w from negative to positive.
+	 */
+	fp->_w = fp->_lbfsize;
+	if (cantwrite(fp))
+		return (EOF);
+	/*
+	 * A string stream has no write function: sprintf and its relatives
+	 * point _bf at the caller's array and _w at its capacity, and this
+	 * tree's _doprnt writes through putc. At capacity the character is
+	 * dropped here and the caller's count still advances, which is the
+	 * snprintf return contract; flushing would reach a NULL _fops.
+	 */
+	if (fp->_flags & __SSTR)
+		return (c);
+	c = (unsigned char)c;
+
+	/*
+	 * If it is completely full, flush it out.  Then, in any case,
+	 * stuff c into the buffer.  If this causes the buffer to fill
+	 * completely, or if c is '\n' and the file is line buffered,
+	 * flush it (perhaps a second time).  The second flush will always
+	 * happen on unbuffered streams, where _bf._size==1; fflush()
+	 * guarantees that putc() will always call wbuf() by setting _w
+	 * to 0, so we need not do anything else.
+	 */
+	n = fp->_p - fp->_bf._base;
+	if (n >= fp->_bf._size) {
+		if (fflush(fp))
+			return (EOF);
+		n = 0;
+	}
+	fp->_w--;
+	*fp->_p++ = c;
+	if (++n == fp->_bf._size || (fp->_flags & __SLBF && c == '\n'))
+		if (fflush(fp))
+			return (EOF);
+	return (c);
 }

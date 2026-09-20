@@ -94,12 +94,14 @@ OBJS            += abort.o alarm.o atof.o atoi.o atol.o basename.o \
 
 # libc/stdio
 OBJS            += fgetc.o fgets.o fputc.o fputs.o gets.o puts.o \
-                   clrerr.o doscan.o exit.o fdopen.o filbuf.o findiop.o \
-                   flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
-                   ftell.o fwrite.o getchar.o getw.o printf.o putchar.o putw.o \
-                   rew.o scanf.o setbuf.o setbuffer.o setvbuf.o snprintf.o sprintf.o \
-                   strout.o ungetc.o vfprintf.o vprintf.o vsprintf.o vsnprintf.o doprnt.o \
-                   remove.o feof.o ferror.o fileno.o
+                   clrerr.o clnup.o doscan.o doscan_float.o exit.o fclose.o \
+                   fdopen.o fflush.o findfp.o flags.o fopen.o fprintf.o fpurge.o \
+                   fread.o freopen.o fseek.o ftell.o fvwrite.o fwrite.o getc.o \
+                   getchar.o getw.o makebuf.o printf.o putc.o putchar.o putw.o \
+                   refill.o rewind.o rget.o scanf.o setbuf.o setbuffer.o \
+                   setvbuf.o snprintf.o sprintf.o stdio.o ungetc.o vfprintf.o \
+                   vprintf.o wbuf.o wsetup.o \
+                   doprnt.o remove.o
 
 # libc/stdlib
 OBJS            += getopt.o getsubopt.o strtol.o strtoul.o strtod.o

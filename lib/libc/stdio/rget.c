@@ -35,18 +35,23 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)rget.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
+
+#include <stdio.h>
+#include "local.h"
 
 /*
- * A subroutine version of the macro getchar.
+ * Handle getc() when the buffer ran out:
+ * Refill, then return the first character
+ * in the newly-filled buffer.
  */
-#include <stdio.h>
-
-#undef getchar
-
 int
-getchar(void)
+__srget(register FILE *fp)
 {
-	return (__sgetc(stdin));
+	if (__srefill(fp) == 0) {
+		fp->_r--;
+		return (*fp->_p++);
+	}
+	return (EOF);
 }

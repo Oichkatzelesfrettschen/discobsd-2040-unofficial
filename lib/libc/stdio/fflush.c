@@ -35,18 +35,57 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)fflush.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
 
-/*
- * A subroutine version of the macro getchar.
- */
+#include <errno.h>
 #include <stdio.h>
+#include "local.h"
 
-#undef getchar
+/* Flush a single file, or (if fp is NULL) all files.  */
+int
+fflush(register FILE *fp)
+{
+
+	if (fp == NULL)
+		return (_fwalk(__sflush));
+	if ((fp->_flags & (__SWR | __SRW)) == 0) {
+		errno = EBADF;
+		return (EOF);
+	}
+	return (__sflush(fp));
+}
 
 int
-getchar(void)
+__sflush(register FILE *fp)
 {
-	return (__sgetc(stdin));
+	register unsigned char *p;
+	register int t, n;
+
+	t = fp->_flags;
+	if ((t & __SWR) == 0)
+		return (0);
+
+	if ((p = fp->_bf._base) == NULL)
+		return (0);
+
+	n = fp->_p - p;		/* write this much */
+
+	/*
+	 * Set these immediately to avoid problems with longjmp and to allow
+	 * exchange buffering (via setvbuf) in user write function.
+	 */
+	fp->_p = p;
+	fp->_w = 0;
+	if ((t & (__SLBF|__SNBF)) == 0)
+		fp->_w = fp->_bf._size;
+
+	for (; n > 0; n -= t, p += t) {
+		t = (*fp->_fops->_write)(COOKIE(fp), (char *)p, n);
+		if (t <= 0) {
+			fp->_flags |= __SERR;
+			return (EOF);
+		}
+	}
+	return (0);
 }

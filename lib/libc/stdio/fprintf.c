@@ -5,26 +5,15 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
-#include <alloca.h>
 
 int
-fprintf (register FILE *iop, const char *fmt, ...)
+fprintf(FILE *fp, const char *fmt, ...)
 {
 	va_list ap;
+	int ret;
 
-	va_start (ap, fmt);
-	if (iop->_flag & _IONBF) {
-		iop->_flag &= ~_IONBF;
-		iop->_ptr = iop->_base = alloca(BUFSIZ);
-		iop->_bufsiz = BUFSIZ;
-		_doprnt(fmt, ap, iop);
-		fflush(iop);
-		iop->_flag |= _IONBF;
-		iop->_base = NULL;
-		iop->_bufsiz = NULL;
-		iop->_cnt = 0;
-	} else
-		_doprnt(fmt, ap, iop);
-	va_end (ap);
-	return(ferror(iop)? EOF: 0);
+	va_start(ap, fmt);
+	ret = vfprintf(fp, fmt, ap);
+	va_end(ap);
+	return ret;
 }

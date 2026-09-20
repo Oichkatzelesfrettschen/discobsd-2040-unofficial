@@ -35,18 +35,18 @@
  */
 
 #if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)getchar.c	8.2 (2.11BSD) 2025/12/26";
-#endif
+static char sccsid[] = "@(#)getc.c	8.2 (2.11BSD) 2025/12/25";
+#endif /* LIBC_SCCS and not lint */
 
-/*
- * A subroutine version of the macro getchar.
- */
 #include <stdio.h>
 
-#undef getchar
+/*
+ * A subroutine version of the macro getc.
+ */
+#undef getc
 
 int
-getchar(void)
+getc(register FILE *fp)
 {
-	return (__sgetc(stdin));
+	return (__sgetc(fp));
 }

@@ -16,24 +16,41 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
-#include <alloca.h>
 
+/*
+ * Formatted output through _doprnt, which writes one character at a time
+ * with putc. On an unbuffered stream that is one write(2) per character,
+ * so the conversion runs into a stack buffer inside a copy of the stream
+ * and is written out once; the copy shares the descriptor and the file
+ * operations, and its error flag is copied back.
+ */
 int
-vfprintf(FILE *iop, const char *fmt, va_list ap)
+vfprintf(FILE *fp, const char *fmt, va_list ap)
 {
-	int len;
+	FILE fake;
+	unsigned char buf[BUFSIZ];
+	int ret;
 
-	if (iop->_flag & _IONBF) {
-		iop->_flag &= ~_IONBF;
-		iop->_ptr = iop->_base = alloca(BUFSIZ);
-		len = _doprnt(fmt, ap, iop);
-		(void) fflush(iop);
-		iop->_flag |= _IONBF;
-		iop->_base = NULL;
-		iop->_bufsiz = 0;
-		iop->_cnt = 0;
-	} else
-		len = _doprnt(fmt, ap, iop);
+	if ((fp->_flags & __SNBF) == 0) {
+		ret = _doprnt(fmt, ap, fp);
+		return (ferror(fp) ? EOF : ret);
+	}
 
-	return (ferror(iop) ? EOF : len);
+	fake._flags = fp->_flags & ~__SNBF;
+	fake._file = fp->_file;
+	fake._fops = fp->_fops;
+	fake._bf._base = fake._p = buf;
+	fake._bf._size = fake._w = sizeof buf;
+	fake._r = 0;
+	fake._lbfsize = 0;
+	fake._up = NULL;
+	fake._ur = 0;
+	fake._offset = 0;
+
+	ret = _doprnt(fmt, ap, &fake);
+	if (ret >= 0 && fflush(&fake))
+		ret = EOF;
+	if (fake._flags & __SERR)
+		fp->_flags |= __SERR;
+	return (ferror(fp) ? EOF : ret);
 }

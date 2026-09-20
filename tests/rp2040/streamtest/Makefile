@@ -1,5 +1,5 @@
-# streamtest: on-device check that stdio works past NSTATIC static FILE
-# slots (lib/libc/stdio/findiop.c). Opens twelve concurrent streams so the
+# streamtest: on-device check that stdio works past FOPEN_MAX static FILE
+# slots (lib/libc/stdio/findfp.c). Opens twelve concurrent streams so the
 # ninth onward exercise the dynamic _f_morefiles path, then reads each back.
 # Regression tool, not shipped in the root manifest.
 TOPSRC!=cd ../../..; pwd

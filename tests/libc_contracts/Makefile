@@ -61,30 +61,35 @@ PRINTF_DIR=	${TOPSRC}/lib/libc/stdio
 PRINTF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include -DNO_DOPRNT_FLOATFMT \
 		-Derrno=printf_test_errno
-PRINTF_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_doprnt.o \
-		printf_flsbuf.o
-PRINTF_OBJS32=	printf_snprintf32.o printf_vsnprintf32.o printf_doprnt32.o \
-		printf_flsbuf32.o
+# The stream core the formatter's putc reaches: __swbuf, its flush path,
+# and the __sF array and default fileops that findfp.c defines.
+STDIO_CORE=	findfp stdio wbuf wsetup makebuf fflush refill rget
+PRINTF_CORE=	printf_findfp.o printf_stdio.o printf_wbuf.o printf_wsetup.o printf_makebuf.o printf_fflush.o printf_refill.o printf_rget.o
+PRINTF_CORE32=	printf_findfp32.o printf_stdio32.o printf_wbuf32.o printf_wsetup32.o printf_makebuf32.o printf_fflush32.o printf_refill32.o printf_rget32.o
+PRINTF_OBJS=	printf_snprintf.o printf_doprnt.o printf_ungetc.o ${PRINTF_CORE}
+PRINTF_OBJS32=	printf_snprintf32.o printf_doprnt32.o printf_ungetc32.o ${PRINTF_CORE32}
 
 # The formatted input scanner and the string-stream path sscanf builds for
 # it. The entry points move aside so the host's own scanf stays out of the
 # link and every call in the gate reaches the tree source. getc() expands to
-# _filbuf on underflow, so that rename covers the macro as well.
+# __srget on underflow, and fflush is renamed so the flush path stays the tree's.
 SCANF_DIR=	${TOPSRC}/lib/libc/stdio
 SCANF_STDLIB_DIR=${TOPSRC}/lib/libc/stdlib
 SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
 SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
+		-Dvscanf=db_vscanf -Dvfscanf=db_vfscanf -Dvsscanf=db_vsscanf \
 		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
-		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod
+		-Dungetc=db_ungetc -Dfflush=db_fflush -Dstrtod=db_strtod \
+		-Derrno=scanf_test_errno
 SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SCANF_RENAMES}
 SCANF_OBJS=	scanf_doscan.o scanf_doscan_float.o scanf_scanf.o \
-		scanf_ungetc.o scanf_filbuf.o scanf_strtod.o scanf_ctype.o
+		scanf_ungetc.o scanf_strtod.o scanf_ctype.o scanf_findfp.o scanf_stdio.o scanf_wbuf.o scanf_wsetup.o scanf_makebuf.o scanf_fflush.o scanf_refill.o scanf_rget.o
 SCANF_OBJS32=	scanf_doscan32.o scanf_doscan_float32.o scanf_scanf32.o \
-		scanf_ungetc32.o scanf_filbuf32.o scanf_strtod32.o scanf_ctype32.o
+		scanf_ungetc32.o scanf_strtod32.o scanf_ctype32.o scanf_findfp32.o scanf_stdio32.o scanf_wbuf32.o scanf_wsetup32.o scanf_makebuf32.o scanf_fflush32.o scanf_refill32.o scanf_rget32.o
 SCANF_OBJS_ASAN=scanf_doscan_asan.o scanf_doscan_float_asan.o \
-		scanf_scanf_asan.o scanf_ungetc_asan.o scanf_filbuf_asan.o \
-		scanf_strtod_asan.o scanf_ctype_asan.o
+		scanf_scanf_asan.o scanf_ungetc_asan.o \
+		scanf_strtod_asan.o scanf_ctype_asan.o scanf_findfp_asan.o scanf_stdio_asan.o scanf_wbuf_asan.o scanf_wsetup_asan.o scanf_makebuf_asan.o scanf_fflush_asan.o scanf_refill_asan.o scanf_rget_asan.o
 
 # The address sanitizer is what detects the defect class this scanner was
 # rewritten to remove: a staging buffer overrun lands inside the scanner's
@@ -110,7 +115,7 @@ SYSLOG_RENAMES=	-Dsyslog=db_syslog -Dvsyslog=db_vsyslog \
 		-Dstrerror=test_strerror -Derrno=syslog_test_errno
 SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
-SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o
+SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_ungetc.o ${PRINTF_CORE}
 
 check-syslog: syslog_contract_test
 	./syslog_contract_test
@@ -159,26 +164,14 @@ printf_contract_test32: printf_contract_test.c ${PRINTF_OBJS32}
 printf_snprintf.o: ${PRINTF_DIR}/snprintf.c
 	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/snprintf.c
 
-printf_vsnprintf.o: ${PRINTF_DIR}/vsnprintf.c
-	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/vsnprintf.c
-
 printf_doprnt.o: ${PRINTF_DIR}/doprnt.c
 	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
-
-printf_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
-	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
 printf_snprintf32.o: ${PRINTF_DIR}/snprintf.c
 	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/snprintf.c
 
-printf_vsnprintf32.o: ${PRINTF_DIR}/vsnprintf.c
-	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/vsnprintf.c
-
 printf_doprnt32.o: ${PRINTF_DIR}/doprnt.c
 	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
-
-printf_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
-	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
 check-scanf: scanf_contract_test
 	./scanf_contract_test
@@ -218,10 +211,6 @@ scanf_scanf.o: ${SCANF_DIR}/scanf.c
 scanf_ungetc.o: ${SCANF_DIR}/ungetc.c
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
 
-scanf_filbuf.o: ${SCANF_DIR}/filbuf.c
-	${HOSTCC} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
-	    -c -o $@ ${SCANF_DIR}/filbuf.c
-
 scanf_strtod.o: ${SCANF_STDLIB_DIR}/strtod.c
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
 
@@ -239,10 +228,6 @@ scanf_scanf32.o: ${SCANF_DIR}/scanf.c
 
 scanf_ungetc32.o: ${SCANF_DIR}/ungetc.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
-
-scanf_filbuf32.o: ${SCANF_DIR}/filbuf.c
-	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
-	    -c -o $@ ${SCANF_DIR}/filbuf.c
 
 scanf_strtod32.o: ${SCANF_STDLIB_DIR}/strtod.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
@@ -262,15 +247,137 @@ scanf_scanf_asan.o: ${SCANF_DIR}/scanf.c
 scanf_ungetc_asan.o: ${SCANF_DIR}/ungetc.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
 
-scanf_filbuf_asan.o: ${SCANF_DIR}/filbuf.c
-	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
-	    -c -o $@ ${SCANF_DIR}/filbuf.c
-
 scanf_strtod_asan.o: ${SCANF_STDLIB_DIR}/strtod.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
 
 scanf_ctype_asan.o: ${SCANF_GEN_DIR}/ctype_.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
+
+printf_findfp.o: ${PRINTF_DIR}/findfp.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/findfp.c
+
+printf_findfp32.o: ${PRINTF_DIR}/findfp.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/findfp.c
+
+printf_stdio.o: ${PRINTF_DIR}/stdio.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/stdio.c
+
+printf_stdio32.o: ${PRINTF_DIR}/stdio.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/stdio.c
+
+printf_wbuf.o: ${PRINTF_DIR}/wbuf.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/wbuf.c
+
+printf_wbuf32.o: ${PRINTF_DIR}/wbuf.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/wbuf.c
+
+printf_wsetup.o: ${PRINTF_DIR}/wsetup.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/wsetup.c
+
+printf_wsetup32.o: ${PRINTF_DIR}/wsetup.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/wsetup.c
+
+printf_makebuf.o: ${PRINTF_DIR}/makebuf.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/makebuf.c
+
+printf_makebuf32.o: ${PRINTF_DIR}/makebuf.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/makebuf.c
+
+printf_fflush.o: ${PRINTF_DIR}/fflush.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/fflush.c
+
+printf_fflush32.o: ${PRINTF_DIR}/fflush.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/fflush.c
+
+printf_refill.o: ${PRINTF_DIR}/refill.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/refill.c
+
+printf_refill32.o: ${PRINTF_DIR}/refill.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/refill.c
+
+printf_rget.o: ${PRINTF_DIR}/rget.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/rget.c
+
+printf_rget32.o: ${PRINTF_DIR}/rget.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/rget.c
+
+printf_ungetc.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+printf_ungetc32.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+scanf_findfp.o: ${SCANF_DIR}/findfp.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/findfp.c
+
+scanf_findfp32.o: ${SCANF_DIR}/findfp.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/findfp.c
+
+scanf_findfp_asan.o: ${SCANF_DIR}/findfp.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/findfp.c
+
+scanf_stdio.o: ${SCANF_DIR}/stdio.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/stdio.c
+
+scanf_stdio32.o: ${SCANF_DIR}/stdio.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/stdio.c
+
+scanf_stdio_asan.o: ${SCANF_DIR}/stdio.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/stdio.c
+
+scanf_wbuf.o: ${SCANF_DIR}/wbuf.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/wbuf.c
+
+scanf_wbuf32.o: ${SCANF_DIR}/wbuf.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/wbuf.c
+
+scanf_wbuf_asan.o: ${SCANF_DIR}/wbuf.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/wbuf.c
+
+scanf_wsetup.o: ${SCANF_DIR}/wsetup.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/wsetup.c
+
+scanf_wsetup32.o: ${SCANF_DIR}/wsetup.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/wsetup.c
+
+scanf_wsetup_asan.o: ${SCANF_DIR}/wsetup.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/wsetup.c
+
+scanf_makebuf.o: ${SCANF_DIR}/makebuf.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/makebuf.c
+
+scanf_makebuf32.o: ${SCANF_DIR}/makebuf.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/makebuf.c
+
+scanf_makebuf_asan.o: ${SCANF_DIR}/makebuf.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/makebuf.c
+
+scanf_fflush.o: ${SCANF_DIR}/fflush.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/fflush.c
+
+scanf_fflush32.o: ${SCANF_DIR}/fflush.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/fflush.c
+
+scanf_fflush_asan.o: ${SCANF_DIR}/fflush.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/fflush.c
+
+scanf_refill.o: ${SCANF_DIR}/refill.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/refill.c
+
+scanf_refill32.o: ${SCANF_DIR}/refill.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/refill.c
+
+scanf_refill_asan.o: ${SCANF_DIR}/refill.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/refill.c
+
+scanf_rget.o: ${SCANF_DIR}/rget.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/rget.c
+
+scanf_rget32.o: ${SCANF_DIR}/rget.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/rget.c
+
+scanf_rget_asan.o: ${SCANF_DIR}/rget.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/rget.c
 
 check-strtox: strtox_test
 	./strtox_test
@@ -384,7 +491,7 @@ header_contract.o: header_contract.c
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
-	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
+	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32} printf_ungetc.o printf_ungetc32.o
 	rm -f syslog_contract_test syslog_syslog.o
 	rm -f vis_contract_test vis_vis.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o

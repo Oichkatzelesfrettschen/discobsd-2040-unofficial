@@ -40,6 +40,11 @@ scanf_ungetc_asan.o
 scanf_filbuf.o
 scanf_filbuf32.o
 scanf_filbuf_asan.o
+printf_float_contract_test
+printf_doprnt_fp.o
+printf_doprnt_float.o
+printf_doprnt_llong.o
+printf_doprnt_llong32.o
 rwmode_contract_test
 rwmode_contract_test32
 rwmode_filbuf.o

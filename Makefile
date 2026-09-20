@@ -171,6 +171,10 @@ check-libc-strtox:
 check-libc-printf:
 		${MAKE} -C tests/libc_contracts check-printf
 
+# The formatter with doprnt_float linked: %a and the decimal conversions.
+check-libc-printf-float:
+		${MAKE} -C tests/libc_contracts check-printf-float
+
 # The formatted input scanner at host width, at ILP32 and under the address
 # sanitizer. The sanitizer tier is the one that sees a scratch overrun
 # inside the scanner's own frame.
@@ -504,6 +508,7 @@ installfs:
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-scanf check-libc-rwmode check-libc-syslog check-libc-vis \
+		check-libc-printf-float \
 		check-dirent-contracts check-dirent-contracts-cross \
 		check-libc-string-security check-libc-string-security-cross \
 		check-id-aliases \

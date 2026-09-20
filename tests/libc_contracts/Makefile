@@ -41,9 +41,9 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-malloc check-printf check-scanf \
-	check-rwmode check-syslog check-vis check-qsort check-strtox \
-	check-string-security
+check-host: ${PROG} header_contract.o check-malloc check-printf \
+	check-printf-float check-scanf check-rwmode check-syslog check-vis \
+	check-qsort check-strtox check-string-security
 	./${PROG}
 
 check: check-host check-aout
@@ -66,9 +66,9 @@ PRINTF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include -DNO_DOPRNT_FLOATFMT \
 		-Derrno=printf_test_errno
 PRINTF_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_doprnt.o \
-		printf_flsbuf.o
+		printf_flsbuf.o printf_doprnt_llong.o
 PRINTF_OBJS32=	printf_snprintf32.o printf_vsnprintf32.o printf_doprnt32.o \
-		printf_flsbuf32.o
+		printf_flsbuf32.o printf_doprnt_llong32.o
 
 # The formatted input scanner and the string-stream path sscanf builds for
 # it. The entry points move aside so the host's own scanf stays out of the
@@ -114,7 +114,9 @@ SYSLOG_RENAMES=	-Dsyslog=db_syslog -Dvsyslog=db_vsyslog \
 		-Dstrerror=test_strerror -Derrno=syslog_test_errno
 SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
-SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o
+# doprnt.o refers to the weak __doprnt_ll; Mach-O resolves a weak
+# reference only against a definition, so the member is linked here too.
+SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
 
 check-syslog: syslog_contract_test
 	./syslog_contract_test
@@ -191,6 +193,27 @@ vis_contract_test: vis_contract_test.c vis_vis.o
 vis_vis.o: ${TARGET_DIR}/vis.c
 	${HOSTCC} ${VIS_CFLAGS} -c -o $@ ${TARGET_DIR}/vis.c
 
+# The formatter with its float member linked, for %a and the decimal
+# conversions; the host libm supplies modf.
+PRINTF_FLOAT_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include -Derrno=printf_test_errno \
+		-DPRINTF_FLOAT_TEST
+PRINTF_FLOAT_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_flsbuf.o \
+		printf_doprnt_fp.o printf_doprnt_float.o printf_doprnt_llong.o
+
+check-printf-float: printf_float_contract_test
+	./printf_float_contract_test
+
+printf_float_contract_test: printf_contract_test.c ${PRINTF_FLOAT_OBJS}
+	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -o $@ printf_contract_test.c \
+	    ${PRINTF_FLOAT_OBJS} -lm
+
+printf_doprnt_fp.o: ${PRINTF_DIR}/doprnt.c
+	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
+
+printf_doprnt_float.o: ${PRINTF_DIR}/doprnt_float.c
+	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_float.c
+
 check-printf: printf_contract_test
 	./printf_contract_test
 .if ${ILP32_OK} == "yes"
@@ -214,6 +237,12 @@ printf_vsnprintf.o: ${PRINTF_DIR}/vsnprintf.c
 
 printf_doprnt.o: ${PRINTF_DIR}/doprnt.c
 	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
+
+printf_doprnt_llong.o: ${PRINTF_DIR}/doprnt_llong.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_llong.c
+
+printf_doprnt_llong32.o: ${PRINTF_DIR}/doprnt_llong.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_llong.c
 
 printf_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
@@ -471,6 +500,8 @@ clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
+	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
+	rm -f printf_doprnt_llong.o printf_doprnt_llong32.o
 	rm -f syslog_contract_test syslog_syslog.o
 	rm -f vis_contract_test vis_vis.o
 	rm -f string_security_test string_explicit_bzero.o \
@@ -484,6 +515,7 @@ clean:
 
 all: check
 
-.PHONY: all check check-host check-aout check-malloc check-printf check-qsort \
-	check-rwmode check-scanf check-string-security \
-	check-string-security-cross check-strtox check-syslog check-vis clean
+.PHONY: all check check-host check-aout check-malloc check-printf \
+	check-printf-float check-qsort check-rwmode check-scanf \
+	check-string-security check-string-security-cross check-strtox \
+	check-syslog check-vis clean

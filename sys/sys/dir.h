@@ -61,10 +61,10 @@ struct  direct {
  */
 typedef struct _dirdesc {
     int     dd_fd;
-    long    dd_loc;
-    long    dd_size;
+    long    dd_seek;               /* file offset of dd_buf[0] */
+    long    dd_loc;                /* next entry inside dd_buf */
+    long    dd_size;               /* valid bytes inside dd_buf */
     char    dd_buf[DIRBLKSIZ];
-    struct  direct dd_cur;
 } DIR;
 
 #ifndef NULL

@@ -17,6 +17,16 @@ source-expression, and missing-dependency failures. The negative commands must
 exit with the verifier's finding status 1 or input-error status 2, as
 appropriate.
 
+`source_comment_safe.c` is the positive control for the source scan: it names
+every divider register, the SIO base plus a divider offset, and a direct
+divider address, each inside a block comment, a line comment, a trailing
+comment or a comment spanning lines, and the verifier must accept it with
+`source_divider_findings=0`. A comment emits no instruction, so an access has
+to appear in code; `sys/arch/rp2040/rp2040/mpu.c` needs this to state which
+registers the boot ROM's `fdiv_n` writes while it programs an MPU region over
+them. `source_negative.c` keeps its two findings in code, so the calibration
+that the source lane still rejects a real reference is unchanged.
+
 Run the integrated two-kernel gate from the repository root after selecting
 the RP2040 machine:
 

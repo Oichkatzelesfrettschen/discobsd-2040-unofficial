@@ -51,7 +51,7 @@ The kernel boots through its device probe
     Start Emulation
 
     Wait For Line On Uart       DiscoBSD 2.7 (PICO_UART)                    timeout=60
-    Wait For Line On Uart       cpu: Cortex-M0+, ARMv6-M, no MMU and no MPU    timeout=60
+    Wait For Line On Uart       cpu: Cortex-M0+, ARMv6-M, no MMU, MPU unprogrammed    timeout=60
     Wait For Line On Uart       cpu: 125 MHz core, 125 MHz peripheral       timeout=60
 
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash

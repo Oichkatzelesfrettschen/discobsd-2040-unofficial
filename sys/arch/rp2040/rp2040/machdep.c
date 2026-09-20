@@ -447,7 +447,7 @@ cpuidentify(void)
 	rev  = (chip_id >> 28) & 0x0000000f;
 
 	printf("cpu: RP%04x rev %u, manufacturer 0x%03x\n", part, rev, mfr);
-	printf("cpu: Cortex-M0+, ARMv6-M, no MMU and no MPU\n");
+	printf("cpu: Cortex-M0+, ARMv6-M, no MMU, MPU unprogrammed\n");
 	printf("cpu: %u MHz core, %u MHz peripheral\n",
 	    (u_int)CPU_KHZ / 1000, (u_int)BUS_KHZ / 1000);
 }

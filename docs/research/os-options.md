@@ -23,8 +23,8 @@
 > `sys/arch/rp2040/README.md` state the current target model.
 
 
-Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, no MPU on the
-M0+ core, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
+Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, an eight-region
+MPU (datasheet 2.4.1, 2.4.6) that no port programs, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
 (execute-in-place).
 
 Research method: primary sources only -- upstream repositories read directly
@@ -37,7 +37,7 @@ primary source from what is inferred. Retrieved 2026-09-11.
 | OS | Target architecture(s) | RP2040 status | Concrete blocker |
 |---|---|---|---|
 | RetroBSD | MIPS32 M4K (Microchip PIC32MX) | REQUIRES A PORT (in practice a full rewrite of the machine-dependent layer) | Machine-dependent code (`sys/pic32/`) is written directly against MIPS32 C0 coprocessor registers and hard-codes MIPS kseg0/kseg1 fixed-segment addresses (`0x80000000`, `0x9d000000`); none of this exists on ARMv6-M. No RP2040/ARM fork or port found. |
-| DiscoBSD | ARM Cortex-M4/ARMv7E-M (STM32F4xx) and MIPS32 (PIC32MX) | IMPOSSIBLE WITHOUT MAJOR WORK (as currently architected) | The ARM port's memory-protection code (`sys/arch/stm32/stm32/mpu.c`) hard-depends on the ARMv7-M optional MPU register block via ST's `LL_MPU_*` HAL calls. The RP2040's Cortex-M0+ (ARMv6-M) core has no MPU hardware at all, so this is not a config change. |
+| DiscoBSD | ARM Cortex-M4/ARMv7E-M (STM32F4xx) and MIPS32 (PIC32MX) | IMPOSSIBLE WITHOUT MAJOR WORK (as currently architected) | The ARM port's memory-protection code (`sys/arch/stm32/stm32/mpu.c`) hard-depends on the ARMv7-M optional MPU register block via ST's `LL_MPU_*` HAL calls. The RP2040's Cortex-M0+ carries the ARMv6-M PMSAv6 MPU (datasheet 2.4.6), whose region registers differ from the ARMv7-M ones ST's HAL drives, so this is not a config change. |
 | FUZIX | Many 8/16-bit and small 32-bit targets, incl. arm32 | SUPPORTED NATIVELY | None -- an active, maintained platform directory (`Kernel/platform/platform-rpipico`) exists, uses flat 32-bit addressing with swap (not bank switching), and boots to a working userland/shell. Not fully mature: signal delivery from CPU exceptions is an open issue, and each process is capped at 64 KB. |
 | Apache NuttX | Dozens of architectures incl. ARM Cortex-M0 through M7, RISC-V, Xtensa, x86, MIPS, SPARC | SUPPORTED NATIVELY | None -- upstream `boards/arm/rp2040/` contains a `raspberrypi-pico` board directory with multiple working configs, including an `nsh` (NuttShell/NSH) defconfig, an `nsh-flash` config that runs from the external QSPI flash, and an `nshsram` config that runs entirely from SRAM. |
 | Other candidates (Xinu, Linux nommu, NetBSD, Embox, collapseOS, RIOT-OS) | various | IMPOSSIBLE WITHOUT MAJOR WORK / NOT FOUND | Mainline Linux's ARM nommu port has no `CPU_V6M` Kconfig symbol at all (only `CPU_V7M`), so Cortex-M0/M0+ support does not exist even as an unimplemented stub. Xinu, NetBSD, and Embox have no RP2040 board/platform anywhere in their trees. See section 5. |
@@ -164,15 +164,16 @@ ST HAL functions `LL_MPU_IsEnabled()`, `LL_MPU_GetCtrl()`,
 `LL_MPU_GetNumRegions()`, `LL_MPU_GetSeparate()` from
 `sys/arch/stm32/hal/stm32f4xx_ll_cortex.h`, and
 `sys/arch/stm32/include/mpuvar.h` defines corresponding sysctl names
-(`enable`, `ctrl`, `nregions`, `separate`). The ARMv7-M MPU (8 or 16
-configurable regions) is architecturally absent from ARMv6-M cores: the
-RP2040's Cortex-M0+ has no MPU register block at all.
+(`enable`, `ctrl`, `nregions`, `separate`). The ARMv7-M MPU register
+layout is what that code drives; the RP2040's Cortex-M0+ carries the ARMv6-M
+PMSAv6 MPU with eight regions (datasheet 2.4.1, 2.4.6), a related but distinct
+register block, which this port leaves unprogrammed.
 Source: `sys/arch/stm32/stm32/mpu.c`; `sys/arch/stm32/include/mpuvar.h`.
 
 **VERDICT: IMPOSSIBLE WITHOUT MAJOR WORK.** DiscoBSD's only ARM port hard-
 depends on ARMv7-M MPU hardware for its memory-protection model, and the
-RP2040's Cortex-M0+ cores (ARMv6-M) have no MPU and, per the shared RetroBSD
-lineage, no MMU either. Getting DiscoBSD running would mean designing a new
+RP2040's Cortex-M0+ cores (ARMv6-M) carry an unprogrammed PMSAv6 MPU and, per
+the shared RetroBSD lineage, no MMU. Getting DiscoBSD running would mean designing a new
 software-only protection scheme or shipping an unprotected single-address-
 space kernel -- a from-scratch port, not a configuration change. Note: the
 project's only stated interest in an RP-series chip (issue #17) is for the

@@ -9,8 +9,8 @@
 > `docs/research/STYLE-GUIDE.md` and `sys/arch/rp2040/README.md` state the
 > current target model.
 
-Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, no MPU on
-either core, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
+Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, an eight-region
+MPU on each core (datasheet 2.4.1) that neither project programs, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
 (execute-in-place). This document goes file-by-file into the two candidate
 codebases; `research/os-options.md` in this same directory already carries a
 survey-level verdict on both and on other embedded-Unix candidates (FUZIX,
@@ -128,7 +128,7 @@ decision (cache enable) plus the fixed addresses baked into
 
 ## 2. RetroBSD memory model
 
-**CONFIRMED: no MMU, no MPU, no isolation, whole-process swap.**
+**CONFIRMED: no MMU, no MPU programmed, no isolation, whole-process swap.**
 
 - `README.md`: "**A real Unix that fits in 128 kbytes of RAM** ... a chip
   with no MMU ... **Kernel** -- under 128 kbytes of flash, fits in on-chip
@@ -473,7 +473,7 @@ by anything in either codebase.
 | 8 | Adjust linker scripts / memory map (`kern.ldscript` + per-board `.ld`) for RP2040's flash-at-`0x10000000`/SRAM-at-`0x20000000` map and 264 KB (vs. STM32F4's 192 KB or PIC32's 128 KB) RAM | `sys/arch/stm32/conf/kern.ldscript` (as a template) | Mechanical | `kern.ldscript` already slices one flat `MEMORY` region into `FLASH`/`RAM`/`USERRAM`/`U0AREA`/`UAREA` via `ORIGIN`/`LENGTH`, a pattern that carries directly; RP2040's SRAM is contiguous at the standard `0x20000000` alias (confirmed via RP2040 datasheet: the "striped" 4-bank interleave that improves bus parallelism is transparent at that alias -- every address in `0x20000000`-`0x20042000` is backed by real, individually addressable SRAM, so the existing flat-region linker model needs new constants, not a new model) |
 | 9 | Widen `USIZE`/user-window constants to use more of the 264 KB RAM (264 KB vs. STM32F4's 192 KB/128 KB baseline and PIC32's 128 KB) | `machparam.h`-equivalent for the new port | Mechanical, and a net improvement | Confirmed favorable: RP2040 gives more headroom per process than either existing target, not less |
 | 10 | Second-core (RP2040 is dual-Cortex-M0+) handling: leave core 1 unused, or design SMP/AMP support | none currently | Out of scope for MVP / research problem if pursued | Neither RetroBSD nor DiscoBSD's kernel has any multi-core code; the simplest correct answer is to never start core 1, which costs nothing, but is worth stating explicitly so it is a decision, not an oversight |
-| 11 | Process isolation beyond "trust the compiler" | none currently, on either project | Not required for parity, a research problem only if attempted | Item 3's correction: neither RetroBSD nor DiscoBSD isolates processes today. RP2040 has no MPU on either core, so this door is permanently closed on this hardware, not just currently unbuilt -- unlike on STM32F4, where the MPU exists and unused. An RP2040 port cannot ever add MPU-based protection later; a from-scratch software scheme (e.g., a bounds-checked interpreter layer, or accepting the existing trust model permanently) is the only option, and no design for one exists in either codebase. **This is the one item on this list that is a genuine research problem, not an engineering task** -- everything else above has a known solution shape. |
+| 11 | Process isolation beyond "trust the compiler" | none currently, on either project | Not required for parity, a research problem only if attempted | Item 3's correction: neither RetroBSD nor DiscoBSD isolates processes today. RP2040 carries an eight-region PMSAv6 MPU on each core (datasheet 2.4.6) that no port programs, so this door stands unbuilt here as it does on STM32F4, where the MPU exists and is unused. An RP2040 port cannot ever add MPU-based protection later; a from-scratch software scheme (e.g., a bounds-checked interpreter layer, or accepting the existing trust model permanently) is the only option, and no design for one exists in either codebase. **This is the one item on this list that is a genuine research problem, not an engineering task** -- everything else above has a known solution shape. |
 | 12 | Kernel autoconfiguration (`kconfig`) entries + board `Config` file for the new target | `sys/arch/stm32/conf/*` analogues | Mechanical | Both projects already parameterize board bring-up this way for ten (DiscoBSD) or two (RetroBSD) existing boards |
 | 13 | Bring up the whole toolchain: confirm `arm-none-eabi-gcc`/`binutils` handle `-mcpu=cortex-m0plus -mthumb` for every file in the tree, not just the ones sampled in item 4 | build system | Verification work, cheap | This session confirmed the toolchain exists and works for the specific files checked; a full-tree build attempt is the fast way to enumerate every remaining `__thumb2__`-only file at once |
 

@@ -1,6 +1,6 @@
 # A constrained account profile for the RP2040 port
 
-The RP2040 has no MMU and no MPU. Every process runs in the same physical
+The RP2040 has no MMU, and this port leaves its MPU unprogrammed (datasheet 2.4.6). Every process runs in the same physical
 address space as the kernel and as every other process; UID separation
 keeps `chmod`, `chown`, and file permission checks honest, but it stops
 nothing that can execute arbitrary code, since arbitrary code can simply

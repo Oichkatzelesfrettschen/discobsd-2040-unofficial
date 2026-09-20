@@ -1,0 +1,5 @@
+setflags_test
+getty_subr.o
+getty_gettytab.o
+getty_init.o
+getty_ctype.o

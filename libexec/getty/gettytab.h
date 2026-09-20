@@ -81,9 +81,10 @@ struct gettyflags {
 #define	OPset	gettyflags[3].set
 #define	AP	gettyflags[4].value
 #define	APset	gettyflags[4].set
-/* EC is defined and used also for telnet, with a different meaning.
- * However, in telnetd, we don't care about the getty EC anyway, so
- * we just protect ourself from a double definition error this way.
+/*
+ * telnetd includes this header and defines its own EC, a telnet option,
+ * before it; the getty flag of that name is never read there, so the
+ * guard lets the two definitions coexist without a redefinition error.
  */
 #ifndef EC
 #define	EC	gettyflags[5].value

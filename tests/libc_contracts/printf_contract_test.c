@@ -129,6 +129,17 @@ main(void)
 		bounded_format(out, sizeof out, "% d % d %+d", 5, -5, 5);
 		check(strcmp(out, " 5 -5 +5") == 0,
 		    "printf contract: the space flag reserves a sign position");
+		bounded_format(out, sizeof out, "%#8.3llx|%#8.3x", 0ULL, 0);
+		check(strcmp(out, "     000|     000") == 0,
+		    "printf contract: # with a precision on zero adds no prefix");
+		{
+			char wide[640];
+			int len = bounded_format(wide, sizeof wide, "%500.400lld|", 7LL);
+
+			check(len == 501 && strlen(wide) == 501 && wide[99] == ' ' &&
+			    wide[100] == '0' && wide[499] == '7',
+			    "printf contract: a precision past the buffer still fills the field");
+		}
 		bounded_format(out, sizeof out, "%D", 123456789L);
 		check(strcmp(out, "123456789") == 0,
 		    "printf contract: the %D long extension survives");
@@ -153,6 +164,17 @@ main(void)
 		bounded_format(out, sizeof out, "%a %a", -0.0, 0.0);
 		check(strcmp(out, "-0x0p+0 0x0p+0") == 0,
 		    "printf contract: %a keeps the sign of a negative zero");
+		bounded_format(out, sizeof out, "%020a|%-10a|", 1.0, 1.0);
+		check(strcmp(out, "0x000000000000001p+0|0x1p+0    |") == 0,
+		    "printf contract: %a zero padding goes after the 0x prefix");
+		{
+			volatile double zero = 0.0;
+			double inf = 1.0 / zero, nan = zero / zero;
+
+			bounded_format(out, sizeof out, "%a %A %f %F %e %G", inf, inf, nan, nan, -inf, nan);
+			check(strcmp(out, "inf INF nan NAN -inf NAN") == 0,
+			    "printf contract: inf and nan follow the conversion's case");
+		}
 		bounded_format(out, sizeof out, "%.2f %e", 3.14159, 1234.5);
 		check(strcmp(out, "3.14 1.234500e+03") == 0,
 		    "printf contract: %f and %e still convert");

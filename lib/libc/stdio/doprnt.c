@@ -59,7 +59,7 @@
 #define SZ_PTRDIFF	6	/* t: ptrdiff_t */
 
 static unsigned char *ksprintn (unsigned char *buf, unsigned long v,
-	unsigned char base, int width, unsigned char *lp);
+	unsigned char base, int width, int *lp);
 static unsigned char mkhex (unsigned char ch);
 
 /*
@@ -81,7 +81,8 @@ extern int __doprnt_cvt (double number, int prec, int sharpflag,
  */
 extern unsigned char *__doprnt_ll (va_list *app, int issigned,
 	unsigned char base, int width, unsigned char *nbuf,
-	unsigned char *lenp, unsigned char *negp) __attribute__((weak));
+	int *lenp, unsigned char *negp, unsigned char *nonzerop)
+	__attribute__((weak));
 
 int
 _doprnt (char const *fmt, va_list ap, FILE *stream)
@@ -89,8 +90,8 @@ _doprnt (char const *fmt, va_list ap, FILE *stream)
 #define PUTC(c) { putc (c, stream); ++retval; }
 	unsigned char nbuf [MAXNBUF], padding;
 	const unsigned char *s;
-	unsigned char c, base, ladjust, sharpflag, neg, dot, size, sz, nonzero;
-	int n, width, dwidth, retval, uppercase, extrazeros, sign, issigned;
+	unsigned char c, base, ladjust, sharpflag, neg, dot, sz, nonzero, hexfmt;
+	int n, width, dwidth, retval, uppercase, extrazeros, sign, issigned, size;
 	unsigned long ul;
 
 	if (! stream)
@@ -107,7 +108,7 @@ _doprnt (char const *fmt, va_list ap, FILE *stream)
 		}
 		padding = ' ';
 		width = 0; extrazeros = 0;
-		sz = SZ_INT; ladjust = 0; sharpflag = 0; neg = 0;
+		sz = SZ_INT; ladjust = 0; sharpflag = 0; neg = 0; hexfmt = 0;
 		sign = 0; dot = 0; uppercase = 0; dwidth = -1;
 		ul = 0;
 reswitch:	switch (c = *fmt++) {
@@ -401,12 +402,11 @@ wide:
 
 				va_copy (apc, ap);
 				s = __doprnt_ll (&apc, issigned, base, dwidth,
-				    nbuf, &size, &neg);
+				    nbuf, &size, &neg, &nonzero);
 				va_end (ap);
 				va_copy (ap, apc);
 				va_end (apc);
 			}
-			nonzero = (size != 1 || *s != '0');
 			goto emit;
 
 number:
@@ -423,17 +423,24 @@ emit:
 				else if (sign == -2)
 					neg = ' ';
 			}
+			/*
+			 * The field the digits occupy: every digit the
+			 * precision asked for, the zeros the buffer could not
+			 * hold included, plus sign and prefix, in an int so a
+			 * precision above 255 does not wrap the count.
+			 */
+			n = size + extrazeros;
 			if (sharpflag && nonzero) {
 				if (base == 8)
-					size++;
+					n++;
 				else if (base == 16)
-					size += 2;
+					n += 2;
 			}
 			if (neg)
-				size++;
+				n++;
 
 			if (! ladjust && width && padding == ' ' &&
-			    (width -= size) > 0)
+			    (width -= n) > 0)
 				do {
 					PUTC (' ');
 				} while (--width > 0);
@@ -450,15 +457,15 @@ emit:
 				}
 			}
 
+			if (! ladjust && width && (width -= n) > 0)
+				do {
+					PUTC (padding);
+				} while (--width > 0);
+
 			if (extrazeros)
 				do {
 					PUTC ('0');
 				} while (--extrazeros > 0);
-
-			if (! ladjust && width && (width -= size) > 0)
-				do {
-					PUTC (padding);
-				} while (--width > 0);
 
 			for (; *s; --s) {
 				if (uppercase && *s>='a' && *s<='z') {
@@ -468,7 +475,7 @@ emit:
 				}
 			}
 
-			if (ladjust && width && (width -= size) > 0)
+			if (ladjust && width && (width -= n) > 0)
 				do {
 					PUTC (' ');
 				} while (--width > 0);
@@ -504,7 +511,8 @@ emit:
 			s = nbuf;
 #else
 			double d = va_arg (ap, double);
-			unsigned char hexfmt = (c == 'a' || c == 'A');
+
+			hexfmt = (c == 'a' || c == 'A');
 
 			/*
 			 * don't do unrealistic precision; just pad it with
@@ -539,9 +547,13 @@ emit:
 			 * if the first char isn't NULL, it did.
 			 */
 			if (isnan (d) || isinf (d)) {
-				strcpy ((char*)nbuf, isnan (d) ? "NaN" : "Inf");
+				/* C17 7.21.6.1p8: inf and nan, upper case under A, E, F and G */
+				strcpy ((char*)nbuf, isnan (d) ?
+				    (c < 'a' ? "NAN" : "nan") :
+				    (c < 'a' ? "INF" : "inf"));
 				size = 3;
 				extrazeros = 0;
+				padding = ' ';
 				s = nbuf;
 			} else if (__doprnt_cvt == 0) {
 				nbuf [0] = '?';
@@ -576,6 +588,18 @@ emit:
 				PUTC ('+');
 			} else if (sign == -2) {
 				PUTC (' ');
+			}
+
+			/*
+			 * Zero padding under %a goes after the 0x prefix, as it
+			 * does after an integer's alternate-form prefix, so the
+			 * field stays a hexadecimal floating constant.
+			 */
+			if (hexfmt && padding == '0' && s[0] == '0' &&
+			    (s[1] == 'x' || s[1] == 'X')) {
+				PUTC (s[0]);
+				PUTC (s[1]);
+				s += 2;
 			}
 
 			if (! ladjust && width && (width -= size) > 0)
@@ -625,7 +649,7 @@ emit:
  */
 static unsigned char *
 ksprintn (unsigned char *nbuf, unsigned long ul, unsigned char base, int width,
-	unsigned char *lenp)
+	int *lenp)
 {
 	unsigned char *p;
 
@@ -640,7 +664,7 @@ ksprintn (unsigned char *nbuf, unsigned long ul, unsigned char base, int width,
 			break;
 	}
 	if (lenp)
-		*lenp = p - nbuf;
+		*lenp = (int)(p - nbuf);
 	return (p);
 }
 

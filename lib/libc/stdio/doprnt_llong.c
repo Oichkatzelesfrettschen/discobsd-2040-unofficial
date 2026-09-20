@@ -47,7 +47,8 @@ udiv64_small (unsigned long long *vp, unsigned base)
 
 unsigned char *
 __doprnt_ll (va_list *app, int issigned, unsigned char base, int width,
-	unsigned char *nbuf, unsigned char *lenp, unsigned char *negp)
+	unsigned char *nbuf, int *lenp, unsigned char *negp,
+	unsigned char *nonzerop)
 {
 	unsigned long long v;
 	unsigned char *p;
@@ -62,6 +63,7 @@ __doprnt_ll (va_list *app, int issigned, unsigned char base, int width,
 			v = (unsigned long long) ll;
 	} else
 		v = va_arg (*app, unsigned long long);
+	*nonzerop = (v != 0);	/* before the digits, which a precision pads */
 
 	p = nbuf;
 	*p = 0;
@@ -73,6 +75,6 @@ __doprnt_ll (va_list *app, int issigned, unsigned char base, int width,
 			break;
 	}
 	if (lenp)
-		*lenp = p - nbuf;
+		*lenp = (int)(p - nbuf);
 	return (p);
 }

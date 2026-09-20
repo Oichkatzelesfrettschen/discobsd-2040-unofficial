@@ -68,6 +68,7 @@ enum frame_kind {
 enum lexical_state {
 	LEXICAL_CODE,
 	LEXICAL_BLOCK_COMMENT,
+	LEXICAL_LINE_COMMENT,
 	LEXICAL_STRING,
 	LEXICAL_CHARACTER
 };
@@ -76,6 +77,7 @@ struct directive {
 	enum directive_kind kind;
 	size_t symbol_offset;
 	size_t symbol_length;
+	size_t prefix_length;
 	size_t suffix_offset;
 };
 
@@ -114,11 +116,14 @@ static int unifdef_usage(const char *);
 static int symbol_name_valid(const char *);
 static int symbol_lookup(const unsigned char *, size_t);
 static int read_line(FILE *, size_t *);
-static size_t skip_directive_spacing(const unsigned char *, size_t, size_t);
+static int directive_space(unsigned char);
+static size_t skip_directive_spacing(const unsigned char *, size_t, size_t,
+	int *);
 static size_t directive_comment_suffix(const unsigned char *, size_t, size_t);
+static int line_comment_continues(const unsigned char *, size_t);
 static struct directive parse_directive(const unsigned char *, size_t,
 	enum lexical_state);
-static void scan_lexical_state(const unsigned char *, size_t);
+static void scan_lexical_state(const unsigned char *, size_t, int);
 static int emit_line(FILE *, const unsigned char *, size_t, int, int *);
 static int push_conditional(enum frame_kind, int, int);
 static int enter_else(void);
@@ -240,17 +245,18 @@ identifier_character(unsigned char character)
 
 static size_t
 skip_directive_spacing(const unsigned char *line, size_t line_length,
-	size_t cursor)
+	size_t cursor, int *saw_comment)
 {
 	for (;;) {
-		while (cursor < line_length &&
-		    (line[cursor] == ' ' || line[cursor] == '\t'))
+		while (cursor < line_length && directive_space(line[cursor]))
 			cursor++;
 		if (text_input)
 			return cursor;
 		if (cursor + 1 >= line_length || line[cursor] != '/' ||
 		    line[cursor + 1] != '*')
 			return cursor;
+		if (saw_comment != NULL)
+			*saw_comment = 1;
 		cursor += 2;
 		while (cursor + 1 < line_length &&
 		    !(line[cursor] == '*' && line[cursor + 1] == '/'))
@@ -261,19 +267,38 @@ skip_directive_spacing(const unsigned char *line, size_t line_length,
 	}
 }
 
+static int
+directive_space(unsigned char character)
+{
+	return character == ' ' || character == '\t' || character == '\v' ||
+	    character == '\f';
+}
+
 static size_t
 directive_comment_suffix(const unsigned char *line, size_t line_length,
 	size_t cursor)
 {
 	if (text_input)
 		return line_length;
-	while (cursor < line_length &&
-	    (line[cursor] == ' ' || line[cursor] == '\t'))
+	while (cursor < line_length && directive_space(line[cursor]))
 		cursor++;
 	if (cursor + 1 < line_length && line[cursor] == '/' &&
 	    (line[cursor + 1] == '*' || line[cursor + 1] == '/'))
 		return cursor;
 	return line_length;
+}
+
+static int
+line_comment_continues(const unsigned char *line, size_t line_length)
+{
+	size_t cursor = line_length;
+
+	if (cursor == 0 || line[cursor - 1] != '\n')
+		return 0;
+	cursor--;
+	if (cursor != 0 && line[cursor - 1] == '\r')
+		cursor--;
+	return cursor != 0 && line[cursor - 1] == '\\';
 }
 
 static struct directive
@@ -291,19 +316,34 @@ parse_directive(const unsigned char *line, size_t line_length,
 		{ "else", DIRECTIVE_ELSE },
 		{ "endif", DIRECTIVE_ENDIF }
 	};
-	struct directive result = { DIRECTIVE_PLAIN, 0, 0, line_length };
+	struct directive result = {
+		DIRECTIVE_PLAIN, 0, 0, 0, line_length
+	};
 	size_t cursor = 0;
+	size_t hash_offset;
 	size_t keyword_start;
 	size_t keyword_length;
 	size_t keyword_index;
+	int prefix_has_comment = 0;
 
-	if (starting_state != LEXICAL_CODE)
+	if (starting_state == LEXICAL_BLOCK_COMMENT) {
+		while (cursor + 1 < line_length &&
+		    !(line[cursor] == '*' && line[cursor + 1] == '/'))
+			cursor++;
+		if (cursor + 1 >= line_length)
+			return result;
+		cursor += 2;
+		prefix_has_comment = 1;
+	} else if (starting_state != LEXICAL_CODE) {
 		return result;
-	cursor = skip_directive_spacing(line, line_length, cursor);
+	}
+	cursor = skip_directive_spacing(line, line_length, cursor,
+	    &prefix_has_comment);
 	if (cursor == line_length || line[cursor] != '#')
 		return result;
+	hash_offset = cursor;
 	cursor++;
-	cursor = skip_directive_spacing(line, line_length, cursor);
+	cursor = skip_directive_spacing(line, line_length, cursor, NULL);
 	keyword_start = cursor;
 	while (cursor < line_length && identifier_character(line[cursor]))
 		cursor++;
@@ -318,13 +358,19 @@ parse_directive(const unsigned char *line, size_t line_length,
 			break;
 		}
 	}
+	if (result.kind != DIRECTIVE_PLAIN && prefix_has_comment) {
+		result.prefix_length = hash_offset;
+		while (result.prefix_length != 0 &&
+		    directive_space(line[result.prefix_length - 1]))
+			result.prefix_length--;
+	}
 	if (result.kind != DIRECTIVE_IFDEF &&
 	    result.kind != DIRECTIVE_IFNDEF) {
 		result.suffix_offset = directive_comment_suffix(line,
 		    line_length, cursor);
 		return result;
 	}
-	cursor = skip_directive_spacing(line, line_length, cursor);
+	cursor = skip_directive_spacing(line, line_length, cursor, NULL);
 	result.symbol_offset = cursor;
 	if (cursor < line_length &&
 	    (isalpha(line[cursor]) || line[cursor] == '_')) {
@@ -339,16 +385,22 @@ parse_directive(const unsigned char *line, size_t line_length,
 }
 
 static void
-scan_lexical_state(const unsigned char *line, size_t line_length)
+scan_lexical_state(const unsigned char *line, size_t line_length,
+	int continuation_only)
 {
 	size_t cursor = 0;
 
-	if (text_input)
+	if (text_input || (continuation_only && lexical_state == LEXICAL_CODE))
 		return;
-	while (cursor < line_length) {
+	while (cursor < line_length &&
+	    (!continuation_only || lexical_state != LEXICAL_CODE)) {
 		unsigned char character = line[cursor];
 		unsigned char next = cursor + 1 < line_length ? line[cursor + 1] : 0;
 
+		if (lexical_state == LEXICAL_LINE_COMMENT) {
+			cursor = line_length;
+			continue;
+		}
 		if (lexical_state == LEXICAL_BLOCK_COMMENT) {
 			if (character == '*' && next == '/') {
 				lexical_state = LEXICAL_CODE;
@@ -376,7 +428,8 @@ scan_lexical_state(const unsigned char *line, size_t line_length)
 			lexical_state = LEXICAL_BLOCK_COMMENT;
 			cursor += 2;
 		} else if (character == '/' && next == '/') {
-			return;
+			lexical_state = LEXICAL_LINE_COMMENT;
+			cursor = line_length;
 		} else if (character == '"') {
 			lexical_state = LEXICAL_STRING;
 			cursor++;
@@ -387,6 +440,9 @@ scan_lexical_state(const unsigned char *line, size_t line_length)
 			cursor++;
 		}
 	}
+	if (lexical_state == LEXICAL_LINE_COMMENT &&
+	    !line_comment_continues(line, line_length))
+		lexical_state = LEXICAL_CODE;
 }
 
 static int
@@ -496,6 +552,7 @@ unifdef_process(FILE *input, FILE *output, const char *source_name)
 		struct directive directive;
 		enum lexical_state starting_state;
 		int emit_result;
+		int line_emits;
 		int line_scans;
 		int raw_keep = 0;
 
@@ -505,11 +562,14 @@ unifdef_process(FILE *input, FILE *output, const char *source_name)
 			    "input read error");
 		line_number++;
 		starting_state = lexical_state;
+		line_emits = content_emits;
 		line_scans = content_scans;
 		directive = parse_directive(line_buffer, line_length,
 		    starting_state);
 		if (line_scans)
-			scan_lexical_state(line_buffer, line_length);
+			scan_lexical_state(line_buffer, line_length, 0);
+		else
+			scan_lexical_state(line_buffer, line_length, 1);
 		switch (directive.kind) {
 		case DIRECTIVE_PLAIN:
 			raw_keep = content_emits;
@@ -584,16 +644,42 @@ unifdef_process(FILE *input, FILE *output, const char *source_name)
 			break;
 		}
 		}
+		if (!line_scans &&
+		    (directive.kind == DIRECTIVE_ELSE ||
+		    directive.kind == DIRECTIVE_ENDIF) &&
+		    directive.suffix_offset < line_length)
+			scan_lexical_state(line_buffer + directive.suffix_offset,
+			    line_length - directive.suffix_offset, 0);
 		if (!(complement_output ? !raw_keep : raw_keep) &&
 		    !complement_output &&
-		    content_emits &&
-		    directive.suffix_offset < line_length) {
-			size_t suffix_length = line_length - directive.suffix_offset;
+		    ((line_emits && directive.prefix_length != 0) ||
+		    (content_emits &&
+		    directive.suffix_offset < line_length))) {
+			int prefix_emitted = line_emits &&
+			    directive.prefix_length != 0;
+			int suffix_emitted = content_emits &&
+			    directive.suffix_offset < line_length;
 
-			if (fwrite(line_buffer + directive.suffix_offset, 1,
-			    suffix_length, output) != suffix_length)
+			if (prefix_emitted &&
+			    fwrite(line_buffer, 1, directive.prefix_length,
+			    output) != directive.prefix_length)
 				return unifdef_error(source_name, line_number,
 				    "output write error");
+			if (suffix_emitted) {
+				size_t suffix_length = line_length -
+				    directive.suffix_offset;
+
+				if (fwrite(line_buffer + directive.suffix_offset, 1,
+				    suffix_length, output) != suffix_length)
+					return unifdef_error(source_name,
+					    line_number, "output write error");
+			} else if (prefix_emitted &&
+			    line_length != 0 &&
+			    line_buffer[line_length - 1] == '\n' &&
+			    fputc('\n', output) == EOF) {
+				return unifdef_error(source_name, line_number,
+				    "output write error");
+			}
 			changed = 1;
 			continue;
 		}
@@ -603,6 +689,8 @@ unifdef_process(FILE *input, FILE *output, const char *source_name)
 			return unifdef_error(source_name, line_number,
 			    "output write error");
 	}
+	if (lexical_state == LEXICAL_LINE_COMMENT)
+		lexical_state = LEXICAL_CODE;
 	if (conditional_depth != 0)
 		return unifdef_error(source_name, line_number,
 		    "premature EOF in conditional");

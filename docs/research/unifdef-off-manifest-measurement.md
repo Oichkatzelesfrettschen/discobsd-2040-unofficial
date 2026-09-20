@@ -53,14 +53,14 @@ completed with status 0 and composed the board libc from 149 members totaling
 
 | Surface | Measured value |
 | --- | ---: |
-| target object text | 2,729 bytes |
+| target object text | 3,149 bytes |
 | target object data | 0 bytes |
 | target object BSS | 5,112 bytes |
-| OMAGIC text | 10,140 bytes |
+| OMAGIC text | 10,532 bytes |
 | OMAGIC data | 464 bytes |
 | OMAGIC BSS | 5,172 bytes |
-| raw a.out | 10,636 bytes |
-| packed a.out | 8,655 bytes |
+| raw a.out | 11,028 bytes |
+| packed a.out | 9,025 bytes |
 | raw root cost | 12 blocks |
 | packed root cost | 10 blocks |
 
@@ -95,9 +95,10 @@ tools/bin/fsutil --verbose --partition=1 distrib/rp2040/sdcard.img
 
 The host suite also passes under address and undefined-behavior sanitizers. It
 pins ignored-arm lexical suppression, comments between directive tokens,
-complete trailing comments on removed directives, and byte-exact complemented
-status in addition to the listed command surface. The Cortex-M0+ object imports
-no compiler division helper. These results prove the source contracts, target
-compilation, bounded object storage, clean image construction, and hypothetical
-block cost. They do not prove board execution; the measurement neither accesses
-nor flashes a board.
+comments that close before a directive, complete trailing comments on removed
+directives, spliced line comments, horizontal preprocessing whitespace, and
+byte-exact complemented status in addition to the listed command surface. The
+Cortex-M0+ object imports no compiler division helper. These results prove the
+source contracts, target compilation, bounded object storage, clean image
+construction, and hypothetical block cost. They do not prove board execution;
+the measurement neither accesses nor flashes a board.

@@ -4,6 +4,7 @@ set -eu
 unifdef_program=$1
 test_directory=$(mktemp -d)
 trap 'rm -rf "${test_directory}"' EXIT HUP INT TERM
+form_feed=$(printf '\f')
 
 run_case()
 {
@@ -81,10 +82,45 @@ kept
 "non-C ignored text
 #endif
 '
+run_case 0 '-iUFOO' '#ifdef FOO /* open
+comment */
+ignored
+#endif
+' '#ifdef FOO /* open
+comment */
+ignored
+#endif
+'
+run_case 0 '-iDFOO' '#ifdef FOO
+kept
+#else /* open
+comment */
+ignored
+#endif
+' '#ifdef FOO
+kept
+#else /* open
+comment */
+ignored
+#endif
+'
 run_case 1 '-DFOO' '# /* gap */ ifdef /* gap */ FOO
 kept
 #endif
 ' 'kept
+'
+run_case 1 '-DFOO' '/* comment
+ */ #ifdef FOO
+kept
+#endif
+' '/* comment
+ */
+kept
+'
+run_case 1 '-DFOO' "${form_feed}#ifdef FOO
+kept
+#endif
+" 'kept
 '
 run_case 1 '-DFOO' '#ifdef FOO /* open
 comment */
@@ -99,6 +135,17 @@ comment */
 int removed;
 #endif
 ' ''
+run_case 1 '-UFOO' '#ifdef FOO
+/* hidden
+ */ #endif
+' ''
+run_case 1 '-UFOO' '#ifdef FOO
+/* hidden
+ */ #else
+kept
+#endif
+' 'kept
+'
 run_case 1 '-DFOO' '#ifdef FOO
 kept
 #else /* open
@@ -147,6 +194,35 @@ no
 ' '#ifdef FOO
 no
 #endif
+'
+run_case 0 '-iUFOO -DKNOWN' '#ifdef FOO
+ignored
+#endif /* open
+#ifdef KNOWN
+kept
+#endif
+*/
+' '#ifdef FOO
+ignored
+#endif /* open
+#ifdef KNOWN
+kept
+#endif
+*/
+'
+run_case 0 '-DFOO' '// comment \
+#ifdef FOO
+int kept;
+' '// comment \
+#ifdef FOO
+int kept;
+'
+run_case 0 '-DFOO' '// comment \\
+#ifdef FOO
+int kept;
+' '// comment \\
+#ifdef FOO
+int kept;
 '
 run_case 1 '-c -DFOO' '/*
 #ifdef FOO

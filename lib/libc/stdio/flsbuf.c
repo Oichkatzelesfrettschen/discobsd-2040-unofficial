@@ -114,8 +114,17 @@ fflush(FILE *iop)
 	char *base;
 	int n;
 
-	if ((iop->_flag & (_IONBF|_IOWRT)) == _IOWRT &&
+	/*
+	 * Bytes are pending output when the stream is in write mode, or when
+	 * an r+ stream is in neither mode: a line-buffered r+ stream queues
+	 * a partial line through the putc macro without reaching _flsbuf, so
+	 * _IOWRT is not yet on while the bytes are already there.
+	 */
+	if ((iop->_flag & _IONBF) == 0 &&
+	    ((iop->_flag & _IOWRT) ||
+	    (iop->_flag & (_IORW|_IOREAD)) == _IORW) &&
 	    (base = iop->_base) != NULL && (n = (int)(iop->_ptr - base)) > 0) {
+		iop->_flag |= _IOWRT;
 		iop->_ptr = base;
 		/*
 		 * A fully buffered stream gets its space back; an r+ stream

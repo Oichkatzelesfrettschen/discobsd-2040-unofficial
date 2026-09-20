@@ -38,7 +38,13 @@ _filbuf(FILE *iop)
 	 * the buffer at once.
 	 */
 	if (iop->_flag & _IORW) {
-		if (iop->_flag & _IOWRT) {
+		/*
+		 * Pending output includes a partial line a line-buffered
+		 * stream queued before write mode was on; fflush knows
+		 * both cases, so it runs whenever the stream is not
+		 * already reading.
+		 */
+		if ((iop->_flag & _IOREAD) == 0) {
 			if (fflush(iop) == EOF)
 				return (EOF);
 			iop->_flag &= ~_IOWRT;

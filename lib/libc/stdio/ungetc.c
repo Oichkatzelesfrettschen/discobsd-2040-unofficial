@@ -35,10 +35,19 @@ ungetc(int c, FILE *iop)
 		if (fflush(iop) == EOF)
 			return (EOF);
 		iop->_flag &= ~_IOWRT;
-		iop->_flag |= _IOREAD;
 		iop->_ptr = iop->_base;
 		iop->_cnt = 0;
 	}
+
+	/*
+	 * A pushback is input: C17 7.21.7.10p2 clears the end-of-file
+	 * indicator, and on an r+ stream read mode is on from here, so a
+	 * stream that had reached end of file, and so was in neither mode,
+	 * does not have the consumed byte mistaken for queued output.
+	 */
+	iop->_flag &= ~_IOEOF;
+	if (iop->_flag & _IORW)
+		iop->_flag |= _IOREAD;
 
 	if (iop->_ptr > iop->_base && iop->_ptr[-1] == (char) c) {
 		iop->_ptr--;

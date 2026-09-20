@@ -49,7 +49,7 @@ The structure of a directory entry as given in the include file is:
  * dp->d_ino set to 0.
  */
 
-#define	DIRBLKSIZ 512
+#define	DIRBLKSIZ 1024
 
 #define MAXNAMLEN 63
 
@@ -73,6 +73,7 @@ struct	direct {
 
 struct _dirdesc {
 	int	dd_fd;
+	long	dd_seek;
 	long	dd_loc;
 	long	dd_size;
 	char	dd_buf[DIRBLKSIZ];

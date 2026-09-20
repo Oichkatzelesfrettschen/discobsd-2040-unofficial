@@ -191,6 +191,12 @@ check-libc-syslog:
 check-libc-vis:
 		${MAKE} -C tests/libc_contracts check-vis
 
+check-dirent-contracts:
+		${MAKE} -C tests/dirent_contracts check
+
+check-dirent-contracts-cross:
+		${MAKE} -C tests/dirent_contracts check-cross
+
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
 
@@ -296,6 +302,7 @@ check-elf2aout:	tools
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
+		check-dirent-contracts \
 		check-cat-contracts check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
@@ -309,6 +316,7 @@ HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-libc-aout-contracts \
+		check-dirent-contracts-cross \
 		check-cat-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
@@ -496,6 +504,7 @@ installfs:
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-scanf check-libc-rwmode check-libc-syslog check-libc-vis \
+		check-dirent-contracts check-dirent-contracts-cross \
 		check-libc-string-security check-libc-string-security-cross \
 		check-id-aliases \
 		check-tiny-utility-multicall \

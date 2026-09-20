@@ -12,7 +12,9 @@
 /*
  * Flush a stream's write buffer for putc(), which calls here with the
  * character that did not fit. Returns that character, or EOF when the
- * stream cannot be written or a write came up short.
+ * stream cannot be written or a write came up short. On an r+ stream
+ * this is also where input mode ends and output mode begins; the switch
+ * the other way lives in _filbuf.
  *
  * A line-buffered stream writes when the buffer fills or on a newline; an
  * unbuffered stream writes the one character; a fully buffered stream
@@ -30,7 +32,20 @@ _flsbuf(unsigned char c, FILE *iop)
 	long size;
 	int n, rn;
 
+	/*
+	 * An r+ stream entering write mode. C17 7.21.5.3p7 allows this
+	 * without a positioning call only at end of file, which is the
+	 * one way getc() leaves _cnt at zero with the buffer consumed. The
+	 * consumed read-ahead is discarded whenever write mode is not yet
+	 * on, so it is never written back as if it were output; _filbuf
+	 * has already dropped _IOREAD at end of file, so the test is on
+	 * _IOWRT rather than on the read flag.
+	 */
 	if (iop->_flag & _IORW) {
+		if ((iop->_flag & _IOWRT) == 0) {
+			iop->_ptr = iop->_base;
+			iop->_cnt = 0;
+		}
 		iop->_flag |= _IOWRT;
 		iop->_flag &= ~(_IOEOF|_IOREAD);
 	}
@@ -102,7 +117,13 @@ fflush(FILE *iop)
 	if ((iop->_flag & (_IONBF|_IOWRT)) == _IOWRT &&
 	    (base = iop->_base) != NULL && (n = (int)(iop->_ptr - base)) > 0) {
 		iop->_ptr = base;
-		iop->_cnt = (iop->_flag & (_IOLBF|_IONBF)) ? 0 : iop->_bufsiz;
+		/*
+		 * A fully buffered stream gets its space back; an r+ stream
+		 * gets none, so the next getc() or putc() reaches _filbuf or
+		 * _flsbuf and the mode switch is seen rather than a stale
+		 * count letting getc() read the output buffer as input.
+		 */
+		iop->_cnt = (iop->_flag & (_IOLBF|_IONBF|_IORW)) ? 0 : iop->_bufsiz;
 		if (write(fileno(iop), base, (size_t) n) != n) {
 			iop->_flag |= _IOERR;
 			return (EOF);

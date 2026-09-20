@@ -40,3 +40,9 @@ scanf_ungetc_asan.o
 scanf_filbuf.o
 scanf_filbuf32.o
 scanf_filbuf_asan.o
+rwmode_contract_test
+rwmode_contract_test32
+rwmode_filbuf.o
+rwmode_flsbuf.o
+rwmode_filbuf32.o
+rwmode_flsbuf32.o

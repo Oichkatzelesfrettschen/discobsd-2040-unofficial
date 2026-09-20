@@ -171,6 +171,11 @@ check-libc-printf:
 check-libc-scanf:
 		${MAKE} -C tests/libc_contracts check-scanf
 
+# The r+ read/write mode switch in _filbuf and _flsbuf, over a host file,
+# at host width and ILP32.
+check-libc-rwmode:
+		${MAKE} -C tests/libc_contracts check-rwmode
+
 check-analysis:
 		${MAKE} -C tools/analysis check
 
@@ -262,7 +267,7 @@ check-elf2aout:	tools
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-scanf \
+		check-libc-scanf check-libc-rwmode \
 		check-libc-syslog check-libc-vis check-cat-contracts \
 		check-rmdir-contracts \
 		check-aout check-kernel check-fs-stress \

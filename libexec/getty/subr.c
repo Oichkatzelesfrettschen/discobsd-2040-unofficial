@@ -7,6 +7,7 @@
  */
 #include <string.h>
 #include <sgtty.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include "gettytab.h"
@@ -185,6 +186,28 @@ setflags(n)
 	if (NP)
 		f |= PASS8;
 	return (f);
+}
+
+/*
+ * A setflags() word carries the sgttyb flags in its low half and the local
+ * mode word in its high half, where the kernel keeps PASS8 and the other
+ * flags TIOCLSET takes. splitflags divides it and applyflags sets both
+ * halves on the terminal, so every place getty changes modes does it the
+ * same way and the 8-bit flags reach the driver rather than being lost in
+ * a short assignment.
+ */
+void
+splitflags(long allflags, struct sgttyb *tp, int *localp)
+{
+	tp->sg_flags = (short)(allflags & 0xffff);
+	*localp = (int)(allflags >> 16);
+}
+
+void
+applyflags(struct sgttyb *tp, int local)
+{
+	ioctl(0, TIOCSETP, tp);
+	ioctl(0, TIOCLSET, &local);
 }
 
 char	editedhost[32];

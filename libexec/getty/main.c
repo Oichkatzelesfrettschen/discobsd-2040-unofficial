@@ -117,7 +117,6 @@ main(argc, argv)
 	int vhangup();
 
 	register char *tname;
-	long allflags;
 	int repcnt = 0;
 	int someflags;
 
@@ -188,11 +187,8 @@ main(argc, argv)
 			tmode.sg_ospeed = speed(OS);
 		else if (SP)
 			tmode.sg_ospeed = speed(SP);
-		allflags = setflags(0);
-		tmode.sg_flags = allflags & 0xffff;
-		someflags = allflags >> 16;
-		ioctl(0, TIOCSETP, &tmode);
-		ioctl(0, TIOCLSET, &someflags);
+		splitflags(setflags(0), &tmode, &someflags);
+		applyflags(&tmode, someflags);
 		setchars();
 		ioctl(0, TIOCSETC, &tc);
 		ioctl(0, TIOCSETD, &ldisp);
@@ -230,9 +226,7 @@ main(argc, argv)
 			signal(SIGALRM, SIG_DFL);
 			if (!(upper || lower || digit))
 				continue;
-			allflags = setflags(2);
-			tmode.sg_flags = allflags & 0xffff;
-			someflags = allflags >> 16;
+			splitflags(setflags(2), &tmode, &someflags);
 			if (crmod || NL)
 				tmode.sg_flags |= CRMOD;
 			ioctl(0, TIOCSETP, &tmode);
@@ -267,7 +261,6 @@ getname(void)
 	register char *np;
 	register int c;
 	char cs;
-	long allflags;
 	int someflags;
 
 	/*
@@ -278,22 +271,16 @@ getname(void)
 		return (0);
 	}
 	signal(SIGINT, interrupt);
-	allflags = setflags(0);
-	tmode.sg_flags = allflags & 0xffff;
-	someflags = allflags >> 16;
-	ioctl(0, TIOCSETP, &tmode);
-	ioctl(0, TIOCLSET, &someflags);
-	allflags = setflags(1);
-	tmode.sg_flags = allflags & 0xffff;
-	someflags = allflags >> 16;
+	splitflags(setflags(0), &tmode, &someflags);
+	applyflags(&tmode, someflags);
+	splitflags(setflags(1), &tmode, &someflags);
 	prompt();
 	if (PF > 0) {
 		oflush();
 		sleep((int)PF);
 		PF = 0;
 	}
-	ioctl(0, TIOCSETP, &tmode);
-	ioctl(0, TIOCLSET, &someflags);
+	applyflags(&tmode, someflags);
 	crmod = 0;
 	upper = 0;
 	lower = 0;

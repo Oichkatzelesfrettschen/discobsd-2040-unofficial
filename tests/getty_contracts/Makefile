@@ -8,7 +8,8 @@ HOSTCC?= cc
 GETTY_DIR= ${TOPSRC}/libexec/getty
 # The tree sources compile under the getty directory's own legacy warning
 # profile, -Wall without -Werror; the test itself takes the full profile.
-TREE_CFLAGS= -std=gnu17 -Wall -nostdinc -isystem ${TOPSRC}/include -I${GETTY_DIR}
+TREE_CFLAGS= -std=gnu17 -Wall -nostdinc -isystem ${TOPSRC}/include -I${GETTY_DIR} \
+	-Dioctl=test_ioctl
 TEST_CFLAGS= -std=gnu17 -Wall -Wextra -Werror -nostdinc -isystem ${TOPSRC}/include \
 	-I${GETTY_DIR}
 OBJS= getty_subr.o getty_gettytab.o getty_init.o getty_ctype.o

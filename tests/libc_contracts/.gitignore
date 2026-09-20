@@ -40,3 +40,8 @@ scanf_ungetc_asan.o
 scanf_filbuf.o
 scanf_filbuf32.o
 scanf_filbuf_asan.o
+string_security_test
+string_explicit_bzero.o
+string_timingsafe_bcmp.o
+string_timingsafe_bcmp_target.o
+string_timingsafe_bcmp_bad_target.o

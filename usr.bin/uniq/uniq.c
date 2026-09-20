@@ -3,7 +3,9 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
+
+#define ascii_digit(c) ((unsigned char)(c) >= '0' && \
+    (unsigned char)(c) <= '9')
 
 int fields;
 int letters;
@@ -26,7 +28,7 @@ char *argv[];
 
     while(argc > 1) {
         if(*argv[1] == '-') {
-            if (isdigit(argv[1][1]))
+            if (ascii_digit(argv[1][1]))
                 fields = atoi(&argv[1][1]);
             else mode = argv[1][1];
             argc--;

@@ -93,7 +93,8 @@ REMO2=	re_comp.0 re_exec.0 scalb.0 setkey.0 space.0 srand.0 tanh.0 \
 	strncpy.0 strcasecmp.0 strncasecmp.0 \
 	strerror.0 \
 	sprintf.0 vfprintf.0 vprintf.0 vsprintf.0 alphasort.0 bcmp.0 bcopy.0 \
-	bzero.0 clearerr.0 feof.0 fflush.0 ffs.0 fileno.0 fprintf.0 gamma.0  \
+	bzero.0 explicit_bzero.0 timingsafe_bcmp.0 clearerr.0 feof.0 fflush.0 \
+	ffs.0 fileno.0 fprintf.0 gamma.0  \
 	getdiskbyname.0 isatty.0 moncontrol.0 monstartup.0 setbuffer.0 \
 	setlinebuf.0 setvbuf.0 sys_siglist.0 ttyslot.0 endfsent.0 endgrent.0 \
 	endpwent.0 getfsfile.0 getfsspec.0 getfstype.0 getgrgid.0
@@ -307,6 +308,8 @@ install: _make_01 _make_02
 	ln -f ${DESTDIR}${MDIR}/bstring.0 ${DESTDIR}${MDIR}/bcmp.0
 	ln -f ${DESTDIR}${MDIR}/bstring.0 ${DESTDIR}${MDIR}/bcopy.0
 	ln -f ${DESTDIR}${MDIR}/bstring.0 ${DESTDIR}${MDIR}/bzero.0
+	ln -f ${DESTDIR}${MDIR}/bstring.0 ${DESTDIR}${MDIR}/explicit_bzero.0
+	ln -f ${DESTDIR}${MDIR}/bstring.0 ${DESTDIR}${MDIR}/timingsafe_bcmp.0
 	ln -f ${DESTDIR}${MDIR}/ferror.0 ${DESTDIR}${MDIR}/clearerr.0
 	ln -f ${DESTDIR}${MDIR}/ferror.0 ${DESTDIR}${MDIR}/feof.0
 	ln -f ${DESTDIR}${MDIR}/fclose.0 ${DESTDIR}${MDIR}/fflush.0

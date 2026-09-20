@@ -153,6 +153,12 @@ check-libc-tempfiles:
 check-libc-contracts:
 		${MAKE} -C tests/libc_contracts check
 
+check-libc-host-contracts:
+		${MAKE} -C tests/libc_contracts check-host
+
+check-libc-aout-contracts:	${BOARDLIBC_WORK}/libc.a
+		${MAKE} -C tests/libc_contracts check-aout
+
 check-libc-malloc:
 		${MAKE} -C tests/libc_contracts check-malloc
 
@@ -191,6 +197,30 @@ check-rmdir-contracts:
 
 check-rmdir-contracts-cross:
 		${MAKE} -C tests/rmdir_contracts check-cross
+
+check-tee-contracts:
+		${MAKE} -C tests/tee_contracts check
+
+check-tee-contracts-cross:
+		${MAKE} -C tests/tee_contracts check-cross
+
+check-du-contracts:
+		${MAKE} -C tests/du_contracts check
+
+check-du-contracts-cross:
+		${MAKE} -C tests/du_contracts check-cross
+
+check-resize-contracts:
+		${MAKE} -C tests/resize_contracts check
+
+check-resize-contracts-cross:
+		${MAKE} -C tests/resize_contracts check-cross
+
+check-libc-string-security:
+		${MAKE} -C tests/libc_contracts check-string-security
+
+check-libc-string-security-cross:
+		${MAKE} -C tests/libc_contracts check-string-security-cross
 
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
@@ -260,42 +290,72 @@ check-elf2aout:	tools
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
-		check-libc-malloc \
-		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-scanf \
-		check-libc-syslog check-libc-vis check-cat-contracts \
-		check-rmdir-contracts \
+		check-libc-host-contracts \
+		check-cat-contracts check-rmdir-contracts check-tee-contracts \
+		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
 		check-fgrep-capacity check-config-makefile check-swapram-evac
-CROSS_GATES=	check-warning-policy-cross check-divider check-swapram check-cache-footprint \
-		check-exec-spool check-ufs-prototypes check-hsaout \
-		check-libc-contracts check-cat-contracts-cross \
-		check-rmdir-contracts-cross check-flash-swap
+HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
+		check-menu-host check-tail-host check-sort-host check-keen-host \
+		check-bubble-host check-fifteen-host check-sh-editor \
+		check-tar-host check-textbox-host check-cpio-host
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-libc-aout-contracts \
+		check-cat-contracts-cross \
+		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-du-contracts-cross check-resize-contracts-cross \
+		check-libc-string-security-cross
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:
 		sh tools/check-lint.sh
 
 # Host C compiler and ${PYTHON}: the libc, utility and kernel-model gates,
-# the pdp11 V6 boot, and every program with a host build and a suite.
-check-host:	${HOST_GATES}
+# the pdp11 V6 boot, and every program with a host build and a suite. Each
+# program owns a target so the jobserver can schedule independent directories.
+check-pdp11-v6:
 		${MAKE} -C usr.bin/pdp11 test
+
+check-stevie-host:
 		${MAKE} -C usr.bin/stevie test
+
+check-kilo-host:
 		${MAKE} -C usr.bin/kilo test
+
+check-menu-host:
 		${MAKE} -C usr.bin/menu test
+
+check-tail-host:
 		${MAKE} -C usr.bin/tail test
+
+check-sort-host:
 		${MAKE} -C usr.bin/sort test
+
+check-keen-host:
 		${MAKE} -C games/keen test
+
+check-bubble-host:
 		${MAKE} -C games/bubble test
+
+check-fifteen-host:
 		${MAKE} -C games/fifteen test
+
+check-sh-editor:
 		${MAKE} -C bin/sh/tests test
+
+check-tar-host:
 		sh bin/tar/tests/tartest.sh
+
+check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh
+
+check-cpio-host:
 		sh usr.bin/cpio/tests/cpiotest.sh
+
+check-host:	${HOST_GATES} ${HOST_PROGRAM_GATES}
 
 # sys/kern/subr_prf.c walks its arguments as four-byte slots, so the kernel's
 # own printf is faithful only at ILP32. The gate is an ordinary 32-bit
@@ -310,11 +370,22 @@ check-kernel-ilp32:
 check-posix-sh:
 		sh bin/sh/tests/posix-sh.sh
 
-# The arm cross toolchain and a built tree: the linked kernels, the board
-# libc, the packed a.out images, the assembler and the divider fixtures.
-check-cross:	${CROSS_GATES}
+# The arm cross toolchain and a built tree: isolated contract directories run
+# concurrently. Kernel gates stay ordered because they rebuild and inspect the
+# same PICO, PICO_UART, SwapRAM and exec-spool outputs. The assembler runs last
+# because its link proof rebuilds the shared a.out libc.
+check-cross-contracts:	${CROSS_CONTRACT_GATES}
+
+check-cross-kernel:	check-divider .WAIT check-swapram .WAIT \
+		check-cache-footprint .WAIT check-exec-spool .WAIT \
+		check-ufs-prototypes .WAIT check-hsaout .WAIT check-flash-swap
+
+check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check
+
+check-cross:	check-cross-contracts .WAIT check-cross-kernel .WAIT \
+		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop and the Smaller C suite executed
 # rather than only linked.
@@ -415,14 +486,22 @@ installfs:
 		check-elf2aout \
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment \
-		check-libc-tempfiles check-libc-contracts check-libc-malloc \
+		check-libc-tempfiles check-libc-contracts \
+		check-libc-host-contracts check-libc-aout-contracts \
+		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-scanf check-libc-syslog check-libc-vis \
+		check-libc-string-security check-libc-string-security-cross \
 		check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \
 		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
-		check-lint check-host check-posix-sh check-cross check-qemu \
+		check-pdp11-v6 check-stevie-host check-kilo-host check-menu-host \
+		check-tail-host check-sort-host check-keen-host check-bubble-host \
+		check-fifteen-host check-sh-editor check-tar-host \
+		check-textbox-host check-cpio-host \
+		check-lint check-host check-posix-sh check-cross-contracts \
+		check-cross-kernel check-cross-assembler check-cross check-qemu \
 		check-mips check-renode check-host-package check-board-build check \
 		symlinks \
 		etc-distribution \

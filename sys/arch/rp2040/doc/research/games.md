@@ -172,16 +172,17 @@ budget, with about 18 KB of headroom against it.
 Each game directory has a `host` bmake target
 (`${HOSTCC} -std=c99 -Wall -Wextra -DHOSTBUILD -o <game>-host
 <game>.c`, same source as the device build, `HOSTBUILD` picks the
-termios branch of `gametty.h`) and a `tests/play.py`
-(`PYTHON=${PYTHON:-python3}`) that forks a pty, plays the game to
+termios branch of `gametty.h`) and a `tests/play.py` invoked through
+`${PYTHON}` that forks a pty, plays the game to
 completion with a fixed seed using each game's `GAMEBOX_TEST`
 determinism hook, and asserts the win condition is reached:
 
-- `games/fifteen`: `bmake host && python3 tests/play.py ./fifteen-host`
+- `games/fifteen`: `bmake test`
   -- solves a 200-move shuffle by replaying its exact inverse.
-- `games/keen`: `bmake host && python3 tests/play.py ./keen-host`
+- `games/keen`: `bmake test` drives the game and the decomposed C17
+  uniqueness proof
   -- fills a 5x5 grid from the printed solution and reaches "solved!".
-- `games/bubble`: `bmake host && python3 tests/play.py ./bubble-host`
+- `games/bubble`: `bmake test`
   -- fires three matching shots and confirms the score reaches 30.
 
 All three pass, and all three host builds are `-Wall -Wextra` clean.

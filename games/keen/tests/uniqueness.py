@@ -1,114 +1,265 @@
 #!/usr/bin/env python3
-# Regression coverage for keen's solution uniqueness. Every count is
-# taken twice, by the host build's --count mode and by keensolve.py,
-# which shares no code with it, and the two must agree.
-#
-#   fixtures/reported-5x5.keen           the puzzle a player reported with
-#                                        multiple solutions: exactly five grids
-#   fixtures/reported-5x5-entries.keen   the same with the player's 13 cells
-#                                        imposed: still five grids, because the
-#                                        13 are the cells common to all five
-#   fixtures/unique-5x5.keen             exactly one grid
-#   fixtures/inconsistent-5x5.keen       no grid
-#
-# Then the generator itself: with KEEN_NOUNIQUE the old behavior must
-# still show ambiguity somewhere in the seed range, or this test could
-# not tell a working check from an absent one, and without it every
-# puzzle over sizes 3 to 6 and forty seeds must have exactly one grid
-# by both counters.
+"""Run one bounded shard of Keen's independent C17 uniqueness proof."""
+
 import os
 import subprocess
 import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import keensolve  # noqa: E402
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FIX = os.path.join(HERE, "fixtures")
+FIXTURES = os.path.join(HERE, "fixtures")
+CASE_TIMEOUT_SECONDS = 30
 
 
-def c_count(prog, path, limit=1000):
-    out = subprocess.run([prog, "--count", path, str(limit)],
-                         capture_output=True, text=True, check=True).stdout
-    assert out.startswith("solutions "), out
-    return int(out.split()[1])
+def run_process(arguments, label, environment=None, timeout=CASE_TIMEOUT_SECONDS):
+    try:
+        return subprocess.run(
+            arguments,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=environment,
+            timeout=timeout,
+        ).stdout
+    except subprocess.TimeoutExpired as error:
+        raise AssertionError(
+            f"{label}: exceeded {timeout} seconds"
+        ) from error
+    except subprocess.CalledProcessError as error:
+        raise AssertionError(
+            f"{label}: exited {error.returncode}: {error.stderr.strip()}"
+        ) from error
 
 
-def dump(prog, size, seed, nounique=False):
-    env = dict(os.environ)
-    env.pop("KEEN_NOUNIQUE", None)
-    if nounique:
-        env["KEEN_NOUNIQUE"] = "1"
-    return subprocess.run([prog, "--dump", str(size), str(seed)],
-                          capture_output=True, text=True, check=True,
-                          env=env).stdout
-
-
-def both(prog, text, limit=1000):
-    path = os.path.join(HERE, ".count.tmp")
-    with open(path, "w") as f:
-        f.write(text)
-    c = c_count(prog, path, limit)
-    os.unlink(path)
-    p = keensolve.count(text, limit)
-    assert c == p, "counters disagree: keen %d, keensolve %d\n%s" % (c, p, text)
-    return c
+def verify_timeout_control():
+    try:
+        subprocess.run(
+            [sys.executable, "-c", "import time; time.sleep(2)"],
+            check=True,
+            timeout=0.01,
+        )
+    except subprocess.TimeoutExpired:
+        print("keen: subprocess deadline negative control passed")
+        return
+    raise AssertionError("keen: subprocess deadline accepted a hanging control")
 
 
 def fixture(name):
-    with open(os.path.join(FIX, name)) as f:
-        return f.read()
+    with open(os.path.join(FIXTURES, name), encoding="ascii") as input_file:
+        return input_file.read()
+
+
+def verify_solver_rejects(solver, text, label, limit="10"):
+    descriptor, path = tempfile.mkstemp(prefix="keen-invalid-", suffix=".keen")
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as output_file:
+            output_file.write(text)
+        try:
+            result = subprocess.run(
+                [solver, path, limit],
+                capture_output=True,
+                text=True,
+                timeout=CASE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise AssertionError(f"{label}: rejection timed out") from error
+    finally:
+        os.unlink(path)
+    assert result.returncode == 2, (
+        f"{label}: malformed input returned {result.returncode}: {result.stdout}"
+    )
+
+
+def dump(program, size, seed, nounique=False):
+    environment = dict(os.environ)
+    environment.pop("KEEN_NOUNIQUE", None)
+    if nounique:
+        environment["KEEN_NOUNIQUE"] = "1"
+    return run_process(
+        [program, "--dump", str(size), str(seed)],
+        f"size {size} seed {seed}: generator",
+        environment,
+    )
+
+
+def parse_count(output, label):
+    first_line = output.splitlines()[0] if output else ""
+    words = first_line.split()
+    assert len(words) == 2 and words[0] == "solutions", (
+        f"{label}: malformed count output {first_line!r}"
+    )
+    return int(words[1])
+
+
+def both(program, solver, text, label, limit=1000, emit=False):
+    descriptor, path = tempfile.mkstemp(prefix="keen-count-", suffix=".keen")
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as output_file:
+            output_file.write(text)
+        game_output = run_process(
+            [program, "--count", path, str(limit)], f"{label}: game counter"
+        )
+        solver_arguments = [solver]
+        if emit:
+            solver_arguments.append("--emit")
+        solver_arguments.extend([path, str(limit)])
+        solver_output = run_process(
+            solver_arguments, f"{label}: independent C17 counter"
+        )
+    finally:
+        os.unlink(path)
+    game_count = parse_count(game_output, f"{label}: game counter")
+    solver_count = parse_count(solver_output, f"{label}: independent counter")
+    assert game_count == solver_count, (
+        f"{label}: counters disagree: game {game_count}, "
+        f"independent C17 {solver_count}\n{text}"
+    )
+    grids = [
+        line[5:]
+        for line in solver_output.splitlines()[1:]
+        if line.startswith("grid ")
+    ]
+    return game_count, grids
+
+
+def imposed_entries(text):
+    lines = text.splitlines()
+    start = lines.index("entries") + 1
+    entries = {}
+    for row, line in enumerate(lines[start:start + 5]):
+        for column, value in enumerate(line):
+            if value != ".":
+                entries[(row, column)] = int(value)
+    return entries
+
+
+def check_fixtures(program, solver):
+    verify_timeout_control()
+    reported = fixture("reported-5x5.keen")
+    verify_solver_rejects(
+        solver, reported.replace("size 5", "size 5junk", 1), "invalid size"
+    )
+    first_clue = next(
+        line for line in reported.splitlines() if line.startswith("a ")
+    )
+    verify_solver_rejects(
+        solver, f"{reported}\n{first_clue}\n", "duplicate clue"
+    )
+    verify_solver_rejects(solver, f"{reported}\nZ 1\n", "unused clue")
+    verify_solver_rejects(solver, f"{reported}\n{'x' * 128}\n", "long line")
+    verify_solver_rejects(solver, reported, "invalid solution limit", "10junk")
+    print("keen: C17 parser negative controls passed")
+    reported_count, grids = both(
+        program, solver, reported, "reported fixture", emit=True
+    )
+    assert reported_count == 5, (
+        f"reported fixture: expected exactly five grids, got {reported_count}"
+    )
+    assert len(grids) == 5 and all(len(grid) == 25 for grid in grids), (
+        "reported fixture: independent solver did not emit all five grids"
+    )
+    forced = {}
+    for cell in range(25):
+        values = {grid[cell] for grid in grids}
+        if len(values) == 1:
+            forced[(cell // 5, cell % 5)] = int(values.pop())
+    imposed = imposed_entries(fixture("reported-5x5-entries.keen"))
+    assert forced == imposed, (
+        f"reported fixture: forced {sorted(forced)}, imposed {sorted(imposed)}"
+    )
+    assert len(forced) == 13, (
+        f"reported fixture: expected thirteen forced cells, got {len(forced)}"
+    )
+    entries_count, _ = both(
+        program,
+        solver,
+        fixture("reported-5x5-entries.keen"),
+        "reported fixture with entries",
+    )
+    assert entries_count == 5, (
+        f"reported fixture with entries: expected five, got {entries_count}"
+    )
+    unique_count, _ = both(
+        program, solver, fixture("unique-5x5.keen"), "unique fixture"
+    )
+    inconsistent_count, _ = both(
+        program,
+        solver,
+        fixture("inconsistent-5x5.keen"),
+        "inconsistent fixture",
+    )
+    assert unique_count == 1, f"unique fixture: got {unique_count}"
+    assert inconsistent_count == 0, (
+        f"inconsistent fixture: got {inconsistent_count}"
+    )
+    print(
+        "keen: fixtures OK (reported 5 grids, 13 forced cells match entries, "
+        "unique 1, inconsistent 0)"
+    )
+
+
+def check_unchecked(program, solver, size):
+    ambiguous = 0
+    for seed in range(1, 41):
+        count, _ = both(
+            program,
+            solver,
+            dump(program, size, seed, nounique=True),
+            f"unchecked size {size} seed {seed}",
+            limit=50,
+        )
+        if count >= 2:
+            ambiguous += 1
+    assert ambiguous > 0, (
+        f"unchecked size {size}: no seed produced an ambiguous puzzle"
+    )
+    print(
+        f"keen: unchecked size {size}: {ambiguous}/40 puzzles ambiguous"
+    )
+
+
+def check_unique_range(program, solver, size, first_seed, last_seed):
+    for seed in range(first_seed, last_seed + 1):
+        count, _ = both(
+            program,
+            solver,
+            dump(program, size, seed),
+            f"checked size {size} seed {seed}",
+            limit=50,
+        )
+        assert count == 1, (
+            f"checked size {size} seed {seed}: expected one grid, got {count}"
+        )
+    case_count = last_seed - first_seed + 1
+    print(
+        f"keen: checked size {size} seeds {first_seed}-{last_seed}: "
+        f"{case_count}/{case_count} puzzles unique"
+    )
 
 
 def main():
-    prog = sys.argv[1] if len(sys.argv) > 1 else "./keen-host"
-
-    # The reported puzzle: its clues alone admit exactly five grids. The
-    # original request expected "at least two" here, before the puzzle was
-    # transcribed; the real count is five, which the assertion pins exactly.
-    reported = fixture("reported-5x5.keen")
-    amb = both(prog, reported)
-    assert amb >= 2, "reported fixture: expected multiple grids, got %d" % amb
-    assert amb == 5, "reported fixture: expected exactly five grids, got %d" % amb
-
-    # The player's thirteen entries are the cells that hold the same value in
-    # every solution, so imposing them removes no grid: five remain. This is
-    # checked two ways -- the count with entries is five, and the thirteen
-    # forced cells (identical across all five clue-only solutions) are exactly
-    # the thirteen the fixture imposes.
-    ent = both(prog, fixture("reported-5x5-entries.keen"))
-    assert ent == 5, "reported fixture with entries: expected five grids, got %d" % ent
-    sols = keensolve.solutions(reported, 100)
-    n = 5
-    forced = {(r, c): sols[0][r][c] for r in range(n) for c in range(n)
-              if len({g[r][c] for g in sols}) == 1}
-    _, _, _, imposed = keensolve.parse(fixture("reported-5x5-entries.keen"))
-    assert forced == imposed, \
-        "the imposed entries are not the cells forced by the clues: forced %s, imposed %s" \
-        % (sorted(forced), sorted(imposed))
-    assert len(forced) == 13, "expected thirteen forced cells, got %d" % len(forced)
-
-    assert both(prog, fixture("unique-5x5.keen")) == 1, "unique fixture"
-    assert both(prog, fixture("inconsistent-5x5.keen")) == 0, "inconsistent fixture"
-    print("keen: fixtures OK (reported %d grids, 13 forced cells match entries, "
-          "unique 1, inconsistent 0)" % amb)
-
-    seeds = range(1, 41)
-    old_ambiguous = 0
-    for size in (4, 5):
-        for seed in seeds:
-            if both(prog, dump(prog, size, seed, nounique=True), 50) >= 2:
-                old_ambiguous += 1
-    assert old_ambiguous > 0, "the unchecked generator never produced an ambiguous puzzle"
-
-    checked = 0
-    for size in (3, 4, 5, 6):
-        for seed in seeds:
-            k = both(prog, dump(prog, size, seed), 50)
-            assert k == 1, "size %d seed %d: %d grids from the checked generator" % (size, seed, k)
-            checked += 1
-    print("keen: uniqueness OK (%d unchecked puzzles ambiguous of 80, %d checked puzzles unique)"
-          % (old_ambiguous, checked))
+    if len(sys.argv) != 4:
+        raise SystemExit(
+            "usage: uniqueness.py fixtures|unchecked-N|checked-N-FIRST-LAST "
+            "game solver"
+        )
+    group, program, solver = sys.argv[1:]
+    group_parts = group.split("-")
+    if group == "fixtures":
+        check_fixtures(program, solver)
+    elif len(group_parts) == 2 and group_parts[0] == "unchecked" and (
+        group_parts[1] in {"4", "5"}
+    ):
+        check_unchecked(program, solver, int(group_parts[1]))
+    elif len(group_parts) == 4 and group_parts[0] == "checked" and (
+        group_parts[1] in {"3", "4", "5", "6"}
+    ):
+        size, first_seed, last_seed = map(int, group_parts[1:])
+        if not 1 <= first_seed <= last_seed <= 40:
+            raise SystemExit(f"invalid checked seed range: {group}")
+        check_unique_range(program, solver, size, first_seed, last_seed)
+    else:
+        raise SystemExit(f"unknown uniqueness group: {group}")
 
 
 if __name__ == "__main__":

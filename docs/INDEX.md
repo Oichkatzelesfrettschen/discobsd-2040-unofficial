@@ -104,6 +104,7 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
+| `STYLE-GUIDE.md` | the constrained-C and C17 style proposal: resource accounts, the four language profiles, the migration unit, and the evidence a size claim owes |
 
 ### Userland, tools and languages
 

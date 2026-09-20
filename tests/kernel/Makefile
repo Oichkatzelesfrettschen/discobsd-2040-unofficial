@@ -79,6 +79,20 @@ PRF_SRC=	${TOPSRC}/sys/kern/subr_prf.c
 # p_addr, so kern_sysctl.c compiles at the target's width alone.
 SYSCTL_SRC=	${TOPSRC}/sys/kern/kern_sysctl.c
 
+# The inode allocator. struct dinode is an on-disk layout and INOPB is
+# MAXBSIZE divided by its size, so one block holds exactly INOPB inodes only
+# where off_t and time_t are four bytes; ufs_alloc.c compiles at the target's
+# width alone.
+IALLOC_SRC=	${TOPSRC}/sys/kern/ufs_alloc.c
+
+# sys/arch/rp2040/compile/PICO reaches the superblock through mount[0] and
+# packs the in-core inode's flag words, so the gate runs in that shape beside
+# the portable one, as rmap_test runs in both descriptor shapes. A DIAGNOSTIC
+# kernel adds ialloc()'s itoo() assertion on fs_lasti.
+IALLOC_PICO_DEFS=	-DSINGLE_UFS_ROOT -DNMOUNT=1 -DLINEAR_INODE_CACHE \
+			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE
+IALLOC_DIAG_DEFS=	-DDIAGNOSTIC
+
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
 # core(), so it compiles at the target's width alone, beside subr_prf.c.
@@ -231,6 +245,32 @@ sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} hostkern_kern.c hostkern32.o \
 	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
 	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
 
+# The inode allocator in the three shapes the tree configures it in: the
+# portable one, sys/arch/rp2040/compile/PICO's, and a DIAGNOSTIC kernel.
+ialloc_test: ialloc_test.c ${IALLOC_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o ialloc_kernel.o ${IALLOC_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o ialloc_shim.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -o $@ ialloc_test.c \
+	    ialloc_kernel.o ialloc_shim.o hostkern32.o
+
+ialloc_test_pico: ialloc_test.c ${IALLOC_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${IALLOC_PICO_DEFS} ${ILP32} \
+	    -c -o ialloc_kernel_pico.o ${IALLOC_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${IALLOC_PICO_DEFS} ${ILP32} \
+	    -c -o ialloc_shim_pico.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${IALLOC_PICO_DEFS} ${ILP32} -o $@ \
+	    ialloc_test.c ialloc_kernel_pico.o ialloc_shim_pico.o hostkern32.o
+
+ialloc_test_diagnostic: ialloc_test.c ${IALLOC_SRC} hostkern_kern.c \
+    hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${IALLOC_DIAG_DEFS} ${ILP32} \
+	    -c -o ialloc_kernel_diagnostic.o ${IALLOC_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o ialloc_shim.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${IALLOC_DIAG_DEFS} ${ILP32} -o $@ \
+	    ialloc_test.c ialloc_kernel_diagnostic.o ialloc_shim.o hostkern32.o
+
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
 rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
@@ -246,12 +286,16 @@ rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 sigauth_test \
-	    sysctl_test_compact sysctl_test_wide
+	    sysctl_test_compact sysctl_test_wide \
+	    ialloc_test ialloc_test_pico ialloc_test_diagnostic
 	./prf_test
 	./sigauth_test
 	./rwuio_test32
 	./sysctl_test_compact
 	./sysctl_test_wide
+	./ialloc_test
+	./ialloc_test_pico
+	./ialloc_test_diagnostic
 .else
 	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
 .endif
@@ -274,6 +318,9 @@ clean:
 	rm -f rwuio_jump.o rwuio_jump32.o
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
+	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
+	rm -f ialloc_shim.o ialloc_shim_pico.o
+	rm -f ialloc_test ialloc_test_pico ialloc_test_diagnostic
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

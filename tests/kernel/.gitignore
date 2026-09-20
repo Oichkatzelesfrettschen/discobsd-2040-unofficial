@@ -38,3 +38,11 @@ sysctl_test_wide
 sysctl_kernel_compact.o
 sysctl_kernel_wide.o
 sysctl_shim.o
+ialloc_test
+ialloc_test_pico
+ialloc_test_diagnostic
+ialloc_kernel.o
+ialloc_kernel_pico.o
+ialloc_kernel_diagnostic.o
+ialloc_shim.o
+ialloc_shim_pico.o

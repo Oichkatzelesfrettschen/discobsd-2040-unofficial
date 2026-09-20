@@ -12,7 +12,7 @@
 
 #define	TABBUFSIZ	512
 
-static int	nchktc();
+static int	nchktc(void);
 static int	namatch(char *);
 
 static	char *tbuf;
@@ -24,8 +24,7 @@ int	hopcount;	/* detect infinite loops in termcap, init 0 */
  * we just notice escaped newlines.
  */
 int
-getent(bp, name)
-	char *bp, *name;
+getent(char *bp, char *name)
 {
 	register char *cp;
 	register int c;
@@ -83,7 +82,7 @@ getent(bp, name)
  */
 #define	MAXHOP	32
 static int
-nchktc()
+nchktc(void)
 {
 	register char *p, *q;
 	char tcname[16];	/* name of similar terminal */
@@ -131,8 +130,7 @@ nchktc()
  * name (before the first field) stops us.
  */
 static int
-namatch(np)
-	char *np;
+namatch(char *np)
 {
 	register char *Np, *Bp;
 
@@ -158,8 +156,7 @@ namatch(np)
  * into the termcap file in octal.
  */
 static char *
-skip(bp)
-	register char *bp;
+skip(char *bp)
 {
 
 	while (*bp && *bp != ':')
@@ -178,8 +175,7 @@ skip(bp)
  * Note that we handle octal numbers beginning with 0.
  */
 long
-getnum(id)
-	char *id;
+getnum(char *id)
 {
 	register long i, base;
 	register char *bp = tbuf;
@@ -212,8 +208,7 @@ getnum(id)
  * not given.
  */
 int
-getflag(id)
-	char *id;
+getflag(char *id)
 {
 	register char *bp = tbuf;
 
@@ -237,9 +232,7 @@ getflag(id)
  * string capability escapes.
  */
 static char *
-decode(str, area)
-	register char *str;
-	char **area;
+decode(char *str, char **area)
 {
 	register char *cp;
 	register int c;
@@ -290,8 +283,7 @@ nextc:
  * No checking on area overflow.
  */
 char *
-getstr(id, area)
-	char *id, **area;
+getstr(char *id, char **area)
 {
 	register char *bp = tbuf;
 

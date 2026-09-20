@@ -28,10 +28,15 @@ measurement that does decide it.
 Both tests write a Renode log into vendor/results, which check-boot.sh
 hands to check-warnings.py.
 
+The terminal tester records only the lines a test waits for, so a kernel
+that panics and stops at "press any key to reboot..." shows as a timeout
+with nothing to read. The teardown logs the UART's whole history buffer
+when a test fails, so the panic text is in the run output.
+
 *** Settings ***
 Suite Setup                     Setup
 Suite Teardown                  Teardown
-Test Teardown                   Test Teardown
+Test Teardown                   Teardown With Transcript
 Test Timeout                    600 seconds
 
 *** Variables ***
@@ -46,7 +51,7 @@ The kernel boots through its device probe
     Start Emulation
 
     Wait For Line On Uart       DiscoBSD 2.7 (PICO_UART)                    timeout=60
-    Wait For Line On Uart       cpu: Cortex-M0+, ARMv6-M, no MMU and no MPU    timeout=60
+    Wait For Line On Uart       cpu: Cortex-M0+, ARMv6-M, no MMU, MPU unprogrammed    timeout=60
     Wait For Line On Uart       cpu: 125 MHz core, 125 MHz peripheral       timeout=60
 
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash
@@ -86,3 +91,13 @@ The boot reaches a login prompt and a shell
 
     Write Line To Uart          uname -sr
     Wait For Line On Uart       DiscoBSD 2.7                                timeout=300
+
+*** Keywords ***
+Teardown With Transcript
+    Run Keyword If Test Failed  Log Uart Transcript
+    Test Teardown
+
+Log Uart Transcript
+    ${transcript}=  Execute Command  sysbus.uart0 DumpHistoryBuffer
+    Log To Console              UART transcript at failure:${\n}${transcript}
+    Log                         ${transcript}

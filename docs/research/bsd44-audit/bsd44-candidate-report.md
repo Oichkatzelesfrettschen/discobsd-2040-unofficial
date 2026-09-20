@@ -4,7 +4,7 @@ This is a read-only comparison of `~/Github/discobsd-pico-unofficial` at
 `b40c1c4fd5032ada8b651588645f33c8f856c985` against the authority checkout
 `~/Github/4.4BSD-Lite2` at `b10da34408c8a0f32f51d79a7f16bd75337115d2`.
 The RP2040 boundary is Cortex-M0+
-Thumb-1, no MMU or MPU, static libc linkage, a 96 KB user process window,
+Thumb-1, no MMU, an unprogrammed MPU, static libc linkage, a 96 KB user process window,
 and user Thread mode with `CONTROL[0]=1`. The ledger records candidate
 surfaces, not authorization to change the target tree.
 

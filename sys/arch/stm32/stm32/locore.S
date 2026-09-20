@@ -16,6 +16,7 @@
 
 #define UBASE 0x20000000	/* User space base address. */
 #define USIZE 3072		/* From user.h */
+#include <sys/proc_asm.h>
 
 	.syntax	unified
 	.thumb
@@ -93,7 +94,7 @@ resume:
 	.pool				/* Insert literal pool for labels. */
 1:
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
-	str	r1, [r3, #60]		/* Save &u0 in u.u_procp->p_addr. */
+	str	r1, [r3, #P_ADDR_OFFSET]		/* Save &u0 in u.u_procp->p_addr. */
 
 	/* Exchange contents of u. and u0. */
 	mov	r0, r2			/* Pointer to u. area start addr. */
@@ -115,7 +116,7 @@ resume:
 	ldr	r2, =u			/* Pointer to u. area start addr. */
 
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
-	str	r2, [r3, #60]		/* Save &u in u.u_procp->p_addr. */
+	str	r2, [r3, #P_ADDR_OFFSET]		/* Save &u in u.u_procp->p_addr. */
 2:
 	mov	a2, r10			/* Restore env (second arg). */
 #ifdef __thumb2__

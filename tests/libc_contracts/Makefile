@@ -157,7 +157,11 @@ CTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 CTIME_TARGET_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 \
 	-Wformat-overflow=2 -Wold-style-definition -fno-common \
 	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
-	-mfloat-abi=soft -nostdinc -I${TOPSRC}/include -Os
+	-mfloat-abi=soft -ffreestanding -nostdinc -I${TOPSRC}/include -Os
+CTIME_TARGET_DIAGNOSTIC_CFLAGS=	${CTIME_TARGET_CFLAGS} \
+	-Dsnprintf=__builtin_snprintf
+CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
+	-Dsprintf=__builtin_sprintf
 GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 	else echo -Wl,--gc-sections ; fi
 
@@ -170,9 +174,10 @@ check-ctime: check-asctime ctime_contract_test
 	@echo "check-libc-ctime: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
 .endif
 
-check-ctime-cross: asctime_target.o ctime_target.o
+check-ctime-cross: asctime_target.o asctime_target_diagnostic.o ctime_target.o \
+	stdio_format_extensions.o
 	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
-	@if ${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c \
+	@if ${ARM_COMPILER} ${CTIME_TARGET_BAD_CFLAGS} -c \
 	    -o asctime_format_bad_target.o asctime_format_bad.c \
 	    2>asctime_format_bad_target.log; then \
 		echo "ctime target format-overflow negative control passed" >&2; \
@@ -186,8 +191,8 @@ check-ctime-cross: asctime_target.o ctime_target.o
 		exit 1; \
 	fi
 	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
-	@echo "ctime target format-overflow negative control rejected"
-	@echo "ctime Cortex-M0+ C17 and bounded-format compile passed"
+	@echo "ctime target builtin format-overflow negative control rejected"
+	@echo "ctime Cortex-M0+ production and diagnostic C17 compiles passed"
 
 check-asctime: asctime_contract_test asctime_contract_bad_test
 	./asctime_contract_test
@@ -227,8 +232,16 @@ ctime_ctime32.o: ${TARGET_DIR}/ctime.c
 asctime_target.o: ${TARGET_DIR}/asctime.c
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/asctime.c
 
+asctime_target_diagnostic.o: ${TARGET_DIR}/asctime.c
+	${ARM_COMPILER} ${CTIME_TARGET_DIAGNOSTIC_CFLAGS} -c -o $@ \
+	    ${TARGET_DIR}/asctime.c
+
 ctime_target.o: ${TARGET_DIR}/ctime.c
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+stdio_format_extensions.o: stdio_format_extensions.c
+	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ \
+	    stdio_format_extensions.c
 
 check-string-security: string_security_test
 	./string_security_test
@@ -589,8 +602,9 @@ clean:
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
-	rm -f asctime_target.o ctime_target.o asctime_format_bad_target.o \
-		asctime_format_bad_target.log
+	rm -f asctime_target.o asctime_target_diagnostic.o ctime_target.o \
+		asctime_format_bad_target.o asctime_format_bad_target.log \
+		stdio_format_extensions.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o

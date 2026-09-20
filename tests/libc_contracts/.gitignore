@@ -8,7 +8,9 @@ ctime_contract_test32
 ctime_ctime.o
 ctime_ctime32.o
 asctime_target.o
+asctime_target_diagnostic.o
 ctime_target.o
+stdio_format_extensions.o
 malloc_test
 malloc_test32
 malloc_arena.o

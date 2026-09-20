@@ -2,7 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <vis.h>
+
+volatile double aout_contract_elapsed;
 
 int
 aout_contract_probe(void)
@@ -13,6 +16,7 @@ aout_contract_probe(void)
 	char secret[4] = { 1, 2, 3, 4 };
 
 	explicit_bzero(secret, sizeof(secret));
+	aout_contract_elapsed = difftime((time_t)1, (time_t)0);
 	return (ctermid(terminal_name) == terminal_name) + raise(0) +
 	    confstr(_CS_PATH, runtime_path, sizeof(runtime_path)) +
 	    sysconf(_SC_OPEN_MAX) +

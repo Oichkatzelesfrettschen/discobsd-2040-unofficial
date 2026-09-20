@@ -45,6 +45,7 @@ do
 	for required_source in \
 	    "$source_root/lib/libc/gen/confstr.c" \
 	    "$source_root/lib/libc/gen/ctermid.c" \
+	    "$source_root/lib/libc/gen/difftime.c" \
 	    "$source_root/lib/libc/gen/raise.c" \
 	    "$source_root/lib/libc/gen/sysconf.c" \
 	    "$source_root/lib/libc/gen/vis.c" \
@@ -56,8 +57,8 @@ do
 			exit 1
 		fi
 	done
-	for required_member in confstr.o ctermid.o explicit_bzero.o raise.o \
-	    sysconf.o \
+	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
+	    raise.o sysconf.o \
 	    timingsafe_bcmp.o vis.o
 	do
 		member_count=$(

@@ -42,6 +42,7 @@ struct tm *localtime(const time_t *);
 char *asctime(const struct tm *);
 char *ctime(const time_t *);
 char *timezone(int, int);
+double difftime(time_t, time_t);
 time_t time(time_t *);
 void tzset(void);
 

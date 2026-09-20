@@ -14,7 +14,7 @@ OBJS		= ${STDOBJ}
 STDSRC		= abort.c alarm.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c ctermid.c \
 		  bzero.c calloc.c closedir.c confstr.c crypt.c ctime.c ctype_.c \
-		  daemon.c devname.c dirname.c \
+		  daemon.c devname.c difftime.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
 		  fnmatch.c frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
 		  getgrnam.c getgrouplist.c gethostname.c getloadavg.c \
@@ -35,7 +35,7 @@ STDSRC		= abort.c alarm.c asctime.c atof.c atoi.c atol.c \
 STDOBJ		= abort.o alarm.o asctime.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o ctermid.o \
 		  bzero.o calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
-		  daemon.o devname.o dirname.o \
+		  daemon.o devname.o difftime.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
 		  fnmatch.o frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
 		  getgrnam.o getgrouplist.o gethostname.o getloadavg.o \

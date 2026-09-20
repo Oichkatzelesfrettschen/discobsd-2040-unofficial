@@ -131,8 +131,8 @@ char partab[] = {
 
 jmp_buf timeout;
 
-void dingdong(sig)
-        int sig;
+void
+dingdong(int sig)
 {
 	(void)sig;
 	alarm(0);
@@ -142,8 +142,8 @@ void dingdong(sig)
 
 jmp_buf	intrupt;
 
-void interrupt(sig)
-        int sig;
+void
+interrupt(int sig)
 {
 	(void)sig;
 	signal(SIGINT, interrupt);
@@ -159,11 +159,9 @@ static void	prompt(void);
 static void	putf(char *);
 
 int
-main(argc, argv)
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
-	int vhangup();
+	int vhangup(void);
 
 	char *volatile tname;
 	int repcnt = 0;
@@ -291,8 +289,7 @@ main(argc, argv)
 }
 
 static void
-putstr(s)
-	register const char *s;
+putstr(const char *s)
 {
 	while (*s)
 		putchr(*s++);
@@ -384,8 +381,7 @@ short	tmspc10[] = {
 };
 
 static void
-putpad(s)
-	register char *s;
+putpad(char *s)
 {
 	register int pad = 0;
 	register int mspc10;
@@ -431,8 +427,7 @@ char	outbuf[OBUFSIZ];
 int	obufcnt = 0;
 
 static void
-putchr(cc)
-	int cc;
+putchr(int cc)
 {
 	char c;
 
@@ -466,8 +461,7 @@ prompt(void)
 }
 
 static void
-putf(cp)
-	register char *cp;
+putf(char *cp)
 {
 	char *ttyn, *slash;
 	char datebuffer[60];

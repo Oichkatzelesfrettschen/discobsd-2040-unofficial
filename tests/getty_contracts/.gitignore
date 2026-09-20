@@ -1,10 +1,14 @@
 setflags_test
 setflags_bad_test
+setflags_parser_bad_test
 getty_modes_bad.o
+getty_parser_bad.o
+getty_gettytab_parser_bad.o
 login_modes_test
 login_tty_modes.o
 getty_main.o
 getty_subr.o
 getty_gettytab.o
+getty_gettytab_test.o
 getty_init.o
 getty_ctype.o

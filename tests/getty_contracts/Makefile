@@ -16,6 +16,11 @@ OBJS= getty_subr.o getty_gettytab.o getty_init.o getty_ctype.o
 
 check: setflags_test
 	./setflags_test
+# main.c reaches TIOCLSET only through applyflags(), which the test drives;
+# a raw TIOCLSET in main.c would be a local-mode application this gate
+# cannot see, so the grep holds the count at zero.
+	@if grep -q 'TIOCLSET' ${GETTY_DIR}/main.c; then \
+		echo "getty contract: main.c applies local modes outside applyflags()" >&2; exit 1; fi
 
 setflags_test: setflags_test.c ${OBJS}
 	${HOSTCC} ${TEST_CFLAGS} -o $@ setflags_test.c ${OBJS}

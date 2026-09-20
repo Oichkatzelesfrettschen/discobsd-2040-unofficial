@@ -229,9 +229,8 @@ main(argc, argv)
 			splitflags(setflags(2), &tmode, &someflags);
 			if (crmod || NL)
 				tmode.sg_flags |= CRMOD;
-			ioctl(0, TIOCSETP, &tmode);
+			applyflags(&tmode, someflags);
 			ioctl(0, TIOCSLTC, &ltc);
-			ioctl(0, TIOCLSET, &someflags);
 			signal(SIGINT, SIG_DFL);
 			for (i = 0; environ[i] != (char *)0; i++)
 				env[i] = environ[i];

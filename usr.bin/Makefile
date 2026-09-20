@@ -38,7 +38,7 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  whereis yacc ${MDSUBDIR} basename cal cb cmp col colrm comm diskspeed du \
 		  fgrep file grep head hostid join last mesg nice od pagesize pr \
 		  printenv rev size sort split sum tail tee time touch tr tsort tty \
-		  uniq w wc who bc egrep mail su vmstat wall write strip false nohup \
+		  uniq unifdef w wc who bc egrep mail su vmstat wall write strip false nohup \
 		  true cut paste seq dirname nl cksum expand unexpand mkfifo \
 		uuencode uudecode cpio getopt yes strings users
 

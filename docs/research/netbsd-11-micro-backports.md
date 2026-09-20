@@ -1,7 +1,8 @@
 # NetBSD 11 micro-backports for a C17 DiscoBSD process window
 
-The first three adopted NetBSD 11 backports repair `strtol()`/`strtoul()`,
-bounded `syslog()` formatting and `cat` block I/O. Five small historical
+The first four adopted NetBSD 11 backports repair `strtol()`/`strtoul()`,
+bounded `syslog()` formatting and `cat` block I/O, then add component-wise
+parent removal to `rmdir`. Five small historical
 integer-conversion changes compose into a C17
 implementation that rejects invalid bases, preserves the input end pointer,
 recognizes a hexadecimal prefix only when a digit follows, treats input bytes
@@ -202,12 +203,49 @@ The standalone raw-copy process window therefore falls by at least 104 bytes;
 the multicall window falls by at least 52 bytes because another applet already
 sets the BSS overlay maximum. The raw path also stops linking allocator calls.
 
+## Component-wise rmdir removal
+
+NetBSD commit `142e676b8ef2c4630cd31cf659491395f2ec09b3` brought the
+4.4BSD-Lite `rmdir -p` traversal into the command. Commit
+`d350904dd87bc862ce50318c8a1b39e8e0b507c7` supplies the essential root
+guard: after truncating a top-level operand such as `/leaf` at its separator,
+the traversal stops before passing an empty pathname to `rmdir(2)`. The local
+adaptation retains DiscoBSD's diagnostic style and adds only `-p`; NetBSD's
+unrelated `-v` interface remains outside the selected feature.
+
+The option parser walks `-p` groups and `--` directly. `rmdir` therefore does
+not pull the general `getopt()` member into a standalone image. Parent lookup
+rescans the mutable operand for its last slash rather than linking
+`strrchr()`. The scan can revisit prefix bytes, but parent depth is small and
+the implementation adds no library member, heap state or writable data. The
+target object grows from 117 to 230 text bytes. Complete ARM a.out builds with
+the same source head and toolchain measure the loaded effect:
+
+| Artifact | Baseline text/data/bss | Adopted text/data/bss | Loaded delta |
+| --- | ---: | ---: | ---: |
+| standalone `rmdir` | 6752 / 172 / 124 | 6868 / 172 / 124 | +116 |
+| multicall `/bin/box` | 33228 / 1524 / 8776 | 33340 / 1524 / 8776 | +112 |
+
+The filesystem gate removes complete relative chains and operands with
+trailing slashes. It also pins partial success, an initially non-empty leaf,
+continued processing after a failed operand, `--`, missing operands and
+unknown options. The exact-source shim makes every modeled removal succeed
+for `/leaf` and requires exactly one call, which catches the empty-path root
+regression independently of host filesystem permissions. The pre-change
+binary fails the complete-chain case, reports `-p` as a directory and leaves
+the parents; the adopted host and strict C17 Cortex-M0+ gates pass.
+
+```sh
+git -C ../netbsd-src show 142e676b8ef:bin/rmdir/rmdir.c
+git -C ../netbsd-src show d350904dd87 -- bin/rmdir/rmdir.c
+bmake MACHINE=rp2040 check-rmdir-contracts check-rmdir-contracts-cross
+```
+
 ## Remaining high-value frontier
 
 | Priority | Surface | NetBSD evidence | Local finding | Required proof before adoption |
 | --- | --- | --- | --- | --- |
-| 1 | `rmdir -p` | NetBSD has component-wise removal with defined diagnostics | Local `rmdir` has no `-p`; the change adds a user interface rather than repairing an existing contract. | Choose the feature explicitly, then add filesystem integration cases for partial removal and preserved failure paths. |
-| 2 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
+| 1 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
 
 Two tempting searches produced no applicable repair. NetBSD's `LIST_MOVE`
 hardening cannot backport as a line because DiscoBSD's queue header has no
@@ -218,5 +256,5 @@ without the triggering operation is not a backport candidate.
 The following commands reproduce the remaining frontier:
 
 ```sh
-rg -n 'LIST_MOVE|pgrp|INT_MIN|rmdir|vis\(' sys bin lib include
+rg -n 'LIST_MOVE|pgrp|INT_MIN|vis\(' sys bin lib include
 ```

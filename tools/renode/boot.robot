@@ -56,8 +56,8 @@ The kernel boots through its device probe
 
     # mpu.c prints what MPU_TYPE and MPU_CTRL read back after it programmed
     # the map, so this line is the register-level claim: eight regions from
-    # the datasheet, the three the map holds, ENABLE and PRIVDEFENA set.
-    Wait For Line On Uart       mpu: 8 regions, 3 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx    timeout=60
+    # the datasheet, the four the map holds, ENABLE and PRIVDEFENA set.
+    Wait For Line On Uart       mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx, sio div rw    timeout=60
 
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash
     # entry points and Dhara has resumed its journal through them.

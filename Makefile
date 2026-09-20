@@ -174,6 +174,12 @@ check-cat-contracts:
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
+check-rmdir-contracts:
+		${MAKE} -C tests/rmdir_contracts check
+
+check-rmdir-contracts-cross:
+		${MAKE} -C tests/rmdir_contracts check-cross
+
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
 
@@ -244,6 +250,7 @@ check-elf2aout:	tools
 HOST_GATES=	check-warning-policy-host check-build-failure check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-syslog check-cat-contracts \
+		check-rmdir-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
 		check-libc-tempfiles \
@@ -252,7 +259,8 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-libc-malloc \
 		check-fgrep-capacity check-config-makefile check-swapram-evac
 CROSS_GATES=	check-warning-policy-cross check-divider check-swapram check-cache-footprint \
 		check-exec-spool check-ufs-prototypes check-hsaout \
-		check-libc-contracts check-cat-contracts-cross check-flash-swap
+		check-libc-contracts check-cat-contracts-cross \
+		check-rmdir-contracts-cross check-flash-swap
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:

@@ -1,0 +1,4 @@
+rmdir_contract_test
+rmdir_host
+rmdir_source.o
+rmdir_target_contract.o

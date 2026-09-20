@@ -10,6 +10,9 @@
 rmdir, rm  \- remove (unlink) directories or files
 .SH SYNOPSIS
 .B rmdir
+[
+.B \-p
+]
 dir ...
 .PP
 .B rm
@@ -27,6 +30,14 @@ dir ...
 .PP
 .I Rmdir
 removes entries for the named directories, which must be empty.
+With the
+.B \-p
+option,
+.I rmdir
+removes each empty parent component named by an operand after removing the
+operand itself.  Parent removal stops at the root or at the first component
+that cannot be removed, and a failure leaves the remaining components in
+place.
 .PP
 .I Rm
 removes the entries for one or more files from a directory.

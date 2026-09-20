@@ -331,12 +331,21 @@ cpu_sysctl (name, namelen, oldp, oldlenp, newp, newlen)
         for (i=0; nlist[i].name; i++) {
             if (strncmp (newp, nlist[i].name, newlen) == 0) {
                 int addr = nlist[i].addr;
-                if (! oldp)
-                    return 0;
-                if (*oldlenp < sizeof(int))
-                    return ENOMEM;
+                int error = 0;
+
+                /*
+                 * The node answers with an address and takes the symbol
+                 * name as its new value, so it carries the length contract
+                 * of the helpers in sys/kern/kern_sysctl.c rather than
+                 * calling one: the prefix that fits is copied, the length
+                 * the address needs is reported whether or not a buffer was
+                 * offered, and __sysctl() decides ENOMEM.
+                 */
+                if (oldp)
+                    error = copyout ((caddr_t) &addr, (caddr_t) oldp,
+                        MIN (sizeof(int), *oldlenp));
                 *oldlenp = sizeof(int);
-                return copyout ((caddr_t) &addr, (caddr_t) oldp, sizeof(int));
+                return error;
             }
         }
         return EOPNOTSUPP;

@@ -322,21 +322,59 @@ test_swapmap_encloses_nothing_else(void)
 }
 
 /*
- * A buffer one byte short of the payload takes nothing. sysctl_rdstruct()
- * refuses before it copies, so a caller that sized its buffer from a stale
- * query reads its own bytes rather than a truncated map.
+ * A buffer shorter than the payload takes the prefix that fits and learns
+ * what the whole value needs. The node itself succeeds: truncation is
+ * __sysctl()'s verdict, decided from the length reported here against the
+ * buffer the caller offered, which test_syscall_enomem() covers.
  */
 static void
 test_swapmap_short_buffer(void)
+{
+	struct mapent got[PAYLOAD_ENTS];
+	size_t len, offered;
+	int error;
+	unsigned i;
+
+	reset_map();
+	reset_out(POISON);
+	offered = PAYLOAD_LEN - sizeof(struct mapent);
+	len = offered;
+	error = call_vm(VM_SWAPMAP, outbuf, &len, NULL);
+	HK_CHECK(error == 0);
+
+	/* The length is what the value needs, not what the buffer took. */
+	HK_CHECK(len == (size_t)PAYLOAD_LEN);
+	HK_CHECK(len > offered);
+
+	/* The prefix is the leading entries, whole and in order. */
+	bcopy(outbuf, got, offered);
+	for (i = 0; i < offered / sizeof(struct mapent); i++) {
+		HK_CHECK(got[i].m_size == fixture.ent[i].m_size);
+		HK_CHECK(got[i].m_addr == fixture.ent[i].m_addr);
+	}
+
+	/* Nothing past the buffer the caller offered was written. */
+	for (i = offered; i < OUTBUF; i++)
+		HK_CHECK((unsigned char)outbuf[i] == POISON);
+}
+
+/*
+ * A buffer of no length at all is the boundary of the same rule: nothing is
+ * copied, and the length still names what the value needs, so a caller that
+ * passes a zero length learns the size exactly as a null oldp does.
+ */
+static void
+test_swapmap_zero_length_buffer(void)
 {
 	size_t len;
 	int error;
 
 	reset_map();
 	reset_out(POISON);
-	len = PAYLOAD_LEN - 1;
+	len = 0;
 	error = call_vm(VM_SWAPMAP, outbuf, &len, NULL);
-	HK_CHECK(error == ENOMEM);
+	HK_CHECK(error == 0);
+	HK_CHECK(len == (size_t)PAYLOAD_LEN);
 	HK_CHECK(out_untouched());
 }
 
@@ -481,10 +519,285 @@ test_name_space(void)
 	HK_CHECK(error == EOPNOTSUPP);
 }
 
+/*
+ * The eight helpers, each against the same three questions: what a size
+ * query reports, what a short buffer takes and reports, and what an exact
+ * buffer delivers. sysctl(3) gives one answer for all of them, and before
+ * this contract the four that assign *oldlenp inside "if (oldp)" -- string
+ * and struct, in their writable forms -- left a size query's length
+ * untouched, so a caller sizing a buffer from it allocated whatever it had
+ * passed in.
+ */
+#define HELPER_SHORT	1	/* one byte, shorter than any value here */
+
+static void
+test_helper_lengths(void)
+{
+	static char str[32] = "hostname";
+	static struct mapent st;
+	size_t len;
+	int ival;
+	long lval;
+	char small[8];
+
+	/* A size query reports the value's length through every helper. */
+	ival = 0;
+	len = 0;
+	HK_CHECK(sysctl_int(NULL, &len, NULL, 0, &ival) == 0);
+	HK_CHECK(len == sizeof(int));
+
+	len = 0;
+	HK_CHECK(sysctl_rdint(NULL, &len, NULL, 7) == 0);
+	HK_CHECK(len == sizeof(int));
+
+	lval = 0;
+	len = 0;
+	HK_CHECK(sysctl_long(NULL, &len, NULL, 0, &lval) == 0);
+	HK_CHECK(len == sizeof(long));
+
+	len = 0;
+	HK_CHECK(sysctl_rdlong(NULL, &len, NULL, 7) == 0);
+	HK_CHECK(len == sizeof(long));
+
+	len = 0;
+	HK_CHECK(sysctl_string(NULL, &len, NULL, 0, str, sizeof(str)) == 0);
+	HK_CHECK(len == 9);		/* "hostname" and its terminator */
+
+	len = 0;
+	HK_CHECK(sysctl_rdstring(NULL, &len, NULL, "hostname") == 0);
+	HK_CHECK(len == 9);
+
+	len = 0;
+	HK_CHECK(sysctl_struct(NULL, &len, NULL, 0, &st, sizeof(st)) == 0);
+	HK_CHECK(len == sizeof(st));
+
+	len = 0;
+	HK_CHECK(sysctl_rdstruct(NULL, &len, NULL, &st, sizeof(st)) == 0);
+	HK_CHECK(len == sizeof(st));
+
+	/*
+	 * A one-byte buffer takes one byte and reports the whole length.
+	 * The helper succeeds; __sysctl() is where that becomes ENOMEM.
+	 */
+	reset_out(POISON);
+	ival = 0x41424344;
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_int(outbuf, &len, NULL, 0, &ival) == 0);
+	HK_CHECK(len == sizeof(int));
+	HK_CHECK((unsigned char)outbuf[HELPER_SHORT] == POISON);
+
+	reset_out(POISON);
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_rdint(outbuf, &len, NULL, ival) == 0);
+	HK_CHECK(len == sizeof(int));
+	HK_CHECK((unsigned char)outbuf[HELPER_SHORT] == POISON);
+
+	reset_out(POISON);
+	lval = 1;
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_long(outbuf, &len, NULL, 0, &lval) == 0);
+	HK_CHECK(len == sizeof(long));
+	HK_CHECK((unsigned char)outbuf[HELPER_SHORT] == POISON);
+
+	reset_out(POISON);
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_rdlong(outbuf, &len, NULL, 1) == 0);
+	HK_CHECK(len == sizeof(long));
+	HK_CHECK((unsigned char)outbuf[HELPER_SHORT] == POISON);
+
+	reset_out(POISON);
+	len = 4;
+	HK_CHECK(sysctl_string(outbuf, &len, NULL, 0, str, sizeof(str)) == 0);
+	HK_CHECK(len == 9);
+	HK_CHECK(outbuf[0] == 'h' && outbuf[3] == 't');
+	HK_CHECK((unsigned char)outbuf[4] == POISON);
+
+	reset_out(POISON);
+	len = 4;
+	HK_CHECK(sysctl_rdstring(outbuf, &len, NULL, "hostname") == 0);
+	HK_CHECK(len == 9);
+	HK_CHECK(outbuf[0] == 'h' && outbuf[3] == 't');
+	HK_CHECK((unsigned char)outbuf[4] == POISON);
+
+	reset_out(POISON);
+	st.m_size = 5;
+	st.m_addr = 6;
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_struct(outbuf, &len, NULL, 0, &st, sizeof(st)) == 0);
+	HK_CHECK(len == sizeof(st));
+	HK_CHECK((unsigned char)outbuf[HELPER_SHORT] == POISON);
+
+	reset_out(POISON);
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_rdstruct(outbuf, &len, NULL, &st, sizeof(st)) == 0);
+	HK_CHECK(len == sizeof(st));
+	HK_CHECK((unsigned char)outbuf[HELPER_SHORT] == POISON);
+
+	/* An exact buffer delivers the value whole. */
+	reset_out(POISON);
+	len = sizeof(int);
+	HK_CHECK(sysctl_rdint(outbuf, &len, NULL, 0x0a0b0c0d) == 0);
+	HK_CHECK(len == sizeof(int));
+	bcopy(outbuf, &ival, sizeof(ival));
+	HK_CHECK(ival == 0x0a0b0c0d);
+
+	reset_out(POISON);
+	len = sizeof(small);
+	HK_CHECK(sysctl_rdstring(outbuf, &len, NULL, "abc") == 0);
+	HK_CHECK(len == 4);
+	HK_CHECK(hk_streq(outbuf, "abc"));
+}
+
+/*
+ * The refusals that stand ahead of the value, which no bounded copy
+ * reaches: a write to a read-only helper, and a new value whose length the
+ * node cannot take. Each returns before the output buffer is touched and
+ * without reporting a length.
+ */
+static void
+test_helper_refusals(void)
+{
+	static char str[32] = "hostname";
+	static struct mapent st;
+	size_t len;
+	int ival = 0, newval = 0;
+	long lval = 0;
+
+	reset_out(POISON);
+	len = sizeof(outbuf);
+	HK_CHECK(sysctl_rdint(outbuf, &len, &newval, 1) == EPERM);
+	HK_CHECK(sysctl_rdlong(outbuf, &len, &newval, 1) == EPERM);
+	HK_CHECK(sysctl_rdstring(outbuf, &len, &newval, "x") == EPERM);
+	HK_CHECK(sysctl_rdstruct(outbuf, &len, &newval, &st, sizeof(st)) ==
+	    EPERM);
+	HK_CHECK(out_untouched());
+	HK_CHECK(len == sizeof(outbuf));
+
+	/* A new value of the wrong length is refused before any copy. */
+	len = sizeof(outbuf);
+	HK_CHECK(sysctl_int(outbuf, &len, &newval, 1, &ival) == EINVAL);
+	HK_CHECK(sysctl_long(outbuf, &len, &newval, 1, &lval) == EINVAL);
+	HK_CHECK(sysctl_string(outbuf, &len, &newval, sizeof(str), str,
+	    sizeof(str)) == EINVAL);
+	HK_CHECK(sysctl_struct(outbuf, &len, &newval, sizeof(st) + 1, &st,
+	    sizeof(st)) == EINVAL);
+	HK_CHECK(out_untouched());
+	HK_CHECK(len == sizeof(outbuf));
+}
+
+/*
+ * A write whose read-back buffer is short still writes. The bounded copy
+ * reports no error, so the copyin that follows it runs and __sysctl() adds
+ * ENOMEM afterwards: the caller sees the truncation of the old value and the
+ * new value takes effect, which is the order patch 475 establishes.
+ */
+static void
+test_write_survives_short_read_buffer(void)
+{
+	size_t len;
+	int val = 1, newval = 99;
+
+	reset_out(POISON);
+	len = HELPER_SHORT;
+	HK_CHECK(sysctl_int(outbuf, &len, &newval, sizeof(newval), &val) == 0);
+	HK_CHECK(val == 99);
+	HK_CHECK(len == sizeof(int));
+}
+
+/*
+ * __sysctl() end to end, which is where the length reaches the caller and
+ * where truncation becomes ENOMEM. The argument block mirrors the syscall
+ * ABI kern_sysctl.c reads out of u_arg.
+ */
+struct gate_sysctl_args {
+	int	*name;
+	u_int	 namelen;
+	void	*old;
+	size_t	*oldlenp;
+	void	*new;
+	size_t	 newlen;
+};
+
+static int
+call_syscall(int *name, u_int namelen, void *old, size_t *oldlenp, void *new,
+    size_t newlen)
+{
+	struct gate_sysctl_args args;
+
+	args.name = name;
+	args.namelen = namelen;
+	args.old = old;
+	args.oldlenp = oldlenp;
+	args.new = new;
+	args.newlen = newlen;
+	bcopy(&args, u.u_arg, sizeof(args));
+	u.u_error = 0;
+	u.u_rval = 0;
+	__sysctl();
+	return (u.u_error);
+}
+
+static void
+test_syscall_enomem(void)
+{
+	size_t len;
+	int name[2];
+	int error;
+
+	reset_map();
+	name[0] = CTL_VM;
+	name[1] = VM_SWAPMAP;
+
+	/* An ample buffer: no truncation, and the length is the value's. */
+	reset_out(POISON);
+	len = sizeof(outbuf);
+	error = call_syscall(name, 2, outbuf, &len, NULL, 0);
+	HK_CHECK(error == 0);
+	HK_CHECK(len == (size_t)PAYLOAD_LEN);
+	HK_CHECK(u.u_rval == PAYLOAD_LEN);
+
+	/*
+	 * A short buffer: ENOMEM, and the length the caller reads back is
+	 * what the value needs, so the next call can be sized from it.
+	 */
+	reset_out(POISON);
+	len = PAYLOAD_LEN - sizeof(struct mapent);
+	error = call_syscall(name, 2, outbuf, &len, NULL, 0);
+	HK_CHECK(error == ENOMEM);
+	HK_CHECK(len == (size_t)PAYLOAD_LEN);
+
+	/* Sized from that answer, the same call succeeds. */
+	reset_out(POISON);
+	error = call_syscall(name, 2, outbuf, &len, NULL, 0);
+	HK_CHECK(error == 0);
+	HK_CHECK(len == (size_t)PAYLOAD_LEN);
+
+	/*
+	 * A size query offers no buffer, so no length can be too short and
+	 * ENOMEM never arises however small the number passed in.
+	 */
+	len = 0;
+	error = call_syscall(name, 2, NULL, &len, NULL, 0);
+	HK_CHECK(error == 0);
+	HK_CHECK(len == (size_t)PAYLOAD_LEN);
+
+	/* The node's own verdict stands ahead of the truncation check. */
+	reset_out(POISON);
+	len = 1;
+	name[1] = 4;			/* the retired coremap id */
+	error = call_syscall(name, 2, outbuf, &len, NULL, 0);
+	HK_CHECK(error == EOPNOTSUPP);
+}
+
 int
 main(void)
 {
+	test_helper_lengths();
+	test_helper_refusals();
+	test_write_survives_short_read_buffer();
+	test_syscall_enomem();
 	test_swapmap_length();
+	test_swapmap_zero_length_buffer();
 	test_swapmap_payload();
 	test_swapmap_encloses_nothing_else();
 	test_swapmap_short_buffer();

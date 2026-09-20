@@ -35,6 +35,13 @@
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
 
+/*
+ * sysctl(3) reports the length the value needs rather than the length it
+ * copied, so a field shorter than the value comes back holding a prefix and
+ * a length larger than the field. Every field is therefore terminated after
+ * its call, and the one walk over a field's contents takes its bound from
+ * the field rather than from that length.
+ */
 int
 uname(struct utsname *name)
 {
@@ -49,18 +56,21 @@ uname(struct utsname *name)
 	len = sizeof(name->sysname);
 	if (sysctl(mib, 2, &name->sysname, &len, NULL, 0) == -1)
 		rval = -1;
+	name->sysname[sizeof(name->sysname) - 1] = '\0';
 
 	mib[0] = CTL_KERN;
 	mib[1] = KERN_HOSTNAME;
 	len = sizeof(name->nodename);
 	if (sysctl(mib, 2, &name->nodename, &len, NULL, 0) == -1)
 		rval = -1;
+	name->nodename[sizeof(name->nodename) - 1] = '\0';
 
 	mib[0] = CTL_KERN;
 	mib[1] = KERN_OSRELEASE;
 	len = sizeof(name->release);
 	if (sysctl(mib, 2, &name->release, &len, NULL, 0) == -1)
 		rval = -1;
+	name->release[sizeof(name->release) - 1] = '\0';
 
 	mib[0] = CTL_KERN;
 	mib[1] = KERN_OSVERSION;
@@ -73,6 +83,8 @@ uname(struct utsname *name)
 		if (sysctl(mib, 2, &name->version, &len, NULL, 0) == -1)
 			rval = -1;
 
+		if (len > sizeof(name->version))
+			len = sizeof(name->version);
 		/* If version has newlines in it, turn them into spaces. */
 		for (p = name->version; len--; ++p) {
 			if (*p == '\n' || *p == '\t') {
@@ -83,11 +95,13 @@ uname(struct utsname *name)
 			}
 		}
 	}
+	name->version[sizeof(name->version) - 1] = '\0';
 
 	mib[0] = CTL_HW;
 	mib[1] = HW_MACHINE;
 	len = sizeof(name->machine);
 	if (sysctl(mib, 2, &name->machine, &len, NULL, 0) == -1)
 		rval = -1;
+	name->machine[sizeof(name->machine) - 1] = '\0';
 	return (rval);
 }

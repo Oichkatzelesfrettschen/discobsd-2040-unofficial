@@ -1,8 +1,8 @@
-# Invariant map: four contracts, who enforces them, who owes them
+# Invariant map: six contracts, who enforces them, who owes them
 
 A claim about the port is useful when it names the code that enforces it,
 the callers that must uphold it, and the evidence that tests it. This note
-records that chain for four contracts the port's design rests on, so a
+records that chain for six contracts the port's design rests on, so a
 reader or a model answering a question about one of them can separate a
 checked condition from a documented precondition. Each entry carries the
 same fields: the claim, what enforces it, what the caller owes, the
@@ -100,6 +100,15 @@ callers of a name that a header prototype and a definition both carry.
 - Source evidence (rank 4): as cited; flash_swap_test.c asserts the
   neighbors of a rewritten block are unchanged and that a rewrite crossing
   a sector boundary reports each operation failure.
+- Successful-path operation account: each affected destination sector uses
+  two 4 KB erase callbacks and thirty-two 256-byte program callbacks, for
+  8,192 programmed bytes. This is a count of calls made by the production
+  helper, not an independent measurement of the flash chip's internal work.
+- Evidence boundary: `flash_erase` and `flash_program` return after the ROM
+  call and XIP restoration; the wrappers perform no independent readback.
+  A future counter must distinguish attempted, returned and verified
+  operations, and a failed trace retains its observed prefix rather than
+  becoming a confirmed success or confirmed no-op.
 - Open: power loss between the destination erase and the program-back
   leaves that sector's untouched pages only in the spare. No recovery
   protocol exists in the tree (`git grep -i power sys/arch/rp2040/dev`
@@ -320,6 +329,11 @@ callers of a name that a header prototype and a definition both carry.
     their duration. An evacuated image is written to flash through the
     `B_SWAPIMAGE` path of section 1b (the evacuation test panics on any
     other write shape).
+    Evacuation reserves all expanded flash destinations before it writes an
+    image and stores those provisional addresses in `p_daddr`, `p_saddr`
+    and `p_addr` while the RAM entry remains live. Nonzero flash addresses
+    therefore mean reserved during that interval, not authoritative. A
+    reader must include the RAM-entry state in its decision.
   - The LARGE window. Under `P_LARGE` the pool is the top of a large
     process's stack (swapram.c L57-L60; `user_top`, L764-L768), so the
     same bytes cannot hold compressed images and serve as a process's
@@ -342,10 +356,14 @@ callers of a name that a header prototype and a definition both carry.
   to the board on 2026-09-19 and verified by cksum but not run: the
   console hang of section 3 intervened, so its result is owed.
 - Open: whether an image admitted to the pool and then evacuated lands
-  in flash with the same bytes is proven by evactest's pattern check and
-  by nothing on the host; and the claim that nothing on the swapout
-  path sleeps is a property of every function it calls, which a new
-  call into a sleeping path breaks silently.
+  in flash with the same bytes has a host model and an owed board pattern
+  check. Allocation rollback releases every provisional extent when the
+  initial reservation pass fails, but that all-or-none allocation result
+  does not establish all-or-none I/O after writes begin. The supported
+  state after a media failure that follows an earlier per-image move remains
+  undefined. The claim that nothing on the ordinary swapout path sleeps is
+  also a property of every function it calls, which a new call into a
+  sleeping path breaks silently.
 
 ## How to use this map
 
@@ -363,3 +381,9 @@ and one line per 50 ms, decode with uudecode, and compare cksum against
 the host before running it; a faster stream drops bytes in the console's
 input path. docs/research/graft-concept-review.md reads the graft concept
 layer against these six entries.
+
+The proposed watchdog, flash telemetry, compressed-flash representation and
+checkpoint-batching contracts are not entries here because the tree does not
+ship them. `rp2040-memory-wear-engineering-program.md` owns their open gates;
+an implementation joins this map only after code and calibrated evidence
+establish an enforceable invariant.

@@ -601,9 +601,16 @@ with the native cc.
 
 ## Open
 
-Step 6 needs the pool and window to share one arena with resident
-expansion taking precedence: the window is now fixed at 144 KB and the
-pool at 16 KB, and an arena would let a process that fits in 160 KB run
-while the pool is empty. Step 7 landed as PR #45 above. Step 9's
-conversion landed in PR #35; extending the multicall boxes with sed,
-sort and find is the remaining part.
+The original step 6 landed as the SMALL/LARGE epoch and 160 KB LARGE
+window described above. Step 7 landed as PR #45. Step 9's conversion
+landed in PR #35; extending the multicall boxes with sed, sort and find
+is the remaining part of that original plan.
+
+`rp2040-memory-wear-engineering-program.md` owns the next memory and
+storage program. It preserves commit `728677b8ff4330decf579b8ea03693ee904bb592`
+as a submitted audit snapshot rather than relabeling its local sizes as a
+new build. Its first track completes watchdog recovery and coherent physical
+write telemetry. Its second track compares otherwise equivalent 16 KiB and
+32 KiB pools. Compressed flash images, Dhara checkpoint batching, and a
+conditional 4 KiB rewrite buffer remain separate changes with separate
+failure contracts.

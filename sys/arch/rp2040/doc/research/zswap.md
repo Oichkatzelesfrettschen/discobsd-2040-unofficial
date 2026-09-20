@@ -4,8 +4,9 @@
 the raw flash swap unit `fl1`. `kern/vm_swap.c` offers each swapout to the
 tier first; an image the pool can hold stays in RAM and never touches QSPI
 NOR, and an image it cannot hold takes the existing flash path with nothing
-about it changed. The option is off in `compile/PICO/Config`, where the two
-lines that turn it on sit commented out.
+about it changed. `compile/PICO/Config` enables a 16 KiB pool.
+`compile/PICO_UART/Config` omits the tier, so the UART-only kernel is the
+configuration-specific no-SwapRAM control.
 
 ## What it costs
 
@@ -14,7 +15,9 @@ lines that turn it on sit commented out.
 | `compile/PICO/Config` as shipped | 90,901 | 39,608 |
 | plus `options SWAPRAM` and `options "SWAPRAM_KB=64"` | 95,049 | 108,008 |
 
-`arm-none-eabi-size` on `compile/PICO/unix` after `bmake clean` and a full
+This table retains the initial 64 KiB design measurement; it is not the size
+of the current 16 KiB PICO configuration. `arm-none-eabi-size` on
+`compile/PICO/unix` after `bmake clean` and a full
 rebuild each way. The option costs 4,148 bytes of text against a 128 KB
 kernel flash region already 90,901 bytes full, and 68,400 bytes of bss:
 65,536 for the pool, 1,040 for the encoder, 590 for the decoder, and 1,234
@@ -186,22 +189,37 @@ Deepest stack on the path, from `-fstack-usage`: `swapout` 56,
 at 24 or less, so about 250 bytes against 2,100 available. Swapin is
 shallower: `swapin` 48, `swapram_in` 96, `heatshrink_decoder_poll` 48.
 
-## Enabling it
+Those numbers describe individual compiled functions and the manually
+inspected path in the initial study. They do not bound every reachable call,
+interrupt, exception, assembly sequence, indirect target or compiler helper.
+`docs/research/rp2040-memory-wear-engineering-program.md` defines the static
+call-chain and runtime-watermark evidence required before a new pool or
+instrumentation configuration reaches the board.
 
-In `sys/arch/rp2040/compile/PICO/Config`, uncomment:
+## Configuration
+
+`sys/arch/rp2040/compile/PICO/Config` carries:
 
     options         SWAPRAM                     # RAM tier ahead of fl1
-    options         "SWAPRAM_KB=64"             # kbytes of bss for the pool
+    options         "SWAPRAM_KB=16"             # kbytes in the pool
 
-then
+After a configuration change, regenerate the tracked Makefile and rebuild the
+affected objects from clean state:
 
     cd sys/arch/rp2040/compile/PICO
     ../../../../../tools/bin/config Config
     bmake clean && bmake all
 
 `SWAPRAM_KB` defaults to 64 in `machine/swapram.h` if only `options SWAPRAM`
-is given. The pool is bss, so every kilobyte comes out of the 49,688 bytes
-the RAM region has left at 64 KB.
+is given. The linker places the pool in the NOLOAD `.swapram_pool` section at
+the start of the kernel RAM region, directly above the ordinary user window.
+The owner initializes its metadata and writes each stored byte before reading
+it; ordinary `.bss` clearing does not initialize the pool.
+
+`compile/PICO_UART/Config` contains neither option. Its correct artifact has
+no pool symbol and no SwapRAM call path. A provenance check validates each
+configuration against its own feature set rather than requiring the PICO call
+path in both kernels.
 
 `config` gates the sources on a valueless option, because
 `mkmakefile.c:240` matches `optional X` only against an option with no
@@ -212,6 +230,7 @@ the build, which is why the size is a separate line.
 
     cd sys/arch/rp2040/test/swapram
     make run IMAGE=<a.out>          # round trip, ratio, speed, allocator
+    make evac                       # evacuation, epoch and ownership model
     make valgrind IMAGE=<a.out>
     make sweep IMAGE=<a.out>
 
@@ -283,9 +302,12 @@ line naming the tier that took the image.
 A regression that is not this tier's fault looks the same with the option
 off. That is the first check on any of the above.
 
-## Not verified
+## Evidence limits
 
-- Nothing here ran on hardware. Every board figure is an estimate.
+- The initial cost, ratio and throughput study above was host evidence. Later
+  board results live in `docs/research/memory-ownership-plan.md` and
+  `docs/research/invariant-map.md`; those records do not retroactively turn an
+  unexecuted case from the initial sequence into a board result.
 - The stack and u-area ratios are synthetic, as marked above. A real u area
   holds a `struct user` with live pointers and an idle kernel stack; the
   model is zeros with a plausible live top.
@@ -294,3 +316,6 @@ off. That is the first check on any of the above.
 - The flash path's 0.5 s per 33 KB comes from `ram-compression.md` (docs/research/) and was
   not re-measured here.
 - `swapramdebug` has no runtime control; changing it needs a rebuild.
+- The proposed 32 KiB pool, telemetry, compressed flash records and checkpoint
+  changes are unimplemented. Their gates live in
+  `docs/research/rp2040-memory-wear-engineering-program.md`.

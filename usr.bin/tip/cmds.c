@@ -775,7 +775,7 @@ void suspend(c)
     int c;
 {
     unraw();
-    kill(c == CTRL(y) ? getpid() : 0, SIGTSTP);
+    kill(c == CTRL('y') ? getpid() : 0, SIGTSTP);
     raw();
 }
 

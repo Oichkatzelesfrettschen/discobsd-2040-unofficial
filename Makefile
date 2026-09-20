@@ -283,6 +283,16 @@ check-warning-policy-host:
 check-warning-policy-cross:
 		${MAKE} -C tests/warning_policy check-cross
 
+# The inherited sources once passed bare identifiers through macros that
+# quoted their parameter names.  Compile the exact consumers so their C17
+# assertions bind each terminal action to its intended control byte.
+check-control-char-contracts:
+		${MAKE} -C tests/control_char_contracts check
+		rm -f games/cribbage/io.o usr.bin/tip/cmds.o \
+		    usr.bin/tip/cmdtab.o usr.bin/tip/vars.o
+		${MAKE} -C games/cribbage io.o
+		${MAKE} -C usr.bin/tip cmds.o cmdtab.o vars.o
+
 # A failure injected into each step of lib/Makefile's install and clean
 # loops and of the kernel link recipe, with the steps after it asserted
 # never to run and the parent make asserted to fail.
@@ -330,7 +340,8 @@ HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-libc-aout-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
+		check-libc-aout-contracts \
 		check-libc-ctime-cross \
 		check-dirent-contracts-cross \
 		check-cat-contracts-cross \
@@ -508,6 +519,7 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		check-warning-policy-host check-warning-policy-cross \
+		check-control-char-contracts \
 		check-build-failure check-analysis \
 		all build distribution release tools kernel check-divider \
 		check-swapram check-cache-footprint check-exec-spool \

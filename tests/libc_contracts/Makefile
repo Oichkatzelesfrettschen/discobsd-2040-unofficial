@@ -41,7 +41,7 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-malloc check-printf \
+check-host: ${PROG} header_contract.o check-ctime check-malloc check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
 	check-qsort check-strtox check-string-security
 	./${PROG}
@@ -141,6 +141,94 @@ STRING_SECURITY_RENAMES=	-Dexplicit_bzero=db_explicit_bzero \
 	-Dtimingsafe_bcmp=db_timingsafe_bcmp
 STRING_SECURITY_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
 	${STRING_SECURITY_RENAMES}
+
+# The exact fixed-width calendar formatter, isolated from the host libc. The
+# negative control accepts out-of-range fields the shipping source rejects.
+ASCTIME_RENAMES=	-Dasctime=db_asctime -Derrno=asctime_test_errno
+ASCTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 -nostdinc \
+	-isystem ${TOPSRC}/include ${ASCTIME_RENAMES}
+
+CTIME_RENAMES=	-Dctime=db_ctime -Dlocaltime=db_localtime \
+	-Dgmtime=db_gmtime -Dtzset=db_tzset -Dtzname=db_tzname \
+	-Dtztab=db_tztab
+CTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
+	-ffunction-sections -fdata-sections -nostdinc \
+	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
+CTIME_TARGET_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 \
+	-Wformat-overflow=2 -Wold-style-definition -fno-common \
+	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
+	-mfloat-abi=soft -nostdinc -I${TOPSRC}/include -Os
+GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
+	else echo -Wl,--gc-sections ; fi
+
+check-ctime: check-asctime ctime_contract_test
+	./ctime_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} ctime_contract_test32
+	./ctime_contract_test32
+.else
+	@echo "check-libc-ctime: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+check-ctime-cross: asctime_target.o ctime_target.o
+	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
+	@if ${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c \
+	    -o asctime_format_bad_target.o asctime_format_bad.c \
+	    2>asctime_format_bad_target.log; then \
+		echo "ctime target format-overflow negative control passed" >&2; \
+		rm -f asctime_format_bad_target.o asctime_format_bad_target.log; \
+		exit 1; \
+	fi
+	@if ! grep -q -- 'format-overflow=' asctime_format_bad_target.log; then \
+		cat asctime_format_bad_target.log >&2; \
+		echo "ctime target negative control failed for an unexpected reason" >&2; \
+		rm -f asctime_format_bad_target.o asctime_format_bad_target.log; \
+		exit 1; \
+	fi
+	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
+	@echo "ctime target format-overflow negative control rejected"
+	@echo "ctime Cortex-M0+ C17 and bounded-format compile passed"
+
+check-asctime: asctime_contract_test asctime_contract_bad_test
+	./asctime_contract_test
+	@if ./asctime_contract_bad_test >/dev/null 2>&1; then \
+		echo "asctime contract negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "asctime contract negative control rejected"
+
+asctime_contract_test: asctime_contract_test.c asctime_asctime.o
+	${HOSTCC} ${ASCTIME_CFLAGS} -o $@ asctime_contract_test.c \
+	    asctime_asctime.o
+
+asctime_contract_bad_test: asctime_contract_test.c asctime_bad.o
+	${HOSTCC} ${ASCTIME_CFLAGS} -o $@ asctime_contract_test.c asctime_bad.o
+
+asctime_asctime.o: ${TARGET_DIR}/asctime.c
+	${HOSTCC} ${ASCTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/asctime.c
+
+asctime_bad.o: asctime_bad.c
+	${HOSTCC} ${ASCTIME_CFLAGS} -c -o $@ asctime_bad.c
+
+ctime_contract_test: ctime_contract_test.c ctime_ctime.o
+	${HOSTCC} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+	    ctime_contract_test.c ctime_ctime.o
+
+ctime_contract_test32: ctime_contract_test.c ctime_ctime32.o
+	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+	    ctime_contract_test.c ctime_ctime32.o
+
+ctime_ctime.o: ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+ctime_ctime32.o: ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+asctime_target.o: ${TARGET_DIR}/asctime.c
+	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/asctime.c
+
+ctime_target.o: ${TARGET_DIR}/ctime.c
+	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 check-string-security: string_security_test
 	./string_security_test
@@ -498,6 +586,11 @@ header_contract.o: header_contract.c
 
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
+	rm -f asctime_contract_test asctime_contract_bad_test \
+		asctime_asctime.o asctime_bad.o
+	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
+	rm -f asctime_target.o ctime_target.o asctime_format_bad_target.o \
+		asctime_format_bad_target.log
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
@@ -515,7 +608,7 @@ clean:
 
 all: check
 
-.PHONY: all check check-host check-aout check-malloc check-printf \
-	check-printf-float check-qsort check-rwmode check-scanf \
-	check-string-security check-string-security-cross check-strtox \
-	check-syslog check-vis clean
+.PHONY: all check check-host check-aout check-asctime check-ctime \
+	check-ctime-cross check-malloc check-printf check-qsort \
+	check-printf-float check-rwmode check-scanf check-string-security \
+	check-string-security-cross check-strtox check-syslog check-vis clean

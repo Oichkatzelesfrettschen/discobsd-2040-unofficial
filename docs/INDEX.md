@@ -106,6 +106,7 @@ Grouped by what they investigate.
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
+| `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 style proposal: resource accounts, the four language profiles, the migration unit, and the evidence a size claim owes |
 | `211bsd-patch-scope.md` | the fork point from 2.11BSD, what each patch since then touches here, what patch 499's stdio would cost this target, and the measured `_doscan` migration unit |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |

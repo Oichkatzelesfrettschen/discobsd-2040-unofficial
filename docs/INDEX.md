@@ -30,6 +30,7 @@ page in those files without carrying them here.
 | How do I connect to the console? | `sys/arch/rp2040/doc/USER-ACCESS.md` |
 | Which datasheet section covers this register? | `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
+| What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
 | Where do the 2 MB of flash go? | `sys/arch/rp2040/doc/STORAGE.md` |
 | How do I work on this tree? | `AGENTS.md` (`CLAUDE.md` links to it) |
 | What license travels with an image I hand someone? | `NOTICE`, then `docs/research/legal-memo-redistribution.md` |
@@ -41,6 +42,7 @@ page in those files without carrying them here.
 | --- | --- | --- |
 | `BOOT-MAP.md` | the path from the boot ROM through boot2, kernel entry and init to a login prompt | reader entry point |
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
+| `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
 | `STORAGE.md` | the flash budget and the 128 KB / 1536 KB / 384 KB layout chosen | `distrib/rp2040/Makefile.inc` |
 | `TESTING.md` | each gate, its tier, its prerequisites, and what a pass proves | the root `Makefile` and both CI workflows |

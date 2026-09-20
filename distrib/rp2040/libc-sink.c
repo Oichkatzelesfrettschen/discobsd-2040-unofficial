@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <vis.h>
 
 /*
  * Every call below feeds sink so a compiler that recognizes a libc name as
@@ -107,6 +108,22 @@ touch_malloc(void)
 	free(p);
 }
 
+static void
+touch_vis(void)
+{
+	char destination[16];
+	const char source[] = {'A', '\0', '7'};
+
+	sink += (long)vis(destination, '\n', VIS_CSTYLE, '\0');
+	sink += (long)nvis(destination, sizeof(destination), '\n', VIS_CSTYLE,
+	    '\0');
+	sink += strvis(destination, "A", 0);
+	sink += strnvis(destination, sizeof(destination), "A", 0);
+	sink += strvisx(destination, source, sizeof(source), VIS_CSTYLE);
+	sink += strnvisx(destination, sizeof(destination), source, sizeof(source),
+	    VIS_CSTYLE);
+}
+
 static int
 cmp(const void *a, const void *b)
 {
@@ -180,6 +197,7 @@ main(int argc, char **argv)
 	touch_stdio();
 	touch_string_ctype();
 	touch_malloc();
+	touch_vis();
 	touch_stdlib();
 	touch_syscalls();
 	touch_jmp();

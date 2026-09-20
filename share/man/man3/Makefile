@@ -41,7 +41,7 @@ SRCS2=	insque.3 intro.3 j0.3 l3tol.3 ldfps.3 lgamma.3 lib2648.3 \
 	strcspn.3 strlcpy.3 strpbrk.3 \
 	strsep.3 strspn.3 strtol.3 strtoul.3 strstr.3 \
 	swab.3 sysctl.3 syslog.3 \
-	system.3 termcap.3 time.3 times.3 ttyname.3 ualarm.3 uname.3 ungetc.3 \
+	system.3 termcap.3 time.3 times.3 ttyname.3 ualarm.3 uname.3 ungetc.3 vis.3 \
 	syserrlst.3 \
 	utime.3 valloc.3 varargs.3
 OBJS1=	abort.0 abs.0 alarm.0 asinh.0 assert.0 atof.0 \
@@ -65,7 +65,7 @@ OBJS2=	insque.0 intro.0 j0.0 l3tol.0 ldfps.0 lgamma.0 lib2648.0 \
 	strcspn.0 strlcpy.0 strpbrk.0 \
 	strsep.0 strspn.0 strtol.0 strtoul.0 strstr.0 \
 	swab.0 sysctl.0 syslog.0 \
-	system.0 termcap.0 time.0 times.0 ttyname.0 ualarm.0 uname.0 ungetc.0 \
+	system.0 termcap.0 time.0 times.0 ttyname.0 ualarm.0 uname.0 ungetc.0 vis.0 \
 	syserrlst.0 \
 	utime.0 valloc.0 varargs.0
 REMO1=	edata.0 etext.0 j1.0 jn.0 ns_addr.0 ns_ntoa.0 y0.0 y1.0 yn.0 acos.0 \
@@ -113,6 +113,7 @@ REMO3=	getgrnam.0 getpwnam.0 getpwuid.0 setfsent.0 setgrent.0 setpwent.0 \
 REMO4=	verr.0 errx.0 verrx.0 warn.0 warnx.0 vwarnx.0
 
 REMO5 = sigaddset.0 sigdelset.0 sigemptyset.0 sigfillset.0 sigismember.0
+VISALIASES = nvis.0 strvis.0 strnvis.0 strvisx.0 strnvisx.0
 
 .SUFFIXES: .3 .0
 
@@ -137,6 +138,9 @@ install: _make_01 _make_02
 	done
 	for i in ${REMO5}; do \
 		ln -f ${DESTDIR}/${MDIR}/sigsetops.0 ${DESTDIR}${MDIR}/$$i; \
+	done
+	for i in ${VISALIASES}; do \
+		ln -f ${DESTDIR}${MDIR}/vis.0 ${DESTDIR}${MDIR}/$$i; \
 	done
 
 	ln -f ${DESTDIR}${MDIR}/end.0 ${DESTDIR}${MDIR}/edata.0

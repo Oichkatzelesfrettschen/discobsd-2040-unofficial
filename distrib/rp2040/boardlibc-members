@@ -99,6 +99,7 @@ sysctl
 time
 ungetc
 unlink
+vis
 wait4
 wait
 waitpid

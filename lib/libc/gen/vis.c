@@ -35,152 +35,187 @@
 static char sccsid[] = "@(#)vis.c	8.1 (Berkeley) 7/19/93";
 #endif /* LIBC_SCCS and not lint */
 
-#include <sys/types.h>
-#include <limits.h>
-#include <ctype.h>
+#include <errno.h>
 #include <vis.h>
 
-#define	isoctal(c)	(((u_char)(c)) >= '0' && ((u_char)(c)) <= '7')
+#define MAX_VIS_BYTES 4
 
-/*
- * vis - visually encode characters
- */
+static size_t
+encode_byte(char encoded[MAX_VIS_BYTES], unsigned char character, int flags,
+    unsigned char next_character)
+{
+    char escape_character = '\0';
+    char *output = encoded;
+
+    if ((character >= '!' && character <= '~') ||
+        ((flags & VIS_SP) == 0 && character == ' ') ||
+        ((flags & VIS_TAB) == 0 && character == '\t') ||
+        ((flags & VIS_NL) == 0 && character == '\n') ||
+        ((flags & VIS_SAFE) != 0 &&
+        (character == '\b' || character == '\a' || character == '\r'))) {
+        *output++ = (char)character;
+        if (character == '\\' && (flags & VIS_NOSLASH) == 0)
+            *output++ = '\\';
+        return (size_t)(output - encoded);
+    }
+
+    if ((flags & VIS_CSTYLE) != 0) {
+        if (character >= '\a' && character <= '\r')
+            escape_character = "abtnvfr"[character - '\a'];
+        else if (character == ' ')
+            escape_character = 's';
+        if (escape_character != '\0') {
+            *output++ = '\\';
+            *output++ = escape_character;
+            return (size_t)(output - encoded);
+        }
+        if (character == '\0') {
+            *output++ = '\\';
+            *output++ = '0';
+            if (next_character >= '0' && next_character <= '7') {
+                *output++ = '0';
+                *output++ = '0';
+            }
+            return (size_t)(output - encoded);
+        }
+    }
+
+    if ((character & 0177) == ' ' || (flags & VIS_OCTAL) != 0) {
+        *output++ = '\\';
+        *output++ = (char)((character >> 6 & 07) + '0');
+        *output++ = (char)((character >> 3 & 07) + '0');
+        *output++ = (char)((character & 07) + '0');
+        return (size_t)(output - encoded);
+    }
+    if ((flags & VIS_NOSLASH) == 0)
+        *output++ = '\\';
+    if ((character & 0200) != 0) {
+        character &= 0177;
+        *output++ = 'M';
+    }
+    if (character < ' ' || character == 0177) {
+        *output++ = '^';
+        *output++ = character == 0177 ? '?' : (char)(character + '@');
+    } else {
+        *output++ = '-';
+        *output++ = (char)character;
+    }
+    return (size_t)(output - encoded);
+}
+
+static char *
+encode_character(char *destination, size_t destination_length, int character,
+    int flags, int next_character)
+{
+    char encoded[MAX_VIS_BYTES];
+    size_t encoded_length;
+    size_t output_index;
+
+    encoded_length = encode_byte(encoded, (unsigned char)character, flags,
+        (unsigned char)next_character);
+    if (encoded_length >= destination_length) {
+        errno = ENOSPC;
+        return 0;
+    }
+    for (output_index = 0; output_index < encoded_length; ++output_index)
+        destination[output_index] = encoded[output_index];
+    destination[encoded_length] = '\0';
+    return destination + encoded_length;
+}
+
 char *
-vis(dst, c, flag, nextc)
-	register char *dst;
-	int c, nextc;
-	register int flag;
+vis(char *destination, int character, int flags, int next_character)
 {
-	if (((u_int)c <= UCHAR_MAX && isgraph(c)) ||
-	   ((flag & VIS_SP) == 0 && c == ' ') ||
-	   ((flag & VIS_TAB) == 0 && c == '\t') ||
-	   ((flag & VIS_NL) == 0 && c == '\n') ||
-	   ((flag & VIS_SAFE) && (c == '\b' || c == '\007' || c == '\r'))) {
-		*dst++ = c;
-		if (c == '\\' && (flag & VIS_NOSLASH) == 0)
-			*dst++ = '\\';
-		*dst = '\0';
-		return (dst);
-	}
+    size_t encoded_length;
 
-	if (flag & VIS_CSTYLE) {
-		switch(c) {
-		case '\n':
-			*dst++ = '\\';
-			*dst++ = 'n';
-			goto done;
-		case '\r':
-			*dst++ = '\\';
-			*dst++ = 'r';
-			goto done;
-		case '\b':
-			*dst++ = '\\';
-			*dst++ = 'b';
-			goto done;
-#if __STDC__
-		case '\a':
-#else
-		case '\007':
-#endif
-			*dst++ = '\\';
-			*dst++ = 'a';
-			goto done;
-		case '\v':
-			*dst++ = '\\';
-			*dst++ = 'v';
-			goto done;
-		case '\t':
-			*dst++ = '\\';
-			*dst++ = 't';
-			goto done;
-		case '\f':
-			*dst++ = '\\';
-			*dst++ = 'f';
-			goto done;
-		case ' ':
-			*dst++ = '\\';
-			*dst++ = 's';
-			goto done;
-		case '\0':
-			*dst++ = '\\';
-			*dst++ = '0';
-			if (isoctal(nextc)) {
-				*dst++ = '0';
-				*dst++ = '0';
-			}
-			goto done;
-		}
-	}
-	if (((c & 0177) == ' ') || (flag & VIS_OCTAL)) {	
-		*dst++ = '\\';
-		*dst++ = ((u_char)c >> 6 & 07) + '0';
-		*dst++ = ((u_char)c >> 3 & 07) + '0';
-		*dst++ = ((u_char)c & 07) + '0';
-		goto done;
-	}
-	if ((flag & VIS_NOSLASH) == 0)
-		*dst++ = '\\';
-	if (c & 0200) {
-		c &= 0177;
-		*dst++ = 'M';
-	}
-	if (iscntrl(c)) {
-		*dst++ = '^';
-		if (c == 0177)
-			*dst++ = '?';
-		else
-			*dst++ = c + '@';
-	} else {
-		*dst++ = '-';
-		*dst++ = c;
-	}
-done:
-	*dst = '\0';
-	return (dst);
+    encoded_length = encode_byte(destination, (unsigned char)character, flags,
+        (unsigned char)next_character);
+    destination[encoded_length] = '\0';
+    return destination + encoded_length;
+}
+
+char *
+nvis(char *destination, size_t destination_length, int character, int flags,
+    int next_character)
+{
+    return encode_character(destination, destination_length, character, flags,
+        next_character);
 }
 
 /*
- * strvis, strvisx - visually encode characters from src into dst
- *	
- *	Dst must be 4 times the size of src to account for possible
- *	expansion.  The length of dst, not including the trailing NULL,
- *	is returned. 
- *
- *	Strvisx encodes exactly len bytes from src into dst.
- *	This is useful for encoding a block of data.
+ * The bounded contract leaves the destination unchanged on ENOSPC, so the
+ * first pass proves every encoded atom and the terminator fit before the
+ * second pass commits the result.
  */
-int
-strvis(dst, src, flag)
-	register char *dst;
-	register const char *src;
-	int flag;
+static int
+encode_string(char *destination, size_t destination_length,
+    const unsigned char *source, size_t source_length, int flags)
 {
-	register char c;
-	char *start;
+    char encoded[MAX_VIS_BYTES];
+    size_t encoded_length;
+    size_t input_index;
+    size_t output_index = 0;
 
-	for (start = dst; (c = *src) != '\0';)
-		dst = vis(dst, c, flag, *++src);
-	*dst = '\0';
-	return (dst - start);
+    if (destination_length == 0)
+        goto no_space;
+    for (input_index = 0; input_index < source_length; ++input_index) {
+        encoded_length = encode_byte(encoded, source[input_index], flags,
+            input_index + 1 < source_length ? source[input_index + 1] : '\0');
+        if (encoded_length >= destination_length - output_index)
+            goto no_space;
+        output_index += encoded_length;
+    }
+
+    output_index = 0;
+    for (input_index = 0; input_index < source_length; ++input_index) {
+        output_index += encode_byte(destination + output_index,
+            source[input_index], flags,
+            input_index + 1 < source_length ? source[input_index + 1] : '\0');
+    }
+    destination[output_index] = '\0';
+    return (int)output_index;
+
+no_space:
+    errno = ENOSPC;
+    return -1;
+}
+
+static size_t
+string_length(const char *string)
+{
+    const char *end = string;
+
+    while (*end != '\0')
+        ++end;
+    return (size_t)(end - string);
 }
 
 int
-strvisx(dst, src, len, flag)
-	register char *dst;
-	register const char *src;
-	register size_t len;
-	int flag;
+strvis(char *destination, const char *source, int flags)
 {
-	int c;
-	char *start;
+    return encode_string(destination, (size_t)-1,
+        (const unsigned char *)source, string_length(source), flags);
+}
 
-	for (start = dst; len > 1; len--) {
-		c = *src;
-		dst = vis(dst, c, flag, *++src);
-	}
-	if (len)
-		dst = vis(dst, *src, flag, '\0');
-	*dst = '\0';
+int
+strnvis(char *destination, size_t destination_length, const char *source,
+    int flags)
+{
+    return encode_string(destination, destination_length,
+        (const unsigned char *)source, string_length(source), flags);
+}
 
-	return (dst - start);
+int
+strvisx(char *destination, const char *source, size_t source_length, int flags)
+{
+    return encode_string(destination, (size_t)-1,
+        (const unsigned char *)source, source_length, flags);
+}
+
+int
+strnvisx(char *destination, size_t destination_length, const char *source,
+    size_t source_length, int flags)
+{
+    return encode_string(destination, destination_length,
+        (const unsigned char *)source, source_length, flags);
 }

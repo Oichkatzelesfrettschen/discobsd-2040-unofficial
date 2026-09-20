@@ -30,7 +30,7 @@ for archive_path in \
     "$source_root/lib/libc_aout/libc.a" \
     "$source_root/distrib/obj/boardlibc.$target_machine/libc.a"
 do
-	for required_member in ctermid.o raise.o
+	for required_member in ctermid.o raise.o vis.o
 	do
 		member_count=$(
 			"$archiver" t "$archive_path" |

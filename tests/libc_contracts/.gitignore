@@ -15,6 +15,7 @@ printf_contract_test
 printf_contract_test32
 syslog_contract_test
 syslog_syslog.o
+vis_contract_test
 strtox_test
 strtox_test32
 strtox_strtol.o

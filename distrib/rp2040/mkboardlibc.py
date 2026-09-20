@@ -85,7 +85,7 @@ mktemp modff modf ndbm nlist opendir perror popen psignal qsort random
 raise readdir regex rindex scandir seekdir setenv sethostname setmode siginterrupt
 siglist signal sigsetops sleep strcasecmp strcat strcmp strcpy strdup
 strftime strlen strncat strncmp strncpy swab sysctl syslog system telldir
-time timezone ttyname ttyslot ualarm uname usleep wait3 wait waitpid
+time timezone ttyname ttyslot ualarm uname usleep vis wait3 wait waitpid
 """.split()
 )
 

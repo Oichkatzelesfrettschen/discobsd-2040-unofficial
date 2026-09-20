@@ -90,7 +90,7 @@ OBJS            += abort.o alarm.o atof.o atoi.o atol.o basename.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysctl.o syslog.o system.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \
                    telldir.o time.o timezone.o ttyname.o ttyslot.o ualarm.o usleep.o \
-                   strdup.o uname.o wait.o wait3.o waitpid.o
+                   strdup.o uname.o vis.o wait.o wait3.o waitpid.o
 
 # libc/stdio
 OBJS            += fgetc.o fgets.o fputc.o fputs.o gets.o puts.o \

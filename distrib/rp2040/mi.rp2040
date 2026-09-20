@@ -331,6 +331,8 @@ link /usr/bin/look
 target /usr/bin/textbox
 link /usr/bin/deroff
 target /usr/bin/textbox
+link /usr/bin/colrm
+target /usr/bin/textbox
 
 #
 # /usr/bin/utilbox holds the usr.bin tools that

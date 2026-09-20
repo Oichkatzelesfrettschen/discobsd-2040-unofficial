@@ -40,7 +40,16 @@
  * it back; machine/mpuvar.h names the leaves.
  */
 #define	CPU_MPU			12	/* node: memory protection unit */
-#define	CPU_MAXID		13	/* number of valid machdep ids */
+/*
+ * What the previous reset left in the watchdog's scratch registers, from
+ * arch/rp2040/rp2040/machdep.c. The console ring does not survive long
+ * enough for a host to read the boot line, so the report is readable here
+ * for the life of the boot. machine/watchdog.h names the sites.
+ */
+#define	CPU_WATCHDOG_REASON	13	/* int: REASON at boot */
+#define	CPU_WATCHDOG_SITE	14	/* int: masked section at the reset */
+#define	CPU_WATCHDOG_ARG	15	/* int: that section's argument */
+#define	CPU_MAXID		16	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -57,5 +66,8 @@
 	{ "swapram_epoch", CTLTYPE_INT }, \
 	{ "swapram_large", CTLTYPE_INT }, \
 	{ "mpu", CTLTYPE_NODE }, \
+	{ "watchdog_reason", CTLTYPE_INT }, \
+	{ "watchdog_site", CTLTYPE_INT }, \
+	{ "watchdog_arg", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

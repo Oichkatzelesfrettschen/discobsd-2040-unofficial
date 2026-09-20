@@ -29,6 +29,7 @@
 
 #include <machine/cpu.h>
 #include <machine/mpuvar.h>
+#include <machine/watchdog.h>
 #ifdef SWAPRAM
 #include <machine/swapram.h>
 #endif
@@ -283,6 +284,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 	case CPU_MPU:
 		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,
 		    newlen);
+	case CPU_WATCHDOG_REASON:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = (int)watchdog_last_reason;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
+	case CPU_WATCHDOG_SITE:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = (int)watchdog_last_site;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
+	case CPU_WATCHDOG_ARG:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = (int)watchdog_last_arg;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
 	case CPU_CONSDEV:
 		if (namelen != 1)
 			return ENOTDIR;

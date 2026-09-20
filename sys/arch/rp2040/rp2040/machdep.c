@@ -30,6 +30,7 @@
 #include <machine/intr.h>
 #include <machine/mpu.h>
 #include <machine/scb.h>
+#include <machine/watchdog.h>
 
 #include <rp2040/dev/uart.h>
 #include <rp2040/dev/usb.h>
@@ -180,9 +181,6 @@ daddr_t	dumplo = (daddr_t)1024;
  * timer does not count until this tick runs. Twelve cycles of the 12 MHz
  * crystal make one microsecond.
  */
-#define	WATCHDOG_BASE		0x40058000UL
-#define	WATCHDOG_SCRATCH0	0x0c
-#define	WATCHDOG_TICK		0x2c
 #define	WATCHDOG_TICK_ENABLE	(1UL << 9)
 #define	WATCHDOG_TICK_CYCLES	12
 
@@ -454,6 +452,82 @@ cpuidentify(void)
 	mpu_identify();
 }
 
+u_int	watchdog_last_reason;
+u_int	watchdog_last_site;
+u_int	watchdog_last_arg;
+
+#ifdef WATCHDOG_MEASURE
+#define	TIMER_BASE		0x40054000UL
+#define	TIMER_TIMERAWL		0x28
+#endif
+
+/*
+ * Report what a reset left behind and leave the counter disabled.
+ *
+ * REASON distinguishes a watchdog fire from a forced one (datasheet 4.7.6),
+ * and SCRATCH1 and SCRATCH2 hold the section the previous kernel was inside
+ * with interrupts masked, if any. The scratch pair is cleared after it is
+ * read so the next boot reports its own reset rather than this one's.
+ *
+ * WATCHDOG_MEASURE, which no configuration sets, measures the counter's
+ * reach: arm at the full load, read CTRL twice across a gap the free-running
+ * microsecond timer measures, disable, and report the decrement rate. The
+ * armed window is those two reads, hundreds of microseconds against a load
+ * of seconds, so the counter cannot reach zero inside it. That rate is what
+ * a reload would have to exceed before the counter could be armed for real.
+ */
+void
+watchdog_init(void)
+{
+	u_int ctrl;
+#ifdef WATCHDOG_MEASURE
+	u_int t0, t1, c0, c1, us, counts;
+#endif
+
+	ctrl = MREG32(WATCHDOG_BASE + WATCHDOG_CTRL);
+	MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) = ctrl & ~WATCHDOG_CTRL_ENABLE;
+	watchdog_last_reason = MREG32(WATCHDOG_BASE + WATCHDOG_REASON) &
+	    (WATCHDOG_REASON_TIMER | WATCHDOG_REASON_FORCE);
+	watchdog_last_site = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1);
+	watchdog_last_arg = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2);
+	printf("watchdog: reason %x, last masked site %u arg %x\n",
+	    watchdog_last_reason, watchdog_last_site, watchdog_last_arg);
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = WD_SITE_NONE;
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = 0;
+
+#ifdef WATCHDOG_MEASURE
+	MREG32(PSM_BASE + PSM_WDSEL) = PSM_WDSEL_ALL_BUT_OSC;
+	MREG32(WATCHDOG_BASE + WATCHDOG_LOAD) = WATCHDOG_LOAD_MAX;
+	MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) = WATCHDOG_CTRL_ENABLE |
+	    WATCHDOG_CTRL_PAUSE_DBG0 | WATCHDOG_CTRL_PAUSE_DBG1 |
+	    WATCHDOG_CTRL_PAUSE_JTAG;
+	t0 = MREG32(TIMER_BASE + TIMER_TIMERAWL);
+	c0 = MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) & WATCHDOG_LOAD_MAX;
+	while (MREG32(TIMER_BASE + TIMER_TIMERAWL) - t0 < 1000)
+		continue;
+	c1 = MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) & WATCHDOG_LOAD_MAX;
+	t1 = MREG32(TIMER_BASE + TIMER_TIMERAWL);
+	MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) =
+	    MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) & ~WATCHDOG_CTRL_ENABLE;
+	us = t1 - t0;
+	counts = c0 - c1;
+	printf("watchdog: %u counts in %u us, load %x reaches %u ms\n",
+	    counts, us, WATCHDOG_LOAD_MAX,
+	    counts ? (u_int)(WATCHDOG_LOAD_MAX / counts) * us / 1000 : 0);
+#endif
+}
+
+/*
+ * Name the section about to mask interrupts, and clear the name on its
+ * return. A reset taken between the two reports the section.
+ */
+void
+watchdog_site(u_int site, u_int arg)
+{
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = site;
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = arg;
+}
+
 
 /*
  * Machine dependent startup code.
@@ -581,6 +655,7 @@ config(void)
 	struct conf_device *dev;
 
 	cpuidentify();
+	watchdog_init();
 
 	/* Probe and initialize controllers first. */
 	for (ctlr = conf_ctlr_init; ctlr->ctlr_driver; ctlr++) {

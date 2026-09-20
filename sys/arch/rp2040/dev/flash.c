@@ -55,6 +55,7 @@
 #include <sys/disk.h>
 
 #include <machine/intr.h>
+#include <machine/watchdog.h>
 
 #include <rp2040/dev/flash.h>
 #include <rp2040/dev/flash_swap.h>
@@ -250,11 +251,13 @@ flash_erase(u_int offset, u_int len)
 	int s;
 
 	s = splhigh();
+	watchdog_site(WD_SITE_FLASH_ERASE, offset);
 	flrom.connect();
 	flrom.exit_xip();
 	flrom.erase(offset, len, FLASH_BLOCK_BYTES, FLASH_BLOCK_ERASE_CMD);
 	flrom.flush();
 	flash_enter_xip();
+	watchdog_site(WD_SITE_NONE, 0);
 	splx(s);
 	return 0;
 }
@@ -269,11 +272,13 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	int s;
 
 	s = splhigh();
+	watchdog_site(WD_SITE_FLASH_PROGRAM, offset);
 	flrom.connect();
 	flrom.exit_xip();
 	flrom.program(offset, data, len);
 	flrom.flush();
 	flash_enter_xip();
+	watchdog_site(WD_SITE_NONE, 0);
 	splx(s);
 	return 0;
 }

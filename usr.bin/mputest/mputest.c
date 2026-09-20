@@ -132,10 +132,91 @@ rom_divide(void)
 	return bad;
 }
 
+/*
+ * The residue probe: a window handed to a new image holds nothing of the
+ * image before it.
+ *
+ * exec_clear() zeroes bss, the heap and the stack region, which leaves the
+ * bytes between the top of an image and the bottom of its stack as the one
+ * span an exec does not define. The probe fills that span with a marker,
+ * execs the program again, and counts the marker words the new image still
+ * reads. Both images derive the span from _end and USER_DATA_END, so they
+ * agree on it without passing it.
+ */
+#define	RESIDUE_MARK		0x5ec2e7a5UL	/* Unlikely to occur by chance. */
+#define	RESIDUE_STACK_SLACK	(32 * 1024)	/* Below any plausible sp. */
+#define	RESIDUE_PATH		"/usr/bin/mputest"
+
+extern char _end[];
+
+/*
+ * The gap runs from the first kilobyte boundary above this image to well
+ * below the stack: the stack grows down from USER_DATA_END between
+ * syscalls with no kernel bookkeeping, so the probe stays clear of it
+ * rather than racing it.
+ */
+static unsigned long *
+residue_low(void)
+{
+	return (unsigned long *)(((unsigned long)_end + 1023UL) & ~1023UL);
+}
+
+static unsigned long *
+residue_high(void)
+{
+	return (unsigned long *)((unsigned long)USER_DATA_END -
+	    RESIDUE_STACK_SLACK);
+}
+
+static int
+residue_plant(void)
+{
+	unsigned long *word, *low = residue_low(), *high = residue_high();
+	unsigned long count = 0;
+
+	if (low >= high) {
+		printf("residue: no gap between image and stack\n");
+		return 2;
+	}
+	for (word = low; word < high; word++) {
+		*word = RESIDUE_MARK;
+		count++;
+	}
+	printf("residue: planted %lu words in %p..%p, exec\n", count,
+	    (void *)low, (void *)high);
+	fflush(stdout);
+	execl(RESIDUE_PATH, "mputest", "residue", "check", (char *)NULL);
+	perror("execl");
+	return 2;
+}
+
+static int
+residue_check(void)
+{
+	unsigned long *word, *low = residue_low(), *high = residue_high();
+	unsigned long total = 0, found = 0;
+
+	for (word = low; word < high; word++) {
+		total++;
+		if (*word == RESIDUE_MARK)
+			found++;
+	}
+	printf("residue: %lu of %lu words survived exec\n", found, total);
+	if (found == 0) {
+		printf("RESIDUE OK\n");
+		return 0;
+	}
+	printf("RESIDUE LEAK\n");
+	return 1;
+}
+
 int
-main(void)
+main(int argc, char **argv)
 {
 	int enable, nregions, programmed, fails = 0, closed;
+
+	if (argc > 1 && strcmp(argv[1], "residue") == 0)
+		return argc > 2 ? residue_check() : residue_plant();
 
 	enable = mpu_sysctl_int(CPU_MPU_ENABLE);
 	nregions = mpu_sysctl_int(CPU_MPU_NREGIONS);

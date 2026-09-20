@@ -6,6 +6,8 @@
 .Nd check the memory protection map from user mode
 .Sh SYNOPSIS
 .Nm
+.Nm
+.Cm residue
 .Sh DESCRIPTION
 .Nm
 reads the kernel's report of the Cortex-M0+ memory protection unit through
@@ -38,6 +40,24 @@ the last line is
 followed by the MPU state, or
 .Dq MPUTEST FAIL
 and the count of disagreements.
+.Pp
+.Nm
+.Cm residue
+checks a second property: the window handed to a new image holds nothing of
+the image before it.
+It fills the span between the top of this image and the bottom of its stack
+with a marker, re-executes itself, and counts the marker words the new image
+still reads.
+The span is derived from
+.Va _end
+and
+.Dv USER_DATA_END ,
+so both images agree on it.
+The last line is
+.Dq RESIDUE OK
+when no word survives and
+.Dq RESIDUE LEAK
+otherwise.
 .Sh EXIT STATUS
 The number of probes that disagreed with the kernel's report, or 2 when
 .Xr sysctl 3

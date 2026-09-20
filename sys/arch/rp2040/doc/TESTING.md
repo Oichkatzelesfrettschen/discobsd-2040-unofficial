@@ -482,8 +482,11 @@ The login test ends with the MPU's deliberate fault test. The probe test
 asserts the `mpu:` banner line, which is MPU_TYPE and MPU_CTRL read back
 after sys/arch/rp2040/rp2040/mpu.c programmed its three regions; the login
 test then runs usr.bin/mputest, which forks children that read kernel RAM,
-kernel text and SIO from unprivileged code and expects SIGSEGV for each,
-and asserts `MPUTEST OK (mpu on)`. Renode's Cortex-M0+ implements the
+kernel text and SIO CPUID from unprivileged code and expects SIGSEGV for
+each while the divider beside that CPUID reads and divides, and asserts
+`MPUTEST OK (mpu on)`. `mputest residue` follows: it fills the span
+between the image and its stack, execs, and asserts `RESIDUE OK`, which
+holds only when exec_clear has zeroed that span. Renode's Cortex-M0+ implements the
 region registers, so the emulator decides the register-level claim and the
 fault path; the board run decides the silicon. MPU.md has the map.
 

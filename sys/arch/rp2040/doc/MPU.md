@@ -222,3 +222,54 @@ emulator-specific assumption.
 
 Cost: 656 bytes of text and 16 of bss in the PICO kernel, 688 and 16 in
 PICO_UART, and 7,988 bytes of root for mputest.
+
+## Address translation
+
+PMSAv6 grants permissions and exports memory attributes; it performs no
+address translation (ARMv6-M Architecture Reference Manual B3.5, RP2040
+datasheet 2.4.6.1, whose only fault response is HardFault). Every process
+therefore runs at the addresses it was linked for, and the window is the
+same 144 KB at 0x20000000 for all of them. What follows is not a gap in
+the map but the architecture:
+
+- a process is capped at MAXMEM, because there is nowhere else to put it;
+- `fork` copies an image rather than sharing pages copy-on-write;
+- two images never share a text mapping, so identical programs pay for
+  their text twice in swap, which `p_tip` softens by reading text back
+  from the executable instead of writing it to swap;
+- a.out images are OMAGIC and linked at USER_DATA_START, which
+  `exec_estab` requires.
+
+Programming more regions changes none of this. A port that wants
+translation wants a different core.
+
+## Isolation between processes
+
+One process is resident at a time. Every other image lives in the SwapRAM
+pool or in the raw flash swap, both of which sit outside the four regions,
+so a running process cannot read another process's saved image at all.
+
+What remains inside the window is the span between the top of the resident
+image and the bottom of its stack. A swap carries an image's data and
+stack alone, so those bytes belong to whichever program ran last, and
+`exec_clear` (sys/kern/exec_subr.c) zeroes them along with bss, the heap
+and the stack region. `mputest residue` is the oracle: it fills the span
+with a marker, execs, and counts what the new image still reads. The
+board reports
+
+    $ mputest residue
+    residue: planted 26112 words in 0x20002800..0x2001c000, exec
+    residue: 0 of 26112 words survived exec
+    RESIDUE OK
+
+and reported 25,856 of 26,112 surviving before the clear. Two identical
+board workloads time 2.04 s against 2.04 s and 3.63 s against 3.68 s
+across that change, so one bzero of the span costs at or below what a
+console-timed measurement resolves.
+
+The MPU cannot narrow the window to the resident image. The stack grows
+downward between syscalls with no kernel bookkeeping -- `syscall.c`
+derives `p_ssize` from the stack pointer on entry -- and ARMv6-M supplies
+no fault address register, so a kernel that fenced the unused span could
+not tell a growing stack from a stray pointer, and could not resume the
+first. Narrowing waits on a core that reports the faulting address.

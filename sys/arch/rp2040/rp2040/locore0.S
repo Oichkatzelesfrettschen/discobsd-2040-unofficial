@@ -139,14 +139,13 @@ system_init_and_main:
 	/*
 	 * Switch to the process stack and enter user space, still privileged.
 	 *
-	 * The MPU map mpu.c programmed before main() returned admits
-	 * unprivileged fetches from the user window and the boot ROM only,
-	 * so the instruction after a write that sets CONTROL.nPRIV must
-	 * already be in the window: written here, in kernel flash, the
-	 * following ISB faulted as the first unprivileged fetch. icode in
-	 * locore.S, which init_main.c has copied to __user_data_start,
-	 * therefore drops privilege as its first instructions, and this
-	 * sequence selects the PSP and branches into it privileged.
+	 * The MPU map mpu.c programs admits unprivileged fetches from the
+	 * user window and the boot ROM alone, so the instruction after a
+	 * write that sets CONTROL.nPRIV must already lie in the window; a
+	 * write from kernel flash faults on the fetch that follows it.
+	 * Privilege therefore drops in icode (locore.S), which init_main.c
+	 * copies to __user_data_start, and the sequence below selects the
+	 * PSP and branches there privileged.
 	 */
 setup_user_mode:
 	cpsid	i		/* Disable interrupts. */

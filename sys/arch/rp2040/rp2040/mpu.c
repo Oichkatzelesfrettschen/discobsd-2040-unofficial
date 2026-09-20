@@ -38,23 +38,22 @@
  * at a base aligned to its own size. Text runs from the window because
  * a.out images are loaded into SRAM, so XN stays clear on both.
  *
- * Region 3 exists because the boot ROM's float division runs in the calling
- * process's context: mufp_fdiv, and every transcendental that branches into
- * fdiv_n, writes DIV_UDIVIDEND and DIV_UDIVISOR and reads DIV_QUOTIENT
- * (doc/research/float-libs.md section 4.1, from pico-bootrom-rp2040's
- * mufplib.S; datasheet 2.3.1.5 places those registers at SIO offsets 0x060
- * to 0x078). Closing SIO to unprivileged code therefore faulted every user
- * float and double division while fadd, fsub, fmul and the conversions,
- * which are divider-free, kept working. The grant is one 32-byte subregion:
- * a 256-byte region divides into eight, and only subregion 3, offsets 0x060
- * to 0x07f, is enabled, so the divider is reachable and CPUID, the GPIO
- * control registers, the inter-core FIFO, the spinlocks and the
- * interpolators next to it stay closed. XN is set because no instruction is
- * fetched from a peripheral. This restores what user mode held before the
- * MPU was programmed rather than granting anything new, and the divider has
- * one owner by design: the kernel, its interrupts and its callouts contain
- * no divider consumer, which tools/verify_rp2040_divider_ownership.py
- * enforces on every linked kernel.
+ * Region 3 carries the divider because the boot ROM's float division runs
+ * in the calling process's context: mufp_fdiv, and every transcendental
+ * that branches into fdiv_n, writes DIV_UDIVIDEND and DIV_UDIVISOR and
+ * reads DIV_QUOTIENT (doc/research/float-libs.md section 4.1, from
+ * pico-bootrom-rp2040's mufplib.S; datasheet 2.3.1.5 places those
+ * registers at SIO offsets 0x060 to 0x078), so a map that closes SIO to
+ * unprivileged code faults every user float and double division while
+ * fadd, fsub, fmul and the divider-free conversions keep working. The
+ * grant is one 32-byte subregion: a 256-byte region divides into eight,
+ * and only subregion 3, offsets 0x060 to 0x07f, is enabled, so the divider
+ * is reachable and CPUID, the GPIO control registers, the inter-core FIFO,
+ * the spinlocks and the interpolators next to it stay closed. XN is set
+ * because no instruction is fetched from a peripheral. The divider has one
+ * owner: the kernel, its interrupts and its callouts contain no divider
+ * consumer, which tools/verify_rp2040_divider_ownership.py enforces on
+ * every linked kernel.
  *
  * The kernel runs privileged and MPU_CTRL.PRIVDEFENA keeps the default
  * memory map as its background region, so kernel text in XIP flash, kernel

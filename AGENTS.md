@@ -228,6 +228,16 @@ Chronology stays out of source. Task numbers, PR numbers, session dates,
 reviewer and agent names, and deictic words such as `currently` or `now`
 belong to the commit message; a comment reads the same in five years.
 
+A comment describes the code, never the work that produced it. `this fix`,
+`before this change`, `the old path`, `we found` and the counts a gate
+printed on one run are the change's history and belong to the commit
+message, which is where a reader looks for it; the comment states the
+invariant that holds and names the gate or document carrying its evidence.
+A number stays when the code depends on it -- a setup time, a capacity, a
+budget, a register value -- and goes when it only records what one run
+observed. The same holds for a fault the code now prevents: state the rule
+the hardware enforces, not the symptom that revealed it.
+
 A TODO names the function, register, datasheet section or URL carrying the
 missing work, the constraint that defers it, and the durable artifact that
 tracks it. New work lands complete; a placeholder is a defect.

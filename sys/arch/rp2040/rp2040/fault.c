@@ -25,9 +25,10 @@
  *
  * The signal is SIGSEGV rather than the STM32 default of SIGILL. With no
  * cause code the choice is a guess either way; the MPU map mpu.c programs
- * turns every user access outside the boot ROM and the process window into
- * a HardFault (datasheet 2.4.6.1), so the faults that reach here are
- * overwhelmingly bad addresses rather than bad instructions.
+ * turns every user access outside the boot ROM, the process window and the
+ * SIO divider into a HardFault (datasheet 2.4.6.1), so the faults that
+ * reach here are overwhelmingly bad addresses rather than bad
+ * instructions.
  */
 
 #include <sys/param.h>

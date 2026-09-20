@@ -81,8 +81,11 @@ typedef	unsigned int	size_t;
 #endif
 
 char	*vis(char *, int, int, int);
+char	*nvis(char *, size_t, int, int, int);
 int	strvis(char *, const char *, int);
+int	strnvis(char *, size_t, const char *, int);
 int	strvisx(char *, const char *, size_t, int);
+int	strnvisx(char *, size_t, const char *, size_t, int);
 int	strunvis(char *, const char *);
 int	unvis(char *, int, int *, int);
 

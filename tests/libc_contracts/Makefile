@@ -41,7 +41,7 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		rm -f /tmp/ilp32probe$$$$.c
 
 check: ${PROG} header_contract.o check-malloc check-printf check-syslog \
-	check-qsort check-strtox check-aout
+	check-vis check-qsort check-strtox check-aout
 	./${PROG}
 
 # The string-to-integer functions compiled from the tree under names that
@@ -91,6 +91,24 @@ syslog_contract_test: syslog_contract_test.c syslog_syslog.o ${SYSLOG_FORMAT_OBJ
 
 syslog_syslog.o: ${SYSLOG_DIR}/syslog.c
 	${HOSTCC} ${SYSLOG_CFLAGS} -c -o $@ ${SYSLOG_DIR}/syslog.c
+
+# The byte encoder compiled from the tree under names isolated from host libc.
+VIS_RENAMES=	-Dvis=db_vis -Dnvis=db_nvis \
+		-Dstrvis=db_strvis -Dstrnvis=db_strnvis \
+		-Dstrvisx=db_strvisx -Dstrnvisx=db_strnvisx \
+		-Derrno=vis_test_errno
+VIS_CFLAGS=	-std=c17 -Wall -Wextra -Werror -fsigned-char -nostdinc \
+		-isystem ${TOPSRC}/include ${VIS_RENAMES}
+
+check-vis: vis_contract_test
+	./vis_contract_test
+
+vis_contract_test: vis_contract_test.c vis_vis.o
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -fsigned-char -o $@ \
+	    vis_contract_test.c vis_vis.o
+
+vis_vis.o: ${TARGET_DIR}/vis.c
+	${HOSTCC} ${VIS_CFLAGS} -c -o $@ ${TARGET_DIR}/vis.c
 
 check-printf: printf_contract_test
 	./printf_contract_test
@@ -245,10 +263,11 @@ clean:
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f syslog_contract_test syslog_syslog.o
+	rm -f vis_contract_test vis_vis.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
 
 all: check
 
 .PHONY: all check check-aout check-malloc check-printf check-qsort check-strtox \
-	check-syslog clean
+	check-syslog check-vis clean

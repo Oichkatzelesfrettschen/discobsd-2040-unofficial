@@ -168,6 +168,9 @@ check-libc-printf:
 check-libc-syslog:
 		${MAKE} -C tests/libc_contracts check-syslog
 
+check-libc-vis:
+		${MAKE} -C tests/libc_contracts check-vis
+
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
 
@@ -249,7 +252,7 @@ check-elf2aout:	tools
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
 HOST_GATES=	check-warning-policy-host check-build-failure check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-syslog check-cat-contracts \
+		check-libc-syslog check-libc-vis check-cat-contracts \
 		check-rmdir-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment \
@@ -403,7 +406,7 @@ installfs:
 		check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-syslog \
+		check-libc-syslog check-libc-vis \
 		check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \

@@ -76,6 +76,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
 				${TOPSRC}/lib/libc/gen/raise.c \
+				${TOPSRC}/lib/libc/gen/vis.c \
 				${TOOLBINDIR}/as ${TOOLBINDIR}/ar ${TOOLBINDIR}/ranlib
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${PYTHON} ${MKBOARDLIBC} --toolbindir=${TOOLBINDIR} \

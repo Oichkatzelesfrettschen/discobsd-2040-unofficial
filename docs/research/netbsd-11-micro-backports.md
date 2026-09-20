@@ -1,8 +1,8 @@
 # NetBSD 11 micro-backports for a C17 DiscoBSD process window
 
-The first four adopted NetBSD 11 backports repair `strtol()`/`strtoul()`,
-bounded `syslog()` formatting and `cat` block I/O, then add component-wise
-parent removal to `rmdir`. Five small historical
+The five adopted NetBSD 11 backports repair `strtol()`/`strtoul()`, bounded
+`syslog()` formatting and `cat` block I/O, add component-wise parent removal
+to `rmdir`, and add bounded byte encoding to `vis(3)`. Five small historical
 integer-conversion changes compose into a C17
 implementation that rejects invalid bases, preserves the input end pointer,
 recognizes a hexadecimal prefix only when a digit follows, treats input bytes
@@ -252,11 +252,89 @@ git -C ../netbsd-src show d350904dd87 -- bin/rmdir/rmdir.c
 bmake MACHINE=rp2040 check-rmdir-contracts check-rmdir-contracts-cross
 ```
 
-## Remaining high-value frontier
+## Bounded visual encoding
 
-| Priority | Surface | NetBSD evidence | Local finding | Required proof before adoption |
-| --- | --- | --- | --- | --- |
-| 1 | bounded `vis(3)` | Modern NetBSD separates buffer-length contracts from historical `vis()` | DiscoBSD carries the older API surveyed in `bsd44-backport.md`. | Define whether compatibility or a bounded new interface owns the ABI before copying implementation details. |
+NetBSD commit `90fffddd6cf4218f4ff9328a593c0278a343fd8e` establishes the
+selected contract: a bounded encoder reports `ENOSPC` instead of silently
+truncating an escape or its terminating NUL. DiscoBSD keeps the historical
+`vis()`, `strvis()` and `strvisx()` ABI, then adds only the three bounded
+counterparts that map directly onto that byte encoder:
+
+```c
+char *nvis(char *, size_t, int, int, int);
+int strnvis(char *, size_t, const char *, int);
+int strnvisx(char *, size_t, const char *, size_t, int);
+```
+
+NetBSD's extra-character, HTTP, MIME, multibyte, allocator and bounded-decoder
+interfaces stay outside the selected ABI. They would add policy and
+dependencies that the existing DiscoBSD encoder does not own. The bounded
+string functions strengthen NetBSD's capacity failure: a preflight pass proves
+that every encoded atom and the terminator fit before a second pass changes the
+destination. `ENOSPC` therefore leaves the destination byte-for-byte unchanged.
+The design spends cycles to make a failed result atomic and needs neither heap
+storage nor a source-sized scratch buffer.
+
+The C17 encoder classifies the ASCII graphic and control ranges directly.
+`vis.o` therefore stops referencing `_ctype_`, and a seven-character lookup replaces
+the C-style escape switch so Cortex-M0+ code does not request
+`__gnu_thumb1_case_uqi`. The successful string pass writes directly to the
+destination after preflight instead of copying each one- to four-byte atom
+through the preflight buffer. Legacy `vis()` also writes directly because its
+ABI has no capacity failure. Those choices keep the final member at 528 loaded
+object bytes.
+
+The host gate compares every byte, every combination of the seven historical
+flags and both meaningful octal-lookahead classes: 65,536 exact encodings. Its
+focused capacity cases then check exact fit and every shorter capacity,
+destination guards, unchanged failures, C-style NUL lookahead, embedded NULs
+and high-bit input. The complete gate executes 131,436 assertions. The a.out
+gate requires exactly one `vis.o` in both libc archives and links callers of
+`nvis()` and `strnvisx()` against each archive. The reduced-libc rule names
+`vis.c` as an input, so source changes rebuild the board member instead of
+leaving a stale archive.
+
+The same GCC 16.2.0 and tree a.out tools measured the pre-backport source at
+commit `49e3ad504b0047f08273c4145025b138c4721537` and the adopted source. The
+baseline object uses the board's `-fno-jump-tables` rule; without that rule its
+switch requests a Thumb-1 helper that the board does not carry.
+
+| Artifact | Baseline text/data/bss | Adopted text/data/bss | Loaded delta |
+| --- | ---: | ---: | ---: |
+| `vis.o` | 416 / 0 / 0 | 520 / 8 / 0 | +112 |
+| CRT-linked `vis()` probe | 2240 / 436 / 68 | 2352 / 184 / 68 | -140 |
+| same probe with a forced ctype caller | 2256 / 436 / 72 | 2368 / 444 / 72 | +120 |
+
+`ctype_.o` contributes 260 writable data bytes. A process whose only ctype
+dependency came from `vis.o` therefore saves 140 loaded bytes after linker
+alignment; a process that retains `_ctype_` through another member pays 120
+bytes. The object-level opportunity is 148 bytes: 260 removed bytes minus the
+112-byte `vis.o` increase. Link membership decides which case applies. The
+reduced board archive still carries `ctype_.o` for its other consumers, while
+the static linker selects it only for processes that reference it.
+
+| Archive | Baseline bytes | Adopted bytes | Storage delta |
+| --- | ---: | ---: | ---: |
+| full ARM a.out libc | 113708 | 114500 | +792 |
+| reduced board libc | 52116 | 53348 | +1232 |
+
+`-fstack-usage` reports an 8-byte `encode_byte()` frame and a 40-byte
+`encode_string()` frame. The largest bounded wrapper owns 24 bytes, for a
+conservative 72-byte nested maximum. The old largest encoder path used 44
+bytes. The 28-byte transient increase buys an unchanged destination without a
+heap allocation or source-sized buffer.
+
+```sh
+git -C ../netbsd-src show 90fffddd6cf -- include/vis.h lib/libc/gen/vis.c
+bmake MACHINE=rp2040 check-libc-vis
+bmake MACHINE=rp2040 -C tests/libc_contracts check-aout
+mandoc -Tlint share/man/man3/vis.3
+tools/bin/size lib/libc_aout/libc/vis.o \
+    distrib/obj/boardlibc.rp2040/vis.o lib/libc_aout/libc/ctype_.o
+tools/bin/nm -u lib/libc_aout/libc/vis.o
+```
+
+## Closed frontier and rejected false positives
 
 Two tempting searches produced no applicable repair. NetBSD's `LIST_MOVE`
 hardening cannot backport as a line because DiscoBSD's queue header has no
@@ -264,8 +342,8 @@ hardening cannot backport as a line because DiscoBSD's queue header has no
 protects a negation absent from DiscoBSD's process-group path. Source similarity
 without the triggering operation is not a backport candidate.
 
-The following commands reproduce the remaining frontier:
+The following command reproduces the rejected searches:
 
 ```sh
-rg -n 'LIST_MOVE|pgrp|INT_MIN|vis\(' sys bin lib include
+rg -n 'LIST_MOVE|pgrp|INT_MIN' sys bin lib include
 ```

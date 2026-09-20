@@ -200,8 +200,21 @@ fromtop:
         if (fs->fs_ninode >= NICINOD)
             break;
     }
-    if (fs->fs_ninode < NICINOD && first)
+    if (fs->fs_ninode < NICINOD && first) {
+        /*
+         * fs_inode[0 .. fs_ninode) holds distinct inode numbers: neither
+         * ifree()'s append nor the pop at loop: tests for membership, so
+         * a number recorded twice is handed out, found allocated by
+         * iget(), put back and read again. This pass covers
+         * [1, fs_isize) where the first covered [fs_lasti, fs_isize), a
+         * superset, so it reaches every entry the first pass recorded;
+         * keeping the count appends each of them a second time, and
+         * discarding it loses no inode for that same reason.
+         * tests/kernel/ialloc_test.c is the oracle.
+         */
+        fs->fs_ninode = 0;
         goto fromtop;
+    }
     fs->fs_lasti = inobas;
     fs->fs_ilock = 0;
     wakeup((caddr_t)&fs->fs_ilock);

@@ -212,7 +212,7 @@ and fails the moment the shell starts producing the POSIX answer.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for four files
+`check-kernel-ilp32` is separate from `check-kernel` for five files
 that compile or hold only at the target's width. sys/kern/sys_generic.c
 is built again as rwuio_test32: off_t, size_t and u_int are all four
 bytes on the target, so the vector sum that wrapped there is reproduced
@@ -253,7 +253,41 @@ the ids the header leaves unnamed, id 4 among them, are refused. Two
 inverted sources calibrate it: the pre-patch base pointer fails 15 of
 560 checks and a length two entries past m_limit fails 21.
 
-The fourth file, sys/kern/subr_prf.c, carries its own
+The fourth file is sys/kern/ufs_alloc.c. `struct dinode` is an on-disk
+layout and INOPB is MAXBSIZE divided by its size, so a block holds
+exactly INOPB inodes only where off_t and time_t are four bytes;
+ialloc_test asserts both statically before it runs. The gate links
+ufs_alloc.c against an i-list it owns and drives it to exhaustion,
+which is where the allocator's cache invariant is visible:
+fs_inode[0 .. fs_ninode) holds distinct inode numbers, and neither
+ifree()'s append nor the allocator's pop tests for membership. The
+refill scans the i-list twice, the first pass over [fs_lasti, fs_isize)
+and the second over [1, fs_isize), and the second stops as soon as the
+cache is full, so an entry appears twice only on a filesystem holding
+fewer than NICINOD free inodes in total -- one near exhaustion, which
+is when the second pass runs at all. The fixture is nine free inodes
+across three blocks with fs_lasti mid-list, and the cost is exact:
+nine allocations spend nine iget() calls where the cache is distinct.
+A second fixture holds the regime above the cache bound, where no entry
+is duplicated because the second pass fills before it reaches fs_lasti:
+there the reset changes which inodes are cached, to the NICINOD lowest,
+and costs one further block read to reach that many from inode 1. The
+gate states both, so the refill's price is recorded rather than
+implied.
+
+Two inverted sources calibrate it. Carrying the first pass's count into
+the second fails 27 of 220 checks and spends 15 iget() calls for the
+same nine inodes, six of them on entries the first pass had already
+recorded. A second pass that covers no new ground fails 29 of 149 and
+allocates six inodes rather than nine, stranding the three below
+fs_lasti, which is what holds the reset to discarding the count rather
+than the entries. The gate runs in all three shapes the tree
+configures the allocator in: the portable one, PICO's (`SINGLE_UFS_ROOT`
+reaches the superblock through mount[0] and `COMPACT_INODE_FIELDS`
+packs the in-core flag words) and a DIAGNOSTIC kernel, whose itoo()
+assertion holds fs_lasti to the first inode of a block.
+
+The fifth file, sys/kern/subr_prf.c, carries its own
 argument walk,
 
     #define va_arg(ap,type) *(type*) (void*) (ap++)

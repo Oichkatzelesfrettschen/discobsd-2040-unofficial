@@ -38,7 +38,7 @@ clues:
     ffggh
 
 The clues alone admit exactly five grids, confirmed by both the host
---count and the independent tests/keensolve.py. The five solutions:
+`--count` path and the independent C17 `tests/keensolve.c`. The five solutions:
 
     12534  12534  14532  21534  41532
     45312  45312  25314  45312  25314
@@ -72,9 +72,10 @@ puzzle is solvable at all, without a difficulty rating.
 
 ## Evidence
 
-- `bmake -C games/keen test` runs two host tests. tests/keensolve.py is
-  an independent solution counter sharing no code with keen.c;
-  tests/uniqueness.py requires the two to agree on every count.
+- `bmake -C games/keen test` runs a pseudo-terminal test and nineteen bounded
+  uniqueness shards. `tests/keensolve.c` is an independent row-permutation
+  solution counter sharing no code with `keen.c`'s cell search;
+  `tests/uniqueness.py` requires the two C counters to agree on every count.
 - Four fixtures: the reported puzzle (exactly 5 grids), the same with the
   player's thirteen entries imposed (still 5, and the test checks those
   thirteen are the cells the clues force), unique (1), and inconsistent
@@ -82,6 +83,17 @@ puzzle is solvable at all, without a difficulty rating.
 - The generator sweep: the unchecked generator is ambiguous in 54 of 80
   puzzles at sizes 4 and 5; the checked generator is unique in all 160
   puzzles across sizes 3 to 6 and forty seeds, by both counters.
+- The fixtures own one target, each unchecked size owns one, and every checked
+  size owns four ten-seed targets. Each process receives a private temporary
+  file and a 30-second deadline calibrated against a sleeping negative
+  control. A 12-job cold run proves all 244 paired counts in 0.51 seconds on a
+  12-thread x86-64 host. The six-shard C17 graph took 1.25 seconds; the former
+  Python permutation search consumed 92.4 seconds and 129,203,478 function
+  calls in the same worktree.
+- The C17 parser rejects malformed sizes, limits, duplicate or unused clues and
+  truncated lines. Cppcheck, the Clang static analyzer and a complete
+  AddressSanitizer plus UndefinedBehaviorSanitizer proof report zero findings.
+  The host-only solver adds zero bytes to the RP2040 image.
 - On the board: "keen 5 10" generates, draws and solves to the solved
   state; generation is under a second for most seeds and 2.05s for a 6x6
   worst case.

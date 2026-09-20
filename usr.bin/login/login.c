@@ -63,6 +63,15 @@ char	*stypeof(char *);
 void	 getstr(char *, int, char *);
 void	 sleepexit(int);
 
+static int
+password_matches(const char *computed, const char *stored)
+{
+	size_t length = strlen(stored);
+
+	return strlen(computed) == length &&
+	    timingsafe_bcmp(computed, stored, length) == 0;
+}
+
 /*
  * This bounds the time given to login.  Not a define so it can
  * be patched on machines where it's too small.
@@ -104,7 +113,7 @@ main(argc, argv)
 	struct group *gr;
 	register int ch;
 	register char *p;
-	int ask, fflag, hflag, pflag, cnt;
+	int ask, fflag, hflag, pflag, cnt, authenticated;
 	int quietlog, passwd_req, ioctlval;
 	char *domain, *salt, *envinit[1], *ttyn, *pp;
 	char tbuf[MAXPATHLEN + 2], tname[sizeof(_PATH_TTY) + 10];
@@ -291,15 +300,17 @@ nouser:
 				"krbtgt", realm, DEFAULT_TKT_LIFE, pp);
 			(void)setuid(0);
 			if (kerror == INTK_OK) {
-				bzero(pp, strlen(pp));
+				explicit_bzero(pp, strlen(pp));
 				notickets = 0;	/* user got ticket */
 				break;
 			}
 		}
 #endif
 //printf("username='%s' password='%s' encrypted='%s' expected='%s' salt='%s'\n", username, pp, p, pwd->pw_passwd, salt);
-		(void) bzero(pp, strlen(pp));
-		if (pwd && !strcmp(p, pwd->pw_passwd))
+		authenticated = pwd != NULL &&
+		    password_matches(p, pwd->pw_passwd);
+		explicit_bzero(pp, strlen(pp));
+		if (authenticated)
 			break;
 
 		(void)printf("Login incorrect\n");

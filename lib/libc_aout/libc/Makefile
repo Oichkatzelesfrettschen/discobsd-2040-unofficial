@@ -105,8 +105,9 @@ OBJS            += fgetc.o fgets.o fputc.o fputs.o gets.o puts.o \
 OBJS            += getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string
-OBJS            += strcspn.o strerror.o strlcat.o strlcpy.o strpbrk.o \
-                   strsep.o strspn.o strstr.o strtok.o strtok_r.o
+OBJS            += explicit_bzero.o strcspn.o strerror.o strlcat.o strlcpy.o \
+		   strpbrk.o strsep.o strspn.o strstr.o strtok.o strtok_r.o \
+		   timingsafe_bcmp.o
 
 # libc/inet
 OBJS            += inet_addr.o inet_network.o inet_netof.o \

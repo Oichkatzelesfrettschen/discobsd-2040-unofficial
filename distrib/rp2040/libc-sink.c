@@ -88,6 +88,8 @@ touch_string_ctype(void)
 	sink += (long)memmove(b, a, sizeof(a));
 	sink += (long)memset(b, 0, sizeof(b));
 	sink += memcmp(a, b, sizeof(a));
+	sink += timingsafe_bcmp(a, b, sizeof(a));
+	explicit_bzero(b, sizeof(b));
 	sink += isalpha((unsigned char)a[0]);
 	sink += isdigit((unsigned char)a[0]);
 	sink += isspace((unsigned char)a[0]);

@@ -1,3 +1,5 @@
+#include <string.h>
+
 /*
  * This program implements the
  * Proposed Federal Information Processing
@@ -378,5 +380,14 @@ char *salt;
 	iobuf[i+2] = 0;
 	if(iobuf[1]==0)
 		iobuf[1] = iobuf[0];
+	explicit_bzero(C, sizeof(C));
+	explicit_bzero(D, sizeof(D));
+	explicit_bzero(KS, sizeof(KS));
+	explicit_bzero(E, sizeof(E));
+	explicit_bzero(block, sizeof(block));
+	explicit_bzero(L, sizeof(L));
+	explicit_bzero(tempL, sizeof(tempL));
+	explicit_bzero(f, sizeof(f));
+	explicit_bzero(preS, sizeof(preS));
 	return(iobuf);
 }

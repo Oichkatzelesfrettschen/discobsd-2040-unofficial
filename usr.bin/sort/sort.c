@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <signal.h>
 #include <unistd.h>
 #include <paths.h>
@@ -74,6 +73,8 @@ int     error = 1;
 char    *setfil();
 
 #define blank(c)    ((c) == ' ' || (c) == '\t')
+#define ascii_digit(c) ((unsigned char)(c) >= '0' && \
+    (unsigned char)(c) <= '9')
 
 static int sort_code(unsigned char, unsigned char);
 static int sort_ignored(unsigned char, unsigned char);
@@ -598,8 +599,8 @@ char *i, *j;
                 pb++;
                 sb = -sb;
             }
-            for(ipa = pa; ipa<la&&isdigit(*ipa); ipa++) ;
-            for(ipb = pb; ipb<lb&&isdigit(*ipb); ipb++) ;
+            for(ipa = pa; ipa<la&&ascii_digit(*ipa); ipa++) ;
+            for(ipb = pb; ipb<lb&&ascii_digit(*ipb); ipb++) ;
             jpa = ipa;
             jpb = ipb;
             a = 0;
@@ -619,14 +620,14 @@ char *i, *j;
             if(*(pb=jpb) == '.')
                 pb++;
             if(sa==sb)
-                while(pa<la && isdigit(*pa)
-                   && pb<lb && isdigit(*pb))
+                while(pa<la && ascii_digit(*pa)
+                   && pb<lb && ascii_digit(*pb))
                     if(a = *pb++ - *pa++)
                         return(a*sa);
-            while(pa<la && isdigit(*pa))
+            while(pa<la && ascii_digit(*pa))
                 if(*pa++ != '0')
                     return(-sa);
-            while(pb<lb && isdigit(*pb))
+            while(pb<lb && ascii_digit(*pb))
                 if(*pb++ != '0')
                     return(sb);
             continue;
@@ -799,7 +800,7 @@ char **ppa;
     register char *pa;
     pa = *ppa;
     n = 0;
-    while(isdigit(*pa)) {
+    while(ascii_digit(*pa)) {
         n = n*10 + *pa - '0';
         *ppa = pa++;
     }

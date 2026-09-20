@@ -27,11 +27,46 @@
 #endif
 
 static int
+parse_number(const char **cursor, int *value, int delimiter)
+{
+	const char *input = *cursor;
+	unsigned int result = 0;
+
+	if (*input < '0' || *input > '9')
+		return -1;
+	do {
+		result = result * 10 + (unsigned int)(*input - '0');
+		if (result > 999)
+			return -1;
+		input++;
+	} while (*input >= '0' && *input <= '9');
+	if (*input != delimiter || result == 0)
+		return -1;
+	*cursor = input + 1;
+	*value = (int)result;
+	return 0;
+}
+
+static int
+parse_reply(const char *reply, int *rows, int *cols)
+{
+	const char *cursor;
+
+	if (reply[0] != '\033' || reply[1] != '[')
+		return -1;
+	cursor = reply + 2;
+	if (parse_number(&cursor, rows, ';') < 0 ||
+	    parse_number(&cursor, cols, 'R') < 0 || *cursor != '\0')
+		return -1;
+	return 0;
+}
+
+static int
 query(int fd, int *rows, int *cols)
 {
-	char buf[32];
+	char buf[16];
 	unsigned int i;
-	int n, tries;
+	int n;
 
 	/* Park at 999,999 and request the cursor position. */
 	if (write(fd, "\033[999;999H\033[6n", 14) != 14)
@@ -44,7 +79,8 @@ query(int fd, int *rows, int *cols)
 	 */
 	i = 0;
 	while (i < sizeof(buf) - 1) {
-		tries = 50;
+		int tries = 50;
+
 		n = 0;
 		while (tries-- > 0) {
 			if (ioctl(fd, FIONREAD, &n) == -1)
@@ -57,16 +93,14 @@ query(int fd, int *rows, int *cols)
 			return -1;
 		if (read(fd, buf + i, 1) != 1)
 			return -1;
-		if (buf[i] == 'R')
+		if (buf[i] == 'R') {
+			i++;
 			break;
+		}
 		i++;
 	}
 	buf[i] = '\0';
-	if (buf[0] != '\033' || buf[1] != '[')
-		return -1;
-	if (sscanf(buf + 2, "%d;%d", rows, cols) != 2)
-		return -1;
-	return 0;
+	return parse_reply(buf, rows, cols);
 }
 
 int

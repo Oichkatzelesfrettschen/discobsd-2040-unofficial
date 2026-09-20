@@ -1,7 +1,10 @@
 # DiscoBSD on the RP2040
 
 A Raspberry Pi Pico target: dual Cortex-M0+ implementing ARMv6-M, 264 KB SRAM,
-2 MB external QSPI flash, no MMU and no MPU.
+2 MB external QSPI flash and no MMU. Datasheet sections 2.4.1 and 2.4.6
+document an eight-region MPU. This port leaves the MPU unprogrammed, so the
+hardware supplies neither address translation nor configured process
+isolation.
 
 ## Licensing
 
@@ -142,10 +145,13 @@ raises only HardFault and defines no fault status or fault address register at
 all, so the decode has nothing to read. That is a capability loss rather than
 a translation, and the exception stack frame is what remains.
 
-`mpuvar.h` is dropped. Neither core has an MPU. DiscoBSD does not isolate
-processes on any target today, so this port inherits the trust model rather
-than replacing one, but on this chip the door stays shut: no MPU-based scheme
-can be added later.
+`mpuvar.h` is dropped because the inherited file describes the STM32 HAL and
+ARMv7-M fault model rather than this target's register interface. DiscoBSD does
+not isolate processes on any target today, so this port leaves the RP2040 MPU
+unprogrammed and inherits the existing trust model. A future MPU scheme would
+need explicit regions, privilege transitions and deliberate fault tests. The
+MPU would enforce region permissions; it would not provide address translation
+or replace the flat process window.
 
 ## Memory
 

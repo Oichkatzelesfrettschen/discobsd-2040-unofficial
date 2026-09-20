@@ -12,6 +12,15 @@
 > row below as "requires a port, and it is the shortest BSD path," not as
 > "impossible without major work." The canonical repository is
 > `github.com/chettrick/discobsd`.
+>
+> **Hardware correction.** The body also incorrectly says the RP2040 has no
+> MPU. Datasheet sections 2.4.1 and 2.4.6 document an eight-region MPU. The
+> live port leaves that MPU unprogrammed and therefore supplies no configured
+> hardware isolation; MPU presence does not create MMU address translation.
+> The survey's 96 KB sizing applies to its historical source revisions. The
+> live port reserves a 144 KiB process window. The body remains intact as a
+> retained survey; `docs/research/STYLE-GUIDE.md` and
+> `sys/arch/rp2040/README.md` state the current target model.
 
 
 Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, no MPU on the

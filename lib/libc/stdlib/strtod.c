@@ -59,17 +59,16 @@ double strtod (const char *string, char **endPtr)
 	/* Temporarily holds location of exponent in string. */
 	const char *pExp;
 
-	/* Largest possible base 10 exponent.
-	 * Any exponent larger than this will already
-	 * produce underflow or overflow, so there's
-	 * no need to worry about additional digits. */
-	static int maxExponent = 307;
+	/* Largest base 10 exponent the powers table represents. At this
+	 * magnitude every nonzero decimal significand underflows or overflows,
+	 * so additional exponent digits cannot change the verdict. */
+	static int maxExponent = 511;
 
 	/* Table giving binary powers of 10.
 	 * Entry is 10^2^i.  Used to convert decimal
 	 * exponents into floating-point numbers. */
 	static double powersOf10[] = {
-		1e1, 1e2, 1e4, 1e8, 1e16, 1e32, /*1e64, 1e128, 1e256,*/
+		1e1, 1e2, 1e4, 1e8, 1e16, 1e32, 1e64, 1e128, 1e256,
 	};
 #if 0
 	static double powersOf2[] = {

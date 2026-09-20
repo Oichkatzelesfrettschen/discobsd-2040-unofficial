@@ -40,8 +40,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check: ${PROG} header_contract.o check-malloc check-printf check-syslog \
-	check-vis check-qsort check-strtox check-aout
+check: ${PROG} header_contract.o check-malloc check-printf check-scanf \
+	check-syslog check-vis check-qsort check-strtox check-aout
 	./${PROG}
 
 # The string-to-integer functions compiled from the tree under names that
@@ -65,6 +65,37 @@ PRINTF_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_doprnt.o \
 		printf_flsbuf.o
 PRINTF_OBJS32=	printf_snprintf32.o printf_vsnprintf32.o printf_doprnt32.o \
 		printf_flsbuf32.o
+
+# The formatted input scanner and the string-stream path sscanf builds for
+# it. The entry points move aside so the host's own scanf stays out of the
+# link and every call in the gate reaches the tree source. getc() expands to
+# _filbuf on underflow, so that rename covers the macro as well.
+SCANF_DIR=	${TOPSRC}/lib/libc/stdio
+SCANF_STDLIB_DIR=${TOPSRC}/lib/libc/stdlib
+SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
+SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
+		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
+		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod
+SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include ${SCANF_RENAMES}
+SCANF_OBJS=	scanf_doscan.o scanf_doscan_float.o scanf_scanf.o \
+		scanf_ungetc.o scanf_filbuf.o scanf_strtod.o scanf_ctype.o
+SCANF_OBJS32=	scanf_doscan32.o scanf_doscan_float32.o scanf_scanf32.o \
+		scanf_ungetc32.o scanf_filbuf32.o scanf_strtod32.o scanf_ctype32.o
+SCANF_OBJS_ASAN=scanf_doscan_asan.o scanf_doscan_float_asan.o \
+		scanf_scanf_asan.o scanf_ungetc_asan.o scanf_filbuf_asan.o \
+		scanf_strtod_asan.o scanf_ctype_asan.o
+
+# The address sanitizer is what detects the defect class this scanner was
+# rewritten to remove: a staging buffer overrun lands inside the scanner's
+# own frame, where a guard byte around the caller's destination sees
+# nothing. The V7 scanner aborts this run; the replacement passes it.
+ASAN=		-fsanitize=address -fno-omit-frame-pointer
+ASAN_OK!=	printf 'int main(void){return 0;}\n' > /tmp/asanprobe$$$$.c; \
+		if ${HOSTCC} -fsanitize=address -o /dev/null \
+		    /tmp/asanprobe$$$$.c 2>/dev/null; \
+		then echo yes; else echo no; fi; \
+		rm -f /tmp/asanprobe$$$$.c
 
 # syslog compiled from the tree over deterministic transport, clock and errno
 # shims.  The formatter objects stay exact tree objects from check-printf.
@@ -148,6 +179,98 @@ printf_doprnt32.o: ${PRINTF_DIR}/doprnt.c
 
 printf_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
+check-scanf: scanf_contract_test
+	./scanf_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} scanf_contract_test32
+	./scanf_contract_test32
+.else
+	@echo "check-libc-scanf: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+.if ${ASAN_OK} == "yes"
+	@${MAKE} scanf_contract_test_asan
+	./scanf_contract_test_asan
+.else
+	@echo "check-libc-scanf: ${HOSTCC} has no address sanitizer; overrun run skipped" >&2
+.endif
+
+scanf_contract_test: scanf_contract_test.c ${SCANF_OBJS}
+	${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS}
+
+scanf_contract_test32: scanf_contract_test.c ${SCANF_OBJS32}
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c \
+	    ${SCANF_OBJS32}
+
+scanf_contract_test_asan: scanf_contract_test.c ${SCANF_OBJS_ASAN}
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c \
+	    ${SCANF_OBJS_ASAN}
+
+scanf_doscan.o: ${SCANF_DIR}/doscan.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
+
+scanf_doscan_float.o: ${SCANF_DIR}/doscan_float.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_float.c
+
+scanf_scanf.o: ${SCANF_DIR}/scanf.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/scanf.c
+
+scanf_ungetc.o: ${SCANF_DIR}/ungetc.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
+
+scanf_filbuf.o: ${SCANF_DIR}/filbuf.c
+	${HOSTCC} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
+	    -c -o $@ ${SCANF_DIR}/filbuf.c
+
+scanf_strtod.o: ${SCANF_STDLIB_DIR}/strtod.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
+
+scanf_ctype.o: ${SCANF_GEN_DIR}/ctype_.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
+
+scanf_doscan32.o: ${SCANF_DIR}/doscan.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
+
+scanf_doscan_float32.o: ${SCANF_DIR}/doscan_float.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_float.c
+
+scanf_scanf32.o: ${SCANF_DIR}/scanf.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/scanf.c
+
+scanf_ungetc32.o: ${SCANF_DIR}/ungetc.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
+
+scanf_filbuf32.o: ${SCANF_DIR}/filbuf.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
+	    -c -o $@ ${SCANF_DIR}/filbuf.c
+
+scanf_strtod32.o: ${SCANF_STDLIB_DIR}/strtod.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
+
+scanf_ctype32.o: ${SCANF_GEN_DIR}/ctype_.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
+
+scanf_doscan_asan.o: ${SCANF_DIR}/doscan.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
+
+scanf_doscan_float_asan.o: ${SCANF_DIR}/doscan_float.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_float.c
+
+scanf_scanf_asan.o: ${SCANF_DIR}/scanf.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/scanf.c
+
+scanf_ungetc_asan.o: ${SCANF_DIR}/ungetc.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
+
+scanf_filbuf_asan.o: ${SCANF_DIR}/filbuf.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
+	    -c -o $@ ${SCANF_DIR}/filbuf.c
+
+scanf_strtod_asan.o: ${SCANF_STDLIB_DIR}/strtod.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
+
+scanf_ctype_asan.o: ${SCANF_GEN_DIR}/ctype_.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
 
 check-strtox: strtox_test
 	./strtox_test
@@ -266,8 +389,10 @@ clean:
 	rm -f vis_contract_test vis_vis.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
+	rm -f scanf_contract_test scanf_contract_test32 scanf_contract_test_asan \
+		${SCANF_OBJS} ${SCANF_OBJS32} ${SCANF_OBJS_ASAN}
 
 all: check
 
-.PHONY: all check check-aout check-malloc check-printf check-qsort check-strtox \
-	check-syslog check-vis clean
+.PHONY: all check check-aout check-malloc check-printf check-qsort check-scanf \
+	check-strtox check-syslog check-vis clean

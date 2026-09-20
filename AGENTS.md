@@ -24,8 +24,16 @@ rules that drift.
 
 ## Target
 
-RP2040: Cortex-M0+ (ARMv6-M, Thumb-1), no FPU, MMU or MPU, 264 KB SRAM,
-2 MB QSPI flash. Layout: 128 KB kernel, 1536 KB Dhara root (989 KB usable),
+RP2040: Cortex-M0+ (ARMv6-M, Thumb-1), no FPU, no MMU, 264 KB SRAM,
+2 MB QSPI flash. Datasheet 2.4.1 lists eight MPU regions and 2.4.6 gives
+MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR and MPU_RASR, so the core carries a
+Protected Memory System Architecture MPU that this port leaves unprogrammed.
+An MPU grants region permissions and faults a violation to HardFault; it
+supplies no address translation, so one flat process window stays the layout
+whether or not a kernel programs it. A protection claim cites the register
+values written, the privilege transition, the region coverage and a
+deliberate fault test; a linker region annotation proves none of them.
+Layout: 128 KB kernel, 1536 KB Dhara root (989 KB usable),
 384 KB raw swap. A process gets one 144 KB window for text, data, bss and
 stack; user programs are a.out OMAGIC. Boot ROM V3 on the verified board.
 The console is CDC-ACM over the board's own USB cable (/dev/ttyACM*,
@@ -202,7 +210,7 @@ the commit lands.
 A model that spans a file lives at file scope; a call-site comment stays on
 the local linkage; a branch comment sits at the branch and states the
 invariant that discriminates it. A register layout, a packet field or a
-state transition becomes a compact table, free of ASCII borders.
+state transition becomes a compact table that carries no drawn border.
 
 Chronology stays out of source. Task numbers, PR numbers, session dates,
 reviewer and agent names, and deictic words such as `currently` or `now`

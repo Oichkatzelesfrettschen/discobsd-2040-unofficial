@@ -4,6 +4,9 @@
 # specifies the terms and conditions for redistribution.
 #
 TOPSRC!=cd ../..; pwd
+# The player and monster files carry decimal statistics that main.c,
+# func0.c, func1.c, func2.c and fight.c read back through %lf.
+SCANF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS          += -DPATH=\"${DEST}\" -DWIZARD=\"daemon\" -DUID=1 \

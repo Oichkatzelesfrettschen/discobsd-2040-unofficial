@@ -152,29 +152,25 @@ until the first character which is in the remaining set of characters
 between the brackets.
 The corresponding argument must point to a character array.
 .PP
-The conversion characters
-.BR d ,
-.B o
+The historical conversion characters
+.B D
 and
-.B x
-may be capitalized or preceded by
+.B O
+are retained as spellings of
+.B ld
+and
+.BR lo .
+The conversion character
+.B X
+has the same argument type and behavior as
+.BR x .
+For a floating conversion,
 .B l
-to indicate that a pointer to
-.B long
-rather than to
-.B int
-is in the argument list.
-Similarly, the conversion characters
-.B e
-or
-.B f
-may be capitalized or
-preceded by
-.B l
-to indicate a pointer to 
+selects a pointer to
 .B double
-rather than to 
-.BR float .
+rather than to
+.BR float ;
+capitalizing the conversion character does not change its argument type.
 The conversion characters
 .BR d ,
 .B o
@@ -244,7 +240,7 @@ atof(3),
 getc(3S),
 printf(3S)
 .SH DIAGNOSTICS
-The 
+The
 .I scanf
 functions return
 .SM

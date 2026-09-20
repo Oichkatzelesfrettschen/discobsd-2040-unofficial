@@ -2,10 +2,10 @@
  * fptest: bit-exact verification of the RP2040 bootrom float path.
  *
  * The lib/libc/arm/gen/rom_float_*.S members provide
- * __aeabi_fadd/fsub/fmul/fdiv and the double forms through the bootrom float
- * library (see sys/arch/rp2040/doc/research/float-libs.md). This exercises each
- * operation and compares the result bit pattern against an independently
- * computed expected value, rather than an absolute-error tolerance whose
+ * __aeabi_fadd/fsub/fmul/fdiv, the double forms, and __aeabi_i2d through the
+ * bootrom float library (see sys/arch/rp2040/doc/research/float-libs.md). This
+ * exercises each operation and compares the result bit pattern against an
+ * independently computed expected value, rather than an absolute-error tolerance whose
  * own subtraction would run the code under test. The expected values are
  * IEEE-754 round-to-nearest-even results computed on the host (see
  * gencorpus in the Makefile comment), which the bootrom reproduces exactly
@@ -24,17 +24,34 @@
 
 typedef unsigned int u32;
 typedef unsigned long long u64;
+typedef signed int i32;
 
 enum { OP_ADD, OP_SUB, OP_MUL, OP_DIV };
 
 struct scase { u32 a, b; int op; u32 expected; };
 struct dcase { u64 a, b; int op; u64 expected; };
+struct i2dcase { i32 input; u64 expected; };
 
 static const struct scase singles[] = {
 #include "corpus_single.h"
 };
 static const struct dcase doubles[] = {
 #include "corpus_double.h"
+};
+static const struct i2dcase integers[] = {
+	{ 0, 0x0000000000000000ULL },
+	{ 1, 0x3ff0000000000000ULL },
+	{ -1, 0xbff0000000000000ULL },
+	{ (-2147483647 - 1), 0xc1e0000000000000ULL },
+	{ 2147483647, 0x41dfffffffc00000ULL },
+	{ 8388607, 0x415fffffc0000000ULL },
+	{ 8388608, 0x4160000000000000ULL },
+	{ 8388609, 0x4160000020000000ULL },
+	{ 16777215, 0x416fffffe0000000ULL },
+	{ 16777216, 0x4170000000000000ULL },
+	{ 16777217, 0x4170000010000000ULL },
+	{ 1073741824, 0x41d0000000000000ULL },
+	{ -1073741824, 0xc1d0000000000000ULL },
 };
 
 static float
@@ -69,7 +86,7 @@ d_bits(double d)
 int
 main(void)
 {
-	int i, n, fails = 0;
+	int i, n, pass, fails = 0;
 	const char *opn[] = { "add", "sub", "mul", "div" };
 
 	n = sizeof(singles) / sizeof(singles[0]);
@@ -113,6 +130,23 @@ main(void)
 			printf("double[%d] %s: a=%016llx b=%016llx got=%016llx want=%016llx\n",
 			    i, opn[doubles[i].op], doubles[i].a, doubles[i].b,
 			    got, doubles[i].expected);
+		}
+	}
+
+	/* The first pass resolves the helper cell; the second uses its cache. */
+	n = sizeof(integers) / sizeof(integers[0]);
+	for (pass = 0; pass < 2; pass++) {
+		for (i = 0; i < n; i++) {
+			volatile i32 input = integers[i].input;
+			double result = (double)input;
+			u64 got = d_bits(result);
+
+			if (got != integers[i].expected) {
+				fails++;
+				printf("i2d[%d:%d]: input=%08x got=%016llx want=%016llx\n",
+				    pass, i, (u32)integers[i].input, got,
+				    integers[i].expected);
+			}
 		}
 	}
 

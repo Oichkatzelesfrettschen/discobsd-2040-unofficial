@@ -52,8 +52,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-ctime check-runtime-limits \
-	check-malloc check-random check-printf \
+check-host: ${PROG} header_contract.o check-ctime check-difftime \
+	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
 	check-qsort check-strtox check-string-security
 	./${PROG}
@@ -182,6 +182,12 @@ RUNTIME_LIMITS_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
 RUNTIME_LIMITS_TARGET_CFLAGS=	${RUNTIME_LIMITS_CFLAGS} -fno-common \
 	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
 	-mfloat-abi=soft -ffreestanding -Os
+DIFFTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+	-Wmissing-prototypes -Wold-style-definition -nostdinc \
+	-isystem ${TOPSRC}/include -Ddifftime=db_difftime
+DIFFTIME_TARGET_CFLAGS=	${DIFFTIME_CFLAGS} -fno-common \
+	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
+	-mfloat-abi=soft -ffreestanding -Os
 GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 	else echo -Wl,--gc-sections ; fi
 
@@ -269,6 +275,47 @@ runtime_sysconf_target.o: ${TARGET_DIR}/sysconf.c
 runtime_confstr_target.o: ${TARGET_DIR}/confstr.c
 	${ARM_COMPILER} ${RUNTIME_LIMITS_TARGET_CFLAGS} -c -o $@ \
 	    ${TARGET_DIR}/confstr.c
+
+check-difftime: difftime_contract_test
+	./difftime_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} difftime_contract_test32 difftime_bad_test32
+	./difftime_contract_test32
+	@if ./difftime_bad_test32 >/dev/null 2>&1; then \
+		echo "difftime subtract-first negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "difftime subtract-first negative control rejected"
+.else
+	@echo "check-libc-difftime: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+check-difftime-cross: difftime_target.o
+	@test "$$(${GCCPREFIX}-nm -u difftime_target.o | wc -l)" -eq 2
+	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_i2d$$'
+	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_dsub$$'
+	@echo "difftime Cortex-M0+ object converts endpoints before ROM double subtraction"
+
+difftime_contract_test: difftime_contract_test.c difftime_difftime.o
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    difftime_contract_test.c difftime_difftime.o
+
+difftime_contract_test32: difftime_contract_test.c difftime_difftime32.o
+	${HOSTCC} ${ILP32} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    difftime_contract_test.c difftime_difftime32.o
+
+difftime_bad_test32: difftime_contract_test.c difftime_bad.c
+	${HOSTCC} ${ILP32} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    difftime_contract_test.c difftime_bad.c
+
+difftime_difftime.o: ${TARGET_DIR}/difftime.c
+	${HOSTCC} ${DIFFTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/difftime.c
+
+difftime_difftime32.o: ${TARGET_DIR}/difftime.c
+	${HOSTCC} ${ILP32} ${DIFFTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/difftime.c
+
+difftime_target.o: ${TARGET_DIR}/difftime.c
+	${ARM_COMPILER} ${DIFFTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/difftime.c
 
 check-asctime: asctime_contract_test asctime_contract_bad_test
 	./asctime_contract_test
@@ -743,6 +790,9 @@ clean:
 		runtime_sysconf.o runtime_confstr.o runtime_sysconf32.o \
 		runtime_confstr32.o runtime_sysconf_target.o \
 		runtime_confstr_target.o
+	rm -f difftime_contract_test difftime_contract_test32 \
+		difftime_bad_test32 difftime_difftime.o difftime_difftime32.o \
+		difftime_target.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
@@ -764,7 +814,8 @@ clean:
 all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
-	check-ctime-cross check-runtime-limits check-runtime-limits-cross \
+	check-ctime-cross check-difftime check-difftime-cross \
+	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort \
 	check-random check-random-cross \
 	check-printf-float check-rwmode check-scanf check-string-security \

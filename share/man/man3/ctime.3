@@ -7,7 +7,7 @@
 .TH CTIME 3  "November 27, 1996"
 .UC 4
 .SH NAME
-ctime, localtime, gmtime, asctime, timezone, tzset \-  convert date and time to ASCII
+ctime, localtime, gmtime, asctime, difftime, timezone, tzset \- convert date and time
 .SH SYNOPSIS
 .nf
 .B #include <time.h>
@@ -21,6 +21,8 @@ ctime, localtime, gmtime, asctime, timezone, tzset \-  convert date and time to 
 .B struct tm *localtime(const time_t *clock);
 .PP
 .B struct tm *gmtime(const time_t *clock);
+.PP
+.B double difftime(time_t end, time_t beginning);
 .PP
 .B char *timezone(int zone, int dst);
 .fi
@@ -67,6 +69,16 @@ converts directly to GMT, which is the time UNIX uses.
 .I Asctime
 converts a broken-down time to ASCII and returns a pointer
 to a 26-character string.
+.PP
+.I Difftime
+returns the elapsed seconds from
+.I beginning
+to
+.I end
+as a double-precision value.  Each endpoint converts before subtraction,
+so the calculation remains defined across the complete signed
+.I time_t
+range.
 .PP
 .I Asctime
 returns a null pointer and sets

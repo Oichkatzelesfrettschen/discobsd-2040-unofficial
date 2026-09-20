@@ -77,7 +77,7 @@ ARM_STRING_S = set("memmove strcmp".split())
 GEN_C = set(
     """
 abort alarm atof atoi atol basename bcmp bcopy bzero calloc closedir confstr crypt ctermid
-ctime ctype_ daemon devname dirname ecvt err execvp fakcu ffs frexp fstab
+ctime ctype_ daemon devname difftime dirname ecvt err execvp fakcu ffs frexp fstab
 gcvt getenv getgrent getgrgid getgrnam getgrouplist gethostname getloadavg
 getlogin getmntinfo getpagesize getpass getpwent getttyent getttynam
 getusershell getwd index initgroups isatty isinff isnanf knlist ldexp malloc

@@ -32,12 +32,13 @@ void StdCtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value
 }
 
 #ifndef NO_FP
-/* We don't have difftime
 void StdDifftime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = difftime((time_t)Param[0]->Val->Integer, Param[1]->Val->Integer);
+    (void)Parser;
+    (void)NumArgs;
+    ReturnValue->Val->FP = difftime((time_t)Param[0]->Val->Integer,
+        (time_t)Param[1]->Val->Integer);
 }
-*/
 #endif
 
 void StdGmtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -105,7 +106,7 @@ struct LibraryFunction StdTimeFunctions[] =
 /*    { StdClock,         "time_t clock();" }, */
     { StdCtime,         "char *ctime(int *);" },
 #ifndef NO_FP
-/*    { StdDifftime,      "double difftime(int, int);" }, */
+    { StdDifftime,      "double difftime(int, int);" },
 #endif
     { StdGmtime,        "struct tm *gmtime(int *);" },
     { StdLocaltime,     "struct tm *localtime(int *);" },

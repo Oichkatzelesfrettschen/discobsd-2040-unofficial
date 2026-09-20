@@ -20,6 +20,7 @@ close
 confstr
 ctermid
 ctype_
+difftime
 doprnt
 doprnt_llong
 doscan

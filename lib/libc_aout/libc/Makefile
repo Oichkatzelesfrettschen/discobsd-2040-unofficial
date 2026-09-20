@@ -76,7 +76,7 @@ OBJS            += _setjmp.o htonl.o htons.o
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
-                   ctermid.o daemon.o devname.o dirname.o ecvt.o err.o \
+                   ctermid.o daemon.o devname.o difftime.o dirname.o ecvt.o err.o \
                    execvp.o fakcu.o frexp.o fstab.o gcvt.o getenv.o getgrent.o \
                    getgrgid.o getgrnam.o getlogin.o \
                    getgrouplist.o gethostname.o getpagesize.o \

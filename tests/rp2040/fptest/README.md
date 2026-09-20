@@ -3,7 +3,11 @@
 fptest checks that the AEABI single- and double-precision arithmetic routed
 through the RP2040 bootrom by the fine-grained
 `lib/libc/arm/gen/rom_float_*.S` archive members returns the expected result,
-bit for bit, for a corpus of finite normal and signed-zero operands.
+bit for bit, for a corpus of finite normal and signed-zero operands. The
+corpus also checks signed 32-bit integer-to-double conversion at both limits,
+at powers of two, and on both adjacent integers. It runs conversion twice so
+the first resolver path and the cached helper-cell path receive the same
+bit-exact oracle.
 
 ## Why bit-exact, not tolerance
 
@@ -30,7 +34,9 @@ want bit patterns, and the program exits non-zero.
 ## Coverage and what is deferred
 
 Covered: fadd/fsub/fmul/fdiv and dadd/dsub/dmul/ddiv over finite normal
-operands, signed zero, and a rounding case per type. Deferred, because the
+operands, signed zero, and a rounding case per type; `__aeabi_i2d` over zero,
+both signs, signed 32-bit limits, powers of two, and adjacent integers.
+Deferred, because the
 bootrom's declared contract flushes input and output subnormals to zero and
 maps NaNs to infinities (datasheet 2.8.3.2.1) and the exact result bits for
 those need on-device characterization before they can be an oracle:

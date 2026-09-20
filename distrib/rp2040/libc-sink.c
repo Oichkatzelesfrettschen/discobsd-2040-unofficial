@@ -34,6 +34,7 @@
  * keep the call.
  */
 volatile long sink;
+volatile double floating_sink;
 
 static void
 touch_stdio(void)
@@ -174,6 +175,7 @@ touch_syscalls(void)
 	sink += raise(0);
 	sink += (long)signal(SIGINT, SIG_IGN);
 	sink += time(NULL);
+	floating_sink = difftime((time_t)1, (time_t)0);
 	sink += sleep(0);
 }
 

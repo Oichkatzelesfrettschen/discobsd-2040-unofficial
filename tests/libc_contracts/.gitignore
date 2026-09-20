@@ -20,6 +20,12 @@ runtime_sysconf32.o
 runtime_confstr32.o
 runtime_sysconf_target.o
 runtime_confstr_target.o
+difftime_contract_test
+difftime_contract_test32
+difftime_bad_test32
+difftime_difftime.o
+difftime_difftime32.o
+difftime_target.o
 malloc_test
 malloc_test32
 malloc_arena.o

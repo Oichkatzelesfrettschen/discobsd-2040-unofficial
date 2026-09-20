@@ -76,6 +76,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
 				${TOPSRC}/lib/libc/gen/confstr.c \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
+				${TOPSRC}/lib/libc/gen/difftime.c \
 				${TOPSRC}/lib/libc/gen/raise.c \
 				${TOPSRC}/lib/libc/gen/sysconf.c \
 				${TOPSRC}/lib/libc/gen/vis.c \

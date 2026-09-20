@@ -1,0 +1,6 @@
+/colrm_contract_test
+/colrm_bounds_bad_test
+/colrm_flush_bad_test
+/colrm_bounds_bad.c
+/colrm_flush_bad.c
+/*.o

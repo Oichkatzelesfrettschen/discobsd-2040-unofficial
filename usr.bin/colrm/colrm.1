@@ -1,0 +1,37 @@
+.\" Copyright (c) 1980, 1990, 1993
+.\" The Regents of the University of California. All rights reserved.
+.TH COLRM 1 "September 20, 2026"
+.UC 4
+.SH NAME
+colrm \- remove columns from standard input
+.SH SYNOPSIS
+.B colrm
+.RI [ start
+.RI [ stop ]]
+.SH DESCRIPTION
+.B colrm
+copies standard input to standard output while removing the inclusive column
+range selected by
+.I start
+and
+.IR stop .
+Column numbering starts at one. If only
+.I start
+is present, the command removes that column and the remainder of each line.
+With neither argument, the command copies its input.
+.PP
+An ordinary byte, including a null or a byte with the high bit set, advances
+one column. A tab advances to the next multiple of eight. A backspace moves
+back one column without crossing column zero. A newline resets the count.
+.PP
+Column arguments contain decimal digits only and must be greater than zero.
+The command rejects a reversed range or a column count that cannot be
+represented by an unsigned long.
+.SH EXIT STATUS
+The command exits with status zero after a complete read and final output
+flush. Invalid arguments, column overflow, and input or output errors produce
+status one.
+.SH SEE ALSO
+awk(1), cut(1), paste(1)
+.SH HISTORY
+The colrm command appeared in 3BSD.

@@ -1,12 +1,8 @@
 /*
- * One a.out for the text utilities that came from sbase: cut, paste,
- * seq, dirname, nl, cksum, expand, unexpand, uuencode and uudecode,
- * dispatched on the name it was invoked by. mkfifo (also sbase) and
- * the tree's own comm, rev and fold compile for this target but did
- * not fit the 30 KB box budget; see research/posix-tools.md. See
- * sbin/box/box.c.in, whose generated copy this is: each tool's
- * globals are localized and its main renamed by
- * sbin/textbox/Makefile, and the sources stay untouched.
+ * One a.out shares libc across the small text utilities named by
+ * sbin/textbox/Makefile and dispatches on the invoked name. See
+ * sbin/box/box.c.in, whose generated copy this is: each tool's globals
+ * are localized and its main renamed, while the source stays untouched.
  */
 
 #include <string.h>

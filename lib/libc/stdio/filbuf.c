@@ -9,49 +9,74 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+extern char *_smallbuf;	/* findiop.c: one byte per descriptor for unbuffered reads */
+
+/*
+ * Refill a stream's read buffer for getc(), which calls here when _cnt
+ * runs out. Returns the next byte, or EOF at end of input or on error.
+ *
+ * The first buffer is sized from st_blksize so a read matches the file
+ * system's block, with BUFSIZ when fstat cannot say; an unbuffered stream
+ * reads one byte into its _smallbuf slot, or into a stack byte when no
+ * slot exists, so that _base stays NULL and no later call frees it.
+ */
 int
-_filbuf(iop)
-register FILE *iop;
+_filbuf(FILE *iop)
 {
-	int size;
 	struct stat stbuf;
-	extern char *_smallbuf;
+	long size;
 	char c;
 
 	if (iop->_flag & _IORW)
 		iop->_flag |= _IOREAD;
+	if ((iop->_flag & _IOREAD) == 0)
+		return (EOF);
 
-	if ((iop->_flag&_IOREAD) == 0)
-		return(EOF);
-	if (iop->_flag&(_IOSTRG|_IOEOF))
-		return(EOF);
-tryagain:
-	if (iop->_base==NULL) {
-		if (iop->_flag&_IONBF) {
+	/* A byte ungetc parked in the slot comes back before anything else. */
+	if (iop->_flag & _IOUNGET) {
+		iop->_flag &= ~_IOUNGET;
+		iop->_cnt = iop->_bufsiz;
+		return (iop->_ub[0]);
+	}
+
+	if (iop->_flag & (_IOSTRG|_IOEOF))
+		return (EOF);
+
+	for (;;) {
+		if (iop->_base != NULL)
+			break;
+		if (iop->_flag & _IONBF) {
 			iop->_base = _smallbuf ? &_smallbuf[fileno(iop)] : &c;
-			goto tryagain;
+			break;
 		}
-		if (fstat(fileno(iop), &stbuf) < 0 || stbuf.st_blksize <= NULL)
+		if (fstat(fileno(iop), &stbuf) < 0 || stbuf.st_blksize <= 0)
 			size = BUFSIZ;
 		else
 			size = stbuf.st_blksize;
-		if ((iop->_base = malloc(size)) == NULL) {
+		if ((iop->_base = malloc((size_t) size)) == NULL) {
 			iop->_flag |= _IONBF;
-			goto tryagain;
+			continue;
 		}
 		iop->_flag |= _IOMYBUF;
-		iop->_bufsiz = size;
+		iop->_bufsiz = (int) size;
+		break;
 	}
+
+	/*
+	 * Reading the terminal flushes line-buffered output first, so a
+	 * prompt written without a newline is visible before the wait.
+	 */
 	if (iop == stdin) {
-		if (stdout->_flag&_IOLBF)
+		if (stdout->_flag & _IOLBF)
 			fflush(stdout);
-		if (stderr->_flag&_IOLBF)
+		if (stderr->_flag & _IOLBF)
 			fflush(stderr);
 	}
+
 	iop->_cnt = read(fileno(iop), iop->_base,
-		iop->_flag & _IONBF ? 1 : iop->_bufsiz);
+	    (iop->_flag & _IONBF) ? 1 : (size_t) iop->_bufsiz);
 	iop->_ptr = iop->_base;
-	if (iop->_flag & _IONBF && iop->_base == &c)
+	if ((iop->_flag & _IONBF) && iop->_base == &c)
 		iop->_base = NULL;
 	if (--iop->_cnt < 0) {
 		if (iop->_cnt == -1) {
@@ -61,7 +86,7 @@ tryagain:
 		} else
 			iop->_flag |= _IOERR;
 		iop->_cnt = 0;
-		return(EOF);
+		return (EOF);
 	}
-	return(*iop->_ptr++&0377);
+	return (*iop->_ptr++ & 0377);
 }

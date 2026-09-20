@@ -27,6 +27,7 @@ struct _iobuf _iob[3];
 char *_smallbuf;
 
 int db_sscanf(const char *, const char *, ...);
+int db_ungetc(int, FILE *);
 
 /*
  * filbuf.c reaches fflush for a line-buffered stdout before a read. A
@@ -285,6 +286,32 @@ main(void)
 	iv = -99;
 	r = db_sscanf("-", "%d", &iv);
 	check(r == 0 && iv == -99, "a lone sign converts");
+
+	/*
+	 * A pushback of a byte differing from the one read, on a string
+	 * stream over a literal. The V7 ungetc stored the byte into the
+	 * literal, which a host that maps literals read-only faults on;
+	 * the slot in FILE takes it instead and hands it back first.
+	 */
+	{
+		static const char lit[] = "ab";
+		FILE f;
+
+		f._flag = _IOREAD | _IOSTRG;
+		f._ptr = f._base = (char *)lit;
+		f._cnt = f._bufsiz = 2;
+		f._file = -1;
+		check(getc(&f) == 'a', "a string stream does not read its first byte");
+		check(db_ungetc('z', &f) == 'z',
+		    "ungetc refuses a differing byte on a string stream");
+		check(db_ungetc('y', &f) == EOF,
+		    "a second differing pushback is accepted with one slot");
+		check(getc(&f) == 'z', "the pushed-back byte does not come back first");
+		check(getc(&f) == 'b', "the byte after the pushback is lost");
+		check(getc(&f) == EOF, "a string stream does not end after its last byte");
+		check(lit[0] == 'a' && lit[1] == 'b',
+		    "ungetc wrote into the caller's string");
+	}
 
 	iv = 0;
 	r = db_sscanf("2147483648", "%d", &iv);

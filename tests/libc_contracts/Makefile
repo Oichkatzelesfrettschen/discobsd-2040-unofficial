@@ -219,8 +219,7 @@ scanf_ungetc.o: ${SCANF_DIR}/ungetc.c
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
 
 scanf_filbuf.o: ${SCANF_DIR}/filbuf.c
-	${HOSTCC} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
-	    -c -o $@ ${SCANF_DIR}/filbuf.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/filbuf.c
 
 scanf_strtod.o: ${SCANF_STDLIB_DIR}/strtod.c
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
@@ -241,8 +240,7 @@ scanf_ungetc32.o: ${SCANF_DIR}/ungetc.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
 
 scanf_filbuf32.o: ${SCANF_DIR}/filbuf.c
-	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
-	    -c -o $@ ${SCANF_DIR}/filbuf.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/filbuf.c
 
 scanf_strtod32.o: ${SCANF_STDLIB_DIR}/strtod.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
@@ -263,8 +261,7 @@ scanf_ungetc_asan.o: ${SCANF_DIR}/ungetc.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/ungetc.c
 
 scanf_filbuf_asan.o: ${SCANF_DIR}/filbuf.c
-	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
-	    -c -o $@ ${SCANF_DIR}/filbuf.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/filbuf.c
 
 scanf_strtod_asan.o: ${SCANF_STDLIB_DIR}/strtod.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c

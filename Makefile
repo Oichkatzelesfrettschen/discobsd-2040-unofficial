@@ -171,6 +171,9 @@ check-libc-printf:
 check-libc-scanf:
 		${MAKE} -C tests/libc_contracts check-scanf
 
+check-analysis:
+		${MAKE} -C tools/analysis check
+
 check-libc-syslog:
 		${MAKE} -C tests/libc_contracts check-syslog
 
@@ -256,7 +259,8 @@ check-elf2aout:	tools
 # The cross, qemu, mips and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
-HOST_GATES=	check-warning-policy-host check-build-failure check-libc-malloc \
+HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
+		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-scanf \
 		check-libc-syslog check-libc-vis check-cat-contracts \
@@ -404,7 +408,7 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		check-warning-policy-host check-warning-policy-cross \
-		check-build-failure \
+		check-build-failure check-analysis \
 		all build distribution release tools kernel check-divider \
 		check-swapram check-cache-footprint check-exec-spool \
 		check-ufs-prototypes \
@@ -413,7 +417,7 @@ installfs:
 		check-libc-environment \
 		check-libc-tempfiles check-libc-contracts check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-syslog check-libc-vis \
+		check-libc-scanf check-libc-syslog check-libc-vis \
 		check-id-aliases \
 		check-tiny-utility-multicall \
 		check-fgrep-capacity check-hsaout check-config-makefile \

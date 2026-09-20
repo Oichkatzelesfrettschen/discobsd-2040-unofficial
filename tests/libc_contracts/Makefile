@@ -71,17 +71,20 @@ PRINTF_OBJS32=	printf_snprintf32.o printf_vsnprintf32.o printf_doprnt32.o \
 # link and every call in the gate reaches the tree source. getc() expands to
 # _filbuf on underflow, so that rename covers the macro as well.
 SCANF_DIR=	${TOPSRC}/lib/libc/stdio
+SCANF_STDLIB_DIR=${TOPSRC}/lib/libc/stdlib
+SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
 SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
 		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
-		-Dungetc=db_ungetc -D_filbuf=db_filbuf
+		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod
 SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SCANF_RENAMES}
 SCANF_OBJS=	scanf_doscan.o scanf_doscan_float.o scanf_scanf.o \
-		scanf_ungetc.o scanf_filbuf.o
+		scanf_ungetc.o scanf_filbuf.o scanf_strtod.o scanf_ctype.o
 SCANF_OBJS32=	scanf_doscan32.o scanf_doscan_float32.o scanf_scanf32.o \
-		scanf_ungetc32.o scanf_filbuf32.o
+		scanf_ungetc32.o scanf_filbuf32.o scanf_strtod32.o scanf_ctype32.o
 SCANF_OBJS_ASAN=scanf_doscan_asan.o scanf_doscan_float_asan.o \
-		scanf_scanf_asan.o scanf_ungetc_asan.o scanf_filbuf_asan.o
+		scanf_scanf_asan.o scanf_ungetc_asan.o scanf_filbuf_asan.o \
+		scanf_strtod_asan.o scanf_ctype_asan.o
 
 # The address sanitizer is what detects the defect class this scanner was
 # rewritten to remove: a staging buffer overrun lands inside the scanner's
@@ -219,6 +222,12 @@ scanf_filbuf.o: ${SCANF_DIR}/filbuf.c
 	${HOSTCC} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
 	    -c -o $@ ${SCANF_DIR}/filbuf.c
 
+scanf_strtod.o: ${SCANF_STDLIB_DIR}/strtod.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
+
+scanf_ctype.o: ${SCANF_GEN_DIR}/ctype_.c
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
+
 scanf_doscan32.o: ${SCANF_DIR}/doscan.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
 
@@ -235,6 +244,12 @@ scanf_filbuf32.o: ${SCANF_DIR}/filbuf.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
 	    -c -o $@ ${SCANF_DIR}/filbuf.c
 
+scanf_strtod32.o: ${SCANF_STDLIB_DIR}/strtod.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
+
+scanf_ctype32.o: ${SCANF_GEN_DIR}/ctype_.c
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
+
 scanf_doscan_asan.o: ${SCANF_DIR}/doscan.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
 
@@ -250,6 +265,12 @@ scanf_ungetc_asan.o: ${SCANF_DIR}/ungetc.c
 scanf_filbuf_asan.o: ${SCANF_DIR}/filbuf.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -Wno-deprecated-non-prototype \
 	    -c -o $@ ${SCANF_DIR}/filbuf.c
+
+scanf_strtod_asan.o: ${SCANF_STDLIB_DIR}/strtod.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_STDLIB_DIR}/strtod.c
+
+scanf_ctype_asan.o: ${SCANF_GEN_DIR}/ctype_.c
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
 
 check-strtox: strtox_test
 	./strtox_test

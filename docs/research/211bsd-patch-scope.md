@@ -13,13 +13,14 @@ stdio would cost a 144 KB process window.
 
 | Surface | Value |
 | --- | --- |
-| This tree | `728677b8ff4330decf579b8ea03693ee904bb592`, clean at measurement |
+| Comparison base | `728677b8ff4330decf579b8ea03693ee904bb592`, clean at baseline build |
+| Migration result | The commit containing this report, compared through clean final a.out builds |
 | Upstream | a 2.11BSD git checkout whose base is the TUHS patch-level 431 tape and whose history carries one commit per patch to 499 |
 | Upstream announcement | `http://www.2bsd.com/2.11BSD/499`, fetched over plain HTTP 2026-09-19; HTTPS to that host refuses the connection |
 | Cross compiler | `arm-none-eabi-gcc` 16.2.0 |
 | Host compiler | `gcc` 16.2.1 |
 | `bmake` | 20260824 |
-| Build | `bmake MACHINE=rp2040 clean` then `bmake MACHINE=rp2040 distribution`, exit 0, zero compiler warnings |
+| Build | `bmake MACHINE=rp2040 clean` then `bmake MACHINE=rp2040 build` for the comparison base and migration result, exit 0, zero compiler warnings |
 
 Evidence ranks follow `AGENTS.md`. Nothing here is a board result: no claim in
 this report reached hardware, and every runtime verdict is a host or
@@ -312,8 +313,10 @@ Integer conversion accumulates into an `unsigned long` as digits arrive, so
 the integer path stages nothing at all and saturates at the destination limit
 where C17 7.21.6.2p10 leaves the unrepresentable result undefined. The scanset
 is a 256-bit automatic bitmap, 32 bytes of frame and nothing between calls.
-`%n`, `%i`, `%p`, `%u`, `hh`, `ll`, `z`, `j` and `t` are added, and uppercase
-conversions are made identical to their lowercase spellings.
+`%n`, `%i`, `%p`, `%u`, `hh`, `ll`, `z`, `j` and `t` are added. `%X` and the
+uppercase floating conversions follow their C17 lowercase semantics; the
+documented `%D` and `%O` long-integer extensions remain available to Tcl and
+historical callers.
 
 This is deliberately not 499's answer to the same defect. 499 bounds the write
 with a 513-byte buffer and a 256-byte class table, both automatic; this
@@ -329,6 +332,9 @@ of any length converts without the buffer growing with the input.
 `DBL_DIG` and the decimal range of a double. This is the same separation
 499 reaches with `pfcom.c` and its `fltused` symbol, expressed with the
 mechanism this tree already uses rather than inline assembly.
+The target `strtod` now carries the complete decimal power table through
+`1e256`; the scanner gate links that tree source and covers finite `1e100`,
+positive overflow and negative underflow instead of resolving host `strtod`.
 
 ### Measurements
 
@@ -336,11 +342,12 @@ Library members, `arm-none-eabi-size`, cross compiler 16.2.0 at `-Os`:
 
 | Member | Before | After | Delta |
 | --- | --- | --- | --- |
-| `doscan.o` | text 1276, data 256 | text 1400, data 0 | text +124, data -256 |
+| `doscan.o` | text 1276, data 256 | text 1452, data 0 | text +176, data -256 |
 | `ungetc.o` | text 58 | text 66 | text +8 |
 | `doscan_float.o` | absent | text 812 | opt-in only |
+| `strtod.o` | text 524 | text 552 | text +28, reached by float scanning only |
 
-`_doscan`'s automatic frame, `-fstack-usage`: 128 bytes before, 112 after.
+`_doscan`'s automatic frame, `-fstack-usage`: 128 bytes before, 120 after.
 `__doscan_cvt` adds 120 bytes, only in a program declaring `SCANF_FLOAT`.
 
 Whole programs, the tree's own `tools/bin/size` on the final a.out, over the
@@ -348,12 +355,17 @@ Whole programs, the tree's own `tools/bin/size` on the final a.out, over the
 
 | Delta (text+data+bss) | Programs | Cause |
 | ---: | ---: | --- |
-| -384 | 8 | lost `_sctab` (256) and the `_ctype_` contribution (257), gained 132 text |
-| -124 | 22 | lost `_sctab` only; `_ctype_` stays, pulled by another object |
+| -324 | 3 | lost `_sctab` and the otherwise-unreferenced `_ctype_`; scanner growth retained part of the saving |
+| -304 | 5 | the same dependency removal with different final alignment |
+| -64 | 21 | lost `_sctab`; another object still pulls `_ctype_` |
+| -44 | 1 | the same retained `_ctype_` case with different final alignment |
 | +8 | 10 | `ungetc` only, no scanner |
-| +1248 | 2 | `primes` and `trek` now link the float scanner and gain working `%f` |
+| +1344 | 1 | `trek` now links the float scanner and complete target `strtod` |
+| +1360 | 1 | `primes` now links the float scanner and complete target `strtod` |
 
-Sum over changed programs: **-3224 bytes**. The two groups are the dependency
+Sum over changed programs: **-1096 bytes**. The dependency groups are the
+measured final-a.out results; object-size arithmetic does not substitute for
+them. They also illustrate the dependency
 condition the style guide's section 10 insists on: removing a table only pays
 when nothing else in the program pulls it back.
 
@@ -373,10 +385,11 @@ the shipped path.
 ### The gate
 
 `check-libc-scanf` in `tests/libc_contracts`, wired into `HOST_GATES` and
-described in `sys/arch/rp2040/doc/TESTING.md`. It compiles the tree's scanner
-against the tree's headers, so the `FILE` layout and the `getc` and `ungetc`
-macros under test are the target's, and runs at host width, at ILP32 and under
-the address sanitizer. All three pass.
+described in `sys/arch/rp2040/doc/TESTING.md`. It compiles the tree's scanner,
+`strtod` and character-class table against the tree's headers, so the `FILE`
+layout, numeric conversion and the `getc` and `ungetc` macros under test are
+the target's, and runs at host width, at ILP32 and under the address sanitizer.
+All three pass.
 
 The sanitizer tier is not decoration. A staging overrun lands inside the
 scanner's own frame, where a guard byte around the caller's destination sees

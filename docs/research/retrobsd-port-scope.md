@@ -1,5 +1,14 @@
 # Scoping a RetroBSD/DiscoBSD Port to the Raspberry Pi Pico (RP2040)
 
+> **Retained historical survey.** The body records the 2026-09-11
+> investigation and preserves its then-current 96 KB sizing evidence. Two
+> RP2040 conclusions are superseded: datasheet sections 2.4.1 and 2.4.6
+> document an eight-region MPU, and the live port now reserves a 144 KiB
+> process window. The port leaves the MPU unprogrammed, so the survey remains
+> correct that the shipped system provides no configured hardware isolation.
+> `docs/research/STYLE-GUIDE.md` and `sys/arch/rp2040/README.md` state the
+> current target model.
+
 Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, no MPU on
 either core, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
 (execute-in-place). This document goes file-by-file into the two candidate

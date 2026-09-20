@@ -17,6 +17,7 @@
  */
 
 #include <limits.h>
+#include <float.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -63,9 +64,14 @@ main(void)
 	char sbuf[64];
 	char cbuf[8];
 	long lv;
+	unsigned long ulv;
+	double dv;
 	int iv, iv2, n, r;
 	unsigned int uv;
 	short sv;
+	unsigned short usv;
+	signed char scv;
+	unsigned char ucv;
 	void *pv;
 	size_t i;
 
@@ -131,6 +137,14 @@ main(void)
 	r = db_sscanf("2147483647", "%ld", &lv);
 	check(r == 1 && lv == 2147483647L, "%ld does not convert a long");
 
+	lv = 0;
+	r = db_sscanf("42", "%D", &lv);
+	check(r == 1 && lv == 42, "%D does not retain the long decimal extension");
+
+	ulv = 0;
+	r = db_sscanf("377", "%O", &ulv);
+	check(r == 1 && ulv == 255, "%O does not retain the long octal extension");
+
 	sv = 0;
 	r = db_sscanf("300", "%hd", &sv);
 	check(r == 1 && sv == 300, "%hd does not convert through a short");
@@ -139,6 +153,21 @@ main(void)
 	r = db_sscanf("1000", "%p", &pv);
 	check(r == 1 && pv == (void *)0x1000,
 	    "%p does not convert a hexadecimal pointer");
+
+	dv = 0.0;
+	r = db_sscanf("1e100", "%lf", &dv);
+	check(r == 1 && dv > 1e99 && dv < 1e101,
+	    "%lf does not use the target strtod exponent table");
+
+	dv = 0.0;
+	r = db_sscanf("1e999", "%lf", &dv);
+	check(r == 1 && dv > DBL_MAX,
+	    "%lf does not overflow an extreme positive exponent");
+
+	dv = 1.0;
+	r = db_sscanf("1e-999", "%lf", &dv);
+	check(r == 1 && dv == 0.0,
+	    "%lf does not underflow an extreme negative exponent");
 
 	/*
 	 * Group 2: strings, characters and scansets.
@@ -157,6 +186,11 @@ main(void)
 	r = db_sscanf("abc", "%2c", cbuf);
 	check(r == 1 && cbuf[0] == 'a' && cbuf[1] == 'b' && cbuf[2] == '@',
 	    "%c writes a terminator or the wrong count");
+
+	memset(cbuf, '@', sizeof cbuf);
+	r = db_sscanf("a", "%2c", cbuf);
+	check(r == 1 && cbuf[0] == 'a' && cbuf[1] == '@',
+	    "%c rejects a nonempty field shortened by end of input");
 
 	memset(cbuf, '@', sizeof cbuf);
 	r = db_sscanf(" x", "%c", cbuf);
@@ -251,6 +285,61 @@ main(void)
 	iv = -99;
 	r = db_sscanf("-", "%d", &iv);
 	check(r == 0 && iv == -99, "a lone sign converts");
+
+	iv = 0;
+	r = db_sscanf("2147483648", "%d", &iv);
+	check(r == 1 && iv == INT_MAX,
+	    "%d does not saturate a positive int overflow");
+
+	iv = 0;
+	r = db_sscanf("-2147483649", "%d", &iv);
+	check(r == 1 && iv == INT_MIN,
+	    "%d does not saturate a negative int overflow");
+
+	sv = 0;
+	r = db_sscanf("32768", "%hd", &sv);
+	check(r == 1 && sv == SHRT_MAX,
+	    "%hd does not saturate a positive short overflow");
+
+	sv = 0;
+	r = db_sscanf("-32769", "%hd", &sv);
+	check(r == 1 && sv == SHRT_MIN,
+	    "%hd does not saturate a negative short overflow");
+
+	scv = 0;
+	r = db_sscanf("128", "%hhd", &scv);
+	check(r == 1 && scv == SCHAR_MAX,
+	    "%hhd does not saturate a positive signed-char overflow");
+
+	scv = 0;
+	r = db_sscanf("-129", "%hhd", &scv);
+	check(r == 1 && scv == SCHAR_MIN,
+	    "%hhd does not saturate a negative signed-char overflow");
+
+	lv = 0;
+	r = db_sscanf("2147483648", "%ld", &lv);
+	check(r == 1 && lv == LONG_MAX,
+	    "%ld does not saturate a positive long overflow");
+
+	lv = 0;
+	r = db_sscanf("-2147483649", "%ld", &lv);
+	check(r == 1 && lv == LONG_MIN,
+	    "%ld does not saturate a negative long overflow");
+
+	ucv = 0;
+	r = db_sscanf("256", "%hhu", &ucv);
+	check(r == 1 && ucv == UCHAR_MAX,
+	    "%hhu does not saturate an unsigned-char overflow");
+
+	usv = 0;
+	r = db_sscanf("65536", "%hu", &usv);
+	check(r == 1 && usv == USHRT_MAX,
+	    "%hu does not saturate an unsigned-short overflow");
+
+	ulv = 0;
+	r = db_sscanf("4294967296", "%lu", &ulv);
+	check(r == 1 && ulv == ULONG_MAX,
+	    "%lu does not saturate an unsigned-long overflow");
 
 	/*
 	 * Group 5: the malformed inputs. This is the calibration for the

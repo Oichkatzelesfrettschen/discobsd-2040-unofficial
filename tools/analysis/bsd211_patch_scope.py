@@ -73,6 +73,9 @@ def patch_number(subject):
 def scope(bsd, tree, base):
     results = []
     log = git(bsd, "log", "--reverse", "--format=%H%x00%s", f"{base}..HEAD")
+    if log.returncode:
+        diagnostic = log.stderr.strip() or "git log returned no diagnostic"
+        raise ValueError(f"cannot enumerate commits after {base}: {diagnostic}")
     for line in log.stdout.splitlines():
         if not line.strip():
             continue
@@ -161,7 +164,8 @@ def main():
 
     if not args.bsd:
         parser.error("no 2.11BSD checkout: pass --bsd or set BSD211")
-    if not os.path.isdir(os.path.join(args.bsd, ".git")):
+    checkout = git(args.bsd, "rev-parse", "--is-inside-work-tree")
+    if checkout.returncode or checkout.stdout.strip() != "true":
         parser.error(f"{args.bsd} is not a git checkout")
 
     base = args.base
@@ -169,7 +173,10 @@ def main():
         roots = git(args.bsd, "rev-list", "--max-parents=0", "HEAD")
         base = roots.stdout.split()[0]
 
-    results = scope(args.bsd, args.tree, base)
+    try:
+        results = scope(args.bsd, args.tree, base)
+    except ValueError as error:
+        parser.error(str(error))
     if args.format == "json":
         json.dump(results, sys.stdout, indent=1)
         sys.stdout.write("\n")

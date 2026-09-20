@@ -55,9 +55,9 @@ _Static_assert (TEXT_BYTES >= 1 + MANT_DIGITS + 2 + 3 + 1,
     "emitted text must hold the sign, digits and a signed three-digit exponent");
 
 /*
- * A decimal exponent outside this range drives any significand to zero or
- * to overflow, the same verdict the unclamped exponent reaches, so the
- * clamp keeps the emitted exponent three digits wide.
+ * The target strtod clamps the emitted magnitude again at 511, where any
+ * nonzero staged significand underflows or overflows. This wider clamp keeps
+ * the emitted exponent three digits wide without changing that verdict.
  */
 #define EXP_LIMIT	999
 

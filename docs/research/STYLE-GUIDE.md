@@ -2,12 +2,14 @@
 
 ## Scope, authority and evidence
 
-Reviewed repository: `Oichkatzelesfrettschen/discobsd-2040-unofficial` at
-`b0e32f88b612967e8673a9d7a1f60661c0a526b7`, extended at `728677b8` when the
-patch-499 scope work landed the first migration unit. This document proposes
-style and engineering rules. The repository source, RP2040 datasheet, ARMv6-M
-Architecture Reference Manual and retained gate records settle conflicts with
-the proposal.
+The original review inspected
+`Oichkatzelesfrettschen/discobsd-2040-unofficial` at
+`b0e32f88b612967e8673a9d7a1f60661c0a526b7`. Repository reconciliation began
+from `728677b8ff4330decf579b8ea03693ee904bb592`; later migration measurements
+identify their commands and artifacts rather than relabeling either revision
+as current. This document proposes style and engineering rules. The repository
+source, RP2040 datasheet, ARMv6-M Architecture Reference Manual and retained
+gate records settle conflicts with the proposal.
 
 Repository paths in this document are relative to the repository root. The
 reference map at the end names the source for each architectural claim. The

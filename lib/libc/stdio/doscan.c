@@ -264,10 +264,38 @@ scanset (const char *fmt, unsigned char *tab)
 }
 
 /*
+ * Return the largest magnitude the selected destination can represent.
+ * The negative signed magnitude is one greater than its positive maximum;
+ * expressing it as unsigned arithmetic avoids negating LONG_MIN.
+ */
+static unsigned long
+intlimit (int flags, int negate)
+{
+	if (flags & F_POINTER)
+		return ULONG_MAX;
+	if (! (flags & F_SIGNED)) {
+		if (flags & F_CHAR)
+			return UCHAR_MAX;
+		if (flags & F_SHORT)
+			return USHRT_MAX;
+		if (flags & F_LONG)
+			return ULONG_MAX;
+		return UINT_MAX;
+	}
+	if (flags & F_CHAR)
+		return negate ? (unsigned long) SCHAR_MAX + 1UL : SCHAR_MAX;
+	if (flags & F_SHORT)
+		return negate ? (unsigned long) SHRT_MAX + 1UL : SHRT_MAX;
+	if (flags & F_LONG)
+		return negate ? (unsigned long) LONG_MAX + 1UL : LONG_MAX;
+	return negate ? (unsigned long) INT_MAX + 1UL : INT_MAX;
+}
+
+/*
  * Store an accumulated value through the destination the modifiers
  * select. The accumulator is unsigned long throughout, so a negated
- * value reaches a narrower destination with the bit pattern the
- * widening produced.
+ * value reaches a signed destination with the bit pattern the widening
+ * produced.
  */
 static void
 storeint (va_list *ap, int flags, unsigned long acc)
@@ -277,18 +305,30 @@ storeint (va_list *ap, int flags, unsigned long acc)
 		return;
 	}
 	if (flags & F_CHAR) {
-		*va_arg (*ap, signed char *) = (signed char) acc;
+		if (flags & F_SIGNED)
+			*va_arg (*ap, signed char *) = (signed char) acc;
+		else
+			*va_arg (*ap, unsigned char *) = (unsigned char) acc;
 		return;
 	}
 	if (flags & F_SHORT) {
-		*va_arg (*ap, short *) = (short) acc;
+		if (flags & F_SIGNED)
+			*va_arg (*ap, short *) = (short) acc;
+		else
+			*va_arg (*ap, unsigned short *) = (unsigned short) acc;
 		return;
 	}
 	if (flags & F_LONG) {
-		*va_arg (*ap, long *) = (long) acc;
+		if (flags & F_SIGNED)
+			*va_arg (*ap, long *) = (long) acc;
+		else
+			*va_arg (*ap, unsigned long *) = acc;
 		return;
 	}
-	*va_arg (*ap, int *) = (int) acc;
+	if (flags & F_SIGNED)
+		*va_arg (*ap, int *) = (int) acc;
+	else
+		*va_arg (*ap, unsigned int *) = (unsigned int) acc;
 }
 
 /*
@@ -307,7 +347,7 @@ storeint (va_list *ap, int flags, unsigned long acc)
 static int
 convint (struct scanstate *s, va_list *ap, int width, int flags, int base)
 {
-	unsigned long acc;
+	unsigned long acc, limit;
 	int c, v, negate, ndigits, saturated;
 
 	s_skipspace (s);
@@ -327,6 +367,7 @@ convint (struct scanstate *s, va_list *ap, int width, int flags, int base)
 		if (c == EOF)
 			return CONV_FAIL;
 	}
+	limit = intlimit (flags, negate);
 
 	if ((base == 0 || base == 16) && c == '0') {
 		/*
@@ -358,7 +399,7 @@ convint (struct scanstate *s, va_list *ap, int width, int flags, int base)
 			s_unget (s, c);
 			break;
 		}
-		if (acc > (ULONG_MAX - (unsigned long) v) /
+		if (acc > (limit - (unsigned long) v) /
 		    (unsigned long) base)
 			saturated = 1;
 		else
@@ -372,11 +413,9 @@ convint (struct scanstate *s, va_list *ap, int width, int flags, int base)
 
 store:
 	if (saturated) {
-		if (flags & F_SIGNED)
-			acc = negate ? (unsigned long) LONG_MIN :
-			    (unsigned long) LONG_MAX;
-		else
-			acc = ULONG_MAX;
+		acc = limit;
+		if (negate && (flags & F_SIGNED))
+			acc = 0UL - acc;
 	} else if (negate) {
 		acc = 0UL - acc;
 	}
@@ -402,7 +441,7 @@ convchar (struct scanstate *s, va_list *ap, int width, int flags)
 	for (n = 0; n < width; n++) {
 		c = s_get (s);
 		if (c == EOF)
-			return n == 0 ? CONV_INPUT : CONV_FAIL;
+			return n == 0 ? CONV_INPUT : CONV_OK;
 		if (dst)
 			dst[n] = (char) c;
 	}
@@ -538,6 +577,9 @@ _doscan (FILE *iop, const char *fmt, va_list argp)
 		class = CT_INT;
 		c = (unsigned char) *fmt++;
 		switch (c) {
+		case 'D':
+			flags |= F_LONG | F_SIGNED;
+			break;
 		case 'd':
 			flags |= F_SIGNED;
 			break;
@@ -547,6 +589,10 @@ _doscan (FILE *iop, const char *fmt, va_list argp)
 			break;
 		case 'o':
 			base = 8;
+			break;
+		case 'O':
+			base = 8;
+			flags |= F_LONG;
 			break;
 		case 'u':
 			break;
@@ -588,6 +634,7 @@ _doscan (FILE *iop, const char *fmt, va_list argp)
 			 * so it neither reaches the returned count nor
 			 * stores anything when suppressed.
 			 */
+			flags |= F_SIGNED;
 			if (! (flags & F_SUPPRESS))
 				storeint (&ap, flags,
 				    (unsigned long) s.nread);

@@ -137,7 +137,16 @@ system_init_and_main:
 	bl	main
 
 	/*
-	 * Switch from kernel mode to user mode in user space.
+	 * Switch to the process stack and enter user space, still privileged.
+	 *
+	 * The MPU map mpu.c programmed before main() returned admits
+	 * unprivileged fetches from the user window and the boot ROM only,
+	 * so the instruction after a write that sets CONTROL.nPRIV must
+	 * already be in the window: written here, in kernel flash, the
+	 * following ISB faulted as the first unprivileged fetch. icode in
+	 * locore.S, which init_main.c has copied to __user_data_start,
+	 * therefore drops privilege as its first instructions, and this
+	 * sequence selects the PSP and branches into it privileged.
 	 */
 setup_user_mode:
 	cpsid	i		/* Disable interrupts. */
@@ -152,17 +161,16 @@ setup_user_mode:
 	msr	PSP, r0		/* PSP is the user space stack pointer. */
 	isb			/* Just to be safe. */
 
-	/* nPRIV -> 1 sets unprivileged Thread Mode for user space. */
 	mrs	r0, CONTROL
-	movs	r1, #0x3	/* CONTROL[0] unprivileged, CONTROL[1] PSP. */
-	orrs	r0, r1		/* ARMv6-M ORRS takes registers only. */
+	movs	r1, #0x2	/* CONTROL[1] PSP; nPRIV stays clear here. */
+	orrs	r0, r1		/* ARMv6-M ORRS takes register operands only. */
 
 	cpsie	i		/* Enable interrupts; clears PRIMASK. */
 
-	msr	CONTROL, r0	/* PSP is current sp; unprivileged level. */
-	isb			/* Just to be safe. */
+	msr	CONTROL, r0	/* PSP is current sp; still privileged. */
+	isb			/* CONTROL takes effect before the branch. */
 
-	/* Run icode() in user space. */
+	/* Run icode() in user space; its first instructions set nPRIV. */
 	ldr	r0, =__user_data_start + 1	/* In Thumb must set lsbit. */
 	mov	lr, r0		/* ARMv6-M LDR (literal) targets R0-R7 only. */
 	bx	lr

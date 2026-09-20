@@ -15,8 +15,9 @@
 >
 > **Hardware correction.** The body also incorrectly says the RP2040 has no
 > MPU. Datasheet sections 2.4.1 and 2.4.6 document an eight-region MPU. The
-> live port leaves that MPU unprogrammed and therefore supplies no configured
-> hardware isolation; MPU presence does not create MMU address translation.
+> live port programs that MPU to fence the user window from the kernel
+> (sys/arch/rp2040/doc/MPU.md); MPU presence does not create MMU address
+> translation.
 > The survey's 96 KB sizing applies to its historical source revisions. The
 > live port reserves a 144 KiB process window. The body remains intact as a
 > retained survey; `docs/research/STYLE-GUIDE.md` and
@@ -24,7 +25,7 @@
 
 
 Target hardware: RP2040 -- dual Cortex-M0+ (ARMv6-M), no MMU, an eight-region
-MPU (datasheet 2.4.1, 2.4.6) that no port programs, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
+MPU (datasheet 2.4.1, 2.4.6) that the live port programs to fence the user window, 264 KB on-chip SRAM, 2 MB external QSPI flash accessed XIP
 (execute-in-place).
 
 Research method: primary sources only -- upstream repositories read directly
@@ -167,12 +168,12 @@ ST HAL functions `LL_MPU_IsEnabled()`, `LL_MPU_GetCtrl()`,
 (`enable`, `ctrl`, `nregions`, `separate`). The ARMv7-M MPU register
 layout is what that code drives; the RP2040's Cortex-M0+ carries the ARMv6-M
 PMSAv6 MPU with eight regions (datasheet 2.4.1, 2.4.6), a related but distinct
-register block, which this port leaves unprogrammed.
+register block, which sys/arch/rp2040/rp2040/mpu.c programs.
 Source: `sys/arch/stm32/stm32/mpu.c`; `sys/arch/stm32/include/mpuvar.h`.
 
 **VERDICT: IMPOSSIBLE WITHOUT MAJOR WORK.** DiscoBSD's only ARM port hard-
 depends on ARMv7-M MPU hardware for its memory-protection model, and the
-RP2040's Cortex-M0+ cores (ARMv6-M) carry an unprogrammed PMSAv6 MPU and, per
+RP2040's Cortex-M0+ cores (ARMv6-M) carry a PMSAv6 MPU and, per
 the shared RetroBSD lineage, no MMU. Getting DiscoBSD running would mean designing a new
 software-only protection scheme or shipping an unprotected single-address-
 space kernel -- a from-scratch port, not a configuration change. Note: the

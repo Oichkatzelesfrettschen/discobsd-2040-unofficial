@@ -1,0 +1,49 @@
+.Dd September 20, 2026
+.Dt MPUTEST 1
+.Os
+.Sh NAME
+.Nm mputest
+.Nd check the memory protection map from user mode
+.Sh SYNOPSIS
+.Nm
+.Sh DESCRIPTION
+.Nm
+reads the kernel's report of the Cortex-M0+ memory protection unit through
+.Xr sysctl 8
+.Pq Va machdep.mpu
+and checks it from unprivileged code.
+It forks one child per probe address and records whether the child read the
+word or died of
+.Dv SIGSEGV .
+.Pp
+Kernel RAM above the process window, kernel text in XIP flash and the SIO
+block must be closed when
+.Va machdep.mpu.enable
+reads 1 and open when it reads 0.
+The boot ROM and the top of the process window must be open in both states.
+.Va machdep.mpu.nregions
+must read the datasheet's eight, and enable must be set only when
+.Va machdep.mpu.programmed
+equals the three regions the kernel's map holds.
+.Pp
+Each probe prints one line ending in
+.Dq ok
+or
+.Dq FAIL ;
+the last line is
+.Dq MPUTEST OK
+followed by the MPU state, or
+.Dq MPUTEST FAIL
+and the count of disagreements.
+.Sh EXIT STATUS
+The number of probes that disagreed with the kernel's report, or 2 when
+.Xr sysctl 3
+or
+.Xr fork 2
+failed.
+.Sh SEE ALSO
+.Xr sysctl 8
+.Sh CAVEATS
+Each closed probe under an enabled MPU is a real HardFault, and the kernel
+prints its fault frame on the console before killing the child, so a run
+with the MPU on produces three fault reports between the probe lines.

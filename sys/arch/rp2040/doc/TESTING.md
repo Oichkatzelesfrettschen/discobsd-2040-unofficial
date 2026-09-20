@@ -477,6 +477,15 @@ why the banner reports manufacturer 0x000 where silicon reports 0x493. The
 rest are pins and bits nothing reads back. Ceilings ratchet down as the
 models improve.
 
+The login test ends with the MPU's deliberate fault test. The probe test
+asserts the `mpu:` banner line, which is MPU_TYPE and MPU_CTRL read back
+after sys/arch/rp2040/rp2040/mpu.c programmed its three regions; the login
+test then runs usr.bin/mputest, which forks children that read kernel RAM,
+kernel text and SIO from unprivileged code and expects SIGSEGV for each,
+and asserts `MPUTEST OK (mpu on)`. Renode's Cortex-M0+ implements the
+region registers, so the emulator decides the register-level claim and the
+fault path; the board run decides the silicon. MPU.md has the map.
+
 What `check-renode` does not decide is SSI concurrency. `Create Terminal
 Tester` pauses the emulation at every wait, which serializes the two CPU
 threads enough that a race between them rarely fires: the suite passed

@@ -51,8 +51,13 @@ The kernel boots through its device probe
     Start Emulation
 
     Wait For Line On Uart       DiscoBSD 2.7 (PICO_UART)                    timeout=60
-    Wait For Line On Uart       cpu: Cortex-M0+, ARMv6-M, no MMU, MPU unprogrammed    timeout=60
+    Wait For Line On Uart       cpu: Cortex-M0+, ARMv6-M, no MMU            timeout=60
     Wait For Line On Uart       cpu: 125 MHz core, 125 MHz peripheral       timeout=60
+
+    # mpu.c prints what MPU_TYPE and MPU_CTRL read back after it programmed
+    # the map, so this line is the register-level claim: eight regions from
+    # the datasheet, the three the map holds, ENABLE and PRIVDEFENA set.
+    Wait For Line On Uart       mpu: 8 regions, 3 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx    timeout=60
 
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash
     # entry points and Dhara has resumed its journal through them.
@@ -91,6 +96,14 @@ The boot reaches a login prompt and a shell
 
     Write Line To Uart          uname -sr
     Wait For Line On Uart       DiscoBSD 2.7                                timeout=300
+
+    # The deliberate fault test: usr.bin/mputest forks children that read
+    # kernel RAM, kernel text and SIO and expects SIGSEGV for each while
+    # machdep.mpu.enable reads 1, and reads the boot ROM and the window top
+    # without harm. "mpu on" pins the state, so a kernel whose map was
+    # dropped passes its own consistency check and still fails here.
+    Write Line To Uart          mputest
+    Wait For Line On Uart       MPUTEST OK (mpu on)                         timeout=300
 
 *** Keywords ***
 Teardown With Transcript

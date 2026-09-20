@@ -28,6 +28,7 @@
 #include <machine/fault.h>
 
 #include <machine/intr.h>
+#include <machine/mpu.h>
 #include <machine/scb.h>
 
 #include <rp2040/dev/uart.h>
@@ -447,9 +448,10 @@ cpuidentify(void)
 	rev  = (chip_id >> 28) & 0x0000000f;
 
 	printf("cpu: RP%04x rev %u, manufacturer 0x%03x\n", part, rev, mfr);
-	printf("cpu: Cortex-M0+, ARMv6-M, no MMU, MPU unprogrammed\n");
+	printf("cpu: Cortex-M0+, ARMv6-M, no MMU\n");
 	printf("cpu: %u MHz core, %u MHz peripheral\n",
 	    (u_int)CPU_KHZ / 1000, (u_int)BUS_KHZ / 1000);
+	mpu_identify();
 }
 
 
@@ -491,6 +493,14 @@ startup(void)
 	if ((size_t)__user_data_end - (size_t)__user_data_start !=
 	    USER_DATA_SIZE)
 		panic("user window: linker and machparam.h disagree");
+
+	/*
+	 * The window the check above confirmed is what the MPU admits to
+	 * unprivileged code; mpu.c states the map. Programmed here, before
+	 * locore0.S drops to nPRIV for icode, so no user instruction runs
+	 * unchecked.
+	 */
+	mpu_init();
 #ifdef SWAPRAM
 	swapram_init();
 #endif

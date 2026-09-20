@@ -28,6 +28,7 @@
 #endif
 
 #include <machine/cpu.h>
+#include <machine/mpuvar.h>
 #ifdef SWAPRAM
 #include <machine/swapram.h>
 #endif
@@ -277,8 +278,11 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 #endif
 	dev_t dev;
 
-	/* Every sysctl name at this level is terminal. */
+	/* Every sysctl name at this level except mpu is terminal. */
 	switch (name[0]) {
+	case CPU_MPU:
+		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,
+		    newlen);
 	case CPU_CONSDEV:
 		if (namelen != 1)
 			return ENOTDIR;

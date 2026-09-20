@@ -3,7 +3,7 @@
 Measured against the tree at commit 870fc71c (2026-09-12, branch
 `audit-correctness`) and against `the 4.4BSD-Lite2 checkout`, the
 4.4BSD-Lite2 CSRG distribution. Target: RP2040, Cortex-M0+, ARMv6-M,
-Thumb-1, no FPU, no MMU, an unprogrammed eight-region MPU, 264 KB SRAM, one 96 KB user process
+Thumb-1, no FPU, no MMU, an eight-region MPU programmed to fence the user window, 264 KB SRAM, one 96 KB user process
 window, a.out OMAGIC binaries, a 2.11BSD-lineage kernel (no demand
 paging, no vnode layer, no mbuf network stack, single core), a root
 filesystem with roughly 130 free blocks, and two compilers: cross-gcc

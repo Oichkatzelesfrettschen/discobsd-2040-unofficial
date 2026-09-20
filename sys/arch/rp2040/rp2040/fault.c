@@ -44,6 +44,7 @@
 
 void usbdrain(void);
 void usbpoll(void);
+void usbabandon(void);
 
 /*
  * HardFault_Handler()
@@ -113,6 +114,18 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	u_int icsr;
 
 	led_control(LED_KERNEL, 1);
+
+#ifdef UARTUSB_ENABLED
+	/*
+	 * Only 0xfffffffd returns to a process; any other EXC_RETURN is the
+	 * kernel faulting, which ends in the panic below and never resumes
+	 * what it interrupted. Release the console driver's re-entry guard
+	 * before printing, because the interrupted call will not release it
+	 * and the report would otherwise reach nobody.
+	 */
+	if (fault_lr != 0xfffffffdUL)
+		usbabandon();
+#endif
 
 	/*
 	 * A fault while reporting a fault would escalate to lockup, which

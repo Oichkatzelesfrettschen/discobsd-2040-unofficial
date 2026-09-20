@@ -377,6 +377,20 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		count = usb_e15_bulkin_arms;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
 		    sizeof count);
+
+	case CPU_USB_SERVICE_REENTERED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = usb_service_reentered;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
+
+	case CPU_USB_TX_RECOVERED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = usb_tx_recovered;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
 #endif	/* UARTUSB_ENABLED */
 #ifdef SWAPRAM
 	case CPU_SWAPRAM_EVACUATE:

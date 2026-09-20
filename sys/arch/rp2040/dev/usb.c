@@ -341,6 +341,21 @@ struct tty usbttys[1];
 
 u_int usb_e15_deferred;			/* Bulk IN arms the E15 guard held. */
 u_int usb_e15_bulkin_arms;		/* Bulk IN arms attempted, held or not. */
+u_int usb_service_reentered;		/* Services refused to a nested caller. */
+u_int usb_tx_recovered;			/* Bulk IN buffers freed from a lost arm. */
+
+/*
+ * Depth of usb_service. PRIMASK, which spltty and splhigh both set, raises
+ * execution priority to 0 and leaves HardFault at -1, and ARMv6-M defines
+ * no FAULTMASK (ARMv6-M ARM B1.5.1, B1.5.4), so a fault taken inside the
+ * driver reaches arm_fault, whose printf reaches usbputc and re-enters
+ * here. A nested service arms a buffer the outer call is still filling and
+ * advances data_in_pid twice for one packet, which desynchronizes the
+ * endpoint's data toggle and silences the console until the next bus
+ * reset. usb_service_leave releases the depth for a context that will not
+ * return, which is what a panic between the fault and the reboot is.
+ */
+static int usb_service_depth;
 
 static u_int usb_sof_us;		/* TIMERAWL at the last SOF interrupt. */
 
@@ -841,17 +856,63 @@ usb_rx_rearm_if_idle(void)
 }
 
 /*
+ * Release a bulk IN endpoint whose completion never arrived. tx_busy says a
+ * packet is outstanding and only the completion clears it, so a buffer that
+ * holds none leaves the ring unreadable for the rest of the configuration:
+ * usb_tx_kick returns on tx_busy alone, and nothing else writes it.
+ *
+ * The same three bits that decide the OUT case decide this one. 4.1.2.7.4
+ * gives AVAILABLE to the controller while a transaction can still run and
+ * FULL to a buffer holding data, and 4.1.2.8.3 has the completion clear both
+ * and raise the endpoint's USB_BUFF_STATUS bit. A buffer with all three
+ * clear therefore has nothing in flight, nothing waiting to be sent, and no
+ * completion owed, so tx_busy describes a packet that no longer exists. An
+ * E15 deferral is the one state that looks the same and is not lost, because
+ * its arm is held in tx_pending for the next frame; it is excluded rather
+ * than recovered.
+ */
+static void
+usb_tx_recover_if_idle(void)
+{
+	u_int bc;
+
+	if (! usbd.configured || ! usbd.tx_busy || usbd.tx_pending)
+		return;
+	bc = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 1));
+	if ((bc & (USB_BUF_CTRL_AVAIL | USB_BUF_CTRL_FULL)) == 0 &&
+	    (USBREG(USB_BUFF_STATUS) & USB_BUFF_STATUS_BIT(EP_DATA, 1)) == 0) {
+		usbd.tx_busy = 0;
+		usb_tx_recovered++;
+		usb_tx_kick();
+	}
+}
+
+/*
  * Service the controller. Runs from the interrupt, and also polled with
  * interrupts masked by the console routines. PRIMASK masks every interrupt on
  * this ARMv6-M core (machine/intr.h: spltty is a global disable), and core 1
- * is never launched, so a polled call and the interrupt never interleave and
- * usbd needs no further guard.
+ * is never launched, so a polled call and the interrupt never interleave.
+ * HardFault is the exception: it holds priority -1, PRIMASK raises execution
+ * priority only to 0, and ARMv6-M defines no FAULTMASK (ARMv6-M ARM B1.5.1,
+ * B1.5.4), so a fault inside the driver reaches the console through
+ * arm_fault's printf. usb_service_depth turns that re-entry away.
  */
 static void
 usb_service(void)
 {
 	struct tty *tp = &usbttys[0];
 	u_int ints, done, i;
+
+	/*
+	 * A nested caller leaves the controller to the call it interrupted,
+	 * which resumes and finishes it. Bytes a nested usbputc queued are
+	 * already in the ring and go out with that call's kick.
+	 */
+	if (usb_service_depth) {
+		usb_service_reentered++;
+		return;
+	}
+	usb_service_depth = 1;
 
 	ints = USBREG(USB_INTS);
 
@@ -947,14 +1008,31 @@ usb_service(void)
 	 * console heals on the next host control request or console I/O
 	 * rather than needing a chip reset. */
 	usb_rx_rearm_if_idle();
+
+	/* The same for a bulk IN whose completion never arrived. */
+	usb_tx_recover_if_idle();
+
+	usb_service_depth = 0;
 }
 
 /*
- * Interrupt entry. The controller is serviced with every interrupt masked, so
- * a second usb_tx_kick entered inside the first cannot overwrite the packet
- * the controller is about to send. PRIMASK is the only mask ARMv6-M provides
- * (machine/intr.h), so splhigh here and spltty in the console routines both
- * disable every interrupt and serialize all access to usbd.
+ * Hand the controller back from a context that will not return to what it
+ * interrupted. A fault the kernel does not survive reaches the console
+ * through the same path it interrupted, and the depth that call left behind
+ * would otherwise refuse every service for the rest of the boot.
+ */
+void
+usbabandon(void)
+{
+	usb_service_depth = 0;
+}
+
+/*
+ * Interrupt entry. PRIMASK is the only mask ARMv6-M provides
+ * (machine/intr.h), so splhigh here and spltty in the console routines
+ * exclude every interrupt from usbd. They do not exclude HardFault, which
+ * usb_service_depth does, so a second usb_tx_kick entered inside the first
+ * cannot overwrite the packet the controller is about to send.
  */
 void
 usbintr(void)

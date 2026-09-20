@@ -40,7 +40,15 @@
  * it back; machine/mpuvar.h names the leaves.
  */
 #define	CPU_MPU			12	/* node: memory protection unit */
-#define	CPU_MAXID		13	/* number of valid machdep ids */
+/*
+ * Console robustness accounting from arch/rp2040/dev/usb.c. Both read zero
+ * on a healthy boot: the first counts services refused to a caller that
+ * interrupted the driver, the second bulk IN buffers released after a
+ * completion that never arrived.
+ */
+#define	CPU_USB_SERVICE_REENTERED 13	/* int: nested services refused */
+#define	CPU_USB_TX_RECOVERED	14	/* int: bulk IN buffers recovered */
+#define	CPU_MAXID		15	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -57,5 +65,7 @@
 	{ "swapram_epoch", CTLTYPE_INT }, \
 	{ "swapram_large", CTLTYPE_INT }, \
 	{ "mpu", CTLTYPE_NODE }, \
+	{ "usb_service_reentered", CTLTYPE_INT }, \
+	{ "usb_tx_recovered", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

@@ -6,6 +6,7 @@ ARM_COMPILER?= ${GCCPREFIX}-gcc
 TARGET_MACHINE?= rp2040
 PROG= libc_contracts_test
 TARGET_DIR= ../../lib/libc/gen
+STRING_DIR= ../../lib/libc/string
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 
 # The arena allocator compiled from the tree over an sbrk() the test owns.
@@ -40,9 +41,12 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check: ${PROG} header_contract.o check-malloc check-printf check-scanf \
-	check-syslog check-vis check-qsort check-strtox check-aout
+check-host: ${PROG} header_contract.o check-malloc check-printf \
+	check-printf-float check-scanf check-rwmode check-syslog check-vis \
+	check-qsort check-strtox check-string-security
 	./${PROG}
+
+check: check-host check-aout
 
 # The string-to-integer functions compiled from the tree under names that
 # leave the host libc available to the test process.  -fsigned-char makes the
@@ -62,9 +66,9 @@ PRINTF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include -DNO_DOPRNT_FLOATFMT \
 		-Derrno=printf_test_errno
 PRINTF_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_doprnt.o \
-		printf_flsbuf.o
+		printf_flsbuf.o printf_doprnt_llong.o
 PRINTF_OBJS32=	printf_snprintf32.o printf_vsnprintf32.o printf_doprnt32.o \
-		printf_flsbuf32.o
+		printf_flsbuf32.o printf_doprnt_llong32.o
 
 # The formatted input scanner and the string-stream path sscanf builds for
 # it. The entry points move aside so the host's own scanf stays out of the
@@ -110,7 +114,9 @@ SYSLOG_RENAMES=	-Dsyslog=db_syslog -Dvsyslog=db_vsyslog \
 		-Dstrerror=test_strerror -Derrno=syslog_test_errno
 SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
-SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o
+# doprnt.o refers to the weak __doprnt_ll; Mach-O resolves a weak
+# reference only against a definition, so the member is linked here too.
+SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
 
 check-syslog: syslog_contract_test
 	./syslog_contract_test
@@ -131,6 +137,52 @@ VIS_RENAMES=	-Dvis=db_vis -Dnvis=db_nvis \
 VIS_CFLAGS=	-std=c17 -Wall -Wextra -Werror -fsigned-char -nostdinc \
 		-isystem ${TOPSRC}/include ${VIS_RENAMES}
 
+STRING_SECURITY_RENAMES=	-Dexplicit_bzero=db_explicit_bzero \
+	-Dtimingsafe_bcmp=db_timingsafe_bcmp
+STRING_SECURITY_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
+	${STRING_SECURITY_RENAMES}
+
+check-string-security: string_security_test
+	./string_security_test
+
+string_security_test: string_security_test.c string_explicit_bzero.o \
+	string_timingsafe_bcmp.o
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    string_security_test.c string_explicit_bzero.o \
+	    string_timingsafe_bcmp.o
+
+string_explicit_bzero.o: ${STRING_DIR}/explicit_bzero.c
+	${HOSTCC} ${STRING_SECURITY_CFLAGS} -c -o $@ \
+	    ${STRING_DIR}/explicit_bzero.c
+
+string_timingsafe_bcmp.o: ${STRING_DIR}/timingsafe_bcmp.c
+	${HOSTCC} ${STRING_SECURITY_CFLAGS} -c -o $@ \
+	    ${STRING_DIR}/timingsafe_bcmp.c
+
+check-string-security-cross: string_timingsafe_bcmp_target.o \
+	string_timingsafe_bcmp_bad_target.o
+	@if sh ./string_disassembly.sh ${GCCPREFIX}-objdump \
+	    string_timingsafe_bcmp_bad_target.o >/dev/null 2>&1; then \
+		echo "timingsafe_bcmp: early-return negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "timingsafe_bcmp disassembly negative control passed"
+	sh ./string_disassembly.sh ${GCCPREFIX}-objdump \
+	    string_timingsafe_bcmp_target.o
+
+string_timingsafe_bcmp_target.o: ${STRING_DIR}/timingsafe_bcmp.c
+	${ARM_COMPILER} -std=c17 -Wall -Wextra -Werror -fno-common \
+	    -mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
+	    -mfloat-abi=soft -nostdinc -I${TOPSRC}/include -Os \
+	    -ffreestanding -fno-builtin -c -o $@ \
+	    ${STRING_DIR}/timingsafe_bcmp.c
+
+string_timingsafe_bcmp_bad_target.o: timingsafe_bcmp_bad.c
+	${ARM_COMPILER} -std=c17 -Wall -Wextra -Werror -fno-common \
+	    -mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
+	    -mfloat-abi=soft -nostdinc -I${TOPSRC}/include -Os \
+	    -ffreestanding -fno-builtin -c -o $@ timingsafe_bcmp_bad.c
+
 check-vis: vis_contract_test
 	./vis_contract_test
 
@@ -140,6 +192,27 @@ vis_contract_test: vis_contract_test.c vis_vis.o
 
 vis_vis.o: ${TARGET_DIR}/vis.c
 	${HOSTCC} ${VIS_CFLAGS} -c -o $@ ${TARGET_DIR}/vis.c
+
+# The formatter with its float member linked, for %a and the decimal
+# conversions; the host libm supplies modf.
+PRINTF_FLOAT_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include -Derrno=printf_test_errno \
+		-DPRINTF_FLOAT_TEST
+PRINTF_FLOAT_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_flsbuf.o \
+		printf_doprnt_fp.o printf_doprnt_float.o printf_doprnt_llong.o
+
+check-printf-float: printf_float_contract_test
+	./printf_float_contract_test
+
+printf_float_contract_test: printf_contract_test.c ${PRINTF_FLOAT_OBJS}
+	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -o $@ printf_contract_test.c \
+	    ${PRINTF_FLOAT_OBJS} -lm
+
+printf_doprnt_fp.o: ${PRINTF_DIR}/doprnt.c
+	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
+
+printf_doprnt_float.o: ${PRINTF_DIR}/doprnt_float.c
+	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_float.c
 
 check-printf: printf_contract_test
 	./printf_contract_test
@@ -164,6 +237,12 @@ printf_vsnprintf.o: ${PRINTF_DIR}/vsnprintf.c
 
 printf_doprnt.o: ${PRINTF_DIR}/doprnt.c
 	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt.c
+
+printf_doprnt_llong.o: ${PRINTF_DIR}/doprnt_llong.c
+	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_llong.c
+
+printf_doprnt_llong32.o: ${PRINTF_DIR}/doprnt_llong.c
+	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_llong.c
 
 printf_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
@@ -269,6 +348,50 @@ scanf_strtod_asan.o: ${SCANF_STDLIB_DIR}/strtod.c
 scanf_ctype_asan.o: ${SCANF_GEN_DIR}/ctype_.c
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
 
+# The r+ mode switch in _filbuf and _flsbuf over a host temporary file.
+# fflush stays the tree's so the free-count discipline under test is the
+# one that ships; the buffer members are renamed so getc and putc reach them.
+RWMODE_RENAMES=	-D_filbuf=db_filbuf -D_flsbuf=db_flsbuf -Dfflush=db_fflush \
+		-Dfclose=db_fclose -Dungetc=db_ungetc -Dfstat=test_fstat \
+		-Derrno=rwmode_test_errno
+RWMODE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include ${RWMODE_RENAMES}
+RWMODE_OBJS=	rwmode_filbuf.o rwmode_flsbuf.o rwmode_ungetc.o
+RWMODE_OBJS32=	rwmode_filbuf32.o rwmode_flsbuf32.o rwmode_ungetc32.o
+
+check-rwmode: rwmode_contract_test
+	./rwmode_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} rwmode_contract_test32
+	./rwmode_contract_test32
+.else
+	@echo "check-libc-rwmode: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+rwmode_contract_test: rwmode_contract_test.c ${RWMODE_OBJS}
+	${HOSTCC} ${RWMODE_CFLAGS} -o $@ rwmode_contract_test.c ${RWMODE_OBJS}
+
+rwmode_contract_test32: rwmode_contract_test.c ${RWMODE_OBJS32}
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -o $@ rwmode_contract_test.c ${RWMODE_OBJS32}
+
+rwmode_filbuf.o: ${PRINTF_DIR}/filbuf.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/filbuf.c
+
+rwmode_flsbuf.o: ${PRINTF_DIR}/flsbuf.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
+rwmode_ungetc.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+rwmode_ungetc32.o: ${PRINTF_DIR}/ungetc.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/ungetc.c
+
+rwmode_filbuf32.o: ${PRINTF_DIR}/filbuf.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/filbuf.c
+
+rwmode_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
+	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
+
 check-strtox: strtox_test
 	./strtox_test
 .if ${ILP32_OK} == "yes"
@@ -356,11 +479,6 @@ malloc_sbrk32.o: ${SBRK_SRC}
 		${SBRK_RENAMES} -c -o $@ ${SBRK_SRC}
 
 check-aout:
-	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} cleantools
-	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} symlinks tools
-	${MAKE} -C ${TOPSRC}/lib/libc_aout/libc MACHINE=${TARGET_MACHINE}
-	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} \
-	    ${TOPSRC}/distrib/obj/boardlibc.${TARGET_MACHINE}/libc.a
 	sh ./aout_contracts.sh ${TOPSRC} ${ARM_COMPILER} ${TARGET_MACHINE}
 
 ${PROG}: libc_contracts_test.c raise.o ctermid.o
@@ -382,14 +500,22 @@ clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
+	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
+	rm -f printf_doprnt_llong.o printf_doprnt_llong32.o
 	rm -f syslog_contract_test syslog_syslog.o
 	rm -f vis_contract_test vis_vis.o
+	rm -f string_security_test string_explicit_bzero.o \
+		string_timingsafe_bcmp.o string_timingsafe_bcmp_target.o \
+		string_timingsafe_bcmp_bad_target.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
+	rm -f rwmode_contract_test rwmode_contract_test32 ${RWMODE_OBJS} ${RWMODE_OBJS32}
 	rm -f scanf_contract_test scanf_contract_test32 scanf_contract_test_asan \
 		${SCANF_OBJS} ${SCANF_OBJS32} ${SCANF_OBJS_ASAN}
 
 all: check
 
-.PHONY: all check check-aout check-malloc check-printf check-qsort check-scanf \
-	check-strtox check-syslog check-vis clean
+.PHONY: all check check-host check-aout check-malloc check-printf \
+	check-printf-float check-qsort check-rwmode check-scanf \
+	check-string-security check-string-security-cross check-strtox \
+	check-syslog check-vis clean

@@ -10,10 +10,7 @@
  * return a pointer into a directory
  */
 long
-telldir(dirp)
-	DIR *dirp;
+telldir(DIR *dirp)
 {
-	extern long lseek();
-
-	return (lseek(dirp->dd_fd, 0L, 1) - dirp->dd_size + dirp->dd_loc);
+	return dirp->dd_seek + dirp->dd_loc;
 }

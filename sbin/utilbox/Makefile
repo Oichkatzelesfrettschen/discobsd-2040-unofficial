@@ -67,8 +67,17 @@ ${PROG}:	utilbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
+resize-symbol-contract: utilbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} \
+	    -o utilbox.contract.elf utilbox.o ${OBJS} ${LIBS}
+	sh ${TOPSRC}/tests/resize_contracts/symbol_closure.sh ${TOPSRC} \
+	    utilbox.contract.elf
+	rm -f utilbox.contract.elf
+
 install:	all
 	${INSTALL} -m 755 ${PROG} ${DESTDIR}/usr/bin/${PROG}
 
 clean:
 	rm -f *.o *.r *.elf ${PROG} utilbox.c
+
+.PHONY: resize-symbol-contract

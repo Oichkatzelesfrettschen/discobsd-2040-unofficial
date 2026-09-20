@@ -12,11 +12,8 @@
  * close a directory.
  */
 void
-closedir(dirp)
-	register DIR *dirp;
+closedir(DIR *dirp)
 {
-	close(dirp->dd_fd);
-	dirp->dd_fd = -1;
-	dirp->dd_loc = 0;
+	(void)close(dirp->dd_fd);
 	free(dirp);
 }

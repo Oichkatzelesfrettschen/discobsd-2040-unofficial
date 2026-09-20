@@ -8,6 +8,14 @@
  *  specifies the terms and conditions for redistribution.
  */
 
+/*
+ * @(#)hunt.h	1.1 (2.11BSD) 2020/1/7
+ *
+ * The identification stays a comment: a static sccsid here would be a
+ * second definition in every file that defines its own before including
+ * this header.
+ */
+
 # include	<stdio.h>
 # ifndef OLDIPC
 # include	<sgtty.h>
@@ -140,8 +148,8 @@
 # define	FALSE	0
 # endif TRUE
 # ifndef CTRL
-# define	CTRL(x)	('x' & 037)
-# endif CTRL
+# define	CTRL(x)	(x & 037)
+# endif /* CTRL */
 
 # define	BULSPD		5		/* bullets movement speed */
 # define	ISHOTS		15

@@ -9,17 +9,24 @@ fi
 kernel_build=$(cd "$1" && pwd)
 make_command=${MAKE:-bmake}
 
+make_value()
+{
+    # The verifier owns these read-only sub-makes after the parent closes its
+    # jobserver descriptors, so inherited -J flags cannot name usable pipes.
+    env -u MAKEFLAGS -u MFLAGS "$make_command" -V "$1"
+}
+
 source_files='ufs_alloc.c ufs_bio.c ufs_bmap.c ufs_dsort.c ufs_fio.c
 ufs_inode.c ufs_mount.c ufs_namei.c ufs_subr.c ufs_syscalls.c
 ufs_syscalls2.c vfs_vnops.c sys_inode.c'
 
 (
     cd "$kernel_build"
-    compiler=$($make_command -V '${CC}')
-    compiler_flags=$($make_command -V '${CFLAGS}')
-    include_flags=$($make_command -V '${INCLUDES}')
-    configuration_flags=$($make_command -V '${PARAM}')
-    source_root=$($make_command -V '${S}')
+    compiler=$(make_value '${CC}')
+    compiler_flags=$(make_value '${CFLAGS}')
+    include_flags=$(make_value '${INCLUDES}')
+    configuration_flags=$(make_value '${PARAM}')
+    source_root=$(make_value '${S}')
 
     printf '%s\n' \
         '#if !defined(__STDC_VERSION__) || __STDC_VERSION__ != 201710L' \

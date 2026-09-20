@@ -14,7 +14,6 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -28,6 +27,8 @@
 #define NO  0           /* no/false */
 #define OK  0           /* didn't find differences */
 #define YES 1           /* yes/true */
+#define ascii_digit(c) ((unsigned char)(c) >= '0' && \
+    (unsigned char)(c) <= '9')
 
 static int  fd1, fd2,       /* file descriptors */
         silent = NO;        /* if silent run */
@@ -185,7 +186,7 @@ otoi(C)
     register int    base;       /* number base */
 
     base = (*C == '0') ? 8 : 10;
-    for (val = 0; isdigit(*C); ++C)
+    for (val = 0; ascii_digit(*C); ++C)
         val = val * base + *C - '0';
     return(val);
 }

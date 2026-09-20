@@ -4,6 +4,8 @@
  * print floats. See the note at __doprnt_cvt in doprnt.c.
  */
 
+#include <string.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +89,109 @@ exponent (unsigned char *p, int exp, unsigned char fmtch)
 	return p;
 }
 
+
+/*
+ * %a and %A: the value as a hexadecimal fraction and a binary exponent,
+ * C17 7.21.6.1p8. The 52 mantissa bits are read out of the double's
+ * representation, so no arithmetic is done on the value and every digit
+ * is exact; an omitted precision prints the digits the value has, with
+ * trailing zeros trimmed, and a given precision rounds to nearest, ties
+ * to even, with a carry into the leading digit renormalized as an
+ * exponent step. A subnormal is normalized first so the leading digit is
+ * always 1, which is one of the forms the standard allows. The sign is
+ * reported through negp so a negative zero keeps its sign.
+ */
+static int
+hexcvt (double number, int prec, int sharpflag, unsigned char *negp,
+	unsigned char fmtch, unsigned char *out)
+{
+	unsigned long long bits, mant;
+	unsigned char *p = out;
+	int exp, e, ndig, i, shift;
+	unsigned char lead;
+
+	memcpy (&bits, &number, sizeof bits);
+	if (bits >> 63)
+		*negp = 1;
+	exp = (int)((bits >> 52) & 0x7ff);
+	mant = bits & ((1ULL << 52) - 1);
+
+	if (exp == 0 && mant == 0) {
+		lead = 0;
+		e = 0;
+	} else if (exp == 0) {
+		lead = 1;
+		e = -1022;
+		while ((mant & (1ULL << 52)) == 0) {
+			mant <<= 1;
+			e--;
+		}
+		mant &= (1ULL << 52) - 1;
+	} else {
+		lead = 1;
+		e = exp - 1023;
+	}
+
+	if (prec < 0) {
+		/* every digit the value has, trailing zeros trimmed */
+		ndig = 13;
+		while (ndig > 0 && (mant & 0xf) == 0) {
+			mant >>= 4;
+			ndig--;
+		}
+	} else {
+		ndig = prec > 13 ? 13 : prec;
+		shift = 4 * (13 - ndig);
+		if (shift > 0) {
+			unsigned long long rem = mant & ((1ULL << shift) - 1);
+			unsigned long long half = 1ULL << (shift - 1);
+
+			mant >>= shift;
+			/* ties go to even: the last kept digit, or the leading digit when none is kept */
+			if (rem > half || (rem == half &&
+			    ((ndig == 0 ? lead : mant) & 1)))
+				mant++;
+			if (ndig == 0 ? mant != 0 : (mant >> (4 * ndig)) != 0) {
+				/* carry into the leading digit */
+				mant = 0;
+				if (++lead == 2) {
+					lead = 1;
+					e++;
+				}
+			}
+		}
+	}
+
+	*p++ = '0';
+	*p++ = fmtch == 'A' ? 'X' : 'x';
+	*p++ = (unsigned char)('0' + lead);
+	if (ndig > 0 || sharpflag)
+		*p++ = '.';
+	for (i = ndig - 1; i >= 0; i--) {
+		unsigned char d = (unsigned char)((mant >> (4 * i)) & 0xf);
+
+		*p++ = d > 9 ? (unsigned char)(d - 10 + (fmtch == 'A' ? 'A' : 'a'))
+		    : (unsigned char)(d + '0');
+	}
+	*p++ = fmtch == 'A' ? 'P' : 'p';
+	if (e < 0) {
+		*p++ = '-';
+		e = -e;
+	} else
+		*p++ = '+';
+	{
+		unsigned char ebuf[8], *t = ebuf + sizeof ebuf;
+
+		do {
+			*--t = (unsigned char)('0' + e % 10);
+			e /= 10;
+		} while (e);
+		while (t < ebuf + sizeof ebuf)
+			*p++ = *t++;
+	}
+	return (int)(p - out);
+}
+
 int
 __doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp, unsigned char fmtch,
 	unsigned char *startp, unsigned char *endp)
@@ -95,6 +200,9 @@ __doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp, unsig
 	double fract;
 	int dotrim, expcnt, gformat;
 	double integer, tmp;
+
+	if (fmtch == 'a' || fmtch == 'A')
+		return hexcvt (number, prec, sharpflag, negp, fmtch, startp);
 
 	expcnt = 0;
 	dotrim = expcnt = gformat = 0;

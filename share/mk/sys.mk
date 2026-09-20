@@ -140,13 +140,21 @@ _PRINTF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_FLOAT}" = x"yes" ]
 # arithmetic. _doscan reports a matching failure for %e, %f, %g and %a
 # while its weak __doscan_cvt stays unresolved, so a program that scans
 # a float declares SCANF_FLOAT=yes.
+# The 64-bit printf digit conversion is doprnt_llong.o. _doprnt prints a
+# question mark for a long long above the word while its weak __doprnt_ll
+# stays unresolved, so a program that prints one declares PRINTF_LLONG=yes.
+PRINTF_LLONG?=	no
+_PRINTF_LLONG!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_LLONG}" = x"yes" ] ; then \
+			echo "-Wl,-u,__doprnt_ll" ; \
+		fi
+
 SCANF_FLOAT?=	no
 _SCANF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${SCANF_FLOAT}" = x"yes" ] ; then \
 			echo "-Wl,-u,__doscan_cvt" ; \
 		fi
 
 LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm \
-	${LDWARN} ${_PRINTF_FLOAT} ${_SCANF_FLOAT} \
+	${LDWARN} ${_PRINTF_FLOAT} ${_PRINTF_LLONG} ${_SCANF_FLOAT} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \
 	${TOPSRC}/lib/crt0.o -L${TOPSRC}/lib
 

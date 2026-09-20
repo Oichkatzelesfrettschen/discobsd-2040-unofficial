@@ -10,11 +10,16 @@ include ${TOPSRC}/share/mk/sys.mk
 
 BOARD_PROGS=	exec_hsaout fptest romprobe sigtest streamtest \
 		swapram_epoch swapram_evacuate swapram_large tartest
+BOARD_TARGETS=	${BOARD_PROGS:S/^/build-/}
 
-all:
-		@set -e; for i in ${BOARD_PROGS}; do ${MAKE} -C $$i all; done
+all:		${BOARD_TARGETS}
+
+.for program in ${BOARD_PROGS}
+build-${program}:
+		${MAKE} -C ${program} all
+.endfor
 
 clean:
 		-for i in ${BOARD_PROGS}; do ${MAKE} -C $$i clean; done
 
-.PHONY:		all clean
+.PHONY:		all clean ${BOARD_TARGETS}

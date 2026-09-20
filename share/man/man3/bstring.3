@@ -4,10 +4,10 @@
 .\"
 .\"	@(#)bstring.3	6.1 (Berkeley) 5/15/85
 .\"
-.TH BSTRING 3  "November 24, 2025"
+.TH BSTRING 3  "September 19, 2026"
 .UC 5
 .SH NAME
-bcopy, bcmp, bzero, ffs \- bit and byte string operations
+bcopy, bcmp, bzero, explicit_bzero, timingsafe_bcmp, ffs \- bit and byte string operations
 .SH SYNOPSIS
 .nf
 .B bcopy(src, dst, length)
@@ -20,6 +20,14 @@ bcopy, bcmp, bzero, ffs \- bit and byte string operations
 .PP
 .B bzero(b, length)
 .B void *b;
+.B size_t length;
+.PP
+.B explicit_bzero(b, length)
+.B void *b;
+.B size_t length;
+.PP
+.B timingsafe_bcmp(b1, b2, length)
+.B const void *b1, *b2;
 .B size_t length;
 .PP
 .B ffs(i)
@@ -60,6 +68,19 @@ places
 .I length
 0 bytes in the string
 .IR b .
+.PP
+.I Explicit_bzero
+performs the same operation through volatile stores.
+The compiler therefore preserves the erasure when the bytes are dead after
+the call, which makes the function suitable for passwords and key material.
+.PP
+.I Timingsafe_bcmp
+compares exactly
+.I length
+bytes and returns zero when they match.
+The function reads every byte and carries no branch controlled by the byte
+values, so the position of the first difference does not select an earlier
+return.
 .PP
 .I Ffs
 find the first bit set in the argument passed it and

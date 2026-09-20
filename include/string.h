@@ -35,6 +35,7 @@ void		*memccpy(void *, const void *, int, size_t);
 void		*memchr(const void *, int, size_t);
 void		*memcpy(void *, const void *, size_t);
 void		*memset(void *, int, size_t);
+void		 explicit_bzero(void *, size_t);
 char		*strchr(const char *, int);
 
 char		*strdup(const char *);
@@ -43,6 +44,7 @@ char		*strrchr(const char *, int);
 char		*strsep(char **, const char *);
 char		*strtok(char *, const char *);
 char		*strtok_r(char *, const char *, char **);
+int		 timingsafe_bcmp(const void *, const void *, size_t);
 
 size_t		 strcspn(const char *, const char *);
 size_t		 strspn(const char *, const char *);

@@ -1,4 +1,5 @@
 keen
 keen-host
+tests/keensolve
 *.o
 *.elf

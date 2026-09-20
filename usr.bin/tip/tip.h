@@ -24,10 +24,11 @@
 #include <setjmp.h>
 #include <errno.h>
 
-#ifdef CTRL
-#undef CTRL
-#endif
-#define CTRL(c) ('c' & 037)
+_Static_assert(CTRL('d') == '\004', "tip exit must use control-D");
+_Static_assert(CTRL('y') == '\031', "tip remote suspend must use control-Y");
+_Static_assert(CTRL('z') == '\032', "tip local suspend must use control-Z");
+_Static_assert(CTRL('p') == '\020', "tip force must use control-P");
+_Static_assert(CTRL('a') == '\001', "tip raise must use control-A");
 
 /*
  * Remote host attributes

@@ -306,6 +306,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 
 | gate | proves |
 | --- | --- |
+| `check-control-char-contracts` | Cribbage and tip compile their exact control-character consumers for Cortex-M0+; source assertions bind redraw, bell, exit, both suspend modes, literal-next and raise to distinct bytes, rejecting the inherited macros that collapsed the Cribbage actions to control-X and every tip action to control-C |
 | `check-divider` | neither linked kernel reaches the SIO divider registers, from the ELF and from the dependency files |
 | `check-swapram` | vm_swap.o, exec_hsaout.o and kern_sysctl.o agree with each kernel's Config on the SwapRAM tier and pool size |
 | `check-cache-footprint` | the name, buffer and inode caches' ABI and chain invariants, the exec argument spool over modeled SwapRAM, raw swap and buffers (including the swap cursor's rotation, publication and wrap), and the evacuation model |

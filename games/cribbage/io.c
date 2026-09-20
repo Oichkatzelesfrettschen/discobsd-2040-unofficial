@@ -18,7 +18,10 @@
 # ifdef CTRL
 # undef CTRL
 # endif
-# define	CTRL(X)		('X' - 'A' + 1)
+# define	CTRL(character)	((character) & 037)
+
+_Static_assert(CTRL('L') == '\f', "cribbage redraw must use control-L");
+_Static_assert(CTRL('G') == '\a', "cribbage bell must use control-G");
 
 # ifdef CROSS
 #   define	erasechar()	('H' & 31)
@@ -297,7 +300,7 @@ over:
     while (read(0, &c, 1) <= 0)
 	if (cnt++ > 100)	/* if we are getting infinite EOFs */
 	    bye(0);		/* quit the game */
-    if (c == CTRL(L)) {
+    if (c == CTRL('L')) {
 	wrefresh(curscr);
 	goto over;
     }
@@ -549,7 +552,7 @@ char *getlin()
 	else if (sp == linebuf && c == ' ')
 	    continue;
 	if (sp >= &linebuf[LINESIZE-1] || !(isprint(c) || c == ' '))
-	    putchar(CTRL(G));
+	    putchar(CTRL('G'));
 	else {
 	    if (islower(c))
 		c = toupper(c);

@@ -22,9 +22,9 @@ esctable_t etable[] = {
 #endif
     { 'c',  NORM,   "change directory",                 chdirectory },
     { '.',  NORM,   "exit from tip",                    (int(*)())finish },
-    {CTRL(d),NORM,  "exit from tip",                    (int(*)())finish },
-    {CTRL(y),NORM,  "suspend tip (local+remote)",       suspend },
-    {CTRL(z),NORM,  "suspend tip (local only)",         suspend },
+    {CTRL('d'),NORM, "exit from tip",                    (int(*)())finish },
+    {CTRL('y'),NORM, "suspend tip (local+remote)",       suspend },
+    {CTRL('z'),NORM, "suspend tip (local only)",         suspend },
     { 's',  NORM,   "set variable",                     variable },
     { '?',  NORM,   "get this summary",                 help },
     { '#',  NORM,   "send break",                       genbrk },

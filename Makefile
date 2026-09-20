@@ -171,6 +171,12 @@ check-libc-malloc:
 check-libc-qsort:
 		${MAKE} -C tests/libc_contracts check-qsort
 
+check-libc-random:
+		${MAKE} -C tests/libc_contracts check-random
+
+check-libc-random-cross:
+		${MAKE} -C tests/libc_contracts check-random-cross
+
 check-libc-strtox:
 		${MAKE} -C tests/libc_contracts check-strtox
 
@@ -332,6 +338,7 @@ HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-libc-aout-contracts \
 		check-libc-ctime-cross \
+		check-libc-random-cross \
 		check-dirent-contracts-cross \
 		check-cat-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
@@ -520,6 +527,7 @@ installfs:
 		check-libc-host-contracts check-libc-aout-contracts \
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
+		check-libc-random check-libc-random-cross \
 		check-libc-scanf check-libc-rwmode check-libc-syslog check-libc-vis \
 		check-libc-printf-float \
 		check-dirent-contracts check-dirent-contracts-cross \

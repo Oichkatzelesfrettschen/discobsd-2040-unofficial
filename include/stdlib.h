@@ -97,6 +97,7 @@ extern char *suboptarg;                 /* getsubopt(3) external variable */
 int     getsubopt (char **, char **, char **);
 
 long    random (void);
+char    *initstate (unsigned, char *, int);
 char    *setstate (char *);
 void    srandom (unsigned);
 

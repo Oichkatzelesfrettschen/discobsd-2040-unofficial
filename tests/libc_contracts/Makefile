@@ -33,6 +33,17 @@ MALLOC_OBJS32=	malloc_arena32.o malloc_calloc32.o malloc_sbrk32.o
 # where size_t is the target's four bytes.
 QSORT_RENAMES=	-Dqsort=db_qsort
 
+RANDOM_RENAMES=	-Drandom=db_random -Dsrandom=db_srandom \
+		-Dinitstate=db_initstate -Dsetstate=db_setstate \
+		-Derrno=random_test_errno
+RANDOM_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+		-Wmissing-prototypes -Wold-style-definition -nostdinc \
+		-isystem ${TOPSRC}/include ${RANDOM_RENAMES}
+RANDOM_TARGET_CFLAGS=	${RANDOM_CFLAGS} -fno-common -mcpu=cortex-m0plus \
+		-mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft \
+		-ffreestanding -Os
+RANDOM_UBSAN=	-fsanitize=undefined -fno-sanitize-recover=all
+
 # The target's size_t, int and pointers are four bytes; -m32 on an x86-64
 # host is that width, so the same test runs there when the compiler can.
 ILP32=		-m32
@@ -41,7 +52,7 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-ctime check-malloc check-printf \
+check-host: ${PROG} header_contract.o check-ctime check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
 	check-qsort check-strtox check-string-security
 	./${PROG}
@@ -553,6 +564,64 @@ qsort_sort.o: ${TARGET_DIR}/qsort.c
 qsort_sort32.o: ${TARGET_DIR}/qsort.c
 	${HOSTCC} ${ILP32} ${MALLOC_CFLAGS} ${QSORT_RENAMES} -c -o $@ ${TARGET_DIR}/qsort.c
 
+check-random: random_contract_test random_contract_ubsan \
+	random_metadata_test random_metadata_bad_test
+	./random_contract_test
+	./random_contract_ubsan
+	./random_metadata_test
+	@if ./random_metadata_bad_test >/dev/null 2>&1; then \
+		echo "random metadata negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "random metadata negative control rejected"
+.if ${ILP32_OK} == "yes"
+	@${MAKE} random_contract_test32
+	./random_contract_test32
+.else
+	@echo "check-libc-random: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
+
+check-random-cross: random_target.o
+	@if ${GCCPREFIX}-nm -u random_target.o | \
+	    grep -Eq '__aeabi_.*div|fprintf|_iob'; then \
+		${GCCPREFIX}-nm -u random_target.o >&2; \
+		echo "random target object imports division or stdio" >&2; \
+		exit 1; \
+	fi
+	@echo "random Cortex-M0+ object uses allocation-free local state only"
+
+random_contract_test: random_contract_test.c random_random.o
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    random_contract_test.c random_random.o
+
+random_contract_test32: random_contract_test.c random_random32.o
+	${HOSTCC} ${ILP32} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    random_contract_test.c random_random32.o
+
+random_contract_ubsan: random_contract_test.c random_random_ubsan.o
+	${HOSTCC} ${RANDOM_UBSAN} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    random_contract_test.c random_random_ubsan.o
+
+random_metadata_test: random_metadata_test.c random_random.o
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    random_metadata_test.c random_random.o
+
+random_metadata_bad_test: random_metadata_test.c random_metadata_bad.c
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
+	    random_metadata_test.c random_metadata_bad.c
+
+random_random.o: ${TARGET_DIR}/random.c
+	${HOSTCC} ${RANDOM_CFLAGS} -c -o $@ ${TARGET_DIR}/random.c
+
+random_random32.o: ${TARGET_DIR}/random.c
+	${HOSTCC} ${ILP32} ${RANDOM_CFLAGS} -c -o $@ ${TARGET_DIR}/random.c
+
+random_random_ubsan.o: ${TARGET_DIR}/random.c
+	${HOSTCC} ${RANDOM_UBSAN} ${RANDOM_CFLAGS} -c -o $@ ${TARGET_DIR}/random.c
+
+random_target.o: ${TARGET_DIR}/random.c
+	${ARM_COMPILER} ${RANDOM_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/random.c
+
 malloc_test: malloc_test.c ${MALLOC_OBJS}
 	${HOSTCC} ${MALLOC_CFLAGS} -o $@ malloc_test.c ${MALLOC_OBJS}
 
@@ -615,6 +684,9 @@ clean:
 		string_timingsafe_bcmp.o string_timingsafe_bcmp_target.o \
 		string_timingsafe_bcmp_bad_target.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
+	rm -f random_contract_test random_contract_test32 random_contract_ubsan \
+		random_metadata_test random_metadata_bad_test random_random.o \
+		random_random32.o random_random_ubsan.o random_target.o
 	rm -f strtox_test strtox_test32 ${STRTOX_OBJS} ${STRTOX_OBJS32}
 	rm -f rwmode_contract_test rwmode_contract_test32 ${RWMODE_OBJS} ${RWMODE_OBJS32}
 	rm -f scanf_contract_test scanf_contract_test32 scanf_contract_test_asan \
@@ -624,5 +696,6 @@ all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
 	check-ctime-cross check-malloc check-printf check-qsort \
+	check-random check-random-cross \
 	check-printf-float check-rwmode check-scanf check-string-security \
 	check-string-security-cross check-strtox check-syslog check-vis clean

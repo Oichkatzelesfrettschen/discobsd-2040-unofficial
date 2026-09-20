@@ -10,24 +10,21 @@
 random, srandom, initstate, setstate \- better random number generator; routines for changing generators
 .SH SYNOPSIS
 .nf
-.B long  random()
+.B #include <stdlib.h>
 .PP
-.B srandom(seed)
-.B int  seed;
+.B long  random(void);
 .PP
-.B char  *initstate(seed, state, n)
-.B unsigned  seed;
-.B char  *state;
-.B int  n;
+.B void  srandom(unsigned seed);
 .PP
-.B char  *setstate(state)
-.B char  *state;
+.B char  *initstate(unsigned seed, char *state, int size);
+.PP
+.B char  *setstate(char *state);
 .fi
 .SH DESCRIPTION
 .PP
 .I Random
 uses a non-linear additive feedback random number generator employing a
-default table of size 31 long integers to return successive pseudo-random
+default table of 31 32-bit words to return successive pseudo-random
 numbers in the range from 0 to
 .if t 2\u\s731\s10\d\(mi1.
 .if n (2**31)\(mi1.
@@ -117,10 +114,14 @@ Earl T. Cohen
 .PP
 If
 .I initstate
-is called with less than 8 bytes of state information, or if
+receives less than 8 bytes, a null or unaligned state array, or if
 .I setstate
-detects that the state information has been garbled, error
-messages are printed on the standard error output.
+receives a null or unaligned array or detects invalid state metadata, the
+function returns a null pointer and sets
+.I errno
+to
+.BR EINVAL .
+The active generator state remains unchanged after rejection.
 .SH "SEE ALSO"
 rand(3)
 .SH BUGS

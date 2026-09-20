@@ -114,7 +114,9 @@ SYSLOG_RENAMES=	-Dsyslog=db_syslog -Dvsyslog=db_vsyslog \
 		-Dstrerror=test_strerror -Derrno=syslog_test_errno
 SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
-SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o
+# doprnt.o refers to the weak __doprnt_ll; Mach-O resolves a weak
+# reference only against a definition, so the member is linked here too.
+SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
 
 check-syslog: syslog_contract_test
 	./syslog_contract_test

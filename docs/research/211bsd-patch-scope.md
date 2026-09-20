@@ -423,7 +423,9 @@ Each names its gate. None is started.
 
 | Name | Scope | Gate that must exist first |
 | --- | --- | --- |
-| Torek FILE evaluation | Measure 499's `__sFILE` and `__sfops` on this target before deciding: per-stream static cost, the `_ub` pushback buffer that fixes the `ungetc` residual, and the `_iob` to `__sF` ABI break across the multicall boxes | An overlay and conversion gate run against a prototype branch; `check-libc-contracts` extended to the new layout |
+| Torek FILE evaluation | Done and declined: `stdio-torek-evaluation.md`. The prototype on `eval/stdio-torek` builds and passes the stdio gates, and costs a median +534 bytes per program, +256 data in every program, and pushes `adminbox` to 23 packed blocks against its budget of 22. Two small mechanisms from it are queued below | The full build and the three stdio contract gates ran; the `adminbox` packed-root gate was the deciding measurement |
+| One-byte pushback slot | A `_ubuf[1]` byte and flag in `struct _iobuf`, so an `ungetc` of a differing byte stores into the stream and never into a caller's string; `FILE` grows 20 to 24 bytes | `check-libc-scanf` gains a differing-byte pushback over a `const` string, run under the sanitizer |
+| `r+` mode discipline | Flush before read and discard the read buffer before write on one stream, as 499's `__srefill` and `__swsetup` do | A host contract that writes, reads back and writes again on one `r+` stream |
 | `vfprintf` conformance | 499's `vfprintf` against this tree's `_doprnt`: `%a`, the `'` and `z`/`j`/`t` modifiers, and the return-value contract | Extend `check-libc-printf` with the directives `_doprnt` lacks, calibrated against the current formatter |
 | Patch 460 ANSI sweep | The 17 shared files of the upstream ANSI groundwork, as a source of prototypes rather than a patch application | `check-warning-policy-host` at `full` for each directory touched |
 | getty console fixes | Patches 480, 484, 487 and 493 against `libexec/getty`, which this port's console path descends from | A console gate; none exists, and this is the reason to build one |

@@ -108,6 +108,7 @@ Grouped by what they investigate.
 | `STYLE-GUIDE.md` | the constrained-C and C17 style proposal: resource accounts, the four language profiles, the migration unit, and the evidence a size claim owes |
 | `211bsd-patch-scope.md` | the fork point from 2.11BSD, what each patch since then touches here, what patch 499's stdio would cost this target, and the measured `_doscan` migration unit |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |
+| `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
 
 ### Userland, tools and languages
 

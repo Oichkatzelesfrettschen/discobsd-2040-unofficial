@@ -135,8 +135,18 @@ _PRINTF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${PRINTF_FLOAT}" = x"yes" ]
 			echo "-Wl,-u,__doprnt_cvt" ; \
 		fi
 
+# Floating point scanf conversion is the matching libc member,
+# doscan_float.o, carrying strtod and the same software double
+# arithmetic. _doscan reports a matching failure for %e, %f, %g and %a
+# while its weak __doscan_cvt stays unresolved, so a program that scans
+# a float declares SCANF_FLOAT=yes.
+SCANF_FLOAT?=	no
+_SCANF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${SCANF_FLOAT}" = x"yes" ] ; then \
+			echo "-Wl,-u,__doscan_cvt" ; \
+		fi
+
 LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm \
-	${LDWARN} ${_PRINTF_FLOAT} \
+	${LDWARN} ${_PRINTF_FLOAT} ${_SCANF_FLOAT} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \
 	${TOPSRC}/lib/crt0.o -L${TOPSRC}/lib
 

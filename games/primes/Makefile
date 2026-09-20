@@ -2,6 +2,8 @@ TOPSRC!=cd ../..; pwd
 # -Wall -Wextra raises 1 distinct sites in this directory, so the fatal set
 # stays at the groups CFLAGS names until they are repaired.
 WARNLEVEL=	legacy
+# primes.c reads its starting number through %f, from argv or stdin.
+SCANF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/games

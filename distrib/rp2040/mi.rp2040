@@ -184,6 +184,7 @@ pack /usr/bin/du
 pack /usr/bin/as
 pack /usr/bin/ld
 file /usr/bin/cc
+file /usr/bin/mputest
 
 #
 # Archivers. /bin/tar writes POSIX ustar by default and reads the v7

@@ -12,7 +12,7 @@ include ${TOPSRC}/share/mk/sys.mk
 # back end and is built for rp2040. The peripheral demos are STM32 and PIC32
 # hardware.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld pdp11" ; \
+		echo "lex smlrc as ld pdp11 mputest" ; \
 	elif [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 		echo "lex as cc cpp lcc lcpp ld smallc aout glcdtest gtest portio pwm wiznet smux" ; \
 	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \

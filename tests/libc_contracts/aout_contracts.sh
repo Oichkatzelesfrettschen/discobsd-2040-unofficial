@@ -17,6 +17,14 @@ symbol_reader=$source_root/tools/bin/nm
 temporary_directory=$(mktemp -d)
 trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 
+for required_tool in "$assembler" "$archiver" "$linker" "$symbol_reader"
+do
+	if [ ! -x "$required_tool" ]; then
+		echo "a.out libc contracts require a completed MACHINE=$target_machine build: $required_tool is absent" >&2
+		exit 2
+	fi
+done
+
 "$arm_compiler" -std=gnu17 -mcpu=cortex-m0plus -mabi=aapcs \
     -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
     -I"$source_root/include" -Os -ffreestanding -fno-builtin \
@@ -30,6 +38,22 @@ for archive_path in \
     "$source_root/lib/libc_aout/libc.a" \
     "$source_root/distrib/obj/boardlibc.$target_machine/libc.a"
 do
+	if [ ! -f "$archive_path" ]; then
+		echo "a.out libc contracts require a completed MACHINE=$target_machine distribution: $archive_path is absent" >&2
+		exit 2
+	fi
+	for required_source in \
+	    "$source_root/lib/libc/gen/ctermid.c" \
+	    "$source_root/lib/libc/gen/raise.c" \
+	    "$source_root/lib/libc/gen/vis.c" \
+	    "$source_root/lib/libc/string/explicit_bzero.c" \
+	    "$source_root/lib/libc/string/timingsafe_bcmp.c"
+	do
+		if [ "$required_source" -nt "$archive_path" ]; then
+			echo "$archive_path: stale against $required_source; rebuild the distribution" >&2
+			exit 1
+		fi
+	done
 	for required_member in ctermid.o explicit_bzero.o raise.o \
 	    timingsafe_bcmp.o vis.o
 	do

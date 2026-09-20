@@ -41,10 +41,12 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check: ${PROG} header_contract.o check-malloc check-printf check-scanf \
-	check-syslog check-vis check-qsort check-strtox check-string-security \
-	check-aout
+check-host: ${PROG} header_contract.o check-malloc check-printf check-scanf \
+	check-syslog check-vis check-qsort check-strtox check-string-security
+
 	./${PROG}
+
+check: check-host check-aout
 
 # The string-to-integer functions compiled from the tree under names that
 # leave the host libc available to the test process.  -fsigned-char makes the
@@ -407,11 +409,6 @@ malloc_sbrk32.o: ${SBRK_SRC}
 		${SBRK_RENAMES} -c -o $@ ${SBRK_SRC}
 
 check-aout:
-	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} cleantools
-	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} symlinks tools
-	${MAKE} -C ${TOPSRC}/lib/libc_aout/libc MACHINE=${TARGET_MACHINE}
-	${MAKE} -C ${TOPSRC} MACHINE=${TARGET_MACHINE} \
-	    ${TOPSRC}/distrib/obj/boardlibc.${TARGET_MACHINE}/libc.a
 	sh ./aout_contracts.sh ${TOPSRC} ${ARM_COMPILER} ${TARGET_MACHINE}
 
 ${PROG}: libc_contracts_test.c raise.o ctermid.o
@@ -445,6 +442,6 @@ clean:
 
 all: check
 
-.PHONY: all check check-aout check-malloc check-printf check-qsort check-scanf \
+.PHONY: all check check-host check-aout check-malloc check-printf check-qsort check-scanf \
 	check-string-security check-string-security-cross check-strtox \
 	check-syslog check-vis clean

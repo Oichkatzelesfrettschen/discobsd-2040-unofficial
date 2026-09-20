@@ -5,7 +5,8 @@ targets are grouped into tiers by what the host needs. `bmake
 MACHINE=rp2040 check` runs every tier; a host without one tool runs the
 tiers it has and names the one it skips. The cross, qemu, mips and
 board-build tiers run after `bmake MACHINE=rp2040 build`, which leaves
-the kernels, the board libc and the distribution tree the gates read.
+the kernels and distribution tree the gates read. `check-cross` builds the
+reduced board libc when its source closure is newer than the archive.
 
 | tier | target | needs | Linux CI | macOS CI |
 | --- | --- | --- | --- | --- |
@@ -21,11 +22,11 @@ the kernels, the board libc and the distribution tree the gates read.
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 
-The build runs in parallel. `bmake -j"$(getconf _NPROCESSORS_ONLN)"` takes
-the job count from the machine; `getconf` is POSIX and answers on Linux and
-macOS alike, where `nproc` is coreutils and absent from macOS. On a
-12-thread host the kernel goes from 8.07 s to 1.55 s and the whole world
-from 136.94 s to 31.10 s.
+The build and parallel-safe gate groups run with `bmake
+-j"$(sh tools/online-cpus.sh)"`. The resolver reads the online count from
+`getconf`, BSD `sysctl` or GNU `nproc`, in that order, and returns one when a
+host exposes none. On a 12-thread host the kernel goes from 8.07 s to 1.55 s
+and the whole world from 136.94 s to 31.10 s.
 
 The tree is safe to build that way. Every kernel object is byte-identical
 across a serial build and three parallel ones. Two parallel builds of the
@@ -36,21 +37,38 @@ deterministic mode to suppress them, and `pdc`, whose y.tab.c prints
 are identical. A linked kernel is never byte-reproducible either way,
 because conf/newvers.sh regenerates vers.c on every link.
 
-The gates run serially. `check` and its tiers carry no `-j`, because a gate
-may rebuild what another gate is reading: `tests/libc_contracts/Makefile`
-runs `symlinks tools` in the top of the tree, and a sibling gate linking
-against `tools/bin/config` at that moment is told the file cannot be made.
-Making the tiers parallel-safe means giving each gate that rebuilds shared
-state its own tree, which no gate does yet.
+The host tier gives every suite a target and an output directory. The libc
+contracts run under one sub-make, so bmake sees shared formatter objects and
+creates each object once. Keen gives the fixtures one target, each unchecked
+size one target, and each checked size four ten-seed targets. Nineteen
+uniqueness shards use private temporary files; Python orchestrates bounded C
+processes while bmake owns the cross-shard concurrency. The board-build tier
+gives each on-device program a target. These graphs accept the jobserver count
+directly.
 
-One failure under `-j` was not a race and is fixed: bmake advertises its
-jobserver to children as `-j N -J fd,fd` in `MAKEFLAGS`, and the two
-consumers in this tree that are not bmake both choke on it. GNU make, which
-`check-swapram-evac` calls, rejects `-J` and prints its usage;
-`tests/warning_policy/check.py` runs bmake through `subprocess`, which
-closes the inherited descriptors, so the child reports `Invalid internal
-option "-J"` onto the output the gate parses. Both clear `MAKEFLAGS` and
-`MFLAGS` for the child.
+The complete 12-job host tier takes 5.80 seconds on the measured host. Tail's
+2,016 subprocess cases and the PDP-11 V6 boot remain serial inside their own
+targets because their protocols share ordered state; independent suites and
+Keen shards run concurrently around them.
+
+The cross tier separates isolated contract directories from shared kernel and
+assembler outputs. `.WAIT` orders the PICO, PICO_UART, SwapRAM, exec-spool and
+flash-swap readers, then runs the assembler last because its link proof
+rebuilds the full a.out libc. The a.out archive contract reads the production
+archives and rejects absent or stale inputs; it no longer deletes and rebuilds
+the global tools directory inside a gate. The workflow gives lint, host, cross,
+qemu and board-build separate steps and deadlines, so a stalled contract names
+its tier instead of occupying one opaque combined step. A 12-job warm cross
+tier completes in 33.52 seconds and the nine-program board-build tier completes
+in 0.23 seconds on the measured 12-thread x86-64 host.
+
+The `-j` failures were descriptor-lifetime defects rather than data races.
+bmake advertises its jobserver as `-j N -J fd,fd` in `MAKEFLAGS`. GNU make
+does not implement `-J`, and Python or shell process boundaries may close the
+advertised descriptors before a nested bmake starts. `check-swapram-evac`,
+the warning-policy subprocesses, the assembler's detached libc builds and the
+UFS prototype verifier therefore clear `MAKEFLAGS` and `MFLAGS` only at those
+boundaries. Ordinary recursive bmake recipes retain the live jobserver.
 
 `.github/workflows/firmware.yml` runs the tiers after the warning-free
 build; `host.yml` owns the discobsd-host package and packages it on
@@ -172,7 +190,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | usr.bin/pdp11 `test` | the host build of the emulator boots the V6 pack on a pseudo-terminal |
 | usr.bin/stevie, kilo, menu `test` | each editor driven through a pty |
 | usr.bin/tail, sort `test` | output modeled against the host for every option |
-| games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's solution uniqueness against an independent counter |
+| games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's four fixtures, 80 unchecked generator controls and 160 checked puzzles against an independent C17 row-permutation counter. Keen splits fixtures, unchecked cases and each checked size into bounded targets with private temporary files, so the jobserver can run the finite proof concurrently |
 | bin/sh/tests `test` | the line editor through a pipe |
 | bin/tar/tests/tartest.sh | the header formats |
 | usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils, and getline_test over the tree's own getline.c: buffer ownership after a refused growth, the byte that did not fit pushed back, the bytes before a stream error terminated, and the capacity policy held at SSIZE_MAX + 1 at the host width and at -m32 |

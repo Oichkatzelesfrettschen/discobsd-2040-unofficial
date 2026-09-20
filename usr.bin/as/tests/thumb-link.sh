@@ -20,8 +20,10 @@ TOPSRC=${TOPSRC:?set TOPSRC to the top of the tree}
 MACHINE=${MACHINE:-rp2040}
 TOOLBINDIR=${TOOLBINDIR:-$TOPSRC/tools/bin}
 CC=${CC:?set CC to the cross compiler command}
+PYTHON=${PYTHON:?set PYTHON to the host interpreter}
 GNUAS=${GNUAS:-arm-none-eabi-as}
 CPU=${CPU:-cortex-m0plus}
+make_command=${MAKE:-bmake}
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(cd "${WORK:-.}" && pwd)
 
@@ -56,11 +58,16 @@ EOF
 chmod +x "$wrap/as"
 
 echo "link: building crt0 and libc with the tree's Thumb assembler"
-${MAKE:-bmake} -C "$TOPSRC/lib/libc_aout/startup" MACHINE="$MACHINE" \
+# The parent jobserver descriptors close before this detached script runs.
+# Clearing its flags gives each private sub-build an ordinary serial scheduler.
+env -u MAKEFLAGS -u MFLAGS "$make_command" \
+	-C "$TOPSRC/lib/libc_aout/startup" MACHINE="$MACHINE" \
 	TOOLBINDIR="$wrap" >/dev/null
-${MAKE:-bmake} -C "$TOPSRC/lib/libc_aout/libc" MACHINE="$MACHINE" clean \
+env -u MAKEFLAGS -u MFLAGS "$make_command" \
+	-C "$TOPSRC/lib/libc_aout/libc" MACHINE="$MACHINE" clean \
 	>/dev/null 2>&1 || :
-${MAKE:-bmake} -C "$TOPSRC/lib/libc_aout/libc" MACHINE="$MACHINE" \
+env -u MAKEFLAGS -u MFLAGS "$make_command" \
+	-C "$TOPSRC/lib/libc_aout/libc" MACHINE="$MACHINE" \
 	TOOLBINDIR="$wrap" >/dev/null
 
 units=0
@@ -70,7 +77,7 @@ for s in "$saved"/*.s; do
 	units=$((units + 1))
 	$GNUAS -mcpu="$CPU" -mthumb -o "$work/_gnu.o" "$s" 2>/dev/null || continue
 	"$TOOLBINDIR/as" "$s" -o "$work/_mine.aout"
-	if ! python3 "$here/thumb-aoutdiff.py" "$s" "$work/_mine.aout" \
+	if ! "$PYTHON" "$here/thumb-aoutdiff.py" "$s" "$work/_mine.aout" \
 	    "$work/_gnu.o" >"$work/_diff.txt"
 	then
 		cat "$work/_diff.txt"
@@ -89,7 +96,7 @@ $CC -Os -fcommon -Wa,-x -B"$TOOLBINDIR/" -c "$here/thumb-hello.c" \
 
 # A linked executable carries no relocation; anything left means ld could
 # not resolve a reference this assembler emitted.
-python3 - "$work/thumb-hello.aout" <<'EOF'
+"$PYTHON" - "$work/thumb-hello.aout" <<'EOF'
 import struct, sys
 d = open(sys.argv[1], "rb").read()
 mid, text, data, bss, rt, rd, sy, entry = struct.unpack("<8I", d[:32])
@@ -109,9 +116,9 @@ print("link: text %d data %d bss %d, entry %#x, no relocation left"
       % (text, data, bss, entry))
 EOF
 
-if python3 -c "import unicorn" 2>/dev/null; then
+if "$PYTHON" -c "import unicorn" 2>/dev/null; then
 	echo "link: running the result under Unicorn"
-	got=$(python3 "$here/thumb-run.py" "$work/thumb-hello.aout")
+	got=$("$PYTHON" "$here/thumb-run.py" "$work/thumb-hello.aout")
 	want="Hello, World!
 hello"
 	if [ "$got" != "$want" ]; then
@@ -123,5 +130,5 @@ hello"
 	fi
 	echo "link: the program ran and printed what it should"
 else
-	echo "link: not run -- python3 unicorn is absent"
+	echo "link: not run -- $PYTHON unicorn is absent"
 fi

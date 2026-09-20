@@ -36,7 +36,7 @@ test:
 		@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
 		    CPU=${MACHINE_CPU} WORK=. sh ./thumb-compile.sh
 		@TOPSRC=${TOPSRC} MACHINE=${MACHINE} TOOLBINDIR=${TOOLBINDIR} \
-		    CC="${CC}" CPU=${MACHINE_CPU} MAKE=${MAKE} WORK=. \
+		    CC="${CC}" CPU=${MACHINE_CPU} MAKE=${MAKE} PYTHON="${PYTHON}" WORK=. \
 		    sh ./thumb-link.sh
 .else
 test:		all

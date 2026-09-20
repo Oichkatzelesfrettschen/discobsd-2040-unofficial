@@ -67,6 +67,12 @@ __doprnt_ll (va_list *app, int issigned, unsigned char base, int width,
 
 	p = nbuf;
 	*p = 0;
+	/* C17 7.21.6.1p8: a zero with an explicit zero precision has no digits. */
+	if (v == 0 && width == 0) {
+		if (lenp)
+			*lenp = 0;
+		return (p);
+	}
 	for (;;) {
 		*++p = mkhex ((unsigned char) udiv64_small (&v, base));
 		if (--width > 0)

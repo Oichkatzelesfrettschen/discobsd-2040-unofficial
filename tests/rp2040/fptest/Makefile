@@ -12,6 +12,8 @@
 # independent of the code under test: the bootrom reproduces these bits
 # exactly for the finite normal and signed-zero operands here.
 TOPSRC!=cd ../../..; pwd
+# The mismatch report prints operands and results with %016llx.
+PRINTF_LLONG=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 PROG=		fptest

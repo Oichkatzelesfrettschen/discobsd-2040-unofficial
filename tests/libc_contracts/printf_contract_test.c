@@ -140,6 +140,9 @@ main(void)
 			    wide[100] == '0' && wide[499] == '7',
 			    "printf contract: a precision past the buffer still fills the field");
 		}
+		bounded_format(out, sizeof out, "%.0lld|%.0d|%.0x|%05.*d", 0LL, 0, 0, -1, 7);
+		check(strcmp(out, "|||00007") == 0,
+		    "printf contract: zero at zero precision prints no digit, and a negative * precision keeps the 0 flag");
 		bounded_format(out, sizeof out, "%D", 123456789L);
 		check(strcmp(out, "123456789") == 0,
 		    "printf contract: the %D long extension survives");
@@ -174,6 +177,15 @@ main(void)
 			bounded_format(out, sizeof out, "%a %A %f %F %e %G", inf, inf, nan, nan, -inf, nan);
 			check(strcmp(out, "inf INF nan NAN -inf NAN") == 0,
 			    "printf contract: inf and nan follow the conversion's case");
+		}
+		bounded_format(out, sizeof out, "%.14a", 1.875);
+		check(strcmp(out, "0x1.e0000000000000p+0") == 0,
+		    "printf contract: %a defers extra precision zeros to the exponent, not to a mantissa e");
+		{
+			int len = bounded_format(out, sizeof out, "%30.20a|", 1.0);
+
+			check(len == 31 && out[0] == ' ' && out[2] == ' ' && out[3] == '0' && out[30] == '|',
+			    "printf contract: %a counts extended precision in its field width");
 		}
 		bounded_format(out, sizeof out, "%.2f %e", 3.14159, 1234.5);
 		check(strcmp(out, "3.14 1.234500e+03") == 0,

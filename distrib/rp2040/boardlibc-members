@@ -20,6 +20,7 @@ close
 ctermid
 ctype_
 doprnt
+doprnt_llong
 doscan
 execl
 execve

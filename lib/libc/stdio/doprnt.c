@@ -90,7 +90,7 @@ _doprnt (char const *fmt, va_list ap, FILE *stream)
 #define PUTC(c) { putc (c, stream); ++retval; }
 	unsigned char nbuf [MAXNBUF], padding;
 	const unsigned char *s;
-	unsigned char c, base, ladjust, sharpflag, neg, dot, sz, nonzero, hexfmt;
+	unsigned char c, base, ladjust, sharpflag, neg, dot, sz, nonzero, hexfmt, zeroflag;
 	int n, width, dwidth, retval, uppercase, extrazeros, sign, issigned, size;
 	unsigned long ul;
 
@@ -108,7 +108,7 @@ _doprnt (char const *fmt, va_list ap, FILE *stream)
 		}
 		padding = ' ';
 		width = 0; extrazeros = 0;
-		sz = SZ_INT; ladjust = 0; sharpflag = 0; neg = 0; hexfmt = 0;
+		sz = SZ_INT; ladjust = 0; sharpflag = 0; neg = 0; hexfmt = 0; zeroflag = 0;
 		sign = 0; dot = 0; uppercase = 0; dwidth = -1;
 		ul = 0;
 reswitch:	switch (c = *fmt++) {
@@ -156,6 +156,7 @@ reswitch:	switch (c = *fmt++) {
 				if (dwidth < 0) {
 					dot = 0;
 					dwidth = -1;
+					padding = zeroflag ? '0' : ' ';
 				}
 			}
 			goto reswitch;
@@ -165,6 +166,7 @@ reswitch:	switch (c = *fmt++) {
 		case '5': case '6': case '7': case '8': case '9':
 			if (c == '0' && ! dot) {
 				padding = '0';
+				zeroflag = 1;
 				goto reswitch;
 			}
 			for (n=0; ; ++fmt) {
@@ -576,6 +578,7 @@ emit:
 #endif
 			if (neg || sign)
 				size++;
+			size += extrazeros;	/* the deferred zeros are part of the field */
 			if (! ladjust && width && padding == ' ' &&
 			    (width -= size) > 0)
 				do {
@@ -608,8 +611,13 @@ emit:
 				} while (--width > 0);
 
 			for (; *s; ++s) {
-				if (extrazeros && (*s == 'e' || *s == 'E' ||
-				    *s == 'p' || *s == 'P'))
+				/*
+				 * The deferred zeros go before the exponent
+				 * marker: p under %a, where e is a mantissa
+				 * digit, and e under the decimal conversions.
+				 */
+				if (extrazeros && (hexfmt ? (*s == 'p' || *s == 'P')
+				    : (*s == 'e' || *s == 'E')))
 					do {
 						PUTC ('0');
 					} while (--extrazeros > 0);
@@ -655,6 +663,12 @@ ksprintn (unsigned char *nbuf, unsigned long ul, unsigned char base, int width,
 
 	p = nbuf;
 	*p = 0;
+	/* C17 7.21.6.1p8: a zero with an explicit zero precision has no digits. */
+	if (ul == 0 && width == 0) {
+		if (lenp)
+			*lenp = 0;
+		return (p);
+	}
 	for (;;) {
 		*++p = mkhex (ul % base);
 		ul /= base;

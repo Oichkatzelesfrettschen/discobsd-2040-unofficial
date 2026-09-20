@@ -40,7 +40,7 @@ HSAOUT=		${TOPSRC}/tools/bin/hsaout
 # precision -- and it is 472 raw bytes, 372 packed. It cannot be opted out
 # of the way the 64-bit and float digit paths can: doprnt_llong.o and
 # doprnt_float.o stay behind PRINTF_LLONG and PRINTF_FLOAT with weak
-# __doprnt_ll and __doprnt_fp, so adminbox links neither.
+# __doprnt_ll and __doprnt_cvt, so adminbox links neither.
 MAX_PACKED_ROOT_BLOCKS= 23
 
 CFLAGS+=	-Wall -Wextra -Werror -Wformat=2

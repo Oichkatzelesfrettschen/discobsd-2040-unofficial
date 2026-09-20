@@ -23,6 +23,15 @@ qsort_test
 qsort_test32
 qsort_sort.o
 qsort_sort32.o
+random_contract_test
+random_contract_test32
+random_contract_ubsan
+random_metadata_test
+random_metadata_bad_test
+random_random.o
+random_random32.o
+random_random_ubsan.o
+random_target.o
 printf_contract_test
 printf_contract_test32
 syslog_contract_test

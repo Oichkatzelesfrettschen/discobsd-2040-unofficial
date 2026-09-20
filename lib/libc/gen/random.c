@@ -3,7 +3,8 @@
  * All rights reserved.  The Berkeley software License Agreement
  * specifies the terms and conditions for redistribution.
  */
-#include <stdio.h>
+#include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 /*
@@ -20,10 +21,10 @@
  * generates far better random numbers than a linear congruential generator.
  * If the amount of state information is less than 32 bytes, a simple linear
  * congruential R.N.G. is used.
- * Internally, the state information is treated as an array of longs; the
+ * Internally, the state information is treated as an array of 32-bit words; the
  * zeroeth element of the array is the type of R.N.G. being used (small
  * integer); the remainder of the array is the state information for the
- * R.N.G.  Thus, 32 bytes of state information will give 7 longs worth of
+ * R.N.G.  Thus, 32 bytes of state information will give 7 words worth of
  * state information, which will allow a degree seven polynomial.  (Note: the
  * zeroeth word of state information also has some other information stored
  * in it -- see setstate() for details).
@@ -81,10 +82,15 @@
  * on fact that TYPE_i == i.
  */
 #define		MAX_TYPES	5		/* max number of types above */
+#define		MAX_METADATA	(MAX_TYPES * (DEG_4 - 1) + TYPE_4)
 
-static int degrees[MAX_TYPES]	= { DEG_0, DEG_1, DEG_2, DEG_3, DEG_4 };
+static const uint8_t degrees[MAX_TYPES] = {
+	DEG_0, DEG_1, DEG_2, DEG_3, DEG_4
+};
 
-static int seps[MAX_TYPES]	= { SEP_0, SEP_1, SEP_2, SEP_3, SEP_4 };
+static const uint8_t seps[MAX_TYPES] = {
+	SEP_0, SEP_1, SEP_2, SEP_3, SEP_4
+};
 
 
 /*
@@ -97,7 +103,7 @@ static int seps[MAX_TYPES]	= { SEP_0, SEP_1, SEP_2, SEP_3, SEP_4 };
  * position of the rear pointer is just
  *	MAX_TYPES*(rptr - state) + TYPE_3 == TYPE_3.
  */
-static  long		randtbl[DEG_3 + 1]	= { TYPE_3,
+static uint32_t randtbl[DEG_3 + 1] = { TYPE_3,
 			    0x9a319039, 0x32d9c024, 0x9b663182, 0x5da1f342,
 			    0xde3b81e0, 0xdf0a6fb5, 0xf103bc02, 0x48f340fb,
 			    0x7449e56b, 0xbeb1dbb0, 0xab5c5918, 0x946554fd,
@@ -118,8 +124,8 @@ static  long		randtbl[DEG_3 + 1]	= { TYPE_3,
  * in the initialization of randtbl) because the state table pointer is set
  * to point to randtbl[1] (as explained below).
  */
-static  long		*fptr			= &randtbl[SEP_3 + 1];
-static  long		*rptr			= &randtbl[1];
+static uint32_t *fptr = &randtbl[SEP_3 + 1];
+static uint32_t *rptr = &randtbl[1];
 
 /*
  * The following things are the pointer to the state information table,
@@ -132,13 +138,22 @@ static  long		*rptr			= &randtbl[1];
  * indexing every time to find the address of the last element to see if
  * the front and rear pointers have wrapped.
  */
-static  long		*state			= &randtbl[1];
+static uint32_t *state = &randtbl[1];
 
-static  int		rand_type		= TYPE_3;
-static  int		rand_deg		= DEG_3;
-static  int		rand_sep		= SEP_3;
+static uint8_t rand_type = TYPE_3;
+static uint8_t rand_deg = DEG_3;
+static uint8_t rand_sep = SEP_3;
 
-static  long		*end_ptr		= &randtbl[DEG_3 + 1];
+static uint32_t *end_ptr = &randtbl[DEG_3 + 1];
+
+static void
+save_state_metadata(void)
+{
+	if (rand_type == TYPE_0)
+		state[-1] = TYPE_0;
+	else
+		state[-1] = MAX_TYPES * (uint32_t)(rptr - state) + rand_type;
+}
 
 /*
  * srandom:
@@ -153,21 +168,21 @@ static  long		*end_ptr		= &randtbl[DEG_3 + 1];
  * values produced by this routine.
  */
 void
-srandom (x)
-	unsigned x;
+srandom(unsigned seed)
 {
-    	register  int	i;
+	int index;
 
-	if (rand_type  ==  TYPE_0) {
-	    state[0] = x;
+	if (rand_type == TYPE_0) {
+		state[0] = seed;
 	} else {
-	    state[0] = x;
-	    for(i = 1; i < rand_deg; i++) {
-		state[i] = 1103515245*state[i - 1] + 12345;
-	    }
-	    fptr = &state[rand_sep];
-	    rptr = &state[0];
-	    for(i = 0; i < 10*rand_deg; i++)  random();
+		state[0] = seed;
+		for (index = 1; index < rand_deg; index++)
+			state[index] = UINT32_C(1103515245) * state[index - 1]
+			    + UINT32_C(12345);
+		fptr = &state[rand_sep];
+		rptr = &state[0];
+		for (index = 0; index < 10 * rand_deg; index++)
+			(void)random();
 	}
 }
 
@@ -187,54 +202,37 @@ srandom (x)
  * Returns a pointer to the old state.
  */
 char *
-initstate (seed, arg_state, n)
-	unsigned	seed;			/* seed for R. N. G. */
-	char		*arg_state;		/* pointer to state array */
-	int		n;			/* # bytes of state info */
+initstate(unsigned seed, char *state_buffer, int state_size)
 {
-	register  char	*ostate		= (char *)(&state[-1]);
+	char *old_state = (char *)&state[-1];
+	uint8_t selected_type;
 
-	if (rand_type  ==  TYPE_0)  state[-1] = rand_type;
-	else  state[-1] = MAX_TYPES*(rptr - state) + rand_type;
-	if (n  <  BREAK_1) {
-	    if (n  <  BREAK_0) {
-		fprintf(stderr, "initstate: not enough state (%d bytes) with which to do jack; ignored.\n", n);
-		return 0;
-	    }
-	    rand_type = TYPE_0;
-	    rand_deg = DEG_0;
-	    rand_sep = SEP_0;
-	} else {
-	    if (n  <  BREAK_2) {
-		rand_type = TYPE_1;
-		rand_deg = DEG_1;
-		rand_sep = SEP_1;
-	    } else {
-		if (n  <  BREAK_3) {
-		    rand_type = TYPE_2;
-		    rand_deg = DEG_2;
-		    rand_sep = SEP_2;
-		} else {
-		    if (n  <  BREAK_4) {
-			rand_type = TYPE_3;
-			rand_deg = DEG_3;
-			rand_sep = SEP_3;
-		    } else {
-			rand_type = TYPE_4;
-			rand_deg = DEG_4;
-			rand_sep = SEP_4;
-		    }
-		}
-	    }
+	if (state_buffer == NULL ||
+	    ((uintptr_t)state_buffer & (_Alignof(uint32_t) - 1U)) != 0 ||
+	    state_size < BREAK_0) {
+		errno = EINVAL;
+		return NULL;
 	}
-	state = &(((long *)arg_state)[1]);	/* first location */
-	end_ptr = &state[rand_deg];	/* must set end_ptr before srandom */
-	srandom(seed);
-	if (rand_type == TYPE_0)
-            state[-1] = rand_type;
+	if (state_size < BREAK_1)
+		selected_type = TYPE_0;
+	else if (state_size < BREAK_2)
+		selected_type = TYPE_1;
+	else if (state_size < BREAK_3)
+		selected_type = TYPE_2;
+	else if (state_size < BREAK_4)
+		selected_type = TYPE_3;
 	else
-            state[-1] = MAX_TYPES*(rptr - state) + rand_type;
-	return(ostate);
+		selected_type = TYPE_4;
+
+	save_state_metadata();
+	rand_type = selected_type;
+	rand_deg = degrees[selected_type];
+	rand_sep = seps[selected_type];
+	state = &((uint32_t *)state_buffer)[1];
+	end_ptr = &state[rand_deg];
+	srandom(seed);
+	save_state_metadata();
+	return old_state;
 }
 
 /*
@@ -249,37 +247,54 @@ initstate (seed, arg_state, n)
  * Returns a pointer to the old state information.
  */
 char *
-setstate (arg_state)
-	char	*arg_state;
+setstate(char *state_buffer)
 {
-	register  long	*new_state	= (long *)arg_state;
-	register  int	type		= new_state[0]%MAX_TYPES;
-	register  int	rear		= new_state[0]/MAX_TYPES;
-	char		*ostate		= (char *)(&state[-1]);
+	uint32_t *new_state;
+	uint32_t metadata;
+	uint32_t rear;
+	uint32_t front;
+	uint32_t type_value;
+	uint8_t type;
+	char *old_state = (char *)&state[-1];
 
-	if (rand_type  ==  TYPE_0)  state[-1] = rand_type;
-	else  state[-1] = MAX_TYPES*(rptr - state) + rand_type;
-	switch(type) {
-	    case  TYPE_0:
-	    case  TYPE_1:
-	    case  TYPE_2:
-	    case  TYPE_3:
-	    case  TYPE_4:
-		rand_type = type;
-		rand_deg = degrees[type];
-		rand_sep = seps[type];
-		break;
-
-	    default:
-		fprintf(stderr, "setstate: state info has been munged; not changed.\n");
+	if (state_buffer == NULL ||
+	    ((uintptr_t)state_buffer & (_Alignof(uint32_t) - 1U)) != 0) {
+		errno = EINVAL;
+		return NULL;
 	}
+	new_state = (uint32_t *)state_buffer;
+	metadata = new_state[0];
+	if (metadata > MAX_METADATA) {
+		errno = EINVAL;
+		return NULL;
+	}
+	type_value = metadata;
+	rear = 0;
+	while (type_value >= MAX_TYPES) {
+		type_value -= MAX_TYPES;
+		rear++;
+	}
+	type = type_value;
+	if ((type == TYPE_0 && rear != 0) ||
+	    (type != TYPE_0 && rear >= degrees[type])) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	save_state_metadata();
+	rand_type = type;
+	rand_deg = degrees[type];
+	rand_sep = seps[type];
 	state = &new_state[1];
-	if (rand_type  !=  TYPE_0) {
-	    rptr = &state[rear];
-	    fptr = &state[(rear + rand_sep)%rand_deg];
+	if (rand_type != TYPE_0) {
+		rptr = &state[rear];
+		front = rear + rand_sep;
+		if (front >= rand_deg)
+			front -= rand_deg;
+		fptr = &state[front];
 	}
-	end_ptr = &state[rand_deg];		/* set end_ptr too */
-	return(ostate);
+	end_ptr = &state[rand_deg];
+	return old_state;
 }
 
 /*
@@ -297,22 +312,22 @@ setstate (arg_state)
  * Returns a 31-bit random number.
  */
 long
-random()
+random(void)
 {
-	long	i;
+	uint32_t value;
 
-	if (rand_type  ==  TYPE_0) {
-	    i = state[0] = (state[0]*1103515245 + 12345)&0x7fffffff;
+	if (rand_type == TYPE_0) {
+		state[0] = state[0] * UINT32_C(1103515245) + UINT32_C(12345);
+		value = state[0] & UINT32_C(0x7fffffff);
 	} else {
-	    *fptr += *rptr;
-	    i = (*fptr >> 1)&0x7fffffff;	/* chucking least random bit */
-	    if (++fptr  >=  end_ptr) {
-		fptr = state;
-		++rptr;
-	    } else {
-		if (++rptr >= end_ptr)
-                    rptr = state;
-	    }
+		*fptr += *rptr;
+		value = (*fptr >> 1) & UINT32_C(0x7fffffff);
+		if (++fptr >= end_ptr) {
+			fptr = state;
+			++rptr;
+		} else if (++rptr >= end_ptr) {
+			rptr = state;
+		}
 	}
-	return(i);
+	return (long)value;
 }

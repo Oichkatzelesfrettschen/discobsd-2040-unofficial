@@ -214,26 +214,37 @@ adaptation retains DiscoBSD's diagnostic style and adds only `-p`; NetBSD's
 unrelated `-v` interface remains outside the selected feature.
 
 The option parser walks `-p` groups and `--` directly. `rmdir` therefore does
-not pull the general `getopt()` member into a standalone image. Parent lookup
-rescans the mutable operand for its last slash rather than linking
-`strrchr()`. The scan can revisit prefix bytes, but parent depth is small and
-the implementation adds no library member, heap state or writable data. The
-target object grows from 117 to 230 text bytes. Complete ARM a.out builds with
-the same source head and toolchain measure the loaded effect:
+not pull the general `getopt()` member into a standalone image. One removal
+loop handles the operand and every selected parent, so the error path and
+syscall occur once in the object. Parent lookup rescans the mutable operand
+for its last slash rather than linking `strrchr()`. The scan also collapses
+separator runs at component boundaries. The RP2040 name lookup rejects a
+trailing empty DELETE component, while repeated leading separators still name
+the root; normalizing those two cases in userland keeps `-p` consistent with
+the target kernel.
+
+The fixed usage line uses `fputs()` rather than the historical `fprintf()`.
+The standalone image consequently stops linking the formatted-output engine,
+which outweighs the feature's own code. The target object grows from 117 to
+269 text bytes, while the complete standalone process shrinks by 3,808 loaded
+bytes. Complete ARM a.out builds with the same source head and toolchain
+measure the effect:
 
 | Artifact | Baseline text/data/bss | Adopted text/data/bss | Loaded delta |
 | --- | ---: | ---: | ---: |
-| standalone `rmdir` | 6752 / 172 / 124 | 6868 / 172 / 124 | +116 |
-| multicall `/bin/box` | 33228 / 1524 / 8776 | 33340 / 1524 / 8776 | +112 |
+| standalone `rmdir` | 6752 / 172 / 124 | 2944 / 172 / 124 | -3808 |
+| multicall `/bin/box` | 33228 / 1524 / 8776 | 33380 / 1524 / 8776 | +152 |
 
 The filesystem gate removes complete relative chains and operands with
 trailing slashes. It also pins partial success, an initially non-empty leaf,
 continued processing after a failed operand, `--`, missing operands and
-unknown options. The exact-source shim makes every modeled removal succeed
-for `/leaf` and requires exactly one call, which catches the empty-path root
-regression independently of host filesystem permissions. The pre-change
-binary fails the complete-chain case, reports `-p` as a directory and leaves
-the parents; the adopted host and strict C17 Cortex-M0+ gates pass.
+unknown options. The exact-source shim also supplies an empty argument vector,
+records every syscall path for a trailing-separator chain, and requires
+top-level operands with one or several leading separators to stop before the
+root. Those cases catch target-specific traversal failures independently of
+host filesystem behavior. The pre-change binary fails the complete-chain
+case, reports `-p` as a directory and leaves the parents; the adopted host and
+strict C17 Cortex-M0+ gates pass.
 
 ```sh
 git -C ../netbsd-src show 142e676b8ef:bin/rmdir/rmdir.c

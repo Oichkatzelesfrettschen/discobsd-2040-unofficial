@@ -19,12 +19,24 @@ report_failure(const char *path)
 }
 
 static int
-remove_parents(char *path)
+remove_path(char *path, int remove_parent_components)
 {
     char *cursor;
     char *separator;
 
+    if (remove_parent_components) {
+        cursor = path;
+        while (*cursor != '\0')
+            ++cursor;
+        while (cursor > path + 1 && cursor[-1] == '/')
+            --cursor;
+        *cursor = '\0';
+    }
     for (;;) {
+        if (rmdir(path) < 0)
+            return report_failure(path);
+        if (!remove_parent_components)
+            break;
         separator = NULL;
         for (cursor = path; *cursor != '\0'; ++cursor) {
             if (*cursor == '/')
@@ -32,13 +44,11 @@ remove_parents(char *path)
         }
         if (separator == NULL)
             break;
-        *separator = '\0';
-        if (separator[1] == '\0')
-            continue;
-        if (*path == '\0')
+        while (separator > path && separator[-1] == '/')
+            --separator;
+        if (separator == path)
             break;
-        if (rmdir(path) < 0)
-            return report_failure(path);
+        *separator = '\0';
     }
     return 0;
 }
@@ -48,7 +58,6 @@ main(int argc, char **argv)
 {
     int failed = 0;
     int remove_parent_components = 0;
-    const char *program_name = argv[0];
 
     while (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
         char *option = argv[1] + 1;
@@ -64,20 +73,16 @@ main(int argc, char **argv)
             remove_parent_components = 1;
         }
     }
-    if (argc == 1)
+    if (argc <= 1)
         goto usage;
     while (--argc > 0) {
         char *path = *++argv;
 
-        if (rmdir(path) < 0) {
-            failed = report_failure(path);
-        } else if (remove_parent_components) {
-            failed |= remove_parents(path);
-        }
+        failed |= remove_path(path, remove_parent_components);
     }
     return failed;
 
 usage:
-    fprintf(stderr, "usage: %s [-p] directory ...\n", program_name);
+    fputs("usage: rmdir [-p] directory ...\n", stderr);
     return 1;
 }

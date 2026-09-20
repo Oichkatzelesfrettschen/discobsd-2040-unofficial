@@ -48,7 +48,16 @@
  */
 #define	CPU_USB_SERVICE_REENTERED 13	/* int: nested services refused */
 #define	CPU_USB_TX_RECOVERED	14	/* int: bulk IN buffers recovered */
-#define	CPU_MAXID		15	/* number of valid machdep ids */
+/*
+ * What the previous reset left in the watchdog's scratch registers, from
+ * arch/rp2040/rp2040/machdep.c. The console ring does not survive long
+ * enough for a host to read the boot line, so the report is readable here
+ * for the life of the boot. machine/watchdog.h names the sites.
+ */
+#define	CPU_WATCHDOG_REASON	15	/* int: REASON at boot */
+#define	CPU_WATCHDOG_SITE	16	/* int: masked section at the reset */
+#define	CPU_WATCHDOG_ARG	17	/* int: that section's argument */
+#define	CPU_MAXID		18	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -67,5 +76,8 @@
 	{ "mpu", CTLTYPE_NODE }, \
 	{ "usb_service_reentered", CTLTYPE_INT }, \
 	{ "usb_tx_recovered", CTLTYPE_INT }, \
+	{ "watchdog_reason", CTLTYPE_INT }, \
+	{ "watchdog_site", CTLTYPE_INT }, \
+	{ "watchdog_arg", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

@@ -59,6 +59,12 @@ The kernel boots through its device probe
     # the datasheet, the four the map holds, ENABLE and PRIVDEFENA set.
     Wait For Line On Uart       mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx, sio div rw    timeout=60
 
+    # REASON distinguishes a watchdog fire from a forced reset, and the site
+    # is the masked section the previous kernel was inside. A cold start
+    # under the emulator reports neither, so the line reads zeroes; a board
+    # returning from picotool reboot -f reports reason 2.
+    Wait For Line On Uart       watchdog: reason 0, last masked site 0 arg 0    timeout=60
+
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash
     # entry points and Dhara has resumed its journal through them.
     Wait For Line On Uart       fl0: 989 kbytes on QSPI flash, 1536 kbytes raw    timeout=60

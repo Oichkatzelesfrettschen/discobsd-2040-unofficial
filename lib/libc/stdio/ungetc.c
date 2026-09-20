@@ -3,16 +3,18 @@
 /*
  * Push one character back onto a stream, as C17 7.21.7.10 defines.
  *
- * The buffer is the stream's own for a file, but for the _IOSTRG stream
- * that sscanf builds it is the caller's string, which is commonly a
- * string literal. Storing into it there writes through a const pointer:
- * on this target read-only data is part of the RAM-resident process image
- * and the store lands silently, while a host that maps its literals
- * read-only faults. A pushback of the character already in that position,
- * which is every pushback a scanner performs, therefore restores the
- * position without storing. A pushback of a different character still has
- * to store, so it keeps the older behavior and its exposure; a separate
- * pushback buffer, not a conditional store, is what removes that case.
+ * Three cases, in the order tried. A byte equal to the one just read is
+ * satisfied by stepping the cursor back, which stores nothing and so is
+ * safe over any buffer, including the string literal sscanf reads from.
+ * A differing byte on a string stream goes into the stream's own _ub slot:
+ * _cnt is parked in _bufsiz, which a string stream never refills from, and
+ * _cnt drops to zero so the next getc() reaches _filbuf, which hands the
+ * slot back and restores the count. The buffer of a file stream is the
+ * stream's own or one the caller gave setbuf, both writable, so a
+ * differing byte there is stored in place as before.
+ *
+ * The slot holds one byte: a second differing pushback before a read is
+ * refused, which is the one-character guarantee C17 makes and no more.
  */
 int
 ungetc(int c, FILE *iop)
@@ -20,18 +22,29 @@ ungetc(int c, FILE *iop)
 	if (c == EOF || (iop->_flag & (_IOREAD|_IORW)) == 0 ||
 	    iop->_ptr == NULL || iop->_base == NULL)
 		return (EOF);
+	if (iop->_flag & _IOUNGET)
+		return (EOF);
 
-	if (iop->_ptr == iop->_base) {
-		if (iop->_cnt == 0)
-			iop->_ptr++;
-		else
-			return (EOF);
+	if (iop->_ptr > iop->_base && iop->_ptr[-1] == (char) c) {
+		iop->_ptr--;
+		iop->_cnt++;
+		return (c);
 	}
 
-	iop->_cnt++;
-	--iop->_ptr;
-	if (*iop->_ptr != (char) c)
-		*iop->_ptr = (char) c;
+	if (iop->_flag & _IOSTRG) {
+		iop->_ub[0] = (unsigned char) c;
+		iop->_bufsiz = iop->_cnt;
+		iop->_cnt = 0;
+		iop->_flag |= _IOUNGET;
+		return (c);
+	}
 
+	if (iop->_ptr == iop->_base) {
+		if (iop->_cnt != 0)
+			return (EOF);
+		iop->_ptr++;	/* an empty buffer: the byte goes at its base */
+	}
+	iop->_cnt++;
+	*--iop->_ptr = (char) c;
 	return (c);
 }

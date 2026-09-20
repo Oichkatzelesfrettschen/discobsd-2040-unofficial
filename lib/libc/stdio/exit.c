@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+extern void _cleanup(void);	/* stdio's flush-and-close, or clnup.c's empty stub */
+
 struct atexit {                 /* entry allocated per atexit() call */
     struct atexit *next;        /* next enty in a list */
     void (*func)(void);         /* callback function */
@@ -9,13 +11,11 @@ struct atexit {                 /* entry allocated per atexit() call */
 int errno;
 struct atexit *__atexit;        /* points to head of LIFO stack */
 
-extern void _cleanup();
 
 void
-exit (code)
-    int code;
+exit (int code)
 {
-    register struct atexit *p;
+    struct atexit *p;
 
     for (p = __atexit; p; p = p->next)
         (*p->func)();
@@ -27,11 +27,10 @@ exit (code)
  * Register a function to be performed at exit.
  */
 int
-atexit(fn)
-    void (*fn)();
+atexit(void (*fn)(void))
 {
     static struct atexit __atexit0; /* one guaranteed table */
-    register struct atexit *p;
+    struct atexit *p;
 
     p = __atexit;
     if (! p) {

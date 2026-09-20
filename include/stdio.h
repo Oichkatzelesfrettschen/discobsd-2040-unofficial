@@ -13,6 +13,7 @@ extern  struct  _iobuf {
     int     _bufsiz;
     short   _flag;
     short   _file;
+    unsigned char _ub[1];   /* pushed-back byte on a string stream; ungetc.c */
 } _iob[];
 
 #define _IOREAD     01
@@ -25,6 +26,7 @@ extern  struct  _iobuf {
 #define _IOLBF      0200
 #define _IORW       0400
 #define _IOSYSLOG   01000  /* string stream carries syslog %m text */
+#define _IOUNGET    02000  /* _ub holds a byte and _bufsiz the saved _cnt */
 
 /*
  * The following definition is for ANSI C, which took them
@@ -84,6 +86,8 @@ int     puts (const char *);
 char    *fgets (char *, int, FILE *);
 char    *gets (char *);
 FILE    *_findiop (void);
+void    _fwalk (int (*)(FILE *));
+void    _cleanup (void);
 int     _filbuf (FILE *);
 int     _flsbuf (unsigned char, FILE *);
 void    setbuf (FILE *, char *);

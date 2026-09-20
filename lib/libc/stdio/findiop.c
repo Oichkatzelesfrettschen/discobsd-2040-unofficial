@@ -8,18 +8,23 @@
 #include <unistd.h>
 #include <errno.h>
 
-extern int errno;
-
 #define active(iop)	((iop)->_flag & (_IOREAD|_IOWRT|_IORW))
 
-#define NSTATIC	8	/* stdin + stdout + stderr + five more; a
-				   ninth concurrent stream allocates dynamically
-				   through _f_morefiles */
+/*
+ * The static streams: stdin, stdout, stderr and five more. A ninth
+ * concurrent stream allocates through _f_morefiles. Each FILE is 24 bytes,
+ * a 20-byte cursor and flag block plus the one-byte pushback slot padded to
+ * the word; the assertion pins the layout every program's getc and putc
+ * macros were compiled against.
+ */
+#define NSTATIC	8
+
+_Static_assert(sizeof(FILE) == 24, "FILE layout: getc/putc macros are compiled into every program");
 
 FILE _iob[NSTATIC] = {
-	{ 0, NULL, NULL, 0, _IOREAD,		0 },	/* stdin  */
-	{ 0, NULL, NULL, 0, _IOWRT,		1 },	/* stdout */
-	{ 0, NULL, NULL, 0, _IOWRT|_IONBF,	2 },	/* stderr */
+	{ ._flag = _IOREAD,        ._file = 0 },	/* stdin  */
+	{ ._flag = _IOWRT,         ._file = 1 },	/* stdout */
+	{ ._flag = _IOWRT|_IONBF,  ._file = 2 },	/* stderr */
 };
 
 static	char sbuf[NSTATIC];
@@ -27,47 +32,50 @@ char	*_smallbuf = sbuf;
 static	FILE	**iobglue;
 static	FILE	**endglue;
 
+/*
+ * Grow past the static array: a glue table of pointers indexed like the
+ * descriptor table, and a one-byte unbuffered slot per descriptor. Both
+ * allocations must succeed together, because _filbuf indexes _smallbuf by
+ * descriptor and the static sbuf covers only NSTATIC of them.
+ */
 static int
-_f_morefiles()
+_f_morefiles(void)
 {
-	register FILE **iov;
-	register FILE *fp;
+	FILE **iov;
+	FILE *fp;
+	char *small;
 	int nfiles;
 
 	nfiles = getdtablesize();
-
-	iobglue = (FILE **)calloc(nfiles, sizeof *iobglue);
+	iobglue = calloc((size_t) nfiles, sizeof *iobglue);
 	if (iobglue == NULL)
 		return (0);
-
+	small = calloc((size_t) nfiles, sizeof *small);
+	if (small == NULL) {
+		free(iobglue);
+		iobglue = NULL;
+		return (0);
+	}
 	endglue = iobglue + nfiles;
-
 	for (fp = _iob, iov = iobglue; fp < &_iob[NSTATIC]; /* void */)
 		*iov++ = fp++;
-
-	_smallbuf = calloc(nfiles, sizeof(*_smallbuf));
+	_smallbuf = small;
 	return (1);
 }
 
 /*
- * Find a free FILE for fopen et al.
- * We have a fixed static array of entries, and in addition
- * may allocate additional entries dynamically, up to the kernel
- * limit on the number of open files.
- * At first just check for a free slot in the fixed static array.
- * If none are available, then we allocate a structure to glue together
- * the old and new FILE entries, which are then no longer contiguous.
+ * Find a free FILE for fopen et al: a free static slot first, then the
+ * glue table, allocating a FILE into an empty glue entry on demand.
  */
 FILE *
-_findiop()
+_findiop(void)
 {
-	register FILE **iov, *iop;
+	FILE **iov, *iop;
 
-	if (iobglue == 0) {
+	if (iobglue == NULL) {
 		for (iop = _iob; iop < _iob + NSTATIC; iop++)
 			if (!active(iop))
 				return (iop);
-
 		if (_f_morefiles() == 0) {
 			errno = ENOMEM;
 			return (NULL);
@@ -82,30 +90,27 @@ _findiop()
 		}
 
 	if (*iov == NULL)
-		*iov = (FILE *)calloc(1, sizeof **iov);
-
+		*iov = calloc(1, sizeof **iov);
 	return (*iov);
 }
 
 void
-f_prealloc()
+f_prealloc(void)
 {
-	register FILE **iov;
+	FILE **iov;
 
 	if (iobglue == NULL && _f_morefiles() == 0)
 		return;
-
 	for (iov = iobglue; iov < endglue; iov++)
 		if (*iov == NULL)
-			*iov = (FILE *)calloc(1, sizeof **iov);
+			*iov = calloc(1, sizeof **iov);
 }
 
 void
-_fwalk(function)
-	register int (*function)();
+_fwalk(int (*function)(FILE *))
 {
-	register FILE **iov;
-	register FILE *fp;
+	FILE **iov;
+	FILE *fp;
 
 	if (iobglue == NULL) {
 		for (fp = _iob; fp < &_iob[NSTATIC]; fp++)
@@ -118,9 +123,8 @@ _fwalk(function)
 	}
 }
 
-void _cleanup()
+void
+_cleanup(void)
 {
-	extern int fclose();
-
 	_fwalk(fclose);
 }

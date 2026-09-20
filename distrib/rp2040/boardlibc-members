@@ -23,6 +23,7 @@ doprnt
 doscan
 execl
 execve
+explicit_bzero
 _exit
 exit
 fakcu
@@ -97,6 +98,7 @@ strtoul
 __sysctl
 sysctl
 time
+timingsafe_bcmp
 ungetc
 unlink
 vis

@@ -1,0 +1,4 @@
+tee_contract_test
+tee_host
+tee_source.o
+tee_target_contract.o

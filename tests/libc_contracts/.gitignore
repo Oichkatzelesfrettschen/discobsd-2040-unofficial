@@ -45,3 +45,16 @@ printf_doprnt_fp.o
 printf_doprnt_float.o
 printf_doprnt_llong.o
 printf_doprnt_llong32.o
+rwmode_contract_test
+rwmode_contract_test32
+rwmode_filbuf.o
+rwmode_flsbuf.o
+rwmode_filbuf32.o
+rwmode_flsbuf32.o
+rwmode_ungetc.o
+rwmode_ungetc32.o
+string_security_test
+string_explicit_bzero.o
+string_timingsafe_bcmp.o
+string_timingsafe_bcmp_target.o
+string_timingsafe_bcmp_bad_target.o

@@ -99,9 +99,9 @@ jobs:
       # tee would report tee's status and hide a failed bmake. Both build
       # steps set pipefail themselves, and the assertion runs over the
       # whole log once both have appended to it.
-      # The job count comes from the runner. getconf _NPROCESSORS_ONLN is
-      # POSIX and answers on both runners, where nproc is coreutils and
-      # absent from macOS. Measured on a 12-thread host: the kernel alone
+      # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
+      # that order, then returns one when a host exposes none of them.
+      # Measured on a 12-thread host: the kernel alone
       # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
       # of the world differ from each other in 9 of 3736 artifacts, all of
       # them timestamps -- seven .a archives, whose member mtimes the
@@ -111,12 +111,12 @@ jobs:
       - name: Build the kernel and the userland
         run: |
           set -o pipefail
-          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 build 2>&1 | tee build.log
+          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build 2>&1 | tee build.log
 
       - name: Build the flash image
         run: |
           set -o pipefail
-          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
+          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
 
       # The tree builds warning-free on gcc 13, 14, and 16: the cross build,
       # the kernel, and the host tools. Any warning line fails the job.
@@ -136,10 +136,25 @@ jobs:
       # board libc, the packed images, the assembler), qemu (the u-area
       # exchange loop and the Smaller C suite executed), and the board
       # regression programs built to a.out.
-      - name: Run the lint, host, cross, qemu and board-build tiers
-        run: |
-          bmake MACHINE=rp2040 check-lint check-host check-cross \
-            check-qemu check-board-build
+      - name: Run the lint tier
+        timeout-minutes: 5
+        run: bmake MACHINE=rp2040 check-lint
+
+      - name: Run the host tier
+        timeout-minutes: 10
+        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
+
+      - name: Run the cross tier
+        timeout-minutes: 15
+        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
+
+      - name: Run the qemu tier
+        timeout-minutes: 5
+        run: bmake MACHINE=rp2040 check-qemu
+
+      - name: Run the board-build tier
+        timeout-minutes: 5
+        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
 
       - name: Confirm the images exist
         run: |
@@ -215,9 +230,9 @@ jobs:
           arm-none-eabi-gcc --version | head -1
           bmake -V MAKE_VERSION
           picotool version
-      # The job count comes from the runner. getconf _NPROCESSORS_ONLN is
-      # POSIX and answers on both runners, where nproc is coreutils and
-      # absent from macOS. Measured on a 12-thread host: the kernel alone
+      # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
+      # that order, then returns one when a host exposes none of them.
+      # Measured on a 12-thread host: the kernel alone
       # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
       # of the world differ from each other in 9 of 3736 artifacts, all of
       # them timestamps -- seven .a archives, whose member mtimes the
@@ -227,11 +242,11 @@ jobs:
       - name: Build the kernel and the userland
         run: |
           set -o pipefail
-          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 build 2>&1 | tee build.log
+          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build 2>&1 | tee build.log
       - name: Build the flash image
         run: |
           set -o pipefail
-          bmake -j"$(getconf _NPROCESSORS_ONLN)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
+          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
       - name: Assert the build is warning-free
         run: |
           total=$(grep -c 'warning:' build.log || true)
@@ -244,10 +259,18 @@ jobs:
       # Linux binary), check-qemu (Homebrew's qemu has no user-mode
       # emulation) and check-mips (no MIPS cross compiler in Homebrew).
       # The Smaller C suite runs link-only here and says so.
-      - name: Run the lint, host, cross and board-build tiers
-        run: |
-          bmake MACHINE=rp2040 check-lint check-host check-cross \
-            check-board-build
+      - name: Run the lint tier
+        timeout-minutes: 5
+        run: bmake MACHINE=rp2040 check-lint
+      - name: Run the host tier
+        timeout-minutes: 10
+        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
+      - name: Run the cross tier
+        timeout-minutes: 15
+        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
+      - name: Run the board-build tier
+        timeout-minutes: 5
+        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
       - name: Link the Smaller C suite
         run: bmake -C usr.bin/smlrc test
       - name: Confirm the images exist

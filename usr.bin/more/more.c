@@ -14,7 +14,6 @@
 // XXX #undef	putchar			/* force use of function rather than macro */
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <ctype.h>
 #include <signal.h>
 #include <errno.h>
 #include <paths.h>
@@ -45,6 +44,8 @@
 #define ctrl(letter)	(letter & 077)
 #define RUBOUT	'\177'
 #define ESC	'\033'
+#define ascii_digit(c) ((unsigned char)(c) >= '0' && \
+    (unsigned char)(c) <= '9')
 #define QUIT	'\034'
 
 struct sgttyb	otty, savetty;
@@ -331,7 +332,7 @@ char *argv[];
 	    else {
 		initopt++;
 		for (initline = 0; *s != '\0'; s++)
-		    if (isdigit (*s))
+		    if (ascii_digit(*s))
 			initline = initline*10 + *s -'0';
 		--initline;
 	    }

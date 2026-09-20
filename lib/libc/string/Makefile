@@ -9,11 +9,13 @@ include ${TOPSRC}/share/mk/sys.mk
 DEFS		=
 CFLAGS		+= ${DEFS} -Os
 
-SRCS=		strcspn.c strerror.c strlcat.c strlcpy.c strpbrk.c \
-		strsep.c strspn.c strstr.c strtok.c strtok_r.c
+SRCS=		explicit_bzero.c strcspn.c strerror.c strlcat.c strlcpy.c \
+		strpbrk.c strsep.c strspn.c strstr.c strtok.c strtok_r.c \
+		timingsafe_bcmp.c
 
-OBJS=		strcspn.o strerror.o strlcat.o strlcpy.o strpbrk.o \
-		strsep.o strspn.o strstr.o strtok.o strtok_r.o
+OBJS=		explicit_bzero.o strcspn.o strerror.o strlcat.o strlcpy.o \
+		strpbrk.o strsep.o strspn.o strstr.o strtok.o strtok_r.o \
+		timingsafe_bcmp.o
 
 all:		string.a
 

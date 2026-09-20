@@ -38,6 +38,15 @@ int	 makedb(char *);
 
 uid_t uid;
 
+static int
+password_matches(const char *computed, const char *stored)
+{
+	size_t length = strlen(stored);
+
+	return strlen(computed) == length &&
+	    timingsafe_bcmp(computed, stored, length) == 0;
+}
+
 int
 main(argc, argv)
 	int argc;
@@ -213,43 +222,59 @@ getnewpasswd(pw, temp)
 	char *temp;
 {
 	register char *p, *t;
-	char buf[10], salt[2], *crypt(), *getpass();
+	char buf[9], salt[2], *crypt(), *getpass();
+	char *encrypted;
 	time_t time();
 
-	if (uid && pw->pw_passwd &&
-	    strcmp(crypt(getpass("Old password:"), pw->pw_passwd),
-	    pw->pw_passwd)) {
-		(void)printf("passwd: %s.\n", strerror(EACCES));
-		(void)unlink(temp);
-		exit(1);
+	if (uid && pw->pw_passwd) {
+		p = getpass("Old password:");
+		encrypted = crypt(p, pw->pw_passwd);
+		if (!password_matches(encrypted, pw->pw_passwd)) {
+			explicit_bzero(p, strlen(p));
+			(void)printf("passwd: %s.\n", strerror(EACCES));
+			(void)unlink(temp);
+			exit(1);
+		}
+		explicit_bzero(p, strlen(p));
 	}
 
 	for (buf[0] = '\0';;) {
 		p = getpass("New password:");
 		if (!*p) {
+			explicit_bzero(p, strlen(p));
 			(void)printf("Password unchanged.\n");
 			(void)unlink(temp);
 			exit(0);
 		}
 		if (strlen(p) <= 5) {
+			explicit_bzero(p, strlen(p));
 			printf("Please enter a longer password.\n");
 			continue;
 		}
 		for (t = p; *t && islower(*t); ++t);
 		if (!*t) {
+			explicit_bzero(p, strlen(p));
 			printf("Please don't use an all-lower case password.\nUnusual capitalization, control characters or digits are suggested.\n");
 			continue;
 		}
-		(void)strcpy(buf, p);
-		if (!strcmp(buf, getpass("Retype new password:")))
+		(void)strlcpy(buf, p, sizeof(buf));
+		explicit_bzero(p, strlen(p));
+		p = getpass("Retype new password:");
+		if (password_matches(buf, p)) {
+			explicit_bzero(p, strlen(p));
 			break;
+		}
+		explicit_bzero(p, strlen(p));
+		explicit_bzero(buf, sizeof(buf));
 		printf("Mismatch; try again, EOF to quit.\n");
 	}
 	/* grab a random printable character that isn't a colon */
 	(void)srandom((int)time((time_t *)NULL));
 	while ((salt[0] = random() % 93 + 33) == ':');
 	while ((salt[1] = random() % 93 + 33) == ':');
-	return(crypt(buf, salt));
+	encrypted = crypt(buf, salt);
+	explicit_bzero(buf, sizeof(buf));
+	return(encrypted);
 }
 
 int

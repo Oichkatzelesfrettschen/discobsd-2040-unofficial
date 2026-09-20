@@ -5,7 +5,8 @@ targets are grouped into tiers by what the host needs. `bmake
 MACHINE=rp2040 check` runs every tier; a host without one tool runs the
 tiers it has and names the one it skips. The cross, qemu, mips and
 board-build tiers run after `bmake MACHINE=rp2040 build`, which leaves
-the kernels, the board libc and the distribution tree the gates read.
+the kernels and distribution tree the gates read. `check-cross` builds the
+reduced board libc when its source closure is newer than the archive.
 
 | tier | target | needs | Linux CI | macOS CI |
 | --- | --- | --- | --- | --- |
@@ -21,11 +22,11 @@ the kernels, the board libc and the distribution tree the gates read.
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 
-The build runs in parallel. `bmake -j"$(getconf _NPROCESSORS_ONLN)"` takes
-the job count from the machine; `getconf` is POSIX and answers on Linux and
-macOS alike, where `nproc` is coreutils and absent from macOS. On a
-12-thread host the kernel goes from 8.07 s to 1.55 s and the whole world
-from 136.94 s to 31.10 s.
+The build and parallel-safe gate groups run with `bmake
+-j"$(sh tools/online-cpus.sh)"`. The resolver reads the online count from
+`getconf`, BSD `sysctl` or GNU `nproc`, in that order, and returns one when a
+host exposes none. On a 12-thread host the kernel goes from 8.07 s to 1.55 s
+and the whole world from 136.94 s to 31.10 s.
 
 The tree is safe to build that way. Every kernel object is byte-identical
 across a serial build and three parallel ones. Two parallel builds of the
@@ -36,21 +37,38 @@ deterministic mode to suppress them, and `pdc`, whose y.tab.c prints
 are identical. A linked kernel is never byte-reproducible either way,
 because conf/newvers.sh regenerates vers.c on every link.
 
-The gates run serially. `check` and its tiers carry no `-j`, because a gate
-may rebuild what another gate is reading: `tests/libc_contracts/Makefile`
-runs `symlinks tools` in the top of the tree, and a sibling gate linking
-against `tools/bin/config` at that moment is told the file cannot be made.
-Making the tiers parallel-safe means giving each gate that rebuilds shared
-state its own tree, which no gate does yet.
+The host tier gives every suite a target and an output directory. The libc
+contracts run under one sub-make, so bmake sees shared formatter objects and
+creates each object once. Keen gives the fixtures one target, each unchecked
+size one target, and each checked size four ten-seed targets. Nineteen
+uniqueness shards use private temporary files; Python orchestrates bounded C
+processes while bmake owns the cross-shard concurrency. The board-build tier
+gives each on-device program a target. These graphs accept the jobserver count
+directly.
 
-One failure under `-j` was not a race and is fixed: bmake advertises its
-jobserver to children as `-j N -J fd,fd` in `MAKEFLAGS`, and the two
-consumers in this tree that are not bmake both choke on it. GNU make, which
-`check-swapram-evac` calls, rejects `-J` and prints its usage;
-`tests/warning_policy/check.py` runs bmake through `subprocess`, which
-closes the inherited descriptors, so the child reports `Invalid internal
-option "-J"` onto the output the gate parses. Both clear `MAKEFLAGS` and
-`MFLAGS` for the child.
+The complete 12-job host tier takes 5.80 seconds on the measured host. Tail's
+2,016 subprocess cases and the PDP-11 V6 boot remain serial inside their own
+targets because their protocols share ordered state; independent suites and
+Keen shards run concurrently around them.
+
+The cross tier separates isolated contract directories from shared kernel and
+assembler outputs. `.WAIT` orders the PICO, PICO_UART, SwapRAM, exec-spool and
+flash-swap readers, then runs the assembler last because its link proof
+rebuilds the full a.out libc. The a.out archive contract reads the production
+archives and rejects absent or stale inputs; it no longer deletes and rebuilds
+the global tools directory inside a gate. The workflow gives lint, host, cross,
+qemu and board-build separate steps and deadlines, so a stalled contract names
+its tier instead of occupying one opaque combined step. A 12-job warm cross
+tier completes in 33.52 seconds and the nine-program board-build tier completes
+in 0.23 seconds on the measured 12-thread x86-64 host.
+
+The `-j` failures were descriptor-lifetime defects rather than data races.
+bmake advertises its jobserver as `-j N -J fd,fd` in `MAKEFLAGS`. GNU make
+does not implement `-J`, and Python or shell process boundaries may close the
+advertised descriptors before a nested bmake starts. `check-swapram-evac`,
+the warning-policy subprocesses, the assembler's detached libc builds and the
+UFS prototype verifier therefore clear `MAKEFLAGS` and `MFLAGS` only at those
+boundaries. Ordinary recursive bmake recipes retain the live jobserver.
 
 `.github/workflows/firmware.yml` runs the tiers after the warning-free
 build; `host.yml` owns the discobsd-host package and packages it on
@@ -154,10 +172,15 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-libc-printf` | snprintf and vsnprintf compiled from the tree at host and ILP32 widths: required-length returns, exact fit, truncation termination, size one, `(NULL, 0)` measurement, destination guards, and rejection of a size that cannot fit the formatter's signed count; the length modifiers `hh`, `h`, `ll`, `z`, `t` and `j`, `%n` storing the count at each width, a negative `*` precision taken as omitted, the space flag, and the `%D` extension. The formatter before those modifiers fails five checks. The pre-change ILP32 binary fails three checks before its zero-size null write faults; the corrected sources pass every check at both widths |
 | `check-libc-scanf` | `_doscan`, its float member, target `strtod` and target character-class table compiled from the tree at host width, at ILP32 and under the address sanitizer, over the `_IOSTRG` stream `sscanf` builds: every integer base and length modifier; saturation at signed and unsigned destination limits; `%i` prefix detection; C17 `%X` plus historical `%D` and `%O`; finite, overflowing and underflowing decimal exponents; scansets with ranges, negation, a leading bracket and no carry between directives; partial and complete `%c` fields without white-space skipping; `%n` excluded from the count; suppression; literal matching; field widths; and the EOF against matching-failure verdicts. The malformed group feeds a 512-digit run to an unwidthed `%ld` and `%u`. The gate is calibrated against the scanner it replaced: that build aborts under the sanitizer, first on `%X` storing a long through a pointer to `unsigned int`, then on the digit run overrunning a 64-byte staging buffer inside `_innum`'s frame. A further case pushes a byte differing from the one read onto a string stream over a literal: the V7 `ungetc` stored it into the literal and faults, the one-byte `_ub` slot in `FILE` takes it and hands it back first |
+| `check-libc-rwmode` | `_filbuf` and `_flsbuf` compiled from the tree over a host temporary opened read-write: output, `fflush`, input continuing at the output position, input to end of file, output appending there, then the file read back whole. The V7 core fails both switches: after `fflush` the write buffer's free count let `getc` read the output buffer as input, and `putc` at end of file wrote the consumed read-ahead back as output |
 | `check-libc-syslog` | syslog compiled as strict C17 over deterministic clock, errno and transport shims: priority, timestamp, tag, maximum target PID, CRLF, LOG_PERROR, repeated and escaped `%m`, long tag, literal format, argument and error-text bounds, and retry after a failed logfile open |
 | `check-libc-vis` | the legacy and bounded visual encoders compiled as strict C17 with signed input bytes: all 65,536 byte, flag and octal-lookahead combinations preserve the historical encoding; focused cases pin exact and short capacities, destination guards, an unchanged destination on ENOSPC, embedded NUL input and high-bit bytes |
+| `check-libc-string-security` | explicit_bzero and timingsafe_bcmp compiled from the tree: zero, partial and complete erasure; zero length, equality and differences in the first, middle and final byte across all 256 byte values |
 | `check-cat-contracts` | cat's fixed-block raw path over read, write, descriptor and diagnostic shims: empty input, target-size reads, complete short writes, read and write failures, zero writes and invalid descriptors; a host executable also pins raw multi-file copying, every historical display option and self-output refusal |
 | `check-rmdir-contracts` | rmdir's component-wise `-p` behavior over a temporary host filesystem: complete and trailing-slash chains, partial removal, preserved initial failure, continued multiple operands, `--` and usage; an exact-source syscall shim pins the top-level root stop before an empty pathname |
+| `check-tee-contracts` | tee's exact source over injected reads, writes, opens, closes and signals: interrupted reads, short writes, zero writes, isolated output failure, descriptor capacity and failure status; a filesystem run pins append, truncation, grouped options, `--` and literal `-` operands |
+| `check-du-contracts` | du's exact source on a host filesystem: ordinary, `-a` and `-s` output; more than 1,000 simultaneously live hard-link identities; incomplete link sets; defined overcounting after injected allocation exhaustion; multiple-operand failure, trailing-slash restoration and the 1,024-byte target path bound. The exact host object excludes `telldir` and `seekdir`, while a fixture that imports both calibrates the rejection path, because a location from one directory stream has unspecified meaning in a reopened stream |
+| `check-resize-contracts` | the exact resize reply parser accepts only `ESC [ rows ; columns R` with values from 1 through 999 and no trailing byte; focused cases cover leading zeroes, signs, whitespace, missing fields, a missing `R`, extra separators and overflow |
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
 | `check-tiny-utility-multicall` | true, false and nohup dispatch, arguments, signals, priority, streams, terminal and exit status |
 | `check-portable-utilities` | getopt, yes, strings and users, with write-error injection |
@@ -168,7 +191,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | usr.bin/pdp11 `test` | the host build of the emulator boots the V6 pack on a pseudo-terminal |
 | usr.bin/stevie, kilo, menu `test` | each editor driven through a pty |
 | usr.bin/tail, sort `test` | output modeled against the host for every option |
-| games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's solution uniqueness against an independent counter |
+| games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's four fixtures, 80 unchecked generator controls and 160 checked puzzles against an independent C17 row-permutation counter. Keen splits fixtures, unchecked cases and each checked size into bounded targets with private temporary files, so the jobserver can run the finite proof concurrently |
 | bin/sh/tests `test` | the line editor through a pipe |
 | bin/tar/tests/tartest.sh | the header formats |
 | usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils, and getline_test over the tree's own getline.c: buffer ownership after a refused growth, the byte that did not fit pushed back, the bytes before a stream error terminated, and the capacity policy held at SSIZE_MAX + 1 at the host width and at -m32 |
@@ -293,10 +316,15 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-libc-printf` | the bounded string formatter contract at host and ILP32 widths; the host-width compile also rejects pointer narrowing in `%p` |
 | `check-libc-printf-float` | the same formatter with `doprnt_float` linked: `%a` and `%A` exact digits, precision rounding to even with a carry into the exponent, the sign of a negative zero, and `%f` and `%e` |
 | `check-libc-scanf` | the formatted input scanner's directive, boundary and malformed-input contract at host and ILP32 widths, plus an address-sanitizer run that is the only tier able to see a scratch overrun inside the scanner's own frame |
+| `check-libc-rwmode` | the C17 7.21.5.3p7 mode switch on an r+ stream at host and ILP32 widths |
 | `check-libc-syslog` | the bounded logfile and stderr record contract over the tree's string formatter |
 | `check-libc-vis` | the legacy and bounded visual encoders compiled as strict C17 with signed input bytes: all 65,536 byte, flag and octal-lookahead combinations preserve the historical encoding; exact and short capacities, destination guards, an unchanged destination on ENOSPC, embedded NUL input and high-bit bytes pin the bounded contract |
+| `check-libc-string-security-cross` | Cortex-M0+ disassembly of timingsafe_bcmp has two volatile byte loads, one length-controlled conditional branch and no delegation to bcmp or memcmp; an early-return comparator calibrates the rejection path |
 | `check-cat-contracts-cross` | the exact cat source compiled as strict C17 for Cortex-M0+ with full warnings; its static assertions bind the transfer buffer to the target's BUFSIZ, MAXBSIZE and DEV_BSIZE |
 | `check-rmdir-contracts-cross` | the exact rmdir source compiled as strict C17 for Cortex-M0+ with full warnings |
+| `check-tee-contracts-cross` | the exact tee source compiled as strict C17 for Cortex-M0+ with full warnings |
+| `check-du-contracts-cross` | the exact du source compiled as strict C17 for Cortex-M0+ with full warnings |
+| `check-resize-contracts-cross` | the exact resize source compiled as strict C17 for Cortex-M0+; the linked utilbox contains no ctype table, formatted-input scanner or scanf entry point, and a fixture containing every forbidden symbol calibrates the rejection path |
 | `check-flash-swap` | the raw flash swap driver's arithmetic on the host and the kernels' link map |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |

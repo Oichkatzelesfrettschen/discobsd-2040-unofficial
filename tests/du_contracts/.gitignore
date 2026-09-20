@@ -1,0 +1,5 @@
+du_host
+du_source.o
+du_target_contract.o
+malloc_control.o
+directory_cookie_bad.o

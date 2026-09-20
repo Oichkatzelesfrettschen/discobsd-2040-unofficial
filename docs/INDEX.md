@@ -98,6 +98,7 @@ Grouped by what they investigate.
 | Document | Establishes |
 | --- | --- |
 | `memory-ownership-plan.md` | memory ownership chosen over instruction tuning, and what landed |
+| `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |

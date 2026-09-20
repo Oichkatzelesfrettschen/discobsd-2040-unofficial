@@ -33,3 +33,8 @@ rwuio_kernel32.o
 rwuio_shim32.o
 rwuio_jump.o
 rwuio_jump32.o
+sysctl_test_compact
+sysctl_test_wide
+sysctl_kernel_compact.o
+sysctl_kernel_wide.o
+sysctl_shim.o

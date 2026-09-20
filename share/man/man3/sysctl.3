@@ -848,8 +848,8 @@ privilege may change the value.
 	Second level name	Type	Changeable
 	VM\_LOADAVG	struct loadavg	no
 	VM\_METER	struct vmtotal	no
-	VM\_SWAPMAP	struct map	no
-	VM\_COREMAP	struct map	no
+	VM\_SWAPMAP	struct mapent []	no
+	VM\_NSWAP	integer	no
 .fi
 .PP
 VM_LOADAVG
@@ -872,16 +872,18 @@ The returned data consists of a
 VM_SWAPMAP
 .br
 .in +.5i
-Return the swapmap.  The size of this structure is fixed and may be
-determined by specifying a \fBoldlenp\fP initialized to zero, the kernel
-will fill in the size of the swapmap.
+Return the free runs of the swap allocation map as an array of
+\fIstruct mapent\fP, ascending by address and terminated by an entry whose
+\fIm_size\fP is zero.  The array's size is fixed for a running kernel and is
+returned in \fBoldlenp\fP by a call that passes a null \fBoldp\fP.  The
+\fIstruct map\fP descriptor that addresses the array stays in the kernel.
 .in -.5i
 .sp
-VM_COREMAP
+VM_NSWAP
 .br
 .in +.5i
-Same as for swapmap above except that the core allocation map is
-returned.
+Return the size of the swap device in DEV_BSIZE blocks, which is the value
+of the kernel variable \fInswap\fP.
 .in -.5i
 .SH RETURN VALUES
 If the call to
@@ -965,8 +967,10 @@ The
 .B sysctl
 function first appeared in 4.4BSD.
 .PP
-The KERN_TEXT, KERN_MAXTEXTS, VM_SWAPMAP, VM_COREMAP options are
-2.11BSD specific extensions to the 4.4BSD \fIsysctl\fP implmentation.
+The KERN_TEXT, KERN_MAXTEXTS, VM_SWAPMAP and VM_NSWAP options are
+2.11BSD specific extensions to the 4.4BSD \fIsysctl\fP implementation.
+VM_COREMAP, a 2.11BSD extension returning the core allocation map, needs a
+core resource map this system does not keep.
 .PP
 Having KERN_FILE return the address of the file structure before the
 actual \fIstruct file\fP is a 2.11BSD enhancement.  The \fIinode\fP

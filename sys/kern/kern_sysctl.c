@@ -364,6 +364,7 @@ vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen __unused)
 {
 	struct loadavg averunnable;		/* loadavg in resource.h */
+	int len;
 
 	/* All sysctl names at this level are terminal. */
 	if (namelen != 1)
@@ -384,13 +385,28 @@ vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		return (sysctl_rdstruct(oldp, oldlenp, newp, &total,
 		    sizeof(total)));
 	case VM_SWAPMAP:
+		/*
+		 * The payload is the mapent array, which swapmap[0].m_map
+		 * addresses, rather than the struct map that holds the
+		 * address: a copy beginning at swapmap hands out m_map,
+		 * m_limit and m_name -- three kernel addresses -- and then
+		 * reads beyond the descriptor for the rest of the length.
+		 * m_limit addresses the map's last usable slot
+		 * (sys/kern/subr_rmap.c), so the difference is the extent of
+		 * the entries a caller may see and the final slot stays the
+		 * allocator's terminator. The size query and the copy derive
+		 * that length once, so the two answers agree by construction.
+		 * tests/kernel/sysctl_test.c is the oracle.
+		 */
+		len = (char *)swapmap[0].m_limit - (char *)swapmap[0].m_map;
 		if (oldp == NULL) {
-			*oldlenp = (char *)swapmap[0].m_limit -
-			    (char *)swapmap[0].m_map;
+			*oldlenp = len;
 			return (0);
 		}
-		return (sysctl_rdstruct(oldp, oldlenp, newp, swapmap,
-		    (int)swapmap[0].m_limit - (int)swapmap[0].m_map));
+		return (sysctl_rdstruct(oldp, oldlenp, newp, swapmap[0].m_map,
+		    len));
+	case VM_NSWAP:
+		return (sysctl_rdint(oldp, oldlenp, newp, (int)nswap));
 	default:
 		return (EOPNOTSUPP);
 	}

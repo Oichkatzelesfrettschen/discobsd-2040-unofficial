@@ -212,7 +212,7 @@ and fails the moment the shell starts producing the POSIX answer.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for three files
+`check-kernel-ilp32` is separate from `check-kernel` for four files
 that compile or hold only at the target's width. sys/kern/sys_generic.c
 is built again as rwuio_test32: off_t, size_t and u_int are all four
 bytes on the target, so the vector sum that wrapped there is reproduced
@@ -231,7 +231,29 @@ compares it with are, and the gate holds it at uid 40000, above what a
 16-bit field represents: a caller whose effective uid is the stranger's
 real uid, and one whose real uid is the stranger's effective uid, are
 each allowed the signal, and seteuid() to that uid lands in p_uid
-whole. The third file, sys/kern/subr_prf.c, carries its own
+whole.
+
+The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
+extent of `vm.swapmap` as a pointer difference held in an int and whose
+fill_from_u() reads a process u area through an int-valued p_addr.
+sysctl_test links it and holds the CTL_VM branch to the boundary the
+node promises. `vm.swapmap` hands out the mapent array
+swapmap[0].m_map addresses, so the copy starts there rather than at the
+struct map descriptor, whose three words are kernel addresses, and it
+stops at m_limit, the last usable slot. The fixture poisons every byte
+from m_limit to the end of the object and gives each entry a value no
+address can take, so a copy that begins at the descriptor and a copy
+that runs past m_limit each land somewhere the gate names: the first
+puts the descriptor's own bytes in the output, the second puts poison
+there. The size query and the copy derive one length, so a caller that
+sizes a buffer from the query reads exactly that many bytes; a buffer
+one byte short takes nothing at all and leaves ENOMEM; a write attempt
+takes EPERM before any copy; every name at the level is terminal; and
+the ids the header leaves unnamed, id 4 among them, are refused. Two
+inverted sources calibrate it: the pre-patch base pointer fails 15 of
+560 checks and a length two entries past m_limit fails 21.
+
+The fourth file, sys/kern/subr_prf.c, carries its own
 argument walk,
 
     #define va_arg(ap,type) *(type*) (void*) (ap++)

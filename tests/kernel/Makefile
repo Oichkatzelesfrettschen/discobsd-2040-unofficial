@@ -74,6 +74,11 @@ PRF_KERN_CFLAGS=	${KERN_COMMON} ${PRF_RENAMES} ${KERN_WARN} ${ILP32}
 PRF_GATE_CFLAGS=	${KERN_COMMON} ${PRF_RENAMES} ${GATE_WARN} ${ILP32}
 PRF_SRC=	${TOPSRC}/sys/kern/subr_prf.c
 
+# The sysctl(2) tree. vm_sysctl()'s extents are pointer differences held in
+# an int, and fill_from_u() reads a process u area through an int-valued
+# p_addr, so kern_sysctl.c compiles at the target's width alone.
+SYSCTL_SRC=	${TOPSRC}/sys/kern/kern_sysctl.c
+
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
 # core(), so it compiles at the target's width alone, beside subr_prf.c.
@@ -207,6 +212,25 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -o $@ sigauth_test.c \
 	    sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o hostkern32.o
 
+# The node's extent is a count of mapents, so the gate runs in both
+# descriptor shapes: the sixteen-bit entries PICO configures and the wide
+# entries stm32 and pic32 use, as rmap_test does.
+sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \
+	    -c -o sysctl_kernel_compact.o ${SYSCTL_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sysctl_shim.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} ${ILP32} -o $@ sysctl_test.c \
+	    sysctl_kernel_compact.o sysctl_shim.o hostkern32.o
+
+sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${WIDE_DEFS} ${ILP32} \
+	    -c -o sysctl_kernel_wide.o ${SYSCTL_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sysctl_shim.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
+	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
+
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
 rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
@@ -221,10 +245,13 @@ rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test rwuio_test32 sigauth_test
+	@${MAKE} prf_test rwuio_test32 sigauth_test \
+	    sysctl_test_compact sysctl_test_wide
 	./prf_test
 	./sigauth_test
 	./rwuio_test32
+	./sysctl_test_compact
+	./sysctl_test_wide
 .else
 	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
 .endif
@@ -245,6 +272,8 @@ clean:
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o
+	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
+	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

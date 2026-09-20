@@ -8,9 +8,13 @@
  *  specifies the terms and conditions for redistribution.
  */
 
-#if	!defined(lint) && defined(DOSCCS)
-static char sccsid[] = "@(#)hunt.h      1.1 (2.11BSD) 2020/1/7";
-#endif
+/*
+ * @(#)hunt.h	1.1 (2.11BSD) 2020/1/7
+ *
+ * The identification stays a comment: a static sccsid here would be a
+ * second definition in every file that defines its own before including
+ * this header.
+ */
 
 # include	<stdio.h>
 # ifndef OLDIPC

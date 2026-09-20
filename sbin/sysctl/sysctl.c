@@ -309,6 +309,13 @@ parse(char *string, int flags)
 			    loads[2] / 100, loads[2] % 100);
 			return;
 		}
+		/*
+		 * vm.nswap is an integer and prints here. The rest of the
+		 * level returns a structure this program has no layout for,
+		 * so it names the tool that does.
+		 */
+		if (mib[1] == VM_NSWAP)
+			break;
 		if (flags == 0)
 			return;
 		fprintf(stderr,

@@ -525,7 +525,9 @@ attached, recorded in emulation.md.
 through tests/rp2040/Makefile: fptest (Boot ROM float, bit-exact),
 sigtest (signal frames), streamtest (NSTATIC), tartest (the -Z filter
 across a pipe), romprobe (ROM table dump), textcrc (packed executable
-text restoration), epochtest, evactest, bigtest and hugetest (the
+text restoration), swapmaptest (the swap map read through sysctl(3), each
+free run held inside the device between SWAP_IMAGE_ALIGN and vm.nswap),
+epochtest, evactest, bigtest and hugetest (the
 SwapRAM window epoch and evacuation). None is in the root manifest:
 stage one with a `file /usr/bin/<name>` line in distrib/rp2040/mi.rp2040
 for a test image and revert the line before committing. Three drivers

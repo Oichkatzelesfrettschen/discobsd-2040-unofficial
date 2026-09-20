@@ -86,7 +86,8 @@ when Config changes.
   tiers in .github/workflows/firmware.yml.
 - On the board, from tests/rp2040: fptest (Boot ROM float, bit-exact),
   sigtest (signal frames), streamtest (NSTATIC), tartest, romprobe (ROM
-  table dump). They are not in the root manifest; stage them by adding
+  table dump), swapmaptest (the swap map through sysctl(3)). They are not
+  in the root manifest; stage them by adding
   `file /usr/bin/<name>` lines to distrib/rp2040/mi.rp2040 for the test
   image and revert those lines before committing.
 - Kernel trace: `sysctl -w kern.systrace=1` (syscalls) or 2 (signal

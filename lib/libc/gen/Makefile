@@ -11,7 +11,7 @@ CFLAGS		+= ${DEFS} -Os
 SRCS		= ${STDSRC}
 OBJS		= ${STDOBJ}
 
-STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
+STDSRC		= abort.c alarm.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c ctermid.c \
 		  bzero.c calloc.c closedir.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c dirname.c \
@@ -32,7 +32,7 @@ STDSRC		= abort.c alarm.c atof.c atoi.c atol.c \
 		  ualarm.c uname.c unvis.c usleep.c vis.c \
 		  wait.c wait3.c waitpid.c
 
-STDOBJ		= abort.o alarm.o atof.o atoi.o atol.o \
+STDOBJ		= abort.o alarm.o asctime.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o ctermid.o \
 		  bzero.o calloc.o closedir.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o dirname.o \

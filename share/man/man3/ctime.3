@@ -10,23 +10,19 @@
 ctime, localtime, gmtime, asctime, timezone, tzset \-  convert date and time to ASCII
 .SH SYNOPSIS
 .nf
-.B void tzset()
-.PP
-.B char *ctime(clock)
-.B time_t *clock;
-.PP
 .B #include <time.h>
 .PP
-.B char *asctime(tm)
-.B struct tm *tm;
+.B void tzset(void);
 .PP
-.B struct tm *localtime(clock)
-.B time_t *clock;
+.B char *ctime(const time_t *clock);
 .PP
-.B struct tm *gmtime(clock)
-.B time_t *clock;
+.B char *asctime(const struct tm *tm);
 .PP
-.B char *timezone(zone, dst)
+.B struct tm *localtime(const time_t *clock);
+.PP
+.B struct tm *gmtime(const time_t *clock);
+.PP
+.B char *timezone(int zone, int dst);
 .fi
 .fi
 .SH DESCRIPTION
@@ -71,6 +67,16 @@ converts directly to GMT, which is the time UNIX uses.
 .I Asctime
 converts a broken-down time to ASCII and returns a pointer
 to a 26-character string.
+.PP
+.I Asctime
+returns a null pointer and sets
+.I errno
+when an input field cannot fit its fixed-width slot.  A null
+.I tm
+sets
+.BR EINVAL ;
+an out-of-range field sets
+.BR ERANGE .
 .PP
 The structure declaration from the include file is:
 .PP

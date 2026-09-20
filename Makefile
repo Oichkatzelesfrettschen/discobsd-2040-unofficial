@@ -150,6 +150,12 @@ check-libc-environment:
 check-libc-tempfiles:
 		${MAKE} -C tests/libc_tempfiles check
 
+check-libc-ctime:
+		${MAKE} -C tests/libc_contracts check-ctime
+
+check-libc-ctime-cross:
+		${MAKE} -C tests/libc_contracts check-ctime-cross
+
 check-libc-contracts:
 		${MAKE} -C tests/libc_contracts check
 
@@ -320,6 +326,7 @@ HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-libc-aout-contracts \
+		check-libc-ctime-cross \
 		check-dirent-contracts-cross \
 		check-cat-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
@@ -503,7 +510,8 @@ installfs:
 		check-elf2aout \
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment \
-		check-libc-tempfiles check-libc-contracts \
+		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
+		check-libc-contracts \
 		check-libc-host-contracts check-libc-aout-contracts \
 		check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \

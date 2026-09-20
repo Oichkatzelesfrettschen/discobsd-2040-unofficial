@@ -1,6 +1,7 @@
 #include "../../include/stdio.h"
 #include "../../include/string.h"
 #include "../../include/strings.h"
+#include "../../include/time.h"
 #include "../../include/vis.h"
 
 typedef char ctermid_buffer_must_hold_path[
@@ -16,6 +17,8 @@ static void (*const explicit_bzero_signature)(void *, size_t) =
     explicit_bzero;
 static int (*const timingsafe_bcmp_signature)(const void *, const void *,
     size_t) = timingsafe_bcmp;
+static char *(*const timezone_signature)(int, int) = timezone;
+static void (*const tzset_signature)(void) = tzset;
 
 void
 vis_header_contract(void)
@@ -25,4 +28,6 @@ vis_header_contract(void)
     (void)bounded_strvisx_signature;
     (void)explicit_bzero_signature;
     (void)timingsafe_bcmp_signature;
+    (void)timezone_signature;
+    (void)tzset_signature;
 }

@@ -66,6 +66,7 @@ arch/rp2040/rp2040/clock.c		standard
 arch/rp2040/rp2040/conf.c			standard
 arch/rp2040/rp2040/fault.c		standard
 arch/rp2040/rp2040/machdep.c		standard
+arch/rp2040/rp2040/mpu.c			standard
 arch/rp2040/rp2040/sig_machdep.c		standard
 arch/rp2040/rp2040/syscall.c		standard
 arch/rp2040/rp2040/sysctl.c		standard

@@ -159,6 +159,13 @@ resume:
 /*
  * icode() is copied out to process 1 to exec /sbin/init.
  * If the exec fails, process 1 exits.
+ *
+ * locore0.S enters it on the process stack but privileged, because the
+ * MPU map (mpu.c) closes kernel flash to unprivileged fetches and the
+ * instruction after the CONTROL write must already lie in the user window.
+ * The first four instructions here run from that window and set nPRIV, so
+ * every instruction from the SVC on, and every process after exec, runs
+ * unprivileged under the map.
  */
 	.text
 	.align	2
@@ -168,6 +175,11 @@ icode:
 	.thumb_func
 	.type	icode1, %function
 icode1:
+	mrs	r0, CONTROL
+	movs	r1, #0x1		/* CONTROL[0] nPRIV: unprivileged. */
+	orrs	r0, r1
+	msr	CONTROL, r0
+	isb				/* Unprivileged from the next fetch. */
 	movs.n	r0, #(sbininit - icode)	/* Offset for /sbin/init path. */
 	movs.n	r1, #(argv - icode)	/* Offset for *argv[] array. */
 	ldr	r2, =UBASE		/* User space base address. */

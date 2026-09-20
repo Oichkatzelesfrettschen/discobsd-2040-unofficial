@@ -565,6 +565,7 @@ sysctl_mpu(char *string, char **bufpp, int mib[], int flags, int *typep)
 {
 	int indx;
 
+	(void)flags;			/* Every mpu leaf is a plain integer. */
 	if (*bufpp == NULL) {
 		listall(string, &mpulist);
 		return (-1);

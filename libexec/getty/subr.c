@@ -182,6 +182,8 @@ setflags(n)
 		f |= CTLECH;
 	if (DX)
 		f |= DECCTQ;
+	if (NP)
+		f |= PASS8;
 	return (f);
 }
 

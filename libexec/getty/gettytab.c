@@ -31,7 +31,6 @@ getent(bp, name)
 	register int c;
 	register int i = 0, cnt = 0;
 	char ibuf[TABBUFSIZ];
-	char *cp2;
 	int tf;
 
 	tbuf = bp;

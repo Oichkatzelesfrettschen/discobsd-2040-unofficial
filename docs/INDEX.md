@@ -109,6 +109,7 @@ Grouped by what they investigate.
 | `211bsd-patch-scope.md` | the fork point from 2.11BSD, what each patch since then touches here, what patch 499's stdio would cost this target, and the measured `_doscan` migration unit |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
+| `renode-login-regression.md` | the Renode login test fails at `/etc/rc`'s first line on every tree tried, the pre-#150 control included, so the getty patches carry build evidence only |
 | `stdio-core-c17-unit.md` | the V7 stdio core converted to C17 with a one-byte pushback slot in `FILE`: what changed, the calibrated gate, and the measured +32 data and +20 to +92 text per program |
 
 ### Userland, tools and languages

@@ -78,10 +78,16 @@ struct gettyflags {
 #define	EP	gettyflags[2].value
 #define	EPset	gettyflags[2].set
 #define	OP	gettyflags[3].value
-#define	OPset	gettyflags[2].set
+#define	OPset	gettyflags[3].set
 #define	AP	gettyflags[4].value
-#define	APset	gettyflags[2].set
+#define	APset	gettyflags[4].set
+/* EC is defined and used also for telnet, with a different meaning.
+ * However, in telnetd, we don't care about the getty EC anyway, so
+ * we just protect ourself from a double definition error this way.
+ */
+#ifndef EC
 #define	EC	gettyflags[5].value
+#endif
 #define	CO	gettyflags[6].value
 #define	CB	gettyflags[7].value
 #define	CK	gettyflags[8].value
@@ -95,7 +101,8 @@ struct gettyflags {
 #define UB	gettyflags[16].value
 #define AB	gettyflags[17].value
 #define DX	gettyflags[18].value
-#define	HF	gettyflags[19].value
+#define HF	gettyflags[19].value
+#define NP	gettyflags[20].value
 
 int	getent(char *, char *);
 long	getnum(char *);

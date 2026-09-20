@@ -17,6 +17,8 @@
 #include <ctype.h>
 #include <setjmp.h>
 #include <syslog.h>
+#include <unistd.h>
+#include <strings.h>
 #include <sys/file.h>
 
 #include "gettytab.h"
@@ -186,8 +188,11 @@ main(argc, argv)
 			tmode.sg_ospeed = speed(OS);
 		else if (SP)
 			tmode.sg_ospeed = speed(SP);
-		tmode.sg_flags = setflags(0);
+		allflags = setflags(0);
+		tmode.sg_flags = allflags & 0xffff;
+		someflags = allflags >> 16;
 		ioctl(0, TIOCSETP, &tmode);
+		ioctl(0, TIOCLSET, &someflags);
 		setchars();
 		ioctl(0, TIOCSETC, &tc);
 		ioctl(0, TIOCSETD, &ldisp);
@@ -262,6 +267,8 @@ getname(void)
 	register char *np;
 	register int c;
 	char cs;
+	long allflags;
+	int someflags;
 
 	/*
 	 * Interrupt may happen if we use CBREAK mode
@@ -271,9 +278,14 @@ getname(void)
 		return (0);
 	}
 	signal(SIGINT, interrupt);
-	tmode.sg_flags = setflags(0);
+	allflags = setflags(0);
+	tmode.sg_flags = allflags & 0xffff;
+	someflags = allflags >> 16;
 	ioctl(0, TIOCSETP, &tmode);
-	tmode.sg_flags = setflags(1);
+	ioctl(0, TIOCLSET, &someflags);
+	allflags = setflags(1);
+	tmode.sg_flags = allflags & 0xffff;
+	someflags = allflags >> 16;
 	prompt();
 	if (PF > 0) {
 		oflush();
@@ -281,6 +293,7 @@ getname(void)
 		PF = 0;
 	}
 	ioctl(0, TIOCSETP, &tmode);
+	ioctl(0, TIOCLSET, &someflags);
 	crmod = 0;
 	upper = 0;
 	lower = 0;
@@ -429,7 +442,6 @@ putf(cp)
 	char *ttyn, *slash;
 	char datebuffer[60];
 	extern char editedhost[];
-	extern char *ttyname(), *rindex();
 
 	while (*cp) {
 		if (*cp != '%') {

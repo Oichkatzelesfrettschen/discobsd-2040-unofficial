@@ -76,5 +76,6 @@ struct	gettyflags gettyflags[] = {
 	{ "ab", 0 },			/* auto-baud detect with '\r' */
 	{ "dx", 0 },			/* set decctlq */
 	{ "hf", 0 },			/* set HardwareFlowcontrol */
+	{ "np", 0 },			/* no parity (ie. pass8) */
 	{ 0 }
 };

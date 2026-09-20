@@ -3,6 +3,7 @@ void	 gendefaults();
 void	 setdefaults();
 void	 setchars();
 long	 setflags(int);
+struct sgttyb;
 void	 splitflags(long, struct sgttyb *, int *);
 void	 applyflags(struct sgttyb *, int);
 void	 edithost(char *);

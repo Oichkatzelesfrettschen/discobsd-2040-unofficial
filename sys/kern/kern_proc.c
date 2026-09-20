@@ -7,6 +7,14 @@
 #include <sys/user.h>
 #include <sys/proc.h>
 #include <sys/systm.h>
+#include <sys/proc_asm.h>
+
+/*
+ * The context switch in each port's locore stores the u-area address at
+ * P_ADDR_OFFSET, so the constant follows the struct or the kernel fails here.
+ */
+_Static_assert(__builtin_offsetof(struct proc, p_un.p_alive.P_addr) == P_ADDR_OFFSET,
+    "P_ADDR_OFFSET in sys/proc_asm.h must equal offsetof(struct proc, p_addr)");
 
 struct proc *pidhash[PIDHSZ];
 struct proc *freeproc, *zombproc, *allproc, *qs;

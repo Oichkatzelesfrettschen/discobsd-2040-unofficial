@@ -1,57 +1,87 @@
-# The Renode login test fails on main before getty runs
+# The Renode login test failed on a context-switch store one field short of p_addr
 
 ## Finding
 
 `bmake check-renode`'s second test, "The boot reaches a login prompt and a
-shell", times out waiting for the line `Automatic boot in progress: starting
-file system checks.` on every tree tried on 2026-09-20, including a control
-built at `0b35cbcc`, the commit before the stdio core change #150. The first
-test, the device probe through `swap size = 380 kbytes`, passes on every one
-of them in about two seconds. The line the second test waits for is the
-first thing `/etc/rc` prints, so whatever fails sits between the kernel's
-last probe line and init's first shell: init, the exec of `/bin/sh`, or
-`/etc/rc` reaching its first `echo`.
+shell", timed out waiting for `/etc/rc`'s first line because the kernel had
+already panicked with `panic: wakeup` and was sitting in `cngetc()` behind
+`press any key to reboot...`. The terminal tester records only the lines it
+waits for, so the panic text never reached a log; a diagnostic Robot run that
+paused the machine 45 s after `swap size = 380 kbytes` and read the CPU
+showed PC in `uart_rx_ready` with PRIMASK set, LR in `cngetc()`, and a
+return chain `panic <- wakeup <- tsleep <- select1` on the stack. Reading
+`sysbus.uart0 DumpHistoryBuffer` gave the transcript, which ends:
 
-## Trees tried, all with the same result
+    swap size = 380 kbytes
+    panic: wakeup
+    syncing disks... done
+    halted
+    press any key to reboot...
 
-| Tree | Content | Host state | Result |
-| --- | --- | --- | --- |
-| `getty-console-fixes` on `558fcdf9` | #150 plus the getty patches | three builds and a second emulator running | timeout at the rc banner |
-| `libc-doprnt-c17` on `558fcdf9` | #150 plus the `_doprnt` change | idle | timeout at the rc banner |
-| `getty-console-fixes`, rerun | as above | idle | timeout at the rc banner |
-| `control-0b35cbcc` | #147 and #148 on `39b1bf77`, before #150 | idle | timeout at the rc banner |
+## Mechanism
 
-Renode 1.17.0+20260907gitf1dd1b4af, models at the pinned commit
-`205a5e4b`, freshly fetched and built by `tools/renode/fetch-renode-rp2040.sh`
-on this host. The last recorded pass of this test is the transcript in
-`sys/arch/rp2040/doc/research/emulation.md`, kernel build 818 of
-2026-09-11, and the last commit that names a Renode boot is #117 of
-2026-09-17.
+`wakeup()` (sys/kern/kern_synch.c) panics when a process on a sleep-queue
+chain has `p_stat` other than `SSLEEP` or `SSTOP`. The chain was corrupt
+because every context switch wrote over `p_link`, the run-queue link.
 
-## What this establishes and what it does not
+Each port's `locore.S` stores the u-area address into
+`u.u_procp->p_addr` while it exchanges `u.` and `u0.`, as `str r1, [r3, #60]`
+on the ARM ports and `sw $a0, 60($v1)` on pic32. The constant is the field's
+offset, which the assembler cannot take from `sys/sys/proc.h`. Commit
+`2d2261a1` (#129) widened `p_uid` from `short` to `uid_t`; the four-byte
+alignment that follows moved every later field down by four, `p_addr` from
+60 to 64 and `p_link` from 56 to 60. The three locores kept 60, so each
+switch stored the u-area pointer into `p_link`, and the first process to wake
+another walked a run-queue link into the u area.
 
-Established: the failure is independent of #150, of the getty change, and of
-host load. Not established: which commit between #117 and `0b35cbcc`
-introduced it, or whether the cause is in the tree at all rather than in the
-emulator build on this host. Two attempts to record the raw UART text after
-the probe, one through `tools/renode/console.py` against `boot.resc` and one
-through Renode's `CreateFileBackend` on `uart0`, both produced no bytes when
-Renode ran headless from a script; the Robot harness is the only path that
-has driven the machine here, and it records only the lines it waits for.
+The offsets, from the struct as `sys/sys/proc.h` lays it out at ILP32:
 
-## Consequence
+    field      before #129   after #129
+    p_uid      14 (short)    16 (uid_t)
+    p_stat     24            28
+    P_link     56            60
+    P_addr     60            64
 
-`check-renode` cannot currently distinguish a getty change that breaks the
-console from one that does not, on this host, because the run never reaches
-getty. The getty patches from 2.11BSD 480, 484, 487 and 493 are therefore
-proposed with their build and size evidence, with `check-getty-contracts`
-pinning the mode derivation they change on the host, and with this gate
-recorded as failing on `main` before them, not as passing after them.
+## Fix
 
-## Next measurement
+`sys/sys/proc_asm.h` carries `P_ADDR_OFFSET`, the three locores include it
+and store through it, and `sys/kern/kern_proc.c` holds the constant to
+`__builtin_offsetof(struct proc, p_un.p_alive.P_addr)` with a `_Static_assert`,
+so the next field added or widened ahead of `p_addr` fails the kernel build at
+the constant. Calibration: with `P_ADDR_OFFSET` set to 60 the PICO_UART build
+stops on `static assertion failed`; at 64 it builds, and `objdump -d` of the
+rp2040, stm32 and pic32 `locore.o` shows every store at offset 64.
 
-Bisect between `a6b821f1` (#117) and `0b35cbcc` with `check-renode` alone,
-about twenty minutes a point, on an idle host; or capture the UART through
-the Robot harness by adding a test that waits on a line that cannot appear
-and reads the terminal tester's buffer on failure, which the harness does
-record.
+`tools/renode/boot.robot` gains a test teardown that logs
+`sysbus.uart0 DumpHistoryBuffer` when a test fails, so the next panic behind a
+timeout appears in the run output and the Robot log instead of needing a
+second diagnostic run.
+
+## Evidence
+
+| Rank | Source | What it shows |
+| --- | --- | --- |
+| 5 | `check-renode` on `097ce75d` before the fix | login test times out at the rc banner; probe test passes |
+| 5 | diagnostic Robot run, PC/LR/SP/PRIMASK and stack read at the hang | `uart_rx_ready` <- `cngetc` <- `panic` <- `wakeup` <- `tsleep` <- `select1`, PRIMASK 1 |
+| 5 | `sysbus.uart0 DumpHistoryBuffer` | the `panic: wakeup` transcript above |
+| 3 | `sys/sys/proc.h` at `2d2261a1~1` and `2d2261a1` | `p_uid` widened; `p_addr` 60 to 64 |
+| 4 | `sys/arch/{rp2040,stm32,pic32}/*/locore.S` | the literal 60 in all three |
+| 5 | `check-renode` after the fix | probe 2.05 s, login test 23.5 s, both pass, warning classes unchanged |
+
+The board (rank 1) has not run this kernel; the panic mechanism is in
+machine-independent code with an architecture-neutral cause, and the stm32
+and pic32 kernels carry the same defect and the same fix without an emulator
+run here (their `locore.o` objects were assembled and inspected only).
+
+## What stays open
+
+`check-renode` stands outside `check` and CI never runs it, so a
+kernel-level regression that the host gates cannot see waits for someone to
+run the emulator. The `_Static_assert` closes this class, a struct layout
+constant copied into assembly; it does not close the general gap. A CI job
+that installs the Renode portable package and runs `check-renode` on the
+Linux runner is the next step.
+
+The window named before the bisect, #117..`0b35cbcc`, was correct; the
+bisect was replaced by reading the CPU at the hang, one emulator run instead
+of five.

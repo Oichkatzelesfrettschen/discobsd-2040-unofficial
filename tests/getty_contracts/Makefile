@@ -25,6 +25,7 @@ check: setflags_test setflags_bad_test login_modes_test
 	fi
 	@echo "getty local-mode negative control passed"
 	./login_modes_test
+	sh ./check_login_handoff.sh ${LOGIN_DIR}/login.c
 
 setflags_test: setflags_test.c ${GETTY_HEADERS} ${OBJS}
 	${HOSTCC} ${TEST_CFLAGS} ${GC_SECTIONS} -o $@ setflags_test.c ${OBJS}

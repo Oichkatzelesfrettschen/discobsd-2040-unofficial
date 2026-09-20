@@ -28,6 +28,7 @@ static unsigned int last_setp_req;
 static short last_setp_flags;
 static unsigned int last_lset_req;
 static int last_lset_word;
+static unsigned int ioctl_requests[2];
 static int ioctl_calls;
 
 int
@@ -40,6 +41,8 @@ test_ioctl(int fd, int req, ...)
 	arg = va_arg(ap, void *);
 	va_end(ap);
 	(void)fd;
+	if (ioctl_calls < 2)
+		ioctl_requests[ioctl_calls] = (unsigned int)req;
 	ioctl_calls++;
 	/* The request constants are _IOW words above INT_MAX; compare them unsigned. */
 	if ((unsigned int)req == (unsigned int)TIOCSETP) {
@@ -174,7 +177,11 @@ main(void)
 	    (local & LPASS8) != 0,
 	    "getty contract: splitflags does not divide the mode word at the local half");
 	applymode(f, &tmode, CRMOD);
-	check(ioctl_calls == 2 && last_setp_req == (unsigned int)TIOCSETP && last_lset_req == (unsigned int)TIOCLSET &&
+	check(ioctl_calls == 2 &&
+	    ioctl_requests[0] == (unsigned int)TIOCSETP &&
+	    ioctl_requests[1] == (unsigned int)TIOCLSET &&
+	    last_setp_req == (unsigned int)TIOCSETP &&
+	    last_lset_req == (unsigned int)TIOCLSET &&
 	    last_setp_flags == tmode.sg_flags && (last_setp_flags & CRMOD) != 0 &&
 	    last_lset_word == local &&
 	    (last_lset_word & LPASS8) != 0,

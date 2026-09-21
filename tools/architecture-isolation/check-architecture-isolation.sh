@@ -787,6 +787,7 @@ cleanup_stamp=$cleanup_root/distrib/obj/.build-machine
 arbitrary_file=$temporary_directory/arbitrary-file
 mkdir -p "$cleanup_root/distrib/obj"
 printf '%s\n' protected >"$arbitrary_file"
+chmod 600 "$arbitrary_file"
 if sh "$cleanup_helper" "$cleanup_root" "$arbitrary_file" /bin/true rp2040 \
     >"$temporary_directory/cleanup-path.log" 2>&1; then
 	fail "obsolete caller-supplied cleanup stamp argument was accepted"

@@ -52,7 +52,7 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-ctime check-difftime \
+check-host: ${PROG} header_contract.o check-ctime check-zone check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
 	check-qsort check-strtox check-string-security
@@ -174,6 +174,14 @@ CTIME_TARGET_DIAGNOSTIC_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 	-Dsnprintf=__builtin_snprintf
 CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 	-Dsprintf=__builtin_sprintf
+# The zone file reader, which is the one part of libc that decodes bytes a
+# caller names: TZ may give an absolute path, so every count in the file
+# bounds a walk over a fixed-size array here.
+ZONE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
+	-ffunction-sections -fdata-sections -nostdinc \
+	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
+ZONE_TZ_WARN=	-Wno-old-style-definition -Wno-deprecated-non-prototype
+
 RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
 	-Derrno=runtime_limits_errno
 RUNTIME_LIMITS_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
@@ -190,6 +198,29 @@ DIFFTIME_TARGET_CFLAGS=	${DIFFTIME_CFLAGS} -fno-common \
 	-mfloat-abi=soft -ffreestanding -Os
 GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 	else echo -Wl,--gc-sections ; fi
+
+# The typecnt bound is a read past ttis[] whose effect otherwise depends on
+# what happens to lie there, so the sanitizer run is what names it.
+ZONE_SAN=	-fsanitize=address,undefined -fno-omit-frame-pointer
+ZONE_SAN_OK!=	printf 'int main(void){return 0;}\n' > /tmp/zsan$$$$.c; \
+		if ${HOSTCC} -fsanitize=address,undefined -o /dev/null \
+		    /tmp/zsan$$$$.c 2>/dev/null; then echo yes; else echo no; fi; \
+		rm -f /tmp/zsan$$$$.c
+
+check-zone: zone_contract_test
+	./zone_contract_test
+.if ${ZONE_SAN_OK} == "yes"
+	@${MAKE} zone_contract_test_san
+	./zone_contract_test_san
+.else
+	@echo "check-libc-zone: no sanitizer runtime; that run skipped" >&2
+.endif
+.if ${ILP32_OK} == "yes"
+	@${MAKE} zone_contract_test32
+	./zone_contract_test32
+.else
+	@echo "check-libc-zone: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+.endif
 
 check-ctime: check-asctime ctime_contract_test
 	./ctime_contract_test
@@ -345,6 +376,42 @@ ctime_contract_test: ctime_contract_test.c ctime_ctime.o
 ctime_contract_test32: ctime_contract_test.c ctime_ctime32.o
 	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
 	    ctime_contract_test.c ctime_ctime32.o
+
+zone_contract_test: zone_contract_test.c zone_ctime.o zone_timezone.o
+	${HOSTCC} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
+	    zone_contract_test.c zone_ctime.o zone_timezone.o
+
+zone_contract_test32: zone_contract_test.c zone_ctime32.o zone_timezone32.o
+	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
+	    zone_contract_test.c zone_ctime32.o zone_timezone32.o
+
+zone_contract_test_san: zone_contract_test.c zone_ctime_san.o \
+    zone_timezone_san.o
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} -o $@ \
+	    zone_contract_test.c zone_ctime_san.o zone_timezone_san.o
+
+zone_ctime_san.o: ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
+
+zone_timezone_san.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} ${ZONE_TZ_WARN} -c -o $@ \
+	    ${TARGET_DIR}/timezone.c
+
+zone_ctime.o: ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+zone_ctime32.o: ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+# ctime.c's tzsetkernel() names tztab(), which timezone.c defines and which
+# the gate reaches whenever a file is refused and the fallback runs.
+zone_timezone.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
+	    ${TARGET_DIR}/timezone.c
+
+zone_timezone32.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
+	    ${TARGET_DIR}/timezone.c
 
 ctime_ctime.o: ${TARGET_DIR}/ctime.c
 	${HOSTCC} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
@@ -783,6 +850,9 @@ clean:
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
+	rm -f zone_contract_test zone_contract_test32 \
+		zone_ctime.o zone_ctime32.o zone_timezone.o zone_timezone32.o
+	rm -f zone_contract_test_san zone_ctime_san.o zone_timezone_san.o
 	rm -f asctime_target.o asctime_target_diagnostic.o ctime_target.o \
 		asctime_format_bad_target.o asctime_format_bad_target.log \
 		stdio_format_extensions.o

@@ -5,10 +5,24 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import itertools
+import os
 import pathlib
 import struct
 import subprocess
 import tempfile
+
+# bmake advertises its jobserver to children as "-j N -J fd,fd" in MAKEFLAGS,
+# and subprocess gives a child none of those descriptors, so a make started
+# here reports 'Invalid internal option "-J"' on stderr and
+# require_clean_command reads the warning as a diagnostic. Every child this
+# module starts is either a compiler or a binutils tool, which ignore the two
+# variables, or the make that owns the rebuild fixture and runs on its own, so
+# both variables are dropped from the environment the children inherit.
+CHILD_ENVIRONMENT = {
+    name: value
+    for name, value in os.environ.items()
+    if name not in ("MAKEFLAGS", "MFLAGS")
+}
 
 ELF_HEADER = struct.Struct("<16sHHIIIIIHHHHHH")
 PROGRAM_HEADER = struct.Struct("<IIIIIIII")
@@ -293,7 +307,13 @@ def parse_arguments() -> argparse.Namespace:
 def run_command(
     command: list[str], *, expected_status: int = 0
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        command,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=CHILD_ENVIRONMENT,
+    )
     if result.returncode != expected_status:
         raise SystemExit(
             f"command status {result.returncode}, expected {expected_status}: "

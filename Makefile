@@ -406,7 +406,8 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
-		check-fgrep-capacity check-config-makefile check-swapram-evac
+		check-fgrep-capacity check-config-makefile check-swapram-evac \
+		check-fs-profiles
 HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
@@ -469,6 +470,26 @@ check-textbox-host:
 
 check-cpio-host:
 		sh usr.bin/cpio/tests/cpiotest.sh
+
+# Every root filesystem profile composes, and the checker still decides.
+# distrib/rp2040/mkmanifest.py resolves each profile in
+# distrib/rp2040/profiles against the closure markers in
+# distrib/rp2040/mi.rp2040 and rejects a composition whose hard links,
+# parent directories or declared closure dependencies do not resolve;
+# --selftest feeds it the compositions that must be rejected, so a checker
+# that stopped deciding fails here rather than reporting a clean run.
+# tools/fsutil/fsutil.c's add_hardlink() only warns on a missing source and
+# leaves the exit status at 0, which is the image this gate keeps from
+# being written. sys/arch/rp2040/doc/PROFILES.md is the authority.
+check-fs-profiles:
+		${PYTHON} distrib/rp2040/mkmanifest.py --check-all \
+		    --manifest=distrib/rp2040/mi.rp2040 \
+		    --profiles=distrib/rp2040/profiles \
+		    --append=distrib/rp2040/md.rp2040
+		${PYTHON} distrib/rp2040/mkmanifest.py --selftest \
+		    --manifest=distrib/rp2040/mi.rp2040 \
+		    --profiles=distrib/rp2040/profiles \
+		    --append=distrib/rp2040/md.rp2040
 
 check-host:	${HOST_GATES} ${HOST_PROGRAM_GATES}
 
@@ -579,7 +600,7 @@ cleankernel:
 		${MAKE} -C sys/arch/${MACHINE}/compile -k clean
 
 cleanfs:
-		rm -f distrib/$(MACHINE)/_manifest
+		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG)
 
 cleanall:	cleantools clean cleankernel
@@ -621,7 +642,8 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-mips check-renode \
 		check-host-package check-board-build check symlinks etc-distribution \
-		${FSIMG} fs installfs clean cleantools cleanfs cleanall
+		${FSIMG} fs installfs clean cleantools cleanfs cleanall ||||||| \
+		543e46fc check-fs-profiles \
 
 # Architecture-specific debugging and loading.
 -include sys/arch/${MACHINE}/conf/Makefile.inc

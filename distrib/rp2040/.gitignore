@@ -2,3 +2,4 @@ sdcard.img
 flash.bin
 flash.uf2
 _manifest
+_manifest.*

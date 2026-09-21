@@ -32,6 +32,7 @@ page in those files without carrying them here.
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
 | What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
 | Where do the 2 MB of flash go? | `sys/arch/rp2040/doc/STORAGE.md` |
+| How do I build a smaller root, and what does each feature cost? | `sys/arch/rp2040/doc/PROFILES.md` |
 | How do I work on this tree? | `AGENTS.md` (`CLAUDE.md` links to it) |
 | What license travels with an image I hand someone? | `NOTICE`, then `docs/research/legal-memo-redistribution.md` |
 | How do I build and package the host tools? | `distrib/rp2040/host/DEVELOPMENT.md` |
@@ -44,6 +45,7 @@ page in those files without carrying them here.
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
 | `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
+| `PROFILES.md` | the root filesystem profiles, the measured block cost of each optional closure, and what the composition checker refuses | `distrib/rp2040/mi.rp2040`, `profiles`, `mkmanifest.py`, `Makefile.inc`, the root `Makefile` |
 | `STORAGE.md` | the flash budget and the 128 KB / 1536 KB / 384 KB layout chosen | `distrib/rp2040/Makefile.inc` |
 | `TESTING.md` | each gate, its tier, its prerequisites, and what a pass proves | the root `Makefile` and both CI workflows |
 | `USER-ACCESS.md` | console access over CDC-ACM and UART0, and the login accounts | reader entry point |

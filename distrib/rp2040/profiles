@@ -1,0 +1,71 @@
+#
+# Root filesystem profiles for the Raspberry Pi Pico.
+#
+# distrib/rp2040/mi.rp2040 brackets each optional feature between
+# "#closure NAME" and "#endclosure NAME". A profile names the closures it
+# keeps; distrib/rp2040/mkmanifest.py emits the base lines plus the lines
+# of the named closures and refuses a composition whose hard links, parent
+# directories or declared dependencies do not resolve. The Makefile
+# variable PROFILE selects one, and its default is "full", which names
+# every closure and reproduces the image the port ships.
+# sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme and
+# carries the measured block cost of each closure.
+#
+# Grammar, one directive per line:
+#
+#   profile NAME [CLOSURE ...]          a selectable composition
+#   closure NAME needs closure OTHER    OTHER must be selected too
+#   closure NAME needs path PATH ...    PATH must reach the image
+#
+# A dependency is checked, never resolved: a profile that names a closure
+# without the closure it needs fails the build rather than gaining the
+# missing part silently, so the profile line stays the whole statement of
+# what an image carries.
+#
+
+#
+# Dependencies between closures.
+#
+# usr.bin/cc runs smlrc, as and ld over a source file and links the result
+# against /usr/lib/crt0.o and /usr/lib/libc.a, so a compiler without the
+# link library produces an a.out that no stage of the chain can finish.
+# The requirement runs both ways: the library is 55 KiB of flash that
+# nothing on the board reads once the compiler is gone.
+#
+closure toolchain needs closure toolchainlib
+closure toolchainlib needs closure toolchain
+closure toolchain needs path /usr/bin/cc /usr/bin/as /usr/bin/ld
+closure toolchain needs path /usr/libexec/smlrc
+closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
+
+#
+# usr.bin/pdp11 boots the pack named on its command line; /usr/v6/root.rk
+# is the only pack the image carries, and /etc/menu's entry names it.
+#
+closure pdp11 needs closure v6disk
+closure pdp11 needs path /usr/bin/pdp11
+closure v6disk needs path /usr/v6/root.rk
+
+#
+# games/gamebox dispatches on argv[0]; fifteen, keen and bubble are hard
+# links to it, and the manifest checker rejects a link whose source the
+# profile dropped.
+#
+closure games needs path /usr/games/gamebox
+
+#
+# The compositions.
+#
+# base       the shell, /etc/rc, the multicall binaries and the editors
+# benchmark  base plus CoreMark, for a reported score on a bare board
+# developer  base plus the native compile chain and its link library
+# games      base plus gamebox and its three entry points
+# retro-lab  developer plus the PDP-11 emulator and its V6 pack
+# full       every closure; the image the port ships
+#
+profile base
+profile benchmark coremark
+profile developer toolchain toolchainlib
+profile games games
+profile retro-lab pdp11 v6disk toolchain toolchainlib
+profile full coremark pdp11 v6disk toolchain toolchainlib games

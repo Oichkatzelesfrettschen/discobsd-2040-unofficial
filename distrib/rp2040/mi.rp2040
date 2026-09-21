@@ -4,6 +4,17 @@
 # what a boot to a shell on the serial console runs: init, the commands
 # /etc/rc calls, getty and login, and a working set of /bin.
 #
+# Lines between "#closure NAME" and "#endclosure NAME" belong to the
+# optional closure NAME and reach the image only when the selected profile
+# names that closure; every other line is the base system and always ships.
+# distrib/rp2040/profiles declares the profiles and the closure
+# dependencies, distrib/rp2040/mkmanifest.py resolves them, and
+# sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme. A
+# closure opens more than once, because the directory, the binary and the
+# hard links that belong to one feature sit in different sections here.
+# fsutil skips a comment line whole (tools/fsutil/manifest.c), so the
+# markers leave the manifest fsutil reads unchanged.
+#
 default
 owner 0
 group 0
@@ -26,9 +37,15 @@ group 5
 dir /usr/bin
 dir /usr/sbin
 dir /usr/libexec
+#closure toolchainlib
 dir /usr/lib
+#endclosure toolchainlib
+#closure games
 dir /usr/games
+#endclosure games
+#closure v6disk
 dir /usr/v6
+#endclosure v6disk
 dir /usr/share
 dir /usr/share/misc
 dir /root
@@ -166,7 +183,9 @@ pack /sbin/init
 pack /sbin/adminbox
 
 pack /usr/bin/awk
+#closure coremark
 pack /usr/bin/coremark
+#endclosure coremark
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find
@@ -181,9 +200,11 @@ pack /usr/bin/utilbox
 pack /usr/bin/tail
 pack /usr/bin/tee
 pack /usr/bin/du
+#closure toolchain
 pack /usr/bin/as
 pack /usr/bin/ld
 file /usr/bin/cc
+#endclosure toolchain
 file /usr/bin/mputest
 
 #
@@ -200,10 +221,16 @@ pack /usr/bin/cpio
 pack /usr/sbin/update
 
 pack /usr/libexec/getty
+#closure toolchain
 pack /usr/libexec/smlrc
+#endclosure toolchain
+#closure pdp11
 pack /usr/bin/pdp11
+#endclosure pdp11
 
+#closure games
 pack /usr/games/gamebox
+#endclosure games
 
 #
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
@@ -211,10 +238,16 @@ pack /usr/games/gamebox
 #
 default
 filemode 0664
+#closure toolchainlib
 file /usr/lib/libc.a
+#endclosure toolchainlib
 # The V6 pack pdp11 boots: 1 MB logical, about 150 KB of blocks.
+#closure v6disk
 file /usr/v6/root.rk
+#endclosure v6disk
+#closure toolchainlib
 file /usr/lib/crt0.o
+#endclosure toolchainlib
 
 default
 filemode 0775
@@ -412,12 +445,14 @@ target /usr/bin/stevie
 # names below are hard links. See games/gamebox/Makefile and
 # sys/arch/rp2040/doc/research/games.md.
 #
+#closure games
 link /usr/games/fifteen
 target /usr/games/gamebox
 link /usr/games/keen
 target /usr/games/gamebox
 link /usr/games/bubble
 target /usr/games/gamebox
+#endclosure games
 
 #
 # Files: /var

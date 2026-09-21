@@ -66,9 +66,10 @@ The `-j` failures were descriptor-lifetime defects rather than data races.
 bmake advertises its jobserver as `-j N -J fd,fd` in `MAKEFLAGS`. GNU make
 does not implement `-J`, and Python or shell process boundaries may close the
 advertised descriptors before a nested bmake starts. `check-swapram-evac`,
-the warning-policy subprocesses, the assembler's detached libc builds and the
-UFS prototype verifier therefore clear `MAKEFLAGS` and `MFLAGS` only at those
-boundaries. Ordinary recursive bmake recipes retain the live jobserver.
+the warning-policy subprocesses, the assembler's detached libc builds, the
+UFS prototype verifier and the elf2aout layout verifier therefore clear
+`MAKEFLAGS` and `MFLAGS` only at those boundaries. Ordinary recursive bmake
+recipes retain the live jobserver.
 
 `.github/workflows/firmware.yml` runs the tiers after the warning-free
 build; `host.yml` owns the discobsd-host package and packages it on

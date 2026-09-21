@@ -501,6 +501,16 @@ check-elf2aout:	tools
 # The cross, qemu, and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
+#
+# A tier that compiles names symlinks: share/mk/sys.mk spells the compile
+# line -nostdinc -I${TOPSRC}/include, and sys/sys/param.h and
+# sys/sys/types.h reach <machine/machparam.h> and <machine/types.h> through
+# include/machine. That link is generated rather than tracked, so a fresh
+# checkout carries none and "clean" removes it, and .WAIT holds back the
+# gates sharing the dependency line until it points at ${MACHINE}. The lint
+# and host-package tiers compile no C, and bin/sh/tests/posix-sh.sh builds
+# the shell against the host's headers, so those two reach nothing under
+# include.
 HOST_GATES=	check-architecture-isolation \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
@@ -637,12 +647,12 @@ check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check
 
-check-cross:	check-python .WAIT check-cross-contracts .WAIT check-cross-kernel .WAIT \
-		check-cross-assembler
+check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
+		check-cross-kernel .WAIT check-cross-assembler
 
 # qemu-arm: the u-area exchange loop and the Smaller C suite executed
 # rather than only linked.
-check-qemu:	check-python .WAIT
+check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 
@@ -665,7 +675,7 @@ check-host-package:	check-python .WAIT
 
 # The on-device regression programs under tests/rp2040 build and convert
 # to a.out; the board runs them.
-check-board-build:
+check-board-build:	symlinks
 		${MAKE} -C tests/rp2040 all
 
 check:		check-lint check-host check-posix-sh check-cross check-qemu \

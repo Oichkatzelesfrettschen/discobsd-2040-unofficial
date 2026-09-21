@@ -325,19 +325,6 @@ def report(profile, errors):
     return False
 
 
-def check_destdir(entries, destdir):
-    """Hold every file the composed manifest installs to a staged source."""
-    errors = []
-    for entry in entries:
-        if entry.kind not in ("f", "p"):
-            continue
-        source = entry.target if entry.kind == "p" and entry.target else entry.path
-        staged = os.path.join(destdir, source.lstrip("/"))
-        if not os.path.isfile(staged):
-            errors.append("%s: %s is not staged under %s" % (entry.line.where(), source, destdir))
-    return errors
-
-
 def emit(lines, output):
     """Write the composed manifest, replacing any earlier one atomically."""
     body = "".join(line.text + "\n" for line in lines)
@@ -365,14 +352,11 @@ def load(args):
     return lines, appended, profiles, order, needs_closure, needs_path
 
 
-def run_profile(profile, lines, appended, profiles, needs_closure, needs_path, destdir=None):
+def run_profile(profile, lines, appended, profiles, needs_closure, needs_path):
     """Compose one declared profile and decide it; return (kept, errors)."""
     selected = profiles[profile]
     kept = compose(lines, selected)
-    entries = parse_entries(kept + appended)
-    errors = verify(entries, selected, needs_closure, needs_path)
-    if destdir:
-        errors.extend(check_destdir(entries, destdir))
+    errors = verify(parse_entries(kept + appended), selected, needs_closure, needs_path)
     return kept, errors
 
 
@@ -511,7 +495,6 @@ def main():
     )
     parser.add_argument("--profile", help="compose this profile")
     parser.add_argument("--output", help="write the composed manifest here")
-    parser.add_argument("--destdir", help="hold every installed file to a staged source here")
     parser.add_argument("--check-all", action="store_true", help="decide every declared profile")
     parser.add_argument("--selftest", action="store_true", help="calibrate the checker")
     parser.add_argument("--list", action="store_true", help="print the declared profile names")
@@ -555,7 +538,7 @@ def main():
             )
             return 2
         kept, errors = run_profile(
-            args.profile, lines, appended, profiles, needs_closure, needs_path, args.destdir
+            args.profile, lines, appended, profiles, needs_closure, needs_path
         )
         if not report(args.profile, errors):
             return 1

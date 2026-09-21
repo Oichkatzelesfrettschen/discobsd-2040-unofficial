@@ -35,91 +35,89 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <sys/types.h>
 
 /*
- * This has been slightly trimmed from the 4.4BSD version for use with 2.11BSD.
- * In particular 1) the flag names were changed back to the original ones
- * since I didn't feel like porting all of 4.4's stdio package right now and
- * 2) The constant BUFSIZ is used rather than importing the "optimum buffer
- * size selection" logic from 4.4 (besides, a PDP11 can't afford more than 1kb
- * most of the time anyhow).
+ * Choose one of the three kinds of buffering for a stream, with a buffer the
+ * caller supplies or one allocated here.
  *
- * Set one of the three kinds of buffering, optionally including
- * a buffer.
+ * C17 7.21.5.6p2 allows the call only on a stream that has been opened and
+ * not yet used, so the flush and the discard below cover a caller that
+ * reached here anyway rather than a supported sequence. C17 7.21.7.10p2
+ * discards pushback at a successful positioning call, and replacing the
+ * buffer is the stronger act, so the parked byte goes with the buffer it
+ * was parked beside.
+ *
+ * Trimmed from the 4.4BSD version: the flag names are the ones this stream
+ * core uses, and BUFSIZ stands in for 4.4BSD's optimum-size selection, which
+ * asks fstat for a block size this target's buffers do not follow.
  */
 int
-setvbuf(fp, buf, mode, size)
-	register FILE *fp;
-	char *buf;
-	register int mode;
-	size_t size;
+setvbuf(FILE *fp, char *buf, int mode, size_t size)
 {
-	int	ret;
-	register int flags;
-
-/*
- * Verify arguments. Note, buf and size are ignored when setting _IONBF.
- */
-	if (mode != _IONBF)
-		if ((mode != _IOFBF && mode != _IOLBF) || (int)size < 0)
-			return (EOF);
+	int flags, ret;
 
 	/*
-	 * Write current buffer, if any.  Discard unread input, cancel
-	 * line buffering, and free old buffer if malloc()ed.
+	 * _bufsiz records the size as an int, so a request past INT_MAX
+	 * cannot be held; C17 7.21.5.6p3 answers an argument the stream
+	 * cannot honor with a nonzero return rather than a short buffer.
 	 */
-	(void)fflush(fp);
-	fp->_cnt = fp->_bufsiz = 0;
+	if (mode != _IONBF &&
+	    ((mode != _IOFBF && mode != _IOLBF) || size > (size_t) INT_MAX))
+		return (EOF);
+
+	(void) fflush(fp);
 	flags = fp->_flag;
 	if (flags & _IOMYBUF)
-		free((void *)fp->_base);
-	flags &= ~(_IOLBF | _IONBF | _IOMYBUF);
+		free(fp->_base);
+	flags &= ~(_IOLBF | _IONBF | _IOMYBUF | _IOUNGET);
+	fp->_cnt = 0;
+	fp->_bufsiz = 0;
 	ret = 0;
 
-	/* If setting unbuffered mode, skip all the hard work. */
-	if (mode == _IONBF)
-		goto nbf;
-
-	if (size == 0) {
-		buf = NULL;	/* force local allocation */
-		size = BUFSIZ;
-	}
-
-	/* Allocate buffer if needed. */
-	if (buf == NULL) {
-		if ((buf = (char *)malloc(size)) == NULL) {
+	if (mode != _IONBF && buf == NULL) {
+		if (size == 0)
+			size = BUFSIZ;
+		buf = malloc(size);
+		if (buf == NULL) {
 			/*
-			 * Unable to honor user's request.  We will return
-			 * failure, but try again with file system size.
+			 * The size asked for is refused whatever follows, so
+			 * the return is already EOF; a second try at BUFSIZ
+			 * leaves the stream buffered rather than unbuffered.
 			 */
 			ret = EOF;
 			if (size != BUFSIZ) {
 				size = BUFSIZ;
-				buf = (char *)malloc(size);
+				buf = malloc(size);
 			}
 		}
-		if (buf == NULL) {
-			/* No luck; switch to unbuffered I/O. */
-nbf:
-			fp->_flag = flags | _IONBF;
-			fp->_base = fp->_ptr = NULL;
-			return (ret);
-		}
-		flags |= _IOMYBUF;
+		if (buf != NULL)
+			flags |= _IOMYBUF;
 	}
 
 	/*
-	 * Fix up the FILE fields.  If in r/w mode, go to the unknown state
-	 * so that the the first read performs its initial call to _filbuf and
-	 * the first write has an empty buffer to fill.
+	 * An unbuffered stream keeps no base, so _filbuf reads one byte into
+	 * its _smallbuf slot and no later call frees a buffer this one owns.
+	 * A buffer that could not be allocated arrives here the same way.
+	 */
+	if (mode == _IONBF || buf == NULL) {
+		fp->_flag = (short) (flags | _IONBF);
+		fp->_base = fp->_ptr = NULL;
+		return (ret);
+	}
+
+	/*
+	 * An r+ stream returns to the state where neither mode is chosen, so
+	 * the first read reaches _filbuf for its initial fill and the first
+	 * write reaches _flsbuf with an empty buffer to fill.
 	 */
 	if (mode == _IOLBF)
 		flags |= _IOLBF;
 	if (flags & _IORW)
 		flags &= ~(_IOREAD | _IOWRT);
-	fp->_flag = flags;
-	fp->_base = fp->_ptr = (char *)buf;
-	fp->_bufsiz = size;
+	fp->_flag = (short) flags;
+	fp->_base = fp->_ptr = buf;
+	fp->_bufsiz = (int) size;
 	return (ret);
 }

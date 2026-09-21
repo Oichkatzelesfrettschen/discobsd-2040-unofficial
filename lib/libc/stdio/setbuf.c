@@ -35,10 +35,13 @@
  */
 #include <stdio.h>
 
+/*
+ * C17 7.21.5.1p2: setbuf is setvbuf with a BUFSIZ fully buffered stream, or
+ * an unbuffered one where the caller supplies no buffer, and no return value
+ * because the caller is given no way to tell that the allocation failed.
+ */
 void
-setbuf(fp, buf)
-	FILE *fp;
-	char *buf;
+setbuf(FILE *fp, char *buf)
 {
-	(void) setvbuf(fp, buf, buf ? _IOFBF : _IONBF, BUFSIZ);
+	(void) setvbuf(fp, buf, buf ? _IOFBF : _IONBF, (size_t) BUFSIZ);
 }

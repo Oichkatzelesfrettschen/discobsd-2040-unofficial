@@ -36,22 +36,22 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+/*
+ * setbuf with the buffer's size named, which BSD added because setbuf
+ * assumes BUFSIZ and a caller with a smaller array has no way to say so.
+ */
 void
-setbuffer(fp, buf, size)
-	register FILE *fp;
-	char *buf;
-	size_t size;
+setbuffer(FILE *fp, char *buf, size_t size)
 {
-	setvbuf(fp, buf, buf ? _IOFBF : _IONBF, size);
+	(void) setvbuf(fp, buf, buf ? _IOFBF : _IONBF, size);
 }
 
 /*
- * set line buffering
+ * Line buffering with a buffer setvbuf allocates, which is BSD's name for
+ * the _IOLBF mode C17 7.21.5.6 reaches through setvbuf.
  */
 void
-setlinebuf(fp)
-	FILE *fp;
+setlinebuf(FILE *fp)
 {
-
-	setvbuf(fp, (char *)NULL, _IOLBF, (size_t)0);
+	(void) setvbuf(fp, (char *)NULL, _IOLBF, (size_t)0);
 }

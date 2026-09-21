@@ -6,11 +6,11 @@
  * 
  */
 
-void sig_catcher();
+_Noreturn void sig_catcher(int);
 #ifdef SIGTSTP
 void cont_catcher();
 void stop_catcher();
 #endif
 void mytstp();
 void sig_init();
-void finalize();
+_Noreturn void finalize(int);

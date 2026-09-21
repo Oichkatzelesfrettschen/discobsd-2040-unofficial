@@ -9,7 +9,7 @@ include ${TOPSRC}/share/mk/sys.mk
 SUBDIR          = adventure atc backgammon battlestar boggle btlgammon \
                   caesar cribbage fortune hangman mille monop pom pig quiz \
                   robots rogue sail snake trek \
-                  banner aclock arithmetic bcd factor fish morse \
+                  banner aclock arithmetic bcd factor fish morse warp \
                   number ppt wump primes rain worm worms canfield \
                   fifteen keen bubble gamebox
 

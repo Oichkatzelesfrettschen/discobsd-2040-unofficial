@@ -182,7 +182,7 @@ char *tcbuf;		/* temp area for "uncompiled" termcap entry */
     else {
 	NDsize = comp_tc(cmbuffer,ND,1);
 	myND = malloc((unsigned)NDsize);
-	movc3(NDsize,cmbuffer,myND);
+	memmove(myND,cmbuffer,NDsize);
 	if (debugging) {
 	    int scr;
 
@@ -198,7 +198,7 @@ char *tcbuf;		/* temp area for "uncompiled" termcap entry */
     else {
 	UPsize = comp_tc(cmbuffer,UP,1);
 	myUP = malloc((unsigned)UPsize);
-	movc3(UPsize,cmbuffer,myUP);
+	memmove(myUP,cmbuffer,UPsize);
 	if (debugging) {
 	    int scr;
 
@@ -216,7 +216,7 @@ char *tcbuf;		/* temp area for "uncompiled" termcap entry */
     else {
 	DOsize = comp_tc(cmbuffer,DO,1);
 	myDO = malloc((unsigned)DOsize);
-	movc3(DOsize,cmbuffer,myDO);
+	memmove(myDO,cmbuffer,DOsize);
 	if (debugging) {
 	    int scr;
 
@@ -228,7 +228,7 @@ char *tcbuf;		/* temp area for "uncompiled" termcap entry */
     }
     if (debugging)
 	if (fgets(cmbuffer,(sizeof cmbuffer),stdin) == 0)
-	    /*ignore*/;
+	    cmbuffer[0] = '\0';
 
     CMsize = comp_tc(cmbuffer,tgoto(CM,20,20),0);
     if (PC != '\0') {
@@ -244,7 +244,7 @@ char *tcbuf;		/* temp area for "uncompiled" termcap entry */
 		      ospeed == B600 ? 30 :
 	      /* speed is 300 (?) */   15;
 
-    gfillen = ospeed >= B9600 ? (sizeof filler) :
+    gfillen = ospeed >= B9600 ? (int)(sizeof filler) :
 	      ospeed == B4800 ? 13 :
 	      ospeed == B2400 ? 7 :
 	      ospeed == B1200 ? 4 :
@@ -501,7 +501,7 @@ rewrite()
 	for (x=0; x<XSIZE; x++) {
 	    if (numamoebas && amb[y][x] != ' ')
 		mvaddc(y+1,x*2,amb[y][x]);
-	    if (obj=occupant[y][x]) {
+	    if ((obj=occupant[y][x])) {
 		if (obj->image != ' ')
 		    mvaddc(y+1,x*2,obj->image);
 	    }
@@ -523,11 +523,12 @@ rewrite()
     display_status();
 }
 
-char
+int
 cmstore(ch)
-register char ch;
+    int ch;
 {
     *maxcmstring++ = ch;
+    return (ch);
 }
 
 /* discard any characters typed ahead */
@@ -671,6 +672,8 @@ read_nd(buff, siz)
 char *buff;
 int siz;
 {
+    (void)siz;
+
     if (!input_pending())
 	return 0;
 
@@ -720,21 +723,21 @@ tryagain:
 	}
 	if (curmap == Null(KEYMAP*))
 	    goto got_canonical;
-	for (i = (curmap->km_type[*whatbuf] >> KM_GSHIFT) & KM_GMASK; i; --i){
+	for (i = (curmap->km_type[(unsigned char)*whatbuf] >> KM_GSHIFT) & KM_GMASK; i; --i){
 	    Read_tty(&scrchar,1);
 	}
-	switch (curmap->km_type[*whatbuf] & KM_TMASK) {
+	switch (curmap->km_type[(unsigned char)*whatbuf] & KM_TMASK) {
 	case KM_NOTHIN:			/* no entry? */
 	    if (curmap == topmap)	/* unmapped canonical */
 		goto got_canonical;
 	    settle_down();
 	    goto tryagain;
 	case KM_KEYMAP:			/* another keymap? */
-	    curmap = curmap->km_ptr[*whatbuf].km_km;
+	    curmap = curmap->km_ptr[(unsigned char)*whatbuf].km_km;
 	    assert(curmap != Null(KEYMAP*));
 	    break;
 	case KM_STRING:			/* a string? */
-	    pushstring(curmap->km_ptr[*whatbuf].km_str);
+	    pushstring(curmap->km_ptr[(unsigned char)*whatbuf].km_str);
 	    if (++times > 20) {		/* loop? */
 		fputs("\r\nmacro loop?\r\n",stdout);
 		settle_down();

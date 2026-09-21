@@ -44,11 +44,17 @@ void
 their_smarts()
 {
     register OBJECT *curkl;
-    register OBJECT *obj;
+    /*
+     * The Crusher branch below is the only one that sets these, and the
+     * Tholian web branch tests "obj &&" for the case where it did not
+     * run: that test reads as false only if obj starts null, and y and x
+     * are the cell it clears behind a true one.
+     */
+    register OBJECT *obj = Null(OBJECT*);
     register int prob;
     register int count;
-    register int y;
-    register int x;
+    register int y = 0;
+    register int x = 0;
 
     if (numcrushes && (obj=movers)->type == Crusher) {
 	if (numamoebas) {

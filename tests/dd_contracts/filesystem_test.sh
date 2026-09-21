@@ -114,5 +114,43 @@ ok "$r" "skip= whose byte offset leaves the range is refused"
 grep -F "out of range" err > /dev/null && r=yes || r=no
 ok "$r" "skip= is refused on its own bound rather than by a failing lseek"
 
+
+# The conversions, driven through the whole program over every byte value.
+# ${PYTHON} writes the input because printf cannot emit a NUL portably.
+PYTHON=${PYTHON:-python3}
+"$PYTHON" -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' > all256
+
+# atoe is a bijection and etoa is its inverse, so ASCII after EBCDIC is the
+# identity over all 256 bytes. Running it through the program covers the
+# per-byte path, its blocking and its output flush at once.
+"$dd_program" if=all256 of=ebc conv=ebcdic 2>/dev/null
+"$dd_program" if=ebc of=back conv=ascii 2>/dev/null
+cmp -s all256 back && r=yes || r=no
+ok "$r" "conv=ascii after conv=ebcdic returns every one of the 256 bytes"
+
+[ "$(wc -c < ebc)" -eq 256 ] && r=yes || r=no
+ok "$r" "conv=ebcdic writes one byte for each byte read"
+
+# conv=ibm is conv=ebcdic with four exceptions, so the two outputs differ at
+# exactly the four inputs the exception table names.
+"$dd_program" if=all256 of=ibm conv=ibm 2>/dev/null
+differing=$(cmp -l ebc ibm 2>/dev/null | wc -l | tr -d " ")
+[ "$differing" -eq 4 ] && r=yes || r=no
+ok "$r" "conv=ibm differs from conv=ebcdic at four bytes"
+
+# cmp -l numbers bytes from 1, so the inputs are 33, 91, 93 and 124.
+offsets=$(cmp -l ebc ibm 2>/dev/null | awk '{printf "%s ", $1 - 1}')
+[ "$offsets" = "33 91 93 124 " ] && r=yes || r=no
+ok "$r" "the four are inputs 33, 91, 93 and 124"
+
+# A conversion block shorter than cbs is padded with the EBCDIC space, 0x40,
+# which is where the tables are read outside the per-byte path.
+printf 'ab\n' > short
+"$dd_program" if=short of=padded cbs=8 conv=ebcdic 2>/dev/null
+[ "$(wc -c < padded)" -eq 8 ] && r=yes || r=no
+ok "$r" "cbs= pads a short conversion block to its width"
+"$PYTHON" -c 'import sys; d=open("padded","rb").read(); sys.exit(0 if d[2:] == b"\x40" * 6 else 1)' && r=yes || r=no
+ok "$r" "the padding is the EBCDIC space the table gives for 0x20"
+
 echo "dd_contracts filesystem: $checks checks, $failures failures"
 [ "$failures" -eq 0 ]

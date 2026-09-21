@@ -293,7 +293,7 @@ char *stoppers;
 		    break;
 		case '{':
 		    pattern = cpytill(scrbuf,pattern+1,'}');
-		    if (s = strchr(scrbuf,'-'))
+		    if ((s = strchr(scrbuf,'-')))
 			*s++ = '\0';
 		    else
 			s = nullstr;
@@ -475,7 +475,7 @@ char *stoppers;
 		    destsize++;
 		}
 		else
-		    *dest++ = i & 037 | metabit;
+		    *dest++ = (i & 037) | metabit;
 		pattern++;
 	    }
 	    else if (*pattern == '\\' && pattern[1]) {
@@ -490,7 +490,7 @@ char *stoppers;
 			i <<= 3;
 			i += *pattern++ - '0';
 		    }
-		    *dest++ = i & 0377 | metabit;
+		    *dest++ = (i & 0377) | metabit;
 		    --pattern;
 		}
 		else if (i == 'b')

@@ -18,6 +18,8 @@
 #include "sig.h"
 #include "term.h"
 #include "INTERN.h"
+#include <math.h>
+
 #include "util.h"
 
 void
@@ -26,25 +28,6 @@ util_init()
     ;
 }
 
-void
-movc3(len,src,dest)
-register char *dest;
-register char *src;
-register int len;
-{
-    if (dest <= src) {
-	for (; len; len--) {
-	    *dest++ = *src++;
-	}
-    }
-    else {
-	dest += len;
-	src += len;
-	for (; len; len--) {
-	    *--dest = *--src;
-	}
-    }
-}
 
 void
 no_can_do(what)
@@ -59,8 +42,6 @@ exdis(maxnum)
 int maxnum;
 {
     double temp, temp2;
-    double exp();
-    double log();
 
     temp = (double) maxnum;
     temp2 = (double) myrand();
@@ -154,7 +135,8 @@ eaccess(filename, mod)
 char *filename;
 int mod;
 {
-    int protection, euid;
+    int protection;
+    uid_t euid;
 
     mod &= 7;				/* remove extraneous garbage */
     if (stat(filename, &filestat) < 0)

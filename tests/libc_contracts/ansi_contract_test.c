@@ -6,9 +6,10 @@
  *
  * The tree's sources are compiled against the tree's headers, so the FILE
  * layout and the getc and putc macros under test are the target's. open(2)
- * is answered here because the tree's O_APPEND is 0x0008 and O_TRUNC is
- * 0x0400, which are not the host's values; the shim both translates them
- * for the host kernel and records what _sflags asked for.
+ * is answered by ansi_open_shim.c, a unit of its own compiled against the
+ * host's headers, because the tree's O_CREAT and O_TRUNC are not the host's
+ * bits and the two sets of headers cannot meet in one translation unit; it
+ * translates for the host kernel and records what _sflags asked for.
  *
  * ANSI_REAL_FINDIOP links the tree's findiop.c, whose static assertion pins
  * sizeof(FILE) at the target's 24 bytes and so compiles only where pointers
@@ -75,36 +76,17 @@ test_fstat(int fd, struct stat *st)
 	return (0);
 }
 
-static int open_flags;		/* the tree flags of the last test_open */
-
 /*
- * The tree sources reach this through -Dopen=test_open, which also rewrites
- * the declaration in <fcntl.h>, so the parameter list is that declaration's.
- * This translation unit is compiled without the rename and calls the host's
- * open(2) below.
+ * open(2) is answered by ansi_open_shim.c, which compiles against the host's
+ * headers alone and so cannot see the four flag values below. Each is
+ * asserted here, where the tree's <fcntl.h> is the one in scope, so the two
+ * units cannot drift apart.
  */
-int
-test_open(const char *path, int flags, ...)
-{
-	va_list ap;
-	int host, mode;
-
-	va_start(ap, flags);
-	mode = va_arg(ap, int);
-	va_end(ap);
-
-	open_flags = flags;
-	host = flags & 3;		/* O_RDONLY, O_WRONLY and O_RDWR agree */
-	if (flags & O_CREAT)
-		host |= 0100;		/* the host's O_CREAT */
-	if (flags & O_TRUNC)
-		host |= 01000;		/* the host's O_TRUNC */
-	if (flags & O_APPEND)
-		host |= 02000;		/* the host's O_APPEND */
-	if (flags & O_EXCL)
-		host |= 0200;		/* the host's O_EXCL */
-	return (open(path, host, mode));
-}
+extern int ansi_open_flags;
+_Static_assert(O_CREAT == 0x0200, "ansi_open_shim.c spells the tree's O_CREAT");
+_Static_assert(O_TRUNC == 0x0400, "ansi_open_shim.c spells the tree's O_TRUNC");
+_Static_assert(O_APPEND == 0x0008, "ansi_open_shim.c spells the tree's O_APPEND");
+_Static_assert(O_EXCL == 0x0800, "ansi_open_shim.c spells the tree's O_EXCL");
 
 int db_fclose(FILE *);
 int db_fflush(FILE *);
@@ -330,9 +312,9 @@ check_append(void)
 	fp = db_fopen(path, "a");
 	check(fp != NULL, "fopen in append mode fails");
 	if (fp != NULL) {
-		check((open_flags & O_APPEND) != 0,
+		check((ansi_open_flags & O_APPEND) != 0,
 		    "append mode does not reach open(2) as O_APPEND");
-		check((open_flags & O_TRUNC) == 0,
+		check((ansi_open_flags & O_TRUNC) == 0,
 		    "append mode truncates the file");
 		check(db_ftell(fp) == 4L,
 		    "an append stream does not start at the end of the file");

@@ -142,3 +142,5 @@ ansi32_setvbuf.o
 ansi32_fgetpos.o
 ansi32_ungetc.o
 ansi32_findiop.o
+ansi_open_shim.o
+ansi32_open_shim.o

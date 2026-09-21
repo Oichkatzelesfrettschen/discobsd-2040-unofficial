@@ -1012,8 +1012,9 @@ ANSI_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include
 ANSI_MEMBERS=	flags fopen fdopen freopen filbuf flsbuf fseek ftell rew \
 		setvbuf fgetpos ungetc
-ANSI_OBJS=	${ANSI_MEMBERS:C/^/ansi_/:C/$/.o/}
-ANSI_OBJS32=	${ANSI_MEMBERS:C/^/ansi32_/:C/$/.o/} ansi32_findiop.o
+ANSI_OBJS=	${ANSI_MEMBERS:C/^/ansi_/:C/$/.o/} ansi_open_shim.o
+ANSI_OBJS32=	${ANSI_MEMBERS:C/^/ansi32_/:C/$/.o/} ansi32_findiop.o \
+		ansi32_open_shim.o
 
 check-ansi: ansi_contract_test
 	./ansi_contract_test
@@ -1031,6 +1032,14 @@ ansi_contract_test: ansi_contract_test.c ${ANSI_OBJS}
 ansi_contract_test32: ansi_contract_test.c ${ANSI_OBJS32}
 	${HOSTCC} ${ILP32} ${ANSI_CFLAGS} ${ANSI_MACROS} -DANSI_REAL_FINDIOP \
 	    -o $@ ansi_contract_test.c ${ANSI_OBJS32}
+
+# The shim carries the host's <fcntl.h> alone, so it takes neither -nostdinc
+# nor the tree's include path.
+ansi_open_shim.o: ansi_open_shim.c
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -c -o $@ ansi_open_shim.c
+
+ansi32_open_shim.o: ansi_open_shim.c
+	${HOSTCC} ${ILP32} -std=c17 -Wall -Wextra -Werror -c -o $@ ansi_open_shim.c
 
 .for _m in ${ANSI_MEMBERS} findiop
 ansi_${_m}.o: ${PRINTF_DIR}/${_m}.c

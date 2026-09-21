@@ -93,6 +93,16 @@ EXT char amb[YSIZE][XSIZE];
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <pwd.h>
+#include <unistd.h>
+
+/* The termcap entry points warp reaches. <term.h> carries them, but this
+   directory has a term.h of its own that -I. finds first. */
+int	tgetent(char *, char *);
+int	tgetnum(char *);
+int	tgetflag(char *);
+char	*tgetstr(char *, char **);
+char	*tgoto(char *, int, int);
+int	tputs(char *, int, int (*)());
 
 #ifdef TERMIO
 #   include <termio.h>

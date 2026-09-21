@@ -128,7 +128,7 @@ move_universe()
 		movers->prev = curobj;
 	    }
 	}
-	if (temp = occupant[y][x]) {		/* already occupied? */
+	if ((temp = occupant[y][x])) {		/* already occupied? */
 	    if (!temp->contend) {
 		if (temp->type == Torp) {
 		    if (temp->image == '+')
@@ -223,7 +223,7 @@ move_universe()
 		for (x=minxblast; x<=maxxblast; x++) {
 		    tmpblast = blast[y][x];
 		    if (numamoebas && amb[y][x] == '~') {
-			if (temp = occupant[y][x]) {
+			if ((temp = occupant[y][x])) {
 			    if (temp->image == '&')
 				tmpblast >>= 1;
 			    else if (temp->type == Web)
@@ -547,7 +547,7 @@ move_universe()
     do_bangs();
     if (numcrushes && movers->type == Crusher)
 	movers->vely = 0;
-    if (curobj = base) {
+    if ((curobj = base)) {
 	char ch;
 
 	curobj->velx = 0;
@@ -563,7 +563,7 @@ move_universe()
 	    setimage(curobj, ch);
 	}
     }
-    if (curobj = ent) {
+    if ((curobj = ent)) {
 	char ch;
 
 	if (entmode == 0) {
@@ -612,21 +612,21 @@ register char what;
     register int xp;
     register int xm;
 
-    if ((obj=occupant[y][xp=(x+XSIZE01)%XSIZE])&&obj->type == what) /* 0, 1 */
+    if (((obj=occupant[y][xp=(x+XSIZE01)%XSIZE])&&obj->type == what)) /* 0, 1 */
 	count++;
-    if ((obj=occupant[y][xm=(x+XSIZE99)%XSIZE])&&obj->type == what) /* 0, -1 */
+    if (((obj=occupant[y][xm=(x+XSIZE99)%XSIZE])&&obj->type == what)) /* 0, -1 */
 	count++;
-    if ((obj=occupant[y=(y+YSIZE99)%YSIZE][xp])&&obj->type == what) /* -1, 1 */
+    if (((obj=occupant[y=(y+YSIZE99)%YSIZE][xp])&&obj->type == what)) /* -1, 1 */
 	count++;
-    if ((obj=occupant[y][x])&&obj->type == what)                    /* -1, 0 */
+    if (((obj=occupant[y][x])&&obj->type == what))                    /* -1, 0 */
 	count++;
-    if ((obj=occupant[y][xm])&&obj->type == what)                   /* -1, -1 */
+    if (((obj=occupant[y][xm])&&obj->type == what))                   /* -1, -1 */
 	count++;
-    if ((obj=occupant[y=(y+2)%YSIZE][xp])&&obj->type == what)       /* 1, 1 */
+    if (((obj=occupant[y=(y+2)%YSIZE][xp])&&obj->type == what))       /* 1, 1 */
 	count++;
-    if ((obj=occupant[y][x])&&obj->type == what)                    /* 1, 0 */
+    if (((obj=occupant[y][x])&&obj->type == what))                    /* 1, 0 */
 	count++;
-    if ((obj=occupant[y][xm])&&obj->type == what)                   /* 1, -1 */
+    if (((obj=occupant[y][xm])&&obj->type == what))                   /* 1, -1 */
 	count++;
     return (count);
 }
@@ -641,14 +641,14 @@ register char what;
     register int xp;
     register int xm;
 
-    if ((obj=occupant[y][xp=(x+XSIZE01)%XSIZE])&&obj->type == what ||/* 0, 1 */
-        (obj=occupant[y][xm=(x+XSIZE99)%XSIZE])&&obj->type == what ||/* 0, -1 */
-        (obj=occupant[y=(y+YSIZE99)%YSIZE][xp])&&obj->type == what ||/* -1, 1 */
-        (obj=occupant[y][x])&&obj->type == what                    ||/* -1, 0 */
-        (obj=occupant[y][xm])&&obj->type == what                   ||/* -1,-1 */
-        (obj=occupant[y=(y+2)%YSIZE][xp])&&obj->type == what       ||/* 1, 1 */
-        (obj=occupant[y][x])&&obj->type == what                    ||/* 1, 0 */
-        (obj=occupant[y][xm])&&obj->type == what)                    /* 1, -1 */
+    if (((obj=occupant[y][xp=(x+XSIZE01)%XSIZE])&&obj->type == what) ||/* 0, 1 */
+        ((obj=occupant[y][xm=(x+XSIZE99)%XSIZE])&&obj->type == what) ||/* 0, -1 */
+        ((obj=occupant[y=(y+YSIZE99)%YSIZE][xp])&&obj->type == what) ||/* -1, 1 */
+        ((obj=occupant[y][x])&&obj->type == what)                    ||/* -1, 0 */
+        ((obj=occupant[y][xm])&&obj->type == what)                   ||/* -1,-1 */
+        ((obj=occupant[y=(y+2)%YSIZE][xp])&&obj->type == what)       ||/* 1, 1 */
+        ((obj=occupant[y][x])&&obj->type == what)                    ||/* 1, 0 */
+        ((obj=occupant[y][xm])&&obj->type == what))                    /* 1, -1 */
 	return(1);
     return (0);
 }
@@ -663,14 +663,14 @@ register char what;
     register int xp;
     register int xm;
 
-    if ((obj=occupant[y][xp=(x+XSIZE01)%XSIZE])&&obj->image==what ||/* 0, 1 */
-        (obj=occupant[y][xm=(x+XSIZE99)%XSIZE])&&obj->image==what ||/* 0, -1 */
-        (obj=occupant[y=(y+YSIZE99)%YSIZE][xp])&&obj->image==what ||/* -1, 1 */
-        (obj=occupant[y][x])&&obj->image==what                    ||/* -1, 0 */
-        (obj=occupant[y][xm])&&obj->image==what                   ||/* -1,-1 */
-        (obj=occupant[y=(y+2)%YSIZE][xp])&&obj->image==what       ||/* 1, 1 */
-        (obj=occupant[y][x])&&obj->image==what                    ||/* 1, 0 */
-        (obj=occupant[y][xm])&&obj->image==what)                    /* 1, -1 */
+    if (((obj=occupant[y][xp=(x+XSIZE01)%XSIZE])&&obj->image==what) ||/* 0, 1 */
+        ((obj=occupant[y][xm=(x+XSIZE99)%XSIZE])&&obj->image==what) ||/* 0, -1 */
+        ((obj=occupant[y=(y+YSIZE99)%YSIZE][xp])&&obj->image==what) ||/* -1, 1 */
+        ((obj=occupant[y][x])&&obj->image==what)                    ||/* -1, 0 */
+        ((obj=occupant[y][xm])&&obj->image==what)                   ||/* -1,-1 */
+        ((obj=occupant[y=(y+2)%YSIZE][xp])&&obj->image==what)       ||/* 1, 1 */
+        ((obj=occupant[y][x])&&obj->image==what)                    ||/* 1, 0 */
+        ((obj=occupant[y][xm])&&obj->image==what))                    /* 1, -1 */
 	return obj;
     return Null(OBJECT*);
 }

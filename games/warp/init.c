@@ -40,11 +40,29 @@ initialize()
     register int x;
     register int y;
     register int dist;
-    register int ydist;
-    register int xdist;
+    /*
+     * The uniform dist case sets neither, and the switches below take
+     * their 0 arms for it: x and y come from rand_mod alone there. Every
+     * other case assigns both before the switches read them.
+     */
+    register int ydist = 0;
+    register int xdist = 0;
     long e;
-    int yoff, xoff, ypred, xpred;
-    register OBJECT *obj;
+    /*
+     * The dist cases that read an offset are the ones that set it, and the
+     * uniform case leaves xdist and ydist at 0, where the inner switch
+     * takes the arm that uses neither. Nothing carries that correlation
+     * into the reads, so the offsets start at the shift the uniform case
+     * means.
+     */
+    int yoff = 0, xoff = 0, ypred, xpred;
+    /*
+     * obj holds the last star placed, which the inhabited-system chain
+     * below starts from under a guard of inumstars > 30. root is a real
+     * OBJECT at 0,0, so a broken guard starts the chain at a coordinate
+     * on the board rather than reading an unset pointer.
+     */
+    register OBJECT *obj = &root;
     char ch;
     FILE *mapfp = NULL;
     bool tmptholspec;
@@ -95,13 +113,14 @@ initialize()
     for (x=0; x<XSIZE; x++)
 	xblasted[x] = 0;
     blasted = FALSE;
-    if (!starspec)
+    if (!starspec) {
 	if (smarts < 15)
 	    inumstars = 50 + rand_mod(50);
 	else if (smarts < 50 || smarts > 85)
 	    inumstars = exdis(800) + rand_mod(100) + 1;
 	else /* too few stars makes 50..85 too hard */
 	    inumstars = exdis(700) + rand_mod(150-super*2) + 50+super*2;
+    }
     tmptholspec = (smarts > 15 && inumstars < 450 && ! rand_mod(90-sm80));
     if (!klingspec) {
 	inumenemies = rand_mod((smarts+1)/2) + 1;

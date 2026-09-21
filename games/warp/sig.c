@@ -90,7 +90,7 @@ mytstp()
     rewrite();
 }
 
-void					/* very much void */
+_Noreturn void
 finalize(status)
 int status;
 {
@@ -106,8 +106,9 @@ int status;
 
 /* come here on signal other than interrupt, stop, or cont */
 
-void
+_Noreturn void
 sig_catcher(signo)
+    int signo;
 {
 #ifdef VERBOSE
     static char *signame[] = {
@@ -175,7 +176,7 @@ sig_catcher(signo)
 	totalscore -= possiblescore / 2;
     }
     save_game();
-    if (signo != SIGHUP && signo != SIGQUIT)
+    if (signo != SIGHUP && signo != SIGQUIT) {
 #ifdef VERBOSE
 	IF(verbose)
 	    printf("\r\nCaught %s%s--%s\r\n",
@@ -186,6 +187,7 @@ sig_catcher(signo)
 #ifdef TERSE
 	    printf("\r\nSignal %d--bye bye\r\n",signo);
 #endif
+    }
     switch (signo) {
     case SIGBUS:
     case SIGILL:

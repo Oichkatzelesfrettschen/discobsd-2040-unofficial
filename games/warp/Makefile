@@ -53,3 +53,9 @@ install:        warp $(PRIVATE)
 		cp $(PRIVATE) $(PRIVLIB)
 		cp /dev/null $(PRIVLIB)/save.blurfl
 		[ -f $(PRIVLIB)/warp.news ] || cp warp.news $(PRIVLIB)
+
+# Every object reads these, and a header edit that does not rebuild them
+# links a term.o holding definitions a later term.h moved to libtermcap.
+$(OBJS):	EXTERN.h INTERN.h warp.h object.h move.h sig.h term.h \
+		them.h us.h util.h weapon.h bang.h init.h intrp.h play.h \
+		score.h

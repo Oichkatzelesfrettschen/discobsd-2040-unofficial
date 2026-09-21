@@ -40,9 +40,9 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  printenv rev size sort split sum tail tee time touch tr tsort tty \
 		  uniq unifdef w wc who bc egrep mail su vmstat wall write strip false nohup \
 		  true cut paste seq dirname nl cksum expand unexpand mkfifo \
-		uuencode uudecode cpio getopt yes strings users
+		uuencode uudecode cpio getopt yes strings users unixbench
 
-# TODO: ccom lccom pforth sre unixbench adc-demo
+# TODO: ccom lccom pforth sre adc-demo
 #       lorder mkdep
 
 all:		$(SUBDIR)

@@ -137,7 +137,7 @@ register OBJECT *attackee;
 		    for (prob = scandist;prob;prob--) {
 			cury = (cury + dy + YSIZE00) % YSIZE;
 			curx = (curx + dx + XSIZE00) % XSIZE;
-			if (obj = occupant[cury][curx]) {
+			if ((obj = occupant[cury][curx])) {
 			    switch (obj->image) {
 			    case 'P': case 'K': case 'R': case ' ':
 		pot_shot:
@@ -344,7 +344,7 @@ register OBJECT *attackee;
 				}
 				if (obj->image != '0')
 				    break;
-			    /* DROP THROUGH! */
+			    /* FALLTHROUGH */
 			    case 'X':
 				if (attackee == nuke) {
 				    if (rand_mod(2+scandist-prob) <
@@ -390,11 +390,12 @@ register OBJECT *attackee;
 					obj->vely = obj->velx = 0;
 				    }
 				}
-				if (!thru_stars)
+				if (!thru_stars) {
 				    if (rand_mod(97-sm95))
 					goto bombout;
 				    else
 					thru_stars = TRUE;
+				}
 				break;
 			    case '<': case '>':
 				if (attackee == nuke) {
@@ -520,8 +521,9 @@ register int dx;
 		if (dy)
 		    return;
 	        if (dx==(img == '<' ? 1 : -1) ) {
+		    occupant[y][x]->velx = -occupant[y][x]->velx;
 		    occupant[y][x]->image =
-			(occupant[y][x]->velx *= -1) < 0 ? '>' : '<';
+			occupant[y][x]->velx < 0 ? '>' : '<';
 		    return;
 		}
 	    }

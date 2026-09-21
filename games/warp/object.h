@@ -22,8 +22,10 @@
 #define Crusher 7
 
 typedef struct object {
-    char posx, posy;
-    char velx, vely;
+    /* Coordinates into the blast, amb and occupant tables, which XSIZE
+       and YSIZE bound well inside a byte. */
+    unsigned char posx, posy;
+    signed char velx, vely;
     struct object *next, *prev, *contend;
     long energy;
     long mass;

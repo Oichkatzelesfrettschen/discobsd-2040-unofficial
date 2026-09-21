@@ -25,6 +25,8 @@
 #include "us.h"
 #include "util.h"
 #include "weapon.h"
+#define TOPLINELEN 100	/* one scoreboard line as the display shows it */
+
 #include "INTERN.h"
 #include "score.h"
 #include <unistd.h>
@@ -137,7 +139,7 @@ That process does not seem to exist anymore, so you'll have to start the\r\n");
 		savfil = fopen(savefilename,"r");
 		if (savfil != NULL) {
 		    if (fgets(spbuf,100,savfil) == 0)
-		        /*ignore*/;
+		        spbuf[0] = '\0';
 		}
 	    }
 	}
@@ -350,7 +352,7 @@ display_status()
 	mvaddstr(0,38, spbuf);
 	oldenemies = numenemies;
     }
-    if (tmp = timer%10) {
+    if ((tmp = timer%10)) {
 	Sprintf(spbuf,"%1d",tmp);
 	mvaddstr(0,67, spbuf);
     }
@@ -589,8 +591,11 @@ score()
 	    Fclose(outfd);
 	    while (unlink(scoreboard) == 0)
 		;
-	    link(TMPSCOREBOARD,scoreboard) >= 0;
-	    unlink(TMPSCOREBOARD);
+	    /* The old scoreboard is already unlinked above, so the temporary
+	       is the only copy until the link succeeds; a failed link leaves
+	       it in place to be recovered rather than removing it too. */
+	    if (link(TMPSCOREBOARD,scoreboard) >= 0)
+		unlink(TMPSCOREBOARD);
 	    logfd = fopen(scoreboard,"r");
 	}
 	else {
@@ -630,10 +635,18 @@ score()
 		mvaddstr(0,33,"TOP WARPISTS");
 	    mvaddstr(2,0,"RANK  WHO                     AKA        SCORE DIFF  CUMDIFF  WHEN");
 	    for (i=1; i<=20; i++) {
-		if (fgets(buf, 100, logfd) == NULL)
+		/*
+		 * One scoreboard line, held to the width the display has for
+		 * it. buf is LBUFLEN+1 and spbuf is 512, so nothing but this
+		 * bound keeps a line and its six-character rank prefix inside
+		 * the destination.
+		 */
+		char line[TOPLINELEN];
+
+		if (fgets(line, sizeof line, logfd) == NULL)
 		    break;
-		buf[strlen(buf)-1] = '\0';
-		Sprintf(spbuf, " %2d   %s", i, buf);
+		line[strlen(line)-1] = '\0';
+		snprintf(spbuf, sizeof spbuf, " %2d   %s", i, line);
 		mvaddstr(i+2,0, spbuf);
 	    }
 	    Fclose(logfd);
@@ -673,7 +686,7 @@ save_game()
 	printf("Cannot save game\r\n");
 	finalize(1);
     }
-    fprintf(savfil, "%-8s %10ld, %2d,%5d,%2d,%2d,%3d %c%c%c%c%c%c%c%c\n",
+    fprintf(savfil, "%-8s %10ld, %2d,%5d,%2d,%2d,%3d %c%c%c%c%c%c%c%c%c\n",
 	logname, totalscore, smarts, cumsmarts, numents, numbases, wave,
 	apolspec ? 'a' : ' ',
 	beginner   ? 'b' : ' ',

@@ -132,17 +132,14 @@ char rcsid[] = "@(#)$Header: warp.c,v 7.0.1.3 86/12/12 17:07:44 lwall Exp $";
 #include "version.h"
 #include "weapon.h"
 
+int
 main(argc,argv)
 int argc;
 char *argv[];
 {
     char tmp, *s, *tcbuf;
 
-    int i;
-
     FILE *savfil;
-
-rand_ok:
 
     while (--argc > 0 && (*++argv)[0] == '-')
 	for (s = argv[0]+1; *s != '\0'; s++)

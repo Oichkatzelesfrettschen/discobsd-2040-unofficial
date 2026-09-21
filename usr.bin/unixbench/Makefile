@@ -28,6 +28,9 @@
 #                          checking for gcc and DEC's cc on
 #                          Digital Unix 4.x (kahn@zk3.dec.com)
 ##############################################################################
+# Every link names its source: $< is GNU make's first prerequisite and is
+# empty in a bmake explicit rule, which linked crt0.o against no source at
+# all and failed on an undefined main.
 TOPSRC!=cd ../..; pwd
 PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
@@ -98,218 +101,175 @@ REQD = $(BINS) $(PROGDIR)/unixbench.logo $(PROGDIR)/cleanup.sh  \
 	$(TESTDIR)/sort.src $(TESTDIR)/cctest.c $(TESTDIR)/dc.dat
 
 # ######################### the big ALL ############################
-all: distr programs
+all: programs
 ## Ick!!!  What is this about???  How about let's not chmod everything bogusly.
 #	@chmod 744 * $(SRCDIR)/* $(PROGDIR)/* $(TESTDIR)/* $(DOCDIR)/*
 
 # ####################### a check for Run ######################
 check: $(REQD)
-	make all
-# ##############################################################
-# distribute the files out to subdirectories if they are in this one
-distr:
-	@echo "Checking distribution of files"
-# scripts
-	@if  test ! -d  $(PROGDIR) \
-        ; then  \
-           mkdir $(PROGDIR) \
-           ; mv $(SCRIPTS) $(PROGDIR) \
-        ; else \
-           echo "$(PROGDIR)  exists" \
-        ; fi
-# C sources
-	@if  test ! -d  $(SRCDIR) \
-        ; then  \
-           mkdir $(SRCDIR) \
-           ; mv $(SOURCES) $(SRCDIR) \
-        ; else \
-           echo "$(SRCDIR)  exists" \
-        ; fi
-# test data
-	@if  test ! -d  $(TESTDIR) \
-        ; then  \
-           mkdir $(TESTDIR) \
-           ; mv $(TESTS) $(TESTDIR) \
-        ; else \
-           echo "$(TESTDIR)  exists" \
-        ; fi
-# temporary work directory
-	@if  test ! -d  $(TMPDIR) \
-        ; then  \
-           mkdir $(TMPDIR) \
-        ; else \
-           echo "$(TMPDIR)  exists" \
-        ; fi
-# directory for results
-	@if  test ! -d  $(RESULTDIR) \
-        ; then  \
-           mkdir $(RESULTDIR) \
-	   ;  mv $(RESULTS) $(RESULTDIR) \
-        ; else \
-           echo "$(RESULTDIR)  exists" \
-        ; fi
 
+# ##############################################################
 programs: $(BINS)
 
 # Individual programs
 $(PROGDIR)/arithoh:	$(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Darithoh
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Darithoh
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/register: $(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Ddatum='register int'
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Ddatum='register int'
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/short: $(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Ddatum=short
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Ddatum=short
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/int: $(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Ddatum=int
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Ddatum=int
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/long: $(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Ddatum=long
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Ddatum=long
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/float: $(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Ddatum=float
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Ddatum=float
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/double: $(SRCDIR)/arith.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Ddatum=double
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/arith.c ${LIBS} ${OPTON} -Ddatum=double
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 
 
 $(PROGDIR)/whetstone-double: $(SRCDIR)/whets.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -DDP -DUNIX -DUNIXBENCH -lm -lc
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/whets.c ${LIBS} ${OPTON} -DDP -DUNIX -DUNIXBENCH -lm -lc
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/hanoi: $(SRCDIR)/hanoi.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/hanoi.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 
 $(PROGDIR)/poll: $(SRCDIR)/time-polling.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/time-polling.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/poll2: $(SRCDIR)/time-polling.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/time-polling.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 	$(CC) -DHAS_POLL2 -DUNIXBENCH -o $(PROGDIR)/poll2 ${CFLAGS} ${OPTON} $(SRCDIR)/time-polling.c
 
 $(PROGDIR)/select: $(SRCDIR)/time-polling.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/time-polling.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 	$(CC) -DHAS_SELECT -DUNIXBENCH -o $(PROGDIR)/select ${CFLAGS} ${OPTON} $(SRCDIR)/time-polling.c
 
 $(PROGDIR)/fstime: $(SRCDIR)/fstime.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Dawk=1
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/fstime.c ${LIBS} ${OPTON} -Dawk=1
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/fsbuffer: $(SRCDIR)/fstime.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Dawk=1 -DFSBUFFER
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/fstime.c ${LIBS} ${OPTON} -Dawk=1 -DFSBUFFER
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/fsdisk: $(SRCDIR)/fstime.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON} -Dawk=1 -DFSDISK
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/fstime.c ${LIBS} ${OPTON} -Dawk=1 -DFSDISK
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/syscall: $(SRCDIR)/syscall.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/syscall.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/context1: $(SRCDIR)/context1.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/context1.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/pipe: $(SRCDIR)/pipe.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/pipe.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/spawn: $(SRCDIR)/spawn.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/spawn.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/execl: $(SRCDIR)/execl.c $(SRCDIR)/big.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/execl.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/dhry2: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_1.c
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_2.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_1.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_2.o $(SRCDIR)/dhry_2.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
-	cd $(SRCDIR); rm -f dhry_1.o dhry_2.o
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
+	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
 $(PROGDIR)/dhry2reg: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_1.c -DREG=register
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_2.c -DREG=register
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_1.o -DREG=register $(SRCDIR)/dhry_1.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_2.o -DREG=register $(SRCDIR)/dhry_2.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
-	cd $(SRCDIR); rm -f dhry_1.o dhry_2.o
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
+	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
 
 dhry2reg: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) dhry_1.c -DREG=register
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) dhry_2.c -DREG=register
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) -o $(SRCDIR)/dhry_1.o -DREG=register $(SRCDIR)/dhry_1.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) -o $(SRCDIR)/dhry_2.o -DREG=register $(SRCDIR)/dhry_2.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
-	cd $(SRCDIR); rm -f dhry_1.o dhry_2.o
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
+	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
 $(PROGDIR)/looper: $(SRCDIR)/looper.c
-	${CC} ${LDFLAGS} -o $@.elf $< ${LIBS} ${OPTON}
+	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/looper.c ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@
+	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 # Run the benchmarks and create the reports
 run:
@@ -321,7 +281,7 @@ report:
 	cat results/report
 
 clean:
-	rm -f $(BINS) pgms/*.elf pgms/*.dis
+	rm -f $(BINS) pgms/*.elf pgms/*.dis $(SRCDIR)/*.o
 
 install:
 	mkdir -p ${DESTDIR}/usr/share/unixbench

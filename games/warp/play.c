@@ -152,7 +152,7 @@ play()
 	if (aretorps) {
 	    aretorps = 0;
 	    for (i=0;i<2;i++) for (y=0;y<3;y++) for (x=0;x<3;x++) {
-		if (curobj = isatorp[i][y][x]) {
+		if ((curobj = isatorp[i][y][x])) {
 		    to = occupant[(curobj->posy+curobj->vely+YSIZE00)%YSIZE]
 				 [(curobj->posx+curobj->velx+XSIZE00)%XSIZE];
 		    if (to && !to->vely && !to->velx) {

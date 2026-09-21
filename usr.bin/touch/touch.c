@@ -31,31 +31,45 @@
  */
 
 /*
- * This kernel carries utimes(2) and records a file's times as whole seconds
- * (struct icommon2's ic_atime and ic_mtime), so the times here are a struct
- * timeval pair whose microseconds are always zero. The interface OpenBSD
- * reaches the same inodes through, utimensat(2) and futimens(2), names two
- * things utimes(2) cannot:
+ * The times reach the inode through utimes(2), which is the only call this
+ * kernel offers for them and which records whole seconds (struct icommon2's
+ * ic_atime and ic_mtime). OpenBSD reaches the same inodes through
+ * utimensat(2) and futimens(2), which name a nanosecond and an omission
+ * utimes(2) cannot:
  *
- *   - UTIME_NOW is utimes(path, NULL); a run with no time specification
- *     reads the clock instead, so that every operand of one run is given
+ *   - UTIME_NOW becomes one clock read, so every operand of a run is given
  *     the same instant rather than the instant it was reached.
- *   - UTIME_OMIT has no spelling at all, so -a alone and -m alone read the
- *     file's current times with stat(2) and write back unaltered the one
- *     they are not changing.
+ *   - UTIME_OMIT has no spelling, so -a alone and -m alone read the file's
+ *     current times with stat(2) and write back unaltered the one they are
+ *     not changing.
  *   - futimens(fd, ...) on a file just created becomes a second utimes(2)
  *     on its name, there being no futimes(2) here.
  *
- * -d takes the ISO 8601 form OpenBSD accepts and is read by the two
- * fixed-width field parsers below rather than through strptime(3), which
- * this libc does not carry. A fraction of a second is accepted and
- * discarded, the filesystem having nowhere to record it.
+ * The calendar conversions are here rather than in mktime(3) and
+ * localtime(3), and that is a size decision with a measured basis.
+ * localtime() reads a zone file, and this system ships none: no
+ * /usr/share/zoneinfo and no /etc/localtime, so tzload() cannot succeed and
+ * tzset() always falls through to tzsetkernel(), which reads one field --
+ * the kernel's tz_minuteswest, copied out by gettimeofday(2). zone_west()
+ * below reads that same field, so this program and localtime() agree by
+ * construction rather than by coincidence. Linking mktime(3) instead would
+ * carry ctime.o, mktime.o and timezone.o into sbin/utilbox: 2531 bytes of
+ * text and 2134 of bss, of which 2084 is the zone table nothing on this
+ * image can fill.
  *
- * The times reach the inode through utimes(2) alone. The implementation
- * this replaces set them by reading a file's first byte and writing it
- * back, which could not touch anything but a regular file, could not set
- * the two times apart, and rewrote a block of a flash-backed filesystem to
- * record a date.
+ * The conversions are the proleptic Gregorian ones, exact over the whole
+ * range a four-byte time_t represents and carrying no month-length table.
+ *
+ * -d takes the ISO 8601 form OpenBSD accepts, read by the fixed-width field
+ * parser below rather than through strptime(3), which this libc does not
+ * carry. A fraction of a second is accepted and discarded, the inode
+ * recording whole seconds.
+ *
+ * <ctype.h> is not reached: tests/resize_contracts/symbol_closure.sh holds
+ * sbin/utilbox, which this program links into, to a closure that excludes
+ * _ctype_, and one call to a macro from that header would carry the whole
+ * table in for a comparison that needs none of it. STYLE-GUIDE.md T07
+ * records the same measurement for the V7 scanner.
  */
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -64,26 +78,169 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 
 /*
- * The digit test, spelled out rather than taken from <ctype.h>.
- * tests/resize_contracts/symbol_closure.sh holds sbin/utilbox, which this
- * program links into, to a closure that excludes _ctype_, and one call to
- * the macro from that header would carry the whole table in for a
- * comparison that needs none of it.
+ * The bounds are derived from time_t rather than written down, so the same
+ * source is exact at the target's four bytes and at the host width the
+ * contract gate builds it for. The logic assumes only that the type is
+ * signed, which is what the assertion pins.
  */
+_Static_assert((time_t)-1 < 0, "time_t is signed");
+_Static_assert(sizeof(time_t) <= sizeof(long), "time_t fits the long below");
+
+/*
+ * The largest value a signed time_t holds, reached by shifting an all-ones
+ * unsigned long down to time_t's width less its sign bit. The shift count is
+ * a constant, so this folds.
+ */
+#define TIME_MAX	((time_t)(~0UL >> \
+			    (8 * sizeof(unsigned long) - 8 * sizeof(time_t) + 1)))
+#define TIME_MIN	((time_t)(-TIME_MAX - 1))
+#define SECS_PER_DAY	86400L
+
+/* The largest day count whose product with SECS_PER_DAY still fits. */
+#define DAY_LIMIT	((long)(TIME_MAX / SECS_PER_DAY))
+
 #define ISDIGIT(c)	((c) >= '0' && (c) <= '9')
 
-void		stime_arg1(char *, struct timeval *);
-void		stime_arg2(char *, int, struct timeval *);
-void		stime_argd(char *, struct timeval *);
-void		stime_file(char *, struct timeval *);
-void		usage(void);
+/* A broken-down time, in whichever of the two frames the caller is using. */
+struct caldate {
+	int	year;			/* the full year, not an offset */
+	int	mon;			/* 1 to 12 */
+	int	mday;			/* 1 to 31 */
+	int	hour;
+	int	min;
+	int	sec;
+};
+
+static long	days_from_civil(int, int, int);
+static void	civil_from_days(long, struct caldate *);
+static long	zone_west(void);
+static bool	epoch_from_local(const struct caldate *, time_t *);
+static void	local_from_epoch(time_t, struct caldate *);
+static void	stime_arg1(char *, struct timeval *);
+static void	stime_arg2(char *, int, struct timeval *);
+static void	stime_argd(char *, struct timeval *);
+static void	stime_file(char *, struct timeval *);
+static void	usage(void);
+
+/*
+ * Days from 1970-01-01 to the given date, proleptic Gregorian. The year is
+ * shifted so that March begins it, which puts the leap day last and lets the
+ * month lengths fall out of one linear expression instead of a table.
+ */
+static long
+days_from_civil(int y, int m, int d)
+{
+	long era, doe, yoe, doy;
+
+	y -= (m <= 2);
+	era = (y >= 0 ? y : y - 399) / 400;
+	yoe = y - era * 400;				/* [0, 399] */
+	doy = (153L * (m + (m > 2 ? -3 : 9)) + 2L) / 5L + d - 1;
+	doe = yoe * 365L + yoe / 4 - yoe / 100 + doy;	/* [0, 146096] */
+	return (era * 146097L + doe - 719468L);
+}
+
+/* The inverse, over the same range. */
+static void
+civil_from_days(long z, struct caldate *c)
+{
+	long era, doe, yoe, doy, mp, y;
+
+	z += 719468L;
+	era = (z >= 0 ? z : z - 146096L) / 146097L;
+	doe = z - era * 146097L;			/* [0, 146096] */
+	yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+	y = yoe + era * 400;
+	doy = doe - (365L * yoe + yoe / 4 - yoe / 100);
+	mp = (5L * doy + 2L) / 153L;			/* [0, 11], March first */
+	c->mday = (int)(doy - (153L * mp + 2L) / 5L + 1L);
+	c->mon = (int)(mp + (mp < 10 ? 3 : -9));
+	c->year = (int)(y + (c->mon <= 2));
+}
+
+/*
+ * Seconds west of Greenwich, from the one field the kernel keeps and
+ * gettimeofday(2) copies out. ctime.c's tzsetkernel() reads the same field,
+ * which is what makes this program and localtime(3) agree here.
+ */
+static long
+zone_west(void)
+{
+	struct timeval tv;
+	struct timezone tz;
+
+	if (gettimeofday(&tv, &tz) == -1)
+		return (0);
+	return ((long)tz.tz_minuteswest * 60L);
+}
+
+/*
+ * A local broken-down time to the instant it names, refusing anything the
+ * calendar does not hold or time_t cannot represent. Each bound is checked
+ * before the arithmetic that would overflow without it.
+ */
+static bool
+epoch_from_local(const struct caldate *c, time_t *out)
+{
+	/* A byte apiece: the longest month is 31, so int would cost four. */
+	static const unsigned char mon_len[12] = {
+		31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+	};
+	long days, secs, tod, west;
+	int len, leap;
+
+	if (c->mon < 1 || c->mon > 12 || c->mday < 1 ||
+	    c->hour < 0 || c->hour > 23 || c->min < 0 || c->min > 59 ||
+	    c->sec < 0 || c->sec > 61)		/* 61 could be a leap second */
+		return (false);
+
+	leap = (c->year % 4) == 0 && ((c->year % 100) != 0 ||
+	    (c->year % 400) == 0);
+	len = mon_len[c->mon - 1] + (leap && c->mon == 2);
+	if (c->mday > len)
+		return (false);
+
+	days = days_from_civil(c->year, c->mon, c->mday);
+	if (days > DAY_LIMIT || days < -DAY_LIMIT)
+		return (false);
+	secs = days * SECS_PER_DAY;
+	tod = c->hour * 3600L + c->min * 60L + c->sec;
+	west = zone_west();
+
+	/* The two additions that remain, each guarded against its own bound. */
+	if (secs > TIME_MAX - tod)
+		return (false);
+	secs += tod;
+	if (west > 0 ? secs > TIME_MAX - west : secs < TIME_MIN - west)
+		return (false);
+	*out = (time_t)(secs + west);
+	return (true);
+}
+
+/* The instant back to local fields, which is where -t starts from. */
+static void
+local_from_epoch(time_t t, struct caldate *c)
+{
+	long secs = (long)t - zone_west();
+	long days = secs / SECS_PER_DAY;
+	long rem = secs % SECS_PER_DAY;
+
+	if (rem < 0) {
+		rem += SECS_PER_DAY;
+		days--;
+	}
+	civil_from_days(days, c);
+	c->hour = (int)(rem / 3600L);
+	c->min = (int)((rem / 60L) % 60L);
+	c->sec = (int)(rem % 60L);
+}
 
 int
 main(int argc, char *argv[])
@@ -135,7 +292,7 @@ main(int argc, char *argv[])
 	 */
 	if (!timeset && argc > 1) {
 		(void)strtol(argv[0], &p, 10);
-		len = p - argv[0];
+		len = (int)(p - argv[0]);
 		if (*p == '\0' && (len == 8 || len == 10)) {
 			timeset = 1;
 			stime_arg2(*argv++, len == 10, tv);
@@ -143,7 +300,7 @@ main(int argc, char *argv[])
 		}
 	}
 
-	/* Otherwise use the current time of day. */
+	/* Otherwise use the current time of day, read once for every operand. */
 	if (!timeset) {
 		if (gettimeofday(&tv[0], NULL) == -1)
 			err(1, "gettimeofday");
@@ -209,17 +366,27 @@ main(int argc, char *argv[])
 
 #define	ATOI2(s)	((s) += 2, ((s)[-2] - '0') * 10 + ((s)[-1] - '0'))
 
-void
+/* Set both times from one instant; every parser below ends here. */
+static void
+settimes(struct timeval *tvp, time_t t)
+{
+	tvp[0].tv_sec = tvp[1].tv_sec = t;
+	tvp[0].tv_usec = tvp[1].tv_usec = 0;
+}
+
+static void
 stime_arg1(char *arg, struct timeval *tvp)
 {
-	struct tm	*lt;
-	time_t		 tmptime;
+	struct caldate	 c;
+	struct timeval	 now;
+	time_t		 t;
 	int		 yearset;
 	char		*dot, *p;
+
 					/* Start with the current time. */
-	tmptime = time(NULL);
-	if ((lt = localtime(&tmptime)) == NULL)
-		err(1, "localtime");
+	if (gettimeofday(&now, NULL) == -1)
+		err(1, "gettimeofday");
+	local_from_epoch(now.tv_sec, &c);
 					/* [[CC]YY]MMDDhhmm[.SS] */
 	for (p = arg, dot = NULL; *p != '\0'; p++) {
 		if (*p == '.' && dot == NULL)
@@ -228,106 +395,78 @@ stime_arg1(char *arg, struct timeval *tvp)
 			goto terr;
 	}
 	if (dot == NULL)
-		lt->tm_sec = 0;		/* Seconds defaults to 0. */
+		c.sec = 0;		/* Seconds defaults to 0. */
 	else {
 		*dot++ = '\0';
 		if (strlen(dot) != 2)
 			goto terr;
-		lt->tm_sec = ATOI2(dot);
-		if (lt->tm_sec > 61)	/* Could be leap second. */
-			goto terr;
+		c.sec = ATOI2(dot);
 	}
 
 	yearset = 0;
 	switch (strlen(arg)) {
 	case 12:			/* CCYYMMDDhhmm */
-		lt->tm_year = (ATOI2(arg) * 100) - 1900;
+		c.year = ATOI2(arg) * 100;
 		yearset = 1;
 		/* FALLTHROUGH */
 	case 10:			/* YYMMDDhhmm */
-		if (yearset) {
-			yearset = ATOI2(arg);
-			lt->tm_year += yearset;
-		} else {
-			yearset = ATOI2(arg);
+		if (yearset)
+			c.year += ATOI2(arg);
+		else {
 			/* POSIX logic: [00,68]=>20xx, [69,99]=>19xx */
-			lt->tm_year = yearset;
-			if (yearset < 69)
-				lt->tm_year += 100;
+			yearset = ATOI2(arg);
+			c.year = yearset + (yearset < 69 ? 2000 : 1900);
 		}
 		/* FALLTHROUGH */
 	case 8:				/* MMDDhhmm */
-		lt->tm_mon = ATOI2(arg);
-		if (lt->tm_mon > 12 || lt->tm_mon == 0)
-			goto terr;
-		--lt->tm_mon;		/* Convert from 01-12 to 00-11 */
-		lt->tm_mday = ATOI2(arg);
-		if (lt->tm_mday > 31 || lt->tm_mday == 0)
-			goto terr;
-		lt->tm_hour = ATOI2(arg);
-		if (lt->tm_hour > 23)
-			goto terr;
-		lt->tm_min = ATOI2(arg);
-		if (lt->tm_min > 59)
-			goto terr;
+		c.mon = ATOI2(arg);
+		c.mday = ATOI2(arg);
+		c.hour = ATOI2(arg);
+		c.min = ATOI2(arg);
 		break;
 	default:
 		goto terr;
 	}
 
-	lt->tm_isdst = -1;		/* Figure out DST. */
-	lt->tm_wday = -1;		/* sentinel for error */
-	tvp[0].tv_sec = tvp[1].tv_sec = mktime(lt);
-	if (tvp[0].tv_sec == -1 && lt->tm_wday == -1)
+	if (!epoch_from_local(&c, &t))
 terr:		errx(1,
 	"out of range or illegal time specification: [[CC]YY]MMDDhhmm[.SS]");
 
-	tvp[0].tv_usec = tvp[1].tv_usec = 0;
+	settimes(tvp, t);
 }
 
-void
+static void
 stime_arg2(char *arg, int year, struct timeval *tvp)
 {
-	struct tm	*lt;
-	time_t		 tmptime;
+	struct caldate	 c;
+	struct timeval	 now;
+	time_t		 t;
+	int		 yy;
+
 					/* Start with the current time. */
-	tmptime = time(NULL);
-	if ((lt = localtime(&tmptime)) == NULL)
-		err(1, "localtime");
+	if (gettimeofday(&now, NULL) == -1)
+		err(1, "gettimeofday");
+	local_from_epoch(now.tv_sec, &c);
 
-	lt->tm_mon = ATOI2(arg);	/* MMDDhhmm[YY] */
-	if (lt->tm_mon > 12 || lt->tm_mon == 0)
-		goto terr;
-	--lt->tm_mon;			/* Convert from 01-12 to 00-11 */
-	lt->tm_mday = ATOI2(arg);
-	if (lt->tm_mday > 31 || lt->tm_mday == 0)
-		goto terr;
-	lt->tm_hour = ATOI2(arg);
-	if (lt->tm_hour > 23)
-		goto terr;
-	lt->tm_min = ATOI2(arg);
-	if (lt->tm_min > 59)
-		goto terr;
+	c.mon = ATOI2(arg);		/* MMDDhhmm[YY] */
+	c.mday = ATOI2(arg);
+	c.hour = ATOI2(arg);
+	c.min = ATOI2(arg);
 	if (year) {
-		year = ATOI2(arg);
 		/* POSIX logic: [00,68]=>20xx, [69,99]=>19xx */
-		lt->tm_year = year;
-		if (year < 69)
-			lt->tm_year += 100;
+		yy = ATOI2(arg);
+		c.year = yy + (yy < 69 ? 2000 : 1900);
 	}
-	lt->tm_sec = 0;
+	c.sec = 0;
 
-	lt->tm_isdst = -1;		/* Figure out DST. */
-	lt->tm_wday = -1;		/* sentinel for error */
-	tvp[0].tv_sec = tvp[1].tv_sec = mktime(lt);
-	if (tvp[0].tv_sec == -1 && lt->tm_wday == -1)
-terr:		errx(1,
+	if (!epoch_from_local(&c, &t))
+		errx(1,
 	"out of range or illegal time specification: MMDDhhmm[YY]");
 
-	tvp[0].tv_usec = tvp[1].tv_usec = 0;
+	settimes(tvp, t);
 }
 
-void
+static void
 stime_file(char *fname, struct timeval *tvp)
 {
 	struct stat	sb;
@@ -341,11 +480,11 @@ stime_file(char *fname, struct timeval *tvp)
 }
 
 /*
- * One fixed-width decimal field, and the character that has to follow it.
- * The ISO 8601 form -d takes is six of these, which is the whole of what
- * strptime(3) would read for "%F" and "%T".
+ * One fixed-width decimal field and the character that must follow it. Six of
+ * these are the whole of the ISO 8601 form -d takes, which is what strptime(3)
+ * would read for "%F" and "%T".
  */
-static int
+static bool
 read_field(char **pp, int width, int sep, int *out)
 {
 	char	*p = *pp;
@@ -354,65 +493,47 @@ read_field(char **pp, int width, int sep, int *out)
 
 	for (i = 0; i < width; i++) {
 		if (!ISDIGIT((unsigned char)p[i]))
-			return (-1);
+			return (false);
 		value = value * 10 + (p[i] - '0');
 	}
 	p += width;
 	if (sep != -1) {
 		if (*p != sep)
-			return (-1);
+			return (false);
 		p++;
 	}
 	*pp = p;
 	*out = value;
-	return (0);
+	return (true);
 }
 
-void
+static void
 stime_argd(char *arg, struct timeval *tvp)
 {
-	struct tm	 tm;
+	struct caldate	 c;
+	time_t		 t;
 	char		*frac, *p;
-	int		 utc = 0;
-	int		 year, mon, mday, hour, min, sec;
+	long		 west;
+	bool		 utc = false;
 
 	/* accept YYYY-MM-DD(T| )hh:mm:ss[(.|,)frac][Z] */
-	memset(&tm, 0, sizeof(tm));
 	p = arg;
-	if (read_field(&p, 4, '-', &year) ||
-	    read_field(&p, 2, '-', &mon) ||
-	    read_field(&p, 2, -1, &mday))
+	if (!read_field(&p, 4, '-', &c.year) ||
+	    !read_field(&p, 2, '-', &c.mon) ||
+	    !read_field(&p, 2, -1, &c.mday))
 		goto terr;
 	if (*p != 'T' && *p != ' ')
 		goto terr;
 	p++;
-	if (read_field(&p, 2, ':', &hour) ||
-	    read_field(&p, 2, ':', &min) ||
-	    read_field(&p, 2, -1, &sec))
+	if (!read_field(&p, 2, ':', &c.hour) ||
+	    !read_field(&p, 2, ':', &c.min) ||
+	    !read_field(&p, 2, -1, &c.sec))
 		goto terr;
 
 	/*
-	 * The fields are range-checked here because mktime() normalizes
-	 * rather than refuses: a thirteenth month is next January to it, so
-	 * a specification naming one would otherwise be accepted and set a
-	 * time the caller did not ask for. strptime(3) is what performs
-	 * these checks where libc carries one.
-	 */
-	if (mon < 1 || mon > 12 || mday < 1 || mday > 31 || hour > 23 ||
-	    min > 59 || sec > 61)		/* sec 61 could be a leap second */
-		goto terr;
-
-	tm.tm_year = year - 1900;
-	tm.tm_mon = mon - 1;
-	tm.tm_mday = mday;
-	tm.tm_hour = hour;
-	tm.tm_min = min;
-	tm.tm_sec = sec;
-
-	/*
-	 * A fraction of a second is read and discarded: the filesystem
-	 * records whole seconds, so keeping it would report a precision the
-	 * stored time does not have.
+	 * A fraction of a second is read and discarded: the inode records
+	 * whole seconds, so keeping it would report a precision the stored
+	 * time does not have.
 	 */
 	if (*p == '.' || *p == ',') {
 		frac = ++p;
@@ -422,23 +543,31 @@ stime_argd(char *arg, struct timeval *tvp)
 			goto terr;
 	}
 	if (*p == 'Z') {
-		utc = 1;
+		utc = true;
 		p++;
 	}
 	if (*p != '\0')
 		goto terr;
 
-	tm.tm_isdst = -1;
-	tm.tm_wday = -1;		/* sentinel for error */
-	tvp[0].tv_sec = utc ? timegm(&tm) : mktime(&tm);
-	if (tvp[0].tv_sec == -1 && tm.tm_wday == -1)
-terr:		errx(1,
+	if (!epoch_from_local(&c, &t))
+		goto terr;
+	/*
+	 * epoch_from_local() applied the zone, which a trailing Z says not
+	 * to; taking it back off is exact, the offset being one constant.
+	 */
+	if (utc) {
+		west = zone_west();
+		t -= (time_t)west;
+	}
+
+	settimes(tvp, t);
+	return;
+terr:
+	errx(1,
   "out of range or illegal time specification: YYYY-MM-DDThh:mm:ss[.frac][Z]");
-	tvp[0].tv_usec = 0;
-	tvp[1] = tvp[0];
 }
 
-void
+static void
 usage(void)
 {
 	(void)fprintf(stderr,

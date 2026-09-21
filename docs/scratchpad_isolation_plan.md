@@ -1355,7 +1355,7 @@ distribution.
 
 ### RP2040 clean-distribution rerun and tool selection
 
-Command: inspect `/home/eirikr/Documents/AI/Notes/1_TOOLS.md`, verify the
+Command: inspect `~/Documents/AI/Notes/1_TOOLS.md`, verify the
 selected executables on the live host, and launch the clean RP2040 build in a
 durable tmux session:
 
@@ -1378,7 +1378,7 @@ Result:
   discriminating evidence to the remaining source and build claims.
 - The tmux session `discobsd_rp2040_arm_isolation_distribution` writes the
   complete transcript to
-  `/home/eirikr/logs/tmux_discobsd_rp2040_arm_isolation_distribution_20260921_135309.log`.
+  `~/logs/tmux_discobsd_rp2040_arm_isolation_distribution_20260921_135309.log`.
   The clean build exits zero after compiling and installing the RP2040 kernel,
   userland, libraries, host tools, and filesystem inputs.
 - `fsutil` creates a 1,012,736-byte image with a 988 KB root partition and
@@ -1518,3 +1518,48 @@ fixture; the exact allowlist prevents silent admission of a matching row.
 Next action: preserve the chronological ledger as evidence, treat
 `docs/research/arm-main-legacy-build-isolation.md` as the reconciled design,
 and complete exact-head CI and review before merge.
+
+### CI cleanup-fixture mode normalization
+
+Observation: exact-head Ubuntu firmware CI completed the build, flash image,
+warning, and lint steps, then failed the host tier because the cleanup-path
+negative control did not emit its expected non-executable-command diagnostic.
+The fixture created its command file without declaring the permission mode,
+so the test depended on the runner's file-creation policy rather than the
+condition it intended to exercise.
+
+Repair: the fixture applies mode 0600 before passing the file as the cleanup
+command. The mode makes the negative control deterministic across local and CI
+filesystems while preserving the arbitrary file for the separate unlink-target
+assertion.
+
+Next action: rerun the direct and wired architecture gates, push the focused
+fixture repair, and require the replacement exact-head firmware run to pass.
+
+### Exact-head cleanup-command portability failure
+
+Command: inspect the failed Ubuntu firmware job at exact head `0e36acfa`,
+locate the architecture-isolation assertion that failed, and compare the
+cleanup helper's make-command admission rule with its deliberate
+non-executable-path fixture.
+
+Finding:
+
+- The maintained RP2040 build, host tests, filesystem profiles, and preceding
+  architecture assertions completed before the cleanup-path assertion.
+- `tools/clean-build-machines.sh` combined an executable-file test with
+  `command -v` for both bare command names and slash-containing paths. The
+  Ubuntu shell did not produce the fixture's required non-executable-path
+  diagnostic, while the local host did. A command search and an explicit
+  pathname are different interfaces and require separate validation.
+- The helper now requires `-x` for every command containing `/` and uses
+  `command -v` only for a bare command name. The existing fixture continues
+  to preserve an arbitrary non-executable file and requires the exact
+  rejection diagnostic.
+
+Limitation: a local pass proves the corrected rule on the development host.
+The rerun at the updated branch head decides whether Ubuntu accepts the same
+contract.
+
+Next action: rerun ShellCheck and the 140-assertion architecture gate, commit
+and push the repair, then require green exact-head CI before merge.

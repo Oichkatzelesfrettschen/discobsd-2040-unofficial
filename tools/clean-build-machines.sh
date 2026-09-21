@@ -22,10 +22,20 @@ if [ ! -d "$source_root" ]; then
 fi
 source_root=$(CDPATH= cd "$source_root" && pwd -P)
 stamp_path=$source_root/distrib/obj/.build-machine
-if [ ! -x "$make_command" ] && ! command -v "$make_command" >/dev/null 2>&1; then
-	echo "$make_command: make command is not executable" >&2
-	exit 2
-fi
+case $make_command in
+*/*)
+	if [ ! -x "$make_command" ]; then
+		echo "$make_command: make command is not executable" >&2
+		exit 2
+	fi
+	;;
+*)
+	if ! command -v "$make_command" >/dev/null 2>&1; then
+		echo "$make_command: make command is not executable" >&2
+		exit 2
+	fi
+	;;
+esac
 
 cleanup_status=0
 

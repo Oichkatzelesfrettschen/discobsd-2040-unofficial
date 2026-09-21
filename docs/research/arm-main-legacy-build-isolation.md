@@ -278,6 +278,12 @@ filesystem, and PDP-11/V6 artifact class, and removes the stamp only after
 all cleanup calls succeed. A failed cleanup retains the stamp and therefore
 retains failure visibility.
 
+The cleanup helper treats a slash-containing make command as an explicit
+pathname and requires that file to be executable. It applies `command -v`
+only to a bare command name. The separation gives POSIX shells one exact
+admission rule and prevents a non-executable pathname from entering cleanup
+through implementation-defined command-search behavior.
+
 One worktree supports one active tuple. Concurrent RP2040 and STM32 builds
 use separate Git worktrees. A future source-relative-path conversion may
 replace the stamp with true per-machine object roots, but the conversion must

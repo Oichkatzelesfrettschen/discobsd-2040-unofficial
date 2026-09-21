@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define BIG 2147483647
@@ -10,17 +11,25 @@
 #define SWAB    04
 #define NERR    010
 #define SYNC    020
+#define NTRUNC  040
 
 void    stats();
 void    null(int);
 
 int cflag;
 int fflag;
-int skip;
-int seekn;
+/*
+ * skip= and seek= name a block, and the offset they reach is that block
+ * count times the block size; include/sys/types.h makes off_t a long, so the
+ * product needs the full off_t range while the operand itself stays within
+ * the int the block sizes use.
+ */
+off_t   skip;
+off_t   seekn;
 int count;
 int files   = 1;
 char    *string;
+char    *operand;
 char    *ifile;
 char    *ofile;
 char    *ibuf;
@@ -190,43 +199,76 @@ true:
     return(1);
 }
 
+void
+oorange()
+{
+    fprintf(stderr, "dd: argument %s out of range\n", operand);
+    exit(1);
+}
+
+/*
+ * An operand is rejected before the step that would carry it past big, not
+ * after: C leaves a signed overflow undefined and wraps an unsigned one, so
+ * a product read back once it has wrapped no longer names what the caller
+ * wrote. On a machine whose long is 32 bits an after-the-fact test accepts
+ * bs=4294967296 as zero and count=4294967297 as one.
+ *
+ * Every partial value stays below big, which holds because each suffix and
+ * each x factor scales upward. A zero factor is the one exception and
+ * carries no partial past the bound, so it needs no test.
+ */
+unsigned long
+scale(n, factor, big)
+    unsigned long n;
+    unsigned long factor;
+    unsigned long big;
+{
+    if (factor != 0 && n > (big - 1) / factor)
+        oorange();
+    return (n * factor);
+}
+
 long
 number(big)
     long big;
 {
     register char *cs;
-    long n;
+    unsigned long n, d, lim;
 
     cs = string;
     n = 0;
-    while(*cs >= '0' && *cs <= '9')
-        n = n*10 + *cs++ - '0';
+    lim = (unsigned long)big;
+    while(*cs >= '0' && *cs <= '9') {
+        d = (unsigned long)(*cs++ - '0');
+        if (d >= lim || n > (lim - 1 - d) / 10)
+            oorange();
+        n = n*10 + d;
+    }
     for(;;)
     switch(*cs++) {
 
     case 'k':
-        n *= 1024;
+        n = scale(n, 1024UL, lim);
         continue;
 
     case 'w':
-        n *= sizeof(int);
+        n = scale(n, (unsigned long)sizeof(int), lim);
         continue;
 
     case 'b':
-        n *= 512;
+        n = scale(n, 512UL, lim);
         continue;
 
     case '*':
     case 'x':
         string = cs;
-        n *= number(BIG);
+        n = scale(n, (unsigned long)number(BIG), lim);
+        /* FALLTHROUGH -- the product ends the operand. */
 
     case '\0':
-        if (n>=big || n<0) {
-            fprintf(stderr, "dd: argument %D out of range\n", n);
-            exit(1);
-        }
-        return(n);
+        if (n >= lim)
+            oorange();
+        return((long)n);
     }
     /* never gets here */
 }
@@ -423,13 +465,19 @@ int argc;
 char    **argv;
 {
     void (*conv)(); // XXX Return type was 'int'.
-    register char *ip;
+    /* ibc starts at zero, so the refill branch sets ip before the
+       conversion stage reads it; the initializer states that to the
+       compiler, which reaches the stage through a goto. */
+    register char *ip = 0;
     register int c;
     int a;
 
     conv = null;
     for(c=1; c<argc; c++) {
         string = argv[c];
+        /* match() advances string, so the whole operand is kept for the
+           range diagnostic number() prints. */
+        operand = string;
         if(match("ibs=")) {
             ibs = number(BIG);
             continue;
@@ -516,6 +564,10 @@ char    **argv;
                 cflag |= SYNC;
                 goto cloop;
             }
+            if(match("notrunc")) {
+                cflag |= NTRUNC;
+                goto cloop;
+            }
         }
         fprintf(stderr,"bad arg: %s\n", string);
         exit(1);
@@ -530,8 +582,15 @@ char    **argv;
         perror(ifile);
         exit(1);
     }
+    /*
+     * creat(2) carries O_TRUNC, which discards the output before seek= has
+     * named the offset the copy starts at. The output opens without it and
+     * the truncation happens after the seek instead, so the blocks seek=
+     * steps over survive and conv=notrunc can suppress the truncation
+     * altogether.
+     */
     if (ofile)
-        obf = creat(ofile, 0666);
+        obf = open(ofile, O_WRONLY|O_CREAT, 0666);
     else
         obf = dup(1);
     if(obf < 0) {
@@ -564,13 +623,59 @@ char    **argv;
 
     if (signal(SIGINT, SIG_IGN) != SIG_IGN)
         signal(SIGINT, term);
-    while(skip) {
-        read(ibf, ibuf, ibs);
-        skip--;
+    /*
+     * skip= and seek= name a block, and the offset they reach is that count
+     * times the block size. off_t is long (include/sys/types.h), so the
+     * operand is rejected while the product still fits rather than after it
+     * wraps. One lseek(2) reaches the offset where the descriptor is
+     * seekable; a pipe refuses the probe, so the input blocks are consumed
+     * by reading instead.
+     */
+    if (skip) {
+        if (skip > (off_t)(BIG / ibs)) {
+            fprintf(stderr, "dd: skip=%ld out of range for ibs=%d\n",
+                (long)skip, ibs);
+            exit(1);
+        }
+        if (lseek(ibf, (off_t)0, SEEK_CUR) < 0) {
+            while(skip) {
+                read(ibf, ibuf, ibs);
+                skip--;
+            }
+        } else if (lseek(ibf, skip * ibs, SEEK_CUR) < 0) {
+            perror("skip");
+            exit(1);
+        }
     }
-    while(seekn) {
-        lseek(obf, (long)obs, 1);
-        seekn--;
+    if (seekn) {
+        if (seekn > (off_t)(BIG / obs)) {
+            fprintf(stderr, "dd: seek=%ld out of range for obs=%d\n",
+                (long)seekn, obs);
+            exit(1);
+        }
+        if (lseek(obf, seekn * obs, SEEK_CUR) < 0) {
+            perror("seek");
+            exit(1);
+        }
+    }
+    /*
+     * The output an of= operand names is truncated at the position the copy
+     * starts from, which is zero without seek=. ftruncate(2) reaches
+     * ufs_setattr() and itrunc() (sys/kern/ufs_fio.c, sys/kern/ufs_inode.c),
+     * and itrunc() allocates through bmap() when the length passes i_size,
+     * so the call is confined to a regular file: a device inode carries no
+     * block list to extend. A descriptor inherited from the caller keeps
+     * whatever length the caller gave it.
+     */
+    if (ofile && (cflag&NTRUNC) == 0) {
+        struct stat osb;
+        off_t opos = lseek(obf, (off_t)0, SEEK_CUR);
+
+        if (opos >= 0 && fstat(obf, &osb) == 0 && S_ISREG(osb.st_mode) &&
+            ftruncate(obf, opos) < 0) {
+            perror("truncate");
+            exit(1);
+        }
     }
 
 loop:
@@ -582,6 +687,17 @@ loop:
                 *--ip = 0;
             ibc = read(ibf, ibuf, ibs);
         }
+        /*
+         * End of input is ibc == 0 from read(2), and the test precedes the
+         * error handler because that handler rewrites ibc from the buffer
+         * contents: a buffer conv=noerror zeroed before a failed read
+         * reaches the end-of-input test as a zero count and ends the copy
+         * with a success status.
+         */
+        if(ibc == 0 && --files<=0) {
+            flsh();
+            term(0);
+        }
         if(ibc == -1) {
             perror("read");
             if((cflag&NERR) == 0) {
@@ -592,11 +708,13 @@ loop:
             for(c=0; c<ibs; c++)
                 if(ibuf[c] != 0)
                     ibc = c;
+            /*
+             * read(2) leaves the file offset where it stood when it fails,
+             * so conv=noerror steps the input past the failed block itself
+             * and the copy advances; the same read repeats otherwise.
+             */
+            lseek(ibf, (off_t)ibs, SEEK_CUR);
             stats();
-        }
-        if(ibc == 0 && --files<=0) {
-            flsh();
-            term(0);
         }
         if(ibc != ibs) {
             nipr++;

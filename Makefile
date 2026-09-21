@@ -264,6 +264,14 @@ check-unifdef-contracts:
 check-unifdef-contracts-cross:
 		${MAKE} -C tests/unifdef_contracts check-cross
 
+# bin/dd's operand arithmetic, its input position after a failed read, and
+# its seek and truncation behavior. The operands wrap where long and off_t
+# are four bytes, which is what the RP2040 compiles to, so the gate builds
+# the program at ILP32 and answers its open, read and lseek calls itself; a
+# host that cannot build 32-bit says so and skips.
+check-dd-contracts:
+		${MAKE} -C tests/dd_contracts check
+
 check-rmdir-contracts:
 		${MAKE} -C tests/rmdir_contracts check
 
@@ -375,6 +383,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
+		check-dd-contracts \
 		check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
@@ -593,6 +602,7 @@ installfs:
 		check-dirent-contracts check-dirent-contracts-cross \
 		check-colrm-contracts check-colrm-contracts-cross \
 		check-unifdef-contracts check-unifdef-contracts-cross \
+		check-dd-contracts \
 		check-libc-string-security check-libc-string-security-cross \
 		check-id-aliases \
 		check-tiny-utility-multicall \

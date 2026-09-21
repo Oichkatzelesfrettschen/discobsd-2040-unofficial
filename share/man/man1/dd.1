@@ -137,6 +137,10 @@ pad every input record to
 .I  ibs
 .br
 .ns
+.IP \*hnotrunc
+do not truncate the output file
+.br
+.ns
 .IP "\*h... , ..."
 several comma-separated conversions
 .PP
@@ -152,6 +156,33 @@ to specify multiplication by
 a pair of numbers may be separated by
 .B x
 to indicate a product.
+A size, a count or a block offset that does not fit in a signed
+32-bit quantity is rejected with
+.BR "argument out of range" ,
+as is a
+.B skip
+or
+.B seek
+whose block offset times the block size leaves that range.
+.PP
+An
+.B of=
+file is truncated at the offset the copy starts from, so the blocks a
+.B seek
+steps over are preserved and everything beyond the copy is discarded;
+.B conv=notrunc
+suppresses the truncation and leaves the rest of the file in place.
+Truncation applies to a regular file alone.
+A
+.B seek
+on the standard output, which
+.I dd
+inherits rather than opens, changes no length.
+.PP
+With
+.B conv=noerror
+a failed read advances the input past the block it could not read, and
+the copy continues with the next one.
 .PP
 .I Cbs
 is used only if

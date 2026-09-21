@@ -1,0 +1,5 @@
+dd_contract_test
+dd_host
+gate.o
+dd.o
+shim.o

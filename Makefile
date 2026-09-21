@@ -310,6 +310,18 @@ check-find-contracts:
 check-find-contracts-cross:
 		${MAKE} -C tests/find_contracts check-cross
 
+# games/backgammon/subs.c reads the terminal's own interrupt and erase
+# characters rather than fixed bytes: <sys/ttychars.h> defaults CERASE to
+# 0177, so a quit test written as '\177' takes the erase character before
+# table.c and save.c can compare it, and an erase-visual test written as
+# either '\010' or '\177' alone gets the other display terminal wrong. The
+# gate links the shipped subs.c and drives readc() and crterase() over both.
+check-backgammon-contracts:
+		${MAKE} -C tests/backgammon_contracts check
+
+check-backgammon-contracts-cross:
+		${MAKE} -C tests/backgammon_contracts check-cross
+
 check-rmdir-contracts:
 		${MAKE} -C tests/rmdir_contracts check
 
@@ -426,8 +438,8 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment check-libc-sysctl \
-		check-umount-contracts \
-		check-libc-environment check-libc-sysctl check-touch-contracts \
+		check-umount-contracts check-backgammon-contracts \
+		check-touch-contracts \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
@@ -447,6 +459,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
 		check-find-contracts-cross \
+		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \

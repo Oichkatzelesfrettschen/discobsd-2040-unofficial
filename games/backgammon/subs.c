@@ -41,6 +41,7 @@ char **colorptr;
 char **Colorptr;
 int colen;
 struct sgttyb tty;
+struct tchars tchars = { CINTR, CQUIT, CSTART, CSTOP, CEOF, CBRK };
 int old;
 int noech;
 int raw;
@@ -121,7 +122,16 @@ readc ()
 	buflush();
 	if (read(0,&c,1) != 1)
 		errexit ("readc");
-	if (c == '\177')
+	/*
+	 * RAW, which main() and teach.c select outside the V7 build, stops
+	 * the driver from turning t_intrc into SIGINT, so the signal(SIGINT,
+	 * getout) they register never fires and this test is the only exit
+	 * the keyboard reaches.  It reads the character the terminal is set
+	 * to rather than a fixed byte so that sg_erase, which <sys/ttychars.h>
+	 * defaults to CERASE at 0177, still reaches the erase handling in
+	 * table.c and save.c.
+	 */
+	if (c == tchars.t_intrc)
 		getout (0);
 	if (c == '\033' || c == '\015')
 		return ('\n');
@@ -448,10 +458,25 @@ fixtty (mode)
 	ioctl (0, TIOCSETP, &tty);
 }
 
-void
+/*
+ * A display terminal overwrites the cell a destructive backspace names, so
+ * "\010 \010" rubs the character out; a printing terminal cannot take ink
+ * back and echoes what was erased instead.  Backspace and DEL as the erase
+ * character mark the first class; any other erase character, such as the '#'
+ * of the hardcopy consoles this convention was written for, marks the second.
+ */
+int
+crterase ()
+{
+	return (tty.sg_erase == '\010' || tty.sg_erase == '\177');
+}
+
+_Noreturn void
 getout (sig)
 	int	sig;
 {
+	(void)sig;
+
 	/* go to bottom of screen */
 	if (tflag)  {
 		curmove (23,0);

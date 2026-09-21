@@ -285,6 +285,19 @@ test_counts_are_bounded(void)
  * the whole of what this build promises, and the reason the bounds the
  * cases above measure have nothing to bound.
  */
+/*
+ * The offset the fixture writes is deliberately not a whole number of
+ * minutes. tzsetkernel() builds its offset from tz_minuteswest, which
+ * gettimeofday(2) reports in minutes, so any offset it can produce is a
+ * multiple of sixty and this one is not. That distinguishes "the file was
+ * read" from "the kernel happens to report the same offset" -- a distinction
+ * that matters because Linux fills struct timezone with zeros while the BSDs
+ * report the zone in force, so a fixture naming a plausible offset would
+ * pass on one host and fail on another for reasons having nothing to do
+ * with the code.
+ */
+#define UNREACHABLE_OFFSET	(-18001L)
+
 static void
 test_no_file_is_read(void)
 {
@@ -292,20 +305,38 @@ test_no_file_is_read(void)
 	struct tm *tm;
 	time_t t = 1000000000L;
 
-	check(write_zone(0, 1, 4, -18000L, isdst) == 0,
+	check(write_zone(0, 1, 4, UNREACHABLE_OFFSET, isdst) == 0,
 	    "fixture: the zone could not be written");
 	tm = load_and_read(t);
 	check(tm != 0, "no file: localtime returned nothing");
-	if (tm != 0)
-		check(tm->tm_gmtoff != -18000L,
+	if (tm != 0) {
+		check(tm->tm_gmtoff != UNREACHABLE_OFFSET,
 		    "no file: a zone file was read by a build without one");
+		check(tm->tm_gmtoff % 60 == 0,
+		    "no file: the offset did not come from tz_minuteswest");
+	}
 
-	/* The answer is the kernel's offset, which is zero on this host. */
+	/*
+	 * Whatever the kernel reports, the fields localtime() gives are
+	 * gmtime()'s moved by exactly that offset: one constant, applied
+	 * once, with no transition to find.
+	 */
 	use_gmt();
 	tm = db_localtime(&t);
-	check(tm != 0 && tm->tm_year == 101 && tm->tm_mon == 8 &&
-	    tm->tm_mday == 9 && tm->tm_hour == 1,
-	    "no file: the instant did not land where GMT puts it");
+	check(tm != 0, "no file: localtime returned nothing for GMT");
+	if (tm != 0) {
+		struct tm local = *tm;
+		time_t shifted = t + local.tm_gmtoff;
+		struct tm *utc = db_gmtime(&shifted);
+
+		check(utc != 0 && utc->tm_year == local.tm_year &&
+		    utc->tm_mon == local.tm_mon &&
+		    utc->tm_mday == local.tm_mday &&
+		    utc->tm_hour == local.tm_hour &&
+		    utc->tm_min == local.tm_min &&
+		    utc->tm_sec == local.tm_sec,
+		    "no file: the fields are not gmtime's moved by the offset");
+	}
 }
 #endif /* !TZ_ZONEINFO */
 

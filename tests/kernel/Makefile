@@ -93,6 +93,20 @@ IALLOC_PICO_DEFS=	-DSINGLE_UFS_ROOT -DNMOUNT=1 -DLINEAR_INODE_CACHE \
 			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE
 IALLOC_DIAG_DEFS=	-DDIAGNOSTIC
 
+# The block allocator, from the same translation unit. struct fs is an
+# on-disk layout that fills exactly one DEV_BSIZE block, so balloc()'s
+# "*fps = *fs" writes one block only at the target's width, as ialloc_test
+# needs it for struct dinode.
+#
+# ufs_alloc.c's free() takes an inode and a block number where libc's takes a
+# pointer, and a definition in the executable interposes on every libc call to
+# that name, so it moves aside the way malloc() and mfree() do above. Both the
+# kernel object and the gate compile with the rename, which is what keeps the
+# gate calling the allocator's free() and libc calling its own.
+BALLOC_SRC=	${TOPSRC}/sys/kern/ufs_alloc.c
+BALLOC_RENAMES=	-Dfree=ufs_free
+BALLOC_PICO_DEFS=	${IALLOC_PICO_DEFS}
+
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
 # core(), so it compiles at the target's width alone, beside subr_prf.c.
@@ -271,6 +285,26 @@ ialloc_test_diagnostic: ialloc_test.c ${IALLOC_SRC} hostkern_kern.c \
 	${HOST_CC} ${GATE_CFLAGS} ${IALLOC_DIAG_DEFS} ${ILP32} -o $@ \
 	    ialloc_test.c ialloc_kernel_diagnostic.o ialloc_shim.o hostkern32.o
 
+# The block allocator in the portable shape and in PICO's, which reaches the
+# superblock through mount[0].
+balloc_test: balloc_test.c ${BALLOC_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${BALLOC_RENAMES} ${ILP32} \
+	    -c -o balloc_kernel.o ${BALLOC_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o balloc_shim.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${BALLOC_RENAMES} ${ILP32} -o $@ \
+	    balloc_test.c balloc_kernel.o balloc_shim.o hostkern32.o
+
+balloc_test_pico: balloc_test.c ${BALLOC_SRC} hostkern_kern.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${BALLOC_PICO_DEFS} ${BALLOC_RENAMES} \
+	    ${ILP32} -c -o balloc_kernel_pico.o ${BALLOC_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BALLOC_PICO_DEFS} ${ILP32} \
+	    -c -o balloc_shim_pico.o hostkern_kern.c
+	${HOST_CC} ${GATE_CFLAGS} ${BALLOC_PICO_DEFS} ${BALLOC_RENAMES} \
+	    ${ILP32} -o $@ balloc_test.c balloc_kernel_pico.o \
+	    balloc_shim_pico.o hostkern32.o
+
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
 rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
@@ -287,7 +321,8 @@ check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 sigauth_test \
 	    sysctl_test_compact sysctl_test_wide \
-	    ialloc_test ialloc_test_pico ialloc_test_diagnostic
+	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
+	    balloc_test balloc_test_pico
 	./prf_test
 	./sigauth_test
 	./rwuio_test32
@@ -296,6 +331,8 @@ check-ilp32:
 	./ialloc_test
 	./ialloc_test_pico
 	./ialloc_test_diagnostic
+	./balloc_test
+	./balloc_test_pico
 .else
 	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
 .endif
@@ -321,6 +358,9 @@ clean:
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
 	rm -f ialloc_shim.o ialloc_shim_pico.o
 	rm -f ialloc_test ialloc_test_pico ialloc_test_diagnostic
+	rm -f balloc_kernel.o balloc_kernel_pico.o
+	rm -f balloc_shim.o balloc_shim_pico.o
+	rm -f balloc_test balloc_test_pico
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

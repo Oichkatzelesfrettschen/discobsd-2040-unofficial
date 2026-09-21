@@ -46,3 +46,9 @@ ialloc_kernel_pico.o
 ialloc_kernel_diagnostic.o
 ialloc_shim.o
 ialloc_shim_pico.o
+balloc_test
+balloc_test_pico
+balloc_kernel.o
+balloc_kernel_pico.o
+balloc_shim.o
+balloc_shim_pico.o

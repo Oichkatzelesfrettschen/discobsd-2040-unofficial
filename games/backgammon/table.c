@@ -193,7 +193,7 @@ dochar:
 		if (tflag)
 			curmove (curr,curc-1);
 		else  {
-			if (tty.sg_erase == '\010')
+			if (crterase())
 				writel ("\010 \010");
 			else
 				writec (cin[ncin-1]);
@@ -216,7 +216,7 @@ dochar:
 			curmove (curr,39);
 			ist = -1;
 			goto domove;
-		} else  if (tty.sg_erase == '\010')  {
+		} else  if (crterase())  {
 			for (j = 0; j < ncin; j++)
 				writel ("\010 \010");
 			ist = -1;

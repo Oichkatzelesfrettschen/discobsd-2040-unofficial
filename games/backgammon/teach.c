@@ -40,9 +40,12 @@ main (argc,argv)
 {
 	register int	i;
 
+	(void)argc;
+
 	signal (2,getout);
 	if (ioctl (0, TIOCGETP, &tty) == -1)		/* get old tty mode */
 		errexit ("teachgammon(gtty)");
+	ioctl (0, TIOCGETC, &tchars);			/* readc() honors t_intrc */
 	old = tty.sg_flags;
 #ifdef V7
 	raw = ((noech = old & ~ECHO) | CBREAK);		/* set up modes */
@@ -63,6 +66,11 @@ main (argc,argv)
 	if (i == 0)
 		i = 2;
 	init();
+	/*
+	 * text() returns the lesson the reader asked to jump to, or 0 to go
+	 * on, so a case that falls into the next one is the tutorial running
+	 * in order and a break re-enters the switch at the chosen lesson.
+	 */
 	while (i)
 		switch (i)  {
 		case 1:
@@ -75,34 +83,42 @@ main (argc,argv)
 			i = text(intro2);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 3:
 			i = text(moves);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 4:
 			i = text(remove);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 5:
 			i = text(hits);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 6:
 			i = text(endgame);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 7:
 			i = text(doubl);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 8:
 			i = text(stragy);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 9:
 			i = text(prog);
 			if (i)
 				break;
+			/* FALLTHROUGH */
 		case 10:
 			i = text(lastch);
 			if (i)
@@ -112,7 +128,7 @@ main (argc,argv)
         return 0;
 }
 
-void
+_Noreturn void
 leave()
 {
 	if (tflag)

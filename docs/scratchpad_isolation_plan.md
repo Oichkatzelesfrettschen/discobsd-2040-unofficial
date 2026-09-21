@@ -1563,3 +1563,18 @@ contract.
 
 Next action: rerun ShellCheck and the 140-assertion architecture gate, commit
 and push the repair, then require green exact-head CI before merge.
+
+### macOS symbolic-checkout fixture command lookup
+
+Observation: the replacement Ubuntu firmware matrix passed, while macOS
+completed its build, image, warning, lint, and host tests before the
+symbolic-checkout cleanup fixture rejected `/bin/true`. The macOS runner does
+not provide the Linux-specific `/bin/true` pathname.
+
+Repair: the fixture passes the portable bare command name `true`. The cleanup
+helper resolves a bare command through the shell's command search, which is
+the production interface the fixture needs; explicit-path admission remains
+covered separately by the fake executable scripts.
+
+Next action: rerun the calibrated isolation gate and require every replacement
+exact-head job, including macOS firmware, to pass before merge.

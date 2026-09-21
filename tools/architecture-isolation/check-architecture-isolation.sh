@@ -862,7 +862,7 @@ printf '%s\n' "MACHINE=rp2040 MACHINE_ARCH=arm MACHINE_CPU=cortex-m0plus" \
     >"$cleanup_stamp"
 cleanup_link=$temporary_directory/cleanup-root-link
 ln -s "$cleanup_root" "$cleanup_link"
-if ! sh "$cleanup_helper" "$cleanup_link" /bin/true rp2040 \
+if ! sh "$cleanup_helper" "$cleanup_link" true rp2040 \
     >"$temporary_directory/cleanup-symlink.log" 2>&1; then
 	cat "$temporary_directory/cleanup-symlink.log" >&2
 	fail "cleanup through a symbolic-link checkout failed"

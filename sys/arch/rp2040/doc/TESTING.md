@@ -309,6 +309,44 @@ reaches the superblock through mount[0] and `COMPACT_INODE_FIELDS`
 packs the in-core flag words) and a DIAGNOSTIC kernel, whose itoo()
 assertion holds fs_lasti to the first inode of a block.
 
+The same file carries a second gate, balloc_test, over the block
+allocator. `struct fs` is an on-disk layout that fills exactly one
+DEV_BSIZE block, so balloc()'s `*fps = *fs` writes one block only where
+daddr_t, ino_t, time_t and int are four bytes, and the gate asserts that
+size statically before it runs. What it states is the meaning of the
+superblock write balloc() makes when the cached free list empties and
+the next chunk is read back: the image reaching the disk is clean and
+carries the current time, while the in-core superblock stays modified
+and keeps the fs_time ufs_sync() last wrote. Both halves are
+constrained from outside the allocator. sync() (sys/kern/ufs_subr.c)
+passes over a filesystem whose fs_fmod is zero without flushing an inode
+or a data block, so a refill that cleared the flag in core would leave
+fs_tfree, the dirty inodes and the dirty buffers held back until the
+next allocation or free set it again -- and on the two paths that reach
+the allocator's refusal from there, nothing does. mountfs()
+(sys/kern/ufs_mount.c) keeps the on-disk fs_fmod on a read-only mount
+and ufs_sync() (sys/kern/ufs_syscalls2.c) answers a set flag on a
+read-only filesystem with panic("sync: rofs"), so the image may not
+carry the flag set either. fs_time is the port's clock across a reboot,
+since there is no time-of-day hardware and main()
+(sys/kern/init_main.c) seeds time.tv_sec from the root superblock once
+mountfs() returns; ufs_sync() is the write that stamps it, being the one
+that flushes the inodes and the data blocks beside the superblock.
+
+The fixture is a three-entry superblock list whose last entry addresses
+a chunk of three more, so five blocks are handed out in all and the
+refill falls in the middle. The gate takes the refill in both write
+modes, reads the image back off its synthetic disk, drives the list to
+exhaustion by two routes -- the end-of-list zero and a chunk that comes
+back empty on the far side of the superblock write -- and covers the
+bad-block skip and free()'s spill of a full cache into the block being
+freed. Against sys/kern/ufs_alloc.c with the flag and the stamp applied
+to the in-core superblock rather than to the image, 4 of 101 checks
+fail in each shape: the in-core fs_time advances at a write that
+flushes no inode, and both exhaustion routes that pass through a clean
+superblock return with the filesystem marked clean. The gate runs in
+the portable shape and in PICO's.
+
 The fifth file, sys/kern/subr_prf.c, carries its own
 argument walk,
 

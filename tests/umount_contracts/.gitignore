@@ -1,0 +1,5 @@
+umount_contract_test
+gate.o
+umount.o
+shim.o
+machine/

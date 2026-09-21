@@ -185,7 +185,10 @@ ZONE_TZ_WARN=	-Wno-old-style-definition -Wno-deprecated-non-prototype
 
 # mktime inverts ctime.c's localtime, so the two compile and link together
 # with one set of renames: mktime.c's own call to localtime moves with it.
-MKTIME_RENAMES=	-Dmktime=db_mktime -Dtimegm=db_timegm ${CTIME_RENAMES}
+# The zone case is the only one that exercises mktime's offset search, and it
+# needs a zone to search, so this gate builds the reader in.
+MKTIME_RENAMES=	-Dmktime=db_mktime -Dtimegm=db_timegm ${CTIME_RENAMES} \
+		-DTZ_ZONEINFO
 MKTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
 	-isystem ${TOPSRC}/include ${MKTIME_RENAMES}
@@ -215,8 +218,9 @@ ZONE_SAN_OK!=	printf 'int main(void){return 0;}\n' > /tmp/zsan$$$$.c; \
 		    /tmp/zsan$$$$.c 2>/dev/null; then echo yes; else echo no; fi; \
 		rm -f /tmp/zsan$$$$.c
 
-check-zone: zone_contract_test
+check-zone: zone_contract_test zone_contract_test_fixed
 	./zone_contract_test
+	./zone_contract_test_fixed
 .if ${ZONE_SAN_OK} == "yes"
 	@${MAKE} zone_contract_test_san
 	./zone_contract_test_san
@@ -395,30 +399,46 @@ ctime_contract_test32: ctime_contract_test.c ctime_ctime32.o
 	    ctime_contract_test.c ctime_ctime32.o
 
 zone_contract_test: zone_contract_test.c zone_ctime.o zone_timezone.o
-	${HOSTCC} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${GC_SECTIONS} -o $@ \
 	    zone_contract_test.c zone_ctime.o zone_timezone.o
 
 zone_contract_test32: zone_contract_test.c zone_ctime32.o zone_timezone32.o
-	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
+	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} ${GC_SECTIONS} -o $@ \
 	    zone_contract_test.c zone_ctime32.o zone_timezone32.o
 
 zone_contract_test_san: zone_contract_test.c zone_ctime_san.o \
     zone_timezone_san.o
-	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} -o $@ \
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -o $@ \
 	    zone_contract_test.c zone_ctime_san.o zone_timezone_san.o
 
 zone_ctime_san.o: ${TARGET_DIR}/ctime.c
-	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
 
 zone_timezone_san.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} ${ZONE_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-zone_ctime.o: ${TARGET_DIR}/ctime.c
+# The zone reader is an option, so the gate measures both shapes: the one
+# that reads a file and the one that answers from the kernel's single offset.
+ZONE_ZI=	-DTZ_ZONEINFO
+
+zone_contract_test_fixed: zone_contract_test.c zone_ctime_fixed.o \
+    zone_timezone_fixed.o
+	${HOSTCC} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
+	    zone_contract_test.c zone_ctime_fixed.o zone_timezone_fixed.o
+
+zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c
 	${HOSTCC} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
+zone_timezone_fixed.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
+	    ${TARGET_DIR}/timezone.c
+
+zone_ctime.o: ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
+
 zone_ctime32.o: ${TARGET_DIR}/ctime.c
-	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
 # ctime.c's tzsetkernel() names tztab(), which timezone.c defines and which
 # the gate reaches whenever a file is refused and the fallback runs.
@@ -909,6 +929,7 @@ clean:
 	rm -f zone_contract_test zone_contract_test32 \
 		zone_ctime.o zone_ctime32.o zone_timezone.o zone_timezone32.o
 	rm -f zone_contract_test_san zone_ctime_san.o zone_timezone_san.o
+	rm -f zone_contract_test_fixed zone_ctime_fixed.o zone_timezone_fixed.o
 	rm -f mktime_contract_test mktime_contract_test32 \
 		mktime_mktime.o mktime_mktime32.o mktime_ctime.o mktime_ctime32.o \
 		mktime_timezone.o mktime_timezone32.o

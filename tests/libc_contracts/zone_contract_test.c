@@ -132,6 +132,7 @@ use_gmt(void)
 	db_tzset();
 }
 
+#ifdef TZ_ZONEINFO
 /*
  * A well-formed file, so the cases that follow differ from something that
  * works rather than from nothing.
@@ -247,6 +248,9 @@ test_negative_offset(void)
 	use_gmt();
 }
 
+#endif /* TZ_ZONEINFO */
+
+#ifdef TZ_ZONEINFO
 /* A count past the array it addresses is refused outright. */
 static void
 test_counts_are_bounded(void)
@@ -272,15 +276,82 @@ test_counts_are_bounded(void)
 	    "type count: a file naming no types was accepted");
 	use_gmt();
 }
+#endif /* TZ_ZONEINFO */
+
+#ifndef TZ_ZONEINFO
+/*
+ * The shape that reads no file. tzset() reaches tzsetkernel() and then
+ * tzsetgmt(), so a zone file named in TZ is not opened at all -- which is
+ * the whole of what this build promises, and the reason the bounds the
+ * cases above measure have nothing to bound.
+ */
+/*
+ * The offset the fixture writes is deliberately not a whole number of
+ * minutes. tzsetkernel() builds its offset from tz_minuteswest, which
+ * gettimeofday(2) reports in minutes, so any offset it can produce is a
+ * multiple of sixty and this one is not. That distinguishes "the file was
+ * read" from "the kernel happens to report the same offset" -- a distinction
+ * that matters because Linux fills struct timezone with zeros while the BSDs
+ * report the zone in force, so a fixture naming a plausible offset would
+ * pass on one host and fail on another for reasons having nothing to do
+ * with the code.
+ */
+#define UNREACHABLE_OFFSET	(-18001L)
+
+static void
+test_no_file_is_read(void)
+{
+	static const unsigned char isdst[1] = { 0 };
+	struct tm *tm;
+	time_t t = 1000000000L;
+
+	check(write_zone(0, 1, 4, UNREACHABLE_OFFSET, isdst) == 0,
+	    "fixture: the zone could not be written");
+	tm = load_and_read(t);
+	check(tm != 0, "no file: localtime returned nothing");
+	if (tm != 0) {
+		check(tm->tm_gmtoff != UNREACHABLE_OFFSET,
+		    "no file: a zone file was read by a build without one");
+		check(tm->tm_gmtoff % 60 == 0,
+		    "no file: the offset did not come from tz_minuteswest");
+	}
+
+	/*
+	 * Whatever the kernel reports, the fields localtime() gives are
+	 * gmtime()'s moved by exactly that offset: one constant, applied
+	 * once, with no transition to find.
+	 */
+	use_gmt();
+	tm = db_localtime(&t);
+	check(tm != 0, "no file: localtime returned nothing for GMT");
+	if (tm != 0) {
+		struct tm local = *tm;
+		time_t shifted = t + local.tm_gmtoff;
+		struct tm *utc = db_gmtime(&shifted);
+
+		check(utc != 0 && utc->tm_year == local.tm_year &&
+		    utc->tm_mon == local.tm_mon &&
+		    utc->tm_mday == local.tm_mday &&
+		    utc->tm_hour == local.tm_hour &&
+		    utc->tm_min == local.tm_min &&
+		    utc->tm_sec == local.tm_sec,
+		    "no file: the fields are not gmtime's moved by the offset");
+	}
+}
+#endif /* !TZ_ZONEINFO */
 
 int
 main(void)
 {
+#ifdef TZ_ZONEINFO
 	test_well_formed_zone();
 	test_search_stops_at_typecnt();
 	test_daylight_flag_is_refused();
 	test_negative_offset();
 	test_counts_are_bounded();
+#else
+	test_no_file_is_read();
+#endif
 
 	(void)unlink(ZONE_PATH);
 	if (failure_count != 0) {

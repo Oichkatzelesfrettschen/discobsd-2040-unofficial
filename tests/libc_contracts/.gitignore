@@ -111,3 +111,6 @@ mktime_ctime.o
 mktime_ctime32.o
 mktime_timezone.o
 mktime_timezone32.o
+zone_contract_test_fixed
+zone_ctime_fixed.o
+zone_timezone_fixed.o

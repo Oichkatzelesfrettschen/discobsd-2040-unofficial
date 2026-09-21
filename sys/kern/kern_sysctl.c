@@ -91,7 +91,7 @@ __sysctl()
 {
 	struct sysctl_args *uap = (struct sysctl_args *)u.u_arg;
 	int error;
-	u_int oldlen = 0;
+	size_t savelen, oldlen = 0;
 	sysctlfn *fn;
 	int name[CTL_MAXNAME];
 
@@ -149,6 +149,11 @@ __sysctl()
 		u.u_error = error;
 		return;
 	}
+	/*
+	 * The buffer the caller offered, kept because the node overwrites
+	 * oldlen with the length its value needs.
+	 */
+	savelen = oldlen;
 	if (uap->old != NULL) {
 		while (memlock.sl_lock) {
 			memlock.sl_want = 1;
@@ -166,17 +171,31 @@ __sysctl()
 			wakeup((caddr_t)&memlock);
 		}
 	}
+	/*
+	 * The length reaches the caller whatever the node answered, because
+	 * it is what sizes the next call: a node that reported more than the
+	 * buffer holds has truncated its value, and a caller reading the
+	 * length after ENOMEM learns how much to offer. A failure to deliver
+	 * it stands only where the node itself did not already fail.
+	 */
+	if (uap->oldlenp) {
+		int lenerror = copyout((caddr_t)&oldlen,
+		    (caddr_t)uap->oldlenp, sizeof(oldlen));
+
+		if (error == 0)
+			error = lenerror;
+	}
+	/*
+	 * ENOMEM is the last verdict, so it never displaces the node's own.
+	 * The helpers in this file copy the prefix that fits and report the
+	 * length the value needs (sysctl(3)), which makes the comparison
+	 * here the one place truncation is detected.
+	 */
+	if (error == 0 && uap->old != NULL && savelen < oldlen)
+		error = ENOMEM;
 	if (error) {
 		u.u_error = error;
 		return;
-	}
-	if (uap->oldlenp) {
-		error = copyout((caddr_t)&oldlen, (caddr_t)uap->oldlenp,
-		    sizeof(oldlen));
-		if (error) {
-			u.u_error = error;
-			return;
-		}
 	}
 	u.u_rval = oldlen;
 }
@@ -394,15 +413,12 @@ vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		 * m_limit addresses the map's last usable slot
 		 * (sys/kern/subr_rmap.c), so the difference is the extent of
 		 * the entries a caller may see and the final slot stays the
-		 * allocator's terminator. The size query and the copy derive
-		 * that length once, so the two answers agree by construction.
+		 * allocator's terminator. sysctl_rdstruct() reports that same
+		 * length whether or not a buffer is offered, so the size query
+		 * and the copy answer with one number by construction.
 		 * tests/kernel/sysctl_test.c is the oracle.
 		 */
 		len = (char *)swapmap[0].m_limit - (char *)swapmap[0].m_map;
-		if (oldp == NULL) {
-			*oldlenp = len;
-			return (0);
-		}
 		return (sysctl_rdstruct(oldp, oldlenp, newp, swapmap[0].m_map,
 		    len));
 	case VM_NSWAP:
@@ -414,6 +430,20 @@ vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 }
 
 /*
+ * The eight helpers below share one contract, which sysctl(3) states: a
+ * caller whose buffer is shorter than the value receives as much of it as
+ * fits, *oldlenp reports the length the value needs rather than the length
+ * copied, and __sysctl() turns the difference between the two into ENOMEM.
+ * Each therefore copies MIN(value, *oldlenp) bytes and assigns *oldlenp
+ * last, on every path that reaches a copy, so that a size query (oldp NULL)
+ * and a short read answer with the same number. Refusals that stand ahead
+ * of the value -- EPERM for a write to a read-only node, EINVAL for a new
+ * value of the wrong length -- return before any of it.
+ *
+ * tests/kernel/sysctl_test.c is the oracle.
+ */
+
+/*
  * Validate parameters and get old / set new parameters
  * for an integer-valued sysctl function.
  */
@@ -422,15 +452,14 @@ sysctl_int(void *oldp, size_t *oldlenp, void *newp, size_t newlen, int *valp)
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < sizeof(int))
-		return (ENOMEM);
 	if (newp && newlen != sizeof(int))
 		return (EINVAL);
-	*oldlenp = sizeof(int);
 	if (oldp)
-		error = copyout((caddr_t)valp, (caddr_t)oldp, sizeof(int));
+		error = copyout((caddr_t)valp, (caddr_t)oldp,
+		    MIN(sizeof(int), *oldlenp));
 	if (error == 0 && newp)
 		error = copyin((caddr_t)newp, (caddr_t)valp, sizeof(int));
+	*oldlenp = sizeof(int);
 	return (error);
 }
 
@@ -442,13 +471,11 @@ sysctl_rdint(void *oldp, size_t *oldlenp, void *newp, int val)
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < sizeof(int))
-		return (ENOMEM);
 	if (newp)
 		return (EPERM);
-	*oldlenp = sizeof(int);
 	if (oldp)
-		error = copyout((caddr_t)&val, oldp, sizeof(int));
+		error = copyout((caddr_t)&val, oldp, MIN(sizeof(int), *oldlenp));
+	*oldlenp = sizeof(int);
 	return (error);
 }
 
@@ -461,15 +488,14 @@ sysctl_long(void *oldp, size_t *oldlenp, void *newp, size_t newlen, long *valp)
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < sizeof(long))
-		return (ENOMEM);
 	if (newp && newlen != sizeof(long))
 		return (EINVAL);
-	*oldlenp = sizeof(long);
 	if (oldp)
-		error = copyout((caddr_t)valp, (caddr_t)oldp, sizeof(long));
+		error = copyout((caddr_t)valp, (caddr_t)oldp,
+		    MIN(sizeof(long), *oldlenp));
 	if (error == 0 && newp)
 		error = copyin((caddr_t)newp, (caddr_t)valp, sizeof(long));
+	*oldlenp = sizeof(long);
 	return (error);
 }
 
@@ -481,13 +507,11 @@ sysctl_rdlong(void *oldp, size_t *oldlenp, void *newp, long val)
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < sizeof(long))
-		return (ENOMEM);
 	if (newp)
 		return (EPERM);
-	*oldlenp = sizeof(long);
 	if (oldp)
-		error = copyout((caddr_t)&val, oldp, sizeof(long));
+		error = copyout((caddr_t)&val, oldp, MIN(sizeof(long), *oldlenp));
+	*oldlenp = sizeof(long);
 	return (error);
 }
 
@@ -503,18 +527,15 @@ sysctl_string(void *oldp, size_t *oldlenp, void *newp, size_t newlen,
 	int error = 0;
 
 	len = strlen(str) + 1;
-	if (oldp && *oldlenp < len)
-		return (ENOMEM);
 	if (newp && newlen >= (size_t)maxlen)
 		return (EINVAL);
-	if (oldp) {
-		*oldlenp = len;
-		error = copyout(str, oldp, len);
-	}
+	if (oldp)
+		error = copyout(str, oldp, MIN(len, *oldlenp));
 	if (error == 0 && newp) {
 		error = copyin(newp, str, newlen);
 		str[newlen] = 0;
 	}
+	*oldlenp = len;
 	return (error);
 }
 
@@ -528,13 +549,11 @@ sysctl_rdstring(void *oldp, size_t *oldlenp, void *newp, const char *str)
 	int error = 0;
 
 	len = strlen(str) + 1;
-	if (oldp && *oldlenp < len)
-		return (ENOMEM);
 	if (newp)
 		return (EPERM);
-	*oldlenp = len;
 	if (oldp)
-		error = copyout((caddr_t)str, oldp, len);
+		error = copyout((caddr_t)str, oldp, MIN(len, *oldlenp));
+	*oldlenp = len;
 	return (error);
 }
 
@@ -548,16 +567,13 @@ sysctl_struct(void *oldp, size_t *oldlenp, void *newp, size_t newlen,
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < (size_t)len)
-		return (ENOMEM);
 	if (newp && newlen > (size_t)len)
 		return (EINVAL);
-	if (oldp) {
-		*oldlenp = len;
-		error = copyout(sp, oldp, len);
-	}
+	if (oldp)
+		error = copyout(sp, oldp, MIN((size_t)len, *oldlenp));
 	if (error == 0 && newp)
 		error = copyin(newp, sp, len);
+	*oldlenp = len;
 	return (error);
 }
 
@@ -569,13 +585,11 @@ sysctl_rdstruct(void *oldp, size_t *oldlenp, void *newp, void *sp, int len)
 {
 	int error = 0;
 
-	if (oldp && *oldlenp < (size_t)len)
-		return (ENOMEM);
 	if (newp)
 		return (EPERM);
-	*oldlenp = len;
 	if (oldp)
-		error = copyout(sp, oldp, len);
+		error = copyout(sp, oldp, MIN((size_t)len, *oldlenp));
+	*oldlenp = len;
 	return (error);
 }
 

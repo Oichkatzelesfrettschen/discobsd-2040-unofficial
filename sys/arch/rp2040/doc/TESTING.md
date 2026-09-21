@@ -169,6 +169,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
 | `check-kernel` | eight sys/kern sources compiled from the kernel tree and run against 1194 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
+| `check-libc-sysctl` | `uname` and `gethostname` compiled from the tree against a `sysctl()` that answers as sys/kern/kern_sysctl.c's helpers do: the prefix that fits, the length the value needs, ENOMEM. Every `utsname` field ends terminated and the one walk over a field's contents takes its bound from the field, which a guard of the byte that walk rewrites and an exactly sized allocation under the sanitizers both hold it to; `gethostname` terminates a truncated name and reports ENAMETOOLONG. The tree's userland `size_t` is `u_int`, so the tier runs at ILP32, and the gate reaches the tree's headers while its reporting half reaches the host's. Against the pre-change sources 7 of 31 checks fail and AddressSanitizer names a heap-buffer-overflow read in `uname` |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
 | `check-libc-ctime`, `check-libc-ctime-cross` | the exact fixed-width formatter and UTC decomposition compiled as C17 at host, ILP32 and Cortex-M0+ widths: canonical output, one-digit day padding, four-digit year and leap-second boundaries, null input, both sides of every field range, unchanged static output after rejection, epoch and pre-epoch decomposition, leap day, both signed 32-bit time boundaries, an exact freestanding production compile that accepts libc's `%D` extension, a supplemental builtin-remapped target overflow compile and calibrated negative formatter, and a behavioral control that accepts invalid fields. GCC reserves builtin format and object-size analysis for the explicit diagnostic lane because its printf grammar omits the shipped `%D` conversion |
 | `check-libc-random`, `check-libc-random-cross` | random, srandom, initstate and setstate compiled as strict C17 at host, under the undefined-behavior sanitizer, at ILP32 and Cortex-M0+ widths: an independent 32-bit reference checks four seeds across every state-size boundary; state switching, canaries, alignment, undersized buffers and malformed metadata pin commit-before-use behavior. A fixture that installs malformed metadata calibrates rejection. The target object must remain allocation-free and import neither division helpers nor stdio |
@@ -246,12 +247,33 @@ address can take, so a copy that begins at the descriptor and a copy
 that runs past m_limit each land somewhere the gate names: the first
 puts the descriptor's own bytes in the output, the second puts poison
 there. The size query and the copy derive one length, so a caller that
-sizes a buffer from the query reads exactly that many bytes; a buffer
-one byte short takes nothing at all and leaves ENOMEM; a write attempt
-takes EPERM before any copy; every name at the level is terminal; and
-the ids the header leaves unnamed, id 4 among them, are refused. Two
-inverted sources calibrate it: the pre-patch base pointer fails 15 of
-560 checks and a length two entries past m_limit fails 21.
+sizes a buffer from the query reads exactly that many bytes; a write
+attempt takes EPERM before any copy; every name at the level is
+terminal; and the ids the header leaves unnamed, id 4 among them, are
+refused. Two inverted sources calibrate that part: the pre-patch base
+pointer fails 15 of 560 checks and a length two entries past m_limit
+fails 21.
+
+The same gate carries the length contract sysctl(3) states, which the
+eight helpers and __sysctl() share: a buffer shorter than the value
+takes the prefix that fits, *oldlenp reports the length the value needs
+rather than the length copied, and __sysctl() compares the two to reach
+ENOMEM after the node has had its say. Each helper answers all three
+questions -- what a size query reports, what a short buffer takes and
+reports, and what an exact buffer delivers -- because the four that once
+assigned *oldlenp inside `if (oldp)` left a size query's length
+untouched, so a caller sizing a buffer from it allocated whatever it had
+passed in. The end-to-end cases drive __sysctl() through u_arg: an ample
+buffer succeeds, a short one reports ENOMEM with the length the value
+needs, a third call sized from that answer succeeds, a size query never
+reaches ENOMEM however small the number passed in, and a node's own
+refusal stands ahead of the truncation check. Two inverted sources
+calibrate this part: the pre-patch helpers fail 43 of 1137 checks, and
+helpers that report the length copied rather than the length needed fail
+26 -- the syscall's comparison among them, since a reported length that
+never exceeds the buffer can never be seen to overflow it. Removing the
+comparison itself needs no gate run, because savelen is then set and
+unused and the build refuses it.
 
 The fourth file is sys/kern/ufs_alloc.c. `struct dinode` is an on-disk
 layout and INOPB is MAXBSIZE divided by its size, so a block holds

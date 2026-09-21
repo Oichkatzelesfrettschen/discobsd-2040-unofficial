@@ -32,6 +32,7 @@
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>
+#include <errno.h>
 
 int
 gethostname(name, namelen)
@@ -44,7 +45,21 @@ gethostname(name, namelen)
 	mib[0] = CTL_KERN;
 	mib[1] = KERN_HOSTNAME;
 	size = namelen;
-	if (sysctl(mib, 2, name, &size, NULL, 0) == -1)
+	if (sysctl(mib, 2, name, &size, NULL, 0) == -1) {
+		/*
+		 * sysctl(3) fills the buffer with the prefix that fits and
+		 * reports ENOMEM, so a name longer than the buffer arrives
+		 * unterminated. POSIX leaves termination unspecified for a
+		 * truncated host name and names ENAMETOOLONG for the
+		 * condition, so terminate it and report that: a caller that
+		 * prints the buffer despite the failure reads only its own.
+		 */
+		if (errno == ENOMEM) {
+			if (namelen > 0)
+				name[namelen - 1] = '\0';
+			errno = ENAMETOOLONG;
+		}
 		return (-1);
+	}
 	return (0);
 }

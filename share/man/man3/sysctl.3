@@ -87,6 +87,12 @@ If the amount of data available is greater
 than the size of the buffer supplied,
 the call supplies as much data as fits in the buffer provided
 and returns with the error code ENOMEM.
+The location specified by
+\fIoldlenp\fP
+then holds the size of the whole value rather than the amount copied,
+so a caller that reads it after ENOMEM learns the size to supply next
+and may still use the data it did receive.
+A string truncated this way carries no terminator.
 If the old value is not desired,
 \fIoldp\fP
 and

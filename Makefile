@@ -147,6 +147,14 @@ check-kernel:
 check-libc-environment:
 		${MAKE} -C tests/libc_environment check
 
+# The libc callers that read a value through sysctl(3) into a fixed buffer.
+# sysctl(3) reports the length the value needs rather than the length it
+# copied, so the gate holds uname() and gethostname() to bounds taken from
+# their own buffers. It compiles the tree's userland headers, whose size_t is
+# u_int, so it runs at ILP32 and under the sanitizers beside it.
+check-libc-sysctl:
+		${MAKE} -C tests/libc_sysctl check
+
 check-libc-tempfiles:
 		${MAKE} -C tests/libc_tempfiles check
 
@@ -362,7 +370,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
-		check-libc-environment \
+		check-libc-environment check-libc-sysctl \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
@@ -561,7 +569,7 @@ installfs:
 		check-ufs-prototypes \
 		check-elf2aout \
 		check-kernel check-kernel-ilp32 check-fs-stress \
-		check-libc-environment \
+		check-libc-environment check-libc-sysctl \
 		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross \

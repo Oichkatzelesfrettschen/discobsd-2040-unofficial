@@ -1,0 +1,11 @@
+libc_sysctl_test
+libc_sysctl_test_san
+gate.o
+uname.o
+gethostname.o
+shim.o
+gate_san.o
+uname_san.o
+gethostname_san.o
+shim_san.o
+machine/

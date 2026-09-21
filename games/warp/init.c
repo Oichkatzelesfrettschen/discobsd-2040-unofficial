@@ -40,8 +40,13 @@ initialize()
     register int x;
     register int y;
     register int dist;
-    register int ydist;
-    register int xdist;
+    /*
+     * The uniform dist case sets neither, and the switches below take
+     * their 0 arms for it: x and y come from rand_mod alone there. Every
+     * other case assigns both before the switches read them.
+     */
+    register int ydist = 0;
+    register int xdist = 0;
     long e;
     /*
      * The dist cases that read an offset are the ones that set it, and the

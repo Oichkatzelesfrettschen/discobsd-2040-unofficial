@@ -238,32 +238,32 @@ $(PROGDIR)/execl: $(SRCDIR)/execl.c $(SRCDIR)/big.c
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 $(PROGDIR)/dhry2: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_1.c
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_2.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_1.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_2.o $(SRCDIR)/dhry_2.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
-	cd $(SRCDIR); rm -f dhry_1.o dhry_2.o
+	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
 $(PROGDIR)/dhry2reg: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_1.c -DREG=register
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} dhry_2.c -DREG=register
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_1.o -DREG=register $(SRCDIR)/dhry_1.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_2.o -DREG=register $(SRCDIR)/dhry_2.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
-	cd $(SRCDIR); rm -f dhry_1.o dhry_2.o
+	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
 
 dhry2reg: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) dhry_1.c -DREG=register
-	cd $(SRCDIR); $(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) dhry_2.c -DREG=register
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) -o $(SRCDIR)/dhry_1.o -DREG=register $(SRCDIR)/dhry_1.c
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) -o $(SRCDIR)/dhry_2.o -DREG=register $(SRCDIR)/dhry_2.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
-	cd $(SRCDIR); rm -f dhry_1.o dhry_2.o
+	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
 $(PROGDIR)/looper: $(SRCDIR)/looper.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/looper.c ${LIBS} ${OPTON}

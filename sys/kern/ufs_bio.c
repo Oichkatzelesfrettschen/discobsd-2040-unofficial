@@ -11,6 +11,7 @@
 #include <sys/mount.h>
 #include <sys/dk.h>
 #include <sys/systm.h>
+#include <sys/capacity.h>
 #include <sys/map.h>
 #include <sys/proc.h>
 
@@ -231,6 +232,7 @@ loop:
         if (dp->av_forw != dp)
             break;
     if (dp == bfreelist) {      /* no free blocks */
+        capacity_note(CAPACITY_BUFFER, 1);
         dp->b_flags |= B_WANTED;
         sleep((caddr_t)dp, PRIBIO+1);
         splx(s);

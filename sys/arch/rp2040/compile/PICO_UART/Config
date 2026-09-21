@@ -19,6 +19,7 @@ makeoptions     DEBUG="-g"                  # Debug symbols
 options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
 options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
 options         "HALTREBOOT"                # If halted, press key to reboot
+options         CAPACITY_STATS              # fixed-table and u-area peaks
 
 # Root filesystem at /dev/fl0a, swap on /dev/fl1.
 # The RP2040 has no SD controller and this board has no socket, so root

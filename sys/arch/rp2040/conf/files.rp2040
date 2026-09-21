@@ -6,6 +6,7 @@ kern/exec_conf.c			standard
 kern/exec_elf.c				standard
 kern/exec_script.c			standard
 kern/exec_subr.c			standard
+kern/errlist.c				standard
 kern/init_main.c			standard
 kern/init_sysent.c			standard
 kern/kern_clock.c			standard
@@ -25,6 +26,7 @@ kern/kern_synch.c			standard
 kern/kern_sysctl.c			standard
 kern/kern_time.c			standard
 kern/subr_log.c				optional log
+kern/subr_capacity.c			optional capacity_stats
 kern/subr_prf.c				standard
 kern/subr_rmap.c			standard
 kern/sys_generic.c			standard

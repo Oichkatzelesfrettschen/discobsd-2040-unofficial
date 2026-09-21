@@ -138,7 +138,8 @@ struct ctlname {
 #define	KERN_OSVERSION		25	/* string: kernel build version */
 #define	KERN_SYSTRACE		26	/* int: console trace mask */
 #define	KERN_SYSTRACEPID	27	/* int: trace only this pid */
-#define	KERN_MAXID		28	/* number of valid kern ids */
+#define	KERN_CAPACITY		28	/* struct: fixed-table and u-area peaks */
+#define	KERN_MAXID		29	/* number of valid kern ids */
 
 #ifndef	KERNEL
 #define	CTL_KERN_NAMES { \
@@ -170,6 +171,7 @@ struct ctlname {
 	{ "osversion", CTLTYPE_STRING }, \
 	{ "systrace", CTLTYPE_INT }, \
 	{ "systracepid", CTLTYPE_INT }, \
+	{ "capacity", CTLTYPE_STRUCT }, \
 }
 #endif
 

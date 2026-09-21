@@ -16,6 +16,7 @@
 #endif
 #include <sys/kernel.h>
 #include <sys/syslog.h>
+#include <sys/capacity.h>
 
 int     mpid;           /* generic for unique process id's */
 
@@ -127,6 +128,7 @@ again:
     child->p_nxt->p_prev = &child->p_nxt;   /*   (allproc is never NULL) */
     child->p_prev = &allproc;
     allproc = child;
+    capacity_note(CAPACITY_PROC, 0);
 
     /*
      * Increase reference counts on shared objects.
@@ -229,6 +231,7 @@ fork1 (isvfork)
         log(LOG_ERR, "proc: table full\n");
 
     if (p2==NULL || (u.u_uid!=0 && (p2->p_nxt == NULL || a>MAXUPRC))) {
+        capacity_note(CAPACITY_PROC, 1);
         u.u_error = EAGAIN;
         return;
     }

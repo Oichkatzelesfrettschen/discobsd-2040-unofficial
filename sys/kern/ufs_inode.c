@@ -14,6 +14,7 @@
 #include <sys/buf.h>
 #include <sys/systm.h>
 #include <sys/syslog.h>
+#include <sys/capacity.h>
 
 #ifdef COMPACT_INODE_FIELDS
 _Static_assert (IXMOD <= 0xffffU,
@@ -165,6 +166,7 @@ loop:
                 ip->i_freeb = NULL;
             }
             ip->i_count++;
+            capacity_note(CAPACITY_INODE, 0);
             ip->i_flag |= ILOCKED;
             return(ip);
         }
@@ -172,6 +174,7 @@ loop:
     ip = ifreeh;
     if (ip == NULL) {
         log(LOG_ERR, "inode: table full\n");
+        capacity_note(CAPACITY_INODE, 1);
         u.u_error = ENFILE;
         return(NULL);
     }
@@ -203,6 +206,7 @@ loop:
     cacheinval(ip);
     ip->i_flag = ILOCKED;
     ip->i_count++;
+    capacity_note(CAPACITY_INODE, 0);
     ip->i_lastr = 0;
     bp = bread(dev, itod(ino));
     /*
@@ -278,6 +282,7 @@ igrab(register struct inode *ip)
         ip->i_freeb = NULL;
     }
     ip->i_count++;
+    capacity_note(CAPACITY_INODE, 0);
     ip->i_flag |= ILOCKED;
 }
 

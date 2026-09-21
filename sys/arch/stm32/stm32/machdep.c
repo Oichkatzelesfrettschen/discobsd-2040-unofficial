@@ -114,7 +114,8 @@ struct callout		callout[NCALL];
 struct mount		mount[NMOUNT];
 struct buf		buf[NBUF], bfreelist[BQUEUES];
 struct bufhd		bufhash[BUFHSZ];
-struct cblock		cfree[NCLIST];
+/* CROUND masks clist pointers, so cfree starts on a full block boundary. */
+_Alignas(sizeof(struct cblock)) struct cblock cfree[NCLIST];
 struct proc		proc[NPROC];
 struct file		file[NFILE];
 

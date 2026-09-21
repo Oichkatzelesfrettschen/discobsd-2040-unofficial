@@ -461,22 +461,21 @@ exception(frame)
         int opc = frame->tf_pc;             /* opc points at syscall */
         frame->tf_pc = opc + 3*NBPW;        /* no errors - skip 2 next instructions */
 
-        const struct sysent *callp = &sysent[0];
         int code = (*(u_int*) opc >> 6) & 0377; /* bottom 8 bits are index */
-        if (code < nsysent)
-            callp += code;
+        const volatile u_int dispatch_code = code < nsysent ? (u_int)code : 0;
+        const volatile uint8_t nargs = syscall_nargs[dispatch_code];
 
-        if (callp->sy_narg) {
+        if (nargs) {
             u.u_arg[0] = frame->tf_r4;      /* $a0 */
             u.u_arg[1] = frame->tf_r5;      /* $a1 */
             u.u_arg[2] = frame->tf_r6;      /* $a2 */
             u.u_arg[3] = frame->tf_r7;      /* $a3 */
-            if (callp->sy_narg > 4) {
+            if (nargs > 4) {
                 unsigned addr = (frame->tf_sp + 16) & ~3;
                 if (! baduaddr((caddr_t) addr))
                     u.u_arg[4] = *(unsigned*) addr;
             }
-            if (callp->sy_narg > 5) {
+            if (nargs > 5) {
                 unsigned addr = (frame->tf_sp + 20) & ~3;
                 if (! baduaddr((caddr_t) addr))
                     u.u_arg[5] = *(unsigned*) addr;
@@ -484,15 +483,15 @@ exception(frame)
         }
 #ifdef TRACE_EXCEPTIONS
         printf("--- (%u)syscall: %s (", u.u_procp->p_pid,
-            syscallnames [code >= nsysent ? 0 : code]);
-        if (callp->sy_narg > 0)
-            print_args(callp->sy_narg, u.u_arg[0], u.u_arg[1],
+            syscall_name((u_int)code));
+        if (nargs > 0)
+            print_args(nargs, u.u_arg[0], u.u_arg[1],
                 u.u_arg[2], u.u_arg[3], u.u_arg[4], u.u_arg[5]);
         printf(") at %08x\n", opc);
 #endif
         u.u_rval = 0;
         if (setjmp(&u.u_qsave) == 0) {
-            (*callp->sy_call)();
+            syscall_handlers[dispatch_code]();
         }
         switch (u.u_error) {
         case 0:

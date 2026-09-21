@@ -272,6 +272,7 @@ information.
 	Second level name	Type	Changeable
 	KERN\_ARGMAX	integer	no
 	KERN\_BOOTTIME	struct timeval	no
+	KERN\_CAPACITY	struct kernel_capacity_stats	no
 	KERN\_CHOWN\_RESTRICTED	integer	no
 	KERN\_CLOCKRATE	struct clockinfo	no
 	KERN\_FILE	struct file	no
@@ -316,6 +317,15 @@ KERN_BOOTTIME
 .in +.5i
 A \fIstruct timeval\fP structure is returned.
 This structure contains the time that the system was booted.
+.sp
+.in -.5i
+KERN_CAPACITY
+.br
+.in +.5i
+Return the versioned fixed-table occupancy, allocation-failure and kernel
+stack-watermark structure defined in \fI<sys/capacity.h>\fP.
+The RP2040 capacity contract and the evidence required before reducing a
+limit are described in \fIsys/arch/rp2040/doc/CAPACITY.md\fP.
 .sp
 .in -.5i
 .\"KERN_CHOWN_RESTRICTED
@@ -947,6 +957,9 @@ A process without appropriate privilege attempts to set a value.
 <sys/sysctl.h>
 definitions for top level identifiers, second level kernel and hardware
 identifiers, and user level identifiers
+.TP 15
+<sys/capacity.h>
+definitions for the KERN_CAPACITY structure
 .TP 15
 <sys/socket.h>
 definitions for second level network identifiers

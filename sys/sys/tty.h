@@ -1,5 +1,6 @@
 #ifndef _TTY_H
 #define _TTY_H
+#include <sys/stdint.h>
 /*
  * Copyright (c) 1982, 1986 Regents of the University of California.
  * All rights reserved.  The Berkeley software License Agreement
@@ -98,7 +99,8 @@ struct tty {
 
 #ifdef KERNEL
 
-extern const int tthiwat[NSPEEDS], ttlowat[NSPEEDS];
+extern const uint16_t tthiwat[NSPEEDS];
+extern const uint8_t ttlowat[NSPEEDS];
 extern int q_to_b(register struct clist *q, char *cp, int cc);
 
 #define TTHIWAT(tp) tthiwat[(tp)->t_ospeed&TTMASK]

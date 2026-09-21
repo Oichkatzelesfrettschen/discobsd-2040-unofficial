@@ -34,6 +34,7 @@
  */
 
 #include <sys/param.h>
+#include <sys/capacity.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 
@@ -142,6 +143,7 @@ extern int optind, errno;
 #define	BOOTTIME	0x0002
 #define	CONSDEV		0x0004
 #define	HEX		0x0008
+#define	CAPACITY	0x0010
 
 char *equ = "=";
 
@@ -290,6 +292,9 @@ parse(char *string, int flags)
 		case KERN_BOOTTIME:
 			special |= BOOTTIME;
 			break;
+		case KERN_CAPACITY:
+			special |= CAPACITY;
+			break;
 		}
 		break;
 
@@ -434,6 +439,44 @@ parse(char *string, int flags)
 			    devname(dev, S_IFCHR));
 		else
 			fprintf(stdout, "0x%x\n", dev);
+		return;
+	}
+	if (special & CAPACITY) {
+		static const char *const metric_names[CAPACITY_KIND_COUNT] = {
+			"proc", "inode", "file", "clist", "buffer"
+		};
+		const struct kernel_capacity_stats *stats =
+		    (const struct kernel_capacity_stats *)buf;
+		int metric_index;
+
+		if (size != sizeof(*stats) ||
+		    stats->version != KERNEL_CAPACITY_VERSION ||
+		    stats->size != sizeof(*stats)) {
+			fprintf(stderr, "%s: unsupported capacity ABI\n", string);
+			return;
+		}
+		if (!nflag)
+			fprintf(stdout, "%s%s", string, equ);
+		fprintf(stdout, "version %u size %u\n", stats->version,
+		    stats->size);
+		for (metric_index = 0; metric_index < CAPACITY_KIND_COUNT;
+		    metric_index++) {
+			const struct capacity_metric *metric =
+			    &stats->metric[metric_index];
+
+			fprintf(stdout,
+			    "%s limit %u current %u peak %u min-free %u "
+			    "failures %lu slot-bytes %u\n",
+			    metric_names[metric_index], metric->limit,
+			    metric->current, metric->peak, metric->minimum_free,
+			    (unsigned long)metric->failures, metric->slot_bytes);
+		}
+		fprintf(stdout,
+		    "uarea bytes %u user %u stack %u peak %u min-free %u "
+		    "saturated %u\n",
+		    stats->uarea_bytes, stats->user_bytes, stats->stack_bytes,
+		    stats->stack_peak, stats->stack_minimum_free,
+		    stats->stack_saturated);
 		return;
 	}
 	switch (type) {

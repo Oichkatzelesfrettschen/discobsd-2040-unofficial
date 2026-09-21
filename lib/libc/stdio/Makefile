@@ -13,14 +13,14 @@ SRCS		= ${STDSRC} fgetc.c fgets.c fputc.c fputs.c puts.c \
 OBJS		= ${STDOBJ} fgetc.o fgets.o fputc.o fputs.o puts.o \
                   feof.o ferror.o fileno.o
 
-STDSRC		= clrerr.c doscan.c exit.c clnup.c fdopen.c filbuf.c findiop.c \
-		  flsbuf.c fopen.c fprintf.c fread.c freopen.c fseek.c \
+STDSRC		= clrerr.c doscan.c exit.c clnup.c fdopen.c fgetpos.c filbuf.c \
+		  findiop.c flsbuf.c fopen.c fprintf.c fread.c freopen.c fseek.c \
 		  ftell.c fwrite.c getchar.c getw.c printf.c putchar.c putw.c \
 		  rew.c scanf.c setbuf.c setbuffer.c setvbuf.c snprintf.c sprintf.c \
 		  strout.c ungetc.c vfprintf.c vprintf.c vsprintf.c vsnprintf.c \
 		  doprnt.c doprnt_float.c doprnt_llong.c doscan_float.c remove.c
-STDOBJ		= clrerr.o doscan.o exit.o fdopen.o filbuf.o findiop.o \
-		  flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
+STDOBJ		= clrerr.o doscan.o exit.o fdopen.o fgetpos.o filbuf.o \
+		  findiop.o flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
 		  ftell.o fwrite.o getchar.o getw.o printf.o putchar.o putw.o \
 		  rew.o scanf.o setbuf.o setbuffer.o setvbuf.o snprintf.o sprintf.o \
 		  strout.o ungetc.o vfprintf.o vprintf.o vsprintf.o vsnprintf.o \

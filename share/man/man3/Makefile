@@ -283,6 +283,8 @@ install: _make_01 _make_02
 	ln -f ${DESTDIR}${MDIR}/malloc.0 ${DESTDIR}${MDIR}/realloc.0
 	ln -f ${DESTDIR}${MDIR}/insque.0 ${DESTDIR}${MDIR}/remque.0
 	ln -f ${DESTDIR}${MDIR}/fseek.0 ${DESTDIR}${MDIR}/rewind.0
+	ln -f ${DESTDIR}${MDIR}/fseek.0 ${DESTDIR}${MDIR}/fgetpos.0
+	ln -f ${DESTDIR}${MDIR}/fseek.0 ${DESTDIR}${MDIR}/fsetpos.0
 	ln -f ${DESTDIR}${MDIR}/string.0 ${DESTDIR}${MDIR}/rindex.0
 	ln -f ${DESTDIR}${MDIR}/floor.0 ${DESTDIR}${MDIR}/rint.0
 	ln -f ${DESTDIR}${MDIR}/syslog.0 ${DESTDIR}${MDIR}/setlogmask.0

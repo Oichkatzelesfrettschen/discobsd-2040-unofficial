@@ -8,6 +8,15 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
+
+/*
+ * FILENAME_MAX is the name length C17 7.21.1 lets a program assume it can
+ * open, and namei refuses a longer one, so the two are one number and the
+ * header's copy of it is pinned where both are in scope.
+ */
+_Static_assert(FILENAME_MAX == PATH_MAX,
+    "FILENAME_MAX in <stdio.h> is PATH_MAX from <sys/syslimits.h>");
 
 FILE *
 fopen(file, mode)

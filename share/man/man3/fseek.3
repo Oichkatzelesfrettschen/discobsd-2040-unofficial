@@ -3,7 +3,7 @@
 .TH FSEEK 3S  "February 24, 1986"
 .AT 3
 .SH NAME
-fseek, ftell, rewind \- reposition a stream
+fseek, ftell, rewind, fgetpos, fsetpos \- reposition a stream
 .SH SYNOPSIS
 .B #include <stdio.h>
 .PP
@@ -22,6 +22,22 @@ fseek, ftell, rewind \- reposition a stream
 .B *stream;
 .PP
 .B rewind(stream)
+.PP
+.B int fgetpos(stream, pos)
+.br
+.SM
+.B FILE
+.B *stream;
+.br
+.B fpos_t *pos;
+.PP
+.B int fsetpos(stream, pos)
+.br
+.SM
+.B FILE
+.B *stream;
+.br
+.B const fpos_t *pos;
 .SH DESCRIPTION
 .I Fseek
 sets the position of the next input or output
@@ -53,10 +69,37 @@ for
 .IR Rewind ( stream )
 is equivalent to
 .IR fseek ( stream ,
-0L, 0).
+0L, 0),
+and clears the error indicator as well.
+.PP
+.I Fgetpos
+stores the current position in
+.RI * pos ,
+and
+.I fsetpos
+returns the stream to a position
+.I fgetpos
+recorded earlier on the same file.
+.B fpos_t
+is a
+.B long
+here, holding the offset alone, because every stream on this system is a
+byte stream with no conversion state to carry beside it; a portable program
+uses the pair rather than
+.I ftell
+and
+.I fseek
+because an implementation whose offsets do not fit a
+.B long
+has only this one.
 .SH "SEE ALSO"
 lseek(2),
-fopen(3S)
+fopen(3S),
+ungetc(3S)
 .SH DIAGNOSTICS
 .I Fseek
-returns \-1 for improper seeks, otherwise zero.
+and
+.I fsetpos
+return \-1 for improper seeks, otherwise zero.
+.I Fgetpos
+returns \-1 when the position cannot be determined, and zero otherwise.

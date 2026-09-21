@@ -42,6 +42,13 @@ char **Colorptr;
 int colen;
 struct sgttyb tty;
 struct tchars tchars = { CINTR, CQUIT, CSTART, CSTOP, CEOF, CBRK };
+/*
+ * sys/arch/rp2040/dev/usb.c and dev/uart.c open the console with CRTERA on,
+ * so the value a working TIOCLGET returns differs from this only where
+ * stty(1) or gettytab has said so, and a TIOCLGET that fails has no terminal
+ * to display on either way.
+ */
+int lflags = LCRTERA;
 int old;
 int noech;
 int raw;
@@ -461,14 +468,20 @@ fixtty (mode)
 /*
  * A display terminal overwrites the cell a destructive backspace names, so
  * "\010 \010" rubs the character out; a printing terminal cannot take ink
- * back and echoes what was erased instead.  Backspace and DEL as the erase
- * character mark the first class; any other erase character, such as the '#'
- * of the hardcopy consoles this convention was written for, marks the second.
+ * back and echoes what was erased instead.
+ *
+ * Which terminal is attached is LCRTERA in the local mode word, which
+ * sys/kern/tty.c:829 reads for its own erase and libexec/getty/subr.c sets
+ * from gettytab; sys/arch/rp2040/dev/usb.c and dev/uart.c open the console
+ * with CRTERA already on.  That is a separate question from which character
+ * erases, which is sg_erase and which stty(1) rebinds: backspace and DEL
+ * are two input characters, and either one, or neither, can be bound to
+ * erase on a terminal of either class.
  */
 int
 crterase ()
 {
-	return (tty.sg_erase == '\010' || tty.sg_erase == '\177');
+	return ((lflags & LCRTERA) != 0);
 }
 
 _Noreturn void

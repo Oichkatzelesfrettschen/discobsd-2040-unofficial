@@ -1,37 +1,127 @@
 .\"	@(#)touch.1	6.1 (Berkeley) 4/29/85
 .\"
-.TH TOUCH 1 "April 29, 1985"
+.TH TOUCH 1 "September 20, 2026"
 .AT 3
 .SH NAME
-touch \- update date last modified of a file
+touch \- set file access and modification times
 .SH SYNOPSIS
 .B touch
 [
-.B \-c
+.B \-acfm
 ]
 [
-.B \-f
+.BI \-d " ccyy-mm-ddTHH:MM:SS[.frac][Z]"
+]
+[
+.BI \-r " file"
+]
+[
+.BI \-t " [[cc]yy]mmddHHMM[.SS]"
 ]
 file ...
 .SH DESCRIPTION
 .I Touch
-attempts to set the modified date of each
+sets the access and modification times of each
 .IR file .
-If a
+The times are set through
+.IR utimes (2)
+and are recorded as whole seconds, which is the resolution the
+filesystem keeps.
+A
 .I file
-exists,
-this is done by reading a character from the file
-and writing it back.
-If a
-.I file
-does not exist,
-an attempt will be made to create it unless the
+that does not exist is created empty, unless
 .B \-c
-option is specified.
-The
+is given.
+.PP
+The options are:
+.TP 12
+.B \-a
+Change the access time.
+.TP
+.B \-c
+Do not create a
+.I file
+that does not exist.
+This is not an error.
+.TP
+.BI \-d " time"
+Set the times to
+.IR time ,
+given as
+.BR ccyy-mm-ddTHH:MM:SS[.frac][Z] .
+A space may stand in place of the
+.BR T .
+A trailing
+.B Z
+reads the time as UTC rather than as local time.
+Fractional seconds are accepted and discarded, the filesystem recording
+whole seconds.
+.TP
 .B \-f
-option will attempt to force the touch
-in spite of read and write permissions on a
+Accepted and ignored; it is kept for compatibility.
+.TP
+.B \-m
+Change the modification time.
+.TP
+.BI \-r " file"
+Set the times to those of
 .IR file .
+.TP
+.BI \-t " time"
+Set the times to
+.IR time ,
+given as
+.BR [[cc]yy]mmddHHMM[.SS] .
+A two-digit year in
+.RB [ 00 , 68 ]
+is read as 20xx and one in
+.RB [ 69 , 99 ]
+as 19xx.
+.PP
+Given neither
+.B \-a
+nor
+.BR \-m ,
+both times are changed.
+Given one of them, the other time is read back and written unaltered,
+because
+.IR utimes (2)
+sets both times or neither.
+.PP
+Given none of
+.BR \-d ,
+.B \-r
+or
+.BR \-t ,
+the current time is used, and every
+.I file
+of one invocation is given the same instant.
+.PP
+If no such option is given and the first of two or more operands is an
+eight or ten digit number, it is taken as a time in the obsolete form
+.B mmddHHMM[yy]
+rather than as a file name.
+.SH EXIT\ STATUS
+.I Touch
+exits 0 if every
+.I file
+was set and >0 if any was not.
+An operand that cannot be set does not stop the ones after it.
 .SH SEE\ ALSO
-utimes(2)
+utimes(2), stat(2), mktime(3)
+.SH STANDARDS
+.I Touch
+conforms to IEEE Std 1003.1.
+The
+.B \-d
+and
+.B \-f
+options are extensions to it.
+.SH HISTORY
+A
+.B touch
+command appeared in Version 7 AT&T UNIX and set the times by reading a
+file's first byte and writing it back, which reached regular files alone
+and could not set the two times apart.
+This one sets them through
+.IR utimes (2).

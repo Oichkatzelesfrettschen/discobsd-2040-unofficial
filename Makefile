@@ -163,6 +163,15 @@ check-libc-sysctl:
 check-umount-contracts:
 		${MAKE} -C tests/umount_contracts check
 
+# usr.bin/touch against a real filesystem: what it creates, which of the two
+# times it moves, and what it exits. The arithmetic behind -t and -d is
+# measured separately by check-libc-mktime, against the tree's own mktime.
+check-touch-contracts:
+		${MAKE} -C tests/touch_contracts check
+
+check-touch-contracts-cross:
+		${MAKE} -C tests/touch_contracts check-cross
+
 check-libc-tempfiles:
 		${MAKE} -C tests/libc_tempfiles check
 
@@ -387,6 +396,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts \
+		check-libc-environment check-libc-sysctl check-touch-contracts \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
@@ -397,7 +407,7 @@ HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-aout-contracts \
-		check-libc-ctime-cross \
+		check-libc-ctime-cross check-touch-contracts-cross \
 		check-libc-random-cross \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
@@ -587,6 +597,7 @@ installfs:
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts \
+		check-libc-environment check-libc-sysctl check-touch-contracts \
 		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
 		check-libc-mktime \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \

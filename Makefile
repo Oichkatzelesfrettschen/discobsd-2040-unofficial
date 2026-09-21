@@ -594,48 +594,34 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		check-warning-policy-host check-warning-policy-cross \
-		check-control-char-contracts \
-		check-build-failure check-analysis \
-		all build distribution release tools kernel check-divider \
-		check-swapram check-cache-footprint check-exec-spool \
-		check-ufs-prototypes \
-		check-elf2aout \
-		check-kernel check-kernel-ilp32 check-fs-stress \
-		check-libc-environment check-libc-sysctl \
-		check-umount-contracts \
-		check-libc-environment check-libc-sysctl check-touch-contracts \
-		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross  \
-		check-libc-zone \
-		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
-		check-libc-mktime \
+		check-control-char-contracts check-build-failure check-analysis all \
+		build distribution release tools kernel check-divider check-swapram \
+		check-cache-footprint check-exec-spool check-ufs-prototypes \
+		check-elf2aout check-kernel check-kernel-ilp32 check-fs-stress \
+		check-libc-environment check-libc-sysctl check-umount-contracts \
+		check-touch-contracts check-libc-tempfiles check-libc-ctime \
+		check-libc-ctime-cross check-libc-zone check-libc-mktime \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
-		check-libc-difftime check-libc-difftime-cross \
-		check-libc-contracts \
-		check-libc-host-contracts check-libc-aout-contracts \
-		check-libc-malloc \
+		check-libc-difftime check-libc-difftime-cross check-libc-contracts \
+		check-libc-host-contracts check-libc-aout-contracts check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-random check-libc-random-cross \
-		check-libc-scanf check-libc-rwmode check-libc-syslog check-libc-vis \
-		check-libc-printf-float \
-		check-dirent-contracts check-dirent-contracts-cross \
-		check-colrm-contracts check-colrm-contracts-cross \
-		check-unifdef-contracts check-unifdef-contracts-cross \
-		check-libc-string-security check-libc-string-security-cross \
-		check-id-aliases \
-		check-tiny-utility-multicall \
-		check-fgrep-capacity check-hsaout check-config-makefile \
-		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
-		check-pdp11-v6 check-stevie-host check-kilo-host check-menu-host \
-		check-tail-host check-sort-host check-keen-host check-bubble-host \
-		check-fifteen-host check-sh-editor check-tar-host \
-		check-textbox-host check-cpio-host \
-		check-lint check-host check-posix-sh check-cross-contracts \
-		check-cross-kernel check-cross-assembler check-cross check-qemu \
-		check-mips check-renode check-host-package check-board-build check \
-		symlinks \
-		etc-distribution \
-		${FSIMG} fs installfs \
-		clean cleantools cleanfs cleanall
+		check-libc-random check-libc-random-cross check-libc-scanf \
+		check-libc-rwmode check-libc-syslog check-libc-vis \
+		check-libc-printf-float check-dirent-contracts \
+		check-dirent-contracts-cross check-colrm-contracts \
+		check-colrm-contracts-cross check-unifdef-contracts \
+		check-unifdef-contracts-cross check-libc-string-security \
+		check-libc-string-security-cross check-id-aliases \
+		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
+		check-config-makefile check-portable-utilities check-pdp11-reference \
+		check-pdp11-v7 check-pdp11-v6 check-stevie-host check-kilo-host \
+		check-menu-host check-tail-host check-sort-host check-keen-host \
+		check-bubble-host check-fifteen-host check-sh-editor check-tar-host \
+		check-textbox-host check-cpio-host check-lint check-host \
+		check-posix-sh check-cross-contracts check-cross-kernel \
+		check-cross-assembler check-cross check-qemu check-mips check-renode \
+		check-host-package check-board-build check symlinks etc-distribution \
+		${FSIMG} fs installfs clean cleantools cleanfs cleanall
 
 # Architecture-specific debugging and loading.
 -include sys/arch/${MACHINE}/conf/Makefile.inc

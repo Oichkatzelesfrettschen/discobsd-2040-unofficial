@@ -52,8 +52,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-ctime check-zone check-difftime \
-check-host: ${PROG} header_contract.o check-ctime check-mktime check-difftime \
+check-host: ${PROG} header_contract.o check-ctime check-zone \
+	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
 	check-qsort check-strtox check-string-security

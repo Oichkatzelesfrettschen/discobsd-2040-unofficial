@@ -26,6 +26,20 @@ struct _iobuf _iob[3];
 char *_smallbuf;
 
 /*
+ * fflush(NULL) walks every open stream, and findiop.c, which owns the table
+ * and the walk, pins sizeof(FILE) at the target's 24 bytes and so compiles
+ * only where pointers are four bytes. This gate links neither the table nor
+ * the walk, and reaches fflush on the streams it owns; check-libc-ansi is
+ * where the null stream is exercised.
+ */
+int
+_fwalk(int (*function)(FILE *))
+{
+	(void)function;
+	return (0);
+}
+
+/*
  * The tree's struct stat is not the host's, so the core's fstat, which
  * only wants st_blksize, is answered here in the tree's layout instead of
  * letting the host write its own layout over a smaller object.

@@ -115,7 +115,7 @@ char    *fgets (char *, int, FILE *);
  */
 FILE    *_findiop (void);
 int     _sflags (const char *, int *);
-void    _fwalk (int (*)(FILE *));
+int     _fwalk (int (*)(FILE *));
 void    _cleanup (void);
 int     _filbuf (FILE *);
 int     _flsbuf (unsigned char, FILE *);

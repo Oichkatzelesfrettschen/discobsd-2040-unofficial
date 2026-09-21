@@ -115,6 +115,15 @@ fflush(FILE *iop)
 	int n;
 
 	/*
+	 * C17 7.21.5.2p3 makes a null stream the flush of every stream whose
+	 * flush is defined, which is the walk over the open streams; each of
+	 * them reaches the single-stream decision below, where a stream with
+	 * nothing pending answers zero.
+	 */
+	if (iop == NULL)
+		return (_fwalk(fflush));
+
+	/*
 	 * Bytes are pending output when the stream is in write mode, or when
 	 * an r+ stream is in neither mode: a line-buffered r+ stream queues
 	 * a partial line through the putc macro without reaching _flsbuf, so

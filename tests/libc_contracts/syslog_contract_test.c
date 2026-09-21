@@ -22,6 +22,20 @@ const char *__progname = "contract";
 int syslog_test_errno;
 struct _iobuf _iob[3];
 
+/*
+ * fflush(NULL) walks every open stream, and findiop.c, which owns the table
+ * and the walk, pins sizeof(FILE) at the target's 24 bytes and so compiles
+ * only where pointers are four bytes. This gate links neither the table nor
+ * the walk, and reaches fflush on the streams it owns; check-libc-ansi is
+ * where the null stream is exercised.
+ */
+int
+_fwalk(int (*function)(FILE *))
+{
+	(void)function;
+	return (0);
+}
+
 static char log_capture[CAPTURE_SIZE];
 static char stderr_capture[CAPTURE_SIZE];
 static size_t log_length;

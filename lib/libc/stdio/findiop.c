@@ -106,25 +106,42 @@ f_prealloc(void)
 			*iov = calloc(1, sizeof **iov);
 }
 
-void
+/*
+ * Apply a function to every open stream, and report EOF when any one call
+ * did. fflush(NULL) is the caller that needs the verdict: C17 7.21.5.2p3
+ * makes it the flush of every stream and p4 makes EOF its answer to a write
+ * error on any of them, so the walk carries the status.
+ *
+ * The status is the bitwise or of the returns, which fflush and fclose,
+ * the two functions passed here, answer with EOF or zero; EOF is every bit
+ * set, so the or is the verdict and costs no branch.
+ */
+int
 _fwalk(int (*function)(FILE *))
 {
 	FILE **iov;
 	FILE *fp;
+	int status;
 
+	status = 0;
 	if (iobglue == NULL) {
 		for (fp = _iob; fp < &_iob[NSTATIC]; fp++)
 			if (active(fp))
-				(*function)(fp);
+				status |= (*function)(fp);
 	} else {
 		for (iov = iobglue; iov < endglue; iov++)
 			if (*iov && active(*iov))
-				(*function)(*iov);
+				status |= (*function)(*iov);
 	}
+	return (status);
 }
 
+/*
+ * Close every stream at exit. C17 7.22.4.4p2 leaves the program no way to
+ * observe a failure here, so the walk's status is dropped.
+ */
 void
 _cleanup(void)
 {
-	_fwalk(fclose);
+	(void) _fwalk(fclose);
 }

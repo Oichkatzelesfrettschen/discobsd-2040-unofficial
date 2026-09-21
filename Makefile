@@ -651,8 +651,8 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-mips check-renode \
 		check-host-package check-board-build check symlinks etc-distribution \
-		${FSIMG} fs installfs clean cleantools cleanfs cleanall ||||||| \
-		543e46fc check-fs-profiles d7e60d9f check-dd-contracts \
+		${FSIMG} fs installfs clean cleantools cleanfs cleanall \
+		check-fs-profiles check-dd-contracts \
 
 # Architecture-specific debugging and loading.
 -include sys/arch/${MACHINE}/conf/Makefile.inc

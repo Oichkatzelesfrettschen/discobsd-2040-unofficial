@@ -294,6 +294,16 @@ check-unifdef-contracts-cross:
 check-dd-contracts:
 		${MAKE} -C tests/dd_contracts check
 
+# usr.bin/find's locate database builders, bigram and code. Both read one
+# pathname per line, and a record holds at most MAXPATH-1 bytes, so the gate
+# drives that boundary and decodes the database back through an independent
+# reader.
+check-find-contracts:
+		${MAKE} -C tests/find_contracts check
+
+check-find-contracts-cross:
+		${MAKE} -C tests/find_contracts check-cross
+
 check-rmdir-contracts:
 		${MAKE} -C tests/rmdir_contracts check
 
@@ -405,7 +415,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
-		check-dd-contracts \
+		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
@@ -430,6 +440,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-dirent-contracts-cross \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
+		check-find-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross
@@ -642,6 +653,7 @@ installfs:
 		check-colrm-contracts-cross check-unifdef-contracts \
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
+		check-find-contracts check-find-contracts-cross \
 		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
 		check-config-makefile check-portable-utilities check-pdp11-reference \
 		check-pdp11-v7 check-pdp11-v6 check-stevie-host check-kilo-host \

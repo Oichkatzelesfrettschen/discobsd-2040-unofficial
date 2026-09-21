@@ -1,6 +1,8 @@
 TOPSRC!=cd ../..; pwd
-# -Wall -Wextra raises 32 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
+# -Wall -Wextra raises 31 distinct sites in this directory, all of them in
+# find.c, so the fatal set stays at the groups CFLAGS names until they are
+# repaired. bigram.c and code.c compile clean under both groups, which
+# tests/find_contracts holds them to.
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 

@@ -94,3 +94,12 @@ string_explicit_bzero.o
 string_timingsafe_bcmp.o
 string_timingsafe_bcmp_target.o
 string_timingsafe_bcmp_bad_target.o
+zone_contract_test
+zone_contract_test32
+zone_contract_test_san
+zone_ctime.o
+zone_ctime32.o
+zone_ctime_san.o
+zone_timezone.o
+zone_timezone32.o
+zone_timezone_san.o

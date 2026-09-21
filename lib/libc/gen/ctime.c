@@ -58,13 +58,23 @@ int			daylight = 0;
 static long
 detzcode(const char *code_pointer)
 {
-	long result;
+	unsigned long result;
 	int byte_index;
 
 	result = 0;
 	for (byte_index = 0; byte_index < 4; ++byte_index)
 		result = (result << 8) | (code_pointer[byte_index] & 0xff);
-	return result;
+	/*
+	** A zone file stores each value as four bytes of two's complement,
+	** so the sign lives in bit 31 and has to be carried into the rest of
+	** a long wider than four bytes. Where long is four bytes the
+	** correction below is the identity; where it is eight, its absence
+	** delivers every offset west of Greenwich and every transition
+	** before the epoch as a value near 2^32.
+	*/
+	if (result & 0x80000000UL)
+		return ((long)(result - 0x80000000UL) - 0x7fffffffL - 1L);
+	return ((long)result);
 }
 
 static int
@@ -155,11 +165,16 @@ tzload(const char *name)
 		if (s.types[index] >= s.typecnt)
 			return -1;
 	/*
-	** Check that all abbreviation indices are valid.
+	** Check that all abbreviation indices are valid, and that each
+	** daylight flag is one of the two values it is read as: localtime()
+	** indexes tzname[2] with it, so a file naming any other value would
+	** have a pointer written past the end of that array.
 	*/
 	for (index = 0; index < s.typecnt; ++index)
-		if (s.ttis[index].tt_abbrind >= s.charcnt)
-			return -1;
+		if (s.ttis[index].tt_abbrind >= s.charcnt ||
+			(s.ttis[index].tt_isdst != 0 &&
+			s.ttis[index].tt_isdst != 1))
+				return -1;
 	/*
 	** Set tzname elements to initial values.
 	*/
@@ -196,6 +211,7 @@ tzsetkernel(void)
 	if (gettimeofday(&tv, &tz))
 		return -1;
 	s.timecnt = 0;		/* UNIX counts *west* of Greenwich */
+	s.typecnt = 1;		/* the one type installed just below */
 	s.ttis[0].tt_gmtoff = tz.tz_minuteswest * -SECS_PER_MIN;
 	s.ttis[0].tt_abbrind = 0;
 	(void)strcpy(s.chars, tztab(tz.tz_minuteswest, 0));
@@ -211,6 +227,7 @@ static void
 tzsetgmt(void)
 {
 	s.timecnt = 0;
+	s.typecnt = 1;		/* the one type installed just below */
 	s.ttis[0].tt_gmtoff = 0;
 	s.ttis[0].tt_abbrind = 0;
 	(void) strcpy(s.chars, "GMT");
@@ -251,9 +268,16 @@ localtime(const time_t *time_pointer)
 		tzset();
 	timestamp = *time_pointer;
 	if (s.timecnt == 0 || timestamp < s.ats[0]) {
+		/*
+		** The first standard-time type, for an instant before the
+		** first transition. The walk is over ttis[], which holds
+		** typecnt entries; timecnt counts the transitions in ats[]
+		** and is the larger of the two for any real zone, so
+		** bounding by it would read past the end of ttis[].
+		*/
 		index = 0;
 		while (s.ttis[index].tt_isdst)
-			if (++index >= s.timecnt) {
+			if (++index >= s.typecnt) {
 				index = 0;
 				break;
 			}

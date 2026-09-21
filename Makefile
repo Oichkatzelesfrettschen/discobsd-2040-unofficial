@@ -169,6 +169,12 @@ check-libc-tempfiles:
 check-libc-ctime:
 		${MAKE} -C tests/libc_contracts check-ctime
 
+# The zone file reader, which is the one part of libc that decodes bytes a
+# caller names through TZ. Every count in the file bounds a walk over a
+# fixed-size array, and the gate writes malformed files to prove each bound.
+check-libc-zone:
+		${MAKE} -C tests/libc_contracts check-zone
+
 check-libc-ctime-cross:
 		${MAKE} -C tests/libc_contracts check-ctime-cross
 
@@ -580,7 +586,8 @@ installfs:
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts \
-		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
+		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross  \
+		check-libc-zone \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross \
 		check-libc-contracts \

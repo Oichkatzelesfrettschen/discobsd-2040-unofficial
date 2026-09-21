@@ -94,3 +94,11 @@ string_explicit_bzero.o
 string_timingsafe_bcmp.o
 string_timingsafe_bcmp_target.o
 string_timingsafe_bcmp_bad_target.o
+mktime_contract_test
+mktime_contract_test32
+mktime_mktime.o
+mktime_mktime32.o
+mktime_ctime.o
+mktime_ctime32.o
+mktime_timezone.o
+mktime_timezone32.o

@@ -169,6 +169,13 @@ check-libc-tempfiles:
 check-libc-ctime:
 		${MAKE} -C tests/libc_contracts check-ctime
 
+# mktime and timegm, the inverse of localtime and gmtime. The gate decides
+# them by the round trip rather than by a table, and runs it through a zone
+# file it writes, so the offset search is exercised and not only the calendar
+# arithmetic.
+check-libc-mktime:
+		${MAKE} -C tests/libc_contracts check-mktime
+
 check-libc-ctime-cross:
 		${MAKE} -C tests/libc_contracts check-ctime-cross
 
@@ -581,6 +588,7 @@ installfs:
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts \
 		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
+		check-libc-mktime \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross \
 		check-libc-contracts \

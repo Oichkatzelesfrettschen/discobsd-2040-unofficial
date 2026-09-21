@@ -39,6 +39,12 @@ struct tm {
 
 struct tm *gmtime(const time_t *);
 struct tm *localtime(const time_t *);
+time_t mktime(struct tm *);
+/*
+ * timegm reads the fields as UTC. It is the part of the inverse that has a
+ * closed form, and mktime searches with it; lib/libc/gen/mktime.c says how.
+ */
+time_t timegm(struct tm *);
 char *asctime(const struct tm *);
 char *ctime(const time_t *);
 char *timezone(int, int);

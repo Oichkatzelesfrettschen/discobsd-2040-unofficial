@@ -58,13 +58,23 @@ int			daylight = 0;
 static long
 detzcode(const char *code_pointer)
 {
-	long result;
+	unsigned long result;
 	int byte_index;
 
 	result = 0;
 	for (byte_index = 0; byte_index < 4; ++byte_index)
 		result = (result << 8) | (code_pointer[byte_index] & 0xff);
-	return result;
+	/*
+	 * A zone file stores each value as four bytes of two's complement,
+	 * so the sign lives in bit 31 and has to be carried into the rest of
+	 * a long wider than four bytes. Where long is four bytes the
+	 * correction below is the identity; where it is eight, its absence
+	 * delivers every offset west of Greenwich and every transition
+	 * before the epoch as a value near 2^32.
+	 */
+	if (result & 0x80000000UL)
+		return ((long)(result - 0x80000000UL) - 0x7fffffffL - 1L);
+	return ((long)result);
 }
 
 static int

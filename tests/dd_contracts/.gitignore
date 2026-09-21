@@ -3,3 +3,5 @@ dd_host
 gate.o
 dd.o
 shim.o
+dd_tables_test
+tables.o

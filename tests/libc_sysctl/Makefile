@@ -1,4 +1,8 @@
 TOPSRC!=cd ../..; pwd
+# bmake predefines MACHINE as the host's architecture, so the tier takes the
+# tree's default from share/mk/sys.mk the way tests/kernel does; a MACHINE on
+# the command line still wins over both.
+include ${TOPSRC}/share/mk/sys.mk
 
 HOSTCC?= cc
 PROG=	libc_sysctl_test
@@ -11,7 +15,16 @@ TARGET_DIR=	${TOPSRC}/lib/libc/gen
 # bytes and a length means the same thing on both sides of the link.
 # libc_shim.h carries the rest of that reasoning.
 ILP32=	-m32
-TREE=	-I${TOPSRC}/include
+
+# include/sys/param.h reaches the port's headers as <machine/*.h>, a name the
+# root Makefile spells as a symlink inside its build targets. A tier that has
+# to run in an unconfigured tree cannot rely on that, so it generates one
+# forwarding header per port header instead, as tests/kernel does.
+MACHINE_STAMP=	machine/.stamp
+# Every port carries the headers this gate reaches, so which one it takes
+# changes nothing it measures.
+PORT_INCLUDE=	${TOPSRC}/include/${MACHINE}
+TREE=	-I. -I${TOPSRC}/include
 
 # include/time.h declares strftime with the tree's own size_t, which the host
 # compiler holds against its builtin; -fno-builtin is what the libc build
@@ -51,19 +64,27 @@ check:
 	@echo "libc_sysctl: ${HOSTCC} cannot build 32-bit binaries; skipped" >&2
 .endif
 
+${MACHINE_STAMP}:
+	@mkdir -p machine
+	@for header in ${PORT_INCLUDE}/*.h; do \
+		name=`basename $$header`; \
+		echo "#include <${MACHINE}/$$name>" > machine/$$name; \
+	done
+	@touch $@
+
 # The shim carries no tree header, so it compiles without ${TREE} and reaches
 # the host's <stdio.h> the way any host program does.
 shim.o: libc_shim.c libc_shim.h
 	${HOSTCC} -std=c99 ${WARN} ${ILP32} -c -o $@ libc_shim.c
 
-uname.o: ${TARGET_DIR}/uname.c
+uname.o: ${TARGET_DIR}/uname.c ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} -c -o $@ ${TARGET_DIR}/uname.c
 
-gethostname.o: ${TARGET_DIR}/gethostname.c
+gethostname.o: ${TARGET_DIR}/gethostname.c ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} \
 	    -Wno-deprecated-non-prototype -c -o $@ ${TARGET_DIR}/gethostname.c
 
-gate.o: libc_sysctl_test.c libc_shim.h
+gate.o: libc_sysctl_test.c libc_shim.h ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} -c -o $@ libc_sysctl_test.c
 
 ${PROG}: gate.o uname.o gethostname.o shim.o
@@ -72,15 +93,15 @@ ${PROG}: gate.o uname.o gethostname.o shim.o
 shim_san.o: libc_shim.c libc_shim.h
 	${HOSTCC} -std=c99 ${WARN} ${ILP32} ${SAN} -c -o $@ libc_shim.c
 
-uname_san.o: ${TARGET_DIR}/uname.c
+uname_san.o: ${TARGET_DIR}/uname.c ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${SAN} ${TREE} ${RENAMES} -c -o $@ \
 	    ${TARGET_DIR}/uname.c
 
-gethostname_san.o: ${TARGET_DIR}/gethostname.c
+gethostname_san.o: ${TARGET_DIR}/gethostname.c ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${SAN} ${TREE} ${RENAMES} \
 	    -Wno-deprecated-non-prototype -c -o $@ ${TARGET_DIR}/gethostname.c
 
-gate_san.o: libc_sysctl_test.c libc_shim.h
+gate_san.o: libc_sysctl_test.c libc_shim.h ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${SAN} ${TREE} ${RENAMES} -c -o $@ \
 	    libc_sysctl_test.c
 
@@ -92,6 +113,8 @@ clean:
 	rm -f ${PROG} ${PROG}_san
 	rm -f gate.o uname.o gethostname.o shim.o
 	rm -f gate_san.o uname_san.o gethostname_san.o shim_san.o
+	rm -f machine/*.h ${MACHINE_STAMP}
+	@if [ -d machine ]; then rmdir machine; fi
 
 all: check
 

@@ -98,7 +98,12 @@ char	*argv[];
     int		thiswork = 0;	/* next job stream to allocate */
     int		nch;		/* # characters to write */
     int		written;	/* # characters actully written */
-    char	logname[15];	/* name of the log file(s) */
+    /*
+     * "masterlog." and an int %02d is 10 characters plus the 11 that
+     * INT_MIN prints as plus a terminator, which is what the buffer is
+     * sized to rather than to the counts one run happens to produce.
+     */
+    char	logname[22];	/* name of the log file(s) */
     int		pvec[2];	/* for pipes */
     char	*p;
     char	*prog;		/* my name */
@@ -192,7 +197,8 @@ char	*argv[];
 	} else {
 	    /* I am a clone, run MAXCHILD jobs */
 #if ! debug
-	    sprintf(logname, "masterlog.%02d", firstuser/MAXCHILD);
+	    snprintf(logname, sizeof logname, "masterlog.%02d",
+		firstuser/MAXCHILD);
 	    freopen(logname, "w", stderr);
 #endif
 	    master = 0;
@@ -220,7 +226,7 @@ char	*argv[];
 		dup(pvec[0]);
 	    }
 #if ! debug
-	    sprintf(logname, "userlog.%02d", firstuser+i);
+	    snprintf(logname, sizeof logname, "userlog.%02d", firstuser+i);
 	    freopen(logname, "w", stderr);
 #endif
 	    for (fd = 3; fd < 24; fd++)
@@ -399,6 +405,8 @@ bepatient:
 
 void onalarm(int foo)
 {
+    (void)foo;
+
     thres += est_rate;
     signal(SIGALRM, onalarm);
     alarm(GRANULE);

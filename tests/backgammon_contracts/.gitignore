@@ -1,0 +1,6 @@
+backgammon_contract_test
+gate.o
+subs.o
+bg_shim.o
+subs_target.o
+machine/

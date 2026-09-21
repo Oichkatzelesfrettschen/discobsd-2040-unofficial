@@ -14,6 +14,12 @@ getmove ()
 	for (;;)  {
 		i = checkmove(c);
 
+		/*
+		 * A move movokay() rejects falls into the redraw the -4 and
+		 * 0 cases begin and returns to the prompt from there; the
+		 * count message below it is guarded to those two values, so
+		 * -1 reaches the refresh alone.
+		 */
 		switch (i)  {
 		case -1:
 			if (movokay(mvlim))  {
@@ -31,6 +37,7 @@ getmove ()
 					bflag = pnum;
 				return;
 			}
+			/* FALLTHROUGH */
 
 		case -4:
 		case 0:

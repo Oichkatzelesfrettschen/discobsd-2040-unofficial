@@ -5,6 +5,7 @@
  */
 #include <stdlib.h>
 #include <sgtty.h>
+#include <sys/ttychars.h>
 
 #define rnum(r)	(random()%r)
 #define D0	dice[0]
@@ -86,6 +87,9 @@ extern char	**Colorptr;		/* color of current player, capitalized */
 extern int	colen;			/* length of color of current player */
 
 extern struct sgttyb	tty;		/* tty information buffer */
+extern struct tchars	tchars;		/* special characters the driver acts on
+				   outside RAW, holding the <sys/ttychars.h>
+				   defaults when TIOCGETC fails */
 extern int		old;		/* original tty status */
 extern int		noech;		/* original tty status without echo */
 extern int		raw;		/* raw tty status, no echo */
@@ -95,7 +99,8 @@ extern int	curc;			/* column position of cursor */
 extern int	begscr;			/* 'beginning' of screen
 				   (not including board) */
 
-void	getout (int);		/* function to exit backgammon cleanly */
+_Noreturn void	getout (int);	/* function to exit backgammon cleanly */
+int	crterase (void);	/* display terminal erases destructively */
 
 int     makmove (int);
 void    movback (int);
@@ -144,5 +149,5 @@ void    wrscore (void);
 void    backone (int);
 int     canhit (int, int);
 void    recover (char *);
-void    leave (void);
+_Noreturn void	leave (void);
 void    tutor (void);

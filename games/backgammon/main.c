@@ -74,10 +74,13 @@ main (argc,argv)
 	register char	c;		/* non-descript character storage */
 	long	t;                      /* time for random num generator */
 
+	(void)argc;
+
 	/* initialization */
 	bflag = 2;					/* default no board */
 	signal (2, getout);				/* trap interrupts */
 	ioctl (0, TIOCGETP, &tty);                      /* get old tty mode */
+	ioctl (0, TIOCGETC, &tchars);			/* readc() honors t_intrc */
 	old = tty.sg_flags;
 #ifdef V7
         noech = old & ~(ECHO | CRMOD | XTABS);

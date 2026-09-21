@@ -47,6 +47,8 @@ save (n)
 					fs--;
 					if (tflag)
 						curmove (curr,curc-1);
+					else if (crterase())
+						writel ("\010 \010");
 					else
 						writec (*fs);
 				} else

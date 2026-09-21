@@ -8,9 +8,9 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= ${DEFS} -Os
 
-SRCS		= ${STDSRC} fgetc.c fgets.c fputc.c fputs.c gets.c puts.c \
+SRCS		= ${STDSRC} fgetc.c fgets.c fputc.c fputs.c puts.c \
                   feof.c ferror.c fileno.c
-OBJS		= ${STDOBJ} fgetc.o fgets.o fputc.o fputs.o gets.o puts.o \
+OBJS		= ${STDOBJ} fgetc.o fgets.o fputc.o fputs.o puts.o \
                   feof.o ferror.o fileno.o
 
 STDSRC		= clrerr.c doscan.c exit.c clnup.c fdopen.c filbuf.c findiop.c \

@@ -263,7 +263,7 @@ number(big)
     case 'x':
         string = cs;
         n = scale(n, (unsigned long)number(BIG), lim);
-        /* FALLTHROUGH -- the product ends the operand. */
+        /* FALLTHROUGH */
 
     case '\0':
         if (n >= lim)

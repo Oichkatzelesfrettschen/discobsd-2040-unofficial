@@ -369,8 +369,19 @@ char *stoppers;
 		    pattern = dointerp(scrbuf,(sizeof scrbuf),pattern+1,"\"");
 		    fputs(scrbuf,stdout);
 		    resetty();
-		    if (! gets(scrbuf))
-		        /* ignore */;
+		    /*
+		     * scrbuf is 512 bytes of dointerp()'s frame with the
+		     * caller's above it and no MMU behind either, so the
+		     * reply is bounded here; a longer one is cut where the
+		     * substitution it feeds would be anyway.
+		     */
+		    if (fgets(scrbuf, (sizeof scrbuf), stdin)) {
+			char *nl = strchr(scrbuf, '\n');
+
+			if (nl)
+			    *nl = '\0';
+		    } else
+			*scrbuf = '\0';
 		    crmode();
 		    raw();
 		    noecho();

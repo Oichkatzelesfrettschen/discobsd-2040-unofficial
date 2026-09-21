@@ -3,6 +3,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -479,6 +480,32 @@ void pmoves()
 	fprintf(stdout, "\n");
 }
 
+/*
+ * One answer into a bounded buffer, newline removed, empty at end of file.
+ * The rest of an over-long line is consumed so that its tail cannot be read
+ * back as the next answer.  gets(3) stores as many bytes as the line holds:
+ * the process image is one flat window of text, data, bss and stack with no
+ * MMU behind it, so a store past s[] reaches the frame above rather than
+ * faulting, and the 10-byte buffer in roll() is one keystroke run away.
+ */
+static void
+answer(char *s, int size)
+{
+	char *nl;
+	int c;
+
+	if (fgets(s, size, stdin) == NULL) {
+		s[0] = '\0';
+		return;
+	}
+	nl = strchr(s, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+	else
+		while ((c = getchar()) != '\n' && c != EOF)
+			;
+}
+
 void roll(who)
 int who;
 {
@@ -487,7 +514,7 @@ int who;
 
 	if(who == BROWN && nobroll) {
 		fprintf(stdout, "Roll? ");
-		gets(s);
+		answer(s, sizeof s);
 		n = sscanf(s, "%d%d", &die1, &die2);
 		if(n != 2 || die1 < 1 || die1 > 6 || die2 < 1 || die2 > 6)
 			fprintf(stdout, "Illegal - I'll do it!\n");
@@ -594,14 +621,14 @@ int main()
 	srand(time(0));
 	go[5] = NIL;
 	fprintf(stdout, "Instructions? ");
-	gets(s);
+	answer(s, sizeof s);
 	if(*s == 'y')
 		instructions();
 	putchar('\n');
 	fprintf(stdout, "Opponent's level: b - beginner,\n");
 	fprintf(stdout, "i - intermediate, e - expert? ");
 	level='e';
-	gets(s);
+	answer(s, sizeof s);
 	if(*s == 'b')
 		level = 'b';
 	else if(*s == 'i')
@@ -609,12 +636,12 @@ int main()
 	putchar('\n');
 	fprintf(stdout, "You will play brown.\n\n");
 	fprintf(stdout, "Would you like to roll your own dice? ");
-	gets(s);
+	answer(s, sizeof s);
 	putchar('\n');
 	if(*s == 'y')
 		nobroll = 1;
 	fprintf(stdout, "Would you like to go first? ");
-	gets(s);
+	answer(s, sizeof s);
 	putchar('\n');
 	if(*s == 'y')
 		goto nowhmove;
@@ -641,7 +668,7 @@ nowhmove:
 retry:
 	fprintf(stdout, "\nYour roll is %d  %d\n", die1, die2);
 	fprintf(stdout, "Move? ");
-	gets(s);
+	answer(s, sizeof s);
 	switch(*s) {
 		case '\0':			/* empty line */
 			fprintf(stdout, "Brown's move skipped.\n");

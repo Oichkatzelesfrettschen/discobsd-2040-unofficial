@@ -168,12 +168,22 @@ reprint:
 	if ((nameptr = (char *) getenv("SAILNAME")) && *nameptr)
 		(void) strncpy(captain, nameptr, sizeof captain);
 	else {
+		char *nl;
+
+		/*
+		 * captain is MAXNAMESIZE bytes of this frame, and the
+		 * SAILNAME path above already cuts a name at that size; a
+		 * typed name takes the same bound rather than storing past
+		 * the frame, which the flat process image does not fault on.
+		 */
 		(void) printf("Your name, Captain? ");
 		(void) fflush(stdout);
-		if (! gets(captain)) {
+		if (! fgets(captain, sizeof captain, stdin)) {
                         puts("Bad name.");
                         exit(1);
                 }
+		if ((nl = strchr(captain, '\n')) != NULL)
+			*nl = '\0';
 		if (!*captain)
 			(void) strcpy(captain, "no name");
 	}

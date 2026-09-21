@@ -52,7 +52,7 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 		then echo yes; else echo no; fi; \
 		rm -f /tmp/ilp32probe$$$$.c
 
-check-host: ${PROG} header_contract.o check-ctime check-zone \
+check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-syslog check-vis \
@@ -60,6 +60,19 @@ check-host: ${PROG} header_contract.o check-ctime check-zone \
 	./${PROG}
 
 check: check-host check-aout
+
+# <stdio.h> declares no gets() and neither libc builds one, so a caller fails
+# at its implicit declaration rather than storing a whole line into a fixed
+# buffer. stdio_bounds.sh carries the reasoning and its own controls.
+check-stdio-bounds:
+	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC} stdio_bounds_work
+
+# lib/libc.a is the ELF archive the cross build leaves behind, which nm can
+# read; the copy under distrib/obj is the a.out conversion and cannot be
+# named by symbol.
+check-stdio-bounds-cross:
+	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC} stdio_bounds_work \
+	    ${TOPSRC}/lib/libc.a ${GCCPREFIX}-nm
 
 # The string-to-integer functions compiled from the tree under names that
 # leave the host libc available to the test process.  -fsigned-char makes the
@@ -130,6 +143,8 @@ SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 # doprnt.o refers to the weak __doprnt_ll; Mach-O resolves a weak
 # reference only against a definition, so the member is linked here too.
 SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
+
+.PHONY: check-stdio-bounds check-stdio-bounds-cross
 
 check-syslog: syslog_contract_test
 	./syslog_contract_test

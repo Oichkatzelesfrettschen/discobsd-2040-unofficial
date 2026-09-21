@@ -296,7 +296,7 @@ getwork()
 {
 
     /* DUMMY, real code dropped */
-    gets();
+    fgets();
     strncpy();
     malloc(); realloc();
     open(); close();

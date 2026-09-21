@@ -89,7 +89,7 @@ main ( int argc, char *argv[] )
 	 * encoding its halves as two records enters two files that do not
 	 * exist, so the read stops and reports instead. fgets bounds the
 	 * store where gets(3) does not, which the flat process image makes
-	 * decisive -- text, data, bss and stack share one window and no guard
+	 * decisive: text, data, bss and stack share one window and no guard
 	 * page follows path, so an unbounded store reaches oldpath, the
 	 * bigram table and the stack rather than faulting. A final line that
 	 * ends at end of file without a newline is a complete record.

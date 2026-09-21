@@ -34,7 +34,7 @@ main(argc, argv)
 {
 	extern char *optarg;
 	extern int optind;
-	register char *beg, *end, **C;
+	register char *beg, *end, *nl, **C;
 	int ch, foundman = NO, *found, isapropos;
 	int a_match(), w_match(), (*match)();
 	char *manpath = NULL, buf[MAXLINELEN + 1], fname[MAXPATHLEN + 1];
@@ -92,8 +92,18 @@ main(argc, argv)
 		if (!freopen(fname, "r", stdin))
 			continue;
 
-						/* for each file found */
-		for (foundman = YES; gets(buf);) {
+		/*
+		 * A whatis line longer than MAXLINELEN arrives as two
+		 * passes rather than as a store past buf: lowstr() and
+		 * dashtrunc() copy into a wbuf of the same size, so the
+		 * bound holds through the match, and both halves are still
+		 * searched.  gets(3) had no bound at all, and the flat
+		 * process image puts wbuf and fname behind buf with nothing
+		 * between them.
+		 */
+		for (foundman = YES; fgets(buf, sizeof buf, stdin);) {
+			if (nl = index(buf, '\n'))
+				*nl = '\0';
 			if (isapropos)
 				lowstr(buf, wbuf);
 			else

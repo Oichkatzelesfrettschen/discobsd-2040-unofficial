@@ -324,6 +324,34 @@
  static SPDP Check;
  static SPDP results[9];
 
+#ifndef UNIXBENCH
+/*
+ * One answer into a bounded buffer, newline removed, empty at end of file;
+ * the tail of a line that does not fit is consumed so it cannot be read back
+ * as the next answer.  The descriptive fields these fill are 80 bytes of
+ * main()'s frame and the process image is one flat window with no MMU, so an
+ * unbounded store reaches the frame rather than faulting.
+ */
+static void
+whets_input(char *buf, int size)
+{
+    char *nl;
+    int c;
+
+    if (fgets(buf, size, stdin) == NULL)
+      {
+       buf[0] = '\0';
+       return;
+      }
+    nl = strchr(buf, '\n');
+    if (nl != NULL)
+       *nl = '\0';
+    else
+       while ((c = getchar()) != '\n' && c != EOF)
+          ;
+}
+#endif
+
 int main(argc, argv)
 int	argc;
 char	*argv[];
@@ -339,7 +367,7 @@ char	*argv[];
     FILE *outfile;
     int getinput = 1;
     char compiler[80] = " ", options[256] = " ", general[10][80] = {" "};
-    char *endit = " ";
+    int endit;
 #endif
   
     printf("##########################################\n"); 
@@ -367,7 +395,8 @@ char	*argv[];
       {
        printf ("Cannot open results file \n\n");
        printf("Press RETURN to exit\n");
-       gets(endit);
+       while ((endit = getchar()) != '\n' && endit != EOF)
+          ;
        exit (0);
       }
 #endif
@@ -450,45 +479,45 @@ char	*argv[];
      printf ("You can kill (exit or close) the program now and no data will be added.\n\n");
     
      printf ("Date:       ");
-     gets(general[0]);
+     whets_input(general[0], sizeof general[0]);
     
      printf ("Computer:   ");
-     gets(general[1]);
+     whets_input(general[1], sizeof general[1]);
     
      printf ("CPU chip:   ");
-     gets(general[2]);
+     whets_input(general[2], sizeof general[2]);
      
      printf ("Clock MHz:  ");
-     gets(general[3]);
+     whets_input(general[3], sizeof general[3]);
      
      printf ("Cache size: ");
-     gets(general[4]);
+     whets_input(general[4], sizeof general[4]);
      
      printf ("H/W options:");
-     gets(general[5]);
+     whets_input(general[5], sizeof general[5]);
       
      printf ("OS version: ");
-     gets(general[6]);
+     whets_input(general[6], sizeof general[6]);
     
      #ifdef PRECOMP
 	strcpy (compiler, precompiler);
 	strcpy (options, preoptions);
      #else
 	printf ("Compiler:   ");
-	gets(compiler);
+	whets_input(compiler, sizeof compiler);
     
 	printf ("Options:    ");
-	gets(options);
+	whets_input(options, sizeof options);
      #endif
      
      printf ("Your name:  ");
-     gets(general[7]);
+     whets_input(general[7], sizeof general[7]);
      
      printf ("From:       ");
-     gets(general[8]);
+     whets_input(general[8], sizeof general[8]);
      
      printf ("Email:      ");
-     gets(general[9]);
+     whets_input(general[9], sizeof general[9]);
    }
   else
    {

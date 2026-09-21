@@ -239,4 +239,99 @@ else
 	echo "tartest: SKIP the LZW filter: no compress on this host"
 fi
 
+#
+# Hard links. A create run keeps one identity per multi-linked inode for the
+# whole of the run, because a second link to an inode is written as an
+# LNKTYPE entry naming the first, and the identities accumulate for as long
+# as tar writes. The tree here is many distinct inodes rather than many links
+# to one, which is what the list length follows, and the base names differ in
+# length so the path allocation is exercised at more than one size.
+#
+# NIDENT bounds the run at a few seconds' work. The footprint the list must
+# not have -- one that follows the widest representable path rather than the
+# paths present -- is pinned at build time by the assertion on the node width
+# in tar.c, since the window a create run exhausts is the board's, not this
+# host's.
+#
+NIDENT=64
+LINKBYTES=2048			# four records, so a second copy is visible
+NBLOCK=20			# tar.c's NBLOCK, the records an archive pads to
+pad=abcdefghijklmnopqrstuvwxyz
+
+mkdir -p links
+i=1
+while [ "$i" -le "$NIDENT" ]; do
+	name=f$i
+	j=0
+	while [ "$j" -lt $(( i % 3 )) ]; do
+		name=$name$pad
+		j=$(( j + 1 ))
+	done
+	mkdir -p "links/tree/d$i"
+	printf "%0${LINKBYTES}d" "$i" > "links/tree/d$i/$name"
+	ln "links/tree/d$i/$name" "links/tree/d$i/$name.l1"
+	ln "links/tree/d$i/$name" "links/tree/d$i/$name.l2"
+	echo "tree/d$i/$name" >> links/names
+	i=$(( i + 1 ))
+done
+
+echo "tartest: $NIDENT hard-link identities held through one create run"
+(cd links && "$TAR" cvf ../l.tar tree) > l.out 2> l.err
+grep -q 'out of memory' l.err &&
+    fail "the link list ran out of memory at $NIDENT identities"
+[ "$(grep -c ' link to ' l.out)" -eq $(( NIDENT * 2 )) ] ||
+    fail "$(grep -c ' link to ' l.out) of $(( NIDENT * 2 )) further links \
+were written as link entries"
+
+#
+# An identity the list dropped turns its further links into full copies of
+# the file, so the archive's size is what says whether the list held. Every
+# entry costs one record of header and only the first link to an inode
+# carries data, so the bound is one copy of the data, a record for each of
+# the four entries an identity contributes, the two-record trailer and the
+# blocking pad. Three copies of the data is what a dropped identity costs.
+#
+echo "tartest: the archive carries one copy of each multi-linked file"
+lbound=$(( NIDENT * LINKBYTES + NIDENT * 4 * 512 + 2 * NBLOCK * 512 ))
+[ "$(wc -c < l.tar)" -lt "$lbound" ] ||
+    fail "the archive is $(wc -c < l.tar) bytes against the $lbound one \
+copy of the file data allows"
+
+echo "tartest: the extracted links are one inode each"
+mkdir -p x-links
+(cd x-links && "$TAR" xf ../l.tar)
+diff -r links/tree x-links/tree || fail "the hard-link tree round trip differs"
+while read -r p; do
+	set -- "x-links/$p" "x-links/$p.l1" "x-links/$p.l2"
+	ls -li "$@" > l.stat
+	[ "$(awk '{print $1}' l.stat | sort -u | wc -l)" -eq 1 ] ||
+	    fail "$p came back as separate inodes"
+	[ "$(awk 'NR == 1 {print $3}' l.stat)" -eq 3 ] ||
+	    fail "$p came back with $(awk 'NR == 1 {print $3}' l.stat) links"
+done < links/names
+
+echo "tartest: the host tar restores the same link sets"
+mkdir -p xh-links
+(cd xh-links && "$HOSTTAR" xf ../l.tar)
+while read -r p; do
+	[ "$(ls -l "xh-links/$p" | awk '{print $2}')" -eq 3 ] ||
+	    fail "the host tar gave $p $(ls -l "xh-links/$p" | \
+awk '{print $2}') links"
+done < links/names
+
+#
+# -l reports the links an archive leaves out, reading each identity's stored
+# path after the run rather than during it. The name is long enough that a
+# path stored short of its length reads as a different path here.
+#
+echo "tartest: -l names the full path of a link left out of the archive"
+lone=aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffff
+mkdir -p lone/tree/sub
+echo 'two links' > "lone/tree/$lone"
+ln "lone/tree/$lone" lone/tree/sub/other
+(cd lone && "$TAR" clf ../lone.tar "tree/$lone") 2> lone.err ||
+    fail "the -l create run failed: $(cat lone.err)"
+grep -q "^tar: missing links to tree/$lone\$" lone.err ||
+    fail "-l did not name the missing link's path: $(cat lone.err)"
+
 echo "tartest: PASS"

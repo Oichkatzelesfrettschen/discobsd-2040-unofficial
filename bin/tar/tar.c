@@ -45,8 +45,8 @@
  * The LZW codec is a separate program reached through a pipe rather than a
  * library linked in: usr.bin/compress carries 30 kbytes of bss for its
  * string table, and tar and the filter are separate processes with a
- * 96-kbyte window each, where linking the codec would have to fit both
- * tables and the block buffer in one.
+ * 144-kbyte USER_DATA_SIZE window each, where linking the codec would have
+ * to fit both tables and the block buffer in one.
  */
 #ifndef COMPRESS
 #define COMPRESS        "/usr/bin/compress"
@@ -101,13 +101,32 @@ union hblock {
     } dbuf;
 };
 
+/*
+ * One node per inode that carries more than one link, held for the whole of
+ * a create run so a second link to the same inode becomes an LNKTYPE entry
+ * naming the first. The path is a separate allocation of exactly its own
+ * length, so the list costs what the paths present measure rather than the
+ * PATHSIZ width an ustar header can carry: the list shares one 144-kbyte
+ * USER_DATA_SIZE window with tar's text, data, bss and stack, and the number
+ * of link identities a create run holds is what that window has room for.
+ * Past it getmem() fails, and every further link to an unrecorded inode
+ * enters the archive as a second full copy of the file.
+ */
 struct linkbuf {
     ino_t   inum;
     dev_t   devnum;
     int count;
-    char    pathname[PATHSIZ];
+    char    *pathname;
     struct  linkbuf *nextp;
 };
+
+/*
+ * The node holds a pointer to its path rather than the path, so it stays
+ * narrower than the header's own name field. bin/tar/tests/tartest.sh
+ * measures the list against many live link identities.
+ */
+_Static_assert(sizeof(struct linkbuf) < NAMSIZ,
+    "a linkbuf must not inline a fixed-width path");
 
 union   hblock dblock;
 union   hblock *tbuf;
@@ -883,6 +902,7 @@ putfile(longname, shortname, parent)
         if (stbuf.st_nlink > 1) {
             struct linkbuf *lp;
             int found = 0;
+            int plen;
 
             for (lp = ihead; lp != NULL; lp = lp->nextp)
                 if (lp->inum == stbuf.st_ino &&
@@ -907,14 +927,26 @@ putfile(longname, shortname, parent)
                 close(infile);
                 return;
             }
+            /*
+             * The node joins the list only once its path is in hand, so a
+             * refused path allocation leaves no node whose pathname a
+             * later LNKTYPE entry or the missing-links report would read.
+             * A refused node costs the identity, which getmem() reports.
+             */
+            plen = (int) strlen(longname) + 1;
             lp = (struct linkbuf *) getmem(sizeof(*lp));
             if (lp != NULL) {
-                lp->nextp = ihead;
-                ihead = lp;
-                lp->inum = stbuf.st_ino;
-                lp->devnum = stbuf.st_dev;
-                lp->count = stbuf.st_nlink - 1;
-                strlcpy(lp->pathname, longname, sizeof(lp->pathname));
+                lp->pathname = getmem(plen);
+                if (lp->pathname == NULL) {
+                    free(lp);
+                } else {
+                    lp->nextp = ihead;
+                    ihead = lp;
+                    lp->inum = stbuf.st_ino;
+                    lp->devnum = stbuf.st_dev;
+                    lp->count = stbuf.st_nlink - 1;
+                    memcpy(lp->pathname, longname, (size_t) plen);
+                }
             }
         }
         blocks = (stbuf.st_size + (TBLOCK-1)) / TBLOCK;
@@ -1787,8 +1819,8 @@ getbuf()
         }
     }
     /*
-     * One rp2040 process owns a single 96-kbyte window for text, data,
-     * bss and stack together, so the block buffer is capped at the
+     * One rp2040 process owns a single 144-kbyte USER_DATA_SIZE window for
+     * text, data, bss and stack together, so the block buffer is capped at the
      * 20-block 10240-byte default however large the archive file's
      * st_blksize is and however large a -b argument asks for.
      */

@@ -171,6 +171,9 @@ tar(5)
 Complaints about bad key characters and tape read/write errors.
 .br
 Complaints if enough memory is not available to hold the link tables.
+The complaint appears once, and the further links to an inode the table
+could not hold are archived as additional copies of the file rather than
+as link entries.
 .SH BUGS
 There is no way to ask for the
 .IR n -th

@@ -94,8 +94,8 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
 
 # libc/stdio
 OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
-                   clrerr.o doscan.o exit.o fdopen.o filbuf.o findiop.o \
-                   flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
+                   clrerr.o doscan.o exit.o fdopen.o fgetpos.o filbuf.o \
+                   findiop.o flags.o flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
                    ftell.o fwrite.o getchar.o getw.o printf.o putchar.o putw.o \
                    rew.o scanf.o setbuf.o setbuffer.o setvbuf.o snprintf.o sprintf.o \
                    strout.o ungetc.o vfprintf.o vprintf.o vsprintf.o vsnprintf.o doprnt.o \

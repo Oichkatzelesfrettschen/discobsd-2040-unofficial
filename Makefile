@@ -265,6 +265,13 @@ check-libc-scanf:
 check-libc-rwmode:
 		${MAKE} -C tests/libc_contracts check-rwmode
 
+# The C17 stdio surface outside the read and write path: the mode strings
+# fopen accepts and the open(2) flags they produce, fflush over every stream,
+# rewind, the position pair and setvbuf. The ILP32 run links the tree's own
+# findiop.c, whose FILE layout assertion holds only at four-byte pointers.
+check-libc-ansi:
+		${MAKE} -C tests/libc_contracts check-ansi
+
 check-analysis:
 		${MAKE} -C tools/analysis check
 
@@ -680,7 +687,7 @@ installfs:
 		check-libc-host-contracts check-libc-aout-contracts check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-random check-libc-random-cross check-libc-scanf \
-		check-libc-rwmode check-libc-syslog check-libc-vis \
+		check-libc-rwmode check-libc-ansi check-libc-syslog check-libc-vis \
 		check-libc-printf-float check-dirent-contracts \
 		check-dirent-contracts-cross check-colrm-contracts \
 		check-colrm-contracts-cross check-unifdef-contracts \

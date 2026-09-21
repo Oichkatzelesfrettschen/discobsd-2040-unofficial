@@ -9,48 +9,33 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+/*
+ * Point an existing stream at another file. C17 7.21.5.4p2 closes the file
+ * the stream held first and ignores any error from that close; the mode is
+ * read before the close so a mode _sflags refuses leaves the stream alone.
+ */
 FILE *
-freopen(file, mode, iop)
-	const char *file;
-	register const char *mode;
-	register FILE *iop;
+freopen(const char *file, const char *mode, FILE *iop)
 {
-	register int f, rw, oflags;
+	int f, oflags, sflag;
 
-	rw = (mode[1] == '+');
-
-	fclose(iop);
-
-	switch (*mode) {
-	case 'a':
-		oflags = O_CREAT | (rw ? O_RDWR : O_WRONLY);
-		break;
-	case 'r':
-		oflags = rw ? O_RDWR : O_RDONLY;
-		break;
-	case 'w':
-		oflags = O_TRUNC | O_CREAT | (rw ? O_RDWR : O_WRONLY);
-		break;
-	default:
+	sflag = _sflags(mode, &oflags);
+	if (sflag == 0)
 		return (NULL);
-	}
+
+	(void) fclose(iop);
 
 	f = open(file, oflags, 0666);
 	if (f < 0)
 		return (NULL);
 
-	if (*mode == 'a')
-		lseek(f, (off_t)0, L_XTND);
+	if (oflags & O_APPEND)
+		(void) lseek(f, (off_t)0, SEEK_END);
 
 	iop->_cnt = 0;
-	iop->_file = f;
+	iop->_file = (short) f;
 	iop->_bufsiz = 0;
-	if (rw)
-		iop->_flag = _IORW;
-	else if (*mode == 'r')
-		iop->_flag = _IOREAD;
-	else
-		iop->_flag = _IOWRT;
+	iop->_flag = (short) sflag;
 	iop->_base = iop->_ptr = NULL;
 	return (iop);
 }

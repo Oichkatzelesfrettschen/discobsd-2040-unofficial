@@ -63,6 +63,25 @@ may be used on read/write streams, with the limitation that an
 .I fseek, rewind,
 or reading an end-of-file must be used between a read and a write or vice-versa.
 .PP
+A "b" may appear in the
+.I type
+to request a binary stream; this system makes no distinction between text
+and binary streams, so it is accepted and has no effect.  The "+" and the
+"b" may stand in either order, so "rb+" and "r+b" name the same stream.
+A "w" type may also be followed by an "x", as in "wx" or "w+x", which
+makes the open fail rather than truncate a file that already exists.
+.PP
+A stream opened with an "a"
+.I type
+carries
+.B O_APPEND
+on its descriptor, so every write goes to the end of the file whatever the
+file position indicator holds and whatever another writer has appended
+since.  The stream is positioned at the end of the file when it is opened,
+so
+.IR ftell (3)
+answers the file's size before the first write.
+.PP
 .I Freopen
 substitutes the named file in place of the open
 .IR stream .
@@ -85,7 +104,9 @@ The
 of the stream must agree with the mode of the open file.
 .SH "SEE ALSO"
 open(2),
-fclose(3)
+fclose(3),
+fseek(3),
+setbuf(3)
 .SH DIAGNOSTICS
 .I Fopen
 and 
@@ -98,6 +119,13 @@ if
 cannot be accessed,
 if too many files are already open,
 or if other resources needed cannot be allocated.
+A
+.I type
+whose first character is none of "r", "w" and "a" is refused with
+.B EINVAL
+and, for
+.IR freopen ,
+leaves the stream open on the file it already held.
 .SH BUGS
 .I Fdopen
 is not portable to systems other than UNIX.
@@ -113,7 +141,9 @@ In order to support the same number of open files as does the system,
 .I fopen
 must allocate additional memory for data structures using
 .I calloc
-after 20 files have been opened.
+after
+.B FOPEN_MAX
+files have been opened.
 This confuses some programs which use their own memory allocators.
 An undocumented routine,
 .IR f_prealloc ,

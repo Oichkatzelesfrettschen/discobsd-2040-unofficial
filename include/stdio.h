@@ -61,6 +61,29 @@ typedef unsigned size_t;
 #define L_tmpnam    12  /* including the terminator for /tmp/XXXXXX */
 #define L_ctermid   9   /* including the terminator for /dev/tty */
 
+/*
+ * The three counts C17 7.21.1 requires of an implementation.
+ *
+ * FOPEN_MAX is NSTATIC in lib/libc/stdio/findiop.c, the streams a program
+ * reaches without an allocation, against the floor of eight C17 sets; a
+ * ninth stream allocates and may fail, so eight is what is guaranteed.
+ * FILENAME_MAX is PATH_MAX from <sys/syslimits.h>, the length namei
+ * accepts, and lib/libc/stdio/fopen.c asserts the two agree. TMP_MAX
+ * counts the names lib/libc/gen/mktemp.c reaches by stepping one template
+ * position through 'a' to 'z', against C17's floor of 25.
+ */
+#define FOPEN_MAX   8
+#define FILENAME_MAX 256
+#define TMP_MAX     26
+
+/*
+ * C17 7.21.1 makes fpos_t an object type recording a position and, where an
+ * implementation converts multibyte characters, the parse state that goes
+ * with it. Every stream here is a byte stream, so the position is the whole
+ * of it and a long holds the offsets lseek returns.
+ */
+typedef long fpos_t;
+
 void    clearerr(FILE *);
 int     feof(FILE *);
 int     ferror(FILE *);
@@ -91,7 +114,8 @@ char    *fgets (char *, int, FILE *);
  * declaration rather than at run time. fgets() takes its place.
  */
 FILE    *_findiop (void);
-void    _fwalk (int (*)(FILE *));
+int     _sflags (const char *, int *);
+int     _fwalk (int (*)(FILE *));
 void    _cleanup (void);
 int     _filbuf (FILE *);
 int     _flsbuf (unsigned char, FILE *);
@@ -101,6 +125,8 @@ void    setlinebuf (FILE *);
 int     setvbuf (FILE *, char *, int, size_t);
 int     fseek (FILE *, long, int);
 void    rewind (FILE *);
+int     fgetpos (FILE *, fpos_t *);
+int     fsetpos (FILE *, const fpos_t *);
 int     remove (const char *);
 int     rename (const char *, const char *);
 int     getw(FILE *stream);

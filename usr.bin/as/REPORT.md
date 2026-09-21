@@ -1,5 +1,11 @@
 # Thumb-1 assembler and linker support for the RP2040 port
 
+Archive note: this report records the original mixed ARM/MIPS development
+comparison. The maintained tree now builds ARM only. The former MIPS
+assembler, linker fixtures, and comparison inputs live under
+`legacy/non-arm/mips-pic32/`; statements below about an unchanged MIPS target
+describe the historical baseline rather than a supported present build.
+
 Branch `thumb-as-ld`, worktree `~/worktrees/discobsd/thumb-as-ld`, on top of
 `rp2040-port`.
 

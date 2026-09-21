@@ -4,7 +4,7 @@
 # Must be kept in sync with utilities in usr.bin
 #
 
-SUBDIR=	aout ar as ld nm ranlib size strip
+SUBDIR=	ar as ld nm ranlib size strip
 
 all install clean:
 	for i in ${SUBDIR}; do ${MAKE} -C $$i ${MFLAGS} $@; done

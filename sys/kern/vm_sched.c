@@ -167,10 +167,8 @@ vmmeter()
 }
 
 /*
- * Compute Tenex style load average.  This code is adapted from similar code
- * by Bill Joy on the Vax system.  The major change is that we avoid floating
- * point since not all pdp-11's have it.  This makes the code quite hard to
- * read - it was derived with some algebra.
+ * Compute the Tenex-style load average without floating point. The fixed-point
+ * algebra keeps the kernel independent of a floating-point runtime.
  *
  * "floating point" numbers here are stored in a 16 bit short, with 8 bits on
  * each side of the decimal point.  Some partial products will have 16 bits to

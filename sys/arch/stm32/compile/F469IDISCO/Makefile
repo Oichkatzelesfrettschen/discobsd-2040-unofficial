@@ -34,9 +34,16 @@ DEBUG = -g
 
 # sources are located via $S relative to the compilation directory
 S=		../../../..
+TOPSRC!=	cd ${S}/.. && pwd
+MACHINE_DEFAULT=	stm32
+include		${TOPSRC}/share/mk/architecture.mk
 
-_mach?=		stm32
-_arch?=		arm
+.if ${MACHINE} != "stm32"
+.error stm32 kernel Makefiles require MACHINE=stm32
+.endif
+
+_mach=		${MACHINE}
+_arch=		${MACHINE_ARCH}
 _machdir?=	$S/arch/${_mach}
 _archdir?=	$S/arch/${_arch}
 _confdir?=	${_machdir}/conf
@@ -55,11 +62,8 @@ CWARNFLAGS=	-Wall
 # for the same reason and its comment names this tree.
 CSTDFLAGS=	-std=gnu17
 
-CMACHCPU=	-mcpu=cortex-m4
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
-CMACHFLAGS+=	-mfloat-abi=soft
-CMACHFLAGS+=	-mthumb -mabi=aapcs -mlittle-endian
-CMACHFLAGS+=	${CMACHCPU}
+CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 
 COPTS?=		-O
 CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
@@ -126,7 +130,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD} swapxxx.o
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	locore0.o locore.o ${OBJS} ioconf.o
-SYSTEM_DEP=	Makefile ioconf.c machine sys .deps ${SYSTEM_OBJ}
+SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ}
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
 SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
@@ -151,8 +155,10 @@ clean:
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
-reconfig ioconf.c: Config $S/../tools/bin/config
-	$S/../tools/bin/config Config
+CONFIG_TOOL=	${TOOLBINDIR}/config
+
+reconfig ioconf.c: Config ${CONFIG_TOOL}
+	${CONFIG_TOOL} Config
 	${MAKE} clean
 
 machine:

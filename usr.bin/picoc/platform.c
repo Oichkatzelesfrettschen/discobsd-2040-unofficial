@@ -46,8 +46,6 @@ void PicocCleanup()
 }
 
 /* platform-dependent code for running programs */
-#if defined(UNIX_HOST) || defined(WIN32)
-
 #define CALL_MAIN_NO_ARGS_RETURN_VOID "main();"
 #define CALL_MAIN_WITH_ARGS_RETURN_VOID "main(__argc,__argv);"
 #define CALL_MAIN_NO_ARGS_RETURN_INT "__exit_value = main();"
@@ -89,7 +87,6 @@ void PicocCallMain(int argc, char **argv)
             PicocParse("startup", CALL_MAIN_WITH_ARGS_RETURN_INT, strlen(CALL_MAIN_WITH_ARGS_RETURN_INT), TRUE, TRUE, FALSE, TRUE);
     }
 }
-#endif
 
 void PrintSourceTextErrorLine(const char *FileName, const char *SourceText, int Line, int CharacterPos)
 {

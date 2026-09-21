@@ -30,10 +30,6 @@
 
 #include "pf_all.h"
 
-#ifdef WIN32
-#include <crtdbg.h>
-#endif
-
 #define SYSTEM_LOAD_FILE "system.fth"
 
 /***************************************************************

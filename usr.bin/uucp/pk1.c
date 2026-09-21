@@ -13,12 +13,6 @@ static char sccsid[] = "@(#)pk1.c	5.9.2 (2.11BSD) 1997/10/2";
 #include <sys/time.h>
 #endif
 
-#ifdef VMS
-#include <eunice/eunice.h>
-#include <vms/iodef.h>
-#include <vms/ssdef.h>
-int iomask[2];
-#endif
 
 #define PKMAXSTMSG 40
 #define	MAXPKTIME 32	/* was 16 */
@@ -365,10 +359,6 @@ register int n;
 				    last read the line */
 	struct timeval tv;
 #endif
-#ifdef VMS
-	short iosb[4];
-	int SYS$QioW();	/* use this for long reads on vms */
-#endif
 
 	if (setjmp(Getjbuf)) {
 		Ntimeout++;
@@ -400,20 +390,7 @@ register int n;
 			}
 		}
 #endif
-#ifndef VMS
 		ret = read(fn, b, n);
-#else
-		_$Cancel_IO_On_Signal = FD_FAB_Pointer[fn];
-		ret = SYS$QioW(_$EFN,(FD_FAB_Pointer[fn]->fab).fab$l_stv,
-				IO$_READVBLK|IO$M_NOFILTR|IO$M_NOECHO,
-				iosb,0,0,b,n,0,
-				iomask,0,0);
-		_$Cancel_IO_On_Signal = 0;
-		if (ret == SS$_NORMAL)
-			ret = iosb[1]+iosb[3];   /* get length of transfer */
-		else
-			ret = 0;
-#endif
 		if (ret == 0) {
 			alarm(0);
 			return FAIL;

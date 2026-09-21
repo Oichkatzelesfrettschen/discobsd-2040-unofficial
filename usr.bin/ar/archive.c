@@ -473,11 +473,7 @@ copy_ar(CF *cfp, off_t size, int lname)
 	off_t sz;
 	register int from, nr, nw, off, to;
 	size_t bytes_to_read;
-#ifdef	pdp11
-	char buf[2*1024];
-#else
 	char buf[8*1024];
-#endif
 
 	if (size < 0)
 		badfmt();

@@ -36,9 +36,6 @@ LINKS=	errno.h signal.h stdbool.h stdint.h syslog.h
 
 SUBDIRS=arpa
 
-# XXX This is temporary
-SUBDIRS+=smallc smallc/sys
-
 MACHDEP=${MACHINE}
 NETDIRS=netinet
 SYSDIRS=${NETDIRS} ${MACHDEP}
@@ -64,8 +61,6 @@ includes: ${SHARED}
 			${INSTALL} -c -m 444 $$j ${DESTDIR}/usr/include/$$i/$$j; \
 		done); \
 	done
-# XXX	-cmp -s Makefile.install ${DESTDIR}/usr/include/Makefile || \
-# XXX	    ${INSTALL} -c -m 444 Makefile.install ${DESTDIR}/usr/include/Makefile
 	-for i in ${LINKS}; do \
 		rm -f ${DESTDIR}/usr/include/$$i; \
 		ln -s sys/$$i ${DESTDIR}/usr/include/$$i; \

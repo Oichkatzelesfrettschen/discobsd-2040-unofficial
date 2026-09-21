@@ -39,17 +39,7 @@ char *s;
 #define ASSERT(p)
 #endif	/* debug */
 
-/*
- * The origins of the following ifdef are lost.  The only comment attached
- * to it, "avoid break bug", probably has something to do with a bug in
- * an older PDP-11 kernel.  Maybe it's still a bug in the current kernel.
- * We'll probably never know ...
- */
-#ifdef pdp11
-#	define GRANULE 64
-#else
-#	define GRANULE 0
-#endif
+#define GRANULE 0
 
 /*
  * C storage allocator

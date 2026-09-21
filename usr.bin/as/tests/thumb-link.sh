@@ -18,7 +18,7 @@ set -eu
 
 TOPSRC=${TOPSRC:?set TOPSRC to the top of the tree}
 MACHINE=${MACHINE:-rp2040}
-TOOLBINDIR=${TOOLBINDIR:-$TOPSRC/tools/bin}
+TOOLBINDIR=${TOOLBINDIR:-$TOPSRC/tools/bin/$MACHINE}
 CC=${CC:?set CC to the cross compiler command}
 PYTHON=${PYTHON:?set PYTHON to the host interpreter}
 GNUAS=${GNUAS:-arm-none-eabi-as}
@@ -27,9 +27,10 @@ make_command=${MAKE:-bmake}
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(cd "${WORK:-.}" && pwd)
 
-wrap=$work/thumb-wrap
+toolroot=$work/thumb-toolroot
+wrap=$toolroot/bin/$MACHINE
 saved=$work/thumb-saved
-rm -rf "$wrap" "$saved"
+rm -rf "$toolroot" "$saved"
 mkdir -p "$wrap" "$saved"
 
 # Every tool but as is taken from the tree; as is wrapped so the inputs
@@ -62,13 +63,13 @@ echo "link: building crt0 and libc with the tree's Thumb assembler"
 # Clearing its flags gives each private sub-build an ordinary serial scheduler.
 env -u MAKEFLAGS -u MFLAGS "$make_command" \
 	-C "$TOPSRC/lib/libc_aout/startup" MACHINE="$MACHINE" \
-	TOOLBINDIR="$wrap" >/dev/null
+	TOOLDIR="$toolroot" >/dev/null
 env -u MAKEFLAGS -u MFLAGS "$make_command" \
 	-C "$TOPSRC/lib/libc_aout/libc" MACHINE="$MACHINE" clean \
 	>/dev/null 2>&1 || :
 env -u MAKEFLAGS -u MFLAGS "$make_command" \
 	-C "$TOPSRC/lib/libc_aout/libc" MACHINE="$MACHINE" \
-	TOOLBINDIR="$wrap" >/dev/null
+	TOOLDIR="$toolroot" >/dev/null
 
 units=0
 fail=0

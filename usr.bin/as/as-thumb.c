@@ -2,15 +2,14 @@
  * Assembler for Thumb-1, the ARMv6-M instruction set of the Cortex-M0+.
  * The syntax is GNU as unified Thumb syntax, as arm-none-eabi-gcc -S emits it.
  *
- * The structure follows the MIPS assembler in as.c: two passes over file-based
- * scratch segments, so the resident set stays independent of input size. Three
- * things differ from the MIPS target and drive the rest of the design.
+ * Two passes over file-based scratch segments keep the resident set independent
+ * of input size.
  *
  * Instructions are halfwords, so count[] advances by two and the emitted unit
  * is a halfword. A BL occupies two halfwords and straddles a word boundary
- * whenever it sits at an odd halfword, which the MIPS one-relocation-per-word
- * stream cannot address; the object therefore carries the sparse stream that
- * a_midmag's MID_ARM6 selects, each record naming the offset it patches.
+ * whenever it sits at an odd halfword. The object therefore carries the sparse
+ * stream that a_midmag's MID_ARM6 selects, each record naming the offset it
+ * patches.
  *
  * Branch and literal-load targets are usually labels defined later in the same
  * section. Those become fixup records in the relocation scratch file, and
@@ -731,8 +730,7 @@ getname(int c)
 }
 
 /*
- * GCC writes ELF symbol and section types with a percent sign on ARM,
- * where the MIPS back end writes an at sign.
+ * GCC writes ELF symbol and section types with a percent sign on ARM.
  */
 int
 looktype(void)
@@ -1021,8 +1019,8 @@ lookname(void)
 }
 
 /*
- * Read a lexical element. Unlike the MIPS lexer, '@' opens a comment and
- * '#' introduces an immediate, which is how GNU as reads ARM input.
+ * Read a lexical element. GNU ARM syntax uses '@' for a comment and '#'
+ * for an immediate.
  */
 int
 getlex(int *pval)
@@ -2477,7 +2475,7 @@ done:       segm = STEXT;
             break;
         case LALIGN:
         case LP2ALIGN:
-            /* .align num -- a power of two on ARM, as on MIPS. */
+            /* .align num -- a power of two on ARM. */
             clex = getlex (&cval);
             if (clex != LNUM) {
                 ungetlex (clex, cval);

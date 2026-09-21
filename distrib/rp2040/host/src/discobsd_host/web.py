@@ -56,7 +56,7 @@ PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 #k button{{font:16px monospace;color:#ddd;background:#333;border:1px solid #555;margin:2px;padding:6px 10px}}
 </style></head><body>
 <div id=s role=status aria-live=polite>connecting</div><div id=t role=application aria-label="DiscoBSD console"></div>
-<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl aria-pressed=false>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g>V6</span><button data-k="&#127;" title="V6 interrupt: DEL">DEL intr</button><button data-k="#" title="V6 erase one character: #"># erase</button><button data-k="@" title="V6 erase the line: @">@ kill</button><button data-k="&#28;" aria-label="Control backslash, quit in V6" title="V6 quit: Ctrl-backslash">^&#92; quit</button><button data-k="&#31;" title="leave the V6 emulator: Ctrl-underscore">^_ exit V6</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, leave V6 if inside it, sync, log out of DiscoBSD, then close the session">Sync &amp; leave</button><button id=help aria-expanded=false aria-controls=h>keys</button><button id=reader aria-pressed=false title="screen reader mode: announce output and expose the screen to assistive technology">reader</button><button id=hide>hide</button></div><button id=show aria-label="show the key bar">keys</button><div id=h role=region aria-label="key reference"><b>DiscoBSD</b> ($ or # prompt, whoami works): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>V6</b> (# prompt, whoami not found, dates in 1970): DEL interrupt (Backspace sends DEL), # erase, @ kill line, Ctrl-D log out, Ctrl-&#92; quit. Ctrl-C, Ctrl-U and arrows do nothing.<br><b>Leave</b>: in V6 type sync then press ^_ exit V6 (or type ~. at a line start); in DiscoBSD type exit to reach login:. Sync &amp; leave does all of that and closes the session. Unplug only after sync.</div>
+<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl aria-pressed=false>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, log out of DiscoBSD, then close the session">Sync &amp; leave</button><button id=help aria-expanded=false aria-controls=h>keys</button><button id=reader aria-pressed=false title="screen reader mode: announce output and expose the screen to assistive technology">reader</button><button id=hide>hide</button></div><button id=show aria-label="show the key bar">keys</button><div id=h role=region aria-label="key reference"><b>DiscoBSD</b> ($ or # prompt): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>Leave</b>: type sync, then exit to reach login:. Sync &amp; leave does that and closes the session. Unplug only after sync.</div>
 <script src="{XTERM}"></script>
 <script>
 var reader=false;try{{reader=localStorage.getItem("reader")==="1";}}catch(e){{}}
@@ -99,21 +99,14 @@ ws.onclose=function(){{if(!byebye)stat.textContent="disconnected -- reload to re
 // than resuming a socket the server has since dropped.
 window.addEventListener("pagehide",function(){{byebye=true;try{{ws.close();}}catch(x){{}}}});
 window.addEventListener("pageshow",function(e){{if(e.persisted)location.reload();}});
-// The page tells DiscoBSD from V6 by the emulator's own banner and exit
-// line, and says so in the status line for a screen reader or a glance.
-var inv6=false;
 ws.onmessage=function(e){{
  var d=typeof e.data==="string"?e.data:
   new TextDecoder("latin1").decode(new Uint8Array(e.data));
- if(!inv6&&d.indexOf("pdp11: ")>=0&&d.indexOf("RK05")>=0){{inv6=true;stat.textContent="connected -- inside V6 (pdp11)";}}
- else if(inv6&&d.indexOf("[pdp11: ")>=0){{inv6=false;stat.textContent="connected -- DiscoBSD";}}
  term.write(d);}};
 // Key bar: every browser keeps some Ctrl combinations for itself (Ctrl-C
 // with a selection copies, Ctrl-D bookmarks, Ctrl-W closes the tab, Ctrl
 // with minus or underscore zooms), and a touch keyboard has none, so each
-// button sends the bytes the key would. The V6 group is what Sixth
-// Edition inside pdp11 answers to: DEL interrupts, Ctrl-backslash quits,
-// and Ctrl-_ leaves the emulator.
+// button sends the bytes the key would.
 // Ctrl arms a one-shot modifier: the next typed character goes out as its
 // control code. Paste reads the clipboard and sends it as typed input.
 var ctrlArmed=false, ctl=document.getElementById("ctl");
@@ -130,9 +123,8 @@ ctl.addEventListener("click",function(e){{e.preventDefault();ctrlArmed=!ctrlArme
 // system that reads it, so a screen reader hears more than "caret C".
 var NAMES={{"Esc":"Escape","Tab":"Tab","^C":"Control C, interrupt in DiscoBSD","^D":"Control D, end of input or log out",
  "^Z":"Control Z, suspend in DiscoBSD","^L":"Control L, redraw","^U":"Control U, erase the line in DiscoBSD","^R":"Control R, history search in DiscoBSD",
- "DEL intr":"Delete, interrupt in V6","# erase":"number sign, erase a character in V6","@ kill":"at sign, erase the line in V6",
- "^\\ quit":"Control backslash, quit in V6","^_ exit V6":"Control underscore, leave the V6 emulator","Paste":"paste from the clipboard",
- "\u2191":"up arrow","\u2193":"down arrow","\u2190":"left arrow","\u2192":"right arrow","Sync & leave":"sync, leave V6, log out, close the session",
+ "Paste":"paste from the clipboard",
+ "\u2191":"up arrow","\u2193":"down arrow","\u2190":"left arrow","\u2192":"right arrow","Sync & leave":"sync, log out, close the session",
  "keys":"show the key reference","reader":"screen reader mode","hide":"hide the key bar","Ctrl":"control modifier for the next key"}};
 Array.prototype.forEach.call(document.querySelectorAll("#k button"),function(b){{var n=NAMES[b.textContent];if(n)b.setAttribute("aria-label",n);}});
 var rb=document.getElementById("reader");
@@ -143,20 +135,15 @@ if(reader){{rb.className="on";rb.setAttribute("aria-pressed","true");}}
 document.getElementById("paste").addEventListener("click",function(e){{e.preventDefault();
  if(navigator.clipboard&&navigator.clipboard.readText){{navigator.clipboard.readText().then(function(t){{sendkeys(t);grab();}});}}
  else{{var t=window.prompt("Paste text to send:");if(t!==null)sendkeys(t);grab();}}}});
-// Sync & leave types the clean exit from either system, since the page
-// cannot tell which one has the console: sync (both systems), Ctrl-_
-// (leaves V6, nothing in DiscoBSD), sync again (now DiscoBSD if we were
-// in V6), exit (back to login:), then closes the socket so the server
-// frees the console for the next session. It assumes a shell prompt.
+// Sync & leave flushes the filesystem, exits to login, and closes the socket
+// so the server frees the console for the next session. It assumes a shell
+// prompt.
 var leaving=false;
 function later(f,ms){{return new Promise(function(r){{setTimeout(function(){{f();r();}},ms);}});}}
 document.getElementById("bye").addEventListener("click",function(e){{e.preventDefault();
  if(leaving)return;leaving=true;
  function say(m){{stat.textContent=m;term.write("\\r\\n\\x1b[33m[console: "+m+"]\\x1b[0m\\r\\n");}}
  later(function(){{say("sync");sendkeys("\\r");}},0)
- .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
- .then(function(){{return later(function(){{say("leaving V6 if inside it");sendkeys("\\x1f");}},2500);}})
- .then(function(){{return later(function(){{say("sync");sendkeys("\\r");}},1500);}})
  .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
  .then(function(){{return later(function(){{say("logging out of DiscoBSD");sendkeys("exit\\r");}},2500);}})
  .then(function(){{return later(function(){{say("session closed -- reload to reconnect");byebye=true;try{{ws.close();}}catch(x){{}}}},1500);}});}});

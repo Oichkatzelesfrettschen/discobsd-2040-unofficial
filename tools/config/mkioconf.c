@@ -103,68 +103,6 @@ wnum(int num)
     return (errbuf);
 }
 
-void
-pic32_ioconf(void)
-{
-    register struct device *dp, *mp;
-    FILE *fp;
-    int i;
-
-    fp = fopen("ioconf.c", "w");
-    if (fp == 0) {
-        perror("ioconf.c");
-        exit(1);
-    }
-    fprintf(fp, "#include <sys/types.h>\n");
-    fprintf(fp, "#include <sys/config.h>\n\n");
-    fprintf(fp, "#define C (char *)\n\n");
-
-    /* print controller initialization structures */
-    ctlr_ioconf(fp);
-
-    /* print devices connected to other controllers */
-    fprintf(fp, "\nstruct conf_device conf_device_init[] = {\n");
-    fprintf(fp,
-        "\t/* driver,\tctlr driver,\tunit,\tctlr,\tdrive,\tflags,\tpins,\talive */\n");
-    for (dp = dtab; dp != 0; dp = dp->d_next) {
-        if (dp->d_type == CONTROLLER || dp->d_type == SERVICE)
-            continue;
-
-        mp = dp->d_conn;
-        fprintf(fp, "\t{ &%sdriver,\t", dp->d_name);
-        if (mp) {
-            fprintf(fp, "&%sdriver,\t%d,\t%d,\t",
-                mp->d_name, dp->d_unit, mp->d_unit);
-        } else {
-            fprintf(fp, "0,\t\t%d,\t0,\t", dp->d_unit);
-        }
-        fprintf(fp, "%d,\t0x%x,\t", dp->d_drive, dp->d_flags);
-        if (dp->d_npins > 0) {
-            fprintf(fp, "{");
-            for (i=dp->d_npins-1; i>=0; i--) {
-                int bit = dp->d_pins[i] & 0xff;
-                int port = dp->d_pins[i] >> 8;
-                if (bit > 15 || port < 1 || port > 7) {
-                    printf("R%c%u: invalid pin name\n", 'A'+port-1, bit);
-                    exit(1);
-                }
-                fprintf(fp, "0x%x%x", port, bit);
-                if (i > 0)
-                    fprintf(fp, ",");
-            }
-            fprintf(fp, "},\t");
-        } else
-            fprintf(fp, "{0},\t");
-        fprintf(fp, "0 },\n");
-    }
-    fprintf(fp, "\t{ 0 }\n};\n");
-
-    /* print service initialization structures */
-    service_ioconf(fp);
-
-    fclose(fp);
-}
-
 /*
  * RP2040 devices.
  *

@@ -1,5 +1,5 @@
 #
-# Driver makefile for zmodem.  Calls makefile.generic.
+# ARM build for zmodem.
 #
 TOPSRC!=cd ../..; pwd
 # -Wall -Wextra raises 197 distinct sites in this directory, so the fatal set

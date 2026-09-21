@@ -21,6 +21,7 @@ ${PROG}: ${OBJS}
 	${CC} ${LDFLAGS} -o $@ ${OBJS} ${LIBS}
 
 install: all
+	mkdir -p ${TOOLBINDIR}
 	${INSTALL} ${PROG} ${TOOLBINDIR}/binstall
 
 clean:

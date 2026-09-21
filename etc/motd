@@ -2,5 +2,5 @@ DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
 
 You are operator, in /home/operator, which starts empty; the system is
 under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
-colors directories blue, "vi FILE" edits, "pdp11" boots Sixth Edition
+colors directories blue, and "vi FILE" edits
 UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.

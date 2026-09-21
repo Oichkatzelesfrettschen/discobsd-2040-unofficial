@@ -114,11 +114,7 @@ void StdioFprintfWord(StdOutStream *Stream, const char *Format, unsigned int Val
 
     else if (Stream->StrOutLen >= 0)
     {
-#ifndef WIN32
-		int CCount = snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
-#else
-		int CCount = _snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
-#endif
+			int CCount = snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
 		Stream->StrOutPtr += CCount;
         Stream->StrOutLen -= CCount;
         Stream->CharCount += CCount;
@@ -139,11 +135,7 @@ void StdioFprintfFP(StdOutStream *Stream, const char *Format, double Value)
 
     else if (Stream->StrOutLen >= 0)
     {
-#ifndef WIN32
         int CCount = snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
-#else
-        int CCount = _snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
-#endif
 		Stream->StrOutPtr += CCount;
         Stream->StrOutLen -= CCount;
         Stream->CharCount += CCount;
@@ -164,11 +156,7 @@ void StdioFprintfPointer(StdOutStream *Stream, const char *Format, void *Value)
 
     else if (Stream->StrOutLen >= 0)
     {
-#ifndef WIN32
         int CCount = snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
-#else
-		int CCount = _snprintf(Stream->StrOutPtr, Stream->StrOutLen, Format, Value);
-#endif
         Stream->StrOutPtr += CCount;
         Stream->StrOutLen -= CCount;
         Stream->CharCount += CCount;
@@ -435,11 +423,7 @@ void StdioFerror(struct ParseState *Parser, struct Value *ReturnValue, struct Va
 
 void StdioFileno(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-#ifndef WIN32
     ReturnValue->Val->Integer = fileno((FILE *)Param[0]->Val->Pointer);
-#else
-    ReturnValue->Val->Integer = _fileno(Param[0]->Val->Pointer);
-#endif
 }
 
 void StdioFflush(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)

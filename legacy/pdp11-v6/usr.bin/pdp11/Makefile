@@ -1,4 +1,4 @@
-TOPSRC!=cd ../..; pwd
+TOPSRC!=cd ../../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/bin
@@ -9,7 +9,7 @@ SRCS=		main.c cpu.c mmu.c unibus.c rk.c cons.c
 OBJS=		${SRCS:.c=.o}
 HOSTCC?=	cc
 HOSTBIN=	${PROG}-host
-PYTHON?=	python3
+PYTHON?=
 
 # Guest core in bytes; 64 KB boots V6 and leaves the 144 KB window room.
 MEMSIZE?=	65536
@@ -28,11 +28,18 @@ ${OBJS}:	pdp11.h
 
 # Same sources, host compiler: tests/v6boot.sh boots a V6 pack through it.
 host:		${SRCS} pdp11.h
-		${HOSTCC} -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE \
+		${HOSTCC} -std=c17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE \
 		    -DMEMSIZE=${MEMSIZE} -o ${HOSTBIN} ${SRCS}
 
-test:		host
-		sh tests/v6boot.sh ./${HOSTBIN}
+check-python:
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for the V6 boot test" >&2; \
+		exit 2; \
+	fi
+
+test:		host check-python
+		TOPSRC=${TOPSRC} PYTHON=${PYTHON} \
+		    sh tests/v6boot.sh ./${HOSTBIN}
 
 clean:
 		rm -f *.o *.elf ${PROG} ${HOSTBIN} *.dis tags *~
@@ -44,3 +51,5 @@ install:	all
 		${INSTALL} ${PROG} ${DESTDIR}${BINDIR}/${PROG}
 		mkdir -p ${DESTDIR}/usr/v6
 		gunzip -c v6.rk.gz > ${DESTDIR}${IMAGE}
+
+.PHONY: all host check-python test clean install

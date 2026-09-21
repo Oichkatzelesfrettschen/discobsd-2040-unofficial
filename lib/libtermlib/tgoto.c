@@ -120,7 +120,7 @@ setwhich:
 			 * because bcd isn't continuous.  We should take out
 			 * the rest too, or run the thing through more than
 			 * once until it doesn't make any of these, but that
-			 * would make termlib (and hence pdp-11 ex) bigger,
+				 * would make termlib and every linked editor bigger,
 			 * and also somewhat slower.  This requires all
 			 * programs which use termlib to stty tabs so they
 			 * don't get expanded.  They should do this anyway

@@ -339,11 +339,7 @@ int	gflag;				/* After tglob -> is globbing needed? */
  * A reasonable limit on number of arguments would seem to be
  * the maximum number of characters in an arg list / 6.
  */
-#ifdef pdp11
-#define	GAVSIZ	NCARGS / 12
-#else
 #define	GAVSIZ	NCARGS / 6
-#endif
 
 /*
  * Variables for filename expansion

@@ -471,18 +471,6 @@ makefile(void)
         int port = sig->sig_pin >> 8;
 
         switch (arch) {
-        case ARCH_PIC32:
-            if (bit > 15 || port < 1 || port > 7) {
-                printf("%s: invalid pin name R%c%u\n",
-                    sig->sig_name, 'A'+port-1, bit);
-                exit(1);
-            }
-            fprintf(ofp, "PARAM += -D%s_PORT=TRIS%c -D%s_PIN=%d",
-                sig->sig_name, 'A'+port-1, sig->sig_name, bit);
-            if (sig->sig_invert)
-                fprintf(ofp, " -D%s_INVERT", sig->sig_name);
-            break;
-
         case ARCH_STM32:
             if (bit > 15 || port < 1 || port > 15) {
                 printf("%s: invalid pin name P%c%u\n",

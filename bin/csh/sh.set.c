@@ -267,11 +267,9 @@ putn(n)
 	if (sizeof (int) == 2 && n == -32768) {
 		*putp++ = '3';
 		n = 2768;
-#ifndef pdp11
 	} else if (sizeof (int) == 4 && n == -2147483648U) {
 		*putp++ = '2';
 		n = 147483648;
-#endif
 	}
 	putn1(n);
 	*putp = 0;

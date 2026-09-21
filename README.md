@@ -17,10 +17,12 @@ Cortex-M0+ with no memory management unit.
 This repository is the RP2040 port of [DiscoBSD][1], Christopher Hettrick's
 independent continuation of RetroBSD; the official project targets STM32
 and PIC32 boards with an SD card, and its release is [DiscoBSD 2.7][2].
-This port replaces the SD card with the Pico's own flash, adds the USB
+This fork maintains ARM targets only: RP2040 and STM32. It archives the
+former PIC32/MIPS source under `legacy/non-arm/` without a supported build.
+The RP2040 port replaces the SD card with the Pico's own flash, adds the USB
 console, and reworks memory ownership, swapping, and the userland for a
-single 144 KB process. Everything below is about the Pico; the last
-section points at the official platforms.
+single 144 KB process. Everything below is about the Pico; the last section
+describes the maintained STM32 target and the archived upstream context.
 
 [1]: http://DiscoBSD.org
 [2]: https://github.com/chettrick/discobsd/releases/tag/DISCOBSD_2_7
@@ -37,7 +39,7 @@ What runs on it
 | user program | 144 KB window, one resident process, swap for the rest |
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
 | commands | 112 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
-| Sixth Edition UNIX | `pdp11` boots a V6 root pack on an emulated PDP-11/40 with 64 KB of core; see "Run Sixth Edition UNIX" below |
+| optional Sixth Edition UNIX | `BUILD_PDP11_V6=yes` adds a PDP-11/40 emulator and V6 root pack to a separate legacy image; the default image excludes both |
 | native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and use no `#include` |
 
 What the login screen tells you, line by line:
@@ -123,8 +125,7 @@ and follow the steps for your platform.
    `discobsd-console status` reports. One browser session at a time;
    press `Sync & leave` in the page to sync, log out, and hand it to the
    next, watching each step it types; `keys` shows the key reference;
-   `reader` turns on screen reader mode. The status line at the top
-   right says whether the console is in DiscoBSD or inside V6.
+   `reader` turns on screen reader mode.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
 join the `discobsd` group instead and log in again:
@@ -230,8 +231,9 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   layer. Type `sync` before unplugging; `halt` is safer still. Pulling
   the cable during a write loses at most that write, and `fsck` runs at
   the next boot.
-- The V6 pack and anything you write are on the board, not in the host
-  tools; unplugging carries them with it.
+- An image built with `BUILD_PDP11_V6=yes` keeps its V6 pack and guest writes
+  on the board rather than in the host tools. The default image carries no V6
+  pack.
 - A board that no longer answers on USB is not lost: hold BOOTSEL while
   plugging it in, it appears as the `RPI-RP2` drive, and the two UF2
   files from a release or a build restore it in under a minute ("Build
@@ -243,10 +245,17 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 - Questions and problems go to the issue tracker of this repository;
   say what `discobsd-term --probe` printed and what the screen showed.
 
-### Run Sixth Edition UNIX
+### Optional: build and run Sixth Edition UNIX
 
-The board carries `pdp11`, a PDP-11/40 emulator, and a Sixth Edition
-(1975) root pack. The machine it emulates:
+The default image carries neither `pdp11` nor a Sixth Edition guest pack.
+Build the explicitly isolated RP2040 legacy image with:
+
+    PYTHON=$(command -v python3)
+    export PYTHON
+    bmake MACHINE=rp2040 BUILD_PDP11_V6=yes legacy-pdp11-v6-distribution
+
+That image carries a PDP-11/40 emulator and a Sixth Edition (1975) root
+pack. The machine it emulates:
 
 | part | what V6 sees |
 | --- | --- |
@@ -284,8 +293,9 @@ is V6, not DiscoBSD's root shell. The full key table per system is in
 What you write on the V6 pack stays on it. The pack is a 1 MB sparse file
 in `/usr/v6`; its untouched blocks cost nothing, and a session that swaps
 or writes allocates about 30 KB of the root the first time, reused after.
-`usr.bin/pdp11/README.md` documents the emulator, the pack and how it was
-built from the TUHS distribution.
+`legacy/pdp11-v6/usr.bin/pdp11/README.md` documents the emulator, the pack,
+and how it was built from the TUHS distribution. The option, host tests, and
+external SIMH/V7 oracle are documented in `legacy/pdp11-v6/README.md`.
 
 ### Build the firmware and flash a board
 
@@ -300,9 +310,11 @@ built from the TUHS distribution.
    too old for `picotool uf2 convert`; `.github/workflows/firmware.yml`
    shows how CI builds picotool 2 from source.
 
-2. Build the kernels, the userland, and the root image. The tree builds
-   with zero warnings; CI enforces that.
+2. Select the interpreter, then build the kernels, userland, and root image.
+   The tree builds with zero warnings; CI enforces that.
 
+       PYTHON=$(command -v python3)
+       export PYTHON
        bmake MACHINE=rp2040 build
        bmake MACHINE=rp2040 flash
 
@@ -365,8 +377,11 @@ Source tree
     sys/arch/rp2040 Kernel: boot2, machine-dependent code, USB CDC-ACM and
                     UART drivers, the Dhara flash layer, SwapRAM, the packed
                     executable loader, and doc/.
+    sys/arch/stm32  Maintained ARM Cortex-M4 kernel and board configurations.
     distrib/rp2040  The root manifest (mi.rp2040), the flash image build,
                     the on-board libc, and the host tools package.
+    legacy          Archived non-ARM source and the separately enabled
+                    PDP-11/V6 option; ordinary builds do not traverse it.
     tests           Host and on-board regression tests (tests/rp2040).
     tools           Cross-build tools: config, fsutil, hsaout, the a.out
                     utilities, the checkers the make targets run.
@@ -382,8 +397,8 @@ root Makefile target, grouped into tiers by what the host needs:
     bmake MACHINE=rp2040 check-host         # host cc and python only
     bmake MACHINE=rp2040 check-cross        # arm toolchain, after build
     bmake MACHINE=rp2040 check-qemu         # qemu-arm
-    bmake MACHINE=rp2040 check-mips         # a MIPS cross compiler
     bmake MACHINE=rp2040 check-board-build  # the on-device programs
+    bmake MACHINE=rp2040 check-architecture-isolation
 
 sys/arch/rp2040/doc/TESTING.md is the matrix: each gate, what it
 proves, and which tiers CI runs on Linux and macOS. On-board tests live
@@ -425,7 +440,7 @@ its short form. The parts and their licenses:
 | --- | --- | --- |
 | the system, the rp2040 port, the host tools | DiscoBSD, RetroBSD | BSD 3-Clause (`LICENSE`); port files marked 2026 DiscoBSD are ISC |
 | kernel, libc, most of /bin and /usr/bin | The Regents of the University of California | Berkeley licenses of 1980-1993; the advertising clause was withdrawn by the University in 1999 |
-| the AT&T-descended programs (sh, ed, sed, awk, find, cpio, dd, look, deroff) and the V6 pack | Caldera International, Inc. | Caldera ancient-UNIX license, 2002: BSD-style with an acknowledgement in advertising |
+| the AT&T-descended programs (sh, ed, sed, awk, find, cpio, dd, look, deroff) and the optional V6 pack | Caldera International, Inc. | Caldera ancient-UNIX license, 2002: BSD-style with an acknowledgement in advertising |
 | second-stage boot code | Raspberry Pi (Trading) Ltd. | BSD 3-Clause |
 | Dhara, heatshrink | Daniel Beer, Scott Vokes | ISC |
 | compiler_rt soft float | LLVM Team, University of Illinois | NCSA or MIT |
@@ -433,7 +448,7 @@ its short form. The parts and their licenses:
 | as, ld | Serge Vakulenko | MIT/X-style |
 | textbox tools | sbase contributors | MIT |
 | stevie | public domain | Unlicense |
-| pdp11 emulator | Julius Schmidt, Dave Cheney | WTFPL |
+| optional PDP-11 emulator | Julius Schmidt, Dave Cheney | WTFPL |
 | coremark | EEMBC | Apache 2.0, plus a trademark agreement on the CoreMark name |
 | libgcc | Free Software Foundation | GPL-3 with the Runtime Library Exception 3.1 |
 
@@ -488,26 +503,31 @@ The source for the exact image is the tag or commit the UF2 files were
 built from; state it in the listing so the licenses' "source code"
 conditions can be met by pointing at it.
 
-Other platforms: STM32 and PIC32
---------------------------------
+Other platforms: STM32 and archived PIC32
+-----------------------------------------
 
-The official DiscoBSD supports STM32F4 boards and the PIC32MX7, with the
-root file system on an SD card. Those ports build from this tree too, and
-their documentation is the official project's:
+This fork maintains STM32F4 as its second ARM target. The official DiscoBSD
+also supports PIC32MX7, but this fork archives that MIPS source under
+`legacy/non-arm/mips-pic32/` and makes no build, boot, or hardware-support
+claim for it. The official project remains the supported PIC32 source:
 
 - Official repository and releases: <https://github.com/chettrick/discobsd>
-- Port notes: `distrib/stm32/README.md` and `distrib/pic32/README.md`
-- Host setup: `tools/openbsd/README.md` and `tools/linux/README.md`
+- STM32 port notes: `distrib/stm32/README.md`
+- ARM host setup: `tools/openbsd/README.md` and
+  `distrib/rp2040/host/DEVELOPMENT.md`
+- Archived PIC32 notes:
+  `legacy/non-arm/mips-pic32/distrib/pic32/README.md`
 
-Build them with the upstream commands, from the tree root:
+Build STM32 from a clean worktree or after a complete tuple transition:
 
-    make distribution                                   # DiscoBSD/stm32, the upstream default
-    make MACHINE=pic32 MACHINE_ARCH=mips distribution   # DiscoBSD/pic32
-    make SDCARD=/dev/sdX installfs                      # image the SD card
+    PYTHON=$(command -v python3)
+    export PYTHON
+    bmake MACHINE=rp2040 cleanall
+    bmake MACHINE=stm32 distribution
+    bmake MACHINE=stm32 SDCARD=/dev/sdX installfs
 
 Flash an STM32 kernel with `st-flash --reset write unix.bin 0x08000000`
-(or STM32CubeProgrammer on Windows) and a PIC32 kernel with
-`pic32prog unix.hex`; connect at 115200 8N1 with `cu`, `screen`,
-`minicom`, or PuTTY. `make BOARD=F412GDISCO ocd` and `gdb-ocd` debug an
-STM32 board through OpenOCD and GDB. `make release` builds a release
-archive for the default architecture.
+(or STM32CubeProgrammer on Windows); connect at 115200 8N1 with `cu`,
+`screen`, `minicom`, or PuTTY. `bmake MACHINE=stm32 BOARD=F412GDISCO ocd`
+and `gdb-ocd` debug an STM32 board through OpenOCD and GDB. Use the upstream
+repository and its instructions for a supported PIC32 build.

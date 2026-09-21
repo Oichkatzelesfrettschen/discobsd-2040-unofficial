@@ -106,7 +106,7 @@ char *idf;
 rename(f1, f2)
 register int    f1, f2;
 {
-#if defined(RES) || defined(pdp11)
+#ifdef RES
 	if (f1 != f2)
 	{
 		dup(f1 | DUPFLG, f2);

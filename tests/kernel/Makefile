@@ -121,9 +121,9 @@ CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
 		${TOPSRC}/sys/kern/kern_proc.c
 
-# The resource map allocator runs in three shapes across the tree's ports:
+# The resource map allocator runs in three shapes across the maintained ports:
 # the sixteen-bit descriptors sys/arch/rp2040/compile/PICO configures, the
-# wide descriptors stm32 and pic32 use, and a DIAGNOSTIC kernel, where
+# wide descriptors STM32 uses, and a DIAGNOSTIC kernel, where
 # mfree()'s three overlap panics compile in.
 COMPACT_DEFS=		-DCOMPACT_SWAPMAP
 WIDE_DEFS=
@@ -242,7 +242,7 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 
 # The node's extent is a count of mapents, so the gate runs in both
 # descriptor shapes: the sixteen-bit entries PICO configures and the wide
-# entries stm32 and pic32 use, as rmap_test does.
+# entries STM32 uses, as rmap_test does.
 sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} hostkern_kern.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \

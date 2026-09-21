@@ -11,13 +11,8 @@
  *	int		error, sig;
  *	struct sigaction *vec, *ovec;
  *
- * We pass one additional parameter to the sigaction sys call: the address of
- * the "Trampoline Code", sigtramp - the code that handles saving and restoring
- * register context and so on for signals.  On the VAX-11 under BSD4.3 it isn't
- * necessary to pass this address since the trampoline code is stored in the
- * user structure in u.u_pcb.pcb_sigc at a known address in user space.  It
- * really doesn't introduce much extra overhead, so our method for doing it on
- * a PDP-11 is alright too.
+ * The fourth system-call argument supplies sigtramp, which returns from a
+ * user signal handler through sigreturn.
  */
 ENTRY(sigaction)
 	ldr	r3, =sigtramp		/* arg4: address of sigtramp. */
@@ -39,14 +34,6 @@ END(sigaction)
  * context and then vectors on to the real signal action routine.  Upon return
  * from the signal action routine sigtramp restores the process' register
  * context and performs a sigreturn.
- *
- * In the case of the PDP-11, the kernel will have already saved r0 and r1 for
- * sigtramp in a sigcontext structure it passes to us.  Sigtramp vectors onto
- * the signal action routine whose address has been left in r0 by the kernel
- * (sigtramp assumes the signal action routine will save any other registers
- * it uses (as all C routines will)).  Upon return from the signal action
- * routine, sigtramp will execute a sigreturn with the sigcontext structure
- * given to us by the kernel.
  *
  * On the Cortex-M ports the kernel builds a struct sigframe (see
  * sys/arch/rp2040/rp2040/sig_machdep.c) below the interrupted stack

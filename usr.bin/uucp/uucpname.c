@@ -51,16 +51,9 @@ register char *name;
 
 #ifdef GETHOSTNAME
 	if (s == NULL || *s == '\0') {
-#ifdef VMS
-		int i = sizeof(Myfullname);
-#endif
 
 		s = Myfullname;
-#ifdef VMS
-		if(gethostname(Myfullname, &i) == -1) {
-#else
 		if(gethostname(Myfullname, sizeof(Myfullname)) == -1) {
-#endif
 			DEBUG(1, "gethostname", _FAILED);
 			s = NULL;
 		}

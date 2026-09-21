@@ -996,33 +996,6 @@ SPDP dtime()
 /*  Provided by: RAMO@uvphys.phys.UVic.CA                */
 /*  Some people have run into problems with this timer.  */
 /*********************************************************/
-#ifdef VMS
-#include time
-
-#ifndef HZ
-#define HZ 100
-#endif
-
-struct tbuffer_t
-       {
-	int proc_user_time;
-	int proc_system_time;
-	int child_user_time;
-	int child_system_time;
-       };
-struct tbuffer_t tms;
-
-SPDP dtime()
-{
- SPDP q;
-
- times(&tms);
-
- q = (SPDP)(tms.proc_user_time) / (SPDP)HZ;
-	
- return q;
-}
-#endif
 
 /******************************/
 /*  BORLAND C dtime() for DOS */

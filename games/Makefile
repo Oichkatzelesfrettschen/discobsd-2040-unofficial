@@ -35,5 +35,7 @@ install:
 			${MAKE} -C $$i $(MFLAGS) DESTDIR=$(DESTDIR) install; done
 
 clean:
-		rm -f a.out core *.s *.o *.dis *.elf
-		-for i in $(SUBDIR); do ${MAKE} -C $$i $(MFLAGS) clean; done
+		status=0; rm -f a.out core *.s *.o *.dis *.elf || status=1; \
+		for i in ${SUBDIR}; do \
+			${MAKE} -C $$i ${MFLAGS} clean || status=1; \
+		done; exit $$status

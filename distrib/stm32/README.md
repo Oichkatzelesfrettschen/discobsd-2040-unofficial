@@ -36,7 +36,7 @@ On Unix-like host systems with `dd` run:
 The target `installfs` can be used to image the SD card on Unix-like systems.
 Provide the path to the SD card via the command line:
   ```sh
-    $ make SDCARD=/path/to/SD/card installfs
+    $ bmake MACHINE=stm32 SDCARD=/path/to/SD/card installfs
   ```
 
 The board-specific kernel `unix` must be loaded into the MCU's flash memory.
@@ -74,24 +74,25 @@ Shutdown DiscoBSD with:
 
 ## Building the DiscoBSD/stm32 kernel and operating system on a Unix-like host
   ```sh
-    $ make distribution
+    $ bmake MACHINE=stm32 distribution
   ```
 
 The kernel (for the F412GDISCO board) can be built independently by:
   ```sh
     $ cd sys/arch/stm32/compile/F412GDISCO
-    $ make
+    $ bmake MACHINE=stm32
   ```
 Note: Building the kernel requires the `tools/config` config utility.
 
 ## Debugging DiscoBSD/stm32 on a development board via OpenOCD and GDB
   ```sh
-    $ make BOARD=F412GDISCO ocd
+    $ bmake MACHINE=stm32 BOARD=F412GDISCO ocd
   ```
 
 In a separate terminal, run `gdb` with:
   ```sh
-    $ make BOARD=F412GDISCO gdb-ocd
+    $ bmake MACHINE=stm32 BOARD=F412GDISCO gdb-ocd
   ```
 
-Running `make help` lists targets to debug DiscoBSD/stm32 with OpenOCD and GDB.
+Running `bmake MACHINE=stm32 help` lists targets to debug DiscoBSD/stm32 with
+OpenOCD and GDB.

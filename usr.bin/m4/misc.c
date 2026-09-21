@@ -160,11 +160,7 @@ int n;
 			putc(c, active);
 	(void) fclose(dfil);
 
-#ifdef vms
-	if (remove(m4temp))
-#else
 	if (unlink(m4temp) == -1)
-#endif
 		oops("%s: cannot unlink.", m4temp);
 }
 

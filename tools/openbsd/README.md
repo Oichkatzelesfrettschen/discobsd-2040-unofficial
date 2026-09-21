@@ -13,9 +13,6 @@ Required programs to build a complete DiscoBSD distribution are:
   - Cross compiler (ARM):   binutils and gcc arm-none-eabi rmprofile
   - Cross debugger (ARM):   gdb arm-none-eabi or gdb multiarch
   - Firmware loader (ARM):  dfu-util, openocd, stlink
-  - Cross compiler (MIPS):  binutils and gcc mips-elf
-  - Cross debugger (MIPS):  gdb mips-elf or gdb multiarch
-  - Firmware loader (MIPS): pic32prog
 
 ## Setting up the Development Environment for Arm target
 
@@ -98,29 +95,7 @@ Note: The whole meta-package can be compiled and installed by one command:
   $ sudo make install
 ```
 
-## Setting up the Development Environment for MIPS target
-
-Note: These steps assume that all previous steps have been completed.
-
-### Meta-package Toolchain: mips-elf-{binutils,gcc}
-
-#### Assembler, Port: Binutils V2.40, Configured for mips-elf
-```sh
-  $ cd /usr/ports/mystuff/devel/mips-elf/binutils
-  $ sudo make
-  $ sudo make install
-```
-
-#### Compiler, Port: GCC V12.2.0, Configured for mips-elf
-```sh
-  $ cd /usr/ports/mystuff/devel/mips-elf/gcc
-  $ sudo make
-  $ sudo make install
-```
-
-Note: The whole meta-package can be compiled and installed by one command:
-```sh
-  $ cd /usr/ports/mystuff/devel/mips-elf
-  $ sudo make
-  $ sudo make install
-```
+The maintained source tree supports ARM targets only. Historical OpenBSD
+MIPS/PIC32 port material is retained under
+`legacy/non-arm/mips-pic32/tools/openbsd/ports/` for provenance; use the
+upstream DiscoBSD repository for a supported PIC32 development environment.

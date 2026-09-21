@@ -6,9 +6,8 @@ opens the line at 115200 8N1, and bridges the local terminal to it. When
 the board reboots and its USB device re-enumerates, the terminal waits and
 reattaches on its own rather than dying with a stale-node error.
 
-Ctrl-] is the escape (as in telnet): Ctrl-] q quits, Ctrl-] _ leaves the V6
-emulator, Ctrl-] ? lists the rest. Log in as operator with no password;
-su for root.
+Ctrl-] is the escape (as in telnet): Ctrl-] q quits and Ctrl-] ? lists the
+rest. Log in as operator with no password; su for root.
 
 POSIX hosts put the terminal in raw mode through termios and multiplex
 with select. Windows has no termios and select refuses console handles, so
@@ -34,12 +33,9 @@ ESCAPE = 0x1D  # Ctrl-]
 ESCAPES = {
     b"q": ("quit", b""),
     b"\x1d": ("quit", b""),
-    b"_": ("send", b"\x1f"),  # leave the V6 emulator (pdp11)
-    b"d": ("send", b"\x7f"),  # DEL: V6 interrupt
-    b"\\": ("send", b"\x1c"),  # Ctrl-\: V6 quit
     b"]": ("send", b"\x1d"),  # a literal Ctrl-]
 }
-HELP = "Ctrl-] then: q quit, _ leave V6, d DEL, \\ Ctrl-\\, ] literal Ctrl-]"
+HELP = "Ctrl-] then: q quit, ] literal Ctrl-]"
 
 
 class Escape:

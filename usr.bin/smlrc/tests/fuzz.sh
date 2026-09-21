@@ -21,6 +21,7 @@ TOPSRC=${TOPSRC:?TOPSRC must be set}
 CROSS=${CROSS:-arm-none-eabi}
 CPU=${CPU:-cortex-m0plus}
 HOST_CC=${HOST_CC:-cc}
+PYTHON=${PYTHON:?PYTHON must name the host interpreter}
 COUNT=${1:-120}
 SRCDIR=$(cd "$(dirname "$0")" && pwd)
 OUT=$SRCDIR/out
@@ -37,7 +38,7 @@ pass=0
 bad=""
 
 for s in $(seq 1 "$COUNT"); do
-	python3 "$SRCDIR/gen_diff.py" "$s" > "$W/d.c"
+	"$PYTHON" "$SRCDIR/gen_diff.py" "$s" > "$W/d.c"
 	$HOST_CC -m32 -w -fwrapv -funsigned-char -o "$W/ref" "$W/d.c"
 	"$W/ref" > "$W/ref.out" 2>&1
 

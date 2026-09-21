@@ -85,10 +85,6 @@
 #define SCOMMT          '#'
 #define ECOMMT          '\n'
 
-#ifdef msdos
-#define system(str)	(-1)
-#endif
-
 /*
  * other important constants
  */

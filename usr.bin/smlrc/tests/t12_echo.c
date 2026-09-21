@@ -2,9 +2,9 @@
  * bin/echo/echo.c, with its definition of main written as a prototype.
  *
  * Smaller C's parser accepts no old-style parameter declaration list, so
- * the tree's copy cannot be compiled as it stands; the MIPS back end
- * rejects it at the same token, which places the limitation in the front
- * end rather than in either code generator. Nothing else is changed, so
+ * the tree's copy cannot be compiled as it stands. The parser rejects the
+ * declaration before code generation, which places the limitation in the
+ * front end. Nothing else is changed, so
  * what this exercises is the code the back end produces for a real program.
  */
 #include <stdio.h>

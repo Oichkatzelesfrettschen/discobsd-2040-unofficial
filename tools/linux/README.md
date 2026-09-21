@@ -13,9 +13,6 @@ Required programs to build a complete DiscoBSD distribution are:
   - Cross compiler (ARM):   binutils and gcc arm-none-eabi rmprofile
   - Cross debugger (ARM):   gdb arm-none-eabi or gdb multiarch
   - Firmware loader (ARM):  dfu-util, openocd, stlink
-  - Cross compiler (MIPS):  binutils and gcc mips-elf
-  - Cross debugger (MIPS):  gdb mips-elf or gdb multiarch
-  - Firmware loader (MIPS): pic32prog
 
 ## Setting up the Development Environment for Arm target
 
@@ -37,17 +34,3 @@ Note: So that `make gdb-ocd` works, create the following symlink on the host
   ```sh
     $ ln -s /usr/bin/gdb-multiarch /usr/bin/arm-none-eabi-gdb
   ```
-
-## Setting up the Development Environment for MIPS target
-
-Note: These steps assume that all previous steps have been completed.
-
-### Toolchain: mips-elf-{binutils,gcc,gdb} GCC V4.8.1, Binutils V2.23.2
-
-Build the MIPS toolchain from source, as described on page:
-https://web.archive.org/web/20200126100825/http://retrobsd.org/wiki/doku.php/doc/toolchain-mips
-
-### Binary Flash Downloader: pic32prog V2.1.57
-
-Available from:
-https://github.com/majenkotech/pic32prog-autotools/archive/refs/tags/2.1.57.zip

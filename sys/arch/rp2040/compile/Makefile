@@ -1,8 +1,15 @@
 #
 # Kernels live in subdirectories, and have Makefiles of their own.
 #
-SUBDIR=		PICO PICO_UART
 TOPSRC!=	cd ../../../..; pwd
+MACHINE_DEFAULT=	rp2040
+include ${TOPSRC}/share/mk/architecture.mk
+
+.if ${MACHINE} != "rp2040"
+.error rp2040 kernel aggregation requires MACHINE=rp2040
+.endif
+
+SUBDIR=		${MACHINE_KERNEL_CONFIGS}
 DIVIDER_OWNERSHIP_VERIFIER=	${TOPSRC}/tools/verify_rp2040_divider_ownership.py
 SWAPRAM_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_swapram_link.sh
 CACHE_FOOTPRINT_VERIFIER=	${TOPSRC}/tools/verify_rp2040_cache_footprint.sh
@@ -20,13 +27,16 @@ all:
 install:
 
 clean:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i clean || status=1; done; exit $$status
 
 clean-all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean-all; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i clean-all || status=1; done; exit $$status
 
 reconfig:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i reconfig; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i reconfig || status=1; done; exit $$status
 
 check-divider:
 		@if [ -z "${PYTHON}" ]; then \

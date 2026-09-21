@@ -55,9 +55,6 @@ int type;
 	}
 
 
-#ifdef VMS
-	unlink(filename);
-#endif
 	fp = fopen(filename, "w");
 	ASSERT(fp != NULL, "SYSTAT OPEN FAIL", filename, 0);
 	fprintf(fp, "%d %d %ld %ld %s %s\n", type, count, prestime, rtry, text, name);

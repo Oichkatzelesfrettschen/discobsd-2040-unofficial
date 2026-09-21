@@ -1,8 +1,4 @@
-# Override the default port with:
-# $ make MACHINE=pic32 MACHINE_ARCH=mips
-#
-MACHINE=	stm32
-MACHINE_ARCH=	arm
+include ${TOPSRC}/share/mk/architecture.mk
 
 unix=		We run DiscoBSD.
 OSMAJOR=	2
@@ -19,15 +15,15 @@ BUILD!=		git rev-list --count HEAD --
 VERSION=	${RELEASE}-${BUILD}
 
 TOOLDIR?=	${TOPSRC}/tools
-TOOLBINDIR?=	${TOOLDIR}/bin
+TOOLBINDIR?=	${TOOLDIR}/bin/${MACHINE}
 
 include ${TOPSRC}/share/mk/warnings.mk
 
 HOST_CC?=	cc
 
-# The interpreter for every verifier and harness, declared once and passed
-# to each sub-make; a Makefile names it as ${PYTHON} and never by a literal.
-PYTHON?=	python3
+# The root invocation supplies the interpreter identity and exports it to each
+# sub-make; a Makefile names the executable as ${PYTHON} and never by a literal.
+PYTHON?=
 .export PYTHON
 
 _HOST_OSNAME!=	uname -s
@@ -45,12 +41,9 @@ _LIBBSD_LIBS!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 			echo "" ; \
 		fi
 
-include ${TOPSRC}/share/mk/mips-toolchain.mk
-
 # The arm toolchain on PATH first (Homebrew on macOS, or any prefix the
 # developer chose), then the path each operating system's package uses.
-GCCPREFIX!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
+GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
 			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
 		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
 			echo "/usr/local/bin/arm-none-eabi" ; \
@@ -60,19 +53,6 @@ GCCPREFIX!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
 			echo "/usr/bin/arm-none-eabi" ; \
 		else \
 			echo "/does/not/exist" ; \
-		fi \
-	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "${MIPS_GCCPREFIX}" ; \
-	else \
-		echo "/does/not/exist" ; \
-	fi
-
-# The RP2040's Cortex-M0+ implements ARMv6-M, a strict subset of the
-# Cortex-M4's Thumb-2, so a userland built for cortex-m4 faults on it.
-MACHINE_CPU!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "cortex-m0plus" ; \
-	else \
-		echo "cortex-m4" ; \
 	fi
 
 # RP2040 diagnostics read kernel structures through /dev/kmem and sysctl.
@@ -87,22 +67,11 @@ KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 # old-style definitions are gone. GCC 15 and later default to C23. The dialect
 # and tentative-definition policy ride on CC because several Makefiles replace
 # CFLAGS outright.
-CC!=	if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "${GCCPREFIX}-gcc ${WARNERR} -std=gnu17 -fno-common -mcpu=${MACHINE_CPU} -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft ${KERNEL_LAYOUT_CFLAGS} -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
-	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "${GCCPREFIX}-gcc ${WARNERR} -mips32r2 -EL -msoft-float -nostdinc -I${TOPSRC}/include ${INCLUDES}" ; \
-	else \
-		echo "/does/not/exist" ; \
-	fi
+CC=		${GCCPREFIX}-gcc ${WARNERR} -std=gnu17 -fno-common \
+		${MACHINE_ARCH_FLAGS} ${KERNEL_LAYOUT_CFLAGS} \
+		-nostdinc -I${TOPSRC}/include ${INCLUDES}
 
-# Enable mips16e instruction set by default
-COPTS!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "-Os -fno-common" ; \
-	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "-Os -fcommon -mips16" ; \
-	else \
-		echo "" ; \
-	fi
+COPTS=		-Os -fno-common
 
 LDWARN!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "-Wl,--warn-rwx-segments -Wl,--fatal-warnings" ; \
@@ -161,13 +130,7 @@ LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm \
 LIBS=	-lc
 LDLIBS=	${LIBS}
 
-OBJDUMP!=if [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "${GCCPREFIX}-objdump -marm -M force-thumb" ; \
-	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "${GCCPREFIX}-objdump -mmips:isa32r2" ; \
-	else \
-		echo "/does/not/exist" ; \
-	fi
+OBJDUMP=	${GCCPREFIX}-objdump -marm -M force-thumb
 
 # byacc where present (Linux ships it as such; Homebrew too), else the
 # system yacc; the yacc in Apple's command line tools is a shim that
@@ -209,7 +172,6 @@ EX!=		if command -v ex >/dev/null 2>&1 ; then \
 
 ELF2AOUT=	${TOOLBINDIR}/elf2aout
 
-AOUT_AOUT=	${TOOLBINDIR}/aout
 AOUT_AR=	${TOOLBINDIR}/ar
 AOUT_AS=	${TOOLBINDIR}/as
 AOUT_LD=	${TOOLBINDIR}/ld

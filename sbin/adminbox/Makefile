@@ -31,7 +31,7 @@ ALIASES=	halt:reboot bootloader:reboot
 OBJS=		${TOOLS:S/$/.tool.o/}
 BUILTIN_OBJS=	tiny_applets.o
 PROG=		adminbox
-HSAOUT=		${TOPSRC}/tools/bin/hsaout
+HSAOUT=		${TOOLBINDIR}/hsaout
 # Root budget for the packed image, a regression watermark rather than a
 # hardware limit: hsaout -s reports 23 blocks from arm-none-eabi-gcc 16
 # (Arch) for this tree, against 22 for the same toolchain before the C17

@@ -57,9 +57,9 @@ benchmarks/coremark/coremark
 benchmarks/coremark/coremark-host
 tests/rp2040/fptest/fptest
 
-# usr.bin/pdp11: the host build of the PDP-11 emulator (bmake host).
-usr.bin/pdp11/pdp11-host
-usr.bin/pdp11/pdp11
+# legacy/pdp11-v6: explicit host and target emulator builds.
+legacy/pdp11-v6/usr.bin/pdp11/pdp11-host
+legacy/pdp11-v6/usr.bin/pdp11/pdp11
 
 # Core dumps. qemu-user writes a guest core named qemu_<prog>_<stamp>_<pid>.core
 # into the guest's working directory whichever host core_pattern is set, so a

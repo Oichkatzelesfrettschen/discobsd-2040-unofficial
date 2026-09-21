@@ -5,7 +5,7 @@
  */
 
 /*
- * bcopy -- vax movc3 instruction
+ * Copy a byte range with overlap support.
  */
 void
 bcopy(src0, dst0, length)

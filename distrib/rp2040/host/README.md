@@ -125,81 +125,62 @@ silence and dropped 15 seconds later, and the next viewer gets in.
 
 ## Keys and exits
 
-The board runs two systems that read the keyboard differently: DiscoBSD
-(2.11BSD) at the `$` or `#` prompt, and Sixth Edition UNIX inside the
-`pdp11` emulator, also at a `#` prompt. `whoami: not found` and dates in
-1970 mean you are in V6. Every key below is a byte on the serial line;
-`discobsd-term` and the web console deliver the same bytes.
+Every key below is a byte on the DiscoBSD serial line; `discobsd-term` and
+the web console deliver the same bytes.
 
-| key | byte | DiscoBSD | V6 inside pdp11 |
-| --- | --- | --- | --- |
-| Ctrl-C | 003 | interrupt the running program | nothing |
-| DEL, Backspace on most terminals | 177 | erase a character | interrupt the running program |
-| `#` | | a character | erase a character |
-| `@` | | a character | erase the line |
-| Ctrl-U | 025 | erase the line | nothing |
-| Ctrl-D | 004 | end of input; at the prompt, log out | end of input; at the prompt, log out |
-| Ctrl-\ | 034 | quit with core dump | quit |
-| Ctrl-Z | 032 | suspend (job control) | nothing |
-| Ctrl-L | 014 | redraw the shell line | a character |
-| Ctrl-R | 022 | shell history search | a character |
-| Esc, Tab, arrows | | `vi`, `stevie`, the shell line editor | `ed` has no use for them |
-| Ctrl-_ | 037 | nothing | leave the emulator, back to DiscoBSD |
-| `~.` at the start of a line | | the two characters | leave the emulator, back to DiscoBSD |
+| key | byte | action |
+| --- | --- | --- |
+| Ctrl-C | 003 | interrupt the running program |
+| DEL, Backspace on most terminals | 177 | erase a character |
+| Ctrl-U | 025 | erase the line |
+| Ctrl-D | 004 | end input; log out at a prompt |
+| Ctrl-\ | 034 | quit with a core dump |
+| Ctrl-Z | 032 | suspend through job control |
+| Ctrl-L | 014 | redraw the shell line |
+| Ctrl-R | 022 | search shell history |
+| Esc, Tab, arrows | | operate `vi`, `stevie`, and the shell line editor |
 
 `discobsd-term` keeps Ctrl-] for itself as the escape, the way telnet
-does, because Ctrl-_ and Ctrl-\ are zoom or quit shortcuts in many
-terminal programs and the Windows console delivers neither reliably:
+does:
 
 | type | effect |
 | --- | --- |
 | Ctrl-] q, or Ctrl-] Ctrl-] | quit discobsd-term |
-| Ctrl-] _ | send Ctrl-_: leave the V6 emulator |
-| Ctrl-] d | send DEL: interrupt in V6 |
-| Ctrl-] \ | send Ctrl-\ |
 | Ctrl-] ] | send a literal Ctrl-] |
 | Ctrl-] ? | print this list |
 
 The web console is built for more than a mouse and good eyes. The status
-line at the top right is a live region that names the system the console
-is in ("connected -- DiscoBSD", "connected -- inside V6 (pdp11)") and
+line at the top right is a live region that names the connection state and
 narrates Sync & leave, so a screen reader hears each change without
 moving focus. Every key-bar button carries an accessible name that says
-what the key does in the system that reads it ("Control C, interrupt in
-DiscoBSD"; "Delete, interrupt in V6"), the Ctrl modifier reports its
+what the key does (for example, "Control C, interrupt in DiscoBSD"), the
+Ctrl modifier reports its
 armed state, and Tab moves through the bar with a visible focus ring.
 The `reader` button turns on xterm.js's screen reader mode, which builds
 an accessibility tree of the screen and announces output as it arrives;
 the choice is remembered in the browser. Colors are rendered at a
-minimum contrast of 4.5:1 against the black background (WCAG AA), which
-lifts V6's and `ls`'s dimmer colors. `hide` folds the bar down to a
+minimum contrast of 4.5:1 against the black background (WCAG AA). `hide`
+folds the bar down to a
 single `keys` tab so a phone gets the screen back and keeps a way to the
 keys and to leaving.
 
-The web console's key bar sends the same bytes from buttons, grouped as
-DiscoBSD (Esc, Tab, Ctrl, ^C, ^D, ^Z, ^L, ^U, ^R) and V6 (DEL intr,
-# erase, @ kill, ^\ quit, ^_ exit V6), because browsers keep Ctrl-C,
-Ctrl-D, Ctrl-W, Ctrl-minus and Ctrl-underscore for themselves. Ctrl arms
+The web console's key bar sends the same bytes from buttons because browsers
+keep Ctrl-C, Ctrl-D, Ctrl-W, and Ctrl-minus for themselves. Ctrl arms
 a one-shot modifier for the next typed key. The `keys` button shows this
-reference in the page. `Sync & leave` types the whole exit for you and
-says so in yellow in the terminal as it goes: `sync`, Ctrl-_ (leaves V6,
-harmless in DiscoBSD), `sync` again, `exit`, then "session closed" and
-the socket closes, about nine seconds in all. It assumes a shell prompt,
-so finish `ed` or `vi` first.
+reference in the page. `Sync & leave` types `sync`, then `exit`, reports
+each action in the terminal, and closes the socket. It assumes a shell
+prompt, so finish `ed` or `vi` first.
 
 Leave cleanly, in this order:
 
-1. In V6: type `sync`, then Ctrl-_ (web: the `^_ exit V6` button; term:
-   Ctrl-] _), or `~.` at the start of a line. The emulator prints its
-   instruction count and the DiscoBSD `$` prompt returns.
-2. In DiscoBSD: type `exit` (or Ctrl-D) until the `login:` prompt is
+1. In DiscoBSD, type `exit` (or Ctrl-D) until the `login:` prompt is
    back, so the next person starts at login. `sync` first if you wrote
    files.
-3. Leave the console: `discobsd-term` with Ctrl-] q; the web console
-   with `Sync & leave` (which also does steps 1 and 2), then close the
+2. Leave the console: `discobsd-term` with Ctrl-] q; the web console
+   with `Sync & leave`, then close the
    tab. Closing the tab alone also frees the console, a few seconds
    later, when the server notices the dead socket, but syncs nothing.
-4. Unplug the board only after `sync` or `halt` in DiscoBSD.
+3. Unplug the board only after `sync` or `halt` in DiscoBSD.
 
 ## Development
 

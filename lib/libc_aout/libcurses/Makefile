@@ -6,13 +6,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 LIBDIR=		${TOPSRC}/lib/libcurses
 
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
-	else \
-		echo "" ; \
-	fi
-
-CFLAGS		= -Os ${DEFS} -Wall ${COPTS}
+CFLAGS		= -Os ${DEFS} -Wall
 
 OBJS		= addch.o addstr.o box.o clear.o clrtobot.o clrtoeol.o cr_put.o \
                   cr_tty.o curses.o delch.o deleteln.o delwin.o endwin.o erase.o \

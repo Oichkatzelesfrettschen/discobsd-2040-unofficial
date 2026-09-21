@@ -1,5 +1,5 @@
 /*
- * Linker for RetroBSD, MIPS32 architecture.
+ * Linker for DiscoBSD ARM Thumb objects.
  *
  * Copyright (C) 2011 Serge Vakulenko, <serge@vak.ru>
  *
@@ -48,9 +48,8 @@
 #include <ar.h>
 #include <ranlib.h>
 
-#define W               4               /* word size in bytes */
-#define BADDR           0x7f008000      /* start address in memory */
-#define ARM_BADDR       0x20000000      /* Cortex-M user window, USER_DATA_START */
+#define BADDR           0x20000000      /* Cortex-M user window, USER_DATA_START */
+#define AOUT_ALIGNMENT  4               /* a.out data, relocation, and symbol units */
 #define SYMDEF          "__.SYMDEF"
 #define IS_LOCSYM(s)    ((s)->n_name[0] == 'L' || \
                          (s)->n_name[0] == '.')
@@ -95,7 +94,6 @@ struct nlist *hshtab [NSYM+2];  /* hash table for symbols */
 struct local local [NSYMPR];
 int symindex;                   /* next free entry of symbol table */
 unsigned basaddr = BADDR;       /* base address of loading */
-int     basaddr_set;            /* -T named the base explicitly */
 struct ranlib *rantab;          /* ranlib table of the library being read */
 int rancount;                   /* number of elements in rantab */
 int rantabsz;                   /* elements rantab was allocated to hold */
@@ -108,7 +106,7 @@ unsigned liblist [NLIBS], *libp;
 /*
  * internal symbols
  */
-struct nlist *p_etext, *p_edata, *p_end, *p_gp, *entrypt;
+struct nlist *p_etext, *p_edata, *p_end, *entrypt;
 
 /*
  * options
@@ -119,8 +117,6 @@ int     Xflag;                  /* discard locals starting with 'L' or '.' */
 int     Sflag;                  /* discard all except locals and globals*/
 int     rflag;                  /* preserve relocation bits, don't define commons */
 int     output_relinfo;
-int     thumb_obj;              /* current input object is Thumb (MID_ARM6) */
-int     thumb_out;              /* any Thumb input seen; output is Thumb */
 int     sflag;                  /* discard all symbols */
 int     dflag;                  /* define common even with rflag */
 int     verbose;                /* verbose mode */
@@ -140,10 +136,6 @@ unsigned ctrel, cdrel, cbrel;
  * used after pass 1
  */
 unsigned torigin, dorigin, borigin;
-
-/* gp control, MIPS specific */
-unsigned gpoffset = 0x8000;     /* offset from data start */
-unsigned gp;                    /* allocated address */
 
 int	ofilfnd;
 char	*ofilename = "l.out";
@@ -203,25 +195,6 @@ fputhdr(struct exec *hdr, FILE *coutb)
 }
 
 /*
- * Read a relocation record: 1 to 6 bytes.
- */
-void
-fgetrel(FILE *f, struct reloc *r)
-{
-        r->flags = getc (f);
-        if ((r->flags & RSMASK) == REXT) {
-                r->index = getc (f);
-                r->index |= getc (f) << 8;
-                r->index |= getc (f) << 16;
-        }
-        if ((r->flags & RFMASK) == RHIGH16 ||
-            (r->flags & RFMASK) == RHIGH16S) {
-                r->offset = getc (f);
-                r->offset |= getc (f) << 8;
-        }
-}
-
-/*
  * Read a Thumb sparse relocation record: 5 or 8 bytes.
  * The record carries the segment offset it patches, so a BL split across
  * a word boundary and a halfword branch both address their own bytes.
@@ -262,31 +235,6 @@ fputrel_thumb(struct reloc *r, FILE *f)
                 putc (r->index >> 8, f);
                 putc (r->index >> 16, f);
                 nbytes += 3;
-        }
-        return nbytes;
-}
-
-/*
- * Emit a relocation record: 1 to 6 bytes.
- * Return a written length.
- */
-unsigned int
-fputrel(struct reloc *r, FILE *f)
-{
-        register unsigned nbytes = 1;
-
-        putc (r->flags, f);
-        if ((r->flags & RSMASK) == REXT) {
-                putc (r->index, f);
-                putc (r->index >> 8, f);
-                putc (r->index >> 16, f);
-                nbytes += 3;
-        }
-        if ((r->flags & RFMASK) == RHIGH16 ||
-            (r->flags & RFMASK) == RHIGH16S) {
-                putc (r->offset, f);
-                putc (r->offset >> 8, f);
-                nbytes += 2;
         }
         return nbytes;
 }
@@ -584,151 +532,6 @@ lookloc(struct local *lp, unsigned int sn)
 	return 0;
 }
 
-void
-printrel(unsigned int word, struct reloc *rel)
-{
-	printf ("%08x %02x ", word, rel->flags);
-
-        if ((rel->flags & RSMASK) == REXT)
-                printf ("%-3d ", rel->index);
-        else
-                printf ("    ");
-
-        if ((rel->flags & RFMASK) == RHIGH16 ||
-            (rel->flags & RFMASK) == RHIGH16S)
-                printf ("%08x", rel->offset);
-        else
-                printf ("        ");
-}
-
-/*
- * Relocate the word by a given offset.
- * Return the new value of word and update rel.
- */
-unsigned int
-relword(struct local *lp, unsigned int word, struct reloc *rel,
-    unsigned int offset)
-{
-	register unsigned addr, delta;
-	register struct nlist *sp = 0;
-
-	if (trace > 2)
-                printrel (word, rel);
-	/*
-         * Extract an address field from the instruction.
-         */
-	switch (rel->flags & RFMASK) {
-	case RBYTE16:
-		addr = word & 0xffff;
-		break;
-	case RBYTE32:
-		addr = word;
-		break;
-	case RWORD16:
-		addr = (word & 0xffff) << 2;
-		break;
-	case RWORD26:
-		addr = (word & 0x3ffffff) << 2;
-		break;
-	case RHIGH16:
-		addr = (word & 0xffff) << 16;
-	        addr += rel->offset;
-		break;
-	case RHIGH16S:
-		addr = (word & 0xffff) << 16;
-	        addr += (signed short) rel->offset;
-		break;
-	default:
-		addr = 0;
-		break;
-	}
-
-	/*
-         * Compute a delta for address.
-         * Update the relocation info, if needed.
-         */
-	switch (rel->flags & RSMASK) {
-	case RTEXT:
-		delta = ctrel;
-		break;
-	case RDATA:
-		delta = cdrel;
-		break;
-	case RBSS:
-		delta = cbrel;
-		break;
-	case REXT:
-		sp = lookloc (lp, rel->index);
-		if (sp->n_type == N_EXT+N_UNDF ||
-		    sp->n_type == N_EXT+N_COMM) {
-                        rel->index = nsym + (sp - symtab);
-			sp = 0;
-                        delta = 0;
-                } else {
-                        rel->flags &= RFMASK | RGPREL;
-                        rel->flags |= reltype (sp->n_type);
-                        delta = sp->n_value;
-		}
-		break;
-	default:
-                delta = 0;
-		break;
-	}
-
-	if ((rel->flags & RGPREL) && ! output_relinfo) {
-            /*
-             * GP relative address.
-             */
-            delta -= gp;
-            rel->flags &= ~RGPREL;
-	}
-
-	/*
-         * Update the address field of the instruction.
-         * Update the relocation info, if needed.
-         */
-	switch (rel->flags & RFMASK) {
-	case RBYTE16:
-	        addr += delta;
-		word &= ~0xffff;
-		word |= addr & 0xffff;
-		break;
-	case RBYTE32:
-		word = addr + delta;
-		break;
-	case RWORD16:
-	        if (! sp)
-                    break;
-	        addr += delta - offset - 4;
-                word &= ~0xffff;
-                word |= (addr >> 2) & 0xffff;
-                rel->flags = RABS;
-		break;
-	case RWORD26:
-	        addr += delta;
-		word &= ~0x3ffffff;
-		word |= (addr >> 2) & 0x3ffffff;
-		break;
-	case RHIGH16:
-	        addr += delta;
-		word &= ~0xffff;
-		word |= (addr >> 16) & 0xffff;
-		break;
-	case RHIGH16S:
-	        addr += delta;
-		word &= ~0xffff;
-		word |= ((addr + 0x8000) >> 16) & 0xffff;
-		break;
-	}
-	if (trace > 2) {
-		//printf (" +%#x ", delta);
-		printf (" -> ");
-                printrel (word, rel);
-		printf ("\n");
-        }
-	return word;
-}
-
 /*
  * Read and write a little-endian halfword at an absolute file offset.
  */
@@ -825,10 +628,8 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                  * survives relocation, so once it is computed the field is
                  * final and the record is marked RABS. Recomputing it on a
                  * later link would subtract the program counter a second
-                 * time, so an RABS record is left alone -- which is the
-                 * guard relword applies to RWORD16 by testing for a null
-                 * symbol. An unresolved external likewise keeps its addend
-                 * for the next link.
+                 * time, so an RABS record is left alone. An unresolved
+                 * external likewise keeps its addend for the next link.
                  */
                 if ((rel->flags & RSMASK) == RABS)
                         break;
@@ -916,23 +717,6 @@ relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
                 }
         }
         fseek (b1, base + len, 0);
-}
-
-void
-relocate(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
-    unsigned int origin)
-{
-	unsigned word, offset;
-	struct reloc rel;
-
-	for (offset=0; offset<len; offset+=W) {
-		word = fgetword (text);
-		fgetrel (reloc, &rel);
-		word = relword (lp, word, &rel, offset + origin);
-		fputword (word, b1);
-		if (output_relinfo)
-                        fputrel (&rel, b2);
-	}
 }
 
 unsigned int
@@ -1121,18 +905,14 @@ readhdr(unsigned int loc)
 	if (N_GETMAGIC(filhdr) != RMAGIC)
 		error (2, "bad magic");
 	/*
-	 * MID_ARM6 marks a Thumb object, whose relocation stream is sparse.
-	 * Mixing it with a MIPS object would relocate one of the two through
-	 * the wrong stream reader, so the first input fixes the kind.
+	 * MID_ARM6 marks a Thumb object with the sparse relocation stream that
+	 * the maintained linker accepts.
 	 */
-	thumb_obj = (N_GETMID(filhdr) == MID_ARM6);
-	if (thumb_obj)
-		thumb_out = 1;
-	else if (thumb_out)
-		error (2, "cannot mix Thumb and MIPS objects");
-	if (filhdr.a_text % (thumb_obj ? 2 : W))
+	if (N_GETMID(filhdr) != MID_ARM6)
+		error (2, "object machine is not ARM Thumb");
+	if (filhdr.a_text % 2)
 		error (2, "bad length of text");
-	if (filhdr.a_data % W)
+	if (filhdr.a_data % AOUT_ALIGNMENT)
 		error (2, "bad length of data");
         /* BSS segment is allowed to be unaligned. */
 }
@@ -1380,7 +1160,6 @@ pass1(int argc, char **argv)
 				/* base address of loading */
 			case 'T':
 				basaddr = atol (ap+i+1);
-				basaddr_set = 1;
 				break;
 
 				/* library */
@@ -1452,7 +1231,6 @@ middle(void)
 	p_etext = *slookup ("_etext");
 	p_edata = *slookup ("_edata");
 	p_end = *slookup ("_end");
-        p_gp = *slookup ("_gp");
 
 	/*
 	 * If there are any undefined symbols, save the relocation bits.
@@ -1461,8 +1239,7 @@ middle(void)
 	if (! output_relinfo) {
 		for (sp=symtab; sp<symp; sp++)
 			if (sp->n_type == N_EXT+N_UNDF &&
-				sp != p_end && sp != p_edata &&
-                                sp != p_etext && sp != p_gp)
+				sp != p_end && sp != p_edata && sp != p_etext)
 			{
 				output_relinfo++;
 				dflag = 0;
@@ -1482,10 +1259,6 @@ middle(void)
 		ldrsym (p_etext, tsize, N_EXT+N_TEXT);
 		ldrsym (p_edata, dsize, N_EXT+N_DATA);
 		ldrsym (p_end, bsize, N_EXT+N_BSS);
-
-                /* Set GP as offset from the start of data segment. */
-		ldrsym (p_gp, gpoffset, N_EXT+N_DATA);
-
 		for (sp=symtab; sp<symp; sp++) {
 			if ((sp->n_type & N_TYPE) == N_COMM) {
 				t = sp->n_value;
@@ -1497,15 +1270,11 @@ middle(void)
 	}
 
 	/*
-	 * Now set symbols to their final value. A Thumb link runs on a
-	 * Cortex-M, whose kernel loads text and data at USER_DATA_START
-	 * (sys/kern/exec_aout.c), not at the MIPS user base.
+	 * Cortex-M loads text and data at USER_DATA_START
+	 * (sys/kern/exec_aout.c).
 	 */
-	if (thumb_out && !basaddr_set)
-		basaddr = ARM_BADDR;
 	torigin = basaddr;
 	dorigin = torigin + tsize;
-	gp = dorigin + gpoffset;
 	cmorigin = dorigin + dsize;
 	borigin = cmorigin + cmsize;
 	nund = 0;
@@ -1514,8 +1283,7 @@ middle(void)
 		case N_EXT+N_UNDF:
 			if (! rflag) {
                                 errlev |= 1;
-				if (sp == p_end || sp == p_edata ||
-                                    sp == p_etext || sp == p_gp)
+				if (sp == p_end || sp == p_edata || sp == p_etext)
                                         break;
 				if (! nund)
 					printf ("Undefined:\n");
@@ -1658,21 +1426,15 @@ load2(unsigned int loc)
 		printf ("-- text --\n");
 	fseek (text, loc, 0);
 	fseek (reloc, count, 0);
-	if (thumb_obj)
-		relocate_thumb (lp, toutb, troutb, filhdr.a_text, torigin,
-			filhdr.a_reltext);
-	else
-		relocate (lp, toutb, troutb, filhdr.a_text, torigin);
+	relocate_thumb (lp, toutb, troutb, filhdr.a_text, torigin,
+		filhdr.a_reltext);
 
 	if (trace > 1)
 		printf ("-- data --\n");
 	fseek (text, loc + filhdr.a_text, 0);
 	fseek (reloc, count + filhdr.a_reltext, 0);
-	if (thumb_obj)
-		relocate_thumb (lp, doutb, droutb, filhdr.a_data, dorigin,
-			filhdr.a_reldata);
-	else
-		relocate (lp, doutb, droutb, filhdr.a_data, dorigin);
+	relocate_thumb (lp, doutb, droutb, filhdr.a_data, dorigin,
+		filhdr.a_reldata);
 
 	torigin += filhdr.a_text;
 	dorigin += filhdr.a_data;
@@ -1763,12 +1525,12 @@ finishout(void)
 	copy_and_close (doutb);
 	if (output_relinfo) {
 		rtsize = copy_and_close (troutb);
-		while (rtsize % W) {
+		while (rtsize % AOUT_ALIGNMENT) {
 			putc (0, outb);
 			rtsize++;
                 }
 		rdsize = copy_and_close (droutb);
-		while (rdsize % W) {
+		while (rdsize % AOUT_ALIGNMENT) {
 			putc (0, outb);
 			rdsize++;
                 }
@@ -1779,7 +1541,7 @@ finishout(void)
 		for (p=symtab; p<&symtab[symindex]; ++p)
 			fputsym (p, outb);
 		putc (0, outb);
-		while (ssize++ % W)
+		while (ssize++ % AOUT_ALIGNMENT)
 			putc (0, outb);
 	}
 	filhdr.a_midmag = output_relinfo ? RMAGIC : OMAGIC;
@@ -1789,14 +1551,14 @@ finishout(void)
 	 * exec_aout_check() in sys/kern/exec_aout.c accepts no other machine
 	 * id, the same header elf2aout writes.
 	 */
-	if (thumb_out && output_relinfo)
+	if (output_relinfo)
 		filhdr.a_midmag |= MID_ARM6 << 16;
 	filhdr.a_text = tsize;
 	filhdr.a_data = dsize;
 	filhdr.a_bss = bsize;
 	filhdr.a_reltext = rtsize;
 	filhdr.a_reldata = rdsize;
-	filhdr.a_syms = ALIGN (ssize, W);
+	filhdr.a_syms = ALIGN (ssize, AOUT_ALIGNMENT);
 	if (entrypt) {
 		if (entrypt->n_type != N_EXT+N_TEXT &&
 		    entrypt->n_type != N_EXT+N_UNDF)
@@ -1811,8 +1573,7 @@ finishout(void)
 	 * text, is not. elf2aout passes ELF's e_entry through with the bit
 	 * set, so the two paths agree.
 	 */
-	if (thumb_out)
-		filhdr.a_entry |= 1;
+	filhdr.a_entry |= 1;
 
 	fseek (outb, 0, 0);
 	fputhdr (&filhdr, outb);

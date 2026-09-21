@@ -6,7 +6,6 @@
 
 /* platform-dependent code for running programs is in this file */
 
-#if defined(UNIX_HOST) || defined(WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,6 +13,23 @@
 #ifndef PICOC_STACK_SIZE
 #define PICOC_STACK_SIZE (128*1024)              /* space for the the stack */
 #endif
+
+static void RunSourceFiles(int argc, char **argv, int first_source_argument,
+                           int dont_run_main)
+{
+    int source_argument;
+
+    if (PicocPlatformSetExitPoint())
+        return;
+
+    for (source_argument = first_source_argument;
+         source_argument < argc && strcmp(argv[source_argument], "-") != 0;
+         source_argument++)
+        PicocPlatformScanFile(argv[source_argument]);
+
+    if (!dont_run_main)
+        PicocCallMain(argc - source_argument, &argv[source_argument]);
+}
 
 int main(int argc, char **argv)
 {
@@ -45,64 +61,9 @@ int main(int argc, char **argv)
     }
     else
     {
-        if (PicocPlatformSetExitPoint())
-        {
-            PicocCleanup();
-            return PicocExitValue;
-        }
-        
-        for (; ParamCount < argc && strcmp(argv[ParamCount], "-") != 0; ParamCount++)
-            PicocPlatformScanFile(argv[ParamCount]);
-        
-        if (!DontRunMain)
-            PicocCallMain(argc - ParamCount, &argv[ParamCount]);
+        RunSourceFiles(argc, argv, ParamCount, DontRunMain);
     }
     
     PicocCleanup();
     return PicocExitValue;
 }
-#else
-# ifdef SURVEYOR_HOST
-#  define HEAP_SIZE C_HEAPSIZE
-#  include <setjmp.h>
-#  include "../srv.h"
-#  include "../print.h"
-#  include "../string.h"
-
-int picoc(char *SourceStr)
-{   
-    char *pos;
-
-    PicocInitialise(HEAP_SIZE);
-
-    if (SourceStr)
-    {
-        for (pos = SourceStr; *pos != 0; pos++)
-        {
-            if (*pos == 0x1a)
-            {
-                *pos = 0x20;
-            }
-        }
-    }
-
-    /*
-     * jmp_buf holds _JBLEN words, 12 here; element 40 lay in whatever
-     * followed it. The return of setjmp says whether a longjmp arrived.
-     */
-    if (PicocPlatformSetExitPoint()) {
-        printf("Leaving PicoC\n\r");
-        PicocCleanup();
-        return PicocExitValue;
-    }
-
-    if (SourceStr)   
-        PicocParse("nofile", SourceStr, strlen(SourceStr), TRUE, TRUE, FALSE);
-
-    PicocParseInteractive();
-    PicocCleanup();
-    
-    return PicocExitValue;
-}
-# endif
-#endif

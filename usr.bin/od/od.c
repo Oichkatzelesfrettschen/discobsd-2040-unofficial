@@ -450,12 +450,6 @@ struct dfmt *d;
     char fbuf[24];
     struct l { long n[2]; };
 
-#if vax
-    if ((((struct l *)f)->n[0] & 0xff00) == 0x8000) /* Vax illegal f.p. */
-        sprintf(fbuf, "    %08x %08x",
-            ((struct l *)f)->n[0], ((struct l *)f)->n[1]);
-    else
-#endif
 
         sprintf(fbuf, "%21.14e", *f);
     printf(d->df_fmt, fbuf);
@@ -469,11 +463,6 @@ struct dfmt *d;
 {
     char fbuf[16];
 
-#if vax
-    if ((*(long *)f & 0xff00) == 0x8000)    /* Vax illegal f.p. form */
-        sprintf(fbuf, "      %08x", *(long *)f);
-    else
-#endif
         sprintf(fbuf, "%14.7e", *f);
     printf(d->df_fmt, fbuf);
     return(d->df_size);

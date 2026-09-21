@@ -26,4 +26,6 @@ install:
 			${MAKE} -C $$i $(MFLAGS) DESTDIR=$(DESTDIR) install; done
 
 clean:
-		-for i in $(SUBDIR); do ${MAKE} -C $$i $(MFLAGS) clean; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i ${MFLAGS} clean || status=1; \
+		done; exit $$status

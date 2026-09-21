@@ -144,8 +144,8 @@ tsleep (ident, priority, timo)
          * After a panic return at once without running any other proc, which
          * would panic again below if this is the idle process and already
          * asleep.  No interrupt runs in between.  Every console putc in this
-         * tree polls its device under spltty() -- uartputc() on pic32, stm32,
-         * and rp2040, usbputc() and usbdrain() on rp2040 -- so the panic
+         * tree polls its device under spltty() -- uartputc() on STM32 and
+         * RP2040, and usbputc() and usbdrain() on RP2040 -- so the panic
          * message reaches the user without one, and an interrupt taken here
          * could only lead to the recursive panic this path avoids.  boot()
          * opens its own window before sync() on every machine, which is where

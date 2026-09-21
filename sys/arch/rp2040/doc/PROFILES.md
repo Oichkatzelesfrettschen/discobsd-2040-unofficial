@@ -1,10 +1,10 @@
 # Root filesystem profiles: what an image carries, and what that costs
 
-The 1536 KB Dhara root yields 988 blocks of 1024 bytes, and the shipped
-image leaves 96 of them free. Four optional feature closures account for
-346 of the 892 blocks in use, so an image that keeps only the base system
-boots with 442 free blocks -- a 4.6-fold increase in the space a user has
-for files. This document is the authority for the closure markers in
+The 1536 KB Dhara root yields 988 blocks of 1024 bytes. The maintained
+`full` image leaves 270 blocks free; an image that keeps only the base system
+leaves 445. The default image excludes the PDP-11 emulator and V6 pack. An
+explicit `BUILD_PDP11_V6=yes` image adds both and leaves 100 blocks free with
+the `full` profile. This document is the authority for the closure markers in
 `distrib/rp2040/mi.rp2040`, the profile declarations in
 `distrib/rp2040/profiles`, the composer and checker
 `distrib/rp2040/mkmanifest.py`, and the `check-fs-profiles` gate.
@@ -36,12 +36,14 @@ also a KiB count. The inode column is the difference in free inodes, which
 | --- | --- | --- | --- |
 | `coremark` | 15 | 1 | `/usr/bin/coremark` |
 | `games` | 14 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble` |
-| `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
-| `v6disk` | 156 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
-| `toolchain` + `toolchainlib` | 147 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
-| all four features | 346 | 13 | |
+| `toolchain` + `toolchainlib` | 146 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
+| all maintained closures | 175 | 10 | |
+| legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
+| legacy `v6disk` | 156 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
-`/usr/v6/root.rk` is 1024000 bytes of V6 pack and costs 156 blocks, not
+The two legacy rows are measured only in an image built with
+`BUILD_PDP11_V6=yes`; they are absent from the maintained manifest and
+profiles. `/usr/v6/root.rk` is 1024000 bytes of V6 pack and costs 156 blocks, not
 1000: `add_file()` in `tools/fsutil/fsutil.c` leaves a block of zeros
 unmapped, and the kernel's `bmap()` reads an unmapped block as zeros, so
 the pack's unused blocks occupy no flash. `toolchain` and `toolchainlib`
@@ -53,12 +55,22 @@ bytes.
 
 | Profile | Closures | Free blocks | Free inodes |
 | --- | --- | --- | --- |
-| `base` | none | 442 | 43 |
-| `benchmark` | `coremark` | 427 | 42 |
-| `games` | `games` | 428 | 41 |
-| `developer` | `toolchain`, `toolchainlib` | 295 | 36 |
-| `retro-lab` | `pdp11`, `v6disk`, `toolchain`, `toolchainlib` | 125 | 33 |
-| `full` | every closure | 96 | 30 |
+| `base` | none | 445 | 43 |
+| `benchmark` | `coremark` | 430 | 42 |
+| `games` | `games` | 431 | 41 |
+| `developer` | `toolchain`, `toolchainlib` | 299 | 36 |
+| `full` | every maintained closure | 270 | 33 |
+
+The opt-in option augments each profile with the emulator and guest pack. It
+does not add another maintained profile or change what `full` means:
+
+| Profile with `BUILD_PDP11_V6=yes` | Free blocks | Free inodes |
+| --- | ---: | ---: |
+| `base` | 275 | 40 |
+| `benchmark` | 260 | 39 |
+| `games` | 261 | 38 |
+| `developer` | 129 | 33 |
+| `full` | 100 | 30 |
 
 `full` is the default. `distrib/rp2040/Makefile.inc` sets `PROFILE?=full`,
 so a build that names no profile writes the image the port ships:
@@ -66,8 +78,12 @@ so a build that names no profile writes the image the port ships:
     bmake MACHINE=rp2040 distribution              # full
     bmake MACHINE=rp2040 PROFILE=base distribution # base
     bmake MACHINE=rp2040 PROFILE=base flash        # its UF2
+    bmake MACHINE=rp2040 BUILD_PDP11_V6=yes \
+        legacy-pdp11-v6-distribution               # full plus PDP-11/V6
 
-The composed manifest lands at `distrib/rp2040/_manifest.<profile>`, which
+The maintained composed manifest lands at
+`distrib/rp2040/_manifest.<profile>`. The legacy option writes
+`distrib/rp2040/_manifest.<profile>.pdp11-v6`, which
 the image rule concatenates with `distrib/rp2040/md.rp2040` the way it
 always has. Two profiles built in turn overwrite one `sdcard.img`, so a
 build that keeps both images copies the first aside.
@@ -118,10 +134,18 @@ and `--selftest` in that order, and both halves must pass:
 | every declared profile | accept | composes |
 | `toolchain` without `toolchainlib` | reject | needs closure toolchainlib |
 | `toolchainlib` without `toolchain` | reject | needs closure toolchain |
-| `pdp11` without `v6disk` | reject | needs closure v6disk |
 | `games` with `pack /usr/games/gamebox` deleted | reject | hard link /usr/games/keen has no source |
 | `toolchain` with `file /usr/lib/libc.a` deleted | reject | needs /usr/lib/libc.a |
 | `games` with `dir /usr/games` deleted | reject | needs directory /usr/games |
+
+When `BUILD_PDP11_V6=yes` supplies the legacy manifest and profile fragments,
+the same selftest adds three refusal cases:
+
+| Case | Verdict | Reason asserted |
+| --- | --- | --- |
+| `pdp11` without `v6disk` | reject | needs closure v6disk |
+| PDP-11 closure without its emulator | reject | needs /usr/bin/pdp11 |
+| V6 closure without its guest pack | reject | needs /usr/v6/root.rk |
 
 The three deletion cases remove one directive from the composed manifest
 in memory, which is how a hand-edited manifest breaks a closure that the
@@ -136,8 +160,10 @@ rather than silently passing it.
 2. Declare its dependencies in `distrib/rp2040/profiles`: a `needs closure`
    line for each closure it cannot work without, and a `needs path` line
    for each file whose absence breaks it silently.
-3. Name it on the `profile` lines that should carry it, and on
-   `profile full`, which is the default and must keep naming every closure.
+3. Name a maintained closure on the `profile` lines that should carry it and
+   on `profile full`, which must keep naming every maintained closure. A
+   default-off legacy closure belongs in its own profile and manifest
+   fragments and enters composition through its guarded Make option.
 4. Add a rejection case to `selftest()` in `distrib/rp2040/mkmanifest.py`
    for the way the new closure breaks, and run
    `bmake MACHINE=rp2040 check-fs-profiles`.

@@ -131,11 +131,7 @@ char *name;
 	register long charcnt;
 
 	oldcrc32 = 0xFFFFFFFF; charcnt = 0;
-#ifdef M_I86SM
-	if ((fin=fopen(name, "rb"))==NULL)
-#else
 	if ((fin=fopen(name, "r"))==NULL)
-#endif
 	{
 		perror(name);
 		return ERROR;
@@ -157,4 +153,3 @@ char *name;
 
 	return OK;
 }
-

@@ -3,15 +3,15 @@
 #
 
 SUBDIR=	startup libc libm libcurses libtermlib \
-	libreadline libgpanel libwiznet
+	libreadline
 
 all install:
-	-for dir in ${SUBDIR}; do \
+	set -e; for dir in ${SUBDIR}; do \
 		${MAKE} -C $$dir ${MFLAGS} $@; \
 	done
 
 clean:
-	rm -f *~ *.o *.a
+	status=0; rm -f *~ *.o *.a || status=1; \
 	for dir in ${SUBDIR}; do \
-		${MAKE} -C $$dir ${MFLAGS} clean; \
-	done
+		${MAKE} -C $$dir ${MFLAGS} clean || status=1; \
+	done; exit $$status

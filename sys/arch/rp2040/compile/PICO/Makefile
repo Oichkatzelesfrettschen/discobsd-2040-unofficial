@@ -32,9 +32,16 @@ DEBUG = -g
 
 # sources are located via $S relative to the compilation directory
 S=		../../../..
+TOPSRC!=	cd ${S}/.. && pwd
+MACHINE_DEFAULT=	rp2040
+include		${TOPSRC}/share/mk/architecture.mk
 
-_mach?=		rp2040
-_arch?=		arm
+.if ${MACHINE} != "rp2040"
+.error rp2040 kernel Makefiles require MACHINE=rp2040
+.endif
+
+_mach=		${MACHINE}
+_arch=		${MACHINE_ARCH}
 _machdir?=	$S/arch/${_mach}
 _archdir?=	$S/arch/${_arch}
 _confdir?=	${_machdir}/conf
@@ -52,7 +59,6 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Wextra -Werror
 
-CMACHCPU=	-mcpu=cortex-m0plus
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # indirect syscall dispatch in sysctl.c, which reproduces on the untouched
@@ -60,9 +66,7 @@ CMACHCPU=	-mcpu=cortex-m0plus
 CSTDFLAGS=	-std=gnu17
 
 CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common
-CMACHFLAGS+=	-mfloat-abi=soft
-CMACHFLAGS+=	-mthumb -mabi=aapcs -mlittle-endian
-CMACHFLAGS+=	${CMACHCPU}
+CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 
 COPTS?=		-O
 CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
@@ -150,7 +154,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
-SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
+SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 # The link is one recipe of three lines, and each line is one && chain, so
 # the status a step returns is the status of the line and a failed step
@@ -208,8 +212,10 @@ clean:
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
-reconfig ioconf.c: Config $S/../tools/bin/config
-	$S/../tools/bin/config Config
+CONFIG_TOOL=	${TOOLBINDIR}/config
+
+reconfig ioconf.c: Config ${CONFIG_TOOL}
+	${CONFIG_TOOL} Config
 	${MAKE} clean
 
 machine:
@@ -234,7 +240,7 @@ locore0.o: ${_machdir}/${_mach}/locore0.S
 # at flash offset 0. See boot2/boot2.ld and tools/boot2sum.
 BOOT2SRC=	${_machdir}/boot2/boot2_w25q080.S
 BOOT2LD=	${_machdir}/boot2/boot2.ld
-BOOT2SUM=	$S/../tools/bin/boot2sum
+BOOT2SUM=	${TOOLBINDIR}/boot2sum
 
 boot2.elf: ${BOOT2SRC} ${BOOT2LD}
 	${CC} ${AFLAGS} ${INCLUDES} -nostdlib -nostartfiles \

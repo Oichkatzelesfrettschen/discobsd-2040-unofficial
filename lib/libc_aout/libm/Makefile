@@ -6,13 +6,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 LIBDIR=		${TOPSRC}/lib/libm
 
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
-	else \
-		echo "" ; \
-	fi
-
-CFLAGS          = -Os ${DEFS} -Wall ${COPTS}
+CFLAGS          = -Os ${DEFS} -Wall
 
 OBJS            = asin.o atan.o exp.o erf.o floor.o fmod.o hypot.o j0.o j1.o \
                   jn.o log.o pow.o sin.o sinh.o sqrt.o tan.o tanh.o

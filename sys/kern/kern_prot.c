@@ -65,8 +65,8 @@ getegid()
 }
 
 /*
- * getgroups and setgroups differ from 4.X because the VAX stores group
- * entries in the user structure as shorts and has to convert them to ints.
+ * The user structure stores group entries as gid_t while the system-call
+ * interface exchanges int values, so both calls convert each entry.
  */
 void
 getgroups()

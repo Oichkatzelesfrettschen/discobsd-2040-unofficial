@@ -21,8 +21,9 @@ TOPSRC=${TOPSRC:?TOPSRC must be set}
 MACHINE=${MACHINE:-rp2040}
 HOST_CC=${HOST_CC:-cc}
 CROSS=${CROSS:-arm-none-eabi}
-PYTHON=${PYTHON:-python3}
+PYTHON=${PYTHON:?PYTHON must name the host interpreter}
 CPU=${CPU:-cortex-m0plus}
+TOOLBINDIR=${TOOLBINDIR:-$TOPSRC/tools/bin/$MACHINE}
 SRCDIR=$(cd "$(dirname "$0")" && pwd)
 OUT=$SRCDIR/out
 
@@ -33,7 +34,7 @@ CPP="$CROSS-gcc -E -P -nostdinc -I$TOPSRC/include -U__GNUC__ -U__PCC__ \
 AS="$CROSS-as"
 GCC="$CROSS-gcc"
 NM="$CROSS-nm"
-ELF2AOUT=$TOPSRC/tools/bin/elf2aout
+ELF2AOUT=$TOOLBINDIR/elf2aout
 LDSCRIPT=$TOPSRC/lib/elf32-arm.ld
 CRT0=$TOPSRC/lib/crt0.o
 LIBC=$TOPSRC/lib/libc.a
@@ -104,20 +105,31 @@ for f in "$CRT0" "$LIBC" "$LDSCRIPT" "$ELF2AOUT" ; do
 	}
 done
 
-# lib/libc.a is one file shared by every ARM machine, and the linker does not
-# reject an object built for a wider architecture. A libc left over from an
-# stm32 build is Cortex-M4, whose Thumb-2 encodings fault on a Cortex-M0+ but
-# run happily under a full-ARM emulator, so the mismatch would pass the tests
-# and fail on the board. The build attribute is the thing that distinguishes
-# them.
-_arch=$($CROSS-readelf -A "$LIBC" 2>/dev/null |
+# lib/libc.a is one file shared by every ARM machine, and the linker accepts an
+# object built for another ARM profile. The ELF CPU attribute distinguishes a
+# matching library from a stale library left by another machine build.
+case "$CPU" in
+cortex-m0plus)
+	expected_arch_pattern='v6*'
+	expected_arch_description='ARMv6-M'
+	;;
+cortex-m4)
+	expected_arch_pattern='v7E-M'
+	expected_arch_description='ARMv7E-M'
+	;;
+*)
+	echo "unsupported CPU for the Smaller C harness: $CPU" >&2
+	exit 2
+	;;
+esac
+libc_arch=$($CROSS-readelf -A "$LIBC" 2>/dev/null |
     sed -n 's/.*Tag_CPU_arch: *//p' | head -1)
-case "$_arch" in
-v6*)	;;
+case "$libc_arch" in
+$expected_arch_pattern)	;;
 "")	note "warning: cannot read the CPU architecture of $LIBC" ;;
-*)	echo "$LIBC is built for $_arch, not the Cortex-M0+'s v6-M"
+*)	echo "$LIBC is built for $libc_arch, not $expected_arch_description"
 	echo "rebuild it for this machine:"
-	echo "  bmake MACHINE=rp2040 DESTDIR=\$TOPSRC/distrib/obj/destdir.rp2040 -C lib"
+	echo "  bmake MACHINE=$MACHINE DESTDIR=\$TOPSRC/distrib/obj/destdir.$MACHINE -C lib"
 	exit 1 ;;
 esac
 

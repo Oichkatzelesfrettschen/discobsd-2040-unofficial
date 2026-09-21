@@ -434,7 +434,6 @@ target /usr/share/zoneinfo/Canada/Mountain
 #
 default
 filemode 0775
-file /usr/bin/aout
 file /usr/bin/apropos
 file /usr/bin/ar
 file /usr/bin/arch
@@ -447,8 +446,6 @@ file /usr/bin/cal
 file /usr/bin/calendar
 file /bin/cat
 file /usr/bin/cb
-file /usr/bin/cc
-file /usr/bin/chat-server
 file /usr/bin/chflags
 file /bin/chgrp
 file /bin/chmod
@@ -459,7 +456,6 @@ file /usr/bin/col
 file /usr/bin/comm
 file /usr/bin/compress
 file /bin/cp
-file /usr/bin/cpp
 file /usr/bin/crontab
 file /bin/date
 file /usr/bin/dc
@@ -483,10 +479,6 @@ file /usr/bin/fold
 file /usr/bin/forth
 file /usr/bin/fstat
 mode 02755
-file /usr/bin/glcdtest
-file /usr/bin/globdump
-file /usr/bin/globread
-file /usr/bin/globwrite
 file /usr/bin/grep
 file /usr/bin/groups
 file /usr/bin/head
@@ -500,13 +492,10 @@ file /usr/bin/join
 file /bin/kill
 file /usr/bin/la
 file /usr/bin/last
-file /usr/bin/lcc
-file /usr/bin/lcpp
 file /usr/bin/ld
 file /bin/ln
 file /usr/bin/login
 mode 04755
-file /usr/bin/lol
 file /bin/ls
 file /usr/bin/m4
 file /usr/bin/mail
@@ -523,21 +512,18 @@ file /bin/mv
 file /usr/bin/nice
 file /usr/bin/nm
 file /usr/bin/nohup
-file /usr/bin/ntpdate
 file /usr/bin/od
 file /usr/bin/pagesize
 file /usr/bin/passwd
 mode 04755
 file /usr/bin/pdc
 file /usr/bin/picoc
-file /usr/bin/portio
 file /usr/bin/pr
 file /usr/bin/printenv
 file /usr/bin/printf
 file /bin/ps
 mode 02755
 file /bin/pwd
-file /usr/bin/pwm
 file /usr/bin/ranlib
 file /usr/bin/re
 file /usr/bin/renice
@@ -548,7 +534,6 @@ file /bin/rm
 file /bin/rmail
 file /bin/rmdir
 file /usr/bin/rz
-file /usr/bin/scc
 file /usr/bin/scm
 file /usr/bin/sed
 file /usr/bin/setty
@@ -556,7 +541,6 @@ file /bin/sh
 file /usr/bin/size
 file /usr/bin/sl
 file /bin/sleep
-file /usr/bin/smux
 file /usr/bin/sort
 file /usr/bin/split
 file /usr/bin/strip
@@ -571,7 +555,6 @@ file /usr/bin/tail
 file /bin/tar
 file /usr/bin/tclsh
 file /usr/bin/tee
-file /usr/bin/telnet
 file /bin/test
 file /usr/bin/time
 file /usr/bin/tip
@@ -603,8 +586,6 @@ file /usr/bin/w
 file /usr/bin/wall
 mode 02755
 file /usr/bin/wc
-file /usr/bin/web-client
-file /usr/bin/web-server
 file /usr/bin/whereis
 file /usr/bin/who
 file /usr/bin/whoami
@@ -792,8 +773,6 @@ dir /usr/include
 dir /usr/include/arpa
 dir /usr/include/machine
 dir /usr/include/readline
-dir /usr/include/smallc
-dir /usr/include/smallc/sys
 dir /usr/include/sys
 file /usr/include/alloca.h
 file /usr/include/a.out.h
@@ -823,13 +802,6 @@ file /usr/include/readline/readline.h
 file /usr/include/regexp.h
 file /usr/include/setjmp.h
 file /usr/include/sgtty.h
-file /usr/include/smallc/curses.h
-file /usr/include/smallc/fcntl.h
-file /usr/include/smallc/signal.h
-file /usr/include/smallc/stdio.h
-file /usr/include/smallc/sys/gpio.h
-file /usr/include/smallc/sys/spi.h
-file /usr/include/smallc/wiznet.h
 file /usr/include/stdarg.h
 file /usr/include/stddef.h
 file /usr/include/stdio.h
@@ -854,10 +826,7 @@ file /usr/include/sysexits.h
 file /usr/include/sys/fcntl.h
 file /usr/include/sys/file.h
 file /usr/include/sys/fs.h
-file /usr/include/sys/glcd.h
 file /usr/include/sys/glob.h
-file /usr/include/sys/gpanel.h
-file /usr/include/sys/gpio.h
 file /usr/include/sys/inode.h
 file /usr/include/sys/ioctl.h
 file /usr/include/sys/kernel.h
@@ -866,7 +835,6 @@ file /usr/include/sys/mount.h
 file /usr/include/sys/msgbuf.h
 file /usr/include/sys/mtio.h
 file /usr/include/sys/namei.h
-file /usr/include/sys/pwm.h
 file /usr/include/sys/param.h
 file /usr/include/sys/picga.h
 file /usr/include/sys/proc.h
@@ -932,10 +900,8 @@ file /usr/lib/crt0.o
 file /usr/lib/libc.a
 file /usr/lib/libm.a
 file /usr/lib/libcurses.a
-file /usr/lib/libgpanel.a
 file /usr/lib/libreadline.a
 file /usr/lib/libtermlib.a
-file /usr/lib/libwiznet.a
 file /usr/lib/retroImage
 
 #
@@ -948,7 +914,6 @@ file /usr/libexec/bigram
 file /usr/libexec/code
 file /usr/libexec/diffh
 file /usr/libexec/getty
-file /usr/libexec/smallc
 
 #
 # Files: /usr/share
@@ -1063,19 +1028,11 @@ file /usr/share/zoneinfo/WET
 file /usr/share/zoneinfo/W-SU
 
 #
-# Files: /usr/share/examples/asm
+# Files: /usr/share/examples/basic
 #
 default
 filemode 0664
 dir /usr/share/examples
-dir /usr/share/examples/asm
-file /usr/share/examples/asm/Makefile
-file /usr/share/examples/asm/ashello.S
-file /usr/share/examples/asm/echo.S
-
-#
-# Files: /usr/share/examples/basic
-#
 dir /usr/share/examples/basic
 file /usr/share/examples/basic/blkjack.bas
 file /usr/share/examples/basic/hilow.bas
@@ -1098,10 +1055,7 @@ file /usr/share/examples/scheme/prime.scm
 #
 dir /usr/share/examples/c
 file /usr/share/examples/c/Makefile
-file /usr/share/examples/c/adc.c
-file /usr/share/examples/c/gpio.c
 file /usr/share/examples/c/hello.c
-file /usr/share/examples/c/lcd6.c
 file /usr/share/examples/c/primelist.c
 file /usr/share/examples/c/primesum.c
 file /usr/share/examples/c/q8.c
@@ -1111,89 +1065,6 @@ file /usr/share/examples/c/stdarg.c
 file /usr/share/examples/c/test1.c
 file /usr/share/examples/c/test2.c
 file /usr/share/examples/c/test3.c
-file /usr/share/examples/c/tetris.c
-
-#
-# Files: /usr/share/examples/gpanel
-#
-dir /usr/share/examples/gpanel
-dir /usr/share/examples/gpanel/fonts
-file /usr/share/examples/gpanel/Makefile
-file /usr/share/examples/gpanel/circle.c
-file /usr/share/examples/gpanel/color.c
-file /usr/share/examples/gpanel/fill.c
-file /usr/share/examples/gpanel/flappy.c
-file /usr/share/examples/gpanel/font.c
-file /usr/share/examples/gpanel/line.c
-file /usr/share/examples/gpanel/pixel.c
-file /usr/share/examples/gpanel/rect.c
-file /usr/share/examples/gpanel/speed.c
-file /usr/share/examples/gpanel/tft.c
-file /usr/share/examples/gpanel/tftetris.c
-file /usr/share/examples/gpanel/fonts/5x7.c
-file /usr/share/examples/gpanel/fonts/6x9.c
-file /usr/share/examples/gpanel/fonts/digits20.c
-file /usr/share/examples/gpanel/fonts/digits32.c
-file /usr/share/examples/gpanel/fonts/lucidasans11.c
-file /usr/share/examples/gpanel/fonts/lucidasans15.c
-file /usr/share/examples/gpanel/fonts/lucidasans28.c
-file /usr/share/examples/gpanel/fonts/lucidasans7.c
-file /usr/share/examples/gpanel/fonts/lucidasans9.c
-file /usr/share/examples/gpanel/fonts/verdana7.c
-
-#
-# Files: /usr/share/examples/smallc
-#
-dir /usr/share/examples/smallc
-file /usr/share/examples/smallc/Makefile
-file /usr/share/examples/smallc/adc.c
-file /usr/share/examples/smallc/gpio.c
-file /usr/share/examples/smallc/hello.c
-file /usr/share/examples/smallc/primelist.c
-file /usr/share/examples/smallc/primesum.c
-file /usr/share/examples/smallc/q8.c
-file /usr/share/examples/smallc/rain.c
-file /usr/share/examples/smallc/test1.c
-file /usr/share/examples/smallc/test2.c
-file /usr/share/examples/smallc/test3.c
-file /usr/share/examples/smallc/webserver.c
-
-#
-# Files: /usr/share/examples/sensors
-#
-dir /usr/share/examples/sensors
-file /usr/share/examples/sensors/Makefile
-file /usr/share/examples/sensors/README.txt
-file /usr/share/examples/sensors/buzzer.c
-file /usr/share/examples/sensors/buzzer.sh
-file /usr/share/examples/sensors/irled.c
-file /usr/share/examples/sensors/joystick.c
-file /usr/share/examples/sensors/laser.c
-file /usr/share/examples/sensors/laser.sh
-file /usr/share/examples/sensors/led2.c
-file /usr/share/examples/sensors/led2-portio.sh
-file /usr/share/examples/sensors/led2.sh
-file /usr/share/examples/sensors/led3.c
-file /usr/share/examples/sensors/led3-portio.sh
-file /usr/share/examples/sensors/led3.sh
-file /usr/share/examples/sensors/led7.c
-file /usr/share/examples/sensors/pbuzz.c
-file /usr/share/examples/sensors/relay.c
-file /usr/share/examples/sensors/relay.sh
-
-#
-# Files: /usr/share/examples/cube
-#
-dir /usr/share/examples/cube
-file /usr/share/examples/cube/Makefile
-file /usr/share/examples/cube/README.txt
-file /usr/share/examples/cube/all.c
-file /usr/share/examples/cube/backlight.c
-file /usr/share/examples/cube/cube.c
-file /usr/share/examples/cube/cube.h
-file /usr/share/examples/cube/demo.c
-file /usr/share/examples/cube/fubarino.c
-file /usr/share/examples/cube/duinomite.c
 
 #
 # Files: /usr/share/examples/curses
@@ -1299,7 +1170,6 @@ file /usr/share/man/cat1/colcrt.0
 file /usr/share/man/cat1/colrm.0
 file /usr/share/man/cat1/comm.0
 file /usr/share/man/cat1/cp.0
-file /usr/share/man/cat1/cpp.0
 file /usr/share/man/cat1/crontab.0
 file /usr/share/man/cat1/csh.0
 file /usr/share/man/cat1/ctags.0
@@ -1341,7 +1211,6 @@ file /usr/share/man/cat1/kill.0
 file /usr/share/man/cat1/la.0
 file /usr/share/man/cat1/last.0
 file /usr/share/man/cat1/lastcomm.0
-file /usr/share/man/cat1/lcc.0
 file /usr/share/man/cat1/ld.0
 file /usr/share/man/cat1/learn.0
 file /usr/share/man/cat1/leave.0
@@ -1499,10 +1368,8 @@ file /usr/share/man/cat2/creat.0
 file /usr/share/man/cat2/execve.0
 file /usr/share/man/cat2/exit.0
 file /usr/share/man/cat2/fcntl.0
-file /usr/share/man/cat2/fetchi.0
 file /usr/share/man/cat2/flock.0
 file /usr/share/man/cat2/fork.0
-file /usr/share/man/cat2/fperr.0
 file /usr/share/man/cat2/fsync.0
 file /usr/share/man/cat2/getdtablesize.0
 file /usr/share/man/cat2/getfsstat.0
@@ -1518,13 +1385,10 @@ file /usr/share/man/cat2/kill.0
 file /usr/share/man/cat2/killpg.0
 file /usr/share/man/cat2/link.0
 file /usr/share/man/cat2/listen.0
-file /usr/share/man/cat2/lock.0
 file /usr/share/man/cat2/lseek.0
 file /usr/share/man/cat2/mkdir.0
 file /usr/share/man/cat2/mknod.0
-file /usr/share/man/cat2/nostk.0
 file /usr/share/man/cat2/open.0
-file /usr/share/man/cat2/phys.0
 file /usr/share/man/cat2/pipe.0
 file /usr/share/man/cat2/profil.0
 file /usr/share/man/cat2/ptrace.0
@@ -1580,7 +1444,6 @@ file /usr/share/man/cat3/getopt.0
 file /usr/share/man/cat3/getpass.0
 file /usr/share/man/cat3/getsubopt.0
 file /usr/share/man/cat3/getwd.0
-file /usr/share/man/cat3/gpanel.0
 file /usr/share/man/cat3/infnan.0
 file /usr/share/man/cat3/initgroups.0
 file /usr/share/man/cat3/intro.0
@@ -1618,58 +1481,26 @@ file /usr/share/man/cat3/utime.0
 file /usr/share/man/cat3/valloc.0
 file /usr/share/man/cat3/varargs.0
 file /usr/share/man/cat3/vmf.0
-file /usr/share/man/cat4/acc.0
 file /usr/share/man/cat4/arp.0
 file /usr/share/man/cat4/bk.0
-file /usr/share/man/cat4/br.0
-file /usr/share/man/cat4/cons.0
-file /usr/share/man/cat4/css.0
-file /usr/share/man/cat4/de.0
-file /usr/share/man/cat4/dh.0
-file /usr/share/man/cat4/dhu.0
-file /usr/share/man/cat4/dhv.0
-file /usr/share/man/cat4/dmc.0
-file /usr/share/man/cat4/dr.0
-file /usr/share/man/cat4/dz.0
-file /usr/share/man/cat4/ec.0
-file /usr/share/man/cat4/en.0
-file /usr/share/man/cat4/hk.0
-file /usr/share/man/cat4/ht.0
-file /usr/share/man/cat4/hy.0
 file /usr/share/man/cat4/icmp.0
 file /usr/share/man/cat4/idp.0
-file /usr/share/man/cat4/il.0
-file /usr/share/man/cat4/imp.0
-file /usr/share/man/cat4/impconf.0
 file /usr/share/man/cat4/inet.0
-file /usr/share/man/cat4/intro.0
 file /usr/share/man/cat4/ip.0
 file /usr/share/man/cat4/lo.0
-file /usr/share/man/cat4/lp.0
 file /usr/share/man/cat4/mtio.0
 file /usr/share/man/cat4/networking.0
 file /usr/share/man/cat4/ns.0
 file /usr/share/man/cat4/nsip.0
 file /usr/share/man/cat4/null.0
 file /usr/share/man/cat4/pty.0
-file /usr/share/man/cat4/qe.0
-file /usr/share/man/cat4/ra.0
 file /usr/share/man/cat4/ram.0
-file /usr/share/man/cat4/rk.0
-file /usr/share/man/cat4/rl.0
-file /usr/share/man/cat4/rx.0
-file /usr/share/man/cat4/si.0
 file /usr/share/man/cat4/spp.0
-file /usr/share/man/cat4/sri.0
 file /usr/share/man/cat4/swap.0
 file /usr/share/man/cat4/tb.0
 file /usr/share/man/cat4/tcp.0
-file /usr/share/man/cat4/tm.0
-file /usr/share/man/cat4/tmscp.0
-file /usr/share/man/cat4/ts.0
 file /usr/share/man/cat4/tty.0
 file /usr/share/man/cat4/udp.0
-file /usr/share/man/cat4/vv.0
 file /usr/share/man/cat5/acct.0
 file /usr/share/man/cat5/aliases.0
 file /usr/share/man/cat5/a.out.0
@@ -1679,7 +1510,6 @@ file /usr/share/man/cat5/crontab.0
 file /usr/share/man/cat5/dbx.0
 file /usr/share/man/cat5/dir.0
 file /usr/share/man/cat5/disktab.0
-file /usr/share/man/cat5/dtab.0
 file /usr/share/man/cat5/fstab.0
 file /usr/share/man/cat5/gettytab.0
 file /usr/share/man/cat5/group.0
@@ -1702,7 +1532,6 @@ file /usr/share/man/cat5/remote.0
 file /usr/share/man/cat5/resolver.0
 file /usr/share/man/cat5/services.0
 file /usr/share/man/cat5/shells.0
-file /usr/share/man/cat5/stack.0
 file /usr/share/man/cat5/syserrlst.0
 file /usr/share/man/cat5/tar.0
 file /usr/share/man/cat5/termcap.0
@@ -1751,18 +1580,14 @@ file /usr/share/man/cat7/me.0
 file /usr/share/man/cat7/ms.0
 file /usr/share/man/cat7/term.0
 file /usr/share/man/cat8/adduser.0
-file /usr/share/man/cat8/autoconfig.0
-file /usr/share/man/cat8/boot.0
 file /usr/share/man/cat8/bugfiler.0
 file /usr/share/man/cat8/chown.0
 file /usr/share/man/cat8/chroot.0
-file /usr/share/man/cat8/crash.0
 file /usr/share/man/cat8/cron.0
 file /usr/share/man/cat8/drtest.0
 file /usr/share/man/cat8/dump.0
 file /usr/share/man/cat8/dumpdir.0
 file /usr/share/man/cat8/fdisk.0
-file /usr/share/man/cat8/format.0
 file /usr/share/man/cat8/fsck.0
 file /usr/share/man/cat8/fstat.0
 file /usr/share/man/cat8/getty.0
@@ -1772,7 +1597,6 @@ file /usr/share/man/cat8/intro.0
 file /usr/share/man/cat8/iostat.0
 file /usr/share/man/cat8/lpc.0
 file /usr/share/man/cat8/lpd.0
-file /usr/share/man/cat8/makedev.0
 file /usr/share/man/cat8/makekey.0
 file /usr/share/man/cat8/mkfs.0
 file /usr/share/man/cat8/mknod.0
@@ -2685,15 +2509,6 @@ file /usr/share/man/cat2/getpid.0
 link /usr/share/man/cat2/getppid.0
 target /usr/share/man/cat2/getpid.0
 
-file /usr/share/man/cat4/dvhp.0
-link /usr/share/man/cat4/hp.0
-target /usr/share/man/cat4/dvhp.0
-link /usr/share/man/cat4/rm.0
-target /usr/share/man/cat4/dvhp.0
-link /usr/share/man/cat4/rp.0
-target /usr/share/man/cat4/dvhp.0
-link /usr/share/man/cat4/xp.0
-target /usr/share/man/cat4/dvhp.0
 
 file /usr/share/man/cat3/closelog.0
 link /usr/share/man/cat3/openlog.0

@@ -16,10 +16,8 @@
 #endif
 
 /*
- * data that doesn't need to be referenced while the process is swapped.
- * For PIC32, the user block is USIZE bytes long; resides at virtual kernel loc
- * 0x80007400; contains the system stack (and possibly network stack) per
- * user; is cross referenced with the proc structure for the same process.
+ * Per-process state that need not remain resident while the process is
+ * swapped. The user block and proc structure cross-reference each other.
  */
 #define MAXCOMLEN   MAXNAMLEN   /* <= MAXNAMLEN, >= sizeof(ac_comm) */
 

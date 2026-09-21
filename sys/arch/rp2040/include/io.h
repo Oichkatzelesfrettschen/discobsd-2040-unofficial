@@ -1,5 +1,5 @@
 /*
- * Hardware register defines for MIPS32 architecture.
+ * Privileged register access interfaces for the RP2040 port.
  *
  * Copyright (C) 2008-2010 Serge Vakulenko, <serge@vak.ru>
  *

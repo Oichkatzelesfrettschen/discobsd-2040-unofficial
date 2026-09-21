@@ -57,17 +57,21 @@ The V6 software is distributed under the Caldera license
 
     curl -O https://www.tuhs.org/Archive/Distributions/Research/Dennis_v6/v6root.gz
     gunzip v6root.gz
-    python3 tests/mkv6pack.py -o v6.rk -f 2000 -s 2000 120 v6root tests/v6.list
+    "${PYTHON}" tests/mkv6pack.py -o v6.rk -f 2000 -s 2000 120 v6root tests/v6.list
     gzip -9 v6.rk
 
 ## Building and testing
 
-The board build is the tree's: `bmake -C usr.bin/pdp11 MACHINE=rp2040`
-links against the port libc at 0x20000000 and converts to a.out;
-`install` places the program and the pack. `bmake host` builds the same
-sources with the host compiler, and `bmake test` boots the shipped pack
-through that build on a pseudo-terminal (`tests/v6boot.sh`) and checks
-the boot prompt, login, a pipeline, `ed`, a write and `sync`.
+The repository entry point requires the explicit legacy option:
+
+    bmake MACHINE=rp2040 BUILD_PDP11_V6=yes build
+    bmake MACHINE=rp2040 BUILD_PDP11_V6=yes check-pdp11-v6
+
+The first command links the emulator against the port libc at 0x20000000,
+converts it to a.out, and stages the program and pack with the rest of the
+opt-in build. The second command builds the same sources with the host compiler,
+boots the shipped pack on a pseudo-terminal, and checks the boot prompt, login,
+a pipeline, `ed`, a write, and `sync`.
 
 `MEMSIZE` is a compile-time constant. 64 KB gives V6 `mem = 116`, 11.6 K
 words for user programs, which is what the setup document asks for; 96 KB

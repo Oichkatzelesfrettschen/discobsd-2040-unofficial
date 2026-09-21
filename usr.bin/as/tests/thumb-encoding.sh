@@ -14,6 +14,7 @@ set -eu
 AS=${AS:?set AS to the assembler under test}
 GNUAS=${GNUAS:-arm-none-eabi-as}
 CPU=${CPU:-cortex-m0plus}
+PYTHON=${PYTHON:?set PYTHON to the host interpreter}
 here=$(dirname "$0")
 work=${WORK:-.}
 
@@ -25,7 +26,7 @@ do
 	name=$(basename "$src" .s)
 	$GNUAS -mcpu="$CPU" -mthumb -o "$work/$name.gnu.o" "$src"
 	$AS "$src" -o "$work/$name.aout"
-	if ! python3 "$here/thumb-aoutdiff.py" "$src" \
+	if ! "$PYTHON" "$here/thumb-aoutdiff.py" "$src" \
 	    "$work/$name.aout" "$work/$name.gnu.o"
 	then
 		fail=$((fail + 1))

@@ -29,9 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*                                                                           */
 /*                 A simple and small single-pass C compiler                 */
 /*                                                                           */
-/*            Produces 16/32-bit 80386 assembly output for NASM.             */
-/*             Produces 32-bit MIPS assembly output for gcc/as.              */
-/*             Produces 32-bit TR3200 assembly output for vasm.              */
+/*              Produces ARMv6-M Thumb-1 assembly for GNU as.                */
 /*                                                                           */
 /*                                 Main file                                 */
 /*                                                                           */
@@ -63,14 +61,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NO_FOR_DECL
 #define NO_STRUCT_BY_VAL
 #define NO_FP
-#endif
-
-// Passing and returning structures by value is currenly supported
-// on x86 and MIPS only
-#ifdef TR3200
-#ifndef NO_STRUCT_BY_VAL
-#define NO_STRUCT_BY_VAL
-#endif
 #endif
 
 #ifndef __SMALLER_C__
@@ -2265,25 +2255,10 @@ int GetToken(void)
   return tokEof;
 }
 
-#ifdef MIPS
 #ifndef CAN_COMPILE_32BIT
-#error MIPS target requires a 32-bit compiler
-#endif
-#include "cgmips.c"
-#else
-#ifdef THUMB
-#ifndef CAN_COMPILE_32BIT
-#error THUMB target requires a 32-bit compiler
+#error ARM Thumb target requires a 32-bit compiler
 #endif
 #include "cgthumb.c"
-#else
-#ifdef TR3200
-#include "cgtr3k2.c"
-#else
-#include "cgx86.c"
-#endif // #ifdef TR3200
-#endif // #ifdef THUMB
-#endif // #ifdef MIPS
 
 // expr.c code
 
@@ -5593,9 +5568,7 @@ int ParseExpr(int tok, int* GotUnary, int* ExprTypeSynPtr, int* ConstExpr, int* 
 #ifdef __SMALLER_C__
 #ifdef DETERMINE_VA_LIST
 // 2 if va_list is a one-element array containing a pointer
-//   (typical for x86 Open Watcom C/C++)
 // 1 if va_list is a pointer
-//   (typical for Turbo C++, x86 gcc)
 // 0 if va_list is something else, and
 //   the code may have long crashed by now
 int VaListType = 0;
@@ -6906,10 +6879,8 @@ int ParseDerived(int tok)
 {
   int stars = 0;
   int params = 0;
-#ifndef MIPS
 #ifdef CAN_COMPILE_32BIT
   int isInterrupt = 0;
-#endif
 #endif
 
   while (tok == '*')
@@ -6918,7 +6889,6 @@ int ParseDerived(int tok)
     tok = GetToken();
   }
 
-#ifndef MIPS
 #ifdef CAN_COMPILE_32BIT
   if (tok == tokIntr)
   {
@@ -6928,7 +6898,6 @@ int ParseDerived(int tok)
     isInterrupt = 1;
     tok = GetToken();
   }
-#endif
 #endif
 
   if (tok == '(')
@@ -6966,12 +6935,10 @@ int ParseDerived(int tok)
       tok = GetToken();
     else
       PushSyntax2(tokIdent, AddIdent("<something>"));
-#ifndef MIPS
 #ifdef CAN_COMPILE_32BIT
     if (isInterrupt)
       PushSyntax2('(', 1);
     else // fallthrough
-#endif
 #endif
     PushSyntax('(');
 
@@ -7919,12 +7886,10 @@ int ParseDecl(int tok, unsigned structInfo[4], int cast, int label)
 
         GenLabel(CurFxnName, Static);
 
-#ifndef MIPS
 #ifdef CAN_COMPILE_32BIT
         if (SyntaxStack1[lastSyntaxPtr + 1] & 1)
           GenIsrProlog();
         else // fallthrough
-#endif
 #endif
         GenFxnProlog();
         CurFxnEpilogLabel = LabelCnt++;
@@ -7961,12 +7926,10 @@ int ParseDecl(int tok, unsigned structInfo[4], int cast, int label)
 
         GenNumLabel(CurFxnEpilogLabel);
 
-#ifndef MIPS
 #ifdef CAN_COMPILE_32BIT
         if (SyntaxStack1[lastSyntaxPtr + 1] & 1)
           GenIsrEpilog();
         else // fallthrough
-#endif
 #endif
         GenFxnEpilog();
 
@@ -9292,13 +9255,13 @@ int main(int argc, char** argv)
     }
     else if (!strcmp(argv[i], "-leading-underscore"))
     {
-      // this is the default option for x86
+      // Request an ABI with underscore-prefixed external symbols
       UseLeadingUnderscores = 1;
       continue;
     }
     else if (!strcmp(argv[i], "-no-leading-underscore"))
     {
-      // this is the default option for MIPS
+      // Request the ARM ABI's unprefixed external symbols
       UseLeadingUnderscores = 0;
       continue;
     }
@@ -9485,4 +9448,3 @@ int main(int argc, char** argv)
 
   return 0;
 }
-

@@ -1,11 +1,15 @@
 TOPSRC!=cd ../..; pwd
+# -Wall -Wextra raises 165 distinct sites in PicoC's maintained sources, most
+# from callback parameters fixed by the interpreter ABI, so the fatal set stays
+# at explicitly enabled groups until that source migration closes.
+WARNLEVEL=	legacy
 PRINTF_FLOAT=	yes
 include ${TOPSRC}/share/mk/sys.mk
 
 VPATH           = cstdlib platform
 
-CFLAGS          += -DUNIX_HOST -DVER='"1.0"' -DFILENAME_MAX=64 \
-                   -DL_tmpnam=30 -DCLOCKS_PER_SEC=80000000 \
+CFLAGS          += -DUNIX_HOST -DVER='"1.0"' \
+                   -DCLOCKS_PER_SEC=80000000 \
                    -DNO_FP -DPICOC_STACK_SIZE="(8*1024)" -Os
 
 LIBS            = -lm -lc
@@ -17,7 +21,7 @@ OBJS            = picoc.o table.o lex.o parse.o expression.o heap.o type.o \
                   platform_unix.o library_unix.o \
                   stdio.o math.o string.o stdlib.o \
                   time.o errno.o ctype.o stdbool.o \
-                  unistd.o retrobsd.o
+                  unistd.o
 
 all:            $(TARGET)
 

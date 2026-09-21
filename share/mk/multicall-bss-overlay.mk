@@ -8,8 +8,8 @@ MULTICALL_BSS_LDSCRIPT= ${.CURDIR}/multicall-bss-overlay.ld
 MULTICALL_BSS_GENERATOR= ${TOPSRC}/tools/generate_multicall_bss_overlay.sh
 MULTICALL_BSS_VERIFIER= ${TOPSRC}/tools/verify_multicall_bss_objects.sh
 MULTICALL_BSS_LDFLAGS= -Wl,-T,${MULTICALL_BSS_LDSCRIPT}
-# MIPS userland defaults to -fcommon. The final option converts tentative
-# applet definitions into owned BSS before the relocatable link.
+# Convert tentative applet definitions into owned BSS before the relocatable
+# link so every overlay input has one explicit section owner.
 MULTICALL_APPLET_COPTS= ${COPTS} -fno-common
 
 ${MULTICALL_BSS_LDSCRIPT}: ${OBJS} ${MULTICALL_BSS_GENERATOR} ${MULTICALL_BSS_VERIFIER}

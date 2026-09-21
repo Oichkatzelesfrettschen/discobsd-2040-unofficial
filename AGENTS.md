@@ -51,6 +51,10 @@ escape sequences stripped.
 
 ## Build, image, flash
 
+Resolve and export `PYTHON` before every build or gate that invokes a Python
+tool. The build system rejects an empty interpreter value.
+
+    PYTHON=$(command -v python3); export PYTHON
     bmake MACHINE=rp2040 distribution      # tools, kernel, world, sdcard.img
     bmake MACHINE=rp2040 flash             # distrib/rp2040/flash.uf2
     bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
@@ -78,12 +82,16 @@ when Config changes.
 - `bmake MACHINE=rp2040 check` runs every tier; the tiers are check-lint
   (shellcheck -S error, ruff), check-host (host cc and python),
   check-posix-sh (32-bit Linux), check-cross (after build), check-qemu,
-  check-mips, check-host-package and check-board-build. check-renode boots
+  check-host-package and check-board-build. check-renode boots
   the kernel under Renode and stands outside check, because it wants the
   emulator and a fetched model tree.
   sys/arch/rp2040/doc/TESTING.md lists each gate and what it proves;
   a new test joins a tier there and in the root Makefile. CI runs the
   tiers in .github/workflows/firmware.yml.
+- `BUILD_LEGACY_NON_ARM=yes legacy-non-arm-verify` checks archive identity
+  without adding a supported build. `BUILD_PDP11_V6=yes` is an RP2040-only
+  opt-in for the isolated emulator, guest pack, and their explicit tests;
+  `docs/research/arm-main-legacy-build-isolation.md` owns that boundary.
 - On the board, from tests/rp2040: fptest (Boot ROM float, bit-exact),
   sigtest (signal frames), streamtest (NSTATIC), tartest, romprobe (ROM
   table dump), swapmaptest (the swap map through sysctl(3)). They are not

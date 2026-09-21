@@ -19,15 +19,13 @@ VPATH=	${LIBCDIR}/${MACHINE_ARCH}/sys ${LIBCDIR}/${MACHINE_ARCH}/string \
 
 # The RP2040 assembles its own objects with the tree's Thumb assembler,
 # which -B puts ahead of the cross toolchain's own as.
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" -o x"${MACHINE}" = x"rp2040" ] ; then \
+COPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
 	else \
 		echo "" ; \
 	fi
 
-ASOPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/ -DLWHI=lwr -DLWLO=lwl -DSWHI=swr -DSWLO=swl" ; \
-	elif [ x"${MACHINE}" = x"rp2040" ] ; then \
+ASOPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
 	else \
 		echo "" ; \
@@ -134,7 +132,7 @@ ROM_FLOAT_OBJS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 			    ${LIBCDIR}/arm/gen/rom_float_members ; \
 		fi
 OBJS+=		${SOFT_FLOAT_OBJS} ${ROM_FLOAT_OBJS} \
-		ashldi3.o lshrdi3.o sc_case.o
+		ashldi3.o lshrdi3.o
 
 all:            ../libc.a
 

@@ -3,13 +3,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 LIBDIR=		${TOPSRC}/lib/libreadline
 
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
-	else \
-		echo "" ; \
-	fi
-
-CFLAGS		= -Os ${DEFS} -Wall ${COPTS}
+CFLAGS		= -Os ${DEFS} -Wall
 
 OBJS		= readline.o
 

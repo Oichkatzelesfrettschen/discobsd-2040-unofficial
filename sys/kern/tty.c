@@ -63,10 +63,9 @@ const char partab[] = {
     0000,0200,0200,0000,0200,0000,0000,0201,
 
     /*
-     * 7 bit ascii ends with the last character above,
-     * but we contine through all 256 codes for the sake
-     * of the tty output routines which use special vax
-     * instructions which need a 256 character trt table.
+     * Seven-bit ASCII ends with the last character above. The tty output
+     * routines index the table with every possible byte, so the table
+     * carries all 256 entries.
      */
 
     0007,0007,0007,0007,0007,0007,0007,0007,

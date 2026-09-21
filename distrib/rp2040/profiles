@@ -39,14 +39,6 @@ closure toolchain needs path /usr/libexec/smlrc
 closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
-# usr.bin/pdp11 boots the pack named on its command line; /usr/v6/root.rk
-# is the only pack the image carries, and /etc/menu's entry names it.
-#
-closure pdp11 needs closure v6disk
-closure pdp11 needs path /usr/bin/pdp11
-closure v6disk needs path /usr/v6/root.rk
-
-#
 # games/gamebox dispatches on argv[0]; fifteen, keen and bubble are hard
 # links to it, and the manifest checker rejects a link whose source the
 # profile dropped.
@@ -60,12 +52,10 @@ closure games needs path /usr/games/gamebox
 # benchmark  base plus CoreMark, for a reported score on a bare board
 # developer  base plus the native compile chain and its link library
 # games      base plus gamebox and its three entry points
-# retro-lab  developer plus the PDP-11 emulator and its V6 pack
 # full       every closure; the image the port ships
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games
-profile retro-lab pdp11 v6disk toolchain toolchainlib
-profile full coremark pdp11 v6disk toolchain toolchainlib games
+profile full coremark toolchain toolchainlib games

@@ -6,18 +6,16 @@
 #include "SYS.h"
 
 ENTRY(ptrace)
-#if 0 /* XXX Arm ASM */
-		# -1 is a legitimate return
-		# value so we must clear errno
-		# so the caller may disambiguate
-		lui	$t1, %hi(errno)
-		sw      $zero, %lo(errno)($t1)
-
-		.set	noreorder
-		syscall	SYS_ptrace
-		lui	$t1, %hi(errno)		# return here on error
-		sw      $t0, %lo(errno)($t1)
-
-		.set	reorder
-		jr	$ra			# return here on success
-#endif /* XXX Arm ASM */
+	/* ptrace may return -1 on success, so errno carries the error verdict. */
+	ldr	r1, =errno
+	mov	r2, #0
+	str	r2, [r1]
+	svc	#SYS_ptrace
+	bcs	1f
+	bx	lr
+1:	ldr	r1, =errno
+	str	r0, [r1]
+	mov	r0, #0
+	mvn	r0, r0
+	bx	lr
+END(ptrace)

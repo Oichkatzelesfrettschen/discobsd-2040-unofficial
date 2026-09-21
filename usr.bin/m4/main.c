@@ -127,9 +127,6 @@ struct keyblk keywrds[] = {	/* m4 keywords to be installed */
 #ifdef unix
 	{ "unix",         MACRTYPE },
 #else
-#ifdef vms
-	{ "vms",          MACRTYPE },
-#endif
 #endif
 };
 
@@ -223,11 +220,7 @@ main(argc,argv)
 	if (outfile[0] != NULL) {
 		(void) fclose(outfile[0]);
 		m4temp[UNIQUE] = '0';
-#ifdef vms
-		(void) remove(m4temp);
-#else
 		(void) unlink(m4temp);
-#endif
 	}
 
 	return 0;

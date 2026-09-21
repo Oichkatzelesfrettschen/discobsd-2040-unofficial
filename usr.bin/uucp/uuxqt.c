@@ -385,14 +385,6 @@ int code;
 {
 	logcls();
 	rmlock(CNULL);
-#ifdef	VMS
-	/*
-	 *	Since we run as a BATCH job we must wait for all processes to
-	 *	to finish
-	 */
-	while(wait(0) != -1)
-		;
-#endif
 	exit(code);
 }
 

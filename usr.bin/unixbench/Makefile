@@ -90,6 +90,8 @@ BINS = $(PROGDIR)/arithoh $(PROGDIR)/register $(PROGDIR)/short \
 	$(PROGDIR)/dhry2 $(PROGDIR)/dhry2reg  $(PROGDIR)/looper \
 	$(PROGDIR)/fstime $(PROGDIR)/fsbuffer $(PROGDIR)/fsdisk \
 	$(PROGDIR)/whetstone-double
+DHRY2_OBJS = $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
+DHRY2REG_OBJS = $(SRCDIR)/dhry_1_reg.o $(SRCDIR)/dhry_2_reg.o
 ## These compile only on some platforms...
 # $(PROGDIR)/poll $(PROGDIR)/poll2 $(PROGDIR)/select
 REQD = $(BINS) $(PROGDIR)/unixbench.logo $(PROGDIR)/cleanup.sh  \
@@ -237,33 +239,33 @@ $(PROGDIR)/execl: $(SRCDIR)/execl.c $(SRCDIR)/big.c
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
-$(PROGDIR)/dhry2: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_1.c
-	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_2.o $(SRCDIR)/dhry_2.c
-	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
+$(SRCDIR)/dhry_1.o: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry.h
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $@ $(SRCDIR)/dhry_1.c
+
+$(SRCDIR)/dhry_2.o: $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $@ $(SRCDIR)/dhry_2.c
+
+$(SRCDIR)/dhry_1_reg.o: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry.h
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -DREG=register \
+	    -o $@ $(SRCDIR)/dhry_1.c
+
+$(SRCDIR)/dhry_2_reg.o: $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
+	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -DREG=register \
+	    -o $@ $(SRCDIR)/dhry_2.c
+
+$(PROGDIR)/dhry2: $(DHRY2_OBJS)
+	${CC} ${LDFLAGS} -o $@.elf $(DHRY2_OBJS) ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
-	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
-$(PROGDIR)/dhry2reg: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_1.o -DREG=register $(SRCDIR)/dhry_1.c
-	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} -o $(SRCDIR)/dhry_2.o -DREG=register $(SRCDIR)/dhry_2.c
-	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
+$(PROGDIR)/dhry2reg: $(DHRY2REG_OBJS)
+	${CC} ${LDFLAGS} -o $@.elf $(DHRY2REG_OBJS) ${LIBS} ${OPTON}
 	${OBJDUMP} -S $@.elf > $@.dis
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
-	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
 
-
-dhry2reg: $(SRCDIR)/dhry_1.c $(SRCDIR)/dhry_2.c $(SRCDIR)/dhry.h
-	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) -o $(SRCDIR)/dhry_1.o -DREG=register $(SRCDIR)/dhry_1.c
-	$(CC) -c ${CFLAGS} -DHZ=${HZ} ${OPTON} $(OPT3) -o $(SRCDIR)/dhry_2.o -DREG=register $(SRCDIR)/dhry_2.c
-	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o ${LIBS} ${OPTON}
-	${OBJDUMP} -S $@.elf > $@.dis
-	${SIZE} $@.elf
-	${ELF2AOUT} $@.elf $@ && rm $@.elf
-	rm -f $(SRCDIR)/dhry_1.o $(SRCDIR)/dhry_2.o
+dhry2reg: $(PROGDIR)/dhry2reg
 
 $(PROGDIR)/looper: $(SRCDIR)/looper.c
 	${CC} ${LDFLAGS} -o $@.elf $(SRCDIR)/looper.c ${LIBS} ${OPTON}

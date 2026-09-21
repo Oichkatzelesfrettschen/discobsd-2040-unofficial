@@ -7,7 +7,7 @@
 #include <string.h>
 
 /*
- * bcmp -- vax cmpc3 instruction
+ * Compare two byte ranges.
  */
 int
 bcmp(v1, v2, length)

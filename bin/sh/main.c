@@ -110,10 +110,6 @@ int mailchk = 0;
 static char     *mailp;
 static long     *mod_time = (long *)NIL;
 
-#ifdef pdp11
-#include <execargs.h>
-#include <sgtty.h>
-#endif
 
 extern char     *simple();
 
@@ -394,10 +390,6 @@ char    **e;
 			comdiv--;
 		}
 	}
-#ifdef pdp11
-	else
-		*execargs = (char *)dolv;       /* for `ps' cmd */
-#endif
 	exfile(0);
 	done();
 }
@@ -421,7 +413,7 @@ void
 Ldup(fa, fb)
 register int    fa, fb;
 {
-#if defined(RES) || defined(pdp11)
+#ifdef RES
 
 	dup(fa | DUPFLG, fb);
 	close(fa);

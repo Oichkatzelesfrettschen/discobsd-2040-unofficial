@@ -71,7 +71,7 @@ The shipped set is defined by the root manifest at `distrib/rp2040/mi.rp2040` an
 | Assembler and linker (`/usr/bin/as`, `/usr/bin/ld`) | Serge Vakulenko | MIT/X-style notice with a no-advertising clause |
 | sbase text tools in `/usr/bin/textbox` | sbase contributors | MIT |
 | stevie editor (`/usr/bin/stevie`, with `vi` and `vim` as hard links) | -- | Unlicense (public domain dedication) |
-| PDP-11 emulator (`usr.bin/pdp11`) | Julius Schmidt, Dave Cheney (avr11 lineage) | WTFPL version 2 |
+| PDP-11 emulator (`legacy/pdp11-v6/usr.bin/pdp11`) | Julius Schmidt, Dave Cheney (avr11 lineage) | WTFPL version 2 |
 | CoreMark (`/usr/bin/coremark`) | Embedded Microprocessor Benchmark Consortium | Apache License 2.0; COREMARK mark under a separate Acceptable Use Agreement |
 | libgcc (linked into every binary; no GCC source in the tree) | Free Software Foundation | GPL version 3 with the GCC Runtime Library Exception 3.1 |
 
@@ -283,7 +283,7 @@ The README's "License and redistribution" section, at line 407, states six steps
 
 ### 4.1 The instrument
 
-The Caldera International ancient-UNIX license is a letter dated January 23, 2002, signed by Bill Broderick, Director of Licensing Services, Caldera International, Inc., distributed as `AncientUnix.pdf` alongside the V6 and V7 disk images in `uv6swre.zip` and `uv7swre.zip`. Its full text is reproduced in the port tree at `usr.bin/look/LICENSE` and in the PDF at `usr.bin/pdp11/Caldera-license.pdf`.
+The Caldera International ancient-UNIX license is a letter dated January 23, 2002, signed by Bill Broderick, Director of Licensing Services, Caldera International, Inc., distributed as `AncientUnix.pdf` alongside the V6 and V7 disk images in `uv6swre.zip` and `uv7swre.zip`. Its full text is reproduced in the port tree at `usr.bin/look/LICENSE` and in the PDF at `legacy/pdp11-v6/usr.bin/pdp11/Caldera-license.pdf`.
 
 The operative granting language is: "Caldera International, Inc. hereby grants a fee free license that includes the rights use, modify and distribute this named source code, including creating derived binary products created from the source code." The subject matter is "32-bit 32V UNIX" and "16 bit UNIX Versions 1, 2, 3, 4, 5, 6, 7," with express exclusion of System III, System V, and their successors. The grant is then subjected to a BSD-style four-condition regime: retain in source, reproduce in binary distribution materials, display the acknowledgement in all advertising materials mentioning features or use, and no endorsement use of the Caldera name.
 

@@ -385,14 +385,6 @@ uartopen(dev_t dev, int flag, int mode)
     LL_USART_Enable(uip->inst);
     LL_USART_EnableDirectionRx(uip->inst);
     LL_USART_EnableDirectionTx(uip->inst);
-#if 0 // XXX
-    reg->sta = 0;
-    reg->brg = PIC32_BRG_BAUD (BUS_KHZ * 1000, speed_bps [tp->t_ospeed]);
-    reg->mode = PIC32_UMODE_PDSEL_8NPAR |
-                PIC32_UMODE_ON;
-    reg->staset = PIC32_USTA_URXEN | PIC32_USTA_UTXEN;
-#endif // XXX
-
     /* Enable receive interrupt. */
     LL_USART_EnableIT_RXNE(uip->inst);
 
@@ -487,12 +479,6 @@ uartintr(dev_t dev)
         c = LL_USART_ReceiveData8(uip->inst);
         ttyinput(c, tp);
     }
-
-#if 0 // XXX
-    /* XXX Receive Buffer Overrun */
-    if (reg->sta & PIC32_USTA_OERR)
-        reg->staclr = PIC32_USTA_OERR;
-#endif // XXX
 
     /* RXNE flag was cleared by reading DR register */
 

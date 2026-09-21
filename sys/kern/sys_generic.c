@@ -318,9 +318,8 @@ select1(uap, is_pselect)
         if (error)
             goto done;
         /*
-         * nanoseconds ('struct timespec') on a PDP-11 are stupid since a 50 or 60 hz
-         * clock is all we have.   Keeping the names and logic made porting easier
-         * though.
+         * The kernel clock resolves whole ticks. Preserve the timespec
+         * interface while rounding sub-microsecond requests up to one usec.
          */
         if (is_pselect) {
             struct  timespec *ts = (struct timespec *)&atv;

@@ -3,6 +3,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 HOSTCC?=	cc
 PROG=		dd_contract_test
+TABLES=		dd_tables_test
 HOST_DD=	dd_host
 TARGET_SRC=	${TOPSRC}/bin/dd/dd.c
 
@@ -39,8 +40,9 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ddprobe$$$$.c; \
 
 check:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} ${PROG} ${HOST_DD}
+	@${MAKE} ${PROG} ${TABLES} ${HOST_DD}
 	./${PROG}
+	./${TABLES}
 	sh ${.CURDIR}/filesystem_test.sh ${.CURDIR}/${HOST_DD}
 .else
 	@echo "dd_contracts: ${HOSTCC} cannot build 32-bit binaries; skipped" >&2
@@ -58,13 +60,23 @@ gate.o: dd_contract_test.c dd_shim.h
 ${PROG}: gate.o dd.o shim.o
 	${HOSTCC} ${CFLAGS} -o $@ gate.o dd.o shim.o
 
+# The conversion tables, read out of the shipped dd.o so that what the suite
+# measures is the program's own decomposition rather than a copy of it. The
+# test carries the 256-byte atoibm table dd used to hold and requires the
+# four-exception form to reproduce it entry by entry.
+tables.o: dd_tables_test.c
+	${HOSTCC} ${CFLAGS} -c -o $@ ${.CURDIR}/dd_tables_test.c
+
+${TABLES}: tables.o dd.o shim.o
+	${HOSTCC} ${CFLAGS} -o $@ tables.o dd.o shim.o
+
 # The program as it ships, for the seek and truncation contracts, which
 # hold over a real file rather than over the gate's own descriptors.
 ${HOST_DD}: ${TARGET_SRC}
 	${HOSTCC} ${CFLAGS} -o $@ ${TARGET_SRC}
 
 clean:
-	rm -f ${PROG} ${HOST_DD} gate.o dd.o shim.o
+	rm -f ${PROG} ${TABLES} ${HOST_DD} gate.o dd.o shim.o tables.o
 
 all: check
 

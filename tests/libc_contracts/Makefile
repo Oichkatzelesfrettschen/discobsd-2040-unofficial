@@ -55,7 +55,8 @@ ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
-	check-printf-float check-scanf check-rwmode check-syslog check-vis \
+	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
+	check-vis \
 	check-qsort check-strtox check-string-security
 	./${PROG}
 
@@ -985,3 +986,57 @@ all: check
 	check-random check-random-cross \
 	check-printf-float check-rwmode check-scanf check-string-security \
 	check-string-security-cross check-strtox check-syslog check-vis clean
+
+# The C17 stdio surface outside the read and write path: the mode strings
+# fopen accepts and the descriptor flags they produce, fflush over every
+# stream, rewind as a seek, fgetpos and fsetpos, and setvbuf's argument
+# checking. The tree sources compile against the tree's headers, so the FILE
+# layout and the getc and putc macros are the target's; open(2) is renamed
+# because the tree's O_APPEND and O_TRUNC are not the host's bit values.
+#
+# findiop.c joins only the ILP32 link: its static assertion pins sizeof(FILE)
+# at the target's 24 bytes, which a 64-bit pointer cannot satisfy. At host
+# width the stream table and the walk are the test's own and every other
+# check is the same.
+# The getc and putc macros expand in the test too, so the two members they
+# call are renamed on both sides of the link; everything else moves aside for
+# the tree sources alone, leaving the test with the host's open(2) to call.
+ANSI_MACROS=	-D_filbuf=db_filbuf -D_flsbuf=db_flsbuf
+ANSI_RENAMES=	${ANSI_MACROS} -Dfflush=db_fflush \
+		-Dfclose=db_fclose -Dungetc=db_ungetc -Dfstat=test_fstat \
+		-Dfseek=db_fseek -Dftell=db_ftell -Drewind=db_rewind \
+		-Dsetvbuf=db_setvbuf -Dfopen=db_fopen -Dfdopen=db_fdopen \
+		-Dfreopen=db_freopen -Dfgetpos=db_fgetpos -Dfsetpos=db_fsetpos \
+		-Dopen=test_open -Derrno=ansi_test_errno
+ANSI_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include
+ANSI_MEMBERS=	flags fopen fdopen freopen filbuf flsbuf fseek ftell rew \
+		setvbuf fgetpos ungetc
+ANSI_OBJS=	${ANSI_MEMBERS:C/^/ansi_/:C/$/.o/}
+ANSI_OBJS32=	${ANSI_MEMBERS:C/^/ansi32_/:C/$/.o/} ansi32_findiop.o
+
+check-ansi: ansi_contract_test
+	./ansi_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} ansi_contract_test32
+	./ansi_contract_test32
+.else
+	@echo "check-libc-ansi: ${HOSTCC} cannot build 32-bit binaries; the run over the tree's own stream table is skipped" >&2
+.endif
+
+ansi_contract_test: ansi_contract_test.c ${ANSI_OBJS}
+	${HOSTCC} ${ANSI_CFLAGS} ${ANSI_MACROS} -o $@ ansi_contract_test.c \
+	    ${ANSI_OBJS}
+
+ansi_contract_test32: ansi_contract_test.c ${ANSI_OBJS32}
+	${HOSTCC} ${ILP32} ${ANSI_CFLAGS} ${ANSI_MACROS} -DANSI_REAL_FINDIOP \
+	    -o $@ ansi_contract_test.c ${ANSI_OBJS32}
+
+.for _m in ${ANSI_MEMBERS} findiop
+ansi_${_m}.o: ${PRINTF_DIR}/${_m}.c
+	${HOSTCC} ${ANSI_CFLAGS} ${ANSI_RENAMES} -c -o $@ ${PRINTF_DIR}/${_m}.c
+
+ansi32_${_m}.o: ${PRINTF_DIR}/${_m}.c
+	${HOSTCC} ${ILP32} ${ANSI_CFLAGS} ${ANSI_RENAMES} -c -o $@ \
+	    ${PRINTF_DIR}/${_m}.c
+.endfor

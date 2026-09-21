@@ -264,3 +264,10 @@ the second form's exact semantics is confusing and
 can vary from site to site.
 .PP
 More than one `-newer' option does not work properly.
+.PP
+A database record holds a pathname of at most 1023 bytes.
+The programs that build
+.I /var/db/find.codes
+report a longer one and stop, rather than dividing it between two records
+that name no file, so a database built over a tree holding such a pathname
+covers only the pathnames that sort before it.

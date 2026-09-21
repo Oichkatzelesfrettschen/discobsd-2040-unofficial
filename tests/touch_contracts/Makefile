@@ -17,7 +17,7 @@ TARGET_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -fno-common \
 		-mfloat-abi=soft -nostdinc -I${TOPSRC}/include -Os
 
 check: touch_host
-	sh ${.CURDIR}/filesystem_test.sh ${.OBJDIR}/touch_host
+	sh ${.CURDIR}/filesystem_test.sh ${.CURDIR}/touch_host
 
 touch_host: ${TARGET_SRC}
 	${HOSTCC} ${HOST_CFLAGS} -o $@ ${TARGET_SRC}

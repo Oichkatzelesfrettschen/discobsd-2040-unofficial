@@ -114,6 +114,7 @@ char    *fgets (char *, int, FILE *);
  * declaration rather than at run time. fgets() takes its place.
  */
 FILE    *_findiop (void);
+int     _sflags (const char *, int *);
 void    _fwalk (int (*)(FILE *));
 void    _cleanup (void);
 int     _filbuf (FILE *);

@@ -46,6 +46,7 @@ main (argc,argv)
 	if (ioctl (0, TIOCGETP, &tty) == -1)		/* get old tty mode */
 		errexit ("teachgammon(gtty)");
 	ioctl (0, TIOCGETC, &tchars);			/* readc() honors t_intrc */
+	ioctl (0, TIOCLGET, &lflags);			/* crterase() reads LCRTERA */
 	old = tty.sg_flags;
 #ifdef V7
 	raw = ((noech = old & ~ECHO) | CBREAK);		/* set up modes */

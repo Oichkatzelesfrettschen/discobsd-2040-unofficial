@@ -180,7 +180,7 @@ CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 ZONE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
 	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
-ZONE_TZ_WARN=	-Wno-old-style-definition
+ZONE_TZ_WARN=	-Wno-old-style-definition -Wno-deprecated-non-prototype
 
 RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
 	-Derrno=runtime_limits_errno

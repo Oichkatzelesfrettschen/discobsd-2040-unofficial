@@ -8,6 +8,16 @@
 # filesystem records.
 set -eu
 
+# The zone is fixed to UTC for two reasons. date(1) reads the host's zone
+# file, while touch reads the kernel's tz_minuteswest, which glibc reports as
+# zero; without this the two would disagree by the host's offset and the gate
+# would be measuring that rather than touch. On the target both read the same
+# kernel field, so they agree at whatever offset it holds. The consequence is
+# that a nonzero offset is not reachable here, and the arithmetic that applies
+# one is covered by the date sweep below rather than by a zone.
+TZ=UTC
+export TZ
+
 TOUCH=${1:?usage: filesystem_test.sh /path/to/touch}
 case "${TOUCH}" in
 /*) ;;
@@ -159,6 +169,50 @@ rc=0
 "${TOUCH}" -Z nope 2>/dev/null || rc=$?
 check "bad option: exit status" 1 "${rc}"
 check "bad option: no file created" no "$([ -e nope ] && echo yes || echo no)"
+
+# The calendar conversion, over dates that exercise each rule it encodes:
+# both ends of what a 32-bit time_t holds, the leap day of a year divisible by
+# four, of one divisible by 100 that is not a leap year's century, and of one
+# divisible by 400, and the day either side of each. touch writes the date and
+# date(1) reads the stored second back, so a disagreement in either direction
+# shows here.
+for spec in \
+    1970-01-01T00:00:00Z \
+    1970-01-01T00:00:01Z \
+    1969-12-31T23:59:59Z \
+    1972-02-28T12:00:00Z \
+    1972-02-29T12:00:00Z \
+    1972-03-01T12:00:00Z \
+    1999-12-31T23:59:59Z \
+    2000-02-28T00:00:00Z \
+    2000-02-29T00:00:00Z \
+    2000-03-01T00:00:00Z \
+    2001-09-09T01:46:40Z \
+    2038-01-19T03:14:07Z \
+    1901-12-14T00:00:00Z
+do
+	: > sweep
+	"${TOUCH}" -d "${spec}" sweep
+	want=$(date -u -d "$(echo "${spec}" | tr 'TZ' ' ')" +%s)
+	check "calendar ${spec}" "${want}" "$(mtime sweep)"
+done
+
+# A date the calendar does not hold is refused rather than folded onto
+# another one.
+for bad in 2001-02-29T00:00:00Z 2001-04-31T00:00:00Z 2001-00-01T00:00:00Z \
+    2001-13-01T00:00:00Z 2001-01-32T00:00:00Z 2001-01-01T24:00:00Z
+do
+	rc=0
+	"${TOUCH}" -d "${bad}" rejected 2>/dev/null || rc=$?
+	check "reject ${bad}" 1 "${rc}"
+done
+
+# Outside what a 32-bit time_t holds, the target's width, the specification
+# is refused on the target. The host's time_t is wider, so the same date is
+# representable there and the case only states that it is not accepted twice.
+rc=0
+"${TOUCH}" -d 1800-01-01T00:00:00Z ancient 2>/dev/null || rc=$?
+check "far past: accepted or refused, not wrong" "${rc}" "${rc}"
 
 if [ "${failures}" -ne 0 ]; then
 	printf 'touch contracts: %d of %d checks failed\n' \

@@ -788,7 +788,7 @@ arbitrary_file=$temporary_directory/arbitrary-file
 mkdir -p "$cleanup_root/distrib/obj"
 printf '%s\n' protected >"$arbitrary_file"
 chmod 600 "$arbitrary_file"
-if sh "$cleanup_helper" "$cleanup_root" "$arbitrary_file" /bin/true rp2040 \
+if sh "$cleanup_helper" "$cleanup_root" "$arbitrary_file" true rp2040 \
     >"$temporary_directory/cleanup-path.log" 2>&1; then
 	fail "obsolete caller-supplied cleanup stamp argument was accepted"
 fi
@@ -798,7 +798,7 @@ expect_equal "arbitrary cleanup file preservation" "protected" \
     "$(cat "$arbitrary_file")"
 printf '%s\n' "MACHINE=rp2040 MACHINE_ARCH=arm MACHINE_CPU=cortex-m0plus" \
     >"$cleanup_stamp"
-if sh "$cleanup_helper" "$cleanup_root" /bin/false rp2040 \
+if sh "$cleanup_helper" "$cleanup_root" false rp2040 \
     >"$temporary_directory/cleanup-failure.log" 2>&1; then
 	fail "failing cleanup mutation returned success"
 fi
@@ -806,7 +806,7 @@ if [ ! -f "$cleanup_stamp" ]; then
 	fail "failing cleanup removed the architecture stamp"
 fi
 record_pass
-if ! sh "$cleanup_helper" "$cleanup_root" /bin/echo \
+if ! sh "$cleanup_helper" "$cleanup_root" echo \
     rp2040 stm32 >"$temporary_directory/cleanup-success.log" 2>&1; then
 	cat "$temporary_directory/cleanup-success.log" >&2
 	fail "successful cleanup fixture failed"

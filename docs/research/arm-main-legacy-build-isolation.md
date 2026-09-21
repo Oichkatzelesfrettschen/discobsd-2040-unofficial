@@ -284,6 +284,10 @@ only to a bare command name. The separation gives POSIX shells one exact
 admission rule and prevents a non-executable pathname from entering cleanup
 through implementation-defined command-search behavior.
 
+Gate fixtures use portable POSIX command names when the fixture needs command
+search. A hard-coded host path such as `/bin/true` tests the runner's
+filesystem layout instead of the cleanup mechanism.
+
 One worktree supports one active tuple. Concurrent RP2040 and STM32 builds
 use separate Git worktrees. A future source-relative-path conversion may
 replace the stamp with true per-machine object roots, but the conversion must

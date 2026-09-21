@@ -155,6 +155,14 @@ check-libc-environment:
 check-libc-sysctl:
 		${MAKE} -C tests/libc_sysctl check
 
+# sbin/umount's exit status over several operands, and the type list it asks
+# once per operand. The gate links the program's own source against a mount
+# table it owns, so nothing it decides needs a mounted filesystem. It reaches
+# the tree's userland headers for struct statfs, whose size_t is u_int, so it
+# runs at ILP32.
+check-umount-contracts:
+		${MAKE} -C tests/umount_contracts check
+
 check-libc-tempfiles:
 		${MAKE} -C tests/libc_tempfiles check
 
@@ -371,6 +379,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment check-libc-sysctl \
+		check-umount-contracts \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
@@ -570,6 +579,7 @@ installfs:
 		check-elf2aout \
 		check-kernel check-kernel-ilp32 check-fs-stress \
 		check-libc-environment check-libc-sysctl \
+		check-umount-contracts \
 		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross \

@@ -59,7 +59,7 @@ main(argc, argv)
 	int argc;
 	register char *argv[];
 {
-	int ch, errs;
+	int ch, errs = 0;
 
 	/* Start disks transferring immediately. */
 	sync();
@@ -90,7 +90,8 @@ main(argc, argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc == 0 && !allflag || argc != 0 && allflag)
+	/* -a takes no operand and every other form takes at least one. */
+	if ((argc == 0 && !allflag) || (argc != 0 && allflag))
 		usage();
 
 	if (allflag) {
@@ -98,8 +99,13 @@ main(argc, argv)
 			err(1, "%s", _PATH_FSTAB);
 		errs = umountall();
 	} else
+		/*
+		 * umountfs() reports a failed operand, which is how
+		 * umountall() reads it, so the status is the disjunction of
+		 * the operands rather than of their negations.
+		 */
 		for (errs = 0; *argv != NULL; ++argv)
-			if (umountfs(*argv) == 0)
+			if (umountfs(*argv) != 0)
 				errs = 1;
 	exit(errs);
 }
@@ -227,11 +233,18 @@ int
 selected(type)
 	int type;
 {
+	register int *tp;
+
 	/* If no type specified, it's always selected. */
 	if (typelist == NULL)
 		return (1);
-	for (; *typelist != MOUNT_NONE; ++typelist)
-		if (type == *typelist)
+	/*
+	 * The walk takes its own cursor, because every operand of one run is
+	 * asked in turn and advancing typelist itself would leave the list at
+	 * its terminator for the operands that follow.
+	 */
+	for (tp = typelist; *tp != MOUNT_NONE; ++tp)
+		if (type == *tp)
 			return (which == IN_LIST ? 1 : 0);
 	return (which == IN_LIST ? 0 : 1);
 }

@@ -81,6 +81,7 @@ main (argc,argv)
 	signal (2, getout);				/* trap interrupts */
 	ioctl (0, TIOCGETP, &tty);                      /* get old tty mode */
 	ioctl (0, TIOCGETC, &tchars);			/* readc() honors t_intrc */
+	ioctl (0, TIOCLGET, &lflags);			/* crterase() reads LCRTERA */
 	old = tty.sg_flags;
 #ifdef V7
         noech = old & ~(ECHO | CRMOD | XTABS);

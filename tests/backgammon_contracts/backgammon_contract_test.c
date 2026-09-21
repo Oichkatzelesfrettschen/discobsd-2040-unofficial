@@ -11,8 +11,11 @@
  *
  *   crterase() says whether the terminal overwrites the cell that a
  *   destructive backspace names, which decides between "\010 \010" and
- *   echoing back what was rubbed out.  Backspace and DEL both mark a display
- *   terminal, so testing either one alone gets the other wrong.
+ *   echoing back what was rubbed out.  That is LCRTERA in the local mode
+ *   word and nothing else: backspace and DEL are two input characters, and
+ *   which of them sg_erase holds says nothing about what the display does
+ *   with the byte written back.  Reading the erase character for it conflates
+ *   the two, so the suite drives them apart.
  *
  * The suite links the real subs.c and supplies the symbols its siblings
  * define, so what it measures is the shipped decision rather than a copy.
@@ -109,26 +112,52 @@ check_returned_characters(void)
 }
 
 /*
- * crterase() over the erase characters a terminal is set to.  CERASE is
- * checked by name so that the gate follows <sys/ttychars.h> rather than
- * repeating the byte it holds.
+ * crterase() answers from LCRTERA, and from nothing else.  The two questions
+ * are driven against each other: every erase character the game can be given,
+ * under each setting of the flag.  A crterase() that read the character would
+ * pass one row of this table and fail the other.
  */
 static void
 check_crterase(void)
 {
-	tty.sg_erase = '\010';
-	CHECK(crterase() == 1);
-	tty.sg_erase = '\177';
-	CHECK(crterase() == 1);
-	tty.sg_erase = CERASE;
-	CHECK(crterase() == 1);
+	static const int erasers[] = {
+		'\010',		/* backspace */
+		'\177',		/* DEL, which is also CERASE */
+		'#',		/* the hardcopy default this convention came from */
+		'\0',
+		'x',
+	};
+	unsigned i;
 
-	tty.sg_erase = '#';
-	CHECK(crterase() == 0);
-	tty.sg_erase = '\0';
-	CHECK(crterase() == 0);
-	tty.sg_erase = 'x';
-	CHECK(crterase() == 0);
+	for (i = 0; i < sizeof erasers / sizeof erasers[0]; i++) {
+		tty.sg_erase = (char)erasers[i];
+
+		lflags = LCRTERA;
+		CHECK(crterase() == 1);
+
+		lflags = 0;
+		CHECK(crterase() == 0);
+
+		/* Other local modes do not stand in for it. */
+		lflags = LCRTBS | LCRTKIL | LCTLECH;
+		CHECK(crterase() == 0);
+
+		lflags = LCRTERA | LCRTBS | LCRTKIL | LCTLECH;
+		CHECK(crterase() == 1);
+	}
+
+	/*
+	 * Backspace and DEL are distinct input characters: sg_erase holds one
+	 * of them, and readc() hands back the other as an ordinary byte for
+	 * table.c to compare.  Neither is consulted for the display class.
+	 */
+	lflags = LCRTERA;
+	tty.sg_erase = '\010';
+	CHECK(fed('\177') == '\177');
+	tty.sg_erase = '\177';
+	CHECK(fed('\010') == '\010');
+
+	tty.sg_erase = CERASE;
 }
 
 int

@@ -90,6 +90,9 @@ extern struct sgttyb	tty;		/* tty information buffer */
 extern struct tchars	tchars;		/* special characters the driver acts on
 				   outside RAW, holding the <sys/ttychars.h>
 				   defaults when TIOCGETC fails */
+extern int		lflags;		/* local mode word, which carries
+				   LCRTERA, the terminal class crterase()
+				   answers from */
 extern int		old;		/* original tty status */
 extern int		noech;		/* original tty status without echo */
 extern int		raw;		/* raw tty status, no echo */

@@ -447,6 +447,18 @@ check-elf2aout:	tools
 # The cross, qemu, mips and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
+#
+# A tier that compiles reads the tree's own headers: share/mk/sys.mk
+# spells the compile line -nostdinc -I${TOPSRC}/include, and sys/sys/types.h
+# reaches <machine/types.h> through include/machine. That symlink is
+# generated rather than tracked, so a fresh checkout carries none and
+# "clean" removes it, and the compile stops at the first include. The host,
+# cross, qemu and board-build tiers name symlinks so the link points at
+# ${MACHINE} before a gate runs, and .WAIT holds the gates that follow it
+# in the same dependency line until it does. The lint and host-package
+# tiers compile no C, the mips tier compiles against the cross toolchain's
+# own headers, and bin/sh/tests/posix-sh.sh builds the shell against the
+# host's, so those three reach nothing under include.
 HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \
@@ -550,7 +562,7 @@ check-fs-profiles:
 		    --profiles=distrib/rp2040/profiles \
 		    --append=distrib/rp2040/md.rp2040
 
-check-host:	${HOST_GATES} ${HOST_PROGRAM_GATES}
+check-host:	symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES}
 
 # sys/kern/subr_prf.c walks its arguments as four-byte slots, so the kernel's
 # own printf is faithful only at ILP32. The gate is an ordinary 32-bit
@@ -579,12 +591,12 @@ check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check
 
-check-cross:	check-cross-contracts .WAIT check-cross-kernel .WAIT \
-		check-cross-assembler
+check-cross:	symlinks .WAIT check-cross-contracts .WAIT check-cross-kernel \
+		.WAIT check-cross-assembler
 
 # qemu-arm: the u-area exchange loop and the Smaller C suite executed
 # rather than only linked.
-check-qemu:
+check-qemu:	symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 
@@ -610,7 +622,7 @@ check-host-package:
 
 # The on-device regression programs under tests/rp2040 build and convert
 # to a.out; the board runs them.
-check-board-build:
+check-board-build:	symlinks
 		${MAKE} -C tests/rp2040 all
 
 check:		check-lint check-host check-posix-sh check-cross check-qemu \

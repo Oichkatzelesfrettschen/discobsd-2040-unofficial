@@ -447,7 +447,7 @@ mktime_contract_test32: mktime_contract_test.c mktime_mktime32.o \
 
 # timezone.c still defines its functions the old way, which this tier's set
 # rejects and the arm-none-eabi gcc libc ships from does not.
-MKTIME_TZ_WARN=	-Wno-old-style-definition
+MKTIME_TZ_WARN=	-Wno-old-style-definition -Wno-deprecated-non-prototype
 
 mktime_timezone.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${MKTIME_CFLAGS} ${MKTIME_TZ_WARN} -c -o $@ \

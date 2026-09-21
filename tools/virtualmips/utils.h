@@ -55,8 +55,19 @@
 #define unlikely(x)  (x)
 #endif
 
+/*
+ * regparm passes the leading arguments in registers and exists on i386
+ * alone. Every other target ignores the attribute, and gcc reports each
+ * declaration that carries it, so the convention is named only where the
+ * compiler implements it; the simulator behaves the same either way.
+ */
+#if defined(__i386__)
 #define fastcall   __attribute__((regparm(3)))
 #define asmlinkage __attribute__((regparm(0)))
+#else
+#define fastcall
+#define asmlinkage
+#endif
 
 #define ASSERT(a,format,args...)  do{ if ((format!=NULL)&&(!(a)))   fprintf(stderr,format, ##args); assert((a));} while(0)
 

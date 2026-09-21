@@ -183,6 +183,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
 | `check-kernel` | eight sys/kern sources compiled from the kernel tree and run against 1194 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does |
 | `check-kernel-metadata` | the syscall and errno masters regenerate every shipped output byte for byte and reject duplicate or missing ordinals, out-of-range argument counts, invalid conditions, orphaned or accidental public aliases, oversized 16-bit pools and incomplete errno sequences; the contract checker pins syscall 23, the vfork alias and dispatch slot, compact device and tty tables, every capacity allocation seam, process and clist occupancy formulas, historical notices, every generated RP2040/STM32/PIC32 Makefile input, and both reset-time u-area paints before `SystemInit`. Known-bad metadata, device, tty and reset-paint fixtures calibrate the verdict. The gate reads and generates temporary files; it neither boots a kernel nor establishes workload headroom |
+| `check-root-noatime` | both RP2040 configurations and their generated Makefiles select `ROOT_MOUNT_FLAGS=MNT_NOATIME`, the initial root mount consumes the policy, `/etc/fstab` preserves it across `mount -a`, automatic read sites retain their guards, and explicit atime requests remain outside those guards. Five in-memory mutations calibrate the policy checker |
 | `check-libc-environment` | setenv, unsetenv, putenv and getenv over a modeled environ |
 | `check-libc-sysctl` | `uname` and `gethostname` compiled from the tree against a `sysctl()` that answers as sys/kern/kern_sysctl.c's helpers do: the prefix that fits, the length the value needs, ENOMEM. Every `utsname` field ends terminated and the one walk over a field's contents takes its bound from the field, which a guard of the byte that walk rewrites and an exactly sized allocation under the sanitizers both hold it to; `gethostname` terminates a truncated name and reports ENAMETOOLONG. The tree's userland `size_t` is `u_int`, so the tier runs at ILP32, and the gate reaches the tree's headers while its reporting half reaches the host's. Against the pre-change sources 7 of 31 checks fail and AddressSanitizer names a heap-buffer-overflow read in `uname` |
 | `check-libc-tempfiles` | tmpnam, tempnam and tmpfile, on the tree's and the host's libc |
@@ -236,7 +237,7 @@ and fails the moment the shell starts producing the POSIX answer.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for five files
+`check-kernel-ilp32` is separate from `check-kernel` for six files
 that compile or hold only at the target's width. sys/kern/sys_generic.c
 is built again as rwuio_test32: off_t, size_t and u_int are all four
 bytes on the target, so the vector sum that wrapped there is reproduced
@@ -395,6 +396,12 @@ worker would have to be driven from a supported controller or run a
 different agent altogether; and a 32-bit Arm worker would give ILP32 at the
 cost of hardware to maintain, for a property `-m32` already provides
 exactly. Neither buys fidelity this gate lacks.
+
+The sixth file is sys/kern/ufs_fio.c. `ufs_explicit_time_test` links
+`ufs_setattr()` from that source and proves at the target's width that
+`MNT_NOATIME` leaves an explicit atime request, a combined atime and mtime
+request, the no-timestamp case, and a read-only refusal distinct. A generated
+copy restores the inherited atime guard and must fail the same assertions.
 
 ### Kernel sources on the host
 

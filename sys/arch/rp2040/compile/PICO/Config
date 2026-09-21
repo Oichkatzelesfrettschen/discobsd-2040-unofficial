@@ -38,6 +38,7 @@ options         COMPACT_SWAPMAP              # 16-bit entries cover 384 blocks.
 options         LINEAR_BUFFER_CACHE          # Scan four buffers; omit hash links.
 options         LINEAR_NAME_CACHE            # Scan four names; use second chance.
 options         "CORE_DEFAULT=0"            # No core dumps unless raised.
+options         "ROOT_MOUNT_FLAGS=MNT_NOATIME" # Reads do not dirty root inodes.
 
 # Console over the board's USB cable: a CDC-ACM device on the RP2040's own
 # controller, /dev/ttyACM0 on a Linux host. It also carries the Pico SDK's

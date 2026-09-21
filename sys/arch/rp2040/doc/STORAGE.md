@@ -86,6 +86,30 @@ page per eight, a reserve of one fifth for garbage collection, and a
 64 KB safety margin; 1536 KB of flash yields 989 KB of blocks. The
 `flashimg -c` tool prints the figure for any geometry.
 
+## Root read-write policy
+
+Both RP2040 kernel configurations set `ROOT_MOUNT_FLAGS=MNT_NOATIME`.
+The initial `mountfs()` call applies the flag before init reads the root,
+and `/etc/fstab` repeats `noaccesstime` because `mount -a` updates the root
+mount and replaces its mutable flags. Other architectures retain a zero
+default for `ROOT_MOUNT_FLAGS`.
+
+The policy prevents ordinary `read(2)` and `readlink(2)` operations from
+marking an inode for an access-time write. An explicit `utimes(2)` request
+still sets `IACC`, so `touch -a` and timestamp-preserving copies retain their
+requested behavior. Read-derived access times therefore remain historical:
+`ls -u`, `find -atime`, tty-idle reporting, and mailbox newness cannot treat a
+read as a timestamp update on the RP2040 root.
+
+The eliminated write trigger has a bounded software path but no fixed erase
+count. One dirty inode causes its inode block to reach `flstrategy()`; a
+one-kilobyte request becomes four 256-byte `dhara_map_write()` calls followed
+by `dhara_map_sync()`. Buffer coalescing can combine several inode changes,
+and Dhara garbage collection decides the physical program and erase count.
+Claims about saved flash operations therefore require workload counters or a
+board trace; the mount policy alone proves only that reads stop creating the
+dirty-atime input.
+
 ## What ships
 
 The manifest installs 19 directories, 50 files, 18 device nodes, 78 hard

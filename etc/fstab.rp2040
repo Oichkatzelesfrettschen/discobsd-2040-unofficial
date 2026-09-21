@@ -1,1 +1,1 @@
-/dev/fl0a	/	ufs	rw,async	1	1
+/dev/fl0a	/	ufs	rw,async,noaccesstime	1	1

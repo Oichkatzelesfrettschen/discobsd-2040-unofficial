@@ -107,6 +107,14 @@ BALLOC_SRC=	${TOPSRC}/sys/kern/ufs_alloc.c
 BALLOC_RENAMES=	-Dfree=ufs_free
 BALLOC_PICO_DEFS=	${IALLOC_PICO_DEFS}
 
+# ufs_setattr() carries explicit utimes(2) through MNT_NOATIME. Function
+# sections let the gate link that routine from ufs_fio.c without inventing
+# stubs for the unrelated access and mount helpers in the same source file.
+UFS_EXPLICIT_TIME_SRC=	${TOPSRC}/sys/kern/ufs_fio.c
+UFS_EXPLICIT_TIME_DEFS=	${IALLOC_PICO_DEFS}
+UFS_EXPLICIT_TIME_CFLAGS=	-ffunction-sections
+UFS_EXPLICIT_TIME_LDFLAGS=	-Wl,--gc-sections
+
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
 # core(), so it compiles at the target's width alone, beside subr_prf.c.
@@ -305,6 +313,35 @@ balloc_test_pico: balloc_test.c ${BALLOC_SRC} hostkern_kern.c hostkern32.o \
 	    ${ILP32} -o $@ balloc_test.c balloc_kernel_pico.o \
 	    balloc_shim_pico.o hostkern32.o
 
+ufs_explicit_time_test: ufs_explicit_time_test.c ${UFS_EXPLICIT_TIME_SRC} \
+    hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o ufs_explicit_time_kernel.o \
+	    ${UFS_EXPLICIT_TIME_SRC}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
+	    ufs_explicit_time_kernel.o hostkern32.o
+
+# Restore the inherited defect in a generated source copy. The same executable
+# must reject a MNT_NOATIME mount that drops an explicit atime request.
+ufs_fio_noatime_bad.c: ${UFS_EXPLICIT_TIME_SRC}
+	@awk 'BEGIN { changed = 0 } \
+	    !changed && $$0 == "            ip->i_flag |= IACC;" { \
+	        print "            if ((INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME) == 0)"; \
+	        print "                ip->i_flag |= IACC;"; changed = 1; next \
+	    } \
+	    { print } \
+	    END { if (!changed) exit 1 }' ${UFS_EXPLICIT_TIME_SRC} > $@
+
+ufs_explicit_time_bad: ufs_explicit_time_test.c ufs_fio_noatime_bad.c \
+    hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o ufs_explicit_time_bad_kernel.o \
+	    ufs_fio_noatime_bad.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
+	    ufs_explicit_time_bad_kernel.o hostkern32.o
+
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
 rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
@@ -322,7 +359,8 @@ check-ilp32:
 	@${MAKE} prf_test rwuio_test32 sigauth_test \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
-	    balloc_test balloc_test_pico
+	    balloc_test balloc_test_pico \
+	    ufs_explicit_time_test ufs_explicit_time_bad
 	./prf_test
 	./sigauth_test
 	./rwuio_test32
@@ -333,6 +371,12 @@ check-ilp32:
 	./ialloc_test_diagnostic
 	./balloc_test
 	./balloc_test_pico
+	./ufs_explicit_time_test
+	@if ./ufs_explicit_time_bad; then \
+		echo "ufs explicit timestamp negative control passed" >&2; \
+		exit 1; \
+	fi
+	@echo "ufs explicit timestamp negative control rejected"
 .else
 	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
 .endif
@@ -361,6 +405,8 @@ clean:
 	rm -f balloc_kernel.o balloc_kernel_pico.o
 	rm -f balloc_shim.o balloc_shim_pico.o
 	rm -f balloc_test balloc_test_pico
+	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o
+	rm -f ufs_explicit_time_test ufs_explicit_time_bad ufs_fio_noatime_bad.c
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

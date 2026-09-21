@@ -295,15 +295,8 @@ pipe()
     }
 
     /* 'Write' end of pipe (for filedes[1]). */
-#ifdef __mips__
-    /* Move a secondary return value to register $v1. */
-    u.u_frame->tf_r3 = u.u_rval;
-#elif __thumb2__ || __thumb__
-    /* Move a secondary return value to register $a2. */
+    /* Move a secondary return value to ARM register r1. */
     u.u_frame->tf_r1 = u.u_rval;
-#else
-#error "pipe return value for unknown architecture"
-#endif
 
     /* 'Read' end of pipe (for filedes[0]). */
     u.u_rval = r;

@@ -14,6 +14,7 @@ AS=${AS:?set AS to the assembler under test}
 GNUAS=${GNUAS:-arm-none-eabi-as}
 CC=${CC:?set CC to the cross compiler command}
 CPU=${CPU:-cortex-m0plus}
+PYTHON=${PYTHON:?set PYTHON to the host interpreter}
 TOPSRC=${TOPSRC:?set TOPSRC to the top of the tree}
 here=$(dirname "$0")
 work=${WORK:-.}
@@ -29,7 +30,7 @@ do
 		fail=$((fail + 1))
 		continue
 	fi
-	if ! python3 "$here/thumb-aoutdiff.py" "$work/$name.s" \
+	if ! "$PYTHON" "$here/thumb-aoutdiff.py" "$work/$name.s" \
 	    "$work/$name.aout" "$work/$name.gnu.o"
 	then
 		fail=$((fail + 1))

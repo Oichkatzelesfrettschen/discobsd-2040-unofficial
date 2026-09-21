@@ -26,5 +26,7 @@ install: 	FRC
 			(cd $$i; ${MAKE} ${MFLAGS} DESTDIR=${DESTDIR} install); done
 
 clean:
-		rm -f *~
-		for i in ${SUBDIR}; do (cd $$i; ${MAKE} ${MFLAGS} clean); done
+		status=0; rm -f *~ || status=1; \
+		for i in ${SUBDIR}; do \
+			(cd $$i && ${MAKE} ${MFLAGS} clean) || status=1; \
+		done; exit $$status

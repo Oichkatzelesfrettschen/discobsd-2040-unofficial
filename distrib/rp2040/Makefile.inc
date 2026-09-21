@@ -19,8 +19,20 @@ U_KBYTES=	0
 PROFILE?=	full
 FS_PROFILES=	distrib/rp2040/profiles
 FS_CLOSURES=	distrib/rp2040/mi.rp2040
+FS_PROFILE_ARGS=	--profiles=distrib/rp2040/profiles
+FS_CLOSURE_ARGS=	--manifest=distrib/rp2040/mi.rp2040
+FS_SELECT_ARGS=
+MI_MANIFEST_VARIANT=
+.if ${BUILD_PDP11_V6} == "yes"
+FS_PROFILES+=	legacy/pdp11-v6/distrib/rp2040/profiles
+FS_CLOSURES+=	legacy/pdp11-v6/distrib/rp2040/mi.rp2040
+FS_PROFILE_ARGS+=	--profiles=legacy/pdp11-v6/distrib/rp2040/profiles
+FS_CLOSURE_ARGS+=	--manifest=legacy/pdp11-v6/distrib/rp2040/mi.rp2040
+FS_SELECT_ARGS+=	--select-closure=pdp11 --select-closure=v6disk
+MI_MANIFEST_VARIANT=	.pdp11-v6
+.endif
 MKMANIFEST=	distrib/rp2040/mkmanifest.py
-MI_MANIFEST=	distrib/rp2040/_manifest.${PROFILE}
+MI_MANIFEST:=	distrib/rp2040/_manifest.${PROFILE}${MI_MANIFEST_VARIANT}
 # The shipped root uses fewer than 100 objects. Eight inode blocks provide
 # 128 slots while recovering eight 1-KB data blocks from the fixed image.
 FS_INODES=	128
@@ -30,13 +42,13 @@ FS_INODES=	128
 # two files still resolves against one object set.
 ${MI_MANIFEST}:	${FS_CLOSURES} ${FS_PROFILES} ${MKMANIFEST}
 		${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
-		    --manifest=${FS_CLOSURES} --profiles=${FS_PROFILES} \
+		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
 		    --append=distrib/rp2040/md.rp2040 --output=$@
 
 # The top-level Makefile does not include share/mk/sys.mk, so the tool
 # paths and install command it defines are not otherwise in scope here.
 TOOLDIR?=	${TOPSRC}/tools
-TOOLBINDIR?=	${TOOLDIR}/bin
+TOOLBINDIR?=	${TOOLDIR}/bin/${MACHINE}
 # Plain "=": bmake's own built-in sys.mk sets INSTALL=install ahead of this
 # file, and "?=" would leave that in place instead of the tree's binstall.
 INSTALL=	${TOOLBINDIR}/binstall -U
@@ -44,7 +56,7 @@ INSTALL=	${TOOLBINDIR}/binstall -U
 # The flash region image and its UF2, from the disk image above. flashimg
 # writes the whole 1536K region so stale journal blocks from an earlier
 # image cannot survive beside the new one.
-FLASHIMG=	${TOPSRC}/tools/bin/flashimg
+FLASHIMG=	${TOOLBINDIR}/flashimg
 FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash.bin
 FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash.uf2
 # Where the region starts: FLASH_XIP_BASE + FLASH_FS_OFFSET in
@@ -71,7 +83,7 @@ cleanflash:
 # and ar, in a.out format throughout, since usr.bin/ld on the board reads
 # a.out only. lib/libc_aout/libc's full a.out build does not fit the root
 # and is not installed for rp2040 (see lib/libc_aout/libc/Makefile).
-PYTHON?=	python3
+PYTHON?=
 MKBOARDLIBC=	${TOPSRC}/distrib/rp2040/mkboardlibc.py
 BOARDLIBC_WORK=	${TOPSRC}/distrib/obj/boardlibc.${MACHINE}
 
@@ -114,7 +126,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 # -B; it needs no reduction since it is one small object.
 ${DESTDIR}/usr/lib/crt0.o:	${TOOLBINDIR}/as
 		${MAKE} -C ${TOPSRC}/lib/libc_aout/startup MACHINE=${MACHINE} \
-			TOOLBINDIR=${TOOLBINDIR}
+			TOOLDIR=${TOOLDIR}
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${INSTALL} ${TOPSRC}/lib/libc_aout/crt0.o $@
 

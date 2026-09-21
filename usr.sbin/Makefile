@@ -29,5 +29,7 @@ install: FRC
 		(cd $$i; ${MAKE} ${MFLAGS} DESTDIR=${DESTDIR} install) || exit 1; done
 
 clean:
-	/bin/rm -f a.out core *.s *.o *.dis *.elf *~ errs
-	for i in ${SUBDIR}; do (cd $$i; ${MAKE} ${MFLAGS} clean); done
+	status=0; /bin/rm -f a.out core *.s *.o *.dis *.elf *~ errs || status=1; \
+	for i in ${SUBDIR}; do \
+		(cd $$i && ${MAKE} ${MFLAGS} clean) || status=1; \
+	done; exit $$status

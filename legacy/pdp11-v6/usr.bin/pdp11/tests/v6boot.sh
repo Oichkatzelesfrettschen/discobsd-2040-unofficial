@@ -6,13 +6,14 @@
 #
 #   sh tests/v6boot.sh ./pdp11-host
 set -eu
-PYTHON=${PYTHON:-python3}
+: "${PYTHON:?PYTHON must name the interpreter}"
+: "${TOPSRC:?TOPSRC must name the DiscoBSD source root}"
 here=$(cd "$(dirname "$0")" && pwd)
 emu=${1:?usage: v6boot.sh EMULATOR}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 gunzip -c "$here/../v6.rk.gz" > "$work/root.rk"
-$PYTHON "$here/../../../tools/ptyrun.py" -t 60 -- "$emu" "$work/root.rk" > "$work/out" <<'EOF'
+"$PYTHON" "$TOPSRC/tools/ptyrun.py" -t 60 -- "$emu" "$work/root.rk" > "$work/out" <<'EOF'
 expect @
 send unix\r
 expect login:

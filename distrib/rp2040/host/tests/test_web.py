@@ -131,10 +131,8 @@ def test_page_requires_token_off_loopback(server):
 def test_page_has_no_raw_control_characters():
     assert not any(0 < b < 0x20 and b not in (9, 10, 13) for b in web.PAGE.encode())
     assert 'data-k="&#27;"' in web.PAGE
-    for code in (127, 28, 31):  # DEL, Ctrl-backslash, Ctrl-underscore: the V6 keys
-        assert 'data-k="&#%d;"' % code in web.PAGE
     assert 'id=bye' in web.PAGE and 'Sync &amp; leave' in web.PAGE
-    assert 'data-k="#"' in web.PAGE and 'data-k="@"' in web.PAGE  # V6 erase and kill
+    assert "inside V6" not in web.PAGE and "pdp11" not in web.PAGE
     assert 'id=help' in web.PAGE and 'id=h' in web.PAGE
     assert '<html lang=en>' in web.PAGE
     assert 'role=status aria-live=polite' in web.PAGE

@@ -89,11 +89,7 @@ prusage(r0, r1, e, b)
 	long ms =
 	    (e->tv_sec-b->tv_sec)*100 + (e->tv_usec-b->tv_usec)/10000;
 
-#ifdef pdp11
-	cp = "%Uu %Ss %E %P %I+%Oio %Vov %Wsw";
-#else
 	cp = "%Uu %Ss %E %P %X+%Dk %I+%Oio %Fpf+%Ww";
-#endif
 	if (vp && vp->vec[0] && vp->vec[1])
 		cp = vp->vec[1];
 	for (; *cp; cp++)
@@ -117,11 +113,6 @@ prusage(r0, r1, e, b)
 		printf("%d%%", (int) (t*100 / ((ms ? ms : 1))));
 		break;
 
-#ifdef pdp11
-	case 'V':
-		printf("%ld", r1->ru_ovly - r0->ru_ovly);
-		break;
-#endif
 
 	case 'W':
 		i = r1->ru_nswap - r0->ru_nswap;

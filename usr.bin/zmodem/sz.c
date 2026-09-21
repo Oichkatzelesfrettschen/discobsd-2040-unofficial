@@ -26,21 +26,6 @@
  *
  ****************************************************************************
  *
- * Typical VMS compile and install sequence:
- *
- *		define LNK$LIBRARY   SYS$LIBRARY:VAXCRTL.OLB
- *		cc sz.c
- *		cc vvmodem.c
- *		link sz,vvmodem
- *	sz :== $disk$user2:[username.subdir]sz.exe
- *
- *  If you feel adventureous, remove the #define BADSEEK line
- *  immediately following the #ifdef vax11c line!  Some VMS
- *  systems know how to fseek, some don't.
- *
- ****************************************************************************
- *
- *
  * A program for Unix to send files and commands to computers running
  *  Professional-YAM, PowerCom, YAM, IMP, or programs supporting Y/XMODEM.
  *
@@ -149,16 +134,12 @@ STATIC unsigned Txwcnt;	/* Counter used to space ack requests */
 STATIC long Lrxpos;		/* Receiver's last reported offset */
 STATIC int errors;
 
-#ifdef vax11c
-#include "vrzsz.c"	/* most of the system dependent stuff here */
-#else
 #ifdef GENIE
 #include "genie.c"	/* most of the system dependent stuff here */
 #else
 #include "rbsb.c"	/* most of the system dependent stuff here */
 #ifdef XX
 #undef STAT
-#endif
 #endif
 #endif
 
@@ -328,11 +309,7 @@ char *argv[];
 	if ((cp=getenv("SHELL")) && (substr(cp, "rsh") || substr(cp, "rksh")))
 		Restricted=TRUE;
 	from_cu();
-#ifdef vax11c
-	chkinvok(PROGNAME);
-#else
 	chkinvok(argv[0]);
-#endif
 
 	Rxtimeout = 600;
 	npats=0;
@@ -426,10 +403,8 @@ char *argv[];
 						mode(0);  exit(SS_NORMAL);
 					}
 					break;
-#ifndef vax11c
 				case 'u':
 					++Unlinkafter; break;
-#endif
 				case 'v':
 					++Verbose; break;
 				case 'w':
@@ -689,11 +664,9 @@ char *oname;
 		return ERROR;
 #endif
 
-#ifndef vax11c
 #ifndef GENIE
 	if (Unlinkafter)
 		unlink(oname);
-#endif
 #endif
 
 	return 0;
@@ -1153,7 +1126,6 @@ alrm(sig)
 }
 
 #ifndef GENIE
-#ifndef vax11c
 /*
  * readline(timeout) reads character(s) from file descriptor 0
  * timeout is in tenths of seconds
@@ -1199,7 +1171,6 @@ purgeline()
 #endif
 }
 #endif
-#endif
 
 /* send cancel string to get the other end to shut up */
 canit()
@@ -1208,13 +1179,8 @@ canit()
 	 24,24,24,24,24,24,24,24,24,24,8,8,8,8,8,8,8,8,8,8,0
 	};
 
-#ifdef vax11c
-	raw_wbuf(strlen(canistr), canistr);
-	purgeline();
-#else
 	printf(canistr);
 	fflush(stdout);
-#endif
 }
 
 
@@ -1255,17 +1221,6 @@ register char *s,*t;
 }
 
 char *babble[] = {
-#ifdef vax11c
-	"Send file(s) with ZMODEM/YMODEM/XMODEM Protocol",
-	"	(Y) = Option applies to YMODEM only",
-	"	(Z) = Option applies to ZMODEM only",
-	"Usage:	sz [-2+abdefkLlNnquvwYy] [-] file ...",
-	"	sz [-2Ceqv] -c COMMAND",
-	"	\\ Force next option letter to upper case",
-	"	sb [-2adfkquv] [-] file ...",
-	"	sx [-2akquv] [-] file",
-#endif
-#ifndef vax11c
 	"Send file(s) with ZMODEM/YMODEM/XMODEM Protocol",
 	"	(Y) = Option applies to YMODEM only",
 	"	(Z) = Option applies to ZMODEM only",
@@ -1273,7 +1228,6 @@ char *babble[] = {
 	"	sz [-2Ceqv] -c COMMAND",
 	"	sb [-2adfkquv] [-] file ...",
 	"	sx [-2akquv] [-] file",
-#endif
 #ifdef CSTOPB
 	"	2   Use 2 stop bits",
 #endif
@@ -1281,9 +1235,7 @@ char *babble[] = {
 	"	a   (ASCII) change NL to CR/LF",
 	"	b   Binary file transfer override",
 	"	c   send COMMAND (Z)",
-#ifndef vax11c
 	"	d   Change '.' to '/' in pathnames (Y/Z)",
-#endif
 	"	e   Escape all control characters (Z)",
 	"	f   send Full pathname (Y/Z)",
 	"	i   send COMMAND, ack Immediately (Z)",
@@ -1296,9 +1248,7 @@ char *babble[] = {
 	"	p   Protect existing destination file (Z)",
 	"	r   Resume/Recover interrupted file transfer (Z)",
 	"	q   Quiet (no progress reports)",
-#ifndef vax11c
 	"	u   Unlink (remove) file after transmission",
-#endif
 	"	v   Verbose - provide debugging information",
 	"	w N restrict Window to N bytes (Z)",
 	"	Y   Yes, overwrite existing file, skip if not present at rx (Z)",
@@ -1376,14 +1326,12 @@ getzrxinit()
 			vfile("Rxbuflen=%d", Rxbuflen);
 
 #ifndef GENIE
-#ifndef vax11c
 #ifdef STAT
 			/* If using a pipe for testing set lower buf len */
 			fstat(0, &f);
 			if ((f.st_mode & S_IFMT) != S_IFCHR) {
 				Rxbuflen = 1024;
 			}
-#endif
 #endif
 #endif
 
@@ -1910,14 +1858,10 @@ listen:
 			saybibi();
 			return OK;
 		case ZRQINIT:
-#ifdef vax11c		/* YAMP :== Yet Another Missing Primitive */
-			return ERROR;
-#else
 			vfile("******** RZ *******");
 			system("rz");
 			vfile("******** SZ *******");
 			goto listen;
-#endif
 		}
 	}
 }

@@ -43,10 +43,8 @@
 #endif
 
 /*
- * Helper routines.  Repeated constructs of the form "%s: " used up too
- * much D space.  On a pdp-11 code can be overlaid but Data space is worth
- * conserving.  An extra function call or two handling an error condition is
- * a reasonable trade for 20 or 30 bytes of D space.
+ * Repeated constructs of the form "%s: " consume data space. An extra call
+ * or two on an error path is a reasonable trade for 20 or 30 saved bytes.
  */
 static void
 putcolsp()

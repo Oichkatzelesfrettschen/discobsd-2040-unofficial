@@ -19,9 +19,7 @@ struct timeval {
 };
 
 /*
- * Structure defined by POSIX.4 to be like a timeval but with nanoseconds
- * instead of microseconds.  Silly on a PDP-11 but keeping the names the
- * same makes life simpler than changing the names.
+ * POSIX.4 time value with nanoseconds instead of microseconds.
 */
 struct timespec {
     time_t tv_sec;          /* seconds */

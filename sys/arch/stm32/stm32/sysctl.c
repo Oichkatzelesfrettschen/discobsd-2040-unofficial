@@ -114,11 +114,7 @@ ucall(void)
 	splx(s);
 }
 
-/*
- * Fetch the word at addr from flash memory or i/o port.
- * This system call is required on PIC32 because in user mode
- * the access to flash memory region is not allowed.
- */
+/* The ABI reserves ufetch, but STM32 exposes no privileged fetch service. */
 void
 ufetch(void)
 {

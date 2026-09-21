@@ -5,7 +5,7 @@
  */
 
 /*
- * ffs -- vax ffs instruction
+ * Find the first set bit.
  */
 int
 ffs(mask)

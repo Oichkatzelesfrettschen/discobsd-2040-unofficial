@@ -29,12 +29,6 @@ typedef unsigned int    u_int;
 typedef unsigned long   u_long;     /* see this! unsigned longs at last! */
 typedef unsigned short  ushort;     /* sys III compat */
 
-#ifdef pdp11
-typedef struct  label_t {
-    int     val[7];                 /* regs 2-7 and super SP */
-} label_t;
-#endif
-
 typedef long    daddr_t;
 typedef char *  caddr_t;
 typedef u_int   ino_t;

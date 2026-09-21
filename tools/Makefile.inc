@@ -2,8 +2,10 @@
 
 _HOST_OSNAME!=	uname -s
 
+include ${TOPSRC}/share/mk/architecture.mk
+
 TOOLDIR?=	${TOPSRC}/tools
-TOOLBINDIR?=	${TOOLDIR}/bin
+TOOLBINDIR?=	${TOOLDIR}/bin/${MACHINE}
 
 HOST_CC?=	cc
 

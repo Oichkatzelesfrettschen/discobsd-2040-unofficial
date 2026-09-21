@@ -20,7 +20,7 @@
 #include <sys/reboot.h>
 #include <sys/signal.h>
 
-#define	OPTS	"lqnhdarsfRD"
+#define	OPTS	"lqnhdarsfR"
 
 void	markdown();
 
@@ -68,7 +68,6 @@ main(argc, argv)
 			case 's':  howto |= RB_SINGLE;	break;
 			case 'f':  howto |= RB_NOFSCK;	break;
 			case 'R':  howto |= RB_DFLTROOT; break;
-			case 'D':  howto |= RB_AUTODEBUG; break;
 			case 'p':  howto |= RB_HALT|RB_POWEROFF; break;
 			case '?':
 				fprintf(stderr,

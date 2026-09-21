@@ -369,11 +369,6 @@ hzto(tv)
     else
         ticks = 0x7fffffff;
     splx(s);
-#ifdef pdp11
-    /* stored in an "int", so 16-bit max */
-    if (ticks > 0x7fff)
-        ticks = 0x7fff;
-#endif
     return ((int)ticks);
 }
 

@@ -75,8 +75,7 @@ sys/arch/rp2040/doc/TESTING.md leave it out on macOS.
 | check-swapram-evac | passes | the same header order; the swap pool's ELF section attribute under `__ELF__`; clang's K&R-definition error relaxed for subr_rmap.c |
 | check-cache-footprint, check-exec-spool | pass | Apple's linker spelling for dead-section stripping; clang's operand-width check off for Cortex-M inline assembly it never emits; the exec-spool test's swap model grew the kernel's cursor allocator (`malloc3_contiguous_next`, `swapnext`, `swap_cursor_publish`) |
 | check-divider | passes | a Python with `capstone` and `pyelftools` named in `PYTHON` |
-| check-elf2aout | needs the MIPS cross toolchain on any host | not a macOS matter |
-| `usr.bin/pdp11` V6 boot | passes | `cons_poll` read FIONREAD into a `long`; termios for every host build |
+| check-elf2aout | passes | ARM toolchain only |
 | `usr.bin/as/tests` | pass; the LD_PRELOAD fault injection is Linux only; the Unicorn run needs `pip install unicorn` | ranlib read the archive through a stream sharing the descriptor's offset, wrong on Apple's stdio |
 | `bin/tar/tests/tartest.sh` | passes | tape ioctls left out; the directory stream kept open across recursion (a telldir cookie is per stream on macOS) |
 | `check-tiny-utility-multicall` | passes | the pty step through `tools/ptyrun.py` instead of util-linux `script -c` |

@@ -2,7 +2,7 @@ RUNNER=         ${.CURDIR}/run.py
 PROFILE=        ${.CURDIR}/v7_rl02.simh
 EXPECTED=       ${.CURDIR}/v7_rl02.expected
 SIMULATOR?=     simh-pdp11
-PYTHON?=        python3
+PYTHON?=
 
 check-python:
 	@if [ -z "${PYTHON}" ]; then \

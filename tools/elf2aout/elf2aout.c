@@ -177,6 +177,10 @@ struct sect {
 /* The ELF file header.  This appears at the start of every ELF file.  */
 
 #define EI_NIDENT (16)
+#define ELFCLASS32 1
+#define ELFDATA2LSB 1
+#define EV_CURRENT 1
+#define EM_ARM 40
 
 typedef struct
 {
@@ -260,12 +264,6 @@ typedef struct
 #define PT_HIOS		0x6fffffff	/* End of OS-specific */
 #define PT_LOPROC	0x70000000	/* Start of processor-specific */
 #define PT_HIPROC	0x7fffffff	/* End of processor-specific */
-
-/* Legal values for p_type field of Elf32_Phdr.  */
-
-#define PT_MIPS_REGINFO	0x70000000	/* Register usage information */
-#define PT_MIPS_RTPROC  0x70000001	/* Runtime procedure table. */
-#define PT_MIPS_OPTIONS 0x70000002
 
 /* Legal values for p_flags (segment flags).  */
 
@@ -392,6 +390,13 @@ usage:                  fprintf(stderr,
 		    argv[0], i ? strerror(errno) : "End of file reached");
 		exit(1);
 	}
+	if (ex.e_ident[0] != 0x7f || ex.e_ident[1] != 'E' ||
+	    ex.e_ident[2] != 'L' || ex.e_ident[3] != 'F' ||
+	    ex.e_ident[4] != ELFCLASS32 || ex.e_ident[5] != ELFDATA2LSB ||
+	    ex.e_ident[6] != EV_CURRENT)
+		errx(1, "%s is not a 32-bit little-endian ELF file", argv[0]);
+	if (ex.e_machine != EM_ARM)
+		errx(1, "ELF machine %u is not ARM", ex.e_machine);
 	/* Read the program headers... */
 	ph = (Elf32_Phdr *) save_read(infile, ex.e_phoff,
 	    ex.e_phnum * sizeof(Elf32_Phdr), "ph");
@@ -446,8 +451,7 @@ usage:                  fprintf(stderr,
 	for (i = 0; i < ex.e_phnum; i++) {
 		/* Section types we can ignore... */
 		if (ph[i].p_type == PT_NULL || ph[i].p_type == PT_NOTE ||
-		    ph[i].p_type == PT_PHDR || ph[i].p_type == PT_MIPS_REGINFO ||
-                    ph[i].p_type == PT_GNU_EH_FRAME)
+		    ph[i].p_type == PT_PHDR || ph[i].p_type == PT_GNU_EH_FRAME)
 			continue;
 
                 if (verbose)

@@ -6,8 +6,8 @@
  * measured against these invariants rather than against a second copy of the
  * algorithm. The Makefile builds this file three times: once in the shape
  * sys/arch/rp2040/compile/PICO configures (COMPACT_SWAPMAP, sixteen-bit
- * descriptors), once with the wide descriptors the stm32 and pic32 ports
- * use, and once with DIAGNOSTIC, which is what compiles in the three overlap
+ * descriptors), once with the wide descriptors the STM32 port uses, and once
+ * with DIAGNOSTIC, which is what compiles in the three overlap
  * panics mfree() raises when a caller returns space it does not hold.
  *
  * A map is an ascending array of free runs terminated by a zero-size entry,

@@ -1,0 +1,28 @@
+# Optional PDP-11 emulator and Sixth Edition guest filesystem entries.
+# The root build reads this fragment only with BUILD_PDP11_V6=yes.
+
+#closure v6disk
+default
+owner 2
+group 5
+dirmode 0775
+dir /usr/v6
+#endclosure v6disk
+
+#closure pdp11
+default
+owner 2
+group 5
+filemode 0775
+pack /usr/bin/pdp11
+#endclosure pdp11
+
+# The emulator boots a 1 MB logical pack that occupies about 150 KB of
+# filesystem blocks because the zero-filled regions remain sparse.
+#closure v6disk
+default
+owner 2
+group 5
+filemode 0664
+file /usr/v6/root.rk
+#endclosure v6disk

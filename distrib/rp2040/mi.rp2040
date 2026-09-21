@@ -43,9 +43,6 @@ dir /usr/lib
 #closure games
 dir /usr/games
 #endclosure games
-#closure v6disk
-dir /usr/v6
-#endclosure v6disk
 dir /usr/share
 dir /usr/share/misc
 dir /root
@@ -224,10 +221,6 @@ pack /usr/libexec/getty
 #closure toolchain
 pack /usr/libexec/smlrc
 #endclosure toolchain
-#closure pdp11
-pack /usr/bin/pdp11
-#endclosure pdp11
-
 #closure games
 pack /usr/games/gamebox
 #endclosure games
@@ -241,10 +234,6 @@ filemode 0664
 #closure toolchainlib
 file /usr/lib/libc.a
 #endclosure toolchainlib
-# The V6 pack pdp11 boots: 1 MB logical, about 150 KB of blocks.
-#closure v6disk
-file /usr/v6/root.rk
-#endclosure v6disk
 #closure toolchainlib
 file /usr/lib/crt0.o
 #endclosure toolchainlib

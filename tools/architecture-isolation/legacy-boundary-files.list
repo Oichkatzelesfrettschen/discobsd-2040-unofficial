@@ -1,0 +1,8 @@
+# Repository-owned boundary files added after the byte-preserving relocation.
+legacy/non-arm/Makefile
+legacy/non-arm/README.md
+legacy/pdp11-v6/Makefile
+legacy/pdp11-v6/README.md
+legacy/pdp11-v6/distrib/rp2040/mi.rp2040
+legacy/pdp11-v6/distrib/rp2040/profiles
+legacy/unsupported-platforms/README.md

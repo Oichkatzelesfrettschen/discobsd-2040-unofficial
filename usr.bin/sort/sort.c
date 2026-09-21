@@ -12,11 +12,7 @@
 #define N   7
 #define C   20
 #ifndef MEM
-#ifndef pdp11
 #define MEM (32*2048)
-#else
-#define MEM (16*2048)
-#endif
 #endif
 #define NF  10
 
@@ -181,9 +177,7 @@ char **argv;
     lspace = (int *)sbrk(0);
     while((int)brk(ep) == -1)
         ep -= 512;
-#ifndef vax
     brk(ep -= 512); /* for recursion */
-#endif
 #endif
     a = ep - (char*)lspace;
     nlines = (a-L);

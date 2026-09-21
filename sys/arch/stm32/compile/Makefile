@@ -1,9 +1,15 @@
 #
 # Kernels live in subdirectories, and have Makefiles of their own.
 #
-SUBDIR=		F405WEACTCORE F411RENUCLEO F412GDISCO F412WEACTCORE \
-		F413HDISCO F446RENUCLEO F446WEACTCORE F469IDISCO \
-		F4DISCOVERY F4VEDEVEBOX
+TOPSRC!=	cd ../../../..; pwd
+MACHINE_DEFAULT=	stm32
+include ${TOPSRC}/share/mk/architecture.mk
+
+.if ${MACHINE} != "stm32"
+.error stm32 kernel aggregation requires MACHINE=stm32
+.endif
+
+SUBDIR=		${MACHINE_KERNEL_CONFIGS}
 
 default:
 
@@ -13,10 +19,13 @@ all:
 install:
 
 clean:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i clean || status=1; done; exit $$status
 
 clean-all:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i clean-all; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i clean-all || status=1; done; exit $$status
 
 reconfig:
-		-for i in ${SUBDIR}; do ${MAKE} -C $$i reconfig; done
+		status=0; for i in ${SUBDIR}; do \
+			${MAKE} -C $$i reconfig || status=1; done; exit $$status

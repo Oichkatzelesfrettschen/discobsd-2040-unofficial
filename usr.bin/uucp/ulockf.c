@@ -116,11 +116,7 @@ char *tempfile, *name;
 {
 	register int fd, ret;
 	extern int errno;
-#ifdef VMS
-	fd = creat(name, LCKMODE, "1version");
-#else
 	fd = creat(tempfile, LCKMODE);
-#endif
 	if (fd < 0) {
 		DEBUG(1,"Can't creat temp file %s ", tempfile);
 		DEBUG(1,"-- errno %d", errno);
@@ -131,20 +127,14 @@ char *tempfile, *name;
 
 	if (ret != sizeof(int)) {
 		DEBUG(1,"Temp file write failed -- errno %d\n", errno);
-#ifdef VMS
-		(void) unlink(name);
-#else
 		(void) unlink(tempfile);
-#endif
 		return FAIL;
 	}
-#ifndef VMS
 	if (link(tempfile, name) < 0) {
 		(void) unlink(tempfile);
 		return FAIL;
 	}
 	unlink(tempfile);
-#endif
 	return SUCCESS;
 }
 

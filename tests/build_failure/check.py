@@ -94,6 +94,11 @@ def expect(condition, message, output):
 
 def lib_scratch(root, scratch):
     (scratch / "share").symlink_to(root / "share")
+    tools = scratch / "tools"
+    tools.mkdir()
+    (tools / "check-build-machine.sh").symlink_to(
+        root / "tools/check-build-machine.sh"
+    )
     lib = scratch / "lib"
     lib.mkdir()
     shutil.copy(root / "lib/Makefile", lib / "Makefile")

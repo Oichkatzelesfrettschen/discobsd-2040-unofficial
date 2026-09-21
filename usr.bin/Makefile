@@ -6,19 +6,12 @@
 TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-# The native toolchain, as cc cpp lcc lcpp ld smallc aout adb, emits MIPS
-# code, so it is built for the machines that carry it today and left out of
-# rp2040, whose root cannot hold what it cannot run. smlrc carries a Thumb-1
-# back end and is built for rp2040. The peripheral demos are STM32 and PIC32
-# hardware.
+# Both maintained machines build the Thumb native toolchain. RP2040 also
+# carries the MPU diagnostic; STM32 has no matching sysctl interface.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld pdp11 mputest" ; \
-	elif [ x"${MACHINE_ARCH}" = x"arm" ] ; then \
-		echo "lex as cc cpp lcc lcpp ld smallc aout glcdtest gtest portio pwm wiznet smux" ; \
-	elif [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "adb smlrc as cc cpp lcc lcpp ld smallc aout glcdtest gtest portio pwm wiznet smux" ; \
+		echo "lex smlrc as ld mputest" ; \
 	else \
-		echo "" ; \
+		echo "lex smlrc as ld" ; \
 	fi
 
 # picoc pays 67 KB of root for a C interpreter rp2040 does not need: the
@@ -42,8 +35,7 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  true cut paste seq dirname nl cksum expand unexpand mkfifo \
 		uuencode uudecode cpio getopt yes strings users unixbench
 
-# TODO: ccom lccom pforth sre adc-demo
-#       lorder mkdep
+# TODO: pforth sre adc-demo lorder mkdep
 
 all:		$(SUBDIR)
 
@@ -63,5 +55,8 @@ install:
 			$(MAKE) -C $$i $(MFLAGS) DESTDIR=$(DESTDIR) install || exit 1; done
 
 clean:
-		/bin/rm -f a.out core *.s *.o *.dis *.elf *~ y.tab.[ch] errs
-		for i in $(SUBDIR); do (cd $$i; $(MAKE) $(MFLAGS) clean); done
+		status=0; /bin/rm -f a.out core *.s *.o *.dis *.elf *~ \
+		    y.tab.[ch] errs || status=1; \
+		for i in ${SUBDIR}; do \
+			(cd $$i && ${MAKE} ${MFLAGS} clean) || status=1; \
+		done; exit $$status

@@ -25,9 +25,16 @@ DEBUG = -g
 
 # sources are located via $S relative to the compilation directory
 S=		../../../..
+TOPSRC!=	cd ${S}/.. && pwd
+MACHINE_DEFAULT=	stm32
+include		${TOPSRC}/share/mk/architecture.mk
 
-_mach?=		stm32
-_arch?=		arm
+.if ${MACHINE} != "stm32"
+.error stm32 kernel Makefiles require MACHINE=stm32
+.endif
+
+_mach=		${MACHINE}
+_arch=		${MACHINE_ARCH}
 _machdir?=	$S/arch/${_mach}
 _archdir?=	$S/arch/${_arch}
 _confdir?=	${_machdir}/conf
@@ -46,11 +53,8 @@ CWARNFLAGS=	-Wall
 # for the same reason and its comment names this tree.
 CSTDFLAGS=	-std=gnu17
 
-CMACHCPU=	-mcpu=cortex-m4
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
-CMACHFLAGS+=	-mfloat-abi=soft
-CMACHFLAGS+=	-mthumb -mabi=aapcs -mlittle-endian
-CMACHFLAGS+=	${CMACHCPU}
+CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 
 COPTS?=		-O
 CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
@@ -142,8 +146,10 @@ clean:
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
-reconfig ioconf.c: Config $S/../tools/bin/config
-	$S/../tools/bin/config Config
+CONFIG_TOOL=	${TOOLBINDIR}/config
+
+reconfig ioconf.c: Config ${CONFIG_TOOL}
+	${CONFIG_TOOL} Config
 	${MAKE} clean
 
 machine:

@@ -35,10 +35,6 @@
 	#define PF_SUPPORT_FP    (1)
 #endif
 
-#ifdef WIN32
-	#define PF_USER_INC2     "pf_win32.h"
-#endif
-
 #if defined(PF_USER_INC1)
 	#include PF_USER_INC1
 #else
@@ -64,4 +60,3 @@
 #endif
 
 #endif /* _pf_all_h */
-

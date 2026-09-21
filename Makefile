@@ -10,14 +10,10 @@
 
 TOPSRC!=	pwd
 
-# Override the default port with:
-# $ make MACHINE=pic32 MACHINE_ARCH=mips
-#
-MACHINE=	stm32
-MACHINE_ARCH=	arm
+include ${TOPSRC}/share/mk/architecture.mk
 
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
-RELEASEDIR?=	${TOPSRC}/distrib/obj/releasedir
+RELEASEDIR?=	${TOPSRC}/distrib/obj/releasedir.${MACHINE}
 
 # Filesystem and swap sizes, in kbytes. A machine whose disk is smaller
 # than an SD card overrides these from distrib/${MACHINE}/Makefile.inc,
@@ -59,10 +55,13 @@ FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
 #
 DEFS		=
 
-FSUTIL=		${TOPSRC}/tools/bin/fsutil
+TOOLDIR?=	${TOPSRC}/tools
+TOOLBINDIR?=	${TOOLDIR}/bin/${MACHINE}
+FSUTIL=		${TOOLBINDIR}/fsutil
 
-# The interpreter for every verifier and harness, passed to each sub-make.
-PYTHON?=	python3
+# The caller selects the interpreter for every verifier and harness. CI and
+# documented commands set PYTHON explicitly; sub-makes inherit that identity.
+PYTHON?=
 .export PYTHON
 
 -include Makefile.user
@@ -77,13 +76,19 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
-build:		symlinks tools
+check-python:
+		@if [ -z "${PYTHON}" ]; then \
+			echo "PYTHON must name the interpreter for this target" >&2; \
+			exit 2; \
+		fi
+
+build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
 		$(MAKE) -C etc DESTDIR=${DESTDIR} distrib-dirs
 		$(MAKE) -C include includes
-		for dir in ${SUBDIR} ; do \
+		for dir in ${SUBDIR} ${LEGACY_SUBDIRS}; do \
 			${MAKE} -C $$dir || exit 1; done
-		for dir in ${SUBDIR} ; do \
+		for dir in ${SUBDIR} ${LEGACY_SUBDIRS}; do \
 			${MAKE} -C $$dir DESTDIR=${DESTDIR} install || exit 1; done
 
 distribution:	build
@@ -379,11 +384,57 @@ check-tiny-utility-multicall:
 check-portable-utilities:
 		${MAKE} -C tests/portable_utilities check
 
-check-pdp11-reference:
-		${MAKE} -C tests/pdp11_reference check
+check-legacy-pdp11-v7-runner:	check-python .WAIT
+		@if [ x"${BUILD_PDP11_V6}" != x"yes" ]; then \
+			echo "check-legacy-pdp11-v7-runner requires BUILD_PDP11_V6=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C legacy/pdp11-v6 BUILD_PDP11_V6=yes MACHINE=rp2040 \
+		    PYTHON=${PYTHON} check-v7-runner
 
-check-pdp11-v7:
-		${MAKE} -C tests/pdp11_reference reference
+check-legacy-pdp11-v7-reference:	check-python .WAIT
+		@if [ x"${BUILD_PDP11_V6}" != x"yes" ]; then \
+			echo "check-legacy-pdp11-v7-reference requires BUILD_PDP11_V6=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C legacy/pdp11-v6 BUILD_PDP11_V6=yes \
+		    MACHINE=rp2040 PYTHON=${PYTHON} \
+		    PDP11_V7_IMAGE=${PDP11_V7_IMAGE} \
+		    PDP11_EVIDENCE_DIR=${PDP11_EVIDENCE_DIR} check-v7-reference
+
+legacy-non-arm-verify:
+		@if [ x"${BUILD_LEGACY_NON_ARM}" != x"yes" ]; then \
+			echo "legacy-non-arm-verify requires BUILD_LEGACY_NON_ARM=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C legacy/non-arm BUILD_LEGACY_NON_ARM=yes check
+
+legacy-pdp11-v6-build:
+		@if [ x"${BUILD_PDP11_V6}" != x"yes" ]; then \
+			echo "legacy-pdp11-v6-build requires BUILD_PDP11_V6=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C legacy/pdp11-v6 BUILD_PDP11_V6=yes \
+		    MACHINE=rp2040 all
+
+legacy-pdp11-v6-install:
+		@if [ x"${BUILD_PDP11_V6}" != x"yes" ]; then \
+			echo "legacy-pdp11-v6-install requires BUILD_PDP11_V6=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C legacy/pdp11-v6 BUILD_PDP11_V6=yes \
+		    MACHINE=rp2040 DESTDIR=${DESTDIR} install
+
+legacy-pdp11-v6-distribution:
+		@if [ x"${BUILD_PDP11_V6}" != x"yes" ]; then \
+			echo "legacy-pdp11-v6-distribution requires BUILD_PDP11_V6=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} MACHINE=rp2040 BUILD_PDP11_V6=yes distribution
+
+check-architecture-isolation:
+		sh tools/architecture-isolation/check-architecture-isolation.sh \
+		    "${TOPSRC}" "${MAKE}"
 
 check-fgrep-capacity:
 		${MAKE} -C usr.bin/fgrep test
@@ -442,12 +493,13 @@ check-elf2aout:	tools
 		${MAKE} -C tests/rp2040/elf2aout_layout check
 
 # Test tiers. Each gate above is its own target; the tiers group them by
-# what the host needs, so a machine without the arm cross toolchain,
-# qemu-arm or the MIPS compiler runs the tiers it has and names the rest.
-# The cross, qemu, mips and board-build tiers run after
+# what the host needs, so a machine without the ARM cross toolchain or
+# qemu-arm runs the tiers it has and names the rest.
+# The cross, qemu, and board-build tiers run after
 # "bmake MACHINE=rp2040 build". sys/arch/rp2040/doc/TESTING.md carries
 # the matrix, and .github/workflows/firmware.yml runs "check" on Linux.
-HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
+HOST_GATES=	check-architecture-isolation \
+		check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
@@ -461,10 +513,10 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-touch-contracts \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
-		check-portable-utilities check-pdp11-reference \
+		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
 		check-fs-profiles
-HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
+HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host
@@ -488,11 +540,16 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 check-lint:
 		sh tools/check-lint.sh
 
-# Host C compiler and ${PYTHON}: the libc, utility and kernel-model gates,
-# the pdp11 V6 boot, and every program with a host build and a suite. Each
-# program owns a target so the jobserver can schedule independent directories.
-check-pdp11-v6:
-		${MAKE} -C usr.bin/pdp11 test
+# Host C compiler and ${PYTHON}: the libc, utility and kernel-model gates and
+# every maintained program with a host build and a suite. Each program owns a
+# target so the jobserver can schedule independent directories.
+check-legacy-pdp11-v6:	check-python .WAIT
+		@if [ x"${BUILD_PDP11_V6}" != x"yes" ]; then \
+			echo "check-legacy-pdp11-v6 requires BUILD_PDP11_V6=yes" >&2; \
+			exit 2; \
+		fi
+		${MAKE} -C legacy/pdp11-v6 BUILD_PDP11_V6=yes \
+		    MACHINE=rp2040 PYTHON=${PYTHON} check-v6
 
 check-stevie-host:
 		${MAKE} -C usr.bin/stevie test
@@ -540,17 +597,15 @@ check-cpio-host:
 # tools/fsutil/fsutil.c's add_hardlink() only warns on a missing source and
 # leaves the exit status at 0, which is the image this gate keeps from
 # being written. sys/arch/rp2040/doc/PROFILES.md is the authority.
-check-fs-profiles:
+check-fs-profiles:	check-python .WAIT
 		${PYTHON} distrib/rp2040/mkmanifest.py --check-all \
-		    --manifest=distrib/rp2040/mi.rp2040 \
-		    --profiles=distrib/rp2040/profiles \
+		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
 		    --append=distrib/rp2040/md.rp2040
 		${PYTHON} distrib/rp2040/mkmanifest.py --selftest \
-		    --manifest=distrib/rp2040/mi.rp2040 \
-		    --profiles=distrib/rp2040/profiles \
+		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
 		    --append=distrib/rp2040/md.rp2040
 
-check-host:	${HOST_GATES} ${HOST_PROGRAM_GATES}
+check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES}
 
 # sys/kern/subr_prf.c walks its arguments as four-byte slots, so the kernel's
 # own printf is faithful only at ILP32. The gate is an ordinary 32-bit
@@ -579,12 +634,12 @@ check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check
 
-check-cross:	check-cross-contracts .WAIT check-cross-kernel .WAIT \
+check-cross:	check-python .WAIT check-cross-contracts .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop and the Smaller C suite executed
 # rather than only linked.
-check-qemu:
+check-qemu:	check-python .WAIT
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 
@@ -601,11 +656,8 @@ check-renode:
 check-flash-id:
 		sh tools/pico-sdk/check-flash-id.sh
 
-# The MIPS cross compiler beside the arm one: elf2aout's layout on both.
-check-mips:	check-elf2aout
-
 # The discobsd-host Python package: its own lint and tests.
-check-host-package:
+check-host-package:	check-python .WAIT
 		cd distrib/rp2040/host && ruff check . && ${PYTHON} -m pytest -q
 
 # The on-device regression programs under tests/rp2040 build and convert
@@ -614,9 +666,9 @@ check-board-build:
 		${MAKE} -C tests/rp2040 all
 
 check:		check-lint check-host check-posix-sh check-cross check-qemu \
-		check-mips check-host-package check-board-build
+		check-host-package check-board-build
 
-fs:		$(FSIMG)
+fs:		check-python .WAIT $(FSIMG)
 
 # The image is staged from ${DESTDIR}; etc/passwd, etc/shadow and etc/group
 # reach ${DESTDIR}/etc only through etc's own distribution target. Depending on
@@ -647,22 +699,32 @@ release:
 		${MAKE} -C etc MACHINE=${MACHINE} RELEASEDIR=${RELEASEDIR} release
 
 clean:
-		rm -f *~
-		rm -f include/machine
-		for dir in ${SUBDIR} ; do \
-			$(MAKE) -C $$dir -k clean; done
+		status=0; rm -f *~ include/machine || status=1; \
+		for dir in ${SUBDIR} ${LEGACY_SUBDIRS}; do \
+			${MAKE} -C $$dir clean || status=1; \
+		done; exit $$status
 
 cleantools:
-		${MAKE} -C tools clean
+		status=0; for machine in ${SUPPORTED_MACHINES}; do \
+			${MAKE} -C tools MACHINE=$$machine clean || status=1; \
+		done; exit $$status
 
 cleankernel:
-		${MAKE} -C sys/arch/${MACHINE}/compile -k clean
+		status=0; for machine in ${SUPPORTED_MACHINES}; do \
+			${MAKE} -C sys/arch/$$machine/compile \
+			    MACHINE=$$machine clean || status=1; \
+		done; exit $$status
 
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG)
 
-cleanall:	cleantools clean cleankernel
+# A tuple switch is safe only after every source-directory artifact class has
+# cleaned successfully. The serialized recipe avoids overlapping cleanup of
+# shared directories under -j and leaves the stamp in place on any failure.
+cleanall:
+		sh tools/clean-build-machines.sh "${TOPSRC}" \
+		    "${MAKE}" ${SUPPORTED_MACHINES}
 
 symlinks:
 		rm -f include/machine
@@ -673,7 +735,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-warning-policy-host check-warning-policy-cross \
+.PHONY:		check-python check-warning-policy-host check-warning-policy-cross \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
@@ -695,13 +757,17 @@ installfs:
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
 		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
-		check-config-makefile check-portable-utilities check-pdp11-reference \
-		check-pdp11-v7 check-pdp11-v6 check-stevie-host check-kilo-host \
+		check-config-makefile check-portable-utilities \
+		check-architecture-isolation legacy-non-arm-verify \
+		legacy-pdp11-v6-build legacy-pdp11-v6-install \
+		legacy-pdp11-v6-distribution check-legacy-pdp11-v7-runner \
+		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
+		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
-		check-cross-assembler check-cross check-qemu check-mips check-renode \
+		check-cross-assembler check-cross check-qemu check-renode \
 		check-host-package check-board-build check symlinks etc-distribution \
 		${FSIMG} fs installfs clean cleantools cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \

@@ -148,58 +148,69 @@ def read_marked(path):
     return lines, closures
 
 
-def read_profiles(path):
-    """Read the profile and closure declarations."""
+def read_profiles(paths):
+    """Read and merge the profile and closure declaration files."""
     profiles = {}
     order = []
     needs_closure = {}
     needs_path = {}
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
-    for lineno, raw in enumerate(text.splitlines(), 1):
-        words = raw.split("#", 1)[0].split()
-        if not words:
-            continue
-        where = "%s:%d" % (path, lineno)
-        if words[0] == "profile":
-            if len(words) < 2:
-                raise ManifestError("%s: profile takes a name" % where)
-            name = words[1]
-            if name in profiles:
-                raise ManifestError("%s: profile %s is declared twice" % (where, name))
-            selected = []
-            for closure in words[2:]:
-                if closure in selected:
+    for path in paths:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        for lineno, raw in enumerate(text.splitlines(), 1):
+            words = raw.split("#", 1)[0].split()
+            if not words:
+                continue
+            where = "%s:%d" % (path, lineno)
+            if words[0] == "profile":
+                if len(words) < 2:
+                    raise ManifestError("%s: profile takes a name" % where)
+                name = words[1]
+                if name in profiles:
+                    raise ManifestError("%s: profile %s is declared twice" % (where, name))
+                selected = []
+                for closure in words[2:]:
+                    if closure in selected:
+                        raise ManifestError(
+                            "%s: profile %s names closure %s twice" % (where, name, closure)
+                        )
+                    selected.append(closure)
+                profiles[name] = selected
+                order.append(name)
+            elif words[0] == "closure":
+                if len(words) < 5 or words[2] != "needs" or words[3] not in (
+                    "closure",
+                    "path",
+                ):
                     raise ManifestError(
-                        "%s: profile %s names closure %s twice" % (where, name, closure)
+                        "%s: expected 'closure NAME needs closure|path ARG ...'" % where
                     )
-                selected.append(closure)
-            profiles[name] = selected
-            order.append(name)
-        elif words[0] == "closure":
-            if len(words) < 5 or words[2] != "needs" or words[3] not in ("closure", "path"):
-                raise ManifestError(
-                    "%s: expected 'closure NAME needs closure|path ARG ...'" % where
-                )
-            name = words[1]
-            if words[3] == "closure":
-                needs_closure.setdefault(name, []).extend(words[4:])
+                name = words[1]
+                if words[3] == "closure":
+                    needs_closure.setdefault(name, []).extend(words[4:])
+                else:
+                    for required in words[4:]:
+                        if not required.startswith("/"):
+                            raise ManifestError(
+                                "%s: %s is not an absolute path" % (where, required)
+                            )
+                    needs_path.setdefault(name, []).extend(words[4:])
             else:
-                for required in words[4:]:
-                    if not required.startswith("/"):
-                        raise ManifestError("%s: %s is not an absolute path" % (where, required))
-                needs_path.setdefault(name, []).extend(words[4:])
-        else:
-            raise ManifestError("%s: unknown directive '%s'" % (where, words[0]))
+                raise ManifestError("%s: unknown directive '%s'" % (where, words[0]))
     if not profiles:
-        raise ManifestError("%s: no profile is declared" % path)
+        raise ManifestError("%s: no profile is declared" % ", ".join(paths))
     return profiles, order, needs_closure, needs_path
 
 
-def check_declarations(profiles, needs_closure, needs_path, closures):
+def check_declarations(profiles, needs_closure, needs_path, closures, selected_extra):
     """Hold the profile file and the manifest markers to the same closure set."""
     known = set(closures)
     errors = []
+    for closure in selected_extra:
+        if closure not in known:
+            errors.append(
+                "selected closure %s has no manifest block" % closure
+            )
     for name, selected in sorted(profiles.items()):
         for closure in selected:
             if closure not in known:
@@ -215,7 +226,9 @@ def check_declarations(profiles, needs_closure, needs_path, closures):
                 errors.append("closure %s needs closure %s, which the manifest never opens"
                               % (name, other))
     for closure in closures:
-        if not any(closure in selected for selected in profiles.values()):
+        if closure not in selected_extra and not any(
+            closure in selected for selected in profiles.values()
+        ):
             errors.append("closure %s reaches no profile" % closure)
     return errors
 
@@ -335,26 +348,65 @@ def emit(lines, output):
 
 
 def load(args):
-    """Read both inputs and hold their closure sets to each other."""
-    lines, closures = read_marked(args.manifest)
+    """Read all inputs and hold their closure sets to each other."""
+    lines = []
+    closures = []
+    for manifest in args.manifest:
+        more, opened = read_marked(manifest)
+        duplicates = sorted(set(closures).intersection(opened))
+        if duplicates:
+            raise ManifestError(
+                "%s repeats closure %s" % (manifest, ", ".join(duplicates))
+            )
+        lines.extend(more)
+        closures.extend(opened)
     appended = []
     for extra in args.append:
         more, opened = read_marked(extra)
         if opened:
-            raise ManifestError("%s: closure markers belong in %s" % (extra, args.manifest))
+            raise ManifestError(
+                "%s: closure markers belong in --manifest inputs" % extra
+            )
         appended.extend(more)
     profiles, order, needs_closure, needs_path = read_profiles(args.profiles)
-    errors = check_declarations(profiles, needs_closure, needs_path, closures)
+    selected_extra = []
+    for closure in args.select_closure:
+        if closure in selected_extra:
+            raise ManifestError("--select-closure names %s twice" % closure)
+        selected_extra.append(closure)
+    errors = check_declarations(
+        profiles, needs_closure, needs_path, closures, selected_extra
+    )
     if errors:
         raise ManifestError(
-            "%s and %s disagree:\n  %s" % (args.profiles, args.manifest, "\n  ".join(errors))
+            "%s and %s disagree:\n  %s"
+            % (", ".join(args.profiles), ", ".join(args.manifest), "\n  ".join(errors))
         )
-    return lines, appended, profiles, order, needs_closure, needs_path
+    return (
+        lines,
+        appended,
+        profiles,
+        order,
+        needs_closure,
+        needs_path,
+        selected_extra,
+    )
 
 
-def run_profile(profile, lines, appended, profiles, needs_closure, needs_path):
+def selected_closures(profile, profiles, selected_extra):
+    """Return one profile plus explicit opt-in closures without duplicates."""
+    selected = list(profiles[profile])
+    for closure in selected_extra:
+        if closure not in selected:
+            selected.append(closure)
+    return selected
+
+
+def run_profile(
+    profile, lines, appended, profiles, needs_closure, needs_path, selected_extra
+):
     """Compose one declared profile and decide it; return (kept, errors)."""
-    selected = profiles[profile]
+    selected = selected_closures(profile, profiles, selected_extra)
     kept = compose(lines, selected)
     errors = verify(parse_entries(kept + appended), selected, needs_closure, needs_path)
     return kept, errors
@@ -394,16 +446,31 @@ def drop(lines, text):
     return kept
 
 
-def selftest(lines, appended, profiles, needs_closure, needs_path):
+def selftest(
+    lines,
+    appended,
+    profiles,
+    needs_closure,
+    needs_path,
+    selected_extra,
+):
     """Calibrate the checker: every case below must land on its stated side."""
     cases = []
     for name in sorted(profiles):
-        cases.append(("accept", "declared profile %s" % name, profiles[name], None, None))
+        cases.append(
+            (
+                "accept",
+                "declared profile %s" % name,
+                selected_closures(name, profiles, selected_extra),
+                None,
+                None,
+            )
+        )
     cases.append(
         (
             "reject",
             "compiler without its link library",
-            ["coremark", "pdp11", "v6disk", "toolchain", "games"],
+            ["coremark", "toolchain", "games"],
             None,
             "needs closure toolchainlib",
         )
@@ -415,15 +482,6 @@ def selftest(lines, appended, profiles, needs_closure, needs_path):
             ["toolchainlib"],
             None,
             "needs closure toolchain",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "emulator without its V6 pack",
-            ["pdp11", "toolchain", "toolchainlib"],
-            None,
-            "needs closure v6disk",
         )
     )
     cases.append(
@@ -455,6 +513,10 @@ def selftest(lines, appended, profiles, needs_closure, needs_path):
     )
     failures = 0
     for verdict, label, selected, removed, expected in cases:
+        selected = list(selected)
+        for closure in selected_extra:
+            if closure not in selected:
+                selected.append(closure)
         kept = compose(lines, selected)
         if removed:
             kept = drop(kept, removed)
@@ -480,13 +542,71 @@ def selftest(lines, appended, profiles, needs_closure, needs_path):
                 )
             else:
                 print("selftest: reject %s -- %s" % (label, expected))
+
+    if "pdp11" in selected_extra and "v6disk" in selected_extra:
+        legacy_cases = [
+            (
+                "emulator without its V6 pack",
+                ["pdp11"],
+                None,
+                "needs closure v6disk",
+            ),
+            (
+                "PDP-11 closure without its emulator",
+                ["pdp11", "v6disk"],
+                "pack /usr/bin/pdp11",
+                "needs /usr/bin/pdp11",
+            ),
+            (
+                "V6 closure without its guest pack",
+                ["pdp11", "v6disk"],
+                "file /usr/v6/root.rk",
+                "needs /usr/v6/root.rk",
+            ),
+        ]
+        for label, selected, removed, expected in legacy_cases:
+            kept = compose(lines, selected)
+            if removed:
+                kept = drop(kept, removed)
+            errors = verify(
+                parse_entries(kept + appended),
+                selected,
+                needs_closure,
+                needs_path,
+            )
+            joined = "\n".join(errors)
+            if expected not in joined:
+                failures += 1
+                print(
+                    "selftest: %s must be rejected for '%s':\n%s"
+                    % (label, expected, joined or "composition accepted"),
+                    file=sys.stderr,
+                )
+            else:
+                print("selftest: reject %s -- %s" % (label, expected))
     return failures
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
-    parser.add_argument("--manifest", required=True, help="the closure-marked manifest")
-    parser.add_argument("--profiles", required=True, help="the profile and closure declarations")
+    parser.add_argument(
+        "--manifest",
+        action="append",
+        required=True,
+        help="a closure-marked manifest; repeat for an opt-in closure set",
+    )
+    parser.add_argument(
+        "--profiles",
+        action="append",
+        required=True,
+        help="a profile or closure declaration file; repeat for opt-in declarations",
+    )
+    parser.add_argument(
+        "--select-closure",
+        action="append",
+        default=[],
+        help="select an opt-in closure in addition to the named profile",
+    )
     parser.add_argument(
         "--append",
         action="append",
@@ -501,7 +621,15 @@ def main():
     args = parser.parse_args()
 
     try:
-        lines, appended, profiles, order, needs_closure, needs_path = load(args)
+        (
+            lines,
+            appended,
+            profiles,
+            order,
+            needs_closure,
+            needs_path,
+            selected_extra,
+        ) = load(args)
     except (OSError, ManifestError) as error:
         print("mkmanifest: %s" % error, file=sys.stderr)
         return 2
@@ -513,13 +641,30 @@ def main():
 
     try:
         if args.selftest:
-            return 1 if selftest(lines, appended, profiles, needs_closure, needs_path) else 0
+            return (
+                1
+                if selftest(
+                    lines,
+                    appended,
+                    profiles,
+                    needs_closure,
+                    needs_path,
+                    selected_extra,
+                )
+                else 0
+            )
 
         if args.check_all:
             failures = 0
             for name in order:
                 kept, errors = run_profile(
-                    name, lines, appended, profiles, needs_closure, needs_path
+                    name,
+                    lines,
+                    appended,
+                    profiles,
+                    needs_closure,
+                    needs_path,
+                    selected_extra,
                 )
                 if report(name, errors):
                     summarize(name, kept, appended)
@@ -533,12 +678,18 @@ def main():
         if args.profile not in profiles:
             print(
                 "mkmanifest: %s declares no profile %s; it declares %s"
-                % (args.profiles, args.profile, " ".join(order)),
+                % (", ".join(args.profiles), args.profile, " ".join(order)),
                 file=sys.stderr,
             )
             return 2
         kept, errors = run_profile(
-            args.profile, lines, appended, profiles, needs_closure, needs_path
+            args.profile,
+            lines,
+            appended,
+            profiles,
+            needs_closure,
+            needs_path,
+            selected_extra,
         )
         if not report(args.profile, errors):
             return 1

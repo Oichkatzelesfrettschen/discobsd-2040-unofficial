@@ -551,9 +551,8 @@ issignal (p)
  * there are probably a wealth of them here
  * when this occurs to a suid command.
  *
- * It writes UPAGES (USIZE for pdp11) block of the
- * user.h area followed by the entire
- * data+stack segments.
+ * It writes the UPAGES block of the user.h area followed by the entire
+ * data and stack segments.
  */
 static int
 core()

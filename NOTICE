@@ -278,9 +278,9 @@ Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
     License: public domain (the Unlicense; see usr.bin/stevie/LICENSE)
 
 ------------------------------------------------------------------------
-12. Julius Schmidt and Dave Cheney (the PDP-11 emulator's instruction
-    set and device model, usr.bin/pdp11, descended from avr11)
-    License: WTFPL, version 2 (see usr.bin/pdp11/COPYING)
+12. Julius Schmidt and Dave Cheney (the archived PDP-11 emulator's instruction
+    set and device model, legacy/pdp11-v6/usr.bin/pdp11, descended from avr11)
+    License: WTFPL, version 2 (see legacy/pdp11-v6/usr.bin/pdp11/COPYING)
 
 This program is free software. It comes without any warranty, to the
 extent permitted by applicable law. You can redistribute it and/or

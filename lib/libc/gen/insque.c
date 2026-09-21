@@ -5,21 +5,21 @@
  */
 
 /*
- * insque -- vax insque instruction
+ * Insert an entry into a doubly linked queue.
  *
  * NOTE: this implementation is non-atomic!!
  */
 
-struct vaxque {		/* queue format expected by VAX queue instructions */
-	struct vaxque	*vq_next;
-	struct vaxque	*vq_prev;
+struct queue_entry {
+	struct queue_entry	*q_next;
+	struct queue_entry	*q_prev;
 };
 
 insque(e, prev)
-	register struct vaxque *e, *prev;
+	register struct queue_entry *e, *prev;
 {
-	e->vq_prev = prev;
-	e->vq_next = prev->vq_next;
-	prev->vq_next->vq_prev = e;
-	prev->vq_next = e;
+	e->q_prev = prev;
+	e->q_next = prev->q_next;
+	prev->q_next->q_prev = e;
+	prev->q_next = e;
 }

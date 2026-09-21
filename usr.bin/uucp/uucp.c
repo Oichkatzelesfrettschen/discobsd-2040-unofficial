@@ -414,11 +414,7 @@ register char *sys;
 			clscfile();
 		}
 		gename(CMDPRE, sys, Grade, Cfile);
-#ifdef VMS
-		savemask = umask(~0600); /* vms must have read permission */
-#else 
 		savemask = umask(~0200);
-#endif
 		Cfp = fopen(subfile(Cfile), "w");
 		umask(savemask);
 		ASSERT(Cfp != NULL, CANTOPEN, Cfile, 0);

@@ -149,7 +149,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gccprefix", default="/usr/bin/arm-none-eabi")
     ap.add_argument("--cpu", default="cortex-m0plus")
-    ap.add_argument("--toolbindir", default=os.path.join(TOPSRC, "tools/bin"))
+    ap.add_argument("--toolbindir", default=os.path.join(TOPSRC, "tools/bin/rp2040"))
     ap.add_argument("--include", default=os.path.join(TOPSRC, "include"))
     ap.add_argument("--workdir", required=True)
     ap.add_argument("--members", default=os.path.join(HERE, "boardlibc-members"))

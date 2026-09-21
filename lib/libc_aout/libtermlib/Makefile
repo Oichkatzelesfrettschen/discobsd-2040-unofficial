@@ -6,13 +6,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 LIBDIR=		${TOPSRC}/lib/libtermlib
 
-COPTS!=if [ x"${MACHINE_ARCH}" = x"mips" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
-	else \
-		echo "" ; \
-	fi
-
-CFLAGS		= -Os ${DEFS} -Wall ${COPTS}
+CFLAGS		= -Os ${DEFS} -Wall
 
 OBJS		= termcap.o tgoto.o tputs.o tcattr.o
 

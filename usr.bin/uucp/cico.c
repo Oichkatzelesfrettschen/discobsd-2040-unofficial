@@ -21,9 +21,6 @@ static char sccsid[] = "@(#)cico.c	5.14.1 (2.11BSD) 1997/10/2";
 #include "uust.h"
 #include "uusub.h"
 
-#if defined(VMS) && defined(BSDTCP)
-#define NOGETPEER
-#endif
 
 #ifdef BSD2_9
 #define NOGETPEER

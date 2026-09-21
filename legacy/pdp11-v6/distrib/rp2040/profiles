@@ -1,0 +1,6 @@
+# Dependency declarations for the opt-in PDP-11/V6 image closures.
+# Maintained ARM profiles remain in distrib/rp2040/profiles.
+
+closure pdp11 needs closure v6disk
+closure pdp11 needs path /usr/bin/pdp11
+closure v6disk needs path /usr/v6/root.rk

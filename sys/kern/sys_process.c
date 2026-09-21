@@ -105,17 +105,7 @@ procxmt()
     case PT_WRITE_U:
         i = (int)ipc.ip_addr;
         p = (int*)&u + i/sizeof(int);
-#ifdef __mips__
-        for (i=0; i<FRAME_WORDS; i++)
-            if (p == (int *)&u.u_frame[i]) /* XXX FRAME */
-                goto ok;
-        goto error;
-ok:
-#elif __thumb2__ || __thumb__
         /* XXX FRAME */
-#else
-#error "user frame for unknown architecture"
-#endif
         *p = ipc.ip_data;
         break;
 
@@ -123,13 +113,7 @@ ok:
     /* one version causes a trace-trap */
     case PT_STEP:
         /* Use Status.RP bit to indicate a single-step request. */
-#ifdef __mips__
-        u.u_frame->tf_status |= ST_RP;
-#elif __thumb2__ || __thumb__
         /* XXX FRAME */
-#else
-#error "single step process status for unknown architecture"
-#endif
         /* FALL THROUGH TO ... */
     case PT_CONTINUE:
         if ((int)ipc.ip_addr != 1)

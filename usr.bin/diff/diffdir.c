@@ -191,15 +191,7 @@ setupdir(cp)
 		done(0);
 	}
 	nitems = 0;
-#ifdef	pdp11
-	while (readdir(dirp))
-		nitems++;
-	rewinddir(dirp);
-	dp = (struct dir *)calloc(nitems+1, sizeof (struct dir));
-	nitems = 0;
-#else
 	dp = (struct dir *)malloc(sizeof (struct dir));
-#endif
 	if (dp == 0) {
 		fprintf(stderr, "diff: ran out of memory\n");
 		done(0);
@@ -218,14 +210,12 @@ setupdir(cp)
 			}
 			strcpy(ep->d_entry, rp->d_name);
 		}
-#ifndef	pdp11
 		dp = (struct dir *)realloc((char *)dp,
 			(nitems + 1) * sizeof (struct dir));
 		if (dp == 0) {
 			fprintf(stderr, "diff: ran out of memory\n");
 			done(0);
 		}
-#endif
 	}
 	dp[nitems].d_entry = 0;		/* delimiter */
 	closedir(dirp);

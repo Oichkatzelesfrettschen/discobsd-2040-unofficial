@@ -5,19 +5,19 @@
  */
 
 /*
- * remque -- vax remque instruction
+ * Remove an entry from a doubly linked queue.
  *
  * NOTE: this implementation is non-atomic!!
  */
 
-struct vaxque {		/* queue format expected by VAX queue instructions */
-	struct vaxque	*vq_next;
-	struct vaxque	*vq_prev;
+struct queue_entry {
+	struct queue_entry	*q_next;
+	struct queue_entry	*q_prev;
 };
 
 remque(e)
-	register struct vaxque *e;
+	register struct queue_entry *e;
 {
-	e->vq_prev->vq_next = e->vq_next;
-	e->vq_next->vq_prev = e->vq_prev;
+	e->q_prev->q_next = e->q_next;
+	e->q_next->q_prev = e->q_prev;
 }

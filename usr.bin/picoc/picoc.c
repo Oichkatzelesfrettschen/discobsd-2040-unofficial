@@ -6,7 +6,6 @@
 
 /* platform-dependent code for running programs is in this file */
 
-#if defined(UNIX_HOST) || defined(WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -61,48 +60,3 @@ int main(int argc, char **argv)
     PicocCleanup();
     return PicocExitValue;
 }
-#else
-# ifdef SURVEYOR_HOST
-#  define HEAP_SIZE C_HEAPSIZE
-#  include <setjmp.h>
-#  include "../srv.h"
-#  include "../print.h"
-#  include "../string.h"
-
-int picoc(char *SourceStr)
-{   
-    char *pos;
-
-    PicocInitialise(HEAP_SIZE);
-
-    if (SourceStr)
-    {
-        for (pos = SourceStr; *pos != 0; pos++)
-        {
-            if (*pos == 0x1a)
-            {
-                *pos = 0x20;
-            }
-        }
-    }
-
-    /*
-     * jmp_buf holds _JBLEN words, 12 here; element 40 lay in whatever
-     * followed it. The return of setjmp says whether a longjmp arrived.
-     */
-    if (PicocPlatformSetExitPoint()) {
-        printf("Leaving PicoC\n\r");
-        PicocCleanup();
-        return PicocExitValue;
-    }
-
-    if (SourceStr)   
-        PicocParse("nofile", SourceStr, strlen(SourceStr), TRUE, TRUE, FALSE);
-
-    PicocParseInteractive();
-    PicocCleanup();
-    
-    return PicocExitValue;
-}
-# endif
-#endif

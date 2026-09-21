@@ -262,14 +262,7 @@ _getshort(msgp)
 	u_char *msgp;
 {
 	register u_char *p = (u_char *) msgp;
-#ifdef vax
-	/*
-	 * vax compiler doesn't put shorts in registers
-	 */
-	register u_long u;
-#else
 	register u_short u;
-#endif
 
 	u = *p++ << 8;
 	return ((u_short)(u | *p));

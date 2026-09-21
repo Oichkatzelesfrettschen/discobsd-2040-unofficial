@@ -55,14 +55,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   safe because arguments travel on the stack until the LDR sequence
   immediately before the BL, so no argument is ever live in them.
 
-  The maxCallDepth == 1 fast path of the MIPS generator is not reproduced.
-  There, the leftmost argument is evaluated directly into A0 while the working
-  register is a distinct V0; on ARM both are r0, so a called expression
-  producing a function pointer would overwrite the first argument. Evaluating
-  every argument onto the stack removes the aliasing and frees r1-r3.
+  The generator does not evaluate the leftmost argument directly into r0
+  because r0 also holds a called expression's function pointer. Evaluating
+  every argument onto the stack removes that alias and frees r1-r3.
 
-  Stack frame, laid out to the offsets smlrc.c assigns for MIPS so that the
-  front end's parameter and local offsets carry over unchanged:
+  The stack frame uses the parameter and local offsets assigned by smlrc.c:
 
     [r7, #8] + 4n  parameter n + 1
     [r7, #4]       saved lr
@@ -1432,9 +1429,8 @@ void GenExpr0(void)
       break;
     /* ARMv6-M has no divide instruction, so every division and modulo is a
        BL to an __aeabi helper that takes its arguments in r0 and r1 and
-       returns in them. A temporary left in r0 would not survive it, which
-       the MIPS generator never has to consider because its division writes
-       only HI and LO. Counting these as calls keeps the working register at
+       returns in them. A temporary left in r0 would not survive the helper.
+       Counting these operations as calls keeps the working register at
        r0 and puts every temporary on the stack, where the helper's
        caller-saved clobbers cannot reach it. */
     case '/':

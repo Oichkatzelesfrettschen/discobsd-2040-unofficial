@@ -100,10 +100,6 @@ usage:  fputs("usage: config [-gp] sysname\n", stderr);
 
     switch (arch) {
 
-    case ARCH_PIC32:
-        pic32_ioconf();
-        break;
-
     case ARCH_STM32:
         stm32_ioconf();
         break;
@@ -113,7 +109,7 @@ usage:  fputs("usage: config [-gp] sysname\n", stderr);
         break;
 
     default:
-        printf("Specify architecture, e.g. ``architecture pic32''\n");
+        printf("Specify an ARM architecture, e.g. ``architecture rp2040''\n");
         exit(1);
     }
     makefile();             /* build Makefile */

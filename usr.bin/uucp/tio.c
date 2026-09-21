@@ -111,11 +111,7 @@ FILE *fp1;
 #endif !USG
 	while ((len = read(fileno(fp1), bufr.t_data, TBUFSIZE)) > 0) {
 		bytes += len;
-#if defined(vax) || defined(pdp11) || defined(ns32000)
-		bufr.t_nbytes = htonl((long)len);
-#else !vax and !pdp11 and !ns32000
 		bufr.t_nbytes = len;
-#endif !vax and !pdp11 and !ns32000
 		DEBUG(8,"twrdata sending %d bytes\n",len);
 		len += sizeof(long);
 		alarm(MAXMSGTIME);
@@ -179,9 +175,6 @@ FILE *fp2;
 		alarm(0);
 		if (len != sizeof Nbytes)
 			return FAIL;
-#if defined(vax) || defined(pdp11) || defined(ns32000)
-		Nbytes = ntohl(Nbytes);
-#endif vax or pdp11 or ns32000
 		DEBUG(8,"trddata expecting %ld bytes\n",Nbytes);
 		nread = Nbytes;
 		if (nread == 0)

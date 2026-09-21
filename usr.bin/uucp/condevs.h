@@ -6,13 +6,6 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <sgtty.h>
-#ifdef VMSDTR	/* Modem control on vms(works dtr) */
-#include <eunice/eunice.h>
-#define TT$M_MODEM	0x00200000 /* These should be in a '.h' somewhere */
-#define SS$_NORMAL	0x00000001
-#define IO$_SETMODE	0x00000023
-#define IO$_SENSEMODE	0x00000027
-#endif
 
 extern char devSel[];	/* name to pass to delock() in close */
 extern int next_fd;
@@ -114,4 +107,3 @@ int sykopn(), sykcls();
 #ifdef ATT2224
 int attopn(), attcls();
 #endif
-

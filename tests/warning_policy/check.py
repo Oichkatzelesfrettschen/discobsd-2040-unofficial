@@ -27,8 +27,7 @@ PROBES = {
     ),
     "extra": ("int warning_probe(int unused_arg) { return 0; }\n", "unused-parameter"),
 }
-HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo",
-               "usr.bin/smux/linux")
+HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo")
 # Full routes compile clean under -Wall -Wextra, so share/mk/warnings.mk
 # makes both groups fatal there; legacy routes declare WARNLEVEL=legacy
 # before their sys.mk include and are held to -Werror alone. bin/sh holds
@@ -57,6 +56,8 @@ def run(argv, cwd):
 
 def check_route(root, make, directory, overrides, kinds):
     cwd = root / directory
+    if not (cwd / "Makefile").is_file():
+        raise RuntimeError(f"{directory}: route has no Makefile")
     query = run([*make, "MACHINE=rp2040", *overrides, "-V", "${CC} ${CFLAGS}"], cwd)
     if query.returncode:
         raise RuntimeError(f"{directory}: cannot evaluate compiler command:\n{query.stdout}")

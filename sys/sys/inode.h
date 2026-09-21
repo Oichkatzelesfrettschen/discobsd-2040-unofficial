@@ -166,9 +166,8 @@ struct stat;
 /*
  * Invalidate an inode. Used by the namei cache to detect stale
  * information. In order to save space and also reduce somewhat the
- * overhead - the i_id field is made into a u_short.  If a pdp-11 can
- * invalidate 100 inodes per second, the cache will have to be invalidated
- * in about 11 minutes.  Ha!
+ * overhead, the i_id field is a u_short. At 100 invalidations per second the
+ * identifier wraps in about 11 minutes.
  * Assumes the cacheinvalall routine will map the namei cache.
  */
 void cinvalall (void);

@@ -125,11 +125,6 @@ DIRS_RELEASE!=if [ x"${MACHINE}" = x"stm32" ] ; then \
 			F4DISCOVERY F4VEDEVEBOX" ; \
 	elif [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "PICO" ; \
-	elif [ x"${MACHINE}" = x"pic32" ] ; then \
-		echo "BAREMETAL DUINOMITE DUINOMITE_EMEGA EXPLORER16 \
-			FUBARINO MAX32 MAXIMITE MAXIMITE_COLOR MMB_MX7 \
-			PICADILLO PINGUINO_MICRO QUICK240 \
-			SDXL SNADPIC STARTER_KIT UBW32 WF32" ; \
 	else \
 		echo "FAIL" ; \
 	fi

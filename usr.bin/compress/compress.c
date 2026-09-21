@@ -4,10 +4,6 @@
 #define	min(a,b)	((a>b) ? b : a)
 
 /*
- * machine variants which require cc -Dmachine:  pdp11, z8000, pcxt
- */
-
-/*
  * Set USERMEM to the maximum amount of physical user memory available
  * in bytes.  USERMEM is used to determine the maximum BITS that can be used
  * for compression.
@@ -22,27 +18,6 @@
 #ifndef USERMEM
 # define USERMEM 	450000	/* default user memory */
 #endif
-
-#ifdef interdata		/* (Perkin-Elmer) */
-#define SIGNED_COMPARE_SLOW	/* signed compare is slower than unsigned */
-#endif
-
-#ifdef pdp11
-# define BITS 	12	/* max bits/code for 16-bit machine */
-# define NO_UCHAR	/* also if "unsigned char" functions as signed char */
-# undef USERMEM
-#endif /* pdp11 */	/* don't forget to compile with -i */
-
-#ifdef z8000
-# define BITS 	12
-# undef vax		/* weird preprocessor */
-# undef USERMEM
-#endif /* z8000 */
-
-#ifdef pcxt
-# define BITS   12
-# undef USERMEM
-#endif /* pcxt */
 
 #ifdef USERMEM
 # if USERMEM >= (433484+SACREDMEM)
@@ -87,15 +62,6 @@
 # define HSIZE	5003		/* 80% occupancy */
 #endif
 
-#ifdef M_XENIX			/* Stupid compiler can't handle arrays with */
-# if BITS == 16			/* more than 65535 bytes - so we fake it */
-#  define XENIX_16
-# else
-#  if BITS > 13			/* Code only handles BITS = 12, 13, or 16 */
-#   define BITS	13
-#  endif
-# endif
-#endif
 
 /*
  * a code_int must be able to hold 2**BITS values of type int, and also -1
@@ -106,12 +72,7 @@ typedef long int	code_int;
 typedef int		code_int;
 #endif
 
-#ifdef SIGNED_COMPARE_SLOW
-typedef unsigned long int count_int;
-typedef unsigned short int count_short;
-#else
 typedef long int	  count_int;
-#endif
 
 #ifdef NO_UCHAR
  typedef char	char_type;
@@ -276,45 +237,12 @@ code_int maxmaxcode = 1 << BITS;	/* should NEVER generate this code */
 # define MAXCODE(n_bits)	((1 << (n_bits)) - 1)
 #endif /* COMPATIBLE */
 
-#ifdef XENIX_16
-count_int htab0[8192];
-count_int htab1[8192];
-count_int htab2[8192];
-count_int htab3[8192];
-count_int htab4[8192];
-count_int htab5[8192];
-count_int htab6[8192];
-count_int htab7[8192];
-count_int htab8[HSIZE-65536];
-count_int * htab[9] = {
-	htab0, htab1, htab2, htab3, htab4, htab5, htab6, htab7, htab8 };
 
-#define htabof(i)	(htab[(i) >> 13][(i) & 0x1fff])
-unsigned short code0tab[16384];
-unsigned short code1tab[16384];
-unsigned short code2tab[16384];
-unsigned short code3tab[16384];
-unsigned short code4tab[16384];
-unsigned short * codetab[5] = {
-	code0tab, code1tab, code2tab, code3tab, code4tab };
-
-#define codetabof(i)	(codetab[(i) >> 14][(i) & 0x3fff])
-
-#else	/* Normal machine */
-
-#ifdef sel	/* gould base register braindamage */
-/*NOBASE*/
 count_int htab [HSIZE];
 unsigned short codetab [HSIZE];
-/*NOBASE*/
-#else
-count_int htab [HSIZE];
-unsigned short codetab [HSIZE];
-#endif /* sel */
 
 #define htabof(i)	htab[i]
 #define codetabof(i)	codetab[i]
-#endif	/* XENIX_16 */
 code_int hsize = HSIZE;			/* for dynamic table sizing */
 count_int fsize;
 
@@ -328,13 +256,8 @@ count_int fsize;
  */
 
 #define tab_prefixof(i)	codetabof(i)
-#ifdef XENIX_16
-# define tab_suffixof(i)	((char_type *)htab[(i)>>15])[(i) & 0x7fff]
-# define de_stack		((char_type *)(htab2))
-#else	/* Normal machine */
-# define tab_suffixof(i)	((char_type *)(htab))[i]
-# define de_stack		((char_type *)&tab_suffixof(1<<BITS))
-#endif	/* XENIX_16 */
+#define tab_suffixof(i)	((char_type *)(htab))[i]
+#define de_stack		((char_type *)&tab_suffixof(1<<BITS))
 
 code_int free_ent = 0;			/* first unused entry */
 int exit_stat = 0;			/* per-file status */
@@ -405,17 +328,8 @@ void version()
 {
 	fprintf(stderr, "Compress utility, Berkeley 5.9 5/11/86\n");
 	fprintf(stderr, "Options: ");
-#ifdef vax
-	fprintf(stderr, "vax, ");
-#endif
 #ifdef NO_UCHAR
 	fprintf(stderr, "NO_UCHAR, ");
-#endif
-#ifdef SIGNED_COMPARE_SLOW
-	fprintf(stderr, "SIGNED_COMPARE_SLOW, ");
-#endif
-#ifdef XENIX_16
-	fprintf(stderr, "XENIX_16, ");
 #endif
 #ifdef COMPATIBLE
 	fprintf(stderr, "COMPATIBLE, ");
@@ -439,28 +353,11 @@ void writeerr()
 void cl_hash(hsize)		/* reset code table */
 	register count_int hsize;
 {
-#ifndef XENIX_16	/* Normal machine */
 	register count_int *htab_p = htab+hsize;
-#else
-	register j;
-	register long k = hsize;
-	register count_int *htab_p;
-#endif
 	register long i;
 	register long m1 = -1;
 
-#ifdef XENIX_16
-    for(j=0; j<=8 && k>=0; j++,k-=8192) {
-	i = 8192;
-	if (k < 8192) {
-		i = k;
-	}
-	htab_p = &(htab[j][i]);
-	i -= 16;
-	if (i > 0) {
-#else
 	i = hsize - 16;
-#endif
  	do {				/* might use Sys V memset(3) here */
 		*(htab_p-16) = m1;
 		*(htab_p-15) = m1;
@@ -480,10 +377,6 @@ void cl_hash(hsize)		/* reset code table */
 		*(htab_p-1) = m1;
 		htab_p -= 16;
 	} while ((i -= 16) >= 0);
-#ifdef XENIX_16
-	}
-    }
-#endif
     	for (i += 16; i > 0; i--)
 		*--htab_p = m1;
 }
@@ -511,10 +404,8 @@ long int out_count = 0;			/* # of codes output (for debugging) */
  */
 static char buf[BITS];
 
-#ifndef vax
 char_type lmask[9] = {0xff, 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80, 0x00};
 char_type rmask[9] = {0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff};
-#endif /* vax */
 
 void output(code)
     code_int  code;
@@ -536,15 +427,6 @@ void output(code)
 		    (col+=6) >= 74 ? (col = 0, '\n') : ' ');
 #endif /* DEBUG */
     if (code >= 0) {
-#ifdef vax
-	/* VAX DEPENDENT!! Implementation on other machines is below.
-	 *
-	 * Translation: Insert BITS bits from the argument starting at
-	 * offset bits from the beginning of buf.
-	 */
-	0;	/* Work around for pcc -O bug with asm and if stmt */
-	asm("insv	4(ap),r11,r10,(r9)");
-#else /* not a vax */
 /*
  * byte/bit numbering on the VAX is simulated by the following code
  */
@@ -570,7 +452,6 @@ void output(code)
 	/* Last bits. */
 	if (bits)
 	    *bp = code;
-#endif /* vax */
 	offset += n_bits;
 	if (offset == (n_bits << 3)) {
 	    bp = buf;
@@ -716,11 +597,7 @@ void compress()
     register code_int i = 0;
     register int c;
     register code_int ent;
-#ifdef XENIX_16
-    register code_int disp;
-#else	/* Normal machine */
     register int disp;
-#endif
     register code_int hsize_reg;
     register int hshift;
 
@@ -753,11 +630,7 @@ void compress()
     hsize_reg = hsize;
     cl_hash((count_int) hsize_reg);		/* clear hash table */
 
-#ifdef SIGNED_COMPARE_SLOW
-    while ((c = getchar()) != (unsigned) EOF) {
-#else
     while ((c = getchar()) != EOF) {
-#endif
 	in_count++;
 	fcode = (long) (((long) c << maxbits) + ent);
  	i = ((c << hshift) ^ ent);	/* xor hashing */
@@ -784,11 +657,7 @@ nomatch:
 	output ((code_int) ent);
 	out_count++;
  	ent = c;
-#ifdef SIGNED_COMPARE_SLOW
-	if ((unsigned) free_ent < (unsigned) maxmaxcode) {
-#else
 	if (free_ent < maxmaxcode) {
-#endif
  	    codetabof (i) = free_ent++;	/* code -> hashtable */
 	    htabof (i) = fcode;
 	}
@@ -878,11 +747,7 @@ void decompress()
 	/*
 	 * Generate output characters in reverse order
 	 */
-#ifdef SIGNED_COMPARE_SLOW
-	while (((unsigned long)code) >= ((unsigned long)256)) {
-#else
 	while (code >= 256) {
-#endif
 	    *stackp++ = tab_suffixof(code);
 	    code = tab_prefixof(code);
 	}
@@ -1350,9 +1215,6 @@ getcode() {
     }
     r_off = offset;
     bits = n_bits;
-#ifdef vax
-    asm("extzv   r10,r9,(r8),r11");
-#else /* not a vax */
 	/*
 	 * Get to the first byte.
 	 */
@@ -1378,7 +1240,6 @@ getcode() {
 	}
 	/* high order bits. */
 	code |= (*bp & rmask[bits]) << r_off;
-#endif /* vax */
     offset += n_bits;
 
     return code;

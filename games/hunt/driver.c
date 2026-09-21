@@ -16,11 +16,7 @@
 # include	<sys/ioctl.h>
 # include	<sys/time.h>
 
-# ifndef pdp11
 # define	RN	(((Seed = Seed * 11109 + 13849) >> 16) & 0xffff)
-# else pdp11
-# define	RN	((Seed = Seed * 11109 + 13849) & 0x7fff)
-# endif pdp11
 
 int	Seed = 0;
 

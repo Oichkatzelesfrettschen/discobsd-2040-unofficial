@@ -2,9 +2,9 @@
  * A cat-shaped compiler fixture derived from bin/cat/cat.c.
  *
  * Smaller C's parser accepts no old-style parameter declaration list, so
- * this fixture writes its three definitions as prototypes. The MIPS back
- * end rejects an old-style list at the same token, which places the
- * limitation in the front end rather than in either code generator. The
+ * this fixture writes its three definitions as prototypes. The parser rejects
+ * an old-style list before code generation, which places the limitation in
+ * the front end. The
  * fixture exercises a switch over option letters, a goto-driven loop,
  * structures read from fstat and a malloc'd transfer buffer.
  */

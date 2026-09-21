@@ -93,13 +93,6 @@ flag in conjunction with the
 .B \-h
 (halt) flag.
 .TP
-.B \-D
-Set the
-.IR autoconfig (8)
-debug flag.  This is normally not used unless one is debugging the
-.I autoconfig
-program.
-.TP
 .B \-R
 Tells the kernel to use the compiled in root device.  Normally the system
 uses the device from which it was booted as the root/swap/pipe/dump device.
@@ -142,7 +135,6 @@ An automatic consistency check of the file systems will be
 performed, and unless this fails, the system will resume multi-user
 operations.
 .SH "SEE ALSO"
-autoconfig(8),
 sync(2),
 utmp(8),
 shutdown(8),

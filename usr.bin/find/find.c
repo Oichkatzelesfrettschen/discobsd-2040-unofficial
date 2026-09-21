@@ -493,18 +493,16 @@ struct { int f, com; } *p;
 	return(0);
 }
 
-#define MKSHORT(v, lv) {U.l=1L;if(U.c[0]) U.l=lv, v[0]=U.s[1], v[1]=U.s[0]; else U.l=lv, v[0]=U.s[0], v[1]=U.s[1];}
+#define MKSHORT(v, lv) {U.l=lv, v[0]=U.s[1], v[1]=U.s[0];}
 union { long l; short s[2]; char c[4]; } U;
 
 long
 mklong(v)
 short v[];
 {
-	U.l = 1;
-	if(U.c[0] /* VAX */)
-		U.s[0] = v[1], U.s[1] = v[0];
-	else
-		U.s[0] = v[0], U.s[1] = v[1];
+	/* The binary cpio format stores the high 16-bit word first. */
+	U.l = 0;
+	U.s[0] = v[1], U.s[1] = v[0];
 	return U.l;
 }
 
@@ -1265,11 +1263,7 @@ list(file, stp)
 	else
 		sprintf(ftime, "%-12.12s", cp + 4);
 
-#ifdef pdp11
-	printf("%5u %4ld %s %2d %s%s%s %s %s%s%s\n",
-#else
 	printf("%5lu %4ld %s %2d %s%s%s %s %s%s%s\n",
-#endif
 		stp->st_ino,				/* inode #	*/
 #ifdef	S_IFSOCK
 		(long) kbytes(stp->st_blocks),          /* kbytes       */

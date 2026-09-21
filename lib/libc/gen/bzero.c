@@ -9,7 +9,7 @@
 #include <string.h>
 
 /*
- * bzero -- vax movc5 instruction
+ * Clear a byte range.
  */
 void
 bzero(void *b, size_t length)

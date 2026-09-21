@@ -10,10 +10,11 @@ source_root=$1
 arm_compiler=$2
 target_machine=$3
 script_directory=$(CDPATH= cd "$(dirname "$0")" && pwd)
-assembler=$source_root/tools/bin/as
-archiver=$source_root/tools/bin/ar
-linker=$source_root/tools/bin/ld
-symbol_reader=$source_root/tools/bin/nm
+tool_directory=$source_root/tools/bin/$target_machine
+assembler=$tool_directory/as
+archiver=$tool_directory/ar
+linker=$tool_directory/ld
+symbol_reader=$tool_directory/nm
 temporary_directory=$(mktemp -d)
 trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 

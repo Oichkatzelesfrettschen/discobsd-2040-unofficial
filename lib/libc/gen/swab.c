@@ -7,11 +7,7 @@ swab (from, to, n)
 	register char *from, *to;
 	register int n;
 {
-#ifdef pdp11
-	register int temp;
-#else
 	register unsigned long temp;
-#endif
 
 	n >>= 1; n++;
 #define	STEP	temp = *from++,*to++ = *from++,*to++ = temp

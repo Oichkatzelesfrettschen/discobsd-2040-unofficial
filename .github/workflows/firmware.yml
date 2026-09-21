@@ -37,11 +37,8 @@ jobs:
       # The tiers add: shellcheck and ruff (check-lint), qemu-user for
       # qemu-arm (check-qemu), and capstone and pyelftools for the divider
       # verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
-      # packages no ruff and pip refuses the system interpreter. The MIPS
-      # tier stays off the runner: Ubuntu's mipsel-linux-gnu binutils
-      # know only the elf32-tradlittlemips format, not the elf32-littlemips
-      # that lib/elf32-mips.ld names. The 32-bit shell conformance run is
-      # the posix-sh job below.
+      # packages no ruff and pip refuses the system interpreter. The 32-bit
+      # shell conformance run is the posix-sh job below.
       - name: Install the host toolchain
         run: |
           sudo apt-get update
@@ -53,6 +50,7 @@ jobs:
             shellcheck pipx qemu-user python3-capstone python3-pyelftools
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
 
       # Ubuntu 24.04 packages no picotool, and the kernel and flash image
       # rules call "picotool uf2 convert", which arrived in picotool 2.
@@ -130,8 +128,8 @@ jobs:
           test "$total" -eq 0
 
       # The tiers, each a root Makefile target: lint (shellcheck at error
-      # severity, ruff), host (libc, utility and kernel-model gates, the V6
-      # boot through pdp11, every program with a host build and a suite),
+      # severity, ruff), host (libc, utility and kernel-model gates plus every
+      # maintained program with a host build and a suite),
       # the 32-bit shell conformance run, cross (the linked kernels, the
       # board libc, the packed images, the assembler), qemu (the u-area
       # exchange loop and the Smaller C suite executed), and the board
@@ -172,9 +170,8 @@ jobs:
           if-no-files-found: error
 
   # bin/sh keeps pointers in int, so its POSIX conformance run builds the
-  # shell as a 32-bit host binary. gcc-multilib supplies that and conflicts
-  # with the MIPS cross compiler the main job installs, so the tier has a
-  # job of its own; it needs no cross toolchain and no picotool.
+  # shell as a 32-bit host binary. gcc-multilib supplies that, so the tier has
+  # a job of its own; it needs no cross toolchain and no picotool.
   posix-sh:
     name: 32-bit host gates (bin/sh conformance, the kernel's printf)
     runs-on: ubuntu-24.04
@@ -262,8 +259,8 @@ jobs:
       # coreutils gives the textbox suite its GNU references and cpio the
       # GNU cpio the cpio suite drives; macOS ships uuencode itself.
       # The tiers macOS can run. Left out: check-posix-sh (a 32-bit
-      # Linux binary), check-qemu (Homebrew's qemu has no user-mode
-      # emulation) and check-mips (no MIPS cross compiler in Homebrew).
+      # Linux binary) and check-qemu (Homebrew's qemu has no user-mode
+      # emulation).
       # The Smaller C suite runs link-only here and says so.
       - name: Run the lint tier
         timeout-minutes: 5

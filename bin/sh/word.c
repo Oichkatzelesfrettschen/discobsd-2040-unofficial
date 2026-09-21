@@ -230,12 +230,7 @@ readb()
 			clearup();
 		}
 
-	       len = read(f->fdes, f->fbuf, (f->fsiz) & 0377);
-
-		/* @@@ &0377 HACK, because of fsiz is unsigned char,
-		 * which is not supported on pdp11-unix.
-		 * Then the sign extension happens !
-		 */
+	       len = read(f->fdes, f->fbuf, f->fsiz);
 
 	} while (  len < 0 && trapnote );
 

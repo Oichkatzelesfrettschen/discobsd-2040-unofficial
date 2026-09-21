@@ -19,7 +19,7 @@
 #include <machine/debug.h>
 #include <machine/frame.h>
 
-/* Stack alignment the ARM EABI and the MIPS o32 ABI hand _start. */
+/* Stack alignment the ARM EABI hands _start. */
 #define STACKALIGN 8
 #define EXEC_SPOOL_BLOCK_NONE 0xffff
 
@@ -256,8 +256,7 @@ exec_spool_discard (struct exec_params *epp)
  *               ...
  *  argp ->     [arg0]      ptr to arg0
  *               []       \
- *               []       | 16 bytes for Mips
- *               []       | 64 bytes for Arm
+ *               []       | 64 bytes for the ARM trap frame
  *    sp ->      []       /
  *
  */
@@ -282,8 +281,8 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     argp = envp - (epp->argc+1)*NBPW;           /* Make place for argv[...] */
 
     /*
-     * The ARM EABI and the MIPS o32 ABI hand _start an 8-byte aligned
-     * stack, and va_arg rounds a double's address up to 8 bytes: with
+     * The ARM EABI hands _start an 8-byte aligned stack, and va_arg rounds a
+     * double's address up to 8 bytes: with
      * the entry frame a multiple of 8 below argp, argp itself must be
      * 8-byte aligned. The string byte count decides where argp lands,
      * so when it lands on a 4-byte boundary the whole block moves down
@@ -294,12 +293,6 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     envp = (char **)((char *)envp - pad);
     argp = (char **)((char *)argp - pad);
 
-#ifdef __mips__
-    u.u_frame->tf_sp = (int)(argp-16);
-    u.u_frame->tf_r4 = epp->argc;               /* $a0 := argc */
-    u.u_frame->tf_r5 = (int)argp;               /* $a1 := argp */
-    u.u_frame->tf_r6 = (int)envp;               /* $a2 := env */
-#elif __thumb2__ || __thumb__
     u.u_frame->tf_sp = (int)(argp-0x40);        /* 0x40 for svc trap frame. */
     u.u_frame->tf_r0 = epp->argc;               /* $a1 := argc */
     u.u_rval         = epp->argc;               /* $a1 := argc via syscall() */
@@ -308,9 +301,6 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
 
     u.u_frame->tf_lr  = 0xffffffff;             /* lr, set -1 (reset value) */
     u.u_frame->tf_psr = 0x01000000;             /* psr, Thumb state bit set */
-#else
-#error "set up top of stack for unknown architecture"
-#endif
 
     *topp = argp;                               /* for /bin/ps */
 
@@ -709,35 +699,6 @@ void exec_clear(struct exec_params *epp)
     /*
      * Clear registers.
      */
-#ifdef __mips__
-    u.u_frame->tf_r1  = 0;              /* $at */
-    u.u_frame->tf_r2  = 0;              /* $v0 */
-    u.u_frame->tf_r3  = 0;              /* $v1 */
-    u.u_frame->tf_r7  = 0;              /* $a3 */
-    u.u_frame->tf_r8  = 0;              /* $t0 */
-    u.u_frame->tf_r9  = 0;              /* $t1 */
-    u.u_frame->tf_r10 = 0;              /* $t2 */
-    u.u_frame->tf_r11 = 0;              /* $t3 */
-    u.u_frame->tf_r12 = 0;              /* $t4 */
-    u.u_frame->tf_r13 = 0;              /* $t5 */
-    u.u_frame->tf_r14 = 0;              /* $t6 */
-    u.u_frame->tf_r15 = 0;              /* $t7 */
-    u.u_frame->tf_r16 = 0;              /* $s0 */
-    u.u_frame->tf_r17 = 0;              /* $s1 */
-    u.u_frame->tf_r18 = 0;              /* $s2 */
-    u.u_frame->tf_r19 = 0;              /* $s3 */
-    u.u_frame->tf_r20 = 0;              /* $s4 */
-    u.u_frame->tf_r21 = 0;              /* $s5 */
-    u.u_frame->tf_r22 = 0;              /* $s6 */
-    u.u_frame->tf_r23 = 0;              /* $s7 */
-    u.u_frame->tf_r24 = 0;              /* $t8 */
-    u.u_frame->tf_r25 = 0;              /* $t9 */
-    u.u_frame->tf_fp  = 0;
-    u.u_frame->tf_ra  = 0;
-    u.u_frame->tf_lo  = 0;
-    u.u_frame->tf_hi  = 0;
-    u.u_frame->tf_gp  = 0;
-#elif __thumb2__ || __thumb__
     u.u_frame->tf_r0  = 0;              /* a1 */
     u.u_frame->tf_r1  = 0;              /* a2 */
     u.u_frame->tf_r2  = 0;              /* a3 */
@@ -754,9 +715,6 @@ void exec_clear(struct exec_params *epp)
     u.u_frame->tf_r9  = 0;              /* v6 */
     u.u_frame->tf_r10 = 0;              /* v7 */
     u.u_frame->tf_r11 = 0;              /* v8 */
-#else
-#error "clear trap frame registers for unknown architecture"
-#endif
 
     execsigs (u.u_procp);
 

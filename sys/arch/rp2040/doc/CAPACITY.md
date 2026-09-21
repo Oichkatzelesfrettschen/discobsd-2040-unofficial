@@ -91,9 +91,11 @@ until `wait4()` clears the state and returns the slot. The `p_stat` predicate
 therefore counts every process-table slot unavailable to `fork1()`, including
 zombies.
 
-`cfreecount` measures free character payload bytes rather than objects.
-`cinit()` adds exactly `CBSIZE` for each of the `NCLIST` blocks, and every
-allocation or release subtracts or adds the same unit. The live count is
+`cfreecount` measures free character payload bytes rather than objects. The
+RP2040 and STM32 pool definitions align `cfree` to `sizeof(struct cblock)`
+because `cinit()` rounds the first address with `CROUND`. The explicit
+alignment lets `cinit()` add exactly `CBSIZE` for each of the `NCLIST` blocks;
+every allocation or release subtracts or adds the same unit. The live count is
 therefore `NCLIST - cfreecount / CBSIZE`.
 
 The retained configuration reports these per-slot costs:

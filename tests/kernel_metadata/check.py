@@ -98,6 +98,12 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     if len(low) != 29 or max(low) != 125:
         raise CheckError("tty low-water values drifted")
 
+    aligned_cfree = "_Alignas(sizeof(struct cblock)) struct cblock cfree[NCLIST];"
+    for architecture in ("rp2040", "stm32"):
+        relative_path = f"sys/arch/{architecture}/{architecture}/machdep.c"
+        if aligned_cfree not in source(relative_path):
+            raise CheckError(f"{relative_path} can discard the first clist block")
+
     capacity_seams = {
         "sys/kern/kern_fork.c": ("CAPACITY_PROC", True, True),
         "sys/kern/kern_descrip.c": ("CAPACITY_FILE", True, True),
@@ -169,6 +175,22 @@ def main() -> int:
         "wide tty high-water table",
         lambda: check_tree(
             root, {tty_path: tty.replace("const uint16_t tthiwat", "const int tthiwat")}
+        ),
+    )
+
+    machdep_path = "sys/arch/rp2040/rp2040/machdep.c"
+    machdep = (root / machdep_path).read_text()
+    expect_bad(
+        "unaligned clist pool",
+        lambda: check_tree(
+            root,
+            {
+                machdep_path: machdep.replace(
+                    "_Alignas(sizeof(struct cblock)) struct cblock cfree[NCLIST];",
+                    "struct cblock cfree[NCLIST];",
+                    1,
+                )
+            },
         ),
     )
 

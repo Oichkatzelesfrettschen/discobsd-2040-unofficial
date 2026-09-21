@@ -26,6 +26,10 @@
 #include <sys/stat.h>
 #include <sys/config.h>
 
+#ifndef ROOT_MOUNT_FLAGS
+#define ROOT_MOUNT_FLAGS 0
+#endif
+
 static void	bhinit(void);
 static void	binit(void);
 static void	cinit(void);
@@ -119,7 +123,8 @@ main(void)
 
 	/* Mount a root filesystem. */
 	s = spl0();
-	fs = mountfs(rootdev, (boothowto & RB_RDONLY) ? MNT_RDONLY : 0, 0);
+	fs = mountfs(rootdev, ROOT_MOUNT_FLAGS |
+	    ((boothowto & RB_RDONLY) ? MNT_RDONLY : 0), 0);
 	if (!fs)
 		panic("No root filesystem found!");
 	mount[0].m_inodp = (struct inode *)1;	/* XXX */

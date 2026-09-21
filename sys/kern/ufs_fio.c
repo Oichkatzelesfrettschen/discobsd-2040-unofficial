@@ -157,8 +157,8 @@ ufs_setattr(register struct inode *ip, register struct vattr *vap)
             ((vap->va_vaflags & VA_UTIMES_NULL) == 0 ||
              access(ip, IWRITE)))
             return(u.u_error);
-        if (vap->va_atime != (time_t)VNOVAL &&
-            ! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))
+        /* MNT_NOATIME suppresses read-side updates, not explicit utimes(2). */
+        if (vap->va_atime != (time_t)VNOVAL)
             ip->i_flag |= IACC;
         if (vap->va_mtime != (time_t)VNOVAL)
             ip->i_flag |= (IUPD|ICHG);

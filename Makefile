@@ -163,6 +163,9 @@ check-kernel-metadata:
 		${PYTHON} tools/gen_kernel_metadata.py --root ${TOPSRC} --check
 		${PYTHON} tests/kernel_metadata/check.py --root ${TOPSRC}
 
+check-root-noatime:
+		${PYTHON} tests/root_noatime/check.py --root ${TOPSRC}
+
 check-libc-environment:
 		${MAKE} -C tests/libc_environment check
 
@@ -525,7 +528,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
-		check-kernel-metadata \
+		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts \
@@ -758,7 +761,8 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-elf2aout check-kernel check-kernel-ilp32 \
-		check-kernel-metadata regen-kernel-metadata check-fs-stress \
+		check-kernel-metadata check-root-noatime \
+		regen-kernel-metadata check-fs-stress \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
 		check-touch-contracts check-libc-tempfiles check-libc-ctime \
 		check-libc-ctime-cross check-libc-zone check-libc-mktime \

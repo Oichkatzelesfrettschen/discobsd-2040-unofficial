@@ -37,6 +37,7 @@ options         COMPACT_SWAPMAP              # 16-bit entries cover 384 blocks.
 options         LINEAR_BUFFER_CACHE          # Scan four buffers; omit hash links.
 options         LINEAR_NAME_CACHE            # Scan four names; use second chance.
 options         "CORE_DEFAULT=0"            # No core dumps unless raised.
+options         "ROOT_MOUNT_FLAGS=MNT_NOATIME" # Reads do not dirty root inodes.
 options         EXEC_HSAOUT                 # packed a.out executables
 
 # Console on UART0, GP0 and GP1: this board variant carries no USB console,

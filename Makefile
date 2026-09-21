@@ -488,6 +488,11 @@ check-flash-swap:
 		${MAKE} -C tests/rp2040/flash_swap check
 		${MAKE} -C sys/arch/rp2040/compile check-flash-swap
 
+# tools/elf2aout over the layouts the ARM linker produces. The gate assembles
+# and links its own fixtures with the cross toolchain and reads
+# lib/elf32-arm.ld, so what it needs is tools, the toolchain and ${PYTHON}
+# rather than a built tree; it is a cross contract gate for the isolation the
+# other members of that list have, its own temporary directory per run.
 check-elf2aout:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-elf2aout requires MACHINE=rp2040" >&2; \
@@ -547,7 +552,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
-		check-stdio-bounds-cross
+		check-stdio-bounds-cross check-elf2aout
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:

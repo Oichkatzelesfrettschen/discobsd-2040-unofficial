@@ -30,6 +30,7 @@ int dd_jump_armed;
  * copy, while the trace stays in the shared mapping the parent reads.
  */
 static off_t dd_fault_pos;
+static unsigned dd_served;
 
 void
 dd_shim_init(void)
@@ -49,6 +50,16 @@ dd_shim_reset(void)
     dd_trace->len = 0;
     dd_trace->text[0] = '\0';
     dd_fault_pos = 0;
+    dd_served = 0;
+}
+
+/*
+ * The mark the read limit leaves, read back by the parent after waitpid(2).
+ */
+int
+dd_overran(void)
+{
+    return (strchr(dd_trace->text, DD_OVERRUN) != NULL);
 }
 
 static void
@@ -91,6 +102,16 @@ dd_read(int fd, void *buf, size_t n)
         return (read(fd, buf, n));
 
     blk = (long)(dd_fault_pos / DD_BLOCK);
+    /*
+     * The end of the input ends the copy, so the limit returns it: the
+     * child leaves a status and a marked trace for the parent instead of
+     * reading the same block until something outside the gate kills it.
+     */
+    if (++dd_served > DD_READ_LIMIT) {
+        if (!dd_overran())
+            dd_note(DD_OVERRUN, blk);
+        return (0);
+    }
     if (blk >= DD_BLOCKS) {
         dd_note('z', blk);
         return (0);

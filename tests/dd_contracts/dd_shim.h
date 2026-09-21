@@ -25,14 +25,25 @@
 #define DD_BLOCKS       4
 #define DD_BAD_BLOCK    1
 
+/*
+ * A copy that fails to advance past the refused block reads it again on
+ * every pass and never reaches the end of the input, so the shim stops
+ * serving at DD_READ_LIMIT and marks the trace. The limit stands well above
+ * the DD_BLOCKS+1 reads a correct run issues, and the mark is what the
+ * check names, because a gate that waits out an endless loop reports a job
+ * timeout rather than a verdict.
+ */
+#define DD_READ_LIMIT   (DD_BLOCKS * 4)
+#define DD_OVERRUN      'x'
+
 #define DD_TRACE_MAX    512
 
 /*
  * One token per event in the order the program issued it: r<block> a served
  * block, e<block> a refused block, z<block> the end of the input, s<delta>
- * an lseek by that many bytes from the current offset. The buffer is a
- * shared mapping, so a scenario running in a child leaves the sequence
- * where the parent reads it.
+ * an lseek by that many bytes from the current offset, x<block> the read
+ * limit reached. The buffer is a shared mapping, so a scenario running in a
+ * child leaves the sequence where the parent reads it.
  */
 struct dd_trace {
     unsigned len;
@@ -51,5 +62,6 @@ int dd_main(int, char **);
 
 void dd_shim_init(void);
 void dd_shim_reset(void);
+int dd_overran(void);
 
 #endif /* DD_SHIM_H */

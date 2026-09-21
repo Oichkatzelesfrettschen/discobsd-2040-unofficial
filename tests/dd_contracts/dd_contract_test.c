@@ -200,6 +200,8 @@ read_error_checks(const char *out)
      */
     status = run_dd(noerror);
     len = slurp(out, image, sizeof image);
+    ok(!dd_overran(),
+        "conv=noerror advances the input offset past the failed block");
     ok(status == 0, "conv=noerror completes the copy with a zero status");
     ok(strcmp(dd_trace->text, "r0 e1 s512 r2 r3 z4 ") == 0,
         "conv=noerror steps the input one block past the failed read");
@@ -218,6 +220,8 @@ read_error_checks(const char *out)
 
     status = run_dd(synced);
     len = slurp(out, image, sizeof image);
+    ok(!dd_overran(),
+        "conv=noerror,sync advances the input offset past the failed block");
     ok(status == 0, "conv=noerror,sync completes the copy");
     ok(len == 4 * DD_BLOCK,
         "conv=noerror,sync pads the failed block to ibs");

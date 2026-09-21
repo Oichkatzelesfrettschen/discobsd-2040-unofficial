@@ -53,9 +53,9 @@ SRCS    = acu.c acutab.c cmds.c cmdtab.c cu.c hunt.c log.c partab.c remcap.c \
 OBJS    = acu.o acutab.o cmds.o cmdtab.o cu.o hunt.o log.o partab.o remcap.o \
 	  remote.o tip.o tipout.o uucplock.o value.o vars.o
 
-all: aculib tip
+all: tip
 
-tip:    ${OBJS}
+tip:    aculib ${OBJS}
 	${CC} ${CFLAGS} ${LDFLAGS} -o tip.elf ${OBJS} ${LIBS}
 	${OBJDUMP} -S tip.elf > tip.dis
 	${SIZE} tip.elf
@@ -71,20 +71,20 @@ acutab.o: acutab.c
 log.o remote.o: Makefile
 
 aculib: FRC
-	cd aculib; ${MAKE} ${MFLAGS}
+	${MAKE} -C aculib ${MFLAGS}
 # aculib is a directory; see lib/Makefile on why it must be phony.
 .PHONY:	aculib
 
 clean: FRC
 	rm -f ${OBJS} core tip tip.elf tip.dis
-	cd aculib; ${MAKE} ${MFLAGS} clean
+	${MAKE} -C aculib ${MFLAGS} clean
 
 depend: FRC
 	mkdep ${CFLAGS} ${SRCS}
-	cd aculib; ${MAKE} ${MFLAGS} depend
+	${MAKE} -C aculib ${MFLAGS} depend
 
-install: aculib tip
-	cd aculib; ${MAKE} ${MFLAGS} install
+install: tip
+	${MAKE} -C aculib ${MFLAGS} install
 	${INSTALL} tip ${DESTDIR}/usr/bin/tip
 	rm -f ${DESTDIR}/usr/bin/cu
 	touch ${DESTDIR}/${ADM}/aculog

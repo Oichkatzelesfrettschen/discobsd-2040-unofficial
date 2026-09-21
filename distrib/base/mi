@@ -434,7 +434,6 @@ target /usr/share/zoneinfo/Canada/Mountain
 #
 default
 filemode 0775
-file /usr/bin/aout
 file /usr/bin/apropos
 file /usr/bin/ar
 file /usr/bin/arch
@@ -447,8 +446,6 @@ file /usr/bin/cal
 file /usr/bin/calendar
 file /bin/cat
 file /usr/bin/cb
-file /usr/bin/cc
-file /usr/bin/chat-server
 file /usr/bin/chflags
 file /bin/chgrp
 file /bin/chmod
@@ -459,7 +456,6 @@ file /usr/bin/col
 file /usr/bin/comm
 file /usr/bin/compress
 file /bin/cp
-file /usr/bin/cpp
 file /usr/bin/crontab
 file /bin/date
 file /usr/bin/dc
@@ -483,10 +479,6 @@ file /usr/bin/fold
 file /usr/bin/forth
 file /usr/bin/fstat
 mode 02755
-file /usr/bin/glcdtest
-file /usr/bin/globdump
-file /usr/bin/globread
-file /usr/bin/globwrite
 file /usr/bin/grep
 file /usr/bin/groups
 file /usr/bin/head
@@ -500,13 +492,10 @@ file /usr/bin/join
 file /bin/kill
 file /usr/bin/la
 file /usr/bin/last
-file /usr/bin/lcc
-file /usr/bin/lcpp
 file /usr/bin/ld
 file /bin/ln
 file /usr/bin/login
 mode 04755
-file /usr/bin/lol
 file /bin/ls
 file /usr/bin/m4
 file /usr/bin/mail
@@ -523,21 +512,18 @@ file /bin/mv
 file /usr/bin/nice
 file /usr/bin/nm
 file /usr/bin/nohup
-file /usr/bin/ntpdate
 file /usr/bin/od
 file /usr/bin/pagesize
 file /usr/bin/passwd
 mode 04755
 file /usr/bin/pdc
 file /usr/bin/picoc
-file /usr/bin/portio
 file /usr/bin/pr
 file /usr/bin/printenv
 file /usr/bin/printf
 file /bin/ps
 mode 02755
 file /bin/pwd
-file /usr/bin/pwm
 file /usr/bin/ranlib
 file /usr/bin/re
 file /usr/bin/renice
@@ -548,7 +534,6 @@ file /bin/rm
 file /bin/rmail
 file /bin/rmdir
 file /usr/bin/rz
-file /usr/bin/scc
 file /usr/bin/scm
 file /usr/bin/sed
 file /usr/bin/setty
@@ -556,7 +541,6 @@ file /bin/sh
 file /usr/bin/size
 file /usr/bin/sl
 file /bin/sleep
-file /usr/bin/smux
 file /usr/bin/sort
 file /usr/bin/split
 file /usr/bin/strip
@@ -571,7 +555,6 @@ file /usr/bin/tail
 file /bin/tar
 file /usr/bin/tclsh
 file /usr/bin/tee
-file /usr/bin/telnet
 file /bin/test
 file /usr/bin/time
 file /usr/bin/tip
@@ -603,8 +586,6 @@ file /usr/bin/w
 file /usr/bin/wall
 mode 02755
 file /usr/bin/wc
-file /usr/bin/web-client
-file /usr/bin/web-server
 file /usr/bin/whereis
 file /usr/bin/who
 file /usr/bin/whoami
@@ -845,10 +826,7 @@ file /usr/include/sysexits.h
 file /usr/include/sys/fcntl.h
 file /usr/include/sys/file.h
 file /usr/include/sys/fs.h
-file /usr/include/sys/glcd.h
 file /usr/include/sys/glob.h
-file /usr/include/sys/gpanel.h
-file /usr/include/sys/gpio.h
 file /usr/include/sys/inode.h
 file /usr/include/sys/ioctl.h
 file /usr/include/sys/kernel.h
@@ -857,7 +835,6 @@ file /usr/include/sys/mount.h
 file /usr/include/sys/msgbuf.h
 file /usr/include/sys/mtio.h
 file /usr/include/sys/namei.h
-file /usr/include/sys/pwm.h
 file /usr/include/sys/param.h
 file /usr/include/sys/picga.h
 file /usr/include/sys/proc.h
@@ -923,10 +900,8 @@ file /usr/lib/crt0.o
 file /usr/lib/libc.a
 file /usr/lib/libm.a
 file /usr/lib/libcurses.a
-file /usr/lib/libgpanel.a
 file /usr/lib/libreadline.a
 file /usr/lib/libtermlib.a
-file /usr/lib/libwiznet.a
 file /usr/lib/retroImage
 
 #
@@ -939,7 +914,6 @@ file /usr/libexec/bigram
 file /usr/libexec/code
 file /usr/libexec/diffh
 file /usr/libexec/getty
-file /usr/libexec/smallc
 
 #
 # Files: /usr/share
@@ -1196,7 +1170,6 @@ file /usr/share/man/cat1/colcrt.0
 file /usr/share/man/cat1/colrm.0
 file /usr/share/man/cat1/comm.0
 file /usr/share/man/cat1/cp.0
-file /usr/share/man/cat1/cpp.0
 file /usr/share/man/cat1/crontab.0
 file /usr/share/man/cat1/csh.0
 file /usr/share/man/cat1/ctags.0
@@ -1238,7 +1211,6 @@ file /usr/share/man/cat1/kill.0
 file /usr/share/man/cat1/la.0
 file /usr/share/man/cat1/last.0
 file /usr/share/man/cat1/lastcomm.0
-file /usr/share/man/cat1/lcc.0
 file /usr/share/man/cat1/ld.0
 file /usr/share/man/cat1/learn.0
 file /usr/share/man/cat1/leave.0
@@ -1472,7 +1444,6 @@ file /usr/share/man/cat3/getopt.0
 file /usr/share/man/cat3/getpass.0
 file /usr/share/man/cat3/getsubopt.0
 file /usr/share/man/cat3/getwd.0
-file /usr/share/man/cat3/gpanel.0
 file /usr/share/man/cat3/infnan.0
 file /usr/share/man/cat3/initgroups.0
 file /usr/share/man/cat3/intro.0

@@ -2,9 +2,9 @@
 
 Every test in the tree is reached through a root Makefile target, and the
 targets are grouped into tiers by what the host needs. `bmake
-MACHINE=rp2040 check` runs every tier; a host without one tool runs the
-tiers it has and names the one it skips. The cross, qemu, mips and
-board-build tiers run after `bmake MACHINE=rp2040 build`, which leaves
+MACHINE=rp2040 check` runs every maintained tier; a host without one tool runs
+the tiers it has and names the one it skips. The cross, qemu, and board-build
+tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
 reduced board libc when its source closure is newer than the archive.
 
@@ -18,7 +18,6 @@ reduced board libc when its source closure is newer than the archive.
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | no: the models are a git clone and a dotnet build | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
-| mips | `check-mips` | a bare-metal MIPS cross compiler (`MIPS_GCCPREFIX`, mipsel-elf) | no: Ubuntu's mipsel-linux-gnu binutils know only elf32-tradlittlemips, not the elf32-littlemips that lib/elf32-mips.ld names | no MIPS toolchain in Homebrew |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 
@@ -46,10 +45,11 @@ processes while bmake owns the cross-shard concurrency. The board-build tier
 gives each on-device program a target. These graphs accept the jobserver count
 directly.
 
-The complete 12-job host tier takes 5.80 seconds on the measured host. Tail's
-2,016 subprocess cases and the PDP-11 V6 boot remain serial inside their own
-targets because their protocols share ordered state; independent suites and
-Keen shards run concurrently around them.
+The complete 12-job maintained host tier takes 5.80 seconds on the measured
+host. Tail's 2,016 subprocess cases remain serial inside their target because
+the protocol shares ordered state; independent suites and Keen shards run
+concurrently around it. The separately selected PDP-11/V6 test is outside the
+maintained host tier.
 
 The cross tier separates isolated contract directories from shared kernel and
 assembler outputs. `.WAIT` orders the PICO, PICO_UART, SwapRAM, exec-spool and
@@ -72,8 +72,9 @@ boundaries. Ordinary recursive bmake recipes retain the live jobserver.
 
 `.github/workflows/firmware.yml` runs the tiers after the warning-free
 build; `host.yml` owns the discobsd-host package and packages it on
-three platforms. `PYTHON` defaults to `python3` in share/mk/sys.mk and
-the root Makefile and reaches every sub-make.
+three platforms. The caller supplies `PYTHON`; CI resolves one interpreter,
+writes its path to the job environment, and every sub-make inherits that
+identity.
 
 Windows appears in `host.yml` and nowhere else. The firmware tiers want
 bmake, an arm-none-eabi cross toolchain and a POSIX sh userland to test,
@@ -199,12 +200,14 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-id-aliases` | id, whoami, groups and logname over stubbed identity calls |
 | `check-tiny-utility-multicall` | true, false and nohup dispatch, arguments, signals, priority, streams, terminal and exit status |
 | `check-portable-utilities` | getopt, yes, strings and users, with write-error injection |
-| `check-pdp11-reference` | the unit tests of the PDP-11 V7 reference runner (the simh run itself is `check-pdp11-v7` with `PDP11_V7_IMAGE`); the three tests that publish evidence use Linux renameat2 and skip elsewhere, saying so |
+| `check-architecture-isolation` | the two maintained ARM tuples, invalid registry inputs, all generated ARM kernel Makefiles, default and opt-in traversal, the 1,032-row relocation map, the exact retained portability-selector set, filesystem composition, atomic tuple publication, and cleanup failure visibility; deliberate bad fixtures calibrate every class |
+| `check-legacy-pdp11-v7-runner` | with `BUILD_PDP11_V6=yes`, the unit tests of the isolated PDP-11 V7 reference runner; the three tests that publish evidence use Linux renameat2 and skip elsewhere, saying so |
+| `check-legacy-pdp11-v7-reference` | with `BUILD_PDP11_V6=yes` and `PDP11_V7_IMAGE`, the external SIMH/V7 image, profile, transcript, and simulator identity; the result does not test the repository emulator |
 | `check-fgrep-capacity` | fgrep's allocation boundaries and its command path over regular, empty and fifo pattern sources |
 | `check-config-makefile` | the config tool regenerates the tracked kernel Makefile byte for byte |
 | `check-swapram-evac` | the compressed swap pool's evacuation to flash, linking the kernel's swapram.c and subr_rmap.c |
-| `check-fs-profiles` | every root filesystem profile in `distrib/rp2040/profiles` composes against the closure markers in `distrib/rp2040/mi.rp2040`: no duplicate path, no path whose parent directory the profile drops, no hard link or symlink whose target the profile drops, and no selected closure whose declared closure or path dependency is absent. `tools/fsutil/fsutil.c`'s `add_hardlink()` only warns on a missing source and leaves the exit status at 0, so the broken image this refuses would otherwise build clean. `--selftest` calibrates the checker against six compositions that must be rejected -- a compiler without its link library, a link library without its compiler, the emulator without its V6 pack, gamebox entry points without gamebox, the compiler with `/usr/lib/libc.a` deleted, and gamebox with `/usr/games` deleted -- and asserts the reason each is rejected for. `sys/arch/rp2040/doc/PROFILES.md` is the authority |
-| usr.bin/pdp11 `test` | the host build of the emulator boots the V6 pack on a pseudo-terminal |
+| `check-fs-profiles` | every maintained profile composes against the maintained manifest with resolved parents, links, closures, and paths. Its default selftest rejects the two broken toolchain selections and three deleted-path cases. With `BUILD_PDP11_V6=yes`, the same target consumes the two legacy fragments and additionally rejects an emulator without its pack, a PDP-11 closure without its emulator path, and a V6 closure without its guest path. `sys/arch/rp2040/doc/PROFILES.md` is the authority |
+| `check-legacy-pdp11-v6` | with `BUILD_PDP11_V6=yes`, the isolated host build of the emulator boots the V6 pack on a pseudo-terminal |
 | usr.bin/stevie, kilo, menu `test` | each editor driven through a pty |
 | usr.bin/tail, sort `test` | output modeled against the host for every option |
 | games/keen, bubble, fifteen `test` | a seeded game played through a pty; keen's four fixtures, 80 unchecked generator controls and 160 checked puzzles against an independent C17 row-permutation counter. Keen splits fixtures, unchecked cases and each checked size into bounded targets with private temporary files, so the jobserver can run the finite proof concurrently |
@@ -487,16 +490,6 @@ Boot ROM float members removed (qemu-arm maps no ROM at address 0x10,
 so libgcc's soft-float stands in) and the Linux syscall layer in
 tests/qemusys.c, and compares the output; `REQUIRE_QEMU=1` refuses the
 link-only run the tier would otherwise silently accept.
-
-## MIPS tier
-
-tests/rp2040/elf2aout_layout links the same fixtures with the arm and
-the MIPS toolchains and checks elf2aout's layout and the multicall bss
-overlay on both. It needs a bare-metal toolchain (Arch's mipsel-elf,
-the OpenBSD and FreeBSD prefixes in share/mk/mips-toolchain.mk): the
-Linux-target mipsel-linux-gnu binutils reject the elf32-littlemips
-output format the linker script names, so the tier runs locally and
-not in CI.
 
 ## flash-id tier
 

@@ -24,6 +24,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The relocation verifier resolves every origin blob at the pinned
+          # pre-migration revision, so a one-commit checkout cannot run it.
+          fetch-depth: 0
 
       # bmake drives the tree; share/mk/sys.mk picks byacc over bison on
       # Linux, flex as LEX, mandoc for the manual pages and "vim -es -u
@@ -216,6 +220,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # check-host includes the relocation verifier and needs the pinned
+          # pre-migration source revision on macOS too.
+          fetch-depth: 0
       - name: Install the host toolchain
         run: |
           brew install bmake byacc bison flex groff mandoc pkgconf picotool \

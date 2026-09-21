@@ -6,7 +6,7 @@ What exists, in the port tree at fcc4161a:
 | --- | --- | --- | --- |
 | `README.md` | 420 | tester, buyer, builder | what runs on it, the login screen line by line, per-platform install, troubleshooting, hardware and care and recovery, V6, build and flash, host tools, source tree, gates, references, license and redistribution, other platforms |
 | `distrib/rp2040/host/README.md` | 190 | tester | install per OS, LAN console, keys and exits per system, accessibility, development |
-| `usr.bin/pdp11/README.md` | 75 | curious tester, builder | the emulated machine, the pack, rebuilding it, testing |
+| `legacy/pdp11-v6/usr.bin/pdp11/README.md` | 75 | curious tester, builder | the emulated machine, the pack, rebuilding it, testing |
 | `sys/arch/rp2040/doc/*.md` | 5 files | builder | boot map, storage, user access, multicall overlay, datasheet index |
 | `NOTICE`, `/etc/COPYRIGHT` | | redistributor | every notice; the on-device short form |
 

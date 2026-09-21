@@ -150,7 +150,7 @@ The 28 programs the rp2040 manifest ships:
 | +132 | -116 | +256 | `games/gamebox` |
 | +68 | -180 | +256 | `usr.bin/ld` |
 | +36 | -212 | +256 | `libexec/getty` |
-| +32 | -216 | +256 | `usr.bin/pdp11` |
+| +32 | -216 | +256 | `legacy/pdp11-v6/usr.bin/pdp11` |
 
 Sum over the shipped set: **+15596 bytes** of loaded image, text +8512, data
 +7298. `distrib/rp2040/sdcard.img` is the same 1012736 bytes, which is the

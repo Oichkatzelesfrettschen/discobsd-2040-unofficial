@@ -120,13 +120,15 @@ repos/chettrick/discobsd`.
   NUCLEO-F411RE, STM32F412G-DISCO, WeAct STM32F412RET6, STM32F413H-DISCO,
   NUCLEO-F446RE, WeAct STM32F446RET6, STM32F469I-DISCO, STM32F4DISCOVERY,
   DevEBox STM32F407VET6.
-- MIPS (PIC32), from `distrib/pic32/README.md`: Fubarino SD, Olimex
+- MIPS (PIC32), from the archived
+  `legacy/non-arm/mips-pic32/distrib/pic32/README.md`: Fubarino SD, Olimex
   Duinomite / Duinomite-Mini / Duinomite-Mega / Duinomite-eMega, Olimex
   Pinguino-Micro (PIC32MX795F512H), Maximite / Colour Maximite, Majenko
   SDXL, 4D Systems Picadillo-35T, MikroElektronika MultiMedia Board
   (PIC32MX7), chipKIT Max32/WF32, Sparkfun UBW32, Microchip Explorer 16,
   PIC32 USB/Ethernet Starter Kit, Pontech Quick240.
-Source: `distrib/stm32/README.md`; `distrib/pic32/README.md` in
+Source: `distrib/stm32/README.md`;
+`legacy/non-arm/mips-pic32/distrib/pic32/README.md` in
 chettrick/discobsd.
 
 **Cortex-M0+/ARMv6-M support.** Not present. Every ARM board listed is an

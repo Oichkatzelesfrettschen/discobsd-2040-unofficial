@@ -205,7 +205,7 @@ Every test the port's guide lists was then run with `-k`, so all the
 failures showed at once, and each was taken to its cause. Two were real
 bugs that a Linux host had hidden:
 
-- usr.bin/pdp11 never printed the bootstrap prompt. `cons_poll` read
+- `legacy/pdp11-v6/usr.bin/pdp11` never printed the bootstrap prompt. `cons_poll` read
   the FIONREAD byte count into a `long`; the ioctl fills an `int`, and
   the upper half stayed whatever was on the stack. Zero-initialized
   locals "fixed" it, which is how it was found. It is an `int` now.

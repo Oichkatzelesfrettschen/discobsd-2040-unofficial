@@ -2,7 +2,7 @@
 
 Status: working evidence ledger
 
-Source commit: `cc8d14c414e58a2637119d7cfd8a0059cf3aad5c`
+Source commit: `c8066894671158220d978c741e5377d89a52eb3e`
 
 ## Purpose
 
@@ -1167,3 +1167,354 @@ behavior.
 
 Next action: reconcile the active documentation and replace the scratchpad's
 superseded working conclusions with a durable design document.
+
+### Rebase and relocation-provenance reconciliation
+
+Command: rebase the architecture-isolation commit onto `main` at
+`c8066894671158220d978c741e5377d89a52eb3e`, resolve the two content conflicts
+by retaining the newer target-neutral C17 `setvbuf()` implementation and
+regenerating `sys/kern/syscalls.c` from its canonical input, then regenerate
+`legacy-path-map.tsv` from that exact `main` revision. Verify the regenerated
+map in both source and archive modes before replacing the pre-rebase map.
+
+Result:
+
+- The branch now points at `7771c72b` and contains one rebased implementation
+  commit above `main`.
+- The relocation denominator remains exactly 1,032 rows: 1,008
+  `legacy-non-arm`, 22 `legacy-pdp11-v6`, and two
+  `legacy-unsupported-platform` rows.
+- The regenerated provenance changes the source revision from `cc8d14c4` to
+  `c8066894` and updates 21 PIC32 blob identities that changed on `main`.
+- Source-mode verification resolves every original path and blob against the
+  recorded `main` revision. Archive-mode verification resolves every
+  destination and SHA-256 against the rebased worktree.
+- The unchanged row key set plus the updated blob witnesses proves that the
+  rebase propagated the 21 source updates into their archived destinations;
+  the proof does not assert support or buildability for those archived files.
+- `lib/libc/stdio/setvbuf.c` retains the newer C17 implementation from `main`.
+  `sys/kern/syscalls.c` retains generated metadata without the obsolete
+  PDP-11 conditional.
+
+Limitation: the successful rebase and relocation proof establish source
+identity and boundary preservation. They do not replace clean ARM builds,
+explicit PDP-11/V6 opt-in validation, emulator execution, or board evidence.
+
+Next action: author the durable design, reconcile all active path and build
+claims, and run the post-documentation validation matrix.
+
+### Maintained STM32 prerequisite and PicoC repair
+
+Command: run a clean STM32 distribution build with parallel make after the
+post-documentation matrix, trace the first failure through the generated kernel
+Makefiles and then through `usr.bin/picoc`, and repair only the mechanisms that
+fail under the maintained tuple.
+
+Finding:
+
+- A generated kernel Makefile can start `${SYSTEM_OBJ}` before the `machine`,
+  `sys`, and `.deps` prerequisites exist. Rebuilding `ioconf.c` invokes
+  `bmake clean`, so one prerequisite barrier before `ioconf.c` cannot retain
+  those paths. The source templates and all 12 generated ARM Makefiles now
+  order `Makefile ioconf.c`, then the path prerequisites, then object builds
+  with two `.WAIT` barriers.
+- The repaired kernel compiles and advances the STM32 build into userland.
+  PicoC then supplies obsolete `FILENAME_MAX=64` and `L_tmpnam=30` definitions
+  that conflict with the maintained libc headers (`256` and `12`). The PicoC
+  Makefile now consumes the libc definitions.
+- `main()` originally contained `setjmp()` through
+  `PicocPlatformSetExitPoint()`. Moving only the source loop into a helper did
+  not close the warning: a direct STM32 compile still diagnosed the two mode
+  locals because `main()` retained the exit point. The source helper now owns
+  both the exit point and the work that can call `longjmp()`. Its nonzero
+  return reaches the same cleanup path in `main()`, while the mode locals live
+  in a function that contains no `setjmp()`.
+- The direct compile accepts the exit-point boundary and advances to
+  `table.c`. Its hash-bit offset was a signed `int` compared with a
+  `sizeof`-derived unsigned width. The offset represents a nonnegative bit
+  position and now uses `unsigned int`, matching both the shift operand and
+  the computed width.
+- A keep-going compile first exposes 341 `-Wall`/`-Wextra` instances. The
+  canonical serial census after removing the dead compatibility shim measures
+  339 instances at 165 distinct file, line, and category sites. Of those
+  sites, 158 are unused callback parameters fixed by PicoC's interpreter ABI.
+  The established warning policy assigns the directory `WARNLEVEL=legacy`
+  with the 165-site residual rather than folding that interpreter migration
+  into architecture isolation.
+- Two warning instances and two hard conflicting declarations come from
+  `retrobsd.c`. That compatibility shim implements `fgetpos()` and `fsetpos()`
+  with obsolete `int *` signatures, while the maintained libc supplies both
+  functions with `fpos_t *` signatures. Removing the dead shim from the tree
+  makes PicoC consume the maintained libc API.
+
+Limitation: the source repair is a compiler-driven hypothesis until the direct
+PicoC build and complete STM32 distribution both pass. A successful STM32
+build proves compilation and image composition for that tuple; it does not
+prove execution on STM32 hardware.
+
+Result update:
+
+- The direct STM32 PicoC build compiles 23 translation units, links a 67,424
+  byte ELF image, and converts it to a.out successfully.
+- The first clean full STM32 build compiles every kernel configuration and all
+  userland, then fails during image composition because `/etc/phones` is
+  absent from the staged root. `usr.bin/tip` built its executable earlier in
+  the same log, but its install invocation transiently reported the source
+  executable absent and was marked ignored before the manifest exposed the
+  missing configuration file. A direct repeat of the exact tip install
+  succeeds and stages `tip`, `remote`, and `phones`.
+
+Limitation: the one transient tip-install failure has no established source
+mechanism. The clean distribution must reproduce or clear it before any code
+change is justified; the direct retry alone does not close the full-build
+gate.
+
+Mechanism update:
+
+- A second clean distribution and a direct parallel `usr.bin` install
+  reproduce the missing tip source. `strace` plus an `INSTALL` wrapper that
+  prints its working directory show `binstall` running from
+  `usr.bin/tip/aculib`. The sibling `aculib` recipe uses
+  `cd aculib; ${MAKE}` under parallel bmake, and that recursive-make form leaks
+  the changed working directory across sibling jobs. Every aculib recursion
+  now uses `${MAKE} -C aculib`; `tip` depends on `aculib`, which also orders the
+  library before the link.
+- The second image attempt reaches `/usr/bin/aout`, whose only producer was
+  relocated to the non-ARM archive. Comparing every base and STM32 `file` or
+  `pack` entry with the clean staged root finds a closed 29-path residual:
+  retired PIC32 tools, headers, libraries and manuals; the RP2040-only compiler
+  driver in the generic base; and three unbuilt glob test programs. The generic
+  base manifest no longer names those paths.
+- `retired-base-manifest-paths.txt` records the exact sorted residual. The
+  architecture gate pins its 29-row size, requires sorted uniqueness, rejects
+  any row in `distrib/base/mi`, and calibrates the rule by injecting one retired
+  path.
+
+Limitation: the aculib recursion and manifest cleanup remain hypotheses until
+the direct parallel install, architecture gate, and clean STM32 distribution
+all pass.
+
+Result update:
+
+- Separate clean, parallel build, and parallel install invocations for
+  `usr.bin/tip` pass and stage `tip`, `remote`, and `phones`.
+- ShellCheck accepts the changed architecture gate. The direct gate passes
+  122 assertions across two machines, 12 generated kernel Makefiles, 1,032
+  relocation rows, 20 retained selectors, and 29 retired manifest rows.
+- The wired RP2040 gate correctly refuses to run while the shared-artifact
+  stamp names STM32 and prints the exact `bmake MACHINE=stm32 cleanall`
+  recovery command. That refusal proves the tuple guard rather than a gate
+  failure.
+- A third clean STM32 distribution exits zero. `fsutil` installs 1,159 files,
+  98 devices, 349 hard links, and seven symbolic links in the root partition;
+  the resulting image is 421,528,576 bytes.
+- Re-evaluating every STM32 `file` and `pack` entry against
+  `distrib/obj/destdir.stm32` finds zero missing sources. The staged root
+  contains both `/usr/bin/tip` and `/etc/phones`.
+
+Limitation: the STM32 result proves clean cross compilation, link, install,
+and filesystem composition. It does not prove an STM32 boot or board runtime.
+The root architecture target still needs a wired run after the required clean
+transition to RP2040.
+
+Next action: clean the STM32 tuple, run the wired architecture gate, then
+rebuild RP2040 from clean and execute its host, cross, QEMU, and board-build
+gates.
+
+### RP2040 parallel UnixBench object isolation
+
+Command: clean the STM32 tuple, run the wired architecture gate under RP2040,
+then run a clean parallel RP2040 distribution and trace its first build-graph
+failure.
+
+Finding:
+
+- The wired architecture target passes all 122 assertions after `cleanall`
+  removes the STM32 tuple stamp.
+- The RP2040 build reaches UnixBench, where `dhry2` and `dhry2reg` concurrently
+  compile different variants into the same `src/dhry_1.o` and `src/dhry_2.o`
+  paths. The register variant removes both objects after linking while the
+  normal variant still needs them. The observed normal link therefore lacks
+  `dhry_1.o`.
+- Normal and register Dhrystone variants now own four distinct object paths,
+  and their program targets depend on those objects. The recipes leave object
+  removal to the directory clean rule. The compatibility `dhry2reg` target is
+  an alias of the program target rather than a third compilation into shared
+  paths.
+- Status-6 failures reported for `ar` and `smlrc` occur only after the
+  Dhrystone failure while bmake cancels the remaining parallel jobs. A direct
+  conversion of the retained `smlrc.elf` succeeds, so the log does not support
+  a converter defect.
+
+Limitation: the distinct-object repair remains a dependency-graph hypothesis
+until a direct parallel UnixBench build and a new clean RP2040 distribution
+both pass.
+
+Next action: run the focused UnixBench build, then restart the clean RP2040
+distribution.
+
+### RP2040 clean-distribution rerun and tool selection
+
+Command: inspect `/home/eirikr/Documents/AI/Notes/1_TOOLS.md`, verify the
+selected executables on the live host, and launch the clean RP2040 build in a
+durable tmux session:
+
+```sh
+PYTHON=/usr/local/bin/python3
+export PYTHON
+bmake MACHINE=rp2040 cleanall
+bmake -j12 MACHINE=rp2040 distribution
+```
+
+Result:
+
+- The live host supplies `bmake`, ShellCheck, Ruff, the ARM GCC and binutils
+  suite, `diffoscope`, `scc`, `lizard`, `bear`, `ctags`, GNU Global, `cscope`,
+  `ast-grep`, and Coccinelle at the paths recorded by the tool inventory.
+- Lexical source discovery, evaluated Make selection, compiler diagnostics,
+  ARM binary inspection, exact hashes, and repository-native gates answer the
+  remaining architecture-isolation questions. Dynamic tracing, fuzzers,
+  decompilers, network scanners, GPU tools, and hardware probes would add no
+  discriminating evidence to the remaining source and build claims.
+- The tmux session `discobsd_rp2040_arm_isolation_distribution` writes the
+  complete transcript to
+  `/home/eirikr/logs/tmux_discobsd_rp2040_arm_isolation_distribution_20260921_135309.log`.
+  The clean build exits zero after compiling and installing the RP2040 kernel,
+  userland, libraries, host tools, and filesystem inputs.
+- `fsutil` creates a 1,012,736-byte image with a 988 KB root partition and
+  installs 19 directories, 54 files, 18 devices, 80 hard links, and one
+  symbolic link.
+- An independent pass extracts all `file` and `pack` rows from the composed
+  `distrib/rp2040/_manifest`. All 54 rows are unique, and all 54 sources exist
+  as regular files under `distrib/obj/destdir.rp2040`.
+
+Limitation: the result proves clean cross compilation, link, install, and
+filesystem composition for RP2040. The result does not prove QEMU behavior,
+Renode boot, or board execution.
+
+Next action: run the maintained gate matrix and then exercise the explicit
+PDP-11/V6 opt-in targets.
+
+### Adversarial default-entry, selector, and CI review
+
+Command: compare a targetless root `bmake -n` with `bmake -n build`, inspect
+the selector scanner against restored MIPS, VAX, and PDP-11 directives, trace
+the relocation verifier's Git-object requirements into both firmware jobs,
+and review maintained-machine documentation against evaluated Make selection.
+
+Finding:
+
+- The RP2040 distribution include defined `${MI_MANIFEST}` before the root
+  `all` rule. A targetless `bmake` therefore selected only the composed
+  manifest instead of the documented full build.
+- The portability expression found the surviving 20-row allowlist but omitted
+  retired spellings such as `MIPS`, `__mips__`, `VAX`, `vax`, `PDP11`, and
+  `pdp11`. Reintroducing one of those directives would evade the gate.
+- Both firmware jobs used the one-commit checkout default. `check-host` runs
+  source-mode relocation verification, which resolves every original path at
+  the pinned pre-migration revision; a shallow CI checkout cannot supply that
+  Git object.
+- `distrib/stm32/README.md` used bare root `make` commands, which select the
+  RP2040 default. `usr.bin/smlrc/README.rp2040.md` still described live MIPS
+  dispatch even though maintained machines both select `cgthumb.c` and the
+  MIPS backend is archived.
+- The Thumb link test leaves `thumb-toolroot/` until its clean target runs,
+  while the directory's ignore file named the obsolete `thumb-wrap/` only.
+
+Repair and calibration:
+
+- Root `.MAIN: all` binds a targetless invocation to the complete maintained
+  build. The architecture gate compares targetless and explicit RP2040 dry
+  runs byte for byte and proves that deleting `.MAIN` changes the result.
+- The selector expression covers the retired token family. Seven independent
+  fixtures prove that WIN32, MIPS, `__mips__`, VAX, vax, PDP11, and pdp11 each
+  reach the scanner. The exact maintained allowlist remains 20 rows.
+- Both firmware checkouts request full history. Actionlint accepts the changed
+  workflow.
+- STM32 instructions select `bmake MACHINE=stm32`, the Smaller C note names
+  both maintained ARM users and the archived MIPS backend, and the assembler
+  test ignore list owns `thumb-toolroot/`.
+- The direct architecture gate passes 132 assertions; a targetless RP2040 dry
+  run is byte-identical to an explicit `build` dry run.
+
+Limitation: the expanded gate proves the named lexical token family. A new
+architecture spelling still requires a reviewed scanner expansion. Full Git
+history in CI supplies the required provenance objects but does not replace
+exact-head CI execution.
+
+Next action: complete the explicit PDP-11/V6 build, emulator, runner, and image
+composition targets, then reconcile all final evidence into the design.
+
+### Explicit PDP-11/V6 opt-in closure
+
+Command:
+
+```sh
+bmake MACHINE=rp2040 BUILD_PDP11_V6=yes check-legacy-pdp11-v6
+bmake MACHINE=rp2040 BUILD_PDP11_V6=yes check-legacy-pdp11-v7-runner
+bmake MACHINE=rp2040 BUILD_PDP11_V6=yes legacy-pdp11-v6-distribution
+```
+
+Result:
+
+- Archive-mode relocation verification passes all 1,032 rows before each
+  legacy test surface runs.
+- The host emulator compiles as C17 with `-Wall -Wextra -Werror`, boots the V6
+  guest pack, executes `echo hello from v6`, observes the expected output, and
+  exits after 11,873 K guest instructions.
+- The separate V7 reference runner passes all 25 unit tests for profile,
+  transcript, image, process-boundary, timeout, replacement-race, source-image,
+  and evidence-publication contracts. The command does not use an external V7
+  image or claim a SIMH guest result.
+- The RP2040 cross build links an 82,354-byte emulator a.out with warnings
+  fatal, installs it as `/usr/bin/pdp11`, expands the V6 pack as
+  `/usr/v6/root.rk`, and composes the opt-in image successfully.
+- `fsutil` creates a 1,012,736-byte image with 20 directories, 56 files, 18
+  devices, 80 hard links, and one symbolic link. An independent audit finds 56
+  unique `file` or `pack` rows, zero missing staged sources, and both required
+  legacy paths in the composed manifest.
+
+Limitation: the V6 host run proves the repository emulator and guest pack on
+the host. The cross build proves RP2040 compilation and image composition. The
+external SIMH/V7 guest reference, Renode boot, and board execution remain
+separate evidence classes; the isolation change performs no flash operation.
+
+Next action: update the reconciled design with the final observed matrix, run
+the post-edit lint and provenance gates, and complete diff review and
+integration.
+
+### Final selector denominator and calibrated repository scan
+
+Command: expand the POSIX ERE to the complete audited retired-target
+vocabulary, run the same `git grep` scanner against the maintained checkout
+and a temporary Git repository containing an unrelated `#ifdef MIPS`, then
+run ShellCheck and both direct and root-wired architecture gates.
+
+Finding:
+
+- The imported compiler runtime retains two `_MSC_VER` directives that the
+  earlier 20-row set did not enumerate. The reconciled allowlist contains 22
+  exact `path:directive` rows and has SHA-256
+  `d209e52de37b23939419d210178f25a33a6ce3b5dfeae7a6c57b7d1f1141b21a`.
+- The explicit vocabulary covers PDP-11, VAX/VMS, NS32000, MIPS and PIC
+  families, x86/I86/Xenix, HPPA, SPARC, PowerPC, Alpha, M68K, SuperH,
+  Interdata, Z8000, PC XT, SEL, MS-DOS, and the archived embedded-host
+  selectors. Exact token boundaries keep unrelated identifiers out.
+- Fourteen representative restored directives reach the expression. The
+  temporary repository scan produces the exact row
+  `tests/unrelated-maintained.c:#ifdef MIPS`; exact allowlist comparison
+  rejects that unrelated maintained-file mutation.
+- ShellCheck reports zero errors. The direct and root-wired gates each report
+  `architecture isolation verified: assertions=140 machines=2
+  generated-kernel-makefiles=12 relocation-rows=1032`.
+- The cleanup implementation recursively enumerates files, symbolic links,
+  and directories only inside its owned mode-0700 temporary directory. The
+  path guard bounds that recursive cleanup to the canonical temporary parent.
+
+Limitation: lexical vocabulary remains finite by design. A newly introduced
+architecture spelling requires an explicit reviewed token and a rejecting
+fixture; the exact allowlist prevents silent admission of a matching row.
+
+Next action: preserve the chronological ledger as evidence, treat
+`docs/research/arm-main-legacy-build-isolation.md` as the reconciled design,
+and complete exact-head CI and review before merge.

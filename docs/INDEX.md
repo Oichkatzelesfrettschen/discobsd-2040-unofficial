@@ -71,7 +71,7 @@ artifact points at.
 | `rockbox-ui.md` | Rockbox measured as a UI source for this board | `usr.bin/menu/` |
 | `sh-posix-audit.md` | the POSIX ledger for `bin/sh`, row by row | `bin/sh/tests/posix-sh.sh` tests its rows; its xfail cases pin the open items |
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
-| `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `distrib/rp2040/mi.rp2040` |
+| `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |
 | `zswap.md` | the compressed RAM tier in front of flash swap | `compile/PICO/Config`, `heatshrink/heatshrink_config.h` |
 
 ## Research corpus: `docs/research`
@@ -136,12 +136,13 @@ Grouped by what they investigate.
 | `llama89-and-toolchain.md` | llama89.c and a native Thumb-1 toolchain |
 | `ondevice-languages.md` | language runtimes beyond C |
 | `femtollm.md` | what a language model fitting in 25 KB would be |
-| `v6-emulator-on-discobsd.md` | a PDP-11 running Sixth Edition UNIX inside a process |
+| `legacy/pdp11-v6/docs/research/v6-emulator-on-discobsd.md` | the isolated PDP-11 process emulator and Sixth Edition UNIX guest |
 
 ### Scope, alternatives and review
 
 | Document | Establishes |
 | --- | --- |
+| `arm-main-legacy-build-isolation.md` | the canonical ARM tuples, default-off legacy options, finite relocation proof, shared-artifact boundary, calibrated gates, and restoration criteria |
 | `retrobsd-port-scope.md` | the original scoping of a RetroBSD/DiscoBSD port to this chip |
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |

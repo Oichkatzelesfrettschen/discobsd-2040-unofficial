@@ -1,6 +1,8 @@
 lib/libc/runtime/fp_lib.h:#if defined(__FreeBSD__) && defined(__i386__)
 lib/libc/runtime/int_endianness.h:#if defined(_WIN32)
 lib/libc/runtime/int_endianness.h:#if defined(__SVR4) && defined(__sun)
+lib/libc/runtime/int_lib.h:#if defined(_MSC_VER) && !defined(__clang__)
+lib/libc/runtime/int_lib.h:#ifdef _MSC_VER
 lib/libc/runtime/int_types.h:#if (defined(__LP64__) || defined(__wasm__) || defined(__mips64)) || defined(__riscv)
 sys/dev/usb/tusb_mcu.h:#elif TU_CHECK_MCU(OPT_MCU_PIC32MX, OPT_MCU_PIC32MM, OPT_MCU_PIC32MK) || TU_CHECK_MCU(OPT_MCU_PIC24, OPT_MCU_DSPIC33)
 sys/dev/usb/tusb_mcu.h:#elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)

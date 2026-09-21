@@ -18,7 +18,7 @@ void TableInit()
 static unsigned int TableHash(const char *Key, int Len)
 {
     unsigned int Hash = Len;
-    int Offset;
+    unsigned int Offset;
     int Count;
     
     for (Count = 0, Offset = 8; Count < Len; Count++, Offset+=7)

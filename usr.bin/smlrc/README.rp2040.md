@@ -1,13 +1,13 @@
-# Smaller C on the RP2040
+# Smaller C on maintained ARM targets
 
-`cgthumb.c` is a Thumb-1 (ARMv6-M) code generator for Smaller C, selected by
-`-DTHUMB` and built by `bmake MACHINE=rp2040`. It emits GNU unified assembly
-that `arm-none-eabi-as -mcpu=cortex-m0plus` accepts, using 16-bit Thumb-1
-encodings plus `BL`, and follows AAPCS so that code it generates calls and is
-called by the tree's `arm-none-eabi-gcc`-compiled libc.
+`cgthumb.c` is the maintained ARM code generator for Smaller C, selected by
+`-DTHUMB` for both RP2040 and STM32. The RP2040 build emits GNU unified
+assembly that `arm-none-eabi-as -mcpu=cortex-m0plus` accepts, using 16-bit
+Thumb-1 encodings plus `BL`, and follows AAPCS so that code it generates calls
+and is called by the tree's `arm-none-eabi-gcc`-compiled libc.
 
-Other machines are untouched: `MACHINE` chooses `-DMIPS` with `cgmips.c` and
-`lb.c` as before, and only `rp2040` takes the new path.
+The retired `-DMIPS`, `cgmips.c`, and `lb.c` implementation lives under
+`legacy/non-arm/`; maintained machine selection cannot reach it.
 
 ## Compiler footprint
 
@@ -24,8 +24,8 @@ generous. The bss is almost entirely the parser's tables, and
 adds 5632. Halving `SYNTAX_STACK_MAX` returns 8 KB of stack at the cost of
 rejecting the largest translation units.
 
-The MIPS build halves its text with `-mips16`. The Cortex-M0+ executes only
-Thumb, so there is no corresponding option and none is used.
+The archived MIPS back end used `-mips16` to halve its text. The Cortex-M0+
+executes only Thumb, so there is no corresponding option and none is used.
 
 ## What is supported
 

@@ -4,6 +4,11 @@
 
 August 11, 2026
 
+Historical scope: this upstream DiscoBSD 2.7 announcement describes the
+source tree before this fork adopted an ARM-only maintained boundary. The
+PIC32 statements below remain release history. This fork preserves the PIC32
+source under `legacy/non-arm/mips-pic32/` without a supported build claim.
+
 DiscoBSD 2.7 is released.
 
 This is the eighth official release of DiscoBSD, the multi-platform

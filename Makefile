@@ -26,6 +26,9 @@ SWAP_KBYTES?=	2048
 MI_MANIFEST?=	distrib/base/mi
 # Inodes in the root filesystem; 0 leaves fsutil's one per 16 kbytes.
 FS_INODES?=	0
+# Machine fragments define image file targets before the root build rules.
+# Keep a targetless invocation bound to the complete maintained build.
+.MAIN:		all
 -include	distrib/${MACHINE}/Makefile.inc
 
 FS_INODES_ARG!=	if [ ${FS_INODES} -gt 0 ] ; then \

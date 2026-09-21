@@ -154,7 +154,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
-SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps ${SYSTEM_OBJ} \
+SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 # The link is one recipe of three lines, and each line is one && chain, so
 # the status a step returns is the status of the line and a failed step

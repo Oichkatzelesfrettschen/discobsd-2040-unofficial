@@ -1,9 +1,10 @@
-# as -- the target assemblers
+# as -- the ARM target assembler
 
-`usr.bin/as` builds one of two assemblers. The RP2040 selects `as-thumb.c`,
-which assembles Thumb-1 for the Cortex-M0+; every other machine selects
-`as.c`, RetroBSD's MIPS32 assembler, whose behavior and object output this
-work leaves byte for byte unchanged.
+`usr.bin/as` builds `as-thumb.c` for both maintained ARM machines. RP2040
+selects Cortex-M0+ and STM32 selects Cortex-M4 through the canonical machine
+registry. RetroBSD's former MIPS32 assembler and its fixtures are preserved
+under `legacy/non-arm/mips-pic32/` as archival source; the maintained build
+has no MIPS assembler selector.
 
 Both write the a.out object that `usr.bin/ld` links. A Thumb object is
 marked `MID_ARM6` in `a_midmag`, which is what tells `ld` to read the
@@ -116,9 +117,8 @@ Built for the RP2040 with `bmake MACHINE=rp2040`, measured by
 | `as`    | 31664 | 765  | 30848 | 63277  |
 | `ld`    | 21964 | 745  | 41412 | 64121  |
 
-A program on the device gets 96 kbytes for text, data, bss and stack
-together, so the assembler leaves about 33 kbytes for its stack and the
-linker about 32. The bss is nearly all fixed tables -- the symbol table,
+A program on the RP2040 gets 144 kbytes for text, data, bss and stack
+together. The bss is nearly all fixed tables -- the symbol table,
 its string area and the two hash tables -- and neither program holds an
 input segment in memory: both passes stream through scratch files, as the
 MIPS assembler does.
@@ -129,9 +129,9 @@ MIPS assembler does.
 
 The tests run on the build host. They need `arm-none-eabi-gcc`,
 `arm-none-eabi-as`, `arm-none-eabi-objcopy` and `arm-none-eabi-readelf`,
-the host build of this tree's own tools from `tools/aoututils`, and
-`python3`. The last step also runs the linked program if `python3 unicorn`
-is installed, and says so when it is not.
+the host build of this tree's own tools from `tools/aoututils`, and the
+interpreter named by `PYTHON`. The last step also runs the linked program if
+that interpreter can import Unicorn, and says so when it cannot.
 
 Three tests run in order.
 
@@ -163,5 +163,5 @@ the tree's own `ld`. The result must be an `OMAGIC` executable marked
 then executed under Unicorn against a stub kernel and must print what it
 should.
 
-Running `bmake -C usr.bin/as test` for any other machine keeps the MIPS
-disassembly comparison that was here before.
+The same test entry point runs for each maintained ARM tuple. Archived MIPS
+fixtures are excluded from the maintained test graph.

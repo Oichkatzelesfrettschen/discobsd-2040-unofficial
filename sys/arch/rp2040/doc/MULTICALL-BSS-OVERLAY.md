@@ -8,7 +8,7 @@ libc BSS remain live across the call and stay outside the extent.
 
 The build first cleans and rebuilds each applet with a final `-fno-common`,
 relocatably links its current objects, localizes every definition except its
-renamed entry point, and renames that object's `.bss` and MIPS `.sbss` to
+renamed entry point, and renames that object's `.bss` to
 `.app_bss_<applet>`. Parent Makefile dependencies complete local standalone
 members before a box can clean their directories under an inherited `-j`
 build. The localized objects are phony build targets because compiler flags
@@ -28,15 +28,13 @@ The build preserves the following boundaries:
 - Symbol localization prevents one applet from resolving another applet's
   private definition.
 - A clean recursive build and pre-link object verification prevent COMMON or
-  an orphan NOBITS section from escaping the overlay. The MIPS fixture forces
-  a small-data `.sbss` input and proves that the localized object absorbs it.
+  an orphan NOBITS section from escaping the overlay.
 - The linker uses `NOCROSSREFS` between private BSS sections and treats every
   linker warning as fatal.
-- The generated extent relies on the enclosing linker script's segment
-  assignment. It therefore works with both the ARM script's named PHDRS and
-  the MIPS script's implicit program headers. The ELF layout gate compiles
-  MIPS32r2 objects, links the overlay through `elf32-mips.ld`, and compares the
-  converted a.out header and payload with the MIPS ELF load image.
+- The generated extent relies on the ARM linker script's named PHDRS. The ELF
+  layout gate compiles Cortex-M0+ objects, links the overlay through
+  `elf32-arm.ld`, and compares the converted a.out header and payload with the
+  ARM ELF load image.
 - The generated section retains each input symbol's alignment. The ELF layout
   test includes an eight-byte-aligned member and checks shared virtual
   addresses, maximum extent size, shared-BSS separation, initialized-data

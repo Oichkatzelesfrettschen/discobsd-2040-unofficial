@@ -14,6 +14,23 @@
 #define PICOC_STACK_SIZE (128*1024)              /* space for the the stack */
 #endif
 
+static void RunSourceFiles(int argc, char **argv, int first_source_argument,
+                           int dont_run_main)
+{
+    int source_argument;
+
+    if (PicocPlatformSetExitPoint())
+        return;
+
+    for (source_argument = first_source_argument;
+         source_argument < argc && strcmp(argv[source_argument], "-") != 0;
+         source_argument++)
+        PicocPlatformScanFile(argv[source_argument]);
+
+    if (!dont_run_main)
+        PicocCallMain(argc - source_argument, &argv[source_argument]);
+}
+
 int main(int argc, char **argv)
 {
     int ParamCount = 1;
@@ -44,17 +61,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        if (PicocPlatformSetExitPoint())
-        {
-            PicocCleanup();
-            return PicocExitValue;
-        }
-        
-        for (; ParamCount < argc && strcmp(argv[ParamCount], "-") != 0; ParamCount++)
-            PicocPlatformScanFile(argv[ParamCount]);
-        
-        if (!DontRunMain)
-            PicocCallMain(argc - ParamCount, &argv[ParamCount]);
+        RunSourceFiles(argc, argv, ParamCount, DontRunMain);
     }
     
     PicocCleanup();

@@ -57,9 +57,10 @@ trap 'exit 143' TERM
 map_path=$source_root/tools/architecture-isolation/legacy-path-map.tsv
 map_verifier=$source_root/tools/architecture-isolation/verify-legacy-path-map.sh
 selector_allowlist=$source_root/tools/architecture-isolation/main-tree-portability-selector-allowlist.txt
+retired_base_manifest_paths=$source_root/tools/architecture-isolation/retired-base-manifest-paths.txt
 stamp_helper=$source_root/tools/check-build-machine.sh
 cleanup_helper=$source_root/tools/clean-build-machines.sh
-selector_expression='^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef|elif).*(^|[^[:alnum:]_])(Amiga|BORLAND_C|MSC|PARIX|POSIX|POSIX1|WIN32|_WIN32|__i386__|__mips64|__riscv|OPT_MCU_PIC32MX|OPT_MCU_PIC32MM|OPT_MCU_PIC32MK|OPT_MCU_PIC24|OPT_MCU_DSPIC33|OPT_MCU_PIC32MZ|_mips|__hpux|hpux|sun|__sun)([^[:alnum:]_]|$)'
+selector_expression='^[[:space:]]*#[[:space:]]*(if|ifdef|ifndef|elif).*(^|[^[:alnum:]_])(Alpha|Amiga|BORLAND_C|FLYINGFOX_HOST|M68K|MSC|MIPS|M_I86[A-Za-z0-9_]*|M_XENIX|PARIX|PDP11|POSIX|POSIX1|PowerPC|SPARC|SURVEYOR_HOST|SuperH|TR3200|UMON_HOST|VAX|VMS|VMSDTR|WIN32|XENIX_16|_MSC_VER|_WIN32|__alpha__|__hppa__|__i386__|__m68k__|__mips__|__mips64|__pdp11__|__powerpc__|__riscv|__sh__|__sparc__|__vax__|interdata|msdos|ns32000|pcxt|sel|z8000|OPT_MCU_PIC32MX|OPT_MCU_PIC32MM|OPT_MCU_PIC32MK|OPT_MCU_PIC24|OPT_MCU_DSPIC33|OPT_MCU_PIC32MZ|_mips|__hpux|hpux|mips|pdp11|sun|__sun|vax|vax11c|vms|x86)([^[:alnum:]_]|$)'
 pass_count=0
 
 fail()
@@ -91,8 +92,9 @@ normalize_words()
 
 scan_portability_selectors()
 {
-	selector_output=$1
-	git -C "$source_root" grep -n -E "$selector_expression" \
+	selector_root=$1
+	selector_output=$2
+	git -C "$selector_root" grep -n -E "$selector_expression" \
 	    -- ':!legacy/**' | \
 	    sed -E 's/^([^:]+):[0-9]+:[[:space:]]*/\1:/' | \
 	    LC_ALL=C sort -u >"$selector_output"
@@ -174,6 +176,11 @@ expect_path_present()
 verify_registry_include()
 {
 	grep -Eq '^[[:space:]]*include[[:space:]]+\$\{TOPSRC\}/share/mk/architecture\.mk([[:space:]]|$)' "$1"
+}
+
+verify_kernel_prerequisite_barrier()
+{
+	grep -Fq 'SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ}' "$1"
 }
 
 unlink_test_path()
@@ -333,6 +340,10 @@ for machine_name in rp2040 stm32; do
 		if ! verify_registry_include "$generated_makefile"; then
 			fail "$generated_makefile omits the canonical registry"
 		fi
+		if ! verify_kernel_prerequisite_barrier "$generated_makefile"; then
+			fail "$generated_makefile lets kernel objects race required links and directories"
+		fi
+		record_pass
 		generated_makefile_count=$((generated_makefile_count + 1))
 	done
 done
@@ -361,10 +372,19 @@ if verify_registry_include "$mutated_generated_makefile"; then
 	fail "generated-Makefile missing-include mutation was accepted"
 fi
 record_pass
+mutated_generated_makefile=$temporary_directory/generated-Makefile.without-prerequisite-barrier
+sed 's/ machine sys \.deps \.WAIT ${SYSTEM_OBJ}/ machine sys .deps ${SYSTEM_OBJ}/' \
+    "$source_root/sys/arch/stm32/compile/F405WEACTCORE/Makefile" \
+    >"$mutated_generated_makefile"
+if verify_kernel_prerequisite_barrier "$mutated_generated_makefile"; then
+	fail "generated-Makefile missing-prerequisite-barrier mutation was accepted"
+fi
+record_pass
 
 # Evaluated traversal proves the default and the archive-verification option
 # remain outside every ordinary build. PDP-11/V6 joins RP2040 only on opt-in.
 rp2040_build=$temporary_directory/rp2040-build.txt
+rp2040_default=$temporary_directory/rp2040-default.txt
 stm32_build=$temporary_directory/stm32-build.txt
 non_arm_option_build=$temporary_directory/non-arm-option-build.txt
 pdp11_option_build=$temporary_directory/pdp11-option-build.txt
@@ -375,6 +395,7 @@ cleanall_output=$temporary_directory/cleanall.txt
 rp2040_usr_bin_subdirs=$temporary_directory/rp2040-usr-bin-subdirs.txt
 stm32_usr_bin_subdirs=$temporary_directory/stm32-usr-bin-subdirs.txt
 capture_dry_run "RP2040 build" "$rp2040_build" MACHINE=rp2040 build
+capture_dry_run "RP2040 default target" "$rp2040_default" MACHINE=rp2040
 capture_dry_run "STM32 build" "$stm32_build" MACHINE=stm32 build
 capture_dry_run "non-ARM archive option" "$non_arm_option_build" \
     MACHINE=rp2040 BUILD_LEGACY_NON_ARM=yes build
@@ -409,6 +430,22 @@ for machine_name in rp2040 stm32; do
 	    "$usr_bin_words" >"$usr_bin_subdirs"
 done
 expect_default_traversal "RP2040 build" "$rp2040_build"
+expect_default_traversal "RP2040 default target" "$rp2040_default"
+if ! cmp -s "$rp2040_build" "$rp2040_default"; then
+	diff -u "$rp2040_build" "$rp2040_default" >&2 || :
+	fail "RP2040 default target differs from the explicit build target"
+fi
+record_pass
+mutated_root_makefile=$temporary_directory/Makefile.without-main
+sed '/^[.]MAIN:[[:space:]]*all[[:space:]]*$/d' \
+    "$source_root/Makefile" >"$mutated_root_makefile"
+mutated_rp2040_default=$temporary_directory/rp2040-default.without-main.txt
+capture_dry_run "RP2040 missing-default-main mutation" \
+    "$mutated_rp2040_default" -f "$mutated_root_makefile" MACHINE=rp2040
+if cmp -s "$rp2040_build" "$mutated_rp2040_default"; then
+	fail "root missing-default-main mutation was accepted"
+fi
+record_pass
 expect_default_traversal "STM32 build" "$stm32_build"
 expect_default_traversal "non-ARM archive option build" "$non_arm_option_build"
 expect_default_traversal "default host tier" "$default_host"
@@ -492,23 +529,34 @@ expect_map_rejection "changed relocation hash mutation" "$hash_map" \
 # a finite reviewed set. A repository-wide scan discovers additions anywhere
 # outside legacy/, and the injected unrelated-file row calibrates that edge.
 selector_scan=$temporary_directory/main-tree-portability-selectors.txt
-scan_portability_selectors "$selector_scan"
+scan_portability_selectors "$source_root" "$selector_scan"
 if ! cmp -s "$selector_allowlist" "$selector_scan"; then
 	diff -u "$selector_allowlist" "$selector_scan" >&2 || :
 	fail "main-tree portability selector set differs from the allowlist"
 fi
 record_pass
 selector_fixture=$temporary_directory/unrelated-maintained.c
-printf '%s\n%s\n' '#ifdef WIN32' '#endif' >"$selector_fixture"
-if ! grep -Eq "$selector_expression" "$selector_fixture"
-then
-	fail "portability selector scanner missed the unrelated-file mutation"
-fi
+for selector_mutation in WIN32 MIPS __mips__ VAX vax PDP11 pdp11 M_I86SM \
+    ns32000 __powerpc__ __sparc__ __hppa__ TR3200 msdos
+do
+	printf '#ifdef %s\n#endif\n' "$selector_mutation" >"$selector_fixture"
+	if ! grep -Eq "$selector_expression" "$selector_fixture"; then
+		fail "portability selector scanner missed $selector_mutation"
+	fi
+	record_pass
+done
 mutated_selector_scan=$temporary_directory/main-tree-portability-selectors.mutated.txt
-{
-	cat "$selector_scan"
-	printf '%s\n' 'tests/unrelated-maintained.c:#ifdef WIN32'
-} | LC_ALL=C sort -u >"$mutated_selector_scan"
+selector_repository=$temporary_directory/selector-repository
+mkdir "$selector_repository"
+git -C "$selector_repository" init -q
+mkdir "$selector_repository/tests"
+printf '#ifdef MIPS\n#endif\n' \
+    >"$selector_repository/tests/unrelated-maintained.c"
+git -C "$selector_repository" add tests/unrelated-maintained.c
+scan_portability_selectors "$selector_repository" "$mutated_selector_scan"
+expect_equal "unrelated-file selector fixture" \
+    'tests/unrelated-maintained.c:#ifdef MIPS' \
+    "$(cat "$mutated_selector_scan")"
 if cmp -s "$selector_allowlist" "$mutated_selector_scan"; then
 	fail "unrelated-file portability selector mutation was accepted"
 fi
@@ -535,6 +583,34 @@ printf '%s\n' 'file /usr/include/smallc/curses.h' \
     >>"$mutated_active_manifest"
 if ! grep -F -f "$map_sources" "$mutated_active_manifest" >/dev/null; then
 	fail "active-manifest relocated-source mutation was accepted"
+fi
+record_pass
+
+# The generic base manifest cannot retain product paths whose producers left
+# the maintained build. The exact set turns each removal or restoration into
+# a reviewed boundary change instead of an image-builder surprise.
+retired_base_manifest_count=$(wc -l <"$retired_base_manifest_paths" | tr -d ' ')
+expect_equal "retired base-manifest path count" "29" \
+    "$retired_base_manifest_count"
+retired_base_manifest_sorted=$temporary_directory/retired-base-manifest-paths.sorted
+LC_ALL=C sort -u "$retired_base_manifest_paths" >"$retired_base_manifest_sorted"
+if ! cmp -s "$retired_base_manifest_paths" "$retired_base_manifest_sorted"; then
+	fail "$retired_base_manifest_paths is not sorted and unique"
+fi
+record_pass
+if grep -Fqx -f "$retired_base_manifest_paths" \
+    "$source_root/distrib/base/mi"; then
+	grep -Fnx -f "$retired_base_manifest_paths" \
+	    "$source_root/distrib/base/mi" >&2 || :
+	fail "base manifest retains a retired product path"
+fi
+record_pass
+mutated_retired_manifest=$temporary_directory/base-mi.with-retired-product
+cp "$source_root/distrib/base/mi" "$mutated_retired_manifest"
+sed -n '1p' "$retired_base_manifest_paths" >>"$mutated_retired_manifest"
+if ! grep -Fqx -f "$retired_base_manifest_paths" \
+    "$mutated_retired_manifest"; then
+	fail "retired base-manifest mutation was accepted"
 fi
 record_pass
 

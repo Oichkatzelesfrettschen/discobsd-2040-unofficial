@@ -213,7 +213,17 @@ strings.
 ## What is worth keeping
 
 Two ideas cost bytes rather than hundreds of bytes and each removes a
-defect this tree still has. They are queued, not done.
+defect this tree had. Both have since landed, and a third unit took the
+parts of 499 that are C17 interface rather than stream core.
+
+| Unit | Where it landed | Cost measured |
+| --- | --- | --- |
+| One-byte pushback slot | `stdio-core-c17-unit.md`, `check-libc-scanf` gained the differing-byte case | `FILE` 20 to 24 bytes, +32 data and +20 to +164 text per program |
+| `r+` mode discipline | `lib/libc/stdio/filbuf.c`, `flsbuf.c`, `fseek.c` and `ungetc.c`, gated by `check-libc-rwmode` | folded into the same measurement |
+| The C17 interface surface | `stdio-ansi-surface-unit.md`, gated by `check-libc-ansi` | +20 per program, +100 where the program opens files, 3 root blocks |
+
+The estimates the queue carried, for comparison with what the two units
+then cost:
 
 | Unit | Mechanism | Cost estimate | Gate |
 | --- | --- | --- | --- |

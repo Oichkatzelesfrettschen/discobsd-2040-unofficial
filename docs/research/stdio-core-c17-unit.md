@@ -112,7 +112,13 @@ measurement added. A split that keeps `FILE` at 20 bytes and takes only
 the C17 conversion and the `_f_morefiles` fix is one commit if the
 trade is judged the other way.
 
+## What followed
+
+The `r+` read/write mode discipline the evaluation queued beside this unit
+landed in `filbuf.c`, `flsbuf.c`, `fseek.c` and `ungetc.c`, with
+`check-libc-rwmode` as its oracle; `stdio-ansi-surface-unit.md` records the
+third unit, the C17 interface surface outside the read and write path.
+
 ## Not done
 
-The `r+` read/write mode discipline from the evaluation stays queued. No
-board run; every number here is a build or host-gate result.
+No board run; every number here is a build or host-gate result.

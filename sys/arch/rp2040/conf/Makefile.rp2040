@@ -82,6 +82,12 @@ _paramstamp!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || \
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	boot2.o locore0.o locore.o ${OBJS} ioconf.o
 ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
+# machine, sys and .deps sit between two .WAIT barriers. The first orders them
+# after ioconf.c, whose config run ends in "make clean" and removes all three.
+# The second holds every object behind them: an object sharing their parallel
+# group reaches <machine/types.h> on -I. before ln -s has created machine, and
+# the compile stops at that include. Delaying the ln -s by one second turns
+# the gap into a failure on every run, which is how the barrier was measured.
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 # The link is one recipe of three lines, and each line is one && chain, so

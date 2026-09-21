@@ -16,10 +16,12 @@ The overlay gate checks shared applet VMAs, maximum private BSS extent,
 separation from shared BSS, initialized-data retention, and the exact a.out
 header and payload.
 
-Build the host converter and run the gate with an explicitly selected machine
-and interpreter:
+The cross tier runs this gate as one of `CROSS_CONTRACT_GATES`. Naming it on
+its own takes an explicitly selected machine and interpreter, and reaches the
+same result on a bare checkout: the fixtures are assembled here rather than
+read out of a built tree, so `tools` and the cross toolchain are the whole
+prerequisite.
 
 ```sh
-bmake MACHINE=rp2040 tools
 PYTHON="${PYTHON}" bmake MACHINE=rp2040 check-elf2aout
 ```

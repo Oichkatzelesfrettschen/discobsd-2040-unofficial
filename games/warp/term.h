@@ -45,11 +45,11 @@ EXT char *tmpstr;
  */
 
 #define beg_qwrite() (maxcmstring = cmbuffer)
-#define qwrite() (movc3(gfillen,filler,maxcmstring), maxcmstring += gfillen)
+#define qwrite() (memmove(maxcmstring,filler,gfillen), maxcmstring += gfillen)
 #define qaddc(ch) (*maxcmstring++ = (ch), real_x++)
 #define qaddch(ch) (*maxcmstring++ = (ch), real_x++)
 #define qaddspace() (*maxcmstring++ = ' ', real_x++)
-#define end_qwrite() (write(1,cmbuffer,maxcmstring-cmbuffer) > 0)
+#define end_qwrite() ((void)write(1,cmbuffer,maxcmstring-cmbuffer))
 
 /* setting a ??size to infinity forces cursor addressing in that direction */
 
@@ -160,16 +160,16 @@ EXT bool bizarre INIT(FALSE);			/* do we need to restore terminal? */
 
 #else
 
-#define raw()	 ((bizarre=1),_tty.sg_flags|=RAW, stty(_tty_ch,&_tty))
-#define noraw()	 ((bizarre=1),_tty.sg_flags&=~RAW,stty(_tty_ch,&_tty))
-#define crmode() ((bizarre=1),_tty.sg_flags |= CBREAK, stty(_tty_ch,&_tty))
-#define nocrmode() ((bizarre=1),_tty.sg_flags &= ~CBREAK,stty(_tty_ch,&_tty))
-#define echo()	 ((bizarre=1),_tty.sg_flags |= ECHO, stty(_tty_ch, &_tty))
-#define noecho() ((bizarre=1),_tty.sg_flags &= ~ECHO, stty(_tty_ch, &_tty))
-#define nl()	 ((bizarre=1),_tty.sg_flags |= CRMOD,stty(_tty_ch, &_tty))
-#define nonl()	 ((bizarre=1),_tty.sg_flags &= ~CRMOD, stty(_tty_ch, &_tty))
-#define	savetty() (gtty(_tty_ch, &_tty), _res_flg = _tty.sg_flags)
-#define	resetty() ((bizarre=0),_tty.sg_flags = _res_flg, stty(_tty_ch, &_tty))
+#define raw()	 ((bizarre=1),_tty.sg_flags|=RAW, ioctl(_tty_ch, TIOCSETP, &_tty))
+#define noraw()	 ((bizarre=1),_tty.sg_flags&=~RAW,ioctl(_tty_ch, TIOCSETP, &_tty))
+#define crmode() ((bizarre=1),_tty.sg_flags |= CBREAK, ioctl(_tty_ch, TIOCSETP, &_tty))
+#define nocrmode() ((bizarre=1),_tty.sg_flags &= ~CBREAK,ioctl(_tty_ch, TIOCSETP, &_tty))
+#define echo()	 ((bizarre=1),_tty.sg_flags |= ECHO, ioctl(_tty_ch, TIOCSETP, &_tty))
+#define noecho() ((bizarre=1),_tty.sg_flags &= ~ECHO, ioctl(_tty_ch, TIOCSETP, &_tty))
+#define nl()	 ((bizarre=1),_tty.sg_flags |= CRMOD,ioctl(_tty_ch, TIOCSETP, &_tty))
+#define nonl()	 ((bizarre=1),_tty.sg_flags &= ~CRMOD, ioctl(_tty_ch, TIOCSETP, &_tty))
+#define	savetty() (ioctl(_tty_ch, TIOCGETP, &_tty), _res_flg = _tty.sg_flags)
+#define	resetty() ((bizarre=0),_tty.sg_flags = _res_flg, ioctl(_tty_ch, TIOCSETP, &_tty))
 #endif /* TERMIO */
 
 #ifdef TIOCSTI
@@ -190,8 +190,8 @@ EXT bool bizarre INIT(FALSE);			/* do we need to restore terminal? */
  * scaled by the number of lines (2nd argument), puts out the string (1st arg)
  * and the padding using the routine specified as the 3rd argument.
  */
-EXT char *BC INIT(Nullch);		/* backspace character */
-EXT char *UP INIT(Nullch);		/* move cursor up one line */
+extern char *BC;			/* backspace character, libtermcap's */
+extern char *UP;			/* move cursor up one line, libtermcap's */
 EXT char *myUP;
 EXT char *ND INIT(Nullch);		/* non-destructive cursor right */
 EXT char *myND;
@@ -213,8 +213,8 @@ EXT char *UC INIT(Nullch);		/* underline a character, if that's how it's done */
 EXT int UG INIT(0);		/* blanks left by US and UE */
 EXT bool AM INIT(FALSE);		/* does terminal have automatic margins? */
 EXT bool XN INIT(FALSE);		/* does it eat 1st newline after automatic wrap? */
-EXT char PC INIT(0);		/* pad character for use by tputs() */
-EXT short ospeed INIT(0);	/* terminal output speed, for use by tputs() */
+extern char PC;			/* pad character for use by tputs() */
+extern short ospeed;		/* terminal output speed, for use by tputs() */
 EXT int LINES INIT(0), COLS INIT(0);	/* size of screen */
 					/* (number of nulls) */
 EXT char ERASECH;		/* rubout character */
@@ -256,4 +256,4 @@ void do_tc();
 int comp_tc();
 void helper();
 void rewrite();
-char cmstore();
+int cmstore(int);

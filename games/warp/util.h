@@ -15,7 +15,6 @@ int rand();
 
 #define roundsleep(x) sleep(x)
 
-void movc3();
 void no_can_do();
 int exdis();
 

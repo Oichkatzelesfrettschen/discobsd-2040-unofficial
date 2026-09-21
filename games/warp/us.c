@@ -169,7 +169,7 @@ bool *done;
     char numdestructs = 0, numzaps = 0;
 
 top:
-    while (count = read_nd(ch,(sizeof ch))) {
+    while ((count = read_nd(ch,(sizeof ch)))) {
 	for (i=0; i<count; i++) {
 	    if (ch[i] == 'Q') {
 		bombed_out = TRUE;

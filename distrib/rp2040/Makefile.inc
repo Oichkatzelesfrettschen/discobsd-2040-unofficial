@@ -8,10 +8,30 @@
 FS_KBYTES=	988
 SWAP_KBYTES=	0
 U_KBYTES=	0
-MI_MANIFEST=	distrib/rp2040/mi.rp2040
+# The root filesystem profile. distrib/rp2040/mi.rp2040 brackets each
+# optional feature between "#closure NAME" and "#endclosure NAME",
+# distrib/rp2040/profiles declares which closures a profile keeps and what
+# each closure depends on, and mkmanifest.py composes the manifest the
+# image rule reads. PROFILE=full names every closure, so an unset PROFILE
+# reproduces the shipped image line for line; the markers are comments,
+# which tools/fsutil/manifest.c skips whole.
+# sys/arch/rp2040/doc/PROFILES.md is the authority.
+PROFILE?=	full
+FS_PROFILES=	distrib/rp2040/profiles
+FS_CLOSURES=	distrib/rp2040/mi.rp2040
+MKMANIFEST=	distrib/rp2040/mkmanifest.py
+MI_MANIFEST=	distrib/rp2040/_manifest.${PROFILE}
 # The shipped root uses fewer than 100 objects. Eight inode blocks provide
 # 128 slots while recovering eight 1-KB data blocks from the fixed image.
 FS_INODES=	128
+
+# The composed manifest the image rule concatenates with md.rp2040. The
+# md part reaches the checker as --append, so a hard link that crosses the
+# two files still resolves against one object set.
+${MI_MANIFEST}:	${FS_CLOSURES} ${FS_PROFILES} ${MKMANIFEST}
+		${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
+		    --manifest=${FS_CLOSURES} --profiles=${FS_PROFILES} \
+		    --append=distrib/rp2040/md.rp2040 --output=$@
 
 # The top-level Makefile does not include share/mk/sys.mk, so the tool
 # paths and install command it defines are not otherwise in scope here.

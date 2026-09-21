@@ -212,6 +212,12 @@ check-libc-contracts:
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
+# gets(3) is gone from <stdio.h> and from both libc builds, so a caller fails
+# to compile rather than storing an entire line into a fixed buffer. The cross
+# form reads the built lib/libc.a for the symbol as well.
+check-stdio-bounds-cross:
+		${MAKE} -C tests/libc_contracts check-stdio-bounds-cross
+
 check-libc-aout-contracts:	${BOARDLIBC_WORK}/libc.a
 		${MAKE} -C tests/libc_contracts check-aout
 
@@ -456,7 +462,8 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
-		check-libc-string-security-cross
+		check-libc-string-security-cross \
+		check-stdio-bounds-cross
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:

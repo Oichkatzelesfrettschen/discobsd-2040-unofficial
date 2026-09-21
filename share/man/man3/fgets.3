@@ -1,0 +1,63 @@
+.\"	@(#)fgets.3s	6.1 (Berkeley) 5/15/85
+.\"
+.TH FGETS 3S  "May 15, 1985"
+.AT 3
+.SH NAME
+fgets \- get a string from a stream
+.SH SYNOPSIS
+.B #include <stdio.h>
+.PP
+.B char *fgets(s, n, stream)
+.br
+.B char *s;
+.br
+.B int n;
+.br
+.SM
+.B FILE
+.B *stream;
+.SH DESCRIPTION
+.I Fgets
+reads 
+.IR n \-1
+characters, or up through a newline
+character, whichever comes first,
+from the
+.I stream
+into the string
+.IR s .
+The last character read into
+.I s
+is followed by a null character.
+.I Fgets
+returns its first argument.
+.PP
+The newline is kept, so a caller that wants a bare line removes it,
+usually with
+.IR index (3).
+A line longer than
+.IR n \-1
+characters arrives as two calls; the caller decides whether to join
+them, to treat the tail as its own line, or to read to the next
+newline and discard it.
+.SH "SEE ALSO"
+puts(3S),
+getc(3S),
+scanf(3S),
+fread(3S),
+ferror(3S)
+.SH DIAGNOSTICS
+.I Fgets
+returns the constant pointer 
+.SM
+.B NULL
+upon end of file or error.
+.SH NOTES
+.IR Gets (3S)
+is not provided.
+It takes no length, so every call stores as many characters as the line
+holds, and the process image is a single window of text, data, bss and
+stack with no guard page between them.
+.B <stdio.h>
+does not declare it and the library carries no definition, so a call to
+it fails to compile.

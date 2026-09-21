@@ -24,12 +24,12 @@ SRCS1=	abort.3 abs.3 alarm.3 asinh.3 assert.3 atof.3 \
 	basename.3 bstring.3 byteorder.3 \
 	compat-sys5.3 confstr.3 crypt.3 ctime.3 ctype.3 curses.3 dbm.3 daemon.3 \
 	devname.3 directory.3 dirname.3 \
-	ecvt.3 end.3 erf.3 err.3 execl.3 exit.3 \
+	ecvt.3 end.3 erf.3 err.3 execl.3 exit.3 fgets.3 \
 	exp.3 fclose.3 ferror.3 floor.3 \
 	fopen.3 fread.3 frexp.3 fseek.3 getc.3 getdisk.3 getenv.3 getfsent.3 \
 	getgrent.3 gethostbyname.3 getnetent.3 getopt.3 getpass.3 \
 	getgrouplist.3 getloadavg.3 getmntinfo.3 getsubopt.3 \
-	getprotoent.3 getpwent.3 gets.3 getservent.3 getttyent.3 \
+	getprotoent.3 getpwent.3 getservent.3 getttyent.3 \
 	getusershell.3 getwd.3 hypot.3 ieee.3 inet.3 infnan.3 initgroups.3
 SRCS2=	insque.3 intro.3 j0.3 l3tol.3 ldfps.3 lgamma.3 lib2648.3 \
 	malloc.3 math.3 mktemp.3 monitor.3 mp.3 ndbm.3 nice.3 nlist.3 ns.3 \
@@ -51,8 +51,8 @@ OBJS1=	abort.0 abs.0 alarm.0 asinh.0 assert.0 atof.0 \
 	ecvt.0 end.0 erf.0 err.0 execl.0 exit.0 \
 	exp.0 fclose.0 ferror.0 floor.0 \
 	fopen.0 fread.0 frexp.0 fseek.0 getc.0 getdisk.0 getenv.0 getfsent.0 \
-	getgrent.0 gethostbyname.0 getnetent.0 getopt.0 getpass.0 \
-	getprotoent.0 getpwent.0 gets.0 getservent.0 getttyent.0 \
+	fgets.0 getgrent.0 gethostbyname.0 getnetent.0 getopt.0 getpass.0 \
+	getprotoent.0 getpwent.0 getservent.0 getttyent.0 \
 	getgrouplist.0 getloadavg.0 getmntinfo.0 getsubopt.0 \
 	getusershell.0 getwd.0 hypot.0 ieee.0 inet.0 infnan.0 initgroups.0
 OBJS2=	insque.0 intro.0 j0.0 l3tol.0 ldfps.0 lgamma.0 lib2648.0 \
@@ -76,7 +76,7 @@ REMO1=	edata.0 etext.0 j1.0 jn.0 ns_addr.0 ns_ntoa.0 y0.0 y1.0 yn.0 acos.0 \
 	rresvport.0 ruserok.0 store.0 tan.0 addr.0 arc.0 asctime.0 cbrt.0 \
 	circle.0 comp.0 cont.0 copysign.0 cosh.0 drem.0 encrypt.0 environ.0 \
 	erase.0 execle.0 execlp.0 exect.0 execv.0 execve.0 execvp.0 fgetc.0 \
-	fgets.0 finite.0 fputc.0 fputs.0 ftime.0 getchar.0 getw.0 gmtime.0 \
+	finite.0 fputc.0 fputs.0 ftime.0 getchar.0 getw.0 gmtime.0 \
 	gtty.0 inet_addr.0 inet_lnaof.0 inet_makeaddr.0 inet_netof.0 \
 	inet_network.0 inet_ntoa.0 isalnum.0 isalpha.0 isascii.0 iscntrl.0 \
 	isdigit.0 islower.0 isprint.0 ispunct.0 isspace.0 isupper.0 \
@@ -206,7 +206,6 @@ install: _make_01 _make_02
 	ln -f ${DESTDIR}${MDIR}/execl.0 ${DESTDIR}${MDIR}/execve.0
 	ln -f ${DESTDIR}${MDIR}/execl.0 ${DESTDIR}${MDIR}/execvp.0
 	ln -f ${DESTDIR}${MDIR}/getc.0 ${DESTDIR}${MDIR}/fgetc.0
-	ln -f ${DESTDIR}${MDIR}/gets.0 ${DESTDIR}${MDIR}/fgets.0
 	ln -f ${DESTDIR}${MDIR}/ieee.0 ${DESTDIR}${MDIR}/finite.0
 	ln -f ${DESTDIR}${MDIR}/putc.0 ${DESTDIR}${MDIR}/fputc.0
 	ln -f ${DESTDIR}${MDIR}/puts.0 ${DESTDIR}${MDIR}/fputs.0

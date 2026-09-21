@@ -93,7 +93,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    strdup.o uname.o vis.o wait.o wait3.o waitpid.o
 
 # libc/stdio
-OBJS            += fgetc.o fgets.o fputc.o fputs.o gets.o puts.o \
+OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
                    clrerr.o doscan.o exit.o fdopen.o filbuf.o findiop.o \
                    flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
                    ftell.o fwrite.o getchar.o getw.o printf.o putchar.o putw.o \

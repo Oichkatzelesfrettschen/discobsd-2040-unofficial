@@ -84,7 +84,12 @@ int     fputc (int, FILE *);
 int     fputs (const char *, FILE *);
 int     puts (const char *);
 char    *fgets (char *, int, FILE *);
-char    *gets (char *);
+/*
+ * gets() is not declared: it cannot be given a bound, so every call is a
+ * store of whatever the line holds. C11 removed it from the standard and
+ * lib/libc/stdio holds no definition, so a caller fails at the implicit
+ * declaration rather than at run time. fgets() takes its place.
+ */
 FILE    *_findiop (void);
 void    _fwalk (int (*)(FILE *));
 void    _cleanup (void);

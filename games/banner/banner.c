@@ -865,9 +865,21 @@ int main (argc, argv)
 			strcat(message, argv[i]);
 		}
 	} else {
+		char *nl;
+
+		/*
+		 * message holds MAXMSG bytes and the process image is one
+		 * flat window of text, data, bss and stack with no MMU
+		 * behind it, so a longer typed line would store into the
+		 * objects beside it rather than fault.  It is cut at
+		 * MAXMSG-1, which is where the argument path above already
+		 * leaves a message too long for the buffer.
+		 */
 		fprintf(stderr,"Message: ");
-		if (! gets(message))
+		if (! fgets(message, sizeof message, stdin))
 		    return 0;
+		if ((nl = strchr(message, '\n')) != NULL)
+			*nl = '\0';
 	}
 	nchars = strlen(message);
 	if (trace)

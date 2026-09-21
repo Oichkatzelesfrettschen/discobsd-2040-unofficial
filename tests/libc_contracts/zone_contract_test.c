@@ -132,6 +132,7 @@ use_gmt(void)
 	db_tzset();
 }
 
+#ifdef TZ_ZONEINFO
 /*
  * A well-formed file, so the cases that follow differ from something that
  * works rather than from nothing.
@@ -247,6 +248,9 @@ test_negative_offset(void)
 	use_gmt();
 }
 
+#endif /* TZ_ZONEINFO */
+
+#ifdef TZ_ZONEINFO
 /* A count past the array it addresses is refused outright. */
 static void
 test_counts_are_bounded(void)
@@ -272,15 +276,51 @@ test_counts_are_bounded(void)
 	    "type count: a file naming no types was accepted");
 	use_gmt();
 }
+#endif /* TZ_ZONEINFO */
+
+#ifndef TZ_ZONEINFO
+/*
+ * The shape that reads no file. tzset() reaches tzsetkernel() and then
+ * tzsetgmt(), so a zone file named in TZ is not opened at all -- which is
+ * the whole of what this build promises, and the reason the bounds the
+ * cases above measure have nothing to bound.
+ */
+static void
+test_no_file_is_read(void)
+{
+	static const unsigned char isdst[1] = { 0 };
+	struct tm *tm;
+	time_t t = 1000000000L;
+
+	check(write_zone(0, 1, 4, -18000L, isdst) == 0,
+	    "fixture: the zone could not be written");
+	tm = load_and_read(t);
+	check(tm != 0, "no file: localtime returned nothing");
+	if (tm != 0)
+		check(tm->tm_gmtoff != -18000L,
+		    "no file: a zone file was read by a build without one");
+
+	/* The answer is the kernel's offset, which is zero on this host. */
+	use_gmt();
+	tm = db_localtime(&t);
+	check(tm != 0 && tm->tm_year == 101 && tm->tm_mon == 8 &&
+	    tm->tm_mday == 9 && tm->tm_hour == 1,
+	    "no file: the instant did not land where GMT puts it");
+}
+#endif /* !TZ_ZONEINFO */
 
 int
 main(void)
 {
+#ifdef TZ_ZONEINFO
 	test_well_formed_zone();
 	test_search_stops_at_typecnt();
 	test_daylight_flag_is_refused();
 	test_negative_offset();
 	test_counts_are_bounded();
+#else
+	test_no_file_is_read();
+#endif
 
 	(void)unlink(ZONE_PATH);
 	if (failure_count != 0) {

@@ -31,13 +31,30 @@ struct ttinfo {				/* time type information */
 	int		tt_abbrind;	/* abbreviation list index */
 };
 
+/*
+** The zone in force. TZ_ZONEINFO selects the form that reads a zone file:
+** ats[] and types[] hold that file's transitions and ttis[] the local time
+** types it switches between, which is 2033 bytes of zero-initialized data
+** per process and a second 2033 on the stack while tzload() parses.
+**
+** Without it the zone is one offset, which is what the kernel keeps and
+** gettimeofday(2) reports, so a single type is the whole state: 68 bytes.
+** An image that ships no zone file can reach no other answer -- this port's
+** manifest ships neither /etc/localtime nor /usr/share/zoneinfo, and
+** share/zoneinfo builds the files an installation would have to add. A
+** system that adds them builds libc with TZ_ZONEINFO defined.
+*/
 struct state {
 	int		timecnt;
 	int		typecnt;
 	int		charcnt;
+#ifdef TZ_ZONEINFO
 	time_t		ats[TZ_MAX_TIMES];
 	unsigned char	types[TZ_MAX_TIMES];
 	struct ttinfo	ttis[TZ_MAX_TYPES];
+#else
+	struct ttinfo	ttis[1];
+#endif
 	char		chars[TZ_MAX_CHARS + 1];
 };
 
@@ -55,6 +72,7 @@ time_t			timezone = 0;
 int			daylight = 0;
 #endif /* USG_COMPAT */
 
+#ifdef TZ_ZONEINFO
 static long
 detzcode(const char *code_pointer)
 {
@@ -202,6 +220,8 @@ tzload(const char *name)
 	return 0;
 }
 
+#endif /* TZ_ZONEINFO */
+
 static int
 tzsetkernel(void)
 {
@@ -246,10 +266,12 @@ tzset(void)
 	tz_is_set = 1;
 	name = getenv("TZ");
 	if (!name || *name) {			/* did not request GMT */
+#ifdef TZ_ZONEINFO
 		if (name && !tzload(name))	/* requested name worked */
 			return;
 		if (!tzload(0))			/* default name worked */
 			return;
+#endif
 		if (!tzsetkernel())		/* kernel guess worked */
 			return;
 	}
@@ -267,6 +289,13 @@ localtime(const time_t *time_pointer)
 	if (!tz_is_set)
 		tzset();
 	timestamp = *time_pointer;
+#ifndef TZ_ZONEINFO
+	/*
+	** One type, so it is the answer: timecnt is zero by construction and
+	** there is no transition table to consult.
+	*/
+	index = 0;
+#else
 	if (s.timecnt == 0 || timestamp < s.ats[0]) {
 		/*
 		** The first standard-time type, for an instant before the
@@ -287,6 +316,7 @@ localtime(const time_t *time_pointer)
 				break;
 		index = s.types[index - 1];
 	}
+#endif /* TZ_ZONEINFO */
 	time_type = &s.ttis[index];
 	/*
 	** To get (wrong) behavior that's compatible with System V Release 2.0

@@ -27,6 +27,19 @@ TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 DEFS		= -Wall -ffreestanding
+
+# The zone in force comes from one kernel field unless the installation
+# supplies zone files. No manifest in this tree ships /etc/localtime or
+# /usr/share/zoneinfo, and share/zoneinfo builds the files an installation
+# would have to add, so the file-backed reader is an option rather than the
+# default: defining TZ_ZONEINFO restores it, at 809 bytes of text and 1960
+# of zero-initialized data in every program that calls localtime(3), plus
+# the two allocations tzload() makes on the stack while it parses. Build
+# with TZ_ZONEINFO=1 for a system that installs zone files.
+TZ_ZONEINFO?=
+.if !empty(TZ_ZONEINFO)
+DEFS		+= -DTZ_ZONEINFO
+.endif
 ALL		= gen stdio stdlib string inet compat ${MACHINE_ARCH}
 
 all:            ../libc.a

@@ -145,3 +145,48 @@ rather than silently passing it.
 
 `sys/arch/rp2040/doc/STORAGE.md` carries the flash budget the profiles
 divide, and `sys/arch/rp2040/doc/TESTING.md` names the gate.
+
+## The zone in force
+
+A filesystem profile decides what the image carries; `TZ_ZONEINFO` decides
+whether libc can read it. The two are one decision when zone files are
+involved, so they are stated together here.
+
+`localtime(3)` answers from one of two sources. Built with `TZ_ZONEINFO`, it
+reads a zone file: `tzload()` opens the path `TZ` names or
+`/etc/localtime`, parses the first-version layout, and keeps the
+transitions in `struct state` -- 370 transition times, their type indices,
+ten local time types and the abbreviation characters. Built without it, the
+zone is the single offset the kernel keeps, which `gettimeofday(2)` reports
+as `tz_minuteswest` and `tzsetkernel()` installs; `struct state` then holds
+one type.
+
+No profile in this tree ships a zone file. `share/zoneinfo` builds them and
+`zic(8)` is here, so an installation can add them, but neither
+`/etc/localtime` nor `/usr/share/zoneinfo` appears in any manifest. Without
+one, `tzload()` cannot succeed and `tzset()` reaches `tzsetkernel()` every
+time, so the file-backed form is weight that answers nothing.
+
+Measured, per program that calls `localtime(3)`:
+
+| | text | zero-initialized data | stack while parsing |
+| --- | --- | --- | --- |
+| `TZ_ZONEINFO` | 1387 | 2084 | 2033 plus MAXPATHLEN |
+| default | 578 | 124 | none |
+
+Four shipped binaries reach it: `box` (for `ls`), `sysbox` (for `date`),
+`tar` and `login`. Between the two builds they differ by 836 to 880 bytes
+each, and the image's free blocks by nine.
+
+    bmake MACHINE=rp2040 distribution                 # 102 free blocks
+    bmake MACHINE=rp2040 TZ_ZONEINFO=1 distribution   #  93 free blocks
+
+A system that installs zone files builds with `TZ_ZONEINFO=1`. Selecting it
+without installing them costs the space and changes no answer.
+
+`tests/libc_contracts` `check-zone` runs in both shapes. The file-backed one
+is where the reader's bounds are measured, because they are the bounds on a
+file; the default one asserts that a zone file named in `TZ` is not opened
+and that the answer is the kernel's offset. The two cannot be confused by
+accident: `tzload()` is not declared in the default build, so a call to it
+fails to compile rather than reaching a file.

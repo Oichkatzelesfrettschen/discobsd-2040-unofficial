@@ -103,3 +103,11 @@ zone_ctime_san.o
 zone_timezone.o
 zone_timezone32.o
 zone_timezone_san.o
+mktime_contract_test
+mktime_contract_test32
+mktime_mktime.o
+mktime_mktime32.o
+mktime_ctime.o
+mktime_ctime32.o
+mktime_timezone.o
+mktime_timezone32.o

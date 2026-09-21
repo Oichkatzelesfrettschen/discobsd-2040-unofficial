@@ -163,6 +163,15 @@ check-libc-sysctl:
 check-umount-contracts:
 		${MAKE} -C tests/umount_contracts check
 
+# usr.bin/touch against a real filesystem: what it creates, which of the two
+# times it moves, and what it exits. The arithmetic behind -t and -d is
+# measured separately by check-libc-mktime, against the tree's own mktime.
+check-touch-contracts:
+		${MAKE} -C tests/touch_contracts check
+
+check-touch-contracts-cross:
+		${MAKE} -C tests/touch_contracts check-cross
+
 check-libc-tempfiles:
 		${MAKE} -C tests/libc_tempfiles check
 
@@ -174,6 +183,13 @@ check-libc-ctime:
 # fixed-size array, and the gate writes malformed files to prove each bound.
 check-libc-zone:
 		${MAKE} -C tests/libc_contracts check-zone
+
+# mktime and timegm, the inverse of localtime and gmtime. The gate decides
+# them by the round trip rather than by a table, and runs it through a zone
+# file it writes, so the offset search is exercised and not only the calendar
+# arithmetic.
+check-libc-mktime:
+		${MAKE} -C tests/libc_contracts check-mktime
 
 check-libc-ctime-cross:
 		${MAKE} -C tests/libc_contracts check-ctime-cross
@@ -395,6 +411,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-aout check-kernel check-fs-stress \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts \
+		check-libc-environment check-libc-sysctl check-touch-contracts \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities check-pdp11-reference \
@@ -406,7 +423,7 @@ HOST_PROGRAM_GATES=	check-pdp11-v6 check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-aout-contracts \
-		check-libc-ctime-cross \
+		check-libc-ctime-cross check-touch-contracts-cross \
 		check-libc-random-cross \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
@@ -607,47 +624,35 @@ installfs:
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
 .PHONY:		check-warning-policy-host check-warning-policy-cross \
-		check-control-char-contracts \
-		check-build-failure check-analysis \
-		all build distribution release tools kernel check-divider \
-		check-swapram check-cache-footprint check-exec-spool \
-		check-ufs-prototypes \
-		check-elf2aout \
-		check-kernel check-kernel-ilp32 check-fs-stress \
-		check-libc-environment check-libc-sysctl \
-		check-umount-contracts \
-		check-libc-tempfiles check-libc-ctime check-libc-ctime-cross  \
-		check-libc-zone \
+		check-control-char-contracts check-build-failure check-analysis all \
+		build distribution release tools kernel check-divider check-swapram \
+		check-cache-footprint check-exec-spool check-ufs-prototypes \
+		check-elf2aout check-kernel check-kernel-ilp32 check-fs-stress \
+		check-libc-environment check-libc-sysctl check-umount-contracts \
+		check-touch-contracts check-libc-tempfiles check-libc-ctime \
+		check-libc-ctime-cross check-libc-zone check-libc-mktime \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
-		check-libc-difftime check-libc-difftime-cross \
-		check-libc-contracts \
-		check-libc-host-contracts check-libc-aout-contracts \
-		check-libc-malloc \
+		check-libc-difftime check-libc-difftime-cross check-libc-contracts \
+		check-libc-host-contracts check-libc-aout-contracts check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
-		check-libc-random check-libc-random-cross \
-		check-libc-scanf check-libc-rwmode check-libc-syslog check-libc-vis \
-		check-libc-printf-float \
-		check-dirent-contracts check-dirent-contracts-cross \
-		check-colrm-contracts check-colrm-contracts-cross \
-		check-unifdef-contracts check-unifdef-contracts-cross \
-		check-dd-contracts \
-		check-libc-string-security check-libc-string-security-cross \
-		check-id-aliases \
-		check-tiny-utility-multicall \
-		check-fgrep-capacity check-hsaout check-config-makefile \
-		check-fs-profiles \
-		check-portable-utilities check-pdp11-reference check-pdp11-v7 \
-		check-pdp11-v6 check-stevie-host check-kilo-host check-menu-host \
-		check-tail-host check-sort-host check-keen-host check-bubble-host \
-		check-fifteen-host check-sh-editor check-tar-host \
-		check-textbox-host check-cpio-host \
-		check-lint check-host check-posix-sh check-cross-contracts \
-		check-cross-kernel check-cross-assembler check-cross check-qemu \
-		check-mips check-renode check-host-package check-board-build check \
-		symlinks \
-		etc-distribution \
-		${FSIMG} fs installfs \
-		clean cleantools cleanfs cleanall
+		check-libc-random check-libc-random-cross check-libc-scanf \
+		check-libc-rwmode check-libc-syslog check-libc-vis \
+		check-libc-printf-float check-dirent-contracts \
+		check-dirent-contracts-cross check-colrm-contracts \
+		check-colrm-contracts-cross check-unifdef-contracts \
+		check-unifdef-contracts-cross check-libc-string-security \
+		check-libc-string-security-cross check-id-aliases \
+		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
+		check-config-makefile check-portable-utilities check-pdp11-reference \
+		check-pdp11-v7 check-pdp11-v6 check-stevie-host check-kilo-host \
+		check-menu-host check-tail-host check-sort-host check-keen-host \
+		check-bubble-host check-fifteen-host check-sh-editor check-tar-host \
+		check-textbox-host check-cpio-host check-lint check-host \
+		check-posix-sh check-cross-contracts check-cross-kernel \
+		check-cross-assembler check-cross check-qemu check-mips check-renode \
+		check-host-package check-board-build check symlinks etc-distribution \
+		${FSIMG} fs installfs clean cleantools cleanfs cleanall ||||||| \
+		543e46fc check-fs-profiles d7e60d9f check-dd-contracts \
 
 # Architecture-specific debugging and loading.
 -include sys/arch/${MACHINE}/conf/Makefile.inc

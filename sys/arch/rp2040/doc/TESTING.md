@@ -8,6 +8,18 @@ tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
 reduced board libc when its source closure is newer than the archive.
 
+A tier that compiles creates `include/machine` first. `share/mk/sys.mk`
+compiles with `-nostdinc -I${TOPSRC}/include`, and `sys/sys/param.h` and
+`sys/sys/types.h` reach `<machine/machparam.h>` and `<machine/types.h>`
+through that symlink, which is generated rather than tracked: a fresh
+checkout carries none and `clean` removes it. `check-host`, `check-cross`,
+`check-qemu` and `check-board-build` depend on `symlinks`, so each runs on a
+bare checkout. A gate named on its own, such as `check-libc-ansi`, still
+wants `bmake MACHINE=rp2040 symlinks` ahead of it. `check-lint` and
+`check-host-package` compile no C and `bin/sh/tests/posix-sh.sh` builds the
+shell against the host's headers, so those two reach nothing under
+`include`.
+
 | tier | target | needs | Linux CI | macOS CI |
 | --- | --- | --- | --- | --- |
 | lint | `check-lint` | shellcheck, ruff | yes | yes |

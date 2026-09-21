@@ -38,7 +38,9 @@ check() {
 	fi
 }
 
-# The host's stat(1) spells its format differently on the BSDs.
+# The host's stat(1) and date(1) spell these differently on the BSDs, and
+# macOS is one, so the gate asks each tool which dialect it speaks rather
+# than assuming the GNU one.
 if stat -c %Y . >/dev/null 2>&1; then
 	mtime() { stat -c %Y "$1"; }
 	atime() { stat -c %X "$1"; }
@@ -46,6 +48,18 @@ else
 	mtime() { stat -f %m "$1"; }
 	atime() { stat -f %a "$1"; }
 fi
+
+# "YYYY-MM-DD hh:mm:ss" in UTC to seconds since the epoch. date(1) spells
+# this one way on GNU and another on the BSDs, and the expected value has to
+# come from something other than the calendar under test, so it comes from
+# Python's, which is neither dialect and is an implementation this tree does
+# not own.
+PYTHON=${PYTHON:-python3}
+
+epoch_of() {
+	"${PYTHON}" -c 'import calendar, sys, time
+print(calendar.timegm(time.strptime(sys.argv[1], "%Y-%m-%d %H:%M:%S")))' "$1"
+}
 
 cd "${WORK}"
 
@@ -64,8 +78,7 @@ check "-c: file stays absent" no "$([ -e absent ] && echo yes || echo no)"
 # -t sets both times to the instant it names.
 : > both
 "${TOUCH}" -t 200102030405.06 both
-check "-t: mtime" "$(date -d '2001-02-03 04:05:06' +%s 2>/dev/null ||
-    echo skip)" "$(mtime both)"
+check "-t: mtime" "$(epoch_of '2001-02-03 04:05:06')" "$(mtime both)"
 check "-t: atime equals mtime" "$(mtime both)" "$(atime both)"
 
 # -a alone moves the access time and leaves the modification time alone.
@@ -74,8 +87,7 @@ check "-t: atime equals mtime" "$(mtime both)" "$(atime both)"
 kept=$(mtime only_a)
 "${TOUCH}" -a -t 201002030405.06 only_a
 check "-a: mtime is unchanged" "${kept}" "$(mtime only_a)"
-check "-a: atime moved" "$(date -d '2010-02-03 04:05:06' +%s 2>/dev/null ||
-    echo skip)" "$(atime only_a)"
+check "-a: atime moved" "$(epoch_of '2010-02-03 04:05:06')" "$(atime only_a)"
 
 # -m alone is the mirror of it.
 : > only_m
@@ -83,8 +95,7 @@ check "-a: atime moved" "$(date -d '2010-02-03 04:05:06' +%s 2>/dev/null ||
 kept=$(atime only_m)
 "${TOUCH}" -m -t 201002030405.06 only_m
 check "-m: atime is unchanged" "${kept}" "$(atime only_m)"
-check "-m: mtime moved" "$(date -d '2010-02-03 04:05:06' +%s 2>/dev/null ||
-    echo skip)" "$(mtime only_m)"
+check "-m: mtime moved" "$(epoch_of '2010-02-03 04:05:06')" "$(mtime only_m)"
 
 # -r copies both times from the file it names.
 : > source
@@ -97,8 +108,7 @@ check "-r: atime copied" "$(atime source)" "$(atime copy)"
 # -d takes the ISO 8601 form, and Z reads it as UTC.
 : > iso
 "${TOUCH}" -d 2005-06-07T08:09:10Z iso
-check "-d with Z: mtime" "$(date -u -d '2005-06-07 08:09:10' +%s 2>/dev/null ||
-    echo skip)" "$(mtime iso)"
+check "-d with Z: mtime" "$(epoch_of '2005-06-07 08:09:10')" "$(mtime iso)"
 
 # A fraction of a second is accepted and does not move the second.
 : > frac
@@ -124,8 +134,7 @@ mkdir adir
 rc=0
 "${TOUCH}" -t 200301020304.05 adir || rc=$?
 check "directory: exit status" 0 "${rc}"
-check "directory: mtime" "$(date -d '2003-01-02 03:04:05' +%s 2>/dev/null ||
-    echo skip)" "$(mtime adir)"
+check "directory: mtime" "$(epoch_of '2003-01-02 03:04:05')" "$(mtime adir)"
 
 # A file whose contents must not change: touch records a date, it does not
 # rewrite the file.
@@ -193,7 +202,7 @@ for spec in \
 do
 	: > sweep
 	"${TOUCH}" -d "${spec}" sweep
-	want=$(date -u -d "$(echo "${spec}" | tr 'TZ' ' ')" +%s)
+	want=$(epoch_of "$(echo "${spec}" | tr 'TZ' ' ' | sed 's/ *$//')")
 	check "calendar ${spec}" "${want}" "$(mtime sweep)"
 done
 

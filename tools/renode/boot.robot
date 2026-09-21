@@ -103,6 +103,19 @@ The boot reaches a login prompt and a shell
     Write Line To Uart          uname -sr
     Wait For Line On Uart       DiscoBSD 2.7                                timeout=300
 
+    # The formatter accepts the versioned kernel structure only when its
+    # compiled size agrees. These stable fragments pin every fixed-table
+    # limit and the u-area geometry without treating one emulator workload's
+    # dynamic peaks as board headroom.
+    Write Line To Uart          sysctl kern.capacity
+    Wait For Line On Uart       kern.capacity=version 1 size 100             timeout=300
+    Wait For Line On Uart       proc limit 25 current                        timeout=300
+    Wait For Line On Uart       inode limit 24 current                       timeout=300
+    Wait For Line On Uart       file limit 24 current                        timeout=300
+    Wait For Line On Uart       clist limit 32 current                       timeout=300
+    Wait For Line On Uart       buffer limit 4 current                       timeout=300
+    Wait For Line On Uart       uarea bytes 3072 user 972 stack 2048 peak    timeout=300
+
     # The deliberate fault test: usr.bin/mputest forks children that read
     # kernel RAM, kernel text and SIO and expects SIGSEGV for each while
     # machdep.mpu.enable reads 1, and reads the boot ROM and the window top

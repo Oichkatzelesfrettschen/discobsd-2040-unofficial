@@ -87,7 +87,7 @@ const char partab[] = {
     0007,0007,0007,0007,0007,0007,0007,0007
 };
 
-const int tthiwat[NSPEEDS] = {
+const uint16_t tthiwat[NSPEEDS] = {
     100,    /* 0 baud */
     100,    /* 50 baud */
     100,    /* 75 baud */
@@ -119,7 +119,7 @@ const int tthiwat[NSPEEDS] = {
     2000,   /* 4000 kbaud */
 };
 
-const int ttlowat[NSPEEDS] = {
+const uint8_t ttlowat[NSPEEDS] = {
     30,     /* 0 baud */
     30,     /* 50 baud */
     30,     /* 75 baud */

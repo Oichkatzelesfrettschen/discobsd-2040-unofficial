@@ -74,6 +74,8 @@ struct buf
 #define bfree(bp)   (bp)->b_bcount = 0
 
 #ifdef KERNEL
+#include <sys/capacity.h>
+
 struct inode;
 
 #ifndef BUFHSZ
@@ -235,5 +237,6 @@ int geterror (struct buf *bp);
     register int x = splbio(); \
     bremfree(bp); \
     (bp)->b_flags |= B_BUSY; \
+    capacity_note(CAPACITY_BUFFER, 0); \
     splx(x); \
 }

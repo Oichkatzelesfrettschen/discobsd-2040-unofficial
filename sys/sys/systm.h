@@ -32,6 +32,7 @@
  * patched by a stalking hacker.
  */
 #include "conf.h"
+#include <sys/stdint.h>
 
 extern int securelevel;         /* system security level */
 
@@ -120,15 +121,14 @@ daddr_t bmap (struct inode *ip, daddr_t bn, int rwflg, int flags);
 extern void kmemdev(void);
 
 /*
- * Structure of the system-entry table
+ * The separate arrays keep every function pointer naturally aligned while
+ * giving each argument count its actual one-byte representation.
  */
-extern const struct sysent
-{
-    int     sy_narg;                /* total number of arguments */
-    void    (*sy_call) (void);      /* handler */
-} sysent[];
-
-extern const char *syscallnames[];
+typedef void (*syscall_handler_t)(void);
+extern const uint8_t syscall_nargs[];
+extern const syscall_handler_t syscall_handlers[];
+const char *syscall_name(u_int code);
+const char *kernel_errmsg(u_int error);
 
 /*
  * Console trace of system calls and signal delivery, set through

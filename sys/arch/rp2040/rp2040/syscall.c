@@ -202,10 +202,10 @@ syscall(struct trapframe *frame)
 
 	code = *(int *)u.u_code & 0377;		/* Bottom 8 bits are index. */
 
-	const struct sysent *const callp =
-	    &sysent[code < nsysent ? code : 0];
+	const volatile u_int dispatch_code = code < nsysent ? (u_int)code : 0;
+	const volatile uint8_t nargs = syscall_nargs[dispatch_code];
 
-	if (callp->sy_narg) {
+	if (nargs) {
 		/* In AAPCS, first four args are from trapframe regs r0-r3. */
 		u.u_arg[0] = u.u_frame->tf_r0;	/* $a1 */
 		u.u_arg[1] = u.u_frame->tf_r1;	/* $a2 */
@@ -219,12 +219,12 @@ syscall(struct trapframe *frame)
 		}
 
 		/* Remaining args are from the stack, after the trapframe. */
-		if (callp->sy_narg > 4) {
+		if (nargs > 4) {
 			u_int addr = (u.u_frame->tf_sp + 32 + stkalign) & ~3;
 			if (!baduaddr((caddr_t)addr))
 				u.u_arg[4] = *(u_int *)addr;
 		}
-		if (callp->sy_narg > 5) {
+		if (nargs > 5) {
 			u_int addr = (u.u_frame->tf_sp + 36 + stkalign) & ~3;
 			if (!baduaddr((caddr_t)addr))
 				u.u_arg[5] = *(u_int *)addr;
@@ -234,13 +234,13 @@ syscall(struct trapframe *frame)
 	u.u_rval = 0;
 
 	if (setjmp(&u.u_qsave) == 0) {
-		(*callp->sy_call)();		/* Make syscall. */
+		syscall_handlers[dispatch_code]();	/* Make syscall. */
 	}
 
 	if (SYSTRACE_ON(SYSTRACE_SYSCALL)) {
 		printf("[%u] %s(", u.u_procp->p_pid,
-		    code < nsysent ? syscallnames[code] : "?");
-		for (int i = 0; i < callp->sy_narg && i < 6; i++)
+		    syscall_name((u_int)code));
+		for (int i = 0; i < nargs && i < 6; i++)
 			printf("%s%#x", i ? ", " : "", u.u_arg[i]);
 		if (u.u_error == 0)
 			printf(") = %#x\n", u.u_rval);

@@ -20,6 +20,7 @@
 #include <sys/clist.h>
 #include <sys/reboot.h>
 #include <sys/systm.h>
+#include <sys/capacity.h>
 #include <sys/kernel.h>
 #include <sys/namei.h>
 #include <sys/stat.h>
@@ -105,6 +106,7 @@ main(void)
 	ihinit();
 	bhinit();
 	binit();
+	capacity_init();
 	nchinit();
 	clkstart();
 

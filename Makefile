@@ -144,6 +144,17 @@ check-fs-stress:
 check-kernel:
 		${MAKE} -C tests/kernel check
 
+# One local authority emits the syscall ABI, dispatch metadata, trace names,
+# and errno text. The check regenerates into a private temporary directory
+# before comparing every shipped output byte for byte.
+regen-kernel-metadata:
+		${PYTHON} tools/gen_kernel_metadata.py --root ${TOPSRC}
+
+check-kernel-metadata:
+		${PYTHON} tools/gen_kernel_metadata.py --root ${TOPSRC} --self-test
+		${PYTHON} tools/gen_kernel_metadata.py --root ${TOPSRC} --check
+		${PYTHON} tests/kernel_metadata/check.py --root ${TOPSRC}
+
 check-libc-environment:
 		${MAKE} -C tests/libc_environment check
 
@@ -437,6 +448,7 @@ HOST_GATES=	check-warning-policy-host check-build-failure check-analysis \
 		check-rmdir-contracts check-tee-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
+		check-kernel-metadata \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts \
@@ -658,7 +670,8 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-elf2aout check-kernel check-kernel-ilp32 check-fs-stress \
+		check-elf2aout check-kernel check-kernel-ilp32 \
+		check-kernel-metadata regen-kernel-metadata check-fs-stress \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
 		check-touch-contracts check-libc-tempfiles check-libc-ctime \
 		check-libc-ctime-cross check-libc-zone check-libc-mktime \

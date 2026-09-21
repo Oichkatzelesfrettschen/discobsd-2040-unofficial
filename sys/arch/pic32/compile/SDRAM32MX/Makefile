@@ -63,7 +63,7 @@ COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
-	init_main.o init_sysent.o kern_clock.o kern_descrip.o \
+	errlist.o init_main.o init_sysent.o kern_clock.o kern_descrip.o \
 	kern_exec.o kern_exit.o kern_fork.o kern_mman.o kern_proc.o \
 	kern_prot.o kern_prot2.o kern_resource.o kern_sig.o kern_sig2.o \
 	kern_subr.o kern_synch.o kern_sysctl.o kern_time.o subr_prf.o \
@@ -76,8 +76,8 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	adc.o pwm.o sd.o sdram.o sdramp.o spi.o spi_bus.o uart.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
-	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/init_main.c \
-	$S/kern/init_sysent.c $S/kern/kern_clock.c \
+	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
+	$S/kern/init_main.c $S/kern/init_sysent.c $S/kern/kern_clock.c \
 	$S/kern/kern_descrip.c $S/kern/kern_exec.c $S/kern/kern_exit.c \
 	$S/kern/kern_fork.c $S/kern/kern_mman.c $S/kern/kern_proc.c \
 	$S/kern/kern_prot.c $S/kern/kern_prot2.c $S/kern/kern_resource.c \
@@ -169,6 +169,9 @@ exec_script.o: $S/kern/exec_script.c
 	${COMPILE_C}
 
 exec_subr.o: $S/kern/exec_subr.c
+	${COMPILE_C}
+
+errlist.o: $S/kern/errlist.c
 	${COMPILE_C}
 
 init_main.o: $S/kern/init_main.c

@@ -67,6 +67,8 @@
  *   interrupts in place of the STM32F4 set.
  */
 
+#include <machine/uarea_stats.h>
+
 	.syntax	unified
 	.cpu	cortex-m0plus
 	.thumb
@@ -131,6 +133,29 @@ LoopFillZeroBss:
 	ldr	r3, =_ebss
 	cmp	r2, r3
 	bcc	FillZeroBss
+
+#ifdef CAPACITY_STATS
+	/*
+	 * Both exchange partners start with the sentinel because longjmp swaps
+	 * the complete u areas. The reset code has made no C call and uses no
+	 * stack while the paint loops write the region below MSP.
+	 */
+	ldr	r1, =UAREA_STACK_SENTINEL
+	ldr	r2, =(u0 + UAREA_STACK_OFFSET)
+	ldr	r3, =(u0 + UAREA_BYTES)
+8:
+	str	r1, [r2]
+	adds	r2, r2, #4
+	cmp	r2, r3
+	bcc	8b
+	ldr	r2, =(u + UAREA_STACK_OFFSET)
+	ldr	r3, =u_end
+9:
+	str	r1, [r2]
+	adds	r2, r2, #4
+	cmp	r2, r3
+	bcc	9b
+#endif
 
 system_init_and_main:
 	bl	SystemInit

@@ -43,6 +43,7 @@
 #include <sys/param.h>
 #include <sys/user.h>
 #include <sys/systm.h>
+#include <sys/capacity.h>
 #include <sys/proc.h>
 #include <sys/buf.h>
 #include <sys/kernel.h>
@@ -233,6 +234,12 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		return (sysctl_rdint(oldp, oldlenp, newp, NFILE));
 	case KERN_ARGMAX:
 		return (sysctl_rdint(oldp, oldlenp, newp, NCARGS));
+#ifdef CAPACITY_STATS
+	case KERN_CAPACITY:
+		return (sysctl_rdstruct(oldp, oldlenp, newp,
+		    (void *)capacity_snapshot(),
+		    sizeof(struct kernel_capacity_stats)));
+#endif
 #ifdef SYSTRACE
 	case KERN_SYSTRACE:
 		return (sysctl_int(oldp, oldlenp, newp, newlen, &systrace));

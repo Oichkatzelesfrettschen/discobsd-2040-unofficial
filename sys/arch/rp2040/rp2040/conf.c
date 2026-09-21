@@ -117,10 +117,6 @@ const struct bdevsw bdevsw[] = {
 		swopen,		swclose,	swstrategy,
 		swsize,		swcioctl,	0
 	},
-	{	/* 5 - spirams */
-		NOBDEV
-	},
-
 	/*
 	 * End the list with a blank entry.
 	 */
@@ -221,34 +217,6 @@ const struct cdevsw cdevsw[] = {
 		NOCDEV
 #endif
 	},
-	{	/* 10 - gpio */
-		NOCDEV
-	},
-	{	/* 11 - adc */
-		NOCDEV
-	},
-	{	/* 12 - spi */	/* No SPI driver on this target yet. */
-		NOCDEV
-	},
-	{	/* 13 - glcd */
-		NOCDEV
-	},
-	{	/* 14 - pwm */
-		NOCDEV
-	},
-	{	/* 15 - picga */	/* Ignore this for now - it's WIP. */
-		NOCDEV
-	},
-	{	/* 16 - hxtft, gpanel, sgpanel */
-		NOCDEV
-	},
-	{	/* 17 - skel */
-		NOCDEV
-	},
-	{	/* 18 - sdio */	/* The RP2040 has no SDIO controller. */
-		NOCDEV
-	},
-
 	/*
 	 * End the list with a blank entry.
 	 */

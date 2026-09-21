@@ -17,6 +17,7 @@
 #include <sys/socketvar.h>
 #endif
 #include <sys/syslog.h>
+#include <sys/capacity.h>
 
 /*
  * Descriptor management.
@@ -322,6 +323,7 @@ falloc()
         if (fp->f_count == 0)
             goto slot;
     log(LOG_ERR, "file: table full\n");
+    capacity_note(CAPACITY_FILE, 1);
     u.u_error = ENFILE;
     return (NULL);
 slot:
@@ -330,6 +332,7 @@ slot:
     fp->f_data = 0;
     fp->f_offset = 0;
     lastf = fp + 1;
+    capacity_note(CAPACITY_FILE, 0);
     return (fp);
 }
 

@@ -12,6 +12,7 @@
 #include <sys/vm.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
+#include <sys/capacity.h>
 
 #define SQSIZE  16              /* Must be power of 2 */
 
@@ -250,6 +251,7 @@ sleep (chan, pri)
      * EINTR - put into u_error for trap.c to find (interrupted syscall)
      * ERESTART - system call to be restared
      */
+    capacity_stack_sample();
     longjmp (u.u_procp->p_addr, &u.u_qsave);
     /*NOTREACHED*/
 }
@@ -420,6 +422,7 @@ swtch()
             return;
         }
         /* Switch from user process to swapper. */
+        capacity_stack_sample();
         longjmp (proc[0].p_addr, &u.u_qsave);
     }
     /*
@@ -486,6 +489,7 @@ loop:
      */
     n = p->p_flag & SSWAP;
     p->p_flag &= ~SSWAP;
+    capacity_stack_sample();
     longjmp (p->p_addr, n ? &u.u_ssave : &u.u_rsave);
 }
 

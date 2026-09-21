@@ -8,6 +8,7 @@
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
+#include <sys/capacity.h>
 
 struct cblock *cfreelist;
 int cfreecount;
@@ -237,22 +238,26 @@ putc (c, p)
     s = spltty();
     if ((cp = p->c_cl) == NULL || p->c_cc < 0 ) {
         if ((bp = cfreelist) == NULL) {
+            capacity_note(CAPACITY_CLIST, 1);
             splx(s);
             return (-1);
         }
         cfreelist = bp->c_next;
         cfreecount -= CBSIZE;
+        capacity_note(CAPACITY_CLIST, 0);
         bp->c_next = NULL;
         p->c_cf = cp = bp->c_info;
     } else if (((u_long)cp & CROUND) == 0) {
         bp = (struct cblock *)cp - 1;
         if ((bp->c_next = cfreelist) == NULL) {
+            capacity_note(CAPACITY_CLIST, 1);
             splx(s);
             return (-1);
         }
         bp = bp->c_next;
         cfreelist = bp->c_next;
         cfreecount -= CBSIZE;
+        capacity_note(CAPACITY_CLIST, 0);
         bp->c_next = NULL;
         cp = bp->c_info;
     }
@@ -283,10 +288,13 @@ b_to_q (cp, cc, q)
     acc = cc;
     s = spltty();
     if ((cq = q->c_cl) == NULL || q->c_cc < 0) {
-        if ((bp = cfreelist) == NULL)
+        if ((bp = cfreelist) == NULL) {
+            capacity_note(CAPACITY_CLIST, 1);
             goto out;
+        }
         cfreelist = bp->c_next;
         cfreecount -= CBSIZE;
+        capacity_note(CAPACITY_CLIST, 0);
         bp->c_next = NULL;
         q->c_cf = cq = bp->c_info;
     }
@@ -294,11 +302,14 @@ b_to_q (cp, cc, q)
     while (cc) {
         if (((u_long)cq & CROUND) == 0) {
             bp = (struct cblock *)cq - 1;
-            if ((bp->c_next = cfreelist) == NULL)
+            if ((bp->c_next = cfreelist) == NULL) {
+                capacity_note(CAPACITY_CLIST, 1);
                 goto out;
+            }
             bp = bp->c_next;
             cfreelist = bp->c_next;
             cfreecount -= CBSIZE;
+            capacity_note(CAPACITY_CLIST, 0);
             bp->c_next = NULL;
             cq = bp->c_info;
         }

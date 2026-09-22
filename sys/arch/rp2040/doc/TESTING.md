@@ -254,6 +254,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-agent-instructions` | The repository has regular canonical and wrapper files; the wrapper is exactly `@AGENTS.md` plus a newline and the canonical policy has literal references instead of active imports. Calibration exercises malformed, missing, cyclic, escaping and private-home imports, modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file graph, not actual client instruction loading. |
+| `check-comment-hygiene`, `check-changed-comments` | The calibration gate exercises complete-file C comment recognition, selected-snapshot reads and changed-comment attribution. The enforcement gate compares explicit immutable commits and rejects four narrow forms of development narration in changed `.c` and `.h` comments. Linux firmware CI owns the immutable invocation; Linux and macOS host tiers own calibration. |
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates PICO and PICO_UART Makefiles byte for byte in private trees. The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
@@ -357,6 +358,53 @@ and [Codex instruction discovery](https://learn.chatgpt.com/docs/agent-configura
 The repository gate establishes neither live loading nor a general per-file
 instruction-capacity allowance. Personal deployment, telemetry preferences
 and updater settings remain separate from repository correctness.
+
+### Changed C comments
+
+`check-comment-hygiene` runs the calibrated fixtures and checks tracked working
+files against `HEAD`. `check-changed-comments` requires
+`CHANGED_COMMENT_BASE` and `CHANGED_COMMENT_HEAD`; firmware CI resolves both
+to complete commit object IDs before invoking the gate. A pull request compares
+its recorded base with the tested checkout revision, including the synthetic
+merge revision. A push compares its event before and after revisions. An empty
+or all-zero before revision uses the tested revision's merge base with the
+repository's explicit default-branch remote ref. The initial branch range
+therefore includes every commit since the fork instead of only the head commit.
+
+The gate selects lowercase `.c` and `.h` paths stored as regular Git files.
+Working mode reads tracked files once and excludes untracked files. Staged mode
+reads stage-0 index object IDs and blobs; working repairs cannot hide invalid
+staged comments. Revision mode reads both sides by resolved object ID. Raw Git
+records remain NUL-delimited and rename-aware, so whitespace and non-UTF-8
+pathname bytes do not change the inventory. Deletions and paths that leave the
+C suffix set produce exclusion counts. A selected symlink, gitlink, missing
+blob, unresolved index stage or malformed record returns `ERROR`.
+
+Each selected blob is parsed in full before change attribution. The lexer
+applies C trigraph replacement and backslash-newline splicing while retaining
+physical positions, then distinguishes block comments, line comments, strings,
+character literals and escapes. Unterminated selected constructs return
+`ERROR`; the lexer does not reset state to obtain a clean verdict. Git's
+per-character word diff supplies source-position correspondence; the checker
+validates every emitted payload and hunk extent against the captured blobs
+before trusting that map. Added, edited, split, joined and newly comment-owned
+text is checked. An existing identical comment cannot hide an added copy, and
+the optimized Git edit map avoids a quadratic Python comparison. When an added
+copy is byte-identical to an existing comment, every indistinguishable after
+occurrence is selected instead of inventing one certain source location. A
+fully deleted comment has no after-snapshot diagnostic.
+
+Four stable rules reject explicit development history: `CH001_IN_THIS_PR`,
+`CH002_BEFORE_THIS_PATCH`, `CH003_AFTER_THIS_COMMIT` and
+`CH004_REVIEWER_REQUEST`. The executable carries the fixed patterns, so no
+separate policy file can disagree with the selected snapshot. Words such as
+`this`, `now` and `previously`, patch numbers, dates, comment length and
+cross-file references have no blocking effect by themselves. A changed comment
+longer than 12 physical lines emits `ADVISORY CHL001` and still passes. The
+historical backgammon explanation, its one-line replacement and long mechanism
+comments calibrate the non-blocking side. A successful empty selection prints
+`changed_comments=0`; rule violations return `FAIL` (status 1), and missing or
+unreliable evidence returns `ERROR` (status 2).
 
 ### Production configuration generation and include ordering
 

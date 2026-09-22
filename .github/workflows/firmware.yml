@@ -29,6 +29,21 @@ jobs:
           # pre-migration revision, so a one-commit checkout cannot run it.
           fetch-depth: 0
 
+      - name: Resolve the immutable changed-comment range
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_HEAD: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          read -r resolved_base resolved_head < <(
+            sh tools/resolve-changed-comment-range.sh . \
+              "$EVENT_BASE" "$EVENT_HEAD" \
+              "refs/remotes/origin/$DEFAULT_BRANCH"
+          )
+          test -n "$resolved_base" && test -n "$resolved_head"
+          echo "CHANGED_COMMENT_BASE=$resolved_base" >> "$GITHUB_ENV"
+          echo "CHANGED_COMMENT_HEAD=$resolved_head" >> "$GITHUB_ENV"
+
       # bmake drives the tree; share/mk/sys.mk picks byacc over bison on
       # Linux, flex as LEX, mandoc for the manual pages and "vim -es -u
       # NONE" where no ex is installed, and pulls the BSD string and
@@ -141,6 +156,14 @@ jobs:
       - name: Run the lint tier
         timeout-minutes: 5
         run: bmake MACHINE=rp2040 check-lint
+
+      - name: Check comments changed by the tested revision
+        timeout-minutes: 5
+        run: |
+          bmake MACHINE=rp2040 \
+            CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" \
+            CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
+            check-changed-comments
 
       - name: Run the host tier
         timeout-minutes: 10

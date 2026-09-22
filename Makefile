@@ -460,6 +460,23 @@ check-agent-instructions: check-python
 
 .PHONY: check-agent-instructions
 
+check-comment-hygiene: check-python
+		${PYTHON} tools/changed_comments_test.py
+		${PYTHON} tools/check_changed_comments.py --root ${TOPSRC} --working
+
+check-changed-comments: check-python
+		@set -eu; \
+		if [ -z "${CHANGED_COMMENT_BASE}" ] || \
+		    [ -z "${CHANGED_COMMENT_HEAD}" ]; then \
+			echo "check-changed-comments requires CHANGED_COMMENT_BASE and CHANGED_COMMENT_HEAD" >&2; \
+			exit 2; \
+		fi; \
+		${PYTHON} tools/check_changed_comments.py --root ${TOPSRC} \
+		    --base ${CHANGED_COMMENT_BASE:Q} \
+		    --revision ${CHANGED_COMMENT_HEAD:Q}
+
+.PHONY: check-comment-hygiene check-changed-comments
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -537,6 +554,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions \
+		check-comment-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \

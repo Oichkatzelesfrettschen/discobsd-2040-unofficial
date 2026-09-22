@@ -44,17 +44,15 @@ RENAMES=	-Dmain=umount_main -Dexit=umount_exit \
 		-Dprintf=umount_printf -Dfprintf=umount_fprintf \
 		-include stdio.h -include umount_noreturn.h
 
-ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/umprobe$$$$.c; \
-		if ${HOSTCC} -m32 -o /dev/null /tmp/umprobe$$$$.c \
-		    2>/dev/null; then echo yes; else echo no; fi; \
-		rm -f /tmp/umprobe$$$$.c
+ILP32_CC= ${HOSTCC}
+include ${TOPSRC}/tools/test-execution.mk
 
 check:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ${PROG}
-	./${PROG}
+	${TEST_EXECUTION} run umount.ilp32 -- ./${PROG}
 .else
-	@echo "umount_contracts: ${HOSTCC} cannot build 32-bit binaries; skipped" >&2
+	${TEST_EXECUTION} skip umount.ilp32 "umount_contracts: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 ${MACHINE_STAMP}:

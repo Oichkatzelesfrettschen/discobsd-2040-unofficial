@@ -35,33 +35,29 @@ WARN=	-Wall -Wextra -Werror
 CFLAGS=	-std=c99 ${WARN} -fno-builtin ${ILP32}
 RENAMES=	-Dsysctl=test_sysctl -Derrno=test_errno
 
-ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/lsprobe$$$$.c; \
-		if ${HOSTCC} -m32 -o /dev/null /tmp/lsprobe$$$$.c \
-		    2>/dev/null; then echo yes; else echo no; fi; \
-		rm -f /tmp/lsprobe$$$$.c
+ILP32_CC= ${HOSTCC}
+include ${TOPSRC}/tools/test-execution.mk
 
 # The version walk in uname() writes, so the run that proves it stays inside
 # the structure is worth making under the sanitizers as well: the guard
 # catches a write that leaves the object and the sanitizer names the byte.
-SAN=		-fsanitize=address,undefined -fno-omit-frame-pointer
-SAN_OK!=	printf 'int main(void){return 0;}\n' > /tmp/lssan$$$$.c; \
-		if ${HOSTCC} -m32 -fsanitize=address,undefined \
-		    -o /dev/null /tmp/lssan$$$$.c 2>/dev/null; \
-		then echo yes; else echo no; fi; \
-		rm -f /tmp/lssan$$$$.c
+SAN=		-fsanitize=address,undefined -fno-omit-frame-pointer \
+		-fno-sanitize-recover=all
+SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${HOSTCC} ${ILP32} ${SAN}
 
 check:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ${PROG}
-	./${PROG}
+	${TEST_EXECUTION} run libc-sysctl.ilp32 -- ./${PROG}
 .if ${SAN_OK} == "yes"
 	@${MAKE} ${PROG}_san
-	./${PROG}_san
+	${TEST_EXECUTION} run libc-sysctl.sanitized -- ./${PROG}_san
 .else
-	@echo "libc_sysctl: no 32-bit sanitizer runtime; that run skipped" >&2
+	${TEST_EXECUTION} skip libc-sysctl.sanitized "libc_sysctl: no 32-bit sanitizer runtime"
 .endif
 .else
-	@echo "libc_sysctl: ${HOSTCC} cannot build 32-bit binaries; skipped" >&2
+	${TEST_EXECUTION} skip libc-sysctl.ilp32 "libc_sysctl: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip libc-sysctl.sanitized "libc_sysctl: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 ${MACHINE_STAMP}:

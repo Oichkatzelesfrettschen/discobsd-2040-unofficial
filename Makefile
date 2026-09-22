@@ -454,6 +454,16 @@ check-hsaout:
 check-config-makefile:
 		${MAKE} -C tools/config check
 
+# Production synchronization is independent of the generic-swap line-width test.
+check-config-generated-sync: check-python
+		${PYTHON} tools/config/generated_sync_test.py
+		${PYTHON} tools/config/check_generated_sync.py --root ${TOPSRC} --make ${MAKE}
+
+check-config-include-order: check-python
+		${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
+
+.PHONY: check-config-generated-sync check-config-include-order
+
 # Clean controls must compile; deliberate warnings must fail using the actual
 # evaluated commands, including leaves that replace CFLAGS.
 check-warning-policy-host:
@@ -536,6 +546,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
+		check-config-generated-sync check-config-include-order \
 		check-fs-profiles
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \

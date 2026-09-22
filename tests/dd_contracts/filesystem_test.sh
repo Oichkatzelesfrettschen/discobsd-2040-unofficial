@@ -6,6 +6,8 @@
 # Every check runs and the script reports a total, so a reverted repair
 # names how many contracts it carries rather than stopping at the first.
 set -eu
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
 
 dd_program=$1
 # The checks run inside a temporary directory, so a relative operand is
@@ -117,7 +119,6 @@ ok "$r" "skip= is refused on its own bound rather than by a failing lseek"
 
 # The conversions, driven through the whole program over every byte value.
 # ${PYTHON} writes the input because printf cannot emit a NUL portably.
-PYTHON=${PYTHON:-python3}
 "$PYTHON" -c 'import sys; sys.stdout.buffer.write(bytes(range(256)))' > all256
 
 # atoe is a bijection and etoa is its inverse, so ASCII after EBCDIC is the

@@ -521,6 +521,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-warning-policy-host check-build-failure check-analysis \
+		check-test-execution \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
@@ -635,11 +636,29 @@ check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES
 check-kernel-ilp32:
 		${MAKE} -C tests/kernel check-ilp32
 
+# The designated multilib job requires receipts from every executable variant.
+# The Python boundary runs a separate make with a private receipt directory.
+check-ilp32-execution: check-python
+		${PYTHON} tools/test_execution.py aggregate --make ${MAKE} \
+		    ${.MAKEOVERRIDES:@variable@--make-variable ${variable}=${${variable}:Q}@} \
+		    ${TEST_EXECUTION_REPORT:D--report ${TEST_EXECUTION_REPORT:Q}}
+
+check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
+		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
+		check-dd-contracts check-umount-contracts check-backgammon-contracts \
+		check-libc-host-contracts check-textbox-host
+
+check-test-execution: check-python
+		${PYTHON} tools/test_execution_test.py
+
+.PHONY: check-ilp32-execution check-ilp32-execution-recipes check-test-execution
+
 # The POSIX conformance run of bin/sh builds the shell as a 32-bit host
 # binary (it keeps pointers in int), so it needs a Linux x86-64 host with
 # the 32-bit libraries and stands apart from the portable host tier.
 check-posix-sh:
-		sh bin/sh/tests/posix-sh.sh
+		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
+		    sh bin/sh/tests/posix-sh.sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
 # concurrently. Kernel gates stay ordered because they rebuild and inspect the

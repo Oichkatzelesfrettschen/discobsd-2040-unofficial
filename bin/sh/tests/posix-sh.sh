@@ -24,6 +24,7 @@ set -eu
 
 SRCDIR=$(cd "$(dirname "$0")" && pwd)
 SHSRC=$(cd "$SRCDIR/.." && pwd)
+TOPSRC=$(cd "$SHSRC/../.." && pwd)
 HOST_CC=${HOST_CC:-cc}
 OUT=$SRCDIR/out
 SH=$OUT/sh
@@ -43,12 +44,13 @@ build()
 	rm -rf "$OUT"
 	mkdir -p "$OUT" "$WORK"
 
-	if ! printf 'int main(void){return 0;}\n' > "$OUT/probe.c" ||
-	    ! $HOST_CC -m32 -o "$OUT/probe" "$OUT/probe.c" 2>/dev/null; then
-		echo "FAIL build: $HOST_CC cannot produce a 32-bit binary." >&2
+	# Compiler variables include argument words, as in the compile commands below.
+	# shellcheck disable=SC2086
+	if [ "$(sh "$TOPSRC/tools/compiler-probe.sh" ilp32 $HOST_CC -m32)" != yes ]; then
+		echo "ERROR build: $HOST_CC cannot compile and execute an ILP32 binary." >&2
 		echo "bin/sh stores pointers in int; install the 32-bit" >&2
 		echo "host libraries (glibc-devel.i686, gcc-multilib) and rerun." >&2
-		exit 1
+		exit 2
 	fi
 
 	# expand.c reads directory blocks itself; give it a complete DIR and

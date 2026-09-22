@@ -52,3 +52,6 @@ balloc_kernel.o
 balloc_kernel_pico.o
 balloc_shim.o
 balloc_shim_pico.o
+ufs_explicit_time_test
+ufs_explicit_time_bad
+ufs_fio_noatime_bad.c

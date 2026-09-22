@@ -253,7 +253,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 
 | gate | proves |
 | --- | --- |
-| `check-agent-instructions` | The repository has regular canonical and wrapper files; the wrapper is exactly `@AGENTS.md` plus a newline and the canonical policy has literal references instead of active imports. Calibration exercises malformed, missing, cyclic, escaping and private-home imports, modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file graph, not actual client instruction loading. |
+| `check-agent-instructions` | The repository has regular canonical and generated compatibility files; `.claude` is an actual directory, `.claude/CLAUDE.md` is byte-identical to `AGENTS.md`, and the canonical policy has literal references instead of active imports. Calibration exercises drift, malformed, cyclic, escaping and private-home imports, parent and file modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file contract, not actual client instruction loading. |
 | `check-comment-hygiene`, `check-changed-comments` | The calibration gate exercises complete-file C comment recognition, selected-snapshot reads and changed-comment attribution. The enforcement gate compares explicit immutable commits and rejects four narrow forms of development narration in changed `.c` and `.h` comments. Linux firmware CI owns the immutable invocation; Linux and macOS host tiers own calibration. |
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates PICO and PICO_UART Makefiles byte for byte in private trees. The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
@@ -320,12 +320,18 @@ and fails the moment the shell starts producing the POSIX answer.
 ### Repository instruction safety
 
 `check-agent-instructions` calibrates and checks the two-file instruction
-contract. `AGENTS.md` is canonical; the regular `CLAUDE.md` contains exactly
-`@AGENTS.md` followed by one newline. The canonical policy references other
-documents literally, including the style proposal. The only permitted active
-import edge is `CLAUDE.md -> AGENTS.md`. Extra tracked instruction entries
-require an explicit policy/gate change; personal untracked client files remain
-outside the gate's repository scope.
+contract. `AGENTS.md` is canonical; the regular `.claude/CLAUDE.md` is its
+byte-identical generated compatibility copy. The `.claude` parent is an actual
+directory, so a working-tree symlink cannot redirect the compatibility file
+outside the checkout. The canonical policy references other documents
+literally, including the style proposal, and permits no active import edge.
+Extra tracked instruction entries require an explicit policy/gate change;
+personal untracked client files remain outside the gate's repository scope.
+
+After editing the canonical policy, run
+`sh tools/sync_agent_instructions.sh` to replace the compatibility copy through
+a complete same-directory temporary file. The checker rejects either working
+tree or staged content when the generated copy differs from `AGENTS.md`.
 
 The checker reads complete Markdown files and masks same-line backtick spans
 before finding active import tokens. Fenced, quoted, table, HTML and multiline
@@ -344,12 +350,13 @@ Unresolved index stages and unreadable Git objects return infrastructure
 `ERROR` (status 2); policy violations return `FAIL` (status 1). A successful
 check returns `PASS` (status 0).
 
-The regular wrapper is a compatibility choice. Its installation creates a
-complete temporary regular file beside the wrapper, then renames that entry
-over the symlink. Compare the already-edited canonical file's hash immediately
-before and after that rename, then stage both policy and wrapper and inspect
-their modes. Writing through the symlink would modify the canonical policy;
-unlinking first would leave an interval without the wrapper.
+The regular generated copy is a compatibility choice. The synchronization
+command creates a complete temporary regular file beside the destination, then
+renames that entry over the previous entry. Compare the canonical file's hash
+immediately before and after the initial replacement of a symlink, then stage
+both policy files and inspect their modes. Writing through a symlink would
+modify the canonical policy; unlinking first would leave an interval without
+Claude instructions.
 
 Client versions, effective discovery limits and actual loaded chains require
 separate client observations. The official documentation describes the

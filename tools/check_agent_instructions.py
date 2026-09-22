@@ -1,4 +1,4 @@
-"""Validate the repository's two-file instruction graph, not client loading."""
+"""Validate the repository's canonical and generated instruction files."""
 
 import argparse
 import os
@@ -9,8 +9,8 @@ import sys
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent.parent
-POLICY_FILES = {"AGENTS.md", "CLAUDE.md"}
-WRAPPER = b"@AGENTS.md\n"
+CLAUDE_PATH = ".claude/CLAUDE.md"
+POLICY_FILES = {"AGENTS.md", CLAUDE_PATH}
 
 
 class PolicyError(Exception):
@@ -97,6 +97,14 @@ def check(root, staged=False):
     if additional:
         raise PolicyError(f"instruction entry outside the allowed graph: {sorted(additional)}")
     blobs = {}
+    if not staged:
+        claude_directory = root / ".claude"
+        try:
+            claude_directory_mode = claude_directory.lstat().st_mode
+        except FileNotFoundError as error:
+            raise PolicyError(".claude: missing instruction directory") from error
+        if not stat.S_ISDIR(claude_directory_mode):
+            raise PolicyError(".claude: expected an actual directory")
     for name in sorted(POLICY_FILES):
         if staged:
             if name not in entries:
@@ -114,8 +122,6 @@ def check(root, staged=False):
             if not stat.S_ISREG(mode) or mode & 0o111:
                 raise PolicyError(f"{name}: expected a regular non-executable file")
             blobs[name] = path.read_bytes()
-    if blobs["CLAUDE.md"] != WRAPPER:
-        raise PolicyError("CLAUDE.md: expected exactly @AGENTS.md followed by one newline")
     try:
         canonical = blobs["AGENTS.md"].decode("utf-8")
     except UnicodeDecodeError as error:
@@ -126,7 +132,9 @@ def check(root, staged=False):
     if imports:
         number, target = imports[0]
         raise PolicyError(f"AGENTS.md:{number}: forbidden active import @{target}; "
-                          "only CLAUDE.md -> AGENTS.md is allowed; use a literal reference")
+                          "use a literal reference")
+    if blobs[CLAUDE_PATH] != blobs["AGENTS.md"]:
+        raise PolicyError(f"{CLAUDE_PATH}: generated copy differs from AGENTS.md")
 
 
 def main():
@@ -143,7 +151,7 @@ def main():
         print(f"ERROR agent-instructions: {error}", file=sys.stderr)
         return 2
     source = "index modes and blobs" if arguments.staged else "working-tree files"
-    print(f"PASS agent-instructions: {source}; CLAUDE.md -> AGENTS.md")
+    print(f"PASS agent-instructions: {source}; .claude/CLAUDE.md == AGENTS.md")
     return 0
 
 

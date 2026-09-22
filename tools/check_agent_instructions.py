@@ -32,7 +32,9 @@ def git(root, *arguments):
 def instruction_path(name):
     path = PurePosixPath(name)
     return path.name in {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "CLAUDE.local.md"} or (
-        ".claude/rules/" in name and name.endswith(".md")
+        path.name == ".claude" or
+        any(parent == ".claude" and child == "rules"
+            for parent, child in zip(path.parts, path.parts[1:]))
     )
 
 
@@ -88,7 +90,8 @@ def visible_markdown(contents):
         marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
         boundary = not line.strip() or marker or re.match(
             r"^ {0,3}(?:#{1,6}(?:\s|$)|>|[-+*]\s|\d+[.)]\s|\|)", line
-        )
+        ) or re.fullmatch(r" {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|"
+                          r"(?:_[ \t]*){3,}|=+[ \t]*)", line.rstrip("\r\n"))
         if boundary:
             lines.append(visible_inline("".join(paragraph)))
             paragraph = []

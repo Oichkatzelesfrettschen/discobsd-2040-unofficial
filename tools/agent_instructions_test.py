@@ -128,6 +128,30 @@ class InstructionTest(unittest.TestCase):
         with self.assertRaises(policy.PolicyError):
             policy.check(self.root)
 
+    def test_thematic_breaks_and_setext_headings_end_spans(self):
+        for separator in ("***", "---", "___", "* * *", "  - - -  ", "_\t_\t_", "==="):
+            with self.subTest(separator=separator):
+                self.write("AGENTS.md", "An unmatched ` delimiter.\n"
+                           f"{separator}\n@~/private.md\nA later ` delimiter.\n")
+                self.run_git("add", "AGENTS.md")
+                for staged in (False, True):
+                    with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
+                        policy.check(self.root, staged=staged)
+
+    def test_tracked_rule_directory_links_are_rejected(self):
+        for name in (".claude", ".claude/rules", ".claude/rules/shared",
+                     "nested/.claude/rules"):
+            with self.subTest(name=name):
+                path = self.root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.symlink_to("/outside-policy")
+                self.run_git("add", name)
+                for staged in (False, True):
+                    with self.assertRaisesRegex(policy.PolicyError, "outside the allowed graph"):
+                        policy.check(self.root, staged=staged)
+                self.run_git("update-index", "--force-remove", name)
+                path.unlink()
+
     def test_invalid_index_valid_working_copy(self):
         for name, invalid in (("AGENTS.md", "@~/private.md\n"),
                               ("CLAUDE.md", "wrong wrapper\n")):

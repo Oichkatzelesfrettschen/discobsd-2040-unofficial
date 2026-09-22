@@ -81,39 +81,8 @@ def visible_inline(contents):
 
 
 def visible_markdown(contents):
-    """Mask the policy's fenced examples and paragraph-local backtick spans."""
-    lines = []
-    paragraph = []
-    fence_character = None
-    fence_length = 0
-    for line in contents.splitlines(keepends=True):
-        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
-        boundary = not line.strip() or marker or re.match(
-            r"^(?: {0,3}(?:#{1,6}(?:\s|$)|>|[-+*]\s|\d+[.)]\s|\||<)| {4}|[ \t]*\t)", line
-        ) or re.match(r"^ {0,3}\[(?:\\.|[^\\\]\r\n])+\]:", line) or re.fullmatch(
-            r" {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|"
-                          r"(?:_[ \t]*){3,}|=+[ \t]*)", line.rstrip("\r\n"))
-        if boundary:
-            lines.append(visible_inline("".join(paragraph)))
-            paragraph = []
-        if fence_character:
-            if marker and marker[1][0] == fence_character and (
-                len(marker[1]) >= fence_length and not marker[2].strip()
-            ):
-                fence_character = None
-            lines.append("\n" if line.endswith("\n") else "")
-        elif marker:
-            if marker[1][0] == "`" and "`" in marker[2]:
-                raise PolicyError("backtick fence info string contains a backtick")
-            fence_character, fence_length = marker[1][0], len(marker[1])
-            lines.append("\n" if line.endswith("\n") else "")
-        else:
-            paragraph.append(line)
-        if boundary:
-            lines.append(visible_inline("".join(paragraph)))
-            paragraph = []
-    lines.append(visible_inline("".join(paragraph)))
-    return "".join(lines)
+    """Mask same-line backtick spans in the repository's literal-reference grammar."""
+    return "".join(visible_inline(line) for line in contents.splitlines(keepends=True))
 
 
 def active_imports(contents):

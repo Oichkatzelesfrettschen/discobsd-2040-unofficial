@@ -88,24 +88,27 @@ class InstructionTest(unittest.TestCase):
                 with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
                     policy.check(self.root)
 
-    def test_literal_references_and_fenced_examples(self):
+    def test_same_line_literal_references(self):
         self.write("AGENTS.md", "# Policy\n`@docs/research/STYLE-GUIDE.md`\n"
                    "``literal ` @~/private.md``\n"
-                   "```text\n@missing.md\n```\n"
-                   "~~~text\n@AGENTS.md\n~~~~\n"
                    "Contact maintainer@example.invalid.\n")
         policy.check(self.root)
 
-    def test_multiline_spans_and_import_after_fence(self):
-        self.write("AGENTS.md", "# Policy\n`literal\n@~/private.md`\n")
-        policy.check(self.root)
-        self.write("AGENTS.md", "# Policy\n```\n@literal.md\n```\n@missing.md\n")
-        with self.assertRaisesRegex(policy.PolicyError, "AGENTS.md:5:"):
-            policy.check(self.root)
+    def test_multiline_and_fenced_examples_cannot_hide_imports(self):
+        for contents in (
+            "# Policy\n`literal\n@~/private.md`\n",
+            "# Policy\n```text\n@missing.md\n```\n",
+            "# Policy\n~~~text\n@missing.md\n~~~~\n",
+            "> ```text\n> @~/private.md\n> ```\n",
+        ):
+            with self.subTest(contents=contents):
+                self.write("AGENTS.md", contents)
+                with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
+                    policy.check(self.root)
 
     def test_invalid_backtick_fence_cannot_hide_import(self):
         self.write("AGENTS.md", "```bad`\n@~/private.md\n")
-        with self.assertRaisesRegex(policy.PolicyError, "fence info string"):
+        with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
             policy.check(self.root)
 
     def test_escaped_ticks_and_separate_blocks_cannot_hide_imports(self):
@@ -144,6 +147,19 @@ class InstructionTest(unittest.TestCase):
                            "   [escaped\\]]: /url (unmatched `)"):
             with self.subTest(definition=definition):
                 self.write("AGENTS.md", f"{definition}\n@~/private.md\nA later ` delimiter.\n")
+                self.run_git("add", "AGENTS.md")
+                for staged in (False, True):
+                    with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
+                        policy.check(self.root, staged=staged)
+
+    def test_markup_boundaries_cannot_hide_imports(self):
+        for contents in (
+            "An unmatched ` delimiter.\n--\n@~/private.md\nA later ` delimiter.\n",
+            "<!--\nclosing ` -->\n@~/private.md\nA later ` delimiter.\n",
+            "head ` | col\n--- | ---\n@~/private.md | x\nlater ` | y\n",
+        ):
+            with self.subTest(contents=contents):
+                self.write("AGENTS.md", contents)
                 self.run_git("add", "AGENTS.md")
                 for staged in (False, True):
                     with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):

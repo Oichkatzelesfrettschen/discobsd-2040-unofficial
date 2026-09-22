@@ -325,13 +325,14 @@ import edge is `CLAUDE.md -> AGENTS.md`. Extra tracked instruction entries
 require an explicit policy/gate change; personal untracked client files remain
 outside the gate's repository scope.
 
-The checker reads complete Markdown files and masks matching backtick spans
-and fenced code examples before finding active import tokens. Every other
-canonical import rejects the gate, including missing destinations, cycles,
-private-home dependencies, repository escapes and proposal-corpus imports.
-The checker enforces the repository's narrow grammar rather than reproducing
-every client's instruction parser. Length and ordinary vocabulary remain
-outside the gate's verdict.
+The checker reads complete Markdown files and masks same-line backtick spans
+before finding active import tokens. Fenced, quoted, table, HTML and multiline
+examples do not extend that exception; write an import-looking literal in a
+same-line backtick span. Every other canonical import rejects the gate,
+including missing destinations, cycles, private-home dependencies, repository
+escapes and proposal-corpus imports. The checker enforces this repository
+grammar rather than reproducing every client's Markdown or instruction parser.
+Length and ordinary vocabulary remain outside the gate's verdict.
 
 Run `${PYTHON} tools/check_agent_instructions.py --staged` before committing.
 Staged mode reads Git index modes and blob contents for both files, including

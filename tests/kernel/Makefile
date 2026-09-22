@@ -113,6 +113,13 @@ UFS_EXPLICIT_TIME_DEFS=	${IALLOC_PICO_DEFS}
 UFS_EXPLICIT_TIME_CFLAGS=	-ffunction-sections
 UFS_EXPLICIT_TIME_LDFLAGS=	-Wl,--gc-sections
 
+# The RP2040 shutdown path. The production helper uses bounded flags, counts
+# and kernel structure fields, so the host-width gate can exercise its
+# sequencing and output; both production configurations compile it separately
+# for Cortex-M0+.
+SHUTDOWN_SYNC_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/shutdown_sync.c
+MACHDEP_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
+
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
 # core(), so it compiles at the target's width alone, beside subr_prf.c.
@@ -137,6 +144,15 @@ DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
 	clist_test cred_test resource_test rwuio_test
+
+SHUTDOWN_CHECKS=
+.if ${MACHINE:U} == "rp2040"
+PROGS+=	shutdown_sync_test
+SHUTDOWN_CHECKS=	check-shutdown-mutants check-shutdown-order
+.endif
+
+SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
+		cleared_latch bypassed_guards
 
 # The read, write, readv and writev entry points. rwuio() calls the port's
 # setjmp on u_qsave and sleep() longjmps back to it, so rwuio_setjmp.h maps
@@ -190,6 +206,47 @@ uio_test: uio_test.c ${UIO_SRC} hostkern_kern.c hostkern.o hostkern.h \
 	${HOST_CC} ${KERN_CFLAGS} -c -o uio_kernel.o ${UIO_SRC}
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    uio_test.c hostkern_kern.c uio_kernel.o hostkern.o
+
+shutdown_sync_kernel.o: ${SHUTDOWN_SYNC_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -c -o $@ ${SHUTDOWN_SYNC_SRC}
+
+shutdown_sync_test: shutdown_sync_test.c shutdown_sync_kernel.o \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} -o $@ shutdown_sync_test.c \
+	    shutdown_sync_kernel.o hostkern_kern.c hostkern.o
+
+check-shutdown-mutants: shutdown_sync_test shutdown_sync_mutate.py
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-shutdown-mutants" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} shutdown_sync_mutate.py ${SHUTDOWN_SYNC_SRC} ${.CURDIR}
+	@set -eu; for mutation in ${SHUTDOWN_MUTANTS}; do \
+		${HOST_CC} ${KERN_CFLAGS} -c \
+		    -o shutdown_sync_$$mutation.mutant.o \
+		    shutdown_sync_$$mutation.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} \
+		    -o shutdown_sync_$$mutation.mutant.test \
+		    shutdown_sync_test.c shutdown_sync_$$mutation.mutant.o \
+		    hostkern_kern.c hostkern.o; \
+		if ./shutdown_sync_$$mutation.mutant.test; then status=0; \
+		else status=$$?; fi; \
+		if [ "$$status" -ne 1 ]; then \
+			echo "FAIL $$mutation returned $$status, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS shutdown-sync mutation $$mutation rejected"; \
+	done
+
+check-shutdown-order: shutdown_sync_order_test.py ${MACHDEP_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-shutdown-order" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} shutdown_sync_order_test.py ${MACHDEP_SRC}
+
+check-shutdown: shutdown_sync_test check-shutdown-mutants check-shutdown-order
+	./shutdown_sync_test
 
 clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
@@ -387,7 +444,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
-check: ${PROGS}
+check: ${PROGS} ${SHUTDOWN_CHECKS}
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -397,6 +454,9 @@ clean:
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f uio_kernel.o clist_kernel.o
+	rm -f shutdown_sync_kernel.o shutdown_sync_test
+	rm -f shutdown_sync_*.mutant.c shutdown_sync_*.mutant.o \
+	    shutdown_sync_*.mutant.test
 	rm -f cred_prot.o cred_prot2.o cred_proc.o
 	rm -f resource_kernel.o resource_proc.o
 	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
@@ -416,4 +476,5 @@ clean:
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 
-.PHONY: all check check-ilp32 clean
+.PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
+	check-shutdown-order clean

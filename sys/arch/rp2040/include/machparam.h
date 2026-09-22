@@ -178,6 +178,9 @@ void idle(void);
  */
 void mdelay(unsigned msec);
 
+/* Synchronize mounted storage before boot() enters final reset handling. */
+void rp2040_shutdown_sync(int howto);
+
 /*
  * Setup system timer for `hz' timer interrupts per second.
  */

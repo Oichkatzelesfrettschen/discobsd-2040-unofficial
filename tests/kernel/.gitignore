@@ -55,3 +55,8 @@ balloc_shim_pico.o
 ufs_explicit_time_test
 ufs_explicit_time_bad
 ufs_fio_noatime_bad.c
+shutdown_sync_kernel.o
+shutdown_sync_test
+shutdown_sync_*.mutant.c
+shutdown_sync_*.mutant.o
+shutdown_sync_*.mutant.test

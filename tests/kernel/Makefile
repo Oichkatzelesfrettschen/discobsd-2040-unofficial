@@ -249,19 +249,20 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 # The node's extent is a count of mapents, so the gate runs in both
 # descriptor shapes: the sixteen-bit entries PICO configures and the wide
 # entries STM32 uses, as rmap_test does.
-sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} hostkern_kern.c hostkern32.o \
+sysctl_shim.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o $@ hostkern_kern.c
+
+sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_compact.o ${SYSCTL_SRC}
-	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sysctl_shim.o hostkern_kern.c
 	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} ${ILP32} -o $@ sysctl_test.c \
 	    sysctl_kernel_compact.o sysctl_shim.o hostkern32.o
 
-sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} hostkern_kern.c hostkern32.o \
+sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${WIDE_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_wide.o ${SYSCTL_SRC}
-	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sysctl_shim.o hostkern_kern.c
 	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
 	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
 

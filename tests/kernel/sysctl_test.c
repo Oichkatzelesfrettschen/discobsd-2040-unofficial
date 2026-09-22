@@ -1,9 +1,9 @@
 /*
- * Host gate for vm_sysctl() in sys/kern/kern_sysctl.c, the CTL_VM branch of
- * the sysctl(2) tree.
+ * Host gate for the sysctl(2) dispatcher, value helpers and CTL_VM branch
+ * in sys/kern/kern_sysctl.c.
  *
- * The gate links the kernel source itself, so the boundary it measures is
- * the one the board enforces. Two properties decide the CTL_VM_SWAPMAP node,
+ * The gate links the kernel source with host copy and authorization doubles.
+ * Two properties decide the CTL_VM_SWAPMAP node,
  * and both are about extent rather than value. The bytes a caller receives
  * begin at the mapent array, which swapmap[0].m_map addresses, so the struct
  * map descriptor's own words -- m_map, m_limit and m_name, all kernel
@@ -101,6 +101,24 @@ const struct bdevsw bdevsw[1];
 static char outbuf[OUTBUF];
 static char outfill;
 
+/* Fail before copying so each requested extent and error path is observable. */
+static struct copy_state {
+	unsigned calls;
+	unsigned fail_at;
+	u_int extent;
+} copyin_state, copyout_state;
+static int allow_superuser = 1;
+static unsigned superuser_calls;
+
+static void
+reset_calls(void)
+{
+	bzero(&copyin_state, sizeof(copyin_state));
+	bzero(&copyout_state, sizeof(copyout_state));
+	allow_superuser = 1;
+	superuser_calls = 0;
+}
+
 static void
 reset_out(char fill)
 {
@@ -126,6 +144,10 @@ out_untouched(void)
 int
 copyout(const caddr_t from, caddr_t to, u_int nbytes)
 {
+	copyout_state.calls++;
+	copyout_state.extent = nbytes;
+	if (copyout_state.calls == copyout_state.fail_at)
+		return (EFAULT);
 	bcopy(from, to, nbytes);
 	return (0);
 }
@@ -133,6 +155,10 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 int
 copyin(const caddr_t from, caddr_t to, u_int nbytes)
 {
+	copyin_state.calls++;
+	copyin_state.extent = nbytes;
+	if (copyin_state.calls == copyin_state.fail_at)
+		return (EFAULT);
 	bcopy(from, to, nbytes);
 	return (0);
 }
@@ -140,7 +166,10 @@ copyin(const caddr_t from, caddr_t to, u_int nbytes)
 int
 suser(void)
 {
-	return (1);
+	superuser_calls++;
+	if (!allow_superuser)
+		u.u_error = EPERM;
+	return (allow_superuser);
 }
 
 /*
@@ -704,6 +733,130 @@ test_write_survives_short_read_buffer(void)
 	HK_CHECK(len == sizeof(int));
 }
 
+struct structure_value {
+	unsigned first;
+	unsigned second;
+};
+
+static void
+test_structure_replacement(void)
+{
+	struct structure_value replacement = { 71, 83 };
+	struct structure_value value;
+	const size_t input_lengths[] = {
+		0, 1, sizeof(value) - 1, sizeof(value), sizeof(value) + 1
+	};
+	const size_t output_lengths[] = { 0, 1, sizeof(value), OUTBUF };
+	size_t length, input_index, output_index, byte_index;
+	int error;
+
+	/* Full backing storage makes overreads a contract failure, not a fault. */
+	for (input_index = 0; input_index < sizeof(input_lengths) /
+	    sizeof(input_lengths[0]); input_index++) {
+		for (output_index = 0; output_index < sizeof(output_lengths) /
+		    sizeof(output_lengths[0]); output_index++) {
+			reset_calls();
+			reset_out(POISON);
+			value.first = 11;
+			value.second = 23;
+			length = output_lengths[output_index];
+			error = sysctl_struct(outbuf, &length, &replacement,
+			    input_lengths[input_index], &value, sizeof(value));
+			if (input_lengths[input_index] != sizeof(value)) {
+				HK_CHECK(error == EINVAL);
+				HK_CHECK(copyin_state.calls == 0);
+				HK_CHECK(copyout_state.calls == 0);
+				HK_CHECK(value.first == 11 && value.second == 23);
+				HK_CHECK(length == output_lengths[output_index]);
+				HK_CHECK(out_untouched());
+			} else {
+				struct structure_value original = { 11, 23 };
+				size_t copied = MIN(sizeof(value),
+				    output_lengths[output_index]);
+
+				HK_CHECK(error == 0);
+				HK_CHECK(copyin_state.calls == 1);
+				HK_CHECK(copyin_state.extent == sizeof(value));
+				HK_CHECK(copyout_state.calls == 1);
+				HK_CHECK(copyout_state.extent == copied);
+				HK_CHECK(value.first == 71 && value.second == 83);
+				HK_CHECK(length == sizeof(value));
+				for (byte_index = 0; byte_index < copied; byte_index++)
+					HK_CHECK(outbuf[byte_index] ==
+					    ((char *)&original)[byte_index]);
+				for (; byte_index < OUTBUF; byte_index++)
+					HK_CHECK((unsigned char)outbuf[byte_index] == POISON);
+			}
+		}
+	}
+
+	/* A null input is a read or size query, regardless of newlen. */
+	for (input_index = 0; input_index < sizeof(input_lengths) /
+	    sizeof(input_lengths[0]); input_index++) {
+		reset_calls();
+		value = replacement;
+		length = 0;
+		HK_CHECK(sysctl_struct(NULL, &length, NULL,
+		    input_lengths[input_index], &value, sizeof(value)) == 0);
+		HK_CHECK(length == sizeof(value));
+		HK_CHECK(copyin_state.calls == 0 && copyout_state.calls == 0);
+		reset_out(POISON);
+		length = 1;
+		HK_CHECK(sysctl_struct(outbuf, &length, NULL,
+		    input_lengths[input_index], &value, sizeof(value)) == 0);
+		HK_CHECK(length == sizeof(value));
+		HK_CHECK(copyin_state.calls == 0 && copyout_state.calls == 1);
+		HK_CHECK(copyout_state.extent == 1);
+		HK_CHECK(outbuf[0] == ((char *)&replacement)[0]);
+		HK_CHECK((unsigned char)outbuf[1] == POISON);
+		HK_CHECK(value.first == 71 && value.second == 83);
+	}
+
+	reset_calls();
+	value.first = 11;
+	length = 0;
+	HK_CHECK(sysctl_struct(NULL, &length, &replacement,
+	    sizeof(replacement), &value, sizeof(value)) == 0);
+	HK_CHECK(copyin_state.calls == 1 && copyout_state.calls == 0);
+	HK_CHECK(copyin_state.extent == sizeof(value));
+	HK_CHECK(value.first == 71 && value.second == 83);
+	HK_CHECK(length == sizeof(value));
+}
+
+static void
+test_structure_copy_faults(void)
+{
+	struct structure_value replacement = { 71, 83 };
+	struct structure_value value = { 11, 23 };
+	size_t length;
+
+	reset_calls();
+	reset_out(POISON);
+	copyout_state.fail_at = 1;
+	length = sizeof(outbuf);
+	HK_CHECK(sysctl_struct(outbuf, &length, &replacement,
+	    sizeof(replacement), &value, sizeof(value)) == EFAULT);
+	HK_CHECK(copyout_state.calls == 1 && copyin_state.calls == 0);
+	HK_CHECK(copyout_state.extent == sizeof(value));
+	HK_CHECK(value.first == 11 && value.second == 23);
+	HK_CHECK(out_untouched());
+	HK_CHECK(length == sizeof(value));
+
+	reset_calls();
+	copyin_state.fail_at = 1;
+	length = 1;
+	HK_CHECK(sysctl_struct(outbuf, &length, &replacement,
+	    sizeof(replacement), &value, sizeof(value)) == EFAULT);
+	HK_CHECK(copyout_state.calls == 1 && copyin_state.calls == 1);
+	HK_CHECK(copyout_state.extent == 1);
+	HK_CHECK(copyin_state.extent == sizeof(value));
+	HK_CHECK(value.first == 11 && value.second == 23);
+	HK_CHECK(outbuf[0] == ((char *)&value)[0]);
+	HK_CHECK((unsigned char)outbuf[1] == POISON);
+	HK_CHECK(length == sizeof(value));
+	reset_calls();
+}
+
 /*
  * __sysctl() end to end, which is where the length reaches the caller and
  * where truncation becomes ENOMEM. The argument block mirrors the syscall
@@ -789,6 +942,133 @@ test_syscall_enomem(void)
 	HK_CHECK(error == EOPNOTSUPP);
 }
 
+static void
+test_syscall_copy_faults(void)
+{
+	int name[2] = { CTL_KERN, KERN_HOSTID };
+	long replacement = 83;
+	size_t length;
+	unsigned failed_call;
+
+	/* Name and length faults stop dispatch before the node can mutate hostid. */
+	for (failed_call = 1; failed_call <= 2; failed_call++) {
+		reset_calls();
+		reset_out(POISON);
+		copyin_state.fail_at = failed_call;
+		hostid = 23;
+		length = sizeof(outbuf);
+		HK_CHECK(call_syscall(name, 2, outbuf, &length, &replacement,
+		    sizeof(replacement)) == EFAULT);
+		HK_CHECK(copyin_state.calls == failed_call);
+		HK_CHECK(copyin_state.extent ==
+		    (failed_call == 1 ? sizeof(name) : sizeof(length)));
+		HK_CHECK(copyout_state.calls == 0);
+		HK_CHECK(out_untouched());
+		HK_CHECK(length == sizeof(outbuf));
+		HK_CHECK(hostid == 23);
+		HK_CHECK(u.u_rval == 0);
+	}
+
+	/* A failed value copy stops the write; the length still reaches the caller. */
+	reset_calls();
+	copyout_state.fail_at = 1;
+	length = sizeof(outbuf);
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, &replacement,
+	    sizeof(replacement)) == EFAULT);
+	HK_CHECK(copyin_state.calls == 2 && copyout_state.calls == 2);
+	HK_CHECK(copyout_state.extent == sizeof(length));
+	HK_CHECK(hostid == 23);
+	HK_CHECK(out_untouched());
+	HK_CHECK(length == sizeof(hostid));
+
+	/* A new-value fault propagates after delivering the old value. */
+	reset_calls();
+	copyin_state.fail_at = 3;
+	length = sizeof(outbuf);
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, &replacement,
+	    sizeof(replacement)) == EFAULT);
+	HK_CHECK(copyin_state.calls == 3 && copyout_state.calls == 2);
+	HK_CHECK(copyin_state.extent == sizeof(replacement));
+	HK_CHECK(outbuf[0] == ((char *)&hostid)[0]);
+	HK_CHECK((unsigned char)outbuf[sizeof(hostid)] == POISON);
+	HK_CHECK(hostid == 23);
+	HK_CHECK(length == sizeof(hostid));
+
+	/* A length-copy fault follows a successful node, including its write. */
+	reset_calls();
+	copyout_state.fail_at = 2;
+	length = sizeof(outbuf);
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, &replacement,
+	    sizeof(replacement)) == EFAULT);
+	HK_CHECK(copyin_state.calls == 3 && copyout_state.calls == 2);
+	HK_CHECK(copyout_state.extent == sizeof(length));
+	HK_CHECK(hostid == replacement);
+	HK_CHECK(length == sizeof(outbuf));
+	HK_CHECK(u.u_rval == 0);
+
+	/* A node refusal takes precedence over the later length-copy fault. */
+	reset_calls();
+	reset_out(POISON);
+	copyout_state.fail_at = 1;
+	length = sizeof(outbuf);
+	name[1] = KERN_MAXID;
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, NULL, 0) == EOPNOTSUPP);
+	HK_CHECK(copyin_state.calls == 2 && copyout_state.calls == 1);
+	HK_CHECK(copyout_state.extent == sizeof(length));
+	HK_CHECK(out_untouched());
+	HK_CHECK(length == sizeof(outbuf));
+	reset_calls();
+}
+
+static void
+test_syscall_authorization(void)
+{
+	int name[2] = { CTL_KERN, KERN_HOSTID };
+	long replacement = 83;
+	long previous;
+	size_t length;
+
+	reset_calls();
+	reset_out(POISON);
+	allow_superuser = 0;
+	hostid = 23;
+	length = sizeof(outbuf);
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, &replacement,
+	    sizeof(replacement)) == EPERM);
+	HK_CHECK(superuser_calls == 1);
+	HK_CHECK(copyin_state.calls == 0 && copyout_state.calls == 0);
+	HK_CHECK(hostid == 23);
+	HK_CHECK(length == sizeof(outbuf));
+	HK_CHECK(out_untouched());
+	HK_CHECK(u.u_rval == 0);
+
+	/* Read-only calls bypass suser(), even with the denial double armed. */
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, NULL, 0) == 0);
+	HK_CHECK(superuser_calls == 1);
+	HK_CHECK(copyin_state.calls == 2 && copyout_state.calls == 2);
+	HK_CHECK(length == sizeof(hostid));
+	HK_CHECK(u.u_rval == sizeof(hostid));
+	bcopy(outbuf, &previous, sizeof(previous));
+	HK_CHECK(previous == 23);
+	HK_CHECK(hostid == 23);
+
+	reset_calls();
+	reset_out(POISON);
+	length = sizeof(outbuf);
+	HK_CHECK(call_syscall(name, 2, outbuf, &length, &replacement,
+	    sizeof(replacement)) == 0);
+	HK_CHECK(superuser_calls == 1);
+	HK_CHECK(copyin_state.calls == 3 && copyout_state.calls == 2);
+	HK_CHECK(copyin_state.extent == sizeof(replacement));
+	HK_CHECK(hostid == replacement);
+	HK_CHECK(length == sizeof(hostid));
+	HK_CHECK(u.u_rval == sizeof(hostid));
+	bcopy(outbuf, &previous, sizeof(previous));
+	HK_CHECK(previous == 23);
+	HK_CHECK((unsigned char)outbuf[sizeof(hostid)] == POISON);
+	reset_calls();
+}
+
 int
 main(void)
 {
@@ -807,5 +1087,9 @@ main(void)
 	test_nswap();
 	test_loadavg_and_meter();
 	test_name_space();
+	test_structure_replacement();
+	test_structure_copy_faults();
+	test_syscall_copy_faults();
+	test_syscall_authorization();
 	return (hk_verdict("sysctl"));
 }

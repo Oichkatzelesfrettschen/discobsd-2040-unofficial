@@ -433,6 +433,31 @@ never exceeds the buffer can never be seen to overflow it. Removing the
 comparison itself needs no gate run, because savelen is then set and
 unused and the build refuses it.
 
+The writable `sysctl_struct()` helper requires an exact-sized replacement,
+like `sysctl_int()` and `sysctl_long()`. Its cases advertise lengths zero,
+one, size minus one, the exact size and size plus one over fully allocated
+input storage. A wrong size returns EINVAL before either copy and preserves
+the destination and supplied output length. An exact input replaces the
+whole value even when the old-value buffer is short, while the output copy
+stays bounded and reports the required length. A null input remains a read
+or size query regardless of the advertised input length. The copy doubles
+record invocation counts and requested extents. The original greater-than
+comparison rejects only oversized inputs; the expanded tests reject its
+undersized copies through assertions rather than a host memory fault.
+
+Configurable failures exercise helper copyout and copyin, syscall name and
+length copyin, value transfers, final length copyout, and node-error
+precedence. The authorization double can deny a write with EPERM before
+dispatch, copying or mutation; reads and permitted writes have separate
+success cases. The failure doubles stop before copying, so their results
+cover error propagation and ordering rather than partial-copy atomicity.
+The two actual-source binaries, `sysctl_test_compact` and
+`sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and
+`kernel.sysctl-wide.ilp32` in the required `firmware/posix-sh` CI job.
+The source search `rg -n 'sysctl_struct' sys tests/kernel` locates the
+helper definition, declaration and test calls; a production caller must
+be established separately before claiming a reachable syscall defect.
+
 The fourth file is sys/kern/ufs_alloc.c. `struct dinode` is an on-disk
 layout and INOPB is MAXBSIZE divided by its size, so a block holds
 exactly INOPB inodes only where off_t and time_t are four bytes;

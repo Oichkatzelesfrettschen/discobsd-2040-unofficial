@@ -258,7 +258,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
 | `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
-| `check-analysis` | the 2.11BSD patch-scope analyzer accepts a linked Git worktree, maps a known patch commit onto a shared file, and rejects an invalid base revision with Git's diagnostic rather than an empty successful report |
+| `check-analysis` | The 2.11BSD mapper pins donor and recipient commits, retains relocated and absent paths, preserves NUL-delimited filename bytes, inventories merge parents, and distinguishes Git failure from absent entries. Calibration shows child-like defective text and parent-like equivalent text remain textual candidates, with semantic dispositions outside the tool. Dirty files and refs advanced after resolution leave the pinned comparison unchanged. |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
 | `check-kernel` | eight sys/kern sources compiled from the kernel tree and run against 1194 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does |
@@ -474,6 +474,31 @@ helpers that report the length copied rather than the length needed fail
 never exceeds the buffer can never be seen to overflow it. Removing the
 comparison itself needs no gate run, because savelen is then set and
 unused and the build refuses it.
+
+The writable `sysctl_struct()` helper requires an exact-sized replacement,
+like `sysctl_int()` and `sysctl_long()`. Its cases advertise lengths zero,
+one, size minus one, the exact size and size plus one over fully allocated
+input storage. A wrong size returns EINVAL before either copy and preserves
+the destination and supplied output length. An exact input replaces the
+whole value even when the old-value buffer is short, while the output copy
+stays bounded and reports the required length. A null input remains a read
+or size query regardless of the advertised input length. The copy doubles
+record invocation counts and requested extents. The original greater-than
+comparison rejects only oversized inputs; the expanded tests reject its
+undersized copies through assertions rather than a host memory fault.
+
+Configurable failures exercise helper copyout and copyin, syscall name and
+length copyin, value transfers, final length copyout, and node-error
+precedence. The authorization double can deny a write with EPERM before
+dispatch, copying or mutation; reads and permitted writes have separate
+success cases. The failure doubles stop before copying, so their results
+cover error propagation and ordering rather than partial-copy atomicity.
+The two actual-source binaries, `sysctl_test_compact` and
+`sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and
+`kernel.sysctl-wide.ilp32` in the required `firmware/posix-sh` CI job.
+The source search `rg -n 'sysctl_struct' sys tests/kernel` locates the
+helper definition, declaration and test calls; a production caller must
+be established separately before claiming a reachable syscall defect.
 
 The fourth file is sys/kern/ufs_alloc.c. `struct dinode` is an on-disk
 layout and INOPB is MAXBSIZE divided by its size, so a block holds

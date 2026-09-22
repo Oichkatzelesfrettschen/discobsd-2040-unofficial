@@ -574,7 +574,7 @@ sysctl_struct(void *oldp, size_t *oldlenp, void *newp, size_t newlen,
 {
 	int error = 0;
 
-	if (newp && newlen > (size_t)len)
+	if (newp && newlen != (size_t)len)
 		return (EINVAL);
 	if (oldp)
 		error = copyout(sp, oldp, MIN((size_t)len, *oldlenp));

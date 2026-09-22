@@ -147,8 +147,8 @@ check-aout:
 check-fs-stress:
 		${MAKE} -C tests/fs_stress check
 
-# Machine-independent kernel sources compiled from sys/kern and linked
-# against a host harness, so the gate measures the code the board runs.
+# Kernel sources compiled from the tree and linked against a host harness,
+# so the gate measures the code the board runs.
 check-kernel:
 		${MAKE} -C tests/kernel check
 
@@ -654,6 +654,23 @@ check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES
 check-kernel-ilp32:
 		${MAKE} -C tests/kernel check-ilp32
 
+check-rp2040-shutdown:
+		${MAKE} -C tests/kernel check-shutdown
+
+check-rp2040-shutdown-cross:	check-python kernel
+		${MAKE} -C tests/kernel check-shutdown-order
+		${PYTHON} tools/verify_rp2040_shutdown_order.py --selftest
+		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			tool_prefix=$$(${MAKE} -C sys/arch/rp2040/compile/$$configuration \
+			    -V ARM_GCC_PREFIX); \
+			${PYTHON} tools/verify_rp2040_shutdown_order.py \
+			    --objdump "$${tool_prefix}-objdump" \
+			    --machdep-object \
+			    sys/arch/rp2040/compile/$$configuration/machdep.o \
+			    --helper-object \
+			    sys/arch/rp2040/compile/$$configuration/shutdown_sync.o; \
+		done
+
 # The designated multilib job requires receipts from every executable variant.
 # The Python boundary runs a separate make with a private receipt directory.
 check-ilp32-execution: check-python
@@ -686,7 +703,8 @@ check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
 check-cross-kernel:	check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
-		check-ufs-prototypes .WAIT check-hsaout .WAIT check-flash-swap
+		check-ufs-prototypes .WAIT check-hsaout .WAIT check-flash-swap .WAIT \
+		check-rp2040-shutdown-cross
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
@@ -798,6 +816,7 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-elf2aout check-kernel check-kernel-ilp32 \
+		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		regen-kernel-metadata check-fs-stress \
 		check-libc-environment check-libc-sysctl check-umount-contracts \

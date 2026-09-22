@@ -702,35 +702,8 @@ void
 boot(dev_t dev __unused, int howto)
 {
 	if ((howto & RB_NOSYNC) == 0 && waittime < 0 &&
-	    bfreelist[0].av_forw) {
-		struct fs *fp;
-		struct buf *bp;
-		int iter, nbusy;
-
-		/*
-		 * Force the root filesystem's superblock to be updated,
-		 * so the date will be as current as possible after
-		 * rebooting.
-		 */
-		fp = getfs(rootdev);
-		if (fp)
-			fp->fs_fmod = 1;
-		waittime = 0;
-		printf("syncing disks... ");
-		(void)splnet();
-		sync();
-		for (iter = 0; iter < 20; iter++) {
-			nbusy = 0;
-			for (bp = &buf[NBUF]; --bp >= buf;)
-				if (bp->b_flags & B_BUSY)
-					nbusy++;
-			if (nbusy == 0)
-				break;
-			printf("%d ", nbusy);
-			mdelay(40L * iter);
-		}
-		printf("done\n");
-	}
+	    bfreelist[0].av_forw != NULL)
+		rp2040_shutdown_sync(howto);
 	(void)splhigh();
 	if (howto & RB_BOOTLOADER) {
 		/*

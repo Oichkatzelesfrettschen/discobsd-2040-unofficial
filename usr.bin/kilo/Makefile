@@ -27,10 +27,14 @@ HOST_CFLAGS=	-Wall -Wextra -Werror -O0 -g -DTERMIOS
 kilo.host:	kilo.c
 		${HOST_CC} ${WARNERR} ${HOST_CFLAGS} -o $@ kilo.c
 
-PYTHON?=	python3
-
 test:		kilo.host
-		${PYTHON} test-pty.py ./kilo.host
+		@if [ -z "${PYTHON}" ]; then \
+		    echo "PYTHON must name the interpreter for this target" >&2; \
+		    exit 1; \
+		fi
+		# The delayed exec rejects fixed-sleep readiness under host load.
+		env KILO_TEST_EXEC_DELAY=1 \
+		    "${PYTHON}" test-pty.py ./kilo.host
 
 clean:
 		rm -f *.o *.elf ${PROG} kilo.host *.dis tags *~

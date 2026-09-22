@@ -12,12 +12,14 @@ between the host and target builds -- so a passing run is real evidence
 that multi-byte escape sequences decode correctly, not just that ESC by
 itself does. Usage: test-pty.py PATH_TO_KILO_HOST
 
-Run with ${PYTHON:-python3} after `bmake kilo.host` in this directory.
+Set PYTHON to the intended interpreter and run `bmake test` in this directory.
 """
 import fcntl
 import os
 import pty
 import re
+import select
+import signal
 import struct
 import sys
 import tempfile
@@ -33,6 +35,8 @@ CTRL_F = "\x06"
 ESC = "\x1b"
 ARROW_DOWN = "\x1b[B"
 PAGE_UP = "\x1b[5~"
+STARTUP_MARKER = b"HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find"
+STARTUP_TIMEOUT = 5.0
 
 # kilo.c's editorSyntaxToColor emits a plain "\x1b[NNm" -- no bold prefix,
 # no 256-color form. KEYWORD1 (int, return, ...) is yellow 33, MLCOMMENT
@@ -47,7 +51,6 @@ def set_winsize(fd, rows=24, cols=80):
 
 
 def read_available(fd, timeout=0.3):
-    import select
     out = b""
     end = time.time() + timeout
     while time.time() < end:
@@ -62,6 +65,97 @@ def read_available(fd, timeout=0.3):
             out += chunk
             end = time.time() + 0.1
     return out
+
+
+def wait_for_startup(fd):
+    output = b""
+    deadline = time.monotonic() + STARTUP_TIMEOUT
+    while STARTUP_MARKER not in output:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        readable, _, _ = select.select([fd], [], [], min(remaining, 0.05))
+        if fd not in readable:
+            continue
+        try:
+            chunk = os.read(fd, 65536)
+        except OSError:
+            break
+        if not chunk:
+            break
+        output += chunk
+    return output
+
+
+def kill_and_reap(pid):
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    while True:
+        try:
+            os.waitpid(pid, 0)
+            return
+        except InterruptedError:
+            continue
+
+
+def raw_mode_violations(fd):
+    attributes = termios.tcgetattr(fd)
+    disabled_flags = (
+        ("BRKINT", attributes[0], termios.BRKINT),
+        ("ICRNL", attributes[0], termios.ICRNL),
+        ("INPCK", attributes[0], termios.INPCK),
+        ("ISTRIP", attributes[0], termios.ISTRIP),
+        ("IXON", attributes[0], termios.IXON),
+        ("OPOST", attributes[1], termios.OPOST),
+        ("ECHO", attributes[3], termios.ECHO),
+        ("ICANON", attributes[3], termios.ICANON),
+        ("IEXTEN", attributes[3], termios.IEXTEN),
+        ("ISIG", attributes[3], termios.ISIG),
+    )
+    return [name for name, value, mask in disabled_flags if value & mask]
+
+
+def spawn_editor(path):
+    startup_delay = float(os.environ.get("KILO_TEST_EXEC_DELAY", "0"))
+    if startup_delay < 0:
+        raise ValueError("KILO_TEST_EXEC_DELAY must be nonnegative")
+
+    pid, master = pty.fork()
+    if pid == 0:
+        try:
+            # initEditor reads the slave dimensions before raw mode. Setting
+            # them after fork in the parent races the child's TIOCGWINSZ.
+            set_winsize(sys.stdin.fileno())
+            time.sleep(startup_delay)
+            os.execv(KILO, [KILO, path])
+        finally:
+            os._exit(127)
+
+    try:
+        opening = wait_for_startup(master)
+        violations = (raw_mode_violations(master)
+                      if STARTUP_MARKER in opening else [])
+    except BaseException:
+        kill_and_reap(pid)
+        os.close(master)
+        raise
+    if STARTUP_MARKER not in opening:
+        kill_and_reap(pid)
+        os.close(master)
+        print("FAIL: kilo did not paint its ready status within %.1f seconds"
+              % STARTUP_TIMEOUT)
+        sys.exit(1)
+    if violations:
+        kill_and_reap(pid)
+        os.close(master)
+        print("FAIL: kilo painted its ready status with terminal flags active: "
+              + ", ".join(violations))
+        sys.exit(1)
+    # main paints the marker after enableRawMode, and tcgetattr verifies the
+    # raw flags. Subsequent input is past the TCSAFLUSH transition.
+    return pid, master, opening
 
 
 def send(fd, s):
@@ -87,14 +181,7 @@ def test_syntax_highlighting():
 
     try:
         for path in (c_path, txt_path):
-            pid, master = pty.fork()
-            if pid == 0:
-                os.execv(KILO, [KILO, path])
-                os._exit(127)
-
-            set_winsize(master)
-            time.sleep(0.2)
-            screen = read_available(master)
+            pid, master, screen = spawn_editor(path)
             send(master, CTRL_Q)
             read_available(master)
             os.waitpid(pid, 0)
@@ -126,14 +213,7 @@ def main():
     if os.path.exists(WORKFILE):
         os.unlink(WORKFILE)
 
-    pid, master = pty.fork()
-    if pid == 0:
-        os.execv(KILO, [KILO, WORKFILE])
-        os._exit(127)
-
-    set_winsize(master)
-    time.sleep(0.2)
-    read_available(master)  # drain the initial screen paint
+    pid, master, _ = spawn_editor(WORKFILE)
 
     # Four lines, no trailing Enter after the last one: numrows == 4 and
     # the cursor sits at the end of row 3 ("delta"), column 5.

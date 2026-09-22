@@ -1,0 +1,700 @@
+{
+  "schema_version": 1,
+  "scope": "Selected semantic changes from the revised review; neither whole-patch nor numbered-series completeness.",
+  "complete_numbered_series": false,
+  "donor": {
+    "repository": "https://github.com/Oichkatzelesfrettschen/211bsd",
+    "commit": "0a38e59d742ff4371b78ea65c5bcc50477b31708",
+    "ledger_path": "PATCHES.md",
+    "ledger_sha256": "2fb98757700f8f6e14d0afa3ae616569c4edf69896291710c5666873973823e8",
+    "raw_hash_authority": "donor-ledger attestation; raw patch texts have not been independently hashed here"
+  },
+  "recipient_commit": "cc67531a2830fbd99b2c3da6097b8bcd51da1eb9",
+  "execution_evidence": "docs/research/211bsd-execution-evidence.json",
+  "patches": {
+    "433": {
+      "commit": "ef270efc76402301039aaae80918cd1cc563f880",
+      "parent": "267082b284eeccafcfe718b46798e43526040174",
+      "raw_patch_sha256": "ec935e39e74fcf2450aa79dd7720ee0a2130a5d8fd271826c48a32b75ac7a89b"
+    },
+    "446": {
+      "commit": "400a5ae5070067be84241e73bf1cdbd2e57c15fc",
+      "parent": "5d27421849fd1977240afa1ae96882c40b297cba",
+      "raw_patch_sha256": "3deb380577fcad1eee6c80f636ea95c800d07d5cce876692607148417393e118"
+    },
+    "456": {
+      "commit": "e4dc5d675c47c495dddeba88811d538413988e65",
+      "parent": "2645afd7db771acf07b0ba7c23a49e4efbd5e9a7",
+      "raw_patch_sha256": "22d1ce524f22622fa30263f10a42da27a9d16754ae706ecbe69e4f699270f267"
+    },
+    "458": {
+      "commit": "43746accf853c12b2ecd3489347a2bf64ec52440",
+      "parent": "830017bd1a02fc41c887a99bb1e00a3b54de0c06",
+      "raw_patch_sha256": "d457a9cac3d1600683aa42756d1f8502cd0d646d4763003bee7ba660b22f59cb"
+    },
+    "461": {
+      "commit": "47b8ef26238401d682ce0f2c4e9b9b4f95a66b1b",
+      "parent": "81df012bfe22aab0761b7db0b27d2df4c888f1a1",
+      "raw_patch_sha256": "d107b74b788ed4065ac3884e0fdd59b93baa05a294f22a727604394717252e66"
+    },
+    "463": {
+      "commit": "de64824cc9a7a2f77893b3162aa4b7a921fbb8d5",
+      "parent": "0b3a842874a33edcb12b55095576e534cb1ad112",
+      "raw_patch_sha256": "9728c21f88efdfde9709d2a3324471276baaa0a97e85a62a6b0503b0ce7fd435"
+    },
+    "464": {
+      "commit": "2362449a81e33df83a46822369009391f95b70ff",
+      "parent": "de64824cc9a7a2f77893b3162aa4b7a921fbb8d5",
+      "raw_patch_sha256": "6951eb889a6305e30edbe795d0dfe2a666cf8f6076e0422a23dc3f19d7e36db5"
+    },
+    "475": {
+      "commit": "58f84835314f981a81edc8830e2608a0043dd772",
+      "parent": "8464550b207afdd77035b8a851202ae7b454520a",
+      "raw_patch_sha256": "95f75254cc025f9900b053229d55d36d7b894f2140fd8b157777074dde550ee4"
+    },
+    "499": {
+      "commit": "ab5dc1df2f4a94439d11f212ca6d6725f72586ed",
+      "parent": "4200bce9389c37123a68f2f969bbf67adb6ac7c8",
+      "raw_patch_sha256": "139439fdea8615e3b543011fdb9b71291f96b25e8ea8b3713b14e6103ded6189"
+    }
+  },
+  "declared_ids": [
+    "inode-rescan-distinct-cache",
+    "tar-sized-hardlink-path",
+    "tar-path-allocation-cleanup",
+    "umount-operand-exit-status",
+    "sysctl-swapmap-entry-export",
+    "sysctl-swap-block-count",
+    "sysctl-bounded-old-value",
+    "sysctl-dispatch-length-error-order",
+    "sysctl-exact-structure-input",
+    "stdio-string-one-byte-pushback",
+    "stdio-update-stream-mode",
+    "ufs-clean-state-transition",
+    "ufs-superblock-clock-order",
+    "shutdown-pre-reset-flush",
+    "shutdown-busy-drain-report"
+  ],
+  "fixes": [
+    {
+      "id": "inode-rescan-distinct-cache",
+      "patches": [
+        "433"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/ufs_alloc.c",
+          "symbol": "ialloc"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/ufs_alloc.c",
+          "symbol": "ialloc"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "Discard first-pass cache entries before a full overlapping rescan so each inode number appears once.",
+      "evidence": "fs_ninode = 0 precedes goto fromtop. ialloc tests exercise overlapping and near-full scans, exhaustion and subsequent allocation.",
+      "variants": [
+        "kernel.inode.ilp32",
+        "kernel.inode-pico.ilp32",
+        "kernel.inode-diagnostic.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing scalar count reset; retain fixed inode-cache capacity. Inventory introduces zero runtime growth.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain rescan tests; audit other patch-433 changes independently.",
+      "regression_sources": [
+        "tests/kernel/ialloc_test.c"
+      ]
+    },
+    {
+      "id": "tar-sized-hardlink-path",
+      "patches": [
+        "446"
+      ],
+      "original": [
+        {
+          "path": "bin/tar.c",
+          "symbol": "putfile"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "bin/tar/tar.c",
+          "symbol": "putfile"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "Allocate hard-link path storage at actual pathname length and publish a record only after the path exists.",
+      "evidence": "char *pathname and strlen(longname)+1 allocation are present. check-tar-host executed 64 identities, archive size, shared inode extraction and missing-link path assertions; fault injection is a separate row.",
+      "variants": [],
+      "validation": "open",
+      "dependencies": [],
+      "footprint": "Per identity: existing linkbuf plus pathname length and allocator overhead. Keep measured prototype/history costs separate; inventory adds zero runtime bytes.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain check-tar-host in firmware/rp2040 and firmware/macos; add a dedicated allocation-extent receipt if stronger footprint enforcement is claimed.",
+      "regression_sources": [
+        "bin/tar/tests/tartest.sh"
+      ]
+    },
+    {
+      "id": "tar-path-allocation-cleanup",
+      "patches": [
+        "446"
+      ],
+      "original": [
+        {
+          "path": "bin/tar.c",
+          "symbol": "putfile"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "bin/tar/tar.c",
+          "symbol": "putfile"
+        }
+      ],
+      "relation": "local refinement beyond published donor hunk",
+      "disposition": "present",
+      "invariant": "Release a newly allocated hard-link node when pathname allocation fails.",
+      "evidence": "Recipient free(lp) precedes list publication on path-allocation refusal. Donor hunk omits cleanup. Existing tar round trips do not inject that failure.",
+      "variants": [],
+      "validation": "open",
+      "dependencies": [],
+      "footprint": "Cleanup releases one unlinked node; existing behavior must survive any transplant. Fault-path allocation accounting remains unmeasured.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Add deterministic node-success/path-failure injection over actual putfile; assert node release and list integrity, with an explicit host CI receipt.",
+      "regression_sources": []
+    },
+    {
+      "id": "umount-operand-exit-status",
+      "patches": [
+        "446"
+      ],
+      "original": [
+        {
+          "path": "sbin/umount/umount.c",
+          "symbol": "main"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sbin/umount/umount.c",
+          "symbol": "main"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "Initialize errs and return failure when any explicit unmount operand fails.",
+      "evidence": "errs starts at zero; umountfs nonzero sets errs. The required ILP32 contract executes successful, failed and mixed operands.",
+      "variants": [
+        "umount.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing scalar status, without new allocation or ABI fields; inventory adds zero runtime growth.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain required ILP32 execution; keep tar and PDP-11 hunks separate.",
+      "regression_sources": [
+        "tests/umount_contracts/umount_contract_test.c"
+      ]
+    },
+    {
+      "id": "sysctl-swapmap-entry-export",
+      "patches": [
+        "463",
+        "464"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/kern_sysctl.c",
+          "symbol": "vm_sysctl"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/kern_sysctl.c",
+          "symbol": "vm_sysctl"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "Export swapmap entries from m_map, bounded by the entry extent, rather than descriptor pointers.",
+      "evidence": "Patch 463's attempted pointer is corrected by 464. Recipient uses swapmap[0].m_map; poisoned guards and descriptor-word checks execute for compact and wide entries.",
+      "variants": [
+        "kernel.sysctl-compact.ilp32",
+        "kernel.sysctl-wide.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing bounded copy and map storage; compact/wide layouts are exercised separately.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Preserve entry-pointer tests; retired VM_COREMAP and unrelated patch hunks need distinct decisions.",
+      "regression_sources": [
+        "tests/kernel/sysctl_test.c"
+      ]
+    },
+    {
+      "id": "sysctl-swap-block-count",
+      "patches": [
+        "463"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/kern_sysctl.c",
+          "symbol": "vm_sysctl"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/kern_sysctl.c",
+          "symbol": "vm_sysctl"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "VM_NSWAP exports the swap device size in DEV_BSIZE blocks as a read-only integer.",
+      "evidence": "test_nswap verifies value 768, integer output length and write refusal.",
+      "variants": [
+        "kernel.sysctl-compact.ilp32",
+        "kernel.sysctl-wide.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing scalar export with recipient node numbering; a future width or unit change requires ABI review.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain VM_NSWAP value/unit/read-only contracts.",
+      "regression_sources": [
+        "tests/kernel/sysctl_test.c"
+      ]
+    },
+    {
+      "id": "sysctl-bounded-old-value",
+      "patches": [
+        "475"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/kern_sysctl.c",
+          "symbol": "sysctl_struct"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/kern_sysctl.c",
+          "symbol": "sysctl_struct"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "Copy only offered output capacity, report full required length, and allow valid input replacement with short output.",
+      "evidence": "Helper size-query, short-copy and exact-copy tests cover scalar, string and structure forms. Exact structure replacement also executes with zero/short output.",
+      "variants": [
+        "kernel.sysctl-compact.ilp32",
+        "kernel.sysctl-wide.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing helper ABI and bounded copies; no stream, process or inode table growth.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain helper and dispatcher tests independently.",
+      "regression_sources": [
+        "tests/kernel/sysctl_test.c"
+      ]
+    },
+    {
+      "id": "sysctl-dispatch-length-error-order",
+      "patches": [
+        "475"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/kern_sysctl.c",
+          "symbol": "__sysctl"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/kern_sysctl.c",
+          "symbol": "__sysctl"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "present",
+      "invariant": "Return required length after dispatch, preserve node-error precedence and diagnose truncation only after successful dispatch.",
+      "evidence": "Actual __sysctl tests exercise ENOMEM, length-copy faults, existing node errors and denied writes. Failure doubles stop before copying.",
+      "variants": [
+        "kernel.sysctl-compact.ilp32",
+        "kernel.sysctl-wide.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing scalar lengths and error values; partial-copy atomicity remains outside the tested contract.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain configurable copy faults and authorization cases; avoid extrapolation to every production node.",
+      "regression_sources": [
+        "tests/kernel/sysctl_test.c"
+      ]
+    },
+    {
+      "id": "sysctl-exact-structure-input",
+      "patches": [
+        "475"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/kern_sysctl.c",
+          "symbol": "sysctl_struct"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/kern_sysctl.c",
+          "symbol": "sysctl_struct"
+        }
+      ],
+      "relation": "local contract correction; patch 475 retains the defective comparison",
+      "disposition": "present",
+      "invariant": "Require exact-sized structure replacement before copying, so copyin never exceeds advertised input length.",
+      "evidence": "Local correction at recipient commit changes > to !=. Size 0/1/size-1/size/size+1 and copy extent assertions reject the original helper in 66 cases per variant. Search establishes definition/declaration/tests, with production callers unestablished.",
+      "variants": [
+        "kernel.sysctl-compact.ilp32",
+        "kernel.sysctl-wide.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Cortex-M0+ function 92 bytes before/after; object text/data/bss 3028/0/20, kernel 101926/248/39816 unchanged against a598f183.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Require exact-head integration evidence; establish production reachability before claiming an exploitable syscall defect.",
+      "regression_sources": [
+        "tests/kernel/sysctl_test.c"
+      ]
+    },
+    {
+      "id": "stdio-string-one-byte-pushback",
+      "patches": [
+        "499"
+      ],
+      "original": [
+        {
+          "path": "lib/libc/stdio/ungetc.c",
+          "symbol": "ungetc"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "lib/libc/stdio/ungetc.c",
+          "symbol": "ungetc"
+        },
+        {
+          "path": "include/stdio.h",
+          "symbol": "_ub"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "equivalent",
+      "invariant": "A differing single pushed-back byte on a string stream uses FILE-owned storage without overwriting the caller's string.",
+      "evidence": "Recipient _ub[1] and _IOUNGET implement the selected guarantee. scanf_contract_test uses a literal, a differing byte and a rejected second differing pushback.",
+      "variants": [
+        "libc.scanf.native",
+        "libc.scanf.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Existing per-FILE byte and alignment cost multiplies over stream tables. Preserve the smaller FILE design; a new replacement needs full statically linked image measurements.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Retain selected pushback coverage; unlimited pushback and wholesale stream-core replacement remain separate choices.",
+      "regression_sources": [
+        "tests/libc_contracts/scanf_contract_test.c"
+      ]
+    },
+    {
+      "id": "stdio-update-stream-mode",
+      "patches": [
+        "499"
+      ],
+      "original": [
+        {
+          "path": "lib/libc/stdio/wsetup.c",
+          "symbol": "__swsetup"
+        },
+        {
+          "path": "lib/libc/stdio/refill.c",
+          "symbol": "__srefill"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "lib/libc/stdio/flsbuf.c",
+          "symbol": "_flsbuf"
+        },
+        {
+          "path": "lib/libc/stdio/filbuf.c",
+          "symbol": "_filbuf"
+        },
+        {
+          "path": "lib/libc/stdio/ungetc.c",
+          "symbol": "ungetc"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "equivalent",
+      "invariant": "An update stream transitions between read and write paths while preserving flushing, EOF and pushback behavior exercised by the contracts.",
+      "evidence": "rwmode tests execute native and ILP32 paths. ANSI tests additionally execute over the tree stream table at ILP32.",
+      "variants": [
+        "libc.rwmode.native",
+        "libc.rwmode.ilp32",
+        "libc.ansi.native",
+        "libc.ansi.ilp32"
+      ],
+      "validation": "executed",
+      "dependencies": [],
+      "footprint": "Keep the existing FILE ABI; historical Torek prototype growth is baseline-specific, not a universal lower bound.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "retain implementation",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Reopen replacement only for a concrete unmet guarantee or a materially different measured prototype.",
+      "regression_sources": [
+        "tests/libc_contracts/rwmode_contract_test.c",
+        "tests/libc_contracts/ansi_contract_test.c"
+      ]
+    },
+    {
+      "id": "ufs-clean-state-transition",
+      "patches": [
+        "456"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/ufs_mount.c",
+          "symbol": "mountfs"
+        },
+        {
+          "path": "sys/sys/ufs_subr.c",
+          "symbol": "fsclean"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/ufs_mount.c",
+          "symbol": "mountfs"
+        },
+        {
+          "path": "sys/kern/ufs_subr.c",
+          "symbol": "sync"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "unresolved",
+      "invariant": "Clean-on-disk state must agree across writable mount, unmount, shutdown and fsck before a check is skipped.",
+      "evidence": "Recipient mount interfaces and fsck require joint review; absence of donor flag spellings does not decide semantic safety.",
+      "variants": [],
+      "validation": "open",
+      "dependencies": [],
+      "footprint": "Potential disk-format and mount-flag consequences; reserve changes until architecture and recovery semantics are settled.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "investigate named invariant",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Trace recipient fsck and mount transitions; specify format-compatible failure tests before proposing implementation.",
+      "regression_sources": []
+    },
+    {
+      "id": "ufs-superblock-clock-order",
+      "patches": [
+        "458"
+      ],
+      "original": [
+        {
+          "path": "sys/sys/ufs_subr.c",
+          "symbol": "sync"
+        },
+        {
+          "path": "sys/sys/ufs_syscalls2.c",
+          "symbol": "ufs_sync"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/kern/ufs_subr.c",
+          "symbol": "sync"
+        },
+        {
+          "path": "sys/kern/ufs_syscalls2.c",
+          "symbol": "ufs_sync"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "unresolved",
+      "invariant": "Superblock timestamps must follow the intended clock-initialization and synchronization ordering.",
+      "evidence": "Recipient ufs_sync assigns fs_time=time.tv_sec; early-boot caller and clock initialization ordering remain unproved.",
+      "variants": [],
+      "validation": "open",
+      "dependencies": [],
+      "footprint": "Any correction should avoid extra inode/superblock fields and disk-format changes; measure target text and write effects separately.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "investigate named invariant",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Trace every ufs_sync caller against clock initialization; simulate early-boot and ordinary shutdown timestamps.",
+      "regression_sources": []
+    },
+    {
+      "id": "shutdown-pre-reset-flush",
+      "patches": [
+        "461"
+      ],
+      "original": [
+        {
+          "path": "sys/pdp/machdep2.c",
+          "symbol": "boot"
+        },
+        {
+          "path": "sys/sys/ufs_subr.c",
+          "symbol": "fsclean"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/arch/rp2040/rp2040/machdep.c",
+          "symbol": "boot"
+        },
+        {
+          "path": "sys/kern/ufs_subr.c",
+          "symbol": "sync"
+        },
+        {
+          "path": "sys/arch/rp2040/dev/flash.c",
+          "symbol": "flstrategy"
+        }
+      ],
+      "relation": "donor invariant",
+      "disposition": "unresolved",
+      "invariant": "Dirty filesystem work must reach the intended persistence boundary before reset claims success.",
+      "evidence": "RP2040 calls sync before busy polling. flstrategy calls fl_sync before biodone on successful writes; failures complete with B_ERROR. sync discards ufs_sync errors and skips locked state. Buffer idle alone is insufficient.",
+      "variants": [],
+      "validation": "open",
+      "dependencies": [],
+      "footprint": "Preserve RP2040 IRQ/reset ordering and flat 144 KB process window. Extra persistent fields or filesystem-format changes require separate design.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "investigate named invariant",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Exercise delayed completion, errors, timeout and RB_NOSYNC; document submitted/completed/durable boundaries. Physical persistence requires authorized board execution.",
+      "regression_sources": []
+    },
+    {
+      "id": "shutdown-busy-drain-report",
+      "patches": [
+        "461"
+      ],
+      "original": [
+        {
+          "path": "sys/pdp/machdep2.c",
+          "symbol": "boot"
+        }
+      ],
+      "recipient": [
+        {
+          "path": "sys/arch/rp2040/rp2040/machdep.c",
+          "symbol": "boot"
+        }
+      ],
+      "relation": "local reporting defect; donor patch 461 also retains unconditional done",
+      "disposition": "missing",
+      "invariant": "An exhausted busy-buffer wait must not report successful drain; completed write errors require a separate warning.",
+      "evidence": "Recipient prints done unconditionally after twenty samples, and final-delay completion lacks a recount. Mount m_write_error persists independently of B_BUSY.",
+      "variants": [],
+      "validation": "open",
+      "dependencies": [],
+      "footprint": "A reporting correction should add no per-buffer or per-mount storage; measure text, stack and linked kernel deltas.",
+      "abi": "Inventory changes neither recipient interfaces nor layouts.",
+      "licensing": "Preserve existing source notices; imported code requires its applicable donor notices.",
+      "recipient_decisions": {
+        "rp2040": "investigate named invariant",
+        "upstream_discobsd": "uncompared; common-source submission candidate only after direct comparison",
+        "native_211bsd": "separate native recipient review; donor reconstruction is provenance"
+      },
+      "next_action": "Add deterministic actual-source shutdown tests and report timeout/count plus recorded mount write errors; preserve reset policy.",
+      "regression_sources": []
+    }
+  ]
+}

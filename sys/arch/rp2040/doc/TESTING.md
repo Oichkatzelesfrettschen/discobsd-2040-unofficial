@@ -254,6 +254,8 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-agent-instructions` | The repository has regular canonical and wrapper files; the wrapper is exactly `@AGENTS.md` plus a newline and the canonical policy has literal references instead of active imports. Calibration exercises malformed, missing, cyclic, escaping and private-home imports, modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file graph, not actual client instruction loading. |
+| `check-config-generated-sync` | A generator built from the tested host sources regenerates PICO and PICO_UART Makefiles byte for byte in private trees. The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
+| `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
 | `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
 | `check-analysis` | the 2.11BSD patch-scope analyzer accepts a linked Git worktree, maps a known patch commit onto a shared file, and rejects an invalid base revision with Git's diagnostic rather than an empty successful report |
@@ -353,6 +355,61 @@ and [Codex instruction discovery](https://learn.chatgpt.com/docs/agent-configura
 The repository gate establishes neither live loading nor a general per-file
 instruction-capacity allowance. Personal deployment, telemetry preferences
 and updater settings remain separate from repository correctness.
+
+### Production configuration generation and include ordering
+
+`check-config-generated-sync` builds `tools/config` from the tested source
+revision in a private temporary root. The copied closure includes its parser,
+lexer, C sources and build fragments, the RP2040 template and file/device
+lists, each production `Config`, and a board-specific `files.PICO` or
+`files.PICO_UART` when present. The private tree preserves the generator's
+`../../conf` topology and production board identities. Each invocation owns
+its generator objects, architecture stamp and generated outputs. The generator
+build is serial because `lang.l` consumes the parser's `y.tab.h`; independent
+gate invocations build in separate directories and may run concurrently.
+The root recipes export the caller's `HOST_CC`, including command-line values
+containing arguments, across the detached build boundary. Calibration requires
+a deliberately failing host compiler to reject generation.
+
+The comparison reads the tracked production Makefiles and compares their
+bytes with private regeneration, including comments, ordering barriers,
+options, source lists and flags. A differing output names the board and
+prints a unified diff. A missing Config, source input, tracked Makefile,
+generated Makefile, failed generator, generator stderr or warning diagnostic
+rejects the gate. The unknown-template-directive control rejects a generator
+that prints an error but exits zero without changing its output.
+The checker leaves the compared inputs in place. Its calibration measures
+identical input bytes and the same input-file set before and after checking.
+
+The mutation suite changes the template, a production option, a global file
+list, a board-specific file list and a tracked output independently. Missing
+inputs, a failed generator and a successful empty generator also reject.
+The synchronized pair, a synchronized template/output edit and an unrelated
+source edit pass. Two concurrent checks require private generator builds.
+The fixtures start without a kernel or `include/machine`.
+
+`check-config-makefile` retains its separate role: `mkmakefile_test.sh` uses
+the real generator with a synthetic board and generic swap configuration to
+check physical CFILES line width. Production synchronization preserves each
+board's actual Config instead of adapting that fixture.
+
+`check-config-include-order` extracts the actual `SYSTEM_DEP` assignment and
+include-link recipes from the template and both production Makefiles. The
+generated `unix` prerequisite rule drives a small host compilation through
+those same dependency groups. A controller holds configuration completion,
+then include creation, and checks that the dependent group stays blocked.
+Removing the first barrier must start include creation before configuration
+completes; removing the second must start compilation before the include
+group completes. The negative-control controller releases the prerequisite
+only after the specific premature-execution event arrives. An event deadline
+fails the fixture as infrastructure failure, independently of the predicted
+ordering defect. The intact graph completes real host compilation.
+
+The delayed fixtures establish the dependency mechanism. They do not
+establish the exact scheduling history of the original macOS incident.
+A failure on a revision containing both barriers requires investigation of
+that revision's dependency paths. These host gates leave ARM execution,
+emulator behavior and board observations to their separate tests.
 
 ### The kernel's printf, and why it needs a narrower host
 

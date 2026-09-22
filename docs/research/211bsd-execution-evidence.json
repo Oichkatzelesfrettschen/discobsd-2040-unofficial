@@ -1,0 +1,191 @@
+{
+  "revision": "261f1233bc1b1b20d9f44585f6f45fc830473adb",
+  "inventory_sha256": "b04443aa007da26db47e7e745cb0a34b09b9b2f0a44f7253bc2062e778bac430",
+  "tracked_files_modified": false,
+  "variants": [
+    {
+      "variant": "libc.scanf.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "invocation": [
+        "./scanf_contract_test"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "b153da69e2a65a044b913295c8017326c7cede5fe96cc9c235695a63a02071a1"
+    },
+    {
+      "variant": "libc.rwmode.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "invocation": [
+        "./rwmode_contract_test"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "e3798b66ead1864dd8674d17474f305c2f8821d9dd90f68d4abe81a0b5eb2b1a"
+    },
+    {
+      "variant": "libc.ansi.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "invocation": [
+        "./ansi_contract_test"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "455eb7d63de7aaa4a63eb135b4ec5c34e77de52c65f627a80ecc3c2f0af28201"
+    },
+    {
+      "variant": "libc.scanf.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./scanf_contract_test32"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "24c1c37e681d9f4cb2fc2c30fe31e4526a33566c806018c0df1e41a64a0439c5"
+    },
+    {
+      "variant": "libc.rwmode.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./rwmode_contract_test32"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "3adb0d6dfecf3e659d503acc63ba0e8ee31197465ebf098290dd3eac49b63daa"
+    },
+    {
+      "variant": "libc.ansi.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./ansi_contract_test32"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "e4931042cdc4e48e2e03782a88963b1fa91cc46c7b4c398c5478c254591f537a"
+    },
+    {
+      "variant": "libc.scanf.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "invocation": [
+        "./scanf_contract_test_asan"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "ac9bf1b41c965fa7d902904fffd875b304b1dabf94d67fac27695a9f1ba82081"
+    },
+    {
+      "variant": "kernel.sysctl-compact.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./sysctl_test_compact"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "1e44ad04af692f181478fd2cc64400e74bfd6cb7db6f136cf79e9599b7219746"
+    },
+    {
+      "variant": "kernel.sysctl-wide.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./sysctl_test_wide"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "7d1660bc6c3833e3e3629ca1ed02f76a2d7ee3ea83c6d46403c4e83d0f79ddbe"
+    },
+    {
+      "variant": "kernel.inode.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./ialloc_test"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "7339911f77149e92a9f2073ce2d5e5885698d07b46ad415345c92847bbcee2db"
+    },
+    {
+      "variant": "kernel.inode-pico.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./ialloc_test_pico"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "c51e269f42d568b829d0299eef5e6cf4becd59b74d85dae54b9e62fc084f2871"
+    },
+    {
+      "variant": "kernel.inode-diagnostic.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./ialloc_test_diagnostic"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "b1ab5fcf8549c596470650285105337962d457b97deca5647f00ca84b1c3b791"
+    },
+    {
+      "variant": "umount.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "invocation": [
+        "./umount_contract_test"
+      ],
+      "outcome": "PASS",
+      "returncode": 0,
+      "expected_exit": 0,
+      "executable_sha256": "74cb9f79a8b526ce3808f9d93694c88d6d01c95a46d9b9aeebd3562a92476171"
+    }
+  ],
+  "run_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/actions/runs/35677329437",
+  "artifact_id": 10673107931,
+  "original_report": "docs/research/211bsd-execution-report.json.gz",
+  "original_report_sha256": "aef91b1f4ae8cfbc10b47bc5b2d7cbd01a24cf077ce4b94e05a40cd890885101",
+  "projection": "Selected receipts; host absolute paths omitted. Invocation, outcome, width, owner and executable hashes retained.",
+  "source_comparison": {
+    "recipient_commit": "cc67531a2830fbd99b2c3da6097b8bcd51da1eb9",
+    "recipient_tree": "e43c0a1508c826a05337a70fe0d259c7bb516642",
+    "executed_commit": "261f1233bc1b1b20d9f44585f6f45fc830473adb",
+    "executed_tree": "e43c0a1508c826a05337a70fe0d259c7bb516642",
+    "executed_commit_object_sha256": "afad86c964b6939cce04754eb4ea0cd01cbf8234dee587f23f541b63770d201c",
+    "executed_commit_object_base64": "dHJlZSBlNDNjMGExNTA4YzgyNmEwNTMzN2E3MGZlMGQyNTljN2JiNTE2NjQyCnBhcmVudCBhM2Q0NjE4NDJlMjgyYzJjZjRmODhjYjRhMGQxYzczZTUxNDBjMmQ4CnBhcmVudCAyZTI2ZDQzNTFiNThhNjEyMWMzMjU2M2UxOWRiNzEzZTQwNzgyZWFmCmF1dGhvciBFaXJpa3IgSGlubmdhcnQgPDE1MTMxNTM3NStPaWNoa2F0emVsZXNmcmV0dHNjaGVuQHVzZXJzLm5vcmVwbHkuZ2l0aHViLmNvbT4gMTc5MDA0MTkwMiAtMDcwMApjb21taXR0ZXIgR2l0SHViIDxub3JlcGx5QGdpdGh1Yi5jb20+IDE3OTAwNDE5MDIgLTA3MDAKZ3Bnc2lnIC0tLS0tQkVHSU4gUEdQIFNJR05BVFVSRS0tLS0tCiAKIHdzRmNCQUFCQ0FBUUJRSnFzZDh1Q1JDMWFRN3V1NVVobEFBQTlrSVFBSm9LbkRrNEVRTmU2eWVicW5HdzRnTUQKIGdzYm01cjNQRmkvSEdOd3pqNXpDMmVDYmE2MGROQytERld6cktOM3pScXZZODJ2aktIRk9zM3NFcWFId1krd3oKIGRualoxN0kyNE41SktkTjE0TzNEdDZ4YklJM0plWGhEM2RaQ3FibktUc2RUeHJCVmQwdE1Yd0trMmQyamNzOHkKIEhZbjZzaDJ1WkRtczNsKzJGMGphQkkvR2R5UG9lUTBIRFU5NHhveElFamt2OWFHSzlLS2Y3ODVKTUtoUTFhU1AKIHFxdlBoM2tlblZubUhpbVFXS0lXM3g2MEpPdk5iWnRGMVNKMm4zendZREc1MUF0S2NmTWhwcTd2S3RTZHo4VXQKIFNtTlg4S2RMTitwdlQvTncyeHBaWVJkaXRHd2dtSGRKb1lvU3BIN0g1dm9rS2llMkorZS9jQ0ZuR0FUbkppU1UKIFFObW1samJkaitySW5FV0pkZ0VLZkdwcmFmY0g2M3NudVg3Qm9tNEppUG9qMks1dDBHVldONTU4bGxzdEdQdEkKIHRkOWl6d3R1TnUzNUhhUHRMM3BqVkxGRGZkYzdKMHVUTDZJRkpYVFZTcDRxcS9FMjFJY0p3eDNCYTNKZzNaM2YKIG1rQjhRa0xQc09JUzZ2b3VQODF3NjhzR1VIRElraFJYMHBUK1pEanoyMW1adzNuZkQ2RkdYVlA3eGJSR3lmazQKIHRXYmV6SmIwRWhQNGhNbnpZaEdvalFTa0RQdkhraFBydG9CZG9ITnZzUm9NdFNTSlQ5RGp3UGs4YmFHeDFibXIKIDRjTXMySkJIbjRIdWo0bmZuQnFSVEFrcEJVbUJ4V01vaGRHMElBcGdwR1F2K1kxVUVvbFdXRERGbGNhbkZaOE0KIGVtN2RObjhCN0NFaSttRE5mQlZvCiA9ekZHRAogLS0tLS1FTkQgUEdQIFNJR05BVFVSRS0tLS0tCiAKCk1lcmdlIDJlMjZkNDM1MWI1OGE2MTIxYzMyNTYzZTE5ZGI3MTNlNDA3ODJlYWYgaW50byBhM2Q0NjE4NDJlMjgyYzJjZjRmODhjYjRhMGQxYzczZTUxNDBjMmQ4Cg==",
+    "source_sha256": {
+      "include/stdio.h": "6fc5bafd843c037b8f77176766bed91bd84c3320e017c03b0e1ffeec4d72ff12",
+      "lib/libc/stdio/filbuf.c": "af816610925d67a48bc244459d53182bc3c7d320cf5cafb007add281121659f3",
+      "lib/libc/stdio/flsbuf.c": "4d04677de58ecb54ea6ddce743554ec0e1677665cddf7fce121a4575a455728f",
+      "lib/libc/stdio/ungetc.c": "ff796918935470f060ad8ae74913efc17af079ea268e2a77ef32681479b27d90",
+      "sbin/umount/umount.c": "95484c4b5979c20f689647079b8d53027abc3130e7988a2621e372859d735ed1",
+      "sys/kern/kern_sysctl.c": "2775fc8964626e6478fc6ff3e412dc99d82e9c914b94b057012172f00022e707",
+      "sys/kern/ufs_alloc.c": "b4203be9e1cf09249831081027b9b305881d26b748b2edf3ee621f8f7ffacbc0",
+      "tests/kernel/ialloc_test.c": "0843d92a2b72e028a4fb1440ea97edf391e3738333eef2d44b16c970248c3717",
+      "tests/kernel/sysctl_test.c": "173a785c9dbf3f2e7587c51907b1903919d14902a9793e080fe0a437defaa426",
+      "tests/libc_contracts/ansi_contract_test.c": "57f790751b2933ca5328ff8161f9f29ebe9b6d31c9ec477b7bfafd89008d5b24",
+      "tests/libc_contracts/rwmode_contract_test.c": "15cc3c5e752d5df047f39f64d1a301aa3d40919387284c518934676ff12f7833",
+      "tests/libc_contracts/scanf_contract_test.c": "6e2882dd2af29cf0d0985cdfc48eae224bc149caeb846d33889821abdbabc12d",
+      "tests/umount_contracts/umount_contract_test.c": "91ee44361ffa244182af3b5d1d7d4eb71a3054467062b3366d5543fbac8f8716"
+    }
+  }
+}

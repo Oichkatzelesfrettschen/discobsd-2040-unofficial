@@ -129,15 +129,7 @@ readc ()
 	buflush();
 	if (read(0,&c,1) != 1)
 		errexit ("readc");
-	/*
-	 * RAW, which main() and teach.c select outside the V7 build, stops
-	 * the driver from turning t_intrc into SIGINT, so the signal(SIGINT,
-	 * getout) they register never fires and this test is the only exit
-	 * the keyboard reaches.  It reads the character the terminal is set
-	 * to rather than a fixed byte so that sg_erase, which <sys/ttychars.h>
-	 * defaults to CERASE at 0177, still reaches the erase handling in
-	 * table.c and save.c.
-	 */
+	/* RAW bypasses the line discipline's SIGINT generation. */
 	if (c == tchars.t_intrc)
 		getout (0);
 	if (c == '\033' || c == '\015')

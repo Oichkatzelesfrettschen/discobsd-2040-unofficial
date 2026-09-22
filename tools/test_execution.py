@@ -84,7 +84,7 @@ def run_variant(variant, command):
     ):
         raise ValueError(f"{variant['id']}: invocation names a different harness")
     if expected != "sh" and "script" not in variant:
-        if Path(command[0]).resolve() != ROOT / variant["directory"] / expected:
+        if Path(command[0]).resolve() != (ROOT / variant["directory"] / expected).resolve():
             raise ValueError(f"{variant['id']}: invocation names a different executable")
     evidence = None
     try:

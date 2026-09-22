@@ -89,6 +89,22 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(execution.run_variant(variant, [str(self.directory / "fixture")]), 2)
         self.assertEqual(self.record(variant)["outcome"], "ERROR")
 
+    def test_symlinked_directory_resolves_both_executable_paths(self):
+        variant = self.variant()
+        command = self.compile(variant, 0)
+        alias = self.directory / "directory-alias"
+        alias.symlink_to(self.directory, target_is_directory=True)
+        variant["directory"] = str(alias)
+        self.assertEqual(execution.run_variant(variant, command), 0)
+        self.assertEqual(self.record(variant)["outcome"], "PASS")
+
+    def test_same_named_executable_in_another_directory_is_rejected(self):
+        variant = self.variant()
+        command = self.compile(variant, 0)
+        variant["directory"] = str(self.directory / "different")
+        with self.assertRaisesRegex(ValueError, "different executable"):
+            execution.run_variant(variant, command)
+
     def test_width_mismatch_is_error(self):
         variant = self.variant()
         command = self.compile(variant, 0)

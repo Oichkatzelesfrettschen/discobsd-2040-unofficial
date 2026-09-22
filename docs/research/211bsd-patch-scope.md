@@ -27,6 +27,10 @@ as such. Physical board behavior remains outside those measurements. Historical
 numbers retain the comparison baseline above; current textual candidates and
 semantic dispositions are separate evidence.
 
+`211bsd-semantic-ledger.md` and its canonical JSON add pinned per-fix
+dispositions and execution ownership. The ledger retains existing inode,
+tar, umount, sysctl and stdio guarantees while keeping unverified changes open.
+
 ## Reproducing the mapping
 
 The tables below retain the historical mapper's exact-path intersection and
@@ -236,6 +240,11 @@ This was found by reading, at evidence rank 3, and has not been executed
 against a PDP-11 or SIMH. `docs/research/211bsd-fwalk-report.md` holds the
 report drafted for the 2.11BSD maintainer; per `AGENTS.md` it is not sent
 without an explicit request naming it.
+
+The curated donor already records a deliberate `_fwalk` correction at
+`8657c689c6fcfb3c495488e0227091acfcb03bd4`. The historical finding above
+describes the published patch, rather than new work to re-propose against
+that corrected donor. `211bsd-semantic-ledger.md` records the provenance split.
 
 ## What 499's stdio would cost this port
 
@@ -452,7 +461,9 @@ empty directory before it indexes the last character. The rest belong in the rep
 
 ## Queued campaigns
 
-Each names its gate. None is started.
+The rows below retain their recorded baselines and campaign notes. Current
+selected dispositions live in `211bsd-semantic-ledger.json`; the historical
+table does not establish current missingness or whole-series closure.
 
 | Name | Scope | Gate that must exist first |
 | --- | --- | --- |

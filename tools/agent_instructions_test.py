@@ -103,6 +103,11 @@ class InstructionTest(unittest.TestCase):
         with self.assertRaisesRegex(policy.PolicyError, "AGENTS.md:5:"):
             policy.check(self.root)
 
+    def test_invalid_backtick_fence_cannot_hide_import(self):
+        self.write("AGENTS.md", "```bad`\n@~/private.md\n")
+        with self.assertRaisesRegex(policy.PolicyError, "fence info string"):
+            policy.check(self.root)
+
     def test_escaped_ticks_and_separate_blocks_cannot_hide_imports(self):
         for contents in (
             "Escaped \\` delimiter @~/private.md \\` end.\n",
@@ -156,10 +161,22 @@ class InstructionTest(unittest.TestCase):
             policy.check(self.root, staged=True)
 
     def test_missing_git_blob_is_infrastructure_error(self):
+        object_length = len(self.run_git("rev-parse", ":AGENTS.md").strip())
         self.run_git("update-index", "--info-only", "--cacheinfo",
-                     "100644," + "1" * 40 + ",AGENTS.md")
+                     "100644," + "1" * object_length + ",AGENTS.md")
         with self.assertRaises(policy.InfrastructureError):
             policy.check(self.root, staged=True)
+
+    def test_sha256_index_and_unreadable_blob(self):
+        self.root = Path(self.temporary.name) / "sha256-checkout"
+        self.root.mkdir()
+        self.run_git("init", "-q", "--object-format=sha256")
+        self.run_git("config", "core.excludesFile", "/dev/null")
+        self.write("AGENTS.md", "# Canonical policy\n")
+        self.write("CLAUDE.md", "@AGENTS.md\n")
+        self.run_git("add", "AGENTS.md", "CLAUDE.md")
+        policy.check(self.root, staged=True)
+        self.test_missing_git_blob_is_infrastructure_error()
 
     def test_additional_tracked_instruction_entry_is_rejected(self):
         for name in ("sub/AGENTS.md", ".claude/rules/policy.md", "AGENTS.override.md"):

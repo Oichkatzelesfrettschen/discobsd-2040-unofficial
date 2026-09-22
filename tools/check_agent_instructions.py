@@ -99,6 +99,8 @@ def visible_markdown(contents):
                 fence_character = None
             lines.append("\n" if line.endswith("\n") else "")
         elif marker:
+            if marker[1][0] == "`" and "`" in marker[2]:
+                raise PolicyError("backtick fence info string contains a backtick")
             fence_character, fence_length = marker[1][0], len(marker[1])
             lines.append("\n" if line.endswith("\n") else "")
         else:

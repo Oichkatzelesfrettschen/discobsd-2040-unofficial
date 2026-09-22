@@ -90,7 +90,8 @@ def visible_markdown(contents):
         marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
         boundary = not line.strip() or marker or re.match(
             r"^(?: {0,3}(?:#{1,6}(?:\s|$)|>|[-+*]\s|\d+[.)]\s|\||<)| {4}|[ \t]*\t)", line
-        ) or re.fullmatch(r" {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|"
+        ) or re.match(r"^ {0,3}\[(?:\\.|[^\\\]\r\n])+\]:", line) or re.fullmatch(
+            r" {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|"
                           r"(?:_[ \t]*){3,}|=+[ \t]*)", line.rstrip("\r\n"))
         if boundary:
             lines.append(visible_inline("".join(paragraph)))

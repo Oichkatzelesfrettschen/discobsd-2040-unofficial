@@ -138,6 +138,17 @@ class InstructionTest(unittest.TestCase):
                     with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
                         policy.check(self.root, staged=staged)
 
+    def test_link_reference_definitions_end_spans(self):
+        for definition in ('[x]: /url "unmatched `"',
+                           " [label with spaces]: <https://example.invalid> 'unmatched `'",
+                           "   [escaped\\]]: /url (unmatched `)"):
+            with self.subTest(definition=definition):
+                self.write("AGENTS.md", f"{definition}\n@~/private.md\nA later ` delimiter.\n")
+                self.run_git("add", "AGENTS.md")
+                for staged in (False, True):
+                    with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
+                        policy.check(self.root, staged=staged)
+
     def test_tracked_rule_directory_links_are_rejected(self):
         for name in (".claude", ".claude/rules", ".claude/rules/shared",
                      "nested/.claude/rules"):

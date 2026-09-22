@@ -454,6 +454,12 @@ check-hsaout:
 check-config-makefile:
 		${MAKE} -C tools/config check
 
+check-agent-instructions: check-python
+		${PYTHON} tools/agent_instructions_test.py
+		${PYTHON} tools/check_agent_instructions.py --root ${TOPSRC}
+
+.PHONY: check-agent-instructions
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -530,6 +536,7 @@ check-elf2aout:	tools
 # the shell against the host's headers, so those two reach nothing under
 # include.
 HOST_GATES=	check-architecture-isolation \
+		check-agent-instructions \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \

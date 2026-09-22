@@ -8,7 +8,8 @@ documentation under sys/arch/rp2040/doc, and the research corpus under
 docs/research. docs/INDEX.md maps every document in both and is the
 entry point for a reader who does not yet know which one holds an answer.
 The constrained-C and C17 proposal and its migration evidence live at
-@./docs/research/STYLE-GUIDE.md.
+`docs/research/STYLE-GUIDE.md`. Read that proposal when the task concerns
+style migration; the proposal is outside the startup instruction chain.
 
 Two doc homes, one rule: a document that code, a Makefile or the root
 manifest cites as the authority for a shipped mechanism lives in
@@ -20,9 +21,9 @@ RP2040 and Pico datasheets under docs/rp2040/, which
 sys/arch/rp2040/doc/DATASHEET-INDEX.md cites by section and page rather
 than carrying them here.
 
-AGENTS.md owns these rules. CLAUDE.md is a tracked repository-relative
-symbolic link to it, so every agent reads one body and no loader copies
-rules that drift.
+AGENTS.md owns these rules. CLAUDE.md is a regular compatibility wrapper
+containing only `@AGENTS.md`. The wrapper imports the canonical policy;
+the canonical policy uses literal references instead of active imports.
 
 ## Target
 
@@ -51,10 +52,11 @@ escape sequences stripped.
 
 ## Build, image, flash
 
-Resolve and export `PYTHON` before every build or gate that invokes a Python
+Select `PYTHON` in the caller before every build or gate that invokes a Python
 tool. The build system rejects an empty interpreter value.
 
-    PYTHON=$(command -v python3); export PYTHON
+    : "${PYTHON:?set PYTHON to the intended interpreter}"
+    export PYTHON
     bmake MACHINE=rp2040 distribution      # tools, kernel, world, sdcard.img
     bmake MACHINE=rp2040 flash             # distrib/rp2040/flash.uf2
     bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
@@ -74,8 +76,8 @@ formula); distrib/rp2040/host/DEVELOPMENT.md has the per-OS table. `bmake build`
 programs when libc changes; run `bmake MACHINE=rp2040 clean` first when a
 libc or header change must reach every program, and rebuild sbin/sysctl and
 sbin/adminbox from clean after a sysctl.h or machine/cpu.h change. The
-config-generated sys/arch/rp2040/compile/PICO/Makefile is tracked; commit it
-when Config changes.
+config-generated Makefiles under sys/arch/rp2040/compile/PICO and PICO_UART
+are tracked; commit synchronized outputs when their generation inputs change.
 
 ## Tests
 
@@ -110,29 +112,23 @@ when Config changes.
 
 ## Evidence
 
-Sources rank; the higher rank settles a conflict:
-
-1. Board measurement: a console capture, `picotool` output, romprobe's ROM
-   table dump, a gate run on the hardware.
-2. Specification: the RP2040 datasheet by section number, the ARMv6-M
-   Architecture Reference Manual, datasheet 2.8 for the Boot ROM.
-   sys/arch/rp2040/doc/DATASHEET-INDEX.md resolves a section to its page.
-3. DiscoBSD kernel source under sys/, which the port inherits.
-4. Port source under sys/arch/rp2040 and host tools under distrib/rp2040.
-5. Gate output from the check tiers.
-6. Documentation and source comments that agree with ranks 1 to 5.
-
-A claim that changes an interface, a memory layout or a driver path cites
-rank 1 through 3. A claim resting on rank 4 or below stays labeled a
-hypothesis until a higher rank confirms it.
+Match evidence to the claim. Specifications define intended interfaces;
+source describes the implementation; tests establish behavior for their
+exercised conditions; hardware observations establish behavior for the
+measured configuration. Investigate contradictions rather than resolving
+them through a universal ranking or a count of agreeing observations.
+Name the source revision, execution environment, exercised conditions and
+remaining uncertainty. sys/arch/rp2040/doc/DATASHEET-INDEX.md resolves
+RP2040 datasheet sections to pages.
 
 Build, host-gate, cross, qemu, Renode and board results are separate
 evidence classes, and each stands for itself. A warning-free build proves
-compilation. A qemu-user run proves the instruction sequence. check-renode
+compilation. A qemu-user run exercises the tested instruction sequence. check-renode
 boots the PICO_UART kernel from the real RP2040 boot ROM against
 third-party peripheral models, asserts the console from the device probe
 through a logged-in shell, and holds the emulator's warnings to a named set
-of classes. A board run proves the silicon. sys/arch/rp2040/doc/TESTING.md is the
+of classes. A board run measures the exercised silicon configuration.
+sys/arch/rp2040/doc/TESTING.md is the
 authority for what a given gate proves.
 
 A new gate, linter or probe is calibrated against a known-good and a
@@ -156,22 +152,18 @@ next investigation rather than rewriting the prediction after the fact.
 
 ### Stop points
 
-Report instead of continuing to implement when a hypothesis survives three
-independent falsification attempts, when it fails in a way the model does
-not admit, when the fix needs an architecture choice the tree does not
-already settle, or when a measurement contradicts the datasheet or the ARM
-ARM. Name the evidence chain, the alternatives, and the next measurement.
+Report and rescope when a result contradicts the model or specification,
+or a fix needs an architecture choice the tree leaves unsettled. Name the
+evidence chain, alternatives and next discriminating measurement. Preserve
+the hardware opt-in boundary while investigating.
 
 ### Review checks
 
-- Read the specification before the kernel, the kernel before the port
-  code, and the port code before the gate oracle. A model that survives
-  reading in reverse order holds.
-- Three independent "nothing failed here" results compose into a false
-  positive. Argue the strongest contrary case against a synthesis before
-  it counts as settled.
-- Bounded confidence needs independent sources; two gates that link the
-  same object file measure one thing.
+- Compare implementation, interface requirements and test oracles for the
+  claimed behavior. Challenge the strongest contrary explanation.
+- Identify the failure modes each test exercises and any shared oracle
+  assumptions. Tests of the same object may exercise different failures;
+  separate tests may share an incorrect oracle.
 - Record the discovery mechanism beside a symbol claim: `(rg
   --fixed-strings flash_swap_append sys/)`, `(git log -S SYMBOL)`,
   `(arm-none-eabi-nm -g <object>)`.
@@ -191,72 +183,22 @@ history before review rather than replacing it at integration time.
 
 ## Source comments
 
-Code says what happens; a comment says why the code has that shape -- the
-silicon constraint, the datasheet rule, the format invariant, the lifetime
-boundary, or the conformance cost a workaround pays. Three files in the
-port set the shape and the density: sys/arch/rp2040/dev/usb.c states the
-DPSRAM buffer model and cites datasheet section 4.1.2;
-sys/arch/rp2040/dev/flash_swap.c states the erase-alignment invariant and
-why the geometry loop sits outside the flash driver;
-sys/arch/rp2040/rp2040/exec_hsaout.c states the preflight-then-commit order
-and the verdict each failure produces.
+Describe current behavior, invariants, and non-obvious constraints. Put
+investigation chronology, review discussion, and change history in commits,
+issues, or research notes. Name related symbols and files when they clarify
+the mechanism. Comment length follows the mechanism's explanatory needs;
+individual words such as "this", "now" or "previously" do not decide whether
+a comment describes implementation behavior or investigation history.
 
-A comment is one movement. It names the thing that is governed -- the
-register, the buffer, the frame -- then the constraint that shapes it --
-the datasheet rule, the ARM ARM clause, the kernel invariant, the measured
-value -- then the consequence the code enforces because of it. The order
-is claim, authority, consequence, then the test or knob that pins it, and
-the comment stops when those are stated. Two facts that share one cause or
-one lifetime share one comment; a change of subject, owner or evidence tier
-starts another. A local fact is one line beside the line it explains; a
-block is reserved for a mechanism a reader cannot recover from the code.
-sys/arch/rp2040/dev/uart.c's `int unit = config->dev_unit;` carries the
-shape at its smallest: what the RP2040 numbers, what the sibling ports
-number differently, and what failed when the subtraction was carried over.
-
-Third person, present tense, indicative: `the boot ROM reads SR` rather
-than `we read SR` or `this reads SR`. State what the code does and let the
-positive form carry what it does not; a prohibition stays only where
-absence is the whole fact, as at a safety stop. `we` names the execution
-path alone.
-
-Authority is named by its identifier so the comment stands with the
-document closed: a datasheet section, an ARM ARM clause, a function, a
-register field by its field name, a measured number with its unit. A
-workaround separates what was observed, on which silicon and which path,
-from the rule the code now enforces, and marks what remains inferred. An
-unverified claim carries `hypothesis:` in the comment or resolves before
-the commit lands.
-
-A model that spans a file lives at file scope; a call-site comment stays on
-the local linkage; a branch comment sits at the branch and states the
-invariant that discriminates it. A register layout, a packet field or a
-state transition becomes a compact table that carries no drawn border.
-
-Chronology stays out of source. Task numbers, PR numbers, session dates,
-reviewer and agent names, and deictic words such as `currently` or `now`
-belong to the commit message; a comment reads the same in five years.
-
-A comment describes the code, never the work that produced it. `this fix`,
-`before this change`, `the old path`, `we found` and the counts a gate
-printed on one run are the change's history and belong to the commit
-message, which is where a reader looks for it; the comment states the
-invariant that holds and names the gate or document carrying its evidence.
-A number stays when the code depends on it -- a setup time, a capacity, a
-budget, a register value -- and goes when it only records what one run
-observed. The same holds for a fault the code now prevents: state the rule
-the hardware enforces, not the symptom that revealed it.
-
-A TODO names the function, register, datasheet section or URL carrying the
-missing work, the constraint that defers it, and the durable artifact that
-tracks it. New work lands complete; a placeholder is a defect.
+A TODO names the missing mechanism, the constraint that defers it and its
+durable tracking artifact. New work lands complete.
 
 ## Commit messages
 
 The subject carries a component prefix and the mechanism:
 `rp2040: attach uart0, which the configuration names and the probe never
 accepted`. The body is the review: the invariant that held or failed, the
-change at the depth a maintainer needs, the evidence by rank (a register
+change at the depth a maintainer needs, claim-specific evidence (a register
 dump, a measurement, a gate name), and the test outcome, in one to five
 paragraphs. Build invocations, logs and environment tables go in the PR
 description. Historical debate and rejected alternatives live here rather
@@ -271,12 +213,12 @@ A report to another project is written for a maintainer who has minutes
 and owes this port nothing. It leads with the finding in one sentence,
 then the mechanism, then the consequence a user of their project sees. It
 carries the environment by exact version, including where it differs from
-what the project pins; the evidence at its rank, a disassembly and
-register dump before a stack sample and a stack sample before an
-inference; a reproduction the maintainer can run; the fix as a `git am`
+what the project pins; claim-specific evidence that distinguishes observations
+from inference; a reproduction the maintainer can run; the fix as a `git am`
 patch with its own message; the measurement before and after; and what
-the patch leaves open. Every claim about a part comes from the datasheet
-or the board, and the report says which. The project's own conventions
+the patch leaves open. Hardware claims name the measured configuration or
+cited specification; source and gate claims retain their exercised boundary.
+The project's own conventions
 win where they exist -- its file headers, its test layout, its subject
 tags -- and the report says where it could not follow them.
 

@@ -253,6 +253,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 
 | gate | proves |
 | --- | --- |
+| `check-agent-instructions` | The repository has regular canonical and wrapper files; the wrapper is exactly `@AGENTS.md` plus a newline and the canonical policy has literal references instead of active imports. Calibration exercises malformed, missing, cyclic, escaping and private-home imports, modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file graph, not actual client instruction loading. |
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates PICO and PICO_UART Makefiles byte for byte in private trees. The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
@@ -313,6 +314,48 @@ Each gate compiles the tree's own source for the host, with `-Wall
 against XCU chapter 2, which builds the shell as a 32-bit host binary;
 a case the shell does not yet answer as POSIX does is declared `xfail`
 and fails the moment the shell starts producing the POSIX answer.
+
+### Repository instruction safety
+
+`check-agent-instructions` calibrates and checks the two-file instruction
+contract. `AGENTS.md` is canonical; the regular `CLAUDE.md` contains exactly
+`@AGENTS.md` followed by one newline. The canonical policy references other
+documents literally, including the style proposal. The only permitted active
+import edge is `CLAUDE.md -> AGENTS.md`. Extra tracked instruction entries
+require an explicit policy/gate change; personal untracked client files remain
+outside the gate's repository scope.
+
+The checker reads complete Markdown files and masks same-line backtick spans
+before finding active import tokens. Fenced, quoted, table, HTML and multiline
+examples do not extend that exception; write an import-looking literal in a
+same-line backtick span. Every other canonical import rejects the gate,
+including missing destinations, cycles, private-home dependencies, repository
+escapes and proposal-corpus imports. The checker enforces this repository
+grammar rather than reproducing every client's Markdown or instruction parser.
+Length and ordinary vocabulary remain outside the gate's verdict.
+
+Run `${PYTHON} tools/check_agent_instructions.py --staged` before committing.
+Staged mode reads Git index modes and blob contents for both files, including
+the canonical policy used to decide the import graph. Working-tree repairs
+cannot hide an invalid index; unstaged damage cannot invalidate a valid index.
+Unresolved index stages and unreadable Git objects return infrastructure
+`ERROR` (status 2); policy violations return `FAIL` (status 1). A successful
+check returns `PASS` (status 0).
+
+The regular wrapper is a compatibility choice. Its installation creates a
+complete temporary regular file beside the wrapper, then renames that entry
+over the symlink. Compare the already-edited canonical file's hash immediately
+before and after that rename, then stage both policy and wrapper and inspect
+their modes. Writing through the symlink would modify the canonical policy;
+unlinking first would leave an interval without the wrapper.
+
+Client versions, effective discovery limits and actual loaded chains require
+separate client observations. The official documentation describes the
+[Claude import and native AGENTS behavior](https://code.claude.com/docs/en/memory)
+and [Codex instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md).
+The repository gate establishes neither live loading nor a general per-file
+instruction-capacity allowance. Personal deployment, telemetry preferences
+and updater settings remain separate from repository correctness.
 
 ### Production configuration generation and include ordering
 

@@ -1,2 +1,5 @@
 # The root wrapper is a POSIX sh script run on Windows too: keep LF.
 /discobsd-console text eol=lf
+
+# The instruction gate compares the compatibility wrapper byte for byte.
+/CLAUDE.md text eol=lf

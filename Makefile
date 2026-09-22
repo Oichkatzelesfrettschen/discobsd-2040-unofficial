@@ -456,11 +456,11 @@ check-config-makefile:
 
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
-		${PYTHON} tools/config/generated_sync_test.py
-		${PYTHON} tools/config/check_generated_sync.py --root ${TOPSRC} --make ${MAKE}
+		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
+		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_generated_sync.py --root ${TOPSRC} --make ${MAKE}
 
 check-config-include-order: check-python
-		${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
+		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
 
 .PHONY: check-config-generated-sync check-config-include-order
 

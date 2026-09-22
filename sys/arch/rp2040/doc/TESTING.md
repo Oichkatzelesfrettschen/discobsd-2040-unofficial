@@ -248,6 +248,9 @@ lists, each production `Config`, and a board-specific `files.PICO` or
 its generator objects, architecture stamp and generated outputs. The generator
 build is serial because `lang.l` consumes the parser's `y.tab.h`; independent
 gate invocations build in separate directories and may run concurrently.
+The root recipes export the caller's `HOST_CC`, including command-line values
+containing arguments, across the detached build boundary. Calibration requires
+a deliberately failing host compiler to reject generation.
 
 The comparison reads the tracked production Makefiles and compares their
 bytes with private regeneration, including comments, ordering barriers,

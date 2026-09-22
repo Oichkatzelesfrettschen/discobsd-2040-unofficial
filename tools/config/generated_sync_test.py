@@ -1,9 +1,12 @@
 """Calibrate synchronization using production identities and real generation."""
 
 import concurrent.futures
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import check_generated_sync as sync
 
@@ -123,6 +126,20 @@ class GeneratedSyncTest(unittest.TestCase):
             results = list(pool.map(sync.check, [self.root, self.root]))
         self.assertEqual(results[0], results[1])
         self.assertFalse((self.root / "tools/config/config").exists())
+
+    def test_selected_host_compiler_is_required(self):
+        with patch.dict(os.environ, {"HOST_CC": "false"}):
+            with self.assertRaisesRegex(sync.SyncError, "generator build: exit"):
+                sync.check(self.root)
+
+    def test_root_recipe_exports_host_compiler_override(self):
+        environment = sync.child_environment()
+        result = subprocess.run(
+            ["bmake", "-n", "-C", str(sync.ROOT), "MACHINE=rp2040",
+             "HOST_CC=cc -O1", "check-config-generated-sync"],
+            env=environment, text=True, capture_output=True, check=True,
+        )
+        self.assertEqual(result.stdout.count("HOST_CC=cc\\ -O1 "), 2)
 
 
 if __name__ == "__main__":

@@ -152,6 +152,38 @@ class InstructionTest(unittest.TestCase):
                 self.run_git("update-index", "--force-remove", name)
                 path.unlink()
 
+    def test_indented_and_html_blocks_end_inline_spans(self):
+        for opener in ("    An unmatched `", "\tAn unmatched `", " \tAn unmatched `",
+                       "   \tAn unmatched `", "<div>An unmatched `"):
+            with self.subTest(opener=opener):
+                self.write("AGENTS.md", f"{opener}\n@~/private.md\nA later ` delimiter.\n")
+                self.run_git("add", "AGENTS.md")
+                for staged in (False, True):
+                    with self.assertRaisesRegex(policy.PolicyError, "forbidden active import"):
+                        policy.check(self.root, staged=staged)
+
+    def test_case_folded_instruction_entries_are_rejected(self):
+        for name in (".CLAUDE/rules/policy.md", ".claude/RULES/policy.md",
+                     "nested/agents.MD", "nested/Claude.Local.md"):
+            with self.subTest(name=name):
+                self.write(name, "@~/private.md\n")
+                self.run_git("add", name)
+                for staged in (False, True):
+                    with self.assertRaisesRegex(policy.PolicyError, "outside the allowed graph"):
+                        policy.check(self.root, staged=staged)
+                self.run_git("update-index", "--force-remove", name)
+
+    def test_autocrlf_checkout_keeps_wrapper_lf(self):
+        attributes = (Path(policy.__file__).resolve().parent.parent / ".gitattributes").read_text()
+        self.write(".gitattributes", attributes)
+        self.run_git("add", ".gitattributes")
+        self.run_git("config", "core.autocrlf", "true")
+        (self.root / "CLAUDE.md").unlink()
+        self.run_git("checkout-index", "-f", "CLAUDE.md")
+        self.assertEqual((self.root / "CLAUDE.md").read_bytes(), policy.WRAPPER)
+        policy.check(self.root)
+        policy.check(self.root, staged=True)
+
     def test_invalid_index_valid_working_copy(self):
         for name, invalid in (("AGENTS.md", "@~/private.md\n"),
                               ("CLAUDE.md", "wrong wrapper\n")):

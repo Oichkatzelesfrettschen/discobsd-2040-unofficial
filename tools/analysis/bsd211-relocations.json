@@ -1,0 +1,20 @@
+[
+  {
+    "donor_path": "sys/sys/ufs_alloc.c",
+    "recipient_path": "sys/kern/ufs_alloc.c",
+    "symbols": [{"donor": "ialloc", "recipient": "ialloc"}]
+  },
+  {
+    "donor_path": "sys/sys/kern_sysctl.c",
+    "recipient_path": "sys/kern/kern_sysctl.c",
+    "symbols": [
+      {"donor": "sysctl_struct", "recipient": "sysctl_struct"},
+      {"donor": "vm_sysctl", "recipient": "vm_sysctl"}
+    ]
+  },
+  {
+    "donor_path": "bin/tar.c",
+    "recipient_path": "bin/tar/tar.c",
+    "symbols": [{"donor": "putfile", "recipient": "putfile"}]
+  }
+]

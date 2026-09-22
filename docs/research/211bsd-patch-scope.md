@@ -4,10 +4,10 @@
 
 DiscoBSD's userland descends from 2.11BSD through RetroBSD. 2.11BSD has kept
 shipping patches, patch 499 of January 2026 being a libc and stdio
-modernization of exactly the code this tree still carries. Three things follow
-and this report settles them: where the descent forked, which upstream patches
-since that point touch code this tree still has, and what adopting patch 499's
-stdio would cost a 144 KB process window.
+modernization relevant to this tree. This report retains the historical
+textual comparison and the measured prototype cost for a 144 KB process
+window. Patch 432 is an investigation boundary, not a proven universal
+divergence point. Ancestry and semantic coverage require per-change review.
 
 ## Identity
 
@@ -15,50 +15,59 @@ stdio would cost a 144 KB process window.
 | --- | --- |
 | Comparison base | `728677b8ff4330decf579b8ea03693ee904bb592`, clean at baseline build |
 | Migration result | The commit containing this report, compared through clean final a.out builds |
-| Upstream | a 2.11BSD git checkout whose base is the TUHS patch-level 431 tape and whose history carries one commit per patch to 499 |
+| Historical comparator | a 2.11BSD git checkout beginning with the TUHS patch-level 431 tape; the original analysis assumed one commit per patch through 499 |
 | Upstream announcement | `http://www.2bsd.com/2.11BSD/499`, fetched over plain HTTP 2026-09-19; HTTPS to that host refuses the connection |
 | Cross compiler | `arm-none-eabi-gcc` 16.2.0 |
 | Host compiler | `gcc` 16.2.1 |
 | `bmake` | 20260824 |
 | Build | `bmake MACHINE=rp2040 clean` then `bmake MACHINE=rp2040 build` for the comparison base and migration result, exit 0, zero compiler warnings |
 
-Evidence ranks follow `AGENTS.md`. Nothing here is a board result: no claim in
-this report reached hardware, and every runtime verdict is a host or
-cross-compilation result, labeled as such.
+The recorded execution classes are host and cross-compilation results, labeled
+as such. Physical board behavior remains outside those measurements. Historical
+numbers retain the comparison baseline above; current textual candidates and
+semantic dispositions are separate evidence.
 
 ## Reproducing the mapping
 
-`tools/analysis/bsd211_patch_scope.py` produces the tables below. It takes a
-2.11BSD git checkout, and for each patch commit intersects the files that
-patch touches with this tree, then compares this tree's copy against the
-upstream parent and child blobs of that commit:
+The tables below retain the historical mapper's exact-path intersection and
+live-recipient comparison at the stated baseline. Its former labels
+"carried", "missing", "applicable" and "needs no action" were textual
+heuristics, not semantic verdicts. A child-like file can omit the corrective
+statement; a parent-like rewrite can satisfy the invariant.
+
+The revised `tools/analysis/bsd211_patch_scope.py` resolves both endpoints once
+to full commit IDs and reads their Git blobs. Every touched path remains in
+the inventory, including absent recipients. Explicit relocation and symbol
+hints in `tools/analysis/bsd211-relocations.json` retain moved inode, sysctl
+and tar implementations. Hints identify review locations rather than proving
+function equivalence. The mapping file's SHA-256 accompanies output.
 
     BSD211=<2.11BSD checkout> ${PYTHON} tools/analysis/bsd211_patch_scope.py \
-        --base <tape revision> --format table
+        --base <tape commit> --donor-ref <donor commit> \
+        --tree <recipient checkout> --recipient-ref <recipient commit> \
+        --format table
 
-Distance is differing lines after trailing-whitespace normalization, so tab
-and line-ending drift between the trees does not decide a verdict. The
-distance from the upstream *parent* is what makes a verdict usable: a file at
-parent distance 0 is the upstream pre-patch file verbatim and the upstream
-hunk applies to it directly, while a file hundreds of lines away was rewritten
-here and the upstream hunk is advisory at best. The report classifies parent
-distance at or below 40 as applicable, at or below 150 as partial, and beyond
-that as rewritten.
+Distance counts differing lines after trailing-whitespace stripping. Output
+uses only `closer-to-parent`, `closer-to-child`, `equidistant` and `uncompared`.
+Added/deleted, binary/non-UTF-8 and nonregular entries stay explicit.
+NUL-delimited paths preserve whitespace and filename bytes. Git failures
+produce ERROR rather than an absent-file verdict. Pinned ancestry excludes
+unrelated refs; merge deltas identify every parent and can repeat textual
+changes without implying additional semantic fixes.
 
-The method has a known limit: convergence is not descent. A file this tree
-independently changed the same way upstream did reads as "carried" without any
-patch having been applied. Patch 499's 35 "carried" files are almost all
-Makefiles where both trees dropped `DESTDIR` and adopted `mkdep`, which is
-convergence, not inheritance. Treat "carried" as "needs no action", not as
-"the patch was applied".
+The historical thresholds of 40 and 150 lines explain the retained table
+categories only. The revised tool removes threshold-based applicability.
+Text proximity establishes neither patch presence, absence, ancestry nor
+safe applicability. Per-fix review must name the invariant, exact recipient
+function, executed regression and its CI owner, plus resource consequences.
 
-## Where the descent forked
+## What the selected comparison files establish
 
-**The fork is at patch level 431 or earlier, and no patch from 432 onward has
-been applied.** Two independent observations settle it.
+The selected comparison files retain pre-patch implementations at the recorded
+baseline. Audit the numbered series beginning at 432, and determine ancestry
+and semantic coverage separately for each relevant change.
 
-First, files this tree carries are byte-identical to the upstream *pre-patch*
-text for patches spread across the whole range, from 432 to 499:
+The historical report recorded zero parent distance for these selected files:
 
 | Upstream patch | File | Parent distance |
 | --- | --- | ---: |
@@ -69,26 +78,20 @@ text for patches spread across the whole range, from 432 to 499:
 | 487 | `lib/libc/net/rexec.c` | 0 |
 | 489 | `games/warp/warp.news` | 0 |
 
-A file at parent distance 0 for patch 487 cannot have received patch 432
-either, because these are the untouched 431-era texts.
+An unchanged file establishes a fact about that file. Selectively imported
+fixes, independently equivalent changes, reversions and replacements elsewhere
+remain possible. The donor's tape-431 root supplies a historical starting
+point; the root does not establish the recipient's global divergence.
 
-Second, the upstream repository's own base is the patch-level 431 TUHS tape,
-and the earliest patch in its history that touches anything this tree carries
-is 432 -- the first patch after that tape. There is no window in which an
-intermediate patch level could have been the fork point and left no trace.
+## Historical exact-path scope of the numbered interval
 
-The practical consequence: **68 patches of upstream fixes have never been
-evaluated against this tree.** Most do not matter, as the next section shows,
-but the ones that do have been sitting unexamined.
+The historical exact-path intersection reported 48 of 89 donor commits
+without a shared path. Relocated implementations were outside that method.
+Those counts remain historical measurements, not a `not-applicable`
+disposition. A maintained but unshipped utility can still need a common-source
+fix. Numbered placeholders and announcements are provenance, not code changes.
 
-## Scope of the 68 patches
-
-Of 89 upstream commits between the tape and patch 499, **48 touch no file this
-tree carries at all.** They are PDP-11 kernel drivers, VAX network interfaces,
-`roff`, `tcsh`, `pascal`, `sendmail`, `uucp` transports and the `man0`
-tree -- subsystems this port does not have.
-
-Commits that do touch shared files:
+Historical shared-file counts and original heuristic labels:
 
 | Patch | Upstream files | Shared | Needs no action | Missing here | Undecided |
 | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -109,9 +112,10 @@ Commits that do touch shared files:
 | 489 | 26 | 7 | 1 | 4 | 2 |
 | 499 | 962 | 133 | 35 | 57 | 41 |
 
-Patches 442, 481, 483, 488, 493, 496 and 498 each touch one or two shared
-files and need nothing. The full table, including the commits whose subjects
-carry no patch number, comes from the script above.
+The historical heuristic labeled patches 442, 481, 483, 488, 493, 496 and 498
+as needing nothing based on one or two shared files. Each relevant semantic
+change still requires its own disposition. Subjects without a patch number
+remain unidentified unless joined to explicit patch provenance.
 
 Two patches deserve names. **Patch 460, "2.11BSD completely lacks ANSI C
 capability"**, is the upstream ANSI groundwork that precedes 499: 130 files,
@@ -119,12 +123,11 @@ capability"**, is the upstream ANSI groundwork that precedes 499: 130 files,
 **Patch 452** corrects `srandom(3)` and `initstate(3)` argument handling and
 touches 16 shared files, mostly games that seed from the corrected interface.
 
-### Upstream fixes that apply cleanly and are absent here
+### Historical parent-like textual candidates
 
-These are files this tree carries close to the upstream pre-patch text, so the
-upstream hunk is directly usable. Listed by parent distance, nearest first.
-This is an inventory, not a recommendation: several are for subsystems this
-port does not ship.
+These retained measurements describe files close to donor pre-patch text at
+the historical baseline, ordered by parent distance. They establish neither
+a missing invariant nor safe applicability to a current recipient.
 
 | Patch | File | Parent distance | Subject of the fix |
 | --- | --- | ---: | --- |
@@ -142,17 +145,16 @@ port does not ship.
 | 496 | `usr.bin/yacc/dextern` | 15 | yacc fix |
 | 446 | `sbin/umount/umount.c` | 24 | umount fix |
 
-The networking files are the largest group and this port has no network, so
-they are inventory only. The `getty` files matter more than they look: this
-port's console path descends from them.
+Review networking candidates only after identifying the maintained, built
+and shipped implementation. Review terminal candidates across getty, login,
+application setup and the active TTY driver.
 
-Patch 499's own stdio entries appear in the missing list at parent distances
+Patch 499's stdio entries appeared in the historical candidate list at parent distances
 of 6 to 24 for `setvbuf.c`, `getchar.c`, `gets.c`, `fgetc.c`, `putchar.c`,
 `ungetc.c`, `fopen.c`, `fseek.c`, `ftell.c`, `fread.c`, `fwrite.c`,
-`vfprintf.c` and the rest. Those small parent distances confirm that this
-tree's stdio *is* the pre-499 2.11BSD stdio with local edits, and the large
-child distances -- 112 to 318 lines -- confirm that 499 replaces rather than
-patches them.
+`vfprintf.c` and the rest. Recorded child distances ranged from 112 to 318
+lines. Those values describe text proximity at the original baseline, not
+the absence of particular guarantees in the recipient's smaller stream core.
 
 ## What patch 499 actually is
 
@@ -467,7 +469,7 @@ Each names its gate. None is started.
 
 | Subject | Authority |
 | --- | --- |
-| Mapping method and thresholds | `tools/analysis/bsd211_patch_scope.py` |
+| Current pinned textual inventory | `tools/analysis/bsd211_patch_scope.py` |
 | Patch 499 announcement, CHANGES, `stdio.h` and `_fwalk` | `http://www.2bsd.com/2.11BSD/499` |
 | Scanner contract and calibration | `tests/libc_contracts/scanf_contract_test.c`, `sys/arch/rp2040/doc/TESTING.md` |
 | Float opt-in mechanism | `share/mk/sys.mk`, `lib/libc/stdio/doprnt.c`, `lib/libc/stdio/doscan.c` |

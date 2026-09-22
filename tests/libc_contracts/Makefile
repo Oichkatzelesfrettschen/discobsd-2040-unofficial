@@ -64,13 +64,13 @@ check: check-host check-aout
 # at its implicit declaration rather than storing a whole line into a fixed
 # buffer. stdio_bounds.sh carries the reasoning and its own controls.
 check-stdio-bounds:
-	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC} stdio_bounds_work
+	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC:Q} stdio_bounds_work
 
 # lib/libc.a is the ELF archive the cross build leaves behind, which nm can
 # read; the copy under distrib/obj is the a.out conversion and cannot be
 # named by symbol.
 check-stdio-bounds-cross:
-	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC} stdio_bounds_work \
+	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC:Q} stdio_bounds_work \
 	    ${TOPSRC}/lib/libc.a ${GCCPREFIX}-nm
 
 # The string-to-integer functions compiled from the tree under names that

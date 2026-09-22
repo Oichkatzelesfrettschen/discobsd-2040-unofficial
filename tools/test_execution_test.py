@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -149,6 +150,41 @@ class ExecutionTest(unittest.TestCase):
                                      text=True, capture_output=True, check=True)
         self.assertEqual(unsupported.stdout.strip(), "no")
 
+    def test_detached_make_preserves_command_line_overrides(self):
+        observer = self.directory / "make-observer"
+        observed = self.directory / "make-arguments.json"
+        observer.write_text(
+            f"#!{sys.executable}\nimport json, os, sys\n"
+            f"with open({str(observed)!r}, 'w') as output:\n"
+            "    json.dump({'args': sys.argv[1:], 'flags': "
+            "[os.getenv('MAKEFLAGS'), os.getenv('MFLAGS')]}, output)\n"
+        )
+        observer.chmod(0o755)
+        environment = os.environ.copy()
+        environment.pop("MAKEFLAGS", None)
+        environment.pop("MFLAGS", None)
+        overrides = ["HOSTCC=cc -O1", "HOST_CC=cc -O2", "CC=cc -O3",
+                     "HOST_CFLAGS=-DOVERRIDE=1 -g"]
+        result = subprocess.run(
+            ["bmake", "-j4", "-C", str(execution.ROOT), "MACHINE=rp2040",
+             f"MAKE={observer}", f"PYTHON={sys.executable}", *overrides,
+             "REQUIRE_ILP32=no", "TEST_EXECUTION_REQUIRED=no",
+             "TEST_EXECUTION_DIR=wrong-directory", "check-ilp32-execution"],
+            env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("required executable recipe produced no receipt",
+                      result.stdout + result.stderr)
+        record = json.loads(observed.read_text())
+        for override in overrides:
+            self.assertIn(override, record["args"])
+        effective = dict(argument.split("=", 1) for argument in record["args"]
+                         if "=" in argument)
+        self.assertEqual(effective["REQUIRE_ILP32"], "yes")
+        self.assertEqual(effective["TEST_EXECUTION_REQUIRED"], "yes")
+        self.assertNotEqual(effective["TEST_EXECUTION_DIR"], "wrong-directory")
+        self.assertEqual(record["flags"], [None, None])
+
     def test_runtime_failure_is_unavailable(self):
         failing = self.compile(self.variant("runtime-failure"), 1)[0]
         compiler = self.directory / "compiler"
@@ -191,6 +227,19 @@ class ExecutionTest(unittest.TestCase):
              "-Dint=short"], text=True, capture_output=True, check=True,
         )
         self.assertEqual(result.stdout.strip(), "no")
+
+    def test_stdio_bounds_recipe_preserves_compiler_argument_boundary(self):
+        environment = os.environ.copy()
+        environment.pop("MAKEFLAGS", None)
+        environment.pop("MFLAGS", None)
+        result = subprocess.run(
+            ["bmake", "-n", "-C", str(execution.ROOT / "tests/libc_contracts"),
+             "MACHINE=rp2040", "HOSTCC=cc -O1", "check-stdio-bounds"],
+            env=environment, text=True, capture_output=True, check=True,
+        )
+        recipe = next(line for line in result.stdout.splitlines()
+                      if line.startswith("sh ") and "stdio_bounds.sh" in line)
+        self.assertEqual(shlex.split(recipe)[-2:], ["cc -O1", "stdio_bounds_work"])
 
     def test_required_undefined_sanitizer_rejects_recoverable_fault(self):
         source = self.directory / "undefined.c"

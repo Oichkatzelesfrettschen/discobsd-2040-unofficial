@@ -132,6 +132,10 @@ then compares observed receipts with the full inventory even when make
 fails. A target that returns zero while omitting a required invocation
 produces ERROR. These records establish execution of the reviewed harness;
 the harness assertions and calibration establish the behavior exercised.
+The detached make clears inherited jobserver flags and receives the caller's
+command-line variable assignments explicitly, preserving compiler overrides
+with arguments. Required execution flags and the private receipt directory
+override caller values at that boundary.
 
 Run the same required aggregate locally with a caller-selected interpreter:
 
@@ -157,7 +161,8 @@ parallel, as the existing host tier does.
 negative-control status, optional and required capability branches, missing
 executables, width mismatch, duplicate receipts, missing receipts, a
 successful aggregate that executes nothing, compiler output that cannot
-run, and the real backgammon Makefile's optional/required split. Host
+run, command-line override forwarding, the stdio header probe's compiler
+argument boundary, and the real backgammon Makefile's optional/required split. Host
 execution proves the exercised host conditions. Cross, emulator and board
 results retain their separate meanings.
 

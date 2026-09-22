@@ -640,7 +640,8 @@ check-kernel-ilp32:
 # The Python boundary runs a separate make with a private receipt directory.
 check-ilp32-execution: check-python
 		${PYTHON} tools/test_execution.py aggregate --make ${MAKE} \
-		    ${TEST_EXECUTION_REPORT:D--report ${TEST_EXECUTION_REPORT}}
+		    ${.MAKEOVERRIDES:@variable@--make-variable ${variable}=${${variable}:Q}@} \
+		    ${TEST_EXECUTION_REPORT:D--report ${TEST_EXECUTION_REPORT:Q}}
 
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \

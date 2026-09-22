@@ -135,7 +135,7 @@ def collect(variants, directory):
     return records
 
 
-def aggregate(make, report):
+def aggregate(make, report, make_variables=()):
     variants = inventory()
     environment = os.environ.copy()
     # Python closes inherited jobserver descriptors; the detached child owns
@@ -144,9 +144,15 @@ def aggregate(make, report):
     environment.pop("MFLAGS", None)
     environment["REQUIRE_ILP32"] = "yes"
     environment["TEST_EXECUTION_REQUIRED"] = "yes"
-    command = [make, "MACHINE=rp2040", "check-ilp32-execution-recipes"]
+    for variable in make_variables:
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_.]*=", variable):
+            raise ValueError(f"invalid make variable assignment: {variable}")
+    command = [make, *make_variables, "MACHINE=rp2040",
+               "REQUIRE_ILP32=yes", "TEST_EXECUTION_REQUIRED=yes",
+               "check-ilp32-execution-recipes"]
     with tempfile.TemporaryDirectory(prefix="discobsd-execution-") as temporary:
         environment["TEST_EXECUTION_DIR"] = temporary
+        command.append(f"TEST_EXECUTION_DIR={temporary}")
         try:
             status = subprocess.run(command, cwd=ROOT, env=environment, check=False).returncode
         except OSError as error:
@@ -187,10 +193,11 @@ def main():
     suite = subparsers.add_parser("aggregate")
     suite.add_argument("--make", default="bmake")
     suite.add_argument("--report", type=Path)
+    suite.add_argument("--make-variable", action="append", default=[])
     args = parser.parse_args()
     try:
         if args.operation == "aggregate":
-            return aggregate(args.make, args.report)
+            return aggregate(args.make, args.report, args.make_variable)
         variant = inventory()[args.variant]
         required(variant)
         if args.operation == "skip":

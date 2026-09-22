@@ -145,7 +145,7 @@ def aggregate(make, report, make_variables=()):
     environment["REQUIRE_ILP32"] = "yes"
     environment["TEST_EXECUTION_REQUIRED"] = "yes"
     for variable in make_variables:
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_.]*=", variable):
+        if not re.match(r"^[A-Za-z_.][A-Za-z0-9_.]*=", variable):
             raise ValueError(f"invalid make variable assignment: {variable}")
     command = [make, *make_variables, "MACHINE=rp2040",
                "REQUIRE_ILP32=yes", "TEST_EXECUTION_REQUIRED=yes",

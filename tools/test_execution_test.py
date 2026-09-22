@@ -164,7 +164,7 @@ class ExecutionTest(unittest.TestCase):
         environment.pop("MAKEFLAGS", None)
         environment.pop("MFLAGS", None)
         overrides = ["HOSTCC=cc -O1", "HOST_CC=cc -O2", "CC=cc -O3",
-                     "HOST_CFLAGS=-DOVERRIDE=1 -g"]
+                     "HOST_CFLAGS=-DOVERRIDE=1 -g", ".MAKE.LEVEL.ENV=MAKELEVEL"]
         result = subprocess.run(
             ["bmake", "-j4", "-C", str(execution.ROOT), "MACHINE=rp2040",
              f"MAKE={observer}", f"PYTHON={sys.executable}", *overrides,

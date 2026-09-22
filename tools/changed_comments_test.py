@@ -104,19 +104,27 @@ class SnapshotTests(GitFixture):
         self.assertEqual([item.rule_id for item in result.diagnostics],
                          ["CH003_AFTER_THIS_COMMIT"])
 
-    def test_initial_branch_range_covers_every_commit_since_fork(self):
+    def test_initial_or_rewritten_branch_range_covers_every_commit_since_fork(self):
         default_branch = self.git("branch", "--show-current").decode().strip()
         self.git("checkout", "-qb", "feature", self.base)
         self.write("sample.c", "/* in this PR */\nint baseline;\n")
         self.stage("sample.c")
         self.git("commit", "-qm", "introduce bad comment")
+        first_commit = self.git("rev-parse", "HEAD").decode().strip()
         self.write("note.txt", "second commit\n")
         self.stage("note.txt")
         self.git("commit", "-qm", "follow-up")
         head = self.git("rev-parse", "HEAD").decode().strip()
         zero = "0" * len(head)
+        unreachable = "f" * len(head)
 
-        for event_base in ("", zero):
+        base, resolved_head = self.resolve_range(
+            first_commit, head, f"refs/heads/{default_branch}"
+        )
+        self.assertEqual(base, first_commit)
+        self.assertEqual(resolved_head, head)
+
+        for event_base in ("", zero, unreachable):
             with self.subTest(event_base=event_base):
                 base, resolved_head = self.resolve_range(
                     event_base, head, f"refs/heads/{default_branch}"
@@ -125,6 +133,15 @@ class SnapshotTests(GitFixture):
                 self.assertEqual(base, self.base)
                 self.assertEqual(resolved_head, head)
                 self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
+    def test_range_resolution_rejects_missing_required_refs(self):
+        object_length = len(self.base)
+        missing = "f" * object_length
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.resolve_range("", missing, "refs/heads/main")
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.resolve_range("", self.base, "refs/heads/missing")
 
     def test_untracked_c_file_is_outside_working_scope(self):
         self.write("untracked.c", "/* before this patch */\n")

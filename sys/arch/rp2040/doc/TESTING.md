@@ -368,8 +368,10 @@ to complete commit object IDs before invoking the gate. A pull request compares
 its recorded base with the tested checkout revision, including the synthetic
 merge revision. A push compares its event before and after revisions. An empty
 or all-zero before revision uses the tested revision's merge base with the
-repository's explicit default-branch remote ref. The initial branch range
-therefore includes every commit since the fork instead of only the head commit.
+repository's explicit default-branch remote ref. A non-fast-forward push whose
+previous tip is absent from the fetched object store uses the same range. The
+initial or rewritten branch range therefore includes every commit since the
+fork instead of only the head commit.
 
 The gate selects lowercase `.c` and `.h` paths stored as regular Git files.
 Working mode reads tracked files once and excludes untracked files. Staged mode

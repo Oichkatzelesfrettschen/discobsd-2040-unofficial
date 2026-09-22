@@ -22,11 +22,17 @@ head_commit=$(resolve_commit "$event_head") || {
 }
 
 use_default_branch=false
+base_commit=
 case $event_base in
 '') use_default_branch=true ;;
 *[!0]*) ;;
 *) use_default_branch=true ;;
 esac
+
+if [ "$use_default_branch" = false ]; then
+	base_commit=$(resolve_commit "$event_base" 2>/dev/null) ||
+		use_default_branch=true
+fi
 
 if [ "$use_default_branch" = true ]; then
 	default_commit=$(resolve_commit "$default_branch_ref") || {
@@ -37,11 +43,10 @@ if [ "$use_default_branch" = true ]; then
 		echo "changed-comment range: event head and default branch have no merge base" >&2
 		exit 2
 	}
+	base_commit=$(resolve_commit "$event_base") || {
+		echo "changed-comment range: cannot resolve merge base $event_base" >&2
+		exit 2
+	}
 fi
-
-base_commit=$(resolve_commit "$event_base") || {
-	echo "changed-comment range: cannot resolve event base $event_base" >&2
-	exit 2
-}
 
 printf '%s %s\n' "$base_commit" "$head_commit"

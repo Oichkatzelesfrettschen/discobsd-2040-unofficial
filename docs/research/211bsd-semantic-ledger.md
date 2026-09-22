@@ -25,7 +25,10 @@ recipient imported a particular historical hunk.
 artifact `10673107931`, job `firmware/posix-sh`. The complete report records
 62/62 PASS at tested integration revision
 `261f1233bc1b1b20d9f44585f6f45fc830473adb`, with tracked files unmodified.
-The original report SHA-256 is
+`211bsd-execution-report.json.gz` retains the exact report bytes in a
+deterministic gzip stream. The verifier authenticates the decompressed report
+and joins each selected receipt, including its executable hash. The original
+report SHA-256 is
 `aef91b1f4ae8cfbc10b47bc5b2d7cbd01a24cf077ce4b94e05a40cd890885101`.
 The projection removes host absolute paths while retaining invocation, width,
 owner, expected/actual exit, outcome and executable hash. A retained copy of

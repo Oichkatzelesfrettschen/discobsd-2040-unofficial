@@ -162,6 +162,7 @@
   ],
   "run_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/actions/runs/35677329437",
   "artifact_id": 10673107931,
+  "original_report": "docs/research/211bsd-execution-report.json.gz",
   "original_report_sha256": "aef91b1f4ae8cfbc10b47bc5b2d7cbd01a24cf077ce4b94e05a40cd890885101",
   "projection": "Selected receipts; host absolute paths omitted. Invocation, outcome, width, owner and executable hashes retained.",
   "source_comparison": {

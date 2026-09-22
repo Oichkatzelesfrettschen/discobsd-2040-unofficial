@@ -3,6 +3,7 @@
 import argparse
 import base64
 import binascii
+import gzip
 import hashlib
 import json
 import re
@@ -109,7 +110,7 @@ def check_summary(data, contents):
     require(projection == summary(data), "summary differs from canonical rows")
 
 
-def validate(data, evidence, read_blob, read_tree):
+def validate(data, evidence, report_archive, read_blob, read_tree):
     require(data["schema_version"] == 1, "unsupported ledger schema")
     require(data["complete_numbered_series"] is False,
             "selected ledger cannot claim complete numbered-series coverage")
@@ -135,6 +136,21 @@ def validate(data, evidence, read_blob, read_tree):
     require(len(receipts) == len(evidence["variants"]), "duplicate execution receipt")
     digest(evidence["revision"], 40, "execution revision")
     digest(evidence["original_report_sha256"], 64, "execution report hash")
+    relative_path(evidence["original_report"])
+    try:
+        report_blob = gzip.decompress(report_archive)
+    except (gzip.BadGzipFile, OSError) as error:
+        raise ValueError("retained execution report is not valid gzip") from error
+    require(hashlib.sha256(report_blob).hexdigest() == evidence["original_report_sha256"],
+            "retained execution report hash mismatch")
+    report = load_blob(report_blob, "retained execution report")
+    report_receipts = {receipt["variant"]: receipt for receipt in report["variants"]}
+    require(len(report_receipts) == len(report["variants"]),
+            "duplicate retained execution receipt")
+    require(report["revision"] == evidence["revision"] and
+            report["inventory_sha256"] == evidence["inventory_sha256"] and
+            report["tracked_files_modified"] == evidence["tracked_files_modified"] and
+            report["returncode"] == 0, "retained execution report identity mismatch")
     comparison = evidence["source_comparison"]
     require(comparison["recipient_commit"] == data["recipient_commit"] and
             comparison["executed_commit"] == evidence["revision"],
@@ -179,7 +195,9 @@ def validate(data, evidence, read_blob, read_tree):
         "execution owner URL is outside the recipient repository")
     for identifier, receipt in receipts.items():
         require(identifier in variants, f"unknown receipt: {identifier}")
+        require(identifier in report_receipts, f"receipt absent from retained report: {identifier}")
         expected = variants[identifier]
+        reported = report_receipts[identifier]
         require(receipt["owner"] == expected["owner"] and
                 receipt["width"] == expected["width"], f"{identifier}: owner/width drift")
         require(receipt["invocation"] == ["./" + expected["program"]],
@@ -188,6 +206,14 @@ def validate(data, evidence, read_blob, read_tree):
                 receipt["returncode"] == receipt["expected_exit"] ==
                 expected.get("expected_exit", 0), f"{identifier}: execution lacks PASS")
         digest(receipt["executable_sha256"], 64, f"{identifier} executable hash")
+        require(receipt["owner"] == reported["owner"] and
+                receipt["width"] == reported["width"] and
+                receipt["invocation"] == reported["invocation"] and
+                receipt["outcome"] == reported["outcome"] and
+                receipt["returncode"] == reported["returncode"] and
+                receipt["expected_exit"] == reported["expected_exit"] and
+                receipt["executable_sha256"] == reported["executable"]["sha256"],
+                f"{identifier}: retained report receipt mismatch")
 
     for identifier, row in rows.items():
         require(re.fullmatch(r"[a-z][a-z0-9-]+", identifier), "invalid fix id")
@@ -244,8 +270,9 @@ def validate(data, evidence, read_blob, read_tree):
 def verify(root):
     data = load(root / LEDGER)
     evidence = load(root / relative_path(data["execution_evidence"]))
+    report_archive = (root / relative_path(evidence["original_report"])).read_bytes()
     result = validate(
-        data, evidence,
+        data, evidence, report_archive,
         lambda revision, path: blob(root, revision, path),
         lambda revision: tree(root, revision),
     )

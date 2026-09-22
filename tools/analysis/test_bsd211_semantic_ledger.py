@@ -1,6 +1,7 @@
 """Calibrate finite row membership, witnesses, provenance and residuals."""
 
 import copy
+import gzip
 import hashlib
 import json
 import unittest
@@ -14,6 +15,9 @@ class SemanticLedgerTest(unittest.TestCase):
     def setUpClass(cls):
         cls.data = ledger.load(ledger.ROOT / ledger.LEDGER)
         cls.evidence = ledger.load(ledger.ROOT / cls.data["execution_evidence"])
+        cls.report_archive = (
+            ledger.ROOT / cls.evidence["original_report"]
+        ).read_bytes()
         paths = set(cls.evidence["source_comparison"]["source_sha256"])
         paths.add("tools/test-execution-inventory.json")
         paths.update(source["path"] for row in cls.data["fixes"] for source in row["recipient"])
@@ -32,6 +36,7 @@ class SemanticLedgerTest(unittest.TestCase):
     def setUp(self):
         self.data = copy.deepcopy(type(self).data)
         self.evidence = copy.deepcopy(type(self).evidence)
+        self.report_archive = type(self).report_archive
         self.sources = copy.deepcopy(type(self).sources)
         self.trees = copy.deepcopy(type(self).trees)
 
@@ -48,7 +53,8 @@ class SemanticLedgerTest(unittest.TestCase):
             raise ledger.InfrastructureError(f"missing fixture tree {revision}") from error
 
     def validate(self):
-        return ledger.validate(self.data, self.evidence, self.read_blob, self.read_tree)
+        return ledger.validate(self.data, self.evidence, self.report_archive,
+                               self.read_blob, self.read_tree)
 
     def test_real_ledger_has_disjoint_executed_and_open_rows(self):
         executed, total = self.validate()
@@ -108,6 +114,28 @@ class SemanticLedgerTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     self.validate()
 
+    def test_executable_hash_is_authenticated_by_retained_report(self):
+        self.evidence["variants"][0]["executable_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "retained report receipt mismatch"):
+            self.validate()
+
+    def test_retained_report_hash_and_selected_membership_are_required(self):
+        contents = gzip.decompress(self.report_archive) + b"\n"
+        self.report_archive = gzip.compress(contents, mtime=0)
+        with self.assertRaisesRegex(ValueError, "retained execution report hash mismatch"):
+            self.validate()
+
+        self.report_archive = type(self).report_archive
+        report = ledger.load_blob(gzip.decompress(self.report_archive), "fixture report")
+        selected = self.evidence["variants"][0]["variant"]
+        report["variants"] = [item for item in report["variants"]
+                              if item["variant"] != selected]
+        contents = json.dumps(report, sort_keys=True).encode()
+        self.report_archive = gzip.compress(contents, mtime=0)
+        self.evidence["original_report_sha256"] = hashlib.sha256(contents).hexdigest()
+        with self.assertRaisesRegex(ValueError, "receipt absent from retained report"):
+            self.validate()
+
     def test_source_hash_symbol_and_regression_witness(self):
         comparison = self.evidence["source_comparison"]["source_sha256"]
         comparison[next(iter(comparison))] = "0" * 64
@@ -159,6 +187,11 @@ class SemanticLedgerTest(unittest.TestCase):
         self.sources[recipient_key] = contents
         self.sources[executed_key] = contents
         self.evidence["inventory_sha256"] = hashlib.sha256(contents).hexdigest()
+        report = ledger.load_blob(gzip.decompress(self.report_archive), "fixture report")
+        report["inventory_sha256"] = self.evidence["inventory_sha256"]
+        report_contents = json.dumps(report, sort_keys=True).encode()
+        self.report_archive = gzip.compress(report_contents, mtime=0)
+        self.evidence["original_report_sha256"] = hashlib.sha256(report_contents).hexdigest()
         with self.assertRaisesRegex(ValueError, "owner/width drift"):
             self.validate()
 

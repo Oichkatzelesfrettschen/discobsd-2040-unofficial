@@ -114,7 +114,7 @@ Grouped by what they investigate.
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 style proposal: resource accounts, the four language profiles, the migration unit, and the evidence a size claim owes |
-| `211bsd-patch-scope.md` | the fork point from 2.11BSD, what each patch since then touches here, what patch 499's stdio would cost this target, and the measured `_doscan` migration unit |
+| `211bsd-patch-scope.md` | bounded 2.11BSD textual candidates, historical comparison measurements, patch 499's measured stdio cost, and the measured `_doscan` migration unit |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |
 | `211bsd-fwalk.patch` | the `_fwalk` fix for 2.11BSD patch 499 as a standalone `patch -p0` file with its message, the companion to the report |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |

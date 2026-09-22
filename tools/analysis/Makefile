@@ -1,4 +1,6 @@
-PYTHON?=	python3
+.if !defined(PYTHON) || empty(PYTHON)
+.error set PYTHON to the intended interpreter
+.endif
 
 SCRIPTS!=	ls *.py
 

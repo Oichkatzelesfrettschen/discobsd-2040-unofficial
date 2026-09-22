@@ -34,7 +34,7 @@ page in those files without carrying them here.
 | What fixed-table and kernel-stack headroom has a workload used? | `sys/arch/rp2040/doc/CAPACITY.md` |
 | Where do the 2 MB of flash go? | `sys/arch/rp2040/doc/STORAGE.md` |
 | How do I build a smaller root, and what does each feature cost? | `sys/arch/rp2040/doc/PROFILES.md` |
-| How do I work on this tree? | `AGENTS.md` (`CLAUDE.md` links to it) |
+| How do I work on this tree? | `AGENTS.md` (`.claude/CLAUDE.md` is its generated compatibility copy) |
 | What license travels with an image I hand someone? | `NOTICE`, then `docs/research/legal-memo-redistribution.md` |
 | How do I build and package the host tools? | `distrib/rp2040/host/DEVELOPMENT.md` |
 

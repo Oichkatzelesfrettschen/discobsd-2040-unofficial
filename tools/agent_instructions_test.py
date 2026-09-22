@@ -1,6 +1,7 @@
 """Calibrate the repository instruction graph against contents and index modes."""
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,15 +19,18 @@ class InstructionTest(unittest.TestCase):
         self.root.mkdir()
         self.run_git("init", "-q")
         self.run_git("config", "core.excludesFile", "/dev/null")
-        self.write("AGENTS.md", "# Canonical policy\n"
-                   "Read `docs/research/STYLE-GUIDE.md` as a proposal.\n")
-        self.write("CLAUDE.md", "@AGENTS.md\n")
-        self.run_git("add", "AGENTS.md", "CLAUDE.md")
+        self.write_pair("# Canonical policy\n"
+                        "Read `docs/research/STYLE-GUIDE.md` as a proposal.\n")
+        self.run_git("add", "AGENTS.md", policy.CLAUDE_PATH)
 
     def write(self, name, contents):
         path = self.root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(contents)
+
+    def write_pair(self, contents):
+        self.write("AGENTS.md", contents)
+        self.write(policy.CLAUDE_PATH, contents)
 
     def run_git(self, *arguments, input=None):
         return subprocess.run(["git", "-C", str(self.root), *arguments],
@@ -36,13 +40,31 @@ class InstructionTest(unittest.TestCase):
         policy.check(self.root)
         policy.check(self.root, staged=True)
 
-    def test_wrapper_contents(self):
-        for contents in ("", "@missing.md\n", "@AGENTS.md", "@AGENTS.md\n\n",
-                         "@AGENTS.md\nMore instructions\n"):
+    def test_generated_copy_drift(self):
+        for contents in ("", "@missing.md\n", "@AGENTS.md\n", "@../AGENTS.md",
+                         "@../AGENTS.md\n\n", "@../AGENTS.md\nMore instructions\n"):
             with self.subTest(contents=contents):
-                self.write("CLAUDE.md", contents)
-                with self.assertRaisesRegex(policy.PolicyError, "expected exactly"):
+                self.write(policy.CLAUDE_PATH, contents)
+                with self.assertRaisesRegex(policy.PolicyError, "generated copy differs"):
                     policy.check(self.root)
+
+    def test_sync_repairs_drift_and_rejects_unsafe_destinations(self):
+        script = Path(policy.__file__).with_name("sync_agent_instructions.sh")
+        fixture_script = self.root / "tools/sync_agent_instructions.sh"
+        fixture_script.parent.mkdir()
+        shutil.copyfile(script, fixture_script)
+        self.write(policy.CLAUDE_PATH, "drift\n")
+        subprocess.run(["sh", str(fixture_script)], capture_output=True, check=True)
+        policy.check(self.root)
+
+        compatibility = self.root / policy.CLAUDE_PATH
+        compatibility.unlink()
+        compatibility.mkdir()
+        result = subprocess.run(["sh", str(fixture_script)],
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 2)
+        compatibility.rmdir()
+        self.write(policy.CLAUDE_PATH, (self.root / "AGENTS.md").read_text())
 
     def test_missing_files(self):
         for name in policy.POLICY_FILES:
@@ -52,6 +74,25 @@ class InstructionTest(unittest.TestCase):
             with self.assertRaisesRegex(policy.PolicyError, "missing instruction file"):
                 policy.check(self.root)
             path.write_bytes(contents)
+
+    def test_missing_or_symlinked_instruction_directory(self):
+        compatibility = self.root / policy.CLAUDE_PATH
+        contents = compatibility.read_bytes()
+        compatibility.unlink()
+        compatibility.parent.rmdir()
+        with self.assertRaisesRegex(policy.PolicyError, "missing instruction directory"):
+            policy.check(self.root)
+        compatibility.parent.mkdir()
+        compatibility.write_bytes(contents)
+
+        saved = self.root / ".claude-saved"
+        compatibility.parent.rename(saved)
+        (self.root / ".claude").symlink_to(saved.name)
+        with self.assertRaisesRegex(policy.PolicyError, "expected an actual directory"):
+            policy.check(self.root)
+        policy.check(self.root, staged=True)
+        (self.root / ".claude").unlink()
+        saved.rename(self.root / ".claude")
 
     def test_symlink_modes_on_both_files(self):
         for name in sorted(policy.POLICY_FILES):
@@ -71,16 +112,16 @@ class InstructionTest(unittest.TestCase):
                 self.run_git("add", name)
 
     def test_executable_instruction_is_rejected(self):
-        (self.root / "CLAUDE.md").chmod(0o755)
+        (self.root / policy.CLAUDE_PATH).chmod(0o755)
         with self.assertRaisesRegex(policy.PolicyError, "regular non-executable"):
             policy.check(self.root)
-        self.run_git("add", "CLAUDE.md")
+        self.run_git("add", policy.CLAUDE_PATH)
         with self.assertRaisesRegex(policy.PolicyError, "regular mode 100644"):
             policy.check(self.root, staged=True)
 
     def test_broken_cyclic_escaping_private_and_proposal_edges(self):
         self.write("helper.md", "@AGENTS.md\n")
-        for target in ("missing.md", "AGENTS.md", "CLAUDE.md", "helper.md",
+        for target in ("missing.md", "AGENTS.md", policy.CLAUDE_PATH, "helper.md",
                        "../outside.md", "~/.private-policy.md", "/home/example/policy.md",
                        "./docs/research/STYLE-GUIDE.md"):
             with self.subTest(target=target):
@@ -89,9 +130,9 @@ class InstructionTest(unittest.TestCase):
                     policy.check(self.root)
 
     def test_same_line_literal_references(self):
-        self.write("AGENTS.md", "# Policy\n`@docs/research/STYLE-GUIDE.md`\n"
-                   "``literal ` @~/private.md``\n"
-                   "Contact maintainer@example.invalid.\n")
+        self.write_pair("# Policy\n`@docs/research/STYLE-GUIDE.md`\n"
+                        "``literal ` @~/private.md``\n"
+                        "Contact maintainer@example.invalid.\n")
         policy.check(self.root)
 
     def test_multiline_and_fenced_examples_cannot_hide_imports(self):
@@ -126,7 +167,7 @@ class InstructionTest(unittest.TestCase):
 
     def test_valid_index_invalid_working_copy(self):
         self.write("AGENTS.md", "@~/private.md\n")
-        self.write("CLAUDE.md", "wrong wrapper\n")
+        self.write(policy.CLAUDE_PATH, "wrong compatibility copy\n")
         policy.check(self.root, staged=True)
         with self.assertRaises(policy.PolicyError):
             policy.check(self.root)
@@ -166,7 +207,20 @@ class InstructionTest(unittest.TestCase):
                         policy.check(self.root, staged=staged)
 
     def test_tracked_rule_directory_links_are_rejected(self):
-        for name in (".claude", ".claude/rules", ".claude/rules/shared",
+        compatibility = self.root / policy.CLAUDE_PATH
+        contents = compatibility.read_bytes()
+        shutil.rmtree(compatibility.parent)
+        compatibility.parent.symlink_to("/outside-policy")
+        self.run_git("add", "-A", ".claude")
+        for staged in (False, True):
+            with self.assertRaisesRegex(policy.PolicyError, "outside the allowed graph"):
+                policy.check(self.root, staged=staged)
+        self.run_git("update-index", "--force-remove", ".claude")
+        compatibility.parent.unlink()
+        self.write(policy.CLAUDE_PATH, contents.decode())
+        self.run_git("add", policy.CLAUDE_PATH)
+
+        for name in (".claude/rules", ".claude/rules/shared",
                      "nested/.claude/rules"):
             with self.subTest(name=name):
                 path = self.root / name
@@ -200,20 +254,22 @@ class InstructionTest(unittest.TestCase):
                         policy.check(self.root, staged=staged)
                 self.run_git("update-index", "--force-remove", name)
 
-    def test_autocrlf_checkout_keeps_wrapper_lf(self):
+    def test_autocrlf_checkout_keeps_compatibility_copy_lf(self):
         attributes = (Path(policy.__file__).resolve().parent.parent / ".gitattributes").read_text()
         self.write(".gitattributes", attributes)
         self.run_git("add", ".gitattributes")
         self.run_git("config", "core.autocrlf", "true")
-        (self.root / "CLAUDE.md").unlink()
-        self.run_git("checkout-index", "-f", "CLAUDE.md")
-        self.assertEqual((self.root / "CLAUDE.md").read_bytes(), policy.WRAPPER)
+        (self.root / "AGENTS.md").unlink()
+        (self.root / policy.CLAUDE_PATH).unlink()
+        self.run_git("checkout-index", "-f", "AGENTS.md", policy.CLAUDE_PATH)
+        self.assertEqual((self.root / policy.CLAUDE_PATH).read_bytes(),
+                         (self.root / "AGENTS.md").read_bytes())
         policy.check(self.root)
         policy.check(self.root, staged=True)
 
     def test_invalid_index_valid_working_copy(self):
         for name, invalid in (("AGENTS.md", "@~/private.md\n"),
-                              ("CLAUDE.md", "wrong wrapper\n")):
+                              (policy.CLAUDE_PATH, "wrong compatibility copy\n")):
             with self.subTest(name=name):
                 original = (self.root / name).read_text()
                 self.write(name, invalid)
@@ -225,12 +281,12 @@ class InstructionTest(unittest.TestCase):
                 self.run_git("add", name)
 
     def test_staged_mode_ignores_working_symlink(self):
-        (self.root / "CLAUDE.md").unlink()
-        (self.root / "CLAUDE.md").symlink_to("AGENTS.md")
+        (self.root / policy.CLAUDE_PATH).unlink()
+        (self.root / policy.CLAUDE_PATH).symlink_to("../AGENTS.md")
         policy.check(self.root, staged=True)
 
     def test_missing_index_entry(self):
-        self.run_git("update-index", "--force-remove", "CLAUDE.md")
+        self.run_git("update-index", "--force-remove", policy.CLAUDE_PATH)
         policy.check(self.root)
         with self.assertRaisesRegex(policy.PolicyError, "missing staged"):
             policy.check(self.root, staged=True)
@@ -255,14 +311,14 @@ class InstructionTest(unittest.TestCase):
         self.root.mkdir()
         self.run_git("init", "-q", "--object-format=sha256")
         self.run_git("config", "core.excludesFile", "/dev/null")
-        self.write("AGENTS.md", "# Canonical policy\n")
-        self.write("CLAUDE.md", "@AGENTS.md\n")
-        self.run_git("add", "AGENTS.md", "CLAUDE.md")
+        self.write_pair("# Canonical policy\n")
+        self.run_git("add", "AGENTS.md", policy.CLAUDE_PATH)
         policy.check(self.root, staged=True)
         self.test_missing_git_blob_is_infrastructure_error()
 
     def test_additional_tracked_instruction_entry_is_rejected(self):
-        for name in ("sub/AGENTS.md", ".claude/rules/policy.md", "AGENTS.override.md"):
+        for name in ("CLAUDE.md", "sub/AGENTS.md", ".claude/rules/policy.md",
+                     "AGENTS.override.md"):
             with self.subTest(name=name):
                 self.write(name, "@~/private.md\n")
                 self.run_git("add", name)
@@ -293,7 +349,7 @@ class InstructionTest(unittest.TestCase):
 
     def test_cli_distinguishes_policy_and_infrastructure_failures(self):
         for directory, expected in ((self.root, 1), (Path(self.temporary.name), 2)):
-            self.write("CLAUDE.md", "invalid\n")
+            self.write(policy.CLAUDE_PATH, "invalid\n")
             environment = os.environ.copy()
             environment["GIT_CEILING_DIRECTORIES"] = self.temporary.name
             result = subprocess.run(

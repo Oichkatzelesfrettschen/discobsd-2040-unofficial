@@ -455,8 +455,8 @@ check-config-makefile:
 		${MAKE} -C tools/config check
 
 check-agent-instructions: check-python
-		${PYTHON} tools/agent_instructions_test.py
-		${PYTHON} tools/check_agent_instructions.py --root ${TOPSRC}
+		${PYTHON} -B tools/agent_instructions_test.py
+		${PYTHON} -B tools/check_agent_instructions.py --root ${TOPSRC}
 
 .PHONY: check-agent-instructions
 

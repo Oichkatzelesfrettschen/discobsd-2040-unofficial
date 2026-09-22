@@ -59,10 +59,8 @@ HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
 # machine and no second operating system. A host without 32-bit support
 # builds the rest of the tier and says so.
 ILP32=		-m32
-ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
-		if ${HOST_CC} -m32 -o /dev/null /tmp/ilp32probe$$$$.c 2>/dev/null; \
-		then echo yes; else echo no; fi; \
-		rm -f /tmp/ilp32probe$$$$.c
+ILP32_CC= ${HOST_CC}
+include ${TOPSRC}/tools/test-execution.mk
 
 # printf and panic are both defined by subr_prf.c and both owned by libc in a
 # host binary, so they move aside the way malloc does elsewhere in this tier.
@@ -361,24 +359,31 @@ check-ilp32:
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad
-	./prf_test
-	./sigauth_test
-	./rwuio_test32
-	./sysctl_test_compact
-	./sysctl_test_wide
-	./ialloc_test
-	./ialloc_test_pico
-	./ialloc_test_diagnostic
-	./balloc_test
-	./balloc_test_pico
-	./ufs_explicit_time_test
-	@if ./ufs_explicit_time_bad; then \
-		echo "ufs explicit timestamp negative control passed" >&2; \
-		exit 1; \
-	fi
-	@echo "ufs explicit timestamp negative control rejected"
+	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
+	${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test
+	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
+	${TEST_EXECUTION} run kernel.sysctl-compact.ilp32 -- ./sysctl_test_compact
+	${TEST_EXECUTION} run kernel.sysctl-wide.ilp32 -- ./sysctl_test_wide
+	${TEST_EXECUTION} run kernel.inode.ilp32 -- ./ialloc_test
+	${TEST_EXECUTION} run kernel.inode-pico.ilp32 -- ./ialloc_test_pico
+	${TEST_EXECUTION} run kernel.inode-diagnostic.ilp32 -- ./ialloc_test_diagnostic
+	${TEST_EXECUTION} run kernel.block.ilp32 -- ./balloc_test
+	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
+	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
+	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
 .else
-	@echo "check-kernel-ilp32: ${HOST_CC} cannot build 32-bit binaries; skipped" >&2
+	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sysctl-compact.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sysctl-wide.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.inode-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.inode-diagnostic.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.block.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.block-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
 check: ${PROGS}

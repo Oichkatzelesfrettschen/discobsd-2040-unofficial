@@ -33,19 +33,20 @@ RENAMES=	-Dmain=dd_main -Dexit=dd_exit -Dopen=dd_open \
 # builds at -O0, where the plain declarations are what the renames reach.
 FORTIFY=	-U_FORTIFY_SOURCE
 
-ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ddprobe$$$$.c; \
-		if ${HOSTCC} -m32 -o /dev/null /tmp/ddprobe$$$$.c \
-		    2>/dev/null; then echo yes; else echo no; fi; \
-		rm -f /tmp/ddprobe$$$$.c
+ILP32_CC= ${HOSTCC}
+include ${TOPSRC}/tools/test-execution.mk
 
 check:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ${PROG} ${TABLES} ${HOST_DD}
-	./${PROG}
-	./${TABLES}
-	sh ${.CURDIR}/filesystem_test.sh ${.CURDIR}/${HOST_DD}
+	${TEST_EXECUTION} run dd.contract.ilp32 -- ./${PROG}
+	${TEST_EXECUTION} run dd.tables.ilp32 -- ./${TABLES}
+	${TEST_EXECUTION} run dd.filesystem.ilp32 -- \
+	    sh ${.CURDIR}/filesystem_test.sh ${.CURDIR}/${HOST_DD}
 .else
-	@echo "dd_contracts: ${HOSTCC} cannot build 32-bit binaries; skipped" >&2
+	${TEST_EXECUTION} skip dd.contract.ilp32 "dd_contracts: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip dd.tables.ilp32 "dd_contracts: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip dd.filesystem.ilp32 "dd_contracts: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 dd.o: ${TARGET_SRC} dd_shim.h

@@ -36,17 +36,15 @@ CFLAGS=	-std=gnu17 ${WARN} -nostdinc ${ILP32}
 # an unrecognized -Wno- option in silence, so both spellings ride along.
 LEGACY=	-Wno-deprecated-non-prototype -Wno-old-style-definition
 
-ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/bgprobe$$$$.c; \
-		if ${HOSTCC} -m32 -o /dev/null /tmp/bgprobe$$$$.c \
-		    2>/dev/null; then echo yes; else echo no; fi; \
-		rm -f /tmp/bgprobe$$$$.c
+ILP32_CC= ${HOSTCC}
+include ${TOPSRC}/tools/test-execution.mk
 
 check:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ${PROG}
-	./${PROG}
+	${TEST_EXECUTION} run backgammon.ilp32 -- ./${PROG}
 .else
-	@echo "backgammon_contracts: ${HOSTCC} cannot build 32-bit binaries; skipped" >&2
+	${TEST_EXECUTION} skip backgammon.ilp32 "backgammon_contracts: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 ${MACHINE_STAMP}:

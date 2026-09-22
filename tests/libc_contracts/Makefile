@@ -47,10 +47,8 @@ RANDOM_UBSAN=	-fsanitize=undefined -fno-sanitize-recover=all
 # The target's size_t, int and pointers are four bytes; -m32 on an x86-64
 # host is that width, so the same test runs there when the compiler can.
 ILP32=		-m32
-ILP32_OK!=	printf 'int main(void){return 0;}\n' > /tmp/ilp32probe$$$$.c; \
-		if ${HOSTCC} -m32 -o /dev/null /tmp/ilp32probe$$$$.c 2>/dev/null; \
-		then echo yes; else echo no; fi; \
-		rm -f /tmp/ilp32probe$$$$.c
+ILP32_CC= ${HOSTCC}
+include ${TOPSRC}/tools/test-execution.mk
 
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-mktime check-difftime \
@@ -58,7 +56,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
 	check-vis \
 	check-qsort check-strtox check-string-security
-	./${PROG}
+	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 check: check-host check-aout
 
@@ -66,13 +64,13 @@ check: check-host check-aout
 # at its implicit declaration rather than storing a whole line into a fixed
 # buffer. stdio_bounds.sh carries the reasoning and its own controls.
 check-stdio-bounds:
-	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC} stdio_bounds_work
+	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC:Q} stdio_bounds_work
 
 # lib/libc.a is the ELF archive the cross build leaves behind, which nm can
 # read; the copy under distrib/obj is the a.out conversion and cannot be
 # named by symbol.
 check-stdio-bounds-cross:
-	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC} stdio_bounds_work \
+	sh ${.CURDIR}/stdio_bounds.sh ${TOPSRC} ${HOSTCC:Q} stdio_bounds_work \
 	    ${TOPSRC}/lib/libc.a ${GCCPREFIX}-nm
 
 # The string-to-integer functions compiled from the tree under names that
@@ -122,11 +120,7 @@ SCANF_OBJS_ASAN=scanf_doscan_asan.o scanf_doscan_float_asan.o \
 # own frame, where a guard byte around the caller's destination sees
 # nothing. The V7 scanner aborts this run; the replacement passes it.
 ASAN=		-fsanitize=address -fno-omit-frame-pointer
-ASAN_OK!=	printf 'int main(void){return 0;}\n' > /tmp/asanprobe$$$$.c; \
-		if ${HOSTCC} -fsanitize=address -o /dev/null \
-		    /tmp/asanprobe$$$$.c 2>/dev/null; \
-		then echo yes; else echo no; fi; \
-		rm -f /tmp/asanprobe$$$$.c
+ASAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${ASAN}
 
 # syslog compiled from the tree over deterministic transport, clock and errno
 # shims.  The formatter objects stay exact tree objects from check-printf.
@@ -148,7 +142,7 @@ SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
 .PHONY: check-stdio-bounds check-stdio-bounds-cross
 
 check-syslog: syslog_contract_test
-	./syslog_contract_test
+	${TEST_EXECUTION} run libc.syslog.native -- ./syslog_contract_test
 
 syslog_contract_test: syslog_contract_test.c syslog_syslog.o ${SYSLOG_FORMAT_OBJS}
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -nostdinc \
@@ -228,44 +222,42 @@ GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 
 # The typecnt bound is a read past ttis[] whose effect otherwise depends on
 # what happens to lie there, so the sanitizer run is what names it.
-ZONE_SAN=	-fsanitize=address,undefined -fno-omit-frame-pointer
-ZONE_SAN_OK!=	printf 'int main(void){return 0;}\n' > /tmp/zsan$$$$.c; \
-		if ${HOSTCC} -fsanitize=address,undefined -o /dev/null \
-		    /tmp/zsan$$$$.c 2>/dev/null; then echo yes; else echo no; fi; \
-		rm -f /tmp/zsan$$$$.c
+ZONE_SAN=	-fsanitize=address,undefined -fno-omit-frame-pointer \
+		-fno-sanitize-recover=all
+ZONE_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${ZONE_SAN}
 
 check-zone: zone_contract_test zone_contract_test_fixed
-	./zone_contract_test
-	./zone_contract_test_fixed
+	${TEST_EXECUTION} run libc.zone.native -- ./zone_contract_test
+	${TEST_EXECUTION} run libc.zone-fixed.native -- ./zone_contract_test_fixed
 .if ${ZONE_SAN_OK} == "yes"
 	@${MAKE} zone_contract_test_san
-	./zone_contract_test_san
+	${TEST_EXECUTION} run libc.zone.sanitized -- ./zone_contract_test_san
 .else
-	@echo "check-libc-zone: no sanitizer runtime; that run skipped" >&2
+	${TEST_EXECUTION} skip libc.zone.sanitized "check-libc-zone: no sanitizer runtime"
 .endif
 .if ${ILP32_OK} == "yes"
 	@${MAKE} zone_contract_test32
-	./zone_contract_test32
+	${TEST_EXECUTION} run libc.zone.ilp32 -- ./zone_contract_test32
 .else
-	@echo "check-libc-zone: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.zone.ilp32 "check-libc-zone: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 check-mktime: mktime_contract_test
-	./mktime_contract_test
+	${TEST_EXECUTION} run libc.mktime.native -- ./mktime_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} mktime_contract_test32
-	./mktime_contract_test32
+	${TEST_EXECUTION} run libc.mktime.ilp32 -- ./mktime_contract_test32
 .else
-	@echo "check-libc-mktime: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.mktime.ilp32 "check-libc-mktime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 check-ctime: check-asctime ctime_contract_test
-	./ctime_contract_test
+	${TEST_EXECUTION} run libc.ctime.native -- ./ctime_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ctime_contract_test32
-	./ctime_contract_test32
+	${TEST_EXECUTION} run libc.ctime.ilp32 -- ./ctime_contract_test32
 .else
-	@echo "check-libc-ctime: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.ctime.ilp32 "check-libc-ctime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 check-ctime-cross: asctime_target.o asctime_target_diagnostic.o ctime_target.o \
@@ -289,17 +281,13 @@ check-ctime-cross: asctime_target.o asctime_target_diagnostic.o ctime_target.o \
 	@echo "ctime Cortex-M0+ production and diagnostic C17 compiles passed"
 
 check-runtime-limits: runtime_limits_test runtime_limits_bad_test
-	./runtime_limits_test
-	@if ./runtime_limits_bad_test >/dev/null 2>&1; then \
-		echo "runtime limits permissive-selector negative control passed" >&2; \
-		exit 1; \
-	fi
-	@echo "runtime limits permissive-selector negative control rejected"
+	${TEST_EXECUTION} run libc.runtime-limits.native -- ./runtime_limits_test
+	${TEST_EXECUTION} run libc.runtime-limits.negative -- ./runtime_limits_bad_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} runtime_limits_test32
-	./runtime_limits_test32
+	${TEST_EXECUTION} run libc.runtime-limits.ilp32 -- ./runtime_limits_test32
 .else
-	@echo "check-libc-runtime-limits: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.runtime-limits.ilp32 "check-libc-runtime-limits: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 check-runtime-limits-cross: runtime_sysconf_target.o runtime_confstr_target.o
@@ -345,17 +333,14 @@ runtime_confstr_target.o: ${TARGET_DIR}/confstr.c
 	    ${TARGET_DIR}/confstr.c
 
 check-difftime: difftime_contract_test
-	./difftime_contract_test
+	${TEST_EXECUTION} run libc.difftime.native -- ./difftime_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} difftime_contract_test32 difftime_bad_test32
-	./difftime_contract_test32
-	@if ./difftime_bad_test32 >/dev/null 2>&1; then \
-		echo "difftime subtract-first negative control passed" >&2; \
-		exit 1; \
-	fi
-	@echo "difftime subtract-first negative control rejected"
+	${TEST_EXECUTION} run libc.difftime.ilp32 -- ./difftime_contract_test32
+	${TEST_EXECUTION} run libc.difftime.negative -- ./difftime_bad_test32
 .else
-	@echo "check-libc-difftime: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.difftime.ilp32 "check-libc-difftime: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip libc.difftime.negative "check-libc-difftime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 check-difftime-cross: difftime_target.o
@@ -386,12 +371,8 @@ difftime_target.o: ${TARGET_DIR}/difftime.c
 	${ARM_COMPILER} ${DIFFTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/difftime.c
 
 check-asctime: asctime_contract_test asctime_contract_bad_test
-	./asctime_contract_test
-	@if ./asctime_contract_bad_test >/dev/null 2>&1; then \
-		echo "asctime contract negative control passed" >&2; \
-		exit 1; \
-	fi
-	@echo "asctime contract negative control rejected"
+	${TEST_EXECUTION} run libc.asctime.native -- ./asctime_contract_test
+	${TEST_EXECUTION} run libc.asctime.negative -- ./asctime_contract_bad_test
 
 asctime_contract_test: asctime_contract_test.c asctime_asctime.o
 	${HOSTCC} ${ASCTIME_CFLAGS} -o $@ asctime_contract_test.c \
@@ -526,7 +507,7 @@ stdio_format_extensions.o: stdio_format_extensions.c
 	    stdio_format_extensions.c
 
 check-string-security: string_security_test
-	./string_security_test
+	${TEST_EXECUTION} run libc.string-security.native -- ./string_security_test
 
 string_security_test: string_security_test.c string_explicit_bzero.o \
 	string_timingsafe_bcmp.o
@@ -567,7 +548,7 @@ string_timingsafe_bcmp_bad_target.o: timingsafe_bcmp_bad.c
 	    -ffreestanding -fno-builtin -c -o $@ timingsafe_bcmp_bad.c
 
 check-vis: vis_contract_test
-	./vis_contract_test
+	${TEST_EXECUTION} run libc.vis.native -- ./vis_contract_test
 
 vis_contract_test: vis_contract_test.c vis_vis.o
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -fsigned-char -o $@ \
@@ -585,7 +566,7 @@ PRINTF_FLOAT_OBJS=	printf_snprintf.o printf_vsnprintf.o printf_flsbuf.o \
 		printf_doprnt_fp.o printf_doprnt_float.o printf_doprnt_llong.o
 
 check-printf-float: printf_float_contract_test
-	./printf_float_contract_test
+	${TEST_EXECUTION} run libc.printf-float.native -- ./printf_float_contract_test
 
 printf_float_contract_test: printf_contract_test.c ${PRINTF_FLOAT_OBJS}
 	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -o $@ printf_contract_test.c \
@@ -598,12 +579,12 @@ printf_doprnt_float.o: ${PRINTF_DIR}/doprnt_float.c
 	${HOSTCC} ${PRINTF_FLOAT_CFLAGS} -c -o $@ ${PRINTF_DIR}/doprnt_float.c
 
 check-printf: printf_contract_test
-	./printf_contract_test
+	${TEST_EXECUTION} run libc.printf.native -- ./printf_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} printf_contract_test32
-	./printf_contract_test32
+	${TEST_EXECUTION} run libc.printf.ilp32 -- ./printf_contract_test32
 .else
-	@echo "check-libc-printf: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.printf.ilp32 "check-libc-printf: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 printf_contract_test: printf_contract_test.c ${PRINTF_OBJS}
@@ -643,18 +624,18 @@ printf_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${ILP32} ${PRINTF_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
 check-scanf: scanf_contract_test
-	./scanf_contract_test
+	${TEST_EXECUTION} run libc.scanf.native -- ./scanf_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} scanf_contract_test32
-	./scanf_contract_test32
+	${TEST_EXECUTION} run libc.scanf.ilp32 -- ./scanf_contract_test32
 .else
-	@echo "check-libc-scanf: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.scanf.ilp32 "check-libc-scanf: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 .if ${ASAN_OK} == "yes"
 	@${MAKE} scanf_contract_test_asan
-	./scanf_contract_test_asan
+	${TEST_EXECUTION} run libc.scanf.sanitized -- ./scanf_contract_test_asan
 .else
-	@echo "check-libc-scanf: ${HOSTCC} has no address sanitizer; overrun run skipped" >&2
+	${TEST_EXECUTION} skip libc.scanf.sanitized "check-libc-scanf: ${HOSTCC} has no address sanitizer"
 .endif
 
 scanf_contract_test: scanf_contract_test.c ${SCANF_OBJS}
@@ -743,12 +724,12 @@ RWMODE_OBJS=	rwmode_filbuf.o rwmode_flsbuf.o rwmode_ungetc.o
 RWMODE_OBJS32=	rwmode_filbuf32.o rwmode_flsbuf32.o rwmode_ungetc32.o
 
 check-rwmode: rwmode_contract_test
-	./rwmode_contract_test
+	${TEST_EXECUTION} run libc.rwmode.native -- ./rwmode_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} rwmode_contract_test32
-	./rwmode_contract_test32
+	${TEST_EXECUTION} run libc.rwmode.ilp32 -- ./rwmode_contract_test32
 .else
-	@echo "check-libc-rwmode: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.rwmode.ilp32 "check-libc-rwmode: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 rwmode_contract_test: rwmode_contract_test.c ${RWMODE_OBJS}
@@ -776,12 +757,12 @@ rwmode_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
 check-strtox: strtox_test
-	./strtox_test
+	${TEST_EXECUTION} run libc.strtox.native -- ./strtox_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} strtox_test32
-	./strtox_test32
+	${TEST_EXECUTION} run libc.strtox.ilp32 -- ./strtox_test32
 .else
-	@echo "check-libc-strtox: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.strtox.ilp32 "check-libc-strtox: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 strtox_test: strtox_test.c ${STRTOX_OBJS}
@@ -805,22 +786,22 @@ strtox_strtoul32.o: ${STRTOX_DIR}/strtoul.c
 # The host allocator gate, which the root Makefile reaches as
 # check-libc-malloc.
 check-malloc: malloc_test
-	./malloc_test
+	${TEST_EXECUTION} run libc.malloc.native -- ./malloc_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} malloc_test32
-	./malloc_test32
+	${TEST_EXECUTION} run libc.malloc.ilp32 -- ./malloc_test32
 .else
-	@echo "check-libc-malloc: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.malloc.ilp32 "check-libc-malloc: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 # The host sort gate, which the root Makefile reaches as check-libc-qsort.
 check-qsort: qsort_test
-	./qsort_test
+	${TEST_EXECUTION} run libc.qsort.native -- ./qsort_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} qsort_test32
-	./qsort_test32
+	${TEST_EXECUTION} run libc.qsort.ilp32 -- ./qsort_test32
 .else
-	@echo "check-libc-qsort: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.qsort.ilp32 "check-libc-qsort: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 qsort_test: qsort_test.c qsort_sort.o
@@ -837,19 +818,15 @@ qsort_sort32.o: ${TARGET_DIR}/qsort.c
 
 check-random: random_contract_test random_contract_ubsan \
 	random_metadata_test random_metadata_bad_test
-	./random_contract_test
-	./random_contract_ubsan
-	./random_metadata_test
-	@if ./random_metadata_bad_test >/dev/null 2>&1; then \
-		echo "random metadata negative control passed" >&2; \
-		exit 1; \
-	fi
-	@echo "random metadata negative control rejected"
+	${TEST_EXECUTION} run libc.random.native -- ./random_contract_test
+	${TEST_EXECUTION} run libc.random.ubsan -- ./random_contract_ubsan
+	${TEST_EXECUTION} run libc.random-metadata.native -- ./random_metadata_test
+	${TEST_EXECUTION} run libc.random-metadata.negative -- ./random_metadata_bad_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} random_contract_test32
-	./random_contract_test32
+	${TEST_EXECUTION} run libc.random.ilp32 -- ./random_contract_test32
 .else
-	@echo "check-libc-random: ${HOSTCC} cannot build 32-bit binaries; ILP32 run skipped" >&2
+	${TEST_EXECUTION} skip libc.random.ilp32 "check-libc-random: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 check-random-cross: random_target.o
@@ -1017,12 +994,12 @@ ANSI_OBJS32=	${ANSI_MEMBERS:C/^/ansi32_/:C/$/.o/} ansi32_findiop.o \
 		ansi32_open_shim.o
 
 check-ansi: ansi_contract_test
-	./ansi_contract_test
+	${TEST_EXECUTION} run libc.ansi.native -- ./ansi_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ansi_contract_test32
-	./ansi_contract_test32
+	${TEST_EXECUTION} run libc.ansi.ilp32 -- ./ansi_contract_test32
 .else
-	@echo "check-libc-ansi: ${HOSTCC} cannot build 32-bit binaries; the run over the tree's own stream table is skipped" >&2
+	${TEST_EXECUTION} skip libc.ansi.ilp32 "check-libc-ansi: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
 ansi_contract_test: ansi_contract_test.c ${ANSI_OBJS}

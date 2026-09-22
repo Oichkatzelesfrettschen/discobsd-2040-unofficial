@@ -10,7 +10,8 @@
 # the board (see STORAGE.md); this only proves the shared C logic.
 set -eu
 
-PYTHON=${PYTHON:-python3}
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
 CC=${CC:-cc}
 
 # The references are GNU's. On macOS Homebrew installs coreutils under
@@ -23,6 +24,8 @@ fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 TB="$HERE/.."
 UB="$TB/.."
+TOPSRC=$(cd "$UB/.." && pwd)
+EXECUTION=$TOPSRC/tools/test_execution.py
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
@@ -90,13 +93,14 @@ else
 	cat "$WORK/getline_test.cc.log"
 	fail=1
 fi
-printf 'int main(void){return 0;}\n' > "$WORK/ilp32probe.c"
-if $CC -m32 -o "$WORK/ilp32probe" "$WORK/ilp32probe.c" 2>/dev/null; then
+# Compiler variables include argument words, as in the compile commands above.
+# shellcheck disable=SC2086
+if [ "$(sh "$TOPSRC/tools/compiler-probe.sh" ilp32 $CC -m32)" = yes ]; then
 	if $CC -m32 -std=gnu17 -Wall -Wextra -Werror -DHK_ILP32 -I"$TB" \
 	    -o "$WORK/getline_test32" "$TB/tests/getline_test.c" \
 	    2>"$WORK/getline_test32.cc.log" \
 	    && [ ! -s "$WORK/getline_test32.cc.log" ]; then
-		if "$WORK/getline_test32"; then
+		if "$PYTHON" "$EXECUTION" run textbox.getline.ilp32 -- "$WORK/getline_test32"; then
 			echo "ok: getline_test at -m32"
 		else
 			echo "FAIL: getline_test at -m32"
@@ -108,7 +112,8 @@ if $CC -m32 -o "$WORK/ilp32probe" "$WORK/ilp32probe.c" 2>/dev/null; then
 		fail=1
 	fi
 else
-	echo "skip: getline_test at -m32 ($CC builds no 32-bit binary)"
+	"$PYTHON" "$EXECUTION" skip textbox.getline.ilp32 \
+	    "$CC cannot compile and execute ILP32 binaries"
 fi
 
 # --- cut ---

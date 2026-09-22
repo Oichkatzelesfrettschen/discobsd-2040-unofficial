@@ -1,0 +1,1449 @@
+{
+  "schema": 1,
+  "scope": "Maintained conditional ILP32 suites, their libc native/control companions, and designated sanitizer variants",
+  "entry": "check-ilp32-execution",
+  "aggregate": "check-ilp32-execution-recipes",
+  "edges": [
+    {
+      "from": "check",
+      "to": "check-host",
+      "kind": "prerequisite"
+    },
+    {
+      "from": "check",
+      "to": "check-posix-sh",
+      "kind": "prerequisite"
+    },
+    {
+      "from": "check-host",
+      "to": "symlinks",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-host",
+      "to": "HOST_GATES and HOST_PROGRAM_GATES",
+      "kind": "expanded prerequisites"
+    },
+    {
+      "from": "check-ilp32-execution",
+      "to": "check-ilp32-execution-recipes",
+      "kind": "detached submake with fresh receipts"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "symlinks",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-libc-host-contracts",
+      "to": "tests/libc_contracts:check-host",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-contracts",
+      "to": "tests/libc_contracts:check -> check-host check-aout",
+      "kind": "recursive make alias"
+    },
+    {
+      "from": "tests/libc_contracts:check-ctime",
+      "to": "check-asctime",
+      "kind": "prerequisite"
+    },
+    {
+      "from": ".PHONY",
+      "to": [],
+      "kind": "declaration only; excluded from execution edges"
+    },
+    {
+      "from": "check-kernel",
+      "to": "tests/kernel:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-sysctl",
+      "to": "tests/libc_sysctl:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-umount-contracts",
+      "to": "tests/umount_contracts:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-ctime",
+      "to": "tests/libc_contracts:check-ctime",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-zone",
+      "to": "tests/libc_contracts:check-zone",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-mktime",
+      "to": "tests/libc_contracts:check-mktime",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-ctime-cross",
+      "to": "tests/libc_contracts:check-ctime-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-runtime-limits",
+      "to": "tests/libc_contracts:check-runtime-limits",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-runtime-limits-cross",
+      "to": "tests/libc_contracts:check-runtime-limits-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-difftime",
+      "to": "tests/libc_contracts:check-difftime",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-difftime-cross",
+      "to": "tests/libc_contracts:check-difftime-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-stdio-bounds-cross",
+      "to": "tests/libc_contracts:check-stdio-bounds-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-aout-contracts",
+      "to": "tests/libc_contracts:check-aout",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-malloc",
+      "to": "tests/libc_contracts:check-malloc",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-qsort",
+      "to": "tests/libc_contracts:check-qsort",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-random",
+      "to": "tests/libc_contracts:check-random",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-random-cross",
+      "to": "tests/libc_contracts:check-random-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-strtox",
+      "to": "tests/libc_contracts:check-strtox",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-printf",
+      "to": "tests/libc_contracts:check-printf",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-printf-float",
+      "to": "tests/libc_contracts:check-printf-float",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-scanf",
+      "to": "tests/libc_contracts:check-scanf",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-rwmode",
+      "to": "tests/libc_contracts:check-rwmode",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-ansi",
+      "to": "tests/libc_contracts:check-ansi",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-syslog",
+      "to": "tests/libc_contracts:check-syslog",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-vis",
+      "to": "tests/libc_contracts:check-vis",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-dd-contracts",
+      "to": "tests/dd_contracts:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-backgammon-contracts",
+      "to": "tests/backgammon_contracts:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-backgammon-contracts-cross",
+      "to": "tests/backgammon_contracts:check-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-string-security",
+      "to": "tests/libc_contracts:check-string-security",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-string-security-cross",
+      "to": "tests/libc_contracts:check-string-security-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-kernel-ilp32",
+      "to": "tests/kernel:check-ilp32",
+      "kind": "recursive make"
+    },
+    {
+      "from": "tests/libc_contracts:check-host",
+      "to": [
+        "libc_contracts_test",
+        "header_contract.o",
+        "check-stdio-bounds",
+        "check-syslog",
+        "check-zone",
+        "check-mktime",
+        "check-ctime",
+        "check-runtime-limits",
+        "check-difftime",
+        "check-string-security",
+        "check-vis",
+        "check-printf-float",
+        "check-printf",
+        "check-scanf",
+        "check-rwmode",
+        "check-strtox",
+        "check-malloc",
+        "check-qsort",
+        "check-random",
+        "check-ansi"
+      ],
+      "kind": "prerequisites"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": [
+        "check-libc-host-contracts",
+        "check-kernel-ilp32",
+        "check-dd-contracts",
+        "check-umount-contracts",
+        "check-backgammon-contracts",
+        "check-libc-sysctl",
+        "check-posix-sh",
+        "check-textbox-host"
+      ],
+      "kind": "prerequisites after symlinks .WAIT"
+    }
+  ],
+  "optional_investigations": [
+    {
+      "target": "usr.bin/smlrc:fuzz",
+      "script": "usr.bin/smlrc/tests/fuzz.sh",
+      "disposition": "optional off-default investigation",
+      "owner": null,
+      "requires": [
+        "cross libc and elf2aout",
+        "qemu-arm",
+        "executable ILP32 reference compiler"
+      ],
+      "reason": "Makefile explicitly declares fuzz off-default; check-qemu and CI invoke test, not fuzz."
+    }
+  ],
+  "variants": [
+    {
+      "id": "libc.base.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-host",
+      "root_target": "check-libc-host-contracts",
+      "program": "libc_contracts_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "libc_contracts_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.base.native -- ./libc_contracts_test",
+      "aliases": [
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.syslog.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-syslog",
+      "root_target": "check-libc-host-contracts",
+      "program": "syslog_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "syslog_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.syslog.native -- ./syslog_contract_test",
+      "aliases": [
+        "check-libc-syslog"
+      ]
+    },
+    {
+      "id": "libc.zone.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-zone",
+      "root_target": "check-libc-host-contracts",
+      "program": "zone_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "zone_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.zone.native -- ./zone_contract_test",
+      "aliases": [
+        "check-libc-zone"
+      ]
+    },
+    {
+      "id": "libc.zone-fixed.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-zone",
+      "root_target": "check-libc-host-contracts",
+      "program": "zone_contract_test_fixed",
+      "condition": "unconditional",
+      "prerequisites": [
+        "zone_contract_test_fixed"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.zone-fixed.native -- ./zone_contract_test_fixed",
+      "aliases": [
+        "check-libc-zone"
+      ]
+    },
+    {
+      "id": "libc.mktime.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-mktime",
+      "root_target": "check-libc-host-contracts",
+      "program": "mktime_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "mktime_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.mktime.native -- ./mktime_contract_test",
+      "aliases": [
+        "check-libc-mktime"
+      ]
+    },
+    {
+      "id": "libc.ctime.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ctime",
+      "root_target": "check-libc-host-contracts",
+      "program": "ctime_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "ctime_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ctime.native -- ./ctime_contract_test",
+      "aliases": [
+        "check-libc-ctime"
+      ]
+    },
+    {
+      "id": "libc.asctime.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-asctime",
+      "root_target": "check-libc-host-contracts",
+      "program": "asctime_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "asctime_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.asctime.native -- ./asctime_contract_test",
+      "aliases": []
+    },
+    {
+      "id": "libc.runtime-limits.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-runtime-limits",
+      "root_target": "check-libc-host-contracts",
+      "program": "runtime_limits_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "runtime_limits_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.runtime-limits.native -- ./runtime_limits_test",
+      "aliases": [
+        "check-libc-runtime-limits"
+      ]
+    },
+    {
+      "id": "libc.difftime.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-difftime",
+      "root_target": "check-libc-host-contracts",
+      "program": "difftime_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "difftime_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.difftime.native -- ./difftime_contract_test",
+      "aliases": [
+        "check-libc-difftime"
+      ]
+    },
+    {
+      "id": "libc.string-security.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-string-security",
+      "root_target": "check-libc-host-contracts",
+      "program": "string_security_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "string_security_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.string-security.native -- ./string_security_test",
+      "aliases": [
+        "check-libc-string-security"
+      ]
+    },
+    {
+      "id": "libc.vis.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-vis",
+      "root_target": "check-libc-host-contracts",
+      "program": "vis_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "vis_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.vis.native -- ./vis_contract_test",
+      "aliases": [
+        "check-libc-vis"
+      ]
+    },
+    {
+      "id": "libc.printf-float.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-printf-float",
+      "root_target": "check-libc-host-contracts",
+      "program": "printf_float_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "printf_float_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.printf-float.native -- ./printf_float_contract_test",
+      "aliases": [
+        "check-libc-printf-float"
+      ]
+    },
+    {
+      "id": "libc.printf.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-printf",
+      "root_target": "check-libc-host-contracts",
+      "program": "printf_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "printf_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.printf.native -- ./printf_contract_test",
+      "aliases": [
+        "check-libc-printf"
+      ]
+    },
+    {
+      "id": "libc.scanf.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scanf_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf.native -- ./scanf_contract_test",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.rwmode.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-rwmode",
+      "root_target": "check-libc-host-contracts",
+      "program": "rwmode_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "rwmode_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.rwmode.native -- ./rwmode_contract_test",
+      "aliases": [
+        "check-libc-rwmode"
+      ]
+    },
+    {
+      "id": "libc.strtox.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-strtox",
+      "root_target": "check-libc-host-contracts",
+      "program": "strtox_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "strtox_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.strtox.native -- ./strtox_test",
+      "aliases": [
+        "check-libc-strtox"
+      ]
+    },
+    {
+      "id": "libc.malloc.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-malloc",
+      "root_target": "check-libc-host-contracts",
+      "program": "malloc_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "malloc_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.malloc.native -- ./malloc_test",
+      "aliases": [
+        "check-libc-malloc"
+      ]
+    },
+    {
+      "id": "libc.qsort.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "qsort_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort.native -- ./qsort_test",
+      "aliases": [
+        "check-libc-qsort"
+      ]
+    },
+    {
+      "id": "libc.random.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-random",
+      "root_target": "check-libc-host-contracts",
+      "program": "random_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "random_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.random.native -- ./random_contract_test",
+      "aliases": [
+        "check-libc-random"
+      ]
+    },
+    {
+      "id": "libc.random-metadata.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-random",
+      "root_target": "check-libc-host-contracts",
+      "program": "random_metadata_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "random_metadata_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.random-metadata.native -- ./random_metadata_test",
+      "aliases": [
+        "check-libc-random"
+      ]
+    },
+    {
+      "id": "libc.ansi.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "ansi_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.native -- ./ansi_contract_test",
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
+      "id": "libc.zone.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-zone",
+      "root_target": "check-libc-host-contracts",
+      "program": "zone_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "zone_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.zone.ilp32 -- ./zone_contract_test32",
+      "aliases": [
+        "check-libc-zone"
+      ]
+    },
+    {
+      "id": "libc.mktime.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-mktime",
+      "root_target": "check-libc-host-contracts",
+      "program": "mktime_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "mktime_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.mktime.ilp32 -- ./mktime_contract_test32",
+      "aliases": [
+        "check-libc-mktime"
+      ]
+    },
+    {
+      "id": "libc.ctime.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ctime",
+      "root_target": "check-libc-host-contracts",
+      "program": "ctime_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ctime_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ctime.ilp32 -- ./ctime_contract_test32",
+      "aliases": [
+        "check-libc-ctime"
+      ]
+    },
+    {
+      "id": "libc.runtime-limits.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-runtime-limits",
+      "root_target": "check-libc-host-contracts",
+      "program": "runtime_limits_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "runtime_limits_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.runtime-limits.ilp32 -- ./runtime_limits_test32",
+      "aliases": [
+        "check-libc-runtime-limits"
+      ]
+    },
+    {
+      "id": "libc.difftime.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-difftime",
+      "root_target": "check-libc-host-contracts",
+      "program": "difftime_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "difftime_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.difftime.ilp32 -- ./difftime_contract_test32",
+      "aliases": [
+        "check-libc-difftime"
+      ]
+    },
+    {
+      "id": "libc.printf.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-printf",
+      "root_target": "check-libc-host-contracts",
+      "program": "printf_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "printf_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.printf.ilp32 -- ./printf_contract_test32",
+      "aliases": [
+        "check-libc-printf"
+      ]
+    },
+    {
+      "id": "libc.scanf.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "scanf_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf.ilp32 -- ./scanf_contract_test32",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.rwmode.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-rwmode",
+      "root_target": "check-libc-host-contracts",
+      "program": "rwmode_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "rwmode_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.rwmode.ilp32 -- ./rwmode_contract_test32",
+      "aliases": [
+        "check-libc-rwmode"
+      ]
+    },
+    {
+      "id": "libc.strtox.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-strtox",
+      "root_target": "check-libc-host-contracts",
+      "program": "strtox_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "strtox_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.strtox.ilp32 -- ./strtox_test32",
+      "aliases": [
+        "check-libc-strtox"
+      ]
+    },
+    {
+      "id": "libc.malloc.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-malloc",
+      "root_target": "check-libc-host-contracts",
+      "program": "malloc_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "malloc_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.malloc.ilp32 -- ./malloc_test32",
+      "aliases": [
+        "check-libc-malloc"
+      ]
+    },
+    {
+      "id": "libc.qsort.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "qsort_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort.ilp32 -- ./qsort_test32",
+      "aliases": [
+        "check-libc-qsort"
+      ]
+    },
+    {
+      "id": "libc.random.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-random",
+      "root_target": "check-libc-host-contracts",
+      "program": "random_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "random_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.random.ilp32 -- ./random_contract_test32",
+      "aliases": [
+        "check-libc-random"
+      ]
+    },
+    {
+      "id": "libc.ansi.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ansi_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.ilp32 -- ./ansi_contract_test32",
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
+      "id": "libc.zone.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-zone",
+      "root_target": "check-libc-host-contracts",
+      "program": "zone_contract_test_san",
+      "condition": "sanitizer compile and runtime probe == yes",
+      "prerequisites": [
+        "zone_contract_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.zone.sanitized -- ./zone_contract_test_san",
+      "aliases": [
+        "check-libc-zone"
+      ]
+    },
+    {
+      "id": "libc.scanf.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_contract_test_asan",
+      "condition": "sanitizer compile and runtime probe == yes",
+      "prerequisites": [
+        "scanf_contract_test_asan"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf.sanitized -- ./scanf_contract_test_asan",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.random.ubsan",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-random",
+      "root_target": "check-libc-host-contracts",
+      "program": "random_contract_ubsan",
+      "condition": "unconditional",
+      "prerequisites": [
+        "random_contract_ubsan"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.random.ubsan -- ./random_contract_ubsan",
+      "aliases": [
+        "check-libc-random"
+      ]
+    },
+    {
+      "id": "libc.asctime.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-asctime",
+      "root_target": "check-libc-host-contracts",
+      "program": "asctime_contract_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "asctime_contract_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.asctime.negative -- ./asctime_contract_bad_test",
+      "expected_exit": 1,
+      "aliases": []
+    },
+    {
+      "id": "libc.runtime-limits.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-runtime-limits",
+      "root_target": "check-libc-host-contracts",
+      "program": "runtime_limits_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "runtime_limits_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.runtime-limits.negative -- ./runtime_limits_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-runtime-limits"
+      ]
+    },
+    {
+      "id": "libc.random-metadata.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-random",
+      "root_target": "check-libc-host-contracts",
+      "program": "random_metadata_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "random_metadata_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.random-metadata.negative -- ./random_metadata_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-random"
+      ]
+    },
+    {
+      "id": "libc.difftime.negative",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-difftime",
+      "root_target": "check-libc-host-contracts",
+      "program": "difftime_bad_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "difftime_bad_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.difftime.negative -- ./difftime_bad_test32",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-difftime"
+      ]
+    },
+    {
+      "id": "kernel.printf.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "prf_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "prf_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.signal-auth.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "sigauth_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sigauth_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.rwuio.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "rwuio_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "rwuio_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.sysctl-compact.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "sysctl_test_compact",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sysctl_test_compact"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.sysctl-compact.ilp32 -- ./sysctl_test_compact",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.sysctl-wide.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "sysctl_test_wide",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sysctl_test_wide"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.sysctl-wide.ilp32 -- ./sysctl_test_wide",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.inode.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ialloc_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ialloc_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.inode.ilp32 -- ./ialloc_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.inode-pico.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ialloc_test_pico",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ialloc_test_pico"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.inode-pico.ilp32 -- ./ialloc_test_pico",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.inode-diagnostic.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ialloc_test_diagnostic",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ialloc_test_diagnostic"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.inode-diagnostic.ilp32 -- ./ialloc_test_diagnostic",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.block.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "balloc_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "balloc_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.block.ilp32 -- ./balloc_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.block-pico.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "balloc_test_pico",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "balloc_test_pico"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.explicit-time.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ufs_explicit_time_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ufs_explicit_time_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.explicit-time-negative.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ufs_explicit_time_bad",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ufs_explicit_time_bad"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad",
+      "expected_exit": 1,
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "dd.contract.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/dd_contracts",
+      "makefile": "tests/dd_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-dd-contracts",
+      "program": "dd_contract_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "dd_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run dd.contract.ilp32 -- ./dd_contract_test",
+      "aliases": [
+        "check-dd-contracts"
+      ]
+    },
+    {
+      "id": "dd.tables.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/dd_contracts",
+      "makefile": "tests/dd_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-dd-contracts",
+      "program": "dd_tables_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "dd_tables_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run dd.tables.ilp32 -- ./dd_tables_test",
+      "aliases": [
+        "check-dd-contracts"
+      ]
+    },
+    {
+      "id": "umount.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/umount_contracts",
+      "makefile": "tests/umount_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-umount-contracts",
+      "program": "umount_contract_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "umount_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run umount.ilp32 -- ./umount_contract_test",
+      "aliases": [
+        "check-umount-contracts"
+      ]
+    },
+    {
+      "id": "backgammon.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/backgammon_contracts",
+      "makefile": "tests/backgammon_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-backgammon-contracts",
+      "program": "backgammon_contract_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "backgammon_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run backgammon.ilp32 -- ./backgammon_contract_test",
+      "aliases": [
+        "check-backgammon-contracts"
+      ]
+    },
+    {
+      "id": "libc-sysctl.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_sysctl",
+      "makefile": "tests/libc_sysctl/Makefile",
+      "target": "check",
+      "root_target": "check-libc-sysctl",
+      "program": "libc_sysctl_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "libc_sysctl_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc-sysctl.ilp32 -- ./libc_sysctl_test",
+      "aliases": [
+        "check-libc-sysctl"
+      ]
+    },
+    {
+      "id": "libc-sysctl.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_sysctl",
+      "makefile": "tests/libc_sysctl/Makefile",
+      "target": "check",
+      "root_target": "check-libc-sysctl",
+      "program": "libc_sysctl_test_san",
+      "condition": "ILP32_OK == yes and SAN_OK == yes",
+      "prerequisites": [
+        "libc_sysctl_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc-sysctl.sanitized -- ./libc_sysctl_test_san",
+      "aliases": [
+        "check-libc-sysctl"
+      ]
+    },
+    {
+      "id": "dd.filesystem.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/dd_contracts",
+      "makefile": "tests/dd_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-dd-contracts",
+      "program": "sh",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "dd_host"
+      ],
+      "recipe": "${TEST_EXECUTION} run dd.filesystem.ilp32 -- sh ${.CURDIR}/filesystem_test.sh ${.CURDIR}/${HOST_DD}",
+      "script": "tests/dd_contracts/filesystem_test.sh",
+      "subject": "tests/dd_contracts/dd_host",
+      "aliases": [
+        "check-dd-contracts"
+      ]
+    },
+    {
+      "id": "shell.posix.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-posix-sh",
+      "root_target": "check-posix-sh",
+      "program": "sh",
+      "condition": "compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "bin/sh/tests/posix-sh.sh:build"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- sh bin/sh/tests/posix-sh.sh",
+      "script": "bin/sh/tests/posix-sh.sh",
+      "subject": "bin/sh/tests/out/sh",
+      "aliases": []
+    },
+    {
+      "id": "textbox.getline.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-textbox-host",
+      "root_target": "check-textbox-host",
+      "program": "getline_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "temporary getline_test32"
+      ],
+      "recipe": "\"$PYTHON\" \"$EXECUTION\" run textbox.getline.ilp32 -- \"$WORK/getline_test32\"",
+      "script": "usr.bin/textbox/tests/run.sh",
+      "aliases": []
+    }
+  ]
+}

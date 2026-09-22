@@ -173,11 +173,10 @@ jobs:
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
-  # bin/sh keeps pointers in int, so its POSIX conformance run builds the
-  # shell as a 32-bit host binary. gcc-multilib supplies that, so the tier has
-  # a job of its own; it needs no cross toolchain and no picotool.
+  # Every required ILP32 variant belongs to this provisioned job. Executable
+  # receipts distinguish assertion results from optional local skips.
   posix-sh:
-    name: 32-bit host gates (bin/sh conformance, the kernel's printf)
+    name: Required ILP32 execution (shell, kernel, libc and utilities)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -185,29 +184,22 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bmake build-essential gcc-multilib
-      # The runner starts every step with SIGPIPE ignored, so a reader
-      # that exits early makes the writer report "write error: Broken
-      # pipe" instead of dying quietly, and the harness's pipeline cases
-      # read that as output. The tier runs with the default disposition.
-      - name: Run the shell conformance tier
+            bmake build-essential gcc-multilib python3 pkg-config libbsd-dev
+          echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Calibrate execution accounting
+        run: bmake MACHINE=rp2040 check-test-execution
+      - name: Execute every required variant
+        timeout-minutes: 10
         run: |
-          python3 -c 'import os, signal, sys
-          signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-          os.execvp(sys.argv[1], sys.argv[1:])' bmake check-posix-sh
-      # sys/kern/subr_prf.c walks its arguments as four-byte slots, so the
-      # kernel's own printf is faithful only where a pointer and a long are
-      # four bytes. The binary is ordinary 32-bit userspace, which is why it
-      # belongs in the job that already carries gcc-multilib rather than in
-      # anything that boots.
-      - name: Run the ILP32 kernel gate
-        run: bmake MACHINE=rp2040 check-kernel-ilp32
-      # The libc callers that read a value through sysctl(3) compile the
-      # tree's userland headers, whose size_t is u_int, so this tier belongs
-      # in the same job for the same reason. It probes for the 32-bit
-      # sanitizer runtime and reports that run as skipped where it is absent.
-      - name: Run the libc sysctl gate
-        run: bmake MACHINE=rp2040 check-libc-sysctl
+          bmake MACHINE=rp2040 check-ilp32-execution \
+            TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
+      - name: Retain per-variant invocations and outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ilp32-execution
+          path: ${{ runner.temp }}/ilp32-execution.json
+          if-no-files-found: error
 
   # The same tree on macOS, with the toolchain Homebrew provides: bmake,
   # byacc, Arm's own GNU toolchain (the arm-none-eabi-gcc formula is built

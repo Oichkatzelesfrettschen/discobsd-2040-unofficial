@@ -1,8 +1,7 @@
 # Tests and gates
 
-Every test in the tree is reached through a root Makefile target, and the
-targets are grouped into tiers by what the host needs. `bmake
-MACHINE=rp2040 check` runs every maintained tier; a host without one tool runs
+The root Makefile groups default tests into tiers by what the host needs.
+`bmake MACHINE=rp2040 check` invokes the maintained tiers; a host without one tool runs
 the tiers it has and names the one it skips. The cross, qemu, and board-build
 tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
@@ -24,7 +23,7 @@ shell against the host's headers, so those two reach nothing under
 | --- | --- | --- | --- | --- |
 | lint | `check-lint` | shellcheck, ruff | yes | yes |
 | host | `check-host` | host cc, `${PYTHON}` | yes | yes |
-| ILP32 host | `check-kernel-ilp32` | a host cc that can build 32-bit binaries | yes, in the 32-bit job | no: clang on Apple silicon builds no 32-bit target |
+| ILP32 host | `check-ilp32-execution` | a host cc and runtime that execute 32-bit binaries, native and ILP32 sanitizers, `${PYTHON}` | required in `firmware/posix-sh` | optional variants report SKIP on hosts without ILP32 |
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
@@ -88,6 +87,79 @@ build; `host.yml` owns the discobsd-host package and packages it on
 three platforms. The caller supplies `PYTHON`; CI resolves one interpreter,
 writes its path to the job environment, and every sub-make inherits that
 identity.
+
+### Required execution and optional local variants
+
+`firmware/posix-sh` owns `check-ilp32-execution`. The job provisions
+gcc-multilib, runs the existing libc host aggregate, kernel ILP32 aggregate,
+shell conformance, dd, umount, backgammon, libc sysctl, and textbox suites.
+The textbox suite includes the separately compiled `getline_test32`.
+The libc ANSI ILP32 variant links the tree's own stream table.
+
+`tools/test-execution-inventory.json` enumerates executable variants, their
+compiler width, capability condition, build prerequisites, recipe, recursive
+make target, aliases, and owning job. `.PHONY` entries are declarations,
+excluded from execution edges. The inventory covers conditional ILP32 tests
+and their libc native, sanitizer, and negative-control companions. Other
+host gates retain their documented owners. Smaller C's differential `fuzz`
+target is an explicitly optional investigation requiring cross artifacts,
+qemu-arm and a 32-bit reference compiler; its prerequisite `test` does not
+execute the fuzz recipe.
+
+The outcomes describe execution, separately from root-target reachability:
+
+| outcome | meaning |
+| --- | --- |
+| PASS | The executable ran and returned the contract's expected status. Negative controls must return exactly their recorded rejection status. |
+| FAIL | The executable ran and rejected the expected result. |
+| SKIP | An explicitly optional local variant could not execute. |
+| ERROR | Required execution could not be established, including a missing runtime, executable, or receipt. |
+
+`tools/compiler-probe.sh` compiles width assertions and executes the output;
+successful linking alone cannot admit a variant. The same probe runs with
+the sanitizer flags for each conditional sanitizer. Local suite targets may
+skip unavailable variants. `REQUIRE_ILP32=yes` makes their ILP32 skips fail;
+the designated aggregate also sets `TEST_EXECUTION_REQUIRED=yes`, requiring
+the native sanitizer companions. Capability failure never supplies a PASS.
+Undefined-behavior sanitizer diagnostics terminate the required sanitized
+executables through `-fno-sanitize-recover=all`.
+
+The recorder surrounds each executable recipe with its actual command,
+working directory, executable SHA-256, compiler-width class, expected and
+observed exit statuses, and owner. Shell harness records name the script and
+the built subject. The aggregate creates a fresh private receipt directory,
+then compares observed receipts with the full inventory even when make
+fails. A target that returns zero while omitting a required invocation
+produces ERROR. These records establish execution of the reviewed harness;
+the harness assertions and calibration establish the behavior exercised.
+
+Run the same required aggregate locally with a caller-selected interpreter:
+
+```sh
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
+bmake MACHINE=rp2040 check-test-execution
+bmake MACHINE=rp2040 check-ilp32-execution \
+    TEST_EXECUTION_REPORT=/tmp/ilp32-execution.json
+```
+
+CI retains `ilp32-execution.json` as the `ilp32-execution` artifact, including
+failed invocations. The report identifies the source revision, inventory
+hash, tracked-diff hash and modification flag. Each executable record also
+identifies the tested binary by hash. Compile failures leave an ERROR row
+for each unexecuted required variant; the build log carries the diagnostic.
+Receipt and probe directories are private to each invocation. Compiled
+suite products belong to the checkout, so independent aggregates use
+separate worktrees; one aggregate may schedule its prerequisite graph in
+parallel, as the existing host tier does.
+
+`check-test-execution` calibrates successful and rejecting processes, exact
+negative-control status, optional and required capability branches, missing
+executables, width mismatch, duplicate receipts, missing receipts, a
+successful aggregate that executes nothing, compiler output that cannot
+run, and the real backgammon Makefile's optional/required split. Host
+execution proves the exercised host conditions. Cross, emulator and board
+results retain their separate meanings.
 
 Windows appears in `host.yml` and nowhere else. The firmware tiers want
 bmake, an arm-none-eabi cross toolchain and a POSIX sh userland to test,

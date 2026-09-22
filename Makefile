@@ -454,6 +454,12 @@ check-hsaout:
 check-config-makefile:
 		${MAKE} -C tools/config check
 
+check-agent-instructions: check-python
+		${PYTHON} tools/agent_instructions_test.py
+		${PYTHON} tools/check_agent_instructions.py --root ${TOPSRC}
+
+.PHONY: check-agent-instructions
+
 # Clean controls must compile; deliberate warnings must fail using the actual
 # evaluated commands, including leaves that replace CFLAGS.
 check-warning-policy-host:
@@ -520,6 +526,7 @@ check-elf2aout:	tools
 # the shell against the host's headers, so those two reach nothing under
 # include.
 HOST_GATES=	check-architecture-isolation \
+		check-agent-instructions \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-libc-host-contracts \
 		check-dirent-contracts check-getty-contracts \

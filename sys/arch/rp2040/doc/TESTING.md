@@ -176,6 +176,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 
 | gate | proves |
 | --- | --- |
+| `check-agent-instructions` | The repository has regular canonical and wrapper files; the wrapper is exactly `@AGENTS.md` plus a newline and the canonical policy has literal references instead of active imports. Calibration exercises malformed, missing, cyclic, escaping and private-home imports, modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file graph, not actual client instruction loading. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
 | `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
 | `check-analysis` | the 2.11BSD patch-scope analyzer accepts a linked Git worktree, maps a known patch commit onto a shared file, and rejects an invalid base revision with Git's diagnostic rather than an empty successful report |
@@ -234,6 +235,47 @@ Each gate compiles the tree's own source for the host, with `-Wall
 against XCU chapter 2, which builds the shell as a 32-bit host binary;
 a case the shell does not yet answer as POSIX does is declared `xfail`
 and fails the moment the shell starts producing the POSIX answer.
+
+### Repository instruction safety
+
+`check-agent-instructions` calibrates and checks the two-file instruction
+contract. `AGENTS.md` is canonical; the regular `CLAUDE.md` contains exactly
+`@AGENTS.md` followed by one newline. The canonical policy references other
+documents literally, including the style proposal. The only permitted active
+import edge is `CLAUDE.md -> AGENTS.md`. Extra tracked instruction entries
+require an explicit policy/gate change; personal untracked client files remain
+outside the gate's repository scope.
+
+The checker reads complete Markdown files and masks matching backtick spans
+and fenced code examples before finding active import tokens. Every other
+canonical import rejects the gate, including missing destinations, cycles,
+private-home dependencies, repository escapes and proposal-corpus imports.
+The checker enforces the repository's narrow grammar rather than reproducing
+every client's instruction parser. Length and ordinary vocabulary remain
+outside the gate's verdict.
+
+Run `${PYTHON} tools/check_agent_instructions.py --staged` before committing.
+Staged mode reads Git index modes and blob contents for both files, including
+the canonical policy used to decide the import graph. Working-tree repairs
+cannot hide an invalid index; unstaged damage cannot invalidate a valid index.
+Unresolved index stages and unreadable Git objects return infrastructure
+`ERROR` (status 2); policy violations return `FAIL` (status 1). A successful
+check returns `PASS` (status 0).
+
+The regular wrapper is a compatibility choice. Its installation creates a
+complete temporary regular file beside the wrapper, then renames that entry
+over the symlink. Compare the already-edited canonical file's hash immediately
+before and after that rename, then stage both policy and wrapper and inspect
+their modes. Writing through the symlink would modify the canonical policy;
+unlinking first would leave an interval without the wrapper.
+
+Client versions, effective discovery limits and actual loaded chains require
+separate client observations. The official documentation describes the
+[Claude import and native AGENTS behavior](https://code.claude.com/docs/en/memory)
+and [Codex instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md).
+The repository gate establishes neither live loading nor a general per-file
+instruction-capacity allowance. Personal deployment, telemetry preferences
+and updater settings remain separate from repository correctness.
 
 ### The kernel's printf, and why it needs a narrower host
 

@@ -50,7 +50,7 @@ def reject_absolute_strings(value):
         for member in value:
             reject_absolute_strings(member)
     elif isinstance(value, str) and re.search(
-            r"(?<![A-Za-z0-9._<>-])/[A-Za-z]", value):
+            r"(?<![A-Za-z0-9._<>/-])/(?!/)", value):
         raise ValueError("absolute path survived report transformation")
 
 

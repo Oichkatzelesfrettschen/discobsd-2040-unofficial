@@ -73,6 +73,7 @@ class SanitizerTest(unittest.TestCase):
 
     def test_unexpected_absolute_paths_and_invocations_fail(self):
         for mutation in ("foreign-cwd", "foreign-executable", "foreign-reason",
+                         "digit-path", "underscore-path", "dot-path",
                          "wrong-harness", "wrong-getline"):
             with self.subTest(mutation=mutation):
                 self.setUp()
@@ -82,6 +83,10 @@ class SanitizerTest(unittest.TestCase):
                     self.report["variants"][0]["executable"]["path"] = "/tmp/x"
                 elif mutation == "foreign-reason":
                     self.report["variants"][0]["reason"] = "trace:/etc/passwd"
+                elif mutation in {"digit-path", "underscore-path", "dot-path"}:
+                    path = {"digit-path": "/1/private", "underscore-path": "/_private/x",
+                            "dot-path": "/.private/x"}[mutation]
+                    self.report["variants"][0]["reason"] = path
                 elif mutation == "wrong-harness":
                     self.report["variants"][1]["invocation"][1] = "/tmp/wrong.sh"
                 else:

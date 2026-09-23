@@ -134,7 +134,8 @@ measurement and residuals. Follow the recipient's conventions.
 
 ## Safety stop-line
 
-Stop feature work and report a tracked secret, token or private hostname;
+Stop feature work and report a secret, token or private hostname in a tracked
+file or log;
 unquoted data reaching `sh -c`, `eval` or a generated script; an untrusted
 input path; or a board-flash/serial path reached without caller authorization.
 Hardware gates require an exact opt-in value; unset, empty and zero remain

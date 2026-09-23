@@ -40,7 +40,9 @@ class SanitizerTest(unittest.TestCase):
     def receipt(identifier, cwd, executable, invocation):
         return {"variant": identifier, "cwd": cwd,
                 "executable": {"path": executable, "sha256": "d" * 64},
-                "invocation": invocation}
+                "invocation": invocation, "capability": "native compiler and runtime",
+                "expected_exit": 0, "outcome": "PASS", "owner": "firmware/posix-sh",
+                "reason": None, "returncode": 0, "width": "native"}
 
     def transform(self):
         original = sanitizer.canonical_bytes(self.report)
@@ -74,6 +76,7 @@ class SanitizerTest(unittest.TestCase):
     def test_unexpected_absolute_paths_and_invocations_fail(self):
         for mutation in ("foreign-cwd", "foreign-executable", "foreign-reason",
                          "digit-path", "underscore-path", "dot-path",
+                         "double-slash-path", "embedded-double-slash-path",
                          "wrong-harness", "wrong-getline"):
             with self.subTest(mutation=mutation):
                 self.setUp()
@@ -82,17 +85,30 @@ class SanitizerTest(unittest.TestCase):
                 elif mutation == "foreign-executable":
                     self.report["variants"][0]["executable"]["path"] = "/tmp/x"
                 elif mutation == "foreign-reason":
-                    self.report["variants"][0]["reason"] = "trace:/etc/passwd"
+                    self.report["variants"][0]["capability"] = "trace:/etc/passwd"
                 elif mutation in {"digit-path", "underscore-path", "dot-path"}:
                     path = {"digit-path": "/1/private", "underscore-path": "/_private/x",
                             "dot-path": "/.private/x"}[mutation]
-                    self.report["variants"][0]["reason"] = path
+                    self.report["variants"][0]["capability"] = path
+                elif mutation == "double-slash-path":
+                    self.report["variants"][0]["capability"] = "//home/runner/private"
+                elif mutation == "embedded-double-slash-path":
+                    self.report["variants"][0]["capability"] = "trace://home/runner/private"
                 elif mutation == "wrong-harness":
                     self.report["variants"][1]["invocation"][1] = "/tmp/wrong.sh"
                 else:
                     self.report["variants"][3]["invocation"][0] = "/tmp/other"
                 with self.assertRaises(ValueError):
                     self.transform()
+
+    def test_unknown_receipt_field_and_reason_fail(self):
+        self.report["variants"][0]["private_path"] = "/home/private"
+        with self.assertRaisesRegex(ValueError, "receipt fields"):
+            self.transform()
+        self.setUp()
+        self.report["variants"][0]["reason"] = "hidden path"
+        with self.assertRaisesRegex(ValueError, "receipt fields or reason"):
+            self.transform()
 
     def test_unexpected_root_invocation_and_duplicate_variants_fail(self):
         self.report["invocation"][1] = "TEST_EXECUTION_REPORT=/tmp/other.json"

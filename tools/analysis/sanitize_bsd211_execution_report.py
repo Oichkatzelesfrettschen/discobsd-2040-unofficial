@@ -13,6 +13,9 @@ REPORT_TEMP = "/home/runner/work/_temp/ilp32-execution.json"
 EXECUTION_TEMP = re.compile(r"/tmp/discobsd-execution-[A-Za-z0-9_-]+\Z")
 GETLINE_TEMP = re.compile(r"/tmp/tmp\.[A-Za-z0-9]+/getline_test32\Z")
 TRANSFORMATION_VERSION = 1
+RECEIPT_FIELDS = {"capability", "cwd", "executable", "expected_exit",
+                  "invocation", "outcome", "owner", "reason", "returncode",
+                  "variant", "width"}
 
 
 def unique_object(pairs):
@@ -49,8 +52,7 @@ def reject_absolute_strings(value):
     elif isinstance(value, list):
         for member in value:
             reject_absolute_strings(member)
-    elif isinstance(value, str) and re.search(
-            r"(?<![A-Za-z0-9._<>/-])/(?!/)", value):
+    elif isinstance(value, str) and re.search(r"(?<![A-Za-z0-9._<>/-])/", value):
         raise ValueError("absolute path survived report transformation")
 
 
@@ -81,6 +83,8 @@ def sanitize_report(original, expected_hash):
     ]
     seen = set()
     for receipt in report["variants"]:
+        if set(receipt) != RECEIPT_FIELDS or receipt["reason"] is not None:
+            raise ValueError("unexpected hosted receipt fields or reason")
         identifier = receipt["variant"]
         if identifier in seen:
             raise ValueError(f"duplicate hosted variant: {identifier}")

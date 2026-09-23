@@ -139,6 +139,15 @@ class RegressionBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "compiler recipe"):
             self.validate()
 
+    def test_shell_comment_cannot_supply_regression_source(self):
+        self.replace_makefile(
+            "tests/libc_contracts/Makefile",
+            b"-o $@ scanf_contract_test.c ${SCANF_OBJS}",
+            b"-o $@ unrelated.c # scanf_contract_test.c ${SCANF_OBJS}",
+        )
+        with self.assertRaisesRegex(ValueError, "compiler recipe"):
+            self.validate()
+
     def test_recursive_build_must_share_the_run_branch(self):
         path = "tests/libc_contracts/Makefile"
         self.replace_makefile(
@@ -150,6 +159,43 @@ class RegressionBindingTest(unittest.TestCase):
             b".else\n\t@${MAKE} scanf_contract_test32",
         )
         with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile(
+            path,
+            b"\t@${MAKE} scanf_contract_test32\n"
+            b"\t${TEST_EXECUTION} run libc.scanf.ilp32 -- ./scanf_contract_test32",
+            b"\t@${MAKE} scanf_contract_test32\n"
+            b".elif ${ILP32_OK} == \"other\"\n"
+            b"\t${TEST_EXECUTION} run libc.scanf.ilp32 -- ./scanf_contract_test32",
+        )
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+
+    def test_width_assignment_and_native_compiler_width_are_bound(self):
+        for path, assignment in (
+                ("tests/kernel/Makefile", b"ILP32=\t\t-m32"),
+                ("tests/libc_contracts/Makefile", b"ILP32=\t\t-m32"),
+                ("tests/umount_contracts/Makefile", b"ILP32=\t-m32")):
+            with self.subTest(path=path):
+                self.sources = copy.deepcopy(type(self).sources)
+                self.bindings = copy.deepcopy(type(self).bindings)
+                self.replace_makefile(path, assignment, assignment.replace(b"-m32", b""))
+                with self.assertRaisesRegex(ValueError, "ILP32 width assignment"):
+                    self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/libc_contracts/Makefile",
+                              b"ILP32=\t\t-m32", b"ILP32?=\t\t-m32")
+        with self.assertRaisesRegex(ValueError, "ILP32 width assignment"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/libc_contracts/Makefile",
+                              b"-o $@ scanf_contract_test.c ${SCANF_OBJS}",
+                              b"-m32 -o $@ scanf_contract_test.c ${SCANF_OBJS}")
+        with self.assertRaisesRegex(ValueError, "compiler width mismatch"):
             self.validate()
 
     def test_pinned_makefile_and_inventory_recipe_are_required(self):

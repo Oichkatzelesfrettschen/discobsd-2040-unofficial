@@ -50,10 +50,20 @@ def build_rule(lines, target):
     return prerequisites, commands
 
 
+def shell_tokens(command):
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>")
+    lexer.whitespace_split = True
+    lexer.commenters = "#"
+    tokens = list(lexer)
+    require(not any(token[0] in ";&|<>" for token in tokens if token),
+            "compiler or submake recipe contains shell control")
+    return tokens
+
+
 def compiler_command(commands, source, object_compile):
     matches = []
     for command in commands:
-        tokens = shlex.split(command)
+        tokens = shell_tokens(command)
         if (source in tokens and "-o" in tokens and "$@" in tokens and
                 tokens[0] in {"${HOST_CC}", "${HOSTCC}"} and
                 not {"-E", "-S", "-fsyntax-only"} & set(tokens) and
@@ -66,14 +76,19 @@ def compiler_command(commands, source, object_compile):
 def guarded_commands(region):
     guards = []
     commands = []
-    for line in region[1:]:
+    for position, line in enumerate(region[1:]):
         directive = line.strip()
         if directive.startswith(".if "):
             guards.append((directive, "if"))
+        elif directive.startswith(".elif "):
+            require(guards and guards[-1][1] != "else",
+                    "unmatched Makefile .elif")
+            condition, _ = guards[-1]
+            guards[-1] = (condition, f"elif:{position}")
         elif directive == ".else":
             require(guards, "unmatched Makefile .else")
             condition, branch = guards[-1]
-            require(branch == "if", "duplicate Makefile .else")
+            require(branch != "else", "duplicate Makefile .else")
             guards[-1] = (condition, "else")
         elif directive == ".endif":
             require(guards, "unmatched Makefile .endif")
@@ -91,7 +106,7 @@ def build_precedes_run(region, program, recipe):
     require(len(runs) == 1, "inventory execution recipe is absent")
     run_index, run_guard = runs[0]
     return any(guard == run_guard and
-               (tokens := shlex.split(command.replace("${PROG}", program))) and
+               (tokens := shell_tokens(command.replace("${PROG}", program))) and
                tokens[0] in {"@${MAKE}", "${MAKE}"} and
                all(re.fullmatch(r"[A-Za-z0-9_]+", token)
                    for token in tokens[1:]) and
@@ -137,7 +152,17 @@ def validate(data, evidence, bindings, inventory, report, read_blob):
                 f"{path}: pinned recipe input hash mismatch")
         sources[path] = recipient
         if path in bindings["makefiles"]:
-            makefiles[path] = logical_lines(recipient)
+            lines = logical_lines(recipient)
+            assignments = [(index, match[1], match[2])
+                           for index, line in enumerate(lines)
+                           if (match := re.fullmatch(r"ILP32\s*([:?+!]?)=\s*(.*)", line))]
+            first_conditional = next((index for index, line in enumerate(lines)
+                                      if line.startswith(".if ")), len(lines))
+            require(len(assignments) == 1 and
+                    assignments[0][0] < first_conditional and
+                    assignments[0][1:] == ("", "-m32"),
+                    f"{path}: ILP32 width assignment mismatch")
+            makefiles[path] = lines
     require(b"check-ilp32-execution-recipes:" in sources["Makefile"] and
             b"tools/test_execution.py" in sources["tools/test-execution.mk"] and
             all(b"include ${TOPSRC}/tools/test-execution.mk" in sources[path]
@@ -184,7 +209,8 @@ def validate(data, evidence, bindings, inventory, report, read_blob):
                 for command in link_commands),
                 "umount gate.o is absent from executable link")
         else:
-            require(("${ILP32}" in compile_tokens) == (expected["width"] == "ilp32"),
+            width_selected = "${ILP32}" in compile_tokens or "-m32" in compile_tokens
+            require(width_selected == (expected["width"] == "ilp32"),
                     f"{identifier}: compiler width mismatch")
         execution_region = rule_region(lines, expected["target"])
         recipe = expected["recipe"].replace("${PROG}", program)

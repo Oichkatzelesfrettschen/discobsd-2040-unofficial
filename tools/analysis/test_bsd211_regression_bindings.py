@@ -100,6 +100,58 @@ class RegressionBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "compiler recipe"):
             self.validate()
 
+    def test_execution_target_must_build_its_program(self):
+        path = "tests/libc_contracts/Makefile"
+        self.replace_makefile(path, b"check-scanf: scanf_contract_test",
+                              b"check-scanf:")
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile(path, b"@${MAKE} scanf_contract_test32",
+                              b"@true")
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile(path, b"@${MAKE} scanf_contract_test32",
+                              b"@${MAKE} -n scanf_contract_test32")
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/kernel/Makefile",
+                              b"ialloc_test ialloc_test_pico ialloc_test_diagnostic",
+                              b"ialloc_test_pico ialloc_test_diagnostic")
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/umount_contracts/Makefile",
+                              b"@${MAKE} ${PROG}", b"@true")
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+
+    def test_syntax_only_compiler_cannot_bind_an_executable(self):
+        self.replace_makefile("tests/libc_contracts/Makefile",
+                              b"-o $@ scanf_contract_test.c ${SCANF_OBJS}",
+                              b"-fsyntax-only -o $@ scanf_contract_test.c ${SCANF_OBJS}")
+        with self.assertRaisesRegex(ValueError, "compiler recipe"):
+            self.validate()
+
+    def test_recursive_build_must_share_the_run_branch(self):
+        path = "tests/libc_contracts/Makefile"
+        self.replace_makefile(
+            path,
+            b"\t@${MAKE} scanf_contract_test32\n"
+            b"\t${TEST_EXECUTION} run libc.scanf.ilp32 -- ./scanf_contract_test32\n"
+            b".else",
+            b"\t${TEST_EXECUTION} run libc.scanf.ilp32 -- ./scanf_contract_test32\n"
+            b".else\n\t@${MAKE} scanf_contract_test32",
+        )
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+
     def test_pinned_makefile_and_inventory_recipe_are_required(self):
         path = "tests/libc_contracts/Makefile"
         self.bindings["makefiles"][path] = "0" * 64

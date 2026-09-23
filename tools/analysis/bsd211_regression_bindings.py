@@ -56,10 +56,47 @@ def compiler_command(commands, source, object_compile):
         tokens = shlex.split(command)
         if (source in tokens and "-o" in tokens and "$@" in tokens and
                 tokens[0] in {"${HOST_CC}", "${HOSTCC}"} and
+                not {"-E", "-S", "-fsyntax-only"} & set(tokens) and
                 ("-c" in tokens) == object_compile):
             matches.append(tokens)
     require(len(matches) == 1, f"expected one compiler recipe for {source}")
     return matches[0]
+
+
+def guarded_commands(region):
+    guards = []
+    commands = []
+    for line in region[1:]:
+        directive = line.strip()
+        if directive.startswith(".if "):
+            guards.append((directive, "if"))
+        elif directive == ".else":
+            require(guards, "unmatched Makefile .else")
+            condition, branch = guards[-1]
+            require(branch == "if", "duplicate Makefile .else")
+            guards[-1] = (condition, "else")
+        elif directive == ".endif":
+            require(guards, "unmatched Makefile .endif")
+            guards.pop()
+        elif line.startswith("\t"):
+            commands.append((line.lstrip(), tuple(guards)))
+    require(not guards, "unterminated Makefile conditional")
+    return commands
+
+
+def build_precedes_run(region, program, recipe):
+    commands = guarded_commands(region)
+    runs = [(index, guard) for index, (command, guard) in enumerate(commands)
+            if command.replace("${PROG}", program) == recipe]
+    require(len(runs) == 1, "inventory execution recipe is absent")
+    run_index, run_guard = runs[0]
+    return any(guard == run_guard and
+               (tokens := shlex.split(command.replace("${PROG}", program))) and
+               tokens[0] in {"@${MAKE}", "${MAKE}"} and
+               all(re.fullmatch(r"[A-Za-z0-9_]+", token)
+                   for token in tokens[1:]) and
+               program in tokens[1:]
+               for command, guard in commands[:run_index])
 
 
 def validate(data, evidence, bindings, inventory, report, read_blob):
@@ -151,9 +188,12 @@ def validate(data, evidence, bindings, inventory, report, read_blob):
                     f"{identifier}: compiler width mismatch")
         execution_region = rule_region(lines, expected["target"])
         recipe = expected["recipe"].replace("${PROG}", program)
-        require(any(line.lstrip().replace("${PROG}", program) == recipe
-                    for line in execution_region if line.startswith("\t")),
-                f"{identifier}: inventory execution recipe is absent")
+        target_prerequisites = execution_region[0].split(":", 1)[1].split()
+        require(program in expected["prerequisites"],
+                f"{identifier}: inventory lacks executable prerequisite")
+        recursively_built = build_precedes_run(execution_region, program, recipe)
+        require(program in target_prerequisites or recursively_built,
+                f"{identifier}: executable is not built before execution")
         require(reported["invocation"] == ["./" + program] and
                 reported["executable"]["path"] == directory + "/" + program and
                 re.fullmatch(r"[0-9a-f]{64}", reported["executable"]["sha256"]),

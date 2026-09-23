@@ -71,8 +71,9 @@ uses only the retained Git objects and requires no donor checkout or network.
 to 12 distinct variant builds. The verifier hashes the kernel, libc-contract
 and umount Makefiles at both the landed recipient commit and the tested
 integration tree. For each bound source, it checks the source's existing pinned
-hash, the exact target prerequisite and compiler command, the inventory's
-execution recipe in that Makefile, and the retained executable invocation and
+hash, the compiler command, and either a target prerequisite or a recursive
+submake in the same conditional branch before the inventory's execution
+recipe. It also checks the retained executable invocation and
 hash. The root aggregate, receipt helper, its make include and umount shim
 header are pinned supporting inputs at both trees. The umount path additionally requires
 `umount_contract_test.c -> gate.o -> umount_contract_test`; a source name merely

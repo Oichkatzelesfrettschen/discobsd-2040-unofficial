@@ -50,6 +50,16 @@ class RegressionBindingTest(unittest.TestCase):
         self.sources[(executed, path)] = changed
         self.bindings["makefiles"][path] = hashlib.sha256(changed).hexdigest()
 
+    def replace_supporting_input(self, path, before, after):
+        recipient = self.data["recipient_commit"]
+        executed = self.evidence["source_comparison"]["executed_tree"]
+        contents = self.sources[(recipient, path)]
+        self.assertIn(before, contents)
+        changed = contents.replace(before, after, 1)
+        self.sources[(recipient, path)] = changed
+        self.sources[(executed, path)] = changed
+        self.bindings["supporting_inputs"][path] = hashlib.sha256(changed).hexdigest()
+
     def test_all_executed_rows_have_pinned_recipe_bindings(self):
         self.validate()
         self.assertEqual(len(self.bindings["variants"]), 12)
@@ -91,6 +101,13 @@ class RegressionBindingTest(unittest.TestCase):
                               b"echo ${CFLAGS} -o $@ gate.o umount.o shim.o")
         with self.assertRaisesRegex(ValueError, "gate.o is absent"):
             self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile(path,
+                              b"${HOSTCC} ${CFLAGS} -o $@ gate.o umount.o shim.o",
+                              b"${HOSTCC} ${CFLAGS} -o $@ umount.o shim.o # gate.o")
+        with self.assertRaisesRegex(ValueError, "gate.o is absent"):
+            self.validate()
 
     def test_direct_recipe_cannot_lose_regression_source(self):
         path = "tests/kernel/Makefile"
@@ -104,6 +121,12 @@ class RegressionBindingTest(unittest.TestCase):
         path = "tests/libc_contracts/Makefile"
         self.replace_makefile(path, b"check-scanf: scanf_contract_test",
                               b"check-scanf:")
+        with self.assertRaisesRegex(ValueError, "not built before execution"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile(path, b"check-scanf: scanf_contract_test",
+                              b"check-scanf: # scanf_contract_test")
         with self.assertRaisesRegex(ValueError, "not built before execution"):
             self.validate()
         self.sources = copy.deepcopy(type(self).sources)
@@ -137,6 +160,16 @@ class RegressionBindingTest(unittest.TestCase):
                               b"-o $@ scanf_contract_test.c ${SCANF_OBJS}",
                               b"-fsyntax-only -o $@ scanf_contract_test.c ${SCANF_OBJS}")
         with self.assertRaisesRegex(ValueError, "compiler recipe"):
+            self.validate()
+
+    def test_compiler_must_be_the_final_target_producer(self):
+        self.replace_makefile(
+            "tests/libc_contracts/Makefile",
+            b"\t${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS}",
+            b"\t${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS}\n"
+            b"\tcp rwmode_contract_test $@",
+        )
+        with self.assertRaisesRegex(ValueError, "final compiler recipe"):
             self.validate()
 
     def test_shell_comment_cannot_supply_regression_source(self):
@@ -197,6 +230,27 @@ class RegressionBindingTest(unittest.TestCase):
                               b"-m32 -o $@ scanf_contract_test.c ${SCANF_OBJS}")
         with self.assertRaisesRegex(ValueError, "compiler width mismatch"):
             self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/libc_contracts/Makefile",
+                              b"SCANF_CFLAGS=\t-std=c17",
+                              b"SCANF_CFLAGS=\t-m32 -std=c17")
+        with self.assertRaisesRegex(ValueError, "compiler width mismatch"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/libc_contracts/Makefile",
+                              b"SCANF_CFLAGS=\t-std=c17",
+                              b"INJECT_WIDTH= -m32\n"
+                              b"SCANF_CFLAGS=\t${INJECT_WIDTH} -std=c17")
+        with self.assertRaisesRegex(ValueError, "compiler width mismatch"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_makefile("tests/libc_contracts/Makefile",
+                              b"SCANF_CFLAGS=\t-std=c17",
+                              b"SCANF_CFLAGS=\t-std=c17 # -m32")
+        self.validate()
 
     def test_pinned_makefile_and_inventory_recipe_are_required(self):
         path = "tests/libc_contracts/Makefile"
@@ -208,10 +262,33 @@ class RegressionBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "pinned recipe input hash"):
             self.validate()
         self.bindings = copy.deepcopy(type(self).bindings)
+        self.sources = copy.deepcopy(type(self).sources)
+        self.replace_makefile(path,
+                              b"include ${TOPSRC}/tools/test-execution.mk",
+                              b"# include ${TOPSRC}/tools/test-execution.mk")
+        with self.assertRaisesRegex(ValueError, "supporting inputs"):
+            self.validate()
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.sources = copy.deepcopy(type(self).sources)
         variant = next(item for item in self.inventory["variants"]
                        if item["id"] == "libc.scanf.native")
         variant["recipe"] = "${TEST_EXECUTION} run libc.scanf.native -- ./wrong"
         with self.assertRaisesRegex(ValueError, "inventory execution recipe is absent"):
+            self.validate()
+
+    def test_root_aggregate_and_receipt_helper_must_be_active(self):
+        self.replace_supporting_input(
+            "Makefile", b"check-ilp32-execution-recipes: check-python",
+            b"# check-ilp32-execution-recipes: check-python")
+        with self.assertRaisesRegex(ValueError, "build rule"):
+            self.validate()
+        self.sources = copy.deepcopy(type(self).sources)
+        self.bindings = copy.deepcopy(type(self).bindings)
+        self.replace_supporting_input(
+            "tools/test-execution.mk",
+            b"TEST_EXECUTION= ${PYTHON} ${TOPSRC}/tools/test_execution.py",
+            b"# TEST_EXECUTION= ${PYTHON} ${TOPSRC}/tools/test_execution.py")
+        with self.assertRaisesRegex(ValueError, "supporting inputs"):
             self.validate()
 
     def test_same_basename_in_other_directory_and_receipt_drift_fail(self):

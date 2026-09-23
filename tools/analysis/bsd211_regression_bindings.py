@@ -44,7 +44,7 @@ def rule_region(lines, target):
 
 def build_rule(lines, target):
     region = rule_region(lines, target)
-    prerequisites = region[0].split(":", 1)[1].split()
+    prerequisites = region[0].split(":", 1)[1].split("#", 1)[0].split()
     commands = [line.lstrip() for line in region[1:] if line.startswith("\t")]
     require(commands, f"missing build recipe for {target}")
     return prerequisites, commands
@@ -62,15 +62,46 @@ def shell_tokens(command):
 
 def compiler_command(commands, source, object_compile):
     matches = []
-    for command in commands:
+    for index, command in enumerate(commands):
         tokens = shell_tokens(command)
         if (source in tokens and "-o" in tokens and "$@" in tokens and
                 tokens[0] in {"${HOST_CC}", "${HOSTCC}"} and
                 not {"-E", "-S", "-fsyntax-only"} & set(tokens) and
                 ("-c" in tokens) == object_compile):
-            matches.append(tokens)
-    require(len(matches) == 1, f"expected one compiler recipe for {source}")
-    return matches[0]
+            matches.append((index, tokens))
+    require(len(matches) == 1 and matches[0][0] == len(commands) - 1,
+            f"expected one final compiler recipe for {source}")
+    return matches[0][1]
+
+
+def make_variables(lines):
+    values = {}
+    for line in lines:
+        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\s*([:+?!]?=)\s*(.*)", line)
+        if match is None or match[2] == "!=":
+            continue
+        name, operator, value = match.groups()
+        value = value.split("#", 1)[0].rstrip()
+        if operator == "+=":
+            values[name] = values.get(name, "") + " " + value
+        elif operator != "?=" or name not in values:
+            values[name] = value
+    return values
+
+
+def expanded_width(tokens, variables):
+    def expand(value, active):
+        def substitute(match):
+            name = match[1]
+            if name not in variables:
+                return match[0]
+            require(name not in active, f"recursive compiler flag variable: {name}")
+            return expand(variables[name], active | {name})
+
+        return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", substitute, value)
+
+    expanded = expand(" ".join(tokens), set())
+    return re.search(r"(?<!\S)-m32(?!\S)", expanded) is not None
 
 
 def guarded_commands(region):
@@ -140,6 +171,7 @@ def validate(data, evidence, bindings, inventory, report, read_blob):
         "tests/umount_contracts/umount_shim.h",
     }, "recipe supporting-input set mismatch")
     makefiles = {}
+    variables = {}
     sources = {}
     for path, expected_hash in (bindings["makefiles"] |
                                 bindings["supporting_inputs"]).items():
@@ -163,10 +195,19 @@ def validate(data, evidence, bindings, inventory, report, read_blob):
                     assignments[0][1:] == ("", "-m32"),
                     f"{path}: ILP32 width assignment mismatch")
             makefiles[path] = lines
-    require(b"check-ilp32-execution-recipes:" in sources["Makefile"] and
-            b"tools/test_execution.py" in sources["tools/test-execution.mk"] and
-            all(b"include ${TOPSRC}/tools/test-execution.mk" in sources[path]
-                for path in required_makefiles),
+            variables[path] = make_variables(lines)
+    root_lines = logical_lines(sources["Makefile"])
+    root_region = rule_region(root_lines, "check-ilp32-execution-recipes")
+    root_prerequisites = set(root_region[0].split(":", 1)[1].split("#", 1)[0].split())
+    helper_lines = logical_lines(sources["tools/test-execution.mk"])
+    require({inventory_variants[identifier]["root_target"]
+             for identifier in required_variants} <= root_prerequisites and
+            sum(line == "TEST_EXECUTION= ${PYTHON} ${TOPSRC}/tools/test_execution.py"
+                for line in helper_lines) == 1 and
+            sum(line == "ILP32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${ILP32_CC} -m32"
+                for line in helper_lines) == 1 and
+            all(sum(line == "include ${TOPSRC}/tools/test-execution.mk"
+                    for line in makefiles[path]) == 1 for path in required_makefiles),
             "recipe supporting inputs do not bind the execution route")
     for identifier, binding in variant_bindings.items():
         require(set(binding) == {"source", "compile_target"},
@@ -199,22 +240,24 @@ def validate(data, evidence, bindings, inventory, report, read_blob):
             require(any(re.fullmatch(r"PROG\s*=\s*" + re.escape(program), line)
                         for line in lines), "umount program identity mismatch")
             require(any(re.fullmatch(r"CFLAGS\s*=.*\$\{ILP32\}.*", line)
-                        for line in lines) and "${CFLAGS}" in compile_tokens,
+                        for line in lines) and "${CFLAGS}" in compile_tokens and
+                    expanded_width(compile_tokens, variables[makefile_path]),
                     "umount compiler width is unbound")
             link_prerequisites, link_commands = build_rule(lines, "${PROG}")
-            require("gate.o" in link_prerequisites and any(
-                "gate.o" in (tokens := shlex.split(command)) and
-                tokens[0] == "${HOSTCC}" and "-c" not in tokens and
-                "-o" in tokens and "$@" in tokens
-                for command in link_commands),
+            link_tokens = shell_tokens(link_commands[-1])
+            require("gate.o" in link_prerequisites and
+                    "gate.o" in link_tokens and
+                    link_tokens[0] == "${HOSTCC}" and "-c" not in link_tokens and
+                    "-o" in link_tokens and "$@" in link_tokens and
+                    expanded_width(link_tokens, variables[makefile_path]),
                 "umount gate.o is absent from executable link")
         else:
-            width_selected = "${ILP32}" in compile_tokens or "-m32" in compile_tokens
+            width_selected = expanded_width(compile_tokens, variables[makefile_path])
             require(width_selected == (expected["width"] == "ilp32"),
                     f"{identifier}: compiler width mismatch")
         execution_region = rule_region(lines, expected["target"])
         recipe = expected["recipe"].replace("${PROG}", program)
-        target_prerequisites = execution_region[0].split(":", 1)[1].split()
+        target_prerequisites = execution_region[0].split(":", 1)[1].split("#", 1)[0].split()
         require(program in expected["prerequisites"],
                 f"{identifier}: inventory lacks executable prerequisite")
         recursively_built = build_precedes_run(execution_region, program, recipe)

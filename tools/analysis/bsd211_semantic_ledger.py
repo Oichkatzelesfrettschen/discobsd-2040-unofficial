@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
+from bsd211_donor_witness import verify_witness
 from sanitize_bsd211_execution_report import canonical_bytes, reject_absolute_strings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -111,7 +112,7 @@ def check_summary(data, contents):
     require(projection == summary(data), "summary differs from canonical rows")
 
 
-def validate(data, evidence, report_bytes, read_blob, read_tree):
+def validate(data, evidence, report_bytes, witness_archive, read_blob, read_tree):
     require(data["schema_version"] == 1, "unsupported ledger schema")
     require(data["complete_numbered_series"] is False,
             "selected ledger cannot claim complete numbered-series coverage")
@@ -119,6 +120,10 @@ def validate(data, evidence, report_bytes, read_blob, read_tree):
     digest(data["recipient_commit"], 40, "recipient commit")
     digest(data["donor"]["commit"], 40, "donor commit")
     digest(data["donor"]["ledger_sha256"], 64, "donor ledger hash")
+    digest(data["donor"]["witness_sha256"], 64, "donor witness hash")
+    relative_path(data["donor"]["witness_path"])
+    require(hashlib.sha256(witness_archive).hexdigest() ==
+            data["donor"]["witness_sha256"], "donor witness archive hash mismatch")
     require(data["donor"]["raw_hash_authority"].startswith("donor-ledger attestation"),
             "raw patch hashes require their donor-ledger qualification")
     relative_path(data["donor"]["ledger_path"])
@@ -127,6 +132,10 @@ def validate(data, evidence, report_bytes, read_blob, read_tree):
         for field in ("commit", "parent"):
             digest(patch[field], 40, f"patch {number} {field}")
         digest(patch["raw_patch_sha256"], 64, f"patch {number} raw hash")
+    for row in data["fixes"]:
+        for source in row["original"]:
+            relative_path(source["path"])
+    verify_witness(data, witness_archive)
 
     identifiers = data["declared_ids"]
     require(len(identifiers) == len(set(identifiers)), "duplicate declared id")
@@ -317,8 +326,9 @@ def verify(root):
     data = load(root / LEDGER)
     evidence = load(root / relative_path(data["execution_evidence"]))
     report_bytes = (root / relative_path(evidence["sanitized_report"])).read_bytes()
+    witness_archive = (root / relative_path(data["donor"]["witness_path"])).read_bytes()
     result = validate(
-        data, evidence, report_bytes,
+        data, evidence, report_bytes, witness_archive,
         lambda revision, path: blob(root, revision, path),
         lambda revision: tree(root, revision),
     )

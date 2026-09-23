@@ -377,8 +377,10 @@ merge revision. A push compares its event before and after revisions. An empty
 or all-zero before revision uses the tested revision's merge base with the
 repository's explicit default-branch remote ref. A non-fast-forward push whose
 previous tip is absent from the fetched object store uses the same range. A
-fallback merge base equal to the tested revision returns `ERROR`; the checkout
-must fetch the prior event tip instead of accepting an empty comparison. An
+fallback merge base equal to the tested revision returns `ERROR` for an
+unavailable prior tip; the checkout must fetch that tip instead of accepting
+an empty comparison. An all-zero initial-branch event may compare the default
+tip with itself because the branch has no prior event tip. An
 initial or rewritten feature-branch range therefore includes every commit
 since the fork instead of only the head commit.
 
@@ -390,7 +392,8 @@ records remain NUL-delimited and rename-aware, so whitespace and non-UTF-8
 pathname bytes do not change the inventory. Deletions and paths that leave the
 C suffix set produce exclusion counts. A selected symlink, gitlink, missing
 blob, unresolved index stage or malformed record returns `ERROR`.
-Diagnostic paths render control and invalid UTF-8 bytes as visible escapes, so
+Diagnostic paths render control bytes, Unicode line separators and invalid
+UTF-8 bytes as visible escapes, so
 a pathname cannot inject terminal controls or additional diagnostic lines.
 
 Each selected blob is parsed in full before change attribution. The lexer

@@ -146,7 +146,7 @@ class SnapshotTests(GitFixture):
     def test_fallback_range_rejects_default_ref_at_event_head(self):
         default_branch = self.git("branch", "--show-current").decode().strip()
         unavailable = "f" * len(self.base)
-        for event_base in ("", "0" * len(self.base), unavailable):
+        for event_base in ("", unavailable):
             with self.subTest(event_base=event_base):
                 result = subprocess.run(
                     ["sh", str(checker.ROOT / "tools/resolve-changed-comment-range.sh"),
@@ -159,6 +159,12 @@ class SnapshotTests(GitFixture):
 
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("fallback base collapses to event head", result.stderr)
+
+        initial_base, initial_head = self.resolve_range(
+            "0" * len(self.base), self.base, f"refs/heads/{default_branch}"
+        )
+        self.assertEqual(initial_base, self.base)
+        self.assertEqual(initial_head, self.base)
 
     def test_explicit_resolvable_range_preserves_divergent_tips(self):
         default_branch = self.git("branch", "--show-current").decode().strip()
@@ -290,6 +296,23 @@ class SnapshotTests(GitFixture):
         self.assertNotIn("\x1b", output)
         self.assertEqual(checker.display_path("snow-\u2603.c".encode()),
                          "snow-\u2603.c")
+
+    def test_unicode_line_separators_cannot_split_diagnostics(self):
+        name = "safe\u2028FAIL\u2029end.c".encode()
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=b"/* in this PR */\n").strip()
+        self.git("update-index", "--add", "--cacheinfo",
+                 b"100644," + blob + b"," + name)
+        error = io.StringIO()
+
+        with redirect_stderr(error):
+            status = checker.main([
+                "--root", str(self.root), "--staged", "--base", self.base
+            ])
+
+        self.assertEqual(status, 1)
+        self.assertIn(r"safe\u2028FAIL\u2029end.c:1", error.getvalue())
+        self.assertEqual(len(error.getvalue().splitlines()), 2)
 
     def test_non_c_and_deleted_files_are_counted_as_exclusions(self):
         self.write("note.txt", "in this PR\n")

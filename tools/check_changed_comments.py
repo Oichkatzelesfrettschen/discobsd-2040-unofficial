@@ -168,6 +168,10 @@ def display_path(path):
             escaped.append(f"\\x{value - 0xDC00:02x}")
         elif value < 0x20 or 0x7F <= value < 0xA0:
             escaped.append(f"\\x{value:02x}")
+        elif not character.isprintable():
+            width = 4 if value <= 0xFFFF else 8
+            prefix = "u" if width == 4 else "U"
+            escaped.append(f"\\{prefix}{value:0{width}x}")
         else:
             escaped.append(character)
     return "".join(escaped)

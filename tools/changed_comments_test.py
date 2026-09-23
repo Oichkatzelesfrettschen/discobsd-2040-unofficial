@@ -587,6 +587,16 @@ class AttributionTests(GitFixture):
         self.assertEqual(result.diagnostics[0].line, 1)
         self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
 
+    def test_decorated_line_comment_group_detects_split_phrase(self):
+        for comments in ("/// in this\n/// PR\n", "//! in this\n//! PR\n",
+                         "// * in this\n// * PR\n"):
+            with self.subTest(comments=comments):
+                self.write("sample.c", comments + "int baseline;\n")
+                self.stage("sample.c")
+                result = self.check_mode("staged")
+                self.assertEqual(result.changed_comments, 1)
+                self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
     def test_member_edit_selects_complete_line_comment_group(self):
         self.replace_baseline("// in the\n// PR\nint baseline;\n")
         self.write("sample.c", "// in this\n// PR\nint baseline;\n")

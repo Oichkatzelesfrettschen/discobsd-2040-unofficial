@@ -443,10 +443,14 @@ def comment_groups(contents, comments):
             members[-1].physical_end,
             members[0].start_line,
             members[-1].end_line,
-            b" ".join(member.body for member in members),
+            b" ".join(strip_line_decoration(member.body) for member in members),
             tuple(members),
         ))
     return groups
+
+
+def strip_line_decoration(body):
+    return re.sub(rb"^[ \t]*(?:/+|!+|\*+)(?=[ \t]|$)[ \t]*", b"", body)
 
 
 def source_line_starts(contents):

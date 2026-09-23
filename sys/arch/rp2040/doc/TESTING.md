@@ -407,7 +407,9 @@ one line ending and horizontal indentation form one inspection group. Blank
 lines, code and block comments terminate a group. Change attribution compares
 groups from both complete snapshots, so editing a member or deleting a former
 separator selects the resulting group while a nearby code edit does not select
-an unchanged group. Git's per-character word diff supplies source-position
+an unchanged group. The rule check strips conventional `///`, `//!` and
+`// *` member decorations before joining group bodies, so a phrase split across
+decorated lines remains visible. Git's per-character word diff supplies source-position
 correspondence. The checker validates every emitted payload and hunk extent
 against the captured blobs before trusting that map. Added, edited, split,
 joined and newly comment-owned

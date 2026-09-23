@@ -47,6 +47,25 @@ The tested integration revision and landed merge both name tree
 named source and the execution inventory through both authenticated endpoints.
 Those comparisons cover the listed source/test files, not every build input.
 
+`211bsd-donor-witness.json.gz` retains 70 commit, 31 tree and 16 blob objects
+from the curated donor as a 166,439-byte deterministic archive. The verifier
+recomputes each Git object ID from its type and bytes. Parent edges connect
+the pinned donor tip to every selected reconstructed patch commit, including
+patch 499 through a merge parent rather than an assumed linear patch chain.
+The tip tree identifies `PATCHES.md`; its blob hash matches the recorded donor
+ledger SHA-256. Each selected patch row then matches that ledger's abbreviated
+commit and raw-patch-hash attestation. Each original source path resolves
+through the selected commit's tree to a retained source blob containing the
+named symbol. The archive keeps the donor source bytes and notices unchanged.
+This authenticates what the curated repository records; it does not
+independently hash the unavailable original numbered patch texts or establish
+that a donor implementation satisfies the recipient invariant.
+
+Regenerate the donor archive from the pinned checkout with
+`"$PYTHON" tools/analysis/bsd211_donor_witness.py --donor <pinned-211bsd-checkout> --ledger docs/research/211bsd-semantic-ledger.json --output <temporary-directory>/witness.json.gz`,
+then compare it byte for byte with the tracked archive. The ordinary verifier
+uses only the retained Git objects and requires no donor checkout or network.
+
 Replay the derivative from artifact `10673107931` in run `35677329437` with
 `gh run download 35677329437 --repo Oichkatzelesfrettschen/discobsd-2040-unofficial --name ilp32-execution --dir <temporary-directory>`,
 then set `PYTHON` to the selected interpreter and run

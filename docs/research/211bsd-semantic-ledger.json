@@ -7,6 +7,8 @@
     "commit": "0a38e59d742ff4371b78ea65c5bcc50477b31708",
     "ledger_path": "PATCHES.md",
     "ledger_sha256": "2fb98757700f8f6e14d0afa3ae616569c4edf69896291710c5666873973823e8",
+    "witness_path": "docs/research/211bsd-donor-witness.json.gz",
+    "witness_sha256": "572f09158c65690863d0b56ca7b940c799f18d76c628314350633029f086a03d",
     "raw_hash_authority": "donor-ledger attestation; raw patch texts have not been independently hashed here"
   },
   "recipient_commit": "cc67531a2830fbd99b2c3da6097b8bcd51da1eb9",

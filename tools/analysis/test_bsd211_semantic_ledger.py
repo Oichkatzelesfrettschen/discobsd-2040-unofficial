@@ -17,6 +17,9 @@ class SemanticLedgerTest(unittest.TestCase):
         cls.report_bytes = (
             ledger.ROOT / cls.evidence["sanitized_report"]
         ).read_bytes()
+        cls.witness_archive = (
+            ledger.ROOT / cls.data["donor"]["witness_path"]
+        ).read_bytes()
         paths = set(cls.evidence["source_comparison"]["source_sha256"])
         paths.add("tools/test-execution-inventory.json")
         paths.update(source["path"] for row in cls.data["fixes"] for source in row["recipient"])
@@ -36,6 +39,7 @@ class SemanticLedgerTest(unittest.TestCase):
         self.data = copy.deepcopy(type(self).data)
         self.evidence = copy.deepcopy(type(self).evidence)
         self.report_bytes = type(self).report_bytes
+        self.witness_archive = type(self).witness_archive
         self.sources = copy.deepcopy(type(self).sources)
         self.trees = copy.deepcopy(type(self).trees)
 
@@ -53,6 +57,7 @@ class SemanticLedgerTest(unittest.TestCase):
 
     def validate(self):
         return ledger.validate(self.data, self.evidence, self.report_bytes,
+                               self.witness_archive,
                                self.read_blob, self.read_tree)
 
     def replace_report(self, report):

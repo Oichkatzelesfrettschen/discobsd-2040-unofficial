@@ -25,18 +25,35 @@ recipient imported a particular historical hunk.
 artifact `10673107931`, job `firmware/posix-sh`. The complete report records
 62/62 PASS at tested integration revision
 `261f1233bc1b1b20d9f44585f6f45fc830473adb`, with tracked files unmodified.
-`211bsd-execution-report.json.gz` retains the exact report bytes in a
-deterministic gzip stream. The verifier authenticates the decompressed report
-and joins each selected receipt, including its executable hash. The original
-report SHA-256 is
+`211bsd-execution-report.sanitized.json` is a deterministic derivative of the
+hosted artifact. The original report SHA-256 is
 `aef91b1f4ae8cfbc10b47bc5b2d7cbd01a24cf077ce4b94e05a40cd890885101`.
-The projection removes host absolute paths while retaining invocation, width,
-owner, expected/actual exit, outcome and executable hash. A retained copy of
-the signed integration commit object reconstructs that revision and its tree.
+The derivative SHA-256 is
+`7c11a19241ebcbc5c41a6278bfad840102c401c6dea13fe02214c5e0fb155d7b`.
+`tools/analysis/sanitize_bsd211_execution_report.py` version 1 validates the
+original hash and known GitHub workspace and temporary-output path shapes,
+then replaces them with repository-relative paths or explicit temporary-path
+tokens. Unexpected absolute paths and harness forms fail. Sorted compact JSON
+with one trailing newline fixes the derivative bytes. The verifier authenticates
+those bytes and requires exactly the 62 pinned variant IDs, each with a PASS
+receipt, the designated owner and width, actual invocation and executable hash.
+The 13 selected projections join those same report rows. The original bytes
+remain available from the named hosted artifact while GitHub retains it and
+from the earlier repository history; the current tree retains the derivative,
+not the original. A retained copy of the signed integration commit object
+reconstructs that revision and its tree.
 The tested integration revision and landed merge both name tree
 `e43c0a1508c826a05337a70fe0d259c7bb516642`. The verifier reads and hashes each
 named source and the execution inventory through both authenticated endpoints.
 Those comparisons cover the listed source/test files, not every build input.
+
+Replay the derivative from artifact `10673107931` in run `35677329437` with
+`gh run download 35677329437 --repo Oichkatzelesfrettschen/discobsd-2040-unofficial --name ilp32-execution --dir <temporary-directory>`,
+then set `PYTHON` to the selected interpreter and run
+`"$PYTHON" tools/analysis/sanitize_bsd211_execution_report.py <temporary-directory>/ilp32-execution.json <temporary-directory>/derivative.json --original-sha256 aef91b1f4ae8cfbc10b47bc5b2d7cbd01a24cf077ce4b94e05a40cd890885101`.
+Compare the derivative to the tracked JSON byte for byte. The replay depends on
+the hosted artifact remaining available; the retained derivative and its hash
+do not independently reconstruct unavailable original bytes.
 
 `executed` means the stated bounded assertions have execution receipts.
 `open` retains a missing validation witness or an unresolved implementation

@@ -1,7 +1,6 @@
 """Calibrate finite row membership, witnesses, provenance and residuals."""
 
 import copy
-import gzip
 import hashlib
 import json
 import unittest
@@ -15,8 +14,8 @@ class SemanticLedgerTest(unittest.TestCase):
     def setUpClass(cls):
         cls.data = ledger.load(ledger.ROOT / ledger.LEDGER)
         cls.evidence = ledger.load(ledger.ROOT / cls.data["execution_evidence"])
-        cls.report_archive = (
-            ledger.ROOT / cls.evidence["original_report"]
+        cls.report_bytes = (
+            ledger.ROOT / cls.evidence["sanitized_report"]
         ).read_bytes()
         paths = set(cls.evidence["source_comparison"]["source_sha256"])
         paths.add("tools/test-execution-inventory.json")
@@ -36,7 +35,7 @@ class SemanticLedgerTest(unittest.TestCase):
     def setUp(self):
         self.data = copy.deepcopy(type(self).data)
         self.evidence = copy.deepcopy(type(self).evidence)
-        self.report_archive = type(self).report_archive
+        self.report_bytes = type(self).report_bytes
         self.sources = copy.deepcopy(type(self).sources)
         self.trees = copy.deepcopy(type(self).trees)
 
@@ -53,8 +52,16 @@ class SemanticLedgerTest(unittest.TestCase):
             raise ledger.InfrastructureError(f"missing fixture tree {revision}") from error
 
     def validate(self):
-        return ledger.validate(self.data, self.evidence, self.report_archive,
+        return ledger.validate(self.data, self.evidence, self.report_bytes,
                                self.read_blob, self.read_tree)
+
+    def replace_report(self, report):
+        self.report_bytes = ledger.canonical_bytes(report)
+        self.evidence["sanitized_report_sha256"] = hashlib.sha256(
+            self.report_bytes).hexdigest()
+
+    def report(self):
+        return ledger.load_blob(self.report_bytes, "fixture report")
 
     def test_real_ledger_has_disjoint_executed_and_open_rows(self):
         executed, total = self.validate()
@@ -120,20 +127,100 @@ class SemanticLedgerTest(unittest.TestCase):
             self.validate()
 
     def test_retained_report_hash_and_selected_membership_are_required(self):
-        contents = gzip.decompress(self.report_archive) + b"\n"
-        self.report_archive = gzip.compress(contents, mtime=0)
-        with self.assertRaisesRegex(ValueError, "retained execution report hash mismatch"):
+        self.report_bytes += b"\n"
+        with self.assertRaisesRegex(ValueError, "sanitized execution report hash mismatch"):
             self.validate()
 
-        self.report_archive = type(self).report_archive
-        report = ledger.load_blob(gzip.decompress(self.report_archive), "fixture report")
+        self.report_bytes = type(self).report_bytes
+        report = ledger.load_blob(self.report_bytes, "fixture report")
         selected = self.evidence["variants"][0]["variant"]
         report["variants"] = [item for item in report["variants"]
                               if item["variant"] != selected]
-        contents = json.dumps(report, sort_keys=True).encode()
-        self.report_archive = gzip.compress(contents, mtime=0)
-        self.evidence["original_report_sha256"] = hashlib.sha256(contents).hexdigest()
-        with self.assertRaisesRegex(ValueError, "receipt absent from retained report"):
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "does not cover all 62"):
+            self.validate()
+
+    def test_all_pinned_variants_require_unique_receipts(self):
+        selected = {receipt["variant"] for receipt in self.evidence["variants"]}
+        report = self.report()
+        unselected = next(receipt for receipt in report["variants"]
+                          if receipt["variant"] not in selected)
+        report["variants"].remove(unselected)
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "does not cover all 62"):
+            self.validate()
+        report["variants"].append(unselected)
+        report["variants"].append(copy.deepcopy(unselected))
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "duplicate retained execution"):
+            self.validate()
+        report["variants"][-1]["variant"] = "extra.variant"
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "does not cover all 62"):
+            self.validate()
+
+    def test_unselected_receipts_require_pass_and_pinned_execution(self):
+        selected = {receipt["variant"] for receipt in self.evidence["variants"]}
+        baseline = self.report()
+        for field, value, message in (
+            ("outcome", "SKIP", "lacks PASS"),
+            ("owner", "other-job", "owner/width/capability"),
+            ("width", "native", "owner/width/capability"),
+            ("returncode", 1, "lacks PASS"),
+            ("invocation", ["true"], "retained invocation mismatch"),
+        ):
+            with self.subTest(field=field):
+                report = copy.deepcopy(baseline)
+                receipt = next(item for item in report["variants"]
+                               if item["variant"] not in selected and
+                               item["width"] == "ilp32")
+                receipt[field] = value
+                self.replace_report(report)
+                with self.assertRaisesRegex(ValueError, message):
+                    self.validate()
+
+    def test_special_harness_subject_and_temporary_executable_are_bound(self):
+        baseline = self.report()
+        for identifier, field, value, message in (
+            ("dd.filesystem.ilp32", "invocation", ["sh", "wrong.sh"],
+             "retained invocation mismatch"),
+            ("shell.posix.ilp32", "executable", {"path": "bin/other",
+              "sha256": "0" * 64}, "executable path"),
+            ("textbox.getline.ilp32", "invocation", ["./getline_test32"],
+             "retained invocation mismatch"),
+        ):
+            with self.subTest(identifier=identifier):
+                report = copy.deepcopy(baseline)
+                receipt = next(item for item in report["variants"]
+                               if item["variant"] == identifier)
+                receipt[field] = value
+                self.replace_report(report)
+                with self.assertRaisesRegex(ValueError, message):
+                    self.validate()
+
+    def test_derivative_provenance_and_canonical_bytes_are_required(self):
+        self.evidence["original_report_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "provenance mismatch"):
+            self.validate()
+        self.evidence = copy.deepcopy(type(self).evidence)
+        report = self.report()
+        self.report_bytes = (json.dumps(report, indent=2).encode() + b"\n")
+        self.evidence["sanitized_report_sha256"] = hashlib.sha256(
+            self.report_bytes).hexdigest()
+        with self.assertRaisesRegex(ValueError, "not canonical"):
+            self.validate()
+
+    def test_derivative_rejects_absolute_paths_and_optional_aggregate(self):
+        report = self.report()
+        report["variants"][0]["cwd"] = "/home/private/tree"
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "absolute path survived"):
+            self.validate()
+        report = self.report()
+        report["variants"][0]["cwd"] = "tests/libc_contracts"
+        report["invocation"].remove("REQUIRE_ILP32=yes")
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "required aggregate invocation"):
             self.validate()
 
     def test_source_hash_symbol_and_regression_witness(self):
@@ -187,12 +274,10 @@ class SemanticLedgerTest(unittest.TestCase):
         self.sources[recipient_key] = contents
         self.sources[executed_key] = contents
         self.evidence["inventory_sha256"] = hashlib.sha256(contents).hexdigest()
-        report = ledger.load_blob(gzip.decompress(self.report_archive), "fixture report")
+        report = ledger.load_blob(self.report_bytes, "fixture report")
         report["inventory_sha256"] = self.evidence["inventory_sha256"]
-        report_contents = json.dumps(report, sort_keys=True).encode()
-        self.report_archive = gzip.compress(report_contents, mtime=0)
-        self.evidence["original_report_sha256"] = hashlib.sha256(report_contents).hexdigest()
-        with self.assertRaisesRegex(ValueError, "owner/width drift"):
+        self.replace_report(report)
+        with self.assertRaisesRegex(ValueError, "owner/width/capability drift"):
             self.validate()
 
     def test_verification_does_not_load_the_working_inventory(self):

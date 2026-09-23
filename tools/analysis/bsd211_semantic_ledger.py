@@ -3,13 +3,14 @@
 import argparse
 import base64
 import binascii
-import gzip
 import hashlib
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+
+from sanitize_bsd211_execution_report import canonical_bytes, reject_absolute_strings
 
 ROOT = Path(__file__).resolve().parents[2]
 LEDGER = "docs/research/211bsd-semantic-ledger.json"
@@ -110,7 +111,7 @@ def check_summary(data, contents):
     require(projection == summary(data), "summary differs from canonical rows")
 
 
-def validate(data, evidence, report_archive, read_blob, read_tree):
+def validate(data, evidence, report_bytes, read_blob, read_tree):
     require(data["schema_version"] == 1, "unsupported ledger schema")
     require(data["complete_numbered_series"] is False,
             "selected ledger cannot claim complete numbered-series coverage")
@@ -136,14 +137,20 @@ def validate(data, evidence, report_archive, read_blob, read_tree):
     require(len(receipts) == len(evidence["variants"]), "duplicate execution receipt")
     digest(evidence["revision"], 40, "execution revision")
     digest(evidence["original_report_sha256"], 64, "execution report hash")
-    relative_path(evidence["original_report"])
-    try:
-        report_blob = gzip.decompress(report_archive)
-    except (gzip.BadGzipFile, OSError) as error:
-        raise ValueError("retained execution report is not valid gzip") from error
-    require(hashlib.sha256(report_blob).hexdigest() == evidence["original_report_sha256"],
-            "retained execution report hash mismatch")
-    report = load_blob(report_blob, "retained execution report")
+    digest(evidence["sanitized_report_sha256"], 64, "sanitized report hash")
+    relative_path(evidence["sanitized_report"])
+    require(evidence["transformation_version"] == 1,
+            "unsupported execution report transformation")
+    require(hashlib.sha256(report_bytes).hexdigest() == evidence["sanitized_report_sha256"],
+            "sanitized execution report hash mismatch")
+    report = load_blob(report_bytes, "sanitized execution report")
+    require(canonical_bytes(report) == report_bytes,
+            "sanitized execution report is not canonical")
+    reject_absolute_strings(report)
+    require(report["sanitization"] == {
+        "version": evidence["transformation_version"],
+        "original_report_sha256": evidence["original_report_sha256"],
+    }, "sanitized execution report provenance mismatch")
     report_receipts = {receipt["variant"]: receipt for receipt in report["variants"]}
     require(len(report_receipts) == len(report["variants"]),
             "duplicate retained execution receipt")
@@ -151,6 +158,12 @@ def validate(data, evidence, report_archive, read_blob, read_tree):
             report["inventory_sha256"] == evidence["inventory_sha256"] and
             report["tracked_files_modified"] == evidence["tracked_files_modified"] and
             report["returncode"] == 0, "retained execution report identity mismatch")
+    require(report["invocation"] == [
+        "bmake", ".MAKE.LEVEL.ENV=MAKELEVEL", "MACHINE=rp2040",
+        "TEST_EXECUTION_REPORT=<ci-temp>/ilp32-execution.json",
+        "MACHINE=rp2040", "REQUIRE_ILP32=yes", "TEST_EXECUTION_REQUIRED=yes",
+        "check-ilp32-execution-recipes", "TEST_EXECUTION_DIR=<execution-temp>",
+    ], "retained required aggregate invocation mismatch")
     comparison = evidence["source_comparison"]
     require(comparison["recipient_commit"] == data["recipient_commit"] and
             comparison["executed_commit"] == evidence["revision"],
@@ -189,13 +202,46 @@ def validate(data, evidence, report_archive, read_blob, read_tree):
     require(inventory == executed_inventory, "recipient/executed inventory content mismatch")
     variants = {variant["id"]: variant for variant in inventory["variants"]}
     require(len(variants) == len(inventory["variants"]), "duplicate inventory variant")
+    require(len(variants) == 62 and set(report_receipts) == set(variants),
+            "retained report does not cover all 62 pinned variants")
     require(evidence["tracked_files_modified"] is False, "execution source was modified")
     require(evidence["run_url"].startswith(
         "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/actions/runs/"),
         "execution owner URL is outside the recipient repository")
+    for identifier, reported in report_receipts.items():
+        expected = variants[identifier]
+        directory = expected["directory"]
+        program = expected["program"]
+        expected_cwd = directory
+        expected_path = program if directory == "." else f"{directory}/{program}"
+        expected_invocation = ["./" + program]
+        if identifier == "dd.filesystem.ilp32":
+            expected_path = expected["subject"]
+            expected_invocation = ["sh", expected["script"], expected["subject"]]
+        elif identifier == "shell.posix.ilp32":
+            expected_path = expected["subject"]
+            expected_invocation = ["sh", expected["script"]]
+        elif identifier == "textbox.getline.ilp32":
+            expected_path = "<test-temp>/getline_test32"
+            expected_invocation = [expected_path]
+        require(reported["cwd"] == expected_cwd and
+                reported["executable"]["path"] == expected_path and
+                reported["executable"]["sha256"],
+                f"{identifier}: executable path or working directory mismatch")
+        digest(reported["executable"]["sha256"], 64,
+               f"{identifier} executable hash")
+        require(reported["owner"] == expected["owner"] and
+                reported["width"] == expected["width"] and
+                reported["capability"] == expected["capability"],
+                f"{identifier}: retained owner/width/capability drift")
+        require(reported["invocation"] == expected_invocation,
+                f"{identifier}: retained invocation mismatch")
+        require(reported["outcome"] == "PASS" and reported["reason"] is None and
+                reported["returncode"] == reported["expected_exit"] ==
+                expected.get("expected_exit", 0),
+                f"{identifier}: retained execution lacks PASS")
     for identifier, receipt in receipts.items():
         require(identifier in variants, f"unknown receipt: {identifier}")
-        require(identifier in report_receipts, f"receipt absent from retained report: {identifier}")
         expected = variants[identifier]
         reported = report_receipts[identifier]
         require(receipt["owner"] == expected["owner"] and
@@ -270,9 +316,9 @@ def validate(data, evidence, report_archive, read_blob, read_tree):
 def verify(root):
     data = load(root / LEDGER)
     evidence = load(root / relative_path(data["execution_evidence"]))
-    report_archive = (root / relative_path(evidence["original_report"])).read_bytes()
+    report_bytes = (root / relative_path(evidence["sanitized_report"])).read_bytes()
     result = validate(
-        data, evidence, report_archive,
+        data, evidence, report_bytes,
         lambda revision, path: blob(root, revision, path),
         lambda revision: tree(root, revision),
     )

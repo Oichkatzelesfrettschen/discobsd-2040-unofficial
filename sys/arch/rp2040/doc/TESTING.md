@@ -376,9 +376,11 @@ its recorded base with the tested checkout revision, including the synthetic
 merge revision. A push compares its event before and after revisions. An empty
 or all-zero before revision uses the tested revision's merge base with the
 repository's explicit default-branch remote ref. A non-fast-forward push whose
-previous tip is absent from the fetched object store uses the same range. The
-initial or rewritten branch range therefore includes every commit since the
-fork instead of only the head commit.
+previous tip is absent from the fetched object store uses the same range. A
+fallback merge base equal to the tested revision returns `ERROR`; the checkout
+must fetch the prior event tip instead of accepting an empty comparison. An
+initial or rewritten feature-branch range therefore includes every commit
+since the fork instead of only the head commit.
 
 The gate selects lowercase `.c` and `.h` paths stored as regular Git files.
 Working mode reads tracked files once and excludes untracked files. Staged mode
@@ -388,15 +390,24 @@ records remain NUL-delimited and rename-aware, so whitespace and non-UTF-8
 pathname bytes do not change the inventory. Deletions and paths that leave the
 C suffix set produce exclusion counts. A selected symlink, gitlink, missing
 blob, unresolved index stage or malformed record returns `ERROR`.
+Diagnostic paths render control and invalid UTF-8 bytes as visible escapes, so
+a pathname cannot inject terminal controls or additional diagnostic lines.
 
 Each selected blob is parsed in full before change attribution. The lexer
 applies C trigraph replacement and backslash-newline splicing while retaining
 physical positions, then distinguishes block comments, line comments, strings,
 character literals and escapes. Unterminated selected constructs return
 `ERROR`; the lexer does not reset state to obtain a clean verdict. Git's
-per-character word diff supplies source-position correspondence; the checker
-validates every emitted payload and hunk extent against the captured blobs
-before trusting that map. Added, edited, split, joined and newly comment-owned
+LF-oriented hunk coordinates remain separate from physical line accounting,
+which counts LF, CRLF and standalone CR. Consecutive `//` comments separated by
+one line ending and horizontal indentation form one inspection group. Blank
+lines, code and block comments terminate a group. Change attribution compares
+groups from both complete snapshots, so editing a member or deleting a former
+separator selects the resulting group while a nearby code edit does not select
+an unchanged group. Git's per-character word diff supplies source-position
+correspondence. The checker validates every emitted payload and hunk extent
+against the captured blobs before trusting that map. Added, edited, split,
+joined and newly comment-owned
 text is checked. An existing identical comment cannot hide an added copy, and
 the optimized Git edit map avoids a quadratic Python comparison. When an added
 copy is byte-identical to an existing comment, every indistinguishable after

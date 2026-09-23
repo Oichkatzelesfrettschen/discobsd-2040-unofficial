@@ -74,6 +74,19 @@ class Comment:
 
 
 @dataclass(frozen=True)
+class CommentGroup:
+    kind: str
+    logical_start: int
+    logical_end: int
+    physical_start: int
+    physical_end: int
+    start_line: int
+    end_line: int
+    body: bytes
+    members: tuple
+
+
+@dataclass(frozen=True)
 class MatchBlock:
     before_start: int
     after_start: int
@@ -142,7 +155,22 @@ def read_blob(root, object_id):
 
 
 def display_path(path):
-    return path.decode("utf-8", "backslashreplace")
+    decoded = path.decode("utf-8", "surrogateescape")
+    escaped = []
+    named_controls = {"\t": r"\t", "\n": r"\n", "\r": r"\r"}
+    for character in decoded:
+        value = ord(character)
+        if character == "\\":
+            escaped.append(r"\\")
+        elif character in named_controls:
+            escaped.append(named_controls[character])
+        elif 0xDC80 <= value <= 0xDCFF:
+            escaped.append(f"\\x{value - 0xDC00:02x}")
+        elif value < 0x20 or 0x7F <= value < 0xA0:
+            escaped.append(f"\\x{value:02x}")
+        else:
+            escaped.append(character)
+    return "".join(escaped)
 
 
 def is_c_path(path):
@@ -286,7 +314,16 @@ def translate_source(contents):
 
 def line_starts(contents):
     starts = [0]
-    starts.extend(position + 1 for position, value in enumerate(contents) if value == ord("\n"))
+    position = 0
+    while position < len(contents):
+        if contents[position:position + 2] == b"\r\n":
+            position += 2
+            starts.append(position)
+        elif contents[position] in (ord("\r"), ord("\n")):
+            position += 1
+            starts.append(position)
+        else:
+            position += 1
     return starts
 
 
@@ -371,6 +408,41 @@ def lex_comments(contents, path=b"<memory>"):
             continue
         position += 1
     return comments
+
+
+def comment_groups(contents, comments):
+    translated = translate_source(contents)
+    groups = []
+    position = 0
+    while position < len(comments):
+        comment = comments[position]
+        if comment.kind == "block":
+            groups.append(comment)
+            position += 1
+            continue
+        members = [comment]
+        position += 1
+        while position < len(comments) and comments[position].kind == "line":
+            following = comments[position]
+            separator = translated.values[
+                members[-1].logical_end:following.logical_start
+            ]
+            if not re.fullmatch(rb"(?:\r\n|\r|\n)[ \t]*", separator):
+                break
+            members.append(following)
+            position += 1
+        groups.append(CommentGroup(
+            "line-group",
+            members[0].logical_start,
+            members[-1].logical_end,
+            members[0].physical_start,
+            members[-1].physical_end,
+            members[0].start_line,
+            members[-1].end_line,
+            b" ".join(member.body for member in members),
+            tuple(members),
+        ))
+    return groups
 
 
 def source_line_starts(contents):
@@ -664,6 +736,8 @@ def matching_blocks(before, after):
 
 
 def changed_after_comments(before_contents, after_contents, before_comments, after_comments):
+    before_comments = comment_groups(before_contents, before_comments)
+    after_comments = comment_groups(after_contents, after_comments)
     before_by_span = {
         (comment.physical_start, comment.physical_end, comment.kind): comment
         for comment in before_comments

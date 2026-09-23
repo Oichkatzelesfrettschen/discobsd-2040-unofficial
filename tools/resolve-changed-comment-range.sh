@@ -47,6 +47,10 @@ if [ "$use_default_branch" = true ]; then
 		echo "changed-comment range: cannot resolve merge base $event_base" >&2
 		exit 2
 	}
+	if [ "$base_commit" = "$head_commit" ]; then
+		echo "changed-comment range: fallback base collapses to event head; fetch the prior event tip" >&2
+		exit 2
+	fi
 fi
 
 printf '%s %s\n' "$base_commit" "$head_commit"

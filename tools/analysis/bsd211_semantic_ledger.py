@@ -11,6 +11,7 @@ import sys
 from pathlib import Path, PurePosixPath
 
 from bsd211_donor_witness import verify_witness
+from bsd211_regression_bindings import validate as validate_bindings
 from sanitize_bsd211_execution_report import canonical_bytes, reject_absolute_strings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -112,7 +113,8 @@ def check_summary(data, contents):
     require(projection == summary(data), "summary differs from canonical rows")
 
 
-def validate(data, evidence, report_bytes, witness_archive, read_blob, read_tree):
+def validate(data, evidence, report_bytes, witness_archive, bindings_bytes,
+             read_blob, read_tree):
     require(data["schema_version"] == 1, "unsupported ledger schema")
     require(data["complete_numbered_series"] is False,
             "selected ledger cannot claim complete numbered-series coverage")
@@ -136,6 +138,11 @@ def validate(data, evidence, report_bytes, witness_archive, read_blob, read_tree
         for source in row["original"]:
             relative_path(source["path"])
     verify_witness(data, witness_archive)
+    relative_path(data["regression_bindings"])
+    digest(data["regression_bindings_sha256"], 64, "regression binding hash")
+    require(hashlib.sha256(bindings_bytes).hexdigest() ==
+            data["regression_bindings_sha256"], "regression binding hash mismatch")
+    bindings = load_blob(bindings_bytes, "regression bindings")
 
     identifiers = data["declared_ids"]
     require(len(identifiers) == len(set(identifiers)), "duplicate declared id")
@@ -319,6 +326,7 @@ def validate(data, evidence, report_bytes, witness_archive, read_blob, read_tree
 
     for identifier in rows:
         visit(identifier, set())
+    validate_bindings(data, evidence, bindings, inventory, report, read_blob)
     return sum(row["validation"] == "executed" for row in rows.values()), len(rows)
 
 
@@ -327,8 +335,9 @@ def verify(root):
     evidence = load(root / relative_path(data["execution_evidence"]))
     report_bytes = (root / relative_path(evidence["sanitized_report"])).read_bytes()
     witness_archive = (root / relative_path(data["donor"]["witness_path"])).read_bytes()
+    bindings_bytes = (root / relative_path(data["regression_bindings"])).read_bytes()
     result = validate(
-        data, evidence, report_bytes, witness_archive,
+        data, evidence, report_bytes, witness_archive, bindings_bytes,
         lambda revision, path: blob(root, revision, path),
         lambda revision: tree(root, revision),
     )

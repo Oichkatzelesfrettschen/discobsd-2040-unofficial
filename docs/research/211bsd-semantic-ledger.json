@@ -13,6 +13,8 @@
   },
   "recipient_commit": "cc67531a2830fbd99b2c3da6097b8bcd51da1eb9",
   "execution_evidence": "docs/research/211bsd-execution-evidence.json",
+  "regression_bindings": "docs/research/211bsd-regression-recipe-bindings.json",
+  "regression_bindings_sha256": "f5607a8c4fc68303aeafcd546a6993e131bdc9853bc63081f459be43a6d96edd",
   "patches": {
     "433": {
       "commit": "ef270efc76402301039aaae80918cd1cc563f880",

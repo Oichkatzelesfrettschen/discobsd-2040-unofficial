@@ -110,7 +110,9 @@ class DonorWitnessTest(unittest.TestCase):
             ledger.validate(self.data, ledger.load(
                 ledger.ROOT / self.data["execution_evidence"]),
                 (ledger.ROOT / "docs/research/211bsd-execution-report.sanitized.json").read_bytes(),
-                type(self).archive, lambda *_: b"", lambda *_: "")
+                type(self).archive,
+                (ledger.ROOT / self.data["regression_bindings"]).read_bytes(),
+                lambda *_: b"", lambda *_: "")
 
 
 if __name__ == "__main__":

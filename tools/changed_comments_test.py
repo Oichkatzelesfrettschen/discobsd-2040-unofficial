@@ -143,6 +143,54 @@ class SnapshotTests(GitFixture):
         with self.assertRaises(subprocess.CalledProcessError):
             self.resolve_range("", self.base, "refs/heads/missing")
 
+    def test_fallback_range_rejects_default_ref_at_event_head(self):
+        default_branch = self.git("branch", "--show-current").decode().strip()
+        unavailable = "f" * len(self.base)
+        for event_base in ("", unavailable):
+            with self.subTest(event_base=event_base):
+                result = subprocess.run(
+                    ["sh", str(checker.ROOT / "tools/resolve-changed-comment-range.sh"),
+                     str(self.root), event_base, self.base,
+                     f"refs/heads/{default_branch}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("fallback base collapses to event head", result.stderr)
+
+        initial_base, initial_head = self.resolve_range(
+            "0" * len(self.base), self.base, f"refs/heads/{default_branch}"
+        )
+        self.assertEqual(initial_base, self.base)
+        self.assertEqual(initial_head, self.base)
+
+    def test_explicit_resolvable_range_preserves_divergent_tips(self):
+        default_branch = self.git("branch", "--show-current").decode().strip()
+        self.write("side.txt", "previous tip\n")
+        self.stage("side.txt")
+        self.git("commit", "-qm", "previous tip")
+        previous_tip = self.git("rev-parse", "HEAD").decode().strip()
+        self.git("checkout", "-qb", "rewritten", self.base)
+        self.write("sample.c", "/* in this PR */\n")
+        self.stage("sample.c")
+        self.git("commit", "-qm", "rewritten tip")
+        rewritten_tip = self.git("rev-parse", "HEAD").decode().strip()
+
+        base, head = self.resolve_range(
+            previous_tip, rewritten_tip, f"refs/heads/{default_branch}"
+        )
+
+        self.assertEqual(base, previous_tip)
+        self.assertEqual(head, rewritten_tip)
+
+        base, head = self.resolve_range(
+            rewritten_tip, rewritten_tip, f"refs/heads/{default_branch}"
+        )
+        self.assertEqual(base, rewritten_tip)
+        self.assertEqual(head, rewritten_tip)
+
     def test_untracked_c_file_is_outside_working_scope(self):
         self.write("untracked.c", "/* before this patch */\n")
 
@@ -223,6 +271,48 @@ class SnapshotTests(GitFixture):
 
         self.assertEqual(result.diagnostics[0].path, name)
         self.assertIn("\\xff", checker.display_path(name))
+
+    def test_control_bytes_are_escaped_in_cli_paths(self):
+        name = b"odd-\n-\r-\t-\x1b-\x7f-\\-\xff.c"
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=b"/* in this PR */\n").strip()
+        self.git("update-index", "--add", "--cacheinfo",
+                 b"100644," + blob + b"," + name)
+        error = io.StringIO()
+
+        with redirect_stderr(error):
+            status = checker.main([
+                "--root", str(self.root), "--staged", "--base", self.base
+            ])
+
+        output = error.getvalue()
+        self.assertEqual(status, 1)
+        self.assertIn(
+            r"odd-\n-\r-\t-\x1b-\x7f-\\-\xff.c:1",
+            output,
+        )
+        self.assertNotIn("\r", output)
+        self.assertNotIn("\t", output)
+        self.assertNotIn("\x1b", output)
+        self.assertEqual(checker.display_path("snow-\u2603.c".encode()),
+                         "snow-\u2603.c")
+
+    def test_unicode_line_separators_cannot_split_diagnostics(self):
+        name = "safe\u2028FAIL\u2029end.c".encode()
+        blob = self.git("hash-object", "-w", "--stdin",
+                        input=b"/* in this PR */\n").strip()
+        self.git("update-index", "--add", "--cacheinfo",
+                 b"100644," + blob + b"," + name)
+        error = io.StringIO()
+
+        with redirect_stderr(error):
+            status = checker.main([
+                "--root", str(self.root), "--staged", "--base", self.base
+            ])
+
+        self.assertEqual(status, 1)
+        self.assertIn(r"safe\u2028FAIL\u2029end.c:1", error.getvalue())
+        self.assertEqual(len(error.getvalue().splitlines()), 2)
 
     def test_non_c_and_deleted_files_are_counted_as_exclusions(self):
         self.write("note.txt", "in this PR\n")
@@ -486,6 +576,80 @@ class AttributionTests(GitFixture):
         self.assertEqual(len(result.advisories), 1)
         self.assertEqual(result.advisories[0].lines, 15)
 
+    def test_new_line_comment_group_detects_phrase_split_across_members(self):
+        self.write("sample.c", "// in this\n// PR\nint baseline;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.changed_comments, 1)
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.diagnostics[0].line, 1)
+        self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
+    def test_decorated_line_comment_group_detects_split_phrase(self):
+        for comments in ("/// in this\n/// PR\n", "//! in this\n//! PR\n",
+                         "// * in this\n// * PR\n"):
+            with self.subTest(comments=comments):
+                self.write("sample.c", comments + "int baseline;\n")
+                self.stage("sample.c")
+                result = self.check_mode("staged")
+                self.assertEqual(result.changed_comments, 1)
+                self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
+    def test_member_edit_selects_complete_line_comment_group(self):
+        self.replace_baseline("// in the\n// PR\nint baseline;\n")
+        self.write("sample.c", "// in this\n// PR\nint baseline;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.changed_comments, 1)
+        self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
+    def test_blank_line_deletion_selects_new_line_comment_group(self):
+        self.replace_baseline("// in this\n\n// PR\nint baseline;\n")
+        self.write("sample.c", "// in this\n// PR\nint baseline;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.changed_comments, 1)
+        self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
+    def test_code_deletion_selects_new_line_comment_group(self):
+        self.replace_baseline("// in this\nint separator;\n// PR\nint baseline;\n")
+        self.write("sample.c", "// in this\n// PR\nint baseline;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.changed_comments, 1)
+        self.assertEqual(result.diagnostics[0].rule_id, "CH001_IN_THIS_PR")
+
+    def test_unchanged_line_comment_group_beside_code_edit_is_unselected(self):
+        source = "// in this\n// PR\nint value = {value};\n"
+        self.replace_baseline(source.format(value=1))
+        self.write("sample.c", source.format(value=2))
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.changed_comments, 0)
+        self.assertEqual(result.diagnostics, ())
+
+    def test_staged_cr_only_comment_reports_physical_line_and_length(self):
+        source = (b"int baseline;\r/* first" + b"\r * detail" * 13
+                  + b"\r * before this patch\r */")
+        self.write("sample.c", source)
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.changed_comments, 1)
+        self.assertEqual(result.diagnostics[0].line, 2)
+        self.assertEqual(result.advisories[0].lines, 16)
+
 
 class LexerAndRuleTests(unittest.TestCase):
     def changed(self, before, after):
@@ -613,6 +777,47 @@ class LexerAndRuleTests(unittest.TestCase):
         for source, rule_id in fixtures.items():
             with self.subTest(source=source):
                 self.assertEqual(self.diagnostics(source)[0].rule_id, rule_id)
+
+    def test_line_comment_groups_join_phrases_only_across_adjacent_lines(self):
+        positives = {
+            b"// in this\n// PR\n": "CH001_IN_THIS_PR",
+            b"// before this\r\n\t// patch\r\n": "CH002_BEFORE_THIS_PATCH",
+            b"// after this\r  // commit\r": "CH003_AFTER_THIS_COMMIT",
+            b"// the reviewer\n // requested the branch\n":
+                "CH004_REVIEWER_REQUEST",
+        }
+        negatives = (
+            b"// in this\n\n// PR\n",
+            b"// in this\nint value;\n// PR\n",
+            b"// in this\n/* separator */\n// PR\n",
+            b'// in this\nconst char *value = "// PR";\n',
+        )
+
+        for source, rule_id in positives.items():
+            with self.subTest(source=source):
+                self.assertEqual(self.diagnostics(source)[0].rule_id, rule_id)
+        for source in negatives:
+            with self.subTest(source=source):
+                self.assertEqual(self.diagnostics(source), [])
+
+    def test_physical_line_numbers_count_cr_crlf_lf_and_missing_final_newline(self):
+        source = (b"int first;\r// first\r\nint second;\n"
+                  b"/* fourth\r * fifth */")
+
+        comments = checker.lex_comments(source)
+
+        self.assertEqual((comments[0].start_line, comments[0].end_line), (2, 2))
+        self.assertEqual((comments[1].start_line, comments[1].end_line), (4, 5))
+
+    def test_cr_only_comment_length_produces_physical_line_advisory(self):
+        source = b"/* first" + b"\r * detail" * 13 + b"\r */"
+        comment = checker.lex_comments(source)[0]
+
+        diagnostics, advisory = checker.inspect_comment(b"fixture.c", comment, 12)
+
+        self.assertEqual(diagnostics, [])
+        self.assertEqual(comment.end_line, 15)
+        self.assertEqual(advisory.lines, 15)
 
     def test_raw_parser_handles_rename_and_unusual_bytes(self):
         old = b"old name-\xff.c"

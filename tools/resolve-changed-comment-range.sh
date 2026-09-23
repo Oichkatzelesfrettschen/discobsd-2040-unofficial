@@ -22,11 +22,12 @@ head_commit=$(resolve_commit "$event_head") || {
 }
 
 use_default_branch=false
+initial_branch=false
 base_commit=
 case $event_base in
 '') use_default_branch=true ;;
 *[!0]*) ;;
-*) use_default_branch=true ;;
+*) use_default_branch=true; initial_branch=true ;;
 esac
 
 if [ "$use_default_branch" = false ]; then
@@ -47,6 +48,10 @@ if [ "$use_default_branch" = true ]; then
 		echo "changed-comment range: cannot resolve merge base $event_base" >&2
 		exit 2
 	}
+	if [ "$base_commit" = "$head_commit" ] && [ "$initial_branch" = false ]; then
+		echo "changed-comment range: fallback base collapses to event head; fetch the prior event tip" >&2
+		exit 2
+	fi
 fi
 
 printf '%s %s\n' "$base_commit" "$head_commit"

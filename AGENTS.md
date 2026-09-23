@@ -35,6 +35,7 @@ tool. The build system rejects an empty interpreter value.
     bmake MACHINE=rp2040 distribution      # tools, kernel, world, sdcard.img
     bmake MACHINE=rp2040 flash             # distrib/rp2040/flash.uf2
     bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
+    bmake MACHINE=rp2040 build             # required before aggregate check
     bmake MACHINE=rp2040 check            # all non-hardware tiers
 
 `distrib/rp2040/host/DEVELOPMENT.md` owns host setup and manual flashing.
@@ -45,7 +46,8 @@ Makefiles are tracked; synchronize both when generation inputs change.
 
 ## Tests
 
-- `bmake MACHINE=rp2040 check` runs lint, host, 32-bit POSIX shell, cross,
+- Run `bmake MACHINE=rp2040 build` before the aggregate: `check` does not
+  depend on `build`. `check` runs lint, host, 32-bit POSIX shell, cross,
   qemu-user, host-package and board-build tiers. `check-renode` boots a
   PICO_UART kernel and stands outside the aggregate. Board execution requires
   explicit opt-in. `sys/arch/rp2040/doc/TESTING.md` owns each gate's execution
@@ -145,9 +147,11 @@ closed. Root Makefile targets only build board tests. Explicit invocations of
 ## Tools
 
 Use source search, history, compiled-object inspection and behavior probes
-according to the claim. Treat warnings as errors (`shellcheck -S error`,
-`ruff`, `-Wall -Wextra -Werror`). Report unavailable tools and unrun checks
-with their blockers; a missing tool never becomes a passing check.
+according to the claim. Run the repository's lint gates (`shellcheck -S error`
+and `ruff`) and compile with `-Wall -Wextra -Werror`. The ShellCheck gate
+filters warning-level diagnostics; changing that severity requires a separate
+calibrated gate change. Report unavailable tools and unrun checks with their
+blockers; a missing tool never becomes a passing check.
 
 ## Conventions
 

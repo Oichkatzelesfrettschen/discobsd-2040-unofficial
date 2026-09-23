@@ -48,7 +48,8 @@ named source and the execution inventory through both authenticated endpoints.
 Those comparisons cover the listed source/test files, not every build input.
 
 `211bsd-donor-witness.json.gz` retains 70 commit, 31 tree and 16 blob objects
-from the curated donor as a 166,439-byte deterministic archive. The verifier
+from the curated donor as a 409,357-byte deterministic archive. Stored DEFLATE
+blocks make its gzip bytes independent of the host zlib version. The verifier
 recomputes each Git object ID from its type and bytes. Parent edges connect
 the pinned donor tip to every selected reconstructed patch commit, including
 patch 499 through a merge parent rather than an assumed linear patch chain.

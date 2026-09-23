@@ -8,7 +8,9 @@ import hashlib
 import io
 import json
 import re
+import struct
 import subprocess
+import zlib
 from collections import deque
 from pathlib import Path
 
@@ -145,9 +147,15 @@ def make_witness(data, repository):
 
 
 def archive_bytes(witness):
+    contents = canonical_bytes(witness)
     stream = io.BytesIO()
-    with gzip.GzipFile(fileobj=stream, mode="wb", filename="", mtime=0) as zipped:
-        zipped.write(canonical_bytes(witness))
+    stream.write(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff")
+    for offset in range(0, len(contents), 65535):
+        block = contents[offset:offset + 65535]
+        stream.write(bytes((int(offset + len(block) == len(contents)),)))
+        stream.write(struct.pack("<HH", len(block), len(block) ^ 0xffff))
+        stream.write(block)
+    stream.write(struct.pack("<II", zlib.crc32(contents), len(contents) & 0xffffffff))
     return stream.getvalue()
 
 

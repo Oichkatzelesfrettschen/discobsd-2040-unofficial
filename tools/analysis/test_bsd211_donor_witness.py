@@ -32,6 +32,8 @@ class DonorWitnessTest(unittest.TestCase):
         self.assertEqual(witness.archive_bytes(self.contents), type(self).archive)
         self.assertEqual(hashlib.sha256(type(self).archive).hexdigest(),
                          self.data["donor"]["witness_sha256"])
+        self.assertEqual(type(self).archive[:11],
+                         b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x00")
         self.assertEqual(set(record["type"] for record in self.contents["objects"].values()),
                          {"commit", "tree", "blob"})
 

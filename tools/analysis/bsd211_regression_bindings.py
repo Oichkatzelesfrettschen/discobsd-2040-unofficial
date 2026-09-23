@@ -146,6 +146,7 @@ def build_precedes_run(region, program, recipe):
 
 
 def validate(data, evidence, bindings, inventory, report, read_blob):
+    """Witness selected pinned recipes; read_blob resolves the named Git objects."""
     require(bindings["schema_version"] == 1, "unsupported recipe binding schema")
     comparison = evidence["source_comparison"]
     require(bindings["recipient_commit"] == data["recipient_commit"] and

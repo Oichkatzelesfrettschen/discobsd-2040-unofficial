@@ -82,7 +82,12 @@ trees. The umount path additionally requires
 appearing elsewhere in the Makefile does not satisfy the link. The bindings
 authenticate those selected recipe edges, not every transitive object,
 toolchain input or a bit-identical rebuild of historical executables. Open
-ledger rows remain open without an invented executable binding.
+ledger rows remain open without an invented executable binding. The verifier
+reads the historical Makefiles through the named immutable Git commit and tree;
+its recipe parser witnesses those exact inputs rather than interpreting every
+possible bmake or shell program. A changed recipe needs a new source identity,
+reviewed binding and executed receipt. The historical PASS receipt does not
+transfer to rewritten recipes.
 
 Replay the derivative from artifact `10673107931` in run `35677329437` with
 `gh run download 35677329437 --repo Oichkatzelesfrettschen/discobsd-2040-unofficial --name ilp32-execution --dir <temporary-directory>`,

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "recipient_commit": "cc67531a2830fbd99b2c3da6097b8bcd51da1eb9",
+  "executed_tree": "e43c0a1508c826a05337a70fe0d259c7bb516642",
+  "makefiles": {
+    "tests/kernel/Makefile": "53548fcec14b2f4622ecca482af46a001107af9799da75dadc1686affc0e9a63",
+    "tests/libc_contracts/Makefile": "ae4825028c925e7f87d3a2e5866e1e10d67a1705d6936b3c7bf645dd6b001413",
+    "tests/umount_contracts/Makefile": "9107ed6f0622803032262badf6cef335b532b54243a0d2abffbc0d4b4cfbcef7"
+  },
+  "supporting_inputs": {
+    "Makefile": "d685a31a871951d16cb6d0692406536a89efcd22c4cbe6e61e6c76e4b03fa500",
+    "tools/test-execution.mk": "9dc27d69ff1b3f0ccc98c6172ebad49a7cb99d2a58b56c16989900a62c7ed184",
+    "tools/test_execution.py": "73fa3f6c1a0f8e50b34ba305e3f686db24a45414a569312cf534b88fadb6295f",
+    "tests/umount_contracts/umount_shim.h": "dd175f2c929676fd0c3cd14ffdf7a4027d67dbb07a2f2f40f60589a1cda07179"
+  },
+  "variants": {
+    "kernel.inode.ilp32": {
+      "source": "tests/kernel/ialloc_test.c",
+      "compile_target": "ialloc_test"
+    },
+    "kernel.inode-pico.ilp32": {
+      "source": "tests/kernel/ialloc_test.c",
+      "compile_target": "ialloc_test_pico"
+    },
+    "kernel.inode-diagnostic.ilp32": {
+      "source": "tests/kernel/ialloc_test.c",
+      "compile_target": "ialloc_test_diagnostic"
+    },
+    "kernel.sysctl-compact.ilp32": {
+      "source": "tests/kernel/sysctl_test.c",
+      "compile_target": "sysctl_test_compact"
+    },
+    "kernel.sysctl-wide.ilp32": {
+      "source": "tests/kernel/sysctl_test.c",
+      "compile_target": "sysctl_test_wide"
+    },
+    "umount.ilp32": {
+      "source": "tests/umount_contracts/umount_contract_test.c",
+      "compile_target": "gate.o"
+    },
+    "libc.scanf.native": {
+      "source": "tests/libc_contracts/scanf_contract_test.c",
+      "compile_target": "scanf_contract_test"
+    },
+    "libc.scanf.ilp32": {
+      "source": "tests/libc_contracts/scanf_contract_test.c",
+      "compile_target": "scanf_contract_test32"
+    },
+    "libc.rwmode.native": {
+      "source": "tests/libc_contracts/rwmode_contract_test.c",
+      "compile_target": "rwmode_contract_test"
+    },
+    "libc.rwmode.ilp32": {
+      "source": "tests/libc_contracts/rwmode_contract_test.c",
+      "compile_target": "rwmode_contract_test32"
+    },
+    "libc.ansi.native": {
+      "source": "tests/libc_contracts/ansi_contract_test.c",
+      "compile_target": "ansi_contract_test"
+    },
+    "libc.ansi.ilp32": {
+      "source": "tests/libc_contracts/ansi_contract_test.c",
+      "compile_target": "ansi_contract_test32"
+    }
+  }
+}

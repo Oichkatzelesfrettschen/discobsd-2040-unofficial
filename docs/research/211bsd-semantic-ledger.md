@@ -67,6 +67,20 @@ Regenerate the donor archive from the pinned checkout with
 then compare it byte for byte with the tracked archive. The ordinary verifier
 uses only the retained Git objects and requires no donor checkout or network.
 
+`211bsd-regression-recipe-bindings.json` joins the nine execution-backed rows
+to 12 distinct variant builds. The verifier hashes the kernel, libc-contract
+and umount Makefiles at both the landed recipient commit and the tested
+integration tree. For each bound source, it checks the source's existing pinned
+hash, the exact target prerequisite and compiler command, the inventory's
+execution recipe in that Makefile, and the retained executable invocation and
+hash. The root aggregate, receipt helper, its make include and umount shim
+header are pinned supporting inputs at both trees. The umount path additionally requires
+`umount_contract_test.c -> gate.o -> umount_contract_test`; a source name merely
+appearing elsewhere in the Makefile does not satisfy the link. The bindings
+authenticate those selected recipe edges, not every transitive object,
+toolchain input or a bit-identical rebuild of historical executables. Open
+ledger rows remain open without an invented executable binding.
+
 Replay the derivative from artifact `10673107931` in run `35677329437` with
 `gh run download 35677329437 --repo Oichkatzelesfrettschen/discobsd-2040-unofficial --name ilp32-execution --dir <temporary-directory>`,
 then set `PYTHON` to the selected interpreter and run

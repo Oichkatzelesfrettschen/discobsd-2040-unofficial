@@ -22,4 +22,8 @@ Restart=always
 RestartSec=3
 
 [Install]
-WantedBy=default.target
+# Enabling links the unit into dev-discobsd.device.wants, so the board's
+# arrival starts it. A default.target link would queue a start job for the
+# device at every login and hold the user manager's startup for the device
+# timeout (DefaultDeviceTimeoutSec, 90 s) whenever the board is absent.
+WantedBy=dev-discobsd.device

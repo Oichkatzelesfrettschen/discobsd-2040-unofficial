@@ -104,11 +104,17 @@ both servers; `status` reports; `--detached` on any of the three bypasses
 the systemd units.
 
 On Linux with the packaged systemd user units, `discobsd-console up`
-restarts the units instead of spawning detached processes; enable them at
-boot with:
+restarts the units instead of spawning detached processes. Enabling them
+ties them to the board: they start when `/dev/discobsd` appears, at boot
+or on hotplug, and stop when it goes away. A board already attached made
+its appearance before the link existed, so start the units once by hand:
 
-    systemctl --user enable --now discobsd-web discobsd-link
+    systemctl --user enable discobsd-web discobsd-link
+    systemctl --user start discobsd-web discobsd-link    # board attached now
     loginctl enable-linger "$USER"
+
+An install that enabled the units under `default.target` moves them to the
+device with `systemctl --user reenable discobsd-web discobsd-link`.
 
 Firewall: open ports 7681 and 42069 to the LAN only, never to the
 Internet, because the short link hands out the token. On a ufw host:

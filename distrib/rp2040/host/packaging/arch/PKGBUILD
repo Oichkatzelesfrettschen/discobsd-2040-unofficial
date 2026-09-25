@@ -12,7 +12,7 @@
 
 pkgname=discobsd-host
 pkgver=1.0.9
-pkgrel=1
+pkgrel=2
 pkgdesc="Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 arch=('any')
 url="https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"

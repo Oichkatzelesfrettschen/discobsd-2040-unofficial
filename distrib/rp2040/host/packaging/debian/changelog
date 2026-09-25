@@ -1,3 +1,17 @@
+discobsd-host (1.0.9) noble; urgency=medium
+
+  * systemd user units: bind to dev-discobsd.device and install under it,
+    so the board's arrival starts discobsd-web and discobsd-link, its
+    removal stops them, and a login without the board queues no start
+    job and no 90 s device wait. An install enabled under default.target
+    moves with `systemctl --user reenable discobsd-web discobsd-link`.
+  * discobsd-web and discobsd-link read the bearer token from
+    DISCOBSD_WEB_TOKEN or the web-token systemd credential; the units no
+    longer pass it on the command line, where ps showed it to every
+    local user. --token and --to remain accepted and are deprecated.
+
+ -- DiscoBSD RP2040 port <noreply@github.com>  Fri, 25 Sep 2026 17:00:00 +0000
+
 discobsd-host (1.0.8) noble; urgency=medium
 
   * discobsd-web: a viewer whose socket is reset (a tab closed with data

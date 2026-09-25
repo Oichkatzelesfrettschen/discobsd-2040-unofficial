@@ -106,9 +106,11 @@ the systemd units.
 On Linux with the packaged systemd user units, `discobsd-console up`
 restarts the units instead of spawning detached processes. Enabling them
 ties them to the board: they start when `/dev/discobsd` appears, at boot
-or on hotplug, and stop when it goes away:
+or on hotplug, and stop when it goes away. A board already attached made
+its appearance before the link existed, so start the units once by hand:
 
     systemctl --user enable discobsd-web discobsd-link
+    systemctl --user start discobsd-web discobsd-link    # board attached now
     loginctl enable-linger "$USER"
 
 An install that enabled the units under `default.target` moves them to the

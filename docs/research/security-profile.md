@@ -17,7 +17,28 @@ discobsd-connect) is the only place HTTP, WebSocket, TLS, and multi-user
 authentication belong; the device runs a serial console and nothing that
 resembles a network stack.
 
-## 1. Current state, verified against the tree
+## 1. Current shipped account configuration
+
+Numeric password fields in `etc/passwd` are byte offsets into `etc/shadow`,
+which `getpw()` resolves for effective root. Root's offset remains 5, where
+the root password field begins after `root:`. That field now contains the
+locked marker `*`; the RP2040 manifest installs `/etc/shadow` with mode
+`0600`. The fixed DES verifier formerly shipped for root has been removed.
+
+The operator entry resolves to an empty password field. `etc/group` lists
+root and operator in group zero (`wheel`). `etc/ttys` marks the USB console
+insecure, and `login` refuses direct root login there. The manifest packs
+`/usr/bin/su` with mode `04751`. The target `su` checks wheel membership
+before a root transition and skips password verification for root targets;
+failure to read the wheel database denies the transition.
+
+These source and manifest facts do not establish the state of an already
+flashed board or a successful privilege transition on hardware.
+
+### Historical account and service analysis
+
+The following analysis records the tree before the account changes above.
+Its old account and manifest claims do not describe the current image.
 
 Each claim below is checked against the file at the cited line. `refuted`
 means the file's content does not match the claim as stated; the actual
@@ -61,14 +82,14 @@ intentional (Section 2.2), not on whatever happens to sit at position 0.
 
 `etc/shadow` line 1:
 
-    root:ro46DZg1ViGBs:0:1:The Man:/root:/bin/sh
+    root:[redacted]:0:1:The Man:/root:/bin/sh
 
 `5` is a byte offset, not a password. Counting `etc/shadow` line 1 from
-byte 0 (`r`=0, `o`=1, `o`=2, `t`=3, `:`=4), offset 5 lands exactly on the
-`r` that opens `ro46DZg1ViGBs`, root's real crypt(3) digest. `getpw()`
+byte 0 (`r`=0, `o`=1, `o`=2, `t`=3, `:`=4), offset 5 lands at the start of
+root's crypt(3) digest in the historical file. `getpw()`
 reads forward from there to the next `:` and substitutes that string as
 `pw_passwd`. So root's live password, as `login` resolves it, is the
-13-character DES-crypt hash `ro46DZg1ViGBs`, not the empty string.
+13-character DES-crypt verifier, not the empty string.
 
 This contradicts the shipped documentation:
 
@@ -79,7 +100,7 @@ This contradicts the shipped documentation:
 
 `login.c:260` only skips the password prompt when `!*pwd->pw_passwd` --
 the resolved password string is empty. Root's resolved string is
-`ro46DZg1ViGBs`, thirteen bytes, not empty, so the login prompt does ask
+the historical verifier, not empty, so the login prompt does ask
 for a password and does check it against that hash. Either the shipped
 image's `/etc/shadow` predates these four doc lines, or the doc lines
 were never checked against the file that governs the actual login path.
@@ -201,7 +222,10 @@ distribution ships (commonly `dialout` or `uucp` at mode 0660), so
 "restricted to a dedicated host group" is not something this rule does
 today; it is inherited, undocumented, and distribution-dependent.
 
-## 2. Device account model
+## 2. Historical device account proposal, not current configuration
+
+This proposal predates the shipped wheel-only, password-free `su` policy.
+Its remaining sections are design history and are not deployment instructions.
 
 ### 2.1 UID/GID choice
 

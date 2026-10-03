@@ -96,6 +96,17 @@ build:		check-python .WAIT symlinks tools
 
 distribution:	build
 		$(MAKE) fs
+.if ${MACHINE} == "rp2040"
+		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}
+.endif
+
+check-account-image:	check-python .WAIT ${FSIMG}
+.if ${MACHINE} == "rp2040"
+		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}
+.else
+		@echo "check-account-image requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
 
 tools:
 		${MAKE} -C tools MACHINE=${MACHINE} install
@@ -846,7 +857,7 @@ installfs:
 		check-elf2aout check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
-		regen-kernel-metadata check-fs-stress \
+		check-account-image regen-kernel-metadata check-fs-stress \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
 		check-touch-contracts check-libc-tempfiles check-libc-ctime \
 		check-libc-ctime-cross check-libc-zone check-libc-mktime \

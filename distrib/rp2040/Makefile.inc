@@ -63,7 +63,7 @@ FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash.uf2
 # sys/arch/rp2040/dev/flash.h, which flashimg also prints.
 FLASH_FS_ADDR=	0x10020000
 
-flash:		${FLASHUF2}
+flash:		check-account-image .WAIT ${FLASHUF2}
 
 ${FLASHBIN}:	${TOPSRC}/distrib/${MACHINE}/sdcard.img
 		${FLASHIMG} ${FSIMG} $@

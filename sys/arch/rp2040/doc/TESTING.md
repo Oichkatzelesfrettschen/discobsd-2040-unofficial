@@ -31,6 +31,7 @@ shell against the host's headers, so those two reach nothing under
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
+| account image | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
 
 The build and parallel-safe gate groups run with `bmake
 -j"$(sh tools/online-cpus.sh)"`. The resolver reads the online count from

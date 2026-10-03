@@ -349,7 +349,7 @@ libc and kernel stack use.
 | `doxtract` frame | 56 | 288 | +232 |
 
 Writable data falls by 196 bytes because mode-display tables moved to read-only
-storage and the update index disappeared. Linked BSS grows by 276 bytes: the
+storage and the update index disappeared. Linked BSS grows by 280 bytes: the
 dominant addition is a 129-entry `unsigned short` directory-mode stack. The
 stack holds only sanitized permission bits plus `USHRT_MAX`; narrowing the
 retained representation from target `mode_t` saves 258 bytes while widening

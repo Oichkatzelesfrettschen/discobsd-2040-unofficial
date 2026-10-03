@@ -305,8 +305,11 @@ slashes, treats an initial `.` as the current directory's children, and skips
 the output archive's captured inode if that file lies below the input root.
 Creation rejects any symbolic-link target that extraction would reject, reports
 missing inputs and failed `-C` changes, and verifies each directory identity
-before entering it. A symlinked source parent remains rejected by default;
-explicit `-h` follows it while retaining the opened directory identity check.
+before entering it. A readable source root retains descriptor-rooted
+traversal; a search-only root uses the same bounded depth restoration as
+extraction under the documented stable-namespace assumption. A symlinked
+source parent remains rejected by default; explicit `-h` follows it while
+retaining the opened directory identity check.
 Update mode uses `mkstemp` and bounded linear parsing instead of `mktemp` plus
 an external shell pipeline and fixed-window binary search. The replacement
 removes a temporary sort, awk and move process set as well as the associated
@@ -338,19 +341,19 @@ libc and kernel stack use.
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
 | Source lines | 1,913 | 2,635 | +722 |
-| Source bytes | 48,416 | 80,357 | +31,941 |
-| Object text | 6,684 | 9,936 | +3,252 |
-| Object read-only data | 1,481 | 4,149 | +2,668 |
+| Source bytes | 48,416 | 80,470 | +32,054 |
+| Object text | 6,684 | 9,924 | +3,240 |
+| Object read-only data | 1,481 | 4,129 | +2,648 |
 | Object writable data | 260 | 58 | -202 |
 | Object BSS | 1,890 | 2,185 | +295 |
-| Final text | 23,630 | 28,376 | +4,746 |
+| Final text | 23,630 | 28,344 | +4,714 |
 | Final data | 888 | 692 | -196 |
 | Final BSS | 3,648 | 3,940 | +292 |
-| Final a.out bytes | 24,552 | 29,100 | +4,548 |
-| Packed bytes | 20,366 | 23,507 | +3,141 |
+| Final a.out bytes | 24,552 | 29,068 | +4,516 |
+| Packed bytes | 20,366 | 23,482 | +3,116 |
 | Packed root blocks | 21 | 24 | +3 |
 | `putfile` frame per recursive level | 824 | 840 | +16 |
-| `dorep` frame | 552 | 808 | +256 |
+| `dorep` frame | 552 | 560 | +8 |
 | `doxtract` frame | 56 | 296 | +240 |
 
 Writable data falls by 196 bytes because mode-display tables moved to read-only
@@ -360,8 +363,9 @@ stack holds only sanitized permission bits plus `USHRT_MAX`; narrowing the
 retained representation from target `mode_t` saves 258 bytes while widening
 back to `mode_t` at the `fchmod` boundary. The prefix stack avoids a pathname
 allocation per directory and avoids restoring every ancestor after every
-member. The creation frame grows by 256 bytes to normalize one
-maximum-width operand without mutating `argv`. Security checks cost three
+member. The creation frame grows by eight bytes to normalize one maximum-width
+operand without mutating `argv`; fallback traversal depth uses shared state.
+Security checks cost three
 packed root blocks in the final distribution. Extraction
 keeps separate 12-byte device/inode/next records for live regular files and
 symbolic links, so target `malloc` consumes 16 bytes including its header and

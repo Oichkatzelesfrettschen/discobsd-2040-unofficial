@@ -152,6 +152,7 @@ file /etc/passwd
 file /etc/rc
 file /etc/rc.local
 file /etc/shadow
+mode 0600
 file /etc/shells
 file /etc/ttys
 file /etc/termcap

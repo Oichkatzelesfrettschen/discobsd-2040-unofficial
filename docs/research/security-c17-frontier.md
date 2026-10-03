@@ -277,12 +277,17 @@ requires non-regular members to carry zero data. Parent traversal compares
 `lstat` device and inode with `open` plus `fstat` before `fchdir`. Regular
 outputs use `O_EXCL`; a repeated regular member can replace only an inode
 recorded by the same extraction, so append and update archives retain their
-last-entry-wins contract without admitting a pre-existing victim. Ownership is
-not restored; setuid, setgid and sticky bits are stripped. Created directories
-retain owner traversal while children stream, then a depth-first metadata
-unwind applies the archived mode, filtered through the extraction umask unless
-`-p` requested exact permissions. A hard link can name only a safe relative
-regular-file identity created earlier in the same extraction, and an archive
+last-entry-wins contract without admitting a pre-existing victim. Repeated
+symbolic-link members likewise replace only a symbolic-link inode recorded by
+the same extraction. Ownership is not restored; setuid, setgid and sticky bits
+are stripped. Created directories retain owner traversal while children
+stream. Device/inode keyed directory records retain the final mode and
+timestamp across noncontiguous members; a bounded pathname-prefix cache
+write-combines restoration when the streamed prefix changes. The mechanism
+therefore reopens a restrictive directory for a later member and finalizes
+implicitly created parents with the extraction umask. A hard link can name
+only a safe relative regular-file identity created earlier in the same
+extraction, and an archive
 cannot retain special bits through that alias. A relative symbolic-link target
 can carry leading dot-dot components only while each one remains within the
 member's parent depth; dot-dot after a named component is rejected because
@@ -332,47 +337,51 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,407 | +494 |
-| Source bytes | 48,416 | 72,144 | +23,728 |
-| Object text | 6,684 | 9,212 | +2,528 |
-| Object read-only data | 1,481 | 3,846 | +2,365 |
+| Source lines | 1,913 | 2,635 | +722 |
+| Source bytes | 48,416 | 80,357 | +31,941 |
+| Object text | 6,684 | 9,936 | +3,252 |
+| Object read-only data | 1,481 | 4,149 | +2,668 |
 | Object writable data | 260 | 58 | -202 |
-| Object BSS | 1,890 | 2,174 | +284 |
-| Final text | 23,630 | 27,328 | +3,698 |
+| Object BSS | 1,890 | 2,185 | +295 |
+| Final text | 23,630 | 28,376 | +4,746 |
 | Final data | 888 | 692 | -196 |
-| Final BSS | 3,648 | 3,928 | +280 |
-| Final a.out bytes | 24,552 | 28,052 | +3,500 |
-| Packed bytes | 20,366 | 22,779 | +2,413 |
+| Final BSS | 3,648 | 3,940 | +292 |
+| Final a.out bytes | 24,552 | 29,100 | +4,548 |
+| Packed bytes | 20,366 | 23,507 | +3,141 |
 | Packed root blocks | 21 | 24 | +3 |
-| `putfile` frame per recursive level | 824 | 832 | +8 |
+| `putfile` frame per recursive level | 824 | 840 | +16 |
 | `dorep` frame | 552 | 808 | +256 |
-| `doxtract` frame | 56 | 288 | +232 |
+| `doxtract` frame | 56 | 296 | +240 |
 
 Writable data falls by 196 bytes because mode-display tables moved to read-only
-storage and the update index disappeared. Linked BSS grows by 280 bytes: the
+storage and the update index disappeared. Linked BSS grows by 292 bytes: the
 dominant addition is a 129-entry `unsigned short` directory-mode stack. The
 stack holds only sanitized permission bits plus `USHRT_MAX`; narrowing the
 retained representation from target `mode_t` saves 258 bytes while widening
-back to `mode_t` at the `fchmod` boundary. The fixed directory-metadata storage
-lets extraction delay restrictive modes without retaining one heap node per
-directory record. The creation frame grows by 256 bytes to normalize one
+back to `mode_t` at the `fchmod` boundary. The prefix stack avoids a pathname
+allocation per directory and avoids restoring every ancestor after every
+member. The creation frame grows by 256 bytes to normalize one
 maximum-width operand without mutating `argv`. Security checks cost three
-packed root blocks. Extraction keeps one 12-byte device, inode and next-pointer
-identity per live extraction-created regular-file or directory inode,
-including implicitly created directories; the target allocator consumes 16
-bytes including its header and alignment per identity. Repeated records reuse
-the identity. Replacement forgets an unlinked inode unless another extracted
-hard link still
-names it. The live filesystem's inode capacity therefore bounds the list
-independently of archive record count. The list is freed at extraction
-completion. Refusing all hard links would remove that variable RAM cost but
-would break the maintained archive contract; accepting pre-existing sources
+packed root blocks in the final distribution. Extraction
+keeps separate 12-byte device/inode/next records for live regular files and
+symbolic links, so target `malloc` consumes 16 bytes including its header and
+alignment per record. A directory record also carries its final timestamp,
+sanitized mode and ownership bit; its 20-byte body consumes 24 allocator
+bytes. Repeated records reuse identities. Replacement forgets an unlinked
+inode unless another extracted hard link still names it. The live filesystem's
+inode capacity therefore bounds the lists independently of archive record
+count. All three lists are freed at extraction completion. Refusing all hard
+links or repeated symbolic links would remove part of the variable RAM cost
+but would break maintained archive semantics; accepting pre-existing sources
 would restore the vulnerability.
 
 Thirty warmed host runs over the 10,823,680-byte root-tree archive measured
-listing at 4.3 ms mean for both the base and repair. Fifteen warmed extraction
-runs measured 23.2 ms mean for the base and 39.1 ms for the repair, a 1.69x
-host-filesystem cost. Parent verification, exclusive creation,
+listing at 4.4 ms mean for the base and 4.3 ms for the repair. Fifteen warmed
+paired extraction runs measured 19.6 ms mean for the base and 35.4 ms for the
+repair, a 1.81x host-filesystem cost. The review-head predecessor measured
+34.1 ms in the same paired run, so inode-keyed directory revisits add 3.8% to
+the repaired extraction path rather than the first correct draft's 69%.
+Parent verification, exclusive creation,
 metadata revalidation and hard-link provenance explain the direction. These
 timings establish neither Cortex-M0+ latency nor board peak RAM.
 

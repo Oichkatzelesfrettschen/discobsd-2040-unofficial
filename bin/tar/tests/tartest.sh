@@ -549,6 +549,23 @@ cmp create-dot-components/source/rootfile \
 cmp create-dot-components/source/directory/child \
 	create-dot-components/target/directory/child ||
 	fail "normalized nested operand changed its contents"
+echo "tartest: creation normalizes dot prefixes before the path bound"
+long_component_one=$(printf '%051d' 0)
+long_component_two=$(printf '%051d' 1)
+long_component_three=$(printf '%051d' 2)
+long_filename=$(printf '%099d' 3)
+long_path=$long_component_one/$long_component_two/$long_component_three/$long_filename
+[ "${#long_path}" -eq 255 ] || fail "maximum ustar pathname fixture has wrong length"
+mkdir -p "create-max-path/$long_component_one/$long_component_two/$long_component_three"
+: > "create-max-path/$long_path"
+(cd create-max-path && "$TAR" cf ../create-max-path-bare.tar "$long_path") ||
+	fail "creation rejected a representable 255-byte pathname"
+(cd create-max-path && "$TAR" cf ../create-max-path-dot.tar "./$long_path") ||
+	fail "creation rejected a dot-prefixed 255-byte pathname"
+"$TAR" tf create-max-path-bare.tar | grep -Fqx "$long_path" ||
+	fail "bare maximum pathname was not archived exactly"
+"$TAR" tf create-max-path-dot.tar | grep -Fqx "$long_path" ||
+	fail "dot-prefixed maximum pathname was not normalized"
 mkdir -p create-self
 printf 'bounded\n' > create-self/payload
 (cd create-self && "$TAR" cf archive.tar .) ||

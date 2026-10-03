@@ -323,9 +323,10 @@ diagnostic, while a sanitizer-instrumented mutation reproduces the original
 out-of-bounds store.
 
 Archive creation rejects absolute and parent-component inputs, normalizes
-trailing slashes and harmless `.` components, treats an initial `.` as the
-current directory's children, and skips
-the output archive's captured inode if that file lies below the input root.
+trailing slashes and harmless `.` components before enforcing the bounded
+path buffer, including the maximum-width ustar path with an initial `./`,
+treats an initial `.` as the current directory's children, and skips the
+output archive's captured inode if that file lies below the input root.
 Unsafe source paths and symbolic-link targets set status 1 and skip the named
 object while creation continues through the end-of-archive records, so a
 rejected object does not leave a silently truncated archive. Creation reports
@@ -367,25 +368,33 @@ probe with `-Wstrict-prototypes` still diagnoses declarations in the shared
 diagnostics. Those shared-header migrations remain outside the tar unit and
 must not be represented as tar source failures.
 
-The object and final a.out pairs use the same Cortex-M0+ compiler flags,
-headers, crt0, linker script and libc. `hsaout -s` supplies the packed-root
-measurement. Target `-fstack-usage` reports internal static frames and excludes
-libc and kernel stack use.
+The base source is `bin/tar/tar.c` at commit
+`1bed0b4dc4aeb5c3fb0d0a2a3a559a809b5af592` (SHA-256
+`db2736172f351d9417ead5987039bb573aeef75202f1b83634a073047a690968`). The
+repaired source rows below were refreshed after the maximum-path normalization
+change. The target object and final a.out use the same Cortex-M0+ compiler
+flags, headers, crt0, linker script and libc. `arm-none-eabi-size -A
+bin/tar/tar.o` supplies object section sizes; the executable size tool and
+`tools/bin/hsaout -s bin/tar/tar` supply the final and packed-root values.
+Target `-fstack-usage` with the same compile flags reports internal static
+frames and excludes libc and kernel stack use. Reproduce the repaired build
+with `bmake MACHINE=rp2040 -C tools install` followed by
+`bmake MACHINE=rp2040 -C bin/tar all`.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,721 | +808 |
-| Source bytes | 48,416 | 82,605 | +34,189 |
-| Object text | 6,684 | 10,124 | +3,440 |
+| Source lines | 1,913 | 2,770 | +857 |
+| Source bytes | 48,416 | 84,055 | +35,639 |
+| Object text | 6,684 | 10,292 | +3,608 |
 | Object read-only data | 1,481 | 3,732 | +2,251 |
 | Object writable data | 260 | 58 | -202 |
 | Object BSS | 1,890 | 2,181 | +291 |
-| Final text | 23,630 | 28,140 | +4,510 |
+| Final text | 23,630 | 28,228 | +4,598 |
 | Final data | 888 | 692 | -196 |
 | Final BSS | 3,648 | 3,936 | +288 |
-| Final a.out bytes | 24,552 | 28,864 | +4,312 |
-| Packed bytes | 20,366 | 23,520 | +3,154 |
-| Packed root blocks | 21 | 24 | +3 |
+| Final a.out bytes | 24,552 | 28,952 | +4,400 |
+| Packed bytes | 20,366 | 23,581 | +3,215 |
+| Packed root blocks | 21 | 25 | +4 |
 | `putfile` frame per recursive level | 824 | 832 | +8 |
 | `dorep` frame | 552 | 560 | +8 |
 | `doxtract` frame | 56 | 176 in `main` | +120 |
@@ -399,7 +408,7 @@ back to `mode_t` at the `fchmod` boundary. The prefix stack avoids a pathname
 allocation per directory and avoids restoring every ancestor after every
 member. The creation frame grows by eight bytes to normalize one maximum-width
 operand without mutating `argv`; fallback traversal depth uses shared state.
-Security checks cost three packed root blocks in the final distribution.
+The repaired tar occupies four more packed root blocks than the base source.
 Extraction keeps one shared list of 12-byte device/inode/next records for live
 regular files and symbolic links, so target `malloc` consumes 16 bytes
 including its header and alignment per record. The shared ownership list lets

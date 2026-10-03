@@ -224,7 +224,7 @@ static void setdirmetadata_at_parent(const char *, const char *,
 static void setimes(char *, time_t);
 static int contains_control_character(const char *);
 static int archive_path_is_safe(const char *);
-static void normalize_creation_path(char *);
+static int copy_normalized_creation_path(char *, size_t, const char *);
 static void validate_archive_path(const char *);
 static int symlink_target_is_safe(const char *, const char *);
 static void validate_symlink_target(const char *, const char *);
@@ -727,8 +727,6 @@ dorep(char **argv)
     if (archive_root_descriptor < 0 && chdir(".") < 0)
         archive_path_error("enter archive root", ".");
     while (*argv && ! term) {
-        size_t operand_length;
-
         if (!strcmp(*argv, "-C") && argv[1]) {
             argv++;
             if (chdir(*argv) < 0) {
@@ -747,17 +745,19 @@ dorep(char **argv)
             argv++;
             continue;
         }
-        operand_length = strlen(*argv);
-        if (operand_length >= sizeof(creation_path)) {
+        if (!copy_normalized_creation_path(creation_path,
+            sizeof(creation_path), *argv)) {
             report_unsafe_source();
             argv++;
             continue;
         }
-        memcpy(creation_path, *argv, operand_length + 1);
-        while (operand_length > 1 &&
-            creation_path[operand_length - 1] == '/')
-            creation_path[--operand_length] = '\0';
-        normalize_creation_path(creation_path);
+        {
+            size_t operand_length = strlen(creation_path);
+
+            while (operand_length > 1 &&
+                creation_path[operand_length - 1] == '/')
+                creation_path[--operand_length] = '\0';
+        }
         if (strcmp(creation_path, ".") != 0 &&
             !archive_path_is_safe(creation_path)) {
             report_unsafe_source();
@@ -1571,19 +1571,50 @@ archive_path_is_safe(const char *name)
     return 1;
 }
 
-static void
-normalize_creation_path(char *path)
+/*
+ * Normalize harmless dot components while copying so they do not consume
+ * the bounded destination. Empty components remain for the safety check.
+ */
+static int
+copy_normalized_creation_path(char *destination, size_t capacity,
+    const char *source)
 {
-    char *component;
-    size_t length;
+    size_t written = 0;
 
-    while (path[0] == '.' && path[1] == '/')
-        memmove(path, path + 2, strlen(path + 2) + 1);
-    while ((component = strstr(path, "/./")) != NULL)
-        memmove(component, component + 2, strlen(component + 2) + 1);
-    length = strlen(path);
-    if (length >= 2 && path[length - 2] == '/' && path[length - 1] == '.')
-        path[length - 2] = '\0';
+    while (*source != '\0') {
+        if (source[0] == '.' && source[1] == '/' &&
+            (written == 0 || destination[written - 1] == '/')) {
+            source += 2;
+            continue;
+        }
+        if (source[0] == '/' && source[1] == '.' && source[2] == '/') {
+            if (written + 1 >= capacity)
+                return 0;
+            destination[written++] = '/';
+            source += 3;
+            continue;
+        }
+        if (source[0] == '/' && source[1] == '.' && source[2] == '\0') {
+            if (written == 0) {
+                if (capacity < 2)
+                    return 0;
+                destination[written++] = '/';
+            }
+            source += 2;
+            continue;
+        }
+        if (written + 1 >= capacity)
+            return 0;
+        destination[written++] = *source++;
+    }
+    destination[written] = '\0';
+    if (written == 0) {
+        if (capacity < 2)
+            return 0;
+        destination[0] = '.';
+        destination[1] = '\0';
+    }
+    return 1;
 }
 
 static void

@@ -10,10 +10,6 @@
 #
 set -eu
 
-# Preserve arbitrary pathname bytes in shell variables on UTF-8 hosts.
-LC_ALL=C
-export LC_ALL
-
 srcdir=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/tartest.XXXXXX")
 trap 'rm -rf "$work"' EXIT INT HUP TERM
@@ -539,14 +535,30 @@ printf 'UTF-8 payload\n' > "utf8-source/$utf8_name"
 (cd utf8-root && "$TAR" xf ../utf8.tar)
 cmp "utf8-source/$utf8_name" "utf8-root/$utf8_name" ||
     fail "valid UTF-8 filename failed to round trip"
-opaque_name=$(printf '\351')
-printf 'opaque payload\n' > "utf8-source/$opaque_name"
-(cd utf8-source && "$TAR" cf ../opaque.tar "$opaque_name")
-[ "$("$TAR" tf opaque.tar)" = "$opaque_name" ] ||
-    fail "opaque non-control filename changed during listing"
-(cd utf8-root && "$TAR" xf ../opaque.tar)
-cmp "utf8-source/$opaque_name" "utf8-root/$opaque_name" ||
-    fail "opaque non-control filename failed to round trip"
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+"$PYTHON" - "$TAR" <<'PY'
+import os
+import subprocess
+import sys
+
+tar = os.fsencode(sys.argv[1])
+name = b"\xe9"
+source_path = b"utf8-source/" + name
+root_path = b"utf8-root/" + name
+with open(source_path, "wb") as source_file:
+    source_file.write(b"opaque payload\n")
+subprocess.run([tar, b"cf", b"../opaque.tar", name], cwd=b"utf8-source", check=True)
+listing = subprocess.run(
+    [tar, b"tf", b"opaque.tar"], check=True, stdout=subprocess.PIPE
+).stdout
+if listing != name + b"\n":
+    raise SystemExit("opaque non-control filename changed during listing")
+subprocess.run([tar, b"xf", b"../opaque.tar"], cwd=b"utf8-root", check=True)
+with open(source_path, "rb") as source_file, open(root_path, "rb") as extracted_file:
+    if source_file.read() != extracted_file.read():
+        raise SystemExit("opaque non-control filename failed to round trip")
+print("tartest: opaque non-control filename survives create, list and extract")
+PY
 if "$TAR" cf create-chdir.tar -C missing-directory payload \
     >create-chdir.out 2>&1; then
 	fail "archive creation reported success after a failed -C"

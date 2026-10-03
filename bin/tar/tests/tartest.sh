@@ -129,7 +129,8 @@ for scenario in dot empty-component control; do
 	    "$work/security/$scenario/root"
 done
 
-for scenario in symlink-control hardlink-control utf8-control; do
+for scenario in symlink-control hardlink-control utf8-control \
+    truncated-utf8-control; do
 	"$FIXTURE" "$scenario" > "security/$scenario.tar"
 	list_must_fail "$scenario" "$work/security/$scenario.tar"
 done
@@ -338,6 +339,36 @@ printf 'directory child\n' > type-change-source/member/child
 grep -q '^directory child$' type-change-directory-root/member/child ||
     fail "regular-to-directory replacement lost the last member"
 
+echo "tartest: empty extracted directories may become regular files"
+mkdir -p directory-change-source/member directory-change-root
+(cd directory-change-source && "$TAR" cf ../directory-change.tar member)
+rmdir directory-change-source/member
+printf 'regular after directory\n' > directory-change-source/member
+(cd directory-change-source && "$TAR" rf ../directory-change.tar member)
+(cd directory-change-root && "$TAR" xf ../directory-change.tar)
+grep -q '^regular after directory$' directory-change-root/member ||
+    fail "directory-to-regular replacement lost the last member"
+mkdir -p directory-change-existing/member
+if (cd directory-change-existing && "$TAR" xf ../directory-change.tar) \
+    >directory-change-existing.out 2>&1; then
+    fail "directory replacement removed a pre-existing directory"
+fi
+[ -d directory-change-existing/member ] ||
+    fail "directory replacement changed a pre-existing directory"
+mkdir -p directory-change-nonempty-source/member directory-change-nonempty-root
+printf 'retained child\n' > directory-change-nonempty-source/member/child
+(cd directory-change-nonempty-source &&
+    "$TAR" cf ../directory-change-nonempty.tar member)
+(cd directory-change-source &&
+    "$TAR" rf ../directory-change-nonempty.tar member)
+if (cd directory-change-nonempty-root &&
+    "$TAR" xf ../directory-change-nonempty.tar) \
+    >directory-change-nonempty.out 2>&1; then
+    fail "directory replacement removed a nonempty directory"
+fi
+grep -q '^retained child$' directory-change-nonempty-root/member/child ||
+    fail "directory replacement lost a nonempty directory's child"
+
 if [ "$(id -u)" -eq 0 ]; then
 	echo "tartest: SKIP search-only fallbacks require a non-privileged UID"
 else
@@ -503,13 +534,36 @@ printf 'UTF-8 payload\n' > "utf8-source/$utf8_name"
 	fail "valid UTF-8 filename changed during listing"
 (cd utf8-root && "$TAR" xf ../utf8.tar)
 cmp "utf8-source/$utf8_name" "utf8-root/$utf8_name" ||
-	fail "valid UTF-8 filename failed to round trip"
+    fail "valid UTF-8 filename failed to round trip"
+opaque_name=$(printf '\351')
+printf 'opaque payload\n' > "utf8-source/$opaque_name"
+(cd utf8-source && "$TAR" cf ../opaque.tar "$opaque_name")
+[ "$("$TAR" tf opaque.tar)" = "$opaque_name" ] ||
+    fail "opaque non-control filename changed during listing"
+(cd utf8-root && "$TAR" xf ../opaque.tar)
+cmp "utf8-source/$opaque_name" "utf8-root/$opaque_name" ||
+    fail "opaque non-control filename failed to round trip"
 if "$TAR" cf create-chdir.tar -C missing-directory payload \
     >create-chdir.out 2>&1; then
 	fail "archive creation reported success after a failed -C"
 fi
 
 echo "tartest: appended and updated members restore the last entry"
+mkdir -p padded-time-source
+printf 'older payload\n' > 'padded-time-source/padded member'
+touch -t 200001010000 'padded-time-source/padded member'
+"$FIXTURE" padded-time > padded-time.tar
+(cd padded-time-source && "$TAR" uf ../padded-time.tar 'padded member')
+[ "$("$TAR" tf padded-time.tar | grep -c '^padded member$')" -eq 1 ] ||
+    fail "update appended an older member with space-padded archive time"
+printf 'prefix payload\n' > 'padded-time-source/member 17777777777'
+printf 'distinct payload\n' > padded-time-source/member
+(cd padded-time-source &&
+    "$TAR" cf ../update-prefix.tar 'member 17777777777')
+(cd padded-time-source && "$TAR" uf ../update-prefix.tar member)
+"$TAR" tf update-prefix.tar > update-prefix.list
+grep -q '^member$' update-prefix.list ||
+    fail "update mistook an octal filename suffix for a timestamp"
 mkdir -p repeated append-root update-root
 printf 'first\n' > repeated/member
 (cd repeated && "$TAR" cf ../append.tar member)

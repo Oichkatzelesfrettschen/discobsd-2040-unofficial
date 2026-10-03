@@ -884,8 +884,8 @@ top:
         archive_error("non-regular archive member carries file data");
 
     if (tfile != NULL)
-        fprintf(tfile, "%s %.12s\n", curname,
-            dblock.dbuf.mtime);
+        fprintf(tfile, "%s %lo\n", curname,
+            (unsigned long)stbuf.st_mtime);
 }
 
 /*
@@ -1503,32 +1503,19 @@ static int
 contains_control_character(const char *text)
 {
     const unsigned char *cursor = (const unsigned char *)text;
-    unsigned char continuation_lower = 0x80U;
-    unsigned char continuation_upper = 0xbfU;
-    unsigned int continuation_count = 0;
 
     while (*cursor != '\0') {
-        if (continuation_count != 0) {
-            if (*cursor < continuation_lower ||
-                *cursor > continuation_upper)
-                return 1;
-            continuation_count--;
-            continuation_lower = 0x80U;
-            continuation_upper = 0xbfU;
-            cursor++;
-            continue;
-        }
+        const unsigned char *continuation = cursor + 1;
+        unsigned char continuation_lower = 0x80U;
+        unsigned char continuation_upper = 0xbfU;
+        unsigned int continuation_count = 0;
+
         if (*cursor < 0x20U || (*cursor >= 0x7fU && *cursor <= 0x9fU))
             return 1;
-        if (*cursor == 0xc2U)
-            continuation_lower = 0xa0U;
-        if (*cursor >= 0xc2U && *cursor <= 0xdfU)
-            continuation_count = 1;
-        else if (*cursor >= 0xe0U && *cursor <= 0xefU)
-            continuation_count = 2;
-        else if (*cursor >= 0xf0U && *cursor <= 0xf4U)
-            continuation_count = 3;
-        if (*cursor == 0xe0U)
+        if (*cursor >= 0xc2U && *cursor <= 0xf4U)
+            continuation_count = 1U + (unsigned int)(*cursor >= 0xe0U) +
+                (unsigned int)(*cursor >= 0xf0U);
+        if (*cursor == 0xc2U || *cursor == 0xe0U)
             continuation_lower = 0xa0U;
         else if (*cursor == 0xedU)
             continuation_upper = 0x9fU;
@@ -1536,9 +1523,17 @@ contains_control_character(const char *text)
             continuation_lower = 0x90U;
         else if (*cursor == 0xf4U)
             continuation_upper = 0x8fU;
-        cursor++;
+        while (continuation_count != 0 &&
+            *continuation >= continuation_lower &&
+            *continuation <= continuation_upper) {
+            continuation++;
+            continuation_count--;
+            continuation_lower = 0x80U;
+            continuation_upper = 0xbfU;
+        }
+        cursor = continuation_count == 0 ? continuation : cursor + 1;
     }
-    return continuation_count != 0;
+    return 0;
 }
 
 static int
@@ -1925,16 +1920,33 @@ static void
 remove_extracted_output(const char *name)
 {
     struct stat status;
+    struct extracted_directory **directory_link = NULL;
 
     if (lstat(name, &status) < 0) {
         if (errno == ENOENT)
             return;
         archive_path_error("lstat output", curname);
     }
-    if (!was_extracted_output(&status))
+    if (S_ISDIR(status.st_mode)) {
+        struct extracted_directory *directory = find_extracted_directory(&status);
+
+        if (directory == NULL || !directory->owned)
+            archive_error("refusing to replace an existing output path");
+        directory_link = &extracted_directories;
+        while (*directory_link != directory)
+            directory_link = &(*directory_link)->next;
+    } else if (!was_extracted_output(&status)) {
         archive_error("refusing to replace an existing output path");
-    if (unlink(name) < 0)
-        archive_path_error("unlink repeated output", curname);
+    }
+    if ((directory_link != NULL ? rmdir(name) : unlink(name)) < 0)
+        archive_path_error("remove repeated output", curname);
+    if (directory_link != NULL) {
+        struct extracted_directory *directory = *directory_link;
+
+        *directory_link = directory->next;
+        free(directory);
+        return;
+    }
     /*
      * An inode with another link remains an extraction-owned hard-link
      * source. An unlinked single-name inode can be forgotten so repeated
@@ -2300,13 +2312,12 @@ checkupdate(const char *arg)
     if (fseek(tfile, 0, SEEK_SET) != 0)
         done(2);
     while (fgets(line, sizeof(line), tfile) != NULL) {
-        char *separator = strrchr(line, ' ');
         unsigned long archived_time;
 
-        if (separator == NULL || (size_t)(separator - line) != argument_length ||
+        if (strrchr(line, ' ') != line + argument_length ||
             memcmp(line, arg, argument_length) != 0)
             continue;
-        archived_time = strtoul(separator + 1, NULL, 8);
+        archived_time = strtoul(line + argument_length + 1, NULL, 8);
         if (!found || archived_time > newest)
             newest = archived_time;
         found = 1;

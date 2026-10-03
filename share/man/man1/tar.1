@@ -37,7 +37,9 @@ directory is (recursively) extracted.  The modification time and mode are
 restored (if possible).  Archived owner and group identifiers are not restored.
 If no file argument is given, the entire content of the tape is extracted.
 Note that if multiple entries specifying the same file are on the tape, the
-last one overwrites all earlier.
+last one replaces earlier extraction-owned outputs.  An empty directory
+created by the extraction may be replaced by a later non-directory entry;
+pre-existing outputs and nonempty directories are preserved and cause an error.
 .TP 8
 .B t
 The names of the specified files are listed each time they occur on

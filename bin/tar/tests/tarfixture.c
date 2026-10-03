@@ -30,6 +30,7 @@ _Static_assert(sizeof(struct ustar_header) == RECORD_SIZE,
     "ustar header must occupy one record");
 
 static int malformed_size_field;
+static int padded_time_field;
 
 static void
 fail(const char *operation)
@@ -94,6 +95,11 @@ write_entry(const char *name, char type, const char *link_target,
     if (malformed_size_field)
         header.size[0] = '8';
     put_octal(header.mtime, sizeof(header.mtime), 0);
+    if (padded_time_field) {
+        put_octal(header.mtime, sizeof(header.mtime), 1000000000UL);
+        header.mtime[0] = ' ';
+        header.mtime[sizeof(header.mtime) - 1] = ' ';
+    }
     memset(header.checksum, ' ', sizeof(header.checksum));
     header.type = type;
     memcpy(header.magic, "ustar", 5);
@@ -154,6 +160,9 @@ main(int argc, char **argv)
     } else if (strcmp(argv[1], "utf8-control") == 0) {
         write_entry("control\302\202", '0', NULL, 0644,
             "archive payload\n");
+    } else if (strcmp(argv[1], "truncated-utf8-control") == 0) {
+        write_entry("control\342\202", '0', NULL, 0644,
+            "archive payload\n");
     } else if (strcmp(argv[1], "symlink-control") == 0) {
         write_entry("link", '2', "target\033control", 0777, NULL);
     } else if (strcmp(argv[1], "hardlink-control") == 0) {
@@ -195,6 +204,9 @@ main(int argc, char **argv)
     } else if (strcmp(argv[1], "implicit-parent") == 0) {
         write_entry("implicit/nested/file", '0', NULL, 0600,
             "payload\n");
+    } else if (strcmp(argv[1], "padded-time") == 0) {
+        padded_time_field = 1;
+        write_entry("padded member", '0', NULL, 0644, "archived payload\n");
     } else if (strcmp(argv[1], "bad-octal") == 0) {
         malformed_size_field = 1;
         write_entry("bad-size", '0', NULL, 0644, NULL);

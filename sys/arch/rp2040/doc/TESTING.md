@@ -326,6 +326,10 @@ The tar creation gate also follows a symlinked parent with `-h` from a
 search-only root and verifies that a later operand still resolves from the
 captured creation root. The fixture runs under a non-privileged UID and joins
 the explicit permission-dependent skip under privileged execution.
+Tar fixtures also cover empty extraction-owned directory replacement by a
+regular file, preservation of pre-existing and nonempty directories, opaque
+non-control filename bytes, a truncated UTF-8 sequence containing a raw C1
+byte, and update lookup with a space-bearing name and space-padded timestamp.
 
 `check-posix-sh` runs bin/sh/tests/posix-sh.sh, the conformance harness
 against XCU chapter 2, which builds the shell as a 32-bit host binary;

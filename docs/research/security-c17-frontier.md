@@ -273,15 +273,17 @@ source from the repaired one.
 Extraction now rejects empty, absolute, dot, dot-dot, repeated-empty,
 control-bearing and over-limit paths before selection or filesystem use. The
 control scanner distinguishes RFC 3629 sequences from raw C1 bytes, preserves
-valid UTF-8 names and rejects UTF-8 encodings of C1 control characters. It
+valid UTF-8 names and opaque non-control bytes, and rejects raw or UTF-8-encoded
+C1 controls. A truncated sequence cannot hide a raw C1 continuation byte. It
 accepts only regular files, directories, symbolic links and hard links, and
 requires non-regular members to carry zero data. Parent traversal compares
 `lstat` device and inode with `open` plus `fstat` before `fchdir`. Regular
-outputs use `O_EXCL`; a later member can replace only a non-directory inode
-recorded by the same extraction, including regular/symbolic-link type changes
-and regular-to-directory replacement, so append and update archives retain
-their last-entry-wins
-contract without admitting a pre-existing victim. Ownership is not restored;
+outputs use `O_EXCL`; a later member can replace only an inode recorded by the
+same extraction, including regular/symbolic-link type changes and replacement
+between regular files and empty directories. Directory replacement uses
+`rmdir`, preserves nonempty and pre-existing directories, and frees the removed
+inode's metadata record. Append and update archives retain their last-entry-wins
+contract within those boundaries. Ownership is not restored;
 setuid, setgid and sticky bits are stripped. Created directories retain owner
 traversal while children stream. Device/inode keyed directory records retain
 the final mode and timestamp across noncontiguous members; a bounded
@@ -328,6 +330,9 @@ removes a temporary sort, awk and move process set as well as the associated
 pathname races; update lookup is linear in the number of archive entries
 because the RP2040 image favors a small executable and bounded machinery over
 another resident index.
+The update index records the parsed timestamp as canonical octal and matches
+the final separator against the complete pathname length, so space-padded header fields
+and spaces in member names cannot cause an older operand to be appended.
 
 C17 still permits old-style function definitions as obsolescent syntax. The
 base file failed the repository's stricter contract because its K&R
@@ -352,17 +357,17 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,710 | +797 |
-| Source bytes | 48,416 | 82,030 | +33,614 |
-| Object text | 6,684 | 10,088 | +3,404 |
-| Object read-only data | 1,481 | 3,734 | +2,253 |
+| Source lines | 1,913 | 2,721 | +808 |
+| Source bytes | 48,416 | 82,604 | +34,188 |
+| Object text | 6,684 | 10,124 | +3,440 |
+| Object read-only data | 1,481 | 3,732 | +2,251 |
 | Object writable data | 260 | 58 | -202 |
 | Object BSS | 1,890 | 2,181 | +291 |
-| Final text | 23,630 | 28,112 | +4,482 |
+| Final text | 23,630 | 28,168 | +4,538 |
 | Final data | 888 | 692 | -196 |
 | Final BSS | 3,648 | 3,936 | +288 |
-| Final a.out bytes | 24,552 | 28,836 | +4,284 |
-| Packed bytes | 20,366 | 23,525 | +3,159 |
+| Final a.out bytes | 24,552 | 28,892 | +4,340 |
+| Packed bytes | 20,366 | 23,544 | +3,178 |
 | Packed root blocks | 21 | 24 | +3 |
 | `putfile` frame per recursive level | 824 | 832 | +8 |
 | `dorep` frame | 552 | 560 | +8 |

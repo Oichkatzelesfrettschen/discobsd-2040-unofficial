@@ -10,6 +10,10 @@
 #
 set -eu
 
+# Preserve arbitrary pathname bytes in shell variables on UTF-8 hosts.
+LC_ALL=C
+export LC_ALL
+
 srcdir=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/tartest.XXXXXX")
 trap 'rm -rf "$work"' EXIT INT HUP TERM

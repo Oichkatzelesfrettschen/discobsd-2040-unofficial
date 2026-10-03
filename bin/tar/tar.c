@@ -830,7 +830,9 @@ putfile(char *longname, char *shortname, const char *parent)
     struct direct *dp;
     DIR *dirp;
     int i;
+#ifndef __APPLE__
     long l;
+#endif
     char newparent[PATHSIZ];
     size_t maxread;
     int hint;       /* amount to write to get "in sync" */
@@ -1033,7 +1035,7 @@ putfile(char *longname, char *shortname, const char *parent)
         if (stbuf.st_size % TBLOCK != 0)
             blocks++;
         if (vflag)
-            fprintf(vfile, "a %s %ld blocks\n", longname, blocks);
+            fprintf(vfile, "a %s %ld blocks\n", longname, (long)blocks);
         if ((hint = putheader(longname, Oflag ? AREGTYPE : REGTYPE)) == 0) {
             close(infile);
             return;
@@ -1287,7 +1289,7 @@ longt(const struct stat *st)
     char *cp;
     pmode(st);
     printf("%3d/%1d", st->st_uid, st->st_gid);
-    printf("%7ld", st->st_size);
+    printf("%7ld", (long)st->st_size);
     cp = ctime(&st->st_mtime);
     printf(" %-12.12s %-4.4s ", cp+4, cp+20);
 }

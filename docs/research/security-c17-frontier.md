@@ -316,8 +316,8 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,211 | +298 |
-| Source bytes | 48,416 | 65,049 | +16,633 |
+| Source lines | 1,913 | 2,213 | +300 |
+| Source bytes | 48,416 | 65,086 | +16,670 |
 | Object text | 6,684 | 8,208 | +1,524 |
 | Object read-only data | 1,481 | 3,364 | +1,883 |
 | Object writable data | 260 | 58 | -202 |

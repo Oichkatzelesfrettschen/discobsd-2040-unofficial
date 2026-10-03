@@ -33,11 +33,18 @@ if [ $# -ge 1 ]; then
 	TAR=$1
 else
 	TAR=$work/tar
-	${CC:-cc} -std=gnu17 -O1 -w \
+	${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
+	    -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+	    -Wold-style-definition -Wconversion -Wsign-conversion \
+	    -fno-omit-frame-pointer \
+	    -fsanitize=address,undefined \
 	    ${ZPROG:+-DCOMPRESS=\"$ZPROG\"} \
 	    -o "$TAR" "$srcdir/tar.c" ||
 	    fail "host build of tar.c"
 fi
+ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+export ASAN_OPTIONS UBSAN_OPTIONS
 echo "tartest: tool under test: $TAR"
 
 #
@@ -79,10 +86,171 @@ mkshort() {
 	printf '%0999d' 7 > "$root/odd2"	# 999 bytes, spans two blocks
 	ln -s plain "$root/symlink"
 	ln "$root/plain" "$root/sub/hardlink"
+	ln -s ../plain "$root/sub/parentlink"
 	chmod 0751 "$root/plain"
 }
 
 cd "$work"
+
+FIXTURE=$work/tarfixture
+${CC:-cc} -std=c17 -O1 -Wall -Wextra -Werror -Wpedantic \
+    -Wstrict-prototypes -Wold-style-definition -Wconversion -Wsign-conversion \
+    -o "$FIXTURE" "$srcdir/tests/tarfixture.c" ||
+    fail "host build of tarfixture.c"
+
+extract_must_fail() {
+	case_name=$1
+	archive=$2
+	root=$3
+	if (cd "$root" && "$TAR" xf "$archive") >"$case_name.out" 2>&1; then
+		fail "$case_name archive reported success"
+	fi
+}
+
+echo "tartest: extraction paths remain confined"
+mkdir -p security/dotdot/root security/dotdot/outside
+"$FIXTURE" dotdot > security/dotdot.tar
+extract_must_fail dotdot "$work/security/dotdot.tar" \
+    "$work/security/dotdot/root"
+[ ! -e security/dotdot/escaped ] || fail "dotdot member escaped"
+
+for scenario in dot empty-component control; do
+	mkdir -p "security/$scenario/root"
+	"$FIXTURE" "$scenario" > "security/$scenario.tar"
+	extract_must_fail "$scenario" "$work/security/$scenario.tar" \
+	    "$work/security/$scenario/root"
+done
+
+mkdir -p security/absolute/root
+"$FIXTURE" absolute "$work/security/absolute/escaped" \
+    > security/absolute.tar
+extract_must_fail absolute "$work/security/absolute.tar" \
+    "$work/security/absolute/root"
+[ ! -e security/absolute/escaped ] || fail "absolute member escaped"
+
+mkdir -p security/parent/root security/parent/outside
+printf 'sentinel\n' > security/parent/outside/payload
+ln -s ../outside security/parent/root/link
+mkdir -p security/parent-source/link
+printf 'archive payload\n' > security/parent-source/link/payload
+(cd security/parent-source && "$TAR" cf ../parent.tar link/payload)
+extract_must_fail symlink-parent "$work/security/parent.tar" \
+    "$work/security/parent/root"
+grep -q '^sentinel$' security/parent/outside/payload ||
+    fail "symlink parent changed its outside victim"
+
+mkdir -p security/final/root security/final/outside
+printf 'sentinel\n' > security/final/outside/victim
+ln -s ../outside/victim security/final/root/victim
+"$FIXTURE" final > security/final.tar
+extract_must_fail final-symlink "$work/security/final.tar" \
+    "$work/security/final/root"
+grep -q '^sentinel$' security/final/outside/victim ||
+    fail "final symlink changed its outside victim"
+
+mkdir -p security/created/root/inside
+"$FIXTURE" archive-symlink > security/created.tar
+extract_must_fail archive-symlink "$work/security/created.tar" \
+    "$work/security/created/root"
+[ ! -e security/created/root/inside/from-archive ] ||
+    fail "archive-created symlink was traversed by a later member"
+
+mkdir -p security/hardlink/root
+printf 'sentinel\n' > security/hardlink/outside-existing
+"$FIXTURE" hardlink > security/hardlink.tar
+extract_must_fail hardlink-escape "$work/security/hardlink.tar" \
+    "$work/security/hardlink/root"
+[ ! -e security/hardlink/root/inside-link ] ||
+    fail "unsafe hard-link target was created"
+
+mkdir -p security/special/root
+"$FIXTURE" special > security/special.tar
+(cd security/special/root && "$TAR" xpf ../../special.tar)
+[ ! -u security/special/root/setid ] &&
+    [ ! -g security/special/root/setid ] ||
+    fail "archive special mode bits survived extraction"
+
+for scenario in unsupported directory-data bad-octal; do
+	mkdir -p "security/$scenario/root"
+	"$FIXTURE" "$scenario" > "security/$scenario.tar"
+	extract_must_fail "$scenario" "$work/security/$scenario.tar" \
+	    "$work/security/$scenario/root"
+done
+
+mkdir -p security/truncated/root
+dd if=security/final.tar of=security/truncated.tar bs=1 count=600 2>/dev/null
+extract_must_fail truncated "$work/security/truncated.tar" \
+    "$work/security/truncated/root"
+
+mkdir -p security/empty/root
+: > security/empty.tar
+extract_must_fail empty "$work/security/empty.tar" \
+    "$work/security/empty/root"
+
+mkdir -p security/existing/root
+printf 'sentinel\n' > security/existing/root/victim
+extract_must_fail existing "$work/security/final.tar" \
+    "$work/security/existing/root"
+grep -q '^sentinel$' security/existing/root/victim ||
+    fail "existing regular output changed"
+
+mkdir -p security/hard-source-symlink/root security/hard-source-symlink/outside
+printf 'sentinel\n' > security/hard-source-symlink/outside/source
+ln -s ../outside/source security/hard-source-symlink/root/source
+"$FIXTURE" hardlink-source > security/hard-source-symlink.tar
+extract_must_fail hard-source-symlink \
+    "$work/security/hard-source-symlink.tar" \
+    "$work/security/hard-source-symlink/root"
+[ ! -e security/hard-source-symlink/root/inside-link ] ||
+    fail "hard link followed a source symlink"
+
+mkdir -p security/hard-source-existing/root
+printf 'sentinel\n' > security/hard-source-existing/root/source
+"$FIXTURE" hardlink-source > security/hard-source-existing.tar
+extract_must_fail hard-source-existing \
+    "$work/security/hard-source-existing.tar" \
+    "$work/security/hard-source-existing/root"
+[ ! -e security/hard-source-existing/root/inside-link ] ||
+    fail "hard link admitted a pre-existing regular source"
+
+mkdir -p security/hard-source-special/root
+printf 'sentinel\n' > security/hard-source-special/root/source
+chmod 6755 security/hard-source-special/root/source
+"$FIXTURE" hardlink-source > security/hard-source-special.tar
+extract_must_fail hard-source-special \
+    "$work/security/hard-source-special.tar" \
+    "$work/security/hard-source-special/root"
+[ -u security/hard-source-special/root/source ] &&
+    [ -g security/hard-source-special/root/source ] ||
+    fail "hard-link rejection changed source special bits"
+
+echo "tartest: streamed directories retain owner traversal"
+mkdir -p restrictive-source/tree/sub restrictive-root
+printf 'payload\n' > restrictive-source/tree/sub/file
+(cd restrictive-source && "$TAR" cf ../restrictive.tar tree)
+(umask 0777; cd restrictive-root && "$TAR" xf ../restrictive.tar)
+[ -f restrictive-root/tree/sub/file ] ||
+    fail "restrictive umask blocked a streamed child"
+
+echo "tartest: archive creation verifies source paths"
+mkdir -p create-source/root create-source/outside
+printf 'outside\n' > create-source/outside/payload
+ln -s ../outside create-source/root/link
+if (cd create-source/root &&
+    "$TAR" cf "$work/create-symlink.tar" link/payload) >create.out 2>&1; then
+	fail "archive creation followed a symlinked parent"
+fi
+if "$TAR" cf create-absolute.tar "$work/create-source/outside/payload" \
+    >create-absolute.out 2>&1; then
+	fail "archive creation accepted an absolute input path"
+fi
+if "$TAR" cf create-missing.tar missing-input >create-missing.out 2>&1; then
+	fail "archive creation reported success for a missing input"
+fi
+if "$TAR" cf create-chdir.tar -C missing-directory payload \
+    >create-chdir.out 2>&1; then
+	fail "archive creation reported success after a failed -C"
+fi
 
 #
 # ustar: the full tree, long path included.

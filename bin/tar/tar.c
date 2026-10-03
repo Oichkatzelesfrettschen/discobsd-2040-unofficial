@@ -26,6 +26,7 @@
 #include <time.h>
 #include <pwd.h>
 #include <grp.h>
+#include <limits.h>
 #include <sys/wait.h>
 
 #define TBLOCK  512
@@ -40,6 +41,9 @@
  * alone is the v7 limit.
  */
 #define PATHSIZ (TPFSZ + 1 + NAMSIZ + 1)
+#ifndef TAR_PATH_LIMIT
+#define TAR_PATH_LIMIT MAXPATHLEN
+#endif
 
 /*
  * The LZW codec is a separate program reached through a pipe rather than a
@@ -68,8 +72,6 @@
 #define DIRTYPE         '5'
 
 #define writetape(b)    writetbuf(b, 1)
-#define min(a,b)  ((a) < (b) ? (a) : (b))
-#define max(a,b)  ((a) > (b) ? (a) : (b))
 
 /*
  * The v7 header and the POSIX.1-1990 ustar header agree byte for byte over
@@ -120,6 +122,12 @@ struct linkbuf {
     struct  linkbuf *nextp;
 };
 
+struct extracted_identity {
+    ino_t inode;
+    dev_t device;
+    struct extracted_identity *next;
+};
+
 /*
  * The node holds a pointer to its path rather than the path, so it stays
  * narrower than the header's own name field. bin/tar/tests/tartest.sh
@@ -128,76 +136,85 @@ struct linkbuf {
 _Static_assert(sizeof(struct linkbuf) < NAMSIZ,
     "a linkbuf must not inline a fixed-width path");
 
-union   hblock dblock;
-union   hblock *tbuf;
-struct  linkbuf *ihead;
-struct  stat stbuf;
+static union hblock dblock;
+static union hblock *tbuf;
+static struct linkbuf *ihead;
+static struct stat stbuf;
+static struct extracted_identity *extracted_files;
 
-void     usage();
-int      openmt(char *, int);
-char    *tarcwd(char *);
-void     dorep(char **);
-int      endtape();
-void     getdir();
-void     passtape();
-char    *getmem(int);
-void     putfile(char *, char *, char *);
-void     doxtract(char **);
-void     dotable(char **);
-void     putempty();
-void     longt(struct stat *);
-void     pmode(struct stat *);
-void     selectbits(int *, struct stat *);
-int      checkdir(char *);
-void     tomodes(struct stat *);
-void     putoctal(char *, int, unsigned long);
-int      putheader(char *, int);
-void     zfilter(int);
-void     zreap();
-int      isustar();
-char    *uidname(uid_t);
-char    *gidname(gid_t);
-long     getoctal(char *, int);
-int      checksum();
-int      checkw(int, char *);
-int      response();
-int      checkf(char *, int, int);
-int      checkupdate(char *);
-void     done(int);
-int      wantit(char **);
-int      prefix(char *, char *);
-daddr_t  lookup(char *);
-daddr_t  bsrch(char *, int, daddr_t, daddr_t);
-int      cmp(char *, char *, int);
-int      readtape(char *);
-int      readtbuf(char **, int);
-int      writetbuf(char *, int);
-void     backtape();
-void     flushtape();
-void     mterr(char *, int, int);
-int      bread(int, char *, int);
-void     getbuf();
-void     dodirtimes(char *);
-void     setimes(char *, time_t);
+static void usage(void);
+static int openmt(const char *, int);
+static char *tarcwd(char *);
+static void dorep(char **);
+static int endtape(void);
+static void getdir(void);
+static void passtape(void);
+static char *getmem(size_t);
+static void putfile(char *, char *, const char *);
+static void doxtract(char **);
+static void dotable(char **);
+static void putempty(void);
+static void longt(const struct stat *);
+static void pmode(const struct stat *);
+static void selectbits(const int *, const struct stat *);
+static void tomodes(const struct stat *);
+static void putoctal(char *, size_t, unsigned long);
+static int putheader(const char *, char);
+static void zfilter(int);
+static int zreap(void);
+static int isustar(void);
+static const char *uidname(uid_t);
+static const char *gidname(gid_t);
+static unsigned long getoctal(const char *, size_t);
+static int checksum(void);
+static int checkw(int, const char *);
+static int response(void);
+static int checkf(const char *, mode_t, int);
+static int checkupdate(const char *);
+static _Noreturn void done(int);
+static int wantit(char **);
+static int prefix(const char *, const char *);
+static int readtape(char *);
+static size_t readtbuf(char **, size_t);
+static int writetbuf(const char *, int);
+static void backtape(void);
+static void flushtape(void);
+static void mterr(const char *, ssize_t, int);
+static ssize_t bread(int, char *, size_t);
+static void getbuf(void);
+static void dodirtimes(char *);
+static void setimes(char *, time_t);
+static void validate_archive_path(const char *);
+static void validate_symlink_target(const char *, const char *);
+static void open_verified_directory(const char *, mode_t, int, int);
+static char *enter_parent_directories(int, char *, int);
+static int open_verified_regular(const char *, int);
+static int create_output_file(const char *, mode_t);
+static int write_all(int, const void *, size_t);
+static void record_extracted_file(int);
+static int was_extracted_file(const struct stat *);
+static void free_extracted_files(void);
+static _Noreturn void archive_error(const char *);
+static _Noreturn void archive_path_error(const char *, const char *);
 
-int rflag;
-int xflag;
-int vflag;
-int tflag;
-int cflag;
-int mflag;
-int fflag;
-int iflag;
-int oflag;
-int pflag;
-int wflag;
-int hflag;
-int Bflag;
-int Fflag;
-int Oflag;              /* write the v7 header instead of ustar */
-int zflag;              /* pipe the archive through COMPRESS */
+static int rflag;
+static int xflag;
+static int vflag;
+static int tflag;
+static int cflag;
+static int mflag;
+static int fflag;
+static int iflag;
+static int oflag;
+static int pflag;
+static int wflag;
+static int hflag;
+static int Bflag;
+static int Fflag;
+static int Oflag;              /* write the v7 header instead of ustar */
+static int zflag;              /* pipe the archive through COMPRESS */
 
-int zpid = -1;          /* the filter, while it runs */
+static pid_t zpid = -1;        /* the filter, while it runs */
 
 /*
  * The full path of the header last read: the prefix field, a slash and the
@@ -205,7 +222,7 @@ int zpid = -1;          /* the filter, while it runs */
  * extract and table paths work from this rather than from dbuf.name, which
  * holds at most the trailing NAMSIZ-1 bytes of an ustar path.
  */
-char curname[PATHSIZ];
+static char curname[PATHSIZ];
 
 /*
  * The link target of the header last read. The linkname field carries no
@@ -213,55 +230,50 @@ char curname[PATHSIZ];
  * into the magic field and hands symlink() and link() a target with "ustar"
  * appended.
  */
-char curlink[NAMSIZ+1];
+static char curlink[NAMSIZ + 1];
 
-int mt;
-int term;
-int chksum;
-int recno;
-int first;
-int prtlinkerr;
-int freemem = 1;
-int nblock = 0;
+static int mt;
+/* The target signal.h predates sig_atomic_t; int is one native word. */
+static volatile int term;
+static int chksum;
+static int recno;
+static int first;
+static int prtlinkerr;
+static int freemem = 1;
+static int nblock;
+static int extraction_root_descriptor = -1;
+static int operation_failed;
 
-daddr_t low;
-daddr_t high;
-daddr_t bsrch();
+static FILE *vfile;
+static FILE *tfile;
+static char tname[] = "/tmp/tarXXXXXX";
+static const char *usefile;
+static char magtape[] = "/dev/rmt8";
 
-FILE    *vfile;
-FILE    *tfile;
-char    tname[] = "/tmp/tarXXXXXX";
-char    *usefile;
-char    magtape[] = "/dev/rmt8";
-
-void
-onintr (sig)
-    int sig;
+static void
+onintr(int sig)
 {
     (void) signal(sig, SIG_IGN);
     term++;
 }
 
-void
-onquit (sig)
-    int sig;
+static void
+onquit(int sig)
 {
     (void) signal(sig, SIG_IGN);
     term++;
 }
 
-void
-onhup (sig)
-    int sig;
+static void
+onhup(int sig)
 {
     (void) signal(sig, SIG_IGN);
     term++;
 }
 
 #ifdef notdef
-void
-onterm (sig)
-    int sig;
+static void
+onterm(int sig)
 {
     (void) signal(SIGTERM, SIG_IGN);
     term++;
@@ -269,9 +281,7 @@ onterm (sig)
 #endif
 
 int
-main(argc, argv)
-int argc;
-char    *argv[];
+main(int argc, char **argv)
 {
     char *cp;
 
@@ -310,14 +320,23 @@ char    *argv[];
             break;
 
         case 'u':
-            mktemp(tname);
-            if ((tfile = fopen(tname, "w")) == NULL) {
+        {
+            int temporary_descriptor = mkstemp(tname);
+
+            if (temporary_descriptor < 0 ||
+                (tfile = fdopen(temporary_descriptor, "w+")) == NULL) {
+                int saved_errno = errno;
+
+                if (temporary_descriptor >= 0)
+                    (void)close(temporary_descriptor);
+                errno = saved_errno;
                 fprintf(stderr,
                  "tar: cannot create temporary file (%s)\n",
                  tname);
                 done(1);
             }
             fprintf(tfile, "!!!!!/!/!/!/!/!/!/! 000\n");
+        }
             /*FALL THRU*/
 
         case 'r':
@@ -358,19 +377,27 @@ char    *argv[];
             break;
 
         case 'b':
+        {
+            char *end;
+            long parsed_block_count;
+
             if (*argv == 0) {
                 fprintf(stderr,
             "tar: blocksize must be specified with 'b' option\n");
                 usage();
             }
-            nblock = atoi(*argv);
-            if (nblock <= 0) {
+            errno = 0;
+            parsed_block_count = strtol(*argv, &end, 10);
+            if (errno != 0 || end == *argv || *end != '\0' ||
+                parsed_block_count <= 0 || parsed_block_count > INT_MAX) {
                 fprintf(stderr,
                     "tar: invalid blocksize \"%s\"\n", *argv);
                 done(1);
             }
+            nblock = (int)parsed_block_count;
             argv++;
             break;
+        }
 
         case 'l':
             prtlinkerr++;
@@ -428,7 +455,7 @@ char    *argv[];
 #endif
         mt = openmt(usefile, 1);
         dorep(argv);
-        done(0);
+        done(operation_failed ? 1 : 0);
     }
     mt = openmt(usefile, 0);
     if (xflag)
@@ -438,18 +465,16 @@ char    *argv[];
     done(0);
 }
 
-void
-usage()
+static void
+usage(void)
 {
     fprintf(stderr,
 "tar: usage: tar -{txru}[cvfblmhopwBiOzZ] [tapefile] [blocksize] file1 file2...\n");
     done(1);
 }
 
-int
-openmt(tape, writing)
-    char *tape;
-    int writing;
+static int
+openmt(const char *tape, int writing)
 {
     if (strcmp(tape, "-") == 0) {
         /*
@@ -496,12 +521,13 @@ openmt(tape, writing)
  * its own 96-kbyte window. Creating, the child compresses what tar writes;
  * reading, it decompresses what tar reads.
  */
-void
-zfilter(writing)
-    int writing;
+static void
+zfilter(int writing)
 {
     int fd[2];
 
+    if (mt < 0)
+        archive_error("compression filter has no archive descriptor");
     if (pipe(fd) < 0) {
         fprintf(stderr, "tar: ");
         perror("pipe");
@@ -551,39 +577,46 @@ zfilter(writing)
  * without the wait loses whatever the codec still holds buffered, which
  * truncates the compressed archive at its last full block.
  */
-void
-zreap()
+static int
+zreap(void)
 {
-    int status, w;
+    int status = 0;
+    pid_t waited;
 
     if (mt >= 0) {
-        close(mt);
+        if (close(mt) < 0)
+            status = 1;
         mt = -1;
     }
     if (zpid > 0) {
-        while ((w = wait(&status)) != zpid && w != -1)
-            ;
+        do {
+            waited = waitpid(zpid, &status, 0);
+        } while (waited < 0 && errno == EINTR);
         zpid = -1;
+        if (waited < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            return 2;
     }
+    return status == 0 ? 0 : 2;
 }
 
-char *
-tarcwd(buf)
-    char *buf;
+static char *
+tarcwd(char *buf)
 {
-    if (getwd(buf) == NULL) {
-        fprintf(stderr, "tar: %s\n", buf);
-        exit(1);
+    if (getcwd(buf, MAXPATHLEN) == NULL) {
+        fprintf(stderr, "tar: cannot determine current directory: ");
+        perror("");
+        done(1);
     }
     return (buf);
 }
 
-void
-dorep(argv)
-    char *argv[];
+static void
+dorep(char **argv)
 {
-    register char *cp, *cp2;
-    char wdir[MAXPATHLEN], tempdir[MAXPATHLEN], *parent;
+    char *leaf_name;
+    char wdir[MAXPATHLEN];
+    char parent[MAXPATHLEN];
+    int archive_root_descriptor;
 
     if (!cflag) {
         getdir();
@@ -595,59 +628,45 @@ dorep(argv)
         } while (!endtape());
         backtape();
         if (tfile != NULL) {
-            char buf[200];
-
-            sprintf(buf,
-"sort +0 -1 +1nr %s -o %s; awk '$1 != prev {print; prev=$1}' %s >%sX; mv %sX %s",
-                tname, tname, tname, tname, tname, tname);
-            fflush(tfile);
-            system(buf);
-            freopen(tname, "r", tfile);
-            fstat(fileno(tfile), &stbuf);
-            high = stbuf.st_size;
+            if (fflush(tfile) == EOF)
+                done(2);
+            if (fseek(tfile, 0, SEEK_SET) != 0)
+                done(2);
         }
     }
 
     (void) tarcwd(wdir);
+    archive_root_descriptor = open(".", O_RDONLY | O_NONBLOCK);
+    if (archive_root_descriptor < 0)
+        archive_path_error("open archive root", ".");
     while (*argv && ! term) {
-        cp2 = *argv;
-        if (!strcmp(cp2, "-C") && argv[1]) {
+        if (!strcmp(*argv, "-C") && argv[1]) {
             argv++;
             if (chdir(*argv) < 0) {
                 fprintf(stderr, "tar: can't change directories to ");
                 perror(*argv);
-            } else
+                operation_failed = 1;
+            } else {
+                if (close(archive_root_descriptor) < 0)
+                    archive_path_error("close archive root", ".");
                 (void) tarcwd(wdir);
+                archive_root_descriptor = open(".", O_RDONLY | O_NONBLOCK);
+                if (archive_root_descriptor < 0)
+                    archive_path_error("open archive root", ".");
+            }
             argv++;
             continue;
         }
-
-        if (*argv[0] == '/'){
-            parent = "";
-        } else {
-            parent = wdir;
-        }
-
-        for (cp = *argv; *cp; cp++)
-            if (*cp == '/')
-                cp2 = cp;
-        if (cp2 != *argv) {
-            *cp2 = '\0';
-            if (chdir(*argv) < 0) {
-                fprintf(stderr, "tar: can't change directories to ");
-                perror(*argv);
-                continue;
-            }
-            parent = tarcwd(tempdir);
-            *cp2 = '/';
-            cp2++;
-        }
-        putfile(*argv++, cp2, parent);
-        if (chdir(wdir) < 0) {
-            fprintf(stderr, "tar: cannot change back?: ");
-            perror(wdir);
-        }
+        validate_archive_path(*argv);
+        leaf_name = enter_parent_directories(archive_root_descriptor,
+            *argv, 0);
+        (void)tarcwd(parent);
+        putfile(*argv++, leaf_name, parent);
+        if (fchdir(archive_root_descriptor) < 0)
+            archive_path_error("restore archive root", wdir);
     }
+    if (close(archive_root_descriptor) < 0)
+        archive_path_error("close archive root", ".");
     putempty();
     putempty();
     flushtape();
@@ -660,29 +679,48 @@ dorep(argv)
     }
 }
 
-int
-endtape()
+static int
+endtape(void)
 {
     return (dblock.dbuf.name[0] == '\0');
 }
 
-void
-getdir()
+static void
+getdir(void)
 {
-    register struct stat *sp;
-    register char *cp;
+    struct stat *sp;
+    char *cp;
+    unsigned long mode_value;
+    unsigned long uid_value;
+    unsigned long gid_value;
+    unsigned long size_value;
+    unsigned long time_value;
+    unsigned long checksum_value;
     int i;
 top:
     readtape((char *)&dblock);
     if (dblock.dbuf.name[0] == '\0')
         return;
     sp = &stbuf;
-    sp->st_mode = getoctal(dblock.dbuf.mode, sizeof(dblock.dbuf.mode));
-    sp->st_uid = getoctal(dblock.dbuf.uid, sizeof(dblock.dbuf.uid));
-    sp->st_gid = getoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid));
-    sp->st_size = getoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size));
-    sp->st_mtime = getoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime));
-    chksum = getoctal(dblock.dbuf.chksum, sizeof(dblock.dbuf.chksum));
+    mode_value = getoctal(dblock.dbuf.mode, sizeof(dblock.dbuf.mode));
+    uid_value = getoctal(dblock.dbuf.uid, sizeof(dblock.dbuf.uid));
+    gid_value = getoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid));
+    size_value = getoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size));
+    time_value = getoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime));
+    checksum_value = getoctal(dblock.dbuf.chksum,
+        sizeof(dblock.dbuf.chksum));
+    if ((unsigned long)(mode_t)mode_value != mode_value ||
+        (unsigned long)(uid_t)uid_value != uid_value ||
+        (unsigned long)(gid_t)gid_value != gid_value ||
+        size_value > LONG_MAX || time_value > LONG_MAX ||
+        checksum_value > INT_MAX)
+        archive_error("archive numeric field exceeds the target type");
+    sp->st_mode = (mode_t)mode_value;
+    sp->st_uid = (uid_t)uid_value;
+    sp->st_gid = (gid_t)gid_value;
+    sp->st_size = (off_t)size_value;
+    sp->st_mtime = (time_t)time_value;
+    chksum = (int)checksum_value;
     if (chksum != (i = checksum())) {
         fprintf(stderr, "tar: directory checksum error (%d != %d)\n",
             chksum, i);
@@ -718,15 +756,22 @@ top:
     }
     curlink[i] = '\0';
 
-    /*
-     * checkdir() and dodirtimes() recognize a directory by the trailing
-     * slash the v7 header carries in the name. An ustar producer marks a
-     * directory with typeflag DIRTYPE instead and need not add the slash.
-     */
-    if (dblock.dbuf.linkflag == DIRTYPE && cp > curname && cp[-1] != '/') {
-        *cp++ = '/';
-        *cp = '\0';
+    if (cp > curname && cp[-1] == '/') {
+        cp[-1] = '\0';
+        if (dblock.dbuf.linkflag == AREGTYPE ||
+            dblock.dbuf.linkflag == REGTYPE)
+            dblock.dbuf.linkflag = DIRTYPE;
     }
+    validate_archive_path(curname);
+    if (dblock.dbuf.linkflag != AREGTYPE &&
+        dblock.dbuf.linkflag != REGTYPE &&
+        dblock.dbuf.linkflag != LNKTYPE &&
+        dblock.dbuf.linkflag != SYMTYPE &&
+        dblock.dbuf.linkflag != DIRTYPE)
+        archive_error("archive contains an unsupported file type");
+    if (dblock.dbuf.linkflag != AREGTYPE &&
+        dblock.dbuf.linkflag != REGTYPE && stbuf.st_size != 0)
+        archive_error("non-regular archive member carries file data");
 
     if (tfile != NULL)
         fprintf(tfile, "%s %.12s\n", curname,
@@ -738,33 +783,33 @@ top:
  * a v7 header carries the zero bytes that follow a name shorter than
  * NAMSIZ. The magic alone decides which layout the tail holds.
  */
-int
-isustar()
+static int
+isustar(void)
 {
     return (strncmp(dblock.dbuf.magic, TMAGIC, TMAGLEN) == 0);
 }
 
-void
-passtape()
+static void
+passtape(void)
 {
-    long blocks;
+    off_t blocks;
     char *bufp;
 
-    if (dblock.dbuf.linkflag == LNKTYPE)
+    if (dblock.dbuf.linkflag != AREGTYPE &&
+        dblock.dbuf.linkflag != REGTYPE)
         return;
-    blocks = stbuf.st_size;
-    blocks += TBLOCK-1;
-    blocks /= TBLOCK;
+    blocks = stbuf.st_size / TBLOCK;
+    if (stbuf.st_size % TBLOCK != 0)
+        blocks++;
 
     while (blocks-- > 0)
         (void) readtbuf(&bufp, TBLOCK);
 }
 
-char *
-getmem(size)
-    int size;
+static char *
+getmem(size_t size)
 {
-    char *p = malloc((unsigned) size);
+    char *p = malloc(size);
 
     if (p == NULL && freemem) {
         fprintf(stderr,
@@ -774,25 +819,23 @@ getmem(size)
     return (p);
 }
 
-void
-putfile(longname, shortname, parent)
-    char *longname;
-    char *shortname;
-    char *parent;
+static void
+putfile(char *longname, char *shortname, const char *parent)
 {
     int infile = 0;
-    long blocks;
+    off_t blocks;
     char buf[TBLOCK];
     char *bigbuf;
-    register char *cp;
+    char *cp;
     struct direct *dp;
     DIR *dirp;
-    register int i;
+    int i;
     long l;
     char newparent[PATHSIZ];
-    int maxread;
+    size_t maxread;
     int hint;       /* amount to write to get "in sync" */
 
+    validate_archive_path(longname);
     if (!hflag)
         i = lstat(shortname, &stbuf);
     else
@@ -800,6 +843,7 @@ putfile(longname, shortname, parent)
     if (i < 0) {
         fprintf(stderr, "tar: ");
         perror(longname);
+        operation_failed = 1;
         return;
     }
     if (tfile != NULL && checkupdate(longname) == 0)
@@ -811,24 +855,35 @@ putfile(longname, shortname, parent)
 
     switch (stbuf.st_mode & S_IFMT) {
     case S_IFDIR:
-        for (i = 0, cp = buf; (*cp++ = longname[i++]) != '\0';)
-            ;
-        *--cp = '/';
-        *++cp = 0  ;
+    {
+        size_t directory_length = strlen(longname);
+
+        if (directory_length + 2 > sizeof(buf)) {
+            fprintf(stderr, "tar: %s: file name too long\n", longname);
+            operation_failed = 1;
+            return;
+        }
+        memcpy(buf, longname, directory_length);
+        buf[directory_length] = '/';
+        buf[directory_length + 1] = '\0';
+        cp = buf + directory_length + 1;
         if (!oflag) {
             stbuf.st_size = 0;
             tomodes(&stbuf);
             if (putheader(buf, DIRTYPE) == 0)
                 return;
         }
-        snprintf(newparent, sizeof(newparent), "%s/%s", parent, shortname);
-        if (chdir(shortname) < 0) {
-            perror(shortname);
+        if (snprintf(newparent, sizeof(newparent), "%s/%s", parent,
+            shortname) >= (int)sizeof(newparent)) {
+            fprintf(stderr, "tar: %s: parent path too long\n", longname);
+            operation_failed = 1;
             return;
         }
+        open_verified_directory(shortname, 0, 1, 0);
         if ((dirp = opendir(".")) == NULL) {
             fprintf(stderr, "tar: %s: directory read error\n",
                 longname);
+            operation_failed = 1;
             if (chdir(parent) < 0) {
                 fprintf(stderr, "tar: cannot change back?: ");
                 perror(parent);
@@ -841,7 +896,13 @@ putfile(longname, shortname, parent)
             if (!strcmp(".", dp->d_name) ||
                 !strcmp("..", dp->d_name))
                 continue;
-            strcpy(cp, dp->d_name);
+            if ((size_t)(cp - buf) + strlen(dp->d_name) + 1 > sizeof(buf)) {
+                fprintf(stderr, "tar: %s/%s: file name too long\n",
+                    longname, dp->d_name);
+                operation_failed = 1;
+                continue;
+            }
+            memcpy(cp, dp->d_name, strlen(dp->d_name) + 1);
 #ifdef __APPLE__
             /*
              * The stream stays open across the recursion: a telldir
@@ -854,17 +915,29 @@ putfile(longname, shortname, parent)
             closedir(dirp);
             putfile(buf, cp, newparent);
             dirp = opendir(".");
+            if (dirp == NULL) {
+                fprintf(stderr, "tar: %s: directory read error\n",
+                    longname);
+                operation_failed = 1;
+                break;
+            }
             seekdir(dirp, l);
 #endif
         }
-        closedir(dirp);
+        if (dirp != NULL)
+            closedir(dirp);
         if (chdir(parent) < 0) {
             fprintf(stderr, "tar: cannot change back?: ");
             perror(parent);
+            operation_failed = 1;
         }
         break;
+    }
 
     case S_IFLNK:
+    {
+        ssize_t link_length;
+
         /*
          * The linkname field is NAMSIZ bytes and carries no terminator
          * when a target fills it, so a target of exactly NAMSIZ bytes is
@@ -873,29 +946,33 @@ putfile(longname, shortname, parent)
         if (stbuf.st_size > NAMSIZ) {
             fprintf(stderr, "tar: %s: symbolic link too long\n",
                 longname);
+            operation_failed = 1;
             return;
         }
         stbuf.st_size = 0;
         tomodes(&stbuf);
-        i = readlink(shortname, dblock.dbuf.linkname, NAMSIZ);
-        if (i < 0) {
+        link_length = readlink(shortname, dblock.dbuf.linkname, NAMSIZ);
+        if (link_length < 0) {
             fprintf(stderr, "tar: can't read symbolic link ");
             perror(longname);
+            operation_failed = 1;
             return;
         }
-        if (i < NAMSIZ)
-            dblock.dbuf.linkname[i] = '\0';
+        if (link_length < NAMSIZ)
+            dblock.dbuf.linkname[link_length] = '\0';
         dblock.dbuf.linkflag = SYMTYPE;
         if (vflag)
             fprintf(vfile, "a %s symbolic link to %.*s\n",
                 longname, NAMSIZ, dblock.dbuf.linkname);
         (void) putheader(longname, SYMTYPE);
         break;
+    }
 
     case S_IFREG:
         if ((infile = open(shortname, 0)) < 0) {
             fprintf(stderr, "tar: ");
             perror(longname);
+            operation_failed = 1;
             return;
         }
         tomodes(&stbuf);
@@ -910,9 +987,10 @@ putfile(longname, shortname, parent)
                     found++;
                     break;
                 }
-            if (found) {
-                strncpy(dblock.dbuf.linkname, lp->pathname,
-                    sizeof(dblock.dbuf.linkname));
+            if (found && strlen(lp->pathname) <=
+                sizeof(dblock.dbuf.linkname)) {
+                memcpy(dblock.dbuf.linkname, lp->pathname,
+                    strlen(lp->pathname));
                 dblock.dbuf.linkflag = LNKTYPE;
                 putoctal(dblock.dbuf.size,
                     sizeof(dblock.dbuf.size), 0);
@@ -933,47 +1011,65 @@ putfile(longname, shortname, parent)
              * later LNKTYPE entry or the missing-links report would read.
              * A refused node costs the identity, which getmem() reports.
              */
-            plen = (int) strlen(longname) + 1;
-            lp = (struct linkbuf *) getmem(sizeof(*lp));
-            if (lp != NULL) {
-                lp->pathname = getmem(plen);
-                if (lp->pathname == NULL) {
-                    free(lp);
-                } else {
-                    lp->nextp = ihead;
-                    ihead = lp;
-                    lp->inum = stbuf.st_ino;
-                    lp->devnum = stbuf.st_dev;
-                    lp->count = stbuf.st_nlink - 1;
-                    memcpy(lp->pathname, longname, (size_t) plen);
+            if (!found) {
+                plen = (int)strlen(longname) + 1;
+                lp = (struct linkbuf *)getmem(sizeof(*lp));
+                if (lp != NULL) {
+                    lp->pathname = getmem((size_t)plen);
+                    if (lp->pathname == NULL) {
+                        free(lp);
+                    } else {
+                        lp->nextp = ihead;
+                        ihead = lp;
+                        lp->inum = stbuf.st_ino;
+                        lp->devnum = stbuf.st_dev;
+                        lp->count = (int)stbuf.st_nlink - 1;
+                        memcpy(lp->pathname, longname, (size_t)plen);
+                    }
                 }
             }
         }
-        blocks = (stbuf.st_size + (TBLOCK-1)) / TBLOCK;
+        blocks = stbuf.st_size / TBLOCK;
+        if (stbuf.st_size % TBLOCK != 0)
+            blocks++;
         if (vflag)
             fprintf(vfile, "a %s %ld blocks\n", longname, blocks);
         if ((hint = putheader(longname, Oflag ? AREGTYPE : REGTYPE)) == 0) {
             close(infile);
             return;
         }
-        maxread = max(stbuf.st_blksize, (nblock * TBLOCK));
-        if (maxread > NBLOCK * TBLOCK)
-            maxread = NBLOCK * TBLOCK;
+        maxread = (size_t)nblock * TBLOCK;
+        if (stbuf.st_blksize > (long)maxread) {
+            if (stbuf.st_blksize > NBLOCK * TBLOCK)
+                maxread = NBLOCK * TBLOCK;
+            else
+                maxread = (size_t)stbuf.st_blksize;
+        }
         maxread -= maxread % TBLOCK;
         if (maxread < TBLOCK)
             maxread = TBLOCK;
-        if ((bigbuf = malloc((unsigned)maxread)) == 0) {
+        if ((bigbuf = malloc(maxread)) == NULL) {
             maxread = TBLOCK;
             bigbuf = buf;
         }
 
-        while ((i = read(infile, bigbuf, min((hint*TBLOCK), maxread))) > 0
-          && blocks > 0) {
-            register int nblks;
+        for (;;) {
+            size_t requested = (size_t)hint * TBLOCK < maxread ?
+                (size_t)hint * TBLOCK : maxread;
+            ssize_t received = read(infile, bigbuf, requested);
+            int nblks;
 
-            nblks = ((i-1)/TBLOCK)+1;
-            if (nblks > blocks)
-                nblks = blocks;
+            if (received <= 0) {
+                i = received < 0 ? -1 : 0;
+                break;
+            }
+            if (blocks <= 0) {
+                i = (int)received;
+                break;
+            }
+            nblks = (int)(((size_t)received - 1) / TBLOCK) + 1;
+            if (blocks < nblks)
+                nblks = (int)blocks;
             /*
              * The last block of a file that is not a multiple of TBLOCK
              * is written whole, so the bytes past the file's end have to
@@ -981,8 +1077,9 @@ putfile(longname, shortname, parent)
              * stands puts heap contents into the archive and makes two
              * runs over the same tree produce different bytes.
              */
-            if (i % TBLOCK)
-                bzero(bigbuf + i, TBLOCK - (i % TBLOCK));
+            if (received % TBLOCK != 0)
+                memset(bigbuf + received, 0,
+                    TBLOCK - (size_t)(received % TBLOCK));
             hint = writetbuf(bigbuf, nblks);
             blocks -= nblks;
         }
@@ -992,9 +1089,12 @@ putfile(longname, shortname, parent)
         if (i < 0) {
             fprintf(stderr, "tar: Read error on ");
             perror(longname);
-        } else if (blocks != 0 || i != 0)
+            operation_failed = 1;
+        } else if (blocks != 0 || i != 0) {
             fprintf(stderr, "tar: %s: file changed size\n",
                 longname);
+            operation_failed = 1;
+        }
         while (--blocks >=  0)
             putempty();
         break;
@@ -1002,21 +1102,28 @@ putfile(longname, shortname, parent)
     default:
         fprintf(stderr, "tar: %s is not a file. Not dumped\n",
             longname);
+        operation_failed = 1;
         break;
     }
 }
 
-void
-doxtract(argv)
-    char *argv[];
+static void
+doxtract(char **argv)
 {
-    long blocks, bytes;
-    int ofile, i;
+    int selection;
+
+    extraction_root_descriptor = open(".", O_RDONLY);
+    if (extraction_root_descriptor < 0)
+        archive_path_error("open extraction root", ".");
 
     for (;;) {
-        if ((i = wantit(argv)) == 0)
+        char *leaf_name;
+        int output_descriptor = -1;
+
+        selection = wantit(argv);
+        if (selection == 0)
             continue;
-        if (i == -1)
+        if (selection == -1)
             break;      /* end of tape */
         if (checkw('x', curname) == 0) {
             passtape();
@@ -1025,7 +1132,7 @@ doxtract(argv)
         if (Fflag) {
             char *s;
 
-            if ((s = rindex(curname, '/')) == 0)
+            if ((s = strrchr(curname, '/')) == NULL)
                 s = curname;
             else
                 s++;
@@ -1034,107 +1141,119 @@ doxtract(argv)
                 continue;
             }
         }
-        if (checkdir(curname)) {   /* have a directory */
-            if (mflag == 0)
+        leaf_name = enter_parent_directories(extraction_root_descriptor,
+            curname, 1);
+        if (dblock.dbuf.linkflag == DIRTYPE) {
+            size_t path_length = strlen(curname);
+
+            open_verified_directory(leaf_name, stbuf.st_mode & 0777, 0, 1);
+            if (mflag == 0) {
+                if (path_length >= sizeof(curname) - 1) {
+                    archive_error("directory path exceeds timestamp stack");
+                    return;
+                }
+                curname[path_length] = '/';
+                curname[path_length + 1] = '\0';
                 dodirtimes(curname);
+                curname[path_length] = '\0';
+            }
             continue;
         }
-        if (dblock.dbuf.linkflag == SYMTYPE) {  /* symlink */
-            /*
-             * only unlink non directories or empty
-             * directories
-             */
-            if (rmdir(curname) < 0) {
-                if (errno == ENOTDIR)
-                    unlink(curname);
-            }
-            if (symlink(curlink, curname)<0) {
-                fprintf(stderr, "tar: %s: symbolic link failed: ",
-                    curname);
-                perror("");
-                continue;
-            }
+        if (dblock.dbuf.linkflag == SYMTYPE) {
+            struct stat status;
+
+            validate_symlink_target(curname, curlink);
+            if (lstat(leaf_name, &status) == 0 || errno != ENOENT)
+                archive_error("refusing to replace an existing output path");
+            if (symlink(curlink, leaf_name) < 0)
+                archive_path_error("create symbolic link", curname);
             if (vflag)
                 fprintf(vfile, "x %s symbolic link to %s\n",
                     curname, curlink);
-#ifdef notdef
-            /* ignore alien orders */
-            chown(curname, stbuf.st_uid, stbuf.st_gid);
-            if (mflag == 0)
-                setimes(curname, stbuf.st_mtime);
-            if (pflag)
-                chmod(curname, stbuf.st_mode & 07777);
-#endif
             continue;
         }
-        if (dblock.dbuf.linkflag == LNKTYPE) {  /* regular link */
-            /*
-             * only unlink non directories or empty
-             * directories
-             */
-            if (rmdir(curname) < 0) {
-                if (errno == ENOTDIR)
-                    unlink(curname);
-            }
+        if (dblock.dbuf.linkflag == LNKTYPE) {
+            int source_descriptor;
+            struct stat source_status;
+            struct stat output_status;
+
+            validate_archive_path(curlink);
+            leaf_name = enter_parent_directories(extraction_root_descriptor,
+                curlink, 0);
+            source_descriptor = open_verified_regular(leaf_name, 1);
+            if (fstat(source_descriptor, &source_status) < 0)
+                archive_path_error("fstat hard-link source", curlink);
+            if (!was_extracted_file(&source_status))
+                archive_error("hard-link source was not created by this extraction");
+            if ((source_status.st_mode & (S_ISUID | S_ISGID | S_ISVTX)) != 0)
+                archive_error("hard-link source carries special mode bits");
+            if (close(source_descriptor) < 0)
+                archive_path_error("close hard-link source", curlink);
+            leaf_name = enter_parent_directories(extraction_root_descriptor,
+                curname, 1);
+            if (lstat(leaf_name, &output_status) == 0 || errno != ENOENT)
+                archive_error("refusing to replace an existing output path");
+            if (fchdir(extraction_root_descriptor) < 0)
+                archive_path_error("restore extraction root", ".");
             if (link(curlink, curname) < 0) {
-                fprintf(stderr, "tar: can't link %s to %s: ",
-                    curname, curlink);
-                perror("");
-                continue;
+                archive_path_error("create hard link", curname);
             }
             if (vflag)
                 fprintf(vfile, "%s linked to %s\n",
                     curname, curlink);
             continue;
         }
-        if ((ofile = creat(curname,stbuf.st_mode&0xfff)) < 0) {
-            fprintf(stderr, "tar: can't create %s: ",
-                curname);
-            perror("");
-            passtape();
-            continue;
-        }
-        chown(curname, stbuf.st_uid, stbuf.st_gid);
-        blocks = ((bytes = stbuf.st_size) + TBLOCK-1)/TBLOCK;
+        output_descriptor = create_output_file(leaf_name, stbuf.st_mode);
         if (vflag)
             fprintf(vfile, "x %s, %ld bytes, %ld tape blocks\n",
-                curname, bytes, blocks);
-        for (; blocks > 0;) {
-            register int nread;
-            char    *bufp;
-            register int nwant;
+                curname, (long)stbuf.st_size,
+                (long)((stbuf.st_size / TBLOCK) +
+                (stbuf.st_size % TBLOCK != 0)));
+        {
+            off_t remaining = stbuf.st_size;
+            off_t blocks = remaining / TBLOCK;
 
-            nwant = NBLOCK*TBLOCK;
-            if (nwant > (blocks*TBLOCK))
-                nwant = (blocks*TBLOCK);
-            nread = readtbuf(&bufp, nwant);
-            if (write(ofile, bufp, (int)min(nread, bytes)) < 0) {
-                fprintf(stderr,
-                    "tar: %s: HELP - extract write error",
-                    curname);
-                perror("");
-                done(2);
+            if (remaining % TBLOCK != 0)
+                blocks++;
+
+            while (blocks > 0) {
+                char *buffer;
+                size_t requested = blocks < NBLOCK ?
+                    (size_t)blocks * TBLOCK : (size_t)NBLOCK * TBLOCK;
+                size_t received = readtbuf(&buffer, requested);
+                size_t payload = remaining < (off_t)received ?
+                    (size_t)remaining : received;
+
+                if (received == 0 || received % TBLOCK != 0)
+                    archive_error("truncated file data");
+                if (write_all(output_descriptor, buffer, payload) < 0)
+                    archive_path_error("write output", curname);
+                remaining -= (off_t)payload;
+                blocks -= (off_t)(received / TBLOCK);
             }
-            bytes -= nread;
-            blocks -= (((nread-1)/TBLOCK)+1);
         }
-        close(ofile);
+        if (pflag && fchmod(output_descriptor, stbuf.st_mode & 0777) < 0)
+            archive_path_error("set output mode", curname);
         if (mflag == 0)
             setimes(curname, stbuf.st_mtime);
-        if (pflag)
-            chmod(curname, stbuf.st_mode & 07777);
+        record_extracted_file(output_descriptor);
+        if (close(output_descriptor) < 0)
+            archive_path_error("close output", curname);
     }
     if (mflag == 0) {
         curname[0] = '\0'; /* process the whole stack */
         dodirtimes(curname);
     }
+    if (close(extraction_root_descriptor) < 0)
+        archive_path_error("close extraction root", ".");
+    extraction_root_descriptor = -1;
+    free_extracted_files();
 }
 
-void
-dotable(argv)
-    char *argv[];
+static void
+dotable(char **argv)
 {
-    register int i;
+    int i;
 
     for (;;) {
         if ((i = wantit(argv)) == 0)
@@ -1153,22 +1272,19 @@ dotable(argv)
     }
 }
 
-void
-putempty()
+static void
+putempty(void)
 {
     char buf[TBLOCK];
 
-    bzero(buf, sizeof (buf));
+    memset(buf, 0, sizeof(buf));
     (void) writetape(buf);
 }
 
-void
-longt(st)
-    register struct stat *st;
+static void
+longt(const struct stat *st)
 {
-    register char *cp;
-    char *ctime();
-
+    char *cp;
     pmode(st);
     printf("%3d/%1d", st->st_uid, st->st_gid);
     printf("%7ld", st->st_size);
@@ -1188,100 +1304,311 @@ longt(st)
 #define WOTH    02
 #define XOTH    01
 #define STXT    01000
-int m1[] = { 1, ROWN, 'r', '-' };
-int m2[] = { 1, WOWN, 'w', '-' };
-int m3[] = { 2, SUID, 's', XOWN, 'x', '-' };
-int m4[] = { 1, RGRP, 'r', '-' };
-int m5[] = { 1, WGRP, 'w', '-' };
-int m6[] = { 2, SGID, 's', XGRP, 'x', '-' };
-int m7[] = { 1, ROTH, 'r', '-' };
-int m8[] = { 1, WOTH, 'w', '-' };
-int m9[] = { 2, STXT, 't', XOTH, 'x', '-' };
+static const int m1[] = { 1, ROWN, 'r', '-' };
+static const int m2[] = { 1, WOWN, 'w', '-' };
+static const int m3[] = { 2, SUID, 's', XOWN, 'x', '-' };
+static const int m4[] = { 1, RGRP, 'r', '-' };
+static const int m5[] = { 1, WGRP, 'w', '-' };
+static const int m6[] = { 2, SGID, 's', XGRP, 'x', '-' };
+static const int m7[] = { 1, ROTH, 'r', '-' };
+static const int m8[] = { 1, WOTH, 'w', '-' };
+static const int m9[] = { 2, STXT, 't', XOTH, 'x', '-' };
 
-int *m[] = { m1, m2, m3, m4, m5, m6, m7, m8, m9};
+static const int * const m[] = { m1, m2, m3, m4, m5, m6, m7, m8, m9 };
 
-void
-pmode(st)
-    register struct stat *st;
+static void
+pmode(const struct stat *st)
 {
-    register int **mp;
+    const int * const *mp;
 
     for (mp = &m[0]; mp < &m[9];)
         selectbits(*mp++, st);
 }
 
-void
-selectbits(pairp, st)
-    int *pairp;
-    struct stat *st;
+static void
+selectbits(const int *pairp, const struct stat *st)
 {
-    register int n, *ap;
+    int n;
+    const int *ap;
 
     ap = pairp;
     n = *ap++;
-    while (--n>=0 && (st->st_mode&*ap++)==0)
+    while (--n >= 0 && (st->st_mode & (mode_t)*ap++) == 0)
         ap++;
     putchar(*ap);
 }
 
-/*
- * Make all directories needed by `name'.  If `name' is itself
- * a directory on the tar tape (indicated by a trailing '/'),
- * return 1; else 0.
- */
-int
-checkdir(name)
-    register char *name;
+static _Noreturn void
+archive_error(const char *message)
 {
-    register char *cp;
-
-    /*
-     * Quick check for existence of directory.
-     */
-    if ((cp = rindex(name, '/')) == 0)
-        return (0);
-    *cp = '\0';
-    if (access(name, 0) == 0) { /* already exists */
-        *cp = '/';
-        return (cp[1] == '\0'); /* return (lastchar == '/') */
-    }
-    *cp = '/';
-
-    /*
-     * No luck, try to make all directories in path.
-     */
-    for (cp = name; *cp; cp++) {
-        if (*cp != '/')
-            continue;
-        *cp = '\0';
-        if (access(name, 0) < 0) {
-            if (mkdir(name, 0777) < 0) {
-                perror(name);
-                *cp = '/';
-                return (0);
-            }
-            chown(name, stbuf.st_uid, stbuf.st_gid);
-            if (pflag && cp[1] == '\0') /* dir on the tape */
-                chmod(name, stbuf.st_mode & 07777);
-        }
-        *cp = '/';
-    }
-    return (cp[-1]=='/');
+    fprintf(stderr, "tar: %s\n", message);
+    done(2);
 }
 
-void
-tomodes(sp)
-register struct stat *sp;
+static _Noreturn void
+archive_path_error(const char *operation, const char *path)
 {
-    register char *cp;
+    int saved_errno = errno;
+
+    fprintf(stderr, "tar: %s %s: ", operation, path);
+    errno = saved_errno;
+    perror("");
+    done(2);
+}
+
+static void
+validate_archive_path(const char *name)
+{
+    const char *component = name;
+    const char *cursor;
+
+    if (name[0] == '\0' || name[0] == '/' ||
+        strlen(name) >= TAR_PATH_LIMIT)
+        archive_error("archive contains an unsafe path");
+    for (cursor = name;; cursor++) {
+        size_t component_length;
+        unsigned char byte = (unsigned char)*cursor;
+
+        if (byte < 0x20U || (byte >= 0x7fU && byte <= 0x9fU)) {
+            if (byte == '\0')
+                break;
+            archive_error("archive path contains a control byte");
+        }
+        if (*cursor != '/')
+            continue;
+        component_length = (size_t)(cursor - component);
+        if (component_length == 0 ||
+            (component_length == 1 && component[0] == '.') ||
+            (component_length == 2 && component[0] == '.' &&
+            component[1] == '.'))
+            archive_error("archive contains an unsafe path component");
+        component = cursor + 1;
+    }
+    if (cursor == component ||
+        (cursor - component == 1 && component[0] == '.') ||
+        (cursor - component == 2 && component[0] == '.' &&
+        component[1] == '.'))
+        archive_error("archive contains an unsafe path component");
+}
+
+static void
+validate_symlink_target(const char *member, const char *target)
+{
+    const char *cursor;
+    const char *component = target;
+    size_t depth = 0;
+
+    if (target[0] == '\0' || target[0] == '/')
+        archive_error("archive contains an unsafe symbolic-link target");
+    for (cursor = member; *cursor != '\0'; cursor++)
+        if (*cursor == '/')
+            depth++;
+    for (cursor = target;; cursor++) {
+        size_t length;
+        unsigned char byte = (unsigned char)*cursor;
+
+        if (byte < 0x20U || (byte >= 0x7fU && byte <= 0x9fU)) {
+            if (byte == '\0')
+                break;
+            archive_error("symbolic-link target contains a control byte");
+        }
+        if (*cursor != '/' && *cursor != '\0')
+            continue;
+        length = (size_t)(cursor - component);
+        if (length == 0)
+            archive_error("symbolic-link target contains an empty component");
+        if (length == 2 && component[0] == '.' && component[1] == '.') {
+            if (depth == 0)
+                archive_error("symbolic-link target escapes the extraction root");
+            depth--;
+        } else if (!(length == 1 && component[0] == '.')) {
+            depth++;
+        }
+        if (*cursor == '\0')
+            break;
+        component = cursor + 1;
+    }
+}
+
+static void
+open_verified_directory(const char *name, mode_t creation_mode,
+    int enter_directory, int create_missing)
+{
+    struct stat status;
+    dev_t path_device;
+    ino_t path_inode;
+    mode_t creation_mask = 0;
+    int created = 0;
+    int descriptor;
+
+    if (lstat(name, &status) < 0) {
+        if (errno != ENOENT || !create_missing)
+            archive_path_error("lstat directory", name);
+        creation_mask = umask(0);
+        if (mkdir(name, S_IRWXU) < 0) {
+            int saved_errno = errno;
+
+            (void)umask(creation_mask);
+            errno = saved_errno;
+            archive_path_error("mkdir", name);
+        }
+        (void)umask(creation_mask);
+        created = 1;
+        if (lstat(name, &status) < 0)
+            archive_path_error("lstat created directory", name);
+    }
+    if (!S_ISDIR(status.st_mode))
+        archive_error("path contains a non-directory component");
+    path_device = status.st_dev;
+    path_inode = status.st_ino;
+    descriptor = open(name, O_RDONLY | O_NONBLOCK);
+    if (descriptor < 0)
+        archive_path_error("open directory", name);
+    if (fstat(descriptor, &status) < 0)
+        archive_path_error("fstat directory", name);
+    if (!S_ISDIR(status.st_mode) || status.st_dev != path_device ||
+        status.st_ino != path_inode)
+        archive_error("directory changed during traversal");
+    if (created && fchmod(descriptor,
+        ((creation_mode & 0777) & ~creation_mask) | S_IRWXU) < 0)
+        archive_path_error("set created directory mode", name);
+    if (enter_directory && fchdir(descriptor) < 0)
+        archive_path_error("enter directory", name);
+    if (close(descriptor) < 0)
+        archive_path_error("close directory", name);
+}
+
+static char *
+enter_parent_directories(int root_descriptor, char *path, int create_missing)
+{
+    char *component = path;
+    char *cursor;
+
+    if (fchdir(root_descriptor) < 0)
+        archive_path_error("restore extraction root", ".");
+    for (cursor = path; *cursor != '\0'; cursor++) {
+        if (*cursor != '/')
+            continue;
+        *cursor = '\0';
+        open_verified_directory(component, 0777, 1, create_missing);
+        *cursor = '/';
+        component = cursor + 1;
+    }
+    return component;
+}
+
+static int
+open_verified_regular(const char *name, int nonblocking)
+{
+    struct stat path_status;
+    struct stat descriptor_status;
+    int flags = O_RDONLY;
+    int descriptor;
+
+    if (lstat(name, &path_status) < 0)
+        archive_path_error("lstat regular file", name);
+    if (!S_ISREG(path_status.st_mode))
+        archive_error("hard-link source is not a regular file");
+    if (nonblocking)
+        flags |= O_NONBLOCK;
+    descriptor = open(name, flags);
+    if (descriptor < 0)
+        archive_path_error("open regular file", name);
+    if (fstat(descriptor, &descriptor_status) < 0)
+        archive_path_error("fstat regular file", name);
+    if (!S_ISREG(descriptor_status.st_mode) ||
+        descriptor_status.st_dev != path_status.st_dev ||
+        descriptor_status.st_ino != path_status.st_ino)
+        archive_error("regular file changed during verification");
+    return descriptor;
+}
+
+static int
+create_output_file(const char *name, mode_t mode)
+{
+    int descriptor = open(name, O_WRONLY | O_CREAT | O_EXCL, mode & 0777);
+
+    if (descriptor < 0)
+        archive_path_error("create new output", curname);
+    return descriptor;
+}
+
+static int
+write_all(int descriptor, const void *buffer, size_t byte_count)
+{
+    const char *position = buffer;
+
+    while (byte_count > 0) {
+        ssize_t written = write(descriptor, position, byte_count);
+
+        if (written < 0 && errno == EINTR)
+            continue;
+        if (written <= 0)
+            return -1;
+        position += written;
+        byte_count -= (size_t)written;
+    }
+    return 0;
+}
+
+static void
+record_extracted_file(int descriptor)
+{
+    struct extracted_identity *identity = malloc(sizeof(*identity));
+    struct stat status;
+
+    if (identity == NULL) {
+        archive_error("out of memory recording an extracted file");
+        return;
+    }
+    if (fstat(descriptor, &status) < 0)
+        archive_path_error("fstat extracted file", curname);
+    identity->inode = status.st_ino;
+    identity->device = status.st_dev;
+    identity->next = extracted_files;
+    extracted_files = identity;
+}
+
+static int
+was_extracted_file(const struct stat *status)
+{
+    const struct extracted_identity *identity;
+
+    for (identity = extracted_files; identity != NULL;
+        identity = identity->next)
+        if (identity->inode == status->st_ino &&
+            identity->device == status->st_dev)
+            return 1;
+    return 0;
+}
+
+static void
+free_extracted_files(void)
+{
+    while (extracted_files != NULL) {
+        struct extracted_identity *next = extracted_files->next;
+
+        free(extracted_files);
+        extracted_files = next;
+    }
+}
+
+static void
+tomodes(const struct stat *sp)
+{
+    char *cp;
 
     for (cp = dblock.dummy; cp < &dblock.dummy[TBLOCK]; cp++)
         *cp = '\0';
     putoctal(dblock.dbuf.mode, sizeof(dblock.dbuf.mode), sp->st_mode & 07777);
     putoctal(dblock.dbuf.uid, sizeof(dblock.dbuf.uid), sp->st_uid);
     putoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid), sp->st_gid);
-    putoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size), sp->st_size);
-    putoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime), sp->st_mtime);
+    if (sp->st_size < 0 || sp->st_mtime < 0)
+        archive_error("file metadata cannot be represented in octal");
+    putoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size),
+        (unsigned long)sp->st_size);
+    putoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime),
+        (unsigned long)sp->st_mtime);
 }
 
 /*
@@ -1293,18 +1620,17 @@ register struct stat *sp;
  * over NAMSIZ-1 bytes under -O, which writes the v7 header. Returns the
  * writetape hint, or 0 when the name does not fit.
  */
-int
-putheader(name, typeflag)
-    char *name;
-    int typeflag;
+static int
+putheader(const char *name, char typeflag)
 {
-    int len = strlen(name);
-    int split = 0;
-    register int i;
+    size_t length = strlen(name);
+    size_t split = 0;
+    size_t index = 0;
 
-    if (len >= NAMSIZ) {
-        if (Oflag || len > TPFSZ + NAMSIZ) {
+    if (length >= NAMSIZ) {
+        if (Oflag || length > TPFSZ + NAMSIZ) {
             fprintf(stderr, "tar: %s: file name too long\n", name);
+            operation_failed = 1;
             return (0);
         }
         /*
@@ -1316,33 +1642,39 @@ putheader(name, typeflag)
          * which endtape() reads as the end of the archive and which would
          * silently drop every entry that follows.
          */
-        i = len - NAMSIZ;
-        if (i < 1)
-            i = 1;
-        for (; i < len - 1; i++)
-            if (name[i] == '/' && i <= TPFSZ) {
-                split = i;
+        index = length - NAMSIZ;
+        if (index < 1)
+            index = 1;
+        for (; index < length - 1; index++)
+            if (index <= TPFSZ && name[index] == '/') {
+                split = index;
                 break;
             }
         if (split == 0) {
             fprintf(stderr, "tar: %s: file name too long\n", name);
+            operation_failed = 1;
             return (0);
         }
         memcpy(dblock.dbuf.prefix, name, split);
-        memcpy(dblock.dbuf.name, name + split + 1, len - split - 1);
+        memcpy(dblock.dbuf.name, name + split + 1,
+            length - split - 1);
     } else
-        memcpy(dblock.dbuf.name, name, len);
+        memcpy(dblock.dbuf.name, name, length);
 
     if (!Oflag) {
         memcpy(dblock.dbuf.magic, TMAGIC, TMAGLEN);
         memcpy(dblock.dbuf.version, TVERSION, TVERSLEN);
         dblock.dbuf.linkflag = typeflag;
-        strncpy(dblock.dbuf.uname, uidname(stbuf.st_uid), UGSZ);
-        strncpy(dblock.dbuf.gname, gidname(stbuf.st_gid), UGSZ);
+        memcpy(dblock.dbuf.uname, uidname(stbuf.st_uid),
+            strlen(uidname(stbuf.st_uid)));
+        memcpy(dblock.dbuf.gname, gidname(stbuf.st_gid),
+            strlen(gidname(stbuf.st_gid)));
         putoctal(dblock.dbuf.devmajor, sizeof(dblock.dbuf.devmajor), 0);
         putoctal(dblock.dbuf.devminor, sizeof(dblock.dbuf.devminor), 0);
     }
-    sprintf(dblock.dbuf.chksum, "%6o", checksum());
+    if (snprintf(dblock.dbuf.chksum, sizeof(dblock.dbuf.chksum),
+        "%6o", checksum()) != 6)
+        archive_error("header checksum exceeds its field");
     return (writetape((char *) &dblock));
 }
 
@@ -1351,9 +1683,8 @@ putheader(name, typeflag)
  * cached for the one id a run of putfile() repeats. An unknown id yields
  * the empty string, which POSIX reads as "use the numeric field".
  */
-char *
-uidname(uid)
-    uid_t uid;
+static const char *
+uidname(uid_t uid)
 {
     static uid_t last = (uid_t) -1;
     static char name[UGSZ];
@@ -1362,15 +1693,20 @@ uidname(uid)
     if (uid != last) {
         last = uid;
         name[0] = '\0';
-        if ((pw = getpwuid(uid)) != NULL)
-            strncpy(name, pw->pw_name, sizeof(name) - 1);
+        if ((pw = getpwuid(uid)) != NULL) {
+            size_t length = strlen(pw->pw_name);
+
+            if (length >= sizeof(name))
+                length = sizeof(name) - 1;
+            memcpy(name, pw->pw_name, length);
+            name[length] = '\0';
+        }
     }
     return (name);
 }
 
-char *
-gidname(gid)
-    gid_t gid;
+static const char *
+gidname(gid_t gid)
 {
     static gid_t last = (gid_t) -1;
     static char name[UGSZ];
@@ -1379,8 +1715,14 @@ gidname(gid)
     if (gid != last) {
         last = gid;
         name[0] = '\0';
-        if ((gr = getgrgid(gid)) != NULL)
-            strncpy(name, gr->gr_name, sizeof(name) - 1);
+        if ((gr = getgrgid(gid)) != NULL) {
+            size_t length = strlen(gr->gr_name);
+
+            if (length >= sizeof(name))
+                length = sizeof(name) - 1;
+            memcpy(name, gr->gr_name, length);
+            name[length] = '\0';
+        }
     }
     return (name);
 }
@@ -1392,19 +1734,19 @@ gidname(gid)
  * 12-byte size and mtime fields writes its terminator one byte past the
  * field and overwrites the first byte of the field that follows.
  */
-void
-putoctal(field, width, value)
-    char *field;
-    int width;
-    unsigned long value;
+static void
+putoctal(char *field, size_t width, unsigned long value)
 {
-    register int i;
+    size_t index;
 
     field[--width] = '\0';
-    for (i = width - 1; i >= 0; i--) {
-        field[i] = (char) ('0' + (int) (value & 7));
+    for (index = width; index > 0;) {
+        index--;
+        field[index] = (char)('0' + (int)(value & 7UL));
         value >>= 3;
     }
+    if (value != 0)
+        archive_error("file metadata exceeds an archive octal field");
 }
 
 /*
@@ -1412,28 +1754,42 @@ putoctal(field, width, value)
  * carries no terminator, so sscanf on the field in place runs into the
  * field that follows; copy it out with an explicit terminator first.
  */
-long
-getoctal(field, width)
-    char *field;
-    int width;
+static unsigned long
+getoctal(const char *field, size_t width)
 {
-    char buf[24];
-    register int i;
+    unsigned long value = 0;
+    size_t index;
+    int saw_digit = 0;
 
-    if (width > (int) sizeof(buf) - 1)
-        width = sizeof(buf) - 1;
-    for (i = 0; i < width; i++)
-        buf[i] = field[i];
-    buf[width] = '\0';
-    return (strtol(buf, (char **) 0, 8));
+    for (index = 0; index < width && field[index] == ' '; index++)
+        ;
+    for (; index < width; index++) {
+        unsigned long digit;
+
+        if (field[index] == '\0' || field[index] == ' ')
+            break;
+        if (field[index] < '0' || field[index] > '7')
+            archive_error("archive contains a malformed octal field");
+        digit = (unsigned long)(field[index] - '0');
+        if (value > (ULONG_MAX - digit) / 8UL)
+            archive_error("archive octal field overflows");
+        value = value * 8UL + digit;
+        saw_digit = 1;
+    }
+    if (!saw_digit)
+        archive_error("archive contains an empty octal field");
+    for (; index < width; index++)
+        if (field[index] != '\0' && field[index] != ' ')
+            archive_error("archive contains trailing octal-field data");
+    return value;
 }
 
-int
-checksum()
+static int
+checksum(void)
 {
-    register int i;
-    register char *cp;
-    register unsigned char *up;
+    int i;
+    char *cp;
+    unsigned char *up;
 
     for (cp = dblock.dbuf.chksum;
          cp < &dblock.dbuf.chksum[sizeof(dblock.dbuf.chksum)]; cp++)
@@ -1445,10 +1801,8 @@ checksum()
     return (i);
 }
 
-int
-checkw(c, name)
-    int c;
-    char *name;
+static int
+checkw(int c, const char *name)
 {
     if (!wflag)
         return (1);
@@ -1459,35 +1813,35 @@ checkw(c, name)
     return (response() == 'y');
 }
 
-int
-response()
+static int
+response(void)
 {
-    char c;
+    int response_byte = getchar();
+    int discarded_byte;
 
-    c = getchar();
-    if (c != '\n')
-        while (getchar() != '\n')
-            ;
-    else
-        c = 'n';
-    return (c);
+    if (response_byte == EOF || response_byte == '\n')
+        return 'n';
+    do {
+        discarded_byte = getchar();
+    } while (discarded_byte != '\n' && discarded_byte != EOF);
+    return response_byte;
 }
 
-int
-checkf(name, mode, howmuch)
-    char *name;
-    int mode, howmuch;
+static int
+checkf(const char *name, mode_t mode, int howmuch)
 {
-    int l;
+    size_t length;
 
     if ((mode & S_IFMT) == S_IFDIR){
         if ((strcmp(name, "SCCS")==0) || (strcmp(name, "RCS")==0))
             return(0);
         return(1);
     }
-    if ((l = strlen(name)) < 3)
+    length = strlen(name);
+    if (length < 3)
         return (1);
-    if (howmuch > 1 && name[l-2] == '.' && name[l-1] == 'o')
+    if (howmuch > 1 && name[length - 2] == '.' &&
+        name[length - 1] == 'o')
         return (0);
     if (strcmp(name, "core") == 0 ||
         strcmp(name, "errs") == 0 ||
@@ -1498,30 +1852,40 @@ checkf(name, mode, howmuch)
 }
 
 /* Is the current file a new file, or the newest one of the same name? */
-int
-checkupdate(arg)
-    char *arg;
+static int
+checkupdate(const char *arg)
 {
-    char name[100];
-    long mtime;
-    daddr_t seekp;
-    daddr_t lookup();
+    char line[PATHSIZ + 16];
+    unsigned long newest = 0;
+    int found = 0;
+    size_t argument_length = strlen(arg);
 
-    rewind(tfile);
-    for (;;) {
-        if ((seekp = lookup(arg)) < 0)
-            return (1);
-        fseek(tfile, seekp, 0);
-        fscanf(tfile, "%s %lo", name, &mtime);
-        return (stbuf.st_mtime > mtime);
+    if (fseek(tfile, 0, SEEK_SET) != 0)
+        done(2);
+    while (fgets(line, sizeof(line), tfile) != NULL) {
+        char *separator = strrchr(line, ' ');
+        unsigned long archived_time;
+
+        if (separator == NULL || (size_t)(separator - line) != argument_length ||
+            memcmp(line, arg, argument_length) != 0)
+            continue;
+        archived_time = strtoul(separator + 1, NULL, 8);
+        if (!found || archived_time > newest)
+            newest = archived_time;
+        found = 1;
     }
+    if (ferror(tfile))
+        done(2);
+    return !found || stbuf.st_mtime > (time_t)newest;
 }
 
-void
-done(n)
-    int n;
+static _Noreturn void
+done(int n)
 {
-    zreap();
+    int filter_result = zreap();
+
+    if (n == 0 && filter_result != 0)
+        n = filter_result;
     unlink(tname);
     exit(n);
 }
@@ -1530,11 +1894,10 @@ done(n)
  * Do we want the next entry on the tape, i.e. is it selected?  If
  * not, skip over the entire entry.  Return -1 if reached end of tape.
  */
-int
-wantit(argv)
-    char *argv[];
+static int
+wantit(char **argv)
 {
-    register char **cp;
+    char **cp;
 
     getdir();
     if (endtape())
@@ -1551,9 +1914,8 @@ wantit(argv)
 /*
  * Does s2 begin with the string s1, on a directory boundary?
  */
-int
-prefix(s1, s2)
-    register char *s1, *s2;
+static int
+prefix(const char *s1, const char *s2)
 {
     while (*s1)
         if (*s1++ != *s2++)
@@ -1563,171 +1925,82 @@ prefix(s1, s2)
     return (1);
 }
 
-#define N   200
-int njab;
-
-daddr_t
-lookup(s)
-    char *s;
-{
-    register int i;
-    daddr_t a;
-
-    for(i=0; s[i]; i++)
-        if (s[i] == ' ')
-            break;
-    a = bsrch(s, i, low, high);
-    return (a);
-}
-
-daddr_t
-bsrch(s, n, l, h)
-    daddr_t l, h;
-    char *s;
-    int n;
-{
-    register int i, j;
-    char b[N];
-    daddr_t m, m1;
-
-    njab = 0;
-
-loop:
-    if (l >= h)
-        return ((daddr_t) -1);
-    m = l + (h-l)/2 - N/2;
-    if (m < l)
-        m = l;
-    fseek(tfile, m, 0);
-    fread(b, 1, N, tfile);
-    njab++;
-    for(i=0; i<N; i++) {
-        if (b[i] == '\n')
-            break;
-        m++;
-    }
-    if (m >= h)
-        return ((daddr_t) -1);
-    m1 = m;
-    j = i;
-    for(i++; i<N; i++) {
-        m1++;
-        if (b[i] == '\n')
-            break;
-    }
-    i = cmp(b+j, s, n);
-    if (i < 0) {
-        h = m;
-        goto loop;
-    }
-    if (i > 0) {
-        l = m1;
-        goto loop;
-    }
-    return (m);
-}
-
-int
-cmp(b, s, n)
-    char *b, *s;
-    int n;
-{
-    register int i;
-
-    if (b[0] != '\n')
-        exit(2);
-    for(i=0; i<n; i++) {
-        if (b[i+1] > s[i])
-            return (-1);
-        if (b[i+1] < s[i])
-            return (1);
-    }
-    return (b[i+1] == ' '? 0 : -1);
-}
-
-int
-readtape(buffer)
-    char *buffer;
+static int
+readtape(char *buffer)
 {
     char *bufp;
 
     if (first == 0)
         getbuf();
     (void) readtbuf(&bufp, TBLOCK);
-    bcopy(bufp, buffer, TBLOCK);
+    memcpy(buffer, bufp, TBLOCK);
     return(TBLOCK);
 }
 
-int
-readtbuf(bufpp, size)
-    char **bufpp;
-    int size;
+static size_t
+readtbuf(char **bufpp, size_t size)
 {
-    register int i;
+    static int valid_records;
+    ssize_t received;
 
-    if (recno >= nblock || first == 0) {
-        if ((i = bread(mt, (char *)tbuf, TBLOCK*nblock)) < 0)
-            mterr("read", i, 3);
-        if (first == 0) {
-            if ((i % TBLOCK) != 0) {
-                fprintf(stderr, "tar: tape blocksize error\n");
-                done(3);
-            }
-            i /= TBLOCK;
-            if (i != nblock) {
-                fprintf(stderr, "tar: blocksize = %d\n", i);
-                nblock = i;
-            }
-            first = 1;
-        }
+    if (recno >= valid_records || first == 0) {
+        received = bread(mt, (char *)tbuf, (size_t)TBLOCK * (size_t)nblock);
+        if (received < 0)
+            mterr("read", received, 3);
+        if (received == 0)
+            archive_error("unexpected end of archive");
+        if (received % TBLOCK != 0)
+            archive_error("archive ends in a partial record");
+        valid_records = (int)(received / TBLOCK);
+        if (first == 0 && valid_records != nblock)
+            fprintf(stderr, "tar: blocksize = %d\n", valid_records);
+        first = 1;
         recno = 0;
     }
-    if (size > ((nblock-recno)*TBLOCK))
-        size = (nblock-recno)*TBLOCK;
+    if (size > (size_t)(valid_records - recno) * TBLOCK)
+        size = (size_t)(valid_records - recno) * TBLOCK;
     *bufpp = (char *)&tbuf[recno];
-    recno += (size/TBLOCK);
-    return (size);
+    recno += (int)(size / TBLOCK);
+    return size;
 }
 
-int
-writetbuf(buffer, n)
-    register char *buffer;
-    register int n;
+static int
+writetbuf(const char *buffer, int n)
 {
-    int i;
+    ssize_t written;
+    size_t tape_bytes = (size_t)TBLOCK * (size_t)nblock;
 
     if (first == 0) {
         getbuf();
         first = 1;
     }
     if (recno >= nblock) {
-        i = write(mt, (char *)tbuf, TBLOCK*nblock);
-        if (i != TBLOCK*nblock)
-            mterr("write", i, 2);
+        written = write(mt, (char *)tbuf, tape_bytes);
+        if (written != (ssize_t)tape_bytes)
+            mterr("write", written, 2);
         recno = 0;
     }
 
     /*
      *  Special case:  We have an empty tape buffer, and the
-     *  users data size is >= the tape block size:  Avoid
-     *  the bcopy and dma direct to tape.  BIG WIN.  Add the
-     *  residual to the tape buffer.
+     *  user data size is at least the tape block size. Write complete
+     *  blocks directly and retain only the residual in the tape buffer.
      */
     while (recno == 0 && n >= nblock) {
-        i = write(mt, buffer, TBLOCK*nblock);
-        if (i != TBLOCK*nblock)
-            mterr("write", i, 2);
+        written = write(mt, buffer, tape_bytes);
+        if (written != (ssize_t)tape_bytes)
+            mterr("write", written, 2);
         n -= nblock;
         buffer += (nblock * TBLOCK);
     }
 
     while (n-- > 0) {
-        bcopy(buffer, (char *)&tbuf[recno++], TBLOCK);
+        memcpy((char *)&tbuf[recno++], buffer, TBLOCK);
         buffer += TBLOCK;
         if (recno >= nblock) {
-            i = write(mt, (char *)tbuf, TBLOCK*nblock);
-            if (i != TBLOCK*nblock)
-                mterr("write", i, 2);
+            written = write(mt, (char *)tbuf, tape_bytes);
+            if (written != (ssize_t)tape_bytes)
+                mterr("write", written, 2);
             recno = 0;
         }
     }
@@ -1736,8 +2009,8 @@ writetbuf(buffer, n)
     return (nblock - recno);
 }
 
-void
-backtape()
+static void
+backtape(void)
 {
 #ifndef __APPLE__
     static int mtdev = 1;
@@ -1758,64 +2031,67 @@ backtape()
     recno--;
 }
 
-void
-flushtape()
+static void
+flushtape(void)
 {
-    int i;
+    size_t tape_bytes = (size_t)TBLOCK * (size_t)nblock;
+    ssize_t written;
 
-    i = write(mt, (char *)tbuf, TBLOCK*nblock);
-    if (i != TBLOCK*nblock)
-        mterr("write", i, 2);
+    written = write(mt, (char *)tbuf, tape_bytes);
+    if (written != (ssize_t)tape_bytes)
+        mterr("write", written, 2);
 }
 
-void
-mterr(operation, i, exitcode)
-    char *operation;
-    int i, exitcode;
+static void
+mterr(const char *operation, ssize_t result, int exitcode)
 {
     fprintf(stderr, "tar: tape %s error: ", operation);
-    if (i < 0)
+    if (result < 0)
         perror("");
     else
         fprintf(stderr, "unexpected EOF\n");
     done(exitcode);
 }
 
-int
-bread(fd, buf, size)
-    int fd;
-    char *buf;
-    int size;
+static ssize_t
+bread(int fd, char *buf, size_t size)
 {
-    int count;
-    static int lastread = 0;
+    size_t count;
+    ssize_t lastread;
 
     if (!Bflag)
         return (read(fd, buf, size));
 
-    for (count = 0; count < size; count += lastread) {
+    for (count = 0; count < size; count += (size_t)lastread) {
         lastread = read(fd, buf, size - count);
         if (lastread <= 0) {
             if (count > 0)
-                return (count);
+                return (ssize_t)count;
             return (lastread);
         }
         buf += lastread;
     }
-    return (count);
+    return (ssize_t)count;
 }
 
-void
-getbuf()
+static void
+getbuf(void)
 {
     if (nblock == 0) {
-        fstat(mt, &stbuf);
+        long block_count;
+
+        if (fstat(mt, &stbuf) < 0)
+            archive_path_error("fstat archive", usefile);
         if ((stbuf.st_mode & S_IFMT) == S_IFCHR)
             nblock = NBLOCK;
         else {
-            nblock = stbuf.st_blksize / TBLOCK;
-            if (nblock == 0)
+            block_count = stbuf.st_blksize / TBLOCK;
+            if (block_count <= 0)
                 nblock = NBLOCK;
+            else if (block_count > NBLOCK)
+                nblock = NBLOCK;
+            else
+                nblock = (int)block_count;
         }
     }
     /*
@@ -1851,22 +2127,21 @@ getbuf()
  * directories are not.  This avoids saving every directory record on
  * the tape and setting all the times at the end.
  */
-char dirstack[PATHSIZ];
+static char dirstack[PATHSIZ];
 #define NTIM (PATHSIZ/2+1)      /* a/b/c/d/... */
-time_t mtime[NTIM];
+static time_t mtime[NTIM];
 
-void
-dodirtimes(name)
-    char *name;
+static void
+dodirtimes(char *name)
 {
-    register char *p = dirstack;
-    register char *q = name;
-    register int ndir = 0;
+    char *p = dirstack;
+    char *q = name;
+    int ndir = 0;
     char *savp;
     int savndir;
 
     /* Find common prefix */
-    while (*p == *q) {
+    while (*p != '\0' && *p == *q) {
         if (*p++ == '/')
             ++ndir;
         q++;
@@ -1890,24 +2165,47 @@ dodirtimes(name)
     ndir = savndir;
 
     /* Push this one on the "stack" */
-    while ((*p = *q++) != '\0')  /* append the rest of the new dir */
-        if (*p++ == '/')
+    while ((*p = *q++) != '\0') { /* append the rest of the new dir */
+        if (*p++ == '/') {
+            if (ndir >= NTIM - 1) {
+                archive_error("directory nesting exceeds timestamp stack");
+                return;
+            }
             mtime[++ndir] = -1;
+        }
+    }
     mtime[ndir] = stbuf.st_mtime;   /* overwrite the last one */
 }
 
-void
-setimes(path, mt)
-    char *path;
-    time_t mt;
+static void
+setimes(char *path, time_t modification_time)
 {
+    char *leaf_name;
+    char *trailing_slash = NULL;
+    struct stat status;
     struct timeval tv[2];
 
-    tv[0].tv_sec = time((time_t *) 0);
-    tv[1].tv_sec = mt;
-    tv[0].tv_usec = tv[1].tv_usec = 0;
-    if (utimes(path, tv) < 0) {
-        fprintf(stderr, "tar: can't set time on %s: ", path);
-        perror("");
+    if (path[0] == '\0')
+        return;
+    if (path[strlen(path) - 1] == '/') {
+        trailing_slash = path + strlen(path) - 1;
+        *trailing_slash = '\0';
     }
+    if (extraction_root_descriptor >= 0) {
+        leaf_name = enter_parent_directories(extraction_root_descriptor,
+            path, 0);
+        if (lstat(leaf_name, &status) < 0)
+            archive_path_error("lstat metadata target", path);
+        if (!S_ISREG(status.st_mode) && !S_ISDIR(status.st_mode))
+            archive_error("metadata target changed type");
+    } else {
+        leaf_name = path;
+    }
+    tv[0].tv_sec = time((time_t *) 0);
+    tv[1].tv_sec = modification_time;
+    tv[0].tv_usec = tv[1].tv_usec = 0;
+    if (utimes(leaf_name, tv) < 0)
+        archive_path_error("set modification time", path);
+    if (trailing_slash != NULL)
+        *trailing_slash = '/';
 }

@@ -1,11 +1,12 @@
 # Shipped security and C17 frontier
 
-This audit binds its source conclusions to
-`dbd8bf0cc84f3705b79e3a13c79436b0ba51cb54`. It covers programs and
-libraries reachable from the RP2040 manifest, plus source-only utilities when
-a public CVE names their mechanism. A source match establishes exposure; a
-name or version match only nominates a review. Host sanitizers establish
-memory behavior for the exercised inputs. Cortex-M0+ compilation, final a.out
+The initial shipped-surface search starts at
+`dbd8bf0cc84f3705b79e3a13c79436b0ba51cb54`; each completed migration section
+names its later source base explicitly. The audit covers programs and libraries
+reachable from the RP2040 manifest, plus source-only utilities when a public
+CVE names their mechanism. A source match establishes exposure; a name or
+version match only nominates a review. Host sanitizers establish memory
+behavior for the exercised inputs. Cortex-M0+ compilation, final a.out
 inspection and filesystem accounting establish the target footprint. Board
 behavior remains outside this audit.
 
@@ -56,6 +57,11 @@ The public-record check read the CVE List V5 records for each identifier on
 | CVE-2026-66485 | GNU allocation path absent | The fixing commit removes archive-sized `alloca` use from GNU `make_path`. The local parser uses one `MAXPATHLEN` name buffer and one 512-byte transfer buffer and performs no allocation. | An archive-controlled length reaches stack or heap allocation. |
 | CVE-2026-66486 | GNU implementation absent; equivalent local weakness fixed | The local table path also printed an archive name literally. The repaired parser rejects C0, DEL and C1 control bytes before listing or extraction. | A name containing newline or ESC reaches standard output. |
 | CVE-2025-60753 | implementation absent | The record names libarchive bsdtar `apply_substitution` and `-s`. The local `bin/tar` has neither mechanism. | The local option parser gains substitution rules or a call edge resolves to equivalent unbounded allocation. |
+| CVE-2001-1267 and CVE-2002-0399 | GNU implementation absent; equivalent local weakness fixed | The local base tar accepted `..`, `/..` and `./..` components. A calibrated `../escaped` member wrote outside its extraction root. | Any absolute, empty, dot, dot-dot or repeated-empty member component reaches a filesystem operation. |
+| CVE-2002-1216, CVE-2006-6097 and CVE-2007-4131 | named implementations absent; equivalent local weakness fixed under a stable directory namespace | The local base used pathname `open`, `mkdir`, `symlink` and `link` operations without rejecting pre-existing or archive-created symlink traversal. Calibrated parent, final and archive-created symlink archives changed or reached objects outside the selected path. | A symlinked parent or final component changes its outside victim under the stable-namespace test fixture. |
+| CVE-2016-6321 | GNU implementation absent; equivalent pathname-sanitization weakness fixed | The local base performed no component validation before extraction. The repaired parser validates the assembled ustar path, including full-width prefix, name and link fields, before selection, listing or filesystem use. | A malformed or control-bearing path reaches listing or extraction, or a full-width field reads into the following header member. |
+| CVE-2025-45582 | implementation lineage absent; equivalent multi-entry symlink weakness fixed | The base extractor followed a symlink created by an earlier member when it processed a later descendant. The fixed extractor validates link targets and refuses every symlink encountered while walking a later member's parents. | A link member followed by a descendant creates the descendant through that link. |
+| CVE-2026-18508 | named implementation absent; equivalent hard-link boundary weakness fixed | The base extractor passed an unchecked archive link target to `link()`. A calibrated `../outside-existing` target created a link inside the root to the outside inode. The fixed path accepts only a relative safe target whose verified regular-file identity was created earlier in the same extraction. | A hard-link target escapes, follows a symlink, names a pre-existing inode or carries special mode bits. |
 | CVE-2026-10659 | affected Zephyr adapter absent | The record names Zephyr `drivers/disk/ftl_dhara.c` writing through a null error pointer. Every RP2040 flash callback routes errors through null-safe `dhara_set_error`. | A callback writes `*err` without first proving the pointer non-null, including a generated or alternate build path. |
 | CVE-1999-1471 | shipped mechanism absent; source review retained | The shipped `passwd` changes the password hash and has no shell or GECOS input. `chpass`, which owns those fields, stays outside the RP2040 manifest and already bounds its aggregate GECOS buffer. | Shipping `chpass`, or finding an unbounded shell/GECOS copy in a setuid image path, reopens the row. |
 | CVE-2000-0993 | helper absent | The affected BSD libutil `pw_error` format-string helper has no source or call site in the tree. | A linked object exports `pw_error`, or another password-database error path treats user data as a format string. |
@@ -250,11 +256,112 @@ effects: corruption discovered after a complete earlier entry does not roll
 that earlier entry back. Those residuals require a directory-descriptor API or
 a bounded staging design, not another pathname precheck.
 
+## tar extraction confinement and C17 migration
+
+The tar unit starts from `d4c5e74f95524f7a8cf8a8125a61538291b59605`.
+The base extractor accepted absolute or dot-dot paths, followed pre-existing
+and archive-created symlinks, overwrote final symlinks and existing regular
+files, accepted an outside hard-link source, restored archive-controlled
+ownership and special mode bits, reused stale records after a short archive
+read, and trusted unterminated or malformed header fields. A retained
+calibration binary from that source writes the `../escaped` member, follows
+the parent and final symlink fixtures, links to `../outside-existing`, and
+restores mode 06755. The fixed test run against the same binary stops at
+`dotdot archive reported success`, so the gate distinguishes the vulnerable
+source from the repaired one.
+
+Extraction now rejects empty, absolute, dot, dot-dot, repeated-empty,
+control-bearing and over-limit paths before selection or filesystem use. It
+accepts only regular files, directories, symbolic links and hard links, and
+requires non-regular members to carry zero data. Parent traversal compares
+`lstat` device and inode with `open` plus `fstat` before `fchdir`. Regular
+outputs use `O_EXCL`; ownership is not restored; setuid, setgid and sticky
+bits are stripped. A hard link can name only a safe relative regular-file
+identity created earlier in the same extraction, and an archive cannot retain
+special bits through that alias. Relative symbolic-link targets are reduced
+against their member-parent depth and rejected when they escape the root.
+Short writes complete or fail, each archive-buffer refill carries its own
+valid-record count, numeric fields reject invalid digits and overflow, and a
+compression-child failure reaches the final status.
+
+Archive creation rejects absolute, dot-component and symlink-parent inputs,
+reports missing inputs and failed `-C` changes, and verifies each directory
+identity before entering it. Update mode uses `mkstemp` and bounded linear
+parsing instead of `mktemp` plus an external shell pipeline and fixed-window
+binary search. The replacement removes a temporary sort, awk and move process
+set as well as the associated pathname races; update lookup is linear in the
+number of archive entries because the RP2040 image favors a small executable
+and bounded machinery over another resident index.
+
+C17 still permits old-style function definitions as obsolescent syntax. The
+base file failed the repository's stricter contract because its K&R
+definitions and empty parameter lists trigger `-Wold-style-definition` and
+`-Wstrict-prototypes`; it also used deprecated `getwd`, unsafe `mktemp`, BSD
+`bcopy`, `bzero` and `rindex`, unchecked signed byte counts and conversions,
+writable internal tables, and `register` declarations. The migrated
+translation unit uses complete prototypes, internal linkage, `_Static_assert`,
+`_Noreturn`, `size_t`, `ssize_t`, `off_t` and checked conversions. GCC and
+Clang accept the complete host unit as C17 with pedantic, prototype and
+conversion diagnostics treated as errors, and both sanitizer suites pass.
+The target build also passes its production warning contract. A direct target
+probe with `-Wstrict-prototypes` still diagnoses declarations in the shared
+`unistd.h` and `pwd.h`; target stdio and ioctl macros also trigger conversion
+diagnostics. Those shared-header migrations remain outside the tar unit and
+must not be represented as tar source failures.
+
+The object and final a.out pairs use the same Cortex-M0+ compiler flags,
+headers, crt0, linker script and libc. `hsaout -s` supplies the packed-root
+measurement. Target `-fstack-usage` reports internal static frames and excludes
+libc and kernel stack use.
+
+| Surface | Base | Repaired | Delta |
+| --- | ---: | ---: | ---: |
+| Source lines | 1,913 | 2,211 | +298 |
+| Source bytes | 48,416 | 65,049 | +16,633 |
+| Object text | 6,684 | 8,208 | +1,524 |
+| Object read-only data | 1,481 | 3,364 | +1,883 |
+| Object writable data | 260 | 58 | -202 |
+| Object BSS | 1,890 | 1,890 | 0 |
+| Final text | 23,630 | 25,872 | +2,242 |
+| Final data | 888 | 692 | -196 |
+| Final BSS | 3,648 | 3,644 | -4 |
+| Final a.out bytes | 24,552 | 26,596 | +2,044 |
+| Packed bytes | 20,366 | 21,605 | +1,239 |
+| Packed root blocks | 21 | 23 | +2 |
+| `putfile` frame per recursive level | 824 | 832 | +8 |
+| `dorep` frame | 552 | 544 | -8 |
+| `doxtract` frame | 56 | 224 | +168 |
+
+The fixed BSS remains effectively flat and writable data falls by 196 linked
+bytes because mode-display tables moved to read-only storage and the update
+index disappeared. Security checks cost two packed root blocks. Extraction
+keeps one 12-byte device, inode and next-pointer identity per regular file;
+the target allocator consumes 16 bytes including its header and alignment per
+identity. The list is freed at extraction completion. Refusing all hard links
+would remove that variable RAM cost but would break the maintained archive
+contract; accepting pre-existing sources would restore the vulnerability.
+
+Thirty warmed host runs over the 11 MiB root-tree archive measured listing at
+4.331 ms mean for both sources. Fifteen warmed extraction runs measured
+19.34 ms mean for the base and 33.43 ms for the repair, a 1.73x host-filesystem
+cost. Parent verification, exclusive creation, metadata revalidation and
+hard-link provenance explain the direction. These timings establish neither
+Cortex-M0+ latency nor board peak RAM.
+
+The descriptor walk proves resistance to archive-controlled and pre-existing
+symlinks only while the directory namespace remains stable. DiscoBSD provides
+neither `openat`, `linkat`, `O_NOFOLLOW` nor descriptor-based timestamp
+updates. A hostile concurrent writer can rename a verified directory before
+the later pathname operation; path-based `link` and `utimes` retain the same
+check/use window. Closing that residual requires a kernel and libc
+directory-relative API, followed by adversarial rename tests. Streaming also
+means a later malformed record does not roll back earlier extracted files.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
-| P0 | `bin/tar` extraction confinement | Determine how absolute paths, `..`, pre-existing symlinks, hard-link targets and device entries can escape the selected destination. The cpio odc-only unit above is complete within its documented rename-race residual. | Calibrated tar archives for every escape class, source call map, host filesystem oracle and final target footprint. |
+| P1 | `bin/tar` namespace-race residual | Replace stable-namespace pathname operations with directory-relative create, link and timestamp APIs without increasing the one-process window beyond its 144-kbyte limit. | Kernel and libc API design, adversarial concurrent-rename fixtures, ABI review, target stack and packed-root comparison. |
 | P0 | account-policy reconciliation | The image now ships setuid mode 04751 `su`, places `operator` in wheel and makes the console insecure for direct root login refusal, while `security-profile.md` still says the manifest omits `su`. | Built-image modes and account files, login/su host tests, Renode transcript, then a focused correction of the stale profile. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
 | P1 | `compress` option grammar | `atoi` accepts ambiguous text and has no explicit overflow contract before the value is clamped. | Exact accepted grammar, boundary/overflow tests and a helper-dependency inspection. |
@@ -273,12 +380,16 @@ semantic summaries cannot close a security or resource claim.
 export PYTHON
 bmake MACHINE=rp2040 check-compress-host
 bmake MACHINE=rp2040 check-cpio-host
+sh bin/tar/tests/tartest.sh
 shellcheck -S error usr.bin/compress/tests/compresscheck.sh
 shellcheck -S error usr.bin/cpio/tests/cpiotest.sh
+shellcheck -S error bin/tar/tests/tartest.sh
 cppcheck --std=c17 --enable=warning,performance,portability \
   --error-exitcode=2 usr.bin/compress/compress.c
 cppcheck --std=c17 --enable=warning,performance,portability \
   --error-exitcode=2 usr.bin/cpio/cpio.c
+cppcheck --std=c17 --enable=warning,performance,portability \
+  --error-exitcode=2 bin/tar/tar.c bin/tar/tests/tarfixture.c
 bmake MACHINE=rp2040 build
 bmake MACHINE=rp2040 distribution
 tools/bin/rp2040/fsutil --check --partition=1 distrib/rp2040/sdcard.img

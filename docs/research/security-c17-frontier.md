@@ -250,6 +250,16 @@ effects: corruption discovered after a complete earlier entry does not roll
 that earlier entry back. Those residuals require a directory-descriptor API or
 a bounded staging design, not another pathname precheck.
 
+## `compress` option grammar
+
+The `-b` parser accepts only a nonempty sequence of ASCII decimal digits and
+rejects values greater than `INT_MAX` before arithmetic can overflow. Valid
+integers retain the existing behavior: values below `INIT_BITS` clamp upward,
+and values above the build's `BITS` value clamp downward. The host regression
+checks malformed, signed, whitespace-prefixed, empty and overflowing values,
+then inspects the encoded LZW header at both clamp boundaries. The target build
+and footprint gate determine whether this validation changes shipped cost.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
@@ -257,7 +267,6 @@ a bounded staging design, not another pathname precheck.
 | P0 | `bin/tar` extraction confinement | Determine how absolute paths, `..`, pre-existing symlinks, hard-link targets and device entries can escape the selected destination. The cpio odc-only unit above is complete within its documented rename-race residual. | Calibrated tar archives for every escape class, source call map, host filesystem oracle and final target footprint. |
 | P0 | account-policy reconciliation | The image now ships setuid mode 04751 `su`, places `operator` in wheel and makes the console insecure for direct root login refusal, while `security-profile.md` still says the manifest omits `su`. | Built-image modes and account files, login/su host tests, Renode transcript, then a focused correction of the stale profile. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
-| P1 | `compress` option grammar | `atoi` accepts ambiguous text and has no explicit overflow contract before the value is clamped. | Exact accepted grammar, boundary/overflow tests and a helper-dependency inspection. |
 | P1 | executable loading and syscall copying | File headers, segment arithmetic and user pointers cross the kernel boundary inside a 144 KB flat process window. | Integer-boundary corpus, negative copy tests, exact loader/copy call graph and MPU fault evidence for protection claims. |
 | P1 | USB control requests | Host-controlled setup packets select descriptor and endpoint operations in privileged code. | Deep-cache navigation refreshed to the selected source, direct source audit, packet corpus, host model and board fault/progress captures. |
 | P2 | source-only setuid utilities | `chpass` and related password-database editors are outside the image but retain older dialect and privileged temporary-file logic. | Manifest reachability proof, strict-C17 build, concurrent update/failure harness and explicit decision to ship or quarantine. |

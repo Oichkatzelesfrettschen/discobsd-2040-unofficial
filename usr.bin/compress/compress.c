@@ -100,6 +100,7 @@ static const char_type magic_header[] = { 0x1f, 0x9d };
  *		Joe Orost		(decvax!vax135!petsd!joe)
  */
 #include <stdio.h>
+#include <limits.h>
 #include <ctype.h>
 #include <signal.h>
 #include <string.h>
@@ -170,6 +171,7 @@ static int has_z_suffix(const char *);
 static int make_compressed_name(char *, size_t, const char *);
 static int make_decompressed_name(char *, size_t, const char *);
 static int set_decompression_parameters(int, const char *);
+static int parse_maxbits(const char *, int *);
 
 #ifdef DEBUG
 static void print_codes(void);
@@ -208,6 +210,28 @@ static void (*previous_interrupt)(int);
 static int background_flag;
 
 static int decompress_mode;
+
+static int
+parse_maxbits(const char *text, int *value)
+{
+	int parsed_value = 0;
+	const unsigned char *character = (const unsigned char *)text;
+
+	if (*character == '\0')
+		return -1;
+	for (; *character != '\0'; character++) {
+		int digit;
+
+		if (*character < '0' || *character > '9')
+			return -1;
+		digit = *character - '0';
+		if (parsed_value > (INT_MAX - digit) / 10)
+			return -1;
+		parsed_value = parsed_value * 10 + digit;
+	}
+	*value = parsed_value;
+	return 0;
+}
 
 static void
 usage(void)
@@ -974,7 +998,12 @@ main(int argc, char **argv)
 			    usage();
 			    exit(1);
 			}
-			maxbits = atoi(*argv);
+			if (parse_maxbits(*argv, &maxbits) != 0) {
+				fprintf(stderr,
+				    "Maxbits must be an unsigned decimal integer\n");
+				usage();
+				exit(1);
+			}
 			goto nextarg;
 		    case 'c':
 			zcat_flg = 1;

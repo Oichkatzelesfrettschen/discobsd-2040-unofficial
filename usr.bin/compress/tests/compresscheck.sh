@@ -48,6 +48,56 @@ gzip -dc "$input_file.Z" > "$work_directory/gzip-roundtrip" ||
 cmp "$input_file" "$work_directory/gzip-roundtrip" ||
 	fail "gzip round trip differs"
 
+for option_value in 0 9 12 13 2147483647; do
+	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+		"$compress_binary" -b "$option_value" -c < "$input_file" \
+		> "$work_directory/bits-$option_value.Z" ||
+		fail "valid -b value $option_value was rejected"
+done
+ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+	"$compress_binary" -b9 -c < "$input_file" \
+	> "$work_directory/bits-attached.Z" ||
+	fail "valid attached -b value was rejected"
+"$PYTHON" - "$work_directory" <<'PY'
+from pathlib import Path
+import sys
+
+work_directory = Path(sys.argv[1])
+expected_headers = {
+    "bits-0.Z": 0x89,
+    "bits-9.Z": 0x89,
+    "bits-12.Z": 0x8C,
+    "bits-13.Z": 0x8C,
+    "bits-2147483647.Z": 0x8C,
+    "bits-attached.Z": 0x89,
+}
+for filename, expected_header in expected_headers.items():
+    archive = (work_directory / filename).read_bytes()
+    if archive[:3] != bytes((0x1F, 0x9D, expected_header)):
+        raise SystemExit(f"{filename}: unexpected LZW header")
+PY
+
+for option_value in 9junk +9 -9 ' 9' '' 2147483648 999999999999999999999999999; do
+	if ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+		"$compress_binary" -b "$option_value" -c < "$input_file" \
+		> "$work_directory/invalid-bits.stdout" \
+		2> "$work_directory/invalid-bits.stderr"; then
+		fail "invalid -b value '$option_value' was accepted"
+	fi
+	grep -q '^Maxbits must be an unsigned decimal integer$' \
+		"$work_directory/invalid-bits.stderr" ||
+		fail "invalid -b value '$option_value' lacks a grammar diagnostic"
+done
+if ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+	"$compress_binary" -b9junk -c < "$input_file" \
+	> "$work_directory/invalid-attached.stdout" \
+	2> "$work_directory/invalid-attached.stderr"; then
+	fail "invalid attached -b value was accepted"
+fi
+grep -q '^Maxbits must be an unsigned decimal integer$' \
+	"$work_directory/invalid-attached.stderr" ||
+	fail "invalid attached -b value lacks a grammar diagnostic"
+
 long_name_directory=$work_directory/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 mkdir "$long_name_directory"
 long_name_input=$long_name_directory/input

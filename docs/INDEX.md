@@ -151,6 +151,7 @@ Grouped by what they investigate.
 | `netbsd110-tinyspace.md` | NetBSD 1.0, the 1994 release and not NetBSD 10 or 11.0, compared to this port, and what still fits the 144 KB window as C17 |
 | `integration-review.md` | sh-lineedit, stevie-vi and swapram reviewed together |
 | `static-analysis.md` | the static analysis run over the port and what it found |
+| `security-c17-frontier.md` | the shipped CVE dispositions, the bounded LZW repair and measured C17 migration, and the ranked security/resource frontier |
 | `downloads-survey.md` | the downloads folder surveyed for usable material |
 | `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
 | `warning-census.md` | what -Wall -Wextra costs the tree, as instances and as sites, where the warnings are, what the census records, and five ways of measuring it that lied |

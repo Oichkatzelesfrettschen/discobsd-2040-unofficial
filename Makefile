@@ -583,7 +583,8 @@ HOST_GATES=	check-architecture-isolation \
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
-		check-tar-host check-textbox-host check-cpio-host
+		check-tar-host check-textbox-host check-cpio-host \
+		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-aout-contracts \
 		check-libc-ctime-cross check-touch-contracts-cross \
@@ -650,6 +651,9 @@ check-textbox-host:
 
 check-cpio-host:
 		sh usr.bin/cpio/tests/cpiotest.sh
+
+check-compress-host: check-python
+		PYTHON=${PYTHON:Q} sh usr.bin/compress/tests/compresscheck.sh
 
 # Every root filesystem profile composes, and the checker still decides.
 # distrib/rp2040/mkmanifest.py resolves each profile in
@@ -867,7 +871,8 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-sh-editor check-tar-host \
-		check-textbox-host check-cpio-host check-lint check-host \
+		check-textbox-host check-cpio-host check-compress-host \
+		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-host-package check-board-build check symlinks etc-distribution \

@@ -143,6 +143,10 @@ main(int argc, char **argv)
             "archive payload\n");
     } else if (strcmp(argv[1], "control") == 0) {
         write_entry("line\nbreak", '0', NULL, 0644, "archive payload\n");
+    } else if (strcmp(argv[1], "symlink-control") == 0) {
+        write_entry("link", '2', "target\033control", 0777, NULL);
+    } else if (strcmp(argv[1], "hardlink-control") == 0) {
+        write_entry("link", '1', "target\ncontrol", 0644, NULL);
     } else if (strcmp(argv[1], "archive-symlink") == 0) {
         write_entry("pivot", '2', "inside", 0777, NULL);
         write_entry("pivot/from-archive", '0', NULL, 0644,
@@ -161,6 +165,15 @@ main(int argc, char **argv)
         write_entry("device", '3', NULL, 0600, NULL);
     } else if (strcmp(argv[1], "directory-data") == 0) {
         write_entry("directory", '5', NULL, 0755, "payload\n");
+    } else if (strcmp(argv[1], "zero-directories") == 0) {
+        write_entry("tree", '5', NULL, 0000, NULL);
+        write_entry("tree/sub", '5', NULL, 0000, NULL);
+        write_entry("tree/sub/file", '0', NULL, 0600, "payload\n");
+    } else if (strcmp(argv[1], "repeated-hardlink") == 0) {
+        write_entry("source", '0', NULL, 0644, "old payload\n");
+        write_entry("alias", '1', "source", 0644, NULL);
+        write_entry("source", '0', NULL, 0644, "new payload\n");
+        write_entry("alias2", '1', "alias", 0644, NULL);
     } else if (strcmp(argv[1], "bad-octal") == 0) {
         malformed_size_field = 1;
         write_entry("bad-size", '0', NULL, 0644, NULL);

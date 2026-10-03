@@ -107,6 +107,14 @@ extract_must_fail() {
 	fi
 }
 
+list_must_fail() {
+	case_name=$1
+	archive=$2
+	if "$TAR" tf "$archive" >"$case_name.out" 2>&1; then
+		fail "$case_name archive listing reported success"
+	fi
+}
+
 echo "tartest: extraction paths remain confined"
 mkdir -p security/dotdot/root security/dotdot/outside
 "$FIXTURE" dotdot > security/dotdot.tar
@@ -119,6 +127,11 @@ for scenario in dot empty-component control; do
 	"$FIXTURE" "$scenario" > "security/$scenario.tar"
 	extract_must_fail "$scenario" "$work/security/$scenario.tar" \
 	    "$work/security/$scenario/root"
+done
+
+for scenario in symlink-control hardlink-control; do
+	"$FIXTURE" "$scenario" > "security/$scenario.tar"
+	list_must_fail "$scenario" "$work/security/$scenario.tar"
 done
 
 mkdir -p security/absolute/root
@@ -237,8 +250,34 @@ mkdir -p restrictive-source/tree/sub restrictive-root
 printf 'payload\n' > restrictive-source/tree/sub/file
 (cd restrictive-source && "$TAR" cf ../restrictive.tar tree)
 (umask 0777; cd restrictive-root && "$TAR" xf ../restrictive.tar)
+chmod 0700 restrictive-root/tree
+chmod 0700 restrictive-root/tree/sub
 [ -f restrictive-root/tree/sub/file ] ||
     fail "restrictive umask blocked a streamed child"
+
+echo "tartest: extracted directories finish with their sanitized modes"
+mkdir -p mode-source/tree/sub mode-root
+printf 'payload\n' > mode-source/tree/sub/file
+chmod 0500 mode-source/tree mode-source/tree/sub
+(cd mode-source && "$TAR" cf ../mode.tar tree)
+(cd mode-root && "$TAR" xpf ../mode.tar)
+[ "$(LC_ALL=C ls -ld mode-root/tree | cut -c1-10)" = "dr-x------" ] ||
+    fail "-p did not restore the archived top-level directory mode"
+[ "$(LC_ALL=C ls -ld mode-root/tree/sub | cut -c1-10)" = "dr-x------" ] ||
+    fail "-p did not restore the archived nested directory mode"
+chmod 0700 mode-source/tree mode-source/tree/sub
+chmod 0700 mode-root/tree mode-root/tree/sub
+mkdir -p zero-mode-root
+"$FIXTURE" zero-directories > zero-mode.tar
+(cd zero-mode-root && "$TAR" xpf ../zero-mode.tar)
+[ "$(LC_ALL=C ls -ld zero-mode-root/tree | cut -c1-10)" = "d---------" ] ||
+    fail "-p did not restore a mode-zero top-level directory"
+chmod 0700 zero-mode-root/tree
+[ "$(LC_ALL=C ls -ld zero-mode-root/tree/sub | cut -c1-10)" = "d---------" ] ||
+    fail "-p did not restore a mode-zero nested directory"
+chmod 0700 zero-mode-root/tree/sub
+[ -f zero-mode-root/tree/sub/file ] ||
+    fail "mode-zero directory finalization lost a streamed child"
 
 echo "tartest: archive creation verifies source paths"
 mkdir -p create-source/root create-source/outside
@@ -259,6 +298,36 @@ printf 'trailing slash\n' > create-trailing/tree/payload
     fail "archive creation rejected a trailing slash"
 "$TAR" tf create-trailing.tar | grep -q '^tree/payload$' ||
     fail "trailing-slash input omitted its child"
+mkdir -p create-dot/source/tree create-dot/target
+printf 'dot operand\n' > create-dot/source/tree/payload
+(cd create-dot/source && "$TAR" cf - .) |
+    (cd create-dot/target && "$TAR" xpf -) ||
+    fail "the documented current-directory copy invocation failed"
+diff -r create-dot/source create-dot/target ||
+    fail "the current-directory copy invocation changed the tree"
+mkdir -p create-self
+printf 'bounded\n' > create-self/payload
+(cd create-self && "$TAR" cf archive.tar .) ||
+    fail "current-directory creation with an in-tree archive failed"
+"$TAR" tf create-self/archive.tar > create-self.list
+grep -q '^payload$' create-self.list ||
+    fail "current-directory creation omitted its payload"
+if grep -q '^archive.tar$' create-self.list; then
+	fail "current-directory creation archived its own growing output"
+fi
+mkdir -p create-links
+ln -s /etc/passwd create-links/absolute
+ln -s ../outside create-links/escape
+if (cd create-links &&
+    "$TAR" cf "$work/create-absolute-link.tar" absolute) \
+    >create-absolute-link.out 2>&1; then
+	fail "archive creation accepted an absolute symbolic-link target"
+fi
+if (cd create-links &&
+    "$TAR" cf "$work/create-escape-link.tar" escape) \
+    >create-escape-link.out 2>&1; then
+	fail "archive creation accepted an escaping symbolic-link target"
+fi
 if "$TAR" cf create-absolute.tar "$work/create-source/outside/payload" \
     >create-absolute.out 2>&1; then
 	fail "archive creation accepted an absolute input path"
@@ -270,6 +339,48 @@ if "$TAR" cf create-chdir.tar -C missing-directory payload \
     >create-chdir.out 2>&1; then
 	fail "archive creation reported success after a failed -C"
 fi
+
+echo "tartest: appended and updated members restore the last entry"
+mkdir -p repeated append-root update-root
+printf 'first\n' > repeated/member
+(cd repeated && "$TAR" cf ../append.tar member)
+printf 'appended\n' > repeated/member
+(cd repeated && "$TAR" rf ../append.tar member)
+(cd append-root && "$TAR" xf ../append.tar)
+grep -q '^appended$' append-root/member ||
+    fail "append extraction did not retain the last member"
+(cd repeated && "$TAR" cf ../update.tar member)
+printf 'updated\n' > repeated/member
+touch -t 203001010000 repeated/member
+(cd repeated && "$TAR" uf ../update.tar member)
+(cd update-root && "$TAR" xf ../update.tar)
+grep -q '^updated$' update-root/member ||
+    fail "update extraction did not retain the last member"
+mkdir -p repeated-hardlink-root
+"$FIXTURE" repeated-hardlink > repeated-hardlink.tar
+(cd repeated-hardlink-root && "$TAR" xf ../repeated-hardlink.tar)
+grep -q '^new payload$' repeated-hardlink-root/source ||
+    fail "repeated regular member did not replace its earlier inode"
+grep -q '^old payload$' repeated-hardlink-root/alias ||
+    fail "regular replacement changed an earlier hard-link alias"
+ls -li repeated-hardlink-root/alias repeated-hardlink-root/alias2 \
+    > repeated-hardlink.stat
+[ "$(awk '{print $1}' repeated-hardlink.stat | sort -u | wc -l)" -eq 1 ] ||
+    fail "replacement forgot a still-live extracted hard-link identity"
+
+echo "tartest: append retains a host archive's one-record block factor"
+mkdir -p block-factor
+printf 'first\n' > block-factor/first
+printf 'second\n' > block-factor/second
+(cd block-factor &&
+    "$HOSTTAR" ${HOSTFMT:+"$HOSTFMT"} -cf ../block-factor.tar -b 1 first)
+(cd block-factor && "$TAR" rf ../block-factor.tar second)
+"$TAR" tf block-factor.tar > block-factor.self-list
+"$HOSTTAR" tf block-factor.tar > block-factor.host-list
+for listing in block-factor.self-list block-factor.host-list; do
+	grep -q '^first$' "$listing" || fail "$listing omitted the first member"
+	grep -q '^second$' "$listing" || fail "$listing omitted the appended member"
+done
 
 #
 # ustar: the full tree, long path included.

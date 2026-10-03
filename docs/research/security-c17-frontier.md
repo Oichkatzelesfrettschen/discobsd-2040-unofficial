@@ -275,27 +275,36 @@ control-bearing and over-limit paths before selection or filesystem use. It
 accepts only regular files, directories, symbolic links and hard links, and
 requires non-regular members to carry zero data. Parent traversal compares
 `lstat` device and inode with `open` plus `fstat` before `fchdir`. Regular
-outputs use `O_EXCL`; ownership is not restored; setuid, setgid and sticky
-bits are stripped. A hard link can name only a safe relative regular-file
-identity created earlier in the same extraction, and an archive cannot retain
-special bits through that alias. A relative symbolic-link target can carry
-leading dot-dot components only while each one remains within the member's
-parent depth; dot-dot after a named component is rejected because intervening
-symbolic-link resolution defeats lexical reduction. Short writes complete or
-fail, each archive-buffer refill carries its own valid-record count, numeric
-fields reject invalid digits and overflow, and compressed reads drain the
-filter pipe before the child status reaches the final result.
+outputs use `O_EXCL`; a repeated regular member can replace only an inode
+recorded by the same extraction, so append and update archives retain their
+last-entry-wins contract without admitting a pre-existing victim. Ownership is
+not restored; setuid, setgid and sticky bits are stripped. Created directories
+retain owner traversal while children stream, then a depth-first metadata
+unwind applies the archived mode, filtered through the extraction umask unless
+`-p` requested exact permissions. A hard link can name only a safe relative
+regular-file identity created earlier in the same extraction, and an archive
+cannot retain special bits through that alias. A relative symbolic-link target
+can carry leading dot-dot components only while each one remains within the
+member's parent depth; dot-dot after a named component is rejected because
+intervening symbolic-link resolution defeats lexical reduction. Link fields
+receive the same control and path validation before table output. Short writes
+complete or fail, each archive-buffer refill carries its own valid-record
+count, numeric fields reject invalid digits and overflow, and compressed reads
+drain the filter pipe before the child status reaches the final result.
 
 Archive creation rejects absolute and dot-component inputs, normalizes trailing
-slashes, reports missing inputs and failed `-C` changes, and verifies each
-directory identity before entering it. A symlinked source parent remains
-rejected by default; explicit `-h` follows it while retaining the opened
-directory identity check. Update mode uses `mkstemp` and bounded linear parsing
-instead of `mktemp` plus an external shell pipeline and fixed-window binary
-search. The replacement removes a temporary sort, awk and move process set as
-well as the associated pathname races; update lookup is linear in the number
-of archive entries because the RP2040 image favors a small executable and
-bounded machinery over another resident index.
+slashes, treats an initial `.` as the current directory's children, and skips
+the output archive's captured inode if that file lies below the input root.
+Creation rejects any symbolic-link target that extraction would reject, reports
+missing inputs and failed `-C` changes, and verifies each directory identity
+before entering it. A symlinked source parent remains rejected by default;
+explicit `-h` follows it while retaining the opened directory identity check.
+Update mode uses `mkstemp` and bounded linear parsing instead of `mktemp` plus
+an external shell pipeline and fixed-window binary search. The replacement
+removes a temporary sort, awk and move process set as well as the associated
+pathname races; update lookup is linear in the number of archive entries
+because the RP2040 image favors a small executable and bounded machinery over
+another resident index.
 
 C17 still permits old-style function definitions as obsolescent syntax. The
 base file failed the repository's stricter contract because its K&R
@@ -320,38 +329,49 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,253 | +340 |
-| Source bytes | 48,416 | 66,563 | +18,147 |
-| Object text | 6,684 | 8,440 | +1,756 |
-| Object read-only data | 1,481 | 3,484 | +2,003 |
+| Source lines | 1,913 | 2,401 | +488 |
+| Source bytes | 48,416 | 71,893 | +23,477 |
+| Object text | 6,684 | 9,220 | +2,536 |
+| Object read-only data | 1,481 | 3,815 | +2,334 |
 | Object writable data | 260 | 58 | -202 |
-| Object BSS | 1,890 | 1,894 | +4 |
-| Final text | 23,630 | 26,224 | +2,594 |
+| Object BSS | 1,890 | 2,170 | +280 |
+| Final text | 23,630 | 27,304 | +3,674 |
 | Final data | 888 | 692 | -196 |
-| Final BSS | 3,648 | 3,648 | 0 |
-| Final a.out bytes | 24,552 | 26,948 | +2,396 |
-| Packed bytes | 20,366 | 21,894 | +1,528 |
-| Packed root blocks | 21 | 23 | +2 |
+| Final BSS | 3,648 | 3,924 | +276 |
+| Final a.out bytes | 24,552 | 28,028 | +3,476 |
+| Packed bytes | 20,366 | 22,770 | +2,404 |
+| Packed root blocks | 21 | 24 | +3 |
 | `putfile` frame per recursive level | 824 | 832 | +8 |
 | `dorep` frame | 552 | 808 | +256 |
-| `doxtract` frame | 56 | 224 | +168 |
+| `doxtract` frame | 56 | 288 | +232 |
 
-The fixed linked BSS remains flat and writable data falls by 196 bytes because
-mode-display tables moved to read-only storage and the update index disappeared.
-The creation frame grows by 256 bytes to normalize one maximum-width operand
-without mutating `argv`. Security checks cost two packed root blocks. Extraction
-keeps one 12-byte device, inode and next-pointer identity per regular file;
-the target allocator consumes 16 bytes including its header and alignment per
-identity. The list is freed at extraction completion. Refusing all hard links
-would remove that variable RAM cost but would break the maintained archive
-contract; accepting pre-existing sources would restore the vulnerability.
+Writable data falls by 196 bytes because mode-display tables moved to read-only
+storage and the update index disappeared. Linked BSS grows by 276 bytes: the
+dominant addition is a 129-entry `unsigned short` directory-mode stack. The
+stack holds only sanitized permission bits plus `USHRT_MAX`; narrowing the
+retained representation from target `mode_t` saves 258 bytes while widening
+back to `mode_t` at the `fchmod` boundary. The fixed directory-metadata storage
+lets extraction delay restrictive modes without retaining one heap node per
+directory record. The creation frame grows by 256 bytes to normalize one
+maximum-width operand without mutating `argv`. Security checks cost three
+packed root blocks. Extraction keeps one 12-byte device, inode and next-pointer
+identity per live extraction-created regular-file or directory inode,
+including implicitly created directories; the target allocator consumes 16
+bytes including its header and alignment per identity. Repeated records reuse
+the identity. Replacement forgets an unlinked inode unless another extracted
+hard link still
+names it. The live filesystem's inode capacity therefore bounds the list
+independently of archive record count. The list is freed at extraction
+completion. Refusing all hard links would remove that variable RAM cost but
+would break the maintained archive contract; accepting pre-existing sources
+would restore the vulnerability.
 
-Thirty warmed host runs over the 11 MiB root-tree archive measured listing at
-4.331 ms mean for both sources. Fifteen warmed extraction runs measured
-19.34 ms mean for the base and 33.43 ms for the repair, a 1.73x host-filesystem
-cost. Parent verification, exclusive creation, metadata revalidation and
-hard-link provenance explain the direction. These timings establish neither
-Cortex-M0+ latency nor board peak RAM.
+Thirty warmed host runs over the 10,823,680-byte root-tree archive measured
+listing at 9.44 ms mean for the base and 9.35 ms for the repair. Fifteen warmed
+extraction runs measured 41.65 ms mean for the base and 71.14 ms for the
+repair, a 1.71x host-filesystem cost. Parent verification, exclusive creation,
+metadata revalidation and hard-link provenance explain the direction. These
+timings establish neither Cortex-M0+ latency nor board peak RAM.
 
 The descriptor walk proves resistance to archive-controlled and pre-existing
 symlinks only while the directory namespace remains stable. DiscoBSD provides

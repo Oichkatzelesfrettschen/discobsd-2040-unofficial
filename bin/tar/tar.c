@@ -182,17 +182,24 @@ static void flushtape(void);
 static void mterr(const char *, ssize_t, int);
 static ssize_t bread(int, char *, size_t);
 static void getbuf(void);
-static void dodirtimes(char *);
+struct directory_metadata {
+    time_t modification_time;
+    mode_t mode;
+};
+
+static void storedirmetadata(char *, const struct directory_metadata *);
+static void setdirmetadata(char *, const struct directory_metadata *);
 static void setimes(char *, time_t);
 static void validate_archive_path(const char *);
 static void validate_symlink_target(const char *, const char *);
-static void open_verified_directory(const char *, mode_t, int, int, int);
+static int open_verified_directory(const char *, mode_t, int, int, int, int);
 static char *enter_parent_directories(int, char *, int, int);
 static int open_verified_regular(const char *, int);
 static int create_output_file(const char *, mode_t);
 static int write_all(int, const void *, size_t);
 static void record_extracted_file(int);
 static int was_extracted_file(const struct stat *);
+static void forget_extracted_file(const struct stat *);
 static void free_extracted_files(void);
 static _Noreturn void archive_error(const char *);
 static _Noreturn void archive_path_error(const char *, const char *);
@@ -243,6 +250,10 @@ static int prtlinkerr;
 static int freemem = 1;
 static int nblock;
 static int extraction_root_descriptor = -1;
+static mode_t extraction_creation_mask;
+static dev_t archive_device;
+static ino_t archive_inode;
+static int archive_identity_valid;
 static int operation_failed;
 
 static FILE *vfile;
@@ -477,6 +488,8 @@ usage(void)
 static int
 openmt(const char *tape, int writing)
 {
+    struct stat archive_status;
+
     if (strcmp(tape, "-") == 0) {
         /*
          * Read from standard input or write to standard output.
@@ -505,10 +518,19 @@ openmt(const char *tape, int writing)
                 mt = open(tape, O_RDWR);
         } else
             mt = open(tape, O_RDONLY);
-        if (mt < 0) {
-            fprintf(stderr, "tar: ");
-            perror(tape);
-            done(1);
+    }
+    if (mt < 0) {
+        fprintf(stderr, "tar: ");
+        perror(tape);
+        done(1);
+    }
+    if (writing) {
+        if (fstat(mt, &archive_status) < 0)
+            archive_path_error("fstat archive output", tape);
+        if (S_ISREG(archive_status.st_mode)) {
+            archive_device = archive_status.st_dev;
+            archive_inode = archive_status.st_ino;
+            archive_identity_valid = 1;
         }
     }
     if (zflag)
@@ -681,7 +703,8 @@ dorep(char **argv)
         while (operand_length > 1 &&
             creation_path[operand_length - 1] == '/')
             creation_path[--operand_length] = '\0';
-        validate_archive_path(creation_path);
+        if (strcmp(creation_path, ".") != 0)
+            validate_archive_path(creation_path);
         leaf_name = enter_parent_directories(archive_root_descriptor,
             creation_path, 0, hflag);
         (void)tarcwd(parent);
@@ -794,6 +817,10 @@ top:
         dblock.dbuf.linkflag != SYMTYPE &&
         dblock.dbuf.linkflag != DIRTYPE)
         archive_error("archive contains an unsupported file type");
+    if (dblock.dbuf.linkflag == LNKTYPE)
+        validate_archive_path(curlink);
+    if (dblock.dbuf.linkflag == SYMTYPE)
+        validate_symlink_target(curname, curlink);
     if (dblock.dbuf.linkflag != AREGTYPE &&
         dblock.dbuf.linkflag != REGTYPE && stbuf.st_size != 0)
         archive_error("non-regular archive member carries file data");
@@ -847,6 +874,7 @@ getmem(size_t size)
 static void
 putfile(char *longname, char *shortname, const char *parent)
 {
+    int archive_root_contents = strcmp(longname, ".") == 0;
     int infile = 0;
     off_t blocks;
     char buf[TBLOCK];
@@ -862,7 +890,8 @@ putfile(char *longname, char *shortname, const char *parent)
     size_t maxread;
     int hint;       /* amount to write to get "in sync" */
 
-    validate_archive_path(longname);
+    if (!archive_root_contents)
+        validate_archive_path(longname);
     if (!hflag)
         i = lstat(shortname, &stbuf);
     else
@@ -871,6 +900,13 @@ putfile(char *longname, char *shortname, const char *parent)
         fprintf(stderr, "tar: ");
         perror(longname);
         operation_failed = 1;
+        return;
+    }
+    if (archive_identity_valid && stbuf.st_dev == archive_device &&
+        stbuf.st_ino == archive_inode) {
+        if (vflag)
+            fprintf(vfile, "tar: %s is the archive; not dumped\n",
+                longname);
         return;
     }
     if (tfile != NULL && checkupdate(longname) == 0)
@@ -890,11 +926,16 @@ putfile(char *longname, char *shortname, const char *parent)
             operation_failed = 1;
             return;
         }
-        memcpy(buf, longname, directory_length);
-        buf[directory_length] = '/';
-        buf[directory_length + 1] = '\0';
-        cp = buf + directory_length + 1;
-        if (!oflag) {
+        if (archive_root_contents) {
+            buf[0] = '\0';
+            cp = buf;
+        } else {
+            memcpy(buf, longname, directory_length);
+            buf[directory_length] = '/';
+            buf[directory_length + 1] = '\0';
+            cp = buf + directory_length + 1;
+        }
+        if (!oflag && !archive_root_contents) {
             stbuf.st_size = 0;
             tomodes(&stbuf);
             if (putheader(buf, DIRTYPE) == 0)
@@ -906,7 +947,7 @@ putfile(char *longname, char *shortname, const char *parent)
             operation_failed = 1;
             return;
         }
-        open_verified_directory(shortname, 0, 1, 0, hflag);
+        open_verified_directory(shortname, 0, 1, 0, hflag, 0);
         if ((dirp = opendir(".")) == NULL) {
             fprintf(stderr, "tar: %s: directory read error\n",
                 longname);
@@ -978,15 +1019,16 @@ putfile(char *longname, char *shortname, const char *parent)
         }
         stbuf.st_size = 0;
         tomodes(&stbuf);
-        link_length = readlink(shortname, dblock.dbuf.linkname, NAMSIZ);
+        link_length = readlink(shortname, curlink, NAMSIZ);
         if (link_length < 0) {
             fprintf(stderr, "tar: can't read symbolic link ");
             perror(longname);
             operation_failed = 1;
             return;
         }
-        if (link_length < NAMSIZ)
-            dblock.dbuf.linkname[link_length] = '\0';
+        curlink[link_length] = '\0';
+        validate_symlink_target(longname, curlink);
+        memcpy(dblock.dbuf.linkname, curlink, (size_t)link_length);
         dblock.dbuf.linkflag = SYMTYPE;
         if (vflag)
             fprintf(vfile, "a %s symbolic link to %.*s\n",
@@ -1139,6 +1181,8 @@ doxtract(char **argv)
 {
     int selection;
 
+    extraction_creation_mask = umask(0);
+    (void)umask(extraction_creation_mask);
     extraction_root_descriptor = open(".", O_RDONLY);
     if (extraction_root_descriptor < 0)
         archive_path_error("open extraction root", ".");
@@ -1171,18 +1215,29 @@ doxtract(char **argv)
         leaf_name = enter_parent_directories(extraction_root_descriptor,
             curname, 1, 0);
         if (dblock.dbuf.linkflag == DIRTYPE) {
+            struct directory_metadata metadata;
             size_t path_length = strlen(curname);
+            int directory_owned;
 
-            open_verified_directory(leaf_name, stbuf.st_mode & 0777, 0, 1,
-                0);
-            if (mflag == 0) {
+            directory_owned = open_verified_directory(leaf_name,
+                stbuf.st_mode & 0777, 0, 1, 0, 1);
+            metadata.modification_time = stbuf.st_mtime;
+            metadata.mode = stbuf.st_mode & 0777;
+            if (!pflag)
+                metadata.mode &= ~extraction_creation_mask;
+            if (mflag != 0)
+                metadata.modification_time = (time_t)-1;
+            if (!directory_owned)
+                metadata.mode = (mode_t)-1;
+            if (metadata.modification_time != (time_t)-1 ||
+                metadata.mode != (mode_t)-1) {
                 if (path_length >= sizeof(curname) - 1) {
-                    archive_error("directory path exceeds timestamp stack");
+                    archive_error("directory path exceeds metadata stack");
                     return;
                 }
                 curname[path_length] = '/';
                 curname[path_length + 1] = '\0';
-                dodirtimes(curname);
+                storedirmetadata(curname, &metadata);
                 curname[path_length] = '\0';
             }
             continue;
@@ -1190,7 +1245,6 @@ doxtract(char **argv)
         if (dblock.dbuf.linkflag == SYMTYPE) {
             struct stat status;
 
-            validate_symlink_target(curname, curlink);
             if (lstat(leaf_name, &status) == 0 || errno != ENOENT)
                 archive_error("refusing to replace an existing output path");
             if (symlink(curlink, leaf_name) < 0)
@@ -1205,7 +1259,6 @@ doxtract(char **argv)
             struct stat source_status;
             struct stat output_status;
 
-            validate_archive_path(curlink);
             leaf_name = enter_parent_directories(extraction_root_descriptor,
                 curlink, 0, 0);
             source_descriptor = open_verified_regular(leaf_name, 1);
@@ -1268,10 +1321,8 @@ doxtract(char **argv)
         if (close(output_descriptor) < 0)
             archive_path_error("close output", curname);
     }
-    if (mflag == 0) {
-        curname[0] = '\0'; /* process the whole stack */
-        dodirtimes(curname);
-    }
+    curname[0] = '\0'; /* process the whole metadata stack */
+    storedirmetadata(curname, NULL);
     if (close(extraction_root_descriptor) < 0)
         archive_path_error("close extraction root", ".");
     extraction_root_descriptor = -1;
@@ -1462,9 +1513,10 @@ validate_symlink_target(const char *member, const char *target)
     }
 }
 
-static void
+static int
 open_verified_directory(const char *name, mode_t creation_mode,
-    int enter_directory, int create_missing, int follow_symlinks)
+    int enter_directory, int create_missing, int follow_symlinks,
+    int report_owned)
 {
     struct stat status;
     dev_t path_device;
@@ -1504,10 +1556,15 @@ open_verified_directory(const char *name, mode_t creation_mode,
     if (created && fchmod(descriptor,
         ((creation_mode & 0777) & ~creation_mask) | S_IRWXU) < 0)
         archive_path_error("set created directory mode", name);
+    if (created && extraction_root_descriptor >= 0)
+        record_extracted_file(descriptor);
+    if (!created && report_owned)
+        created = was_extracted_file(&status);
     if (enter_directory && fchdir(descriptor) < 0)
         archive_path_error("enter directory", name);
     if (close(descriptor) < 0)
         archive_path_error("close directory", name);
+    return created;
 }
 
 static char *
@@ -1524,7 +1581,7 @@ enter_parent_directories(int root_descriptor, char *path, int create_missing,
             continue;
         *cursor = '\0';
         open_verified_directory(component, 0777, 1, create_missing,
-            follow_symlinks);
+            follow_symlinks, 0);
         *cursor = '/';
         component = cursor + 1;
     }
@@ -1562,6 +1619,24 @@ create_output_file(const char *name, mode_t mode)
 {
     int descriptor = open(name, O_WRONLY | O_CREAT | O_EXCL, mode & 0777);
 
+    if (descriptor < 0 && errno == EEXIST) {
+        struct stat status;
+
+        if (lstat(name, &status) < 0)
+            archive_path_error("lstat repeated output", curname);
+        if (!S_ISREG(status.st_mode) || !was_extracted_file(&status))
+            archive_error("refusing to replace an existing output path");
+        if (unlink(name) < 0)
+            archive_path_error("unlink repeated output", curname);
+        /*
+         * An inode with another link remains an extraction-owned hard-link
+         * source. An unlinked single-name inode can be forgotten so repeated
+         * members do not grow the provenance list with dead identities.
+         */
+        if (status.st_nlink == 1)
+            forget_extracted_file(&status);
+        descriptor = open(name, O_WRONLY | O_CREAT | O_EXCL, mode & 0777);
+    }
     if (descriptor < 0)
         archive_path_error("create new output", curname);
     return descriptor;
@@ -1588,15 +1663,16 @@ write_all(int descriptor, const void *buffer, size_t byte_count)
 static void
 record_extracted_file(int descriptor)
 {
-    struct extracted_identity *identity = malloc(sizeof(*identity));
+    struct extracted_identity *identity;
     struct stat status;
 
+    if (fstat(descriptor, &status) < 0)
+        archive_path_error("fstat extracted file", curname);
+    identity = malloc(sizeof(*identity));
     if (identity == NULL) {
         archive_error("out of memory recording an extracted file");
         return;
     }
-    if (fstat(descriptor, &status) < 0)
-        archive_path_error("fstat extracted file", curname);
     identity->inode = status.st_ino;
     identity->device = status.st_dev;
     identity->next = extracted_files;
@@ -1614,6 +1690,24 @@ was_extracted_file(const struct stat *status)
             identity->device == status->st_dev)
             return 1;
     return 0;
+}
+
+static void
+forget_extracted_file(const struct stat *status)
+{
+    struct extracted_identity **link = &extracted_files;
+
+    while (*link != NULL) {
+        struct extracted_identity *identity = *link;
+
+        if (identity->inode == status->st_ino &&
+            identity->device == status->st_dev) {
+            *link = identity->next;
+            free(identity);
+            return;
+        }
+        link = &identity->next;
+    }
 }
 
 static void
@@ -2147,34 +2241,26 @@ getbuf(void)
 }
 
 /*
- * Save this directory and its mtime on the stack, popping and setting
- * the mtimes of any stacked dirs which aren't parents of this one.
- * A null directory causes the entire stack to be unwound and set.
- *
- * Since all the elements of the directory "stack" share a common
- * prefix, we can make do with one string.  We keep only the current
- * directory path, with an associated array of mtime's, one for each
- * '/' in the path.  A negative mtime means no mtime.  The mtime's are
- * offset by one (first index 1, not 0) because calling this with a null
- * directory causes mtime[0] to be set.
- *
- * This stack algorithm is not guaranteed to work for tapes created
- * with the 'r' option, but the vast majority of tapes with
- * directories are not.  This avoids saving every directory record on
- * the tape and setting all the times at the end.
+ * Hold directory metadata until all streamed children have been written.
+ * Created directories retain owner access during extraction; unwinding the
+ * stack applies the archived mode after descendant traversal is complete.
+ * One shared path and one metadata entry per slash bound storage by PATHSIZ.
  */
 static char dirstack[PATHSIZ];
 #define NTIM (PATHSIZ/2+1)      /* a/b/c/d/... */
-static time_t mtime[NTIM];
+static time_t dirmtime[NTIM];
+static unsigned short dirmode[NTIM];
 
 static void
-dodirtimes(char *name)
+storedirmetadata(char *name, const struct directory_metadata *metadata)
 {
     char *p = dirstack;
     char *q = name;
     int ndir = 0;
     char *savp;
+    char *end;
     int savndir;
+    int unwind_depth;
 
     /* Find common prefix */
     while (*p != '\0' && *p == *q) {
@@ -2185,17 +2271,28 @@ dodirtimes(char *name)
 
     savp = p;
     savndir = ndir;
-    while (*p) {
-        /*
-         * Not a child: unwind the stack, setting the times.
-         * The order we do this doesn't matter, so we go "forward."
-         */
-        if (*p++ == '/')
-            if (mtime[++ndir] >= 0) {
-                *--p = '\0';    /* zap the slash */
-                setimes(dirstack, mtime[ndir]);
-                *p++ = '/';
-            }
+    end = p;
+    unwind_depth = ndir;
+    while (*end != '\0') {
+        if (*end == '/')
+            unwind_depth++;
+        end++;
+    }
+    while (end > savp) {
+        end--;
+        if (*end != '/')
+            continue;
+        if (dirmtime[unwind_depth] != (time_t)-1 ||
+            dirmode[unwind_depth] != USHRT_MAX) {
+            struct directory_metadata saved_metadata;
+
+            saved_metadata.modification_time = dirmtime[unwind_depth];
+            saved_metadata.mode = (mode_t)dirmode[unwind_depth];
+            *end = '\0';
+            setdirmetadata(dirstack, &saved_metadata);
+            *end = '/';
+        }
+        unwind_depth--;
     }
     p = savp;
     ndir = savndir;
@@ -2204,13 +2301,64 @@ dodirtimes(char *name)
     while ((*p = *q++) != '\0') { /* append the rest of the new dir */
         if (*p++ == '/') {
             if (ndir >= NTIM - 1) {
-                archive_error("directory nesting exceeds timestamp stack");
+                archive_error("directory nesting exceeds metadata stack");
                 return;
             }
-            mtime[++ndir] = -1;
+            ndir++;
+            dirmtime[ndir] = (time_t)-1;
+            dirmode[ndir] = USHRT_MAX;
         }
     }
-    mtime[ndir] = stbuf.st_mtime;   /* overwrite the last one */
+    if (metadata != NULL) {
+        dirmtime[ndir] = metadata->modification_time;
+        dirmode[ndir] = metadata->mode == (mode_t)-1 ? USHRT_MAX :
+            (unsigned short)metadata->mode;
+    }
+}
+
+static void
+setdirmetadata(char *path, const struct directory_metadata *metadata)
+{
+    char *leaf_name;
+    struct stat path_status;
+    struct stat descriptor_status;
+    struct timeval tv[2];
+    int descriptor;
+
+    leaf_name = enter_parent_directories(extraction_root_descriptor,
+        path, 0, 0);
+    if (lstat(leaf_name, &path_status) < 0)
+        archive_path_error("lstat directory metadata target", path);
+    if (!S_ISDIR(path_status.st_mode))
+        archive_error("directory metadata target changed type");
+    descriptor = open(leaf_name, O_RDONLY | O_NONBLOCK);
+    if (descriptor < 0)
+        archive_path_error("open directory metadata target", path);
+    if (fstat(descriptor, &descriptor_status) < 0)
+        archive_path_error("fstat directory metadata target", path);
+    if (!S_ISDIR(descriptor_status.st_mode) ||
+        descriptor_status.st_dev != path_status.st_dev ||
+        descriptor_status.st_ino != path_status.st_ino)
+        archive_error("directory changed before metadata restoration");
+    if (metadata->modification_time != (time_t)-1) {
+        tv[0].tv_sec = time((time_t *)0);
+        tv[1].tv_sec = metadata->modification_time;
+        tv[0].tv_usec = tv[1].tv_usec = 0;
+        if (utimes(leaf_name, tv) < 0) {
+            int saved_errno = errno;
+
+            fprintf(stderr, "tar: cannot set modification time on %s: ",
+                path);
+            errno = saved_errno;
+            perror("");
+            operation_failed = 1;
+        }
+    }
+    if (metadata->mode != (mode_t)-1 &&
+        fchmod(descriptor, metadata->mode) < 0)
+        archive_path_error("set directory mode", path);
+    if (close(descriptor) < 0)
+        archive_path_error("close directory metadata target", path);
 }
 
 static void

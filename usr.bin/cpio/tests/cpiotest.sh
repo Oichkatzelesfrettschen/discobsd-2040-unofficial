@@ -23,9 +23,16 @@ if [ $# -ge 1 ]; then
 	CPIO=$1
 else
 	CPIO=$work/cpio
-	${CC:-cc} -std=gnu17 -O1 -w -o "$CPIO" "$srcdir/cpio.c" ||
+	${CC:-cc} -D_DEFAULT_SOURCE -DCPIO_PATH_LIMIT=256 -std=c17 -O1 \
+	    -Wall -Wextra -Werror \
+	    -Wpedantic -Wstrict-prototypes -Wold-style-definition \
+	    -fno-omit-frame-pointer -fsanitize=address,undefined \
+	    -o "$CPIO" "$srcdir/cpio.c" ||
 	    fail "host build of cpio.c"
 fi
+ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+export ASAN_OPTIONS UBSAN_OPTIONS
 echo "cpiotest: tool under test: $CPIO"
 
 # The reference is GNU cpio. Homebrew's formula is keg-only because macOS
@@ -54,6 +61,12 @@ echo "cpiotest: list"
 "$CPIO" -it < a.odc > a.list
 grep -q '^tree/odd2$' a.list || fail "tree/odd2 missing from the listing"
 
+mkdir table-execute-only
+chmod 0111 table-execute-only
+(cd table-execute-only && "$CPIO" -it) < a.odc > execute-only.list
+chmod 0700 table-execute-only
+cmp a.list execute-only.list || fail "listing required read access to cwd"
+
 echo "cpiotest: extract by the tool under test"
 mkdir -p x-self
 (cd x-self && "$CPIO" -id < ../a.odc)
@@ -70,5 +83,235 @@ find tree | "$HOSTCPIO" -o -H odc > h.odc 2>/dev/null
 mkdir -p x-back
 (cd x-back && "$CPIO" -id < ../h.odc)
 diff -r tree x-back/tree || fail "reading the host cpio archive differs"
+
+make_single_file_archive() {
+	archive_file=$1
+	entry_name=$2
+	entry_data=$3
+	entry_mode=${4:-0100644}
+	entry_name_size=$((${#entry_name} + 1))
+	entry_data_size=${#entry_data}
+	{
+		printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+		    0 0 "$entry_mode" 0 0 1 0 0 "$entry_name_size" \
+		    "$entry_data_size"
+		printf '%s\000%s' "$entry_name" "$entry_data"
+		printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+		    0 0 0 0 0 1 0 0 11 0
+		printf 'TRAILER!!!\000'
+	} > "$archive_file"
+}
+
+expect_rejected_archive() {
+	archive_file=$1
+	extraction_directory=$2
+	label=$3
+	if (cd "$extraction_directory" && "$CPIO" -id < "$archive_file" \
+	    > stdout 2> stderr); then
+		fail "$label archive reported success"
+	fi
+}
+
+expect_rejected_listing() {
+	archive_file=$1
+	label=$2
+	if "$CPIO" -it < "$archive_file" > listing 2> listing-error; then
+		fail "$label listing reported success"
+	fi
+	[ ! -s listing ] || fail "$label listing emitted an unsafe name"
+}
+
+write_archive_header() {
+	entry_name=$1
+	entry_data=$2
+	entry_mode=$3
+	printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+	    0 0 "$entry_mode" 0 0 1 0 0 $((${#entry_name} + 1)) \
+	    "${#entry_data}"
+	printf '%s\000%s' "$entry_name" "$entry_data"
+}
+
+echo "cpiotest: reject extraction escapes and existing targets"
+mkdir x-absolute
+absolute_victim=$work/absolute-victim
+make_single_file_archive "$work/absolute.odc" "$absolute_victim" replaced
+expect_rejected_archive "$work/absolute.odc" "$work/x-absolute" absolute
+[ ! -e "$absolute_victim" ] || fail "absolute archive escaped extraction root"
+
+mkdir x-dotdot
+dotdot_victim=$work/dotdot-victim
+make_single_file_archive "$work/dotdot.odc" ../dotdot-victim replaced
+expect_rejected_archive "$work/dotdot.odc" "$work/x-dotdot" dotdot
+[ ! -e "$dotdot_victim" ] || fail "dotdot archive escaped extraction root"
+
+mkdir -p x-prefix
+ln -s .. x-prefix/link
+prefix_victim=$work/prefix-victim
+make_single_file_archive "$work/prefix.odc" link/prefix-victim replaced
+expect_rejected_archive "$work/prefix.odc" "$work/x-prefix" symlink-prefix
+[ ! -e "$prefix_victim" ] || fail "symlink prefix escaped extraction root"
+
+mkdir x-final
+printf '%s\n' preserved > final-victim
+ln -s ../final-victim x-final/victim
+make_single_file_archive "$work/final.odc" victim replaced
+expect_rejected_archive "$work/final.odc" "$work/x-final" symlink-final
+grep -q '^preserved$' final-victim || fail "final symlink target changed"
+
+mkdir x-existing
+printf '%s\n' preserved > x-existing/victim
+make_single_file_archive "$work/existing.odc" victim replaced
+expect_rejected_archive "$work/existing.odc" "$work/x-existing" existing-file
+grep -q '^preserved$' x-existing/victim || fail "existing file changed"
+
+mkdir x-empty-component
+make_single_file_archive "$work/empty-component.odc" dir//victim replaced
+expect_rejected_archive "$work/empty-component.odc" \
+    "$work/x-empty-component" empty-component
+
+mkdir x-dot-component
+make_single_file_archive "$work/dot-component.odc" ./victim replaced
+expect_rejected_archive "$work/dot-component.odc" \
+    "$work/x-dot-component" dot-component
+
+mkdir x-unsupported
+make_single_file_archive "$work/unsupported.odc" victim target 0120777
+expect_rejected_archive "$work/unsupported.odc" \
+    "$work/x-unsupported" unsupported-type
+[ ! -e x-unsupported/victim ] || fail "unsupported entry created a target"
+expect_rejected_listing "$work/unsupported.odc" unsupported-type
+
+mkdir x-directory-data
+make_single_file_archive "$work/directory-data.odc" directory x 040755
+expect_rejected_archive "$work/directory-data.odc" \
+    "$work/x-directory-data" directory-data
+expect_rejected_listing "$work/directory-data.odc" directory-data
+
+mkdir x-special-mode
+make_single_file_archive "$work/special-mode.odc" privileged '' 0106755
+(cd x-special-mode && "$CPIO" -id < "$work/special-mode.odc")
+[ ! -u x-special-mode/privileged ] || fail "archive retained setuid mode"
+[ ! -g x-special-mode/privileged ] || fail "archive retained setgid mode"
+
+cp "$work/existing.odc" "$work/invalid-octal.odc"
+printf '8' | dd of="$work/invalid-octal.odc" bs=1 seek=59 conv=notrunc \
+    2>/dev/null
+mkdir x-invalid-octal
+expect_rejected_archive "$work/invalid-octal.odc" \
+    "$work/x-invalid-octal" invalid-octal
+
+{
+	printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+	    0 0 0100644 0 0 1 0 0 7 0
+	printf 'victimX'
+} > "$work/missing-terminator.odc"
+mkdir x-missing-terminator
+expect_rejected_archive "$work/missing-terminator.odc" \
+    "$work/x-missing-terminator" missing-terminator
+
+{
+	printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+	    0 0 0100644 0 0 1 0 0 9 0
+	printf 'bad\000tail\000'
+} > "$work/embedded-terminator.odc"
+mkdir x-embedded-terminator
+expect_rejected_archive "$work/embedded-terminator.odc" \
+    "$work/x-embedded-terminator" embedded-terminator
+
+{
+	printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+	    0 0 0100644 0 0 1 0 0 7 0
+	printf 'victim\000'
+} > "$work/missing-trailer.odc"
+mkdir x-missing-trailer
+expect_rejected_archive "$work/missing-trailer.odc" \
+    "$work/x-missing-trailer" missing-trailer
+
+echo "cpiotest: retain owner traversal for created directories"
+{
+	write_archive_header locked '' 040000
+	write_archive_header locked/child x 0100600
+	printf '070707%06o%06o%06o%06o%06o%06o%06o%011o%06o%011o' \
+	    0 0 0 0 0 1 0 0 11 0
+	printf 'TRAILER!!!\000'
+} > "$work/owner-traversal.odc"
+mkdir x-owner-traversal
+(umask 0777; cd x-owner-traversal &&
+    "$CPIO" -id < "$work/owner-traversal.odc")
+[ -f x-owner-traversal/locked/child ] ||
+    fail "umask blocked traversal through a created directory"
+chmod 0600 x-owner-traversal/locked/child
+[ "$(cat x-owner-traversal/locked/child)" = x ] ||
+    fail "created descendant payload differs"
+
+newline_name=$(printf 'forged\nentry')
+make_single_file_archive "$work/newline.odc" "$newline_name" replaced
+expect_rejected_listing "$work/newline.odc" newline
+
+escape_name=$(printf 'forged\033[2Jentry')
+make_single_file_archive "$work/escape.odc" "$escape_name" replaced
+expect_rejected_listing "$work/escape.odc" escape
+
+echo "cpiotest: reject archive creation through symlinks"
+printf '%s\n' preserved > archive-source
+ln -s archive-source archive-link
+if printf '%s\n' archive-link | "$CPIO" -o > symlink.odc 2> symlink-error; then
+	fail "symlink archive input reported success"
+fi
+[ ! -s symlink.odc ] || fail "symlink archive input produced an archive"
+
+mkdir archive-parent-real
+printf '%s\n' outside > archive-parent-real/secret
+ln -s archive-parent-real archive-parent-link
+if printf '%s\n' archive-parent-link/secret | "$CPIO" -o \
+    > symlink-parent.odc 2> symlink-parent-error; then
+	fail "symlinked archive parent reported success"
+fi
+[ ! -s symlink-parent.odc ] ||
+    fail "symlinked archive parent disclosed an outside file"
+
+long_name=$(printf '%0255d' 0 | tr 0 x)
+printf '%s\n' boundary > "$long_name"
+{
+	printf '%s' "$long_name"
+	sleep 1
+	printf '\n'
+} | "$CPIO" -o > max-name.odc
+printf '%s\n' "$long_name" > max-name.expected
+"$CPIO" -it < max-name.odc > max-name.actual
+cmp max-name.expected max-name.actual ||
+    fail "MAXPATHLEN pathname failed archive round trip"
+
+printf '%s' "$long_name" | "$CPIO" -o > max-name-eof.odc
+"$CPIO" -it < max-name-eof.odc > max-name-eof.actual
+cmp max-name.expected max-name-eof.actual ||
+    fail "MAXPATHLEN pathname at EOF failed archive round trip"
+
+overlong_name=$(printf '%0256d' 0 | tr 0 y)
+if printf '%s\n' "$overlong_name" | "$CPIO" -o \
+    > overlong-name.odc 2> overlong-name-error; then
+	fail "overlong archive pathname reported success"
+fi
+[ ! -s overlong-name.odc ] ||
+    fail "overlong archive pathname produced an archive"
+
+if printf 'archive-source\000suffix\n' | "$CPIO" -o \
+    > nul-name.odc 2> nul-name-error; then
+	fail "NUL-bearing archive pathname reported success"
+fi
+[ ! -s nul-name.odc ] ||
+    fail "NUL-bearing archive pathname produced an archive"
+
+if printf '%s\n' "$work/archive-source" | "$CPIO" -o \
+    > absolute-output.odc 2> absolute-output-error; then
+	fail "absolute archive input reported success"
+fi
+[ ! -s absolute-output.odc ] || fail "absolute input produced an archive"
+
+if printf '%s\n' missing-input | "$CPIO" -o \
+    > missing-output.odc 2> missing-output-error; then
+	fail "missing archive input reported success"
+fi
+[ ! -s missing-output.odc ] || fail "missing input produced an archive"
 
 echo "cpiotest: PASS"

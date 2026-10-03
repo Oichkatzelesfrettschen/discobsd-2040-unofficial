@@ -182,6 +182,16 @@ main(int argc, char **argv)
         write_entry("alias", '1', "source", 0644, NULL);
         write_entry("source", '0', NULL, 0644, "new payload\n");
         write_entry("alias2", '1', "alias", 0644, NULL);
+    } else if (strcmp(argv[1], "repeated-symlink") == 0) {
+        write_entry("link", '2', "first", 0777, NULL);
+        write_entry("link", '2', "second", 0777, NULL);
+    } else if (strcmp(argv[1], "directory-revisit") == 0) {
+        write_entry("locked", '5', NULL, 0000, NULL);
+        write_entry("other", '5', NULL, 0700, NULL);
+        write_entry("locked/file", '0', NULL, 0600, "payload\n");
+    } else if (strcmp(argv[1], "implicit-parent") == 0) {
+        write_entry("implicit/nested/file", '0', NULL, 0600,
+            "payload\n");
     } else if (strcmp(argv[1], "bad-octal") == 0) {
         malformed_size_field = 1;
         write_entry("bad-size", '0', NULL, 0644, NULL);

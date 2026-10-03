@@ -279,6 +279,48 @@ chmod 0700 zero-mode-root/tree/sub
 [ -f zero-mode-root/tree/sub/file ] ||
     fail "mode-zero directory finalization lost a streamed child"
 
+echo "tartest: directory metadata survives noncontiguous members"
+mkdir -p directory-revisit-root
+"$FIXTURE" directory-revisit > directory-revisit.tar
+(cd directory-revisit-root && "$TAR" xpf ../directory-revisit.tar)
+[ "$(LC_ALL=C ls -ld directory-revisit-root/locked | cut -c1-10)" = \
+    "d---------" ] || fail "revisited directory lost its final mode"
+chmod 0700 directory-revisit-root/locked
+grep -q '^payload$' directory-revisit-root/locked/file ||
+    fail "revisited restrictive directory lost its later member"
+
+echo "tartest: implicit parents finish with umask-derived modes"
+mkdir -p implicit-parent-root
+"$FIXTURE" implicit-parent > implicit-parent.tar
+(umask 0777; cd implicit-parent-root && "$TAR" xf ../implicit-parent.tar)
+[ "$(LC_ALL=C ls -ld implicit-parent-root/implicit | cut -c1-10)" = \
+    "d---------" ] || fail "implicit top-level parent retained temporary mode"
+chmod 0700 implicit-parent-root/implicit
+[ "$(LC_ALL=C ls -ld implicit-parent-root/implicit/nested | cut -c1-10)" = \
+    "d---------" ] || fail "implicit nested parent retained temporary mode"
+chmod 0700 implicit-parent-root/implicit/nested
+[ -f implicit-parent-root/implicit/nested/file ] ||
+    fail "implicit-parent finalization lost the extracted member"
+
+echo "tartest: repeated symbolic-link members retain the last target"
+mkdir -p repeated-symlink-root
+"$FIXTURE" repeated-symlink > repeated-symlink.tar
+(cd repeated-symlink-root && "$TAR" xf ../repeated-symlink.tar)
+[ "$(readlink repeated-symlink-root/link)" = "second" ] ||
+    fail "repeated symbolic link did not retain its last target"
+
+echo "tartest: write-and-search-only extraction root"
+mkdir -p search-only-root
+"$FIXTURE" implicit-parent > search-only.tar
+chmod 0300 search-only-root
+if ! (cd search-only-root && "$TAR" xf ../search-only.tar); then
+    chmod 0700 search-only-root
+    fail "write-and-search-only extraction root was rejected"
+fi
+chmod 0700 search-only-root
+grep -q '^payload$' search-only-root/implicit/nested/file ||
+    fail "write-and-search-only extraction omitted its member"
+
 echo "tartest: archive creation verifies source paths"
 mkdir -p create-source/root create-source/outside
 printf 'outside\n' > create-source/outside/payload

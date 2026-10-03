@@ -129,6 +129,23 @@ struct extracted_identity {
 };
 
 /*
+ * Regular-file and symbolic-link provenance use separate identity lists so
+ * each target allocation remains 16 bytes including its allocator header.
+ * Directories additionally retain final metadata by inode, allowing a later
+ * noncontiguous member to reopen a restrictive directory with temporary owner
+ * access and then restore the sanitized mode. The mode needs only nine bits;
+ * USHRT_MAX represents an existing directory whose mode tar must preserve.
+ */
+struct extracted_directory {
+    ino_t inode;
+    dev_t device;
+    struct extracted_directory *next;
+    time_t directory_modification_time;
+    unsigned short directory_mode;
+    unsigned char owned;
+};
+
+/*
  * The node holds a pointer to its path rather than the path, so it stays
  * narrower than the header's own name field. bin/tar/tests/tartest.sh
  * measures the list against many live link identities.
@@ -141,6 +158,18 @@ static union hblock *tbuf;
 static struct linkbuf *ihead;
 static struct stat stbuf;
 static struct extracted_identity *extracted_files;
+static struct extracted_identity *extracted_symlinks;
+static struct extracted_directory *extracted_directories;
+/*
+ * The inode-keyed directory list remains authoritative across noncontiguous
+ * archive members. This bounded prefix cache write-combines metadata updates:
+ * a streamed run applies modes and timestamps only when its directory prefix
+ * changes, rather than reopening every ancestor after every file.
+ */
+static char dirstack[PATHSIZ];
+#define NTIM (PATHSIZ / 2 + 1)
+static time_t dirmtime[NTIM];
+static unsigned short dirmode[NTIM];
 
 static void usage(void);
 static int openmt(const char *, int);
@@ -189,17 +218,31 @@ struct directory_metadata {
 
 static void storedirmetadata(char *, const struct directory_metadata *);
 static void setdirmetadata(char *, const struct directory_metadata *);
+static void setdirmetadata_at_parent(const char *, const char *,
+    const struct stat *, const struct directory_metadata *);
 static void setimes(char *, time_t);
 static void validate_archive_path(const char *);
 static void validate_symlink_target(const char *, const char *);
-static int open_verified_directory(const char *, mode_t, int, int, int, int);
+static void restore_directory_root(int);
+static int open_verified_directory(const char *, mode_t, int, int, int, int,
+    struct extracted_directory **);
 static char *enter_parent_directories(int, char *, int, int);
+static char *enter_parent_directories_raw(int, char *, int, int, int);
 static int open_verified_regular(const char *, int);
 static int create_output_file(const char *, mode_t);
 static int write_all(int, const void *, size_t);
 static void record_extracted_file(int);
+static void record_extracted_symlink(const char *);
+static void record_directory_metadata(const char *, int,
+    const struct directory_metadata *);
+static struct extracted_identity *find_extracted_identity(
+    struct extracted_identity *, const struct stat *);
+static struct extracted_directory *find_extracted_directory(
+    const struct stat *);
 static int was_extracted_file(const struct stat *);
+static int was_extracted_symlink(const struct stat *);
 static void forget_extracted_file(const struct stat *);
+static void forget_extracted_symlink(const struct stat *);
 static void free_extracted_files(void);
 static _Noreturn void archive_error(const char *);
 static _Noreturn void archive_path_error(const char *, const char *);
@@ -251,6 +294,7 @@ static int prtlinkerr;
 static int freemem = 1;
 static int nblock;
 static int extraction_root_descriptor = -1;
+static int extraction_depth;
 static mode_t extraction_creation_mask;
 static dev_t archive_device;
 static ino_t archive_inode;
@@ -948,7 +992,7 @@ putfile(char *longname, char *shortname, const char *parent)
             operation_failed = 1;
             return;
         }
-        open_verified_directory(shortname, 0, 1, 0, hflag, 0);
+        open_verified_directory(shortname, 0, 1, 0, hflag, 0, NULL);
         if ((dirp = opendir(".")) == NULL) {
             fprintf(stderr, "tar: %s: directory read error\n",
                 longname);
@@ -1184,9 +1228,10 @@ doxtract(char **argv)
 
     extraction_creation_mask = umask(0);
     (void)umask(extraction_creation_mask);
-    extraction_root_descriptor = open(".", O_RDONLY);
-    if (extraction_root_descriptor < 0)
-        archive_path_error("open extraction root", ".");
+    extraction_root_descriptor = open(".", O_RDONLY | O_NONBLOCK);
+    if (extraction_root_descriptor < 0 && chdir(".") < 0)
+        archive_path_error("enter extraction root", ".");
+    extraction_depth = 0;
 
     for (;;) {
         char *leaf_name;
@@ -1217,11 +1262,10 @@ doxtract(char **argv)
             curname, 1, 0);
         if (dblock.dbuf.linkflag == DIRTYPE) {
             struct directory_metadata metadata;
-            size_t path_length = strlen(curname);
             int directory_owned;
 
             directory_owned = open_verified_directory(leaf_name,
-                stbuf.st_mode & 0777, 0, 1, 0, 1);
+                stbuf.st_mode & 0777, 0, 1, 0, 1, NULL);
             metadata.modification_time = stbuf.st_mtime;
             metadata.mode = stbuf.st_mode & 0777;
             if (!pflag)
@@ -1230,26 +1274,37 @@ doxtract(char **argv)
                 metadata.modification_time = (time_t)-1;
             if (!directory_owned)
                 metadata.mode = (mode_t)-1;
-            if (metadata.modification_time != (time_t)-1 ||
-                metadata.mode != (mode_t)-1) {
+            record_directory_metadata(leaf_name, directory_owned, &metadata);
+            {
+                size_t path_length = strlen(curname);
+
                 if (path_length >= sizeof(curname) - 1) {
                     archive_error("directory path exceeds metadata stack");
-                    return;
+                } else {
+                    curname[path_length] = '/';
+                    curname[path_length + 1] = '\0';
+                    storedirmetadata(curname, &metadata);
+                    curname[path_length] = '\0';
                 }
-                curname[path_length] = '/';
-                curname[path_length + 1] = '\0';
-                storedirmetadata(curname, &metadata);
-                curname[path_length] = '\0';
             }
             continue;
         }
         if (dblock.dbuf.linkflag == SYMTYPE) {
             struct stat status;
 
-            if (lstat(leaf_name, &status) == 0 || errno != ENOENT)
-                archive_error("refusing to replace an existing output path");
+            if (lstat(leaf_name, &status) == 0) {
+                if (!was_extracted_symlink(&status))
+                    archive_error("refusing to replace an existing output path");
+                if (unlink(leaf_name) < 0)
+                    archive_path_error("unlink repeated symbolic link",
+                        curname);
+                forget_extracted_symlink(&status);
+            } else if (errno != ENOENT) {
+                archive_path_error("lstat symbolic-link output", curname);
+            }
             if (symlink(curlink, leaf_name) < 0)
                 archive_path_error("create symbolic link", curname);
+            record_extracted_symlink(leaf_name);
             if (vflag)
                 fprintf(vfile, "x %s symbolic link to %s\n",
                     curname, curlink);
@@ -1275,8 +1330,7 @@ doxtract(char **argv)
                 curname, 1, 0);
             if (lstat(leaf_name, &output_status) == 0 || errno != ENOENT)
                 archive_error("refusing to replace an existing output path");
-            if (fchdir(extraction_root_descriptor) < 0)
-                archive_path_error("restore extraction root", ".");
+            restore_directory_root(extraction_root_descriptor);
             if (link(curlink, curname) < 0) {
                 archive_path_error("create hard link", curname);
             }
@@ -1322,9 +1376,11 @@ doxtract(char **argv)
         if (close(output_descriptor) < 0)
             archive_path_error("close output", curname);
     }
-    curname[0] = '\0'; /* process the whole metadata stack */
+    curname[0] = '\0';
     storedirmetadata(curname, NULL);
-    if (close(extraction_root_descriptor) < 0)
+    restore_directory_root(extraction_root_descriptor);
+    if (extraction_root_descriptor >= 0 &&
+        close(extraction_root_descriptor) < 0)
         archive_path_error("close extraction root", ".");
     extraction_root_descriptor = -1;
     free_extracted_files();
@@ -1514,11 +1570,35 @@ validate_symlink_target(const char *member, const char *target)
     }
 }
 
+static void
+restore_directory_root(int root_descriptor)
+{
+    if (root_descriptor >= 0) {
+        if (fchdir(root_descriptor) < 0)
+            archive_path_error("restore directory root", ".");
+        return;
+    }
+    /*
+     * DiscoBSD O_RDONLY checks directory read permission. A caller needs only
+     * write and search permission to extract, so a root descriptor can be
+     * unavailable even though traversal is valid. Verified child directories
+     * contain no followed symlink, making one ".." per entered component the
+     * bounded fallback under the documented stable-namespace requirement.
+     */
+    while (extraction_depth > 0) {
+        if (chdir("..") < 0)
+            archive_path_error("ascend to extraction root", "..");
+        extraction_depth--;
+    }
+}
+
 static int
 open_verified_directory(const char *name, mode_t creation_mode,
     int enter_directory, int create_missing, int follow_symlinks,
-    int report_owned)
+    int report_owned, struct extracted_directory **directory_result)
 {
+    struct extracted_directory *directory;
+    struct directory_metadata metadata;
     struct stat status;
     dev_t path_device;
     ino_t path_inode;
@@ -1544,6 +1624,14 @@ open_verified_directory(const char *name, mode_t creation_mode,
     }
     if (!S_ISDIR(status.st_mode))
         archive_error("path contains a non-directory component");
+    directory = find_extracted_directory(&status);
+    if (!created && directory != NULL && directory->owned != 0 &&
+        (status.st_mode & S_IRWXU) != S_IRWXU) {
+        if (chmod(name, status.st_mode | S_IRWXU) < 0)
+            archive_path_error("retain owner directory access", name);
+        if (lstat(name, &status) < 0)
+            archive_path_error("lstat reopened directory", name);
+    }
     path_device = status.st_dev;
     path_inode = status.st_ino;
     descriptor = open(name, O_RDONLY | O_NONBLOCK);
@@ -1557,10 +1645,19 @@ open_verified_directory(const char *name, mode_t creation_mode,
     if (created && fchmod(descriptor,
         ((creation_mode & 0777) & ~creation_mask) | S_IRWXU) < 0)
         archive_path_error("set created directory mode", name);
-    if (created && extraction_root_descriptor >= 0)
-        record_extracted_file(descriptor);
-    if (!created && report_owned)
-        created = was_extracted_file(&status);
+    if (created) {
+        metadata.modification_time = (time_t)-1;
+        metadata.mode = (creation_mode & 0777) & ~creation_mask;
+        record_directory_metadata(name, 1, &metadata);
+    } else if (report_owned) {
+        directory = find_extracted_directory(&status);
+        created = directory != NULL && directory->owned != 0;
+    }
+    if (directory_result != NULL) {
+        if (directory == NULL)
+            directory = find_extracted_directory(&status);
+        *directory_result = directory;
+    }
     if (enter_directory && fchdir(descriptor) < 0)
         archive_path_error("enter directory", name);
     if (close(descriptor) < 0)
@@ -1572,17 +1669,50 @@ static char *
 enter_parent_directories(int root_descriptor, char *path, int create_missing,
     int follow_symlinks)
 {
+    char *last_separator = strrchr(path, '/');
+
+    if (last_separator == NULL) {
+        storedirmetadata("", NULL);
+    } else {
+        char saved = last_separator[1];
+
+        last_separator[1] = '\0';
+        storedirmetadata(path, NULL);
+        last_separator[1] = saved;
+    }
+    return enter_parent_directories_raw(root_descriptor, path,
+        create_missing, follow_symlinks, 1);
+}
+
+static char *
+enter_parent_directories_raw(int root_descriptor, char *path,
+    int create_missing, int follow_symlinks, int update_metadata)
+{
     char *component = path;
     char *cursor;
+    int depth = 0;
 
-    if (fchdir(root_descriptor) < 0)
-        archive_path_error("restore extraction root", ".");
+    restore_directory_root(root_descriptor);
     for (cursor = path; *cursor != '\0'; cursor++) {
+        struct extracted_directory *directory = NULL;
+
         if (*cursor != '/')
             continue;
         *cursor = '\0';
         open_verified_directory(component, 0777, 1, create_missing,
-            follow_symlinks, 0);
+            follow_symlinks, 0, &directory);
+        if (root_descriptor < 0)
+            extraction_depth++;
+        depth++;
+        if (update_metadata) {
+            if (depth >= NTIM)
+                archive_error("directory nesting exceeds metadata stack");
+            if (directory != NULL) {
+                dirmtime[depth] =
+                    directory->directory_modification_time;
+                dirmode[depth] = directory->directory_mode;
+            }
+        }
         *cursor = '/';
         component = cursor + 1;
     }
@@ -1662,41 +1792,120 @@ write_all(int descriptor, const void *buffer, size_t byte_count)
 }
 
 static void
-record_extracted_file(int descriptor)
+record_extracted_identity(struct extracted_identity **list,
+    const struct stat *status)
 {
     struct extracted_identity *identity;
+
+    if (find_extracted_identity(*list, status) != NULL)
+        return;
+    identity = malloc(sizeof(*identity));
+    if (identity == NULL) {
+        archive_error("out of memory recording an extracted object");
+        return;
+    }
+    identity->inode = status->st_ino;
+    identity->device = status->st_dev;
+    identity->next = *list;
+    *list = identity;
+}
+
+static struct extracted_identity *
+find_extracted_identity(struct extracted_identity *list,
+    const struct stat *status)
+{
+    struct extracted_identity *identity;
+
+    for (identity = list; identity != NULL; identity = identity->next)
+        if (identity->inode == status->st_ino &&
+            identity->device == status->st_dev)
+            return identity;
+    return NULL;
+}
+
+static struct extracted_directory *
+find_extracted_directory(const struct stat *status)
+{
+    struct extracted_directory *directory;
+
+    for (directory = extracted_directories; directory != NULL;
+        directory = directory->next)
+        if (directory->inode == status->st_ino &&
+            directory->device == status->st_dev)
+            return directory;
+    return NULL;
+}
+
+static void
+record_extracted_file(int descriptor)
+{
     struct stat status;
 
     if (fstat(descriptor, &status) < 0)
         archive_path_error("fstat extracted file", curname);
-    identity = malloc(sizeof(*identity));
-    if (identity == NULL) {
-        archive_error("out of memory recording an extracted file");
-        return;
+    record_extracted_identity(&extracted_files, &status);
+}
+
+static void
+record_extracted_symlink(const char *name)
+{
+    struct stat status;
+
+    if (lstat(name, &status) < 0)
+        archive_path_error("lstat extracted symbolic link", curname);
+    if (!S_ISLNK(status.st_mode))
+        archive_error("symbolic-link output changed type");
+    record_extracted_identity(&extracted_symlinks, &status);
+}
+
+static void
+record_directory_metadata(const char *name, int owned,
+    const struct directory_metadata *metadata)
+{
+    struct extracted_directory *directory;
+    struct stat status;
+
+    if (lstat(name, &status) < 0)
+        archive_path_error("lstat extracted directory", curname);
+    if (!S_ISDIR(status.st_mode))
+        archive_error("directory output changed type");
+    directory = find_extracted_directory(&status);
+    if (directory == NULL) {
+        directory = malloc(sizeof(*directory));
+        if (directory == NULL) {
+            archive_error("out of memory recording directory metadata");
+            return;
+        }
+        directory->inode = status.st_ino;
+        directory->device = status.st_dev;
+        directory->next = extracted_directories;
+        directory->owned = owned != 0;
+        extracted_directories = directory;
+    } else if (owned) {
+        directory->owned = 1;
     }
-    identity->inode = status.st_ino;
-    identity->device = status.st_dev;
-    identity->next = extracted_files;
-    extracted_files = identity;
+    directory->directory_modification_time = metadata->modification_time;
+    directory->directory_mode = metadata->mode == (mode_t)-1 ? USHRT_MAX :
+        (unsigned short)metadata->mode;
 }
 
 static int
 was_extracted_file(const struct stat *status)
 {
-    const struct extracted_identity *identity;
+    return find_extracted_identity(extracted_files, status) != NULL;
+}
 
-    for (identity = extracted_files; identity != NULL;
-        identity = identity->next)
-        if (identity->inode == status->st_ino &&
-            identity->device == status->st_dev)
-            return 1;
-    return 0;
+static int
+was_extracted_symlink(const struct stat *status)
+{
+    return find_extracted_identity(extracted_symlinks, status) != NULL;
 }
 
 static void
-forget_extracted_file(const struct stat *status)
+forget_extracted_identity(struct extracted_identity **list,
+    const struct stat *status)
 {
-    struct extracted_identity **link = &extracted_files;
+    struct extracted_identity **link = list;
 
     while (*link != NULL) {
         struct extracted_identity *identity = *link;
@@ -1712,6 +1921,18 @@ forget_extracted_file(const struct stat *status)
 }
 
 static void
+forget_extracted_file(const struct stat *status)
+{
+    forget_extracted_identity(&extracted_files, status);
+}
+
+static void
+forget_extracted_symlink(const struct stat *status)
+{
+    forget_extracted_identity(&extracted_symlinks, status);
+}
+
+static void
 free_extracted_files(void)
 {
     while (extracted_files != NULL) {
@@ -1719,6 +1940,18 @@ free_extracted_files(void)
 
         free(extracted_files);
         extracted_files = next;
+    }
+    while (extracted_symlinks != NULL) {
+        struct extracted_identity *next = extracted_symlinks->next;
+
+        free(extracted_symlinks);
+        extracted_symlinks = next;
+    }
+    while (extracted_directories != NULL) {
+        struct extracted_directory *next = extracted_directories->next;
+
+        free(extracted_directories);
+        extracted_directories = next;
     }
 }
 
@@ -2246,45 +2479,33 @@ getbuf(void)
     }
 }
 
-/*
- * Hold directory metadata until all streamed children have been written.
- * Created directories retain owner access during extraction; unwinding the
- * stack applies the archived mode after descendant traversal is complete.
- * One shared path and one metadata entry per slash bound storage by PATHSIZ.
- */
-static char dirstack[PATHSIZ];
-#define NTIM (PATHSIZ/2+1)      /* a/b/c/d/... */
-static time_t dirmtime[NTIM];
-static unsigned short dirmode[NTIM];
-
 static void
 storedirmetadata(char *name, const struct directory_metadata *metadata)
 {
-    char *p = dirstack;
-    char *q = name;
-    int ndir = 0;
-    char *savp;
+    char *path_cursor = dirstack;
+    char *name_cursor = name;
+    char *saved_path;
     char *end;
-    int savndir;
+    int depth = 0;
+    int saved_depth;
     int unwind_depth;
 
-    /* Find common prefix */
-    while (*p != '\0' && *p == *q) {
-        if (*p++ == '/')
-            ++ndir;
-        q++;
+    while (*path_cursor != '\0' && *path_cursor == *name_cursor) {
+        if (*path_cursor++ == '/')
+            depth++;
+        name_cursor++;
     }
 
-    savp = p;
-    savndir = ndir;
-    end = p;
-    unwind_depth = ndir;
+    saved_path = path_cursor;
+    saved_depth = depth;
+    end = path_cursor;
+    unwind_depth = depth;
     while (*end != '\0') {
         if (*end == '/')
             unwind_depth++;
         end++;
     }
-    while (end > savp) {
+    while (end > saved_path) {
         end--;
         if (*end != '/')
             continue;
@@ -2293,31 +2514,31 @@ storedirmetadata(char *name, const struct directory_metadata *metadata)
             struct directory_metadata saved_metadata;
 
             saved_metadata.modification_time = dirmtime[unwind_depth];
-            saved_metadata.mode = (mode_t)dirmode[unwind_depth];
+            saved_metadata.mode = dirmode[unwind_depth] == USHRT_MAX ?
+                (mode_t)-1 : (mode_t)dirmode[unwind_depth];
             *end = '\0';
             setdirmetadata(dirstack, &saved_metadata);
             *end = '/';
         }
         unwind_depth--;
     }
-    p = savp;
-    ndir = savndir;
+    path_cursor = saved_path;
+    depth = saved_depth;
 
-    /* Push this one on the "stack" */
-    while ((*p = *q++) != '\0') { /* append the rest of the new dir */
-        if (*p++ == '/') {
-            if (ndir >= NTIM - 1) {
+    while ((*path_cursor = *name_cursor++) != '\0') {
+        if (*path_cursor++ == '/') {
+            if (depth >= NTIM - 1) {
                 archive_error("directory nesting exceeds metadata stack");
-                return;
+            } else {
+                depth++;
+                dirmtime[depth] = (time_t)-1;
+                dirmode[depth] = USHRT_MAX;
             }
-            ndir++;
-            dirmtime[ndir] = (time_t)-1;
-            dirmode[ndir] = USHRT_MAX;
         }
     }
     if (metadata != NULL) {
-        dirmtime[ndir] = metadata->modification_time;
-        dirmode[ndir] = metadata->mode == (mode_t)-1 ? USHRT_MAX :
+        dirmtime[depth] = metadata->modification_time;
+        dirmode[depth] = metadata->mode == (mode_t)-1 ? USHRT_MAX :
             (unsigned short)metadata->mode;
     }
 }
@@ -2326,22 +2547,33 @@ static void
 setdirmetadata(char *path, const struct directory_metadata *metadata)
 {
     char *leaf_name;
+
+    leaf_name = enter_parent_directories_raw(extraction_root_descriptor,
+        path, 0, 0, 0);
+    setdirmetadata_at_parent(leaf_name, path, NULL, metadata);
+}
+
+static void
+setdirmetadata_at_parent(const char *name, const char *display_path,
+    const struct stat *expected, const struct directory_metadata *metadata)
+{
     struct stat path_status;
     struct stat descriptor_status;
     struct timeval tv[2];
     int descriptor;
 
-    leaf_name = enter_parent_directories(extraction_root_descriptor,
-        path, 0, 0);
-    if (lstat(leaf_name, &path_status) < 0)
-        archive_path_error("lstat directory metadata target", path);
+    if (lstat(name, &path_status) < 0)
+        archive_path_error("lstat directory metadata target", display_path);
     if (!S_ISDIR(path_status.st_mode))
         archive_error("directory metadata target changed type");
-    descriptor = open(leaf_name, O_RDONLY | O_NONBLOCK);
+    if (expected != NULL && (path_status.st_dev != expected->st_dev ||
+        path_status.st_ino != expected->st_ino))
+        archive_error("directory changed while leaving traversal");
+    descriptor = open(name, O_RDONLY | O_NONBLOCK);
     if (descriptor < 0)
-        archive_path_error("open directory metadata target", path);
+        archive_path_error("open directory metadata target", display_path);
     if (fstat(descriptor, &descriptor_status) < 0)
-        archive_path_error("fstat directory metadata target", path);
+        archive_path_error("fstat directory metadata target", display_path);
     if (!S_ISDIR(descriptor_status.st_mode) ||
         descriptor_status.st_dev != path_status.st_dev ||
         descriptor_status.st_ino != path_status.st_ino)
@@ -2350,11 +2582,11 @@ setdirmetadata(char *path, const struct directory_metadata *metadata)
         tv[0].tv_sec = time((time_t *)0);
         tv[1].tv_sec = metadata->modification_time;
         tv[0].tv_usec = tv[1].tv_usec = 0;
-        if (utimes(leaf_name, tv) < 0) {
+        if (utimes(name, tv) < 0) {
             int saved_errno = errno;
 
             fprintf(stderr, "tar: cannot set modification time on %s: ",
-                path);
+                display_path);
             errno = saved_errno;
             perror("");
             operation_failed = 1;
@@ -2362,9 +2594,9 @@ setdirmetadata(char *path, const struct directory_metadata *metadata)
     }
     if (metadata->mode != (mode_t)-1 &&
         fchmod(descriptor, metadata->mode) < 0)
-        archive_path_error("set directory mode", path);
+        archive_path_error("set directory mode", display_path);
     if (close(descriptor) < 0)
-        archive_path_error("close directory metadata target", path);
+        archive_path_error("close directory metadata target", display_path);
 }
 
 static void
@@ -2381,16 +2613,12 @@ setimes(char *path, time_t modification_time)
         trailing_slash = path + strlen(path) - 1;
         *trailing_slash = '\0';
     }
-    if (extraction_root_descriptor >= 0) {
-        leaf_name = enter_parent_directories(extraction_root_descriptor,
-            path, 0, 0);
-        if (lstat(leaf_name, &status) < 0)
-            archive_path_error("lstat metadata target", path);
-        if (!S_ISREG(status.st_mode) && !S_ISDIR(status.st_mode))
-            archive_error("metadata target changed type");
-    } else {
-        leaf_name = path;
-    }
+    leaf_name = enter_parent_directories(extraction_root_descriptor,
+        path, 0, 0);
+    if (lstat(leaf_name, &status) < 0)
+        archive_path_error("lstat metadata target", path);
+    if (!S_ISREG(status.st_mode) && !S_ISDIR(status.st_mode))
+        archive_error("metadata target changed type");
     tv[0].tv_sec = time((time_t *) 0);
     tv[1].tv_sec = modification_time;
     tv[0].tv_usec = tv[1].tv_usec = 0;

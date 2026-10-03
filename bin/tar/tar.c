@@ -277,7 +277,8 @@ static int zreading;
  * extract and table paths work from this rather than from dbuf.name, which
  * holds at most the trailing NAMSIZ-1 bytes of an ustar path.
  */
-static char curname[PATHSIZ];
+/* Creation reuses the member buffer after append/update scanning finishes. */
+static char curname[PATHSIZ > MAXPATHLEN ? PATHSIZ : MAXPATHLEN];
 
 /*
  * The link target of the header last read. The linkname field carries no
@@ -761,6 +762,8 @@ dorep(char **argv)
             argv++;
             continue;
         }
+        if (archive_root_descriptor < 0)
+            (void)tarcwd(curname);
         leaf_name = enter_parent_directories_raw(archive_root_descriptor,
             creation_path, 0, hflag, 0);
         (void)tarcwd(parent);
@@ -941,7 +944,7 @@ putfile(char *longname, char *shortname, const char *parent)
 #ifndef __APPLE__
     long l;
 #endif
-    char newparent[PATHSIZ];
+    char newparent[MAXPATHLEN];
     size_t maxread;
     int hint;       /* amount to write to get "in sync" */
 
@@ -1287,8 +1290,10 @@ doxtract(char **argv)
                 metadata.mode &= ~extraction_creation_mask;
             if (mflag != 0)
                 metadata.modification_time = (time_t)-1;
-            if (!directory_owned)
+            if (!directory_owned) {
                 metadata.mode = (mode_t)-1;
+                metadata.modification_time = (time_t)-1;
+            }
             record_directory_metadata(leaf_name, directory_owned, &metadata);
             {
                 size_t path_length = strlen(curname);
@@ -1623,18 +1628,21 @@ validate_symlink_target(const char *member, const char *target)
 static void
 restore_directory_root(int root_descriptor)
 {
-    if (root_descriptor >= 0) {
-        if (fchdir(root_descriptor) < 0)
+    if (root_descriptor >= 0 || rflag) {
+        if ((root_descriptor >= 0 ? fchdir(root_descriptor) :
+            chdir(curname)) < 0)
             archive_path_error("restore directory root", ".");
+        extraction_depth = 0;
         return;
     }
     /*
      * DiscoBSD O_RDONLY checks directory read permission. Extraction needs
      * only write and search permission, and creation can read a known file
      * with search permission alone, so a root descriptor can be unavailable
-     * even though traversal is valid. Verified child directories contain no
-     * followed symlink, making one ".." per entered component the bounded
-     * fallback under the documented stable-namespace requirement.
+     * even though traversal is valid. Creation restores the captured root
+     * pathname because -h can follow a directory symlink. Extraction follows
+     * no directory symlink, so one ".." per entered component restores its
+     * root under the documented stable-namespace requirement.
      */
     while (extraction_depth > 0) {
         if (chdir("..") < 0)
@@ -1660,6 +1668,15 @@ open_verified_directory(const char *name, mode_t creation_mode,
     if ((follow_symlinks ? stat(name, &status) : lstat(name, &status)) < 0) {
         if (errno != ENOENT || !create_missing)
             archive_path_error("lstat directory", name);
+    } else if (!S_ISDIR(status.st_mode)) {
+        if (!report_owned)
+            archive_error("path contains a non-directory component");
+        remove_extracted_output(name);
+    } else {
+        goto directory_ready;
+    }
+    created = 1;
+    {
         creation_mask = umask(0);
         if (mkdir(name, S_IRWXU) < 0) {
             int saved_errno = errno;
@@ -1669,26 +1686,24 @@ open_verified_directory(const char *name, mode_t creation_mode,
             archive_path_error("mkdir", name);
         }
         (void)umask(creation_mask);
-        created = 1;
         if (lstat(name, &status) < 0)
-            archive_path_error("lstat created directory", name);
+            archive_path_error("lstat directory", name);
     }
-    if (!S_ISDIR(status.st_mode))
-        archive_error("path contains a non-directory component");
+directory_ready:
     directory = find_extracted_directory(&status);
     if (!created && directory != NULL && directory->owned != 0 &&
         (status.st_mode & S_IRWXU) != S_IRWXU) {
         if (chmod(name, status.st_mode | S_IRWXU) < 0)
             archive_path_error("retain owner directory access", name);
         if (lstat(name, &status) < 0)
-            archive_path_error("lstat reopened directory", name);
+            archive_path_error("lstat directory", name);
     }
     path_device = status.st_dev;
     path_inode = status.st_ino;
     descriptor = open(name, O_RDONLY | O_NONBLOCK);
-    if (descriptor < 0 && errno == EACCES && enter_directory && !created) {
+    if (descriptor < 0 && errno == EACCES && !created) {
         if (chdir(name) < 0)
-            archive_path_error("enter search-only directory", name);
+            archive_path_error("enter directory", name);
         if (stat(".", &status) < 0)
             archive_path_error("stat entered directory", name);
     } else if (descriptor < 0) {
@@ -1715,8 +1730,11 @@ open_verified_directory(const char *name, mode_t creation_mode,
             directory = find_extracted_directory(&status);
         *directory_result = directory;
     }
-    if (descriptor < 0)
+    if (descriptor < 0) {
+        if (!enter_directory && chdir("..") < 0)
+            archive_path_error("ascend to extraction root", name);
         return created;
+    }
     if (enter_directory && fchdir(descriptor) < 0)
         archive_path_error("enter directory", name);
     if (close(descriptor) < 0)

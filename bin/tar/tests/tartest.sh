@@ -309,8 +309,9 @@ mkdir -p repeated-symlink-root
 [ "$(readlink repeated-symlink-root/link)" = "second" ] ||
     fail "repeated symbolic link did not retain its last target"
 
-echo "tartest: repeated members may change non-directory type"
-mkdir -p type-change-source type-change-root type-change-back-root
+echo "tartest: repeated members may change type"
+mkdir -p type-change-source type-change-root type-change-back-root \
+    type-change-directory-root
 printf 'regular first\n' > type-change-source/member
 (cd type-change-source && "$TAR" cf ../type-change.tar member)
 rm type-change-source/member
@@ -326,6 +327,16 @@ printf 'regular last\n' > type-change-source/member
 (cd type-change-back-root && "$TAR" xf ../type-change-back.tar)
 grep -q '^regular last$' type-change-back-root/member ||
     fail "symbolic-link-to-regular replacement lost the last member"
+rm type-change-source/member
+printf 'regular before directory\n' > type-change-source/member
+(cd type-change-source && "$TAR" cf ../type-change-directory.tar member)
+rm type-change-source/member
+mkdir type-change-source/member
+printf 'directory child\n' > type-change-source/member/child
+(cd type-change-source && "$TAR" rf ../type-change-directory.tar member)
+(cd type-change-directory-root && "$TAR" xf ../type-change-directory.tar)
+grep -q '^directory child$' type-change-directory-root/member/child ||
+    fail "regular-to-directory replacement lost the last member"
 
 if [ "$(id -u)" -eq 0 ]; then
 	echo "tartest: SKIP search-only fallbacks require a non-privileged UID"
@@ -357,6 +368,22 @@ else
 	grep -q '^nested payload$' search-only-nested-root/locked/file ||
 		fail "write-and-search-only nested directory omitted its member"
 
+	echo "tartest: explicit write-and-search-only directory member"
+	mkdir -p search-only-explicit-source/locked \
+		search-only-explicit-root/locked
+	printf 'explicit payload\n' > search-only-explicit-source/locked/file
+	(cd search-only-explicit-source &&
+		"$TAR" cf ../search-only-explicit.tar locked)
+	chmod 0333 search-only-explicit-root/locked
+	if ! (cd search-only-explicit-root &&
+		"$TAR" xf ../search-only-explicit.tar); then
+		chmod 0700 search-only-explicit-root/locked
+		fail "explicit search-only directory member was rejected"
+	fi
+	chmod 0700 search-only-explicit-root/locked
+	grep -q '^explicit payload$' search-only-explicit-root/locked/file ||
+		fail "explicit search-only directory omitted its member"
+
 	echo "tartest: search-only archive-creation root"
 	mkdir -p create-search-only-root
 	printf 'known input\n' > create-search-only-root/payload
@@ -369,6 +396,24 @@ else
 	chmod 0700 create-search-only-root
 	[ "$("$TAR" tf create-search-only.tar)" = "payload" ] ||
 		fail "search-only archive creation omitted the named input"
+
+	echo "tartest: search-only creation restores its root after -h traversal"
+	mkdir -p create-search-follow-root create-search-follow-target
+	printf 'followed input\n' > create-search-follow-target/input
+	printf 'root input\n' > create-search-follow-root/payload
+	ln -s ../create-search-follow-target create-search-follow-root/link
+	chmod 0100 create-search-follow-root
+	if ! (cd create-search-follow-root &&
+		"$TAR" chf ../create-search-follow.tar link/input payload); then
+		chmod 0700 create-search-follow-root
+		fail "search-only followed traversal lost the creation root"
+	fi
+	chmod 0700 create-search-follow-root
+	"$TAR" tf create-search-follow.tar > create-search-follow.list
+	grep -q '^link/input$' create-search-follow.list ||
+		fail "search-only followed traversal omitted its input"
+	grep -q '^payload$' create-search-follow.list ||
+		fail "search-only followed traversal omitted the later root input"
 fi
 
 echo "tartest: archive creation verifies source paths"

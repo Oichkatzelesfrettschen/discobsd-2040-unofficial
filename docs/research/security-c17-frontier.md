@@ -277,9 +277,10 @@ valid UTF-8 names and rejects UTF-8 encodings of C1 control characters. It
 accepts only regular files, directories, symbolic links and hard links, and
 requires non-regular members to carry zero data. Parent traversal compares
 `lstat` device and inode with `open` plus `fstat` before `fchdir`. Regular
-outputs use `O_EXCL`; a later non-directory member can replace only an inode
-recorded by the same extraction, including a regular-file or symbolic-link
-type change, so append and update archives retain their last-entry-wins
+outputs use `O_EXCL`; a later member can replace only a non-directory inode
+recorded by the same extraction, including regular/symbolic-link type changes
+and regular-to-directory replacement, so append and update archives retain
+their last-entry-wins
 contract without admitting a pre-existing victim. Ownership is not restored;
 setuid, setgid and sticky bits are stripped. Created directories retain owner
 traversal while children stream. Device/inode keyed directory records retain
@@ -311,12 +312,16 @@ object while creation continues through the end-of-archive records, so a
 rejected object does not leave a silently truncated archive. Creation reports
 missing inputs and failed `-C` changes and verifies each directory identity
 before entering it. A readable source root retains descriptor-rooted
-traversal; a search-only root uses the same bounded depth restoration as
-extraction under the documented stable-namespace assumption. The search-only
+traversal; a search-only root retains its pathname in the member buffer after
+archive scanning finishes. Restoring that pathname also handles `-h` traversal
+through a directory symlink before a later operand. Search-only
+fallback covers both traversal components and explicit directory members. The
 fixtures establish that behavior only under a non-privileged UID; a privileged
 run emits an explicit skip because DAC override would bypass the fallback. A
 symlinked source parent remains rejected by default; explicit `-h` follows it
 while retaining the opened directory identity check.
+Pre-existing directories used for extraction receive neither archive-controlled
+mode nor archive-controlled timestamp metadata.
 Update mode uses `mkstemp` and bounded linear parsing instead of `mktemp` plus
 an external shell pipeline and fixed-window binary search. The replacement
 removes a temporary sort, awk and move process set as well as the associated
@@ -347,21 +352,21 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,692 | +779 |
-| Source bytes | 48,416 | 81,374 | +32,958 |
-| Object text | 6,684 | 10,020 | +3,336 |
-| Object read-only data | 1,481 | 3,811 | +2,330 |
+| Source lines | 1,913 | 2,710 | +797 |
+| Source bytes | 48,416 | 82,030 | +33,614 |
+| Object text | 6,684 | 10,088 | +3,404 |
+| Object read-only data | 1,481 | 3,734 | +2,253 |
 | Object writable data | 260 | 58 | -202 |
 | Object BSS | 1,890 | 2,181 | +291 |
-| Final text | 23,630 | 28,120 | +4,490 |
+| Final text | 23,630 | 28,112 | +4,482 |
 | Final data | 888 | 692 | -196 |
 | Final BSS | 3,648 | 3,936 | +288 |
-| Final a.out bytes | 24,552 | 28,844 | +4,292 |
-| Packed bytes | 20,366 | 23,548 | +3,182 |
+| Final a.out bytes | 24,552 | 28,836 | +4,284 |
+| Packed bytes | 20,366 | 23,525 | +3,159 |
 | Packed root blocks | 21 | 24 | +3 |
-| `putfile` frame per recursive level | 824 | 840 | +16 |
+| `putfile` frame per recursive level | 824 | 832 | +8 |
 | `dorep` frame | 552 | 560 | +8 |
-| `doxtract` frame | 56 | 184 in `main` | +128 |
+| `doxtract` frame | 56 | 176 in `main` | +120 |
 
 Writable data falls by 196 bytes because mode-display tables moved to read-only
 storage and the update index disappeared. Linked BSS grows by 288 bytes: the

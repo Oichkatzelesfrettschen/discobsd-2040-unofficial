@@ -189,6 +189,7 @@ pack /usr/bin/grepbox
 pack /usr/bin/find
 pack /usr/bin/login
 pack /usr/bin/passwd
+mode 04755
 pack /usr/bin/su
 mode 04751
 pack /usr/bin/stevie

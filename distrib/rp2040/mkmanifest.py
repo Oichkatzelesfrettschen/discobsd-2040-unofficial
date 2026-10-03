@@ -94,12 +94,13 @@ class Line:
 class Entry:
     """One filesystem object the composed manifest installs."""
 
-    __slots__ = ("kind", "path", "target", "line")
+    __slots__ = ("kind", "path", "target", "mode", "line")
 
-    def __init__(self, kind, path, line):
+    def __init__(self, kind, path, mode, line):
         self.kind = kind
         self.path = path
         self.target = None
+        self.mode = mode
         self.line = line
 
 
@@ -243,6 +244,8 @@ def parse_entries(lines):
     """Walk the composed lines the way tools/fsutil/manifest.c walks them."""
     entries = []
     pending = None
+    default_filemode = 0o664
+    default_dirmode = 0o775
     for line in lines:
         stripped = line.text.strip()
         if not stripped or stripped.startswith("#"):
@@ -253,7 +256,9 @@ def parse_entries(lines):
         if directive in OBJECT_DIRECTIVES:
             if not argument:
                 raise ManifestError("%s: %s takes a path" % (line.where(), directive))
-            pending = Entry(OBJECT_DIRECTIVES[directive], argument, line)
+            kind = OBJECT_DIRECTIVES[directive]
+            mode = default_dirmode if kind == "d" else default_filemode
+            pending = Entry(kind, argument, mode, line)
             entries.append(pending)
         elif directive == "target":
             if pending is None:
@@ -261,6 +266,26 @@ def parse_entries(lines):
             pending.target = argument
         elif directive == "default":
             pending = None
+        elif directive in ("filemode", "dirmode"):
+            if pending is not None:
+                raise ManifestError("%s: %s is allowed only in a default section" %
+                                    (line.where(), directive))
+            try:
+                mode = int(argument.split()[0], 8)
+            except (IndexError, ValueError) as error:
+                raise ManifestError("%s: invalid %s value" %
+                                    (line.where(), directive)) from error
+            if directive == "filemode":
+                default_filemode = mode
+            else:
+                default_dirmode = mode
+        elif directive == "mode":
+            if pending is None:
+                raise ManifestError("%s: mode belongs to no object" % line.where())
+            try:
+                pending.mode = int(argument.split()[0], 8)
+            except (IndexError, ValueError) as error:
+                raise ManifestError("%s: invalid mode value" % line.where()) from error
         elif directive in ATTRIBUTE_DIRECTIVES:
             continue
         else:
@@ -274,6 +299,7 @@ def verify(entries, selected, needs_closure, needs_path):
     dirs = {"/"}
     linkable = set()
     installed = {}
+    entries_by_path = {}
     for entry in entries:
         path = entry.path
         where = entry.line.where()
@@ -307,10 +333,21 @@ def verify(entries, selected, needs_closure, needs_path):
                         % (where, path, resolved)
                     )
         installed[path] = where
+        entries_by_path[path] = entry
         if entry.kind == "d":
             dirs.add(path)
         if entry.kind in LINKABLE:
             linkable.add(path)
+    required_modes = {"/usr/bin/passwd": 0o4755, "/usr/bin/su": 0o4751}
+    for path, expected_mode in required_modes.items():
+        entry = entries_by_path.get(path)
+        if entry is None:
+            errors.append("profile does not install required privileged executable %s" % path)
+        elif entry.kind != "p" or entry.mode != expected_mode:
+            errors.append(
+                "%s: %s mode is %04o, expected packed mode %04o"
+                % (entry.line.where(), path, entry.mode, expected_mode)
+            )
     chosen = set(selected)
     for closure in selected:
         for other in needs_closure.get(closure, []):
@@ -542,6 +579,33 @@ def selftest(
                 )
             else:
                 print("selftest: reject %s -- %s" % (label, expected))
+
+    selected = selected_closures("full", profiles, selected_extra)
+    mode_cases = (
+        (
+            "passwd without setuid mode",
+            "mode 04755",
+            "/usr/bin/passwd mode is 0775, expected packed mode 4755",
+        ),
+        (
+            "su without setuid mode",
+            "mode 04751",
+            "/usr/bin/su mode is 0775, expected packed mode 4751",
+        ),
+    )
+    for label, removed_mode, expected_mode_error in mode_cases:
+        bad_mode_lines = drop(lines, removed_mode)
+        bad_mode_entries = parse_entries(compose(bad_mode_lines, selected) + appended)
+        mode_errors = verify(bad_mode_entries, selected, needs_closure, needs_path)
+        if expected_mode_error not in "\n".join(mode_errors):
+            failures += 1
+            print(
+                "selftest: reject %s -- expected '%s', got:\n%s"
+                % (label, expected_mode_error, "\n".join(mode_errors) or "composition accepted"),
+                file=sys.stderr,
+            )
+        else:
+            print("selftest: reject %s -- %s" % (label, expected_mode_error))
 
     if "pdp11" in selected_extra and "v6disk" in selected_extra:
         legacy_cases = [

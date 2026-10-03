@@ -278,20 +278,24 @@ requires non-regular members to carry zero data. Parent traversal compares
 outputs use `O_EXCL`; ownership is not restored; setuid, setgid and sticky
 bits are stripped. A hard link can name only a safe relative regular-file
 identity created earlier in the same extraction, and an archive cannot retain
-special bits through that alias. Relative symbolic-link targets are reduced
-against their member-parent depth and rejected when they escape the root.
-Short writes complete or fail, each archive-buffer refill carries its own
-valid-record count, numeric fields reject invalid digits and overflow, and a
-compression-child failure reaches the final status.
+special bits through that alias. A relative symbolic-link target can carry
+leading dot-dot components only while each one remains within the member's
+parent depth; dot-dot after a named component is rejected because intervening
+symbolic-link resolution defeats lexical reduction. Short writes complete or
+fail, each archive-buffer refill carries its own valid-record count, numeric
+fields reject invalid digits and overflow, and compressed reads drain the
+filter pipe before the child status reaches the final result.
 
-Archive creation rejects absolute, dot-component and symlink-parent inputs,
-reports missing inputs and failed `-C` changes, and verifies each directory
-identity before entering it. Update mode uses `mkstemp` and bounded linear
-parsing instead of `mktemp` plus an external shell pipeline and fixed-window
-binary search. The replacement removes a temporary sort, awk and move process
-set as well as the associated pathname races; update lookup is linear in the
-number of archive entries because the RP2040 image favors a small executable
-and bounded machinery over another resident index.
+Archive creation rejects absolute and dot-component inputs, normalizes trailing
+slashes, reports missing inputs and failed `-C` changes, and verifies each
+directory identity before entering it. A symlinked source parent remains
+rejected by default; explicit `-h` follows it while retaining the opened
+directory identity check. Update mode uses `mkstemp` and bounded linear parsing
+instead of `mktemp` plus an external shell pipeline and fixed-window binary
+search. The replacement removes a temporary sort, awk and move process set as
+well as the associated pathname races; update lookup is linear in the number
+of archive entries because the RP2040 image favors a small executable and
+bounded machinery over another resident index.
 
 C17 still permits old-style function definitions as obsolescent syntax. The
 base file failed the repository's stricter contract because its K&R
@@ -316,25 +320,26 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,213 | +300 |
-| Source bytes | 48,416 | 65,086 | +16,670 |
-| Object text | 6,684 | 8,208 | +1,524 |
-| Object read-only data | 1,481 | 3,364 | +1,883 |
+| Source lines | 1,913 | 2,253 | +340 |
+| Source bytes | 48,416 | 66,563 | +18,147 |
+| Object text | 6,684 | 8,440 | +1,756 |
+| Object read-only data | 1,481 | 3,484 | +2,003 |
 | Object writable data | 260 | 58 | -202 |
-| Object BSS | 1,890 | 1,890 | 0 |
-| Final text | 23,630 | 25,872 | +2,242 |
+| Object BSS | 1,890 | 1,894 | +4 |
+| Final text | 23,630 | 26,224 | +2,594 |
 | Final data | 888 | 692 | -196 |
-| Final BSS | 3,648 | 3,644 | -4 |
-| Final a.out bytes | 24,552 | 26,596 | +2,044 |
-| Packed bytes | 20,366 | 21,605 | +1,239 |
+| Final BSS | 3,648 | 3,648 | 0 |
+| Final a.out bytes | 24,552 | 26,948 | +2,396 |
+| Packed bytes | 20,366 | 21,894 | +1,528 |
 | Packed root blocks | 21 | 23 | +2 |
 | `putfile` frame per recursive level | 824 | 832 | +8 |
-| `dorep` frame | 552 | 544 | -8 |
+| `dorep` frame | 552 | 808 | +256 |
 | `doxtract` frame | 56 | 224 | +168 |
 
-The fixed BSS remains effectively flat and writable data falls by 196 linked
-bytes because mode-display tables moved to read-only storage and the update
-index disappeared. Security checks cost two packed root blocks. Extraction
+The fixed linked BSS remains flat and writable data falls by 196 bytes because
+mode-display tables moved to read-only storage and the update index disappeared.
+The creation frame grows by 256 bytes to normalize one maximum-width operand
+without mutating `argv`. Security checks cost two packed root blocks. Extraction
 keeps one 12-byte device, inode and next-pointer identity per regular file;
 the target allocator consumes 16 bytes including its header and alignment per
 identity. The list is freed at extraction completion. Refusing all hard links

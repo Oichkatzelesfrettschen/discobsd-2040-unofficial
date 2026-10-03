@@ -186,8 +186,8 @@ static void dodirtimes(char *);
 static void setimes(char *, time_t);
 static void validate_archive_path(const char *);
 static void validate_symlink_target(const char *, const char *);
-static void open_verified_directory(const char *, mode_t, int, int);
-static char *enter_parent_directories(int, char *, int);
+static void open_verified_directory(const char *, mode_t, int, int, int);
+static char *enter_parent_directories(int, char *, int, int);
 static int open_verified_regular(const char *, int);
 static int create_output_file(const char *, mode_t);
 static int write_all(int, const void *, size_t);
@@ -215,6 +215,7 @@ static int Oflag;              /* write the v7 header instead of ustar */
 static int zflag;              /* pipe the archive through COMPRESS */
 
 static pid_t zpid = -1;        /* the filter, while it runs */
+static int zreading;
 
 /*
  * The full path of the header last read: the prefix field, a slash and the
@@ -462,7 +463,7 @@ main(int argc, char **argv)
         doxtract(argv);
     else
         dotable(argv);
-    done(0);
+    done(operation_failed ? 1 : 0);
 }
 
 static void
@@ -558,6 +559,7 @@ zfilter(int writing)
         _exit(1);
     }
     close(mt);
+    zreading = !writing;
     if (writing) {
         close(fd[0]);
         mt = fd[1];
@@ -580,23 +582,35 @@ zfilter(int writing)
 static int
 zreap(void)
 {
-    int status = 0;
+    int child_status = 0;
+    int result = 0;
     pid_t waited;
 
     if (mt >= 0) {
+        if (zpid > 0 && zreading) {
+            char discarded[TBLOCK];
+            ssize_t received;
+
+            do {
+                received = read(mt, discarded, sizeof(discarded));
+            } while (received > 0 || (received < 0 && errno == EINTR));
+            if (received < 0)
+                result = 2;
+        }
         if (close(mt) < 0)
-            status = 1;
+            result = 2;
         mt = -1;
     }
     if (zpid > 0) {
         do {
-            waited = waitpid(zpid, &status, 0);
+            waited = waitpid(zpid, &child_status, 0);
         } while (waited < 0 && errno == EINTR);
         zpid = -1;
-        if (waited < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        if (waited < 0 || !WIFEXITED(child_status) ||
+            WEXITSTATUS(child_status) != 0)
             return 2;
     }
-    return status == 0 ? 0 : 2;
+    return result;
 }
 
 static char *
@@ -613,6 +627,7 @@ tarcwd(char *buf)
 static void
 dorep(char **argv)
 {
+    char creation_path[PATHSIZ];
     char *leaf_name;
     char wdir[MAXPATHLEN];
     char parent[MAXPATHLEN];
@@ -640,6 +655,8 @@ dorep(char **argv)
     if (archive_root_descriptor < 0)
         archive_path_error("open archive root", ".");
     while (*argv && ! term) {
+        size_t operand_length;
+
         if (!strcmp(*argv, "-C") && argv[1]) {
             argv++;
             if (chdir(*argv) < 0) {
@@ -657,11 +674,19 @@ dorep(char **argv)
             argv++;
             continue;
         }
-        validate_archive_path(*argv);
+        operand_length = strlen(*argv);
+        if (operand_length >= sizeof(creation_path))
+            archive_error("archive input path exceeds the format limit");
+        memcpy(creation_path, *argv, operand_length + 1);
+        while (operand_length > 1 &&
+            creation_path[operand_length - 1] == '/')
+            creation_path[--operand_length] = '\0';
+        validate_archive_path(creation_path);
         leaf_name = enter_parent_directories(archive_root_descriptor,
-            *argv, 0);
+            creation_path, 0, hflag);
         (void)tarcwd(parent);
-        putfile(*argv++, leaf_name, parent);
+        putfile(creation_path, leaf_name, parent);
+        argv++;
         if (fchdir(archive_root_descriptor) < 0)
             archive_path_error("restore archive root", wdir);
     }
@@ -881,7 +906,7 @@ putfile(char *longname, char *shortname, const char *parent)
             operation_failed = 1;
             return;
         }
-        open_verified_directory(shortname, 0, 1, 0);
+        open_verified_directory(shortname, 0, 1, 0, hflag);
         if ((dirp = opendir(".")) == NULL) {
             fprintf(stderr, "tar: %s: directory read error\n",
                 longname);
@@ -1144,11 +1169,12 @@ doxtract(char **argv)
             }
         }
         leaf_name = enter_parent_directories(extraction_root_descriptor,
-            curname, 1);
+            curname, 1, 0);
         if (dblock.dbuf.linkflag == DIRTYPE) {
             size_t path_length = strlen(curname);
 
-            open_verified_directory(leaf_name, stbuf.st_mode & 0777, 0, 1);
+            open_verified_directory(leaf_name, stbuf.st_mode & 0777, 0, 1,
+                0);
             if (mflag == 0) {
                 if (path_length >= sizeof(curname) - 1) {
                     archive_error("directory path exceeds timestamp stack");
@@ -1181,7 +1207,7 @@ doxtract(char **argv)
 
             validate_archive_path(curlink);
             leaf_name = enter_parent_directories(extraction_root_descriptor,
-                curlink, 0);
+                curlink, 0, 0);
             source_descriptor = open_verified_regular(leaf_name, 1);
             if (fstat(source_descriptor, &source_status) < 0)
                 archive_path_error("fstat hard-link source", curlink);
@@ -1192,7 +1218,7 @@ doxtract(char **argv)
             if (close(source_descriptor) < 0)
                 archive_path_error("close hard-link source", curlink);
             leaf_name = enter_parent_directories(extraction_root_descriptor,
-                curname, 1);
+                curname, 1, 0);
             if (lstat(leaf_name, &output_status) == 0 || errno != ENOENT)
                 archive_error("refusing to replace an existing output path");
             if (fchdir(extraction_root_descriptor) < 0)
@@ -1399,6 +1425,7 @@ validate_symlink_target(const char *member, const char *target)
     const char *cursor;
     const char *component = target;
     size_t depth = 0;
+    int saw_named_component = 0;
 
     if (target[0] == '\0' || target[0] == '/')
         archive_error("archive contains an unsafe symbolic-link target");
@@ -1420,11 +1447,14 @@ validate_symlink_target(const char *member, const char *target)
         if (length == 0)
             archive_error("symbolic-link target contains an empty component");
         if (length == 2 && component[0] == '.' && component[1] == '.') {
+            if (saw_named_component)
+                archive_error("symbolic-link target backtracks after a named component");
             if (depth == 0)
                 archive_error("symbolic-link target escapes the extraction root");
             depth--;
         } else if (!(length == 1 && component[0] == '.')) {
             depth++;
+            saw_named_component = 1;
         }
         if (*cursor == '\0')
             break;
@@ -1434,7 +1464,7 @@ validate_symlink_target(const char *member, const char *target)
 
 static void
 open_verified_directory(const char *name, mode_t creation_mode,
-    int enter_directory, int create_missing)
+    int enter_directory, int create_missing, int follow_symlinks)
 {
     struct stat status;
     dev_t path_device;
@@ -1443,7 +1473,7 @@ open_verified_directory(const char *name, mode_t creation_mode,
     int created = 0;
     int descriptor;
 
-    if (lstat(name, &status) < 0) {
+    if ((follow_symlinks ? stat(name, &status) : lstat(name, &status)) < 0) {
         if (errno != ENOENT || !create_missing)
             archive_path_error("lstat directory", name);
         creation_mask = umask(0);
@@ -1481,7 +1511,8 @@ open_verified_directory(const char *name, mode_t creation_mode,
 }
 
 static char *
-enter_parent_directories(int root_descriptor, char *path, int create_missing)
+enter_parent_directories(int root_descriptor, char *path, int create_missing,
+    int follow_symlinks)
 {
     char *component = path;
     char *cursor;
@@ -1492,7 +1523,8 @@ enter_parent_directories(int root_descriptor, char *path, int create_missing)
         if (*cursor != '/')
             continue;
         *cursor = '\0';
-        open_verified_directory(component, 0777, 1, create_missing);
+        open_verified_directory(component, 0777, 1, create_missing,
+            follow_symlinks);
         *cursor = '/';
         component = cursor + 1;
     }
@@ -1956,6 +1988,8 @@ readtbuf(char **bufpp, size_t size)
         valid_records = (int)(received / TBLOCK);
         if (first == 0 && valid_records != nblock)
             fprintf(stderr, "tar: blocksize = %d\n", valid_records);
+        if (first == 0)
+            nblock = valid_records;
         first = 1;
         recno = 0;
     }
@@ -2195,7 +2229,7 @@ setimes(char *path, time_t modification_time)
     }
     if (extraction_root_descriptor >= 0) {
         leaf_name = enter_parent_directories(extraction_root_descriptor,
-            path, 0);
+            path, 0, 0);
         if (lstat(leaf_name, &status) < 0)
             archive_path_error("lstat metadata target", path);
         if (!S_ISREG(status.st_mode) && !S_ISDIR(status.st_mode))
@@ -2206,8 +2240,14 @@ setimes(char *path, time_t modification_time)
     tv[0].tv_sec = time((time_t *) 0);
     tv[1].tv_sec = modification_time;
     tv[0].tv_usec = tv[1].tv_usec = 0;
-    if (utimes(leaf_name, tv) < 0)
-        archive_path_error("set modification time", path);
+    if (utimes(leaf_name, tv) < 0) {
+        int saved_errno = errno;
+
+        fprintf(stderr, "tar: cannot set modification time on %s: ", path);
+        errno = saved_errno;
+        perror("");
+        operation_failed = 1;
+    }
     if (trailing_slash != NULL)
         *trailing_slash = '/';
 }

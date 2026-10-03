@@ -155,6 +155,14 @@ extract_must_fail archive-symlink "$work/security/created.tar" \
 [ ! -e security/created/root/inside/from-archive ] ||
     fail "archive-created symlink was traversed by a later member"
 
+mkdir -p security/symlink-mid-dotdot/root
+"$FIXTURE" symlink-mid-dotdot > security/symlink-mid-dotdot.tar
+extract_must_fail symlink-mid-dotdot \
+    "$work/security/symlink-mid-dotdot.tar" \
+    "$work/security/symlink-mid-dotdot/root"
+[ ! -e security/symlink-mid-dotdot/root/link ] ||
+    fail "symbolic link retained dot-dot after a named target component"
+
 mkdir -p security/hardlink/root
 printf 'sentinel\n' > security/hardlink/outside-existing
 "$FIXTURE" hardlink > security/hardlink.tar
@@ -240,6 +248,17 @@ if (cd create-source/root &&
     "$TAR" cf "$work/create-symlink.tar" link/payload) >create.out 2>&1; then
 	fail "archive creation followed a symlinked parent"
 fi
+(cd create-source/root &&
+    "$TAR" chf "$work/create-follow.tar" link/payload) ||
+    fail "archive creation -h did not follow a symlinked parent"
+"$TAR" tf create-follow.tar | grep -q '^link/payload$' ||
+    fail "archive creation -h omitted the followed input"
+mkdir -p create-trailing/tree
+printf 'trailing slash\n' > create-trailing/tree/payload
+(cd create-trailing && "$TAR" cf ../create-trailing.tar tree/) ||
+    fail "archive creation rejected a trailing slash"
+"$TAR" tf create-trailing.tar | grep -q '^tree/payload$' ||
+    fail "trailing-slash input omitted its child"
 if "$TAR" cf create-absolute.tar "$work/create-source/outside/payload" \
     >create-absolute.out 2>&1; then
 	fail "archive creation accepted an absolute input path"
@@ -397,6 +416,14 @@ if [ -n "$ZPROG" ] && [ -z "${1:-}" ]; then
 	mkdir -p x-z
 	(cd x-z && "$TAR" xZf ../z.tar)
 	diff -r ustar/tree x-z/tree || fail "-Z round trip differs"
+
+	cp u.tar z-tail.plain
+	dd if=/dev/zero bs=1024 count=256 >> z-tail.plain 2>/dev/null
+	"$ZPROG" < z-tail.plain > z-tail.tar
+	mkdir -p x-z-tail
+	(cd x-z-tail && "$TAR" xZf ../z-tail.tar)
+	diff -r ustar/tree x-z-tail/tree ||
+	    fail "-Z archive with trailing output differs"
 
 	(cd ustar && "$TAR" czf ../z2.tar tree)
 	cmp -s z2.tar z.tar || fail "-z and -Z wrote different archives"

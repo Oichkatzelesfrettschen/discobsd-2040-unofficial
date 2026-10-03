@@ -7,6 +7,15 @@ topsrc=$(cd "$(dirname "$0")/../../.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/dhara-bounds.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+case $(uname -s) in
+Darwin)
+	section_gc_flags=-Wl,-dead_strip
+	;;
+*)
+	section_gc_flags=-Wl,--gc-sections
+	;;
+esac
+
 fail()
 {
 	echo "dhara_bounds: FAIL: $*" >&2
@@ -21,7 +30,7 @@ compile_test()
 	    -Wstrict-prototypes -Wold-style-definition \
 	    -fsanitize=address,undefined -ffunction-sections -fdata-sections \
 	    -I"$topsrc/sys/arch" -I"$topsrc/sys/arch/rp2040/dhara" \
-	    -Wl,--gc-sections \
+	    "$section_gc_flags" \
 	    -o "$binary" "$topsrc/tests/rp2040/dhara_bounds/dhara_bounds_test.c" \
 	    "$journal_source" || fail "strict C17 sanitizer build"
 }

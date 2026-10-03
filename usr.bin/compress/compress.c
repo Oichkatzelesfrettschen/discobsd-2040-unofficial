@@ -225,9 +225,11 @@ parse_maxbits(const char *text, int *value)
 		if (*character < '0' || *character > '9')
 			return -1;
 		digit = *character - '0';
-		if (parsed_value > (INT_MAX - digit) / 10)
-			return -1;
-		parsed_value = parsed_value * 10 + digit;
+		if (parsed_value > BITS / 10 ||
+		    (parsed_value == BITS / 10 && digit > BITS % 10))
+			parsed_value = BITS;
+		else
+			parsed_value = parsed_value * 10 + digit;
 	}
 	*value = parsed_value;
 	return 0;

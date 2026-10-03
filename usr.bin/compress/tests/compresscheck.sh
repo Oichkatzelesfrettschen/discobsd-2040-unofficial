@@ -48,7 +48,8 @@ gzip -dc "$input_file.Z" > "$work_directory/gzip-roundtrip" ||
 cmp "$input_file" "$work_directory/gzip-roundtrip" ||
 	fail "gzip round trip differs"
 
-for option_value in 0 9 12 13 2147483647; do
+for option_value in 0 9 12 13 2147483647 2147483648 \
+	999999999999999999999999999; do
 	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
 		"$compress_binary" -b "$option_value" -c < "$input_file" \
 		> "$work_directory/bits-$option_value.Z" ||
@@ -69,6 +70,8 @@ expected_headers = {
     "bits-12.Z": 0x8C,
     "bits-13.Z": 0x8C,
     "bits-2147483647.Z": 0x8C,
+    "bits-2147483648.Z": 0x8C,
+    "bits-999999999999999999999999999.Z": 0x8C,
     "bits-attached.Z": 0x89,
 }
 for filename, expected_header in expected_headers.items():
@@ -77,7 +80,7 @@ for filename, expected_header in expected_headers.items():
         raise SystemExit(f"{filename}: unexpected LZW header")
 PY
 
-for option_value in 9junk +9 -9 ' 9' '' 2147483648 999999999999999999999999999; do
+for option_value in 9junk +9 -9 ' 9' ''; do
 	if ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
 		"$compress_binary" -b "$option_value" -c < "$input_file" \
 		> "$work_directory/invalid-bits.stdout" \

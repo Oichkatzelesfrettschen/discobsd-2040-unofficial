@@ -309,6 +309,24 @@ mkdir -p repeated-symlink-root
 [ "$(readlink repeated-symlink-root/link)" = "second" ] ||
     fail "repeated symbolic link did not retain its last target"
 
+echo "tartest: repeated members may change non-directory type"
+mkdir -p type-change-source type-change-root type-change-back-root
+printf 'regular first\n' > type-change-source/member
+(cd type-change-source && "$TAR" cf ../type-change.tar member)
+rm type-change-source/member
+ln -s target type-change-source/member
+(cd type-change-source && "$TAR" rf ../type-change.tar member)
+(cd type-change-root && "$TAR" xf ../type-change.tar)
+[ "$(readlink type-change-root/member)" = "target" ] ||
+    fail "regular-to-symbolic-link replacement lost the last member"
+(cd type-change-source && "$TAR" cf ../type-change-back.tar member)
+rm type-change-source/member
+printf 'regular last\n' > type-change-source/member
+(cd type-change-source && "$TAR" rf ../type-change-back.tar member)
+(cd type-change-back-root && "$TAR" xf ../type-change-back.tar)
+grep -q '^regular last$' type-change-back-root/member ||
+    fail "symbolic-link-to-regular replacement lost the last member"
+
 echo "tartest: write-and-search-only extraction root"
 mkdir -p search-only-root
 "$FIXTURE" implicit-parent > search-only.tar
@@ -320,6 +338,21 @@ fi
 chmod 0700 search-only-root
 grep -q '^payload$' search-only-root/implicit/nested/file ||
     fail "write-and-search-only extraction omitted its member"
+
+echo "tartest: write-and-search-only nested extraction directory"
+mkdir -p search-only-nested-source/locked search-only-nested-root/locked
+printf 'nested payload\n' > search-only-nested-source/locked/file
+(cd search-only-nested-source &&
+    "$TAR" cf ../search-only-nested.tar locked/file)
+chmod 0333 search-only-nested-root/locked
+if ! (cd search-only-nested-root &&
+    "$TAR" xf ../search-only-nested.tar); then
+    chmod 0700 search-only-nested-root/locked
+    fail "write-and-search-only nested directory was rejected"
+fi
+chmod 0700 search-only-nested-root/locked
+grep -q '^nested payload$' search-only-nested-root/locked/file ||
+    fail "write-and-search-only nested directory omitted its member"
 
 echo "tartest: search-only archive-creation root"
 mkdir -p create-search-only-root

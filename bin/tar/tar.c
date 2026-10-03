@@ -129,12 +129,14 @@ struct extracted_identity {
 };
 
 /*
- * Regular-file and symbolic-link provenance use separate identity lists so
- * each target allocation remains 16 bytes including its allocator header.
- * Directories additionally retain final metadata by inode, allowing a later
- * noncontiguous member to reopen a restrictive directory with temporary owner
- * access and then restore the sanitized mode. The mode needs only nine bits;
- * USHRT_MAX represents an existing directory whose mode tar must preserve.
+ * Regular-file and symbolic-link provenance share one identity list so an
+ * extraction-owned path can change between those types when a later archive
+ * member wins. Each target allocation remains 16 bytes including its
+ * allocator header. Directories additionally retain final metadata by inode,
+ * allowing a later noncontiguous member to reopen a restrictive directory
+ * with temporary owner access and then restore the sanitized mode. The mode
+ * needs only nine bits; USHRT_MAX represents an existing directory whose mode
+ * tar must preserve.
  */
 struct extracted_directory {
     ino_t inode;
@@ -157,8 +159,7 @@ static union hblock dblock;
 static union hblock *tbuf;
 static struct linkbuf *ihead;
 static struct stat stbuf;
-static struct extracted_identity *extracted_files;
-static struct extracted_identity *extracted_symlinks;
+static struct extracted_identity *extracted_outputs;
 static struct extracted_directory *extracted_directories;
 /*
  * The inode-keyed directory list remains authoritative across noncontiguous
@@ -233,17 +234,16 @@ static int create_output_file(const char *, mode_t);
 static int write_all(int, const void *, size_t);
 static void record_extracted_file(int);
 static void record_extracted_symlink(const char *);
+static void remove_extracted_output(const char *);
 static void record_directory_metadata(const char *, int,
     const struct directory_metadata *);
 static struct extracted_identity *find_extracted_identity(
     struct extracted_identity *, const struct stat *);
 static struct extracted_directory *find_extracted_directory(
     const struct stat *);
-static int was_extracted_file(const struct stat *);
-static int was_extracted_symlink(const struct stat *);
-static void forget_extracted_file(const struct stat *);
-static void forget_extracted_symlink(const struct stat *);
-static void free_extracted_files(void);
+static int was_extracted_output(const struct stat *);
+static void forget_extracted_output(const struct stat *);
+static void free_extracted_outputs(void);
 static _Noreturn void archive_error(const char *);
 static _Noreturn void archive_path_error(const char *, const char *);
 
@@ -1289,18 +1289,7 @@ doxtract(char **argv)
             continue;
         }
         if (dblock.dbuf.linkflag == SYMTYPE) {
-            struct stat status;
-
-            if (lstat(leaf_name, &status) == 0) {
-                if (!was_extracted_symlink(&status))
-                    archive_error("refusing to replace an existing output path");
-                if (unlink(leaf_name) < 0)
-                    archive_path_error("unlink repeated symbolic link",
-                        curname);
-                forget_extracted_symlink(&status);
-            } else if (errno != ENOENT) {
-                archive_path_error("lstat symbolic-link output", curname);
-            }
+            remove_extracted_output(leaf_name);
             if (symlink(curlink, leaf_name) < 0)
                 archive_path_error("create symbolic link", curname);
             record_extracted_symlink(leaf_name);
@@ -1312,14 +1301,13 @@ doxtract(char **argv)
         if (dblock.dbuf.linkflag == LNKTYPE) {
             int source_descriptor;
             struct stat source_status;
-            struct stat output_status;
 
             leaf_name = enter_parent_directories(extraction_root_descriptor,
                 curlink, 0, 0);
             source_descriptor = open_verified_regular(leaf_name, 1);
             if (fstat(source_descriptor, &source_status) < 0)
                 archive_path_error("fstat hard-link source", curlink);
-            if (!was_extracted_file(&source_status))
+            if (!was_extracted_output(&source_status))
                 archive_error("hard-link source was not created by this extraction");
             if ((source_status.st_mode & (S_ISUID | S_ISGID | S_ISVTX)) != 0)
                 archive_error("hard-link source carries special mode bits");
@@ -1327,8 +1315,7 @@ doxtract(char **argv)
                 archive_path_error("close hard-link source", curlink);
             leaf_name = enter_parent_directories(extraction_root_descriptor,
                 curname, 1, 0);
-            if (lstat(leaf_name, &output_status) == 0 || errno != ENOENT)
-                archive_error("refusing to replace an existing output path");
+            remove_extracted_output(leaf_name);
             restore_directory_root(extraction_root_descriptor);
             if (link(curlink, curname) < 0) {
                 archive_path_error("create hard link", curname);
@@ -1382,7 +1369,7 @@ doxtract(char **argv)
         close(extraction_root_descriptor) < 0)
         archive_path_error("close extraction root", ".");
     extraction_root_descriptor = -1;
-    free_extracted_files();
+    free_extracted_outputs();
 }
 
 static void
@@ -1635,10 +1622,16 @@ open_verified_directory(const char *name, mode_t creation_mode,
     path_device = status.st_dev;
     path_inode = status.st_ino;
     descriptor = open(name, O_RDONLY | O_NONBLOCK);
-    if (descriptor < 0)
+    if (descriptor < 0 && errno == EACCES && enter_directory && !created) {
+        if (chdir(name) < 0)
+            archive_path_error("enter search-only directory", name);
+        if (stat(".", &status) < 0)
+            archive_path_error("stat entered directory", name);
+    } else if (descriptor < 0) {
         archive_path_error("open directory", name);
-    if (fstat(descriptor, &status) < 0)
+    } else if (fstat(descriptor, &status) < 0) {
         archive_path_error("fstat directory", name);
+    }
     if (!S_ISDIR(status.st_mode) || status.st_dev != path_device ||
         status.st_ino != path_inode)
         archive_error("directory changed during traversal");
@@ -1658,6 +1651,8 @@ open_verified_directory(const char *name, mode_t creation_mode,
             directory = find_extracted_directory(&status);
         *directory_result = directory;
     }
+    if (descriptor < 0)
+        return created;
     if (enter_directory && fchdir(descriptor) < 0)
         archive_path_error("enter directory", name);
     if (close(descriptor) < 0)
@@ -1751,21 +1746,7 @@ create_output_file(const char *name, mode_t mode)
     int descriptor = open(name, O_WRONLY | O_CREAT | O_EXCL, mode & 0777);
 
     if (descriptor < 0 && errno == EEXIST) {
-        struct stat status;
-
-        if (lstat(name, &status) < 0)
-            archive_path_error("lstat repeated output", curname);
-        if (!S_ISREG(status.st_mode) || !was_extracted_file(&status))
-            archive_error("refusing to replace an existing output path");
-        if (unlink(name) < 0)
-            archive_path_error("unlink repeated output", curname);
-        /*
-         * An inode with another link remains an extraction-owned hard-link
-         * source. An unlinked single-name inode can be forgotten so repeated
-         * members do not grow the provenance list with dead identities.
-         */
-        if (status.st_nlink == 1)
-            forget_extracted_file(&status);
+        remove_extracted_output(name);
         descriptor = open(name, O_WRONLY | O_CREAT | O_EXCL, mode & 0777);
     }
     if (descriptor < 0)
@@ -1843,7 +1824,7 @@ record_extracted_file(int descriptor)
 
     if (fstat(descriptor, &status) < 0)
         archive_path_error("fstat extracted file", curname);
-    record_extracted_identity(&extracted_files, &status);
+    record_extracted_identity(&extracted_outputs, &status);
 }
 
 static void
@@ -1855,7 +1836,30 @@ record_extracted_symlink(const char *name)
         archive_path_error("lstat extracted symbolic link", curname);
     if (!S_ISLNK(status.st_mode))
         archive_error("symbolic-link output changed type");
-    record_extracted_identity(&extracted_symlinks, &status);
+    record_extracted_identity(&extracted_outputs, &status);
+}
+
+static void
+remove_extracted_output(const char *name)
+{
+    struct stat status;
+
+    if (lstat(name, &status) < 0) {
+        if (errno == ENOENT)
+            return;
+        archive_path_error("lstat output", curname);
+    }
+    if (!was_extracted_output(&status))
+        archive_error("refusing to replace an existing output path");
+    if (unlink(name) < 0)
+        archive_path_error("unlink repeated output", curname);
+    /*
+     * An inode with another link remains an extraction-owned hard-link
+     * source. An unlinked single-name inode can be forgotten so repeated
+     * members do not grow the provenance list with dead identities.
+     */
+    if (status.st_nlink == 1)
+        forget_extracted_output(&status);
 }
 
 static void
@@ -1890,15 +1894,9 @@ record_directory_metadata(const char *name, int owned,
 }
 
 static int
-was_extracted_file(const struct stat *status)
+was_extracted_output(const struct stat *status)
 {
-    return find_extracted_identity(extracted_files, status) != NULL;
-}
-
-static int
-was_extracted_symlink(const struct stat *status)
-{
-    return find_extracted_identity(extracted_symlinks, status) != NULL;
+    return find_extracted_identity(extracted_outputs, status) != NULL;
 }
 
 static void
@@ -1921,31 +1919,19 @@ forget_extracted_identity(struct extracted_identity **list,
 }
 
 static void
-forget_extracted_file(const struct stat *status)
+forget_extracted_output(const struct stat *status)
 {
-    forget_extracted_identity(&extracted_files, status);
+    forget_extracted_identity(&extracted_outputs, status);
 }
 
 static void
-forget_extracted_symlink(const struct stat *status)
+free_extracted_outputs(void)
 {
-    forget_extracted_identity(&extracted_symlinks, status);
-}
+    while (extracted_outputs != NULL) {
+        struct extracted_identity *next = extracted_outputs->next;
 
-static void
-free_extracted_files(void)
-{
-    while (extracted_files != NULL) {
-        struct extracted_identity *next = extracted_files->next;
-
-        free(extracted_files);
-        extracted_files = next;
-    }
-    while (extracted_symlinks != NULL) {
-        struct extracted_identity *next = extracted_symlinks->next;
-
-        free(extracted_symlinks);
-        extracted_symlinks = next;
+        free(extracted_outputs);
+        extracted_outputs = next;
     }
     while (extracted_directories != NULL) {
         struct extracted_directory *next = extracted_directories->next;

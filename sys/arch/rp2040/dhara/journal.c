@@ -92,6 +92,9 @@ static inline size_t hdr_user_offset(uint8_t which)
 		which * DHARA_META_SIZE;
 }
 
+static int metadata_page_valid(const struct dhara_journal *, dhara_page_t,
+			       size_t *);
+
 /************************************************************************
  * Page geometry helpers
  */
@@ -507,9 +510,15 @@ dhara_page_t dhara_journal_size(const struct dhara_journal *j)
 int dhara_journal_read_meta(struct dhara_journal *j, dhara_page_t p,
 			    uint8_t *buf, dhara_error_t *err)
 {
-	/* Offset of metadata within the metadata page */
-	const dhara_page_t ppc_mask = (1 << j->log2_ppc) - 1;
-	const size_t offset = hdr_user_offset(p & ppc_mask);
+	dhara_page_t ppc_mask;
+	size_t offset = 0;
+	const int valid_page = metadata_page_valid(j, p, &offset);
+
+	if (!valid_page) {
+		dhara_set_error(err, DHARA_E_CORRUPT_MAP);
+		return -1;
+	}
+	ppc_mask = ((dhara_page_t)1 << j->log2_ppc) - 1;
 
 	/* Special case: buffered metadata */
 	if (align_eq(p, j->head, j->log2_ppc)) {
@@ -530,6 +539,32 @@ int dhara_journal_read_meta(struct dhara_journal *j, dhara_page_t p,
 	return dhara_nand_read(j->nand, p | ppc_mask,
 			       offset, DHARA_META_SIZE,
 			       buf, err);
+}
+
+static int
+metadata_page_valid(const struct dhara_journal *j, dhara_page_t p,
+	size_t *offset)
+{
+	const struct dhara_nand *nand = j->nand;
+	dhara_page_t ppc_mask;
+	size_t page_size;
+
+	if (j->log2_ppc > 8U ||
+	    j->log2_ppc >= sizeof(dhara_page_t) * 8U ||
+	    nand->log2_ppb >= sizeof(dhara_page_t) * 8U ||
+	    nand->log2_page_size >= sizeof(size_t) * 8U)
+		return 0;
+
+	ppc_mask = ((dhara_page_t)1 << j->log2_ppc) - 1;
+	*offset = hdr_user_offset((uint8_t)(p & ppc_mask));
+	page_size = (size_t)1 << nand->log2_page_size;
+	if ((p >> nand->log2_ppb) >= nand->num_blocks ||
+	    (p & ppc_mask) == ppc_mask ||
+	    *offset > page_size ||
+	    DHARA_META_SIZE > page_size - *offset)
+		return 0;
+
+	return 1;
 }
 
 dhara_page_t dhara_journal_peek(struct dhara_journal *j)

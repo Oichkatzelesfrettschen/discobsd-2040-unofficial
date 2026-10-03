@@ -163,9 +163,10 @@ static inline dhara_page_t dhara_journal_root(const struct dhara_journal *j)
 	return j->root;
 }
 
-/* Read metadata associated with a page. This assumes that the page
- * provided is a valid data page. The actual page data is read via the
- * normal NAND interface.
+/* Read metadata associated with a user page. Out-of-range pages,
+ * checkpoint pages and metadata slices outside the NAND page are rejected
+ * with DHARA_E_CORRUPT_MAP. The actual page data is read via the NAND
+ * interface unless the metadata is buffered.
  */
 int dhara_journal_read_meta(struct dhara_journal *j, dhara_page_t p,
 			    uint8_t *buf, dhara_error_t *err);

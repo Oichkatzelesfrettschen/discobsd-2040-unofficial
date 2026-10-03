@@ -17,6 +17,9 @@
 #ifndef	_RP2040_DEV_FLASH_H_
 #define	_RP2040_DEV_FLASH_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
 /*
  * Root filesystem on the RP2040's QSPI flash.
  *
@@ -95,6 +98,17 @@
 #define	FLASH_SWAP_BYTES	(384UL * 1024)
 #define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
 #define	FLASH_SWAP_SCRATCH_OFFSET FLASH_SWAP_OFFSET
+
+static inline int
+flash_nand_range_valid(uint32_t page, size_t offset, size_t length)
+{
+	const size_t page_count = FLASH_FS_BYTES / FLASH_UNIT_BYTES;
+	const size_t page_size = FLASH_UNIT_BYTES;
+
+	if ((size_t)page >= page_count || offset > page_size)
+		return 0;
+	return length <= page_size - offset;
+}
 
 /*
  * A function carrying this attribute is linked into .data and copied to RAM

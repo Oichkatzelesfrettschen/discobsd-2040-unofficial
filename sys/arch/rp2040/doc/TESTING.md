@@ -786,6 +786,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-backgammon-contracts-cross` | the exact subs.c compiled as strict C17 for Cortex-M0+ with full warnings, which `games/backgammon` itself now builds under after the 14 sites the directory carried were repaired |
 | `check-resize-contracts-cross` | the exact resize source compiled as strict C17 for Cortex-M0+; the linked utilbox contains no ctype table, formatted-input scanner or scanf entry point, and a fixture containing every forbidden symbol calibrates the rejection path |
 | `check-flash-swap` | the raw flash swap driver's arithmetic on the host and the kernels' link map |
+| `check-dhara-metadata` | the production Dhara `journal.c` metadata reader and flash driver's shared page-range predicate compiled as strict C17 under address and undefined-behavior sanitizers: valid buffered and NAND-backed user-page metadata reads; rejection of checkpoint and out-of-range page indexes, invalid shift geometry and metadata slices larger than the configured NAND page before buffer access or NAND calls; valid first/last NOR pages, rejected out-of-range page indexes and overflow-safe sub-page byte ranges; and a validator-bypass mutation calibrated to reproduce the checkpoint-slot stack-buffer-overread |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |
 

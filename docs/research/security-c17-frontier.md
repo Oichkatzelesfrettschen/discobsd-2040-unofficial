@@ -66,6 +66,42 @@ The public-record check read the CVE List V5 records for each identifier on
 | CVE-1999-1471 | shipped mechanism absent; source review retained | The shipped `passwd` changes the password hash and has no shell or GECOS input. `chpass`, which owns those fields, stays outside the RP2040 manifest and already bounds its aggregate GECOS buffer. | Shipping `chpass`, or finding an unbounded shell/GECOS copy in a setuid image path, reopens the row. |
 | CVE-2000-0993 | helper absent | The affected BSD libutil `pw_error` format-string helper has no source or call site in the tree. | A linked object exports `pw_error`, or another password-database error path treats user data as a format string. |
 
+## Dhara page metadata bounds
+
+At source revision `915cbaebaefee5ae187e7610a96d64fbdeec8b3a`,
+`map.c:144-151` accepted alternate physical-page indexes from persistent
+metadata and passed them to `dhara_journal_read_meta()`. For the shipped
+1024-byte page and eight-page checkpoint group, a checkpoint-slot index
+selected metadata offset 944; the 132-byte copy read 52 bytes past
+`journal.page_buf` when the page shared the current head's buffered group.
+The repaired reader validates the device page range, rejects checkpoint
+slots, and checks the metadata slice against the NAND page size before either
+the buffered copy or the NAND read.
+
+`check-dhara-metadata` compiles the production `journal.c` as strict C17 with
+address and undefined-behavior sanitizers. It exercises valid buffered and
+NAND-backed pages, checkpoint and out-of-range pages, undersized geometry,
+and a validator-bypass mutation that must reproduce the original stack
+buffer overread. With the production Cortex-M0+ flags, the journal object
+grows from 2,608 to 2,710 text bytes, with data and BSS unchanged; the
+`dhara_journal_read_meta` frame grows from 32 to 40 bytes. A complete kernel
+build after the repairs reports PICO at 102,198 text / 248 data / 39,816 BSS
+bytes and PICO_UART at 90,328 / 192 / 14,768 bytes. These compile-time
+measurements do not establish runtime stack high-water or physical-board
+behavior. The host gate also does not establish unprivileged control of
+corrupted QSPI metadata. The audit also checked raw NOR callback bounds.
+Graft navigation to
+`dhara_nand_read`, `dhara_nand_prog` and
+`dhara_nand_is_free`, verified against `sys/arch/rp2040/dev/flash.c`, found
+that the raw callbacks formed addresses before establishing the page was in
+the filesystem extent; `dhara_nand_read` also used overflow-prone
+`offset + length` arithmetic. The callbacks now share a subtraction-based
+range predicate that checks the page index before address formation. The
+sanitized host gate exercises the production predicate at the first and last
+valid pages, the first invalid and maximum page indexes, and end/overflowing
+byte ranges. This proves the predicate, while the target kernel build proves
+the callbacks compile against it; neither establishes physical flash behavior.
+
 NVD keyword queries returned zero records for `TinyUSB` and `heatshrink` on
 2026-10-03. That result is a name-search receipt, not a clean bill of health:
 aliases, downstream adapters and newly published records can evade it.

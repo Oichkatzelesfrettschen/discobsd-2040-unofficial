@@ -334,12 +334,13 @@ int
 dhara_nand_prog(const struct dhara_nand *n __unused, dhara_page_t p,
     const u_char *data, dhara_error_t *err)
 {
-	u_int offset = p * FLASH_UNIT_BYTES;
+	u_int offset;
 
-	if (offset >= FLASH_FS_BYTES) {
+	if (!flash_nand_range_valid(p, 0, FLASH_UNIT_BYTES)) {
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
 	}
+	offset = p * FLASH_UNIT_BYTES;
 	return flash_program(FLASH_FS_OFFSET + offset, data,
 	    FLASH_UNIT_BYTES);
 }
@@ -350,6 +351,8 @@ dhara_nand_is_free(const struct dhara_nand *n __unused, dhara_page_t p)
 	const u_char *q;
 	u_int i;
 
+	if (!flash_nand_range_valid(p, 0, FLASH_UNIT_BYTES))
+		return 0;
 	q = (const u_char *)(FLASH_XIP_BASE + FLASH_FS_OFFSET +
 	    p * FLASH_UNIT_BYTES);
 	for (i = 0; i < FLASH_UNIT_BYTES; i++)
@@ -364,8 +367,7 @@ dhara_nand_read(const struct dhara_nand *n __unused, dhara_page_t p,
 {
 	const u_char *q;
 
-	if (offset + length > FLASH_UNIT_BYTES ||
-	    p * FLASH_UNIT_BYTES + offset + length > FLASH_FS_BYTES) {
+	if (!flash_nand_range_valid(p, offset, length)) {
 		dhara_set_error(err, DHARA_E_ECC);
 		return -1;
 	}

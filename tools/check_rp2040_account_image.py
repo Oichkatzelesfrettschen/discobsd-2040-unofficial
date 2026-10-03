@@ -9,6 +9,11 @@ import stat
 import subprocess
 import tempfile
 
+PRIVILEGED_PACKED_MODES = {
+    "/usr/bin/passwd": 0o4755,
+    "/usr/bin/su": 0o4751,
+}
+
 
 def root_password_field(passwd_data: bytes, shadow_data: bytes) -> bytes:
     passwd_lines = passwd_data.splitlines()
@@ -48,6 +53,47 @@ def verify_account_record(shadow_mode: int, passwd_data: bytes, shadow_data: byt
         raise ValueError("root password field in /etc/shadow is not locked")
 
 
+def packed_program_metadata(fsutil_output: str) -> dict[str, tuple[int, int]]:
+    lines = fsutil_output.splitlines()
+    metadata = {}
+    for index, line in enumerate(lines):
+        path = next(
+            (
+                candidate
+                for candidate in PRIVILEGED_PACKED_MODES
+                if line.startswith(candidate + " - ")
+            ),
+            None,
+        )
+        if path is None:
+            continue
+        mode = None
+        owner = None
+        for detail in lines[index + 1 :]:
+            if detail.startswith("/"):
+                break
+            if detail.startswith("       Mode: "):
+                mode = stat.S_IMODE(int(detail.split(":", 1)[1].strip(), 8))
+            elif detail.startswith("   Owner id: "):
+                owner = int(detail.split(":", 1)[1].strip())
+        if mode is not None and owner is not None:
+            metadata[path] = (mode, owner)
+    return metadata
+
+
+def verify_privileged_program_metadata(metadata: dict[str, tuple[int, int]]) -> None:
+    for path, expected_mode in PRIVILEGED_PACKED_MODES.items():
+        actual = metadata.get(path)
+        if actual is None:
+            raise ValueError(f"{path} inode metadata is missing")
+        actual_mode, actual_owner = actual
+        if actual_mode != expected_mode or actual_owner != 0:
+            raise ValueError(
+                f"{path} mode/owner is {actual_mode:04o}/{actual_owner}, "
+                f"expected {expected_mode:04o}/0"
+            )
+
+
 def verify_checker_controls() -> None:
     passwd = b"root:5:0:1:root:/root:/bin/sh\n"
     locked_shadow = b"root:*:0:1:root:/root:/bin/sh\n"
@@ -64,8 +110,35 @@ def verify_checker_controls() -> None:
             continue
         raise AssertionError("account image checker accepted an insecure control")
 
+    packed_metadata = packed_program_metadata(
+        "/usr/bin/passwd - 123 bytes\n       Mode: 0104755\n   Owner id: 0\n"
+        "/usr/bin/su - 123 bytes\n       Mode: 0104751\n   Owner id: 0\n"
+    )
+    verify_privileged_program_metadata(packed_metadata)
+    unsafe_metadata = (
+        ("/usr/bin/passwd", (0o775, 0)),
+        ("/usr/bin/su", (0o751, 0)),
+        ("/usr/bin/passwd", (0o4755, 2)),
+    )
+    for path, unsafe_record in unsafe_metadata:
+        altered_metadata = dict(packed_metadata)
+        altered_metadata[path] = unsafe_record
+        try:
+            verify_privileged_program_metadata(altered_metadata)
+        except ValueError:
+            continue
+        raise AssertionError(f"account image checker accepted unsafe inode metadata for {path}")
+
 
 def verify_image(fsutil: pathlib.Path, image: pathlib.Path) -> None:
+    listing = subprocess.run(
+        [str(fsutil), "-vvv", "--partition=1", str(image)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    verify_privileged_program_metadata(packed_program_metadata(listing))
+
     with tempfile.TemporaryDirectory(prefix="rp2040-account-image-") as temporary:
         subprocess.run(
             [str(fsutil), "--extract", "--partition=1", str(image)],
@@ -90,7 +163,10 @@ def main() -> int:
     arguments = parser.parse_args()
     verify_checker_controls()
     verify_image(arguments.fsutil.resolve(), arguments.image.resolve())
-    print("RP2040 account image: root locked; /etc/shadow mode 0600")
+    print(
+        "RP2040 account image: root locked; /etc/shadow mode 0600; "
+        "passwd and su packed modes verified"
+    )
     return 0
 
 

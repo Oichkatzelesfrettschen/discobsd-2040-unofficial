@@ -41,6 +41,33 @@ The public-record check read the CVE List V5 records for each identifier on
 2026-10-03. The stable record form is
 `https://www.cve.org/CVERecord?id=CVE-YYYY-NNNN`.
 
+## Packed password utility permissions
+
+`usr.bin/passwd/Makefile` installs `passwd` with mode `04755`, and
+`passwd.c` needs effective root to replace `/etc/shadow` and rebuild the
+password database after authenticating the caller's old password. The RP2040
+image does not install the Makefile's output through that recipe: `pack`
+entries use the mode supplied by `distrib/rp2040/mi.rp2040` and
+`tools/fsutil/fsutil.c` passes that mode into `fs_file_create()`.
+
+The previous manifest set `filemode 0775`, packed `passwd` without an
+override, then packed `su` followed by `mode 04751`. The fsutil parser applies
+`mode` to the pending object and closes that object when the next object
+directive arrives. Consequently `su` received `04751`, while `passwd`
+received `0775`. A non-root caller therefore could not complete the shipped
+password-change flow even though the standalone build recipe declares the
+setuid installation mode. The manifest now assigns `04755` to `passwd` and
+retains `04751` for `su`.
+
+`mkmanifest.py` now carries the effective file mode through profile
+composition, requires the two privileged packed programs to retain their
+declared modes, and has negative controls that remove each mode directive.
+`check-fs-profiles` passes on all five profiles. `check-account-image` reads
+the actual packed inode modes through fsutil and verifies both setuid bits in
+the built image, in addition to checking the locked root verifier and private
+shadow file. The gate does not execute a setuid account transition on the
+board.
+
 ## CVE dispositions
 
 | Identifier | Disposition | Repository evidence | Falsifier or next gate |

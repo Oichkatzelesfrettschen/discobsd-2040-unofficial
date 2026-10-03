@@ -537,6 +537,7 @@ cmp "utf8-source/$utf8_name" "utf8-root/$utf8_name" ||
     fail "valid UTF-8 filename failed to round trip"
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 "$PYTHON" - "$TAR" <<'PY'
+import errno
 import os
 import subprocess
 import sys
@@ -545,8 +546,14 @@ tar = os.fsencode(sys.argv[1])
 name = b"\xe9"
 source_path = b"utf8-source/" + name
 root_path = b"utf8-root/" + name
-with open(source_path, "wb") as source_file:
-    source_file.write(b"opaque payload\n")
+try:
+    with open(source_path, "wb") as source_file:
+        source_file.write(b"opaque payload\n")
+except OSError as error:
+    if error.errno != errno.EILSEQ:
+        raise
+    print("tartest: filesystem rejects filenames outside valid UTF-8")
+    sys.exit(0)
 subprocess.run([tar, b"cf", b"../opaque.tar", name], cwd=b"utf8-source", check=True)
 listing = subprocess.run(
     [tar, b"tf", b"opaque.tar"], check=True, stdout=subprocess.PIPE

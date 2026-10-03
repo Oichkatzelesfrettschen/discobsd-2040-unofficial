@@ -9,6 +9,7 @@
 # Pass a different binary as the first argument to test one that exists.
 #
 set -eu
+: "${PYTHON:?set PYTHON to the intended interpreter}"
 
 srcdir=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/tartest.XXXXXX")
@@ -33,11 +34,46 @@ if [ $# -ge 1 ]; then
 	TAR=$1
 else
 	TAR=$work/tar
-	${CC:-cc} -std=gnu17 -O1 -w \
+	${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
+	    -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+	    -Wold-style-definition -Wconversion -Wsign-conversion \
+	    -fno-omit-frame-pointer \
+	    -fsanitize=address,undefined \
 	    ${ZPROG:+-DCOMPRESS=\"$ZPROG\"} \
 	    -o "$TAR" "$srcdir/tar.c" ||
 	    fail "host build of tar.c"
 fi
+NATIVE_TAR=$work/tar-native-paths
+${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=4096 -std=c17 -O1 \
+	-Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+	-Wold-style-definition -Wconversion -Wsign-conversion \
+	-fno-omit-frame-pointer -fsanitize=address,undefined \
+	-o "$NATIVE_TAR" "$srcdir/tar.c" ||
+	fail "host build of tar.c with native pathname capacity"
+MUTANT_TAR=$work/tar-without-metadata-path-bound
+"$PYTHON" - "$srcdir/tar.c" "$work/tar-without-metadata-path-bound.c" <<'PY'
+from pathlib import Path
+import sys
+
+source_path = Path(sys.argv[1])
+mutated_path = Path(sys.argv[2])
+source = source_path.read_text(encoding="utf-8")
+old = """                if (path_length >= sizeof(curname) - 1 ||
+                    path_length >= sizeof(dirstack) - 1) {"""
+new = """                if (path_length >= sizeof(curname) - 1) {"""
+if source.count(old) != 1:
+    raise SystemExit("directory metadata bound mutation anchor count differs")
+mutated_path.write_text(source.replace(old, new), encoding="utf-8")
+PY
+${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=4096 -std=c17 -O1 \
+	-Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+	-Wold-style-definition -Wconversion -Wsign-conversion \
+	-fno-omit-frame-pointer -fsanitize=address,undefined \
+	-o "$MUTANT_TAR" "$work/tar-without-metadata-path-bound.c" ||
+	fail "host build of unbounded metadata-path mutation"
+ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+export ASAN_OPTIONS UBSAN_OPTIONS
 echo "tartest: tool under test: $TAR"
 
 #
@@ -79,10 +115,655 @@ mkshort() {
 	printf '%0999d' 7 > "$root/odd2"	# 999 bytes, spans two blocks
 	ln -s plain "$root/symlink"
 	ln "$root/plain" "$root/sub/hardlink"
+	ln -s ../plain "$root/sub/parentlink"
 	chmod 0751 "$root/plain"
 }
 
 cd "$work"
+
+FIXTURE=$work/tarfixture
+${CC:-cc} -std=c17 -O1 -Wall -Wextra -Werror -Wpedantic \
+    -Wstrict-prototypes -Wold-style-definition -Wconversion -Wsign-conversion \
+    -o "$FIXTURE" "$srcdir/tests/tarfixture.c" ||
+    fail "host build of tarfixture.c"
+
+extract_must_fail() {
+	case_name=$1
+	archive=$2
+	root=$3
+	if (cd "$root" && "$TAR" xf "$archive") >"$case_name.out" 2>&1; then
+		fail "$case_name archive reported success"
+	fi
+}
+
+list_must_fail() {
+	case_name=$1
+	archive=$2
+	if "$TAR" tf "$archive" >"$case_name.out" 2>&1; then
+		fail "$case_name archive listing reported success"
+	fi
+}
+
+echo "tartest: extraction paths remain confined"
+mkdir -p security/dotdot/root security/dotdot/outside
+"$FIXTURE" dotdot > security/dotdot.tar
+extract_must_fail dotdot "$work/security/dotdot.tar" \
+    "$work/security/dotdot/root"
+[ ! -e security/dotdot/escaped ] || fail "dotdot member escaped"
+
+for scenario in dot empty-component control; do
+	mkdir -p "security/$scenario/root"
+	"$FIXTURE" "$scenario" > "security/$scenario.tar"
+	extract_must_fail "$scenario" "$work/security/$scenario.tar" \
+	    "$work/security/$scenario/root"
+done
+
+for scenario in symlink-control hardlink-control utf8-control \
+    truncated-utf8-control; do
+	"$FIXTURE" "$scenario" > "security/$scenario.tar"
+	list_must_fail "$scenario" "$work/security/$scenario.tar"
+done
+
+mkdir -p security/absolute/root
+"$FIXTURE" absolute "$work/security/absolute/escaped" \
+    > security/absolute.tar
+extract_must_fail absolute "$work/security/absolute.tar" \
+    "$work/security/absolute/root"
+[ ! -e security/absolute/escaped ] || fail "absolute member escaped"
+
+mkdir -p security/parent/root security/parent/outside
+printf 'sentinel\n' > security/parent/outside/payload
+ln -s ../outside security/parent/root/link
+mkdir -p security/parent-source/link
+printf 'archive payload\n' > security/parent-source/link/payload
+(cd security/parent-source && "$TAR" cf ../parent.tar link/payload)
+extract_must_fail symlink-parent "$work/security/parent.tar" \
+    "$work/security/parent/root"
+grep -q '^sentinel$' security/parent/outside/payload ||
+    fail "symlink parent changed its outside victim"
+
+mkdir -p security/final/root security/final/outside
+printf 'sentinel\n' > security/final/outside/victim
+ln -s ../outside/victim security/final/root/victim
+"$FIXTURE" final > security/final.tar
+extract_must_fail final-symlink "$work/security/final.tar" \
+    "$work/security/final/root"
+grep -q '^sentinel$' security/final/outside/victim ||
+    fail "final symlink changed its outside victim"
+
+mkdir -p security/created/root/inside
+"$FIXTURE" archive-symlink > security/created.tar
+extract_must_fail archive-symlink "$work/security/created.tar" \
+    "$work/security/created/root"
+[ ! -e security/created/root/inside/from-archive ] ||
+    fail "archive-created symlink was traversed by a later member"
+
+mkdir -p security/symlink-mid-dotdot/root
+"$FIXTURE" symlink-mid-dotdot > security/symlink-mid-dotdot.tar
+extract_must_fail symlink-mid-dotdot \
+    "$work/security/symlink-mid-dotdot.tar" \
+    "$work/security/symlink-mid-dotdot/root"
+[ ! -e security/symlink-mid-dotdot/root/link ] ||
+    fail "symbolic link retained dot-dot after a named target component"
+
+mkdir -p security/hardlink/root
+printf 'sentinel\n' > security/hardlink/outside-existing
+"$FIXTURE" hardlink > security/hardlink.tar
+extract_must_fail hardlink-escape "$work/security/hardlink.tar" \
+    "$work/security/hardlink/root"
+[ ! -e security/hardlink/root/inside-link ] ||
+    fail "unsafe hard-link target was created"
+
+mkdir -p security/special/root
+"$FIXTURE" special > security/special.tar
+(cd security/special/root && "$TAR" xpf ../../special.tar)
+[ ! -u security/special/root/setid ] &&
+    [ ! -g security/special/root/setid ] ||
+    fail "archive special mode bits survived extraction"
+
+for scenario in unsupported directory-data bad-octal; do
+	mkdir -p "security/$scenario/root"
+	"$FIXTURE" "$scenario" > "security/$scenario.tar"
+	extract_must_fail "$scenario" "$work/security/$scenario.tar" \
+	    "$work/security/$scenario/root"
+done
+
+mkdir -p security/truncated/root
+dd if=security/final.tar of=security/truncated.tar bs=1 count=600 2>/dev/null
+extract_must_fail truncated "$work/security/truncated.tar" \
+    "$work/security/truncated/root"
+
+mkdir -p security/empty/root
+: > security/empty.tar
+extract_must_fail empty "$work/security/empty.tar" \
+    "$work/security/empty/root"
+
+mkdir -p security/existing/root
+printf 'sentinel\n' > security/existing/root/victim
+extract_must_fail existing "$work/security/final.tar" \
+    "$work/security/existing/root"
+grep -q '^sentinel$' security/existing/root/victim ||
+    fail "existing regular output changed"
+
+echo "tartest: directory metadata path fits its fixed stack"
+mkdir -p security/maximum-directory-path/root
+"$FIXTURE" maximum-directory-path > security/maximum-directory-path.tar
+if (cd security/maximum-directory-path/root &&
+	"$NATIVE_TAR" xf ../../maximum-directory-path.tar) \
+	>security/maximum-directory-path.out 2>&1; then
+	fail "path larger than directory metadata stack reported success"
+fi
+grep -q '^tar: directory path exceeds metadata stack$' \
+	security/maximum-directory-path.out || {
+	sed -n '1,20p' security/maximum-directory-path.out >&2
+	fail "overlong directory path lacked the metadata-stack diagnostic"
+}
+mkdir -p security/maximum-directory-path-mutant/root
+if (cd security/maximum-directory-path-mutant/root &&
+	"$MUTANT_TAR" xf ../../maximum-directory-path.tar) \
+	>security/maximum-directory-path-mutant.out 2>&1; then
+	fail "unbounded metadata-path mutation reported success"
+fi
+if ! grep -q 'AddressSanitizer: global-buffer-overflow' \
+	security/maximum-directory-path-mutant.out &&
+	! grep -q 'runtime error: store to address .* with insufficient space' \
+	security/maximum-directory-path-mutant.out; then
+	sed -n '1,20p' security/maximum-directory-path-mutant.out >&2
+	fail "unbounded metadata-path mutation did not reproduce the stack overflow"
+fi
+
+mkdir -p security/hard-source-symlink/root security/hard-source-symlink/outside
+printf 'sentinel\n' > security/hard-source-symlink/outside/source
+ln -s ../outside/source security/hard-source-symlink/root/source
+"$FIXTURE" hardlink-source > security/hard-source-symlink.tar
+extract_must_fail hard-source-symlink \
+    "$work/security/hard-source-symlink.tar" \
+    "$work/security/hard-source-symlink/root"
+[ ! -e security/hard-source-symlink/root/inside-link ] ||
+    fail "hard link followed a source symlink"
+
+mkdir -p security/hard-source-existing/root
+printf 'sentinel\n' > security/hard-source-existing/root/source
+"$FIXTURE" hardlink-source > security/hard-source-existing.tar
+extract_must_fail hard-source-existing \
+    "$work/security/hard-source-existing.tar" \
+    "$work/security/hard-source-existing/root"
+[ ! -e security/hard-source-existing/root/inside-link ] ||
+    fail "hard link admitted a pre-existing regular source"
+
+mkdir -p security/hard-source-special/root
+printf 'sentinel\n' > security/hard-source-special/root/source
+chmod 6755 security/hard-source-special/root/source
+"$FIXTURE" hardlink-source > security/hard-source-special.tar
+extract_must_fail hard-source-special \
+    "$work/security/hard-source-special.tar" \
+    "$work/security/hard-source-special/root"
+[ -u security/hard-source-special/root/source ] &&
+    [ -g security/hard-source-special/root/source ] ||
+    fail "hard-link rejection changed source special bits"
+
+echo "tartest: streamed directories retain owner traversal"
+mkdir -p restrictive-source/tree/sub restrictive-root
+printf 'payload\n' > restrictive-source/tree/sub/file
+(cd restrictive-source && "$TAR" cf ../restrictive.tar tree)
+(umask 0777; cd restrictive-root && "$TAR" xf ../restrictive.tar)
+chmod 0700 restrictive-root/tree
+chmod 0700 restrictive-root/tree/sub
+[ -f restrictive-root/tree/sub/file ] ||
+    fail "restrictive umask blocked a streamed child"
+
+echo "tartest: extracted directories finish with their sanitized modes"
+mkdir -p mode-source/tree/sub mode-root
+printf 'payload\n' > mode-source/tree/sub/file
+chmod 0500 mode-source/tree mode-source/tree/sub
+(cd mode-source && "$TAR" cf ../mode.tar tree)
+(cd mode-root && "$TAR" xpf ../mode.tar)
+[ "$(LC_ALL=C ls -ld mode-root/tree | cut -c1-10)" = "dr-x------" ] ||
+    fail "-p did not restore the archived top-level directory mode"
+[ "$(LC_ALL=C ls -ld mode-root/tree/sub | cut -c1-10)" = "dr-x------" ] ||
+    fail "-p did not restore the archived nested directory mode"
+chmod 0700 mode-source/tree mode-source/tree/sub
+chmod 0700 mode-root/tree mode-root/tree/sub
+mkdir -p zero-mode-root
+"$FIXTURE" zero-directories > zero-mode.tar
+(cd zero-mode-root && "$TAR" xpf ../zero-mode.tar)
+[ "$(LC_ALL=C ls -ld zero-mode-root/tree | cut -c1-10)" = "d---------" ] ||
+    fail "-p did not restore a mode-zero top-level directory"
+chmod 0700 zero-mode-root/tree
+[ "$(LC_ALL=C ls -ld zero-mode-root/tree/sub | cut -c1-10)" = "d---------" ] ||
+    fail "-p did not restore a mode-zero nested directory"
+chmod 0700 zero-mode-root/tree/sub
+[ -f zero-mode-root/tree/sub/file ] ||
+    fail "mode-zero directory finalization lost a streamed child"
+
+echo "tartest: directory metadata survives noncontiguous members"
+mkdir -p directory-revisit-root
+"$FIXTURE" directory-revisit > directory-revisit.tar
+(cd directory-revisit-root && "$TAR" xpf ../directory-revisit.tar)
+[ "$(LC_ALL=C ls -ld directory-revisit-root/locked | cut -c1-10)" = \
+    "d---------" ] || fail "revisited directory lost its final mode"
+chmod 0700 directory-revisit-root/locked
+grep -q '^payload$' directory-revisit-root/locked/file ||
+    fail "revisited restrictive directory lost its later member"
+
+echo "tartest: implicit parents finish with umask-derived modes"
+mkdir -p implicit-parent-root
+"$FIXTURE" implicit-parent > implicit-parent.tar
+(umask 0777; cd implicit-parent-root && "$TAR" xf ../implicit-parent.tar)
+[ "$(LC_ALL=C ls -ld implicit-parent-root/implicit | cut -c1-10)" = \
+    "d---------" ] || fail "implicit top-level parent retained temporary mode"
+chmod 0700 implicit-parent-root/implicit
+[ "$(LC_ALL=C ls -ld implicit-parent-root/implicit/nested | cut -c1-10)" = \
+    "d---------" ] || fail "implicit nested parent retained temporary mode"
+chmod 0700 implicit-parent-root/implicit/nested
+[ -f implicit-parent-root/implicit/nested/file ] ||
+    fail "implicit-parent finalization lost the extracted member"
+
+echo "tartest: repeated symbolic-link members retain the last target"
+mkdir -p repeated-symlink-root
+"$FIXTURE" repeated-symlink > repeated-symlink.tar
+(cd repeated-symlink-root && "$TAR" xf ../repeated-symlink.tar)
+[ "$(readlink repeated-symlink-root/link)" = "second" ] ||
+    fail "repeated symbolic link did not retain its last target"
+
+echo "tartest: repeated members may change type"
+mkdir -p type-change-source type-change-root type-change-back-root \
+    type-change-directory-root
+printf 'regular first\n' > type-change-source/member
+(cd type-change-source && "$TAR" cf ../type-change.tar member)
+rm type-change-source/member
+ln -s target type-change-source/member
+(cd type-change-source && "$TAR" rf ../type-change.tar member)
+(cd type-change-root && "$TAR" xf ../type-change.tar)
+[ "$(readlink type-change-root/member)" = "target" ] ||
+    fail "regular-to-symbolic-link replacement lost the last member"
+(cd type-change-source && "$TAR" cf ../type-change-back.tar member)
+rm type-change-source/member
+printf 'regular last\n' > type-change-source/member
+(cd type-change-source && "$TAR" rf ../type-change-back.tar member)
+(cd type-change-back-root && "$TAR" xf ../type-change-back.tar)
+grep -q '^regular last$' type-change-back-root/member ||
+    fail "symbolic-link-to-regular replacement lost the last member"
+rm type-change-source/member
+printf 'regular before directory\n' > type-change-source/member
+(cd type-change-source && "$TAR" cf ../type-change-directory.tar member)
+rm type-change-source/member
+mkdir type-change-source/member
+printf 'directory child\n' > type-change-source/member/child
+(cd type-change-source && "$TAR" rf ../type-change-directory.tar member)
+(cd type-change-directory-root && "$TAR" xf ../type-change-directory.tar)
+grep -q '^directory child$' type-change-directory-root/member/child ||
+    fail "regular-to-directory replacement lost the last member"
+
+echo "tartest: empty extracted directories may become regular files"
+mkdir -p directory-change-source/member directory-change-root
+(cd directory-change-source && "$TAR" cf ../directory-change.tar member)
+rmdir directory-change-source/member
+printf 'regular after directory\n' > directory-change-source/member
+(cd directory-change-source && "$TAR" rf ../directory-change.tar member)
+(cd directory-change-root && "$TAR" xf ../directory-change.tar)
+grep -q '^regular after directory$' directory-change-root/member ||
+    fail "directory-to-regular replacement lost the last member"
+mkdir -p directory-change-existing/member
+if (cd directory-change-existing && "$TAR" xf ../directory-change.tar) \
+    >directory-change-existing.out 2>&1; then
+    fail "directory replacement removed a pre-existing directory"
+fi
+[ -d directory-change-existing/member ] ||
+    fail "directory replacement changed a pre-existing directory"
+mkdir -p directory-change-nonempty-source/member directory-change-nonempty-root
+printf 'retained child\n' > directory-change-nonempty-source/member/child
+(cd directory-change-nonempty-source &&
+    "$TAR" cf ../directory-change-nonempty.tar member)
+(cd directory-change-source &&
+    "$TAR" rf ../directory-change-nonempty.tar member)
+if (cd directory-change-nonempty-root &&
+    "$TAR" xf ../directory-change-nonempty.tar) \
+    >directory-change-nonempty.out 2>&1; then
+    fail "directory replacement removed a nonempty directory"
+fi
+grep -q '^retained child$' directory-change-nonempty-root/member/child ||
+    fail "directory replacement lost a nonempty directory's child"
+
+if [ "$(id -u)" -eq 0 ]; then
+	echo "tartest: SKIP search-only fallbacks require a non-privileged UID"
+else
+	echo "tartest: write-and-search-only extraction root"
+	mkdir -p search-only-root
+	"$FIXTURE" implicit-parent > search-only.tar
+	chmod 0300 search-only-root
+	if ! (cd search-only-root && "$TAR" xf ../search-only.tar); then
+		chmod 0700 search-only-root
+		fail "write-and-search-only extraction root was rejected"
+	fi
+	chmod 0700 search-only-root
+	grep -q '^payload$' search-only-root/implicit/nested/file ||
+		fail "write-and-search-only extraction omitted its member"
+
+	echo "tartest: write-and-search-only nested extraction directory"
+	mkdir -p search-only-nested-source/locked search-only-nested-root/locked
+	printf 'nested payload\n' > search-only-nested-source/locked/file
+	(cd search-only-nested-source &&
+		"$TAR" cf ../search-only-nested.tar locked/file)
+	chmod 0333 search-only-nested-root/locked
+	if ! (cd search-only-nested-root &&
+		"$TAR" xf ../search-only-nested.tar); then
+		chmod 0700 search-only-nested-root/locked
+		fail "write-and-search-only nested directory was rejected"
+	fi
+	chmod 0700 search-only-nested-root/locked
+	grep -q '^nested payload$' search-only-nested-root/locked/file ||
+		fail "write-and-search-only nested directory omitted its member"
+
+	echo "tartest: explicit write-and-search-only directory member"
+	mkdir -p search-only-explicit-source/locked \
+		search-only-explicit-root/locked
+	printf 'explicit payload\n' > search-only-explicit-source/locked/file
+	(cd search-only-explicit-source &&
+		"$TAR" cf ../search-only-explicit.tar locked)
+	chmod 0333 search-only-explicit-root/locked
+	if ! (cd search-only-explicit-root &&
+		"$TAR" xf ../search-only-explicit.tar); then
+		chmod 0700 search-only-explicit-root/locked
+		fail "explicit search-only directory member was rejected"
+	fi
+	chmod 0700 search-only-explicit-root/locked
+	grep -q '^explicit payload$' search-only-explicit-root/locked/file ||
+		fail "explicit search-only directory omitted its member"
+
+	echo "tartest: search-only archive-creation root"
+	mkdir -p create-search-only-root
+	printf 'known input\n' > create-search-only-root/payload
+	chmod 0100 create-search-only-root
+	if ! (cd create-search-only-root &&
+		"$TAR" cf ../create-search-only.tar payload); then
+		chmod 0700 create-search-only-root
+		fail "search-only archive-creation root was rejected"
+	fi
+	chmod 0700 create-search-only-root
+	[ "$("$TAR" tf create-search-only.tar)" = "payload" ] ||
+		fail "search-only archive creation omitted the named input"
+
+	echo "tartest: search-only creation restores its root after -h traversal"
+	mkdir -p create-search-follow-root create-search-follow-target
+	printf 'followed input\n' > create-search-follow-target/input
+	printf 'root input\n' > create-search-follow-root/payload
+	ln -s ../create-search-follow-target create-search-follow-root/link
+	chmod 0100 create-search-follow-root
+	if ! (cd create-search-follow-root &&
+		"$TAR" chf ../create-search-follow.tar link/input payload); then
+		chmod 0700 create-search-follow-root
+		fail "search-only followed traversal lost the creation root"
+	fi
+	chmod 0700 create-search-follow-root
+	"$TAR" tf create-search-follow.tar > create-search-follow.list
+	grep -q '^link/input$' create-search-follow.list ||
+		fail "search-only followed traversal omitted its input"
+	grep -q '^payload$' create-search-follow.list ||
+		fail "search-only followed traversal omitted the later root input"
+fi
+
+echo "tartest: archive creation verifies source paths"
+mkdir -p create-source/root create-source/outside
+printf 'outside\n' > create-source/outside/payload
+ln -s ../outside create-source/root/link
+if (cd create-source/root &&
+    "$TAR" cf "$work/create-symlink.tar" link/payload) >create.out 2>&1; then
+	fail "archive creation followed a symlinked parent"
+fi
+(cd create-source/root &&
+    "$TAR" chf "$work/create-follow.tar" link/payload) ||
+    fail "archive creation -h did not follow a symlinked parent"
+"$TAR" tf create-follow.tar | grep -q '^link/payload$' ||
+    fail "archive creation -h omitted the followed input"
+mkdir -p create-trailing/tree
+printf 'trailing slash\n' > create-trailing/tree/payload
+(cd create-trailing && "$TAR" cf ../create-trailing.tar tree/) ||
+    fail "archive creation rejected a trailing slash"
+"$TAR" tf create-trailing.tar | grep -q '^tree/payload$' ||
+    fail "trailing-slash input omitted its child"
+mkdir -p create-dot/source/tree create-dot/target
+printf 'dot operand\n' > create-dot/source/tree/payload
+(cd create-dot/source && "$TAR" cf - .) |
+    (cd create-dot/target && "$TAR" xpf -) ||
+    fail "the documented current-directory copy invocation failed"
+diff -r create-dot/source create-dot/target ||
+    fail "the current-directory copy invocation changed the tree"
+echo "tartest: creation normalizes harmless dot components"
+mkdir -p create-dot-components/source/directory \
+	create-dot-components/target
+printf 'root operand\n' > create-dot-components/source/rootfile
+printf 'nested operand\n' > create-dot-components/source/directory/child
+(cd create-dot-components/source &&
+	"$TAR" cf ../components.tar ./rootfile directory/./child) ||
+	fail "creation rejected a harmless dot path component"
+printf 'rootfile\ndirectory/child\n' > create-dot-components.expected
+"$TAR" tf create-dot-components/components.tar \
+	> create-dot-components.list
+cmp create-dot-components.expected create-dot-components.list ||
+	fail "creation retained harmless dot path components"
+(cd create-dot-components/target && "$TAR" xf ../components.tar)
+cmp create-dot-components/source/rootfile \
+	create-dot-components/target/rootfile ||
+	fail "normalized root operand changed its contents"
+cmp create-dot-components/source/directory/child \
+	create-dot-components/target/directory/child ||
+	fail "normalized nested operand changed its contents"
+mkdir -p create-self
+printf 'bounded\n' > create-self/payload
+(cd create-self && "$TAR" cf archive.tar .) ||
+    fail "current-directory creation with an in-tree archive failed"
+"$TAR" tf create-self/archive.tar > create-self.list
+grep -q '^payload$' create-self.list ||
+    fail "current-directory creation omitted its payload"
+if grep -q '^archive.tar$' create-self.list; then
+	fail "current-directory creation archived its own growing output"
+fi
+mkdir -p create-links
+ln -s /etc/passwd create-links/absolute
+ln -s ../outside create-links/escape
+printf 'safe source\n' > create-links/safe
+if (cd create-links &&
+    "$TAR" cf "$work/create-absolute-link.tar" absolute safe) \
+    >create-absolute-link.out 2>&1; then
+	fail "archive creation accepted an absolute symbolic-link target"
+fi
+[ "$("$TAR" tf create-absolute-link.tar)" = "safe" ] ||
+	fail "unsafe symbolic link prevented a complete recoverable archive"
+if (cd create-links &&
+    "$TAR" cf "$work/create-escape-link.tar" escape) \
+    >create-escape-link.out 2>&1; then
+	fail "archive creation accepted an escaping symbolic-link target"
+fi
+printf 'safe operand\n' > create-safe
+if "$TAR" cf create-absolute.tar "$work/create-source/outside/payload" \
+    create-safe \
+    >create-absolute.out 2>&1; then
+	fail "archive creation accepted an absolute input path"
+fi
+[ "$("$TAR" tf create-absolute.tar)" = "create-safe" ] ||
+	fail "unsafe input path prevented a complete recoverable archive"
+control_name=$(printf 'line\nbreak')
+mkdir -p create-control
+printf 'unsafe source\n' > "create-control/$control_name"
+printf 'safe source\n' > create-control/safe
+if (cd create-control &&
+    "$TAR" cf "$work/create-control.tar" "$control_name" safe) \
+    >create-control.out 2>&1; then
+	fail "archive creation accepted a control-bearing input path"
+fi
+printf 'tar: unsafe source omitted\n' > create-control.expected
+cmp create-control.expected create-control.out ||
+	fail "unsafe source diagnostic exposed the rejected pathname"
+[ "$("$TAR" tf create-control.tar)" = "safe" ] ||
+	fail "control-bearing input prevented a complete recoverable archive"
+if "$TAR" cf create-missing.tar missing-input >create-missing.out 2>&1; then
+	fail "archive creation reported success for a missing input"
+fi
+
+echo "tartest: valid UTF-8 path bytes survive create, list and extract"
+utf8_name=$(printf '\342\202\254')
+mkdir -p utf8-source utf8-root
+printf 'UTF-8 payload\n' > "utf8-source/$utf8_name"
+(cd utf8-source && "$TAR" cf ../utf8.tar "$utf8_name")
+[ "$("$TAR" tf utf8.tar)" = "$utf8_name" ] ||
+	fail "valid UTF-8 filename changed during listing"
+(cd utf8-root && "$TAR" xf ../utf8.tar)
+cmp "utf8-source/$utf8_name" "utf8-root/$utf8_name" ||
+    fail "valid UTF-8 filename failed to round trip"
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+"$PYTHON" - "$TAR" <<'PY'
+import errno
+import os
+import subprocess
+import sys
+
+tar = os.fsencode(sys.argv[1])
+name = b"\xe9"
+source_path = b"utf8-source/" + name
+root_path = b"utf8-root/" + name
+try:
+    with open(source_path, "wb") as source_file:
+        source_file.write(b"opaque payload\n")
+except OSError as error:
+    if error.errno != errno.EILSEQ:
+        raise
+    print("tartest: filesystem rejects filenames outside valid UTF-8")
+    sys.exit(0)
+subprocess.run([tar, b"cf", b"../opaque.tar", name], cwd=b"utf8-source", check=True)
+listing = subprocess.run(
+    [tar, b"tf", b"opaque.tar"], check=True, stdout=subprocess.PIPE
+).stdout
+if listing != name + b"\n":
+    raise SystemExit("opaque non-control filename changed during listing")
+subprocess.run([tar, b"xf", b"../opaque.tar"], cwd=b"utf8-root", check=True)
+with open(source_path, "rb") as source_file, open(root_path, "rb") as extracted_file:
+    if source_file.read() != extracted_file.read():
+        raise SystemExit("opaque non-control filename failed to round trip")
+print("tartest: opaque non-control filename survives create, list and extract")
+PY
+if "$TAR" cf create-chdir.tar -C missing-directory payload \
+    >create-chdir.out 2>&1; then
+	fail "archive creation reported success after a failed -C"
+fi
+
+echo "tartest: appended and updated members restore the last entry"
+mkdir -p padded-time-source
+printf 'older payload\n' > 'padded-time-source/padded member'
+touch -t 200001010000 'padded-time-source/padded member'
+"$FIXTURE" padded-time > padded-time.tar
+(cd padded-time-source && "$TAR" uf ../padded-time.tar 'padded member')
+[ "$("$TAR" tf padded-time.tar | grep -c '^padded member$')" -eq 1 ] ||
+    fail "update appended an older member with space-padded archive time"
+printf 'prefix payload\n' > 'padded-time-source/member 17777777777'
+printf 'distinct payload\n' > padded-time-source/member
+(cd padded-time-source &&
+    "$TAR" cf ../update-prefix.tar 'member 17777777777')
+(cd padded-time-source && "$TAR" uf ../update-prefix.tar member)
+"$TAR" tf update-prefix.tar > update-prefix.list
+grep -q '^member$' update-prefix.list ||
+    fail "update mistook an octal filename suffix for a timestamp"
+echo "tartest: native host update lookup bounds long recursive names"
+HOST_WIDTH_TAR=$work/tar-host-width
+${CC:-cc} -D_DEFAULT_SOURCE -std=c17 -O1 \
+    -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+    -Wold-style-definition -Wconversion -Wsign-conversion \
+    -fno-omit-frame-pointer -fsanitize=address,undefined \
+    -o "$HOST_WIDTH_TAR" "$srcdir/tar.c" ||
+    fail "native path-width host build of tar.c"
+mkdir -p "native-update-source/$deep"
+long_leaf=abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqr
+printf 'long payload\n' > "native-update-source/$deep/$long_leaf"
+printf 'index payload\n' > native-update-source/index
+(cd native-update-source && "$TAR" cf ../native-update.tar index)
+if (cd native-update-source && "$HOST_WIDTH_TAR" uf ../native-update.tar .) \
+    >native-update.out 2>&1; then
+    fail "native host update accepted a path beyond the archive format"
+fi
+grep -q 'file name too long' native-update.out ||
+    fail "native host update failed before format-length rejection"
+mkdir -p repeated append-root update-root
+printf 'first\n' > repeated/member
+(cd repeated && "$TAR" cf ../append.tar member)
+printf 'appended\n' > repeated/member
+(cd repeated && "$TAR" rf ../append.tar member)
+(cd append-root && "$TAR" xf ../append.tar)
+grep -q '^appended$' append-root/member ||
+    fail "append extraction did not retain the last member"
+(cd repeated && "$TAR" cf ../update.tar member)
+printf 'updated\n' > repeated/member
+touch -t 203001010000 repeated/member
+(cd repeated && "$TAR" uf ../update.tar member)
+(cd update-root && "$TAR" xf ../update.tar)
+grep -q '^updated$' update-root/member ||
+    fail "update extraction did not retain the last member"
+mkdir -p repeated-hardlink-root
+"$FIXTURE" repeated-hardlink > repeated-hardlink.tar
+(cd repeated-hardlink-root && "$TAR" xf ../repeated-hardlink.tar)
+grep -q '^new payload$' repeated-hardlink-root/source ||
+    fail "repeated regular member did not replace its earlier inode"
+grep -q '^old payload$' repeated-hardlink-root/alias ||
+    fail "regular replacement changed an earlier hard-link alias"
+ls -li repeated-hardlink-root/alias repeated-hardlink-root/alias2 \
+    > repeated-hardlink.stat
+[ "$(awk '{print $1}' repeated-hardlink.stat | sort -u | wc -l)" -eq 1 ] ||
+    fail "replacement forgot a still-live extracted hard-link identity"
+
+echo "tartest: append retains a host archive's one-record block factor"
+mkdir -p block-factor
+printf 'first\n' > block-factor/first
+printf 'second\n' > block-factor/second
+(cd block-factor &&
+    "$HOSTTAR" ${HOSTFMT:+"$HOSTFMT"} -cf ../block-factor.tar -b 1 first)
+(cd block-factor && "$TAR" rf ../block-factor.tar second)
+"$TAR" tf block-factor.tar > block-factor.self-list
+"$HOSTTAR" tf block-factor.tar > block-factor.host-list
+for listing in block-factor.self-list block-factor.host-list; do
+	grep -q '^first$' "$listing" || fail "$listing omitted the first member"
+	grep -q '^second$' "$listing" || fail "$listing omitted the appended member"
+done
+mkdir -p block-factor-refill
+for name in first second third fourth; do
+	printf '%s\n' "$name" > "block-factor-refill/$name"
+done
+(cd block-factor-refill &&
+    "$HOSTTAR" ${HOSTFMT:+"$HOSTFMT"} -cf ../block-factor-refill.tar \
+    -b 1 first second third fourth)
+printf 'appended\n' > block-factor-refill/appended
+(cd block-factor-refill && "$TAR" rf ../block-factor-refill.tar appended)
+"$TAR" tf block-factor-refill.tar > block-factor-refill.self-list
+"$HOSTTAR" tf block-factor-refill.tar > block-factor-refill.host-list
+for listing in block-factor-refill.self-list block-factor-refill.host-list; do
+	for name in first second third fourth appended; do
+		grep -q "^$name$" "$listing" || fail "$listing omitted $name"
+	done
+done
+
+echo "tartest: fatal compressed-input errors stop the filter promptly"
+FILTER_TAR=$work/tar-filter
+${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
+    -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+    -Wold-style-definition -Wconversion -Wsign-conversion \
+    -fno-omit-frame-pointer -fsanitize=address,undefined \
+    -DCOMPRESS=\"$FIXTURE\" -o "$FILTER_TAR" "$srcdir/tar.c" ||
+    fail "host build of tar.c with the nonterminating filter fixture"
+: > filter-input
+mkdir filter-root
+(cd filter-root && "$FILTER_TAR" xZf ../filter-input) \
+    >filter.out 2>&1 &
+filter_pid=$!
+(sleep 5; : > filter-timeout; kill "$filter_pid" 2>/dev/null || :) &
+watchdog_pid=$!
+if wait "$filter_pid"; then
+	kill "$watchdog_pid" 2>/dev/null || :
+	wait "$watchdog_pid" 2>/dev/null || :
+	fail "malformed compressed archive reported success"
+fi
+kill "$watchdog_pid" 2>/dev/null || :
+wait "$watchdog_pid" 2>/dev/null || :
+[ ! -e filter-timeout ] || fail "fatal parse error drained the filter tail"
+grep -q 'malformed octal field' filter.out ||
+    fail "compressed-input fixture did not reach the fatal parser path"
 
 #
 # ustar: the full tree, long path included.
@@ -229,6 +910,14 @@ if [ -n "$ZPROG" ] && [ -z "${1:-}" ]; then
 	mkdir -p x-z
 	(cd x-z && "$TAR" xZf ../z.tar)
 	diff -r ustar/tree x-z/tree || fail "-Z round trip differs"
+
+	cp u.tar z-tail.plain
+	dd if=/dev/zero bs=1024 count=256 >> z-tail.plain 2>/dev/null
+	"$ZPROG" < z-tail.plain > z-tail.tar
+	mkdir -p x-z-tail
+	(cd x-z-tail && "$TAR" xZf ../z-tail.tar)
+	diff -r ustar/tree x-z-tail/tree ||
+	    fail "-Z archive with trailing output differs"
 
 	(cd ustar && "$TAR" czf ../z2.tar tree)
 	cmp -s z2.tar z.tar || fail "-z and -Z wrote different archives"

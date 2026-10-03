@@ -1298,7 +1298,8 @@ doxtract(char **argv)
             {
                 size_t path_length = strlen(curname);
 
-                if (path_length >= sizeof(curname) - 1) {
+                if (path_length >= sizeof(curname) - 1 ||
+                    path_length >= sizeof(dirstack) - 1) {
                     archive_error("directory path exceeds metadata stack");
                 } else {
                     curname[path_length] = '/';

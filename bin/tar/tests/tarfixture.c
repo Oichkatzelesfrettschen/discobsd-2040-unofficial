@@ -31,6 +31,7 @@ _Static_assert(sizeof(struct ustar_header) == RECORD_SIZE,
 
 static int malformed_size_field;
 static int padded_time_field;
+static int maximum_directory_path;
 
 static void
 fail(const char *operation)
@@ -74,7 +75,8 @@ write_entry(const char *name, char type, const char *link_target,
     struct ustar_header header;
     unsigned char *bytes = (unsigned char *)&header;
     unsigned long checksum = 0;
-    size_t name_length = strlen(name);
+    size_t name_length = maximum_directory_path ? sizeof(header.name) :
+        strlen(name);
     size_t content_length = contents == NULL ? 0 : strlen(contents);
     size_t index;
     char padding[RECORD_SIZE] = {0};
@@ -85,7 +87,12 @@ write_entry(const char *name, char type, const char *link_target,
         fail("fixture path");
     }
     memset(&header, 0, sizeof(header));
-    memcpy(header.name, name, name_length);
+    if (maximum_directory_path) {
+        memset(header.name, 'n', sizeof(header.name));
+        memset(header.prefix, 'p', sizeof(header.prefix));
+    } else {
+        memcpy(header.name, name, name_length);
+    }
     if (link_target != NULL)
         memcpy(header.linkname, link_target, strlen(link_target));
     put_octal(header.mode, sizeof(header.mode), mode);
@@ -185,6 +192,9 @@ main(int argc, char **argv)
         write_entry("device", '3', NULL, 0600, NULL);
     } else if (strcmp(argv[1], "directory-data") == 0) {
         write_entry("directory", '5', NULL, 0755, "payload\n");
+    } else if (strcmp(argv[1], "maximum-directory-path") == 0) {
+        maximum_directory_path = 1;
+        write_entry("directory", '5', NULL, 0755, NULL);
     } else if (strcmp(argv[1], "zero-directories") == 0) {
         write_entry("tree", '5', NULL, 0000, NULL);
         write_entry("tree/sub", '5', NULL, 0000, NULL);

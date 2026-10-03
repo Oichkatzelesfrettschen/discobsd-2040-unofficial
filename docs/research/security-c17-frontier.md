@@ -305,6 +305,11 @@ drain the filter pipe before the child status reaches a successful final
 result. A fatal parse closes the read end before waiting, so an unbounded
 decompressor tail cannot delay an already-decided rejection. Append and update
 backspace by the final refill size rather than the initial blocking factor.
+Directory metadata paths are bounded against both the native member buffer and
+the fixed metadata stack before appending a directory slash. The native-capacity
+host fixture confirms that a 256-byte ustar path fails with a bounded
+diagnostic, while a sanitizer-instrumented mutation reproduces the original
+out-of-bounds store.
 
 Archive creation rejects absolute and dot-component inputs, normalizes trailing
 slashes, treats an initial `.` as the current directory's children, and skips

@@ -9,6 +9,7 @@
 # Pass a different binary as the first argument to test one that exists.
 #
 set -eu
+: "${PYTHON:?set PYTHON to the intended interpreter}"
 
 srcdir=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/tartest.XXXXXX")
@@ -42,6 +43,34 @@ else
 	    -o "$TAR" "$srcdir/tar.c" ||
 	    fail "host build of tar.c"
 fi
+NATIVE_TAR=$work/tar-native-paths
+${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=4096 -std=c17 -O1 \
+	-Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+	-Wold-style-definition -Wconversion -Wsign-conversion \
+	-fno-omit-frame-pointer -fsanitize=address,undefined \
+	-o "$NATIVE_TAR" "$srcdir/tar.c" ||
+	fail "host build of tar.c with native pathname capacity"
+MUTANT_TAR=$work/tar-without-metadata-path-bound
+"$PYTHON" - "$srcdir/tar.c" "$work/tar-without-metadata-path-bound.c" <<'PY'
+from pathlib import Path
+import sys
+
+source_path = Path(sys.argv[1])
+mutated_path = Path(sys.argv[2])
+source = source_path.read_text(encoding="utf-8")
+old = """                if (path_length >= sizeof(curname) - 1 ||
+                    path_length >= sizeof(dirstack) - 1) {"""
+new = """                if (path_length >= sizeof(curname) - 1) {"""
+if source.count(old) != 1:
+    raise SystemExit("directory metadata bound mutation anchor count differs")
+mutated_path.write_text(source.replace(old, new), encoding="utf-8")
+PY
+${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=4096 -std=c17 -O1 \
+	-Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+	-Wold-style-definition -Wconversion -Wsign-conversion \
+	-fno-omit-frame-pointer -fsanitize=address,undefined \
+	-o "$MUTANT_TAR" "$work/tar-without-metadata-path-bound.c" ||
+	fail "host build of unbounded metadata-path mutation"
 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 export ASAN_OPTIONS UBSAN_OPTIONS
@@ -215,6 +244,33 @@ extract_must_fail existing "$work/security/final.tar" \
     "$work/security/existing/root"
 grep -q '^sentinel$' security/existing/root/victim ||
     fail "existing regular output changed"
+
+echo "tartest: directory metadata path fits its fixed stack"
+mkdir -p security/maximum-directory-path/root
+"$FIXTURE" maximum-directory-path > security/maximum-directory-path.tar
+if (cd security/maximum-directory-path/root &&
+	"$NATIVE_TAR" xf ../../maximum-directory-path.tar) \
+	>security/maximum-directory-path.out 2>&1; then
+	fail "path larger than directory metadata stack reported success"
+fi
+grep -q '^tar: directory path exceeds metadata stack$' \
+	security/maximum-directory-path.out || {
+	sed -n '1,20p' security/maximum-directory-path.out >&2
+	fail "overlong directory path lacked the metadata-stack diagnostic"
+}
+mkdir -p security/maximum-directory-path-mutant/root
+if (cd security/maximum-directory-path-mutant/root &&
+	"$MUTANT_TAR" xf ../../maximum-directory-path.tar) \
+	>security/maximum-directory-path-mutant.out 2>&1; then
+	fail "unbounded metadata-path mutation reported success"
+fi
+if ! grep -q 'AddressSanitizer: global-buffer-overflow' \
+	security/maximum-directory-path-mutant.out &&
+	! grep -q 'runtime error: store to address .* with insufficient space' \
+	security/maximum-directory-path-mutant.out; then
+	sed -n '1,20p' security/maximum-directory-path-mutant.out >&2
+	fail "unbounded metadata-path mutation did not reproduce the stack overflow"
+fi
 
 mkdir -p security/hard-source-symlink/root security/hard-source-symlink/outside
 printf 'sentinel\n' > security/hard-source-symlink/outside/source

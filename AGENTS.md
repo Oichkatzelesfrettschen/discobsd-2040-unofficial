@@ -146,6 +146,14 @@ closed. Root Makefile targets only build board tests. Explicit invocations of
 
 ## Tools
 
+Use structural Graft as the default navigation surface. The query-only MCP
+reader exposes `graft_cache_status` and `graft_cache_query` to Codex and Claude;
+select `layer: deep` explicitly for advisory cached summaries. Verify claims
+against source, especially header-only summaries and ambiguous C call edges.
+Keep generation local by default, refresh bounded source scopes separately,
+and reuse unchanged entries. Querying a cache must work with inference stopped.
+`docs/research/graft-cache-access.md` owns setup, freshness and rollback details.
+
 Use source search, history, compiled-object inspection and behavior probes
 according to the claim. Run the repository's lint gates (`shellcheck -S error`
 and `ruff`) and compile with `-Wall -Wextra -Werror`. The ShellCheck gate

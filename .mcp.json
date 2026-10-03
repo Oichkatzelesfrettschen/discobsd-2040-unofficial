@@ -1,10 +1,14 @@
 {
   "mcpServers": {
     "graft": {
-      "command": "graft",
+      "command": "/bin/sh",
       "args": [
-        "mcp"
-      ]
+        "tools/graft-cache-reader.sh"
+      ],
+      "env": {
+        "PYTHON": "${PYTHON}",
+        "GRAFT_CACHE_READER": "${GRAFT_CACHE_READER}"
+      }
     }
   }
 }

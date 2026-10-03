@@ -321,6 +321,19 @@ chmod 0700 search-only-root
 grep -q '^payload$' search-only-root/implicit/nested/file ||
     fail "write-and-search-only extraction omitted its member"
 
+echo "tartest: search-only archive-creation root"
+mkdir -p create-search-only-root
+printf 'known input\n' > create-search-only-root/payload
+chmod 0100 create-search-only-root
+if ! (cd create-search-only-root &&
+    "$TAR" cf ../create-search-only.tar payload); then
+    chmod 0700 create-search-only-root
+    fail "search-only archive-creation root was rejected"
+fi
+chmod 0700 create-search-only-root
+[ "$("$TAR" tf create-search-only.tar)" = "payload" ] ||
+    fail "search-only archive creation omitted the named input"
+
 echo "tartest: archive creation verifies source paths"
 mkdir -p create-source/root create-source/outside
 printf 'outside\n' > create-source/outside/payload

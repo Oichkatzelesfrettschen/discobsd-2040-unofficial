@@ -696,7 +696,6 @@ dorep(char **argv)
 {
     char creation_path[PATHSIZ];
     char *leaf_name;
-    char wdir[MAXPATHLEN];
     char parent[MAXPATHLEN];
     int archive_root_descriptor;
 
@@ -717,10 +716,10 @@ dorep(char **argv)
         }
     }
 
-    (void) tarcwd(wdir);
+    extraction_depth = 0;
     archive_root_descriptor = open(".", O_RDONLY | O_NONBLOCK);
-    if (archive_root_descriptor < 0)
-        archive_path_error("open archive root", ".");
+    if (archive_root_descriptor < 0 && chdir(".") < 0)
+        archive_path_error("enter archive root", ".");
     while (*argv && ! term) {
         size_t operand_length;
 
@@ -731,12 +730,13 @@ dorep(char **argv)
                 perror(*argv);
                 operation_failed = 1;
             } else {
-                if (close(archive_root_descriptor) < 0)
+                if (archive_root_descriptor >= 0 &&
+                    close(archive_root_descriptor) < 0)
                     archive_path_error("close archive root", ".");
-                (void) tarcwd(wdir);
+                extraction_depth = 0;
                 archive_root_descriptor = open(".", O_RDONLY | O_NONBLOCK);
-                if (archive_root_descriptor < 0)
-                    archive_path_error("open archive root", ".");
+                if (archive_root_descriptor < 0 && chdir(".") < 0)
+                    archive_path_error("enter archive root", ".");
             }
             argv++;
             continue;
@@ -750,15 +750,14 @@ dorep(char **argv)
             creation_path[--operand_length] = '\0';
         if (strcmp(creation_path, ".") != 0)
             validate_archive_path(creation_path);
-        leaf_name = enter_parent_directories(archive_root_descriptor,
-            creation_path, 0, hflag);
+        leaf_name = enter_parent_directories_raw(archive_root_descriptor,
+            creation_path, 0, hflag, 0);
         (void)tarcwd(parent);
         putfile(creation_path, leaf_name, parent);
         argv++;
-        if (fchdir(archive_root_descriptor) < 0)
-            archive_path_error("restore archive root", wdir);
+        restore_directory_root(archive_root_descriptor);
     }
-    if (close(archive_root_descriptor) < 0)
+    if (archive_root_descriptor >= 0 && close(archive_root_descriptor) < 0)
         archive_path_error("close archive root", ".");
     putempty();
     putempty();
@@ -1579,11 +1578,12 @@ restore_directory_root(int root_descriptor)
         return;
     }
     /*
-     * DiscoBSD O_RDONLY checks directory read permission. A caller needs only
-     * write and search permission to extract, so a root descriptor can be
-     * unavailable even though traversal is valid. Verified child directories
-     * contain no followed symlink, making one ".." per entered component the
-     * bounded fallback under the documented stable-namespace requirement.
+     * DiscoBSD O_RDONLY checks directory read permission. Extraction needs
+     * only write and search permission, and creation can read a known file
+     * with search permission alone, so a root descriptor can be unavailable
+     * even though traversal is valid. Verified child directories contain no
+     * followed symlink, making one ".." per entered component the bounded
+     * fallback under the documented stable-namespace requirement.
      */
     while (extraction_depth > 0) {
         if (chdir("..") < 0)

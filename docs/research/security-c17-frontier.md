@@ -256,6 +256,17 @@ effects: corruption discovered after a complete earlier entry does not roll
 that earlier entry back. Those residuals require a directory-descriptor API or
 a bounded staging design, not another pathname precheck.
 
+## `compress` option grammar
+
+The `-b` parser accepts only a nonempty sequence of ASCII decimal digits and
+continues validating after saturating values above the build's `BITS` value,
+so decimal input cannot overflow and retains the existing clamp behavior.
+Values below `INIT_BITS` clamp upward. The host regression checks malformed,
+signed, whitespace-prefixed and empty values, then inspects the encoded LZW
+header for values above `INT_MAX` and a very long decimal value. The target
+build and footprint gate determine whether this validation changes shipped
+cost.
+
 ## tar extraction confinement and C17 migration
 
 The tar unit starts from `d4c5e74f95524f7a8cf8a8125a61538291b59605`.
@@ -430,7 +441,6 @@ means a later malformed record does not roll back earlier extracted files.
 | P1 | `bin/tar` namespace-race residual | Replace stable-namespace pathname operations with directory-relative create, link and timestamp APIs without increasing the one-process window beyond its 144-kbyte limit. | Kernel and libc API design, adversarial concurrent-rename fixtures, ABI review, target stack and packed-root comparison. |
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
-| P1 | `compress` option grammar | `atoi` accepts ambiguous text and has no explicit overflow contract before the value is clamped. | Exact accepted grammar, boundary/overflow tests and a helper-dependency inspection. |
 | P1 | executable loading and syscall copying | File headers, segment arithmetic and user pointers cross the kernel boundary inside a 144 KB flat process window. | Integer-boundary corpus, negative copy tests, exact loader/copy call graph and MPU fault evidence for protection claims. |
 | P1 | USB control requests | Host-controlled setup packets select descriptor and endpoint operations in privileged code. | Deep-cache navigation refreshed to the selected source, direct source audit, packet corpus, host model and board fault/progress captures. |
 | P2 | source-only setuid utilities | `chpass` and related password-database editors are outside the image but retain older dialect and privileged temporary-file logic. | Manifest reachability proof, strict-C17 build, concurrent update/failure harness and explicit decision to ship or quarantine. |

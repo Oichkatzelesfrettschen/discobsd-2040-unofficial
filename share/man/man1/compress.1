@@ -91,7 +91,9 @@ limit specified by the
 .B \-b
 flag is reached (default 16).
 .I Bits
-must be between 9 and 16.  The default can be changed in the source to allow
+must be a nonempty unsigned decimal integer.  Values below 9 use 9 bits,
+and values above the maximum supported by this build use that maximum.
+The default can be changed in the source to allow
 .I compress
 to be run on a smaller machine.
 .PP

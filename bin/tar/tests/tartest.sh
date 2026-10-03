@@ -529,6 +529,26 @@ printf 'dot operand\n' > create-dot/source/tree/payload
     fail "the documented current-directory copy invocation failed"
 diff -r create-dot/source create-dot/target ||
     fail "the current-directory copy invocation changed the tree"
+echo "tartest: creation normalizes harmless dot components"
+mkdir -p create-dot-components/source/directory \
+	create-dot-components/target
+printf 'root operand\n' > create-dot-components/source/rootfile
+printf 'nested operand\n' > create-dot-components/source/directory/child
+(cd create-dot-components/source &&
+	"$TAR" cf ../components.tar ./rootfile directory/./child) ||
+	fail "creation rejected a harmless dot path component"
+printf 'rootfile\ndirectory/child\n' > create-dot-components.expected
+"$TAR" tf create-dot-components/components.tar \
+	> create-dot-components.list
+cmp create-dot-components.expected create-dot-components.list ||
+	fail "creation retained harmless dot path components"
+(cd create-dot-components/target && "$TAR" xf ../components.tar)
+cmp create-dot-components/source/rootfile \
+	create-dot-components/target/rootfile ||
+	fail "normalized root operand changed its contents"
+cmp create-dot-components/source/directory/child \
+	create-dot-components/target/directory/child ||
+	fail "normalized nested operand changed its contents"
 mkdir -p create-self
 printf 'bounded\n' > create-self/payload
 (cd create-self && "$TAR" cf archive.tar .) ||

@@ -311,8 +311,9 @@ host fixture confirms that a 256-byte ustar path fails with a bounded
 diagnostic, while a sanitizer-instrumented mutation reproduces the original
 out-of-bounds store.
 
-Archive creation rejects absolute and dot-component inputs, normalizes trailing
-slashes, treats an initial `.` as the current directory's children, and skips
+Archive creation rejects absolute and parent-component inputs, normalizes
+trailing slashes and harmless `.` components, treats an initial `.` as the
+current directory's children, and skips
 the output archive's captured inode if that file lies below the input root.
 Unsafe source paths and symbolic-link targets set status 1 and skip the named
 object while creation continues through the end-of-archive records, so a

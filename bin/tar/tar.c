@@ -224,6 +224,7 @@ static void setdirmetadata_at_parent(const char *, const char *,
 static void setimes(char *, time_t);
 static int contains_control_character(const char *);
 static int archive_path_is_safe(const char *);
+static void normalize_creation_path(char *);
 static void validate_archive_path(const char *);
 static int symlink_target_is_safe(const char *, const char *);
 static void validate_symlink_target(const char *, const char *);
@@ -756,6 +757,7 @@ dorep(char **argv)
         while (operand_length > 1 &&
             creation_path[operand_length - 1] == '/')
             creation_path[--operand_length] = '\0';
+        normalize_creation_path(creation_path);
         if (strcmp(creation_path, ".") != 0 &&
             !archive_path_is_safe(creation_path)) {
             report_unsafe_source();
@@ -1567,6 +1569,21 @@ archive_path_is_safe(const char *name)
         component[1] == '.'))
         return 0;
     return 1;
+}
+
+static void
+normalize_creation_path(char *path)
+{
+    char *component;
+    size_t length;
+
+    while (path[0] == '.' && path[1] == '/')
+        memmove(path, path + 2, strlen(path + 2) + 1);
+    while ((component = strstr(path, "/./")) != NULL)
+        memmove(component, component + 2, strlen(component + 2) + 1);
+    length = strlen(path);
+    if (length >= 2 && path[length - 2] == '/' && path[length - 1] == '.')
+        path[length - 2] = '\0';
 }
 
 static void

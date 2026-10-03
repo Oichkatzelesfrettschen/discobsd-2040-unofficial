@@ -162,10 +162,21 @@ reported success`; the archive wrote its payload outside the extraction root.
 The fixed suite exercises absolute and `..` escapes, empty and dot components,
 symlinked parents, final symlinks, existing-file overwrite, unsupported types,
 invalid octal, missing and embedded terminators, a missing trailer, C0 and ESC
-listing names, owner-untraversable directory entries and symlink input during
-archive creation. The suite verifies that extracted files retain no setuid or
-setgid bits. It also rejects absolute and missing archive-creation inputs
-instead of silently publishing an unsafe or incomplete archive.
+listing names, listing from an execute-only current directory,
+owner-untraversable directory entries under `umask 0777`, and final or parent
+symlinks during archive creation. The suite compiles its host binary with the
+target's 256-byte pathname limit, round-trips its 255-byte maximum name with a
+newline and at EOF, and rejects a 256-byte or NUL-bearing input record. The
+suite verifies that extracted files retain no setuid or setgid bits. It also
+rejects absolute and missing archive-creation inputs instead of silently
+publishing an unsafe or incomplete archive.
+
+Review-head `468b2c2327ce2a5a098e139744d7c22030fb728a` supplied four
+additional calibrated controls. Its table path failed with `EACCES` in an
+execute-only current directory, a symlinked archive-creation parent produced a
+183-byte archive containing the outside file, `umask 0777` prevented creation
+of a streamed child, and its target-width writer rejected the 255-byte maximum
+name as exceeding `MAXPATHLEN` when the delimiter arrived separately.
 
 Extraction now accepts relative regular files and directories only. It checks
 every odc digit, requires exactly one trailing pathname NUL and a zero-length
@@ -173,12 +184,18 @@ every odc digit, requires exactly one trailing pathname NUL and a zero-length
 files with `O_EXCL`. Extraction strips archive-controlled setuid, setgid and
 sticky bits because the program has no ownership-restoration contract. For each
 parent it compares `lstat` identity with the descriptor returned by `open` and
-`fstat` before `fchdir`. Newly created
-directories retain owner access because the streaming format supplies no
-bounded second pass for restoring a mode before later child entries arrive;
-pre-existing directories retain their modes. Archive creation uses `lstat`,
-rejects symlinks and unsupported types, verifies an opened regular file's
-device and inode, and refuses a file length wider than the odc size field.
+`fstat` before `fchdir`. Newly created directories start with owner access
+under a temporarily cleared creation mask; `fchmod` on the verified descriptor
+then applies the caller's mask while retaining owner access. The streaming
+format supplies no bounded second pass for restoring a mode before later child
+entries arrive; pre-existing directories retain their modes. Archive creation
+walks and verifies every parent through the same descriptor path, rejects
+symlinks and unsupported types, and compares the opened final regular file or
+directory with its `lstat` device, inode and type. Table mode retains no root
+descriptor. The writer's bounded byte-stream reader reserves the final buffer
+byte for NUL, accepts newline or EOF as the record delimiter, and rejects an
+embedded NUL or another pathname byte after the buffer fills. The writer also
+refuses a file length wider than the odc size field.
 
 The base source was not a C17 translation unit under the repository's strict
 contract. Nine K&R definitions kept parameter types outside their declarators,
@@ -199,19 +216,19 @@ not include libc or kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 306 | 510 | +204 |
-| Source bytes | 7,331 | 16,452 | +9,121 |
-| Object text | 1,405 | 3,225 | +1,820 |
+| Source lines | 306 | 566 | +260 |
+| Source bytes | 7,331 | 18,086 | +10,755 |
+| Object text | 1,405 | 3,540 | +2,135 |
 | Object data | 0 | 0 | 0 |
 | Object BSS | 776 | 776 | 0 |
-| Final text | 9,350 | 11,206 | +1,856 |
+| Final text | 9,350 | 11,504 | +2,154 |
 | Final data | 204 | 204 | 0 |
 | Final BSS | 900 | 900 | 0 |
-| Final a.out bytes | 9,588 | 11,444 | +1,856 |
-| Packed bytes | 7,776 | 9,135 | +1,359 |
-| Packed root blocks | 9 | 10 | +1 |
+| Final a.out bytes | 9,588 | 11,740 | +2,152 |
+| Packed bytes | 7,776 | 9,323 | +1,547 |
+| Packed root blocks | 9 | 11 | +2 |
 | Input-mode internal stack path | 160 | 256 | +96 |
-| Output-mode internal stack path | 208 | 216 | +8 |
+| Output-mode internal stack path | 208 | 224 | +16 |
 
 The repair adds no heap allocation and preserves both fixed buffers. Reusing
 one `struct stat` at each identity check and keeping mutually exclusive input
@@ -219,6 +236,12 @@ and output frames outside `main` cut the first repaired draft's worst internal
 path from 328 to 256 bytes. The remaining code, packed-block and stack growth
 implements the pathname and format checks; aggregate shrinkage would require
 removing those checks or changing the archive contract.
+
+Archive creation now performs `lstat`, `open`, `fstat` and `fchdir` work for
+each parent component; extraction already paid the same confinement cost.
+Table mode removes its former root-directory open. These syscall counts explain
+the direction of runtime change, but the audit has no Cortex-M0+ cycle capture
+for cpio and makes no target-speed claim.
 
 DiscoBSD lacks `openat`, `O_NOFOLLOW` and an `openat2`-style beneath-root
 resolver. A concurrent process can rename a verified directory after the

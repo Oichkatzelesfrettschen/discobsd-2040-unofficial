@@ -26,6 +26,9 @@
 #define HEADER_SIZE 76
 #define TRAILER     "TRAILER!!!"
 #define BUFFER_SIZE 512
+#ifndef CPIO_PATH_LIMIT
+#define CPIO_PATH_LIMIT MAXPATHLEN
+#endif
 
 struct cpio_header {
     char magic[6];
@@ -43,13 +46,17 @@ struct cpio_header {
 
 _Static_assert(sizeof(struct cpio_header) == HEADER_SIZE,
     "odc header must remain 76 bytes");
+_Static_assert(CPIO_PATH_LIMIT <= MAXPATHLEN,
+    "cpio path limit must fit the platform path limit");
 
-static char archive_path[MAXPATHLEN];
+static char archive_path[CPIO_PATH_LIMIT];
 static char io_buffer[BUFFER_SIZE];
 static int verbose_flag;
 static int table_flag;
 
 static void validate_archive_path(const char *name);
+static char *enter_parent_directories(int root_descriptor,
+    int create_missing);
 
 static _Noreturn void
 fatal_message(const char *message)
@@ -192,82 +199,124 @@ copy_file_to_archive(int input_descriptor, long file_size)
     }
 }
 
+static int
+read_archive_path(size_t *path_length)
+{
+    size_t length = 0;
+
+    for (;;) {
+        int byte = fgetc(stdin);
+
+        if (byte == EOF) {
+            if (ferror(stdin))
+                fatal_path("read path list", "stdin");
+            if (length == 0)
+                return 0;
+            break;
+        }
+        if (byte == '\n')
+            break;
+        if (byte == '\0')
+            fatal_message("input path contains a NUL byte");
+        if (length == sizeof(archive_path) - 1)
+            fatal_message("input path exceeds cpio path limit");
+        archive_path[length++] = (char)byte;
+    }
+    archive_path[length] = '\0';
+    *path_length = length;
+    return 1;
+}
+
 static void
 copy_out(void)
 {
     struct stat status;
+    size_t path_length;
+    int root_descriptor = open(".", O_RDONLY);
 
-    while (fgets(archive_path, sizeof(archive_path), stdin) != NULL) {
-        size_t path_length = strlen(archive_path);
-        int input_descriptor = -1;
+    if (root_descriptor < 0)
+        fatal_path("open archive root", ".");
 
-        if (path_length > 0 && archive_path[path_length - 1] == '\n') {
-            archive_path[--path_length] = '\0';
-        } else if (!feof(stdin)) {
-            fatal_message("input path exceeds MAXPATHLEN");
-        }
+    while (read_archive_path(&path_length)) {
+        char *leaf_name;
+        dev_t path_device;
+        ino_t path_inode;
+        mode_t path_mode;
+        int input_descriptor;
+
         if (path_length == 0)
             continue;
         validate_archive_path(archive_path);
-        if (lstat(archive_path, &status) < 0)
+        leaf_name = enter_parent_directories(root_descriptor, 0);
+        if (lstat(leaf_name, &status) < 0)
             fatal_path("lstat", archive_path);
-        if (S_ISREG(status.st_mode)) {
-            dev_t path_device = status.st_dev;
-            ino_t path_inode = status.st_ino;
-
-            input_descriptor = open(archive_path, O_RDONLY);
-            if (input_descriptor < 0)
-                fatal_path("open", archive_path);
-            if (fstat(input_descriptor, &status) < 0)
-                fatal_path("fstat", archive_path);
-            if (!S_ISREG(status.st_mode) || status.st_dev != path_device ||
-                status.st_ino != path_inode)
-                fatal_message("input path changed during archive creation");
-        } else if (S_ISDIR(status.st_mode)) {
-            status.st_size = 0;
-        } else {
+        if (!S_ISREG(status.st_mode) && !S_ISDIR(status.st_mode)) {
             fprintf(stderr, "cpio: %s: unsupported file type\n",
                 archive_path);
             exit(1);
         }
+        path_device = status.st_dev;
+        path_inode = status.st_ino;
+        path_mode = status.st_mode;
+        input_descriptor = open(leaf_name, O_RDONLY);
+        if (input_descriptor < 0)
+            fatal_path("open", archive_path);
+        if (fstat(input_descriptor, &status) < 0)
+            fatal_path("fstat", archive_path);
+        if (status.st_dev != path_device || status.st_ino != path_inode ||
+            (status.st_mode & S_IFMT) != (path_mode & S_IFMT))
+            fatal_message("input path changed during archive creation");
+        if (S_ISDIR(status.st_mode))
+            status.st_size = 0;
         write_header(&status, archive_path, path_length + 1);
         if (verbose_flag)
             fprintf(stderr, "%s\n", archive_path);
-        if (input_descriptor >= 0) {
+        if (S_ISREG(status.st_mode))
             copy_file_to_archive(input_descriptor, status.st_size);
-            if (close(input_descriptor) < 0)
-                fatal_path("close", archive_path);
-        }
+        if (close(input_descriptor) < 0)
+            fatal_path("close", archive_path);
     }
-    if (ferror(stdin))
-        fatal_path("read path list", "stdin");
     memset(&status, 0, sizeof(status));
     write_header(&status, TRAILER, sizeof(TRAILER));
+    if (close(root_descriptor) < 0)
+        fatal_path("close archive root", ".");
 }
 
 static void
 open_verified_directory(const char *name, mode_t creation_mode,
-    int enter_directory)
+    int enter_directory, int create_missing)
 {
     struct stat status;
     dev_t path_device;
     ino_t path_inode;
+    mode_t creation_mask = 0;
+    int created_directory = 0;
     int directory_descriptor;
 
     if (lstat(name, &status) < 0) {
         if (errno != ENOENT)
             fatal_path("lstat", name);
+        if (!create_missing)
+            fatal_path("lstat archive parent", archive_path);
         /* A later entry may descend through this streaming directory entry.
          * Owner access keeps that path usable without retaining an unbounded
          * list of directories for a second metadata pass.
          */
-        if (mkdir(name, (creation_mode & 0777) | S_IRWXU) < 0)
+        creation_mask = umask(0);
+        if (mkdir(name, S_IRWXU) < 0) {
+            int saved_errno = errno;
+
+            (void)umask(creation_mask);
+            errno = saved_errno;
             fatal_path("mkdir", name);
+        }
+        (void)umask(creation_mask);
+        created_directory = 1;
         if (lstat(name, &status) < 0)
             fatal_path("lstat created directory", name);
     }
     if (!S_ISDIR(status.st_mode))
-        fatal_message("extraction path contains a non-directory component");
+        fatal_message("path contains a non-directory component");
     path_device = status.st_dev;
     path_inode = status.st_ino;
     directory_descriptor = open(name, O_RDONLY);
@@ -277,7 +326,11 @@ open_verified_directory(const char *name, mode_t creation_mode,
         fatal_path("fstat directory", name);
     if (!S_ISDIR(status.st_mode) || status.st_dev != path_device ||
         status.st_ino != path_inode)
-        fatal_message("extraction directory changed during traversal");
+        fatal_message("directory changed during traversal");
+    if (created_directory &&
+        fchmod(directory_descriptor,
+        ((creation_mode & 0777) & ~creation_mask) | S_IRWXU) < 0)
+        fatal_path("set created directory mode", name);
     if (enter_directory && fchdir(directory_descriptor) < 0)
         fatal_path("enter directory", name);
     if (close(directory_descriptor) < 0)
@@ -320,7 +373,7 @@ validate_archive_path(const char *name)
 }
 
 static char *
-enter_parent_directories(int root_descriptor)
+enter_parent_directories(int root_descriptor, int create_missing)
 {
     char *component = archive_path;
     char *cursor;
@@ -331,7 +384,7 @@ enter_parent_directories(int root_descriptor)
         if (*cursor != '/')
             continue;
         *cursor = '\0';
-        open_verified_directory(component, 0777, 1);
+        open_verified_directory(component, 0777, 1, create_missing);
         *cursor = '/';
         component = cursor + 1;
     }
@@ -383,10 +436,13 @@ copy_archive_data(unsigned long file_size, int output_descriptor,
 static void
 copy_in(void)
 {
-    int root_descriptor = open(".", O_RDONLY);
+    int root_descriptor = -1;
 
-    if (root_descriptor < 0)
-        fatal_path("open extraction root", ".");
+    if (!table_flag) {
+        root_descriptor = open(".", O_RDONLY);
+        if (root_descriptor < 0)
+            fatal_path("open extraction root", ".");
+    }
     for (;;) {
         struct cpio_header header;
         unsigned long name_size;
@@ -423,7 +479,7 @@ copy_in(void)
         if (strcmp(archive_path, TRAILER) == 0) {
             if (file_size != 0)
                 fatal_message("TRAILER!!! carries file data");
-            if (close(root_descriptor) < 0)
+            if (root_descriptor >= 0 && close(root_descriptor) < 0)
                 fatal_path("close extraction root", ".");
             return;
         }
@@ -438,10 +494,10 @@ copy_in(void)
         if (table_flag) {
             printf("%s\n", archive_path);
         } else {
-            leaf_name = enter_parent_directories(root_descriptor);
+            leaf_name = enter_parent_directories(root_descriptor, 1);
             if (S_ISDIR((mode_t)mode_value)) {
                 open_verified_directory(leaf_name,
-                    (mode_t)mode_value & 07777, 0);
+                    (mode_t)mode_value & 07777, 0, 1);
             } else {
                 output_descriptor = create_output_file(leaf_name,
                     (mode_t)mode_value);

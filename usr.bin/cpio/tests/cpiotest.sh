@@ -23,7 +23,8 @@ if [ $# -ge 1 ]; then
 	CPIO=$1
 else
 	CPIO=$work/cpio
-	${CC:-cc} -D_DEFAULT_SOURCE -std=c17 -O1 -Wall -Wextra -Werror \
+	${CC:-cc} -D_DEFAULT_SOURCE -DCPIO_PATH_LIMIT=256 -std=c17 -O1 \
+	    -Wall -Wextra -Werror \
 	    -Wpedantic -Wstrict-prototypes -Wold-style-definition \
 	    -fno-omit-frame-pointer -fsanitize=address,undefined \
 	    -o "$CPIO" "$srcdir/cpio.c" ||
@@ -59,6 +60,12 @@ head -c 6 a.odc | grep -q '^070707$' || fail "no odc magic"
 echo "cpiotest: list"
 "$CPIO" -it < a.odc > a.list
 grep -q '^tree/odd2$' a.list || fail "tree/odd2 missing from the listing"
+
+mkdir table-execute-only
+chmod 0111 table-execute-only
+(cd table-execute-only && "$CPIO" -it) < a.odc > execute-only.list
+chmod 0700 table-execute-only
+cmp a.list execute-only.list || fail "listing required read access to cwd"
 
 echo "cpiotest: extract by the tool under test"
 mkdir -p x-self
@@ -229,9 +236,13 @@ echo "cpiotest: retain owner traversal for created directories"
 	printf 'TRAILER!!!\000'
 } > "$work/owner-traversal.odc"
 mkdir x-owner-traversal
-(cd x-owner-traversal && "$CPIO" -id < "$work/owner-traversal.odc")
+(umask 0777; cd x-owner-traversal &&
+    "$CPIO" -id < "$work/owner-traversal.odc")
+[ -f x-owner-traversal/locked/child ] ||
+    fail "umask blocked traversal through a created directory"
+chmod 0600 x-owner-traversal/locked/child
 [ "$(cat x-owner-traversal/locked/child)" = x ] ||
-    fail "created directory blocked a later child"
+    fail "created descendant payload differs"
 
 newline_name=$(printf 'forged\nentry')
 make_single_file_archive "$work/newline.odc" "$newline_name" replaced
@@ -248,6 +259,48 @@ if printf '%s\n' archive-link | "$CPIO" -o > symlink.odc 2> symlink-error; then
 	fail "symlink archive input reported success"
 fi
 [ ! -s symlink.odc ] || fail "symlink archive input produced an archive"
+
+mkdir archive-parent-real
+printf '%s\n' outside > archive-parent-real/secret
+ln -s archive-parent-real archive-parent-link
+if printf '%s\n' archive-parent-link/secret | "$CPIO" -o \
+    > symlink-parent.odc 2> symlink-parent-error; then
+	fail "symlinked archive parent reported success"
+fi
+[ ! -s symlink-parent.odc ] ||
+    fail "symlinked archive parent disclosed an outside file"
+
+long_name=$(printf '%0255d' 0 | tr 0 x)
+printf '%s\n' boundary > "$long_name"
+{
+	printf '%s' "$long_name"
+	sleep 1
+	printf '\n'
+} | "$CPIO" -o > max-name.odc
+printf '%s\n' "$long_name" > max-name.expected
+"$CPIO" -it < max-name.odc > max-name.actual
+cmp max-name.expected max-name.actual ||
+    fail "MAXPATHLEN pathname failed archive round trip"
+
+printf '%s' "$long_name" | "$CPIO" -o > max-name-eof.odc
+"$CPIO" -it < max-name-eof.odc > max-name-eof.actual
+cmp max-name.expected max-name-eof.actual ||
+    fail "MAXPATHLEN pathname at EOF failed archive round trip"
+
+overlong_name=$(printf '%0256d' 0 | tr 0 y)
+if printf '%s\n' "$overlong_name" | "$CPIO" -o \
+    > overlong-name.odc 2> overlong-name-error; then
+	fail "overlong archive pathname reported success"
+fi
+[ ! -s overlong-name.odc ] ||
+    fail "overlong archive pathname produced an archive"
+
+if printf 'archive-source\000suffix\n' | "$CPIO" -o \
+    > nul-name.odc 2> nul-name-error; then
+	fail "NUL-bearing archive pathname reported success"
+fi
+[ ! -s nul-name.odc ] ||
+    fail "NUL-bearing archive pathname produced an archive"
 
 if printf '%s\n' "$work/archive-source" | "$CPIO" -o \
     > absolute-output.odc 2> absolute-output-error; then

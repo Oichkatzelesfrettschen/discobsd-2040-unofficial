@@ -460,6 +460,11 @@ check-agent-instructions: check-python
 
 .PHONY: check-agent-instructions
 
+check-graft-cache-reader: check-python
+		${PYTHON} -B tools/graft_cache_reader_test.py
+
+.PHONY: check-graft-cache-reader
+
 check-comment-hygiene: check-python
 		${PYTHON} tools/changed_comments_test.py
 		${PYTHON} tools/check_changed_comments.py --root ${TOPSRC} --working
@@ -554,6 +559,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions \
+		check-graft-cache-reader \
 		check-comment-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \

@@ -47,7 +47,16 @@ deterministic mode to suppress them, and `pdc`, whose y.tab.c prints
 are identical. A linked kernel is never byte-reproducible either way,
 because conf/newvers.sh regenerates vers.c on every link.
 
-The host tier gives every suite a target and an output directory. The libc
+The host tier gives every suite a target and an output directory. The
+cache-launcher gate `check-graft-cache-reader` exercises the tracked MCP
+registration and shell launcher with temporary owner-controlled wrappers.
+Successful delegation preserves the selected interpreter and literal arguments;
+rejection cases cover unset configuration, relative paths, missing files,
+directories and symlinks. The gate runs in `check-host` and firmware CI with
+`${PYTHON}` and `/bin/sh`; it requires neither Graft nor inference and establishes
+the launcher contract rather than cache accuracy or client connectivity.
+
+The libc
 contracts run under one sub-make, so bmake sees shared formatter objects and
 creates each object once. Keen gives the fixtures one target, each unchecked
 size one target, and each checked size four ten-seed targets. Nineteen

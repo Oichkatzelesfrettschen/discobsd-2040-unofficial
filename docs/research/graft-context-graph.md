@@ -3,11 +3,13 @@
 graft 0.18.0 (`@nanonets/graft`, /usr/bin/graft) builds a regenerable graph
 of the tree under `graft/`: one markdown card per file, a wiring graph of
 symbols and call edges, and, through a model, one concept node per
-mechanism plus a summary and crux span per symbol. Every query refreshes
+mechanism plus a summary and crux span per symbol. Native Graft queries refresh
 the structural graph against the working tree first, so an answer names
 the code as it stands, uncommitted edits included. This note records what
 each surface does on this tree, what was measured, and where the tool
-misreads C.
+misreads C. These measurements describe the native CLI, not the retained,
+query-only MCP reader documented in `graft-cache-access.md`. The cache reader
+keeps recorded graphs fixed, reads live source excerpts and reports provenance.
 
 ## What runs without a model
 
@@ -28,7 +30,8 @@ misreads C.
 
 The MCP tools are graft_find_code, graft_file_api, graft_trace_calls,
 graft_find_all, graft_repo_map and graft_check_freshness, the same six
-surfaces. `.mcp.json` at the root registers the server for Claude Code.
+surfaces. The root `.mcp.json` instead registers the query-only cache launcher
+for Claude Code; `graft-cache-access.md` describes both client registrations.
 
 ## What the model adds
 
@@ -95,4 +98,6 @@ Everything graft writes is derived: the structural graph from the source
 it parsed, the summaries from a model reading one file at a time. A hit
 is a lead that names a `file:line`; the source at that line settles the
 claim, and a summary ranks below a comment that agrees with the code.
-`graft/` stays ignored and is never evidence.
+`graft/` stays ignored. Retained captures can establish what a query returned
+for a recorded graph and source revision; summaries alone establish neither
+implementation behavior nor source accuracy.

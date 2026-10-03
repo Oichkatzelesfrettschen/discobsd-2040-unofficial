@@ -129,7 +129,7 @@ for scenario in dot empty-component control; do
 	    "$work/security/$scenario/root"
 done
 
-for scenario in symlink-control hardlink-control; do
+for scenario in symlink-control hardlink-control utf8-control; do
 	"$FIXTURE" "$scenario" > "security/$scenario.tar"
 	list_must_fail "$scenario" "$work/security/$scenario.tar"
 done
@@ -327,45 +327,49 @@ printf 'regular last\n' > type-change-source/member
 grep -q '^regular last$' type-change-back-root/member ||
     fail "symbolic-link-to-regular replacement lost the last member"
 
-echo "tartest: write-and-search-only extraction root"
-mkdir -p search-only-root
-"$FIXTURE" implicit-parent > search-only.tar
-chmod 0300 search-only-root
-if ! (cd search-only-root && "$TAR" xf ../search-only.tar); then
-    chmod 0700 search-only-root
-    fail "write-and-search-only extraction root was rejected"
-fi
-chmod 0700 search-only-root
-grep -q '^payload$' search-only-root/implicit/nested/file ||
-    fail "write-and-search-only extraction omitted its member"
+if [ "$(id -u)" -eq 0 ]; then
+	echo "tartest: SKIP search-only fallbacks require a non-privileged UID"
+else
+	echo "tartest: write-and-search-only extraction root"
+	mkdir -p search-only-root
+	"$FIXTURE" implicit-parent > search-only.tar
+	chmod 0300 search-only-root
+	if ! (cd search-only-root && "$TAR" xf ../search-only.tar); then
+		chmod 0700 search-only-root
+		fail "write-and-search-only extraction root was rejected"
+	fi
+	chmod 0700 search-only-root
+	grep -q '^payload$' search-only-root/implicit/nested/file ||
+		fail "write-and-search-only extraction omitted its member"
 
-echo "tartest: write-and-search-only nested extraction directory"
-mkdir -p search-only-nested-source/locked search-only-nested-root/locked
-printf 'nested payload\n' > search-only-nested-source/locked/file
-(cd search-only-nested-source &&
-    "$TAR" cf ../search-only-nested.tar locked/file)
-chmod 0333 search-only-nested-root/locked
-if ! (cd search-only-nested-root &&
-    "$TAR" xf ../search-only-nested.tar); then
-    chmod 0700 search-only-nested-root/locked
-    fail "write-and-search-only nested directory was rejected"
-fi
-chmod 0700 search-only-nested-root/locked
-grep -q '^nested payload$' search-only-nested-root/locked/file ||
-    fail "write-and-search-only nested directory omitted its member"
+	echo "tartest: write-and-search-only nested extraction directory"
+	mkdir -p search-only-nested-source/locked search-only-nested-root/locked
+	printf 'nested payload\n' > search-only-nested-source/locked/file
+	(cd search-only-nested-source &&
+		"$TAR" cf ../search-only-nested.tar locked/file)
+	chmod 0333 search-only-nested-root/locked
+	if ! (cd search-only-nested-root &&
+		"$TAR" xf ../search-only-nested.tar); then
+		chmod 0700 search-only-nested-root/locked
+		fail "write-and-search-only nested directory was rejected"
+	fi
+	chmod 0700 search-only-nested-root/locked
+	grep -q '^nested payload$' search-only-nested-root/locked/file ||
+		fail "write-and-search-only nested directory omitted its member"
 
-echo "tartest: search-only archive-creation root"
-mkdir -p create-search-only-root
-printf 'known input\n' > create-search-only-root/payload
-chmod 0100 create-search-only-root
-if ! (cd create-search-only-root &&
-    "$TAR" cf ../create-search-only.tar payload); then
-    chmod 0700 create-search-only-root
-    fail "search-only archive-creation root was rejected"
+	echo "tartest: search-only archive-creation root"
+	mkdir -p create-search-only-root
+	printf 'known input\n' > create-search-only-root/payload
+	chmod 0100 create-search-only-root
+	if ! (cd create-search-only-root &&
+		"$TAR" cf ../create-search-only.tar payload); then
+		chmod 0700 create-search-only-root
+		fail "search-only archive-creation root was rejected"
+	fi
+	chmod 0700 create-search-only-root
+	[ "$("$TAR" tf create-search-only.tar)" = "payload" ] ||
+		fail "search-only archive creation omitted the named input"
 fi
-chmod 0700 create-search-only-root
-[ "$("$TAR" tf create-search-only.tar)" = "payload" ] ||
-    fail "search-only archive creation omitted the named input"
 
 echo "tartest: archive creation verifies source paths"
 mkdir -p create-source/root create-source/outside
@@ -406,23 +410,55 @@ fi
 mkdir -p create-links
 ln -s /etc/passwd create-links/absolute
 ln -s ../outside create-links/escape
+printf 'safe source\n' > create-links/safe
 if (cd create-links &&
-    "$TAR" cf "$work/create-absolute-link.tar" absolute) \
+    "$TAR" cf "$work/create-absolute-link.tar" absolute safe) \
     >create-absolute-link.out 2>&1; then
 	fail "archive creation accepted an absolute symbolic-link target"
 fi
+[ "$("$TAR" tf create-absolute-link.tar)" = "safe" ] ||
+	fail "unsafe symbolic link prevented a complete recoverable archive"
 if (cd create-links &&
     "$TAR" cf "$work/create-escape-link.tar" escape) \
     >create-escape-link.out 2>&1; then
 	fail "archive creation accepted an escaping symbolic-link target"
 fi
+printf 'safe operand\n' > create-safe
 if "$TAR" cf create-absolute.tar "$work/create-source/outside/payload" \
+    create-safe \
     >create-absolute.out 2>&1; then
 	fail "archive creation accepted an absolute input path"
 fi
+[ "$("$TAR" tf create-absolute.tar)" = "create-safe" ] ||
+	fail "unsafe input path prevented a complete recoverable archive"
+control_name=$(printf 'line\nbreak')
+mkdir -p create-control
+printf 'unsafe source\n' > "create-control/$control_name"
+printf 'safe source\n' > create-control/safe
+if (cd create-control &&
+    "$TAR" cf "$work/create-control.tar" "$control_name" safe) \
+    >create-control.out 2>&1; then
+	fail "archive creation accepted a control-bearing input path"
+fi
+printf 'tar: unsafe source omitted\n' > create-control.expected
+cmp create-control.expected create-control.out ||
+	fail "unsafe source diagnostic exposed the rejected pathname"
+[ "$("$TAR" tf create-control.tar)" = "safe" ] ||
+	fail "control-bearing input prevented a complete recoverable archive"
 if "$TAR" cf create-missing.tar missing-input >create-missing.out 2>&1; then
 	fail "archive creation reported success for a missing input"
 fi
+
+echo "tartest: valid UTF-8 path bytes survive create, list and extract"
+utf8_name=$(printf '\342\202\254')
+mkdir -p utf8-source utf8-root
+printf 'UTF-8 payload\n' > "utf8-source/$utf8_name"
+(cd utf8-source && "$TAR" cf ../utf8.tar "$utf8_name")
+[ "$("$TAR" tf utf8.tar)" = "$utf8_name" ] ||
+	fail "valid UTF-8 filename changed during listing"
+(cd utf8-root && "$TAR" xf ../utf8.tar)
+cmp "utf8-source/$utf8_name" "utf8-root/$utf8_name" ||
+	fail "valid UTF-8 filename failed to round trip"
 if "$TAR" cf create-chdir.tar -C missing-directory payload \
     >create-chdir.out 2>&1; then
 	fail "archive creation reported success after a failed -C"

@@ -55,7 +55,7 @@ The public-record check read the CVE List V5 records for each identifier on
 | CVE-2015-1197 and CVE-2023-7216 | named GNU or RHEL implementations absent; equivalent local weakness fixed | The local base followed both a pre-existing symlinked parent and a final symlink through `access`, `mkdir` and `creat`. | Either symlink fixture changes the victim outside the selected pathname object. |
 | CVE-2026-66484 | GNU tar path absent | The record and fixing commit name GNU cpio's tar hard-link target. The local program accepts only odc regular files and directories and calls no hard-link API. | Tar or hard-link handling becomes reachable in the local executable. |
 | CVE-2026-66485 | GNU allocation path absent | The fixing commit removes archive-sized `alloca` use from GNU `make_path`. The local parser uses one `MAXPATHLEN` name buffer and one 512-byte transfer buffer and performs no allocation. | An archive-controlled length reaches stack or heap allocation. |
-| CVE-2026-66486 | GNU implementation absent; equivalent local weakness fixed | The local table path also printed an archive name literally. The repaired parser rejects C0, DEL and C1 control bytes before listing or extraction. | A name containing newline or ESC reaches standard output. |
+| CVE-2026-66486 | GNU implementation absent; equivalent local weakness fixed | The local cpio table path also printed an archive name literally. The repaired cpio parser rejects C0, DEL and C1 control bytes before listing or extraction. | A name containing newline or ESC reaches standard output. |
 | CVE-2025-60753 | implementation absent | The record names libarchive bsdtar `apply_substitution` and `-s`. The local `bin/tar` has neither mechanism. | The local option parser gains substitution rules or a call edge resolves to equivalent unbounded allocation. |
 | CVE-2001-1267 and CVE-2002-0399 | GNU implementation absent; equivalent local weakness fixed | The local base tar accepted `..`, `/..` and `./..` components. A calibrated `../escaped` member wrote outside its extraction root. | Any absolute, empty, dot, dot-dot or repeated-empty member component reaches a filesystem operation. |
 | CVE-2002-1216, CVE-2006-6097 and CVE-2007-4131 | named implementations absent; equivalent local weakness fixed under a stable directory namespace | The local base used pathname `open`, `mkdir`, `symlink` and `link` operations without rejecting pre-existing or archive-created symlink traversal. Calibrated parent, final and archive-created symlink archives changed or reached objects outside the selected path. | A symlinked parent or final component changes its outside victim under the stable-namespace test fixture. |
@@ -262,8 +262,8 @@ The tar unit starts from `d4c5e74f95524f7a8cf8a8125a61538291b59605`.
 The base extractor accepted absolute or dot-dot paths, followed pre-existing
 and archive-created symlinks, overwrote final symlinks and existing regular
 files, accepted an outside hard-link source, restored archive-controlled
-ownership and special mode bits, reused stale records after a short archive
-read, and trusted unterminated or malformed header fields. A retained
+special mode bits, reused stale records after a short archive read, and trusted
+unterminated or malformed header fields. A retained
 calibration binary from that source writes the `../escaped` member, follows
 the parent and final symlink fixtures, links to `../outside-existing`, and
 restores mode 06755. The fixed test run against the same binary stops at
@@ -271,7 +271,9 @@ restores mode 06755. The fixed test run against the same binary stops at
 source from the repaired one.
 
 Extraction now rejects empty, absolute, dot, dot-dot, repeated-empty,
-control-bearing and over-limit paths before selection or filesystem use. It
+control-bearing and over-limit paths before selection or filesystem use. The
+control scanner distinguishes RFC 3629 sequences from raw C1 bytes, preserves
+valid UTF-8 names and rejects UTF-8 encodings of C1 control characters. It
 accepts only regular files, directories, symbolic links and hard links, and
 requires non-regular members to carry zero data. Parent traversal compares
 `lstat` device and inode with `open` plus `fstat` before `fchdir`. Regular
@@ -304,13 +306,17 @@ backspace by the final refill size rather than the initial blocking factor.
 Archive creation rejects absolute and dot-component inputs, normalizes trailing
 slashes, treats an initial `.` as the current directory's children, and skips
 the output archive's captured inode if that file lies below the input root.
-Creation rejects any symbolic-link target that extraction would reject, reports
-missing inputs and failed `-C` changes, and verifies each directory identity
+Unsafe source paths and symbolic-link targets set status 1 and skip the named
+object while creation continues through the end-of-archive records, so a
+rejected object does not leave a silently truncated archive. Creation reports
+missing inputs and failed `-C` changes and verifies each directory identity
 before entering it. A readable source root retains descriptor-rooted
 traversal; a search-only root uses the same bounded depth restoration as
-extraction under the documented stable-namespace assumption. A symlinked
-source parent remains rejected by default; explicit `-h` follows it while
-retaining the opened directory identity check.
+extraction under the documented stable-namespace assumption. The search-only
+fixtures establish that behavior only under a non-privileged UID; a privileged
+run emits an explicit skip because DAC override would bypass the fallback. A
+symlinked source parent remains rejected by default; explicit `-h` follows it
+while retaining the opened directory identity check.
 Update mode uses `mkstemp` and bounded linear parsing instead of `mktemp` plus
 an external shell pipeline and fixed-window binary search. The replacement
 removes a temporary sort, awk and move process set as well as the associated
@@ -341,24 +347,24 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,621 | +708 |
-| Source bytes | 48,416 | 79,793 | +31,377 |
-| Object text | 6,684 | 9,844 | +3,160 |
-| Object read-only data | 1,481 | 4,114 | +2,633 |
+| Source lines | 1,913 | 2,692 | +779 |
+| Source bytes | 48,416 | 81,374 | +32,958 |
+| Object text | 6,684 | 10,020 | +3,336 |
+| Object read-only data | 1,481 | 3,811 | +2,330 |
 | Object writable data | 260 | 58 | -202 |
 | Object BSS | 1,890 | 2,181 | +291 |
-| Final text | 23,630 | 28,248 | +4,618 |
+| Final text | 23,630 | 28,120 | +4,490 |
 | Final data | 888 | 692 | -196 |
 | Final BSS | 3,648 | 3,936 | +288 |
-| Final a.out bytes | 24,552 | 28,972 | +4,420 |
-| Packed bytes | 20,366 | 23,517 | +3,151 |
+| Final a.out bytes | 24,552 | 28,844 | +4,292 |
+| Packed bytes | 20,366 | 23,548 | +3,182 |
 | Packed root blocks | 21 | 24 | +3 |
 | `putfile` frame per recursive level | 824 | 840 | +16 |
 | `dorep` frame | 552 | 560 | +8 |
 | `doxtract` frame | 56 | 184 in `main` | +128 |
 
 Writable data falls by 196 bytes because mode-display tables moved to read-only
-storage and the update index disappeared. Linked BSS grows by 292 bytes: the
+storage and the update index disappeared. Linked BSS grows by 288 bytes: the
 dominant addition is a 129-entry `unsigned short` directory-mode stack. The
 stack holds only sanitized permission bits plus `USHRT_MAX`; narrowing the
 retained representation from target `mode_t` saves 258 bytes while widening

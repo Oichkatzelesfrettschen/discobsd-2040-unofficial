@@ -151,6 +151,9 @@ main(int argc, char **argv)
             "archive payload\n");
     } else if (strcmp(argv[1], "control") == 0) {
         write_entry("line\nbreak", '0', NULL, 0644, "archive payload\n");
+    } else if (strcmp(argv[1], "utf8-control") == 0) {
+        write_entry("control\302\202", '0', NULL, 0644,
+            "archive payload\n");
     } else if (strcmp(argv[1], "symlink-control") == 0) {
         write_entry("link", '2', "target\033control", 0777, NULL);
     } else if (strcmp(argv[1], "hardlink-control") == 0) {

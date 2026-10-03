@@ -222,7 +222,10 @@ static void setdirmetadata(char *, const struct directory_metadata *);
 static void setdirmetadata_at_parent(const char *, const char *,
     const struct stat *, const struct directory_metadata *);
 static void setimes(char *, time_t);
+static int contains_control_character(const char *);
+static int archive_path_is_safe(const char *);
 static void validate_archive_path(const char *);
+static int symlink_target_is_safe(const char *, const char *);
 static void validate_symlink_target(const char *, const char *);
 static void restore_directory_root(int);
 static int open_verified_directory(const char *, mode_t, int, int, int, int,
@@ -244,6 +247,7 @@ static struct extracted_directory *find_extracted_directory(
 static int was_extracted_output(const struct stat *);
 static void forget_extracted_output(const struct stat *);
 static void free_extracted_outputs(void);
+static void report_unsafe_source(void);
 static _Noreturn void archive_error(const char *);
 static _Noreturn void archive_path_error(const char *, const char *);
 
@@ -742,14 +746,21 @@ dorep(char **argv)
             continue;
         }
         operand_length = strlen(*argv);
-        if (operand_length >= sizeof(creation_path))
-            archive_error("archive input path exceeds the format limit");
+        if (operand_length >= sizeof(creation_path)) {
+            report_unsafe_source();
+            argv++;
+            continue;
+        }
         memcpy(creation_path, *argv, operand_length + 1);
         while (operand_length > 1 &&
             creation_path[operand_length - 1] == '/')
             creation_path[--operand_length] = '\0';
-        if (strcmp(creation_path, ".") != 0)
-            validate_archive_path(creation_path);
+        if (strcmp(creation_path, ".") != 0 &&
+            !archive_path_is_safe(creation_path)) {
+            report_unsafe_source();
+            argv++;
+            continue;
+        }
         leaf_name = enter_parent_directories_raw(archive_root_descriptor,
             creation_path, 0, hflag, 0);
         (void)tarcwd(parent);
@@ -934,8 +945,10 @@ putfile(char *longname, char *shortname, const char *parent)
     size_t maxread;
     int hint;       /* amount to write to get "in sync" */
 
-    if (!archive_root_contents)
-        validate_archive_path(longname);
+    if (!archive_root_contents && !archive_path_is_safe(longname)) {
+        report_unsafe_source();
+        return;
+    }
     if (!hflag)
         i = lstat(shortname, &stbuf);
     else
@@ -1071,7 +1084,10 @@ putfile(char *longname, char *shortname, const char *parent)
             return;
         }
         curlink[link_length] = '\0';
-        validate_symlink_target(longname, curlink);
+        if (!symlink_target_is_safe(longname, curlink)) {
+            report_unsafe_source();
+            return;
+        }
         memcpy(dblock.dbuf.linkname, curlink, (size_t)link_length);
         dblock.dbuf.linkflag = SYMTYPE;
         if (vflag)
@@ -1478,24 +1494,62 @@ archive_path_error(const char *operation, const char *path)
     done(2);
 }
 
-static void
-validate_archive_path(const char *name)
+static int
+contains_control_character(const char *text)
+{
+    const unsigned char *cursor = (const unsigned char *)text;
+    unsigned char continuation_lower = 0x80U;
+    unsigned char continuation_upper = 0xbfU;
+    unsigned int continuation_count = 0;
+
+    while (*cursor != '\0') {
+        if (continuation_count != 0) {
+            if (*cursor < continuation_lower ||
+                *cursor > continuation_upper)
+                return 1;
+            continuation_count--;
+            continuation_lower = 0x80U;
+            continuation_upper = 0xbfU;
+            cursor++;
+            continue;
+        }
+        if (*cursor < 0x20U || (*cursor >= 0x7fU && *cursor <= 0x9fU))
+            return 1;
+        if (*cursor == 0xc2U)
+            continuation_lower = 0xa0U;
+        if (*cursor >= 0xc2U && *cursor <= 0xdfU)
+            continuation_count = 1;
+        else if (*cursor >= 0xe0U && *cursor <= 0xefU)
+            continuation_count = 2;
+        else if (*cursor >= 0xf0U && *cursor <= 0xf4U)
+            continuation_count = 3;
+        if (*cursor == 0xe0U)
+            continuation_lower = 0xa0U;
+        else if (*cursor == 0xedU)
+            continuation_upper = 0x9fU;
+        else if (*cursor == 0xf0U)
+            continuation_lower = 0x90U;
+        else if (*cursor == 0xf4U)
+            continuation_upper = 0x8fU;
+        cursor++;
+    }
+    return continuation_count != 0;
+}
+
+static int
+archive_path_is_safe(const char *name)
 {
     const char *component = name;
     const char *cursor;
 
     if (name[0] == '\0' || name[0] == '/' ||
-        strlen(name) >= TAR_PATH_LIMIT)
-        archive_error("archive contains an unsafe path");
+        strlen(name) >= TAR_PATH_LIMIT || contains_control_character(name))
+        return 0;
     for (cursor = name;; cursor++) {
         size_t component_length;
-        unsigned char byte = (unsigned char)*cursor;
 
-        if (byte < 0x20U || (byte >= 0x7fU && byte <= 0x9fU)) {
-            if (byte == '\0')
-                break;
-            archive_error("archive path contains a control byte");
-        }
+        if (*cursor == '\0')
+            break;
         if (*cursor != '/')
             continue;
         component_length = (size_t)(cursor - component);
@@ -1503,48 +1557,50 @@ validate_archive_path(const char *name)
             (component_length == 1 && component[0] == '.') ||
             (component_length == 2 && component[0] == '.' &&
             component[1] == '.'))
-            archive_error("archive contains an unsafe path component");
+            return 0;
         component = cursor + 1;
     }
     if (cursor == component ||
         (cursor - component == 1 && component[0] == '.') ||
         (cursor - component == 2 && component[0] == '.' &&
         component[1] == '.'))
-        archive_error("archive contains an unsafe path component");
+        return 0;
+    return 1;
 }
 
 static void
-validate_symlink_target(const char *member, const char *target)
+validate_archive_path(const char *name)
+{
+    if (!archive_path_is_safe(name))
+        archive_error("archive contains an unsafe path");
+}
+
+static int
+symlink_target_is_safe(const char *member, const char *target)
 {
     const char *cursor;
     const char *component = target;
     size_t depth = 0;
     int saw_named_component = 0;
 
-    if (target[0] == '\0' || target[0] == '/')
-        archive_error("archive contains an unsafe symbolic-link target");
+    if (target[0] == '\0' || target[0] == '/' ||
+        contains_control_character(target))
+        return 0;
     for (cursor = member; *cursor != '\0'; cursor++)
         if (*cursor == '/')
             depth++;
     for (cursor = target;; cursor++) {
         size_t length;
-        unsigned char byte = (unsigned char)*cursor;
-
-        if (byte < 0x20U || (byte >= 0x7fU && byte <= 0x9fU)) {
-            if (byte == '\0')
-                break;
-            archive_error("symbolic-link target contains a control byte");
-        }
         if (*cursor != '/' && *cursor != '\0')
             continue;
         length = (size_t)(cursor - component);
         if (length == 0)
-            archive_error("symbolic-link target contains an empty component");
+            return 0;
         if (length == 2 && component[0] == '.' && component[1] == '.') {
             if (saw_named_component)
-                archive_error("symbolic-link target backtracks after a named component");
+                return 0;
             if (depth == 0)
-                archive_error("symbolic-link target escapes the extraction root");
+                return 0;
             depth--;
         } else if (!(length == 1 && component[0] == '.')) {
             depth++;
@@ -1554,6 +1610,14 @@ validate_symlink_target(const char *member, const char *target)
             break;
         component = cursor + 1;
     }
+    return 1;
+}
+
+static void
+validate_symlink_target(const char *member, const char *target)
+{
+    if (!symlink_target_is_safe(member, target))
+        archive_error("archive contains an unsafe link target");
 }
 
 static void
@@ -1922,6 +1986,13 @@ static void
 forget_extracted_output(const struct stat *status)
 {
     forget_extracted_identity(&extracted_outputs, status);
+}
+
+static void
+report_unsafe_source(void)
+{
+    fprintf(stderr, "tar: unsafe source omitted\n");
+    operation_failed = 1;
 }
 
 static void

@@ -543,6 +543,9 @@ check-flash-swap:
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
 
+check-usb-reset:
+		${MAKE} -C tests/rp2040/usb_reset check
+
 # tools/elf2aout over the layouts the ARM linker produces. The gate assembles
 # and links its own fixtures with the cross toolchain and reads
 # lib/elf32-arm.ld, so what it needs is tools, the toolchain and ${PYTHON}
@@ -593,6 +596,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
 		check-dhara-metadata \
+		check-usb-reset \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \

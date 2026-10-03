@@ -109,6 +109,47 @@ Heatshrink is pinned to `7d419e1fa4830d0b919b9b6a91fe2fb786cf3280`
 (0.4.1 plus one commit). The USB implementation needs source-level control
 request review independently of the product-name result.
 
+## USB BOOTSEL GPIO selector
+
+`usb_setup()` accepts the Pico reset-interface BOOTSEL request for interface
+2 and passes its 16-bit `wValue` to `usb_reset_to_bootsel()`. When bit 8 asks
+for an activity LED, bits 15:9 select the GPIO. The base implementation used
+that seven-bit selector directly as `1UL << pin`; a host could select 32
+through 127 and invoke an out-of-range shift in privileged interrupt context.
+The request was reachable over the enumerated reset interface, so the bound
+does not depend on local callers.
+
+`usb_reset_gpio_mask()` now accepts only RP2040 GPIO indexes 0 through 29 and
+returns failure before shifting any other requested index. `usb_setup()` stalls
+an invalid reset request instead of calling the ROM. A selector is ignored and
+produces a zero mask when the activity-LED flag is clear. The sanitizer test
+exercises all 128 encodings and a calibrated mutation that accepts non-existent
+GPIOs; the Cortex-M0+ `PICO` kernel build compiles the production USB path with
+`-Wall -Wextra -Werror`. The `PICO_UART` UART-only kernel also builds with those
+flags but excludes the USB driver.
+With the installed arm-none-eabi GCC 16.2 and production `PICO` flags, the
+rebuilt `usb.o` measures 3,728 text / 8,200 data / 344 BSS bytes, compared with
+3,732 / 8,200 / 344 for the clean-main object. The object text falls by four
+bytes while data and BSS remain equal; this is not a final UF2 or board-RAM
+measurement.
+
+At Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`, the public
+reset-interface header defines the BOOTSEL request code at
+<https://github.com/raspberrypi/pico-sdk/blob/079c6f39023649b154152db30f1d781e884879bc/src/common/pico_usb_reset_interface_headers/include/pico/usb_reset_interface.h>.
+The SDK control handler documents bits 9 through 15 as a GPIO number from 0
+through 127 and passes that selector to the boot ROM at
+<https://github.com/raspberrypi/pico-sdk/blob/079c6f39023649b154152db30f1d781e884879bc/src/rp2_common/pico_usb_reset/usb_reset.c>.
+The same revision's RP2040 platform header defines `NUM_BANK0_GPIOS` as 30
+at
+<https://github.com/raspberrypi/pico-sdk/blob/079c6f39023649b154152db30f1d781e884879bc/src/rp2040/hardware_regs/include/hardware/platform_defs.h>.
+Its boot ROM header declares the reset callback with two `uint32_t` arguments
+at <https://github.com/raspberrypi/pico-sdk/blob/079c6f39023649b154152db30f1d781e884879bc/src/rp2_common/pico_bootrom/include/pico/bootrom.h>.
+The repository's dispatch predicate and selector decoding are in
+`sys/arch/rp2040/dev/usb.c`; `tests/rp2040/usb_reset/check.sh` runs the exact
+production helper under AddressSanitizer and UndefinedBehaviorSanitizer. No
+physical USB packet or board reset was exercised by this host and kernel-build
+evidence.
+
 ## LZW memory-safety repair
 
 The base source overflows `htab` with this 12-bit stream, shown in hexadecimal:

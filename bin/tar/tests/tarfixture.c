@@ -124,6 +124,14 @@ write_end(void)
 int
 main(int argc, char **argv)
 {
+    if (argc == 2 && strcmp(argv[1], "-d") == 0) {
+        char records[RECORD_SIZE * 8] = {0};
+
+        malformed_size_field = 1;
+        write_entry("bad-size", '0', NULL, 0644, NULL);
+        for (;;)
+            write_all(records, sizeof(records));
+    }
     if (argc < 2 || argc > 3) {
         fprintf(stderr, "usage: tarfixture scenario [absolute-path]\n");
         return 1;

@@ -161,7 +161,7 @@ static void tomodes(const struct stat *);
 static void putoctal(char *, size_t, unsigned long);
 static int putheader(const char *, char);
 static void zfilter(int);
-static int zreap(void);
+static int zreap(int);
 static int isustar(void);
 static const char *uidname(uid_t);
 static const char *gidname(gid_t);
@@ -245,6 +245,7 @@ static int mt;
 static volatile int term;
 static int chksum;
 static int recno;
+static int last_read_records;
 static int first;
 static int prtlinkerr;
 static int freemem = 1;
@@ -602,14 +603,14 @@ zfilter(int writing)
  * truncates the compressed archive at its last full block.
  */
 static int
-zreap(void)
+zreap(int drain_input)
 {
     int child_status = 0;
     int result = 0;
     pid_t waited;
 
     if (mt >= 0) {
-        if (zpid > 0 && zreading) {
+        if (zpid > 0 && zreading && drain_input) {
             char discarded[TBLOCK];
             ssize_t received;
 
@@ -2010,7 +2011,7 @@ checkupdate(const char *arg)
 static _Noreturn void
 done(int n)
 {
-    int filter_result = zreap();
+    int filter_result = zreap(n == 0);
 
     if (n == 0 && filter_result != 0)
         n = filter_result;
@@ -2080,6 +2081,7 @@ readtbuf(char **bufpp, size_t size)
         if (received % TBLOCK != 0)
             archive_error("archive ends in a partial record");
         valid_records = (int)(received / TBLOCK);
+        last_read_records = valid_records;
         if (first == 0 && valid_records != nblock)
             fprintf(stderr, "tar: blocksize = %d\n", valid_records);
         if (first == 0)
@@ -2157,7 +2159,11 @@ backtape(void)
         }
     } else
 #endif
-        lseek(mt, (daddr_t) -TBLOCK*nblock, 1);
+        if (lseek(mt, (daddr_t)-TBLOCK * last_read_records, SEEK_CUR) < 0) {
+            fprintf(stderr, "tar: archive backspace error: ");
+            perror("");
+            done(4);
+        }
     recno--;
 }
 

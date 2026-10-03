@@ -381,6 +381,48 @@ for listing in block-factor.self-list block-factor.host-list; do
 	grep -q '^first$' "$listing" || fail "$listing omitted the first member"
 	grep -q '^second$' "$listing" || fail "$listing omitted the appended member"
 done
+mkdir -p block-factor-refill
+for name in first second third fourth; do
+	printf '%s\n' "$name" > "block-factor-refill/$name"
+done
+(cd block-factor-refill &&
+    "$HOSTTAR" ${HOSTFMT:+"$HOSTFMT"} -cf ../block-factor-refill.tar \
+    -b 1 first second third fourth)
+printf 'appended\n' > block-factor-refill/appended
+(cd block-factor-refill && "$TAR" rf ../block-factor-refill.tar appended)
+"$TAR" tf block-factor-refill.tar > block-factor-refill.self-list
+"$HOSTTAR" tf block-factor-refill.tar > block-factor-refill.host-list
+for listing in block-factor-refill.self-list block-factor-refill.host-list; do
+	for name in first second third fourth appended; do
+		grep -q "^$name$" "$listing" || fail "$listing omitted $name"
+	done
+done
+
+echo "tartest: fatal compressed-input errors stop the filter promptly"
+FILTER_TAR=$work/tar-filter
+${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
+    -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+    -Wold-style-definition -Wconversion -Wsign-conversion \
+    -fno-omit-frame-pointer -fsanitize=address,undefined \
+    -DCOMPRESS=\"$FIXTURE\" -o "$FILTER_TAR" "$srcdir/tar.c" ||
+    fail "host build of tar.c with the nonterminating filter fixture"
+: > filter-input
+mkdir filter-root
+(cd filter-root && "$FILTER_TAR" xZf ../filter-input) \
+    >filter.out 2>&1 &
+filter_pid=$!
+(sleep 5; : > filter-timeout; kill "$filter_pid" 2>/dev/null || :) &
+watchdog_pid=$!
+if wait "$filter_pid"; then
+	kill "$watchdog_pid" 2>/dev/null || :
+	wait "$watchdog_pid" 2>/dev/null || :
+	fail "malformed compressed archive reported success"
+fi
+kill "$watchdog_pid" 2>/dev/null || :
+wait "$watchdog_pid" 2>/dev/null || :
+[ ! -e filter-timeout ] || fail "fatal parse error drained the filter tail"
+grep -q 'malformed octal field' filter.out ||
+    fail "compressed-input fixture did not reach the fatal parser path"
 
 #
 # ustar: the full tree, long path included.

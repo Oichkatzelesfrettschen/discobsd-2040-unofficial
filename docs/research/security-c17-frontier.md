@@ -290,7 +290,10 @@ intervening symbolic-link resolution defeats lexical reduction. Link fields
 receive the same control and path validation before table output. Short writes
 complete or fail, each archive-buffer refill carries its own valid-record
 count, numeric fields reject invalid digits and overflow, and compressed reads
-drain the filter pipe before the child status reaches the final result.
+drain the filter pipe before the child status reaches a successful final
+result. A fatal parse closes the read end before waiting, so an unbounded
+decompressor tail cannot delay an already-decided rejection. Append and update
+backspace by the final refill size rather than the initial blocking factor.
 
 Archive creation rejects absolute and dot-component inputs, normalizes trailing
 slashes, treats an initial `.` as the current directory's children, and skips
@@ -329,17 +332,17 @@ libc and kernel stack use.
 
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
-| Source lines | 1,913 | 2,401 | +488 |
-| Source bytes | 48,416 | 71,893 | +23,477 |
-| Object text | 6,684 | 9,220 | +2,536 |
-| Object read-only data | 1,481 | 3,815 | +2,334 |
+| Source lines | 1,913 | 2,407 | +494 |
+| Source bytes | 48,416 | 72,144 | +23,728 |
+| Object text | 6,684 | 9,212 | +2,528 |
+| Object read-only data | 1,481 | 3,846 | +2,365 |
 | Object writable data | 260 | 58 | -202 |
-| Object BSS | 1,890 | 2,170 | +280 |
-| Final text | 23,630 | 27,304 | +3,674 |
+| Object BSS | 1,890 | 2,174 | +284 |
+| Final text | 23,630 | 27,328 | +3,698 |
 | Final data | 888 | 692 | -196 |
-| Final BSS | 3,648 | 3,924 | +276 |
-| Final a.out bytes | 24,552 | 28,028 | +3,476 |
-| Packed bytes | 20,366 | 22,770 | +2,404 |
+| Final BSS | 3,648 | 3,928 | +280 |
+| Final a.out bytes | 24,552 | 28,052 | +3,500 |
+| Packed bytes | 20,366 | 22,779 | +2,413 |
 | Packed root blocks | 21 | 24 | +3 |
 | `putfile` frame per recursive level | 824 | 832 | +8 |
 | `dorep` frame | 552 | 808 | +256 |
@@ -367,9 +370,9 @@ would break the maintained archive contract; accepting pre-existing sources
 would restore the vulnerability.
 
 Thirty warmed host runs over the 10,823,680-byte root-tree archive measured
-listing at 9.44 ms mean for the base and 9.35 ms for the repair. Fifteen warmed
-extraction runs measured 41.65 ms mean for the base and 71.14 ms for the
-repair, a 1.71x host-filesystem cost. Parent verification, exclusive creation,
+listing at 4.3 ms mean for both the base and repair. Fifteen warmed extraction
+runs measured 23.2 ms mean for the base and 39.1 ms for the repair, a 1.69x
+host-filesystem cost. Parent verification, exclusive creation,
 metadata revalidation and hard-link provenance explain the direction. These
 timings establish neither Cortex-M0+ latency nor board peak RAM.
 

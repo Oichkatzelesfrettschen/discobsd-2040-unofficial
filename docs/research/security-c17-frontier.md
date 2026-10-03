@@ -10,10 +10,12 @@ inspection and filesystem accounting establish the target footprint. Board
 behavior remains outside this audit.
 
 Structural Graft job `527d63e861f3851b3aea15c224869cb0` supplied the first
-symbol and file map. The graph matches the source commit but carries zero
-semantic-ready records, and the separate deep cache covers only
-`sys/arch/rp2040/dev` at an older commit. Every disposition below therefore
-comes from live source, the manifest, a behavior probe or a public CVE record.
+symbol and file map. Its graph remains pinned to `dbd8bf0cc84f3705b79e3a13c79436b0ba51cb54`
+and carries zero semantic-ready records; the separate deep cache covers only
+`sys/arch/rp2040/dev` at an older commit. Graft located `copyin`, `mkpath` and
+the direct `creat` and `mkdir` paths quickly, but every disposition below comes
+from the named source revision, the manifest, a behavior probe or a public CVE
+record.
 
 ## Search and attack surface
 
@@ -46,6 +48,13 @@ The public-record check read the CVE List V5 records for each identifier on
 | CVE-2001-1413 | named mechanism absent | The record names `comprexx`; the tree contains neither that symbol nor its filename-processing path. The shipped `compress` frontend has a separate bounded-name review. | A donor or binary inspection resolves a reachable `comprexx` equivalent in the shipped executable. |
 | CVE-2010-0001 | implementation and platform condition absent | The record names gzip `unlzw.c` before 1.4 on 64-bit platforms. The manifest ships the independent `usr.bin/compress/compress.c` decoder on 32-bit ARM. | A source/data-flow comparison proves the same underflow in this decoder at ILP32 width. |
 | CVE-2015-8915 | implementation absent | The record names libarchive `bsdcpio`; the image ships the tree's compact POSIX odc implementation under `usr.bin/cpio`. | A libarchive object enters the image or a crafted odc archive triggers an equivalent invalid read in the local parser. |
+| CVE-2005-1111 | GNU implementation absent | The signed FreeBSD advisory identifies contributed GNU cpio closing an output before a pathname-based permission change. The local implementation performs neither post-close chmod nor hard-link extraction. | A local extraction path changes metadata through a pathname after closing the created descriptor. |
+| CVE-2005-1229 | GNU implementation absent; equivalent local weakness fixed | The advisory names GNU cpio, whose implementation and symbols are absent from the local 306-line program. The local base nevertheless accepted absolute and `..` names and wrote outside the extraction directory. | Either escape fixture creates its named victim outside the extraction root. |
+| CVE-2005-4268 | GNU implementation absent; local truncation fixed | The advisory's 64-bit GNU formatting buffer is absent. The local writer used fixed fields without overflowing them, but silently truncated values wider than odc can represent. | A file size wider than the eleven-octal-digit field produces an archive header. |
+| CVE-2015-1197 and CVE-2023-7216 | named GNU or RHEL implementations absent; equivalent local weakness fixed | The local base followed both a pre-existing symlinked parent and a final symlink through `access`, `mkdir` and `creat`. | Either symlink fixture changes the victim outside the selected pathname object. |
+| CVE-2026-66484 | GNU tar path absent | The record and fixing commit name GNU cpio's tar hard-link target. The local program accepts only odc regular files and directories and calls no hard-link API. | Tar or hard-link handling becomes reachable in the local executable. |
+| CVE-2026-66485 | GNU allocation path absent | The fixing commit removes archive-sized `alloca` use from GNU `make_path`. The local parser uses one `MAXPATHLEN` name buffer and one 512-byte transfer buffer and performs no allocation. | An archive-controlled length reaches stack or heap allocation. |
+| CVE-2026-66486 | GNU implementation absent; equivalent local weakness fixed | The local table path also printed an archive name literally. The repaired parser rejects C0, DEL and C1 control bytes before listing or extraction. | A name containing newline or ESC reaches standard output. |
 | CVE-2025-60753 | implementation absent | The record names libarchive bsdtar `apply_substitution` and `-s`. The local `bin/tar` has neither mechanism. | The local option parser gains substitution rules or a call edge resolves to equivalent unbounded allocation. |
 | CVE-2026-10659 | affected Zephyr adapter absent | The record names Zephyr `drivers/disk/ftl_dhara.c` writing through a null error pointer. Every RP2040 flash callback routes errors through null-safe `dhara_set_error`. | A callback writes `*err` without first proving the pointer non-null, including a generated or alternate build path. |
 | CVE-1999-1471 | shipped mechanism absent; source review retained | The shipped `passwd` changes the password hash and has no shell or GECOS input. `chpass`, which owns those fields, stays outside the RP2040 manifest and already bounds its aggregate GECOS buffer. | Shipping `chpass`, or finding an unbounded shell/GECOS copy in a setuid image path, reopens the row. |
@@ -143,11 +152,86 @@ Thirty warmed host runs over the 1,012,736-byte generated root image measured
 That host result detects no meaningful throughput change. It does not measure
 Cortex-M0+ cycles or a board peak-water mark.
 
+## cpio extraction confinement and C17 migration
+
+The cpio unit starts from `9d5b049afd7b9d5fd11841c68334ecc3ca65a9c0`.
+The base extractor trusted archive pathnames, created parents with
+`access`/`mkdir`, and opened final names with truncating `creat`. A calibrated
+run of the new suite against that exact source reached `absolute archive
+reported success`; the archive wrote its payload outside the extraction root.
+The fixed suite exercises absolute and `..` escapes, empty and dot components,
+symlinked parents, final symlinks, existing-file overwrite, unsupported types,
+invalid octal, missing and embedded terminators, a missing trailer, C0 and ESC
+listing names, owner-untraversable directory entries and symlink input during
+archive creation. The suite verifies that extracted files retain no setuid or
+setgid bits. It also rejects absolute and missing archive-creation inputs
+instead of silently publishing an unsafe or incomplete archive.
+
+Extraction now accepts relative regular files and directories only. It checks
+every odc digit, requires exactly one trailing pathname NUL and a zero-length
+`TRAILER!!!`, rejects control bytes and unsafe components, and creates regular
+files with `O_EXCL`. Extraction strips archive-controlled setuid, setgid and
+sticky bits because the program has no ownership-restoration contract. For each
+parent it compares `lstat` identity with the descriptor returned by `open` and
+`fstat` before `fchdir`. Newly created
+directories retain owner access because the streaming format supplies no
+bounded second pass for restoring a mode before later child entries arrive;
+pre-existing directories retain their modes. Archive creation uses `lstat`,
+rejects symlinks and unsupported types, verifies an opened regular file's
+device and inode, and refuses a file length wider than the odc size field.
+
+The base source was not a C17 translation unit under the repository's strict
+contract. Nine K&R definitions kept parameter types outside their declarators,
+`copyout` and `copyin` used empty parameter lists, and writable globals and
+`register` locals carried pre-prototype compiler assumptions. The parser also
+used signed `int` byte counts for `read` and `write`, accepted partial octal
+fields, discarded the final archive-name byte without proving it was NUL, and
+treated header EOF as a successful archive without `TRAILER!!!`. The rewrite
+uses full prototypes, internal linkage, `size_t` and `ssize_t` at byte-count
+boundaries, `_Static_assert` for the 76-byte header and `_Noreturn` for fatal
+paths. GCC and Clang accept the whole file as strict C17 with conversion
+warnings, and the host behavior suite runs under address and undefined-behavior
+sanitizers.
+
+The object and final a.out pairs use one compiler flag set, crt0, linker script
+and libc. Target `-fstack-usage` data gives the internal static frames; it does
+not include libc or kernel stack use.
+
+| Surface | Base | Repaired | Delta |
+| --- | ---: | ---: | ---: |
+| Source lines | 306 | 510 | +204 |
+| Source bytes | 7,331 | 16,452 | +9,121 |
+| Object text | 1,405 | 3,225 | +1,820 |
+| Object data | 0 | 0 | 0 |
+| Object BSS | 776 | 776 | 0 |
+| Final text | 9,350 | 11,206 | +1,856 |
+| Final data | 204 | 204 | 0 |
+| Final BSS | 900 | 900 | 0 |
+| Final a.out bytes | 9,588 | 11,444 | +1,856 |
+| Packed bytes | 7,776 | 9,135 | +1,359 |
+| Packed root blocks | 9 | 10 | +1 |
+| Input-mode internal stack path | 160 | 256 | +96 |
+| Output-mode internal stack path | 208 | 216 | +8 |
+
+The repair adds no heap allocation and preserves both fixed buffers. Reusing
+one `struct stat` at each identity check and keeping mutually exclusive input
+and output frames outside `main` cut the first repaired draft's worst internal
+path from 328 to 256 bytes. The remaining code, packed-block and stack growth
+implements the pathname and format checks; aggregate shrinkage would require
+removing those checks or changing the archive contract.
+
+DiscoBSD lacks `openat`, `O_NOFOLLOW` and an `openat2`-style beneath-root
+resolver. A concurrent process can rename a verified directory after the
+identity check and before a descendant is created. The extractor also streams
+effects: corruption discovered after a complete earlier entry does not roll
+that earlier entry back. Those residuals require a directory-descriptor API or
+a bounded staging design, not another pathname precheck.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
-| P0 | `bin/tar` and `usr.bin/cpio` extraction confinement | Determine how absolute paths, `..`, pre-existing symlinks, hard-link targets and device entries can escape the selected destination. | Calibrated archives for every escape class, source call map, host filesystem oracle and final target footprint. |
+| P0 | `bin/tar` extraction confinement | Determine how absolute paths, `..`, pre-existing symlinks, hard-link targets and device entries can escape the selected destination. The cpio odc-only unit above is complete within its documented rename-race residual. | Calibrated tar archives for every escape class, source call map, host filesystem oracle and final target footprint. |
 | P0 | account-policy reconciliation | The image now ships setuid mode 04751 `su`, places `operator` in wheel and makes the console insecure for direct root login refusal, while `security-profile.md` still says the manifest omits `su`. | Built-image modes and account files, login/su host tests, Renode transcript, then a focused correction of the stale profile. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
 | P1 | `compress` option grammar | `atoi` accepts ambiguous text and has no explicit overflow contract before the value is clamped. | Exact accepted grammar, boundary/overflow tests and a helper-dependency inspection. |
@@ -165,9 +249,13 @@ semantic summaries cannot close a security or resource claim.
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
 bmake MACHINE=rp2040 check-compress-host
+bmake MACHINE=rp2040 check-cpio-host
 shellcheck -S error usr.bin/compress/tests/compresscheck.sh
+shellcheck -S error usr.bin/cpio/tests/cpiotest.sh
 cppcheck --std=c17 --enable=warning,performance,portability \
   --error-exitcode=2 usr.bin/compress/compress.c
+cppcheck --std=c17 --enable=warning,performance,portability \
+  --error-exitcode=2 usr.bin/cpio/cpio.c
 bmake MACHINE=rp2040 build
 bmake MACHINE=rp2040 distribution
 tools/bin/rp2040/fsutil --check --partition=1 distrib/rp2040/sdcard.img

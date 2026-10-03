@@ -49,6 +49,7 @@
 #include <machine/scb.h>
 
 #include <rp2040/dev/usb.h>
+#include <rp2040/dev/usb_reset.h>
 #include <rp2040/dev/flash.h>
 
 #define	REG32(a)	(*(volatile u_int *)(a))
@@ -540,11 +541,11 @@ usb_configure(int on)
 		USBCLR(USB_INTE) = USB_INTS_DEV_SOF;
 }
 
-static void
+static int
 usb_reset_to_bootsel(u_int wvalue)
 {
 	void (*rom_reset)(u_int, u_int);
-	u_int gpio_mask = 0;
+	unsigned int gpio_mask;
 
 	/*
 	 * The SDK's contract: bit 8 of wValue says bits 15:9 name an
@@ -552,10 +553,11 @@ usb_reset_to_bootsel(u_int wvalue)
 	 * disable. The whole cable is about to go away, so there is no
 	 * status stage to send.
 	 */
-	if (wvalue & 0x100)
-		gpio_mask = 1UL << (wvalue >> 9);
+	if (!usb_reset_gpio_mask(wvalue, &gpio_mask))
+		return 0;
 	rom_reset = (void (*)(u_int, u_int))rom_func_lookup(ROM_RESET_USB_BOOT);
 	rom_reset(gpio_mask, wvalue & 0x7f);
+	return 1;
 }
 
 static void
@@ -719,7 +721,10 @@ usb_setup(void)
 		 */
 		switch (request) {
 		case RESET_REQUEST_BOOTSEL:
-			usb_reset_to_bootsel(wvalue);
+			if (!usb_reset_to_bootsel(wvalue)) {
+				usb_ep0_stall();
+				return;
+			}
 			/* NOTREACHED */
 			break;
 		case RESET_REQUEST_FLASH:

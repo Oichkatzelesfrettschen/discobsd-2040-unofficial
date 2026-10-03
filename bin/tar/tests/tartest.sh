@@ -564,6 +564,25 @@ printf 'distinct payload\n' > padded-time-source/member
 "$TAR" tf update-prefix.tar > update-prefix.list
 grep -q '^member$' update-prefix.list ||
     fail "update mistook an octal filename suffix for a timestamp"
+echo "tartest: native host update lookup bounds long recursive names"
+HOST_WIDTH_TAR=$work/tar-host-width
+${CC:-cc} -D_DEFAULT_SOURCE -std=c17 -O1 \
+    -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
+    -Wold-style-definition -Wconversion -Wsign-conversion \
+    -fno-omit-frame-pointer -fsanitize=address,undefined \
+    -o "$HOST_WIDTH_TAR" "$srcdir/tar.c" ||
+    fail "native path-width host build of tar.c"
+mkdir -p "native-update-source/$deep"
+long_leaf=abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqr
+printf 'long payload\n' > "native-update-source/$deep/$long_leaf"
+printf 'index payload\n' > native-update-source/index
+(cd native-update-source && "$TAR" cf ../native-update.tar index)
+if (cd native-update-source && "$HOST_WIDTH_TAR" uf ../native-update.tar .) \
+    >native-update.out 2>&1; then
+    fail "native host update accepted a path beyond the archive format"
+fi
+grep -q 'file name too long' native-update.out ||
+    fail "native host update failed before format-length rejection"
 mkdir -p repeated append-root update-root
 printf 'first\n' > repeated/member
 (cd repeated && "$TAR" cf ../append.tar member)

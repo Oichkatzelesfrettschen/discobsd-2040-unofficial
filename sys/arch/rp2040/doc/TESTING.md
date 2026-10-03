@@ -330,6 +330,10 @@ Tar fixtures also cover empty extraction-owned directory replacement by a
 regular file, preservation of pre-existing and nonempty directories, opaque
 non-control filename bytes, a truncated UTF-8 sequence containing a raw C1
 byte, and update lookup with a space-bearing name and space-padded timestamp.
+A native-host path-width build exercises recursive update names beyond the
+temporary index buffer and reaches the archive-format length rejection under
+the sanitizers. Update comparison first proves that the requested name fits
+the terminated index line before forming its delimiter pointer.
 
 `check-posix-sh` runs bin/sh/tests/posix-sh.sh, the conformance harness
 against XCU chapter 2, which builds the shell as a 32-bit host binary;

@@ -358,16 +358,16 @@ libc and kernel stack use.
 | Surface | Base | Repaired | Delta |
 | --- | ---: | ---: | ---: |
 | Source lines | 1,913 | 2,721 | +808 |
-| Source bytes | 48,416 | 82,604 | +34,188 |
+| Source bytes | 48,416 | 82,605 | +34,189 |
 | Object text | 6,684 | 10,124 | +3,440 |
 | Object read-only data | 1,481 | 3,732 | +2,251 |
 | Object writable data | 260 | 58 | -202 |
 | Object BSS | 1,890 | 2,181 | +291 |
-| Final text | 23,630 | 28,168 | +4,538 |
+| Final text | 23,630 | 28,140 | +4,510 |
 | Final data | 888 | 692 | -196 |
 | Final BSS | 3,648 | 3,936 | +288 |
-| Final a.out bytes | 24,552 | 28,892 | +4,340 |
-| Packed bytes | 20,366 | 23,544 | +3,178 |
+| Final a.out bytes | 24,552 | 28,864 | +4,312 |
+| Packed bytes | 20,366 | 23,520 | +3,154 |
 | Packed root blocks | 21 | 24 | +3 |
 | `putfile` frame per recursive level | 824 | 832 | +8 |
 | `dorep` frame | 552 | 560 | +8 |

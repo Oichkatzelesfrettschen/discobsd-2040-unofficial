@@ -2314,8 +2314,8 @@ checkupdate(const char *arg)
     while (fgets(line, sizeof(line), tfile) != NULL) {
         unsigned long archived_time;
 
-        if (strrchr(line, ' ') != line + argument_length ||
-            memcmp(line, arg, argument_length) != 0)
+        if (strncmp(line, arg, argument_length) != 0 ||
+            strrchr(line, ' ') != line + argument_length)
             continue;
         archived_time = strtoul(line + argument_length + 1, NULL, 8);
         if (!found || archived_time > newest)

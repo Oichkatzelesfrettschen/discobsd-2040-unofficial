@@ -54,21 +54,24 @@ int	kerror = KSUCCESS, notickets = 1;
 
 #define	TTYGRPNAME	"tty"		/* name of group to own ttys */
 
-void	 getloginname();
-int	 rootterm(char *);
-void	 sigint(int);
-void	 motd();
-void	 checknologin();
-void	 dolastlog(int);
-void	 badlogin(char *);
-char	*stypeof(char *);
-void	 getstr(char *, int, char *);
-void	 sleepexit(int);
+static void getloginname(void);
+static int rootterm(char *);
+static void sigint(int);
+void motd(void);
+void checknologin(void);
+static void dolastlog(int);
+static void badlogin(char *);
+static char *stypeof(char *);
+static void sleepexit(int);
 
 static int
 password_matches(const char *computed, const char *stored)
 {
-	size_t length = strlen(stored);
+	size_t length;
+
+	if (computed == NULL || stored == NULL)
+		return 0;
+	length = strlen(stored);
 
 	return strlen(computed) == length &&
 	    timingsafe_bcmp(computed, stored, length) == 0;
@@ -78,50 +81,40 @@ password_matches(const char *computed, const char *stored)
  * This bounds the time given to login.  Not a define so it can
  * be patched on machines where it's too small.
  */
-int	timeout = 300;
+static int	timeout = 300;
 
-struct	passwd *pwd;
-int	failures;
-char	term[64], *hostname, *username, *tty;
+static struct passwd *pwd;
+static int	failures;
+static char	term[64], *hostname, *username, *tty;
 
-struct	sgttyb sgttyb;
-struct	tchars tc = {
+static struct	sgttyb sgttyb;
+static struct	tchars tc = {
 	CINTR, CQUIT, CSTART, CSTOP, CEOT, CBRK
 };
-struct	ltchars ltc = {
+static struct	ltchars ltc = {
 	CSUSP, CDSUSP, CRPRNT, CFLUSH, CWERASE, CLNEXT
 };
 
-char *months[] =
-	{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
-	  "Sep", "Oct", "Nov", "Dec" };
-
-void timedout(sig)
-        int sig;
+static void
+timedout(int sig)
 {
+	(void)sig;
 	(void)fprintf(stderr, "Login timed out after %d seconds\n", timeout);
 	exit(0);
 }
 
 int
-main(argc, argv)
-	int argc;
-	char **argv;
+main(int argc, char **argv)
 {
 	extern int errno, optind;
 	extern char *optarg, **environ;
-	struct timeval tp;
-	struct tm *ttp;
 	struct group *gr;
-	register int ch;
-	register char *p;
+	int ch;
+	char *p;
 	int ask, fflag, hflag, pflag, cnt, authenticated;
 	int quietlog, passwd_req, ioctlval, saved_local_modes;
-	char *domain, *salt, *envinit[1], *ttyn, *pp;
+	char *domain, *salt, *envinit[1] = { NULL }, *ttyn, *pp;
 	char tbuf[MAXPATHLEN + 2], tname[sizeof(_PATH_TTY) + 10];
-	char *ctime(), *ttyname(), *stypeof(), *crypt(), *getpass();
-	time_t time();
-	off_t lseek();
 
 	(void)signal(SIGALRM, timedout);
 	(void)alarm((u_int) timeout);
@@ -138,7 +131,7 @@ main(argc, argv)
 	 *    host to login so that it may be placed in utmp and wtmp
 	 */
 	(void)gethostname(tbuf, sizeof(tbuf));
-	domain = index(tbuf, '.');
+	domain = strchr(tbuf, '.');
 
 	fflag = hflag = pflag = 0;
 	passwd_req = 1;
@@ -154,7 +147,7 @@ main(argc, argv)
 				exit(1);
 			}
 			hflag = 1;
-			if (domain && (p = index(optarg, '.')) &&
+			if (domain && (p = strchr(optarg, '.')) &&
 			    strcasecmp(p, domain) == 0)
 				*p = 0;
 			hostname = optarg;
@@ -171,6 +164,10 @@ main(argc, argv)
 	argc -= optind;
 	argv += optind;
 	if (*argv) {
+		if (strlen(*argv) > UT_NAMESIZE) {
+			(void)fprintf(stderr, "login: name is too long\n");
+			exit(1);
+		}
 		username = *argv;
 		ask = 0;
 	} else
@@ -201,7 +198,7 @@ main(argc, argv)
 		(void)sprintf(tname, "%s??", _PATH_TTY);
 		ttyn = tname;
 	}
-	if (tty = rindex(ttyn, '/'))
+	if ((tty = strrchr(ttyn, '/')) != NULL)
 		++tty;
 	else
 		tty = ttyn;
@@ -228,7 +225,7 @@ main(argc, argv)
 			failures = 0;
 		}
 		(void)strcpy(tbuf, username);
-		if (pwd = getpwnam(username)) {
+		if ((pwd = getpwnam(username)) != NULL) {
 			salt = pwd->pw_passwd;
 //printf("getpwnam returned username='%s' password='%s'\n", pwd->pw_name, pwd->pw_passwd);
 		} else {
@@ -297,14 +294,21 @@ nouser:
 			 * get TGT for local realm; be careful about uid's
 			 * here for ticket file ownership
 			 */
-			(void)setreuid(geteuid(),pwd->pw_uid);
-			kerror = krb_get_pw_in_tkt(pwd->pw_name, "", realm,
-				"krbtgt", realm, DEFAULT_TKT_LIFE, pp);
-			(void)setuid(0);
-			if (kerror == INTK_OK) {
-				explicit_bzero(pp, strlen(pp));
-				notickets = 0;	/* user got ticket */
-				break;
+			if (setreuid(geteuid(), pwd->pw_uid) < 0) {
+				perror("login: setreuid");
+			} else {
+				kerror = krb_get_pw_in_tkt(pwd->pw_name, "", realm,
+					"krbtgt", realm, DEFAULT_TKT_LIFE, pp);
+				if (setuid(0) < 0) {
+					perror("login: setuid");
+					explicit_bzero(pp, strlen(pp));
+					exit(1);
+				}
+				if (kerror == INTK_OK) {
+					explicit_bzero(pp, strlen(pp));
+					notickets = 0;	/* user got ticket */
+					break;
+				}
 			}
 		}
 #endif
@@ -391,9 +395,14 @@ nouser:
 	(void)chown(ttyn, pwd->pw_uid,
 	    (gr = getgrnam(TTYGRPNAME)) ? gr->gr_gid : pwd->pw_gid);
 	(void)chmod(ttyn, 0620);
-	(void)setgid(pwd->pw_gid);
-
-	initgroups(username, pwd->pw_gid);
+	if (setgid(pwd->pw_gid) < 0) {
+		perror("login: setgid");
+		exit(1);
+	}
+	if (initgroups(username, pwd->pw_gid) < 0) {
+		(void)fprintf(stderr, "login: initgroups failed\n");
+		exit(1);
+	}
 #ifdef Q_DOWARN
 	quota(Q_DOWARN, pwd->pw_uid, (dev_t)-1, 0);
 #endif
@@ -420,12 +429,13 @@ nouser:
 
 	if (tty[sizeof("tty")-1] == 'd')
 		syslog(LOG_INFO, "DIALUP %s, %s", tty, pwd->pw_name);
-	if (pwd->pw_uid == 0)
+	if (pwd->pw_uid == 0) {
 		if (hostname)
 			syslog(LOG_NOTICE, "ROOT LOGIN ON %s FROM %s",
 			    tty, hostname);
 		else
 			syslog(LOG_NOTICE, "ROOT LOGIN ON %s", tty);
+	}
 
 	if (!quietlog) {
 		struct stat st;
@@ -443,25 +453,28 @@ nouser:
 	(void)signal(SIGTSTP, SIG_IGN);
 
 	tbuf[0] = '-';
-	strcpy(tbuf + 1, (p = rindex(pwd->pw_shell, '/')) ?
+	strcpy(tbuf + 1, (p = strrchr(pwd->pw_shell, '/')) != NULL ?
 	    p + 1 : pwd->pw_shell);
 
 	if (setlogin(pwd->pw_name) < 0)
 		fprintf(stderr, "login: setlogin(): %s\n", strerror(errno));
 
 	/* discard permissions last so can't get killed and drop core */
-	(void)setuid(pwd->pw_uid);
+	if (setuid(pwd->pw_uid) < 0) {
+		perror("login: setuid");
+		exit(1);
+	}
 
-	execlp(pwd->pw_shell, tbuf, 0);
+	execlp(pwd->pw_shell, tbuf, (char *)NULL);
 	(void)fprintf(stderr, "login: no shell: %s\n", strerror(errno));
 	exit(0);
 }
 
-void
-getloginname()
+static void
+getloginname(void)
 {
-	register int ch;
-	register char *p;
+	int ch;
+	char *p;
 	static char nbuf[UT_NAMESIZE + 1];
 
 	for (;;) {
@@ -474,7 +487,7 @@ getloginname()
 			if (p < nbuf + UT_NAMESIZE)
 				*p++ = ch;
 		}
-		if (p > nbuf)
+		if (p > nbuf) {
 			if (nbuf[0] == '-')
 				(void)fprintf(stderr,
 				    "login names may not start with '-'.\n");
@@ -483,30 +496,31 @@ getloginname()
 				username = nbuf;
 				break;
 			}
+		}
 	}
 }
 
-int
-rootterm(ttyn)
-	char *ttyn;
+static int
+rootterm(char *ttyn)
 {
 	struct ttyent *t;
 
 	return((t = getttynam(ttyn)) && t->ty_status&TTY_SECURE);
 }
 
-jmp_buf motdinterrupt;
+static jmp_buf motdinterrupt;
 
-void sigint(sig)
-        int sig;
+static void
+sigint(int sig)
 {
+	(void)sig;
 	longjmp(motdinterrupt, 1);
 }
 
 void
-motd()
+motd(void)
 {
-	register int fd, nchars;
+	int fd, nchars;
 	sig_t oldint;
 	char tbuf[BUFSIZ];
 
@@ -521,9 +535,9 @@ motd()
 }
 
 void
-checknologin()
+checknologin(void)
 {
-	register int fd, nchars;
+	int fd, nchars;
 	char tbuf[BUFSIZ];
 
 	if ((fd = open(_PATH_NOLOGIN, O_RDONLY, 0)) >= 0) {
@@ -533,13 +547,11 @@ checknologin()
 	}
 }
 
-void
-dolastlog(quiet)
-	int quiet;
+static void
+dolastlog(int quiet)
 {
 	struct lastlog ll;
 	int fd;
-	char *ctime();
 
 	if ((fd = open(_PATH_LASTLOG, O_RDWR, 0)) >= 0) {
 		(void)lseek(fd, (off_t)pwd->pw_uid * sizeof(ll), L_SET);
@@ -567,9 +579,8 @@ dolastlog(quiet)
 	}
 }
 
-void
-badlogin(name)
-	char *name;
+static void
+badlogin(char *name)
 {
 	if (failures == 0)
 		return;
@@ -584,36 +595,16 @@ badlogin(name)
 #undef	UNKNOWN
 #define	UNKNOWN	"su"
 
-char *
-stypeof(ttyid)
-	char *ttyid;
+static char *
+stypeof(char *ttyid)
 {
 	struct ttyent *t;
 
 	return(ttyid && (t = getttynam(ttyid)) ? t->ty_type : UNKNOWN);
 }
 
-void
-getstr(buf, cnt, err)
-	char *buf, *err;
-	int cnt;
-{
-	char ch;
-
-	do {
-		if (read(0, &ch, sizeof(ch)) != sizeof(ch))
-			exit(1);
-		if (--cnt < 0) {
-			(void)fprintf(stderr, "%s too long\r\n", err);
-			sleepexit(1);
-		}
-		*buf++ = ch;
-	} while (ch);
-}
-
-void
-sleepexit(eval)
-	int eval;
+static void
+sleepexit(int eval)
 {
 	sleep((u_int)5);
 	exit(eval);

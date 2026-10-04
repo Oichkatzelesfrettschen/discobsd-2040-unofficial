@@ -8,10 +8,8 @@ cleanup()
 {
 	cleanup_status=$?
 	trap - EXIT HUP INT TERM
-	rm -f "$work/usb-line-coding-test" \
-	    "$work/usb-line-coding-mutant" "$work/mutant.log" \
-	    "$work/mutant/usb.h"
-	rmdir "$work/mutant" "$work"
+	find "$work" -depth -type f -exec rm -f {} +
+	find "$work" -depth -type d -exec rmdir {} +
 	exit "$cleanup_status"
 }
 trap cleanup EXIT

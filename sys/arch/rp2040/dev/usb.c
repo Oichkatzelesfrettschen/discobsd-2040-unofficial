@@ -243,7 +243,7 @@ static const u_char usb_ms_os_20_desc[MS_OS_20_SET_LEN] = {
 static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 	/* Configuration: three interfaces, bus powered, 250 mA. */
 	9, DESC_CONFIGURATION, CONFIG_DESC_LEN & 0xff, CONFIG_DESC_LEN >> 8,
-	3, USB_CONFIGURATION_VALUE, 0, 0x80, 125,
+	USB_INTERFACE_COUNT, USB_CONFIGURATION_VALUE, 0, 0x80, 125,
 
 	/* Interface association: the two CDC interfaces are one function. */
 	8, 0x0b, ITF_CDC_COMM, 2, 0x02, 0x02, 0x00, 0,
@@ -612,8 +612,11 @@ usb_setup(void)
 			}
 			break;
 		case REQ_SET_ADDRESS:
+			if (!usb_set_address_request_valid(type, wvalue,
+			    windex, wlength) || usbd.configured)
+				break;
 			/* Takes effect after the status stage, 4.1.2.8. */
-			usbd.address = wvalue & 0x7f;
+			usbd.address = wvalue;
 			usb_ep0_ack();
 			return;
 		case REQ_SET_CONFIGURATION:
@@ -682,6 +685,9 @@ usb_setup(void)
 			usb_ep0_ack();
 			return;
 		case REQ_SET_INTERFACE:
+			if (!usb_set_interface_request_valid(type, wvalue,
+			    windex, wlength) || !usbd.configured)
+				break;
 			/*
 			 * USB 2.0 9.4.10: SetInterface resets the data
 			 * toggles of the interface's endpoints to DATA0. The
@@ -691,15 +697,18 @@ usb_setup(void)
 			 * Linux cdc_acm host never issues this, so the path
 			 * is spec compliance rather than a live fix.
 			 */
-			usbd.data_in_pid = 0;
-			usbd.data_out_pid = 0;
-			usbd.tx_busy = 0;
-			usbd.tx_pending = 0;
-			usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0),
-			    USB_PACKET_MAX, 0);
-			usbd.data_out_pid = 1;
+			if (windex == ITF_CDC_DATA) {
+				usbd.data_in_pid = 0;
+				usbd.data_out_pid = 0;
+				usbd.tx_busy = 0;
+				usbd.tx_pending = 0;
+				usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0),
+				    USB_PACKET_MAX, 0);
+				usbd.data_out_pid = 1;
+			}
 			usb_ep0_ack();
-			usb_tx_kick();
+			if (windex == ITF_CDC_DATA)
+				usb_tx_kick();
 			return;
 		case REQ_SET_FEATURE:
 			usb_ep0_ack();

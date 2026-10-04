@@ -20,6 +20,15 @@ and the direct `creat` and `mkdir` paths quickly, but every disposition below
 comes from the named source revision, the manifest, a behavior probe or a
 public CVE record.
 
+The login batch uses a temporary structural graph generated from the active
+worktree at base `5337ce8e883638b0fae5b2ebc95050d83c063c75`. Graft parsed 2,595
+files into 26,235 nodes and 16,551 edges, then replayed 2,594 extraction
+records on refresh. A narrowed credential-transition query covered
+`usr.bin/login/login.c`. The retained MCP cache remains registered to the
+canonical checkout and was not rebound to this worktree. Graft located
+unchecked `setgid`, `initgroups`, `setuid`, and Kerberos `setreuid` calls; live
+source and libc/kernel implementations confirmed the return-value contracts.
+
 ## Search and attack surface
 
 The shipped manifest exposes three high-value classes:
@@ -109,6 +118,48 @@ empty-parameter declarations in `include/pwd.h` and `include/unistd.h` before
 it can certify this translation unit; those headers remain separate C17
 frontier entries.
 
+## Shipped login privilege handoff and C17 migration
+
+`usr.bin/login/login.c` installed the selected user's group and user identity
+without checking the return values from `setgid`, `initgroups` or `setuid`.
+`initgroups` returns `-1` when its privileged `setgroups` call fails, and the
+kernel credential syscalls return errors when their checks reject a request.
+The old path could therefore continue toward shell execution without proving
+that the requested credential transition completed. The repair checks each
+transition and exits on failure. It applies the same rule to `setreuid` and
+root-UID restoration in the conditional Kerberos path; that optional branch is
+not selected by the RP2040 target build.
+
+The command-line username path now enforces the same `UT_NAMESIZE` bound as
+interactive input. The environment vector starts with its required null
+terminator before `setenv` traverses it. Password comparison handles a null
+`crypt` result, and the shell argument vector ends with a pointer-valued null
+sentinel. The translation unit now uses complete C17-style function
+definitions, internal linkage for private helpers and state, `strchr` and
+`strrchr`, explicit braces and the full target warning profile. Dead helpers
+and data were removed. The unchanged `tty_modes.c` remains a separately
+compiled helper.
+
+The source contract checks handoff ordering and rejects fixtures that remove
+the final UID check, a Kerberos credential check, a mode restore or a required
+handoff stage. `shellcheck -S error`, the contract script, and
+`bmake MACHINE=rp2040 -C tests/getty_contracts clean check` pass. The login
+target builds with `-Wall -Wextra -Werror -Wold-style-definition` under the
+repository GNU17 target mode. A standalone strict-prototype check remains
+blocked by the shared `include/unistd.h` declarations for `access` and
+`alarm`; those declarations are separate frontier work.
+
+Matched Cortex-M0+ artifacts use repository startup, libc and libutil with
+`-Os`. The login source changes from 620 lines / 14,559 bytes to 611 lines /
+14,638 bytes. The final ELF changes from 21,992/745/3,428 text/data/BSS bytes
+to 21,912/693/3,432 bytes. Raw a.out size changes from 22,769 to 22,637 bytes;
+packed size changes from 19,380 to 19,255 bytes, with the root allocation
+remaining 20 blocks. The measured `main` stack frame remains 408 bytes and the
+largest helper frame remains 1,040 bytes. Source bytes grow slightly while
+the linked text, initialized data, raw image and packed image shrink; BSS
+grows by four bytes. These are host cross-build measurements, not board RAM
+or runtime observations.
+
 ## CVE dispositions
 
 | Identifier | Disposition | Repository evidence | Falsifier or next gate |
@@ -163,7 +214,8 @@ source batch and target measurement. Object and final ELF sections come from
 detailed sections below.
 
 | Translation unit | C17 gate and current status | Source lines / bytes | Object T/D/B; ELF T/D/B | a.out raw / packed; root blocks | Remaining work |
-| --- | --- | ---: | --- | --- |
+| --- | --- | ---: | --- | --- | --- |
+| `usr.bin/login/login.c` | Target `-Wall -Wextra -Werror -Wold-style-definition` passes under GNU17; source-contract negative controls cover the privilege handoff. | 611 / 14,638 | 3,128/12/164; 21,912/693/3,432 | 22,637 / 19,255; 20 blocks | Shared `access` and `alarm` prototypes block direct strict-prototype certification; the optional Kerberos branch lacks a target build and injected-failure test. |
 | `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 282 / 7,147 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | `include/unistd.h` retains two unspecified argument lists for malformed source-only callers; close those callers before whole-unit `-Wstrict-prototypes` certification. |
 | `usr.bin/compress/compress.c` | Production and DEBUG forms pass host strict C17 with pedantic warnings treated as errors. | 1,424 / 37,245 | 4,911/32/30,216; 13,326/236/30,344 | 13,596 / 11,241; 12 blocks | Close the pathname identity race in the `stat`/`freopen`/metadata lifecycle with descriptor-relative APIs; retain input on metadata failure. |
 | `usr.bin/cpio/cpio.c` | GCC and Clang pass host strict C17 with conversion diagnostics; host behavior tests pass ASan and UBSan. | 566 / 18,086 | 3,540/0/776; 11,501/204/900 | 11,740 / 9,323; 11 blocks | Close the stable-namespace rename race through directory-relative APIs or a bounded staging design. The measured internal stack paths are 256-byte input and 224-byte output. |
@@ -714,6 +766,7 @@ means a later malformed record does not roll back earlier extracted files.
 | --- | --- | --- | --- |
 | P1 | `bin/tar` namespace-race residual | Replace stable-namespace pathname operations with directory-relative create, link and timestamp APIs without increasing the one-process window beyond its 144-kbyte limit. | Kernel and libc API design, adversarial concurrent-rename fixtures, ABI review, target stack and packed-root comparison. |
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
+| P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
 | P1 | executable loading and syscall copying | File headers, segment arithmetic and user pointers cross the kernel boundary inside a 144 KB flat process window. | Integer-boundary corpus, negative copy tests, exact loader/copy call graph and MPU fault evidence for protection claims. |
 | P1 | USB control requests | Host-controlled setup packets select descriptor and endpoint operations in privileged code. | Deep-cache navigation refreshed to the selected source, direct source audit, packet corpus, host model and board fault/progress captures. |

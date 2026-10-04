@@ -61,8 +61,8 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 
 check: check-host check-aout
 
-# The fixture checks zero-argument calls and rejects an extra argument for
-# every interface migrated to a void parameter list.
+# The fixture checks exact function-pointer types and zero-argument calls.
+# Negative compile probes reject the wrong arity for every migrated API.
 check-unistd-prototypes:
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 	    -nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
@@ -74,6 +74,15 @@ check-unistd-prototypes:
 		-DUNISTD_TEST_FUNCTION=$$function \
 		${.CURDIR}/unistd_extra_argument.c >/dev/null 2>&1; then \
 		echo "$$function accepted an extra argument" >&2; exit 1; \
+	    fi; \
+	done; \
+	for function in getpgrp lseek read sleep ttyname crypt getpass getwd psignal \
+	    re_comp sethostid ualarm usleep; do \
+	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+		-nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
+		-DUNISTD_TEST_FUNCTION=$$function \
+		${.CURDIR}/unistd_missing_argument.c >/dev/null 2>&1; then \
+		echo "$$function accepted a missing argument" >&2; exit 1; \
 	    fi; \
 	done
 

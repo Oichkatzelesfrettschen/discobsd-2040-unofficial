@@ -36,8 +36,6 @@ static int copy(char *name, char *new_password, FILE *output,
 	    struct passwd *account);
 static char *getnewpasswd(struct passwd *account, char *temporary_path);
 static int makedb(char *temporary_path);
-char	*crypt(const char *, const char *);
-char	*getpass(const char *);
 
 static uid_t uid;
 

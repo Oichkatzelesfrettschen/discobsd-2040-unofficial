@@ -1,0 +1,8 @@
+#include <unistd.h>
+
+int
+main(void)
+{
+	(void)UNISTD_TEST_FUNCTION();
+	return (0);
+}

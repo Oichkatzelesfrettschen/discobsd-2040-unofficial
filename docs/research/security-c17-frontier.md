@@ -777,6 +777,29 @@ check/use window. Closing that residual requires a kernel and libc
 directory-relative API, followed by adversarial rename tests. Streaming also
 means a later malformed record does not roll back earlier extracted files.
 
+The namespace-race claim is directly reproduced at source revision
+`2c19b4e27a6461f4359e3eabbfe49efdb8b9aee2`. An unprivileged host build uses
+GDB to stop in `create_output_file()` after `enter_parent_directories()` has
+entered a write-and-search-only `pivot` directory and before the final
+`open(O_CREAT | O_EXCL)`. The fixture renames `pivot` from the extraction root
+to a sibling outside that root, then resumes tar. Tar creates the eight-byte
+payload in the moved directory and exits successfully. The breakpoint makes
+the deciding order explicit: verified parent traversal, hostile rename, then
+creation. The ordinary strict-C17 ASan/UBSan tar suite still passes because
+its symlink and traversal cases assume a stable directory namespace.
+
+A start-directory pointer alone cannot close the finding. If a future
+`openat`-style call starts at an already-open intermediate directory, a rename
+can move that inode outside the root before the final operation. A complete
+beneath-root contract must instead resolve from the retained root descriptor,
+reject absolute paths, dot-dot and symbolic-link traversal, and prevent a
+directory rename from interleaving with resolution and the final create,
+link, unlink or metadata operation. The current kernel has no namespace lock:
+`rename()` uses per-inode locking and `IRENAME`, while `namei()` documents a
+separate dot-dot lookup race. The implementation therefore needs an explicit
+rename/path-operation serialization rule with defined sleep, interruption and
+lock ordering before a syscall or libc ABI can be selected.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |

@@ -99,7 +99,12 @@
 #define	USB_DESC_BOS		15U
 #define	USB_STRING_DESCRIPTOR_COUNT	6U
 #define	USB_STRING_LANGID_EN_US	0x0409U
+#define	USB_CDC_COMM_INTERFACE	0U
 #define	USB_CDC_LINE_CODING_SIZE	7U
+#define	USB_CDC_REQ_SET_LINE_CODING	0x20U
+#define	USB_CDC_REQ_GET_LINE_CODING	0x21U
+#define	USB_CDC_REQ_SET_CONTROL_LINE_STATE	0x22U
+#define	USB_CDC_REQ_SEND_BREAK	0x23U
 
 /* USB 2.0 9.4.3 permits a caller-selected descriptor transfer length. */
 static inline int
@@ -154,6 +159,31 @@ static inline int
 usb_cdc_line_coding_length_valid(unsigned int received_length)
 {
 	return received_length == USB_CDC_LINE_CODING_SIZE;
+}
+
+/* CDC PSTN 1.2 sections 6.3.10-6.3.13 define these setup-field layouts. */
+static inline int
+usb_cdc_request_valid(unsigned int request_type, unsigned int request,
+    unsigned int value, unsigned int index, unsigned int length)
+{
+	if (request_type > 0xffU || value > 0xffffU || index > 0xffffU ||
+	    length > 0xffffU || index != USB_CDC_COMM_INTERFACE)
+		return 0;
+	switch (request) {
+	case USB_CDC_REQ_SET_LINE_CODING:
+		return request_type == 0x21U && value == 0U &&
+		    length == USB_CDC_LINE_CODING_SIZE;
+	case USB_CDC_REQ_GET_LINE_CODING:
+		return request_type == 0xa1U && value == 0U &&
+		    length == USB_CDC_LINE_CODING_SIZE;
+	case USB_CDC_REQ_SET_CONTROL_LINE_STATE:
+		return request_type == 0x21U && value <= 0x0003U &&
+		    length == 0U;
+	case USB_CDC_REQ_SEND_BREAK:
+		return request_type == 0x21U && length == 0U;
+	default:
+		return 0;
+	}
 }
 
 #ifdef KERNEL

@@ -68,6 +68,44 @@ the built image, in addition to checking the locked root verifier and private
 shadow file. The gate does not execute a setuid account transition on the
 board.
 
+## Shipped passwd C17 and warning-profile migration
+
+`usr.bin/passwd/passwd.c` was a maintained shipped translation unit, but its
+Makefile selected `WARNLEVEL=legacy` at base commit `39468a08`. The RP2040
+target compiler is `arm-none-eabi-gcc 16.2.0`, Cortex-M0+ Thumb, `-Os`, and
+GNU17. Enabling the
+existing full warning profile exposed two concrete defects: comparing the
+unsigned process `uid_t` against the signed `struct passwd.pw_uid`, and
+passing integer `NULL` as the variadic `execl` sentinel. The authorization
+check now rejects negative stored UIDs before converting the target UID, and
+`execl` receives a null pointer sentinel.
+
+All four function definitions now use complete parameter lists; helpers and
+the process UID have internal linkage, obsolete `register` declarations and
+redundant function declarations are removed, and the local `crypt`/`getpass`
+declarations state their argument types. `usr.bin/passwd/Makefile` now uses
+`WARNLEVEL=full` and persistently enables `-Wold-style-definition`. The exact
+Cortex-M0+ build passes `-Wall -Wextra -Werror` with that source-form gate. A
+direct target compile also passes
+`-std=c17 -Wall -Wextra -Wold-style-definition -Werror`.
+
+The measured linked executable changes from 14,346 to 14,274 text bytes; data
+remains 624 bytes and BSS remains 1,620 bytes. The raw a.out shrinks from
+15,004 to 14,932 bytes, and the repository packer reports 12,312 to 12,249
+packed bytes, reducing the packed root allocation from 14 blocks to 13. The
+source changes from 292 lines / 7,161 bytes to 284 lines / 7,217 bytes; the
+small source-byte increase accompanies clearer prototypes while the linked
+and packed forms shrink. The full distribution build installs byte-identical
+output, and `fsutil` reports the packed `/usr/bin/passwd` inode as mode
+`0104755`, owner 0. The account-image checker and all five manifest profiles
+pass.
+
+This is a per-file migration, not proof that the file's shared declarations
+are strict-prototype clean. Adding `-Wstrict-prototypes` reaches pre-existing
+empty-parameter declarations in `include/pwd.h` and `include/unistd.h` before
+it can certify this translation unit; those headers remain separate C17
+frontier entries.
+
 ## CVE dispositions
 
 | Identifier | Disposition | Repository evidence | Falsifier or next gate |
@@ -569,6 +607,15 @@ semantic summaries cannot close a security or resource claim.
 export PYTHON
 bmake MACHINE=rp2040 check-compress-host
 bmake MACHINE=rp2040 check-cpio-host
+bmake MACHINE=rp2040 WARNLEVEL=full -C usr.bin/passwd clean all
+/usr/bin/arm-none-eabi-gcc -std=c17 -Wall -Wextra \
+  -Wold-style-definition -Werror -fno-common -mcpu=cortex-m0plus \
+  -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft \
+  -DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DCOMPACT_SWAPMAP \
+  -DSINGLE_UFS_ROOT -DNMOUNT=1 -nostdinc -Iinclude -Os \
+  -c usr.bin/passwd/passwd.c -o /tmp/passwd-c17.o
+PYTHON=/usr/local/bin/python3 bmake MACHINE=rp2040 check-fs-profiles
+PYTHON=/usr/local/bin/python3 bmake MACHINE=rp2040 check-account-image
 sh bin/tar/tests/tartest.sh
 shellcheck -S error usr.bin/compress/tests/compresscheck.sh
 shellcheck -S error usr.bin/cpio/tests/cpiotest.sh

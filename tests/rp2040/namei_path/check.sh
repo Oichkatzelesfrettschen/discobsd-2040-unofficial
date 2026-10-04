@@ -11,9 +11,20 @@ mkdir "$work/mutant"
 case $(uname -s) in
 Darwin)
 	section_gc_flags=-Wl,-dead_strip
+	compiler_version=$(${CC:-cc} --version)
+	case $compiler_version in
+	*clang*)
+		# Host Clang parses RP2040 assembly while this harness tests C behavior.
+		host_warning_flags=-Wno-error=asm-operand-widths
+		;;
+	*)
+		host_warning_flags=
+		;;
+	esac
 	;;
 *)
 	section_gc_flags=-Wl,--gc-sections
+	host_warning_flags=
 	;;
 esac
 
@@ -21,7 +32,7 @@ ${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror \
 	-Wstrict-prototypes -Wold-style-definition -Wno-sign-compare \
 	-fno-builtin -fsanitize=address,undefined \
 	-ffunction-sections -fdata-sections \
-	-DKERNEL \
+	-DKERNEL $host_warning_flags \
 	-I"$work" -I"$topsrc/sys" -I"$topsrc/sys/arch" \
 	-I"$topsrc/sys/arch/arm/include" \
 	-I"$topsrc/sys/arch/rp2040/dhara/compat" \
@@ -39,7 +50,7 @@ sed 's/return namei_copy_user_path(ndp->ni_dirp, destination);/return copystr(nd
 ${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror \
 	-Wstrict-prototypes -Wold-style-definition -Wno-sign-compare \
 	-Wno-unused-function -fno-builtin -fsanitize=address,undefined \
-	-ffunction-sections -fdata-sections -DKERNEL \
+	-ffunction-sections -fdata-sections -DKERNEL $host_warning_flags \
 	-I"$work" -I"$topsrc/sys" -I"$topsrc/sys/arch" \
 	-I"$topsrc/sys/arch/arm/include" \
 	-I"$topsrc/sys/arch/rp2040/dhara/compat" \

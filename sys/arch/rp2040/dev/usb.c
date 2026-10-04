@@ -85,7 +85,7 @@
 #define	BUF_DATA_IN	(USB_DPRAM_BUFFERS + 0x80)
 
 /* Interface numbers in the configuration below. */
-#define	ITF_CDC_COMM	0
+#define	ITF_CDC_COMM	USB_CDC_COMM_INTERFACE
 #define	ITF_CDC_DATA	1
 #define	ITF_RESET	2
 
@@ -137,10 +137,10 @@
 #define	BOS_TOTAL_LEN		(5 + 28)
 
 /* CDC PSTN class requests. */
-#define	CDC_SET_LINE_CODING		0x20
-#define	CDC_GET_LINE_CODING		0x21
-#define	CDC_SET_CONTROL_LINE_STATE	0x22
-#define	CDC_SEND_BREAK			0x23
+#define	CDC_SET_LINE_CODING		USB_CDC_REQ_SET_LINE_CODING
+#define	CDC_GET_LINE_CODING		USB_CDC_REQ_GET_LINE_CODING
+#define	CDC_SET_CONTROL_LINE_STATE	USB_CDC_REQ_SET_CONTROL_LINE_STATE
+#define	CDC_SEND_BREAK			USB_CDC_REQ_SEND_BREAK
 
 /* The Pico SDK reset interface, pico/usb_reset_interface.h. */
 #define	RESET_INTERFACE_SUBCLASS	0x00
@@ -753,7 +753,8 @@ usb_setup(void)
 	} else if (kind == 0x20) {		/* Class: CDC. */
 		switch (request) {
 		case CDC_SET_LINE_CODING:
-			if (wlength != sizeof(usbd.line_coding))
+			if (!usb_cdc_request_valid(type, request, wvalue,
+			    windex, wlength))
 				break;
 			usbd.out_req = request;
 			usbd.stage = EP0_OUT_DATA;
@@ -761,16 +762,25 @@ usb_setup(void)
 			    USB_BUF_CTRL_DATA1);
 			return;
 		case CDC_GET_LINE_CODING:
+			if (!usb_cdc_request_valid(type, request, wvalue,
+			    windex, wlength))
+				break;
 			usb_ep0_send(usbd.line_coding,
 			    sizeof(usbd.line_coding), wlength);
 			return;
 		case CDC_SET_CONTROL_LINE_STATE:
+			if (!usb_cdc_request_valid(type, request, wvalue,
+			    windex, wlength))
+				break;
 			usbd.dtr = wvalue & 1;
 			usb_ep0_ack();
 			if (usbd.dtr)
 				usb_tx_kick();
 			return;
 		case CDC_SEND_BREAK:
+			if (!usb_cdc_request_valid(type, request, wvalue,
+			    windex, wlength))
+				break;
 			usb_ep0_ack();
 			return;
 		}

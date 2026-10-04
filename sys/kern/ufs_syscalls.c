@@ -265,7 +265,7 @@ link(void)
     ip->i_flag |= ICHG;
     iupdat(ip, &time, &time, 1);
     iunlock(ip);
-    ndp->ni_nameiop = CREATE;
+    ndp->ni_nameiop = CREATE | NI_USERPATH;
     ndp->ni_dirp = (caddr_t)uap->linkname;
     xp = namei(ndp);
     if (xp != NULL) {
@@ -847,7 +847,7 @@ rename(void)
      * When the target exists, both the directory
      * and target inodes are returned locked.
      */
-    ndp->ni_nameiop = CREATE | LOCKPARENT | NOCACHE;
+    ndp->ni_nameiop = CREATE | LOCKPARENT | NOCACHE | NI_USERPATH;
     ndp->ni_dirp = (caddr_t)uap->to;
     xp = namei(ndp);
     if (u.u_error) {

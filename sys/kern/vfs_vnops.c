@@ -74,7 +74,7 @@ vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
         if ((fmode & O_EXCL) == 0)
             ndp->ni_nameiop |= (CREATE|FOLLOW);
         else
-            ndp->ni_nameiop = CREATE;
+            ndp->ni_nameiop = (ndp->ni_nameiop & NI_USERPATH) | CREATE;
         ip = namei(ndp);
         if (ip == NULL) {
             if (u.u_error) {
@@ -93,7 +93,7 @@ vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
             fmode &= ~O_CREAT;
         }
     } else {
-        ndp->ni_nameiop = LOOKUP | FOLLOW;
+        ndp->ni_nameiop = (ndp->ni_nameiop & NI_USERPATH) | LOOKUP | FOLLOW;
         ip = namei(ndp);
         if (ip == NULL) {
             goto retuerr;

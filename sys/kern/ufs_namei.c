@@ -17,6 +17,44 @@
 int dirchk = 0;
 struct nchstats nchstats;
 
+static int
+namei_copy_user_path(caddr_t source, char *destination)
+{
+	u_int length = 0, offset, chunk;
+	int error;
+
+	while (length < MAXPATHLEN) {
+		chunk = MIN(32U, MAXPATHLEN - length);
+		error = copyin((caddr_t)((u_long)source + length),
+		    destination + length, chunk);
+		if (error != 0) {
+			for (offset = 0; offset < chunk; offset++) {
+				error = copyin(
+				    (caddr_t)((u_long)source + length + offset),
+				    destination + length + offset, 1);
+				if (error != 0)
+					return error;
+				if (destination[length + offset] == '\0')
+					return 0;
+			}
+			return EFAULT;
+		}
+		for (offset = 0; offset < chunk; offset++)
+			if (destination[length + offset] == '\0')
+				return 0;
+		length += chunk;
+	}
+	return ENOENT;
+}
+
+static int
+namei_copy_path(struct nameidata *ndp, char *destination)
+{
+	if (ndp->ni_nameiop & NI_USERPATH)
+		return namei_copy_user_path(ndp->ni_dirp, destination);
+	return copystr(ndp->ni_dirp, destination, MAXPATHLEN, (u_int *)0);
+}
+
 /*
  * Structures associated with name cacheing.
  */
@@ -228,13 +266,13 @@ namei(register struct nameidata *ndp)
 
     lockparent = ndp->ni_nameiop & LOCKPARENT;
     docache = (ndp->ni_nameiop & NOCACHE) ^ NOCACHE;
-    flag = ndp->ni_nameiop &~ (LOCKPARENT|NOCACHE|FOLLOW);
+    flag = ndp->ni_nameiop &~ (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH);
     if (flag == DELETE || lockparent)
         docache = 0;
     /*
      * Copy the name into the buffer.
      */
-    error = copystr (ndp->ni_dirp, path, MAXPATHLEN, (u_int*) 0);
+    error = namei_copy_path(ndp, path);
     if (error) {
         u.u_error = error;
         goto retNULL;

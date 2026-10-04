@@ -67,7 +67,7 @@ check-unistd-prototypes:
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 	    -nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
 	    ${.CURDIR}/unistd_prototypes.c
-	@set -e; for function in fork getegid geteuid getgid getlogin getpid \
+	@set -e; for function in fork getegid geteuid getgid getlogin getpid sync \
 	    getppid getuid getusershell endusershell gethostid setusershell vfork; do \
 	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 		-nostdinc -isystem ${TOPSRC}/include -fsyntax-only \

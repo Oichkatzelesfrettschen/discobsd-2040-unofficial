@@ -108,7 +108,7 @@ u_long  sethostid (u_long);
 int     sethostname(char *name, int namelen);
 int     setlogin(const char *name);
 void    setusershell (void);
-void    sync();
+void    sync (void);
 int     fsync(int fd);
 unsigned int ualarm (unsigned int, unsigned int);
 void    usleep (long);

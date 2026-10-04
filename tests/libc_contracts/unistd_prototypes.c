@@ -17,6 +17,7 @@ main(void)
 	u_long (*sethostid_function)(u_long) = sethostid;
 	unsigned int (*ualarm_function)(unsigned int, unsigned int) = ualarm;
 	void (*usleep_function)(long) = usleep;
+	void (*sync_function)(void) = sync;
 
 	(void)getpgrp_function;
 	(void)lseek_function;
@@ -31,6 +32,8 @@ main(void)
 	(void)sethostid_function;
 	(void)ualarm_function;
 	(void)usleep_function;
+	(void)sync_function;
+	sync();
 	(void)fork();
 	(void)getegid();
 	(void)geteuid();

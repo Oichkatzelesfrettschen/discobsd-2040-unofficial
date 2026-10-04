@@ -15,10 +15,10 @@
 
 #include "fdisk.h"
 
-struct mbr mbr;
-int blocks;
+static struct mbr mbr;
+static int blocks;
 
-int strtonum(char *s)
+static int strtonum(char *s)
 {
 	if(!s)
 		return 0;
@@ -32,7 +32,7 @@ int strtonum(char *s)
 	return atoi(s);
 }
 
-void usage()
+static void usage(void)
 {
 	printf("Usage: fdisk -p /dev/rdX\n");
 	printf("          Print partition table\n\n");
@@ -51,7 +51,7 @@ void usage()
 	printf("          Set the type of a partition.\n");
 }
 
-int read_mbr(int fd)
+static int read_mbr(int fd)
 {
 	lseek(fd,0,SEEK_SET);
         if(read(fd,&mbr,sizeof(struct mbr)) != sizeof(struct mbr))
@@ -62,7 +62,7 @@ int read_mbr(int fd)
 	return 0;
 }
 
-int write_mbr(int fd)
+static int write_mbr(int fd)
 {
 	lseek(fd,0,SEEK_SET);
 	if(write(fd,&mbr,sizeof(struct mbr)) != sizeof(struct mbr))
@@ -70,15 +70,14 @@ int write_mbr(int fd)
 		printf("Error writing MBR\n");
 		return -1;
 	}
-	sync(fd);
+	sync();
 	printf("Calling ioctl to reread the partition table\n");
 	sleep(1);
 	ioctl(fd, DIOCREINIT);
-	close(fd);
 	return 0;
 }
 
-void set_type(int pnum, int type)
+static void set_type(int pnum, int type)
 {
 	if(pnum<1 || pnum>4)
 	{
@@ -89,7 +88,7 @@ void set_type(int pnum, int type)
 		mbr.partitions[pnum-1].type=type;
 }
 
-void print_ptable()
+static void print_ptable(void)
 {
 	int i;
 	printf("Nr    Start   Length Type\n");
@@ -98,7 +97,7 @@ void print_ptable()
 	{
 		if(mbr.partitions[i].type!=0)
 		{
-			printf("%2d %8d %8d %02X %c\n",
+			printf("%2d %8lu %8lu %02X %c\n",
 				i+1,
 				mbr.partitions[i].lbastart>>1,
 				mbr.partitions[i].lbalength>>1,
@@ -109,7 +108,7 @@ void print_ptable()
 	}
 }
 
-void delete_part(int num)
+static void delete_part(int num)
 {
 	if(num < 1 || num > 4)
 	{
@@ -136,11 +135,11 @@ void delete_part(int num)
 	mbr.partitions[num-1].end.cylhigh = 0;
 }
 
-void new_part(unsigned int size, int type)
+static void new_part(unsigned int size, int type)
 {
 	int num = 0;
 	int i;
-	int start;
+	unsigned long start;
 
 	if(type<=0 || type >255)
 	{
@@ -175,9 +174,10 @@ void new_part(unsigned int size, int type)
 	// MBR...
 	if(start==0)
 		start=1;
-	printf("Start: %lu\n",start);
+	printf("Start: %lu\n", start);
 
-	if(start+size > blocks)
+	if (blocks < 0 || start > (unsigned long)blocks ||
+	    size > (unsigned long)blocks - start)
 	{
 		printf("Partition too  big\n");
 		return;
@@ -193,7 +193,7 @@ void new_part(unsigned int size, int type)
 	mbr.partitions[num-1].type = type;
 }
 
-void wipe_mbr()
+static void wipe_mbr(void)
 {
 	int i;
 	for(i=0; i<4; i++)
@@ -215,7 +215,7 @@ void wipe_mbr()
 	mbr.bootsig = 0xAA55;
 }
 
-void toggle_active(int p)
+static void toggle_active(int p)
 {
 	if(p<1 || p>4)
 		return;
@@ -227,6 +227,8 @@ void toggle_active(int p)
 		mbr.partitions[p-1].status |= (P_ACTIVE);
 	}
 }
+
+int main(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -279,9 +281,9 @@ int main(int argc, char *argv[])
 	}
 
 	fd = open(device,O_RDWR);
-	if(!fd)
+	if (fd < 0)
 	{
-		printf("Cannot open %d\n",device);
+		printf("Cannot open %s\n", device);
 		return 10;
 	}
 
@@ -333,7 +335,7 @@ int main(int argc, char *argv[])
 			break;
 	}
 
-	if(fd)
+	if (fd >= 0)
 		close(fd);
 	return 0;
 }

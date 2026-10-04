@@ -87,7 +87,7 @@
 /* Interface numbers in the configuration below. */
 #define	ITF_CDC_COMM	USB_CDC_COMM_INTERFACE
 #define	ITF_CDC_DATA	1
-#define	ITF_RESET	2
+#define	ITF_RESET	USB_RESET_INTERFACE
 
 /* Standard requests. */
 #define	REQ_GET_STATUS		0
@@ -145,8 +145,8 @@
 /* The Pico SDK reset interface, pico/usb_reset_interface.h. */
 #define	RESET_INTERFACE_SUBCLASS	0x00
 #define	RESET_INTERFACE_PROTOCOL	0x01
-#define	RESET_REQUEST_BOOTSEL		0x01
-#define	RESET_REQUEST_FLASH		0x02
+#define	RESET_REQUEST_BOOTSEL		USB_RESET_REQUEST_BOOTSEL
+#define	RESET_REQUEST_FLASH		USB_RESET_REQUEST_FLASH
 
 #define	ROM_RESET_USB_BOOT	ROM_CODE('U', 'B')
 
@@ -558,7 +558,7 @@ usb_reset_to_bootsel(u_int wvalue)
 	if (!usb_reset_gpio_mask(wvalue, &gpio_mask))
 		return 0;
 	rom_reset = (void (*)(u_int, u_int))rom_func_lookup(ROM_RESET_USB_BOOT);
-	rom_reset(gpio_mask, wvalue & 0x7f);
+	rom_reset(gpio_mask, wvalue & USB_RESET_INTERFACE_DISABLE_MASK);
 	return 1;
 }
 
@@ -744,10 +744,15 @@ usb_setup(void)
 	} else if ((kind == 0x20 || kind == 0x40) &&
 	    (type & 0x1f) == 1 && (windex & 0xff) == ITF_RESET) {
 		/*
-		 * picotool sends these as class requests to the interface,
-		 * bmRequestType 0x21, whatever the interface's vendor class
-		 * suggests; the SDK's handler accepts either type.
+		 * picotool sends host-to-device class requests to configured
+		 * interface 2 with no data stage. Reject malformed geometry
+		 * before a request can reset the processor or enter BOOTSEL.
 		 */
+		if (!usb_reset_request_valid(type, request, wvalue, windex,
+		    wlength, usbd.configured)) {
+			usb_ep0_stall();
+			return;
+		}
 		switch (request) {
 		case RESET_REQUEST_BOOTSEL:
 			if (!usb_reset_to_bootsel(wvalue)) {

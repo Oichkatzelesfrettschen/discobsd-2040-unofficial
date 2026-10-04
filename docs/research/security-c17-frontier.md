@@ -373,6 +373,22 @@ rebuilt `usb.o` measures 3,728 text / 8,200 data / 344 BSS bytes, compared with
 bytes while data and BSS remain equal; this is not a final UF2 or board-RAM
 measurement.
 
+The reset-interface dispatcher now requires the picotool request type `0x21`,
+configured interface 2, exact `wIndex`, and a zero-length transfer before
+selecting either reset action. BOOTSEL `wValue` accepts only bits 0-1, 7-8 and
+9-15, with an activity GPIO limited to 0-29; flash reset requires `wValue ==
+0`. The ROM receives only bits 0-1 as its interface-disable mask. The pinned
+Pico SDK handler checks the interface and request code but does not validate
+request type, transfer length or reserved value bits; picotool sends the exact
+`0x21`/zero-length forms recorded in `bootsel-button.md`. `check-usb-reset`
+exhausts the production predicates and calibrates dispatch-wiring, request-type,
+length, GPIO-range, value-mask and ROM-mask mutations. Against a clean build at
+`fa39a333`, GCC 16.2 production flags change `usb.o` text from 4,208 to 4,252
+bytes (+44), with data fixed at 8,200 and BSS at 344; PICO kernel text changes
+from 103,310 to 103,350 bytes (+40), with data fixed at 248 and BSS at 39,816.
+PICO_UART remains 90,960/192/14,768 bytes. These cross-build measurements do
+not establish USB dispatch or reset behavior on physical hardware.
+
 At Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`, the public
 reset-interface header defines the BOOTSEL request code at
 <https://github.com/raspberrypi/pico-sdk/blob/079c6f39023649b154152db30f1d781e884879bc/src/common/pico_usb_reset_interface_headers/include/pico/usb_reset_interface.h>.
@@ -769,7 +785,7 @@ means a later malformed record does not roll back earlier extracted files.
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
 | P1 | executable loading and syscall copying | File headers and segment arithmetic still cross the kernel boundary inside a 144 KB flat process window. `exec_save_args()` reads `argv`, `envp` and their strings through `copyin`; `namei()` now copies syscall pathnames through bounded `copyin` while kernel-generated paths retain `copystr`. | Retain the calibrated `check-exec-spool` and `check-namei-user-path` invalid-pointer/window-boundary cases; retain the integer-boundary loader corpus and MPU fault evidence for protection claims. |
-| P1 | USB control requests | `SET_CONFIGURATION`, `SET_ADDRESS`, `SET_INTERFACE`, `GET_DESCRIPTOR`, `GET_CONFIGURATION`, `GET_INTERFACE`, `GET_STATUS`, endpoint `CLEAR_FEATURE`/`SET_FEATURE` geometry and the four implemented CDC PSTN requests validate their implemented setup fields. `SET_FEATURE` remains stalled because endpoint-halt state is unimplemented and remote wakeup is disabled; Pico reset requests still need field-by-field validation. | `check-usb-set-configuration`, `check-usb-set-address-interface`, `check-usb-get-descriptor`, `check-usb-cdc-requests` and `check-usb-standard-requests` exhaust their implemented request fields with calibrated mutations. The CDC contract follows PSTN 1.2 sections 6.3.10-6.3.13: <https://www.usb.org/sites/default/files/CDC1.2_WMC1.1_012011.zip>; standard request geometry follows USB 2.0 Chapter 9: <https://www.usb.org/document-library/usb-20-specification>. Under the same RP2040 PICO GCC 16.2.0 build settings, the earlier CDC batch changed `usb.o` text from 3,936 to 4,016 bytes (+80); this batch changes it from 4,016 to 4,184 bytes (+168). Object data remains 8,200 bytes and BSS remains 344 bytes. Final PICO kernel text changes from 103,118 to 103,286 bytes (+168), with data fixed at 248 bytes and BSS fixed at 39,816 bytes; PICO_UART remains 90,960/192/14,768 bytes. These host cross-build results do not establish final UF2 or runtime cost. Host gates validate predicates, not EP0 dispatch or physical-board behavior. |
+| P1 | USB reset execution evidence | Standard and CDC request geometry plus Pico reset request fields now have production predicates and calibrated host controls. Reset requests require type `0x21`, configured interface 2, exact `wIndex`, zero `wLength`, and command-specific `wValue`; the source-wiring check requires an EP0 stall before action and a two-bit ROM mask. `SET_FEATURE` remains stalled because endpoint halt is unimplemented and remote wakeup is disabled. | `check-usb-set-configuration`, `check-usb-set-address-interface`, `check-usb-get-descriptor`, `check-usb-cdc-requests`, `check-usb-standard-requests` and `check-usb-reset` cover the implemented fields with calibrated mutations. The CDC contract follows PSTN 1.2 sections 6.3.10-6.3.13: <https://www.usb.org/sites/default/files/CDC1.2_WMC1.1_012011.zip>; standard request geometry follows USB 2.0 Chapter 9: <https://www.usb.org/document-library/usb-20-specification>; reset semantics follow pinned Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`. Earlier CDC and standard-request changes measured `usb.o` text at 3,936 to 4,016 bytes (+80) and 4,016 to 4,184 bytes (+168). The clean-base reset comparison measures `usb.o` text +44 bytes (4,208 to 4,252), PICO kernel text +40 bytes (103,310 to 103,350), unchanged object data/BSS 8,200/344, unchanged kernel data/BSS 248/39,816, and unchanged PICO_UART 90,960/192/14,768. USB-controller dispatch and physical-board reset behavior remain unmeasured. |
 | P2 | source-only setuid utilities | `chpass` and related password-database editors are outside the image but retain older dialect and privileged temporary-file logic. | Manifest reachability proof, strict-C17 build, concurrent update/failure harness and explicit decision to ship or quarantine. |
 
 Each row remains open until its named negative fixture fails before the repair
@@ -781,6 +797,7 @@ semantic summaries cannot close a security or resource claim.
 ```sh
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
+bmake MACHINE=rp2040 check-usb-reset
 bmake MACHINE=rp2040 check-compress-host
 bmake MACHINE=rp2040 check-cpio-host
 bmake MACHINE=rp2040 WARNLEVEL=full -C usr.bin/passwd clean all

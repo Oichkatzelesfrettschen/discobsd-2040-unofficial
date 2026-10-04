@@ -51,6 +51,7 @@ ILP32_CC= ${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
 
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
+	check-unistd-prototypes \
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
@@ -59,6 +60,22 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 check: check-host check-aout
+
+# The fixture checks zero-argument calls and rejects an extra argument for
+# every interface migrated to a void parameter list.
+check-unistd-prototypes:
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+	    -nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
+	    ${.CURDIR}/unistd_prototypes.c
+	@set -e; for function in fork getegid geteuid getgid getlogin getpid \
+	    getppid getuid getusershell endusershell gethostid setusershell vfork; do \
+	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+		-nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
+		-DUNISTD_TEST_FUNCTION=$$function \
+		${.CURDIR}/unistd_extra_argument.c >/dev/null 2>&1; then \
+		echo "$$function accepted an extra argument" >&2; exit 1; \
+	    fi; \
+	done
 
 # <stdio.h> declares no gets() and neither libc builds one, so a caller fails
 # at its implicit declaration rather than storing a whole line into a fixed

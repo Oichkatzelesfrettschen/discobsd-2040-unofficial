@@ -39,8 +39,13 @@ struct nameidata {
 #define NOCACHE     0x20    /* name must not be left in cache */
 #define FOLLOW      0x40    /* follow symbolic links */
 #define NOFOLLOW    0x0     /* don't follow symbolic links (pseudo) */
+#define NI_USERPATH 0x80    /* ni_dirp points to user memory */
 
 #define NDINIT(ndp,op,flags,namep) {\
+    (ndp)->ni_nameiop = op | flags | NI_USERPATH; \
+    (ndp)->ni_dirp = namep; }
+
+#define NDINIT_KERNEL(ndp,op,flags,namep) {\
     (ndp)->ni_nameiop = op | flags; \
     (ndp)->ni_dirp = namep; }
 

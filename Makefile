@@ -543,6 +543,9 @@ check-flash-swap:
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
 
+check-namei-user-path:
+		sh tests/rp2040/namei_path/check.sh
+
 check-usb-reset:
 		${MAKE} -C tests/rp2040/usb_reset check
 
@@ -601,7 +604,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
-		check-dhara-metadata \
+		check-dhara-metadata check-namei-user-path \
 		check-usb-reset check-usb-line-coding check-flash-device-bounds \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles
@@ -868,7 +871,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-elf2aout check-dhara-metadata check-usb-reset check-usb-line-coding check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-elf2aout check-dhara-metadata check-namei-user-path check-usb-reset check-usb-line-coding check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

@@ -28,9 +28,7 @@
  * SIGCONT and the target process is a descendant of the current process
  */
 static int
-cansignal (q, signum)
-    register struct proc *q;
-    int signum;
+cansignal (register struct proc *q, int signum)
 {
     register struct proc *curp = u.u_procp;
     uid_t   ruid;
@@ -50,7 +48,7 @@ cansignal (q, signum)
  * 4.3 Compatibility
  */
 void
-sigstack()
+sigstack(void)
 {
     register struct a {
         struct  sigstack *nss;
@@ -76,8 +74,7 @@ out:
 }
 
 static int
-killpg1 (signo, pgrp, all)
-    int signo, pgrp, all;
+killpg1 (int signo, int pgrp, int all)
 {
     register struct proc *p;
     int f, error = 0;
@@ -107,7 +104,7 @@ killpg1 (signo, pgrp, all)
 }
 
 void
-kill()
+kill(void)
 {
     register struct a {
         int pid;
@@ -158,7 +155,7 @@ out:
 }
 
 void
-killpg()
+killpg(void)
 {
     register struct a {
         int pgrp;
@@ -181,8 +178,7 @@ out:
  * Signals are handled elsewhere.
  */
 void
-stop(p)
-    register struct proc *p;
+stop(register struct proc *p)
 {
     p->p_stat = SSTOP;
     p->p_flag &= ~P_WAITED;
@@ -195,9 +191,7 @@ stop(p)
  * process group.
  */
 void
-gsignal (pgrp, sig)
-    register int pgrp;
-    register int sig;
+gsignal (register int pgrp, register int sig)
 {
     register struct proc *p;
 
@@ -214,9 +208,7 @@ gsignal (pgrp, sig)
  * the specified process.
  */
 void
-psignal(p, sig)
-    register struct proc *p;
-    register int sig;
+psignal(register struct proc *p, register int sig)
 {
     register int s;
     sig_t action;
@@ -405,8 +397,7 @@ out:
  *      postsig(signum);
  */
 int
-issignal (p)
-    register struct proc *p;
+issignal (register struct proc *p)
 {
     register int sig;
     long mask;
@@ -555,7 +546,7 @@ issignal (p)
  * data and stack segments.
  */
 static int
-core()
+core(void)
 {
     register struct inode *ip;
     struct  nameidata nd;
@@ -579,7 +570,7 @@ core()
     while ((*np++ = *cp++))
         ;
     u.u_error = 0;
-    NDINIT (ndp, CREATE, FOLLOW, name);
+    NDINIT_KERNEL (ndp, CREATE, FOLLOW, name);
     ip = namei(ndp);
     if (ip == NULL) {
         if (u.u_error)
@@ -618,8 +609,7 @@ out:
  * from the current set of pending signals.
  */
 void
-postsig(sig)
-    int sig;
+postsig(int sig)
 {
     register struct proc *p = u.u_procp;
     long mask = sigmask(sig), returnmask;
@@ -706,7 +696,7 @@ execsigs(register struct proc *p)
  * Q: should we do that all the time ??
  */
 void
-nosys()
+nosys(void)
 {
     if (u.u_signal[SIGSYS] == SIG_IGN || u.u_signal[SIGSYS] == SIG_HOLD)
         u.u_error = EINVAL;

@@ -98,7 +98,7 @@ int exec_check(struct exec_params *epp)
 }
 
 void
-execv()
+execv(void)
 {
     struct execa *arg = (struct execa *)u.u_arg;
 
@@ -107,7 +107,7 @@ execv()
 }
 
 void
-execve()
+execve(void)
 {
     struct execa *uap = (struct execa *)u.u_arg;
     int error;
@@ -116,13 +116,11 @@ execve()
     register struct nameidata *ndp = &nd;
     struct exec_params eparam;
 
-    DEBUG("\n\texecve(): start\n");
-    DEBUG("\texecve(): args: '%s', ['%s', '%s', ...]\n",
-      uap->fname, uap->argp[0], uap->argp[1]);
+    DEBUG("\n\texecve(): resolve path and argument vectors\n");
     NDINIT (ndp, LOOKUP, FOLLOW, uap->fname);
     ip = namei (ndp);
     if (ip == NULL) {
-        DEBUG("\texecve(): file '%s' not found\n", uap->fname);
+        DEBUG("\texecve(): path lookup failed\n");
         return;
     }
     /*

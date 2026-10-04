@@ -178,6 +178,11 @@ main(int argc, char **argv)
         write_entry("pivot", '2', "inside", 0777, NULL);
         write_entry("pivot/from-archive", '0', NULL, 0644,
             "archive payload\n");
+    } else if (strcmp(argv[1], "two-pass-pivot") == 0) {
+        write_entry("pivot", '2', "inside", 0777, NULL);
+    } else if (strcmp(argv[1], "two-pass-descendant") == 0) {
+        write_entry("pivot/from-archive", '0', NULL, 0644,
+            "archive payload\n");
     } else if (strcmp(argv[1], "symlink-mid-dotdot") == 0) {
         write_entry("link", '2', "named/../target", 0777, NULL);
     } else if (strcmp(argv[1], "final") == 0) {

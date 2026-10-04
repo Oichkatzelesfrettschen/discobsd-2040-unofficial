@@ -198,6 +198,26 @@ extract_must_fail archive-symlink "$work/security/created.tar" \
 [ ! -e security/created/root/inside/from-archive ] ||
     fail "archive-created symlink was traversed by a later member"
 
+echo "tartest: separate extractions reject a retained symlink pivot"
+mkdir -p security/two-pass/root security/two-pass/outside
+printf 'sentinel\n' > security/two-pass/outside/sentinel
+ln -s ../outside security/two-pass/root/inside
+"$FIXTURE" two-pass-pivot > security/two-pass-first.tar
+(
+	cd security/two-pass/root
+	"$TAR" xf ../../two-pass-first.tar
+) || fail "first extraction rejected the contained symlink member"
+[ "$(readlink security/two-pass/root/pivot)" = inside ] ||
+	fail "first extraction did not retain its symlink member"
+"$FIXTURE" two-pass-descendant > security/two-pass-second.tar
+extract_must_fail two-pass-descendant \
+	"$work/security/two-pass-second.tar" \
+	"$work/security/two-pass/root"
+grep -q '^sentinel$' security/two-pass/outside/sentinel ||
+	fail "later extraction followed an earlier symlink outside its root"
+[ ! -e security/two-pass/outside/from-archive ] ||
+	fail "later extraction created a descendant outside its root"
+
 mkdir -p security/symlink-mid-dotdot/root
 "$FIXTURE" symlink-mid-dotdot > security/symlink-mid-dotdot.tar
 extract_must_fail symlink-mid-dotdot \

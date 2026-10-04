@@ -32,11 +32,14 @@
 #include <unistd.h>
 #include <paths.h>
 
-int	 copy(char *, char *, FILE *, struct passwd *);
-char	*getnewpasswd(struct passwd *, char *);
-int	 makedb(char *);
+static int copy(char *name, char *new_password, FILE *output,
+	    struct passwd *account);
+static char *getnewpasswd(struct passwd *account, char *temporary_path);
+static int makedb(char *temporary_path);
+char	*crypt(const char *, const char *);
+char	*getpass(const char *);
 
-uid_t uid;
+static uid_t uid;
 
 static int
 password_matches(const char *computed, const char *stored)
@@ -48,18 +51,14 @@ password_matches(const char *computed, const char *stored)
 }
 
 int
-main(argc, argv)
-	int argc;
-	char **argv;
+main(int argc, char **argv)
 {
-	extern int errno;
 	struct passwd *pw;
 	struct rlimit rlim;
 	FILE *temp_fp;
 	int fd;
 	char *fend, *np, *passwd, *temp, *tend;
 	char from[MAXPATHLEN], to[MAXPATHLEN];
-	char *getnewpasswd();
 
 	uid = getuid();
 	switch(--argc) {
@@ -74,7 +73,7 @@ main(argc, argv)
 			fprintf(stderr, "passwd: unknown user %s.\n", argv[1]);
 			exit(1);
 		}
-		if (uid && uid != pw->pw_uid) {
+		if (uid && (pw->pw_uid < 0 || uid != (uid_t)pw->pw_uid)) {
 			fprintf(stderr, "passwd: %s\n", strerror(EACCES));
 			exit(1);
 		}
@@ -169,14 +168,11 @@ bad:		fprintf(stderr, "; password unchanged.\n");
 	exit(0);
 }
 
-int
-copy(name, np, fp, pw)
-	char *name, *np;
-	FILE *fp;
-	struct passwd *pw;
+static int
+copy(char *name, char *np, FILE *fp, struct passwd *pw)
 {
-	register int done;
-	register char *p;
+	int done;
+	char *p;
 	char buf[256];
 
 	for (done = 0; fgets(buf, sizeof(buf), stdin);) {
@@ -216,15 +212,12 @@ copy(name, np, fp, pw)
 	return(1);
 }
 
-char *
-getnewpasswd(pw, temp)
-	register struct passwd *pw;
-	char *temp;
+static char *
+getnewpasswd(struct passwd *pw, char *temp)
 {
-	register char *p, *t;
-	char buf[9], salt[2], *crypt(), *getpass();
+	char *p, *t;
+	char buf[9], salt[2];
 	char *encrypted;
-	time_t time();
 
 	if (uid && pw->pw_passwd) {
 		p = getpass("Old password:");
@@ -277,14 +270,13 @@ getnewpasswd(pw, temp)
 	return(encrypted);
 }
 
-int
-makedb(file)
-	char *file;
+static int
+makedb(char *file)
 {
 	int status, pid, w;
 
 	if (!(pid = vfork())) {
-		execl(_PATH_MKPASSWD, "mkpasswd", "-p", file, NULL);
+		execl(_PATH_MKPASSWD, "mkpasswd", "-p", file, (char *)NULL);
 		_exit(127);
 	}
 	while ((w = wait(&status)) != pid && w != -1);

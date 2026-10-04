@@ -93,7 +93,37 @@
 #define	USB_PACKET_MAX		64		/* Full speed bulk and control. */
 #define	USB_CONFIGURATION_VALUE	1U
 #define	USB_INTERFACE_COUNT	3U
+#define	USB_DESC_DEVICE		1U
+#define	USB_DESC_CONFIGURATION	2U
+#define	USB_DESC_STRING		3U
+#define	USB_DESC_BOS		15U
+#define	USB_STRING_DESCRIPTOR_COUNT	6U
+#define	USB_STRING_LANGID_EN_US	0x0409U
 #define	USB_CDC_LINE_CODING_SIZE	7U
+
+/* USB 2.0 9.4.3 permits a caller-selected descriptor transfer length. */
+static inline int
+usb_get_descriptor_request_valid(unsigned int request_type,
+    unsigned int value, unsigned int index)
+{
+	unsigned int descriptor_index, descriptor_type;
+
+	if (request_type != 0x80U)
+		return 0;
+	descriptor_type = value >> 8;
+	descriptor_index = value & 0xffU;
+	switch (descriptor_type) {
+	case USB_DESC_DEVICE:
+	case USB_DESC_CONFIGURATION:
+	case USB_DESC_BOS:
+		return descriptor_index == 0U && index == 0U;
+	case USB_DESC_STRING:
+		return descriptor_index < USB_STRING_DESCRIPTOR_COUNT &&
+		    (index == 0U || index == USB_STRING_LANGID_EN_US);
+	default:
+		return 0;
+	}
+}
 
 static inline int
 usb_set_address_request_valid(unsigned int request_type,

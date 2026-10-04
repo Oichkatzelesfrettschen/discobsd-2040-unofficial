@@ -546,6 +546,9 @@ check-dhara-metadata: check-python
 check-usb-reset:
 		${MAKE} -C tests/rp2040/usb_reset check
 
+check-usb-line-coding:
+		${MAKE} -C tests/rp2040/usb_line_coding check
+
 # tools/elf2aout over the layouts the ARM linker produces. The gate assembles
 # and links its own fixtures with the cross toolchain and reads
 # lib/elf32-arm.ld, so what it needs is tools, the toolchain and ${PYTHON}
@@ -596,7 +599,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
 		check-dhara-metadata \
-		check-usb-reset \
+		check-usb-reset check-usb-line-coding \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
@@ -862,7 +865,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-elf2aout check-dhara-metadata check-usb-reset check-kernel check-kernel-ilp32 \
+		check-elf2aout check-dhara-metadata check-usb-reset check-usb-line-coding check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

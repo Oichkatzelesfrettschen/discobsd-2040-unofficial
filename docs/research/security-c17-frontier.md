@@ -11,12 +11,14 @@ inspection and filesystem accounting establish the target footprint. Board
 behavior remains outside this audit.
 
 Structural Graft job `527d63e861f3851b3aea15c224869cb0` supplied the first
-symbol and file map. Its graph remains pinned to `dbd8bf0cc84f3705b79e3a13c79436b0ba51cb54`
-and carries zero semantic-ready records; the separate deep cache covers only
-`sys/arch/rp2040/dev` at an older commit. Graft located `copyin`, `mkpath` and
-the direct `creat` and `mkdir` paths quickly, but every disposition below comes
-from the named source revision, the manifest, a behavior probe or a public CVE
-record.
+symbol and file map. At current source `34902d8a3aa0a742729989be32fea67a2732ee35`,
+its graph remains pinned to `dbd8bf0cc84f3705b79e3a13c79436b0ba51cb54` with
+26,116 pending and zero ready records. Graft queries read live source excerpts;
+the separate deep cache has 137 ready summaries for `sys/arch/rp2040/dev` at
+`b7ba8421daa773d0498077b8d170031405688906`. Graft located `copyin`, `mkpath`
+and the direct `creat` and `mkdir` paths quickly, but every disposition below
+comes from the named source revision, the manifest, a behavior probe or a
+public CVE record.
 
 ## Search and attack surface
 
@@ -128,8 +130,76 @@ frontier entries.
 | CVE-2025-45582 | implementation lineage absent; equivalent multi-entry symlink weakness fixed | The base extractor followed a symlink created by an earlier member when it processed a later descendant. The fixed extractor validates link targets and refuses every symlink encountered while walking a later member's parents. | A link member followed by a descendant creates the descendant through that link. |
 | CVE-2026-18508 | named implementation absent; equivalent hard-link boundary weakness fixed | The base extractor passed an unchecked archive link target to `link()`. A calibrated `../outside-existing` target created a link inside the root to the outside inode. The fixed path accepts only a relative safe target whose verified regular-file identity was created earlier in the same extraction. | A hard-link target escapes, follows a symlink, names a pre-existing inode or carries special mode bits. |
 | CVE-2026-10659 | affected Zephyr adapter absent | The record names Zephyr `drivers/disk/ftl_dhara.c` writing through a null error pointer. Every RP2040 flash callback routes errors through null-safe `dhara_set_error`. | A callback writes `*err` without first proving the pointer non-null, including a generated or alternate build path. |
+| CVE-2026-23833 | ESPHome API decoder absent from the shipped image | The NVD record names `components/api/proto.cpp` and its protobuf length-overflow check. The RP2040 manifest ships no ESPHome API component or protobuf decoder; the device console is USB CDC-ACM, not the ESPHome plaintext API. | A selected manifest profile or linked image gains the affected decoder, or an equivalent unauthenticated length check is found in the shipped protocol path. |
+| CVE-2026-54571 | ESPAsyncWebServer multipart parser absent | The NVD record names `src/WebRequest.cpp`, an 8-bit multipart boundary position and a 256-byte boundary loop. The RP2040 manifest contains no ESPAsyncWebServer source, `WebRequest.cpp` or multipart parser. Generic TinyUSB FreeRTOS support is not selected by the RP2040 build; `tusb_option.h` defaults `CFG_TUSB_OS` to `OPT_OS_NONE`. | The RP2040 build selects the affected parser or an equivalent request-driven 8-bit boundary loop; audit the resulting watchdog behavior on the target. |
+| CVE-2025-53094 | ESPAsyncWebServer header writer absent from the shipped image | The NVD record names `src/AsyncWebHeader.cpp` and CR/LF injection into HTTP response headers. The RP2040 manifest contains no ESPAsyncWebServer source or asynchronous HTTP/WebSocket server; the separately packaged host console uses Python's `http.server`. | The shipped image gains that library or an equivalent attacker-controlled response-header construction path. |
 | CVE-1999-1471 | shipped mechanism absent; source review retained | The shipped `passwd` changes the password hash and has no shell or GECOS input. `chpass`, which owns those fields, stays outside the RP2040 manifest and already bounds its aggregate GECOS buffer. | Shipping `chpass`, or finding an unbounded shell/GECOS copy in a setuid image path, reopens the row. |
 | CVE-2000-0993 | helper absent | The affected BSD libutil `pw_error` format-string helper has no source or call site in the tree. | A linked object exports `pw_error`, or another password-database error path treats user data as a format string. |
+
+The three additional NVD records were fetched on 2026-10-04 from
+`https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-YYYY-NNNN`.
+The upstream advisories are [GHSA-87j8-6f7g-h8wh](https://github.com/ESP32Async/ESPAsyncWebServer/security/advisories/GHSA-87j8-6f7g-h8wh),
+[GHSA-4h3h-63v6-88qx](https://github.com/esphome/esphome/security/advisories/GHSA-4h3h-63v6-88qx)
+and [GHSA-4phx-fcj6-46r4](https://github.com/ESP32Async/ESPAsyncWebServer/security/advisories/GHSA-4phx-fcj6-46r4).
+Repository reachability was checked against `distrib/rp2040/mi.rp2040`,
+`distrib/rp2040/profiles`, the RP2040 USB configuration and tracked source with
+`rg` and `git grep`. Graft's structural lexical query returned host-console and
+legacy WIZnet matches, not an RP2040 HTTP implementation. The exact vulnerable
+files and API identifiers are absent from tracked source. A platform list in
+an upstream advisory alone does not establish that the named component ships.
+
+## Measured C17 work register
+
+This register covers the security-sensitive translation units already
+migrated and measured below; it is a bounded starting set, not a census of
+every C translation unit linked into every RP2040 profile. The current-source
+snapshot below was rebuilt at `34902d8a3aa0a742729989be32fea67a2732ee35` with
+the RP2040 Cortex-M0+ target flags, repository startup object and repository
+libc. Object and final ELF sections come from `arm-none-eabi-size`; raw and
+packed a.out sizes and root blocks come from `tools/bin/rp2040/hsaout -s`.
+The earlier base-to-repair deltas remain in the detailed sections below.
+
+| Translation unit | C17 gate and current status | Source lines / bytes | Object T/D/B; ELF T/D/B | a.out raw / packed; root blocks | Remaining work |
+| --- | --- | ---: | --- | --- |
+| `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 284 / 7,217 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | `include/pwd.h` and `include/unistd.h` still prevent a translation-unit probe that also enables `-Wstrict-prototypes`; migrate shared declarations with their full consumer set. |
+| `usr.bin/compress/compress.c` | Production and DEBUG forms pass host strict C17 with pedantic warnings treated as errors. | 1,424 / 37,245 | 4,911/32/30,216; 13,326/236/30,344 | 13,596 / 11,241; 12 blocks | Close the pathname identity race in the `stat`/`freopen`/metadata lifecycle with descriptor-relative APIs; retain input on metadata failure. |
+| `usr.bin/cpio/cpio.c` | GCC and Clang pass host strict C17 with conversion diagnostics; host behavior tests pass ASan and UBSan. | 566 / 18,086 | 3,540/0/776; 11,501/204/900 | 11,740 / 9,323; 11 blocks | Close the stable-namespace rename race through directory-relative APIs or a bounded staging design. The measured internal stack paths are 256-byte input and 224-byte output. |
+| `bin/tar/tar.c` | GCC and Clang pass host strict C17 with pedantic, prototype and conversion diagnostics; target production warning contract passes. | 2,770 / 84,055 | 14,024/58/2,181; 28,308/692/3,936 | 29,032 / 23,681; 25 blocks | Shared headers and target stdio/ioctl macros still block the direct target strict-prototype/conversion probe; the stable-namespace extraction race remains. |
+
+The source and binary snapshot can be repeated in a clean worktree after
+creating the generated `include/machine` link to `rp2040`:
+
+```sh
+bmake MACHINE=rp2040 -C tools install
+bmake MACHINE=rp2040 -C lib/startup-arm
+bmake MACHINE=rp2040 -C lib/libc
+bmake MACHINE=rp2040 -C usr.bin/passwd clean all
+bmake MACHINE=rp2040 -C usr.bin/compress clean compress
+bmake MACHINE=rp2040 -C usr.bin/cpio clean all
+bmake MACHINE=rp2040 -C bin/tar clean all
+arm-none-eabi-size usr.bin/passwd/passwd.o usr.bin/compress/compress.o \
+  usr.bin/cpio/cpio.o bin/tar/tar.o
+tools/bin/rp2040/hsaout -s usr.bin/passwd/passwd \
+  usr.bin/compress/compress usr.bin/cpio/cpio bin/tar/tar
+```
+
+`compress.c` received the bounded `-b` decimal grammar and saturation fixes
+after its original before/after size pair. The snapshot table records the
+current source at `34902d8a`; the migration section's original pair remains
+historical and must not be read as the current executable size.
+
+Next file-level batches begin with `include/pwd.h` and `include/unistd.h`,
+because their declarations block strict-prototype certification of shipped
+callers. Each header batch must enumerate and compile every consumer before
+changing declarations. The next device-boundary units are
+`sys/arch/rp2040/dev/usb.c` and the Dhara metadata path in
+`sys/arch/rp2040/rp2040/map.c`; record source size, exact compile flags,
+linked text/data/BSS, stack usage and a claim-specific negative test before
+editing. `usr.bin/login/login.c` and `usr.bin/su/su.c` follow as account-boundary
+units. This register does not yet enumerate all translation units behind
+multicall binaries or profile-specific libraries; derive that census from the
+resolved profile manifests and link inputs before claiming complete C17
+coverage.
 
 ## Dhara page metadata bounds
 

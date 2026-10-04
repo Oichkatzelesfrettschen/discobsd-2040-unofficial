@@ -100,10 +100,10 @@
 #define	REQ_GET_INTERFACE	10
 #define	REQ_SET_INTERFACE	11
 
-#define	DESC_DEVICE		1
-#define	DESC_CONFIGURATION	2
-#define	DESC_STRING		3
-#define	DESC_BOS		15	/* USB 3.2 9.6.2, also USB 2.1. */
+#define	DESC_DEVICE		USB_DESC_DEVICE
+#define	DESC_CONFIGURATION	USB_DESC_CONFIGURATION
+#define	DESC_STRING		USB_DESC_STRING
+#define	DESC_BOS		USB_DESC_BOS	/* USB 3.2 9.6.2, also USB 2.1. */
 #define	DESC_DEVICE_CAPABILITY	16
 #define	CAP_PLATFORM		5	/* USB 3.2 9.6.2.4. */
 
@@ -280,6 +280,8 @@ static const char *const usb_strings[] = {
 	"Reset",
 };
 #define	NSTRINGS	(sizeof(usb_strings) / sizeof(usb_strings[0]))
+_Static_assert(NSTRINGS == USB_STRING_DESCRIPTOR_COUNT,
+	"USB string descriptor count must match the validated index range");
 
 /*
  * Device state.
@@ -593,6 +595,10 @@ usb_setup(void)
 	if (kind == 0x00) {			/* Standard. */
 		switch (request) {
 		case REQ_GET_DESCRIPTOR:
+			/* Chapter 9 fixes bmRequestType and descriptor wIndex rules. */
+			if (!usb_get_descriptor_request_valid(type, wvalue,
+			    windex))
+				break;
 			switch (wvalue >> 8) {
 			case DESC_DEVICE:
 				usb_ep0_send(usb_device_desc,

@@ -208,6 +208,34 @@ fresh_image(fs_t *fs)
 	return 1;
 }
 
+/* A cached allocated inode truncates the valid prefix of the free cache. */
+static void
+repair_free_inode_cache(unsigned invalid_slot)
+{
+	fs_t fs;
+	unsigned original_count;
+	unsigned i;
+
+	if (!fresh_image(&fs))
+		return;
+	original_count = fs.ninode;
+	if (invalid_slot >= original_count) {
+		failures++;
+		printf("FAIL: free inode cache has no slot %u\n", invalid_slot);
+		fs_close(&fs);
+		return;
+	}
+	for (i = 0; i < invalid_slot; i++)
+		CHECK(fs.inode[i] != BSDFS_ROOT_INODE);
+	fs.inode[invalid_slot] = BSDFS_ROOT_INODE;
+	CHECK(fs_check(&fs) != 0);
+	CHECK(fs.ninode == invalid_slot);
+	for (i = invalid_slot; i < NICINOD; i++)
+		CHECK(fs.inode[i] == 0);
+	check_clean(&fs, __LINE__);
+	fs_close(&fs);
+}
+
 /*
  * A file that crosses each indirection boundary. BSDFS_BSIZE-sized blocks
  * are direct up to NADDR - 3, then single, then double indirect; a write
@@ -374,6 +402,8 @@ main(int argc, char **argv)
 	image_path = argc > 1 ? argv[1] : "fs_stress.img";
 
 	indirection_boundaries();
+	repair_free_inode_cache(0);
+	repair_free_inode_cache(3);
 	fragmented_free_list();
 	fills_and_refuses();
 	edges();

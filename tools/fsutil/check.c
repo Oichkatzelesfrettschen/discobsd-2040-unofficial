@@ -755,7 +755,7 @@ static void check_free_inode_list (fs_t *fs)
         if (inode_state (inum) != USTATE) {
             printf ("ALLOCATED INODE(S) IN IFREE LIST\n");
             if (fs->writable) {
-                fs->ninode = i - 1;
+                fs->ninode = (unsigned) i;
                 while (i < NICINOD)
                     fs->inode [i++] = 0;
                 fs->dirty = 1;

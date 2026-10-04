@@ -25,7 +25,7 @@ ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
 	"$work/usb-set-configuration-test"
 
-sed 's/value == USB_CONFIGURATION_VALUE/value != 0U/' \
+sed 's/value == USB_CONFIGURATION_VALUE/value != 2U/' \
 	"$topsrc/sys/arch/rp2040/dev/usb.h" >"$work/mutant/usb.h"
 ${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror -Wpedantic \
 	-Wstrict-prototypes -Wold-style-definition \

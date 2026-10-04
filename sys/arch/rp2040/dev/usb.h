@@ -91,6 +91,13 @@
 #define	USB_BUFF_STATUS_BIT(ep, in)	(1UL << ((ep) * 2 + ((in) ? 0 : 1)))
 
 #define	USB_PACKET_MAX		64		/* Full speed bulk and control. */
+#define	USB_CDC_LINE_CODING_SIZE	7U
+
+static inline int
+usb_cdc_line_coding_length_valid(unsigned int received_length)
+{
+	return received_length == USB_CDC_LINE_CODING_SIZE;
+}
 
 #ifdef KERNEL
 struct tty;

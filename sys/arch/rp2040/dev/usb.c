@@ -310,7 +310,7 @@ static struct {
 	u_char		data_in_pid;
 	u_char		data_out_pid;
 
-	u_char		line_coding[7];
+	u_char		line_coding[USB_CDC_LINE_CODING_SIZE];
 
 	int		tx_busy;	/* A bulk IN buffer is armed. */
 	int		tx_pending;	/* An arm deferred by the E15 guard. */
@@ -974,12 +974,18 @@ usb_service(void)
 		if (done & USB_BUFF_STATUS_BIT(0, 0)) {
 			/* EP0 OUT came in. */
 			if (usbd.stage == EP0_OUT_DATA) {
-				if (usbd.out_req == CDC_SET_LINE_CODING)
+				if (usbd.out_req != CDC_SET_LINE_CODING ||
+				    !usb_cdc_line_coding_length_valid(
+				    DPRAM32(USB_DPRAM_BUF_CTRL(0, 0)) &
+				    USB_BUF_CTRL_LEN_MASK)) {
+					usb_ep0_stall();
+				} else {
 					for (i = 0; i < sizeof(usbd.line_coding);
 					    i++)
 						usbd.line_coding[i] =
 						    DPRAM8(USB_DPRAM_EP0_BUF + i);
-				usb_ep0_ack();
+					usb_ep0_ack();
+				}
 			} else
 				usbd.stage = EP0_IDLE;
 		}

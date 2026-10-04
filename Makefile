@@ -555,6 +555,9 @@ check-usb-line-coding:
 check-usb-cdc-requests:
 		${MAKE} -C tests/rp2040/usb_cdc_requests check
 
+check-usb-standard-requests:
+		${MAKE} -C tests/rp2040/usb_standard_requests check
+
 check-usb-set-configuration:
 		${MAKE} -C tests/rp2040/usb_set_configuration check
 
@@ -618,6 +621,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-namei-user-path \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
+		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds \
@@ -886,7 +890,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-elf2aout check-dhara-metadata check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-elf2aout check-dhara-metadata check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

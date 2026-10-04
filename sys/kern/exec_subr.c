@@ -494,6 +494,7 @@ struct exec_arg_iter {
     char **next;
     u_short index;
     u_short prefix_count;
+    int skip_first;
 };
 
 static void
@@ -504,59 +505,121 @@ exec_arg_iter_init (struct exec_arg_iter *iterator,
     iterator->index = 0;
     iterator->prefix_count = epp->sh.interpreted ?
         2 + (epp->sh.interparg[0] != '\0') : 0;
-    if (epp->sh.interpreted)
-        iterator->next = epp->userargp != NULL && epp->userargp[0] != NULL ?
-            epp->userargp + 1 : NULL;
-    else
-        iterator->next = epp->userargp;
+    iterator->next = epp->userargp;
+    iterator->skip_first = epp->sh.interpreted;
 }
 
-static char *
-exec_arg_iter_next (struct exec_arg_iter *iterator)
+static int
+exec_arg_iter_next (struct exec_arg_iter *iterator, char **argumentp,
+    int *user_argumentp, int *donep)
 {
     struct exec_params *epp = iterator->params;
     char *argument;
+    int error;
 
+    *argumentp = NULL;
+    *user_argumentp = 0;
+    *donep = 0;
     if (iterator->index < iterator->prefix_count) {
         if (iterator->index == 0)
             argument = epp->sh.interpname;
         else if (epp->sh.interparg[0] != '\0' && iterator->index == 1)
             argument = epp->sh.interparg;
-        else
+        else {
             argument = epp->userfname;
-    } else if (iterator->next != NULL)
-        argument = *iterator->next++;
-    else
-        argument = NULL;
-    if (argument != NULL)
-        iterator->index++;
-    return argument;
+            *user_argumentp = 1;
+        }
+    } else {
+        if (iterator->next == NULL) {
+            *donep = 1;
+            return 0;
+        }
+        if (iterator->skip_first) {
+            error = copyin ((caddr_t)iterator->next, (caddr_t)&argument,
+                sizeof argument);
+            if (error != 0)
+                return error;
+            iterator->next++;
+            iterator->skip_first = 0;
+            if (argument == NULL) {
+                *donep = 1;
+                return 0;
+            }
+        }
+        error = copyin ((caddr_t)iterator->next, (caddr_t)&argument,
+            sizeof argument);
+        if (error != 0)
+            return error;
+        iterator->next++;
+        *user_argumentp = 1;
+    }
+    if (argument == NULL) {
+        *donep = 1;
+        return 0;
+    }
+    iterator->index++;
+    *argumentp = argument;
+    return 0;
 }
 
 static int
-exec_string_length (const char *string, u_int limit, u_short *lengthp)
+exec_string_length (const char *string, int user_string, u_int limit,
+    u_short *lengthp, char *buffer, u_int buffer_size)
 {
-    u_int length;
+    u_int length, offset, chunk;
+    char byte;
+    int error, chunk_error;
 
-    for (length = 0; length < limit; length++) {
-        if (string[length] == '\0') {
-            *lengthp = length + 1;
-            return 0;
+    for (length = 0; length < limit; ) {
+        if (user_string) {
+            chunk = MIN (buffer_size, limit - length);
+            chunk_error = copyin ((caddr_t)((u_long)string + length),
+                buffer, chunk);
+            if (chunk_error != 0) {
+                for (offset = 0; offset < chunk; offset++) {
+                    error = copyin (
+                        (caddr_t)((u_long)string + length + offset),
+                        &byte, 1);
+                    if (error != 0)
+                        return error;
+                    if (byte == '\0') {
+                        *lengthp = length + offset + 1;
+                        return 0;
+                    }
+                }
+                return chunk_error;
+            }
+            for (offset = 0; offset < chunk; offset++) {
+                if (buffer[offset] == '\0') {
+                    *lengthp = length + offset + 1;
+                    return 0;
+                }
+            }
+            length += chunk;
+        } else {
+            byte = string[length];
+            if (byte == '\0') {
+                *lengthp = length + 1;
+                return 0;
+            }
+            length++;
         }
     }
     return E2BIG;
 }
 
 static int
-exec_count_string (const char *string, u_int *byte_count,
+exec_count_string (const char *string, int user_string, u_int *byte_count,
     u_int *record_bytes, u_short *string_count)
 {
+    char buffer[32];
     u_short length;
     int error;
 
     if (*string_count == (u_short)-1)
         return E2BIG;
-    error = exec_string_length (string, NCARGS - *byte_count, &length);
+    error = exec_string_length (string, user_string,
+        NCARGS - *byte_count, &length, buffer, sizeof buffer);
     if (error != 0)
         return error;
     *byte_count += length;
@@ -567,17 +630,51 @@ exec_count_string (const char *string, u_int *byte_count,
 
 static int
 exec_write_string (struct exec_params *epp, const char *string,
-    u_int *byte_count)
+    int user_string, u_int *byte_count)
 {
+    char buffer[32];
     u_short length;
+    u_int offset, chunk;
     int error;
 
-    error = exec_string_length (string, NCARGS - *byte_count, &length);
+    error = exec_string_length (string, user_string,
+        NCARGS - *byte_count, &length, buffer, sizeof buffer);
     if (error != 0)
         return error;
     exec_spool_write (epp, &length, sizeof length);
-    exec_spool_write (epp, string, length);
+    if (user_string) {
+        for (offset = 0; offset < length; offset += chunk) {
+            chunk = MIN (sizeof buffer, length - offset);
+            error = copyin ((caddr_t)((u_long)string + offset), buffer,
+                chunk);
+            if (error != 0)
+                return error;
+            exec_spool_write (epp, buffer, chunk);
+        }
+    } else
+        exec_spool_write (epp, string, length);
     *byte_count += length;
+    return 0;
+}
+
+static int
+exec_env_iter_next (char ***vectorp, char **stringp, int *donep)
+{
+    int error;
+
+    *stringp = NULL;
+    *donep = 0;
+    if (*vectorp == NULL) {
+        *donep = 1;
+        return 0;
+    }
+    error = copyin ((caddr_t)*vectorp, (caddr_t)stringp,
+        sizeof *stringp);
+    if (error != 0)
+        return error;
+    (*vectorp)++;
+    if (*stringp == NULL)
+        *donep = 1;
     return 0;
 }
 
@@ -591,6 +688,7 @@ exec_save_args (struct exec_params *epp)
     struct exec_arg_iter iterator;
     char **environment;
     char *string;
+    int user_string, done;
     u_int arg_bytes = 0, env_bytes = 0, record_bytes = 0;
     u_int written_arg_bytes = 0, written_env_bytes = 0;
     u_short arg_count = 0, env_count = 0;
@@ -598,16 +696,26 @@ exec_save_args (struct exec_params *epp)
 
     DEBUG("\texec_save_args(): start\n");
     exec_arg_iter_init (&iterator, epp);
-    while ((string = exec_arg_iter_next (&iterator)) != NULL) {
-        error = exec_count_string (string, &arg_bytes, &record_bytes,
-            &arg_count);
+    for (;;) {
+        error = exec_arg_iter_next (&iterator, &string, &user_string, &done);
+        if (error != 0)
+            return error;
+        if (done)
+            break;
+        error = exec_count_string (string, user_string, &arg_bytes,
+            &record_bytes, &arg_count);
         if (error != 0)
             return error;
     }
     environment = epp->userenvp;
-    while (environment != NULL && *environment != NULL) {
-        error = exec_count_string (*environment++, &env_bytes,
-            &record_bytes, &env_count);
+    for (;;) {
+        error = exec_env_iter_next (&environment, &string, &done);
+        if (error != 0)
+            return error;
+        if (done)
+            break;
+        error = exec_count_string (string, 1, &env_bytes, &record_bytes,
+            &env_count);
         if (error != 0)
             return error;
     }
@@ -622,15 +730,25 @@ exec_save_args (struct exec_params *epp)
         return error;
 
     exec_arg_iter_init (&iterator, epp);
-    while ((string = exec_arg_iter_next (&iterator)) != NULL) {
-        error = exec_write_string (epp, string, &written_arg_bytes);
+    for (;;) {
+        error = exec_arg_iter_next (&iterator, &string, &user_string, &done);
+        if (error != 0)
+            goto fail;
+        if (done)
+            break;
+        error = exec_write_string (epp, string, user_string,
+            &written_arg_bytes);
         if (error != 0)
             goto fail;
     }
     environment = epp->userenvp;
-    while (environment != NULL && *environment != NULL) {
-        error = exec_write_string (epp, *environment++,
-            &written_env_bytes);
+    for (;;) {
+        error = exec_env_iter_next (&environment, &string, &done);
+        if (error != 0)
+            goto fail;
+        if (done)
+            break;
+        error = exec_write_string (epp, string, 1, &written_env_bytes);
         if (error != 0)
             goto fail;
     }

@@ -32,6 +32,8 @@ void rmap_mfree (struct map *mp, size_t size, size_t addr);
 #define SPOOL_RAM_BYTES (NCARGS * 3)
 
 static int failures;
+static int copyin_calls;
+static int copyin_fail_at;
 
 #define CHECK(condition) do { \
     if (!(condition)) { \
@@ -93,6 +95,17 @@ bytes_copy (void *destination, const void *source, size_t length)
 
     while (length-- != 0)
         *output++ = *input++;
+}
+
+/* Model the RP2040 copyin boundary for host pointers and injected failures. */
+int
+copyin (caddr_t source, caddr_t destination, u_int length)
+{
+    copyin_calls++;
+    if ((u_long)source < 4096 || copyin_calls == copyin_fail_at)
+        return EFAULT;
+    bytes_copy (destination, source, length);
+    return 0;
 }
 
 static int
@@ -310,6 +323,8 @@ reset_models (void)
     bytes_zero (modeled_flash, sizeof modeled_flash);
     bytes_zero (modeled_swapram, sizeof modeled_swapram);
     backend_error = 0;
+    copyin_calls = 0;
+    copyin_fail_at = 0;
     buffer_busy = 0;
     buffer_claims = 0;
     buffer_releases = 0;
@@ -601,6 +616,61 @@ allocation_failures (void)
     printf ("allocation refusal: failed backends leave every reservation free\n");
 }
 
+static void
+invalid_user_sources (void)
+{
+    struct exec_params params;
+    char *invalid_string[] = { (char *)1, NULL };
+    char *valid_argument[] = { "late-copy-fault", NULL };
+
+    reset_models ();
+    bzero (&params, sizeof params);
+    params.userargp = (char **)1;
+    CHECK (exec_save_args (&params) == EFAULT);
+    CHECK (params.spool.backing == EXEC_SPOOL_NONE);
+    CHECK (!swapram_live && !flash_allocation_live && buffer_claims == 0);
+
+    reset_models ();
+    bzero (&params, sizeof params);
+    params.userargp = invalid_string;
+    CHECK (exec_save_args (&params) == EFAULT);
+    CHECK (params.spool.backing == EXEC_SPOOL_NONE);
+    CHECK (!swapram_live && !flash_allocation_live && buffer_claims == 0);
+
+    reset_models ();
+    bzero (&params, sizeof params);
+    params.userenvp = (char **)1;
+    CHECK (exec_save_args (&params) == EFAULT);
+    CHECK (params.spool.backing == EXEC_SPOOL_NONE);
+    CHECK (!swapram_live && !flash_allocation_live && buffer_claims == 0);
+
+    reset_models ();
+    bzero (&params, sizeof params);
+    params.userenvp = invalid_string;
+    CHECK (exec_save_args (&params) == EFAULT);
+    CHECK (params.spool.backing == EXEC_SPOOL_NONE);
+    CHECK (!swapram_live && !flash_allocation_live && buffer_claims == 0);
+
+    reset_models ();
+    bzero (&params, sizeof params);
+    params.sh.interpreted = 1;
+    bytes_copy (params.sh.interpname, "/bin/sh", sizeof "/bin/sh");
+    params.userfname = (char *)1;
+    CHECK (exec_save_args (&params) == EFAULT);
+    CHECK (params.spool.backing == EXEC_SPOOL_NONE);
+    CHECK (!swapram_live && !flash_allocation_live && buffer_claims == 0);
+
+    reset_models ();
+    bzero (&params, sizeof params);
+    params.userargp = valid_argument;
+    copyin_fail_at = 6;
+    CHECK (exec_save_args (&params) == EFAULT);
+    CHECK (params.spool.backing == EXEC_SPOOL_NONE);
+    CHECK (!swapram_live && !flash_allocation_live && !buffer_busy);
+    CHECK (!backend_error);
+    printf ("invalid user sources: bad vectors, strings and replay faults return EFAULT\n");
+}
+
 int
 main (void)
 {
@@ -611,6 +681,7 @@ main (void)
     script_argument_order ();
     argument_limits ();
     allocation_failures ();
+    invalid_user_sources ();
     if (failures != 0) {
         printf ("exec spool: %d failures\n", failures);
         return 1;

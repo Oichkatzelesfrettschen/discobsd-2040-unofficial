@@ -92,7 +92,16 @@
 
 #define	USB_PACKET_MAX		64		/* Full speed bulk and control. */
 #define	USB_CONFIGURATION_VALUE	1U
+#define	USB_INTERFACE_COUNT	3U
 #define	USB_CDC_LINE_CODING_SIZE	7U
+
+static inline int
+usb_set_address_request_valid(unsigned int request_type,
+    unsigned int value, unsigned int index, unsigned int length)
+{
+	return request_type == 0U && value <= 0x7fU &&
+	    index == 0U && length == 0U;
+}
 
 static inline int
 usb_set_configuration_request_valid(unsigned int request_type,
@@ -101,6 +110,14 @@ usb_set_configuration_request_valid(unsigned int request_type,
 	return request_type == 0U &&
 	    (value == 0U || value == USB_CONFIGURATION_VALUE) &&
 	    index == 0U && length == 0U;
+}
+
+static inline int
+usb_set_interface_request_valid(unsigned int request_type,
+    unsigned int value, unsigned int interface_number, unsigned int length)
+{
+	return request_type == 1U && value == 0U &&
+	    interface_number < USB_INTERFACE_COUNT && length == 0U;
 }
 
 static inline int

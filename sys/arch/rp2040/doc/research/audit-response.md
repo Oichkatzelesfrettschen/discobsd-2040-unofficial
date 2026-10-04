@@ -349,6 +349,25 @@ board's driver rather than PCC, and attended on-device pager testing. That is a
 feature requiring a board session, not a cleanup item; it stays a scoping
 decision: 42728 bytes and roughly 132 blocks of headroom.
 
+### Flash strategy validates device indices before table access
+
+The current-source Graft structural graph at `cb3a70c5fa9a4ab9e95e6ab27aa6ab63a60bf384`
+located `flstrategy()` in `sys/arch/rp2040/dev/flash.c`. Graft did not return
+an incoming call edge because two declarations share the `flstrategy` name;
+inspection of `sys/arch/rp2040/rp2040/conf.c` confirmed that block-device
+major 0 dispatches to this function. `sys/kern/sys_inode.c:openi()` checks
+the major and calls `flopen()`, which validates the unit and partition before
+opening. Those checks constrain ordinary block-device opens, but the strategy
+entry itself formed `fldrives[unit]` and `part[minor]` pointers before its
+own invalid-device check.
+
+`flstrategy()` now validates the unit and partition indices before either
+table access. The shared predicate is exercised over all 256 encoded minor
+values by `check-flash-device-bounds`; a calibrated mutation that admits the
+first invalid drive fails. The driver compiles for Cortex-M0+ with
+`-Wall -Wextra -Werror`. This is defense-in-depth for malformed internal
+strategy requests, not a CVE claim or proof of a user-reachable exploit.
+
 ## Corpus regenerator for fptest
 
 The fptest expected values come from this host helper (compile, run, paste the

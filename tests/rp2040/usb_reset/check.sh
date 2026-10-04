@@ -80,7 +80,7 @@ fi
 echo "usb_reset: PASS (widened ROM mask mutation rejected)"
 
 mkdir "$work/mutant-gpio" "$work/mutant-type" "$work/mutant-length" \
-	"$work/mutant-value"
+	"$work/mutant-value" "$work/mutant-activity-enable"
 sed 's/pin >= USB_RESET_GPIO_COUNT/pin >= 128U/' \
 	"$topsrc/sys/arch/rp2040/dev/usb_reset.h" \
 	>"$work/mutant-gpio/usb_reset.h"
@@ -104,3 +104,11 @@ sed 's/~USB_RESET_BOOTSEL_VALUE_MASK/~0xffffU/' \
 	>"$work/mutant-value/usb_reset.h"
 compile_test "$work/usb-reset-mutant-value" "$work/mutant-value"
 expect_rejected "$work/usb-reset-mutant-value" reserved-value-bits
+
+sed 's/~USB_RESET_BOOTSEL_VALUE_MASK/~0xfe83U/' \
+	"$topsrc/sys/arch/rp2040/dev/usb_reset.h" \
+	>"$work/mutant-activity-enable/usb_reset.h"
+compile_test "$work/usb-reset-mutant-activity-enable" \
+	"$work/mutant-activity-enable"
+expect_rejected "$work/usb-reset-mutant-activity-enable" \
+	activity-enable-bit

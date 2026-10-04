@@ -19,7 +19,7 @@ require(int condition, const char *message)
 static int
 bootsel_value_expected(unsigned int value)
 {
-	if ((value & ~0xfe83U) != 0U)
+	if ((value & ~0xff83U) != 0U)
 		return 0;
 	if ((value & 0x0100U) == 0U &&
 	    (value & (0x0080U | 0xfe00U)) != 0U)
@@ -37,6 +37,10 @@ test_bootsel_value_geometry(void)
 		require(usb_reset_bootsel_value_valid(value) ==
 		    bootsel_value_expected(value),
 		    "BOOTSEL accepts only documented selector bits and GPIOs");
+	require(usb_reset_bootsel_value_valid(0x0100U),
+	    "BOOTSEL accepts the activity-enable bit with GPIO zero");
+	require(usb_reset_bootsel_value_valid(0x0180U),
+	    "BOOTSEL accepts active-low activity GPIO zero");
 	require(!usb_reset_bootsel_value_valid(0x10000U),
 	    "BOOTSEL rejects values wider than the setup field");
 }

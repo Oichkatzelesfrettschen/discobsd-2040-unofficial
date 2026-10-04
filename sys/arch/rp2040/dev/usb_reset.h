@@ -22,7 +22,7 @@
 #define USB_RESET_REQUEST_FLASH 0x02U
 #define USB_RESET_REQUEST_TYPE 0x21U
 #define USB_RESET_INTERFACE_DISABLE_MASK 0x0003U
-#define USB_RESET_BOOTSEL_VALUE_MASK 0xfe83U
+#define USB_RESET_BOOTSEL_VALUE_MASK 0xff83U
 #define USB_RESET_GPIO_COUNT 30U
 
 /* Reject reserved reset selectors before dispatch can reach the ROM. */

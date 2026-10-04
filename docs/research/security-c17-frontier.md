@@ -382,12 +382,13 @@ Pico SDK handler checks the interface and request code but does not validate
 request type, transfer length or reserved value bits; picotool sends the exact
 `0x21`/zero-length forms recorded in `bootsel-button.md`. `check-usb-reset`
 exhausts the production predicates and calibrates dispatch-wiring, request-type,
-length, GPIO-range, value-mask and ROM-mask mutations. Against a clean build at
-`fa39a333`, GCC 16.2 production flags change `usb.o` text from 4,208 to 4,252
-bytes (+44), with data fixed at 8,200 and BSS at 344; PICO kernel text changes
-from 103,310 to 103,350 bytes (+40), with data fixed at 248 and BSS at 39,816.
-PICO_UART remains 90,960/192/14,768 bytes. These cross-build measurements do
-not establish USB dispatch or reset behavior on physical hardware.
+length, GPIO-range, reserved-value, activity-enable and ROM-mask mutations.
+Against clean base `fa39a333`, GCC 16.2 production flags change `usb.o` text
+from 4,208 to 4,252 bytes (+44), with data fixed at 8,200 and BSS at 344; PICO
+kernel text changes from 103,310 to 103,350 bytes (+40), with data fixed at 248
+and BSS at 39,816. PICO_UART remains 90,960/192/14,768 bytes. These cross-build
+measurements do not establish USB dispatch or reset behavior on physical
+hardware.
 
 At Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`, the public
 reset-interface header defines the BOOTSEL request code at

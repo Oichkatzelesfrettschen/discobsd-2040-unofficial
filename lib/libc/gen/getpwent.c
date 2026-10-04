@@ -28,13 +28,13 @@
 static FILE *_pw_fp;
 static struct passwd _pw_entry;
 static int _pw_stayopen;
-static char *_pw_file = _PATH_PASSWD;
+static const char *_pw_file = _PATH_PASSWD;
 
 #define	MAXLINELENGTH	256
 static char line[MAXLINELENGTH];
 
 static int
-start_pw()
+start_pw(void)
 {
 	if (_pw_fp) {
 		rewind(_pw_fp);
@@ -47,11 +47,11 @@ start_pw()
 }
 
 static int
-scanpw()
+scanpw(void)
 {
-	register char *cp;
+	char *cp;
 	char	*bp;
-	register int ch;
+	int ch;
 
 	for (;;) {
 		if (!(fgets(line, sizeof(line), _pw_fp)))
@@ -86,13 +86,13 @@ scanpw()
 }
 
 static void
-getpw()
+getpw(void)
 {
 	static char pwbuf[50];
-	off_t lseek();
+	const char *path;
 	long pos;
 	int fd, n;
-	register char *p;
+	char *p;
 
 	if (geteuid())
 		return;
@@ -100,8 +100,8 @@ getpw()
 	 * special case; if it's the official password file, look in
 	 * the master password file, otherwise, look in the file itself.
 	 */
-	p = strcmp(_pw_file, _PATH_PASSWD) == 0 ? _PATH_SHADOW : _pw_file;
-	if ((fd = open(p, O_RDONLY, 0)) < 0)
+	path = strcmp(_pw_file, _PATH_PASSWD) == 0 ? _PATH_SHADOW : _pw_file;
+	if ((fd = open(path, O_RDONLY, 0)) < 0)
 		return;
 	pos = atol(_pw_entry.pw_passwd);
 	if (lseek(fd, pos, L_SET) != pos)
@@ -119,9 +119,9 @@ bad:	(void)close(fd);
 }
 
 struct passwd *
-getpwent()
+getpwent(void)
 {
-	register int rval;
+	int rval;
 
 	if (!_pw_fp && !start_pw())
 		return((struct passwd *)NULL);
@@ -133,10 +133,9 @@ getpwent()
 }
 
 struct passwd *
-getpwnam(nam)
-	char *nam;
+getpwnam(const char *nam)
 {
-	register int rval;
+	int rval;
 
 	if (!start_pw())
 		return((struct passwd *)NULL);
@@ -155,10 +154,9 @@ getpwnam(nam)
 }
 
 struct passwd *
-getpwuid(uid)
-	int uid;
+getpwuid(int uid)
 {
-	register int rval;
+	int rval;
 
 	if (!start_pw())
 		return((struct passwd *)NULL);
@@ -177,14 +175,13 @@ getpwuid(uid)
 }
 
 int
-setpwent()
+setpwent(void)
 {
 	return(setpassent(0));
 }
 
 int
-setpassent(stayopen)
-	int stayopen;
+setpassent(int stayopen)
 {
 	if (!start_pw())
 		return(0);
@@ -193,7 +190,7 @@ setpassent(stayopen)
 }
 
 void
-endpwent()
+endpwent(void)
 {
 	if (_pw_fp) {
 		(void)fclose(_pw_fp);
@@ -202,8 +199,7 @@ endpwent()
 }
 
 void
-setpwfile(file)
-	char *file;
+setpwfile(const char *file)
 {
 	_pw_file = file;
 }

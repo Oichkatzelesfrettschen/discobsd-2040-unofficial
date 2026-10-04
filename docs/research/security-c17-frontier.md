@@ -165,6 +165,7 @@ The earlier base-to-repair deltas remain in the detailed sections below.
 | `usr.bin/compress/compress.c` | Production and DEBUG forms pass host strict C17 with pedantic warnings treated as errors. | 1,424 / 37,245 | 4,911/32/30,216; 13,326/236/30,344 | 13,596 / 11,241; 12 blocks | Close the pathname identity race in the `stat`/`freopen`/metadata lifecycle with descriptor-relative APIs; retain input on metadata failure. |
 | `usr.bin/cpio/cpio.c` | GCC and Clang pass host strict C17 with conversion diagnostics; host behavior tests pass ASan and UBSan. | 566 / 18,086 | 3,540/0/776; 11,501/204/900 | 11,740 / 9,323; 11 blocks | Close the stable-namespace rename race through directory-relative APIs or a bounded staging design. The measured internal stack paths are 256-byte input and 224-byte output. |
 | `bin/tar/tar.c` | GCC and Clang pass host strict C17 with pedantic, prototype and conversion diagnostics; target production warning contract passes. | 2,770 / 84,055 | 14,024/58/2,181; 28,308/692/3,936 | 29,032 / 23,681; 25 blocks | Shared headers and target stdio/ioctl macros still block the direct target strict-prototype/conversion probe; the stable-namespace extraction race remains. |
+| `include/pwd.h` / `lib/libc/gen/getpwent.c` | Header API passes standalone strict C17 prototype checking. The implementation has full parameter lists and passes target `-Wold-style-definition -Werror`; whole-unit strict-prototype checking still reports declarations in `include/unistd.h`. The full RP2040 build and aggregate check pass. | Header 37 / 1,455; C 205 / 4,030 (base 34 / 1,384 and 209 / 4,063); 54 C/header includers | `getpwent.o`: 620/4/344 bytes; identical section sizes to the pre-edit object. Maximum measured function frame: 24 bytes. | Linked through libc; no standalone executable measurement. | Migrate `include/unistd.h` only after enumerating and building its full consumer set. No public structure layout or function ABI changed. |
 
 The source and binary snapshot can be repeated in a clean worktree after
 creating the generated `include/machine` link to `rp2040`:
@@ -188,10 +189,26 @@ after its original before/after size pair. The snapshot table records the
 current source at `34902d8a`; the migration section's original pair remains
 historical and must not be read as the current executable size.
 
-Next file-level batches begin with `include/pwd.h` and `include/unistd.h`,
-because their declarations block strict-prototype certification of shipped
-callers. Each header batch must enumerate and compile every consumer before
-changing declarations. The next device-boundary units are
+The `include/pwd.h` and `lib/libc/gen/getpwent.c` batch was measured at
+`286600f2cdb4b5d1d3439c81a3f4a5d762a85a53`. The standalone header probe used
+`-std=c17 -Wall -Wextra -Wstrict-prototypes -Werror`. The implementation
+probe used Cortex-M0+ with flags
+`-std=c17 -Wall -Wextra -Wstrict-prototypes -Wold-style-definition -Werror`
+and `-Wno-error=strict-prototypes` only to demote existing strict-prototype
+warnings from `include/unistd.h` for diagnosis.
+The complete
+`PYTHON=$(command -v python) bmake MACHINE=rp2040 build` rebuilt the shipped
+kernel, libc, utilities and distribution against the new declarations, and
+`PYTHON=$(command -v python) bmake MACHINE=rp2040 check` passed all configured
+non-hardware tiers. The libc object retained 620 text, 4 data and 344 BSS bytes; the pre-edit object
+had the same section sizes. `-fstack-usage` measured a maximum 24-byte frame
+in `scanpw`. No separate behavior test exists for this libc API, and the
+change leaves lookup behavior and structure layout unchanged.
+
+`include/pwd.h` is migrated. `include/unistd.h` remains the next shared-header
+batch because its old declarations still block strict-prototype
+certification; enumerate and compile every consumer before changing it. The
+next device-boundary units are
 `sys/arch/rp2040/dev/usb.c` and the Dhara metadata path in
 `sys/arch/rp2040/rp2040/map.c`; record source size, exact compile flags,
 linked text/data/BSS, stack usage and a claim-specific negative test before

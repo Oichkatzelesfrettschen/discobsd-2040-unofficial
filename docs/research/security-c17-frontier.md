@@ -84,8 +84,9 @@ check now rejects negative stored UIDs before converting the target UID, and
 
 All four function definitions now use complete parameter lists; helpers and
 the process UID have internal linkage, obsolete `register` declarations and
-redundant function declarations are removed, and the local `crypt`/`getpass`
-declarations state their argument types. `usr.bin/passwd/Makefile` now uses
+redundant function declarations are removed, and `include/unistd.h` owns the
+`crypt`/`getpass` argument contracts without conflicting local declarations.
+`usr.bin/passwd/Makefile` now uses
 `WARNLEVEL=full` and persistently enables `-Wold-style-definition`. The exact
 Cortex-M0+ build passes `-Wall -Wextra -Werror` with that source-form gate. A
 direct target compile also passes
@@ -153,7 +154,7 @@ an upstream advisory alone does not establish that the named component ships.
 This register covers the security-sensitive translation units already
 migrated and measured below; it is a bounded starting set, not a census of
 every C translation unit linked into every RP2040 profile. The current-source
-snapshot below was rebuilt at `34902d8a3aa0a742729989be32fea67a2732ee35` with
+historical snapshot below was rebuilt at `34902d8a3aa0a742729989be32fea67a2732ee35` with
 the RP2040 Cortex-M0+ target flags, repository startup object and repository
 libc. Object and final ELF sections come from `arm-none-eabi-size`; raw and
 packed a.out sizes and root blocks come from `tools/bin/rp2040/hsaout -s`.
@@ -161,11 +162,12 @@ The earlier base-to-repair deltas remain in the detailed sections below.
 
 | Translation unit | C17 gate and current status | Source lines / bytes | Object T/D/B; ELF T/D/B | a.out raw / packed; root blocks | Remaining work |
 | --- | --- | ---: | --- | --- |
-| `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 284 / 7,217 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | `include/pwd.h` and `include/unistd.h` still prevent a translation-unit probe that also enables `-Wstrict-prototypes`; migrate shared declarations with their full consumer set. |
+| `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 282 / 7,147 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | `include/unistd.h` retains three unspecified argument lists for malformed source-only callers; close those callers before whole-unit `-Wstrict-prototypes` certification. |
 | `usr.bin/compress/compress.c` | Production and DEBUG forms pass host strict C17 with pedantic warnings treated as errors. | 1,424 / 37,245 | 4,911/32/30,216; 13,326/236/30,344 | 13,596 / 11,241; 12 blocks | Close the pathname identity race in the `stat`/`freopen`/metadata lifecycle with descriptor-relative APIs; retain input on metadata failure. |
 | `usr.bin/cpio/cpio.c` | GCC and Clang pass host strict C17 with conversion diagnostics; host behavior tests pass ASan and UBSan. | 566 / 18,086 | 3,540/0/776; 11,501/204/900 | 11,740 / 9,323; 11 blocks | Close the stable-namespace rename race through directory-relative APIs or a bounded staging design. The measured internal stack paths are 256-byte input and 224-byte output. |
 | `bin/tar/tar.c` | GCC and Clang pass host strict C17 with pedantic, prototype and conversion diagnostics; target production warning contract passes. | 2,770 / 84,055 | 14,024/58/2,181; 28,308/692/3,936 | 29,032 / 23,681; 25 blocks | Shared headers and target stdio/ioctl macros still block the direct target strict-prototype/conversion probe; the stable-namespace extraction race remains. |
-| `include/pwd.h` / `lib/libc/gen/getpwent.c` | Header API passes standalone strict C17 prototype checking. The implementation has full parameter lists and passes target `-Wold-style-definition -Werror`; whole-unit strict-prototype checking still reports declarations in `include/unistd.h`. The full RP2040 build and aggregate check pass. | Header 37 / 1,455; C 205 / 4,030 (base 34 / 1,384 and 209 / 4,063); 54 C/header includers | `getpwent.o`: 620/4/344 bytes; identical section sizes to the pre-edit object. Maximum measured function frame: 24 bytes. | Linked through libc; no standalone executable measurement. | Migrate `include/unistd.h` only after enumerating and building its full consumer set. No public structure layout or function ABI changed. |
+| `include/pwd.h` / `lib/libc/gen/getpwent.c` | Header API passes standalone strict C17 prototype checking. The implementation has full parameter lists and passes target `-Wold-style-definition -Werror`; whole-unit strict-prototype checking still reports three declarations in `include/unistd.h`. The full RP2040 build and aggregate check pass. | Header 37 / 1,455; C 205 / 4,030 (base 34 / 1,384 and 209 / 4,063); 54 C/header includers | `getpwent.o`: 620/4/344 bytes; identical section sizes to the pre-edit object. Maximum measured function frame: 24 bytes. | Linked through libc; no standalone executable measurement. | The remaining `unistd.h` argument lists depend on correcting source-only legacy callers. No public structure layout or function ABI changed. |
+| `include/unistd.h` | At `2f05c54a285af10b782f09cd98c43d19302a5483`, 13 no-argument and 13 argument-taking APIs have typed declarations. C17 function-pointer checks and per-symbol wrong-arity probes pass; the full RP2040 build and aggregate check pass. Three declarations retain unspecified argument lists: `access`, `alarm` and `sync`. | 179 / 6,829 | Header emits no object; `passwd.o` 1,955/0/4 | `passwd` 14,932 raw / 12,249 packed; 13 blocks; `libc.a` 406,408 bytes | Fix `uucp/uuxqt.c` calling `access(NOLOGIN)` without a mode, `tip/cmds.c` passing string-valued `ETIMEOUT` to `alarm`, and `sbin/fdisk/fdisk.c` passing a descriptor to zero-argument `sync`. These programs are absent from the RP2040 `full` root manifest, but the repository-wide build compiles them. |
 
 The source and binary snapshot can be repeated in a clean worktree after
 creating the generated `include/machine` link to `rp2040`:
@@ -205,10 +207,29 @@ had the same section sizes. `-fstack-usage` measured a maximum 24-byte frame
 in `scanpw`. No separate behavior test exists for this libc API, and the
 change leaves lookup behavior and structure layout unchanged.
 
-`include/pwd.h` is migrated. `include/unistd.h` remains the next shared-header
-batch because its old declarations still block strict-prototype
-certification; enumerate and compile every consumer before changing it. The
-next device-boundary units are
+`include/pwd.h` is migrated. The `include/unistd.h` batch typed 26 of its 29
+previously unspecified APIs, using the target source set, `libc` definitions,
+syscall records and generated wrapper contracts. Its compile-only test uses
+`-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes`, exact function-pointer
+assignments and separate wrong-arity probes. The full target build and
+aggregate `check` pass. The measured header is 179 lines / 6,829 bytes;
+`libc.a` is 406,408 bytes, `passwd.o` is 1,955/0/4, and the packaged passwd
+image is 14,932 raw / 12,249 packed bytes in 13 root blocks. Header changes
+emit no code or data by themselves. The exact source commit is
+`2f05c54a285af10b782f09cd98c43d19302a5483`.
+
+Three declarations remain open because repository-wide build consumers call
+the functions with invalid argument forms. The local `access(NOLOGIN)` call
+in `usr.bin/uucp/uuxqt.c` omits the access mode; the local `alarm` calls in
+`usr.bin/tip/cmds.c` pass `value(ETIMEOUT)` as a string instead of converting
+it with `number`; and `sbin/fdisk/fdisk.c` passes a file descriptor to
+`sync`, whose kernel implementation takes no arguments. All three programs
+are absent from the RP2040 `full` manifest. The next source work must repair
+each complete translation unit under C17 conventions before these three
+header prototypes close. `getpgrp(pid_t)` now matches the kernel syscall
+record and shipped `compress` caller `getpgrp(0)`.
+
+The next device-boundary units are
 `sys/arch/rp2040/dev/usb.c` and the Dhara metadata path in
 `sys/arch/rp2040/rp2040/map.c`; record source size, exact compile flags,
 linked text/data/BSS, stack usage and a claim-specific negative test before

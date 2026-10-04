@@ -156,6 +156,78 @@ usb_set_interface_request_valid(unsigned int request_type,
 }
 
 static inline int
+usb_get_configuration_request_valid(unsigned int request_type,
+	unsigned int value, unsigned int index, unsigned int length)
+{
+	return request_type == 0x80U && value == 0U && index == 0U &&
+	    length == 1U;
+}
+
+static inline int
+usb_get_interface_request_valid(unsigned int request_type,
+	unsigned int value, unsigned int interface_number, unsigned int length)
+{
+	return request_type == 0x81U && value == 0U &&
+	    interface_number < USB_INTERFACE_COUNT && length == 1U;
+}
+
+static inline int
+usb_status_endpoint_valid(unsigned int endpoint_address)
+{
+	return endpoint_address == 0x00U || endpoint_address == 0x80U ||
+	    endpoint_address == 0x81U || endpoint_address == 0x02U ||
+	    endpoint_address == 0x82U;
+}
+
+/* USB 2.0 9.4.5 defines GET_STATUS for device, interface and endpoint. */
+static inline int
+usb_get_status_request_valid(unsigned int request_type,
+    unsigned int value, unsigned int index, unsigned int length)
+{
+	if (request_type > 0xffU || value > 0xffffU || index > 0xffffU ||
+	    length > 0xffffU || value != 0U || length != 2U)
+		return 0;
+	switch (request_type) {
+	case 0x80U:
+		return index == 0U;
+	case 0x81U:
+		return index < USB_INTERFACE_COUNT;
+	case 0x82U:
+		return index <= 0xffU && usb_status_endpoint_valid(index);
+	default:
+		return 0;
+	}
+}
+
+/* EP0 remains available before configuration; other recipients do not. */
+static inline int
+usb_get_status_request_allowed(unsigned int request_type,
+	unsigned int value, unsigned int index, unsigned int length,
+	int configured)
+{
+	if (!usb_get_status_request_valid(request_type, value, index, length))
+		return 0;
+	if (request_type == 0x80U || (request_type == 0x82U &&
+	    (index == 0x00U || index == 0x80U)))
+		return 1;
+	return configured != 0;
+}
+
+/* Only endpoint halt selectors for declared non-control endpoints are valid. */
+static inline int
+usb_endpoint_feature_request_valid(unsigned int request_type,
+	unsigned int request, unsigned int value, unsigned int index,
+	unsigned int length)
+{
+	if (request_type > 0xffU || value > 0xffffU || index > 0xffffU ||
+	    length > 0xffffU || request_type != 0x02U ||
+	    (request != 1U && request != 3U) || value != 0U ||
+	    index > 0xffU || length != 0U)
+		return 0;
+	return index == 0x81U || index == 0x02U || index == 0x82U;
+}
+
+static inline int
 usb_cdc_line_coding_length_valid(unsigned int received_length)
 {
 	return received_length == USB_CDC_LINE_CODING_SIZE;

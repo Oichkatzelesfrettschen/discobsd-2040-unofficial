@@ -633,19 +633,32 @@ usb_setup(void)
 			usb_ep0_ack();
 			return;
 		case REQ_GET_CONFIGURATION:
+			if (!usb_get_configuration_request_valid(type, wvalue,
+			    windex, wlength))
+				break;
 			usbd.reply[0] = usbd.configured;
 			usb_ep0_send(usbd.reply, 1, wlength);
 			return;
 		case REQ_GET_STATUS:
+			if (!usb_get_status_request_allowed(type, wvalue,
+			    windex, wlength, usbd.configured))
+				break;
+			/* The bus-powered device has no remote-wakeup or halt state. */
 			usbd.reply[0] = 0;
 			usbd.reply[1] = 0;
 			usb_ep0_send(usbd.reply, 2, wlength);
 			return;
 		case REQ_GET_INTERFACE:
+			if (!usb_get_interface_request_valid(type, wvalue,
+			    windex, wlength) || !usbd.configured)
+				break;
 			usbd.reply[0] = 0;
 			usb_ep0_send(usbd.reply, 1, wlength);
 			return;
 		case REQ_CLEAR_FEATURE:
+			if (!usb_endpoint_feature_request_valid(type, request,
+			    wvalue, windex, wlength) || !usbd.configured)
+				break;
 			/*
 			 * ENDPOINT_HALT cleared on a bulk endpoint resets the
 			 * host's data toggle to DATA0, and the device's must
@@ -654,39 +667,34 @@ usb_setup(void)
 			 * open. A buffer already armed is re-armed with the
 			 * new toggle and its bytes untouched.
 			 */
-			if ((type & 0x1f) == 2 && wvalue == 0 &&
-			    (windex & 0x0f) == EP_DATA) {
-				if (windex & 0x80) {
-					u_int bc = DPRAM32(
-					    USB_DPRAM_BUF_CTRL(EP_DATA, 1));
+			if (windex == 0x82U) {
+				u_int bc = DPRAM32(
+				    USB_DPRAM_BUF_CTRL(EP_DATA, 1));
 
-					usbd.data_in_pid = 0;
-					/*
-					 * Only a packet the controller has not
-					 * yet sent is re-armed; one already taken
-					 * would go out twice. A packet the E15
-					 * guard still holds carries its toggle
-					 * in the saved word, so the reset lands
-					 * there instead of in DPSRAM.
-					 */
-					if (usbd.tx_pending) {
-						usbd.tx_pending_ctrl &=
-						    ~USB_BUF_CTRL_DATA1;
-						usbd.data_in_pid = 1;
-					} else if (usbd.tx_busy &&
-					    (bc & USB_BUF_CTRL_AVAIL)) {
-						usb_buf_arm(
-						    USB_DPRAM_BUF_CTRL(EP_DATA, 1),
-						    bc & USB_BUF_CTRL_LEN_MASK,
-						    USB_BUF_CTRL_FULL);
-						usbd.data_in_pid = 1;
-					}
-				} else {
+				usbd.data_in_pid = 0;
+				/*
+				 * Only a packet the controller has not yet
+				 * sent is re-armed; one already taken would
+				 * go out twice. A packet the E15 guard still
+				 * holds carries its toggle in the saved word,
+				 * so the reset lands there instead of in DPSRAM.
+				 */
+				if (usbd.tx_pending) {
+					usbd.tx_pending_ctrl &=
+					    ~USB_BUF_CTRL_DATA1;
+					usbd.data_in_pid = 1;
+				} else if (usbd.tx_busy &&
+				    (bc & USB_BUF_CTRL_AVAIL)) {
 					usb_buf_arm(
-					    USB_DPRAM_BUF_CTRL(EP_DATA, 0),
-					    USB_PACKET_MAX, 0);
-					usbd.data_out_pid = 1;
+					    USB_DPRAM_BUF_CTRL(EP_DATA, 1),
+					    bc & USB_BUF_CTRL_LEN_MASK,
+					    USB_BUF_CTRL_FULL);
+					usbd.data_in_pid = 1;
 				}
+			} else if (windex == 0x02U) {
+				usb_buf_arm(USB_DPRAM_BUF_CTRL(EP_DATA, 0),
+				    USB_PACKET_MAX, 0);
+				usbd.data_out_pid = 1;
 			}
 			usb_ep0_ack();
 			return;
@@ -717,8 +725,11 @@ usb_setup(void)
 				usb_tx_kick();
 			return;
 		case REQ_SET_FEATURE:
-			usb_ep0_ack();
-			return;
+			/*
+			 * Endpoint halt is unimplemented, and the descriptor does
+			 * not advertise remote wakeup.
+			 */
+			break;
 		}
 	} else if (type == 0xc0 && request == MS_OS_20_VENDOR_CODE &&
 	    windex == MS_OS_20_DESCRIPTOR_INDEX) {

@@ -98,6 +98,14 @@
 #define	FLASH_SWAP_BYTES	(384UL * 1024)
 #define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
 #define	FLASH_SWAP_SCRATCH_OFFSET FLASH_SWAP_OFFSET
+#define	FLASH_PARTITION_COUNT	4
+
+static inline int
+flash_indices_valid(unsigned int unit, unsigned int partition,
+    unsigned int drive_count)
+{
+	return unit < drive_count && partition <= FLASH_PARTITION_COUNT;
+}
 
 static inline int
 flash_nand_range_valid(uint32_t page, size_t offset, size_t length)

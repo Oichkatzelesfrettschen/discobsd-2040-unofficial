@@ -421,7 +421,7 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
  * even-numbered layout is a requirement rather than a convention.
  */
 
-#define	NPARTITIONS	4
+#define	NPARTITIONS	FLASH_PARTITION_COUNT
 #define	RAWPART		0			/* Whole device. */
 
 #define	FL_UNIT_FS	0			/* Dhara region, partitioned. */
@@ -614,9 +614,9 @@ fl_raw(struct buf *bp, u_int off, u_int len)
 void
 flstrategy(struct buf *bp)
 {
-	int unit = flunit(bp->b_dev);
-	struct fldisk *du = &fldrives[unit];
-	struct diskpart *p = &du->part[flpart(bp->b_dev)];
+	int unit, part;
+	struct fldisk *du;
+	struct diskpart *p;
 	dhara_error_t err = DHARA_E_NONE;
 	u_int per_blk = DEV_BSIZE / FLASH_UNIT_BYTES;
 	u_int sector, nsect, i;
@@ -625,10 +625,14 @@ flstrategy(struct buf *bp)
 	long nblk;
 	int s, fail = 0;
 
-	if (unit >= NFL || flpart(bp->b_dev) > NPARTITIONS) {
+	unit = flunit(bp->b_dev);
+	part = flpart(bp->b_dev);
+	if (!flash_indices_valid((unsigned int)unit, (unsigned int)part, NFL)) {
 		bp->b_error = ENXIO;
 		goto bad;
 	}
+	du = &fldrives[unit];
+	p = &du->part[part];
 	if (du->part[RAWPART].dp_nsectors == 0 && fl_setup(unit) != 0) {
 		bp->b_error = ENXIO;
 		goto bad;

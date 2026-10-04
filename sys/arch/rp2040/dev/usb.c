@@ -640,9 +640,8 @@ usb_setup(void)
 			usb_ep0_send(usbd.reply, 1, wlength);
 			return;
 		case REQ_GET_STATUS:
-			if (!usb_get_status_request_valid(type, wvalue,
-			    windex, wlength) || ((type & 0x1fU) != 0U &&
-			    !usbd.configured))
+			if (!usb_get_status_request_allowed(type, wvalue,
+			    windex, wlength, usbd.configured))
 				break;
 			/* The bus-powered device has no remote-wakeup or halt state. */
 			usbd.reply[0] = 0;

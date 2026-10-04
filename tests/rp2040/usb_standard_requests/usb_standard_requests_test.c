@@ -106,6 +106,25 @@ test_get_status(void)
 }
 
 static void
+test_get_status_configuration_state(void)
+{
+	require(usb_get_status_request_allowed(0x82U, 0U, 0x00U, 2U, 0),
+	    "unconfigured device keeps EP0 OUT available");
+	require(usb_get_status_request_allowed(0x82U, 0U, 0x80U, 2U, 0),
+	    "unconfigured device keeps EP0 IN available");
+	require(!usb_get_status_request_allowed(0x81U, 0U, 0U, 2U, 0),
+	    "unconfigured device rejects interface GET_STATUS");
+	require(!usb_get_status_request_allowed(0x82U, 0U, 0x02U, 2U, 0),
+	    "unconfigured device rejects nonzero endpoint GET_STATUS");
+	require(usb_get_status_request_allowed(0x81U, 0U, 0U, 2U, 1),
+	    "configured device permits interface GET_STATUS");
+	require(usb_get_status_request_allowed(0x82U, 0U, 0x82U, 2U, 1),
+	    "configured device permits nonzero endpoint GET_STATUS");
+	require(!usb_get_status_request_allowed(0x82U, 1U, 0x00U, 2U, 0),
+	    "unconfigured EP0 request still enforces setup geometry");
+}
+
+static void
 test_endpoint_feature_requests(void)
 {
 	unsigned int field, request, request_type;
@@ -152,6 +171,7 @@ main(void)
 {
 	test_configuration_and_interface();
 	test_get_status();
+	test_get_status_configuration_state();
 	test_endpoint_feature_requests();
 	puts("usb_standard_requests: PASS (exhaustive standard request fields)");
 	return EXIT_SUCCESS;

@@ -199,6 +199,20 @@ usb_get_status_request_valid(unsigned int request_type,
 	}
 }
 
+/* EP0 remains available before configuration; other recipients do not. */
+static inline int
+usb_get_status_request_allowed(unsigned int request_type,
+	unsigned int value, unsigned int index, unsigned int length,
+	int configured)
+{
+	if (!usb_get_status_request_valid(request_type, value, index, length))
+		return 0;
+	if (request_type == 0x80U || (request_type == 0x82U &&
+	    (index == 0x00U || index == 0x80U)))
+		return 1;
+	return configured != 0;
+}
+
 /* Only endpoint halt selectors for declared non-control endpoints are valid. */
 static inline int
 usb_endpoint_feature_request_valid(unsigned int request_type,

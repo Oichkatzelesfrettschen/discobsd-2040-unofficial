@@ -243,7 +243,7 @@ static const u_char usb_ms_os_20_desc[MS_OS_20_SET_LEN] = {
 static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 	/* Configuration: three interfaces, bus powered, 250 mA. */
 	9, DESC_CONFIGURATION, CONFIG_DESC_LEN & 0xff, CONFIG_DESC_LEN >> 8,
-	3, 1, 0, 0x80, 125,
+	3, USB_CONFIGURATION_VALUE, 0, 0x80, 125,
 
 	/* Interface association: the two CDC interfaces are one function. */
 	8, 0x0b, ITF_CDC_COMM, 2, 0x02, 0x02, 0x00, 0,
@@ -617,7 +617,10 @@ usb_setup(void)
 			usb_ep0_ack();
 			return;
 		case REQ_SET_CONFIGURATION:
-			usb_configure(wvalue != 0);
+			if (!usb_set_configuration_request_valid(type, wvalue,
+			    windex, wlength))
+				break;
+			usb_configure(wvalue == USB_CONFIGURATION_VALUE);
 			usb_ep0_ack();
 			return;
 		case REQ_GET_CONFIGURATION:

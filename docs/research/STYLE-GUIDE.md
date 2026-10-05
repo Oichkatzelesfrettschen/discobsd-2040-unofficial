@@ -280,8 +280,12 @@ out-of-range conversions or lifetime violations safe.
 ### Additive migration rule
 
 The project target is C17 for every maintainable project-owned C translation
-unit. K&R, C89/C90, C99 and C11 syntax are migration findings, not permanent
-profiles. The following boundaries are narrow and explicit:
+unit. C17 includes C99 and C11 syntax (designated initializers,
+`_Static_assert`, `_Generic`), so a construct is never a finding because of
+the standard that introduced it. A migration finding is an older evaluated
+dialect selection (`-ansi`, `-std=c89`, `-std=gnu89`, `-std=c99`,
+`-std=c11`), a K&R definition or other behavior C17 removed, or a diagnostic
+under the C17 command; a unit with none of these is migrated. The following boundaries are narrow and explicit:
 
 1. SIMH/V6/PDP-11 guest sources, licensed historical source and their binary
    images stay quarantined and byte-stable. Their maintained emulator, adapters,

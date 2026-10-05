@@ -141,12 +141,15 @@ that moves an include or comment is a semantic review, not whitespace cleanup.
 ### Read-only formatter checks
 
 Run the formatter against an explicit Class A file list. The command must exit
-non-zero if a file would change and must not write source in CI:
+non-zero if a file would change and must not write source in CI. The tree has
+no `.clang-format`, and `--style=file` without one falls back to LLVM style, so
+every check names the candidate file and disables the fallback. `$CAND` is the
+section 3 configuration written to an untracked file:
 
 ```sh
 clang-format --version
-clang-format --dry-run --Werror --style=file --assume-filename=foo.c \
-  path/to/maintained.c
+clang-format --dry-run --Werror --style="file:$CAND" --fallback-style=none \
+  --assume-filename=foo.c path/to/maintained.c
 ```
 
 For a migration unit, generate the list from Git and remove the known boundary
@@ -155,7 +158,8 @@ classes in a reviewed script rather than using an unchecked glob:
 ```sh
 git ls-files '*.c' '*.h' |
   tools/c17-file-classify --class A --null |
-  xargs -0 -r clang-format --dry-run --Werror --style=file
+  xargs -0 -r clang-format --dry-run --Werror --style="file:$CAND" \
+    --fallback-style=none
 ```
 
 `tools/c17-file-classify` is a planned narrow wrapper, not a command currently
@@ -167,7 +171,7 @@ For a local review, `git clang-format` shows the proposed patch without
 mutating the worktree:
 
 ```sh
-git clang-format --diff <base-commit> -- path/to/maintained.c
+git clang-format --style="file:$CAND" --diff <base-commit> -- path/to/maintained.c
 ```
 
 The diff is reviewed for token movement, macro continuation, string literals,
@@ -220,10 +224,14 @@ with host flags:
 
 ```sh
 rm -f compile_commands.json
+bmake MACHINE=rp2040 cleankernel
 bear -- bmake MACHINE=rp2040 kernel
 ```
 
-The capture is an untracked analysis artifact. Inspect it for target CPU,
+Bear records only the compiler executions it observes, so an up-to-date tree
+yields an empty or partial database; `cleankernel` before the capture makes every
+kernel translation unit compile, and a database missing an expected unit is
+rejected rather than analyzed. The capture is an untracked analysis artifact. Inspect it for target CPU,
 include roots, generated headers, `-D` values, language flags and duplicate
 commands before passing it to a semantic tool. A libc or public-header change
 requires a clean consumer build because the repository documents incremental
@@ -233,17 +241,19 @@ Use clang-tidy as a targeted analyzer, not as a global style oracle. Start
 with the checks available in the pinned binary:
 
 ```sh
-clang-tidy -checks='-*' -list-checks
+clang-tidy -checks='*' -list-checks
 clang-tidy -p . -checks='-*,'\
 'clang-analyzer-core.*,'\
 'clang-analyzer-security.*,'\
 'bugprone-sizeof-expression,'\
 'bugprone-misplaced-widening-cast' \
-  path/to/maintained.c -- -D__KERNEL__
+  --extra-arg=-D__KERNEL__ path/to/maintained.c
 ```
 
-The exact trailing flags come from `compile_commands.json`; the example shows
-only a boundary-specific define. Add a check after its diagnostic is reviewed
+The compiler command comes from `compile_commands.json` through `-p`.
+`--extra-arg` appends to that command; arguments after `--` would replace it
+and drop the captured target defines, include roots and CPU/ABI flags. The
+example adds only a boundary-specific define. Add a check after its diagnostic is reviewed
 against BSD headers and a rejecting fixture. Do not enable broad
 `cert-*`, reserved-identifier, or project-wide readability/cppcoreguidelines
 sets: `_IO*`, `_SYS_*`, `__unused`, ABI macros and target headers are deliberate
@@ -264,7 +274,7 @@ blanket escape hatch.
 Run sparse only where kernel annotations and address spaces are meaningful:
 
 ```sh
-make -C sys/arch/rp2040/compile/PICO \
+bmake -C sys/arch/rp2040/compile/PICO \
   CHECK="sparse --clang --Wbitwise --Waddress-space --Wcontext"
 ```
 
@@ -363,8 +373,9 @@ check-c17-analyze      clang-tidy/cppcheck/sparse by source class
 check-c17-calibration  known-good, known-bad and mutation fixtures
 ```
 
-This guide does not add those targets or a root `.clang-format` yet. The
-current safe change is documentation plus a reviewed allowlist. Adding a root
+This guide does not add those targets, a root `.clang-format`, a Class A
+allowlist, a quarantine manifest or the classifier; it is documentation only.
+The next safe change is a reviewed, finite allowlist artifact. Adding a root
 target before its classifier, compile database and calibration fixtures exist
 would either rewrite quarantined files or turn missing metadata into a false
 pass. When the targets land, `.github/workflows/firmware.yml` and the local
@@ -373,10 +384,14 @@ same tool versions.
 
 ## 8. Formatting, linting and footprint claims
 
-Formatting cannot reduce emitted instruction bits. C comments become whitespace
-before translation, and indentation does not alter tokens. A formatter may
-change debug line tables or expose a semantic diff, but it is not a code-size
-optimization. A lint-clean result also says nothing about flash erase count,
+Formatting is not a code-size optimization, but it is not always
+behavior-neutral either. Comments become whitespace before translation and
+indentation does not alter tokens, yet whitespace inside a stringified macro
+argument reaches the string (`S(a+b)` becomes `"a + b"` once reformatted), and
+a moved line changes `__LINE__` and the debug line tables. A formatter-only
+patch therefore carries a preprocessed-output comparison, or a behavior and
+size comparison, for every unit that uses `#`, `__LINE__` or a location-sensitive
+macro. A lint-clean result also says nothing about flash erase count,
 SRAM peak, swap wear or process lifetime.
 
 A C17 rewrite can reduce the complete artifact by removing a dependency table,

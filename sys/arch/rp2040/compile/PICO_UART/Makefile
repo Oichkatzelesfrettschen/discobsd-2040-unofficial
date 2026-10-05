@@ -88,18 +88,16 @@ PARAM+= -DSTORAGE_STATS
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags. Rewrite its stamp only when the
-# text changes, and force that invocation's objects out of date: bmake's
-# timestamp comparison can otherwise miss an option change in the same
-# second as an object compilation. Unchanged options reuse their objects.
+# PARAM reaches every object as -D flags. The stamp holds the PARAM text and
+# is rewritten only when that text changes, and the same parse removes every
+# object, so a changed option recompiles them all whatever their mtimes.
+# bmake compares whole-second mtimes: an object compiled in the second the
+# stamp is rewritten reads as current against it, and a .PHONY stamp forces
+# only the objects examined while the stamp itself is being made.
+# Unchanged options reuse their objects.
 PARAMSTAMP=	.params
-_paramchanged!=	if printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null; then \
-		echo no; else printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; echo yes; fi
-.if ${_paramchanged} == "yes"
-.PHONY: ${PARAMSTAMP}
-${PARAMSTAMP}:
-	@:
-.endif
+_paramstamp!=	if ! printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null; then \
+		rm -f -- *.o; printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; fi; echo ${PARAMSTAMP}
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	errlist.o init_main.o init_sysent.o kern_clock.o kern_descrip.o \

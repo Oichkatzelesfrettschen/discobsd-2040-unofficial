@@ -344,27 +344,43 @@ def check_params(root, make, scratch):
     def exercise(block, directory):
         directory.mkdir()
         (directory / "Makefile").write_text(
-            "all: main.o\nPARAM= ${OPTION}\n" + block
-            + "\nmain.o: ${PARAMSTAMP}\n\t@echo ${PARAM} > main.o\n"
+            "all: main.o late.o\nPARAM= ${OPTION}\n" + block
+            + "\nmain.o late.o: ${PARAMSTAMP}\n\t@echo ${PARAM} > $@\n"
         )
+        objects = [directory / "main.o", directory / "late.o"]
         for option in ("no", "yes", "no"):
-            (directory / "main.o").write_text("stale\n")
-            # A newer object also models the equal-second comparison of
-            # older bmake versions without depending on the host clock.
+            # Objects newer than the stamp model the whole-second mtime tie
+            # without depending on the host clock; two objects make one of
+            # them examined after the stamp target, as most kernel objects are.
             ahead = time.time() + 3600
-            os.utime(directory / "main.o", (ahead, ahead))
+            for obj in objects:
+                obj.write_text("stale\n")
+                os.utime(obj, (ahead, ahead))
             result = run([*make, f"OPTION={option}", "all"], directory, {})
             expect(result.returncode == 0
-                   and (directory / "main.o").read_text().strip() == option,
+                   and all(obj.read_text().strip() == option for obj in objects),
                    f"changed PARAM {option}: stale object reused", result.stdout)
-            before = (directory / "main.o").stat().st_mtime_ns
+            before = [obj.stat().st_mtime_ns for obj in objects]
             result = run([*make, f"OPTION={option}", "all"], directory, {})
             expect(result.returncode == 0
-                   and (directory / "main.o").stat().st_mtime_ns == before,
+                   and [obj.stat().st_mtime_ns for obj in objects] == before,
                    "unchanged PARAM rebuilt an object", result.stdout)
+            # Inspecting another option is read-only: -n and -V leave the
+            # objects and the stamp as the last build wrote them.
+            other = "yes" if option == "no" else "no"
+            stamp_text = (directory / ".params").read_text()
+            for inspect in (["-n", f"OPTION={other}", "all"],
+                            [f"OPTION={other}", "-V", "PARAM"]):
+                result = run([*make, *inspect], directory, {})
+                expect(result.returncode == 0
+                       and all(obj.exists() for obj in objects)
+                       and [obj.stat().st_mtime_ns for obj in objects] == before
+                       and (directory / ".params").read_text() == stamp_text,
+                       f"{inspect[0]} with another PARAM changed the build",
+                       result.stdout)
 
     exercise(stamp, scratch / "control")
-    mutant = stamp.replace(".PHONY: ${PARAMSTAMP}", "# no forced dependency")
+    mutant = stamp.replace("rm -f -- *.o && ", "")
     expect(mutant != stamp, "PARAM calibration did not remove the force", "")
     try:
         exercise(mutant, scratch / "mutant")

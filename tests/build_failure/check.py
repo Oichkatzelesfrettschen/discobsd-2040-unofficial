@@ -365,9 +365,22 @@ def check_params(root, make, scratch):
             expect(result.returncode == 0
                    and [obj.stat().st_mtime_ns for obj in objects] == before,
                    "unchanged PARAM rebuilt an object", result.stdout)
+            # Inspecting another option is read-only: -n and -V leave the
+            # objects and the stamp as the last build wrote them.
+            other = "yes" if option == "no" else "no"
+            stamp_text = (directory / ".params").read_text()
+            for inspect in (["-n", f"OPTION={other}", "all"],
+                            [f"OPTION={other}", "-V", "PARAM"]):
+                result = run([*make, *inspect], directory, {})
+                expect(result.returncode == 0
+                       and all(obj.exists() for obj in objects)
+                       and [obj.stat().st_mtime_ns for obj in objects] == before
+                       and (directory / ".params").read_text() == stamp_text,
+                       f"{inspect[0]} with another PARAM changed the build",
+                       result.stdout)
 
     exercise(stamp, scratch / "control")
-    mutant = stamp.replace("rm -f -- *.o; ", "")
+    mutant = stamp.replace("rm -f -- *.o && ", "")
     expect(mutant != stamp, "PARAM calibration did not remove the force", "")
     try:
         exercise(mutant, scratch / "mutant")

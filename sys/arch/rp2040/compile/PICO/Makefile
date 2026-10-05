@@ -92,16 +92,21 @@ PARAM+= -DSTORAGE_STATS
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags. The stamp holds the PARAM text and
-# is rewritten only when that text changes, and the same parse removes every
-# object, so a changed option recompiles them all whatever their mtimes.
-# bmake compares whole-second mtimes: an object compiled in the second the
-# stamp is rewritten reads as current against it, and a .PHONY stamp forces
-# only the objects examined while the stamp itself is being made.
-# Unchanged options reuse their objects.
+# PARAM reaches every object as -D flags, and .params holds the PARAM text
+# the objects were compiled with. Parsing only compares the two, so -n and -V
+# change nothing. When they differ the stamp is a .PHONY target that every
+# object waits on: its recipe removes every object and then records the new
+# text, so a changed option recompiles them all whatever their mtimes, and a
+# failed removal fails the build before the stamp moves. bmake compares
+# whole-second mtimes, so an object compiled in the stamp's second would
+# otherwise read as current. Unchanged options reuse their objects.
 PARAMSTAMP=	.params
-_paramstamp!=	if ! printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null; then \
-		rm -f -- *.o; printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; fi; echo ${PARAMSTAMP}
+_paramchanged!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
+.if ${_paramchanged} == "yes"
+.PHONY: ${PARAMSTAMP}
+${PARAMSTAMP}:
+	rm -f -- *.o && printf '%s\n' '${PARAM}' > ${PARAMSTAMP}
+.endif
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	errlist.o init_main.o init_sysent.o kern_clock.o kern_descrip.o \

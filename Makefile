@@ -785,7 +785,7 @@ check-cross-contracts:	${CROSS_CONTRACT_GATES}
 check-cross-kernel:	check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-hsaout .WAIT check-flash-swap .WAIT \
-		check-rp2040-shutdown-cross
+		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test

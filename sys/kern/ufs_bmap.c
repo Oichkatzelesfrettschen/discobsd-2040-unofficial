@@ -28,7 +28,7 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     register int i;
     register struct buf *bp;
     struct buf *nbp;
-    int j, sh;
+    int j, sh, error;
     daddr_t nb, *bap, ra;
     int async = (INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC) &&
         (flags & B_SYNC) == 0;
@@ -49,14 +49,12 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
             if (rwflg == B_READ || (bp = balloc(ip, flags)) == NULL)
                 return((daddr_t)-1);
             nb = dbtofsb(bp->b_blkno);
-/*
- * directory blocks are usually the only thing written synchronously at this
- * point (so they never appear with garbage in them on the disk).  This is
- * overridden if the filesystem was mounted 'async'.
-*/
-            if (flags & B_SYNC)
-                bwrite(bp);
-            else
+            /* Initialize synchronous allocations before publishing the pointer. */
+            if (flags & B_SYNC) {
+                error = bwrite(bp);
+                if (error)
+                    goto write_failed;
+            } else
                 bdwrite(bp);
             ip->i_addr[i] = nb;
             ip->i_flag |= IUPD|ICHG;
@@ -101,8 +99,11 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
          */
         if (async)
             bdwrite(bp);
-        else
-            bwrite(bp);
+        else {
+            error = bwrite(bp);
+            if (error)
+                goto write_failed;
+        }
         ip->i_addr[NADDR-j] = nb;
         ip->i_flag |= IUPD|ICHG;
     }
@@ -131,15 +132,14 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
                 return((daddr_t) -1);
             }
             nb = dbtofsb(nbp->b_blkno);
-/*
- * Write synchronously so indirect blocks never point at garbage and blocks
- * in directories never contain garbage.  This check used to be based on the
- * type of inode, if it was a directory then 'sync' writes were done.  See the
- * comments earlier about filesystems being mounted 'async'.
-*/
-            if (!async && (j < 3 || (flags & B_SYNC)))
-                bwrite(nbp);
-            else
+            /* Metadata and explicitly synchronous data must precede the parent. */
+            if (!async && (j < 3 || (flags & B_SYNC))) {
+                error = bwrite(nbp);
+                if (error) {
+                    brelse(bp);
+                    goto write_failed;
+                }
+            } else
                 bdwrite(nbp);
             bap = (daddr_t*) bp->b_addr;
             bap[i] = nb;
@@ -149,4 +149,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     }
     rablock = ra;
     return(nb);
+
+write_failed:
+    /* No pointer owns this allocation until its initialization succeeds. */
+    free(ip, nb);
+    u.u_error = error;
+    return((daddr_t)-1);
 }

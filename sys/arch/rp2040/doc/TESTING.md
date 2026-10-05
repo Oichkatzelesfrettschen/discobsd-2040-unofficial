@@ -1016,7 +1016,14 @@ research/ names them).
 host I/O stubs. It checks the slew/step boundary, backward-step normalization,
 step overflow refusal, process-group input bounds, wide supplementary GIDs,
 sentinel rejection without partial updates, explicit IO_SYNC on async mounts,
-data/flush/inode-update failures and counter saturation. Six source mutations
+data/flush/inode-update failures and counter saturation. A production bmap
+fixture injects initialization failures in direct blocks, top-level indirect
+blocks, nested indirect blocks and indirect data blocks. It checks that failed
+allocations are reclaimed before pointer publication, busy parents are released,
+original errors survive cleanup and earlier valid ancestors remain intact.
+The fixture uses NSHIFT for depth boundaries and only index zero; its native
+daddr_t width is not evidence about the target's on-disk encoding.
+Ten source mutations
 must return assertion failure; compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in
@@ -1030,6 +1037,8 @@ runs it through check-host on Linux and macOS.
 `bmake MACHINE=rp2040 check-storage-counters` links PICO and PICO_UART with
 `STORAGE_STATS=no` and `STORAGE_STATS=yes`, checks absence/presence of the
 instrumentation symbols, prints paired ELF sizes and restores the default
-disabled build. Firmware CI runs this cross-build gate on Linux. It neither
+disabled build. The ordered check-cross-kernel tier includes this gate, so both
+the aggregate check and Linux/macOS firmware CI run it without racing other
+kernel inspections. It neither
 flashes a board nor measures a workload; STORAGE.md describes how to interpret
 the read-only counters.

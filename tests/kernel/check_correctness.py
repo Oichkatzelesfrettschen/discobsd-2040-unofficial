@@ -37,11 +37,13 @@ def build(work, suite, changes):
         "-Dprintf=hk_kprintf",
     ]
     objects = []
-    sources = (
-        ["kern_time.c", "sys_inode.c", "ufs_subr.c", "ufs_syscalls2.c"]
-        if suite == "io"
-        else ["kern_prot.c", "kern_prot2.c", "kern_proc.c"]
-    )
+    sources = {
+        "io": ["kern_time.c", "sys_inode.c", "ufs_subr.c", "ufs_syscalls2.c"],
+        "credentials": ["kern_prot.c", "kern_prot2.c", "kern_proc.c"],
+        "bmap": ["ufs_bmap.c"],
+    }[suite]
+    if suite == "bmap":
+        common += ["-Dfree=ufs_free"]
     for name in sources:
         source = ROOT / "sys/kern" / name
         text = source.read_text()
@@ -93,7 +95,10 @@ def build(work, suite, changes):
         ]
     )
     binary = work / "gate"
-    test = TESTS / ("time_io_test.c" if suite == "io" else "cred_test.c")
+    test = (
+        TESTS
+        / {"io": "time_io_test.c", "credentials": "cred_test.c", "bmap": "bmap_write_test.c"}[suite]
+    )
     run(
         CC
         + common
@@ -109,6 +114,36 @@ def main():
     cases = [
         ("baseline-io", "io", {}, False),
         ("baseline-credentials", "credentials", {}, False),
+        ("baseline-bmap", "bmap", {}, False),
+        (
+            "discard-direct-init-error",
+            "bmap",
+            {
+                "ufs_bmap.c": (
+                    "error = bwrite(bp);\n                if (error)",
+                    "error = bwrite(bp);\n                if (0)",
+                )
+            },
+            True,
+        ),
+        (
+            "discard-root-init-error",
+            "bmap",
+            {
+                "ufs_bmap.c": (
+                    "error = bwrite(bp);\n            if (error)",
+                    "error = bwrite(bp);\n            if (0)",
+                )
+            },
+            True,
+        ),
+        (
+            "discard-child-init-error",
+            "bmap",
+            {"ufs_bmap.c": ("error = bwrite(nbp);", "error = bwrite(nbp); error = 0;")},
+            True,
+        ),
+        ("leak-failed-allocation", "bmap", {"ufs_bmap.c": ("free(ip, nb);", "(void)ip;")}, True),
         (
             "clock-positive-lower-bound",
             "io",

@@ -170,19 +170,22 @@ source, resolves.
 ## 4. Language profiles: C17 is not one global switch
 
 The shared ARM userland command selects `-std=gnu17 -fno-common`, but leaf
-Makefiles can select older dialects later on the command line. `bin/sh` adds
-`-ansi`, and `usr.bin/smallc` adds `-std=gnu89`. The warning policy also has
+Makefiles can select older dialects later on the command line: `bin/sh` and
+`games/atc` add `-ansi`, and the archived
+`legacy/non-arm/mips-pic32/usr.bin/smallc` adds `-std=gnu89` outside the ARM
+build. The warning policy also has
 full and legacy profiles. Describe the tree by evaluated compilation command,
 not by the first standard flag found in a shared Makefile.
 
-Use four adoption profiles:
+Use these migration profiles:
 
 | Profile | Rule | Admission evidence |
 | --- | --- | --- |
 | RP2040 kernel and port | GNU17, freestanding, no builtin assumptions, target ABI and localized assembly/MMIO | Exact kernel compile, link map, linker assertions and relevant host model |
 | Modernized cross userland | Production GNU17 plus strict C17 for portable mechanisms, full prototypes and full warning profile | Host behavior gate, exact Cortex-M0+ compile and final a.out inspection |
-| Historical cross userland | Retain the existing dialect until one bounded component is repaired and measured | Declared dialect exception, legacy warning count and unchanged behavior gate |
-| Native Smaller C | Use only the measured Smaller C language, assembler and libc subset | Native compiler suite, qemu-arm oracle and board run when native support is claimed |
+| Historical cross userland | An older dialect is a migration finding, not a permanent target. Bring each maintainable translation unit to GNU17 and then strict C17 where the source is portable. | The migration record names the old flag, the repaired unit, the new full-warning result and the target behavior gate. |
+| Native Smaller C implementation | Bring the compiler implementation and its host/target support code to C17. Preserve the separate language subset accepted by the on-device compiler until a deliberate language change has its own compatibility record. | Host C17 build, exact target build, the existing Smaller C suite, qemu-arm and a board run when native support is claimed. |
+| Quarantined SIMH/V6/PDP sources | Keep the guest and licensed historical source byte-stable. The surrounding emulator, adapters and tests remain C17 targets when their license and interface allow it. | A quarantine manifest, provenance record and a separate C17 build of every maintained surrounding unit. |
 
 Host compilation is an evidence layer, not a fifth production profile. A host
 sanitizer pass cannot establish ARM ABI layout, Thumb-1 code generation,
@@ -224,6 +227,204 @@ before any presentation change; a host gate calibrated against the source it
 replaced; and a footprint account naming the writable table and the dependency
 closure it removed. `docs/research/211bsd-patch-scope.md` records its numbers.
 
+## 4A. The C17 contract and the repository's C17isms
+
+"C17ism" is a repository term, not a term from WG14. It names a C idiom whose
+meaning is explicit in the C17 language or library contract and whose proof can
+be kept local in a constrained build. The term includes useful C99 and C11
+facilities inherited by C17; it does not imply that C17 introduced each one.
+The beauty is mechanical: a declaration carries its type, an assertion carries
+an invariant, an initializer carries ownership of every field, and a generic
+selection disappears at translation instead of growing a runtime dispatch
+table. Each proposed use still owes an RP2040 size, alignment, ABI and toolchain
+check.
+
+The governing standard is ISO/IEC 9899:2018. WG14 draft N2310
+(`https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2310.pdf`, SHA-256
+`6a01dfbfd271a2b6682e48a13a68cf4b599beb3b7e39512bc74989d0b5991029`) records
+the C17 text used for this review. C17 is principally a technical-correction
+release over C11, not a new language generation. `__STDC_VERSION__` is
+`201710L`. C17 says what a conforming implementation and a strictly conforming
+program mean; it does not provide POSIX system calls, GNU attributes, linker
+sections, RP2040 MMIO rules or this tree's a.out ABI. A freestanding
+implementation supplies the standard's freestanding subset; the rest of this
+tree's libc is a project interface and must be documented as such.
+
+### C17isms worth carrying into constrained C
+
+| Construct or idiom | Standard origin | Why it is valuable here | Cost or boundary that must be checked |
+| --- | --- | --- | --- |
+| `__STDC_VERSION__`, `__STDC_HOSTED__` and `__STDC_NO_*` feature macros | C11/C17 | Makes the selected language and optional atomics, threads or VLA support visible to the preprocessor instead of relying on a compiler brand. | A macro describes the implementation profile, not the behavior of a project wrapper. Record the evaluated command and reject an unsupported feature at the correct boundary. |
+| Full prototypes and `f(void)` | C90/C17 constraint | Removes argument-count and default-promotion ambiguity, catches the implicit declarations that hide ABI bugs, and makes call graphs analyzable. | Public BSD and kernel signatures stay ABI-identical. A declaration-only repair must be paired with the definition and every caller. |
+| `_Static_assert` or `static_assert` from `<assert.h>` | C11/C17 | Pins offsets, widths, cache geometry, a.out fields, buffer capacities and enum ranges at translation with zero runtime storage. | The assertion names one target invariant. It never proves a runtime bound or a board result. |
+| `_Generic` | C11/C17 | Selects a type-correct helper at translation, so a small byte or register helper need not carry a function-pointer table or variadic ABI. | Keep the association list short and test every supported type. A macro that evaluates an expression more than once is rejected. |
+| `<stdint.h>`, `<inttypes.h>`, `size_t`, `ptrdiff_t`, `SIZE_MAX` | C99/C17 | Makes wire fields, registers, object extents and conversion boundaries explicit. | Exact-width types describe representation, not arithmetic safety. Widen before multiply or shift and preserve established ABI types. |
+| Designated initializers and compound literals | C99/C17 | Makes sparse register maps, syscall tables and test fixtures self-describing and avoids positional drift when fields are added. | Designators do not make a structure a wire format. Check padding, alignment and final emitted data. |
+| `restrict` | C99/C17 | Tells the optimizer about a real non-aliasing buffer contract without adding a runtime mechanism. | A false promise is undefined behavior. Use only after callers, interrupts and callbacks prove the lifetime and alias boundary. |
+| `inline` and `static inline` | C99/C17 | Keeps tiny endian, bounds and register helpers type-checked in the caller's translation unit. | `inline` is a request, not a size or timing guarantee. Compare the complete link closure and retain an out-of-line form where ABI or address-taking requires it. |
+| `bool`, `true`, `false` and explicit predicates | C99/C17 | Separates a Boolean decision from an integer or bit mask and makes error branches readable. | Do not widen packed flags or register fields merely for style. Use the representation required by the ABI or storage budget. |
+| Mixed declarations and statements, `for (size_t i = 0; ...)` | C99/C17 | Keeps a short-lived index or cursor beside its first use and reduces accidental lifetime. | A declaration still needs a meaningful name. Do not hide a resource acquisition in a loop initializer. |
+| `_Alignas`, `_Alignof` and `max_align_t` | C11/C17 | States DMA, flash-buffer, stack-frame and serialized-area alignment as a checked property instead of a folklore number. | Alignment can increase padding and SRAM use. Measure the containing object and the linker placement. |
+| `_Noreturn` and `<stdnoreturn.h>` | C11/C17 | Lets the compiler and reviewer distinguish panic, exit and fault paths from ordinary functions. | The implementation must really not return. A diagnostic routine that can recover cannot carry the annotation. |
+| `_Thread_local` | C11/C17 | Gives a precise storage duration when a hosted thread model exists. | The RP2040 kernel's process and interrupt model does not automatically provide C threads. Do not add TLS storage to save a lock without an execution-context proof. |
+| `_Atomic` and `<stdatomic.h>` | C11/C17, optional in freestanding implementations | Expresses inter-core or producer/consumer ordering when the target and runtime provide it. | Check `__STDC_NO_ATOMICS__`, generated helpers, interrupt latency and DMA visibility. `volatile` is not a substitute for atomicity or a memory barrier. |
+| `//` comments, variadic macros and `_Pragma` | C99/C17 | Supports compact local diagnostics and controlled build annotations while retaining preprocessing semantics. | Comments do not change emitted code; variadic macros must preserve evaluation count; `_Pragma` stays behind a named project macro. |
+
+The term therefore describes a design discipline, not a license to use every
+feature. Variable-length arrays, unbounded recursion, hidden allocation,
+function-like macros with side effects, implicit conversions and implementation
+extensions remain findings even when a compiler accepts them. C17 does not
+make undefined behavior, unspecified order, signed overflow, invalid shifts,
+out-of-range conversions or lifetime violations safe.
+
+### Additive migration rule
+
+The project target is C17 for every maintainable project-owned C translation
+unit. K&R, C89/C90, C99 and C11 syntax are migration findings, not permanent
+profiles. The following boundaries are narrow and explicit:
+
+1. SIMH/V6/PDP-11 guest sources, licensed historical source and their binary
+   images stay quarantined and byte-stable. Their maintained emulator, adapters,
+   host harnesses and documentation remain C17 targets when their license and
+   interface permit it.
+2. Assembly, generated files and immutable third-party files keep their source
+   language or upstream bytes. A manifest records each boundary, and a C17
+   wrapper or adapter owns any project logic around it. Exclusion from a
+   formatter is not a conformance claim.
+3. The `usr.bin/smlrc` implementation is a C17 migration target. The C subset
+   accepted by the native compiler is a separate compatibility contract and
+   changes only with its own tests and board evidence.
+4. A temporary old `-std` flag names the file set and the blocker. It cannot
+   be used to hide warnings, and it carries an owner, a migration unit and a
+   removal gate in the modernization ledger.
+
+Every non-quarantined source therefore passes through this sequence:
+
+1. Inventory the evaluated command, language flag, includes, generated inputs,
+   external symbols and current warning set.
+2. Convert K&R definitions, implicit declarations, tentative header
+   definitions, unbounded conversions and undefined behavior before changing
+   layout. Preserve public names and ABI types.
+3. Select C17 constructs that encode the actual invariant: a static assertion,
+   designated initializer, exact-width type, explicit ownership or bounded
+   cursor. Do not add a construct only to make a formatter quiet.
+4. Build the unit as GNU17 in its production command and as strict C17 for the
+   portable subset. Run the host behavior and malformed-input gates, the exact
+   Cortex-M0+ build, the ELF-to-a.out check and the relevant footprint account.
+5. Remove the old dialect override only after all consumers and generated
+   headers accept the new contract. The migration record states what remains
+   unavailable and why.
+
+### Legacy findings and their C17 repair
+
+| Finding | Required repair | Gate that decides the repair |
+| --- | --- | --- |
+| K&R definition or declaration | Write a full prototype and a typed definition; keep parameter conversions visible. | `-Wold-style-definition -Wstrict-prototypes -Wmissing-prototypes -Werror` on the unit and its callers. |
+| Implicit function or integer declaration | Include the owning interface or add a project-owned prototype at the correct boundary. | `-Wimplicit-function-declaration -Wimplicit-int -Werror`, then a clean target link. |
+| C89-era tentative definition in a header | Move storage to one C file and expose `extern`; use `-fno-common` as a diagnostic, not a workaround. | Duplicate-definition link test and the target image map. |
+| C99/C11 construct with an unbounded resource consequence | Keep the useful syntax but replace the VLA, hidden allocation or unbounded recursion with a measured bound. | Host boundary tests, stack/heap account and target footprint. |
+| Pre-C17 integer or pointer conversion | Validate the source domain, widen before arithmetic, and narrow once at a checked boundary. | UBSan or equivalent host run plus signed/unsigned boundary fixtures and target warnings. |
+| Old dialect selected only by a leaf Makefile | Remove the override after the source and every generated consumer are C17-clean. | Reproducible `bmake` command capture and a no-override compile database entry. |
+
+## 4B. Standards layers: C17, GNU17, POSIX, BSD and Smaller C
+
+The repository uses several standards layers at one time. A claim names the
+layer it covers; "C17 compliant" never means "SUSv4 compliant".
+
+| Layer | Defines | Does not define | Repository evidence |
+| --- | --- | --- | --- |
+| ISO C17 | Translation, types, expressions, object lifetime, implementation-defined/unspecified/undefined behavior, the standard library subset and conformance categories. | System calls, pathnames, terminals, process scheduling, linker scripts, MMIO, a.out, GNU attributes or board reset behavior. | `-std=c17`, `__STDC_VERSION__`, compiler diagnostics, host tests and the relevant freestanding/hosted boundary. |
+| GNU17 | ISO C17 plus the compiler's documented GNU extensions, target builtins and ABI conventions selected by the evaluated command. | A portable C17 guarantee; POSIX utility behavior; another compiler's extension spelling. | Exact `arm-none-eabi-gcc` or host command, `-std=gnu17`, target flags, object inspection and link map. |
+| POSIX.1-2017 / SUSv4 Issue 7 | Interfaces, utilities, shell rules, option syntax, errors, limits, feature-test macros and conformance classes. The canonical publication is `https://pubs.opengroup.org/onlinepubs/9699919799/`. | C formatting, naming, indentation or a particular compiler. POSIX can constrain an ISO C choice but cannot replace the C contract. | Interface-specific tests, `errno`/signal/terminal behavior, utility ledgers and exact feature-test macros. |
+| BSD/2.11 ABI | Existing syscall numbers, structure layouts, signals, a.out loader rules, libc names and historical behavior that consumers depend on. | A promise that every BSD implementation or POSIX profile has the same layout. | Public headers, kernel ABI tests, final a.out headers, loader tests and retained compatibility cases. |
+| RP2040 project policy | Cortex-M0+/Thumb-1 code generation, 144 KiB process window, flash/XIP transitions, MPU map, USB/UART ownership, swap and multicall lifetime. | ISO or POSIX conformance by itself. | Linker assertions, `unix.map`, `machdep.mpu`, host/cross/qemu/Renode/board gates and storage/stack accounts. |
+| Native Smaller C language | The measured parser, preprocessor, type, assembler and libc subset accepted by the on-device toolchain. | C17 syntax or semantics that the compiler has not implemented. | `usr.bin/smlrc/tests`, qemu-arm differential tests, the native build and board evidence. |
+
+The comparison changes the migration order. C17 repairs declarations and
+object semantics first; POSIX repairs interface behavior next; BSD preserves
+the ABI at the boundary; the RP2040 gates decide whether the representation
+fits; and Smaller C is checked only where the native compiler is the claimed
+producer or consumer. A formatter cannot settle any of those questions.
+
+### What transfers from XINIM
+
+The sibling XINIM reference checkout supplies useful process patterns, not a
+language mandate. Its explicit `.clang-format`, `.clang-tidy`, compile-database workflow,
+pinned SUSv4 archive, finite source ledgers and mutation tests transfer well.
+Its warnings-as-errors and exact-platform evidence model also matches this
+tree. Its C++23 ownership rules, namespaces, RAII, `std::expected`, `std::span`,
+`#pragma once` preference and global C-to-C++ migration do not transfer to a
+C17 BSD kernel/userland. The repository adopts the process ideas while keeping
+C headers, BSD include guards, a.out ABI and the measured native compiler
+boundary.
+
+## 4C. Multidimensional decomposition and exact change surface
+
+The migration is reviewed across dimensions because a source-only C17 rewrite
+can improve one dimension while breaking another. The current calibration used
+`rg`/`git grep` for ownership and dialect flags, `bear` for evaluated compile
+commands, `clang-format` 22.1.8 for layout diffs, `clang-tidy` 22.1.8,
+`cppcheck` 2.21.1, `sparse` 0.6.5-rc1, `lizard` 1.24.0 and the repository's
+native `bmake` gates. The broad clang-tidy probe produced 196 diagnostics and
+reserved-identifier errors from BSD/project headers; that result rejects a
+global check set, not the value of targeted analysis.
+
+| Dimension | Decomposition question | C17 rewrite decision | Proof and residual |
+| --- | --- | --- | --- |
+| Syntax and declarations | Which files use K&R definitions, implicit declarations, tentative header storage, dialect overrides or non-prototype callbacks? | Convert one leaf or member family at a time. Keep public names and calling convention; make every declaration complete. | Compiler warnings-as-errors and a compile-database record. Generated and quarantined sources remain named residuals. |
+| Types and representation | Which values are wire fields, MMIO widths, object extents, signed counters or ABI fields? | Use exact-width types only for representation, `size_t` for extents, checked conversions and `_Static_assert` for target layout. | Host boundary fixtures, `sizeof`/`offsetof` assertions, target `readelf`/`nm` and the loader gate. |
+| Lifetime and storage | Which bytes are static, simultaneous automatic, heap, scratch, overlay or flash-resident? | Replace VLA and input-sized scratch with bounded cursors, pools or streaming; retain multicall exclusivity and flash-wear limits. | Stack/heap peak, `a_text/a_data/a_bss`, overlay and packed-root measurements. |
+| Interfaces and errors | What does each function consume, produce, own, preserve on failure and return in `errno`? | Keep POSIX/BSD signatures; document capacity and partial-write behavior; use `bool` only where ABI permits. | Positive, boundary, malformed and known-bad cases; interface-specific POSIX ledger. |
+| Hardware and concurrency | Does a source touch MMIO, DMA, IRQ state, USB buffers, flash or atomics? | Keep access width and ordering explicit; use C17 atomics only after target helper and interrupt-latency proof; never use `volatile` as a lock. | Register read-back, Renode/board evidence and a named owner for each buffer/channel. |
+| Optimization and linkage | Does a tidy rewrite add a helper, table, alignment, libgcc routine or dependency closure? | Prefer readable code that removes resident data or unsafe staging. Treat `inline`, LTO, section GC and `restrict` as measured experiments. | Complete ELF/a.out closure, link map, target disassembly and flash/SRAM/wear accounts. |
+| Standards and provenance | Is the source project-owned, imported, generated, SIMH/V6, or a native compiler implementation? | Apply C17 to maintainable project code; quarantine only the named historical/license boundary; preserve provenance beside adapters. | Quarantine manifest, license audit, source SHA and separate language/ABI claim. |
+| Tooling and evidence | Can a tool understand the real target headers, defines, generated files and assembler output? | Generate metadata from the real `bmake` command; scope each analyzer to a source class and calibrate a rejecting fixture. | `compile_commands.json`, tool versions, known-good/known-bad runs and retained diagnostics. |
+
+The exact change surface is therefore additive: every old dialect occurrence is
+flagged, assigned to a migration unit or a named quarantine row, and rechecked
+after each repair. No existing C file is declared permanently exempt merely
+because its current Makefile still selects `gnu89`, `-ansi` or C99.
+
+## 4D. Smaller systems and constrained-C evidence
+
+The RP2040 has 264 KiB SRAM, 2 MiB QSPI flash and a 144 KiB user window. Smaller
+systems prove that C-like languages can be made useful below this envelope,
+but they do not prove C17 conformance or an RP2040 fit. The local surveys keep
+measured, documented, inferred and unknown values separate.
+
+| System or paper | Smaller boundary | Transferable lesson | What it does not prove |
+| --- | --- | --- | --- |
+| Ron Cain, *A Small C Compiler for the 8080s*, Dr. Dobb's Journal 45 (1980), with the public-domain Small-C lineage (`https://www.drdobbs.com/web-development/porting-small-c/184405595`) | 8080/Z80-era machines with tens of KiB and deliberately reduced C. | Keep the parser, symbol table and code generator bounded; remove language features by contract instead of pretending the implementation is full C. | It is not C17, and historical source is not automatically suitable for this tree's license or ABI. |
+| cc65 (`https://cc65.github.io/doc/`, zlib) | 6502 systems with kilobyte-scale RAM and a very small register set. | A stack/accumulator-oriented backend and explicit calling convention can make a useful C subset fit a tiny machine. | Its 6502 code generator and library are not a Thumb-1 backend or a C17 proof. |
+| Smaller C / RetroBSD MIPS (`docs/research/ondevice-c-compilers.md`) | A reported 96 KiB-class no-MMU process on PIC32/MIPS; the local record labels the exact binary/RAM figure as requiring primary-source remeasurement. | Keep front-end state small and make the target backend an isolated module. | MIPS register and instruction behavior do not establish Cortex-M0+ output or current RP2040 size. |
+| pshell (`https://github.com/lurk101/pshell`, covered locally) | A native C compiler and shell running on Cortex-M0+/RP2040-class hardware; the captured 461.5 KiB heap example is Pico2/RP2350, not an RP2040 measurement. | Thumb-1 code generation on an embedded device is practical; measure the exact board rather than infer it from a larger sibling. | Its GPL license, C subset and unverified RP2040 peak memory prevent direct source import. |
+| Mecrisp-Stellaris (`https://mecrisp.sourceforge.net/`) | Reported under 20 KiB flash and 4 KiB RAM for a Forth core on Cortex-M targets. | Keep the resident interpreter, dictionary and scratch state explicit; a tiny runtime can trade language breadth for predictable storage. | Forth is not C17, and a bare-metal firmware footprint is not a DiscoBSD process footprint. |
+| picoc and other reduced C interpreters (`docs/research/ondevice-c-compilers.md`) | Embedded interpreters can be a few KiB of code but may reserve a large default stack or arena. | Treat peak arena/stack and parser lifetime as first-class accounts. | A small binary does not establish a small peak process or a POSIX interface. |
+
+The practical conclusion is not to copy a smaller language. It is to bring the
+project's maintainable C to C17 while borrowing the smaller systems' discipline:
+bounded parser state, explicit storage ownership, a narrow target backend,
+measured peak memory and a license boundary that survives redistribution.
+
+### Related standards and papers
+
+These sources inform review questions but do not replace ISO C17, SUSv4, the
+RP2040 datasheet or the repository's measured gates:
+
+| Source | Use here | Boundary |
+| --- | --- | --- |
+| WG14 N2310, *Programming languages -- C*, `https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2310.pdf` | Primary C17 draft, terminology for freestanding/hosted implementations and undefined, unspecified and implementation-defined behavior. | The reviewed download has a recorded SHA-256; the published ISO text settles a standards dispute. |
+| The Open Group SUSv4 Issue 7, `https://pubs.opengroup.org/onlinepubs/9699919799/` | POSIX interface, utility, error, limit and feature-test requirements. | It defines behavior at an interface boundary, not C indentation or a project formatter. |
+| SEI CERT C Coding Standard, `https://wiki.sei.cmu.edu/confluence/display/c/SEI+CERT+C+Coding+Standard` | Adversarial questions about integer conversions, bounds, strings, preprocessing and concurrency. | CERT rules are guidance and often require a project-specific exception for BSD ABI or MMIO. |
+| MISRA C, `https://misra.org.uk/misra-c/` | A safety-oriented source of review categories for constrained C. | MISRA is not the repository's license, ABI or conformance standard; use only rules that fit the kernel and record deviations. |
+| Barr Group, *Embedded C Coding Standard*, `https://barrgroup.com/embedded-systems/books/embedded-c-coding-standard` | Embedded naming, integer-width, volatile and review heuristics. | Heuristics do not prove an RP2040 register side effect or a flash-wear bound. |
+| XINIM standards and tooling in the sibling reference checkout | Compile-database discipline, finite ledgers, mutation tests, explicit QEMU/POSIX claims and warnings-as-errors. | XINIM's C++23 ownership model and global C-to-C++ migration do not apply to this C17 BSD tree. |
+
+The SUSv4-2018 archive used for comparison has SHA-256
+`ab6636bca53c7d71d33d2c5149ede574d598fe6ec97fa8b08e0459ef7bcfc104`. The
+archive and the online publication are reference inputs; neither makes a
+partial utility ledger a claim of full POSIX conformance.
+
 ## 5. Formatting and naming rules
 
 These rules govern new files and lines deliberately modernized under a bounded
@@ -262,7 +463,8 @@ A formatter reduces disagreement about layout; it does not prove correctness
 or enforce ownership. Pin its version, adopt an explicit file allowlist, and
 run read-only checks in CI. Validate the proposed formatter against the port's
 model files before adoption, and retain a reviewed output diff as calibration.
-No formatter configuration accompanies this document.
+The companion `docs/research/c17-formatting-linting.md` records the candidate
+configuration and staged setup; no formatter configuration is checked in yet.
 
 ## 6. Comments and interface contracts
 
@@ -498,8 +700,11 @@ review. Adoption so far:
 - `sys/arch/rp2040/doc/TESTING.md` and the root Makefile carry
   `check-libc-scanf`, the gate section 11 names.
 
-Rules in sections 5, 7, 8, 9 and 11 remain proposals until a change adopts
-one and records the evidence it demanded. When the project adopts a rule:
+The C17 migration and tooling rules in sections 4A-4D, 5, 7, 8, 9 and 11
+remain proposals until a change adopts one and records the evidence it
+demanded. The companion formatter/linter guide stages that adoption rather
+than claiming that the root CI already enforces it. When the project adopts a
+rule:
 
 - Put concise source and comment rules in `AGENTS.md`.
 - Put a shipped mechanism's authoritative explanation under
@@ -529,6 +734,7 @@ silently relabel older measurements as current.
 | Weak-symbol float opt-in | `share/mk/sys.mk`, `lib/libc/stdio/doprnt.c`, `lib/libc/stdio/doscan.c` |
 | Native Smaller C boundary | `usr.bin/smlrc/README.rp2040.md` and `usr.bin/smlrc/tests` |
 | Constrained-C investigations | `docs/research/constrained-c.md` and `docs/research/smlrc-rp2040-tuning.md` |
+| C17 formatter and linter setup | `docs/research/c17-formatting-linting.md` |
 | C17 and footprint case studies | `docs/research/netbsd-11-micro-backports.md` |
 | 2.11BSD divergence and patch scope | `docs/research/211bsd-patch-scope.md` |
 | Multicall lifetime proof | `sys/arch/rp2040/doc/MULTICALL-BSS-OVERLAY.md` |

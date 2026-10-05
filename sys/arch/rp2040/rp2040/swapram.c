@@ -24,8 +24,8 @@
  * swapin can, and the pool is closed to new images for their duration.
  */
 
-#include <sys/storage_stats.h>
 #include <sys/param.h>
+#include <sys/storage_stats.h>
 #include <sys/systm.h>
 #include <sys/user.h>
 #include <sys/proc.h>

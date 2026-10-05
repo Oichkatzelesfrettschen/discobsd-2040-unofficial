@@ -55,6 +55,10 @@ def build(work, suite, changes):
         extra = ["-ffunction-sections", "-fdata-sections"]
         if name == "kern_time.c":
             extra += ["-Dgettimeofday=gate_gettimeofday", "-Dsettimeofday=gate_settimeofday"]
+            if name in changes:
+                # Clang diagnoses the historical wrong-sign bound before the
+                # runtime oracle can reject it. Only this mutant needs the waiver.
+                extra += ["-Wno-tautological-overlap-compare"]
         elif name == "sys_inode.c":
             # Host off_t is wider than the target's unsigned-size expression.
             extra += ["-Wno-sign-compare", "-Dvhangup=gate_vhangup"]

@@ -1020,7 +1020,10 @@ data/flush/inode-update failures and counter saturation. Six source mutations
 must return assertion failure; compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in
-unrelated mount helpers discarded by the linker. It establishes
+unrelated mount helpers discarded by the linker. Only the known-bad clock
+mutant waives Clang's tautological-overlap diagnostic so the runtime oracle
+can reject the historical wrong-sign bound; baseline compilation keeps that
+diagnostic enabled. It establishes
 control flow, not flash persistence or a hardware timing bound. Firmware CI
 runs it through check-host on Linux and macOS.
 

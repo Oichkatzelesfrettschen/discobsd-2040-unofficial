@@ -92,15 +92,18 @@ PARAM+= -DSTORAGE_STATS
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags, and .deps records only the headers
-# an object read, so an option edited in Config and re-emitted by config
-# left every existing object stale. ${PARAMSTAMP} holds the PARAM text and
-# is rewritten at parse time only when that text differs, so its mtime
-# moves exactly when an option changes and every object below depends on
-# it. tools/verify_rp2040_swapram_link.sh checks the linked result.
+# PARAM reaches every object as -D flags. Rewrite its stamp only when the
+# text changes, and force that invocation's objects out of date: bmake's
+# timestamp comparison can otherwise miss an option change in the same
+# second as an object compilation. Unchanged options reuse their objects.
 PARAMSTAMP=	.params
-_paramstamp!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || \
-		printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; echo ${PARAMSTAMP}
+_paramchanged!=	if printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null; then \
+		echo no; else printf '%s\n' '${PARAM}' > ${PARAMSTAMP}; echo yes; fi
+.if ${_paramchanged} == "yes"
+.PHONY: ${PARAMSTAMP}
+${PARAMSTAMP}:
+	@:
+.endif
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	errlist.o init_main.o init_sysent.o kern_clock.o kern_descrip.o \

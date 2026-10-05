@@ -336,16 +336,58 @@ def check_kernel(root, make, scratch):
     print("PASS explicit unix.uf2: a failed or absent picotool fails the request")
 
 
+def check_params(root, make, scratch):
+    template = (root / "sys/arch/rp2040/conf/Makefile.rp2040").read_text()
+    start = template.index("PARAMSTAMP=")
+    stamp = template[start:template.index("\n\n", start)]
+
+    def exercise(block, directory):
+        directory.mkdir()
+        (directory / "Makefile").write_text(
+            "all: main.o\nPARAM= ${OPTION}\n" + block
+            + "\nmain.o: ${PARAMSTAMP}\n\t@echo ${PARAM} > main.o\n"
+        )
+        for option in ("no", "yes", "no"):
+            (directory / "main.o").write_text("stale\n")
+            # A newer object also models the equal-second comparison of
+            # older bmake versions without depending on the host clock.
+            ahead = time.time() + 3600
+            os.utime(directory / "main.o", (ahead, ahead))
+            result = run([*make, f"OPTION={option}", "all"], directory, {})
+            expect(result.returncode == 0
+                   and (directory / "main.o").read_text().strip() == option,
+                   f"changed PARAM {option}: stale object reused", result.stdout)
+            before = (directory / "main.o").stat().st_mtime_ns
+            result = run([*make, f"OPTION={option}", "all"], directory, {})
+            expect(result.returncode == 0
+                   and (directory / "main.o").stat().st_mtime_ns == before,
+                   "unchanged PARAM rebuilt an object", result.stdout)
+
+    exercise(stamp, scratch / "control")
+    mutant = stamp.replace(".PHONY: ${PARAMSTAMP}", "# no forced dependency")
+    expect(mutant != stamp, "PARAM calibration did not remove the force", "")
+    try:
+        exercise(mutant, scratch / "mutant")
+    except Failure as error:
+        expect("stale object reused" in str(error),
+               "PARAM mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("PARAM mutant reused stale objects without rejection")
+    print("PASS PARAM changes rebuild newer objects; unchanged options reuse; "
+          "missing force rejected")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--make", default=os.environ.get("MAKE", "bmake"))
-    parser.add_argument("--only", choices=("lib", "kernel"))
+    parser.add_argument("--only", choices=("lib", "kernel", "params"))
     args = parser.parse_args()
     make = shlex.split(args.make)
     root = args.root.resolve()
     failures = 0
-    for name, check in (("lib", check_lib), ("kernel", check_kernel)):
+    for name, check in (("lib", check_lib), ("kernel", check_kernel),
+                        ("params", check_params)):
         if args.only and args.only != name:
             continue
         with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:

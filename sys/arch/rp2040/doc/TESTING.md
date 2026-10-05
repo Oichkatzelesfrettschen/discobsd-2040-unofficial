@@ -1008,3 +1008,25 @@ heap addresses), usr.bin/retroforth/test, usr.bin/zmodem/ptest.sh, and
 distrib/rp2040/tests (accept-div-printf.c under the board's smlrc,
 accept-stdio-exec.c under the cross compiler; board-libc.md in
 research/ names them).
+
+### Clock, compact credentials and synchronous writes
+
+`bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
+`sys_inode.c`, `ufs_subr.c` and the credential sources against deterministic
+host I/O stubs. It checks the slew/step boundary, backward-step normalization,
+step overflow refusal, process-group input bounds, wide supplementary GIDs,
+sentinel rejection without partial updates, explicit IO_SYNC on async mounts,
+data/flush/inode-update failures and counter saturation. Six source mutations
+must return assertion failure; compilation failures and crashes do not count as
+calibration. The host has wider pointers and off_t than ARM ILP32; the gate
+excuses the inherited rwip sign comparison and the pointer/integer casts in
+unrelated mount helpers discarded by the linker. It establishes
+control flow, not flash persistence or a hardware timing bound. Firmware CI
+runs it through check-host on Linux and macOS.
+
+`bmake MACHINE=rp2040 check-storage-counters` links PICO and PICO_UART with
+`STORAGE_STATS=no` and `STORAGE_STATS=yes`, checks absence/presence of the
+instrumentation symbols, prints paired ELF sizes and restores the default
+disabled build. Firmware CI runs this cross-build gate on Linux. It neither
+flashes a board nor measures a workload; STORAGE.md describes how to interpret
+the read-only counters.

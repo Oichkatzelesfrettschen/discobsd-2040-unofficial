@@ -8,6 +8,8 @@
 #include <sys/proc.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
+#include <sys/stdint.h>
+#include <machine/limits.h>
 
 static void
 setthetime (tv)
@@ -121,7 +123,8 @@ adjtime()
     } *uap = (struct a *)u.u_arg;
     struct timeval atv;
     register int s;
-    long adjust;
+    int64_t adjust, seconds;
+    int ticks;
 
     if (!suser())
         return;
@@ -129,16 +132,27 @@ adjtime()
         sizeof (struct timeval));
     if (u.u_error)
         return;
-    adjust = (atv.tv_sec * hz) + (atv.tv_usec / usechz);
-    /* if unstoreable values, just set the clock */
-    if (adjust > 0x7fff || adjust < 0x8000) {
+    adjust = (int64_t)atv.tv_sec * hz + atv.tv_usec / usechz;
+    /* Large tick corrections step the clock; smaller corrections slew. */
+    if (adjust > 0x7fff || adjust < -0x8000) {
         s = splclock();
-        time.tv_sec += atv.tv_sec;
-        lbolt += atv.tv_usec / usechz;
-        while (lbolt >= hz) {
-            lbolt -= hz;
-            ++time.tv_sec;
+        seconds = (int64_t)time.tv_sec + atv.tv_sec;
+        adjust = (int64_t)lbolt + atv.tv_usec / usechz;
+        seconds += adjust / hz;
+        ticks = adjust % hz;
+        if (ticks < 0) {
+            ticks += hz;
+            seconds--;
         }
+        if (seconds < LONG_MIN || seconds > LONG_MAX) {
+            splx(s);
+            u.u_error = EINVAL;
+            return;
+        }
+        time.tv_sec = seconds;
+        lbolt = ticks;
+        time.tv_usec = ticks * usechz;
+        adjdelta = 0;
         splx(s);
         if (!uap->olddelta)
             return;

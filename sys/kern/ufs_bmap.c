@@ -30,7 +30,8 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     struct buf *nbp;
     int j, sh;
     daddr_t nb, *bap, ra;
-    int async = INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC;
+    int async = (INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC) &&
+        (flags & B_SYNC) == 0;
 
     if (bn < 0) {
         u.u_error = EFBIG;

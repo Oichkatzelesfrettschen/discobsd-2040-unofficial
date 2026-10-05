@@ -122,3 +122,63 @@ and the native build chain: /usr/bin/cc driving /usr/libexec/smlrc,
 board `cc -o h h.c` compiles, assembles and links a program with integer
 division and printf, and `./h` runs. picoc is not on the root; the native
 chain replaces it.
+
+## Optional storage counters
+
+Build a diagnostic kernel with `STORAGE_STATS=yes` and read
+`sysctl machdep.storage_stats`. The default is `STORAGE_STATS=no`; the node
+returns EOPNOTSUPP in that build. Rebuild sysctl and adminbox after changing
+cpu.h so their machine node tables match the kernel. The versioned read-only
+snapshot contains cumulative unsigned 32-bit counters since boot, delayed
+buffer occupancy at capture, its peak, and a sticky saturation flag. Take two
+captures around a workload and subtract each field only if neither capture
+is saturated. There is no reset operation. Capture from the same resident
+process where possible: invoking a utility can itself cause swapping.
+
+The logical root and raw-swap request/byte counters count valid requests
+submitted to the driver, including requests that subsequently fail. Map
+writes count Dhara mapping attempts. Checkpoint attempts, successes and
+errors count dhara_map_sync calls, including a successful no-op on an already
+clean map. They are not counts of checkpoint pages written. NOR program
+pages and erase sectors count requested 256-byte page and 4096-byte sector
+equivalents, with requested bytes alongside them; the ROM may use a larger
+erase opcode. Root and swap are counted separately at the NOR boundary,
+including Dhara garbage collection and copy traffic. These are software
+observations, not electrical confirmation of completed operations or wear.
+Instrumentation runs before disabling XIP and never executes from flash
+while the flash interface is unavailable.
+
+Buffer counters distinguish new delayed writes, rewrites of already dirty
+buffers, dirty eviction writes and waits for buffer capacity. Occupancy is
+sampled when a delayed buffer is marked and when the snapshot is read.
+SwapRAM attempts and admissions identify compression-path use separately
+from raw-swap transfers. Admission is counted after reservation succeeds;
+it is not a measurement of compression time or bytes saved.
+
+Use paired captures for a clean idle interval, partial-block overwrites,
+full-block rewrites, sequential and random reads, linker scratch traffic,
+and explicit synchronous writes. Keep buffer configuration, image contents
+and initial free space fixed and report logical requests, map operations,
+checkpoint calls, NOR programs, NOR erases and swap separately. This tree
+uses 1024-byte Dhara pages: one logical 1 KiB write attempts one map write,
+although programming its data can require four physical 256-byte pages.
+Counter instrumentation alone changes no coalescing or read-ahead policy.
+
+Paired GCC 13.2.1 Cortex-M0+ builds measured 488 additional text bytes and
+128 additional data bytes for counters in both PICO and PICO_UART, with
+unchanged BSS. These are linked ELF differences for this implementation,
+not a promise for other toolchains or configurations.
+
+## Synchronous write contract
+
+Explicit IO_SYNC now survives regular-file writes and MNT_ASYNC. The
+indirect-block allocator honors B_SYNC even on an async mount. A successful
+synchronous write waits for its data, then syncs the inode and the matching
+mount's allocation and superblock state using the existing fsync paths.
+Data, inode, buffer flush and latched mount errors propagate to the caller.
+The mount flush can also write unrelated dirty data, so synchronous writes
+may cost more than a targeted per-file flush. This correctness repair does
+not change ordinary full-block bawrite policy, Dhara checkpoint placement,
+raw swap or the periodic update daemon. Host fixtures establish sequencing
+and error handling; power-cut persistence still requires separate hardware
+evidence.

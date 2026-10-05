@@ -24,6 +24,7 @@
  * swapin can, and the pool is closed to new images for their duration.
  */
 
+#include <sys/storage_stats.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/user.h>
@@ -420,6 +421,7 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     unsigned int off, want;
     int dn = 0, sn = 0;
 
+    storage_note(STORAGE_SWAPRAM_ATTEMPTS, 1);
     sr_pool_init_once ();
     if (e->e_live)
         panic ("swapram: image already resident");
@@ -451,6 +453,7 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     e->e_clen[SR_DATA] = dn;
     e->e_clen[SR_STACK] = sn;
     e->e_clen[SR_U] = SR_WORST (ulen);
+    storage_note(STORAGE_SWAPRAM_ADMISSIONS, 1);
     return 1;
 }
 

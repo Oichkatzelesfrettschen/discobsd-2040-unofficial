@@ -13,6 +13,7 @@
 #include <sys/kernel.h>
 #include <sys/systm.h>
 #include <sys/capacity.h>
+#include <machine/limits.h>
 
 #define SQSIZE  16              /* Must be power of 2 */
 
@@ -117,9 +118,8 @@ endtsleep (p)
 /*
  * General sleep call "borrowed" from 4.4BSD - the 'wmesg' parameter was
  * removed due to data space concerns.  Sleeps at most timo/hz seconds
- * 0 means no timeout). NOTE: timeouts in 2.11BSD use a signed int and
- * thus can be at most 32767 'ticks' or about 540 seconds in the US with
- * 60hz power (~650 seconds if 50hz power is being used).
+ * 0 means no timeout). Positive timeouts must fit the signed callout
+ * delta, at most INT_MAX ticks. Larger inputs fail before queue insertion.
  *
  * If 'pri' includes the PCATCH flag signals are checked before and after
  * sleeping otherwise  signals are not checked.   Returns 0 if a wakeup was
@@ -138,6 +138,8 @@ tsleep (ident, priority, timo)
     int s;
     int sig, catch = priority & PCATCH;
 
+    if (timo > INT_MAX)
+        return EINVAL;
     s = splhigh();
     if (panicstr) {
         /*

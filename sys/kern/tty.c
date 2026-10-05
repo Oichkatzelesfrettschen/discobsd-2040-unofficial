@@ -608,7 +608,10 @@ ttioctl(tp, com, data, flag)
      */
     case TIOCSPGRP: {
         struct proc *p;
-        short pgrp = *(int *)data;
+        int pgrp = *(int *)data;
+
+        if (!PGRP_VALID(pgrp))
+            return (EINVAL);
 
         if (u.u_uid && (flag & FREAD) == 0)
             return (EPERM);

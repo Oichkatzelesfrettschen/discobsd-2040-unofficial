@@ -130,6 +130,9 @@ jobs:
           set -o pipefail
           bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build 2>&1 | tee build.log
 
+      - name: Link optional storage counters on both kernels
+        run: bmake MACHINE=rp2040 check-storage-counters
+
       - name: Build the flash image
         run: |
           set -o pipefail

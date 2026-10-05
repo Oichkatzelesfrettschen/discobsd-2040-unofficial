@@ -55,6 +55,10 @@ LDFLAGS+=	--warn-rwx-segments --fatal-warnings
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
 LDADD=		${LIBGCC}
 
+.if ${STORAGE_STATS:Uno} == "yes"
+PARAM+= -DSTORAGE_STATS
+.endif
+
 # compile rules: rules are named COMPILE_${SUFFIX}
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 

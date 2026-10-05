@@ -57,7 +57,8 @@
 #define	CPU_WATCHDOG_REASON	15	/* int: REASON at boot */
 #define	CPU_WATCHDOG_SITE	16	/* int: masked section at the reset */
 #define	CPU_WATCHDOG_ARG	17	/* int: that section's argument */
-#define	CPU_MAXID		18	/* number of valid machdep ids */
+#define CPU_STORAGE_STATS       18      /* struct: optional storage accounting */
+#define	CPU_MAXID		19	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -79,5 +80,6 @@
 	{ "watchdog_reason", CTLTYPE_INT }, \
 	{ "watchdog_site", CTLTYPE_INT }, \
 	{ "watchdog_arg", CTLTYPE_INT }, \
+	{ "storage_stats", CTLTYPE_STRUCT }, \
 }
 #endif	/* !KERNEL */

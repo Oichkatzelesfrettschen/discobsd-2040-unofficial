@@ -522,9 +522,65 @@ change_group(void)
 	HK_CHECK(u.u_groups[0] == REAL_GID);
 }
 
+static void
+compact_boundaries(void)
+{
+    static const int rejected[] = { -1, 32768, 65536, 65553, 2147483647 };
+    static const int accepted[] = { 0, 29999, 30000, 32767 };
+    static int groups[] = { 65535, 65536, 42 };
+    struct pgrp_arg *p;
+    struct gidset_arg *g;
+    unsigned i;
+
+    for (i = 0; i < sizeof(rejected) / sizeof(rejected[0]); i++) {
+        reset(0, REAL_UID);
+        p = (struct pgrp_arg *)u.u_arg;
+        p->pid = SELF_PID;
+        p->pgrp = rejected[i];
+        setpgrp();
+        HK_CHECK(u.u_error == EINVAL);
+        HK_CHECK(proc[0].p_pgrp == SELF_PID);
+    }
+    for (i = 0; i < sizeof(accepted) / sizeof(accepted[0]); i++) {
+        reset(0, REAL_UID);
+        p = (struct pgrp_arg *)u.u_arg;
+        p->pid = 0;
+        p->pgrp = accepted[i];
+        setpgrp();
+        HK_CHECK(u.u_error == 0);
+        HK_CHECK(proc[0].p_pgrp == accepted[i]);
+    }
+    reset(0, REAL_UID);
+    g = (struct gidset_arg *)u.u_arg;
+    g->gidsetsize = 3;
+    g->gidset = groups;
+    setgroups();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(groupmember(65535));
+    HK_CHECK(groupmember(65536));
+    HK_CHECK(groupmember(42));
+    HK_CHECK(u.u_groups[3] == NOGROUP);
+    groups[1] = -1;
+    u.u_error = 0;
+    setgroups();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(u.u_groups[0] == 65535);
+    HK_CHECK(u.u_groups[1] == 65536);
+    HK_CHECK(u.u_groups[2] == 42);
+    groups[1] = 65536;
+    reset(0, REAL_UID);
+    ((struct gid_arg *)u.u_arg)->gid = NOGROUP;
+    setgid();
+    HK_CHECK(u.u_error == EINVAL && u.u_groups[0] == REAL_GID);
+    u.u_error = 0;
+    setegid();
+    HK_CHECK(u.u_error == EINVAL && u.u_groups[0] == REAL_GID);
+}
+
 int
 main(void)
 {
+	compact_boundaries();
 	identity_getters();
 	process_lookup();
 	read_process_group();

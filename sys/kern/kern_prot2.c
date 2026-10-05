@@ -94,6 +94,10 @@ setgid()
     register gid_t gid;
 
     gid = uap->gid;
+    if (gid == NOGROUP) {
+        u.u_error = EINVAL;
+        return;
+    }
     if (gid != u.u_rgid && ! suser())
         return;
 
@@ -112,6 +116,10 @@ setegid()
     register gid_t egid;
 
     egid = uap->egid;
+    if (egid == NOGROUP) {
+        u.u_error = EINVAL;
+        return;
+    }
     if (egid != u.u_rgid && egid != u.u_svgid && ! suser())
         return;
 

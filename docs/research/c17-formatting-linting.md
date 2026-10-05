@@ -124,6 +124,7 @@ AlignConsecutiveDeclarations: None
 AlignEscapedNewlines: Left
 SortIncludes: Never
 ReflowComments: false
+SkipMacroDefinitionBody: true
 AllowShortFunctionsOnASingleLine: Inline
 AllowShortBlocksOnASingleLine: Empty
 ```
@@ -134,7 +135,8 @@ parser option accepted by clang-format and does not change the compiler's C17
 standard. The repository's actual C compiler command remains authoritative.
 
 The candidate intentionally does not sort includes, rewrite comments, or
-normalize macro bodies. Include order carries project-header dependencies, and
+normalize macro bodies; `SkipMacroDefinitionBody: true` keeps each `#define`
+replacement list as written, where LLVM style alone rewrites `a+b` as `a + b`. Include order carries project-header dependencies, and
 comments carry hardware, license and evidence authority. A formatter change
 that moves an include or comment is a semantic review, not whitespace cleanup.
 

@@ -7,6 +7,7 @@
  */
 
 #include <sys/param.h>
+#include <sys/storage_stats.h>
 #include <sys/user.h>
 #include <sys/ioctl.h>
 #include <sys/proc.h>
@@ -173,6 +174,20 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 
 	/* Every sysctl name at this level except mpu is terminal. */
 	switch (name[0]) {
+	case CPU_STORAGE_STATS:
+		if (namelen != 1)
+			return ENOTDIR;
+#ifdef STORAGE_STATS
+		{
+			struct storage_stats stats;
+
+			storage_snapshot(&stats);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &stats,
+			    sizeof stats);
+		}
+#else
+		return EOPNOTSUPP;
+#endif
 	case CPU_MPU:
 		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,
 		    newlen);

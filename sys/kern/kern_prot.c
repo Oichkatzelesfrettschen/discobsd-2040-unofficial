@@ -101,6 +101,10 @@ setpgrp()
         int pgrp;
     } *uap = (struct a *)u.u_arg;
 
+    if (!PGRP_VALID(uap->pgrp)) {
+        u.u_error = EINVAL;
+        return;
+    }
     if (uap->pid == 0)      /* silly... */
         uap->pid = u.u_procp->p_pid;
     p = pfind(uap->pid);
@@ -124,6 +128,8 @@ setgroups()
         int *gidset;
     } *uap = (struct a *)u.u_arg;
     register gid_t *gp;
+    gid_t groups[NGROUPS];
+    u_int i;
 
     if (!suser())
         return;
@@ -131,10 +137,17 @@ setgroups()
         u.u_error = EINVAL;
         return;
     }
-    u.u_error = copyin((caddr_t)uap->gidset, (caddr_t)u.u_groups,
+    u.u_error = copyin((caddr_t)uap->gidset, (caddr_t)groups,
     uap->gidsetsize * sizeof (u.u_groups[0]));
     if (u.u_error)
         return;
+    for (i = 0; i < uap->gidsetsize; i++) {
+        if (groups[i] == NOGROUP) {
+            u.u_error = EINVAL;
+            return;
+        }
+    }
+    bcopy(groups, u.u_groups, uap->gidsetsize * sizeof(groups[0]));
     for (gp = &u.u_groups[uap->gidsetsize]; gp < &u.u_groups[NGROUPS]; gp++)
         *gp = NOGROUP;
 }

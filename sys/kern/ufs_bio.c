@@ -12,6 +12,7 @@
 #include <sys/dk.h>
 #include <sys/systm.h>
 #include <sys/capacity.h>
+#include <sys/storage_stats.h>
 #include <sys/map.h>
 #include <sys/proc.h>
 
@@ -139,7 +140,10 @@ bdwrite(register struct buf *bp)
         bawrite(bp);
     }
     else {
+        storage_note((bp->b_flags & B_DELWRI) ? STORAGE_DIRTY_REWRITES :
+            STORAGE_DIRTY_TRANSITIONS, 1);
         bp->b_flags |= B_DELWRI | B_DONE;
+        storage_dirty_sample();
         brelse(bp);
     }
 }
@@ -233,6 +237,7 @@ loop:
             break;
     if (dp == bfreelist) {      /* no free blocks */
         capacity_note(CAPACITY_BUFFER, 1);
+        storage_note(STORAGE_BUFFER_WAITS, 1);
         dp->b_flags |= B_WANTED;
         sleep((caddr_t)dp, PRIBIO+1);
         splx(s);
@@ -242,6 +247,7 @@ loop:
     bp = dp->av_forw;
     notavail(bp);
     if (bp->b_flags & B_DELWRI) {
+        storage_note(STORAGE_EVICTION_WRITES, 1);
         bawrite(bp);
         goto loop;
     }

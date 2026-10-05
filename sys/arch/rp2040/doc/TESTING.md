@@ -276,7 +276,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates PICO and PICO_UART Makefiles byte for byte in private trees. The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
-| `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
+| `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. The PARAM-stamp fixture also forces no/yes/no option changes against a newer object, checks unchanged-option reuse, and rejects a mutant without the forced dependency. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
 | `check-analysis` | The 2.11BSD mapper pins donor and recipient commits, retains relocated and absent paths, preserves NUL-delimited filename bytes, inventories merge parents, and distinguishes Git failure from absent entries. Calibration shows child-like defective text and parent-like equivalent text remain textual candidates, with semantic dispositions outside the tool. Dirty files and refs advanced after resolution leave the pinned comparison unchanged. The semantic-ledger verifier authenticates the retained tested-integration commit object against the landed tree, reads source and inventory blobs through both identities, derives receipt expectations from those pinned bytes, and checks row membership, dependencies, open next actions and its Markdown projection. The report sanitizer validates the original hosted hash and recognized path forms, then produces a deterministic derivative without hosted absolute paths. The verifier authenticates that derivative and requires the exact 62 pinned variants, each with PASS, owner, width, capability, invocation, executable path and hash, and expected/actual exit; selected ledger receipts join those rows. The retained donor Git objects authenticate selected ancestry, patch-ledger attestations and original source paths without a live donor checkout; they do not independently validate every numbered patch or the recipient semantics. Pinned Makefile recipes bind each executed row's regression source to its executable and inventory run recipe through a target prerequisite or a same-branch recursive submake before execution. They check active helper includes, the final compiler producer, shell-comment boundaries, expanded in-file width flags, the pinned `ILP32=-m32` value and umount's intermediate `gate.o` link. The recipe witness applies to the named immutable Git inputs; a rewritten Makefile needs a new identity, review and execution receipt. These checks establish retained-evidence and ledger integrity rather than semantic truth, bit-identical historical builds or whole-series coverage. |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
@@ -1008,3 +1008,37 @@ heap addresses), usr.bin/retroforth/test, usr.bin/zmodem/ptest.sh, and
 distrib/rp2040/tests (accept-div-printf.c under the board's smlrc,
 accept-stdio-exec.c under the cross compiler; board-libc.md in
 research/ names them).
+
+### Clock, compact credentials and synchronous writes
+
+`bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
+`sys_inode.c`, `ufs_subr.c` and the credential sources against deterministic
+host I/O stubs. It checks the slew/step boundary, backward-step normalization,
+step overflow refusal, process-group input bounds, wide supplementary GIDs,
+sentinel rejection without partial updates, explicit IO_SYNC on async mounts,
+data/flush/inode-update failures and counter saturation. A production bmap
+fixture injects initialization failures in direct blocks, top-level indirect
+blocks, nested indirect blocks and indirect data blocks. It checks that failed
+allocations are reclaimed before pointer publication, busy parents are released,
+original errors survive cleanup and earlier valid ancestors remain intact.
+The fixture uses NSHIFT for depth boundaries and only index zero; its native
+daddr_t width is not evidence about the target's on-disk encoding.
+Ten source mutations
+must return assertion failure; compilation failures and crashes do not count as
+calibration. The host has wider pointers and off_t than ARM ILP32; the gate
+excuses the inherited rwip sign comparison and the pointer/integer casts in
+unrelated mount helpers discarded by the linker. Only the known-bad clock
+mutant waives Clang's tautological-overlap diagnostic so the runtime oracle
+can reject the historical wrong-sign bound; baseline compilation keeps that
+diagnostic enabled. It establishes
+control flow, not flash persistence or a hardware timing bound. Firmware CI
+runs it through check-host on Linux and macOS.
+
+`bmake MACHINE=rp2040 check-storage-counters` links PICO and PICO_UART with
+`STORAGE_STATS=no` and `STORAGE_STATS=yes`, checks absence/presence of the
+instrumentation symbols, prints paired ELF sizes and restores the default
+disabled build. The ordered check-cross-kernel tier includes this gate, so both
+the aggregate check and Linux/macOS firmware CI run it without racing other
+kernel inspections. It neither
+flashes a board nor measures a workload; STORAGE.md describes how to interpret
+the read-only counters.

@@ -50,6 +50,7 @@
 #include <sys/systm.h>
 #include <sys/buf.h>
 #include <sys/errno.h>
+#include <sys/storage_stats.h>
 #include <sys/conf.h>
 #include <sys/dk.h>
 #include <sys/disk.h>
@@ -60,6 +61,47 @@
 #include <rp2040/dev/flash.h>
 #include <rp2040/dev/flash_swap.h>
 #include <rp2040/dhara/map.h>
+
+#ifdef STORAGE_STATS
+static struct storage_stats flstats = {
+    .version = STORAGE_STATS_VERSION,
+    .size = sizeof(struct storage_stats)
+};
+
+void
+storage_note(enum storage_metric metric, uint32_t amount)
+{
+    int s = splhigh();
+
+    storage_stats_add(&flstats, metric, amount);
+    splx(s);
+}
+
+void
+storage_dirty_sample(void)
+{
+    unsigned i, count = 0;
+    int s = splhigh();
+
+    for (i = 0; i < NBUF; i++)
+        if (buf[i].b_flags & B_DELWRI)
+            count++;
+    flstats.dirty_current = count;
+    if (count > flstats.dirty_peak)
+        flstats.dirty_peak = count;
+    splx(s);
+}
+
+void
+storage_snapshot(struct storage_stats *stats)
+{
+    int s = splhigh();
+
+    storage_dirty_sample();
+    *stats = flstats;
+    splx(s);
+}
+#endif
 
 /*
  * Bootrom entry points. The RP2040 boot ROM publishes a function table whose
@@ -251,6 +293,11 @@ flash_erase(u_int offset, u_int len)
 	int s;
 
 	s = splhigh();
+	storage_note(offset >= FLASH_SWAP_OFFSET ?
+	    STORAGE_SWAP_ERASE_SECTORS : STORAGE_ROOT_ERASE_SECTORS,
+	    len / FLASH_SECTOR_BYTES);
+	storage_note(offset >= FLASH_SWAP_OFFSET ?
+	    STORAGE_SWAP_ERASE_BYTES : STORAGE_ROOT_ERASE_BYTES, len);
 	watchdog_site(WD_SITE_FLASH_ERASE, offset);
 	flrom.connect();
 	flrom.exit_xip();
@@ -272,6 +319,11 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	int s;
 
 	s = splhigh();
+	storage_note(offset >= FLASH_SWAP_OFFSET ?
+	    STORAGE_SWAP_PROGRAM_PAGES : STORAGE_ROOT_PROGRAM_PAGES,
+	    len / FLASH_PROG_BYTES);
+	storage_note(offset >= FLASH_SWAP_OFFSET ?
+	    STORAGE_SWAP_PROGRAM_BYTES : STORAGE_ROOT_PROGRAM_BYTES, len);
 	watchdog_site(WD_SITE_FLASH_PROGRAM, offset);
 	flrom.connect();
 	flrom.exit_xip();
@@ -450,8 +502,14 @@ fl_sync(void)
 {
 	dhara_error_t err = DHARA_E_NONE;
 
-	if (flmap_ready && dhara_map_sync(&flmap, &err) < 0)
+	if (!flmap_ready)
+		return 0;
+	storage_note(STORAGE_CHECKPOINT_ATTEMPTS, 1);
+	if (dhara_map_sync(&flmap, &err) < 0) {
+		storage_note(STORAGE_CHECKPOINT_ERRORS, 1);
 		return EIO;
+	}
+	storage_note(STORAGE_CHECKPOINT_SUCCESSES, 1);
 	return 0;
 }
 
@@ -679,6 +737,10 @@ flstrategy(struct buf *bp)
 	 * the top of the user window, and the kernel's data starts there.
 	 */
 	if (unit == FL_UNIT_SWAP) {
+		storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READS :
+		    STORAGE_SWAP_WRITES, 1);
+		storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READ_BYTES :
+		    STORAGE_SWAP_WRITE_BYTES, bp->b_bcount);
 		fail = fl_raw(bp, (u_int)offset * DEV_BSIZE, bp->b_bcount);
 		goto done;
 	}
@@ -688,6 +750,10 @@ flstrategy(struct buf *bp)
 		fail = 1;
 		goto done;
 	}
+	storage_note((bp->b_flags & B_READ) ? STORAGE_ROOT_READS :
+	    STORAGE_ROOT_WRITES, 1);
+	storage_note((bp->b_flags & B_READ) ? STORAGE_ROOT_READ_BYTES :
+	    STORAGE_ROOT_WRITE_BYTES, bp->b_bcount);
 	nsect = bp->b_bcount / FLASH_UNIT_BYTES;
 	addr = (u_char *)bp->b_addr;
 
@@ -699,6 +765,7 @@ flstrategy(struct buf *bp)
 			    addr + i * FLASH_UNIT_BYTES, &err) < 0)
 				fail = 1;
 		} else {
+			storage_note(STORAGE_MAP_WRITES, 1);
 			if (dhara_map_write(&flmap, sector + i,
 			    addr + i * FLASH_UNIT_BYTES, &err) < 0)
 				fail = 1;

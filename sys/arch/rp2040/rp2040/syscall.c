@@ -200,7 +200,7 @@ syscall(struct trapframe *frame)
 		u.u_ssize = u.u_procp->p_ssize;
 	}
 
-	code = *(int *)u.u_code & 0377;		/* Bottom 8 bits are index. */
+	code = *(const unsigned char *)u.u_code;		/* Bottom 8 bits are index. */
 
 	const volatile u_int dispatch_code = code < nsysent ? (u_int)code : 0;
 	const volatile uint8_t nargs = syscall_nargs[dispatch_code];

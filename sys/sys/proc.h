@@ -6,6 +6,11 @@
 #ifndef _SYS_PROC_H_
 #define _SYS_PROC_H_
 
+#include <machine/limits.h>
+
+/* Zero retains the historical detached-group meaning. */
+#define PGRP_VALID(value) ((value) >= 0 && (value) <= SHRT_MAX)
+
 /*
  * One structure allocated per active
  * process. It contains all data needed

@@ -1,0 +1,161 @@
+/* Production clock, rwip and syncip paths with deterministic I/O failures. */
+#include "hostkern.h"
+#include <sys/param.h>
+#include <sys/user.h>
+#include <sys/proc.h>
+#include <sys/kernel.h>
+#include <sys/systm.h>
+#include <sys/inode.h>
+#include <sys/fs.h>
+#include <sys/mount.h>
+#include <sys/buf.h>
+#include <sys/uio.h>
+#include <sys/conf.h>
+#include <sys/storage_stats.h>
+
+struct user u;
+struct timeval time;
+int hz = 100, usechz = 10000, lbolt, adjdelta;
+struct mount mount[NMOUNT];
+struct inode inode[NINODE];
+struct buf buf[NBUF];
+const struct cdevsw cdevsw[1] = {{0}};
+static struct inode node;
+static char data[sizeof(struct fs) + DEV_BSIZE];
+static unsigned writes, delayed, asynchronous, flushes, updates;
+static int write_error, flush_error, update_error, mount_error;
+static unsigned mount_flushes;
+
+int copyin(const caddr_t src, caddr_t dst, u_int n)
+{ bcopy(src, dst, n); return 0; }
+int copyout(const caddr_t src, caddr_t dst, u_int n)
+{ bcopy(src, dst, n); return 0; }
+int suser(void) { return 1; }
+void psignal(struct proc *p, int signal) { (void)p; (void)signal; }
+void sleep(caddr_t chan, int priority) { (void)chan; (void)priority; }
+void itrunc(struct inode *ip, off_t size, int flags)
+{ (void)ip; (void)size; (void)flags; }
+daddr_t bmap(struct inode *ip, daddr_t block, int rw, int flags)
+{ (void)ip; (void)block; (void)rw; (void)flags; return 12; }
+struct buf *getblk(dev_t dev, daddr_t block)
+{ (void)dev; (void)block; return &buf[0]; }
+struct buf *bread(dev_t dev, daddr_t block) { return getblk(dev, block); }
+struct buf *breada(dev_t dev, daddr_t block, daddr_t next)
+{ (void)next; return getblk(dev, block); }
+struct buf *geteblk(void) { return &buf[0]; }
+void brelse(struct buf *bp) { (void)bp; }
+int bwrite(struct buf *bp) { if (bp->b_flags & B_ASYNC) asynchronous++; else writes++; return write_error; }
+void bdwrite(struct buf *bp) { (void)bp; delayed++; }
+int bflush(dev_t dev) { (void)dev; mount_flushes++; return mount_error; }
+void iput(struct inode *ip) { (void)ip; }
+int blkflush(dev_t dev, daddr_t block)
+{ (void)dev; (void)block; flushes++; return flush_error; }
+int iupdat(struct inode *ip, struct timeval *at, struct timeval *mt, int wait)
+{ (void)ip; (void)at; (void)mt; HK_CHECK(wait == 1); updates++; return update_error; }
+int uiomove(caddr_t cp, u_int n, struct uio *io)
+{ (void)cp; io->uio_resid -= n; io->uio_offset += n; return 0; }
+
+static void clock_cases(void)
+{
+    static const long values[] = { -32769, -32768, 0, 32767, 32768 };
+    struct { struct timeval *delta, *old; } *args = (void *)u.u_arg;
+    struct timeval delta, old;
+    unsigned i;
+
+    for (i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
+        time.tv_sec = 100000; time.tv_usec = 0; lbolt = 0;
+        adjdelta = 7; u.u_error = 0;
+        delta.tv_sec = values[i] / hz;
+        delta.tv_usec = (values[i] % hz) * usechz;
+        args->delta = &delta; args->old = &old;
+        adjtime();
+        HK_CHECK(u.u_error == 0);
+        if (values[i] >= -32768 && values[i] <= 32767) {
+            HK_CHECK(adjdelta == values[i]);
+            HK_CHECK(time.tv_sec == 100000);
+            HK_CHECK(old.tv_sec == 0 && old.tv_usec == 70000);
+        } else {
+            HK_CHECK(adjdelta == 0);
+            HK_CHECK(lbolt >= 0 && lbolt < hz);
+            HK_CHECK((time.tv_sec - 100000) * hz + lbolt == values[i]);
+        }
+        HK_CHECK(hk_ipl == 0);
+    }
+    time.tv_sec = 2147483647L; lbolt = 0; adjdelta = 9;
+    delta.tv_sec = 2147483647L; delta.tv_usec = 0;
+    args->delta = &delta; args->old = 0; u.u_error = 0;
+    adjtime();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(time.tv_sec == 2147483647L && adjdelta == 9);
+    HK_CHECK(hk_ipl == 0);
+}
+
+static int write_case(int kind, int mount_flags, int flags, unsigned count)
+{
+    struct uio io = {0};
+    u = (struct user){0}; node = (struct inode){0};
+    mount[0] = (struct mount){0}; buf[0] = (struct buf){0};
+    writes = delayed = asynchronous = flushes = updates = mount_flushes = 0;
+    node.i_mode = kind | 0600; node.i_size = DEV_BSIZE;
+    node.i_fs = &mount[0].m_filsys; node.i_dev = 1;
+    mount[0].m_filsys.fs_flags = mount_flags;
+    u.u_rlimit[RLIMIT_FSIZE].rlim_cur = 100000;
+    buf[0].b_addr = data;
+    io.uio_rw = UIO_WRITE; io.uio_resid = count;
+    return rwip(&node, &io, flags);
+}
+
+static void io_cases(void)
+{
+    unsigned i;
+    int mounts[] = { 0, MNT_ASYNC, MNT_SYNCHRONOUS };
+    for (i = 0; i < sizeof(mounts) / sizeof(mounts[0]); i++) {
+        write_error = flush_error = update_error = 0;
+        HK_CHECK(write_case(IFREG, mounts[i], IO_SYNC, 17) == 0);
+        HK_CHECK(writes == 1 && delayed == 0 && asynchronous == 0);
+        HK_CHECK(flushes == 1 && updates == 1 && mount_flushes == 1);
+        HK_CHECK(write_case(IFREG, mounts[i], IO_SYNC, DEV_BSIZE) == 0);
+        HK_CHECK(writes == 1 && flushes == 1 && updates == 1);
+    }
+    HK_CHECK(write_case(IFREG, 0, 0, 17) == 0);
+    HK_CHECK(delayed == 1 && writes == 0 && updates == 0);
+    HK_CHECK(write_case(IFREG, 0, 0, DEV_BSIZE) == 0);
+    HK_CHECK(asynchronous == 1 && writes == 0);
+    HK_CHECK(write_case(IFDIR, 0, 0, 17) == 0);
+    HK_CHECK(writes == 1 && updates == 1);
+    HK_CHECK(write_case(IFDIR, MNT_ASYNC, 0, 17) == 0);
+    HK_CHECK(delayed == 1 && updates == 0);
+    HK_CHECK(write_case(IFDIR, MNT_ASYNC, IO_SYNC, 17) == 0);
+    HK_CHECK(writes == 1 && updates == 1);
+    write_error = EIO;
+    HK_CHECK(write_case(IFREG, 0, IO_SYNC, DEV_BSIZE * 2) == EIO);
+    HK_CHECK(writes == 1 && flushes == 0 && updates == 0);
+    write_error = 0; flush_error = EIO;
+    HK_CHECK(write_case(IFREG, 0, IO_SYNC, 17) == EIO);
+    HK_CHECK(writes == 1 && updates == 0);
+    flush_error = 0; update_error = EIO;
+    HK_CHECK(write_case(IFREG, 0, IO_SYNC, 17) == EIO);
+    HK_CHECK(updates == 1);
+    update_error = 0; mount_error = EIO;
+    HK_CHECK(write_case(IFREG, 0, IO_SYNC, 17) == EIO);
+    HK_CHECK(mount_flushes == 1);
+}
+
+static void counter_cases(void)
+{
+    struct storage_stats stats = {0};
+    storage_stats_add(&stats, STORAGE_MAP_WRITES, 4);
+    HK_CHECK(stats.value[STORAGE_MAP_WRITES] == 4 && !stats.saturated);
+    stats.value[STORAGE_MAP_WRITES] = UINT32_MAX - 1;
+    storage_stats_add(&stats, STORAGE_MAP_WRITES, 1);
+    HK_CHECK(stats.value[STORAGE_MAP_WRITES] == UINT32_MAX && !stats.saturated);
+    storage_stats_add(&stats, STORAGE_MAP_WRITES, 1);
+    HK_CHECK(stats.value[STORAGE_MAP_WRITES] == UINT32_MAX && stats.saturated);
+    HK_CHECK(stats.value[STORAGE_ROOT_WRITES] == 0);
+}
+
+int main(void)
+{
+    clock_cases(); io_cases(); counter_cases();
+    return hk_verdict("time/io/storage");
+}

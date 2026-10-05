@@ -543,6 +543,12 @@ check-flash-swap:
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
 
+check-storage-counters: tools
+		sh tools/verify_storage_counters.sh
+
+check-storage-correctness: check-python
+		${PYTHON} tests/kernel/check_correctness.py
+
 check-namei-user-path:
 		sh tests/rp2040/namei_path/check.sh
 
@@ -619,7 +625,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
-		check-dhara-metadata check-namei-user-path \
+		check-dhara-metadata check-namei-user-path check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
 		check-usb-standard-requests \
 		check-usb-set-configuration \
@@ -779,7 +785,7 @@ check-cross-contracts:	${CROSS_CONTRACT_GATES}
 check-cross-kernel:	check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-hsaout .WAIT check-flash-swap .WAIT \
-		check-rp2040-shutdown-cross
+		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
@@ -886,7 +892,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-python check-warning-policy-host check-warning-policy-cross \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-warning-policy-host check-warning-policy-cross \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

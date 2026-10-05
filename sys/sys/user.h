@@ -40,7 +40,7 @@ struct user {
     uid_t   u_ruid;                 /* real user id */
     gid_t   u_svgid;                /* saved group id */
     gid_t   u_rgid;                 /* real group id */
-    gid_t   u_groups[NGROUPS];      /* groups, 0 terminated */
+    gid_t   u_groups[NGROUPS];      /* groups, NOGROUP terminated */
 
 /* 1.2 - memory management */
     size_t  u_tsize;                /* text size (clicks) */

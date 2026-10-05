@@ -67,7 +67,8 @@ run: swapram_test
 swapram_evac_test.o: swapram_evac_test.c machine $(INC)/swapram.h
 	$(CC) $(KCFLAGS) -c -o $@ swapram_evac_test.c
 
-swapram_kern.o: ../../rp2040/swapram.c machine $(INC)/swapram.h
+swapram_kern.o: ../../rp2040/swapram.c machine $(INC)/swapram.h \
+	shim/sys/storage_stats.h shim/sys/stdint.h $(TOP)/sys/sys/storage_stats.h
 	$(CC) $(KCFLAGS) -Wno-format -c -o $@ ../../rp2040/swapram.c
 
 swapram_pool_k.o: ../../rp2040/swapram_pool.c machine $(INC)/swapram.h

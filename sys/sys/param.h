@@ -31,7 +31,7 @@
 #define NCARGS      ARG_MAX         /* # characters in exec arglist */
 #define NGROUPS     NGROUPS_MAX     /* max number groups */
 
-#define NOGROUP     65535   /* marker for empty group set member */
+#define NOGROUP     ((gid_t)-1)   /* marker for empty group set member */
 
 /*
  * Priorities

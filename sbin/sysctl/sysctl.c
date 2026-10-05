@@ -35,6 +35,7 @@
 
 #include <sys/param.h>
 #include <sys/capacity.h>
+#include <sys/storage_stats.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 
@@ -441,6 +442,55 @@ parse(char *string, int flags)
 			fprintf(stdout, "0x%x\n", dev);
 		return;
 	}
+#ifdef CPU_STORAGE_STATS
+    if (mib[0] == CTL_MACHDEP && mib[1] == CPU_STORAGE_STATS) {
+        static const char *const names[STORAGE_METRIC_COUNT] = {
+            "root_reads",
+            "root_read_bytes",
+            "root_writes",
+            "root_write_bytes",
+            "swap_reads",
+            "swap_read_bytes",
+            "swap_writes",
+            "swap_write_bytes",
+            "map_writes",
+            "checkpoint_attempts",
+            "checkpoint_successes",
+            "checkpoint_errors",
+            "root_program_pages",
+            "root_program_bytes",
+            "root_erase_sectors",
+            "root_erase_bytes",
+            "swap_program_pages",
+            "swap_program_bytes",
+            "swap_erase_sectors",
+            "swap_erase_bytes",
+            "dirty_transitions",
+            "dirty_rewrites",
+            "eviction_writes",
+            "buffer_waits",
+            "swapram_attempts",
+            "swapram_admissions",
+        };
+        const struct storage_stats *stats = (const struct storage_stats *)buf;
+        unsigned i;
+
+        if (size != sizeof(*stats) || stats->version != STORAGE_STATS_VERSION ||
+            stats->size != sizeof(*stats)) {
+            fprintf(stderr, "%s: unsupported storage ABI\n", string);
+            return;
+        }
+        if (!nflag)
+            fprintf(stdout, "%s%s", string, equ);
+        fprintf(stdout, "version %lu saturated %lu dirty %lu peak %lu\n",
+            (unsigned long)stats->version, (unsigned long)stats->saturated,
+            (unsigned long)stats->dirty_current, (unsigned long)stats->dirty_peak);
+        for (i = 0; i < STORAGE_METRIC_COUNT; i++)
+            fprintf(stdout, "%s %lu\n", names[i],
+                (unsigned long)stats->value[i]);
+        return;
+    }
+#endif
 	if (special & CAPACITY) {
 		static const char *const metric_names[CAPACITY_KIND_COUNT] = {
 			"proc", "inode", "file", "clist", "buffer"

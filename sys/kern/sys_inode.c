@@ -160,6 +160,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
     int n, on, type, resid;
     int error = 0;
     int flags;
+    struct mount *mp;
 
     //if (uio->uio_offset < 0)
         //return (EINVAL);
@@ -181,7 +182,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
                 return(EPERM);
             break;
         case IFDIR:
-            if  ((ioflag & IO_SYNC) == 0)
+            if ((INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC) == 0)
                 ioflag |= IO_SYNC;
             break;
         case IFLNK:
@@ -192,22 +193,6 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             return (EFTYPE);
         }
     }
-
-    /*
-     * The IO_SYNC flag is turned off here if the 'async' mount flag is on.
-     * Otherwise directory I/O (which is done by the kernel) would still
-     * synchronous (because the kernel carefully passes IO_SYNC for all directory
-     * I/O) even if the fs was mounted with "-o async".
-     *
-     * A side effect of this is that if the system administrator mounts a filesystem
-     * 'async' then the O_FSYNC flag to open() is ignored.
-     *
-     * This behaviour should probably be selectable via "sysctl fs.async.dirs" and
-     * "fs.async.ofsync".  A project for a rainy day.
-     */
-    if (type == IFREG ||
-        (type == IFDIR && (INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC)))
-        ioflag &= ~IO_SYNC;
 
     if (type == IFCHR) {
         if (uio->uio_rw == UIO_READ) {
@@ -299,7 +284,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             brelse(bp);
         } else {
             if (ioflag & IO_SYNC)
-                bwrite(bp);
+                error = bwrite(bp);
             /*
              * The check below interacts _very_ badly with virtual memory tmp files
              * such as those used by 'ld'.   These files tend to be small and repeatedly
@@ -316,7 +301,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             if (u.u_ruid != 0)
                 ip->i_mode &= ~(ISUID|ISGID);
         }
-    } while (u.u_error == 0 && uio->uio_resid && n != 0);
+    } while (error == 0 && u.u_error == 0 && uio->uio_resid && n != 0);
     if (error == 0)             /* XXX */
         error = u.u_error;      /* XXX */
     if (error && (uio->uio_rw == UIO_WRITE) && (ioflag & IO_UNIT) &&
@@ -331,10 +316,17 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
          * bit for their writes anyways.
          */
     }
-#ifdef whybother
-    if (! error && (ioflag & IO_SYNC))
-        IUPDAT(ip, &time, &time, 1);
-#endif
+    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&
+        type != IFBLK) {
+        error = syncip(ip);
+        /* Allocation state and indirect buffers belong to the mount. */
+        for (mp = mount; !error && mp < &mount[NMOUNT]; mp++) {
+            if (&mp->m_filsys == INODE_FILESYSTEM(ip)) {
+                error = ufs_sync(mp);
+                break;
+            }
+        }
+    }
     return (error);
 }
 

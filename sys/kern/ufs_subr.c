@@ -16,9 +16,17 @@
 int updlock;        /* lock for sync */
 
 /*
- * Go through the mount table looking for filesystems which have been modified.
- * For each "dirty" filesystem call 'ufs_sync' to flush changed inodes, data
- * blocks and the superblock to disc.
+ * Call ufs_sync() for each mounted filesystem to write back modified inodes,
+ * delayed data blocks and, when fs_fmod is set, the superblock. fs_fmod
+ * records superblock changes only: an overwrite of an allocated block leaves
+ * it clear while dirtying a buffer and the inode, so it cannot select which
+ * filesystems to visit. A clean filesystem costs an inode-table and free-list
+ * scan with no device I/O. A filesystem whose superblock lists are locked
+ * (fs_ilock, fs_flock) is passed over and keeps its dirty state for the next
+ * call, as do inodes syncinodes() finds locked and buffers bflush() finds
+ * busy. Errors are not returned here: a failed write latches in the mount's
+ * m_write_error, which ufs_sync() reports to fsync, IO_SYNC writes and
+ * unmount.
  */
 void
 sync(void)
@@ -34,7 +42,7 @@ sync(void)
         if (mp->m_inodp == NULL || mp->m_dev == NODEV)
             continue;
         fs = &mp->m_filsys;
-        if (fs->fs_fmod == 0 || fs->fs_ilock || fs->fs_flock)
+        if (fs->fs_ilock || fs->fs_flock)
             continue;
         async = mp->m_flags & MNT_ASYNC;
         mp->m_flags &= ~MNT_ASYNC;

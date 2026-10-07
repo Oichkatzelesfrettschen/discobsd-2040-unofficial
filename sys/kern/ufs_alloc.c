@@ -75,10 +75,10 @@ balloc(struct inode *ip __unused, int flags)
              * fs_fmod and fs_time describe the image on the disk, so
              * they are set in the copy and the in-core superblock keeps
              * its own. Clearing fs_fmod in core would end the refill
-             * with the filesystem marked clean while fs_tfree, every
-             * dirty inode and every dirty data block still await
-             * ufs_sync(); sync() skips a clean filesystem outright
-             * (ufs_subr.c), so the flag has to survive this write.
+             * with the superblock marked clean, although the allocation
+             * completing below decrements fs_tfree after this copy;
+             * ufs_sync() writes the superblock only while the flag is
+             * set, so the flag has to survive this write.
              * Writing the flag set would instead leave a 1 on the disk,
              * which mountfs() keeps on a read-only mount and ufs_sync()
              * answers with panic("sync: rofs").
@@ -106,9 +106,7 @@ balloc(struct inode *ip __unused, int flags)
 nospace:
     /*
      * The counts are corrected in core, which is a superblock change like
-     * any other: the flag carries it to ufs_sync(), whose write is the only
-     * one that also flushes the inodes and data blocks the failed allocation
-     * leaves behind.
+     * any other: the flag carries it to ufs_sync()'s superblock write.
      */
     fs->fs_nfree = 0;
     fs->fs_tfree = 0;

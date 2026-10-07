@@ -202,6 +202,28 @@ def main():
         ),
         ("omit-metadata-sync", "io", {"sys_inode.c": ("error = syncip(ip);", "error = 0;")}, True),
         (
+            "skip-clean-superblock-mount",
+            "io",
+            {
+                "ufs_subr.c": (
+                    "if (fs->fs_ilock || fs->fs_flock)",
+                    "if (fs->fs_fmod == 0 || fs->fs_ilock || fs->fs_flock)",
+                )
+            },
+            True,
+        ),
+        (
+            "sync-locked-superblock-lists",
+            "io",
+            {
+                "ufs_subr.c": (
+                    "if (fs->fs_ilock || fs->fs_flock)",
+                    "if (fs->fs_ilock && fs->fs_flock)",
+                )
+            },
+            True,
+        ),
+        (
             "narrow-process-group",
             "credentials",
             {"kern_prot.c": ("if (!PGRP_VALID(uap->pgrp))", "if (0)")},

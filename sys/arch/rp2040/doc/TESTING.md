@@ -651,12 +651,12 @@ superblock write balloc() makes when the cached free list empties and
 the next chunk is read back: the image reaching the disk is clean and
 carries the current time, while the in-core superblock stays modified
 and keeps the fs_time ufs_sync() last wrote. Both halves are
-constrained from outside the allocator. sync() (sys/kern/ufs_subr.c)
-passes over a filesystem whose fs_fmod is zero without flushing an inode
-or a data block, so a refill that cleared the flag in core would leave
-fs_tfree, the dirty inodes and the dirty buffers held back until the
-next allocation or free set it again -- and on the two paths that reach
-the allocator's refusal from there, nothing does. mountfs()
+constrained from outside the allocator. ufs_sync()
+(sys/kern/ufs_syscalls2.c) writes the superblock only while fs_fmod is
+set, so a refill that cleared the flag in core would leave fs_tfree and
+the free list held back until the next allocation or free set it again
+-- and on the two paths that reach the allocator's refusal from there,
+nothing does. mountfs()
 (sys/kern/ufs_mount.c) keeps the on-disk fs_fmod on a read-only mount
 and ufs_sync() (sys/kern/ufs_syscalls2.c) answers a set flag on a
 read-only filesystem with panic("sync: rofs"), so the image may not
@@ -1013,22 +1013,31 @@ research/ names them).
 ### Clock, compact credentials and synchronous writes
 
 `bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
-`sys_inode.c`, `ufs_subr.c`, `kern_synch.c`, `vm_sched.c` and the credential sources against
+`sys_inode.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `kern_synch.c`, `vm_sched.c` and the credential
+sources against
 deterministic host I/O stubs. It checks the slew/step boundary, backward-step normalization,
 step overflow refusal, process-group input bounds, wide supplementary GIDs,
 sentinel rejection without partial updates, explicit IO_SYNC on async mounts,
 data/flush/inode-update failures, counter saturation, 70000 events in one
 `vmmeter()` interval reaching `sum` and `rate` whole, and `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the
-process is queued. A production bmap
+process is queued. It runs `sync()` over a mount whose superblock is clean
+(`fs_fmod == 0`): with dirty data, dirty inode metadata, both and neither it
+writes exactly the eligible state and no superblock. It still writes a
+modified superblock, leaves a locked inode and a mount with a locked
+superblock list dirty for the next call, keeps a failed inode update's
+flags while flushing buffers, retains a latched `m_write_error`, writes
+nothing on a clean read-only mount and restores `MNT_ASYNC`. Buffers
+`bflush()` finds busy lie outside the stubbed buffer cache. A production bmap
 fixture injects initialization failures in direct blocks, top-level indirect
 blocks, nested indirect blocks and indirect data blocks. It checks that failed
 allocations are reclaimed before pointer publication, busy parents are released,
 original errors survive cleanup and earlier valid ancestors remain intact.
 The fixture uses NSHIFT for depth boundaries and only index zero; its native
 daddr_t width is not evidence about the target's on-disk encoding.
-Twelve source mutations, one of them narrowing `struct vmrate` in a private
-copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as
+Fourteen source mutations, among them restoring `sync()`'s clean-superblock
+skip, visiting a mount with one superblock list locked, and narrowing
+`struct vmrate` in a private copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in
 unrelated mount helpers discarded by the linker. Only the known-bad clock

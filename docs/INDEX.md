@@ -172,7 +172,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `audit-handbacks/step5-nstatic-handback.md` | the NSTATIC resident-footprint audit |
 | `audit-handbacks/step5-omagic-crosscheck-handback.md` | the OMAGIC candidate cross-check |
 | `audit-handbacks/step5-printf-float-handback.md` | printf floating conversion, its source and linkage |
-| `sixteen-bit-audit-response.md` | the 16-bit assumption audit ruled item by item: kernel items closed in `ce33939`, libtcl extent, separator and regexp defects and the `ps` UID width repaired with a calibrated gate, retained narrow formats, and deferrals with their validation paths |
+| `sixteen-bit-audit-response.md` | the 16-bit assumption audit ruled item by item: kernel items closed in `ce33939` with the `tsleep` bound gated since, the libtcl extent, cache, reference-count, separator, regexp and regsub defects, the `vmrate` counters and the `ps` UID width repaired with calibrated gates, retained narrow formats, and deferrals with their validation paths |
 | `renode-rp2040-upstream-reports.md` | two issue texts for matgla/Renode_RP2040 with their `git am` patch series and the board measurement behind them, unsent |
 
 ### Accounts, licensing and the host side

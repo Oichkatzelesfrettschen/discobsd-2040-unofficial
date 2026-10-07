@@ -41,7 +41,7 @@ def build(work, suite, changes):
         "io": ["kern_time.c", "sys_inode.c", "ufs_subr.c", "ufs_syscalls2.c"],
         "credentials": ["kern_prot.c", "kern_prot2.c", "kern_proc.c"],
         "bmap": ["ufs_bmap.c"],
-        "synch": ["vm_sched.c"],
+        "synch": ["kern_synch.c", "vm_sched.c"],
     }[suite]
     # A mutated kernel header goes into the private include directory, which
     # -I lists ahead of the tree's sys directory.
@@ -198,6 +198,12 @@ def main():
             "accept-group-sentinel",
             "credentials",
             {"kern_prot.c": ("if (groups[i] == NOGROUP)", "if (0)")},
+            True,
+        ),
+        (
+            "unbounded-sleep-timeout",
+            "synch",
+            {"kern_synch.c": ("if (timo > INT_MAX)", "if (0)")},
             True,
         ),
         (

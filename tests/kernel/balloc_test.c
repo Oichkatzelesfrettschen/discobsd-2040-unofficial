@@ -9,11 +9,11 @@
  * and the block is read back as a struct fblk to refill it. That refill
  * writes the superblock, and the invariant this gate states is what the
  * write means: the image on the disk is clean and carries the current time,
- * while the in-core superblock stays modified. sync() (sys/kern/ufs_subr.c)
- * passes over a filesystem whose fs_fmod is zero without flushing an inode
- * or a data block, so a refill that cleared the flag in core would end with
- * fs_tfree, the dirty inodes and the dirty buffers held back until the next
- * allocation or free set it again. The disk image takes the opposite
+ * while the in-core superblock stays modified. ufs_sync()
+ * (sys/kern/ufs_syscalls2.c) writes the superblock only while fs_fmod is
+ * set, so a refill that cleared the flag in core would end with fs_tfree and
+ * the free list held back until the next allocation or free set it again.
+ * The disk image takes the opposite
  * constraint: mountfs() (sys/kern/ufs_mount.c) leaves the on-disk fs_fmod
  * alone on a read-only mount, and ufs_sync() (sys/kern/ufs_syscalls2.c)
  * answers a set flag on a read-only filesystem with panic("sync: rofs").

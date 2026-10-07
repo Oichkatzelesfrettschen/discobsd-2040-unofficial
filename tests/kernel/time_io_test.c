@@ -57,8 +57,21 @@ int bwrite(struct buf *bp) { if (bp->b_flags & B_ASYNC) asynchronous++; else wri
 void bdwrite(struct buf *bp) { (void)bp; delayed++; }
 int bflush(dev_t dev)
 { (void)dev; mount_flushes++; writes += dirty_buffers; dirty_buffers = 0; return mount_error; }
+/*
+ * The release irele() performs for a reference syncinodes() took: the inode
+ * keeps another reference, so the last-close path is out of reach and the
+ * production ITIMES() folds any IUPD|IACC|ICHG left by a failed update into
+ * IMOD, which keeps the inode eligible for the next sync().
+ */
 void iput(struct inode *ip)
-{ if (ip >= inode && ip < inode + NINODE) { ip->i_flag &= ~ILOCKED; ip->i_count--; } }
+{
+    if (ip < inode || ip >= inode + NINODE)
+        return;
+    HK_CHECK(ip->i_count > 1);
+    ip->i_flag &= ~ILOCKED;
+    ITIMES(ip, &time, &time);
+    ip->i_count--;
+}
 int blkflush(dev_t dev, daddr_t block)
 { (void)dev; (void)block; flushes++; return flush_error; }
 /*
@@ -233,13 +246,16 @@ static void sync_cases(void)
     HK_CHECK(writes == 2 && dirty_buffers == 0 && inode[3].i_flag == 0);
 
     /*
-     * A failed inode update keeps its flags, the buffers are flushed anyway,
-     * and the superblock waits; the next call retries the inode.
+     * A failed inode update stays dirty: the release folds its flags into
+     * IMOD and stamps the times. The buffers are flushed anyway, the
+     * superblock waits, and the next call retries the inode.
      */
     sync_setup(1, 1); fs->fs_fmod = 1; update_error = EIO;
+    time.tv_sec = 4242;
     gate_sync();
     HK_CHECK(updates == 1 && mount_flushes == 1 && writes == 1);
-    HK_CHECK(inode[3].i_flag == (IUPD | ICHG));
+    HK_CHECK(inode[3].i_flag == IMOD && inode[3].i_count == 1);
+    HK_CHECK(inode[3].i_mtime == 4242 && inode[3].i_ctime == 4242);
     HK_CHECK(superblock_gets == 0 && fs->fs_fmod == 1);
     update_error = 0;
     gate_sync();

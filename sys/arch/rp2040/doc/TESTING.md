@@ -1025,8 +1025,10 @@ process is queued. It runs `sync()` over a mount whose superblock is clean
 (`fs_fmod == 0`): with dirty data, dirty inode metadata, both and neither it
 writes exactly the eligible state and no superblock. It still writes a
 modified superblock, leaves a locked inode and a mount with a locked
-superblock list dirty for the next call, keeps a failed inode update's
-flags while flushing buffers, retains a latched `m_write_error`, writes
+superblock list dirty for the next call, keeps a failed inode update
+dirty while flushing buffers (the release models `irele()` with the
+production `ITIMES()`, which folds the retained flags into `IMOD`), retries
+it on the next call, retains a latched `m_write_error`, writes
 nothing on a clean read-only mount and restores `MNT_ASYNC`. Buffers
 `bflush()` finds busy lie outside the stubbed buffer cache. A production bmap
 fixture injects initialization failures in direct blocks, top-level indirect
@@ -1035,8 +1037,9 @@ allocations are reclaimed before pointer publication, busy parents are released,
 original errors survive cleanup and earlier valid ancestors remain intact.
 The fixture uses NSHIFT for depth boundaries and only index zero; its native
 daddr_t width is not evidence about the target's on-disk encoding.
-Fourteen source mutations, among them restoring `sync()`'s clean-superblock
-skip, visiting a mount with one superblock list locked, and narrowing
+Fifteen source mutations, among them restoring `sync()`'s clean-superblock
+skip, visiting a mount with one superblock list locked, an `ITIMES()` that
+drops a failed update's dirty state in a private copy of `sys/inode.h`, and narrowing
 `struct vmrate` in a private copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in

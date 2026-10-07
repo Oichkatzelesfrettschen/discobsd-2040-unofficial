@@ -224,6 +224,12 @@ def main():
             True,
         ),
         (
+            "release-drops-retry-state",
+            "io",
+            {"inode.h": ("(ip)->i_flag |= IMOD; \\", "(void)0; \\")},
+            True,
+        ),
+        (
             "narrow-process-group",
             "credentials",
             {"kern_prot.c": ("if (!PGRP_VALID(uap->pgrp))", "if (0)")},

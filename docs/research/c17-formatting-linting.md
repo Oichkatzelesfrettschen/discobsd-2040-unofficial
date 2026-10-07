@@ -16,6 +16,262 @@ diagnostics plus reserved-identifier errors from project and system headers.
 Those observations require a scoped rollout, not a global rewrite or a warning
 suppression file.
 
+## Current K&R and C17 findings
+
+The recursive audit at `6e4c3a44a5461a80cd2f867893c2bfc7dfc34510`
+covered every Git-tracked C and header file. The source corpus contains 1,969 C
+files, 567 headers and 819,514 combined lines. The audit refreshed the
+whole-tree structural Graft graph at that commit from 26,311 to 26,369 nodes.
+The graph records 2,609 parsed files, 23,760 symbols and 16,700 structural
+edges. Graft navigation identified source owners and candidate paths; AST
+queries and direct source reads decide the syntax findings below.
+
+The requested deep refresh of `sys/arch/rp2040/dev` reached a terminal
+`partial` state because the configured loopback model endpoint was stopped.
+The job retained 159 structural nodes and produced zero semantic records.
+The prior deep caches cover `sys/arch/rp2040/dev`,
+`sys/arch/rp2040/rp2040` and `usr.bin/login`; only login remains source-current.
+A read of the stale flash summary omitted the new storage telemetry in
+`flash.c` and carried obsolete line ranges. Deep summaries therefore remain
+advisory leads, not current-source evidence.
+
+### What K&R means here
+
+K&R C names the pre-prototype function interface inherited from the first
+edition of Kernighan and Ritchie. This audit uses the term for four related
+constructions rather than for indentation or general age:
+
+1. A function definition names parameters in the declarator and declares their
+   types in a separate declaration list before the body.
+2. A function definition uses empty parentheses instead of `(void)`.
+3. A declaration uses empty parentheses, which in C17 supplies no parameter
+   type or arity information.
+4. A call or definition depends on implicit `int`, an implicit function
+   declaration, default argument promotions, or `<varargs.h>`/`va_dcl`.
+
+ISO C17 retained the first three only as obsolescent syntax. WG14 N2310
+6.7.6.3 paragraphs 3, 6, 10 and 14 distinguish a parameter type list from an
+identifier list and distinguish `(void)` from `()`. Section 6.9.1 paragraphs
+5 through 8 define both function-definition forms and make an unprototyped
+variadic definition undefined. Sections 6.11.6 and 6.11.7 mark empty function
+declarators and separate parameter declaration lists obsolescent. Section
+6.5.2.2 paragraphs 6 through 9 applies default promotions and leaves mismatched
+unprototyped calls undefined. C99 had already removed implicit `int`; C17 does
+not restore it. C23 draft N3096 removes identifier-list definitions and makes
+an empty parameter list equivalent to `(void)`.
+
+Primary language references:
+
+- WG14 N2310: <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2310.pdf>
+- WG14 N3096: <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3096.pdf>
+
+### Measured syntax frontier
+
+An ast-grep rule selected `function_definition` nodes whose parameter list
+contains no `parameter_declaration`. A separate rule selected declaration
+nodes with the same non-prototype parameter-list shape. The rules were
+calibrated against typed prototypes and `(void)` as accepting controls and
+against identifier-list definitions, empty definitions and empty declarations
+as rejecting controls.
+
+- Old-style definitions: 3,825 occurrences in 916 files. The total comprises
+  2,255 identifier-list definitions and 1,570 empty-parenthesis definitions.
+- Non-prototype declarations: 1,114 occurrences in 290 files. The declarations
+  and function-pointer types carry no argument contract in `()`.
+- Historical `legacy/`: 357 definitions and 47 declarations. The directory is
+  a quarantine target rather than a maintained ARM migration target.
+- Maintained-tree candidates: 3,468 definitions and 1,067 declarations pending
+  source classification. The set includes shipped, optional, host-only,
+  inactive-architecture and imported boundaries.
+- `<varargs.h>`: four files -- `lib/libc/gen/err.c`, `usr.bin/m4/misc.c`,
+  `bin/sh/trace.c` and `usr.bin/xargs/xargs.c` -- plus their old-style variadic
+  functions.
+- `WARNLEVEL=legacy`: 140 Makefiles -- 66 `usr.bin`, 25 games, 15 bin, 12 sbin,
+  9 lib, 6 usr.sbin, 5 tools, 1 libexec and 1 isolated legacy unit.
+
+The definition count by top-level owner is:
+
+| Owner | Definitions |
+| --- | ---: |
+| `games/` | 1,282 |
+| `usr.bin/` | 1,145 |
+| `lib/` | 380 |
+| `legacy/` | 357 |
+| `bin/` | 238 |
+| `sys/` | 190 |
+| `sbin/` | 123 |
+| `usr.sbin/` | 87 |
+| `share/` | 10 |
+| `libexec/` | 7 |
+| `tests/` | 5 |
+| `benchmarks/` | 1 |
+
+The kernel frontier is unusually well bounded: 187 of the 190 `sys/`
+definitions are in 26 `sys/kern` files, two are inactive STM32 definitions,
+and one is `sys/arch/rp2040/rp2040/sysctl.c`. The existing
+`check-ufs-prototypes` gate covers 13 UFS translation units, but it does not
+close the remaining kernel files. The largest userland concentrations are
+`games/rogue` (308), `usr.bin/tip` (131), `usr.bin/forth` (122 in two files),
+`usr.bin/re` (97), `usr.bin/picoc` (96), `games/sail` (91),
+`games/battlestar` (84), `games/backgammon` (80) and `games/adventure` (74).
+These concentrations define migration units; a repository-wide search-and-
+replace would cross ABI, generated-source, provenance and memory boundaries.
+
+The AST parser also produced 102 implicit-int lexical leads. Macro-generated
+forms such as `foreachship(sp)` are among them, so 102 is a review queue, not a
+defect count. The compiler with the unit's evaluated include and macro flags
+must decide each row. The same restriction applies to implicit calls: a host
+compile with host headers can both hide target omissions and invent host-only
+ones.
+
+### Required migration unit
+
+Convert one complete call contract at a time:
+
+1. Inventory the definition, every declaration, function-pointer type and
+   lexical caller. Record generated declarations separately.
+2. Resolve the actual return type and parameter types from implementation,
+   callers, ABI headers and behavior tests. Never infer a pointer return from
+   the historical implicit `int` rule.
+3. For an empty definition, prove every call supplies zero arguments before
+   writing `(void)`. For an empty declaration, derive a real prototype rather
+   than mechanically writing `(void)`.
+4. For an identifier-list definition, preserve old default-promotion behavior.
+   Audit `char`, `short`, `_Bool`, enum and `float` parameters, variadic calls,
+   callbacks and function-pointer casts before changing the declarator.
+5. Replace `<varargs.h>` only after selecting a stable last named parameter and
+   proving each call shape. Use `<stdarg.h>`, `...`, `va_start`, `va_copy` where
+   ownership crosses a helper, and a balanced `va_end` on every exit.
+6. Compile the definition and all callers under GNU17 and strict C17 with the
+   production target flags. Then run the unit's host, ILP32, Cortex-M0+ and
+   behavior gates.
+7. Compare symbols, ABI, object sections, final ELF/a.out, stack usage and
+   packed-root blocks before accepting the unit.
+
+Prototype conversion is a security change because it lets the compiler check
+arity and conversions at the call boundary. Prototype conversion is also an
+ABI change when old promotions, callbacks or independently compiled objects
+disagree. The declaration, definition and callers therefore land in the same
+bisectable migration unit.
+
+### Security build contract
+
+The current global compiler already supplies `-std=gnu17`, `-fno-common` and a
+fatal warning policy. Full units receive `-Wall -Wextra -Werror`; 140 legacy
+units receive only `-Werror` plus warning groups named locally. The RP2040 link
+also makes RWX-segment warnings fatal. Those controls are necessary but do not
+establish a repository-wide C17 or memory-safety build.
+
+Each migrated unit must add these diagnostics without local suppression:
+
+```text
+-Werror=implicit-function-declaration
+-Werror=implicit-int
+-Werror=old-style-definition
+-Werror=strict-prototypes
+-Werror=missing-prototypes
+-Werror=return-type
+-Werror=incompatible-pointer-types
+-Werror=int-conversion
+-Wformat=2
+```
+
+Add `-Wconversion`, `-Wsign-conversion`, `-Wshadow`, `-Wcast-align` and
+`-Wvla` only after a known-good/known-bad calibration for the migration family.
+The target build must keep `-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft
+-mabi=aapcs`, the project headers, generated configuration, linker scripts and
+ELF-to-a.out conversion. Host ASan, UBSan, scan-build, cppcheck and GCC analyzer
+runs supplement that build; they cannot replace it.
+
+Generic hardening flags need target-specific dispositions:
+
+- Stack protector: pilot per migration unit. Measure guard/runtime closure,
+  text, stack and failure behavior before enabling it. A 3 KiB u-area stack
+  cannot absorb an unmeasured global flag.
+- `_FORTIFY_SOURCE`: defer until project libc provides and tests the required
+  checked builtins. Host libc fortification does not harden target libc.
+- PIE/ASLR: inapplicable to the fixed OMAGIC 0x20000000 process image and
+  single process window without a loader and ABI redesign.
+- W^X: the user window is one RWX OMAGIC text/data/bss image. C17 cleanup does
+  not create separation. MPU register, read-back and fault evidence owns any
+  protection claim.
+- ASan/UBSan: host and representable ILP32 or qemu evidence only. Runtime cost
+  excludes them from the shipped image unless a measured diagnostic profile
+  fits.
+- LTO: defer until archive tools, `elf2aout`, inline assembly, weak hooks and
+  bisectability have an exact equivalence gate.
+- Section GC: run a measured pilot. Compile with function/data sections, link
+  with GC and inspect every discarded section, callback table, linker `KEEP`,
+  multicall overlay and packed image before promotion.
+
+Security closure also requires typed external-byte decoding, overflow-safe
+size arithmetic, bounded pathname and string handling, explicit ownership and
+error paths, format attributes, and tests that execute malformed inputs. A
+warning-free build proves compilation under its exact flags; it does not prove
+runtime bounds, MPU behavior, flash durability or physical-board behavior.
+
+### Tiny-target acceptance contract
+
+The RP2040 reserves 128 KiB for boot2 plus kernel, a 144 KiB OMAGIC user
+window, 106 KiB of kernel RAM, two 3 KiB u areas, 8 KiB of USB scratch,
+1,536 KiB of physical Dhara root and 384 KiB of raw swap. The root exposes
+989 KiB of logical blocks after Dhara overhead. Every C17 migration must keep
+these accounts separate:
+
+- kernel flash: `.boot2 + .text` against the 128 KiB region;
+- kernel resident RAM: `.data`, `.bss`, `.ramfunc`, SwapRAM and scratch by
+  actual overlap and lifetime;
+- process peak: `a_text + a_data + a_bss + heap + user stack + arguments`
+  against 144 KiB with an explicit reserve;
+- kernel stack: `.su` static leads plus capacity sentinel measurements inside
+  the 3 KiB u area;
+- installed root: raw and packed 1 KiB blocks, inodes and hard-link identity;
+- durability: logical writes, Dhara map/checkpoint traffic and physical NOR
+  page/sector counters as separate evidence classes.
+
+An existing untracked kernel artifact dated 2026-10-03 measures 101,630 bytes
+of `.text`, 256 bytes of boot2, 248 bytes of `.data`, 312 bytes of `.ramfunc`,
+15,240 bytes of ordinary `.bss`, 16,384 bytes of SwapRAM and 8,192 bytes of
+scratch. It predates the audited HEAD by two days, so those values are a local
+baseline candidate, not current-build proof. A clean build must replace them
+before the first migration unit claims a delta.
+
+Seven packed multicall binaries save root blocks by sharing libc, code and
+exclusive applet BSS. A smaller standalone object can still make a box worse
+by raising its largest overlaid BSS extent or pulling a new libc member into
+every applet path. Measure standalone, box, raw a.out, packed a.out and complete
+root image together. Preserve `PRINTF_FLOAT`, `PRINTF_LLONG` and `SCANF_FLOAT`
+closure controls; adding a format conversion can import software arithmetic
+that dwarfs the source edit.
+
+### Recursive execution order
+
+The complete refactor is a sequence of finite frontiers:
+
+1. Land the tracked-file classifier and quarantine manifest. Unknown files
+   fail closed.
+2. Land calibrated AST/compiler inventories for old definitions,
+   non-prototype declarations, implicit types/calls and old varargs.
+3. Close `sys/kern` by subsystem, extending `check-ufs-prototypes` into exact
+   kernel compile units before changing userland.
+4. Close RP2040 machine/device code and generated PICO/PICO_UART consumers,
+   retaining MPU, syscall-frame, flash-XIP and capacity gates.
+5. Close libc by archive member and public header so each consumer rebuilds
+   from clean and ABI changes cannot hide behind stale objects.
+6. Close the seven multicall families with standalone and combined-object
+   gates, then migrate remaining shipped set-id and standalone programs.
+7. Close the native assembler, linker and Smaller C compiler with their host,
+   qemu-user, a.out and on-board compilation contracts.
+8. Close optional programs and games by dependency family; quarantine only
+   provenance-bound imported bodies.
+9. Ratchet each completed Makefile from `WARNLEVEL=legacy` to `full`, remove
+   old dialect overrides, and add the unit to the full Class A gate.
+10. Finish when the generated ledger reports zero unclassified tracked C/header
+    files, zero maintained K&R definitions, zero maintained non-prototype
+    declarations, zero implicit type/call diagnostics and zero uncalibrated
+    legacy warning units, with the full build, aggregate checks, image budgets
+    and required hardware gates recorded separately.
+
 At tree head `a2a7ef9e494df2753bb24ae62dad803dbc505ddb`, stock LLVM style in
 clang-format 22.1.8 proposed
 306 replacement records for `lib/libc/gen/ctime.c`, 579 for
@@ -59,7 +315,7 @@ The executable paths and package ownership are resolved on the execution host
 before a result is published. A missing tool is reported as `not run`; the
 guide does not replace it with a different version or a guessed compiler.
 
-The same tree-head inventory contains 1,934 tracked C files, 556 tracked
+That earlier tree-head inventory contains 1,934 tracked C files, 556 tracked
 headers and 810,340 combined C/header lines. Twenty-three tracked Makefiles or
 make fragments select `-ansi`, C89/C90/C99/C11 or a GNU equivalent. Those are
 scope measurements, not defect counts: generated, imported and quarantined

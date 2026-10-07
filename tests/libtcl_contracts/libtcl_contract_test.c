@@ -5,11 +5,12 @@
  * The command-separator case runs two commands joined by a semicolon, and
  * the regexp-result case reads the regexp and regsub commands' answers for
  * a match and a miss. Every other case crosses a width the library once
- * stored in unsigned short:
- * a variable value, the interpreter's append result, a substituted word, an
- * expression string operand, a list index named "end", a regexp backtrack
- * count and a compiled regexp program. Below 65536 bytes all of them behave
- * the same at any width, so each case is sized just past that boundary.
+ * stored in unsigned short: a variable value, the
+ * interpreter's append result, a substituted word, an expression string
+ * operand, a list index named "end", a variable's reference count, a
+ * pattern-cache length, a regexp backtrack count, a compiled regexp program
+ * and a substituted submatch. Below 65536 all of them behave the same at
+ * any width, so each case is sized at or just past that boundary.
  *
  * Each case runs in its own child under an alarm, so an overflow the
  * sanitizer aborts on, a fault or a loop that never ends fails that case and
@@ -97,6 +98,28 @@ static const struct script_case script_cases[] = {
 	  "for {set i 0} {$i < 33000} {incr i} {lappend l $i}\n"
 	  "list [lrange $l 32997 end] [llength [lreplace $l 32998 end z]]",
 	  "{32997 32998 32999} 32999" },
+	/* Var.upvarUses: 65536 upvar references to one global would wrap
+	   the count to 0, and unsetting the global would then free a
+	   variable every reference still points at. */
+	{ "upvar-count",
+	  "proc p {} {\n"
+	  "  for {set i 0} {$i < 65536} {incr i} {upvar #0 x l$i}\n"
+	  "  uplevel #0 {unset x}\n"
+	  "  set l0\n"
+	  "}\n"
+	  "set x 1\n"
+	  "list [catch p msg] $msg",
+	  "1 {can't read \"l0\": no such variable}" },
+	/* Interp.patLengths: an unused cache slot holds length -1 and a
+	   NULL pattern. Stored in unsigned short, -1 equals the length of a
+	   65535-byte pattern, which was then compared with that NULL. The
+	   pattern itself is refused as longer than NEXT() can link. */
+	{ "pattern-cache",
+	  "set p a\n"
+	  "while {[string length $p] < 65535} {append p $p}\n"
+	  "set p [string range $p 0 65534]\n"
+	  "list [string length $p] [catch {regexp $p abc} msg] $msg",
+	  "65535 1 {invalid regular expression pattern}" },
 };
 
 /*
@@ -254,6 +277,35 @@ regexp_program(void)
 	return ok;
 }
 
+/*
+ * regexp_substitute() copies each submatch with strncpy() for its full
+ * length, which a 70000-character submatch exceeds 65535 by.
+ */
+static int
+regexp_substitute_case(void)
+{
+	static const char name[] = "regexp-substitute";
+	regexp_t *r;
+	char *subject, *out;
+	int ok = 1;
+
+	r = compile_pattern("(a+)b");
+	subject = repeated('a', 70000, "b");
+	out = malloc(70001);
+	if (!expect(r != NULL && subject != NULL && out != NULL, name,
+	    "setup failed"))
+		return 0;
+	ok &= expect(regexp_execute(r, (const unsigned char *)subject) == 1,
+	    name, "(a+)b did not match");
+	ok &= expect(regexp_substitute(r, (const unsigned char *)"\\1",
+	    (unsigned char *)out) == 1 && strlen(out) == 70000 &&
+	    out[69999] == 'a', name, "\\1 did not copy all 70000 a's");
+	free(out);
+	free(subject);
+	free(r);
+	return ok;
+}
+
 struct native_case {
 	const char *name;
 	int (*body)(void);
@@ -262,6 +314,7 @@ struct native_case {
 static const struct native_case native_cases[] = {
 	{ "regexp-backtrack", regexp_backtrack },
 	{ "regexp-program", regexp_program },
+	{ "regexp-substitute", regexp_substitute_case },
 };
 
 #define NELEM(a)	(sizeof(a) / sizeof((a)[0]))

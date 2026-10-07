@@ -116,12 +116,13 @@ typedef struct Var {
 				 * 65535 bytes keeps its true size and the
 				 * growth test cannot pass on a wrapped
 				 * capacity. */
-    unsigned short upvarUses;	/* Counts number of times variable is
+    int upvarUses;		/* Counts number of times variable is
 				 * is referenced via global or upvar variables
 				 * (i.e. how many variables have "upvarPtr"
 				 * pointing to this variable).  Variable
 				 * can't be deleted until this count reaches
-				 * 0. */
+				 * 0.  An int, so 65536 references cannot
+				 * wrap it to 0 and free a live target. */
     VarTrace *tracePtr;		/* First in list of all traces set for this
 				 * variable. */
     ArraySearch *searchPtr;	/* First in list of all searches active
@@ -455,10 +456,13 @@ typedef struct Interp {
 				 * regular expression patterns.  NULL
 				 * means that this slot isn't used.
 				 * Malloc-ed. */
-    unsigned short patLengths [NUM_REGEXPS];
+    int patLengths [NUM_REGEXPS];
 				/* Number of non-null characters in
 				 * corresponding entry in patterns.
-				 * -1 means entry isn't used. */
+				 * -1 means entry isn't used; an int, so
+				 * no pattern length equals it and an
+				 * unused slot's NULL pattern is never
+				 * compared. */
     struct _regexp_t *regexps [NUM_REGEXPS];
 				/* Compiled forms of above strings.  Also
 				 * malloc-ed, or NULL if not in use yet. */

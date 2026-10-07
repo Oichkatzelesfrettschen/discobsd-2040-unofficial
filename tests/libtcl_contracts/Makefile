@@ -29,7 +29,8 @@ TEST_CFLAGS=	-std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
 # width, a sentinel, the command separator or the inverted regexp result,
 # and must fail the case named after it.
 NEGATIVES=	command_separator regexp_result var_extent append_extent \
-		parse_extent expr_extent list_end regexp_backtrack regexp_program
+		parse_extent expr_extent list_end upvar_count pattern_cache \
+		regexp_backtrack regexp_program regexp_substitute
 MUTATE.command_separator= \
 	tclbasic.c "s/case ';':/case ':':/"
 MUTATE.regexp_result= \
@@ -48,6 +49,12 @@ MUTATE.expr_extent= \
 MUTATE.list_end= \
 	tclutil.c 's/indexPtr = INT_MAX;/indexPtr = 32767;/' \
 	tclcmdil.c 's/last = INT_MAX;/last = 30000;/'
+MUTATE.upvar_count= \
+	internal.h 's/^    int upvarUses;/    unsigned short upvarUses;/'
+MUTATE.pattern_cache= \
+	internal.h 's/^    int patLengths /    unsigned short patLengths /'
+MUTATE.regexp_substitute= \
+	regsub.c 's/^	size_t len;/	unsigned short len;/'
 MUTATE.regexp_backtrack= \
 	regexp.c 's/^				int no, min;/				unsigned short no, min;/'
 MUTATE.regexp_program= \
@@ -74,6 +81,12 @@ check:
 	    ./libtcl_expr_extent_bad_test expr-extent
 	${TEST_EXECUTION} run libtcl.list-end.negative -- \
 	    ./libtcl_list_end_bad_test list-end
+	${TEST_EXECUTION} run libtcl.upvar-count.negative -- \
+	    ./libtcl_upvar_count_bad_test upvar-count
+	${TEST_EXECUTION} run libtcl.pattern-cache.negative -- \
+	    ./libtcl_pattern_cache_bad_test pattern-cache
+	${TEST_EXECUTION} run libtcl.regexp-substitute.negative -- \
+	    ./libtcl_regexp_substitute_bad_test regexp-substitute
 	${TEST_EXECUTION} run libtcl.regexp-backtrack.negative -- \
 	    ./libtcl_regexp_backtrack_bad_test regexp-backtrack
 	${TEST_EXECUTION} run libtcl.regexp-program.negative -- \
@@ -84,6 +97,8 @@ check:
 	libtcl.var-extent.negative \
 	libtcl.append-extent.negative libtcl.parse-extent.negative \
 	libtcl.expr-extent.negative libtcl.list-end.negative \
+	libtcl.upvar-count.negative libtcl.pattern-cache.negative \
+	libtcl.regexp-substitute.negative \
 	libtcl.regexp-backtrack.negative libtcl.regexp-program.negative
 	${TEST_EXECUTION} skip ${variant} "libtcl_contracts: ${HOSTCC} has no address and undefined sanitizer runtime"
 .endfor

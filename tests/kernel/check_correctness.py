@@ -43,15 +43,21 @@ def build(work, suite, changes):
         "bmap": ["ufs_bmap.c"],
         "synch": ["kern_synch.c", "vm_sched.c"],
     }[suite]
-    # A mutated kernel header goes into the private include directory, which
-    # -I lists ahead of the tree's sys directory.
-    for name, (old, new) in changes.items():
-        if name.endswith(".h"):
-            text = (ROOT / "sys/sys" / name).read_text()
-            if text.count(old) != 1:
-                raise RuntimeError("mutation anchor is ambiguous: " + name)
-            (work / "sys").mkdir(exist_ok=True)
-            (work / "sys" / name).write_text(text.replace(old, new))
+    # A header mutation copies every sys/sys header into the private include
+    # directory, which -I lists ahead of the tree's sys directory, and mutates
+    # the copy. Copying them all matters because sys/vm.h names vmmeter.h in
+    # quotes, which resolves beside the including header before any -I.
+    headers = {name: change for name, change in changes.items() if name.endswith(".h")}
+    if headers:
+        (work / "sys").mkdir()
+        for header in (ROOT / "sys/sys").glob("*.h"):
+            text = header.read_text()
+            if header.name in headers:
+                old, new = headers[header.name]
+                if text.count(old) != 1:
+                    raise RuntimeError("mutation anchor is ambiguous: " + header.name)
+                text = text.replace(old, new)
+            (work / "sys" / header.name).write_text(text)
     if suite == "bmap":
         common += ["-Dfree=ufs_free"]
     for name in sources:
@@ -127,6 +133,13 @@ def build(work, suite, changes):
         + ["-o", str(binary)]
     )
     return subprocess.run([str(binary)], capture_output=True, text=True)
+
+
+def vmrate_narrowing():
+    """Every struct vmrate counter back to the u_short it was."""
+    text = (ROOT / "sys/sys/vmmeter.h").read_text()
+    block = text[text.index("    u_int       v_swtch;") : text.index("#define v_last")]
+    return block, block.replace("    u_int       v_", "    u_short     v_")
 
 
 def main():
@@ -210,7 +223,8 @@ def main():
             "narrow-vm-counters",
             "synch",
             {
-                "vmmeter.h": ("    u_int       v_syscall;", "    u_short     v_syscall;"),
+                "vmmeter.h": vmrate_narrowing(),
+                "vm_sched.c": ("register u_int *cp, *rp;", "register u_short *cp, *rp;"),
             },
             True,
         ),

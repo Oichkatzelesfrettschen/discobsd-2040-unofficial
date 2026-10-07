@@ -69,10 +69,11 @@ struct  stat
 #define S_ISSOCK(m) ((m & S_IFMT) == S_IFSOCK)  /* socket */
 
 /*
- * Definitions of flags stored in file flags word.  Different from 4.4 because
- * 2.11BSD only could afford a u_short for the flags.  It is not a great
- * inconvenience since there are still 5 bits in each byte available for
- * future use.
+ * Definitions of flags stored in file flags word.  st_flags and the on-disk
+ * di_flags are u_int, but under COMPACT_INODE_FIELDS the in-core inode keeps
+ * i_flags in a u_short (sys/sys/inode.h), so every defined flag stays within
+ * bits 0..15: owner flags in the low byte and superuser flags in the high
+ * byte, each with 5 bits unassigned.
  *
  * Super-user and owner changeable flags.
  */

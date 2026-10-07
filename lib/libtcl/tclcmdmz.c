@@ -71,7 +71,7 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     int indices = 0;
     regexp_t *regexpPtr;
     unsigned char **argPtr, *string;
-    int match, i;
+    int match, i, code;
 
     if (argc < 3) {
 	wrongNumArgs:
@@ -122,13 +122,15 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     } else {
 	string = argPtr[1];
     }
-    match = regexp_execute (regexpPtr, string);
-    if (string != argPtr[1]) {
-	free(string);
-    }
-    if (match) {
+    /*
+     * The match pointers point into string, so a lower-case copy lives
+     * until the variables below have been set from them.
+     */
+    match = regexp_execute (regexpPtr, string);	/* 1 on a match */
+    code = TCL_OK;
+    if (!match) {
 	interp->result = (unsigned char*) "0";
-	return TCL_OK;
+	goto done;
     }
 
     /*
@@ -139,7 +141,8 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     argc -= 2;
     if (argc > 10) {
 	interp->result = (unsigned char*) "too many substring variables";
-	return TCL_ERROR;
+	code = TCL_ERROR;
+	goto done;
     }
     for (i = 0; i < argc; i++) {
 	unsigned char *result, info[50];
@@ -169,11 +172,17 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
 	if (result == 0) {
 	    Tcl_AppendResult(interp, "couldn't set variable \"",
 		    argPtr[i+2], "\"", 0);
-	    return TCL_ERROR;
+	    code = TCL_ERROR;
+	    goto done;
 	}
     }
     interp->result = (unsigned char*) "1";
-    return TCL_OK;
+
+    done:
+    if (string != argPtr[1]) {
+	free(string);
+    }
+    return code;
 }
 
 /*
@@ -204,7 +213,7 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
     int noCase = 0, all = 0;
     regexp_t *regexpPtr;
     unsigned char *string, *p, *firstChar, *newValue, **argPtr;
-    int match, result, flags;
+    int match, result, flags, numMatches;
     register unsigned char *src, c;
 
     if (argc < 5) {
@@ -264,11 +273,14 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
      */
 
     flags = 0;
+    numMatches = 0;
     for (p = string; *p != 0; ) {
-	match = regexp_execute (regexpPtr, p);
-	if (match) {
+	/* 1 on a match; ^ matches only at the start of string. */
+	match = regexp_execute_at (regexpPtr, p, string);
+	if (!match) {
 	    break;
 	}
+	numMatches++;
 
 	/*
 	 * Copy the portion of the source string before the match to the
@@ -361,6 +373,24 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
 	    }
 	}
 	p = (unsigned char*) regexpPtr->endp[0];
+
+	/*
+	 * An empty match would be found again at the same place, so copy
+	 * the character after it and resume past that.
+	 */
+
+	if ((regexpPtr->startp[0] == regexpPtr->endp[0]) && (*p != 0)) {
+	    unsigned char *one = argPtr[1] + (p - string);
+
+	    c = one[1];
+	    one[1] = 0;
+	    newValue = Tcl_SetVar(interp, argPtr[3], one, TCL_APPEND_VALUE);
+	    one[1] = c;
+	    if (newValue == 0) {
+		goto cantSet;
+	    }
+	    p++;
+	}
 	if (!all) {
 	    break;
 	}
@@ -370,7 +400,7 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
      * If there were no matches at all, then return a "0" result.
      */
 
-    if (p == string) {
+    if (numMatches == 0) {
 	interp->result = (unsigned char*) "0";
 	result = TCL_OK;
 	goto done;
@@ -382,6 +412,7 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
      */
 
     if (*p != 0) {
+	p = argPtr[1] + (p - string);	/* the original, not a -nocase copy */
 	if (Tcl_SetVar(interp, argPtr[3], p, TCL_APPEND_VALUE) == 0) {
 	    goto cantSet;
 	}

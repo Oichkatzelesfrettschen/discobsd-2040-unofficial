@@ -103,20 +103,26 @@ typedef struct ArraySearch {
  * in the hash entry.
  */
 typedef struct Var {
-    unsigned short valueLength;	/* Holds the number of non-null bytes
+    int valueLength;		/* Holds the number of non-null bytes
 				 * actually occupied by the variable's
 				 * current value in value.string (extra
 				 * space is sometimes left for expansion).
 				 * For array and global variables this is
 				 * meaningless. */
-    unsigned short valueSpace;	/* Total number of bytes of space allocated
-				 * at value. */
-    unsigned short upvarUses;	/* Counts number of times variable is
+    int valueSpace;		/* Total number of bytes of space allocated
+				 * at value.  Both extents are int, the
+				 * width of every length Tcl_SetVar2 and
+				 * NewVar compute, so a value longer than
+				 * 65535 bytes keeps its true size and the
+				 * growth test cannot pass on a wrapped
+				 * capacity. */
+    int upvarUses;		/* Counts number of times variable is
 				 * is referenced via global or upvar variables
 				 * (i.e. how many variables have "upvarPtr"
 				 * pointing to this variable).  Variable
 				 * can't be deleted until this count reaches
-				 * 0. */
+				 * 0.  An int, so 65536 references cannot
+				 * wrap it to 0 and free a live target. */
     VarTrace *tracePtr;		/* First in list of all traces set for this
 				 * variable. */
     ArraySearch *searchPtr;	/* First in list of all searches active
@@ -417,10 +423,13 @@ typedef struct Interp {
     unsigned char *appendResult; /* Storage space for results generated
 				 * by Tcl_AppendResult.  Malloc-ed.  NULL
 				 * means not yet allocated. */
-    unsigned short appendAvl;	/* Total amount of space available at
+    int appendAvl;		/* Total amount of space available at
 				 * partialResult. */
-    unsigned short appendUsed;	/* Number of non-null bytes currently
-				 * stored at partialResult. */
+    int appendUsed;		/* Number of non-null bytes currently
+				 * stored at partialResult.  Both are int
+				 * like the totals SetupAppendBuffer
+				 * computes, for the reason given at
+				 * Var.valueSpace. */
 
     /*
      * Information related to files.  See tclUnixAZ.c and tclUnixUtil.c
@@ -447,10 +456,13 @@ typedef struct Interp {
 				 * regular expression patterns.  NULL
 				 * means that this slot isn't used.
 				 * Malloc-ed. */
-    unsigned short patLengths [NUM_REGEXPS];
+    int patLengths [NUM_REGEXPS];
 				/* Number of non-null characters in
 				 * corresponding entry in patterns.
-				 * -1 means entry isn't used. */
+				 * -1 means entry isn't used; an int, so
+				 * no pattern length equals it and an
+				 * unused slot's NULL pattern is never
+				 * compared. */
     struct _regexp_t *regexps [NUM_REGEXPS];
 				/* Compiled forms of above strings.  Also
 				 * malloc-ed, or NULL if not in use yet. */
@@ -522,7 +534,7 @@ typedef struct ParseValue {
 				 * output buffer. */
     unsigned char *end;		/* Address of the last usable character
 				 * in the buffer. */
-    void (*expandProc) (struct ParseValue *pvPtr, unsigned short needed);
+    void (*expandProc) (struct ParseValue *pvPtr, int needed);
 				/* Procedure to call when space runs out;
 				 * it will make more space. */
     void *clientData;		/* Arbitrary information for use of
@@ -583,7 +595,7 @@ extern void		TclCopyAndCollapse (int count, unsigned char *src,
 extern void		TclDeleteVars (Interp *iPtr,
 			    Tcl_HashTable *tablePtr);
 extern void		TclExpandParseValue (ParseValue *pvPtr,
-			    unsigned short needed);
+			    int needed);
 extern int		TclFindElement (Tcl_Interp *interp,
 			    unsigned char *list, unsigned char **elementPtr,
 			    unsigned char **nextPtr, int *sizePtr, int *bracePtr);

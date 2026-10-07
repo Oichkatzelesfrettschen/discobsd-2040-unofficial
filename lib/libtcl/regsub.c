@@ -30,7 +30,7 @@ regexp_substitute (const regexp_t *prog, const unsigned char *src, unsigned char
 {
 	unsigned char c;
 	unsigned char no;
-	unsigned short len;
+	size_t len;
 
 	if (! prog || ! src || ! dst) {
 		/* regerror("NULL parm to regsub"); */

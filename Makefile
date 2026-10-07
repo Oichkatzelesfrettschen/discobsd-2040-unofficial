@@ -374,6 +374,14 @@ check-tee-contracts:
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
 
+# lib/libtcl's own source under the address and undefined sanitizers, at the
+# byte extents and counters it once held in unsigned short: values, results,
+# substituted words, expression operands, "end" indexes, regexp backtracking
+# and compiled regexp programs, each just past 65535. A mutated copy of the
+# library restores each narrow width and must fail its case.
+check-libtcl-contracts:
+		${MAKE} -C tests/libtcl_contracts check
+
 check-du-contracts:
 		${MAKE} -C tests/du_contracts check
 
@@ -615,6 +623,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts \
+		check-libtcl-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress \
 		check-kernel-metadata check-root-noatime \
@@ -762,7 +771,8 @@ check-ilp32-execution: check-python
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-textbox-host
+		check-libc-host-contracts check-textbox-host \
+		check-libtcl-contracts
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py

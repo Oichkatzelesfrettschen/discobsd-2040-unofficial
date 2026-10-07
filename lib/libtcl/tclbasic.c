@@ -538,7 +538,7 @@ Tcl_Eval(interp, cmd, flags, termPtr)
 	    case '\r':
 	    case '\n':
 	    case ' ':
-	    case ':':
+	    case ';':
 		++src;
 		continue;
 	    }

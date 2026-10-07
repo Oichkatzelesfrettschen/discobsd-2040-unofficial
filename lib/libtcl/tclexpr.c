@@ -176,7 +176,7 @@ parse_string (Tcl_Interp *interp,	/* Where to store error message. */
      */
     valuePtr->type = TYPE_STRING;
     if (string != valuePtr->pv.buffer) {
-	unsigned short length, space;
+	int length, space;
 
 	length = strlen (string);
 	valuePtr->pv.next = valuePtr->pv.buffer;
@@ -892,7 +892,7 @@ get_value (Tcl_Interp *interp,	/* Interpreter to use for error reporting. */
 static void
 make_string (Value_t *valuePtr)		/* Value to be converted. */
 {
-    unsigned short space;
+    int space;
 
     space = valuePtr->pv.end - valuePtr->pv.buffer;
     if (20 > space) {

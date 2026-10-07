@@ -1444,6 +1444,325 @@
       "recipe": "\"$PYTHON\" \"$EXECUTION\" run textbox.getline.ilp32 -- \"$WORK/getline_test32\"",
       "script": "usr.bin/textbox/tests/run.sh",
       "aliases": []
+    },
+    {
+      "id": "libtcl.contracts.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_contract_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.contracts.sanitized -- ./libtcl_contract_test",
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.command-separator.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_command_separator_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_command_separator_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.command-separator.negative -- ./libtcl_command_separator_bad_test command-separator",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regexp-result.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regexp_result_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regexp_result_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regexp-result.negative -- ./libtcl_regexp_result_bad_test regexp-result",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regsub-empty.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regsub_empty_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regsub_empty_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regsub-empty.negative -- ./libtcl_regsub_empty_bad_test regsub-cases",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regsub-nocase-tail.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regsub_nocase_tail_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regsub_nocase_tail_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regsub-nocase-tail.negative -- ./libtcl_regsub_nocase_tail_bad_test regsub-cases",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regsub-bol.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regsub_bol_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regsub_bol_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regsub-bol.negative -- ./libtcl_regsub_bol_bad_test regsub-cases",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.var-extent.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_var_extent_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_var_extent_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.var-extent.negative -- ./libtcl_var_extent_bad_test var-extent",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.append-extent.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_append_extent_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_append_extent_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.append-extent.negative -- ./libtcl_append_extent_bad_test append-extent",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.parse-extent.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_parse_extent_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_parse_extent_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.parse-extent.negative -- ./libtcl_parse_extent_bad_test parse-extent",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.expr-extent.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_expr_extent_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_expr_extent_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.expr-extent.negative -- ./libtcl_expr_extent_bad_test expr-extent",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.list-end.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_list_end_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_list_end_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.list-end.negative -- ./libtcl_list_end_bad_test list-end",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.upvar-count.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_upvar_count_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_upvar_count_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.upvar-count.negative -- ./libtcl_upvar_count_bad_test upvar-count",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.pattern-cache.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_pattern_cache_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_pattern_cache_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.pattern-cache.negative -- ./libtcl_pattern_cache_bad_test pattern-cache",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regexp-substitute.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regexp_substitute_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regexp_substitute_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regexp-substitute.negative -- ./libtcl_regexp_substitute_bad_test regexp-substitute",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regexp-backtrack.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regexp_backtrack_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regexp_backtrack_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regexp-backtrack.negative -- ./libtcl_regexp_backtrack_bad_test regexp-backtrack",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
+      "id": "libtcl.regexp-program.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regexp_program_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regexp_program_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regexp-program.negative -- ./libtcl_regexp_program_bad_test regexp-program",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
     }
   ]
 }

@@ -75,7 +75,7 @@ struct ctlname {
 	int	 ctl_type;	/* type of name */
 };
 #define	CTLTYPE_NODE	1	/* name is a node */
-#define	CTLTYPE_INT	2	/* name describes a 16-bit integer */
+#define	CTLTYPE_INT	2	/* name describes an int */
 #define	CTLTYPE_STRING	3	/* name describes a string */
 #define	CTLTYPE_LONG	4	/* name describes a 32-bit number */
 #define	CTLTYPE_STRUCT	5	/* name describes a structure */

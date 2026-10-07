@@ -325,7 +325,7 @@ loop:
     printf("%6d", pfree);
 
     if (pflag) {
-        printf("%4d%3d ", rate.v_swpin / nintv, rate.v_swpout / nintv);
+        printf("%4lu%3lu ", rate.v_swpin / nintv, rate.v_swpout / nintv);
     }
 
     etime /= (float)hz;
@@ -333,10 +333,10 @@ loop:
         if (dr_select[i])
             stats(i);
     }
-    printf("%5d%4d", rate.v_intr/nintv, rate.v_syscall/nintv);
+    printf("%5lu%4lu", rate.v_intr/nintv, rate.v_syscall/nintv);
     if (pflag)
-        printf("%4d", rate.v_trap / nintv);
-    printf("%4d", rate.v_swtch / nintv);
+        printf("%4lu", rate.v_trap / nintv);
+    printf("%4lu", rate.v_swtch / nintv);
 
     for(i=0; i<CPUSTATES; i++) {
         float f = stat1(i);

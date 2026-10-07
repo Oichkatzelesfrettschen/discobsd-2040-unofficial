@@ -196,11 +196,12 @@ siginit(p)
 
 /*
  * Manipulate signal mask.
- * Unlike 4.4BSD we do not receive a pointer to the new and old mask areas and
- * do a copyin/copyout instead of storing indirectly thru a 'retval' parameter.
- * This is because we have to return both an error indication (which is 16 bits)
- * _AND_ the new mask (which is 32 bits).  Can't do both at the same time with
- * the 2BSD syscall return mechanism.
+ * The syscall takes sigprocmask(2)'s own arguments, pointers to the new and
+ * old masks, and copies through them, so the libc entry is a plain trap.
+ * 4.4BSD instead passes the new mask by value and returns the old one as the
+ * syscall's value for libc to store. The return path in
+ * sys/arch/rp2040/rp2040/syscall.c could carry it: r0 holds the 32-bit
+ * u_rval, or u_error with the carry flag set.
  */
 void
 sigprocmask()

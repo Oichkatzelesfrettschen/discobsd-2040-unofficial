@@ -1,4 +1,7 @@
-/* Production clock, rwip and syncip paths with deterministic I/O failures. */
+/*
+ * Production clock, rwip, syncip and sync paths with deterministic I/O
+ * failures.
+ */
 #include "hostkern.h"
 #include <sys/param.h>
 #include <sys/user.h>
@@ -25,6 +28,12 @@ static char data[sizeof(struct fs) + DEV_BSIZE];
 static unsigned writes, delayed, asynchronous, flushes, updates;
 static int write_error, flush_error, update_error, mount_error;
 static unsigned mount_flushes;
+/* Delayed buffers bflush() would find, and the block superblock writes use. */
+static unsigned dirty_buffers, superblock_gets;
+/* iupdat()'s wait argument: syncip() waits, syncinodes() delays. */
+static int expected_wait = 1;
+
+void gate_sync(void);
 
 int copyin(const caddr_t src, caddr_t dst, u_int n)
 { bcopy(src, dst, n); return 0; }
@@ -38,7 +47,7 @@ void itrunc(struct inode *ip, off_t size, int flags)
 daddr_t bmap(struct inode *ip, daddr_t block, int rw, int flags)
 { (void)ip; (void)block; (void)rw; (void)flags; return 12; }
 struct buf *getblk(dev_t dev, daddr_t block)
-{ (void)dev; (void)block; return &buf[0]; }
+{ (void)dev; if (block == SUPERB) superblock_gets++; return &buf[0]; }
 struct buf *bread(dev_t dev, daddr_t block) { return getblk(dev, block); }
 struct buf *breada(dev_t dev, daddr_t block, daddr_t next)
 { (void)next; return getblk(dev, block); }
@@ -46,12 +55,39 @@ struct buf *geteblk(void) { return &buf[0]; }
 void brelse(struct buf *bp) { (void)bp; }
 int bwrite(struct buf *bp) { if (bp->b_flags & B_ASYNC) asynchronous++; else writes++; return write_error; }
 void bdwrite(struct buf *bp) { (void)bp; delayed++; }
-int bflush(dev_t dev) { (void)dev; mount_flushes++; return mount_error; }
-void iput(struct inode *ip) { (void)ip; }
+int bflush(dev_t dev)
+{ (void)dev; mount_flushes++; writes += dirty_buffers; dirty_buffers = 0; return mount_error; }
+/*
+ * The release irele() performs for a reference syncinodes() took: the inode
+ * keeps another reference, so the last-close path is out of reach and the
+ * production ITIMES() folds any IUPD|IACC|ICHG left by a failed update into
+ * IMOD, which keeps the inode eligible for the next sync().
+ */
+void iput(struct inode *ip)
+{
+    if (ip < inode || ip >= inode + NINODE)
+        return;
+    HK_CHECK(ip->i_count > 1);
+    ip->i_flag &= ~ILOCKED;
+    ITIMES(ip, &time, &time);
+    ip->i_count--;
+}
 int blkflush(dev_t dev, daddr_t block)
 { (void)dev; (void)block; flushes++; return flush_error; }
+/*
+ * Like the production iupdat(), a failure leaves the dirty flags set, and a
+ * delayed update leaves the inode block for bflush() to write.
+ */
 int iupdat(struct inode *ip, struct timeval *at, struct timeval *mt, int wait)
-{ (void)ip; (void)at; (void)mt; HK_CHECK(wait == 1); updates++; return update_error; }
+{
+    (void)at; (void)mt; HK_CHECK(wait == expected_wait); updates++;
+    if (update_error)
+        return update_error;
+    if (!wait && (ip->i_flag & (IUPD|IACC|ICHG|IMOD)))
+        dirty_buffers++;
+    ip->i_flag &= ~(IUPD|IACC|ICHG|IMOD);
+    return 0;
+}
 int uiomove(caddr_t cp, u_int n, struct uio *io)
 { (void)cp; io->uio_resid -= n; io->uio_offset += n; return 0; }
 
@@ -141,6 +177,109 @@ static void io_cases(void)
     HK_CHECK(mount_flushes == 1);
 }
 
+/*
+ * sync() over a mount whose superblock is clean. An overwrite of an
+ * allocated block leaves fs_fmod clear while it dirties a data buffer and
+ * the inode, so dirty_buffers and inode[3] stand for that state.
+ */
+static void sync_setup(unsigned dirty_data, int dirty_inode)
+{
+    unsigned i;
+
+    u = (struct user){0}; mount[0] = (struct mount){0}; buf[0] = (struct buf){0};
+    for (i = 0; i < NINODE; i++)
+        inode[i] = (struct inode){0};
+    writes = delayed = asynchronous = flushes = updates = mount_flushes = 0;
+    superblock_gets = 0;
+    write_error = flush_error = update_error = mount_error = 0;
+    expected_wait = 0;
+    buf[0].b_addr = data;
+    mount[0].m_inodp = &node; mount[0].m_dev = 1;
+    dirty_buffers = dirty_data;
+    inode[3].i_fs = &mount[0].m_filsys; inode[3].i_dev = 1;
+    inode[3].i_count = 1;
+    inode[3].i_flag = dirty_inode ? IUPD | ICHG : 0;
+}
+
+static void sync_cases(void)
+{
+    struct fs *fs = &mount[0].m_filsys;
+    unsigned data_dirty;
+    int inode_dirty;
+
+    /* Neither, data, metadata, both: all eligible state is written. */
+    for (data_dirty = 0; data_dirty <= 1; data_dirty++)
+        for (inode_dirty = 0; inode_dirty <= 1; inode_dirty++) {
+            sync_setup(data_dirty, inode_dirty);
+            gate_sync();
+            HK_CHECK(updates == (unsigned)inode_dirty);
+            HK_CHECK(writes == data_dirty + (unsigned)inode_dirty);
+            HK_CHECK(dirty_buffers == 0 && inode[3].i_flag == 0);
+            HK_CHECK(inode[3].i_count == 1);
+            HK_CHECK(superblock_gets == 0 && fs->fs_fmod == 0);
+        }
+
+    /* A modified superblock is still written, and only then. */
+    sync_setup(0, 0); fs->fs_fmod = 1;
+    gate_sync();
+    HK_CHECK(superblock_gets == 1 && writes == 1 && fs->fs_fmod == 0);
+
+    /* A locked inode is skipped, stays dirty and is written next time. */
+    sync_setup(0, 1); inode[3].i_flag |= ILOCKED;
+    gate_sync();
+    HK_CHECK(updates == 0 && writes == 0);
+    HK_CHECK(inode[3].i_flag == (ILOCKED | IUPD | ICHG));
+    inode[3].i_flag &= ~ILOCKED;
+    gate_sync();
+    HK_CHECK(updates == 1 && writes == 1 && inode[3].i_flag == 0);
+
+    /* Locked superblock lists pass the mount over with its state kept. */
+    sync_setup(1, 1); fs->fs_ilock = 1;
+    gate_sync();
+    HK_CHECK(mount_flushes == 0 && updates == 0 && writes == 0);
+    HK_CHECK(dirty_buffers == 1 && inode[3].i_flag == (IUPD | ICHG));
+    fs->fs_ilock = 0; fs->fs_flock = 1;
+    gate_sync();
+    HK_CHECK(mount_flushes == 0 && dirty_buffers == 1);
+    fs->fs_flock = 0;
+    gate_sync();
+    HK_CHECK(writes == 2 && dirty_buffers == 0 && inode[3].i_flag == 0);
+
+    /*
+     * A failed inode update stays dirty: the release folds its flags into
+     * IMOD and stamps the times. The buffers are flushed anyway, the
+     * superblock waits, and the next call retries the inode.
+     */
+    sync_setup(1, 1); fs->fs_fmod = 1; update_error = EIO;
+    time.tv_sec = 4242;
+    gate_sync();
+    HK_CHECK(updates == 1 && mount_flushes == 1 && writes == 1);
+    HK_CHECK(inode[3].i_flag == IMOD && inode[3].i_count == 1);
+    HK_CHECK(inode[3].i_mtime == 4242 && inode[3].i_ctime == 4242);
+    HK_CHECK(superblock_gets == 0 && fs->fs_fmod == 1);
+    update_error = 0;
+    gate_sync();
+    HK_CHECK(updates == 2 && writes == 3 && superblock_gets == 1);
+    HK_CHECK(inode[3].i_flag == 0 && fs->fs_fmod == 0);
+
+    /* A latched write error survives the call that cannot report it. */
+    sync_setup(0, 0); mount[0].m_write_error = EIO;
+    gate_sync();
+    HK_CHECK(mount[0].m_write_error == EIO && writes == 0);
+
+    /* A clean read-only mount writes nothing and does not panic. */
+    sync_setup(0, 0); mount[0].m_flags = MNT_RDONLY; fs->fs_ronly = 1;
+    gate_sync();
+    HK_CHECK(writes == 0 && superblock_gets == 0);
+
+    /* The mount's MNT_ASYNC setting is restored after the flush. */
+    sync_setup(1, 0); mount[0].m_flags = MNT_ASYNC;
+    gate_sync();
+    HK_CHECK(writes == 1 && mount[0].m_flags == MNT_ASYNC);
+
+    expected_wait = 1;
+}
+
 static void counter_cases(void)
 {
     struct storage_stats stats = {0};
@@ -156,6 +295,6 @@ static void counter_cases(void)
 
 int main(void)
 {
-    clock_cases(); io_cases(); counter_cases();
-    return hk_verdict("time/io/storage");
+    clock_cases(); io_cases(); sync_cases(); counter_cases();
+    return hk_verdict("time/io/sync/storage");
 }

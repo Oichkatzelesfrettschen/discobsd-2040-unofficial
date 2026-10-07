@@ -137,7 +137,7 @@ void
 vmmeter()
 {
 #ifdef UCB_METER
-    register u_short *cp, *rp;
+    register u_int *cp, *rp;
     register long *sp;
 
     ave(avefree, freemem, 5);

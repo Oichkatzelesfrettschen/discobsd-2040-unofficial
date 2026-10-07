@@ -15,6 +15,7 @@
  */
 #include "internal.h"
 #include "regexp.h"
+#include <limits.h>
 #include <stdarg.h>
 
 /*
@@ -1264,8 +1265,10 @@ Tcl_SetErrorCode (Tcl_Interp *interp,	/* Interpreter whose errorCode variable is
  *	*indexPtr.  If the return value is TCL_ERROR, then string
  *	was bogus;  an error message is returned in interp->result.
  *	If a negative index is specified, it is rounded up to 0.
- *	The index value may be larger than the size of the list
- *	(this happens when "end" is specified).
+ *	The index value may be larger than the size of the list:
+ *	"end" yields INT_MAX, which the element walk in
+ *	Tcl_LreplaceCmd never reaches because it stops at the
+ *	list's terminating null.
  *
  * Side effects:
  *	None.
@@ -1287,7 +1290,7 @@ TclGetListIndex(interp, string, indexPtr)
 	    *indexPtr = 0;
 	}
     } else if (strncmp(string, (unsigned char*) "end", strlen(string)) == 0) {
-	*indexPtr = 32767;
+	*indexPtr = INT_MAX;
     } else {
 	Tcl_AppendResult(interp, "bad index \"", string,
 		"\": must be integer or \"end\"", 0);

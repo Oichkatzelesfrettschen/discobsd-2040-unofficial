@@ -182,3 +182,21 @@ not change ordinary full-block bawrite policy, Dhara checkpoint placement,
 raw swap or the periodic update daemon. Host fixtures establish sequencing
 and error handling; power-cut persistence still requires separate hardware
 evidence.
+
+## Periodic sync coverage
+
+`sync()` visits every mounted filesystem whose superblock lists are
+unlocked and calls `ufs_sync()`, which writes modified inodes and delayed
+buffers and then the superblock only when `fs_fmod` is set. `fs_fmod`
+records superblock changes alone, so an in-place overwrite of an allocated
+block, which dirties a buffer and the inode without allocating, is written
+by the next `sync()` rather than waiting for eviction, a later allocation,
+`fsync`, unmount or shutdown. A clean filesystem costs an inode-table and
+free-list scan and no device request. Inodes found locked, buffers found
+busy and a mount whose `fs_ilock` or `fs_flock` is held stay dirty for the
+next call; a failed write latches in `m_write_error`. update(8) supplies a
+30-second cadence for these calls, not a completion bound: a skipped object
+waits for a later call, and scheduling and flash latency add to the
+interval. The host gate establishes the selection and error handling;
+whether the overwrite reaches flash at the next tick on the board is a
+separate hardware observation.

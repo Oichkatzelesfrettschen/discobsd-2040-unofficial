@@ -35,6 +35,14 @@
 #include <machine/cpu.h>
 
 /*
+ * savcom() stores p_uid in o_uid, and the name lookup in fixup() compares
+ * o_uid with pw_uid. A short field turns UIDs from 32768 to 65535 negative
+ * and truncates larger ones, which then neither print nor match a name.
+ */
+_Static_assert(sizeof(((struct psout *)0)->o_uid) == sizeof(uid_t),
+    "psout.o_uid must hold every uid_t");
+
+/*
  * sys/sysctl.h pulls in sys/map.h for the kernel eproc/map structures,
  * whose "struct map" collides with this file's own struct map (the
  * text/data/stack layout below). Declare only CTL_MACHDEP and the

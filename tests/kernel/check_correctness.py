@@ -41,7 +41,23 @@ def build(work, suite, changes):
         "io": ["kern_time.c", "sys_inode.c", "ufs_subr.c", "ufs_syscalls2.c"],
         "credentials": ["kern_prot.c", "kern_prot2.c", "kern_proc.c"],
         "bmap": ["ufs_bmap.c"],
+        "synch": ["kern_synch.c", "vm_sched.c"],
     }[suite]
+    # A header mutation copies every sys/sys header into the private include
+    # directory, which -I lists ahead of the tree's sys directory, and mutates
+    # the copy. Copying them all matters because sys/vm.h names vmmeter.h in
+    # quotes, which resolves beside the including header before any -I.
+    headers = {name: change for name, change in changes.items() if name.endswith(".h")}
+    if headers:
+        (work / "sys").mkdir()
+        for header in (ROOT / "sys/sys").glob("*.h"):
+            text = header.read_text()
+            if header.name in headers:
+                old, new = headers[header.name]
+                if text.count(old) != 1:
+                    raise RuntimeError("mutation anchor is ambiguous: " + header.name)
+                text = text.replace(old, new)
+            (work / "sys" / header.name).write_text(text)
     if suite == "bmap":
         common += ["-Dfree=ufs_free"]
     for name in sources:
@@ -77,6 +93,10 @@ def build(work, suite, changes):
             ]
         elif name == "ufs_subr.c":
             extra += ["-Dsync=gate_sync"]
+        elif name == "kern_synch.c":
+            # HASH() folds a wait channel through int, narrower than a host
+            # pointer; the target's pointers are int-sized.
+            extra += ["-Wno-pointer-to-int-cast"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])
         objects.append(str(obj))
@@ -97,7 +117,12 @@ def build(work, suite, changes):
     binary = work / "gate"
     test = (
         TESTS
-        / {"io": "time_io_test.c", "credentials": "cred_test.c", "bmap": "bmap_write_test.c"}[suite]
+        / {
+            "io": "time_io_test.c",
+            "credentials": "cred_test.c",
+            "bmap": "bmap_write_test.c",
+            "synch": "synch_meter_test.c",
+        }[suite]
     )
     run(
         CC
@@ -110,11 +135,19 @@ def build(work, suite, changes):
     return subprocess.run([str(binary)], capture_output=True, text=True)
 
 
+def vmrate_narrowing():
+    """Every struct vmrate counter back to the u_short it was."""
+    text = (ROOT / "sys/sys/vmmeter.h").read_text()
+    block = text[text.index("    u_int       v_swtch;") : text.index("#define v_last")]
+    return block, block.replace("    u_int       v_", "    u_short     v_")
+
+
 def main():
     cases = [
         ("baseline-io", "io", {}, False),
         ("baseline-credentials", "credentials", {}, False),
         ("baseline-bmap", "bmap", {}, False),
+        ("baseline-synch", "synch", {}, False),
         (
             "discard-direct-init-error",
             "bmap",
@@ -169,6 +202,34 @@ def main():
         ),
         ("omit-metadata-sync", "io", {"sys_inode.c": ("error = syncip(ip);", "error = 0;")}, True),
         (
+            "skip-clean-superblock-mount",
+            "io",
+            {
+                "ufs_subr.c": (
+                    "if (fs->fs_ilock || fs->fs_flock)",
+                    "if (fs->fs_fmod == 0 || fs->fs_ilock || fs->fs_flock)",
+                )
+            },
+            True,
+        ),
+        (
+            "sync-locked-superblock-lists",
+            "io",
+            {
+                "ufs_subr.c": (
+                    "if (fs->fs_ilock || fs->fs_flock)",
+                    "if (fs->fs_ilock && fs->fs_flock)",
+                )
+            },
+            True,
+        ),
+        (
+            "release-drops-retry-state",
+            "io",
+            {"inode.h": ("(ip)->i_flag |= IMOD; \\", "(void)0; \\")},
+            True,
+        ),
+        (
             "narrow-process-group",
             "credentials",
             {"kern_prot.c": ("if (!PGRP_VALID(uap->pgrp))", "if (0)")},
@@ -178,6 +239,21 @@ def main():
             "accept-group-sentinel",
             "credentials",
             {"kern_prot.c": ("if (groups[i] == NOGROUP)", "if (0)")},
+            True,
+        ),
+        (
+            "unbounded-sleep-timeout",
+            "synch",
+            {"kern_synch.c": ("if (timo > INT_MAX)", "if (0)")},
+            True,
+        ),
+        (
+            "narrow-vm-counters",
+            "synch",
+            {
+                "vmmeter.h": vmrate_narrowing(),
+                "vm_sched.c": ("register u_int *cp, *rp;", "register u_short *cp, *rp;"),
+            },
             True,
         ),
     ]

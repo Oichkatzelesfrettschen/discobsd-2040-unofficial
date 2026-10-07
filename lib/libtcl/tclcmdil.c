@@ -16,6 +16,7 @@
  * express or implied warranty.
  */
 #include "internal.h"
+#include <limits.h>
 
 /*
  * Forward declarations for procedures defined in this file:
@@ -880,7 +881,7 @@ Tcl_LrangeCmd(notUsed, interp, argc, argv)
 	first = 0;
     }
     if ((*argv[3] == 'e') && (strncmp(argv[3], (unsigned char*) "end", strlen(argv[3])) == 0)) {
-	last = 30000;
+	last = INT_MAX;	/* The element walk stops at the list's end. */
     } else {
 	if (Tcl_GetInt(interp, argv[3], &last) != TCL_OK) {
 	    Tcl_ResetResult(interp);

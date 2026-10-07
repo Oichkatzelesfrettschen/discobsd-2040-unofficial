@@ -827,8 +827,11 @@ TclExpandParseValue (ParseValue *pvPtr,	/* Information about buffer that
 					 * in the structure is non-zero, it
 					 * means that the current buffer is
 					 * dynamically allocated. */
-	unsigned short needed)		/* Minimum amount of additional space
-					 * to allocate. */
+	int needed)			/* Minimum amount of additional space
+					 * to allocate.  An int, the type of
+					 * every length a caller computes, so
+					 * a request past 65535 bytes arrives
+					 * whole. */
 {
     int newSpace;
     unsigned char *new;

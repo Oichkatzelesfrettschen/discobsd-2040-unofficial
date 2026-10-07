@@ -222,6 +222,14 @@ const struct dhara_nand flnand = {
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
+/*
+ * Each ROM entry is a 16-bit address widened through u_int to a pointer,
+ * the role uintptr_t has in the Pico SDK's rom_func_lookup(). The kernel's
+ * header set has no uintptr_t, so the width it relies on is asserted here.
+ */
+_Static_assert(sizeof(u_int) == sizeof(void *) &&
+    sizeof(u_short) == 2, "ROM table entries widen through u_int");
+
 void *
 rom_func_lookup(u_int code)
 {

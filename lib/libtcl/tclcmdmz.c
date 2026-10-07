@@ -213,7 +213,7 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
     int noCase = 0, all = 0;
     regexp_t *regexpPtr;
     unsigned char *string, *p, *firstChar, *newValue, **argPtr;
-    int match, result, flags;
+    int match, result, flags, numMatches;
     register unsigned char *src, c;
 
     if (argc < 5) {
@@ -273,11 +273,14 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
      */
 
     flags = 0;
+    numMatches = 0;
     for (p = string; *p != 0; ) {
-	match = regexp_execute (regexpPtr, p);	/* 1 on a match */
+	/* 1 on a match; ^ matches only at the start of string. */
+	match = regexp_execute_at (regexpPtr, p, string);
 	if (!match) {
 	    break;
 	}
+	numMatches++;
 
 	/*
 	 * Copy the portion of the source string before the match to the
@@ -370,6 +373,24 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
 	    }
 	}
 	p = (unsigned char*) regexpPtr->endp[0];
+
+	/*
+	 * An empty match would be found again at the same place, so copy
+	 * the character after it and resume past that.
+	 */
+
+	if ((regexpPtr->startp[0] == regexpPtr->endp[0]) && (*p != 0)) {
+	    unsigned char *one = argPtr[1] + (p - string);
+
+	    c = one[1];
+	    one[1] = 0;
+	    newValue = Tcl_SetVar(interp, argPtr[3], one, TCL_APPEND_VALUE);
+	    one[1] = c;
+	    if (newValue == 0) {
+		goto cantSet;
+	    }
+	    p++;
+	}
 	if (!all) {
 	    break;
 	}
@@ -379,7 +400,7 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
      * If there were no matches at all, then return a "0" result.
      */
 
-    if (p == string) {
+    if (numMatches == 0) {
 	interp->result = (unsigned char*) "0";
 	result = TCL_OK;
 	goto done;
@@ -391,6 +412,7 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
      */
 
     if (*p != 0) {
+	p = argPtr[1] + (p - string);	/* the original, not a -nocase copy */
 	if (Tcl_SetVar(interp, argPtr[3], p, TCL_APPEND_VALUE) == 0) {
 	    goto cantSet;
 	}

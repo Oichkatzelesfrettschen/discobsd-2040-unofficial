@@ -23,6 +23,13 @@ bool_t regexp_compile (regexp_t *re, const unsigned char *pattern);
 bool_t regexp_execute (regexp_t *re, const unsigned char *str);
 
 /*
+ * As regexp_execute(), with ^ matching only at bol, the start of the line
+ * str lies in.
+ */
+bool_t regexp_execute_at (regexp_t *re, const unsigned char *str,
+	const unsigned char *bol);
+
+/*
  * Perform substitutions after a regexp match.
  * Returns 1 on success, or 0 on failure.
  */

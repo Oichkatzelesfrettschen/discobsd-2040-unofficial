@@ -779,11 +779,23 @@ regoptail (unsigned char *p, unsigned char *val)
 bool_t
 regexp_execute (regexp_t *prog, const unsigned char *string)
 {
+	return regexp_execute_at (prog, string, string);
+}
+
+/*
+ * Match against string, where bol is the start of the line string lies in:
+ * ^ matches only at bol. A caller resuming after an earlier match passes the
+ * original start, so ^ does not match again at each resumption.
+ */
+bool_t
+regexp_execute_at (regexp_t *prog, const unsigned char *string,
+	const unsigned char *bol)
+{
 	execute_t z;
 	const unsigned char *s;
 
 	/* Be paranoid... */
-	if (! prog || ! string) {
+	if (! prog || ! string || ! bol) {
 		/* regerror("NULL parameter"); */
 		return 0;
 	}
@@ -807,7 +819,7 @@ regexp_execute (regexp_t *prog, const unsigned char *string)
 	}
 
 	/* Mark beginning of line for ^ . */
-	z.bol = string;
+	z.bol = bol;
 
 	/* Simplest case:  anchored match need be tried only once. */
 	if (prog->anchor)
@@ -1023,7 +1035,8 @@ regmatch (execute_t *z, unsigned char *prog)
 		case STAR:
 		case PLUS: {
 				unsigned char nextch;
-				/* Signed: a STAR backtrack ends at no == -1. */
+				/* An int, like regrepeat()'s count of a run
+				   that may exceed 65535 characters. */
 				int no, min;
 				const unsigned char *save;
 
@@ -1042,7 +1055,10 @@ regmatch (execute_t *z, unsigned char *prog)
 					if (nextch == '\0' || *z->input == nextch)
 						if (regmatch (z, next))
 							return 1;
-					/* Couldn't or didn't -- back up. */
+					/* Couldn't or didn't -- back up, but
+					   not to a pointer before save. */
+					if (no == min)
+						break;
 					no--;
 					z->input = save + no;
 				}

@@ -3,8 +3,9 @@
  * library's own source under the address and undefined-behavior sanitizers.
  *
  * The command-separator case runs two commands joined by a semicolon, and
- * the regexp-result case reads the regexp and regsub commands' answers for
- * a match and a miss, with and without -nocase. Every other case crosses
+ * the regexp-result and regsub-cases cases read the regexp and regsub
+ * commands' answers for matches, misses, empty matches, -nocase and -all.
+ * Every other case crosses
  * a width the library once stored in unsigned short: a variable value, the
  * interpreter's append result, a substituted word, an expression string
  * operand, a list index named "end", a variable's reference count, a
@@ -68,6 +69,16 @@ static const struct script_case script_cases[] = {
 	  " [regexp -nocase {b+} aBBc n] $n"
 	  " [regexp -nocase -indices {b+} aBBc k] $k",
 	  "1 bb 0 1 aXc 0 0 1 aXcX 1 BB 1 {1 2}" },
+	/* regsub counts its matches, so one that ends at the start of the
+	   string still answers 1; takes the text after the last match from
+	   the original rather than the -nocase copy; anchors ^ to the start
+	   of the string across -all; and steps past an empty match instead
+	   of finding it again forever. */
+	{ "regsub-cases",
+	  "list [regsub {^} abc X v1] $v1 [regsub {x*} abc Y v2] $v2"
+	  " [regsub -nocase b ABC x v3] $v3 [regsub -all {^a} aaa b v4] $v4"
+	  " [regsub -all {x*} abc Y v5] $v5",
+	  "1 Xabc 1 Yabc 1 AxC 1 baa 1 YaYbYc" },
 	/* Var.valueLength and Var.valueSpace: the next append after the
 	   value passes 65535 bytes grows from the true capacity. */
 	{ "var-extent",
@@ -239,6 +250,19 @@ regexp_backtrack(void)
 	subject[70000] = 'c';
 	ok &= expect(regexp_execute(r, s) == 0, name,
 	    "a*b matched 70000 a's and a c");
+	free(subject);
+	free(r);
+
+	/* Only a backtrack through all 70000 positions finds this match
+	   at the subject's start. */
+	r = compile_pattern("a*ab");
+	subject = repeated('a', 70000, "b");
+	if (!expect(r != NULL && subject != NULL, name, "a*ab setup failed"))
+		return 0;
+	s = (const unsigned char *)subject;
+	ok &= expect(regexp_execute(r, s) == 1 && r->startp[0] == s &&
+	    r->endp[0] == s + 70001, name,
+	    "a*ab did not match all of 70000 a's and a b");
 	free(subject);
 	free(r);
 	return ok;

@@ -30,13 +30,20 @@ TEST_CFLAGS=	-std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
 # and must fail the case named after it. No control restores the -nocase
 # copy's early free: the arithmetic on that freed pointer is undefined but
 # returns the same offsets, so the regexp-result case covers the path only.
-NEGATIVES=	command_separator regexp_result var_extent append_extent \
+NEGATIVES=	command_separator regexp_result regsub_empty \
+		regsub_nocase_tail regsub_bol var_extent append_extent \
 		parse_extent expr_extent list_end upvar_count pattern_cache \
 		regexp_backtrack regexp_program regexp_substitute
 MUTATE.command_separator= \
 	tclbasic.c "s/case ';':/case ':':/"
 MUTATE.regexp_result= \
 	tclcmdmz.c 's/if (!match) {/if (match) {/'
+MUTATE.regsub_empty= \
+	tclcmdmz.c 's/ \&\& (\*p != 0)) {/ \&\& (*p != 0) \&\& 0) {/'
+MUTATE.regsub_nocase_tail= \
+	tclcmdmz.c '/the original, not a -nocase copy/d'
+MUTATE.regsub_bol= \
+	tclcmdmz.c 's/regexp_execute_at (regexpPtr, p, string)/regexp_execute (regexpPtr, p)/'
 MUTATE.var_extent= \
 	internal.h 's/^    int valueLength;/    unsigned short valueLength;/' \
 	internal.h 's/^    int valueSpace;/    unsigned short valueSpace;/'
@@ -73,6 +80,12 @@ check:
 	    ./libtcl_command_separator_bad_test command-separator
 	${TEST_EXECUTION} run libtcl.regexp-result.negative -- \
 	    ./libtcl_regexp_result_bad_test regexp-result
+	${TEST_EXECUTION} run libtcl.regsub-empty.negative -- \
+	    ./libtcl_regsub_empty_bad_test regsub-cases
+	${TEST_EXECUTION} run libtcl.regsub-nocase-tail.negative -- \
+	    ./libtcl_regsub_nocase_tail_bad_test regsub-cases
+	${TEST_EXECUTION} run libtcl.regsub-bol.negative -- \
+	    ./libtcl_regsub_bol_bad_test regsub-cases
 	${TEST_EXECUTION} run libtcl.var-extent.negative -- \
 	    ./libtcl_var_extent_bad_test var-extent
 	${TEST_EXECUTION} run libtcl.append-extent.negative -- \
@@ -96,6 +109,8 @@ check:
 .else
 .for variant in libtcl.contracts.sanitized \
 	libtcl.command-separator.negative libtcl.regexp-result.negative \
+	libtcl.regsub-empty.negative \
+	libtcl.regsub-nocase-tail.negative libtcl.regsub-bol.negative \
 	libtcl.var-extent.negative \
 	libtcl.append-extent.negative libtcl.parse-extent.negative \
 	libtcl.expr-extent.negative libtcl.list-end.negative \

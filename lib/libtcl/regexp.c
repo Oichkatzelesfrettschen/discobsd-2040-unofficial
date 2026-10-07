@@ -134,8 +134,16 @@ typedef struct {
 	unsigned const char	*parse;	/* Input-scan pointer. */
 	unsigned char	npar;	/* () count. */
 	unsigned char	*code;	/* Code-emit pointer; &regdummy = don't. */
-	unsigned short	size;	/* Code size. */
+	unsigned int	size;	/* Code size. */
 } compile_t;
+
+/*
+ * NEXT() stores each node's offset to its successor in two bytes, so a
+ * program longer than 0xffff bytes cannot encode its own links. The first
+ * pass counts at unsigned int width and regexp_size() refuses a program
+ * past this bound before anything is allocated or emitted.
+ */
+#define	REGEXP_MAX_PROGRAM	0xffffU
 
 static unsigned char regdummy;
 
@@ -168,7 +176,7 @@ typedef struct {
  */
 static unsigned char regtry (regexp_t *prog, execute_t *z, const unsigned char *string);
 static unsigned char regmatch (execute_t *z, unsigned char *prog);
-static unsigned short regrepeat (execute_t *z, unsigned char *p);
+static int regrepeat (execute_t *z, unsigned char *p);
 
 #ifdef DEBUG_REGEXP
 #include <stdio.h>
@@ -196,6 +204,8 @@ regexp_size (const unsigned char *exp)
 	x.code = &regdummy;
 	regc (&x, MAGIC);
 	if (! reg (&x, 0, &flags))
+		return 0;
+	if (x.size > REGEXP_MAX_PROGRAM)
 		return 0;
 
 	return sizeof (regexp_t) + x.size;
@@ -1013,7 +1023,8 @@ regmatch (execute_t *z, unsigned char *prog)
 		case STAR:
 		case PLUS: {
 				unsigned char nextch;
-				unsigned short no, min;
+				/* Signed: a STAR backtrack ends at no == -1. */
+				int no, min;
 				const unsigned char *save;
 
 				/*
@@ -1059,10 +1070,10 @@ regmatch (execute_t *z, unsigned char *prog)
 /*
  - regrepeat - repeatedly match something simple, report how many
  */
-static unsigned short
+static int
 regrepeat (execute_t *z, unsigned char *p)
 {
-	unsigned short count = 0;
+	int count = 0;
 	const unsigned char *scan;
 	unsigned char *opnd;
 

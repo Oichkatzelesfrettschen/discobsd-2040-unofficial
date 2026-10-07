@@ -131,8 +131,9 @@ Contract, as narrow as the implementation:
 - Skipped objects stay dirty and eligible for the next call: inodes
   `syncinodes()` finds `ILOCKED`, buffers `bflush()` finds busy (off the
   free lists), and a whole mount while `fs_ilock` or `fs_flock` is held.
-- Error state is retained: a failed inode update keeps its flags (the
-  `iupdat()` read-failure path), `bflush()` still runs, the superblock write
+- Error state is retained: a failed inode update stays dirty
+  (`iupdat()` leaves its flags, and the release in `irele()` folds them into
+  `IMOD` through `ITIMES()`), `bflush()` still runs, the superblock write
   is withheld, and device write errors latch in `m_write_error` through
   `biodone()`. `sync()` returns nothing; `ufs_sync()` reports the latched
   error to `fsync`, `IO_SYNC` writes and unmount.
@@ -142,9 +143,9 @@ against the unfixed source and passes after the change. Cases: a
 clean-superblock mount with dirty data, dirty metadata, both and neither; a
 modified superblock; a locked inode; `fs_ilock` and `fs_flock`; a failed
 inode update followed by a retry; a latched `m_write_error`; a clean
-read-only mount; `MNT_ASYNC` restoration. Two mutations calibrate it:
-restoring the `fs_fmod == 0` skip, and visiting a mount with one superblock
-list locked. Busy buffers lie outside the stubbed buffer cache; a fixture
+read-only mount; `MNT_ASYNC` restoration. Three mutations calibrate it:
+restoring the `fs_fmod == 0` skip, visiting a mount with one superblock
+list locked, and an `ITIMES()` that drops the retry state. Busy buffers lie outside the stubbed buffer cache; a fixture
 linking `ufs_bio.c` would cover them.
 
 Predicted board movement (P0b): an in-place overwrite followed by idle

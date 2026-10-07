@@ -19,7 +19,7 @@ struct psout {
     short   o_pid;                  /* p_pid */
     char    o_tty[3];               /* 1st 2 chars of tty after 'tty' */
     char    o_stat;                 /* p_stat */
-    short   o_uid;                  /* p_uid */
+    uid_t   o_uid;                  /* p_uid, at its full width */
     char    o_uname[UT_NAMESIZE];   /* login name of process owner */
     short   o_ppid;                 /* p_ppid */
     char    o_cpu;                  /* p_cpu */

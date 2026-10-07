@@ -2,7 +2,8 @@
  * Host gate for the byte extents and counters in lib/libtcl, linked from the
  * library's own source under the address and undefined-behavior sanitizers.
  *
- * Every case here crosses a width the library once stored in unsigned short:
+ * The command-separator case runs two commands joined by a semicolon. Every
+ * other case crosses a width the library once stored in unsigned short:
  * a variable value, the interpreter's append result, a substituted word, an
  * expression string operand, a list index named "end", a regexp backtrack
  * count and a compiled regexp program. Below 65536 bytes all of them behave
@@ -26,8 +27,12 @@
 #include "regexp.h"
 #include "regpriv.h"
 
-/* A sanitized interpreted loop of 33000 iterations takes a few seconds. */
-#define CASE_SECONDS	120
+/*
+ * The slowest case, 33000 interpreted iterations under the sanitizers,
+ * finishes in well under a second; a case still running at the alarm has
+ * stopped advancing.
+ */
+#define CASE_SECONDS	10
 
 /*
  * A value one past the largest unsigned short, built by doubling so the
@@ -44,6 +49,12 @@ struct script_case {
 };
 
 static const struct script_case script_cases[] = {
+	/* Tcl_Eval skips the semicolon that ends a command; at a
+	   separator it does not skip, TclParseWords returns no words and
+	   the command loop never advances. */
+	{ "command-separator",
+	  "set a 1; set b 2;; list $a $b",
+	  "1 2" },
 	/* Var.valueLength and Var.valueSpace: the next append after the
 	   value passes 65535 bytes grows from the true capacity. */
 	{ "var-extent",

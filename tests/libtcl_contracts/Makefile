@@ -25,10 +25,13 @@ LIB_CFLAGS=	-std=c17 -D_DEFAULT_SOURCE -w -g -O1 ${SAN} \
 TEST_CFLAGS=	-std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
 		-g -O1 ${SAN}
 
-# Each negative control restores one narrow width or sentinel the library
-# carried, and must fail the case named after it.
-NEGATIVES=	var_extent append_extent parse_extent expr_extent list_end \
-		regexp_backtrack regexp_program
+# Each negative control restores one defect the library carried, a narrow
+# width, a sentinel or the command separator, and must fail the case named
+# after it.
+NEGATIVES=	command_separator var_extent append_extent parse_extent \
+		expr_extent list_end regexp_backtrack regexp_program
+MUTATE.command_separator= \
+	tclbasic.c "s/case ';':/case ':':/"
 MUTATE.var_extent= \
 	internal.h 's/^    int valueLength;/    unsigned short valueLength;/' \
 	internal.h 's/^    int valueSpace;/    unsigned short valueSpace;/'
@@ -55,6 +58,8 @@ check:
 .if ${SAN_OK} == "yes"
 	@${MAKE} libtcl_contract_test ${BAD_PROGRAMS}
 	${TEST_EXECUTION} run libtcl.contracts.sanitized -- ./libtcl_contract_test
+	${TEST_EXECUTION} run libtcl.command-separator.negative -- \
+	    ./libtcl_command_separator_bad_test command-separator
 	${TEST_EXECUTION} run libtcl.var-extent.negative -- \
 	    ./libtcl_var_extent_bad_test var-extent
 	${TEST_EXECUTION} run libtcl.append-extent.negative -- \
@@ -70,7 +75,8 @@ check:
 	${TEST_EXECUTION} run libtcl.regexp-program.negative -- \
 	    ./libtcl_regexp_program_bad_test regexp-program
 .else
-.for variant in libtcl.contracts.sanitized libtcl.var-extent.negative \
+.for variant in libtcl.contracts.sanitized \
+	libtcl.command-separator.negative libtcl.var-extent.negative \
 	libtcl.append-extent.negative libtcl.parse-extent.negative \
 	libtcl.expr-extent.negative libtcl.list-end.negative \
 	libtcl.regexp-backtrack.negative libtcl.regexp-program.negative

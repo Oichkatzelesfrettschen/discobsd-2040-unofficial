@@ -6,20 +6,24 @@
 
 /*
  * Virtual memory related instrumentation
+ *
+ * cnt counts events between vmmeter() calls, one second apart, and rate
+ * holds their smoothed averages. A u_short would wrap above 65535 events
+ * in that second, which a loop of system calls reaches on this target.
  */
 struct vmrate
 {
 #define v_first v_swtch
-    u_short     v_swtch;    /* context switches */
-    u_short     v_trap;     /* calls to trap */
-    u_short     v_syscall;  /* calls to syscall() */
-    u_short     v_intr;     /* device interrupts */
-    u_short     v_soft;     /* software interrupts */
-    u_short     v_fpsim;    /* floating point simulator faults */
-    u_short     v_kbin;     /* kbytes swapped in */
-    u_short     v_kbout;    /* kbytes swapped out */
-    u_short     v_swpin;    /* swapins */
-    u_short     v_swpout;   /* swapouts */
+    u_int       v_swtch;    /* context switches */
+    u_int       v_trap;     /* calls to trap */
+    u_int       v_syscall;  /* calls to syscall() */
+    u_int       v_intr;     /* device interrupts */
+    u_int       v_soft;     /* software interrupts */
+    u_int       v_fpsim;    /* floating point simulator faults */
+    u_int       v_kbin;     /* kbytes swapped in */
+    u_int       v_kbout;    /* kbytes swapped out */
+    u_int       v_swpin;    /* swapins */
+    u_int       v_swpout;   /* swapouts */
 #define v_last  v_swpout
 };
 

@@ -1013,19 +1013,20 @@ research/ names them).
 ### Clock, compact credentials and synchronous writes
 
 `bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
-`sys_inode.c`, `ufs_subr.c` and the credential sources against deterministic
-host I/O stubs. It checks the slew/step boundary, backward-step normalization,
+`sys_inode.c`, `ufs_subr.c`, `vm_sched.c` and the credential sources against
+deterministic host I/O stubs. It checks the slew/step boundary, backward-step normalization,
 step overflow refusal, process-group input bounds, wide supplementary GIDs,
 sentinel rejection without partial updates, explicit IO_SYNC on async mounts,
-data/flush/inode-update failures and counter saturation. A production bmap
+data/flush/inode-update failures, counter saturation, and 70000 events in one
+`vmmeter()` interval reaching `sum` and `rate` whole. A production bmap
 fixture injects initialization failures in direct blocks, top-level indirect
 blocks, nested indirect blocks and indirect data blocks. It checks that failed
 allocations are reclaimed before pointer publication, busy parents are released,
 original errors survive cleanup and earlier valid ancestors remain intact.
 The fixture uses NSHIFT for depth boundaries and only index zero; its native
 daddr_t width is not evidence about the target's on-disk encoding.
-Ten source mutations
-must return assertion failure; compilation failures and crashes do not count as
+Eleven source mutations, one of them narrowing `struct vmrate` in a private
+copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in
 unrelated mount helpers discarded by the linker. Only the known-bad clock

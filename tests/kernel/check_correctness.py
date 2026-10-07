@@ -41,7 +41,17 @@ def build(work, suite, changes):
         "io": ["kern_time.c", "sys_inode.c", "ufs_subr.c", "ufs_syscalls2.c"],
         "credentials": ["kern_prot.c", "kern_prot2.c", "kern_proc.c"],
         "bmap": ["ufs_bmap.c"],
+        "synch": ["vm_sched.c"],
     }[suite]
+    # A mutated kernel header goes into the private include directory, which
+    # -I lists ahead of the tree's sys directory.
+    for name, (old, new) in changes.items():
+        if name.endswith(".h"):
+            text = (ROOT / "sys/sys" / name).read_text()
+            if text.count(old) != 1:
+                raise RuntimeError("mutation anchor is ambiguous: " + name)
+            (work / "sys").mkdir(exist_ok=True)
+            (work / "sys" / name).write_text(text.replace(old, new))
     if suite == "bmap":
         common += ["-Dfree=ufs_free"]
     for name in sources:
@@ -77,6 +87,10 @@ def build(work, suite, changes):
             ]
         elif name == "ufs_subr.c":
             extra += ["-Dsync=gate_sync"]
+        elif name == "kern_synch.c":
+            # HASH() folds a wait channel through int, narrower than a host
+            # pointer; the target's pointers are int-sized.
+            extra += ["-Wno-pointer-to-int-cast"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])
         objects.append(str(obj))
@@ -97,7 +111,12 @@ def build(work, suite, changes):
     binary = work / "gate"
     test = (
         TESTS
-        / {"io": "time_io_test.c", "credentials": "cred_test.c", "bmap": "bmap_write_test.c"}[suite]
+        / {
+            "io": "time_io_test.c",
+            "credentials": "cred_test.c",
+            "bmap": "bmap_write_test.c",
+            "synch": "synch_meter_test.c",
+        }[suite]
     )
     run(
         CC
@@ -115,6 +134,7 @@ def main():
         ("baseline-io", "io", {}, False),
         ("baseline-credentials", "credentials", {}, False),
         ("baseline-bmap", "bmap", {}, False),
+        ("baseline-synch", "synch", {}, False),
         (
             "discard-direct-init-error",
             "bmap",
@@ -178,6 +198,14 @@ def main():
             "accept-group-sentinel",
             "credentials",
             {"kern_prot.c": ("if (groups[i] == NOGROUP)", "if (0)")},
+            True,
+        ),
+        (
+            "narrow-vm-counters",
+            "synch",
+            {
+                "vmmeter.h": ("    u_int       v_syscall;", "    u_short     v_syscall;"),
+            },
             True,
         ),
     ]

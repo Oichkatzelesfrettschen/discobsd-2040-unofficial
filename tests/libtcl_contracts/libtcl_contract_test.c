@@ -2,8 +2,10 @@
  * Host gate for the byte extents and counters in lib/libtcl, linked from the
  * library's own source under the address and undefined-behavior sanitizers.
  *
- * The command-separator case runs two commands joined by a semicolon. Every
- * other case crosses a width the library once stored in unsigned short:
+ * The command-separator case runs two commands joined by a semicolon, and
+ * the regexp-result case reads the regexp and regsub commands' answers for
+ * a match and a miss. Every other case crosses a width the library once
+ * stored in unsigned short:
  * a variable value, the interpreter's append result, a substituted word, an
  * expression string operand, a list index named "end", a regexp backtrack
  * count and a compiled regexp program. Below 65536 bytes all of them behave
@@ -55,6 +57,14 @@ static const struct script_case script_cases[] = {
 	{ "command-separator",
 	  "set a 1; set b 2;; list $a $b",
 	  "1 2" },
+	/* regexp_execute() returns 1 on a match. regexp answers 1 and sets
+	   its match variable; regsub answers 1 and stores the substituted
+	   string, or answers 0 and leaves its variable alone on a miss. */
+	{ "regexp-result",
+	  "list [regexp {b+} abbc m] $m [regexp z abc]"
+	  " [regsub b abc X v] $v [regsub z abc X w] [info exists w]"
+	  " [regsub -all b abcb X u] $u",
+	  "1 bb 0 1 aXc 0 0 1 aXcX" },
 	/* Var.valueLength and Var.valueSpace: the next append after the
 	   value passes 65535 bytes grows from the true capacity. */
 	{ "var-extent",

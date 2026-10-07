@@ -1485,6 +1485,26 @@
       ]
     },
     {
+      "id": "libtcl.regexp-result.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libtcl_contracts",
+      "makefile": "tests/libtcl_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-libtcl-contracts",
+      "program": "libtcl_regexp_result_bad_test",
+      "condition": "SAN_OK == yes; compiler-probe.sh native compiles and executes with the sanitizers",
+      "prerequisites": [
+        "libtcl_regexp_result_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libtcl.regexp-result.negative -- ./libtcl_regexp_result_bad_test regexp-result",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libtcl-contracts"
+      ]
+    },
+    {
       "id": "libtcl.var-extent.negative",
       "owner": "firmware/posix-sh",
       "width": "native",

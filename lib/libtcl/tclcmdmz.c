@@ -122,11 +122,11 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     } else {
 	string = argPtr[1];
     }
-    match = regexp_execute (regexpPtr, string);
+    match = regexp_execute (regexpPtr, string);	/* 1 on a match */
     if (string != argPtr[1]) {
 	free(string);
     }
-    if (match) {
+    if (!match) {
 	interp->result = (unsigned char*) "0";
 	return TCL_OK;
     }
@@ -265,8 +265,8 @@ Tcl_RegsubCmd(dummy, interp, argc, argv)
 
     flags = 0;
     for (p = string; *p != 0; ) {
-	match = regexp_execute (regexpPtr, p);
-	if (match) {
+	match = regexp_execute (regexpPtr, p);	/* 1 on a match */
+	if (!match) {
 	    break;
 	}
 

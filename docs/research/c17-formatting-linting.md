@@ -18,10 +18,11 @@ suppression file.
 
 ## Current K&R and C17 findings
 
-The recursive audit at `6e4c3a44a5461a80cd2f867893c2bfc7dfc34510`
-covered every Git-tracked C and header file. The source corpus contains 1,969 C
-files, 567 headers and 819,514 combined lines. The audit refreshed the
-whole-tree structural Graft graph at that commit from 26,311 to 26,369 nodes.
+The recursive audit at `d5eedba159b7998ca21b2a11c0a660413af09c5d`
+covered every Git-tracked C and header file. The source corpus contains 1,971 C
+files, 567 headers and 820,309 combined lines. The audit refreshed the
+whole-tree structural Graft graph in the integrated checkout from 26,311 to
+26,396 nodes.
 The graph records 2,609 parsed files, 23,760 symbols and 16,700 structural
 edges. Graft navigation identified source owners and candidate paths; AST
 queries and direct source reads decide the syntax findings below.

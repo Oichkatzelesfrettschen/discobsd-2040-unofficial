@@ -71,7 +71,7 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     int indices = 0;
     regexp_t *regexpPtr;
     unsigned char **argPtr, *string;
-    int match, i;
+    int match, i, code;
 
     if (argc < 3) {
 	wrongNumArgs:
@@ -122,13 +122,15 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     } else {
 	string = argPtr[1];
     }
+    /*
+     * The match pointers point into string, so a lower-case copy lives
+     * until the variables below have been set from them.
+     */
     match = regexp_execute (regexpPtr, string);	/* 1 on a match */
-    if (string != argPtr[1]) {
-	free(string);
-    }
+    code = TCL_OK;
     if (!match) {
 	interp->result = (unsigned char*) "0";
-	return TCL_OK;
+	goto done;
     }
 
     /*
@@ -139,7 +141,8 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
     argc -= 2;
     if (argc > 10) {
 	interp->result = (unsigned char*) "too many substring variables";
-	return TCL_ERROR;
+	code = TCL_ERROR;
+	goto done;
     }
     for (i = 0; i < argc; i++) {
 	unsigned char *result, info[50];
@@ -169,11 +172,17 @@ Tcl_RegexpCmd(dummy, interp, argc, argv)
 	if (result == 0) {
 	    Tcl_AppendResult(interp, "couldn't set variable \"",
 		    argPtr[i+2], "\"", 0);
-	    return TCL_ERROR;
+	    code = TCL_ERROR;
+	    goto done;
 	}
     }
     interp->result = (unsigned char*) "1";
-    return TCL_OK;
+
+    done:
+    if (string != argPtr[1]) {
+	free(string);
+    }
+    return code;
 }
 
 /*

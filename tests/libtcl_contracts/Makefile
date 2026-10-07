@@ -27,7 +27,9 @@ TEST_CFLAGS=	-std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
 
 # Each negative control restores one defect the library carried, a narrow
 # width, a sentinel, the command separator or the inverted regexp result,
-# and must fail the case named after it.
+# and must fail the case named after it. No control restores the -nocase
+# copy's early free: the arithmetic on that freed pointer is undefined but
+# returns the same offsets, so the regexp-result case covers the path only.
 NEGATIVES=	command_separator regexp_result var_extent append_extent \
 		parse_extent expr_extent list_end upvar_count pattern_cache \
 		regexp_backtrack regexp_program regexp_substitute

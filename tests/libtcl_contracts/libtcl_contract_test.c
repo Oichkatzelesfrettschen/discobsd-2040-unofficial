@@ -4,8 +4,8 @@
  *
  * The command-separator case runs two commands joined by a semicolon, and
  * the regexp-result case reads the regexp and regsub commands' answers for
- * a match and a miss. Every other case crosses a width the library once
- * stored in unsigned short: a variable value, the
+ * a match and a miss, with and without -nocase. Every other case crosses
+ * a width the library once stored in unsigned short: a variable value, the
  * interpreter's append result, a substituted word, an expression string
  * operand, a list index named "end", a variable's reference count, a
  * pattern-cache length, a regexp backtrack count, a compiled regexp program
@@ -64,8 +64,10 @@ static const struct script_case script_cases[] = {
 	{ "regexp-result",
 	  "list [regexp {b+} abbc m] $m [regexp z abc]"
 	  " [regsub b abc X v] $v [regsub z abc X w] [info exists w]"
-	  " [regsub -all b abcb X u] $u",
-	  "1 bb 0 1 aXc 0 0 1 aXcX" },
+	  " [regsub -all b abcb X u] $u"
+	  " [regexp -nocase {b+} aBBc n] $n"
+	  " [regexp -nocase -indices {b+} aBBc k] $k",
+	  "1 bb 0 1 aXc 0 0 1 aXcX 1 BB 1 {1 2}" },
 	/* Var.valueLength and Var.valueSpace: the next append after the
 	   value passes 65535 bytes grows from the true capacity. */
 	{ "var-extent",

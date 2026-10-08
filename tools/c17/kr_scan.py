@@ -265,8 +265,8 @@ def grouped_span(tokens, k):
     """(name index, index past the empty parameter list) of a grouped
     declarator starting at tokens[k], or None.
 
-    The declarator is "(" followed by any mix of further "(", pointer stars
-    and the qualifiers that may follow a star, then a name, then for each
+    The declarator is "(" followed by any mix of further "(", pointer stars,
+    the qualifiers that may follow a star and attribute groups, then a name, then for each
     opening parenthesis its array subscripts and ")", then "( )". Examples
     are "(name)()", "(*name)()", "(**name[2])()", "((*name))()" and
     "(*(*name))()": declarators of an unprototyped function, of a pointer
@@ -277,11 +277,17 @@ def grouped_span(tokens, k):
         return None
     j = k + 1
     opens, stars = 1, 0
-    while j < len(tokens) and (
-        tokens[j][0] in ("(", "*") or (stars and tokens[j][0] in POINTER_QUALIFIERS)
-    ):
-        opens += tokens[j][0] == "("
-        stars += tokens[j][0] == "*"
+    while j < len(tokens):
+        tok = tokens[j][0]
+        if tok in ATTRIBUTE_WORDS and j + 1 < len(tokens) and tokens[j + 1][0] == "(":
+            j = closing(tokens, j + 1)
+            if j < 0:
+                return None
+        elif tok in ("(", "*") or (stars and tok in POINTER_QUALIFIERS):
+            opens += tok == "("
+            stars += tok == "*"
+        else:
+            break
         j += 1
     if j >= len(tokens) or not IDENT.match(tokens[j][0]) or tokens[j][0] in NOT_NAMES:
         return None

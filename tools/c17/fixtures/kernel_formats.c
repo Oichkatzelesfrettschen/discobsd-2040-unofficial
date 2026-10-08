@@ -23,7 +23,6 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     printf(u8"%d %s\n", i, s);
     printf(("%d\n"), i);
     printf((("(%s)" "\n")), s);
-    f((printf))("%i ignored: f returns the callee\n");
     log\
 (3, "%d\n", i);
     printf("a literal continued \
@@ -46,6 +45,8 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     (**printf)("%f\n", d); /* expect: reject */
     ((printf))("%i %d\n", i, i); /* expect: reject */
     printf(("%i\n"), i); /* expect: reject */
+    (flag ? printf : printf)("%i %d\n", i, i); /* expect: reject */
+    f((printf))("%d\n", i); /* expect: reject */
     printf((char *)"%d\n", i); /* expect: reject */
     (( * (log)))(1, "%hhd\n", i); /* expect: reject */
     g ((printf)("%z\n", i)); /* expect: reject */

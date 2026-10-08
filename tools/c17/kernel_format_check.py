@@ -40,9 +40,9 @@ FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
 # A parenthesized designator, "(printf)(...)" or "((printf))(...)", calls
 # the function while suppressing a function-like macro of the same name;
 # "(*printf)(...)" and "(&printf)(...)" call it through the function
-# pointer the name decays to. check_text() requires each closing
-# parenthesis in "close" to match one in "open"; an unmatched opening one
-# belongs to an enclosing expression.
+# pointer the name decays to. check_text() reports a call whose "close"
+# holds a parenthesis "open" did not open; an unmatched opening one belongs
+# to an enclosing expression.
 CALL = re.compile(
     r"(?<![\w.>])(?P<open>(?:\(\s*(?:[*&]\s*)*)*)(?P<name>"
     + "|".join(sorted(FUNCTIONS, key=len, reverse=True))
@@ -244,9 +244,17 @@ def check_text(path, text):
     checked = 0
     for call in CALL.finditer(masked):
         name = call["name"]
-        if (call["close"] or "").count(")") > (call["open"] or "").count("("):
-            continue  # "(printf))(" calls what an enclosing expression yields
         line = text.count("\n", 0, call.start()) + 1
+        if (call["close"] or "").count(")") > (call["open"] or "").count("("):
+            # A closing parenthesis the designator did not open ends a larger
+            # callee expression, as in "(flag ? printf : log)(...)" or
+            # "f((printf))(...)"; which function receives the arguments is
+            # not decidable here.
+            problems.append(
+                f"{path}:{line}: {name} is part of a callee expression, "
+                "so the called function and its format cannot be checked"
+            )
+            continue
         args = argument_text(text, call.end())
         index = FUNCTIONS[name]
         if len(args) <= index:

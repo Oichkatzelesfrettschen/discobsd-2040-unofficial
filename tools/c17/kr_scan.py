@@ -427,15 +427,20 @@ def scan_text(path, text):
                 if after <= 0:
                     break
             following = tokens[after][0] if 0 < after < len(tokens) else ""
+            typed = (IDENT.match(prev) and prev not in NOT_NAMES) or prev == "*"
             if not params and not nested and following in {";", ","}:
                 # At file scope "name();" after a statement boundary is an
                 # implicit-int declaration; no call can appear there.
                 if (
-                    (IDENT.match(prev) and prev not in NOT_NAMES)
-                    or prev in {"*", ")", "", ";", "}"}
+                    typed
+                    or prev in {")", "", ";", "}"}
                     or (prev == "," and continues_declaration(tokens, k))
                 ):
                     findings.append(Finding(path, line, "declaration", tok))
+            elif not params and following == ")" and typed:
+                # The last parameter of a prototype, "void f(int cb());",
+                # declares an unprototyped function of its own.
+                findings.append(Finding(path, line, "declaration", tok))
             # A prototype's parameter list can itself hold "(*name)()".
             k += 2
             continue

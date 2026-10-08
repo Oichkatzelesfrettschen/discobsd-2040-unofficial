@@ -35,9 +35,10 @@ import c17_inventory  # noqa: E402
 FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1, "DEBUG": 0}
 FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
 # A parenthesized designator, "(printf)(...)", calls the function while
-# suppressing a function-like macro of the same name.
+# suppressing a function-like macro of the same name; "(*printf)(...)" and
+# "(&printf)(...)" call it through the function pointer the name decays to.
 CALL = re.compile(
-    r"(?<![\w.>])(?P<group>\(\s*)?(?P<name>"
+    r"(?<![\w.>])(?P<group>\(\s*(?:[*&]\s*)*)?(?P<name>"
     + "|".join(sorted(FUNCTIONS, key=len, reverse=True))
     + r")(?(group)\s*\))\s*\("
 )

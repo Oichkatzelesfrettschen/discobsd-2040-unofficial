@@ -18,6 +18,7 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     tprintf(tp, "%s: %d\n", s, i);
     log(3, "%s\n", s);
     (printf)("%d\n", i);
+    (*printf)("%d %s\n", i, s);
     printf("entered printf( path, log(%d\n", i);
     log(3, "a \"quoted printf(\" and '%c'\n", '"');
     DEBUG("\tdebug %#x // not a comment\n", i);
@@ -31,6 +32,9 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     printf("%i\n", i); /* expect: reject */
     (printf)("%i\n", i); /* expect: reject */
     ( log )(1, "%n\n", &i); /* expect: reject */
+    (*printf)("%i %d\n", i, i); /* expect: reject */
+    ( & tprintf )(tp, "%hd\n", i); /* expect: reject */
+    (**printf)("%f\n", d); /* expect: reject */
     printf("%lld\n", ll); /* expect: reject */
     printf("%f\n", d); /* expect: reject */
     printf("%zu\n", (unsigned)i); /* expect: reject */

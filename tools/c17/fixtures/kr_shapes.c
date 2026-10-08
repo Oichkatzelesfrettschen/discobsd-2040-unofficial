@@ -21,6 +21,7 @@ static int table_value = 1, *table_pointer = &table_value;
 extern struct file *pointer_decl(); /* expect: declaration pointer_decl */
 int typed_decl(dev_t, int);
 int takes_callback(int a, int (*cb)()); /* expect: declaration cb */
+void takes_function(int a, char *mid(), int last()); /* expect: declaration mid */ /* expect: declaration last */
 int void_decl(void);
 int (grouped_decl)(); /* expect: declaration grouped_decl */
 int (**grouped_pointer)(); /* expect: declaration grouped_pointer */
@@ -77,6 +78,7 @@ extern int inactive_attributed() __attribute__((noreturn)); /* expect: declarati
 legacy_implicit(); /* expect: declaration legacy_implicit */
 dev_t (inactive_grouped)(); /* expect: declaration inactive_grouped */
 int (* const inactive_qualified)(); /* expect: declaration inactive_qualified */
+void inactive_outer(int inactive_callback()); /* expect: declaration inactive_callback */
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;

@@ -5,7 +5,8 @@ reported and no other line may be. Known-bad checkers, one that accepts every
 conversion GCC accepts, one allowing l on every conversion, one reading every
 call as a declaration, one stripping comment delimiters inside literals, one
 blind to directives inside a call, one blind to the DEBUG wrappers, one
-blind to parenthesized designators such as (printf)(...), one finding
+blind to parenthesized designators such as (printf)(...), one blind to
+(*printf)(...) and (&printf)(...), one finding
 calls inside string literals, one that reads escapes undecoded and one that
 drops the literal-format requirement, must each fail the fixture.
 """
@@ -84,6 +85,11 @@ def main():
         (
             "blind to parenthesized designators",
             r"(?<![\w.>])(?P<name>DEBUG[1-9]?|printf|uprintf|tprintf|log)\s*\(",
+        ),
+        (
+            "blind to dereferenced designators",
+            r"(?<![\w.>])(?P<group>\(\s*)?(?P<name>DEBUG[1-9]?|printf|uprintf|tprintf|log)"
+            r"(?(group)\s*\))\s*\(",
         ),
     ):
         kernel_format_check.CALL = re.compile(pattern)

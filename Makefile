@@ -579,6 +579,9 @@ check-flash-swap:
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
 
+check-dhara-amplification: check-python
+		${MAKE} -C tests/rp2040/dhara_amplification check PYTHON=${PYTHON:Q}
+
 check-storage-counters: tools
 		sh tools/verify_storage_counters.sh
 
@@ -662,7 +665,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
-		check-dhara-metadata check-namei-user-path check-storage-correctness \
+		check-dhara-metadata check-dhara-amplification \
+		check-namei-user-path check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
 		check-usb-standard-requests \
 		check-usb-set-configuration \
@@ -936,7 +940,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-c17-kernel-inventory check-kernel-printf-formats check-elf2aout check-dhara-metadata check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-c17-kernel-inventory check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

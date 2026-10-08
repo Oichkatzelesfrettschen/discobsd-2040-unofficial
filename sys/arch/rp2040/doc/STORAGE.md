@@ -201,3 +201,24 @@ waits for a later call, and scheduling and flash latency add to the
 interval. The host gate establishes the selection and error handling;
 whether the overwrite reaches flash at the next tick on the board is a
 separate hardware observation.
+
+## Checkpoint cost
+
+`dhara-geometry.txt` records the geometry of the root region: 1 KiB Dhara
+pages, 8 KiB erase blocks, checkpoint groups of eight pages (seven user pages
+and one metadata page), garbage-collection ratio 4 and a capacity of 989
+sectors. `check-dhara-amplification` derives these values from
+`dev/flash.h` and the vendored journal and fails when the table disagrees.
+
+`flstrategy()` calls `dhara_map_sync()` after every write request, which
+pads the open checkpoint group to its metadata page. In the host model one
+write request therefore programs eight Dhara pages, 32 program calls of 256
+bytes, at every map occupancy measured. N writes followed by one sync
+program `8 * ceil(N / 7)` pages while the journal stays below the
+`auto_gc()` threshold. The shipped image writes all 989 sectors, which puts
+the journal at that threshold: rewriting recently written sectors in
+batches then costs about 6.3 pages per write, because each write first
+copies live tail pages. With 75 percent or less of the capacity live, the
+same traces stay below the threshold and cost 1.2 pages per write. These are
+host-model counts for the exercised traces; the chip's command counts,
+timing and wear on the board are separate measurements.

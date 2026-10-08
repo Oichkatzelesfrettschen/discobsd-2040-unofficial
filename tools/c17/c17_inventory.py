@@ -13,8 +13,9 @@ the compiler reports, and a compiler misses a definition under an inactive
 The ledger is the union, keyed by path, kind and name so that edits elsewhere
 in a file do not churn it. Each row names the oracles that found it. The gate
 fails when a compiler finding is absent from the scan, which is a calibration
-gap in kr_scan.py, when a requested source cannot be compiled, or when the
-union differs from the committed ledger. --update rewrites the ledger.
+gap in kr_scan.py, when a requested source cannot be compiled, when a --build
+configuration compiles none of the requested sources, or when the union
+differs from the committed ledger. --update rewrites the ledger.
 """
 
 import argparse
@@ -214,6 +215,15 @@ def main():
     for build_dir in args.build:
         build = (root / build_dir).resolve()
         found, compiled = compiler_findings(args.make, root, build, requested)
+        if not compiled:
+            # A configuration that compiles none of the requested sources
+            # would leave its conditionals to the scan alone while the
+            # ledger still matched through the other configurations.
+            print(
+                f"FAIL compiler oracle compiled no requested source for {build_dir}",
+                file=sys.stderr,
+            )
+            return 1
         for source in compiled:
             compiled_by.setdefault(source, []).append(build.name)
         for key, counts in found.items():

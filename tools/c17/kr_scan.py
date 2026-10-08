@@ -235,36 +235,46 @@ def subscripts_end(tokens, j):
     return j
 
 
-def grouped_declarator(tokens, k):
-    """Index of the name in "( *... name [...]... ) ( )" at tokens[k], or -1.
+def grouped_span(tokens, k):
+    """(name index, index past the empty parameter list) of a grouped
+    declarator starting at tokens[k], or None.
 
-    A parenthesized name, optionally behind pointer stars and the
-    qualifiers that may follow each star and before array subscripts,
-    applied to an empty parameter list: a declarator of an unprototyped
-    function, of a pointer or an array of pointers to one, or a call
-    through a parenthesized designator. The empty parameter list starts
-    at subscripts_end(tokens, name + 1) + 1.
+    The declarator is "(" followed by any mix of further "(", pointer stars
+    and the qualifiers that may follow a star, then a name, then for each
+    opening parenthesis its array subscripts and ")", then "( )". Examples
+    are "(name)()", "(*name)()", "(**name[2])()", "((*name))()" and
+    "(*(*name))()": declarators of an unprototyped function, of a pointer
+    or an array of pointers to one, or a call through a parenthesized
+    designator.
     """
     if k >= len(tokens) or tokens[k][0] != "(":
-        return -1
+        return None
     j = k + 1
-    stars = 0
+    opens, stars = 1, 0
     while j < len(tokens) and (
-        tokens[j][0] == "*" or (stars and tokens[j][0] in POINTER_QUALIFIERS)
+        tokens[j][0] in ("(", "*") or (stars and tokens[j][0] in POINTER_QUALIFIERS)
     ):
+        opens += tokens[j][0] == "("
         stars += tokens[j][0] == "*"
         j += 1
     if j >= len(tokens) or not IDENT.match(tokens[j][0]) or tokens[j][0] in NOT_NAMES:
-        return -1
-    m = subscripts_end(tokens, j + 1)
-    if (
-        m + 2 < len(tokens)
-        and tokens[m][0] == ")"
-        and tokens[m + 1][0] == "("
-        and tokens[m + 2][0] == ")"
-    ):
-        return j
-    return -1
+        return None
+    name = j
+    m = j + 1
+    for _ in range(opens):
+        m = subscripts_end(tokens, m)
+        if m >= len(tokens) or tokens[m][0] != ")":
+            return None
+        m += 1
+    if m + 1 < len(tokens) and tokens[m][0] == "(" and tokens[m + 1][0] == ")":
+        return name, m + 2
+    return None
+
+
+def grouped_declarator(tokens, k):
+    """Index of the name of the grouped declarator at tokens[k], or -1."""
+    span = grouped_span(tokens, k)
+    return span[0] if span else -1
 
 
 def identifier_list(params):
@@ -443,8 +453,7 @@ def scan_text(path, text):
         elif tok == "(" and grouped_declarator(tokens, k) >= 0:
             # "(name)()" declares an unprototyped function and "(*name)()" a
             # pointer to one; at file scope a body after "(name)()" defines it.
-            j = grouped_declarator(tokens, k)
-            after = subscripts_end(tokens, j + 1) + 3
+            j, after = grouped_span(tokens, k)
             name_tok, name_line = tokens[j]
             prev = tokens[k - 1][0] if k else ""
             if (

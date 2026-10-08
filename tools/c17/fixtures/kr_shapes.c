@@ -26,6 +26,7 @@ int void_decl(void);
 int (grouped_decl)(); /* expect: declaration grouped_decl */
 int (**grouped_pointer)(); /* expect: declaration grouped_pointer */
 static int (*handlers[2][3])(); /* expect: declaration handlers */
+int ((*nested_group))(), (*(*double_pointer))(); /* expect: declaration nested_group */ /* expect: declaration double_pointer */
 struct ops after_decl = { 0, 0 };
 
 static struct file files[4];
@@ -81,6 +82,7 @@ dev_t (inactive_grouped)(); /* expect: declaration inactive_grouped */
 int (* const inactive_qualified)(); /* expect: declaration inactive_qualified */
 void inactive_outer(int inactive_callback()); /* expect: declaration inactive_callback */
 int (*inactive_table[NSLOTS])(); /* expect: declaration inactive_table */
+int ((*inactive_nested))(); /* expect: declaration inactive_nested */
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;

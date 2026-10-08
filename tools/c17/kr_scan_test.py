@@ -4,10 +4,11 @@ The fixture marks every line the scan must report. The scan must report
 exactly those lines; the host compiler, run with -Wold-style-definition and
 -Wstrict-prototypes, must report only marked lines; and each known-bad
 variant must be rejected: a scan that drops a calibrated shape, pointer
-qualifiers, array subscripts, block-scope declarations or #if alternative
-tracking; one that reads block-scope calls as declarations or a directive
-inside a comment; a reconciliation handed a compiler finding the scan lacks;
-and a diagnostic parser that requires the English severity label.
+qualifiers, array subscripts, nested grouping, block-scope declarations or
+#if alternative tracking; one that reads block-scope calls as declarations
+or a directive inside a comment; a reconciliation handed a compiler finding
+the scan lacks; and a diagnostic parser that requires the English severity
+label. An inventory whose --build compiles no requested source must fail.
 """
 
 import os
@@ -101,6 +102,23 @@ def main():
         check(scanned(text) != got, "a scan reading block-scope calls as declarations matched")
     finally:
         kr_scan.declaration_prefix = original
+    original = kr_scan.grouped_span
+
+    def single_group(tokens, k):
+        span = original(tokens, k)
+        return (
+            span
+            if span
+            and tokens[k + 1][0] != "("
+            and "(" not in {tok for tok, _ in tokens[k + 1 : span[0]]}
+            else None
+        )
+
+    kr_scan.grouped_span = single_group
+    try:
+        check(scanned(text) != got, "a scan reading one grouping layer matched the fixture")
+    finally:
+        kr_scan.grouped_span = original
     original = kr_scan.subscripts_end
     kr_scan.subscripts_end = lambda tokens, j: j
     try:
@@ -253,6 +271,40 @@ def main():
         for f in kr_scan.scan_text("p.c", "struct p { int (*a)(), (*b)(); };")
     }
     check(len(one_line) == 2, "the scan collapsed two declarators on one line")
+
+    # Every --build must contribute compiler coverage; a configuration that
+    # compiles nothing must fail the gate even when the ledger would match.
+    saved_findings, saved_argv = c17_inventory.compiler_findings, sys.argv
+    with tempfile.TemporaryDirectory() as tmp:
+        ledger_path = Path(tmp) / "ledger.txt"
+        source = os.path.relpath(FIXTURE, Path.cwd())
+        coverage = {"full": [source], "empty": []}
+        c17_inventory.compiler_findings = lambda make, root, build, requested: (
+            {},
+            coverage[build.name],
+        )
+        try:
+            results = []
+            for builds in (["full", "full"], ["full", "empty"]):
+                sys.argv = ["c17_inventory.py", "--ledger", str(ledger_path), "--update"]
+                for build in builds:
+                    sys.argv += ["--build", str(Path(tmp) / build)]
+                sys.argv.append(source)
+                with open(os.devnull, "w") as quiet:
+                    saved_out, saved_err, sys.stdout, sys.stderr = (
+                        sys.stdout,
+                        sys.stderr,
+                        quiet,
+                        quiet,
+                    )
+                    try:
+                        results.append(c17_inventory.main())
+                    finally:
+                        sys.stdout, sys.stderr = saved_out, saved_err
+        finally:
+            c17_inventory.compiler_findings, sys.argv = saved_findings, saved_argv
+    check(results[0] == 0, "the inventory rejected builds that both compiled sources")
+    check(results[1] == 1, "the inventory accepted a build that compiled no source")
 
     with tempfile.TemporaryDirectory() as tmp:
         ledger = Path(tmp) / "ledger.txt"

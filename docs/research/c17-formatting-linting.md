@@ -107,11 +107,24 @@ The definition count by top-level owner is:
 | `tests/` | 5 |
 | `benchmarks/` | 1 |
 
-The kernel frontier is unusually well bounded: 187 of the 190 `sys/`
-definitions are in 26 `sys/kern` files, two are inactive STM32 definitions,
-and one is `sys/arch/rp2040/rp2040/sysctl.c`. The existing
-`check-ufs-prototypes` gate covers 13 UFS translation units, but it does not
-close the remaining kernel files. The largest userland concentrations are
+The kernel frontier is unusually well bounded: the AST rule found 187 of the
+190 `sys/` definitions in 26 `sys/kern` files, two inactive STM32 definitions,
+and one in `sys/arch/rp2040/rp2040/sysctl.c`. The AST count is a lower bound.
+The cross compiler's `-Wold-style-definition` over the PICO and PICO_UART
+builds reports 12 `sys/kern` definitions the rule missed: tree-sitter loses
+identifier-list definitions whose declaration list carries `__unused`
+(`tty_tty.c`'s five device entries, `seltrue`, `gatherstats`), pointer-
+returning definitions (`getf`, `pfind`, `nextc`, `swapout`) and `brk()`
+after an `#endif`. The compiler in turn misses inactive code (`timevalsub`
+under `NOT_CURRENTLY_IN_USE`, `ptyattach`) and files neither configuration
+builds (`subr_log.c`, `kern_glob.c`). The union is 200 definitions in 28
+`sys/kern` files plus four unprototyped declarations in `sys/sys`.
+`check-c17-kernel-inventory` records that union in
+`tools/c17/kernel-ledger.txt` with the oracle behind each row and fails when
+the compiler reports a finding the calibrated scan lacks. The same parser
+gaps make the repository-wide AST totals above lower bounds for those shapes.
+The existing `check-ufs-prototypes` gate covers 13 UFS translation units, but
+it does not close the remaining kernel files. The largest userland concentrations are
 `games/rogue` (308), `usr.bin/tip` (131), `usr.bin/forth` (122 in two files),
 `usr.bin/re` (97), `usr.bin/picoc` (96), `games/sail` (91),
 `games/battlestar` (84), `games/backgammon` (80) and `games/adventure` (74).
@@ -252,7 +265,9 @@ The complete refactor is a sequence of finite frontiers:
 1. Land the tracked-file classifier and quarantine manifest. Unknown files
    fail closed.
 2. Land calibrated AST/compiler inventories for old definitions,
-   non-prototype declarations, implicit types/calls and old varargs.
+   non-prototype declarations, implicit types/calls and old varargs. The
+   kernel ledger (`check-c17-kernel-inventory`) is the first; each later
+   frontier extends the same two-oracle union to its own sources.
 3. Close `sys/kern` by subsystem, extending `check-ufs-prototypes` into exact
    kernel compile units before changing userland.
 4. Close RP2040 machine/device code and generated PICO/PICO_UART consumers,

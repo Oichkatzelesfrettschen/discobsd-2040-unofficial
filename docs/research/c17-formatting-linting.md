@@ -93,8 +93,10 @@ as rejecting controls.
   GCC's header rejects with `#error`, and is not in `bin/sh`'s `OBJS`; it now
   uses `<stdarg.h>` and a prototype. No tracked maintained file names
   `<varargs.h>`.
-- `WARNLEVEL=legacy`: 140 Makefiles -- 66 `usr.bin`, 25 games, 15 bin, 12 sbin,
-  9 lib, 6 usr.sbin, 5 tools, 1 libexec and 1 isolated legacy unit.
+- `WARNLEVEL=legacy`: 142 Makefiles. The 140 outside `tests/` are 66 `usr.bin`,
+  25 games, 15 bin, 12 sbin, 9 lib, 6 usr.sbin, 5 tools, 1 libexec and 1
+  isolated legacy unit; the other two are the test-fixture Makefiles
+  `tests/find_contracts` and `tests/libtcl_contracts`.
 
 The definition count by top-level owner is:
 
@@ -178,10 +180,11 @@ bisectable migration unit.
 ### Security build contract
 
 The current global compiler already supplies `-std=gnu17`, `-fno-common` and a
-fatal warning policy. Full units receive `-Wall -Wextra -Werror`; 140 legacy
-units receive only `-Werror` plus warning groups named locally. The RP2040 link
-also makes RWX-segment warnings fatal. Those controls are necessary but do not
-establish a repository-wide C17 or memory-safety build.
+fatal warning policy. Full units receive `-Wall -Wextra -Werror`; 142 legacy
+units (140 outside `tests/`) receive only `-Werror` plus warning groups named
+locally. The RP2040 link also makes RWX-segment warnings fatal. Those controls
+are necessary but do not establish a repository-wide C17 or memory-safety
+build.
 
 Each migrated unit must add these diagnostics without local suppression:
 

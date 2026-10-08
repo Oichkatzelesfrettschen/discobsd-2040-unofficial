@@ -83,6 +83,8 @@ int (* const inactive_qualified)(); /* expect: declaration inactive_qualified */
 void inactive_outer(int inactive_callback()); /* expect: declaration inactive_callback */
 int (*inactive_table[NSLOTS])(); /* expect: declaration inactive_table */
 int ((*inactive_nested))(); /* expect: declaration inactive_nested */
+/* expect: declaration inactive_spliced */ extern int inactive_\
+spliced();
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;

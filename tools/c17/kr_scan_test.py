@@ -4,11 +4,12 @@ The fixture marks every line the scan must report. The scan must report
 exactly those lines; the host compiler, run with -Wold-style-definition and
 -Wstrict-prototypes, must report only marked lines; and each known-bad
 variant must be rejected: a scan that drops a calibrated shape, pointer
-qualifiers, array subscripts, nested grouping, block-scope declarations or
-#if alternative tracking; one that reads block-scope calls as declarations
-or a directive inside a comment; a reconciliation handed a compiler finding
-the scan lacks; and a diagnostic parser that requires the English severity
-label. An inventory whose --build compiles no requested source must fail.
+qualifiers, array subscripts, nested grouping, line splices, block-scope
+declarations or #if alternative tracking; one that reads block-scope calls
+as declarations or a directive inside a comment; a reconciliation handed a
+compiler finding the scan lacks; and a diagnostic parser that requires the
+English severity label. An inventory whose --build compiles no requested
+source must fail.
 """
 
 import os
@@ -119,6 +120,12 @@ def main():
         check(scanned(text) != got, "a scan reading one grouping layer matched the fixture")
     finally:
         kr_scan.grouped_span = original
+    original = kr_scan.join_splices
+    kr_scan.join_splices = lambda source: source
+    try:
+        check(scanned(text) != got, "a scan blind to line splices matched the fixture")
+    finally:
+        kr_scan.join_splices = original
     original = kr_scan.subscripts_end
     kr_scan.subscripts_end = lambda tokens, j: j
     try:

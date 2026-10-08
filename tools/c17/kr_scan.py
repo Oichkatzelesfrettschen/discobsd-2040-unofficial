@@ -96,6 +96,32 @@ class Finding:
     name: str
 
 
+def join_splices(text):
+    """Delete each backslash-newline, as translation phase 2 does (C17 5.1.1.2).
+
+    "pri\\" + newline + "ntf(" becomes one identifier and a literal
+    continued across lines becomes one literal. The deleted newlines are
+    emitted after the joined logical line ends, so a position on that line
+    keeps the number of the physical line where the logical line starts
+    and every later line keeps its own number.
+    """
+    out = []
+    pending = 0
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("\\\n", i):
+            pending += 1
+            i += 2
+            continue
+        out.append(text[i])
+        if text[i] == "\n" and pending:
+            out.append("\n" * pending)
+            pending = 0
+        i += 1
+    out.append("\n" * pending)
+    return "".join(out)
+
+
 def strip_source(text, conditionals=None):
     """Blank comments, literals and preprocessor lines, keeping line numbers.
 
@@ -433,6 +459,7 @@ def following_attributes(tokens, after):
 
 
 def scan_text(path, text):
+    text = join_splices(text)
     conditionals = []
     tokens = tokenize(text, conditionals)
     events = conditional_events(conditionals, tokens)

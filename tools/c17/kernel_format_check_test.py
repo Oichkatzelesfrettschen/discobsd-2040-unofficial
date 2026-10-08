@@ -7,11 +7,12 @@ call as a declaration, one stripping comment delimiters inside literals, one
 blind to directives inside a call, one blind to the DEBUG wrappers, one
 blind to parenthesized designators such as (printf)(...), one blind to
 (*printf)(...) and (&printf)(...), one reading one grouping layer, one
-rejecting u8 literals, one blind to line splices, one splitting tokens at
-them, one finding
-calls inside string literals, one that reads escapes undecoded and one that
-drops the literal-format requirement, must each fail the fixture. The
-checker itself must fail when it finds no source or no literal format.
+rejecting u8 literals, one rejecting parenthesized literals, one blind to
+line splices, one splitting tokens at them, one finding calls inside string
+literals, one that reads escapes undecoded and one that drops the
+literal-format requirement, must each fail the fixture. The
+checker itself must fail when it finds no source or no literal format, and
+source discovery must report a build whose CFILES is empty.
 """
 
 import re
@@ -157,6 +158,30 @@ def main():
             failures.append("a checker reading escapes undecoded matched the fixture")
     finally:
         kernel_format_check.decode_literal = saved_decode
+
+    saved_unwrap = kernel_format_check.unparenthesize
+    kernel_format_check.unparenthesize = lambda argument: argument
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker rejecting parenthesized literals matched the fixture")
+    finally:
+        kernel_format_check.unparenthesize = saved_unwrap
+
+    # Each build must list sources; an empty CFILES in one configuration is
+    # a discovery failure even when another configuration supplies formats.
+    saved_value = kernel_format_check.c17_inventory.make_value
+    listed = {"PICO": "../../fixture.c", "PICO_UART": "../../fixture.c"}
+    kernel_format_check.c17_inventory.make_value = lambda make, build, name: listed[build.name]
+    try:
+        _, both = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
+        listed["PICO"] = ""
+        _, one = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
+    finally:
+        kernel_format_check.c17_inventory.make_value = saved_value
+    if both:
+        failures.append(f"two listing builds reported {both}")
+    if one != ["PICO: CFILES is empty"]:
+        failures.append(f"a build with empty CFILES reported {one}")
 
     saved_literal = kernel_format_check.literal_format
     kernel_format_check.literal_format = lambda argument: saved_literal(argument) or ""

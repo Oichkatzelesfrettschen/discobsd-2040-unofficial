@@ -28,6 +28,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import c17_inventory  # noqa: E402
+import kr_scan  # noqa: E402
+
+join_splices = kr_scan.join_splices
 
 # Format argument index per function. DEBUG and DEBUG1 through DEBUG9 in
 # sys/arch/rp2040/include/debug.h expand to printf(__VA_ARGS__) under
@@ -72,32 +75,6 @@ SIMPLE_ESCAPES = {
 # Left where a preprocessor directive stood, so a call whose arguments span
 # one, such as a format chosen by #if and #else, is recognizable.
 DIRECTIVE = "\0"
-
-
-def join_splices(text):
-    """Delete each backslash-newline, as translation phase 2 does (C17 5.1.1.2).
-
-    "pri\\" + newline + "ntf(" becomes one identifier and a literal
-    continued across lines becomes one literal. The deleted newlines are
-    emitted after the joined logical line ends, so a position on that line
-    keeps the number of the physical line where the logical line starts
-    and every later line keeps its own number.
-    """
-    out = []
-    pending = 0
-    i, n = 0, len(text)
-    while i < n:
-        if text.startswith("\\\n", i):
-            pending += 1
-            i += 2
-            continue
-        out.append(text[i])
-        if text[i] == "\n" and pending:
-            out.append("\n" * pending)
-            pending = 0
-        i += 1
-    out.append("\n" * pending)
-    return "".join(out)
 
 
 def strip_comments(text):
@@ -228,8 +205,31 @@ def decode_literal(body):
     return ESCAPE.sub(replace, body)
 
 
+def group_end(text):
+    """Index of the parenthesis closing the one that opens text, or -1."""
+    depth = 0
+    for index, c in enumerate(mask_literals(text)):
+        depth += (c == "(") - (c == ")")
+        if depth == 0:
+            return index
+    return -1
+
+
+def unparenthesize(argument):
+    """argument without parentheses that enclose all of it, as in ("%d").
+
+    A group that closes before the end, as in the cast "(char *)fmt", is
+    part of the expression and stays.
+    """
+    argument = argument.strip()
+    while argument.startswith("(") and group_end(argument) == len(argument) - 1:
+        argument = argument[1:-1].strip()
+    return argument
+
+
 def literal_format(argument):
     """The concatenated, decoded string literals forming argument, or None."""
+    argument = unparenthesize(argument)
     literals = LITERAL.findall(argument)
     if not literals or LITERAL.sub("", argument).strip():
         return None
@@ -277,12 +277,21 @@ def check_text(path, text):
 
 
 def sources_from_builds(make, root, builds):
-    sources = set()
+    """Return (sources, problems) for the union of each build's CFILES.
+
+    Each build must list sources of its own: an empty CFILES in one
+    configuration would otherwise drop its configuration-only sources while
+    the others still passed the gate.
+    """
+    sources, problems = set(), []
     for build_dir in builds:
         build = (root / build_dir).resolve()
-        for item in shlex.split(c17_inventory.make_value(make, build, "CFILES")):
+        items = shlex.split(c17_inventory.make_value(make, build, "CFILES"))
+        if not items:
+            problems.append(f"{build_dir}: CFILES is empty")
+        for item in items:
             sources.add(os.path.relpath((build / item).resolve(), root))
-    return sorted(sources)
+    return sorted(sources), problems
 
 
 def main():
@@ -293,8 +302,11 @@ def main():
     parser.add_argument("sources", nargs="*")
     args = parser.parse_args()
     root = Path(args.root).resolve()
-    sources = list(args.sources) or sources_from_builds(args.make, root, args.build)
-    problems, checked = [], 0
+    if args.sources:
+        sources, problems = list(args.sources), []
+    else:
+        sources, problems = sources_from_builds(args.make, root, args.build)
+    checked = 0
     for source in sources:
         found, count = check_text(source, (root / source).read_text(encoding="latin-1"))
         problems += found

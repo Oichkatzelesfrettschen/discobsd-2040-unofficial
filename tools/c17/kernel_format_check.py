@@ -23,6 +23,7 @@ import argparse
 import os
 import re
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,17 +38,26 @@ join_splices = kr_scan.join_splices
 # GLOBAL_DEBUG, so their formats reach prf() in a debug kernel.
 FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1, "DEBUG": 0}
 FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
+
+
 # A parenthesized designator, "(printf)(...)" or "((printf))(...)", calls
 # the function while suppressing a function-like macro of the same name;
 # "(*printf)(...)" and "(&printf)(...)" call it through the function
 # pointer the name decays to. check_text() reports a call whose "close"
 # holds a parenthesis "open" did not open; an unmatched opening one belongs
 # to an enclosing expression.
-CALL = re.compile(
-    r"(?<![\w.>])(?P<open>(?:\(\s*(?:[*&]\s*)*)*)(?P<name>"
-    + "|".join(sorted(FUNCTIONS, key=len, reverse=True))
-    + r")(?P<close>(?:\s*\))*)\s*\("
-)
+def call_pattern(names):
+    return re.compile(
+        r"(?<![\w.>])(?P<open>(?:\(\s*(?:[*&]\s*)*)*)(?P<name>"
+        + "|".join(sorted(names, key=len, reverse=True))
+        + r")(?P<close>(?:\s*\))*)\s*\("
+    )
+
+
+CALL = call_pattern(FUNCTIONS)
+# An object-like macro whose replacement is a single name, as in
+# "#define KPRINTF printf", makes that name an alias (see aliases_in()).
+OBJECT_ALIAS = re.compile(r"^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+(\w+)[ \t]*$", re.M)
 CONVERSION = re.compile(
     r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
 )
@@ -267,15 +277,39 @@ def literal_format(argument):
     return "".join(decode_literal(body) for body in literals)
 
 
-def check_text(path, text):
+def aliases_in(texts, known=None):
+    """Map each object-like alias of a format function to its format index.
+
+    "#define KPRINTF printf" anywhere among texts makes KPRINTF(...) a
+    printf call; chains of aliases resolve to the function they end at.
+    """
+    known = dict(FUNCTIONS if known is None else known)
+    pairs = [m.groups() for text in texts for m in OBJECT_ALIAS.finditer(join_splices(text))]
+    aliases, changed = {}, True
+    while changed:
+        changed = False
+        for alias, target in pairs:
+            index = known.get(target, aliases.get(target))
+            if index is not None and alias not in aliases and alias not in known:
+                aliases[alias] = index
+                changed = True
+    return aliases
+
+
+def check_text(path, text, aliases=None):
     """Return (problems, checked) for one source."""
     joined = join_splices(text)
+    aliases = aliases_in([joined]) if aliases is None else aliases
     forwarding = forwarded_formats(joined)
     text = strip_comments(joined)
     masked = mask_literals(text)
     problems = []
     checked = 0
-    for call in CALL.finditer(masked):
+    calls = list(CALL.finditer(masked))
+    if aliases:
+        calls += call_pattern(aliases).finditer(masked)
+        calls.sort(key=lambda call: call.start())
+    for call in calls:
         name = call["name"]
         line = text.count("\n", 0, call.start()) + 1
         if (call["close"] or "").count(")") > (call["open"] or "").count("("):
@@ -289,7 +323,7 @@ def check_text(path, text):
             )
             continue
         args = argument_text(text, call.end())
-        index = FUNCTIONS[name]
+        index = FUNCTIONS[name] if name in FUNCTIONS else aliases[name]
         if len(args) <= index:
             continue
         if DECLARATION_PREFIX.search(masked[max(call.start() - 40, 0) : call.start()]):
@@ -322,12 +356,38 @@ def check_text(path, text):
     return problems, checked
 
 
+def header_dependencies(make, root, build, items):
+    """In-tree headers the build's compiler includes for items (-MM)."""
+    compiler = shlex.split(c17_inventory.make_value(make, build, "CC"))
+    flags = []
+    for name in ("CFLAGS", "INCLUDES", "PARAM"):
+        flags += shlex.split(c17_inventory.make_value(make, build, name))
+    headers = set()
+    for item in items:
+        result = subprocess.run(
+            compiler + flags + ["-DKERNEL", "-MM", item],
+            cwd=build,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise SystemExit(f"FAIL {build.name}: cannot list the headers of {item}")
+        for word in result.stdout.replace("\\\n", " ").split():
+            if word.endswith(".h"):
+                path = (build / word).resolve()
+                if path.is_relative_to(root):
+                    headers.add(os.path.relpath(path, root))
+    return headers
+
+
 def sources_from_builds(make, root, builds):
-    """Return (sources, problems) for the union of each build's CFILES.
+    """Return (sources, problems) for each build's CFILES and their headers.
 
     Each build must list sources of its own: an empty CFILES in one
     configuration would otherwise drop its configuration-only sources while
-    the others still passed the gate.
+    the others still passed the gate. An in-tree header a source includes
+    is read too, so a static inline function or macro defined there is
+    checked.
     """
     sources, problems = set(), []
     for build_dir in builds:
@@ -337,6 +397,7 @@ def sources_from_builds(make, root, builds):
             problems.append(f"{build_dir}: CFILES is empty")
         for item in items:
             sources.add(os.path.relpath((build / item).resolve(), root))
+        sources |= header_dependencies(make, root, build, items)
     return sorted(sources), problems
 
 
@@ -353,8 +414,10 @@ def main():
     else:
         sources, problems = sources_from_builds(args.make, root, args.build)
     checked = 0
-    for source in sources:
-        found, count = check_text(source, (root / source).read_text(encoding="latin-1"))
+    texts = {source: (root / source).read_text(encoding="latin-1") for source in sources}
+    aliases = aliases_in(texts.values())
+    for source, text in texts.items():
+        found, count = check_text(source, text, aliases)
         problems += found
         checked += count
     # An empty source list or no literal format means discovery failed, not

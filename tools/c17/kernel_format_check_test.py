@@ -9,7 +9,7 @@ fixture:
   - one stripping comment delimiters inside literals;
   - one blind to directives inside a call, or to macro bodies;
   - one rejecting a macro that forwards its caller's format;
-  - one blind to the DEBUG wrappers;
+  - one blind to the DEBUG wrappers or to object-like aliases;
   - one blind to (printf)(...), to (*printf)(...) and (&printf)(...), or
     reading one grouping layer;
   - one rejecting u8 literals or parenthesized literals;
@@ -19,7 +19,8 @@ fixture:
   - one dropping the literal-format requirement.
 
 The checker itself must fail when it finds no source or no literal format,
-and source discovery must report a build whose CFILES is empty.
+source discovery must report a build whose CFILES is empty and add the headers
+a build includes, and an alias from one source must apply to another.
 """
 
 import re
@@ -192,19 +193,44 @@ def main():
 
     # Each build must list sources; an empty CFILES in one configuration is
     # a discovery failure even when another configuration supplies formats.
+    # The headers a build includes join the sources.
     saved_value = kernel_format_check.c17_inventory.make_value
+    saved_headers = kernel_format_check.header_dependencies
     listed = {"PICO": "../../fixture.c", "PICO_UART": "../../fixture.c"}
     kernel_format_check.c17_inventory.make_value = lambda make, build, name: listed[build.name]
+    kernel_format_check.header_dependencies = lambda make, root, build, items: (
+        {"include/helper.h"} if items else set()
+    )
     try:
-        _, both = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
+        found, both = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
         listed["PICO"] = ""
         _, one = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
     finally:
         kernel_format_check.c17_inventory.make_value = saved_value
+        kernel_format_check.header_dependencies = saved_headers
     if both:
         failures.append(f"two listing builds reported {both}")
     if one != ["PICO: CFILES is empty"]:
         failures.append(f"a build with empty CFILES reported {one}")
+    if "include/helper.h" not in found:
+        failures.append(f"included headers did not join the sources: {found}")
+    header = (HERE / "fixtures" / "kernel_header.h").read_text()
+    if len(kernel_format_check.check_text("kernel_header.h", header)[0]) != 1:
+        failures.append("the format in an included header's inline function was not reported")
+
+    # An alias defined in one source applies to calls in another.
+    aliases = kernel_format_check.aliases_in(["#define KLOG log\n"])
+    if kernel_format_check.check_text("u.c", 'void f(void) { KLOG(1, "%i\\n", 2); }\n', aliases)[
+        0
+    ] != ["u.c:1: KLOG uses %i, outside the conversions prf() and GCC share"]:
+        failures.append("an alias from another source was not applied")
+    saved_alias = kernel_format_check.OBJECT_ALIAS
+    kernel_format_check.OBJECT_ALIAS = re.compile(r"(?!)")
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker blind to object-like aliases matched the fixture")
+    finally:
+        kernel_format_check.OBJECT_ALIAS = saved_alias
 
     saved_literal = kernel_format_check.literal_format
     kernel_format_check.literal_format = lambda argument: saved_literal(argument) or ""

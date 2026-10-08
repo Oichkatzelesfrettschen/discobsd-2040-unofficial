@@ -27,6 +27,7 @@ int (grouped_decl)(); /* expect: declaration grouped_decl */
 int (**grouped_pointer)(); /* expect: declaration grouped_pointer */
 static int (*handlers[2][3])(); /* expect: declaration handlers */
 int (*factory(void))(); /* expect: declaration factory */
+int (*(*factory_factory(void))(int))(); /* expect: declaration factory_factory */
 static int (* __attribute__((unused)) attributed_pointer)(); /* expect: declaration attributed_pointer */
 int ((*nested_group))(), (*(*double_pointer))(); /* expect: declaration nested_group */ /* expect: declaration double_pointer */
 struct ops after_decl = { 0, 0 };
@@ -86,6 +87,7 @@ void inactive_outer(int inactive_callback()); /* expect: declaration inactive_ca
 int (*inactive_table[NSLOTS])(); /* expect: declaration inactive_table */
 int ((*inactive_nested))(); /* expect: declaration inactive_nested */
 int (*inactive_factory(int))(); /* expect: declaration inactive_factory */
+int (*(*inactive_layers(void))(int))(); /* expect: declaration inactive_layers */
 int (* __attribute__((unused)) inactive_attributed_pointer)(); /* expect: declaration inactive_attributed_pointer */
 /* expect: declaration inactive_spliced */ extern int inactive_\
 spliced();
@@ -141,6 +143,12 @@ function_pointer_parameter(fp) /* expect: definition function_pointer_parameter 
 
 int
 (grouped_definition)() /* expect: definition grouped_definition */
+{
+    return 0;
+}
+
+#define OLD_STYLE(name) int name()
+OLD_STYLE(generated) /* expect: definition OLD_STYLE(generated) */
 {
     return 0;
 }

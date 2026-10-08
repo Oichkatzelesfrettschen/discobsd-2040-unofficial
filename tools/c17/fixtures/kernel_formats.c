@@ -13,6 +13,8 @@ void (printf)(char *fmt, ...);
 #define NONLITERAL(a) printf(a ## _fmt, a) /* expect: reject */
 #define GLOBAL_FORMAT(a) printf(global_fmt, a) /* expect: reject */
 #define NOT_A_CALL "printf(%i)"
+#define KPRINTF printf
+#define KPRINTF2 KPRINTF
 
 void
 accepted(struct tty *tp, int i, long l, char *s, void *p)
@@ -29,6 +31,7 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     ((printf))("%d\n", i);
     printf(u8"%d %s\n", i, s);
     printf(("%d\n"), i);
+    KPRINTF("%d %s\n", i, s);
     printf((("(%s)" "\n")), s);
     log\
 (3, "%d\n", i);
@@ -52,6 +55,8 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     (**printf)("%f\n", d); /* expect: reject */
     ((printf))("%i %d\n", i, i); /* expect: reject */
     printf(("%i\n"), i); /* expect: reject */
+    KPRINTF("%i %s\n", i, "x"); /* expect: reject */
+    KPRINTF2("%n\n", &i); /* expect: reject */
     (flag ? printf : printf)("%i %d\n", i, i); /* expect: reject */
     f((printf))("%d\n", i); /* expect: reject */
     printf((char *)"%d\n", i); /* expect: reject */

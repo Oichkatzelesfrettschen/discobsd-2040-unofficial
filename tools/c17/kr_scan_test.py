@@ -10,6 +10,7 @@ variant must be rejected:
     function types, line splices or block-scope declarations;
   - a scan without #if alternative tracking, or one keeping a one-armed
     #if's depth after #endif;
+  - a scan naming a macro-generated interface after the macro;
   - a scan blanking whole string literals, reading block-scope calls as
     declarations, or reading a directive inside a comment;
   - a reconciliation handed a compiler finding the scan lacks;
@@ -32,7 +33,7 @@ import c17_inventory  # noqa: E402
 import kr_scan  # noqa: E402
 
 FIXTURE = HERE / "fixtures" / "kr_shapes.c"
-EXPECT = re.compile(r"expect: (definition|declaration) (\w+)")
+EXPECT = re.compile(r"expect: (definition|declaration) ([\w(),]+)")
 failures = []
 
 
@@ -137,6 +138,12 @@ def main():
         check(scanned(text) != got, "a scan blanking whole literals matched the fixture")
     finally:
         kr_scan.strip_source = original
+    saved_macros = kr_scan.FUNCTION_MACRO
+    kr_scan.FUNCTION_MACRO = re.compile(r"(?!)")
+    try:
+        check(scanned(text) != got, "a scan naming generated interfaces by macro matched")
+    finally:
+        kr_scan.FUNCTION_MACRO = saved_macros
     original = kr_scan.grouped_span
 
     def single_group(tokens, k):

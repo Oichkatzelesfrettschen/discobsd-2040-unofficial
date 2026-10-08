@@ -201,9 +201,12 @@ kernel's `printf()`, `uprintf()`, `tprintf()` and `log()` carry
 `format(printf)` attributes in `sys/sys/systm.h`, spelled `__printf__` so the
 host harness's `-Dprintf=hk_kprintf` rename leaves the archetype intact. GCC
 and Clang then type-check every kernel call, and both PICO configurations
-build without a format diagnostic. The attributes also reject `prf()`'s `%b`
-and `%D` extensions; three callers had passed a `daddr_t` to `%D`, which
-`prf()` reads as a pointer to 16 bytes to hex-dump. GCC accepts conversions
+build without a format diagnostic. The attributes reject `prf()`'s `%D`;
+three callers had passed a `daddr_t` to it, which `prf()` reads as a pointer
+to 16 bytes to hex-dump. GCC and Clang read `%b` as C23's one-argument binary
+conversion, so they reject only the register-name argument of `prf()`'s
+two-argument `%b`, and `tests/kernel/prf_test.c` turns format checking off
+for the one function that exercises it. GCC accepts conversions
 `prf()` lacks or reads differently (`%i`, floating, `hh`, `h`, `ll`, `j`,
 `z`, `t`, `%n`), so `check-kernel-printf-formats` restricts the literal
 formats of those four functions to the set both readers share. `prf()`

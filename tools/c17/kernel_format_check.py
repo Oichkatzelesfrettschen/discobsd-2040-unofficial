@@ -5,9 +5,11 @@ format(printf) attribute, so GCC checks argument types against ISO C
 conversions. The two readers of a format still differ. GCC accepts
 conversions sys/kern/subr_prf.c's prf() does not implement: %i, the
 floating conversions, and the hh, h, ll, j, z and t length modifiers. GCC
-reads %n as a store through a pointer where prf() prints a number, and it
-rejects prf()'s %b (bit-field decode) and %D (hex dump of a byte buffer)
-only by luck of their letters. This check reads every literal format passed
+reads %n as a store through a pointer where prf() prints a number, and %b
+as C23's one-argument binary conversion where prf() decodes a bit field from
+two arguments; a one-argument %b passes the attribute and makes prf() read a
+second argument that is not there. GCC rejects prf()'s %D (hex dump of a
+byte buffer). This check reads every literal format passed
 to those four functions in the sources a kernel configuration builds and
 accepts only
 

@@ -28,6 +28,7 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     printf("%hhd\n", i); /* expect: reject */
     printf("%n\n", &i); /* expect: reject */
     printf("%b\n", i, "\10\1ONE"); /* expect: reject */
+    printf("%b\n", i); /* expect: reject */
     printf("%D\n", fmt); /* expect: reject */
     printf(fmt, i); /* expect: reject */
     tprintf(tp, "%e\n", d); /* expect: reject */

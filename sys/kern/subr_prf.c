@@ -101,8 +101,9 @@ void puts(char *s, int flags, struct tty *ttyp)
 /*
  * Scaled down version of printf(3).
  * Two additional formats: %b anf %D. The format(printf) declarations of
- * printf(), uprintf(), tprintf() and log() in sys/sys/systm.h reject both
- * at compile time, so only a direct caller of prf() reaches them.
+ * printf(), uprintf(), tprintf() and log() in sys/sys/systm.h reject %D, and
+ * reject %b's second argument because GCC and Clang read %b as C23's
+ * one-argument binary conversion; kernel_format_check.py rejects both.
  * Based on FreeBSD sources.
  * Heavily rewritten by Serge Vakulenko.
  *
@@ -459,8 +460,9 @@ logpri (level)
  * suspended.  Printf should not be used for chit-chat.
  *
  * sys/sys/systm.h declares printf(), uprintf(), tprintf() and log() with
- * format(printf), so GCC checks each call's arguments against the ISO C
- * reading of its format and rejects prf()'s %b and %D extensions there.
+ * format(printf), so GCC and Clang check each call's arguments against the
+ * ISO C reading of its format. That reading rejects %D and treats %b as a
+ * one-argument binary conversion, unlike prf()'s two-argument %b.
  * tools/c17/kernel_format_check.py restricts the literal formats further,
  * to the conversions where prf() and GCC agree on the argument type.
  */

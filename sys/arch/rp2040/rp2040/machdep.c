@@ -150,7 +150,7 @@ int	waittime = -1;
 static int
 nodump(dev_t dev __unused)
 {
-	printf("\ndumping to dev %o off %D: not implemented\n",
+	printf("\ndumping to dev %o off %ld: not implemented\n",
 	    dumpdev, dumplo);
 
 	return 0;

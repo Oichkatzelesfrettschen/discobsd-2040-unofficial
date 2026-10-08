@@ -258,7 +258,7 @@ free(struct inode *ip, daddr_t bno)
 
     fs = INODE_FILESYSTEM(ip);
     if (badblock (fs, bno)) {
-        printf("bad block %D, ino %d\n", bno, ip->i_number);
+        printf("bad block %ld, ino %d\n", bno, ip->i_number);
         return;
     }
     while (fs->fs_flock)

@@ -3,8 +3,9 @@
 Every line of fixtures/kernel_formats.c marked "expect: reject" must be
 reported and no other line may be. Known-bad checkers, one that accepts every
 conversion GCC accepts, one allowing l on every conversion, one reading every
-call as a declaration, one that reads escapes undecoded and one that drops
-the literal-format requirement, must each fail the fixture.
+call as a declaration, one stripping comment delimiters inside literals, one
+blind to the DEBUG wrappers, one that reads escapes undecoded and one that
+drops the literal-format requirement, must each fail the fixture.
 """
 
 import re
@@ -55,6 +56,25 @@ def main():
                 failures.append(f"a checker with {label} matched the fixture")
         finally:
             setattr(kernel_format_check, name, saved_pattern)
+
+    def regex_strip(source):
+        out = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), source, flags=re.S)
+        return re.sub(r"//[^\n]*", "", out)
+
+    saved_strip = kernel_format_check.strip_comments
+    kernel_format_check.strip_comments = regex_strip
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker stripping comments inside literals matched the fixture")
+    finally:
+        kernel_format_check.strip_comments = saved_strip
+    saved_call = kernel_format_check.CALL
+    kernel_format_check.CALL = re.compile(r"(?<![\w.>])(printf|uprintf|tprintf|log)\s*\(")
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker blind to the DEBUG wrappers matched the fixture")
+    finally:
+        kernel_format_check.CALL = saved_call
 
     saved_decode = kernel_format_check.decode_literal
     kernel_format_check.decode_literal = lambda body: body

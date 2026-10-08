@@ -13,6 +13,8 @@ struct ops { int (*op_open)(); int (*op_close)(dev_t, int); }; /* expect: declar
 struct pair { int (*first)(), (*second)(); }; /* expect: declaration first */ /* expect: declaration second */
 
 int empty_decl(); /* expect: declaration empty_decl */
+int first_decl(), second_decl(); /* expect: declaration first_decl */ /* expect: declaration second_decl */
+static int table_value = 1, *table_pointer = &table_value;
 extern struct file *pointer_decl(); /* expect: declaration pointer_decl */
 int typed_decl(dev_t, int);
 int takes_callback(int a, int (*cb)()); /* expect: declaration cb */
@@ -66,6 +68,7 @@ pointer_return_spaced (pid) /* expect: definition pointer_return_spaced */
 }
 
 #ifdef NOT_DEFINED_ANYWHERE
+extern int inactive_attributed() __attribute__((noreturn)); /* expect: declaration inactive_attributed */
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;

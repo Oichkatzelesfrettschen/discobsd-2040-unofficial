@@ -248,8 +248,11 @@ def pointer_declarator(tokens, k):
     prev = tokens[k - 1][0] if k else ""
     if prev == "*" or (IDENT.match(prev) and prev not in NOT_NAMES):
         return True
-    if prev != ",":
-        return False
+    return prev == "," and continues_declaration(tokens, k)
+
+
+def continues_declaration(tokens, k):
+    """True when the comma before tokens[k] separates declarators."""
     start = statement_start(tokens, k)
     if start >= k:
         return False
@@ -307,9 +310,22 @@ def scan_text(path, text):
                 findings.append(Finding(path, line, "definition", tok))
                 k = end + 1
                 continue
-            following = tokens[end + 1][0] if end + 1 < len(tokens) else ""
-            if not params and not nested and following in {";", ","} and prev not in {"=", ","}:
-                if IDENT.match(prev) or prev in {"*", ")"}:
+            after = end + 1
+            while (
+                after + 1 < len(tokens)
+                and tokens[after][0] in ATTRIBUTE_WORDS
+                and tokens[after + 1][0] == "("
+            ):
+                after = closing(tokens, after + 1) + 1
+                if after <= 0:
+                    break
+            following = tokens[after][0] if 0 < after < len(tokens) else ""
+            if not params and not nested and following in {";", ","}:
+                if (
+                    (IDENT.match(prev) and prev not in NOT_NAMES)
+                    or prev in {"*", ")"}
+                    or (prev == "," and continues_declaration(tokens, k))
+                ):
                     findings.append(Finding(path, line, "declaration", tok))
             # A prototype's parameter list can itself hold "(*name)()".
             k += 2

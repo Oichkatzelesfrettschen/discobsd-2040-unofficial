@@ -141,6 +141,17 @@ def main():
         c17_inventory.interfaces(gcc_pair) == Counter(definition=1),
         "GCC's paired definition diagnostics counted as two interfaces",
     )
+    header = "sys/h.h:4:5: warning: function declaration isn't a prototype [-Wstrict-prototypes]\n"
+    merged = {}
+    for _unit in range(2):
+        unit = {}
+        c17_inventory.parse_diagnostics(header, Path.cwd(), Path.cwd(), unit)
+        for key, counts in unit.items():
+            merged[key] = merged.get(key, Counter()) | counts
+    check(
+        list(merged.values()) == [Counter({"not-prototype": 1})],
+        "a header diagnostic repeated by a second translation unit was counted twice",
+    )
     one_line = {
         (f.line, f.kind, f.name)
         for f in kr_scan.scan_text("p.c", "struct p { int (*a)(), (*b)(); };")

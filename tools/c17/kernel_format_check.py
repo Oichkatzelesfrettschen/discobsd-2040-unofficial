@@ -29,8 +29,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import c17_inventory  # noqa: E402
 
-FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1}
-CALL = re.compile(r"(?<![\w.>])(printf|uprintf|tprintf|log)\s*\(")
+# Format argument index per function. DEBUG and DEBUG1 through DEBUG9 in
+# sys/arch/rp2040/include/debug.h expand to printf(__VA_ARGS__) under
+# GLOBAL_DEBUG, so their formats reach prf() in a debug kernel.
+FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1, "DEBUG": 0}
+FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
+CALL = re.compile(r"(?<![\w.>])(" + "|".join(sorted(FUNCTIONS, key=len, reverse=True)) + r")\s*\(")
 CONVERSION = re.compile(
     r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
 )
@@ -55,10 +59,53 @@ SIMPLE_ESCAPES = {
 
 
 def strip_comments(text):
-    """Blank comments and preprocessor lines so they are not read as calls."""
-    out = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
-    out = re.sub(r"//[^\n]*", "", out)
-    return re.sub(r"(?m)^[ \t]*#.*$", "", out)
+    """Blank comments and preprocessor lines, keeping literals and newlines.
+
+    String and character literals are copied through first, so comment
+    delimiters inside a format string stay part of the format. A directive
+    is blank through its last backslash-continued line.
+    """
+    out = []
+    i, n = 0, len(text)
+    line_start = True
+    while i < n:
+        c = text[i]
+        if line_start and c in " \t":
+            out.append(c)
+            i += 1
+            continue
+        if line_start and c == "#":
+            while i < n and text[i] != "\n":
+                if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
+                    out.append("\n")
+                    i += 2
+                    continue
+                out.append(" ")
+                i += 1
+            continue
+        line_start = c == "\n"
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            j = min(j + 1, n)
+            out.append(text[i:j])
+            i = j
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end < 0 else end + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in text[i:end]))
+            i = end
+            continue
+        if text.startswith("//", i):
+            while i < n and text[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def argument_text(text, start):

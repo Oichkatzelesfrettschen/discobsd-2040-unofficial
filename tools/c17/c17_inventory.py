@@ -90,7 +90,12 @@ def compiler_findings(make, root, build, requested):
             sys.stderr.write(result.stderr)
             raise SystemExit(f"FAIL compiler oracle cannot compile {source} for {build.name}")
         compiled.append(source)
-        parse_diagnostics(result.stderr, build, root, found)
+        # Each translation unit reports a header it includes again; a source
+        # position counts once per configuration, at its largest per-unit count.
+        unit = {}
+        parse_diagnostics(result.stderr, build, root, unit)
+        for key, counts in unit.items():
+            found[key] = found.get(key, Counter()) | counts
     return {key: interfaces(counts) for key, counts in found.items()}, compiled
 
 

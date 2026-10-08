@@ -3,9 +3,11 @@
 The fixture marks every line the scan must report. The scan must report
 exactly those lines; the host compiler, run with -Wold-style-definition and
 -Wstrict-prototypes, must report only marked lines; and each known-bad
-variant (a scan that drops a calibrated shape, pointer qualifiers or #if
-alternative tracking, or reads a directive inside a comment; a reconciliation
-that is handed a compiler finding the scan lacks) must be rejected.
+variant (a scan that drops a calibrated shape, pointer qualifiers, array
+subscripts or #if alternative tracking, or reads a directive inside a
+comment; a reconciliation that is handed a compiler finding the scan lacks;
+a diagnostic parser that requires the English severity label) must be
+rejected.
 """
 
 import os
@@ -88,6 +90,12 @@ def main():
         check(scanned(text) != got, "a scan reading directives inside comments matched the fixture")
     finally:
         kr_scan.strip_source = original
+    original = kr_scan.subscripts_end
+    kr_scan.subscripts_end = lambda tokens, j: j
+    try:
+        check(scanned(text) != got, "a scan blind to array declarators matched the fixture")
+    finally:
+        kr_scan.subscripts_end = original
     saved_qualifiers = kr_scan.POINTER_QUALIFIERS
     kr_scan.POINTER_QUALIFIERS = set()
     try:
@@ -193,6 +201,31 @@ def main():
         list(merged.values()) == [Counter({"not-prototype": 1})],
         "a header diagnostic repeated by a second translation unit was counted twice",
     )
+    # GCC translates the severity label under a localized LANGUAGE or
+    # LC_MESSAGES; the position and option tag stay the same.
+    localized = (
+        "x.c:3:5: Warnung: Funktionsdeklaration ist kein Prototyp [-Wstrict-prototypes]\n"
+        "x.c:9:1: attention : d\u00e9finition de fonction de style ancien "
+        "[-Wold-style-definition]\n"
+    )
+    found = {}
+    c17_inventory.parse_diagnostics(localized, Path.cwd(), Path.cwd(), found)
+    check(
+        sorted((key[1], counts) for key, counts in found.items())
+        == [(3, Counter({"not-prototype": 1})), (9, Counter({"old-style": 1}))],
+        f"translated diagnostics parsed to {found}",
+    )
+    saved_diagnostic = c17_inventory.DIAGNOSTIC
+    c17_inventory.DIAGNOSTIC = re.compile(
+        r"^(?P<path>[^:\s]+):(?P<line>\d+):(?P<column>\d+): warning: (?P<text>.*)"
+        r"\[-W(?P<option>[\w-]+)(?:,[^\]]*)?\]\s*$"
+    )
+    try:
+        english = {}
+        c17_inventory.parse_diagnostics(localized, Path.cwd(), Path.cwd(), english)
+        check(english != found, "a parser requiring 'warning:' read translated diagnostics")
+    finally:
+        c17_inventory.DIAGNOSTIC = saved_diagnostic
     for option, message, kind in (
         ("strict-prototypes", "function declaration isn\u2019t a prototype ", "not-prototype"),
         ("strict-prototypes", "function declaration isn't a prototype ", "not-prototype"),

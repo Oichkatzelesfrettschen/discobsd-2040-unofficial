@@ -6,7 +6,7 @@ conversion GCC accepts, one allowing l on every conversion, one reading every
 call as a declaration, one stripping comment delimiters inside literals, one
 blind to directives inside a call, one blind to the DEBUG wrappers, one
 blind to parenthesized designators such as (printf)(...), one blind to
-(*printf)(...) and (&printf)(...), one finding
+(*printf)(...) and (&printf)(...), one blind to line splices, one finding
 calls inside string literals, one that reads escapes undecoded and one that
 drops the literal-format requirement, must each fail the fixture.
 """
@@ -98,6 +98,18 @@ def main():
                 failures.append(f"a checker {label} matched the fixture")
         finally:
             kernel_format_check.CALL = saved_call
+
+    saved_strip = kernel_format_check.strip_comments
+
+    def splice_blind(source):
+        return saved_strip(source.replace("\\\n", "\0\n")).replace("\0", "\\")
+
+    kernel_format_check.strip_comments = splice_blind
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker blind to line splices matched the fixture")
+    finally:
+        kernel_format_check.strip_comments = saved_strip
 
     saved_mask = kernel_format_check.mask_literals
     kernel_format_check.mask_literals = lambda source: source

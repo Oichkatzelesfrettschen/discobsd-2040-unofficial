@@ -6,9 +6,9 @@ preprocessor directive, and reports two kinds of finding:
   definition   a function definition whose parameter list is empty or an
                identifier list (the obsolescent forms of C17 6.9.1)
   declaration  a file-scope function declarator with an empty parameter
-               list, or a grouped declarator "(name)()", "(*name)()" or
-               "(**name)()" at any depth, none of which carries a prototype
-               (C17 6.7.6.3)
+               list, or a grouped declarator such as "(name)()", "(*name)()",
+               "(**name)()" or "(*name[2])()" at any depth, none of which
+               carries a prototype (C17 6.7.6.3)
 
 It is one of two inventory oracles. The compiler run in c17_inventory.py
 sees only the active configuration but parses every form the target compiler
@@ -218,13 +218,31 @@ def closing(tokens, start):
     return -1
 
 
+def subscripts_end(tokens, j):
+    """Index of the first token at or after j that ends a run of [...]."""
+    while j < len(tokens) and tokens[j][0] == "[":
+        depth = 0
+        while j < len(tokens):
+            if tokens[j][0] == "[":
+                depth += 1
+            elif tokens[j][0] == "]":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        j += 1
+    return j
+
+
 def grouped_declarator(tokens, k):
-    """Index of the name in "( *... name ) ( )" starting at tokens[k], or -1.
+    """Index of the name in "( *... name [...]... ) ( )" at tokens[k], or -1.
 
     A parenthesized name, optionally behind pointer stars and the
-    qualifiers that may follow each star, applied to an
-    empty parameter list: a declarator of an unprototyped function or of a
-    pointer to one, or a call through a parenthesized designator.
+    qualifiers that may follow each star and before array subscripts,
+    applied to an empty parameter list: a declarator of an unprototyped
+    function, of a pointer or an array of pointers to one, or a call
+    through a parenthesized designator. The empty parameter list starts
+    at subscripts_end(tokens, name + 1) + 1.
     """
     if k >= len(tokens) or tokens[k][0] != "(":
         return -1
@@ -235,13 +253,14 @@ def grouped_declarator(tokens, k):
     ):
         stars += tokens[j][0] == "*"
         j += 1
+    if j >= len(tokens) or not IDENT.match(tokens[j][0]) or tokens[j][0] in NOT_NAMES:
+        return -1
+    m = subscripts_end(tokens, j + 1)
     if (
-        j + 3 < len(tokens)
-        and IDENT.match(tokens[j][0])
-        and tokens[j][0] not in NOT_NAMES
-        and tokens[j + 1][0] == ")"
-        and tokens[j + 2][0] == "("
-        and tokens[j + 3][0] == ")"
+        m + 2 < len(tokens)
+        and tokens[m][0] == ")"
+        and tokens[m + 1][0] == "("
+        and tokens[m + 2][0] == ")"
     ):
         return j
     return -1
@@ -387,15 +406,22 @@ def scan_text(path, text):
             # "(name)()" declares an unprototyped function and "(*name)()" a
             # pointer to one; at file scope a body after "(name)()" defines it.
             j = grouped_declarator(tokens, k)
+            after = subscripts_end(tokens, j + 1) + 3
             name_tok, name_line = tokens[j]
             prev = tokens[k - 1][0] if k else ""
-            if j == k + 1 and brace == 0 and prev != "(" and definition_follows(tokens, j + 4):
+            if (
+                j == k + 1
+                and after == j + 4
+                and brace == 0
+                and prev != "("
+                and definition_follows(tokens, after)
+            ):
                 findings.append(Finding(path, name_line, "definition", name_tok))
-                k = j + 4
+                k = after
                 continue
             if pointer_declarator(tokens, k):
                 findings.append(Finding(path, name_line, "declaration", name_tok))
-            k = j + 4
+            k = after
             continue
         elif (
             brace == 0

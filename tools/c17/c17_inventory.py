@@ -29,8 +29,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kr_scan  # noqa: E402
 
+# The severity label is translated under a localized LANGUAGE or
+# LC_MESSAGES, so only the position and the option tag are matched; a
+# diagnostic that carries a -W option tag is a warning under -Wno-error.
 DIAGNOSTIC = re.compile(
-    r"^(?P<path>[^:\s]+):(?P<line>\d+):(?P<column>\d+): warning: (?P<text>.*)"
+    r"^(?P<path>[^:\s]+):(?P<line>\d+):(?P<column>\d+): [^:\[]+: (?P<text>.*)"
     r"\[-W(?P<option>[\w-]+)(?:,[^\]]*)?\]\s*$"
 )
 

@@ -76,7 +76,8 @@ def strip_comments(text):
     String and character literals are copied through first, so comment
     delimiters inside a format string stay part of the format. A directive
     is blank through its last backslash-continued line, after a DIRECTIVE
-    marker.
+    marker. A line splice elsewhere becomes whitespace, so "printf\\" on
+    one line and its argument list on the next is still a call.
     """
     out = []
     i, n = 0, len(text)
@@ -97,6 +98,12 @@ def strip_comments(text):
                     continue
                 out.append(" ")
                 i += 1
+            continue
+        if c == "\\" and text.startswith("\n", i + 1):
+            # A line splice joins two lines (C17 5.1.1.2 phase 2): the
+            # newline is kept for line numbers but is not a line start.
+            out.append(" \n")
+            i += 2
             continue
         line_start = c == "\n"
         if c in "\"'":

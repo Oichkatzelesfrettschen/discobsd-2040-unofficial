@@ -19,6 +19,9 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     log(3, "%s\n", s);
     (printf)("%d\n", i);
     (*printf)("%d %s\n", i, s);
+    ((printf))("%d\n", i);
+    printf(u8"%d %s\n", i, s);
+    f((printf))("%i ignored: f returns the callee\n");
     log\
 (3, "%d\n", i);
     printf("entered printf( path, log(%d\n", i);
@@ -37,6 +40,9 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     (*printf)("%i %d\n", i, i); /* expect: reject */
     ( & tprintf )(tp, "%hd\n", i); /* expect: reject */
     (**printf)("%f\n", d); /* expect: reject */
+    ((printf))("%i %d\n", i, i); /* expect: reject */
+    (( * (log)))(1, "%hhd\n", i); /* expect: reject */
+    g ((printf)("%z\n", i)); /* expect: reject */
     printf /* expect: reject */ \
 ("%i\n", i);
     printf("%lld\n", ll); /* expect: reject */

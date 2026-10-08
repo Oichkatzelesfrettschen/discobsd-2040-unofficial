@@ -6,12 +6,15 @@ conversion GCC accepts, one allowing l on every conversion, one reading every
 call as a declaration, one stripping comment delimiters inside literals, one
 blind to directives inside a call, one blind to the DEBUG wrappers, one
 blind to parenthesized designators such as (printf)(...), one blind to
-(*printf)(...) and (&printf)(...), one blind to line splices, one finding
+(*printf)(...) and (&printf)(...), one reading one grouping layer, one
+rejecting u8 literals, one blind to line splices, one finding
 calls inside string literals, one that reads escapes undecoded and one that
-drops the literal-format requirement, must each fail the fixture.
+drops the literal-format requirement, must each fail the fixture. The
+checker itself must fail when it finds no source or no literal format.
 """
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -80,16 +83,23 @@ def main():
     finally:
         kernel_format_check.strip_comments = saved_strip
     saved_call = kernel_format_check.CALL
+    names = r"(?P<name>DEBUG[1-9]?|printf|uprintf|tprintf|log)"
     for label, pattern in (
-        ("blind to the DEBUG wrappers", r"(?<![\w.>])(?P<name>printf|uprintf|tprintf|log)\s*\("),
+        (
+            "blind to the DEBUG wrappers",
+            r"(?<![\w.>])(?P<open>)(?P<name>printf|uprintf|tprintf|log)(?P<close>)\s*\(",
+        ),
         (
             "blind to parenthesized designators",
-            r"(?<![\w.>])(?P<name>DEBUG[1-9]?|printf|uprintf|tprintf|log)\s*\(",
+            r"(?<![\w.>])(?P<open>)" + names + r"(?P<close>)\s*\(",
         ),
         (
             "blind to dereferenced designators",
-            r"(?<![\w.>])(?P<group>\(\s*)?(?P<name>DEBUG[1-9]?|printf|uprintf|tprintf|log)"
-            r"(?(group)\s*\))\s*\(",
+            r"(?<![\w.>])(?P<open>\(\s*)?" + names + r"(?P<close>(?(open)\s*\)))\s*\(",
+        ),
+        (
+            "reading one grouping layer",
+            r"(?<![\w.>])(?P<open>\(\s*(?:[*&]\s*)*)?" + names + r"(?P<close>(?(open)\s*\)))\s*\(",
         ),
     ):
         kernel_format_check.CALL = re.compile(pattern)
@@ -98,6 +108,26 @@ def main():
                 failures.append(f"a checker {label} matched the fixture")
         finally:
             kernel_format_check.CALL = saved_call
+    saved_literal_pattern = kernel_format_check.LITERAL
+    kernel_format_check.LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker rejecting u8 literals matched the fixture")
+    finally:
+        kernel_format_check.LITERAL = saved_literal_pattern
+
+    # An empty discovery must fail rather than report every format sound.
+    for argv, label in (
+        ([], "no sources and no build"),
+        ([str(HERE / "fixtures" / "no_formats.c")], "a source with no literal format"),
+    ):
+        result = subprocess.run(
+            [sys.executable, str(HERE / "kernel_format_check.py"), "--root", "/"] + argv,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            failures.append(f"the checker passed with {label}")
 
     saved_strip = kernel_format_check.strip_comments
 

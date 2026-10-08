@@ -3,11 +3,11 @@
 The fixture marks every line the scan must report. The scan must report
 exactly those lines; the host compiler, run with -Wold-style-definition and
 -Wstrict-prototypes, must report only marked lines; and each known-bad
-variant (a scan that drops a calibrated shape, pointer qualifiers, array
-subscripts or #if alternative tracking, or reads a directive inside a
-comment; a reconciliation that is handed a compiler finding the scan lacks;
-a diagnostic parser that requires the English severity label) must be
-rejected.
+variant must be rejected: a scan that drops a calibrated shape, pointer
+qualifiers, array subscripts, block-scope declarations or #if alternative
+tracking; one that reads block-scope calls as declarations or a directive
+inside a comment; a reconciliation handed a compiler finding the scan lacks;
+and a diagnostic parser that requires the English severity label.
 """
 
 import os
@@ -90,6 +90,17 @@ def main():
         check(scanned(text) != got, "a scan reading directives inside comments matched the fixture")
     finally:
         kr_scan.strip_source = original
+    original = kr_scan.declaration_prefix
+    kr_scan.declaration_prefix = lambda tokens, k: False
+    try:
+        check(scanned(text) != got, "a scan blind to block-scope declarations matched the fixture")
+    finally:
+        kr_scan.declaration_prefix = original
+    kr_scan.declaration_prefix = lambda tokens, k: True
+    try:
+        check(scanned(text) != got, "a scan reading block-scope calls as declarations matched")
+    finally:
+        kr_scan.declaration_prefix = original
     original = kr_scan.subscripts_end
     kr_scan.subscripts_end = lambda tokens, j: j
     try:

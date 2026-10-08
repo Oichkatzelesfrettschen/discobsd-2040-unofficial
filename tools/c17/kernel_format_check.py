@@ -34,13 +34,16 @@ import c17_inventory  # noqa: E402
 # GLOBAL_DEBUG, so their formats reach prf() in a debug kernel.
 FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1, "DEBUG": 0}
 FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
-# A parenthesized designator, "(printf)(...)", calls the function while
-# suppressing a function-like macro of the same name; "(*printf)(...)" and
-# "(&printf)(...)" call it through the function pointer the name decays to.
+# A parenthesized designator, "(printf)(...)" or "((printf))(...)", calls
+# the function while suppressing a function-like macro of the same name;
+# "(*printf)(...)" and "(&printf)(...)" call it through the function
+# pointer the name decays to. check_text() requires each closing
+# parenthesis in "close" to match one in "open"; an unmatched opening one
+# belongs to an enclosing expression.
 CALL = re.compile(
-    r"(?<![\w.>])(?P<group>\(\s*(?:[*&]\s*)*)?(?P<name>"
+    r"(?<![\w.>])(?P<open>(?:\(\s*(?:[*&]\s*)*)*)(?P<name>"
     + "|".join(sorted(FUNCTIONS, key=len, reverse=True))
-    + r")(?(group)\s*\))\s*\("
+    + r")(?P<close>(?:\s*\))*)\s*\("
 )
 CONVERSION = re.compile(
     r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
@@ -52,7 +55,8 @@ ALLOWED = re.compile(r"[-+#0]*(\d+|\*)?(\.(\d+|\*))?(l?[douxX]|[cps])\Z")
 DECLARATION_PREFIX = re.compile(
     r"(?:\b(?:void|int|char|long|unsigned|static|extern|inline)|\*)\s*\Z"
 )
-LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+# A u8 prefix (C17 6.4.5) keeps the literal a char array.
+LITERAL = re.compile(r'(?:(?<!\w)u8)?"((?:[^"\\\n]|\\.)*)"')
 ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]+|[0-7]{1,3}|.)")
 SIMPLE_ESCAPES = {
     "n": "\n",
@@ -225,6 +229,8 @@ def check_text(path, text):
     checked = 0
     for call in CALL.finditer(masked):
         name = call["name"]
+        if (call["close"] or "").count(")") > (call["open"] or "").count("("):
+            continue  # "(printf))(" calls what an enclosing expression yields
         line = text.count("\n", 0, call.start()) + 1
         args = argument_text(text, call.end())
         index = FUNCTIONS[name]
@@ -278,6 +284,12 @@ def main():
         found, count = check_text(source, (root / source).read_text(encoding="latin-1"))
         problems += found
         checked += count
+    # An empty source list or no literal format means discovery failed, not
+    # that every format is sound.
+    if not sources:
+        problems.append("no sources: pass sources or a --build with nonempty CFILES")
+    elif not checked:
+        problems.append(f"no literal formats found in {len(sources)} sources")
     if problems:
         for problem in problems:
             print("FAIL " + problem, file=sys.stderr)

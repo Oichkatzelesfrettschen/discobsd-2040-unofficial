@@ -5,8 +5,9 @@ preprocessor directive, and reports two kinds of finding:
 
   definition   a function definition whose parameter list is empty or an
                identifier list (the obsolescent forms of C17 6.9.1)
-  declaration  a file-scope function declarator with an empty parameter
-               list, or a grouped declarator such as "(name)()", "(*name)()",
+  declaration  a function declarator with an empty parameter list, at
+               file scope or in a declaration-shaped block-scope statement,
+               or a grouped declarator such as "(name)()", "(*name)()",
                "(**name)()" or "(*name[2])()" at any depth, none of which
                carries a prototype (C17 6.7.6.3)
 
@@ -384,6 +385,34 @@ def continues_declaration(tokens, k):
     return following == "*" or bool(IDENT.match(following))
 
 
+def declaration_prefix(tokens, k):
+    """True when the statement holding tokens[k] opens like a declaration.
+
+    Every token before the name is a specifier, a typedef name or a "*",
+    as in "extern int name();" or "char *name();". A call has an operator,
+    a keyword such as return, or nothing before it.
+    """
+    start = statement_start(tokens, k)
+    if start >= k or not IDENT.match(tokens[start][0]):
+        return False
+    return all(
+        tok == "*" or (IDENT.match(tok) and tok not in NOT_NAMES) for tok, _ in tokens[start:k]
+    )
+
+
+def following_attributes(tokens, after):
+    """Index past any attribute groups starting at tokens[after]."""
+    while (
+        after + 1 < len(tokens)
+        and tokens[after][0] in ATTRIBUTE_WORDS
+        and tokens[after + 1][0] == "("
+    ):
+        after = closing(tokens, after + 1) + 1
+        if after <= 0:
+            return -1
+    return after
+
+
 def scan_text(path, text):
     conditionals = []
     tokens = tokenize(text, conditionals)
@@ -443,15 +472,7 @@ def scan_text(path, text):
                 findings.append(Finding(path, line, "definition", tok))
                 k = end + 1
                 continue
-            after = end + 1
-            while (
-                after + 1 < len(tokens)
-                and tokens[after][0] in ATTRIBUTE_WORDS
-                and tokens[after + 1][0] == "("
-            ):
-                after = closing(tokens, after + 1) + 1
-                if after <= 0:
-                    break
+            after = following_attributes(tokens, end + 1)
             following = tokens[after][0] if 0 < after < len(tokens) else ""
             typed = (IDENT.match(prev) and prev not in NOT_NAMES) or prev == "*"
             if not params and not nested and following in {";", ","}:
@@ -470,6 +491,25 @@ def scan_text(path, text):
             # A prototype's parameter list can itself hold "(*name)()".
             k += 2
             continue
+        elif (
+            brace > 0
+            and IDENT.match(tok)
+            and tok not in NOT_NAMES
+            and tok not in TYPE_WORDS
+            and k + 3 < len(tokens)
+            and tokens[k + 1][0] == "("
+            and tokens[k + 2][0] == ")"
+        ):
+            # A block-scope declaration, "extern int name();", where a call
+            # "name();" is also possible: only a declaration-shaped statement
+            # counts.
+            after = following_attributes(tokens, k + 3)
+            following = tokens[after][0] if 0 < after < len(tokens) else ""
+            prev = tokens[k - 1][0] if k else ""
+            if following in {";", ","} and (
+                declaration_prefix(tokens, k) or (prev == "," and continues_declaration(tokens, k))
+            ):
+                findings.append(Finding(path, line, "declaration", tok))
         k += 1
     return findings
 

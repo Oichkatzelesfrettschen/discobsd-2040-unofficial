@@ -154,7 +154,21 @@ indirect_calls(int x)
 int
 uses_calls(int x)
 {
+    extern int block_decl(); /* expect: declaration block_decl */
+    char *block_pointer(), block_char; /* expect: declaration block_pointer */
     int y = void_definition();
+#ifdef NOT_DEFINED_ANYWHERE
+    extern int inactive_block(); /* expect: declaration inactive_block */
+    struct file *inactive_block_pointer(); /* expect: declaration inactive_block_pointer */
+#endif
+
+    void_definition();
+    y = y * void_definition();
+    (void) void_definition();
+    if (x)
+        void_definition();
+    else
+        void_definition();
 
     if (x)
         return table[0] + y;

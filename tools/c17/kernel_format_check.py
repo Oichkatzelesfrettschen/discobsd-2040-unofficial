@@ -13,7 +13,7 @@ byte buffer). This check reads every literal format passed
 to those four functions in the sources a kernel configuration builds and
 accepts only
 
-    %[-+#0]*(digits|*)?(.(digits|*))?l?[cdopsuxX] and %%
+    %[-+#0]*(digits|*)?(.(digits|*))?(l?[douxX]|[cps]) and %%
 
 where prf() and GCC agree on the argument type. A call whose format is not
 a string literal is reported, since neither check can read it.
@@ -34,7 +34,13 @@ CALL = re.compile(r"(?<![\w.>])(printf|uprintf|tprintf|log)\s*\(")
 CONVERSION = re.compile(
     r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
 )
-ALLOWED = re.compile(r"[-+#0]*(\d+|\*)?(\.(\d+|\*))?l?[cdopsuxX]\Z")
+# prf() reads the l modifier only for d, o, u, x and X; it ignores it for c,
+# s and p, where ISO C's %lc and %ls take wide characters.
+ALLOWED = re.compile(r"[-+#0]*(\d+|\*)?(\.(\d+|\*))?(l?[douxX]|[cps])\Z")
+# A name preceded by one of these is being declared or defined, not called.
+DECLARATION_PREFIX = re.compile(
+    r"(?:\b(?:void|int|char|long|unsigned|static|extern|inline)|\*)\s*\Z"
+)
 LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]+|[0-7]{1,3}|.)")
 SIMPLE_ESCAPES = {
@@ -131,7 +137,7 @@ def check_text(path, text):
         index = FUNCTIONS[name]
         if len(args) <= index:
             continue
-        if any(arg.strip() == "..." for arg in args) or re.search(r"\bchar\s*\*", args[index]):
+        if DECLARATION_PREFIX.search(text[max(call.start() - 40, 0) : call.start()]):
             continue  # a declaration or definition, not a call
         fmt = literal_format(args[index])
         if fmt is None:

@@ -34,6 +34,9 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     printf("\x25n\n", &i); /* expect: reject */
     printf("%D\n", fmt); /* expect: reject */
     printf(fmt, i); /* expect: reject */
+    printf((char *)fmt, i); /* expect: reject */
+    printf("%ls\n", (int *)fmt); /* expect: reject */
+    printf("%lc\n", i); /* expect: reject */
     tprintf(tp, "%e\n", d); /* expect: reject */
     log(1, "%jd\n", ll); /* expect: reject */
 }

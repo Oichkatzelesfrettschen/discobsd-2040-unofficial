@@ -2,7 +2,8 @@
 
 Every line of fixtures/kernel_formats.c marked "expect: reject" must be
 reported and no other line may be. Known-bad checkers, one that accepts every
-conversion GCC accepts, one that reads escapes undecoded and one that drops
+conversion GCC accepts, one allowing l on every conversion, one reading every
+call as a declaration, one that reads escapes undecoded and one that drops
 the literal-format requirement, must each fail the fixture.
 """
 
@@ -43,6 +44,18 @@ def main():
             failures.append("a checker accepting every conversion matched the fixture")
     finally:
         kernel_format_check.ALLOWED = saved
+    for label, name, pattern in (
+        ("l on every conversion", "ALLOWED", r"[-+#0]*(\d+|\*)?(\.(\d+|\*))?l?[cdopsuxX]\Z"),
+        ("every call read as a declaration", "DECLARATION_PREFIX", r""),
+    ):
+        saved_pattern = getattr(kernel_format_check, name)
+        setattr(kernel_format_check, name, re.compile(pattern))
+        try:
+            if reported(text)[0] == got:
+                failures.append(f"a checker with {label} matched the fixture")
+        finally:
+            setattr(kernel_format_check, name, saved_pattern)
+
     saved_decode = kernel_format_check.decode_literal
     kernel_format_check.decode_literal = lambda body: body
     try:

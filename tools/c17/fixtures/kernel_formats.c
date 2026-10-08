@@ -15,6 +15,10 @@ void (printf)(char *fmt, ...);
 #define NOT_A_CALL "printf(%i)"
 #define KPRINTF printf
 #define KPRINTF2 KPRINTF
+#define KWRAP(...) printf(__VA_ARGS__)
+#define TWRAP(tp, ...) tprintf(tp, __VA_ARGS__)
+/* A directive may follow a comment that spans lines; its text is no call.
+ */ #pragma printf(not_a_format)
 
 void
 accepted(struct tty *tp, int i, long l, char *s, void *p)
@@ -32,6 +36,9 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     printf(u8"%d %s\n", i, s);
     printf(("%d\n"), i);
     KPRINTF("%d %s\n", i, s);
+    KWRAP("%d %s\n", i, s);
+    TWRAP(tp, "%x\n", i);
+    FORWARDING("%ld\n", l);
     printf((("(%s)" "\n")), s);
     log\
 (3, "%d\n", i);
@@ -57,6 +64,9 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     printf(("%i\n"), i); /* expect: reject */
     KPRINTF("%i %s\n", i, "x"); /* expect: reject */
     KPRINTF2("%n\n", &i); /* expect: reject */
+    KWRAP("%i %s\n", i, "x"); /* expect: reject */
+    TWRAP(tp, "%hd\n", i); /* expect: reject */
+    FORWARDING("%lld\n", ll); /* expect: reject */
     (flag ? printf : printf)("%i %d\n", i, i); /* expect: reject */
     f((printf))("%d\n", i); /* expect: reject */
     printf((char *)"%d\n", i); /* expect: reject */

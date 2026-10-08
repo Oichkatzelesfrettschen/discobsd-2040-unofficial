@@ -9,7 +9,8 @@ fixture:
   - one stripping comment delimiters inside literals;
   - one blind to directives inside a call, or to macro bodies;
   - one rejecting a macro that forwards its caller's format;
-  - one blind to the DEBUG wrappers or to object-like aliases;
+  - one blind to the DEBUG wrappers, to object-like aliases or to other
+    forwarding wrappers;
   - one blind to (printf)(...), to (*printf)(...) and (&printf)(...), or
     reading one grouping layer;
   - one rejecting u8 literals or parenthesized literals;
@@ -20,12 +21,14 @@ fixture:
 
 The checker itself must fail when it finds no source or no literal format,
 source discovery must report a build whose CFILES is empty and add the headers
-a build includes, and an alias from one source must apply to another.
+a build includes; an alias must apply within a translation unit and not
+leak into another.
 """
 
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -199,12 +202,14 @@ def main():
     listed = {"PICO": "../../fixture.c", "PICO_UART": "../../fixture.c"}
     kernel_format_check.c17_inventory.make_value = lambda make, build, name: listed[build.name]
     kernel_format_check.header_dependencies = lambda make, root, build, items: (
-        {"include/helper.h"} if items else set()
+        {"fixture.c": {"include/helper.h"}} if items else {}
     )
     try:
-        found, both = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
+        found, both, scope = kernel_format_check.sources_from_builds(
+            "make", Path("/r"), list(listed)
+        )
         listed["PICO"] = ""
-        _, one = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
+        _, one, _ = kernel_format_check.sources_from_builds("make", Path("/r"), list(listed))
     finally:
         kernel_format_check.c17_inventory.make_value = saved_value
         kernel_format_check.header_dependencies = saved_headers
@@ -212,8 +217,8 @@ def main():
         failures.append(f"two listing builds reported {both}")
     if one != ["PICO: CFILES is empty"]:
         failures.append(f"a build with empty CFILES reported {one}")
-    if "include/helper.h" not in found:
-        failures.append(f"included headers did not join the sources: {found}")
+    if "include/helper.h" not in found or scope.get("fixture.c") != {"include/helper.h"}:
+        failures.append(f"included headers did not join the sources: {found} {scope}")
     header = (HERE / "fixtures" / "kernel_header.h").read_text()
     if len(kernel_format_check.check_text("kernel_header.h", header)[0]) != 1:
         failures.append("the format in an included header's inline function was not reported")
@@ -224,6 +229,33 @@ def main():
         0
     ] != ["u.c:1: KLOG uses %i, outside the conversions prf() and GCC share"]:
         failures.append("an alias from another source was not applied")
+    # Aliases are scoped to a translation unit: one source's alias does not
+    # rename another source's unrelated function of the same name.
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "a.c").write_text('#define REPORT printf\nvoid f(void) { REPORT("%d", 1); }\n')
+        (Path(tmp) / "b.c").write_text("int REPORT(int);\nvoid g(void) { REPORT(1); }\n")
+        script = str(HERE / "kernel_format_check.py")
+        scoped = subprocess.run(
+            [sys.executable, script, "--root", tmp, "a.c", "b.c"], capture_output=True, text=True
+        )
+        if scoped.returncode != 0:
+            failures.append("an alias leaked into another translation unit:\n" + scoped.stderr)
+        saved_aliases_in = kernel_format_check.aliases_in
+        everything = [(Path(tmp) / name).read_text() for name in ("a.c", "b.c")]
+        try:
+            kernel_format_check.aliases_in = lambda texts: saved_aliases_in(everything)
+            leaked = kernel_format_check.check_text("b.c", everything[1], None)[0]
+        finally:
+            kernel_format_check.aliases_in = saved_aliases_in
+        if not leaked:
+            failures.append("a checker sharing aliases across units accepted b.c")
+    saved_wrapper = kernel_format_check.FUNCTION_WRAPPER
+    kernel_format_check.FUNCTION_WRAPPER = re.compile(r"(?!)")
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker blind to forwarding wrappers matched the fixture")
+    finally:
+        kernel_format_check.FUNCTION_WRAPPER = saved_wrapper
     saved_alias = kernel_format_check.OBJECT_ALIAS
     kernel_format_check.OBJECT_ALIAS = re.compile(r"(?!)")
     try:

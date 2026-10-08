@@ -11,11 +11,14 @@ variant must be rejected:
   - a scan without #if alternative tracking, or one keeping a one-armed
     #if's depth after #endif;
   - a scan naming a macro-generated interface after the macro;
+  - a scan losing the line-start state after a comment that spans lines;
   - a scan blanking whole string literals, reading block-scope calls as
     declarations, or reading a directive inside a comment;
   - a reconciliation handed a compiler finding the scan lacks;
   - a diagnostic parser that requires the English severity label;
-  - an inventory whose --build compiles no requested source.
+  - an inventory whose --build compiles no requested source;
+  - an inventory reading a relative operand from the caller's directory
+    instead of --root.
 """
 
 import os
@@ -136,6 +139,18 @@ def main():
     )
     try:
         check(scanned(text) != got, "a scan blanking whole literals matched the fixture")
+    finally:
+        kr_scan.strip_source = original
+    original = kr_scan.strip_source
+
+    def comment_ends_line_start(source, conditionals=None):
+        # Treat text after a comment that spans lines as mid-line, as the
+        # scan did when a comment cleared its line-start state.
+        return original(re.sub(r"\*/[ \t]*#", "*/ ;#", source), conditionals)
+
+    kr_scan.strip_source = comment_ends_line_start
+    try:
+        check(scanned(text) != got, "a scan losing line start after a comment matched")
     finally:
         kr_scan.strip_source = original
     saved_macros = kr_scan.FUNCTION_MACRO
@@ -353,6 +368,41 @@ def main():
             c17_inventory.compiler_findings, sys.argv = saved_findings, saved_argv
     check(results[0] == 0, "the inventory rejected builds that both compiled sources")
     check(results[1] == 1, "the inventory accepted a build that compiled no source")
+
+    # A relative source operand names a path under --root, wherever the
+    # caller's working directory is.
+    saved_findings, saved_argv, saved_cwd = c17_inventory.compiler_findings, sys.argv, os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = HERE.parent.parent
+        source = os.path.relpath(FIXTURE, root)
+        c17_inventory.compiler_findings = lambda make, r, build, requested: ({}, [source])
+        sys.argv = [
+            "c17_inventory.py",
+            "--root",
+            str(root),
+            "--ledger",
+            str(Path(tmp) / "ledger.txt"),
+            "--update",
+            "--build",
+            "PICO",
+            source,
+        ]
+        try:
+            os.chdir(tmp)
+            with open(os.devnull, "w") as quiet:
+                saved_out, sys.stdout = sys.stdout, quiet
+                try:
+                    relocated = c17_inventory.main()
+                finally:
+                    sys.stdout = saved_out
+            rows = (Path(tmp) / "ledger.txt").read_text()
+        finally:
+            os.chdir(saved_cwd)
+            c17_inventory.compiler_findings, sys.argv = saved_findings, saved_argv
+    check(
+        relocated == 0 and f"{source} definition identifier_list" in rows,
+        "an inventory run from another directory did not read the operand under --root",
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         ledger = Path(tmp) / "ledger.txt"

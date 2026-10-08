@@ -163,7 +163,9 @@ def strip_source(text, conditionals=None):
                 out.append(" ")
                 i += 1
             continue
-        at_line_start = False
+        # A comment is whitespace (C17 5.1.1.2 phase 3), even one spanning
+        # lines, so it leaves the line-start state as it found it: after
+        # "/* ...\n */" at the start of a line, "#if" is still a directive.
         if text.startswith("/*", i):
             end = text.find("*/", i + 2)
             end = n if end < 0 else end + 2
@@ -175,6 +177,7 @@ def strip_source(text, conditionals=None):
                 out.append(" ")
                 i += 1
             continue
+        at_line_start = False
         if c in "\"'":
             j = i + 1
             while j < n and text[j] != c and text[j] != "\n":

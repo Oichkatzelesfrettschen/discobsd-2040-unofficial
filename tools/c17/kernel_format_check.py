@@ -58,6 +58,9 @@ CALL = call_pattern(FUNCTIONS)
 # An object-like macro whose replacement is a single name, as in
 # "#define KPRINTF printf", makes that name an alias (see aliases_in()).
 OBJECT_ALIAS = re.compile(r"^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+(\w+)[ \t]*$", re.M)
+# A function-like macro whose body calls a format function, a candidate
+# wrapper (see forwarded_index()).
+FUNCTION_WRAPPER = re.compile(r"^[ \t]*#[ \t]*define[ \t]+(\w+)\(([^)\n]*)\)(.*)$", re.M)
 CONVERSION = re.compile(
     r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
 )
@@ -142,15 +145,8 @@ def strip_comments(text):
                 out.append(" ")
                 i += 1
             continue
-        line_start = c == "\n"
-        if c in "\"'":
-            j = i + 1
-            while j < n and text[j] != c and text[j] != "\n":
-                j += 2 if text[j] == "\\" else 1
-            j = min(j + 1, n)
-            out.append(text[i:j])
-            i = j
-            continue
+        # A comment is whitespace even across lines, so it keeps the
+        # line-start state; a directive may follow "/* ...\n */".
         if text.startswith("/*", i):
             end = text.find("*/", i + 2)
             end = n if end < 0 else end + 2
@@ -161,6 +157,15 @@ def strip_comments(text):
             while i < n and text[i] != "\n":
                 out.append(" ")
                 i += 1
+            continue
+        line_start = c == "\n"
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            j = min(j + 1, n)
+            out.append(text[i:j])
+            i = j
             continue
         out.append(c)
         i += 1
@@ -278,13 +283,21 @@ def literal_format(argument):
 
 
 def aliases_in(texts, known=None):
-    """Map each object-like alias of a format function to its format index.
+    """Map each alias or wrapper of a format function to its format index.
 
-    "#define KPRINTF printf" anywhere among texts makes KPRINTF(...) a
-    printf call; chains of aliases resolve to the function they end at.
+    "#define KPRINTF printf" makes KPRINTF(...) a printf call, and
+    "#define KLOG(...) printf(__VA_ARGS__)" or "#define KLOG(fmt, a)
+    log(1, fmt, a)" makes KLOG a function whose format is the argument the
+    wrapper forwards. Chains resolve to the function they end at. texts
+    are the sources one translation unit sees: a source and the headers it
+    includes.
     """
     known = dict(FUNCTIONS if known is None else known)
-    pairs = [m.groups() for text in texts for m in OBJECT_ALIAS.finditer(join_splices(text))]
+    pairs, wrappers = [], []
+    for text in texts:
+        joined = join_splices(text)
+        pairs += [m.groups() for m in OBJECT_ALIAS.finditer(joined)]
+        wrappers += [m.groups() for m in FUNCTION_WRAPPER.finditer(joined)]
     aliases, changed = {}, True
     while changed:
         changed = False
@@ -293,7 +306,34 @@ def aliases_in(texts, known=None):
             if index is not None and alias not in aliases and alias not in known:
                 aliases[alias] = index
                 changed = True
+        for name, params, body in wrappers:
+            if name in aliases or name in known:
+                continue
+            index = forwarded_index(params, body, known, aliases)
+            if index is not None:
+                aliases[name] = index
+                changed = True
     return aliases
+
+
+def forwarded_index(params, body, known, aliases):
+    """Argument position of the format a wrapper's body forwards, or None."""
+    call = re.match(r"\s*(?:\(\s*void\s*\)\s*)?(\w+)\s*\(", body)
+    if not call:
+        return None
+    index = known.get(call[1], aliases.get(call[1]))
+    if index is None:
+        return None
+    args = argument_text(body, call.end())
+    if len(args) <= index:
+        return None
+    fmt = args[index].strip()
+    named = [p.strip() for p in params.split(",") if p.strip() not in ("", "...")]
+    if fmt in named:
+        return named.index(fmt)
+    if fmt == "__VA_ARGS__" and "..." in params:
+        return len(named)
+    return None
 
 
 def check_text(path, text, aliases=None):
@@ -357,12 +397,16 @@ def check_text(path, text, aliases=None):
 
 
 def header_dependencies(make, root, build, items):
-    """In-tree headers the build's compiler includes for items (-MM)."""
+    """Map each item's root-relative path to the in-tree headers it includes.
+
+    The build's compiler lists them (-MM) with the build's own flags, so
+    include resolution matches the build.
+    """
     compiler = shlex.split(c17_inventory.make_value(make, build, "CC"))
     flags = []
     for name in ("CFLAGS", "INCLUDES", "PARAM"):
         flags += shlex.split(c17_inventory.make_value(make, build, name))
-    headers = set()
+    headers = {}
     for item in items:
         result = subprocess.run(
             compiler + flags + ["-DKERNEL", "-MM", item],
@@ -372,24 +416,26 @@ def header_dependencies(make, root, build, items):
         )
         if result.returncode != 0:
             raise SystemExit(f"FAIL {build.name}: cannot list the headers of {item}")
+        source = os.path.relpath((build / item).resolve(), root)
         for word in result.stdout.replace("\\\n", " ").split():
             if word.endswith(".h"):
                 path = (build / word).resolve()
                 if path.is_relative_to(root):
-                    headers.add(os.path.relpath(path, root))
+                    headers.setdefault(source, set()).add(os.path.relpath(path, root))
     return headers
 
 
 def sources_from_builds(make, root, builds):
-    """Return (sources, problems) for each build's CFILES and their headers.
+    """Return (sources, problems, scope) for each build's CFILES and headers.
 
     Each build must list sources of its own: an empty CFILES in one
     configuration would otherwise drop its configuration-only sources while
     the others still passed the gate. An in-tree header a source includes
     is read too, so a static inline function or macro defined there is
-    checked.
+    checked. scope maps each CFILES source to the headers it includes, the
+    texts whose aliases and wrappers that source sees.
     """
-    sources, problems = set(), []
+    sources, problems, scope = set(), [], {}
     for build_dir in builds:
         build = (root / build_dir).resolve()
         items = shlex.split(c17_inventory.make_value(make, build, "CFILES"))
@@ -397,8 +443,10 @@ def sources_from_builds(make, root, builds):
             problems.append(f"{build_dir}: CFILES is empty")
         for item in items:
             sources.add(os.path.relpath((build / item).resolve(), root))
-        sources |= header_dependencies(make, root, build, items)
-    return sorted(sources), problems
+        for source, headers in header_dependencies(make, root, build, items).items():
+            sources |= headers
+            scope.setdefault(source, set()).update(headers)
+    return sorted(sources), problems, scope
 
 
 def main():
@@ -410,14 +458,16 @@ def main():
     args = parser.parse_args()
     root = Path(args.root).resolve()
     if args.sources:
-        sources, problems = list(args.sources), []
+        sources, problems, scope = list(args.sources), [], {}
     else:
-        sources, problems = sources_from_builds(args.make, root, args.build)
+        sources, problems, scope = sources_from_builds(args.make, root, args.build)
     checked = 0
     texts = {source: (root / source).read_text(encoding="latin-1") for source in sources}
-    aliases = aliases_in(texts.values())
     for source, text in texts.items():
-        found, count = check_text(source, text, aliases)
+        # A source sees the aliases of its own text and its headers only;
+        # a header read alone sees its own.
+        visible = [text] + [texts[h] for h in sorted(scope.get(source, ())) if h in texts]
+        found, count = check_text(source, text, aliases_in(visible))
         problems += found
         checked += count
     # An empty source list or no literal format means discovery failed, not

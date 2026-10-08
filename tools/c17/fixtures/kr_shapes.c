@@ -129,6 +129,23 @@ one_arm_legacy() /* expect: definition one_arm_legacy */
 }
 #endif
 
+/* A comment that spans lines leaves the next directive a directive.
+ */ #ifdef COMMENTED_WRAPPER
+void
+commented_wrapper(void)
+{
+#endif
+#ifndef COMMENTED_WRAPPER
+int
+after_comment_directive() /* expect: definition after_comment_directive */
+{
+    return 0;
+}
+#endif
+#ifdef COMMENTED_WRAPPER
+}
+#endif
+
 void
 after_endif() /* expect: definition after_endif */
 {

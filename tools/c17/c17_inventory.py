@@ -203,7 +203,8 @@ def main():
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
-    requested = {os.path.relpath(Path(s).resolve(), root) for s in args.sources}
+    # A relative operand names a path under --root, wherever the caller is.
+    requested = {os.path.relpath((root / s).resolve(), root) for s in args.sources}
 
     scanned = {}
     for source in sorted(requested):

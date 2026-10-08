@@ -186,11 +186,6 @@ sys/kern/tty_subr.c definition nextc both
 sys/kern/tty_subr.c definition putc both
 sys/kern/tty_subr.c definition q_to_b both
 sys/kern/tty_subr.c definition unputc both
-sys/kern/tty_tty.c definition syioctl both
-sys/kern/tty_tty.c definition syopen both
-sys/kern/tty_tty.c definition syread both
-sys/kern/tty_tty.c definition syselect both
-sys/kern/tty_tty.c definition sywrite both
 sys/kern/vm_sched.c definition loadav both
 sys/kern/vm_sched.c definition sched both
 sys/kern/vm_sched.c definition vmmeter both

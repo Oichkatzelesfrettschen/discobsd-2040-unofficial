@@ -34,7 +34,13 @@ import c17_inventory  # noqa: E402
 # GLOBAL_DEBUG, so their formats reach prf() in a debug kernel.
 FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1, "DEBUG": 0}
 FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
-CALL = re.compile(r"(?<![\w.>])(" + "|".join(sorted(FUNCTIONS, key=len, reverse=True)) + r")\s*\(")
+# A parenthesized designator, "(printf)(...)", calls the function while
+# suppressing a function-like macro of the same name.
+CALL = re.compile(
+    r"(?<![\w.>])(?P<group>\(\s*)?(?P<name>"
+    + "|".join(sorted(FUNCTIONS, key=len, reverse=True))
+    + r")(?(group)\s*\))\s*\("
+)
 CONVERSION = re.compile(
     r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
 )
@@ -186,7 +192,7 @@ def check_text(path, text):
     problems = []
     checked = 0
     for call in CALL.finditer(text):
-        name = call.group(1)
+        name = call["name"]
         line = text.count("\n", 0, call.start()) + 1
         args = argument_text(text, call.end())
         index = FUNCTIONS[name]

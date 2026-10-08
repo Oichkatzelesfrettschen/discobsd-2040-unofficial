@@ -6,6 +6,8 @@
  */
 #define __unused __attribute__((__unused__))
 
+static char continued_literal[] = "a backslash-newline \
+keeps later line numbers";
 typedef int dev_t;
 struct file { int f_count; };
 struct proc { int p_pid; };
@@ -19,6 +21,8 @@ extern struct file *pointer_decl(); /* expect: declaration pointer_decl */
 int typed_decl(dev_t, int);
 int takes_callback(int a, int (*cb)()); /* expect: declaration cb */
 int void_decl(void);
+int (grouped_decl)(); /* expect: declaration grouped_decl */
+int (**grouped_pointer)(); /* expect: declaration grouped_pointer */
 struct ops after_decl = { 0, 0 };
 
 static struct file files[4];
@@ -70,12 +74,27 @@ pointer_return_spaced (pid) /* expect: definition pointer_return_spaced */
 #ifdef NOT_DEFINED_ANYWHERE
 extern int inactive_attributed() __attribute__((noreturn)); /* expect: declaration inactive_attributed */
 legacy_implicit(); /* expect: declaration legacy_implicit */
+dev_t (inactive_grouped)(); /* expect: declaration inactive_grouped */
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;
 {
 }
 #endif
+
+#ifndef NOT_DEFINED_ANYWHERE
+void
+modern_shared_body(void)
+{
+/*
+#endif inside a comment closes no group
+ */
+#else
+void
+legacy_shared_body() /* expect: definition legacy_shared_body */
+{
+#endif
+}
 
 void
 after_endif() /* expect: definition after_endif */
@@ -87,6 +106,12 @@ function_pointer_parameter(fp) /* expect: definition function_pointer_parameter 
     int (*fp)(); /* expect: declaration fp */
 {
     return fp != 0;
+}
+
+int
+(grouped_definition)() /* expect: definition grouped_definition */
+{
+    return 0;
 }
 
 int
@@ -115,6 +140,8 @@ indirect_calls(int x)
     (*fp)();
     x += void_definition() + (*fp)();
     typed_decl(x, (*fp)());
+    x += (void_definition)() + (grouped_definition)();
+    typed_decl(x, (void_definition)());
     return (*fp)();
 }
 

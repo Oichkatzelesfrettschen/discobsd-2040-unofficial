@@ -5,6 +5,7 @@
 void printf(char *fmt, ...);
 void tprintf(struct tty *tp, char *fmt, ...);
 void log(int level, char *fmt, ...);
+void (printf)(char *fmt, ...);
 
 void
 accepted(struct tty *tp, int i, long l, char *s, void *p)
@@ -16,6 +17,7 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     printf("\045d and \x25u and a backslash \\ before %s\n", i, i, s);
     tprintf(tp, "%s: %d\n", s, i);
     log(3, "%s\n", s);
+    (printf)("%d\n", i);
     DEBUG("\tdebug %#x // not a comment\n", i);
     DEBUG2("%d/* %s */\n", i, s);
     /* printf("%f in a comment is not a call\n"); */
@@ -25,6 +27,8 @@ void
 rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
 {
     printf("%i\n", i); /* expect: reject */
+    (printf)("%i\n", i); /* expect: reject */
+    ( log )(1, "%n\n", &i); /* expect: reject */
     printf("%lld\n", ll); /* expect: reject */
     printf("%f\n", d); /* expect: reject */
     printf("%zu\n", (unsigned)i); /* expect: reject */

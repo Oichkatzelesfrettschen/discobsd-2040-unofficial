@@ -3,8 +3,9 @@
 The fixture marks every line the scan must report. The scan must report
 exactly those lines; the host compiler, run with -Wold-style-definition and
 -Wstrict-prototypes, must report only marked lines; and each known-bad
-variant (a scan that drops a calibrated shape, a reconciliation that is
-handed a compiler finding the scan lacks) must be rejected.
+variant (a scan that drops a calibrated shape or #if alternative tracking,
+or reads a directive inside a comment; a reconciliation that is handed a
+compiler finding the scan lacks) must be rejected.
 """
 
 import os
@@ -66,6 +67,35 @@ def main():
         check(scanned(text) != got, "a scan without declaration lists matched the fixture")
     finally:
         kr_scan.definition_follows = original
+    original = kr_scan.apply_conditionals
+    kr_scan.apply_conditionals = lambda kinds, brace, stack: brace
+    try:
+        check(scanned(text) != got, "a scan blind to #if alternatives matched the fixture")
+    finally:
+        kr_scan.apply_conditionals = original
+    original = kr_scan.strip_source
+
+    def raw_directives(source, conditionals=None):
+        if conditionals is not None:
+            for lineno, line in enumerate(source.split("\n"), 1):
+                match = re.match(r"[ \t]*(#.*)", line)
+                if match and kr_scan.CONDITIONAL.match(match.group(1)):
+                    conditionals.append((lineno, kr_scan.CONDITIONAL.match(match.group(1))[1]))
+        return original(source)
+
+    kr_scan.strip_source = raw_directives
+    try:
+        check(scanned(text) != got, "a scan reading directives inside comments matched the fixture")
+    finally:
+        kr_scan.strip_source = original
+    original = kr_scan.grouped_declarator
+    kr_scan.grouped_declarator = lambda tokens, k: (
+        original(tokens, k) if k + 1 < len(tokens) and tokens[k + 1][0] == "*" else -1
+    )
+    try:
+        check(scanned(text) != got, "a scan reading only (*name)() matched the fixture")
+    finally:
+        kr_scan.grouped_declarator = original
 
     # The compiler oracle sees active code only and must stay inside the marks.
     compiler = shlex.split(os.environ.get("HOST_CC", "cc"))

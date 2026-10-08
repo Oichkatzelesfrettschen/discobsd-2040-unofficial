@@ -6,8 +6,9 @@ preprocessor directive, and reports two kinds of finding:
   definition   a function definition whose parameter list is empty or an
                identifier list (the obsolescent forms of C17 6.9.1)
   declaration  a file-scope function declarator with an empty parameter
-               list, or a function-pointer declarator "(*name)()" at any
-               depth, neither of which carries a prototype (C17 6.7.6.3)
+               list, or a grouped declarator "(name)()", "(*name)()" or
+               "(**name)()" at any depth, none of which carries a prototype
+               (C17 6.7.6.3)
 
 It is one of two inventory oracles. The compiler run in c17_inventory.py
 sees only the active configuration but parses every form the target compiler
@@ -70,6 +71,10 @@ NOT_NAMES = {
 }
 
 
+# Matched at a directive's "#", which strip_source finds at a line start.
+CONDITIONAL = re.compile(r"#[ \t]*(if|ifdef|ifndef|elif|else|endif)\b")
+
+
 @dataclass(frozen=True, order=True)
 class Finding:
     path: str
@@ -78,11 +83,16 @@ class Finding:
     name: str
 
 
-def strip_source(text):
-    """Blank comments, literals and preprocessor lines, keeping line numbers."""
+def strip_source(text, conditionals=None):
+    """Blank comments, literals and preprocessor lines, keeping line numbers.
+
+    When conditionals is a list, each conditional directive outside a
+    comment is appended to it as (line number, directive name).
+    """
     out = []
     i, n = 0, len(text)
     at_line_start = True
+    lineno, counted = 1, 0
     while i < n:
         c = text[i]
         if at_line_start and c in " \t":
@@ -90,6 +100,12 @@ def strip_source(text):
             i += 1
             continue
         if at_line_start and c == "#":
+            if conditionals is not None:
+                lineno += text.count("\n", counted, i)
+                counted = i
+                match = CONDITIONAL.match(text, i)
+                if match:
+                    conditionals.append((lineno, match.group(1)))
             # A directive runs to an unescaped newline; its body is blank.
             while i < n and text[i] != "\n":
                 if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
@@ -122,7 +138,8 @@ def strip_source(text):
             while j < n and text[j] != c and text[j] != "\n":
                 j += 2 if text[j] == "\\" else 1
             j = min(j + 1, n)
-            out.append(" " * (j - i))
+            # A backslash-newline inside the literal keeps its newline.
+            out.append("".join(ch if ch == "\n" else " " for ch in text[i:j]))
             i = j
             continue
         if c == "\n":
@@ -132,12 +149,48 @@ def strip_source(text):
     return "".join(out)
 
 
-def tokenize(text):
+def tokenize(text, conditionals=None):
     tokens = []
-    for lineno, line in enumerate(strip_source(text).split("\n"), 1):
+    for lineno, line in enumerate(strip_source(text, conditionals).split("\n"), 1):
         for match in TOKEN.finditer(line):
             tokens.append((match.group(0), lineno))
     return tokens
+
+
+def conditional_events(conditionals, tokens):
+    """Map a token index to the conditional directives just before it.
+
+    The directive lines are blank in the token stream, so this is how the
+    scan learns where an #if group's alternatives begin and end.
+    """
+    events = {}
+    k = 0
+    for lineno, kind in conditionals:
+        while k < len(tokens) and tokens[k][1] <= lineno:
+            k += 1
+        events.setdefault(k, []).append(kind)
+    return events
+
+
+def apply_conditionals(kinds, brace, stack):
+    """Brace depth after the directives in kinds.
+
+    Each alternative of an #if group starts at the depth the group opened
+    at, so a branch that opens a function body does not hide the next
+    branch's definition; after #endif the depth is the first alternative's.
+    """
+    for kind in kinds:
+        if kind in ("if", "ifdef", "ifndef"):
+            stack.append([brace, None])
+        elif kind in ("elif", "else") and stack:
+            if stack[-1][1] is None:
+                stack[-1][1] = brace
+            brace = stack[-1][0]
+        elif kind == "endif" and stack:
+            opened, first = stack.pop()
+            if first is not None:
+                brace = first
+    return brace
 
 
 def closing(tokens, start):
@@ -150,6 +203,30 @@ def closing(tokens, start):
             depth -= 1
             if depth == 0:
                 return k
+    return -1
+
+
+def grouped_declarator(tokens, k):
+    """Index of the name in "( *... name ) ( )" starting at tokens[k], or -1.
+
+    A parenthesized name, optionally behind pointer stars, applied to an
+    empty parameter list: a declarator of an unprototyped function or of a
+    pointer to one, or a call through a parenthesized designator.
+    """
+    if k >= len(tokens) or tokens[k][0] != "(":
+        return -1
+    j = k + 1
+    while j < len(tokens) and tokens[j][0] == "*":
+        j += 1
+    if (
+        j + 3 < len(tokens)
+        and IDENT.match(tokens[j][0])
+        and tokens[j][0] not in NOT_NAMES
+        and tokens[j + 1][0] == ")"
+        and tokens[j + 2][0] == "("
+        and tokens[j + 3][0] == ")"
+    ):
+        return j
     return -1
 
 
@@ -237,7 +314,7 @@ def statement_start(tokens, k):
 
 
 def pointer_declarator(tokens, k):
-    """True when "(*name)()" at tokens[k] declares rather than calls.
+    """True when the grouped declarator at tokens[k] declares rather than calls.
 
     A declarator follows a type: a specifier or typedef name, or a "*" of a
     pointer declarator. After a comma it continues a declaration only when
@@ -260,37 +337,49 @@ def continues_declaration(tokens, k):
     if not IDENT.match(first) or first in NOT_NAMES:
         return False
     # A declaration's first token, a type, is followed by its declarator: a
-    # name, a "*", or "(*". A call argument or an expression statement is
-    # followed by an operator, a comma or a parenthesized argument list.
+    # name, a "*", "(*" or a grouped "(name)()". A call argument or an
+    # expression statement is followed by an operator, a comma or a
+    # parenthesized argument list.
     following = tokens[start + 1][0] if start + 1 < len(tokens) else ""
     if following == "(":
-        return start + 2 < len(tokens) and tokens[start + 2][0] == "*"
+        return (start + 2 < len(tokens) and tokens[start + 2][0] == "*") or grouped_declarator(
+            tokens, start + 1
+        ) >= 0
     return following == "*" or bool(IDENT.match(following))
 
 
 def scan_text(path, text):
-    tokens = tokenize(text)
+    conditionals = []
+    tokens = tokenize(text, conditionals)
+    events = conditional_events(conditionals, tokens)
+    stack = []
+    applied = 0
     findings = []
     brace = 0
     k = 0
     while k < len(tokens):
+        while applied <= k:
+            brace = apply_conditionals(events.get(applied, ()), brace, stack)
+            applied += 1
         tok, line = tokens[k]
         if tok == "{":
             brace += 1
         elif tok == "}":
             brace = max(brace - 1, 0)
-        elif tok == "(" and k + 3 < len(tokens) and tokens[k + 1][0] == "*":
-            # "(*name)()" declares a pointer to an unprototyped function.
-            name_tok = tokens[k + 2][0]
-            if (
-                IDENT.match(name_tok)
-                and tokens[k + 3][0] == ")"
-                and k + 5 < len(tokens)
-                and tokens[k + 4][0] == "("
-                and tokens[k + 5][0] == ")"
-            ):
-                if pointer_declarator(tokens, k):
-                    findings.append(Finding(path, tokens[k + 2][1], "declaration", name_tok))
+        elif tok == "(" and grouped_declarator(tokens, k) >= 0:
+            # "(name)()" declares an unprototyped function and "(*name)()" a
+            # pointer to one; at file scope a body after "(name)()" defines it.
+            j = grouped_declarator(tokens, k)
+            name_tok, name_line = tokens[j]
+            prev = tokens[k - 1][0] if k else ""
+            if j == k + 1 and brace == 0 and prev != "(" and definition_follows(tokens, j + 4):
+                findings.append(Finding(path, name_line, "definition", name_tok))
+                k = j + 4
+                continue
+            if pointer_declarator(tokens, k):
+                findings.append(Finding(path, name_line, "declaration", name_tok))
+            k = j + 4
+            continue
         elif (
             brace == 0
             and IDENT.match(tok)
@@ -299,6 +388,7 @@ def scan_text(path, text):
             and k + 2 < len(tokens)
             and tokens[k + 1][0] == "("
             and tokens[k + 2][0] != "*"
+            and grouped_declarator(tokens, k + 1) < 0
         ):
             end = closing(tokens, k + 1)
             if end < 0:

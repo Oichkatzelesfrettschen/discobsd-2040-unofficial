@@ -196,6 +196,21 @@ Each migrated unit must add these diagnostics without local suppression:
 -Wformat=2
 ```
 
+`-Wformat=2` checks nothing a function's declaration does not opt into. The
+kernel's `printf()`, `uprintf()`, `tprintf()` and `log()` carry
+`format(printf)` attributes in `sys/sys/systm.h`, spelled `__printf__` so the
+host harness's `-Dprintf=hk_kprintf` rename leaves the archetype intact. GCC
+and Clang then type-check every kernel call, and both PICO configurations
+build without a format diagnostic. The attributes also reject `prf()`'s `%b`
+and `%D` extensions; three callers had passed a `daddr_t` to `%D`, which
+`prf()` reads as a pointer to 16 bytes to hex-dump. GCC accepts conversions
+`prf()` lacks or reads differently (`%i`, floating, `hh`, `h`, `ll`, `j`,
+`z`, `t`, `%n`), so `check-kernel-printf-formats` restricts the literal
+formats of those four functions to the set both readers share. `prf()`
+itself still walks its arguments as `&fmt + 1` with a private `va_arg`
+macro instead of `<stdarg.h>`; that dependence on the ABI's argument layout
+is the next varargs migration unit in `sys/kern`.
+
 Add `-Wconversion`, `-Wsign-conversion`, `-Wshadow`, `-Wcast-align` and
 `-Wvla` only after a known-good/known-bad calibration for the migration family.
 The target build must keep `-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft

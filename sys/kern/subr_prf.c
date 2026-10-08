@@ -100,7 +100,9 @@ void puts(char *s, int flags, struct tty *ttyp)
 
 /*
  * Scaled down version of printf(3).
- * Two additional formats: %b anf %D.
+ * Two additional formats: %b anf %D. The format(printf) declarations of
+ * printf(), uprintf(), tprintf() and log() in sys/sys/systm.h reject both
+ * at compile time, so only a direct caller of prf() reaches them.
  * Based on FreeBSD sources.
  * Heavily rewritten by Serge Vakulenko.
  *
@@ -456,17 +458,11 @@ logpri (level)
  * Since it is not interrupt driven, all system activities are
  * suspended.  Printf should not be used for chit-chat.
  *
- * One additional format: %b is supported to decode error registers.
- * Usage is:
- *  printf("reg=%b\n", regval, "<base><arg>*");
- * Where <base> is the output base expressed as a control character,
- * e.g. \10 gives octal; \20 gives hex.  Each arg is a sequence of
- * characters, the first of which gives the bit number to be inspected
- * (origin 1), and the next characters (up to a control character, i.e.
- * a character <= 32), give the name of the register.  Thus
- *  printf("reg=%b\n", 3, "\10\2BITTWO\1BITONE\n");
- * would produce output:
- *  reg=3<BITTWO,BITONE>
+ * sys/sys/systm.h declares printf(), uprintf(), tprintf() and log() with
+ * format(printf), so GCC checks each call's arguments against the ISO C
+ * reading of its format and rejects prf()'s %b and %D extensions there.
+ * tools/c17/kernel_format_check.py restricts the literal formats further,
+ * to the conversions where prf() and GCC agree on the argument type.
  */
 void
 printf(char *fmt, ...)

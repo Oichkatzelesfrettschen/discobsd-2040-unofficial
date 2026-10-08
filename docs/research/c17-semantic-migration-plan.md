@@ -62,8 +62,9 @@ order:
    quarantine completeness and policy checks.
 
 The kernel printf-format and K&R inventory gates in `tools/c17` are text
-scanners and needed twelve review rounds of preprocessor-feature repairs
-(splices, aliases, wrappers, headers, conditional depth). Their active-code
+scanners; their preprocessor-feature repairs (splices, aliases, wrappers,
+headers, conditional depth) took 21 commits on the #260 branch
+(`git log d5eedba..e3aa6d3^2 -- tools/c17`). Their active-code
 facts should migrate to levels 2 and 3: a per-configuration preprocessed
 translation unit already resolves every one of those features. The scanners
 remain useful for inactive branches, which no compiler sees.
@@ -164,7 +165,7 @@ The migration is not one "done" state. Each ledger closes separately:
 
 The language ledger's frontier is the existing inventory: the kernel ledger in
 `tools/c17/kernel-ledger.txt` (195 definitions and 4 declarations at
-`e3aa6d38`) and 142 `WARNLEVEL=legacy` Makefiles (140 outside `tests/`).
+`e3aa6d38`) and 140 `WARNLEVEL=legacy` Makefiles, all outside `tests/`.
 
 ## Ordering of unseeded rows
 
@@ -200,7 +201,7 @@ finished row looks like and which of its ledgers remain open.
 | Gates | `check-compress-host` |
 | Resources | Object text 4,657 to 4,814 (+157), data -24, BSS -4; final a.out 13,452 to 13,572 (+120); packed root blocks 12 to 12; no second arena (the decoder stack still overlays `htab`) |
 | Evidence class | Host and cross; Cortex-M0+ cycles and board peak water unmeasured |
-| Ledgers | Language done (strict C17 host, `WARNLEVEL=full`); hardening done for the decoder; resource done |
+| Ledger states | 1 language: done (strict C17 host, `WARNLEVEL=full`). 2 interface: open, not recorded (the command-line contract is stated; caller closure is not). 3 native: n/a (no native input). 4 hardening: done for the decoder. 5 resource: done. 6 program closure: open, with the residual below |
 | Residuals | Descriptor lifecycle: `stat`, `freopen`, then pathname `chmod`/`chown`/`utimes`/`unlink` admit rename and symlink races. Owner: the P1 frontier row; deciding gate: a competing-rename and symlink harness with failure injection |
 
 Source: `security-c17-frontier.md`, "LZW memory-safety repair" through "Size,
@@ -219,7 +220,7 @@ RAM and runtime evidence".
 | Gates | `check-libc-scanf` (host width, ILP32 and AddressSanitizer) |
 | Resources | `doscan.o` text +176, data -256; frame 128 to 120 bytes; over 244 programs built both ways, 42 changed and the sum is -1,096 bytes; `trek` and `primes` gain about 1.3 KiB by linking the float scanner |
 | Evidence class | Host and cross |
-| Ledgers | Language, interface, hardening and resource done for the scanner |
+| Ledger states | 1 language: done. 2 interface: done. 3 native: open (acceptance of the changed `include/stdio.h` not recorded). 4 hardening: done. 5 resource: done. 6 program closure: open, with the residual below |
 | Residuals | Native acceptance of the changed public header: owner, the native-toolchain ledger; deciding gate, a Smaller C compile of a `scanf` consumer. The pushback slot moved to the stdio core unit (`stdio-core-c17-unit.md`) |
 
 Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
@@ -237,7 +238,7 @@ Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
 | Gates | `check-dirent-contracts`, `check-dirent-contracts-cross` |
 | Resources | `sizeof(DIR)` 1,108 to 1,040 (-68 heap bytes per open directory); five-member text +80 |
 | Evidence class | Host and cross; board enumeration unmeasured |
-| Ledgers | Language done; interface done except below; resource done |
+| Ledger states | 1 language: done. 2 interface: open for `closedir` and `opendir`, which are separate rows. 3 native: open (acceptance of `sys/sys/dir.h` unrecorded). 4 hardening: open (the six malformed-record classes are not calibrated against the pre-change reader). 5 resource: done. 6 program closure: open, with the residual below |
 | Residuals | The recorded falsifier is syntactic and layout-based; the six malformed-record classes are not recorded as calibrated against the pre-change reader. Owner: this row; deciding gate: a pre-change behavioral run of those cases. Board cross-block cookie replay: owner, the hardware gate. `closedir` returning `int` and an `opendir` regular-file check are separate interface rows |
 
 Source: `bsd-workspace-directory-stream-c17.md`.
@@ -255,7 +256,7 @@ Source: `bsd-workspace-directory-stream-c17.md`.
 | Gates | `check-namei-user-path` (address and undefined-behavior sanitizers) |
 | Resources | Unmeasured in the change record (commit `98ae3f2b`) |
 | Evidence class | Host and exact kernel build |
-| Ledgers | Language and hardening done for the helper; resource open |
+| Ledger states | 1 language: done for the helper. 2 interface: open, not recorded (ABI representation and caller closure are not stated). 3 native: n/a (no native input). 4 hardening: done for the helper. 5 resource: open (kernel text and frame cost). 6 program closure: open, with the residual below |
 | Residuals | Kernel text and frame cost: owner, this row; deciding gate, before-and-after `ufs_namei.o` and kernel size. Protection beyond software bounds checks needs MPU fault evidence (`MPU.md`); owner, the executable-loading P1 row |
 
 Source: `TESTING.md` (`check-namei-user-path`) and `security-c17-frontier.md`,
@@ -274,7 +275,7 @@ Source: `TESTING.md` (`check-namei-user-path`) and `security-c17-frontier.md`,
 | Gates | `check-dhara-metadata`, `check-flash-device-bounds` |
 | Resources | Journal object text 2,608 to 2,710, data and BSS unchanged; `dhara_journal_read_meta` frame 32 to 40 bytes |
 | Evidence class | Host and exact kernel build |
-| Ledgers | Hardening done for the reader and predicate; resource done at compile time |
+| Ledger states | 1 language: open for `journal.c` and `map.c`; the extracted reader and predicate are strict C17. 2 interface: open, not recorded. 3 native: n/a (no native input). 4 hardening: done for the reader and predicate. 5 resource: done at compile time. 6 program closure: open, with the residual below |
 | Residuals | Runtime stack high-water, physical flash behavior and unprivileged control of corrupted QSPI metadata. Owner: the hardware gate and the storage plan |
 
 Source: `security-c17-frontier.md`, "Dhara page metadata bounds".
@@ -292,7 +293,7 @@ Source: `security-c17-frontier.md`, "Dhara page metadata bounds".
 | Gates | `check-flash-swap`, `check-swapram` |
 | Resources | Kernel BSS -3,840 bytes in both configurations; text +732 (PICO) and +724 (PICO_UART); `flscratch` 256 bytes; storage cost of the first 4 KiB swap sector plus zero to three padding blocks per image (12 KiB in the eight-image fixture) |
 | Evidence class | Host model and linked kernels; hardware flash unmeasured |
-| Ledgers | Resource done; hardening open |
+| Ledger states | 1 language: n/a (a project-policy row, not a C17 language row). 2 interface: open, not recorded. 3 native: n/a (no native input). 4 hardening: open. 5 resource: done. 6 program closure: open, with the residual below |
 | Residuals | A rejecting falsifier for the NOR model (owner: this row; deciding gate: a mutation that shares a sector between images and must fail the model) and attended hardware flash validation |
 
 Source: `memory-ownership-plan.md`, "Physical-page flash staging and

@@ -23,9 +23,9 @@
  * cannot be programmed as it is. This tool runs the same vendored Dhara
  * sources against a memory model of the filesystem region, with the
  * geometry and garbage-collection ratio from dev/flash.h, writes every
- * 256-byte sector of the disk image through dhara_map_write, and emits the
- * resulting region. Programmed at FLASH_FS_OFFSET, the kernel resumes it
- * as a map it wrote itself.
+ * FLASH_UNIT_BYTES unit of the disk image through dhara_map_write, and
+ * emits the resulting region. Programmed at FLASH_FS_OFFSET, the kernel
+ * resumes it as a map it wrote itself.
  *
  * Usage: flashimg [-c] disk.img flash.img
  *

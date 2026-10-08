@@ -103,8 +103,9 @@ read as a timestamp update on the RP2040 root.
 
 The eliminated write trigger has a bounded software path but no fixed erase
 count. One dirty inode causes its inode block to reach `flstrategy()`; a
-one-kilobyte request becomes four 256-byte `dhara_map_write()` calls followed
-by `dhara_map_sync()`. Buffer coalescing can combine several inode changes,
+one-kilobyte request becomes one `dhara_map_write()` of a 1 KiB Dhara unit
+(`FLASH_UNIT_BYTES`) followed by `dhara_map_sync()`, and that unit programs
+four 256-byte program pages. Buffer coalescing can combine several inode changes,
 and Dhara garbage collection decides the physical program and erase count.
 Claims about saved flash operations therefore require workload counters or a
 board trace; the mount policy alone proves only that reads stop creating the

@@ -93,10 +93,12 @@ as rejecting controls.
   GCC's header rejects with `#error`, and is not in `bin/sh`'s `OBJS`; it now
   uses `<stdarg.h>` and a prototype. No tracked maintained file names
   `<varargs.h>`.
-- `WARNLEVEL=legacy`: 142 Makefiles. The 140 outside `tests/` are 66 `usr.bin`,
-  25 games, 15 bin, 12 sbin, 9 lib, 6 usr.sbin, 5 tools, 1 libexec and 1
-  isolated legacy unit; the other two are the test-fixture Makefiles
-  `tests/find_contracts` and `tests/libtcl_contracts`.
+- `WARNLEVEL=legacy`: 140 Makefiles assign it, all outside `tests/`: 66
+  `usr.bin`, 25 games, 15 bin, 12 sbin, 9 lib, 6 usr.sbin, 5 tools, 1 libexec
+  and 1 isolated legacy unit (`legacy/non-arm/mips-pic32/tools/virtualmips`).
+  `tests/find_contracts` and `tests/libtcl_contracts` mention `WARNLEVEL=legacy`
+  only in comments and assign no level. Five Makefiles assign `WARNLEVEL=full`,
+  and `share/mk/warnings.mk` defaults to `full`.
 
 The definition count by top-level owner is:
 
@@ -180,9 +182,8 @@ bisectable migration unit.
 ### Security build contract
 
 The current global compiler already supplies `-std=gnu17`, `-fno-common` and a
-fatal warning policy. Full units receive `-Wall -Wextra -Werror`; 142 legacy
-units (140 outside `tests/`) receive only `-Werror` plus warning groups named
-locally. The RP2040 link also makes RWX-segment warnings fatal. Those controls
+fatal warning policy. Full units receive `-Wall -Wextra -Werror`; the 140
+legacy units receive only `-Werror` plus warning groups named locally. The RP2040 link also makes RWX-segment warnings fatal. Those controls
 are necessary but do not establish a repository-wide C17 or memory-safety
 build.
 

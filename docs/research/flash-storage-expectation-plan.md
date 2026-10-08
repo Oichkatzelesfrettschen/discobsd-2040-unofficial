@@ -4,7 +4,11 @@ Status: proposal, revised after review. Drafted with assistant help from a
 submitted storage expectation audit. Every claim was re-read against live
 source at `316b1d7`; the audit's Graft map was stale (`dbd8bf0c`), and the
 Graft MCP reader did not connect in the drafting session, so no claim rests
-on a cached summary. Evidence classes follow `sys/arch/rp2040/doc/TESTING.md`:
+on a cached summary. Re-checked at `8711f63` (merge of #262): the F1, F2, F3
+and F5 source references hold except where corrected below, and
+`check-storage-correctness` passes (exit 0, 124 baseline checks and five
+sync-path mutants rejected). Its 11-check failure against the unfixed source
+was not re-executed. Evidence classes follow `sys/arch/rp2040/doc/TESTING.md`:
 "source" means read from the tree, "derived" means computed from source and
 not yet executed, and every prediction names the gate that can falsify it.
 
@@ -22,8 +26,10 @@ source findings change its priorities.
 `dhara_map_write()` call. The audit's "four 256-byte `dhara_map_write()`
 calls" is inherited from two stale statements that contradict the header:
 `sys/arch/rp2040/doc/STORAGE.md:106` and `tools/flashimg/flashimg.c:26`
-("writes every 256-byte sector"). STORAGE.md:166-168 states the correct
-value, so the document contradicts itself. Programming one Dhara page is
+("writes every 256-byte sector"). STORAGE.md:164 states the correct
+value, so the document contradicts itself. Both stale statements are
+corrected on this branch; `flashimg.c` writes one `FLASH_UNIT_BYTES` unit per
+`dhara_map_write()` call. Programming one Dhara page is
 four 256-byte program-page equivalents (`FLASH_PROG_BYTES`).
 
 ### F2 -- Checkpoint-group padding is the amplification hypothesis
@@ -65,8 +71,10 @@ the ratio does not transfer to `cp` or `cc` without measurement.
 ### F3 -- `sync()` excluded clean-superblock mounts (repaired)
 
 `sync()` (`sys/kern/ufs_subr.c`) skipped a mount when `fs_fmod == 0`,
-before `ufs_sync()` could inspect it. `fs_fmod` is set only by the
-allocator, free paths and mount (`ufs_alloc.c`, `ufs_mount.c:236`); an
+before `ufs_sync()` could inspect it. `fs_fmod` is set by the
+allocator and free paths (`ufs_alloc.c`), by mount (`ufs_mount.c:236`), by the
+restore after a failed superblock write (`ufs_syscalls2.c:191`) and by
+shutdown (`shutdown_sync.c:66`); an
 in-place overwrite takes `bdwrite()` (`sys_inode.c:299`) and marks the inode
 `IUPD|ICHG` without setting it. update(8) therefore never flushed that data
 or inode; it reached flash only on eviction (`NBUF = 4`), a later
@@ -93,7 +101,7 @@ the current policy; it cannot count the full-block merges the current
 
 | Audit claim | Live source | Effect on plan |
 | --- | --- | --- |
-| tar default at `tar.c:235` | `magtape[] = "/dev/rmt8"` at 314, digit rewrite at 438, `MTIOCGET` probe in `backtape()` at 2513; the tape path is gated by `#ifndef __APPLE__`, a platform proxy for a capability | Replace the proxy with a capability macro |
+| tar default at `tar.c:235` | `magtape[] = "/dev/rmt8"` at 314, digit rewrite at 438, `MTIOCGET` probe in `backtape()` at 2521 (`bin/tar/tar.c`); the tape path is gated by `#ifndef __APPLE__`, a platform proxy for a capability | Replace the proxy with a capability macro |
 | Only one tape comment in reads | `sys_inode.c:261-265` zeroes a buffer when `b_resid == DEV_BSIZE`; `flstrategy()` sets `b_resid = b_bcount` for a read exactly at the partition end (`flash.c:715-719`) | Reachable on flash: keep, rewrite as the end-of-device invariant |
 | Removing `d_flags` saves storage | Two maintained `bdevsw` tables (rp2040, stm32) and legacy pic32 use positional initializers; no driver sets `B_TAPE` | Repurpose the field at its width; savings are tens of bytes |
 | update swaps wear raw flash | Raw swap allocates with a cyclic next-fit cursor (`subr_rmap.c:271`) and SwapRAM sits in front | Wear spreads; the cost is swap latency and program/erase volume, to be measured |
@@ -139,7 +147,9 @@ Contract, as narrow as the implementation:
   error to `fsync`, `IO_SYNC` writes and unmount.
 
 Gate: `check-storage-correctness` (host). The fixture failed 11 checks
-against the unfixed source and passes after the change. Cases: a
+against the unfixed source and passes after the change. The implementing
+branch recorded the 11-check failure; this audit re-ran only the passing
+state (exit 0, 124 baseline checks, five sync-path mutants calibrated). Cases: a
 clean-superblock mount with dirty data, dirty metadata, both and neither; a
 modified superblock; a locked inode; `fs_ilock` and `fs_flock`; a failed
 inode update followed by a retry; a latched `m_write_error`; a clean
@@ -162,7 +172,8 @@ are unchanged.
    `8N` and `P(N)` Dhara page programs for (a) and (b) and report (c).
    Calibrate with a known-bad model that forces `log2_ppc = 1` and a variant
    that omits the sync loop; both must fail.
-2. Correct `STORAGE.md:106` and `flashimg.c:26`. The class gate is a
+2. Correct `STORAGE.md:106` and `flashimg.c:26` (landed on this branch; the
+   geometry gate below is still proposed). The class gate is a
    geometry check, not a prose lexer: the oracle prints the geometry it
    derived (`FLASH_UNIT_BYTES`, `log2_ppb`, `log2_ppc`, group size), and a
    test compares those values with a small machine-readable geometry table

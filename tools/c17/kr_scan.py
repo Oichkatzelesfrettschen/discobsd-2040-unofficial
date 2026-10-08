@@ -123,7 +123,7 @@ def join_splices(text):
 
 
 def strip_source(text, conditionals=None):
-    """Blank comments, literals and preprocessor lines, keeping line numbers.
+    """Blank comments, literal contents and preprocessor lines, keeping line numbers.
 
     When conditionals is a list, each conditional directive outside a
     comment is appended to it as (line number, directive name).
@@ -177,8 +177,10 @@ def strip_source(text, conditionals=None):
             while j < n and text[j] != c and text[j] != "\n":
                 j += 2 if text[j] == "\\" else 1
             j = min(j + 1, n)
-            # A backslash-newline inside the literal keeps its newline.
-            out.append("".join(ch if ch == "\n" else " " for ch in text[i:j]))
+            # The opening quote stays as a token, so "f(\"x\")" is a call with
+            # an argument rather than an empty parameter list; the contents
+            # are blank, keeping any newline.
+            out.append(c + "".join(ch if ch == "\n" else " " for ch in text[i + 1 : j]))
             i = j
             continue
         if c == "\n":
@@ -216,19 +218,25 @@ def apply_conditionals(kinds, brace, stack):
 
     Each alternative of an #if group starts at the depth the group opened
     at, so a branch that opens a function body does not hide the next
-    branch's definition; after #endif the depth is the first alternative's.
+    branch's definition. After #endif the depth is the shallowest at which
+    any alternative ended, counting the empty alternative an #if without
+    #else implies: reading code too shallow can only add findings, which
+    the ledger shows, while reading it too deep hides them.
     """
     for kind in kinds:
         if kind in ("if", "ifdef", "ifndef"):
-            stack.append([brace, None])
+            stack.append({"opened": brace, "ends": [], "else": False})
         elif kind in ("elif", "else") and stack:
-            if stack[-1][1] is None:
-                stack[-1][1] = brace
-            brace = stack[-1][0]
+            group = stack[-1]
+            group["ends"].append(brace)
+            group["else"] = group["else"] or kind == "else"
+            brace = group["opened"]
         elif kind == "endif" and stack:
-            opened, first = stack.pop()
-            if first is not None:
-                brace = first
+            group = stack.pop()
+            ends = group["ends"] + [brace]
+            if not group["else"]:
+                ends.append(group["opened"])
+            brace = min(ends)
     return brace
 
 
@@ -268,10 +276,10 @@ def grouped_span(tokens, k):
     The declarator is "(" followed by any mix of further "(", pointer stars,
     the qualifiers that may follow a star and attribute groups, then a name, then for each
     opening parenthesis its array subscripts and ")", then "( )". Examples
-    are "(name)()", "(*name)()", "(**name[2])()", "((*name))()" and
-    "(*(*name))()": declarators of an unprototyped function, of a pointer
-    or an array of pointers to one, or a call through a parenthesized
-    designator.
+    are "(name)()", "(*name)()", "(**name[2])()", "((*name))()",
+    "(*(*name))()" and "(*name(void))()": declarators of an unprototyped
+    function, of a pointer or an array of pointers to one, of a function
+    returning such a pointer, or a call through a parenthesized designator.
     """
     if k >= len(tokens) or tokens[k][0] != "(":
         return None
@@ -293,6 +301,13 @@ def grouped_span(tokens, k):
         return None
     name = j
     m = j + 1
+    if m < len(tokens) and tokens[m][0] == "(":
+        # "(*name(void))()": name is a function returning a pointer to an
+        # unprototyped function; its own parameter list comes first.
+        m = closing(tokens, m)
+        if m < 0:
+            return None
+        m += 1
     for _ in range(opens):
         m = subscripts_end(tokens, m)
         if m >= len(tokens) or tokens[m][0] != ")":

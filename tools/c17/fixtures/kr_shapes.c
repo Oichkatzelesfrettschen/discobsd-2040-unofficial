@@ -26,6 +26,7 @@ int void_decl(void);
 int (grouped_decl)(); /* expect: declaration grouped_decl */
 int (**grouped_pointer)(); /* expect: declaration grouped_pointer */
 static int (*handlers[2][3])(); /* expect: declaration handlers */
+int (*factory(void))(); /* expect: declaration factory */
 static int (* __attribute__((unused)) attributed_pointer)(); /* expect: declaration attributed_pointer */
 int ((*nested_group))(), (*(*double_pointer))(); /* expect: declaration nested_group */ /* expect: declaration double_pointer */
 struct ops after_decl = { 0, 0 };
@@ -84,6 +85,7 @@ int (* const inactive_qualified)(); /* expect: declaration inactive_qualified */
 void inactive_outer(int inactive_callback()); /* expect: declaration inactive_callback */
 int (*inactive_table[NSLOTS])(); /* expect: declaration inactive_table */
 int ((*inactive_nested))(); /* expect: declaration inactive_nested */
+int (*inactive_factory(int))(); /* expect: declaration inactive_factory */
 int (* __attribute__((unused)) inactive_attributed_pointer)(); /* expect: declaration inactive_attributed_pointer */
 /* expect: declaration inactive_spliced */ extern int inactive_\
 spliced();
@@ -99,7 +101,7 @@ void
 modern_shared_body(void)
 {
 /*
-#endif inside a comment closes no group
+#if inside a comment opens no group
  */
 #else
 void
@@ -107,6 +109,23 @@ legacy_shared_body() /* expect: definition legacy_shared_body */
 {
 #endif
 }
+
+#ifdef ONE_ARM_WRAPPER
+void
+wrapper_opens(void)
+{
+#endif
+#ifndef ONE_ARM_WRAPPER
+int
+one_arm_legacy() /* expect: definition one_arm_legacy */
+{
+    return 0;
+}
+#endif
+#ifdef ONE_ARM_WRAPPER
+    one_arm_literal("not an empty parameter list");
+}
+#endif
 
 void
 after_endif() /* expect: definition after_endif */

@@ -1,18 +1,25 @@
 """Calibrate kernel_format_check.py against marked accepted and rejected calls.
 
 Every line of fixtures/kernel_formats.c marked "expect: reject" must be
-reported and no other line may be. Known-bad checkers, one that accepts every
-conversion GCC accepts, one allowing l on every conversion, one reading every
-call as a declaration, one stripping comment delimiters inside literals, one
-blind to directives inside a call, one blind to the DEBUG wrappers, one
-blind to parenthesized designators such as (printf)(...), one blind to
-(*printf)(...) and (&printf)(...), one reading one grouping layer, one
-rejecting u8 literals, one rejecting parenthesized literals, one blind to
-line splices, one splitting tokens at them, one finding calls inside string
-literals, one that reads escapes undecoded and one that drops the
-literal-format requirement, must each fail the fixture. The
-checker itself must fail when it finds no source or no literal format, and
-source discovery must report a build whose CFILES is empty.
+reported and no other line may be. Each known-bad checker must fail the
+fixture:
+
+  - one accepting every conversion GCC accepts, or l on every conversion;
+  - one reading every call as a declaration;
+  - one stripping comment delimiters inside literals;
+  - one blind to directives inside a call, or to macro bodies;
+  - one rejecting a macro that forwards its caller's format;
+  - one blind to the DEBUG wrappers;
+  - one blind to (printf)(...), to (*printf)(...) and (&printf)(...), or
+    reading one grouping layer;
+  - one rejecting u8 literals or parenthesized literals;
+  - one blind to line splices, or splitting tokens at them;
+  - one finding calls inside string literals;
+  - one reading escapes undecoded;
+  - one dropping the literal-format requirement.
+
+The checker itself must fail when it finds no source or no literal format,
+and source discovery must report a build whose CFILES is empty.
 """
 
 import re
@@ -130,6 +137,22 @@ def main():
         )
         if result.returncode == 0:
             failures.append(f"the checker passed with {label}")
+
+    saved_head = kernel_format_check.DEFINE_HEAD
+    kernel_format_check.DEFINE_HEAD = re.compile(r"(?!)")
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker blind to macro bodies matched the fixture")
+    finally:
+        kernel_format_check.DEFINE_HEAD = saved_head
+
+    saved_forwarded = kernel_format_check.forwarded_formats
+    kernel_format_check.forwarded_formats = lambda source: []
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker rejecting forwarding macros matched the fixture")
+    finally:
+        kernel_format_check.forwarded_formats = saved_forwarded
 
     saved_join = kernel_format_check.join_splices
     for label, join in (

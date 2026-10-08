@@ -1,15 +1,20 @@
 """Calibrate kr_scan.py and the inventory reconciliation.
 
 The fixture marks every line the scan must report. The scan must report
-exactly those lines; the host compiler, run with -Wold-style-definition and
--Wstrict-prototypes, must report only marked lines; and each known-bad
-variant must be rejected: a scan that drops a calibrated shape, pointer
-qualifiers, array subscripts, nested grouping, line splices, block-scope
-declarations or #if alternative tracking; one that reads block-scope calls
-as declarations or a directive inside a comment; a reconciliation handed a
-compiler finding the scan lacks; and a diagnostic parser that requires the
-English severity label. An inventory whose --build compiles no requested
-source must fail.
+exactly those lines, and the host compiler, run with -Wold-style-definition
+and -Wstrict-prototypes, must report only marked lines. Each known-bad
+variant must be rejected:
+
+  - a scan that drops a calibrated shape: attributes, declaration lists,
+    pointer qualifiers, array subscripts, nested grouping, returned
+    function types, line splices or block-scope declarations;
+  - a scan without #if alternative tracking, or one keeping a one-armed
+    #if's depth after #endif;
+  - a scan blanking whole string literals, reading block-scope calls as
+    declarations, or reading a directive inside a comment;
+  - a reconciliation handed a compiler finding the scan lacks;
+  - a diagnostic parser that requires the English severity label;
+  - an inventory whose --build compiles no requested source.
 """
 
 import os
@@ -103,6 +108,35 @@ def main():
         check(scanned(text) != got, "a scan reading block-scope calls as declarations matched")
     finally:
         kr_scan.declaration_prefix = original
+    original = kr_scan.apply_conditionals
+
+    def first_alternative(kinds, brace, stack):
+        for kind in kinds:
+            if kind in ("if", "ifdef", "ifndef"):
+                stack.append([brace, None])
+            elif kind in ("elif", "else") and stack:
+                if stack[-1][1] is None:
+                    stack[-1][1] = brace
+                brace = stack[-1][0]
+            elif kind == "endif" and stack:
+                opened, first = stack.pop()
+                if first is not None:
+                    brace = first
+        return brace
+
+    kr_scan.apply_conditionals = first_alternative
+    try:
+        check(scanned(text) != got, "a scan keeping a one-armed #if's depth matched the fixture")
+    finally:
+        kr_scan.apply_conditionals = original
+    original = kr_scan.strip_source
+    kr_scan.strip_source = lambda source, conditionals=None: (
+        original(source, conditionals).replace('"', " ").replace("'", " ")
+    )
+    try:
+        check(scanned(text) != got, "a scan blanking whole literals matched the fixture")
+    finally:
+        kr_scan.strip_source = original
     original = kr_scan.grouped_span
 
     def single_group(tokens, k):

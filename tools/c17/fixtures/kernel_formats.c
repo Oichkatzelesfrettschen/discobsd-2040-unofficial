@@ -6,6 +6,13 @@ void printf(char *fmt, ...);
 void tprintf(struct tty *tp, char *fmt, ...);
 void log(int level, char *fmt, ...);
 void (printf)(char *fmt, ...);
+#define GOOD_REPORT(a, s) printf("%d %s\n", a, s)
+#define BAD_REPORT(a, b) printf("%i %s\n", a, b) /* expect: reject */
+#define FORWARDING(fmt, a) log(1, fmt, a)
+#define VARIADIC(...) printf(__VA_ARGS__)
+#define NONLITERAL(a) printf(a ## _fmt, a) /* expect: reject */
+#define GLOBAL_FORMAT(a) printf(global_fmt, a) /* expect: reject */
+#define NOT_A_CALL "printf(%i)"
 
 void
 accepted(struct tty *tp, int i, long l, char *s, void *p)

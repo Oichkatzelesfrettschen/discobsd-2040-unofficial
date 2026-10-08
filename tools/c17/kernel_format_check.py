@@ -75,6 +75,27 @@ SIMPLE_ESCAPES = {
 # Left where a preprocessor directive stood, so a call whose arguments span
 # one, such as a format chosen by #if and #else, is recognizable.
 DIRECTIVE = "\0"
+# The head of a macro definition, before its replacement list.
+DEFINE_HEAD = re.compile(r"#[ \t]*define[ \t]+\w+(?:\((?P<params>[^)\n]*)\))?")
+
+
+def forwarded_formats(text):
+    """Map each macro body's span in text to the names its format may forward.
+
+    A body whose format argument is one of the macro's parameters, or
+    __VA_ARGS__, forwards its caller's format, as the DEBUG wrappers do;
+    the checkable format is at the macro's call sites.
+    """
+    spans = []
+    for line in re.finditer(r"^[ \t]*(#.*)$", text, re.M):
+        head = DEFINE_HEAD.match(text, line.start(1))
+        if not head or head["params"] is None:
+            continue
+        names = {p.strip() for p in head["params"].split(",")} - {"", "..."}
+        if "..." in head["params"]:
+            names.add("__VA_ARGS__")
+        spans.append((head.end(), line.end(), names))
+    return spans
 
 
 def strip_comments(text):
@@ -82,8 +103,9 @@ def strip_comments(text):
 
     String and character literals are copied through first, so comment
     delimiters inside a format string stay part of the format. A directive
-    is blank to the end of its line, after a DIRECTIVE marker. The text has
-    passed through join_splices(), so no line continues another.
+    is blank to the end of its line, after a DIRECTIVE marker, except that a
+    macro definition keeps its replacement list. The text has passed through
+    join_splices(), so no line continues another.
     """
     out = []
     i, n = 0, len(text)
@@ -95,7 +117,16 @@ def strip_comments(text):
             i += 1
             continue
         if line_start and c == "#":
+            head = DEFINE_HEAD.match(text, i)
             out.append(DIRECTIVE)
+            if head:
+                # A macro body stays readable, so a call it contains is
+                # checked where it is defined; only the directive head,
+                # "#define NAME(params)", is blanked.
+                out.append(" " * (head.end() - i - 1))
+                i = head.end()
+                line_start = False
+                continue
             i += 1
             while i < n and text[i] != "\n":
                 out.append(" ")
@@ -238,7 +269,9 @@ def literal_format(argument):
 
 def check_text(path, text):
     """Return (problems, checked) for one source."""
-    text = strip_comments(join_splices(text))
+    joined = join_splices(text)
+    forwarding = forwarded_formats(joined)
+    text = strip_comments(joined)
     masked = mask_literals(text)
     problems = []
     checked = 0
@@ -268,6 +301,11 @@ def check_text(path, text):
             )
             continue
         fmt = literal_format(args[index])
+        if fmt is None and any(
+            start <= call.start() < end and args[index].strip() in names
+            for start, end, names in forwarding
+        ):
+            continue  # a wrapper macro forwarding its caller's format
         if fmt is None:
             problems.append(f"{path}:{line}: {name} format is not a string literal")
             continue

@@ -13,6 +13,7 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     printf("%ld %lu %lx %-8s %08x %*d %.*s %#o %+d\n",
         l, l, l, s, i, i, i, i, s, i, i);
     printf("split " "literal %d\n", i);
+    printf("\045d and \x25u and a backslash \\ before %s\n", i, i, s);
     tprintf(tp, "%s: %d\n", s, i);
     log(3, "%s\n", s);
     /* printf("%f in a comment is not a call\n"); */
@@ -29,6 +30,8 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     printf("%n\n", &i); /* expect: reject */
     printf("%b\n", i, "\10\1ONE"); /* expect: reject */
     printf("%b\n", i); /* expect: reject */
+    printf("\045f\n", d); /* expect: reject */
+    printf("\x25n\n", &i); /* expect: reject */
     printf("%D\n", fmt); /* expect: reject */
     printf(fmt, i); /* expect: reject */
     tprintf(tp, "%e\n", d); /* expect: reject */

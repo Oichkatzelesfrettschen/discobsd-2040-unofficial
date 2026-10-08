@@ -100,7 +100,7 @@ void puts(char *s, int flags, struct tty *ttyp)
 
 /*
  * Scaled down version of printf(3).
- * Two additional formats: %b anf %D. The format(printf) declarations of
+ * Two additional formats: %b and %D. The format(printf) declarations of
  * printf(), uprintf(), tprintf() and log() in sys/sys/systm.h reject %D, and
  * reject %b's second argument because GCC and Clang read %b as C23's
  * one-argument binary conversion; kernel_format_check.py rejects both.

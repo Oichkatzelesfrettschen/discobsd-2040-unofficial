@@ -123,9 +123,10 @@ identifier-list definitions whose declaration list carries `__unused`
 returning definitions (`getf`, `pfind`, `nextc`, `swapout`) and `brk()`
 after an `#endif`. The compiler in turn misses inactive code (`timevalsub`
 under `NOT_CURRENTLY_IN_USE`, `ptyattach`) and files neither configuration
-builds (`subr_log.c`, `kern_glob.c`). The union is 200 definitions in 28
-`sys/kern` files plus four unprototyped declarations in `sys/sys`.
-`check-c17-kernel-inventory` records that union in
+builds (`subr_log.c`, `kern_glob.c`). At `d5eedba` the union was 200
+definitions in 28 `sys/kern` files plus four unprototyped declarations in
+`sys/sys`; converting `tty_tty.c`'s five entry points leaves 195 definitions
+in 27 files. `check-c17-kernel-inventory` records the current union in
 `tools/c17/kernel-ledger.txt` with the oracle behind each row and fails when
 the compiler reports a finding the calibrated scan lacks. The same parser
 gaps make the repository-wide AST totals above lower bounds for those shapes.

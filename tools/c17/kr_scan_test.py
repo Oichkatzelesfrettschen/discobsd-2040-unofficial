@@ -13,6 +13,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -93,14 +94,58 @@ def main():
     inactive = {line for line, _, name in expected if name == "inactive_branch"}
     check(not (compiler_lines & inactive), "compiler reported code under an inactive #ifdef")
 
-    # Known-bad reconciliation: a compiler finding the scan lacks is a gap.
-    scan_rows = {("a.c", 3): ("definition", "f")}
-    gaps, rows = c17_inventory.reconcile(scan_rows, {("a.c", 3): "definition"})
+    # End to end: the fixture's scan reconciles with this compiler's report.
+    raw = {}
+    c17_inventory.parse_diagnostics(result.stderr, Path.cwd(), Path.cwd(), raw)
+    report = {key: c17_inventory.interfaces(counts) for key, counts in raw.items()}
+    fixture_path = os.path.relpath(FIXTURE, Path.cwd())
+    scan_rows = {}
+    for finding in kr_scan.scan_text(fixture_path, text):
+        scan_rows.setdefault((fixture_path, finding.line), []).append((finding.kind, finding.name))
+    gaps, rows = c17_inventory.reconcile(scan_rows, report)
+    check(not gaps, "the fixture does not reconcile with the compiler: " + "; ".join(gaps))
+    check(
+        rows.get(f"{fixture_path} definition inactive_branch scan") == 1,
+        "the inactive definition was not labeled scan-only",
+    )
+
+    # Known-bad reconciliation: a compiler finding the scan lacks is a gap,
+    # including a second interface on a line where the scan found one.
+    scan_rows = {("a.c", 3): [("definition", "f")]}
+    gaps, rows = c17_inventory.reconcile(scan_rows, {("a.c", 3, 1): Counter(definition=1)})
     check(not gaps and rows == {"a.c definition f both": 1}, "agreeing oracles were rejected")
-    gaps, _ = c17_inventory.reconcile(scan_rows, {("a.c", 9): "definition"})
-    check(gaps == ["a.c:9: compiler reports definition"], "a scan gap went undetected")
+    gaps, _ = c17_inventory.reconcile(scan_rows, {("a.c", 9, 1): Counter(definition=1)})
+    check(gaps == ["a.c:9: compiler reports 1 definition, scan 0"], "a scan gap went undetected")
     gaps, rows = c17_inventory.reconcile(scan_rows, {})
     check(not gaps and rows == {"a.c definition f scan": 1}, "a scan-only row was mislabeled")
+    pair = {("b.c", 5): [("declaration", "first"), ("declaration", "second")]}
+    two = {("b.c", 5, 8): Counter(declaration=2)}
+    gaps, rows = c17_inventory.reconcile(pair, two)
+    check(
+        not gaps and rows == {"b.c declaration first both": 1, "b.c declaration second both": 1},
+        "two interfaces on one line were not both recorded",
+    )
+    gaps, _ = c17_inventory.reconcile({("b.c", 5): [("declaration", "first")]}, two)
+    check(
+        gaps == ["b.c:5: compiler reports 2 declaration, scan 1"],
+        "a lost same-line interface went undetected",
+    )
+    clang_empty = {("c.c", 7, 17): Counter(declaration=1)}
+    gaps, rows = c17_inventory.reconcile({("c.c", 7): [("definition", "e")]}, clang_empty)
+    check(
+        not gaps and rows == {"c.c definition e both": 1},
+        "a Clang-style declaration report rejected an empty-parenthesis definition",
+    )
+    gcc_pair = Counter({"old-style": 1, "not-prototype": 1})
+    check(
+        c17_inventory.interfaces(gcc_pair) == Counter(definition=1),
+        "GCC's paired definition diagnostics counted as two interfaces",
+    )
+    one_line = {
+        (f.line, f.kind, f.name)
+        for f in kr_scan.scan_text("p.c", "struct p { int (*a)(), (*b)(); };")
+    }
+    check(len(one_line) == 2, "the scan collapsed two declarators on one line")
 
     with tempfile.TemporaryDirectory() as tmp:
         ledger = Path(tmp) / "ledger.txt"

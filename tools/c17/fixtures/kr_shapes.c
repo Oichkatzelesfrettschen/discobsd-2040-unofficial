@@ -10,10 +10,12 @@ typedef int dev_t;
 struct file { int f_count; };
 struct proc { int p_pid; };
 struct ops { int (*op_open)(); int (*op_close)(dev_t, int); }; /* expect: declaration op_open */
+struct pair { int (*first)(), (*second)(); }; /* expect: declaration first */ /* expect: declaration second */
 
 int empty_decl(); /* expect: declaration empty_decl */
 extern struct file *pointer_decl(); /* expect: declaration pointer_decl */
 int typed_decl(dev_t, int);
+int takes_callback(int a, int (*cb)()); /* expect: declaration cb */
 int void_decl(void);
 struct ops after_decl = { 0, 0 };
 
@@ -96,6 +98,21 @@ void_definition(void)
 }
 
 static int table[] = { 1, 2, 3 };
+
+static int (*hook)(void);
+
+int
+indirect_calls(int x)
+{
+    int (*fp)(void) = hook;
+
+    if (fp == 0)
+        return 0;
+    (*fp)();
+    x += void_definition() + (*fp)();
+    typed_decl(x, (*fp)());
+    return (*fp)();
+}
 
 int
 uses_calls(int x)

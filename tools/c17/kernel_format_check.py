@@ -36,6 +36,16 @@ CONVERSION = re.compile(
 )
 ALLOWED = re.compile(r"[-+#0]*(\d+|\*)?(\.(\d+|\*))?l?[cdopsuxX]\Z")
 LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]+|[0-7]{1,3}|.)")
+SIMPLE_ESCAPES = {
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+    "a": "\a",
+    "b": "\b",
+    "f": "\f",
+    "v": "\v",
+}
 
 
 def strip_comments(text):
@@ -82,12 +92,31 @@ def argument_text(text, start):
     return args
 
 
+def decode_literal(body):
+    """The characters a C string literal body denotes, one literal at a time.
+
+    Octal and hexadecimal escapes are decoded so that "\\045n" is read as the
+    %n it is at run time; each literal is decoded separately because an
+    escape never spans adjacent literals.
+    """
+
+    def replace(match):
+        escape = match.group(1)
+        if escape[0] == "x":
+            return chr(int(escape[1:], 16) & 0xFF)
+        if escape[0] in "01234567":
+            return chr(int(escape, 8) & 0xFF)
+        return SIMPLE_ESCAPES.get(escape, escape)
+
+    return ESCAPE.sub(replace, body)
+
+
 def literal_format(argument):
-    """The concatenated string literals forming argument, or None."""
+    """The concatenated, decoded string literals forming argument, or None."""
     literals = LITERAL.findall(argument)
     if not literals or LITERAL.sub("", argument).strip():
         return None
-    return "".join(literals).replace("\\\\", "")
+    return "".join(decode_literal(body) for body in literals)
 
 
 def check_text(path, text):

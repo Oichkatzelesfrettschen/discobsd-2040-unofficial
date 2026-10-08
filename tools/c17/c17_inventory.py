@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kr_scan  # noqa: E402
 
-DIAGNOSTIC = re.compile(r"^(?P<path>[^:\s]+):(?P<line>\d+):\d+: warning: (?P<text>.*)$")
+DIAGNOSTIC = re.compile(r"^(?P<path>[^:\s]+):(?P<line>\d+):(?P<column>\d+): warning: (?P<text>.*)$")
 # GCC's -Wold-style-definition text and Clang's -Wdeprecated-non-prototype
 # text for the same finding.
 OLD_STYLE = ("old-style function definition", "a function definition without a prototype")
@@ -90,17 +90,34 @@ def compiler_findings(make, root, build, requested):
             sys.stderr.write(result.stderr)
             raise SystemExit(f"FAIL compiler oracle cannot compile {source} for {build.name}")
         compiled.append(source)
-        for line in result.stderr.splitlines():
-            match = DIAGNOSTIC.match(line)
-            if not match:
-                continue
-            path = os.path.relpath((build / match["path"]).resolve(), root)
-            key = (path, int(match["line"]))
-            if any(text in match["text"] for text in OLD_STYLE):
-                found[key] = "definition"
-            elif any(text in match["text"] for text in NOT_PROTOTYPE):
-                found.setdefault(key, "declaration")
-    return found, compiled
+        parse_diagnostics(result.stderr, build, root, found)
+    return {key: interfaces(counts) for key, counts in found.items()}, compiled
+
+
+def parse_diagnostics(stderr, build, root, found):
+    """Add each K&R diagnostic in stderr to found, keyed by source position."""
+    for line in stderr.splitlines():
+        match = DIAGNOSTIC.match(line)
+        if not match:
+            continue
+        path = os.path.relpath((build / match["path"]).resolve(), root)
+        key = (path, int(match["line"]), int(match["column"]))
+        if any(text in match["text"] for text in OLD_STYLE):
+            found.setdefault(key, Counter())["old-style"] += 1
+        elif any(text in match["text"] for text in NOT_PROTOTYPE):
+            found.setdefault(key, Counter())["not-prototype"] += 1
+
+
+def interfaces(counts):
+    """Kinds and counts the diagnostics at one source position denote.
+
+    GCC reports an old-style definition twice at the same position, once as
+    old-style and once as not a prototype, and reports each declarator of a
+    multi-declarator declaration at the declaration's first column.
+    """
+    definitions = counts["old-style"]
+    declarations = max(counts["not-prototype"] - definitions, 0)
+    return Counter({"definition": definitions, "declaration": declarations}) + Counter()
 
 
 HEADER = (
@@ -113,18 +130,39 @@ HEADER = (
 def reconcile(scanned, compiler):
     """Return (gaps, rows): compiler findings the scan lacks, and ledger rows.
 
-    scanned maps (path, line) to (kind, name); compiler maps (path, line) to
-    kind. A strict-prototypes warning on a definition line is recorded as the
-    definition it accompanies, so kinds compare directly.
+    scanned maps (path, line) to a list of (kind, name), one entry per
+    interface, so two declarators on one line stay two findings. compiler
+    maps (path, line, column) to a Counter of kinds (see interfaces()). A
+    line where the compiler reports more definitions, or more definitions
+    and declarations together, than the scan is a gap. Clang reports an
+    empty-parenthesis definition only as a declaration without a prototype,
+    so a surplus scan definition may account for a compiler declaration.
     """
+    compiled = {}
+    for (path, line, _column), counts in compiler.items():
+        compiled[(path, line)] = compiled.get((path, line), Counter()) + counts
     gaps = []
-    for key, kind in compiler.items():
-        if key not in scanned or scanned[key][0] != kind:
-            gaps.append(f"{key[0]}:{key[1]}: compiler reports {kind}")
+    for (path, line), counts in compiled.items():
+        found = Counter(kind for kind, _ in scanned.get((path, line), ()))
+        if counts["definition"] > found["definition"]:
+            gaps.append(
+                f"{path}:{line}: compiler reports {counts['definition']} definition, "
+                f"scan {found['definition']}"
+            )
+        elif counts["declaration"] > found["declaration"] + (
+            found["definition"] - counts["definition"]
+        ):
+            gaps.append(
+                f"{path}:{line}: compiler reports {counts['declaration']} declaration, "
+                f"scan {found['declaration']}"
+            )
     rows = Counter()
-    for key, (kind, name) in scanned.items():
-        oracle = "both" if key in compiler else "scan"
-        rows[f"{key[0]} {kind} {name} {oracle}"] += 1
+    for (path, line), entries in scanned.items():
+        counts = compiled.get((path, line), Counter())
+        for kind, name in entries:
+            seen = counts[kind] or (kind == "definition" and counts["declaration"])
+            oracle = "both" if seen else "scan"
+            rows[f"{path} {kind} {name} {oracle}"] += 1
     return sorted(gaps), dict(rows)
 
 
@@ -149,7 +187,7 @@ def main():
     scanned = {}
     for source in sorted(requested):
         for finding in kr_scan.scan_file(str(root / source)):
-            scanned[(source, finding.line)] = (finding.kind, finding.name)
+            scanned.setdefault((source, finding.line), []).append((finding.kind, finding.name))
 
     compiled_by = {}
     compiler = {}
@@ -158,9 +196,9 @@ def main():
         found, compiled = compiler_findings(args.make, root, build, requested)
         for source in compiled:
             compiled_by.setdefault(source, []).append(build.name)
-        for key, kind in found.items():
+        for key, counts in found.items():
             if key[0] in requested:
-                compiler.setdefault(key, kind)
+                compiler[key] = compiler.get(key, Counter()) | counts
 
     gaps, rows = reconcile(scanned, compiler)
     if gaps:

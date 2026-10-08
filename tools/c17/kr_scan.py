@@ -218,6 +218,53 @@ def definition_follows(tokens, k):
     return False
 
 
+def statement_start(tokens, k):
+    """Index of the first token of the statement or declaration holding k."""
+    depth = 0
+    j = k - 1
+    while j >= 0:
+        tok = tokens[j][0]
+        if tok in ")]":
+            depth += 1
+        elif tok in "([":
+            if depth == 0:
+                return j + 1
+            depth -= 1
+        elif depth == 0 and tok in {";", "{", "}"}:
+            return j + 1
+        j -= 1
+    return 0
+
+
+def pointer_declarator(tokens, k):
+    """True when "(*name)()" at tokens[k] declares rather than calls.
+
+    A declarator follows a type: a specifier or typedef name, or a "*" of a
+    pointer declarator. After a comma it continues a declaration only when
+    the enclosing statement or parameter list begins like one: a type
+    followed by a declarator. "return (*fp)();", a bare "(*fp)();" statement
+    and "f(x, (*fp)())" are calls.
+    """
+    prev = tokens[k - 1][0] if k else ""
+    if prev == "*" or (IDENT.match(prev) and prev not in NOT_NAMES):
+        return True
+    if prev != ",":
+        return False
+    start = statement_start(tokens, k)
+    if start >= k:
+        return False
+    first = tokens[start][0]
+    if not IDENT.match(first) or first in NOT_NAMES:
+        return False
+    # A declaration's first token, a type, is followed by its declarator: a
+    # name, a "*", or "(*". A call argument or an expression statement is
+    # followed by an operator, a comma or a parenthesized argument list.
+    following = tokens[start + 1][0] if start + 1 < len(tokens) else ""
+    if following == "(":
+        return start + 2 < len(tokens) and tokens[start + 2][0] == "*"
+    return following == "*" or bool(IDENT.match(following))
+
+
 def scan_text(path, text):
     tokens = tokenize(text)
     findings = []
@@ -239,8 +286,7 @@ def scan_text(path, text):
                 and tokens[k + 4][0] == "("
                 and tokens[k + 5][0] == ")"
             ):
-                prev = tokens[k - 1][0] if k else ""
-                if IDENT.match(prev) or prev in {"*", ",", "(", ";", "{"}:
+                if pointer_declarator(tokens, k):
                     findings.append(Finding(path, tokens[k + 2][1], "declaration", name_tok))
         elif (
             brace == 0
@@ -265,7 +311,8 @@ def scan_text(path, text):
             if not params and not nested and following in {";", ","} and prev not in {"=", ","}:
                 if IDENT.match(prev) or prev in {"*", ")"}:
                     findings.append(Finding(path, line, "declaration", tok))
-            k = end + 1
+            # A prototype's parameter list can itself hold "(*name)()".
+            k += 2
             continue
         k += 1
     return findings

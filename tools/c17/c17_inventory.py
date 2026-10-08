@@ -30,7 +30,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kr_scan  # noqa: E402
 
 DIAGNOSTIC = re.compile(r"^(?P<path>[^:\s]+):(?P<line>\d+):\d+: warning: (?P<text>.*)$")
-OLD_STYLE = "old-style function definition"
+# GCC's -Wold-style-definition text and Clang's -Wdeprecated-non-prototype
+# text for the same finding.
+OLD_STYLE = ("old-style function definition", "a function definition without a prototype")
 NOT_PROTOTYPE = (
     "function declaration isn't a prototype",
     "a function declaration without a prototype",
@@ -94,7 +96,7 @@ def compiler_findings(make, root, build, requested):
                 continue
             path = os.path.relpath((build / match["path"]).resolve(), root)
             key = (path, int(match["line"]))
-            if OLD_STYLE in match["text"]:
+            if any(text in match["text"] for text in OLD_STYLE):
                 found[key] = "definition"
             elif any(text in match["text"] for text in NOT_PROTOTYPE):
                 found.setdefault(key, "declaration")

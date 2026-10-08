@@ -36,11 +36,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#ifdef __STDC__
 #include <stdarg.h>
-#else
-#include <varargs.h>
-#endif
 
 /*
  * Repeated constructs of the form "%s: " consume data space. An extra call
@@ -80,21 +76,10 @@ verr (eval, fmt, ap)
 }
 
 void
-#ifdef __STDC__
 err (int eval, const char *fmt, ...)
-#else
-err (eval, fmt, va_alist)
-	int eval;
-	const char *fmt;
-	va_dcl
-#endif
 {
 	va_list ap;
-#if __STDC__
 	va_start(ap, fmt);
-#else
-	va_start(ap);
-#endif
 	verr(eval, fmt, ap);
 	va_end(ap);
 }
@@ -113,21 +98,10 @@ verrx (eval, fmt, ap)
 }
 
 void
-#if __STDC__
 errx (int eval, const char *fmt, ...)
-#else
-errx (eval, fmt, va_alist)
-	int eval;
-	const char *fmt;
-	va_dcl
-#endif
 {
 	va_list ap;
-#if __STDC__
 	va_start(ap, fmt);
-#else
-	va_start(ap);
-#endif
 	verrx(eval, fmt, ap);
 	va_end(ap);
 }
@@ -150,20 +124,10 @@ vwarn (fmt, ap)
 }
 
 void
-#if __STDC__
 warn (const char *fmt, ...)
-#else
-warn(fmt, va_alist)
-	const char *fmt;
-	va_dcl
-#endif
 {
 	va_list ap;
-#if __STDC__
 	va_start(ap, fmt);
-#else
-	va_start(ap);
-#endif
 	vwarn(fmt, ap);
 	va_end(ap);
 }
@@ -180,20 +144,10 @@ vwarnx (fmt, ap)
 }
 
 void
-#ifdef __STDC__
 warnx (const char *fmt, ...)
-#else
-warnx(fmt, va_alist)
-	char *fmt;
-	va_dcl
-#endif
 {
 	va_list ap;
-#ifdef __STDC__
 	va_start(ap, fmt);
-#else
-	va_start(ap);
-#endif
 	vwarnx(fmt, ap);
 	va_end(ap);
 }

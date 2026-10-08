@@ -84,9 +84,15 @@ as rejecting controls.
 - Maintained-tree candidates: 3,468 definitions and 1,067 declarations pending
   source classification. The set includes shipped, optional, host-only,
   inactive-architecture and imported boundaries.
-- `<varargs.h>`: four files -- `lib/libc/gen/err.c`, `usr.bin/m4/misc.c`,
-  `bin/sh/trace.c` and `usr.bin/xargs/xargs.c` -- plus their old-style variadic
-  functions.
+- `<varargs.h>`: four files named it at the audit commit, and none compiled
+  it. `lib/libc/gen/err.c`, `usr.bin/m4/misc.c` and `usr.bin/xargs/xargs.c`
+  held their `va_dcl` definitions in the `#else` arms of `#if __STDC__`,
+  which GNU17 never selects; the arms are removed, and each file's
+  preprocessed output under its production flags is byte-identical before
+  and after. `bin/sh/trace.c` included `<varargs.h>` unconditionally, which
+  GCC's header rejects with `#error`, and is not in `bin/sh`'s `OBJS`; it now
+  uses `<stdarg.h>` and a prototype. No tracked maintained file names
+  `<varargs.h>`.
 - `WARNLEVEL=legacy`: 140 Makefiles -- 66 `usr.bin`, 25 games, 15 bin, 12 sbin,
   9 lib, 6 usr.sbin, 5 tools, 1 libexec and 1 isolated legacy unit.
 

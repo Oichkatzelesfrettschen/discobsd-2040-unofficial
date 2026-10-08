@@ -69,6 +69,7 @@ pointer_return_spaced (pid) /* expect: definition pointer_return_spaced */
 
 #ifdef NOT_DEFINED_ANYWHERE
 extern int inactive_attributed() __attribute__((noreturn)); /* expect: declaration inactive_attributed */
+legacy_implicit(); /* expect: declaration legacy_implicit */
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;

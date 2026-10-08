@@ -4,8 +4,9 @@ Every line of fixtures/kernel_formats.c marked "expect: reject" must be
 reported and no other line may be. Known-bad checkers, one that accepts every
 conversion GCC accepts, one allowing l on every conversion, one reading every
 call as a declaration, one stripping comment delimiters inside literals, one
-blind to the DEBUG wrappers, one that reads escapes undecoded and one that
-drops the literal-format requirement, must each fail the fixture.
+blind to directives inside a call, one blind to the DEBUG wrappers, one that
+reads escapes undecoded and one that drops the literal-format requirement,
+must each fail the fixture.
 """
 
 import re
@@ -66,6 +67,14 @@ def main():
     try:
         if reported(text)[0] == got:
             failures.append("a checker stripping comments inside literals matched the fixture")
+    finally:
+        kernel_format_check.strip_comments = saved_strip
+    kernel_format_check.strip_comments = lambda source: saved_strip(source).replace(
+        kernel_format_check.DIRECTIVE, " "
+    )
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker blind to directives inside a call matched the fixture")
     finally:
         kernel_format_check.strip_comments = saved_strip
     saved_call = kernel_format_check.CALL

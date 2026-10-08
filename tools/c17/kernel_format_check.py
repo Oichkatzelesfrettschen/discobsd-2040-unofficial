@@ -58,12 +58,18 @@ SIMPLE_ESCAPES = {
 }
 
 
+# Left where a preprocessor directive stood, so a call whose arguments span
+# one, such as a format chosen by #if and #else, is recognizable.
+DIRECTIVE = "\0"
+
+
 def strip_comments(text):
     """Blank comments and preprocessor lines, keeping literals and newlines.
 
     String and character literals are copied through first, so comment
     delimiters inside a format string stay part of the format. A directive
-    is blank through its last backslash-continued line.
+    is blank through its last backslash-continued line, after a DIRECTIVE
+    marker.
     """
     out = []
     i, n = 0, len(text)
@@ -75,6 +81,8 @@ def strip_comments(text):
             i += 1
             continue
         if line_start and c == "#":
+            out.append(DIRECTIVE)
+            i += 1
             while i < n and text[i] != "\n":
                 if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
                     out.append("\n")
@@ -186,6 +194,12 @@ def check_text(path, text):
             continue
         if DECLARATION_PREFIX.search(text[max(call.start() - 40, 0) : call.start()]):
             continue  # a declaration or definition, not a call
+        if any(DIRECTIVE in arg for arg in args):
+            problems.append(
+                f"{path}:{line}: {name} arguments span a preprocessor directive, "
+                "so no single format can be checked"
+            )
+            continue
         fmt = literal_format(args[index])
         if fmt is None:
             problems.append(f"{path}:{line}: {name} format is not a string literal")

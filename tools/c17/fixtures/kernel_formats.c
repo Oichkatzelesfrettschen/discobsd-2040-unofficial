@@ -40,6 +40,13 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     printf("%ls\n", (int *)fmt); /* expect: reject */
     printf("%lc\n", i); /* expect: reject */
     printf("/* %i */\n", i); /* expect: reject */
+    printf( /* expect: reject */
+#ifdef NOT_DEFINED_ANYWHERE
+        "%d\n",
+#else
+        "%b\n",
+#endif
+        i);
     DEBUG("%i\n", i); /* expect: reject */
     DEBUG3("%llx\n", ll); /* expect: reject */
     tprintf(tp, "%e\n", d); /* expect: reject */

@@ -29,14 +29,27 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kr_scan  # noqa: E402
 
-DIAGNOSTIC = re.compile(r"^(?P<path>[^:\s]+):(?P<line>\d+):(?P<column>\d+): warning: (?P<text>.*)$")
-# GCC's -Wold-style-definition text and Clang's -Wdeprecated-non-prototype
-# text for the same finding.
-OLD_STYLE = ("old-style function definition", "a function definition without a prototype")
-NOT_PROTOTYPE = (
-    "function declaration isn't a prototype",
-    "a function declaration without a prototype",
+DIAGNOSTIC = re.compile(
+    r"^(?P<path>[^:\s]+):(?P<line>\d+):(?P<column>\d+): warning: (?P<text>.*)"
+    r"\[-W(?P<option>[\w-]+)(?:,[^\]]*)?\]\s*$"
 )
+
+
+def classify(option, text):
+    """The finding a diagnostic reports, from its option name, or None.
+
+    The option tag is the same in every locale, unlike the message: GCC
+    under a UTF-8 locale spells "isn’t" with a typographic apostrophe. GCC
+    reports an old-style definition under -Wold-style-definition and Clang
+    under -Wdeprecated-non-prototype, whose other messages concern calls.
+    """
+    if option == "old-style-definition":
+        return "old-style"
+    if option == "deprecated-non-prototype":
+        return "old-style" if "definition" in text else None
+    if option == "strict-prototypes":
+        return "not-prototype"
+    return None
 
 
 def make_value(make, build, name):
@@ -107,10 +120,9 @@ def parse_diagnostics(stderr, build, root, found):
             continue
         path = os.path.relpath((build / match["path"]).resolve(), root)
         key = (path, int(match["line"]), int(match["column"]))
-        if any(text in match["text"] for text in OLD_STYLE):
-            found.setdefault(key, Counter())["old-style"] += 1
-        elif any(text in match["text"] for text in NOT_PROTOTYPE):
-            found.setdefault(key, Counter())["not-prototype"] += 1
+        kind = classify(match["option"], match["text"])
+        if kind:
+            found.setdefault(key, Counter())[kind] += 1
 
 
 def interfaces(counts):

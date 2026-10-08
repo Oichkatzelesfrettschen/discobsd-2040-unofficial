@@ -321,9 +321,11 @@ def scan_text(path, text):
                     break
             following = tokens[after][0] if 0 < after < len(tokens) else ""
             if not params and not nested and following in {";", ","}:
+                # At file scope "name();" after a statement boundary is an
+                # implicit-int declaration; no call can appear there.
                 if (
                     (IDENT.match(prev) and prev not in NOT_NAMES)
-                    or prev in {"*", ")"}
+                    or prev in {"*", ")", "", ";", "}"}
                     or (prev == "," and continues_declaration(tokens, k))
                 ):
                     findings.append(Finding(path, line, "declaration", tok))

@@ -86,7 +86,7 @@ def main():
     compiler_lines = set()
     for line in result.stderr.splitlines():
         match = c17_inventory.DIAGNOSTIC.match(line)
-        if match:
+        if match and c17_inventory.classify(match["option"], match["text"]):
             compiler_lines.add(int(match["line"]))
     check(compiler_lines, "host compiler reported no K&R diagnostics on the fixture")
     for line in sorted(compiler_lines - marked_lines):
@@ -98,6 +98,11 @@ def main():
     raw = {}
     c17_inventory.parse_diagnostics(result.stderr, Path.cwd(), Path.cwd(), raw)
     report = {key: c17_inventory.interfaces(counts) for key, counts in raw.items()}
+    totals = sum(report.values(), Counter())
+    check(
+        totals["definition"] > 0 and totals["declaration"] > 0,
+        f"the compiler report parsed to {dict(totals)}; both kinds must be classified",
+    )
     fixture_path = os.path.relpath(FIXTURE, Path.cwd())
     scan_rows = {}
     for finding in kr_scan.scan_text(fixture_path, text):
@@ -152,6 +157,17 @@ def main():
         list(merged.values()) == [Counter({"not-prototype": 1})],
         "a header diagnostic repeated by a second translation unit was counted twice",
     )
+    for option, message, kind in (
+        ("strict-prototypes", "function declaration isn\u2019t a prototype ", "not-prototype"),
+        ("strict-prototypes", "function declaration isn't a prototype ", "not-prototype"),
+        ("old-style-definition", "old-style function definition ", "old-style"),
+        ("deprecated-non-prototype", "a function definition without a prototype ", "old-style"),
+        ("deprecated-non-prototype", "passing arguments to 'f' without a prototype ", None),
+    ):
+        check(
+            c17_inventory.classify(option, message) == kind,
+            f"-W{option} {message!r} classified wrongly",
+        )
     one_line = {
         (f.line, f.kind, f.name)
         for f in kr_scan.scan_text("p.c", "struct p { int (*a)(), (*b)(); };")

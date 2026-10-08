@@ -13,6 +13,7 @@ struct file { int f_count; };
 struct proc { int p_pid; };
 struct ops { int (*op_open)(); int (*op_close)(dev_t, int); }; /* expect: declaration op_open */
 struct pair { int (*first)(), (*second)(); }; /* expect: declaration first */ /* expect: declaration second */
+struct qualified { int (* const fixed)(), (* volatile * restrict nested)(); }; /* expect: declaration fixed */ /* expect: declaration nested */
 
 int empty_decl(); /* expect: declaration empty_decl */
 int first_decl(), second_decl(); /* expect: declaration first_decl */ /* expect: declaration second_decl */
@@ -75,6 +76,7 @@ pointer_return_spaced (pid) /* expect: definition pointer_return_spaced */
 extern int inactive_attributed() __attribute__((noreturn)); /* expect: declaration inactive_attributed */
 legacy_implicit(); /* expect: declaration legacy_implicit */
 dev_t (inactive_grouped)(); /* expect: declaration inactive_grouped */
+int (* const inactive_qualified)(); /* expect: declaration inactive_qualified */
 void
 inactive_branch(t1, t2) /* expect: definition inactive_branch */
     int t1, t2;

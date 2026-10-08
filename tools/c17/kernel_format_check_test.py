@@ -5,9 +5,9 @@ reported and no other line may be. Known-bad checkers, one that accepts every
 conversion GCC accepts, one allowing l on every conversion, one reading every
 call as a declaration, one stripping comment delimiters inside literals, one
 blind to directives inside a call, one blind to the DEBUG wrappers, one
-blind to parenthesized designators such as (printf)(...), one that
-reads escapes undecoded and one that drops the literal-format requirement,
-must each fail the fixture.
+blind to parenthesized designators such as (printf)(...), one finding
+calls inside string literals, one that reads escapes undecoded and one that
+drops the literal-format requirement, must each fail the fixture.
 """
 
 import re
@@ -92,6 +92,14 @@ def main():
                 failures.append(f"a checker {label} matched the fixture")
         finally:
             kernel_format_check.CALL = saved_call
+
+    saved_mask = kernel_format_check.mask_literals
+    kernel_format_check.mask_literals = lambda source: source
+    try:
+        if reported(text)[0] == got:
+            failures.append("a checker finding calls inside literals matched the fixture")
+    finally:
+        kernel_format_check.mask_literals = saved_mask
 
     saved_decode = kernel_format_check.decode_literal
     kernel_format_check.decode_literal = lambda body: body

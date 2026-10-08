@@ -122,6 +122,29 @@ def strip_comments(text):
     return "".join(out)
 
 
+def mask_literals(text):
+    """text with the contents of string and character literals blanked.
+
+    Offsets are unchanged, so a call found in the mask is read from text;
+    a name inside a literal, as in "entered printf(", is not a call.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            for m in range(i + 1, min(j, n)):
+                if out[m] != "\n":
+                    out[m] = " "
+            i = j + 1
+            continue
+        i += 1
+    return "".join(out)
+
+
 def argument_text(text, start):
     """Return the arguments of the call whose '(' ends at start, split at depth 0."""
     depth = 1
@@ -189,16 +212,17 @@ def literal_format(argument):
 def check_text(path, text):
     """Return (problems, checked) for one source."""
     text = strip_comments(text)
+    masked = mask_literals(text)
     problems = []
     checked = 0
-    for call in CALL.finditer(text):
+    for call in CALL.finditer(masked):
         name = call["name"]
         line = text.count("\n", 0, call.start()) + 1
         args = argument_text(text, call.end())
         index = FUNCTIONS[name]
         if len(args) <= index:
             continue
-        if DECLARATION_PREFIX.search(text[max(call.start() - 40, 0) : call.start()]):
+        if DECLARATION_PREFIX.search(masked[max(call.start() - 40, 0) : call.start()]):
             continue  # a declaration or definition, not a call
         if any(DIRECTIVE in arg for arg in args):
             problems.append(

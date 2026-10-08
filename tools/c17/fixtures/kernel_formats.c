@@ -18,6 +18,8 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     tprintf(tp, "%s: %d\n", s, i);
     log(3, "%s\n", s);
     (printf)("%d\n", i);
+    printf("entered printf( path, log(%d\n", i);
+    log(3, "a \"quoted printf(\" and '%c'\n", '"');
     DEBUG("\tdebug %#x // not a comment\n", i);
     DEBUG2("%d/* %s */\n", i, s);
     /* printf("%f in a comment is not a call\n"); */

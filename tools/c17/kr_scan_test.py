@@ -3,9 +3,9 @@
 The fixture marks every line the scan must report. The scan must report
 exactly those lines; the host compiler, run with -Wold-style-definition and
 -Wstrict-prototypes, must report only marked lines; and each known-bad
-variant (a scan that drops a calibrated shape or #if alternative tracking,
-or reads a directive inside a comment; a reconciliation that is handed a
-compiler finding the scan lacks) must be rejected.
+variant (a scan that drops a calibrated shape, pointer qualifiers or #if
+alternative tracking, or reads a directive inside a comment; a reconciliation
+that is handed a compiler finding the scan lacks) must be rejected.
 """
 
 import os
@@ -88,6 +88,12 @@ def main():
         check(scanned(text) != got, "a scan reading directives inside comments matched the fixture")
     finally:
         kr_scan.strip_source = original
+    saved_qualifiers = kr_scan.POINTER_QUALIFIERS
+    kr_scan.POINTER_QUALIFIERS = set()
+    try:
+        check(scanned(text) != got, "a scan blind to pointer qualifiers matched the fixture")
+    finally:
+        kr_scan.POINTER_QUALIFIERS = saved_qualifiers
     original = kr_scan.grouped_declarator
     kr_scan.grouped_declarator = lambda tokens, k: (
         original(tokens, k) if k + 1 < len(tokens) and tokens[k + 1][0] == "*" else -1

@@ -46,6 +46,18 @@ TYPE_WORDS = {
     "extern",
     "inline",
 }
+# Qualifiers of a pointer declarator, as in "(* const name)()".
+POINTER_QUALIFIERS = {
+    "const",
+    "volatile",
+    "restrict",
+    "__const",
+    "__const__",
+    "__volatile",
+    "__volatile__",
+    "__restrict",
+    "__restrict__",
+}
 # Words whose parenthesized operand is not a declarator, skipped whole.
 ATTRIBUTE_WORDS = {"__attribute__", "__asm__", "asm", "__declspec"}
 NOT_NAMES = {
@@ -209,14 +221,19 @@ def closing(tokens, start):
 def grouped_declarator(tokens, k):
     """Index of the name in "( *... name ) ( )" starting at tokens[k], or -1.
 
-    A parenthesized name, optionally behind pointer stars, applied to an
+    A parenthesized name, optionally behind pointer stars and the
+    qualifiers that may follow each star, applied to an
     empty parameter list: a declarator of an unprototyped function or of a
     pointer to one, or a call through a parenthesized designator.
     """
     if k >= len(tokens) or tokens[k][0] != "(":
         return -1
     j = k + 1
-    while j < len(tokens) and tokens[j][0] == "*":
+    stars = 0
+    while j < len(tokens) and (
+        tokens[j][0] == "*" or (stars and tokens[j][0] in POINTER_QUALIFIERS)
+    ):
+        stars += tokens[j][0] == "*"
         j += 1
     if (
         j + 3 < len(tokens)

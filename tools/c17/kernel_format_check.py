@@ -74,14 +74,39 @@ SIMPLE_ESCAPES = {
 DIRECTIVE = "\0"
 
 
+def join_splices(text):
+    """Delete each backslash-newline, as translation phase 2 does (C17 5.1.1.2).
+
+    "pri\\" + newline + "ntf(" becomes one identifier and a literal
+    continued across lines becomes one literal. The deleted newlines are
+    emitted after the joined logical line ends, so a position on that line
+    keeps the number of the physical line where the logical line starts
+    and every later line keeps its own number.
+    """
+    out = []
+    pending = 0
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("\\\n", i):
+            pending += 1
+            i += 2
+            continue
+        out.append(text[i])
+        if text[i] == "\n" and pending:
+            out.append("\n" * pending)
+            pending = 0
+        i += 1
+    out.append("\n" * pending)
+    return "".join(out)
+
+
 def strip_comments(text):
     """Blank comments and preprocessor lines, keeping literals and newlines.
 
     String and character literals are copied through first, so comment
     delimiters inside a format string stay part of the format. A directive
-    is blank through its last backslash-continued line, after a DIRECTIVE
-    marker. A line splice elsewhere becomes whitespace, so "printf\\" on
-    one line and its argument list on the next is still a call.
+    is blank to the end of its line, after a DIRECTIVE marker. The text has
+    passed through join_splices(), so no line continues another.
     """
     out = []
     i, n = 0, len(text)
@@ -96,18 +121,8 @@ def strip_comments(text):
             out.append(DIRECTIVE)
             i += 1
             while i < n and text[i] != "\n":
-                if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
-                    out.append("\n")
-                    i += 2
-                    continue
                 out.append(" ")
                 i += 1
-            continue
-        if c == "\\" and text.startswith("\n", i + 1):
-            # A line splice joins two lines (C17 5.1.1.2 phase 2): the
-            # newline is kept for line numbers but is not a line start.
-            out.append(" \n")
-            i += 2
             continue
         line_start = c == "\n"
         if c in "\"'":
@@ -223,7 +238,7 @@ def literal_format(argument):
 
 def check_text(path, text):
     """Return (problems, checked) for one source."""
-    text = strip_comments(text)
+    text = strip_comments(join_splices(text))
     masked = mask_literals(text)
     problems = []
     checked = 0

@@ -155,10 +155,12 @@ int
 uses_calls(int x)
 {
     extern int block_decl(); /* expect: declaration block_decl */
+    extern __attribute__((unused, noinline)) int block_attributed(); /* expect: declaration block_attributed */
     char *block_pointer(), block_char; /* expect: declaration block_pointer */
     int y = void_definition();
 #ifdef NOT_DEFINED_ANYWHERE
     extern int inactive_block(); /* expect: declaration inactive_block */
+    extern __attribute__((noreturn)) int inactive_noreturn(); /* expect: declaration inactive_noreturn */
     struct file *inactive_block_pointer(); /* expect: declaration inactive_block_pointer */
 #endif
 

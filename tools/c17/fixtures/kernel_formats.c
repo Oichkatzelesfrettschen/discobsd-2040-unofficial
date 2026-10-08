@@ -24,6 +24,8 @@ accepted(struct tty *tp, int i, long l, char *s, void *p)
     f((printf))("%i ignored: f returns the callee\n");
     log\
 (3, "%d\n", i);
+    printf("a literal continued \
+across lines %d\n", i);
     printf("entered printf( path, log(%d\n", i);
     log(3, "a \"quoted printf(\" and '%c'\n", '"');
     DEBUG("\tdebug %#x // not a comment\n", i);
@@ -45,6 +47,10 @@ rejected(struct tty *tp, int i, long long ll, double d, char *fmt)
     g ((printf)("%z\n", i)); /* expect: reject */
     printf /* expect: reject */ \
 ("%i\n", i);
+    /* expect: reject */ pri\
+ntf("%i %d\n", i, i);
+    /* expect: reject */ printf("spliced literal \
+%lld\n", ll);
     printf("%lld\n", ll); /* expect: reject */
     printf("%f\n", d); /* expect: reject */
     printf("%zu\n", (unsigned)i); /* expect: reject */

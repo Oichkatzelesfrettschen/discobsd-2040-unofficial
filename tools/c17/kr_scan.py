@@ -388,16 +388,25 @@ def continues_declaration(tokens, k):
 def declaration_prefix(tokens, k):
     """True when the statement holding tokens[k] opens like a declaration.
 
-    Every token before the name is a specifier, a typedef name or a "*",
-    as in "extern int name();" or "char *name();". A call has an operator,
-    a keyword such as return, or nothing before it.
+    Every token before the name is a specifier, a typedef name, a "*" or
+    an attribute group, as in "extern int name();", "char *name();" or
+    "extern __attribute__((noreturn)) int name();". A call has an
+    operator, a keyword such as return, or nothing before it.
     """
     start = statement_start(tokens, k)
     if start >= k or not IDENT.match(tokens[start][0]):
         return False
-    return all(
-        tok == "*" or (IDENT.match(tok) and tok not in NOT_NAMES) for tok, _ in tokens[start:k]
-    )
+    j = start
+    while j < k:
+        tok = tokens[j][0]
+        if tok in ATTRIBUTE_WORDS and j + 1 < k and tokens[j + 1][0] == "(":
+            j = closing(tokens, j + 1)
+            if j < 0 or j >= k:
+                return False
+        elif tok != "*" and not (IDENT.match(tok) and tok not in NOT_NAMES):
+            return False
+        j += 1
+    return True
 
 
 def following_attributes(tokens, after):

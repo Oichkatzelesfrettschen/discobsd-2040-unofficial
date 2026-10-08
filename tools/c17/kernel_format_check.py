@@ -1,0 +1,491 @@
+"""Check kernel printf formats against the conversions prf() and GCC share.
+
+sys/sys/systm.h gives printf(), uprintf(), tprintf() and log() the
+format(printf) attribute, so GCC checks argument types against ISO C
+conversions. The two readers of a format still differ. GCC accepts
+conversions sys/kern/subr_prf.c's prf() does not implement: %i, the
+floating conversions, and the hh, h, ll, j, z and t length modifiers. GCC
+reads %n as a store through a pointer where prf() prints a number, and %b
+as C23's one-argument binary conversion where prf() decodes a bit field from
+two arguments; a one-argument %b passes the attribute and makes prf() read a
+second argument that is not there. GCC rejects prf()'s %D (hex dump of a
+byte buffer). This check reads every literal format passed
+to those four functions in the sources a kernel configuration builds and
+accepts only
+
+    %[-+#0]*(digits|*)?(.(digits|*))?(l?[douxX]|[cps]) and %%
+
+where prf() and GCC agree on the argument type. A call whose format is not
+a string literal is reported, since neither check can read it.
+"""
+
+import argparse
+import os
+import re
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import c17_inventory  # noqa: E402
+import kr_scan  # noqa: E402
+
+join_splices = kr_scan.join_splices
+
+# Format argument index per function. DEBUG and DEBUG1 through DEBUG9 in
+# sys/arch/rp2040/include/debug.h expand to printf(__VA_ARGS__) under
+# GLOBAL_DEBUG, so their formats reach prf() in a debug kernel.
+FUNCTIONS = {"printf": 0, "uprintf": 0, "tprintf": 1, "log": 1, "DEBUG": 0}
+FUNCTIONS.update({f"DEBUG{level}": 0 for level in range(1, 10)})
+
+
+# A parenthesized designator, "(printf)(...)" or "((printf))(...)", calls
+# the function while suppressing a function-like macro of the same name;
+# "(*printf)(...)" and "(&printf)(...)" call it through the function
+# pointer the name decays to. check_text() reports a call whose "close"
+# holds a parenthesis "open" did not open; an unmatched opening one belongs
+# to an enclosing expression.
+def call_pattern(names):
+    return re.compile(
+        r"(?<![\w.>])(?P<open>(?:\(\s*(?:[*&]\s*)*)*)(?P<name>"
+        + "|".join(sorted(names, key=len, reverse=True))
+        + r")(?P<close>(?:\s*\))*)\s*\("
+    )
+
+
+CALL = call_pattern(FUNCTIONS)
+# An object-like macro whose replacement is a single name, as in
+# "#define KPRINTF printf", makes that name an alias (see aliases_in()).
+OBJECT_ALIAS = re.compile(r"^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+(\w+)[ \t]*$", re.M)
+# A function-like macro whose body calls a format function, a candidate
+# wrapper (see forwarded_index()).
+FUNCTION_WRAPPER = re.compile(r"^[ \t]*#[ \t]*define[ \t]+(\w+)\(([^)\n]*)\)(.*)$", re.M)
+CONVERSION = re.compile(
+    r"%(?P<spec>[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*)?)?(?:hh|ll|[hljztLq])?[a-zA-Z%]?)"
+)
+# prf() reads the l modifier only for d, o, u, x and X; it ignores it for c,
+# s and p, where ISO C's %lc and %ls take wide characters.
+ALLOWED = re.compile(r"[-+#0]*(\d+|\*)?(\.(\d+|\*))?(l?[douxX]|[cps])\Z")
+# A name preceded by one of these is being declared or defined, not called.
+DECLARATION_PREFIX = re.compile(
+    r"(?:\b(?:void|int|char|long|unsigned|static|extern|inline)|\*)\s*\Z"
+)
+# A u8 prefix (C17 6.4.5) keeps the literal a char array.
+LITERAL = re.compile(r'(?:(?<!\w)u8)?"((?:[^"\\\n]|\\.)*)"')
+ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]+|[0-7]{1,3}|.)")
+SIMPLE_ESCAPES = {
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+    "a": "\a",
+    "b": "\b",
+    "f": "\f",
+    "v": "\v",
+}
+
+
+# Left where a preprocessor directive stood, so a call whose arguments span
+# one, such as a format chosen by #if and #else, is recognizable.
+DIRECTIVE = "\0"
+# The head of a macro definition, before its replacement list.
+DEFINE_HEAD = re.compile(r"#[ \t]*define[ \t]+\w+(?:\((?P<params>[^)\n]*)\))?")
+
+
+def forwarded_formats(text):
+    """Map each macro body's span in text to the names its format may forward.
+
+    A body whose format argument is one of the macro's parameters, or
+    __VA_ARGS__, forwards its caller's format, as the DEBUG wrappers do;
+    the checkable format is at the macro's call sites.
+    """
+    spans = []
+    for line in re.finditer(r"^[ \t]*(#.*)$", text, re.M):
+        head = DEFINE_HEAD.match(text, line.start(1))
+        if not head or head["params"] is None:
+            continue
+        names = {p.strip() for p in head["params"].split(",")} - {"", "..."}
+        if "..." in head["params"]:
+            names.add("__VA_ARGS__")
+        spans.append((head.end(), line.end(), names))
+    return spans
+
+
+def strip_comments(text):
+    """Blank comments and preprocessor lines, keeping literals and newlines.
+
+    String and character literals are copied through first, so comment
+    delimiters inside a format string stay part of the format. A directive
+    is blank to the end of its line, after a DIRECTIVE marker, except that a
+    macro definition keeps its replacement list. The text has passed through
+    join_splices(), so no line continues another.
+    """
+    out = []
+    i, n = 0, len(text)
+    line_start = True
+    while i < n:
+        c = text[i]
+        if line_start and c in " \t":
+            out.append(c)
+            i += 1
+            continue
+        if line_start and c == "#":
+            head = DEFINE_HEAD.match(text, i)
+            out.append(DIRECTIVE)
+            if head:
+                # A macro body stays readable, so a call it contains is
+                # checked where it is defined; only the directive head,
+                # "#define NAME(params)", is blanked.
+                out.append(" " * (head.end() - i - 1))
+                i = head.end()
+                line_start = False
+                continue
+            i += 1
+            while i < n and text[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        # A comment is whitespace even across lines, so it keeps the
+        # line-start state; a directive may follow "/* ...\n */".
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end < 0 else end + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in text[i:end]))
+            i = end
+            continue
+        if text.startswith("//", i):
+            while i < n and text[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        line_start = c == "\n"
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            j = min(j + 1, n)
+            out.append(text[i:j])
+            i = j
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def mask_literals(text):
+    """text with the contents of string and character literals blanked.
+
+    Offsets are unchanged, so a call found in the mask is read from text;
+    a name inside a literal, as in "entered printf(", is not a call.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            for m in range(i + 1, min(j, n)):
+                if out[m] != "\n":
+                    out[m] = " "
+            i = j + 1
+            continue
+        i += 1
+    return "".join(out)
+
+
+def argument_text(text, start):
+    """Return the arguments of the call whose '(' ends at start, split at depth 0."""
+    depth = 1
+    args, current = [], []
+    k = start
+    while k < len(text) and depth:
+        c = text[k]
+        if c == '"':
+            match = LITERAL.match(text, k)
+            if match:
+                current.append(match.group(0))
+                k = match.end()
+                continue
+        if c == "'":
+            end = text.find("'", k + 1)
+            while end > 0 and text[end - 1] == "\\" and text[end - 2] != "\\":
+                end = text.find("'", end + 1)
+            current.append(text[k : end + 1])
+            k = end + 1
+            continue
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                break
+        elif c == "," and depth == 1:
+            args.append("".join(current))
+            current = []
+            k += 1
+            continue
+        current.append(c)
+        k += 1
+    args.append("".join(current))
+    return args
+
+
+def decode_literal(body):
+    """The characters a C string literal body denotes, one literal at a time.
+
+    Octal and hexadecimal escapes are decoded so that "\\045n" is read as the
+    %n it is at run time; each literal is decoded separately because an
+    escape never spans adjacent literals.
+    """
+
+    def replace(match):
+        escape = match.group(1)
+        if escape[0] == "x":
+            return chr(int(escape[1:], 16) & 0xFF)
+        if escape[0] in "01234567":
+            return chr(int(escape, 8) & 0xFF)
+        return SIMPLE_ESCAPES.get(escape, escape)
+
+    return ESCAPE.sub(replace, body)
+
+
+def group_end(text):
+    """Index of the parenthesis closing the one that opens text, or -1."""
+    depth = 0
+    for index, c in enumerate(mask_literals(text)):
+        depth += (c == "(") - (c == ")")
+        if depth == 0:
+            return index
+    return -1
+
+
+def unparenthesize(argument):
+    """argument without parentheses that enclose all of it, as in ("%d").
+
+    A group that closes before the end, as in the cast "(char *)fmt", is
+    part of the expression and stays.
+    """
+    argument = argument.strip()
+    while argument.startswith("(") and group_end(argument) == len(argument) - 1:
+        argument = argument[1:-1].strip()
+    return argument
+
+
+def literal_format(argument):
+    """The concatenated, decoded string literals forming argument, or None."""
+    argument = unparenthesize(argument)
+    literals = LITERAL.findall(argument)
+    if not literals or LITERAL.sub("", argument).strip():
+        return None
+    return "".join(decode_literal(body) for body in literals)
+
+
+def aliases_in(texts, known=None):
+    """Map each alias or wrapper of a format function to its format index.
+
+    "#define KPRINTF printf" makes KPRINTF(...) a printf call, and
+    "#define KLOG(...) printf(__VA_ARGS__)" or "#define KLOG(fmt, a)
+    log(1, fmt, a)" makes KLOG a function whose format is the argument the
+    wrapper forwards. Chains resolve to the function they end at. texts
+    are the sources one translation unit sees: a source and the headers it
+    includes.
+    """
+    known = dict(FUNCTIONS if known is None else known)
+    pairs, wrappers = [], []
+    for text in texts:
+        joined = join_splices(text)
+        pairs += [m.groups() for m in OBJECT_ALIAS.finditer(joined)]
+        wrappers += [m.groups() for m in FUNCTION_WRAPPER.finditer(joined)]
+    aliases, changed = {}, True
+    while changed:
+        changed = False
+        for alias, target in pairs:
+            index = known.get(target, aliases.get(target))
+            if index is not None and alias not in aliases and alias not in known:
+                aliases[alias] = index
+                changed = True
+        for name, params, body in wrappers:
+            if name in aliases or name in known:
+                continue
+            index = forwarded_index(params, body, known, aliases)
+            if index is not None:
+                aliases[name] = index
+                changed = True
+    return aliases
+
+
+def forwarded_index(params, body, known, aliases):
+    """Argument position of the format a wrapper's body forwards, or None."""
+    call = re.match(r"\s*(?:\(\s*void\s*\)\s*)?(\w+)\s*\(", body)
+    if not call:
+        return None
+    index = known.get(call[1], aliases.get(call[1]))
+    if index is None:
+        return None
+    args = argument_text(body, call.end())
+    if len(args) <= index:
+        return None
+    fmt = args[index].strip()
+    named = [p.strip() for p in params.split(",") if p.strip() not in ("", "...")]
+    if fmt in named:
+        return named.index(fmt)
+    if fmt == "__VA_ARGS__" and "..." in params:
+        return len(named)
+    return None
+
+
+def check_text(path, text, aliases=None):
+    """Return (problems, checked) for one source."""
+    joined = join_splices(text)
+    aliases = aliases_in([joined]) if aliases is None else aliases
+    forwarding = forwarded_formats(joined)
+    text = strip_comments(joined)
+    masked = mask_literals(text)
+    problems = []
+    checked = 0
+    calls = list(CALL.finditer(masked))
+    if aliases:
+        calls += call_pattern(aliases).finditer(masked)
+        calls.sort(key=lambda call: call.start())
+    for call in calls:
+        name = call["name"]
+        line = text.count("\n", 0, call.start()) + 1
+        if (call["close"] or "").count(")") > (call["open"] or "").count("("):
+            # A closing parenthesis the designator did not open ends a larger
+            # callee expression, as in "(flag ? printf : log)(...)" or
+            # "f((printf))(...)"; which function receives the arguments is
+            # not decidable here.
+            problems.append(
+                f"{path}:{line}: {name} is part of a callee expression, "
+                "so the called function and its format cannot be checked"
+            )
+            continue
+        args = argument_text(text, call.end())
+        index = FUNCTIONS[name] if name in FUNCTIONS else aliases[name]
+        if len(args) <= index:
+            continue
+        if DECLARATION_PREFIX.search(masked[max(call.start() - 40, 0) : call.start()]):
+            continue  # a declaration or definition, not a call
+        if any(DIRECTIVE in arg for arg in args):
+            problems.append(
+                f"{path}:{line}: {name} arguments span a preprocessor directive, "
+                "so no single format can be checked"
+            )
+            continue
+        fmt = literal_format(args[index])
+        if fmt is None and any(
+            start <= call.start() < end and args[index].strip() in names
+            for start, end, names in forwarding
+        ):
+            continue  # a wrapper macro forwarding its caller's format
+        if fmt is None:
+            problems.append(f"{path}:{line}: {name} format is not a string literal")
+            continue
+        checked += 1
+        for match in CONVERSION.finditer(fmt):
+            spec = match["spec"]
+            if spec == "%":
+                continue
+            if not ALLOWED.match(spec):
+                problems.append(
+                    f"{path}:{line}: {name} uses %{spec}, "
+                    "outside the conversions prf() and GCC share"
+                )
+    return problems, checked
+
+
+def header_dependencies(make, root, build, items):
+    """Map each item's root-relative path to the in-tree headers it includes.
+
+    The build's compiler lists them (-MM) with the build's own flags, so
+    include resolution matches the build.
+    """
+    compiler = shlex.split(c17_inventory.make_value(make, build, "CC"))
+    flags = []
+    for name in ("CFLAGS", "INCLUDES", "PARAM"):
+        flags += shlex.split(c17_inventory.make_value(make, build, name))
+    headers = {}
+    for item in items:
+        result = subprocess.run(
+            compiler + flags + ["-DKERNEL", "-MM", item],
+            cwd=build,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise SystemExit(f"FAIL {build.name}: cannot list the headers of {item}")
+        source = os.path.relpath((build / item).resolve(), root)
+        for word in result.stdout.replace("\\\n", " ").split():
+            if word.endswith(".h"):
+                path = (build / word).resolve()
+                if path.is_relative_to(root):
+                    headers.setdefault(source, set()).add(os.path.relpath(path, root))
+    return headers
+
+
+def sources_from_builds(make, root, builds):
+    """Return (sources, problems, scope) for each build's CFILES and headers.
+
+    Each build must list sources of its own: an empty CFILES in one
+    configuration would otherwise drop its configuration-only sources while
+    the others still passed the gate. An in-tree header a source includes
+    is read too, so a static inline function or macro defined there is
+    checked. scope maps each CFILES source to the headers it includes, the
+    texts whose aliases and wrappers that source sees.
+    """
+    sources, problems, scope = set(), [], {}
+    for build_dir in builds:
+        build = (root / build_dir).resolve()
+        items = shlex.split(c17_inventory.make_value(make, build, "CFILES"))
+        if not items:
+            problems.append(f"{build_dir}: CFILES is empty")
+        for item in items:
+            sources.add(os.path.relpath((build / item).resolve(), root))
+        for source, headers in header_dependencies(make, root, build, items).items():
+            sources |= headers
+            scope.setdefault(source, set()).update(headers)
+    return sorted(sources), problems, scope
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", default=".")
+    parser.add_argument("--make", default=os.environ.get("MAKE", "bmake"))
+    parser.add_argument("--build", action="append", default=[])
+    parser.add_argument("sources", nargs="*")
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
+    if args.sources:
+        sources, problems, scope = list(args.sources), [], {}
+    else:
+        sources, problems, scope = sources_from_builds(args.make, root, args.build)
+    checked = 0
+    texts = {source: (root / source).read_text(encoding="latin-1") for source in sources}
+    for source, text in texts.items():
+        # A source sees the aliases of its own text and its headers only;
+        # a header read alone sees its own.
+        visible = [text] + [texts[h] for h in sorted(scope.get(source, ())) if h in texts]
+        found, count = check_text(source, text, aliases_in(visible))
+        problems += found
+        checked += count
+    # An empty source list or no literal format means discovery failed, not
+    # that every format is sound.
+    if not sources:
+        problems.append("no sources: pass sources or a --build with nonempty CFILES")
+    elif not checked:
+        problems.append(f"no literal formats found in {len(sources)} sources")
+    if problems:
+        for problem in problems:
+            print("FAIL " + problem, file=sys.stderr)
+        return 1
+    print(
+        f"PASS kernel formats: {checked} literal formats in {len(sources)} sources "
+        "use prf() conversions"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

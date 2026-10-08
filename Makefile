@@ -149,6 +149,34 @@ check-ufs-prototypes:	tools
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-ufs-prototypes
 
+# The K&R function-interface ledger for sys/kern and sys/sys: kr_scan.py over
+# every conditional branch, unioned with the cross compiler's
+# -Wold-style-definition and -Wstrict-prototypes diagnostics for PICO and
+# PICO_UART. tools/c17/kr_scan_test.py calibrates the scan first.
+check-c17-kernel-inventory:	check-python
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-c17-kernel-inventory requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${PYTHON} tools/c17/kr_scan_test.py
+		${PYTHON} tools/c17/c17_inventory.py --make "${MAKE}" \
+		    --build sys/arch/rp2040/compile/PICO \
+		    --build sys/arch/rp2040/compile/PICO_UART \
+		    --ledger tools/c17/kernel-ledger.txt sys/kern/*.c sys/sys/*.h
+
+# Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
+# log() in the PICO and PICO_UART sources use only conversions where prf() and
+# GCC's format(printf) checking agree; the fixture calibrates the checker.
+check-kernel-printf-formats:	check-python
+		@if [ x"${MACHINE}" != x"rp2040" ]; then \
+			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
+			exit 2; \
+		fi
+		${PYTHON} tools/c17/kernel_format_check_test.py
+		${PYTHON} tools/c17/kernel_format_check.py --make "${MAKE}" \
+		    --build sys/arch/rp2040/compile/PICO \
+		    --build sys/arch/rp2040/compile/PICO_UART
+
 check-aout:
 		${MAKE} -C tests/aout_header check
 
@@ -794,7 +822,9 @@ check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
 check-cross-kernel:	check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
-		check-ufs-prototypes .WAIT check-hsaout .WAIT check-flash-swap .WAIT \
+		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
+		check-kernel-printf-formats .WAIT \
+		check-hsaout .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
 check-cross-assembler:
@@ -906,7 +936,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-elf2aout check-dhara-metadata check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-c17-kernel-inventory check-kernel-printf-formats check-elf2aout check-dhara-metadata check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

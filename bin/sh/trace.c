@@ -1,17 +1,23 @@
+#include <stdarg.h>
 #include <stdio.h>
-#include <varargs.h>
-#include <sys/fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "dup.h"
 
-/* Debugging routines */
+/*
+ * Debugging routine, compiled only when added to OBJS by hand. It appends
+ * the format string, unexpanded, to TRACEF; the arguments are accepted and
+ * ignored.
+ */
 #define TRACEF "/usr/abs/sh/trace"
 
 static int fp = (-1);
 unsigned was_traced = 0;
 
-trace( fmt, va_alist )
-char *fmt;
-va_dcl
+void
+trace(const char *fmt, ...)
 {
 	va_list args;
 	char buf[256];
@@ -22,11 +28,11 @@ va_dcl
 		fcntl( fp, F_SETFD, EXCLOSE );
 	}
 
-	va_start( args );
+	va_start( args, fmt );
 /*        vsprintf( buf, fmt, args );   */
-	strcpy( buf, fmt );
+	strncpy( buf, fmt, sizeof(buf) - 1 );
+	buf[sizeof(buf) - 1] = '\0';
 	write( fp, buf, strlen(buf));
 	va_end( args );
 	was_traced++;
 }
-

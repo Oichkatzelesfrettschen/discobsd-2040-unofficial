@@ -84,9 +84,15 @@ as rejecting controls.
 - Maintained-tree candidates: 3,468 definitions and 1,067 declarations pending
   source classification. The set includes shipped, optional, host-only,
   inactive-architecture and imported boundaries.
-- `<varargs.h>`: four files -- `lib/libc/gen/err.c`, `usr.bin/m4/misc.c`,
-  `bin/sh/trace.c` and `usr.bin/xargs/xargs.c` -- plus their old-style variadic
-  functions.
+- `<varargs.h>`: four files named it at the audit commit, and none compiled
+  it. `lib/libc/gen/err.c`, `usr.bin/m4/misc.c` and `usr.bin/xargs/xargs.c`
+  held their `va_dcl` definitions in the `#else` arms of `#if __STDC__`,
+  which GNU17 never selects; the arms are removed, and each file's
+  preprocessed output under its production flags is byte-identical before
+  and after. `bin/sh/trace.c` included `<varargs.h>` unconditionally, which
+  GCC's header rejects with `#error`, and is not in `bin/sh`'s `OBJS`; it now
+  uses `<stdarg.h>` and a prototype. No tracked maintained file names
+  `<varargs.h>`.
 - `WARNLEVEL=legacy`: 140 Makefiles -- 66 `usr.bin`, 25 games, 15 bin, 12 sbin,
   9 lib, 6 usr.sbin, 5 tools, 1 libexec and 1 isolated legacy unit.
 
@@ -107,11 +113,25 @@ The definition count by top-level owner is:
 | `tests/` | 5 |
 | `benchmarks/` | 1 |
 
-The kernel frontier is unusually well bounded: 187 of the 190 `sys/`
-definitions are in 26 `sys/kern` files, two are inactive STM32 definitions,
-and one is `sys/arch/rp2040/rp2040/sysctl.c`. The existing
-`check-ufs-prototypes` gate covers 13 UFS translation units, but it does not
-close the remaining kernel files. The largest userland concentrations are
+The kernel frontier is unusually well bounded: the AST rule found 187 of the
+190 `sys/` definitions in 26 `sys/kern` files, two inactive STM32 definitions,
+and one in `sys/arch/rp2040/rp2040/sysctl.c`. The AST count is a lower bound.
+The cross compiler's `-Wold-style-definition` over the PICO and PICO_UART
+builds reports 12 `sys/kern` definitions the rule missed: tree-sitter loses
+identifier-list definitions whose declaration list carries `__unused`
+(`tty_tty.c`'s five device entries, `seltrue`, `gatherstats`), pointer-
+returning definitions (`getf`, `pfind`, `nextc`, `swapout`) and `brk()`
+after an `#endif`. The compiler in turn misses inactive code (`timevalsub`
+under `NOT_CURRENTLY_IN_USE`, `ptyattach`) and files neither configuration
+builds (`subr_log.c`, `kern_glob.c`). At `d5eedba` the union was 200
+definitions in 28 `sys/kern` files plus four unprototyped declarations in
+`sys/sys`; converting `tty_tty.c`'s five entry points leaves 195 definitions
+in 27 files. `check-c17-kernel-inventory` records the current union in
+`tools/c17/kernel-ledger.txt` with the oracle behind each row and fails when
+the compiler reports a finding the calibrated scan lacks. The same parser
+gaps make the repository-wide AST totals above lower bounds for those shapes.
+The existing `check-ufs-prototypes` gate covers 13 UFS translation units, but
+it does not close the remaining kernel files. The largest userland concentrations are
 `games/rogue` (308), `usr.bin/tip` (131), `usr.bin/forth` (122 in two files),
 `usr.bin/re` (97), `usr.bin/picoc` (96), `games/sail` (91),
 `games/battlestar` (84), `games/backgammon` (80) and `games/adventure` (74).
@@ -176,6 +196,24 @@ Each migrated unit must add these diagnostics without local suppression:
 -Werror=int-conversion
 -Wformat=2
 ```
+
+`-Wformat=2` checks nothing a function's declaration does not opt into. The
+kernel's `printf()`, `uprintf()`, `tprintf()` and `log()` carry
+`format(printf)` attributes in `sys/sys/systm.h`, spelled `__printf__` so the
+host harness's `-Dprintf=hk_kprintf` rename leaves the archetype intact. GCC
+and Clang then type-check every kernel call, and both PICO configurations
+build without a format diagnostic. The attributes reject `prf()`'s `%D`;
+three callers had passed a `daddr_t` to it, which `prf()` reads as a pointer
+to 16 bytes to hex-dump. GCC and Clang read `%b` as C23's one-argument binary
+conversion, so they reject only the register-name argument of `prf()`'s
+two-argument `%b`, and `tests/kernel/prf_test.c` turns format checking off
+for the one function that exercises it. GCC accepts conversions
+`prf()` lacks or reads differently (`%i`, floating, `hh`, `h`, `ll`, `j`,
+`z`, `t`, `%n`), so `check-kernel-printf-formats` restricts the literal
+formats of those four functions to the set both readers share. `prf()`
+itself still walks its arguments as `&fmt + 1` with a private `va_arg`
+macro instead of `<stdarg.h>`; that dependence on the ABI's argument layout
+is the next varargs migration unit in `sys/kern`.
 
 Add `-Wconversion`, `-Wsign-conversion`, `-Wshadow`, `-Wcast-align` and
 `-Wvla` only after a known-good/known-bad calibration for the migration family.
@@ -252,7 +290,9 @@ The complete refactor is a sequence of finite frontiers:
 1. Land the tracked-file classifier and quarantine manifest. Unknown files
    fail closed.
 2. Land calibrated AST/compiler inventories for old definitions,
-   non-prototype declarations, implicit types/calls and old varargs.
+   non-prototype declarations, implicit types/calls and old varargs. The
+   kernel ledger (`check-c17-kernel-inventory`) is the first; each later
+   frontier extends the same two-oracle union to its own sources.
 3. Close `sys/kern` by subsystem, extending `check-ufs-prototypes` into exact
    kernel compile units before changing userland.
 4. Close RP2040 machine/device code and generated PICO/PICO_UART consumers,

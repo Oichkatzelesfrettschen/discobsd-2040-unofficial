@@ -230,7 +230,16 @@ padding_and_flags(void)
  * %b decodes a register into its named bits, which is what a driver uses to
  * report a status word. The base comes first as a control character, then
  * each bit's number and name.
+ *
+ * The format(printf) attribute on printf() in sys/sys/systm.h checks calls
+ * against ISO C, where %b is C23's binary conversion taking one argument, so
+ * the register-name argument draws a format diagnostic. The gate drives
+ * prf()'s implementation directly with format checking off for this
+ * function; kernel sources may not use %b (check-kernel-printf-formats).
  */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
 static void
 bit_field_decoding(void)
 {
@@ -242,6 +251,7 @@ bit_field_decoding(void)
 	printf("reg=%b", 0, "\10\2BITTWO\1BITONE");
 	EXPECT("reg=0", "a register with no bits set names none");
 }
+#pragma GCC diagnostic pop
 
 /*
  * Where the output goes. printf reaches the console; uprintf reaches the

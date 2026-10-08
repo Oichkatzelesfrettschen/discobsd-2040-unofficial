@@ -151,12 +151,14 @@ extern dev_t get_cdev_by_name(char *);
 extern char *cdevname(dev_t dev);
 
 void panic (char *msg);
-void printf (char *fmt, ...);
-void uprintf (char *fmt, ...);      /* print to the current user's terminal */
+void printf (char *fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+void uprintf (char *fmt, ...)      /* print to the current user's terminal */
+    __attribute__((__format__(__printf__, 1, 2)));
 struct tty;
-void tprintf (struct tty *tp, char *fmt, ...);  /* print to the specified terminal */
+void tprintf (struct tty *tp, char *fmt, ...)  /* print to the specified terminal */
+    __attribute__((__format__(__printf__, 2, 3)));
 int loginit (void);
-void log (int level, char *fmt, ...);
+void log (int level, char *fmt, ...) __attribute__((__format__(__printf__, 2, 3)));
 int logwrt (char *buf, int len, int log);
 void logwakeup (int unit);
 void config (void);

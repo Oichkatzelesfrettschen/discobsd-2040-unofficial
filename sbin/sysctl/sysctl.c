@@ -121,7 +121,7 @@ _Static_assert(NELEM(netname) == NET_MAXID,
 #endif
 
 void	listall(char *, struct list *);
-void	parse(char *, int);
+int	parse(char *, int);
 void	debuginit(void);
 #ifdef PF_INET
 int	sysctl_inet(char *, char **, int *, int, int *);
@@ -151,7 +151,7 @@ char *equ = "=";
 int
 main(int argc, char *argv[])
 {
-	int ch, lvl1;
+	int ch, lvl1, exit_status = 0;
 
 	while ((ch = getopt(argc, argv, "Aanw")) != EOF) {
 		switch (ch) {
@@ -187,8 +187,9 @@ main(int argc, char *argv[])
 	if (argc == 0)
 		usage();
 	while (argc-- > 0)
-		parse(*argv, 1);
-	return (0);
+		if (parse(*argv++, 1) != 0)
+			exit_status = 1;
+	return (exit_status);
 }
 
 /*
@@ -218,7 +219,7 @@ listall(char *prefix, struct list *lp)
  * Lookup and print out the MIB entry if it exists.
  * Set a new value if requested.
  */
-void
+int
 parse(char *string, int flags)
 {
 	int indx, type, intval, len;
@@ -245,7 +246,7 @@ parse(char *string, int flags)
 		newsize = strlen(cp);
 	}
 	if ((indx = findname(string, "top", &bufp, &toplist)) == -1)
-		return;
+		return (1);
 	mib[0] = indx;
 	if (indx == CTL_DEBUG)
 		debuginit();
@@ -253,14 +254,14 @@ parse(char *string, int flags)
 	if (lp->list == 0) {
 		fprintf(stderr, "%s: class is not implemented\n",
 		    topname[indx].ctl_name);
-		return;
+		return (1);
 	}
 	if (bufp == NULL) {
 		listall(topname[indx].ctl_name, lp);
-		return;
+		return (0);
 	}
 	if ((indx = findname(string, "second", &bufp, lp)) == -1)
-		return;
+		return (1);
 	mib[1] = indx;
 	type = lp->list[indx].ctl_type;
 	len = 2;
@@ -269,24 +270,24 @@ parse(char *string, int flags)
 		switch (mib[1]) {
 		case KERN_PROF:
 			if (flags == 0)
-				return;
+				return (0);
 			fprintf(stderr,
 			    "%s is not supported in DiscoBSD\n", string);
-			return;
+			return (1);
 		case KERN_INODE:
 		case KERN_FILE:
 		case KERN_TEXT:
 			if (flags == 0)
-				return;
+				return (0);
 			fprintf(stderr,
 			    "Use pstat to view %s information\n", string);
-			return;
+			return (1);
 		case KERN_PROC:
 			if (flags == 0)
-				return;
+				return (0);
 			fprintf(stderr,
 			    "Use ps to view %s information\n", string);
-			return;
+			return (1);
 		case KERN_CLOCKRATE:
 			special |= CLOCK;
 			break;
@@ -306,14 +307,18 @@ parse(char *string, int flags)
 		if (mib[1] == VM_LOADAVG) {
 			u_int loads[3];
 
-			getloadavg(loads, 3);
+			if (getloadavg(loads, 3) != 3) {
+				if (flags)
+					fprintf(stderr, "%s: load average is unavailable\n", string);
+				return (1);
+			}
 			if (!nflag)
 				fprintf(stdout, "%s%s", string, equ);
 			fprintf(stdout, "%u.%02u %u.%02u %u.%02u\n",
 			    loads[0] / 100, loads[0] % 100,
 			    loads[1] / 100, loads[1] % 100,
 			    loads[2] / 100, loads[2] % 100);
-			return;
+			return (0);
 		}
 		/*
 		 * vm.nswap is an integer and prints here. The rest of the
@@ -323,24 +328,24 @@ parse(char *string, int flags)
 		if (mib[1] == VM_NSWAP)
 			break;
 		if (flags == 0)
-			return;
+			return (0);
 		fprintf(stderr,
 		    "Use vmstat or pstat to view %s information\n", string);
-		return;
+		return (1);
 
 	case CTL_NET:
 #ifdef PF_INET
 		if (mib[1] == PF_INET) {
 			len = sysctl_inet(string, &bufp, mib, flags, &type);
-			if (len < 0)
-				return;
+			if (len <= 0)
+				return (len < 0);
 			break;
 		}
 #endif /* PF_INET */
 		if (flags == 0)
-			return;
+			return (0);
 		fprintf(stderr, "Use netstat to view %s information\n", string);
-		return;
+		return (1);
 
 	case CTL_DEBUG:
 		mib[2] = CTL_DEBUG_VALUE;
@@ -353,8 +358,8 @@ parse(char *string, int flags)
 #ifdef CPU_MPU
 		if (mib[1] == CPU_MPU) {
 			len = sysctl_mpu(string, &bufp, mib, flags, &type);
-			if (len < 0)
-				return;
+			if (len <= 0)
+				return (len < 0);
 			if (mib[2] == CPU_MPU_CTRL)
 				special |= HEX;
 			break;
@@ -368,12 +373,12 @@ parse(char *string, int flags)
 
 	default:
 		fprintf(stderr, "illegal top level value: %d\n", mib[0]);
-		return;
+		return (1);
 	}
 
 	if (bufp) {
 		fprintf(stderr, "name %s in %s is unknown\n", bufp, string);
-		return;
+		return (1);
 	}
 	if (newsize > 0) {
 		switch (type) {
@@ -394,22 +399,22 @@ parse(char *string, int flags)
 	if (sysctl(mib, len, buf, &size, newsize ? newval : (void *)0,
 	    newsize) == -1) {
 		if (flags == 0)
-			return;
+			return (0);
 		switch (errno) {
 		case EOPNOTSUPP:
 			fprintf(stderr, "%s: value is not available\n", string);
-			return;
+			return (1);
 		case ENOTDIR:
 			fprintf(stderr, "%s: specification is incomplete\n",
 			    string);
-			return;
+			return (1);
 		case ENOMEM:
 			fprintf(stderr, "%s: type is unknown to this program\n",
 			    string);
-			return;
+			return (1);
 		default:
 			perror(string);
-			return;
+			return (1);
 		}
 	}
 	if (special & CLOCK) {
@@ -420,7 +425,7 @@ parse(char *string, int flags)
 		fprintf(stdout,
 		    "tick = %d, hz = %d, profhz = %d, stathz = %d\n",
 		    clkp->tick, clkp->hz, clkp->profhz, clkp->stathz);
-		return;
+		return (0);
 	}
 	if (special & BOOTTIME) {
 		struct timeval *btp = (struct timeval *)buf;
@@ -430,7 +435,7 @@ parse(char *string, int flags)
 			    ctime(&btp->tv_sec));
 		else
 			fprintf(stdout, "%ld\n", btp->tv_sec);
-		return;
+		return (0);
 	}
 	if (special & CONSDEV) {
 		dev_t dev = *(dev_t *)buf;
@@ -440,7 +445,7 @@ parse(char *string, int flags)
 			    devname(dev, S_IFCHR));
 		else
 			fprintf(stdout, "0x%x\n", dev);
-		return;
+		return (0);
 	}
 #ifdef CPU_STORAGE_STATS
     if (mib[0] == CTL_MACHDEP && mib[1] == CPU_STORAGE_STATS) {
@@ -478,7 +483,7 @@ parse(char *string, int flags)
         if (size != sizeof(*stats) || stats->version != STORAGE_STATS_VERSION ||
             stats->size != sizeof(*stats)) {
             fprintf(stderr, "%s: unsupported storage ABI\n", string);
-            return;
+            return (1);
         }
         if (!nflag)
             fprintf(stdout, "%s%s", string, equ);
@@ -488,7 +493,7 @@ parse(char *string, int flags)
         for (i = 0; i < STORAGE_METRIC_COUNT; i++)
             fprintf(stdout, "%s %lu\n", names[i],
                 (unsigned long)stats->value[i]);
-        return;
+        return (0);
     }
 #endif
 	if (special & CAPACITY) {
@@ -503,7 +508,7 @@ parse(char *string, int flags)
 		    stats->version != KERNEL_CAPACITY_VERSION ||
 		    stats->size != sizeof(*stats)) {
 			fprintf(stderr, "%s: unsupported capacity ABI\n", string);
-			return;
+			return (1);
 		}
 		if (!nflag)
 			fprintf(stdout, "%s%s", string, equ);
@@ -527,7 +532,7 @@ parse(char *string, int flags)
 		    stats->uarea_bytes, stats->user_bytes, stats->stack_bytes,
 		    stats->stack_peak, stats->stack_minimum_free,
 		    stats->stack_saturated);
-		return;
+		return (0);
 	}
 	switch (type) {
 	case CTLTYPE_INT:
@@ -547,7 +552,7 @@ parse(char *string, int flags)
 			else
 				fprintf(stdout, "%d\n", *(int *)newval);
 		}
-		return;
+		return (0);
 
 	case CTLTYPE_STRING:
 		if (newsize == 0) {
@@ -559,7 +564,7 @@ parse(char *string, int flags)
 				fprintf(stdout, "%s: %s -> ", string, buf);
 			fprintf(stdout, "%s\n", (char *)newval);
 		}
-		return;
+		return (0);
 
 	case CTLTYPE_LONG:
 		if (newsize == 0) {
@@ -572,18 +577,18 @@ parse(char *string, int flags)
 				    *(long *)buf);
 			fprintf(stdout, "%ld\n", *(long *)newval);
 		}
-		return;
+		return (0);
 
 	case CTLTYPE_STRUCT:
 		fprintf(stderr, "%s: unknown structure returned\n",
 		    string);
-		return;
+		return (1);
 
 	default:
 	case CTLTYPE_NODE:
 		fprintf(stderr, "%s: unknown type returned\n",
 		    string);
-		return;
+		return (1);
 	}
 }
 
@@ -650,7 +655,7 @@ sysctl_inet(char *string, char **bufpp, int mib[], int flags, int *typep)
 
 	if (*bufpp == NULL) {
 		listall(string, &inetlist);
-		return (-1);
+		return (0);
 	}
 	if ((indx = findname(string, "third", bufpp, &inetlist)) == -1)
 		return (-1);
@@ -666,7 +671,7 @@ sysctl_inet(char *string, char **bufpp, int mib[], int flags, int *typep)
 	}
 	if (*bufpp == NULL) {
 		listall(string, lp);
-		return (-1);
+		return (0);
 	}
 	if ((indx = findname(string, "fourth", bufpp, lp)) == -1)
 		return (-1);
@@ -691,7 +696,7 @@ sysctl_mpu(char *string, char **bufpp, int mib[], int flags, int *typep)
 	(void)flags;			/* Every mpu leaf is a plain integer. */
 	if (*bufpp == NULL) {
 		listall(string, &mpulist);
-		return (-1);
+		return (0);
 	}
 	if ((indx = findname(string, "third", bufpp, &mpulist)) == -1)
 		return (-1);

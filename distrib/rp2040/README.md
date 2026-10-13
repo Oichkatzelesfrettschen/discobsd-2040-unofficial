@@ -43,7 +43,7 @@ Hold BOOTSEL while plugging the board in; it enumerates as `RPI-RP2`. Then:
     picotool load distrib/rp2040/flash.uf2
     picotool load sys/arch/rp2040/compile/PICO/unix.uf2
     picotool reboot
-    discobsd-connect
+    sh distrib/rp2040/host/discobsd-connect
 
 Each `load` programs only the sectors its file covers, so the two do not
 disturb each other; the ROM's mass-storage loader accepts the same files by
@@ -57,7 +57,7 @@ re-enumerates as a CDC-ACM device, vendor 2e8a product 000a, and Linux
 provides a `/dev/serial/by-id/*DiscoBSD*` identity. Resolve that identity
 instead of assuming a ttyACM number:
 
-    discobsd-connect
+    sh distrib/rp2040/host/discobsd-connect
 
 The kernel keeps the last 8 KiB of output until a terminal opens the port,
 so the boot messages are there to read. Holding BOOTSEL through a reset

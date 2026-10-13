@@ -270,3 +270,19 @@ unwind calibration, process touched peak, table-pressure corpus and storage
 traffic remain open until retained board captures decide them. The roadmap
 retains item 12 as open. Neither a hosted Smaller C run nor an emulator run
 closes the physical-board or on-device preprocessing boundary.
+
+## Login prerequisite evidence
+
+The attended replacement-image run reaches `login:` after both UF2 loads
+and filesystem checks succeed. Entering `operator` produces `Password:`.
+The source and extracted root both store operator offset 139; the named empty
+operator shadow field begins at byte 127. `getpw()` seeks the stored byte
+offset directly, so the stale offset selects a nonempty field. The account
+repair selects byte 127. The account-image checker requires exact offsets
+into uniquely named root and operator records and rejects shifted offsets,
+missing or duplicate records, an unlocked root, and a nonempty operator field.
+
+The capture establishes boot and the failed login prerequisite. Capacity,
+stack calibration, and storage workloads remain unexecuted in that run. A
+replacement image requires verified account packaging and an attended login
+before the capacity workload supplies hardware evidence.

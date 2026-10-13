@@ -979,7 +979,8 @@ attached, recorded in emulation.md.
 
 `check-board-build` builds the on-device regression programs to a.out
 through tests/rp2040/Makefile: fptest (Boot ROM float, bit-exact),
-sigtest (signal frames), streamtest (NSTATIC), tartest (the -Z filter
+sigtest (signal frames), streamtest (NSTATIC), stdiocap (syscall-sampled
+process-stack extent), tartest (the -Z filter
 across a pipe), romprobe (ROM table dump), textcrc (packed executable
 text restoration), swapmaptest (the swap map read through sysctl(3), each
 free run held inside the device between SWAP_IMAGE_ALIGN and vm.nswap),
@@ -991,6 +992,14 @@ flash a board and check it over the USB console: board_aout_admission.py
 (a truncated, an oversized and an even-entry image refused with distinct
 errors), board_exec_hsaout.py (textcrc raw and packed across a swap) and
 board_stack_align.py.
+
+`tests/rp2040/stdio_capacity/stdiocap` runs one operation per exec. Its
+`trap` and `leaf` controls distinguish sampled extent from touched peak;
+`fprintf`, `vfprintf`, and `fputs` accept lengths from 0 through 2049.
+`docs/research/board-capacity-acceptance.md` defines calibration, image
+identity, workload and remaining measurement boundaries. A successful
+board-build establishes compilation and a.out conversion; execution and
+calibration remain board gates.
 
 The board tier is the only one that reaches silicon. Renode with the
 third-party RP2040 models `tools/renode/fetch-renode-rp2040.sh` clones is

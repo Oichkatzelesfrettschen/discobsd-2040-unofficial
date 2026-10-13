@@ -95,7 +95,8 @@ enumerate the boot ROM, which is why `picotool info -f` fails there and
 the two-step form does not.
 
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only
-    discobsd-flash distrib/rp2040/flash.uf2                     # everything
+    discobsd-flash distrib/rp2040/flash.uf2                   # root only
+    discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 ## Release artifacts

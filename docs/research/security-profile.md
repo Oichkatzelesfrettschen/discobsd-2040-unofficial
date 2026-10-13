@@ -25,8 +25,12 @@ the root password field begins after `root:`. That field now contains the
 locked marker `*`; the RP2040 manifest installs `/etc/shadow` with mode
 `0600`. The fixed DES verifier formerly shipped for root has been removed.
 
-The operator entry resolves to an empty password field. `etc/group` lists
-root and operator in group zero (`wheel`). `etc/ttys` marks the USB console
+The operator entries in `etc/passwd` and the selected RP2040 variant
+`etc/passwd.rp2040` use byte offset 127 and resolve to the empty operator shadow
+password field. The account-image gate verifies that root and operator offsets
+select their own named shadow records before checking the password policy.
+Changing an earlier shadow record requires updating subsequent numeric offsets.
+`etc/group` lists root and operator in group zero (`wheel`). `etc/ttys` marks the USB console
 insecure, and `login` refuses direct root login there. The manifest packs
 `/usr/bin/su` with mode `04751`. The target `su` checks wheel membership
 before a root transition and skips password verification for root targets;

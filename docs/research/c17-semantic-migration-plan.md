@@ -463,7 +463,11 @@ The getwd lifetime unit closes the borrowed-entry defect; its independent
 bounds and metadata limitations remain documented. Item 8 records the exhaustive mapping decision and paired resource reduction.
 Item 9 completes wrapper, formatter and 256-byte batching units. Item 10
 completes the four typed uio definitions; item 11 passes its final hosted
-Smaller C rerun. Item 12 remains the physical-board frontier.
+Smaller C rerun. Item 12 remains the physical-board frontier. The attended
+image boots, but operator login exposes a stale shadow offset before workload
+execution. The account-offset repair and calibrated image gate restore the
+source/packaging prerequisite; attended login and workload measurements remain
+open.
 `board-capacity-acceptance.md` defines the sampled-process-stack probe,
 its calibration, image boundaries and remaining runtime measurements. The source
 classification/quarantine program in `c17-formatting-linting.md` still owns

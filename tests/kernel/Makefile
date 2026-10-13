@@ -203,7 +203,7 @@ rmap_test_diagnostic: rmap_test.c ${RMAP_SRC} hostkern_kern.c hostkern.o \
 
 uio_test: uio_test.c ${UIO_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} -c -o uio_kernel.o ${UIO_SRC}
+	${HOST_CC} ${KERN_CFLAGS} -Wold-style-definition -c -o uio_kernel.o ${UIO_SRC}
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    uio_test.c hostkern_kern.c uio_kernel.o hostkern.o
 

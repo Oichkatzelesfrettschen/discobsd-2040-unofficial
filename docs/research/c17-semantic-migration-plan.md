@@ -429,6 +429,10 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
     public declarations, pointer widths and format arguments. Preserve
     Pico SDK register/ROM conventions and target attributes. Output: a
     reduced calibrated ledger and unchanged or explained linked footprint.
+    The selected family is uiomove/ureadc/uwritec/uiofmove in kern_subr.c.
+    Typed definitions match the public prototypes, preserve their bodies and
+    carry an old-style-definition rejection gate.
+    `kernel-uio-typed-interfaces.md` records caller preconditions and evidence.
 11. **Validate native-header inputs.** Compile, link and execute a Smaller C
     stdio consumer; separately probe each proposed new header construct. The
     `t18_stdio` fixture now consumes expanded `stdio.h` and `sys/dir.h`, pins
@@ -439,7 +443,9 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
     after host preprocessing; on-device preprocessing and board execution stay
     open. Rerun the fixture after every admitted public-header change and once
     more after items 7 through 10. Output: native acceptance receipts,
-    distinct from GNU17 cross builds.
+    distinct from GNU17 cross builds. The final hosted rerun after item 10
+    passes all 18 Smaller C programs and the damaged/restored archive control;
+    `kernel-uio-typed-interfaces.md` records that acceptance boundary.
 12. **Measure capacity and persistence on the board.** After explicit opt-in,
     select the exact image/configuration and collect process/kernel stack,
     table high-water, allocation failure and storage traffic under a named

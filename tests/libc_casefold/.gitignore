@@ -1,0 +1,11 @@
+casefold_signed
+casefold_unsigned
+casefold_signed32
+casefold_unsigned32
+casefold_signed_san
+casefold_unsigned_san
+*.o
+casefold_*.mutant.c
+casefold_*.mutant.test
+casefold_*.mutant.log
+casefold_mutants.stamp

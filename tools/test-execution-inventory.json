@@ -248,7 +248,8 @@
         "check-textbox-host",
         "check-scandir-contracts",
         "check-dirent-contracts",
-        "check-getwd-lifetime"
+        "check-getwd-lifetime",
+        "check-libc-casefold"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },
@@ -270,6 +271,11 @@
     {
       "from": "check-getwd-lifetime",
       "to": "tests/dirent_contracts:check-getwd-lifetime",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-casefold",
+      "to": "tests/libc_casefold:check",
       "kind": "recursive make"
     }
   ],
@@ -2065,6 +2071,130 @@
       "prerequisites": [
         "getwd_lifetime_mutant",
         "check_getwd_mutant.sh"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.signed.native",
+      "width": "native",
+      "program": "casefold_signed",
+      "capability": "native compiler and runtime",
+      "target": "check-signed",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.signed.native -- ./casefold_signed",
+      "prerequisites": [
+        "casefold_signed"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.signed.ilp32",
+      "width": "ilp32",
+      "program": "casefold_signed32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-signed",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.signed.ilp32 -- ./casefold_signed32",
+      "prerequisites": [
+        "casefold_signed32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.signed.sanitized",
+      "width": "native",
+      "program": "casefold_signed_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-signed",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.casefold.signed.sanitized -- ./casefold_signed_san",
+      "prerequisites": [
+        "casefold_signed_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.unsigned.native",
+      "width": "native",
+      "program": "casefold_unsigned",
+      "capability": "native compiler and runtime",
+      "target": "check-unsigned",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.unsigned.native -- ./casefold_unsigned",
+      "prerequisites": [
+        "casefold_unsigned"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.unsigned.ilp32",
+      "width": "ilp32",
+      "program": "casefold_unsigned32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-unsigned",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.unsigned.ilp32 -- ./casefold_unsigned32",
+      "prerequisites": [
+        "casefold_unsigned32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.unsigned.sanitized",
+      "width": "native",
+      "program": "casefold_unsigned_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-unsigned",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.casefold.unsigned.sanitized -- ./casefold_unsigned_san",
+      "prerequisites": [
+        "casefold_unsigned_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.negative -- sh ./check_mutants.sh",
+      "script": "tests/libc_casefold/check_mutants.sh",
+      "prerequisites": [
+        "casefold_high_bytes.mutant.test",
+        "casefold_signed_order.mutant.test",
+        "casefold_count_early.mutant.test",
+        "casefold_errno_loss.mutant.test",
+        "check_mutants.sh"
       ]
     }
   ]

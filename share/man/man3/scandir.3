@@ -4,7 +4,7 @@
 .\"
 .\"	@(#)scandir.3	6.2 (Berkeley) 9/17/85
 .\"
-.TH SCANDIR 3  "September 17, 1985"
+.TH SCANDIR 3 "October 13, 2026"
 .UC 5
 .SH NAME
 scandir, alphasort \- scan a directory
@@ -13,59 +13,71 @@ scandir, alphasort \- scan a directory
 .B #include <sys/types.h>
 .B #include <sys/dir.h>
 .PP
-.B scandir(dirname, namelist, select, compar)
-.B char *dirname;
-.B struct direct *(*namelist[]);
-.B int (*select)();
-.B int (*compar)();
+.B int scandir(const char *dirname, struct direct ***namelist,
+.B "    int (*select_entry)(const struct direct *),"
+.B "    int (*compar)(const struct direct **, const struct direct **));"
 .PP
-.B alphasort(d1, d2)
-.B struct direct **d1, **d2;
+.B int alphasort(const struct direct **left, const struct direct **right);
 .fi
 .SH DESCRIPTION
-.I Scandir
-reads the directory
-.I dirname
-and builds an array of pointers to directory
-entries using
-.IR malloc (3).
-It returns the number of entries in the array and a pointer to the
-array through
-.IR namelist .
-.PP
-The
-.I select
-parameter is a pointer to a user supplied subroutine which is called by
 .I scandir
-to select which entries are to be included in the array.
-The select routine is passed a
-pointer to a directory entry and should return a non-zero
-value if the directory entry is to be included in the array.
-If
-.I select
-is null, then all the directory entries will be included.
+reads
+.I dirname
+and copies selected directory entries into separately allocated records.
+On success, the function returns the entry count and stores the allocated
+pointer array through
+.IR namelist .
+An empty selection returns zero and stores a null pointer.
 .PP
-The
-.I compar
-parameter is a pointer to a user supplied subroutine which is passed to
-.IR qsort (3)
-to sort the completed array. If this pointer is null, the array is not sorted.
-.I Alphasort
-is a routine which can be used for the
-.I compar
-parameter to sort the array alphabetically.
+The optional
+.I select_entry
+function receives a directory entry and returns nonzero to include the entry.
+A null selector includes every entry returned by
+.IR readdir (3).
+The pointer array grows from the accepted-entry count.
+Each copied record occupies
+.B DIRSIZ(entry)
+bytes, and its
+.B d_reclen
+reports that allocated length rather than the source directory-block span.
 .PP
-The memory allocated for the array can be deallocated with
-.I free
-(see
-.IR malloc (3))
-by freeing each pointer in the array and the array itself.
-.SH "SEE ALSO"
-directory(3),
-malloc(3),
-qsort(3),
-dir(5)
+The optional
+.I compar
+function receives pointers to two const directory-entry pointers.
+The function returns a negative, zero or positive value to order the first
+entry before, with or after the second entry.
+An iterative heap sort orders the pointer array with per-call comparator
+state. Equal entries have unspecified relative order.
+A null comparator preserves the directory's enumeration order.
+.PP
+.I alphasort
+compares entry names with
+.IR strcmp (3)
+in the fixed bytewise locale and preserves
+.IR errno .
+The interface retains the historical
+.B struct direct
+name and header; locale-aware collation remains unavailable.
+.PP
+The caller releases a successful result by freeing each entry and then
+freeing the pointer array with
+.IR free (3).
+On failure,
+.I scandir
+releases its allocated records and pointer array, closes the directory
+stream, preserves the deciding error in
+.IR errno ,
+and leaves the caller's
+.I namelist
+value unchanged.
 .SH DIAGNOSTICS
-Returns \-1 if the directory cannot be opened for reading or if
-.IR malloc (3)
-cannot allocate enough memory to hold all the data structures.
+.I scandir
+returns \-1 for directory-open, metadata, read or allocation failure.
+A descriptor referring to a nondirectory produces
+.BR ENOTDIR .
+An entry count exceeding the return type produces
+.BR EOVERFLOW .
+An unrepresentable allocation size produces
+.BR ENOMEM .
+.SH SEE ALSO
+directory(3), malloc(3), strcmp(3), dir(5)

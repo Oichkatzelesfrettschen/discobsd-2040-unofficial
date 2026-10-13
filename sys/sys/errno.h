@@ -112,7 +112,8 @@ extern  int errno;              /* global error number */
 #define EFTYPE          79      /* Inappropriate file type or format */
 #define EAUTH           80      /* Authentication error */
 #define ENEEDAUTH       81      /* Need authenticator */
-#define ELAST           81      /* Must be equal largest errno */
+#define EOVERFLOW       82      /* Value too large for data type */
+#define ELAST           82      /* Must be equal largest errno */
 
 #ifdef  KERNEL
 /* pseudo-errors returned inside kernel to modify return back to user mode */

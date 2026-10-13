@@ -342,10 +342,16 @@ check-libc-vis:
 		${MAKE} -C tests/libc_contracts check-vis
 
 check-dirent-contracts:
-		${MAKE} -C tests/dirent_contracts check
+		${MAKE} -C tests/dirent_contracts check-stream
 
 check-dirent-contracts-cross:
 		${MAKE} -C tests/dirent_contracts check-cross
+
+check-scandir-contracts:
+		${MAKE} -C tests/dirent_contracts check-scandir
+
+check-scandir-contracts-cross:
+		${MAKE} -C tests/dirent_contracts check-scandir-cross
 
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
@@ -658,7 +664,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \
-		check-dirent-contracts check-getty-contracts \
+		check-dirent-contracts check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts \
@@ -692,7 +698,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-random-cross \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
-		check-dirent-contracts-cross \
+		check-dirent-contracts-cross check-scandir-contracts-cross \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
 		check-find-contracts-cross \
@@ -810,7 +816,7 @@ check-ilp32-execution: check-python
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-textbox-host \
+		check-libc-host-contracts check-scandir-contracts check-textbox-host \
 		check-libtcl-contracts
 
 check-test-execution: check-python
@@ -961,7 +967,8 @@ installfs:
 		check-libc-random check-libc-random-cross check-libc-scanf \
 		check-libc-rwmode check-libc-ansi check-libc-syslog check-libc-vis \
 		check-libc-printf-float check-dirent-contracts \
-		check-dirent-contracts-cross check-colrm-contracts \
+		check-dirent-contracts-cross check-scandir-contracts \
+		check-scandir-contracts-cross check-colrm-contracts \
 		check-colrm-contracts-cross check-unifdef-contracts \
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \

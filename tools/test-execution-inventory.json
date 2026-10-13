@@ -248,6 +248,16 @@
         "check-textbox-host"
       ],
       "kind": "prerequisites after symlinks .WAIT"
+    },
+    {
+      "from": "check-scandir-contracts",
+      "to": "tests/dirent_contracts:check-scandir",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-scandir-contracts-cross",
+      "to": "tests/dirent_contracts:check-scandir-cross",
+      "kind": "recursive make"
     }
   ],
   "optional_investigations": [
@@ -1802,6 +1812,81 @@
       "aliases": [
         "check-libtcl-contracts"
       ]
+    },
+    {
+      "id": "libc.scandir.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir",
+      "root_target": "check-scandir-contracts",
+      "program": "scandir_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scandir_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scandir.native -- ./scandir_contract_test",
+      "aliases": []
+    },
+    {
+      "id": "libc.scandir.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir",
+      "root_target": "check-scandir-contracts",
+      "program": "scandir_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "scandir_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scandir.ilp32 -- ./scandir_contract_test32",
+      "aliases": []
+    },
+    {
+      "id": "libc.scandir.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir",
+      "root_target": "check-scandir-contracts",
+      "program": "scandir_contract_test_san",
+      "condition": "SCANDIR_SAN_OK == yes; compiler-probe.sh compiles and executes a sanitized native binary",
+      "prerequisites": [
+        "scandir_contract_test_san"
+      ],
+      "recipe": "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.scandir.sanitized -- ./scandir_contract_test_san",
+      "aliases": []
+    },
+    {
+      "id": "libc.scandir.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir-mutants",
+      "root_target": "check-scandir-contracts",
+      "program": "sh",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scandir_read_error_loss.mutant.test",
+        "scandir_cleanup_errno_loss.mutant.test",
+        "scandir_leak_record.mutant.test",
+        "scandir_metadata_growth.mutant.test",
+        "scandir_source_reclen.mutant.test",
+        "scandir_shared_comparator.mutant.test",
+        "check_scandir_mutants.sh"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scandir.negative -- sh ./check_scandir_mutants.sh",
+      "aliases": [],
+      "script": "tests/dirent_contracts/check_scandir_mutants.sh"
     }
   ]
 }

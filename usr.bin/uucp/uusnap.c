@@ -46,14 +46,16 @@ int	sndx;					/* Number of systems */
 struct	scnt	sys[NSYSTEM];			/* Systems queued */
 int xqtisrunning = 0;
 
+static void scan_spool_directory(char *, char *, int, int, int);
+
 main()
 {	register int i, j, nlen = 0;
 	time_t	curtime, t;
 
 	setbuf(stdout, SYSBUF);
-	scandir(CMDSDIR, "C.", CMDSLEN, NULL, CMDTYPE);
-	scandir(DATADIR, "D.", DATALEN, NULL, DATTYPE);
-	scandir(XEQTDIR, "X.", XEQTLEN, 'X', XEQTYPE);
+	scan_spool_directory(CMDSDIR, "C.", CMDSLEN, NULL, CMDTYPE);
+	scan_spool_directory(DATADIR, "D.", DATALEN, NULL, DATTYPE);
+	scan_spool_directory(XEQTDIR, "X.", XEQTLEN, 'X', XEQTYPE);
 	getstst(SPOOL);
 	time(&curtime);
 	for(i=0; i<sndx; ++i)
@@ -125,8 +127,8 @@ main()
 	exit(0);
 }
 
-scandir(dnam, prfx, flen, fchr, type)
-char *dnam, *prfx, fchr;
+static void
+scan_spool_directory(char *dnam, char *prfx, int flen, int fchr, int type)
 {
 	register struct direct *dentp;
 	register DIR *dirp;

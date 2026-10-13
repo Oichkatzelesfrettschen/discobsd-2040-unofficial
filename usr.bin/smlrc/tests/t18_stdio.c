@@ -5,6 +5,8 @@
  */
 #include <sys/types.h>
 #include <sys/dir.h>
+#include <errno.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -160,6 +162,21 @@ check_bounded_output(void)
 	return 0;
 }
 
+static int
+check_directory_close(void)
+{
+	DIR *directory;
+
+	directory = malloc(sizeof(DIR));
+	if (directory == NULL)
+		return 25;
+	directory->dd_fd = -1;
+	errno = 0;
+	if (closedir(directory) != -1 || errno != EBADF)
+		return 26;
+	return 0;
+}
+
 int
 main(void)
 {
@@ -185,5 +202,9 @@ main(void)
 	if (status != 0)
 		return status;
 	puts("PASS bounded output");
+	status = check_directory_close();
+	if (status != 0)
+		return status;
+	puts("PASS directory close result");
 	return 0;
 }

@@ -77,7 +77,7 @@ extern  DIR *opendir (const char *);
 extern  struct direct *readdir (DIR *);
 extern  long telldir (DIR *);
 extern  void seekdir (DIR *, long);
-extern  void closedir (DIR *);
+extern  int closedir (DIR *);
 extern  int scandir (const char *, struct direct ***,
     int (*)(const struct direct *),
     int (*)(const struct direct **, const struct direct **));

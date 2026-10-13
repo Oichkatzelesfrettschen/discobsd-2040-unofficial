@@ -242,7 +242,7 @@ Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
 | Resources | `sizeof(DIR)` 1,108 to 1,040 (-68 heap bytes per open directory); five-member text +80 |
 | Evidence class | Host and cross; board enumeration unmeasured |
 | Ledgers | Language done; interface done except below; resource done |
-| Residuals | The recorded falsifier is syntactic and layout-based; the six malformed-record classes are not recorded as calibrated against the pre-change reader. Owner: this row; deciding gate: a pre-change behavioral run of those cases. Board cross-block cookie replay: owner, the hardware gate. `closedir` returning `int` and an `opendir` regular-file check are separate interface rows |
+| Residuals | The recorded falsifier is syntactic and layout-based; the six malformed-record classes are not recorded as calibrated against the pre-change reader. Owner: this row; deciding gate: a pre-change behavioral run of those cases. Board cross-block cookie replay: owner, the hardware gate. The scanner, directory admission/CLOEXEC and integer close-result units below supply separate calibrated interface evidence |
 
 Source: `bsd-workspace-directory-stream-c17.md`.
 
@@ -392,8 +392,11 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    admission unit validates the opened descriptor, sets FD_CLOEXEC before
    allocation and preserves failure errno; `check-dirent-contracts` and its
    cross gate calibrate the unit. `libc-opendir-directory-cloexec.md` records
-   its measured stack and linked costs. The close-result transition remains
-   a separate unit, with the getwd post-close pointer lifetime distinct.
+   its measured stack and linked costs. The close-result unit returns one
+   close attempt, preserves errno through free and calibrates its result and
+   ownership with four mutations. `libc-closedir-result-contract.md` records
+   the source/ABI transition and paired resources. The separate `getwd`
+   borrowed-entry lifetime correction remains open.
    Output: one independently tested interface change per PR.
 8. **Resolve case-folding semantics.** Compare all byte pairs under signed
    and unsigned `char`; record the inherited high-bit ASCII mapping and
@@ -433,8 +436,8 @@ Items 1 through 3 form the bounded implementation in
 and edition-contract layer in `sus-utility-ledger.json`,
 `posix-utilities.md`, `bsd44-audit/posix_inventory.py` and
 `sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
-Item 7 has tested scanner and directory admission/CLOEXEC units. The
-close-result transition and separate getwd lifetime defect remain open. Items 8 through 10 and 12 remain the ordered
+Item 7 has tested scanner, directory admission/CLOEXEC and close-result units.
+The separate getwd borrowed-entry lifetime defect remains open. Items 8 through 10 and 12 remain the ordered
 continuation frontier. Item 11
 has a calibrated baseline and retains a final rerun after those interface
 changes. The source

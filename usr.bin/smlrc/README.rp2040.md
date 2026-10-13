@@ -204,7 +204,11 @@ through Smaller C. It pins the 24-byte `FILE` and 1,040-byte `DIR` layouts,
 independent unbuffered streams over one descriptor, stream-owned pushback,
 `scanf`, `sscanf`, `vsscanf`, EOF/error clearing, string-stream pushback and
 bounded `snprintf` results. The `scanf` host contract separately executes
-`vscanf` and `vfscanf`. A calibrated control replaces `filbuf.o` in a copied
+`vscanf` and `vfscanf`. The directory case allocates a DIR and checks
+`closedir` failure through its integer return and EBADF. The Linux execution
+shim translates the documented close errors; an unmodeled close error exits
+with status 125. Other syscall shims retain their own limitations.
+A calibrated control replaces `filbuf.o` in a copied
 libc archive, requires `t18_stdio` to reject the altered refill byte, restores
 the production archive, and checks the link map for the intended stdio
 members. The control never changes the source archive.

@@ -268,7 +268,7 @@ test_readdir(DIR *directory)
 	return &reused_entry;
 }
 
-void
+int
 test_closedir(DIR *directory)
 {
 	struct open_directory *opened;
@@ -279,6 +279,7 @@ test_closedir(DIR *directory)
 		opened->active = 0;
 	if (close_errno != 0)
 		dirent_test_errno = close_errno;
+	return close_errno == 0 ? 0 : -1;
 }
 
 static void

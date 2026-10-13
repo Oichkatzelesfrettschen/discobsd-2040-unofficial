@@ -45,7 +45,7 @@ existing failure policy rather than retrying or duplicating bytes.
 
 Six mutations independently remove return counts, capacity initialization,
 pointer lifetime, final-flush failure, first-failure termination or the selected
-chunk bound. The capacity mutation restores both allocation and capacity to
+chunk bound. The chunk mutation restores both allocation and capacity to
 BUFSIZ in fputs, so the test rejects a behavioral regression without creating
 an artificial undersized allocation. Native, ILP32, sanitizer and Cortex-M0+
 gates exercise the configuration. The execution inventory names all six

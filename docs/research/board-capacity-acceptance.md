@@ -122,9 +122,7 @@ run_checked()
     else
         command_status=$?
     fi
-    printf 'status=%d command=' "$command_status"
-    printf ' %s' "$@"
-    printf '\n'
+    echo "status=$command_status command= $*"
     return "$command_status"
 }
 run_checked sysctl kern.capacity || exit 1
@@ -141,8 +139,14 @@ run_checked sync || exit 1
 run_checked sysctl machdep.storage_stats || exit 1
 ```
 
-The wrapper prints each command and its status, and a failure ends the
-workload before the next command. The operator retains the complete transcript. The control's positive result admits only sampled
+The wrapper prints each command and its status with the shell's builtin
+`echo`; the fixed workload arguments contain neither options nor backslash
+escapes. Builtin reporting avoids extra utility processes inside the storage
+interval. A failure ends the workload before the next command. Explicit
+`sysctl` operands propagate lookup, syscall and snapshot-ABI failures; optional
+node enumeration retains best-effort behavior. `check-sysctl-status` exercises
+both contracts and rejects status, operand, continuation and external-reporting
+mutants. `check-posix-sh` repeats the workload controls with the repository shell. The operator retains the complete transcript. The control's positive result admits only sampled
 extent; the leaf control and each workload result retain their stated limits.
 
 A complete capacity-reduction decision additionally runs the workload corpus
@@ -151,6 +155,51 @@ pressure and deliberate fault handling. The initial stdio workload alone
 leaves that decision open. Recovery tests remain mandatory when a change
 alters flash behavior. These stdio and typed-interface units preserve the
 flash implementation; the board traffic measurements still remain open.
+
+## Snapshot command acceptance
+
+An explicit snapshot only enters the evidence set when its producer returns
+success and validates the returned ABI. `sysctl` accumulates explicit operand
+failures while advancing each operand once. The utility preserves best-effort
+`-a`, `-A` and subtree enumeration. The status repair also checks that
+`getloadavg` returns all three samples before printing them.
+
+`bmake MACHINE=rp2040 check-sysctl-status` compiles the exact utility source
+against target headers in ILP32 host processes. Host stdio remains behind a
+separate adapter; injected syscall records use the target layouts. Twenty-two
+cases exercise successful snapshots, lookup errors, unavailable nodes, malformed
+ABI version/size/length, load-average failure, distinct reads and assignments,
+and enumeration. Mutations restoring unconditional success or repeated first
+operands must fail. The documented workload gate injects failure at every one
+of its 43 command positions; continuation and external status-output mutations
+must fail. `check-posix-sh` supplies the repository shell independently of the
+host shell. The firmware ILP32 execution inventory retains the fixture binary's
+hash and ELF32 evidence.
+
+Paired ARMv6-M compilation with GCC 16.2.0, `-Os`, `-Wall -Wextra -Werror`
+and the build's layout defines compares the pre-repair utility at `bbccbf88`
+with the repaired source. Relinking each object against the same archive and
+other applet objects isolates the utility change; the adminbox comparison also
+substitutes the matching sysctl object in its BSS-overlay linker script.
+`arm-none-eabi-size`, `elf2aout` and `hsaout -s` give:
+
+| Artifact | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| sysctl object text | 4643 | 4736 | +93 bytes |
+| sysctl linked text | 15312 | 15404 | +92 bytes |
+| sysctl packed bytes | 13546 | 13609 | +63 bytes |
+| sysctl packed root blocks | 15 | 15 | 0 |
+| adminbox linked text | 24536 | 24628 | +92 bytes |
+| adminbox packed bytes | 21639 | 21686 | +47 bytes |
+| adminbox packed root blocks | 23 | 23 | 0 |
+
+Data/BSS remain 1524/1528 bytes for standalone sysctl and 1716/5558 bytes for
+adminbox. `-fstack-usage` reports `main` at 16 then 24 bytes; `parse` remains
+1168 bytes and the enumeration body remains 1048 bytes. The correctness repair
+fits the existing packed-root block budget. The measurements establish compiled
+storage and frame sizes, separate from board stack peaks or flash traffic.
+Inherited unrestricted name copying and output-delivery error handling remain
+outside the explicit query-status contract and require separate bounded work.
 
 ## Hosted preparation receipt
 
@@ -166,7 +215,8 @@ helper. Disassembly retains the volatile calibration loop and its live
 `getpid` relocation. Each number describes the compiled fixture, excluding
 callee frames unless named; the shipped manifest excludes the fixture.
 
-The retained test image uses source `21f4ae31326ca70d27e7ce89b4f81badb944f087`,
+The retained test image predates the sysctl failure-status repair and requires
+regeneration before board admission. The retained test image uses source `21f4ae31326ca70d27e7ce89b4f81badb944f087`,
 GCC 16.2.0, bmake 20260912, Python 3.14.7 and picotool 2.3.1. The optional
 storage-counter PICO kernel reports text/data/BSS 105142/376/39848 bytes.
 The test root adds only `stdiocap` and `streamtest`; filesystem checking reports

@@ -249,7 +249,8 @@
         "check-scandir-contracts",
         "check-dirent-contracts",
         "check-getwd-lifetime",
-        "check-libc-casefold"
+        "check-libc-casefold",
+        "check-sysctl-status"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },
@@ -292,13 +293,19 @@
         "check-scandir-contracts",
         "check-dirent-contracts",
         "check-getwd-lifetime",
-        "check-libc-output"
+        "check-libc-output",
+        "check-sysctl-status"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },
     {
       "from": "check-libc-output",
       "to": "tests/libc_output:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-sysctl-status",
+      "to": "tests/sysctl_status:check",
       "kind": "recursive make"
     }
   ],
@@ -2313,6 +2320,31 @@
         "check_arithmetic.py",
         "check_arithmetic.sh"
       ]
+    },
+    {
+      "id": "sysctl.status.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/sysctl_status",
+      "makefile": "tests/sysctl_status/Makefile",
+      "target": "check",
+      "root_target": "check-sysctl-status",
+      "program": "sh",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "check.sh",
+        "check.py",
+        "fixture.c",
+        "shim.c",
+        "check_workload.py"
+      ],
+      "recipe": "PYTHON=${PYTHON:Q} HOSTCC=${HOSTCC:Q} ${TEST_EXECUTION} run sysctl.status.ilp32 -- sh ./check.sh",
+      "aliases": [
+        "check-sysctl-status"
+      ],
+      "script": "tests/sysctl_status/check.sh",
+      "subject": "tests/sysctl_status/out/sysctl"
     }
   ]
 }

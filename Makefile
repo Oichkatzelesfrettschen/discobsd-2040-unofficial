@@ -341,6 +341,9 @@ check-libc-syslog:
 check-libc-vis:
 		${MAKE} -C tests/libc_contracts check-vis
 
+check-sysctl-status: check-python
+		${MAKE} -C tests/sysctl_status check
+
 check-libc-output: check-python
 		${MAKE} -C tests/libc_output check
 
@@ -685,7 +688,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \
-		check-dirent-contracts check-getwd-lifetime check-libc-output check-libc-casefold check-scandir-contracts check-getty-contracts \
+		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts \
@@ -838,7 +841,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
 		check-libc-host-contracts check-scandir-contracts \
-		check-dirent-contracts check-getwd-lifetime check-libc-output check-libc-casefold check-textbox-host \
+		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-libtcl-contracts
 
 check-test-execution: check-python
@@ -852,6 +855,7 @@ check-test-execution: check-python
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
+		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
 # concurrently. Kernel gates stay ordered because they rebuild and inspect the
@@ -1022,3 +1026,5 @@ installfs:
 .PHONY: check-libc-output check-libc-output-cross
 
 .PHONY: check-board-libc-output
+
+.PHONY: check-sysctl-status

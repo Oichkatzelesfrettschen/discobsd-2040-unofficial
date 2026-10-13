@@ -129,6 +129,7 @@ SCANF_DIR=	${TOPSRC}/lib/libc/stdio
 SCANF_STDLIB_DIR=${TOPSRC}/lib/libc/stdlib
 SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
 SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
+		-Dvscanf=db_vscanf -Dvfscanf=db_vfscanf -Dvsscanf=db_vsscanf \
 		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
 		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod
 SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \

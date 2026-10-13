@@ -18,6 +18,7 @@
 
 #include <limits.h>
 #include <float.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -26,7 +27,62 @@
 struct _iobuf _iob[3];
 
 int db_sscanf(const char *, const char *, ...);
+int db_vfscanf(FILE *, const char *, va_list);
+int db_vscanf(const char *, va_list);
+int db_vsscanf(const char *, const char *, va_list);
 int db_ungetc(int, FILE *);
+
+static int
+call_vfscanf(FILE *stream, const char *format, ...)
+{
+	va_list arguments;
+	int result;
+
+	va_start(arguments, format);
+	result = db_vfscanf(stream, format, arguments);
+	va_end(arguments);
+	return result;
+}
+
+static int
+call_vscanf(const char *format, ...)
+{
+	va_list arguments;
+	int result;
+
+	va_start(arguments, format);
+	result = db_vscanf(format, arguments);
+	va_end(arguments);
+	return result;
+}
+
+static int
+call_vsscanf(const char *input, const char *format, ...)
+{
+	va_list arguments;
+	int result;
+
+	va_start(arguments, format);
+	result = db_vsscanf(input, format, arguments);
+	va_end(arguments);
+	return result;
+}
+
+static void
+init_string_stream(FILE *stream, char *input)
+{
+	int length;
+
+	length = 0;
+	while (input[length] != '\0')
+		length++;
+	stream->_cnt = length;
+	stream->_ptr = stream->_base = input;
+	stream->_bufsiz = length;
+	stream->_flag = _IOREAD | _IOSTRG;
+	stream->_file = -1;
+	stream->_ub[0] = 0;
+}
 
 /*
  * filbuf.c reaches fflush for a line-buffered stdout before a read. A
@@ -63,6 +119,9 @@ main(void)
 	char text[LONG_DIGITS + 8];
 	char sbuf[64];
 	char cbuf[8];
+	char vfscanf_input[] = "43";
+	char vscanf_input[] = "44";
+	FILE vfscanf_stream;
 	long lv;
 	unsigned long ulv;
 	double dv;
@@ -82,6 +141,20 @@ main(void)
 	iv = -1;
 	r = db_sscanf("42", "%d", &iv);
 	check(r == 1 && iv == 42, "%d does not convert a plain decimal");
+
+	iv = -1;
+	r = call_vsscanf("42", "%d", &iv);
+	check(r == 1 && iv == 42, "vsscanf does not forward its argument list");
+
+	init_string_stream(&vfscanf_stream, vfscanf_input);
+	iv = -1;
+	r = call_vfscanf(&vfscanf_stream, "%d", &iv);
+	check(r == 1 && iv == 43, "vfscanf does not scan its selected stream");
+
+	init_string_stream(stdin, vscanf_input);
+	iv = -1;
+	r = call_vscanf("%d", &iv);
+	check(r == 1 && iv == 44, "vscanf does not scan stdin");
 
 	iv = -1;
 	r = db_sscanf("  \t\n 42", "%d", &iv);

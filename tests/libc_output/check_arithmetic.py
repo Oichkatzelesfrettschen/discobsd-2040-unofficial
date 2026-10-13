@@ -18,7 +18,7 @@ flags = ["-std=c17", "-Wall", "-Wextra", "-Werror", "-fno-builtin", "-nostdinc",
          "-Dfclose=arithmetic_fclose", "-fno-sanitize-recover=all",
          "-fno-omit-frame-pointer"]
 environment = dict(os.environ, ASAN_OPTIONS="detect_leaks=0:abort_on_error=1",
-                   UBSAN_OPTIONS="halt_on_error=1")
+                   UBSAN_OPTIONS="halt_on_error=1:abort_on_error=0:exitcode=1")
 with tempfile.TemporaryDirectory(prefix="printf-arithmetic-") as directory:
     work = Path(directory)
     for floating, mutation in ((False, False), (True, False), (False, True)):
@@ -44,7 +44,9 @@ with tempfile.TemporaryDirectory(prefix="printf-arithmetic-") as directory:
                                 text=True, timeout=15)
         if mutation:
             if result.returncode != 1 or "signed integer overflow" not in result.stderr:
-                raise SystemExit("digit grouping control misses its expected sanitizer check")
+                raise SystemExit(
+                    f"digit grouping control returns {result.returncode}; "
+                    f"expected UBSan exit 1\n{result.stdout}{result.stderr}")
             print("PASS decimal intermediate-overflow mutation rejected")
         elif result.returncode != 0:
             raise SystemExit(result.stdout + result.stderr)

@@ -7,7 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 
-static int checks;
 static int failures;
 int printf_test_errno;
 struct _iobuf _iob[3];
@@ -34,7 +33,6 @@ static int (*volatile bounded_format)(char *, size_t, const char *, ...) =
 static void
 check(int condition, const char *message)
 {
-	checks++;
 	if (!condition) {
 		failures++;
 		(void)write(2, message, strlen(message));

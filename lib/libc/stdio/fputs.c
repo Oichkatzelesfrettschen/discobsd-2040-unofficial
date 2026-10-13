@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <alloca.h>
+#include "output.h"
 
 int
 fputs(const char *text, FILE *stream)
@@ -17,8 +18,8 @@ fputs(const char *text, FILE *stream)
 		/* Preserve stream-owned buffer pointers across temporary batching. */
 		temporary = *stream;
 		temporary._flag &= ~_IONBF;
-		temporary._ptr = temporary._base = alloca(BUFSIZ);
-		temporary._bufsiz = BUFSIZ;
+		temporary._ptr = temporary._base = alloca(STDIO_OUTPUT_CHUNK);
+		temporary._bufsiz = STDIO_OUTPUT_CHUNK;
 		temporary._cnt = 0;
 		output = &temporary;
 	}

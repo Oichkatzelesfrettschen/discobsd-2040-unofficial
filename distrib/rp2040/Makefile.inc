@@ -111,6 +111,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/stdio/sprintf.c \
 				${TOPSRC}/lib/libc/stdio/fprintf.c \
 				${TOPSRC}/lib/libc/stdio/vfprintf.c \
+				${TOPSRC}/lib/libc/stdio/output.h \
 				${TOPSRC}/lib/libc/stdio/fputs.c \
 				${TOPSRC}/lib/libc/gen/confstr.c \
 				${TOPSRC}/lib/libc/gen/ctermid.c \

@@ -7,7 +7,7 @@ SAN_FLAGS= -fsanitize=address,undefined -fno-sanitize-recover=all \
     -fno-omit-frame-pointer
 SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
 SOURCE= ${TOPSRC}/lib/libc/stdio
-SOURCES= ${SOURCE}/fprintf.c ${SOURCE}/vfprintf.c ${SOURCE}/fputs.c \
+SOURCES= ${SOURCE}/output.h ${SOURCE}/fprintf.c ${SOURCE}/vfprintf.c ${SOURCE}/fputs.c \
     ${SOURCE}/doprnt.c ${SOURCE}/doprnt_llong.c ${SOURCE}/flsbuf.c ${SOURCE}/printf.c \
     ${SOURCE}/vprintf.c ${SOURCE}/sprintf.c ${SOURCE}/vsprintf.c
 BUILD= ${PYTHON} build_fixture.py ${TOPSRC}
@@ -35,7 +35,7 @@ check: output_native check-mutants check-arithmetic
 	${TEST_EXECUTION} skip libc.output.sanitized "output: sanitizer runtime unavailable"
 .endif
 
-MUTANTS= count capacity pointer flush continue
+MUTANTS= count capacity pointer flush continue chunk
 .for mutation in ${MUTANTS}
 mutant_${mutation}/test: build_fixture.py output_test.c ${SOURCES}
 	${BUILD} mutant_${mutation} --compiler ${HOSTCC:Q} --mutation ${mutation}

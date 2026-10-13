@@ -2290,6 +2290,7 @@
         "mutant_pointer/test",
         "mutant_flush/test",
         "mutant_continue/test",
+        "mutant_chunk/test",
         "check_mutants.sh"
       ],
       "script": "tests/libc_output/check_mutants.sh"

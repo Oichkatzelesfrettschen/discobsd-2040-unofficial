@@ -32,6 +32,8 @@ stdio.a:	${OBJS}
 		@echo "building stdio.a"
 		@${AR} cr stdio.a ${OBJS}
 
+vfprintf.o fputs.o: output.h
+
 tags:
 		cwd=`pwd`; \
 		for i in ${SRCS}; do \

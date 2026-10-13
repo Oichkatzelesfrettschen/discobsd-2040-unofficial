@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <alloca.h>
+#include "output.h"
 
 int
 vfprintf(FILE *stream, const char *format, va_list arguments)
@@ -29,8 +30,8 @@ vfprintf(FILE *stream, const char *format, va_list arguments)
 		/* The copy borrows the descriptor and owns only automatic storage. */
 		temporary = *stream;
 		temporary._flag &= ~_IONBF;
-		temporary._ptr = temporary._base = alloca(BUFSIZ);
-		temporary._bufsiz = BUFSIZ;
+		temporary._ptr = temporary._base = alloca(STDIO_OUTPUT_CHUNK);
+		temporary._bufsiz = STDIO_OUTPUT_CHUNK;
 		temporary._cnt = 0;
 		output = &temporary;
 	}

@@ -420,8 +420,10 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    The formatter unit checks count/width/precision arithmetic, stops real
    stream failures, counts truncated strings in bounded time and propagates
    printf/sprintf results. `stdio-formatter-count-contract.md` owns its
-   calibrated gates and resource account. Scratch-size evaluation remains
-   the next ordered subitem.
+   calibrated gates and resource account. The private batch capacity becomes
+   256 bytes after a 128/256/512/1024-byte comparison; wrapper frames fall
+   from 1080 to 312 bytes with explicit write-count and chunk-failure gates.
+   `stdio-output-batch-capacity.md` records the tradeoff and hardware residuals.
 10. **Migrate one kernel interface family.** Select a caller-closed group
     from `tools/c17/kernel-ledger.txt`; compare PICO/PICO_UART diagnostics,
     public declarations, pointer widths and format arguments. Preserve

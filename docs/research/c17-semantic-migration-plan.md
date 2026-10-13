@@ -461,9 +461,10 @@ and edition-contract layer in `sus-utility-ledger.json`,
 Item 7 has tested scanner, directory admission/CLOEXEC and close-result units.
 The getwd lifetime unit closes the borrowed-entry defect; its independent
 bounds and metadata limitations remain documented. Item 8 records the exhaustive mapping decision and paired resource reduction.
-Items 9, 10 and 12 remain the ordered
-continuation frontier. Item 11
-has a calibrated baseline and retains a final rerun after those interface
-changes. The source
+Item 9 completes wrapper, formatter and 256-byte batching units. Item 10
+completes the four typed uio definitions; item 11 passes its final hosted
+Smaller C rerun. Item 12 remains the physical-board frontier.
+`board-capacity-acceptance.md` defines the sampled-process-stack probe,
+its calibration, image boundaries and remaining runtime measurements. The source
 classification/quarantine program in `c17-formatting-linting.md` still owns
 the larger file-by-file denominator.

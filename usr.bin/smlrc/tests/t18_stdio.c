@@ -159,6 +159,14 @@ check_bounded_output(void)
 	if (snprintf(truncated, sizeof(truncated), "%s", "abcdef") != 6 ||
 	    memcmp(truncated, "abc\0", 4) != 0)
 		return 24;
+	errno = 0;
+	if (snprintf(NULL, 0, "%2147483648d", 1) != EOF || errno != EOVERFLOW)
+		return 29;
+	if (snprintf(NULL, 0, "%2147483647s", "") != 2147483647)
+		return 30;
+	if (snprintf(complete, sizeof(complete), "%#.3o", 1) != 3 ||
+	    strcmp(complete, "001") != 0)
+		return 31;
 	return 0;
 }
 
@@ -224,7 +232,8 @@ main(void)
 	status = check_bounded_output();
 	if (status != 0)
 		return status;
-	puts("PASS bounded output");
+	if (printf("PASS bounded output\n") != 20)
+		return 32;
 	status = check_stream_output();
 	if (status != 0)
 		return status;

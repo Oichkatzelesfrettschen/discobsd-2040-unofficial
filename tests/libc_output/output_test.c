@@ -69,6 +69,39 @@ call_vfprintf(FILE *stream, const char *format, ...)
     return result;
 }
 
+static int
+call_doprnt(FILE *stream, const char *format, ...)
+{
+    va_list arguments;
+    int result;
+    va_start(arguments, format);
+    result = _doprnt(format, arguments, stream);
+    va_end(arguments);
+    return result;
+}
+
+static int
+call_vprintf(const char *format, ...)
+{
+    va_list arguments;
+    int result;
+    va_start(arguments, format);
+    result = vprintf(format, arguments);
+    va_end(arguments);
+    return result;
+}
+
+static int
+call_vsprintf(char *buffer, const char *format, ...)
+{
+    va_list arguments;
+    int result;
+    va_start(arguments, format);
+    result = vsprintf(buffer, format, arguments);
+    va_end(arguments);
+    return result;
+}
+
 static void
 reset(FILE *stream)
 {
@@ -199,5 +232,44 @@ main(void)
     check(fprintf(&stream, "%s:%d", "x", 42) == 4 &&
         stream._ptr == buffer + 4 && write_calls == 0,
         "FAIL output buffered count");
+    reset(stdout);
+    check(printf("%s:%d", "x", 42) == 4 && captured_length == 4,
+        "FAIL output printf count");
+    reset(stdout);
+    check(call_vprintf("%s:%d", "x", 42) == 4 && captured_length == 4,
+        "FAIL output vprintf count");
+    reset(&stream);
+    fail_call = 1;
+    {
+        int counted = -1;
+        check(call_doprnt(&stream, "abc%n", &counted) == EOF &&
+            counted == -1 && write_calls == 1 && output_errno == EIO,
+            "FAIL output formatter stops before later count store");
+    }
+    reset(&stream);
+    stream._flag = _IOREAD;
+    check(call_doprnt(&stream, "x") == EOF && write_calls == 0,
+        "FAIL output formatter rejects read-only stream");
+    output_errno = 0;
+    check(sprintf(buffer, "%2147483648d", 1) == EOF &&
+        buffer[0] == '\0' && output_errno == EOVERFLOW,
+        "FAIL output sprintf propagates overflow");
+    output_errno = 0;
+    check(call_vsprintf(buffer, "%2147483648d", 1) == EOF &&
+        buffer[0] == '\0' && output_errno == EOVERFLOW,
+        "FAIL output vsprintf propagates overflow");
+    {
+        char *large = malloc(32769);
+        check(large != NULL, "FAIL output large fixture allocation");
+        if (large == NULL)
+            return 1;
+        check(sprintf(large, "%32768s", "") == 32768 &&
+            large[0] == ' ' && large[32767] == ' ' && large[32768] == '\0',
+            "FAIL output sprintf capacity exceeds historical short bound");
+        free(large);
+    }
+    check(sprintf(buffer, "%lld:%d", 1LL, 7) == 3 &&
+        strcmp(buffer, "1:7") == 0,
+        "FAIL output linked wide helper consumes its argument");
     return failures != 0;
 }

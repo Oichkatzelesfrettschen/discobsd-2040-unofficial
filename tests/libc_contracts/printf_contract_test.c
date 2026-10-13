@@ -67,6 +67,60 @@ main(void)
 	char untouched = 'x';
 	int length;
 
+	length = bounded_format(exact, sizeof(exact), "%3c", 'x');
+	check(length == 3 && strcmp(exact, "  x") == 0,
+	    "printf arithmetic: character width includes its byte");
+	length = bounded_format(exact, sizeof(exact), "%-*s", -3, "x");
+	check(length == 3 && strcmp(exact, "x  ") == 0,
+	    "printf arithmetic: negative width preserves left adjustment");
+	length = bounded_format(exact, sizeof(exact), "%#.3o", 1u);
+	check(length == 3 && strcmp(exact, "001") == 0,
+	    "printf arithmetic: octal precision supplies alternate zero");
+	length = bounded_format(exact, sizeof(exact), "%#.0o", 0u);
+	check(length == 1 && strcmp(exact, "0") == 0,
+	    "printf arithmetic: alternate zero survives zero precision");
+	if (failures != 0)
+		return 1;
+
+	{
+		int counted = -1;
+		check(bounded_format(NULL, 0, "%2147483647s", "") == INT_MAX,
+		    "printf arithmetic: maximal literal width remains representable");
+		check(bounded_format(NULL, 0, "%.2147483647d", 1) == INT_MAX,
+		    "printf arithmetic: maximal literal precision remains representable");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "%2147483648d", 1) == EOF &&
+		    printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: decimal width overflow");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "%.2147483648d", 1) == EOF &&
+		    printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: decimal precision overflow");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "%*s", INT_MIN, "x") == EOF &&
+		    printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: minimum star width overflow");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "%+.*d", INT_MAX, 1) == EOF &&
+		    printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: sign plus precision overflow");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "%#.*x", INT_MAX, 1u) == EOF &&
+		    printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: prefix plus precision overflow");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "x%*s", INT_MAX, "") == EOF &&
+		    printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: cumulative field overflow");
+		printf_test_errno = 0;
+		check(bounded_format(NULL, 0, "%*s%nX", INT_MAX, "", &counted) == EOF &&
+		    counted == INT_MAX && printf_test_errno == EOVERFLOW,
+		    "printf arithmetic: truncated logical count reaches INT_MAX");
+		check(bounded_format(exact, sizeof(exact), "%.*d", INT_MAX, 1) == INT_MAX &&
+		    strcmp(exact, "000") == 0,
+		    "printf arithmetic: valid maximal precision counts without iteration");
+	}
+
 	length = bounded_format(guarded.text, sizeof(guarded.text), "%s", "abcdef");
 	check(length == 6, "printf contract: snprintf reports required length");
 	check(strcmp(guarded.text, "abc") == 0,
@@ -162,6 +216,10 @@ main(void)
 		    "printf contract: the %D long extension survives");
 	}
 #ifdef PRINTF_FLOAT_TEST
+	printf_test_errno = 0;
+	check(bounded_format(NULL, 0, "%.2147483647f", 1.0) == EOF &&
+	    printf_test_errno == EOVERFLOW,
+	    "printf arithmetic: floating precision field overflow");
 	{
 		char out[64];
 

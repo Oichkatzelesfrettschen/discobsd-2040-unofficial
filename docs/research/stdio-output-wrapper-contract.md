@@ -19,7 +19,9 @@ source passes. Buffer size remains fixed while the ownership contract closes.
 ## Contract gates
 
 `check-libc-output` compiles the exact wrappers, formatter and output core
-against the tree's FILE definition. A write shim records payload and call
+against the tree's FILE definition. The fixture links the real long-long
+helper, matching the printf fixture: Mach-O requires the referenced symbol
+where an ELF link accepts the absent weak helper. A write shim records payload and call
 count, injects short writes or failures, and supplies the deciding errno.
 The fstat shim writes the tree's layout rather than a host struct stat.
 Native, ILP32 and ASan/UBSan variants exercise:
@@ -114,11 +116,8 @@ wear improvement. The unchanged kernel section sizes describe build extents.
 
 ## Remaining formatted-output work
 
-The formatter still ignores individual putc failures and carries unchecked
-count, width, precision and padding arithmetic. printf still loses its
-successful count; sprintf/vsprintf require return-propagation review when
-the formatter gains arithmetic failures. The next unit separates real stream
-errors from bounded-string truncation, calibrates overflow rejection and
-preserves snprintf's required-length contract. Only then does the scratch
-unit evaluate smaller chunks and their write amplification. Physical-board
-stack peaks, capacity and persistence remain distinct measurements.
+The formatter arithmetic and result unit is documented in
+`stdio-formatter-count-contract.md`. The scratch unit evaluates smaller chunks
+and their write amplification after the formatter contract closes.
+Physical-board stack peaks, capacity and persistence remain distinct
+measurements.

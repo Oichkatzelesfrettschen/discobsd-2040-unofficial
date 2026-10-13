@@ -8,7 +8,8 @@ SAN_FLAGS= -fsanitize=address,undefined -fno-sanitize-recover=all \
 SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
 SOURCE= ${TOPSRC}/lib/libc/stdio
 SOURCES= ${SOURCE}/fprintf.c ${SOURCE}/vfprintf.c ${SOURCE}/fputs.c \
-    ${SOURCE}/doprnt.c ${SOURCE}/flsbuf.c
+    ${SOURCE}/doprnt.c ${SOURCE}/doprnt_llong.c ${SOURCE}/flsbuf.c ${SOURCE}/printf.c \
+    ${SOURCE}/vprintf.c ${SOURCE}/sprintf.c ${SOURCE}/vsprintf.c
 BUILD= ${PYTHON} build_fixture.py ${TOPSRC}
 
 output_native: build_fixture.py output_test.c ${SOURCES}
@@ -18,7 +19,7 @@ output_ilp32: build_fixture.py output_test.c ${SOURCES}
 output_sanitized: build_fixture.py output_test.c ${SOURCES}
 	${BUILD} sanitized --binary output_sanitized --compiler ${HOSTCC:Q} --flags=${SAN_FLAGS:Q}
 
-check: output_native check-mutants
+check: output_native check-mutants check-arithmetic
 	${TEST_EXECUTION} run libc.output.native -- ./output_native
 .if ${ILP32_OK} == "yes"
 	@${MAKE} output_ilp32
@@ -43,7 +44,7 @@ check-mutants: ${MUTANTS:S/^/mutant_/:S/$/\/test/} check_mutants.sh
 	${TEST_EXECUTION} run libc.output.negative -- sh ./check_mutants.sh
 
 check-cross:
-.for member in fprintf vfprintf fputs
+.for member in fprintf vfprintf fputs printf vprintf sprintf vsprintf doprnt
 	${GCCPREFIX}-gcc -std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	    -Os -ffreestanding -fno-builtin -mcpu=cortex-m0plus -mthumb \
 	    -mfloat-abi=soft -nostdinc -I${TOPSRC}/include \
@@ -51,3 +52,11 @@ check-cross:
 .endfor
 
 .PHONY: check check-mutants check-cross
+
+check-arithmetic: check_arithmetic.py check_arithmetic.sh
+.if ${SAN_OK} == "yes"
+	PYTHON=${PYTHON:Q} HOSTCC=${HOSTCC:Q} ${TEST_EXECUTION} run libc.output.arithmetic -- sh ./check_arithmetic.sh
+.else
+	${TEST_EXECUTION} skip libc.output.arithmetic "output: sanitizer runtime unavailable"
+.endif
+.PHONY: check-arithmetic

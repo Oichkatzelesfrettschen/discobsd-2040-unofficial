@@ -16,19 +16,21 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
+#include <limits.h>
 
 int
 sprintf (char *str, const char *fmt, ...)
 {
 	FILE _strbuf;
 	va_list args;
+	int result;
 
 	_strbuf._flag = _IOWRT+_IOSTRG;
 	_strbuf._ptr = str;
-	_strbuf._cnt = 32767;
+	_strbuf._cnt = INT_MAX;
 	va_start (args, fmt);
-	_doprnt (fmt, args, &_strbuf);
+	result = _doprnt (fmt, args, &_strbuf);
 	va_end (args);
 	*_strbuf._ptr = 0;
-	return _strbuf._ptr - str;
+	return result;
 }

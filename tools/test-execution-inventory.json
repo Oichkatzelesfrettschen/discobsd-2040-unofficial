@@ -2293,6 +2293,25 @@
         "check_mutants.sh"
       ],
       "script": "tests/libc_output/check_mutants.sh"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.arithmetic",
+      "width": "native",
+      "program": "sh",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-arithmetic",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "PYTHON=${PYTHON:Q} HOSTCC=${HOSTCC:Q} ${TEST_EXECUTION} run libc.output.arithmetic -- sh ./check_arithmetic.sh",
+      "script": "tests/libc_output/check_arithmetic.sh",
+      "prerequisites": [
+        "check_arithmetic.py",
+        "check_arithmetic.sh"
+      ]
     }
   ]
 }

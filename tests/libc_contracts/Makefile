@@ -164,7 +164,7 @@ SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
 # doprnt.o refers to the weak __doprnt_ll; Mach-O resolves a weak
 # reference only against a definition, so the member is linked here too.
-SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
+SYSLOG_FORMAT_OBJS=	syslog_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
 
 .PHONY: check-stdio-bounds check-stdio-bounds-cross
 
@@ -175,6 +175,9 @@ syslog_contract_test: syslog_contract_test.c syslog_syslog.o ${SYSLOG_FORMAT_OBJ
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -nostdinc \
 	    -isystem ${TOPSRC}/include -o $@ syslog_contract_test.c \
 	    syslog_syslog.o ${SYSLOG_FORMAT_OBJS}
+
+syslog_doprnt.o: ${PRINTF_DIR}/doprnt.c
+	${HOSTCC} ${PRINTF_CFLAGS:S/printf_test_errno/syslog_test_errno/} -c -o $@ ${PRINTF_DIR}/doprnt.c
 
 syslog_syslog.o: ${SYSLOG_DIR}/syslog.c
 	${HOSTCC} ${SYSLOG_CFLAGS} -c -o $@ ${SYSLOG_DIR}/syslog.c
@@ -967,7 +970,7 @@ clean:
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
 	rm -f printf_doprnt_llong.o printf_doprnt_llong32.o
-	rm -f syslog_contract_test syslog_syslog.o
+	rm -f syslog_contract_test syslog_syslog.o syslog_doprnt.o
 	rm -f vis_contract_test vis_vis.o
 	rm -f string_security_test string_explicit_bzero.o \
 		string_timingsafe_bcmp.o string_timingsafe_bcmp_target.o \

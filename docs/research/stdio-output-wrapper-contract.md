@@ -116,11 +116,8 @@ wear improvement. The unchanged kernel section sizes describe build extents.
 
 ## Remaining formatted-output work
 
-The formatter still ignores individual putc failures and carries unchecked
-count, width, precision and padding arithmetic. printf still loses its
-successful count; sprintf/vsprintf require return-propagation review when
-the formatter gains arithmetic failures. The next unit separates real stream
-errors from bounded-string truncation, calibrates overflow rejection and
-preserves snprintf's required-length contract. Only then does the scratch
-unit evaluate smaller chunks and their write amplification. Physical-board
-stack peaks, capacity and persistence remain distinct measurements.
+The formatter arithmetic and result unit is documented in
+`stdio-formatter-count-contract.md`. The scratch unit evaluates smaller chunks
+and their write amplification after the formatter contract closes.
+Physical-board stack peaks, capacity and persistence remain distinct
+measurements.

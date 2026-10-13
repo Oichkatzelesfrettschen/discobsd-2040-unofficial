@@ -19,7 +19,8 @@ flags = [*shlex.split(args.compiler), *shlex.split(args.flags), "-std=c17",
          "-isystem", str(args.root / "include"), "-DNO_DOPRNT_FLOATFMT",
          "-Dfprintf=db_fprintf", "-Dvfprintf=db_vfprintf", "-Dfputs=db_fputs",
          "-D_flsbuf=db_flsbuf", "-Dfflush=db_fflush", "-Dfclose=db_fclose",
-         "-Derrno=output_errno"]
+         "-Derrno=output_errno", "-Dprintf=db_printf", "-Dvprintf=db_vprintf",
+         "-Dsprintf=db_sprintf", "-Dvsprintf=db_vsprintf"]
 mutations = {
     "count": ("fprintf", "return result;", "return result == EOF ? EOF : 0;"),
     "capacity": ("vfprintf", "temporary._bufsiz = BUFSIZ;", "temporary._bufsiz = 0;"),
@@ -30,7 +31,8 @@ mutations = {
     "continue": ("fputs", "\t\t\tbreak;", "\t\t\tcontinue;"),
 }
 objects = []
-for member in ("fprintf", "vfprintf", "fputs", "doprnt", "flsbuf", "doprnt_llong"):
+for member in ("fprintf", "vfprintf", "fputs", "doprnt", "doprnt_llong", "flsbuf",
+               "printf", "vprintf", "sprintf", "vsprintf"):
     source = args.root / "lib/libc/stdio" / f"{member}.c"
     if args.mutation and mutations[args.mutation][0] == member:
         _, anchor, replacement = mutations[args.mutation]

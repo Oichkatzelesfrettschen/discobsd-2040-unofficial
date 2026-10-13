@@ -417,8 +417,11 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    descriptor batching in a temporary FILE, preserves original buffer
    ownership and propagates fputs failures. The selected board archive
    carries the new vfprintf dependency and a calibrated a.out link gate.
-   Formatter count/width overflow, early formatter failure, printf counts
-   and scratch-size evaluation remain separate ordered subitems.
+   The formatter unit checks count/width/precision arithmetic, stops real
+   stream failures, counts truncated strings in bounded time and propagates
+   printf/sprintf results. `stdio-formatter-count-contract.md` owns its
+   calibrated gates and resource account. Scratch-size evaluation remains
+   the next ordered subitem.
 10. **Migrate one kernel interface family.** Select a caller-closed group
     from `tools/c17/kernel-ledger.txt`; compare PICO/PICO_UART diagnostics,
     public declarations, pointer widths and format arguments. Preserve

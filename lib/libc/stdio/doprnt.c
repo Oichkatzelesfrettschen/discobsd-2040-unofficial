@@ -38,6 +38,8 @@
 #include <unistd.h>
 #include <float.h>
 #include <math.h>
+#include <errno.h>
+#include <limits.h>
 
 /*
  * Number conversion buffer: sign, the integral digits of the largest
@@ -84,15 +86,65 @@ extern unsigned char *__doprnt_ll (va_list *app, int issigned,
 	int *lenp, unsigned char *negp, unsigned char *nonzerop)
 	__attribute__((weak));
 
+/* Truncated string output counts bytes without decrementing a full buffer. */
+static int
+emit_bytes(FILE *stream, const unsigned char *bytes, int length, int repeat,
+	int *written)
+{
+	int available;
+	int remaining;
+
+	if (length > INT_MAX - *written) {
+		errno = EOVERFLOW;
+		return EOF;
+	}
+	if (stream->_flag & _IOSTRG) {
+		available = stream->_cnt > 0 ? stream->_cnt : 0;
+		if (available > length)
+			available = length;
+		if (available != 0) {
+			if (repeat)
+				memset(stream->_ptr, *bytes, (size_t)available);
+			else
+				memcpy(stream->_ptr, bytes, (size_t)available);
+			stream->_ptr += available;
+		}
+		stream->_cnt -= available;
+	} else {
+		for (remaining = length; remaining != 0; --remaining) {
+			if (putc(*bytes, stream) == EOF) {
+				stream->_flag |= _IOERR;
+				return EOF;
+			}
+			if (!repeat)
+				++bytes;
+		}
+	}
+	*written += length;
+	return 0;
+}
+
 int
 _doprnt (char const *fmt, va_list ap, FILE *stream)
 {
-#define PUTC(c) { putc (c, stream); ++retval; }
+#define PAD(byte, length) do { \
+	unsigned char output_byte = (unsigned char)(byte); \
+	if (emit_bytes(stream, &output_byte, (length), 1, &retval) == EOF) \
+		return EOF; \
+} while (0)
+#define PUTC(byte) PAD(byte, 1)
+#define FIELD(length) do { \
+	if ((length) > INT_MAX - retval || width > INT_MAX - retval) \
+		goto overflow; \
+	width = width > (length) ? width - (length) : 0; \
+} while (0)
 	unsigned char nbuf [MAXNBUF], padding;
 	const unsigned char *s;
 	unsigned char c, base, ladjust, sharpflag, neg, dot, sz, nonzero, hexfmt, zeroflag;
 	int n, width, dwidth, retval, uppercase, extrazeros, sign, issigned, size;
 	unsigned long ul;
+	size_t string_length;
+	int prefix;
 
 	if (! stream)
 		return 0;
@@ -144,7 +196,9 @@ reswitch:	switch (c = *fmt++) {
 			if (! dot) {
 				width = va_arg (ap, int);
 				if (width < 0) {
-					ladjust = !ladjust;
+					if (width == INT_MIN)
+						goto overflow;
+					ladjust = 1;
 					width = -width;
 				}
 			} else {
@@ -170,7 +224,9 @@ reswitch:	switch (c = *fmt++) {
 				goto reswitch;
 			}
 			for (n=0; ; ++fmt) {
-				n = n * 10 + c - '0';
+				if (n > (INT_MAX - (c - '0')) / 10)
+					goto overflow;
+				n = n * 10 + (c - '0');
 				c = *fmt;
 				if (c < '0' || c > '9')
 					break;
@@ -216,15 +272,12 @@ reswitch:	switch (c = *fmt++) {
 			goto reswitch;
 
 		case 'c':
-			if (! ladjust && width > 0)
-				while (width--)
-					PUTC (' ');
-
-			PUTC (va_arg (ap, int));
-
-			if (ladjust && width > 0)
-				while (width--)
-					PUTC (' ');
+			FIELD(1);
+			if (!ladjust)
+				PAD(' ', width);
+			PUTC(va_arg(ap, int));
+			if (ladjust)
+				PAD(' ', width);
 			break;
 
 		case 'D':
@@ -359,22 +412,22 @@ unsign:			sign = 0;
 			s = va_arg (ap, unsigned char*);
 			if (! s)
 				s = (const unsigned char*) "(null)";
-string:			if (! dot)
-				n = strlen ((char*)s);
-			else
-				for (n=0; n<dwidth && s[n]; n++)
+string:
+			if (!dot) {
+				string_length = strlen((const char *)s);
+				if (string_length > INT_MAX)
+					goto overflow;
+				n = (int)string_length;
+			} else
+				for (n = 0; n < dwidth && s[n]; ++n)
 					continue;
-
-			width -= n;
-
-			if (! ladjust && width > 0)
-				while (width--)
-					PUTC (' ');
-			while (n--)
-				PUTC (*s++);
-			if (ladjust && width > 0)
-				while (width--)
-					PUTC (' ');
+			FIELD(n);
+			if (!ladjust)
+				PAD(' ', width);
+			if (emit_bytes(stream, s, n, 0, &retval) == EOF)
+				return EOF;
+			if (ladjust)
+				PAD(' ', width);
 			break;
 
 wide:
@@ -385,8 +438,8 @@ wide:
 			 * value prints as the same mark the float path uses.
 			 */
 			if (dwidth >= (int) sizeof(nbuf)) {
-				extrazeros = dwidth - sizeof(nbuf) + 1;
-				dwidth = sizeof(nbuf) - 1;
+				extrazeros = dwidth - (int)sizeof(nbuf) + 1;
+				dwidth = (int)sizeof(nbuf) - 1;
 			}
 			if (__doprnt_ll == 0) {
 				(void) va_arg (ap, unsigned long long);
@@ -413,8 +466,8 @@ wide:
 
 number:
 			if (dwidth >= (int) sizeof(nbuf)) {
-				extrazeros = dwidth - sizeof(nbuf) + 1;
-				dwidth = sizeof(nbuf) - 1;
+				extrazeros = dwidth - (int)sizeof(nbuf) + 1;
+				dwidth = (int)sizeof(nbuf) - 1;
 			}
 			s = ksprintn (nbuf, ul, base, dwidth, &size);
 			nonzero = (ul != 0);
@@ -425,62 +478,41 @@ emit:
 				else if (sign == -2)
 					neg = ' ';
 			}
-			/*
-			 * The field the digits occupy: every digit the
-			 * precision asked for, the zeros the buffer could not
-			 * hold included, plus sign and prefix, in an int so a
-			 * precision above 255 does not wrap the count.
-			 */
+			/* Octal alternate form supplies only a missing leading zero. */
+			prefix = 0;
+			if (sharpflag && base == 8 &&
+			    (size == 0 || (*s != '0' && extrazeros == 0)))
+				prefix = 1;
+			else if (sharpflag && base == 16 && nonzero)
+				prefix = 2;
+			if (extrazeros > INT_MAX - size)
+				goto overflow;
 			n = size + extrazeros;
-			if (sharpflag && nonzero) {
-				if (base == 8)
-					n++;
-				else if (base == 16)
-					n += 2;
-			}
+			if (n > INT_MAX - prefix - (neg != 0))
+				goto overflow;
+			n += prefix + (neg != 0);
+			FIELD(n);
+			if (dot || ladjust)
+				padding = ' ';
+			if (!ladjust && padding == ' ')
+				PAD(' ', width);
 			if (neg)
-				n++;
-
-			if (! ladjust && width && padding == ' ' &&
-			    (width -= n) > 0)
-				do {
-					PUTC (' ');
-				} while (--width > 0);
-
-			if (neg)
-				PUTC (neg);
-
-			if (sharpflag && nonzero) {
-				if (base == 8) {
-					PUTC ('0');
-				} else if (base == 16) {
-					PUTC ('0');
-					PUTC (uppercase ? 'X' : 'x');
-				}
-			}
-
-			if (! ladjust && width && (width -= n) > 0)
-				do {
-					PUTC (padding);
-				} while (--width > 0);
-
-			if (extrazeros)
-				do {
-					PUTC ('0');
-				} while (--extrazeros > 0);
-
+				PUTC(neg);
+			if (prefix != 0)
+				PUTC('0');
+			if (prefix == 2)
+				PUTC(uppercase ? 'X' : 'x');
+			if (!ladjust && padding == '0')
+				PAD('0', width);
+			PAD('0', extrazeros);
 			for (; *s; --s) {
-				if (uppercase && *s>='a' && *s<='z') {
-					PUTC (*s + 'A' - 'a');
-				} else {
-					PUTC (*s);
-				}
+				if (uppercase && *s >= 'a' && *s <= 'z')
+					PUTC(*s + 'A' - 'a');
+				else
+					PUTC(*s);
 			}
-
-			if (ladjust && width && (width -= n) > 0)
-				do {
-					PUTC (' ');
-				} while (--width > 0);
+			if (ladjust)
+				PAD(' ', width);
 			break;
 
 		case 'a':
@@ -576,14 +608,13 @@ emit:
 				}
 			}
 #endif
-			if (neg || sign)
-				size++;
-			size += extrazeros;	/* the deferred zeros are part of the field */
-			if (! ladjust && width && padding == ' ' &&
-			    (width -= size) > 0)
-				do {
-					PUTC (' ');
-				} while (--width > 0);
+			if (size > INT_MAX - (neg != 0 || sign != 0) ||
+			    extrazeros > INT_MAX - size - (neg != 0 || sign != 0))
+				goto overflow;
+			n = size + extrazeros + (neg != 0 || sign != 0);
+			FIELD(n);
+			if (!ladjust && padding == ' ')
+				PAD(' ', width);
 
 			if (neg) {
 				PUTC ('-');
@@ -605,10 +636,8 @@ emit:
 				s += 2;
 			}
 
-			if (! ladjust && width && (width -= size) > 0)
-				do {
-					PUTC (padding);
-				} while (--width > 0);
+			if (!ladjust && padding == '0')
+				PAD('0', width);
 
 			for (; *s; ++s) {
 				/*
@@ -617,22 +646,16 @@ emit:
 				 * digit, and e under the decimal conversions.
 				 */
 				if (extrazeros && (hexfmt ? (*s == 'p' || *s == 'P')
-				    : (*s == 'e' || *s == 'E')))
-					do {
-						PUTC ('0');
-					} while (--extrazeros > 0);
+				    : (*s == 'e' || *s == 'E'))) {
+					PAD('0', extrazeros);
+					extrazeros = 0;
+				}
 
 				PUTC (*s);
 			}
-			if (extrazeros)
-				do {
-					PUTC ('0');
-				} while (--extrazeros > 0);
-
-			if (ladjust && width && (width -= size) > 0)
-				do {
-					PUTC (' ');
-				} while (--width > 0);
+			PAD('0', extrazeros);
+			if (ladjust)
+				PAD(' ', width);
 			break;
 		}
 		default:
@@ -647,6 +670,12 @@ emit:
 			break;
 		}
 	}
+overflow:
+	errno = EOVERFLOW;
+	return EOF;
+#undef FIELD
+#undef PUTC
+#undef PAD
 }
 
 /*

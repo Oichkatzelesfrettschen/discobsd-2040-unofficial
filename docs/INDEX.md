@@ -118,6 +118,7 @@ Grouped by what they investigate.
 | `libc-opendir-directory-cloexec.md` | opened-descriptor directory admission, close-on-exec setup, calibrated cleanup gates, and measured stack, linked and packed-root costs |
 | `libc-closedir-result-contract.md` | integer close results, errno preservation, exactly-once stream release, calibrated controls and paired resource evidence |
 | `libc-getwd-entry-lifetime.md` | borrowed directory-entry lifetime, real-free sanitizer counterexample and calibrated traversal gates |
+| `libc-ascii-casefold-contract.md` | exhaustive POSIX byte-locale mapping, signedness independence and measured table removal |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |

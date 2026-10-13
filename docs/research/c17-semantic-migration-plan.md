@@ -404,7 +404,10 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    and unsigned `char`; record the inherited high-bit ASCII mapping and
    POSIX C-locale requirements before replacing `strcasecmp`'s 256-byte
    table. Measure login and other linked consumers. Output: a documented
-   mapping decision and exhaustive finite oracle.
+   mapping decision and exhaustive finite oracle. The ASCII-only implementation
+   passes both signedness variants, boundary cases and calibrated mutations;
+   `libc-ascii-casefold-contract.md` records 240-byte load-image savings in
+   each of 12 linked consumers and the high-byte compatibility decision.
 9. **Audit formatted-output scratch ownership.** Establish return counts,
    final-flush failures and `_bufsiz` initialization in `fprintf`,
    `vfprintf` and `fputs`; measure their 1,024-byte temporary buffers.
@@ -440,7 +443,8 @@ and edition-contract layer in `sus-utility-ledger.json`,
 `sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
 Item 7 has tested scanner, directory admission/CLOEXEC and close-result units.
 The getwd lifetime unit closes the borrowed-entry defect; its independent
-bounds and metadata limitations remain documented. Items 8 through 10 and 12 remain the ordered
+bounds and metadata limitations remain documented. Item 8 records the exhaustive mapping decision and paired resource reduction.
+Items 9, 10 and 12 remain the ordered
 continuation frontier. Item 11
 has a calibrated baseline and retains a final rerun after those interface
 changes. The source

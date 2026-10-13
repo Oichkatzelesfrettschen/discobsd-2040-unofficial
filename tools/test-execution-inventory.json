@@ -247,7 +247,8 @@
         "check-posix-sh",
         "check-textbox-host",
         "check-scandir-contracts",
-        "check-dirent-contracts"
+        "check-dirent-contracts",
+        "check-getwd-lifetime"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },
@@ -264,6 +265,11 @@
     {
       "from": "check-dirent-contracts",
       "to": "tests/dirent_contracts:check-stream",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-getwd-lifetime",
+      "to": "tests/dirent_contracts:check-getwd-lifetime",
       "kind": "recursive make"
     }
   ],
@@ -1989,6 +1995,76 @@
         "closedir_free_loss.mutant.test",
         "closedir_close_repeat.mutant.test",
         "check_closedir_mutants.sh"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.native",
+      "width": "native",
+      "program": "getwd_lifetime_test",
+      "capability": "native compiler and runtime",
+      "target": "check-getwd-lifetime",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.getwd.native -- ./getwd_lifetime_test",
+      "prerequisites": [
+        "getwd_lifetime_test"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.ilp32",
+      "width": "ilp32",
+      "program": "getwd_lifetime_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-getwd-lifetime",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.getwd.ilp32 -- ./getwd_lifetime_test32",
+      "prerequisites": [
+        "getwd_lifetime_test32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.sanitized",
+      "width": "native",
+      "program": "getwd_lifetime_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-getwd-lifetime",
+      "condition": "SCANDIR_SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.getwd.sanitized -- ./getwd_lifetime_test_san",
+      "prerequisites": [
+        "getwd_lifetime_test_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-getwd-mutant",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.getwd.negative -- sh ./check_getwd_mutant.sh",
+      "script": "tests/dirent_contracts/check_getwd_mutant.sh",
+      "prerequisites": [
+        "getwd_lifetime_mutant",
+        "check_getwd_mutant.sh"
       ]
     }
   ]

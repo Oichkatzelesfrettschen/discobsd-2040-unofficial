@@ -341,6 +341,12 @@ check-libc-syslog:
 check-libc-vis:
 		${MAKE} -C tests/libc_contracts check-vis
 
+check-getwd-lifetime: check-python
+		${MAKE} -C tests/dirent_contracts check-getwd-lifetime
+
+check-getwd-lifetime-cross:
+		${MAKE} -C tests/dirent_contracts check-getwd-cross
+
 check-dirent-contracts:
 		${MAKE} -C tests/dirent_contracts check-stream
 
@@ -664,7 +670,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \
-		check-dirent-contracts check-scandir-contracts check-getty-contracts \
+		check-dirent-contracts check-getwd-lifetime check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts \
@@ -698,7 +704,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-random-cross \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
-		check-dirent-contracts-cross check-scandir-contracts-cross \
+		check-dirent-contracts-cross check-getwd-lifetime-cross check-scandir-contracts-cross \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
 		check-find-contracts-cross \
@@ -817,7 +823,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
 		check-libc-host-contracts check-scandir-contracts \
-		check-dirent-contracts check-textbox-host \
+		check-dirent-contracts check-getwd-lifetime check-textbox-host \
 		check-libtcl-contracts
 
 check-test-execution: check-python
@@ -993,3 +999,5 @@ installfs:
 
 # Architecture-specific debugging and loading.
 -include sys/arch/${MACHINE}/conf/Makefile.inc
+
+.PHONY: check-getwd-lifetime check-getwd-lifetime-cross

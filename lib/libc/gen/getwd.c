@@ -22,9 +22,7 @@ static int pathsize;			/* pathname length */
  * prepend() tacks a directory name onto the front of a pathname.
  */
 static char *
-prepend(dirname, pathname)
-	register char *dirname;
-	register char *pathname;
+prepend(const char *dirname, char *pathname)
 {
 	register int i;			/* directory name size counter */
 
@@ -37,8 +35,7 @@ prepend(dirname, pathname)
 }
 
 char *
-getwd(pathname)
-	char *pathname;
+getwd(char *pathname)
 {
 	char pathbuf[MAXPATHLEN];		/* temporary pathname buffer */
 	char *pnptr = &pathbuf[(sizeof pathbuf)-1]; /* pathname pointer */
@@ -99,8 +96,8 @@ getwd(pathname)
 				strcpy(dptr, dir->d_name);
 				lstat(curdir, &dd);
 			} while(dd.st_ino != cino || dd.st_dev != cdev);
-		closedir(dirp);
 		pnptr = prepend("/", prepend(dir->d_name, pnptr));
+		closedir(dirp);
 	}
 	if (*pnptr == '\0')		/* current dir == root dir */
 		strcpy(pathname, "/");

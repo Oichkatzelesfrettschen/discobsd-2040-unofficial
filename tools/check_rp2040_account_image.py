@@ -21,6 +21,9 @@ def account_password_field(passwd_data: bytes, shadow_data: bytes, account: byte
     # the following record while searching for a newline in the stream.
     if b"\0" in passwd_data:
         raise ValueError("/etc/passwd contains a NUL that changes libc record parsing")
+    # scanpw() strips LF alone, leaving CR in fields such as the shell path.
+    if b"\r" in passwd_data:
+        raise ValueError("/etc/passwd contains CR bytes that remain in libc fields")
     name = account.decode("ascii")
     records = [line for line in io.BytesIO(passwd_data) if line.split(b":", 1)[0] == account]
     if len(records) != 1:
@@ -123,6 +126,7 @@ def verify_checker_controls() -> None:
     )
     verify_account_record(0o600, boundary_passwd, locked_shadow)
     invalid_records = [
+        (0o600, passwd.replace(b"\n", b"\r\n"), locked_shadow),
         (
             0o600,
             passwd.replace(b"\noperator:", b"\nsys:\0*:4:2:System:/tmp:nologin\noperator:", 1),

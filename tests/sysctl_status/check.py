@@ -75,7 +75,7 @@ def verify(binary):
             capture_output=True,
             env=dict(os.environ, SCENARIO=scenario),
         )
-        if (result.returncode == 0) != success:
+        if result.returncode != (0 if success else 1):
             raise AssertionError((operands, scenario, result.returncode, result.stderr))
         visits = [line for line in result.stderr.splitlines() if line.startswith("visit ")]
         if operands == ["hw.ncpu", "kern.capacity"] or operands[0] == "-w":

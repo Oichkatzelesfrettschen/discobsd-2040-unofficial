@@ -59,7 +59,7 @@ exit 0
             calls = trace.read_text().splitlines()
             limit = failure if failure else len(expected)
             assert calls == expected[:limit], (shell, failure, calls)
-            assert (result.returncode != 0) == bool(failure), (shell, failure, result.returncode)
+            assert result.returncode == (1 if failure else 0), (shell, failure, result.returncode)
             assert result.stdout.count("status=") == limit, (shell, failure, result.stdout)
             if failure:
                 assert "status=5 command=" in result.stdout, (shell, failure, result.stdout)

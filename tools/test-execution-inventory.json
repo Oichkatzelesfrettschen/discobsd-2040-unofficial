@@ -1968,6 +1968,28 @@
         "opendir_cleanup_errno_loss.mutant.test",
         "check_opendir_mutants.sh"
       ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.closedir.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-closedir-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.closedir.negative -- sh ./check_closedir_mutants.sh",
+      "script": "tests/dirent_contracts/check_closedir_mutants.sh",
+      "prerequisites": [
+        "closedir_result_loss.mutant.test",
+        "closedir_errno_loss.mutant.test",
+        "closedir_free_loss.mutant.test",
+        "closedir_close_repeat.mutant.test",
+        "check_closedir_mutants.sh"
+      ]
     }
   ]
 }

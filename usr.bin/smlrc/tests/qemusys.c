@@ -11,6 +11,8 @@
  * printf, malloc, the string functions -- links and runs unchanged.
  */
 
+#include <errno.h>
+
 static int
 qsys(int n, int a, int b, int c)
 {
@@ -79,7 +81,22 @@ _exit(int code)
 int
 close(int fd)
 {
-	return qsys(SYS_close, fd, 0, 0);
+	int result = qsys(SYS_close, fd, 0, 0);
+
+	if (result >= 0)
+		return result;
+	/* Linux close errors require the DiscoBSD errno namespace. */
+	switch (-result) {
+	case 4: errno = EINTR; break;
+	case 5: errno = EIO; break;
+	case 9: errno = EBADF; break;
+	case 28: errno = ENOSPC; break;
+	case 122: errno = EDQUOT; break;
+	default:
+		/* An unmodeled host error invalidates the execution receipt. */
+		_exit(125);
+	}
+	return -1;
 }
 
 int

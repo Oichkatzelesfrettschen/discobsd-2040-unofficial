@@ -3,3 +3,4 @@ PASS stream-owned input
 PASS scanf and vsscanf
 PASS string pushback
 PASS bounded output
+PASS directory close result

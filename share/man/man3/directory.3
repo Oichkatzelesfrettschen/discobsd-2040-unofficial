@@ -43,7 +43,7 @@ opendir, readdir, telldir, seekdir, rewinddir, closedir \- directory operations
 .B DIR
 .B *dirp;
 .PP
-.B closedir(dirp)
+.B int closedir(dirp)
 .br
 .SM
 .B DIR
@@ -121,6 +121,12 @@ to the beginning of the directory.
 closes the named
 .I directory stream
 and frees the structure associated with the DIR pointer.
+The function returns zero on success or -1 on failure, with
+.I errno
+set to the error from
+.IR close (2).
+The stream is released after either result; the caller must not reuse
+or close the DIR pointer again.
 .PP
 The following fragment assumes a successful
 .I opendir

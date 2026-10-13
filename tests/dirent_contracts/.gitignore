@@ -13,3 +13,7 @@ opendir_*.mutant.c
 opendir_*.mutant.test
 opendir_*.mutant.log
 opendir_mutants.stamp
+closedir_*.mutant.c
+closedir_*.mutant.test
+closedir_*.mutant.log
+closedir_mutants.stamp

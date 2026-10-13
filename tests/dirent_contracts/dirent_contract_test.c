@@ -24,6 +24,8 @@ static int fail_open;
 static int fail_read;
 static int fail_fstat;
 static int fail_fcntl;
+static int close_error;
+static int free_error;
 static int descriptor_active;
 static int descriptor_flags;
 static mode_t opened_mode;
@@ -117,6 +119,8 @@ reset_fixture(void)
 	fail_read = 0;
 	fail_fstat = 0;
 	fail_fcntl = 0;
+	close_error = 0;
+	free_error = 0;
 	descriptor_active = 0;
 	descriptor_flags = 0;
 	opened_mode = S_IFDIR | 0755;
@@ -157,8 +161,8 @@ test_close(int descriptor)
 	++close_calls;
 	descriptor_active = 0;
 	descriptor_flags = 0;
-	dirent_test_errno = EBUSY;
-	return descriptor == 7 ? 0 : -1;
+	dirent_test_errno = close_error != 0 ? close_error : EBUSY;
+	return descriptor == 7 && close_error == 0 ? 0 : -1;
 }
 
 int
@@ -217,6 +221,8 @@ test_free(void *allocation)
 {
 	if (allocation == &allocated_directory)
 		++free_calls;
+	if (free_error != 0)
+		dirent_test_errno = free_error;
 }
 
 ssize_t
@@ -465,11 +471,44 @@ test_admission(void)
 	return failures;
 }
 
+static int
+test_close_ownership(void)
+{
+	static const int errors[] = { EBADF, EIO, EINTR };
+	unsigned error_index;
+	DIR *directory;
+	int failures = 0;
+
+	reset_fixture();
+	directory = discobsd_opendir("fixture");
+	free_error = ENOMEM;
+	failures += check_named(discobsd_closedir(directory) == 0,
+	    "closedir reports close success");
+	failures += check_named(close_calls == 1 && free_calls == 1 &&
+	    !descriptor_active, "closedir success releases ownership once");
+
+	for (error_index = 0;
+	    error_index < sizeof(errors) / sizeof(errors[0]); ++error_index) {
+		reset_fixture();
+		directory = discobsd_opendir("fixture");
+		close_error = errors[error_index];
+		free_error = ENOMEM;
+		failures += check_named(discobsd_closedir(directory) == -1,
+		    "closedir reports close failure");
+		failures += check_named(dirent_test_errno == errors[error_index],
+		    "closedir preserves close errno across free");
+		failures += check_named(close_calls == 1 && free_calls == 1 &&
+		    !descriptor_active, "closedir failure releases ownership once");
+	}
+	return failures;
+}
+
 int
 main(void)
 {
 	int failures = 0;
 
+	failures += test_close_ownership();
 	failures += test_admission();
 	failures += test_stream_positions();
 	failures += test_failures();

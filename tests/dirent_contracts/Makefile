@@ -54,7 +54,7 @@ OPENDIR_MUTATIONS=	directory_type close_on_exec fcntl_error_loss \
 OPENDIR_MUTANT_BINS=	${OPENDIR_MUTATIONS:S/^/opendir_/:S/$/.mutant.test/}
 OPENDIR_MUTANT_STREAM_OBJS=	${HOST_OBJS:Ndirent_opendir.o}
 
-check-stream: dirent_contract_test check-opendir-mutants
+check-stream: dirent_contract_test check-opendir-mutants check-closedir-mutants
 	${TEST_EXECUTION} run libc.dirent.native -- ./dirent_contract_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} dirent_contract_test32
@@ -227,6 +227,8 @@ scandir_scandir_target.o: ${TARGET_DIR}/scandir.c
 	${ARM_COMPILER} ${TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/scandir.c
 
 clean:
+	rm -f ${CLOSEDIR_MUTANT_BINS} closedir_*.mutant.c \
+	    closedir_*.mutant.o closedir_*.mutant.log closedir_mutants.stamp
 	rm -f dirent_contract_test ${HOST_OBJS} ${TARGET_OBJS}
 	rm -f dirent_contract_test32 dirent_contract_test_san \
 	    ${STREAM_OBJS32} ${STREAM_OBJS_SAN} ${OPENDIR_MUTANT_BINS}
@@ -244,3 +246,30 @@ all: check
 
 .PHONY: all check check-stream check-opendir-mutants check-cross check-scandir \
 	check-scandir-mutants check-scandir-cross clean
+
+CLOSEDIR_MUTATIONS= result_loss errno_loss free_loss close_repeat
+CLOSEDIR_MUTANT_BINS= ${CLOSEDIR_MUTATIONS:S/^/closedir_/:S/$/.mutant.test/}
+CLOSEDIR_MUTANT_STREAM_OBJS= ${HOST_OBJS:Ndirent_closedir.o}
+
+closedir_mutants.stamp: closedir_mutate.py ${TARGET_DIR}/closedir.c
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for closedir mutations" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} closedir_mutate.py ${TARGET_DIR}/closedir.c ${.CURDIR}
+	@touch $@
+
+.for mutation in ${CLOSEDIR_MUTATIONS}
+closedir_${mutation}.mutant.o: closedir_mutants.stamp
+	${HOSTCC} ${HOST_CFLAGS} -c -o $@ closedir_${mutation}.mutant.c
+
+closedir_${mutation}.mutant.test: dirent_contract_test.c \
+    closedir_${mutation}.mutant.o ${CLOSEDIR_MUTANT_STREAM_OBJS}
+	${HOSTCC} ${HOST_CFLAGS} -o $@ dirent_contract_test.c \
+	    closedir_${mutation}.mutant.o ${CLOSEDIR_MUTANT_STREAM_OBJS}
+.endfor
+
+check-closedir-mutants: ${CLOSEDIR_MUTANT_BINS} check_closedir_mutants.sh
+	${TEST_EXECUTION} run libc.closedir.negative -- sh ./check_closedir_mutants.sh
+
+.PHONY: check-closedir-mutants

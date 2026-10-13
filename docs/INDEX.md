@@ -116,6 +116,7 @@ Grouped by what they investigate.
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
 | `libc-opendir-directory-cloexec.md` | opened-descriptor directory admission, close-on-exec setup, calibrated cleanup gates, and measured stack, linked and packed-root costs |
+| `libc-closedir-result-contract.md` | integer close results, errno preservation, exactly-once stream release, calibrated controls and paired resource evidence |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |

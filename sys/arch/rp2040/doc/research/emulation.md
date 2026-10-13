@@ -112,17 +112,18 @@ and before the SSI model stopped latching BUSY. "The console reaches a
 login prompt" below supersedes its conclusions and keeps its
 measurements.
 
-Console output, `PICO_UART` config, captured verbatim while
+Console output, `PICO_UART` config, captured while
 `tools/renode/boot.resc` ran, with `PYTHON=${PYTHON:-python3}` then
 `$PYTHON tools/renode/console.py --port 3456` (this exact transcript
-reproduced byte-for-byte across two separate runs):
+reproduced byte-for-byte across two separate runs; the excerpt below
+redacts the builder identity):
 
 (The banner line `no MMU and no MPU` in this capture is what the kernel printed then; datasheet 2.4.1 and 2.4.6 give the Cortex-M0+ an eight-region MPU, and the kernel now prints `no MMU` and an `mpu:` line stating what it programmed; sys/arch/rp2040/doc/MPU.md.)
 
 ```
 
 DiscoBSD 2.7 (PICO_UART) #1 818: Fri Sep 11 17:41:10 PDT 2026
-     eirikr@x570-5600X3D:/sys/arch/rp2040/compile/PICO_UART
+     [builder identity redacted]
 cpu: RP0000 rev 0, manufacturer 0x000
 cpu: Cortex-M0+, ARMv6-M, no MMU and no MPU
 cpu: 125 MHz core, 125 MHz peripheral

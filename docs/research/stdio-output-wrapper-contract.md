@@ -19,7 +19,9 @@ source passes. Buffer size remains fixed while the ownership contract closes.
 ## Contract gates
 
 `check-libc-output` compiles the exact wrappers, formatter and output core
-against the tree's FILE definition. A write shim records payload and call
+against the tree's FILE definition. The fixture links the real long-long
+helper, matching the printf fixture: Mach-O requires the referenced symbol
+where an ELF link accepts the absent weak helper. A write shim records payload and call
 count, injects short writes or failures, and supplies the deciding errno.
 The fstat shim writes the tree's layout rather than a host struct stat.
 Native, ILP32 and ASan/UBSan variants exercise:

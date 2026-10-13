@@ -8,7 +8,7 @@ SAN_FLAGS= -fsanitize=address,undefined -fno-sanitize-recover=all \
 SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
 SOURCE= ${TOPSRC}/lib/libc/stdio
 SOURCES= ${SOURCE}/fprintf.c ${SOURCE}/vfprintf.c ${SOURCE}/fputs.c \
-    ${SOURCE}/doprnt.c ${SOURCE}/flsbuf.c
+    ${SOURCE}/doprnt.c ${SOURCE}/flsbuf.c ${SOURCE}/doprnt_llong.c
 BUILD= ${PYTHON} build_fixture.py ${TOPSRC}
 
 output_native: build_fixture.py output_test.c ${SOURCES}

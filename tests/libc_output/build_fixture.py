@@ -30,7 +30,7 @@ mutations = {
     "continue": ("fputs", "\t\t\tbreak;", "\t\t\tcontinue;"),
 }
 objects = []
-for member in ("fprintf", "vfprintf", "fputs", "doprnt", "flsbuf"):
+for member in ("fprintf", "vfprintf", "fputs", "doprnt", "flsbuf", "doprnt_llong"):
     source = args.root / "lib/libc/stdio" / f"{member}.c"
     if args.mutation and mutations[args.mutation][0] == member:
         _, anchor, replacement = mutations[args.mutation]

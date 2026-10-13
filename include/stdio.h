@@ -13,7 +13,7 @@ extern  struct  _iobuf {
     int     _bufsiz;
     short   _flag;
     short   _file;
-    unsigned char _ub[1];   /* pushed-back byte on a string stream; ungetc.c */
+    unsigned char _ub[1];   /* string pushback or unbuffered input; stream-owned */
 } _iob[];
 
 #define _IOREAD     01

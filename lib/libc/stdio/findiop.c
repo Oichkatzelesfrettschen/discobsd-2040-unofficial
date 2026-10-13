@@ -27,39 +27,28 @@ FILE _iob[NSTATIC] = {
 	{ ._flag = _IOWRT|_IONBF,  ._file = 2 },	/* stderr */
 };
 
-static	char sbuf[NSTATIC];
-char	*_smallbuf = sbuf;
 static	FILE	**iobglue;
 static	FILE	**endglue;
 
 /*
  * Grow past the static array: a glue table of pointers indexed like the
- * descriptor table, and a one-byte unbuffered slot per descriptor. Both
- * allocations must succeed together, because _filbuf indexes _smallbuf by
- * descriptor and the static sbuf covers only NSTATIC of them.
+ * descriptor table. Each FILE owns its unbuffered input byte, so the
+ * descriptor limit sizes only the table of stream pointers.
  */
 static int
 _f_morefiles(void)
 {
 	FILE **iov;
 	FILE *fp;
-	char *small;
 	int nfiles;
 
 	nfiles = getdtablesize();
 	iobglue = calloc((size_t) nfiles, sizeof *iobglue);
 	if (iobglue == NULL)
 		return (0);
-	small = calloc((size_t) nfiles, sizeof *small);
-	if (small == NULL) {
-		free(iobglue);
-		iobglue = NULL;
-		return (0);
-	}
 	endglue = iobglue + nfiles;
 	for (fp = _iob, iov = iobglue; fp < &_iob[NSTATIC]; /* void */)
 		*iov++ = fp++;
-	_smallbuf = small;
 	return (1);
 }
 

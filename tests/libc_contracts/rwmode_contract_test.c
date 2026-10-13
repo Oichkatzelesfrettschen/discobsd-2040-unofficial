@@ -21,9 +21,8 @@
 #include <string.h>
 #include <unistd.h>
 
-/* The tree's stdio references these; the gate touches no standard stream. */
+/* The tree's stdio references the table; the gate touches no standard stream. */
 struct _iobuf _iob[3];
-char *_smallbuf;
 
 /*
  * fflush(NULL) walks every open stream, and findiop.c, which owns the table

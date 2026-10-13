@@ -144,3 +144,9 @@ ansi32_ungetc.o
 ansi32_findiop.o
 ansi_open_shim.o
 ansi32_open_shim.o
+
+ansi_contract_test32_san
+ansi32_san_*.o
+ansi_shared_byte_bad.o
+ansi_shared_byte_bad_test
+ansi_shared_byte_bad.log

@@ -816,7 +816,8 @@ check-ilp32-execution: check-python
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-scandir-contracts check-textbox-host \
+		check-libc-host-contracts check-scandir-contracts \
+		check-dirent-contracts check-textbox-host \
 		check-libtcl-contracts
 
 check-test-execution: check-python

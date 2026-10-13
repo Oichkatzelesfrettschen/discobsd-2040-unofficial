@@ -245,7 +245,9 @@
         "check-backgammon-contracts",
         "check-libc-sysctl",
         "check-posix-sh",
-        "check-textbox-host"
+        "check-textbox-host",
+        "check-scandir-contracts",
+        "check-dirent-contracts"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },
@@ -257,6 +259,11 @@
     {
       "from": "check-scandir-contracts-cross",
       "to": "tests/dirent_contracts:check-scandir-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-dirent-contracts",
+      "to": "tests/dirent_contracts:check-stream",
       "kind": "recursive make"
     }
   ],
@@ -1887,6 +1894,80 @@
       "recipe": "${TEST_EXECUTION} run libc.scandir.negative -- sh ./check_scandir_mutants.sh",
       "aliases": [],
       "script": "tests/dirent_contracts/check_scandir_mutants.sh"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.native",
+      "width": "native",
+      "program": "dirent_contract_test",
+      "capability": "native compiler and runtime",
+      "target": "check-stream",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.dirent.native -- ./dirent_contract_test",
+      "prerequisites": [
+        "dirent_contract_test"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.ilp32",
+      "width": "ilp32",
+      "program": "dirent_contract_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-stream",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.dirent.ilp32 -- ./dirent_contract_test32",
+      "prerequisites": [
+        "dirent_contract_test32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.sanitized",
+      "width": "native",
+      "program": "dirent_contract_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-stream",
+      "condition": "SCANDIR_SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.dirent.sanitized -- ./dirent_contract_test_san",
+      "prerequisites": [
+        "dirent_contract_test_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-opendir-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.dirent.negative -- sh ./check_opendir_mutants.sh",
+      "script": "tests/dirent_contracts/check_opendir_mutants.sh",
+      "prerequisites": [
+        "opendir_directory_type.mutant.test",
+        "opendir_close_on_exec.mutant.test",
+        "opendir_fcntl_error_loss.mutant.test",
+        "opendir_descriptor_cleanup.mutant.test",
+        "opendir_cleanup_errno_loss.mutant.test",
+        "check_opendir_mutants.sh"
+      ]
     }
   ]
 }

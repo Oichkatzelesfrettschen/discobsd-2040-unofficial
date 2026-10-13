@@ -388,8 +388,12 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    complete failure cleanup, selected-entry growth, compact self-describing
    records and per-call heap sorting. `check-scandir-contracts` and its cross
    gate calibrate those contracts; `libc-scandir-allocation-contract.md`
-   records paired resources and remaining edition boundaries. Directory
-   admission/CLOEXEC and the close-result transition remain separate units.
+   records paired resources and remaining edition boundaries. The directory
+   admission unit validates the opened descriptor, sets FD_CLOEXEC before
+   allocation and preserves failure errno; `check-dirent-contracts` and its
+   cross gate calibrate the unit. `libc-opendir-directory-cloexec.md` records
+   its measured stack and linked costs. The close-result transition remains
+   a separate unit, with the getwd post-close pointer lifetime distinct.
    Output: one independently tested interface change per PR.
 8. **Resolve case-folding semantics.** Compare all byte pairs under signed
    and unsigned `char`; record the inherited high-bit ASCII mapping and
@@ -429,8 +433,8 @@ Items 1 through 3 form the bounded implementation in
 and edition-contract layer in `sus-utility-ledger.json`,
 `posix-utilities.md`, `bsd44-audit/posix_inventory.py` and
 `sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
-Item 7 has a tested scanner unit; its directory admission/CLOEXEC and
-close-result units remain open. Items 8 through 10 and 12 remain the ordered
+Item 7 has tested scanner and directory admission/CLOEXEC units. The
+close-result transition and separate getwd lifetime defect remain open. Items 8 through 10 and 12 remain the ordered
 continuation frontier. Item 11
 has a calibrated baseline and retains a final rerun after those interface
 changes. The source

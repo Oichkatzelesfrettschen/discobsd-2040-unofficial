@@ -19,21 +19,27 @@
 #include <alloca.h>
 
 int
-vfprintf(FILE *iop, const char *fmt, va_list ap)
+vfprintf(FILE *stream, const char *format, va_list arguments)
 {
-	int len;
+	FILE temporary;
+	FILE *output = stream;
+	int result;
 
-	if (iop->_flag & _IONBF) {
-		iop->_flag &= ~_IONBF;
-		iop->_ptr = iop->_base = alloca(BUFSIZ);
-		len = _doprnt(fmt, ap, iop);
-		(void) fflush(iop);
-		iop->_flag |= _IONBF;
-		iop->_base = NULL;
-		iop->_bufsiz = 0;
-		iop->_cnt = 0;
-	} else
-		len = _doprnt(fmt, ap, iop);
-
-	return (ferror(iop) ? EOF : len);
+	if (stream->_flag & _IONBF) {
+		/* The copy borrows the descriptor and owns only automatic storage. */
+		temporary = *stream;
+		temporary._flag &= ~_IONBF;
+		temporary._ptr = temporary._base = alloca(BUFSIZ);
+		temporary._bufsiz = BUFSIZ;
+		temporary._cnt = 0;
+		output = &temporary;
+	}
+	result = _doprnt(format, arguments, output);
+	if (output != stream) {
+		if (!ferror(output) && fflush(output) == EOF)
+			result = EOF;
+		stream->_flag = output->_flag | _IONBF;
+		stream->_cnt = 0;
+	}
+	return ferror(stream) ? EOF : result;
 }

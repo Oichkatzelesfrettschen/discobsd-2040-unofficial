@@ -221,7 +221,8 @@ def main():
         map_text = (work / "green-run" / "t18_stdio.map").read_text(
             encoding="utf-8", errors="replace"
         )
-        for member in ("filbuf.o", "ungetc.o", "scanf.o", "doscan.o", "closedir.o"):
+        for member in ("filbuf.o", "ungetc.o", "scanf.o", "doscan.o", "closedir.o",
+                       "fprintf.o", "vfprintf.o", "fputs.o"):
             if member not in map_text:
                 raise RuntimeError(f"t18_stdio link map omits {member}")
 

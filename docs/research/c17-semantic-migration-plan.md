@@ -413,6 +413,12 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    `vfprintf` and `fputs`; measure their 1,024-byte temporary buffers.
    Evaluate a smaller chunk only with write-count and error-state evidence.
    Output: corrected wrapper contracts before a stack-size optimization.
+   The wrapper unit centralizes fprintf through vfprintf, isolates borrowed
+   descriptor batching in a temporary FILE, preserves original buffer
+   ownership and propagates fputs failures. The selected board archive
+   carries the new vfprintf dependency and a calibrated a.out link gate.
+   Formatter count/width overflow, early formatter failure, printf counts
+   and scratch-size evaluation remain separate ordered subitems.
 10. **Migrate one kernel interface family.** Select a caller-closed group
     from `tools/c17/kernel-ledger.txt`; compare PICO/PICO_UART diagnostics,
     public declarations, pointer widths and format arguments. Preserve

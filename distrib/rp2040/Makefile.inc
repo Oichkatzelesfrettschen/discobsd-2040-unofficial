@@ -106,6 +106,9 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_members \
 				${TOPSRC}/lib/libc/arm/gen/rom_float.inc \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
+				${TOPSRC}/lib/libc/stdio/fprintf.c \
+				${TOPSRC}/lib/libc/stdio/vfprintf.c \
+				${TOPSRC}/lib/libc/stdio/fputs.c \
 				${TOPSRC}/lib/libc/gen/confstr.c \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
 				${TOPSRC}/lib/libc/gen/difftime.c \

@@ -163,6 +163,29 @@ check_bounded_output(void)
 }
 
 static int
+check_stream_output(void)
+{
+	FILE stream;
+	char buffer[16];
+
+	memset(&stream, 0, sizeof(stream));
+	stream._flag = _IOWRT;
+	stream._base = stream._ptr = buffer;
+	stream._bufsiz = sizeof(buffer);
+	stream._cnt = sizeof(buffer);
+	if (fprintf(&stream, "%s:%d", "x", 42) != 4 ||
+	    stream._ptr != buffer + 4 || memcmp(buffer, "x:42", 4) != 0)
+		return 27;
+	memset(&stream, 0, sizeof(stream));
+	stream._flag = _IOWRT | _IONBF;
+	stream._file = -1;
+	if (fputs("abc", &stream) != EOF || !ferror(&stream) ||
+	    stream._base != NULL || stream._ptr != NULL || stream._cnt != 0)
+		return 28;
+	return 0;
+}
+
+static int
 check_directory_close(void)
 {
 	DIR *directory;
@@ -202,6 +225,10 @@ main(void)
 	if (status != 0)
 		return status;
 	puts("PASS bounded output");
+	status = check_stream_output();
+	if (status != 0)
+		return status;
+	puts("PASS stream output contracts");
 	status = check_directory_close();
 	if (status != 0)
 		return status;

@@ -33,6 +33,13 @@ shell against the host's headers, so those two reach nothing under
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 | account image (root lock, operator empty password, exact named shadow offsets, privileged modes) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
 
+The account-image gate checks root and operator passwd records for LF
+termination and a maximum of 255 bytes, including LF. The gate rejects NUL
+and CR bytes across the passwd stream because libc's record reader retains
+or misinterprets those bytes. Positive boundary and reordered-record controls,
+plus malformed-record and password-policy controls, calibrate the gate.
+These packaging checks leave successful physical login as a board claim.
+
 The build and parallel-safe gate groups run with `bmake
 -j"$(sh tools/online-cpus.sh)"`. The resolver reads the online count from
 `getconf`, BSD `sysctl` or GNU `nproc`, in that order, and returns one when a

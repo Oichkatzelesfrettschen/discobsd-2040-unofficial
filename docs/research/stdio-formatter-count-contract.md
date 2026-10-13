@@ -40,6 +40,9 @@ ASan/UBSan, and through five wrapper mutations. A separate arithmetic runner
 executes integer and floating formatter fixtures under ASan/UBSan with a
 15-second timeout. Its known-bad mutation restores the ungrouped decimal
 expression and requires the signed-overflow UBSan diagnostic and exit 1.
+The runner sets `abort_on_error=0:exitcode=1` explicitly; an abort-policy
+control produces the diagnostic through SIGABRT and fails the exit contract.
+Unexpected control failures retain status, stdout and stderr for diagnosis.
 Four finite pre-change counterexamples reject the baseline before huge-width
 cases run: character width, negative star width, alternate octal precision,
 and alternate octal zero. Maximal literal width/precision, cumulative count,

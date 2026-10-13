@@ -215,8 +215,8 @@ helper. Disassembly retains the volatile calibration loop and its live
 `getpid` relocation. Each number describes the compiled fixture, excluding
 callee frames unless named; the shipped manifest excludes the fixture.
 
-The retained test image predates the sysctl failure-status repair and requires
-regeneration before board admission. The retained test image uses source `21f4ae31326ca70d27e7ce89b4f81badb944f087`,
+The earlier retained test image predates the sysctl failure-status repair and
+remains excluded from board admission. The earlier image uses source `21f4ae31326ca70d27e7ce89b4f81badb944f087`,
 GCC 16.2.0, bmake 20260912, Python 3.14.7 and picotool 2.3.1. The optional
 storage-counter PICO kernel reports text/data/BSS 105142/376/39848 bytes.
 The test root adds only `stdiocap` and `streamtest`; filesystem checking reports
@@ -234,6 +234,30 @@ metadata mutations before inspecting the real images. It checks RP2040
 family identity, block metadata, address bounds and complete root-region
 coverage. The image hashes identify one prepared pair; a rebuild creates
 its own receipt, including any kernel version or archive timestamp changes.
+
+## Regenerated snapshot-status image
+
+The replacement distribution uses production source `268c8c32d859cd2d350df2ca0072dc6ff1830707`.
+The preparation receipt names `25261688e263215c1a1a7f6b49be099f90185e93`, whose
+source delta only tightens the two host-test exit assertions. The tool versions,
+STORAGE_STATS setting and kernel text/data/BSS match the earlier receipt.
+The full non-hardware aggregate passes before packaging; the final exact-status
+fixture and repository-shell controls also pass. Filesystem checking again
+reports 97 files, 716 used blocks and 263 free blocks.
+
+Extraction and decompression reproduce the repaired adminbox bytes. Extracted
+stdiocap, streamtest and the 54258-byte selected libc match their build inputs;
+the two probes and adminbox carry mode 0755. The tracked test manifest restores
+its original bytes after packaging. The calibrated UF2 validator accepts the
+pair and rejects all eight malformed metadata controls.
+
+| Replacement image | SHA-256 | Verified payload interval |
+| --- | --- | --- |
+| `unix.uf2` | `02e936c6e4293a8bb645b7e8b18a7c2c3c29a8f5d0d1a7f8b86fd408460dfdb8` | `[0x10000000, 0x10019d00)` |
+| `flash.uf2` | `400bd724a6fc5d42832e8a50674416d89847088387fa3801c9515e37c6b62bbe` | `[0x10020000, 0x101a0000)` |
+
+The replacement pair requires its own explicit hardware opt-in. The prepared
+files establish host packaging and image identity; board behavior remains open.
 
 ## Acceptance state
 

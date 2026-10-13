@@ -85,6 +85,14 @@ check-python:
 			exit 2; \
 		fi
 
+# The SUS discovery tools reject unavailable comparison trees and keep
+# source, installed-name, linkage and behavior evidence in separate states.
+# Fixtures calibrate declaration-only and implemented API candidates; ledger
+# mutations calibrate selected-image and Bourne-shell ownership checks.
+check-sus-discovery: check-python
+		${PYTHON} docs/research/bsd44-audit/posix_inventory_test.py
+		${PYTHON} tools/check_sus_utility_ledger.py --root ${TOPSRC} --self-test
+
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
 		$(MAKE) -C etc DESTDIR=${DESTDIR} distrib-dirs
@@ -319,6 +327,8 @@ check-libc-rwmode:
 # fopen accepts and the open(2) flags they produce, fflush over every stream,
 # rewind, the position pair and setvbuf. The ILP32 run links the tree's own
 # findiop.c, whose FILE layout assertion holds only at four-byte pointers.
+# Unbuffered input also checks descriptor-independent storage, allocation
+# failure, a shared-byte mutation and the available ILP32 sanitizers.
 check-libc-ansi:
 		${MAKE} -C tests/libc_contracts check-ansi
 
@@ -331,11 +341,41 @@ check-libc-syslog:
 check-libc-vis:
 		${MAKE} -C tests/libc_contracts check-vis
 
+check-sysctl-status: check-python
+		${MAKE} -C tests/sysctl_status check
+
+check-libc-output: check-python
+		${MAKE} -C tests/libc_output check
+
+check-board-libc-output: check-python ${TOPSRC}/distrib/obj/boardlibc.${MACHINE}/libc.a
+		${PYTHON} tests/libc_output/check_board_archive.py ${TOPSRC} ${BOARDLIBC_GCCPREFIX}-gcc
+
+check-libc-output-cross: check-python
+		${MAKE} -C tests/libc_output check-cross
+
+check-libc-casefold: check-python
+		${MAKE} -C tests/libc_casefold check
+
+check-libc-casefold-cross: check-python
+		${MAKE} -C tests/libc_casefold check-cross
+
+check-getwd-lifetime: check-python
+		${MAKE} -C tests/dirent_contracts check-getwd-lifetime
+
+check-getwd-lifetime-cross:
+		${MAKE} -C tests/dirent_contracts check-getwd-cross
+
 check-dirent-contracts:
-		${MAKE} -C tests/dirent_contracts check
+		${MAKE} -C tests/dirent_contracts check-stream
 
 check-dirent-contracts-cross:
 		${MAKE} -C tests/dirent_contracts check-cross
+
+check-scandir-contracts:
+		${MAKE} -C tests/dirent_contracts check-scandir
+
+check-scandir-contracts-cross:
+		${MAKE} -C tests/dirent_contracts check-scandir-cross
 
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
@@ -646,11 +686,12 @@ check-elf2aout:	tools
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions \
 		check-graft-cache-reader \
+		check-sus-discovery \
 		check-comment-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \
-		check-dirent-contracts check-getty-contracts \
+		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts \
@@ -685,7 +726,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-random-cross \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
-		check-dirent-contracts-cross \
+		check-dirent-contracts-cross check-getwd-lifetime-cross check-libc-output-cross check-board-libc-output check-libc-casefold-cross check-scandir-contracts-cross \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
 		check-find-contracts-cross \
@@ -803,7 +844,8 @@ check-ilp32-execution: check-python
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel-ilp32 check-libc-sysctl \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-textbox-host \
+		check-libc-host-contracts check-scandir-contracts \
+		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-libtcl-contracts
 
 check-test-execution: check-python
@@ -817,6 +859,7 @@ check-test-execution: check-python
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
+		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
 # concurrently. Kernel gates stay ordered because they rebuild and inspect the
@@ -936,7 +979,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-warning-policy-host check-warning-policy-cross \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-warning-policy-host check-warning-policy-cross \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
@@ -954,7 +997,8 @@ installfs:
 		check-libc-random check-libc-random-cross check-libc-scanf \
 		check-libc-rwmode check-libc-ansi check-libc-syslog check-libc-vis \
 		check-libc-printf-float check-dirent-contracts \
-		check-dirent-contracts-cross check-colrm-contracts \
+		check-dirent-contracts-cross check-scandir-contracts \
+		check-scandir-contracts-cross check-colrm-contracts \
 		check-colrm-contracts-cross check-unifdef-contracts \
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
@@ -978,3 +1022,13 @@ installfs:
 
 # Architecture-specific debugging and loading.
 -include sys/arch/${MACHINE}/conf/Makefile.inc
+
+.PHONY: check-getwd-lifetime check-getwd-lifetime-cross
+
+.PHONY: check-libc-casefold check-libc-casefold-cross
+
+.PHONY: check-libc-output check-libc-output-cross
+
+.PHONY: check-board-libc-output
+
+.PHONY: check-sysctl-status

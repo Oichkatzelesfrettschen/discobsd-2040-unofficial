@@ -113,9 +113,19 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
-| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, evidence hierarchy, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and six seed rows |
+| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and six seed rows |
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
+| `libc-opendir-directory-cloexec.md` | opened-descriptor directory admission, close-on-exec setup, calibrated cleanup gates, and measured stack, linked and packed-root costs |
+| `libc-closedir-result-contract.md` | integer close results, errno preservation, exactly-once stream release, calibrated controls and paired resource evidence |
+| `libc-getwd-entry-lifetime.md` | borrowed directory-entry lifetime, real-free sanitizer counterexample and calibrated traversal gates |
+| `libc-ascii-casefold-contract.md` | exhaustive POSIX byte-locale mapping, signedness independence and measured table removal |
+| `stdio-output-wrapper-contract.md` | formatted output counts, temporary stream ownership, write-failure controls and selected archive closure |
+| `stdio-formatter-count-contract.md` | checked formatter arithmetic, logical counts, early stream failure and native consumer acceptance |
+| `stdio-output-batch-capacity.md` | private 256-byte batching, frame and write-count tradeoffs, chunk failure controls |
+| `board-capacity-acceptance.md` | board-only sampled-stack probe, calibration, exact image boundaries and open physical resource measurements |
+| `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |
+| `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |
 | `211bsd-patch-scope.md` | bounded 2.11BSD textual candidates, historical comparison measurements, patch 499's measured stdio cost, and the measured `_doscan` migration unit |
@@ -124,6 +134,7 @@ Grouped by what they investigate.
 | `211bsd-fwalk.patch` | the `_fwalk` fix for 2.11BSD patch 499 as a standalone `patch -p0` file with its message, the companion to the report |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
 | `renode-login-regression.md` | the Renode login timeout was `panic: wakeup` behind a reboot prompt: three locores stored p_addr at a literal 60 after #129 moved it to 64; sys/proc_asm.h and a _Static_assert in kern_proc.c pin the offset, and boot.robot logs the UART transcript on failure |
+| `stdio-unbuffered-ownership.md` | descriptor-independent input storage in the existing FILE byte, calibrated pushback and allocation-failure tests, and linked resource accounting |
 | `stdio-core-c17-unit.md` | the V7 stdio core converted to C17 with a one-byte pushback slot in `FILE`: what changed, the calibrated gate, and the measured +32 data and +20 to +92 text per program |
 | `stdio-ansi-surface-unit.md` | the C17 stdio interface outside the stream core: a shared mode-string reading with `O_APPEND` and the `x` modes, `fflush(NULL)`, `fgetpos` and `fsetpos`, the limit macros, the calibrated gate, and the measured three root blocks |
 
@@ -131,7 +142,9 @@ Grouped by what they investigate.
 
 | Document | Establishes |
 | --- | --- |
-| `posix-utilities.md` | POSIX utility coverage and the porting candidates |
+| `posix-utilities.md` | the current selected-image utility ownership map and the superseded September 2026 porting survey |
+| `sus-utility-ledger.json` | the machine-checked source, manifest, multicall, Bourne-builtin and behavior-gate state for 107 utility names |
+| `sus-edition-contracts.md` | bounded Issue 7 and Issue 8 utility, directory, case-folding, process-group and runtime-limit contracts with explicit option marks and residuals |
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |

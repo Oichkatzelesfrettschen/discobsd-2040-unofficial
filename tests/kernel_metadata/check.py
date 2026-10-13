@@ -78,7 +78,9 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("SYS_sbrk must retain its public spelling")
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
-    if len(errno_records) != 82 or errno_records[-1][0] != "81":
+    if len(errno_records) != 83 or errno_records[-1] != [
+        "82", "Value too large for data type"
+    ]:
         raise CheckError("errno master must cover zero through ELAST")
 
     conf = source("sys/arch/rp2040/rp2040/conf.c")

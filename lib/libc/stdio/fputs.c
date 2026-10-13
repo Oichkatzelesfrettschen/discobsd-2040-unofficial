@@ -5,32 +5,35 @@
  */
 #include <stdio.h>
 #include <alloca.h>
+#include "output.h"
 
 int
-fputs(s, iop)
-	register const char *s;
-	register FILE *iop;
+fputs(const char *text, FILE *stream)
 {
-	register int r = 0, c;
-	int unbuffered;
+	FILE temporary;
+	FILE *output = stream;
+	int result = 0;
 
-	unbuffered = iop->_flag & _IONBF;
-	if (unbuffered) {
-		iop->_flag &= ~_IONBF;
-		iop->_ptr = iop->_base = alloca(BUFSIZ);
-		iop->_bufsiz = BUFSIZ;
+	if (stream->_flag & _IONBF) {
+		/* Preserve stream-owned buffer pointers across temporary batching. */
+		temporary = *stream;
+		temporary._flag &= ~_IONBF;
+		temporary._ptr = temporary._base = alloca(STDIO_OUTPUT_CHUNK);
+		temporary._bufsiz = STDIO_OUTPUT_CHUNK;
+		temporary._cnt = 0;
+		output = &temporary;
 	}
-
-	while ((c = *s++))
-		r = putc(c, iop);
-
-	if (unbuffered) {
-		fflush(iop);
-		iop->_flag |= _IONBF;
-		iop->_base = NULL;
-		iop->_bufsiz = NULL;
-		iop->_cnt = 0;
+	while (*text != '\0') {
+		if (putc((unsigned char)*text++, output) == EOF) {
+			result = EOF;
+			break;
+		}
 	}
-
-	return(r);
+	if (output != stream) {
+		if (result != EOF && fflush(output) == EOF)
+			result = EOF;
+		stream->_flag = output->_flag | _IONBF;
+		stream->_cnt = 0;
+	}
+	return result;
 }

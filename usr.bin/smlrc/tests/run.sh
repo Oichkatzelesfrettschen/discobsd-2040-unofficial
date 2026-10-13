@@ -25,7 +25,22 @@ PYTHON=${PYTHON:?PYTHON must name the host interpreter}
 CPU=${CPU:-cortex-m0plus}
 TOOLBINDIR=${TOOLBINDIR:-$TOPSRC/tools/bin/$MACHINE}
 SRCDIR=$(cd "$(dirname "$0")" && pwd)
-OUT=$SRCDIR/out
+TEST_ONLY=${SMLRC_TEST_ONLY:-}
+DEVICE_CC=${DEVICE_CC:?DEVICE_CC must be the evaluated production compiler}
+DEVICE_LDFLAGS=${DEVICE_LDFLAGS:?DEVICE_LDFLAGS must be evaluated production flags}
+
+if [ "${SMLRC_TEST_OUT+x}" = x ]; then
+	OUT=$SMLRC_TEST_OUT
+	if [ -z "$OUT" ] || [ -e "$OUT" ] || [ -L "$OUT" ]; then
+		echo "SMLRC_TEST_OUT must name an absent output path" >&2
+		exit 2
+	fi
+	mkdir "$OUT"
+else
+	OUT=$SRCDIR/out
+	rm -rf "$OUT"
+	mkdir -p "$OUT"
+fi
 
 CPP="$CROSS-gcc -E -P -nostdinc -I$TOPSRC/include -U__GNUC__ -U__PCC__ \
     -D__SMALLER_C__=0x0100 -D__SMALLER_C_32__ -D__SMALLER_C_UCHAR__ \
@@ -37,10 +52,7 @@ NM="$CROSS-nm"
 ELF2AOUT=$TOOLBINDIR/elf2aout
 LDSCRIPT=$TOPSRC/lib/elf32-arm.ld
 CRT0=$TOPSRC/lib/crt0.o
-LIBC=$TOPSRC/lib/libc.a
-
-rm -rf "$OUT"
-mkdir -p "$OUT"
+LIBC=${SMLRC_TEST_LIBC:-$TOPSRC/lib/libc.a}
 
 pass=0
 fail=0
@@ -68,13 +80,14 @@ fail_test()
 # end entry point is file-local, which is what catches a definition whose
 # linkage disagrees with the declaration in smlrc.c.
 #
-# Sources reach smlrc already preprocessed, which is the arrangement on the
-# device, where usr.bin/cc runs usr.bin/cpp first. smlrc's own preprocessor
-# handles no function-like macro, and <stdio.h> defines getc and putc as
-# function-like macros, so a program including it has to be preprocessed by
-# something else. The header set branches on __GNUC__, so that macro is
-# undefined again and the Smaller C identity put in its place, which makes
-# the headers expand to the same declarations the device build sees.
+# Sources reach this host harness already preprocessed. The shipped
+# distrib/rp2040/cc invokes the NO_PREPROCESSOR compiler directly and the
+# selected root has no cpp or header set, so actual on-device preprocessing is
+# a separate capability. smlrc's own preprocessor handles no function-like
+# macro, and <stdio.h> defines getc and putc as function-like macros. The
+# header set branches on __GNUC__, so the harness removes that identity and
+# supplies the Smaller C identity before it records native parser/codegen
+# acceptance of the expanded declarations.
 note "building smlrc for the host with -DTHUMB"
 $HOST_CC -O1 -Wall -Wextra -Werror -DTHUMB -DNO_ANNOTATIONS -DNO_PPACK -DSTATIC \
     -DNO_EXTRA_WARNS -DSYNTAX_STACK_MAX=3200 \
@@ -189,11 +202,11 @@ run_one()
 		extra="$base.gnu.o"
 	fi
 
-	# Device tier: the tree's own link line.
-	if ! $GCC -mcpu=$CPU -mthumb -mfloat-abi=soft \
-	    -N -nostartfiles -fno-dwarf2-cfi-asm -Wl,--no-warn-rwx-segments \
-	    -T"$LDSCRIPT" "$CRT0" -L"$TOPSRC/lib" \
-	    -o "$base.elf" "$base.o" $extra -lc > "$base.ld.log" 2>&1; then
+	# Device tier: the evaluated production compiler and link policy. The
+	# selected archive is explicit so the calibrated red control reaches the
+	# same member set without changing the source tree's libc.a.
+	if ! $DEVICE_CC $DEVICE_LDFLAGS -Wl,-Map,"$base.map" \
+	    -o "$base.elf" "$base.o" $extra "$LIBC" > "$base.ld.log" 2>&1; then
 		fail_test "$name" "device link failed, see $base.ld.log"
 		return
 	fi
@@ -254,6 +267,7 @@ run_one()
 	note "PASS $name"
 }
 
+selected=0
 for src in "$SRCDIR"/t[0-9][0-9]_*.c ; do
 	[ -e "$src" ] || continue
 	name=$(basename "$src" .c)
@@ -262,14 +276,22 @@ for src in "$SRCDIR"/t[0-9][0-9]_*.c ; do
 	case "$name" in
 	*.gnu)	continue ;;
 	esac
+	if [ -n "$TEST_ONLY" ] && [ "$name" != "$TEST_ONLY" ]; then
+		continue
+	fi
+	selected=$((selected + 1))
 	run_one "$name" "$src"
 done
+if [ -n "$TEST_ONLY" ] && [ "$selected" -eq 0 ]; then
+	echo "requested Smaller C test is absent: $TEST_ONLY" >&2
+	exit 2
+fi
 
 # Every call the back end wrote, in every test, reaches its callee with SP
 # 8-byte aligned. The checker models the generator's own SP-moving forms and
 # errors on anything it does not recognize, so a new emitter cannot pass by
 # being skipped.
-if ! $PYTHON "$SRCDIR/spalign.py" "$OUT"/*.s ; then
+if ! "$PYTHON" "$SRCDIR/spalign.py" "$OUT"/*.s ; then
 	fail=$((fail + 1))
 	failed="$failed spalign"
 fi

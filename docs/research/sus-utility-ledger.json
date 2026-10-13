@@ -1,0 +1,327 @@
+{
+  "authorities": {
+    "bourneshell_builtins": "bin/sh/msg.c",
+    "bourneshell_dispatch": "bin/sh/xec.c",
+    "bourneshell_tests": "bin/sh/tests/posix-sh.sh",
+    "manifest": "distrib/rp2040/mi.rp2040",
+    "root_gates": "Makefile"
+  },
+  "groups": [
+    {
+      "behavior_gates": [
+        "check-textbox-host"
+      ],
+      "dispatch": "sbin/textbox/Makefile",
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "manifest",
+      "manifest_target": "/usr/bin/textbox",
+      "names": [
+        "cut",
+        "paste",
+        "dirname",
+        "nl",
+        "cksum",
+        "expand",
+        "unexpand",
+        "uuencode",
+        "uudecode",
+        "fold"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "bounded-host-behavior"
+    },
+    {
+      "behavior_gates": [],
+      "dispatch": "sbin/utilbox/Makefile",
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "manifest",
+      "manifest_target": "/usr/bin/utilbox",
+      "names": [
+        "tr",
+        "uniq",
+        "head",
+        "wc",
+        "cmp",
+        "printf",
+        "xargs"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "installed-name-and-owner"
+    },
+    {
+      "behavior_gates": [
+        "check-touch-contracts",
+        "check-touch-contracts-cross"
+      ],
+      "dispatch": "sbin/utilbox/Makefile",
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "manifest",
+      "manifest_target": "/usr/bin/utilbox",
+      "names": [
+        "touch"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "host-and-cross-behavior"
+    },
+    {
+      "behavior_gates": [],
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "manifest",
+      "manifest_target_pattern": "/usr/bin/{name}",
+      "names": [
+        "awk",
+        "sed"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "installed-name"
+    },
+    {
+      "behavior_gates": [
+        "check-tee-contracts",
+        "check-tee-contracts-cross"
+      ],
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "manifest",
+      "manifest_target_pattern": "/usr/bin/{name}",
+      "names": [
+        "tee"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "host-and-cross-behavior"
+    },
+    {
+      "behavior_gates": [],
+      "dispatch": "sbin/box/Makefile",
+      "installed_path_pattern": "/bin/{name}",
+      "kind": "manifest",
+      "manifest_target": "/bin/box",
+      "names": [
+        "chmod",
+        "cp",
+        "ln",
+        "mv",
+        "rm"
+      ],
+      "source_pattern": "bin/{name}",
+      "verification": "installed-name-and-owner"
+    },
+    {
+      "behavior_gates": [
+        "check-rmdir-contracts",
+        "check-rmdir-contracts-cross"
+      ],
+      "dispatch": "sbin/box/Makefile",
+      "installed_path_pattern": "/bin/{name}",
+      "kind": "manifest",
+      "manifest_target": "/bin/box",
+      "names": [
+        "rmdir"
+      ],
+      "source_pattern": "bin/{name}",
+      "verification": "host-and-cross-behavior"
+    },
+    {
+      "behavior_gates": [
+        "check-posix-sh"
+      ],
+      "installed_path_pattern": "/bin/{name}",
+      "kind": "manifest",
+      "manifest_target_pattern": "/bin/{name}",
+      "names": [
+        "sh"
+      ],
+      "source_pattern": "bin/{name}",
+      "verification": "bounded-host-behavior-with-xfails"
+    },
+    {
+      "behavior_gates": [],
+      "installed_path_pattern": "/bin/{name}",
+      "kind": "manifest",
+      "manifest_target_pattern": "/bin/{name}",
+      "names": [
+        "ed"
+      ],
+      "source_pattern": "bin/{name}",
+      "verification": "installed-name"
+    },
+    {
+      "behavior_gates": [
+        "check-stevie-host"
+      ],
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "manifest",
+      "manifest_target": "/usr/bin/stevie",
+      "names": [
+        "vi"
+      ],
+      "source": "usr.bin/stevie",
+      "source_command": "stevie",
+      "verification": "installed-alias-with-editor-tests"
+    },
+    {
+      "behavior_gates": [
+        "check-portable-utilities"
+      ],
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "source-only",
+      "names": [
+        "strings"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "host-behavior-only"
+    },
+    {
+      "behavior_gates": [],
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "source-only",
+      "names": [
+        "mkfifo",
+        "od",
+        "mail",
+        "whereis"
+      ],
+      "source_pattern": "usr.bin/{name}",
+      "verification": "source-presence"
+    },
+    {
+      "behavior_gates": [],
+      "installed_path_pattern": "/bin/{name}",
+      "kind": "source-only",
+      "names": [
+        "rmail"
+      ],
+      "source_pattern": "bin/{name}",
+      "verification": "source-presence"
+    },
+    {
+      "behavior_gates": [
+        "check-posix-sh"
+      ],
+      "behavior_cases": {
+        "read": "bi_read",
+        "type": "bi_type_builtin",
+        "umask": "bi_umask"
+      },
+      "kind": "bourne-builtin-present",
+      "names": [
+        "read",
+        "type",
+        "umask"
+      ],
+      "verification": "builtin-name-with-bounded-behavior"
+    },
+    {
+      "behavior_gates": [],
+      "kind": "bourne-builtin-present",
+      "names": [
+        "cd",
+        "hash",
+        "ulimit",
+        "wait"
+      ],
+      "verification": "builtin-name-only"
+    },
+    {
+      "behavior_gates": [],
+      "dispatch_case": "SYSNEWGRP",
+      "external_command": "newgrp",
+      "kind": "bourne-builtin-dispatch-stub",
+      "names": [
+        "newgrp"
+      ],
+      "verification": "builtin-name-dispatches-to-unshipped-external"
+    },
+    {
+      "behavior_gates": [
+        "check-posix-sh"
+      ],
+      "behavior_cases": {
+        "command": "bi_command",
+        "getopts": "bi_getopts"
+      },
+      "kind": "bourne-builtin-absent",
+      "names": [
+        "command",
+        "getopts"
+      ],
+      "verification": "missing-name-with-recorded-xfails"
+    },
+    {
+      "behavior_gates": [],
+      "kind": "bourne-builtin-absent",
+      "names": [
+        "alias",
+        "bg",
+        "fc",
+        "fg",
+        "jobs",
+        "unalias"
+      ],
+      "verification": "missing-name-only"
+    },
+    {
+      "behavior_gates": [],
+      "installed_path_pattern": "/usr/bin/{name}",
+      "kind": "absent",
+      "names": [
+        "patch",
+        "link",
+        "unlink",
+        "getconf",
+        "logger",
+        "ex",
+        "csplit",
+        "pax",
+        "tput",
+        "iconv",
+        "locale",
+        "localedef",
+        "mailx",
+        "crontab",
+        "gencat",
+        "fuser",
+        "ipcs",
+        "ipcrm",
+        "c99",
+        "asa",
+        "cflow",
+        "cxref",
+        "fort77",
+        "pathchk",
+        "tabs",
+        "which",
+        "less",
+        "telnet",
+        "ftp",
+        "talk",
+        "uustat",
+        "uux",
+        "lp",
+        "admin",
+        "delta",
+        "get",
+        "prs",
+        "rmdel",
+        "sact",
+        "unget",
+        "val",
+        "what",
+        "at",
+        "batch",
+        "qalter",
+        "qdel",
+        "qhold",
+        "qmove",
+        "qmsg",
+        "qrerun",
+        "qrls",
+        "qselect",
+        "qsig",
+        "qstat",
+        "qsub"
+      ],
+      "verification": "absent-name"
+    }
+  ],
+  "schema_version": 1
+}

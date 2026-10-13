@@ -1,14 +1,63 @@
-# POSIX Utility Coverage and Porting Candidates for DiscoBSD/RP2040
+# POSIX and SUS utility ownership for DiscoBSD/RP2040
 
-Target platform (fixed, from task context): DiscoBSD (2.11BSD-derived Unix) on
-a Raspberry Pi Pico, RP2040, Cortex-M0+, no MMU, at most 96 KB per process,
-a.out binaries cross-built with `arm-none-eabi-gcc -Os`, 2.11BSD libc with
-partial POSIX support (no threads, no mmap, no dynamic linking). Root
-filesystem is 840 KB total, about 340 KB free. Every utility is a separate
-a.out binary, typically 15-40 KB, so binary count is a real cost, not just
-per-binary size.
+The selected RP2040 image has a 144 KiB process window and a 1,536 KiB Dhara
+root with about 989 KiB usable. `distrib/rp2040/mi.rp2040` selects installed
+names. The box, sysbox, textbox, utilbox, adminbox, grepbox and gamebox
+executables share code among hard-linked names, so a source directory or an
+installed name does not imply another a.out image. The September 2026 survey
+below used a 96 KiB process window, an 840 KiB root and a separate-binary
+model; those values describe its historical input rather than the current
+port.
 
-## Part 1: POSIX coverage gap analysis
+`sus-utility-ledger.json` is the machine-readable ownership ledger. It covers
+107 names from the historical gap list, requested-name list, shell builtins,
+SCCS and batch groups, and adjacent source candidates. `check-sus-discovery`
+checks every row against the selected manifest, multicall `TOOLS` and
+`ALIASES`, `bin/sh/msg.c`, `bin/sh/xec.c`, source directories and named root
+gates. Seven mutations prove that the checker rejects a wrong multicall target,
+an unrelated direct or alias source owner, a missing Bourne-shell builtin
+claimed present, a nonexistent behavior case, a non-executing dispatch case
+and a duplicate name.
+
+The ledger uses six bounded states:
+
+- `manifest` means the selected manifest installs the exact path and target.
+- `source-only` means source exists while the selected manifest omits the
+  utility name.
+- `bourne-builtin-present`, `bourne-builtin-dispatch-stub` and
+  `bourne-builtin-absent` read the Bourne shell's actual command table. The
+  dispatch-stub state also proves that the shell calls an external command
+  which the selected manifest omits. A csh builtin does not close a
+  Bourne-shell row.
+- `absent` means the bounded top-level utility-source search and selected
+  manifest both lack the name.
+
+| State | Names | Source or dispatch owner | Selected image | Behavior evidence and residual |
+| --- | --- | --- | --- | --- |
+| Textbox | `cut`, `paste`, `dirname`, `nl`, `cksum`, `expand`, `unexpand`, `uuencode`, `uudecode`, `fold` | `usr.bin/<name>` through `sbin/textbox/Makefile` | `/usr/bin/<name>` links to `/usr/bin/textbox` | `check-textbox-host` exercises bounded cases. `nl` still rejects the XSI `p<BRE>` selector, so the name and default case do not close its contract. |
+| Utilbox | `tr`, `uniq`, `head`, `wc`, `cmp`, `printf`, `xargs`, `touch` | `usr.bin/<name>` through `sbin/utilbox/Makefile` | `/usr/bin/<name>` links to `/usr/bin/utilbox` | `touch` has host and cross contract gates. The other names have ownership evidence only in this ledger; `printf` still lacks `%b` and correct output-failure handling. |
+| Box | `chmod`, `cp`, `ln`, `mv`, `rm`, `rmdir` | `bin/<name>` through `sbin/box/Makefile` | `/bin/<name>` links to `/bin/box` | `rmdir` has host and cross contract gates. The other rows retain installed-name and dispatch evidence only. |
+| Standalone | `awk`, `sed`, `tee`, `sh`, `ed` | matching `usr.bin` or `bin` source | exact packed path | `tee` has host and cross contracts. `check-posix-sh` records supported shell cases and explicit expected failures. `awk`, `sed` and `ed` retain name evidence only in this ledger. |
+| Editor alias | `vi` | `usr.bin/stevie` | `/usr/bin/vi` links to `/usr/bin/stevie` | `check-stevie-host` exercises the editor through a pty. The alias does not establish the User Portability Utilities `vi` contract, and the image has no `ex` name. |
+| Source only | `mkfifo`, `strings`, `od`, `mail`, `rmail`, `whereis` | matching source directory | omitted | `strings` has a host contract gate. `mkfifo` stays unshipped because the kernel lacks FIFO behavior. The other rows establish source presence only. |
+| Bourne builtin with a passing case | `read`, `type`, `umask` | `bin/sh/msg.c` | provided by `/bin/sh` | `check-posix-sh` executes `bi_read`, `bi_type_builtin` and `bi_umask`. |
+| Bourne builtin name only | `cd`, `hash`, `ulimit`, `wait` | `bin/sh/msg.c` | provided by `/bin/sh` | The ledger establishes command-table presence. `check-posix-sh` has no passing case for these names. |
+| Bourne dispatch stub | `newgrp` | `bin/sh/msg.c` selects `SYSNEWGRP`; `bin/sh/xec.c` calls `execa()` | the selected manifest omits an external `newgrp` command | The builtin name reaches an unavailable external mechanism, and `check-posix-sh` has no `newgrp` case. |
+| Bourne builtin absent with an expected failure | `command`, `getopts` | missing from `bin/sh/msg.c` | unavailable through `/bin/sh` | `check-posix-sh` executes `bi_command` and `bi_getopts` as expected failures. |
+| Bourne builtin name absent | `alias`, `bg`, `fc`, `fg`, `jobs`, `unalias` | missing from `bin/sh/msg.c` | unavailable through `/bin/sh` | The ledger establishes command-table absence only. Job-control names require process-group and terminal behavior. |
+| Absent | the remaining 55 names in `sus-utility-ledger.json`, including `patch`, `pax`, `getconf`, `c99`, `localedef`, SCCS and batch utilities | none in the bounded utility roots | omitted | The row records absence from the selected image and bounded source roots. Standards disposition remains separate from implementation evidence. |
+
+The companion `sus-edition-contracts.md` pins the selected Issue 7 and Issue 8
+requirements. Installed-name, dispatch, source, linkage and behavior evidence
+remain distinct. A gate closes only the cases it executes.
+
+## Historical September 2026 survey
+
+The text below remains as provenance for donor and licensing research at
+commit `8d09e326875555fa0b80631dda24471e91d1f553`. Its availability and resource
+claims are superseded by the current ledger above.
+
+### Part 1: POSIX coverage gap analysis
 
 The POSIX.1-2017 (SUSv4, IEEE Std 1003.1-2017) "Shell and Utilities" volume
 (XCU) enumerates the utilities a conforming system must provide. The set is
@@ -33,7 +82,7 @@ row rather than exploded, since none is a realistic port target for this
 platform. `talk`, `uustat`, `uux`, `lp` are networked or print-spooler tools
 that are out of scope for a networkless embedded target.
 
-### Missing-but-mandatory utilities
+#### Missing-but-mandatory utilities
 
 | Utility | Purpose |
 |---|---|
@@ -65,7 +114,7 @@ that are out of scope for a networkless embedded target.
 | SCCS suite (`admin`, `delta`, `get`, `prs`, `rmdel`, `sact`, `unget`, `val`, `what`) | Source Code Control System; obsolete version-control tooling. |
 | Batch queueing suite (`at`, `batch`, `qalter` ... `qsub`) | POSIX batch job scheduling; not meaningful on a single-process-at-a-time 96 KB target. |
 
-### Explicit resolution of the requested name list against the tree
+#### Explicit resolution of the requested name list against the tree
 
 Checked one by one against the `bin`/`usr.bin`/`sbin`/`usr.sbin`/`libexec`
 lists given in the task:
@@ -100,9 +149,9 @@ lists given in the task:
 - `touch` -- **present** (`usr.bin/touch`).
 - `sh` -- **present** (`bin/sh`).
 
-## Part 2: Candidate source projects
+### Part 2: Candidate source projects
 
-### toybox
+#### toybox
 
 [toybox](https://github.com/landley/toybox) is licensed 0BSD (relicensed
 from BSD in March 2013), confirmed by the
@@ -135,7 +184,7 @@ a.out) is more plausible than the multicall model on this target; expect a
 single extracted-and-trimmed applet in the 15-30 KB range after `-Os`, but
 each extraction is nontrivial engineering, not a stock build.
 
-### busybox
+#### busybox
 
 [BusyBox](https://busybox.net/) is licensed strictly under GPLv2 (not
 GPLv2-or-later; only pre-1.2.2 releases may be redistributed under other GPL
@@ -153,7 +202,7 @@ this tree; treat toybox, sbase, or BSD-derived sources as the priority
 instead, given they are all permissively (BSD-style/MIT/0BSD) licensed and
 compatible with 2.11BSD's own license.
 
-### sbase (suckless)
+#### sbase (suckless)
 
 [sbase](https://git.suckless.org/sbase/file/LICENSE.html) is MIT-licensed,
 confirmed by the project's LICENSE file and by the
@@ -180,7 +229,7 @@ single-binary port; expect 10-25 KB a.out size per tool after `-Os`
 (consistent with the 15-40 KB range already observed for the existing tree's
 utilities of comparable complexity).
 
-### 2.11BSD and 4.4BSD-Lite original sources
+#### 2.11BSD and 4.4BSD-Lite original sources
 
 The DiscoBSD/RetroBSD lineage's own ancestor, 2.11BSD, is archived at
 [TUHS's 2.11BSD distribution tree](https://www.tuhs.org/Archive/Distributions/UCB/2.11BSD/)
@@ -207,7 +256,7 @@ NetBSD and OpenBSD source is modern C), the issue is their use of
 and wide `ino_t`/`dev_t`/`off_t`/`time_t` typedefs that must be narrowed
 back for the 16-bit-era ABI.
 
-### OpenBSD src/usr.bin and src/bin
+#### OpenBSD src/usr.bin and src/bin
 
 OpenBSD's source tree is mirrored at
 [github.com/openbsd/src](https://github.com/openbsd/src), and the project's
@@ -233,7 +282,7 @@ short options), narrow integer/`ino_t` types, no `mmap`, no threads, and
 process ceiling in mind, so buffer sizes and any recursive algorithms need a
 size audit).
 
-### NetBSD src/usr.bin and src/bin
+#### NetBSD src/usr.bin and src/bin
 
 NetBSD's source is BSD-licensed and mirrored at
 [github.com/NetBSD/src](https://github.com/NetBSD/src) (usr.bin subtree
@@ -249,7 +298,7 @@ conservative traditional 4-clause-turned-3-clause BSD license text on older
 files rather than ISC, but this is still fully permissive and compatible
 with a BSD-licensed target tree.
 
-### RetroBSD userland
+#### RetroBSD userland
 
 [RetroBSD](https://github.com/RetroBSD/retrobsd) is a direct port of
 2.11BSD to the Microchip PIC32 microcontroller family (128 KB RAM, 512 KB
@@ -275,7 +324,7 @@ RetroBSD-vs-DiscoBSD libc divergences reconciled), not the K&R-header,
 `getopt_long`, or type-width rework that OpenBSD/NetBSD/sbase/toybox sources
 need.
 
-## Part 3: Specific tool verification and source recommendation
+### Part 3: Specific tool verification and source recommendation
 
 | Tool | Present in tree? | Recommended source | Notes |
 |---|---|---|---|
@@ -297,7 +346,7 @@ need.
 | `telnet` / `ftp` | No | Out of scope | The target has no network stack, per the fixed platform description; these tools have no function on this image and are excluded from the porting list entirely. |
 | `bsdtar` (libarchive) vs. tree's `bin/tar` | tree ships `bin/tar` already | Keep the existing `bin/tar`; do not port `bsdtar`/libarchive | libarchive is a large, feature-rich, dynamically-extensible archive library (multi-format, filter chains, ACL/xattr support) built for systems with `mmap`, threads, and megabytes of flash/RAM headroom -- none of which this platform has. The existing `bin/tar` almost certainly already satisfies this platform's archive needs (read/write of plain tar images for firmware/rootfs packaging); pulling in libarchive would consume a large fraction of the 340 KB free filesystem budget for capability this platform will not exercise (no compression filters worth the flash cost, no ACL/xattr concept in 2.11BSD). No action recommended here beyond confirming the existing `tar`'s format coverage meets the actual workflow. |
 
-## Prioritized porting list
+### Prioritized porting list
 
 1. Port `cut` from RetroBSD userland if present there, else sbase (MIT) -- expected a.out size approximately 12-18 KB.
 2. Port `paste` from RetroBSD userland if present there, else sbase (MIT) -- expected a.out size approximately 12-18 KB.

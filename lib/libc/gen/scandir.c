@@ -5,107 +5,189 @@
  */
 
 /*
- * Scan the directory dirname calling select to make a list of selected
- * directory entries then sort using qsort and compare routine dcomp.
- * Returns the number of entries and a pointer to a list of pointers to
- * struct direct (through namelist). Returns -1 if there were any errors.
+ * Scan a directory, copy selected entries and sort them with a typed
+ * comparator.  The pointer vector grows from selected entries rather than
+ * directory file size, because directory metadata does not bound selection.
  */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/dir.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-int
-scandir(dirname, namelist, select, dcomp)
-	char *dirname;
-	struct direct *(*namelist[]);
-	int (*select)(), (*dcomp)();
+static int
+compare_entries(struct direct *left_entry, struct direct *right_entry,
+    int (*comparison)(const struct direct **, const struct direct **))
 {
-	register struct direct *d, *p, **names;
-	register int nitems;
-	register char *cp1, *cp2;
-	struct stat stb;
-	int arraysz;
-	DIR *dirp;
+	const struct direct *left_argument = left_entry;
+	const struct direct *right_argument = right_entry;
 
-	if ((dirp = opendir(dirname)) == NULL)
-		return(-1);
-	if (fstat(dirp->dd_fd, &stb) < 0)
-		return(-1);
+	return (*comparison)(&left_argument, &right_argument);
+}
 
-	/*
-	 * estimate the array size by taking the size of the directory file
-	 * and dividing it by a multiple of the minimum size entry.
-	 */
-	arraysz = (stb.st_size / 24);
-	names = (struct direct **)malloc(arraysz * sizeof(struct direct *));
-	if (names == NULL) {
-		closedir(dirp);
-		return(-1);
+static void
+exchange_entries(struct direct **left, struct direct **right)
+{
+	struct direct *temporary;
+
+	temporary = *left;
+	*left = *right;
+	*right = temporary;
+}
+
+static void
+sift_entries(struct direct **names, size_t root, size_t end,
+    int (*comparison)(const struct direct **, const struct direct **))
+{
+	size_t child;
+
+	if (end == 0)
+		return;
+	while (root <= (end - 1) / 2) {
+		child = root * 2 + 1;
+		if (child < end &&
+		    compare_entries(names[child], names[child + 1], comparison) < 0)
+			++child;
+		if (compare_entries(names[root], names[child], comparison) >= 0)
+			return;
+		exchange_entries(&names[root], &names[child]);
+		root = child;
+	}
+}
+
+static void
+sort_entries(struct direct **names, size_t entry_count,
+    int (*comparison)(const struct direct **, const struct direct **))
+{
+	size_t end;
+	size_t start;
+
+	if (entry_count < 2)
+		return;
+	start = (entry_count - 2) / 2;
+	for (;;) {
+		sift_entries(names, start, entry_count - 1, comparison);
+		if (start == 0)
+			break;
+		--start;
+	}
+	for (end = entry_count - 1; end != 0; --end) {
+		exchange_entries(&names[0], &names[end]);
+		sift_entries(names, 0, end - 1, comparison);
+	}
+}
+
+int
+scandir(const char *dirname, struct direct ***namelist,
+    int (*select_entry)(const struct direct *),
+    int (*comparison)(const struct direct **, const struct direct **))
+{
+	struct direct *entry;
+	struct direct *entry_copy;
+	struct direct **grown_names;
+	struct direct **names = NULL;
+	struct stat status;
+	DIR *directory;
+	size_t capacity = 0;
+	size_t entry_count = 0;
+	size_t name_index;
+	size_t new_capacity;
+	size_t record_size;
+	int saved_errno;
+
+	directory = opendir(dirname);
+	if (directory == NULL)
+		return -1;
+	if (fstat(directory->dd_fd, &status) < 0)
+		goto fail;
+	if (!S_ISDIR(status.st_mode)) {
+		errno = ENOTDIR;
+		goto fail;
 	}
 
-	nitems = 0;
-	while ((d = readdir(dirp)) != NULL) {
-		if (select != NULL && !(*select)(d))
-			continue;	/* just selected names */
-		/*
-		 * Make a minimum size copy of the data
-		 */
-		p = (struct direct *)malloc(DIRSIZ(d));
-		if (p == NULL)
+	for (;;) {
+		errno = 0;
+		entry = readdir(directory);
+		if (entry == NULL) {
+			if (errno != 0)
+				goto fail;
+			break;
+		}
+		if (select_entry != NULL && !(*select_entry)(entry))
+			continue;
+		if (entry_count == (size_t)INT_MAX) {
+			errno = EOVERFLOW;
 			goto fail;
-		p->d_ino = d->d_ino;
-		p->d_reclen = d->d_reclen;
-		p->d_namlen = d->d_namlen;
-		for (cp1 = p->d_name, cp2 = d->d_name; (*cp1++ = *cp2++); );
+		}
 
-		/*
-		 * Check to make sure the array has space left and
-		 * realloc the maximum size.
-		 */
-		if (++nitems >= arraysz) {
-			struct direct **nnames;
-
-			if (fstat(dirp->dd_fd, &stb) < 0) {
-				free(p);
-				nitems--;
-				goto fail;	/* just might have grown */
+		if (entry_count == capacity) {
+			if (capacity == 0)
+				new_capacity = 4;
+			else {
+				new_capacity = capacity * 2;
+				if (new_capacity > (size_t)INT_MAX)
+					new_capacity = (size_t)INT_MAX;
 			}
-			arraysz = stb.st_size / 12;
-			nnames = (struct direct **)realloc((char *)names,
-				arraysz * sizeof(struct direct *));
-			if (nnames == NULL) {
-				free(p);
-				nitems--;
+			if (new_capacity > (size_t)-1 / sizeof(*names)) {
+				errno = ENOMEM;
 				goto fail;
 			}
-			names = nnames;
+			if (names == NULL)
+				grown_names = malloc(new_capacity * sizeof(*names));
+			else
+				grown_names = realloc(names,
+				    new_capacity * sizeof(*names));
+			if (grown_names == NULL)
+				goto fail;
+			names = grown_names;
+			capacity = new_capacity;
 		}
-		names[nitems-1] = p;
+
+		record_size = DIRSIZ(entry);
+		entry_copy = malloc(record_size);
+		if (entry_copy == NULL)
+			goto fail;
+		entry_copy->d_ino = entry->d_ino;
+		entry_copy->d_reclen = (u_short)record_size;
+		entry_copy->d_namlen = entry->d_namlen;
+		for (name_index = 0; name_index <= entry->d_namlen;
+		    ++name_index)
+			entry_copy->d_name[name_index] = entry->d_name[name_index];
+		names[entry_count++] = entry_copy;
 	}
-	closedir(dirp);
-	if (nitems && dcomp != NULL)
-		qsort(names, nitems, sizeof(struct direct *), dcomp);
+
+	closedir(directory);
+	if (comparison != NULL)
+		sort_entries(names, entry_count, comparison);
 	*namelist = names;
-	return(nitems);
+	return (int)entry_count;
+
 fail:
-	/* Every entry copied so far, the array and the directory are the
-	 * caller's to lose only through *namelist, which stays unset. */
-	while (nitems > 0)
-		free(names[--nitems]);
-	free(names);
-	closedir(dirp);
-	return(-1);
+	saved_errno = errno;
+	while (entry_count != 0)
+		free(names[--entry_count]);
+	if (names != NULL)
+		free(names);
+	closedir(directory);
+	errno = saved_errno;
+	return -1;
 }
 
 /*
- * Alphabetic order comparison routine for those who want it.
+ * The tree has one fixed bytewise locale.  Preserve errno as POSIX requires
+ * for a successful alphasort call; locale-aware strcoll remains unavailable.
  */
 int
-alphasort(d1, d2)
-	struct direct **d1, **d2;
+alphasort(const struct direct **left, const struct direct **right)
 {
-	return(strcmp((*d1)->d_name, (*d2)->d_name));
+	int comparison;
+	int saved_errno;
+
+	saved_errno = errno;
+	comparison = strcmp((*left)->d_name, (*right)->d_name);
+	errno = saved_errno;
+	return comparison;
 }

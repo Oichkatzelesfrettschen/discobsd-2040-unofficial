@@ -205,6 +205,16 @@ Information about the load average history may be obtained with
 sysctl vm.loadavg
 .br
 .in -1.0i
+.SH EXIT STATUS
+The sysctl utility exits with status 0 when each explicitly requested variable
+succeeds, status 1 when a query fails, and status 2 when an assignment lacks
+.BR -w .
+Multiple operands run in order; any failed operand retains failure status.
+The
+.B -a
+and
+.B -A
+options and subtree listings retain best-effort enumeration of available nodes.
 .SH FILES
 .TP 15
 <sys/sysctl.h>

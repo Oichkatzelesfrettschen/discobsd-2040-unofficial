@@ -1,3 +1,5 @@
+The kernel version capture redacts the builder identity.
+
 $ uname -a
 DiscoBSD pico 2.7 PICO#1 rp2040
 $ df
@@ -96,7 +98,7 @@ kern.ostype=DiscoBSD
 kern.osrelease=2.7
 kern.osrevision=202608
 kern.version=DiscoBSD 2.7 (PICO) #1 1085: Mon Sep 14 23:49:12 PDT 2026
-     eirikr@x570-5600X3D:/sys/arch/rp2040/compile/PICO
+     [builder identity redacted]
 kern.maxinodes=24
 kern.maxproc=25
 kern.maxfiles=24

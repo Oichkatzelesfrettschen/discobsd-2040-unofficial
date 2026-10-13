@@ -1,0 +1,1 @@
+struct inventory_placeholder;

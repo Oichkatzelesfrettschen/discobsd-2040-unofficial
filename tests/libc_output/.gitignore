@@ -1,0 +1,8 @@
+/native/
+/ilp32/
+/sanitized/
+/mutant_*/
+/*_target.o
+/output_native
+/output_ilp32
+/output_sanitized

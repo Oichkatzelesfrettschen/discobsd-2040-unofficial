@@ -245,9 +245,68 @@
         "check-backgammon-contracts",
         "check-libc-sysctl",
         "check-posix-sh",
-        "check-textbox-host"
+        "check-textbox-host",
+        "check-scandir-contracts",
+        "check-dirent-contracts",
+        "check-getwd-lifetime",
+        "check-libc-casefold",
+        "check-sysctl-status"
       ],
       "kind": "prerequisites after symlinks .WAIT"
+    },
+    {
+      "from": "check-scandir-contracts",
+      "to": "tests/dirent_contracts:check-scandir",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-scandir-contracts-cross",
+      "to": "tests/dirent_contracts:check-scandir-cross",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-dirent-contracts",
+      "to": "tests/dirent_contracts:check-stream",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-getwd-lifetime",
+      "to": "tests/dirent_contracts:check-getwd-lifetime",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-casefold",
+      "to": "tests/libc_casefold:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": [
+        "check-libc-host-contracts",
+        "check-kernel-ilp32",
+        "check-dd-contracts",
+        "check-umount-contracts",
+        "check-backgammon-contracts",
+        "check-libc-sysctl",
+        "check-posix-sh",
+        "check-textbox-host",
+        "check-scandir-contracts",
+        "check-dirent-contracts",
+        "check-getwd-lifetime",
+        "check-libc-output",
+        "check-sysctl-status"
+      ],
+      "kind": "prerequisites after symlinks .WAIT"
+    },
+    {
+      "from": "check-libc-output",
+      "to": "tests/libc_output:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-sysctl-status",
+      "to": "tests/sysctl_status:check",
+      "kind": "recursive make"
     }
   ],
   "optional_investigations": [
@@ -663,6 +722,26 @@
       ]
     },
     {
+      "id": "libc.ansi.shared-byte-negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_shared_byte_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "ansi_shared_byte_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.shared-byte-negative -- ./ansi_shared_byte_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
       "id": "libc.zone.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -905,6 +984,25 @@
         "ansi_contract_test32"
       ],
       "recipe": "${TEST_EXECUTION} run libc.ansi.ilp32 -- ./ansi_contract_test32",
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
+      "id": "libc.ansi.sanitized-ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_contract_test32_san",
+      "condition": "ANSI_SAN32_OK == yes; compiler-probe.sh compiles and executes ILP32 with address and undefined sanitizers",
+      "prerequisites": [
+        "ansi_contract_test32_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.sanitized-ilp32 -- ./ansi_contract_test32_san",
       "aliases": [
         "check-libc-ansi"
       ]
@@ -1763,6 +1861,490 @@
       "aliases": [
         "check-libtcl-contracts"
       ]
+    },
+    {
+      "id": "libc.scandir.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir",
+      "root_target": "check-scandir-contracts",
+      "program": "scandir_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scandir_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scandir.native -- ./scandir_contract_test",
+      "aliases": []
+    },
+    {
+      "id": "libc.scandir.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir",
+      "root_target": "check-scandir-contracts",
+      "program": "scandir_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "scandir_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scandir.ilp32 -- ./scandir_contract_test32",
+      "aliases": []
+    },
+    {
+      "id": "libc.scandir.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir",
+      "root_target": "check-scandir-contracts",
+      "program": "scandir_contract_test_san",
+      "condition": "SCANDIR_SAN_OK == yes; compiler-probe.sh compiles and executes a sanitized native binary",
+      "prerequisites": [
+        "scandir_contract_test_san"
+      ],
+      "recipe": "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.scandir.sanitized -- ./scandir_contract_test_san",
+      "aliases": []
+    },
+    {
+      "id": "libc.scandir.negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "target": "check-scandir-mutants",
+      "root_target": "check-scandir-contracts",
+      "program": "sh",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scandir_read_error_loss.mutant.test",
+        "scandir_cleanup_errno_loss.mutant.test",
+        "scandir_leak_record.mutant.test",
+        "scandir_metadata_growth.mutant.test",
+        "scandir_source_reclen.mutant.test",
+        "scandir_shared_comparator.mutant.test",
+        "check_scandir_mutants.sh"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scandir.negative -- sh ./check_scandir_mutants.sh",
+      "aliases": [],
+      "script": "tests/dirent_contracts/check_scandir_mutants.sh"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.native",
+      "width": "native",
+      "program": "dirent_contract_test",
+      "capability": "native compiler and runtime",
+      "target": "check-stream",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.dirent.native -- ./dirent_contract_test",
+      "prerequisites": [
+        "dirent_contract_test"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.ilp32",
+      "width": "ilp32",
+      "program": "dirent_contract_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-stream",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.dirent.ilp32 -- ./dirent_contract_test32",
+      "prerequisites": [
+        "dirent_contract_test32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.sanitized",
+      "width": "native",
+      "program": "dirent_contract_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-stream",
+      "condition": "SCANDIR_SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.dirent.sanitized -- ./dirent_contract_test_san",
+      "prerequisites": [
+        "dirent_contract_test_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.dirent.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-opendir-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.dirent.negative -- sh ./check_opendir_mutants.sh",
+      "script": "tests/dirent_contracts/check_opendir_mutants.sh",
+      "prerequisites": [
+        "opendir_directory_type.mutant.test",
+        "opendir_close_on_exec.mutant.test",
+        "opendir_fcntl_error_loss.mutant.test",
+        "opendir_descriptor_cleanup.mutant.test",
+        "opendir_cleanup_errno_loss.mutant.test",
+        "check_opendir_mutants.sh"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-dirent-contracts",
+      "aliases": [],
+      "id": "libc.closedir.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-closedir-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.closedir.negative -- sh ./check_closedir_mutants.sh",
+      "script": "tests/dirent_contracts/check_closedir_mutants.sh",
+      "prerequisites": [
+        "closedir_result_loss.mutant.test",
+        "closedir_errno_loss.mutant.test",
+        "closedir_free_loss.mutant.test",
+        "closedir_close_repeat.mutant.test",
+        "check_closedir_mutants.sh"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.native",
+      "width": "native",
+      "program": "getwd_lifetime_test",
+      "capability": "native compiler and runtime",
+      "target": "check-getwd-lifetime",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.getwd.native -- ./getwd_lifetime_test",
+      "prerequisites": [
+        "getwd_lifetime_test"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.ilp32",
+      "width": "ilp32",
+      "program": "getwd_lifetime_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-getwd-lifetime",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.getwd.ilp32 -- ./getwd_lifetime_test32",
+      "prerequisites": [
+        "getwd_lifetime_test32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.sanitized",
+      "width": "native",
+      "program": "getwd_lifetime_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-getwd-lifetime",
+      "condition": "SCANDIR_SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.getwd.sanitized -- ./getwd_lifetime_test_san",
+      "prerequisites": [
+        "getwd_lifetime_test_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/dirent_contracts",
+      "makefile": "tests/dirent_contracts/Makefile",
+      "root_target": "check-getwd-lifetime",
+      "aliases": [],
+      "id": "libc.getwd.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-getwd-mutant",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.getwd.negative -- sh ./check_getwd_mutant.sh",
+      "script": "tests/dirent_contracts/check_getwd_mutant.sh",
+      "prerequisites": [
+        "getwd_lifetime_mutant",
+        "check_getwd_mutant.sh"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.signed.native",
+      "width": "native",
+      "program": "casefold_signed",
+      "capability": "native compiler and runtime",
+      "target": "check-signed",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.signed.native -- ./casefold_signed",
+      "prerequisites": [
+        "casefold_signed"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.signed.ilp32",
+      "width": "ilp32",
+      "program": "casefold_signed32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-signed",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.signed.ilp32 -- ./casefold_signed32",
+      "prerequisites": [
+        "casefold_signed32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.signed.sanitized",
+      "width": "native",
+      "program": "casefold_signed_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-signed",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.casefold.signed.sanitized -- ./casefold_signed_san",
+      "prerequisites": [
+        "casefold_signed_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.unsigned.native",
+      "width": "native",
+      "program": "casefold_unsigned",
+      "capability": "native compiler and runtime",
+      "target": "check-unsigned",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.unsigned.native -- ./casefold_unsigned",
+      "prerequisites": [
+        "casefold_unsigned"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.unsigned.ilp32",
+      "width": "ilp32",
+      "program": "casefold_unsigned32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-unsigned",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.unsigned.ilp32 -- ./casefold_unsigned32",
+      "prerequisites": [
+        "casefold_unsigned32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.unsigned.sanitized",
+      "width": "native",
+      "program": "casefold_unsigned_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-unsigned",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.casefold.unsigned.sanitized -- ./casefold_unsigned_san",
+      "prerequisites": [
+        "casefold_unsigned_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_casefold",
+      "makefile": "tests/libc_casefold/Makefile",
+      "root_target": "check-libc-casefold",
+      "aliases": [],
+      "id": "libc.casefold.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.casefold.negative -- sh ./check_mutants.sh",
+      "script": "tests/libc_casefold/check_mutants.sh",
+      "prerequisites": [
+        "casefold_high_bytes.mutant.test",
+        "casefold_signed_order.mutant.test",
+        "casefold_count_early.mutant.test",
+        "casefold_errno_loss.mutant.test",
+        "check_mutants.sh"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.native",
+      "width": "native",
+      "program": "output_native",
+      "capability": "native compiler and runtime",
+      "target": "check",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.output.native -- ./output_native",
+      "prerequisites": [
+        "output_native"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.ilp32",
+      "width": "ilp32",
+      "program": "output_ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.output.ilp32 -- ./output_ilp32",
+      "prerequisites": [
+        "output_ilp32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.sanitized",
+      "width": "native",
+      "program": "output_sanitized",
+      "capability": "native compiler and runtime",
+      "target": "check",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.output.sanitized -- ./output_sanitized",
+      "prerequisites": [
+        "output_sanitized"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.output.negative -- sh ./check_mutants.sh",
+      "prerequisites": [
+        "mutant_count/test",
+        "mutant_capacity/test",
+        "mutant_pointer/test",
+        "mutant_flush/test",
+        "mutant_continue/test",
+        "mutant_chunk/test",
+        "check_mutants.sh"
+      ],
+      "script": "tests/libc_output/check_mutants.sh"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.arithmetic",
+      "width": "native",
+      "program": "sh",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-arithmetic",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "PYTHON=${PYTHON:Q} HOSTCC=${HOSTCC:Q} ${TEST_EXECUTION} run libc.output.arithmetic -- sh ./check_arithmetic.sh",
+      "script": "tests/libc_output/check_arithmetic.sh",
+      "prerequisites": [
+        "check_arithmetic.py",
+        "check_arithmetic.sh"
+      ]
+    },
+    {
+      "id": "sysctl.status.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/sysctl_status",
+      "makefile": "tests/sysctl_status/Makefile",
+      "target": "check",
+      "root_target": "check-sysctl-status",
+      "program": "sh",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "check.sh",
+        "check.py",
+        "fixture.c",
+        "shim.c",
+        "check_workload.py"
+      ],
+      "recipe": "PYTHON=${PYTHON:Q} HOSTCC=${HOSTCC:Q} ${TEST_EXECUTION} run sysctl.status.ilp32 -- sh ./check.sh",
+      "aliases": [
+        "check-sysctl-status"
+      ],
+      "script": "tests/sysctl_status/check.sh",
+      "subject": "tests/sysctl_status/out/sysctl"
     }
   ]
 }

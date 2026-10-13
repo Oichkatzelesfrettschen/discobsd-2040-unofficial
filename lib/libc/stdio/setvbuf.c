@@ -97,9 +97,9 @@ setvbuf(FILE *fp, char *buf, int mode, size_t size)
 	}
 
 	/*
-	 * An unbuffered stream keeps no base, so _filbuf reads one byte into
-	 * its _smallbuf slot and no later call frees a buffer this one owns.
-	 * A buffer that could not be allocated arrives here the same way.
+	 * An unbuffered stream starts with no base; _filbuf selects the
+	 * stream-owned byte on the first read. A failed buffer allocation
+	 * selects the same path, with _IOMYBUF clear.
 	 */
 	if (mode == _IONBF || buf == NULL) {
 		fp->_flag = (short) (flags | _IONBF);

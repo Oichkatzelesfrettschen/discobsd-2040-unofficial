@@ -18,10 +18,7 @@
 #include <stdarg.h>
 
 int
-vprintf(const char *fmt, va_list ap)
+vprintf(const char *format, va_list arguments)
 {
-	int len;
-
-	len = _doprnt(fmt, ap, stdout);
-	return (ferror(stdout) ? EOF : len);
+	return vfprintf(stdout, format, arguments);
 }

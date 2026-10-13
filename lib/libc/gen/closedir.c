@@ -5,15 +5,22 @@
  */
 #include <sys/param.h>
 #include <sys/dir.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 /*
  * close a directory.
  */
-void
+int
 closedir(DIR *dirp)
 {
-	(void)close(dirp->dd_fd);
+	int result;
+	int saved_errno;
+
+	result = close(dirp->dd_fd);
+	saved_errno = errno;
 	free(dirp);
+	errno = saved_errno;
+	return result;
 }

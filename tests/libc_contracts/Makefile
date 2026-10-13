@@ -129,6 +129,7 @@ SCANF_DIR=	${TOPSRC}/lib/libc/stdio
 SCANF_STDLIB_DIR=${TOPSRC}/lib/libc/stdlib
 SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
 SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
+		-Dvscanf=db_vscanf -Dvfscanf=db_vfscanf -Dvsscanf=db_vsscanf \
 		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
 		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod
 SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
@@ -163,7 +164,7 @@ SYSLOG_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SYSLOG_RENAMES}
 # doprnt.o refers to the weak __doprnt_ll; Mach-O resolves a weak
 # reference only against a definition, so the member is linked here too.
-SYSLOG_FORMAT_OBJS=	printf_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
+SYSLOG_FORMAT_OBJS=	syslog_doprnt.o printf_flsbuf.o printf_doprnt_llong.o
 
 .PHONY: check-stdio-bounds check-stdio-bounds-cross
 
@@ -174,6 +175,9 @@ syslog_contract_test: syslog_contract_test.c syslog_syslog.o ${SYSLOG_FORMAT_OBJ
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -nostdinc \
 	    -isystem ${TOPSRC}/include -o $@ syslog_contract_test.c \
 	    syslog_syslog.o ${SYSLOG_FORMAT_OBJS}
+
+syslog_doprnt.o: ${PRINTF_DIR}/doprnt.c
+	${HOSTCC} ${PRINTF_CFLAGS:S/printf_test_errno/syslog_test_errno/} -c -o $@ ${PRINTF_DIR}/doprnt.c
 
 syslog_syslog.o: ${SYSLOG_DIR}/syslog.c
 	${HOSTCC} ${SYSLOG_CFLAGS} -c -o $@ ${SYSLOG_DIR}/syslog.c
@@ -966,7 +970,7 @@ clean:
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
 	rm -f printf_doprnt_llong.o printf_doprnt_llong32.o
-	rm -f syslog_contract_test syslog_syslog.o
+	rm -f syslog_contract_test syslog_syslog.o syslog_doprnt.o
 	rm -f vis_contract_test vis_vis.o
 	rm -f string_security_test string_explicit_bzero.o \
 		string_timingsafe_bcmp.o string_timingsafe_bcmp_target.o \
@@ -979,6 +983,10 @@ clean:
 	rm -f rwmode_contract_test rwmode_contract_test32 ${RWMODE_OBJS} ${RWMODE_OBJS32}
 	rm -f scanf_contract_test scanf_contract_test32 scanf_contract_test_asan \
 		${SCANF_OBJS} ${SCANF_OBJS32} ${SCANF_OBJS_ASAN}
+
+	rm -f ansi_contract_test ansi_contract_test32 ansi_contract_test32_san \
+		${ANSI_OBJS} ${ANSI_OBJS32} ${ANSI_SAN32_OBJS} \
+		ansi_shared_byte_bad.o ansi_shared_byte_bad_test ansi_shared_byte_bad.log
 
 all: check
 
@@ -1010,22 +1018,38 @@ ANSI_RENAMES=	${ANSI_MACROS} -Dfflush=db_fflush \
 		-Dfseek=db_fseek -Dftell=db_ftell -Drewind=db_rewind \
 		-Dsetvbuf=db_setvbuf -Dfopen=db_fopen -Dfdopen=db_fdopen \
 		-Dfreopen=db_freopen -Dfgetpos=db_fgetpos -Dfsetpos=db_fsetpos \
-		-Dopen=test_open -Derrno=ansi_test_errno
-ANSI_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-Dopen=test_open -Derrno=ansi_test_errno \
+		-Dgetdtablesize=test_getdtablesize -Dmalloc=ansi_malloc
+ANSI_CFLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include
 ANSI_MEMBERS=	flags fopen fdopen freopen filbuf flsbuf fseek ftell rew \
 		setvbuf fgetpos ungetc
 ANSI_OBJS=	${ANSI_MEMBERS:C/^/ansi_/:C/$/.o/} ansi_open_shim.o
 ANSI_OBJS32=	${ANSI_MEMBERS:C/^/ansi32_/:C/$/.o/} ansi32_findiop.o \
 		ansi32_open_shim.o
+ANSI_SAN_FLAGS= -fsanitize=address,undefined -fno-sanitize-recover=all \
+		-fno-omit-frame-pointer
+ANSI_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${HOSTCC} ${ILP32} ${ANSI_SAN_FLAGS}
+ANSI_SAN32_OBJS= ${ANSI_MEMBERS:C/^/ansi32_san_/:C/$/.o/} \
+		ansi32_san_findiop.o ansi32_san_open_shim.o
 
-check-ansi: ansi_contract_test
+check-ansi: ansi_contract_test ansi_shared_byte_bad_test
 	${TEST_EXECUTION} run libc.ansi.native -- ./ansi_contract_test
+	${TEST_EXECUTION} run libc.ansi.shared-byte-negative -- \
+	    ./ansi_shared_byte_bad_test > ansi_shared_byte_bad.log 2>&1
+	@grep -Fq "a peer read preserves the first stream's pushback" ansi_shared_byte_bad.log
+	@echo "ansi: shared-byte mutation rejected by independent pushback"
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ansi_contract_test32
 	${TEST_EXECUTION} run libc.ansi.ilp32 -- ./ansi_contract_test32
 .else
 	${TEST_EXECUTION} skip libc.ansi.ilp32 "check-libc-ansi: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ANSI_SAN32_OK} == "yes"
+	@${MAKE} ansi_contract_test32_san
+	${TEST_EXECUTION} run libc.ansi.sanitized-ilp32 -- ./ansi_contract_test32_san
+.else
+	${TEST_EXECUTION} skip libc.ansi.sanitized-ilp32 "check-libc-ansi: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
 .endif
 
 ansi_contract_test: ansi_contract_test.c ${ANSI_OBJS}
@@ -1044,11 +1068,40 @@ ansi_open_shim.o: ansi_open_shim.c
 ansi32_open_shim.o: ansi_open_shim.c
 	${HOSTCC} ${ILP32} -std=c17 -Wall -Wextra -Werror -c -o $@ ansi_open_shim.c
 
-.for _m in ${ANSI_MEMBERS} findiop
+ansi32_findiop.o: ${PRINTF_DIR}/findiop.c
+	${HOSTCC} ${ILP32} ${ANSI_CFLAGS} ${ANSI_RENAMES} -Dcalloc=ansi_calloc \
+	    -c -o $@ ${PRINTF_DIR}/findiop.c
+
+.for _m in ${ANSI_MEMBERS}
 ansi_${_m}.o: ${PRINTF_DIR}/${_m}.c
 	${HOSTCC} ${ANSI_CFLAGS} ${ANSI_RENAMES} -c -o $@ ${PRINTF_DIR}/${_m}.c
 
 ansi32_${_m}.o: ${PRINTF_DIR}/${_m}.c
 	${HOSTCC} ${ILP32} ${ANSI_CFLAGS} ${ANSI_RENAMES} -c -o $@ \
 	    ${PRINTF_DIR}/${_m}.c
+.endfor
+
+ansi_shared_byte_bad.o: ansi_shared_byte_bad.c ${PRINTF_DIR}/filbuf.c
+	${HOSTCC} ${ANSI_CFLAGS} ${ANSI_RENAMES} -c -o $@ ansi_shared_byte_bad.c
+
+ansi_shared_byte_bad_test: ansi_contract_test.c ${ANSI_OBJS} ansi_shared_byte_bad.o
+	${HOSTCC} ${ANSI_CFLAGS} ${ANSI_MACROS} -o $@ ansi_contract_test.c \
+	    ${ANSI_OBJS:Nansi_filbuf.o} ansi_shared_byte_bad.o
+
+ansi_contract_test32_san: ansi_contract_test.c ${ANSI_SAN32_OBJS}
+	${HOSTCC} ${ILP32} ${ANSI_SAN_FLAGS} ${ANSI_CFLAGS} ${ANSI_MACROS} \
+	    -DANSI_REAL_FINDIOP -o $@ ansi_contract_test.c ${ANSI_SAN32_OBJS}
+
+ansi32_san_findiop.o: ${PRINTF_DIR}/findiop.c
+	${HOSTCC} ${ILP32} ${ANSI_SAN_FLAGS} ${ANSI_CFLAGS} ${ANSI_RENAMES} \
+	    -Dcalloc=ansi_calloc -c -o $@ ${PRINTF_DIR}/findiop.c
+
+ansi32_san_open_shim.o: ansi_open_shim.c
+	${HOSTCC} ${ILP32} ${ANSI_SAN_FLAGS} -std=c17 -Wall -Wextra -Werror \
+	    -c -o $@ ansi_open_shim.c
+
+.for _m in ${ANSI_MEMBERS}
+ansi32_san_${_m}.o: ${PRINTF_DIR}/${_m}.c
+	${HOSTCC} ${ILP32} ${ANSI_SAN_FLAGS} ${ANSI_CFLAGS} ${ANSI_RENAMES} \
+	    -c -o $@ ${PRINTF_DIR}/${_m}.c
 .endfor

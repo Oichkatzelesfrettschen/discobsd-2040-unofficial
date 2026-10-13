@@ -1,7 +1,6 @@
 """Calibrate the documented board workload without executing board commands."""
 
 import argparse
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -52,14 +51,24 @@ exit 0
                 [str(shell.resolve()), "-c", script],
                 text=True,
                 capture_output=True,
-                env=dict(
-                    os.environ, PATH=str(directory), TRACE=str(trace), FAIL_INDEX=str(failure)
-                ),
+                # Host make metadata can carry names the target shell rejects.
+                # The workload consumes only the fixture's declared environment.
+                env={
+                    "PATH": str(directory),
+                    "TRACE": str(trace),
+                    "FAIL_INDEX": str(failure),
+                    "LC_ALL": "C",
+                },
             )
             calls = trace.read_text().splitlines()
             limit = failure if failure else len(expected)
             assert calls == expected[:limit], (
-                shell, failure, calls, result.returncode, result.stdout, result.stderr
+                shell,
+                failure,
+                calls,
+                result.returncode,
+                result.stdout,
+                result.stderr,
             )
             assert result.returncode == (1 if failure else 0), (shell, failure, result.returncode)
             assert result.stdout.count("status=") == limit, (shell, failure, result.stdout)

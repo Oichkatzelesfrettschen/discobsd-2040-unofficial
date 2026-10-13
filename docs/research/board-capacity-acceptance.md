@@ -173,7 +173,11 @@ and enumeration. Mutations restoring unconditional success or repeated first
 operands must fail. The documented workload gate injects failure at every one
 of its 43 command positions; continuation and external status-output mutations
 must fail. `check-posix-sh` supplies the repository shell independently of the
-host shell. The firmware ILP32 execution inventory retains the fixture binary's
+host shell. The fixture supplies only PATH, TRACE, FAIL_INDEX and LC_ALL;
+Ubuntu bmake exports `.MAKE.LEVEL.ENV`, which the repository shell rejects
+before executing commands when Python forwards the host environment unchanged.
+Injecting that variable reproduces the startup rejection; the declared fixture
+environment passes the same 43 failure positions. The firmware ILP32 execution inventory retains the fixture binary's
 hash and ELF32 evidence.
 
 Paired ARMv6-M compilation with GCC 16.2.0, `-Os`, `-Wall -Wextra -Werror`

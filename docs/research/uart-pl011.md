@@ -53,13 +53,13 @@ this is the latest published model.
 ### Boot output over UART0
 
 The kernel reaches the swap line over UART0, captured from the socket
-`boot.resc` opens:
+`boot.resc` opens. The excerpt redacts the builder identity:
 
 (The banner line `no MMU and no MPU` in this capture is what the kernel printed then; datasheet 2.4.1 and 2.4.6 give the Cortex-M0+ an eight-region MPU, and the kernel now prints `no MMU` and an `mpu:` line stating what it programmed; sys/arch/rp2040/doc/MPU.md.)
 
 ```
 DiscoBSD 2.7 (PICO_UART) #1 877: Fri Sep 11 22:27:32 PDT 2026
-     eirikr@x570-5600X3D:/sys/arch/rp2040/compile/PICO_UART
+     [builder identity redacted]
 cpu: RP0000 rev 0, manufacturer 0x000
 cpu: Cortex-M0+, ARMv6-M, no MMU and no MPU
 cpu: 125 MHz core, 125 MHz peripheral

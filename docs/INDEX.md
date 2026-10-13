@@ -131,7 +131,9 @@ Grouped by what they investigate.
 
 | Document | Establishes |
 | --- | --- |
-| `posix-utilities.md` | POSIX utility coverage and the porting candidates |
+| `posix-utilities.md` | the current selected-image utility ownership map and the superseded September 2026 porting survey |
+| `sus-utility-ledger.json` | the machine-checked source, manifest, multicall, Bourne-builtin and behavior-gate state for 107 utility names |
+| `sus-edition-contracts.md` | bounded Issue 7 and Issue 8 utility, directory, case-folding, process-group and runtime-limit contracts with explicit option marks and residuals |
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |

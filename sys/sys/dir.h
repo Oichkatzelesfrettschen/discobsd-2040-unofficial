@@ -78,6 +78,10 @@ extern  struct direct *readdir (DIR *);
 extern  long telldir (DIR *);
 extern  void seekdir (DIR *, long);
 extern  void closedir (DIR *);
+extern  int scandir (const char *, struct direct ***,
+    int (*)(const struct direct *),
+    int (*)(const struct direct **, const struct direct **));
+extern  int alphasort (const struct direct **, const struct direct **);
 
 #define rewinddir(dirp) seekdir ((dirp), (long)0)
 #define dirfd(dirp) ((dirp)->dd_fd)

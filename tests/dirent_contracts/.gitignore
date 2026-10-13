@@ -1,2 +1,9 @@
 dirent_contract_test
 *.o
+scandir_contract_test
+scandir_contract_test32
+scandir_contract_test_san
+scandir_*.mutant.c
+scandir_*.mutant.test
+scandir_*.mutant.log
+scandir_mutants.stamp

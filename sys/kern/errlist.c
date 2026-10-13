@@ -95,6 +95,7 @@ static const char errno_message_pool[] =
     "Inappropriate file type or format\0"
     "Authentication error\0"
     "Need authenticator\0"
+    "Value too large for data type\0"
     ;
 
 static const uint16_t errno_message_offsets[] = {
@@ -104,7 +105,7 @@ static const uint16_t errno_message_offsets[] = {
     727, 753, 783, 814, 843, 860, 891, 914, 937, 963, 987, 1017,
     1065, 1088, 1119, 1135, 1158, 1194, 1227, 1252, 1278, 1306, 1330, 1363,
     1397, 1417, 1436, 1470, 1489, 1502, 1519, 1539, 1558, 1573, 1593, 1615,
-    1649, 1667, 1685, 1705, 1727, 1753, 1772, 1797, 1831, 1852,
+    1649, 1667, 1685, 1705, 1727, 1753, 1772, 1797, 1831, 1852, 1871,
 };
 
 #define ERRNO_MESSAGE_COUNT \

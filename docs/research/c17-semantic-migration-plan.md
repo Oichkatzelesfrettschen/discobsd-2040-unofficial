@@ -384,6 +384,12 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    `opendir`/`closedir`: first test fstat/read/allocation failure cleanup,
    selected-entry capacity, compact record length and comparator types;
    then decide the historical close-result ABI and directory/CLOEXEC rules.
+   The scanner unit supplies typed declarations, transactional publication,
+   complete failure cleanup, selected-entry growth, compact self-describing
+   records and per-call heap sorting. `check-scandir-contracts` and its cross
+   gate calibrate those contracts; `libc-scandir-allocation-contract.md`
+   records paired resources and remaining edition boundaries. Directory
+   admission/CLOEXEC and the close-result transition remain separate units.
    Output: one independently tested interface change per PR.
 8. **Resolve case-folding semantics.** Compare all byte pairs under signed
    and unsigned `char`; record the inherited high-bit ASCII mapping and
@@ -423,7 +429,9 @@ Items 1 through 3 form the bounded implementation in
 and edition-contract layer in `sus-utility-ledger.json`,
 `posix-utilities.md`, `bsd44-audit/posix_inventory.py` and
 `sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
-Items 7 through 10 and 12 remain the ordered continuation frontier. Item 11
+Item 7 has a tested scanner unit; its directory admission/CLOEXEC and
+close-result units remain open. Items 8 through 10 and 12 remain the ordered
+continuation frontier. Item 11
 has a calibrated baseline and retains a final rerun after those interface
 changes. The source
 classification/quarantine program in `c17-formatting-linting.md` still owns

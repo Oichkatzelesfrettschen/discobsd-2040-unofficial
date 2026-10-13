@@ -10,10 +10,10 @@
  * the caller; a caller that passed a pointer with a zero size gets it
  * resized rather than replaced. The length returned is a ssize_t, so the
  * capacity never passes SSIZE_MAX + 1 and a line that would need more is
- * refused before the arithmetic wraps; sys/errno.h carries no EOVERFLOW,
- * so the refusal is ENOMEM, which is also what the allocator would have
- * said one doubling later. usr.bin/textbox/tests/getline_test.c pins
- * each of these.
+ * refused before the arithmetic wraps. The capacity bound treats an
+ * unrepresentable line as a refused allocation and reports ENOMEM;
+ * usr.bin/textbox/tests/getline_test.c pins that diagnostic and the
+ * retained buffer ownership.
  */
 #include <errno.h>
 #include <limits.h>

@@ -112,7 +112,7 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
-| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, evidence hierarchy, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and six seed rows |
+| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and six seed rows |
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
@@ -123,6 +123,7 @@ Grouped by what they investigate.
 | `211bsd-fwalk.patch` | the `_fwalk` fix for 2.11BSD patch 499 as a standalone `patch -p0` file with its message, the companion to the report |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
 | `renode-login-regression.md` | the Renode login timeout was `panic: wakeup` behind a reboot prompt: three locores stored p_addr at a literal 60 after #129 moved it to 64; sys/proc_asm.h and a _Static_assert in kern_proc.c pin the offset, and boot.robot logs the UART transcript on failure |
+| `stdio-unbuffered-ownership.md` | descriptor-independent input storage in the existing FILE byte, calibrated pushback and allocation-failure tests, and linked resource accounting |
 | `stdio-core-c17-unit.md` | the V7 stdio core converted to C17 with a one-byte pushback slot in `FILE`: what changed, the calibrated gate, and the measured +32 data and +20 to +92 text per program |
 | `stdio-ansi-surface-unit.md` | the C17 stdio interface outside the stream core: a shared mode-string reading with `O_APPEND` and the `x` modes, `fflush(NULL)`, `fgetpos` and `fsetpos`, the limit macros, the calibrated gate, and the measured three root blocks |
 

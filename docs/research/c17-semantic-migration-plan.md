@@ -43,30 +43,31 @@ A unit leaves the language ledger when its production command passes the full
 warning profile and, where it is portable, both compilers accept it strictly.
 The kernel is never required to pass `-pedantic-errors` as a whole.
 
-## Evidence hierarchy
+## Claim-specific evidence
 
-Claims are established from the most direct artifact available, in this
-order:
+The claim selects the evidence. A specification states the required interface;
+source describes the implementation; an executable test establishes behavior
+for its inputs; a board capture measures its exercised configuration. A
+contradiction starts an investigation. Agreement among several source-derived
+oracles does not settle a contradictory behavioral result.
 
-1. The evaluated build command and the source classification of the unit.
-2. Preprocessed source and include dependencies for every active
-   configuration (`-E`, `-MM` with the build's own flags).
-3. Compiler diagnostics carrying their warning-option provenance (the
-   `[-W...]` tag, which is locale-independent).
-4. ELF symbols, relocations, sections, target attributes and the linked
-   closure of the final image.
-5. DWARF, where emitted; it is not a universal prerequisite.
-6. Behavioral, sanitizer, mutation, emulator or hardware evidence, chosen by
-   the claim.
-7. Text scanning, only for discovery, inactive preprocessor branches,
-   quarantine completeness and policy checks.
+| Question | Deciding surfaces and limits |
+| --- | --- |
+| Which source and dialect participate? | Evaluated build command, source classification, preprocessed translation unit and include dependencies for each configuration |
+| Does an active interface compile correctly? | Compiler diagnostics with warning-option provenance, caller prototypes, target ABI and relocation inspection |
+| Which bytes reach the image? | Archive membership, linked symbols and sections, a.out headers, selected manifest and packed-root block accounting |
+| Does a contract hold? | Explicit behavioral expectations, failure injection and a rejected known-bad control; sanitizers cover their exercised operations |
+| Does a silicon mechanism hold? | Register readback, privilege/interrupt state, deliberate fault or workload, and retained board capture |
+| What remains outside active builds? | Calibrated text discovery and quarantine identity; DWARF and call graphs supplement source navigation |
 
-The kernel printf-format and K&R inventory gates in `tools/c17` are text
-scanners and needed twelve review rounds of preprocessor-feature repairs
-(splices, aliases, wrappers, headers, conditional depth). Their active-code
-facts should migrate to levels 2 and 3: a per-configuration preprocessed
-translation unit already resolves every one of those features. The scanners
-remain useful for inactive branches, which no compiler sees.
+`check-c17-kernel-inventory` already combines lexical discovery with compiler
+diagnostics under the evaluated PICO and PICO_UART flags. Its union exposes
+oracle disagreement. `check-kernel-printf-formats` uses bounded source parsing
+alongside the compiler's format attributes. Preprocessing-backed discovery is
+a remaining improvement for call/format extraction: macros, splices, aliases,
+wrappers, included headers and conditional branches need explicit coverage.
+Inactive branches retain a lexical witness because a configuration's compiler
+does not see them.
 
 ## Risk tiers
 
@@ -129,6 +130,7 @@ include it.
 | --- | --- |
 | Unit | Files or library members, one independently testable component |
 | Layer and profile | STYLE-GUIDE section 4B layer(s) and section 4 profile |
+| Standards authority | Publication edition, volume/clause, required option or profile, project disposition and any historical ABI conflict |
 | Tier | T1, T2, T3 or Q, from the most exposed caller |
 | Native input | Whether any file is Smaller C input, and its acceptance test |
 | Contract | Inputs, outputs, ownership, failure and errno preservation, ABI representation, caller closure |
@@ -156,9 +158,11 @@ The migration is not one "done" state. Each ledger closes separately:
 4. **Hardening.** Each ranked trust boundary has explicit bounds, lifetime,
    transaction, alignment, privilege and malformed-input invariants with a
    rejecting falsifier.
-5. **Resource acceptance.** The applicable kernel flash, resident RAM,
-   process peak, stack, packed-root block, flash traffic and wear accounts are
-   measured or recorded as unmeasured.
+5. **Resource acceptance.** Keep separate states for compile-footprint
+   acceptance, measured runtime peak, and measured storage traffic/wear.
+   Recording an unmeasured residual completes its documentation; the
+   corresponding measurement remains open. Historical seed rows that say
+   resource done cover only their enumerated measurements.
 6. **Program closure.** Every classified row has reached its layer-specific
    exit state, and every residual has an owner and a deciding gate.
 
@@ -213,7 +217,7 @@ RAM and runtime evidence".
 | Layer and profile | ISO C17 library semantics (7.21.6.2) and the BSD/2.11 ABI (`FILE` unchanged); modernized cross userland |
 | Tier | T1: `sysctl -w kern.hostid=<digits>` reaches `%ld` conversion with caller-written input |
 | Native input | The libc members are cross-built; `include/stdio.h` is native input when a natively compiled program includes it. Native acceptance of the changed header is not recorded |
-| Contract | Integer conversion saturates at the destination limit; `%X` and uppercase floating conversions follow C17 lowercase semantics; `%D` and `%O` remain as documented extensions; `%n`, `%i`, `%p` and the C99 length modifiers are supported |
+| Contract | The project defines integer-conversion saturation at the destination limit as an extension; C17 does not generally define an unrepresentable scanf conversion result. Separately, `%X` and uppercase floating conversions follow C17 lowercase semantics; `%D` and `%O` remain as documented extensions; `%n`, `%i`, `%p` and the C99 length modifiers are supported |
 | Invariants | No staging buffer on the integer path; a 32-byte automatic scanset bitmap with nothing carried between directives; float staging bounded by `MANT_DIGITS` with `_Static_assert` ties to `DBL_DIG` |
 | Falsifier | The replaced scanner aborts under the sanitizer, first on `%X` storing a long through `unsigned int *`, then on a digit run overrunning the 64-byte `_innum` staging buffer |
 | Gates | `check-libc-scanf` (host width, ILP32 and AddressSanitizer) |
@@ -306,3 +310,105 @@ erase-aligned swap images".
   compound literals: a native-suite compile, link and run decides each.
 - Whether `-Wcast-align=strict` is clean across the RP2040 kernel
   configurations: an exact kernel compile with the option added decides it.
+
+## Standards and continuation scope
+
+The source review uses `8711f637e9cdefd7f1aa3628bd6262892673ebc0` as its base.
+The review covers build ownership, the current documentation graph, fixed
+resource accounts, directory interfaces and the stdio lifetime path. The
+whole-tree syntax inventory remains discovery evidence; the review does not
+establish semantic closure for every C file.
+
+The [Issue 7 publication](https://pubs.opengroup.org/onlinepubs/9699919799/)
+records POSIX.1-2017, following POSIX.1-2008. The
+[Issue 8 publication](https://pubs.opengroup.org/onlinepubs/9799919799/)
+records POSIX.1-2024. SUSv4 and SUSv5 work uses these explicit publication
+boundaries, with XSI and option requirements recorded separately. A selected
+interface passing its tests establishes that interface's exercised behavior;
+a certification or whole-system conformance claim requires its own scope.
+
+Preserve the Issue 7 shell judgments and add an Issue 8 delta column. A small
+implementation can satisfy an interface with fewer states or allocations;
+resource limits do not erase normative requirements. An unsupported option
+needs an explicit disposition and truthful feature/limit reporting.
+
+### Component walkthrough
+
+| Surface | Connected mechanisms | Current deficiency or deciding boundary |
+| --- | --- | --- |
+| Maintained `.c` and `.h` | `share/mk/sys.mk`, warning profiles, `tools/c17`, public headers and callers | GNU17 selection alone leaves legacy warning overrides and old-style interfaces; header changes also reach Smaller C input |
+| `.S`, linker scripts and generated headers | ARMv6-M entry/exception paths, `proc_asm.h`, Pico SDK register interfaces, boot ROM calls | Compiler acceptance leaves alignment, privilege and silicon behavior as separate obligations |
+| libc members | ELF archive, converted a.out archive, selected board-native archive, multicall consumers | A smaller object benefits only consumers whose link includes it; an added dependency can outweigh local savings |
+| `FILE` and `DIR` | Descriptors, buffer allocation, pushback/cookies, close/reopen and kernel I/O | Stream count differs from descriptor identity; directory APIs retain historical signature and failure-handling gaps |
+| Kernel fixed tables | NBUF, compact inode fields, single UFS root, process window and swap | Existing reductions already land; a further capacity reduction needs workload high-water and failure evidence |
+| Manifests and multicall templates | Installed names, shared text, mutually exclusive applet BSS, packed a.out | Source presence and utility names leave options, errors and shell semantics unproven |
+| Makefiles, shell and Python gates | Root target, TESTING contract, execution inventory and CI invocation | A skipped optional branch establishes a skip; mutation/control execution must reach the claimed code |
+| Research and evidence documents | `docs/INDEX.md`, this roadmap, retained audit ledgers and per-unit measurements | Historical surveys contain superseded layouts and availability lists; date/revision boundaries preserve their meaning |
+
+### Ordered work queue
+
+Each numbered item is one reviewable output. Implementation repeats the
+listed compile, behavior and footprint checks for one bounded unit before
+moving to another unit. Hardware-dependent rows stop at the documented opt-in.
+
+1. **Pin the stdio ownership counterexample.** Exercise a legal descriptor
+   above the static stream count at ILP32; retain the sanitizer report and
+   the source revision. Output: a calibrated failing baseline.
+2. **Repair unbuffered byte ownership.** Reuse `FILE._ub`, remove the global
+   side allocation, retain the 24-byte ABI and exercise high descriptors,
+   independent pushback, EOF/error, update mode, close/reopen and allocation
+   failures. Output: `stdio-unbuffered-ownership.md` and `check-libc-ansi`.
+3. **Accept the linked stdio footprint.** Clean libc and all consumers;
+   compare object text/data/BSS, a.out extents, board archive, available
+   kernel baselines and root blocks. Record PICO_UART build coverage
+   separately when a paired baseline is unavailable. Record compile-time and runtime states
+   separately. Output: the ownership document's measured table.
+4. **Reconcile the utility-name ledger.** Resolve each entry of
+   `posix-utilities.md` against the selected manifest and multicall dispatch;
+   mark its 96 KB/840 KB/separate-binary baseline historical. Add source,
+   installed path and behavior-gate columns. A `csh` builtin never closes a
+   Bourne-shell requirement. Output: a current name/owner ledger.
+5. **Repair API discovery inputs.** Replace literal tilde/retired paths in
+   `bsd44-audit/posix_inventory.py` with explicit validated roots. Reject a
+   missing root and calibrate declared-only and implemented fixtures. Keep
+   declaration, symbol, linkage and behavior findings distinct. Output:
+   reproducible candidate discovery, followed by reviewed gap dispositions.
+6. **Pin standards requirements.** Assign Issue 7/8 edition, clause and
+   option marks to each selected API/utility row; separate BSD extensions
+   such as `funopen` and `radixsort`. Check feature and limit macros against
+   implemented behavior. Output: bounded edition-specific contracts.
+7. **Close directory allocation/error contracts.** Split `scandir` from
+   `opendir`/`closedir`: first test fstat/read/allocation failure cleanup,
+   selected-entry capacity, compact record length and comparator types;
+   then decide the historical close-result ABI and directory/CLOEXEC rules.
+   Output: one independently tested interface change per PR.
+8. **Resolve case-folding semantics.** Compare all byte pairs under signed
+   and unsigned `char`; record the inherited high-bit ASCII mapping and
+   POSIX C-locale requirements before replacing `strcasecmp`'s 256-byte
+   table. Measure login and other linked consumers. Output: a documented
+   mapping decision and exhaustive finite oracle.
+9. **Audit formatted-output scratch ownership.** Establish return counts,
+   final-flush failures and `_bufsiz` initialization in `fprintf`,
+   `vfprintf` and `fputs`; measure their 1,024-byte temporary buffers.
+   Evaluate a smaller chunk only with write-count and error-state evidence.
+   Output: corrected wrapper contracts before a stack-size optimization.
+10. **Migrate one kernel interface family.** Select a caller-closed group
+    from `tools/c17/kernel-ledger.txt`; compare PICO/PICO_UART diagnostics,
+    public declarations, pointer widths and format arguments. Preserve
+    Pico SDK register/ROM conventions and target attributes. Output: a
+    reduced calibrated ledger and unchanged or explained linked footprint.
+11. **Validate native-header inputs.** Compile, link and execute a Smaller C
+    stdio consumer; separately probe each proposed new header construct.
+    Output: native acceptance receipts, distinct from GNU17 cross builds.
+12. **Measure capacity and persistence on the board.** After explicit opt-in,
+    select the exact image/configuration and collect process/kernel stack,
+    table high-water, allocation failure and storage traffic under a named
+    workload. Repeat recovery tests where flash behavior changes. Output:
+    measured limits and falsifiers; until execution, runtime/wear rows stay
+    open.
+
+Items 1 through 3 form the bounded implementation in
+`stdio-unbuffered-ownership.md`. Items 4 through 12 remain the ordered
+continuation frontier, rather than implied completed work. The source
+classification/quarantine program in `c17-formatting-linting.md` still owns
+the larger file-by-file denominator.

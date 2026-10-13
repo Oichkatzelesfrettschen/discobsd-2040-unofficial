@@ -663,6 +663,26 @@
       ]
     },
     {
+      "id": "libc.ansi.shared-byte-negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_shared_byte_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "ansi_shared_byte_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.shared-byte-negative -- ./ansi_shared_byte_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
       "id": "libc.zone.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -905,6 +925,25 @@
         "ansi_contract_test32"
       ],
       "recipe": "${TEST_EXECUTION} run libc.ansi.ilp32 -- ./ansi_contract_test32",
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
+      "id": "libc.ansi.sanitized-ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_contract_test32_san",
+      "condition": "ANSI_SAN32_OK == yes; compiler-probe.sh compiles and executes ILP32 with address and undefined sanitizers",
+      "prerequisites": [
+        "ansi_contract_test32_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.sanitized-ilp32 -- ./ansi_contract_test32_san",
       "aliases": [
         "check-libc-ansi"
       ]

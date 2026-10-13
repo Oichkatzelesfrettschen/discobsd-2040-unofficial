@@ -9,25 +9,23 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-extern char *_smallbuf;	/* findiop.c: one byte per descriptor for unbuffered reads */
-
 /*
  * Refill a stream's read buffer for getc(), which calls here when _cnt
  * runs out. Returns the next byte, or EOF at end of input or on error.
  * On an r+ stream this is also where output mode ends and input mode
  * begins; the switch the other way lives in _flsbuf.
- *
  * The first buffer is sized from st_blksize so a read matches the file
  * system's block, with BUFSIZ when fstat cannot say; an unbuffered stream
- * reads one byte into its _smallbuf slot, or into a stack byte when no
- * slot exists, so that _base stays NULL and no later call frees it.
+ * reads one byte into its own _ub slot. String streams use that slot for
+ * pushback and return before refill. The inline byte lives with the FILE,
+ * independently of descriptor numbering; _IOMYBUF stays clear so close
+ * and buffer replacement leave the inline storage intact.
  */
 int
 _filbuf(FILE *iop)
 {
 	struct stat stbuf;
 	long size;
-	char c;
 
 	/*
 	 * An r+ stream entering read mode: C17 7.21.5.3p7 requires an
@@ -68,7 +66,7 @@ _filbuf(FILE *iop)
 		if (iop->_base != NULL)
 			break;
 		if (iop->_flag & _IONBF) {
-			iop->_base = _smallbuf ? &_smallbuf[fileno(iop)] : &c;
+			iop->_base = (char *) iop->_ub;
 			break;
 		}
 		if (fstat(fileno(iop), &stbuf) < 0 || stbuf.st_blksize <= 0)
@@ -98,8 +96,6 @@ _filbuf(FILE *iop)
 	iop->_cnt = read(fileno(iop), iop->_base,
 	    (iop->_flag & _IONBF) ? 1 : (size_t) iop->_bufsiz);
 	iop->_ptr = iop->_base;
-	if ((iop->_flag & _IONBF) && iop->_base == &c)
-		iop->_base = NULL;
 	if (--iop->_cnt < 0) {
 		if (iop->_cnt == -1) {
 			iop->_flag |= _IOEOF;

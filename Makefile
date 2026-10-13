@@ -319,6 +319,8 @@ check-libc-rwmode:
 # fopen accepts and the open(2) flags they produce, fflush over every stream,
 # rewind, the position pair and setvbuf. The ILP32 run links the tree's own
 # findiop.c, whose FILE layout assertion holds only at four-byte pointers.
+# Unbuffered input also checks descriptor-independent storage, allocation
+# failure, a shared-byte mutation and the available ILP32 sanitizers.
 check-libc-ansi:
 		${MAKE} -C tests/libc_contracts check-ansi
 

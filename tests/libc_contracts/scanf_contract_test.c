@@ -22,9 +22,8 @@
 #include <string.h>
 #include <unistd.h>
 
-/* The tree's stdio references these; the gate never opens a real file. */
+/* The tree's stdio references the table; the gate never opens a real file. */
 struct _iobuf _iob[3];
-char *_smallbuf;
 
 int db_sscanf(const char *, const char *, ...);
 int db_ungetc(int, FILE *);

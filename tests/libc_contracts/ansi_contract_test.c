@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/syslimits.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -58,10 +59,37 @@ _fwalk(int (*function)(FILE *))
 	return (status);
 }
 
-char *_smallbuf;
 #endif
 
 int ansi_test_errno;
+static int fail_buffer_allocation;
+
+void *
+ansi_malloc(size_t size)
+{
+	return (fail_buffer_allocation ? NULL : malloc(size));
+}
+
+/* Keep the host fixture on the target descriptor limit. */
+int
+test_getdtablesize(void)
+{
+	return (OPEN_MAX);
+}
+
+#ifdef ANSI_REAL_FINDIOP
+static int allocation_calls;
+static int allocation_failure;
+
+void *
+ansi_calloc(size_t count, size_t size)
+{
+	allocation_calls++;
+	if (allocation_calls == allocation_failure)
+		return (NULL);
+	return (calloc(count, size));
+}
+#endif
 
 /*
  * The tree's struct stat is not the host's, so the core's fstat, which wants
@@ -88,6 +116,7 @@ _Static_assert(O_TRUNC == 0x0400, "ansi_open_shim.c spells the tree's O_TRUNC");
 _Static_assert(O_APPEND == 0x0008, "ansi_open_shim.c spells the tree's O_APPEND");
 _Static_assert(O_EXCL == 0x0800, "ansi_open_shim.c spells the tree's O_EXCL");
 
+int db_ungetc(int, FILE *);
 int db_fclose(FILE *);
 int db_fflush(FILE *);
 int db_fseek(FILE *, long, int);
@@ -98,6 +127,7 @@ int db_fgetpos(FILE *, fpos_t *);
 int db_fsetpos(FILE *, const fpos_t *);
 FILE *db_fopen(const char *, const char *);
 FILE *db_fdopen(int, const char *);
+FILE *db_freopen(const char *, const char *, FILE *);
 
 static int checks;
 static int failures;
@@ -369,6 +399,143 @@ check_exclusive(void)
 	(void)unlink(path);
 }
 
+
+/* Descriptor values and stream allocation order are independent. */
+static void
+check_unbuffered(void)
+{
+	char path[] = "/tmp/stdiobyteXXXXXX";
+	FILE *stream, *peer;
+	int descriptor, high_descriptor;
+
+	descriptor = mkstemp(path);
+	check(descriptor >= 0, "unbuffered temporary opens");
+	if (descriptor < 0)
+		return;
+	(void)unlink(path);
+	check(write(descriptor, "AB", 2) == 2, "unbuffered input is seeded");
+	check(lseek(descriptor, 0L, SEEK_SET) == 0, "unbuffered input rewinds");
+	high_descriptor = fcntl(descriptor, F_DUPFD, FOPEN_MAX + 1);
+	(void)close(descriptor);
+	check(high_descriptor > FOPEN_MAX && high_descriptor < OPEN_MAX,
+	    "high descriptor lies above the static stream count and below OPEN_MAX");
+	if (high_descriptor < 0)
+		return;
+	if (high_descriptor >= OPEN_MAX) {
+		(void)close(high_descriptor);
+		return;
+	}
+	stream = db_fdopen(high_descriptor, "r+");
+	check(stream != NULL, "fdopen accepts a legal high descriptor");
+	if (stream == NULL) {
+		(void)close(high_descriptor);
+		return;
+	}
+	check(db_setvbuf(stream, NULL, _IONBF, 0) == 0,
+	    "high descriptor accepts unbuffered input");
+	check(getc(stream) == 'A', "high descriptor reads its first byte");
+	check(db_ungetc('A', stream) == 'A' && getc(stream) == 'A',
+	    "unbuffered input preserves identical pushback");
+	check(db_ungetc('Z', stream) == 'Z', "unbuffered input accepts different pushback");
+
+	/* Two unbuffered handles share an offset, but each owns its pushback. */
+	peer = db_fdopen(high_descriptor, "r");
+	check(peer != NULL, "a second stream wraps the shared descriptor");
+	if (peer != NULL) {
+		check(db_setvbuf(peer, NULL, _IONBF, 0) == 0,
+		    "the peer accepts unbuffered input");
+		check(getc(peer) == 'B', "the peer reads the next descriptor byte");
+	}
+	check(db_ftell(stream) == 1L, "ftell subtracts the pending pushback byte");
+	check(getc(stream) == 'Z', "a peer read preserves the first stream's pushback");
+	check(getc(stream) == EOF && (stream->_flag & _IOEOF) != 0,
+	    "unbuffered input records EOF");
+	check(db_ungetc('Q', stream) == 'Q' && (stream->_flag & _IOEOF) == 0,
+	    "unbuffered pushback clears EOF");
+	check(getc(stream) == 'Q' && getc(stream) == EOF,
+	    "EOF follows the consumed pushback");
+	check(putc('C', stream) == 'C' && db_fflush(stream) == 0,
+	    "unbuffered update output follows EOF");
+	check(db_fseek(stream, 0L, SEEK_SET) == 0 && getc(stream) == 'A',
+	    "positioning returns an unbuffered update stream to input");
+	check(db_fclose(stream) == 0, "closing inline storage succeeds");
+	if (peer != NULL) {
+		check(getc(peer) == EOF && (peer->_flag & _IOERR) != 0,
+		    "an invalid descriptor reports a read error");
+		check(db_fclose(peer) == EOF, "closing the invalid peer reports failure");
+	}
+}
+
+
+static void
+check_buffer_failure(void)
+{
+	char path[] = "/tmp/stdioallocXXXXXX";
+	char caller_buffer[16];
+	FILE *stream;
+	int descriptor;
+
+	descriptor = mkstemp(path);
+	check(descriptor >= 0, "allocation fixture opens");
+	if (descriptor < 0)
+		return;
+	check(write(descriptor, "xy", 2) == 2 && lseek(descriptor, 0L, SEEK_SET) == 0,
+	    "allocation fixture is seeded");
+	stream = db_fdopen(descriptor, "r");
+	check(stream != NULL, "allocation fixture wraps a descriptor");
+	if (stream == NULL) {
+		(void)close(descriptor);
+		(void)unlink(path);
+		return;
+	}
+	fail_buffer_allocation = 1;
+	check(getc(stream) == 'x', "failed buffer allocation retains readable input");
+	check((stream->_flag & (_IONBF|_IOMYBUF)) == _IONBF,
+	    "failed allocation selects inline input without heap ownership");
+	check(db_ungetc('z', stream) == 'z' && getc(stream) == 'z',
+	    "failed buffer allocation retains pushback");
+	check(getc(stream) == 'y' && getc(stream) == EOF,
+	    "failed buffer allocation retains the complete input");
+	fail_buffer_allocation = 0;
+	check(db_freopen(path, "r", stream) == stream,
+	    "freopen resets inline storage without freeing it");
+	check(db_setvbuf(stream, caller_buffer, _IOFBF, sizeof caller_buffer) == 0,
+	    "a reopened stream accepts a caller buffer");
+	check(getc(stream) == 'x' && getc(stream) == 'y',
+	    "a reopened buffered stream reads complete input");
+	check(db_fclose(stream) == 0, "caller-owned buffer closes");
+	(void)unlink(path);
+}
+
+#ifdef ANSI_REAL_FINDIOP
+static void
+check_stream_growth(void)
+{
+	FILE *stream;
+	int stream_index;
+
+	/* Occupy the complete static table before injecting allocation errors. */
+	for (stream_index = 0; stream_index < FOPEN_MAX; stream_index++)
+		_iob[stream_index]._flag = _IOREAD;
+	allocation_calls = 0;
+	allocation_failure = 1;
+	check(_findiop() == NULL, "glue allocation failure returns NULL");
+	allocation_calls = 0;
+	allocation_failure = 2;
+	check(_findiop() == NULL, "dynamic FILE allocation failure returns NULL");
+	allocation_calls = 0;
+	allocation_failure = 0;
+	stream = _findiop();
+	check(stream != NULL, "stream allocation retries after failure");
+	check(allocation_calls == 1,
+	    "retry keeps the glue table and allocates only the missing FILE");
+	if (stream != NULL)
+		stream->_flag = 0;
+	for (stream_index = 0; stream_index < FOPEN_MAX; stream_index++)
+		_iob[stream_index]._flag = 0;
+}
+#endif
+
 int
 main(void)
 {
@@ -381,6 +548,8 @@ main(void)
 	(void)unlink(path);
 	check(write(fd, "0123456789", 10) == 10, "seed write failed");
 
+	check_unbuffered();
+	check_buffer_failure();
 	check_modes();
 	check_setvbuf();
 	check_positions(fd);
@@ -389,6 +558,9 @@ main(void)
 	check_exclusive();
 
 	(void)close(fd);
+#ifdef ANSI_REAL_FINDIOP
+	check_stream_growth();
+#endif
 
 	(void)snprintf(report, sizeof report, "ansi: %d checks, %d failures\n",
 	    checks, failures);

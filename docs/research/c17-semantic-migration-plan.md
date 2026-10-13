@@ -363,20 +363,23 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    kernel baselines and root blocks. Record PICO_UART build coverage
    separately when a paired baseline is unavailable. Record compile-time and runtime states
    separately. Output: the ownership document's measured table.
-4. **Reconcile the utility-name ledger.** Resolve each entry of
-   `posix-utilities.md` against the selected manifest and multicall dispatch;
-   mark its 96 KB/840 KB/separate-binary baseline historical. Add source,
-   installed path and behavior-gate columns. A `csh` builtin never closes a
-   Bourne-shell requirement. Output: a current name/owner ledger.
-5. **Repair API discovery inputs.** Replace literal tilde/retired paths in
-   `bsd44-audit/posix_inventory.py` with explicit validated roots. Reject a
-   missing root and calibrate declared-only and implemented fixtures. Keep
-   declaration, symbol, linkage and behavior findings distinct. Output:
-   reproducible candidate discovery, followed by reviewed gap dispositions.
-6. **Pin standards requirements.** Assign Issue 7/8 edition, clause and
-   option marks to each selected API/utility row; separate BSD extensions
-   such as `funopen` and `radixsort`. Check feature and limit macros against
-   implemented behavior. Output: bounded edition-specific contracts.
+4. **Complete the utility-name ledger.** `sus-utility-ledger.json` resolves
+   107 names against the selected manifest, multicall dispatch, Bourne-shell
+   builtin table, source owners and named behavior gates. `posix-utilities.md`
+   marks its 96 KB/840 KB/separate-binary baseline historical. A `csh`
+   builtin never closes a Bourne-shell requirement. Output: the current
+   name/owner ledger and its calibrated checker.
+5. **Complete reproducible API discovery.** `bsd44-audit/posix_inventory.py`
+   accepts explicit validated roots and rejects a missing root or required
+   subtree. Paired fixtures distinguish declaration-only candidates from a
+   definition under a different source basename. Declaration, source symbol,
+   linkage and behavior states remain independent. Output: deterministic,
+   path-independent candidate JSON for reviewed gap dispositions.
+6. **Complete bounded standards contracts.** `sus-edition-contracts.md` pins
+   selected Issue 7 and Issue 8 pages, option marks, edition deltas, owners,
+   deciding gates and residuals. BSD extensions remain separate, and feature
+   or limit values establish only the cases their gates exercise. Output:
+   bounded edition-specific contracts.
 7. **Close directory allocation/error contracts.** Split `scandir` from
    `opendir`/`closedir`: first test fstat/read/allocation failure cleanup,
    selected-entry capacity, compact record length and comparator types;
@@ -408,7 +411,10 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
     open.
 
 Items 1 through 3 form the bounded implementation in
-`stdio-unbuffered-ownership.md`. Items 4 through 12 remain the ordered
-continuation frontier, rather than implied completed work. The source
+`stdio-unbuffered-ownership.md`. Items 4 through 6 form the checked discovery
+and edition-contract layer in `sus-utility-ledger.json`,
+`posix-utilities.md`, `bsd44-audit/posix_inventory.py` and
+`sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
+Items 7 through 12 remain the ordered continuation frontier. The source
 classification/quarantine program in `c17-formatting-linting.md` still owns
 the larger file-by-file denominator.

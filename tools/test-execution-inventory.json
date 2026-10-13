@@ -663,6 +663,26 @@
       ]
     },
     {
+      "id": "libc.ansi.shared-byte-negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-ansi",
+      "root_target": "check-libc-host-contracts",
+      "program": "ansi_shared_byte_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "ansi_shared_byte_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.ansi.shared-byte-negative -- ./ansi_shared_byte_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-ansi"
+      ]
+    },
+    {
       "id": "libc.zone.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

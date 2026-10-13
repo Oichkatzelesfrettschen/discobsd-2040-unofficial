@@ -1031,9 +1031,9 @@ ANSI_SAN32_OBJS= ${ANSI_MEMBERS:C/^/ansi32_san_/:C/$/.o/} \
 
 check-ansi: ansi_contract_test ansi_shared_byte_bad_test
 	${TEST_EXECUTION} run libc.ansi.native -- ./ansi_contract_test
-	@if ./ansi_shared_byte_bad_test > ansi_shared_byte_bad.log 2>&1; then \
-		echo "ERROR: shared-byte mutation passes" >&2; exit 1; fi
-	@grep -q "a peer read preserves the first stream's pushback" ansi_shared_byte_bad.log
+	${TEST_EXECUTION} run libc.ansi.shared-byte-negative -- \
+	    ./ansi_shared_byte_bad_test > ansi_shared_byte_bad.log 2>&1
+	@grep -Fq "a peer read preserves the first stream's pushback" ansi_shared_byte_bad.log
 	@echo "ansi: shared-byte mutation rejected by independent pushback"
 .if ${ILP32_OK} == "yes"
 	@${MAKE} ansi_contract_test32

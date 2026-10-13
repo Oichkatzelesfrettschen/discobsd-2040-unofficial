@@ -57,7 +57,10 @@ The address of an active `FILE` remains significant, as C17 7.21.3 permits.
 The maintained stdio wrappers construct local string streams or mutate a
 supplied stream pointer; the source search finds zero active FILE-by-value
 copies. `fprintf`, `vfprintf` and `fputs` temporarily replace buffer pointers
-on the original stream and reset them before returning.
+on the original stream. Before returning, the wrappers restore `_IONBF` and
+clear `_base`, `_bufsiz` and `_cnt`; `_ptr` retains the expired scratch-buffer
+address. The zero count forces the next input through `_filbuf`, which installs
+`_base = &iop->_ub` and rewrites `_ptr` before reading through the pointer.
 
 386BSD commit `9eaf3b3359255f461055b8f582131dd4695e750d` provides the
 small-system precedent: `usr/src/lib/libc/stdio/makebuf.c`, `__smakebuf`,
@@ -94,7 +97,7 @@ those outputs rather than rounding them into the common result.
 | `/bin/box` text/data/BSS | 33548 / 1400 / 6812 | 33468 / 1396 / 6804 | -92 window bytes |
 | `/sbin/adminbox` text/data/BSS | 25696 / 1720 / 2540 | 25616 / 1716 / 2532 | -92 window bytes |
 | `/usr/bin/login` text/data/BSS | 21912 / 693 / 3435 | 21832 / 689 / 3427 | -92 window bytes |
-| Board `/usr/lib/libc.a` file | 56134 | 55882 | -252 bytes; 151 archive entries in both |
+| Packed-root `/usr/lib/libc.a` file | 56134 | 55882 | -252 bytes; 151 archive entries in both |
 | Packed `/bin/box` file | 28536 | 28443 | -93 bytes |
 | Packed `/bin/sh` file | 30819 | 30742 | -77 bytes |
 | Packed `/sbin/adminbox` file | 22149 | 22074 | -75 bytes |
@@ -159,7 +162,7 @@ receipts. Compiler capability probes keep unsupported variants explicit.
 
 Language and interface acceptance cover the changed portable libc members
 and exercised contracts. Resource acceptance covers object/linked extents,
-static frame estimates, the installed archive and packed-root accounting.
+static frame estimates, the packed-root archive and filesystem accounting.
 Board input timing, runtime heap/stack high-water, flash traffic, wear and a
 new native Smaller C stdio consumer remain unmeasured. The unchanged public
 layout introduces zero new native-header language constructs.

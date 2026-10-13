@@ -227,6 +227,9 @@ scandir_scandir_target.o: ${TARGET_DIR}/scandir.c
 	${ARM_COMPILER} ${TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/scandir.c
 
 clean:
+	rm -f getwd_lifetime_test getwd_lifetime_test32 getwd_lifetime_test_san \
+	    getwd_lifetime_mutant getwd_lifetime_mutant.c getwd_lifetime_mutant.log \
+	    getwd_lifetime_target.o
 	rm -f ${CLOSEDIR_MUTANT_BINS} closedir_*.mutant.c \
 	    closedir_*.mutant.o closedir_*.mutant.log closedir_mutants.stamp
 	rm -f dirent_contract_test ${HOST_OBJS} ${TARGET_OBJS}
@@ -273,3 +276,52 @@ check-closedir-mutants: ${CLOSEDIR_MUTANT_BINS} check_closedir_mutants.sh
 	${TEST_EXECUTION} run libc.closedir.negative -- sh ./check_closedir_mutants.sh
 
 .PHONY: check-closedir-mutants
+
+GETWD_RENAMES= -Dgetwd=discobsd_getwd -Dstat=test_stat \
+    -Dfstat=test_fstat -Dlstat=test_lstat -Dopendir=test_opendir \
+    -Dreaddir=test_readdir -Dclosedir=test_closedir
+GETWD_CFLAGS= ${HOST_BASE_CFLAGS} ${GETWD_RENAMES}
+
+getwd_lifetime_test: getwd_lifetime_test.c ${TARGET_DIR}/getwd.c
+	${HOSTCC} ${GETWD_CFLAGS} -o $@ ${TARGET_DIR}/getwd.c getwd_lifetime_test.c
+
+getwd_lifetime_test32: getwd_lifetime_test.c ${TARGET_DIR}/getwd.c
+	${HOSTCC} ${ILP32} ${GETWD_CFLAGS} -o $@ \
+	    ${TARGET_DIR}/getwd.c getwd_lifetime_test.c
+
+getwd_lifetime_test_san: getwd_lifetime_test.c ${TARGET_DIR}/getwd.c
+	${HOSTCC} ${SCANDIR_SAN_FLAGS} ${GETWD_CFLAGS} -o $@ \
+	    ${TARGET_DIR}/getwd.c getwd_lifetime_test.c
+
+getwd_lifetime_mutant.c: getwd_lifetime_mutate.py ${TARGET_DIR}/getwd.c
+	${PYTHON} getwd_lifetime_mutate.py ${TARGET_DIR}/getwd.c $@
+
+getwd_lifetime_mutant: getwd_lifetime_mutant.c getwd_lifetime_test.c
+	${HOSTCC} ${GETWD_CFLAGS} -o $@ getwd_lifetime_mutant.c getwd_lifetime_test.c
+
+check-getwd-lifetime: getwd_lifetime_test check-getwd-mutant
+	${TEST_EXECUTION} run libc.getwd.native -- ./getwd_lifetime_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} getwd_lifetime_test32
+	${TEST_EXECUTION} run libc.getwd.ilp32 -- ./getwd_lifetime_test32
+.else
+	${TEST_EXECUTION} skip libc.getwd.ilp32 "getwd: ILP32 runtime unavailable"
+.endif
+.if ${SCANDIR_SAN_OK} == "yes"
+	@${MAKE} getwd_lifetime_test_san
+	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+	    UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} \
+	    run libc.getwd.sanitized -- ./getwd_lifetime_test_san
+.else
+	${TEST_EXECUTION} skip libc.getwd.sanitized "getwd: sanitizer runtime unavailable"
+.endif
+
+check-getwd-mutant: getwd_lifetime_mutant check_getwd_mutant.sh
+	${TEST_EXECUTION} run libc.getwd.negative -- sh ./check_getwd_mutant.sh
+
+getwd_lifetime_target.o: ${TARGET_DIR}/getwd.c
+	${ARM_COMPILER} ${TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/getwd.c
+
+check-getwd-cross: getwd_lifetime_target.o
+
+.PHONY: check-getwd-lifetime check-getwd-mutant check-getwd-cross

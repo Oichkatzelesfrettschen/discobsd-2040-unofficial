@@ -396,7 +396,9 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
    close attempt, preserves errno through free and calibrates its result and
    ownership with four mutations. `libc-closedir-result-contract.md` records
    the source/ABI transition and paired resources. The separate `getwd`
-   borrowed-entry lifetime correction remains open.
+   lifetime unit copies each borrowed name before stream release;
+   `libc-getwd-entry-lifetime.md` records its calibrated regression and
+   the independent historical bounds/metadata limitations.
    Output: one independently tested interface change per PR.
 8. **Resolve case-folding semantics.** Compare all byte pairs under signed
    and unsigned `char`; record the inherited high-bit ASCII mapping and
@@ -437,7 +439,8 @@ and edition-contract layer in `sus-utility-ledger.json`,
 `posix-utilities.md`, `bsd44-audit/posix_inventory.py` and
 `sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
 Item 7 has tested scanner, directory admission/CLOEXEC and close-result units.
-The separate getwd borrowed-entry lifetime defect remains open. Items 8 through 10 and 12 remain the ordered
+The getwd lifetime unit closes the borrowed-entry defect; its independent
+bounds and metadata limitations remain documented. Items 8 through 10 and 12 remain the ordered
 continuation frontier. Item 11
 has a calibrated baseline and retains a final rerun after those interface
 changes. The source

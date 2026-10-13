@@ -17,3 +17,9 @@ closedir_*.mutant.c
 closedir_*.mutant.test
 closedir_*.mutant.log
 closedir_mutants.stamp
+getwd_lifetime_test
+getwd_lifetime_test32
+getwd_lifetime_test_san
+getwd_lifetime_mutant
+getwd_lifetime_mutant.c
+getwd_lifetime_mutant.log

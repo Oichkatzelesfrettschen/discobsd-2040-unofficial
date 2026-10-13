@@ -1,5 +1,9 @@
 # Formatter counts, arithmetic and output failure
 
+The comparison below retains 1024-byte scratch. The subsequent capacity unit
+in `stdio-output-batch-capacity.md` defines the 256-byte implementation and
+its independent measurements.
+
 Formatted output has two independent quantities: the bytes a destination
 stores and the length the format requires. `_doprnt` accounts for logical
 length in a checked `int` while bounded string output copies or fills only

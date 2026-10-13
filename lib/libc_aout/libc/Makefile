@@ -141,6 +141,8 @@ all:            ../libc.a
 		${AOUT_AR} rc $@ ${OBJS}
 		${AOUT_RANLIB} $@
 
+vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
+
 ${OBJS}:	FRC
 
 FRC:

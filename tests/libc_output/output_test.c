@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "output.h"
 
 struct _iobuf _iob[3];
 int output_errno;
@@ -14,6 +15,7 @@ static unsigned write_calls;
 static unsigned fail_call;
 static int short_write;
 static unsigned captured_length;
+static size_t largest_write;
 static char captured[4096];
 
 int
@@ -37,9 +39,13 @@ output_write(int descriptor, const void *data, size_t length)
 {
     (void)descriptor;
     ++write_calls;
+    if (length > largest_write)
+        largest_write = length;
     if (write_calls == fail_call) {
         output_errno = EIO;
-        return short_write ? (ssize_t)(length - 1) : -1;
+        if (!short_write)
+            return -1;
+        --length;
     }
     if (length > sizeof(captured) - captured_length)
         return -1;
@@ -110,6 +116,7 @@ reset(FILE *stream)
     stream->_file = 42;
     write_calls = 0;
     captured_length = 0;
+    largest_write = 0;
     fail_call = 0;
     short_write = 0;
     output_errno = 0;
@@ -123,6 +130,64 @@ check_released(FILE *stream)
         (stream->_flag & _IONBF), "FAIL output temporary buffer release");
 }
 
+static void
+check_chunk_boundaries(void)
+{
+    static const unsigned lengths[] = {
+        0, 1, STDIO_OUTPUT_CHUNK - 1, STDIO_OUTPUT_CHUNK,
+        STDIO_OUTPUT_CHUNK + 1, 2 * STDIO_OUTPUT_CHUNK - 1,
+        2 * STDIO_OUTPUT_CHUNK, 2 * STDIO_OUTPUT_CHUNK + 1,
+        BUFSIZ - 1, BUFSIZ, BUFSIZ + 1, 2 * BUFSIZ + 1
+    };
+    char text[2 * BUFSIZ + 2];
+    unsigned operation, sample, failure_index, mode, position;
+    FILE stream;
+
+    for (operation = 0; operation < 3; ++operation) {
+        for (sample = 0; sample < sizeof(lengths) / sizeof(lengths[0]); ++sample) {
+            unsigned length = lengths[sample];
+            unsigned expected_calls = (length + STDIO_OUTPUT_CHUNK - 1) /
+                STDIO_OUTPUT_CHUNK;
+            for (position = 0; position < length; ++position)
+                text[position] = (char)(1 + position % 127);
+            text[length] = '\0';
+            for (failure_index = 0; failure_index <= expected_calls; ++failure_index) {
+                for (mode = 0; mode < 2; ++mode) {
+                    unsigned delivered = length;
+                    int result;
+                    reset(&stream);
+                    fail_call = failure_index;
+                    short_write = mode;
+                    result = operation == 0 ? fprintf(&stream, "%s", text) :
+                        operation == 1 ? call_vfprintf(&stream, "%s", text) :
+                        fputs(text, &stream);
+                    if (failure_index != 0) {
+                        unsigned pending;
+                        delivered = (failure_index - 1) * STDIO_OUTPUT_CHUNK;
+                        pending = length - delivered;
+                        if (pending > STDIO_OUTPUT_CHUNK)
+                            pending = STDIO_OUTPUT_CHUNK;
+                        if (mode)
+                            delivered += pending - 1;
+                        check(result == EOF && ferror(&stream) &&
+                            output_errno == EIO && write_calls == failure_index,
+                            "FAIL output chunk failure stops writes");
+                    } else {
+                        check((operation == 2 ? result >= 0 : result == (int)length) &&
+                            !ferror(&stream) && write_calls == expected_calls,
+                            "FAIL output chunk write count");
+                    }
+                    check(captured_length == delivered &&
+                        memcmp(captured, text, delivered) == 0 &&
+                        largest_write <= STDIO_OUTPUT_CHUNK,
+                        "FAIL output chunk payload and bound");
+                    check_released(&stream);
+                }
+            }
+        }
+    }
+}
+
 int
 main(void)
 {
@@ -132,6 +197,7 @@ main(void)
     unsigned operation;
     int result;
 
+    check_chunk_boundaries();
     memset(text, 'x', sizeof(text) - 1);
     text[sizeof(text) - 1] = '\0';
     for (operation = 0; operation < 3; ++operation) {
@@ -212,7 +278,7 @@ main(void)
     }
     reset(&stream);
     result = call_vfprintf(&stream, "%s", text);
-    check(result == (int)sizeof(text) - 1 && write_calls == 3 &&
+    check(result == (int)sizeof(text) - 1 && write_calls == (sizeof(text) - 2) / STDIO_OUTPUT_CHUNK + 1 &&
         captured_length == sizeof(text) - 1,
         "FAIL output large formatted chunks");
     check_released(&stream);

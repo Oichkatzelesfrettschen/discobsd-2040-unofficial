@@ -1,5 +1,9 @@
 # Stdio output wrapper ownership and results
 
+The comparison below retains 1024-byte scratch. The subsequent capacity unit
+in `stdio-output-batch-capacity.md` defines the 256-byte implementation and
+its independent measurements.
+
 `fprintf()` delegates to `vfprintf()` and returns the formatter's count.
 Unbuffered `vfprintf()` and `fputs()` batch through a per-call FILE copy with
 an explicitly initialized 1,024-byte automatic buffer. The copy borrows the

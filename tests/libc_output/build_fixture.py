@@ -11,11 +11,13 @@ parser.add_argument("destination", type=Path)
 parser.add_argument("--compiler", required=True)
 parser.add_argument("--flags", default="")
 parser.add_argument("--binary", type=Path)
-parser.add_argument("--mutation", choices=("count", "capacity", "pointer", "flush", "continue"))
+parser.add_argument("--mutation",
+                    choices=("count", "capacity", "pointer", "flush", "continue", "chunk"))
 args = parser.parse_args()
 args.destination.mkdir(exist_ok=True)
 flags = [*shlex.split(args.compiler), *shlex.split(args.flags), "-std=c17",
          "-Wall", "-Wextra", "-Werror", "-fno-builtin", "-nostdinc",
+         "-I", str(args.root / "lib/libc/stdio"),
          "-isystem", str(args.root / "include"), "-DNO_DOPRNT_FLOATFMT",
          "-Dfprintf=db_fprintf", "-Dvfprintf=db_vfprintf", "-Dfputs=db_fputs",
          "-D_flsbuf=db_flsbuf", "-Dfflush=db_fflush", "-Dfclose=db_fclose",
@@ -23,12 +25,14 @@ flags = [*shlex.split(args.compiler), *shlex.split(args.flags), "-std=c17",
          "-Dsprintf=db_sprintf", "-Dvsprintf=db_vsprintf"]
 mutations = {
     "count": ("fprintf", "return result;", "return result == EOF ? EOF : 0;"),
-    "capacity": ("vfprintf", "temporary._bufsiz = BUFSIZ;", "temporary._bufsiz = 0;"),
+    "capacity": ("vfprintf", "temporary._bufsiz = STDIO_OUTPUT_CHUNK;", "temporary._bufsiz = 0;"),
     "pointer": ("vfprintf", "stream->_cnt = 0;",
                 "stream->_cnt = 0;\n\t\tstream->_ptr = output->_ptr;"),
     "flush": ("fputs", "if (result != EOF && fflush(output) == EOF)\n\t\t\tresult = EOF;",
               "if (result != EOF)\n\t\t\t(void)fflush(output);"),
     "continue": ("fputs", "\t\t\tbreak;", "\t\t\tcontinue;"),
+    "chunk": ("fputs", "alloca(STDIO_OUTPUT_CHUNK);\n\t\ttemporary._bufsiz = STDIO_OUTPUT_CHUNK;",
+              "alloca(BUFSIZ);\n\t\ttemporary._bufsiz = BUFSIZ;"),
 }
 objects = []
 for member in ("fprintf", "vfprintf", "fputs", "doprnt", "doprnt_llong", "flsbuf",

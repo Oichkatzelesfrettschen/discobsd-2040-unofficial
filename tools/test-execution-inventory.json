@@ -277,6 +277,29 @@
       "from": "check-libc-casefold",
       "to": "tests/libc_casefold:check",
       "kind": "recursive make"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": [
+        "check-libc-host-contracts",
+        "check-kernel-ilp32",
+        "check-dd-contracts",
+        "check-umount-contracts",
+        "check-backgammon-contracts",
+        "check-libc-sysctl",
+        "check-posix-sh",
+        "check-textbox-host",
+        "check-scandir-contracts",
+        "check-dirent-contracts",
+        "check-getwd-lifetime",
+        "check-libc-output"
+      ],
+      "kind": "prerequisites after symlinks .WAIT"
+    },
+    {
+      "from": "check-libc-output",
+      "to": "tests/libc_output:check",
+      "kind": "recursive make"
     }
   ],
   "optional_investigations": [
@@ -2196,6 +2219,80 @@
         "casefold_errno_loss.mutant.test",
         "check_mutants.sh"
       ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.native",
+      "width": "native",
+      "program": "output_native",
+      "capability": "native compiler and runtime",
+      "target": "check",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.output.native -- ./output_native",
+      "prerequisites": [
+        "output_native"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.ilp32",
+      "width": "ilp32",
+      "program": "output_ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libc.output.ilp32 -- ./output_ilp32",
+      "prerequisites": [
+        "output_ilp32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.sanitized",
+      "width": "native",
+      "program": "output_sanitized",
+      "capability": "native compiler and runtime",
+      "target": "check",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libc.output.sanitized -- ./output_sanitized",
+      "prerequisites": [
+        "output_sanitized"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libc_output",
+      "makefile": "tests/libc_output/Makefile",
+      "root_target": "check-libc-output",
+      "aliases": [],
+      "id": "libc.output.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libc.output.negative -- sh ./check_mutants.sh",
+      "prerequisites": [
+        "mutant_count/test",
+        "mutant_capacity/test",
+        "mutant_pointer/test",
+        "mutant_flush/test",
+        "mutant_continue/test",
+        "check_mutants.sh"
+      ],
+      "script": "tests/libc_output/check_mutants.sh"
     }
   ]
 }

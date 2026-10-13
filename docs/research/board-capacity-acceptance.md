@@ -73,8 +73,10 @@ bmake MACHINE=rp2040 STORAGE_STATS=yes kernel
 `distribution` includes `build`. A later `build` can replace the selected
 staging libc with the full archive, so regenerate `distribution` before
 packaging when that sequence occurs. Stage `stdiocap` from its board-build
-output into the test staging `/usr/bin`, with executable mode; append its
-`file /usr/bin/stdiocap` record under `filemode 0755` to the test manifest.
+output into the test staging `/usr/bin`, with executable mode; append a `file /usr/bin/stdiocap` record followed
+by `mode 0755`, `owner 0`, and `group 0` to the test manifest. `filemode`
+belongs only inside a `default` section; per-file modes avoid changing the
+existing defaults.
 Retain the exact test manifest, build `bmake MACHINE=rp2040 flash`, and restore
 the tracked manifest before committing. Retain the image bytes separately
 before another image build overwrites them.
@@ -151,6 +153,25 @@ BSS. GCC stack-usage records 8208 bytes for `calibrate`, 2080 for `run_output`,
 helper. Disassembly retains the volatile calibration loop and its live
 `getpid` relocation. Each number describes the compiled fixture, excluding
 callee frames unless named; the shipped manifest excludes the fixture.
+
+The retained test image uses source `21f4ae31326ca70d27e7ce89b4f81badb944f087`,
+GCC 16.2.0, bmake 20260912, Python 3.14.7 and picotool 2.3.1. The optional
+storage-counter PICO kernel reports text/data/BSS 105142/376/39848 bytes.
+The test root adds only `stdiocap` and `streamtest`; filesystem checking reports
+97 files, 716 used blocks and 263 free blocks. Extraction reproduces both
+fixture payloads, their 0755 modes and the selected 54258-byte libc archive.
+The tracked manifest returns to its original bytes after packaging.
+
+| Retained image | SHA-256 | Verified payload interval |
+| --- | --- | --- |
+| `unix.uf2` | `1f787f843bcf69d75a1b8dc2906557abd2f7c8acc327ff3d1e3cb5bc10d3a8bf` | `[0x10000000, 0x10019d00)` |
+| `flash.uf2` | `6f3e7dac895ca79d424d8e4c37552f794eecb1378ffded7ae3c2d08285367e6e` | `[0x10020000, 0x101a0000)` |
+
+The UF2 inspection accepts a synthetic valid block and rejects eight
+metadata mutations before inspecting the real images. It checks RP2040
+family identity, block metadata, address bounds and complete root-region
+coverage. The image hashes identify one prepared pair; a rebuild creates
+its own receipt, including any kernel version or archive timestamp changes.
 
 ## Acceptance state
 

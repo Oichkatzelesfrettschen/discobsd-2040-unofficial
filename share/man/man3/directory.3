@@ -13,11 +13,7 @@ opendir, readdir, telldir, seekdir, rewinddir, closedir \- directory operations
 .br
 .B #include <sys/dir.h>
 .PP
-.SM
-.B DIR
-.B *opendir(filename)
-.br
-.B char *filename;
+.B DIR *opendir(const char *filename);
 .PP
 .B struct direct
 .B *readdir(dirp)
@@ -69,7 +65,19 @@ is returned if
 .I filename
 cannot be accessed, or if it cannot
 .IR malloc (3)
-enough memory to hold the whole thing.
+enough memory to hold the directory stream.
+.I opendir
+validates the opened descriptor with
+.IR fstat (2)
+and rejects a nondirectory with
+.BR ENOTDIR .
+The descriptor has
+.B FD_CLOEXEC
+set through
+.IR fcntl (2)
+before the stream is returned. Metadata, descriptor-flag or allocation
+failure closes the descriptor and preserves the deciding
+.IR errno .
 .PP
 .I Readdir
 returns a pointer to the next directory entry.  It returns
@@ -94,7 +102,7 @@ when the
 operation was performed.  Values returned by
 .I telldir
 are good only for the lifetime of the DIR pointer from which they are derived.
-If the directory is closed and then reopened, the 
+If the directory is closed and then reopened, the
 .I telldir
 value may be invalidated due to undetected directory compaction.
 It is safe to use a previous
@@ -114,28 +122,25 @@ closes the named
 .I directory stream
 and frees the structure associated with the DIR pointer.
 .PP
-Sample code which searchs a directory for entry ``name'' is:
+The following fragment assumes a successful
+.I opendir
+call and searches a directory for entry ``name'':
 .PP
-.br
+.nf
 	len = strlen(name);
-.br
 	dirp = opendir(".");
-.br
 	for (dp = readdir(dirp); dp != NULL; dp = readdir(dirp))
-.br
 		if (dp->d_namlen == len && !strcmp(dp->d_name, name)) {
-.br
 			closedir(dirp);
-.br
 			return FOUND;
-.br
 		}
-.br
 	closedir(dirp);
-.br
 	return NOT_FOUND;
+.fi
 .SH "SEE ALSO"
 open(2),
+fstat(2),
+fcntl(2),
 close(2),
 read(2),
 lseek(2),

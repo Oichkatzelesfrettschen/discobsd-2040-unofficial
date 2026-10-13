@@ -75,10 +75,6 @@ sys/kern/kern_sig2.c definition sigpending both
 sys/kern/kern_sig2.c definition sigprocmask both
 sys/kern/kern_sig2.c definition sigsuspend both
 sys/kern/kern_sig2.c definition sigwait both
-sys/kern/kern_subr.c definition uiofmove both
-sys/kern/kern_subr.c definition uiomove both
-sys/kern/kern_subr.c definition ureadc both
-sys/kern/kern_subr.c definition uwritec both
 sys/kern/kern_synch.c definition endtsleep both
 sys/kern/kern_synch.c definition remrq both
 sys/kern/kern_synch.c definition setpri both

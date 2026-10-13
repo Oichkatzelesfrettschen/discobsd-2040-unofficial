@@ -115,22 +115,34 @@ The initial workload records:
 After opt-in, the shell workload for the stdio portion is:
 
 ```sh
-sysctl kern.capacity
-sysctl machdep.storage_stats
-stdiocap trap
-stdiocap leaf
+run_checked()
+{
+    if "$@"; then
+        command_status=0
+    else
+        command_status=$?
+    fi
+    printf 'status=%d command=' "$command_status"
+    printf ' %s' "$@"
+    printf '\n'
+    return "$command_status"
+}
+run_checked sysctl kern.capacity || exit 1
+run_checked sysctl machdep.storage_stats || exit 1
+run_checked stdiocap trap || exit 1
+run_checked stdiocap leaf || exit 1
 for operation in fprintf vfprintf fputs; do
     for length in 0 1 255 256 257 511 512 513 1023 1024 1025 2049; do
-        stdiocap "$operation" "$length" || exit 1
+        run_checked stdiocap "$operation" "$length" || exit 1
     done
 done
-sysctl kern.capacity
-sync
-sysctl machdep.storage_stats
+run_checked sysctl kern.capacity || exit 1
+run_checked sync || exit 1
+run_checked sysctl machdep.storage_stats || exit 1
 ```
 
-The operator checks each control status before the loop and retains the
-complete transcript. The control's positive result admits only sampled
+The wrapper prints each command and its status, and a failure ends the
+workload before the next command. The operator retains the complete transcript. The control's positive result admits only sampled
 extent; the leaf control and each workload result retain their stated limits.
 
 A complete capacity-reduction decision additionally runs the workload corpus

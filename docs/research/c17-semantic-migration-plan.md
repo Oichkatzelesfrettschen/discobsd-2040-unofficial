@@ -401,8 +401,16 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
     Pico SDK register/ROM conventions and target attributes. Output: a
     reduced calibrated ledger and unchanged or explained linked footprint.
 11. **Validate native-header inputs.** Compile, link and execute a Smaller C
-    stdio consumer; separately probe each proposed new header construct.
-    Output: native acceptance receipts, distinct from GNU17 cross builds.
+    stdio consumer; separately probe each proposed new header construct. The
+    `t18_stdio` fixture now consumes expanded `stdio.h` and `sys/dir.h`, pins
+    both target layouts, executes stdio ownership/scanning/bounds behavior and
+    reaches the intended archive members. A copied-archive `filbuf.o` mutation
+    calibrates rejection. The host scanner gate also closes the formerly
+    declared-only `vscanf`, `vfscanf` and `vsscanf` symbols. The receipt starts
+    after host preprocessing; on-device preprocessing and board execution stay
+    open. Rerun the fixture after every admitted public-header change and once
+    more after items 7 through 10. Output: native acceptance receipts,
+    distinct from GNU17 cross builds.
 12. **Measure capacity and persistence on the board.** After explicit opt-in,
     select the exact image/configuration and collect process/kernel stack,
     table high-water, allocation failure and storage traffic under a named
@@ -415,6 +423,8 @@ Items 1 through 3 form the bounded implementation in
 and edition-contract layer in `sus-utility-ledger.json`,
 `posix-utilities.md`, `bsd44-audit/posix_inventory.py` and
 `sus-edition-contracts.md`; `check-sus-discovery` calibrates that layer.
-Items 7 through 12 remain the ordered continuation frontier. The source
+Items 7 through 10 and 12 remain the ordered continuation frontier. Item 11
+has a calibrated baseline and retains a final rerun after those interface
+changes. The source
 classification/quarantine program in `c17-formatting-linting.md` still owns
 the larger file-by-file denominator.

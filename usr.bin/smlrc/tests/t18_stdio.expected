@@ -1,0 +1,5 @@
+PASS native stdio layouts
+PASS stream-owned input
+PASS scanf and vsscanf
+PASS string pushback
+PASS bounded output

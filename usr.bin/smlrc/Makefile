@@ -32,7 +32,12 @@ install:        smlrc
 test:
 		TOPSRC=${TOPSRC} MACHINE=${MACHINE} CPU=${MACHINE_CPU} \
 		    TOOLBINDIR=${TOOLBINDIR} PYTHON="${PYTHON}" HOST_CC="${HOST_CC}" \
+			    DEVICE_CC="${CC}" DEVICE_LDFLAGS="${LDFLAGS}" \
 		    ${.CURDIR}/tests/run.sh
+			TOPSRC=${TOPSRC} MACHINE=${MACHINE} CPU=${MACHINE_CPU} \
+			    TOOLBINDIR=${TOOLBINDIR} PYTHON="${PYTHON}" HOST_CC="${HOST_CC}" \
+			    DEVICE_CC="${CC}" DEVICE_LDFLAGS="${LDFLAGS}" \
+			    "${PYTHON}" ${.CURDIR}/tests/stdio_red_control.py
 
 # Differential test against the host compiler, off the default path because
 # it needs qemu-arm and a host cc that can target 32 bits.

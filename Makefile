@@ -108,6 +108,18 @@ distribution:	build
 		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}
 .endif
 
+# check-uf2-validator calibrates the UF2 structure checker on synthetic
+# images; check-uf2-images applies it to the built kernel and root pair that
+# discobsd-flash loads, so it follows `kernel` and `flash`.
+check-uf2-validator: check-python
+		${PYTHON} tools/check_rp2040_uf2.py --self-test
+
+check-uf2-images: check-python
+		${PYTHON} tools/check_rp2040_uf2.py \
+		    sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+
+.PHONY: check-uf2-validator check-uf2-images
+
 check-account-image:	check-python .WAIT ${FSIMG}
 .if ${MACHINE} == "rp2040"
 		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}
@@ -684,7 +696,7 @@ check-elf2aout:	tools
 # the shell against the host's headers, so those two reach nothing under
 # include.
 HOST_GATES=	check-architecture-isolation \
-		check-agent-instructions \
+		check-agent-instructions check-uf2-validator \
 		check-graft-cache-reader \
 		check-sus-discovery \
 		check-comment-hygiene \

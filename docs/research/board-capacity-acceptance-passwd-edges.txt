@@ -1,0 +1,22 @@
+root@pico:/home/operator# cp /etc/passwd /tmp/pw.orig; echo __DO''NE__ $?
+__DONE__ 0
+root@pico:/home/operator# cksum /etc/passwd; echo __DO''NE__ $?
+2009316444 331 /etc/passwd
+__DONE__ 0
+root@pico:/home/operator# echo 'ghost:*::0::/:/bin/sh' > /etc/passwd; echo __DO''NE__ $?
+__DONE__ 0
+root@pico:/home/operator# grep -v '^operator:' /tmp/pw.orig >> /etc/passwd; echo __DO''NE__ $?
+__DONE__ 0
+root@pico:/home/operator# sh
+root@pico:/home/operator# exit
+root@pico:/home/operator# (sleep 30; cp /tmp/pw.orig /etc/passwd) &
+69
+root@pico:/home/operator# exit
+operator@pico:~$ sh
+?@pico:~$ exit
+operator@pico:~$ cksum /etc/passwd; echo __DO''NE__ $?
+2009316444 331 /etc/passwd
+__DONE__ 0
+operator@pico:~$ sh
+operator@pico:~$ exit
+operator@pico:~$

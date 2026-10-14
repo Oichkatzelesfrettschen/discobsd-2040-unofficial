@@ -252,8 +252,9 @@ reports 97 files, 716 used blocks and 263 free blocks.
 Extraction and decompression reproduce the repaired adminbox bytes. Extracted
 stdiocap, streamtest and the 54258-byte selected libc match their build inputs;
 the two probes and adminbox carry mode 0755. The tracked test manifest restores
-its original bytes after packaging. The calibrated UF2 validator accepts the
-pair and rejects all eight malformed metadata controls.
+its original bytes after packaging. The calibrated UF2 validator, now
+`tools/check_rp2040_uf2.py` behind `check-uf2-images`, accepts the pair and
+rejects all eight malformed metadata controls.
 
 | Replacement image | SHA-256 | Verified payload interval |
 | --- | --- | --- |
@@ -356,8 +357,8 @@ source; the board capture covers the image named above. The image bundle was
 written under `/tmp` and is no longer retained, so the hashes above and the
 tables below are its record.
 
-The calibrated UF2 validator accepts the two images and rejects all eight
-metadata mutations. The attended helper loads both images through the unique
+The calibrated UF2 validator (`tools/check_rp2040_uf2.py`) accepts the two
+images and rejects all eight metadata mutations. The attended helper loads both images through the unique
 RP2040 PICOBOOT interface and the board re-enumerates as the unique DiscoBSD
 CDC console.
 
@@ -490,6 +491,39 @@ workload and its `sync`, storage counters move as follows:
 | SwapRAM attempts / admissions | 98 / 9 |
 
 The run puts the committed source behind the first run's conclusion. It
-leaves the `?` miss path unexercised on the board, because every resolved
-uid exists in the packed `/etc/passwd`; the `bin/sh/tests` host test owns
-that path. The capacity-reduction corpus above remains open.
+leaves the `?` miss path unexercised, because every resolved uid exists in
+the packed `/etc/passwd`; the run below covers that path. The
+capacity-reduction corpus above remains open.
+
+## Passwd lookup edge cases on the board
+
+A separate attended run builds the same source with the same two
+test-manifest records and `STORAGE_STATS=yes`. Its image differs in bytes
+from the run above; both builds come from one revision and staging, so the
+difference lies in build-time content such as embedded timestamps.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `unix.uf2` | `90077af62ffc871b3c27a2b6ca706f80f002715dbb9ccf67fda7d25b2dcd0def` |
+| `flash.uf2` | `abe48c65f002caaab513dbfc3ef8b940d7c694dbaf307db3a8b8d8693674ba38` |
+| `sdcard.img` | `6d67a33fbbbd01ddc4b82c02c04d52b7c547fcfdeee3560f41ada5d889819b24` |
+| `bin/sh` | `4637e7e3611a9c8e21af20188b664100061f9480e33c0fa4dd111f436b83f363` |
+| raw console capture | `ef97eee9be490f9bf63489e1966f3fe6317f4ccf38c676c6ee7a1569d93787d7` |
+
+`tools/check_rp2040_uf2.py` reports 413 kernel blocks covering
+`[0x10000000, 0x10019d00)` and 6,144 root blocks covering
+`[0x10020000, 0x101a0000)`. The run writes the stdio workload to
+`/tmp/w.sh`, matches its board `cksum` (3188318211, 693 bytes) against the
+host, and executes it: all 43 records report `status=0`, `streamtest` exits
+zero and the 45-second quiet window emits no bytes.
+
+As root, the run saves `/etc/passwd` (cksum 2009316444, 331 bytes) and
+rewrites it with `ghost:*::0::/:/bin/sh` first, followed by every original
+record except operator's. A fresh root `sh` then renders `root@pico`, so the
+empty uid field never stands for uid 0. A background job restores the file
+30 seconds later; before it does, a fresh operator `sh` renders `?@pico:~$`
+for the uid that no record carries. After restoration the file's cksum
+matches the saved value and a fresh operator `sh` renders `operator@pico`.
+Both `pwname()` rules that the host test calibrates therefore hold on
+silicon for that image. `board-capacity-acceptance-passwd-edges.txt` holds
+these steps with prompt redraws collapsed; the raw capture is not retained.

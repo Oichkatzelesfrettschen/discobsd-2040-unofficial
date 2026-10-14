@@ -1,0 +1,253 @@
+PROMPT operator: '\x1b[1;32moperator@pico\x1b[0m:\x1b[1;34m~\x1b[0m$ '
+uid=2(operator) gid=5(operator) groups=5(operator), 0(wheel)
+DiscoBSD pico 2.7 PICO#1 rp2040
+Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
+root              979      714      265    72%    /
+kern.capacity=version 1 size 100
+proc limit 25 current 5 peak 5 min-free 20 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 11 min-free 13 failures 0 slot-bytes 84
+file limit 24 current 3 peak 7 min-free 17 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1732 min-free 316 saturated 0
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 2038
+root_read_bytes 2086912
+root_writes 21
+root_write_bytes 21504
+swap_reads 24
+swap_read_bytes 122956
+swap_writes 27
+swap_write_bytes 139828
+map_writes 21
+checkpoint_attempts 21
+checkpoint_successes 21
+checkpoint_errors 0
+root_program_pages 672
+root_program_bytes 172032
+root_erase_sectors 42
+root_erase_bytes 172032
+swap_program_pages 556
+swap_program_bytes 142336
+swap_erase_sectors 41
+swap_erase_bytes 167936
+dirty_transitions 16
+dirty_rewrites 3
+eviction_writes 11
+buffer_waits 0
+swapram_attempts 40
+swapram_admissions 31
+kern.capacity=version 1 size 100
+proc limit 25 current 5 peak 5 min-free 20 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 11 min-free 13 failures 0 slot-bytes 84
+file limit 24 current 3 peak 7 min-free 17 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1732 min-free 316 saturated 0
+status=0 command= sysctl kern.capacity
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 2272
+root_read_bytes 2326528
+root_writes 23
+root_write_bytes 23552
+swap_reads 30
+swap_read_bytes 157468
+swap_writes 33
+swap_write_bytes 175620
+map_writes 23
+checkpoint_attempts 23
+checkpoint_successes 23
+checkpoint_errors 0
+root_program_pages 736
+root_program_bytes 188416
+root_erase_sectors 46
+root_erase_bytes 188416
+swap_program_pages 698
+swap_program_bytes 178688
+swap_erase_sectors 51
+swap_erase_bytes 208896
+dirty_transitions 18
+dirty_rewrites 3
+eviction_writes 11
+buffer_waits 0
+swapram_attempts 47
+swapram_admissions 36
+status=0 command= sysctl machdep.storage_stats
+sampled-stack trap length=0 before=2256 after=8768 delta=6512
+status=0 command= stdiocap trap
+sampled-stack leaf length=0 before=2256 after=2256 delta=0
+status=0 command= stdiocap leaf
+sampled-stack fprintf length=0 before=2264 after=2264 delta=0
+status=0 command= stdiocap fprintf 0
+sampled-stack fprintf length=1 before=2264 after=3016 delta=752
+status=0 command= stdiocap fprintf 1
+sampled-stack fprintf length=255 before=2264 after=3016 delta=752
+status=0 command= stdiocap fprintf 255
+sampled-stack fprintf length=256 before=2264 after=3016 delta=752
+status=0 command= stdiocap fprintf 256
+sampled-stack fprintf length=257 before=2264 after=3568 delta=1304
+status=0 command= stdiocap fprintf 257
+sampled-stack fprintf length=511 before=2264 after=3568 delta=1304
+status=0 command= stdiocap fprintf 511
+sampled-stack fprintf length=512 before=2264 after=3568 delta=1304
+status=0 command= stdiocap fprintf 512
+sampled-stack fprintf length=513 before=2264 after=3568 delta=1304
+status=0 command= stdiocap fprintf 513
+sampled-stack fprintf length=1023 before=2268 after=3568 delta=1300
+status=0 command= stdiocap fprintf 1023
+sampled-stack fprintf length=1024 before=2268 after=3568 delta=1300
+status=0 command= stdiocap fprintf 1024
+sampled-stack fprintf length=1025 before=2268 after=3568 delta=1300
+status=0 command= stdiocap fprintf 1025
+sampled-stack fprintf length=2049 before=2268 after=3568 delta=1300
+status=0 command= stdiocap fprintf 2049
+sampled-stack vfprintf length=0 before=2264 after=2264 delta=0
+status=0 command= stdiocap vfprintf 0
+sampled-stack vfprintf length=1 before=2264 after=3016 delta=752
+status=0 command= stdiocap vfprintf 1
+sampled-stack vfprintf length=255 before=2268 after=3016 delta=748
+status=0 command= stdiocap vfprintf 255
+sampled-stack vfprintf length=256 before=2268 after=3016 delta=748
+status=0 command= stdiocap vfprintf 256
+sampled-stack vfprintf length=257 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 257
+sampled-stack vfprintf length=511 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 511
+sampled-stack vfprintf length=512 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 512
+sampled-stack vfprintf length=513 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 513
+sampled-stack vfprintf length=1023 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 1023
+sampled-stack vfprintf length=1024 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 1024
+sampled-stack vfprintf length=1025 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 1025
+sampled-stack vfprintf length=2049 before=2268 after=3568 delta=1300
+status=0 command= stdiocap vfprintf 2049
+sampled-stack fputs length=0 before=2260 after=2260 delta=0
+status=0 command= stdiocap fputs 0
+sampled-stack fputs length=1 before=2260 after=2984 delta=724
+status=0 command= stdiocap fputs 1
+sampled-stack fputs length=255 before=2264 after=2992 delta=728
+status=0 command= stdiocap fputs 255
+sampled-stack fputs length=256 before=2264 after=2992 delta=728
+status=0 command= stdiocap fputs 256
+sampled-stack fputs length=257 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 257
+sampled-stack fputs length=511 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 511
+sampled-stack fputs length=512 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 512
+sampled-stack fputs length=513 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 513
+sampled-stack fputs length=1023 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 1023
+sampled-stack fputs length=1024 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 1024
+sampled-stack fputs length=1025 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 1025
+sampled-stack fputs length=2049 before=2264 after=3064 delta=800
+status=0 command= stdiocap fputs 2049
+kern.capacity=version 1 size 100
+proc limit 25 current 5 peak 5 min-free 20 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 11 min-free 13 failures 0 slot-bytes 84
+file limit 24 current 3 peak 7 min-free 17 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1732 min-free 316 saturated 0
+status=0 command= sysctl kern.capacity
+status=0 command= sync
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 5453
+root_read_bytes 5583872
+root_writes 68
+root_write_bytes 69632
+swap_reads 297
+swap_read_bytes 1708740
+swap_writes 300
+swap_write_bytes 1726124
+map_writes 68
+checkpoint_attempts 68
+checkpoint_successes 68
+checkpoint_errors 0
+root_program_pages 2176
+root_program_bytes 557056
+root_erase_sectors 136
+root_erase_bytes 557056
+swap_program_pages 6852
+swap_program_bytes 1754112
+swap_erase_sectors 496
+swap_erase_bytes 2031616
+dirty_transitions 27
+dirty_rewrites 11
+eviction_writes 11
+buffer_waits 0
+swapram_attempts 145
+swapram_admissions 45
+status=0 command= sysctl machdep.storage_stats
+WORKLOAD status-zero records: 43 of 43
+opened 12 of 12 concurrent streams
+read back 12 of 12
+STREAMTEST OK (slots 9-12 via _f_morefiles)
+streamtest_status=0
+QUIET 45s bytes: 0 b''
+kern.capacity=version 1 size 100
+proc limit 25 current 5 peak 5 min-free 20 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 22 min-free 2 failures 0 slot-bytes 84
+file limit 24 current 3 peak 15 min-free 9 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1732 min-free 316 saturated 0
+> $x
+> EOF
+echo __DO'$x
+'N
+> $x
+> EOF
+echo __DO''NE__expanded
+/usr/bin
+PROMPT root: '\x1b[1;32mroot@pico\x1b[0m:\x1b[1;34m/home/operator\x1b[0m# '
+uid=0(root) gid=1(daemon) groups=1(daemon), 0(wheel)
+kern.capacity=version 1 size 100
+proc limit 25 current 6 peak 6 min-free 19 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 22 min-free 2 failures 0 slot-bytes 84
+file limit 24 current 3 peak 15 min-free 9 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1732 min-free 316 saturated 0
+PROMPT after su exit: b'1;32moperator@pico\x1b[0m:\x1b[1;34m~\x1b[0m$ \x1b[K'
+kern.capacity=version 1 size 100
+proc limit 25 current 5 peak 6 min-free 19 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 22 min-free 2 failures 0 slot-bytes 84
+file limit 24 current 3 peak 15 min-free 9 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1732 min-free 316 saturated 0
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 6649
+root_read_bytes 6808576
+root_writes 143
+root_write_bytes 146432
+swap_reads 354
+swap_read_bytes 2040660
+swap_writes 357
+swap_write_bytes 2058556
+map_writes 143
+checkpoint_attempts 143
+checkpoint_successes 143
+checkpoint_errors 0
+root_program_pages 4576
+root_program_bytes 1171456
+root_erase_sectors 286
+root_erase_bytes 1171456
+swap_program_pages 8171
+swap_program_bytes 2091776
+swap_erase_sectors 591
+swap_erase_bytes 2420736
+dirty_transitions 63
+dirty_rewrites 47
+eviction_writes 40
+buffer_waits 0
+swapram_attempts 171
+swapram_admissions 52

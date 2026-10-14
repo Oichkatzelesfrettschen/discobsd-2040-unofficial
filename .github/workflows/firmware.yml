@@ -146,6 +146,10 @@ jobs:
           grep 'warning:' build.log || true
           test "$total" -eq 0
 
+      # The UF2 pair the artifact step uploads and discobsd-flash loads.
+      - name: Validate the kernel and root UF2 images
+        run: bmake MACHINE=rp2040 check-uf2-images
+
       # The tiers, each a root Makefile target: lint (shellcheck at error
       # severity, ruff), host (libc, utility and kernel-model gates plus every
       # maintained program with a host build and a suite),
@@ -279,6 +283,8 @@ jobs:
           echo "warning: lines in the build log: $total"
           grep 'warning:' build.log || true
           test "$total" -eq 0
+      - name: Validate the kernel and root UF2 images
+        run: bmake MACHINE=rp2040 check-uf2-images
       # coreutils gives the textbox suite its GNU references and cpio the
       # GNU cpio the cpio suite drives; macOS ships uuencode itself.
       # The tiers macOS can run. Left out: check-posix-sh (a 32-bit

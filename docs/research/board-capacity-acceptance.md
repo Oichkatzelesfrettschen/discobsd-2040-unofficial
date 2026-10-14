@@ -433,3 +433,62 @@ and contain no HardFault, panic or trap marker. The capture closes the
 shared-break regression for the exercised sequence. The broader process,
 inode, clist and buffer exhaustion controls, deliberate MPU fault, signal and
 SwapRAM recovery corpus remain required before any capacity reduction.
+
+## Merged-source board result
+
+A second attended run measures the merged repair at
+`93b709fc1ab5ddb84d29c97ebc59aa3b31a5c17d` with no source patch, so the
+committed `pwname()` rules run on silicon. The build stages `stdiocap` and
+`streamtest` exactly as above, sets `STORAGE_STATS=yes` for every step and
+restores `distrib/rp2040/mi.rp2040` afterwards. GCC 16.2.0, bmake 20260912,
+Python 3.14.7 and picotool 2.3.1 build the pair with zero warnings. The PICO
+USB kernel reports text/data/BSS 105145/376/39848 bytes; the shell reports
+30129/2412/7152.
+
+| Image | SHA-256 |
+| --- | --- |
+| `unix.uf2` | `04c0b0868ab4fd29d11a93843bf738a822f488da43671238c8b8121548303530` |
+| `flash.uf2` | `d3afc144344bb2cf149bd9bc89fd4b84187e38eba789eef6c2dd95dc04a6f219` |
+| `sdcard.img` | `21cd02783cc8614f2eafbe3e1fe1168216ba263c0d4cb7518d6541357f413376` |
+| selected `libc.a` | `be98affb2d058ab60e07131b177712ffc8dbb36fded12133808995e3fda97e00` |
+| test manifest | `a68ca9511db55cc4eacb135850bf2a800ac9b934c5bfac2de6c63bbd5263b46c` |
+| raw console capture | `7375c4ff85b1e93fa7d59d4e15b38b39707cc7e15f2746eef5626b396506876b` |
+
+The account-image checker accepts the root. `discobsd-flash` loads both
+images and the board re-enumerates as the DiscoBSD CDC console. A pyserial
+driver sends one byte per 20 ms and ends each command on a shell-computed
+sentinel. `board-capacity-acceptance-93b709fc.txt` holds the command output
+with prompt redraws removed; the raw capture is not retained.
+
+Operator login renders `operator@pico:~$` and `su` renders
+`root@pico:/home/operator#`, so `pwname()` resolves uid 2 and uid 0 from the
+packed `/etc/passwd`. `id` reports `uid=2(operator)` in groups 5 and 0, then
+`uid=0(root)` after `su`. All 43 workload records report `status=0`.
+`streamtest` exits zero, and the 45-second quiet interval after it emits zero
+bytes. On the board, `cat <<\EOF` prints a literal `$x` and an unquoted
+delimiter prints the expanded value. Tab completion extends `/et` to `/etc`
+through the allocation-free directory reader. The capture contains no
+HardFault, panic or trap marker.
+
+The sampled extents match the first run within 4 bytes: trap control 6,512,
+leaf 0, `fprintf` 752 and 1,304, `vfprintf` 748 to 752 and 1,300 to 1,304,
+`fputs` 724 to 728 and 800, and zero at length zero. The final snapshot
+reports peaks of 6 processes, 22 inodes, 15 files, 8 clists and 3 buffers,
+with zero failures. The kernel stack watermark reaches 1,732 of 2,048 bytes,
+316 untouched, unsaturated. Between the snapshots that bracket the stdio
+workload and its `sync`, storage counters move as follows:
+
+| Counter | Delta |
+| --- | ---: |
+| root reads / writes | 3,181 / 45 |
+| root program pages / erase sectors | 1,440 / 90 |
+| swap reads / writes | 267 / 267 |
+| swap program pages / erase sectors | 6,154 / 445 |
+| map writes; checkpoint attempts / successes / errors | 45; 45 / 45 / 0 |
+| dirty transitions / rewrites / evictions; buffer waits | 9 / 8 / 0; 0 |
+| SwapRAM attempts / admissions | 98 / 9 |
+
+The run puts the committed source behind the first run's conclusion. It
+leaves the `?` miss path unexercised on the board, because every resolved
+uid exists in the packed `/etc/passwd`; the `bin/sh/tests` host test owns
+that path. The capacity-reduction corpus above remains open.

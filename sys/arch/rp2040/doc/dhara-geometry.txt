@@ -1,0 +1,44 @@
+# Copyright (c) 2026 DiscoBSD
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+# Dhara geometry of the RP2040 root region. check-dhara-amplification
+# derives each value from sys/arch/rp2040/dev/flash.h and the vendored
+# journal (tests/rp2040/dhara_amplification) and fails when one differs
+# from this table, so STORAGE.md cites these values rather than restating
+# them. One "key value" pair per line, in the order the oracle prints them.
+#
+# unit_bytes           Dhara page and logical sector, FLASH_UNIT_BYTES
+# prog_bytes           chip program granularity, FLASH_PROG_BYTES
+# prog_calls_per_unit  program calls the kernel issues per Dhara page
+# erase_bytes          Dhara erase block, FLASH_ERASE_BYTES
+# fs_blocks            erase blocks in the root region, FLASH_FS_BLOCKS
+# log2_ppb             log2 of Dhara pages per erase block
+# log2_ppc             log2 of pages per checkpoint group, chosen by
+#                      choose_ppc() in dhara/journal.c
+# group_pages          pages per checkpoint group
+# group_user_pages     user pages per group; the last page holds metadata
+# gc_ratio             FLASH_GC_RATIO, passed to dhara_map_init()
+# capacity_sectors     dhara_map_capacity(): logical sectors exposed, which
+#                      distrib/rp2040/Makefile.inc fills exactly
+unit_bytes 1024
+prog_bytes 256
+prog_calls_per_unit 4
+erase_bytes 8192
+fs_blocks 192
+log2_ppb 3
+log2_ppc 3
+group_pages 8
+group_user_pages 7
+gc_ratio 4
+capacity_sectors 989

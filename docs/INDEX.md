@@ -51,6 +51,7 @@ page in those files without carrying them here.
 | `STORAGE.md` | the flash budget and the 128 KB / 1536 KB / 384 KB layout chosen | `distrib/rp2040/Makefile.inc` |
 | `TESTING.md` | each gate, its tier, its prerequisites, and what a pass proves | the root `Makefile` and both CI workflows |
 | `USER-ACCESS.md` | console access over CDC-ACM and UART0, and the login accounts | reader entry point |
+| `dhara-geometry.txt` | the Dhara geometry of the root region: page, erase block, checkpoint group, garbage-collection ratio and capacity | `check-dhara-amplification`, `STORAGE.md` |
 
 ### Authorities for a shipped mechanism: `doc/research`
 

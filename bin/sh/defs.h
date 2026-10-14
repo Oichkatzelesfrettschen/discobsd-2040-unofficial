@@ -125,6 +125,7 @@ extern char                             *nextpath();
 extern char                             **scan();
 extern char                             *mactrim();
 extern char                             *macro();
+extern char                             *cwdpath();
 extern int                              exname();
 extern int                              printnam();
 extern int                              printro();

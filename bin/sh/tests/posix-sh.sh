@@ -31,7 +31,7 @@ SH=$OUT/sh
 WORK=$OUT/work
 
 SOURCES="setbrk blok stak cmd fault main word string name args xec service
-	error io print macro ctype msg test defs echo hash hashserv pwd func"
+	error io print macro ctype msg test defs echo hash hashserv pwd func pwname"
 
 CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h"
 

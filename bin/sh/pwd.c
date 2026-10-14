@@ -267,6 +267,14 @@ pwd()
 	}
 }
 
+char *
+cwdpath()
+{
+	if (didpwd == FALSE)
+		pwd();
+	return(cwdname);
+}
+
 /*
  * Print the current working directory.
  */

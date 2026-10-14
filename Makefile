@@ -717,6 +717,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
+		check-sh-heap-boundary \
 		check-libc-aout-contracts \
 		check-libc-ctime-cross check-touch-contracts-cross \
 		check-libc-random-cross \
@@ -773,6 +774,13 @@ check-fifteen-host:
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
+
+# bin/sh owns a private allocator and stack arena over sbrk(2). A linked libc
+# allocator would establish a second arena over the same break, so the target
+# image must use the shell's allocation-free directory reader instead.
+check-sh-heap-boundary: check-python
+		${PYTHON} bin/sh/tests/target_heap_boundary.py --self-test
+		${PYTHON} bin/sh/tests/target_heap_boundary.py bin/sh/sh.dis
 
 check-tar-host:
 		sh bin/tar/tests/tartest.sh
@@ -847,7 +855,8 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py
 
-.PHONY: check-ilp32-execution check-ilp32-execution-recipes check-test-execution
+.PHONY: check-ilp32-execution check-ilp32-execution-recipes check-test-execution \
+	check-sh-heap-boundary
 
 # The POSIX conformance run of bin/sh builds the shell as a 32-bit host
 # binary (it keeps pointers in int), so it needs a Linux x86-64 host with

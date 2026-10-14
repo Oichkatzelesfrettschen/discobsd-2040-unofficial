@@ -1,0 +1,4 @@
+# Owner request 2026-10-14: CodeRabbit reviews only on explicit prompt.
+reviews:
+  auto_review: false
+  request_changes_workflow: false

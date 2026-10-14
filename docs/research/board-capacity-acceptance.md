@@ -437,8 +437,9 @@ SwapRAM recovery corpus remain required before any capacity reduction.
 ## Merged-source board result
 
 A second attended run measures the merged repair at
-`93b709fc1ab5ddb84d29c97ebc59aa3b31a5c17d` with no source patch, so the
-committed `pwname()` rules run on silicon. The build stages `stdiocap` and
+`93b709fc43d12022bb965dd79b1d915926ca5950`, so the committed `pwname()`
+rules run on silicon. The only change to the tree is the two test-manifest
+records for the staged fixtures. The build stages `stdiocap` and
 `streamtest` exactly as above, sets `STORAGE_STATS=yes` for every step and
 restores `distrib/rp2040/mi.rp2040` afterwards. GCC 16.2.0, bmake 20260912,
 Python 3.14.7 and picotool 2.3.1 build the pair with zero warnings. The PICO

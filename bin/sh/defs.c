@@ -29,6 +29,7 @@ int				fndef;
 int				nohash;
 struct argnod	*wdarg;
 int				wdset;
+int				wdquote;
 BOOL			reserv;
 
 /* special names */

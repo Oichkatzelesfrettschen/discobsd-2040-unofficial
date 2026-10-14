@@ -216,8 +216,33 @@ EOF'
 ok redir_here_doc_strip 'ind' 'cat <<-EOF
 	ind
 	EOF'
-xfail redir_here_doc_quoted 2.7.4 '$x' 'cat <<\EOF
+ok redir_here_doc_backslash '$x' 'x=expanded; cat <<\EOF
 $x
+EOF'
+ok redir_here_doc_single '$x
+`echo substituted`' "x=expanded; cat <<'EOF'
+\$x
+\`echo substituted\`
+EOF"
+ok redir_here_doc_double '$x' 'x=expanded; cat <<"EOF"
+$x
+EOF'
+ok redir_here_doc_partial '$x' "x=expanded; cat <<E'OF'
+\$x
+EOF"
+ok redir_here_doc_empty_quote '$x' "x=expanded; cat <<E''OF
+\$x
+EOF"
+ok redir_here_doc_literal_dollar '$x' "x=expanded; tag=wrong; cat <<'E\$tag'
+\$x
+E\$tag"
+ok redir_here_doc_quoted_strip '$x' 'x=expanded; cat <<-\EOF
+	$x
+	EOF'
+ok redir_here_doc_unquoted_expands 'expanded
+substituted' 'x=expanded; cat <<EOF
+$x
+`echo substituted`
 EOF'
 ok redir_dup_err_to_out 'e' 'echo e 1>&2 2>&1'
 ok redir_err_to_out_order 'x' 'echo x 2>/dev/null'

@@ -89,6 +89,7 @@
 #define IOMOV           128
 #define IORDW           256
 #define IOSTRIP         512
+#define IOQUOTE         1024
 #define INPIPE          0
 #define OTPIPE          1
 
@@ -181,6 +182,7 @@ extern int                              fndef;
 extern int                              nohash;
 extern struct argnod    *wdarg;
 extern int                              wdset;
+extern int                              wdquote;
 extern BOOL                             reserv;
 
 /* prompting */

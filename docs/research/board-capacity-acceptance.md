@@ -265,11 +265,14 @@ files establish host packaging and image identity; board behavior remains open.
 
 ## Acceptance state
 
-The sampled-stack fixture has a build gate; physical execution, its trap and
-unwind calibration, process touched peak, table-pressure corpus and storage
-traffic remain open until retained board captures decide them. The roadmap
-retains item 12 as open. Neither a hosted Smaller C run nor an emulator run
-closes the physical-board or on-device preprocessing boundary.
+The repaired image completes roadmap item 12 for the named stdio and stream
+workload. The retained board capture establishes sampled process extents,
+kernel-stack and fixed-table high-water marks, allocation-failure counts and
+storage-counter deltas for that execution. The capture does not establish a
+process touched peak, an electrical wear count or headroom under the broader
+capacity corpus. `sys/arch/rp2040/doc/CAPACITY.md` therefore keeps every fixed
+limit and `USIZE` unchanged. On-device preprocessing also remains outside the
+host-preprocessed Smaller C receipt.
 
 ## Login prerequisite evidence
 
@@ -286,3 +289,147 @@ The capture establishes boot and the failed login prerequisite. Capacity,
 stack calibration, and storage workloads remain unexecuted in that run. A
 replacement image requires verified account packaging and an attended login
 before the capacity workload supplies hardware evidence.
+
+## Shell shared-break repair
+
+The account-repaired image admits operator login and a cold `streamtest`, but
+the complete stdio workload followed by `streamtest` faults in libc `malloc`.
+Disassembly places the HardFault after a corrupted free-list link. The shell's
+`alloc`/`setbrk` arena and libc `malloc` both advance the same process break;
+prompt `\\w` reaches `getwd` directory streams, prompt `\\u` reaches
+`getpwuid` stdio, completion reaches `opendir`, and `exit.o` previously carries
+`atexit` beside `exit`. Those archive edges let libc establish a second heap
+over the shell-owned arena.
+
+The repaired target shell uses its existing allocation-free directory reader
+for completion, exposes its internal current-directory path to the prompt,
+and parses the bounded user name directly from `/etc/passwd` with descriptor
+I/O. Splitting `atexit` into its own libc member lets the shell retain `exit`
+without pulling `malloc`. `check-sh-heap-boundary` calibrates its symbol oracle
+and rejects target disassembly containing `malloc`, `calloc`, `realloc`,
+`free`, `getwd`, `getcwd`, `opendir`, `readdir` or `closedir`.
+
+The POSIX shell gate also exposes a separate here-document defect during the
+repair. The lexer now retains delimiter quote state across `<<-` lookahead,
+removes delimiter quotes without performing substitution, and suppresses body
+expansion for backslash, single, double, partial and empty quotation. The
+118-case shell run passes with 14 pre-existing expected failures.
+
+| Shell surface | Account-repaired image | Repaired image | Change |
+| --- | ---: | ---: | ---: |
+| a.out text | 33,328 | 30,104 | -3,224 bytes |
+| data | 2,608 | 2,412 | -196 bytes |
+| BSS | 7,532 | 7,152 | -380 bytes |
+| raw a.out | 35,968 | 32,548 | -3,420 bytes |
+| packed root blocks | 32 | 29 | -3 blocks |
+
+The repaired 54,086-byte selected libc archive is 172 bytes smaller than the
+account-repaired archive. These linked results matter more than the source-line
+count: removing one archive dependency eliminates the conflicting allocator
+and reduces every byte surface of the shell.
+
+## Repaired image receipt
+
+The image source is base `e6baf2aa9db699d45ea4eecbfefe0b1bdfc01094`
+plus source patch SHA-256
+`d88b0d64871b5f702b4eda8cbe83a897a615706fffa2990ec4024fd7b7edcd16`.
+GCC 16.2.0, bmake 20260912, Python 3.14.7 and picotool 2.3.1 build the pair.
+The PICO USB kernel reports text/data/BSS 105142/376/39848 bytes. The root
+stages the 7,840-byte `stdiocap`, 6,872-byte `streamtest` and 54,086-byte
+selected libc. The account-image checker accepts locked root, empty operator,
+0600 shadow and the packed set-id modes. The test manifest returns to its
+original SHA-256 after packaging.
+
+| Repaired image | SHA-256 | Verified payload interval |
+| --- | --- | --- |
+| `unix.uf2` | `e16ae39aa8492a8462884223369cd719e6aef6aa13e5cc96e3f24ec351815e24` | `[0x10000000, 0x10019d00)` |
+| `flash.uf2` | `60f6fcd0ca64698e41adc81b4c7095ac07491acc83d3f5cd3027eb91216c9232` | `[0x10020000, 0x101a0000)` |
+
+The committed source differs from the measured image only in the passwd
+lookup behind prompt `\u` and one comment in `edit.c`. `bin/sh/pwname.c`
+carries the parser out of `main.c`, requires at least one uid digit so an
+empty field never matches uid 0, and stores `?` on a miss instead of the last
+non-matching record's partial name. The linked shell text grows 25 bytes to
+30,129; data and BSS are unchanged. The `bin/sh/tests` host test, with a
+mutant for each rule, and `check-sh-heap-boundary` cover the committed
+source; the board capture covers the image named above. The image bundle was
+written under `/tmp` and is no longer retained, so the hashes above and the
+tables below are its record.
+
+The calibrated UF2 validator accepts the two images and rejects all eight
+metadata mutations. The attended helper loads both images through the unique
+RP2040 PICOBOOT interface and the board re-enumerates as the unique DiscoBSD
+CDC console.
+
+## Attended board result
+
+Operator login renders the allocation-free `operator@pico:~$` prompt. `id`
+reports operator group 5 and wheel group 0; `su` renders the
+`root@pico:/home/operator#` prompt. The exact workload script is read back
+before execution. A deliberately overlong bulk serial transfer truncates
+`machdep.storage_stats` to `machdep.storage_sts` and returns status 1; the
+capture retains that rejected transport control. Pacing the script one line at
+a time produces an exact readback and all 43 expected status-zero records.
+
+The sampled process extents are:
+
+| Probe | Observed delta |
+| --- | ---: |
+| live 8,192-byte trap frame | 6,516 bytes |
+| unwound trap frame | 0 bytes |
+| `fprintf`, lengths 1--256 | 752 bytes |
+| `fprintf`, lengths 257--2049 | 1,304 bytes |
+| `vfprintf`, lengths 1--256 | 752 bytes |
+| `vfprintf`, lengths 257--513 | 1,304 bytes |
+| `vfprintf`, lengths 1023--2049 | 1,300 bytes |
+| `fputs`, length 1 | 724 bytes |
+| `fputs`, lengths 255--256 | 728 bytes |
+| `fputs`, lengths 257--2049 | 800 bytes |
+
+Length zero reports delta zero for all three output APIs. The trap control
+crosses the 8,192-byte calibration threshold; the leaf result demonstrates
+the sampler's unwind blind spot. These records establish allocation extents at
+the observation syscalls, rather than touched-stack peaks.
+
+The stdio workload leaves every table peak unchanged. `streamtest` then opens
+and reads all 12 streams, including slots 9--12 from `_f_morefiles`, and exits
+zero. The final post-stream snapshot reports:
+
+| Resource | Limit | Peak | Minimum free | Failures |
+| --- | ---: | ---: | ---: | ---: |
+| process | 25 | 8 | 17 | 0 |
+| inode | 24 | 22 | 2 | 0 |
+| file | 24 | 15 | 9 | 0 |
+| clist | 32 | 22 | 10 | 0 |
+| buffer | 4 | 3 | 1 | 0 |
+
+The kernel stack watermark reaches 1,828 of 2,048 bytes and leaves 220 bytes
+untouched without saturation. The 220-byte observation is narrow headroom;
+sentinel collisions, reserved unwritten frames and unexercised interrupt or
+fault paths prevent a smaller `USIZE` conclusion.
+
+The unsaturated storage snapshots bracket the stdio workload and explicit
+`sync`:
+
+| Counter | Delta |
+| --- | ---: |
+| root reads / bytes | 2,941 / 3,011,584 |
+| root writes / bytes | 38 / 38,912 |
+| root program pages / bytes | 1,216 / 311,296 |
+| root erase sectors / bytes | 76 / 311,296 |
+| swap reads / bytes | 240 / 1,491,648 |
+| swap writes / bytes | 240 / 1,491,904 |
+| swap program pages / bytes | 5,894 / 1,508,864 |
+| swap erase sectors / bytes | 400 / 1,638,400 |
+| map writes | 38 |
+| checkpoint attempts / successes / errors | 38 / 38 / 0 |
+| dirty transitions / rewrites / evictions | 2 / 2 / 0 |
+| buffer waits | 0 |
+| SwapRAM attempts / admissions | 83 / 3 |
+
+A 45-second quiet interval after `streamtest` emits zero bytes. The following
+prompt and capacity query remain responsive, report zero allocation failures
+and contain no HardFault, panic or trap marker. The capture closes the
+shared-break regression for the exercised sequence. The broader process,
+inode, clist and buffer exhaustion controls, deliberate MPU fault, signal and
+SwapRAM recovery corpus remain required before any capacity reduction.

@@ -170,6 +170,16 @@ Paired GCC 13.2.1 Cortex-M0+ builds measured 488 additional text bytes and
 unchanged BSS. These are linked ELF differences for this implementation,
 not a promise for other toolchains or configurations.
 
+The retained C17/SUS stdio board workload takes unsaturated snapshots around
+43 checked commands and an explicit `sync`. The interval reports 38 logical
+root writes, 38 map writes, 38 successful checkpoints with zero errors, 1,216
+root program pages and 76 root erase sectors. Swapping reports 240 reads, 240
+writes, 5,894 program pages and 400 erase sectors; SwapRAM records 83 attempts
+and 3 admissions. Dirty-buffer traffic adds two transitions, two rewrites,
+zero evictions and zero waits. The capture establishes software traffic for
+that image and workload. It neither assigns traffic to one stdio call nor
+converts requested NOR operations into electrical wear.
+
 ## Synchronous write contract
 
 Explicit IO_SYNC now survives regular-file writes and MNT_ASYNC. The

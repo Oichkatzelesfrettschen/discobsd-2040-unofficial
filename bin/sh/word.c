@@ -8,20 +8,27 @@
 
 /* ========     character handling for command lines    ========*/
 
+static int nextc_quoted;
+#define PEEKQUOTE 0x200
+
 word()
 {
 	register char   c, d;
 	struct argnod   *arg = (struct argnod *)locstak();
 	register char   *argp = arg->argval;
 	int             alpha = 1;
+	int             quote_seen = FALSE;
 
 	wdnum = 0;
 	wdset = 0;
 
 	while (1)
 	{
-		while (c = nextc(0), space(c))          /* skipc() */
-			;
+		do {
+			c = nextc(0);
+			if (nextc_quoted)
+				quote_seen = TRUE;
+		} while (space(c));
 
 		if (c == COMCHAR)
 		{
@@ -39,6 +46,7 @@ word()
 		{
 			if (c == LITERAL)
 			{
+				quote_seen = TRUE;
 				*argp++ = (DQUOTE);
 				while ((c = readc()) && c != LITERAL)
 				{
@@ -59,6 +67,7 @@ word()
 					alpha = 0;
 				if (qotchar(c))
 				{
+					quote_seen = TRUE;
 					d = c;
 					while ((*argp++ = (c = nextc(d))) && c != d)
 					{
@@ -67,7 +76,10 @@ word()
 					}
 				}
 			}
-		} while ((c = nextc(0), !eofmeta(c)));
+			c = nextc(0);
+			if (nextc_quoted)
+				quote_seen = TRUE;
+		} while (!eofmeta(c));
 		argp = endstak(argp);
 		if (!letter(arg->argval[0]))
 			wdset = 0;
@@ -99,7 +111,8 @@ word()
 				if ((d = nextc(0)) == '-')
 					wdnum |= IOSTRIP;
 				else
-					peekn = d | MARK;
+					peekn = d | MARK |
+					    (nextc_quoted ? PEEKQUOTE : 0);
 			}
 		}
 		else
@@ -119,6 +132,7 @@ word()
 		}
 	}
 	reserv = FALSE;
+	wdquote = quote_seen;
 	return(wdval);
 }
 
@@ -137,6 +151,7 @@ char    quote;
 	register char   c, d;
 
 retry:
+	nextc_quoted = (peekn & PEEKQUOTE) != 0;
 	if ((d = readc()) == ESCAPE)
 	{
 		if ((c = readc()) == NL)
@@ -147,8 +162,11 @@ retry:
 		else if (quote && c != quote && !escchar(c))
 			peekc = c | MARK;
 		else
+		{
+			nextc_quoted = TRUE;
 			/* @@@ d = c | QUOTE; */
 			d = qmask(c);
+		}
 	}
 	return(d);
 }

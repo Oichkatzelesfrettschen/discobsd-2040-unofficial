@@ -89,6 +89,7 @@
 #define IOMOV           128
 #define IORDW           256
 #define IOSTRIP         512
+#define IOQUOTE         1024
 #define INPIPE          0
 #define OTPIPE          1
 
@@ -125,6 +126,7 @@ extern char                             *nextpath();
 extern char                             **scan();
 extern char                             *mactrim();
 extern char                             *macro();
+extern char                             *cwdpath();
 extern int                              exname();
 extern int                              printnam();
 extern int                              printro();
@@ -180,6 +182,7 @@ extern int                              fndef;
 extern int                              nohash;
 extern struct argnod    *wdarg;
 extern int                              wdset;
+extern int                              wdquote;
 extern BOOL                             reserv;
 
 /* prompting */

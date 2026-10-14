@@ -154,6 +154,16 @@ Renode evidence establishes the emulated path; only the board run establishes
 silicon headroom. Until those records exist, `NPROC=25`, `NINODE=24`,
 `NFILE=24`, `NCLIST=32`, `NBUF=4`, and `USIZE=3072` remain unchanged.
 
+The retained C17/SUS stdio run exercises operator login, wheel `su`, 43
+checked stdio and snapshot commands, 12 concurrent streams and a 45-second
+post-probe quiet interval on the RP2040. It records peaks of 8 processes, 22
+inodes, 15 files, 22 clists and 3 buffers with zero failure counters. The
+kernel stack watermark reaches 1,828 of 2,048 bytes and leaves 220 bytes
+untouched without saturation. The run supplies one named workload result; it
+omits the required exhaustion controls, deliberate fault path and broader
+signal/SwapRAM recovery corpus. Every compiled limit and `USIZE` therefore
+remains unchanged.
+
 `NMOUNT=1` and the four-buffer cache are already active. The USB transmit ring
 occupies 8 KiB in SRAM4/SRAM5 scratch banks. Reducing that ring changes retained
 console-output behavior and releases scratch-bank capacity; it does not by

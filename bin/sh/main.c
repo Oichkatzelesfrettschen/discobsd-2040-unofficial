@@ -10,13 +10,16 @@
 #include <sys/stat.h>
 #include "dup.h"
 #include <sys/fcntl.h>
-#include <sys/param.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include "edit.h"
+#include "pwname.h"
+#include <paths.h>
 #include <string.h>
 
-#include <pwd.h>
+#ifndef _PATH_PASSWD
+#define _PATH_PASSWD "/etc/passwd"
+#endif
 
 /*
  * promptexpand: PS1 with "\w" replaced by the working directory (the
@@ -34,7 +37,7 @@ static char *
 promptexpand(ps1)
 	char *ps1;
 {
-	char cwd[MAXPATHLEN];
+	char *cwd;
 	char *home = homenod.namval;
 	char *o = promptbuf, *end = promptbuf + sizeof(promptbuf) - 1;
 	char *p, *w;
@@ -61,15 +64,10 @@ promptexpand(ps1)
 			continue;
 		}
 		if (p[0] == '\\' && p[1] == 'u') {
-			struct passwd *pw;
-
 			p++;
-			if (promptuser[0] == 0) {
-				pw = getpwuid(geteuid());
-				strncpy(promptuser, pw ? pw->pw_name : "?",
-				    sizeof(promptuser) - 1);
-			}
-			for (w = promptuser; *w && o < end; )
+			w = promptuser[0] ? promptuser : pwname(_PATH_PASSWD,
+			    geteuid(), promptuser, sizeof(promptuser));
+			for (; *w && o < end; )
 				*o++ = *w++;
 			continue;
 		}
@@ -78,8 +76,7 @@ promptexpand(ps1)
 			continue;
 		}
 		p++;
-		if (getwd(cwd) == NULL)
-			strcpy(cwd, "?");
+		cwd = cwdpath();
 		w = cwd;
 		if (home && *home && strcmp(home, "/") != 0) {
 			int n = strlen(home);

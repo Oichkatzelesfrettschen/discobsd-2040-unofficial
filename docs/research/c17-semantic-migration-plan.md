@@ -450,8 +450,15 @@ moving to another unit. Hardware-dependent rows stop at the documented opt-in.
     select the exact image/configuration and collect process/kernel stack,
     table high-water, allocation failure and storage traffic under a named
     workload. Repeat recovery tests where flash behavior changes. Output:
-    measured limits and falsifiers; until execution, runtime/wear rows stay
-    open.
+    measured limits and falsifiers. The repaired shared-break image completes
+    the named stdio workload, the 12-stream spillover probe and a quiet
+    post-probe interval on the RP2040. All 43 checked workload commands return
+    zero, the capacity and storage snapshots remain unsaturated, all fixed-table
+    failure counters and checkpoint errors remain zero, and the shell remains
+    responsive. `board-capacity-acceptance.md` records the image hashes,
+    sampled extents, table high-water marks and storage deltas. The broader
+    exhaustion, deliberate-fault and recovery corpus remains the deciding
+    evidence for any limit or flash-policy change.
 
 Items 1 through 3 form the bounded implementation in
 `stdio-unbuffered-ownership.md`. Items 4 through 6 form the checked discovery
@@ -463,12 +470,13 @@ The getwd lifetime unit closes the borrowed-entry defect; its independent
 bounds and metadata limitations remain documented. Item 8 records the exhaustive mapping decision and paired resource reduction.
 Item 9 completes wrapper, formatter and 256-byte batching units. Item 10
 completes the four typed uio definitions; item 11 passes its final hosted
-Smaller C rerun. Item 12 remains the physical-board frontier. The attended
-image boots, but operator login exposes a stale shadow offset before workload
-execution. The account-offset repair and calibrated image gate restore the
-source/packaging prerequisite; attended login and workload measurements remain
-open.
+Smaller C rerun. Item 12 completes its named physical-board workload after the
+account-offset and shell shared-break repairs. Operator login, wheel `su`, all
+stdio extent probes, the 12-stream spillover probe and the post-probe quiet
+window pass in one retained capture. The item measures one bounded workload;
+it does not admit smaller fixed tables, a smaller kernel stack or a wear claim.
 `board-capacity-acceptance.md` defines the sampled-process-stack probe,
-its calibration, image boundaries and remaining runtime measurements. The source
+its calibration, image boundaries, observed results and remaining capacity
+decision corpus. The source
 classification/quarantine program in `c17-formatting-linting.md` still owns
 the larger file-by-file denominator.

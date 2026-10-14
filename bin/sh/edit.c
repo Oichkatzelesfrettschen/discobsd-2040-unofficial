@@ -6,7 +6,8 @@
  * file.  Everything here is static-buffer and integer-only: a 128
  * byte edit buffer, a 32-entry x 96-byte history ring (3 KB), and a
  * completion scan that stores at most one candidate name at a time.
- * No malloc beyond what opendir(3) itself performs.
+ * The target scan reuses expand.c's allocation-free directory reader,
+ * so the shell remains the only owner of its sbrk(2) arena.
  *
  * The module takes fdin/fdout/prompt/path as parameters and touches
  * no bin/sh global state, so the identical source builds standalone
@@ -22,12 +23,19 @@
 
 #include <sys/types.h>
 #include <sys/dir.h>
+#include <sys/stat.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 
 #include "edit.h"
+
+#ifndef HOSTBUILD
+extern struct direct *getdir();
+extern int reset_dir();
+#endif
 
 #define ED_MAX      126     /* leaves room in a 128-byte fbuf for the NL */
 #define ED_NAMEMAX  63      /* longest completion candidate name kept */
@@ -415,8 +423,9 @@ complete_cb(name, vctx)
 /* Scan one directory (or, if is_pathlist, each ':'-separated PATH
  * component) for entries whose name has the given prefix, calling
  * cb(name, ctx) for each.  Dotfiles are hidden unless the prefix
- * itself starts with '.'.  Bounded: one DIRBLKSIZ read buffer inside
- * opendir(3), reused per directory, nothing accumulated here. */
+ * itself starts with '.'.  The host uses one DIR stream at a time; the
+ * target reuses the shell's one DIRBLKSIZ reader.  Neither path accumulates
+ * directory entries here. */
 static void
 scan_matches(dirlist, is_pathlist, prefix, prefixlen, cb, ctx)
 	char *dirlist;
@@ -429,8 +438,13 @@ scan_matches(dirlist, is_pathlist, prefix, prefixlen, cb, ctx)
 	char pbuf[64];
 	char *p, *colon;
 	int dl, more;
-	DIR *dp;
 	struct direct *de;
+#ifdef HOSTBUILD
+	DIR *directory;
+#else
+	int descriptor;
+	struct stat status;
+#endif
 
 	p = dirlist;
 	do {
@@ -452,9 +466,18 @@ scan_matches(dirlist, is_pathlist, prefix, prefixlen, cb, ctx)
 			pbuf[dl] = 0;
 		}
 
-		dp = opendir(pbuf);
-		if (dp) {
-			while ((de = readdir(dp)) != (struct direct *)0) {
+#ifdef HOSTBUILD
+		directory = opendir(pbuf);
+		if (directory) {
+			while ((de = readdir(directory)) != (struct direct *)0) {
+#else
+		descriptor = open(pbuf, O_RDONLY);
+		if (descriptor >= 0 && fstat(descriptor, &status) == 0 &&
+		    S_ISDIR(status.st_mode) &&
+		    fcntl(descriptor, F_SETFD, FD_CLOEXEC) == 0) {
+			reset_dir();
+			while ((de = getdir(descriptor)) != (struct direct *)0) {
+#endif
 				if (de->d_name[0] == '.' &&
 				    (de->d_name[1] == 0 ||
 				     (de->d_name[1] == '.' && de->d_name[2] == 0)))
@@ -467,8 +490,16 @@ scan_matches(dirlist, is_pathlist, prefix, prefixlen, cb, ctx)
 				}
 				cb(de->d_name, ctx);
 			}
-			closedir(dp);
+#ifdef HOSTBUILD
+			closedir(directory);
+#else
+			reset_dir();
+#endif
 		}
+#ifndef HOSTBUILD
+		if (descriptor >= 0)
+			close(descriptor);
+#endif
 
 		if (is_pathlist && more)
 			p = colon + 1;

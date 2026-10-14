@@ -5,6 +5,7 @@
  */
 #include "defs.h"
 #include "dup.h"
+#include "sym.h"
 #include <sys/fcntl.h>
 #include <sys/param.h>
 
@@ -154,11 +155,27 @@ tmpfil(tb)
 	return(fd);
 }
 
-/*
- * set by trim
- */
-extern BOOL             nosubst;
 #define                 CPYSIZ          512
+
+static char *
+heredoc_delimiter(delimiter)
+	char *delimiter;
+{
+	char *source;
+	char *destination;
+	char character;
+
+	source = destination = delimiter;
+	while ((character = *source++) != 0) {
+		if (character == DQUOTE)
+			continue;
+		character = smask(character);
+		if (character != 0)
+			*destination++ = character;
+	}
+	*destination = 0;
+	return (delimiter);
+}
 
 copy(ioparg)
 struct ionod    *ioparg;
@@ -171,6 +188,7 @@ struct ionod    *ioparg;
 	char    *start;
 	int             fd;
 	int             i;
+	int             quoted;
 	int             stripflg;
 
 
@@ -179,10 +197,11 @@ struct ionod    *ioparg;
 		struct tempblk tb;
 
 		copy(iop->iolst);
-		ends = mactrim(iop->ioname);
+		ends = heredoc_delimiter(iop->ioname);
+		quoted = iop->iofile & IOQUOTE;
 		stripflg = iop->iofile & IOSTRIP;
-		if (nosubst)
-			iop->iofile &= ~IODOC;
+		if (quoted)
+			iop->iofile &= ~(IODOC | IOQUOTE);
 		fd = tmpfil(&tb);
 
 		if (fndef)
@@ -203,7 +222,7 @@ struct ionod    *ioparg;
 		for (;;)
 		{
 			chkpr();
-			if (nosubst)
+			if (quoted)
 			{
 				c = readc();
 				if (stripflg)

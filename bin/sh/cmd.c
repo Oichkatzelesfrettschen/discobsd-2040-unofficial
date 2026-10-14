@@ -206,6 +206,8 @@ inout(lastio)
 	}
 
 	chkword();
+	if ((iof & IODOC) && wdquote)
+		iof |= IOQUOTE;
 	iop = (struct ionod *)getstor(sizeof(struct ionod));
 
 	if (fndef)

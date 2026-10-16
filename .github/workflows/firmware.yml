@@ -228,12 +228,12 @@ jobs:
           path: ${{ runner.temp }}/ilp32-execution.json
           if-no-files-found: error
 
-  # The same tree on macOS, with the toolchain Homebrew provides: bmake,
-  # byacc, Arm's own GNU toolchain (the arm-none-eabi-gcc formula is built
-  # with an absolute --with-as and ignores the -B that substitutes the
-  # port's a.out assembler), picotool from its bottle. No FUSE: fsutil
-  # builds without its --mount command. The gate is the same warning-free
-  # kernel, world and flash image.
+  # The same tree on macOS, with Homebrew's host tools and a checksum-pinned
+  # Arm GNU package. The arm-none-eabi-gcc formula is built with an absolute
+  # --with-as and ignores the -B that substitutes the port's a.out assembler;
+  # the rolling gcc-arm-embedded cask follows a mutable vendor package URL.
+  # No FUSE: fsutil builds without its --mount command. The gate is the same
+  # warning-free kernel, world and flash image.
   rp2040-macos:
     name: rp2040 kernel, flash image on macOS
     runs-on: macos-latest
@@ -247,7 +247,31 @@ jobs:
         run: |
           brew install bmake byacc bison flex groff mandoc pkgconf picotool \
             shellcheck ruff coreutils cpio
-          brew install --cask gcc-arm-embedded
+          case "$(uname -m)" in
+            arm64)
+              arm_toolchain_version=15.3.rel1
+              arm_toolchain_arch=arm64
+              arm_toolchain_sha256=5fb58dc3bd6684e70a02bd1c654a6b91f044cda241eb3ae663a7b9170491d7b2
+              ;;
+            x86_64)
+              arm_toolchain_version=14.2.rel1
+              arm_toolchain_arch=x86_64
+              arm_toolchain_sha256=5d2e9ee4e73350bda79accc69fcd5ee59ccb902804a3f81a01d4c543b1ad7de7
+              ;;
+            *)
+              echo "unsupported macOS architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          arm_toolchain_package="$RUNNER_TEMP/arm-gnu-toolchain.pkg"
+          arm_toolchain_url="https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/$arm_toolchain_version/arm-gnu-toolchain-$arm_toolchain_version-darwin-$arm_toolchain_arch-arm-none-eabi.pkg"
+          curl --fail --location --retry 3 --output "$arm_toolchain_package" \
+            "$arm_toolchain_url"
+          printf '%s  %s\n' "$arm_toolchain_sha256" "$arm_toolchain_package" \
+            | shasum -a 256 --check
+          sudo installer -pkg "$arm_toolchain_package" -target /
+          echo "/Applications/ArmGNUToolchain/$arm_toolchain_version/arm-none-eabi/bin" \
+            >> "$GITHUB_PATH"
           # The divider verifier reads the kernels through capstone and
           # pyelftools; Homebrew's Python refuses pip installs into itself,
           # so they live in a venv the tiers name as PYTHON.

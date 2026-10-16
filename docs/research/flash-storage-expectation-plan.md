@@ -106,7 +106,7 @@ the current policy; it cannot count the full-block merges the current
 | tar default at `tar.c:235` | `magtape[] = "/dev/rmt8"` at 314, digit rewrite at 438, `MTIOCGET` probe in `backtape()` at 2521 (`bin/tar/tar.c`); the tape path is gated by `#ifndef __APPLE__`, a platform proxy for a capability | Replace the proxy with a capability macro |
 | Only one tape comment in reads | `sys_inode.c:261-265` zeroes a buffer when `b_resid == DEV_BSIZE`; `flstrategy()` sets `b_resid = b_bcount` for a read exactly at the partition end (`flash.c:715-719`) | Reachable on flash: keep, rewrite as the end-of-device invariant |
 | Removing `d_flags` saves storage | Two maintained `bdevsw` tables (rp2040, stm32) and legacy pic32 use positional initializers; no driver sets `B_TAPE` | Repurpose the field at its width; savings are tens of bytes |
-| update swaps wear raw flash | Raw swap allocates with a cyclic next-fit cursor (`subr_rmap.c:271`) and SwapRAM sits in front | Wear spreads; the cost is swap latency and program/erase volume, to be measured |
+| update swaps wear raw flash | Raw swap allocates with a cyclic next-fit cursor (`subr_rmap.c:271`) and SwapRAM sits in front | The cyclic allocator rotates candidate destinations; a physical-sector request trace must establish erase distribution before any wear inference |
 | MBR removal recovers a block | True (one of 989); block 0 is written once at image build | Defer (section 4) |
 
 ### F6 -- The shipped image runs at the `auto_gc()` threshold
@@ -466,8 +466,9 @@ Board captures stay behind explicit opt-in and are reported separately.
 
 - MBR removal: gains one 1 KiB block of 989 and some parsing text in
   `fl_setup()`. Block 0 is written once at image build, but GC can still
-  relocate an unchanged logical sector, so its physical wear contribution
-  is small rather than zero. Defer to any later on-flash format migration.
+  relocate an unchanged logical sector and generate additional program
+  requests. The workload and physical-sector erase distribution determine
+  their magnitude. Defer to any later on-flash format migration.
 - `FLASH_GC_RATIO` is not stored in the journal (source: `dhara_map_init()`
   takes it as an argument); it sets `dhara_map_capacity()`'s reserve, so a
   change alters exposed capacity, which the image's partition sizes depend

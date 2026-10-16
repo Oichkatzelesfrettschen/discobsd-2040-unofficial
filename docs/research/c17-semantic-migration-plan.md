@@ -477,6 +477,11 @@ window pass in one retained capture. The item measures one bounded workload;
 it does not admit smaller fixed tables, a smaller kernel stack or a wear claim.
 `board-capacity-acceptance.md` defines the sampled-process-stack probe,
 its calibration, image boundaries, observed results and remaining capacity
-decision corpus. The source
-classification/quarantine program in `c17-formatting-linting.md` still owns
-the larger file-by-file denominator.
+decision corpus. The source classification program in
+`c17-formatting-linting.md` owns the larger file-by-file denominator.
+`check-c17-source-denominator` now verifies that every tracked C/header path
+has exactly one row and every excluded row has a hashed quarantine or archive
+record. The initial ledger deliberately retains unreviewed and migration-open
+rows; tracked-path accounting is closed, while source classification and
+language closure remain open and executable through the checker's separate
+`--closure` mode.

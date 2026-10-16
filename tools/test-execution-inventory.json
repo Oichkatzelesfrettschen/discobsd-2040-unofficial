@@ -1372,6 +1372,25 @@
       ]
     },
     {
+      "id": "kernel.capacity.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "capacity_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "capacity_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "dd.contract.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

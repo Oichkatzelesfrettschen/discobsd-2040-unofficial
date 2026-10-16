@@ -14,7 +14,7 @@ counter each measure a different runtime surface.
 | Process touched peak | Requires a separately calibrated paint/scan mechanism | Open. Painting below the recorded stack extent loses provenance across swap; reserved unwritten bytes and sentinel collisions also limit watermarks. |
 | Kernel touched stack | `sysctl kern.capacity` | Reports the u-area watermark, including its saturation flag. `CAPACITY.md` defines its paint, sampling and collision limits. |
 | Table pressure | `sysctl kern.capacity` | Records each fixed-table limit, occupancy peak, minimum free and failures. A capacity reduction also needs a calibrated exhaustion case. |
-| Storage traffic | `sysctl machdep.storage_stats` with `STORAGE_STATS=yes` | Unsaturated before/after counters give workload deltas. Counter saturation rejects exact subtraction. Program/erase counts describe traffic; device lifetime wear remains a separate inference. |
+| Storage traffic | `sysctl machdep.storage_stats` with `STORAGE_STATS=yes` | Unsaturated before/after counters give workload deltas. Counter saturation rejects exact subtraction. Requested program-page and erase-sector equivalents describe software traffic; electrical completion and device lifetime wear remain separate evidence. |
 
 `sys/arch/rp2040/rp2040/syscall.c` grows the process extent from saved user
 SP. `sig_machdep.c` grows it for signal frames. `sys/kern/exec_subr.c`
@@ -149,12 +149,17 @@ both contracts and rejects status, operand, continuation and external-reporting
 mutants. `check-posix-sh` repeats the workload controls with the repository shell. The operator retains the complete transcript. The control's positive result admits only sampled
 extent; the leaf control and each workload result retain their stated limits.
 
-A complete capacity-reduction decision additionally runs the workload corpus
-and exhaustion controls in `sys/arch/rp2040/doc/CAPACITY.md`, including buffer
-pressure and deliberate fault handling. The initial stdio workload alone
-leaves that decision open. Recovery tests remain mandatory when a change
-alters flash behavior. These stdio and typed-interface units preserve the
-flash implementation; the board traffic measurements still remain open.
+A complete capacity-reduction decision additionally runs the cases declared
+in `tests/rp2040/capacity-corpus.json`, including calibrated exhaustion,
+buffer pressure, deliberate fault handling and recovery. The initial stdio
+workload alone leaves that decision open. `check-capacity-corpus` rejects a
+missing case, dependency, fixture, receipt artifact or evidence class. The
+gate binds each active value to `sys/arch/rp2040/include/machparam.h` and
+rejects any approved reduction unless every required obligation has retained
+Renode and board evidence with completed dependencies. Recovery tests remain
+mandatory when a change alters flash behavior. These stdio and
+typed-interface units preserve the flash implementation; the board traffic
+measurements still remain open.
 
 ## Snapshot command acceptance
 

@@ -20,11 +20,13 @@
  *
  * The vendored map and journal run against a NOR model with the geometry
  * and garbage-collection ratio of rp2040/dev/flash.h. The model counts
- * Dhara page programs: dhara_nand_prog() and dhara_nand_copy() each
- * program one FLASH_UNIT_BYTES page, which the kernel issues as
- * FLASH_UNIT_BYTES / FLASH_PROG_BYTES program calls, and it counts block
- * erases. As in tools/flashimg, programming a page that is not erased is an
- * error, because it breaks Dhara's sequential-programming contract.
+ * Dhara page programs and block erases. One page contributes
+ * FLASH_UNIT_BYTES / FLASH_PROG_BYTES requested program-page equivalents.
+ * Production dhara_nand_prog() passes the whole page to flash_program(),
+ * while dhara_nand_copy() passes four program-page chunks, so the model does
+ * not relabel page equivalents as wrapper or ROM call counts. As in
+ * tools/flashimg, programming a page that is not erased is an error, because
+ * it breaks Dhara's sequential-programming contract.
  *
  * Expected counts are written for the geometry flash.h selects, where one
  * checkpoint group fills an erase block: seven user pages and one metadata

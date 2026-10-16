@@ -1,0 +1,623 @@
+{
+  "schema_version": 1,
+  "profile_id": "DPUCP-2024",
+  "claim": "Candidate donor mechanisms inform measured DiscoBSD/Pico compatibility work; this ledger makes no POSIX or UNIX conformance claim.",
+  "selection_rule": "Prefer bounded algorithms, invariants, and tests. Admit code only after license, dependency, C17, ABI, RAM, linked-image, packed-root, and runtime gates agree.",
+  "repositories": {
+    "4.4BSD-Lite2": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/4.4BSD-Lite2.git",
+      "revision": "b10da34408c8a0f32f51d79a7f16bd75337115d2"
+    },
+    "netbsd-src": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/src.git",
+      "revision": "1e8e727e461bb760bf82162f33b64afea02da2f3"
+    },
+    "freebsd-src": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/freebsd-src.git",
+      "revision": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da"
+    },
+    "openbsd-src": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/openbsd-src.git",
+      "revision": "8849c5d46b9b299f5d887033706f1ddd60f8f966"
+    },
+    "211bsd": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/211bsd.git",
+      "revision": "0a38e59d742ff4371b78ea65c5bcc50477b31708"
+    },
+    "retrobsd": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/retrobsd.git",
+      "revision": "10e2a8d731502d7dfc4ca87ff87a586f194eafa6"
+    },
+    "LiteBSD": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/LiteBSD.git",
+      "revision": "03934b78b7c78c2ecc52dd63d597c7847ebc1704"
+    },
+    "LiteBSD-2": {
+      "origin": "https://github.com/Oichkatzelesfrettschen/LiteBSD-2.git",
+      "revision": "25b8a3ff7ad21b426214964eb91786f63e34e5a4"
+    }
+  },
+  "candidates": [
+    {
+      "id": "libc-reallocarray",
+      "requirements": [
+        "dpucp-2024:system-interface:reallocarray"
+      ],
+      "roles": [
+        "overflow-safe allocation primitive",
+        "libc archive member"
+      ],
+      "repository": "netbsd-src",
+      "sources": [
+        {
+          "repository": "netbsd-src",
+          "path": "lib/libc/stdlib/reallocarray.c",
+          "sha256": "96afde3bad816de9dbe2ca9ae863bb284ee85fbe0c64b60980ed37da5f585840",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Multiply element count by element size without wrapping; preserve the original allocation on failure and report an allocation error.",
+      "invariants": [
+        "The product reaches realloc only when size_t can represent it.",
+        "A failed resize leaves the caller-owned allocation valid.",
+        "Zero-size behavior stays aligned with the target realloc contract."
+      ],
+      "algorithm": "Guard multiplication before delegating to realloc; translate an overflow result to the target errno contract.",
+      "dependencies": [
+        "realloc",
+        "errno and size_t limits",
+        "public stdlib declaration"
+      ],
+      "c_language": "The function body is C17-compatible, but the donor uses NetBSD cdefs, namespace, and reallocarr interfaces.",
+      "c17_rewrite": "Implement the overflow guard directly with C17 size_t arithmetic and the existing DiscoBSD allocator and errno interfaces.",
+      "archive_members": [
+        "reallocarray.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "libc archive bytes",
+          "affected a.out text and data",
+          "largest 144 KiB process-window consumer",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Compare clean before/after archive and per-program link maps; admit only with overflow, zero-size, allocation-failure, errno, and original-pointer witnesses and nonpositive constrained-surface deltas.",
+      "disposition": "candidate",
+      "residual": "Implement the target-native overflow guard in its own archive member and run the deciding behavior and size gates."
+    },
+    {
+      "id": "libc-memmem",
+      "requirements": [],
+      "roles": [
+        "bounded byte-subsequence search",
+        "shared libc mechanism"
+      ],
+      "repository": "netbsd-src",
+      "sources": [
+        {
+          "repository": "netbsd-src",
+          "path": "common/lib/libc/string/memmem.c",
+          "sha256": "55b33c2ed2e620b0374f864c21ff95d9c560afe708322499558c0c180cb31e06",
+          "license": "MIT"
+        }
+      ],
+      "behavior": "Locate the first bytewise needle in a bounded haystack, including the empty-needle and shorter-haystack cases.",
+      "invariants": [
+        "The search reads only within the supplied haystack and needle extents.",
+        "An empty needle returns the haystack start.",
+        "The first matching position wins."
+      ],
+      "algorithm": "Use specialized rolling windows for two- through four-byte needles and a Two-Way search with a bad-character shift table for longer needles.",
+      "dependencies": [
+        "memchr",
+        "memcmp",
+        "stdint and size_t",
+        "target const-removal convention"
+      ],
+      "c_language": "The algorithm is C17-compatible but uses NetBSD cdefs and a 256-entry automatic shift table whose stack cost is target-sensitive.",
+      "c17_rewrite": "Rewrite target namespace seams and compare the donor Two-Way implementation with a smaller linear search before selecting an algorithm.",
+      "archive_members": [
+        "memmem.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "libc archive bytes",
+          "affected a.out text and data",
+          "peak stack",
+          "largest 144 KiB process-window consumer",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Measure code size and peak stack for the Two-Way and compact linear variants, then run empty, binary-NUL, short-needle, long-needle, absent, and boundary-match witnesses.",
+      "disposition": "candidate",
+      "residual": "Select the smallest algorithm that preserves bounded behavior after target stack and complete-image measurement."
+    },
+    {
+      "id": "libc-getdelim-getline",
+      "requirements": [
+        "dpucp-2024:system-interface:getdelim",
+        "dpucp-2024:system-interface:getline"
+      ],
+      "roles": [
+        "shared allocating line reader",
+        "thin newline wrapper"
+      ],
+      "repository": "netbsd-src",
+      "sources": [
+        {
+          "repository": "netbsd-src",
+          "path": "lib/libc/stdio/getdelim.c",
+          "sha256": "5813adcc3dc0beddb61629b359dd3ce2ff33eef1ea6c3de6ea12ac2f53c06c32",
+          "license": "BSD-2-Clause"
+        },
+        {
+          "repository": "netbsd-src",
+          "path": "lib/libc/stdio/getline.c",
+          "sha256": "9bf74ebd9393e92c0a07df06627254e22fae06b81e39450c7cc8ad66caf8b82e",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Read through and retain a delimiter, grow or reuse a caller-owned buffer, append a NUL byte, and let getline delegate to the newline case.",
+      "invariants": [
+        "Returned byte counts exclude the appended NUL and include a consumed delimiter.",
+        "Growth rejects size_t wrap and results beyond ssize_t range.",
+        "Allocation failure does not discard the caller's current buffer.",
+        "EOF before any byte returns minus one; EOF after bytes returns those bytes."
+      ],
+      "algorithm": "Scan buffered stdio spans with memchr, grow geometrically under overflow checks, copy complete spans, and expose getline as a one-line getdelim wrapper.",
+      "dependencies": [
+        "FILE buffering and error state",
+        "realloc",
+        "memchr and memcpy",
+        "ssize_t limits",
+        "stdio public declarations"
+      ],
+      "c_language": "The portable control flow is C17, while donor locking, FILE internals, power-of-two helpers, and namespace aliases are NetBSD-specific.",
+      "c17_rewrite": "Retain one shared engine but bind it to DiscoBSD stdio internals and one-function-per-member archive composition.",
+      "archive_members": [
+        "getdelim.o",
+        "getline.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "libc archive bytes",
+          "affected a.out text and data",
+          "peak heap",
+          "largest 144 KiB process-window consumer",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Prove overflow, allocation failure, embedded NUL, EOF, delimiter retention, and caller-buffer behavior, then compare clean textbox-only and archive-member link maps and complete packed roots.",
+      "disposition": "candidate",
+      "residual": "Design the target FILE-state integration and prove that archive promotion preserves or reduces every constrained size surface."
+    },
+    {
+      "id": "shell-getopts",
+      "requirements": [
+        "dpucp-2024:utility:getopts"
+      ],
+      "roles": [
+        "compact historical option-parser state machine",
+        "modern behavior oracle and repair reference"
+      ],
+      "repository": "4.4BSD-Lite2",
+      "sources": [
+        {
+          "repository": "4.4BSD-Lite2",
+          "path": "bin/sh/options.c",
+          "sha256": "774cb8fcb7d1e8345fb445b3f02188dbdf07ea531bccdf5f0a2c5ac375f62a56",
+          "license": "BSD-4-Clause-UC"
+        },
+        {
+          "repository": "freebsd-src",
+          "path": "bin/sh/options.c",
+          "sha256": "2b29a7dbab1688978f4ee444cd59b7df119807d6c39408ab28bc39cad37d809c",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "The 4.4BSD state machine supplies compact argument and character cursors, but it diagnoses both error classes unconditionally, reports question mark for both, and delays OPTIND publication until termination. The modern FreeBSD source supplies leading-colon results, per-call OPTIND and OPTARG updates, and explicit reset behavior.",
+      "invariants": [
+        "Parser position consists of an argument index and an offset within a clustered option.",
+        "The double-dash operand ends option scanning.",
+        "Missing operands and illegal options select distinct silent and diagnostic results.",
+        "Reset behavior follows assignments to OPTIND rather than stale hidden state."
+      ],
+      "algorithm": "Retain the historical next-argument and intra-argument cursors, then apply the modern error-result, variable-publication, explicit-argument and reset transitions after each call.",
+      "dependencies": [
+        "shell positional-parameter storage",
+        "shell variable assignment",
+        "shell diagnostics and builtin dispatch"
+      ],
+      "c_language": "The 4.4BSD donor uses K&R definitions, register declarations, BSD __P prototypes, and shell-global state; the modern repair reference uses C17-compatible prototypes with FreeBSD shell allocators and interrupt guards.",
+      "c17_rewrite": "Translate the state machine to strict C17 prototypes and explicit target shell state while preserving the first-release ILP32 boundary.",
+      "archive_members": [
+        "shell options.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "shell a.out text and data",
+          "shell peak stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Reconcile the compact 4.4BSD cursor algorithm with the pinned modern FreeBSD transitions and current FreeBSD and NetBSD tests, then pass OPTIND, OPTARG, leading-colon, missing-operand, illegal-option, clustered-option, repeated-call, explicit-argument, and reset witnesses under host and ILP32 builds.",
+      "disposition": "candidate",
+      "residual": "Map the donor cursors onto the current shell variable and positional-parameter implementation and measure the linked shell."
+    },
+    {
+      "id": "shell-command",
+      "requirements": [
+        "dpucp-2024:utility:command"
+      ],
+      "roles": [
+        "shell command lookup model",
+        "special-builtin behavior oracle"
+      ],
+      "repository": "freebsd-src",
+      "sources": [
+        {
+          "repository": "freebsd-src",
+          "path": "bin/sh/exec.c",
+          "sha256": "b68c31ac452521c87fe3a8d45f2f6d4fc2f7eb976de6d95a5faf4cf9b27a63c7",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "freebsd-src",
+          "path": "bin/sh/eval.c",
+          "sha256": "bed3a859285c3d9b30549a0d5b304e3682eccfd8d4d7acc7bcd654cf01b4709f",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Report names with -v and -V through the shell's full reporting categories, while execution bypasses functions, removes special-builtin execution properties, and optionally selects the standards path with -p.",
+      "invariants": [
+        "Reporting can identify aliases, keywords, functions, builtins and external paths without becoming the execution algorithm.",
+        "Execution through command sets the no-function lookup mode, so a shell function cannot shadow the selected command.",
+        "A special builtin invoked through command loses its special execution properties.",
+        "Lookup failure produces the specified nonzero status and diagnostic.",
+        "The -p path selection does not mutate the caller's PATH."
+      ],
+      "algorithm": "Use exec.c reporting for terse and verbose descriptions, but use eval.c execution dispatch with no-function flags, special-property removal, command hashing, and an optional default utility path.",
+      "dependencies": [
+        "shell builtin table",
+        "function table",
+        "PATH search and command hash",
+        "special-builtin classification",
+        "evaluation dispatch and no-function lookup flag",
+        "shell output and diagnostics"
+      ],
+      "c_language": "The donor is modern C with FreeBSD cdefs and shell-private data structures that cannot be copied independently.",
+      "c17_rewrite": "Port the precedence and status invariants into the existing DiscoBSD shell lookup machinery without importing FreeBSD hash-table dependencies.",
+      "archive_members": [
+        "shell exec.o",
+        "shell eval.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "shell a.out text and data",
+          "shell peak stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Pass reporting-order, function-shadowing execution, special-builtin execution, -p, -v, -V, failure-status, and diagnostic witnesses under host and ILP32 builds with a nonpositive linked-shell delta.",
+      "disposition": "candidate",
+      "residual": "Audit the current shell lookup graph and derive one shared reporting and execution path before implementation."
+    },
+    {
+      "id": "utility-printf",
+      "requirements": [
+        "dpucp-2024:utility:printf"
+      ],
+      "roles": [
+        "utility behavior oracle",
+        "escape and conversion algorithm donor"
+      ],
+      "repository": "freebsd-src",
+      "sources": [
+        {
+          "repository": "freebsd-src",
+          "path": "usr.bin/printf/printf.c",
+          "sha256": "4057f76db856c3c3c9f17039ef64f257e8f4e7db8d570ee101ba549ebc31af45",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Reuse the format until operands are exhausted, implement percent-b and backslash-c, bound dynamic width and precision, and return failure for malformed numeric input.",
+      "invariants": [
+        "Backslash-c stops all remaining output immediately.",
+        "Percent-b interprets escapes in the operand without treating embedded NUL as a C-string terminator during emission.",
+        "A format is reused only when the previous pass consumed an operand.",
+        "Conversion diagnostics accumulate a nonzero final status."
+      ],
+      "algorithm": "Parse one conversion at a time, normalize field width and precision, dispatch typed conversions, interpret escapes in place, and loop over the format while arguments advance.",
+      "dependencies": [
+        "integer and floating conversion",
+        "byte-output primitives",
+        "errno diagnostics",
+        "utility option parsing"
+      ],
+      "c_language": "The donor is modern C but depends on intmax, wide-character, locale, floating-point, err, and FreeBSD compatibility helpers.",
+      "c17_rewrite": "Retain only the selected byte-locale behavior, target numeric conversions, and bounded parser states; exclude unselected locale tables and heavyweight helpers.",
+      "archive_members": [
+        "textbox printf applet object"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "textbox a.out text and data",
+          "textbox peak stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Pass percent-b, backslash-c, embedded-NUL, repeated-format, width, precision, malformed-format, numeric-error, and final-status witnesses and preserve all constrained surfaces.",
+      "disposition": "candidate",
+      "residual": "Map the selected behavior to the existing utility and measure whether shared escape helpers reduce complete textbox and packed-root size."
+    },
+    {
+      "id": "utility-readlink",
+      "requirements": [
+        "dpucp-2024:utility:readlink"
+      ],
+      "roles": [
+        "recovery applet model",
+        "path-output behavior oracle"
+      ],
+      "repository": "openbsd-src",
+      "sources": [
+        {
+          "repository": "openbsd-src",
+          "path": "usr.bin/readlink/readlink.c",
+          "sha256": "23a9b0122ad07f791ad3728ef3f2b29d2092c948db43d591dbcd991b935ab30c",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Read one symbolic-link value without following it, write the exact path text, and control trailing newline behavior.",
+      "invariants": [
+        "The output buffer reserves one byte for an explicit terminator.",
+        "A readlink failure reaches the utility exit status.",
+        "The applet emits link bytes exactly once and adds only the selected newline."
+      ],
+      "algorithm": "Validate one operand, call readlink into a bounded buffer, terminate the returned byte span, and emit it through binary-safe output primitives.",
+      "dependencies": [
+        "readlink system call",
+        "PATH_MAX policy or bounded dynamic buffer",
+        "textbox option parsing and diagnostics"
+      ],
+      "c_language": "The donor body is C17-compatible but uses OpenBSD pledge, err, getopt globals, and host PATH_MAX assumptions.",
+      "c17_rewrite": "Use existing DiscoBSD syscall, diagnostics, and textbox dispatch while selecting a buffer strategy from target path limits and stack measurements.",
+      "archive_members": [
+        "textbox readlink applet object"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "textbox a.out text and data",
+          "textbox peak stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Pass symlink, empty target where supported, maximum target, non-link, missing path, newline, and write-error witnesses and compare standalone against textbox packed-root composition.",
+      "disposition": "candidate",
+      "residual": "Confirm the target readlink contract and choose a measured buffer strategy before applet registration."
+    },
+    {
+      "id": "utility-realpath",
+      "requirements": [
+        "dpucp-2024:utility:realpath"
+      ],
+      "roles": [
+        "recovery applet model",
+        "canonical-path behavior oracle"
+      ],
+      "repository": "freebsd-src",
+      "sources": [
+        {
+          "repository": "freebsd-src",
+          "path": "bin/realpath/realpath.c",
+          "sha256": "0f3c2cdac1230fa14db3b2b5a488a16ebb084038535fcf9498bd429e292cc8bb",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Canonicalize each path with the existing libc resolver, print successful paths, continue across operands, and return failure when any operand fails.",
+      "invariants": [
+        "Path resolution remains owned by libc rather than duplicated in the applet.",
+        "Each successful operand emits one canonical path line.",
+        "The final status reports any failed operand while preserving prior output."
+      ],
+      "algorithm": "Iterate operands, call realpath into one bounded buffer, emit successes, diagnose failures unless quiet operation is selected, and accumulate status.",
+      "dependencies": [
+        "existing libc realpath",
+        "PATH_MAX policy or bounded dynamic buffer",
+        "textbox option parsing and diagnostics"
+      ],
+      "c_language": "The donor body is C17-compatible but uses FreeBSD cdefs, err, and PATH_MAX interfaces.",
+      "c17_rewrite": "Keep only the thin applet wrapper and bind it to the existing DiscoBSD realpath and textbox facilities.",
+      "archive_members": [
+        "textbox realpath applet object"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "textbox a.out text and data",
+          "textbox peak stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Pass relative, dot-dot, symlink, missing-component, repeated-operand, write-error, and accumulated-status witnesses and prove textbox composition is smaller than a standalone utility.",
+      "disposition": "candidate",
+      "residual": "Audit the existing realpath failure modes and measure the thin wrapper with the target path buffer."
+    },
+    {
+      "id": "utility-timeout",
+      "requirements": [
+        "dpucp-2024:utility:timeout"
+      ],
+      "roles": [
+        "process-control behavior oracle",
+        "status-mapping reference"
+      ],
+      "repository": "freebsd-src",
+      "sources": [
+        {
+          "repository": "freebsd-src",
+          "path": "bin/timeout/timeout.c",
+          "sha256": "29d5cae6d8125868e4eb74cc699a7a132db0e6ec46b8f92340013dd30e8494b1",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Run a command under a duration, deliver the selected signal on expiry, forward relevant signals, and map timeout, execution, exit, and signal results accurately.",
+      "invariants": [
+        "Only a verified timer expiry selects timeout status 124 unless preserve-status applies.",
+        "Signal forwarding reaches the child execution group supported by the target kernel.",
+        "Exec-not-found and exec-not-invokable remain distinguishable as 127 and 126.",
+        "The wrapper reproduces a child's signal termination when the target primitives permit it."
+      ],
+      "algorithm": "Install signal handlers, arm a real-time interval, spawn and monitor the child, forward or escalate signals, and derive final status from wait results.",
+      "dependencies": [
+        "alarm or interval-timer delivery",
+        "fork and exec",
+        "kill and signal disposition",
+        "waitpid status semantics",
+        "process-group or equivalent forwarding policy"
+      ],
+      "c_language": "The donor is modern C but depends on FreeBSD procctl reapers, siginfo, wait6, resource limits, getopt_long, and floating-duration helpers.",
+      "c17_rewrite": "Design a target-native state machine only after each kernel primitive has an executable witness; omit FreeBSD-only reaper and long-option machinery unless independently selected.",
+      "archive_members": [
+        "textbox timeout applet object"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel text and data prerequisites",
+          "textbox a.out text and data",
+          "textbox peak stack",
+          "largest 144 KiB process-window consumer",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Require focused alarm, kill, waitpid, signal-forwarding, stop-and-continue, exit-126, exit-127, timeout-124, preserve-status, and escalation witnesses before utility implementation or registration.",
+      "disposition": "candidate",
+      "residual": "Inventory and execute the process-control prerequisite matrix; split any missing primitive into a kernel-support change and leave the utility requirement open."
+    },
+    {
+      "id": "utility-uudecode",
+      "requirements": [
+        "dpucp-2024:utility:uudecode"
+      ],
+      "roles": [
+        "recovery transfer applet model",
+        "decoder source and limitation reference"
+      ],
+      "repository": "netbsd-src",
+      "sources": [
+        {
+          "repository": "netbsd-src",
+          "path": "usr.bin/uudecode/uudecode.c",
+          "sha256": "e95ede01d06783ede971ddc996801fc787f88c92c8547b547ebf778106caaf1e",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "The donor decodes traditional uuencoded and optional base64 input and supports an output override, but its traditional loop trusts encoded line length and both decoding paths ignore output-call results. The target must add binary-clean -o - output, payload validation, and write-error propagation.",
+      "invariants": [
+        "The target repair keeps decoded stdout byte-clean and sends diagnostics elsewhere.",
+        "The target repair validates header, encoded line length and payload characters before indexed access.",
+        "The target repair maps output-open, put and write failures to nonzero status.",
+        "The stdout destination bypasses file permissions and path expansion."
+      ],
+      "algorithm": "Use the donor's begin-header and four-character to three-byte decoding structure, but bound every group by the available encoded line and route all decoded bytes through one checked target output sink.",
+      "dependencies": [
+        "bounded line input",
+        "binary-safe fwrite or write",
+        "textbox option parsing and diagnostics",
+        "file creation only for non-stdout destinations"
+      ],
+      "c_language": "The donor is modern C but depends on NetBSD cdefs, err, passwd lookup, resolver base64 support, mode handling, tilde expansion, and file-output policy beyond the selected stdout path.",
+      "c17_rewrite": "Refactor a strict-C17 decoder core around the existing applet, preserve current file behavior, and add one output-sink abstraction for -o - without heap-backed registries.",
+      "archive_members": [
+        "textbox uudecode applet object"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "textbox a.out text and data",
+          "textbox peak stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Pass binary-NUL stdout, malformed-header, malformed-line, truncated-input, write-failure, file-output regression, and packed-root composition witnesses with a nonpositive textbox delta.",
+      "disposition": "candidate",
+      "residual": "Characterize the existing decoder and add the stdout sink only after the link map identifies reusable output and parsing code."
+    },
+    {
+      "id": "utility-nl-bre",
+      "requirements": [
+        "dpucp-2024:utility:nl"
+      ],
+      "roles": [
+        "shared BRE dependency boundary",
+        "deferred utility behavior oracle"
+      ],
+      "repository": "freebsd-src",
+      "sources": [
+        {
+          "repository": "freebsd-src",
+          "path": "usr.bin/nl/nl.c",
+          "sha256": "a9d2e60ef3e36a1ceca1ea206e9efb1a6754a97948b50687294ddd5d7dc76b6d",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Number selected logical-page lines, including pBRE selection, without giving nl a private regular-expression implementation.",
+      "invariants": [
+        "Header, body, and footer selectors share one numbering state machine.",
+        "A pBRE selector uses the same byte-locale BRE semantics as other selected utilities.",
+        "Private regex code cannot enter nl merely to close one requirement row."
+      ],
+      "algorithm": "Parse section selectors and formatting controls, detect logical-page delimiters, and apply a shared compiled BRE only for pattern-selected numbering.",
+      "dependencies": [
+        "shared compact POSIX BRE provider",
+        "bounded line input",
+        "byte-locale policy",
+        "textbox formatting and diagnostics"
+      ],
+      "c_language": "The donor is modern C but pulls regex, locale, multibyte, wide-character, Capsicum, and host utility support that exceed the first-release boundary.",
+      "c17_rewrite": "Retain the numbering state machine and byte-locale behavior only after a shared strict-C17 BRE provider is admitted for all consumers.",
+      "archive_members": [
+        "textbox nl applet object",
+        "shared BRE archive members"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "shared BRE archive bytes",
+          "textbox a.out text and data",
+          "textbox peak heap and stack",
+          "144 KiB process-window occupancy",
+          "packed Dhara root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Admit a shared compact BRE provider first, then pass selector, logical-page, formatting, invalid-BRE, byte-locale, link-map, and packed-root witnesses.",
+      "disposition": "deferred",
+      "residual": "The target lacks a shared compact BRE provider; keep pBRE open until the later BRE/ERE family closes that prerequisite."
+    }
+  ]
+}

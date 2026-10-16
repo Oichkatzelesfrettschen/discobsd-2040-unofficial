@@ -106,6 +106,13 @@ check-dpucp-profile: check-python
 		${PYTHON} tools/check_dpucp_profile_test.py
 		${PYTHON} tools/check_dpucp_profile.py --root ${TOPSRC} --self-test
 
+# The donor ledger keeps selected BSD mechanisms advisory until license,
+# dependency, C17, ABI and footprint gates agree. Mutation controls reject
+# provenance, requirement, dependency, size-evidence and decision drift.
+check-dpucp-donor-ledger: check-python
+		${PYTHON} tools/check_dpucp_donor_ledger_test.py
+		${PYTHON} tools/check_dpucp_donor_ledger.py --root ${TOPSRC}
+
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
 		$(MAKE) -C etc DESTDIR=${DESTDIR} distrib-dirs
@@ -725,6 +732,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
 		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
+		check-dpucp-donor-ledger \
 		check-c17-source-denominator \
 		check-capacity-corpus \
 		check-comment-hygiene \
@@ -1028,7 +1036,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-warning-policy-host check-warning-policy-cross \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-warning-policy-host check-warning-policy-cross \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

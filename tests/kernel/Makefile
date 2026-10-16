@@ -129,6 +129,10 @@ SIGAUTH_SRC=	${TOPSRC}/sys/kern/kern_sig.c ${TOPSRC}/sys/kern/kern_prot2.c \
 RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
 CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
+CAPACITY_SRC=	${TOPSRC}/sys/kern/subr_capacity.c
+CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
+CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
+		buffer-any-flag peak-follows-down saturation-inverted
 
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
@@ -378,6 +382,37 @@ ufs_explicit_time_test: ufs_explicit_time_test.c ${UFS_EXPLICIT_TIME_SRC} \
 	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
 	    ufs_explicit_time_kernel.o hostkern32.o
 
+capacity_test: capacity_test.c capacity_uarea.c ${CAPACITY_SRC} hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${CAPACITY_DEFS} ${ILP32} \
+	    -c -o capacity_kernel.o ${CAPACITY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${CAPACITY_DEFS} ${ILP32} \
+	    -c -o capacity_uarea.o capacity_uarea.c
+	${HOST_CC} ${GATE_CFLAGS} ${CAPACITY_DEFS} ${ILP32} -o $@ \
+	    capacity_test.c capacity_kernel.o capacity_uarea.o hostkern32.o
+
+check-capacity-mutants: capacity_test capacity_mutate.py
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-capacity-mutants" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} capacity_mutate.py ${CAPACITY_SRC} ${.CURDIR}
+	@set -eu; for mutation in ${CAPACITY_MUTANTS}; do \
+		${HOST_CC} ${KERN_CFLAGS} ${CAPACITY_DEFS} ${ILP32} \
+		    -c -o capacity_$$mutation.mutant.o \
+		    capacity_$$mutation.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} ${CAPACITY_DEFS} ${ILP32} \
+		    -o capacity_$$mutation.mutant.test capacity_test.c \
+		    capacity_$$mutation.mutant.o capacity_uarea.o hostkern32.o; \
+		if ./capacity_$$mutation.mutant.test; then status=0; \
+		else status=$$?; fi; \
+		if [ "$$status" -ne 1 ]; then \
+			echo "FAIL capacity mutation $$mutation returned $$status, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS capacity mutation $$mutation rejected"; \
+	done
+
 # Restore the inherited defect in a generated source copy. The same executable
 # must reject a MNT_NOATIME mount that drops an explicit atime request.
 ufs_fio_noatime_bad.c: ${UFS_EXPLICIT_TIME_SRC}
@@ -416,7 +451,8 @@ check-ilp32:
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
-	    ufs_explicit_time_test ufs_explicit_time_bad
+	    ufs_explicit_time_test ufs_explicit_time_bad capacity_test \
+	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
 	${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
@@ -429,6 +465,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
 	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
+	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
 .else
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -442,6 +479,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.block-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS}
@@ -473,8 +511,10 @@ clean:
 	rm -f balloc_test balloc_test_pico
 	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o
 	rm -f ufs_explicit_time_test ufs_explicit_time_bad ufs_fio_noatime_bad.c
+	rm -f capacity_kernel.o capacity_uarea.o capacity_test
+	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-shutdown-order clean
+	check-shutdown-order check-capacity-mutants clean

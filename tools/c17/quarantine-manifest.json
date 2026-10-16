@@ -1,0 +1,3806 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "path": "legacy/non-arm/blackfin-surveyor/usr.bin/picoc/platform/library_srv1.c",
+      "scope": "archive",
+      "sha256": "fd9962070e6be5fae859567bd309fb4fc33345ad0e8bc46e2c0aef02d0459c14",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/blackfin-surveyor/usr.bin/picoc/platform/library_surveyor.c",
+      "scope": "archive",
+      "sha256": "9d07f80e7779169baae8cc10023c162ed6b1a483ed3f6356e65656a2b075954f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/blackfin-surveyor/usr.bin/picoc/platform/platform_surveyor.c",
+      "scope": "archive",
+      "sha256": "c283b6a1d6eba21bc7ac2b0efddba798ff27191a54fd9388a7c18d292fb59cf9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/curses.h",
+      "scope": "archive",
+      "sha256": "b1b63fc877457d3735c536b1a4f8b5cdae586fa23c8ad73ebb4b546095a54e33",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/fcntl.h",
+      "scope": "archive",
+      "sha256": "097d5d13cf88655c0d4e9609ed6e04439a6700d634827093dc01e9bbe66f2e4a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/signal.h",
+      "scope": "archive",
+      "sha256": "1e9a1740b16fa27d9efc75f1488e09b9b2fb8e9eaac3951163eb978b6ee3b7f6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/stdio.h",
+      "scope": "archive",
+      "sha256": "973769167574f869e1a7bae717bb0122afadec1da6d2508cfb91ffb4eae54b23",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/sys/gpio.h",
+      "scope": "archive",
+      "sha256": "9f591d452db29d68e2607569ba2246470b8bb568f25320ce587155bf379a1216",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/sys/spi.h",
+      "scope": "archive",
+      "sha256": "daa9ef6f52abe1c90389decfe0ba68f3a6cc648b34dbdd7e244868ea97bb32ce",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/smallc/wiznet.h",
+      "scope": "archive",
+      "sha256": "56eccbaa450c85ff9de404c6bf924a63a1f9c0a48df96e90c6a7b498139e4dba",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/wiznet/client.h",
+      "scope": "archive",
+      "sha256": "f12de60c41b7a1fc78f1ece2bb17af9f46285277adfd0e977be25d5558b59ab5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/wiznet/ethernet.h",
+      "scope": "archive",
+      "sha256": "b671376d7dc427a5beacf02b269d16ea0b9b6757300e142ef5454c65f10009d5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/wiznet/server.h",
+      "scope": "archive",
+      "sha256": "79cbe2aafbe5abe15fc75d9e98558f31792883b1fe1a9bff24c2a486205494ae",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/wiznet/socket.h",
+      "scope": "archive",
+      "sha256": "f11330058991845d314dbf07c69f8aa5ea5fa98be5241b4604f228a36fb985ce",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/wiznet/udp.h",
+      "scope": "archive",
+      "sha256": "8b32c4fd7850d7b6628013d03e21316f1c73f36e27da825241a215490a59ef01",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/include/wiznet/w5100.h",
+      "scope": "archive",
+      "sha256": "2455744eff670df6b7ca18bdfd3bc9ad5a846f8f3af9d222505bcb0d9eebc4c5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libc/mips/sys/SYS.h",
+      "scope": "archive",
+      "sha256": "8d9ae6e4bf9353d02b95321315f4879ff6958197d28995eb81d732c02bf8b267",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libc/mips/sys/execl.c",
+      "scope": "archive",
+      "sha256": "3d8209114e08e33ac3441810bd2115e4f359d239eba90c2ac4ab728f226d7a8f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libc/mips/sys/execle.c",
+      "scope": "archive",
+      "sha256": "79ec06f097618657553c9f3deac613b4a0d546abb634e02269d2676591622f60",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libc/mips/sys/execv.c",
+      "scope": "archive",
+      "sha256": "139dafe06c33d84d9a81d053bc89ff80202f8e73f666eba00d8b3c133e3f45b1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libc/mips/sys/sbrk.c",
+      "scope": "archive",
+      "sha256": "5277feb9bcd171853523539cdd2651cb3be5d4e8864c4c86a6fad3c911649216",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/char.c",
+      "scope": "archive",
+      "sha256": "7c9440bd3e40618fc3e918f81525fafcbd4ad6daedecae4526b5eefecfd805b5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/circle.c",
+      "scope": "archive",
+      "sha256": "f0ab84837fd29be4a8758773ac4b406ccd41774220c93d982e213c279dd7018b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/clear.c",
+      "scope": "archive",
+      "sha256": "988d812eca170ee7d64efc9429e2e5c9be00eb0ec9e01380ce1995c7071ba791",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/fill.c",
+      "scope": "archive",
+      "sha256": "7120ff7375f3a721d6f02b11d692e64d5048143ee53382457ee98e16524e0796",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/fill_triangle.c",
+      "scope": "archive",
+      "sha256": "b461c577a0101d4b6cf03fa070fbcf1d19ec87b06b19446469485ecbf80c9df7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/image.c",
+      "scope": "archive",
+      "sha256": "e3c85d37ccb872d048d7897663df6101cc3a459698fd4d42eed30457ceeb9375",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/line.c",
+      "scope": "archive",
+      "sha256": "7519324ee8ba687be67f14d9c54846b04d110cf4a5dae7d96846968229dc9b9f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/open.c",
+      "scope": "archive",
+      "sha256": "a3f1d74e742bbda4be397fc399abdb51bb9964a79e92b15fdc4b97d88cc6e259",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/pixel.c",
+      "scope": "archive",
+      "sha256": "911f02fb815bb5be21ce5968ee4eb44d6bfe658055ba85d8d1c624eaf7cdbb28",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/rect.c",
+      "scope": "archive",
+      "sha256": "e2423de75c8f045b3e958f2a784a0c8c895abd2ead70b5e10fd029ccc5a0ae14",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/text.c",
+      "scope": "archive",
+      "sha256": "d00b99fa36cdea4eb1efdaa3303ca6eb8a9cba4696b49fd223e18fc37e707558",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libgpanel/text_width.c",
+      "scope": "archive",
+      "sha256": "ff7ca6ff62c548ff5e3a7fa338cd0bf27d90840c5b5b8f8d4cfd15b844b492ad",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libicache/icachec.c",
+      "scope": "archive",
+      "sha256": "9aacb21bec4b8c75a48fb8aee81ca20daac2d2a13891c08572bc6661d6a51425",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libwiznet/client.c",
+      "scope": "archive",
+      "sha256": "e26758ed5a981b40c44591b6de4641ec42d3c3f2b95ecc5926eab7434dc1731d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libwiznet/ethernet.c",
+      "scope": "archive",
+      "sha256": "19b69893571221fc260a0bc590bcbb84bbd81b039170c0b933e4f8c354afb43f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libwiznet/server.c",
+      "scope": "archive",
+      "sha256": "f87fa3a8299c3d9a3d1d1ca5f84b1bcf472ba679b0a5d512e22df71dfae7d956",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libwiznet/socket.c",
+      "scope": "archive",
+      "sha256": "49964fd10b62627864f5e5e19dd6bd343428a987058e534dc7096cee199871e2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libwiznet/udp.c",
+      "scope": "archive",
+      "sha256": "88de801bd9275de1e713cea46dedbc87b5008daea17904b4f8f8b534e40c9113",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/libwiznet/w5100.c",
+      "scope": "archive",
+      "sha256": "81280a5a80a54f0815317c6e655ed3cf8d38553a2640eda9675986972d364044",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/startup-mips/crt0.c",
+      "scope": "archive",
+      "sha256": "a7e2ee8d352710e6752b74cdb3af44ab1e86c41787257b7cf691607c9d57d93d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/lib/startup-mips/mon.c",
+      "scope": "archive",
+      "sha256": "7499fd50fbe96f881704e4cdfb4996c4434d2aecbe78a15319d50a0d66be0f6d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/c/adc.c",
+      "scope": "archive",
+      "sha256": "cd951cab5b93e863e8e3b2c345414eee7bb04d550f539c8e3b3afe686a7ae283",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/c/gpio.c",
+      "scope": "archive",
+      "sha256": "a51f968fb34b3b8a5a10bcc7cb13ea2d626ace0e72dbe25ca48868698196129a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/c/lcd6.c",
+      "scope": "archive",
+      "sha256": "c1b8b7267a7ff1cc4f988437933c9246df7fb5d7f925be026318c773d8b2334d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/c/tetris.c",
+      "scope": "archive",
+      "sha256": "feb05581df8d0d6c742fab4e7d6197857b09b90e45ae8295350293666455fe52",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/all.c",
+      "scope": "archive",
+      "sha256": "f6cb5173420d6af84771888b0ca4cc6f5a60d0213b3c01a0ab630980adf69f2f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/backlight.c",
+      "scope": "archive",
+      "sha256": "fa9a395ec60135ccfe60174f5f642fa751a80351fcc2bec500a2646aff441cf2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/cube.c",
+      "scope": "archive",
+      "sha256": "55c744cfe708283c4b2ca315bb0676b867f92d9c88ac41081893b67eded8f676",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/cube.h",
+      "scope": "archive",
+      "sha256": "1c3af8889d37cda923d21528c191309171696e962bc22e57cb16234dd1b066f0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/demo.c",
+      "scope": "archive",
+      "sha256": "74eca4c27fe185df83039fc41ded1c92c821867acfe63e6368a64d54ad6ccc0f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/duinomite.c",
+      "scope": "archive",
+      "sha256": "af9e77a1813427d4df2e869559c0cd60f0b8ca1e8293d4e4081590cd4e8b935d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/cube/fubarino.c",
+      "scope": "archive",
+      "sha256": "732bd97dfba0f11511ccf351128314011f5d0685a67bba9c6b907ca59f0107cd",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/circle.c",
+      "scope": "archive",
+      "sha256": "1772c143088fb08715f59543e1c4b5f464fb6cbcd23e43ea95ce646b6c5c307b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/color.c",
+      "scope": "archive",
+      "sha256": "26fe02d5f420eb3925c3826710d7b7993f7a87ed46ff17a7d0f92f36d25ddf45",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fill.c",
+      "scope": "archive",
+      "sha256": "bce5c0437c9f4cc625799f66cfb9be2f910ab49c88ee28ff3ab83b2603a68dd2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/flappy.c",
+      "scope": "archive",
+      "sha256": "efaa1e6f0014dbcb67868beab536f992572142e8666f6b28cea02663c07e458c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/font.c",
+      "scope": "archive",
+      "sha256": "26b00d83ba6b05ec0d7ae9d8d57eed924f629cc2042b8a1797bc77cdd31e71db",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/5x7.c",
+      "scope": "archive",
+      "sha256": "7dbe83cf3d1f5751bb7ba532ec5f24a88928fc4080aa52f9ac6e5081e8fad604",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/6x9.c",
+      "scope": "archive",
+      "sha256": "1a43c9549da4cdfde05555c9f1bbe85653030a0dcf817b810ceec7dea93541e9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/convbdf.c",
+      "scope": "archive",
+      "sha256": "197f05f894714f6a190274c61839fdece727f71f051d23b4f99b94cc932a7cf3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/digits20.c",
+      "scope": "archive",
+      "sha256": "1f1c04234b4170bc0dae63d663e20909771f16586423b1bb7ee156bb47422cbe",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/digits32.c",
+      "scope": "archive",
+      "sha256": "ab6547c2312ebadc3e971da9675891e37f75ffef9a7ab6d7b90c98649f616b40",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/lucidasans11.c",
+      "scope": "archive",
+      "sha256": "f1373e8df8b83bacdc4e37d8d31d7fadb92a9adfb28e6af15168552f48721463",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/lucidasans15.c",
+      "scope": "archive",
+      "sha256": "a5744c784c70a27a26ea1df3e11ffde327823bdf89eff1df8550bc1de8ffc7ab",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/lucidasans28.c",
+      "scope": "archive",
+      "sha256": "b05c16cc5e9a84db96993a80aa47f3a0305306d227e5ee1072345c191f968512",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/lucidasans7.c",
+      "scope": "archive",
+      "sha256": "8d9289e45d3c23bc6e9d4383dc9c30f832e5c23e827f637069881e637ef12eec",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/lucidasans9.c",
+      "scope": "archive",
+      "sha256": "62d0a4c2462d778d5e8f12d0dc413322928a71ad0e49e2bfbdaa9261c56ef5d5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/fonts/verdana7.c",
+      "scope": "archive",
+      "sha256": "8ec69603ecb44c84b949a1e143205c49c8900933613f4bfd929f27da46d05315",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/line.c",
+      "scope": "archive",
+      "sha256": "88fd01fcc5297d2168a245090fff62570653d1499909f913ace1023dbd240012",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/pixel.c",
+      "scope": "archive",
+      "sha256": "9cf7421b93c6b3e654dab4c83c60a88c47762e8e005f37b87c7c31149606b960",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/rect.c",
+      "scope": "archive",
+      "sha256": "5ca82afcf370f52bc6f5c2e1021572ee6862e1c66226a656c3691527bf36976f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/speed.c",
+      "scope": "archive",
+      "sha256": "65b86c9c93eb2980a096716927617e519fca512cde0e4726dcde839c2db7ce52",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/tft.c",
+      "scope": "archive",
+      "sha256": "846d7e8ba828ecbcd6d2007be7e7552cd3b38c270e72265e2dba7721259480b2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c",
+      "scope": "archive",
+      "sha256": "27aaba14c203ed90763e49707216d757ebe16f41127c6c88b1dc069e95eb4f54",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/buzzer.c",
+      "scope": "archive",
+      "sha256": "c3148edcb27ec0f46fe24bd1b3128346797e200827bf007490073a320a4b5dcb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/irled.c",
+      "scope": "archive",
+      "sha256": "b81b4cad90943f57f85029b433468cd5888a07649aef22e30f04057282c84a26",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/joystick.c",
+      "scope": "archive",
+      "sha256": "e922ce9e7b0d14c514e7de6d981aef77392417267f03fce79f2e186c2bc82085",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/laser.c",
+      "scope": "archive",
+      "sha256": "cd28bb8b3f1863a4809c6b76b00cad718f6978eff1a2f5c989244b5598615fbc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/led2.c",
+      "scope": "archive",
+      "sha256": "b38a7041c3af23ba64e941bcdde1b8b30be3d21bcc00c1640801cd82b5d052d4",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/led3.c",
+      "scope": "archive",
+      "sha256": "d881baddd40bde0906aa1f99acfffde6527c05468d1b1fe884eb8f8efb5c09b8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/led7.c",
+      "scope": "archive",
+      "sha256": "d713dd1575b6a2c35cc68fb181a038ee96baad0a1dc14aef4dbf087b681bb347",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/pbuzz.c",
+      "scope": "archive",
+      "sha256": "ca507c80d6feaef46d760144b97992d0e575408657f512823cd940ec5ef0a924",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/sensors/relay.c",
+      "scope": "archive",
+      "sha256": "6ad1b91c2736d85ba78ee8c341153c817d9d5083d8b38c0393ee0f3bfceb8dbf",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/adc.c",
+      "scope": "archive",
+      "sha256": "039d0263687c947a04102247e015e16eb9d680891046f4163d34fa668131a052",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/gpio.c",
+      "scope": "archive",
+      "sha256": "7e33c3a78e21e8294989ba00b5676a6c5b2c929bb7fdb5ec8808658cc6bfc227",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/hello.c",
+      "scope": "archive",
+      "sha256": "b3b9e4eb7368d90a600914b961ddbcb1c091127074d28916574ee263731fb667",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/primelist.c",
+      "scope": "archive",
+      "sha256": "696665e277e4878eef95c89d26314f3463cb882a61f7aa30d1698eee4bcebaf0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/primesum.c",
+      "scope": "archive",
+      "sha256": "f373c22836743455be6d4c09ee1a40eacfbfd3a5e31fd6364de0bc8d25be7637",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/q8.c",
+      "scope": "archive",
+      "sha256": "f9c74118aa0d93366f8dcca31832b68134ef3558ef7bcdf28242783ce2223e33",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/rain.c",
+      "scope": "archive",
+      "sha256": "1b50f3807c18cd3d81ca1c49f6e2879840cc4eeba0fcf2e05f4103321c4e52e6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/test1.c",
+      "scope": "archive",
+      "sha256": "a57604075e48e57e9e31a74a5150306ba5d81679e07cc14aec60d2bcecfc70dc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/test2.c",
+      "scope": "archive",
+      "sha256": "e23dd110564e4e372ae702575c9f3a5707edcbe280d2bc300ad30e9d252d1e30",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/test3.c",
+      "scope": "archive",
+      "sha256": "2679a6f313ffd5f98abd821f0396d2e096820bd6b1a54b5b86cf0cd01f313487",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/share/examples/smallc/webserver.c",
+      "scope": "archive",
+      "sha256": "a7245fb3574093652ba18dd8f9c9d0c7cab3e9636cd1a730ab222b1e63872a25",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/compile/BAREMETAL/devcfg.c",
+      "scope": "archive",
+      "sha256": "3819d6df3755b9ce3f4eb9594e9213090e7386d17e858074eda016f74744ac31",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/compile/EXPLORER16/devcfg.c",
+      "scope": "archive",
+      "sha256": "aded76e5c6966e720234b38671df02cdb675c2fb6ddd1b5979d136857443f4ef",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/compile/SDRAM32MX/devcfg.c",
+      "scope": "archive",
+      "sha256": "e51c944159bde79a2efc98809168e61973616914e694f902b25e8d604612a9e7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/compile/STARTER_KIT/devcfg.c",
+      "scope": "archive",
+      "sha256": "e51c944159bde79a2efc98809168e61973616914e694f902b25e8d604612a9e7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/adc.c",
+      "scope": "archive",
+      "sha256": "8bb1e3f4f79ef30151c41d69469eb33857790896893a1af28824107c97c258f0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/adc.h",
+      "scope": "archive",
+      "sha256": "d60423bbadb40bc811c4850699fe5ed1d113d3fc354bd946aa7eb36386fbc2d0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/glcd.c",
+      "scope": "archive",
+      "sha256": "a177cd84e5d456378c3e0b4423f948043a08b927360cac28f64e3d5ce2391d69",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel-ili9341.c",
+      "scope": "archive",
+      "sha256": "a34ab4d27363c8b93e80951662d85fcf64e751d75aec3383809598c9849b04a6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel-nt35702.c",
+      "scope": "archive",
+      "sha256": "dac38c7e4e25de06cf80383a34a6acfc585e0c5f6b84301682f2ce9b6d94f3ef",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel-s6d04h0.c",
+      "scope": "archive",
+      "sha256": "22c1d16f5f04e117ba48714a5e5849cfefeca7b68e34adec079e294063f3cf56",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel-spi-ili9341.c",
+      "scope": "archive",
+      "sha256": "54e4ea1a7ba0350134d9c1803e3c4751e955d87f10075855fe7f6ae114c3c548",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel-spi.c",
+      "scope": "archive",
+      "sha256": "bb269977e1418232bc6d53d5ab12e8dc1d508e5f8a0fd24c00df9947aec75530",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel-st7781.c",
+      "scope": "archive",
+      "sha256": "790f12ee73681d8d694b4bd9e8974dec6dad1d56f56e09bbf70151b944b345c6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpanel.c",
+      "scope": "archive",
+      "sha256": "0869a424c7d84002a803df1552b4190585402e70db0c80b221d8a46eaeac85e4",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/gpio.c",
+      "scope": "archive",
+      "sha256": "05104dfe959f604384de7346e7bc8c0ccbc09337c6246062f5bf2bd34e6268d2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/hx8357.c",
+      "scope": "archive",
+      "sha256": "5c95a0d028a993de3e6ca6e28449737bcf201028fb5ba37fdb91886f5bb2a051",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/ili9341.h",
+      "scope": "archive",
+      "sha256": "ebc058317c4d5a9451657043f39b7708f2c1a8411c1024271b0a0f82fa4c4858",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/kbd.c",
+      "scope": "archive",
+      "sha256": "bbdb4046dad76e669db8415a9ccf4f4ebfcd04c781c0264237b5eadd7b172166",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/kbd.h",
+      "scope": "archive",
+      "sha256": "8674f9f40ea3c852881f3c7866337e65858d0123e7da40bede714a0dae906c74",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/mrams.c",
+      "scope": "archive",
+      "sha256": "841067d82e3ff840a0eaf077e4350371d0b492cbb3de89a5114532d41cc6da6c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/mrams.h",
+      "scope": "archive",
+      "sha256": "0a52b363ebc92a23cda806af42b0496381e38040e13db39e7319e4ad260b6d1e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/picga.c",
+      "scope": "archive",
+      "sha256": "2061f02579ae3d5d09afb550b632bf47069d36e98d64c699c32c61d620a40432",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/power_control.c",
+      "scope": "archive",
+      "sha256": "c6ce7b8ed42bb7f09220683546157454c58f0b25c52eee5bc460873dda5e778a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/pwm.c",
+      "scope": "archive",
+      "sha256": "7701d63d0dcf01c051cc927ab05eb2c8bf031fdf6b4ec68b10d5ef4012da5a61",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sd.c",
+      "scope": "archive",
+      "sha256": "54d75801fca909ba77a0df8ac4915f4c470d3cb4510eed7fbd2066878d49de66",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sd.h",
+      "scope": "archive",
+      "sha256": "4623631aa85624453470a4de46b78906e0d9edd1e6af7340931f65594e7252ef",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sdram.h",
+      "scope": "archive",
+      "sha256": "58a94d731fc9ab2ab1c162bfbc8a174ae555e4a89bef86c79fe9c3e80bca130a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sdramp.c",
+      "scope": "archive",
+      "sha256": "b834959edb1b3bb03dfe5ad99f44276cb77bd6efd733d0125f46c4ace7c0481b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sdramp.h",
+      "scope": "archive",
+      "sha256": "33612c9d4af8f359316fb667e8500f4912622337d849ae31da6387ce8447be63",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sdramp_config.h",
+      "scope": "archive",
+      "sha256": "5fd9ecdb5f90a6e1b9a6660b24e2cb30f3df03ded4f6c6297c221c2c8c331746",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/skel.c",
+      "scope": "archive",
+      "sha256": "f49d13269679d1ab4e51566ea552c4834c1b06aca6f32aa44c50414b44eb5458",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/spi.c",
+      "scope": "archive",
+      "sha256": "1b03988d26aa8f23668665101ec1970ef5082cc705fe16fdd0935a7550ce0d2f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/spi_bus.c",
+      "scope": "archive",
+      "sha256": "c10805233c89829fc7d9f41e7c289fc579d3078390b0c3e40b975871e1c37ebc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/spirams.c",
+      "scope": "archive",
+      "sha256": "47b0244441f872d00a58d1bcc463952194bd5fef74d4150edff59c486eab6042",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/spirams.h",
+      "scope": "archive",
+      "sha256": "da91cddb893aa58f11ca96983d84cc286ce3d06781c5010ed8af5cf1dc3d35af",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sramc.c",
+      "scope": "archive",
+      "sha256": "f5a234116ea5bee17a07ef06e3a63a41ed802dc0e234ba7fd94879e660636419",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/sramc.h",
+      "scope": "archive",
+      "sha256": "d2919347c5b30e9d6114758006ae53943c06e47217bfff250dc5e8b65a9d458b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/uart.c",
+      "scope": "archive",
+      "sha256": "be259cd468a6ce5fcb9644dcb88a937d5ca6a36a0f8c9f52c8b52be1438c5f99",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/uart.h",
+      "scope": "archive",
+      "sha256": "3a68bb3abd72ccf6e7369e9fe9667d12f74d26a33f251c8d57105eaddbb6dccc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/usb_uart.c",
+      "scope": "archive",
+      "sha256": "fa60f08deb0bb96638ddd11ae2f103d8367acd50c27a2ae2a5030e1d604bb5e5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/dev/usb_uart.h",
+      "scope": "archive",
+      "sha256": "c14cbd993e1ae6fda0ae5c8c753bb41058f0583619174f72bd5161e30da899a2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_ch9.h",
+      "scope": "archive",
+      "sha256": "58821889cc6d025977ff5ab82683450f839d112a3796e3a04a3830b3d855d29a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_device.c",
+      "scope": "archive",
+      "sha256": "d82ea9ba262c6696589fd5bb351f3a790860dabf2829a32f475f20a36b4c7c42",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_device.h",
+      "scope": "archive",
+      "sha256": "1a062d147f34ad2ae054bf140668159e14dd6b891f34c50e7e1aaadf3e2ad5ba",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_function_cdc.c",
+      "scope": "archive",
+      "sha256": "57dc053e4bdda5df431ee6cfaee4318363df75f7d2d9d329d6a512d66e620e85",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_function_cdc.h",
+      "scope": "archive",
+      "sha256": "59795659884c42fc5930d097f486afe687ce91e0d56c77616a5eada5e43010c0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_function_hid.c",
+      "scope": "archive",
+      "sha256": "3dc90b18017dd87dc444a41e1821bdf1f6ed689f515455a9410fd61283857019",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_function_hid.h",
+      "scope": "archive",
+      "sha256": "66e91c4bad97759f6e2f1e24990909ffb8680e95929e890b39e3fe6e5e1557c8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/hal/usb_hal_pic32.h",
+      "scope": "archive",
+      "sha256": "4c0b859bb86c11156a5199fa49a7e2c1d6190dc15089f70633725820c17fbcf2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/_float.h",
+      "scope": "archive",
+      "sha256": "acb4d84237aa1d70d2ed910118fe6341c8ca3679ce78ea8a977da039eeee9469",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/cpu.h",
+      "scope": "archive",
+      "sha256": "2c09d37fd43779a25f1c9d7744c88af0307b7249943ff6f9ac5bc2d72f64b0db",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/debug.h",
+      "scope": "archive",
+      "sha256": "837c3fb0d152b409dd4247a50fb6af480c0a720577642888f9d7a549fcd5b87a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/elf_machdep.h",
+      "scope": "archive",
+      "sha256": "06c391995ea1013dbe4abf284d74d98cbf701b611fdcebd10f1410599afcc63a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/frame.h",
+      "scope": "archive",
+      "sha256": "4d60db35e2c06303e7790c547b8edbe6c49bd9ce26b4a0998be50f21090913fc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/io.h",
+      "scope": "archive",
+      "sha256": "393e564842036f90550a8da7683ce028da15ec502532cc95fc5f7028762e2865",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/limits.h",
+      "scope": "archive",
+      "sha256": "1405711d6d66cfdda17dc82dfa1a0f9c9299cb77a1af4e22f8f7ec3d0b8f1bf4",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/machparam.h",
+      "scope": "archive",
+      "sha256": "885fa8c08892f65435d8199721e280bb41751290206b5e111c137bb577812034",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/pic32mx.h",
+      "scope": "archive",
+      "sha256": "b6891004baf1088123e281e8f0b7ab37e1561d98604fd5af01757f2d83d3765b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/setjmp.h",
+      "scope": "archive",
+      "sha256": "da9defb50a6b8705e18d2624d1de3291fc7bcbad7d95af5212b2fa7ffec560dd",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/signal.h",
+      "scope": "archive",
+      "sha256": "793b7b1701cd4c3a4513576a09bb97d3adae19c4b5e0454b4465ed8e624c9343",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/include/types.h",
+      "scope": "archive",
+      "sha256": "6723f72d3578f1b47f0de8eb890335eeb229c0e97f4b12e03c339fba6a4bdb90",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/pic32/clock.c",
+      "scope": "archive",
+      "sha256": "280dc44657504405ca855af38f2bb216db70ced100684e62a141e72e5b853b04",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/pic32/conf.c",
+      "scope": "archive",
+      "sha256": "333ccd267e3015236b890f0827068dc978d3dd503f4044bc5eb0892134dd846d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/pic32/exception.c",
+      "scope": "archive",
+      "sha256": "2889bb5432f482ba469b7b19ab3cd0528913125d2e04048868c9838f5918a7d2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/pic32/machdep.c",
+      "scope": "archive",
+      "sha256": "f453e4fdab8a3b63bf56a92834ade7571bb1d4086569d7dccd6affbbc628483b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/pic32/sig_machdep.c",
+      "scope": "archive",
+      "sha256": "4a98ddc7f9a5655f910681b58fff56cbf4f3206d4c41c815227cf8bb09dc434f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/arch/pic32/pic32/sysctl.c",
+      "scope": "archive",
+      "sha256": "ca4c96c78d8a5de7f4ff7619e643f18ebfcd4c2c67dd78529fc8c49c9cb13111",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/sys/glcd.h",
+      "scope": "archive",
+      "sha256": "12fb9ea963fc9a08c378f06382276cacb3956bd22159d5d20de0f7e914277552",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/sys/gpanel.h",
+      "scope": "archive",
+      "sha256": "12b09263ba033991551def0ea5d150798c5c32d5ea0a1b26063f0de54f17750c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/sys/gpio.h",
+      "scope": "archive",
+      "sha256": "94ab860a52514bb393012f1a22951e3b75bb2fe33ff726283b9d3d1f0516343f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/sys/sys/pwm.h",
+      "scope": "archive",
+      "sha256": "bc0e7aee615d9a289dff414ad745f64a1e6775aa0e4354c53ffa84e48a79a97e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/aoututils/aout/aout.c",
+      "scope": "archive",
+      "sha256": "9faab5a4b33215958f458c780fe14dc90177cf1f0621dddcbf75a87bb4dbef3f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/aoututils/aout/mips-dis.c",
+      "scope": "archive",
+      "sha256": "9281df7515b615eb7a8d7aa1ea2ef0a0ecd62eb11a2c177ff9c44e86689b3b5a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/aoututils/aout/mips-opc.c",
+      "scope": "archive",
+      "sha256": "6de92711623ea20a31b3805c94cf3a1df369a0a1778b274a057ec764dad675ac",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/aoututils/aout/mips-opcode.h",
+      "scope": "archive",
+      "sha256": "7f7c7e37707c9bbb4103eff52a30ce4424bab6cc528afd653a4c701098a9b4a8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/aoututils/aout/mips16-opc.c",
+      "scope": "archive",
+      "sha256": "6c6eccc462800648d695cd9b58076d3d28ffa643cb0ceece3b8733d182b7c1fb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/aoututils/as/as.c",
+      "scope": "archive",
+      "sha256": "cd80e9a23645c5cb4bcfa3ed7680321d82c7574e91ec8290c2aec327223efdfe",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/icache/ice2aout.c",
+      "scope": "archive",
+      "sha256": "48c8b1c4469864c69f296afd4aeace07265e15d84bfe8a70f9e1900c58bd6edf",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/mkrd/mkrd.c",
+      "scope": "archive",
+      "sha256": "0cfa49cc01b6cf51cb048f787ff5da978fecf56c21072a84aaffc53f36e9b4b6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/mkrd/rdisk.h",
+      "scope": "archive",
+      "sha256": "d4707e81d87f1f4013d37a97ad466f516eadf9a4c403a1c1b5756038d977800d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120.c",
+      "scope": "archive",
+      "sha256": "4730861aad72a5b4ac2a5c9dfdfe15ee644d0ef4be5e8ec2d670230fdce668df",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120.h",
+      "scope": "archive",
+      "sha256": "0a9623bd6518e5f82107b4ae805f9dbc64c0d8e5fae748800bb229b0864ef681",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120_dev_intctrl.c",
+      "scope": "archive",
+      "sha256": "8a206886b2befb9c43cbc078e6e41a48ae78ae12ebbf7c697265986582b1158d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120_dev_mpmc.c",
+      "scope": "archive",
+      "sha256": "a4202d589a626258871f14cfdc6abe401b5cfdff94bb58135082ab7d643b74ee",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120_dev_pci.c",
+      "scope": "archive",
+      "sha256": "079bad70b4abeddab4be2afc355bc7de67e086c41346937a8eb999669d58eb58",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120_dev_sw.c",
+      "scope": "archive",
+      "sha256": "f2672f7bb54f5781ae1c4d53469c2e1b343f382fa0d501714f3cb52398fa6d76",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120_dev_uart.c",
+      "scope": "archive",
+      "sha256": "316ce0d32076fd76e664897fd176768398d5e4484acb3bffea7c1423d0d02494",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/adm5120/adm5120_host_alarm.c",
+      "scope": "archive",
+      "sha256": "dc4810383a09c0e15269bfae96b73fd4a261dc1d861dfab79233ff7abc3ed520",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/bsd_syscalls.h",
+      "scope": "archive",
+      "sha256": "970bd1744dabf69100434e5c65030a61038fa8c2f95dd4e6c7272c0f46a8ec02",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/config.c",
+      "scope": "archive",
+      "sha256": "e1fe41ecafc1f452afe6252570bc965c008afe9df5a15f22b78e8584e037a834",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/config.h",
+      "scope": "archive",
+      "sha256": "4915b161443256bfc89a6cef79a85d42e0ffbc7e7909a85bac2bb1c747cf48fa",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/cpu.c",
+      "scope": "archive",
+      "sha256": "552e6dcf014f5fda11f08dbcb7a99b0d2dac1026ff818fa7e8a2ea61a69693b6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/cpu.h",
+      "scope": "archive",
+      "sha256": "7e53a0bf8ee940b764ab4e1b2f1a80a052048e1149dd40f91b4d9984296a2e48",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/crc.c",
+      "scope": "archive",
+      "sha256": "fefddbf8139edf373e162e6f0fce5b68d65081c32ab3f807fd861a7927fcc4c5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/crc.h",
+      "scope": "archive",
+      "sha256": "49a500abfa1cee0cd61061949af82c3d1a00156260839a338fff307b5924c3ed",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/debug.c",
+      "scope": "archive",
+      "sha256": "4f0005115c75375269608f65a0ce32ce889949cf37d2bb95924d955ffac9d2fc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/debug.h",
+      "scope": "archive",
+      "sha256": "16bdd16e27babf0d920e4dcd5743de0f6220cb8e92d4dd0e9c4c33041bf26fcd",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_cs8900.c",
+      "scope": "archive",
+      "sha256": "6436b07a029f37fb447b0dcdabd76f8e5a4d518366bd6c9e44106a2d5df29431",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_cs8900.h",
+      "scope": "archive",
+      "sha256": "3a2212a7e8493b0a17354578ddb3b2dd1998ed76c3f417f1766868eb4c0ac738",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_nand_flash_1g.c",
+      "scope": "archive",
+      "sha256": "427f59d20028c4487a2ac09be2ce050ace24aef997363f244364a577369cc2df",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_nand_flash_1g.h",
+      "scope": "archive",
+      "sha256": "f5991144ea85f497115029713bda9a5603edaec5fd9baab677cd8b03ff4c7362",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_nor_flash_4m.c",
+      "scope": "archive",
+      "sha256": "256ccf731638fa95f395c744fc45d9f599934014f857fc83ecbabf0577b534a3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_ram.c",
+      "scope": "archive",
+      "sha256": "f480b988183888475f03de51e3f88e94277d714bd52a3dc91175b9c1a17298a3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_sdcard.c",
+      "scope": "archive",
+      "sha256": "c13e69258556977d42f26d1440077b810fdaf0f58c0ba3297283a51c4f5111f9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_sdcard.h",
+      "scope": "archive",
+      "sha256": "0da92f22dd72a59d88446120ce6ad3f55855ea31f8537cc7de92e7e7f3cf0c93",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_swap.c",
+      "scope": "archive",
+      "sha256": "cea2b5bf8f7b12972c27bbab5a09ee9e7ddb1fff2cef2cb370a8d575f4867636",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_swap.h",
+      "scope": "archive",
+      "sha256": "58ace4a4587a6cac8840d30e785225986a11c95a88a3016d5ede611a00b38a44",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_vtty.c",
+      "scope": "archive",
+      "sha256": "322b7578db472015b12702ac1529530c36f1a996d2692e929eb159091ddb20fb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/dev_vtty.h",
+      "scope": "archive",
+      "sha256": "fd3a2d66d23d4f8489eedb0e3ad3eac91b667f564a4bbaf8eaef6034b7e37356",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/device.c",
+      "scope": "archive",
+      "sha256": "9e535107b81efa3f327c60e4bc87d8ced5f8c6ba33bafd5c98e1eaaf5df5a7e9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/device.h",
+      "scope": "archive",
+      "sha256": "9977e6cb114851d661f48cb993eb5621d6852b77225abb1cad4e05cf5027aa5e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/gdb_interface.c",
+      "scope": "archive",
+      "sha256": "56ebbb095f6d335bc6408d48652b649d336fd0089b628589043939455e9ea394",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/gdb_interface.h",
+      "scope": "archive",
+      "sha256": "13b14a550ce663433ca330418e088399f171cd8f366907584b6c8a3ffcf12f5a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740.c",
+      "scope": "archive",
+      "sha256": "e541e5490ffb12b3014486d858a7e0bbc1336ac6a721b0c305ef9eeeae0b8c46",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740.h",
+      "scope": "archive",
+      "sha256": "f9f1b39305e761754a57498ab49a863051ca533e0b6d4564145442fcbfa1ea65",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_cpm.c",
+      "scope": "archive",
+      "sha256": "8fb0b5f69f6e57d7a48e2fe31a004c9ea23e9edbd9840cfe67c7376868fba112",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_dma.c",
+      "scope": "archive",
+      "sha256": "b7039286c1878083e6f124dd00f1b3eebca49aa4452156aaa2642eb3a9896a7d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_emc.c",
+      "scope": "archive",
+      "sha256": "04391fdc14a319922958f75f09936a61653bbb7bee59ddceaeea4d4f053e6222",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_gpio.c",
+      "scope": "archive",
+      "sha256": "8aa175a98c32380f62a96d47e06d581751675be6c67736906c5573edce8459e9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_int.c",
+      "scope": "archive",
+      "sha256": "181419f5542f07b6d57511686c2e5df657d81fcb11bff11bdab92b15613abdcb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_lcd.c",
+      "scope": "archive",
+      "sha256": "0350d43738843995f457f684275e98fef09ad43cc33c77129611ceb0ebc7fca6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_rtc.c",
+      "scope": "archive",
+      "sha256": "bad67f41197ce8c60d8f0efdadc982c51b1ca79d3418c7f383857f84212f0e78",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_ts.c",
+      "scope": "archive",
+      "sha256": "3e66aa25ddc94a619b56928110dd27d00fc069ae73e7d05ff80afe5e0a02d7ad",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_uart.c",
+      "scope": "archive",
+      "sha256": "a7082bf487157c77d183610effb1f48f30c2105a3be06b0018b71ee3232c809a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/jz4740/jz4740_dev_wdt_tcu.c",
+      "scope": "archive",
+      "sha256": "b3eb99004b6d1fbf1cb2be7cdfc80e10fbd4d29152ab84c476e27f713ec8cf68",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/m4k.c",
+      "scope": "archive",
+      "sha256": "179cb41712ac15fca5a516e0120f4edde714b6eb338f9b7daf5f14a533a56f85",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/m4k.h",
+      "scope": "archive",
+      "sha256": "d3155734ff766c17716bb974de45bab9a2de05d4b07c32d2f4e516c70c834081",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/main.c",
+      "scope": "archive",
+      "sha256": "d8b526c977fa52a5edd613f72c24ee313f9a9621433226e24bf11a935f691514",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mempool.c",
+      "scope": "archive",
+      "sha256": "c3c7e29aa0cc330c783f19bb4b4a95b065fcceae8605f51a0b8ba171a0b896a9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mempool.h",
+      "scope": "archive",
+      "sha256": "cf7aa4b5343d296ba4f6faa97b0e5559b8397a594450de9480a22c17b438ae5f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips-dis.c",
+      "scope": "archive",
+      "sha256": "74675184908bd25a0fc8ac4f0e4f80c9be67874b5c5e545fb78517fabf919c8e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips-opc.c",
+      "scope": "archive",
+      "sha256": "1162a8f7864996cd90c2edb25f58f0c64ed0c9fc44848a22fcabd3cc41f6df50",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips-opcode.h",
+      "scope": "archive",
+      "sha256": "c47b35223ee986f6b93f751e609bbdc00dd800e91f4123319b16fc96cfea8843",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips.c",
+      "scope": "archive",
+      "sha256": "75a052bda1cd480ed6a4391e1ad4781b4de93e471b8226e5f658da82c67a5eab",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips.h",
+      "scope": "archive",
+      "sha256": "c64337dcc010c1d6485b2a070ec8b4df810ecacb68d850b79a69821424b09b36",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips16-opc.c",
+      "scope": "archive",
+      "sha256": "a3dde404cfd80628e022c339fcfe55ee796f5826f1fcea4fd86a2335ca01fb1a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_codetable.c",
+      "scope": "archive",
+      "sha256": "3aace3093ea2069191352bb132afc752f73ff6e50c128ac9c4748d459dd36339",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_cp0.c",
+      "scope": "archive",
+      "sha256": "2d0dbf94bf330ade35a38a1c471d71367b065833ea36004c06d22198f4cb6646",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_cp0.h",
+      "scope": "archive",
+      "sha256": "aeb48edcebd80f8a223df63ba2b067eb50e5e81b567a0c7890b61b0be073c264",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_exec.c",
+      "scope": "archive",
+      "sha256": "4961c2d3e3f6e484525cbf46b6bc7f8d3da83385632ca134b94100319947a24f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_exec.h",
+      "scope": "archive",
+      "sha256": "9c891122046b8ae92e7941748100216feeb08134384d1166054d62d939a96801",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_fdd.c",
+      "scope": "archive",
+      "sha256": "cc4c63abbbf9f5958c81d45450ea1d07457431fe1738818d754d81f4229d0289",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_fdd.h",
+      "scope": "archive",
+      "sha256": "34260bf51351da8160e2a32f6ac9c19d5eb55f59e35284f0c53a2d1ec1af5d90",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_hostalarm.c",
+      "scope": "archive",
+      "sha256": "0082d842a3955018c83835c7bc096cf2027dd65f5fc8d9281ecdcf027173e6a3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_hostalarm.h",
+      "scope": "archive",
+      "sha256": "d3907739824abc92d08a73be39fcae38dfeaf4589f02e223520e99269a2314fa",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_jit.c",
+      "scope": "archive",
+      "sha256": "ffb9465b9def24a72823e02bb6a3f79ed7c10f17723d4ed6ae2366d5d8a7fd89",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_jit.h",
+      "scope": "archive",
+      "sha256": "8a1f67aca6135cba5e9c1dfeb408f7c5dd0acd9a32c5cf75c9ad15502630c8fb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_memory.c",
+      "scope": "archive",
+      "sha256": "dc7e2c19a9acc630ae4ac7575f686497166b9fcc32936b97636c915bf39a96fb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/mips_memory.h",
+      "scope": "archive",
+      "sha256": "278edddbe8c51d7eaf4556f28d8ff4d7559a1dd107ed6e26cf8b239e8c6af349",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/net.h",
+      "scope": "archive",
+      "sha256": "17bba1c95a017c6f0bbc59c0aa1f6fc6f478d8e24c04207d96714e68219fb12f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/net_io.c",
+      "scope": "archive",
+      "sha256": "f52dce449c1f1b976c6e467dab78bb51466b42a2dbfe74be50521d2b4aae3561",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/net_io.h",
+      "scope": "archive",
+      "sha256": "c3fe42b8f7e044e97821880751e1d58fc22d288e4b65d9b8bfbeedfe1552602d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pavo.c",
+      "scope": "archive",
+      "sha256": "df092d68ea4bfcb304b9405056f54a97316b14b52cf297dcf0ce60021e1df1cf",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pavo.h",
+      "scope": "archive",
+      "sha256": "755c6f3f5e7cbbbb0d7c2e8b18cdbcd41cfcf84341cf8e09f8859f3659c630b5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32.c",
+      "scope": "archive",
+      "sha256": "12fe415f87e3d27706e6dc2d08296c60201b9194705b1f871422065ba99ffa35",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32.h",
+      "scope": "archive",
+      "sha256": "8364bbe80ccd6a81dda9e028d5cffc35f959ef238345adf2661f86fddaf15aac",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_adc.c",
+      "scope": "archive",
+      "sha256": "dea8dffcde544a51e97909eb812eead2f4269b32f77396023d8bd1cbefbd5502",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_bmxcon.c",
+      "scope": "archive",
+      "sha256": "2caf6f28f4ab3dd0cdc5ccfeb849eb2d129287ba142626adf42f30e9c41f9f47",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_devcfg.c",
+      "scope": "archive",
+      "sha256": "28da4dcbc52273461159b1e96eaa01e06d445778b50b27fa67eeb643991bfc57",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_dmacon.c",
+      "scope": "archive",
+      "sha256": "30c25964f8fd11633ddc9d49c8181f55ad6c8e43ab7fa521ba0b37ae6227b18d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_flash.c",
+      "scope": "archive",
+      "sha256": "4655dbe7de3484719acca74d4d22339c237c068aa5f561790391c4c881dadaba",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_gpio.c",
+      "scope": "archive",
+      "sha256": "e26a2fec60b5bf17687bbca2eb4796f8b02231adfc7487ef7c86c642853038eb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_intcon.c",
+      "scope": "archive",
+      "sha256": "d21b8a5dc991bc10f5cc9972739b4cae35ff506f3fe0445be10375b86484029d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_prefetch.c",
+      "scope": "archive",
+      "sha256": "bed6271bb59ca3c1935ff52d75daa8a7a7d0f6f72edf9542676a46183e8c2bf9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_rtcc.c",
+      "scope": "archive",
+      "sha256": "0638aed30218c1c7a2b85a95c96b182d1ccdc861a82072767da07b556379231d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_spi.c",
+      "scope": "archive",
+      "sha256": "9c0483ddb1eb7ef796881e37a0361f096bb34b4818afbef05a36a41720f6a5d5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_syscon.c",
+      "scope": "archive",
+      "sha256": "fb97faee226c41d5f98848a7262410006f7184591165382c2d97ceae241e49bc",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_timer.c",
+      "scope": "archive",
+      "sha256": "66bc000d5e60e2e5f83051e4eb2de2846af7e9d38072e6cda906c07bef3f6260",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32_dev_uart.c",
+      "scope": "archive",
+      "sha256": "0d37ace8ce36caa21c2059f8d3cc536a9d86861b7d117e6a2a688fb1429a23c5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/pic32mx.h",
+      "scope": "archive",
+      "sha256": "9975b33bf5d29abc20fa9de53be4e99a42a4d4b24011d05946f940c8a4717334",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/sbox.c",
+      "scope": "archive",
+      "sha256": "1d2ce91f0a688987fbc0216bd2f0791083f2c10c4059feccf8c1397862006dec",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/sbox.h",
+      "scope": "archive",
+      "sha256": "8315994cc4fe54375d082b26f27b07231555d0769fbc516d95108211642d865f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/system.h",
+      "scope": "archive",
+      "sha256": "e7f16e6219a7b89331def05e11bf6789e5c532652242d37dfa59434aff125298",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/types.h",
+      "scope": "archive",
+      "sha256": "9414b25209fe13a6b770fa0ee13b7b6b103d017dfc325a56b0e20f25d5170d34",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/utils.c",
+      "scope": "archive",
+      "sha256": "a362d517abb679b6611055656c92a462fb7f419953975b73045d1f9edb16647c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/utils.h",
+      "scope": "archive",
+      "sha256": "14641b65c37982c7559f3ccf3094fcc776610750323a54b18281c90fabd0f93c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vm.c",
+      "scope": "archive",
+      "sha256": "34f1fd22328bceacaf0fba672a1df234882a5b183c538078c59b36034e1ddd8d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vm.h",
+      "scope": "archive",
+      "sha256": "72f26d619a547f7d1708cea7023615cefa2bf8945e045100b195c289599dd8ef",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_clock.c",
+      "scope": "archive",
+      "sha256": "784009a1b5327090ed4a7ee00d5c4a8e73b0629020ec9480dcc9deb4e9219f6e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_clock.h",
+      "scope": "archive",
+      "sha256": "a05fc494f728b8e6fecd658982aa69feb2e575d9c7930921f12c316376fc8db7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_lock.h",
+      "scope": "archive",
+      "sha256": "7c86a41c764264224661121807ba74f4a72ad031c096d2835a5bab138a04cec9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_sdl.c",
+      "scope": "archive",
+      "sha256": "bc536dff41f1652603ac8ebc7c060147a94dad3c31017df97f02643a64949cf1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_sdl.h",
+      "scope": "archive",
+      "sha256": "9c21aba82fb964cf3f87b2718a5a2d819d3ddfee9572ed953f26f16496863c76",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_timer.c",
+      "scope": "archive",
+      "sha256": "8c1ffe1c4d397a0571afcf8ef9ad9a82b3fcbc7c8bf09217e037182eeacc46db",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/vp_timer.h",
+      "scope": "archive",
+      "sha256": "f931adca2090133cb1e3544b49f5c1eb660b75b5cd99e57d6f23fd0086c3e3ae",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/x86-codegen.h",
+      "scope": "archive",
+      "sha256": "ebe8bdc8b058f6418eae1aa542ece9519b20243b55ca0911b1432f5c4558b7f3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/x86_trans.c",
+      "scope": "archive",
+      "sha256": "57ad4b2b427c6b2f6852f2ea0b6bd8aa91e09bc2ca737a7387a63f59934112a0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/tools/virtualmips/x86_trans.h",
+      "scope": "archive",
+      "sha256": "b3dcee35a7892717aeba8ab08f8ef31ef8cc7af35c364431da6a1e834e98284d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/access.c",
+      "scope": "archive",
+      "sha256": "a4ed5416d3b33505abab5ae25cc2fa6f12c410f809ded9c288d5df8860a07bfb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/command.c",
+      "scope": "archive",
+      "sha256": "6a0e8aa8e958b38d1f6bbdbf5fe15837d8be9309f3d213fbacfba31382937053",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/defs.h",
+      "scope": "archive",
+      "sha256": "7bbf1c41de5fa62242f5cfe3d6b1eee48b51826a7163c9b55f406e1882772baf",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/expr.c",
+      "scope": "archive",
+      "sha256": "cdd6e202128678ceef8b714d9588afe5fe5fede0c992f393d79d2ca89395ce74",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/findfn.c",
+      "scope": "archive",
+      "sha256": "3370b4478ba28b1be56cf610592e5d9122fb9139eed0f5f0e5504ef9ce389634",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/format.c",
+      "scope": "archive",
+      "sha256": "bc4ad1e634cc244c889bbc5be5d9684222c074b8e5e78102060198d804e6a8c2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/input.c",
+      "scope": "archive",
+      "sha256": "2d5a7aee8e7ff112a3d01ebd4cc0481d21cada6b56d8cf5de0ea4d4dd10f69f6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/main.c",
+      "scope": "archive",
+      "sha256": "bbe94c2dfc0a2729c8daa5af1fe7d6a48e0480b2b355320d4e5100ef5d72f1c7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/message.c",
+      "scope": "archive",
+      "sha256": "35a4cea0a5ab1cd245a68dd6885aa76a1ee9bc46c8868e6cc99fd614b7286aff",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/opset.c",
+      "scope": "archive",
+      "sha256": "4a0e4741fff64d11251f88f98a4cbb75ae1ab4bc7fc703d4eb579a45b3bf1e13",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/output.c",
+      "scope": "archive",
+      "sha256": "d069211525d2cf65f410d95c30aacf3c9262f2a96ea59d4bfc88dcc54296bd11",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/pcs.c",
+      "scope": "archive",
+      "sha256": "ef3fd18679dd656b55d7796395e19440100044a2939dcb6df416999781fa1311",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/print.c",
+      "scope": "archive",
+      "sha256": "2888922b387a3c312adce971ecc0ef5cff279b8938b9b24fedd91b003d45c473",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/runpcs.c",
+      "scope": "archive",
+      "sha256": "dc17037ba6153e8dce368197a7c7bf0c9f6a9dff823842c9934098f1210ec662",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/setup.c",
+      "scope": "archive",
+      "sha256": "79b4f06a8dd19cc707cebf02eaf2929eaaf2413a280373b0a7da89ca687eea3d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/adb/sym.c",
+      "scope": "archive",
+      "sha256": "8d938cf1f6d546bd65e41aa3695ae6570234ae5cf86045b82405132c96b20713",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/aout/aout.c",
+      "scope": "archive",
+      "sha256": "9faab5a4b33215958f458c780fe14dc90177cf1f0621dddcbf75a87bb4dbef3f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/aout/mips-dis.c",
+      "scope": "archive",
+      "sha256": "9281df7515b615eb7a8d7aa1ea2ef0a0ecd62eb11a2c177ff9c44e86689b3b5a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/aout/mips-opc.c",
+      "scope": "archive",
+      "sha256": "6de92711623ea20a31b3805c94cf3a1df369a0a1778b274a057ec764dad675ac",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/aout/mips-opcode.h",
+      "scope": "archive",
+      "sha256": "7f7c7e37707c9bbb4103eff52a30ce4424bab6cc528afd653a4c701098a9b4a8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/aout/mips16-opc.c",
+      "scope": "archive",
+      "sha256": "6c6eccc462800648d695cd9b58076d3d28ffa643cb0ceece3b8733d182b7c1fb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/as/as.c",
+      "scope": "archive",
+      "sha256": "f867320eb594d286d79becdfdfbed1164fb3d484a5180932e1fbeb22393795e5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/as/tests/hello.c",
+      "scope": "archive",
+      "sha256": "2e6c7f4ecd42152b314111a19c1833c96aa4ba5ddcefd61dfebc4dc0790879b4",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cc/cc.c",
+      "scope": "archive",
+      "sha256": "21c6dd6096a8c576133ef416b5b394fbb5312974056a601b37e3fb78634338b5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-arm/code.c",
+      "scope": "archive",
+      "sha256": "717f2fed6425e958a432797e398e27e88305e12dbaa014da27156fde2c9e637b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-arm/local.c",
+      "scope": "archive",
+      "sha256": "941c7702edb91f57d2ce8abcc93a055cad1d30682d7d3d3b7730367c04fe9411",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-arm/local2.c",
+      "scope": "archive",
+      "sha256": "cd000ffbb2340e17b5d937653f0f188f5698474824f9a638f8a10b01ed62db29",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-arm/macdefs.h",
+      "scope": "archive",
+      "sha256": "dd1fd9ea43d552246a89da76624c1c80bfc9091bdd41d5727d2477dd621b7c51",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-arm/order.c",
+      "scope": "archive",
+      "sha256": "d4ce1d2346ba250fe2accfe3be4cf68a0d6a045aa03e766388b3e4a6f1cf48d2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-arm/table.c",
+      "scope": "archive",
+      "sha256": "e8dfa7ac1e219efdcfc59ee0e5b06efbc3a1c9d4780e1b59ffba56c8b798d60f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-mips/code.c",
+      "scope": "archive",
+      "sha256": "cfc573a8bf526474f94a22b89899c644dc26a3e4d540334015d90ff39163de0c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-mips/local.c",
+      "scope": "archive",
+      "sha256": "dd11928afaabf858d5d9e8fd97cb24cbb24cc8ba47496c2222c5e57c291fa36f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-mips/local2.c",
+      "scope": "archive",
+      "sha256": "f9fe45e4bc9f79b46529dd2f9bbece113e664bf8b08d86aa3cb05a2c3444fc8e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-mips/macdefs.h",
+      "scope": "archive",
+      "sha256": "725a0320748eb8dae53257c47d7090440b5ffedc122d572387b0ca3141d04f2c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-mips/order.c",
+      "scope": "archive",
+      "sha256": "2f3e7d521489a586bde7ebc9c48ee7127939ff7ad8a8caf220b27c5bf2505ac5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/arch-mips/table.c",
+      "scope": "archive",
+      "sha256": "1950837116073e836b33dacbba33301e8ba861fbe41e06764c2c623317bf1847",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/builtins.c",
+      "scope": "archive",
+      "sha256": "545c8dc30f5e4ac3788f45400af1d40e93715dac569f6095ea3c653105dc739b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/config.h",
+      "scope": "archive",
+      "sha256": "05780d3e0d68e23357899e191dedd515e95ab53b06acbd3af08729d770dcde38",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/external.c",
+      "scope": "archive",
+      "sha256": "5388eab146afb2d0dbe36544d26b195cddfddcaa791237449a8c4faf47e31912",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/external.h",
+      "scope": "archive",
+      "sha256": "2ddf6ced27a6dfbedb827a33200acb0decab130cafbb22c763079cdbdcf2c881",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/gcc_compat.c",
+      "scope": "archive",
+      "sha256": "99cd891496a54f4c9582647665d90a12c73800e1a584946b727ad56cfba0cd4b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/init.c",
+      "scope": "archive",
+      "sha256": "9486556101b881901538e677e12ac0b415c3c0e217e3ebfbcc460403d4554824",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/inline.c",
+      "scope": "archive",
+      "sha256": "67adccaa4cccec1ccc81bfe9da90562e99519083c58bb06aae9759ba4fc6cd20",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/main.c",
+      "scope": "archive",
+      "sha256": "66b04f9446bbf6d3cc709eada894cd5a0efa6100ef179eb08548f10bd981b36b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/common.c",
+      "scope": "archive",
+      "sha256": "38d2f1db0b3bac075a0d04427b3c481446ac7dc627cb881e74d27f5bcd69376f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/compat.c",
+      "scope": "archive",
+      "sha256": "e39657d7a761645e02753645ea2d8f71b21d566cc4644a68768de6a2cda1cd93",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/compat.h",
+      "scope": "archive",
+      "sha256": "bb8befc5b19283dad313842218419118fd685e768a032b61dea8e1688a856f73",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/manifest.h",
+      "scope": "archive",
+      "sha256": "9f3e9d68c1d0207c22f53910f9dfa81bc6d46dc619996684c123485881ce359f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/match.c",
+      "scope": "archive",
+      "sha256": "b03d35afe1cbcac38b4ab0b749679199c5a88b7b8074939ea7fafc141f23f5a1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/mkext.c",
+      "scope": "archive",
+      "sha256": "5b3920af4a251ad838572237845ce1063f70ca45db86cd32129574a8978213a7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/node.h",
+      "scope": "archive",
+      "sha256": "0161b27c82e489d05410bb5f1b105599bef9c0eaf4681d78d852f383e0e76812",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/optim2.c",
+      "scope": "archive",
+      "sha256": "26cc4c92160336e490d81618eed9a386a7a135ab4b6999f2ce4bc4a6c21da150",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/pass2.h",
+      "scope": "archive",
+      "sha256": "cbd0e9a3e92471d175d9aafd27d5540826f937e7af7455f211857c50aecdbd21",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/reader.c",
+      "scope": "archive",
+      "sha256": "a983c0ceb0899d7cc57ef1ba207e36a6e0bf8cc76f65a73283499b46f382531c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/mip/regs.c",
+      "scope": "archive",
+      "sha256": "64ec9e99ebd3b9be4e1cc1c37b8ec9dbd95800a6516d7535286fa54f7b094fea",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/optim.c",
+      "scope": "archive",
+      "sha256": "3e3f413d2104d3433d947193eb02e80987e22b1313449b2217544afc804a6024",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/pass1.h",
+      "scope": "archive",
+      "sha256": "ec36adb121f8523a898ffdf5397f7e16fa2babd298a3bc783f18393b63b12a5d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/pftn.c",
+      "scope": "archive",
+      "sha256": "f7e9e0c0848bd6406cb70ebe35a9b27ecfe069b8c7cb51365317b3b0dde2ad1c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/softfloat.c",
+      "scope": "archive",
+      "sha256": "bf3feeb0cfe9f951142d55e8a158327ff14ae0ee9dc7b3741b65efc6a6db1ef6",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/stabs.c",
+      "scope": "archive",
+      "sha256": "e1a54f9ad48d4ee8512874cf3edabe70fb0d8944e6f4e0ab1e9c4d26027fa8a1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/symtabs.c",
+      "scope": "archive",
+      "sha256": "453cfbca734e75ba06dc2f3d35fbb016f27fb36b49e2b8101e22cfe486a7bcdb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/ccom/trees.c",
+      "scope": "archive",
+      "sha256": "bbcc605cf9773ceb2de902165029faeb42910a290d669cc417b042ec208e99b3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/compat.c",
+      "scope": "archive",
+      "sha256": "fdf94d7a882ec465f012680dc50859a1c22f5a7003420c67393fb501c59a54e0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/compat.h",
+      "scope": "archive",
+      "sha256": "d44f3b9372d0f2920e284a65745882b151289ad38e7a6722d764ceaeb0ffc465",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/config.h",
+      "scope": "archive",
+      "sha256": "787aa4a03706275e4068e33b845abe0ec92257142b77ad1778b3dfca7f73ea3b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/cpp.c",
+      "scope": "archive",
+      "sha256": "5a51f9a96ef18d2b08456324667ad39b4a2a2f64a4eae5fe307c21b8a6061835",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/cpp.h",
+      "scope": "archive",
+      "sha256": "4e0cc656b4fe77aded144a4680531c7e7733736cee5ae21739f71e3db7c7ae2d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/doprnt.c",
+      "scope": "archive",
+      "sha256": "4ac38d575f76f12f13a62b57412219edd7818d8c71cacab6dedfe7ae08967fc7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/cpp/token.c",
+      "scope": "archive",
+      "sha256": "98c352bc8839fb12b06ce73bb9295be2d633f759ebf81d667aa088a105f89204",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/glcdtest/glcdtest.c",
+      "scope": "archive",
+      "sha256": "0ecd5338da9da64da432ab68e7a116c587280cb142b6294b4752f7d15ac75394",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/bprint.c",
+      "scope": "archive",
+      "sha256": "0c7b3143f00c7bed7ea9298e9b4389ae142dc65ccdc7c18ee6556b750854a789",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/gcc-solaris.c",
+      "scope": "archive",
+      "sha256": "c2058713a32511d25166533b9ced581a1ef9ab35237e03111adb24a460685758",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/irix.c",
+      "scope": "archive",
+      "sha256": "dee452c24c65727a409c09eb9697b5515472a3d5ee155848f8b67f1088dba2e7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/lcc.c",
+      "scope": "archive",
+      "sha256": "d32b5f56bca1fbb095f18669e61e561606d023211892a72ccb8537f016993576",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/linux.c",
+      "scope": "archive",
+      "sha256": "a0e7de4430597c375d250fedca6b9f3418427a0de93efef4f88aff3889aee659",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/ops.c",
+      "scope": "archive",
+      "sha256": "ccdbf617e26be8d8e6eb56d3c500b8b0ea8630dc30791f5f50e2f0a99c8106b7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/osf.c",
+      "scope": "archive",
+      "sha256": "1af06966479244a7dc2b78138ae3af64f31959cf12a27039fd2fe7f9a8225c42",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/retrobsd.c",
+      "scope": "archive",
+      "sha256": "f6a924cfb73d797dc0eba793a04c2c52de2a0768e03e10ee315be3ada8c78b2d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/solaris.c",
+      "scope": "archive",
+      "sha256": "fb783f7748959d22798c08b8329c3c5936ed4298ce39e177322aa0f4d48eb1c7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcc/win32.c",
+      "scope": "archive",
+      "sha256": "4a2b33d0473d3b0bde0705d8f3e7f4ece48181f607548208d691b30a74209c13",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/alloc.c",
+      "scope": "archive",
+      "sha256": "74ff57c3bbecf0a4151a8bc7c4937e98ceca0d07f0d95cd42cd2ec4514512d71",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/bind.c",
+      "scope": "archive",
+      "sha256": "b4d88c96f83e997d4e20b0a96f034ba9b0349832b11d57be52524b247dfe750a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/bytecode.c",
+      "scope": "archive",
+      "sha256": "0896ccd6cfa20f3384d5cc9c24ea0b8ad45e678a3385538666586e6d829402b9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/c.h",
+      "scope": "archive",
+      "sha256": "362b6dbb7c05f95f0c83e7f0fd6dcf5374edb616ea58f5cad6a6925f55ab7b49",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/config.h",
+      "scope": "archive",
+      "sha256": "e93e1ecb774913efa5fbf85cd788650e97fed0ad81bc776d1a51941129129185",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/dag.c",
+      "scope": "archive",
+      "sha256": "0c8833bd5491df51d95b4dc071d1b7236ca5ce55ab9b908d58de36910fb58f07",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/decl.c",
+      "scope": "archive",
+      "sha256": "0846b6262c6b55efdde46d9b0887e67e26a12fc4c0d0f526214f88e012cd30b9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/enode.c",
+      "scope": "archive",
+      "sha256": "965392a8f910d74b2bafa0617421dd972d06fd0a7696ec98ca18f561f682c4e3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/error.c",
+      "scope": "archive",
+      "sha256": "72f5b25dfb764e2a0959ce9341fa4fa093f2dd5251dbd8b55436e3b6dbeb1e09",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/event.c",
+      "scope": "archive",
+      "sha256": "e225ded77a860b7bc5eacc03c3bd6191dffe260eebc82e1b6eeb140015c165e1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/expr.c",
+      "scope": "archive",
+      "sha256": "dbfcd93755061e05a7b7d8a975557fdcbb47a89849d0a06e6d13f8b8f7e1db4b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/gen.c",
+      "scope": "archive",
+      "sha256": "aabdf91a88df7448305a1cd6242db510b6838cb4d71ab8c17b678ae932bf63ac",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/init.c",
+      "scope": "archive",
+      "sha256": "6e563b8d53d75c078128129084a68905f5af49b59ea5a304e2181f026df9b2db",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/inits.c",
+      "scope": "archive",
+      "sha256": "1a9fbfc3a9b995e099dfd47c7e0b4a5b3d4aab2c0ce367744be65620a1bc0a90",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/input.c",
+      "scope": "archive",
+      "sha256": "f7b7d2255ffdc26aea97f4c2e12d3d15684a0d71ce2efe7778e0441412469f32",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/lburg/lburg.c",
+      "scope": "archive",
+      "sha256": "688286838c9b412333ee42b0af4ff4a689b5a682d3dac1b4c7bb12ce11d74c50",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/lburg/lburg.h",
+      "scope": "archive",
+      "sha256": "e588dd7c5ce569ac00df5e71236775d125bdb2f56bf6dcdb14c4ac537452f004",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/lex.c",
+      "scope": "archive",
+      "sha256": "eb77b240d6fbd3e1daa69a208b07e28967b8cf38528a2948f5c708f6915c8272",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/lib/assert.c",
+      "scope": "archive",
+      "sha256": "4dae2c4c991646ae6fb9d621a16857343931d96b04039234669b3035d33f79e3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/lib/bbexit.c",
+      "scope": "archive",
+      "sha256": "91ceb70f6b8b9ef29a85553c9f60c53685f0b57b475b7a285fcff2a5684f931d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/lib/yynull.c",
+      "scope": "archive",
+      "sha256": "7888939870638b6f56293d4d27ecb86e3f9a77fb8070754d5c78a75d765249e8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/list.c",
+      "scope": "archive",
+      "sha256": "0b9ac948acdb93820a2f2bcd26cf21f3b4390565d8e9227972247e124d9bb830",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/main.c",
+      "scope": "archive",
+      "sha256": "60dc4c872eb78e7ffb7ad297fa293115317035ae00b122f34e835a133c59429c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/null.c",
+      "scope": "archive",
+      "sha256": "01c1c235151d201466078466d6d6f6ab8a1c6922f39f4578eba115f693a0e2a8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/ops.h",
+      "scope": "archive",
+      "sha256": "52ed7fe7c619e2bfa16205edc635673e995ab312b8f4065f3f19656f6067624a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/output.c",
+      "scope": "archive",
+      "sha256": "5328f7abd3333e6988dd3bd851225e8b6123afdeabba4a1df09fa7d844b40c7e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/prof.c",
+      "scope": "archive",
+      "sha256": "9698c6ed92212fcbcd3ce6faf1e7a5a8efb590b3080697341ffbb6b443dd1d38",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/profio.c",
+      "scope": "archive",
+      "sha256": "027246cd9b8320a096cc627e9d4b64510b6c9e4b7a1aaef8a8de49203402ae16",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/simp.c",
+      "scope": "archive",
+      "sha256": "6b858bf78acde27d14be9daa9fbdb0947b9d11f3bb0ee7d83dd09361e8344f87",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/stab.c",
+      "scope": "archive",
+      "sha256": "6ae10b49f5389c6b3647b4238c30a0892f07f6eee523b48b650f7b9edd018ed5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/stab.h",
+      "scope": "archive",
+      "sha256": "3642a40488b003ca2307f18245c09c969817b8ceb0a323076dfaa51bee144b37",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/stmt.c",
+      "scope": "archive",
+      "sha256": "78c7a50f8fdceaa6c0868d8f7b321fe7ba981dc98e2945e269fa219125dc992f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/string.c",
+      "scope": "archive",
+      "sha256": "808b9b55ebbf1da7682dfb850e42c2bcb006a0d8ee54f493a5dc704a207343e0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/sym.c",
+      "scope": "archive",
+      "sha256": "f69892f595bdb9a88784a5cd5996516f351d4f7a56e8a4e5b17b909c9a60dbe8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/symbolic.c",
+      "scope": "archive",
+      "sha256": "d4ed1061751db85f29f723a6ee9c512fd0be8b46d6cea64fe17c5c203c776c26",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/token.h",
+      "scope": "archive",
+      "sha256": "12353207d1e680f6e22d13fb9e5ae9660471c2a02acefcea0fbd544c0486bc5c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/trace.c",
+      "scope": "archive",
+      "sha256": "adaf76b0c16d53e86a1eada306897234f76cd25105a3a393b0be17292c39b150",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tree.c",
+      "scope": "archive",
+      "sha256": "5ce30d444552cc8fd4913bd2e8e4771cde39a95c4b22605c0186c5969cf635c0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/8q.c",
+      "scope": "archive",
+      "sha256": "089d2a5c558cc8a227e02cfb5f802db83f036b9ee1ca1c48f34c13bfaec7ccc0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/array.c",
+      "scope": "archive",
+      "sha256": "deefef9829cbeeacde8fac1b36ef1f28bea369b6bd4fceed080c111a6f381214",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/cf.c",
+      "scope": "archive",
+      "sha256": "f6ce8e67a12353d00a65b47ff7ff13a22c1492a4cad69f1e1027a9105398200c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/cq.c",
+      "scope": "archive",
+      "sha256": "bbb3f71d2110089553ffdda5d6870fba60f29d1bb63c9745d7c02b9617729cc7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/cvt.c",
+      "scope": "archive",
+      "sha256": "9c61169e366706794d88559323d48d3f61b1bee3bea5dc7178f01192993e9e93",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/fields.c",
+      "scope": "archive",
+      "sha256": "d271003b00650f4156106eb3322ae99ba9a04c3391a8f474862a85b30aabe2ff",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/front.c",
+      "scope": "archive",
+      "sha256": "cf6d16c3de50f1371fed1821d59e0ec6900743303e27c0b018e38957152420ed",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/incr.c",
+      "scope": "archive",
+      "sha256": "be53ed4d68d6121f870e03ce8b23804a58af6c887cb5c80d51dd0f11c92258aa",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/init.c",
+      "scope": "archive",
+      "sha256": "684f0a4d8334287bb4b64d67542995b068644bb2b5f0772817beafeb7acc2fbf",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/limits.c",
+      "scope": "archive",
+      "sha256": "48f3d04650d41e0fa2a98d305e9d16cccc270f2091736d4db43983bb724a4831",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/assert.h",
+      "scope": "archive",
+      "sha256": "84755f2283d2a71fc89341ea77be31dd38108cc7309dbf61cea3d0a415e3a773",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/ctype.h",
+      "scope": "archive",
+      "sha256": "94c17131c725b6e98ab344af45da0fe20153883dedd6b7b949022a2c5a75d799",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/errno.h",
+      "scope": "archive",
+      "sha256": "90ef6b1b82e3af8c8fc3634a6e6fac2ca511bae0e675a4fce37e9e5b4bb10b18",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/float.h",
+      "scope": "archive",
+      "sha256": "fa780483717119840323f47824afe556c9a332f66e6abe6dc7fc3e019dbf104a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/limits.h",
+      "scope": "archive",
+      "sha256": "b03c858bed6b7306ea727daab817551aac24ffc3e9d995863d291551375f6ef9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/locale.h",
+      "scope": "archive",
+      "sha256": "52ca01484d09fef0a8e60642feddd760356de8c4e02f3837f3193aab6df0bf43",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/math.h",
+      "scope": "archive",
+      "sha256": "f5406a0424ce64c17d6ebb1806c348a02f8e3e8fb1dea550f9e34ed13e3e0c1c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/setjmp.h",
+      "scope": "archive",
+      "sha256": "e806ee9d8edba4a264a56677304ffdf7acc3834d210014c539d5a157f0e72bf8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/signal.h",
+      "scope": "archive",
+      "sha256": "e8092b255638d44b3090b54460db4c336b5d278e816aa6275fb260e526e03e7c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/stdarg.h",
+      "scope": "archive",
+      "sha256": "0565a5119b410b512a7842ce464dafcf5e4d8b97dee4f0446b81c3aa4ccbc8d7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/stddef.h",
+      "scope": "archive",
+      "sha256": "f0512204b29c4980eaa4c35a7f581abb284a54526e47adb110c9bffcfd11ea1b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/stdio.h",
+      "scope": "archive",
+      "sha256": "ec2688f82133824795bcf7d3c73429dd9bb7295fd5c4f26017992a8d28025c72",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/stdlib.h",
+      "scope": "archive",
+      "sha256": "f32bd62b7892101d14ad2faf529d8074e2563e284a547e57f23d3b1ed019c9f0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/string.h",
+      "scope": "archive",
+      "sha256": "a5c75f896647d2f331e83d4cc5f56ce36d58611945cff19edacc6de255bf3365",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/mips-eb/time.h",
+      "scope": "archive",
+      "sha256": "03ee48dc452cf26174821532488369c3575d054f9757fbb3dfd2840d966ebd7f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/paranoia.c",
+      "scope": "archive",
+      "sha256": "2b69b8d5bcdf0ade55ffd930deb4a0ba114c948e9b2e37bb8500cfbedf77ff87",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/sort.c",
+      "scope": "archive",
+      "sha256": "4d6ed497a1b394e4ced81259909bd4bf64f830d87cc70b2f893868550e5f4343",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/spill.c",
+      "scope": "archive",
+      "sha256": "503eb39f29d67530c844d68edd32158f75c2861e08e1839e77a006b2374fb554",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/stdarg.c",
+      "scope": "archive",
+      "sha256": "7b361c0fcd6cfbd9debc6f2c2115cba6b62c05d6e5e818a81cdc156442922f82",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/struct.c",
+      "scope": "archive",
+      "sha256": "7e2df3a938f639d0932eb731aa11bcac8101f109a6b55a1ed961746b07924cb3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/switch.c",
+      "scope": "archive",
+      "sha256": "86fb0146839e56019cfb8d8210162eb9092794abec7c685ad0611fe8874842b0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/wf1.c",
+      "scope": "archive",
+      "sha256": "88bd6b3ca0596861a233b560b9304f4b21b5782e8a8b064d34d9154611fc802f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/x86-linux/assert.h",
+      "scope": "archive",
+      "sha256": "84755f2283d2a71fc89341ea77be31dd38108cc7309dbf61cea3d0a415e3a773",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/x86-linux/float.h",
+      "scope": "archive",
+      "sha256": "19b059d707712c1f824fb8c7fe514f36275db98357338b7e4ab9f449b306ee7d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/x86-linux/limits.h",
+      "scope": "archive",
+      "sha256": "b03c858bed6b7306ea727daab817551aac24ffc3e9d995863d291551375f6ef9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/x86-linux/math.h",
+      "scope": "archive",
+      "sha256": "f5406a0424ce64c17d6ebb1806c348a02f8e3e8fb1dea550f9e34ed13e3e0c1c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/x86-linux/stdarg.h",
+      "scope": "archive",
+      "sha256": "742fd5cc80516558eaa76a91cddf5828855ceac1c3dc696ca5c461d58f12a63f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/tst/yacc.c",
+      "scope": "archive",
+      "sha256": "8e6d498074339b7187c8208862c69dac51310ba38ea23bed078b3224d4aa21cb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lccom/types.c",
+      "scope": "archive",
+      "sha256": "efaf226f29e723bcdac60128ddabc5a32079f15e1a575f8b4a14dc898c16b460",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/cpp.c",
+      "scope": "archive",
+      "sha256": "b40af5b668d3f581a075df4315c699a6718707a38e5bbd5a916a5e48b5a12427",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/cpp.h",
+      "scope": "archive",
+      "sha256": "bdd9e6bdc36d925cb29606efbc1ced5ba6c912147ebc968af42341e07fdc61ec",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/eval.c",
+      "scope": "archive",
+      "sha256": "dd041b6bf07572905cfb1d77b46925f9995ea6a45aee5ab658ca652c2fd97039",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/hideset.c",
+      "scope": "archive",
+      "sha256": "6e6d2dec77e2769f43f7d68c8719891492cc2669f6edbb2fd26472fc90015eef",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/include.c",
+      "scope": "archive",
+      "sha256": "735eba2936ca4e5a6ff7f9492bae64a6bd44d3c3c9baa036e7c7c9b110a03242",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/lex.c",
+      "scope": "archive",
+      "sha256": "e55d5b174858ee658cab24f01f0daddee4d5399cc169d583b2e60868941a47c8",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/macro.c",
+      "scope": "archive",
+      "sha256": "6a653454ad1f099715c60b7d966bd0e921624bf34b978adadcd056bc12a28907",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/nlist.c",
+      "scope": "archive",
+      "sha256": "b2fd2fba9db77370e4350fb18bd503e622eb1b23793f871ff0f71a569906355c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/tokens.c",
+      "scope": "archive",
+      "sha256": "171a99a20a3eabf0d00b6b59081bba28cd8cf10415e4ca62c9cd6ff796fd7370",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/lcpp/unix.c",
+      "scope": "archive",
+      "sha256": "cd8328abeb2c9ad35e6bc5ed5256a43daaffe959c02f81803e657a7e402e8145",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/portio/font6x10.c",
+      "scope": "archive",
+      "sha256": "d995bc8a422916d0df40da03c619ad120274b516e1938f96a3c1635494048e2f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/portio/lol.c",
+      "scope": "archive",
+      "sha256": "3e41ed1f93d6d645cdb190dcaa24c3f345316ab4abbf2b4a087fbdc953f4c677",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/portio/portio.c",
+      "scope": "archive",
+      "sha256": "1c38997c832d91ae48e5fd82e72b792e8a1c2b992c0d0b87745a2531f9af6a5f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/pwm/pwm.c",
+      "scope": "archive",
+      "sha256": "2a131836bbb09fc2647cb323d5cda12a7e978b7b9ebab09ce679ad137112e92b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/arglist.c",
+      "scope": "archive",
+      "sha256": "1f0877762792181922583b2ac9efbb0950028b997f554850c4f6a189e30c35df",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/bdos.c",
+      "scope": "archive",
+      "sha256": "7b2998d4891f1d69e210cc2c6807ae446c4a7e389609d8abff801f3352187a2b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/bdos1.c",
+      "scope": "archive",
+      "sha256": "6641427ad33c853af2ec5683c44344c2cfbbbba3a53eab7678fc9981960acd61",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/chio8080.c",
+      "scope": "archive",
+      "sha256": "9311f940e98f5b2250de3c4aabfccf1d7962163df5ac6d9bbdafb64f1de662e9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/exit.c",
+      "scope": "archive",
+      "sha256": "ebc56b8b0ff282f59d8d9b2b1d679de37cd6f559ede396afa436427c995639dd",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/inout.c",
+      "scope": "archive",
+      "sha256": "5c5cbb85420199eff45bb9b20b133a83f4d55681ba2ce6f825a319351a304d80",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/8080/io8080.c",
+      "scope": "archive",
+      "sha256": "b7ec27be7f0a6fab6f2cd1bb39fd1ce7aba5dab172cc56e8aea2657d389a55f2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/code8080.c",
+      "scope": "archive",
+      "sha256": "d512b2970c99e09a7c5def7da1e470c63ada6b868e5ba669554b779a1a60a203",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/codeas09.c",
+      "scope": "archive",
+      "sha256": "dfc63d7c646d94ce918ac3dbe27149c5352c9af39a7f83ff9badd96e9de3e32b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/codem68k.c",
+      "scope": "archive",
+      "sha256": "53e5fd1113132860cc674f06daf5d07427c29689b96437c49bcad9a4ab3e95b0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/codemips.c",
+      "scope": "archive",
+      "sha256": "f70a27f02e802234bc93c163b4ba19da387ffd810061c300968ce8440053c725",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/codevax.c",
+      "scope": "archive",
+      "sha256": "39838ac059e59c72443b111a6de51c4522fac09bfbf7e90ad457313a8a06f113",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/data.c",
+      "scope": "archive",
+      "sha256": "cae75ca75d8ad517db53d4d6ca04fc58106eb176348a31458df2a92c590a1782",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/data.h",
+      "scope": "archive",
+      "sha256": "650a18bb564d684bd486a52a9fb6337bb16370358289bedcb89e7f32b122718a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/defs.h",
+      "scope": "archive",
+      "sha256": "c5ad122411c7d2bfbc228dd699d397a53ee1a559d42158631e3e129335470871",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/error.c",
+      "scope": "archive",
+      "sha256": "2c526c2f2c912a3f2e37f6e469ed445fadbf1ad47b1c1c135eae9d74f2b02ec4",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/expr.c",
+      "scope": "archive",
+      "sha256": "472d7ac6478231568cfd764c78652cb7181f3eb5dd1233a40aa606c0a5a7af31",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/function.c",
+      "scope": "archive",
+      "sha256": "5cc5c598dc306e7a4116bd838df769e8680baf22e20ae90b9f74bb40e0d71a80",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/gen.c",
+      "scope": "archive",
+      "sha256": "46933193d10284fe5ff752251516d90611403103e117ac728ff57c638a8a32c0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/includes/ctype.h",
+      "scope": "archive",
+      "sha256": "c6302109b742222ce89d1ddaa6ba6fdf6708d3de3a3de18dc62f9278055410a0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/includes/hello.c",
+      "scope": "archive",
+      "sha256": "628b092f2f75940857b49ac624ebc4970fa1ac3bff0df1b38251379bed1448e2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/includes/stdio.h",
+      "scope": "archive",
+      "sha256": "101132460bc590c570751eb719ea177cf97f472932039a37dc79a3fa14957f81",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/initialise.c",
+      "scope": "archive",
+      "sha256": "f2d6c88f85b8ce3f93a650e18e03566b0946464182a844895d0bd36204b13e18",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/io.c",
+      "scope": "archive",
+      "sha256": "58d60646dcda11a18ec4c872c086a09564db6d3c0ccd1905c9df436887068bef",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lex.c",
+      "scope": "archive",
+      "sha256": "ea89c3128561bbbc64eb7dfef6df69fef5f5bd08d08829314b71738fe5607b3d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/abs.c",
+      "scope": "archive",
+      "sha256": "5d70301f2ce20c63c419998992baca2e761651edc1e12e6549c6a228787386e9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/atoi.c",
+      "scope": "archive",
+      "sha256": "e94557c52b1c53017904c2c5bbb6977b5f8411ca311b59be5ca148fc69448d8a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/binary.c",
+      "scope": "archive",
+      "sha256": "4323354c734f7ff6971dd215617bdf4d9420febc16c6f7157c70ff2797779786",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/charclass.c",
+      "scope": "archive",
+      "sha256": "463675f07f7aa4d50e0a864255fd52e9437024b107d50cf281ecc9db41540cc5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/fgets.c",
+      "scope": "archive",
+      "sha256": "0d71e4d9f1686d2407e111fd842c1b7fc6c5dcf227cb36390dd870a56bdf4bb3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/fputs.c",
+      "scope": "archive",
+      "sha256": "55f09b89a1ae38ea4b42096b7bf4a8d3a358a6fbdfc139344dfc1cf770ea0b06",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/getchar.c",
+      "scope": "archive",
+      "sha256": "01b5b9e35d3b98c423f1baf9b1bfd96a5d472000379c2b38fbed26f0b47d5f14",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/index.c",
+      "scope": "archive",
+      "sha256": "30c3384eabb71b8af6f446afaff01f04a14552ac8077c89ed4d4bdee29b84b16",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/itoa.c",
+      "scope": "archive",
+      "sha256": "364342f5467ea4c0edd19def231cb1958c4ea55d8fef730b2a1c4d28f7b4d419",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/printn.c",
+      "scope": "archive",
+      "sha256": "9dd461c3e2453e12c7be485af518cd8f981f28bfa6bc7b0f85279ebee0b312d1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/putchar.c",
+      "scope": "archive",
+      "sha256": "85ee3582cf4a497df8a63f757cba6094e4c487e2700a9f96747610ed4108c17d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/puts.c",
+      "scope": "archive",
+      "sha256": "777e7b7e7eee6d0cdedfc874ef86655a4fcdefa2d11268852b47712c71a80e49",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/rand.c",
+      "scope": "archive",
+      "sha256": "b0ddec325897521c99c3c53946c0a4ca2525f879ff9efa328a7c52ab3e6604df",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/reverse.c",
+      "scope": "archive",
+      "sha256": "2279022d9bd1ff9bd82d8525de9117fe583adcd6b03cd62dc4b19d18d8dada3c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/sbrk.c",
+      "scope": "archive",
+      "sha256": "e63c9bc389d6cb525871581eb118c80fc1be58b1c9ac75a9653874a4f2dd2fa2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/shell.c",
+      "scope": "archive",
+      "sha256": "ef02fa07e07d4fac63eb8cb655ad599add57b3355e8cb2c6944ed7e07963151d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strcat.c",
+      "scope": "archive",
+      "sha256": "7e6dc5fff4ecb879019e710faedbd8851c49d3c2ed27c2770ee2825548de7cb7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strcmp.c",
+      "scope": "archive",
+      "sha256": "b90884be5dccd4a089628f4a98e7096d99c9f867fdb111953acef712d1f206e5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strcpy.c",
+      "scope": "archive",
+      "sha256": "6960f260243fff0aad1ae72b712836c204a5f77e07846bc1f727fe47b6772be7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strlen.c",
+      "scope": "archive",
+      "sha256": "c44541e1bd1fcde7cdb6bad4a2e054859d28319305130d1e84aa484e3ac01ca1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strncat.c",
+      "scope": "archive",
+      "sha256": "43310454f09ae69508df51cb3f8fff9f8dd0f8d5880f98311467a17cab79fe29",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strncmp.c",
+      "scope": "archive",
+      "sha256": "a97e0e135f28f19a5a807b3730024994408ba0e77495ad7f895226f9f0e78be9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/lib/strncpy.c",
+      "scope": "archive",
+      "sha256": "d971bf4d9def412f8a6c1cdeb8f8535e667d938df72ba3e0d5c71d2b1ed3418a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/main.c",
+      "scope": "archive",
+      "sha256": "988a3f57530c236d58c756ba85ea766d5f638b96abc8341f06fef280e6a8dac0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/preproc.c",
+      "scope": "archive",
+      "sha256": "a266c76944573756a3ed0290f27db54c5c97773b4d34fcb9a25d92acca074b41",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/primary.c",
+      "scope": "archive",
+      "sha256": "458752aa70d996f66a30dca32a1400c84e0b71f3466b477f255e194b661733e5",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/stmt.c",
+      "scope": "archive",
+      "sha256": "8418b5fe6f3d16067f0478063a55fcf5497b76e5f7f58f9be70eac08be79686d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/sym.c",
+      "scope": "archive",
+      "sha256": "2f1fed0548983f357484f6635bd133e0e2f7545f85c9efe77fd888c88058a55e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/vax/B2test.c",
+      "scope": "archive",
+      "sha256": "990343fd54a1f33b4b91deffa8e271befac044d08a4162d9266fa84c275078dd",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/vax/chiovax.c",
+      "scope": "archive",
+      "sha256": "a212c561cf69480add96b163e932c845f7473b61dba0b9f19309e53db765b198",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/vax/crt0.c",
+      "scope": "archive",
+      "sha256": "ce6dc23754fcdbf6472aa594f8da433507270bab34f5ce0d3cb5bf005edb9c2b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/vax/crunvax.c",
+      "scope": "archive",
+      "sha256": "6d0614d187d95f8a44f08421adfb1fcc849832f78fe74bf70aa8b9511566bf0b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/vax/iovax.c",
+      "scope": "archive",
+      "sha256": "1924571ee762bd21ced5d52d626ea89b4f5a93bdea438391bc5ba2e684a395aa",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/vax/optest.c",
+      "scope": "archive",
+      "sha256": "118be852572f764a0feaec986658bd53d4acef0d4c8cf0eddffcec238e05039a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smallc/while.c",
+      "scope": "archive",
+      "sha256": "844d95a86feeabdb4d0f45b256699b350c5771523f0659b5294a01b32c12f495",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smlrc/cgmips.c",
+      "scope": "archive",
+      "sha256": "ea59e5f3b752f96284d07885a2fe6ffd36f12c979646fbb545a90926642d88cf",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smlrc/lb.c",
+      "scope": "archive",
+      "sha256": "6621a8ed3dbcb2b1962456fecd05647232ce37cdc0191e00e3ef7787829b7992",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smux/common/packet.h",
+      "scope": "archive",
+      "sha256": "74ae3c7977c6e0bb51a60c16283d513aca630a479e8a961fae5f5a490a36dad3",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smux/linux/smux.c",
+      "scope": "archive",
+      "sha256": "c0049f70ec2cb7afdc6dfa43ff1d703ab69381a5e363966b5f89d3fde54e6291",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/smux/retro/smux.c",
+      "scope": "archive",
+      "sha256": "7305a8df0e9688c8c99582e46b3662bd13da7848cf159062287da97ef6b55efb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/chat-server.c",
+      "scope": "archive",
+      "sha256": "a051f0dcca96a04370497d8a0f8e2f628d838f212723ebcaca988c59b5b96822",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/ntpdate.c",
+      "scope": "archive",
+      "sha256": "304669627d46f120e309d26041829d6dd3b9e6de532e4d8c2520e5b91e69544e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/telnet.c",
+      "scope": "archive",
+      "sha256": "8b4c54d4ba0b179b99e50a7e19fe9b8d06e341473cee5e3439a3f5ea3f24eeae",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/todo/barometric-pressure-web-server.c",
+      "scope": "archive",
+      "sha256": "fc4c1c41a8b3e88eb2955ba769af1d1ee97034701707b8d61a48c165e80333f1",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/todo/pachube-client-string.c",
+      "scope": "archive",
+      "sha256": "2b6bc44012eed4040ceeb0163d8bcb6ae6337e24fa3ce28af23ffcfd6726a2eb",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/todo/pachube-client.c",
+      "scope": "archive",
+      "sha256": "653e4ebdc2628d4e055f3703dff9a59543e2fd8b9441705dbf31a0fe7d610680",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/todo/udp-send-receive-string.c",
+      "scope": "archive",
+      "sha256": "c99f1c54f33a72e9c63f9cb6f3e15fd19b5bd571bdca3a7eb0dcd841b86a5135",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/web-client.c",
+      "scope": "archive",
+      "sha256": "89f0fb28327779e7d920e2db6f82bb9858dc567010b4f7a9eca2578ddcb2e20d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/mips-pic32/usr.bin/wiznet/web-server.c",
+      "scope": "archive",
+      "sha256": "28e3258d4ebd57a9f9b6c49881226af1838e74283faf0fabffecc4e4c5090f5b",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/pdp11-vax/usr.bin/uucp/acucntrl.c",
+      "scope": "archive",
+      "sha256": "b0395f4981ea1551187778c78da28e6374946e35ed34626fe2fd0c22ff2e081f",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/toolchains/usr.bin/smlrc/cgx86.c",
+      "scope": "archive",
+      "sha256": "3712ac9f896d74b34be826c31559c76c236fd43bf74a703544243c3fdb7157fe",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/vax-vms/usr.bin/zmodem/vmodem.h",
+      "scope": "archive",
+      "sha256": "0ec9238c7e0669f75d866acd9422e74fb321735f990aee66ac8a7a475854006c",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/vax-vms/usr.bin/zmodem/vrzsz.c",
+      "scope": "archive",
+      "sha256": "c3df44e69f31feed3c1c7395bf6b25c22a0bd033c06a185fe5be012a8bcef316",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/vax-vms/usr.bin/zmodem/vvmodem.c",
+      "scope": "archive",
+      "sha256": "95a34b5a791e4dabcd4f5c79a7ccb28d2a0c6bbc08fb82ef6b33659f2a2814d7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/x86-win32/usr.bin/pforth/pf_win32.h",
+      "scope": "archive",
+      "sha256": "1c388a257bef0908dc854490649c0ba28b8439eb24dbd63d651ac9275fefe93e",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/x86-win32/usr.bin/picoc/platform/library_msvc.c",
+      "scope": "archive",
+      "sha256": "3f451cf06839004d989b47749f17fac90c2f329aa8ab6b8d7448df93083c44f9",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/non-arm/x86-win32/usr.bin/picoc/platform/platform_msvc.c",
+      "scope": "archive",
+      "sha256": "3c935713f2cf4b64a4937539e20fe69b3e938621cea4f6db88e28a545353d499",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/cons.c",
+      "scope": "quarantine",
+      "sha256": "06fe3120dfd84f057516cc62353cb1bb1fe16e8ab2b50250b20796618300874d",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/cpu.c",
+      "scope": "quarantine",
+      "sha256": "028df63432df9ffd5a2fa6c4bd2b95656d1790d13c3762ab0276023ac7037ee7",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/main.c",
+      "scope": "quarantine",
+      "sha256": "729b0c4d1b7815596d8d30b83291015ede08f7d272df99328c792098bc56adb0",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/mmu.c",
+      "scope": "quarantine",
+      "sha256": "ded409dac4c2f5f670e520128c3a454d5f51f1329aa55089908eb907b493b38a",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/pdp11.h",
+      "scope": "quarantine",
+      "sha256": "738dba6bdb648c1fe9c0b2fbaa53c984b3738b3ce849438fb1f4370456ad1cc2",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/rk.c",
+      "scope": "quarantine",
+      "sha256": "4de324a962be84e796ef733256a9347fadb69b9291bf2e491ee9a519bac40b42",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    },
+    {
+      "path": "legacy/pdp11-v6/usr.bin/pdp11/unibus.c",
+      "scope": "quarantine",
+      "sha256": "9581f29daefb86ee651167ac58869fea02f5e9915a0a2ec82ccceef2ddfb2232",
+      "provenance": "docs/research/c17-formatting-linting.md",
+      "reason": "Named historical source boundary outside the maintained ARM migration."
+    }
+  ]
+}

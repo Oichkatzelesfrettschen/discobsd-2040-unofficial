@@ -138,6 +138,28 @@ justify changing `USIZE`.
 
 ## Admission rule for smaller limits
 
+`tests/rp2040/capacity-corpus.json` is the finite admission denominator.
+Each case names its resource, normal/exhaustion/fault/recovery obligation,
+fixture, execution class, receipt artifact, dependencies, expected result and
+recovery result. `check-capacity-corpus` binds the six active values to
+`sys/arch/rp2040/include/machparam.h`, verifies decision coverage, dependency
+closure and fixture existence, and requires both Renode and board cases for
+every admission obligation. A `reduce-approved` row additionally requires
+retained receipts for every obligation and completed transitive dependencies.
+A passing registry gate establishes a complete declared plan; open receipts
+remain open.
+
+`check-kernel-ilp32` compiles the production `subr_capacity.c` against the
+RP2040 compact table configuration. Its capacity fixture executes process,
+inode, file, clist and buffer occupancy, retained peaks, minimum-free values,
+failure attribution, stack paint boundaries and latched saturation. Six
+mutated production-source copies alter one predicate or monotonicity rule and
+must fail the same fixture. The fixture establishes counter semantics at the
+target data-model width. Injected `capacity_note()` calls establish counter
+attribution, not allocator exhaustion. Separate host, Renode and board cases
+own their declared exhaustion obligations. The fixture does not establish
+workload peaks or silicon headroom.
+
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,
 workload commands, starting and ending `kern.capacity` snapshots, allocation
@@ -163,6 +185,15 @@ untouched without saturation. The run supplies one named workload result; it
 omits the required exhaustion controls, deliberate fault path and broader
 signal/SwapRAM recovery corpus. Every compiled limit and `USIZE` therefore
 remains unchanged.
+
+The retained decision rows therefore keep `NPROC=25`, `NINODE=24`,
+`NFILE=24`, `NCLIST=32`, `NBUF=4`, and `USIZE=3072`. The corpus preserves the
+greatest admitted observation across runs rather than replacing it with a
+newer lower value: 8 processes, 22 inodes, 15 files, 22 clists, 3 buffers and
+1,828 touched kernel-stack bytes. The two-slot inode reserve and the 220-byte
+paint remainder are especially narrow observations; neither becomes a safe
+decrement without the declared exhaustion, fault, signal, SwapRAM and
+recovery receipts.
 
 `NMOUNT=1` and the four-buffer cache are already active. The USB transmit ring
 occupies 8 KiB in SRAM4/SRAM5 scratch banks. Reducing that ring changes retained

@@ -538,7 +538,7 @@ emulator behavior and board observations to their separate tests.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for six files
+`check-kernel-ilp32` is separate from `check-kernel` for seven files
 that compile or hold only at the target's width. sys/kern/sys_generic.c
 is built again as rwuio_test32: off_t, size_t and u_int are all four
 bytes on the target, so the vector sum that wrapped there is reproduced
@@ -729,6 +729,17 @@ The sixth file is sys/kern/ufs_fio.c. `ufs_explicit_time_test` links
 request, the no-timestamp case, and a read-only refusal distinct. A generated
 copy restores the inherited atime guard and must fail the same assertions.
 
+The seventh file is `sys/kern/subr_capacity.c`. `capacity_test` supplies the
+RP2040 compact table shapes and linker-sized `u`/`u0` symbols at ILP32, then
+executes all five occupancy predicates, monotonic peaks and minimum-free
+values, attributed failure counters, stack paint boundaries and latched
+saturation. Six one-defect source copies substitute a runnable-only process
+predicate, inode reference total, clist object-size divisor, any-buffer-flag
+predicate, decreasing peak and inverted saturation condition. Each mutant
+must return the fixture's assertion-failure status. The gate establishes the
+counter mechanism and target-width layouts; the capacity corpus and retained
+hardware receipts decide whether a compiled limit can change.
+
 ### Kernel sources on the host
 
 `check-kernel` compiles a file from sys/kern unchanged and links it
@@ -792,6 +803,8 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-exec-spool` | `exec_save_args` reads argument and environment vectors and strings through `copyin`, returns `EFAULT` for rejected vectors or strings and for a replay-time copy failure, and releases any spool reservation after that failure. Valid raw and interpreted argument ordering, `NCARGS`, the real `sys/kern/subr_rmap.c` reservation, modeled SwapRAM, flash buffers, migration and cleanup remain covered. The host `copyin` seam models rejected addresses; the RP2040 kernel build compiles the production caller against the target `copyin`. |
 | `check-ufs-prototypes` | every UFS function the kernel links has a prototype |
 | `check-c17-kernel-inventory` | `tools/c17/kernel-ledger.txt` equals the union of two K&R oracles over `sys/kern/*.c` and `sys/sys/*.h`: `kr_scan.py`, which reads every conditional branch, and the cross compiler's `-Wold-style-definition`/`-Wstrict-prototypes` diagnostics with the evaluated PICO and PICO_UART flags, which see active code only. A compiler finding the scan lacks fails as a calibration gap. `kr_scan_test.py` first requires the scan to report exactly the marked lines of `tools/c17/fixtures/kr_shapes.c` (identifier lists, empty lists, `__unused` and `__attribute__` in declaration lists, pointer returns, a definition after `#endif`, an inactive branch, unprototyped function pointers), keeps the host compiler inside those marks, and rejects an attribute-blind scan, a scan without declaration lists and a reconciliation handed a finding the scan lacks. Rows marked `scan` are inactive code or files neither configuration compiles; the ledger counts interfaces, not defects |
+| `check-c17-source-denominator` | The canonical JSON ledger and Git contain identical sorted sets of tracked `.c` and `.h` paths. Each excluded archive or guest row has an exact SHA-256 entry in the quarantine manifest. Nine synthetic mutations reject a missing or duplicate row, unknown class, missing field, path traversal, accepted row without evidence, accepted state with an unreviewed class or scope, changed quarantine bytes and a closure claim with an unreviewed row. The ordinary pass establishes finite source accounting only; `--closure` separately rejects unreviewed and migration-open rows |
+| `check-capacity-corpus` | The 26-case capacity registry binds each active value to the RP2040 production header; requires unique identifiers, existing fixtures, identified retained receipts, valid execution classes, acyclic dependencies and board plus Renode declarations for every admission obligation; and keeps allocator exhaustion separate from counter attribution. Eleven mutations reject an omitted row, duplicate key, stale fixture, invalid execution class, unadmitted reduction, production-value drift, omitted allocator exhaustion, a missing receipt, an open deciding dependency, a hardware dependency without a retained receipt and a dependency cycle. A `reduce-approved` row requires retained board and Renode receipts for every resource obligation and completed transitive dependencies. A pass establishes the declared corpus and retained decisions, not completion of open hardware cases |
 | `check-kernel-printf-formats` | every literal format passed to `printf()`, `uprintf()`, `tprintf()`, `log()` or the `DEBUG`/`DEBUG1`..`DEBUG9` wrappers (which expand to `printf()` under `GLOBAL_DEBUG`) in the PICO and PICO_UART sources uses only `%[-+#0]*(digits\|*)?(.(digits\|*))?(l?[douxX]\|[cps])` or `%%` after escape decoding, the conversions where `prf()` and GCC's `format(printf)` checking agree, and every such call's format is a literal. The `sys/sys/systm.h` attributes make GCC and Clang reject type mismatches and `prf()`'s `%D` in the kernel build; this check closes the conversions they accept but `prf()` lacks or reads differently (`%i`, floating, `hh`/`h`/`ll`/`j`/`z`/`t`, `%n`, and `%b`, which they read as C23's one-argument binary conversion). `kernel_format_check_test.py` requires exactly the marked calls of `tools/c17/fixtures/kernel_formats.c` to be reported and rejects a checker accepting every conversion and one accepting non-literal formats |
 | `check-hsaout` | the packed a.out container against header and stream corruption, truncation and forged lengths, over every image in the distribution tree |
 | `check-elf2aout` | tools/elf2aout over the layouts the ARM linker produces: seven section combinations, four rejection controls, an overwrite shorter than the file it replaces, symbol conversion, the multicall BSS overlay with its object rejection, and the overlay's rebuild freshness. It assembles and links its own fixtures with the cross toolchain and reads lib/elf32-arm.ld, so `tools` and the toolchain are the whole prerequisite and it passes on a bare checkout |

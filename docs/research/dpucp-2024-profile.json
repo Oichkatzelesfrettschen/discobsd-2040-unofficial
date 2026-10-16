@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "profile": {
+    "id": "DPUCP-2024",
+    "name": "DiscoBSD/Pico Unix Compatibility Profile 2024",
+    "version": "2024.1",
+    "target": "DiscoBSD on RP2040"
+  },
+  "claims": {
+    "posix_conformance": false,
+    "unix_conformance": false,
+    "statement": "DPUCP-2024 reports measured compatibility subsets and does not claim POSIX or UNIX conformance."
+  },
+  "authorities": {
+    "requirements": "docs/research/sus-requirement-corpus.json",
+    "entities": "docs/research/sus-requirement-entities.tsv",
+    "issue8": "IEEE Std 1003.1-2024 and The Open Group Base Specifications Issue 8, 2024 edition"
+  },
+  "denominator": {
+    "union_entities": 1617,
+    "issue8_entities": 1518,
+    "issue8_only_entities": 152,
+    "policy": "Every Issue 8 entity remains open until its applicable facets have executable witnesses."
+  },
+  "language": {
+    "iso_basis": "ISO/IEC 9899:2018",
+    "production": "gnu17",
+    "portable_gate": "c17",
+    "hardware_seam_gate": "gnu17-armv6-m-thumb-1",
+    "smaller_c": "separate-measured-acceptance",
+    "c23_donors": "rewrite-to-c17"
+  },
+  "hardware_limits": {
+    "kernel_region_bytes": 131072,
+    "process_window_bytes": 147456,
+    "dhara_root_region_bytes": 1572864,
+    "dhara_root_logical_bytes": 1012736,
+    "raw_swap_bytes": 393216,
+    "sram_bytes": 270336
+  },
+  "requirements": {
+    "path": "docs/research/dpucp-2024-requirements.tsv",
+    "row_count": 1518,
+    "ordered_row_sha256": "e37bb6db0f7ba382e0e78bb72a7c3b918898b25bf14603c62b952521d3fad04f"
+  },
+  "state_counts": {
+    "applicability": {
+      "base": 1518,
+      "selected-option": 0,
+      "unselected-standard-option": 0,
+      "environment-constrained": 0
+    },
+    "implementation": {
+      "present": 0,
+      "partial": 47,
+      "absent": 1471,
+      "divergent": 0
+    },
+    "evidence": {
+      "none": 1471,
+      "static": 47,
+      "host": 0,
+      "cross": 0,
+      "qemu-user": 0,
+      "renode": 0,
+      "board": 0
+    },
+    "residual": {
+      "closed": 0,
+      "open": 1518,
+      "blocked": 0
+    }
+  },
+  "witnesses": {},
+  "growth_policy": {
+    "default": "nonpositive-per-constrained-surface",
+    "cross_surface_offsets": false,
+    "exception_record": "exact deltas, examined alternatives, retained margins, user benefit, rollback point, and reviewer approval"
+  },
+  "first_hardware_release": [
+    "shell-command",
+    "shell-getopts",
+    "utility-printf",
+    "recovery-file-path-utilities"
+  ],
+  "later_families": [
+    "on-device-c",
+    "regex-and-text-processing",
+    "networking",
+    "locale",
+    "threads",
+    "realtime",
+    "dynamic-linking"
+  ]
+}

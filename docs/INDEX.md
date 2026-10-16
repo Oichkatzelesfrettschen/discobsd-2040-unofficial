@@ -148,6 +148,9 @@ Grouped by what they investigate.
 | `sus-requirement-corpus.md` | the source-bound Issue 7/Issue 8 denominator, requirement-facet decomposition and RP2040 behavior-preserving translation rules |
 | `sus-requirement-corpus.json` | machine-checked archive identities, entity counts, facet taxonomy and bounded tiny-system mappings |
 | `sus-requirement-entities.tsv` | 1,617 copyright-safe Base Definitions, System Interfaces and utility entity keys with per-edition source membership |
+| `dpucp-2024.md` | the non-conformance DPUCP-2024 contract, finite Issue 8 accounting, C17 language boundary, evidence ladder and per-surface size rule |
+| `dpucp-2024-profile.json` | versioned DPUCP-2024 identity, denominator, language modes, hardware limits, state counts and witness catalog |
+| `dpucp-2024-requirements.tsv` | 1,518 Issue 8 requirement rows with applicability, implementation, evidence, residual and next-action states |
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |

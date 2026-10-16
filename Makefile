@@ -93,6 +93,12 @@ check-sus-discovery: check-python
 		${PYTHON} docs/research/bsd44-audit/posix_inventory_test.py
 		${PYTHON} tools/check_sus_utility_ledger.py --root ${TOPSRC} --self-test
 
+# The source-bound corpus keeps Issue 7 and Issue 8 entity membership separate
+# from DiscoBSD applicability and evidence. Its negative controls reject count,
+# hash, ordering, mapping and selected-image ownership drift.
+check-sus-requirement-corpus: check-python
+		${PYTHON} tools/check_sus_requirement_corpus.py --root ${TOPSRC} --self-test
+
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
 		$(MAKE) -C etc DESTDIR=${DESTDIR} distrib-dirs
@@ -698,7 +704,7 @@ check-elf2aout:	tools
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
 		check-graft-cache-reader \
-		check-sus-discovery \
+		check-sus-discovery check-sus-requirement-corpus \
 		check-comment-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
@@ -1000,7 +1006,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-warning-policy-host check-warning-policy-cross \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-warning-policy-host check-warning-policy-cross \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

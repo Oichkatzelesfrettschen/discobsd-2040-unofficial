@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "authorities": {
+    "issue7": {
+      "standard": "IEEE Std 1003.1-2017 and The Open Group Base Specifications Issue 7, 2018 edition",
+      "archive": "susv4-2018.tgz",
+      "archive_sha256": "ab6636bca53c7d71d33d2c5149ede574d598fe6ec97fa8b08e0459ef7bcfc104",
+      "public_base": "https://pubs.opengroup.org/onlinepubs/9699919799/"
+    },
+    "issue8": {
+      "standard": "IEEE Std 1003.1-2024 and The Open Group Base Specifications Issue 8, 2024 edition",
+      "archive": "susv5.zip",
+      "archive_sha256": "9a1237e4b7d7b779c6013911377bebe632a7b6765d242eee51859db06355e3df",
+      "public_base": "https://pubs.opengroup.org/onlinepubs/9799919799/"
+    }
+  },
+  "corpus": {
+    "entity_count": 1617,
+    "kind_counts": {
+      "base-definition": 104,
+      "system-interface": 1329,
+      "utility": 184
+    },
+    "edition_counts": {
+      "issue7": 1465,
+      "issue8": 1518,
+      "retained": 1366
+    },
+    "ordered_row_sha256": "db9c1e64d8f95e7bd87e216b02d45768c9297c8664a7726d4a481ddc4d24486c"
+  },
+  "issue7_source_ledgers": {
+    "base-definitions": {
+      "parent_count": 95,
+      "parent_key_sha256": "7841b16fa7f92dc3dbc9349d5ee590f1958dca287553b5e0c3ffb6c1faa6a6bd",
+      "clause_count": 1483,
+      "clause_key_sha256": "e357d95bf96ea94101041ab8db05156d0c107addc2318409cdd4fa83f637e575"
+    },
+    "system-interfaces": {
+      "parent_count": 1195,
+      "parent_key_sha256": "80e5f8bb20ffadb5a597e5b1183a18d10c459c621dc34501c6357df61ec64a21",
+      "clause_count": 15740,
+      "clause_key_sha256": "1db32fccd04b71cadc31d467c8a1a4bf552a058110a61428a9511883a7a5ebc4"
+    },
+    "shell-and-utilities": {
+      "utility_count": 175,
+      "utility_key_sha256": "e1c7db29258b2e7e869d9183306e2462261a87d598750d457722824f7b655e7d",
+      "token_requirement_count": 17,
+      "token_source_sha256": "09e8a0cb31d41033af878004b9096a68cce6bc30ccf8962a27d343c7a90c50c5",
+      "grammar_requirement_count": 125,
+      "grammar_key_sha256": "b0fdb308b771070cf97c8487fa584ab141a395cc922aefe96030d230b8c03c38",
+      "recursive_frontier_requirement_count": 2644,
+      "recursive_frontier_sha256": "27a3bac20484cf355b2f0ca9a9228ce0604cd19e252d5a9489cfc44269a05e0d"
+    }
+  },
+  "requirement_facets": {
+    "base-definition": [
+      "types-and-layout",
+      "constants-and-limits",
+      "declarations",
+      "feature-test-visibility",
+      "namespace-and-inclusion"
+    ],
+    "system-interface": [
+      "declaration-and-types",
+      "argument-domain",
+      "state-transition",
+      "return-value",
+      "errno-and-failure",
+      "resource-ownership",
+      "concurrency-signals-and-cancellation"
+    ],
+    "utility": [
+      "synopsis",
+      "options",
+      "operands",
+      "standard-input-and-input-files",
+      "environment",
+      "standard-output-and-standard-error",
+      "exit-status",
+      "consequences-of-errors"
+    ]
+  },
+  "translation_rules": [
+    "Preserve observable results, errors, exit status, stream contents, descriptor state, and filesystem effects before reducing storage or memory.",
+    "Use fixed bounds to reject unrepresentable input explicitly; never report success after silent truncation.",
+    "Share code, buffers, and archive members only when callers retain the required independent state and lifetime behavior.",
+    "Treat the C and POSIX byte locale as the initial tiny profile; keep locale-dependent rows partial until locale objects and collation exist.",
+    "Keep an unsupported Base requirement open. Mark a profile option unselected only after the edition source identifies the option boundary.",
+    "Require host behavior, ILP32 layout, ARMv6-M cross-linkage, Smaller C acceptance, and board evidence according to the claim being closed.",
+    "Exclude standards archives from the repository. Commit source identities, structural entity keys, paraphrased contracts, and executable evidence only."
+  ],
+  "selected_image_utility_count": 107,
+  "selected_image_extensions": [
+    "ftp",
+    "less",
+    "mail",
+    "rmail",
+    "telnet",
+    "whereis",
+    "which"
+  ],
+  "tiny_system_mappings": [
+    {
+      "id": "stdio-stream-lifetime-and-position",
+      "entities": [
+        "system-interface:fopen",
+        "system-interface:fclose",
+        "system-interface:fread",
+        "system-interface:fwrite",
+        "system-interface:fseek",
+        "system-interface:ftell",
+        "system-interface:getc",
+        "system-interface:putc"
+      ],
+      "state": "bounded",
+      "behaviors": [
+        "independent stream input state",
+        "one-byte pushback ownership",
+        "append and exclusive-create mode handling",
+        "position and error propagation"
+      ],
+      "tiny_translation": "The target retains the existing compact FILE layout and archive split while tests bind stream ownership, pushback, modes, positions, and allocation failure.",
+      "evidence": [
+        "docs/research/stdio-unbuffered-ownership.md",
+        "docs/research/stdio-core-c17-unit.md",
+        "docs/research/stdio-ansi-surface-unit.md"
+      ],
+      "residual": "The mapping closes only exercised C/POSIX byte-stream behavior; complete locale, wide-stream, locking, and cancellation contracts remain open."
+    },
+    {
+      "id": "stdio-formatted-input",
+      "entities": [
+        "system-interface:vscanf",
+        "system-interface:vfscanf",
+        "system-interface:vsscanf"
+      ],
+      "state": "bounded",
+      "behaviors": [
+        "variadic forwarding",
+        "conversion counts",
+        "bounded string stream input",
+        "input failure distinction"
+      ],
+      "tiny_translation": "The three variadic entry points share _doscan and the compact bounded string-stream constructor instead of adding a second scanner.",
+      "evidence": [
+        "docs/research/sus-edition-contracts.md",
+        "docs/research/stdio-formatter-count-contract.md"
+      ],
+      "residual": "Unimplemented conversion families and full locale behavior remain open rows."
+    },
+    {
+      "id": "directory-stream-ownership",
+      "entities": [
+        "system-interface:opendir",
+        "system-interface:closedir",
+        "system-interface:scandir",
+        "system-interface:alphasort"
+      ],
+      "state": "bounded",
+      "behaviors": [
+        "directory admission",
+        "close-on-exec descriptor state",
+        "exactly-once close result",
+        "transactional selected-entry publication",
+        "byte-locale ordering"
+      ],
+      "tiny_translation": "Directory streams use compact target layouts, allocation-free cookies, and selected-entry allocation while preserving descriptor admission, cleanup, and result ownership.",
+      "evidence": [
+        "docs/research/libc-opendir-directory-cloexec.md",
+        "docs/research/libc-closedir-result-contract.md",
+        "docs/research/libc-scandir-allocation-contract.md",
+        "docs/research/bsd-workspace-directory-stream-c17.md"
+      ],
+      "residual": "Atomic open-and-CLOEXEC, general locale collation, and complete metadata-width behavior remain open."
+    },
+    {
+      "id": "ascii-casefold",
+      "entities": [
+        "system-interface:strcasecmp",
+        "system-interface:strncasecmp"
+      ],
+      "state": "bounded",
+      "behaviors": [
+        "POSIX byte-locale folding",
+        "unsigned byte ordering",
+        "count and NUL boundaries",
+        "errno preservation"
+      ],
+      "tiny_translation": "Arithmetic ASCII folding removes permanent tables and preserves every high byte in the fixed POSIX byte locale.",
+      "evidence": [
+        "docs/research/libc-ascii-casefold-contract.md"
+      ],
+      "residual": "Locale-dependent case mapping and collation remain outside the bounded mapping."
+    },
+    {
+      "id": "runtime-feature-queries",
+      "entities": [
+        "system-interface:sysconf",
+        "system-interface:confstr"
+      ],
+      "state": "partial",
+      "behaviors": [
+        "selector recognition",
+        "value and limit reporting",
+        "truncation and termination",
+        "unknown-selector failure"
+      ],
+      "tiny_translation": "The target reports only values backed by compile-time limits or kernel policy and rejects unknown selectors with EINVAL.",
+      "evidence": [
+        "docs/research/sus-edition-contracts.md"
+      ],
+      "residual": "Most required selectors and versioned execution-environment strings remain absent."
+    },
+    {
+      "id": "process-lifecycle",
+      "entities": [
+        "system-interface:pipe",
+        "system-interface:fork",
+        "system-interface:execve",
+        "system-interface:waitpid",
+        "system-interface:getpgrp"
+      ],
+      "state": "partial",
+      "behaviors": [
+        "process creation",
+        "descriptor inheritance",
+        "program replacement",
+        "child status",
+        "process groups"
+      ],
+      "tiny_translation": "The no-MMU kernel retains Unix process and descriptor semantics inside fixed process tables and a single 144 KiB execution window.",
+      "evidence": [
+        "docs/research/sus-edition-contracts.md",
+        "docs/research/board-capacity-acceptance.md"
+      ],
+      "residual": "The public getpgrp signature, full exec error matrix, job-control shell surface, and exhaustion corpus remain open."
+    },
+    {
+      "id": "signals-and-terminal-state",
+      "entities": [
+        "system-interface:sigaction",
+        "system-interface:tcgetattr",
+        "system-interface:tcsetattr"
+      ],
+      "state": "partial",
+      "behaviors": [
+        "signal disposition and masks",
+        "interrupted operation behavior",
+        "terminal attribute retrieval",
+        "terminal attribute transition"
+      ],
+      "tiny_translation": "The kernel keeps signal and terminal state in fixed structures; each standard row requires an executable transition and error oracle rather than a structure-presence claim.",
+      "evidence": [
+        "sys/arch/rp2040/doc/research/sh-posix-audit.md"
+      ],
+      "residual": "The complete signal, job-control, session, controlling-terminal, and asynchronous interruption matrices remain open."
+    },
+    {
+      "id": "selected-image-text-filters",
+      "entities": [
+        "utility:cut",
+        "utility:paste",
+        "utility:dirname",
+        "utility:nl",
+        "utility:cksum",
+        "utility:expand",
+        "utility:unexpand",
+        "utility:uuencode",
+        "utility:uudecode"
+      ],
+      "state": "partial",
+      "behaviors": [
+        "option and operand parsing",
+        "bounded line processing",
+        "standard streams",
+        "exit status and diagnostics"
+      ],
+      "tiny_translation": "Textbox shares startup and buffering while each applet retains its option parser, byte-stream transformation, exit status, and explicit bounds.",
+      "evidence": [
+        "docs/research/sus-edition-contracts.md",
+        "sys/arch/rp2040/doc/research/posix-tools.md"
+      ],
+      "residual": "Each utility retains open option, locale, pathname, and error rows beyond the named host cases."
+    },
+    {
+      "id": "filesystem-utilities",
+      "entities": [
+        "utility:cat",
+        "utility:cp",
+        "utility:mv",
+        "utility:rm",
+        "utility:find",
+        "utility:tee",
+        "utility:touch"
+      ],
+      "state": "partial",
+      "behaviors": [
+        "path traversal and operands",
+        "file type and metadata effects",
+        "bounded I/O",
+        "write failures",
+        "exit status"
+      ],
+      "tiny_translation": "The target uses bounded buffers and compact multicall ownership while preserving filesystem effects, write failure, and exit status as externally visible contracts.",
+      "evidence": [
+        "docs/research/userland-bounded-io-memory.md",
+        "docs/research/sus-utility-ledger.json"
+      ],
+      "residual": "Recursive traversal, link, metadata, race, locale, and complete error consequences remain utility-specific open rows."
+    },
+    {
+      "id": "bourne-shell-language-and-intrinsics",
+      "entities": [
+        "utility:sh",
+        "utility:command",
+        "utility:getopts",
+        "utility:printf"
+      ],
+      "state": "partial",
+      "behaviors": [
+        "token recognition and quoting",
+        "expansion and splitting",
+        "redirections and here-documents",
+        "special builtin state",
+        "command lookup",
+        "exit status"
+      ],
+      "tiny_translation": "The existing Bourne shell remains the sole shell owner; fixes reuse its parser, shared break allocator, and execution tables instead of staging a second shell.",
+      "evidence": [
+        "sys/arch/rp2040/doc/research/sh-posix-audit.md",
+        "docs/research/sus-edition-contracts.md"
+      ],
+      "residual": "The declared XFAIL rows, missing command and getopts intrinsics, dollar-parenthesis substitution, arithmetic expansion, and complete grammar denominator remain open."
+    },
+    {
+      "id": "language-processing-utilities",
+      "entities": [
+        "utility:awk",
+        "utility:sed"
+      ],
+      "state": "open",
+      "behaviors": [
+        "language grammar",
+        "regular expressions",
+        "input record processing",
+        "numeric and locale semantics",
+        "diagnostics and exit status"
+      ],
+      "tiny_translation": "The selected image retains the existing compact implementations; source presence and smoke behavior do not close either language specification.",
+      "evidence": [
+        "docs/research/sus-utility-ledger.json"
+      ],
+      "residual": "Both utilities require finite grammar and behavior denominators with calibrated negative controls."
+    }
+  ]
+}

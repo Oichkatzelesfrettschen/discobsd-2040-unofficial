@@ -1,0 +1,1618 @@
+kind	name	issue7_source	issue8_source	edition_relation
+base-definition	V1_chap01	basedefs/V1_chap01.html	basedefs/V1_chap01.html	retained
+base-definition	V1_chap02	basedefs/V1_chap02.html	basedefs/V1_chap02.html	retained
+base-definition	V1_chap03	basedefs/V1_chap03.html	basedefs/V1_chap03.html	retained
+base-definition	V1_chap04	basedefs/V1_chap04.html	basedefs/V1_chap04.html	retained
+base-definition	V1_chap05	basedefs/V1_chap05.html	basedefs/V1_chap05.html	retained
+base-definition	V1_chap06	basedefs/V1_chap06.html	basedefs/V1_chap06.html	retained
+base-definition	V1_chap07	basedefs/V1_chap07.html	basedefs/V1_chap07.html	retained
+base-definition	V1_chap08	basedefs/V1_chap08.html	basedefs/V1_chap08.html	retained
+base-definition	V1_chap09	basedefs/V1_chap09.html	basedefs/V1_chap09.html	retained
+base-definition	V1_chap10	basedefs/V1_chap10.html	basedefs/V1_chap10.html	retained
+base-definition	V1_chap11	basedefs/V1_chap11.html	basedefs/V1_chap11.html	retained
+base-definition	V1_chap12	basedefs/V1_chap12.html	basedefs/V1_chap12.html	retained
+base-definition	V1_chap13	basedefs/V1_chap13.html	basedefs/V1_chap13.html	retained
+base-definition	V1_chap14		basedefs/V1_chap14.html	issue8-only
+base-definition	aio.h	basedefs/aio.h.html	basedefs/aio.h.html	retained
+base-definition	arpa_inet.h	basedefs/arpa_inet.h.html	basedefs/arpa_inet.h.html	retained
+base-definition	assert.h	basedefs/assert.h.html	basedefs/assert.h.html	retained
+base-definition	complex.h	basedefs/complex.h.html	basedefs/complex.h.html	retained
+base-definition	cpio.h	basedefs/cpio.h.html	basedefs/cpio.h.html	retained
+base-definition	ctype.h	basedefs/ctype.h.html	basedefs/ctype.h.html	retained
+base-definition	devctl.h		basedefs/devctl.h.html	issue8-only
+base-definition	dirent.h	basedefs/dirent.h.html	basedefs/dirent.h.html	retained
+base-definition	dlfcn.h	basedefs/dlfcn.h.html	basedefs/dlfcn.h.html	retained
+base-definition	endian.h		basedefs/endian.h.html	issue8-only
+base-definition	errno.h	basedefs/errno.h.html	basedefs/errno.h.html	retained
+base-definition	fcntl.h	basedefs/fcntl.h.html	basedefs/fcntl.h.html	retained
+base-definition	fenv.h	basedefs/fenv.h.html	basedefs/fenv.h.html	retained
+base-definition	float.h	basedefs/float.h.html	basedefs/float.h.html	retained
+base-definition	fmtmsg.h	basedefs/fmtmsg.h.html	basedefs/fmtmsg.h.html	retained
+base-definition	fnmatch.h	basedefs/fnmatch.h.html	basedefs/fnmatch.h.html	retained
+base-definition	ftw.h	basedefs/ftw.h.html	basedefs/ftw.h.html	retained
+base-definition	glob.h	basedefs/glob.h.html	basedefs/glob.h.html	retained
+base-definition	grp.h	basedefs/grp.h.html	basedefs/grp.h.html	retained
+base-definition	iconv.h	basedefs/iconv.h.html	basedefs/iconv.h.html	retained
+base-definition	inttypes.h	basedefs/inttypes.h.html	basedefs/inttypes.h.html	retained
+base-definition	iso646.h	basedefs/iso646.h.html	basedefs/iso646.h.html	retained
+base-definition	langinfo.h	basedefs/langinfo.h.html	basedefs/langinfo.h.html	retained
+base-definition	libgen.h	basedefs/libgen.h.html	basedefs/libgen.h.html	retained
+base-definition	libintl.h		basedefs/libintl.h.html	issue8-only
+base-definition	limits.h	basedefs/limits.h.html	basedefs/limits.h.html	retained
+base-definition	locale.h	basedefs/locale.h.html	basedefs/locale.h.html	retained
+base-definition	math.h	basedefs/math.h.html	basedefs/math.h.html	retained
+base-definition	monetary.h	basedefs/monetary.h.html	basedefs/monetary.h.html	retained
+base-definition	mqueue.h	basedefs/mqueue.h.html	basedefs/mqueue.h.html	retained
+base-definition	ndbm.h	basedefs/ndbm.h.html	basedefs/ndbm.h.html	retained
+base-definition	net_if.h	basedefs/net_if.h.html	basedefs/net_if.h.html	retained
+base-definition	netdb.h	basedefs/netdb.h.html	basedefs/netdb.h.html	retained
+base-definition	netinet_in.h	basedefs/netinet_in.h.html	basedefs/netinet_in.h.html	retained
+base-definition	netinet_tcp.h	basedefs/netinet_tcp.h.html	basedefs/netinet_tcp.h.html	retained
+base-definition	nl_types.h	basedefs/nl_types.h.html	basedefs/nl_types.h.html	retained
+base-definition	poll.h	basedefs/poll.h.html	basedefs/poll.h.html	retained
+base-definition	pthread.h	basedefs/pthread.h.html	basedefs/pthread.h.html	retained
+base-definition	pwd.h	basedefs/pwd.h.html	basedefs/pwd.h.html	retained
+base-definition	regex.h	basedefs/regex.h.html	basedefs/regex.h.html	retained
+base-definition	sched.h	basedefs/sched.h.html	basedefs/sched.h.html	retained
+base-definition	search.h	basedefs/search.h.html	basedefs/search.h.html	retained
+base-definition	semaphore.h	basedefs/semaphore.h.html	basedefs/semaphore.h.html	retained
+base-definition	setjmp.h	basedefs/setjmp.h.html	basedefs/setjmp.h.html	retained
+base-definition	signal.h	basedefs/signal.h.html	basedefs/signal.h.html	retained
+base-definition	spawn.h	basedefs/spawn.h.html	basedefs/spawn.h.html	retained
+base-definition	stdalign.h		basedefs/stdalign.h.html	issue8-only
+base-definition	stdarg.h	basedefs/stdarg.h.html	basedefs/stdarg.h.html	retained
+base-definition	stdatomic.h		basedefs/stdatomic.h.html	issue8-only
+base-definition	stdbool.h	basedefs/stdbool.h.html	basedefs/stdbool.h.html	retained
+base-definition	stddef.h	basedefs/stddef.h.html	basedefs/stddef.h.html	retained
+base-definition	stdint.h	basedefs/stdint.h.html	basedefs/stdint.h.html	retained
+base-definition	stdio.h	basedefs/stdio.h.html	basedefs/stdio.h.html	retained
+base-definition	stdlib.h	basedefs/stdlib.h.html	basedefs/stdlib.h.html	retained
+base-definition	stdnoreturn.h		basedefs/stdnoreturn.h.html	issue8-only
+base-definition	string.h	basedefs/string.h.html	basedefs/string.h.html	retained
+base-definition	strings.h	basedefs/strings.h.html	basedefs/strings.h.html	retained
+base-definition	stropts.h	basedefs/stropts.h.html		issue7-only
+base-definition	sys_ipc.h	basedefs/sys_ipc.h.html	basedefs/sys_ipc.h.html	retained
+base-definition	sys_mman.h	basedefs/sys_mman.h.html	basedefs/sys_mman.h.html	retained
+base-definition	sys_msg.h	basedefs/sys_msg.h.html	basedefs/sys_msg.h.html	retained
+base-definition	sys_resource.h	basedefs/sys_resource.h.html	basedefs/sys_resource.h.html	retained
+base-definition	sys_select.h	basedefs/sys_select.h.html	basedefs/sys_select.h.html	retained
+base-definition	sys_sem.h	basedefs/sys_sem.h.html	basedefs/sys_sem.h.html	retained
+base-definition	sys_shm.h	basedefs/sys_shm.h.html	basedefs/sys_shm.h.html	retained
+base-definition	sys_socket.h	basedefs/sys_socket.h.html	basedefs/sys_socket.h.html	retained
+base-definition	sys_stat.h	basedefs/sys_stat.h.html	basedefs/sys_stat.h.html	retained
+base-definition	sys_statvfs.h	basedefs/sys_statvfs.h.html	basedefs/sys_statvfs.h.html	retained
+base-definition	sys_time.h	basedefs/sys_time.h.html	basedefs/sys_time.h.html	retained
+base-definition	sys_times.h	basedefs/sys_times.h.html	basedefs/sys_times.h.html	retained
+base-definition	sys_types.h	basedefs/sys_types.h.html	basedefs/sys_types.h.html	retained
+base-definition	sys_uio.h	basedefs/sys_uio.h.html	basedefs/sys_uio.h.html	retained
+base-definition	sys_un.h	basedefs/sys_un.h.html	basedefs/sys_un.h.html	retained
+base-definition	sys_utsname.h	basedefs/sys_utsname.h.html	basedefs/sys_utsname.h.html	retained
+base-definition	sys_wait.h	basedefs/sys_wait.h.html	basedefs/sys_wait.h.html	retained
+base-definition	syslog.h	basedefs/syslog.h.html	basedefs/syslog.h.html	retained
+base-definition	tar.h	basedefs/tar.h.html	basedefs/tar.h.html	retained
+base-definition	termios.h	basedefs/termios.h.html	basedefs/termios.h.html	retained
+base-definition	tgmath.h	basedefs/tgmath.h.html	basedefs/tgmath.h.html	retained
+base-definition	threads.h		basedefs/threads.h.html	issue8-only
+base-definition	time.h	basedefs/time.h.html	basedefs/time.h.html	retained
+base-definition	trace.h	basedefs/trace.h.html		issue7-only
+base-definition	uchar.h		basedefs/uchar.h.html	issue8-only
+base-definition	ulimit.h	basedefs/ulimit.h.html		issue7-only
+base-definition	unistd.h	basedefs/unistd.h.html	basedefs/unistd.h.html	retained
+base-definition	utime.h	basedefs/utime.h.html		issue7-only
+base-definition	utmpx.h	basedefs/utmpx.h.html	basedefs/utmpx.h.html	retained
+base-definition	wchar.h	basedefs/wchar.h.html	basedefs/wchar.h.html	retained
+base-definition	wctype.h	basedefs/wctype.h.html	basedefs/wctype.h.html	retained
+base-definition	wordexp.h	basedefs/wordexp.h.html	basedefs/wordexp.h.html	retained
+system-interface	CMPLX		functions/CMPLX.html	issue8-only
+system-interface	CMPLXF		functions/CMPLXF.html	issue8-only
+system-interface	CMPLXL		functions/CMPLXL.html	issue8-only
+system-interface	FD_CLR	functions/FD_CLR.html	functions/FD_CLR.html	retained
+system-interface	FD_ISSET	functions/FD_ISSET.html	functions/FD_ISSET.html	retained
+system-interface	FD_SET	functions/FD_SET.html	functions/FD_SET.html	retained
+system-interface	FD_ZERO	functions/FD_ZERO.html	functions/FD_ZERO.html	retained
+system-interface	V2_chap02	functions/V2_chap02.html	functions/V2_chap02.html	retained
+system-interface	V2_chap03	functions/V2_chap03.html	functions/V2_chap03.html	retained
+system-interface	_Exit	functions/_Exit.html	functions/_Exit.html	retained
+system-interface	_Fork		functions/_Fork.html	issue8-only
+system-interface	_exit	functions/_exit.html		issue7-only
+system-interface	_longjmp	functions/_longjmp.html		issue7-only
+system-interface	_setjmp	functions/_setjmp.html		issue7-only
+system-interface	_tolower	functions/_tolower.html		issue7-only
+system-interface	_toupper	functions/_toupper.html		issue7-only
+system-interface	a64l	functions/a64l.html	functions/a64l.html	retained
+system-interface	abort	functions/abort.html	functions/abort.html	retained
+system-interface	abs	functions/abs.html	functions/abs.html	retained
+system-interface	accept	functions/accept.html	functions/accept.html	retained
+system-interface	accept4		functions/accept4.html	issue8-only
+system-interface	access	functions/access.html	functions/access.html	retained
+system-interface	acos	functions/acos.html	functions/acos.html	retained
+system-interface	acosf	functions/acosf.html	functions/acosf.html	retained
+system-interface	acosh	functions/acosh.html	functions/acosh.html	retained
+system-interface	acoshf	functions/acoshf.html	functions/acoshf.html	retained
+system-interface	acoshl	functions/acoshl.html	functions/acoshl.html	retained
+system-interface	acosl	functions/acosl.html	functions/acosl.html	retained
+system-interface	aio_cancel	functions/aio_cancel.html	functions/aio_cancel.html	retained
+system-interface	aio_error	functions/aio_error.html	functions/aio_error.html	retained
+system-interface	aio_fsync	functions/aio_fsync.html	functions/aio_fsync.html	retained
+system-interface	aio_read	functions/aio_read.html	functions/aio_read.html	retained
+system-interface	aio_return	functions/aio_return.html	functions/aio_return.html	retained
+system-interface	aio_suspend	functions/aio_suspend.html	functions/aio_suspend.html	retained
+system-interface	aio_write	functions/aio_write.html	functions/aio_write.html	retained
+system-interface	alarm	functions/alarm.html	functions/alarm.html	retained
+system-interface	aligned_alloc		functions/aligned_alloc.html	issue8-only
+system-interface	alphasort	functions/alphasort.html	functions/alphasort.html	retained
+system-interface	asctime	functions/asctime.html	functions/asctime.html	retained
+system-interface	asctime_r	functions/asctime_r.html	functions/asctime_r.html	retained
+system-interface	asin	functions/asin.html	functions/asin.html	retained
+system-interface	asinf	functions/asinf.html	functions/asinf.html	retained
+system-interface	asinh	functions/asinh.html	functions/asinh.html	retained
+system-interface	asinhf	functions/asinhf.html	functions/asinhf.html	retained
+system-interface	asinhl	functions/asinhl.html	functions/asinhl.html	retained
+system-interface	asinl	functions/asinl.html	functions/asinl.html	retained
+system-interface	asprintf		functions/asprintf.html	issue8-only
+system-interface	assert	functions/assert.html	functions/assert.html	retained
+system-interface	at_quick_exit		functions/at_quick_exit.html	issue8-only
+system-interface	atan	functions/atan.html	functions/atan.html	retained
+system-interface	atan2	functions/atan2.html	functions/atan2.html	retained
+system-interface	atan2f	functions/atan2f.html	functions/atan2f.html	retained
+system-interface	atan2l	functions/atan2l.html	functions/atan2l.html	retained
+system-interface	atanf	functions/atanf.html	functions/atanf.html	retained
+system-interface	atanh	functions/atanh.html	functions/atanh.html	retained
+system-interface	atanhf	functions/atanhf.html	functions/atanhf.html	retained
+system-interface	atanhl	functions/atanhl.html	functions/atanhl.html	retained
+system-interface	atanl	functions/atanl.html	functions/atanl.html	retained
+system-interface	atexit	functions/atexit.html	functions/atexit.html	retained
+system-interface	atof	functions/atof.html	functions/atof.html	retained
+system-interface	atoi	functions/atoi.html	functions/atoi.html	retained
+system-interface	atol	functions/atol.html	functions/atol.html	retained
+system-interface	atoll	functions/atoll.html	functions/atoll.html	retained
+system-interface	atomic_compare_exchange_strong		functions/atomic_compare_exchange_strong.html	issue8-only
+system-interface	atomic_compare_exchange_strong_explicit		functions/atomic_compare_exchange_strong_explicit.html	issue8-only
+system-interface	atomic_compare_exchange_weak		functions/atomic_compare_exchange_weak.html	issue8-only
+system-interface	atomic_compare_exchange_weak_explicit		functions/atomic_compare_exchange_weak_explicit.html	issue8-only
+system-interface	atomic_exchange		functions/atomic_exchange.html	issue8-only
+system-interface	atomic_exchange_explicit		functions/atomic_exchange_explicit.html	issue8-only
+system-interface	atomic_fetch_add		functions/atomic_fetch_add.html	issue8-only
+system-interface	atomic_fetch_add_explicit		functions/atomic_fetch_add_explicit.html	issue8-only
+system-interface	atomic_fetch_and		functions/atomic_fetch_and.html	issue8-only
+system-interface	atomic_fetch_and_explicit		functions/atomic_fetch_and_explicit.html	issue8-only
+system-interface	atomic_fetch_or		functions/atomic_fetch_or.html	issue8-only
+system-interface	atomic_fetch_or_explicit		functions/atomic_fetch_or_explicit.html	issue8-only
+system-interface	atomic_fetch_sub		functions/atomic_fetch_sub.html	issue8-only
+system-interface	atomic_fetch_sub_explicit		functions/atomic_fetch_sub_explicit.html	issue8-only
+system-interface	atomic_fetch_xor		functions/atomic_fetch_xor.html	issue8-only
+system-interface	atomic_fetch_xor_explicit		functions/atomic_fetch_xor_explicit.html	issue8-only
+system-interface	atomic_flag_clear		functions/atomic_flag_clear.html	issue8-only
+system-interface	atomic_flag_clear_explicit		functions/atomic_flag_clear_explicit.html	issue8-only
+system-interface	atomic_flag_test_and_set		functions/atomic_flag_test_and_set.html	issue8-only
+system-interface	atomic_flag_test_and_set_explicit		functions/atomic_flag_test_and_set_explicit.html	issue8-only
+system-interface	atomic_init		functions/atomic_init.html	issue8-only
+system-interface	atomic_is_lock_free		functions/atomic_is_lock_free.html	issue8-only
+system-interface	atomic_load		functions/atomic_load.html	issue8-only
+system-interface	atomic_load_explicit		functions/atomic_load_explicit.html	issue8-only
+system-interface	atomic_signal_fence		functions/atomic_signal_fence.html	issue8-only
+system-interface	atomic_store		functions/atomic_store.html	issue8-only
+system-interface	atomic_store_explicit		functions/atomic_store_explicit.html	issue8-only
+system-interface	atomic_thread_fence		functions/atomic_thread_fence.html	issue8-only
+system-interface	basename	functions/basename.html	functions/basename.html	retained
+system-interface	be16toh		functions/be16toh.html	issue8-only
+system-interface	be32toh		functions/be32toh.html	issue8-only
+system-interface	be64toh		functions/be64toh.html	issue8-only
+system-interface	bind	functions/bind.html	functions/bind.html	retained
+system-interface	bind_textdomain_codeset		functions/bind_textdomain_codeset.html	issue8-only
+system-interface	bindtextdomain		functions/bindtextdomain.html	issue8-only
+system-interface	bsearch	functions/bsearch.html	functions/bsearch.html	retained
+system-interface	btowc	functions/btowc.html	functions/btowc.html	retained
+system-interface	c16rtomb		functions/c16rtomb.html	issue8-only
+system-interface	c32rtomb		functions/c32rtomb.html	issue8-only
+system-interface	cabs	functions/cabs.html	functions/cabs.html	retained
+system-interface	cabsf	functions/cabsf.html	functions/cabsf.html	retained
+system-interface	cabsl	functions/cabsl.html	functions/cabsl.html	retained
+system-interface	cacos	functions/cacos.html	functions/cacos.html	retained
+system-interface	cacosf	functions/cacosf.html	functions/cacosf.html	retained
+system-interface	cacosh	functions/cacosh.html	functions/cacosh.html	retained
+system-interface	cacoshf	functions/cacoshf.html	functions/cacoshf.html	retained
+system-interface	cacoshl	functions/cacoshl.html	functions/cacoshl.html	retained
+system-interface	cacosl	functions/cacosl.html	functions/cacosl.html	retained
+system-interface	call_once		functions/call_once.html	issue8-only
+system-interface	calloc	functions/calloc.html	functions/calloc.html	retained
+system-interface	carg	functions/carg.html	functions/carg.html	retained
+system-interface	cargf	functions/cargf.html	functions/cargf.html	retained
+system-interface	cargl	functions/cargl.html	functions/cargl.html	retained
+system-interface	casin	functions/casin.html	functions/casin.html	retained
+system-interface	casinf	functions/casinf.html	functions/casinf.html	retained
+system-interface	casinh	functions/casinh.html	functions/casinh.html	retained
+system-interface	casinhf	functions/casinhf.html	functions/casinhf.html	retained
+system-interface	casinhl	functions/casinhl.html	functions/casinhl.html	retained
+system-interface	casinl	functions/casinl.html	functions/casinl.html	retained
+system-interface	catan	functions/catan.html	functions/catan.html	retained
+system-interface	catanf	functions/catanf.html	functions/catanf.html	retained
+system-interface	catanh	functions/catanh.html	functions/catanh.html	retained
+system-interface	catanhf	functions/catanhf.html	functions/catanhf.html	retained
+system-interface	catanhl	functions/catanhl.html	functions/catanhl.html	retained
+system-interface	catanl	functions/catanl.html	functions/catanl.html	retained
+system-interface	catclose	functions/catclose.html	functions/catclose.html	retained
+system-interface	catgets	functions/catgets.html	functions/catgets.html	retained
+system-interface	catopen	functions/catopen.html	functions/catopen.html	retained
+system-interface	cbrt	functions/cbrt.html	functions/cbrt.html	retained
+system-interface	cbrtf	functions/cbrtf.html	functions/cbrtf.html	retained
+system-interface	cbrtl	functions/cbrtl.html	functions/cbrtl.html	retained
+system-interface	ccos	functions/ccos.html	functions/ccos.html	retained
+system-interface	ccosf	functions/ccosf.html	functions/ccosf.html	retained
+system-interface	ccosh	functions/ccosh.html	functions/ccosh.html	retained
+system-interface	ccoshf	functions/ccoshf.html	functions/ccoshf.html	retained
+system-interface	ccoshl	functions/ccoshl.html	functions/ccoshl.html	retained
+system-interface	ccosl	functions/ccosl.html	functions/ccosl.html	retained
+system-interface	ceil	functions/ceil.html	functions/ceil.html	retained
+system-interface	ceilf	functions/ceilf.html	functions/ceilf.html	retained
+system-interface	ceill	functions/ceill.html	functions/ceill.html	retained
+system-interface	cexp	functions/cexp.html	functions/cexp.html	retained
+system-interface	cexpf	functions/cexpf.html	functions/cexpf.html	retained
+system-interface	cexpl	functions/cexpl.html	functions/cexpl.html	retained
+system-interface	cfgetispeed	functions/cfgetispeed.html	functions/cfgetispeed.html	retained
+system-interface	cfgetospeed	functions/cfgetospeed.html	functions/cfgetospeed.html	retained
+system-interface	cfsetispeed	functions/cfsetispeed.html	functions/cfsetispeed.html	retained
+system-interface	cfsetospeed	functions/cfsetospeed.html	functions/cfsetospeed.html	retained
+system-interface	chdir	functions/chdir.html	functions/chdir.html	retained
+system-interface	chmod	functions/chmod.html	functions/chmod.html	retained
+system-interface	chown	functions/chown.html	functions/chown.html	retained
+system-interface	cimag	functions/cimag.html	functions/cimag.html	retained
+system-interface	cimagf	functions/cimagf.html	functions/cimagf.html	retained
+system-interface	cimagl	functions/cimagl.html	functions/cimagl.html	retained
+system-interface	clearerr	functions/clearerr.html	functions/clearerr.html	retained
+system-interface	clock	functions/clock.html	functions/clock.html	retained
+system-interface	clock_getcpuclockid	functions/clock_getcpuclockid.html	functions/clock_getcpuclockid.html	retained
+system-interface	clock_getres	functions/clock_getres.html	functions/clock_getres.html	retained
+system-interface	clock_gettime	functions/clock_gettime.html	functions/clock_gettime.html	retained
+system-interface	clock_nanosleep	functions/clock_nanosleep.html	functions/clock_nanosleep.html	retained
+system-interface	clock_settime	functions/clock_settime.html	functions/clock_settime.html	retained
+system-interface	clog	functions/clog.html	functions/clog.html	retained
+system-interface	clogf	functions/clogf.html	functions/clogf.html	retained
+system-interface	clogl	functions/clogl.html	functions/clogl.html	retained
+system-interface	close	functions/close.html	functions/close.html	retained
+system-interface	closedir	functions/closedir.html	functions/closedir.html	retained
+system-interface	closelog	functions/closelog.html	functions/closelog.html	retained
+system-interface	cnd_broadcast		functions/cnd_broadcast.html	issue8-only
+system-interface	cnd_destroy		functions/cnd_destroy.html	issue8-only
+system-interface	cnd_init		functions/cnd_init.html	issue8-only
+system-interface	cnd_signal		functions/cnd_signal.html	issue8-only
+system-interface	cnd_timedwait		functions/cnd_timedwait.html	issue8-only
+system-interface	cnd_wait		functions/cnd_wait.html	issue8-only
+system-interface	confstr	functions/confstr.html	functions/confstr.html	retained
+system-interface	conj	functions/conj.html	functions/conj.html	retained
+system-interface	conjf	functions/conjf.html	functions/conjf.html	retained
+system-interface	conjl	functions/conjl.html	functions/conjl.html	retained
+system-interface	connect	functions/connect.html	functions/connect.html	retained
+system-interface	copysign	functions/copysign.html	functions/copysign.html	retained
+system-interface	copysignf	functions/copysignf.html	functions/copysignf.html	retained
+system-interface	copysignl	functions/copysignl.html	functions/copysignl.html	retained
+system-interface	cos	functions/cos.html	functions/cos.html	retained
+system-interface	cosf	functions/cosf.html	functions/cosf.html	retained
+system-interface	cosh	functions/cosh.html	functions/cosh.html	retained
+system-interface	coshf	functions/coshf.html	functions/coshf.html	retained
+system-interface	coshl	functions/coshl.html	functions/coshl.html	retained
+system-interface	cosl	functions/cosl.html	functions/cosl.html	retained
+system-interface	cpow	functions/cpow.html	functions/cpow.html	retained
+system-interface	cpowf	functions/cpowf.html	functions/cpowf.html	retained
+system-interface	cpowl	functions/cpowl.html	functions/cpowl.html	retained
+system-interface	cproj	functions/cproj.html	functions/cproj.html	retained
+system-interface	cprojf	functions/cprojf.html	functions/cprojf.html	retained
+system-interface	cprojl	functions/cprojl.html	functions/cprojl.html	retained
+system-interface	creal	functions/creal.html	functions/creal.html	retained
+system-interface	crealf	functions/crealf.html	functions/crealf.html	retained
+system-interface	creall	functions/creall.html	functions/creall.html	retained
+system-interface	creat	functions/creat.html	functions/creat.html	retained
+system-interface	crypt	functions/crypt.html	functions/crypt.html	retained
+system-interface	csin	functions/csin.html	functions/csin.html	retained
+system-interface	csinf	functions/csinf.html	functions/csinf.html	retained
+system-interface	csinh	functions/csinh.html	functions/csinh.html	retained
+system-interface	csinhf	functions/csinhf.html	functions/csinhf.html	retained
+system-interface	csinhl	functions/csinhl.html	functions/csinhl.html	retained
+system-interface	csinl	functions/csinl.html	functions/csinl.html	retained
+system-interface	csqrt	functions/csqrt.html	functions/csqrt.html	retained
+system-interface	csqrtf	functions/csqrtf.html	functions/csqrtf.html	retained
+system-interface	csqrtl	functions/csqrtl.html	functions/csqrtl.html	retained
+system-interface	ctan	functions/ctan.html	functions/ctan.html	retained
+system-interface	ctanf	functions/ctanf.html	functions/ctanf.html	retained
+system-interface	ctanh	functions/ctanh.html	functions/ctanh.html	retained
+system-interface	ctanhf	functions/ctanhf.html	functions/ctanhf.html	retained
+system-interface	ctanhl	functions/ctanhl.html	functions/ctanhl.html	retained
+system-interface	ctanl	functions/ctanl.html	functions/ctanl.html	retained
+system-interface	ctermid	functions/ctermid.html	functions/ctermid.html	retained
+system-interface	ctime	functions/ctime.html	functions/ctime.html	retained
+system-interface	ctime_r	functions/ctime_r.html	functions/ctime_r.html	retained
+system-interface	daylight	functions/daylight.html	functions/daylight.html	retained
+system-interface	dbm_clearerr	functions/dbm_clearerr.html	functions/dbm_clearerr.html	retained
+system-interface	dbm_close	functions/dbm_close.html	functions/dbm_close.html	retained
+system-interface	dbm_delete	functions/dbm_delete.html	functions/dbm_delete.html	retained
+system-interface	dbm_error	functions/dbm_error.html	functions/dbm_error.html	retained
+system-interface	dbm_fetch	functions/dbm_fetch.html	functions/dbm_fetch.html	retained
+system-interface	dbm_firstkey	functions/dbm_firstkey.html	functions/dbm_firstkey.html	retained
+system-interface	dbm_nextkey	functions/dbm_nextkey.html	functions/dbm_nextkey.html	retained
+system-interface	dbm_open	functions/dbm_open.html	functions/dbm_open.html	retained
+system-interface	dbm_store	functions/dbm_store.html	functions/dbm_store.html	retained
+system-interface	dcgettext		functions/dcgettext.html	issue8-only
+system-interface	dcgettext_l		functions/dcgettext_l.html	issue8-only
+system-interface	dcngettext		functions/dcngettext.html	issue8-only
+system-interface	dcngettext_l		functions/dcngettext_l.html	issue8-only
+system-interface	dgettext		functions/dgettext.html	issue8-only
+system-interface	dgettext_l		functions/dgettext_l.html	issue8-only
+system-interface	difftime	functions/difftime.html	functions/difftime.html	retained
+system-interface	dirfd	functions/dirfd.html	functions/dirfd.html	retained
+system-interface	dirname	functions/dirname.html	functions/dirname.html	retained
+system-interface	div	functions/div.html	functions/div.html	retained
+system-interface	dladdr		functions/dladdr.html	issue8-only
+system-interface	dlclose	functions/dlclose.html	functions/dlclose.html	retained
+system-interface	dlerror	functions/dlerror.html	functions/dlerror.html	retained
+system-interface	dlopen	functions/dlopen.html	functions/dlopen.html	retained
+system-interface	dlsym	functions/dlsym.html	functions/dlsym.html	retained
+system-interface	dngettext		functions/dngettext.html	issue8-only
+system-interface	dngettext_l		functions/dngettext_l.html	issue8-only
+system-interface	dprintf	functions/dprintf.html	functions/dprintf.html	retained
+system-interface	drand48	functions/drand48.html	functions/drand48.html	retained
+system-interface	dup	functions/dup.html	functions/dup.html	retained
+system-interface	dup2	functions/dup2.html	functions/dup2.html	retained
+system-interface	dup3		functions/dup3.html	issue8-only
+system-interface	duplocale	functions/duplocale.html	functions/duplocale.html	retained
+system-interface	encrypt	functions/encrypt.html	functions/encrypt.html	retained
+system-interface	endgrent	functions/endgrent.html	functions/endgrent.html	retained
+system-interface	endhostent	functions/endhostent.html	functions/endhostent.html	retained
+system-interface	endnetent	functions/endnetent.html	functions/endnetent.html	retained
+system-interface	endprotoent	functions/endprotoent.html	functions/endprotoent.html	retained
+system-interface	endpwent	functions/endpwent.html	functions/endpwent.html	retained
+system-interface	endservent	functions/endservent.html	functions/endservent.html	retained
+system-interface	endutxent	functions/endutxent.html	functions/endutxent.html	retained
+system-interface	environ	functions/environ.html	functions/environ.html	retained
+system-interface	erand48	functions/erand48.html	functions/erand48.html	retained
+system-interface	erf	functions/erf.html	functions/erf.html	retained
+system-interface	erfc	functions/erfc.html	functions/erfc.html	retained
+system-interface	erfcf	functions/erfcf.html	functions/erfcf.html	retained
+system-interface	erfcl	functions/erfcl.html	functions/erfcl.html	retained
+system-interface	erff	functions/erff.html	functions/erff.html	retained
+system-interface	erfl	functions/erfl.html	functions/erfl.html	retained
+system-interface	errno	functions/errno.html	functions/errno.html	retained
+system-interface	exec	functions/exec.html	functions/exec.html	retained
+system-interface	execl	functions/execl.html	functions/execl.html	retained
+system-interface	execle	functions/execle.html	functions/execle.html	retained
+system-interface	execlp	functions/execlp.html	functions/execlp.html	retained
+system-interface	execv	functions/execv.html	functions/execv.html	retained
+system-interface	execve	functions/execve.html	functions/execve.html	retained
+system-interface	execvp	functions/execvp.html	functions/execvp.html	retained
+system-interface	exit	functions/exit.html	functions/exit.html	retained
+system-interface	exp	functions/exp.html	functions/exp.html	retained
+system-interface	exp2	functions/exp2.html	functions/exp2.html	retained
+system-interface	exp2f	functions/exp2f.html	functions/exp2f.html	retained
+system-interface	exp2l	functions/exp2l.html	functions/exp2l.html	retained
+system-interface	expf	functions/expf.html	functions/expf.html	retained
+system-interface	expl	functions/expl.html	functions/expl.html	retained
+system-interface	expm1	functions/expm1.html	functions/expm1.html	retained
+system-interface	expm1f	functions/expm1f.html	functions/expm1f.html	retained
+system-interface	expm1l	functions/expm1l.html	functions/expm1l.html	retained
+system-interface	fabs	functions/fabs.html	functions/fabs.html	retained
+system-interface	fabsf	functions/fabsf.html	functions/fabsf.html	retained
+system-interface	fabsl	functions/fabsl.html	functions/fabsl.html	retained
+system-interface	faccessat	functions/faccessat.html	functions/faccessat.html	retained
+system-interface	fattach	functions/fattach.html		issue7-only
+system-interface	fchdir	functions/fchdir.html	functions/fchdir.html	retained
+system-interface	fchmod	functions/fchmod.html	functions/fchmod.html	retained
+system-interface	fchmodat	functions/fchmodat.html	functions/fchmodat.html	retained
+system-interface	fchown	functions/fchown.html	functions/fchown.html	retained
+system-interface	fchownat	functions/fchownat.html	functions/fchownat.html	retained
+system-interface	fclose	functions/fclose.html	functions/fclose.html	retained
+system-interface	fcntl	functions/fcntl.html	functions/fcntl.html	retained
+system-interface	fdatasync	functions/fdatasync.html	functions/fdatasync.html	retained
+system-interface	fdetach	functions/fdetach.html		issue7-only
+system-interface	fdim	functions/fdim.html	functions/fdim.html	retained
+system-interface	fdimf	functions/fdimf.html	functions/fdimf.html	retained
+system-interface	fdiml	functions/fdiml.html	functions/fdiml.html	retained
+system-interface	fdopen	functions/fdopen.html	functions/fdopen.html	retained
+system-interface	fdopendir	functions/fdopendir.html	functions/fdopendir.html	retained
+system-interface	feclearexcept	functions/feclearexcept.html	functions/feclearexcept.html	retained
+system-interface	fegetenv	functions/fegetenv.html	functions/fegetenv.html	retained
+system-interface	fegetexceptflag	functions/fegetexceptflag.html	functions/fegetexceptflag.html	retained
+system-interface	fegetround	functions/fegetround.html	functions/fegetround.html	retained
+system-interface	feholdexcept	functions/feholdexcept.html	functions/feholdexcept.html	retained
+system-interface	feof	functions/feof.html	functions/feof.html	retained
+system-interface	feraiseexcept	functions/feraiseexcept.html	functions/feraiseexcept.html	retained
+system-interface	ferror	functions/ferror.html	functions/ferror.html	retained
+system-interface	fesetenv	functions/fesetenv.html	functions/fesetenv.html	retained
+system-interface	fesetexceptflag	functions/fesetexceptflag.html	functions/fesetexceptflag.html	retained
+system-interface	fesetround	functions/fesetround.html	functions/fesetround.html	retained
+system-interface	fetestexcept	functions/fetestexcept.html	functions/fetestexcept.html	retained
+system-interface	feupdateenv	functions/feupdateenv.html	functions/feupdateenv.html	retained
+system-interface	fexecve	functions/fexecve.html	functions/fexecve.html	retained
+system-interface	fflush	functions/fflush.html	functions/fflush.html	retained
+system-interface	ffs	functions/ffs.html	functions/ffs.html	retained
+system-interface	ffsl		functions/ffsl.html	issue8-only
+system-interface	ffsll		functions/ffsll.html	issue8-only
+system-interface	fgetc	functions/fgetc.html	functions/fgetc.html	retained
+system-interface	fgetpos	functions/fgetpos.html	functions/fgetpos.html	retained
+system-interface	fgets	functions/fgets.html	functions/fgets.html	retained
+system-interface	fgetwc	functions/fgetwc.html	functions/fgetwc.html	retained
+system-interface	fgetws	functions/fgetws.html	functions/fgetws.html	retained
+system-interface	fileno	functions/fileno.html	functions/fileno.html	retained
+system-interface	flockfile	functions/flockfile.html	functions/flockfile.html	retained
+system-interface	floor	functions/floor.html	functions/floor.html	retained
+system-interface	floorf	functions/floorf.html	functions/floorf.html	retained
+system-interface	floorl	functions/floorl.html	functions/floorl.html	retained
+system-interface	fma	functions/fma.html	functions/fma.html	retained
+system-interface	fmaf	functions/fmaf.html	functions/fmaf.html	retained
+system-interface	fmal	functions/fmal.html	functions/fmal.html	retained
+system-interface	fmax	functions/fmax.html	functions/fmax.html	retained
+system-interface	fmaxf	functions/fmaxf.html	functions/fmaxf.html	retained
+system-interface	fmaxl	functions/fmaxl.html	functions/fmaxl.html	retained
+system-interface	fmemopen	functions/fmemopen.html	functions/fmemopen.html	retained
+system-interface	fmin	functions/fmin.html	functions/fmin.html	retained
+system-interface	fminf	functions/fminf.html	functions/fminf.html	retained
+system-interface	fminl	functions/fminl.html	functions/fminl.html	retained
+system-interface	fmod	functions/fmod.html	functions/fmod.html	retained
+system-interface	fmodf	functions/fmodf.html	functions/fmodf.html	retained
+system-interface	fmodl	functions/fmodl.html	functions/fmodl.html	retained
+system-interface	fmtmsg	functions/fmtmsg.html	functions/fmtmsg.html	retained
+system-interface	fnmatch	functions/fnmatch.html	functions/fnmatch.html	retained
+system-interface	fopen	functions/fopen.html	functions/fopen.html	retained
+system-interface	fork	functions/fork.html	functions/fork.html	retained
+system-interface	fpathconf	functions/fpathconf.html	functions/fpathconf.html	retained
+system-interface	fpclassify	functions/fpclassify.html	functions/fpclassify.html	retained
+system-interface	fprintf	functions/fprintf.html	functions/fprintf.html	retained
+system-interface	fputc	functions/fputc.html	functions/fputc.html	retained
+system-interface	fputs	functions/fputs.html	functions/fputs.html	retained
+system-interface	fputwc	functions/fputwc.html	functions/fputwc.html	retained
+system-interface	fputws	functions/fputws.html	functions/fputws.html	retained
+system-interface	fread	functions/fread.html	functions/fread.html	retained
+system-interface	free	functions/free.html	functions/free.html	retained
+system-interface	freeaddrinfo	functions/freeaddrinfo.html	functions/freeaddrinfo.html	retained
+system-interface	freelocale	functions/freelocale.html	functions/freelocale.html	retained
+system-interface	freopen	functions/freopen.html	functions/freopen.html	retained
+system-interface	frexp	functions/frexp.html	functions/frexp.html	retained
+system-interface	frexpf	functions/frexpf.html	functions/frexpf.html	retained
+system-interface	frexpl	functions/frexpl.html	functions/frexpl.html	retained
+system-interface	fscanf	functions/fscanf.html	functions/fscanf.html	retained
+system-interface	fseek	functions/fseek.html	functions/fseek.html	retained
+system-interface	fseeko	functions/fseeko.html	functions/fseeko.html	retained
+system-interface	fsetpos	functions/fsetpos.html	functions/fsetpos.html	retained
+system-interface	fstat	functions/fstat.html	functions/fstat.html	retained
+system-interface	fstatat	functions/fstatat.html	functions/fstatat.html	retained
+system-interface	fstatvfs	functions/fstatvfs.html	functions/fstatvfs.html	retained
+system-interface	fsync	functions/fsync.html	functions/fsync.html	retained
+system-interface	ftell	functions/ftell.html	functions/ftell.html	retained
+system-interface	ftello	functions/ftello.html	functions/ftello.html	retained
+system-interface	ftok	functions/ftok.html	functions/ftok.html	retained
+system-interface	ftruncate	functions/ftruncate.html	functions/ftruncate.html	retained
+system-interface	ftrylockfile	functions/ftrylockfile.html	functions/ftrylockfile.html	retained
+system-interface	ftw	functions/ftw.html		issue7-only
+system-interface	funlockfile	functions/funlockfile.html	functions/funlockfile.html	retained
+system-interface	futimens	functions/futimens.html	functions/futimens.html	retained
+system-interface	fwide	functions/fwide.html	functions/fwide.html	retained
+system-interface	fwprintf	functions/fwprintf.html	functions/fwprintf.html	retained
+system-interface	fwrite	functions/fwrite.html	functions/fwrite.html	retained
+system-interface	fwscanf	functions/fwscanf.html	functions/fwscanf.html	retained
+system-interface	gai_strerror	functions/gai_strerror.html	functions/gai_strerror.html	retained
+system-interface	getaddrinfo	functions/getaddrinfo.html	functions/getaddrinfo.html	retained
+system-interface	getc	functions/getc.html	functions/getc.html	retained
+system-interface	getc_unlocked	functions/getc_unlocked.html	functions/getc_unlocked.html	retained
+system-interface	getchar	functions/getchar.html	functions/getchar.html	retained
+system-interface	getchar_unlocked	functions/getchar_unlocked.html	functions/getchar_unlocked.html	retained
+system-interface	getcwd	functions/getcwd.html	functions/getcwd.html	retained
+system-interface	getdate	functions/getdate.html	functions/getdate.html	retained
+system-interface	getdate_err	functions/getdate_err.html	functions/getdate_err.html	retained
+system-interface	getdelim	functions/getdelim.html	functions/getdelim.html	retained
+system-interface	getegid	functions/getegid.html	functions/getegid.html	retained
+system-interface	getentropy		functions/getentropy.html	issue8-only
+system-interface	getenv	functions/getenv.html	functions/getenv.html	retained
+system-interface	geteuid	functions/geteuid.html	functions/geteuid.html	retained
+system-interface	getgid	functions/getgid.html	functions/getgid.html	retained
+system-interface	getgrent	functions/getgrent.html	functions/getgrent.html	retained
+system-interface	getgrgid	functions/getgrgid.html	functions/getgrgid.html	retained
+system-interface	getgrgid_r	functions/getgrgid_r.html	functions/getgrgid_r.html	retained
+system-interface	getgrnam	functions/getgrnam.html	functions/getgrnam.html	retained
+system-interface	getgrnam_r	functions/getgrnam_r.html	functions/getgrnam_r.html	retained
+system-interface	getgroups	functions/getgroups.html	functions/getgroups.html	retained
+system-interface	gethostent	functions/gethostent.html	functions/gethostent.html	retained
+system-interface	gethostid	functions/gethostid.html	functions/gethostid.html	retained
+system-interface	gethostname	functions/gethostname.html	functions/gethostname.html	retained
+system-interface	getitimer	functions/getitimer.html		issue7-only
+system-interface	getline	functions/getline.html	functions/getline.html	retained
+system-interface	getlocalename_l		functions/getlocalename_l.html	issue8-only
+system-interface	getlogin	functions/getlogin.html	functions/getlogin.html	retained
+system-interface	getlogin_r	functions/getlogin_r.html	functions/getlogin_r.html	retained
+system-interface	getmsg	functions/getmsg.html		issue7-only
+system-interface	getnameinfo	functions/getnameinfo.html	functions/getnameinfo.html	retained
+system-interface	getnetbyaddr	functions/getnetbyaddr.html	functions/getnetbyaddr.html	retained
+system-interface	getnetbyname	functions/getnetbyname.html	functions/getnetbyname.html	retained
+system-interface	getnetent	functions/getnetent.html	functions/getnetent.html	retained
+system-interface	getopt	functions/getopt.html	functions/getopt.html	retained
+system-interface	getpeername	functions/getpeername.html	functions/getpeername.html	retained
+system-interface	getpgid	functions/getpgid.html	functions/getpgid.html	retained
+system-interface	getpgrp	functions/getpgrp.html	functions/getpgrp.html	retained
+system-interface	getpid	functions/getpid.html	functions/getpid.html	retained
+system-interface	getpmsg	functions/getpmsg.html		issue7-only
+system-interface	getppid	functions/getppid.html	functions/getppid.html	retained
+system-interface	getpriority	functions/getpriority.html	functions/getpriority.html	retained
+system-interface	getprotobyname	functions/getprotobyname.html	functions/getprotobyname.html	retained
+system-interface	getprotobynumber	functions/getprotobynumber.html	functions/getprotobynumber.html	retained
+system-interface	getprotoent	functions/getprotoent.html	functions/getprotoent.html	retained
+system-interface	getpwent	functions/getpwent.html	functions/getpwent.html	retained
+system-interface	getpwnam	functions/getpwnam.html	functions/getpwnam.html	retained
+system-interface	getpwnam_r	functions/getpwnam_r.html	functions/getpwnam_r.html	retained
+system-interface	getpwuid	functions/getpwuid.html	functions/getpwuid.html	retained
+system-interface	getpwuid_r	functions/getpwuid_r.html	functions/getpwuid_r.html	retained
+system-interface	getresgid		functions/getresgid.html	issue8-only
+system-interface	getresuid		functions/getresuid.html	issue8-only
+system-interface	getrlimit	functions/getrlimit.html	functions/getrlimit.html	retained
+system-interface	getrusage	functions/getrusage.html	functions/getrusage.html	retained
+system-interface	gets	functions/gets.html		issue7-only
+system-interface	getservbyname	functions/getservbyname.html	functions/getservbyname.html	retained
+system-interface	getservbyport	functions/getservbyport.html	functions/getservbyport.html	retained
+system-interface	getservent	functions/getservent.html	functions/getservent.html	retained
+system-interface	getsid	functions/getsid.html	functions/getsid.html	retained
+system-interface	getsockname	functions/getsockname.html	functions/getsockname.html	retained
+system-interface	getsockopt	functions/getsockopt.html	functions/getsockopt.html	retained
+system-interface	getsubopt	functions/getsubopt.html	functions/getsubopt.html	retained
+system-interface	gettext		functions/gettext.html	issue8-only
+system-interface	gettext_l		functions/gettext_l.html	issue8-only
+system-interface	gettimeofday	functions/gettimeofday.html		issue7-only
+system-interface	getuid	functions/getuid.html	functions/getuid.html	retained
+system-interface	getutxent	functions/getutxent.html	functions/getutxent.html	retained
+system-interface	getutxid	functions/getutxid.html	functions/getutxid.html	retained
+system-interface	getutxline	functions/getutxline.html	functions/getutxline.html	retained
+system-interface	getwc	functions/getwc.html	functions/getwc.html	retained
+system-interface	getwchar	functions/getwchar.html	functions/getwchar.html	retained
+system-interface	glob	functions/glob.html	functions/glob.html	retained
+system-interface	globfree	functions/globfree.html	functions/globfree.html	retained
+system-interface	gmtime	functions/gmtime.html	functions/gmtime.html	retained
+system-interface	gmtime_r	functions/gmtime_r.html	functions/gmtime_r.html	retained
+system-interface	grantpt	functions/grantpt.html	functions/grantpt.html	retained
+system-interface	hcreate	functions/hcreate.html	functions/hcreate.html	retained
+system-interface	hdestroy	functions/hdestroy.html	functions/hdestroy.html	retained
+system-interface	hsearch	functions/hsearch.html	functions/hsearch.html	retained
+system-interface	htobe16		functions/htobe16.html	issue8-only
+system-interface	htobe32		functions/htobe32.html	issue8-only
+system-interface	htobe64		functions/htobe64.html	issue8-only
+system-interface	htole16		functions/htole16.html	issue8-only
+system-interface	htole32		functions/htole32.html	issue8-only
+system-interface	htole64		functions/htole64.html	issue8-only
+system-interface	htonl	functions/htonl.html	functions/htonl.html	retained
+system-interface	htons	functions/htons.html	functions/htons.html	retained
+system-interface	hypot	functions/hypot.html	functions/hypot.html	retained
+system-interface	hypotf	functions/hypotf.html	functions/hypotf.html	retained
+system-interface	hypotl	functions/hypotl.html	functions/hypotl.html	retained
+system-interface	iconv	functions/iconv.html	functions/iconv.html	retained
+system-interface	iconv_close	functions/iconv_close.html	functions/iconv_close.html	retained
+system-interface	iconv_open	functions/iconv_open.html	functions/iconv_open.html	retained
+system-interface	if_freenameindex	functions/if_freenameindex.html	functions/if_freenameindex.html	retained
+system-interface	if_indextoname	functions/if_indextoname.html	functions/if_indextoname.html	retained
+system-interface	if_nameindex	functions/if_nameindex.html	functions/if_nameindex.html	retained
+system-interface	if_nametoindex	functions/if_nametoindex.html	functions/if_nametoindex.html	retained
+system-interface	ilogb	functions/ilogb.html	functions/ilogb.html	retained
+system-interface	ilogbf	functions/ilogbf.html	functions/ilogbf.html	retained
+system-interface	ilogbl	functions/ilogbl.html	functions/ilogbl.html	retained
+system-interface	imaxabs	functions/imaxabs.html	functions/imaxabs.html	retained
+system-interface	imaxdiv	functions/imaxdiv.html	functions/imaxdiv.html	retained
+system-interface	in6addr_any		functions/in6addr_any.html	issue8-only
+system-interface	in6addr_loopback		functions/in6addr_loopback.html	issue8-only
+system-interface	inet_addr	functions/inet_addr.html	functions/inet_addr.html	retained
+system-interface	inet_ntoa	functions/inet_ntoa.html	functions/inet_ntoa.html	retained
+system-interface	inet_ntop	functions/inet_ntop.html	functions/inet_ntop.html	retained
+system-interface	inet_pton	functions/inet_pton.html	functions/inet_pton.html	retained
+system-interface	initstate	functions/initstate.html	functions/initstate.html	retained
+system-interface	insque	functions/insque.html	functions/insque.html	retained
+system-interface	ioctl	functions/ioctl.html		issue7-only
+system-interface	isalnum	functions/isalnum.html	functions/isalnum.html	retained
+system-interface	isalnum_l	functions/isalnum_l.html	functions/isalnum_l.html	retained
+system-interface	isalpha	functions/isalpha.html	functions/isalpha.html	retained
+system-interface	isalpha_l	functions/isalpha_l.html	functions/isalpha_l.html	retained
+system-interface	isascii	functions/isascii.html		issue7-only
+system-interface	isastream	functions/isastream.html		issue7-only
+system-interface	isatty	functions/isatty.html	functions/isatty.html	retained
+system-interface	isblank	functions/isblank.html	functions/isblank.html	retained
+system-interface	isblank_l	functions/isblank_l.html	functions/isblank_l.html	retained
+system-interface	iscntrl	functions/iscntrl.html	functions/iscntrl.html	retained
+system-interface	iscntrl_l	functions/iscntrl_l.html	functions/iscntrl_l.html	retained
+system-interface	isdigit	functions/isdigit.html	functions/isdigit.html	retained
+system-interface	isdigit_l	functions/isdigit_l.html	functions/isdigit_l.html	retained
+system-interface	isfinite	functions/isfinite.html	functions/isfinite.html	retained
+system-interface	isgraph	functions/isgraph.html	functions/isgraph.html	retained
+system-interface	isgraph_l	functions/isgraph_l.html	functions/isgraph_l.html	retained
+system-interface	isgreater	functions/isgreater.html	functions/isgreater.html	retained
+system-interface	isgreaterequal	functions/isgreaterequal.html	functions/isgreaterequal.html	retained
+system-interface	isinf	functions/isinf.html	functions/isinf.html	retained
+system-interface	isless	functions/isless.html	functions/isless.html	retained
+system-interface	islessequal	functions/islessequal.html	functions/islessequal.html	retained
+system-interface	islessgreater	functions/islessgreater.html	functions/islessgreater.html	retained
+system-interface	islower	functions/islower.html	functions/islower.html	retained
+system-interface	islower_l	functions/islower_l.html	functions/islower_l.html	retained
+system-interface	isnan	functions/isnan.html	functions/isnan.html	retained
+system-interface	isnormal	functions/isnormal.html	functions/isnormal.html	retained
+system-interface	isprint	functions/isprint.html	functions/isprint.html	retained
+system-interface	isprint_l	functions/isprint_l.html	functions/isprint_l.html	retained
+system-interface	ispunct	functions/ispunct.html	functions/ispunct.html	retained
+system-interface	ispunct_l	functions/ispunct_l.html	functions/ispunct_l.html	retained
+system-interface	isspace	functions/isspace.html	functions/isspace.html	retained
+system-interface	isspace_l	functions/isspace_l.html	functions/isspace_l.html	retained
+system-interface	isunordered	functions/isunordered.html	functions/isunordered.html	retained
+system-interface	isupper	functions/isupper.html	functions/isupper.html	retained
+system-interface	isupper_l	functions/isupper_l.html	functions/isupper_l.html	retained
+system-interface	iswalnum	functions/iswalnum.html	functions/iswalnum.html	retained
+system-interface	iswalnum_l	functions/iswalnum_l.html	functions/iswalnum_l.html	retained
+system-interface	iswalpha	functions/iswalpha.html	functions/iswalpha.html	retained
+system-interface	iswalpha_l	functions/iswalpha_l.html	functions/iswalpha_l.html	retained
+system-interface	iswblank	functions/iswblank.html	functions/iswblank.html	retained
+system-interface	iswblank_l	functions/iswblank_l.html	functions/iswblank_l.html	retained
+system-interface	iswcntrl	functions/iswcntrl.html	functions/iswcntrl.html	retained
+system-interface	iswcntrl_l	functions/iswcntrl_l.html	functions/iswcntrl_l.html	retained
+system-interface	iswctype	functions/iswctype.html	functions/iswctype.html	retained
+system-interface	iswctype_l	functions/iswctype_l.html	functions/iswctype_l.html	retained
+system-interface	iswdigit	functions/iswdigit.html	functions/iswdigit.html	retained
+system-interface	iswdigit_l	functions/iswdigit_l.html	functions/iswdigit_l.html	retained
+system-interface	iswgraph	functions/iswgraph.html	functions/iswgraph.html	retained
+system-interface	iswgraph_l	functions/iswgraph_l.html	functions/iswgraph_l.html	retained
+system-interface	iswlower	functions/iswlower.html	functions/iswlower.html	retained
+system-interface	iswlower_l	functions/iswlower_l.html	functions/iswlower_l.html	retained
+system-interface	iswprint	functions/iswprint.html	functions/iswprint.html	retained
+system-interface	iswprint_l	functions/iswprint_l.html	functions/iswprint_l.html	retained
+system-interface	iswpunct	functions/iswpunct.html	functions/iswpunct.html	retained
+system-interface	iswpunct_l	functions/iswpunct_l.html	functions/iswpunct_l.html	retained
+system-interface	iswspace	functions/iswspace.html	functions/iswspace.html	retained
+system-interface	iswspace_l	functions/iswspace_l.html	functions/iswspace_l.html	retained
+system-interface	iswupper	functions/iswupper.html	functions/iswupper.html	retained
+system-interface	iswupper_l	functions/iswupper_l.html	functions/iswupper_l.html	retained
+system-interface	iswxdigit	functions/iswxdigit.html	functions/iswxdigit.html	retained
+system-interface	iswxdigit_l	functions/iswxdigit_l.html	functions/iswxdigit_l.html	retained
+system-interface	isxdigit	functions/isxdigit.html	functions/isxdigit.html	retained
+system-interface	isxdigit_l	functions/isxdigit_l.html	functions/isxdigit_l.html	retained
+system-interface	j0	functions/j0.html	functions/j0.html	retained
+system-interface	j1	functions/j1.html	functions/j1.html	retained
+system-interface	jn	functions/jn.html	functions/jn.html	retained
+system-interface	jrand48	functions/jrand48.html	functions/jrand48.html	retained
+system-interface	kill	functions/kill.html	functions/kill.html	retained
+system-interface	kill_dependency		functions/kill_dependency.html	issue8-only
+system-interface	killpg	functions/killpg.html	functions/killpg.html	retained
+system-interface	l64a	functions/l64a.html	functions/l64a.html	retained
+system-interface	labs	functions/labs.html	functions/labs.html	retained
+system-interface	lchown	functions/lchown.html	functions/lchown.html	retained
+system-interface	lcong48	functions/lcong48.html	functions/lcong48.html	retained
+system-interface	ldexp	functions/ldexp.html	functions/ldexp.html	retained
+system-interface	ldexpf	functions/ldexpf.html	functions/ldexpf.html	retained
+system-interface	ldexpl	functions/ldexpl.html	functions/ldexpl.html	retained
+system-interface	ldiv	functions/ldiv.html	functions/ldiv.html	retained
+system-interface	le16toh		functions/le16toh.html	issue8-only
+system-interface	le32toh		functions/le32toh.html	issue8-only
+system-interface	le64toh		functions/le64toh.html	issue8-only
+system-interface	lfind	functions/lfind.html	functions/lfind.html	retained
+system-interface	lgamma	functions/lgamma.html	functions/lgamma.html	retained
+system-interface	lgammaf	functions/lgammaf.html	functions/lgammaf.html	retained
+system-interface	lgammal	functions/lgammal.html	functions/lgammal.html	retained
+system-interface	link	functions/link.html	functions/link.html	retained
+system-interface	linkat	functions/linkat.html	functions/linkat.html	retained
+system-interface	lio_listio	functions/lio_listio.html	functions/lio_listio.html	retained
+system-interface	listen	functions/listen.html	functions/listen.html	retained
+system-interface	llabs	functions/llabs.html	functions/llabs.html	retained
+system-interface	lldiv	functions/lldiv.html	functions/lldiv.html	retained
+system-interface	llrint	functions/llrint.html	functions/llrint.html	retained
+system-interface	llrintf	functions/llrintf.html	functions/llrintf.html	retained
+system-interface	llrintl	functions/llrintl.html	functions/llrintl.html	retained
+system-interface	llround	functions/llround.html	functions/llround.html	retained
+system-interface	llroundf	functions/llroundf.html	functions/llroundf.html	retained
+system-interface	llroundl	functions/llroundl.html	functions/llroundl.html	retained
+system-interface	localeconv	functions/localeconv.html	functions/localeconv.html	retained
+system-interface	localtime	functions/localtime.html	functions/localtime.html	retained
+system-interface	localtime_r	functions/localtime_r.html	functions/localtime_r.html	retained
+system-interface	lockf	functions/lockf.html	functions/lockf.html	retained
+system-interface	log	functions/log.html	functions/log.html	retained
+system-interface	log10	functions/log10.html	functions/log10.html	retained
+system-interface	log10f	functions/log10f.html	functions/log10f.html	retained
+system-interface	log10l	functions/log10l.html	functions/log10l.html	retained
+system-interface	log1p	functions/log1p.html	functions/log1p.html	retained
+system-interface	log1pf	functions/log1pf.html	functions/log1pf.html	retained
+system-interface	log1pl	functions/log1pl.html	functions/log1pl.html	retained
+system-interface	log2	functions/log2.html	functions/log2.html	retained
+system-interface	log2f	functions/log2f.html	functions/log2f.html	retained
+system-interface	log2l	functions/log2l.html	functions/log2l.html	retained
+system-interface	logb	functions/logb.html	functions/logb.html	retained
+system-interface	logbf	functions/logbf.html	functions/logbf.html	retained
+system-interface	logbl	functions/logbl.html	functions/logbl.html	retained
+system-interface	logf	functions/logf.html	functions/logf.html	retained
+system-interface	logl	functions/logl.html	functions/logl.html	retained
+system-interface	longjmp	functions/longjmp.html	functions/longjmp.html	retained
+system-interface	lrand48	functions/lrand48.html	functions/lrand48.html	retained
+system-interface	lrint	functions/lrint.html	functions/lrint.html	retained
+system-interface	lrintf	functions/lrintf.html	functions/lrintf.html	retained
+system-interface	lrintl	functions/lrintl.html	functions/lrintl.html	retained
+system-interface	lround	functions/lround.html	functions/lround.html	retained
+system-interface	lroundf	functions/lroundf.html	functions/lroundf.html	retained
+system-interface	lroundl	functions/lroundl.html	functions/lroundl.html	retained
+system-interface	lsearch	functions/lsearch.html	functions/lsearch.html	retained
+system-interface	lseek	functions/lseek.html	functions/lseek.html	retained
+system-interface	lstat	functions/lstat.html	functions/lstat.html	retained
+system-interface	malloc	functions/malloc.html	functions/malloc.html	retained
+system-interface	mblen	functions/mblen.html	functions/mblen.html	retained
+system-interface	mbrlen	functions/mbrlen.html	functions/mbrlen.html	retained
+system-interface	mbrtoc16		functions/mbrtoc16.html	issue8-only
+system-interface	mbrtoc32		functions/mbrtoc32.html	issue8-only
+system-interface	mbrtowc	functions/mbrtowc.html	functions/mbrtowc.html	retained
+system-interface	mbsinit	functions/mbsinit.html	functions/mbsinit.html	retained
+system-interface	mbsnrtowcs	functions/mbsnrtowcs.html	functions/mbsnrtowcs.html	retained
+system-interface	mbsrtowcs	functions/mbsrtowcs.html	functions/mbsrtowcs.html	retained
+system-interface	mbstowcs	functions/mbstowcs.html	functions/mbstowcs.html	retained
+system-interface	mbtowc	functions/mbtowc.html	functions/mbtowc.html	retained
+system-interface	memccpy	functions/memccpy.html	functions/memccpy.html	retained
+system-interface	memchr	functions/memchr.html	functions/memchr.html	retained
+system-interface	memcmp	functions/memcmp.html	functions/memcmp.html	retained
+system-interface	memcpy	functions/memcpy.html	functions/memcpy.html	retained
+system-interface	memmem		functions/memmem.html	issue8-only
+system-interface	memmove	functions/memmove.html	functions/memmove.html	retained
+system-interface	memset	functions/memset.html	functions/memset.html	retained
+system-interface	mkdir	functions/mkdir.html	functions/mkdir.html	retained
+system-interface	mkdirat	functions/mkdirat.html	functions/mkdirat.html	retained
+system-interface	mkdtemp	functions/mkdtemp.html	functions/mkdtemp.html	retained
+system-interface	mkfifo	functions/mkfifo.html	functions/mkfifo.html	retained
+system-interface	mkfifoat	functions/mkfifoat.html	functions/mkfifoat.html	retained
+system-interface	mknod	functions/mknod.html	functions/mknod.html	retained
+system-interface	mknodat	functions/mknodat.html	functions/mknodat.html	retained
+system-interface	mkostemp		functions/mkostemp.html	issue8-only
+system-interface	mkstemp	functions/mkstemp.html	functions/mkstemp.html	retained
+system-interface	mktime	functions/mktime.html	functions/mktime.html	retained
+system-interface	mlock	functions/mlock.html	functions/mlock.html	retained
+system-interface	mlockall	functions/mlockall.html	functions/mlockall.html	retained
+system-interface	mmap	functions/mmap.html	functions/mmap.html	retained
+system-interface	modf	functions/modf.html	functions/modf.html	retained
+system-interface	modff	functions/modff.html	functions/modff.html	retained
+system-interface	modfl	functions/modfl.html	functions/modfl.html	retained
+system-interface	mprotect	functions/mprotect.html	functions/mprotect.html	retained
+system-interface	mq_close	functions/mq_close.html	functions/mq_close.html	retained
+system-interface	mq_getattr	functions/mq_getattr.html	functions/mq_getattr.html	retained
+system-interface	mq_notify	functions/mq_notify.html	functions/mq_notify.html	retained
+system-interface	mq_open	functions/mq_open.html	functions/mq_open.html	retained
+system-interface	mq_receive	functions/mq_receive.html	functions/mq_receive.html	retained
+system-interface	mq_send	functions/mq_send.html	functions/mq_send.html	retained
+system-interface	mq_setattr	functions/mq_setattr.html	functions/mq_setattr.html	retained
+system-interface	mq_timedreceive	functions/mq_timedreceive.html	functions/mq_timedreceive.html	retained
+system-interface	mq_timedsend	functions/mq_timedsend.html	functions/mq_timedsend.html	retained
+system-interface	mq_unlink	functions/mq_unlink.html	functions/mq_unlink.html	retained
+system-interface	mrand48	functions/mrand48.html	functions/mrand48.html	retained
+system-interface	msgctl	functions/msgctl.html	functions/msgctl.html	retained
+system-interface	msgget	functions/msgget.html	functions/msgget.html	retained
+system-interface	msgrcv	functions/msgrcv.html	functions/msgrcv.html	retained
+system-interface	msgsnd	functions/msgsnd.html	functions/msgsnd.html	retained
+system-interface	msync	functions/msync.html	functions/msync.html	retained
+system-interface	mtx_destroy		functions/mtx_destroy.html	issue8-only
+system-interface	mtx_init		functions/mtx_init.html	issue8-only
+system-interface	mtx_lock		functions/mtx_lock.html	issue8-only
+system-interface	mtx_timedlock		functions/mtx_timedlock.html	issue8-only
+system-interface	mtx_trylock		functions/mtx_trylock.html	issue8-only
+system-interface	mtx_unlock		functions/mtx_unlock.html	issue8-only
+system-interface	munlock	functions/munlock.html	functions/munlock.html	retained
+system-interface	munlockall	functions/munlockall.html	functions/munlockall.html	retained
+system-interface	munmap	functions/munmap.html	functions/munmap.html	retained
+system-interface	nan	functions/nan.html	functions/nan.html	retained
+system-interface	nanf	functions/nanf.html	functions/nanf.html	retained
+system-interface	nanl	functions/nanl.html	functions/nanl.html	retained
+system-interface	nanosleep	functions/nanosleep.html	functions/nanosleep.html	retained
+system-interface	nearbyint	functions/nearbyint.html	functions/nearbyint.html	retained
+system-interface	nearbyintf	functions/nearbyintf.html	functions/nearbyintf.html	retained
+system-interface	nearbyintl	functions/nearbyintl.html	functions/nearbyintl.html	retained
+system-interface	newlocale	functions/newlocale.html	functions/newlocale.html	retained
+system-interface	nextafter	functions/nextafter.html	functions/nextafter.html	retained
+system-interface	nextafterf	functions/nextafterf.html	functions/nextafterf.html	retained
+system-interface	nextafterl	functions/nextafterl.html	functions/nextafterl.html	retained
+system-interface	nexttoward	functions/nexttoward.html	functions/nexttoward.html	retained
+system-interface	nexttowardf	functions/nexttowardf.html	functions/nexttowardf.html	retained
+system-interface	nexttowardl	functions/nexttowardl.html	functions/nexttowardl.html	retained
+system-interface	nftw	functions/nftw.html	functions/nftw.html	retained
+system-interface	ngettext		functions/ngettext.html	issue8-only
+system-interface	ngettext_l		functions/ngettext_l.html	issue8-only
+system-interface	nice	functions/nice.html	functions/nice.html	retained
+system-interface	nl_langinfo	functions/nl_langinfo.html	functions/nl_langinfo.html	retained
+system-interface	nl_langinfo_l	functions/nl_langinfo_l.html	functions/nl_langinfo_l.html	retained
+system-interface	nrand48	functions/nrand48.html	functions/nrand48.html	retained
+system-interface	ntohl	functions/ntohl.html	functions/ntohl.html	retained
+system-interface	ntohs	functions/ntohs.html	functions/ntohs.html	retained
+system-interface	open	functions/open.html	functions/open.html	retained
+system-interface	open_memstream	functions/open_memstream.html	functions/open_memstream.html	retained
+system-interface	open_wmemstream	functions/open_wmemstream.html	functions/open_wmemstream.html	retained
+system-interface	openat	functions/openat.html	functions/openat.html	retained
+system-interface	opendir	functions/opendir.html	functions/opendir.html	retained
+system-interface	openlog	functions/openlog.html	functions/openlog.html	retained
+system-interface	optarg	functions/optarg.html	functions/optarg.html	retained
+system-interface	opterr	functions/opterr.html	functions/opterr.html	retained
+system-interface	optind	functions/optind.html	functions/optind.html	retained
+system-interface	optopt	functions/optopt.html	functions/optopt.html	retained
+system-interface	pathconf	functions/pathconf.html	functions/pathconf.html	retained
+system-interface	pause	functions/pause.html	functions/pause.html	retained
+system-interface	pclose	functions/pclose.html	functions/pclose.html	retained
+system-interface	perror	functions/perror.html	functions/perror.html	retained
+system-interface	pipe	functions/pipe.html	functions/pipe.html	retained
+system-interface	pipe2		functions/pipe2.html	issue8-only
+system-interface	poll	functions/poll.html	functions/poll.html	retained
+system-interface	popen	functions/popen.html	functions/popen.html	retained
+system-interface	posix_close		functions/posix_close.html	issue8-only
+system-interface	posix_devctl		functions/posix_devctl.html	issue8-only
+system-interface	posix_fadvise	functions/posix_fadvise.html	functions/posix_fadvise.html	retained
+system-interface	posix_fallocate	functions/posix_fallocate.html	functions/posix_fallocate.html	retained
+system-interface	posix_getdents		functions/posix_getdents.html	issue8-only
+system-interface	posix_madvise	functions/posix_madvise.html	functions/posix_madvise.html	retained
+system-interface	posix_mem_offset	functions/posix_mem_offset.html	functions/posix_mem_offset.html	retained
+system-interface	posix_memalign	functions/posix_memalign.html	functions/posix_memalign.html	retained
+system-interface	posix_openpt	functions/posix_openpt.html	functions/posix_openpt.html	retained
+system-interface	posix_spawn	functions/posix_spawn.html	functions/posix_spawn.html	retained
+system-interface	posix_spawn_file_actions_addchdir		functions/posix_spawn_file_actions_addchdir.html	issue8-only
+system-interface	posix_spawn_file_actions_addclose	functions/posix_spawn_file_actions_addclose.html	functions/posix_spawn_file_actions_addclose.html	retained
+system-interface	posix_spawn_file_actions_adddup2	functions/posix_spawn_file_actions_adddup2.html	functions/posix_spawn_file_actions_adddup2.html	retained
+system-interface	posix_spawn_file_actions_addfchdir		functions/posix_spawn_file_actions_addfchdir.html	issue8-only
+system-interface	posix_spawn_file_actions_addopen	functions/posix_spawn_file_actions_addopen.html	functions/posix_spawn_file_actions_addopen.html	retained
+system-interface	posix_spawn_file_actions_destroy	functions/posix_spawn_file_actions_destroy.html	functions/posix_spawn_file_actions_destroy.html	retained
+system-interface	posix_spawn_file_actions_init	functions/posix_spawn_file_actions_init.html	functions/posix_spawn_file_actions_init.html	retained
+system-interface	posix_spawnattr_destroy	functions/posix_spawnattr_destroy.html	functions/posix_spawnattr_destroy.html	retained
+system-interface	posix_spawnattr_getflags	functions/posix_spawnattr_getflags.html	functions/posix_spawnattr_getflags.html	retained
+system-interface	posix_spawnattr_getpgroup	functions/posix_spawnattr_getpgroup.html	functions/posix_spawnattr_getpgroup.html	retained
+system-interface	posix_spawnattr_getschedparam	functions/posix_spawnattr_getschedparam.html	functions/posix_spawnattr_getschedparam.html	retained
+system-interface	posix_spawnattr_getschedpolicy	functions/posix_spawnattr_getschedpolicy.html	functions/posix_spawnattr_getschedpolicy.html	retained
+system-interface	posix_spawnattr_getsigdefault	functions/posix_spawnattr_getsigdefault.html	functions/posix_spawnattr_getsigdefault.html	retained
+system-interface	posix_spawnattr_getsigmask	functions/posix_spawnattr_getsigmask.html	functions/posix_spawnattr_getsigmask.html	retained
+system-interface	posix_spawnattr_init	functions/posix_spawnattr_init.html	functions/posix_spawnattr_init.html	retained
+system-interface	posix_spawnattr_setflags	functions/posix_spawnattr_setflags.html	functions/posix_spawnattr_setflags.html	retained
+system-interface	posix_spawnattr_setpgroup	functions/posix_spawnattr_setpgroup.html	functions/posix_spawnattr_setpgroup.html	retained
+system-interface	posix_spawnattr_setschedparam	functions/posix_spawnattr_setschedparam.html	functions/posix_spawnattr_setschedparam.html	retained
+system-interface	posix_spawnattr_setschedpolicy	functions/posix_spawnattr_setschedpolicy.html	functions/posix_spawnattr_setschedpolicy.html	retained
+system-interface	posix_spawnattr_setsigdefault	functions/posix_spawnattr_setsigdefault.html	functions/posix_spawnattr_setsigdefault.html	retained
+system-interface	posix_spawnattr_setsigmask	functions/posix_spawnattr_setsigmask.html	functions/posix_spawnattr_setsigmask.html	retained
+system-interface	posix_spawnp	functions/posix_spawnp.html	functions/posix_spawnp.html	retained
+system-interface	posix_trace_attr_destroy	functions/posix_trace_attr_destroy.html		issue7-only
+system-interface	posix_trace_attr_getclockres	functions/posix_trace_attr_getclockres.html		issue7-only
+system-interface	posix_trace_attr_getcreatetime	functions/posix_trace_attr_getcreatetime.html		issue7-only
+system-interface	posix_trace_attr_getgenversion	functions/posix_trace_attr_getgenversion.html		issue7-only
+system-interface	posix_trace_attr_getinherited	functions/posix_trace_attr_getinherited.html		issue7-only
+system-interface	posix_trace_attr_getlogfullpolicy	functions/posix_trace_attr_getlogfullpolicy.html		issue7-only
+system-interface	posix_trace_attr_getlogsize	functions/posix_trace_attr_getlogsize.html		issue7-only
+system-interface	posix_trace_attr_getmaxdatasize	functions/posix_trace_attr_getmaxdatasize.html		issue7-only
+system-interface	posix_trace_attr_getmaxsystemeventsize	functions/posix_trace_attr_getmaxsystemeventsize.html		issue7-only
+system-interface	posix_trace_attr_getmaxusereventsize	functions/posix_trace_attr_getmaxusereventsize.html		issue7-only
+system-interface	posix_trace_attr_getname	functions/posix_trace_attr_getname.html		issue7-only
+system-interface	posix_trace_attr_getstreamfullpolicy	functions/posix_trace_attr_getstreamfullpolicy.html		issue7-only
+system-interface	posix_trace_attr_getstreamsize	functions/posix_trace_attr_getstreamsize.html		issue7-only
+system-interface	posix_trace_attr_init	functions/posix_trace_attr_init.html		issue7-only
+system-interface	posix_trace_attr_setinherited	functions/posix_trace_attr_setinherited.html		issue7-only
+system-interface	posix_trace_attr_setlogfullpolicy	functions/posix_trace_attr_setlogfullpolicy.html		issue7-only
+system-interface	posix_trace_attr_setlogsize	functions/posix_trace_attr_setlogsize.html		issue7-only
+system-interface	posix_trace_attr_setmaxdatasize	functions/posix_trace_attr_setmaxdatasize.html		issue7-only
+system-interface	posix_trace_attr_setname	functions/posix_trace_attr_setname.html		issue7-only
+system-interface	posix_trace_attr_setstreamfullpolicy	functions/posix_trace_attr_setstreamfullpolicy.html		issue7-only
+system-interface	posix_trace_attr_setstreamsize	functions/posix_trace_attr_setstreamsize.html		issue7-only
+system-interface	posix_trace_clear	functions/posix_trace_clear.html		issue7-only
+system-interface	posix_trace_close	functions/posix_trace_close.html		issue7-only
+system-interface	posix_trace_create	functions/posix_trace_create.html		issue7-only
+system-interface	posix_trace_create_withlog	functions/posix_trace_create_withlog.html		issue7-only
+system-interface	posix_trace_event	functions/posix_trace_event.html		issue7-only
+system-interface	posix_trace_eventid_equal	functions/posix_trace_eventid_equal.html		issue7-only
+system-interface	posix_trace_eventid_get_name	functions/posix_trace_eventid_get_name.html		issue7-only
+system-interface	posix_trace_eventid_open	functions/posix_trace_eventid_open.html		issue7-only
+system-interface	posix_trace_eventset_add	functions/posix_trace_eventset_add.html		issue7-only
+system-interface	posix_trace_eventset_del	functions/posix_trace_eventset_del.html		issue7-only
+system-interface	posix_trace_eventset_empty	functions/posix_trace_eventset_empty.html		issue7-only
+system-interface	posix_trace_eventset_fill	functions/posix_trace_eventset_fill.html		issue7-only
+system-interface	posix_trace_eventset_ismember	functions/posix_trace_eventset_ismember.html		issue7-only
+system-interface	posix_trace_eventtypelist_getnext_id	functions/posix_trace_eventtypelist_getnext_id.html		issue7-only
+system-interface	posix_trace_eventtypelist_rewind	functions/posix_trace_eventtypelist_rewind.html		issue7-only
+system-interface	posix_trace_flush	functions/posix_trace_flush.html		issue7-only
+system-interface	posix_trace_get_attr	functions/posix_trace_get_attr.html		issue7-only
+system-interface	posix_trace_get_filter	functions/posix_trace_get_filter.html		issue7-only
+system-interface	posix_trace_get_status	functions/posix_trace_get_status.html		issue7-only
+system-interface	posix_trace_getnext_event	functions/posix_trace_getnext_event.html		issue7-only
+system-interface	posix_trace_open	functions/posix_trace_open.html		issue7-only
+system-interface	posix_trace_rewind	functions/posix_trace_rewind.html		issue7-only
+system-interface	posix_trace_set_filter	functions/posix_trace_set_filter.html		issue7-only
+system-interface	posix_trace_shutdown	functions/posix_trace_shutdown.html		issue7-only
+system-interface	posix_trace_start	functions/posix_trace_start.html		issue7-only
+system-interface	posix_trace_stop	functions/posix_trace_stop.html		issue7-only
+system-interface	posix_trace_timedgetnext_event	functions/posix_trace_timedgetnext_event.html		issue7-only
+system-interface	posix_trace_trid_eventid_open	functions/posix_trace_trid_eventid_open.html		issue7-only
+system-interface	posix_trace_trygetnext_event	functions/posix_trace_trygetnext_event.html		issue7-only
+system-interface	posix_typed_mem_get_info	functions/posix_typed_mem_get_info.html	functions/posix_typed_mem_get_info.html	retained
+system-interface	posix_typed_mem_open	functions/posix_typed_mem_open.html	functions/posix_typed_mem_open.html	retained
+system-interface	pow	functions/pow.html	functions/pow.html	retained
+system-interface	powf	functions/powf.html	functions/powf.html	retained
+system-interface	powl	functions/powl.html	functions/powl.html	retained
+system-interface	ppoll		functions/ppoll.html	issue8-only
+system-interface	pread	functions/pread.html	functions/pread.html	retained
+system-interface	printf	functions/printf.html	functions/printf.html	retained
+system-interface	pselect	functions/pselect.html	functions/pselect.html	retained
+system-interface	psiginfo	functions/psiginfo.html	functions/psiginfo.html	retained
+system-interface	psignal	functions/psignal.html	functions/psignal.html	retained
+system-interface	pthread_atfork	functions/pthread_atfork.html	functions/pthread_atfork.html	retained
+system-interface	pthread_attr_destroy	functions/pthread_attr_destroy.html	functions/pthread_attr_destroy.html	retained
+system-interface	pthread_attr_getdetachstate	functions/pthread_attr_getdetachstate.html	functions/pthread_attr_getdetachstate.html	retained
+system-interface	pthread_attr_getguardsize	functions/pthread_attr_getguardsize.html	functions/pthread_attr_getguardsize.html	retained
+system-interface	pthread_attr_getinheritsched	functions/pthread_attr_getinheritsched.html	functions/pthread_attr_getinheritsched.html	retained
+system-interface	pthread_attr_getschedparam	functions/pthread_attr_getschedparam.html	functions/pthread_attr_getschedparam.html	retained
+system-interface	pthread_attr_getschedpolicy	functions/pthread_attr_getschedpolicy.html	functions/pthread_attr_getschedpolicy.html	retained
+system-interface	pthread_attr_getscope	functions/pthread_attr_getscope.html	functions/pthread_attr_getscope.html	retained
+system-interface	pthread_attr_getstack	functions/pthread_attr_getstack.html	functions/pthread_attr_getstack.html	retained
+system-interface	pthread_attr_getstacksize	functions/pthread_attr_getstacksize.html	functions/pthread_attr_getstacksize.html	retained
+system-interface	pthread_attr_init	functions/pthread_attr_init.html	functions/pthread_attr_init.html	retained
+system-interface	pthread_attr_setdetachstate	functions/pthread_attr_setdetachstate.html	functions/pthread_attr_setdetachstate.html	retained
+system-interface	pthread_attr_setguardsize	functions/pthread_attr_setguardsize.html	functions/pthread_attr_setguardsize.html	retained
+system-interface	pthread_attr_setinheritsched	functions/pthread_attr_setinheritsched.html	functions/pthread_attr_setinheritsched.html	retained
+system-interface	pthread_attr_setschedparam	functions/pthread_attr_setschedparam.html	functions/pthread_attr_setschedparam.html	retained
+system-interface	pthread_attr_setschedpolicy	functions/pthread_attr_setschedpolicy.html	functions/pthread_attr_setschedpolicy.html	retained
+system-interface	pthread_attr_setscope	functions/pthread_attr_setscope.html	functions/pthread_attr_setscope.html	retained
+system-interface	pthread_attr_setstack	functions/pthread_attr_setstack.html	functions/pthread_attr_setstack.html	retained
+system-interface	pthread_attr_setstacksize	functions/pthread_attr_setstacksize.html	functions/pthread_attr_setstacksize.html	retained
+system-interface	pthread_barrier_destroy	functions/pthread_barrier_destroy.html	functions/pthread_barrier_destroy.html	retained
+system-interface	pthread_barrier_init	functions/pthread_barrier_init.html	functions/pthread_barrier_init.html	retained
+system-interface	pthread_barrier_wait	functions/pthread_barrier_wait.html	functions/pthread_barrier_wait.html	retained
+system-interface	pthread_barrierattr_destroy	functions/pthread_barrierattr_destroy.html	functions/pthread_barrierattr_destroy.html	retained
+system-interface	pthread_barrierattr_getpshared	functions/pthread_barrierattr_getpshared.html	functions/pthread_barrierattr_getpshared.html	retained
+system-interface	pthread_barrierattr_init	functions/pthread_barrierattr_init.html	functions/pthread_barrierattr_init.html	retained
+system-interface	pthread_barrierattr_setpshared	functions/pthread_barrierattr_setpshared.html	functions/pthread_barrierattr_setpshared.html	retained
+system-interface	pthread_cancel	functions/pthread_cancel.html	functions/pthread_cancel.html	retained
+system-interface	pthread_cleanup_pop	functions/pthread_cleanup_pop.html	functions/pthread_cleanup_pop.html	retained
+system-interface	pthread_cleanup_push	functions/pthread_cleanup_push.html	functions/pthread_cleanup_push.html	retained
+system-interface	pthread_cond_broadcast	functions/pthread_cond_broadcast.html	functions/pthread_cond_broadcast.html	retained
+system-interface	pthread_cond_clockwait		functions/pthread_cond_clockwait.html	issue8-only
+system-interface	pthread_cond_destroy	functions/pthread_cond_destroy.html	functions/pthread_cond_destroy.html	retained
+system-interface	pthread_cond_init	functions/pthread_cond_init.html	functions/pthread_cond_init.html	retained
+system-interface	pthread_cond_signal	functions/pthread_cond_signal.html	functions/pthread_cond_signal.html	retained
+system-interface	pthread_cond_timedwait	functions/pthread_cond_timedwait.html	functions/pthread_cond_timedwait.html	retained
+system-interface	pthread_cond_wait	functions/pthread_cond_wait.html	functions/pthread_cond_wait.html	retained
+system-interface	pthread_condattr_destroy	functions/pthread_condattr_destroy.html	functions/pthread_condattr_destroy.html	retained
+system-interface	pthread_condattr_getclock	functions/pthread_condattr_getclock.html	functions/pthread_condattr_getclock.html	retained
+system-interface	pthread_condattr_getpshared	functions/pthread_condattr_getpshared.html	functions/pthread_condattr_getpshared.html	retained
+system-interface	pthread_condattr_init	functions/pthread_condattr_init.html	functions/pthread_condattr_init.html	retained
+system-interface	pthread_condattr_setclock	functions/pthread_condattr_setclock.html	functions/pthread_condattr_setclock.html	retained
+system-interface	pthread_condattr_setpshared	functions/pthread_condattr_setpshared.html	functions/pthread_condattr_setpshared.html	retained
+system-interface	pthread_create	functions/pthread_create.html	functions/pthread_create.html	retained
+system-interface	pthread_detach	functions/pthread_detach.html	functions/pthread_detach.html	retained
+system-interface	pthread_equal	functions/pthread_equal.html	functions/pthread_equal.html	retained
+system-interface	pthread_exit	functions/pthread_exit.html	functions/pthread_exit.html	retained
+system-interface	pthread_getconcurrency	functions/pthread_getconcurrency.html		issue7-only
+system-interface	pthread_getcpuclockid	functions/pthread_getcpuclockid.html	functions/pthread_getcpuclockid.html	retained
+system-interface	pthread_getschedparam	functions/pthread_getschedparam.html	functions/pthread_getschedparam.html	retained
+system-interface	pthread_getspecific	functions/pthread_getspecific.html	functions/pthread_getspecific.html	retained
+system-interface	pthread_join	functions/pthread_join.html	functions/pthread_join.html	retained
+system-interface	pthread_key_create	functions/pthread_key_create.html	functions/pthread_key_create.html	retained
+system-interface	pthread_key_delete	functions/pthread_key_delete.html	functions/pthread_key_delete.html	retained
+system-interface	pthread_kill	functions/pthread_kill.html	functions/pthread_kill.html	retained
+system-interface	pthread_mutex_clocklock		functions/pthread_mutex_clocklock.html	issue8-only
+system-interface	pthread_mutex_consistent	functions/pthread_mutex_consistent.html	functions/pthread_mutex_consistent.html	retained
+system-interface	pthread_mutex_destroy	functions/pthread_mutex_destroy.html	functions/pthread_mutex_destroy.html	retained
+system-interface	pthread_mutex_getprioceiling	functions/pthread_mutex_getprioceiling.html	functions/pthread_mutex_getprioceiling.html	retained
+system-interface	pthread_mutex_init	functions/pthread_mutex_init.html	functions/pthread_mutex_init.html	retained
+system-interface	pthread_mutex_lock	functions/pthread_mutex_lock.html	functions/pthread_mutex_lock.html	retained
+system-interface	pthread_mutex_setprioceiling	functions/pthread_mutex_setprioceiling.html	functions/pthread_mutex_setprioceiling.html	retained
+system-interface	pthread_mutex_timedlock	functions/pthread_mutex_timedlock.html	functions/pthread_mutex_timedlock.html	retained
+system-interface	pthread_mutex_trylock	functions/pthread_mutex_trylock.html	functions/pthread_mutex_trylock.html	retained
+system-interface	pthread_mutex_unlock	functions/pthread_mutex_unlock.html	functions/pthread_mutex_unlock.html	retained
+system-interface	pthread_mutexattr_destroy	functions/pthread_mutexattr_destroy.html	functions/pthread_mutexattr_destroy.html	retained
+system-interface	pthread_mutexattr_getprioceiling	functions/pthread_mutexattr_getprioceiling.html	functions/pthread_mutexattr_getprioceiling.html	retained
+system-interface	pthread_mutexattr_getprotocol	functions/pthread_mutexattr_getprotocol.html	functions/pthread_mutexattr_getprotocol.html	retained
+system-interface	pthread_mutexattr_getpshared	functions/pthread_mutexattr_getpshared.html	functions/pthread_mutexattr_getpshared.html	retained
+system-interface	pthread_mutexattr_getrobust	functions/pthread_mutexattr_getrobust.html	functions/pthread_mutexattr_getrobust.html	retained
+system-interface	pthread_mutexattr_gettype	functions/pthread_mutexattr_gettype.html	functions/pthread_mutexattr_gettype.html	retained
+system-interface	pthread_mutexattr_init	functions/pthread_mutexattr_init.html	functions/pthread_mutexattr_init.html	retained
+system-interface	pthread_mutexattr_setprioceiling	functions/pthread_mutexattr_setprioceiling.html	functions/pthread_mutexattr_setprioceiling.html	retained
+system-interface	pthread_mutexattr_setprotocol	functions/pthread_mutexattr_setprotocol.html	functions/pthread_mutexattr_setprotocol.html	retained
+system-interface	pthread_mutexattr_setpshared	functions/pthread_mutexattr_setpshared.html	functions/pthread_mutexattr_setpshared.html	retained
+system-interface	pthread_mutexattr_setrobust	functions/pthread_mutexattr_setrobust.html	functions/pthread_mutexattr_setrobust.html	retained
+system-interface	pthread_mutexattr_settype	functions/pthread_mutexattr_settype.html	functions/pthread_mutexattr_settype.html	retained
+system-interface	pthread_once	functions/pthread_once.html	functions/pthread_once.html	retained
+system-interface	pthread_rwlock_clockrdlock		functions/pthread_rwlock_clockrdlock.html	issue8-only
+system-interface	pthread_rwlock_clockwrlock		functions/pthread_rwlock_clockwrlock.html	issue8-only
+system-interface	pthread_rwlock_destroy	functions/pthread_rwlock_destroy.html	functions/pthread_rwlock_destroy.html	retained
+system-interface	pthread_rwlock_init	functions/pthread_rwlock_init.html	functions/pthread_rwlock_init.html	retained
+system-interface	pthread_rwlock_rdlock	functions/pthread_rwlock_rdlock.html	functions/pthread_rwlock_rdlock.html	retained
+system-interface	pthread_rwlock_timedrdlock	functions/pthread_rwlock_timedrdlock.html	functions/pthread_rwlock_timedrdlock.html	retained
+system-interface	pthread_rwlock_timedwrlock	functions/pthread_rwlock_timedwrlock.html	functions/pthread_rwlock_timedwrlock.html	retained
+system-interface	pthread_rwlock_tryrdlock	functions/pthread_rwlock_tryrdlock.html	functions/pthread_rwlock_tryrdlock.html	retained
+system-interface	pthread_rwlock_trywrlock	functions/pthread_rwlock_trywrlock.html	functions/pthread_rwlock_trywrlock.html	retained
+system-interface	pthread_rwlock_unlock	functions/pthread_rwlock_unlock.html	functions/pthread_rwlock_unlock.html	retained
+system-interface	pthread_rwlock_wrlock	functions/pthread_rwlock_wrlock.html	functions/pthread_rwlock_wrlock.html	retained
+system-interface	pthread_rwlockattr_destroy	functions/pthread_rwlockattr_destroy.html	functions/pthread_rwlockattr_destroy.html	retained
+system-interface	pthread_rwlockattr_getpshared	functions/pthread_rwlockattr_getpshared.html	functions/pthread_rwlockattr_getpshared.html	retained
+system-interface	pthread_rwlockattr_init	functions/pthread_rwlockattr_init.html	functions/pthread_rwlockattr_init.html	retained
+system-interface	pthread_rwlockattr_setpshared	functions/pthread_rwlockattr_setpshared.html	functions/pthread_rwlockattr_setpshared.html	retained
+system-interface	pthread_self	functions/pthread_self.html	functions/pthread_self.html	retained
+system-interface	pthread_setcancelstate	functions/pthread_setcancelstate.html	functions/pthread_setcancelstate.html	retained
+system-interface	pthread_setcanceltype	functions/pthread_setcanceltype.html	functions/pthread_setcanceltype.html	retained
+system-interface	pthread_setconcurrency	functions/pthread_setconcurrency.html		issue7-only
+system-interface	pthread_setschedparam	functions/pthread_setschedparam.html	functions/pthread_setschedparam.html	retained
+system-interface	pthread_setschedprio	functions/pthread_setschedprio.html	functions/pthread_setschedprio.html	retained
+system-interface	pthread_setspecific	functions/pthread_setspecific.html	functions/pthread_setspecific.html	retained
+system-interface	pthread_sigmask	functions/pthread_sigmask.html	functions/pthread_sigmask.html	retained
+system-interface	pthread_spin_destroy	functions/pthread_spin_destroy.html	functions/pthread_spin_destroy.html	retained
+system-interface	pthread_spin_init	functions/pthread_spin_init.html	functions/pthread_spin_init.html	retained
+system-interface	pthread_spin_lock	functions/pthread_spin_lock.html	functions/pthread_spin_lock.html	retained
+system-interface	pthread_spin_trylock	functions/pthread_spin_trylock.html	functions/pthread_spin_trylock.html	retained
+system-interface	pthread_spin_unlock	functions/pthread_spin_unlock.html	functions/pthread_spin_unlock.html	retained
+system-interface	pthread_testcancel	functions/pthread_testcancel.html	functions/pthread_testcancel.html	retained
+system-interface	ptsname	functions/ptsname.html	functions/ptsname.html	retained
+system-interface	ptsname_r		functions/ptsname_r.html	issue8-only
+system-interface	putc	functions/putc.html	functions/putc.html	retained
+system-interface	putc_unlocked	functions/putc_unlocked.html	functions/putc_unlocked.html	retained
+system-interface	putchar	functions/putchar.html	functions/putchar.html	retained
+system-interface	putchar_unlocked	functions/putchar_unlocked.html	functions/putchar_unlocked.html	retained
+system-interface	putenv	functions/putenv.html	functions/putenv.html	retained
+system-interface	putmsg	functions/putmsg.html		issue7-only
+system-interface	putpmsg	functions/putpmsg.html		issue7-only
+system-interface	puts	functions/puts.html	functions/puts.html	retained
+system-interface	pututxline	functions/pututxline.html	functions/pututxline.html	retained
+system-interface	putwc	functions/putwc.html	functions/putwc.html	retained
+system-interface	putwchar	functions/putwchar.html	functions/putwchar.html	retained
+system-interface	pwrite	functions/pwrite.html	functions/pwrite.html	retained
+system-interface	qsort	functions/qsort.html	functions/qsort.html	retained
+system-interface	qsort_r		functions/qsort_r.html	issue8-only
+system-interface	quick_exit		functions/quick_exit.html	issue8-only
+system-interface	raise	functions/raise.html	functions/raise.html	retained
+system-interface	rand	functions/rand.html	functions/rand.html	retained
+system-interface	rand_r	functions/rand_r.html	functions/rand_r.html	retained
+system-interface	random	functions/random.html	functions/random.html	retained
+system-interface	read	functions/read.html	functions/read.html	retained
+system-interface	readdir	functions/readdir.html	functions/readdir.html	retained
+system-interface	readdir_r	functions/readdir_r.html	functions/readdir_r.html	retained
+system-interface	readlink	functions/readlink.html	functions/readlink.html	retained
+system-interface	readlinkat	functions/readlinkat.html	functions/readlinkat.html	retained
+system-interface	readv	functions/readv.html	functions/readv.html	retained
+system-interface	realloc	functions/realloc.html	functions/realloc.html	retained
+system-interface	reallocarray		functions/reallocarray.html	issue8-only
+system-interface	realpath	functions/realpath.html	functions/realpath.html	retained
+system-interface	recv	functions/recv.html	functions/recv.html	retained
+system-interface	recvfrom	functions/recvfrom.html	functions/recvfrom.html	retained
+system-interface	recvmsg	functions/recvmsg.html	functions/recvmsg.html	retained
+system-interface	regcomp	functions/regcomp.html	functions/regcomp.html	retained
+system-interface	regerror	functions/regerror.html	functions/regerror.html	retained
+system-interface	regexec	functions/regexec.html	functions/regexec.html	retained
+system-interface	regfree	functions/regfree.html	functions/regfree.html	retained
+system-interface	remainder	functions/remainder.html	functions/remainder.html	retained
+system-interface	remainderf	functions/remainderf.html	functions/remainderf.html	retained
+system-interface	remainderl	functions/remainderl.html	functions/remainderl.html	retained
+system-interface	remove	functions/remove.html	functions/remove.html	retained
+system-interface	remque	functions/remque.html	functions/remque.html	retained
+system-interface	remquo	functions/remquo.html	functions/remquo.html	retained
+system-interface	remquof	functions/remquof.html	functions/remquof.html	retained
+system-interface	remquol	functions/remquol.html	functions/remquol.html	retained
+system-interface	rename	functions/rename.html	functions/rename.html	retained
+system-interface	renameat	functions/renameat.html	functions/renameat.html	retained
+system-interface	rewind	functions/rewind.html	functions/rewind.html	retained
+system-interface	rewinddir	functions/rewinddir.html	functions/rewinddir.html	retained
+system-interface	rint	functions/rint.html	functions/rint.html	retained
+system-interface	rintf	functions/rintf.html	functions/rintf.html	retained
+system-interface	rintl	functions/rintl.html	functions/rintl.html	retained
+system-interface	rmdir	functions/rmdir.html	functions/rmdir.html	retained
+system-interface	round	functions/round.html	functions/round.html	retained
+system-interface	roundf	functions/roundf.html	functions/roundf.html	retained
+system-interface	roundl	functions/roundl.html	functions/roundl.html	retained
+system-interface	scalbln	functions/scalbln.html	functions/scalbln.html	retained
+system-interface	scalblnf	functions/scalblnf.html	functions/scalblnf.html	retained
+system-interface	scalblnl	functions/scalblnl.html	functions/scalblnl.html	retained
+system-interface	scalbn	functions/scalbn.html	functions/scalbn.html	retained
+system-interface	scalbnf	functions/scalbnf.html	functions/scalbnf.html	retained
+system-interface	scalbnl	functions/scalbnl.html	functions/scalbnl.html	retained
+system-interface	scandir	functions/scandir.html	functions/scandir.html	retained
+system-interface	scanf	functions/scanf.html	functions/scanf.html	retained
+system-interface	sched_get_priority_max	functions/sched_get_priority_max.html	functions/sched_get_priority_max.html	retained
+system-interface	sched_get_priority_min	functions/sched_get_priority_min.html	functions/sched_get_priority_min.html	retained
+system-interface	sched_getparam	functions/sched_getparam.html	functions/sched_getparam.html	retained
+system-interface	sched_getscheduler	functions/sched_getscheduler.html	functions/sched_getscheduler.html	retained
+system-interface	sched_rr_get_interval	functions/sched_rr_get_interval.html	functions/sched_rr_get_interval.html	retained
+system-interface	sched_setparam	functions/sched_setparam.html	functions/sched_setparam.html	retained
+system-interface	sched_setscheduler	functions/sched_setscheduler.html	functions/sched_setscheduler.html	retained
+system-interface	sched_yield	functions/sched_yield.html	functions/sched_yield.html	retained
+system-interface	secure_getenv		functions/secure_getenv.html	issue8-only
+system-interface	seed48	functions/seed48.html	functions/seed48.html	retained
+system-interface	seekdir	functions/seekdir.html	functions/seekdir.html	retained
+system-interface	select	functions/select.html	functions/select.html	retained
+system-interface	sem_clockwait		functions/sem_clockwait.html	issue8-only
+system-interface	sem_close	functions/sem_close.html	functions/sem_close.html	retained
+system-interface	sem_destroy	functions/sem_destroy.html	functions/sem_destroy.html	retained
+system-interface	sem_getvalue	functions/sem_getvalue.html	functions/sem_getvalue.html	retained
+system-interface	sem_init	functions/sem_init.html	functions/sem_init.html	retained
+system-interface	sem_open	functions/sem_open.html	functions/sem_open.html	retained
+system-interface	sem_post	functions/sem_post.html	functions/sem_post.html	retained
+system-interface	sem_timedwait	functions/sem_timedwait.html	functions/sem_timedwait.html	retained
+system-interface	sem_trywait	functions/sem_trywait.html	functions/sem_trywait.html	retained
+system-interface	sem_unlink	functions/sem_unlink.html	functions/sem_unlink.html	retained
+system-interface	sem_wait	functions/sem_wait.html	functions/sem_wait.html	retained
+system-interface	semctl	functions/semctl.html	functions/semctl.html	retained
+system-interface	semget	functions/semget.html	functions/semget.html	retained
+system-interface	semop	functions/semop.html	functions/semop.html	retained
+system-interface	send	functions/send.html	functions/send.html	retained
+system-interface	sendmsg	functions/sendmsg.html	functions/sendmsg.html	retained
+system-interface	sendto	functions/sendto.html	functions/sendto.html	retained
+system-interface	setbuf	functions/setbuf.html	functions/setbuf.html	retained
+system-interface	setegid	functions/setegid.html	functions/setegid.html	retained
+system-interface	setenv	functions/setenv.html	functions/setenv.html	retained
+system-interface	seteuid	functions/seteuid.html	functions/seteuid.html	retained
+system-interface	setgid	functions/setgid.html	functions/setgid.html	retained
+system-interface	setgrent	functions/setgrent.html	functions/setgrent.html	retained
+system-interface	sethostent	functions/sethostent.html	functions/sethostent.html	retained
+system-interface	setitimer	functions/setitimer.html		issue7-only
+system-interface	setjmp	functions/setjmp.html	functions/setjmp.html	retained
+system-interface	setkey	functions/setkey.html	functions/setkey.html	retained
+system-interface	setlocale	functions/setlocale.html	functions/setlocale.html	retained
+system-interface	setlogmask	functions/setlogmask.html	functions/setlogmask.html	retained
+system-interface	setnetent	functions/setnetent.html	functions/setnetent.html	retained
+system-interface	setpgid	functions/setpgid.html	functions/setpgid.html	retained
+system-interface	setpgrp	functions/setpgrp.html		issue7-only
+system-interface	setpriority	functions/setpriority.html	functions/setpriority.html	retained
+system-interface	setprotoent	functions/setprotoent.html	functions/setprotoent.html	retained
+system-interface	setpwent	functions/setpwent.html	functions/setpwent.html	retained
+system-interface	setregid	functions/setregid.html	functions/setregid.html	retained
+system-interface	setresgid		functions/setresgid.html	issue8-only
+system-interface	setresuid		functions/setresuid.html	issue8-only
+system-interface	setreuid	functions/setreuid.html	functions/setreuid.html	retained
+system-interface	setrlimit	functions/setrlimit.html	functions/setrlimit.html	retained
+system-interface	setservent	functions/setservent.html	functions/setservent.html	retained
+system-interface	setsid	functions/setsid.html	functions/setsid.html	retained
+system-interface	setsockopt	functions/setsockopt.html	functions/setsockopt.html	retained
+system-interface	setstate	functions/setstate.html	functions/setstate.html	retained
+system-interface	setuid	functions/setuid.html	functions/setuid.html	retained
+system-interface	setutxent	functions/setutxent.html	functions/setutxent.html	retained
+system-interface	setvbuf	functions/setvbuf.html	functions/setvbuf.html	retained
+system-interface	shm_open	functions/shm_open.html	functions/shm_open.html	retained
+system-interface	shm_unlink	functions/shm_unlink.html	functions/shm_unlink.html	retained
+system-interface	shmat	functions/shmat.html	functions/shmat.html	retained
+system-interface	shmctl	functions/shmctl.html	functions/shmctl.html	retained
+system-interface	shmdt	functions/shmdt.html	functions/shmdt.html	retained
+system-interface	shmget	functions/shmget.html	functions/shmget.html	retained
+system-interface	shutdown	functions/shutdown.html	functions/shutdown.html	retained
+system-interface	sig2str		functions/sig2str.html	issue8-only
+system-interface	sigaction	functions/sigaction.html	functions/sigaction.html	retained
+system-interface	sigaddset	functions/sigaddset.html	functions/sigaddset.html	retained
+system-interface	sigaltstack	functions/sigaltstack.html	functions/sigaltstack.html	retained
+system-interface	sigdelset	functions/sigdelset.html	functions/sigdelset.html	retained
+system-interface	sigemptyset	functions/sigemptyset.html	functions/sigemptyset.html	retained
+system-interface	sigfillset	functions/sigfillset.html	functions/sigfillset.html	retained
+system-interface	sighold	functions/sighold.html		issue7-only
+system-interface	sigignore	functions/sigignore.html		issue7-only
+system-interface	siginterrupt	functions/siginterrupt.html		issue7-only
+system-interface	sigismember	functions/sigismember.html	functions/sigismember.html	retained
+system-interface	siglongjmp	functions/siglongjmp.html	functions/siglongjmp.html	retained
+system-interface	signal	functions/signal.html	functions/signal.html	retained
+system-interface	signbit	functions/signbit.html	functions/signbit.html	retained
+system-interface	signgam	functions/signgam.html	functions/signgam.html	retained
+system-interface	sigpause	functions/sigpause.html		issue7-only
+system-interface	sigpending	functions/sigpending.html	functions/sigpending.html	retained
+system-interface	sigprocmask	functions/sigprocmask.html	functions/sigprocmask.html	retained
+system-interface	sigqueue	functions/sigqueue.html	functions/sigqueue.html	retained
+system-interface	sigrelse	functions/sigrelse.html		issue7-only
+system-interface	sigset	functions/sigset.html		issue7-only
+system-interface	sigsetjmp	functions/sigsetjmp.html	functions/sigsetjmp.html	retained
+system-interface	sigsuspend	functions/sigsuspend.html	functions/sigsuspend.html	retained
+system-interface	sigtimedwait	functions/sigtimedwait.html	functions/sigtimedwait.html	retained
+system-interface	sigwait	functions/sigwait.html	functions/sigwait.html	retained
+system-interface	sigwaitinfo	functions/sigwaitinfo.html	functions/sigwaitinfo.html	retained
+system-interface	sin	functions/sin.html	functions/sin.html	retained
+system-interface	sinf	functions/sinf.html	functions/sinf.html	retained
+system-interface	sinh	functions/sinh.html	functions/sinh.html	retained
+system-interface	sinhf	functions/sinhf.html	functions/sinhf.html	retained
+system-interface	sinhl	functions/sinhl.html	functions/sinhl.html	retained
+system-interface	sinl	functions/sinl.html	functions/sinl.html	retained
+system-interface	sleep	functions/sleep.html	functions/sleep.html	retained
+system-interface	snprintf	functions/snprintf.html	functions/snprintf.html	retained
+system-interface	sockatmark	functions/sockatmark.html	functions/sockatmark.html	retained
+system-interface	socket	functions/socket.html	functions/socket.html	retained
+system-interface	socketpair	functions/socketpair.html	functions/socketpair.html	retained
+system-interface	sprintf	functions/sprintf.html	functions/sprintf.html	retained
+system-interface	sqrt	functions/sqrt.html	functions/sqrt.html	retained
+system-interface	sqrtf	functions/sqrtf.html	functions/sqrtf.html	retained
+system-interface	sqrtl	functions/sqrtl.html	functions/sqrtl.html	retained
+system-interface	srand	functions/srand.html	functions/srand.html	retained
+system-interface	srand48	functions/srand48.html	functions/srand48.html	retained
+system-interface	srandom	functions/srandom.html	functions/srandom.html	retained
+system-interface	sscanf	functions/sscanf.html	functions/sscanf.html	retained
+system-interface	stat	functions/stat.html	functions/stat.html	retained
+system-interface	statvfs	functions/statvfs.html	functions/statvfs.html	retained
+system-interface	stderr	functions/stderr.html	functions/stderr.html	retained
+system-interface	stdin	functions/stdin.html	functions/stdin.html	retained
+system-interface	stdout	functions/stdout.html	functions/stdout.html	retained
+system-interface	stpcpy	functions/stpcpy.html	functions/stpcpy.html	retained
+system-interface	stpncpy	functions/stpncpy.html	functions/stpncpy.html	retained
+system-interface	str2sig		functions/str2sig.html	issue8-only
+system-interface	strcasecmp	functions/strcasecmp.html	functions/strcasecmp.html	retained
+system-interface	strcasecmp_l	functions/strcasecmp_l.html	functions/strcasecmp_l.html	retained
+system-interface	strcat	functions/strcat.html	functions/strcat.html	retained
+system-interface	strchr	functions/strchr.html	functions/strchr.html	retained
+system-interface	strcmp	functions/strcmp.html	functions/strcmp.html	retained
+system-interface	strcoll	functions/strcoll.html	functions/strcoll.html	retained
+system-interface	strcoll_l	functions/strcoll_l.html	functions/strcoll_l.html	retained
+system-interface	strcpy	functions/strcpy.html	functions/strcpy.html	retained
+system-interface	strcspn	functions/strcspn.html	functions/strcspn.html	retained
+system-interface	strdup	functions/strdup.html	functions/strdup.html	retained
+system-interface	strerror	functions/strerror.html	functions/strerror.html	retained
+system-interface	strerror_l	functions/strerror_l.html	functions/strerror_l.html	retained
+system-interface	strerror_r	functions/strerror_r.html	functions/strerror_r.html	retained
+system-interface	strfmon	functions/strfmon.html	functions/strfmon.html	retained
+system-interface	strfmon_l	functions/strfmon_l.html	functions/strfmon_l.html	retained
+system-interface	strftime	functions/strftime.html	functions/strftime.html	retained
+system-interface	strftime_l	functions/strftime_l.html	functions/strftime_l.html	retained
+system-interface	strlcat		functions/strlcat.html	issue8-only
+system-interface	strlcpy		functions/strlcpy.html	issue8-only
+system-interface	strlen	functions/strlen.html	functions/strlen.html	retained
+system-interface	strncasecmp	functions/strncasecmp.html	functions/strncasecmp.html	retained
+system-interface	strncasecmp_l	functions/strncasecmp_l.html	functions/strncasecmp_l.html	retained
+system-interface	strncat	functions/strncat.html	functions/strncat.html	retained
+system-interface	strncmp	functions/strncmp.html	functions/strncmp.html	retained
+system-interface	strncpy	functions/strncpy.html	functions/strncpy.html	retained
+system-interface	strndup	functions/strndup.html	functions/strndup.html	retained
+system-interface	strnlen	functions/strnlen.html	functions/strnlen.html	retained
+system-interface	strpbrk	functions/strpbrk.html	functions/strpbrk.html	retained
+system-interface	strptime	functions/strptime.html	functions/strptime.html	retained
+system-interface	strrchr	functions/strrchr.html	functions/strrchr.html	retained
+system-interface	strsignal	functions/strsignal.html	functions/strsignal.html	retained
+system-interface	strspn	functions/strspn.html	functions/strspn.html	retained
+system-interface	strstr	functions/strstr.html	functions/strstr.html	retained
+system-interface	strtod	functions/strtod.html	functions/strtod.html	retained
+system-interface	strtof	functions/strtof.html	functions/strtof.html	retained
+system-interface	strtoimax	functions/strtoimax.html	functions/strtoimax.html	retained
+system-interface	strtok	functions/strtok.html	functions/strtok.html	retained
+system-interface	strtok_r	functions/strtok_r.html	functions/strtok_r.html	retained
+system-interface	strtol	functions/strtol.html	functions/strtol.html	retained
+system-interface	strtold	functions/strtold.html	functions/strtold.html	retained
+system-interface	strtoll	functions/strtoll.html	functions/strtoll.html	retained
+system-interface	strtoul	functions/strtoul.html	functions/strtoul.html	retained
+system-interface	strtoull	functions/strtoull.html	functions/strtoull.html	retained
+system-interface	strtoumax	functions/strtoumax.html	functions/strtoumax.html	retained
+system-interface	strxfrm	functions/strxfrm.html	functions/strxfrm.html	retained
+system-interface	strxfrm_l	functions/strxfrm_l.html	functions/strxfrm_l.html	retained
+system-interface	swab	functions/swab.html	functions/swab.html	retained
+system-interface	swprintf	functions/swprintf.html	functions/swprintf.html	retained
+system-interface	swscanf	functions/swscanf.html	functions/swscanf.html	retained
+system-interface	symlink	functions/symlink.html	functions/symlink.html	retained
+system-interface	symlinkat	functions/symlinkat.html	functions/symlinkat.html	retained
+system-interface	sync	functions/sync.html	functions/sync.html	retained
+system-interface	sysconf	functions/sysconf.html	functions/sysconf.html	retained
+system-interface	syslog	functions/syslog.html	functions/syslog.html	retained
+system-interface	system	functions/system.html	functions/system.html	retained
+system-interface	tan	functions/tan.html	functions/tan.html	retained
+system-interface	tanf	functions/tanf.html	functions/tanf.html	retained
+system-interface	tanh	functions/tanh.html	functions/tanh.html	retained
+system-interface	tanhf	functions/tanhf.html	functions/tanhf.html	retained
+system-interface	tanhl	functions/tanhl.html	functions/tanhl.html	retained
+system-interface	tanl	functions/tanl.html	functions/tanl.html	retained
+system-interface	tcdrain	functions/tcdrain.html	functions/tcdrain.html	retained
+system-interface	tcflow	functions/tcflow.html	functions/tcflow.html	retained
+system-interface	tcflush	functions/tcflush.html	functions/tcflush.html	retained
+system-interface	tcgetattr	functions/tcgetattr.html	functions/tcgetattr.html	retained
+system-interface	tcgetpgrp	functions/tcgetpgrp.html	functions/tcgetpgrp.html	retained
+system-interface	tcgetsid	functions/tcgetsid.html	functions/tcgetsid.html	retained
+system-interface	tcgetwinsize		functions/tcgetwinsize.html	issue8-only
+system-interface	tcsendbreak	functions/tcsendbreak.html	functions/tcsendbreak.html	retained
+system-interface	tcsetattr	functions/tcsetattr.html	functions/tcsetattr.html	retained
+system-interface	tcsetpgrp	functions/tcsetpgrp.html	functions/tcsetpgrp.html	retained
+system-interface	tcsetwinsize		functions/tcsetwinsize.html	issue8-only
+system-interface	tdelete	functions/tdelete.html	functions/tdelete.html	retained
+system-interface	telldir	functions/telldir.html	functions/telldir.html	retained
+system-interface	tempnam	functions/tempnam.html		issue7-only
+system-interface	textdomain		functions/textdomain.html	issue8-only
+system-interface	tfind	functions/tfind.html	functions/tfind.html	retained
+system-interface	tgamma	functions/tgamma.html	functions/tgamma.html	retained
+system-interface	tgammaf	functions/tgammaf.html	functions/tgammaf.html	retained
+system-interface	tgammal	functions/tgammal.html	functions/tgammal.html	retained
+system-interface	thrd_create		functions/thrd_create.html	issue8-only
+system-interface	thrd_current		functions/thrd_current.html	issue8-only
+system-interface	thrd_detach		functions/thrd_detach.html	issue8-only
+system-interface	thrd_equal		functions/thrd_equal.html	issue8-only
+system-interface	thrd_exit		functions/thrd_exit.html	issue8-only
+system-interface	thrd_join		functions/thrd_join.html	issue8-only
+system-interface	thrd_sleep		functions/thrd_sleep.html	issue8-only
+system-interface	thrd_yield		functions/thrd_yield.html	issue8-only
+system-interface	time	functions/time.html	functions/time.html	retained
+system-interface	timer_create	functions/timer_create.html	functions/timer_create.html	retained
+system-interface	timer_delete	functions/timer_delete.html	functions/timer_delete.html	retained
+system-interface	timer_getoverrun	functions/timer_getoverrun.html	functions/timer_getoverrun.html	retained
+system-interface	timer_gettime	functions/timer_gettime.html	functions/timer_gettime.html	retained
+system-interface	timer_settime	functions/timer_settime.html	functions/timer_settime.html	retained
+system-interface	times	functions/times.html	functions/times.html	retained
+system-interface	timespec_get		functions/timespec_get.html	issue8-only
+system-interface	timezone	functions/timezone.html	functions/timezone.html	retained
+system-interface	tmpfile	functions/tmpfile.html	functions/tmpfile.html	retained
+system-interface	tmpnam	functions/tmpnam.html	functions/tmpnam.html	retained
+system-interface	toascii	functions/toascii.html		issue7-only
+system-interface	toc	functions/toc.html	functions/toc.html	retained
+system-interface	tolower	functions/tolower.html	functions/tolower.html	retained
+system-interface	tolower_l	functions/tolower_l.html	functions/tolower_l.html	retained
+system-interface	toupper	functions/toupper.html	functions/toupper.html	retained
+system-interface	toupper_l	functions/toupper_l.html	functions/toupper_l.html	retained
+system-interface	towctrans	functions/towctrans.html	functions/towctrans.html	retained
+system-interface	towctrans_l	functions/towctrans_l.html	functions/towctrans_l.html	retained
+system-interface	towlower	functions/towlower.html	functions/towlower.html	retained
+system-interface	towlower_l	functions/towlower_l.html	functions/towlower_l.html	retained
+system-interface	towupper	functions/towupper.html	functions/towupper.html	retained
+system-interface	towupper_l	functions/towupper_l.html	functions/towupper_l.html	retained
+system-interface	trunc	functions/trunc.html	functions/trunc.html	retained
+system-interface	truncate	functions/truncate.html	functions/truncate.html	retained
+system-interface	truncf	functions/truncf.html	functions/truncf.html	retained
+system-interface	truncl	functions/truncl.html	functions/truncl.html	retained
+system-interface	tsearch	functions/tsearch.html	functions/tsearch.html	retained
+system-interface	tss_create		functions/tss_create.html	issue8-only
+system-interface	tss_delete		functions/tss_delete.html	issue8-only
+system-interface	tss_get		functions/tss_get.html	issue8-only
+system-interface	tss_set		functions/tss_set.html	issue8-only
+system-interface	ttyname	functions/ttyname.html	functions/ttyname.html	retained
+system-interface	ttyname_r	functions/ttyname_r.html	functions/ttyname_r.html	retained
+system-interface	twalk	functions/twalk.html	functions/twalk.html	retained
+system-interface	tzname	functions/tzname.html	functions/tzname.html	retained
+system-interface	tzset	functions/tzset.html	functions/tzset.html	retained
+system-interface	ulimit	functions/ulimit.html		issue7-only
+system-interface	umask	functions/umask.html	functions/umask.html	retained
+system-interface	uname	functions/uname.html	functions/uname.html	retained
+system-interface	ungetc	functions/ungetc.html	functions/ungetc.html	retained
+system-interface	ungetwc	functions/ungetwc.html	functions/ungetwc.html	retained
+system-interface	unlink	functions/unlink.html	functions/unlink.html	retained
+system-interface	unlinkat	functions/unlinkat.html	functions/unlinkat.html	retained
+system-interface	unlockpt	functions/unlockpt.html	functions/unlockpt.html	retained
+system-interface	unsetenv	functions/unsetenv.html	functions/unsetenv.html	retained
+system-interface	uselocale	functions/uselocale.html	functions/uselocale.html	retained
+system-interface	utime	functions/utime.html		issue7-only
+system-interface	utimensat	functions/utimensat.html	functions/utimensat.html	retained
+system-interface	utimes	functions/utimes.html	functions/utimes.html	retained
+system-interface	va_arg	functions/va_arg.html	functions/va_arg.html	retained
+system-interface	va_copy	functions/va_copy.html	functions/va_copy.html	retained
+system-interface	va_end	functions/va_end.html	functions/va_end.html	retained
+system-interface	va_start	functions/va_start.html	functions/va_start.html	retained
+system-interface	vasprintf		functions/vasprintf.html	issue8-only
+system-interface	vdprintf	functions/vdprintf.html	functions/vdprintf.html	retained
+system-interface	vfprintf	functions/vfprintf.html	functions/vfprintf.html	retained
+system-interface	vfscanf	functions/vfscanf.html	functions/vfscanf.html	retained
+system-interface	vfwprintf	functions/vfwprintf.html	functions/vfwprintf.html	retained
+system-interface	vfwscanf	functions/vfwscanf.html	functions/vfwscanf.html	retained
+system-interface	vprintf	functions/vprintf.html	functions/vprintf.html	retained
+system-interface	vscanf	functions/vscanf.html	functions/vscanf.html	retained
+system-interface	vsnprintf	functions/vsnprintf.html	functions/vsnprintf.html	retained
+system-interface	vsprintf	functions/vsprintf.html	functions/vsprintf.html	retained
+system-interface	vsscanf	functions/vsscanf.html	functions/vsscanf.html	retained
+system-interface	vswprintf	functions/vswprintf.html	functions/vswprintf.html	retained
+system-interface	vswscanf	functions/vswscanf.html	functions/vswscanf.html	retained
+system-interface	vwprintf	functions/vwprintf.html	functions/vwprintf.html	retained
+system-interface	vwscanf	functions/vwscanf.html	functions/vwscanf.html	retained
+system-interface	wait	functions/wait.html	functions/wait.html	retained
+system-interface	waitid	functions/waitid.html	functions/waitid.html	retained
+system-interface	waitpid	functions/waitpid.html	functions/waitpid.html	retained
+system-interface	wcpcpy	functions/wcpcpy.html	functions/wcpcpy.html	retained
+system-interface	wcpncpy	functions/wcpncpy.html	functions/wcpncpy.html	retained
+system-interface	wcrtomb	functions/wcrtomb.html	functions/wcrtomb.html	retained
+system-interface	wcscasecmp	functions/wcscasecmp.html	functions/wcscasecmp.html	retained
+system-interface	wcscasecmp_l	functions/wcscasecmp_l.html	functions/wcscasecmp_l.html	retained
+system-interface	wcscat	functions/wcscat.html	functions/wcscat.html	retained
+system-interface	wcschr	functions/wcschr.html	functions/wcschr.html	retained
+system-interface	wcscmp	functions/wcscmp.html	functions/wcscmp.html	retained
+system-interface	wcscoll	functions/wcscoll.html	functions/wcscoll.html	retained
+system-interface	wcscoll_l	functions/wcscoll_l.html	functions/wcscoll_l.html	retained
+system-interface	wcscpy	functions/wcscpy.html	functions/wcscpy.html	retained
+system-interface	wcscspn	functions/wcscspn.html	functions/wcscspn.html	retained
+system-interface	wcsdup	functions/wcsdup.html	functions/wcsdup.html	retained
+system-interface	wcsftime	functions/wcsftime.html	functions/wcsftime.html	retained
+system-interface	wcslcat		functions/wcslcat.html	issue8-only
+system-interface	wcslcpy		functions/wcslcpy.html	issue8-only
+system-interface	wcslen	functions/wcslen.html	functions/wcslen.html	retained
+system-interface	wcsncasecmp	functions/wcsncasecmp.html	functions/wcsncasecmp.html	retained
+system-interface	wcsncasecmp_l	functions/wcsncasecmp_l.html	functions/wcsncasecmp_l.html	retained
+system-interface	wcsncat	functions/wcsncat.html	functions/wcsncat.html	retained
+system-interface	wcsncmp	functions/wcsncmp.html	functions/wcsncmp.html	retained
+system-interface	wcsncpy	functions/wcsncpy.html	functions/wcsncpy.html	retained
+system-interface	wcsnlen	functions/wcsnlen.html	functions/wcsnlen.html	retained
+system-interface	wcsnrtombs	functions/wcsnrtombs.html	functions/wcsnrtombs.html	retained
+system-interface	wcspbrk	functions/wcspbrk.html	functions/wcspbrk.html	retained
+system-interface	wcsrchr	functions/wcsrchr.html	functions/wcsrchr.html	retained
+system-interface	wcsrtombs	functions/wcsrtombs.html	functions/wcsrtombs.html	retained
+system-interface	wcsspn	functions/wcsspn.html	functions/wcsspn.html	retained
+system-interface	wcsstr	functions/wcsstr.html	functions/wcsstr.html	retained
+system-interface	wcstod	functions/wcstod.html	functions/wcstod.html	retained
+system-interface	wcstof	functions/wcstof.html	functions/wcstof.html	retained
+system-interface	wcstoimax	functions/wcstoimax.html	functions/wcstoimax.html	retained
+system-interface	wcstok	functions/wcstok.html	functions/wcstok.html	retained
+system-interface	wcstol	functions/wcstol.html	functions/wcstol.html	retained
+system-interface	wcstold	functions/wcstold.html	functions/wcstold.html	retained
+system-interface	wcstoll	functions/wcstoll.html	functions/wcstoll.html	retained
+system-interface	wcstombs	functions/wcstombs.html	functions/wcstombs.html	retained
+system-interface	wcstoul	functions/wcstoul.html	functions/wcstoul.html	retained
+system-interface	wcstoull	functions/wcstoull.html	functions/wcstoull.html	retained
+system-interface	wcstoumax	functions/wcstoumax.html	functions/wcstoumax.html	retained
+system-interface	wcswidth	functions/wcswidth.html	functions/wcswidth.html	retained
+system-interface	wcsxfrm	functions/wcsxfrm.html	functions/wcsxfrm.html	retained
+system-interface	wcsxfrm_l	functions/wcsxfrm_l.html	functions/wcsxfrm_l.html	retained
+system-interface	wctob	functions/wctob.html	functions/wctob.html	retained
+system-interface	wctomb	functions/wctomb.html	functions/wctomb.html	retained
+system-interface	wctrans	functions/wctrans.html	functions/wctrans.html	retained
+system-interface	wctrans_l	functions/wctrans_l.html	functions/wctrans_l.html	retained
+system-interface	wctype	functions/wctype.html	functions/wctype.html	retained
+system-interface	wctype_l	functions/wctype_l.html	functions/wctype_l.html	retained
+system-interface	wcwidth	functions/wcwidth.html	functions/wcwidth.html	retained
+system-interface	wmemchr	functions/wmemchr.html	functions/wmemchr.html	retained
+system-interface	wmemcmp	functions/wmemcmp.html	functions/wmemcmp.html	retained
+system-interface	wmemcpy	functions/wmemcpy.html	functions/wmemcpy.html	retained
+system-interface	wmemmove	functions/wmemmove.html	functions/wmemmove.html	retained
+system-interface	wmemset	functions/wmemset.html	functions/wmemset.html	retained
+system-interface	wordexp	functions/wordexp.html	functions/wordexp.html	retained
+system-interface	wordfree	functions/wordfree.html	functions/wordfree.html	retained
+system-interface	wprintf	functions/wprintf.html	functions/wprintf.html	retained
+system-interface	write	functions/write.html	functions/write.html	retained
+system-interface	writev	functions/writev.html	functions/writev.html	retained
+system-interface	wscanf	functions/wscanf.html	functions/wscanf.html	retained
+system-interface	y0	functions/y0.html	functions/y0.html	retained
+system-interface	y1	functions/y1.html	functions/y1.html	retained
+system-interface	yn	functions/yn.html	functions/yn.html	retained
+utility	[		utilities/[.html	issue8-only
+utility	admin	utilities/admin.html	utilities/admin.html	retained
+utility	alias	utilities/alias.html	utilities/alias.html	retained
+utility	ar	utilities/ar.html	utilities/ar.html	retained
+utility	asa	utilities/asa.html	utilities/asa.html	retained
+utility	at	utilities/at.html	utilities/at.html	retained
+utility	awk	utilities/awk.html	utilities/awk.html	retained
+utility	basename	utilities/basename.html	utilities/basename.html	retained
+utility	batch	utilities/batch.html	utilities/batch.html	retained
+utility	bc	utilities/bc.html	utilities/bc.html	retained
+utility	bg	utilities/bg.html	utilities/bg.html	retained
+utility	break	utilities/V3_chap02.html	utilities/break.html	retained
+utility	c17		utilities/c17.html	issue8-only
+utility	c99	utilities/c99.html		issue7-only
+utility	cal	utilities/cal.html	utilities/cal.html	retained
+utility	cat	utilities/cat.html	utilities/cat.html	retained
+utility	cd	utilities/cd.html	utilities/cd.html	retained
+utility	cflow	utilities/cflow.html	utilities/cflow.html	retained
+utility	chgrp	utilities/chgrp.html	utilities/chgrp.html	retained
+utility	chmod	utilities/chmod.html	utilities/chmod.html	retained
+utility	chown	utilities/chown.html	utilities/chown.html	retained
+utility	cksum	utilities/cksum.html	utilities/cksum.html	retained
+utility	cmp	utilities/cmp.html	utilities/cmp.html	retained
+utility	colon	utilities/V3_chap02.html	utilities/colon.html	retained
+utility	comm	utilities/comm.html	utilities/comm.html	retained
+utility	command	utilities/command.html	utilities/command.html	retained
+utility	compress	utilities/compress.html	utilities/compress.html	retained
+utility	continue	utilities/V3_chap02.html	utilities/continue.html	retained
+utility	cp	utilities/cp.html	utilities/cp.html	retained
+utility	crontab	utilities/crontab.html	utilities/crontab.html	retained
+utility	csplit	utilities/csplit.html	utilities/csplit.html	retained
+utility	ctags	utilities/ctags.html	utilities/ctags.html	retained
+utility	cut	utilities/cut.html	utilities/cut.html	retained
+utility	cxref	utilities/cxref.html	utilities/cxref.html	retained
+utility	date	utilities/date.html	utilities/date.html	retained
+utility	dd	utilities/dd.html	utilities/dd.html	retained
+utility	delta	utilities/delta.html	utilities/delta.html	retained
+utility	df	utilities/df.html	utilities/df.html	retained
+utility	diff	utilities/diff.html	utilities/diff.html	retained
+utility	dirname	utilities/dirname.html	utilities/dirname.html	retained
+utility	dot	utilities/V3_chap02.html	utilities/dot.html	retained
+utility	du	utilities/du.html	utilities/du.html	retained
+utility	echo	utilities/echo.html	utilities/echo.html	retained
+utility	ed	utilities/ed.html	utilities/ed.html	retained
+utility	env	utilities/env.html	utilities/env.html	retained
+utility	eval	utilities/V3_chap02.html	utilities/eval.html	retained
+utility	ex	utilities/ex.html	utilities/ex.html	retained
+utility	exec	utilities/V3_chap02.html	utilities/exec.html	retained
+utility	exit	utilities/V3_chap02.html	utilities/exit.html	retained
+utility	expand	utilities/expand.html	utilities/expand.html	retained
+utility	export	utilities/V3_chap02.html	utilities/export.html	retained
+utility	expr	utilities/expr.html	utilities/expr.html	retained
+utility	false	utilities/false.html	utilities/false.html	retained
+utility	fc	utilities/fc.html	utilities/fc.html	retained
+utility	fg	utilities/fg.html	utilities/fg.html	retained
+utility	file	utilities/file.html	utilities/file.html	retained
+utility	find	utilities/find.html	utilities/find.html	retained
+utility	fold	utilities/fold.html	utilities/fold.html	retained
+utility	fort77	utilities/fort77.html		issue7-only
+utility	fuser	utilities/fuser.html	utilities/fuser.html	retained
+utility	gencat	utilities/gencat.html	utilities/gencat.html	retained
+utility	get	utilities/get.html	utilities/get.html	retained
+utility	getconf	utilities/getconf.html	utilities/getconf.html	retained
+utility	getopts	utilities/getopts.html	utilities/getopts.html	retained
+utility	gettext		utilities/gettext.html	issue8-only
+utility	grep	utilities/grep.html	utilities/grep.html	retained
+utility	hash	utilities/hash.html	utilities/hash.html	retained
+utility	head	utilities/head.html	utilities/head.html	retained
+utility	iconv	utilities/iconv.html	utilities/iconv.html	retained
+utility	id	utilities/id.html	utilities/id.html	retained
+utility	ipcrm	utilities/ipcrm.html	utilities/ipcrm.html	retained
+utility	ipcs	utilities/ipcs.html	utilities/ipcs.html	retained
+utility	jobs	utilities/jobs.html	utilities/jobs.html	retained
+utility	join	utilities/join.html	utilities/join.html	retained
+utility	kill	utilities/kill.html	utilities/kill.html	retained
+utility	lex	utilities/lex.html	utilities/lex.html	retained
+utility	link	utilities/link.html	utilities/link.html	retained
+utility	ln	utilities/ln.html	utilities/ln.html	retained
+utility	locale	utilities/locale.html	utilities/locale.html	retained
+utility	localedef	utilities/localedef.html	utilities/localedef.html	retained
+utility	logger	utilities/logger.html	utilities/logger.html	retained
+utility	logname	utilities/logname.html	utilities/logname.html	retained
+utility	lp	utilities/lp.html	utilities/lp.html	retained
+utility	ls	utilities/ls.html	utilities/ls.html	retained
+utility	m4	utilities/m4.html	utilities/m4.html	retained
+utility	mailx	utilities/mailx.html	utilities/mailx.html	retained
+utility	make	utilities/make.html	utilities/make.html	retained
+utility	man	utilities/man.html	utilities/man.html	retained
+utility	mesg	utilities/mesg.html	utilities/mesg.html	retained
+utility	mkdir	utilities/mkdir.html	utilities/mkdir.html	retained
+utility	mkfifo	utilities/mkfifo.html	utilities/mkfifo.html	retained
+utility	more	utilities/more.html	utilities/more.html	retained
+utility	msgfmt		utilities/msgfmt.html	issue8-only
+utility	mv	utilities/mv.html	utilities/mv.html	retained
+utility	newgrp	utilities/newgrp.html	utilities/newgrp.html	retained
+utility	ngettext		utilities/ngettext.html	issue8-only
+utility	nice	utilities/nice.html	utilities/nice.html	retained
+utility	nl	utilities/nl.html	utilities/nl.html	retained
+utility	nm	utilities/nm.html	utilities/nm.html	retained
+utility	nohup	utilities/nohup.html	utilities/nohup.html	retained
+utility	od	utilities/od.html	utilities/od.html	retained
+utility	paste	utilities/paste.html	utilities/paste.html	retained
+utility	patch	utilities/patch.html	utilities/patch.html	retained
+utility	pathchk	utilities/pathchk.html	utilities/pathchk.html	retained
+utility	pax	utilities/pax.html	utilities/pax.html	retained
+utility	pr	utilities/pr.html	utilities/pr.html	retained
+utility	printf	utilities/printf.html	utilities/printf.html	retained
+utility	prs	utilities/prs.html	utilities/prs.html	retained
+utility	ps	utilities/ps.html	utilities/ps.html	retained
+utility	pwd	utilities/pwd.html	utilities/pwd.html	retained
+utility	qalter	utilities/qalter.html		issue7-only
+utility	qdel	utilities/qdel.html		issue7-only
+utility	qhold	utilities/qhold.html		issue7-only
+utility	qmove	utilities/qmove.html		issue7-only
+utility	qmsg	utilities/qmsg.html		issue7-only
+utility	qrerun	utilities/qrerun.html		issue7-only
+utility	qrls	utilities/qrls.html		issue7-only
+utility	qselect	utilities/qselect.html		issue7-only
+utility	qsig	utilities/qsig.html		issue7-only
+utility	qstat	utilities/qstat.html		issue7-only
+utility	qsub	utilities/qsub.html		issue7-only
+utility	read	utilities/read.html	utilities/read.html	retained
+utility	readlink		utilities/readlink.html	issue8-only
+utility	readonly	utilities/V3_chap02.html	utilities/readonly.html	retained
+utility	realpath		utilities/realpath.html	issue8-only
+utility	renice	utilities/renice.html	utilities/renice.html	retained
+utility	return	utilities/V3_chap02.html	utilities/return.html	retained
+utility	rm	utilities/rm.html	utilities/rm.html	retained
+utility	rmdel	utilities/rmdel.html	utilities/rmdel.html	retained
+utility	rmdir	utilities/rmdir.html	utilities/rmdir.html	retained
+utility	sact	utilities/sact.html	utilities/sact.html	retained
+utility	sccs	utilities/sccs.html	utilities/sccs.html	retained
+utility	sed	utilities/sed.html	utilities/sed.html	retained
+utility	set	utilities/V3_chap02.html	utilities/set.html	retained
+utility	sh	utilities/sh.html	utilities/sh.html	retained
+utility	shift	utilities/V3_chap02.html	utilities/shift.html	retained
+utility	sleep	utilities/sleep.html	utilities/sleep.html	retained
+utility	sort	utilities/sort.html	utilities/sort.html	retained
+utility	split	utilities/split.html	utilities/split.html	retained
+utility	strings	utilities/strings.html	utilities/strings.html	retained
+utility	strip	utilities/strip.html	utilities/strip.html	retained
+utility	stty	utilities/stty.html	utilities/stty.html	retained
+utility	tabs	utilities/tabs.html	utilities/tabs.html	retained
+utility	tail	utilities/tail.html	utilities/tail.html	retained
+utility	talk	utilities/talk.html	utilities/talk.html	retained
+utility	tee	utilities/tee.html	utilities/tee.html	retained
+utility	test	utilities/test.html	utilities/test.html	retained
+utility	time	utilities/time.html	utilities/time.html	retained
+utility	timeout		utilities/timeout.html	issue8-only
+utility	times	utilities/V3_chap02.html	utilities/times.html	retained
+utility	touch	utilities/touch.html	utilities/touch.html	retained
+utility	tput	utilities/tput.html	utilities/tput.html	retained
+utility	tr	utilities/tr.html	utilities/tr.html	retained
+utility	trap	utilities/V3_chap02.html	utilities/trap.html	retained
+utility	true	utilities/true.html	utilities/true.html	retained
+utility	tsort	utilities/tsort.html	utilities/tsort.html	retained
+utility	tty	utilities/tty.html	utilities/tty.html	retained
+utility	type	utilities/type.html	utilities/type.html	retained
+utility	ulimit	utilities/ulimit.html	utilities/ulimit.html	retained
+utility	umask	utilities/umask.html	utilities/umask.html	retained
+utility	unalias	utilities/unalias.html	utilities/unalias.html	retained
+utility	uname	utilities/uname.html	utilities/uname.html	retained
+utility	uncompress	utilities/uncompress.html	utilities/uncompress.html	retained
+utility	unexpand	utilities/unexpand.html	utilities/unexpand.html	retained
+utility	unget	utilities/unget.html	utilities/unget.html	retained
+utility	uniq	utilities/uniq.html	utilities/uniq.html	retained
+utility	unlink	utilities/unlink.html	utilities/unlink.html	retained
+utility	unset	utilities/V3_chap02.html	utilities/unset.html	retained
+utility	uucp	utilities/uucp.html	utilities/uucp.html	retained
+utility	uudecode	utilities/uudecode.html	utilities/uudecode.html	retained
+utility	uuencode	utilities/uuencode.html	utilities/uuencode.html	retained
+utility	uustat	utilities/uustat.html	utilities/uustat.html	retained
+utility	uux	utilities/uux.html	utilities/uux.html	retained
+utility	val	utilities/val.html	utilities/val.html	retained
+utility	vi	utilities/vi.html	utilities/vi.html	retained
+utility	wait	utilities/wait.html	utilities/wait.html	retained
+utility	wc	utilities/wc.html	utilities/wc.html	retained
+utility	what	utilities/what.html	utilities/what.html	retained
+utility	who	utilities/who.html	utilities/who.html	retained
+utility	write	utilities/write.html	utilities/write.html	retained
+utility	xargs	utilities/xargs.html	utilities/xargs.html	retained
+utility	xgettext		utilities/xgettext.html	issue8-only
+utility	yacc	utilities/yacc.html	utilities/yacc.html	retained
+utility	zcat	utilities/zcat.html	utilities/zcat.html	retained

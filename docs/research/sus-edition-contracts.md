@@ -7,6 +7,15 @@ the publication boundary used here for Single UNIX Specification Version 5.
 The Issue 7 base is `https://pubs.opengroup.org/onlinepubs/9699919799/`; the
 Issue 8 base is `https://pubs.opengroup.org/onlinepubs/9799919799/`.
 
+`sus-requirement-corpus.md`, `sus-requirement-corpus.json` and
+`sus-requirement-entities.tsv` provide the full structural denominator behind
+the selected rows below. The corpus covers 1,617 named Issue 7/Issue 8 Base
+Definitions, System Interfaces and utility entities, decomposes each entity
+into behavior facets and maps bounded DiscoBSD mechanisms without importing
+standards prose or XINIM's Q35-specific closure state. A source page in that
+corpus establishes membership only; the evidence and residual columns below
+decide each selected DiscoBSD claim.
+
 An unshaded row is a Base requirement. `XSI` names the XSI option. `UP` names
 the User Portability Utilities option, and `vi` also requires
 `POSIX2_CHAR_TERM`. `OB` marks an obsolescent interface in Issue 8. An option

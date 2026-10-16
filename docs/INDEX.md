@@ -145,6 +145,9 @@ Grouped by what they investigate.
 | `posix-utilities.md` | the current selected-image utility ownership map and the superseded September 2026 porting survey |
 | `sus-utility-ledger.json` | the machine-checked source, manifest, multicall, Bourne-builtin and behavior-gate state for 107 utility names |
 | `sus-edition-contracts.md` | bounded Issue 7 and Issue 8 utility, directory, case-folding, process-group and runtime-limit contracts with explicit option marks and residuals |
+| `sus-requirement-corpus.md` | the source-bound Issue 7/Issue 8 denominator, requirement-facet decomposition and RP2040 behavior-preserving translation rules |
+| `sus-requirement-corpus.json` | machine-checked archive identities, entity counts, facet taxonomy and bounded tiny-system mappings |
+| `sus-requirement-entities.tsv` | 1,617 copyright-safe Base Definitions, System Interfaces and utility entity keys with per-edition source membership |
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |

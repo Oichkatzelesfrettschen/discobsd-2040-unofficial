@@ -481,7 +481,15 @@ decision corpus. The source classification program in
 `c17-formatting-linting.md` owns the larger file-by-file denominator.
 `check-c17-source-denominator` now verifies that every tracked C/header path
 has exactly one row and every excluded row has a hashed quarantine or archive
-record. The initial ledger deliberately retains unreviewed and migration-open
-rows; tracked-path accounting is closed, while source classification and
-language closure remain open and executable through the checker's separate
-`--closure` mode.
+record. Schema 2 assigns every row a deterministic source kind, build surface,
+required dialect, extension boundary, risk family and lexical hazard-candidate
+set. Those classifications preserve all 2 accepted, 23 migration-open, 543
+excluded and 2,002 unreviewed language states. Candidate-free lexical output
+is not semantic clearance. Tracked-path and classification accounting are
+closed; language acceptance remains open and executable through the checker's
+separate `--closure` mode.
+
+`check-c17-compile-profiles` keeps strict portable compilation and exact GNU17
+Cortex-M0+ kernel compilation in one explicitly invoked profile gate.
+`check-c17-smaller-c` remains separate because native language acceptance does
+not establish ISO C17 or the production cross-build result.

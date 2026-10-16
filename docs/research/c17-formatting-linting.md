@@ -679,19 +679,35 @@ check-c17-calibration  known-good, known-bad and mutation fixtures
 The first rollout gate is implemented as `check-c17-source-denominator`.
 `tools/c17/source-denominator.json` gives every Git-tracked `.c` and `.h` path
 one row; `quarantine-manifest.json` gives every excluded archive or guest row
-an exact SHA-256 identity and provenance boundary. The calibrated checker
-rejects additions, removals, duplicates, unsafe paths, unknown states,
-unwitnessed accepted rows and changed quarantine bytes. Its ordinary mode
-proves tracked-path accounting and reports open states. `--closure` rejects
-every unreviewed or migration-open row, so a coverage pass cannot be reported
-as C17 completion.
+an exact SHA-256 identity and provenance boundary. Schema 2 also records source
+kind, build surface, required language mode, extension policy, risk family and
+candidate integer, pointer, prototype, variadic, aliasing, object-lifetime and
+inline-assembly hazards for every row. The verifier derives those fields from
+the live path and source and rejects classification drift. Candidate discovery
+does not establish semantic absence or language acceptance.
+
+The calibrated checker rejects additions, removals, duplicates, unsafe paths,
+unknown states, unwitnessed accepted rows, fabricated hazard signals, changed
+source classifications and changed quarantine bytes. Its ordinary mode proves
+tracked-path accounting and reports open states. `--closure` rejects every
+unreviewed or migration-open row, so a coverage pass cannot be reported as C17
+completion. `--refresh-classification` is an explicit ledger-maintenance
+operation; ordinary verification never rewrites the ledger.
 
 The initial reviewed denominator records the documented `legacy/non-arm`
-archive, the exact PDP-11 guest subtree and the native Smaller C implementation
-boundary. Other tracked sources remain explicitly unreviewed until their
-evaluated build and provenance decide their class. The formatter, compile
-database and full Class A analyzer gates remain open; neither broad formatting
-nor implicit classification follows from the denominator gate.
+archive, the exact PDP-11 guest subtree, the two unsupported-platform sources,
+the maintained ARM build surfaces and the native Smaller C implementation
+boundary. Other source acceptance states remain explicitly unreviewed until
+their evaluated build and provenance decide their class. The formatter,
+compile database and full Class A analyzer gates remain open; neither broad
+formatting nor implicit acceptance follows from the denominator gate.
+
+`check-c17-compile-profiles` composes two existing evidence surfaces. The
+case-folding mechanism compiles under strict C17 on the host and Cortex-M0+;
+the complete PICO and PICO_UART kernels compile and link with their exact
+GNU17 freestanding commands. `check-c17-smaller-c` runs the native compiler
+acceptance suite separately. A Smaller C result never becomes a strict-C17 or
+production-kernel result.
 
 ## 8. Formatting, linting and footprint claims
 

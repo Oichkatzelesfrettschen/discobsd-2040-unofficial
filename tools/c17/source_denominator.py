@@ -3,9 +3,12 @@
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+
+import kr_scan
 
 CLASSES = {"A", "B", "C", "D", "E", "unreviewed"}
 SCOPES = {"maintained", "quarantine", "archive", "generated", "unreviewed"}
@@ -29,6 +32,7 @@ REQUIRED_ROW_FIELDS = {
     "language_state",
     "evidence",
     "blocker",
+    "classification",
 }
 REQUIRED_QUARANTINE_FIELDS = {
     "path",
@@ -36,6 +40,103 @@ REQUIRED_QUARANTINE_FIELDS = {
     "sha256",
     "provenance",
     "reason",
+}
+CLASSIFICATION_FIELDS = {
+    "source_kind",
+    "build_surface",
+    "required_mode",
+    "extension_policy",
+    "extension_signals",
+    "risk_family",
+    "hazard_basis",
+    "hazards",
+}
+HAZARD_FAMILIES = {
+    "integer",
+    "pointer",
+    "prototype",
+    "variadic",
+    "aliasing",
+    "object_lifetime",
+    "inline_assembly",
+}
+BUILD_SURFACES = {
+    "rp2040-kernel",
+    "rp2040-userland",
+    "host-only",
+    "test-only",
+    "native-smaller-c",
+    "maintained-arm",
+    "legacy-isolated",
+    "unresolved",
+}
+REQUIRED_MODES = {
+    "strict-c17-and-gnu17",
+    "gnu17-freestanding",
+    "c17-migration",
+    "not-built",
+    "unresolved",
+}
+EXTENSION_POLICIES = {
+    "portable-only",
+    "localized-gnu",
+    "gnu-extension-review",
+    "native-subset-separated",
+    "not-applicable",
+    "unresolved",
+}
+RISK_FAMILIES = {
+    "portable-leaf",
+    "libc-public-header",
+    "shell-ilp32",
+    "kernel-syscall",
+    "hardware-seam",
+    "native-compiler",
+    "host-only",
+    "legacy-isolated",
+    "unresolved",
+}
+EXTENSION_PATTERNS = {
+    "gnu-attribute": re.compile(r"\b__attribute__\s*\("),
+    "gnu-typeof": re.compile(r"\b(?:__typeof__|typeof)\s*\("),
+    "inline-assembly": re.compile(r"\b(?:__asm__|__asm|asm)\s*(?:volatile\s*)?\("),
+    "statement-expression": re.compile(r"\(\s*\{"),
+    "target-builtin": re.compile(r"\b__builtin_[A-Za-z0-9_]+"),
+}
+HAZARD_PATTERNS = {
+    "integer": {
+        "integer-cast": re.compile(
+            r"\(\s*(?:(?:un)?signed\s+)?(?:char|short|int|long)(?:\s+long)?\s*\)"
+        ),
+        "shift-expression": re.compile(r"(?:<<|>>)"),
+        "width-sensitive-sizeof": re.compile(r"\bsizeof\s*\([^)]*\)\s*[*+\-/]"),
+    },
+    "pointer": {
+        "integer-pointer-cast": re.compile(
+            r"\(\s*(?:u?intptr_t|u?int(?:8|16|32|64)_t|long|int)\s*\)\s*[A-Za-z_(]"
+        ),
+        "pointer-integer-cast": re.compile(
+            r"\(\s*(?:const\s+)?(?:void|char|short|int|long|[A-Za-z_]\w*)\s*\*\s*\)\s*[-+0-9]"
+        ),
+    },
+    "variadic": {
+        "variadic-interface": re.compile(r"\.\.\.|\bva_(?:list|start|arg|copy|end)\b"),
+    },
+    "aliasing": {
+        "union-access": re.compile(r"\bunion\s+[A-Za-z_]"),
+        "cast-dereference": re.compile(r"\*\s*\([^)]*\*[^)]*\)"),
+    },
+    "object_lifetime": {
+        "dynamic-storage": re.compile(r"\b(?:malloc|calloc|realloc|free|alloca)\s*\("),
+        "compound-literal": re.compile(
+            r"\(\s*(?:(?:struct|union|enum)\s+[A-Za-z_]\w*|"
+            r"(?:const\s+)?(?:char|short|int|long|float|double|[A-Za-z_]\w*_t)"
+            r"(?:\s*\*)?)\s*\)\s*\{"
+        ),
+    },
+    "inline_assembly": {
+        "inline-assembly": EXTENSION_PATTERNS["inline-assembly"],
+    },
 }
 
 
@@ -82,8 +183,166 @@ def load_json(path):
         raise DenominatorError(f"cannot read {path}: {error}") from error
 
 
+def source_text(root, path):
+    try:
+        return (root / path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise DenominatorError(f"cannot classify {path}: {error}") from error
+
+
+def path_classification(row):
+    path = row["path"]
+    if row["language_state"] == "excluded":
+        return ("legacy-isolated", "not-built", "not-applicable", "legacy-isolated")
+    if path.startswith("usr.bin/smlrc/"):
+        return (
+            "native-smaller-c",
+            "c17-migration",
+            "native-subset-separated",
+            "native-compiler",
+        )
+    if path.startswith(("sys/arch/arm/", "sys/arch/stm32/")):
+        return ("maintained-arm", "gnu17-freestanding", "localized-gnu", "hardware-seam")
+    if path.startswith("legacy/unsupported-platforms/"):
+        return ("legacy-isolated", "not-built", "not-applicable", "legacy-isolated")
+    if path.startswith("sys/arch/rp2040/"):
+        return ("rp2040-kernel", "gnu17-freestanding", "localized-gnu", "hardware-seam")
+    if path.startswith(("sys/kern/", "sys/sys/", "sys/ufs/", "sys/dev/", "sys/net/")):
+        return ("rp2040-kernel", "gnu17-freestanding", "localized-gnu", "kernel-syscall")
+    if path.startswith("bin/sh/"):
+        return ("rp2040-userland", "c17-migration", "gnu-extension-review", "shell-ilp32")
+    if path.startswith(("lib/libc/", "include/")):
+        return (
+            "rp2040-userland",
+            "strict-c17-and-gnu17",
+            "portable-only",
+            "libc-public-header",
+        )
+    if path.startswith(
+        ("bin/", "sbin/", "usr.bin/", "usr.sbin/", "games/", "lib/", "libexec/", "share/")
+    ):
+        return (
+            "rp2040-userland",
+            "strict-c17-and-gnu17",
+            "portable-only",
+            "portable-leaf",
+        )
+    if path.startswith("tests/"):
+        return ("test-only", "strict-c17-and-gnu17", "portable-only", "portable-leaf")
+    if path.startswith(("tools/", "docs/", "benchmarks/", "distrib/")):
+        return ("host-only", "strict-c17-and-gnu17", "portable-only", "host-only")
+    return ("unresolved", "unresolved", "unresolved", "unresolved")
+
+
+def derive_classification(root, row):
+    path = row["path"]
+    source_kind = "translation-unit" if path.endswith(".c") else "header"
+    build_surface, required_mode, extension_policy, risk_family = path_classification(row)
+    hazards = {family: [] for family in sorted(HAZARD_FAMILIES)}
+    if build_surface == "legacy-isolated":
+        return {
+            "source_kind": source_kind,
+            "build_surface": build_surface,
+            "required_mode": required_mode,
+            "extension_policy": extension_policy,
+            "extension_signals": [],
+            "risk_family": risk_family,
+            "hazard_basis": "not-applicable",
+            "hazards": hazards,
+        }
+
+    text = source_text(root, path)
+    stripped = kr_scan.strip_source(kr_scan.join_splices(text))
+    extension_signals = sorted(
+        name for name, pattern in EXTENSION_PATTERNS.items() if pattern.search(stripped)
+    )
+    for family, patterns in HAZARD_PATTERNS.items():
+        hazards[family] = sorted(
+            name for name, pattern in patterns.items() if pattern.search(stripped)
+        )
+    prototype_signals = {
+        f"old-style-{finding.kind}"
+        for finding in kr_scan.scan_text(path, text)
+    }
+    hazards["prototype"] = sorted(prototype_signals)
+    if extension_signals and extension_policy == "portable-only":
+        extension_policy = "gnu-extension-review"
+    return {
+        "source_kind": source_kind,
+        "build_surface": build_surface,
+        "required_mode": required_mode,
+        "extension_policy": extension_policy,
+        "extension_signals": extension_signals,
+        "risk_family": risk_family,
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": hazards,
+    }
+
+
+def validate_classification(root, row):
+    path = row["path"]
+    classification = row["classification"]
+    require(isinstance(classification, dict), f"invalid classification for {path}")
+    require(
+        set(classification) == CLASSIFICATION_FIELDS,
+        f"malformed classification for {path}",
+    )
+    require(
+        classification["source_kind"] in {"translation-unit", "header"},
+        f"unknown source kind for {path}",
+    )
+    require(
+        classification["build_surface"] in BUILD_SURFACES,
+        f"unknown build surface for {path}",
+    )
+    require(
+        classification["required_mode"] in REQUIRED_MODES,
+        f"unknown required mode for {path}",
+    )
+    require(
+        classification["extension_policy"] in EXTENSION_POLICIES,
+        f"unknown extension policy for {path}",
+    )
+    require(
+        classification["risk_family"] in RISK_FAMILIES,
+        f"unknown risk family for {path}",
+    )
+    require(
+        classification["hazard_basis"] in {"lexical-candidates-v1", "not-applicable"},
+        f"unknown hazard basis for {path}",
+    )
+    signals = classification["extension_signals"]
+    require(isinstance(signals, list), f"invalid extension signals for {path}")
+    require(signals == sorted(set(signals)), f"unsorted extension signals for {path}")
+    require(
+        set(signals) <= set(EXTENSION_PATTERNS),
+        f"unknown extension signal for {path}",
+    )
+    hazards = classification["hazards"]
+    require(isinstance(hazards, dict), f"invalid hazards for {path}")
+    require(set(hazards) == HAZARD_FAMILIES, f"malformed hazards for {path}")
+    allowed_hazards = {
+        family: set(patterns) for family, patterns in HAZARD_PATTERNS.items()
+    }
+    allowed_hazards["prototype"] = {"old-style-definition", "old-style-declaration"}
+    for family, family_signals in hazards.items():
+        require(isinstance(family_signals, list), f"invalid {family} hazards for {path}")
+        require(
+            family_signals == sorted(set(family_signals)),
+            f"unsorted {family} hazards for {path}",
+        )
+        require(
+            set(family_signals) <= allowed_hazards[family],
+            f"unknown {family} hazard for {path}",
+        )
+    require(
+        classification == derive_classification(root, row),
+        f"classification drift for {path}",
+    )
+
+
 def validate_documents(root, discovered, ledger, quarantine, closure=False):
-    require(ledger.get("schema_version") == 1, "unsupported ledger schema")
+    require(ledger.get("schema_version") == 2, "unsupported ledger schema")
     require(quarantine.get("schema_version") == 1, "unsupported quarantine schema")
     rows = ledger.get("rows")
     entries = quarantine.get("entries")
@@ -113,6 +372,7 @@ def validate_documents(root, discovered, ledger, quarantine, closure=False):
                 f"unsafe evidence path for {path}",
             )
             require((root / evidence).is_file(), f"missing evidence for {path}: {evidence}")
+        validate_classification(root, row)
         if row["language_state"] == "accepted":
             require(row["class"] != "unreviewed", f"accepted row has no class: {path}")
             require(row["scope"] != "unreviewed", f"accepted row has no scope: {path}")
@@ -122,6 +382,14 @@ def validate_documents(root, discovered, ledger, quarantine, closure=False):
             )
             require(row["evidence"], f"accepted row has no evidence: {path}")
             require(not row["blocker"], f"accepted row retains a blocker: {path}")
+            require(
+                row["classification"]["build_surface"] != "unresolved",
+                f"accepted row has unresolved build surface: {path}",
+            )
+            require(
+                row["classification"]["required_mode"] != "unresolved",
+                f"accepted row has unresolved language mode: {path}",
+            )
         if row["language_state"] == "excluded":
             require(row["class"] == "D", f"only class D can be excluded: {path}")
             require(
@@ -227,6 +495,8 @@ def bootstrap(root, ledger_path, quarantine_path):
         not quarantine_path.exists(), f"refusing to replace existing manifest: {quarantine_path}"
     )
     rows = [initial_row(path) for path in tracked_sources(root)]
+    for row in rows:
+        row["classification"] = derive_classification(root, row)
     entries = []
     for row in rows:
         if row["language_state"] != "excluded":
@@ -241,12 +511,26 @@ def bootstrap(root, ledger_path, quarantine_path):
             }
         )
     ledger_path.write_text(
-        json.dumps({"schema_version": 1, "rows": rows}, indent=2) + "\n", encoding="utf-8"
+        json.dumps({"schema_version": 2, "rows": rows}, indent=2) + "\n", encoding="utf-8"
     )
     quarantine_path.write_text(
         json.dumps({"schema_version": 1, "entries": entries}, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def refresh_classification(root, ledger_path, discovered, quarantine, closure=False):
+    ledger = load_json(ledger_path)
+    require(ledger.get("schema_version") in {1, 2}, "unsupported ledger schema")
+    rows = ledger.get("rows")
+    require(isinstance(rows, list), "ledger rows must be a list")
+    for row in rows:
+        require(isinstance(row, dict), "each ledger row must be an object")
+        row["classification"] = derive_classification(root, row)
+    ledger["schema_version"] = 2
+    counts = validate_documents(root, discovered, ledger, quarantine, closure)
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    return counts
 
 
 def main():
@@ -255,6 +539,7 @@ def main():
     parser.add_argument("--ledger", default="tools/c17/source-denominator.json")
     parser.add_argument("--quarantine", default="tools/c17/quarantine-manifest.json")
     parser.add_argument("--bootstrap", action="store_true")
+    parser.add_argument("--refresh-classification", action="store_true")
     parser.add_argument("--closure", action="store_true")
     args = parser.parse_args()
     root = Path(args.root).resolve()
@@ -263,13 +548,16 @@ def main():
     try:
         if args.bootstrap:
             bootstrap(root, ledger_path, quarantine_path)
-        counts = validate_documents(
-            root,
-            tracked_sources(root),
-            load_json(ledger_path),
-            load_json(quarantine_path),
-            args.closure,
-        )
+        discovered = tracked_sources(root)
+        quarantine = load_json(quarantine_path)
+        if args.refresh_classification:
+            counts = refresh_classification(
+                root, ledger_path, discovered, quarantine, args.closure
+            )
+        else:
+            counts = validate_documents(
+                root, discovered, load_json(ledger_path), quarantine, args.closure
+            )
     except (DenominatorError, subprocess.CalledProcessError) as error:
         print(f"FAIL C17 source denominator: {error}", file=sys.stderr)
         return 1

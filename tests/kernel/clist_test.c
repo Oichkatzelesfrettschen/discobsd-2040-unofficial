@@ -24,9 +24,8 @@
 
 /*
  * The block pool. sys/arch/${MACHINE}/${MACHINE}/machdep.c defines cfree for
- * the kernel; a host gate defines it here, aligned, so every block in it is
- * usable. cinit() in init_main.c rounds the kernel's up instead and spends at
- * most one block doing it.
+ * the kernel; the maintained ports and this host gate define it with the same
+ * alignment, so cinit() can expose every CBSIZE-byte payload block.
  */
 _Alignas(CBLOCK) struct cblock cfree[NCLIST];
 

@@ -316,6 +316,15 @@ without equating one C call with one undocumented internal flash command.
 Verified-byte and verification-failure counters exist only beside a mechanism
 that actually performs that verification.
 
+The implemented `machdep.storage_stats` surface is the aggregate
+requested-traffic subset of H02. `flash_erase()` and `flash_program()` add
+requested byte and erase-sector or program-page equivalents before the ROM
+call, and the sysctl reader copies one interrupt-masked snapshot with a sticky
+saturation flag. The surface records neither returned-operation events,
+independent readback, physical-sector distribution, persistent accounting nor
+the generation-framed export below. Those obligations remain open rather than
+being inferred from a returning wrapper or a counter increment.
+
 The initial counter set includes SwapRAM admission and fallback reasons,
 compressed and expanded bytes, pool free bytes and largest extent, SMALL/LARGE
 residency, erases by physical sector, ROM program calls and byte lengths,

@@ -30,360 +30,427 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <limits.h>
+
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/types.h>
 
-#define PF(f, func) { \
-	if (fieldwidth) \
-		if (precision) \
-			(void)printf(f, fieldwidth, precision, func); \
-		else \
-			(void)printf(f, fieldwidth, func); \
-	else if (precision) \
-		(void)printf(f, precision, func); \
-	else \
-		(void)printf(f, func); \
+#define FORMAT_LIMIT 65535
+
+static char **operands;
+static int operand_count;
+static int operand_base;
+static int operand_next;
+static int operand_used;
+static int utility_status;
+static int number_valid;
+
+static void diagnostic(const char *);
+static int decimal(const char **, int *);
+static const char *argument(int);
+static long number(int);
+static int output_byte(unsigned char);
+static int decode(const unsigned char **, int, unsigned char *, int *);
+static int output_b(const char *, int, int, int, int *);
+static int conversion(const char **, int *);
+static int format_escape(const char **);
+static int run_format(const char *);
+
+static void
+diagnostic(const char *message)
+{
+	(void)fputs("printf: ", stderr);
+	(void)fputs(message, stderr);
+	(void)fputc('\n', stderr);
 }
 
-static char **gargv;
+static int
+decimal(const char **cursor_pointer, int *value_pointer)
+{
+	const char *cursor;
+	int digits;
+	int overflow;
+	int value;
 
-static int	 asciicode();
-static void	 escape();
-static int	 getchr();
-static int	 getint();
-static int	 getlong();
-static char	*getstr();
-static char	*mklong();
-static void	 usage();
-#ifndef NOFPU
-static double	 getdouble();
-#endif
+	cursor = *cursor_pointer;
+	digits = 0;
+	overflow = 0;
+	value = 0;
+	while (*cursor >= '0' && *cursor <= '9') {
+		int digit;
+
+		digit = *cursor++ - '0';
+		if (value > 6553 || (value == 6553 && digit > 5))
+			overflow = 1;
+		else
+			value = value * 10 + digit;
+		digits = 1;
+	}
+	*cursor_pointer = cursor;
+	if (!digits)
+		return (0);
+	if (overflow)
+		return (-1);
+	*value_pointer = value;
+	return (1);
+}
+
+static const char *
+argument(int number)
+{
+	int offset;
+
+	if (number != 0)
+		offset = number - 1;
+	else
+		offset = operand_next++;
+	if (offset + 1 > operand_used)
+		operand_used = offset + 1;
+	if (operand_base + offset < operand_count)
+		return (operands[operand_base + offset]);
+	if (number != 0) {
+		diagnostic("numbered argument is missing");
+		utility_status = 1;
+	}
+	return (NULL);
+}
+
+static long
+number(int argument_number)
+{
+	const char *operand;
+	char *end_pointer;
+	long value;
+
+	operand = argument(argument_number);
+	number_valid = 1;
+	if (operand == NULL)
+		return (0);
+	if (*operand == '\'' || *operand == '"') {
+		value = (unsigned char)operand[1];
+		if (operand[1] == '\0' || operand[2] != '\0')
+			number_valid = 0;
+	} else {
+		errno = 0;
+		value = strtol(operand, &end_pointer, 0);
+		if (end_pointer == operand || *end_pointer != '\0' || errno == ERANGE)
+			number_valid = 0;
+	}
+	if (!number_valid) {
+		diagnostic("numeric conversion failed");
+		utility_status = 1;
+	}
+	return (value);
+}
+
+static int
+output_byte(unsigned char byte)
+{
+	return (fputc(byte, stdout) != EOF);
+}
+
+/*
+ * The format operand accepts a one-to-three-digit octal escape.  A %b
+ * operand accepts the POSIX \0ddd form and treats \c as an output stop.
+ */
+static int
+decode(const unsigned char **cursor_pointer, int percent_b,
+	unsigned char *byte_pointer, int *stop_pointer)
+{
+	const unsigned char *cursor;
+	unsigned int byte;
+	int remaining;
+
+	cursor = *cursor_pointer;
+	if (*cursor == '\0')
+		return (0);
+	if (*cursor != '\\') {
+		*byte_pointer = *cursor;
+		*cursor_pointer = cursor + 1;
+		return (1);
+	}
+	cursor++;
+	if (*cursor == '\0') {
+		*byte_pointer = '\\';
+		*cursor_pointer = cursor;
+		return (1);
+	}
+	byte = *cursor++;
+	switch (byte) {
+	case '\\': break;
+	case 'a': byte = '\a'; break;
+	case 'b': byte = '\b'; break;
+	case 'c':
+		if (percent_b) {
+			*stop_pointer = 1;
+			*cursor_pointer = cursor;
+			return (0);
+		}
+		break;
+	case 'f': byte = '\f'; break;
+	case 'n': byte = '\n'; break;
+	case 'r': byte = '\r'; break;
+	case 't': byte = '\t'; break;
+	case 'v': byte = '\v'; break;
+	default:
+		if ((percent_b && byte == '0') ||
+		    (!percent_b && byte >= '0' && byte <= '7')) {
+			if (percent_b) {
+				byte = 0;
+				remaining = 3;
+			} else {
+				byte -= '0';
+				remaining = 2;
+			}
+			while (remaining-- > 0 && *cursor >= '0' && *cursor <= '7')
+				byte = (byte << 3) + (unsigned int)(*cursor++ - '0');
+		}
+		break;
+	}
+	*byte_pointer = (unsigned char)byte;
+	*cursor_pointer = cursor;
+	return (1);
+}
+
+static int
+output_b(const char *operand, int width, int precision, int left_adjust,
+	int *stop_pointer)
+{
+	const unsigned char *cursor;
+	unsigned char byte;
+	int ignored_stop;
+	int length;
+	int padding;
+
+	cursor = (const unsigned char *)operand;
+	ignored_stop = 0;
+	length = 0;
+	while (decode(&cursor, 1, &byte, &ignored_stop))
+		if (precision < 0 || length < precision)
+			length++;
+	if (width < 0) {
+		left_adjust = 1;
+		width = -width;
+	}
+	padding = width > length ? width - length : 0;
+	while (!left_adjust && padding-- > 0)
+		if (!output_byte(' '))
+			return (0);
+	cursor = (const unsigned char *)operand;
+	length = 0;
+	while (decode(&cursor, 1, &byte, stop_pointer)) {
+		if (precision < 0 || length < precision) {
+			if (!output_byte(byte))
+				return (0);
+			length++;
+		}
+	}
+	while (left_adjust && padding-- > 0)
+		if (!output_byte(' '))
+			return (0);
+	return (1);
+}
+
+static int
+conversion(const char **cursor_pointer, int *stop_pointer)
+{
+	const char *cursor;
+	const char *number_start;
+	const char *operand;
+	char normalized[16];
+	char *flag_cursor;
+	char *format_cursor;
+	char code;
+	int argument_number;
+	int left_adjust;
+	int parsed;
+	int precision;
+	int value;
+	int width;
+	long parsed_number;
+
+	cursor = *cursor_pointer;
+	argument_number = 0;
+	number_start = cursor;
+	parsed = decimal(&cursor, &value);
+	if (*cursor == '$') {
+		if (parsed != 1 || value == 0)
+			goto format_error;
+		argument_number = value;
+		cursor++;
+	} else
+		cursor = number_start;
+
+	format_cursor = normalized;
+	*format_cursor++ = '%';
+	left_adjust = 0;
+	while (*cursor != '\0' && strchr("#-+ 0", *cursor) != NULL) {
+		if (*cursor == '-')
+			left_adjust = 1;
+		for (flag_cursor = normalized + 1; flag_cursor < format_cursor;
+		    flag_cursor++)
+			if (*flag_cursor == *cursor)
+				break;
+		if (flag_cursor == format_cursor)
+			*format_cursor++ = *cursor;
+		cursor++;
+	}
+	if (*cursor == '*') {
+		cursor++;
+		parsed_number = number(0);
+		if (!number_valid || parsed_number < -FORMAT_LIMIT ||
+		    parsed_number > FORMAT_LIMIT)
+			goto range_error;
+		width = (int)parsed_number;
+	} else {
+		parsed = decimal(&cursor, &width);
+		if (parsed < 0)
+			goto range_error;
+		if (parsed == 0)
+			width = 0;
+	}
+	precision = -1;
+	if (*cursor == '.') {
+		cursor++;
+		if (*cursor == '*') {
+			cursor++;
+			parsed_number = number(0);
+			if (!number_valid || parsed_number < -FORMAT_LIMIT ||
+			    parsed_number > FORMAT_LIMIT)
+				goto range_error;
+			precision = (int)parsed_number;
+		} else {
+			parsed = decimal(&cursor, &precision);
+			if (parsed < 0)
+				goto range_error;
+			if (parsed == 0)
+				precision = 0;
+		}
+	}
+	code = *cursor++;
+	if (code == '\0' || strchr("bcsdiouxX", code) == NULL)
+		goto format_error;
+	*cursor_pointer = cursor;
+	if (code == 'b') {
+		operand = argument(argument_number);
+		return (output_b(operand == NULL ? "" : operand, width, precision,
+		    left_adjust, stop_pointer));
+	}
+	*format_cursor++ = '*';
+	if (code != 'c') {
+		*format_cursor++ = '.';
+		*format_cursor++ = '*';
+	}
+	if (strchr("diouxX", code) != NULL)
+		*format_cursor++ = 'l';
+	*format_cursor++ = code;
+	*format_cursor = '\0';
+	if (code == 's') {
+		operand = argument(argument_number);
+		return (printf(normalized, width, precision,
+		    operand == NULL ? "" : operand) >= 0);
+	}
+	if (code == 'c') {
+		operand = argument(argument_number);
+		return (printf(normalized, width,
+		    operand == NULL ? 0 : (unsigned char)*operand) >= 0);
+	}
+	if (code == 'd' || code == 'i')
+		return (printf(normalized, width, precision,
+		    number(argument_number)) >= 0);
+	return (printf(normalized, width, precision,
+	    (unsigned long)number(argument_number)) >= 0);
+
+range_error:
+	diagnostic("field width or precision is out of range");
+	return (0);
+format_error:
+	diagnostic("invalid format");
+	return (0);
+}
+
+static int
+format_escape(const char **cursor_pointer)
+{
+	const unsigned char *cursor;
+	unsigned char byte;
+	int stop;
+
+	cursor = (const unsigned char *)*cursor_pointer;
+	stop = 0;
+	if (!decode(&cursor, 0, &byte, &stop))
+		return (0);
+	*cursor_pointer = (const char *)cursor;
+	return (output_byte(byte));
+}
+
+static int
+run_format(const char *format)
+{
+	for (;;) {
+		const char *cursor;
+		int stop;
+
+		cursor = format;
+		operand_next = 0;
+		operand_used = 0;
+		stop = 0;
+		while (*cursor != '\0') {
+			const char *literal;
+
+			literal = cursor;
+			while (*cursor != '\0' && *cursor != '%' && *cursor != '\\')
+				cursor++;
+			if (fwrite(literal, 1, (size_t)(cursor - literal), stdout) !=
+			    (size_t)(cursor - literal))
+				return (1);
+			if (*cursor == '\\') {
+				if (!format_escape(&cursor))
+					return (1);
+			} else if (*cursor == '%') {
+				cursor++;
+				if (*cursor == '%') {
+					if (!output_byte('%'))
+						return (1);
+					cursor++;
+				} else if (!conversion(&cursor, &stop))
+					return (1);
+				else if (stop)
+					return (utility_status);
+			}
+		}
+		if (operand_used == 0)
+			return (utility_status);
+		operand_base += operand_used;
+		if (operand_base >= operand_count)
+			return (utility_status);
+	}
+}
 
 int
-#ifdef BUILTIN
-progprintf(argc, argv)
-#else
-main(argc, argv)
-#endif
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
-	extern int optind;
-	static char *skip1, *skip2;
-	int ch, end, fieldwidth, precision;
-	char convch, nextch, *format, *start;
-	register char *fmt;
+	const char *format;
+	int first_argument;
+	int status;
 
-	while ((ch = getopt(argc, argv, "")) != EOF)
-		switch (ch) {
-		case '?':
-		default:
-			usage();
-			return (1);
-		}
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 1) {
-		usage();
+	first_argument = 1;
+	if (argc > 1 && strcmp(argv[1], "--") == 0)
+		first_argument++;
+	if (first_argument >= argc) {
+		diagnostic("usage: printf format [argument ...]");
 		return (1);
 	}
-
-	/*
-	 * Basic algorithm is to scan the format string for conversion
-	 * specifications -- once one is found, find out if the field
-	 * width or precision is a '*'; if it is, gather up value.  Note,
-	 * format strings are reused as necessary to use up the provided
-	 * arguments, arguments of zero/null string are provided to use
-	 * up the format string.
-	 */
-	skip1 = "#-+ 0";
-	skip2 = "*0123456789";
-
-	escape(fmt = format = *argv);		/* backslash interpretation */
-	gargv = ++argv;
-	for (;;) {
-		end = 0;
-		/* find next format specification */
-next:		for (start = fmt;; ++fmt) {
-			if (!*fmt) {
-				/* avoid infinite loop */
-				if (end == 1) {
-					warnx("missing format character",
-					    NULL, NULL);
-					return (1);
-				}
-				end = 1;
-				if (fmt > start)
-					(void)printf("%s", start);
-				if (!*gargv)
-					return (0);
-				fmt = format;
-				goto next;
-			}
-			/* %% prints a % */
-			if (*fmt == '%') {
-				if (*++fmt != '%')
-					break;
-				*fmt++ = '\0';
-				(void)printf("%s", start);
-				goto next;
-			}
-		}
-
-		/* skip to field width */
-		for (; strchr(skip1, *fmt); ++fmt);
-		if (*fmt == '*') {
-			if (getint(&fieldwidth))
-				return (1);
-		} else
-			fieldwidth = 0;
-
-		/* skip to possible '.', get following precision */
-		for (; strchr(skip2, *fmt); ++fmt);
-		if (*fmt == '.')
-			++fmt;
-		if (*fmt == '*') {
-			if (getint(&precision))
-				return (1);
-		} else
-			precision = 0;
-
-		/* skip to conversion char */
-		for (; strchr(skip2, *fmt); ++fmt);
-		if (!*fmt) {
-			warnx("missing format character", NULL, NULL);
-			return (1);
-		}
-
-		convch = *fmt;
-		nextch = *++fmt;
-		*fmt = '\0';
-		switch(convch) {
-		case 'c': {
-			char p;
-
-			p = getchr();
-			PF(start, p);
-			break;
-		}
-		case 's': {
-			char *p;
-
-			p = getstr();
-			PF(start, p);
-			break;
-		}
-		case 'd': case 'i': case 'o': case 'u': case 'x': case 'X': {
-			long p;
-			char *f;
-
-			if ((f = mklong(start, convch)) == NULL)
-				return (1);
-			if (getlong(&p))
-				return (1);
-			PF(f, p);
-			break;
-		}
-#ifndef NOFPU
-		case 'e': case 'E': case 'f': case 'g': case 'G': {
-			double p;
-
-			p = getdouble();
-			PF(start, p);
-			break;
-		}
-#endif
-		default:
-			warnx("illegal format character", NULL, NULL);
-			return (1);
-		}
-		*fmt = nextch;
-	}
-	/* NOTREACHED */
-}
-
-static char *
-mklong(str, ch)
-	register char *str;
-	int ch;
-{
-	static char copy[64];
-	register int len;
-
-	if (ch == 'X')		/* XXX */
-		ch = 'x';
-	len = strlen(str) + 2;
-	bcopy(str, copy, len - 3);
-	copy[len - 3] = 'l';
-	copy[len - 2] = ch;
-	copy[len - 1] = '\0';
-	return (copy);
-}
-
-static void
-escape(fmt)
-	register char *fmt;
-{
-	register char *store;
-	register int value;
-	int c;
-
-	for (store = fmt; c = *fmt; ++fmt, ++store) {
-		if (c != '\\') {
-			*store = c;
-			continue;
-		}
-		switch (*++fmt) {
-		case '\0':		/* EOS, user error */
-			*store = '\\';
-			*++store = '\0';
-			return;
-		case '\\':		/* backslash */
-		case '\'':		/* single quote */
-			*store = *fmt;
-			break;
-		case 'a':		/* bell/alert */
-			*store = '\7';
-			break;
-		case 'b':		/* backspace */
-			*store = '\b';
-			break;
-		case 'f':		/* form-feed */
-			*store = '\f';
-			break;
-		case 'n':		/* newline */
-			*store = '\n';
-			break;
-		case 'r':		/* carriage-return */
-			*store = '\r';
-			break;
-		case 't':		/* horizontal tab */
-			*store = '\t';
-			break;
-		case 'v':		/* vertical tab */
-			*store = '\13';
-			break;
-					/* octal constant */
-		case '0': case '1': case '2': case '3':
-		case '4': case '5': case '6': case '7':
-			for (c = 3, value = 0;
-			    c-- && *fmt >= '0' && *fmt <= '7'; ++fmt) {
-				value <<= 3;
-				value += *fmt - '0';
-			}
-			--fmt;
-			*store = value;
-			break;
-		default:
-			*store = *fmt;
-			break;
-		}
-	}
-	*store = '\0';
-}
-
-static int
-getchr()
-{
-	if (!*gargv)
-		return ('\0');
-	return ((int)**gargv++);
-}
-
-static char *
-getstr()
-{
-	if (!*gargv)
-		return ("");
-	return (*gargv++);
-}
-
-static char *Number = "+-.0123456789";
-static int
-getint(ip)
-	int *ip;
-{
-	long val;
-
-	if (getlong(&val))
-		return (1);
-	if (val > 65535) {
-		warnx("%s: %s", *gargv, strerror(ERANGE));
+	format = argv[first_argument++];
+	operands = argv + first_argument;
+	operand_count = argc - first_argument;
+	operand_base = 0;
+	utility_status = 0;
+	status = run_format(format);
+	if (fflush(stdout) == EOF || ferror(stdout)) {
+		diagnostic("standard output write failed");
 		return (1);
 	}
-	*ip = val;
-	return (0);
-}
-
-static int
-getlong(lp)
-	register long *lp;
-{
-	long val;
-	char *ep;
-
-	if (!*gargv) {
-		*lp = 0;
-		return (0);
-	}
-	if (strchr(Number, **gargv)) {
-		errno = 0;
-		val = strtol(*gargv, &ep, 0);
-		if (*ep != '\0') {
-			warnx("%s: illegal number", *gargv, NULL);
-			return (1);
-		}
-		if (errno == ERANGE)
-			if (val == 2147483647L) {
-				warnx("%s: %s", *gargv, strerror(ERANGE));
-				return (1);
-			}
-			if (val == (-2147483647L-1)) {
-				warnx("%s: %s", *gargv, strerror(ERANGE));
-				return (1);
-			}
-
-		*lp = val;
-		++gargv;
-		return (0);
-	}
-	*lp =  (long)asciicode();
-	return (0);
-}
-
-#ifndef NOFPU
-static double
-getdouble()
-{
-	if (!*gargv)
-		return ((double)0);
-	if (strchr(Number, **gargv))
-		return (atof(*gargv++));
-	return ((double)asciicode());
-}
-#endif
-
-static int
-asciicode()
-{
-	register int ch;
-
-	ch = **gargv;
-	if (ch == '\'' || ch == '"')
-		ch = (*gargv)[1];
-	++gargv;
-	return (ch);
-}
-
-static void
-usage()
-{
-	(void)fprintf(stderr, "usage: printf format [arg ...]\n");
+	return (status);
 }

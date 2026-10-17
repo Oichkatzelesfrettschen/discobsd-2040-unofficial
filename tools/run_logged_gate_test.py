@@ -648,6 +648,37 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(ownership["state"], "released")
         self.assertEqual(ownership["process_groups"], [])
 
+    def test_execution_unit_fixture_cannot_retain_outer_launch_reservation(self):
+        execution_lock = self.directory / "products.lock"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "unit-fixture-ownership",
+                "--log", str(self.log),
+                "--status", str(self.status),
+                "--execution-lock", str(execution_lock),
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "1",
+                "--timeout-seconds", "2",
+                "--",
+                sys.executable,
+                str(ROOT / "tools/test_execution_test.py"),
+                "ExecutionTest.test_signal_during_registration_stops_launched_group",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        ownership = json.loads(
+            Path(f"{execution_lock}.ownership.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(ownership["state"], "released")
+        self.assertEqual(ownership["pending_launches"], [])
+
     def test_registration_error_with_incomplete_cleanup_blocks_successor(self):
         execution_lock = self.directory / "products.lock"
         marker = self.directory / "successor-launched"

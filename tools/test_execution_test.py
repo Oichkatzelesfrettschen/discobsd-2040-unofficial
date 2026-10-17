@@ -32,6 +32,12 @@ class ExecutionTest(unittest.TestCase):
         })
         self.environment.start()
         self.addCleanup(self.environment.stop)
+        os.environ.pop(
+            execution.execution_ownership.OWNERSHIP_PATH_ENV, None
+        )
+        os.environ.pop(
+            execution.execution_ownership.OWNERSHIP_INVOCATION_ENV, None
+        )
         self.output = io.StringIO()
         self.stdout = contextlib.redirect_stdout(self.output)
         self.stdout.__enter__()
@@ -485,19 +491,41 @@ class ExecutionTest(unittest.TestCase):
                     pass
 
     def test_signal_during_registration_stops_launched_group(self):
+        ownership_path = self.directory / "products.lock.ownership.json"
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
         launched = []
         original_launch = execution.subprocess.Popen
+        original_complete = (
+            execution.execution_ownership.complete_inherited_execution_launch
+        )
 
         def capture_launch(*arguments, **keywords):
             process = original_launch(*arguments, **keywords)
             launched.append(process)
             return process
 
-        def interrupt_registration(_reservation, _process_group):
+        def interrupt_registration(reservation, process_group):
             os.kill(os.getpid(), signal.SIGTERM)
+            original_complete(reservation, process_group)
 
         try:
-            with patch.object(
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
                 execution.subprocess, "Popen", side_effect=capture_launch
             ), patch.object(
                 execution.execution_ownership,
@@ -511,6 +539,11 @@ class ExecutionTest(unittest.TestCase):
             self.assertEqual(returncode, 128 + signal.SIGTERM)
             self.assertEqual(termination, f"signal_{signal.SIGTERM}")
             self.assertFalse(execution.process_group_exists(launched[0].pid))
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["process_groups"], [])
+            self.assertEqual(ownership["pending_launches"], [])
         finally:
             if launched:
                 try:

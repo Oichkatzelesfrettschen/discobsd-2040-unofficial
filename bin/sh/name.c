@@ -136,7 +136,6 @@ struct namnod_save
 	char *value;
 	char *environment;
 	int flags;
-	int modified;
 };
 
 static struct namnod_save *command_active;
@@ -166,8 +165,8 @@ command_name_changed(node)
 	{
 		for (entry = context; entry; entry = entry->next)
 		{
-			if (entry->node == node)
-				entry->modified = 1;
+			if (entry->node == node && entry->flags >= 0)
+				entry->flags = ~entry->flags;
 		}
 	}
 }
@@ -207,7 +206,6 @@ command_setlist(arg)
 			entry->flags = node->namflg;
 			entry->value = node->namval;
 			entry->environment = node->namenv;
-			entry->modified = 0;
 			entry->previous_context = NIL;
 			entry->next = saved;
 			saved = entry;
@@ -250,9 +248,9 @@ command_restorelist(saved)
 	while (saved)
 	{
 		node = saved->node;
-		if (saved->modified)
+		if (saved->flags < 0)
 		{
-			if (saved->flags & N_FUNCTN)
+			if ((~saved->flags) & N_FUNCTN)
 				freetree((struct trenod *)saved->environment);
 			else
 			{

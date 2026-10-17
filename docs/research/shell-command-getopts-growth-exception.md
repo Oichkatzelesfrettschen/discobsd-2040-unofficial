@@ -1,6 +1,6 @@
 # Shell command and getopts growth exception
 
-Status: pending independent reviewer approval.
+Status: approved by independent read-only review.
 
 This record requests a DPUCP-2024 exception for the `command` and `getopts`
 shell builtins. The implementation does not claim POSIX or UNIX conformance.
@@ -10,7 +10,7 @@ The behavior evidence covers the named compatibility subset exercised by
 ## Compared states
 
 The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
-implementation is `9ece60d4ceb95cb7f9051d2bdda3cb0893870281`. Both states used
+implementation is `9ef66299d1298c19b792f5c54fd61956ebceb1a9`. Both states used
 the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
 Each state was built from clean. The base used `bmake MACHINE=rp2040
 logged-distribution`, and the final candidate used the supervised command
@@ -31,7 +31,7 @@ clean-distribution command below. The runner retained combined output, emitted
 export PYTHON
 "$PYTHON" tools/run_logged_gate.py \
     --evidence-root .build-logs \
-    --label pr299-9ece60d4-clean-distribution \
+    --label pr299-9ef66299-clean-distribution \
     --heartbeat-seconds 30 \
     --idle-timeout-seconds 600 \
     --timeout-seconds 1800 \
@@ -39,33 +39,36 @@ export PYTHON
 ```
 
 The terminal receipt is
-`.build-logs/pr299-9ece60d4-clean-distribution.latest.json`. It records exit
-status 0, 153.6 seconds elapsed and 1,568,488 output bytes. The clean build ran
-at `9ece60d4ceb95cb7f9051d2bdda3cb0893870281`. The ILP32 adapter repairs add an
+`.build-logs/pr299-9ef66299-clean-distribution.latest.json`. It records exit
+status 0, 88.4 seconds elapsed and 821,647 output bytes. The clean build ran
+at `9ef66299d1298c19b792f5c54fd61956ebceb1a9`. The ILP32 adapter repairs add an
 `SH_HOST_RAWDIR` selection in `expand.c`.
 The target build leaves `SH_HOST_RAWDIR` undefined, so the selection
 preprocesses to the existing `read` call. A clean GNU17 target-shell rebuild at
-the measured implementation commit reproduces the 36,356-byte OMAGIC file and
-its 33,892/2,432/7,176-byte text/data/bss sections. The rebuilt shell and the
+the measured implementation commit reproduces the 36,368-byte OMAGIC file and
+its 33,904/2,432/7,176-byte text/data/bss sections. The rebuilt shell and the
 retained clean-distribution shell are byte-identical with SHA-256
-`cf61d5201039c1331151ca8ae8677cb52100398852f255579e77e8ed0d7773ce`, so
-the packed-root payload and allocation remain unchanged.
+`6c80d796b0ca9f5fe1967693d5051d0cb4105c44237d401a461218553346b90d`.
+`hsaout -s` reports a 31,109-byte packed payload and 32 allocated 1 KiB blocks,
+24 packed bytes above the preceding 31,085-byte candidate. The final repair
+changes neither the shell's 32-block allocation nor the complete root's
+685-block count.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
 | --- | ---: | ---: | ---: | ---: |
 | PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,224 contiguous flash bytes after the loaded image; 26,226 section-sum spare bytes |
 | PICO kernel data | 248 bytes | 248 bytes | 0 | unchanged |
 | PICO kernel bss | 39,848 bytes | 39,848 bytes | 0 | unchanged |
-| Shell a.out file | 32,576 bytes | 36,356 bytes | +3,780 bytes | n/a |
-| Shell text | 30,132 bytes | 33,892 bytes | +3,760 bytes | n/a |
+| Shell a.out file | 32,576 bytes | 36,368 bytes | +3,792 bytes | n/a |
+| Shell text | 30,132 bytes | 33,904 bytes | +3,772 bytes | n/a |
 | Shell data | 2,412 bytes | 2,432 bytes | +20 bytes | n/a |
 | Shell bss | 7,152 bytes | 7,176 bytes | +24 bytes | n/a |
-| Shell process-window occupancy before stack | 39,696 bytes | 43,500 bytes | +3,804 bytes | 103,956 bytes before stack |
+| Shell process-window occupancy before stack | 39,696 bytes | 43,512 bytes | +3,816 bytes | 103,944 bytes before stack |
 | Packed root data blocks | 682 | 685 | +3 blocks | 294 free 1 KiB blocks, or 301,056 bytes |
 | Packed root files | 95 | 95 | 0 | unchanged |
 
-GNU `arm-none-eabi-size` reports 33,890 text bytes for the transient shell ELF.
-The target `size` tool reports 33,892 text bytes for the installed OMAGIC a.out.
+GNU `arm-none-eabi-size` reports 33,902 text bytes for the transient shell ELF.
+The target `size` tool reports 33,904 text bytes for the installed OMAGIC a.out.
 The process-window accounting uses the shipped a.out format and its target-tool
 measurement.
 
@@ -124,12 +127,28 @@ contract and direct `getdents64` record pass-through do not enter the target
 image. An optimized `-fstack-usage` comparison measured the ordinary
 `execute()` static frame at 96 bytes in the base and 208 bytes in the
 candidate, a 112-byte increase. `execexp()` retains its 176-byte static frame.
-The recoverable parser helper uses an 88-byte frame only while nested input is
+The recoverable parser helper uses a 96-byte frame only while nested input is
 being parsed. The candidate measurement receipt is
-`.build-logs/pr299-recoverable-parse-stack-usage.latest.json`; it records exit
-status 0 with the production Cortex-M0+ GNU17 warning flags. The compiler
-measurement bounds individual static frames; it does not measure recursion
-depth, runtime peak stack or heap use.
+`.build-logs/pr299-9ef66299-recoverable-parse-stack-usage.latest.json`; it
+records exit status 0 with the production Cortex-M0+ GNU17 warning flags. The
+compiler measurement bounds individual static frames; it does not measure
+recursion depth, runtime peak stack or heap use.
+
+The final ownership repair increments `nohash` while parser allocations remain
+transactional and restores the saved value on every recovery path. The
+`bi_command_eval_syntax_preserves_hash` ILP32 witness forces command lookup,
+syntax rollback and allocator reuse, traverses the resulting hash table and
+requires subsequent execution. The diagnostic-buffer capacity check compares
+`end - ptr` with the translated byte count, so the check uses a defined
+within-array difference instead of first forming a pointer beyond one-past the
+buffer.
+
+The focused receipt
+`.build-logs/pr299-hash-lifetime-review-fixes.latest.json` records exit status
+0 for ShellCheck, Ruff, the optimized GNU17 Cortex-M0+ shell build, the shell
+heap-boundary gate, the C17 denominator and the ILP32 behavior suite. The suite
+reports 236 passes, zero failures and nine unchanged expected failures; its two
+shell witness mutations are rejected.
 
 The shell-owned host-directory read selection adds zero target bytes. The
 ILP32 host object imports `sh_host_getdents`; the Cortex-M0+ target object
@@ -161,8 +180,14 @@ removes both compatibility subsets.
 
 ## Approval
 
-Reviewer: pending.
+Reviewer: Codex independent read-only reviewer.
 
-Approval evidence: pending. The branch must not merge until an independent
-reviewer confirms the exact deltas, examined alternatives, retained margins,
-behavior benefit, and rollback point.
+Approval evidence: the reviewer audited exact implementation HEAD
+`9ef66299d1298c19b792f5c54fd61956ebceb1a9` and reproduced the raw and packed
+shell sizes, shell SHA-256, target sections, process-window arithmetic,
+packed-root file and block counts, kernel sections, kernel flash tail and
+static stack frames. The reviewer inspected the defined diagnostic-buffer
+capacity check, transactional hash ownership, retained behavior and mutation
+witnesses, examined alternatives, user-visible benefit, rollback point and
+residual runtime stack and heap uncertainty. The read-only review returned
+`APPROVE`. Hardware remained unaccessed.

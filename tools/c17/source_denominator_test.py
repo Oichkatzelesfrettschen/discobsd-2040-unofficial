@@ -25,10 +25,41 @@ def main():
         (root / "src").mkdir()
         (root / "docs").mkdir()
         (root / "sys/arch/stm32/dev").mkdir(parents=True)
+        (root / "sys/arch/rp2040/test/swapram").mkdir(parents=True)
+        (root / "tools/flash-id").mkdir(parents=True)
         (root / "legacy/unsupported-platforms/usr.bin/picoc/platform").mkdir(parents=True)
         (root / "bin/good.c").write_text("int good(void) { return 0; }\n", encoding="utf-8")
         (root / "sys/arch/stm32/dev/uart.c").write_text(
             "int stm32_uart(void) { return 0; }\n", encoding="utf-8"
+        )
+        (root / "sys/arch/rp2040/test/swapram/swapram_test.c").write_text(
+            "int swapram_test(void) { return 0; }\n", encoding="utf-8"
+        )
+        (root / "tools/flash-id/main.c").write_text(
+            "int main(void) { return 0; }\n", encoding="utf-8"
+        )
+        (root / "bin/hazards.c").write_text(
+            "#define OFFSET(type, member) __builtin_offsetof(type, member)\n"
+            "#define NOOP() __asm__ __volatile__(\"nop\")\n"
+            "#define TYPEOF(value)__typeof__(value)\n"
+            "int old();\n"
+            "void hazards(void *pointer, ...) {\n"
+            "  union item { int value; } item;\n"
+            "  int integer = (int)(uintptr_t)pointer;\n"
+            "  char *zero = (char *)0;\n"
+            "  va_list arguments;\n"
+            "  int alias = *(int *)pointer;\n"
+            "  char *storage = malloc(1);\n"
+            "  int compound = (int){0};\n"
+            "  integer <<= 1;\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        (root / "bin/hazard_strings.c").write_text(
+            "#define TEXT \"__builtin_alloca(x) __asm__ __volatile__(\\\"nop\\\")\"\n"
+            "/* malloc(pointer); union hidden; (int){0}; */\n"
+            "int clean(void) { return 0; }\n",
+            encoding="utf-8",
         )
         (root / "legacy/unsupported-platforms/usr.bin/picoc/platform/library_ffox.c").write_text(
             "int ffox(void) { return 0; }\n", encoding="utf-8"
@@ -44,6 +75,56 @@ def main():
             raise AssertionError("STM32 source lost its maintained ARM boundary")
         if stm32_classification["required_mode"] != "gnu17-freestanding":
             raise AssertionError("STM32 source lost its GNU17 freestanding mode")
+        host_test_classification = source_denominator.derive_classification(
+            root,
+            {
+                "path": "sys/arch/rp2040/test/swapram/swapram_test.c",
+                "language_state": "unreviewed",
+            },
+        )
+        if host_test_classification["build_surface"] != "host-test":
+            raise AssertionError("RP2040 host test was classified as target kernel code")
+        if host_test_classification["required_mode"] != "gnu17-hosted":
+            raise AssertionError("RP2040 host test lost its hosted GNU17 mode")
+        board_probe_classification = source_denominator.derive_classification(
+            root,
+            {"path": "tools/flash-id/main.c", "language_state": "unreviewed"},
+        )
+        if board_probe_classification["build_surface"] != "rp2040-board-probe":
+            raise AssertionError("Pico SDK board probe was classified as a host tool")
+        if board_probe_classification["required_mode"] != "pico-sdk-c11":
+            raise AssertionError("Pico SDK board probe lost its configured C11 mode")
+        if board_probe_classification["risk_tier"] != "T1":
+            raise AssertionError("Pico SDK board probe lost its boundary risk tier")
+        if board_probe_classification["risk_tier_basis"] != "boundary-family-conservative":
+            raise AssertionError("Pico SDK board probe lost its tier basis")
+        hazard_classification = source_denominator.derive_classification(
+            root, {"path": "bin/hazards.c", "language_state": "unreviewed"}
+        )
+        if hazard_classification["extension_signals"] != [
+            "gnu-typeof",
+            "inline-assembly",
+            "target-builtin",
+        ]:
+            raise AssertionError("macro extension signals were not classified")
+        expected_hazards = {
+            "aliasing": ["cast-dereference", "union-access"],
+            "inline_assembly": ["inline-assembly"],
+            "integer": ["integer-cast", "shift-expression"],
+            "object_lifetime": ["compound-literal", "dynamic-storage"],
+            "pointer": ["integer-pointer-cast", "pointer-integer-cast"],
+            "prototype": ["old-style-declaration"],
+            "variadic": ["variadic-interface"],
+        }
+        if hazard_classification["hazards"] != expected_hazards:
+            raise AssertionError("hazard families lost calibrated positive candidates")
+        clean_classification = source_denominator.derive_classification(
+            root, {"path": "bin/hazard_strings.c", "language_state": "unreviewed"}
+        )
+        if clean_classification["extension_signals"]:
+            raise AssertionError("literal text produced an extension candidate")
+        if any(clean_classification["hazards"].values()):
+            raise AssertionError("comment or literal text produced a hazard candidate")
         unsupported_classification = source_denominator.derive_classification(
             root,
             {
@@ -71,6 +152,8 @@ def main():
                     "extension_policy": "portable-only",
                     "extension_signals": [],
                     "risk_family": "portable-leaf",
+                    "risk_tier": "unreviewed",
+                    "risk_tier_basis": "caller-closure-required",
                     "hazard_basis": "lexical-candidates-v1",
                     "hazards": {
                         "integer": [],
@@ -100,6 +183,8 @@ def main():
                     "extension_policy": "not-applicable",
                     "extension_signals": [],
                     "risk_family": "legacy-isolated",
+                    "risk_tier": "Q",
+                    "risk_tier_basis": "quarantine",
                     "hazard_basis": "not-applicable",
                     "hazards": {
                         "integer": [],
@@ -145,6 +230,66 @@ def main():
         if refresh_path.read_bytes() != refresh_bytes:
             raise AssertionError("failed refresh changed ledger bytes")
 
+        atomic_path = root / "atomic-ledger.json"
+        atomic_path.write_bytes(b"original ledger bytes\n")
+        atomic_bytes = atomic_path.read_bytes()
+
+        class FailingTemporaryFile:
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+                self.name = wrapped.name
+
+            def __enter__(self):
+                self.wrapped.__enter__()
+                return self
+
+            def __exit__(self, exception_type, exception, traceback):
+                return self.wrapped.__exit__(exception_type, exception, traceback)
+
+            def write(self, _text):
+                raise OSError("injected temporary write failure")
+
+            def fileno(self):
+                return self.wrapped.fileno()
+
+        def failing_temporary_file(**keywords):
+            return FailingTemporaryFile(tempfile.NamedTemporaryFile(**keywords))
+
+        try:
+            source_denominator.atomic_write_text(
+                atomic_path,
+                "replacement ledger bytes\n",
+                temporary_file_factory=failing_temporary_file,
+            )
+        except OSError as error:
+            if str(error) != "injected temporary write failure":
+                raise
+        else:
+            raise AssertionError("temporary write failure was not propagated")
+        if atomic_path.read_bytes() != atomic_bytes:
+            raise AssertionError("temporary write failure changed destination bytes")
+        if list(root.glob(".atomic-ledger.json.*.tmp")):
+            raise AssertionError("temporary write failure left a sibling file")
+
+        def failing_replace(_source, _destination):
+            raise OSError("injected replacement failure")
+
+        try:
+            source_denominator.atomic_write_text(
+                atomic_path,
+                "replacement ledger bytes\n",
+                replace_file=failing_replace,
+            )
+        except OSError as error:
+            if str(error) != "injected replacement failure":
+                raise
+        else:
+            raise AssertionError("replacement failure was not propagated")
+        if atomic_path.read_bytes() != atomic_bytes:
+            raise AssertionError("replacement failure changed destination bytes")
+        if list(root.glob(".atomic-ledger.json.*.tmp")):
+            raise AssertionError("replacement failure left a sibling file")
+
         (root / "bin/good.c").write_text(
             "int good(void) { __asm__(\"nop\"); return 0; }\n", encoding="utf-8"
         )
@@ -167,6 +312,9 @@ def main():
         changed = copy.deepcopy(ledger)
         changed["rows"][0]["classification"]["required_mode"] = "gnu23"
         cases.append(("unknown required mode", changed, quarantine, discovered, False))
+        changed = copy.deepcopy(ledger)
+        changed["rows"][0]["classification"]["risk_tier"] = "T0"
+        cases.append(("unknown risk tier", changed, quarantine, discovered, False))
         changed = copy.deepcopy(ledger)
         changed["rows"][0]["classification"]["hazards"]["pointer"] = ["fabricated"]
         cases.append(("fabricated hazard signal", changed, quarantine, discovered, False))
@@ -199,7 +347,7 @@ def main():
         cases.append(("closure with unreviewed row", changed, quarantine, discovered, True))
         for name, mutated_ledger, mutated_quarantine, paths, closure in cases:
             expect_failure(name, root, paths, mutated_ledger, mutated_quarantine, closure)
-    print(f"PASS C17 source denominator calibration: {len(cases) + 2} mutations rejected")
+    print(f"PASS C17 source denominator calibration: {len(cases) + 4} failures rejected")
     return 0
 
 

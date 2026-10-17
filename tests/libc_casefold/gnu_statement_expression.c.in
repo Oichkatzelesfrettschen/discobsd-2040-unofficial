@@ -1,0 +1,9 @@
+int
+gnu_statement_expression(void)
+{
+    return ({
+        int value = 1;
+
+        value;
+    });
+}

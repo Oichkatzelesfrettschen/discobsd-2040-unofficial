@@ -680,19 +680,24 @@ The first rollout gate is implemented as `check-c17-source-denominator`.
 `tools/c17/source-denominator.json` gives every Git-tracked `.c` and `.h` path
 one row; `quarantine-manifest.json` gives every excluded archive or guest row
 an exact SHA-256 identity and provenance boundary. Schema 2 also records source
-kind, build surface, required language mode, extension policy, risk family and
-candidate integer, pointer, prototype, variadic, aliasing, object-lifetime and
-inline-assembly hazards for every row. The verifier derives those fields from
-the live path and source and rejects classification drift. Candidate discovery
-does not establish semantic absence or language acceptance.
+kind, build surface, required language mode, extension policy, risk family,
+risk tier and candidate integer, pointer, prototype, variadic, aliasing,
+object-lifetime and inline-assembly hazards for every row. The lexical scanner
+includes macro replacement tokens while blanking comments and literals. The
+verifier derives those fields from the live path and source and rejects
+classification drift. Candidate discovery does not establish semantic absence
+or language acceptance.
 
-The calibrated checker rejects additions, removals, duplicates, unsafe paths,
-unknown states, unwitnessed accepted rows, fabricated hazard signals, changed
-source classifications and changed quarantine bytes. Its ordinary mode proves
-tracked-path accounting and reports open states. `--closure` rejects every
-unreviewed or migration-open row, so a coverage pass cannot be reported as C17
-completion. `--refresh-classification` is an explicit ledger-maintenance
-operation; ordinary verification never rewrites the ledger.
+The 17 calibrated failure cases reject additions, removals, duplicates, unsafe
+paths, unknown states and tiers, unwitnessed accepted rows, fabricated hazard
+signals, changed source classifications, changed quarantine bytes, invalid
+refresh input, and temporary-write or atomic-replacement failures. Failed
+refreshes preserve the destination bytes and remove the temporary sibling. Its
+ordinary mode proves tracked-path accounting and reports open states.
+`--closure` rejects every unreviewed or migration-open row, so a coverage pass
+cannot be reported as C17 completion. `--refresh-classification` validates the
+complete candidate, synchronizes a temporary sibling and atomically replaces
+the ledger; ordinary verification never rewrites the ledger.
 
 The initial reviewed denominator records the documented `legacy/non-arm`
 archive, the exact PDP-11 guest subtree, the two unsupported-platform sources,
@@ -703,11 +708,12 @@ compile database and full Class A analyzer gates remain open; neither broad
 formatting nor implicit acceptance follows from the denominator gate.
 
 `check-c17-compile-profiles` composes two existing evidence surfaces. The
-case-folding mechanism compiles under strict C17 on the host and Cortex-M0+;
-the complete PICO and PICO_UART kernels compile and link with their exact
-GNU17 freestanding commands. `check-c17-smaller-c` runs the native compiler
-acceptance suite separately. A Smaller C result never becomes a strict-C17 or
-production-kernel result.
+case-folding mechanism compiles under strict C17 on the host and under
+`-std=c17 -pedantic-errors` for Cortex-M0+. A target-only GNU statement
+expression calibrates the target rejection. The complete PICO and PICO_UART
+kernels compile and link with their exact GNU17 freestanding commands.
+`check-c17-smaller-c` runs the native compiler acceptance suite separately. A
+Smaller C result never becomes a strict-C17 or production-kernel result.
 
 ## 8. Formatting, linting and footprint claims
 

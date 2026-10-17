@@ -3,9 +3,12 @@
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path, PurePosixPath
 
 import kr_scan
@@ -48,6 +51,8 @@ CLASSIFICATION_FIELDS = {
     "extension_policy",
     "extension_signals",
     "risk_family",
+    "risk_tier",
+    "risk_tier_basis",
     "hazard_basis",
     "hazards",
 }
@@ -65,6 +70,8 @@ BUILD_SURFACES = {
     "rp2040-userland",
     "host-only",
     "test-only",
+    "host-test",
+    "rp2040-board-probe",
     "native-smaller-c",
     "maintained-arm",
     "legacy-isolated",
@@ -74,6 +81,8 @@ REQUIRED_MODES = {
     "strict-c17-and-gnu17",
     "gnu17-freestanding",
     "c17-migration",
+    "gnu17-hosted",
+    "pico-sdk-c11",
     "not-built",
     "unresolved",
 }
@@ -82,6 +91,7 @@ EXTENSION_POLICIES = {
     "localized-gnu",
     "gnu-extension-review",
     "native-subset-separated",
+    "pico-sdk-boundary",
     "not-applicable",
     "unresolved",
 }
@@ -93,16 +103,32 @@ RISK_FAMILIES = {
     "hardware-seam",
     "native-compiler",
     "host-only",
+    "host-test",
     "legacy-isolated",
     "unresolved",
+}
+RISK_TIERS = {"T1", "T2", "T3", "Q", "unreviewed"}
+RISK_TIER_BASES = {
+    "boundary-family-conservative",
+    "caller-closure-required",
+    "native-compiler-input",
+    "quarantine",
 }
 EXTENSION_PATTERNS = {
     "gnu-attribute": re.compile(r"\b__attribute__\s*\("),
     "gnu-typeof": re.compile(r"\b(?:__typeof__|typeof)\s*\("),
-    "inline-assembly": re.compile(r"\b(?:__asm__|__asm|asm)\s*(?:volatile\s*)?\("),
+    "inline-assembly": re.compile(
+        r"\b(?:__asm__|__asm|asm)\s*"
+        r"(?:(?:volatile|__volatile(?:__)?)\s*)?\("
+    ),
     "statement-expression": re.compile(r"\(\s*\{"),
     "target-builtin": re.compile(r"\b__builtin_[A-Za-z0-9_]+"),
 }
+
+DEFINE_PREFIX = re.compile(
+    r"(?m)^(?P<prefix>[ \t]*\#[ \t]*define[ \t]+[A-Za-z_]\w*"
+    r"(?:\([^\n]*?\))?)"
+)
 HAZARD_PATTERNS = {
     "integer": {
         "integer-cast": re.compile(
@@ -183,11 +209,57 @@ def load_json(path):
         raise DenominatorError(f"cannot read {path}: {error}") from error
 
 
+def atomic_write_text(
+    path,
+    text,
+    *,
+    temporary_file_factory=tempfile.NamedTemporaryFile,
+    replace_file=os.replace,
+):
+    """Durably stage text beside path and atomically replace the destination."""
+    temporary_path = None
+    try:
+        with temporary_file_factory(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            if path.exists():
+                existing_mode = stat.S_IMODE(path.stat().st_mode)
+                os.fchmod(temporary_file.fileno(), existing_mode)
+            temporary_file.write(text)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        replace_file(temporary_path, path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
 def source_text(root, path):
     try:
         return (root / path).read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         raise DenominatorError(f"cannot classify {path}: {error}") from error
+
+
+def lexical_candidate_text(text):
+    """Blank comments and literals while retaining macro replacement tokens."""
+    joined = kr_scan.join_splices(text)
+
+    def blank_define_prefix(match):
+        return " " * len(match.group("prefix"))
+
+    candidate_source = DEFINE_PREFIX.sub(blank_define_prefix, joined)
+    return kr_scan.strip_source(candidate_source)
 
 
 def path_classification(row):
@@ -205,6 +277,8 @@ def path_classification(row):
         return ("maintained-arm", "gnu17-freestanding", "localized-gnu", "hardware-seam")
     if path.startswith("legacy/unsupported-platforms/"):
         return ("legacy-isolated", "not-built", "not-applicable", "legacy-isolated")
+    if path.startswith("sys/arch/rp2040/test/"):
+        return ("host-test", "gnu17-hosted", "gnu-extension-review", "host-test")
     if path.startswith("sys/arch/rp2040/"):
         return ("rp2040-kernel", "gnu17-freestanding", "localized-gnu", "hardware-seam")
     if path.startswith(("sys/kern/", "sys/sys/", "sys/ufs/", "sys/dev/", "sys/net/")):
@@ -229,15 +303,33 @@ def path_classification(row):
         )
     if path.startswith("tests/"):
         return ("test-only", "strict-c17-and-gnu17", "portable-only", "portable-leaf")
+    if path.startswith("tools/flash-id/"):
+        return ("rp2040-board-probe", "pico-sdk-c11", "pico-sdk-boundary", "hardware-seam")
     if path.startswith(("tools/", "docs/", "benchmarks/", "distrib/")):
         return ("host-only", "strict-c17-and-gnu17", "portable-only", "host-only")
     return ("unresolved", "unresolved", "unresolved", "unresolved")
+
+
+def risk_tier_classification(risk_family):
+    if risk_family == "legacy-isolated":
+        return ("Q", "quarantine")
+    if risk_family == "native-compiler":
+        return ("T1", "native-compiler-input")
+    if risk_family in {
+        "hardware-seam",
+        "kernel-syscall",
+        "libc-public-header",
+        "shell-ilp32",
+    }:
+        return ("T1", "boundary-family-conservative")
+    return ("unreviewed", "caller-closure-required")
 
 
 def derive_classification(root, row):
     path = row["path"]
     source_kind = "translation-unit" if path.endswith(".c") else "header"
     build_surface, required_mode, extension_policy, risk_family = path_classification(row)
+    risk_tier, risk_tier_basis = risk_tier_classification(risk_family)
     hazards = {family: [] for family in sorted(HAZARD_FAMILIES)}
     if build_surface == "legacy-isolated":
         return {
@@ -247,12 +339,14 @@ def derive_classification(root, row):
             "extension_policy": extension_policy,
             "extension_signals": [],
             "risk_family": risk_family,
+            "risk_tier": risk_tier,
+            "risk_tier_basis": risk_tier_basis,
             "hazard_basis": "not-applicable",
             "hazards": hazards,
         }
 
     text = source_text(root, path)
-    stripped = kr_scan.strip_source(kr_scan.join_splices(text))
+    stripped = lexical_candidate_text(text)
     extension_signals = sorted(
         name for name, pattern in EXTENSION_PATTERNS.items() if pattern.search(stripped)
     )
@@ -274,6 +368,8 @@ def derive_classification(root, row):
         "extension_policy": extension_policy,
         "extension_signals": extension_signals,
         "risk_family": risk_family,
+        "risk_tier": risk_tier,
+        "risk_tier_basis": risk_tier_basis,
         "hazard_basis": "lexical-candidates-v1",
         "hazards": hazards,
     }
@@ -306,6 +402,11 @@ def validate_classification(root, row):
     require(
         classification["risk_family"] in RISK_FAMILIES,
         f"unknown risk family for {path}",
+    )
+    require(classification["risk_tier"] in RISK_TIERS, f"unknown risk tier for {path}")
+    require(
+        classification["risk_tier_basis"] in RISK_TIER_BASES,
+        f"unknown risk tier basis for {path}",
     )
     require(
         classification["hazard_basis"] in {"lexical-candidates-v1", "not-applicable"},
@@ -529,7 +630,7 @@ def refresh_classification(root, ledger_path, discovered, quarantine, closure=Fa
         row["classification"] = derive_classification(root, row)
     ledger["schema_version"] = 2
     counts = validate_documents(root, discovered, ledger, quarantine, closure)
-    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(ledger_path, json.dumps(ledger, indent=2) + "\n")
     return counts
 
 

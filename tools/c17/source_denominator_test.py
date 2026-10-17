@@ -290,6 +290,70 @@ def main():
         if list(root.glob(".atomic-ledger.json.*.tmp")):
             raise AssertionError("replacement failure left a sibling file")
 
+        sync_path = root / "sync-ledger.json"
+        sync_path.write_text(json.dumps(ledger) + "\n", encoding="utf-8")
+        (root / "bin/new.c").write_text(
+            "int new_source(void) { return 0; }\n", encoding="utf-8"
+        )
+        synced_discovered = ["bin/new.c", "src/guest.h"]
+        source_denominator.sync_paths(
+            root,
+            sync_path,
+            synced_discovered,
+            quarantine,
+            {"bin/new.c"},
+            {"bin/good.c"},
+        )
+        synced = source_denominator.load_json(sync_path)
+        if [row["path"] for row in synced["rows"]] != synced_discovered:
+            raise AssertionError("path sync did not apply the exact sorted delta")
+        guest_row = next(row for row in synced["rows"] if row["path"] == "src/guest.h")
+        if guest_row != ledger["rows"][1]:
+            raise AssertionError("path sync changed a retained row")
+        new_row = next(row for row in synced["rows"] if row["path"] == "bin/new.c")
+        if new_row["language_state"] != "unreviewed":
+            raise AssertionError("path sync admitted an unreviewed new source")
+
+        (root / "bin/new.c").write_text(
+            "int new_source(void) { __asm__(\"nop\"); return 0; }\n",
+            encoding="utf-8",
+        )
+        source_denominator.sync_paths(
+            root,
+            sync_path,
+            synced_discovered,
+            quarantine,
+            set(),
+            set(),
+        )
+        refreshed_sync = source_denominator.load_json(sync_path)
+        refreshed_new_row = next(
+            row for row in refreshed_sync["rows"] if row["path"] == "bin/new.c"
+        )
+        if refreshed_new_row["classification"]["extension_signals"] != [
+            "inline-assembly"
+        ]:
+            raise AssertionError("path sync left retained classification stale")
+
+        rejected_sync_path = root / "rejected-sync-ledger.json"
+        rejected_sync_path.write_text(json.dumps(ledger) + "\n", encoding="utf-8")
+        rejected_sync_bytes = rejected_sync_path.read_bytes()
+        try:
+            source_denominator.sync_paths(
+                root,
+                rejected_sync_path,
+                synced_discovered,
+                quarantine,
+                set(),
+                {"bin/good.c"},
+            )
+        except source_denominator.DenominatorError:
+            pass
+        else:
+            raise AssertionError("path sync accepted an undeclared addition")
+        if rejected_sync_path.read_bytes() != rejected_sync_bytes:
+            raise AssertionError("rejected path sync changed ledger bytes")
+
         (root / "bin/good.c").write_text(
             "int good(void) { __asm__(\"nop\"); return 0; }\n", encoding="utf-8"
         )
@@ -347,7 +411,7 @@ def main():
         cases.append(("closure with unreviewed row", changed, quarantine, discovered, True))
         for name, mutated_ledger, mutated_quarantine, paths, closure in cases:
             expect_failure(name, root, paths, mutated_ledger, mutated_quarantine, closure)
-    print(f"PASS C17 source denominator calibration: {len(cases) + 4} failures rejected")
+    print(f"PASS C17 source denominator calibration: {len(cases) + 5} failures rejected")
     return 0
 
 

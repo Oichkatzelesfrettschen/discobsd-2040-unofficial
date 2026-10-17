@@ -151,7 +151,9 @@ Grouped by what they investigate.
 | `dpucp-2024.md` | the non-conformance DPUCP-2024 contract, finite Issue 8 accounting, C17 language boundary, evidence ladder and per-surface size rule |
 | `dpucp-2024-profile.json` | versioned DPUCP-2024 identity, denominator, language modes, hardware limits, state counts and witness catalog |
 | `dpucp-2024-requirements.tsv` | 1,518 Issue 8 requirement rows with applicability, implementation, evidence, residual and next-action states |
-| `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, unmeasured size surfaces and deciding gates |
+| `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
+| `libc-array-memory-line-reading.md` | C17 `reallocarray`, `memmem`, `getdelim` and `getline` promotion, behavior gates, archive selection and complete RP2040 size accounting |
+| `libc-array-memory-line-reading.json` | machine-checked Task 4 root-block arithmetic and bounded mechanism stack and line-buffer measurements |
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |

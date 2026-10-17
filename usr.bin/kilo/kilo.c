@@ -47,9 +47,10 @@
  * renders in reverse video so a stray control character does not corrupt
  * the screen.
  *
- * Replaced: glibc's getline(3), which this libc does not carry, with a
- * small local line reader (kiloReadLine); termios(3), which this libc does
- * not carry either, with the sgtty(4) TIOCGETP/TIOCSETP/TIOCGETC/TIOCSETC
+ * The editor keeps a small local line reader because its file-loading path
+ * needs neither delimiter selection nor allocation-failure stream recovery.
+ * termios(3), which this libc does not carry, is replaced with the sgtty(4)
+ * TIOCGETP/TIOCSETP/TIOCGETC/TIOCSETC
  * raw-mode sequence usr.bin/re's r.ttyio.c already uses on this tree. The
  * host build (`bmake kilo.host`, or `bmake test` to also run it under a
  * pty) instead compiles against the host's <termios.h>, selected by the
@@ -870,10 +871,9 @@ void editorDelChar(void) {
     E.dirty++;
 }
 
-/* Read one line from fp into a growable buffer, replacing this libc's
- * missing getline(3). Returns the line length excluding the terminator,
- * or -1 at EOF with nothing read. The trailing newline, if any, is kept
- * in the buffer; the caller strips it. */
+/* Read one line from fp into a growable buffer. Returns the line length
+ * excluding the terminator, or -1 at EOF with nothing read. The trailing
+ * newline, if any, is kept in the buffer; the caller strips it. */
 ssize_t kiloReadLine(FILE *fp, char **lineptr, size_t *cap) {
     size_t len = 0;
     int c;

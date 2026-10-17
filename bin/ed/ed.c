@@ -55,7 +55,7 @@ void     callunix();
 void     delete();
 void     rdelete(int *, int *);
 void     gdelete();
-char    *getline(int);
+char    *ed_getline(int);
 int      putline();
 char    *getblock(int, int);
 void     blkio(int, char *, int (*)());
@@ -344,7 +344,7 @@ commands()
         nonzero();
         a1 = addr1;
         do {
-            putstr (getline(*a1++));
+            putstr (ed_getline(*a1++));
         } while (a1 <= addr2);
         dot = addr2;
         listf = 0;
@@ -756,7 +756,7 @@ putfile()
     fp = genbuf;
     a1 = addr1;
     do {
-        lp = getline(*a1++);
+        lp = ed_getline(*a1++);
         for (;;) {
             if (--nib < 0) {
                 n = fp-genbuf;
@@ -891,7 +891,7 @@ gdelete()
 }
 
 char *
-getline(tl)
+ed_getline(tl)
     int tl;
 {
     register char *bp, *lp;
@@ -1068,7 +1068,7 @@ join()
 
     gp = genbuf;
     for (a1=addr1; a1<=addr2; a1++) {
-        lp = getline(*a1);
+        lp = ed_getline(*a1);
         while (*gp = *lp++)
             if (gp++ >= &genbuf[LBSIZE-2])
                 error(Q);
@@ -1285,7 +1285,7 @@ getcopy()
 {
     if (addr1 > addr2)
         return(EOF);
-    getline(*addr1++);
+    ed_getline(*addr1++);
     return(0);
 }
 
@@ -1442,7 +1442,7 @@ int *addr;
     } else {
         if (addr==zero)
             return(0);
-        p1 = getline(*addr);
+        p1 = ed_getline(*addr);
         locs = 0;
     }
     p2 = expbuf;

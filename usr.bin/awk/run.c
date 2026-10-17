@@ -101,7 +101,7 @@ obj program(a, n) node **a;
 	return(true);
 }
 
-obj getline()
+obj awk_getline()
 {
 	obj x;
 

@@ -3,7 +3,11 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS	+= -Wall -I../textbox
 PROG	=  uudecode
-OBJS	=  uudecode.o eprintf.o fshut.o mode.o getline.o
+OBJS	=  uudecode.o eprintf.o fshut.o mode.o
+
+.if defined(LINK_MAP) && !empty(LINK_MAP)
+LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
+.endif
 
 all:		${PROG}
 
@@ -16,11 +20,8 @@ fshut.o:	../textbox/fshut.c
 mode.o:		../textbox/mode.c
 		${CC} ${CFLAGS} -c -o $@ ../textbox/mode.c
 
-getline.o:	../textbox/getline.c
-		${CC} ${CFLAGS} -c -o $@ ../textbox/getline.c
-
 ${PROG}:	${OBJS}
-		${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf ${OBJS} ${LIBS}
+		${CC} ${CFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} -o $@.elf ${OBJS} ${LIBS}
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
 

@@ -91,8 +91,15 @@ REQUIRED_CANDIDATE_FIELDS = {
     "disposition",
     "residual",
 }
-DISPOSITIONS = {"candidate", "deferred", "rejected"}
+DISPOSITIONS = {"candidate", "promoted", "deferred", "rejected"}
 REVIEWED_LICENSES = {"BSD-2-Clause", "BSD-3-Clause", "BSD-4-Clause-UC", "MIT"}
+PROMOTED_CANDIDATES = {
+    "libc-reallocarray",
+    "libc-memmem",
+    "libc-getdelim-getline",
+}
+FOUNDATION_MEASUREMENT = "docs/research/libc-array-memory-line-reading.md"
+FOUNDATION_MEASUREMENT_DATA = "docs/research/libc-array-memory-line-reading.json"
 
 
 class DonorError(RuntimeError):
@@ -102,6 +109,62 @@ class DonorError(RuntimeError):
 def require(condition, message):
     if not condition:
         raise DonorError(message)
+
+
+def validate_foundation_measurement(measurement):
+    require(
+        set(measurement) == {
+            "schema_version", "profile_id", "base_commit", "root", "resources"
+        },
+        "malformed foundational-libc measurement",
+    )
+    require(measurement["schema_version"] == 1, "unsupported measurement schema")
+    require(measurement["profile_id"] == "DPUCP-2024", "wrong measurement profile")
+    require(
+        re.fullmatch(r"[0-9a-f]{40}", measurement["base_commit"]) is not None,
+        "bad measurement base commit",
+    )
+    root = measurement["root"]
+    require(
+        set(root) == {"partition_blocks", "inode_list_blocks", "base", "candidate"},
+        "malformed root measurement",
+    )
+    require(root["partition_blocks"] == 988, "root partition drift")
+    require(root["inode_list_blocks"] == 9, "root inode-list drift")
+    for state in ("base", "candidate"):
+        counters = root[state]
+        require(
+            set(counters) == {"data_blocks", "free_blocks"},
+            f"malformed {state} root counters",
+        )
+        require(
+            counters["data_blocks"] + counters["free_blocks"]
+            + root["inode_list_blocks"] == root["partition_blocks"],
+            f"inconsistent {state} root counters",
+        )
+    require(
+        root["candidate"]["data_blocks"] - root["base"]["data_blocks"] == -1,
+        "unexpected root data-block delta",
+    )
+    resources = measurement["resources"]
+    require(set(resources) == {"memmem", "line_reader"}, "malformed resources")
+    require(
+        resources["memmem"] == {
+            "baseline_stack_bytes": 24,
+            "stack_bytes": 24,
+        },
+        "memmem stack measurement drift",
+    )
+    require(
+        resources["line_reader"] == {
+            "baseline_stack_bytes": 48,
+            "stack_bytes": 48,
+            "witness_bytes": 300,
+            "final_buffer_bytes": 512,
+            "moving_realloc_peak_payload_bytes": 768,
+        },
+        "line-reader resource measurement drift",
+    )
 
 
 def safe_path(value):
@@ -127,8 +190,11 @@ def load_requirement_ids(path):
 
 def validate_document(root, document, requirement_ids):
     require(set(document) == REQUIRED_DOCUMENT_FIELDS, "malformed donor ledger")
-    require(document.get("schema_version") == 1, "unsupported donor schema")
+    require(document.get("schema_version") == 2, "unsupported donor schema")
     require(document.get("profile_id") == "DPUCP-2024", "wrong donor profile")
+    measurement_path = root / FOUNDATION_MEASUREMENT_DATA
+    require(measurement_path.is_file(), "missing foundational-libc measurement data")
+    validate_foundation_measurement(load_json(measurement_path))
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",
@@ -217,7 +283,6 @@ def validate_document(root, document, requirement_ids):
         )
         size = candidate["size_estimate"]
         require(set(size) == {"status", "surfaces", "evidence"}, f"bad size record: {candidate_id}")
-        require(size["status"] == "unmeasured", f"premature size state: {candidate_id}")
         require(
             isinstance(size["surfaces"], list)
             and size["surfaces"]
@@ -226,10 +291,27 @@ def validate_document(root, document, requirement_ids):
             ),
             f"missing size surfaces: {candidate_id}",
         )
-        require(size["evidence"] == "", f"unmeasured size has evidence: {candidate_id}")
+        if candidate_id in PROMOTED_CANDIDATES:
+            require(size["status"] == "measured", f"unmeasured promotion: {candidate_id}")
+            require(
+                size["evidence"] == FOUNDATION_MEASUREMENT,
+                f"unbound size evidence: {candidate_id}",
+            )
+            require(
+                (root / FOUNDATION_MEASUREMENT).is_file(),
+                f"missing size evidence: {candidate_id}",
+            )
+        else:
+            require(size["status"] == "unmeasured", f"premature size state: {candidate_id}")
+            require(size["evidence"] == "", f"unmeasured size has evidence: {candidate_id}")
         require(bool(candidate["deciding_gate"]), f"missing deciding gate: {candidate_id}")
         require(candidate["disposition"] in DISPOSITIONS, f"bad disposition: {candidate_id}")
-        expected_disposition = "deferred" if candidate_id == "utility-nl-bre" else "candidate"
+        if candidate_id in PROMOTED_CANDIDATES:
+            expected_disposition = "promoted"
+        elif candidate_id == "utility-nl-bre":
+            expected_disposition = "deferred"
+        else:
+            expected_disposition = "candidate"
         require(
             candidate["disposition"] == expected_disposition,
             f"disposition drift: {candidate_id}",

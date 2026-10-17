@@ -3,6 +3,8 @@
  * All rights reserved.  The Berkeley software License Agreement
  * specifies the terms and conditions for redistribution.
  */
+#include <sys/types.h>
+
 #ifndef FILE
 
 #define BUFSIZ  1024
@@ -107,6 +109,8 @@ int     fputc (int, FILE *);
 int     fputs (const char *, FILE *);
 int     puts (const char *);
 char    *fgets (char *, int, FILE *);
+ssize_t getdelim (char **, size_t *, int, FILE *);
+ssize_t getline (char **, size_t *, FILE *);
 /*
  * gets() is not declared: it cannot be given a bound, so every call is a
  * store of whatever the line holds. C11 removed it from the standard and

@@ -9,9 +9,9 @@ include ${TOPSRC}/share/mk/sys.mk
 CFLAGS		+= ${DEFS} -Os
 
 SRCS		= ${STDSRC} fgetc.c fgets.c fputc.c fputs.c puts.c \
-                  feof.c ferror.c fileno.c
+		  feof.c ferror.c fileno.c getdelim.c getline.c
 OBJS		= ${STDOBJ} fgetc.o fgets.o fputc.o fputs.o puts.o \
-                  feof.o ferror.o fileno.o
+		  feof.o ferror.o fileno.o getdelim.o getline.o
 
 STDSRC		= atexit.c clrerr.c doscan.c exit.c clnup.c fdopen.c fgetpos.c filbuf.c \
 		  findiop.c flags.c flsbuf.c fopen.c fprintf.c fread.c freopen.c fseek.c \

@@ -344,6 +344,186 @@
       ]
     },
     {
+      "id": "libc.reallocarray.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "reallocarray_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "reallocarray_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.reallocarray.native -- ./reallocarray_contract_test",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.memmem.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "memmem_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "memmem_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.memmem.native -- ./memmem_contract_test",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.line-reading.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "line_reading_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "line_reading_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.line-reading.native -- ./line_reading_contract_test",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.reallocarray.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "reallocarray_contract_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes; compiler-probe.sh compiles and executes native address and undefined sanitizers",
+      "prerequisites": [
+        "reallocarray_contract_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.reallocarray.sanitized -- ./reallocarray_contract_test_san",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.memmem.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "memmem_contract_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes; compiler-probe.sh compiles and executes native address and undefined sanitizers",
+      "prerequisites": [
+        "memmem_contract_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.memmem.sanitized -- ./memmem_contract_test_san",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.line-reading.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "line_reading_contract_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes; compiler-probe.sh compiles and executes native address and undefined sanitizers",
+      "prerequisites": [
+        "line_reading_contract_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.line-reading.sanitized -- ./line_reading_contract_test_san",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.reallocarray.sanitized-ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "reallocarray_contract_test32_san",
+      "condition": "ARRAY_MEMORY_SAN32_OK == yes; compiler-probe.sh compiles and executes ILP32 address and undefined sanitizers",
+      "prerequisites": [
+        "reallocarray_contract_test32_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.reallocarray.sanitized-ilp32 -- ./reallocarray_contract_test32_san",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.memmem.sanitized-ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "memmem_contract_test32_san",
+      "condition": "ARRAY_MEMORY_SAN32_OK == yes; compiler-probe.sh compiles and executes ILP32 address and undefined sanitizers",
+      "prerequisites": [
+        "memmem_contract_test32_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.memmem.sanitized-ilp32 -- ./memmem_contract_test32_san",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
+      "id": "libc.line-reading.sanitized-ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "line_reading_contract_test32_san",
+      "condition": "ARRAY_MEMORY_SAN32_OK == yes; compiler-probe.sh compiles and executes ILP32 address and undefined sanitizers",
+      "prerequisites": [
+        "line_reading_contract_test32_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.line-reading.sanitized-ilp32 -- ./line_reading_contract_test32_san",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
       "id": "libc.syslog.native",
       "owner": "firmware/posix-sh",
       "width": "native",

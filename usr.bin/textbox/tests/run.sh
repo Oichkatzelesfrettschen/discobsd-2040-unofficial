@@ -2,10 +2,10 @@
 # Host-side behavioral check for the sbase text tools imported under
 # usr.bin (cut, paste, seq, dirname, nl, cksum, expand, unexpand,
 # mkfifo, uuencode, uudecode). It builds each with the host cc against
-# the same sources the rp2040 cross build uses -- only the alloc and
-# rune shims a glibc host already carries (reallocarray, memmem,
-# getline) are swapped for glibc's own, via ereallocarray_host.c --
-# and diffs each tool's output against the matching GNU coreutils or
+# the same sources the rp2040 cross build uses -- libc interfaces use
+# the host libc, while ereallocarray_host.c supplies the utility-only
+# aborting wrapper on systems that already provide reallocarray -- and
+# diffs each tool's output against the matching GNU coreutils or
 # sharutils program for the same input. The rp2040 a.out itself needs
 # the board (see STORAGE.md); this only proves the shared C logic.
 set -eu
@@ -30,15 +30,54 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
 CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
+fail=0
 
-# glibc carries reallocarray(3), so the host build takes only the
-# ereallocarray wrapper and leaves the libc copy; macOS's libc has none,
-# and the tree's reallocarray.c supplies both there.
+# Apple stdlib.h does not declare reallocarray(3). Calibrate that header
+# condition with a direct undeclared call, then require the utility wrapper to
+# compile against the same interface boundary.
+mkdir "$WORK/stdlib-without-reallocarray"
+cp "$TB/tests/stdlib-without-reallocarray.fixture" \
+	"$WORK/stdlib-without-reallocarray/stdlib.h"
+printf '%s\n' \
+	'#include <stdlib.h>' \
+	'void *reallocarray_probe(void *pointer, size_t count, size_t size)' \
+	'{' \
+	'        return reallocarray(pointer, count, size);' \
+	'}' > "$WORK/reallocarray-undeclared.c"
+if $CC -std=c17 -Wall -Wextra -Werror \
+    -I"$WORK/stdlib-without-reallocarray" \
+    -c "$WORK/reallocarray-undeclared.c" \
+    -o "$WORK/reallocarray-undeclared.o" \
+    2>"$WORK/reallocarray-undeclared.cc.log"; then
+	echo "CALIBRATION FAIL: compiler accepted undeclared reallocarray"
+	fail=1
+elif grep -Eq 'implicit declaration|undeclared function' \
+    "$WORK/reallocarray-undeclared.cc.log" \
+    && grep -q 'reallocarray' "$WORK/reallocarray-undeclared.cc.log"; then
+	echo "ok: missing reallocarray declaration rejected"
+else
+	echo "CALIBRATION FAIL: compiler rejected the fixture for another reason"
+	cat "$WORK/reallocarray-undeclared.cc.log"
+	fail=1
+fi
+if $CC -std=c17 -Wall -Wextra -Werror \
+    -I"$WORK/stdlib-without-reallocarray" -I"$TB" \
+    -c "$TB/ereallocarray.c" -o "$WORK/ereallocarray-header-contract.o" \
+    2>"$WORK/ereallocarray-header-contract.cc.log" \
+    && [ ! -s "$WORK/ereallocarray-header-contract.cc.log" ]; then
+	echo "ok: ereallocarray declares its libc dependency"
+else
+	echo "BUILD FAIL: ereallocarray with host declaration absent"
+	cat "$WORK/ereallocarray-header-contract.cc.log"
+	fail=1
+fi
+
+# glibc carries reallocarray(3), so the host build takes only the existing
+# host wrapper. macOS builds the utility wrapper and the libc implementation.
 case $(uname -s) in
-Darwin)	EREALLOCARRAY=reallocarray.c ;;
+Darwin)	EREALLOCARRAY="ereallocarray.c ../../lib/libc/stdlib/reallocarray.c" ;;
 *)	EREALLOCARRAY=tests/ereallocarray_host.c ;;
 esac
-fail=0
 
 # build name tool.c compat1.c compat2.c ...
 # tool.c is looked up as usr.bin/<name>/<name>.c; every other argument
@@ -74,8 +113,8 @@ check() {
 	fi
 }
 
-# --- getline: the tree's own, since the tools above take glibc's ---
-# getline_test.c includes ../getline.c over an allocator the test owns
+# --- line reading: the tree's own, since the tools above take the host libc's ---
+# getline_test.c includes libc getdelim/getline over an allocator the test owns
 # and pins ownership after a refused growth and the capacity policy at
 # SSIZE_MAX + 1. The policy is a width fact, so the gate runs again at
 # -m32 where the host cc can build it.

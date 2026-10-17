@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "6a423112025f7f2766923f4ddc05f79f9bb097c0",
+  "root": {
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {
+      "data_blocks": 693,
+      "free_blocks": 286
+    },
+    "candidate": {
+      "data_blocks": 692,
+      "free_blocks": 287
+    }
+  },
+  "resources": {
+    "memmem": {
+      "baseline_stack_bytes": 24,
+      "stack_bytes": 24
+    },
+    "line_reader": {
+      "baseline_stack_bytes": 48,
+      "stack_bytes": 48,
+      "witness_bytes": 300,
+      "final_buffer_bytes": 512,
+      "moving_realloc_peak_payload_bytes": 768
+    }
+  }
+}

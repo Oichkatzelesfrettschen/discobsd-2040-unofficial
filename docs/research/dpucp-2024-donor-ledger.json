@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile_id": "DPUCP-2024",
   "claim": "Candidate donor mechanisms inform measured DiscoBSD/Pico compatibility work; this ledger makes no POSIX or UNIX conformance claim.",
   "selection_rule": "Prefer bounded algorithms, invariants, and tests. Admit code only after license, dependency, C17, ABI, RAM, linked-image, packed-root, and runtime gates agree.",
@@ -74,18 +74,18 @@
         "reallocarray.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "libc archive bytes",
           "affected a.out text and data",
           "largest 144 KiB process-window consumer",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/libc-array-memory-line-reading.md"
       },
-      "deciding_gate": "Compare clean before/after archive and per-program link maps; admit only with overflow, zero-size, allocation-failure, errno, and original-pointer witnesses and nonpositive constrained-surface deltas.",
-      "disposition": "candidate",
-      "residual": "Implement the target-native overflow guard in its own archive member and run the deciding behavior and size gates."
+      "deciding_gate": "Re-run the behavior, archive-member, consumer-map, clean distribution, per-program and packed-root gates after changes to reallocarray or its consumers.",
+      "disposition": "promoted",
+      "residual": "The libc mechanism is promoted. The DPUCP requirement row stays open until an Issue 8 facet audit demonstrates that the executable witness covers the complete cited interface contract."
     },
     {
       "id": "libc-memmem",
@@ -122,19 +122,19 @@
         "memmem.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "libc archive bytes",
           "affected a.out text and data",
-          "peak stack",
+          "mechanism stack-frame bytes",
           "largest 144 KiB process-window consumer",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/libc-array-memory-line-reading.md"
       },
-      "deciding_gate": "Measure code size and peak stack for the Two-Way and compact linear variants, then run empty, binary-NUL, short-needle, long-needle, absent, and boundary-match witnesses.",
-      "disposition": "candidate",
-      "residual": "Select the smallest algorithm that preserves bounded behavior after target stack and complete-image measurement."
+      "deciding_gate": "Re-run the behavior, strict-C17, archive-member, consumer-map, clean distribution, per-program and packed-root gates after changes to memmem or its consumers.",
+      "disposition": "promoted",
+      "residual": "The compact linear libc mechanism is promoted. Whole-program runtime stack peaks remain unmeasured. The DPUCP requirement row stays open until an Issue 8 facet audit demonstrates that the executable witness covers the complete cited interface contract."
     },
     {
       "id": "libc-getdelim-getline",
@@ -183,19 +183,20 @@
         "getline.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "libc archive bytes",
           "affected a.out text and data",
-          "peak heap",
+          "line-buffer payload bound",
+          "mechanism stack-frame bytes",
           "largest 144 KiB process-window consumer",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/libc-array-memory-line-reading.md"
       },
-      "deciding_gate": "Prove overflow, allocation failure, embedded NUL, EOF, delimiter retention, and caller-buffer behavior, then compare clean textbox-only and archive-member link maps and complete packed roots.",
-      "disposition": "candidate",
-      "residual": "Design the target FILE-state integration and prove that archive promotion preserves or reduces every constrained size surface."
+      "deciding_gate": "Re-run the line-reading behavior, sanitizer, strict-C17, archive-member, consumer-map, clean distribution, per-program and packed-root gates after changes to getdelim, getline or their consumers.",
+      "disposition": "promoted",
+      "residual": "The shared getdelim engine and thin getline wrapper are promoted. Whole-program runtime heap and stack peaks, including allocator metadata and unrelated callers, remain unmeasured. Their DPUCP requirement rows stay open until an Issue 8 facet audit demonstrates that the executable witness covers each complete cited interface contract."
     },
     {
       "id": "shell-getopts",

@@ -1,4 +1,4 @@
-/*	$OpenBSD: memmem.c,v 1.4 2015/08/31 02:53:57 guenther Exp $ */
+/*	$OpenBSD: memmem.c,v 1.4 2015/08/31 02:53:57 guenther Exp $	*/
 
 /*
  * Copyright (c) 2005 Pascal Gloor <pascal.gloor@spale.com>
@@ -11,9 +11,8 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote
- *    products derived from this software without specific prior written
- *    permission.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -30,37 +29,26 @@
 
 #include <string.h>
 
-#include "compat.h"
-
-/*
- * Find the first occurrence of the byte string s in byte string l.
- */
-
 void *
-memmem(const void *l, size_t l_len, const void *s, size_t s_len)
+memmem(const void *haystack_pointer, size_t haystack_length,
+    const void *needle_pointer, size_t needle_length)
 {
-	const char *cur, *last;
-	const char *cl = l;
-	const char *cs = s;
+	const unsigned char *candidate;
+	const unsigned char *last_candidate;
+	const unsigned char *haystack = haystack_pointer;
+	const unsigned char *needle = needle_pointer;
 
-	/* a zero length needle should just return the haystack */
-	if (s_len == 0)
-		return (void *)cl;
-
-	/* "s" must be smaller or equal to "l" */
-	if (l_len < s_len)
+	if (needle_length == 0)
+		return (void *)haystack;
+	if (haystack_length < needle_length)
 		return NULL;
+	if (needle_length == 1)
+		return memchr(haystack, needle[0], haystack_length);
 
-	/* special case where s_len == 1 */
-	if (s_len == 1)
-		return memchr(l, *cs, l_len);
-
-	/* the last position where its possible to find "s" in "l" */
-	last = cl + l_len - s_len;
-
-	for (cur = cl; cur <= last; cur++)
-		if (cur[0] == cs[0] && memcmp(cur, cs, s_len) == 0)
-			return (void *)cur;
-
+	last_candidate = haystack + haystack_length - needle_length;
+	for (candidate = haystack; candidate <= last_candidate; candidate++)
+		if (candidate[0] == needle[0] &&
+		    memcmp(candidate, needle, needle_length) == 0)
+			return (void *)candidate;
 	return NULL;
 }

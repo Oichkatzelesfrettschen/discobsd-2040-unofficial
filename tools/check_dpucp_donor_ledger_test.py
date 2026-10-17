@@ -1,6 +1,7 @@
 """Mutation controls for the bounded DPUCP donor ledger."""
 
 import copy
+import json
 import sys
 from pathlib import Path
 
@@ -22,6 +23,45 @@ def main():
         root / "docs/research/dpucp-2024-requirements.tsv"
     )
     donors.validate_document(root, document, requirement_ids)
+
+    measurement_path = root / "docs/research/libc-array-memory-line-reading.json"
+    if not measurement_path.is_file():
+        raise AssertionError("missing machine-readable Task 4 measurement")
+    measurement = json.loads(measurement_path.read_text(encoding="utf-8"))
+    validator = getattr(donors, "validate_foundation_measurement", None)
+    if validator is None:
+        raise AssertionError("missing Task 4 measurement validator")
+    validator(measurement)
+
+    changed_measurement = copy.deepcopy(measurement)
+    changed_measurement["root"]["candidate"]["data_blocks"] += 1
+    try:
+        validator(changed_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("root arithmetic mutation passed")
+
+    changed_measurement = copy.deepcopy(measurement)
+    changed_measurement["resources"]["line_reader"]["stack_bytes"] += 4
+    try:
+        validator(changed_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("resource-bound mutation passed")
+
+    promoted_ids = {
+        "libc-reallocarray",
+        "libc-memmem",
+        "libc-getdelim-getline",
+    }
+    for candidate in document["candidates"]:
+        if candidate["id"] in promoted_ids:
+            if candidate["disposition"] != "promoted":
+                raise AssertionError(f"unpromoted Task 4 donor: {candidate['id']}")
+            if candidate["size_estimate"]["status"] != "measured":
+                raise AssertionError(f"unmeasured Task 4 donor: {candidate['id']}")
 
     cases = []
     changed = copy.deepcopy(document)
@@ -49,7 +89,6 @@ def main():
     cases.append(("missing dependency closure", changed))
 
     changed = copy.deepcopy(document)
-    changed["candidates"][0]["size_estimate"]["status"] = "measured"
     changed["candidates"][0]["size_estimate"]["evidence"] = ""
     cases.append(("measured size without evidence", changed))
 
@@ -105,16 +144,25 @@ def main():
     cases.append(("premature BRE admission", changed))
 
     changed = copy.deepcopy(document)
-    changed["candidates"][0]["size_estimate"] = {
-        "status": "measured",
-        "surfaces": ["libc archive bytes"],
-        "evidence": "AGENTS.md",
-    }
+    changed["candidates"][0]["size_estimate"]["evidence"] = "AGENTS.md"
     cases.append(("fabricated measured size", changed))
 
     changed = copy.deepcopy(document)
     changed["candidates"][0]["size_estimate"]["status"] = "estimated"
-    cases.append(("premature estimated size", changed))
+    cases.append(("unknown measured state", changed))
+
+    changed = copy.deepcopy(document)
+    shell_candidate = next(
+        candidate
+        for candidate in changed["candidates"]
+        if candidate["id"] == "shell-command"
+    )
+    shell_candidate["disposition"] = "promoted"
+    shell_candidate["size_estimate"]["status"] = "measured"
+    shell_candidate["size_estimate"]["evidence"] = (
+        "docs/research/libc-array-memory-line-reading.md"
+    )
+    cases.append(("premature unrelated promotion", changed))
 
     changed = copy.deepcopy(document)
     changed["candidates"][0]["size_estimate"]["surfaces"] = [""]

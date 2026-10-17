@@ -3,8 +3,11 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS	+= -Wall -I../textbox
 PROG	=  nl
-OBJS	=  nl.o eprintf.o ealloc.o fshut.o strtonum.o unescape.o rune.o \
-	   getline.o
+OBJS	=  nl.o eprintf.o ealloc.o fshut.o strtonum.o unescape.o rune.o
+
+.if defined(LINK_MAP) && !empty(LINK_MAP)
+LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
+.endif
 
 all:		${PROG}
 
@@ -26,11 +29,8 @@ unescape.o:		../textbox/unescape.c
 rune.o:			../textbox/rune.c
 			${CC} ${CFLAGS} -c -o $@ ../textbox/rune.c
 
-getline.o:		../textbox/getline.c
-			${CC} ${CFLAGS} -c -o $@ ../textbox/getline.c
-
 ${PROG}:	${OBJS}
-		${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf ${OBJS} ${LIBS}
+		${CC} ${CFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} -o $@.elf ${OBJS} ${LIBS}
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
 

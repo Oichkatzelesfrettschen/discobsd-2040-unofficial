@@ -80,7 +80,8 @@ sh_host_getdents(int fd, void *buf, size_t nbytes)
 
 	received = (ssize_t)syscall(SYS_getdents64, fd, buf, nbytes);
 	trace = getenv("SH_TEST_DIRECTORY_TRACE");
-	if (trace != NULL && trace[0] == '1' && trace[1] == '\0') {
+	if ((trace != NULL && trace[0] == '1' && trace[1] == '\0') ||
+	    access(".sh-directory-trace", F_OK) == 0) {
 		size_t offset;
 
 		fprintf(stderr, "getdents64 fd=%d requested=%zu received=%zd\n",

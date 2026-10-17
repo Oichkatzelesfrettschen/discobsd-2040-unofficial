@@ -602,6 +602,7 @@ if [ "$fail" -ne 0 ]; then
 	(
 		cd "$WORK"
 		stat -c 'stat path=%n inode=%i device=%d' . .. g1 g2 xcmd
+		: > .sh-directory-trace
 		SH_TEST_DIRECTORY_TRACE=1 "$SH" -c \
 		    'echo g[12]*; pwd; command -v ./xcmd'
 	) 2>&1 || :

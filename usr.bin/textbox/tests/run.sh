@@ -2,10 +2,10 @@
 # Host-side behavioral check for the sbase text tools imported under
 # usr.bin (cut, paste, seq, dirname, nl, cksum, expand, unexpand,
 # mkfifo, uuencode, uudecode). It builds each with the host cc against
-# the same sources the rp2040 cross build uses -- only the alloc and
-# rune shims a glibc host already carries (reallocarray, memmem,
-# getline) are swapped for glibc's own, via ereallocarray_host.c --
-# and diffs each tool's output against the matching GNU coreutils or
+# the same sources the rp2040 cross build uses -- libc interfaces use
+# the host libc, while ereallocarray_host.c supplies the utility-only
+# aborting wrapper on systems that already provide reallocarray -- and
+# diffs each tool's output against the matching GNU coreutils or
 # sharutils program for the same input. The rp2040 a.out itself needs
 # the board (see STORAGE.md); this only proves the shared C logic.
 set -eu
@@ -31,11 +31,10 @@ trap 'rm -rf "$WORK"' EXIT INT TERM
 
 CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
 
-# glibc carries reallocarray(3), so the host build takes only the
-# ereallocarray wrapper and leaves the libc copy; macOS's libc has none,
-# and the tree's reallocarray.c supplies both there.
+# glibc carries reallocarray(3), so the host build takes only the existing
+# host wrapper. macOS builds the utility wrapper and the libc implementation.
 case $(uname -s) in
-Darwin)	EREALLOCARRAY=reallocarray.c ;;
+Darwin)	EREALLOCARRAY="ereallocarray.c ../../lib/libc/stdlib/reallocarray.c" ;;
 *)	EREALLOCARRAY=tests/ereallocarray_host.c ;;
 esac
 fail=0
@@ -74,8 +73,8 @@ check() {
 	fi
 }
 
-# --- getline: the tree's own, since the tools above take glibc's ---
-# getline_test.c includes ../getline.c over an allocator the test owns
+# --- line reading: the tree's own, since the tools above take the host libc's ---
+# getline_test.c includes libc getdelim/getline over an allocator the test owns
 # and pins ownership after a refused growth and the capacity policy at
 # SSIZE_MAX + 1. The policy is a width fact, so the gate runs again at
 # -m32 where the host cc can build it.

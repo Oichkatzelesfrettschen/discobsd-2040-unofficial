@@ -33,6 +33,10 @@ ALIASES=
 OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		textbox
 
+.if defined(LINK_MAP) && !empty(LINK_MAP)
+LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
+.endif
+
 all:		${PROG}
 include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 
@@ -60,7 +64,7 @@ textbox.c:	textbox.c.in Makefile
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" textbox.c.in > $@
 
 ${PROG}:	textbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf textbox.o ${OBJS} ${LIBS}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} -o $@.elf textbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

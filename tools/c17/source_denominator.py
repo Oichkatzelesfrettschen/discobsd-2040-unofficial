@@ -634,6 +634,54 @@ def refresh_classification(root, ledger_path, discovered, quarantine, closure=Fa
     return counts
 
 
+def sync_paths(
+    root,
+    ledger_path,
+    discovered,
+    quarantine,
+    expected_added,
+    expected_removed,
+    closure=False,
+):
+    """Apply one explicitly declared tracked-source set transition."""
+    ledger = load_json(ledger_path)
+    require(ledger.get("schema_version") == 2, "unsupported ledger schema")
+    rows = ledger.get("rows")
+    require(isinstance(rows, list), "ledger rows must be a list")
+    rows_by_path = {
+        row.get("path"): row for row in rows if isinstance(row, dict)
+    }
+    require(len(rows_by_path) == len(rows), "duplicate or malformed ledger row")
+
+    discovered_set = set(discovered)
+    row_set = set(rows_by_path)
+    actual_added = discovered_set - row_set
+    actual_removed = row_set - discovered_set
+    require(
+        actual_added == set(expected_added),
+        "tracked source additions differ from declared delta: "
+        + ", ".join(sorted(actual_added)),
+    )
+    require(
+        actual_removed == set(expected_removed),
+        "tracked source removals differ from declared delta: "
+        + ", ".join(sorted(actual_removed)),
+    )
+
+    retained_rows = [row for row in rows if row["path"] not in actual_removed]
+    for row in retained_rows:
+        row["classification"] = derive_classification(root, row)
+    added_rows = []
+    for path in sorted(actual_added):
+        row = initial_row(path)
+        row["classification"] = derive_classification(root, row)
+        added_rows.append(row)
+    ledger["rows"] = sorted(retained_rows + added_rows, key=lambda row: row["path"])
+    counts = validate_documents(root, discovered, ledger, quarantine, closure)
+    atomic_write_text(ledger_path, json.dumps(ledger, indent=2) + "\n")
+    return counts
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".")
@@ -641,17 +689,34 @@ def main():
     parser.add_argument("--quarantine", default="tools/c17/quarantine-manifest.json")
     parser.add_argument("--bootstrap", action="store_true")
     parser.add_argument("--refresh-classification", action="store_true")
+    parser.add_argument("--sync-paths", action="store_true")
+    parser.add_argument("--add-path", action="append", default=[])
+    parser.add_argument("--remove-path", action="append", default=[])
     parser.add_argument("--closure", action="store_true")
     args = parser.parse_args()
     root = Path(args.root).resolve()
     ledger_path = root / args.ledger
     quarantine_path = root / args.quarantine
     try:
+        require(
+            sum((args.bootstrap, args.refresh_classification, args.sync_paths)) <= 1,
+            "select only one ledger mutation mode",
+        )
         if args.bootstrap:
             bootstrap(root, ledger_path, quarantine_path)
         discovered = tracked_sources(root)
         quarantine = load_json(quarantine_path)
-        if args.refresh_classification:
+        if args.sync_paths:
+            counts = sync_paths(
+                root,
+                ledger_path,
+                discovered,
+                quarantine,
+                args.add_path,
+                args.remove_path,
+                args.closure,
+            )
+        elif args.refresh_classification:
             counts = refresh_classification(
                 root, ledger_path, discovered, quarantine, args.closure
             )

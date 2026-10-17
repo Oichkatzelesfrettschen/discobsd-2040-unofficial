@@ -23,6 +23,18 @@ def main():
     )
     donors.validate_document(root, document, requirement_ids)
 
+    promoted_ids = {
+        "libc-reallocarray",
+        "libc-memmem",
+        "libc-getdelim-getline",
+    }
+    for candidate in document["candidates"]:
+        if candidate["id"] in promoted_ids:
+            if candidate["disposition"] != "promoted":
+                raise AssertionError(f"unpromoted Task 4 donor: {candidate['id']}")
+            if candidate["size_estimate"]["status"] != "measured":
+                raise AssertionError(f"unmeasured Task 4 donor: {candidate['id']}")
+
     cases = []
     changed = copy.deepcopy(document)
     changed["candidates"].append(copy.deepcopy(changed["candidates"][0]))
@@ -49,7 +61,6 @@ def main():
     cases.append(("missing dependency closure", changed))
 
     changed = copy.deepcopy(document)
-    changed["candidates"][0]["size_estimate"]["status"] = "measured"
     changed["candidates"][0]["size_estimate"]["evidence"] = ""
     cases.append(("measured size without evidence", changed))
 
@@ -105,16 +116,25 @@ def main():
     cases.append(("premature BRE admission", changed))
 
     changed = copy.deepcopy(document)
-    changed["candidates"][0]["size_estimate"] = {
-        "status": "measured",
-        "surfaces": ["libc archive bytes"],
-        "evidence": "AGENTS.md",
-    }
+    changed["candidates"][0]["size_estimate"]["evidence"] = "AGENTS.md"
     cases.append(("fabricated measured size", changed))
 
     changed = copy.deepcopy(document)
     changed["candidates"][0]["size_estimate"]["status"] = "estimated"
-    cases.append(("premature estimated size", changed))
+    cases.append(("unknown measured state", changed))
+
+    changed = copy.deepcopy(document)
+    shell_candidate = next(
+        candidate
+        for candidate in changed["candidates"]
+        if candidate["id"] == "shell-command"
+    )
+    shell_candidate["disposition"] = "promoted"
+    shell_candidate["size_estimate"]["status"] = "measured"
+    shell_candidate["size_estimate"]["evidence"] = (
+        "docs/research/libc-array-memory-line-reading.md"
+    )
+    cases.append(("premature unrelated promotion", changed))
 
     changed = copy.deepcopy(document)
     changed["candidates"][0]["size_estimate"]["surfaces"] = [""]

@@ -7,6 +7,8 @@ TARGET_MACHINE?= rp2040
 PROG= libc_contracts_test
 TARGET_DIR= ../../lib/libc/gen
 STRING_DIR= ../../lib/libc/string
+STDLIB_DIR= ../../lib/libc/stdlib
+STDIO_DIR= ../../lib/libc/stdio
 CFLAGS= -std=c99 -Wall -Wextra -Werror
 
 # The arena allocator compiled from the tree over an sbrk() the test owns.
@@ -56,8 +58,123 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
 	check-vis \
-	check-qsort check-strtox check-string-security
+	check-qsort check-strtox check-string-security check-array-memory-line
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
+
+ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
+ARRAY_MEMORY_RENAMES= -Dreallocarray=db_reallocarray \
+	-Drealloc=array_test_realloc
+MEMMEM_RENAMES= -Dmemmem=db_memmem
+ARRAY_MEMORY_SAN_FLAGS= -fsanitize=address,undefined \
+	-fno-sanitize-recover=all -fno-omit-frame-pointer
+ARRAY_MEMORY_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
+	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}
+ARRAY_MEMORY_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 \
+	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS}
+
+check-array-memory-line: reallocarray_contract_test memmem_contract_test
+	${TEST_EXECUTION} run libc.reallocarray.native -- ./reallocarray_contract_test
+	${TEST_EXECUTION} run libc.memmem.native -- ./memmem_contract_test
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} reallocarray_contract_test_san memmem_contract_test_san \
+	    line_reading_contract_test_san
+	${TEST_EXECUTION} run libc.reallocarray.sanitized -- \
+	    ./reallocarray_contract_test_san
+	${TEST_EXECUTION} run libc.memmem.sanitized -- ./memmem_contract_test_san
+	${TEST_EXECUTION} run libc.line-reading.sanitized -- \
+	    ./line_reading_contract_test_san
+.else
+	${TEST_EXECUTION} skip libc.reallocarray.sanitized \
+	    "check-array-memory-line: ${HOSTCC} cannot execute native address/undefined sanitizers"
+	${TEST_EXECUTION} skip libc.memmem.sanitized \
+	    "check-array-memory-line: ${HOSTCC} cannot execute native address/undefined sanitizers"
+	${TEST_EXECUTION} skip libc.line-reading.sanitized \
+	    "check-array-memory-line: ${HOSTCC} cannot execute native address/undefined sanitizers"
+.endif
+.if ${ARRAY_MEMORY_SAN32_OK} == "yes"
+	@${MAKE} reallocarray_contract_test32_san memmem_contract_test32_san \
+	    line_reading_contract_test32_san
+	${TEST_EXECUTION} run libc.reallocarray.sanitized-ilp32 -- \
+	    ./reallocarray_contract_test32_san
+	${TEST_EXECUTION} run libc.memmem.sanitized-ilp32 -- \
+	    ./memmem_contract_test32_san
+	${TEST_EXECUTION} run libc.line-reading.sanitized-ilp32 -- \
+	    ./line_reading_contract_test32_san
+.else
+	${TEST_EXECUTION} skip libc.reallocarray.sanitized-ilp32 \
+	    "check-array-memory-line: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
+	${TEST_EXECUTION} skip libc.memmem.sanitized-ilp32 \
+	    "check-array-memory-line: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
+	${TEST_EXECUTION} skip libc.line-reading.sanitized-ilp32 \
+	    "check-array-memory-line: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
+.endif
+
+check-array-memory-line-cross:
+	sh ${.CURDIR}/array_memory_archive.sh ${TOPSRC} ${ARM_COMPILER} \
+	    ${TARGET_MACHINE} yes
+	sh ${.CURDIR}/array_memory_consumer_maps.sh ${TOPSRC} ${MAKE} \
+	    ${TARGET_MACHINE}
+
+reallocarray_contract_test: reallocarray_contract_test.c array_reallocarray.o
+	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} -o $@ reallocarray_contract_test.c \
+	    array_reallocarray.o
+
+array_reallocarray.o: ${STDLIB_DIR}/reallocarray.c
+	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} ${ARRAY_MEMORY_RENAMES} -c -o $@ \
+	    ${STDLIB_DIR}/reallocarray.c
+
+memmem_contract_test: memmem_contract_test.c string_memmem.o
+	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} -o $@ memmem_contract_test.c string_memmem.o
+
+string_memmem.o: ${STRING_DIR}/memmem.c
+	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} ${MEMMEM_RENAMES} -c -o $@ \
+	    ${STRING_DIR}/memmem.c
+
+reallocarray_contract_test_san: reallocarray_contract_test.c \
+    array_reallocarray_san.o
+	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} -o $@ \
+	    reallocarray_contract_test.c array_reallocarray_san.o
+
+array_reallocarray_san.o: ${STDLIB_DIR}/reallocarray.c
+	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    ${ARRAY_MEMORY_RENAMES} -c -o $@ ${STDLIB_DIR}/reallocarray.c
+
+memmem_contract_test_san: memmem_contract_test.c string_memmem_san.o
+	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} -o $@ \
+	    memmem_contract_test.c string_memmem_san.o
+
+string_memmem_san.o: ${STRING_DIR}/memmem.c
+	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    ${MEMMEM_RENAMES} -c -o $@ ${STRING_DIR}/memmem.c
+
+line_reading_contract_test_san: \
+    ${TOPSRC}/usr.bin/textbox/tests/getline_test.c \
+    ${STDIO_DIR}/getdelim.c ${STDIO_DIR}/getline.c
+	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} -o $@ \
+	    ${TOPSRC}/usr.bin/textbox/tests/getline_test.c
+
+reallocarray_contract_test32_san: reallocarray_contract_test.c \
+    array_reallocarray32_san.o
+	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    -o $@ reallocarray_contract_test.c array_reallocarray32_san.o
+
+array_reallocarray32_san.o: ${STDLIB_DIR}/reallocarray.c
+	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    ${ARRAY_MEMORY_RENAMES} -c -o $@ ${STDLIB_DIR}/reallocarray.c
+
+memmem_contract_test32_san: memmem_contract_test.c string_memmem32_san.o
+	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    -o $@ memmem_contract_test.c string_memmem32_san.o
+
+string_memmem32_san.o: ${STRING_DIR}/memmem.c
+	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    ${MEMMEM_RENAMES} -c -o $@ ${STRING_DIR}/memmem.c
+
+line_reading_contract_test32_san: \
+    ${TOPSRC}/usr.bin/textbox/tests/getline_test.c \
+    ${STDIO_DIR}/getdelim.c ${STDIO_DIR}/getline.c
+	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS} ${ARRAY_MEMORY_CFLAGS} \
+	    -DHK_ILP32 -o $@ ${TOPSRC}/usr.bin/textbox/tests/getline_test.c
 
 check: check-host check-aout
 
@@ -975,6 +1092,13 @@ clean:
 	rm -f string_security_test string_explicit_bzero.o \
 		string_timingsafe_bcmp.o string_timingsafe_bcmp_target.o \
 		string_timingsafe_bcmp_bad_target.o
+	rm -f reallocarray_contract_test memmem_contract_test \
+		array_reallocarray.o string_memmem.o \
+		reallocarray_contract_test_san memmem_contract_test_san \
+		line_reading_contract_test_san array_reallocarray_san.o \
+		string_memmem_san.o reallocarray_contract_test32_san \
+		memmem_contract_test32_san line_reading_contract_test32_san \
+		array_reallocarray32_san.o string_memmem32_san.o
 	rm -f qsort_test qsort_test32 qsort_sort.o qsort_sort32.o
 	rm -f random_contract_test random_contract_test32 random_contract_ubsan \
 		random_metadata_test random_metadata_bad_test random_random.o \
@@ -993,10 +1117,11 @@ all: check
 .PHONY: all check check-host check-aout check-asctime check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
 	check-runtime-limits check-runtime-limits-cross \
-	check-malloc check-printf check-qsort \
+	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \
 	check-printf-float check-rwmode check-scanf check-string-security \
-	check-string-security-cross check-strtox check-syslog check-vis clean
+	check-array-memory-line-cross check-string-security-cross check-strtox \
+	check-syslog check-vis clean
 
 # The C17 stdio surface outside the read and write path: the mode strings
 # fopen accepts and the descriptor flags they produce, fflush over every

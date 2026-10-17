@@ -107,7 +107,7 @@ void	 scanstr(int, char *);
 void	 Sprintf(int);
 int	 tailequ(char *, char *);
 void	 prompt(char *);
-int	 getline(FILE *, int *);
+int	 more_getline(FILE *, int *);
 void	 erase(int);
 void	 kill_line();
 void	 cleareol();
@@ -593,7 +593,7 @@ register int num_lines;
 
     for (;;) {
 	while (num_lines > 0 && !Pause) {
-	    if ((nchars = getline (f, &length)) == EOF)
+	    if ((nchars = more_getline (f, &length)) == EOF)
 	    {
 		if (clreol)
 		    clreos();
@@ -756,7 +756,7 @@ char *filename;
 */
 
 int
-getline(f, length)
+more_getline(f, length)
 register FILE *f;
 int *length;
 {

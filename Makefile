@@ -339,6 +339,12 @@ check-libc-contracts:
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
+check-libc-array-memory-line:
+		${MAKE} -C tests/libc_contracts check-array-memory-line
+
+check-libc-array-memory-line-cross:
+		${MAKE} -C tests/libc_contracts check-array-memory-line-cross
+
 # gets(3) is gone from <stdio.h> and from both libc builds, so a caller fails
 # to compile rather than storing an entire line into a fixed buffer. The cross
 # form reads the built lib/libc.a for the symbol as well.

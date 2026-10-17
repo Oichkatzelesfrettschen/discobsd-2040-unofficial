@@ -1,5 +1,5 @@
 /*
- * Host gate for usr.bin/textbox/getline.c, included here so its static
+ * Host gate for libc getdelim() and getline(), included here so the static
  * capacity policy is reachable, over a malloc()/realloc() the test owns
  * so a refused growth is a value the test sets. Input comes from a
  * temporary file; a stream that fails part way through a line comes from
@@ -13,6 +13,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,10 +28,13 @@ static void *t_malloc(size_t);
 static void *t_realloc(void *, size_t);
 #define malloc t_malloc
 #define realloc t_realloc
+#define getdelim t_getdelim
 #define getline t_getline
-#include "../getline.c"
+#include "../../../lib/libc/stdio/getdelim.c"
+#include "../../../lib/libc/stdio/getline.c"
 #undef malloc
 #undef realloc
+#undef getdelim
 #undef getline
 
 /* Live blocks, so ownership is a fact the test can look up. */
@@ -139,18 +143,23 @@ check(int cond, const char *what)
  * zero-length buffer on Darwin, and the empty stream is one of the cases.
  */
 static FILE *
-input(const char *text)
+input_bytes(const void *bytes, size_t len)
 {
 	FILE *f = tmpfile();
-	size_t len = strlen(text);
 
-	if (f == NULL || (len > 0 && fwrite(text, 1, len, f) != len) ||
+	if (f == NULL || (len > 0 && fwrite(bytes, 1, len, f) != len) ||
 	    fflush(f) != 0) {
 		perror("tmpfile");
 		exit(2);
 	}
 	rewind(f);
 	return f;
+}
+
+static FILE *
+input(const char *text)
+{
+	return input_bytes(text, strlen(text));
 }
 
 /* A stream that yields "ab" and then fails with EIO. */
@@ -225,7 +234,7 @@ line_contract(void)
 
 	r = t_getline(&p, &n, f);
 	check(r == 4 && strcmp(p, "abc\n") == 0, "a line with its newline");
-	check(n == GETLINE_FIRST && slot_of(p) >= 0 && live_size[slot_of(p)] == n,
+	check(n == GETDELIM_FIRST && slot_of(p) >= 0 && live_size[slot_of(p)] == n,
 	    "a fresh buffer is the first capacity");
 	r = t_getline(&p, &n, f);
 	check(r == 3 && strcmp(p, "de\n") == 0, "the buffer is reused");
@@ -244,8 +253,47 @@ line_contract(void)
 	p = NULL; n = 0;
 	f = input("");
 	r = t_getline(&p, &n, f);
-	check(r == -1 && feof(f) && p != NULL && n == GETLINE_FIRST && p[0] == '\0',
+	check(r == -1 && feof(f) && p != NULL && n == GETDELIM_FIRST && p[0] == '\0',
 	    "an empty stream is -1 with an allocated, terminated buffer");
+	t_free(p);
+	fclose(f);
+}
+
+static void
+delimiter_contract(void)
+{
+	static const unsigned char nul_data[] = { 'a', 0, 'b' };
+	static const unsigned char high_data[] = { 'x', 0xff, 'y' };
+	char *p = NULL;
+	size_t n = 0;
+	FILE *f = input("ab:cd");
+	ssize_t r;
+
+	r = t_getdelim(&p, &n, ':', f);
+	check(r == 3 && memcmp(p, "ab:", 3) == 0 && p[3] == '\0',
+	    "getdelim retains its delimiter");
+	r = t_getdelim(&p, &n, ':', f);
+	check(r == 2 && memcmp(p, "cd", 2) == 0 && p[2] == '\0',
+	    "getdelim returns a final record without its absent delimiter");
+	t_free(p);
+	fclose(f);
+
+	p = NULL; n = 0;
+	f = input_bytes(nul_data, sizeof(nul_data));
+	r = t_getdelim(&p, &n, 0, f);
+	check(r == 2 && p[0] == 'a' && p[1] == 0 && p[2] == '\0',
+	    "a NUL delimiter remains data and the buffer gains a terminator");
+	r = t_getdelim(&p, &n, 0, f);
+	check(r == 1 && p[0] == 'b' && p[1] == '\0',
+	    "reading continues after an embedded NUL delimiter");
+	t_free(p);
+	fclose(f);
+
+	p = NULL; n = 0;
+	f = input_bytes(high_data, sizeof(high_data));
+	r = t_getdelim(&p, &n, 0xff, f);
+	check(r == 2 && (unsigned char)p[1] == 0xff,
+	    "the delimiter is compared as an unsigned byte");
 	t_free(p);
 	fclose(f);
 }
@@ -286,7 +334,7 @@ growth_contract(void)
 	p = t_malloc(8); n = 0;
 	f = input("ab\n");
 	r = t_getline(&p, &n, f);
-	check(r == 3 && n == GETLINE_FIRST && live_count() == 1,
+	check(r == 3 && n == GETDELIM_FIRST && live_count() == 1,
 	    "a zero-size caller buffer is resized and the old block is not leaked");
 	t_free(p);
 	fclose(f);
@@ -353,14 +401,14 @@ failure_contract(void)
 static void
 capacity_contract(void)
 {
-	const size_t max = GETLINE_CAP_MAX;
+	const size_t max = GETDELIM_CAP_MAX;
 
-	check(getline_grow(128) == 256, "128 grows to 256");
-	check(getline_grow(max / 2) == max, "half the maximum grows to the maximum");
-	check(getline_grow(max / 2 + 1) == max, "past half grows to the maximum, not past it");
-	check(getline_grow(max - 1) == max, "one below the maximum grows to it");
-	check(getline_grow(max) == 0, "the maximum grows no further");
-	check(getline_grow(SIZE_MAX) == 0, "SIZE_MAX grows no further");
+	check(getdelim_grow(128) == 256, "128 grows to 256");
+	check(getdelim_grow(max / 2) == max, "half the maximum grows to the maximum");
+	check(getdelim_grow(max / 2 + 1) == max, "past half grows to the maximum, not past it");
+	check(getdelim_grow(max - 1) == max, "one below the maximum grows to it");
+	check(getdelim_grow(max) == 0, "the maximum grows no further");
+	check(getdelim_grow(SIZE_MAX) == 0, "SIZE_MAX grows no further");
 	check(max - 1 == (size_t)SSIZE_MAX, "the maximum is one past SSIZE_MAX");
 #ifdef HK_ILP32
 	check(sizeof(size_t) == 4 && sizeof(ssize_t) == 4, "the target's four-byte sizes");
@@ -373,6 +421,7 @@ main(void)
 {
 	argument_contract();
 	line_contract();
+	delimiter_contract();
 	growth_contract();
 	failure_contract();
 	capacity_contract();

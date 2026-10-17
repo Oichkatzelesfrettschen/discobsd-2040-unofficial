@@ -2,13 +2,12 @@
  * Compatibility shim for the sbase (https://git.suckless.org/sbase)
  * utilities imported under usr.bin: cut, paste, seq, dirname, nl,
  * cksum, expand, unexpand, mkfifo, uuencode and uudecode. sbase's
- * own util.h pulls in regex_t and a POSIX getline() the tree's libc
- * does not carry, and its utf.h decodes real UTF-8; this header
- * declares a trimmed set: the eprintf/weprintf family, the alloc and
- * string helpers each tool actually calls, a byte-wide stand-in for
- * sbase's Rune so cut, paste, expand, unexpand and nl keep their
- * upstream logic on octet input, and a getline() the tools need but
- * this libc lacks. No entry point here parses or prints a float.
+ * own util.h pulls in regex_t, and its utf.h decodes real UTF-8; this
+ * header declares the utility-only helpers each tool actually calls and
+ * a byte-wide stand-in for sbase's Rune so cut, paste, expand, unexpand
+ * and nl keep their upstream logic on octet input. Standard allocation,
+ * memory-search and line-reading interfaces come from libc's headers.
+ * No entry point here parses or prints a float.
  */
 #ifndef TEXTBOX_COMPAT_H
 #define TEXTBOX_COMPAT_H
@@ -17,6 +16,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "arg.h"
 
@@ -40,7 +41,6 @@ void  xvprintf(const char *, va_list);
 void *emalloc(size_t);
 char *estrdup(const char *);
 
-void *reallocarray(void *, size_t, size_t);
 void *ereallocarray(void *, size_t, size_t);
 
 int    fshut(FILE *, const char *);
@@ -66,11 +66,7 @@ size_t unescape(char *);
 /* Every byte starts a rune when a rune is a byte. */
 #define UTF8_POINT(c)  1
 
-void  *memmem(const void *, size_t, const void *, size_t);
-
 mode_t parsemode(const char *, mode_t, mode_t);
-
-ssize_t getline(char **, size_t *, FILE *);
 
 /*
  * A byte is a rune: the console this port targets is ASCII, and a

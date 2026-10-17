@@ -30,7 +30,7 @@ clean-distribution command below. The runner retained combined output, emitted
 PYTHON=/usr/bin/python
 export PYTHON
 "$PYTHON" tools/run_logged_gate.py \
-    --label shell-review-fixes-clean-distribution \
+    --label shell-ci-portability-clean-distribution \
     --evidence-root .build-logs \
     --heartbeat-seconds 30 \
     --idle-timeout-seconds 60 \
@@ -39,10 +39,12 @@ export PYTHON
 ```
 
 The terminal receipt is
-`.build-logs/shell-review-fixes-clean-distribution.latest.json`. It records
-exit status 0, 343.126 seconds elapsed and 1,555,244 output bytes. The build
-ran immediately before the implementation commit; the committed source and
-test diff is byte-identical to the measured tracked tree.
+`.build-logs/shell-ci-portability-clean-distribution.latest.json`. It records
+exit status 0, 155.918 seconds elapsed and 821,371 output bytes. The clean
+confirmation ran at `a796d28270213052f06dc316042d9754cbb98a98`; that commit adds
+only the preceding evidence update after the measured implementation commit.
+The clean artifacts reproduce the recorded kernel, shell and packed-root
+values at the branch head.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
 | --- | ---: | ---: | ---: | ---: |
@@ -56,6 +58,11 @@ test diff is byte-identical to the measured tracked tree.
 | Shell process-window occupancy before stack | 39,696 bytes | 42,664 bytes | +2,968 bytes | 104,792 bytes before stack |
 | Packed root data blocks | 682 | 684 | +2 blocks | 295 free 1 KiB blocks, or 302,080 bytes |
 | Packed root files | 95 | 95 | 0 | unchanged |
+
+GNU `arm-none-eabi-size` reports 33,058 text bytes for the transient shell ELF.
+The target `size` tool reports 33,060 text bytes for the installed OMAGIC a.out.
+The process-window accounting uses the shipped a.out format and its target-tool
+measurement.
 
 The comparison records unchanged kernel section sizes rather than treating
 different build-identification bytes as a kernel growth. Static text, data and

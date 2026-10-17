@@ -238,6 +238,7 @@ struct command_env;
 extern struct command_env *command_beginlist();
 extern void             command_setlist();
 extern void             command_unwind_input();
+extern int              command_recovery_allowed();
 extern void             command_restorelist();
 extern void             command_name_changed();
 extern void             command_attribute_changed();

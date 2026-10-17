@@ -20,7 +20,8 @@ int     xno;
 		prs(s2);
 	}
 	newline();
-	if (command_errshell && (flags & forked) == 0)
+	if (command_errshell && (flags & errflg) == 0 &&
+	    command_recovery_allowed())
 	{
 		exitval = xno;
 		command_unwind_input();

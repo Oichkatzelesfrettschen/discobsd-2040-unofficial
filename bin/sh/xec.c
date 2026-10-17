@@ -35,12 +35,26 @@ getoptsreset(value)
 	}
 }
 
-static void
+static int
 getopts_assign(name, value)
 	char *name;
 	char *value;
 {
-	assign(lookup(name), value);
+	struct namnod *node;
+
+	node = lookup(name);
+	if (node == &mchknod && !digit(value[0]))
+	{
+		prs("getopts");
+		prs(colon);
+		prs(name);
+		prs(colon);
+		prs(badnum);
+		newline();
+		return(0);
+	}
+	assign(node, value);
+	return(1);
 }
 
 static int
@@ -79,7 +93,8 @@ static int
 getopts_finish(name)
 	char *name;
 {
-	getopts_assign(name, "?");
+	if (!getopts_assign(name, "?"))
+		return(2);
 	unset_name("OPTARG");
 	getopts_publish_index();
 	return(1);
@@ -213,7 +228,8 @@ getopts_builtin(argn, arguments)
 		prc(NL);
 	}
 	result[1] = 0;
-	getopts_assign(arguments[2], result);
+	if (!getopts_assign(arguments[2], result))
+		return(2);
 	getopts_publish_index();
 	return(0);
 }
@@ -271,9 +287,19 @@ struct command_context
 	char *path;
 	short io;
 	short wrapped;
+	short recoverable;
+	int saved_loopcnt;
+	int saved_breakcnt;
+	BOOL saved_execbrk;
 };
 
 static struct command_context *command_current;
+
+int
+command_recovery_allowed()
+{
+	return(command_current && command_current->recoverable);
+}
 
 void
 command_unwind_input()
@@ -369,7 +395,7 @@ int     *pf1, *pf2;
 				volatile int argn;
 				int     internal;
 				struct argnod   *schain = gchain;
-				struct ionod    *io = t->treio;
+				struct ionod *volatile io = t->treio;
 				short   cmdhash = 0;
 				short   comtype;
 
@@ -457,10 +483,17 @@ int     *pf1, *pf2;
 									command_state->path = NIL;
 									command_state->io = -1;
 									command_state->wrapped = 0;
+									command_state->recoverable = 1;
+									command_state->saved_loopcnt = loopcnt;
+									command_state->saved_breakcnt = breakcnt;
+									command_state->saved_execbrk = execbrk;
 									command_current = command_state;
 									command_errshell = &command_state->error;
 									if (setjmp(command_state->error))
 									{
+										loopcnt = command_state->saved_loopcnt;
+										breakcnt = command_state->saved_breakcnt;
+										execbrk = command_state->saved_execbrk;
 										if (command_state->io >= 0)
 											restore(command_state->io);
 										command_context_end(command_state);
@@ -470,8 +503,10 @@ int     *pf1, *pf2;
 										break;
 									}
 									command_state->environment = command_beginlist();
+									command_state->recoverable = 0;
 									command_setlist(command_state->environment,
 									    comptr(t)->comset);
+									command_state->recoverable = 1;
 								}
 								mode = command_options(argn, com, &first,
 								    &standard_path);
@@ -483,7 +518,7 @@ int     *pf1, *pf2;
 									prs(colon);
 									prs(badopt);
 									newline();
-									exitval = ERROR;
+									exitval = EXNOTFOUND;
 									flushb();
 									restore(command_state->io);
 									command_state->io = -1;
@@ -647,14 +682,20 @@ int     *pf1, *pf2;
 							{
 								break;
 							}
+							if (command_state)
+								command_state->recoverable = 0;
 							/* FALLTHROUGH */
 
 						case SYSLOGIN:
+							if (command_state)
+								command_state->recoverable = 0;
 							oldsigs();
 							execa(com, -1);
 							done();
 
 						case SYSNEWGRP:
+							if (command_state)
+								command_state->recoverable = 0;
 							if (flags & rshflg)
 								failed(com[0], restricted);
 							else
@@ -1156,6 +1197,8 @@ int     *pf1, *pf2;
 				else if (com[0] != ENDARGS)
 				{
 					eflag = 0;
+					if (command_state)
+						command_state->recoverable = 0;
 					if (!command_state)
 						setlist(comptr(t)->comset, N_EXPORT);
 					rmtemp(NIL);
@@ -1182,8 +1225,8 @@ int     *pf1, *pf2;
 			break;
 
 		case TLST:
-			execute(lstptr(t)->lstlef, 0, errorflg);
-			execute(lstptr(t)->lstrit, exec_link, errorflg);
+			execute(lstptr(t)->lstlef, 0, errorflg | eflag);
+			execute(lstptr(t)->lstrit, exec_link, errorflg | eflag);
 			break;
 
 		case TAND:

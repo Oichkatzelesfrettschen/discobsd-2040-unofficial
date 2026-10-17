@@ -416,8 +416,11 @@ static int
 chk_access(name)
 	register char	*name;
 {
+	struct stat status;
 
-	if (access(name, EXECUTE) == 0)
+	if (access(name, EXECUTE) == 0 &&
+	    (stat(name, &status) < 0 ||
+	    (status.st_mode & S_IFMT) != S_IFDIR))
 		return(0);
 
 	return(errno == EACCES ? 3 : 1);

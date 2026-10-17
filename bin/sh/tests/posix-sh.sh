@@ -342,12 +342,11 @@ ok status_not_found_or_list \
     'nosuchcmd_xyz 2>/dev/null || echo yes: nosuchcmd_xyz: not found
 yes' \
     'nosuchcmd_xyz 2>/dev/null || echo yes'
-# set -e does not act in this shell (opt_e_exits_on_error below), and a
-# command not found is no exception; cmdfail() defers to failure() under
-# errflg, so this row moves the day set -e itself does.
-xfail status_not_found_errexit 2.8.1 \
+# A command not found is no exception to set -e; cmdfail() defers to
+# failure() under errflg.
+okrc status_not_found_errexit \
     'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached: nosuchcmd_xyz: not found' \
-    'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached'
+    127 'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached'
 
 # ---- XCU 2.8.2 exit status ----
 ok status_exit_value '7' 'sh -c "exit 7" > /dev/null 2>&1 || echo $?'
@@ -465,7 +464,30 @@ okrc bi_command_not_executable '' 126 \
     'echo bad > noexec; chmod 644 noexec; command ./noexec 2>/dev/null'
 ok bi_command_regularizes_builtin_error 'after:1' \
     'command export 1bad=x 2>/dev/null; status=$?; echo "after:$status"'
-okrc bi_command_bad_option_continues 'after:1' 1 \
+okrc bi_command_errexit_builtin '' 1 \
+    'set -e; command export 1bad=x 2>/dev/null; echo after'
+okrc bi_command_errexit_missing '' 127 \
+    'set -e; command nosuchcmd_xyz 2>/dev/null; echo after'
+ok bi_command_errexit_and_context 'after' \
+    'set -e; command nosuchcmd_xyz 2>/dev/null && echo wrong; echo after'
+ok bi_command_errexit_or_context 'recovered
+after' \
+    'set -e; command nosuchcmd_xyz 2>/dev/null || echo recovered; echo after'
+ok bi_command_errexit_if_context 'after' \
+    'set -e; if command nosuchcmd_xyz 2>/dev/null; then echo wrong; fi; echo after'
+ok bi_command_subshell_builtin_error 'after:1' \
+    '(command export 1bad=x 2>/dev/null; echo "after:$?")'
+okrc bi_command_exec_failure_exits '' 127 \
+    'command exec /definitely-absent-shell-review 2>/dev/null; echo after'
+okrc bi_command_prefix_expansion_error \
+    'unset x; value=${x:?missing} command :; echo after: x: missing' 1 \
+    'unset x; value=${x:?missing} command :; echo after'
+ok bi_command_loop_unwind 'a
+end' \
+    'for outer in a b; do command eval '\''for inner in c; do shift bad; done'\'' 2>/dev/null; echo "$outer"; break 2; done; echo end'
+ok bi_command_v_skips_directory '/usr/bin/sh' \
+    'mkdir -p command-dir/sh; PATH=command-dir:/usr/bin; command -v sh'
+okrc bi_command_bad_option_continues 'after:127' 127 \
     'command -z 2>/dev/null; status=$?; echo "after:$status"; exit $status'
 ok bi_command_missing_redirection 'after:127' \
     'command nosuchcmd_xyz 2>/dev/null; echo "after:$?"'
@@ -494,10 +516,9 @@ done' \
 ok bi_command_prefix_expands_once_external 'observed
 done' \
     'x=`echo observed >&2` command /bin/true; echo done'
-ok bi_command_partial_assignment_unwind 'x=old; MAILCHECK=abc x=new command :; echo "x=$x"; x=outer command eval '\''x=explicit'\''; echo "x=$x": abc: bad number
-x=old
-x=explicit' \
-    'x=old; MAILCHECK=abc x=new command :; echo "x=$x"; x=outer command eval '\''x=explicit'\''; echo "x=$x"'
+okrc bi_command_partial_assignment_failure \
+    'x=old; MAILCHECK=abc x=new command :; echo "x=$x": abc: bad number' 1 \
+    'x=old; MAILCHECK=abc x=new command :; echo "x=$x"'
 ok bi_command_prefix_keeps_export 'temp
 old' \
     'x=old; export x; x=temp command eval '\''/usr/bin/printenv x'\''; echo "$x"'
@@ -525,7 +546,7 @@ ok bi_command_eval_cleanup 'ok' \
 okrc bi_command_function_cleanup '' 1 \
     '(f(){ shift x; }; command eval f 2>/dev/null; return 7 2>/dev/null)'
 okrc bi_command_bad_option \
-    'command: bad option(s)' 1 \
+    'command: bad option(s)' 127 \
     '(command -z 2>command.err); status=$?; cat command.err; exit $status'
 
 # getopts publishes its cursor on every call.  The tests use literal expected
@@ -585,6 +606,8 @@ ok bi_getopts_readonly_optind 'optind:2|1' \
     'OPTIND=1; readonly OPTIND; getopts a result -a 2>/dev/null; echo "optind:$?|$OPTIND"'
 ok bi_getopts_readonly_optarg 'optarg:2|1|old' \
     'OPTIND=1; OPTARG=old; readonly OPTARG; getopts a result -a 2>/dev/null; echo "optarg:$?|$OPTIND|$OPTARG"'
+ok bi_getopts_setter_failure 'after:2' \
+    'getopts a MAILCHECK -a 2>/dev/null; echo "after:$?"'
 
 # ---- sh utility options ----
 ok opt_c_string 'c' 'echo c'
@@ -598,7 +621,7 @@ okrc opt_u_unset_is_error \
     'set -u; echo ${nosuchvar} 2>/dev/null'
 ok opt_f_disables_glob 'g*' 'set -f; rm -f g1 g2; : > g1; echo g*'
 ok opt_n_no_exec 'ok' 'sh -n -c "echo never" ; echo ok'
-xfail opt_e_exits_on_error sh '' 'set -e; false; echo notreached'
+okrc opt_e_exits_on_error '' 1 'set -e; false; echo notreached'
 
 echo "--"
 echo "pass $pass  fail $fail  xfail $xfail"

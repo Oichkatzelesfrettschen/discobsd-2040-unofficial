@@ -3,6 +3,7 @@
 import argparse
 import datetime
 import json
+import math
 import os
 import queue
 import selectors
@@ -32,7 +33,9 @@ def positive_seconds(value, name, allow_zero=False):
         seconds = float(value)
     except ValueError as error:
         raise argparse.ArgumentTypeError(f"{name} must be numeric") from error
-    if seconds < 0 or (seconds == 0 and not allow_zero):
+    if not math.isfinite(seconds) or seconds < 0 or (
+        seconds == 0 and not allow_zero
+    ):
         qualifier = "nonnegative" if allow_zero else "positive"
         raise argparse.ArgumentTypeError(f"{name} must be {qualifier}")
     return seconds

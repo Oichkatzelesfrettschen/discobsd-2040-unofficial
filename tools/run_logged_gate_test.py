@@ -1,5 +1,7 @@
 """Calibrate logged gate progress, verdicts, and process-group timeouts."""
 
+import contextlib
+import io
 import json
 import os
 import signal
@@ -296,6 +298,33 @@ class LoggedGateTest(unittest.TestCase):
         self.assertIn("heartbeat", result.stderr)
         self.assertFalse(self.log.exists())
         self.assertFalse(self.status.exists())
+
+    def test_nonfinite_deadlines_are_rejected_before_launch(self):
+        for option in (
+            "--heartbeat-seconds",
+            "--idle-timeout-seconds",
+            "--timeout-seconds",
+            "--terminate-grace-seconds",
+        ):
+            for value in ("nan", "inf", "-inf"):
+                with self.subTest(option=option, value=value):
+                    arguments = [
+                        "--label", "fixture",
+                        "--log", str(self.log),
+                        "--status", str(self.status),
+                        f"{option}={value}",
+                        "--",
+                        sys.executable,
+                        "-c", "print('must not run')",
+                    ]
+
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        with self.assertRaises(SystemExit) as error:
+                            runner.parse_arguments(arguments)
+
+                    self.assertEqual(error.exception.code, 2)
+                    self.assertFalse(self.log.exists())
+                    self.assertFalse(self.status.exists())
 
     def stop_runner(self, process):
         if process.poll() is not None:

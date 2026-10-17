@@ -106,7 +106,7 @@ done()
 	if ((t = trapcom[0]))
 	{
 		trapcom[0] = NIL;
-		execexp(t, 0);
+		execexp(t, 0, (int)(flags & errflg));
 		free(t);
 	}
 	else

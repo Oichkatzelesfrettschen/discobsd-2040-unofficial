@@ -588,7 +588,7 @@ int     *pf1, *pf2;
 								if ((f = pathopen(getpath(a1), a1)) < 0)
 									failed(a1, notfound);
 								else
-									execexp(NIL, f);
+									execexp(NIL, f, errorflg);
 							}
 							break;
 
@@ -848,7 +848,7 @@ int     *pf1, *pf2;
 
 						case SYSEVAL:
 							if (a1)
-								execexp(a1, &com[2]);
+								execexp(a1, &com[2], errorflg);
 							break;
 
 #ifndef RES
@@ -1353,9 +1353,10 @@ int     *pf1, *pf2;
 }
 
 void
-execexp(s, f)
+execexp(s, f, errorflg)
 char    *s;
 int     f;
+int     errorflg;
 {
 	struct fileblk  fb;
 
@@ -1367,7 +1368,7 @@ int     f;
 	}
 	else if (f >= 0)
 		initf(f);
-	execute(cmd(NL, NLFLG | MTFLG), 0, (int)(flags & errflg));
+	execute(cmd(NL, NLFLG | MTFLG), 0, errorflg);
 	pop();
 }
 

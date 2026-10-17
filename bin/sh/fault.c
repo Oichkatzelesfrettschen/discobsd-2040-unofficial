@@ -206,7 +206,7 @@ chktrap()
 			{
 				int     savxit = exitval;
 
-				execexp(t, 0);
+				execexp(t, 0, (int)(flags & errflg));
 				exitval = savxit;
 				exitset();
 			}

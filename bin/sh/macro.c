@@ -77,6 +77,7 @@ comsubst()
 	{
 		register struct trenod *t = makefork(FPOU, cmd(EOFSYM, MTFLG | NLFLG));
 		int             pv[2];
+		int             saved_errexit = (int)(flags & errflg);
 
 		/*
 		 * this is done like this so that the pipe
@@ -84,7 +85,8 @@ comsubst()
 		 */
 		chkpipe(pv);
 		initf(pv[INPIPE]);
-		execute(t, 0, (int)(flags & errflg), NIL, pv);
+		execute(t, 0, eflag, NIL, pv);
+		flags = (flags & ~errflg) | saved_errexit;
 		close(pv[OTPIPE]);
 	}
 	tdystak(savptr);

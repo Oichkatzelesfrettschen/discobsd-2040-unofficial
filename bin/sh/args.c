@@ -126,15 +126,9 @@ options(argc,argv)
 			 */
 			if (!any(*cp, "sicr") && *cp == *flagc)
 			{
-				/*
-				 * only turn off if already on
-				 */
-				if ((flags & flagval[flagc-flagchar]))
-				{
-					flags &= ~(flagval[flagc-flagchar]);
-					if (*cp == 'e')
-						eflag = 0;
-				}
+				flags &= ~(flagval[flagc-flagchar]);
+				if (*cp == 'e')
+					eflag = 0;
 			}
 		}
 		/* argp[1] = argp[0]; */

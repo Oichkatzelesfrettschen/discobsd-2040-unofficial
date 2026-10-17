@@ -489,6 +489,23 @@ after' \
 ok bi_errexit_command_eval_or_context 'reached
 after' \
     'set -e; command eval '\''false; echo reached'\'' || echo wrong; echo after'
+ok bi_errexit_eval_and_context 'reached
+ok
+after' \
+    'set -e; eval '\'':; false; echo reached'\'' && echo ok; echo after'
+ok bi_errexit_command_eval_or_list_context 'reached
+after' \
+    'set -e; command eval '\'':; command export 1bad=x; echo reached'\'' 2>/dev/null || echo recovered; echo after'
+ok bi_errexit_eval_dynamic_enable_if_context 'reached
+ok
+after' \
+    'if eval '\''set -e; false; echo reached'\''; then echo ok; fi; echo after'
+okrc bi_errexit_eval_active '' 1 \
+    'set -e; eval '\'':; false; echo reached'\''; echo after'
+ok bi_errexit_dot_and_context 'reached
+ok
+after' \
+    'echo '\'':; false; echo reached'\'' > dot-errexit; set -e; . ./dot-errexit && echo ok; echo after'
 ok bi_errexit_while_context 'cond
 body
 after' \
@@ -497,6 +514,14 @@ okrc bi_errexit_if_enables_option '' 1 \
     'if set -e; then false; echo branch; fi; echo after'
 okrc bi_errexit_and_enables_option '' 1 \
     'set -e && false; echo after'
+ok bi_errexit_if_disables_option 'after' \
+    'set -e; if set +e; then false; fi; echo after'
+ok bi_errexit_command_substitution_and_context 'value:
+ok
+after' \
+    'set -e; { x=`:; false; echo reached`; echo "value:$x"; } && echo ok; echo after'
+ok bi_command_substitution_errexit_off 'reached' \
+    'set +e; x=`:; false; echo reached`; echo "$x"'
 ok bi_command_subshell_builtin_error 'after:1' \
     '(command export 1bad=x 2>/dev/null; echo "after:$?")'
 okrc bi_command_exec_failure_exits '' 127 \

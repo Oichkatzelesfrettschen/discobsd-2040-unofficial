@@ -208,6 +208,57 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(termination, "hard_timeout")
         self.assertTrue(self.wait_for_file(marker, 1))
 
+    def test_three_nested_supervisors_stop_resistant_leaf_before_return(self):
+        for probe in range(3):
+            ready = self.directory / f"nested-resistant-ready-{probe}"
+            group_file = self.directory / f"nested-resistant-group-{probe}"
+            self.addCleanup(self.stop_recorded_group, group_file)
+            leaf = self.directory / f"nested-resistant-leaf-{probe}.py"
+            leaf.write_text(
+                "import os, pathlib, signal, sys, time\n"
+                "ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
+                "group_file.write_text(str(os.getpgrp()), encoding='ascii')\n"
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                "ready.write_text('ready', encoding='ascii')\n"
+                "time.sleep(60)\n",
+                encoding="ascii",
+            )
+            child = [sys.executable, str(leaf), str(ready), str(group_file)]
+            for level in range(3):
+                supervisor = self.directory / f"nested-supervisor-{probe}-{level}.py"
+                delayed_cleanup = (
+                    "original_stop = test_execution.stop_process_group\n"
+                    "def delayed_stop(*args, **kwargs):\n"
+                    "    time.sleep(0.05)\n"
+                    "    return original_stop(*args, **kwargs)\n"
+                    "test_execution.stop_process_group = delayed_stop\n"
+                    if level == 0 else ""
+                )
+                supervisor_source = (
+                    "import sys, time\n"
+                    f"sys.path.insert(0, {str(execution.ROOT / 'tools')!r})\n"
+                    "import test_execution\n"
+                    + delayed_cleanup
+                    + f"command = {child!r}\n"
+                    "test_execution.run_bounded(command, 60)\n"
+                )
+                supervisor.write_text(
+                    supervisor_source,
+                    encoding="ascii",
+                )
+                child = [sys.executable, str(supervisor)]
+
+            returncode, termination = execution.run_bounded(child, 0.3)
+
+            self.assertEqual(returncode, execution.TIMEOUT_EXIT)
+            self.assertEqual(termination, "hard_timeout")
+            self.assertTrue(self.wait_for_file(ready, 1))
+            process_group = int(group_file.read_text(encoding="ascii"))
+            self.assertFalse(
+                execution.process_group_exists(process_group),
+                f"probe {probe} returned while process group {process_group} survived",
+            )
+
     def test_symlinked_directory_resolves_both_executable_paths(self):
         variant = self.variant()
         command = self.compile(variant, 0)

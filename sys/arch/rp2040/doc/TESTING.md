@@ -40,10 +40,14 @@ target before it mutates shared build products. Each target uses a 600-second
 output-idle deadline and a 3600-second hard deadline. `logged-check` runs build
 and check as correlated stages under one 3600-second total deadline. A failed
 build publishes a `blocked` check receipt in the same invocation directory.
-The sequence summary publishes the completed build and running check transition
-before the check stage starts. An unexpected stage-runner exception publishes
-an `error` stage receipt and a terminal sequence receipt; a build-stage
-exception also publishes the correlated `blocked` check receipt.
+The sequence summary publishes each stage as `running` with its status path
+before the stage starts. The coordinator owns SIGINT and SIGTERM between stage
+runners, publishes a terminal `interrupted` summary and blocks an unstarted
+check before releasing the product lock. The coordinator never starts the next
+stage after the shared absolute deadline; the check receipt records
+`deadline_exhausted` instead. An unexpected stage-runner exception publishes an
+`error` stage receipt and a terminal sequence receipt; a build-stage exception
+also publishes the correlated `blocked` check receipt.
 The internal `build`, `distribution`, `flash`, `kernel` and `check` targets
 remain direct recursive-make surfaces.
 The runner forwards live bmake or GNU make jobserver pipe descriptors named by
@@ -89,9 +93,10 @@ termination, signal wakeup, terminal backpressure, shutdown-output retention
 and invalid arguments. It also calibrates active-log exclusion, immutable
 sequential evidence, worktree product locking, pre-termination process capture,
 correlated build/check receipts and the shared total deadline. Its test helper
-carries a separate five-second deadline, and a FIFO fixture calibrates
-pre-launch rejection. The gate rejects firmware workflow changes that remove
-bounded active commands or retained logs.
+carries a separate five-second deadline. The sequence fixtures calibrate live
+build state, deadline exhaustion without a successor launch and both interstage
+signal windows. A FIFO fixture calibrates pre-launch rejection. The gate rejects
+firmware workflow changes that remove bounded active commands or retained logs.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding
@@ -265,6 +270,11 @@ host sizing; every production invocation retains a positive deadline. A
 SIGINT or SIGTERM received by an execution supervisor first terminates its
 owned group and records the signal result. That propagation lets an enclosing
 aggregate terminate variant groups that deliberately use separate sessions.
+A supervisor gives its nested child a cleanup allowance smaller than the
+allowance its parent reserves for the supervisor. The ordering lets three
+nested supervisors finish descendant cleanup before an ancestor escalates to
+SIGKILL. A calibrated resistant-leaf fixture requires every owned process group
+to be absent before the outer supervisor returns.
 A successful direct child that leaves an owned descendant also triggers group
 cleanup before the supervisor publishes PASS.
 

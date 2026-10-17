@@ -20,7 +20,9 @@ TIMEOUT_EXIT = 124
 VARIANT_TIMEOUT_SECONDS = 600.0
 AGGREGATE_TIMEOUT_SECONDS = 3600.0
 TERMINATE_GRACE_SECONDS = 1.0
-INTERRUPT_GRACE_SECONDS = 0.1
+CLEANUP_ALLOWANCE_ENV = "_DISCOBSD_TEST_EXECUTION_CLEANUP_ALLOWANCE_SECONDS"
+ROOT_CLEANUP_ALLOWANCE_SECONDS = 2.0 * TERMINATE_GRACE_SECONDS
+MINIMUM_CHILD_CLEANUP_SECONDS = 0.02
 
 
 class BoundedSignal(Exception):
@@ -67,8 +69,21 @@ def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
         return process.wait()
 
 
+def child_cleanup_seconds():
+    value = os.environ.get(
+        CLEANUP_ALLOWANCE_ENV, str(ROOT_CLEANUP_ALLOWANCE_SECONDS)
+    )
+    allowance = float(value)
+    if not math.isfinite(allowance) or allowance <= 0:
+        raise ValueError(f"invalid inherited cleanup allowance: {value}")
+    return max(MINIMUM_CHILD_CLEANUP_SECONDS, allowance / 2.0)
+
+
 def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
     previous_handlers = {}
+    cleanup_seconds = child_cleanup_seconds()
+    child_environment = os.environ.copy() if env is None else env.copy()
+    child_environment[CLEANUP_ALLOWANCE_ENV] = str(cleanup_seconds)
 
     def interrupt(number, _frame):
         raise BoundedSignal(number)
@@ -77,21 +92,21 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
         previous_handlers[number] = signal.signal(number, interrupt)
     try:
         process = subprocess.Popen(
-            command, cwd=cwd, env=env, start_new_session=True
+            command, cwd=cwd, env=child_environment, start_new_session=True
         )
         try:
             returncode = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
-            stop_process_group(process)
+            stop_process_group(process, cleanup_seconds)
             return TIMEOUT_EXIT, "hard_timeout"
         except BoundedSignal as interruption:
-            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            stop_process_group(process, cleanup_seconds)
             return 128 + interruption.number, f"signal_{interruption.number}"
         except BaseException:
-            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            stop_process_group(process, cleanup_seconds)
             raise
         if process_group_exists(process.pid):
-            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            stop_process_group(process, cleanup_seconds)
         return returncode, None
     finally:
         for number, handler in previous_handlers.items():

@@ -4,11 +4,18 @@ import argparse
 import json
 import os
 import re
+import signal
 import sys
 import time
 from pathlib import Path
 
 import run_logged_gate as gate
+
+
+class SequenceSignal(BaseException):
+    def __init__(self, number):
+        super().__init__(f"signal {number}")
+        self.number = number
 
 
 def stage_arguments(args, invocation_id, directory, stage, timeout_seconds):
@@ -27,7 +34,14 @@ def stage_arguments(args, invocation_id, directory, stage, timeout_seconds):
     )
 
 
-def blocked_check_record(args, invocation_id, directory):
+def blocked_check_record(
+    args,
+    invocation_id,
+    directory,
+    *,
+    termination="prerequisite_failed",
+    blocked_by="build",
+):
     now = gate.utc_timestamp()
     return {
         "schema": 1,
@@ -44,14 +58,14 @@ def blocked_check_record(args, invocation_id, directory):
         "last_output": "",
         "child_exit_code": None,
         "exit_code": None,
-        "termination": "prerequisite_failed",
+        "termination": termination,
         "terminal_queue_dropped_bytes": 0,
         "invocation_id": f"{args.label}-check-{os.getpid()}",
         "sequence_invocation_id": invocation_id,
         "evidence_directory": str(directory),
         "log_path": str(directory / "check.log"),
         "status_path": str(directory / "check.status.json"),
-        "blocked_by": "build",
+        "blocked_by": blocked_by,
     }
 
 
@@ -89,6 +103,60 @@ def publish_summary(summary_path, latest_path, summary):
     gate.atomic_status(latest_path, summary)
 
 
+def stage_summary(record, status_path):
+    return {
+        "state": record["state"],
+        "exit_code": record["exit_code"],
+        "termination": record["termination"],
+        "status_path": str(status_path),
+    }
+
+
+def read_stage_record(directory, stage):
+    status_path = directory / f"{stage}.status.json"
+    try:
+        return json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def interrupted_stage_record(args, invocation_id, directory, stage, number):
+    now = gate.utc_timestamp()
+    return {
+        "schema": 1,
+        "label": f"{args.label}-{stage}",
+        "state": "interrupted",
+        "command": [*args.command, stage],
+        "cwd": str(Path.cwd()),
+        "pid": None,
+        "started_at": now,
+        "updated_at": now,
+        "elapsed_seconds": 0.0,
+        "quiet_seconds": 0.0,
+        "output_bytes": 0,
+        "last_output": "",
+        "child_exit_code": None,
+        "exit_code": 128 + number,
+        "termination": f"signal_{number}",
+        "terminal_queue_dropped_bytes": 0,
+        "invocation_id": f"{args.label}-{stage}-{os.getpid()}",
+        "sequence_invocation_id": invocation_id,
+        "evidence_directory": str(directory),
+        "log_path": str(directory / f"{stage}.log"),
+        "status_path": str(directory / f"{stage}.status.json"),
+    }
+
+
+def deadline_blocked_check(args, invocation_id, directory):
+    return blocked_check_record(
+        args,
+        invocation_id,
+        directory,
+        termination="deadline_exhausted",
+        blocked_by="sequence_deadline",
+    )
+
+
 def run(args):
     evidence = argparse.Namespace(
         label=args.label,
@@ -122,6 +190,7 @@ def run(args):
         },
     }
     lock_descriptor = None
+    previous_handlers = {}
     try:
         lock_descriptor = gate.acquire_execution_lock(args.execution_lock)
     except (OSError, ValueError) as error:
@@ -136,26 +205,53 @@ def run(args):
         print(f"logged-build-check: {error}", file=sys.stderr)
         return gate.RUNNER_ERROR_EXIT
 
+    def interrupt(number, _frame):
+        raise SequenceSignal(number)
+
+    for number in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[number] = signal.signal(number, interrupt)
+
     active_stage = "build"
     try:
         summary["state"] = "running"
         publish_summary(summary_path, evidence.latest_status, summary)
         remaining = args.timeout_seconds - (time.monotonic() - started)
         if remaining <= 0:
-            remaining = 0.001
+            blocked = deadline_blocked_check(
+                args, evidence.invocation_id, directory
+            )
+            gate.atomic_status(directory / "check.status.json", blocked)
+            summary["stages"]["check"] = stage_summary(
+                blocked, directory / "check.status.json"
+            )
+            summary.update(
+                state="timed_out",
+                updated_at=gate.utc_timestamp(),
+                elapsed_seconds=round(time.monotonic() - started, 3),
+                exit_code=gate.TIMEOUT_EXIT,
+                termination="deadline_exhausted",
+            )
+            publish_summary(summary_path, evidence.latest_status, summary)
+            return gate.TIMEOUT_EXIT
         build_args = stage_arguments(
             args, evidence.invocation_id, directory, "build", remaining
         )
+        summary["stages"]["build"] = {
+            "state": "running",
+            "status_path": str(directory / "build.status.json"),
+        }
+        summary.update(
+            updated_at=gate.utc_timestamp(),
+            elapsed_seconds=round(time.monotonic() - started, 3),
+        )
+        publish_summary(summary_path, evidence.latest_status, summary)
         build_exit = gate.run(build_args)
         build_record = json.loads(
             (directory / "build.status.json").read_text(encoding="utf-8")
         )
-        summary["stages"]["build"] = {
-            "state": build_record["state"],
-            "exit_code": build_record["exit_code"],
-            "termination": build_record["termination"],
-            "status_path": str(directory / "build.status.json"),
-        }
+        summary["stages"]["build"] = stage_summary(
+            build_record, directory / "build.status.json"
+        )
         if build_exit != 0:
             blocked = blocked_check_record(args, evidence.invocation_id, directory)
             gate.atomic_status(directory / "check.status.json", blocked)
@@ -177,7 +273,22 @@ def run(args):
 
         remaining = args.timeout_seconds - (time.monotonic() - started)
         if remaining <= 0:
-            remaining = 0.001
+            blocked = deadline_blocked_check(
+                args, evidence.invocation_id, directory
+            )
+            gate.atomic_status(directory / "check.status.json", blocked)
+            summary["stages"]["check"] = stage_summary(
+                blocked, directory / "check.status.json"
+            )
+            summary.update(
+                state="timed_out",
+                updated_at=gate.utc_timestamp(),
+                elapsed_seconds=round(time.monotonic() - started, 3),
+                exit_code=gate.TIMEOUT_EXIT,
+                termination="deadline_exhausted",
+            )
+            publish_summary(summary_path, evidence.latest_status, summary)
+            return gate.TIMEOUT_EXIT
         active_stage = "check"
         summary["stages"]["check"] = {
             "state": "running",
@@ -195,12 +306,9 @@ def run(args):
         check_record = json.loads(
             (directory / "check.status.json").read_text(encoding="utf-8")
         )
-        summary["stages"]["check"] = {
-            "state": check_record["state"],
-            "exit_code": check_record["exit_code"],
-            "termination": check_record["termination"],
-            "status_path": str(directory / "check.status.json"),
-        }
+        summary["stages"]["check"] = stage_summary(
+            check_record, directory / "check.status.json"
+        )
         summary.update(
             state=check_record["state"],
             updated_at=gate.utc_timestamp(),
@@ -210,6 +318,48 @@ def run(args):
         )
         publish_summary(summary_path, evidence.latest_status, summary)
         return check_exit
+    except SequenceSignal as interruption:
+        for stage in ("build", "check"):
+            record = read_stage_record(directory, stage)
+            if record is not None:
+                summary["stages"][stage] = stage_summary(
+                    record, directory / f"{stage}.status.json"
+                )
+        if summary["stages"][active_stage]["state"] in {"pending", "running"}:
+            interrupted = interrupted_stage_record(
+                args,
+                evidence.invocation_id,
+                directory,
+                active_stage,
+                interruption.number,
+            )
+            gate.atomic_status(
+                directory / f"{active_stage}.status.json", interrupted
+            )
+            summary["stages"][active_stage] = stage_summary(
+                interrupted, directory / f"{active_stage}.status.json"
+            )
+        if summary["stages"]["check"]["state"] == "pending":
+            blocked = blocked_check_record(
+                args,
+                evidence.invocation_id,
+                directory,
+                termination=f"signal_{interruption.number}",
+                blocked_by="sequence",
+            )
+            gate.atomic_status(directory / "check.status.json", blocked)
+            summary["stages"]["check"] = stage_summary(
+                blocked, directory / "check.status.json"
+            )
+        summary.update(
+            state="interrupted",
+            updated_at=gate.utc_timestamp(),
+            elapsed_seconds=round(time.monotonic() - started, 3),
+            exit_code=128 + interruption.number,
+            termination=f"signal_{interruption.number}",
+        )
+        publish_summary(summary_path, evidence.latest_status, summary)
+        return 128 + interruption.number
     except Exception as error:
         error_record = stage_error_record(
             args, evidence.invocation_id, directory, active_stage, error
@@ -244,6 +394,8 @@ def run(args):
         )
         return gate.RUNNER_ERROR_EXIT
     finally:
+        for number, handler in previous_handlers.items():
+            signal.signal(number, handler)
         os.close(lock_descriptor)
 
 

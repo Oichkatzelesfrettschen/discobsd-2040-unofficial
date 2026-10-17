@@ -8,16 +8,19 @@
  *
  * sh_host_getdents() answers the raw directory read in expand.c's
  * getdir(), which pwd.c calls too.  Both hand it a plain descriptor and
- * expect read(2) semantics, so it goes straight to getdents64(2) and
- * repacks each record into the struct dirent that <sys/dir.h> makes
- * expand.c's struct direct an alias of.  Keeping the kernel's own file
- * offset as the cursor is what lets pwd.c abandon a directory scan
- * partway and expand.c open the next directory on the same descriptor
- * number without inheriting a stale position.
+ * expect read(2) semantics, so it goes straight to getdents64(2).  The
+ * compiled layout witness proves that the ILP32 host record consumed by
+ * expand.c matches the Linux kernel record before this function passes
+ * the bytes through unchanged.  Keeping the kernel's own file offset as
+ * the cursor lets pwd.c abandon a directory scan partway and expand.c
+ * open the next directory on the same descriptor number without
+ * inheriting a stale position.
  */
 #include <dirent.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -29,11 +32,43 @@ long syscall(long, ...);
 
 static char sh_arena[SH_ARENA_BYTES];
 static long sh_arena_top;
+static int sh_arena_trace_registered;
+
+static void
+sh_host_report_arena(void)
+{
+	fprintf(stderr, "sh-arena-top=%ld\n", sh_arena_top);
+}
+
+struct linux_dirent64 {
+	uint64_t d_ino;
+	int64_t d_off;
+	unsigned short d_reclen;
+	unsigned char d_type;
+	char d_name[1];
+};
+
+int
+sh_host_command_alloc_failure(void)
+{
+	char *value;
+
+	value = getenv("SH_TEST_COMMAND_BEGINLIST_FAIL");
+	return value != NULL && value[0] == '1' && value[1] == '\0';
+}
 
 void *
 sbrk(intptr_t incr)
 {
 	char *old = sh_arena + sh_arena_top;
+	char *trace;
+
+	if (!sh_arena_trace_registered) {
+		sh_arena_trace_registered = 1;
+		trace = getenv("SH_TEST_ARENA_TRACE");
+		if (trace != NULL && trace[0] == '1' && trace[1] == '\0')
+			(void)atexit(sh_host_report_arena);
+	}
 
 	if (sh_arena_top + incr > SH_ARENA_BYTES || sh_arena_top + incr < 0)
 		return (void *)-1;
@@ -52,49 +87,33 @@ brk(void *addr)
 	return 0;
 }
 
-struct linux_dirent64 {
-	uint64_t	d_ino;
-	int64_t		d_off;
-	unsigned short	d_reclen;
-	unsigned char	d_type;
-	char		d_name[1];
-};
-
-long
-sh_host_getdents(int fd, void *buf, unsigned long nbytes)
+ssize_t
+sh_host_getdents(int fd, void *buf, size_t nbytes)
 {
-	char raw[8192];
-	unsigned long rawlen, rawoff, used = 0;
-	long got;
+	char *trace;
+	ssize_t received;
 
-	if (nbytes > sizeof(raw))
-		nbytes = sizeof(raw);
-	got = syscall(SYS_getdents64, fd, raw, nbytes);
-	if (got <= 0)
-		return got;
+	received = (ssize_t)syscall(SYS_getdents64, fd, buf, nbytes);
+	trace = getenv("SH_TEST_DIRECTORY_TRACE");
+	if ((trace != NULL && trace[0] == '1' && trace[1] == '\0') ||
+	    access(".sh-directory-trace", F_OK) == 0) {
+		size_t offset;
 
-	rawlen = (unsigned long)got;
-	for (rawoff = 0; rawoff < rawlen; ) {
-		struct linux_dirent64 *src;
-		struct dirent out;
-		size_t namelen, reclen;
+		fprintf(stderr, "getdents64 fd=%d requested=%zu received=%zd\n",
+		    fd, nbytes, received);
+		for (offset = 0; received > 0 && offset < (size_t)received; ) {
+			struct linux_dirent64 *entry;
 
-		src = (struct linux_dirent64 *)(raw + rawoff);
-		rawoff += src->d_reclen;
-
-		namelen = strlen(src->d_name);
-		reclen = (offsetof(struct dirent, d_name) + namelen + 4) & ~3UL;
-		if (used + reclen > nbytes)
-			break;
-
-		memset(&out, 0, sizeof(out));
-		out.d_ino = (ino_t)src->d_ino;
-		out.d_off = (off_t)src->d_off;
-		out.d_reclen = (unsigned short)reclen;
-		out.d_type = src->d_type;
-		memcpy(out.d_name, src->d_name, namelen + 1);
-		memcpy((char *)buf + used, &out, reclen);
-		used += reclen;
+			entry = (struct linux_dirent64 *)((char *)buf + offset);
+			fprintf(stderr,
+			    "dirent offset=%zu inode=%llu cursor=%lld reclen=%u type=%u name=%s\n",
+			    offset, (unsigned long long)entry->d_ino,
+			    (long long)entry->d_off, entry->d_reclen,
+			    entry->d_type, entry->d_name);
+			if (entry->d_reclen == 0)
+				break;
+			offset += entry->d_reclen;
+		}
 	}
-	return (long)used;
+	return received;
 }

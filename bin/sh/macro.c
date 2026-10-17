@@ -11,7 +11,7 @@ static char     quoted; /* used locally */
 
 static int      getch();
 
-static char *
+static void
 copyto(endch)
 register char   endch;
 {
@@ -24,7 +24,7 @@ register char   endch;
 		error(badsub);
 }
 
-static
+static void
 skipto(endch)
 register char   endch;
 {
@@ -54,7 +54,7 @@ register char   endch;
 		error(badsub);
 }
 
-static
+static void
 comsubst()
 {
 	/*
@@ -77,6 +77,7 @@ comsubst()
 	{
 		register struct trenod *t = makefork(FPOU, cmd(EOFSYM, MTFLG | NLFLG));
 		int             pv[2];
+		int             saved_errexit = (int)(flags & errflg);
 
 		/*
 		 * this is done like this so that the pipe
@@ -84,12 +85,13 @@ comsubst()
 		 */
 		chkpipe(pv);
 		initf(pv[INPIPE]);
-		execute(t, 0, (int)(flags & errflg), NIL, pv);
+		execute(t, 0, eflag, NIL, pv);
+		flags = (flags & ~errflg) | saved_errexit;
 		close(pv[OTPIPE]);
 	}
 	tdystak(savptr);
 	staktop = movstr(savptr, stakbot);
-	while (d = readc())
+	while ((d = readc()))
 		/* @@@ pushstak(d | quote); */
 		pushstak( quote ? qmask(d) : d );
 
@@ -127,11 +129,11 @@ retry:
 			BOOL            bra;
 			BOOL            nulflg;
 			BOOL            lenflg = 0;
-			register char   *argp, *v;
+			register char   *argp, *v = NIL;
 			char            idb[2];
 			char            *id = idb;
 
-			if (bra = (c == BRACE))
+			if ((bra = (c == BRACE)))
 			{
 				c = cii(readc());   /* @@@ */
 
@@ -315,7 +317,7 @@ retry:
 				}
 				else
 				{
-					for (p = v + hit; m = *p++; )
+					for (p = v + hit; (m = *p++); )
 						pushstak(quote ? qmask(m) : m);
 				}
 				goto retry;
@@ -352,7 +354,7 @@ retry:
 							pushstak(QUOTE);
 						else
 						{
-							while (c = *v++)
+							while ((c = *v++))
 								/* @@@ pushstak(c | quote); */
 								pushstak( quote ? qmask(c) : c );
 						}
@@ -434,8 +436,9 @@ char    *as;
 	return(fixstak());
 }
 
-static
+static void
 flush(ot)
+int     ot;
 {
 	write(ot, stakbot, staktop - stakbot);
 	if (flags & execpr)
@@ -445,6 +448,7 @@ flush(ot)
 
 #define CPYSIZ  512
 
+void
 subst(in, ot)
 int     in, ot;
 {
@@ -457,7 +461,7 @@ int     in, ot;
 	/*
 	 * DQUOTE used to stop it from quoting
 	 */
-	while (c = /* @@@ (getch(DQUOTE) & STRIP)*/ smask(getch(DQUOTE))  )
+	while ((c = /* @@@ (getch(DQUOTE) & STRIP)*/ smask(getch(DQUOTE))))
 	{
 		pushstak(c);
 		if (--count == 0)

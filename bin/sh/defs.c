@@ -61,6 +61,7 @@ BOOL			execbrk;
 int				loopcnt;
 int				breakcnt;
 int 			funcnt;
+jmp_buf			*command_errshell;
 
 int				wasintr;	/* used to tell if break or delete is hit
 				   			   while executing a wait

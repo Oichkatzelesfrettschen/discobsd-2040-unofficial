@@ -19,7 +19,7 @@ static int didpwd = FALSE;
 /*
  * This routine will remove repeated slashes from string.
  */
-static
+static void
 rmslash(string)
 	char *string;
 {
@@ -48,6 +48,7 @@ rmslash(string)
 	return;
 }
 
+void
 cwd(dir)
 	register char *dir;
 {
@@ -157,10 +158,10 @@ cwd(dir)
 static char dotdots[] =
 "../../../../../../../../../../../../../../../../../../../../../../../..";
 
-extern struct direct	*getdir();
+extern struct direct	*getdir(int);
 extern char		*movstrn();
 
-static
+static void
 pwd()
 {
 	struct stat		cdir;	/* current directory status */
@@ -278,6 +279,7 @@ cwdpath()
 /*
  * Print the current working directory.
  */
+void
 prcwd()
 {
 	if (didpwd == FALSE)
@@ -285,6 +287,7 @@ prcwd()
 	prs_buff(cwdname);
 }
 
+void
 cwdprint()
 {
 	prcwd();

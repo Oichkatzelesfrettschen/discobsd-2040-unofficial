@@ -31,4 +31,4 @@ typedef struct entry
 
 extern ENTRY	*hfind();
 extern ENTRY	*henter();
-extern int	hcreate();
+extern void	hcreate();

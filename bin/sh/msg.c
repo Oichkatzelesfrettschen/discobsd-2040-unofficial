@@ -151,12 +151,14 @@ struct sysnod commands[] =
 
 	{ "break",      SYSBREAK },
 	{ "cd",         SYSCD   },
+	{ "command",    SYSCOMMAND },
 	{ "continue",   SYSCONT },
 	{ "echo",       SYSECHO },
 	{ "eval",       SYSEVAL },
 	{ "exec",       SYSEXEC },
 	{ "exit",       SYSEXIT },
 	{ "export",     SYSXPORT },
+	{ "getopts",    SYSGETOPTS },
 	{ "hash",       SYSHASH },
 
 #ifdef RES
@@ -186,7 +188,7 @@ struct sysnod commands[] =
 };
 
 #ifdef RES
-	int no_commands = 26;
-#else
 	int no_commands = 28;
+#else
+	int no_commands = 30;
 #endif

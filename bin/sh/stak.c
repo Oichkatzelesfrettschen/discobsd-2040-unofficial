@@ -29,7 +29,7 @@ locstak()
 {
 	if (brkend - stakbot < BRKINCR)
 	{
-		if (setbrk(brkincr) == -1)
+		if (setbrk(brkincr) == (char *)-1)
 			error(nostack);
 		if (brkincr < BRKMAX)
 			brkincr += 256;
@@ -56,6 +56,7 @@ register char	*argp;
 	return(oldstak);
 }
 
+void
 tdystak(x)		/* try to bring stack back to x */
 register char	*x;
 {
@@ -68,6 +69,7 @@ register char	*x;
 	rmtemp(x);
 }
 
+void
 stakchk()
 {
 	if ((brkend - stakbas) > BRKINCR + BRKINCR)

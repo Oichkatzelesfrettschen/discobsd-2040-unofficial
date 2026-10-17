@@ -30,6 +30,7 @@ static unsigned int     shift;
 
 static unsigned int crunch();
 
+void
 hcreate()
 {
 #ifdef NOTDEF

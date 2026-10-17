@@ -121,7 +121,7 @@ static void
 exfile(prof)
 BOOL    prof;
 {
-	long    mailtime = 0;   /* Must not be a register variable */
+	volatile long mailtime = 0;
 	long    curtime = 0;
 	register int    userid;
 
@@ -255,11 +255,12 @@ int     c;
 char    **v;
 char    **e;
 {
-	register int    rflag = ttyflg;
-	int             rsflag = 1;     /* local restricted flag */
+	volatile int    rflag = ttyflg;
+	volatile int    rsflag = 1;     /* local restricted flag */
 	struct namnod   *n;
 
 	stdsigs();
+	(void)e;
 
 	/*
 	 * initialise storage allocation
@@ -273,13 +274,14 @@ char    **e;
 	 */
 
 	setup_env();
+	assign(lookup("OPTIND"), "1");
 
 	/*
 	 * 'rsflag' is non-zero if SHELL variable is
 	 *  set in environment and contains an'r' in
 	 *  the simple file part of the value.
 	 */
-	if (n = findnam("SHELL"))
+	if ((n = findnam("SHELL")))
 	{
 		if (any('r', simple(n->namval)))
 			rsflag = 0;
@@ -499,7 +501,7 @@ setmail(mailpath)
 	long    *ptr;
 
 	free(mod_time);
-	if (mailp = mailpath)
+	if ((mailp = mailpath))
 	{
 		while (*s)
 		{

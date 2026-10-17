@@ -1,10 +1,5 @@
 TOPSRC!=cd ../..; pwd
-# -Wall -Wextra raises 617 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
-WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
-
-CFLAGS         += -ansi
 
 OBJS            = setbrk.o blok.o stak.o cmd.o fault.o main.o word.o \
                   string.o name.o args.o xec.o service.o error.o io.o \
@@ -12,6 +7,11 @@ OBJS            = setbrk.o blok.o stak.o cmd.o fault.o main.o word.o \
                   echo.o hash.o hashserv.o pwd.o func.o edit.o pwname.o
 
 all:		sh
+
+check-gnu17:	tests/gnu17.c
+		${CC} ${CFLAGS} -fsyntax-only tests/gnu17.c
+
+.PHONY: check-gnu17
 
 sh:		${OBJS}
 		${CC} ${CFLAGS} ${LDFLAGS} -o sh.elf ${OBJS} ${LIBS}

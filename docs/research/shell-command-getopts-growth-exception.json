@@ -1,0 +1,84 @@
+{
+  "schema_version": 2,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "e7730db124a0324b62afe209b31dd210c270c0dc",
+  "implementation_commit": "9ef66299d1298c19b792f5c54fd61956ebceb1a9",
+  "block_bytes": 1024,
+  "kernel": {
+    "region_bytes": 131072,
+    "base": {
+      "text_bytes": 104598,
+      "data_bytes": 248,
+      "bss_bytes": 39848,
+      "section_sum_spare_bytes": 26226,
+      "load_alignment_bytes": 2,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
+    },
+    "candidate": {
+      "text_bytes": 104598,
+      "data_bytes": 248,
+      "bss_bytes": 39848,
+      "section_sum_spare_bytes": 26226,
+      "load_alignment_bytes": 2,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
+    },
+    "delta": {
+      "text_bytes": 0,
+      "data_bytes": 0,
+      "bss_bytes": 0
+    }
+  },
+  "shell": {
+    "process_window_bytes": 147456,
+    "base": {
+      "aout_bytes": 32576,
+      "text_bytes": 30132,
+      "data_bytes": 2412,
+      "bss_bytes": 7152,
+      "window_occupancy_before_stack_bytes": 39696,
+      "window_margin_before_stack_bytes": 107760
+    },
+    "candidate": {
+      "aout_bytes": 36368,
+      "text_bytes": 33904,
+      "data_bytes": 2432,
+      "bss_bytes": 7176,
+      "window_occupancy_before_stack_bytes": 43512,
+      "window_margin_before_stack_bytes": 103944
+    },
+    "delta": {
+      "aout_bytes": 3792,
+      "text_bytes": 3772,
+      "data_bytes": 20,
+      "bss_bytes": 24,
+      "window_occupancy_before_stack_bytes": 3816
+    }
+  },
+  "root": {
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {
+      "files": 95,
+      "data_blocks": 682,
+      "free_blocks": 297
+    },
+    "candidate": {
+      "files": 95,
+      "data_blocks": 685,
+      "free_blocks": 294
+    },
+    "delta": {
+      "files": 0,
+      "data_blocks": 3,
+      "free_blocks": -3
+    },
+    "candidate_free_bytes": 301056
+  },
+  "reviewer_approval": {
+    "status": "approved",
+    "reviewer": "Codex independent read-only reviewer",
+    "evidence": "Exact-head read-only audit at 9ef66299d1298c19b792f5c54fd61956ebceb1a9 reproduced the shell, packed-root, kernel and stack-frame measurements; inspected the hash-ownership and defined pointer-capacity repairs; and approved the alternatives, benefit, rollback point and residual runtime uncertainty. Hardware remained unaccessed."
+  }
+}

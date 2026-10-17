@@ -1,0 +1,193 @@
+# Shell command and getopts growth exception
+
+Status: approved by independent read-only review.
+
+This record requests a DPUCP-2024 exception for the `command` and `getopts`
+shell builtins. The implementation does not claim POSIX or UNIX conformance.
+The behavior evidence covers the named compatibility subset exercised by
+`check-posix-sh`.
+
+## Compared states
+
+The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
+implementation is `9ef66299d1298c19b792f5c54fd61956ebceb1a9`. Both states used
+the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
+Each state was built from clean. The base used `bmake MACHINE=rp2040
+logged-distribution`, and the final candidate used the supervised command
+below. `fsutil --check --partition=1`, the target `size` tool, GNU
+`arm-none-eabi-size`, and `wc -c` supplied the measurements. The companion JSON
+file retains the arithmetic in machine-readable form.
+
+The measurement host ran Linux 7.2.9-2-cachyos on x86-64 with bmake
+20260912, GNU Arm Embedded GCC 16.2.0, GNU binutils 2.47.20260726, host GCC
+16.2.1, and Python 3.14.7. The caller selected and exported `PYTHON` before
+each build and gate. The final candidate used the supervised
+clean-distribution command below. The runner retained combined output, emitted
+30-second heartbeats, enforced a 600-second output-idle deadline and enforced a
+1,800-second hard deadline.
+
+```sh
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
+"$PYTHON" tools/run_logged_gate.py \
+    --evidence-root .build-logs \
+    --label pr299-9ef66299-clean-distribution \
+    --heartbeat-seconds 30 \
+    --idle-timeout-seconds 600 \
+    --timeout-seconds 1800 \
+    -- bmake MACHINE=rp2040 distribution
+```
+
+The terminal receipt is
+`.build-logs/pr299-9ef66299-clean-distribution.latest.json`. It records exit
+status 0, 88.4 seconds elapsed and 821,647 output bytes. The clean build ran
+at `9ef66299d1298c19b792f5c54fd61956ebceb1a9`. The ILP32 adapter repairs add an
+`SH_HOST_RAWDIR` selection in `expand.c`.
+The target build leaves `SH_HOST_RAWDIR` undefined, so the selection
+preprocesses to the existing `read` call. A clean GNU17 target-shell rebuild at
+the measured implementation commit reproduces the 36,368-byte OMAGIC file and
+its 33,904/2,432/7,176-byte text/data/bss sections. The rebuilt shell and the
+retained clean-distribution shell are byte-identical with SHA-256
+`6c80d796b0ca9f5fe1967693d5051d0cb4105c44237d401a461218553346b90d`.
+`hsaout -s` reports a 31,109-byte packed payload and 32 allocated 1 KiB blocks,
+24 packed bytes above the preceding 31,085-byte candidate. The final repair
+changes neither the shell's 32-block allocation nor the complete root's
+685-block count.
+
+| Constrained surface | Base | Candidate | Delta | Retained margin |
+| --- | ---: | ---: | ---: | ---: |
+| PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,224 contiguous flash bytes after the loaded image; 26,226 section-sum spare bytes |
+| PICO kernel data | 248 bytes | 248 bytes | 0 | unchanged |
+| PICO kernel bss | 39,848 bytes | 39,848 bytes | 0 | unchanged |
+| Shell a.out file | 32,576 bytes | 36,368 bytes | +3,792 bytes | n/a |
+| Shell text | 30,132 bytes | 33,904 bytes | +3,772 bytes | n/a |
+| Shell data | 2,412 bytes | 2,432 bytes | +20 bytes | n/a |
+| Shell bss | 7,152 bytes | 7,176 bytes | +24 bytes | n/a |
+| Shell process-window occupancy before stack | 39,696 bytes | 43,512 bytes | +3,816 bytes | 103,944 bytes before stack |
+| Packed root data blocks | 682 | 685 | +3 blocks | 294 free 1 KiB blocks, or 301,056 bytes |
+| Packed root files | 95 | 95 | 0 | unchanged |
+
+GNU `arm-none-eabi-size` reports 33,902 text bytes for the transient shell ELF.
+The target `size` tool reports 33,904 text bytes for the installed OMAGIC a.out.
+The process-window accounting uses the shipped a.out format and its target-tool
+measurement.
+
+The comparison records unchanged kernel section sizes rather than treating
+different build-identification bytes as a kernel growth. Static text, data and
+bss occupancy is a lower bound on process-window use. The retained pre-stack
+margin is an upper bound because runtime peak stack and heap remain unmeasured.
+The measurements therefore establish neither peak RAM use nor board behavior.
+The kernel map places a two-byte alignment hole between `.text` and
+`.ARM.exidx`. The 104,598 text-like bytes plus 248 data bytes therefore leave
+26,226 bytes by section summation, while the loaded flash span ends at
+`0x10019990` and leaves 26,224 contiguous bytes before `0x10020000`. Both base
+and candidate images have the same alignment and loaded span.
+
+## Examined offsets
+
+The feature-first shell measured 35,544 a.out bytes. The following refactors
+reduced the candidate to 35,240 bytes while retaining every behavior witness:
+
+- Command cleanup and type-reporting state consolidation removed 232 a.out
+  bytes and four bss bytes.
+- Reusing `findpath()` instead of a second PATH-search loop removed 48 a.out
+  text bytes.
+- Encoding saved-variable modification in the saved flags removed four heap
+  bytes per distinct command-prefix variable without increasing the linked
+  image. Two rejected encodings increased target text by 16 and eight bytes.
+- Publishing `OPTIND` only when its value changes removed 20 text bytes and
+  four bss bytes.
+- Sharing the two `getopts` diagnostic tails removed four text bytes.
+
+The first final-review behavior repairs and GNU17 warning cleanup reduced that
+candidate by another 72 a.out bytes and 72 text bytes. The first recovery
+repair pass added 360 a.out bytes, 360 aligned text bytes and four bss bytes for
+child-error routing, redirection and input unwind checkpoints, single-pass
+prefix expansion snapshots, initialized allocation-failure cleanup and
+nonmutating `getopts` destination validation. Defining the fork-link state
+across command recovery jumps removed four target text bytes. The independent
+whole-branch review then required explicit recovery eligibility, loop-state
+unwind, destructive-exec exclusion, directory rejection, dynamic `set -e`
+propagation and contained `getopts` publication errors. Those corrections add
+332 a.out and text bytes. A subsequent review found that the two-state `set -e`
+propagation reactivated errexit inside conditional compound commands.
+Distinguishing configured, active and conditionally suppressed errexit adds
+52 a.out and text bytes. Explicitly transferring that state through `eval` and
+dot-script execution, separating configured and effective state for `set +e`,
+and preserving separate child and parent states around command substitution add
+another 36 a.out and text bytes. The conditional-errexit result is 400 bytes
+larger than the feature-first shell. The subsequent recovery repair adds 412
+a.out and text bytes and four bss bytes. That repair binds recovery frames to
+their creating process, gives nested parsing its own unwind frame, releases
+incomplete function-definition allocations after syntax failure and streams
+diagnostics without overflowing the shell's 256-byte buffer. Consolidating the
+allocator transaction state removed 16 target text bytes and four bss bytes
+from the first repair candidate. The accompanying 64-bit host-directory
+contract and direct `getdents64` record pass-through do not enter the target
+image. An optimized `-fstack-usage` comparison measured the ordinary
+`execute()` static frame at 96 bytes in the base and 208 bytes in the
+candidate, a 112-byte increase. `execexp()` retains its 176-byte static frame.
+The recoverable parser helper uses a 96-byte frame only while nested input is
+being parsed. The candidate measurement receipt is
+`.build-logs/pr299-9ef66299-recoverable-parse-stack-usage.latest.json`; it
+records exit status 0 with the production Cortex-M0+ GNU17 warning flags. The
+compiler measurement bounds individual static frames; it does not measure
+recursion depth, runtime peak stack or heap use.
+
+The final ownership repair increments `nohash` while parser allocations remain
+transactional and restores the saved value on every recovery path. The
+`bi_command_eval_syntax_preserves_hash` ILP32 witness forces command lookup,
+syntax rollback and allocator reuse, traverses the resulting hash table and
+requires subsequent execution. The diagnostic-buffer capacity check compares
+`end - ptr` with the translated byte count, so the check uses a defined
+within-array difference instead of first forming a pointer beyond one-past the
+buffer.
+
+The focused receipt
+`.build-logs/pr299-hash-lifetime-review-fixes.latest.json` records exit status
+0 for ShellCheck, Ruff, the optimized GNU17 Cortex-M0+ shell build, the shell
+heap-boundary gate, the C17 denominator and the ILP32 behavior suite. The suite
+reports 236 passes, zero failures and nine unchanged expected failures; its two
+shell witness mutations are rejected.
+
+The shell-owned host-directory read selection adds zero target bytes. The
+ILP32 host object imports `sh_host_getdents`; the Cortex-M0+ target object
+retains the existing `read` dependency. The selection therefore repairs the
+host evidence path without offsetting or enlarging the measured target image.
+
+An external `command` applet cannot bypass shell functions, classify builtins,
+or remove special-builtin properties inside the invoking shell. An external
+`getopts` applet cannot update `OPTIND`, `OPTARG`, or the named variable in the
+invoking shell. Those decompositions fail the required semantics while adding
+another executable or multicall dispatch entry. Dropping `-p`, `-v`, `-V`,
+leading-colon mode, clustered options, explicit operands, or reset transitions
+would reduce the requested compatibility subset rather than offset its cost.
+No examined valid decomposition produced nonpositive shell and root deltas.
+
+## User-visible benefit and rollback
+
+Recovery scripts gain `command -p` for a known utility search path, `command
+-v` and `command -V` for lookup inspection, function-bypass execution, and
+specified failure statuses. Shell scripts gain stateful `getopts` parsing with
+`OPTIND`, `OPTARG`, leading-colon mode, clustered options, explicit operands,
+diagnostics, and reset behavior. These mechanisms avoid separate utilities and
+operate in the only process that can change shell lookup and variable state.
+
+The rollback point is base commit
+`e7730db124a0324b62afe209b31dd210c270c0dc`. Reverting the shell implementation
+and its evidence commit restores the base shell and three packed-root blocks but
+removes both compatibility subsets.
+
+## Approval
+
+Reviewer: Codex independent read-only reviewer.
+
+Approval evidence: the reviewer audited exact implementation HEAD
+`9ef66299d1298c19b792f5c54fd61956ebceb1a9` and reproduced the raw and packed
+shell sizes, shell SHA-256, target sections, process-window arithmetic,
+packed-root file and block counts, kernel sections, kernel flash tail and
+static stack frames. The reviewer inspected the defined diagnostic-buffer
+capacity check, transactional hash ownership, retained behavior and mutation
+witnesses, examined alternatives, user-visible benefit, rollback point and
+residual runtime stack and heap uncertainty. The read-only review returned
+`APPROVE`. Hardware remained unaccessed.

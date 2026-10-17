@@ -16,6 +16,35 @@ static int	dotpath;
 static int	multrel;
 static struct entry     *relcmd = NIL;
 
+static int chk_access(char *);
+static void pr_path(char *, int);
+
+int
+special_builtin(internal)
+	int internal;
+{
+	switch (internal)
+	{
+	case SYSDOT:
+	case SYSNULL:
+	case SYSBREAK:
+	case SYSCONT:
+	case SYSEVAL:
+	case SYSEXEC:
+	case SYSEXIT:
+	case SYSXPORT:
+	case SYSRDONLY:
+	case SYSRETURN:
+	case SYSSET:
+	case SYSSHFT:
+	case SYSTIMES:
+	case SYSTRAP:
+	case SYSUNS:
+		return(1);
+	}
+	return(0);
+}
+
 static int
 argpath(arg)
 	register struct argnod	*arg;
@@ -66,7 +95,6 @@ pathlook(com, flg, arg)
 	int		i;
 	int		pathset = 0;
 	int		oldpath = 0;
-	struct namnod	*n;
 
 
 	hentry.data = 0;
@@ -110,7 +138,7 @@ pathlook(com, flg, arg)
 		h->cost = 0;
 	}
 
-	if (i = syslook(name, commands, no_commands))
+	if ((i = syslook(name, commands, no_commands)))
 	{
 		hentry.data = (BUILTIN | i);
 		count = 1;
@@ -120,7 +148,7 @@ pathlook(com, flg, arg)
 		if (arg && (pathset = argpath(arg)))
 			return(PATH_COMMAND);
 pathsrch:
-			count = findpath(name, oldpath);
+			count = findpath(name, oldpath, NIL);
 	}
 
 	if (count > 0)
@@ -215,6 +243,7 @@ hashpr()
 }
 
 
+void
 set_dotpath()
 {
 	register char	*path;
@@ -245,6 +274,7 @@ set_dotpath()
 }
 
 
+void
 hash_func(name)
 	char *name;
 {
@@ -255,17 +285,18 @@ hash_func(name)
 
 	if (h)
 	{
-
-		if (h->data & (BUILTIN | FUNCTION))
+		if ((h->data & BUILTIN) && special_builtin(hashdata(h->data)))
 			return;
-		else
-			h->data = FUNCTION;
+		if (h->data & FUNCTION)
+			return;
+		h->data = FUNCTION;
 	}
 	else
 	{
 		int i;
 
-		if (i = syslook(name, commands, no_commands))
+		if ((i = syslook(name, commands, no_commands)) &&
+		    special_builtin(i))
 			hentry.data = (BUILTIN | i);
 		else
 			hentry.data = FUNCTION;
@@ -278,6 +309,7 @@ hash_func(name)
 	}
 }
 
+void
 func_unhash(name)
 	char *name;
 {
@@ -313,85 +345,24 @@ hash_cmd(name)
 }
 
 
+void
 what_is_path(name)
 	register char *name;
 {
-	register ENTRY	*h;
-	int		cnt;
-	short	hashval;
-
-	h = hfind(name);
-
-	prs_buff(name);
-	if (h)
+	if (command_report(name, 2, NIL))
 	{
-		hashval = hashdata(h->data);
-
-		switch (hashtype(h->data))
-		{
-			case BUILTIN:
-				prs_buff(" is a shell builtin\n");
-				return;
-
-			case FUNCTION:
-			{
-				struct namnod *n = lookup(name);
-
-				prs_buff(" is a function\n");
-				prs_buff(name);
-				prs_buff("(){\n");
-				prf(n->namenv);
-				prs_buff("\n}\n");
-				return;
-			}
-
-			case REL_COMMAND:
-			{
-				short hash;
-
-				if ((h->data & DOT_COMMAND) == DOT_COMMAND)
-				{
-					hash = pathlook(name, 0, NIL);
-					if (hashtype(hash) == NOTFOUND)
-					{
-						prs_buff(" not found\n");
-						return;
-					}
-					else
-						hashval = hashdata(hash);
-				}
-			}
-
-			case COMMAND:
-				prs_buff(" is hashed (");
-				pr_path(name, hashval);
-				prs_buff(")\n");
-				return;
-		}
-	}
-
-	if (syslook(name, commands, no_commands))
-	{
-		prs_buff(" is a shell builtin\n");
-		return;
-	}
-
-	if ((cnt = findpath(name, 0)) > 0)
-	{
-		prs_buff(" is ");
-		pr_path(name, cnt);
-		prc_buff(NL);
-	}
-	else
+		prs_buff(name);
 		prs_buff(" not found\n");
+	}
 }
 
 
-findpath(name, oldpath)
+int
+findpath(name, oldpath, path)
 	register char *name;
 	int oldpath;
+	register char *path;
 {
-	register char 	*path;
 	register int	count = 1;
 
 	char	*p;
@@ -399,7 +370,8 @@ findpath(name, oldpath)
 	int 	e_code = 1;
 
 	cost = 0;
-	path = getpath(name);
+	if (path == NIL)
+		path = getpath(name);
 
 	if (oldpath)
 	{
@@ -440,17 +412,22 @@ findpath(name, oldpath)
 }
 
 
+static int
 chk_access(name)
 	register char	*name;
 {
+	struct stat status;
 
-	if (access(name, EXECUTE) == 0)
+	if (access(name, EXECUTE) == 0 &&
+	    (stat(name, &status) < 0 ||
+	    (status.st_mode & S_IFMT) != S_IFDIR))
 		return(0);
 
 	return(errno == EACCES ? 3 : 1);
 }
 
 
+static void
 pr_path(name, count)
 	register char	*name;
 	int count;
@@ -464,4 +441,134 @@ pr_path(name, count)
 
 	catpath(path, name);
 	prs_buff(curstak());
+}
+
+short
+command_pathlook(name, path)
+	char *name;
+	char *path;
+{
+	int count;
+	int builtin;
+
+	if (any('/', name))
+		return(COMMAND);
+	if ((builtin = syslook(name, commands, no_commands)))
+		return(BUILTIN | builtin);
+	if (path == NIL)
+		path = getpath(name);
+	count = findpath(name, 0, path);
+	return(count > 0 ? COMMAND | count : -count);
+}
+
+static void
+command_pr_absolute(name)
+	char *name;
+{
+	char *directory;
+
+	if (*name != '/')
+	{
+		directory = cwdpath();
+		prs_buff(directory);
+		if (!(directory[0] == '/' && directory[1] == 0))
+			prc_buff('/');
+	}
+	prs_buff(name);
+}
+
+static void
+command_pr_path(name, count, path)
+	char *name;
+	int count;
+	char *path;
+{
+	if (any('/', name))
+	{
+		command_pr_absolute(name);
+		return;
+	}
+	if (path == NIL)
+		path = getpath(name);
+	while (--count && path)
+		path = nextpath(path);
+	catpath(path, name);
+	command_pr_absolute(curstak());
+}
+
+int
+command_report(name, verbose, path)
+	char *name;
+	int verbose;
+	char *path;
+{
+	struct namnod *function;
+	ENTRY *hashed;
+	int builtin;
+	int count;
+
+	if (syslook(name, reserved, no_reserved))
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a shell keyword");
+	}
+	else if ((builtin = syslook(name, commands, no_commands)) &&
+	    special_builtin(builtin))
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a special shell builtin");
+	}
+	else if ((function = findnam(name)) && (function->namflg & N_FUNCTN))
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a function");
+	}
+	else if (builtin)
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a shell builtin");
+	}
+	else
+	{
+		if (verbose == 2 && (hashed = hfind(name)) &&
+		    (hashtype(hashed->data) == COMMAND ||
+		    hashtype(hashed->data) == REL_COMMAND))
+		{
+			count = hashdata(hashed->data);
+			if ((hashed->data & DOT_COMMAND) == DOT_COMMAND)
+			{
+				count = pathlook(name, 0, NIL);
+				if (hashtype(count) == NOTFOUND)
+					return(1);
+				count = hashdata(count);
+			}
+			prs_buff(name);
+			prs_buff(" is hashed (");
+			pr_path(name, count);
+			prs_buff(")\n");
+			return(0);
+		}
+		if (any('/', name))
+			count = chk_access(name) == 0 ? 1 : -1;
+		else
+		{
+			if (path == NIL)
+				path = getpath(name);
+			count = findpath(name, 0, path);
+		}
+		if (count < 1)
+			return(1);
+		if (verbose)
+		{
+			prs_buff(name);
+			prs_buff(" is ");
+		}
+		command_pr_path(name, count, path);
+	}
+	prc_buff(NL);
+	return(0);
 }

@@ -700,6 +700,12 @@ check-warning-policy-host:
 check-warning-policy-cross:
 		${MAKE} -C tests/warning_policy check-cross
 
+check-sh-gnu17: symlinks
+		${MAKE} -C bin/sh clean
+		${MAKE} -C bin/sh check-gnu17 all
+
+.PHONY: check-sh-gnu17
+
 # The inherited sources once passed bare identifiers through macros that
 # quoted their parameter names.  Compile the exact consumers so their C17
 # assertions bind each terminal action to its intended control byte.
@@ -838,7 +844,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
-		check-sh-heap-boundary \
+		check-sh-gnu17 .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
 		check-libc-ctime-cross check-touch-contracts-cross \
 		check-libc-random-cross \
@@ -989,6 +995,7 @@ check-test-execution: check-python
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
+		${PYTHON} bin/sh/tests/check_command_getopts_witness.py
 		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
@@ -1110,7 +1117,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-warning-policy-host check-warning-policy-cross \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-warning-policy-host check-warning-policy-cross check-sh-gnu17 \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

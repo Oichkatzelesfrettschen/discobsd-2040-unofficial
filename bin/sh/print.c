@@ -25,6 +25,7 @@ extern void     prn_buff();
 /*
  * printing and io conversion
  */
+void
 prp()
 {
 	if ((flags & prompt) == 0 && cmdadr)
@@ -34,23 +35,26 @@ prp()
 	}
 }
 
+void
 prs(as)
 char    *as;
 {
 	register char   *s;
 
-	if (s = as)
+	if ((s = as))
 		write(output, s, length(s) - 1);
 }
 
 /* print a prompt */
 /* it's a subject for future expansion @@@ */
+void
 prprompt(as)
 char *as;
 {
 	prs(as);
 }
 
+void
 prc(c)
 char    c;
 {
@@ -58,6 +62,7 @@ char    c;
 		write(output, &c, 1);
 }
 
+void
 prt(t)
 long    t;
 {
@@ -76,7 +81,7 @@ long    t;
 	t /= HZ;
 	min = t % hz;
 
-	if (hr = t / hz)
+	if ((hr = t / hz))
 	{
 		prn_buff(hr);
 		prc_buff('h');
@@ -88,6 +93,7 @@ long    t;
 	prc_buff('s');
 }
 
+void
 prn(n)
 	int     n;
 {
@@ -102,6 +108,7 @@ prn(n)
  * unsigned int holds, so a process id or line number at or above 100000
  * keeps its leading digits instead of folding them into one byte.
  */
+void
 itos(n)
 	int	n;
 {
@@ -122,6 +129,7 @@ itos(n)
 	*abuf++ = 0;
 }
 
+int
 stoi(icp)
 char    *icp;
 {
@@ -140,6 +148,7 @@ char    *icp;
 		return(r);
 }
 
+void
 prl(n)
 long n;
 {
@@ -203,6 +212,7 @@ prs_buff(s)
 }
 
 
+void
 clear_buff()
 {
 	index = 0;
@@ -213,9 +223,14 @@ void
 prs_cntl(s)
 	char *s;
 {
-	register char *ptr = buffer;
+	register char *ptr;
+	register char *end = buffer + sizeof buffer;
+	char translated[2];
+	int translated_length;
 	int c;
 
+	flushb();
+	ptr = buffer;
 	while (*s != '\0')
 	{
 		c = *s;
@@ -225,24 +240,35 @@ prs_cntl(s)
 
 		if (c < ' ')
 		{       /* assumes ASCII char */
-			*ptr++ = '^';
-			*ptr++ = (c + '@');    /* assumes ASCII char */
+			translated[0] = '^';
+			translated[1] = c + '@';    /* assumes ASCII char */
+			translated_length = 2;
 		}
 		else if (c == 0177 || (c>=0200 && c<0300 ))
 		{       /* '\0177' does not work */
-			*ptr++ = '^';
-			*ptr++ = '?';
+			translated[0] = '^';
+			translated[1] = '?';
+			translated_length = 2;
 		}
 		else
 		{       /* printable character */
-			*ptr++ = c;
+			translated[0] = c;
+			translated_length = 1;
 		}
+		if (end - ptr < translated_length)
+		{
+			write(output, buffer, ptr - buffer);
+			ptr = buffer;
+		}
+		*ptr++ = translated[0];
+		if (translated_length == 2)
+			*ptr++ = translated[1];
 
 		++s;
 	}
 
-	*ptr = '\0';
-	prs(buffer);
+	if (ptr != buffer)
+		write(output, buffer, ptr - buffer);
 }
 
 

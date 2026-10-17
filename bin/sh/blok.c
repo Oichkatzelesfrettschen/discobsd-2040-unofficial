@@ -11,14 +11,21 @@
  */
 
 #define BUSY 01
+/* RP2040 and the ILP32 host gate align block links to four bytes. */
+#define PARSE_ALLOC 02
+#define BLOCK_FLAGS (BUSY | PARSE_ALLOC)
+#define PARSE_INACTIVE 0
+#define PARSE_ACTIVE 1
+#define PARSE_ALLOCATION_PRESENT 2
 #define busy(x) (Rcheat((x)->word) & BUSY)
+#define next_block(x) ((struct blk *)(Rcheat((x)->word) & ~BLOCK_FLAGS))
 
 unsigned int    brkincr = BRKINCR;
 struct blk *blokp;                      /*current search pointer*/
 struct blk *bloktop;            /* top of arena (last blok) */
 
 char            *brkbegin;
-char            *setbrk();
+static int      parse_allocation_state;
 
 char *
 alloc(nbytes)
@@ -38,17 +45,20 @@ alloc(nbytes)
 			{
 				while (!busy(q = p->word))
 					p->word = q->word;
-				if ((char *)q - (char *)p >= rbytes)
+				if ((unsigned)((char *)q - (char *)p) >= rbytes)
 				{
 					blokp = (struct blk *)((char *)p + rbytes);
 					if (q > blokp)
 						blokp->word = p->word;
-					p->word = (struct blk *)(Rcheat(blokp) | BUSY);
+					p->word = (struct blk *)(Rcheat(blokp) | BUSY |
+					    (parse_allocation_state ? PARSE_ALLOC : 0));
+					if (parse_allocation_state)
+						parse_allocation_state = PARSE_ALLOCATION_PRESENT;
 					return((char *)(p + 1));
 				}
 			}
 			q = p;
-			p = (struct blk *)(Rcheat(p->word) & ~BUSY);
+			p = next_block(p);
 		} while (p > q || (c++) == 0);
 		addblok(rbytes);
 	}
@@ -106,8 +116,55 @@ free(ap)
 		chkbptr(p);
 #endif
 		--p;
-		p->word = (struct blk *)(Rcheat(p->word) & ~BUSY);
+		p->word = (struct blk *)(Rcheat(p->word) & ~BLOCK_FLAGS);
 	}
+}
+
+void
+parse_alloc_begin()
+{
+	parse_allocation_state = PARSE_ACTIVE;
+}
+
+static void
+parse_alloc_finish(rollback)
+	int rollback;
+{
+	register struct blk *p = (struct blk *)brkbegin;
+	register struct blk *q;
+
+	if (parse_allocation_state != PARSE_ALLOCATION_PRESENT)
+	{
+		parse_allocation_state = PARSE_INACTIVE;
+		return;
+	}
+	for (;;)
+	{
+		q = next_block(p);
+		if (Rcheat(p->word) & PARSE_ALLOC)
+		{
+			if (rollback)
+				p->word = q;
+			else
+				p->word = (struct blk *)(Rcheat(q) | BUSY);
+		}
+		if (p == bloktop)
+			break;
+		p = q;
+	}
+	parse_allocation_state = PARSE_INACTIVE;
+}
+
+void
+parse_alloc_commit()
+{
+	parse_alloc_finish(0);
+}
+
+void
+parse_alloc_rollback()
+{
+	parse_alloc_finish(1);
 }
 
 
@@ -124,7 +181,7 @@ chkbptr(ptr)
 
 	for (;;)
 	{
-		q = (struct blk *)(Rcheat(p->word) & ~BUSY);
+		q = next_block(p);
 
 		if (p+1 == ptr)
 			exf++;
@@ -158,7 +215,7 @@ chkmem()
 
 	for (;;)
 	{
-		q = (struct blk *)(Rcheat(p->word) & ~BUSY);
+		q = next_block(p);
 
 		if (q < (struct blk *)brkbegin || q > bloktop)
 			abort(3);

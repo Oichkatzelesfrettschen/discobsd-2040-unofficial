@@ -34,6 +34,10 @@ class StopResult:
     group_stopped: bool
 
 
+class ExecutionQuarantined(ValueError):
+    pass
+
+
 def utc_timestamp():
     return datetime.datetime.now(datetime.timezone.utc).isoformat(
         timespec="seconds"
@@ -135,6 +139,45 @@ def acquire_log_lock(path):
         raise
 
 
+def execution_quarantine_path(path):
+    return path.with_name(f"{path.name}.quarantine.json")
+
+
+def read_execution_quarantine(path):
+    try:
+        existing = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(existing.st_mode):
+        raise ValueError(f"execution quarantine must name a regular file: {path}")
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(
+                f"execution quarantine must name a regular file: {path}"
+            )
+        with os.fdopen(descriptor, encoding="utf-8") as stream:
+            descriptor = None
+            record = json.load(stream)
+    except Exception:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
+    if not isinstance(record, dict) or record.get("schema") != 1:
+        raise ValueError(f"invalid execution quarantine receipt: {path}")
+    process_group = record.get("process_group")
+    if (
+        record.get("state") != "cleanup_incomplete"
+        or not isinstance(process_group, int)
+        or isinstance(process_group, bool)
+        or process_group <= 0
+    ):
+        raise ValueError(f"invalid execution quarantine receipt: {path}")
+    return record
+
+
 def acquire_execution_lock(path):
     """Own the build products shared by logged targets in one worktree."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -148,10 +191,36 @@ def acquire_execution_lock(path):
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise ValueError(f"active execution owner holds {path}") from error
+        quarantine_path = execution_quarantine_path(path)
+        quarantine = read_execution_quarantine(quarantine_path)
+        if quarantine is not None and group_exists(quarantine["process_group"]):
+            raise ExecutionQuarantined(
+                "execution quarantine holds "
+                f"{path}: process group {quarantine['process_group']} from "
+                f"{quarantine.get('invocation_id', 'unknown')} remains live"
+            )
         return descriptor
     except Exception:
         os.close(descriptor)
         raise
+
+
+def publish_execution_quarantine(args, record):
+    path = getattr(args, "execution_quarantine", None)
+    if path is None and args.execution_lock is not None:
+        path = execution_quarantine_path(args.execution_lock)
+    if path is None:
+        return
+    quarantine = {
+        "schema": 1,
+        "state": "cleanup_incomplete",
+        "process_group": record["pid"],
+        "label": record["label"],
+        "invocation_id": record["invocation_id"],
+        "created_at": utc_timestamp(),
+        "status_path": record["status_path"],
+    }
+    atomic_status(path, quarantine)
 
 
 def make_jobserver_descriptors(environment=None):
@@ -414,7 +483,11 @@ def run(args):
                 updated_at=utc_timestamp(),
                 elapsed_seconds=round(time.monotonic() - start, 3),
                 exit_code=RUNNER_ERROR_EXIT,
-                termination="execution_lock_busy",
+                termination=(
+                    "execution_quarantined"
+                    if isinstance(error, ExecutionQuarantined)
+                    else "execution_lock_busy"
+                ),
             )
             try:
                 publish_status(args, record)
@@ -679,6 +752,8 @@ def run(args):
                     exit_code=exit_code,
                     termination=termination,
                 )
+                if termination == "cleanup_incomplete":
+                    publish_execution_quarantine(args, record)
                 emit(
                     f"[logged-gate] {state} label={args.label} exit={exit_code} "
                     f"time={utc_timestamp()} elapsed={elapsed:.1f}s "
@@ -709,6 +784,8 @@ def run(args):
                         "cleanup_incomplete" if cleanup_incomplete else "runner_error"
                     ),
                 )
+                if cleanup_incomplete:
+                    publish_execution_quarantine(args, record)
                 safe_emit(
                     f"[logged-gate] error label={args.label} "
                     f"time={utc_timestamp()}: {error}\n"

@@ -25,6 +25,7 @@ def stage_arguments(args, invocation_id, directory, stage, timeout_seconds):
         status=directory / f"{stage}.status.json",
         evidence_root=None,
         execution_lock=None,
+        execution_quarantine=gate.execution_quarantine_path(args.execution_lock),
         sequence_invocation_id=invocation_id,
         heartbeat_seconds=args.heartbeat_seconds,
         idle_timeout_seconds=args.idle_timeout_seconds,
@@ -199,7 +200,11 @@ def run(args):
             updated_at=gate.utc_timestamp(),
             elapsed_seconds=round(time.monotonic() - started, 3),
             exit_code=gate.RUNNER_ERROR_EXIT,
-            termination="execution_lock_busy",
+            termination=(
+                "execution_quarantined"
+                if isinstance(error, gate.ExecutionQuarantined)
+                else "execution_lock_busy"
+            ),
         )
         publish_summary(summary_path, evidence.latest_status, summary)
         print(f"logged-build-check: {error}", file=sys.stderr)

@@ -29,7 +29,11 @@ class LoggedGateTest(unittest.TestCase):
         self.status = self.directory / "gate.status.json"
 
     def run_gate(self, program, *, heartbeat="0.05", idle="1", timeout="2",
-                 program_arguments=()):
+                 program_arguments=(), execution_lock=None):
+        lock_arguments = (
+            ["--execution-lock", str(execution_lock)]
+            if execution_lock is not None else []
+        )
         return subprocess.run(
             [
                 sys.executable,
@@ -40,6 +44,7 @@ class LoggedGateTest(unittest.TestCase):
                 "--heartbeat-seconds", heartbeat,
                 "--idle-timeout-seconds", idle,
                 "--timeout-seconds", timeout,
+                *lock_arguments,
                 "--",
                 sys.executable,
                 "-c", program,
@@ -599,6 +604,94 @@ class LoggedGateTest(unittest.TestCase):
         second_record = json.loads(second_status.read_text(encoding="utf-8"))
         self.assertEqual(second_record["state"], "error")
         self.assertEqual(second_record["termination"], "execution_lock_busy")
+
+    def test_cleanup_incomplete_publishes_product_quarantine(self):
+        execution_lock = self.directory / "products.lock"
+        quarantine = Path(f"{execution_lock}.quarantine.json")
+        arguments = runner.parse_arguments([
+            "--label", "cleanup-incomplete",
+            "--log", str(self.log),
+            "--status", str(self.status),
+            "--execution-lock", str(execution_lock),
+            "--heartbeat-seconds", "0.05",
+            "--idle-timeout-seconds", "0",
+            "--timeout-seconds", "0.1",
+            "--terminate-grace-seconds", "0.1",
+            "--",
+            sys.executable,
+            "-c", "import time; time.sleep(60)",
+        ])
+        original_stop = runner.stop_process_group
+
+        def report_incomplete(process, grace_seconds, **kwargs):
+            result = original_stop(process, grace_seconds, **kwargs)
+            return runner.StopResult(result.child_exit_code, False)
+
+        with mock.patch.object(
+            runner, "stop_process_group", side_effect=report_incomplete
+        ):
+            result = runner.run(arguments)
+
+        self.assertEqual(result, runner.RUNNER_ERROR_EXIT)
+        status = self.read_status()
+        self.assertEqual(status["state"], "error")
+        self.assertEqual(status["termination"], "cleanup_incomplete")
+        quarantine_record = json.loads(quarantine.read_text(encoding="utf-8"))
+        self.assertEqual(quarantine_record["state"], "cleanup_incomplete")
+        self.assertEqual(quarantine_record["process_group"], status["pid"])
+        self.assertEqual(quarantine_record["invocation_id"], status["invocation_id"])
+        self.assertEqual(quarantine_record["status_path"], str(self.status))
+
+    def test_live_product_quarantine_rejects_mutation_before_launch(self):
+        execution_lock = self.directory / "products.lock"
+        quarantine = Path(f"{execution_lock}.quarantine.json")
+        marker = self.directory / "launched"
+        sleeper = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            start_new_session=True,
+        )
+        self.addCleanup(self.stop_runner, sleeper)
+        quarantine.write_text(
+            json.dumps({
+                "schema": 1,
+                "state": "cleanup_incomplete",
+                "process_group": sleeper.pid,
+                "label": "previous-owner",
+                "invocation_id": "previous-invocation",
+            }) + "\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_gate(
+            "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text("
+            "'launched', encoding='ascii')",
+            program_arguments=(marker,),
+            execution_lock=execution_lock,
+        )
+
+        self.assertEqual(result.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.read_status()["termination"], "execution_quarantined")
+
+    def test_expired_product_quarantine_permits_mutation_and_remains_evidence(self):
+        execution_lock = self.directory / "products.lock"
+        quarantine = Path(f"{execution_lock}.quarantine.json")
+        quarantine_text = json.dumps({
+            "schema": 1,
+            "state": "cleanup_incomplete",
+            "process_group": 2147483647,
+            "label": "previous-owner",
+            "invocation_id": "previous-invocation",
+        }) + "\n"
+        quarantine.write_text(quarantine_text, encoding="utf-8")
+
+        result = self.run_gate(
+            "print('replacement ran', flush=True)",
+            execution_lock=execution_lock,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(quarantine.read_text(encoding="utf-8"), quarantine_text)
 
     def test_common_helper_has_an_independent_outer_deadline(self):
         completed = subprocess.CompletedProcess([], 0, "", "")

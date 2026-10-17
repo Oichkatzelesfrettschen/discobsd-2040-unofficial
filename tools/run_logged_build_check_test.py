@@ -173,6 +173,49 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.assertEqual(summary["stages"]["build"]["state"], "error")
         self.assertEqual(summary["stages"]["check"]["state"], "blocked")
 
+    def test_cleanup_incomplete_build_quarantines_sequence_products(self):
+        make = self.directory / "unreaped-make"
+        make.write_text("#!/bin/sh\nset -eu\nsleep 60\n", encoding="ascii")
+        make.chmod(0o755)
+        original_stop = sequence.gate.stop_process_group
+
+        def report_incomplete(process, grace_seconds, **kwargs):
+            result = original_stop(process, grace_seconds, **kwargs)
+            return sequence.gate.StopResult(result.child_exit_code, False)
+
+        with mock.patch.object(
+            sequence.gate,
+            "stop_process_group",
+            side_effect=report_incomplete,
+        ):
+            arguments = sequence.parse_arguments(
+                self.sequence_command(make, timeout_seconds="0.1")[2:]
+            )
+            result = sequence.run(arguments)
+
+        self.assertEqual(result, sequence.gate.RUNNER_ERROR_EXIT)
+        summary = json.loads(
+            (self.evidence_root / "rp2040-check-local.latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(summary["state"], "error")
+        self.assertEqual(summary["termination"], "cleanup_incomplete")
+        self.assertEqual(summary["stages"]["build"]["state"], "error")
+        self.assertEqual(summary["stages"]["check"]["state"], "blocked")
+        quarantine = Path(f"{self.execution_lock}.quarantine.json")
+        quarantine_record = json.loads(quarantine.read_text(encoding="utf-8"))
+        build_record = json.loads(
+            Path(summary["stages"]["build"]["status_path"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(quarantine_record["state"], "cleanup_incomplete")
+        self.assertEqual(
+            quarantine_record["invocation_id"],
+            build_record["invocation_id"],
+        )
+
     def test_total_deadline_includes_build_and_check(self):
         make = self.directory / "slow-make"
         make.write_text(

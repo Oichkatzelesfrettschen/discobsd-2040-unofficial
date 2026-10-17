@@ -30,11 +30,10 @@ PROBES = {
 HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo")
 # Full routes compile clean under -Wall -Wextra, so share/mk/warnings.mk
 # makes both groups fatal there; legacy routes declare WARNLEVEL=legacy
-# before their sys.mk include and are held to -Werror alone. bin/sh holds
-# the largest open site count of the small programs, usr.bin/uucp the
-# largest of all.
-CROSS_ROUTES = ("bin/echo", "usr.bin/smlrc", "lib/libc")
-LEGACY_ROUTES = ("bin/sh", "usr.bin/uucp")
+# before their sys.mk include and are held to -Werror alone. usr.bin/uucp
+# retains the largest open site count.
+CROSS_ROUTES = ("bin/echo", "bin/sh", "usr.bin/smlrc", "lib/libc")
+LEGACY_ROUTES = ("usr.bin/uucp",)
 KERNEL_ROUTES = ("sys/arch/rp2040/compile/PICO", "sys/arch/rp2040/compile/PICO_UART")
 CENSUS_OVERRIDE = "WARNERR=-Wall -Wextra -Wno-error"
 

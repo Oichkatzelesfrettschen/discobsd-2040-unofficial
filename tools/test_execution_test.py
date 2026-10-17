@@ -108,6 +108,19 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(execution.run_variant(variant, [str(self.directory / "fixture")]), 2)
         self.assertEqual(self.record(variant)["outcome"], "ERROR")
 
+    def test_cleanup_allowance_reserves_current_budget_before_child_share(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(execution.CLEANUP_ALLOWANCE_ENV, None)
+            self.assertEqual(
+                execution.cleanup_allowances(),
+                (execution.ROOT_CLEANUP_ALLOWANCE_SECONDS, 1.0),
+            )
+
+        with patch.dict(
+            os.environ, {execution.CLEANUP_ALLOWANCE_ENV: "0.5"}, clear=False
+        ):
+            self.assertEqual(execution.cleanup_allowances(), (0.5, 0.25))
+
     def test_variant_timeout_records_error_and_stops_process_group(self):
         variant = self.variant()
         marker = self.directory / "variant-descendant-terminated"

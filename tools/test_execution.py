@@ -69,21 +69,22 @@ def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
         return process.wait()
 
 
-def child_cleanup_seconds():
+def cleanup_allowances():
     value = os.environ.get(
         CLEANUP_ALLOWANCE_ENV, str(ROOT_CLEANUP_ALLOWANCE_SECONDS)
     )
     allowance = float(value)
     if not math.isfinite(allowance) or allowance <= 0:
         raise ValueError(f"invalid inherited cleanup allowance: {value}")
-    return max(MINIMUM_CHILD_CLEANUP_SECONDS, allowance / 2.0)
+    child_allowance = max(MINIMUM_CHILD_CLEANUP_SECONDS, allowance / 2.0)
+    return allowance, child_allowance
 
 
 def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
     previous_handlers = {}
-    cleanup_seconds = child_cleanup_seconds()
+    cleanup_seconds, child_cleanup_seconds = cleanup_allowances()
     child_environment = os.environ.copy() if env is None else env.copy()
-    child_environment[CLEANUP_ALLOWANCE_ENV] = str(cleanup_seconds)
+    child_environment[CLEANUP_ALLOWANCE_ENV] = str(child_cleanup_seconds)
 
     def interrupt(number, _frame):
         raise BoundedSignal(number)

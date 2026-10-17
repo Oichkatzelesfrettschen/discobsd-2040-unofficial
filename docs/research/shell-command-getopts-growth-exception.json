@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile_id": "DPUCP-2024",
   "base_commit": "e7730db124a0324b62afe209b31dd210c270c0dc",
-  "implementation_commit": "f2e71ae984164e5ede06f9074f84ba2eade91910",
+  "implementation_commit": "4e78c8ad367efc8b2a597d00474a6804cdadb91e",
   "block_bytes": 1024,
   "kernel": {
     "region_bytes": 131072,

@@ -10,7 +10,7 @@ The behavior evidence covers the named compatibility subset exercised by
 ## Compared states
 
 The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
-implementation is `f2e71ae984164e5ede06f9074f84ba2eade91910`. Both states used
+implementation is `4e78c8ad367efc8b2a597d00474a6804cdadb91e`. Both states used
 the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
 Each state was built from clean. The base used `bmake MACHINE=rp2040
 logged-distribution`, and the final candidate used the supervised command
@@ -41,10 +41,12 @@ export PYTHON
 The terminal receipt is
 `.build-logs/shell-ci-portability-clean-distribution.latest.json`. It records
 exit status 0, 155.918 seconds elapsed and 821,371 output bytes. The clean
-confirmation ran at `a796d28270213052f06dc316042d9754cbb98a98`; that commit adds
-only the preceding evidence update after the measured implementation commit.
-The clean artifacts reproduce the recorded kernel, shell and packed-root
-values at the branch head.
+confirmation ran at `a796d28270213052f06dc316042d9754cbb98a98`. The subsequent
+`4e78c8ad367efc8b2a597d00474a6804cdadb91e` commit changes only the ILP32 host
+test adapter and its witnesses under `bin/sh/tests`; those files do not enter
+the target build or packed root. The clean artifacts therefore reproduce the
+recorded kernel, shell and packed-root values for the target inputs at the
+branch head.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
 | --- | ---: | ---: | ---: | ---: |
@@ -93,8 +95,9 @@ child-error routing, redirection and input unwind checkpoints, single-pass
 prefix expansion snapshots, initialized allocation-failure cleanup and
 nonmutating `getopts` destination validation. Defining the fork-link state
 across command recovery jumps removes four target text bytes; the accompanying
-64-bit host-directory contract does not enter the target image. The measured
-35,524-byte result remains 20 bytes smaller than the feature-first shell. An optimized
+64-bit host-directory contract and direct `getdents64` record pass-through do
+not enter the target image. The measured 35,524-byte result remains 20 bytes
+smaller than the feature-first shell. An optimized
 `-fstack-usage` comparison measured the ordinary `execute()` static frame at 96
 bytes in the base and 216 bytes in the candidate, a 120-byte increase. The
 compiler measurement bounds one static frame; it does not measure recursion

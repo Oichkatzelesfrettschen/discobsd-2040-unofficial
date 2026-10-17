@@ -288,7 +288,7 @@ def process_tree_snapshot(root_pid):
     try:
         result = subprocess.run(
             [
-                "ps", "-axo",
+                "ps", "-A", "-o",
                 "pid=,ppid=,pgid=,sid=,state=,etime=,time=,command=",
             ],
             text=True,

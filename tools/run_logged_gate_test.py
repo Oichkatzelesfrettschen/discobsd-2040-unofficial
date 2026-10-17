@@ -163,6 +163,35 @@ class LoggedGateTest(unittest.TestCase):
         self.assertGreaterEqual(len(process_lines), 2)
         self.assertTrue(any("time.sleep(60)" in line for line in process_lines))
 
+    def test_process_snapshot_uses_portable_ps_argument_vector(self):
+        fake_ps = self.directory / "ps"
+        fake_ps.write_text(
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "test \"$#\" -eq 3\n"
+            "test \"$1\" = -A\n"
+            "test \"$2\" = -o\n"
+            "test \"$3\" = "
+            "pid=,ppid=,pgid=,sid=,state=,etime=,time=,command=\n"
+            "printf '%s\\n' "
+            "'4242 1 4242 4242 S 00:01 0:00 snapshot-parent' "
+            "'4243 4242 4242 4242 S 00:01 0:00 snapshot-child'\n",
+            encoding="ascii",
+        )
+        fake_ps.chmod(0o755)
+        environment = {"PATH": f"{self.directory}{os.pathsep}{os.environ['PATH']}"}
+
+        with mock.patch.dict(os.environ, environment):
+            snapshot = runner.process_tree_snapshot(4242)
+
+        process_lines = [
+            line for line in snapshot.splitlines()
+            if line.startswith("[logged-gate] process ")
+        ]
+        self.assertEqual(len(process_lines), 2, snapshot)
+        self.assertTrue(any("snapshot-parent" in line for line in process_lines))
+        self.assertTrue(any("snapshot-child" in line for line in process_lines))
+
     def test_timeout_retains_shutdown_output(self):
         program = (
             "import signal, sys, time; "

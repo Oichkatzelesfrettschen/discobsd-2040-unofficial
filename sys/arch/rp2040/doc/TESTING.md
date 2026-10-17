@@ -103,6 +103,16 @@ while an unknown group set remains, or while a recorded group remains visible.
 Once every recorded group has disappeared, a later invocation may proceed; the
 quarantine receipt remains as evidence. PID reuse ambiguity therefore closes
 mutation rather than risking concurrent writers.
+An unresolved pending-launch token names a process group whose identity was not
+durably registered, so ordinary liveness checks cannot clear it. After the
+operator inspects the host and the terminal sequence receipt, the operator may
+run `tools/recover_logged_execution.py` with the exact execution lock,
+invocation ID, status path, reason and
+`--confirm-unrecorded-groups-absent`. The recovery tool acquires the product
+lock, rejects live recorded groups, mismatched evidence and nonterminal status,
+writes an immutable recovery receipt containing the former ownership state and
+status-record hash, and only then releases the ownership receipt. Recovery is
+an explicit operator assertion, not an inference from an old receipt.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a
@@ -138,6 +148,9 @@ five-second deadline. The sequence fixtures calibrate live build state,
 deadline exhaustion without a successor launch and both interstage signal
 windows. A FIFO fixture calibrates pre-launch rejection. The gate rejects
 firmware workflow changes that remove bounded active commands or retained logs.
+`recover_logged_execution_test.py` calibrates missing operator confirmation,
+recovery evidence retained before ownership release, live-group refusal and
+nonterminal-status refusal.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding

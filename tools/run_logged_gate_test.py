@@ -885,7 +885,11 @@ class LoggedGateTest(unittest.TestCase):
             "--", sys.executable, "-c", "import time; time.sleep(60)",
         ])
 
+        launched = []
+
         def leave_group_running(process, _grace_seconds, **_kwargs):
+            if process not in launched:
+                launched.append(process)
             return runner.StopResult(process.poll(), False)
 
         original_atomic_status = runner.atomic_status
@@ -922,6 +926,8 @@ class LoggedGateTest(unittest.TestCase):
                     os.killpg(process_group, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+            for process in launched:
+                process.wait(timeout=TEST_HELPER_TIMEOUT_SECONDS)
 
     def test_common_helper_has_an_independent_outer_deadline(self):
         completed = subprocess.CompletedProcess([], 0, "", "")

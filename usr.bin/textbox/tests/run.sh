@@ -30,6 +30,47 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
 CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
+fail=0
+
+# Apple stdlib.h does not declare reallocarray(3). Calibrate that header
+# condition with a direct undeclared call, then require the utility wrapper to
+# compile against the same interface boundary.
+mkdir "$WORK/stdlib-without-reallocarray"
+cp "$TB/tests/stdlib-without-reallocarray.fixture" \
+	"$WORK/stdlib-without-reallocarray/stdlib.h"
+printf '%s\n' \
+	'#include <stdlib.h>' \
+	'void *reallocarray_probe(void *pointer, size_t count, size_t size)' \
+	'{' \
+	'        return reallocarray(pointer, count, size);' \
+	'}' > "$WORK/reallocarray-undeclared.c"
+if $CC -std=c17 -Wall -Wextra -Werror \
+    -I"$WORK/stdlib-without-reallocarray" \
+    -c "$WORK/reallocarray-undeclared.c" \
+    -o "$WORK/reallocarray-undeclared.o" \
+    2>"$WORK/reallocarray-undeclared.cc.log"; then
+	echo "CALIBRATION FAIL: compiler accepted undeclared reallocarray"
+	fail=1
+elif grep -Eq 'implicit declaration|undeclared function' \
+    "$WORK/reallocarray-undeclared.cc.log" \
+    && grep -q 'reallocarray' "$WORK/reallocarray-undeclared.cc.log"; then
+	echo "ok: missing reallocarray declaration rejected"
+else
+	echo "CALIBRATION FAIL: compiler rejected the fixture for another reason"
+	cat "$WORK/reallocarray-undeclared.cc.log"
+	fail=1
+fi
+if $CC -std=c17 -Wall -Wextra -Werror \
+    -I"$WORK/stdlib-without-reallocarray" -I"$TB" \
+    -c "$TB/ereallocarray.c" -o "$WORK/ereallocarray-header-contract.o" \
+    2>"$WORK/ereallocarray-header-contract.cc.log" \
+    && [ ! -s "$WORK/ereallocarray-header-contract.cc.log" ]; then
+	echo "ok: ereallocarray declares its libc dependency"
+else
+	echo "BUILD FAIL: ereallocarray with host declaration absent"
+	cat "$WORK/ereallocarray-header-contract.cc.log"
+	fail=1
+fi
 
 # glibc carries reallocarray(3), so the host build takes only the existing
 # host wrapper. macOS builds the utility wrapper and the libc implementation.
@@ -37,7 +78,6 @@ case $(uname -s) in
 Darwin)	EREALLOCARRAY="ereallocarray.c ../../lib/libc/stdlib/reallocarray.c" ;;
 *)	EREALLOCARRAY=tests/ereallocarray_host.c ;;
 esac
-fail=0
 
 # build name tool.c compat1.c compat2.c ...
 # tool.c is looked up as usr.bin/<name>/<name>.c; every other argument

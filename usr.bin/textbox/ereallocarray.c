@@ -5,6 +5,8 @@
 
 #include "compat.h"
 
+void *reallocarray(void *, size_t, size_t);
+
 void *
 ereallocarray(void *pointer, size_t element_count, size_t element_size)
 {

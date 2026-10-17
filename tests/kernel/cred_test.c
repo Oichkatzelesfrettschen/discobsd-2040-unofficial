@@ -210,34 +210,26 @@ process_lookup(void)
 	HK_CHECK(inferior(&proc[2]) == 0);
 }
 
-/*
- * Reading a process group. A pid of zero means the caller, and the syscall
- * writes that resolved pid back into its own argument.
- */
+/* Reading a process group never consumes or rewrites a caller argument. */
 static void
 read_process_group(void)
 {
 	struct pid_arg *a = (struct pid_arg *)u.u_arg;
 
 	reset(REAL_UID, REAL_UID);
-	a->pid = 0;
-	getpgrp();
-	HK_CHECK(u.u_error == 0);
-	HK_CHECK(u.u_rval == SELF_PID);
-	HK_CHECK(a->pid == SELF_PID);
-
-	reset(REAL_UID, REAL_UID);
-	a = (struct pid_arg *)u.u_arg;
 	a->pid = OTHER_PID;
 	getpgrp();
 	HK_CHECK(u.u_error == 0);
-	HK_CHECK(u.u_rval == OTHER_PID);
+	HK_CHECK(u.u_rval == SELF_PID);
+	HK_CHECK(a->pid == OTHER_PID);
 
 	reset(REAL_UID, REAL_UID);
 	a = (struct pid_arg *)u.u_arg;
 	a->pid = 4242;
 	getpgrp();
-	HK_CHECK(u.u_error == ESRCH);
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK(u.u_rval == SELF_PID);
+	HK_CHECK(a->pid == 4242);
 }
 
 /*

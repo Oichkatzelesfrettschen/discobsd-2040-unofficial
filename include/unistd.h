@@ -63,6 +63,14 @@
 #define _SC_NGROUPS_MAX         4
 #define _SC_OPEN_MAX            5
 #define _SC_JOB_CONTROL         6
+#define _SC_NPROCESSORS_CONF    7
+#define _SC_NPROCESSORS_ONLN    8
+#define _SC_NSIG                9
+#define _SC_PAGESIZE            10
+#define _SC_DEVICE_CONTROL      11
+
+/* DPUCP-2024 exposes the standard option boundary without claiming it. */
+#define _POSIX_DEVICE_CONTROL   (-1)
 
 #define _CS_PATH                1
 
@@ -76,7 +84,7 @@ gid_t   getegid (void);
 uid_t   geteuid (void);
 gid_t   getgid (void);
 char    *getlogin (void);
-pid_t   getpgrp (pid_t);
+pid_t   getpgrp (void);
 pid_t   getpid (void);
 pid_t   getppid (void);
 uid_t   getuid (void);

@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "e37bb6db0f7ba382e0e78bb72a7c3b918898b25bf14603c62b952521d3fad04f"
+    "ordered_row_sha256": "4c4ee2cf15e118c165259e16aaea1a45642da5457889990afef93a830c40be95"
   },
   "state_counts": {
     "applicability": {
@@ -51,27 +51,40 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "present": 0,
-      "partial": 47,
+      "present": 1,
+      "partial": 46,
       "absent": 1471,
       "divergent": 0
     },
     "evidence": {
       "none": 1471,
-      "static": 47,
-      "host": 0,
+      "static": 44,
+      "host": 3,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
       "board": 0
     },
     "residual": {
-      "closed": 0,
-      "open": 1518,
+      "closed": 1,
+      "open": 1517,
       "blocked": 0
     }
   },
-  "witnesses": {},
+  "witnesses": {
+    "getpgrp-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-kernel check-libc-host-contracts check-kernel-metadata",
+      "evidence": "host",
+      "known_good": "tests/kernel/cred_test.c",
+      "known_bad": "tests/libc_contracts/unistd_extra_argument.c"
+    },
+    "runtime-limits-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-runtime-limits",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/runtime_limits_contract_test.c",
+      "known_bad": "tests/libc_contracts/runtime_limits_bad.c"
+    }
+  },
   "growth_policy": {
     "default": "nonpositive-per-constrained-surface",
     "cross_surface_offsets": false,

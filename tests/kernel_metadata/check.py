@@ -11,16 +11,20 @@ class CheckError(RuntimeError):
     """Report a contract mismatch."""
 
 
-def records(path: Path, fields: int) -> list[list[str]]:
+def records_text(text: str, label: str, fields: int) -> list[list[str]]:
     result = []
-    for raw_line in path.read_text().splitlines():
+    for raw_line in text.splitlines():
         line = raw_line.strip()
         if line and not line.startswith("#"):
             parts = line.split("|", fields - 1)
             if len(parts) != fields:
-                raise CheckError(f"{path}: malformed record")
+                raise CheckError(f"{label}: malformed record")
             result.append(parts)
     return result
+
+
+def records(path: Path, fields: int) -> list[list[str]]:
+    return records_text(path.read_text(), str(path), fields)
 
 
 def count_initializer_rows(source: str, declaration: str) -> int:
@@ -55,13 +59,16 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     def source(relative_path: str) -> str:
         return overrides.get(relative_path, (root / relative_path).read_text())
 
-    syscall_records = records(root / "sys/kern/syscalls.master", 6)
+    syscall_master = "sys/kern/syscalls.master"
+    syscall_records = records_text(source(syscall_master), syscall_master, 6)
     if len(syscall_records) != 156:
         raise CheckError("syscall master must contain slots 0 through 155")
     if syscall_records[23][2:5] != ["__sysctl", "ALWAYS", "__sysctl"]:
         raise CheckError("syscall 23 must remain __sysctl")
     if syscall_records[66][2] != "vfork":
         raise CheckError("dispatch slot 66 must remain vfork")
+    if syscall_records[81] != ["81", "0", "getpgrp", "ALWAYS", "getpgrp", "getpgrp=81"]:
+        raise CheckError("syscall 81 must remain zero-argument getpgrp")
     public = source("include/syscall.h")
     generated_files = {
         "include/syscall.h": "Copyright (c) 1980 Regents",
@@ -158,6 +165,22 @@ def main() -> int:
     arguments = parser.parse_args()
     root = arguments.root
     check_tree(root)
+
+    syscall_path = "sys/kern/syscalls.master"
+    syscall_source = (root / syscall_path).read_text()
+    expect_bad(
+        "argument-bearing getpgrp",
+        lambda: check_tree(
+            root,
+            {
+                syscall_path: syscall_source.replace(
+                    "81|0|getpgrp|ALWAYS|getpgrp|getpgrp=81",
+                    "81|1|getpgrp|ALWAYS|getpgrp|getpgrp=81",
+                    1,
+                )
+            },
+        ),
+    )
 
     conf_path = "sys/arch/rp2040/rp2040/conf.c"
     conf = (root / conf_path).read_text()

@@ -191,7 +191,7 @@ check-unistd-prototypes:
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 	    -nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
 	    ${.CURDIR}/unistd_prototypes.c
-	@set -e; for function in fork getegid geteuid getgid getlogin getpid sync \
+	@set -e; for function in fork getegid geteuid getgid getlogin getpgrp getpid sync \
 	    getppid getuid getusershell endusershell gethostid setusershell vfork; do \
 	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 		-nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
@@ -200,7 +200,7 @@ check-unistd-prototypes:
 		echo "$$function accepted an extra argument" >&2; exit 1; \
 	    fi; \
 	done; \
-	for function in getpgrp lseek read sleep ttyname crypt getpass getwd psignal \
+	for function in lseek read sleep ttyname crypt getpass getwd psignal \
 	    re_comp sethostid ualarm usleep; do \
 	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 		-nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
@@ -437,6 +437,7 @@ check-ctime-cross: asctime_target.o asctime_target_diagnostic.o ctime_target.o \
 check-runtime-limits: runtime_limits_test runtime_limits_bad_test
 	${TEST_EXECUTION} run libc.runtime-limits.native -- ./runtime_limits_test
 	${TEST_EXECUTION} run libc.runtime-limits.negative -- ./runtime_limits_bad_test
+	${PYTHON} ${.CURDIR}/runtime_limits_mutate.py ${TOPSRC} ${HOSTCC:Q}
 .if ${ILP32_OK} == "yes"
 	@${MAKE} runtime_limits_test32
 	${TEST_EXECUTION} run libc.runtime-limits.ilp32 -- ./runtime_limits_test32

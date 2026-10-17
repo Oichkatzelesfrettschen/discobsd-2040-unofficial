@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile_id": "DPUCP-2024",
   "base_commit": "e7730db124a0324b62afe209b31dd210c270c0dc",
-  "implementation_commit": "e089f3c05e913f70561cb2a03ff303a4830de485",
+  "implementation_commit": "50b6c774f355d79a96b4e26d2b6c4b34c5eaa568",
   "block_bytes": 1024,
   "kernel": {
     "region_bytes": 131072,
@@ -35,19 +35,19 @@
       "window_margin_before_stack_bytes": 107760
     },
     "candidate": {
-      "aout_bytes": 35908,
-      "text_bytes": 33444,
+      "aout_bytes": 35944,
+      "text_bytes": 33480,
       "data_bytes": 2432,
       "bss_bytes": 7172,
-      "window_occupancy_before_stack_bytes": 43048,
-      "window_margin_before_stack_bytes": 104408
+      "window_occupancy_before_stack_bytes": 43084,
+      "window_margin_before_stack_bytes": 104372
     },
     "delta": {
-      "aout_bytes": 3332,
-      "text_bytes": 3312,
+      "aout_bytes": 3368,
+      "text_bytes": 3348,
       "data_bytes": 20,
       "bss_bytes": 20,
-      "window_occupancy_before_stack_bytes": 3352
+      "window_occupancy_before_stack_bytes": 3388
     }
   },
   "root": {
@@ -60,15 +60,15 @@
     },
     "candidate": {
       "files": 95,
-      "data_blocks": 684,
-      "free_blocks": 295
+      "data_blocks": 685,
+      "free_blocks": 294
     },
     "delta": {
       "files": 0,
-      "data_blocks": 2,
-      "free_blocks": -2
+      "data_blocks": 3,
+      "free_blocks": -3
     },
-    "candidate_free_bytes": 302080
+    "candidate_free_bytes": 301056
   },
   "reviewer_approval": {
     "status": "pending",

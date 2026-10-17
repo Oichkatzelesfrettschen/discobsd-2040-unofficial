@@ -16,6 +16,22 @@ def expect_failure(name, root, document, requirement_ids):
     return name
 
 
+def require_documented_mutation_count(testing_text, mutation_count):
+    gate_marker = "| `check-dpucp-donor-ledger` |"
+    gate_line = next(
+        (line for line in testing_text.splitlines() if line.startswith(gate_marker)),
+        None,
+    )
+    if gate_line is None:
+        raise AssertionError("missing check-dpucp-donor-ledger documentation")
+    expected = f"{mutation_count} mutations reject"
+    if expected not in gate_line:
+        raise AssertionError(
+            "DPUCP donor mutation count documentation differs from calibration: "
+            f"expected {mutation_count}"
+        )
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     document = donors.load_json(root / "docs/research/dpucp-2024-donor-ledger.json")
@@ -175,6 +191,20 @@ def main():
     changed = copy.deepcopy(document)
     changed["candidates"][0]["c17_rewrite"] = True
     cases.append(("nontext C17 rewrite", changed))
+
+    testing_path = root / "sys/arch/rp2040/doc/TESTING.md"
+    testing_text = testing_path.read_text(encoding="utf-8")
+    require_documented_mutation_count(testing_text, len(cases))
+    known_bad_documentation = testing_text.replace(
+        f"{len(cases)} mutations reject",
+        f"{len(cases) + 1} mutations reject",
+    )
+    try:
+        require_documented_mutation_count(known_bad_documentation, len(cases))
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("DPUCP donor mutation-count drift passed")
 
     passed_mutations = []
     for name, mutated in cases:

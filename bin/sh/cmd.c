@@ -78,7 +78,7 @@ synbad()
 	prc(RQ);
 	prs(unexpected);
 	newline();
-	exitsh(SYNBAD);
+	recover_or_exit(SYNBAD);
 }
 
 static struct trenod *

@@ -223,9 +223,14 @@ void
 prs_cntl(s)
 	char *s;
 {
-	register char *ptr = buffer;
+	register char *ptr;
+	register char *end = buffer + sizeof buffer;
+	char translated[2];
+	int translated_length;
 	int c;
 
+	flushb();
+	ptr = buffer;
 	while (*s != '\0')
 	{
 		c = *s;
@@ -235,24 +240,35 @@ prs_cntl(s)
 
 		if (c < ' ')
 		{       /* assumes ASCII char */
-			*ptr++ = '^';
-			*ptr++ = (c + '@');    /* assumes ASCII char */
+			translated[0] = '^';
+			translated[1] = c + '@';    /* assumes ASCII char */
+			translated_length = 2;
 		}
 		else if (c == 0177 || (c>=0200 && c<0300 ))
 		{       /* '\0177' does not work */
-			*ptr++ = '^';
-			*ptr++ = '?';
+			translated[0] = '^';
+			translated[1] = '?';
+			translated_length = 2;
 		}
 		else
 		{       /* printable character */
-			*ptr++ = c;
+			translated[0] = c;
+			translated_length = 1;
 		}
+		if (ptr + translated_length > end)
+		{
+			write(output, buffer, ptr - buffer);
+			ptr = buffer;
+		}
+		*ptr++ = translated[0];
+		if (translated_length == 2)
+			*ptr++ = translated[1];
 
 		++s;
 	}
 
-	*ptr = '\0';
-	prs(buffer);
+	if (ptr != buffer)
+		write(output, buffer, ptr - buffer);
 }
 
 

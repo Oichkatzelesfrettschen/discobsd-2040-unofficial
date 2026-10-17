@@ -129,6 +129,38 @@ _run_command_alloc_failure()
 	fi
 }
 
+_arena_top()
+{
+	if arena_output=$(cd "$WORK" && SH_TEST_ARENA_TRACE=1 \
+	    "$SH" -c "$1" < /dev/null 2>&1); then
+		:
+	else
+		return 1
+	fi
+	case "$arena_output" in
+	sh-arena-top=*) printf '%s\n' "${arena_output#sh-arena-top=}" ;;
+	*) return 1 ;;
+	esac
+}
+
+arena_bounded()
+{
+	arena_case_name=$1
+	arena_iterations=$2
+	arena_single_script='arena_index=0; while test "$arena_index" -lt 1; do command eval '\''f() { if'\'' 2>/dev/null; arena_index=`expr "$arena_index" + 1`; done; :'
+	arena_repeated_script='arena_index=0; while test "$arena_index" -lt '"$arena_iterations"'; do command eval '\''f() { if'\'' 2>/dev/null; arena_index=`expr "$arena_index" + 1`; done; :'
+	if arena_single_top=$(_arena_top "$arena_single_script") &&
+	    arena_repeated_top=$(_arena_top "$arena_repeated_script") &&
+	    [ "$arena_repeated_top" -le $((arena_single_top + 512)) ]; then
+		pass=$((pass + 1))
+		echo "PASS $arena_case_name"
+	else
+		fail=$((fail + 1))
+		failed="$failed $arena_case_name"
+		echo "FAIL $arena_case_name: one=${arena_single_top:-invalid} repeated=${arena_repeated_top:-invalid} bound=512"
+	fi
+}
+
 # ok NAME EXPECTED SNIPPET
 ok()
 {
@@ -544,6 +576,28 @@ ok bi_command_enoexec_error_continues 'after:1' \
     'echo "echo external" > command-no-shebang; chmod 755 command-no-shebang; echo(){ shift bad; }; command ./command-no-shebang 2>/dev/null; /bin/echo "after:$?"'
 ok bi_command_partial_redirection_unwind 'after' \
     'command : > command-output 2>/dev/null </definitely-absent-shell-review; echo after'
+ok bi_command_external_redirection_failure_once 'command /bin/true </definitely-absent-shell-review 2>/dev/null; echo "after:$?": /definitely-absent-shell-review: cannot open
+after:1' \
+    'command /bin/true </definitely-absent-shell-review 2>/dev/null; echo "after:$?"'
+ok bi_command_inherited_subshell_recovery 'in-eval
+after' \
+    'command eval '\''(shift bad); echo in-eval'\'' 2>/dev/null; echo after'
+ok bi_command_child_owned_recovery 'inner
+after' \
+    'command eval '\''(command export 1bad=x 2>/dev/null; echo inner)'\''; echo after'
+ok bi_command_eval_syntax_error 'after:2' \
+    'command eval '\''if'\'' 2>/dev/null; echo "after:$?"'
+long_diagnostic_prefix=
+long_diagnostic_index=0
+while [ "$long_diagnostic_index" -lt 4096 ]; do
+	long_diagnostic_prefix="${long_diagnostic_prefix} "
+	long_diagnostic_index=$((long_diagnostic_index + 1))
+done
+ok bi_command_long_diagnostic 'after:2' \
+    "${long_diagnostic_prefix}command eval 'if' 2>/dev/null; echo \"after:\$?\""
+arena_bounded bi_command_eval_syntax_allocation 128
+okrc bi_eval_syntax_error_remains_fatal '' 2 \
+    'eval '\''if'\'' 2>/dev/null; echo after'
 okstdin bi_command_nested_input_unwind 'after
 end' 'command eval "shift x" 2>/dev/null
 echo after

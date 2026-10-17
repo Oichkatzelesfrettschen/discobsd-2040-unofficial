@@ -288,6 +288,7 @@ struct command_context
 	short io;
 	short wrapped;
 	short recoverable;
+	pid_t owner_pid;
 	int saved_loopcnt;
 	int saved_breakcnt;
 	BOOL saved_execbrk;
@@ -302,7 +303,8 @@ static struct command_context *command_current;
 int
 command_recovery_allowed()
 {
-	return(command_current && command_current->recoverable);
+	return(command_current && command_current->recoverable &&
+	    command_current->owner_pid == getpid());
 }
 
 void
@@ -488,6 +490,7 @@ int     *pf1, *pf2;
 									command_state->io = -1;
 									command_state->wrapped = 0;
 									command_state->recoverable = 1;
+									command_state->owner_pid = getpid();
 									command_state->saved_loopcnt = loopcnt;
 									command_state->saved_breakcnt = breakcnt;
 									command_state->saved_execbrk = execbrk;
@@ -1352,6 +1355,46 @@ int     *pf1, *pf2;
 	return(exitval);
 }
 
+static struct trenod *
+recoverable_parse()
+{
+	struct trenod   *tree;
+	jmp_buf         parse_context;
+	jmp_buf         *volatile previous_command_context;
+	char            *parse_stack;
+	struct ionod    *saved_iopend;
+	int             saved_fndef;
+	int             saved_nohash;
+	int             saved_peekc;
+	int             saved_peekn;
+
+	previous_command_context = command_errshell;
+	parse_stack = savstak();
+	saved_fndef = fndef;
+	saved_nohash = nohash;
+	saved_iopend = iopend;
+	saved_peekc = peekc;
+	saved_peekn = peekn;
+	parse_alloc_begin();
+	command_errshell = &parse_context;
+	if (setjmp(parse_context))
+	{
+		command_errshell = previous_command_context;
+		fndef = saved_fndef;
+		nohash = saved_nohash;
+		iopend = saved_iopend;
+		peekc = saved_peekc;
+		peekn = saved_peekn;
+		tdystak(parse_stack);
+		parse_alloc_rollback();
+		longjmp(*previous_command_context, 1);
+	}
+	tree = cmd(NL, NLFLG | MTFLG);
+	command_errshell = previous_command_context;
+	parse_alloc_commit();
+	return(tree);
+}
+
 void
 execexp(s, f, errorflg)
 char    *s;
@@ -1359,6 +1402,7 @@ int     f;
 int     errorflg;
 {
 	struct fileblk  fb;
+	struct trenod   *tree;
 
 	push(&fb);
 	if (s)
@@ -1368,7 +1412,11 @@ int     errorflg;
 	}
 	else if (f >= 0)
 		initf(f);
-	execute(cmd(NL, NLFLG | MTFLG), 0, errorflg);
+	if (command_errshell && command_recovery_allowed())
+		tree = recoverable_parse();
+	else
+		tree = cmd(NL, NLFLG | MTFLG);
+	execute(tree, 0, errorflg);
 	pop();
 }
 

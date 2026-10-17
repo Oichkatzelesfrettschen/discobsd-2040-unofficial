@@ -32,6 +32,13 @@ long syscall(long, ...);
 
 static char sh_arena[SH_ARENA_BYTES];
 static long sh_arena_top;
+static int sh_arena_trace_registered;
+
+static void
+sh_host_report_arena(void)
+{
+	fprintf(stderr, "sh-arena-top=%ld\n", sh_arena_top);
+}
 
 struct linux_dirent64 {
 	uint64_t d_ino;
@@ -54,6 +61,14 @@ void *
 sbrk(intptr_t incr)
 {
 	char *old = sh_arena + sh_arena_top;
+	char *trace;
+
+	if (!sh_arena_trace_registered) {
+		sh_arena_trace_registered = 1;
+		trace = getenv("SH_TEST_ARENA_TRACE");
+		if (trace != NULL && trace[0] == '1' && trace[1] == '\0')
+			(void)atexit(sh_host_report_arena);
+	}
 
 	if (sh_arena_top + incr > SH_ARENA_BYTES || sh_arena_top + incr < 0)
 		return (void *)-1;

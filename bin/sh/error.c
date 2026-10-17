@@ -20,6 +20,13 @@ int     xno;
 		prs(s2);
 	}
 	newline();
+	recover_or_exit(xno);
+}
+
+_Noreturn void
+recover_or_exit(xno)
+int     xno;
+{
 	if (command_errshell && (flags & errflg) == 0 &&
 	    command_recovery_allowed())
 	{

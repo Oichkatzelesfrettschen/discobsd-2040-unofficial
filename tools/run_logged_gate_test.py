@@ -90,6 +90,109 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(status["child_exit_code"], 7)
         self.assertIsNone(status["termination"])
 
+    def test_silent_leader_exit_wakes_before_inherited_output_pipe_closes(self):
+        descendant_ready = self.directory / "descendant-ready"
+        descendant_terminated = self.directory / "descendant-terminated"
+        descendant = (
+            "import pathlib, signal, sys, time; "
+            "ready = pathlib.Path(sys.argv[1]); "
+            "terminated = pathlib.Path(sys.argv[2]); "
+            "signal.signal(signal.SIGTERM, lambda *_: "
+            "(print('DESCENDANT-SHUTDOWN', flush=True), "
+            "terminated.write_text('terminated', encoding='ascii'), sys.exit(0))); "
+            "ready.write_text('ready', encoding='ascii'); time.sleep(60)"
+        )
+        leader = (
+            "import pathlib, subprocess, sys, time; "
+            "ready = pathlib.Path(sys.argv[2]); "
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1], "
+            "sys.argv[2], sys.argv[3]]); "
+            "deadline = time.monotonic() + 1; "
+            "\nwhile not ready.exists() and time.monotonic() < deadline: "
+            "time.sleep(0.01)"
+        )
+
+        started = time.monotonic()
+        result = self.run_gate(
+            leader,
+            heartbeat="2",
+            idle="3",
+            timeout="4",
+            program_arguments=(
+                descendant,
+                descendant_ready,
+                descendant_terminated,
+            ),
+        )
+        elapsed = time.monotonic() - started
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertLess(elapsed, 1)
+        self.assertTrue(descendant_ready.is_file())
+        self.assertTrue(descendant_terminated.is_file())
+        self.assertIn(
+            "DESCENDANT-SHUTDOWN", self.log.read_text(encoding="utf-8")
+        )
+        status = self.read_status()
+        self.assertEqual(status["state"], "completed")
+        self.assertIsNone(status["termination"])
+
+    def test_signal_after_leader_exit_precedes_completion(self):
+        descendant_terminated = self.directory / "descendant-terminated"
+        descendant = (
+            "import os, pathlib, signal, sys, time; "
+            "supervisor = int(sys.argv[1]); "
+            "leader = int(sys.argv[2]); "
+            "terminated = pathlib.Path(sys.argv[3]); "
+            "signal.signal(signal.SIGTERM, lambda *_: "
+            "(terminated.write_text('terminated', encoding='ascii'), sys.exit(0))); "
+            "\nwhile os.getppid() == leader: time.sleep(0.001)\n"
+            "os.kill(supervisor, signal.SIGTERM); time.sleep(60)"
+        )
+        leader = (
+            "import os, subprocess, sys; "
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1], "
+            "str(os.getppid()), str(os.getpid()), sys.argv[2]])"
+        )
+
+        result = self.run_gate(
+            leader,
+            heartbeat="2",
+            idle="3",
+            timeout="4",
+            program_arguments=(descendant, descendant_terminated),
+        )
+
+        self.assertEqual(
+            result.returncode,
+            128 + signal.SIGTERM,
+            result.stdout + result.stderr,
+        )
+        self.assertTrue(descendant_terminated.is_file())
+        status = self.read_status()
+        self.assertEqual(status["state"], "interrupted")
+        self.assertEqual(status["termination"], "signal_15")
+
+    def test_ready_output_drain_stops_at_its_deadline(self):
+        pump_calls = []
+
+        def perpetually_ready_pump(wait_seconds):
+            pump_calls.append(wait_seconds)
+            return True
+
+        with mock.patch.object(
+            runner.time,
+            "monotonic",
+            side_effect=(0.0, 0.01, 0.02, 0.03),
+        ):
+            runner.drain_ready_output(
+                perpetually_ready_pump,
+                lambda: True,
+                0.03,
+            )
+
+        self.assertEqual(pump_calls, [0, 0])
+
     def test_idle_timeout_emits_heartbeats_and_stops_the_process_group(self):
         terminated = self.directory / "descendant-terminated"
         descendant = (

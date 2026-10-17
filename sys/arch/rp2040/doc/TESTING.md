@@ -63,6 +63,11 @@ SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval.
 Signal handling covers launch, ownership registration and execution; a signal
 during registration stops the launched process group before the supervisor
 returns.
+The supervisor caps each idle selector wait at 100 milliseconds independently
+of output and heartbeat deadlines. After observing leader exit, the supervisor
+drains ready output against a 200-millisecond deadline and enters the existing
+bounded process-group cleanup even when a descendant still holds the
+combined-output pipe open.
 Every termination path makes a bounded attempt to terminate and reap its owned
 process group, and every wait after SIGKILL carries a finite cleanup deadline.
 If the process leader cannot be reaped or any member of the process group
@@ -143,7 +148,11 @@ timed-out gates retain their last status. The upload action explicitly includes
 hidden files because `.build-logs` is a hidden directory. `check-run-logging`
 calibrates runner success, failure, exceptional cleanup, idle termination, hard
 termination, signal wakeup, terminal backpressure, shutdown-output retention
-and invalid arguments. The gate calibrates bounded post-SIGKILL reaping and
+and invalid arguments. A silent-leader fixture keeps the output pipe open in a
+same-group descendant and requires completion before the heartbeat or idle
+deadline while retaining output from descendant cleanup. A separate fixture
+delivers SIGTERM after leader exit and requires the signal verdict to precede
+ordinary completion. The gate calibrates bounded post-SIGKILL reaping and
 cleanup-incomplete quarantine for direct runners and build/check sequences. It
 also calibrates active-log exclusion, immutable sequential evidence, worktree
 product locking, pre-termination process capture, correlated build/check

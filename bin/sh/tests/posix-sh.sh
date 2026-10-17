@@ -73,8 +73,13 @@ build()
 	# expand.c reads directory blocks itself; give it a complete DIR and
 	# route its one read(2) call at hostshim.c.
 	# shellcheck disable=SC2086
-	$HOST_CC $CFLAGS -DSH_HOST_RAWDIR -Dread=sh_host_getdents \
+	$HOST_CC $CFLAGS -DSH_HOST_RAWDIR \
 	    -c -o "$OUT/expand.o" "$SHSRC/expand.c"
+	if ! nm -u "$OUT/expand.o" | \
+	    grep -Eq '[[:space:]]U[[:space:]]+sh_host_getdents$'; then
+		echo "ERROR build: expand.o bypasses sh_host_getdents." >&2
+		exit 3
+	fi
 	# edit.c already carries a termios path for its own host test.
 	# shellcheck disable=SC2086
 	$HOST_CC $CFLAGS -DHOSTBUILD -c -o "$OUT/edit.o" "$SHSRC/edit.c"

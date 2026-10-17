@@ -8,6 +8,12 @@
 #include <sys/stat.h>
 #include <sys/dir.h>
 
+#ifdef SH_HOST_RAWDIR
+#define read_directory_block sh_host_getdents
+#else
+#define read_directory_block read
+#endif
+
 struct direct           *getdir();
 
 static char             entry[MAXNAMLEN+1];
@@ -240,7 +246,7 @@ getdir(dirf)
 	struct direct *dp;
 	for (;;) {
 		if (dirbuf.dd_loc == 0) {
-			dirbuf.dd_size = read(dirf, dirbuf.dd_buf,
+			dirbuf.dd_size = read_directory_block(dirf, dirbuf.dd_buf,
 			    DIRBLKSIZ);
 			if (dirbuf.dd_size <= 0)
 				return NULL;

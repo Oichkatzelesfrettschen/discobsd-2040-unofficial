@@ -289,6 +289,31 @@ def register_inherited_execution_group(process_group):
     register_execution_group(Path(path), invocation_id, process_group)
 
 
+def unregister_execution_group(path, invocation_id, process_group):
+    descriptor = _acquire_ownership_update_lock(path)
+    try:
+        record = read_execution_ownership(path)
+        if record is None or record["invocation_id"] != invocation_id:
+            raise ValueError(f"execution ownership invocation mismatch: {path}")
+        if record["state"] not in {"active", "cleanup_incomplete"}:
+            raise ValueError(f"execution ownership is already released: {path}")
+        if process_group in record["process_groups"]:
+            record["process_groups"].remove(process_group)
+            atomic_status(path, record)
+    finally:
+        os.close(descriptor)
+
+
+def unregister_inherited_execution_group(process_group):
+    path = os.environ.get(OWNERSHIP_PATH_ENV)
+    invocation_id = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if path is None and invocation_id is None:
+        return
+    if path is None or invocation_id is None:
+        raise ValueError("incomplete inherited execution ownership environment")
+    unregister_execution_group(Path(path), invocation_id, process_group)
+
+
 def finish_execution_ownership(path, invocation_id, force_incomplete=False):
     descriptor = _acquire_ownership_update_lock(path)
     try:
@@ -298,6 +323,7 @@ def finish_execution_ownership(path, invocation_id, force_incomplete=False):
         surviving = [
             group for group in record["process_groups"] if group_exists(group)
         ]
+        record["process_groups"] = surviving
         record["state"] = (
             "cleanup_incomplete"
             if force_incomplete or surviving
@@ -937,6 +963,17 @@ def run(args):
                         exit_code = child_exit if child_exit >= 0 else 128 - child_exit
                         state = "completed" if exit_code == 0 else "failed"
 
+                if (
+                    ownership_path is not None
+                    and process is not None
+                    and not group_exists(process.pid)
+                ):
+                    unregister_execution_group(
+                        ownership_path,
+                        record["sequence_invocation_id"]
+                        or record["invocation_id"],
+                        process.pid,
+                    )
                 ownership_groups = []
                 ownership_survivors = []
                 if ownership_path is not None:

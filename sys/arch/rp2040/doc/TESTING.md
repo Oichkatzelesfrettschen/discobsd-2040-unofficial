@@ -59,11 +59,11 @@ The durable log is the complete output record. Terminal mirroring uses a
 bounded asynchronous queue so a terminal or pipe whose reader stops consuming
 cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
-SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
-and every exit path after launch terminates and reaps the owned process group.
-Every wait after SIGKILL carries a finite cleanup deadline. If the process
-leader cannot be reaped or any member of the process group remains visible
-after that deadline, the runner returns status 125 and records
+SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval.
+Every termination path makes a bounded attempt to terminate and reap its owned
+process group, and every wait after SIGKILL carries a finite cleanup deadline.
+If the process leader cannot be reaped or any member of the process group
+remains visible after that deadline, the runner returns status 125 and records
 `cleanup_incomplete`; the runner does not report an ordinary timeout or
 completed cleanup.
 Immediately before timeout or signal termination, the log records a bounded
@@ -73,9 +73,14 @@ termination; the child log remains the authority for its own output.
 Before child launch, a product owner writes
 `<execution-lock>.ownership.json` with active state. Direct and nested
 supervisors register every independently created process group in that receipt.
-Verified cleanup changes the receipt to released state. Incomplete cleanup
-changes the receipt to cleanup-incomplete state before later evidence writes;
-an active receipt remains fail-closed when finalization itself fails.
+Each supervisor removes its group after the group has conclusively disappeared,
+so a long sequence retains active or unresolved ownership rather than completed
+process history. Verified cleanup changes the receipt to released state and
+retains only groups still visible at finalization. Incomplete cleanup changes
+the receipt to cleanup-incomplete state before later evidence writes; an active
+receipt remains fail-closed when finalization itself fails. Registration and
+release failures name the ownership operation and its exact error in the durable
+build log.
 A cleanup-incomplete invocation also writes
 `<execution-lock>.quarantine.json` before releasing the lock. The retained
 quarantine receipt names the process groups, invocation, status path and

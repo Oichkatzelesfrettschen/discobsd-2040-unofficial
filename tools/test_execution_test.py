@@ -226,6 +226,59 @@ class ExecutionTest(unittest.TestCase):
 
         self.assertTrue(self.wait_for_file(marker, 1))
 
+    def test_completed_group_leaves_sequence_ownership(self):
+        variant = self.variant("owned-success")
+        command = self.compile(variant, 0)
+        ownership_path = self.directory / "products.lock.ownership.json"
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                    str(ownership_path),
+                execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                    invocation_id,
+            },
+        ):
+            self.assertEqual(execution.run_variant(variant, command), 0)
+
+        ownership = execution.execution_ownership.read_execution_ownership(
+            ownership_path
+        )
+        self.assertEqual(ownership["state"], "active")
+        self.assertEqual(ownership["process_groups"], [])
+
+    def test_registration_failure_names_the_ownership_error(self):
+        missing_ownership = self.directory / "missing-ownership.json"
+        with patch.dict(
+            os.environ,
+            {
+                execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                    str(missing_ownership),
+                execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                    "sequence-fixture",
+            },
+        ):
+            returncode, termination = execution.run_bounded(
+                [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+            )
+
+        self.assertEqual(returncode, 125)
+        self.assertEqual(termination, "cleanup_incomplete")
+        self.assertIn(
+            f"execution ownership invocation mismatch: {missing_ownership}",
+            self.output.getvalue(),
+        )
+
     def test_outer_timeout_stops_nested_detached_process_group(self):
         marker = self.directory / "nested-descendant-terminated"
         ready = self.directory / "nested-descendant-ready"

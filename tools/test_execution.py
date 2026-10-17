@@ -107,19 +107,41 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
 
     for number in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[number] = signal.signal(number, interrupt)
+
+    def release_registered_group(process_group):
+        try:
+            execution_ownership.unregister_inherited_execution_group(
+                process_group
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: ownership release failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return False
+        return True
+
     try:
         process = subprocess.Popen(
             command, cwd=cwd, env=child_environment, start_new_session=True
         )
         try:
             execution_ownership.register_inherited_execution_group(process.pid)
-        except (OSError, ValueError, TimeoutError):
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: ownership registration failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
             stop_process_group(process, cleanup_seconds)
             return 125, "cleanup_incomplete"
         try:
             returncode = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
             result = stop_process_group(process, cleanup_seconds)
+            if result.group_stopped and not release_registered_group(process.pid):
+                return 125, "cleanup_incomplete"
             return (
                 (TIMEOUT_EXIT, "hard_timeout")
                 if result.group_stopped
@@ -127,6 +149,8 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             )
         except BoundedSignal as interruption:
             result = stop_process_group(process, cleanup_seconds)
+            if result.group_stopped and not release_registered_group(process.pid):
+                return 125, "cleanup_incomplete"
             return (
                 (128 + interruption.number, f"signal_{interruption.number}")
                 if result.group_stopped
@@ -139,6 +163,8 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             result = stop_process_group(process, cleanup_seconds)
             if not result.group_stopped:
                 return 125, "cleanup_incomplete"
+        if not release_registered_group(process.pid):
+            return 125, "cleanup_incomplete"
         return returncode, None
     finally:
         for number, handler in previous_handlers.items():

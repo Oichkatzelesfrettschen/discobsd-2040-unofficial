@@ -154,6 +154,35 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.assertEqual(check["termination"], "prerequisite_failed")
         self.assertEqual(check["blocked_by"], "build")
 
+    def test_completed_build_group_is_absent_while_check_runs(self):
+        make = self.directory / "ownership-observer-make"
+        observation = self.directory / "check-ownership.json"
+        make.write_text(
+            f"#!{sys.executable}\n"
+            "import json, os, pathlib, sys\n"
+            "stage = sys.argv[-1]\n"
+            "if stage == 'check':\n"
+            "    ownership = pathlib.Path(\n"
+            "        os.environ['_DISCOBSD_EXECUTION_OWNERSHIP_PATH']\n"
+            "    )\n"
+            f"    observation = pathlib.Path({str(observation)!r})\n"
+            "    record = json.loads(ownership.read_text(encoding='utf-8'))\n"
+            "    observation.write_text(json.dumps({\n"
+            "        'current_group': os.getpgrp(),\n"
+            "        'owned_groups': record['process_groups'],\n"
+            "    }), encoding='utf-8')\n",
+            encoding="ascii",
+        )
+        make.chmod(0o755)
+
+        result = self.run_sequence(make)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        observed = json.loads(observation.read_text(encoding="utf-8"))
+        self.assertEqual(
+            observed["owned_groups"], [observed["current_group"]]
+        )
+
     def test_build_runner_error_remains_error_in_sequence_summary(self):
         missing_make = self.directory / "missing-make"
 

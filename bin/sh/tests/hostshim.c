@@ -19,7 +19,9 @@
 #include <dirent.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -30,6 +32,14 @@ long syscall(long, ...);
 
 static char sh_arena[SH_ARENA_BYTES];
 static long sh_arena_top;
+
+struct linux_dirent64 {
+	uint64_t d_ino;
+	int64_t d_off;
+	unsigned short d_reclen;
+	unsigned char d_type;
+	char d_name[1];
+};
 
 int
 sh_host_command_alloc_failure(void)
@@ -65,5 +75,29 @@ brk(void *addr)
 ssize_t
 sh_host_getdents(int fd, void *buf, size_t nbytes)
 {
-	return (ssize_t)syscall(SYS_getdents64, fd, buf, nbytes);
+	char *trace;
+	ssize_t received;
+
+	received = (ssize_t)syscall(SYS_getdents64, fd, buf, nbytes);
+	trace = getenv("SH_TEST_DIRECTORY_TRACE");
+	if (trace != NULL && trace[0] == '1' && trace[1] == '\0') {
+		size_t offset;
+
+		fprintf(stderr, "getdents64 fd=%d requested=%zu received=%zd\n",
+		    fd, nbytes, received);
+		for (offset = 0; received > 0 && offset < (size_t)received; ) {
+			struct linux_dirent64 *entry;
+
+			entry = (struct linux_dirent64 *)((char *)buf + offset);
+			fprintf(stderr,
+			    "dirent offset=%zu inode=%llu cursor=%lld reclen=%u type=%u name=%s\n",
+			    offset, (unsigned long long)entry->d_ino,
+			    (long long)entry->d_off, entry->d_reclen,
+			    entry->d_type, entry->d_name);
+			if (entry->d_reclen == 0)
+				break;
+			offset += entry->d_reclen;
+		}
+	}
+	return received;
 }

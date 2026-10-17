@@ -599,6 +599,12 @@ echo "--"
 echo "pass $pass  fail $fail  xfail $xfail"
 if [ "$fail" -ne 0 ]; then
 	echo "failing:$failed"
+	(
+		cd "$WORK"
+		stat -c 'stat path=%n inode=%i device=%d' . .. g1 g2 xcmd
+		SH_TEST_DIRECTORY_TRACE=1 "$SH" -c \
+		    'echo g[12]*; pwd; command -v ./xcmd'
+	) 2>&1 || :
 	echo "SHTEST FAILED"
 	exit 1
 fi

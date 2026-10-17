@@ -85,6 +85,46 @@ check-python:
 			exit 2; \
 		fi
 
+# These caller-facing targets retain progress and terminate the complete
+# recursive-make process group when either output or total runtime exceeds its
+# bound. Internal build targets stay unwrapped so recursive make remains direct.
+logged-build: check-python
+		${PYTHON} tools/run_logged_gate.py --label rp2040-build-local \
+		    --log .build-logs/rp2040-build-local.log \
+		    --status .build-logs/rp2040-build-local.status.json \
+		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
+		    -- ${MAKE} MACHINE=rp2040 build
+
+logged-distribution: check-python
+		${PYTHON} tools/run_logged_gate.py --label rp2040-distribution-local \
+		    --log .build-logs/rp2040-distribution-local.log \
+		    --status .build-logs/rp2040-distribution-local.status.json \
+		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
+		    -- ${MAKE} MACHINE=rp2040 distribution
+
+logged-flash: check-python
+		${PYTHON} tools/run_logged_gate.py --label rp2040-flash-local \
+		    --log .build-logs/rp2040-flash-local.log \
+		    --status .build-logs/rp2040-flash-local.status.json \
+		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
+		    -- ${MAKE} MACHINE=rp2040 flash
+
+logged-kernel: check-python
+		${PYTHON} tools/run_logged_gate.py --label rp2040-kernel-local \
+		    --log .build-logs/rp2040-kernel-local.log \
+		    --status .build-logs/rp2040-kernel-local.status.json \
+		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
+		    -- ${MAKE} MACHINE=rp2040 kernel
+
+logged-check: check-python logged-build
+		${PYTHON} tools/run_logged_gate.py --label rp2040-check-local \
+		    --log .build-logs/rp2040-check-local.log \
+		    --status .build-logs/rp2040-check-local.status.json \
+		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
+		    -- ${MAKE} MACHINE=rp2040 check
+
+.PHONY: logged-build logged-distribution logged-flash logged-kernel logged-check
+
 # The SUS discovery tools reject unavailable comparison trees and keep
 # source, installed-name, linkage and behavior evidence in separate states.
 # Fixtures calibrate declaration-only and implemented API candidates; ledger

@@ -33,6 +33,7 @@ jobs:
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -43,27 +44,59 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install the package and its test extra
+        timeout-minutes: 10
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[test]"
       - name: Lint
+        timeout-minutes: 5
         run: ruff check .
-      - name: Test
-        run: python -m pytest -q
+      - name: Test on POSIX hosts
+        if: runner.os != 'Windows'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.build-logs"
+          python -m pytest -q \
+            --junitxml "$GITHUB_WORKSPACE/.build-logs/host-test.xml" \
+            2>&1 | tee "$GITHUB_WORKSPACE/.build-logs/host-test.log"
+      - name: Test on Windows
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:GITHUB_WORKSPACE\.build-logs" | Out-Null
+          python -m pytest -q `
+            --junitxml "$env:GITHUB_WORKSPACE\.build-logs\host-test.xml" *>&1 `
+            | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\.build-logs\host-test.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-test-${{ matrix.os }}
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   wheel:
     name: wheel and sdist
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Build the distributions
+        timeout-minutes: 10
+        shell: bash
         run: |
           python -m pip install --upgrade pip build pipx
-          python -m build
+          mkdir -p "$GITHUB_WORKSPACE/.build-logs"
+          python -m build 2>&1 | tee "$GITHUB_WORKSPACE/.build-logs/host-wheel.log"
       - name: Install the wheel and run every command
+        timeout-minutes: 5
         run: |
           wheel=$(ls dist/*.whl)
           python -m pipx install "$wheel"
@@ -79,13 +112,23 @@ jobs:
             distrib/rp2040/host/dist/*.whl
             distrib/rp2040/host/dist/*.tar.gz
           if-no-files-found: error
+      - name: Retain wheel build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-wheel-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   deb:
     name: deb (ubuntu 24.04)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Install the build dependencies
+        timeout-minutes: 15
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -93,11 +136,16 @@ jobs:
             pybuild-plugin-pyproject python3-all python3-pytest \
             python3-serial python3-setuptools
       - name: Build the package
+        timeout-minutes: 10
+        shell: bash
         run: |
           cp -a packaging/debian debian
-          dpkg-buildpackage -us -uc -b
+          mkdir -p "$GITHUB_WORKSPACE/.build-logs"
+          dpkg-buildpackage -us -uc -b 2>&1 \
+            | tee "$GITHUB_WORKSPACE/.build-logs/host-deb.log"
           rm -rf debian
       - name: Install it and run the smoke checks
+        timeout-minutes: 10
         run: |
           deb=$(ls ../discobsd-host_*.deb)
           sudo apt-get install -y "$(readlink -f "$deb")"
@@ -110,6 +158,7 @@ jobs:
           test -x /usr/bin/discobsd-connect
           test -x /usr/bin/discobsd-flash
       - name: Stage the artifact
+        timeout-minutes: 5
         run: |
           mkdir -p deb-out
           cp ../discobsd-host_*.deb deb-out/
@@ -118,13 +167,23 @@ jobs:
           name: discobsd-host-deb
           path: distrib/rp2040/host/deb-out/*.deb
           if-no-files-found: error
+      - name: Retain Debian build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-deb-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   arch:
     name: pkg.tar.zst (arch)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     container: archlinux:base-devel
     steps:
       - name: Install the build dependencies
+        timeout-minutes: 15
         run: |
           pacman -Syu --noconfirm
           pacman -S --needed --noconfirm git sudo python python-build \
@@ -133,11 +192,16 @@ jobs:
         working-directory: /
       - uses: actions/checkout@v4
       - name: Build the package as an unprivileged user
+        timeout-minutes: 10
+        shell: bash
         run: |
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
-          su - builder -c "cd '$PWD/packaging/arch' && makepkg -sf --noconfirm"
+          mkdir -p "$GITHUB_WORKSPACE/.build-logs"
+          su - builder -c "cd '$PWD/packaging/arch' && makepkg -sf --noconfirm" \
+            2>&1 | tee "$GITHUB_WORKSPACE/.build-logs/host-arch.log"
       - name: Install it and run the smoke checks
+        timeout-minutes: 10
         run: |
           pacman -U --noconfirm packaging/arch/discobsd-host-*.pkg.tar.zst
           discobsd-term --version
@@ -153,22 +217,39 @@ jobs:
           name: discobsd-host-arch
           path: distrib/rp2040/host/packaging/arch/*.pkg.tar.zst
           if-no-files-found: error
+      - name: Retain Arch build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-arch-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   windows:
     name: windows executables
     runs-on: windows-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install the package and PyInstaller
+        timeout-minutes: 10
         run: |
           python -m pip install --upgrade pip
           python -m pip install . pyinstaller
       - name: Freeze the four commands
-        run: pyinstaller --clean --noconfirm packaging/pyinstaller/discobsd-host.spec
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:GITHUB_WORKSPACE\.build-logs" | Out-Null
+          pyinstaller --clean --noconfirm packaging/pyinstaller/discobsd-host.spec *>&1 `
+            | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\.build-logs/host-windows.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run each executable
+        timeout-minutes: 5
         shell: pwsh
         working-directory: distrib/rp2040/host/dist
         run: |
@@ -184,6 +265,7 @@ jobs:
           if ($LASTEXITCODE -ne 1 -and $LASTEXITCODE -ne 0) { exit 1 }
           exit 0
       - name: Add the flash script and run its usage check
+        timeout-minutes: 5
         shell: pwsh
         run: |
           Copy-Item discobsd-flash.ps1 dist\
@@ -192,6 +274,7 @@ jobs:
           if ($LASTEXITCODE -ne 1) { exit 1 }
           exit 0
       - name: Zip the bundle
+        timeout-minutes: 5
         shell: pwsh
         run: Compress-Archive -Path dist\* -DestinationPath discobsd-host-windows.zip
       - uses: actions/upload-artifact@v4
@@ -199,22 +282,38 @@ jobs:
           name: discobsd-host-windows
           path: distrib/rp2040/host/discobsd-host-windows.zip
           if-no-files-found: error
+      - name: Retain Windows build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-windows-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   macos:
     name: macos executables
     runs-on: macos-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install the package and PyInstaller
+        timeout-minutes: 10
         run: |
           python -m pip install --upgrade pip
           python -m pip install . pyinstaller
       - name: Freeze the four commands
-        run: pyinstaller --clean --noconfirm packaging/pyinstaller/discobsd-host.spec
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.build-logs"
+          pyinstaller --clean --noconfirm packaging/pyinstaller/discobsd-host.spec \
+            2>&1 | tee "$GITHUB_WORKSPACE/.build-logs/host-macos.log"
       - name: Run each executable
+        timeout-minutes: 5
         run: |
           cd dist
           ./discobsd-term --version
@@ -229,6 +328,7 @@ jobs:
           set -e
           test "$status" -eq 0 -o "$status" -eq 1
       - name: Add the shell scripts and run the flash script's usage check
+        timeout-minutes: 5
         run: |
           cp discobsd-connect discobsd-flash dist/
           # No arguments is a usage error, exit 1; anything else is a bug.
@@ -238,6 +338,7 @@ jobs:
           set -e
           test "$status" -eq 1
       - name: Zip the bundle
+        timeout-minutes: 5
         run: |
           cd dist
           zip -r ../discobsd-host-macos.zip .
@@ -246,3 +347,11 @@ jobs:
           name: discobsd-host-macos
           path: distrib/rp2040/host/discobsd-host-macos.zip
           if-no-files-found: error
+      - name: Retain macOS build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discobsd-host-macos-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn

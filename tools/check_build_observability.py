@@ -27,12 +27,49 @@ EXPECTED_LABELS = {
     "posix-inventory",
     "sdk-flash-id",
 }
+EXPECTED_COMMANDS = {
+    "linux-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
+    "linux-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
+    "linux-changed-comments": (
+        'bmake MACHINE=rp2040 CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" '
+        'CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" check-changed-comments'
+    ),
+    "linux-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
+    "linux-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
+    "linux-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "linux-lint": "bmake MACHINE=rp2040 check-lint",
+    "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
+    "linux-uf2": "bmake MACHINE=rp2040 check-uf2-images",
+    "macos-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
+    "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
+    "macos-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
+    "macos-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
+    "macos-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "macos-lint": "bmake MACHINE=rp2040 check-lint",
+    "macos-smaller-c": "bmake -C usr.bin/smlrc test",
+    "macos-uf2": "bmake MACHINE=rp2040 check-uf2-images",
+    "posix-ilp32": (
+        "bmake MACHINE=rp2040 check-ilp32-execution "
+        'TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"'
+    ),
+    "posix-inventory": "bmake MACHINE=rp2040 check-test-execution",
+    "sdk-flash-id": "bmake MACHINE=rp2040 check-flash-id",
+}
+HOST_EXPECTED_JOBS = {"test", "wheel", "deb", "arch", "windows", "macos"}
+HOST_REQUIRED_LOGS = {
+    "test": ".build-logs/host-test.log",
+    "wheel": ".build-logs/host-wheel.log",
+    "deb": ".build-logs/host-deb.log",
+    "arch": ".build-logs/host-arch.log",
+    "windows": ".build-logs/host-windows.log",
+    "macos": ".build-logs/host-macos.log",
+}
 JOB_PATTERN = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$", re.MULTILINE)
 STEP_PATTERN = re.compile(r"^      - (?:name|uses):", re.MULTILINE)
 LABEL_PATTERN = re.compile(r"--label\s+([A-Za-z0-9._-]+)")
 DIRECT_BMAKE_PATTERN = re.compile(
     r"^(?:env(?:\s+-[^\s]+)*\s+)?"
-    r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*bmake\b"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*(?:[^\s]*/)?bmake\b"
 )
 
 
@@ -70,7 +107,9 @@ def active_step_source(step):
 
 
 def has_one_positive_deadline(step, option):
-    matches = re.findall(rf"--{re.escape(option)}\s+([^\s\\]+)", step)
+    matches = re.findall(
+        rf"--{re.escape(option)}(?:\s+|=)([^\s\\]+)", step
+    )
     if len(matches) != 1:
         return False
     return re.fullmatch(
@@ -79,8 +118,16 @@ def has_one_positive_deadline(step, option):
     ) is not None
 
 
+def normalized_command(text):
+    return " ".join(text.replace("\\\n", " ").split())
+
+
 def validate_workflow(source, *, expected_jobs=EXPECTED_JOBS,
-                      expected_labels=EXPECTED_LABELS):
+                      expected_labels=EXPECTED_LABELS, expected_commands=None):
+    if expected_commands is None:
+        expected_commands = (
+            EXPECTED_COMMANDS if expected_labels == EXPECTED_LABELS else {}
+        )
     jobs = job_blocks(source)
     missing_jobs = sorted(expected_jobs - jobs.keys())
     if missing_jobs:
@@ -121,6 +168,16 @@ def validate_workflow(source, *, expected_jobs=EXPECTED_JOBS,
             if label in observed_labels:
                 raise ValueError(f"runner label {label} appears more than once")
             observed_labels.add(label)
+            if label in expected_commands:
+                normalized = normalized_command(active_step)
+                command_match = re.search(r"(?:^|\s)--\s+(.+)$", normalized)
+                observed_command = (
+                    command_match.group(1) if command_match is not None else ""
+                )
+                if observed_command != expected_commands[label]:
+                    raise ValueError(
+                        f"runner {label} command differs: {observed_command or '-'}"
+                    )
             if re.search(
                     r"^        timeout-minutes:\s*[1-9][0-9]*\s*$",
                     step,
@@ -187,15 +244,118 @@ def validate_makefile(source):
         if command not in recipes:
             raise ValueError(f"check-run-logging does not execute {command}")
 
+    local_targets = {
+        "logged-build": ("check-python", "rp2040-build-local", "build"),
+        "logged-distribution": (
+            "check-python", "rp2040-distribution-local", "distribution"
+        ),
+        "logged-flash": ("check-python", "rp2040-flash-local", "flash"),
+        "logged-kernel": ("check-python", "rp2040-kernel-local", "kernel"),
+        "logged-check": (
+            "check-python logged-build", "rp2040-check-local", "check"
+        ),
+    }
+    for target, (dependencies, label, command_target) in local_targets.items():
+        target_match = re.search(
+            rf"^{re.escape(target)}:\s*{re.escape(dependencies)}\s*$\n"
+            r"((?:\t.*\n?)+)",
+            source,
+            re.MULTILINE,
+        )
+        if target_match is None:
+            raise ValueError(f"{target} lacks dependencies {dependencies}")
+        recipe = normalized_command(target_match.group(1))
+        required = (
+            f"${{PYTHON}} tools/run_logged_gate.py --label {label} "
+            f"--log .build-logs/{label}.log "
+            f"--status .build-logs/{label}.status.json "
+            "--idle-timeout-seconds 600 --timeout-seconds 3600 "
+            f"-- ${{MAKE}} MACHINE=rp2040 {command_target}"
+        )
+        if recipe != required:
+            raise ValueError(f"{target} recipe differs")
+
+
+def validate_host_workflow(source):
+    jobs = job_blocks(source)
+    missing_jobs = sorted(HOST_EXPECTED_JOBS - jobs.keys())
+    if missing_jobs:
+        raise ValueError(
+            f"host workflow lacks jobs: {', '.join(missing_jobs)}"
+        )
+    for job_name in HOST_EXPECTED_JOBS:
+        job = jobs[job_name]
+        if re.search(
+                r"^    timeout-minutes:\s*[1-9][0-9]*\s*$", job, re.MULTILINE
+        ) is None:
+            raise ValueError(f"host workflow job {job_name} lacks a job deadline")
+        for step in step_blocks(job):
+            if re.search(r"^        run:", step, re.MULTILINE) is None:
+                continue
+            if re.search(
+                    r"^        timeout-minutes:\s*[1-9][0-9]*\s*$",
+                    step,
+                    re.MULTILINE,
+            ) is None:
+                raise ValueError(
+                    f"host workflow job {job_name} step {step_name(step)} "
+                    "lacks a step deadline"
+                )
+            if re.search(r"(?:^|\s)\|\s*tee\b", step) is not None and re.search(
+                    r"^        shell:\s*bash\s*$", step, re.MULTILINE
+            ) is None:
+                raise ValueError(
+                    f"host workflow job {job_name} step {step_name(step)} "
+                    "has a tee pipeline without an explicit bash pipefail shell"
+                )
+            if "Tee-Object" in step and (
+                    re.search(r"^        shell:\s*pwsh\s*$", step, re.MULTILINE)
+                    is None or
+                    "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }" not in step
+            ):
+                raise ValueError(
+                    f"host workflow job {job_name} step {step_name(step)} "
+                    "uses Tee-Object without preserving LASTEXITCODE"
+                )
+        if HOST_REQUIRED_LOGS[job_name] not in job:
+            raise ValueError(
+                f"host workflow job {job_name} lacks retained decision log "
+                f"{HOST_REQUIRED_LOGS[job_name]}"
+            )
+        uploads = [
+            step for step in step_blocks(job)
+            if "actions/upload-artifact@" in step and ".build-logs/" in step
+        ]
+        if len(uploads) != 1:
+            raise ValueError(
+                f"host workflow job {job_name} needs one build-log artifact upload"
+            )
+        if re.search(
+                r"^        if:\s*always\(\)\s*$", uploads[0], re.MULTILINE
+        ) is None:
+            raise ValueError(
+                f"host workflow job {job_name} logs are not retained with always()"
+            )
+        if re.search(
+                r"^          include-hidden-files:\s*true\s*$",
+                uploads[0],
+                re.MULTILINE,
+        ) is None:
+            raise ValueError(
+                f"host workflow job {job_name} hidden logs are not included"
+            )
+
 
 def check(root):
     workflow = root / ".github/workflows/firmware.yml"
+    host_workflow = root / ".github/workflows/host.yml"
     makefile = root / "Makefile"
     validate_workflow(workflow.read_text(encoding="utf-8"))
+    validate_host_workflow(host_workflow.read_text(encoding="utf-8"))
     validate_makefile(makefile.read_text(encoding="utf-8"))
     print(
-        "build observability: firmware jobs have bounded streaming gates and "
-        "always-retained logs"
+        "build observability: firmware jobs have bounded streaming gates; "
+        "host jobs have bounded steps and retained decision logs"
     )
 
 

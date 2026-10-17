@@ -17,6 +17,7 @@ import run_logged_gate as runner
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNNER = ROOT / "tools/run_logged_gate.py"
+TEST_HELPER_TIMEOUT_SECONDS = 5
 
 
 class LoggedGateTest(unittest.TestCase):
@@ -47,6 +48,7 @@ class LoggedGateTest(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
         )
 
     def read_status(self):
@@ -290,6 +292,63 @@ class LoggedGateTest(unittest.TestCase):
 
         self.assertEqual(return_code, 124)
         self.assertEqual(self.read_status()["termination"], "hard_timeout")
+
+    def test_nonregular_log_sink_is_rejected_before_launch(self):
+        marker = self.directory / "child-launched"
+        os.mkfifo(self.log)
+
+        result = self.run_gate(
+            "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text("
+            "'launched', encoding='ascii')",
+            program_arguments=(marker,),
+        )
+
+        self.assertEqual(result.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertIn("regular file", result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertEqual(self.read_status()["termination"], "log_open_error")
+
+    def test_common_helper_has_an_independent_outer_deadline(self):
+        completed = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(subprocess, "run", return_value=completed) as run:
+            self.run_gate("print('fixture')")
+
+        self.assertEqual(
+            run.call_args.kwargs["timeout"], TEST_HELPER_TIMEOUT_SECONDS
+        )
+
+    def test_recursive_bmake_keeps_jobserver_descriptors(self):
+        child_makefile = self.directory / "child.mk"
+        child_makefile.write_text(
+            "all:\n\t@echo child-jobserver-ok\n", encoding="ascii"
+        )
+        parent_makefile = self.directory / "parent.mk"
+        parent_makefile.write_text(
+            "all:\n"
+            f"\t@{sys.executable} {RUNNER} "
+            f"--label jobserver --log {self.log} --status {self.status} "
+            "--heartbeat-seconds 0.05 --idle-timeout-seconds 1 "
+            "--timeout-seconds 2 -- "
+            f"bmake -f {child_makefile} all\n",
+            encoding="ascii",
+        )
+
+        fixture_environment = os.environ.copy()
+        fixture_environment.pop("MAKEFLAGS", None)
+        fixture_environment.pop("MFLAGS", None)
+        result = subprocess.run(
+            ["bmake", "-j2", "-f", str(parent_makefile), "all"],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=fixture_environment,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+        )
+
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("child-jobserver-ok", output)
+        self.assertNotIn("Invalid internal option", output)
 
     def test_invalid_deadline_is_rejected_before_launch(self):
         result = self.run_gate("print('must not run')", heartbeat="0")

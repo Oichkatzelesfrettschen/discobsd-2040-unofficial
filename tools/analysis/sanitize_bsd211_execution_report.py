@@ -4,6 +4,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import math
 import re
 from pathlib import Path, PurePosixPath
 
@@ -12,10 +13,14 @@ HOSTED_ROOT = f"/home/runner/work/{REPOSITORY}/{REPOSITORY}"
 REPORT_TEMP = "/home/runner/work/_temp/ilp32-execution.json"
 EXECUTION_TEMP = re.compile(r"/tmp/discobsd-execution-[A-Za-z0-9_-]+\Z")
 GETLINE_TEMP = re.compile(r"/tmp/tmp\.[A-Za-z0-9]+/getline_test32\Z")
-TRANSFORMATION_VERSION = 1
+LEGACY_TRANSFORMATION_VERSION = 1
+DEADLINE_TRANSFORMATION_VERSION = 2
+REPORT_FIELDS = {"inventory_sha256", "invocation", "returncode", "revision",
+                 "tracked_diff_sha256", "tracked_files_modified", "variants"}
 RECEIPT_FIELDS = {"capability", "cwd", "executable", "expected_exit",
                   "invocation", "outcome", "owner", "reason", "returncode",
                   "variant", "width"}
+DEADLINE_FIELDS = {"termination", "timeout_seconds"}
 
 
 def unique_object(pairs):
@@ -56,14 +61,31 @@ def reject_absolute_strings(value):
         raise ValueError("absolute path survived report transformation")
 
 
+def has_deadline_fields(value, expected_fields, description):
+    fields = set(value)
+    if fields == expected_fields:
+        return False
+    if fields == expected_fields | DEADLINE_FIELDS:
+        return True
+    raise ValueError(f"unexpected hosted {description} fields")
+
+
+def validate_completed_deadline(value, description):
+    timeout_seconds = value["timeout_seconds"]
+    if (value["termination"] is not None or
+            isinstance(timeout_seconds, bool) or
+            not isinstance(timeout_seconds, (int, float)) or
+            not math.isfinite(timeout_seconds) or timeout_seconds <= 0):
+        raise ValueError(f"unexpected hosted {description} deadline")
+
+
 def sanitize_report(original, expected_hash):
     if hashlib.sha256(original).hexdigest() != expected_hash:
         raise ValueError("original hosted report SHA-256 mismatch")
     report = json.loads(original, object_pairs_hook=unique_object)
-    if set(report) != {"inventory_sha256", "invocation", "returncode",
-                       "revision", "tracked_diff_sha256",
-                       "tracked_files_modified", "variants"}:
-        raise ValueError("unexpected hosted report fields")
+    deadline_schema = has_deadline_fields(report, REPORT_FIELDS, "report")
+    if deadline_schema:
+        validate_completed_deadline(report, "report")
     if not isinstance(report["variants"], list):
         raise ValueError("hosted variants must be a list")
     invocation = report["invocation"]
@@ -83,7 +105,14 @@ def sanitize_report(original, expected_hash):
     ]
     seen = set()
     for receipt in report["variants"]:
-        if set(receipt) != RECEIPT_FIELDS or receipt["reason"] is not None:
+        receipt_deadline_schema = has_deadline_fields(
+            receipt, RECEIPT_FIELDS, "receipt"
+        )
+        if receipt_deadline_schema != deadline_schema:
+            raise ValueError("mixed hosted report deadline schema")
+        if receipt_deadline_schema:
+            validate_completed_deadline(receipt, "receipt")
+        if receipt["reason"] is not None:
             raise ValueError("unexpected hosted receipt fields or reason")
         identifier = receipt["variant"]
         if identifier in seen:
@@ -113,7 +142,11 @@ def sanitize_report(original, expected_hash):
             elif (len(receipt["invocation"]) != 1 or
                   receipt["invocation"][0] != "./" + PurePosixPath(executable).name):
                 raise ValueError(f"unexpected direct invocation: {identifier}")
-    report["sanitization"] = {"version": TRANSFORMATION_VERSION,
+    transformation_version = (
+        DEADLINE_TRANSFORMATION_VERSION if deadline_schema
+        else LEGACY_TRANSFORMATION_VERSION
+    )
+    report["sanitization"] = {"version": transformation_version,
                               "original_report_sha256": expected_hash}
     reject_absolute_strings(report)
     serialized = canonical_bytes(report)

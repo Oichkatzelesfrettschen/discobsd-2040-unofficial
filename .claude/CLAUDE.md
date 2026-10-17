@@ -32,11 +32,11 @@ tool. The build system rejects an empty interpreter value.
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     export PYTHON
-    bmake MACHINE=rp2040 distribution      # tools, kernel, world, sdcard.img
-    bmake MACHINE=rp2040 flash             # distrib/rp2040/flash.uf2
-    bmake MACHINE=rp2040 kernel            # sys/arch/rp2040/compile/PICO/unix.uf2
-    bmake MACHINE=rp2040 build             # required before aggregate check
-    bmake MACHINE=rp2040 check            # all non-hardware tiers
+    bmake MACHINE=rp2040 logged-distribution # tools, kernel, world, sdcard.img
+    bmake MACHINE=rp2040 logged-flash        # distrib/rp2040/flash.uf2
+    bmake MACHINE=rp2040 logged-kernel       # PICO unix.uf2
+    bmake MACHINE=rp2040 logged-build        # required before aggregate check
+    bmake MACHINE=rp2040 logged-check        # build, then non-hardware tiers
 
 `distrib/rp2040/host/DEVELOPMENT.md` owns host setup and manual flashing.
 `bmake build` does not relink programs after libc changes: clean first when
@@ -46,8 +46,9 @@ Makefiles are tracked; synchronize both when generation inputs change.
 
 ## Tests
 
-- Run `bmake MACHINE=rp2040 build` before the aggregate: `check` does not
-  depend on `build`. `check` runs lint, host, 32-bit POSIX shell, cross,
+- Run `bmake MACHINE=rp2040 logged-build` before a directly selected internal
+  check target. `logged-check` runs the logged build first, then lint, host,
+  32-bit POSIX shell, cross,
   qemu-user, host-package and board-build tiers. `check-renode` boots a
   PICO_UART kernel and stands outside the aggregate. Board execution requires
   explicit opt-in. `sys/arch/rp2040/doc/TESTING.md` owns each gate's execution

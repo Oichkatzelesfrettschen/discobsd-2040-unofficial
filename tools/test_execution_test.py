@@ -7,9 +7,11 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -55,6 +57,22 @@ class ExecutionTest(unittest.TestCase):
     def record(self, variant):
         return json.loads((self.receipts / (variant["id"] + ".json")).read_text())
 
+    def stop_recorded_group(self, group_file):
+        if not group_file.is_file():
+            return
+        try:
+            os.killpg(int(group_file.read_text(encoding="ascii")), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def wait_for_file(self, path, timeout_seconds=2):
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if path.is_file():
+                return True
+            time.sleep(0.01)
+        return False
+
     def test_executed_pass_and_failure(self):
         for name, returncode, outcome in [("good", 0, "PASS"), ("bad", 1, "FAIL")]:
             variant = self.variant(name)
@@ -89,6 +107,106 @@ class ExecutionTest(unittest.TestCase):
         variant = self.variant()
         self.assertEqual(execution.run_variant(variant, [str(self.directory / "fixture")]), 2)
         self.assertEqual(self.record(variant)["outcome"], "ERROR")
+
+    def test_variant_timeout_records_error_and_stops_process_group(self):
+        variant = self.variant()
+        marker = self.directory / "variant-descendant-terminated"
+        executable = self.directory / variant["program"]
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import pathlib, signal, subprocess, sys, time\n"
+            "child = (\"import pathlib, signal, sys, time; \""
+            "         \"marker=pathlib.Path(sys.argv[1]); \""
+            "         \"signal.signal(signal.SIGTERM, lambda *_: \""
+            "         \"(marker.write_text('terminated', encoding='ascii'), \""
+            "         \"sys.exit(0))); time.sleep(60)\")\n"
+            "subprocess.Popen([sys.executable, '-c', child, sys.argv[1]])\n"
+            "time.sleep(60)\n"
+        )
+        executable.chmod(0o755)
+
+        self.assertEqual(
+            execution.run_variant(
+                variant, [str(executable), str(marker)], timeout_seconds=0.2
+            ),
+            2,
+        )
+
+        record = self.record(variant)
+        self.assertEqual(record["outcome"], "ERROR")
+        self.assertEqual(record["returncode"], execution.TIMEOUT_EXIT)
+        self.assertEqual(record["termination"], "hard_timeout")
+        self.assertEqual(record["timeout_seconds"], 0.2)
+        self.assertTrue(marker.is_file())
+
+    def test_successful_variant_stops_its_surviving_descendant(self):
+        variant = self.variant()
+        marker = self.directory / "successful-descendant-terminated"
+        ready = self.directory / "successful-descendant-ready"
+        group_file = self.directory / "successful-descendant-group"
+        self.addCleanup(self.stop_recorded_group, group_file)
+        executable = self.directory / variant["program"]
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import os, pathlib, signal, subprocess, sys, time\n"
+            "marker, ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
+            "child = (\"import pathlib, signal, sys, time; \"\n"
+            "         \"marker, ready = map(pathlib.Path, sys.argv[1:]); \"\n"
+            "         \"signal.signal(signal.SIGTERM, lambda *_: \"\n"
+            "         \"(marker.write_text('terminated', encoding='ascii'), \"\n"
+            "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \"\n"
+            "         \"time.sleep(60)\")\n"
+            "subprocess.Popen([sys.executable, '-c', child, marker, ready])\n"
+            "group_file.write_text(str(os.getpgrp()), encoding='ascii')\n"
+            "deadline = time.monotonic() + 2\n"
+            "while not ready.exists() and time.monotonic() < deadline:\n"
+            "    time.sleep(0.01)\n"
+            "raise SystemExit(0 if ready.exists() else 3)\n",
+            encoding="ascii",
+        )
+        executable.chmod(0o755)
+
+        self.assertEqual(
+            execution.run_variant(
+                variant, [str(executable), str(marker), str(ready), str(group_file)]
+            ),
+            0,
+        )
+
+        self.assertTrue(self.wait_for_file(marker, 1))
+
+    def test_outer_timeout_stops_nested_detached_process_group(self):
+        marker = self.directory / "nested-descendant-terminated"
+        ready = self.directory / "nested-descendant-ready"
+        group_file = self.directory / "nested-descendant-group"
+        self.addCleanup(self.stop_recorded_group, group_file)
+        middle = self.directory / "nested-supervisor.py"
+        middle.write_text(
+            "import pathlib, sys\n"
+            f"sys.path.insert(0, {str(execution.ROOT / 'tools')!r})\n"
+            "import test_execution\n"
+            "marker, ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
+            "child = (\"import os, pathlib, signal, sys, time; \"\n"
+            "         \"marker, ready, group_file = map(pathlib.Path, sys.argv[1:]); \"\n"
+            "         \"group_file.write_text(str(os.getpgrp()), encoding='ascii'); \"\n"
+            "         \"signal.signal(signal.SIGTERM, lambda *_: \"\n"
+            "         \"(marker.write_text('terminated', encoding='ascii'), \"\n"
+            "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \"\n"
+            "         \"time.sleep(60)\")\n"
+            "test_execution.run_bounded(\n"
+            "    [sys.executable, '-c', child, marker, ready, group_file], 60\n"
+            ")\n",
+            encoding="ascii",
+        )
+
+        returncode, termination = execution.run_bounded(
+            [sys.executable, str(middle), str(marker), str(ready), str(group_file)],
+            0.3,
+        )
+
+        self.assertEqual(returncode, execution.TIMEOUT_EXIT)
+        self.assertEqual(termination, "hard_timeout")
+        self.assertTrue(self.wait_for_file(marker, 1))
 
     def test_symlinked_directory_resolves_both_executable_paths(self):
         variant = self.variant()
@@ -135,6 +253,36 @@ class ExecutionTest(unittest.TestCase):
         records = json.loads(report.read_text())["variants"]
         self.assertTrue(records)
         self.assertTrue(all(record["outcome"] == "ERROR" for record in records))
+
+    def test_detached_aggregate_timeout_stops_process_group_and_is_reported(self):
+        report = self.directory / "aggregate-timeout.json"
+        marker = self.directory / "aggregate-descendant-terminated"
+        observer = self.directory / "make-timeout-observer"
+        observer.write_text(
+            f"#!{sys.executable}\n"
+            "import pathlib, signal, subprocess, sys, time\n"
+            "child = (\"import pathlib, signal, sys, time; \""
+            "         \"marker=pathlib.Path(sys.argv[1]); \""
+            "         \"signal.signal(signal.SIGTERM, lambda *_: \""
+            "         \"(marker.write_text('terminated', encoding='ascii'), \""
+            "         \"sys.exit(0))); time.sleep(60)\")\n"
+            f"subprocess.Popen([sys.executable, '-c', child, {str(marker)!r}])\n"
+            "time.sleep(60)\n"
+        )
+        observer.chmod(0o755)
+
+        self.assertEqual(
+            execution.aggregate(
+                str(observer), report, aggregate_timeout_seconds=0.2
+            ),
+            1,
+        )
+
+        payload = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(payload["returncode"], execution.TIMEOUT_EXIT)
+        self.assertEqual(payload["termination"], "hard_timeout")
+        self.assertEqual(payload["timeout_seconds"], 0.2)
+        self.assertTrue(marker.is_file())
 
     def test_probe_executes_and_checks_width(self):
         probe = execution.ROOT / "tools/compiler-probe.sh"

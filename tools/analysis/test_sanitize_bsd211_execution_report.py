@@ -65,6 +65,24 @@ class SanitizerTest(unittest.TestCase):
         self.assertNotIn(b"/home/runner/", first)
         self.assertNotIn(b"/tmp/", first)
 
+    def test_current_deadline_receipts_are_sanitized(self):
+        self.report["termination"] = None
+        self.report["timeout_seconds"] = 3600.0
+        for receipt in self.report["variants"]:
+            receipt["termination"] = None
+            receipt["timeout_seconds"] = 600.0
+
+        result = json.loads(self.transform())
+
+        self.assertEqual(result["termination"], None)
+        self.assertEqual(result["timeout_seconds"], 3600.0)
+        self.assertEqual(result["sanitization"]["version"], 2)
+        self.assertTrue(all(
+            receipt["termination"] is None and
+            receipt["timeout_seconds"] == 600.0
+            for receipt in result["variants"]
+        ))
+
     def test_wrong_original_hash_and_duplicate_keys_fail(self):
         original = sanitizer.canonical_bytes(self.report)
         with self.assertRaisesRegex(ValueError, "original hosted report SHA"):

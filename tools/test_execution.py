@@ -3,16 +3,99 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 INVENTORY = ROOT / "tools/test-execution-inventory.json"
+TIMEOUT_EXIT = 124
+VARIANT_TIMEOUT_SECONDS = 600.0
+AGGREGATE_TIMEOUT_SECONDS = 3600.0
+TERMINATE_GRACE_SECONDS = 1.0
+INTERRUPT_GRACE_SECONDS = 0.1
+
+
+class BoundedSignal(Exception):
+    def __init__(self, number):
+        super().__init__(f"signal {number}")
+        self.number = number
+
+
+def positive_seconds(value):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError("deadline must be positive")
+    return seconds
+
+
+def process_group_exists(process_group):
+    try:
+        os.killpg(process_group, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < deadline and process_group_exists(process.pid):
+        process.poll()
+        time.sleep(min(0.02, max(0, deadline - time.monotonic())))
+    if process_group_exists(process.pid):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    try:
+        return process.wait(timeout=max(0.1, grace_seconds))
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return process.wait()
+
+
+def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
+    previous_handlers = {}
+
+    def interrupt(number, _frame):
+        raise BoundedSignal(number)
+
+    for number in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[number] = signal.signal(number, interrupt)
+    try:
+        process = subprocess.Popen(
+            command, cwd=cwd, env=env, start_new_session=True
+        )
+        try:
+            returncode = process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            stop_process_group(process)
+            return TIMEOUT_EXIT, "hard_timeout"
+        except BoundedSignal as interruption:
+            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            return 128 + interruption.number, f"signal_{interruption.number}"
+        except BaseException:
+            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            raise
+        if process_group_exists(process.pid):
+            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+        return returncode, None
+    finally:
+        for number, handler in previous_handlers.items():
+            signal.signal(number, handler)
 
 
 def inventory(path=INVENTORY):
@@ -38,7 +121,8 @@ def required(variant):
     )
 
 
-def receipt(variant, outcome, command=None, returncode=None, reason=None, executable=None):
+def receipt(variant, outcome, command=None, returncode=None, reason=None,
+            executable=None, termination=None, timeout_seconds=None):
     record = {
         "variant": variant["id"],
         "owner": variant["owner"],
@@ -51,6 +135,8 @@ def receipt(variant, outcome, command=None, returncode=None, reason=None, execut
         "expected_exit": variant.get("expected_exit", 0),
         "reason": reason,
         "executable": executable,
+        "termination": termination,
+        "timeout_seconds": timeout_seconds,
     }
     destination = os.environ.get("TEST_EXECUTION_DIR")
     if destination:
@@ -73,7 +159,7 @@ def executable_evidence(path, width):
     return {"path": str(path.resolve()), "sha256": hashlib.sha256(contents).hexdigest()}
 
 
-def run_variant(variant, command):
+def run_variant(variant, command, timeout_seconds=VARIANT_TIMEOUT_SECONDS):
     if not command:
         raise ValueError("an executable invocation is required")
     expected = variant["program"]
@@ -90,20 +176,35 @@ def run_variant(variant, command):
     try:
         if expected != "sh":
             evidence = executable_evidence(Path(command[0]), variant["width"])
-        process = subprocess.run(command, check=False)
+        returncode, termination = run_bounded(command, timeout_seconds)
         # The shell harness builds its subject before executing its cases.
         if "subject" in variant:
             evidence = executable_evidence(ROOT / variant["subject"], variant["width"])
     except (OSError, ValueError) as error:
         receipt(variant, "ERROR", command, reason=str(error), executable=evidence)
         return 2
-    outcome = "PASS" if process.returncode == variant.get("expected_exit", 0) else "FAIL"
-    if process.returncode in {126, 127} or (expected == "sh" and process.returncode == 2):
+    if termination is not None:
         outcome = "ERROR"
-    reason = None if outcome == "PASS" else (
-        f"expected status {variant.get('expected_exit', 0)}, observed {process.returncode}"
+    else:
+        outcome = "PASS" if returncode == variant.get("expected_exit", 0) else "FAIL"
+    if returncode in {126, 127} or (expected == "sh" and returncode == 2):
+        outcome = "ERROR"
+    if outcome == "PASS":
+        reason = None
+    elif termination == "hard_timeout":
+        reason = f"deadline exceeded after {timeout_seconds:g} seconds"
+    elif termination is not None:
+        reason = f"execution interrupted by {termination}"
+    else:
+        reason = (
+            f"expected status {variant.get('expected_exit', 0)}, "
+            f"observed {returncode}"
+        )
+    receipt(
+        variant, outcome, command, returncode, reason=reason,
+        executable=evidence, termination=termination,
+        timeout_seconds=timeout_seconds,
     )
-    receipt(variant, outcome, command, process.returncode, reason=reason, executable=evidence)
     return {"PASS": 0, "FAIL": 1, "ERROR": 2}[outcome]
 
 
@@ -135,7 +236,8 @@ def collect(variants, directory):
     return records
 
 
-def aggregate(make, report, make_variables=()):
+def aggregate(make, report, make_variables=(),
+              aggregate_timeout_seconds=AGGREGATE_TIMEOUT_SECONDS):
     variants = inventory()
     environment = os.environ.copy()
     # Python closes inherited jobserver descriptors; the detached child owns
@@ -154,10 +256,13 @@ def aggregate(make, report, make_variables=()):
         environment["TEST_EXECUTION_DIR"] = temporary
         command.append(f"TEST_EXECUTION_DIR={temporary}")
         try:
-            status = subprocess.run(command, cwd=ROOT, env=environment, check=False).returncode
+            status, termination = run_bounded(
+                command, aggregate_timeout_seconds, cwd=ROOT, env=environment
+            )
         except OSError as error:
             print(f"ERROR aggregate: {error}", file=sys.stderr)
             status = 2
+            termination = "launch_error"
         records = collect(variants, Path(temporary))
     revision = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
@@ -170,6 +275,8 @@ def aggregate(make, report, make_variables=()):
         "tracked_diff_sha256": hashlib.sha256(tracked_diff).hexdigest(),
         "tracked_files_modified": bool(tracked_diff),
         "inventory_sha256": hashlib.sha256(INVENTORY.read_bytes()).hexdigest(),
+        "termination": termination,
+        "timeout_seconds": aggregate_timeout_seconds,
         "variants": records,
     }
     if report:
@@ -185,6 +292,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="operation", required=True)
     run = subparsers.add_parser("run")
+    run.add_argument(
+        "--timeout-seconds", type=positive_seconds,
+        default=VARIANT_TIMEOUT_SECONDS,
+    )
     run.add_argument("variant")
     run.add_argument("command", nargs=argparse.REMAINDER)
     skip = subparsers.add_parser("skip")
@@ -194,16 +305,23 @@ def main():
     suite.add_argument("--make", default="bmake")
     suite.add_argument("--report", type=Path)
     suite.add_argument("--make-variable", action="append", default=[])
+    suite.add_argument(
+        "--timeout-seconds", type=positive_seconds,
+        default=AGGREGATE_TIMEOUT_SECONDS,
+    )
     args = parser.parse_args()
     try:
         if args.operation == "aggregate":
-            return aggregate(args.make, args.report, args.make_variable)
+            return aggregate(
+                args.make, args.report, args.make_variable,
+                args.timeout_seconds,
+            )
         variant = inventory()[args.variant]
         required(variant)
         if args.operation == "skip":
             return skip_variant(variant, args.reason)
         command = args.command[1:] if args.command[:1] == ["--"] else args.command
-        return run_variant(variant, command)
+        return run_variant(variant, command, args.timeout_seconds)
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
         print(f"ERROR test-execution: {error}", file=sys.stderr)
         return 2

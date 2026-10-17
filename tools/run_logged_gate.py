@@ -9,6 +9,7 @@ import queue
 import selectors
 import shlex
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -52,6 +53,68 @@ def atomic_status(path, record):
 def write_log(stream, data):
     stream.write(data)
     stream.flush()
+
+
+def open_regular_log(path):
+    """Open a fresh regular-file log without following a final symlink."""
+    try:
+        existing = os.lstat(path)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None and not stat.S_ISREG(existing.st_mode):
+        raise ValueError(f"log path must name a regular file: {path}")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NONBLOCK
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o666)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"log path must name a regular file: {path}")
+        return os.fdopen(descriptor, "wb")
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def make_jobserver_descriptors(environment=None):
+    """Return live pipe descriptors named by inherited make jobserver flags."""
+    environment = os.environ if environment is None else environment
+    descriptor_pairs = []
+    for variable in ("MAKEFLAGS", "MFLAGS"):
+        try:
+            tokens = shlex.split(environment.get(variable, ""))
+        except ValueError:
+            continue
+        token_index = 0
+        while token_index < len(tokens):
+            token = tokens[token_index]
+            value = None
+            if token == "-J" and token_index + 1 < len(tokens):
+                token_index += 1
+                value = tokens[token_index]
+            elif token.startswith("-J") and len(token) > 2:
+                value = token[2:]
+            elif token.startswith("--jobserver-auth="):
+                value = token.split("=", 1)[1]
+            elif token.startswith("--jobserver-fds="):
+                value = token.split("=", 1)[1]
+            if value is not None:
+                descriptor_pairs.append(value)
+            token_index += 1
+
+    descriptors = set()
+    for pair in descriptor_pairs:
+        members = pair.split(",")
+        if len(members) != 2:
+            continue
+        for member in members:
+            try:
+                descriptor = int(member, 10)
+                mode = os.fstat(descriptor).st_mode
+            except (OSError, ValueError):
+                continue
+            if stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode):
+                descriptors.add(descriptor)
+    return tuple(sorted(descriptors))
 
 
 class TerminalMirror:
@@ -176,6 +239,22 @@ def run(args):
         "termination": None,
         "terminal_queue_dropped_bytes": 0,
     }
+    try:
+        log_stream = open_regular_log(args.log)
+    except (OSError, ValueError) as error:
+        record.update(
+            state="error",
+            updated_at=utc_timestamp(),
+            elapsed_seconds=round(time.monotonic() - start, 3),
+            exit_code=RUNNER_ERROR_EXIT,
+            termination="log_open_error",
+        )
+        try:
+            atomic_status(args.status, record)
+        except OSError:
+            pass
+        print(f"logged-gate: {error}", file=sys.stderr)
+        return RUNNER_ERROR_EXIT
     signal_received = None
     process = None
     selector = None
@@ -199,7 +278,7 @@ def run(args):
         os.set_blocking(wake_read, False)
         os.set_blocking(wake_write, False)
         previous_wakeup = signal.set_wakeup_fd(wake_write)
-        with args.log.open("wb") as log_stream:
+        with log_stream:
 
             def emit(message):
                 data = message if isinstance(message, bytes) else message.encode("utf-8")
@@ -232,6 +311,7 @@ def run(args):
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
                     bufsize=0,
+                    pass_fds=make_jobserver_descriptors(),
                 )
             except OSError as error:
                 record.update(

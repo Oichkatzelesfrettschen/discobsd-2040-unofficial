@@ -31,26 +31,35 @@ timeout returns status 124, an internal runner failure returns status 125, and
 an ordinary child exit retains the child's status. Local logs belong under the
 ignored `.build-logs` directory.
 
+The caller-facing `logged-build`, `logged-distribution`, `logged-flash`,
+`logged-kernel` and `logged-check` targets are the required local routes.
+Each target uses a distinct log and status receipt under `.build-logs`, a
+600-second output-idle deadline and a 3600-second hard deadline.
+`logged-check` depends on `logged-build`; the internal `build`, `distribution`,
+`flash`, `kernel` and `check` targets remain direct recursive-make surfaces.
+The runner forwards live bmake or GNU make jobserver pipe descriptors named by
+the inherited make flags. A logged target therefore preserves the caller's
+parallelism limit without handing a recursive make closed jobserver descriptors.
+
 The durable log is the complete output record. Terminal mirroring uses a
 bounded asynchronous queue so a terminal or pipe whose reader stops consuming
 cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
 SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
 and every exit path after launch terminates and reaps the owned process group.
+The runner opens the log without following a final symlink and accepts only a
+regular file. A FIFO, socket, device, directory or symlink produces runner
+status 125 before child launch. The log and receipt directory must reside on a
+responsive filesystem: a blocked regular-filesystem write can suspend the
+Python process itself. CI job and step deadlines and any enclosing local
+supervisor remain independent outer bounds for that failure class.
 
-Select and export the interpreter, then wrap each independently deciding
-command with a distinct label, log and status path:
+Select and export the interpreter, then use the caller-facing target:
 
 ```sh
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
-"$PYTHON" tools/run_logged_gate.py \
-    --label rp2040-build \
-    --log .build-logs/rp2040-build.log \
-    --status .build-logs/rp2040-build.status.json \
-    --idle-timeout-seconds 600 \
-    --timeout-seconds 3600 \
-    -- bmake MACHINE=rp2040 build
+bmake MACHINE=rp2040 logged-build
 ```
 
 The default heartbeat interval is 30 seconds. The default idle and hard
@@ -62,8 +71,20 @@ timed-out gates retain their last status. The upload action explicitly includes
 hidden files because `.build-logs` is a hidden directory. `check-run-logging`
 calibrates runner success, failure, exceptional cleanup, idle termination, hard
 termination, signal wakeup, terminal backpressure, shutdown-output retention
-and invalid arguments. The gate rejects firmware workflow changes that remove
-bounded active commands or retained logs.
+and invalid arguments. Its test helper carries a separate five-second deadline,
+and a FIFO fixture calibrates pre-launch rejection. The gate rejects firmware
+workflow changes that remove bounded active commands or retained logs.
+
+The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
+active command step carries a step deadline, and each job writes one deciding
+log under `.build-logs`. The pytest matrix streams combined output to
+`host-test.log` while producing its JUnit report. POSIX build pipelines select
+GitHub's explicit Bash shell so `pipefail` preserves the producer's failure;
+PowerShell pipelines test and return the native command's `LASTEXITCODE`. An
+`if: always()` artifact step retains the hidden directory after success,
+failure or cancellation. The host-workflow verifier calibrates missing job and
+step deadlines, decision logs, pipeline failure propagation, unconditional
+upload and hidden-file inclusion.
 
 | tier | target | needs | Linux CI | macOS CI |
 | --- | --- | --- | --- | --- |
@@ -216,6 +237,19 @@ command-line variable assignments explicitly, preserving compiler overrides
 with arguments. Required execution flags and the private receipt directory
 override caller values at that boundary.
 
+Each executable variant runs in a separate process group with a 600-second
+deadline. The detached recursive make runs in its own process group with a
+3600-second deadline. Expiration sends SIGTERM to the complete group, waits one
+second, sends SIGKILL to remaining processes, and records status 124,
+`hard_timeout` and the configured deadline. Command-line
+`--timeout-seconds` overrides support bounded calibration and exceptional
+host sizing; every production invocation retains a positive deadline. A
+SIGINT or SIGTERM received by an execution supervisor first terminates its
+owned group and records the signal result. That propagation lets an enclosing
+aggregate terminate variant groups that deliberately use separate sessions.
+A successful direct child that leaves an owned descendant also triggers group
+cleanup before the supervisor publishes PASS.
+
 Run the same required aggregate locally with a caller-selected interpreter:
 
 ```sh
@@ -236,11 +270,19 @@ suite products belong to the checkout, so independent aggregates use
 separate worktrees; one aggregate may schedule its prerequisite graph in
 parallel, as the existing host tier does.
 
+The retained-report sanitizer accepts the exact historical receipt schema as
+transformation version 1 and the current deadline fields as transformation
+version 2. Version 2 retains `termination` and `timeout_seconds`; both the
+aggregate and every successful receipt must use the same schema and carry a
+positive finite deadline with a completed termination state.
+
 `check-test-execution` calibrates successful and rejecting processes, exact
 negative-control status, optional and required capability branches, missing
 executables, width mismatch, duplicate receipts, missing receipts, a
 successful aggregate that executes nothing, compiler output that cannot
-run, command-line override forwarding, the stdio header probe's compiler
+run, per-variant and detached-aggregate timeout receipts with descendant
+cleanup, nested supervisor interruption, successful-parent descendant cleanup,
+command-line override forwarding, the stdio header probe's compiler
 argument boundary, and the real backgammon Makefile's optional/required split. Host
 execution proves the exercised host conditions. Cross, emulator and board
 results retain their separate meanings.

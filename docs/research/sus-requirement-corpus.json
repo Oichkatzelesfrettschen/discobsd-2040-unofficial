@@ -233,7 +233,7 @@
         "docs/research/sus-edition-contracts.md",
         "docs/research/board-capacity-acceptance.md"
       ],
-      "residual": "The public getpgrp signature, full exec error matrix, job-control shell surface, and exhaustion corpus remain open."
+      "residual": "The full exec error matrix, job-control shell surface, and exhaustion corpus remain open."
     },
     {
       "id": "signals-and-terminal-state",

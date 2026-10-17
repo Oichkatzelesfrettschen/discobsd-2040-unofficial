@@ -236,6 +236,17 @@ def main():
             True,
         ),
         (
+            "getpgrp-returns-process-id",
+            "credentials",
+            {
+                "kern_prot.c": (
+                    "u.u_rval = u.u_procp->p_pgrp;",
+                    "u.u_rval = u.u_procp->p_pid;",
+                )
+            },
+            True,
+        ),
+        (
             "accept-group-sentinel",
             "credentials",
             {"kern_prot.c": ("if (groups[i] == NOGROUP)", "if (0)")},

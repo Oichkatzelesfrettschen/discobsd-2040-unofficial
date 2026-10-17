@@ -113,12 +113,13 @@ source interfaces add no image bytes.
 widths, executes a permissive-selector negative fixture and rejects five
 focused mutations. `check-libc-runtime-limits-cross` compiles the production
 source for Cortex-M0+ and permits only the `errno` import. `check-kernel`
-executes 1,347 assertions, including the zero-argument process-group behavior.
+executes 1,349 assertions, including the zero-argument process-group behavior.
 `check-kernel-metadata`, `check-board-libc-output`,
 `check-c17-source-denominator` and `check-dpucp-profile` provide their separate
 structural and compilation evidence.
 
 The clean distribution build and the focused host, ILP32 and cross gates ran on
-the build host. Qemu-user, Renode and physical-board execution remain separate
-evidence classes and were not run for this change. No serial device was opened
-and no flash command was executed.
+the build host. The aggregate ran its qemu-user instruction and ABI gates, but
+no dedicated qemu-user case exercised the runtime selectors or `getpgrp()`.
+Renode and physical-board execution remain separate unrun evidence classes. No
+serial device was opened and no flash command was executed.

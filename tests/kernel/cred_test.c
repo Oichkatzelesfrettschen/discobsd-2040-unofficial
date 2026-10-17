@@ -210,17 +210,23 @@ process_lookup(void)
 	HK_CHECK(inferior(&proc[2]) == 0);
 }
 
-/* Reading a process group never consumes or rewrites a caller argument. */
+/* Reading a process group reports the caller's group without using arguments. */
 static void
 read_process_group(void)
 {
 	struct pid_arg *a = (struct pid_arg *)u.u_arg;
+	struct pgrp_arg *group = (struct pgrp_arg *)u.u_arg;
 
 	reset(REAL_UID, REAL_UID);
+	group->pid = 0;
+	group->pgrp = 55;
+	setpgrp();
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK(proc[0].p_pgrp == 55);
 	a->pid = OTHER_PID;
 	getpgrp();
 	HK_CHECK(u.u_error == 0);
-	HK_CHECK(u.u_rval == SELF_PID);
+	HK_CHECK(u.u_rval == 55);
 	HK_CHECK(a->pid == OTHER_PID);
 
 	reset(REAL_UID, REAL_UID);

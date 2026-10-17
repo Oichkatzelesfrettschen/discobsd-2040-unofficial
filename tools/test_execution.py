@@ -34,12 +34,6 @@ class StopResult:
     group_stopped: bool
 
 
-class BoundedSignal(Exception):
-    def __init__(self, number):
-        super().__init__(f"signal {number}")
-        self.number = number
-
-
 def positive_seconds(value):
     seconds = float(value)
     if not math.isfinite(seconds) or seconds <= 0:
@@ -101,9 +95,11 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
     cleanup_seconds, child_cleanup_seconds = cleanup_allowances()
     child_environment = os.environ.copy() if env is None else env.copy()
     child_environment[CLEANUP_ALLOWANCE_ENV] = str(child_cleanup_seconds)
+    signal_received = None
 
     def interrupt(number, _frame):
-        raise BoundedSignal(number)
+        nonlocal signal_received
+        signal_received = number
 
     for number in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[number] = signal.signal(number, interrupt)
@@ -136,18 +132,43 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             return False
         return True
 
-    try:
-        process = subprocess.Popen(
-            command, cwd=cwd, env=child_environment, start_new_session=True
-        )
+    def cancel_launch_reservation(reservation):
         try:
-            execution_ownership.register_inherited_execution_group(process.pid)
-        except BoundedSignal as interruption:
-            result = stop_process_group(process, cleanup_seconds)
-            if not result.group_stopped:
-                retain_incomplete_group(process.pid)
+            execution_ownership.cancel_inherited_execution_launch(reservation)
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: launch reservation release failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return False
+        return True
+
+    try:
+        try:
+            reservation = execution_ownership.reserve_inherited_execution_launch()
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: ownership reservation failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 125, "cleanup_incomplete"
+        if signal_received is not None:
+            if not cancel_launch_reservation(reservation):
                 return 125, "cleanup_incomplete"
-            return 128 + interruption.number, f"signal_{interruption.number}"
+            return 128 + signal_received, f"signal_{signal_received}"
+        try:
+            process = subprocess.Popen(
+                command, cwd=cwd, env=child_environment, start_new_session=True
+            )
+        except BaseException:
+            cancel_launch_reservation(reservation)
+            raise
+        try:
+            execution_ownership.complete_inherited_execution_launch(
+                reservation, process.pid
+            )
         except (OSError, ValueError, TimeoutError) as error:
             print(
                 f"test-execution: ownership registration failed: {error}",
@@ -155,35 +176,57 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
                 flush=True,
             )
             result = stop_process_group(process, cleanup_seconds)
+            if result.group_stopped:
+                cancel_launch_reservation(reservation)
+            return 125, "cleanup_incomplete"
+        if signal_received is not None:
+            result = stop_process_group(process, cleanup_seconds)
+            if result.group_stopped and not release_registered_group(process.pid):
+                return 125, "cleanup_incomplete"
             if not result.group_stopped:
                 retain_incomplete_group(process.pid)
-            return 125, "cleanup_incomplete"
-        try:
-            returncode = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            result = stop_process_group(process, cleanup_seconds)
-            if result.group_stopped and not release_registered_group(process.pid):
-                return 125, "cleanup_incomplete"
             return (
-                (TIMEOUT_EXIT, "hard_timeout")
+                (128 + signal_received, f"signal_{signal_received}")
                 if result.group_stopped
                 else (125, "cleanup_incomplete")
             )
-        except BoundedSignal as interruption:
-            result = stop_process_group(process, cleanup_seconds)
-            if result.group_stopped and not release_registered_group(process.pid):
-                return 125, "cleanup_incomplete"
-            return (
-                (128 + interruption.number, f"signal_{interruption.number}")
-                if result.group_stopped
-                else (125, "cleanup_incomplete")
-            )
-        except BaseException:
-            stop_process_group(process, cleanup_seconds)
-            raise
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if signal_received is not None:
+                result = stop_process_group(process, cleanup_seconds)
+                if result.group_stopped and not release_registered_group(process.pid):
+                    return 125, "cleanup_incomplete"
+                if not result.group_stopped:
+                    retain_incomplete_group(process.pid)
+                return (
+                    (128 + signal_received, f"signal_{signal_received}")
+                    if result.group_stopped
+                    else (125, "cleanup_incomplete")
+                )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                result = stop_process_group(process, cleanup_seconds)
+                if result.group_stopped and not release_registered_group(process.pid):
+                    return 125, "cleanup_incomplete"
+                if not result.group_stopped:
+                    retain_incomplete_group(process.pid)
+                return (
+                    (TIMEOUT_EXIT, "hard_timeout")
+                    if result.group_stopped
+                    else (125, "cleanup_incomplete")
+                )
+            try:
+                returncode = process.wait(timeout=min(0.1, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                continue
+            except BaseException:
+                stop_process_group(process, cleanup_seconds)
+                raise
         if process_group_exists(process.pid):
             result = stop_process_group(process, cleanup_seconds)
             if not result.group_stopped:
+                retain_incomplete_group(process.pid)
                 return 125, "cleanup_incomplete"
         if not release_registered_group(process.pid):
             return 125, "cleanup_incomplete"

@@ -350,6 +350,140 @@ class ExecutionTest(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
+    def test_busy_ownership_update_lock_prevents_detached_launch(self):
+        execution_lock = self.directory / "products.lock"
+        ownership_path = execution.execution_ownership.execution_ownership_path(
+            execution_lock
+        )
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+        update_lock = execution.execution_ownership._acquire_ownership_update_lock(
+            ownership_path
+        )
+        launched = []
+        original_launch = execution.subprocess.Popen
+
+        def capture_launch(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            return process
+
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
+                execution.subprocess, "Popen", side_effect=capture_launch
+            ), patch.object(
+                execution.execution_ownership,
+                "OWNERSHIP_LOCK_SECONDS",
+                0.02,
+            ):
+                returncode, termination = execution.run_bounded(
+                    [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                )
+
+            self.assertEqual(returncode, 125)
+            self.assertEqual(termination, "cleanup_incomplete")
+            self.assertEqual(launched, [])
+        finally:
+            os.close(update_lock)
+            for process in launched:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_failed_registration_write_retains_pending_launch_barrier(self):
+        execution_lock = self.directory / "products.lock"
+        ownership_path = execution.execution_ownership.execution_ownership_path(
+            execution_lock
+        )
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+        launched = []
+        original_launch = execution.subprocess.Popen
+        original_atomic_status = execution.execution_ownership.atomic_status
+
+        def capture_launch(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            return process
+
+        def reject_group_registration(path, record):
+            if record.get("process_groups"):
+                raise OSError("injected registration write failure")
+            original_atomic_status(path, record)
+
+        def leave_group_running(process, _grace_seconds):
+            return execution.StopResult(process.poll(), False)
+
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
+                execution.subprocess, "Popen", side_effect=capture_launch
+            ), patch.object(
+                execution.execution_ownership,
+                "atomic_status",
+                side_effect=reject_group_registration,
+            ), patch.object(
+                execution, "stop_process_group", side_effect=leave_group_running
+            ):
+                returncode, termination = execution.run_bounded(
+                    [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                )
+
+            self.assertEqual(returncode, 125)
+            self.assertEqual(termination, "cleanup_incomplete")
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["process_groups"], [])
+            self.assertEqual(len(ownership["pending_launches"]), 1)
+            execution.execution_ownership.finish_execution_ownership(
+                ownership_path, invocation_id
+            )
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            with self.assertRaises(
+                execution.execution_ownership.ExecutionQuarantined
+            ):
+                execution.execution_ownership.acquire_execution_lock(execution_lock)
+        finally:
+            for process in launched:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
     def test_signal_during_registration_stops_launched_group(self):
         launched = []
         original_launch = execution.subprocess.Popen
@@ -359,7 +493,7 @@ class ExecutionTest(unittest.TestCase):
             launched.append(process)
             return process
 
-        def interrupt_registration(_process_group):
+        def interrupt_registration(_reservation, _process_group):
             os.kill(os.getpid(), signal.SIGTERM)
 
         try:
@@ -367,7 +501,7 @@ class ExecutionTest(unittest.TestCase):
                 execution.subprocess, "Popen", side_effect=capture_launch
             ), patch.object(
                 execution.execution_ownership,
-                "register_inherited_execution_group",
+                "complete_inherited_execution_launch",
                 side_effect=interrupt_registration,
             ):
                 returncode, termination = execution.run_bounded(
@@ -381,6 +515,42 @@ class ExecutionTest(unittest.TestCase):
             if launched:
                 try:
                     os.killpg(launched[0].pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_signal_before_launch_returns_stops_launched_group(self):
+        launched = []
+        original_launch = execution.subprocess.Popen
+
+        def interrupt_before_return(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return process
+
+        interruption = None
+        result = None
+        try:
+            with patch.object(
+                execution.subprocess, "Popen", side_effect=interrupt_before_return
+            ):
+                try:
+                    result = execution.run_bounded(
+                        [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                    )
+                except BaseException as error:
+                    interruption = error
+
+            self.assertIsNone(interruption)
+            self.assertEqual(
+                result,
+                (128 + signal.SIGTERM, f"signal_{signal.SIGTERM}"),
+            )
+            self.assertFalse(execution.process_group_exists(launched[0].pid))
+        finally:
+            for process in launched:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
 

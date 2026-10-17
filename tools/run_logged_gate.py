@@ -41,6 +41,13 @@ class ExecutionQuarantined(ValueError):
     pass
 
 
+@dataclasses.dataclass(frozen=True)
+class ExecutionLaunchReservation:
+    path: Path
+    invocation_id: str
+    token: str
+
+
 def utc_timestamp():
     return datetime.datetime.now(datetime.timezone.utc).isoformat(
         timespec="seconds"
@@ -196,6 +203,7 @@ def read_execution_ownership(path):
     if not isinstance(record, dict) or record.get("schema") != 1:
         raise ValueError(f"invalid execution ownership receipt: {path}")
     process_groups = record.get("process_groups")
+    pending_launches = record.get("pending_launches", [])
     if (
         record.get("state") not in {
             "active", "cleanup_incomplete", "released"
@@ -209,12 +217,22 @@ def read_execution_ownership(path):
             for group in process_groups
         )
         or len(process_groups) != len(set(process_groups))
+        or not isinstance(pending_launches, list)
+        or any(
+            not isinstance(token, str)
+            or re.fullmatch(r"[0-9a-f]{32}", token) is None
+            for token in pending_launches
+        )
+        or len(pending_launches) != len(set(pending_launches))
     ):
         raise ValueError(f"invalid execution ownership receipt: {path}")
+    record["pending_launches"] = pending_launches
     return record
 
 
 def execution_ownership_blocks(record):
+    if record["pending_launches"]:
+        return True
     if record["state"] == "active":
         return True
     if record["state"] == "released":
@@ -255,6 +273,7 @@ def begin_execution_ownership(path, record):
         "schema": 1,
         "state": "active",
         "process_groups": [],
+        "pending_launches": [],
         "label": record["label"],
         "invocation_id": record["invocation_id"],
         "created_at": utc_timestamp(),
@@ -287,6 +306,80 @@ def register_inherited_execution_group(process_group):
     if path is None or invocation_id is None:
         raise ValueError("incomplete inherited execution ownership environment")
     register_execution_group(Path(path), invocation_id, process_group)
+
+
+def reserve_inherited_execution_launch():
+    path = os.environ.get(OWNERSHIP_PATH_ENV)
+    invocation_id = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if path is None and invocation_id is None:
+        return None
+    if path is None or invocation_id is None:
+        raise ValueError("incomplete inherited execution ownership environment")
+    ownership_path = Path(path)
+    descriptor = _acquire_ownership_update_lock(ownership_path)
+    try:
+        record = read_execution_ownership(ownership_path)
+        if record is None or record["invocation_id"] != invocation_id:
+            raise ValueError(
+                f"execution ownership invocation mismatch: {ownership_path}"
+            )
+        if record["state"] not in {"active", "cleanup_incomplete"}:
+            raise ValueError(
+                f"execution ownership is already released: {ownership_path}"
+            )
+        token = uuid.uuid4().hex
+        record["pending_launches"].append(token)
+        record["pending_launches"].sort()
+        atomic_status(ownership_path, record)
+        return ExecutionLaunchReservation(ownership_path, invocation_id, token)
+    finally:
+        os.close(descriptor)
+
+
+def complete_inherited_execution_launch(reservation, process_group):
+    if reservation is None:
+        return
+    descriptor = _acquire_ownership_update_lock(reservation.path)
+    try:
+        record = read_execution_ownership(reservation.path)
+        if (
+            record is None
+            or record["invocation_id"] != reservation.invocation_id
+        ):
+            raise ValueError(
+                f"execution ownership invocation mismatch: {reservation.path}"
+            )
+        if reservation.token not in record["pending_launches"]:
+            raise ValueError(
+                f"execution launch reservation is absent: {reservation.path}"
+            )
+        if process_group not in record["process_groups"]:
+            record["process_groups"].append(process_group)
+            record["process_groups"].sort()
+        record["pending_launches"].remove(reservation.token)
+        atomic_status(reservation.path, record)
+    finally:
+        os.close(descriptor)
+
+
+def cancel_inherited_execution_launch(reservation):
+    if reservation is None:
+        return
+    descriptor = _acquire_ownership_update_lock(reservation.path)
+    try:
+        record = read_execution_ownership(reservation.path)
+        if (
+            record is None
+            or record["invocation_id"] != reservation.invocation_id
+        ):
+            raise ValueError(
+                f"execution ownership invocation mismatch: {reservation.path}"
+            )
+        if reservation.token in record["pending_launches"]:
+            record["pending_launches"].remove(reservation.token)
+            atomic_status(reservation.path, record)
+    finally:
+        os.close(descriptor)
 
 
 def mark_execution_group_cleanup_incomplete(path, invocation_id, process_group):
@@ -356,7 +449,7 @@ def finish_execution_ownership(path, invocation_id, force_incomplete=False):
         record["process_groups"] = surviving
         record["state"] = (
             "cleanup_incomplete"
-            if force_incomplete or surviving
+            if force_incomplete or surviving or record["pending_launches"]
             else "released"
         )
         record["updated_at"] = utc_timestamp()

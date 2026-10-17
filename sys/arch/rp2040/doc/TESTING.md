@@ -74,8 +74,13 @@ process-tree snapshot with process, parent, group, state, elapsed, CPU-time and
 command fields. The snapshot establishes the observed host process state at
 termination; the child log remains the authority for its own output.
 Before child launch, a product owner writes
-`<execution-lock>.ownership.json` with active state. Direct and nested
-supervisors register every independently created process group in that receipt.
+`<execution-lock>.ownership.json` with active state. A nested supervisor adds a
+durable pending-launch token before it creates a detached process group, then
+atomically replaces the token with the new process-group identifier. Failure to
+reserve ownership prevents launch. Failure to complete registration retains the
+pending token as an unknown group set, so finalization remains fail-closed.
+Direct and nested supervisors register every independently created process group
+in that receipt.
 The supervisor exports absolute ownership and quarantine paths so recursive
 builds retain one receipt when a child changes its working directory.
 Each supervisor removes its group after the group has conclusively disappeared,
@@ -85,9 +90,10 @@ retains only groups still visible at finalization. Incomplete cleanup changes
 the receipt to cleanup-incomplete state before later evidence writes; an active
 receipt remains fail-closed when finalization itself fails. Registration and
 release failures name the ownership operation and its exact error in the durable
-build log. A registration failure runs bounded cleanup, and an inconclusive
-cleanup records the unregistered process group in the cleanup-incomplete
-ownership barrier before returning.
+build log. A registration failure runs bounded cleanup; the completed
+registration already names the group, while an incomplete registration retains
+its pending-launch token until cleanup conclusively stops the group and cancels
+the reservation.
 A cleanup-incomplete invocation also writes
 `<execution-lock>.quarantine.json` before releasing the lock. The retained
 quarantine receipt names the process groups, invocation, status path and

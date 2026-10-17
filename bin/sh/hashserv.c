@@ -146,7 +146,7 @@ pathlook(com, flg, arg)
 		if (arg && (pathset = argpath(arg)))
 			return(PATH_COMMAND);
 pathsrch:
-			count = findpath(name, oldpath);
+			count = findpath(name, oldpath, NIL);
 	}
 
 	if (count > 0)
@@ -351,11 +351,11 @@ what_is_path(name)
 }
 
 
-findpath(name, oldpath)
+findpath(name, oldpath, path)
 	register char *name;
 	int oldpath;
+	register char *path;
 {
-	register char 	*path;
 	register int	count = 1;
 
 	char	*p;
@@ -363,7 +363,8 @@ findpath(name, oldpath)
 	int 	e_code = 1;
 
 	cost = 0;
-	path = getpath(name);
+	if (path == NIL)
+		path = getpath(name);
 
 	if (oldpath)
 	{
@@ -430,27 +431,6 @@ pr_path(name, count)
 	prs_buff(curstak());
 }
 
-static int
-findpath_on(name, path)
-	char *name;
-	char *path;
-{
-	int count = 1;
-	int error_code = 1;
-	int access_error = 1;
-
-	while (path)
-	{
-		path = catpath(path, name);
-		access_error = chk_access(curstak());
-		if (access_error == 0)
-			break;
-		error_code = max(error_code, access_error);
-		count++;
-	}
-	return(access_error ? -error_code : count);
-}
-
 short
 command_pathlook(name, path)
 	char *name;
@@ -465,7 +445,7 @@ command_pathlook(name, path)
 		return(BUILTIN | builtin);
 	if (path == NIL)
 		path = getpath(name);
-	count = findpath_on(name, path);
+	count = findpath(name, 0, path);
 	return(count > 0 ? COMMAND | count : -count);
 }
 
@@ -566,7 +546,7 @@ command_report(name, verbose, path)
 		{
 			if (path == NIL)
 				path = getpath(name);
-			count = findpath_on(name, path);
+			count = findpath(name, 0, path);
 		}
 		if (count < 1)
 			return(1);

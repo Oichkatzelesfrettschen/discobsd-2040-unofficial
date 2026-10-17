@@ -338,6 +338,12 @@ ok bi_read 'rv' 'echo rv > f9; read v < f9; echo $v'
 ok bi_pwd_matches 'same' 'p=`pwd`; case $p in /*) echo same;; *) echo other;; esac'
 ok bi_umask 'ok' 'umask > /dev/null; echo ok'
 ok bi_type_builtin 'echo is a shell builtin' 'type echo'
+ok bi_type_special_builtin 'export is a special shell builtin' 'type export'
+ok bi_type_function 'fcmd is a function' 'fcmd(){ :; }; type fcmd'
+ok bi_type_keyword 'if is a shell keyword' 'type if'
+ok bi_type_hashed 'cat is hashed (/bin/cat)' \
+    'PATH=/bin:/usr/bin; hash cat; type cat'
+ok bi_type_missing 'nosuchcmd_xyz not found' 'type nosuchcmd_xyz'
 
 # command executes after removing only the function layer from lookup.  Its
 # reporting modes retain that layer so scripts can inspect the actual lookup

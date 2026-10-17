@@ -11,7 +11,6 @@
 static int      parent;
 static int      getopts_index = 1;
 static int      getopts_offset;
-static int      getopts_done;
 static int      getopts_setting;
 
 #define COMMAND_EXECUTE 0
@@ -32,7 +31,6 @@ getoptsreset(value)
 	{
 		getopts_index = 1;
 		getopts_offset = 0;
-		getopts_done = 0;
 	}
 }
 
@@ -107,25 +105,25 @@ getopts_builtin(argn, arguments)
 		argument_count = dolc;
 	}
 
-	if (getopts_done)
+	if (getopts_offset < 0)
 		return(getopts_finish(arguments[2]));
 	if (getopts_offset == 0)
 	{
 		if (getopts_index > argument_count)
 		{
-			getopts_done = 1;
+			getopts_offset = -1;
 			return(getopts_finish(arguments[2]));
 		}
 		argument = option_arguments[getopts_index - 1];
 		if (argument[0] != '-' || argument[1] == 0)
 		{
-			getopts_done = 1;
+			getopts_offset = -1;
 			return(getopts_finish(arguments[2]));
 		}
 		getopts_index++;
 		if (argument[1] == '-' && argument[2] == 0)
 		{
-			getopts_done = 1;
+			getopts_offset = -1;
 			return(getopts_finish(arguments[2]));
 		}
 		getopts_offset = 1;
@@ -236,6 +234,15 @@ command_options(argn, arguments, first, standard_path)
 	if (mode != COMMAND_EXECUTE && index + 1 != argn)
 		return(COMMAND_BAD);
 	return(mode);
+}
+
+static void
+command_context_end(assignments, previous)
+	struct namnod_save *assignments;
+	jmp_buf *previous;
+{
+	command_restorelist(assignments);
+	command_errshell = previous;
 }
 
 /* ========     command execution       ========*/
@@ -359,9 +366,8 @@ int     *pf1, *pf2;
 						}
 						if (command_context_active)
 						{
-							command_restorelist(command_assignments);
-							command_assignments = NIL;
-							command_errshell = previous_command_context;
+							command_context_end(command_assignments,
+							    previous_command_context);
 							command_context_active = 0;
 						}
 						break;
@@ -398,8 +404,8 @@ int     *pf1, *pf2;
 									{
 										if (command_io >= 0)
 											restore(command_io);
-										command_restorelist(command_assignments);
-										command_errshell = previous_command_context;
+									command_context_end(command_assignments,
+									    previous_command_context);
 										flushb();
 										chktrap();
 										break;
@@ -420,9 +426,8 @@ int     *pf1, *pf2;
 									flushb();
 									restore(command_io);
 									command_io = -1;
-									command_restorelist(command_assignments);
-									command_assignments = NIL;
-									command_errshell = previous_command_context;
+									command_context_end(command_assignments,
+									    previous_command_context);
 									command_context_active = 0;
 									chktrap();
 									break;
@@ -433,9 +438,8 @@ int     *pf1, *pf2;
 									exitval = 0;
 									restore(command_io);
 									command_io = -1;
-									command_restorelist(command_assignments);
-									command_assignments = NIL;
-									command_errshell = previous_command_context;
+									command_context_end(command_assignments,
+									    previous_command_context);
 									command_context_active = 0;
 									break;
 								}
@@ -451,9 +455,8 @@ int     *pf1, *pf2;
 									flushb();
 									restore(command_io);
 									command_io = -1;
-									command_restorelist(command_assignments);
-									command_assignments = NIL;
-									command_errshell = previous_command_context;
+									command_context_end(command_assignments,
+									    previous_command_context);
 									command_context_active = 0;
 									chktrap();
 									break;
@@ -887,9 +890,8 @@ int     *pf1, *pf2;
 
 							if (command_catch)
 							{
-								command_restorelist(command_assignments);
-								command_assignments = NIL;
-								command_errshell = previous_command_context;
+								command_context_end(command_assignments,
+								    previous_command_context);
 								command_context_active = 0;
 							}
 							flushb();
@@ -935,9 +937,8 @@ int     *pf1, *pf2;
 					}
 					if (command_context_active)
 					{
-						command_restorelist(command_assignments);
-						command_assignments = NIL;
-						command_errshell = previous_command_context;
+						command_context_end(command_assignments,
+						    previous_command_context);
 						command_context_active = 0;
 					}
 				}
@@ -1221,21 +1222,8 @@ char    *s;
 int     f;
 {
 	struct fileblk  fb;
-	jmp_buf expression_context;
-	jmp_buf *previous_command_context;
 
 	push(&fb);
-	previous_command_context = command_errshell;
-	if (previous_command_context)
-	{
-		command_errshell = &expression_context;
-		if (setjmp(expression_context))
-		{
-			pop();
-			command_errshell = previous_command_context;
-			longjmp(*previous_command_context, 1);
-		}
-	}
 	if (s)
 	{
 		estabf(s);
@@ -1245,8 +1233,6 @@ int     f;
 		initf(f);
 	execute(cmd(NL, NLFLG | MTFLG), 0, (int)(flags & errflg));
 	pop();
-	if (previous_command_context)
-		command_errshell = previous_command_context;
 }
 
 execprint(com)

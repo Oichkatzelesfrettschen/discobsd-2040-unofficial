@@ -205,16 +205,8 @@ command_setlist(arg)
 			entry = (struct namnod_save *)alloc(sizeof *entry);
 			entry->node = node;
 			entry->flags = node->namflg;
-			if (node->namflg & N_FUNCTN)
-			{
-				entry->value = node->namval;
-				entry->environment = node->namenv;
-			}
-			else
-			{
-				entry->value = make(node->namval);
-				entry->environment = make(node->namenv);
-			}
+			entry->value = node->namval;
+			entry->environment = node->namenv;
 			entry->modified = 0;
 			entry->previous_context = NIL;
 			entry->next = saved;
@@ -227,12 +219,10 @@ command_setlist(arg)
 	for (entry = saved; entry; entry = entry->next)
 	{
 		if (entry->flags & N_FUNCTN)
-		{
 			func_unhash(entry->node->namid);
-			entry->node->namval = NIL;
-			entry->node->namenv = NIL;
-			entry->node->namflg = N_DEFAULT;
-		}
+		entry->node->namval = NIL;
+		entry->node->namenv = NIL;
+		entry->node->namflg = N_DEFAULT;
 	}
 	for (; apply_arg; apply_arg = apply_arg->argnxt)
 		setname(mactrim(apply_arg->argval), 0);

@@ -343,74 +343,11 @@ hash_cmd(name)
 what_is_path(name)
 	register char *name;
 {
-	register ENTRY	*h;
-	int		cnt;
-	short	hashval;
-
-	h = hfind(name);
-
-	prs_buff(name);
-	if (h)
+	if (command_report(name, 2, NIL))
 	{
-		hashval = hashdata(h->data);
-
-		switch (hashtype(h->data))
-		{
-			case BUILTIN:
-				prs_buff(" is a shell builtin\n");
-				return;
-
-			case FUNCTION:
-			{
-				struct namnod *n = lookup(name);
-
-				prs_buff(" is a function\n");
-				prs_buff(name);
-				prs_buff("(){\n");
-				prf(n->namenv);
-				prs_buff("\n}\n");
-				return;
-			}
-
-			case REL_COMMAND:
-			{
-				short hash;
-
-				if ((h->data & DOT_COMMAND) == DOT_COMMAND)
-				{
-					hash = pathlook(name, 0, NIL);
-					if (hashtype(hash) == NOTFOUND)
-					{
-						prs_buff(" not found\n");
-						return;
-					}
-					else
-						hashval = hashdata(hash);
-				}
-			}
-
-			case COMMAND:
-				prs_buff(" is hashed (");
-				pr_path(name, hashval);
-				prs_buff(")\n");
-				return;
-		}
-	}
-
-	if (syslook(name, commands, no_commands))
-	{
-		prs_buff(" is a shell builtin\n");
-		return;
-	}
-
-	if ((cnt = findpath(name, 0)) > 0)
-	{
-		prs_buff(" is ");
-		pr_path(name, cnt);
-		prc_buff(NL);
-	}
-	else
+		prs_buff(name);
 		prs_buff(" not found\n");
+	}
 }
 
 
@@ -574,6 +511,7 @@ command_report(name, verbose, path)
 	char *path;
 {
 	struct namnod *function;
+	ENTRY *hashed;
 	int builtin;
 	int count;
 
@@ -604,6 +542,24 @@ command_report(name, verbose, path)
 	}
 	else
 	{
+		if (verbose == 2 && (hashed = hfind(name)) &&
+		    (hashtype(hashed->data) == COMMAND ||
+		    hashtype(hashed->data) == REL_COMMAND))
+		{
+			count = hashdata(hashed->data);
+			if ((hashed->data & DOT_COMMAND) == DOT_COMMAND)
+			{
+				count = pathlook(name, 0, NIL);
+				if (hashtype(count) == NOTFOUND)
+					return(1);
+				count = hashdata(count);
+			}
+			prs_buff(name);
+			prs_buff(" is hashed (");
+			pr_path(name, count);
+			prs_buff(")\n");
+			return(0);
+		}
 		if (any('/', name))
 			count = chk_access(name) == 0 ? 1 : -1;
 		else

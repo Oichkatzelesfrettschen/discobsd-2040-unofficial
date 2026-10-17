@@ -255,7 +255,7 @@ prs_cntl(s)
 			translated[0] = c;
 			translated_length = 1;
 		}
-		if (ptr + translated_length > end)
+		if (end - ptr < translated_length)
 		{
 			write(output, buffer, ptr - buffer);
 			ptr = buffer;

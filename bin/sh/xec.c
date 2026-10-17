@@ -1376,6 +1376,7 @@ recoverable_parse()
 	saved_peekc = peekc;
 	saved_peekn = peekn;
 	parse_alloc_begin();
+	nohash++;
 	command_errshell = &parse_context;
 	if (setjmp(parse_context))
 	{
@@ -1391,6 +1392,7 @@ recoverable_parse()
 	}
 	tree = cmd(NL, NLFLG | MTFLG);
 	command_errshell = previous_command_context;
+	nohash = saved_nohash;
 	parse_alloc_commit();
 	return(tree);
 }

@@ -587,6 +587,17 @@ after' \
     'command eval '\''(command export 1bad=x 2>/dev/null; echo inner)'\''; echo after'
 ok bi_command_eval_syntax_error 'after:2' \
     'command eval '\''if'\'' 2>/dev/null; echo "after:$?"'
+hash_lifetime_script="command eval 'uname; if' 2>/dev/null
+"
+hash_lifetime_index=0
+while [ "$hash_lifetime_index" -lt 150 ]; do
+	hash_lifetime_script="${hash_lifetime_script}assignment_$hash_lifetime_index=value
+"
+	hash_lifetime_index=$((hash_lifetime_index + 1))
+done
+hash_lifetime_script="${hash_lifetime_script}hash >/dev/null
+echo after"
+ok bi_command_eval_syntax_preserves_hash 'after' "$hash_lifetime_script"
 long_diagnostic_prefix=
 long_diagnostic_index=0
 while [ "$long_diagnostic_index" -lt 4096 ]; do

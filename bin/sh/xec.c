@@ -58,17 +58,6 @@ getopts_finish(name)
 	return(1);
 }
 
-static void
-getopts_diagnostic(message, option)
-	char *message;
-	int option;
-{
-	prs("getopts: ");
-	prs(message);
-	prc(option);
-	prc(NL);
-}
-
 static int
 getopts_builtin(argn, arguments)
 	int argn;
@@ -78,6 +67,7 @@ getopts_builtin(argn, arguments)
 	char *option_string;
 	char *argument;
 	char *match;
+	char *diagnostic = NIL;
 	char result[2];
 	int argument_count;
 	int option;
@@ -151,7 +141,7 @@ getopts_builtin(argn, arguments)
 		else
 		{
 			unset_name("OPTARG");
-			getopts_diagnostic("illegal option -- ", option);
+			diagnostic = "illegal option -- ";
 		}
 	}
 	else if (match[1] == ':')
@@ -175,7 +165,7 @@ getopts_builtin(argn, arguments)
 			else
 			{
 				unset_name("OPTARG");
-				getopts_diagnostic("option requires an argument -- ", option);
+				diagnostic = "option requires an argument -- ";
 			}
 		}
 	}
@@ -183,6 +173,13 @@ getopts_builtin(argn, arguments)
 	{
 		result[0] = option;
 		unset_name("OPTARG");
+	}
+	if (diagnostic)
+	{
+		prs("getopts: ");
+		prs(diagnostic);
+		prc(option);
+		prc(NL);
 	}
 	result[1] = 0;
 	getopts_assign(arguments[2], result);

@@ -727,6 +727,41 @@ class LoggedGateTest(unittest.TestCase):
             self.read_status()["termination"], "execution_quarantined"
         )
 
+    def test_signal_permission_denied_reports_incomplete_cleanup(self):
+        process = mock.Mock()
+        process.pid = 918273
+        process.wait.return_value = -signal.SIGTERM
+
+        def deny_signals(_process_group, number):
+            if number == 0:
+                return
+            raise PermissionError("injected signal refusal")
+
+        with mock.patch.object(runner.os, "killpg", side_effect=deny_signals):
+            result = runner.stop_process_group(process, 0)
+
+        self.assertEqual(result.child_exit_code, -signal.SIGTERM)
+        self.assertFalse(result.group_stopped)
+
+    def test_leader_signal_permission_denied_keeps_cleanup_bounded(self):
+        process = mock.Mock()
+        process.pid = 918274
+        process.wait.side_effect = subprocess.TimeoutExpired(
+            ["fixture"], timeout=0.1
+        )
+        process.kill.side_effect = PermissionError("injected leader refusal")
+
+        def deny_signals(_process_group, number):
+            if number == 0:
+                return
+            raise PermissionError("injected group refusal")
+
+        with mock.patch.object(runner.os, "killpg", side_effect=deny_signals):
+            result = runner.stop_process_group(process, 0)
+
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
+
     def test_cleanup_incomplete_publishes_product_quarantine(self):
         execution_lock = self.directory / "products.lock"
         quarantine = Path(f"{execution_lock}.quarantine.json")

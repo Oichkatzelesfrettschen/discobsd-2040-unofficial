@@ -160,6 +160,51 @@ class ExecutionTest(unittest.TestCase):
         self.assertNotIn(None, process.wait_timeouts)
         self.assertEqual(process.kill_calls, 1)
 
+    def test_stop_process_group_treats_signal_refusal_as_incomplete(self):
+        class RefusedProcess:
+            pid = 4243
+
+            def poll(self):
+                return -signal.SIGTERM
+
+            def wait(self, timeout=None):
+                return -signal.SIGTERM
+
+        def deny_signals(_process_group, number):
+            if number == 0:
+                return
+            raise PermissionError("injected signal refusal")
+
+        with patch.object(execution.os, "killpg", side_effect=deny_signals):
+            result = execution.stop_process_group(RefusedProcess(), 0)
+
+        self.assertEqual(result.child_exit_code, -signal.SIGTERM)
+        self.assertFalse(result.group_stopped)
+
+    def test_stop_process_group_bounds_refused_leader_signal(self):
+        class RefusedProcess:
+            pid = 4244
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                raise PermissionError("injected leader refusal")
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired("fixture", timeout)
+
+        def deny_signals(_process_group, number):
+            if number == 0:
+                return
+            raise PermissionError("injected group refusal")
+
+        with patch.object(execution.os, "killpg", side_effect=deny_signals):
+            result = execution.stop_process_group(RefusedProcess(), 0)
+
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
+
     def test_variant_timeout_records_error_and_stops_process_group(self):
         variant = self.variant()
         marker = self.directory / "variant-descendant-terminated"

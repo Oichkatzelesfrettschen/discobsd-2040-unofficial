@@ -54,7 +54,7 @@ def process_group_exists(process_group):
 def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
     try:
         os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
     deadline = time.monotonic() + grace_seconds
     while time.monotonic() < deadline and process_group_exists(process.pid):
@@ -63,12 +63,15 @@ def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
     if process_group_exists(process.pid):
         try:
             os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
     try:
         child_exit = process.wait(timeout=max(0.1, grace_seconds))
     except subprocess.TimeoutExpired:
-        process.kill()
+        try:
+            process.kill()
+        except (ProcessLookupError, PermissionError):
+            pass
         try:
             child_exit = process.wait(timeout=max(0.1, grace_seconds))
         except subprocess.TimeoutExpired:

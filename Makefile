@@ -204,12 +204,25 @@ check-c17-kernel-inventory:	check-python
 		    --build sys/arch/rp2040/compile/PICO_UART \
 		    --ledger tools/c17/kernel-ledger.txt sys/kern/*.c sys/sys/*.h
 
-# Every Git-tracked C and header path has exactly one reviewed denominator
-# row. Historical and archive exclusions carry exact hashes; unreviewed rows
-# remain visible and make --closure fail rather than becoming implicit passes.
+# Every Git-tracked C and header path has exactly one denominator row and one
+# deterministic language, ownership, extension and hazard classification.
+# Historical and archive exclusions carry exact hashes; unreviewed rows remain
+# visible and make --closure fail rather than becoming implicit passes.
 check-c17-source-denominator:	check-python
 		${PYTHON} tools/c17/source_denominator_test.py
 		${PYTHON} tools/c17/source_denominator.py
+
+# The portable mechanism and freestanding kernel use their real production
+# commands.  The libc case-folding gate compiles with strict C17 on host and
+# Cortex-M0+; kernel builds compile and link every PICO and PICO_UART source
+# with the generated GNU17 flags.  Smaller C remains a separate surface.
+check-c17-compile-profiles:	check-python .WAIT symlinks
+		${MAKE} -C tests/libc_casefold check
+		${MAKE} -C tests/libc_casefold check-cross
+		${MAKE} kernel
+
+check-c17-smaller-c:	check-python .WAIT symlinks
+		${MAKE} -C usr.bin/smlrc test
 
 # The capacity registry binds each smaller-table and USIZE decision to normal,
 # exhaustion, deliberate-fault and recovery cases without treating an open
@@ -1040,7 +1053,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-c17-kernel-inventory check-c17-source-denominator check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

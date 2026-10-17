@@ -167,14 +167,16 @@ class ExecutionTest(unittest.TestCase):
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
-            "import pathlib, signal, subprocess, sys, time\n"
+            "import os, pathlib, signal, sys, time\n"
             "child = (\"import pathlib, signal, sys, time; \""
             "         \"marker, ready=map(pathlib.Path, sys.argv[1:]); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
             "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \""
             "         \"time.sleep(60)\")\n"
-            "subprocess.Popen([sys.executable, '-c', child, *sys.argv[1:]])\n"
+            "child_pid = os.fork()\n"
+            "if child_pid == 0:\n"
+            "    os.execv(sys.executable, [sys.executable, '-c', child, *sys.argv[1:]])\n"
             "time.sleep(60)\n"
         )
         executable.chmod(0o755)
@@ -205,7 +207,7 @@ class ExecutionTest(unittest.TestCase):
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
-            "import os, pathlib, signal, subprocess, sys, time\n"
+            "import os, pathlib, signal, sys, time\n"
             "marker, ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
             "child = (\"import pathlib, signal, sys, time; \"\n"
             "         \"marker, ready = map(pathlib.Path, sys.argv[1:]); \"\n"
@@ -213,7 +215,12 @@ class ExecutionTest(unittest.TestCase):
             "         \"(marker.write_text('terminated', encoding='ascii'), \"\n"
             "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \"\n"
             "         \"time.sleep(60)\")\n"
-            "subprocess.Popen([sys.executable, '-c', child, marker, ready])\n"
+            "child_pid = os.fork()\n"
+            "if child_pid == 0:\n"
+            "    os.execv(\n"
+            "        sys.executable,\n"
+            "        [sys.executable, '-c', child, str(marker), str(ready)],\n"
+            "    )\n"
             "group_file.write_text(str(os.getpgrp()), encoding='ascii')\n"
             "deadline = time.monotonic() + 2\n"
             "while not ready.exists() and time.monotonic() < deadline:\n"
@@ -323,15 +330,16 @@ class ExecutionTest(unittest.TestCase):
                 execution.subprocess, "Popen", side_effect=capture_launch
             ), patch.object(
                 execution.execution_ownership,
-                "register_inherited_execution_group",
+                "complete_inherited_execution_launch",
                 side_effect=OSError("injected registration failure"),
-            ), patch.object(
+            ) as registration, patch.object(
                 execution, "stop_process_group", side_effect=leave_group_running
             ):
                 returncode, termination = execution.run_bounded(
                     [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
                 )
 
+            self.assertEqual(registration.call_count, 1)
             self.assertEqual(returncode, 125)
             self.assertEqual(termination, "cleanup_incomplete")
             process_group = launched[0].pid
@@ -355,6 +363,7 @@ class ExecutionTest(unittest.TestCase):
                     os.killpg(launched[0].pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+                launched[0].wait(timeout=5)
 
     def test_busy_ownership_update_lock_prevents_detached_launch(self):
         execution_lock = self.directory / "products.lock"
@@ -723,13 +732,15 @@ class ExecutionTest(unittest.TestCase):
         observer = self.directory / "make-timeout-observer"
         observer.write_text(
             f"#!{sys.executable}\n"
-            "import pathlib, signal, subprocess, sys, time\n"
+            "import os, pathlib, signal, sys, time\n"
             "child = (\"import pathlib, signal, sys, time; \""
             "         \"marker=pathlib.Path(sys.argv[1]); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
             "         \"sys.exit(0))); time.sleep(60)\")\n"
-            f"subprocess.Popen([sys.executable, '-c', child, {str(marker)!r}])\n"
+            "child_pid = os.fork()\n"
+            "if child_pid == 0:\n"
+            f"    os.execv(sys.executable, [sys.executable, '-c', child, {str(marker)!r}])\n"
             "time.sleep(60)\n"
         )
         observer.chmod(0o755)

@@ -79,6 +79,8 @@ durable pending-launch token before it creates a detached process group, then
 atomically replaces the token with the new process-group identifier. Failure to
 reserve ownership prevents launch. Failure to complete registration retains the
 pending token as an unknown group set, so finalization remains fail-closed.
+An unresolved launch reservation makes the current stage return status 125;
+`logged-check` records the successor stage as blocked instead of starting it.
 Direct and nested supervisors register every independently created process group
 in that receipt.
 The supervisor exports absolute ownership and quarantine paths so recursive
@@ -110,6 +112,8 @@ run `tools/recover_logged_execution.py` with the exact execution lock,
 invocation ID, status path, reason and
 `--confirm-unrecorded-groups-absent`. The recovery tool acquires the product
 lock, rejects live recorded groups, mismatched evidence and nonterminal status,
+writes absolute status paths for new owners, resolves a legacy relative status
+path against the execution directory recorded by its terminal receipt,
 writes an immutable recovery receipt containing the former ownership state and
 status-record hash, and only then releases the ownership receipt. Recovery is
 an explicit operator assertion, not an inference from an old receipt.
@@ -145,12 +149,14 @@ also calibrates active-log exclusion, immutable sequential evidence, worktree
 product locking, pre-termination process capture, correlated build/check
 receipts and the shared total deadline. Its test helper carries a separate
 five-second deadline. The sequence fixtures calibrate live build state,
-deadline exhaustion without a successor launch and both interstage signal
-windows. A FIFO fixture calibrates pre-launch rejection. The gate rejects
+deadline exhaustion without a successor launch, unresolved launch reservations
+blocking the successor and both interstage signal windows. A FIFO fixture
+calibrates pre-launch rejection. The gate rejects
 firmware workflow changes that remove bounded active commands or retained logs.
 `recover_logged_execution_test.py` calibrates missing operator confirmation,
 recovery evidence retained before ownership release, live-group refusal and
-nonterminal-status refusal.
+nonterminal-status refusal. Its cross-directory fixture calibrates recovery of
+legacy relative status paths against the recorded execution directory.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding

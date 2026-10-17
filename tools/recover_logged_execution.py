@@ -90,12 +90,26 @@ def recover(args):
         if live_groups:
             joined = ", ".join(map(str, live_groups))
             raise ValueError(f"recorded process group remains live: {joined}")
-        recorded_status_path = Path(ownership["status_path"]).resolve()
+        status = read_terminal_status(status_path, args.invocation_id)
+        recorded_status_path = Path(ownership["status_path"])
+        if not recorded_status_path.is_absolute():
+            execution_directory = status.get("cwd")
+            if (
+                not isinstance(execution_directory, str)
+                or not Path(execution_directory).is_absolute()
+            ):
+                raise ValueError(
+                    "relative execution status path lacks an absolute "
+                    f"execution directory: {recorded_status_path}"
+                )
+            recorded_status_path = (
+                Path(execution_directory) / recorded_status_path
+            )
+        recorded_status_path = recorded_status_path.resolve()
         if recorded_status_path != status_path:
             raise ValueError(
                 f"execution status path mismatch: {recorded_status_path}"
             )
-        status = read_terminal_status(status_path, args.invocation_id)
         status_record = json.dumps(
             status, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")

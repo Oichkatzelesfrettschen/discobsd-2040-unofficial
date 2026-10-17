@@ -178,6 +178,8 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             result = stop_process_group(process, cleanup_seconds)
             if result.group_stopped:
                 cancel_launch_reservation(reservation)
+            else:
+                retain_incomplete_group(process.pid)
             return 125, "cleanup_incomplete"
         if signal_received is not None:
             result = stop_process_group(process, cleanup_seconds)

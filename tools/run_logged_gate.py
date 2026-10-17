@@ -269,6 +269,9 @@ def _acquire_ownership_update_lock(path):
 
 
 def begin_execution_ownership(path, record):
+    status_path = Path(record["status_path"])
+    if not status_path.is_absolute():
+        status_path = Path(os.path.abspath(status_path))
     ownership = {
         "schema": 1,
         "state": "active",
@@ -277,7 +280,7 @@ def begin_execution_ownership(path, record):
         "label": record["label"],
         "invocation_id": record["invocation_id"],
         "created_at": utc_timestamp(),
-        "status_path": record["status_path"],
+        "status_path": str(status_path),
     }
     atomic_status(path, ownership)
 
@@ -1106,16 +1109,20 @@ def run(args):
                         process.pid,
                     )
                 ownership_groups = []
+                ownership_pending_launches = []
                 ownership_survivors = []
                 if ownership_path is not None:
                     ownership_record = read_execution_ownership(ownership_path)
                     if ownership_record is not None:
                         ownership_groups = ownership_record["process_groups"]
+                        ownership_pending_launches = ownership_record[
+                            "pending_launches"
+                        ]
                         ownership_survivors = [
                             group for group in ownership_groups
                             if group_exists(group)
                         ]
-                if ownership_survivors:
+                if ownership_survivors or ownership_pending_launches:
                     exit_code = RUNNER_ERROR_EXIT
                     state = "error"
                     termination = "cleanup_incomplete"
@@ -1174,12 +1181,20 @@ def run(args):
                 else:
                     child_exit = process.poll()
                 ownership_groups = []
+                ownership_pending_launches = []
                 if ownership_path is not None:
                     ownership_record = read_execution_ownership(ownership_path)
                     if ownership_record is not None:
                         ownership_groups = ownership_record["process_groups"]
+                        ownership_pending_launches = ownership_record[
+                            "pending_launches"
+                        ]
                         cleanup_incomplete = cleanup_incomplete or any(
                             group_exists(group) for group in ownership_groups
+                        )
+                        cleanup_incomplete = (
+                            cleanup_incomplete
+                            or bool(ownership_pending_launches)
                         )
                 record.update(
                     state="error",

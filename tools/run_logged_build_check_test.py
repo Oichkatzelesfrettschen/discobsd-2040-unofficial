@@ -245,6 +245,72 @@ class LoggedBuildCheckTest(unittest.TestCase):
             build_record["invocation_id"],
         )
 
+    def test_pending_build_launch_blocks_check_stage(self):
+        make = self.directory / "pending-launch-make"
+        check_marker = self.directory / "check-launched"
+        sleeper_pid_path = self.directory / "sleeper-pid"
+        make.write_text(
+            f"#!{sys.executable}\n"
+            "import os, pathlib, sys\n"
+            f"sys.path.insert(0, {str(ROOT / 'tools')!r})\n"
+            "import run_logged_gate as gate\n"
+            "stage = sys.argv[-1]\n"
+            "if stage == 'build':\n"
+            "    gate.reserve_inherited_execution_launch()\n"
+            "    sleeper_pid = os.fork()\n"
+            "    if sleeper_pid == 0:\n"
+            "        os.setsid()\n"
+            "        null_descriptor = os.open(os.devnull, os.O_RDWR)\n"
+            "        for descriptor in (0, 1, 2):\n"
+            "            os.dup2(null_descriptor, descriptor)\n"
+            "        if null_descriptor > 2:\n"
+            "            os.close(null_descriptor)\n"
+            "        os.execv(\n"
+            "            sys.executable,\n"
+            "            [sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+            "        )\n"
+            f"    pathlib.Path({str(sleeper_pid_path)!r}).write_text(\n"
+            "        str(sleeper_pid), encoding='ascii'\n"
+            "    )\n"
+            "else:\n"
+            f"    pathlib.Path({str(check_marker)!r}).touch()\n",
+            encoding="ascii",
+        )
+        make.chmod(0o755)
+
+        try:
+            result = self.run_sequence(make)
+
+            self.assertEqual(
+                result.returncode,
+                sequence.gate.RUNNER_ERROR_EXIT,
+                result.stdout + result.stderr,
+            )
+            self.assertFalse(check_marker.exists())
+            summary = json.loads(
+                (self.evidence_root / "rp2040-check-local.latest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(summary["stages"]["build"]["state"], "error")
+            self.assertEqual(
+                summary["stages"]["build"]["termination"],
+                "cleanup_incomplete",
+            )
+            self.assertEqual(summary["stages"]["check"]["state"], "blocked")
+            ownership = sequence.gate.read_execution_ownership(
+                sequence.gate.execution_ownership_path(self.execution_lock)
+            )
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            self.assertEqual(len(ownership["pending_launches"]), 1)
+        finally:
+            if sleeper_pid_path.exists():
+                sleeper_pid = int(sleeper_pid_path.read_text(encoding="ascii"))
+                try:
+                    os.killpg(sleeper_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
     def test_total_deadline_includes_build_and_check(self):
         make = self.directory / "slow-make"
         make.write_text(

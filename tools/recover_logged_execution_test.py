@@ -51,7 +51,7 @@ class RecoverLoggedExecutionTest(unittest.TestCase):
             },
         )
 
-    def recover(self, *extra_arguments):
+    def recover(self, *extra_arguments, cwd=None):
         return subprocess.run(
             [
                 sys.executable,
@@ -66,6 +66,7 @@ class RecoverLoggedExecutionTest(unittest.TestCase):
             capture_output=True,
             check=False,
             timeout=5,
+            cwd=cwd,
         )
 
     def test_recovery_requires_explicit_unrecorded_group_confirmation(self):
@@ -126,6 +127,25 @@ class RecoverLoggedExecutionTest(unittest.TestCase):
         self.assertIn("terminal", result.stderr)
         ownership = gate.read_execution_ownership(self.ownership_path)
         self.assertEqual(ownership["state"], "cleanup_incomplete")
+
+    def test_recovery_resolves_recorded_status_from_execution_directory(self):
+        ownership = gate.read_execution_ownership(self.ownership_path)
+        ownership["status_path"] = self.status_path.name
+        gate.atomic_status(self.ownership_path, ownership)
+        status = json.loads(self.status_path.read_text(encoding="utf-8"))
+        status["cwd"] = str(self.directory)
+        gate.atomic_status(self.status_path, status)
+        operator_directory = self.directory / "operator"
+        operator_directory.mkdir()
+
+        result = self.recover(
+            "--confirm-unrecorded-groups-absent",
+            cwd=operator_directory,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        ownership = gate.read_execution_ownership(self.ownership_path)
+        self.assertEqual(ownership["state"], "released")
 
     @staticmethod
     def stop_group(process):

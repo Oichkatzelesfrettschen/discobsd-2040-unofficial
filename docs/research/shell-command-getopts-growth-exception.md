@@ -10,7 +10,7 @@ The behavior evidence covers the named compatibility subset exercised by
 ## Compared states
 
 The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
-implementation is `b460187ab03bdcaf10844e7621c856e810803693`. Both states used
+implementation is `e089f3c05e913f70561cb2a03ff303a4830de485`. Both states used
 the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
 Each state was built from clean. The base used `bmake MACHINE=rp2040
 logged-distribution`, and the final candidate used the supervised command
@@ -23,33 +23,32 @@ The measurement host ran Linux 7.2.9-2-cachyos on x86-64 with bmake
 16.2.1, and Python 3.14.7. The caller exported `PYTHON=/usr/bin/python` before
 each build and gate. The final candidate used the supervised
 clean-distribution command below. The runner retained combined output, emitted
-30-second heartbeats, enforced a 60-second output-idle deadline and enforced a
+30-second heartbeats, enforced a 120-second output-idle deadline and enforced a
 1,800-second hard deadline.
 
 ```sh
 PYTHON=/usr/bin/python
 export PYTHON
 "$PYTHON" tools/run_logged_gate.py \
-    --label pr299-b460187a-clean-distribution \
-    --log .build-logs/pr299-b460187a-clean-distribution.log \
-    --status .build-logs/pr299-b460187a-clean-distribution.status.json \
+    --evidence-root .build-logs \
+    --label pr299-e089f3c0-clean-distribution \
     --heartbeat-seconds 30 \
-    --idle-timeout-seconds 60 \
+    --idle-timeout-seconds 120 \
     --timeout-seconds 1800 \
     -- bmake MACHINE=rp2040 distribution
 ```
 
 The terminal receipt is
-`.build-logs/pr299-b460187a-clean-distribution.status.json`. It records exit
-status 0, 104.1 seconds elapsed and 1,555,650 output bytes. The clean build ran
-at `b460187ab03bdcaf10844e7621c856e810803693`. The ILP32 adapter repairs add an
+`.build-logs/pr299-e089f3c0-clean-distribution.latest.json`. It records exit
+status 0, 114.4 seconds elapsed and 821,371 output bytes. The clean build ran
+at `e089f3c05e913f70561cb2a03ff303a4830de485`. The ILP32 adapter repairs add an
 `SH_HOST_RAWDIR` selection in `expand.c`.
 The target build leaves `SH_HOST_RAWDIR` undefined, so the selection
 preprocesses to the existing `read` call. A clean GNU17 target-shell rebuild at
-the measured implementation commit reproduces the 35,856-byte OMAGIC file and
-its 33,392/2,432/7,172-byte text/data/bss sections. The rebuilt shell and the
+the measured implementation commit reproduces the 35,908-byte OMAGIC file and
+its 33,444/2,432/7,172-byte text/data/bss sections. The rebuilt shell and the
 retained clean-distribution shell are byte-identical with SHA-256
-`86885e2783154fed0aefa7b342a128801599fe5b52a94dd745becdf3031bfa5a`, so
+`b1b03becbd7debf4ebe3a1a1aec1da058297181bf77979ca3bcd207c19c28126`, so
 the packed-root payload and allocation remain unchanged.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
@@ -57,16 +56,16 @@ the packed-root payload and allocation remain unchanged.
 | PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,226 flash bytes after text and data |
 | PICO kernel data | 248 bytes | 248 bytes | 0 | unchanged |
 | PICO kernel bss | 39,848 bytes | 39,848 bytes | 0 | unchanged |
-| Shell a.out file | 32,576 bytes | 35,856 bytes | +3,280 bytes | n/a |
-| Shell text | 30,132 bytes | 33,392 bytes | +3,260 bytes | n/a |
+| Shell a.out file | 32,576 bytes | 35,908 bytes | +3,332 bytes | n/a |
+| Shell text | 30,132 bytes | 33,444 bytes | +3,312 bytes | n/a |
 | Shell data | 2,412 bytes | 2,432 bytes | +20 bytes | n/a |
 | Shell bss | 7,152 bytes | 7,172 bytes | +20 bytes | n/a |
-| Shell process-window occupancy before stack | 39,696 bytes | 42,996 bytes | +3,300 bytes | 104,460 bytes before stack |
+| Shell process-window occupancy before stack | 39,696 bytes | 43,048 bytes | +3,352 bytes | 104,408 bytes before stack |
 | Packed root data blocks | 682 | 684 | +2 blocks | 295 free 1 KiB blocks, or 302,080 bytes |
 | Packed root files | 95 | 95 | 0 | unchanged |
 
-GNU `arm-none-eabi-size` reports 33,390 text bytes for the transient shell ELF.
-The target `size` tool reports 33,392 text bytes for the installed OMAGIC a.out.
+GNU `arm-none-eabi-size` reports 33,442 text bytes for the transient shell ELF.
+The target `size` tool reports 33,444 text bytes for the installed OMAGIC a.out.
 The process-window accounting uses the shipped a.out format and its target-tool
 measurement.
 
@@ -102,7 +101,10 @@ across command recovery jumps removed four target text bytes. The independent
 whole-branch review then required explicit recovery eligibility, loop-state
 unwind, destructive-exec exclusion, directory rejection, dynamic `set -e`
 propagation and contained `getopts` publication errors. Those corrections add
-332 a.out and text bytes, producing a result 312 bytes larger than the
+332 a.out and text bytes. A subsequent review found that the two-state `set -e`
+propagation reactivated errexit inside conditional compound commands.
+Distinguishing configured, active and conditionally suppressed errexit adds
+another 52 a.out and text bytes, producing a result 364 bytes larger than the
 feature-first shell. The accompanying 64-bit host-directory contract and direct
 `getdents64` record pass-through do not enter the target image. An optimized
 `-fstack-usage` comparison measured the ordinary `execute()` static frame at 96

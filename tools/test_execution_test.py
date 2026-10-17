@@ -111,23 +111,27 @@ class ExecutionTest(unittest.TestCase):
     def test_variant_timeout_records_error_and_stops_process_group(self):
         variant = self.variant()
         marker = self.directory / "variant-descendant-terminated"
+        ready = self.directory / "variant-descendant-ready"
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
             "import pathlib, signal, subprocess, sys, time\n"
             "child = (\"import pathlib, signal, sys, time; \""
-            "         \"marker=pathlib.Path(sys.argv[1]); \""
+            "         \"marker, ready=map(pathlib.Path, sys.argv[1:]); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
-            "         \"sys.exit(0))); time.sleep(60)\")\n"
-            "subprocess.Popen([sys.executable, '-c', child, sys.argv[1]])\n"
+            "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \""
+            "         \"time.sleep(60)\")\n"
+            "subprocess.Popen([sys.executable, '-c', child, *sys.argv[1:]])\n"
             "time.sleep(60)\n"
         )
         executable.chmod(0o755)
 
         self.assertEqual(
             execution.run_variant(
-                variant, [str(executable), str(marker)], timeout_seconds=0.2
+                variant,
+                [str(executable), str(marker), str(ready)],
+                timeout_seconds=2.0,
             ),
             2,
         )
@@ -136,7 +140,8 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(record["outcome"], "ERROR")
         self.assertEqual(record["returncode"], execution.TIMEOUT_EXIT)
         self.assertEqual(record["termination"], "hard_timeout")
-        self.assertEqual(record["timeout_seconds"], 0.2)
+        self.assertEqual(record["timeout_seconds"], 2.0)
+        self.assertTrue(ready.is_file())
         self.assertTrue(marker.is_file())
 
     def test_successful_variant_stops_its_surviving_descendant(self):

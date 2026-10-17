@@ -22,6 +22,7 @@ jobs:
   rp2040:
     name: rp2040 kernel, flash image and gates
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,10 +113,10 @@ jobs:
           bmake -V MACHINE 2>/dev/null || true
           picotool version
 
-      # Each step is a fresh bash -e with no pipefail, so a pipeline into
-      # tee would report tee's status and hide a failed bmake. Both build
-      # steps set pipefail themselves, and the assertion runs over the
-      # whole log once both have appended to it.
+      # The logged-gate runner streams combined output, writes an atomic
+      # status receipt, emits heartbeats during quiet work, and terminates
+      # the complete process group at the idle or hard deadline. GitHub's
+      # step and job deadlines remain independent outer bounds.
       # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
       # that order, then returns one when a host exposes none of them.
       # Measured on a 12-thread host: the kernel alone
@@ -126,14 +127,24 @@ jobs:
       # __DATE__ and __TIME__; the 1286 library objects those archives
       # wrap are identical, as is every kernel object.
       - name: Build the kernel and the userland
+        timeout-minutes: 25
         run: |
-          set -o pipefail
-          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build 2>&1 | tee build.log
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-build \
+            --log .build-logs/linux-build.log \
+            --status .build-logs/linux-build.status.json \
+            --idle-timeout-seconds 600 --timeout-seconds 1200 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build
 
       - name: Build the flash image
+        timeout-minutes: 15
         run: |
-          set -o pipefail
-          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-flash \
+            --log .build-logs/linux-flash.log \
+            --status .build-logs/linux-flash.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash
 
       # The tree builds warning-free on gcc 13, 14, and 16: the cross build,
       # the kernel, and the host tools. Any warning line fails the job.
@@ -141,14 +152,23 @@ jobs:
         run: |
           # grep exits 1 on no match, which is the wanted outcome here, so
           # the count is captured with a fallback before the assertion.
-          total=$(grep -c 'warning:' build.log || true)
+          total=$(grep -h -c 'warning:' .build-logs/linux-build.log \
+            .build-logs/linux-flash.log | awk '{ sum += $1 } END { print sum + 0 }')
           echo "warning: lines in the build log: $total"
-          grep 'warning:' build.log || true
+          grep -h 'warning:' .build-logs/linux-build.log \
+            .build-logs/linux-flash.log || true
           test "$total" -eq 0
 
       # The UF2 pair the artifact step uploads and discobsd-flash loads.
       - name: Validate the kernel and root UF2 images
-        run: bmake MACHINE=rp2040 check-uf2-images
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-uf2 \
+            --log .build-logs/linux-uf2.log \
+            --status .build-logs/linux-uf2.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-uf2-images
 
       # The tiers, each a root Makefile target: lint (shellcheck at error
       # severity, ruff), host (libc, utility and kernel-model gates plus every
@@ -159,37 +179,81 @@ jobs:
       # regression programs built to a.out.
       - name: Run the lint tier
         timeout-minutes: 5
-        run: bmake MACHINE=rp2040 check-lint
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-lint \
+            --log .build-logs/linux-lint.log \
+            --status .build-logs/linux-lint.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-lint
 
       - name: Check comments changed by the tested revision
         timeout-minutes: 5
         run: |
-          bmake MACHINE=rp2040 \
-            CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" \
-            CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
-            check-changed-comments
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-changed-comments \
+            --log .build-logs/linux-changed-comments.log \
+            --status .build-logs/linux-changed-comments.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 \
+              CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" \
+              CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
+              check-changed-comments
 
       - name: Run the host tier
-        timeout-minutes: 10
-        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-host \
+            --log .build-logs/linux-host.log \
+            --status .build-logs/linux-host.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 720 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       - name: Run the cross tier
-        timeout-minutes: 15
-        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
+        timeout-minutes: 20
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-cross \
+            --log .build-logs/linux-cross.log \
+            --status .build-logs/linux-cross.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 900 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
 
       - name: Run the qemu tier
         timeout-minutes: 5
-        run: bmake MACHINE=rp2040 check-qemu
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-qemu \
+            --log .build-logs/linux-qemu.log \
+            --status .build-logs/linux-qemu.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-qemu
 
       - name: Run the board-build tier
         timeout-minutes: 5
-        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-board-build \
+            --log .build-logs/linux-board-build.log \
+            --status .build-logs/linux-board-build.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
 
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
                 distrib/rp2040/flash.uf2
+
+      - name: Retain build and gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rp2040-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
       - uses: actions/upload-artifact@v4
         with:
@@ -205,6 +269,7 @@ jobs:
   posix-sh:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -214,12 +279,32 @@ jobs:
             bmake build-essential gcc-multilib python3 pkg-config libbsd-dev
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
       - name: Calibrate execution accounting
-        run: bmake MACHINE=rp2040 check-test-execution
-      - name: Execute every required variant
-        timeout-minutes: 10
+        timeout-minutes: 5
         run: |
-          bmake MACHINE=rp2040 check-ilp32-execution \
-            TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
+          "$PYTHON" tools/run_logged_gate.py \
+            --label posix-inventory \
+            --log .build-logs/posix-inventory.log \
+            --status .build-logs/posix-inventory.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-test-execution
+      - name: Execute every required variant
+        timeout-minutes: 12
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label posix-ilp32 \
+            --log .build-logs/posix-ilp32.log \
+            --status .build-logs/posix-ilp32.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            -- bmake MACHINE=rp2040 check-ilp32-execution \
+              TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
+      - name: Retain ILP32 gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ilp32-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
       - name: Retain per-variant invocations and outcomes
         if: always()
         uses: actions/upload-artifact@v4
@@ -237,6 +322,7 @@ jobs:
   rp2040-macos:
     name: rp2040 kernel, flash image on macOS
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -294,21 +380,40 @@ jobs:
       # __DATE__ and __TIME__; the 1286 library objects those archives
       # wrap are identical, as is every kernel object.
       - name: Build the kernel and the userland
+        timeout-minutes: 35
         run: |
-          set -o pipefail
-          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build 2>&1 | tee build.log
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-build \
+            --log .build-logs/macos-build.log \
+            --status .build-logs/macos-build.status.json \
+            --idle-timeout-seconds 600 --timeout-seconds 1800 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build
       - name: Build the flash image
+        timeout-minutes: 15
         run: |
-          set -o pipefail
-          bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash 2>&1 | tee -a build.log
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-flash \
+            --log .build-logs/macos-flash.log \
+            --status .build-logs/macos-flash.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash
       - name: Assert the build is warning-free
         run: |
-          total=$(grep -c 'warning:' build.log || true)
+          total=$(grep -h -c 'warning:' .build-logs/macos-build.log \
+            .build-logs/macos-flash.log | awk '{ sum += $1 } END { print sum + 0 }')
           echo "warning: lines in the build log: $total"
-          grep 'warning:' build.log || true
+          grep -h 'warning:' .build-logs/macos-build.log \
+            .build-logs/macos-flash.log || true
           test "$total" -eq 0
       - name: Validate the kernel and root UF2 images
-        run: bmake MACHINE=rp2040 check-uf2-images
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-uf2 \
+            --log .build-logs/macos-uf2.log \
+            --status .build-logs/macos-uf2.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-uf2-images
       # coreutils gives the textbox suite its GNU references and cpio the
       # GNU cpio the cpio suite drives; macOS ships uuencode itself.
       # The tiers macOS can run. Left out: check-posix-sh (a 32-bit
@@ -317,21 +422,60 @@ jobs:
       # The Smaller C suite runs link-only here and says so.
       - name: Run the lint tier
         timeout-minutes: 5
-        run: bmake MACHINE=rp2040 check-lint
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-lint \
+            --log .build-logs/macos-lint.log \
+            --status .build-logs/macos-lint.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-lint
       - name: Run the host tier
-        timeout-minutes: 10
-        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
-      - name: Run the cross tier
         timeout-minutes: 15
-        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-host \
+            --log .build-logs/macos-host.log \
+            --status .build-logs/macos-host.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 720 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
+      - name: Run the cross tier
+        timeout-minutes: 20
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-cross \
+            --log .build-logs/macos-cross.log \
+            --status .build-logs/macos-cross.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 900 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
       - name: Run the board-build tier
         timeout-minutes: 5
-        run: bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-board-build \
+            --log .build-logs/macos-board-build.log \
+            --status .build-logs/macos-board-build.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
       - name: Link the Smaller C suite
-        run: bmake -C usr.bin/smlrc test
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-smaller-c \
+            --log .build-logs/macos-smaller-c.log \
+            --status .build-logs/macos-smaller-c.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake -C usr.bin/smlrc test
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+      - name: Retain build and gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rp2040-macos-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   # The flash-id probe in tools/flash-id is the one artifact here built
   # against the Pico SDK rather than the tree's own bmake, and it ships in
@@ -343,6 +487,7 @@ jobs:
   flash-id:
     name: flash-id against the Pico SDK
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       # The kernel builds -nostdinc against the tree's own libc, so the
@@ -358,7 +503,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             bmake cmake ninja-build git \
             gcc-arm-none-eabi binutils-arm-none-eabi \
-            libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+            libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3
+          echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
       - name: Fetch the Pico SDK at the pinned commit
         run: sh tools/pico-sdk/fetch-pico-sdk.sh
       - name: Report the toolchain
@@ -368,4 +514,19 @@ jobs:
           arm-none-eabi-gcc --version | head -1
           sh tools/pico-sdk/sdk-path.sh
       - name: Build flash-id and check it fits SRAM
-        run: bmake MACHINE=rp2040 check-flash-id
+        timeout-minutes: 12
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label sdk-flash-id \
+            --log .build-logs/sdk-flash-id.log \
+            --status .build-logs/sdk-flash-id.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            -- bmake MACHINE=rp2040 check-flash-id
+      - name: Retain flash-id build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flash-id-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn

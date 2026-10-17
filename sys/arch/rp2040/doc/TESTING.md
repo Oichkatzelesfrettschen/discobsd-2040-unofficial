@@ -19,6 +19,52 @@ wants `bmake MACHINE=rp2040 symlinks` ahead of it. `check-lint` and
 shell against the host's headers, so those two reach nothing under
 `include`.
 
+Long builds and aggregates run through `tools/run_logged_gate.py` when a
+caller needs durable progress evidence. The runner streams the child's
+combined stdout and stderr to the terminal and a log, writes an atomic JSON
+status receipt, emits timestamped heartbeats, and places the child in a
+separate process group. An output-idle deadline or hard deadline sends
+SIGTERM to that group, waits for the configured grace interval and then sends
+SIGKILL to remaining processes. The runner continues draining child output
+during termination so shutdown diagnostics reach the log and receipt. A
+timeout returns status 124, an internal runner failure returns status 125, and
+an ordinary child exit retains the child's status. Local logs belong under the
+ignored `.build-logs` directory.
+
+The durable log is the complete output record. Terminal mirroring uses a
+bounded asynchronous queue so a terminal or pipe whose reader stops consuming
+cannot suspend the idle and hard deadlines. The status receipt records bytes
+rejected by the full terminal queue; the durable log retains those bytes.
+SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
+and every exit path after launch terminates and reaps the owned process group.
+
+Select and export the interpreter, then wrap each independently deciding
+command with a distinct label, log and status path:
+
+```sh
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
+"$PYTHON" tools/run_logged_gate.py \
+    --label rp2040-build \
+    --log .build-logs/rp2040-build.log \
+    --status .build-logs/rp2040-build.status.json \
+    --idle-timeout-seconds 600 \
+    --timeout-seconds 3600 \
+    -- bmake MACHINE=rp2040 build
+```
+
+The default heartbeat interval is 30 seconds. The default idle and hard
+deadlines are 600 and 3600 seconds. Pass zero for either deadline only when an
+independent enclosing deadline exists and the unbounded dimension is
+intentional. Firmware CI assigns both runner deadlines and independent step
+and job deadlines, then uploads `.build-logs` with `if: always()` so failed and
+timed-out gates retain their last status. The upload action explicitly includes
+hidden files because `.build-logs` is a hidden directory. `check-run-logging`
+calibrates runner success, failure, exceptional cleanup, idle termination, hard
+termination, signal wakeup, terminal backpressure, shutdown-output retention
+and invalid arguments. The gate rejects firmware workflow changes that remove
+bounded active commands or retained logs.
+
 | tier | target | needs | Linux CI | macOS CI |
 | --- | --- | --- | --- | --- |
 | lint | `check-lint` | shellcheck, ruff | yes | yes |

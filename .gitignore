@@ -27,6 +27,7 @@
 multicall-bss-overlay.ld
 
 Makefile.user
+.build-logs/
 tools/renode/vendor/
 tools/pico-sdk/vendor/
 

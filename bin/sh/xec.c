@@ -5,12 +5,15 @@
  */
 #include "defs.h"
 #include <errno.h>
+#include <sys/stat.h>
+#include <sys/times.h>
 #include "sym.h"
 #include "hash.h"
 
 static int      parent;
 static int      getopts_index = 1;
 static int      getopts_offset;
+static void     execprint();
 
 #define COMMAND_EXECUTE 0
 #define COMMAND_SMALL_V 1
@@ -230,19 +233,32 @@ command_options(argn, arguments, first, standard_path)
 	return(mode);
 }
 
-static void
-command_context_end(assignments, previous)
-	struct namnod_save *assignments;
-	jmp_buf *previous;
+struct command_context
 {
-	command_restorelist(assignments);
-	command_errshell = previous;
+	jmp_buf error;
+	jmp_buf *previous;
+	struct command_env *environment;
+	char *path;
+	short io;
+	short wrapped;
+};
+
+static void
+command_context_end(context)
+	struct command_context *context;
+{
+	command_restorelist(context->environment);
+	command_errshell = context->previous;
+	free(context);
 }
 
 /* ========     command execution       ========*/
 
+int
 execute(argt, exec_link, errorflg, pf1, pf2)
 struct trenod   *argt;
+volatile int exec_link;
+int     errorflg;
 int     *pf1, *pf2;
 {
 	/*
@@ -258,10 +274,10 @@ int     *pf1, *pf2;
 	if ((t = argt) && execbrk == 0)
 	{
 		register int    treeflgs;
-		int                     type;
+		volatile int            type;
 		register char   **com;
-			char            *command_path = NIL;
-		short                   pos;
+		struct command_context *volatile command_state = NIL;
+		volatile short          pos;
 		int                     linked;
 		int                     execflg;
 
@@ -282,7 +298,7 @@ int     *pf1, *pf2;
 
 				if (n->namflg & N_RDONLY)
 					failed(n->namid, wtfailed);
-					command_name_changed(n);
+				command_name_changed(n);
 
 				if (n->namflg & N_FUNCTN)
 					freefunc(n);
@@ -307,17 +323,12 @@ int     *pf1, *pf2;
 		case TCOM:
 			{
 				char    *a1;
-				int     argn, internal;
+				volatile int argn;
+				int     internal;
 				struct argnod   *schain = gchain;
 				struct ionod    *io = t->treio;
-				short   cmdhash;
+				short   cmdhash = 0;
 				short   comtype;
-					int     command_wrapped = 0;
-					int     command_context_active = 0;
-					short   command_io = -1;
-					jmp_buf command_context;
-					jmp_buf *previous_command_context = 0;
-					struct namnod_save *command_assignments = NIL;
 
 				exitval = 0;
 
@@ -345,7 +356,8 @@ int     *pf1, *pf2;
 					command_dispatch:
 					if (comtype == NOTFOUND)
 					{
-						command_io = command_wrapped ? initio(io, 1) : -1;
+						if (command_state && command_state->wrapped)
+							command_state->io = initio(io, 1);
 						pos = hashdata(cmdhash);
 						if (pos == 1)
 							cmdfail(*com, notfound, EXNOTFOUND);
@@ -353,16 +365,15 @@ int     *pf1, *pf2;
 							cmdfail(*com, badexec, EXNOEXEC);
 						else
 							cmdfail(*com, badperm, EXNOEXEC);
-						if (command_io >= 0)
+						if (command_state && command_state->io >= 0)
 						{
-							restore(command_io);
-							command_io = -1;
+							restore(command_state->io);
+							command_state->io = -1;
 						}
-						if (command_context_active)
+						if (command_state)
 						{
-							command_context_end(command_assignments,
-							    previous_command_context);
-							command_context_active = 0;
+							command_context_end(command_state);
+							command_state = NIL;
 						}
 						break;
 					}
@@ -389,83 +400,91 @@ int     *pf1, *pf2;
 								int standard_path;
 								int mode;
 
-								if (!command_context_active)
+								if (!command_state)
 								{
-									previous_command_context = command_errshell;
-									command_errshell = &command_context;
-									command_context_active = 1;
-									if (setjmp(command_context))
+									command_state = (struct command_context *)
+									    alloc(sizeof *command_state);
+									command_state->previous = command_errshell;
+									command_state->environment = command_beginlist();
+									command_state->path = NIL;
+									command_state->io = -1;
+									command_state->wrapped = 0;
+									command_errshell = &command_state->error;
+									if (setjmp(command_state->error))
 									{
-										if (command_io >= 0)
-											restore(command_io);
-									command_context_end(command_assignments,
-									    previous_command_context);
+										if (command_state->io >= 0)
+											restore(command_state->io);
+										command_context_end(command_state);
+										command_state = NIL;
 										flushb();
 										chktrap();
 										break;
 									}
-									command_assignments =
-									    command_setlist(comptr(t)->comset);
+									command_setlist(command_state->environment,
+									    comptr(t)->comset);
 								}
 								mode = command_options(argn, com, &first,
 								    &standard_path);
 								if (mode == COMMAND_BAD)
 								{
-									command_io = initio(io, 1);
+									command_state->io = initio(io, 1);
 									prs("command");
 									prs(colon);
 									prs(badopt);
 									newline();
 									exitval = ERROR;
 									flushb();
-									restore(command_io);
-									command_io = -1;
-									command_context_end(command_assignments,
-									    previous_command_context);
-									command_context_active = 0;
+									restore(command_state->io);
+									command_state->io = -1;
+									command_context_end(command_state);
+									command_state = NIL;
 									chktrap();
 									break;
 								}
 								if (mode == COMMAND_EMPTY)
 								{
-									command_io = initio(io, 1);
+									command_state->io = initio(io, 1);
 									exitval = 0;
-									restore(command_io);
-									command_io = -1;
-									command_context_end(command_assignments,
-									    previous_command_context);
-									command_context_active = 0;
+									restore(command_state->io);
+									command_state->io = -1;
+									command_context_end(command_state);
+									command_state = NIL;
 									break;
 								}
 								if (!any('/', com[first]))
-									command_path = standard_path ?
-									    defpath + 1 : getpath(com[first]);
+								{
+									if (standard_path)
+										command_state->path = defpath + 1;
+									else if (command_state->path == NIL)
+										command_state->path = getpath(com[first]);
+								}
 								if (mode == COMMAND_SMALL_V ||
 								    mode == COMMAND_BIG_V)
 								{
-									command_io = initio(io, 1);
+									command_state->io = initio(io, 1);
 									exitval = command_report(com[first],
-									    mode == COMMAND_BIG_V, command_path);
+									    mode == COMMAND_BIG_V, command_state->path);
 									flushb();
-									restore(command_io);
-									command_io = -1;
-									command_context_end(command_assignments,
-									    previous_command_context);
-									command_context_active = 0;
+									restore(command_state->io);
+									command_state->io = -1;
+									command_context_end(command_state);
+									command_state = NIL;
 									chktrap();
 									break;
 								}
 								com += first;
 								argn -= first;
 								a1 = com[1];
-								command_wrapped = 1;
-								cmdhash = command_pathlook(com[0], command_path);
+								command_state->wrapped = 1;
+								cmdhash = command_pathlook(com[0],
+								    command_state->path);
 								comtype = hashtype(cmdhash);
 								goto command_dispatch;
 							}
 						index = initio(io, (internal != SYSEXEC));
-							command_io = index;
-							command_catch = command_context_active;
+							if (command_state)
+								command_state->io = index;
+							command_catch = command_state != NIL;
 
 						switch (internal)
 						{
@@ -483,12 +502,12 @@ int     *pf1, *pf2;
 
 						case SYSTIMES:
 							{
-								long int t[4];
+									struct tms t;
 
-								times(t);
-								prt(t[2]);
+									times(&t);
+									prt(t.tms_cutime);
 								prc_buff(SP);
-								prt(t[3]);
+									prt(t.tms_cstime);
 								prc_buff(NL);
 							}
 							break;
@@ -575,6 +594,7 @@ int     *pf1, *pf2;
 							{
 								break;
 							}
+							/* FALLTHROUGH */
 
 						case SYSLOGIN:
 							oldsigs();
@@ -605,7 +625,8 @@ int     *pf1, *pf2;
 								     *a1 == '/' ||
 								     cf(a1, ".") == 0 ||
 								     cf(a1, "..") == 0 ||
-								     (*a1 == '.' && (a1[1] == '/' || a1[1] == '.' && a1[2] == '/')))
+							     (*a1 == '.' &&
+							     (a1[1] == '/' || (a1[1] == '.' && a1[2] == '/'))))
 									cdpath = nullstr;
 
 								do
@@ -691,7 +712,12 @@ int     *pf1, *pf2;
 							if (a1)
 							{
 								while (*++com)
-									attrib(lookup(*com), N_RDONLY);
+								{
+									struct namnod *node = lookup(*com);
+
+									command_attribute_changed(node, N_RDONLY);
+									attrib(node, N_RDONLY);
+								}
 							}
 							else
 								namscan(printro);
@@ -711,7 +737,10 @@ int     *pf1, *pf2;
 										if (n->namflg & N_FUNCTN)
 											error(badexport);
 										else
+									{
+										command_attribute_changed(n, N_EXPORT);
 											attrib(n, N_EXPORT);
+									}
 									}
 								}
 								else
@@ -882,15 +911,15 @@ int     *pf1, *pf2;
 						}
 
 
-							if (command_catch)
-							{
-								command_context_end(command_assignments,
-								    previous_command_context);
-								command_context_active = 0;
-							}
-							flushb();
+						flushb();
 						restore(index);
-							command_io = -1;
+						if (command_state)
+							command_state->io = -1;
+						if (command_catch)
+						{
+							command_context_end(command_state);
+							command_state = NIL;
+						}
 						chktrap();
 						break;
 					}
@@ -929,12 +958,6 @@ int     *pf1, *pf2;
 
 						break;
 					}
-					if (command_context_active)
-					{
-						command_context_end(command_assignments,
-						    previous_command_context);
-						command_context_active = 0;
-					}
 				}
 				else if (t->treio == NIL)
 				{
@@ -943,6 +966,7 @@ int     *pf1, *pf2;
 				}
 
 			}
+			/* FALLTHROUGH */
 
 		case TFORK:
 			exitval = 0;
@@ -1004,6 +1028,11 @@ int     *pf1, *pf2;
 					post(parent);
 				else
 					assnum(&pcsadr, parent);
+				if (command_state)
+				{
+					command_context_end(command_state);
+					command_state = NIL;
+				}
 				chktrap();
 				break;
 			}
@@ -1072,9 +1101,11 @@ int     *pf1, *pf2;
 				else if (com[0] != ENDARGS)
 				{
 					eflag = 0;
-					setlist(comptr(t)->comset, N_EXPORT);
+					if (!command_state)
+						setlist(comptr(t)->comset, N_EXPORT);
 					rmtemp(NIL);
-					execa_path(com, pos, command_path);
+					execa_path(com, pos,
+					    command_state ? command_state->path : NIL);
 				}
 				done();
 			}
@@ -1211,6 +1242,7 @@ int     *pf1, *pf2;
 	return(exitval);
 }
 
+void
 execexp(s, f)
 char    *s;
 int     f;
@@ -1229,6 +1261,7 @@ int     f;
 	pop();
 }
 
+static void
 execprint(com)
 	char **com;
 {

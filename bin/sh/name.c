@@ -8,66 +8,67 @@
 extern BOOL	chkid();
 extern char	*simple();
 extern int	mailchk;
+static void	setname();
 
 struct namnod ps2nod =
 {
 	(struct namnod *)NIL,
 	&acctnod,
-	ps2name
+	ps2name, NIL, NIL, N_DEFAULT
 };
 struct namnod cdpnod =
 {
 	(struct namnod *)NIL,
 	(struct namnod *)NIL,
-	cdpname
+	cdpname, NIL, NIL, N_DEFAULT
 };
 struct namnod pathnod =
 {
 	&mailpnod,
 	(struct namnod *)NIL,
-	pathname
+	pathname, NIL, NIL, N_DEFAULT
 };
 struct namnod ifsnod =
 {
 	&homenod,
 	&mailnod,
-	ifsname
+	ifsname, NIL, NIL, N_DEFAULT
 };
 struct namnod ps1nod =
 {
 	&pathnod,
 	&ps2nod,
-	ps1name
+	ps1name, NIL, NIL, N_DEFAULT
 };
 struct namnod homenod =
 {
 	&cdpnod,
 	(struct namnod *)NIL,
-	homename
+	homename, NIL, NIL, N_DEFAULT
 };
 struct namnod mailnod =
 {
 	(struct namnod *)NIL,
 	(struct namnod *)NIL,
-	mailname
+	mailname, NIL, NIL, N_DEFAULT
 };
 struct namnod mchknod =
 {
 	&ifsnod,
 	&ps1nod,
-	mchkname
+	mchkname, NIL, NIL, N_DEFAULT
 };
 struct namnod acctnod =
 {
 	(struct namnod *)NIL,
 	(struct namnod *)NIL,
-	acctname
+	acctname, NIL, NIL, N_DEFAULT
 };
 struct namnod mailpnod =
 {
 	(struct namnod *)NIL,
 	(struct namnod *)NIL,
-	mailpname
+	mailpname, NIL, NIL, N_DEFAULT
 };
 
 
@@ -75,6 +76,7 @@ struct namnod *namep = &mchknod;
 
 /* ========	variable and string handling	======== */
 
+int
 syslook(w, syswds, n)
 	register char *w;
 	register struct sysnod syswds[];
@@ -105,6 +107,7 @@ syslook(w, syswds, n)
 	return(0);
 }
 
+void
 setlist(arg, xp)
 register struct argnod *arg;
 int	xp;
@@ -131,14 +134,29 @@ int	xp;
 struct namnod_save
 {
 	struct namnod_save *next;
-	struct namnod_save *previous_context;
 	struct namnod *node;
 	char *value;
 	char *environment;
 	int flags;
+	int persistent_flags;
 };
 
-static struct namnod_save *command_active;
+struct command_assignment
+{
+	struct command_assignment *next;
+	char *text;
+};
+
+struct command_env
+{
+	struct command_env *previous;
+	struct namnod_save *saved;
+	struct command_assignment *assignments;
+	int applying;
+	int mutated;
+};
+
+static struct command_env *command_active;
 static int command_applying;
 
 static struct namnod_save *
@@ -155,15 +173,15 @@ void
 command_name_changed(node)
 	struct namnod *node;
 {
+	struct command_env *environment;
 	struct namnod_save *entry;
-	struct namnod_save *context;
 
 	if (command_applying)
 		return;
-	for (context = command_active; context;
-	    context = context->previous_context)
+	for (environment = command_active; environment;
+	    environment = environment->previous)
 	{
-		for (entry = context; entry; entry = entry->next)
+		for (entry = environment->saved; entry; entry = entry->next)
 		{
 			if (entry->node == node && entry->flags >= 0)
 				entry->flags = ~entry->flags;
@@ -171,18 +189,52 @@ command_name_changed(node)
 	}
 }
 
-struct namnod_save *
-command_setlist(arg)
+void
+command_attribute_changed(node, attributes)
+	struct namnod *node;
+	int attributes;
+{
+	struct command_env *environment;
+	struct namnod_save *entry;
+
+	for (environment = command_active; environment;
+	    environment = environment->previous)
+	{
+		for (entry = environment->saved; entry; entry = entry->next)
+		{
+			if (entry->node == node && entry->flags >= 0)
+				entry->persistent_flags |= attributes;
+		}
+	}
+}
+
+struct command_env *
+command_beginlist()
+{
+	struct command_env *environment;
+
+	environment = (struct command_env *)alloc(sizeof *environment);
+	environment->previous = NIL;
+	environment->saved = NIL;
+	environment->assignments = NIL;
+	environment->applying = 0;
+	environment->mutated = 0;
+	return(environment);
+}
+
+void
+command_setlist(environment, arg)
+	struct command_env *environment;
 	register struct argnod *arg;
 {
-	struct argnod *apply_arg = arg;
-	struct namnod_save *saved = NIL;
+	struct command_assignment *assignment_entry;
+	struct command_assignment **assignment_tail;
 	struct namnod_save *entry;
 	struct namnod *node;
 	char *assignment;
 	char *separator;
 
-	/* Validate and capture every original node before changing any value. */
+	assignment_tail = &environment->assignments;
 	while (arg)
 	{
 		assignment = mactrim(arg->argval);
@@ -199,56 +251,71 @@ command_setlist(arg)
 		    (node == &pathnod || eq(node->namid, "SHELL")))
 			failed(node->namid, restricted);
 #endif
-		if (command_saved_node(saved, node) == NIL)
+		assignment_entry = (struct command_assignment *)
+		    alloc(sizeof *assignment_entry);
+		assignment_entry->next = NIL;
+		assignment_entry->text = assignment;
+		*assignment_tail = assignment_entry;
+		assignment_tail = &assignment_entry->next;
+		if (command_saved_node(environment->saved, node) == NIL)
 		{
 			entry = (struct namnod_save *)alloc(sizeof *entry);
 			entry->node = node;
 			entry->flags = node->namflg;
+			entry->persistent_flags = 0;
 			entry->value = node->namval;
 			entry->environment = node->namenv;
-			entry->previous_context = NIL;
-			entry->next = saved;
-			saved = entry;
+			entry->next = environment->saved;
+			environment->saved = entry;
 		}
 		arg = arg->argnxt;
 	}
 
+	environment->mutated = 1;
+	environment->applying = 1;
 	command_applying++;
-	for (entry = saved; entry; entry = entry->next)
+	for (entry = environment->saved; entry; entry = entry->next)
 	{
 		if (entry->flags & N_FUNCTN)
 			func_unhash(entry->node->namid);
 		entry->node->namval = NIL;
 		entry->node->namenv = NIL;
-		entry->node->namflg = N_DEFAULT;
+		entry->node->namflg = N_EXPORT;
 	}
-	for (; apply_arg; apply_arg = apply_arg->argnxt)
-		setname(mactrim(apply_arg->argval), 0);
+	for (assignment_entry = environment->assignments; assignment_entry;
+	    assignment_entry = assignment_entry->next)
+		setname(assignment_entry->text, 0);
 	command_applying--;
-	if (saved)
-	{
-		saved->previous_context = command_active;
-		command_active = saved;
-	}
-
-	return(saved);
+	environment->applying = 0;
+	environment->previous = command_active;
+	command_active = environment;
 }
 
 void
-command_restorelist(saved)
-	struct namnod_save *saved;
+command_restorelist(environment)
+	struct command_env *environment;
 {
+	struct command_assignment *assignment;
+	struct command_assignment *next_assignment;
+	struct namnod_save *saved;
 	struct namnod_save *next;
 	struct namnod *node;
-	int persistent_flags;
 
-	if (saved && command_active == saved)
-		command_active = saved->previous_context;
+	if (environment->applying)
+	{
+		command_applying--;
+		environment->applying = 0;
+	}
+	if (command_active == environment)
+		command_active = environment->previous;
 
+	saved = environment->saved;
 	while (saved)
 	{
 		node = saved->node;
-		if (saved->flags < 0)
+		if (!environment->mutated)
+			;
+		else if (saved->flags < 0)
 		{
 			if ((~saved->flags) & N_FUNCTN)
 				freetree((struct trenod *)saved->environment);
@@ -260,7 +327,6 @@ command_restorelist(saved)
 		}
 		else
 		{
-			persistent_flags = node->namflg & (N_EXPORT | N_RDONLY);
 			if (node->namflg & N_FUNCTN)
 			{
 				func_unhash(node->namid);
@@ -275,9 +341,7 @@ command_restorelist(saved)
 			}
 			node->namval = saved->value;
 			node->namenv = saved->environment;
-			node->namflg = saved->flags;
-			if (!(saved->flags & N_FUNCTN))
-				node->namflg |= persistent_flags;
+			node->namflg = saved->flags | saved->persistent_flags;
 			if (node->namflg & N_FUNCTN)
 				hash_func(node->namid);
 			if (node == &mchknod)
@@ -292,9 +356,18 @@ command_restorelist(saved)
 		free(saved);
 		saved = next;
 	}
+	assignment = environment->assignments;
+	while (assignment)
+	{
+		next_assignment = assignment->next;
+		free(assignment);
+		assignment = next_assignment;
+	}
+	free(environment);
 }
 
 
+static void
 setname(argi, xp)	/* does parameter assignments */
 char	*argi;
 int	xp;
@@ -324,6 +397,7 @@ int	xp;
 	failed(argi, notid);
 }
 
+void
 replace(a, v)
 register char	**a;
 char	*v;
@@ -332,6 +406,7 @@ char	*v;
 	*a = make(v);
 }
 
+void
 dfault(n, v)
 struct namnod *n;
 char	*v;
@@ -340,6 +415,7 @@ char	*v;
 		assign(n, v);
 }
 
+void
 assign(n, v)
 struct namnod *n;
 char	*v;
@@ -391,6 +467,7 @@ char	*v;
 	}
 }
 
+int
 readvar(names)
 char	**names;
 {
@@ -467,6 +544,7 @@ char	**names;
 	return(rc);
 }
 
+void
 assnum(p, i)
 char	**p;
 int	i;
@@ -496,7 +574,7 @@ lookup(nam)
 	register char	*nam;
 {
 	register struct namnod *nscan = namep;
-	register struct namnod **prev;
+	register struct namnod **prev = &namep;
 	int		LR;
 
 	if (!chkid(nam))
@@ -544,9 +622,9 @@ char	*nam;
 	return(TRUE);
 }
 
-static int (*namfn)();
+static void (*namfn)();
 
-static int
+static void
 namwalk(np)
 register struct namnod *np;
 {
@@ -558,13 +636,15 @@ register struct namnod *np;
 	}
 }
 
+void
 namscan(fn)
-	int	(*fn)();
+	void	(*fn)();
 {
 	namfn = fn;
 	namwalk(namep);
 }
 
+void
 printnam(n)
 struct namnod *n;
 {
@@ -579,7 +659,7 @@ struct namnod *n;
 		prf(n->namenv);
 		prs_buff("\n}\n");
 	}
-	else if (s = n->namval)
+	else if ((s = n->namval))
 	{
 		prs_buff(n->namid);
 		prc_buff('=');
@@ -602,6 +682,7 @@ register struct namnod *n;
 
 static int namec;
 
+void
 exname(n)
 	register struct namnod *n;
 {
@@ -631,6 +712,7 @@ exname(n)
 
 }
 
+void
 printro(n)
 register struct namnod *n;
 {
@@ -643,6 +725,7 @@ register struct namnod *n;
 	}
 }
 
+void
 printexp(n)
 register struct namnod *n;
 {
@@ -655,6 +738,7 @@ register struct namnod *n;
 	}
 }
 
+void
 setup_env()
 {
 	register char **e = environ;
@@ -666,6 +750,7 @@ setup_env()
 
 static char **argnam;
 
+void
 pushnam(n)
 struct namnod *n;
 {
@@ -709,12 +794,13 @@ findnam(nam)
 }
 
 
+void
 unset_name(name)
 	register char 	*name;
 {
 	register struct namnod	*n;
 
-	if (n = findnam(name))
+	if ((n = findnam(name)))
 	{
 		if (n->namflg & N_RDONLY)
 			failed(name, wtfailed);

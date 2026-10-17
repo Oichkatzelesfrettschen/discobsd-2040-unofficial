@@ -9,8 +9,10 @@
 /* ========     character handling for command lines    ========*/
 
 static int nextc_quoted;
+static int readb();
 #define PEEKQUOTE 0x200
 
+int
 word()
 {
 	register char   c, d;
@@ -136,6 +138,7 @@ word()
 	return(wdval);
 }
 
+int
 skipc()
 {
 	register char c;
@@ -145,6 +148,7 @@ skipc()
 	return(c);
 }
 
+int
 nextc(quote)
 char    quote;
 {
@@ -171,6 +175,7 @@ retry:
 	return(d);
 }
 
+int
 readc()
 {
 	register char   c;
@@ -229,6 +234,7 @@ retry:
 	return(c);
 }
 
+static int
 readb()
 {
 	register struct fileblk *f = standin;

@@ -7,6 +7,8 @@
 
 char    *trapcom[MAXTRAP];
 
+static void setsig();
+
 BOOL    trapflg[MAXTRAP] =
 {
 	0,
@@ -73,7 +75,7 @@ register int    sig;
 	signal(sig, fault);
 	if (sig == SIGSEGV)
 	{
-		if (setbrk(brkincr) == -1)
+		if (setbrk(brkincr) == (char *)-1)
 			error(nospace);
 	}
 	else if (sig == SIGALRM)
@@ -91,6 +93,7 @@ register int    sig;
 	}
 }
 
+void
 stdsigs()
 {
 	setsig(SIGHUP);
@@ -115,9 +118,11 @@ stdsigs()
 #endif
 }
 
+int
 ignsig(n)
+	int	n;
 {
-	register int    s, i;
+	register int    s = 0, i;
 
 	if ((i = n) == SIGSEGV)
 	{
@@ -131,7 +136,9 @@ ignsig(n)
 	return(s);
 }
 
+void
 getsig(n)
+	int	n;
 {
 	register int    i;
 
@@ -140,7 +147,9 @@ getsig(n)
 }
 
 
+static void
 setsig(n)
+	int	n;
 {
 	register int    i;
 
@@ -148,6 +157,7 @@ setsig(n)
 		signal(i, sigval[i]);
 }
 
+void
 oldsigs()
 {
 	register int    i;
@@ -164,6 +174,7 @@ oldsigs()
 	trapnote = 0;
 }
 
+void
 clrsig(i)
 int     i;
 {
@@ -179,6 +190,7 @@ int     i;
 /*
  * check for traps
  */
+void
 chktrap()
 {
 	register int    i = MAXTRAP;
@@ -190,7 +202,7 @@ chktrap()
 		if (trapflg[i] & TRAPSET)
 		{
 			trapflg[i] &= ~TRAPSET;
-			if (t = trapcom[i])
+			if ((t = trapcom[i]))
 			{
 				int     savxit = exitval;
 

@@ -406,6 +406,21 @@ old' \
     'x=old; x=new command echo hi; echo "$x"'
 ok bi_command_prefix_assignment_error 'old' \
     'x=old; x=new command export 1bad=x 2>/dev/null; echo "$x"'
+ok bi_command_prefix_expands_once_builtin 'observed
+done' \
+    'x=`echo observed >&2` command :; echo done'
+ok bi_command_prefix_expands_once_external 'observed
+done' \
+    'x=`echo observed >&2` command /bin/true; echo done'
+ok bi_command_partial_assignment_unwind 'x=old; MAILCHECK=abc x=new command :; echo "x=$x"; x=outer command eval '\''x=explicit'\''; echo "x=$x": abc: bad number
+x=old
+x=explicit' \
+    'x=old; MAILCHECK=abc x=new command :; echo "x=$x"; x=outer command eval '\''x=explicit'\''; echo "x=$x"'
+ok bi_command_prefix_keeps_export 'temp
+old' \
+    'x=old; export x; x=temp command eval '\''/usr/bin/printenv x'\''; echo "$x"'
+ok bi_command_nested_p_default_path 'status:0' \
+    'PATH=/does-not-exist; command -p command cat /dev/null; echo status:$?'
 ok bi_command_special_effect_persists 'visible' \
     'command_visible=visible; command export command_visible; sh -c "echo \$command_visible"'
 ok bi_command_prefix_export_effect 'old' \

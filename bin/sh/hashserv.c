@@ -16,6 +16,9 @@ static int	dotpath;
 static int	multrel;
 static struct entry     *relcmd = NIL;
 
+static int chk_access(char *);
+static void pr_path(char *, int);
+
 int
 special_builtin(internal)
 	int internal;
@@ -92,7 +95,6 @@ pathlook(com, flg, arg)
 	int		i;
 	int		pathset = 0;
 	int		oldpath = 0;
-	struct namnod	*n;
 
 
 	hentry.data = 0;
@@ -136,7 +138,7 @@ pathlook(com, flg, arg)
 		h->cost = 0;
 	}
 
-	if (i = syslook(name, commands, no_commands))
+	if ((i = syslook(name, commands, no_commands)))
 	{
 		hentry.data = (BUILTIN | i);
 		count = 1;
@@ -241,6 +243,7 @@ hashpr()
 }
 
 
+void
 set_dotpath()
 {
 	register char	*path;
@@ -271,6 +274,7 @@ set_dotpath()
 }
 
 
+void
 hash_func(name)
 	char *name;
 {
@@ -305,6 +309,7 @@ hash_func(name)
 	}
 }
 
+void
 func_unhash(name)
 	char *name;
 {
@@ -340,6 +345,7 @@ hash_cmd(name)
 }
 
 
+void
 what_is_path(name)
 	register char *name;
 {
@@ -351,6 +357,7 @@ what_is_path(name)
 }
 
 
+int
 findpath(name, oldpath, path)
 	register char *name;
 	int oldpath;
@@ -405,6 +412,7 @@ findpath(name, oldpath, path)
 }
 
 
+static int
 chk_access(name)
 	register char	*name;
 {
@@ -416,6 +424,7 @@ chk_access(name)
 }
 
 
+static void
 pr_path(name, count)
 	register char	*name;
 	int count;
@@ -441,7 +450,7 @@ command_pathlook(name, path)
 
 	if (any('/', name))
 		return(COMMAND);
-	if (builtin = syslook(name, commands, no_commands))
+	if ((builtin = syslook(name, commands, no_commands)))
 		return(BUILTIN | builtin);
 	if (path == NIL)
 		path = getpath(name);

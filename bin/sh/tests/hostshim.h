@@ -40,13 +40,14 @@ union wait {
  * layout everywhere else, including hostshim.c.
  */
 #ifdef SH_HOST_RAWDIR
+#include <sys/types.h>
 #define DIRBLKSIZ 4096
 struct __dirstream {
 	long dd_loc;
 	long dd_size;
 	char dd_buf[DIRBLKSIZ];
 };
-long sh_host_getdents();
+ssize_t sh_host_getdents(int, void *, size_t);
 #endif
 
 #endif /* SH_HOSTSHIM_H */

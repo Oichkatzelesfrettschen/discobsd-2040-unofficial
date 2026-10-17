@@ -63,30 +63,30 @@
 extern char _ctype1[];
 
 /* nb these args are not call by value !!!! */
-#define space(c)        (((c)&QUOTE)==0 && _ctype1[c]&(T_SPC))
-#define eofmeta(c)      (((c)&QUOTE)==0 && _ctype1[c]&(_META|T_EOF))
-#define qotchar(c)      (((c)&QUOTE)==0 && _ctype1[c]&(T_QOT))
-#define eolchar(c)      (((c)&QUOTE)==0 && _ctype1[c]&(T_EOR|T_EOF))
-#define dipchar(c)      (((c)&QUOTE)==0 && _ctype1[c]&(T_DIP))
-#define subchar(c)      (((c)&QUOTE)==0 && _ctype1[c]&(T_SUB|T_QOT))
-#define escchar(c)      (((c)&QUOTE)==0 && _ctype1[c]&(T_ESC))
+#define space(c)        (((c)&QUOTE)==0 && _ctype1[cii(c)]&(T_SPC))
+#define eofmeta(c)      (((c)&QUOTE)==0 && _ctype1[cii(c)]&(_META|T_EOF))
+#define qotchar(c)      (((c)&QUOTE)==0 && _ctype1[cii(c)]&(T_QOT))
+#define eolchar(c)      (((c)&QUOTE)==0 && _ctype1[cii(c)]&(T_EOR|T_EOF))
+#define dipchar(c)      (((c)&QUOTE)==0 && _ctype1[cii(c)]&(T_DIP))
+#define subchar(c)      (((c)&QUOTE)==0 && _ctype1[cii(c)]&(T_SUB|T_QOT))
+#define escchar(c)      (((c)&QUOTE)==0 && _ctype1[cii(c)]&(T_ESC))
 
 extern char _ctype2[];
 
-#define digit(c)        (((c)&QUOTE)==0 && _ctype2[c]&(T_DIG))
-#define fngchar(c)      (((c)&QUOTE)==0 && _ctype2[c]&(T_FNG))
+#define digit(c)        (((c)&QUOTE)==0 && _ctype2[cii(c)]&(T_DIG))
+#define fngchar(c)      (((c)&QUOTE)==0 && _ctype2[cii(c)]&(T_FNG))
 #define dolchar(c)      ( _ctype2[cii(c)]&(T_AST|T_BRC|T_DIG|T_IDC|T_SHN))
-#define defchar(c)      (((c)&QUOTE)==0 && _ctype2[c]&(T_DEF))
-#define setchar(c)      (((c)&QUOTE)==0 && _ctype2[c]&(T_SET))
-#define digchar(c)      (((c)&QUOTE)==0 && _ctype2[c]&(T_AST|T_DIG))
+#define defchar(c)      (((c)&QUOTE)==0 && _ctype2[cii(c)]&(T_DEF))
+#define setchar(c)      (((c)&QUOTE)==0 && _ctype2[cii(c)]&(T_SET))
+#define digchar(c)      (((c)&QUOTE)==0 && _ctype2[cii(c)]&(T_AST|T_DIG))
 #define letter(c)       ( _ctype2[cii(c)]&(T_IDC))
 #define alphanum(c)     ( _ctype2[cii(c)]&(_IDCH))
-#define astchar(c)      (((c)&QUOTE)==0 && _ctype2[c]&(T_AST))
+#define astchar(c)      (((c)&QUOTE)==0 && _ctype2[cii(c)]&(T_AST))
 
 extern char _ctype3[];
 extern char cj;
 
-#define qmask(c)  (cj=(c),(  (cj&0200) ||(_ctype3[cj]) ==0)? cj : _ctype3[cj])
+#define qmask(c)  (cj=(c),(  (cj&0200) ||(_ctype3[cii(cj)]) ==0)? cj : _ctype3[cii(cj)])
 #define smask(c)  (cj=(c),cj=QST(cj),((!(cj&0200))||(_ctype3[cii(cj)]) ==0)? cj : _ctype3[cii(cj)])
 #define ismask(c) (cii(smask(c)))
 

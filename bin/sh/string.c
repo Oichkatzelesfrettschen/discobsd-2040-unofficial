@@ -11,17 +11,19 @@ char *
 movstr(a, b)
 register char   *a, *b;
 {
-	while (*b++ = *a++);
+	while ((*b++ = *a++))
+		;
 	return(--b);
 }
 
+int
 any(c, s)
 register char   c;
 char    *s;
 {
 	register char d;
 
-	while (d = *s++)
+	while ((d = *s++))
 	{
 		if (d == c)
 			return(TRUE);
@@ -29,6 +31,7 @@ char    *s;
 	return(FALSE);
 }
 
+int
 cf(s1, s2)
 register char *s1, *s2;
 {
@@ -38,12 +41,13 @@ register char *s1, *s2;
 	return *--s1 - *s2;
 }
 
+int
 length(as)
 char    *as;
 {
 	register char   *s;
 
-	if (s = as)
+	if ((s = as))
 		while (*s++);
 	return(s - as);
 }

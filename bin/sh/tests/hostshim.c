@@ -60,12 +60,12 @@ struct linux_dirent64 {
 	char		d_name[1];
 };
 
-long
-sh_host_getdents(int fd, void *buf, unsigned long nbytes)
+ssize_t
+sh_host_getdents(int fd, void *buf, size_t nbytes)
 {
 	char raw[8192];
-	unsigned long rawlen, rawoff, used = 0;
-	long got;
+	size_t rawlen, rawoff, used = 0;
+	ssize_t got;
 
 	if (nbytes > sizeof(raw))
 		nbytes = sizeof(raw);
@@ -73,7 +73,7 @@ sh_host_getdents(int fd, void *buf, unsigned long nbytes)
 	if (got <= 0)
 		return got;
 
-	rawlen = (unsigned long)got;
+	rawlen = (size_t)got;
 	for (rawoff = 0; rawoff < rawlen; ) {
 		struct linux_dirent64 *src;
 		struct dirent out;
@@ -96,5 +96,5 @@ sh_host_getdents(int fd, void *buf, unsigned long nbytes)
 		memcpy((char *)buf + used, &out, reclen);
 		used += reclen;
 	}
-	return (long)used;
+	return (ssize_t)used;
 }

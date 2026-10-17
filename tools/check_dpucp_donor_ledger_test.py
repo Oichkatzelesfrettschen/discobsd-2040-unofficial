@@ -98,6 +98,26 @@ def main():
     else:
         raise AssertionError("shell root arithmetic mutation passed")
 
+    changed_shell_measurement = copy.deepcopy(shell_measurement)
+    overflow = changed_shell_measurement["shell"]["process_window_bytes"]
+    changed_shell_measurement["shell"]["candidate"]["text_bytes"] += overflow
+    changed_shell_measurement["shell"]["candidate"][
+        "window_occupancy_before_stack_bytes"
+    ] += overflow
+    changed_shell_measurement["shell"]["candidate"][
+        "window_margin_before_stack_bytes"
+    ] -= overflow
+    changed_shell_measurement["shell"]["delta"]["text_bytes"] += overflow
+    changed_shell_measurement["shell"]["delta"][
+        "window_occupancy_before_stack_bytes"
+    ] += overflow
+    try:
+        shell_validator(changed_shell_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("negative shell process-window margin passed")
+
     promoted_ids = {
         "libc-reallocarray",
         "libc-memmem",

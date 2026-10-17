@@ -115,6 +115,15 @@ def require(condition, message):
         raise DonorError(message)
 
 
+def require_nonnegative_integers(values, fields, label):
+    for field in fields:
+        value = values[field]
+        require(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0,
+            f"invalid {label} {field}",
+        )
+
+
 def validate_foundation_measurement(measurement):
     require(
         set(measurement) == {
@@ -204,6 +213,9 @@ def validate_shell_measurement(measurement):
     kernel_fields = {"text_bytes", "data_bytes", "bss_bytes", "flash_margin_bytes"}
     for state in ("base", "candidate"):
         require(set(kernel[state]) == kernel_fields, f"malformed {state} kernel measurement")
+        require_nonnegative_integers(
+            kernel[state], kernel_fields, f"{state} kernel measurement"
+        )
         require(
             kernel[state]["flash_margin_bytes"]
             == kernel["region_bytes"]
@@ -234,6 +246,9 @@ def validate_shell_measurement(measurement):
     for state in ("base", "candidate"):
         values = shell[state]
         require(set(values) == shell_fields, f"malformed {state} shell measurement")
+        require_nonnegative_integers(
+            values, shell_fields, f"{state} shell measurement"
+        )
         occupancy = values["text_bytes"] + values["data_bytes"] + values["bss_bytes"]
         require(
             values["window_occupancy_before_stack_bytes"] == occupancy,
@@ -275,6 +290,10 @@ def validate_shell_measurement(measurement):
             set(root[state]) == {"files", "data_blocks", "free_blocks"},
             f"malformed shell root {state} measurement",
         )
+        require_nonnegative_integers(
+            root[state], {"files", "data_blocks", "free_blocks"},
+            f"shell root {state} measurement",
+        )
         require(
             root[state]["data_blocks"]
             + root[state]["free_blocks"]
@@ -287,6 +306,12 @@ def validate_shell_measurement(measurement):
             root["delta"][field] == root["candidate"][field] - root["base"][field],
             f"inconsistent shell root {field} delta",
         )
+    require(
+        isinstance(root["candidate_free_bytes"], int)
+        and not isinstance(root["candidate_free_bytes"], bool)
+        and root["candidate_free_bytes"] >= 0,
+        "invalid shell root free-byte margin",
+    )
     require(
         root["candidate_free_bytes"]
         == root["candidate"]["free_blocks"] * measurement["block_bytes"],

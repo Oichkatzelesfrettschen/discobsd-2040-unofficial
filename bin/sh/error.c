@@ -7,6 +7,7 @@
 
 /* ========     error handling  ======== */
 
+_Noreturn void
 failure(s1, s2, xno)
 char    *s1, *s2;
 int     xno;
@@ -27,6 +28,7 @@ int     xno;
 	exitsh(xno);
 }
 
+_Noreturn void
 failed(s1, s2)
 char    *s1, *s2;
 {
@@ -42,6 +44,7 @@ char    *s1, *s2;
  * to continue with and exits with the status; under set -e the shell
  * exits as it does on any failure.
  */
+void
 cmdfail(s1, s2, xno)
 char    *s1, *s2;
 int     xno;
@@ -59,12 +62,14 @@ int     xno;
 	exitval = xno;
 }
 
+void
 error(s)
 char    *s;
 {
 	failed(s, NIL);
 }
 
+_Noreturn void
 exitsh(xno)
 int     xno;
 {
@@ -87,15 +92,16 @@ int     xno;
 		clear_buff();
 		execbrk = breakcnt = funcnt = 0;
 		longjmp(errshell, 1);
+		done();
 	}
 }
 
-void
+_Noreturn void
 done()
 {
 	register char   *t;
 
-	if (t = trapcom[0])
+	if ((t = trapcom[0]))
 	{
 		trapcom[0] = NIL;
 		execexp(t, 0);
@@ -113,6 +119,7 @@ done()
 	exit(exitval);
 }
 
+void
 rmtemp(base)
 struct ionod    *base;
 {
@@ -124,6 +131,7 @@ struct ionod    *base;
 	}
 }
 
+void
 rmfunctmp()
 {
 	while (fiotemp)

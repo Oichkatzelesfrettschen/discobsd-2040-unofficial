@@ -13,6 +13,7 @@ short topfd;
 
 /* ========     input output and file copying ======== */
 
+void
 initf(fd)
 int     fd;
 {
@@ -26,6 +27,7 @@ int     fd;
 	f->feof = FALSE;
 }
 
+int
 estabf(s)
 register char *s;
 {
@@ -37,6 +39,7 @@ register char *s;
 	return(f->feof = (s == NIL));
 }
 
+void
 push(af)
 struct fileblk *af;
 {
@@ -48,6 +51,7 @@ struct fileblk *af;
 	standin = f;
 }
 
+int
 pop()
 {
 	register struct fileblk *f;
@@ -65,6 +69,7 @@ pop()
 
 struct tempblk *tmpfptr;
 
+void
 pushtemp(fd,tb)
 	int fd;
 	struct tempblk *tb;
@@ -74,6 +79,7 @@ pushtemp(fd,tb)
 	tmpfptr = tb;
 }
 
+int
 poptemp()
 {
 	if (tmpfptr)
@@ -86,6 +92,7 @@ poptemp()
 		return(FALSE);
 }
 
+void
 chkpipe(pv)
 int     *pv;
 {
@@ -93,6 +100,7 @@ int     *pv;
 		error(piperr);
 }
 
+int
 chkopen(idf)
 char *idf;
 {
@@ -104,6 +112,7 @@ char *idf;
 		return(rc);
 }
 
+void
 rename(f1, f2)
 register int    f1, f2;
 {
@@ -132,6 +141,7 @@ register int    f1, f2;
 #endif
 }
 
+int
 create(s)
 char *s;
 {
@@ -143,6 +153,7 @@ char *s;
 		return(rc);
 }
 
+int
 tmpfil(tb)
 	struct tempblk *tb;
 {
@@ -177,6 +188,7 @@ heredoc_delimiter(delimiter)
 	return (delimiter);
 }
 
+void
 copy(ioparg)
 struct ionod    *ioparg;
 {
@@ -192,7 +204,7 @@ struct ionod    *ioparg;
 	int             stripflg;
 
 
-	if (iop = ioparg)
+	if ((iop = ioparg))
 	{
 		struct tempblk tb;
 
@@ -274,6 +286,7 @@ struct ionod    *ioparg;
 }
 
 
+void
 link_iodocs(i)
 	struct ionod    *i;
 {
@@ -291,6 +304,7 @@ link_iodocs(i)
 }
 
 
+void
 swap_iodoc_nm(i)
 	struct ionod    *i;
 {
@@ -305,6 +319,7 @@ swap_iodoc_nm(i)
 }
 
 
+int
 savefd(fd)
 	int fd;
 {
@@ -315,6 +330,7 @@ savefd(fd)
 }
 
 
+void
 restore(last)
 	register int    last;
 {

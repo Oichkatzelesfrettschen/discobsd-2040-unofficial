@@ -5,8 +5,6 @@
  */
 #include "defs.h"
 
-char 	*sbrk();
-
 char *
 setbrk(incr)
 int	incr;

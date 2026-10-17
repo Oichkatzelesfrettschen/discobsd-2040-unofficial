@@ -1,6 +1,7 @@
 """Record actual test invocations and require every designated CI variant."""
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import math
@@ -14,19 +15,25 @@ import tempfile
 import time
 from pathlib import Path
 
+import run_logged_gate as execution_ownership
+
 ROOT = Path(__file__).resolve().parent.parent
 INVENTORY = ROOT / "tools/test-execution-inventory.json"
 TIMEOUT_EXIT = 124
 VARIANT_TIMEOUT_SECONDS = 600.0
 AGGREGATE_TIMEOUT_SECONDS = 3600.0
 TERMINATE_GRACE_SECONDS = 1.0
-INTERRUPT_GRACE_SECONDS = 0.1
+CLEANUP_ALLOWANCE_ENV = "_DISCOBSD_TEST_EXECUTION_CLEANUP_ALLOWANCE_SECONDS"
+ROOT_CLEANUP_ALLOWANCE_SECONDS = 2.0 * TERMINATE_GRACE_SECONDS
+MINIMUM_CHILD_CLEANUP_SECONDS = 0.02
+REAP_RESERVE_SECONDS = 0.1
+SUPERVISOR_RESPONSE_SECONDS = 0.2
 
 
-class BoundedSignal(Exception):
-    def __init__(self, number):
-        super().__init__(f"signal {number}")
-        self.number = number
+@dataclasses.dataclass(frozen=True)
+class StopResult:
+    child_exit_code: object
+    group_stopped: bool
 
 
 def positive_seconds(value):
@@ -46,52 +53,217 @@ def process_group_exists(process_group):
     return True
 
 
-def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
+def terminate_grace_seconds(cleanup_seconds):
+    return min(
+        TERMINATE_GRACE_SECONDS,
+        max(0, cleanup_seconds - REAP_RESERVE_SECONDS),
+    )
+
+
+def stop_process_group(
+    process, cleanup_seconds=ROOT_CLEANUP_ALLOWANCE_SECONDS
+):
+    started = time.monotonic()
+    terminate_deadline = started + terminate_grace_seconds(cleanup_seconds)
+    cleanup_deadline = started + cleanup_seconds
     try:
         os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
-    deadline = time.monotonic() + grace_seconds
-    while time.monotonic() < deadline and process_group_exists(process.pid):
+    while (
+        time.monotonic() < terminate_deadline
+        and process_group_exists(process.pid)
+    ):
         process.poll()
-        time.sleep(min(0.02, max(0, deadline - time.monotonic())))
+        time.sleep(
+            min(0.02, max(0, terminate_deadline - time.monotonic()))
+        )
     if process_group_exists(process.pid):
         try:
             os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
     try:
-        return process.wait(timeout=max(0.1, grace_seconds))
+        child_exit = process.wait(
+            timeout=max(0, cleanup_deadline - time.monotonic())
+        )
     except subprocess.TimeoutExpired:
-        process.kill()
-        return process.wait()
+        try:
+            process.kill()
+        except (ProcessLookupError, PermissionError):
+            pass
+        try:
+            child_exit = process.wait(
+                timeout=max(0, cleanup_deadline - time.monotonic())
+            )
+        except subprocess.TimeoutExpired:
+            child_exit = None
+    while (
+        time.monotonic() < cleanup_deadline
+        and process_group_exists(process.pid)
+    ):
+        time.sleep(
+            min(0.02, max(0, cleanup_deadline - time.monotonic()))
+        )
+    return StopResult(child_exit, not process_group_exists(process.pid))
+
+
+def cleanup_allowances():
+    value = os.environ.get(
+        CLEANUP_ALLOWANCE_ENV, str(ROOT_CLEANUP_ALLOWANCE_SECONDS)
+    )
+    allowance = float(value)
+    if not math.isfinite(allowance) or allowance <= 0:
+        raise ValueError(f"invalid inherited cleanup allowance: {value}")
+    child_allowance = max(
+        MINIMUM_CHILD_CLEANUP_SECONDS,
+        terminate_grace_seconds(allowance) - SUPERVISOR_RESPONSE_SECONDS,
+    )
+    return allowance, child_allowance
 
 
 def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
     previous_handlers = {}
+    cleanup_seconds, child_cleanup_seconds = cleanup_allowances()
+    child_environment = os.environ.copy() if env is None else env.copy()
+    child_environment[CLEANUP_ALLOWANCE_ENV] = str(child_cleanup_seconds)
+    signal_received = None
 
     def interrupt(number, _frame):
-        raise BoundedSignal(number)
+        nonlocal signal_received
+        signal_received = number
 
     for number in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[number] = signal.signal(number, interrupt)
-    try:
-        process = subprocess.Popen(
-            command, cwd=cwd, env=env, start_new_session=True
-        )
+
+    def release_registered_group(process_group):
         try:
-            returncode = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            stop_process_group(process)
-            return TIMEOUT_EXIT, "hard_timeout"
-        except BoundedSignal as interruption:
-            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
-            return 128 + interruption.number, f"signal_{interruption.number}"
+            execution_ownership.unregister_inherited_execution_group(
+                process_group
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: ownership release failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return False
+        return True
+
+    def retain_incomplete_group(process_group):
+        try:
+            execution_ownership.mark_inherited_execution_group_cleanup_incomplete(
+                process_group
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: incomplete ownership retention failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return False
+        return True
+
+    def cancel_launch_reservation(reservation):
+        try:
+            execution_ownership.cancel_inherited_execution_launch(reservation)
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: launch reservation release failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return False
+        return True
+
+    try:
+        try:
+            reservation = execution_ownership.reserve_inherited_execution_launch()
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: ownership reservation failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 125, "cleanup_incomplete"
+        if signal_received is not None:
+            if not cancel_launch_reservation(reservation):
+                return 125, "cleanup_incomplete"
+            return 128 + signal_received, f"signal_{signal_received}"
+        try:
+            process = subprocess.Popen(
+                command, cwd=cwd, env=child_environment, start_new_session=True
+            )
         except BaseException:
-            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            cancel_launch_reservation(reservation)
             raise
+        try:
+            execution_ownership.complete_inherited_execution_launch(
+                reservation, process.pid
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: ownership registration failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            result = stop_process_group(process, cleanup_seconds)
+            if result.group_stopped:
+                cancel_launch_reservation(reservation)
+            else:
+                retain_incomplete_group(process.pid)
+            return 125, "cleanup_incomplete"
+        if signal_received is not None:
+            result = stop_process_group(process, cleanup_seconds)
+            if result.group_stopped and not release_registered_group(process.pid):
+                return 125, "cleanup_incomplete"
+            if not result.group_stopped:
+                retain_incomplete_group(process.pid)
+            return (
+                (128 + signal_received, f"signal_{signal_received}")
+                if result.group_stopped
+                else (125, "cleanup_incomplete")
+            )
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if signal_received is not None:
+                result = stop_process_group(process, cleanup_seconds)
+                if result.group_stopped and not release_registered_group(process.pid):
+                    return 125, "cleanup_incomplete"
+                if not result.group_stopped:
+                    retain_incomplete_group(process.pid)
+                return (
+                    (128 + signal_received, f"signal_{signal_received}")
+                    if result.group_stopped
+                    else (125, "cleanup_incomplete")
+                )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                result = stop_process_group(process, cleanup_seconds)
+                if result.group_stopped and not release_registered_group(process.pid):
+                    return 125, "cleanup_incomplete"
+                if not result.group_stopped:
+                    retain_incomplete_group(process.pid)
+                return (
+                    (TIMEOUT_EXIT, "hard_timeout")
+                    if result.group_stopped
+                    else (125, "cleanup_incomplete")
+                )
+            try:
+                returncode = process.wait(timeout=min(0.1, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                continue
+            except BaseException:
+                stop_process_group(process, cleanup_seconds)
+                raise
         if process_group_exists(process.pid):
-            stop_process_group(process, INTERRUPT_GRACE_SECONDS)
+            result = stop_process_group(process, cleanup_seconds)
+            if not result.group_stopped:
+                retain_incomplete_group(process.pid)
+                return 125, "cleanup_incomplete"
+        if not release_registered_group(process.pid):
+            return 125, "cleanup_incomplete"
         return returncode, None
     finally:
         for number, handler in previous_handlers.items():
@@ -205,6 +377,8 @@ def run_variant(variant, command, timeout_seconds=VARIANT_TIMEOUT_SECONDS):
         executable=evidence, termination=termination,
         timeout_seconds=timeout_seconds,
     )
+    if termination == "cleanup_incomplete":
+        return 125
     return {"PASS": 0, "FAIL": 1, "ERROR": 2}[outcome]
 
 

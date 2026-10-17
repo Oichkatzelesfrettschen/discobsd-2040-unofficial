@@ -237,6 +237,7 @@ def validate_makefile(source):
     recipes = target.group(1)
     for script in (
         "run_logged_gate_test.py",
+        "run_logged_build_check_test.py",
         "build_observability_test.py",
         "storage_counter_driver_test.py",
     ):
@@ -251,9 +252,6 @@ def validate_makefile(source):
         ),
         "logged-flash": ("check-python", "rp2040-flash-local", "flash"),
         "logged-kernel": ("check-python", "rp2040-kernel-local", "kernel"),
-        "logged-check": (
-            "check-python logged-build", "rp2040-check-local", "check"
-        ),
     }
     for target, (dependencies, label, command_target) in local_targets.items():
         target_match = re.search(
@@ -267,13 +265,31 @@ def validate_makefile(source):
         recipe = normalized_command(target_match.group(1))
         required = (
             f"${{PYTHON}} tools/run_logged_gate.py --label {label} "
-            f"--log .build-logs/{label}.log "
-            f"--status .build-logs/{label}.status.json "
+            "--evidence-root .build-logs "
+            "--execution-lock .build-logs/rp2040-products.lock "
             "--idle-timeout-seconds 600 --timeout-seconds 3600 "
             f"-- ${{MAKE}} MACHINE=rp2040 {command_target}"
         )
         if recipe != required:
             raise ValueError(f"{target} recipe differs")
+
+    check_match = re.search(
+        r"^logged-check:\s*check-python\s*$\n((?:\t.*\n?)+)",
+        source,
+        re.MULTILINE,
+    )
+    if check_match is None:
+        raise ValueError("logged-check lacks dependency check-python")
+    check_recipe = normalized_command(check_match.group(1))
+    required_check = (
+        "${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local "
+        "--evidence-root .build-logs "
+        "--execution-lock .build-logs/rp2040-products.lock "
+        "--idle-timeout-seconds 600 --timeout-seconds 3600 "
+        "-- ${MAKE} MACHINE=rp2040"
+    )
+    if check_recipe != required_check:
+        raise ValueError("logged-check recipe differs")
 
 
 def validate_host_workflow(source):

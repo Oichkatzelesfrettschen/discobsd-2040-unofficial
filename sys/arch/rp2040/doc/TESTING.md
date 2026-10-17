@@ -33,10 +33,24 @@ ignored `.build-logs` directory.
 
 The caller-facing `logged-build`, `logged-distribution`, `logged-flash`,
 `logged-kernel` and `logged-check` targets are the required local routes.
-Each target uses a distinct log and status receipt under `.build-logs`, a
-600-second output-idle deadline and a 3600-second hard deadline.
-`logged-check` depends on `logged-build`; the internal `build`, `distribution`,
-`flash`, `kernel` and `check` targets remain direct recursive-make surfaces.
+Each invocation owns an immutable directory under `.build-logs`, containing
+its log and status receipt, while `<label>.latest.json` names the most recently
+updated invocation. A worktree-wide execution lock rejects a second logged
+target before it mutates shared build products. Each target uses a 600-second
+output-idle deadline and a 3600-second hard deadline. `logged-check` runs build
+and check as correlated stages under one 3600-second total deadline. A failed
+build publishes a `blocked` check receipt in the same invocation directory.
+The sequence summary publishes each stage as `running` with its status path
+before the stage starts. Each launched stage receipt records the hard-deadline
+budget assigned by the coordinator. The coordinator owns SIGINT and SIGTERM
+between stage runners, publishes a terminal `interrupted` summary and blocks an
+unstarted check before releasing the product lock. The coordinator never starts
+the next stage after the shared absolute deadline; the check receipt records
+`deadline_exhausted` instead. An unexpected stage-runner exception publishes
+an `error` stage receipt and a terminal sequence receipt; a build-stage
+exception also publishes the correlated `blocked` check receipt.
+The internal `build`, `distribution`, `flash`, `kernel` and `check` targets
+remain direct recursive-make surfaces.
 The runner forwards live bmake or GNU make jobserver pipe descriptors named by
 the inherited make flags. A logged target therefore preserves the caller's
 parallelism limit without handing a recursive make closed jobserver descriptors.
@@ -45,14 +59,72 @@ The durable log is the complete output record. Terminal mirroring uses a
 bounded asynchronous queue so a terminal or pipe whose reader stops consuming
 cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
-SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
-and every exit path after launch terminates and reaps the owned process group.
+SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval.
+Signal handling covers launch, ownership registration and execution; a signal
+during registration stops the launched process group before the supervisor
+returns.
+Every termination path makes a bounded attempt to terminate and reap its owned
+process group, and every wait after SIGKILL carries a finite cleanup deadline.
+If the process leader cannot be reaped or any member of the process group
+remains visible after that deadline, the runner returns status 125 and records
+`cleanup_incomplete`; the runner does not report an ordinary timeout or
+completed cleanup.
+Immediately before timeout or signal termination, the log records a bounded
+process-tree snapshot with process, parent, group, state, elapsed, CPU-time and
+command fields. The snapshot establishes the observed host process state at
+termination; the child log remains the authority for its own output.
+Before child launch, a product owner writes
+`<execution-lock>.ownership.json` with active state. A nested supervisor adds a
+durable pending-launch token before it creates a detached process group, then
+atomically replaces the token with the new process-group identifier. Failure to
+reserve ownership prevents launch. Failure to complete registration retains the
+pending token as an unknown group set, so finalization remains fail-closed.
+An unresolved launch reservation makes the current stage return status 125;
+`logged-check` records the successor stage as blocked instead of starting it.
+Direct and nested supervisors register every independently created process group
+in that receipt.
+The supervisor exports absolute ownership and quarantine paths so recursive
+builds retain one receipt when a child changes its working directory.
+Each supervisor removes its group after the group has conclusively disappeared,
+so a long sequence retains active or unresolved ownership rather than completed
+process history. Verified cleanup changes the receipt to released state and
+retains only groups still visible at finalization. Incomplete cleanup changes
+the receipt to cleanup-incomplete state before later evidence writes; an active
+receipt remains fail-closed when finalization itself fails. Registration and
+release failures name the ownership operation and its exact error in the durable
+build log. A registration failure runs bounded cleanup; the completed
+registration already names the group, while an incomplete registration retains
+its pending-launch token until cleanup conclusively stops the group and cancels
+the reservation.
+A cleanup-incomplete invocation also writes
+`<execution-lock>.quarantine.json` before releasing the lock. The retained
+quarantine receipt names the process groups, invocation, status path and
+creation time. A later logged target acquires the lock and then rejects product
+mutation with `execution_quarantined` while the ownership state is active,
+while an unknown group set remains, or while a recorded group remains visible.
+Once every recorded group has disappeared, a later invocation may proceed; the
+quarantine receipt remains as evidence. PID reuse ambiguity therefore closes
+mutation rather than risking concurrent writers.
+An unresolved pending-launch token names a process group whose identity was not
+durably registered, so ordinary liveness checks cannot clear it. After the
+operator inspects the host and the terminal sequence receipt, the operator may
+run `tools/recover_logged_execution.py` with the exact execution lock,
+invocation ID, status path, reason and
+`--confirm-unrecorded-groups-absent`. The recovery tool acquires the product
+lock, rejects live recorded groups, mismatched evidence and nonterminal status,
+writes absolute status paths for new owners, resolves a legacy relative status
+path against the execution directory recorded by its terminal receipt,
+writes an immutable recovery receipt containing the former ownership state and
+status-record hash, and only then releases the ownership receipt. Recovery is
+an explicit operator assertion, not an inference from an old receipt.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a
-responsive filesystem: a blocked regular-filesystem write can suspend the
-Python process itself. CI job and step deadlines and any enclosing local
-supervisor remain independent outer bounds for that failure class.
+responsive filesystem. Evidence-root setup failure returns status 125 without
+launching the child or printing a Python traceback; an unusable evidence root
+cannot contain a failure receipt. A blocked regular-filesystem write can
+suspend the Python process itself. CI job and step deadlines and any enclosing
+local supervisor remain independent outer bounds for that failure class.
 
 Select and export the interpreter, then use the caller-facing target:
 
@@ -71,9 +143,20 @@ timed-out gates retain their last status. The upload action explicitly includes
 hidden files because `.build-logs` is a hidden directory. `check-run-logging`
 calibrates runner success, failure, exceptional cleanup, idle termination, hard
 termination, signal wakeup, terminal backpressure, shutdown-output retention
-and invalid arguments. Its test helper carries a separate five-second deadline,
-and a FIFO fixture calibrates pre-launch rejection. The gate rejects firmware
-workflow changes that remove bounded active commands or retained logs.
+and invalid arguments. The gate calibrates bounded post-SIGKILL reaping and
+cleanup-incomplete quarantine for direct runners and build/check sequences. It
+also calibrates active-log exclusion, immutable sequential evidence, worktree
+product locking, pre-termination process capture, correlated build/check
+receipts and the shared total deadline. Its test helper carries a separate
+five-second deadline. The sequence fixtures calibrate live build state,
+deadline exhaustion without a successor launch, unresolved launch reservations
+blocking the successor and both interstage signal windows. A FIFO fixture
+calibrates pre-launch rejection. The gate rejects
+firmware workflow changes that remove bounded active commands or retained logs.
+`recover_logged_execution_test.py` calibrates missing operator confirmation,
+recovery evidence retained before ownership release, live-group refusal and
+nonterminal-status refusal. Its cross-directory fixture calibrates recovery of
+legacy relative status paths against the recorded execution directory.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding
@@ -247,6 +330,15 @@ host sizing; every production invocation retains a positive deadline. A
 SIGINT or SIGTERM received by an execution supervisor first terminates its
 owned group and records the signal result. That propagation lets an enclosing
 aggregate terminate variant groups that deliberately use separate sessions.
+A supervisor gives its nested child a cleanup allowance smaller than the
+allowance its parent reserves for the supervisor. The ordering lets three
+nested supervisors finish descendant cleanup before an ancestor escalates to
+SIGKILL. Each inherited allowance covers the complete termination and reap
+sequence. The child share excludes a bounded response reserve, and the parent
+retains a separate final-reap interval. The response reserve spans two polling
+intervals, which leaves time for signal observation and host scheduling before
+an ancestor escalates. A calibrated resistant-leaf fixture requires every
+owned process group to be absent before the outer supervisor returns.
 A successful direct child that leaves an owned descendant also triggers group
 cleanup before the supervisor publishes PASS.
 
@@ -393,7 +485,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-sus-discovery` | The API candidate scanner requires explicit DiscoBSD and 4.4BSD roots, rejects a missing root or required scan subtree, and emits path-independent deterministic JSON. Paired fixtures distinguish a declaration-only API from a definition stored under a different source basename while leaving linkage and behavior unassessed; comma-separated declarations and conditional definition alternatives remain visible, while comment, string and call-only text cannot create fixture APIs. The selected-image utility ledger checks 107 unique names against `mi.rp2040`, textbox/utilbox/box dispatch, the Bourne-shell builtin and execution tables, source ownership and named behavior cases and gates. Mutations that move textbox names to utilbox, substitute unrelated direct or alias source owners, claim a missing Bourne builtin or shell behavior case, replace the `newgrp` external-dispatch case or duplicate a name calibrate rejection. The gate proves bounded discovery and ownership consistency; it does not establish whole-system SUS conformance or execute an external 4.4BSD checkout. |
 | `check-sus-requirement-corpus` | The committed Issue 7/Issue 8 corpus pins the official archive identities and 1,617 structural entity rows: 104 Base Definitions pages, 1,329 System Interfaces pages and 184 utility or special-builtin pages. The verifier checks canonical order, edition membership, counts, row hashes, requirement-facet taxonomy, 107 selected-image utility names, seven explicitly classified extensions and every bounded RP2040 mapping's entity and evidence paths. Negative controls mutate the entity count, row hash, duplicate identity and mapped entity. An optional archive-backed invocation additionally checks both archive hashes and regenerates every entity from safe member names. The default host gate validates the copyright-safe committed corpus; it does not carry standards prose, decide option applicability, execute behavior or establish Issue 7/Issue 8 conformance. |
 | `check-dpucp-profile` | The DPUCP-2024 verifier accounts for all 1,518 Issue 8 entities and all 152 Issue 8-only entities inside the 1,617-row union. It checks stable identities, citations, state vocabularies, conservative option handling, deterministic row order and hash, executable witness registration for closed rows, and deciding actions for open or blocked rows. Eleven mutation controls reject missing and duplicate rows, Issue 7-only admission, unknown states, unsupported option exclusions, unwitnessed closure, absent next actions, count and hash drift, mismatched witness evidence, and a POSIX conformance claim. The host gate establishes profile-ledger consistency; it executes none of the listed interfaces and claims neither POSIX nor UNIX conformance. |
-| `check-dpucp-donor-ledger` | The DPUCP-2024 donor verifier checks the pinned revisions and origins for eight local BSD research trees and each source repository, path, SHA-256, license, behavior, invariants, algorithm, dependency closure, C-language boundary, C17 rewrite, expected archive members, unmeasured size surfaces, disposition and deciding gate for 11 selected mechanisms. Twenty-three mutations reject candidate-set, requirement-binding, provenance, path, hash, license, semantic-field, archive-expectation, size-state, size-evidence, decision and conformance-claim drift. The normal host gate validates the committed ledger without requiring the external research workspace. An explicit `${PYTHON} tools/check_dpucp_donor_ledger.py --workspace "${BSD_WORKSPACE}"` additionally reads each file from its pinned Git object and verifies its SHA-256; that caller-selected workspace check is research evidence and stays outside CI. Candidate status admits no source, closes no DPUCP row and makes no POSIX or UNIX conformance claim. |
+| `check-dpucp-donor-ledger` | The DPUCP-2024 donor verifier checks the pinned revisions and origins for eight local BSD research trees and each source repository, path, SHA-256, license, behavior, invariants, algorithm, dependency closure, C-language boundary, C17 rewrite, expected archive members, unmeasured size surfaces, disposition and deciding gate for 11 selected mechanisms. The calibrated suite requires its documented mutation count to match the executed controls; 24 mutations reject candidate-set, requirement-binding, provenance, path, hash, license, semantic-field, archive-expectation, size-state, size-evidence, decision and conformance-claim drift. The normal host gate validates the committed ledger without requiring the external research workspace. An explicit `${PYTHON} tools/check_dpucp_donor_ledger.py --workspace "${BSD_WORKSPACE}"` additionally reads each file from its pinned Git object and verifies its SHA-256; that caller-selected workspace check is research evidence and stays outside CI. Candidate status admits no source, closes no DPUCP row and makes no POSIX or UNIX conformance claim. |
 | `check-c17-source-denominator` | The schema-2 ledger accounts for every tracked C and header path exactly once and records a deterministic source kind, build surface, required language mode, extension policy, risk family, separate risk tier and seven lexical hazard-candidate families. Macro replacement tokens participate in discovery while comments and literals remain blank. Seventeen calibrated failures reject missing, duplicate, unsafe, unknown, unwitnessed, fabricated, source-drift, invalid-refresh, temporary-write and replacement-failure states; each failed refresh preserves the destination bytes. The 543 excluded rows retain exact quarantine hashes; all 2,002 unreviewed and 23 migration-open language states remain open. A candidate-free lexical result is discovery evidence rather than semantic clearance. |
 | `check-c17-compile-profiles` | The existing case-folding mechanism compiles with strict C17 and warnings as errors on the host and with `-std=c17 -pedantic-errors` for Cortex-M0+, where a target-only GNU statement expression calibrates rejection. Both complete kernels then compile and link with their generated GNU17 freestanding PICO and PICO_UART commands. The target composes compiler evidence and changes no classification state. `check-c17-smaller-c` runs the native compiler suite separately; its result establishes neither ISO C17 acceptance nor the production kernel build. |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |

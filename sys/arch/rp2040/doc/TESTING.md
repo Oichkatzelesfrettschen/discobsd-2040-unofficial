@@ -61,10 +61,23 @@ cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
 SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
 and every exit path after launch terminates and reaps the owned process group.
+Every wait after SIGKILL carries a finite cleanup deadline. If the process
+leader cannot be reaped or any member of the process group remains visible
+after that deadline, the runner returns status 125 and records
+`cleanup_incomplete`; the runner does not report an ordinary timeout or
+completed cleanup.
 Immediately before timeout or signal termination, the log records a bounded
 process-tree snapshot with process, parent, group, state, elapsed, CPU-time and
 command fields. The snapshot establishes the observed host process state at
 termination; the child log remains the authority for its own output.
+A cleanup-incomplete invocation that owns a product lock writes
+`<execution-lock>.quarantine.json` before releasing the lock. The receipt names
+the process group, invocation, status path and creation time. A later logged
+target acquires the lock and then rejects product mutation with
+`execution_quarantined` while that process group remains visible. Once the
+recorded group has disappeared, a later invocation may proceed; the quarantine
+receipt remains as evidence. PID reuse ambiguity therefore closes mutation
+rather than risking concurrent writers.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a
@@ -91,12 +104,14 @@ timed-out gates retain their last status. The upload action explicitly includes
 hidden files because `.build-logs` is a hidden directory. `check-run-logging`
 calibrates runner success, failure, exceptional cleanup, idle termination, hard
 termination, signal wakeup, terminal backpressure, shutdown-output retention
-and invalid arguments. It also calibrates active-log exclusion, immutable
-sequential evidence, worktree product locking, pre-termination process capture,
-correlated build/check receipts and the shared total deadline. Its test helper
-carries a separate five-second deadline. The sequence fixtures calibrate live
-build state, deadline exhaustion without a successor launch and both interstage
-signal windows. A FIFO fixture calibrates pre-launch rejection. The gate rejects
+and invalid arguments. The gate calibrates bounded post-SIGKILL reaping and
+cleanup-incomplete quarantine for direct runners and build/check sequences. It
+also calibrates active-log exclusion, immutable sequential evidence, worktree
+product locking, pre-termination process capture, correlated build/check
+receipts and the shared total deadline. Its test helper carries a separate
+five-second deadline. The sequence fixtures calibrate live build state,
+deadline exhaustion without a successor launch and both interstage signal
+windows. A FIFO fixture calibrates pre-launch rejection. The gate rejects
 firmware workflow changes that remove bounded active commands or retained logs.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every

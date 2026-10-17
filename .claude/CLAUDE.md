@@ -56,7 +56,9 @@ Makefiles are tracked; synchronize both when generation inputs change.
 - Logged local targets allocate immutable invocation directories under
   `.build-logs`, update a label-specific latest receipt and share one worktree
   product lock. `logged-check` applies one total deadline across build and
-  check; a failed build records the check stage as blocked.
+  check; a failed build records the check stage as blocked. A process group
+  that survives bounded cleanup leaves a quarantine receipt, and logged product
+  mutation remains closed while the recorded group remains visible.
 - `BUILD_LEGACY_NON_ARM=yes legacy-non-arm-verify` checks archive identity.
   `BUILD_PDP11_V6=yes` explicitly opts into isolated PDP-11/V6 tests; neither
   makes legacy code part of the maintained ARM build. See

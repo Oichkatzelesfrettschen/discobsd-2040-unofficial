@@ -50,4 +50,8 @@ struct __dirstream {
 ssize_t sh_host_getdents(int, void *, size_t);
 #endif
 
+#ifdef SH_HOST_COMMAND_ALLOC_FAILURE
+int sh_host_command_alloc_failure(void);
+#endif
+
 #endif /* SH_HOSTSHIM_H */

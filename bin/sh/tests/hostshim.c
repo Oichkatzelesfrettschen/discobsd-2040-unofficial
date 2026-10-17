@@ -18,6 +18,7 @@
 #include <dirent.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -29,6 +30,15 @@ long syscall(long, ...);
 
 static char sh_arena[SH_ARENA_BYTES];
 static long sh_arena_top;
+
+int
+sh_host_command_alloc_failure(void)
+{
+	char *value;
+
+	value = getenv("SH_TEST_COMMAND_BEGINLIST_FAIL");
+	return value != NULL && value[0] == '1' && value[1] == '\0';
+}
 
 void *
 sbrk(intptr_t incr)

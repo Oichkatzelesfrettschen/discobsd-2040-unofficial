@@ -14,6 +14,7 @@ static int      parent;
 static int      getopts_index = 1;
 static int      getopts_offset;
 static void     execprint();
+extern short    topfd;
 
 #define COMMAND_EXECUTE 0
 #define COMMAND_SMALL_V 1
@@ -40,6 +41,29 @@ getopts_assign(name, value)
 	char *value;
 {
 	assign(lookup(name), value);
+}
+
+static int
+getopts_assignable(name)
+	char *name;
+{
+	struct namnod *node;
+	char *reason;
+
+	reason = NIL;
+	if (!chkid(name))
+		reason = notid;
+	else if ((node = findnam(name)) && (node->namflg & N_RDONLY))
+		reason = wtfailed;
+	if (reason == NIL)
+		return(1);
+	prs("getopts");
+	prs(colon);
+	prs(name);
+	prs(colon);
+	prs(reason);
+	newline();
+	return(0);
 }
 
 static void
@@ -81,6 +105,10 @@ getopts_builtin(argn, arguments)
 		prs("getopts: usage: getopts optstring name [arg ...]\n");
 		return(2);
 	}
+	if (!getopts_assignable(arguments[2]) ||
+	    !getopts_assignable("OPTIND") ||
+	    !getopts_assignable("OPTARG"))
+		return(2);
 	option_string = arguments[1];
 	silent = option_string[0] == ':';
 	match = option_string + silent;
@@ -237,18 +265,33 @@ struct command_context
 {
 	jmp_buf error;
 	jmp_buf *previous;
+	struct command_context *previous_context;
 	struct command_env *environment;
+	struct fileblk *input_checkpoint;
 	char *path;
 	short io;
 	short wrapped;
 };
 
+static struct command_context *command_current;
+
+void
+command_unwind_input()
+{
+	if (command_current == NIL)
+		return;
+	while (standin != command_current->input_checkpoint && pop())
+		;
+}
+
 static void
 command_context_end(context)
 	struct command_context *context;
 {
-	command_restorelist(context->environment);
+	if (context->environment)
+		command_restorelist(context->environment);
 	command_errshell = context->previous;
+	command_current = context->previous_context;
 	free(context);
 }
 
@@ -357,7 +400,10 @@ int     *pf1, *pf2;
 					if (comtype == NOTFOUND)
 					{
 						if (command_state && command_state->wrapped)
-							command_state->io = initio(io, 1);
+						{
+							command_state->io = topfd;
+							initio(io, 1);
+						}
 						pos = hashdata(cmdhash);
 						if (pos == 1)
 							cmdfail(*com, notfound, EXNOTFOUND);
@@ -405,10 +451,13 @@ int     *pf1, *pf2;
 									command_state = (struct command_context *)
 									    alloc(sizeof *command_state);
 									command_state->previous = command_errshell;
-									command_state->environment = command_beginlist();
+									command_state->previous_context = command_current;
+									command_state->environment = NIL;
+									command_state->input_checkpoint = standin;
 									command_state->path = NIL;
 									command_state->io = -1;
 									command_state->wrapped = 0;
+									command_current = command_state;
 									command_errshell = &command_state->error;
 									if (setjmp(command_state->error))
 									{
@@ -420,6 +469,7 @@ int     *pf1, *pf2;
 										chktrap();
 										break;
 									}
+									command_state->environment = command_beginlist();
 									command_setlist(command_state->environment,
 									    comptr(t)->comset);
 								}
@@ -427,7 +477,8 @@ int     *pf1, *pf2;
 								    &standard_path);
 								if (mode == COMMAND_BAD)
 								{
-									command_state->io = initio(io, 1);
+									command_state->io = topfd;
+									initio(io, 1);
 									prs("command");
 									prs(colon);
 									prs(badopt);
@@ -443,7 +494,8 @@ int     *pf1, *pf2;
 								}
 								if (mode == COMMAND_EMPTY)
 								{
-									command_state->io = initio(io, 1);
+									command_state->io = topfd;
+									initio(io, 1);
 									exitval = 0;
 									restore(command_state->io);
 									command_state->io = -1;
@@ -461,7 +513,8 @@ int     *pf1, *pf2;
 								if (mode == COMMAND_SMALL_V ||
 								    mode == COMMAND_BIG_V)
 								{
-									command_state->io = initio(io, 1);
+									command_state->io = topfd;
+									initio(io, 1);
 									exitval = command_report(com[first],
 									    mode == COMMAND_BIG_V, command_state->path);
 									flushb();
@@ -481,9 +534,9 @@ int     *pf1, *pf2;
 								comtype = hashtype(cmdhash);
 								goto command_dispatch;
 							}
-						index = initio(io, (internal != SYSEXEC));
 							if (command_state)
-								command_state->io = index;
+								command_state->io = topfd;
+						index = initio(io, (internal != SYSEXEC));
 							command_catch = command_state != NIL;
 
 						switch (internal)
@@ -934,6 +987,8 @@ int     *pf1, *pf2;
 						n = findnam(com[0]);
 
 						funcnt++;
+						if (command_state)
+							command_state->io = topfd;
 						index = initio(io, 1);
 						setargs(com);
 						previous_command_context = command_errshell;

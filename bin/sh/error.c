@@ -20,9 +20,10 @@ int     xno;
 		prs(s2);
 	}
 	newline();
-	if (command_errshell)
+	if (command_errshell && (flags & forked) == 0)
 	{
 		exitval = xno;
+		command_unwind_input();
 		longjmp(*command_errshell, 1);
 	}
 	exitsh(xno);

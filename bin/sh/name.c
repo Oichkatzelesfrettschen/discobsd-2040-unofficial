@@ -213,6 +213,10 @@ command_beginlist()
 {
 	struct command_env *environment;
 
+#ifdef SH_HOST_COMMAND_ALLOC_FAILURE
+	if (sh_host_command_alloc_failure())
+		error(nospace);
+#endif
 	environment = (struct command_env *)alloc(sizeof *environment);
 	environment->previous = NIL;
 	environment->saved = NIL;
@@ -238,6 +242,19 @@ command_setlist(environment, arg)
 	while (arg)
 	{
 		assignment = mactrim(arg->argval);
+		assignment_entry = (struct command_assignment *)
+		    alloc(sizeof *assignment_entry);
+		assignment_entry->next = NIL;
+		assignment_entry->text = assignment;
+		*assignment_tail = assignment_entry;
+		assignment_tail = &assignment_entry->next;
+		arg = arg->argnxt;
+	}
+
+	for (assignment_entry = environment->assignments; assignment_entry;
+	    assignment_entry = assignment_entry->next)
+	{
+		assignment = assignment_entry->text;
 		separator = assignment;
 		while (*separator && *separator != '=')
 			separator++;
@@ -251,12 +268,6 @@ command_setlist(environment, arg)
 		    (node == &pathnod || eq(node->namid, "SHELL")))
 			failed(node->namid, restricted);
 #endif
-		assignment_entry = (struct command_assignment *)
-		    alloc(sizeof *assignment_entry);
-		assignment_entry->next = NIL;
-		assignment_entry->text = assignment;
-		*assignment_tail = assignment_entry;
-		assignment_tail = &assignment_entry->next;
 		if (command_saved_node(environment->saved, node) == NIL)
 		{
 			entry = (struct namnod_save *)alloc(sizeof *entry);
@@ -268,7 +279,6 @@ command_setlist(environment, arg)
 			entry->next = environment->saved;
 			environment->saved = entry;
 		}
-		arg = arg->argnxt;
 	}
 
 	environment->mutated = 1;

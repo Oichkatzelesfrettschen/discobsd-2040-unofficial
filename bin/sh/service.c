@@ -225,6 +225,7 @@ register char   *t[];
 		 */
 
 		setargs(t);
+		command_errshell = NIL;
 		longjmp(subshell, 1);
 		return(prefix);
 

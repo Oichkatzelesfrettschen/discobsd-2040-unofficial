@@ -33,7 +33,8 @@ WORK=$OUT/work
 SOURCES="setbrk blok stak cmd fault main word string name args xec service
 	error io print macro ctype msg test defs echo hash hashserv pwd func pwname"
 
-CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h"
+CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h
+	-DSH_HOST_COMMAND_ALLOC_FAILURE"
 
 # blok.c defines global alloc() and free(); rename both so a libc
 # internal free() never lands in the shell's own arena walker.
@@ -89,6 +90,27 @@ _run()
 	fi
 }
 
+# _run_stdin SCRIPT -- runs a complete script through the shell input stack.
+_run_stdin()
+{
+	if out=$(cd "$WORK" && printf '%s\n' "$1" | "$SH" 2>&1); then
+		rc=0
+	else
+		rc=$?
+	fi
+}
+
+# _run_command_alloc_failure SNIPPET -- fails command environment allocation.
+_run_command_alloc_failure()
+{
+	if out=$(cd "$WORK" && SH_TEST_COMMAND_BEGINLIST_FAIL=1 \
+	    "$SH" -c "$1" < /dev/null 2>/dev/null); then
+		rc=0
+	else
+		rc=$?
+	fi
+}
+
 # ok NAME EXPECTED SNIPPET
 ok()
 {
@@ -114,6 +136,34 @@ okrc()
 		fail=$((fail + 1))
 		failed="$failed $1"
 		echo "FAIL $1: want [$2] rc $3, got [$out] rc $rc"
+	fi
+}
+
+# okstdin NAME EXPECTED SCRIPT
+okstdin()
+{
+	_run_stdin "$3"
+	if [ "$out" = "$2" ] && [ "$rc" -eq 0 ]; then
+		pass=$((pass + 1))
+		echo "PASS $1"
+	else
+		fail=$((fail + 1))
+		failed="$failed $1"
+		echo "FAIL $1: want [$2] rc 0, got [$out] rc $rc"
+	fi
+}
+
+# okalloc NAME EXPECTED SNIPPET
+okalloc()
+{
+	_run_command_alloc_failure "$3"
+	if [ "$out" = "$2" ] && [ "$rc" -eq 0 ]; then
+		pass=$((pass + 1))
+		echo "PASS $1"
+	else
+		fail=$((fail + 1))
+		failed="$failed $1"
+		echo "FAIL $1: want [$2] rc 0, got [$out] rc $rc"
 	fi
 }
 
@@ -401,9 +451,23 @@ okrc bi_command_bad_option_continues 'after:1' 1 \
     'command -z 2>/dev/null; status=$?; echo "after:$status"; exit $status'
 ok bi_command_missing_redirection 'after:127' \
     'command nosuchcmd_xyz 2>/dev/null; echo "after:$?"'
+ok bi_command_external_missing_continues 'after:127' \
+    'command /definitely-absent-shell-review 2>/dev/null; echo "after:$?"'
+ok bi_command_enoexec_error_continues 'after:1' \
+    'echo "echo external" > command-no-shebang; chmod 755 command-no-shebang; echo(){ shift bad; }; command ./command-no-shebang 2>/dev/null; /bin/echo "after:$?"'
+ok bi_command_partial_redirection_unwind 'after' \
+    'command : > command-output 2>/dev/null </definitely-absent-shell-review; echo after'
+okstdin bi_command_nested_input_unwind 'after
+end' 'command eval "shift x" 2>/dev/null
+echo after
+echo end'
+okalloc bi_command_allocation_failure_unwind 'after:1' \
+    'command :; echo "after:$?"'
 ok bi_command_prefix_assignment 'hi
 old' \
     'x=old; x=new command echo hi; echo "$x"'
+ok bi_command_prefix_expansion_snapshot 'changed' \
+    'x=; z=${x:=changed} x=temp command :; echo "$x"'
 ok bi_command_prefix_assignment_error 'old' \
     'x=old; x=new command export 1bad=x 2>/dev/null; echo "$x"'
 ok bi_command_prefix_expands_once_builtin 'observed
@@ -495,6 +559,14 @@ ok bi_getopts_error_loop '?|z
 a|unset
 end|2|?|unset' \
     'set -- -za; while getopts :a option; do echo "$option|${OPTARG-unset}"; done; echo "end|$OPTIND|$option|${OPTARG-unset}"'
+ok bi_getopts_invalid_destination 'invalid:2|1' \
+    'OPTIND=1; getopts a 1bad -a 2>/dev/null; echo "invalid:$?|$OPTIND"'
+ok bi_getopts_readonly_destination 'readonly:2|1' \
+    'OPTIND=1; readonly result; getopts a result -a 2>/dev/null; echo "readonly:$?|$OPTIND"'
+ok bi_getopts_readonly_optind 'optind:2|1' \
+    'OPTIND=1; readonly OPTIND; getopts a result -a 2>/dev/null; echo "optind:$?|$OPTIND"'
+ok bi_getopts_readonly_optarg 'optarg:2|1|old' \
+    'OPTIND=1; OPTARG=old; readonly OPTARG; getopts a result -a 2>/dev/null; echo "optarg:$?|$OPTIND|$OPTARG"'
 
 # ---- sh utility options ----
 ok opt_c_string 'c' 'echo c'

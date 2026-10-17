@@ -10,7 +10,7 @@ The behavior evidence covers the named compatibility subset exercised by
 ## Compared states
 
 The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
-implementation is `4e78c8ad367efc8b2a597d00474a6804cdadb91e`. Both states used
+implementation is `a5a5282cc3402889a1139b3cb8f2334c7d2fcb8d`. Both states used
 the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
 Each state was built from clean. The base used `bmake MACHINE=rp2040
 logged-distribution`, and the final candidate used the supervised command
@@ -42,11 +42,15 @@ The terminal receipt is
 `.build-logs/shell-ci-portability-clean-distribution.latest.json`. It records
 exit status 0, 155.918 seconds elapsed and 821,371 output bytes. The clean
 confirmation ran at `a796d28270213052f06dc316042d9754cbb98a98`. The subsequent
-`4e78c8ad367efc8b2a597d00474a6804cdadb91e` commit changes only the ILP32 host
-test adapter and its witnesses under `bin/sh/tests`; those files do not enter
-the target build or packed root. The clean artifacts therefore reproduce the
-recorded kernel, shell and packed-root values for the target inputs at the
-branch head.
+ILP32 adapter repairs through `a5a5282cc3402889a1139b3cb8f2334c7d2fcb8d`
+change host-test support and add an `SH_HOST_RAWDIR` selection in `expand.c`.
+The target build leaves `SH_HOST_RAWDIR` undefined, so the selection
+preprocesses to the existing `read` call. A clean GNU17 target-shell rebuild at
+the measured implementation commit reproduces the 35,524-byte OMAGIC file and
+its 33,060/2,432/7,172-byte text/data/bss sections. The rebuilt shell and the
+retained clean-distribution shell are byte-identical with SHA-256
+`1d97eaf94318e723bc016cbf70d29de8e0e76a0f3f5146cd5d7fa67aa0949ad3`, so
+the packed-root payload and allocation remain unchanged.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
 | --- | ---: | ---: | ---: | ---: |
@@ -102,6 +106,11 @@ smaller than the feature-first shell. An optimized
 bytes in the base and 216 bytes in the candidate, a 120-byte increase. The
 compiler measurement bounds one static frame; it does not measure recursion
 depth, runtime peak stack or heap use.
+
+The shell-owned host-directory read selection adds zero target bytes. The
+ILP32 host object imports `sh_host_getdents`; the Cortex-M0+ target object
+retains the existing `read` dependency. The selection therefore repairs the
+host evidence path without offsetting or enlarging the measured target image.
 
 An external `command` applet cannot bypass shell functions, classify builtins,
 or remove special-builtin properties inside the invoking shell. An external

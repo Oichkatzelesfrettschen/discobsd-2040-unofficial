@@ -154,6 +154,35 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.assertEqual(check["termination"], "prerequisite_failed")
         self.assertEqual(check["blocked_by"], "build")
 
+    def test_completed_build_group_is_absent_while_check_runs(self):
+        make = self.directory / "ownership-observer-make"
+        observation = self.directory / "check-ownership.json"
+        make.write_text(
+            f"#!{sys.executable}\n"
+            "import json, os, pathlib, sys\n"
+            "stage = sys.argv[-1]\n"
+            "if stage == 'check':\n"
+            "    ownership = pathlib.Path(\n"
+            "        os.environ['_DISCOBSD_EXECUTION_OWNERSHIP_PATH']\n"
+            "    )\n"
+            f"    observation = pathlib.Path({str(observation)!r})\n"
+            "    record = json.loads(ownership.read_text(encoding='utf-8'))\n"
+            "    observation.write_text(json.dumps({\n"
+            "        'current_group': os.getpgrp(),\n"
+            "        'owned_groups': record['process_groups'],\n"
+            "    }), encoding='utf-8')\n",
+            encoding="ascii",
+        )
+        make.chmod(0o755)
+
+        result = self.run_sequence(make)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        observed = json.loads(observation.read_text(encoding="utf-8"))
+        self.assertEqual(
+            observed["owned_groups"], [observed["current_group"]]
+        )
+
     def test_build_runner_error_remains_error_in_sequence_summary(self):
         missing_make = self.directory / "missing-make"
 
@@ -172,6 +201,115 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.assertEqual(summary["state"], "error")
         self.assertEqual(summary["stages"]["build"]["state"], "error")
         self.assertEqual(summary["stages"]["check"]["state"], "blocked")
+
+    def test_cleanup_incomplete_build_quarantines_sequence_products(self):
+        make = self.directory / "unreaped-make"
+        make.write_text("#!/bin/sh\nset -eu\nsleep 60\n", encoding="ascii")
+        make.chmod(0o755)
+        original_stop = sequence.gate.stop_process_group
+
+        def report_incomplete(process, grace_seconds, **kwargs):
+            result = original_stop(process, grace_seconds, **kwargs)
+            return sequence.gate.StopResult(result.child_exit_code, False)
+
+        with mock.patch.object(
+            sequence.gate,
+            "stop_process_group",
+            side_effect=report_incomplete,
+        ):
+            arguments = sequence.parse_arguments(
+                self.sequence_command(make, timeout_seconds="0.1")[2:]
+            )
+            result = sequence.run(arguments)
+
+        self.assertEqual(result, sequence.gate.RUNNER_ERROR_EXIT)
+        summary = json.loads(
+            (self.evidence_root / "rp2040-check-local.latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(summary["state"], "error")
+        self.assertEqual(summary["termination"], "cleanup_incomplete")
+        self.assertEqual(summary["stages"]["build"]["state"], "error")
+        self.assertEqual(summary["stages"]["check"]["state"], "blocked")
+        quarantine = Path(f"{self.execution_lock}.quarantine.json")
+        quarantine_record = json.loads(quarantine.read_text(encoding="utf-8"))
+        build_record = json.loads(
+            Path(summary["stages"]["build"]["status_path"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(quarantine_record["state"], "cleanup_incomplete")
+        self.assertEqual(
+            quarantine_record["invocation_id"],
+            build_record["invocation_id"],
+        )
+
+    def test_pending_build_launch_blocks_check_stage(self):
+        make = self.directory / "pending-launch-make"
+        check_marker = self.directory / "check-launched"
+        sleeper_pid_path = self.directory / "sleeper-pid"
+        make.write_text(
+            f"#!{sys.executable}\n"
+            "import os, pathlib, sys\n"
+            f"sys.path.insert(0, {str(ROOT / 'tools')!r})\n"
+            "import run_logged_gate as gate\n"
+            "stage = sys.argv[-1]\n"
+            "if stage == 'build':\n"
+            "    gate.reserve_inherited_execution_launch()\n"
+            "    sleeper_pid = os.fork()\n"
+            "    if sleeper_pid == 0:\n"
+            "        os.setsid()\n"
+            "        null_descriptor = os.open(os.devnull, os.O_RDWR)\n"
+            "        for descriptor in (0, 1, 2):\n"
+            "            os.dup2(null_descriptor, descriptor)\n"
+            "        if null_descriptor > 2:\n"
+            "            os.close(null_descriptor)\n"
+            "        os.execv(\n"
+            "            sys.executable,\n"
+            "            [sys.executable, '-c', 'import time; time.sleep(60)'],\n"
+            "        )\n"
+            f"    pathlib.Path({str(sleeper_pid_path)!r}).write_text(\n"
+            "        str(sleeper_pid), encoding='ascii'\n"
+            "    )\n"
+            "else:\n"
+            f"    pathlib.Path({str(check_marker)!r}).touch()\n",
+            encoding="ascii",
+        )
+        make.chmod(0o755)
+
+        try:
+            result = self.run_sequence(make)
+
+            self.assertEqual(
+                result.returncode,
+                sequence.gate.RUNNER_ERROR_EXIT,
+                result.stdout + result.stderr,
+            )
+            self.assertFalse(check_marker.exists())
+            summary = json.loads(
+                (self.evidence_root / "rp2040-check-local.latest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(summary["stages"]["build"]["state"], "error")
+            self.assertEqual(
+                summary["stages"]["build"]["termination"],
+                "cleanup_incomplete",
+            )
+            self.assertEqual(summary["stages"]["check"]["state"], "blocked")
+            ownership = sequence.gate.read_execution_ownership(
+                sequence.gate.execution_ownership_path(self.execution_lock)
+            )
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            self.assertEqual(len(ownership["pending_launches"]), 1)
+        finally:
+            if sleeper_pid_path.exists():
+                sleeper_pid = int(sleeper_pid_path.read_text(encoding="ascii"))
+                try:
+                    os.killpg(sleeper_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     def test_total_deadline_includes_build_and_check(self):
         make = self.directory / "slow-make"
@@ -358,6 +496,31 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.assertEqual(summary["stages"]["check"]["state"], "blocked")
         lock_descriptor = sequence.gate.acquire_execution_lock(self.execution_lock)
         os.close(lock_descriptor)
+
+    def test_ownership_finalization_failure_reports_sequence_error(self):
+        make = self.directory / "successful-make"
+        make.write_text("#!/bin/sh\nset -eu\nexit 0\n", encoding="ascii")
+        make.chmod(0o755)
+        arguments = sequence.parse_arguments(self.sequence_command(make)[2:])
+
+        with mock.patch.object(
+            sequence.gate,
+            "finish_execution_ownership",
+            side_effect=OSError("injected ownership finalization failure"),
+        ):
+            result = sequence.run(arguments)
+
+        self.assertEqual(result, sequence.gate.RUNNER_ERROR_EXIT)
+        summary = json.loads(
+            (self.evidence_root / "rp2040-check-local.latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(summary["state"], "error")
+        self.assertEqual(summary["exit_code"], sequence.gate.RUNNER_ERROR_EXIT)
+        self.assertEqual(summary["termination"], "execution_ownership_error")
+        self.assertEqual(summary["error_type"], "OSError")
+        self.assertIn("finalization failure", summary["diagnostic"])
 
     def test_unusable_evidence_root_fails_without_launch_or_traceback(self):
         self.evidence_root.write_text("regular file\n", encoding="ascii")

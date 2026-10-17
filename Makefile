@@ -654,6 +654,7 @@ check-agent-instructions: check-python
 check-run-logging: check-python
 		${PYTHON} tools/run_logged_gate_test.py
 		${PYTHON} tools/run_logged_build_check_test.py
+		${PYTHON} tools/recover_logged_execution_test.py
 		${PYTHON} tools/build_observability_test.py
 		${PYTHON} tools/storage_counter_driver_test.py
 

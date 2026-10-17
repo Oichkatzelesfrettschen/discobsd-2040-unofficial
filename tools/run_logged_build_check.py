@@ -25,6 +25,8 @@ def stage_arguments(args, invocation_id, directory, stage, timeout_seconds):
         status=directory / f"{stage}.status.json",
         evidence_root=None,
         execution_lock=None,
+        execution_quarantine=gate.execution_quarantine_path(args.execution_lock),
+        execution_ownership=gate.execution_ownership_path(args.execution_lock),
         sequence_invocation_id=invocation_id,
         heartbeat_seconds=args.heartbeat_seconds,
         idle_timeout_seconds=args.idle_timeout_seconds,
@@ -190,6 +192,9 @@ def run(args):
         },
     }
     lock_descriptor = None
+    ownership_path = gate.execution_ownership_path(args.execution_lock)
+    ownership_started = False
+    ownership_finished = False
     previous_handlers = {}
     try:
         lock_descriptor = gate.acquire_execution_lock(args.execution_lock)
@@ -199,10 +204,33 @@ def run(args):
             updated_at=gate.utc_timestamp(),
             elapsed_seconds=round(time.monotonic() - started, 3),
             exit_code=gate.RUNNER_ERROR_EXIT,
-            termination="execution_lock_busy",
+            termination=(
+                "execution_quarantined"
+                if isinstance(error, gate.ExecutionQuarantined)
+                else "execution_lock_busy"
+            ),
         )
         publish_summary(summary_path, evidence.latest_status, summary)
         print(f"logged-build-check: {error}", file=sys.stderr)
+        return gate.RUNNER_ERROR_EXIT
+
+    try:
+        gate.begin_execution_ownership(ownership_path, summary)
+        ownership_started = True
+    except (OSError, ValueError) as error:
+        summary.update(
+            state="error",
+            updated_at=gate.utc_timestamp(),
+            elapsed_seconds=round(time.monotonic() - started, 3),
+            exit_code=gate.RUNNER_ERROR_EXIT,
+            termination="execution_ownership_error",
+        )
+        try:
+            publish_summary(summary_path, evidence.latest_status, summary)
+        except OSError:
+            pass
+        print(f"logged-build-check: {error}", file=sys.stderr)
+        os.close(lock_descriptor)
         return gate.RUNNER_ERROR_EXIT
 
     def interrupt(number, _frame):
@@ -210,6 +238,43 @@ def run(args):
 
     for number in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[number] = signal.signal(number, interrupt)
+
+    def finish_ownership(exit_code):
+        nonlocal ownership_finished
+        try:
+            gate.finish_execution_ownership(
+                ownership_path,
+                evidence.invocation_id,
+                force_incomplete=(
+                    summary.get("termination") == "cleanup_incomplete"
+                ),
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            summary.update(
+                state="error",
+                updated_at=gate.utc_timestamp(),
+                elapsed_seconds=round(time.monotonic() - started, 3),
+                exit_code=gate.RUNNER_ERROR_EXIT,
+                termination="execution_ownership_error",
+                error_type=type(error).__name__,
+                diagnostic=str(error),
+            )
+            try:
+                publish_summary(summary_path, evidence.latest_status, summary)
+            except OSError as publish_error:
+                print(
+                    "logged-build-check: ownership finalization receipt "
+                    f"failed: {publish_error}",
+                    file=sys.stderr,
+                )
+            print(
+                f"logged-build-check: ownership finalization failed: {error}",
+                file=sys.stderr,
+            )
+            ownership_finished = True
+            return gate.RUNNER_ERROR_EXIT
+        ownership_finished = True
+        return exit_code
 
     active_stage = "build"
     try:
@@ -232,7 +297,7 @@ def run(args):
                 termination="deadline_exhausted",
             )
             publish_summary(summary_path, evidence.latest_status, summary)
-            return gate.TIMEOUT_EXIT
+            return finish_ownership(gate.TIMEOUT_EXIT)
         build_args = stage_arguments(
             args, evidence.invocation_id, directory, "build", remaining
         )
@@ -269,7 +334,7 @@ def run(args):
                 termination=build_record["termination"],
             )
             publish_summary(summary_path, evidence.latest_status, summary)
-            return build_exit
+            return finish_ownership(build_exit)
 
         remaining = args.timeout_seconds - (time.monotonic() - started)
         if remaining <= 0:
@@ -288,7 +353,7 @@ def run(args):
                 termination="deadline_exhausted",
             )
             publish_summary(summary_path, evidence.latest_status, summary)
-            return gate.TIMEOUT_EXIT
+            return finish_ownership(gate.TIMEOUT_EXIT)
         active_stage = "check"
         summary["stages"]["check"] = {
             "state": "running",
@@ -317,7 +382,7 @@ def run(args):
             termination=check_record["termination"],
         )
         publish_summary(summary_path, evidence.latest_status, summary)
-        return check_exit
+        return finish_ownership(check_exit)
     except SequenceSignal as interruption:
         for stage in ("build", "check"):
             record = read_stage_record(directory, stage)
@@ -359,7 +424,7 @@ def run(args):
             termination=f"signal_{interruption.number}",
         )
         publish_summary(summary_path, evidence.latest_status, summary)
-        return 128 + interruption.number
+        return finish_ownership(128 + interruption.number)
     except Exception as error:
         error_record = stage_error_record(
             args, evidence.invocation_id, directory, active_stage, error
@@ -392,10 +457,24 @@ def run(args):
             f"logged-build-check: {active_stage} stage runner error: {error}",
             file=sys.stderr,
         )
-        return gate.RUNNER_ERROR_EXIT
+        return finish_ownership(gate.RUNNER_ERROR_EXIT)
     finally:
         for number, handler in previous_handlers.items():
             signal.signal(number, handler)
+        if ownership_started and not ownership_finished:
+            try:
+                gate.finish_execution_ownership(
+                    ownership_path,
+                    evidence.invocation_id,
+                    force_incomplete=(
+                        summary.get("termination") == "cleanup_incomplete"
+                    ),
+                )
+            except (OSError, ValueError, TimeoutError) as error:
+                print(
+                    f"logged-build-check: ownership finalization failed: {error}",
+                    file=sys.stderr,
+                )
         os.close(lock_descriptor)
 
 

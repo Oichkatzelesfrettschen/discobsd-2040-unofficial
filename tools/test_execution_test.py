@@ -32,6 +32,12 @@ class ExecutionTest(unittest.TestCase):
         })
         self.environment.start()
         self.addCleanup(self.environment.stop)
+        os.environ.pop(
+            execution.execution_ownership.OWNERSHIP_PATH_ENV, None
+        )
+        os.environ.pop(
+            execution.execution_ownership.OWNERSHIP_INVOCATION_ENV, None
+        )
         self.output = io.StringIO()
         self.stdout = contextlib.redirect_stdout(self.output)
         self.stdout.__enter__()
@@ -73,6 +79,26 @@ class ExecutionTest(unittest.TestCase):
             time.sleep(0.01)
         return False
 
+    def process_group_snapshot(self, process_group):
+        try:
+            result = subprocess.run(
+                ["ps", "-A", "-o", "pid=,ppid=,pgid=,state=,command="],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=1,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return f"ps unavailable: {error}"
+        if result.returncode:
+            return f"ps exit {result.returncode}: {result.stderr.strip()}"
+        members = []
+        for line in result.stdout.splitlines():
+            fields = line.split(None, 4)
+            if len(fields) >= 3 and fields[2] == str(process_group):
+                members.append(line.strip())
+        return "; ".join(members) or "group has no ps members"
+
     def test_executed_pass_and_failure(self):
         for name, returncode, outcome in [("good", 0, "PASS"), ("bad", 1, "FAIL")]:
             variant = self.variant(name)
@@ -113,13 +139,127 @@ class ExecutionTest(unittest.TestCase):
             os.environ.pop(execution.CLEANUP_ALLOWANCE_ENV, None)
             self.assertEqual(
                 execution.cleanup_allowances(),
-                (execution.ROOT_CLEANUP_ALLOWANCE_SECONDS, 1.0),
+                (execution.ROOT_CLEANUP_ALLOWANCE_SECONDS, 0.8),
             )
 
         with patch.dict(
             os.environ, {execution.CLEANUP_ALLOWANCE_ENV: "0.5"}, clear=False
         ):
-            self.assertEqual(execution.cleanup_allowances(), (0.5, 0.25))
+            self.assertEqual(execution.cleanup_allowances(), (0.5, 0.2))
+
+    def test_stop_process_group_reports_an_unreaped_process_within_its_budget(self):
+        class UnreapedProcess:
+            pid = 4242
+
+            def __init__(self):
+                self.wait_timeouts = []
+                self.kill_calls = 0
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                self.kill_calls += 1
+
+            def wait(self, timeout=None):
+                self.wait_timeouts.append(timeout)
+                raise subprocess.TimeoutExpired("fixture", timeout)
+
+        process = UnreapedProcess()
+        started = time.monotonic()
+        with patch.object(execution.os, "killpg"):
+            with patch.object(
+                execution, "process_group_exists", return_value=True
+            ):
+                result = execution.stop_process_group(process, 0.01)
+
+        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
+        self.assertGreaterEqual(len(process.wait_timeouts), 1)
+        self.assertNotIn(None, process.wait_timeouts)
+        self.assertEqual(process.kill_calls, 1)
+
+    def test_stop_process_group_spends_one_inherited_cleanup_budget(self):
+        clock = [0.0]
+
+        def monotonic():
+            return clock[0]
+
+        def advance(seconds):
+            clock[0] += seconds
+
+        class UnreapedProcess:
+            pid = 4245
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                return None
+
+            def wait(self, timeout=None):
+                advance(timeout)
+                raise subprocess.TimeoutExpired("fixture", timeout)
+
+        with patch.object(execution.os, "killpg"):
+            with patch.object(
+                execution, "process_group_exists", return_value=True
+            ):
+                with patch.object(execution.time, "monotonic", side_effect=monotonic):
+                    with patch.object(execution.time, "sleep", side_effect=advance):
+                        result = execution.stop_process_group(
+                            UnreapedProcess(), 0.2
+                        )
+
+        self.assertAlmostEqual(clock[0], 0.2)
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
+
+    def test_stop_process_group_treats_signal_refusal_as_incomplete(self):
+        class RefusedProcess:
+            pid = 4243
+
+            def poll(self):
+                return -signal.SIGTERM
+
+            def wait(self, timeout=None):
+                return -signal.SIGTERM
+
+        def deny_signals(_process_group, number):
+            if number == 0:
+                return
+            raise PermissionError("injected signal refusal")
+
+        with patch.object(execution.os, "killpg", side_effect=deny_signals):
+            result = execution.stop_process_group(RefusedProcess(), 0)
+
+        self.assertEqual(result.child_exit_code, -signal.SIGTERM)
+        self.assertFalse(result.group_stopped)
+
+    def test_stop_process_group_bounds_refused_leader_signal(self):
+        class RefusedProcess:
+            pid = 4244
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                raise PermissionError("injected leader refusal")
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired("fixture", timeout)
+
+        def deny_signals(_process_group, number):
+            if number == 0:
+                return
+            raise PermissionError("injected group refusal")
+
+        with patch.object(execution.os, "killpg", side_effect=deny_signals):
+            result = execution.stop_process_group(RefusedProcess(), 0)
+
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
 
     def test_variant_timeout_records_error_and_stops_process_group(self):
         variant = self.variant()
@@ -128,14 +268,16 @@ class ExecutionTest(unittest.TestCase):
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
-            "import pathlib, signal, subprocess, sys, time\n"
+            "import os, pathlib, signal, sys, time\n"
             "child = (\"import pathlib, signal, sys, time; \""
             "         \"marker, ready=map(pathlib.Path, sys.argv[1:]); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
             "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \""
             "         \"time.sleep(60)\")\n"
-            "subprocess.Popen([sys.executable, '-c', child, *sys.argv[1:]])\n"
+            "child_pid = os.fork()\n"
+            "if child_pid == 0:\n"
+            "    os.execv(sys.executable, [sys.executable, '-c', child, *sys.argv[1:]])\n"
             "time.sleep(60)\n"
         )
         executable.chmod(0o755)
@@ -166,7 +308,7 @@ class ExecutionTest(unittest.TestCase):
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
-            "import os, pathlib, signal, subprocess, sys, time\n"
+            "import os, pathlib, signal, sys, time\n"
             "marker, ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
             "child = (\"import pathlib, signal, sys, time; \"\n"
             "         \"marker, ready = map(pathlib.Path, sys.argv[1:]); \"\n"
@@ -174,7 +316,12 @@ class ExecutionTest(unittest.TestCase):
             "         \"(marker.write_text('terminated', encoding='ascii'), \"\n"
             "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \"\n"
             "         \"time.sleep(60)\")\n"
-            "subprocess.Popen([sys.executable, '-c', child, marker, ready])\n"
+            "child_pid = os.fork()\n"
+            "if child_pid == 0:\n"
+            "    os.execv(\n"
+            "        sys.executable,\n"
+            "        [sys.executable, '-c', child, str(marker), str(ready)],\n"
+            "    )\n"
             "group_file.write_text(str(os.getpgrp()), encoding='ascii')\n"
             "deadline = time.monotonic() + 2\n"
             "while not ready.exists() and time.monotonic() < deadline:\n"
@@ -192,6 +339,363 @@ class ExecutionTest(unittest.TestCase):
         )
 
         self.assertTrue(self.wait_for_file(marker, 1))
+
+    def test_completed_group_leaves_sequence_ownership(self):
+        variant = self.variant("owned-success")
+        command = self.compile(variant, 0)
+        ownership_path = self.directory / "products.lock.ownership.json"
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                    str(ownership_path),
+                execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                    invocation_id,
+            },
+        ):
+            self.assertEqual(execution.run_variant(variant, command), 0)
+
+        ownership = execution.execution_ownership.read_execution_ownership(
+            ownership_path
+        )
+        self.assertEqual(ownership["state"], "active")
+        self.assertEqual(ownership["process_groups"], [])
+
+    def test_registration_failure_names_the_ownership_error(self):
+        missing_ownership = self.directory / "missing-ownership.json"
+        with patch.dict(
+            os.environ,
+            {
+                execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                    str(missing_ownership),
+                execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                    "sequence-fixture",
+            },
+        ):
+            returncode, termination = execution.run_bounded(
+                [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+            )
+
+        self.assertEqual(returncode, 125)
+        self.assertEqual(termination, "cleanup_incomplete")
+        self.assertIn(
+            f"execution ownership invocation mismatch: {missing_ownership}",
+            self.output.getvalue(),
+        )
+
+    def test_incomplete_registration_cleanup_retains_sequence_ownership(self):
+        execution_lock = self.directory / "products.lock"
+        ownership_path = execution.execution_ownership.execution_ownership_path(
+            execution_lock
+        )
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+        launched = []
+        original_launch = execution.subprocess.Popen
+
+        def capture_launch(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            return process
+
+        def leave_group_running(process, _grace_seconds):
+            return execution.StopResult(process.poll(), False)
+
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
+                execution.subprocess, "Popen", side_effect=capture_launch
+            ), patch.object(
+                execution.execution_ownership,
+                "complete_inherited_execution_launch",
+                side_effect=OSError("injected registration failure"),
+            ) as registration, patch.object(
+                execution, "stop_process_group", side_effect=leave_group_running
+            ):
+                returncode, termination = execution.run_bounded(
+                    [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                )
+
+            self.assertEqual(registration.call_count, 1)
+            self.assertEqual(returncode, 125)
+            self.assertEqual(termination, "cleanup_incomplete")
+            process_group = launched[0].pid
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            self.assertEqual(ownership["process_groups"], [process_group])
+            execution.execution_ownership.finish_execution_ownership(
+                ownership_path, invocation_id
+            )
+            with self.assertRaises(
+                execution.execution_ownership.ExecutionQuarantined
+            ):
+                execution.execution_ownership.acquire_execution_lock(
+                    execution_lock
+                )
+        finally:
+            if launched:
+                try:
+                    os.killpg(launched[0].pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                launched[0].wait(timeout=5)
+
+    def test_busy_ownership_update_lock_prevents_detached_launch(self):
+        execution_lock = self.directory / "products.lock"
+        ownership_path = execution.execution_ownership.execution_ownership_path(
+            execution_lock
+        )
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+        update_lock = execution.execution_ownership._acquire_ownership_update_lock(
+            ownership_path
+        )
+        launched = []
+        original_launch = execution.subprocess.Popen
+
+        def capture_launch(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            return process
+
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
+                execution.subprocess, "Popen", side_effect=capture_launch
+            ), patch.object(
+                execution.execution_ownership,
+                "OWNERSHIP_LOCK_SECONDS",
+                0.02,
+            ):
+                returncode, termination = execution.run_bounded(
+                    [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                )
+
+            self.assertEqual(returncode, 125)
+            self.assertEqual(termination, "cleanup_incomplete")
+            self.assertEqual(launched, [])
+        finally:
+            os.close(update_lock)
+            for process in launched:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_failed_registration_write_retains_pending_launch_barrier(self):
+        execution_lock = self.directory / "products.lock"
+        ownership_path = execution.execution_ownership.execution_ownership_path(
+            execution_lock
+        )
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+        launched = []
+        original_launch = execution.subprocess.Popen
+        original_atomic_status = execution.execution_ownership.atomic_status
+
+        def capture_launch(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            return process
+
+        def reject_group_registration(path, record):
+            if record.get("process_groups"):
+                raise OSError("injected registration write failure")
+            original_atomic_status(path, record)
+
+        def leave_group_running(process, _grace_seconds):
+            return execution.StopResult(process.poll(), False)
+
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
+                execution.subprocess, "Popen", side_effect=capture_launch
+            ), patch.object(
+                execution.execution_ownership,
+                "atomic_status",
+                side_effect=reject_group_registration,
+            ), patch.object(
+                execution, "stop_process_group", side_effect=leave_group_running
+            ):
+                returncode, termination = execution.run_bounded(
+                    [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                )
+
+            self.assertEqual(returncode, 125)
+            self.assertEqual(termination, "cleanup_incomplete")
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["process_groups"], [])
+            self.assertEqual(len(ownership["pending_launches"]), 1)
+            execution.execution_ownership.finish_execution_ownership(
+                ownership_path, invocation_id
+            )
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            with self.assertRaises(
+                execution.execution_ownership.ExecutionQuarantined
+            ):
+                execution.execution_ownership.acquire_execution_lock(execution_lock)
+        finally:
+            for process in launched:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_signal_during_registration_stops_launched_group(self):
+        ownership_path = self.directory / "products.lock.ownership.json"
+        invocation_id = "sequence-fixture"
+        execution.execution_ownership.begin_execution_ownership(
+            ownership_path,
+            {
+                "label": "sequence-fixture",
+                "invocation_id": invocation_id,
+                "status_path": str(self.directory / "status.json"),
+            },
+        )
+        launched = []
+        original_launch = execution.subprocess.Popen
+        original_complete = (
+            execution.execution_ownership.complete_inherited_execution_launch
+        )
+
+        def capture_launch(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            return process
+
+        def interrupt_registration(reservation, process_group):
+            os.kill(os.getpid(), signal.SIGTERM)
+            original_complete(reservation, process_group)
+
+        try:
+            with patch.dict(
+                os.environ,
+                {
+                    execution.execution_ownership.OWNERSHIP_PATH_ENV:
+                        str(ownership_path),
+                    execution.execution_ownership.OWNERSHIP_INVOCATION_ENV:
+                        invocation_id,
+                },
+            ), patch.object(
+                execution.subprocess, "Popen", side_effect=capture_launch
+            ), patch.object(
+                execution.execution_ownership,
+                "complete_inherited_execution_launch",
+                side_effect=interrupt_registration,
+            ):
+                returncode, termination = execution.run_bounded(
+                    [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                )
+
+            self.assertEqual(returncode, 128 + signal.SIGTERM)
+            self.assertEqual(termination, f"signal_{signal.SIGTERM}")
+            self.assertFalse(execution.process_group_exists(launched[0].pid))
+            ownership = execution.execution_ownership.read_execution_ownership(
+                ownership_path
+            )
+            self.assertEqual(ownership["process_groups"], [])
+            self.assertEqual(ownership["pending_launches"], [])
+        finally:
+            if launched:
+                try:
+                    os.killpg(launched[0].pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_signal_before_launch_returns_stops_launched_group(self):
+        launched = []
+        original_launch = execution.subprocess.Popen
+
+        def interrupt_before_return(*arguments, **keywords):
+            process = original_launch(*arguments, **keywords)
+            launched.append(process)
+            os.kill(os.getpid(), signal.SIGTERM)
+            return process
+
+        interruption = None
+        result = None
+        try:
+            with patch.object(
+                execution.subprocess, "Popen", side_effect=interrupt_before_return
+            ):
+                try:
+                    result = execution.run_bounded(
+                        [sys.executable, "-c", "import time; time.sleep(60)"], 2.0
+                    )
+                except BaseException as error:
+                    interruption = error
+
+            self.assertIsNone(interruption)
+            self.assertEqual(
+                result,
+                (128 + signal.SIGTERM, f"signal_{signal.SIGTERM}"),
+            )
+            self.assertFalse(execution.process_group_exists(launched[0].pid))
+        finally:
+            for process in launched:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     def test_outer_timeout_stops_nested_detached_process_group(self):
         marker = self.directory / "nested-descendant-terminated"
@@ -274,7 +778,8 @@ class ExecutionTest(unittest.TestCase):
             process_group = int(group_file.read_text(encoding="ascii"))
             self.assertFalse(
                 execution.process_group_exists(process_group),
-                f"probe {probe} returned while process group {process_group} survived",
+                f"probe {probe} returned while process group {process_group} survived: "
+                f"{self.process_group_snapshot(process_group)}",
             )
 
     def test_symlinked_directory_resolves_both_executable_paths(self):
@@ -329,13 +834,15 @@ class ExecutionTest(unittest.TestCase):
         observer = self.directory / "make-timeout-observer"
         observer.write_text(
             f"#!{sys.executable}\n"
-            "import pathlib, signal, subprocess, sys, time\n"
+            "import os, pathlib, signal, sys, time\n"
             "child = (\"import pathlib, signal, sys, time; \""
             "         \"marker=pathlib.Path(sys.argv[1]); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
             "         \"sys.exit(0))); time.sleep(60)\")\n"
-            f"subprocess.Popen([sys.executable, '-c', child, {str(marker)!r}])\n"
+            "child_pid = os.fork()\n"
+            "if child_pid == 0:\n"
+            f"    os.execv(sys.executable, [sys.executable, '-c', child, {str(marker)!r}])\n"
             "time.sleep(60)\n"
         )
         observer.chmod(0o755)

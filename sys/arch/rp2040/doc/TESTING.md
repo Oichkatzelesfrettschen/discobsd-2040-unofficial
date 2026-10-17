@@ -59,12 +59,64 @@ The durable log is the complete output record. Terminal mirroring uses a
 bounded asynchronous queue so a terminal or pipe whose reader stops consuming
 cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
-SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
-and every exit path after launch terminates and reaps the owned process group.
+SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval.
+Signal handling covers launch, ownership registration and execution; a signal
+during registration stops the launched process group before the supervisor
+returns.
+Every termination path makes a bounded attempt to terminate and reap its owned
+process group, and every wait after SIGKILL carries a finite cleanup deadline.
+If the process leader cannot be reaped or any member of the process group
+remains visible after that deadline, the runner returns status 125 and records
+`cleanup_incomplete`; the runner does not report an ordinary timeout or
+completed cleanup.
 Immediately before timeout or signal termination, the log records a bounded
 process-tree snapshot with process, parent, group, state, elapsed, CPU-time and
 command fields. The snapshot establishes the observed host process state at
 termination; the child log remains the authority for its own output.
+Before child launch, a product owner writes
+`<execution-lock>.ownership.json` with active state. A nested supervisor adds a
+durable pending-launch token before it creates a detached process group, then
+atomically replaces the token with the new process-group identifier. Failure to
+reserve ownership prevents launch. Failure to complete registration retains the
+pending token as an unknown group set, so finalization remains fail-closed.
+An unresolved launch reservation makes the current stage return status 125;
+`logged-check` records the successor stage as blocked instead of starting it.
+Direct and nested supervisors register every independently created process group
+in that receipt.
+The supervisor exports absolute ownership and quarantine paths so recursive
+builds retain one receipt when a child changes its working directory.
+Each supervisor removes its group after the group has conclusively disappeared,
+so a long sequence retains active or unresolved ownership rather than completed
+process history. Verified cleanup changes the receipt to released state and
+retains only groups still visible at finalization. Incomplete cleanup changes
+the receipt to cleanup-incomplete state before later evidence writes; an active
+receipt remains fail-closed when finalization itself fails. Registration and
+release failures name the ownership operation and its exact error in the durable
+build log. A registration failure runs bounded cleanup; the completed
+registration already names the group, while an incomplete registration retains
+its pending-launch token until cleanup conclusively stops the group and cancels
+the reservation.
+A cleanup-incomplete invocation also writes
+`<execution-lock>.quarantine.json` before releasing the lock. The retained
+quarantine receipt names the process groups, invocation, status path and
+creation time. A later logged target acquires the lock and then rejects product
+mutation with `execution_quarantined` while the ownership state is active,
+while an unknown group set remains, or while a recorded group remains visible.
+Once every recorded group has disappeared, a later invocation may proceed; the
+quarantine receipt remains as evidence. PID reuse ambiguity therefore closes
+mutation rather than risking concurrent writers.
+An unresolved pending-launch token names a process group whose identity was not
+durably registered, so ordinary liveness checks cannot clear it. After the
+operator inspects the host and the terminal sequence receipt, the operator may
+run `tools/recover_logged_execution.py` with the exact execution lock,
+invocation ID, status path, reason and
+`--confirm-unrecorded-groups-absent`. The recovery tool acquires the product
+lock, rejects live recorded groups, mismatched evidence and nonterminal status,
+writes absolute status paths for new owners, resolves a legacy relative status
+path against the execution directory recorded by its terminal receipt,
+writes an immutable recovery receipt containing the former ownership state and
+status-record hash, and only then releases the ownership receipt. Recovery is
+an explicit operator assertion, not an inference from an old receipt.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a
@@ -91,13 +143,20 @@ timed-out gates retain their last status. The upload action explicitly includes
 hidden files because `.build-logs` is a hidden directory. `check-run-logging`
 calibrates runner success, failure, exceptional cleanup, idle termination, hard
 termination, signal wakeup, terminal backpressure, shutdown-output retention
-and invalid arguments. It also calibrates active-log exclusion, immutable
-sequential evidence, worktree product locking, pre-termination process capture,
-correlated build/check receipts and the shared total deadline. Its test helper
-carries a separate five-second deadline. The sequence fixtures calibrate live
-build state, deadline exhaustion without a successor launch and both interstage
-signal windows. A FIFO fixture calibrates pre-launch rejection. The gate rejects
+and invalid arguments. The gate calibrates bounded post-SIGKILL reaping and
+cleanup-incomplete quarantine for direct runners and build/check sequences. It
+also calibrates active-log exclusion, immutable sequential evidence, worktree
+product locking, pre-termination process capture, correlated build/check
+receipts and the shared total deadline. Its test helper carries a separate
+five-second deadline. The sequence fixtures calibrate live build state,
+deadline exhaustion without a successor launch, unresolved launch reservations
+blocking the successor and both interstage signal windows. A FIFO fixture
+calibrates pre-launch rejection. The gate rejects
 firmware workflow changes that remove bounded active commands or retained logs.
+`recover_logged_execution_test.py` calibrates missing operator confirmation,
+recovery evidence retained before ownership release, live-group refusal and
+nonterminal-status refusal. Its cross-directory fixture calibrates recovery of
+legacy relative status paths against the recorded execution directory.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding
@@ -274,8 +333,12 @@ aggregate terminate variant groups that deliberately use separate sessions.
 A supervisor gives its nested child a cleanup allowance smaller than the
 allowance its parent reserves for the supervisor. The ordering lets three
 nested supervisors finish descendant cleanup before an ancestor escalates to
-SIGKILL. A calibrated resistant-leaf fixture requires every owned process group
-to be absent before the outer supervisor returns.
+SIGKILL. Each inherited allowance covers the complete termination and reap
+sequence. The child share excludes a bounded response reserve, and the parent
+retains a separate final-reap interval. The response reserve spans two polling
+intervals, which leaves time for signal observation and host scheduling before
+an ancestor escalates. A calibrated resistant-leaf fixture requires every
+owned process group to be absent before the outer supervisor returns.
 A successful direct child that leaves an owned descendant also triggers group
 cleanup before the supervisor publishes PASS.
 

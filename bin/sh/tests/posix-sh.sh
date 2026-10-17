@@ -56,13 +56,19 @@ build()
 		exit 2
 	fi
 
+	$HOST_CC -m32 -std=gnu17 -Wall -Wextra -Werror \
+	    -D_FILE_OFFSET_BITS=64 \
+	    -c -o "$OUT/hostshim.o" "$SRCDIR/hostshim.c"
+	mkdir "$WORK/dir-layout"
+	: > "$WORK/dir-layout/abcde"
+
 	# The getdents64 adapter and every consumer must agree on a directory
 	# record layout that preserves Linux inode and offset widths.
 	# shellcheck disable=SC2086
 	$HOST_CC $CFLAGS -Wall -Wextra -Werror \
 	    -o "$OUT/hostshim_layout_test" \
-	    "$SRCDIR/hostshim_layout_test.c"
-	"$OUT/hostshim_layout_test"
+	    "$SRCDIR/hostshim_layout_test.c" "$OUT/hostshim.o"
+	"$OUT/hostshim_layout_test" "$WORK/dir-layout"
 
 	# expand.c reads directory blocks itself; give it a complete DIR and
 	# route its one read(2) call at hostshim.c.
@@ -76,8 +82,6 @@ build()
 		# shellcheck disable=SC2086
 		$HOST_CC $CFLAGS -c -o "$OUT/$unit.o" "$SHSRC/$unit.c"
 	done
-	$HOST_CC -m32 -w -D_FILE_OFFSET_BITS=64 \
-	    -c -o "$OUT/hostshim.o" "$SRCDIR/hostshim.c"
 	$HOST_CC -m32 -o "$SH" "$OUT"/*.o
 }
 

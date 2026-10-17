@@ -8,18 +8,18 @@
  *
  * sh_host_getdents() answers the raw directory read in expand.c's
  * getdir(), which pwd.c calls too.  Both hand it a plain descriptor and
- * expect read(2) semantics, so it goes straight to getdents64(2) and
- * repacks each record into the struct dirent that <sys/dir.h> makes
- * expand.c's struct direct an alias of.  Keeping the kernel's own file
- * offset as the cursor is what lets pwd.c abandon a directory scan
- * partway and expand.c open the next directory on the same descriptor
- * number without inheriting a stale position.
+ * expect read(2) semantics, so it goes straight to getdents64(2).  The
+ * compiled layout witness proves that the ILP32 host record consumed by
+ * expand.c matches the Linux kernel record before this function passes
+ * the bytes through unchanged.  Keeping the kernel's own file offset as
+ * the cursor lets pwd.c abandon a directory scan partway and expand.c
+ * open the next directory on the same descriptor number without
+ * inheriting a stale position.
  */
 #include <dirent.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -62,49 +62,8 @@ brk(void *addr)
 	return 0;
 }
 
-struct linux_dirent64 {
-	uint64_t	d_ino;
-	int64_t		d_off;
-	unsigned short	d_reclen;
-	unsigned char	d_type;
-	char		d_name[1];
-};
-
 ssize_t
 sh_host_getdents(int fd, void *buf, size_t nbytes)
 {
-	char raw[8192];
-	size_t rawlen, rawoff, used = 0;
-	ssize_t got;
-
-	if (nbytes > sizeof(raw))
-		nbytes = sizeof(raw);
-	got = syscall(SYS_getdents64, fd, raw, nbytes);
-	if (got <= 0)
-		return got;
-
-	rawlen = (size_t)got;
-	for (rawoff = 0; rawoff < rawlen; ) {
-		struct linux_dirent64 *src;
-		struct dirent out;
-		size_t namelen, reclen;
-
-		src = (struct linux_dirent64 *)(raw + rawoff);
-		rawoff += src->d_reclen;
-
-		namelen = strlen(src->d_name);
-		reclen = (offsetof(struct dirent, d_name) + namelen + 4) & ~3UL;
-		if (used + reclen > nbytes)
-			break;
-
-		memset(&out, 0, sizeof(out));
-		out.d_ino = (ino_t)src->d_ino;
-		out.d_off = (off_t)src->d_off;
-		out.d_reclen = (unsigned short)reclen;
-		out.d_type = src->d_type;
-		memcpy(out.d_name, src->d_name, namelen + 1);
-		memcpy((char *)buf + used, &out, reclen);
-		used += reclen;
-	}
-	return (ssize_t)used;
+	return (ssize_t)syscall(SYS_getdents64, fd, buf, nbytes);
 }

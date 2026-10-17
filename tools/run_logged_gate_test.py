@@ -605,6 +605,97 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(second_record["state"], "error")
         self.assertEqual(second_record["termination"], "execution_lock_busy")
 
+    def test_relative_execution_lock_survives_nested_working_directory(self):
+        nested_directory = self.directory / "nested"
+        nested_directory.mkdir()
+        nested_program = (
+            "import os, sys; "
+            "sys.path.insert(0, sys.argv[1]); "
+            "import test_execution; "
+            "os.chdir(sys.argv[2]); "
+            "result, _termination = test_execution.run_bounded("
+            "[sys.executable, '-c', 'raise SystemExit(0)'], 1.0); "
+            "raise SystemExit(result)"
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "relative-ownership",
+                "--log", str(self.log),
+                "--status", str(self.status),
+                "--execution-lock", "products.lock",
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "1",
+                "--timeout-seconds", "2",
+                "--",
+                sys.executable,
+                "-c", nested_program, str(ROOT / "tools"), str(nested_directory),
+            ],
+            cwd=self.directory,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        ownership = json.loads(
+            (self.directory / "products.lock.ownership.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(ownership["state"], "released")
+        self.assertEqual(ownership["process_groups"], [])
+
+    def test_registration_error_with_incomplete_cleanup_blocks_successor(self):
+        execution_lock = self.directory / "products.lock"
+        marker = self.directory / "successor-launched"
+        arguments = runner.parse_arguments([
+            "--label", "registration-cleanup-incomplete",
+            "--log", str(self.log),
+            "--status", str(self.status),
+            "--execution-lock", str(execution_lock),
+            "--heartbeat-seconds", "0.05",
+            "--idle-timeout-seconds", "1",
+            "--timeout-seconds", "2",
+            "--terminate-grace-seconds", "0.1",
+            "--", sys.executable, "-c", "import time; time.sleep(60)",
+        ])
+        original_stop = runner.stop_process_group
+
+        def report_incomplete(process, grace_seconds, **kwargs):
+            result = original_stop(process, grace_seconds, **kwargs)
+            return runner.StopResult(result.child_exit_code, False)
+
+        with mock.patch.object(
+            runner, "register_execution_group",
+            side_effect=OSError("injected registration failure"),
+        ), mock.patch.object(
+            runner, "stop_process_group", side_effect=report_incomplete
+        ):
+            result = runner.run(arguments)
+
+        self.assertEqual(result, runner.RUNNER_ERROR_EXIT)
+        first_status = self.read_status()
+        self.assertEqual(first_status["termination"], "cleanup_incomplete")
+        ownership = json.loads(
+            Path(f"{execution_lock}.ownership.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(ownership["state"], "cleanup_incomplete")
+
+        successor = self.run_gate(
+            "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text("
+            "'launched', encoding='ascii')",
+            program_arguments=(marker,),
+            execution_lock=execution_lock,
+        )
+        self.assertEqual(successor.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertFalse(marker.exists())
+        self.assertEqual(
+            self.read_status()["termination"], "execution_quarantined"
+        )
+
     def test_cleanup_incomplete_publishes_product_quarantine(self):
         execution_lock = self.directory / "products.lock"
         quarantine = Path(f"{execution_lock}.quarantine.json")

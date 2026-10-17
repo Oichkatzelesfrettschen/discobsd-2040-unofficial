@@ -73,6 +73,8 @@ termination; the child log remains the authority for its own output.
 Before child launch, a product owner writes
 `<execution-lock>.ownership.json` with active state. Direct and nested
 supervisors register every independently created process group in that receipt.
+The supervisor exports absolute ownership and quarantine paths so recursive
+builds retain one receipt when a child changes its working directory.
 Each supervisor removes its group after the group has conclusively disappeared,
 so a long sequence retains active or unresolved ownership rather than completed
 process history. Verified cleanup changes the receipt to released state and
@@ -80,7 +82,8 @@ retains only groups still visible at finalization. Incomplete cleanup changes
 the receipt to cleanup-incomplete state before later evidence writes; an active
 receipt remains fail-closed when finalization itself fails. Registration and
 release failures name the ownership operation and its exact error in the durable
-build log.
+build log. A registration failure runs bounded cleanup, and an inconclusive
+cleanup retains the cleanup-incomplete ownership barrier before returning.
 A cleanup-incomplete invocation also writes
 `<execution-lock>.quarantine.json` before releasing the lock. The retained
 quarantine receipt names the process groups, invocation, status path and

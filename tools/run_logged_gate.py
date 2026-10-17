@@ -385,6 +385,16 @@ def execution_ownership_for_args(args):
     return path
 
 
+def make_coordination_paths_absolute(args):
+    """Keep inherited lock receipts stable when descendants change directory."""
+    for attribute in (
+        "execution_lock", "execution_quarantine", "execution_ownership"
+    ):
+        path = getattr(args, attribute, None)
+        if path is not None and not path.is_absolute():
+            setattr(args, attribute, Path(os.path.abspath(path)))
+
+
 def publish_execution_quarantine(args, record, process_groups=None):
     path = execution_quarantine_for_args(args)
     if path is None:
@@ -624,6 +634,7 @@ def run(args):
     if os.name != "posix":
         raise ValueError("logged gate process-group control requires a POSIX host")
 
+    make_coordination_paths_absolute(args)
     prepare_evidence(args)
     args.log.parent.mkdir(parents=True, exist_ok=True)
     args.status.parent.mkdir(parents=True, exist_ok=True)
@@ -775,13 +786,13 @@ def run(args):
                 f"[logged-gate] start label={args.label} time={start_wall} "
                 f"command={shlex.join(command)}\n"
             )
+            child_environment = os.environ.copy()
+            if ownership_path is not None:
+                child_environment[OWNERSHIP_PATH_ENV] = str(ownership_path)
+                child_environment[OWNERSHIP_INVOCATION_ENV] = (
+                    record["sequence_invocation_id"] or record["invocation_id"]
+                )
             try:
-                child_environment = os.environ.copy()
-                if ownership_path is not None:
-                    child_environment[OWNERSHIP_PATH_ENV] = str(ownership_path)
-                    child_environment[OWNERSHIP_INVOCATION_ENV] = (
-                        record["sequence_invocation_id"] or record["invocation_id"]
-                    )
                 process = subprocess.Popen(
                     command,
                     stdout=subprocess.PIPE,
@@ -791,23 +802,13 @@ def run(args):
                     pass_fds=make_jobserver_descriptors(),
                     env=child_environment,
                 )
-                if ownership_path is not None:
-                    register_execution_group(
-                        ownership_path,
-                        child_environment[OWNERSHIP_INVOCATION_ENV],
-                        process.pid,
-                    )
-            except (OSError, ValueError, TimeoutError) as error:
+            except OSError as error:
                 record.update(
                     state="error",
                     updated_at=utc_timestamp(),
                     elapsed_seconds=round(time.monotonic() - start, 3),
                     exit_code=RUNNER_ERROR_EXIT,
-                    termination=(
-                        "launch_error"
-                        if process is None
-                        else "execution_ownership_error"
-                    ),
+                    termination="launch_error",
                 )
                 safe_emit(
                     f"[logged-gate] error label={args.label} "
@@ -816,7 +817,14 @@ def run(args):
                 safe_status()
                 return RUNNER_ERROR_EXIT
 
+            record["pid"] = process.pid
             try:
+                if ownership_path is not None:
+                    register_execution_group(
+                        ownership_path,
+                        child_environment[OWNERSHIP_INVOCATION_ENV],
+                        process.pid,
+                    )
                 record.update(
                     state="running", pid=process.pid, updated_at=utc_timestamp()
                 )

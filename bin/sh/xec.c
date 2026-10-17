@@ -11,7 +11,6 @@
 static int      parent;
 static int      getopts_index = 1;
 static int      getopts_offset;
-static int      getopts_setting;
 
 #define COMMAND_EXECUTE 0
 #define COMMAND_SMALL_V 1
@@ -23,8 +22,6 @@ void
 getoptsreset(value)
 	char *value;
 {
-	if (getopts_setting)
-		return;
 	while (*value == '0')
 		value++;
 	if (value[0] == '1' && value[1] == 0)
@@ -45,10 +42,10 @@ getopts_assign(name, value)
 static void
 getopts_publish_index()
 {
+	if (getopts_index == 1)
+		return;
 	itos(getopts_index);
-	getopts_setting = 1;
 	assign(lookup("OPTIND"), numbuf);
-	getopts_setting = 0;
 }
 
 static int

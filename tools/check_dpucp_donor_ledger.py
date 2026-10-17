@@ -97,9 +97,13 @@ PROMOTED_CANDIDATES = {
     "libc-reallocarray",
     "libc-memmem",
     "libc-getdelim-getline",
+    "shell-getopts",
+    "shell-command",
 }
 FOUNDATION_MEASUREMENT = "docs/research/libc-array-memory-line-reading.md"
 FOUNDATION_MEASUREMENT_DATA = "docs/research/libc-array-memory-line-reading.json"
+SHELL_MEASUREMENT = "docs/research/shell-command-getopts-growth-exception.md"
+SHELL_MEASUREMENT_DATA = "docs/research/shell-command-getopts-growth-exception.json"
 
 
 class DonorError(RuntimeError):
@@ -167,6 +171,144 @@ def validate_foundation_measurement(measurement):
     )
 
 
+def validate_shell_measurement(measurement):
+    require(
+        set(measurement) == {
+            "schema_version",
+            "profile_id",
+            "base_commit",
+            "implementation_commit",
+            "block_bytes",
+            "kernel",
+            "shell",
+            "root",
+            "reviewer_approval",
+        },
+        "malformed shell growth exception",
+    )
+    require(measurement["schema_version"] == 1, "unsupported shell measurement schema")
+    require(measurement["profile_id"] == "DPUCP-2024", "wrong shell measurement profile")
+    for field in ("base_commit", "implementation_commit"):
+        require(
+            re.fullmatch(r"[0-9a-f]{40}", measurement[field]) is not None,
+            f"bad shell measurement {field}",
+        )
+    require(measurement["block_bytes"] == 1024, "shell measurement block size drift")
+
+    kernel = measurement["kernel"]
+    require(
+        set(kernel) == {"region_bytes", "base", "candidate", "delta"},
+        "malformed kernel measurement",
+    )
+    require(kernel["region_bytes"] == 131072, "kernel region drift")
+    kernel_fields = {"text_bytes", "data_bytes", "bss_bytes", "flash_margin_bytes"}
+    for state in ("base", "candidate"):
+        require(set(kernel[state]) == kernel_fields, f"malformed {state} kernel measurement")
+        require(
+            kernel[state]["flash_margin_bytes"]
+            == kernel["region_bytes"]
+            - kernel[state]["text_bytes"]
+            - kernel[state]["data_bytes"],
+            f"inconsistent {state} kernel margin",
+        )
+    for field in ("text_bytes", "data_bytes", "bss_bytes"):
+        require(
+            kernel["delta"][field] == kernel["candidate"][field] - kernel["base"][field],
+            f"inconsistent kernel {field} delta",
+        )
+
+    shell = measurement["shell"]
+    require(
+        set(shell) == {"process_window_bytes", "base", "candidate", "delta"},
+        "malformed shell measurement",
+    )
+    require(shell["process_window_bytes"] == 147456, "shell process window drift")
+    shell_fields = {
+        "aout_bytes",
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "window_occupancy_before_stack_bytes",
+        "window_margin_before_stack_bytes",
+    }
+    for state in ("base", "candidate"):
+        values = shell[state]
+        require(set(values) == shell_fields, f"malformed {state} shell measurement")
+        occupancy = values["text_bytes"] + values["data_bytes"] + values["bss_bytes"]
+        require(
+            values["window_occupancy_before_stack_bytes"] == occupancy,
+            f"inconsistent {state} shell occupancy",
+        )
+        require(
+            values["window_margin_before_stack_bytes"]
+            == shell["process_window_bytes"] - occupancy,
+            f"inconsistent {state} shell margin",
+        )
+    for field in (
+        "aout_bytes",
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "window_occupancy_before_stack_bytes",
+    ):
+        require(
+            shell["delta"][field] == shell["candidate"][field] - shell["base"][field],
+            f"inconsistent shell {field} delta",
+        )
+
+    root = measurement["root"]
+    require(
+        set(root) == {
+            "partition_blocks",
+            "inode_list_blocks",
+            "base",
+            "candidate",
+            "delta",
+            "candidate_free_bytes",
+        },
+        "malformed shell root measurement",
+    )
+    require(root["partition_blocks"] == 988, "shell root partition drift")
+    require(root["inode_list_blocks"] == 9, "shell root inode-list drift")
+    for state in ("base", "candidate"):
+        require(
+            set(root[state]) == {"files", "data_blocks", "free_blocks"},
+            f"malformed shell root {state} measurement",
+        )
+        require(
+            root[state]["data_blocks"]
+            + root[state]["free_blocks"]
+            + root["inode_list_blocks"]
+            == root["partition_blocks"],
+            f"inconsistent shell root {state} arithmetic",
+        )
+    for field in ("files", "data_blocks", "free_blocks"):
+        require(
+            root["delta"][field] == root["candidate"][field] - root["base"][field],
+            f"inconsistent shell root {field} delta",
+        )
+    require(
+        root["candidate_free_bytes"]
+        == root["candidate"]["free_blocks"] * measurement["block_bytes"],
+        "inconsistent shell root free-byte margin",
+    )
+
+    approval = measurement["reviewer_approval"]
+    require(
+        set(approval) == {"status", "reviewer", "evidence"},
+        "malformed shell reviewer approval",
+    )
+    require(approval["status"] in {"pending", "approved"}, "bad shell approval state")
+    if approval["status"] == "approved":
+        require(bool(approval["reviewer"]), "approved shell exception lacks reviewer")
+        require(bool(approval["evidence"]), "approved shell exception lacks evidence")
+    else:
+        require(
+            not approval["reviewer"] and not approval["evidence"],
+            "pending shell approval has evidence",
+        )
+
+
 def safe_path(value):
     path = PurePosixPath(value)
     return bool(value) and not path.is_absolute() and ".." not in path.parts
@@ -195,6 +337,9 @@ def validate_document(root, document, requirement_ids):
     measurement_path = root / FOUNDATION_MEASUREMENT_DATA
     require(measurement_path.is_file(), "missing foundational-libc measurement data")
     validate_foundation_measurement(load_json(measurement_path))
+    shell_measurement_path = root / SHELL_MEASUREMENT_DATA
+    require(shell_measurement_path.is_file(), "missing shell growth-exception data")
+    validate_shell_measurement(load_json(shell_measurement_path))
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",
@@ -293,12 +438,14 @@ def validate_document(root, document, requirement_ids):
         )
         if candidate_id in PROMOTED_CANDIDATES:
             require(size["status"] == "measured", f"unmeasured promotion: {candidate_id}")
-            require(
-                size["evidence"] == FOUNDATION_MEASUREMENT,
-                f"unbound size evidence: {candidate_id}",
+            expected_evidence = (
+                SHELL_MEASUREMENT
+                if candidate_id in {"shell-getopts", "shell-command"}
+                else FOUNDATION_MEASUREMENT
             )
+            require(size["evidence"] == expected_evidence, f"unbound size evidence: {candidate_id}")
             require(
-                (root / FOUNDATION_MEASUREMENT).is_file(),
+                (root / expected_evidence).is_file(),
                 f"missing size evidence: {candidate_id}",
             )
         else:

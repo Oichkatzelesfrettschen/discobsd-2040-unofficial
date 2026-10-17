@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "4c4ee2cf15e118c165259e16aaea1a45642da5457889990afef93a830c40be95"
+    "ordered_row_sha256": "841fea7485f9e0e07de2b2dfda5b7f55247e714dfa583a2c6ddd89903a87f9a7"
   },
   "state_counts": {
     "applicability": {
@@ -58,8 +58,8 @@
     },
     "evidence": {
       "none": 1471,
-      "static": 44,
-      "host": 3,
+      "static": 42,
+      "host": 5,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -83,6 +83,18 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/runtime_limits_contract_test.c",
       "known_bad": "tests/libc_contracts/runtime_limits_bad.c"
+    },
+    "shell-command-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-posix-sh",
+      "evidence": "host",
+      "known_good": "bin/sh/tests/posix-sh.sh",
+      "known_bad": "bin/sh/tests/fixtures/command-null-builtin.json"
+    },
+    "shell-getopts-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-posix-sh",
+      "evidence": "host",
+      "known_good": "bin/sh/tests/posix-sh.sh",
+      "known_bad": "bin/sh/tests/fixtures/getopts-optind-skip.json"
     }
   },
   "growth_policy": {

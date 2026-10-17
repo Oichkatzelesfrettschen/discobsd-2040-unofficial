@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "getopts-optind-skip",
+  "source": "bin/sh/xec.c",
+  "object": "xec.o",
+  "old": "\titos(getopts_index);",
+  "new": "\titos(getopts_index + 1);",
+  "snippet": "set -- -a; getopts a option; echo \"$?|$option|$OPTIND|${OPTARG-unset}\"",
+  "known_good": {
+    "stdout": "0|a|2|unset\n",
+    "exit_code": 0
+  },
+  "known_bad": {
+    "stdout": "0|a|3|unset\n",
+    "exit_code": 0
+  },
+  "caught_break": "getopts publishes the wrong OPTIND transition"
+}

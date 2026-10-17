@@ -49,6 +49,19 @@ def main():
         raise AssertionError("missing Task 4 measurement validator")
     validator(measurement)
 
+    shell_measurement_path = (
+        root / "docs/research/shell-command-getopts-growth-exception.json"
+    )
+    if not shell_measurement_path.is_file():
+        raise AssertionError("missing machine-readable shell growth exception")
+    shell_measurement = json.loads(
+        shell_measurement_path.read_text(encoding="utf-8")
+    )
+    shell_validator = getattr(donors, "validate_shell_measurement", None)
+    if shell_validator is None:
+        raise AssertionError("missing shell growth-exception validator")
+    shell_validator(shell_measurement)
+
     changed_measurement = copy.deepcopy(measurement)
     changed_measurement["root"]["candidate"]["data_blocks"] += 1
     try:
@@ -67,10 +80,30 @@ def main():
     else:
         raise AssertionError("resource-bound mutation passed")
 
+    changed_shell_measurement = copy.deepcopy(shell_measurement)
+    changed_shell_measurement["shell"]["candidate"]["text_bytes"] += 4
+    try:
+        shell_validator(changed_shell_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("shell delta mutation passed")
+
+    changed_shell_measurement = copy.deepcopy(shell_measurement)
+    changed_shell_measurement["root"]["candidate"]["free_blocks"] += 1
+    try:
+        shell_validator(changed_shell_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("shell root arithmetic mutation passed")
+
     promoted_ids = {
         "libc-reallocarray",
         "libc-memmem",
         "libc-getdelim-getline",
+        "shell-getopts",
+        "shell-command",
     }
     for candidate in document["candidates"]:
         if candidate["id"] in promoted_ids:
@@ -178,7 +211,7 @@ def main():
     shell_candidate["size_estimate"]["evidence"] = (
         "docs/research/libc-array-memory-line-reading.md"
     )
-    cases.append(("premature unrelated promotion", changed))
+    cases.append(("shell promotion with unrelated size evidence", changed))
 
     changed = copy.deepcopy(document)
     changed["candidates"][0]["size_estimate"]["surfaces"] = [""]

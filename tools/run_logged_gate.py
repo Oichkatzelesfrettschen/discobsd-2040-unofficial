@@ -289,6 +289,36 @@ def register_inherited_execution_group(process_group):
     register_execution_group(Path(path), invocation_id, process_group)
 
 
+def mark_execution_group_cleanup_incomplete(path, invocation_id, process_group):
+    descriptor = _acquire_ownership_update_lock(path)
+    try:
+        record = read_execution_ownership(path)
+        if record is None or record["invocation_id"] != invocation_id:
+            raise ValueError(f"execution ownership invocation mismatch: {path}")
+        if record["state"] not in {"active", "cleanup_incomplete"}:
+            raise ValueError(f"execution ownership is already released: {path}")
+        if process_group not in record["process_groups"]:
+            record["process_groups"].append(process_group)
+            record["process_groups"].sort()
+        record["state"] = "cleanup_incomplete"
+        record["updated_at"] = utc_timestamp()
+        atomic_status(path, record)
+    finally:
+        os.close(descriptor)
+
+
+def mark_inherited_execution_group_cleanup_incomplete(process_group):
+    path = os.environ.get(OWNERSHIP_PATH_ENV)
+    invocation_id = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if path is None and invocation_id is None:
+        return
+    if path is None or invocation_id is None:
+        raise ValueError("incomplete inherited execution ownership environment")
+    mark_execution_group_cleanup_incomplete(
+        Path(path), invocation_id, process_group
+    )
+
+
 def unregister_execution_group(path, invocation_id, process_group):
     descriptor = _acquire_ownership_update_lock(path)
     try:

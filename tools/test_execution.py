@@ -122,19 +122,41 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             return False
         return True
 
+    def retain_incomplete_group(process_group):
+        try:
+            execution_ownership.mark_inherited_execution_group_cleanup_incomplete(
+                process_group
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: incomplete ownership retention failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return False
+        return True
+
     try:
         process = subprocess.Popen(
             command, cwd=cwd, env=child_environment, start_new_session=True
         )
         try:
             execution_ownership.register_inherited_execution_group(process.pid)
+        except BoundedSignal as interruption:
+            result = stop_process_group(process, cleanup_seconds)
+            if not result.group_stopped:
+                retain_incomplete_group(process.pid)
+                return 125, "cleanup_incomplete"
+            return 128 + interruption.number, f"signal_{interruption.number}"
         except (OSError, ValueError, TimeoutError) as error:
             print(
                 f"test-execution: ownership registration failed: {error}",
                 file=sys.stderr,
                 flush=True,
             )
-            stop_process_group(process, cleanup_seconds)
+            result = stop_process_group(process, cleanup_seconds)
+            if not result.group_stopped:
+                retain_incomplete_group(process.pid)
             return 125, "cleanup_incomplete"
         try:
             returncode = process.wait(timeout=timeout_seconds)

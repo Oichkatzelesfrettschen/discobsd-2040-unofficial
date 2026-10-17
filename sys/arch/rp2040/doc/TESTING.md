@@ -60,6 +60,9 @@ bounded asynchronous queue so a terminal or pipe whose reader stops consuming
 cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
 SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval.
+Signal handling covers launch, ownership registration and execution; a signal
+during registration stops the launched process group before the supervisor
+returns.
 Every termination path makes a bounded attempt to terminate and reap its owned
 process group, and every wait after SIGKILL carries a finite cleanup deadline.
 If the process leader cannot be reaped or any member of the process group
@@ -83,7 +86,8 @@ the receipt to cleanup-incomplete state before later evidence writes; an active
 receipt remains fail-closed when finalization itself fails. Registration and
 release failures name the ownership operation and its exact error in the durable
 build log. A registration failure runs bounded cleanup, and an inconclusive
-cleanup retains the cleanup-incomplete ownership barrier before returning.
+cleanup records the unregistered process group in the cleanup-incomplete
+ownership barrier before returning.
 A cleanup-incomplete invocation also writes
 `<execution-lock>.quarantine.json` before releasing the lock. The retained
 quarantine receipt names the process groups, invocation, status path and

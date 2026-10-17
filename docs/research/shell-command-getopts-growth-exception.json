@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile_id": "DPUCP-2024",
   "base_commit": "e7730db124a0324b62afe209b31dd210c270c0dc",
   "implementation_commit": "50b6c774f355d79a96b4e26d2b6c4b34c5eaa568",
@@ -10,13 +10,19 @@
       "text_bytes": 104598,
       "data_bytes": 248,
       "bss_bytes": 39848,
-      "flash_margin_bytes": 26226
+      "section_sum_spare_bytes": 26226,
+      "load_alignment_bytes": 2,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
     },
     "candidate": {
       "text_bytes": 104598,
       "data_bytes": 248,
       "bss_bytes": 39848,
-      "flash_margin_bytes": 26226
+      "section_sum_spare_bytes": 26226,
+      "load_alignment_bytes": 2,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
     },
     "delta": {
       "text_bytes": 0,

@@ -62,6 +62,17 @@ def main():
         raise AssertionError("missing shell growth-exception validator")
     shell_validator(shell_measurement)
 
+    for state in ("base", "candidate"):
+        kernel_measurement = shell_measurement["kernel"][state]
+        if kernel_measurement.get("section_sum_spare_bytes") != 26226:
+            raise AssertionError(f"{state} kernel section-sum spare is absent")
+        if kernel_measurement.get("load_alignment_bytes") != 2:
+            raise AssertionError(f"{state} kernel load alignment is absent")
+        if kernel_measurement.get("loaded_flash_span_bytes") != 104848:
+            raise AssertionError(f"{state} kernel loaded span is absent")
+        if kernel_measurement.get("load_tail_margin_bytes") != 26224:
+            raise AssertionError(f"{state} kernel load-tail margin is absent")
+
     changed_measurement = copy.deepcopy(measurement)
     changed_measurement["root"]["candidate"]["data_blocks"] += 1
     try:
@@ -97,6 +108,15 @@ def main():
         pass
     else:
         raise AssertionError("shell root arithmetic mutation passed")
+
+    changed_shell_measurement = copy.deepcopy(shell_measurement)
+    changed_shell_measurement["kernel"]["candidate"]["load_alignment_bytes"] += 1
+    try:
+        shell_validator(changed_shell_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("kernel load-span mutation passed")
 
     changed_shell_measurement = copy.deepcopy(shell_measurement)
     overflow = changed_shell_measurement["shell"]["process_window_bytes"]

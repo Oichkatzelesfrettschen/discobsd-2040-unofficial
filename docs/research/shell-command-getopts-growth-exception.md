@@ -53,7 +53,7 @@ the packed-root payload and allocation remain unchanged.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
 | --- | ---: | ---: | ---: | ---: |
-| PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,226 flash bytes after text and data |
+| PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,224 contiguous flash bytes after the loaded image; 26,226 section-sum spare bytes |
 | PICO kernel data | 248 bytes | 248 bytes | 0 | unchanged |
 | PICO kernel bss | 39,848 bytes | 39,848 bytes | 0 | unchanged |
 | Shell a.out file | 32,576 bytes | 35,944 bytes | +3,368 bytes | n/a |
@@ -74,6 +74,11 @@ different build-identification bytes as a kernel growth. Static text, data and
 bss occupancy is a lower bound on process-window use. The retained pre-stack
 margin is an upper bound because runtime peak stack and heap remain unmeasured.
 The measurements therefore establish neither peak RAM use nor board behavior.
+The kernel map places a two-byte alignment hole between `.text` and
+`.ARM.exidx`. The 104,598 text-like bytes plus 248 data bytes therefore leave
+26,226 bytes by section summation, while the loaded flash span ends at
+`0x10019990` and leaves 26,224 contiguous bytes before `0x10020000`. Both base
+and candidate images have the same alignment and loaded span.
 
 ## Examined offsets
 

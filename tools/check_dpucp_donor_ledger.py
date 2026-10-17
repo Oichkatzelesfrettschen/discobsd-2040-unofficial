@@ -195,7 +195,7 @@ def validate_shell_measurement(measurement):
         },
         "malformed shell growth exception",
     )
-    require(measurement["schema_version"] == 1, "unsupported shell measurement schema")
+    require(measurement["schema_version"] == 2, "unsupported shell measurement schema")
     require(measurement["profile_id"] == "DPUCP-2024", "wrong shell measurement profile")
     for field in ("base_commit", "implementation_commit"):
         require(
@@ -210,18 +210,38 @@ def validate_shell_measurement(measurement):
         "malformed kernel measurement",
     )
     require(kernel["region_bytes"] == 131072, "kernel region drift")
-    kernel_fields = {"text_bytes", "data_bytes", "bss_bytes", "flash_margin_bytes"}
+    kernel_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "section_sum_spare_bytes",
+        "load_alignment_bytes",
+        "loaded_flash_span_bytes",
+        "load_tail_margin_bytes",
+    }
     for state in ("base", "candidate"):
         require(set(kernel[state]) == kernel_fields, f"malformed {state} kernel measurement")
         require_nonnegative_integers(
             kernel[state], kernel_fields, f"{state} kernel measurement"
         )
         require(
-            kernel[state]["flash_margin_bytes"]
+            kernel[state]["section_sum_spare_bytes"]
             == kernel["region_bytes"]
             - kernel[state]["text_bytes"]
             - kernel[state]["data_bytes"],
-            f"inconsistent {state} kernel margin",
+            f"inconsistent {state} kernel section-sum spare",
+        )
+        require(
+            kernel[state]["loaded_flash_span_bytes"]
+            == kernel[state]["text_bytes"]
+            + kernel[state]["data_bytes"]
+            + kernel[state]["load_alignment_bytes"],
+            f"inconsistent {state} kernel loaded span",
+        )
+        require(
+            kernel[state]["load_tail_margin_bytes"]
+            == kernel["region_bytes"] - kernel[state]["loaded_flash_span_bytes"],
+            f"inconsistent {state} kernel load-tail margin",
         )
     for field in ("text_bytes", "data_bytes", "bss_bytes"):
         require(

@@ -611,6 +611,13 @@ check-agent-instructions: check-python
 
 .PHONY: check-agent-instructions
 
+check-run-logging: check-python
+		${PYTHON} tools/run_logged_gate_test.py
+		${PYTHON} tools/build_observability_test.py
+		${PYTHON} tools/storage_counter_driver_test.py
+
+.PHONY: check-run-logging
+
 check-graft-cache-reader: check-python
 		${PYTHON} -B tools/graft_cache_reader_test.py
 
@@ -749,6 +756,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
+		check-run-logging \
 		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger \

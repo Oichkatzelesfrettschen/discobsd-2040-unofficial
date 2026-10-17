@@ -6,6 +6,11 @@ make_command=${MAKE:-bmake}
 nm_command=${NM:-arm-none-eabi-nm}
 size_command=${SIZE:-arm-none-eabi-size}
 
+# The serial rebuilds are detached from the parent bmake graph. A shell
+# process cannot preserve bmake's private jobserver descriptors, so passing
+# their -J numbers to each child produces invalid-descriptor warnings.
+unset MAKEFLAGS MFLAGS
+
 for board in PICO PICO_UART; do
     build="sys/arch/rp2040/compile/$board"
     "$make_command" MACHINE=rp2040 STORAGE_STATS=no -C "$build" all

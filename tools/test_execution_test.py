@@ -79,6 +79,26 @@ class ExecutionTest(unittest.TestCase):
             time.sleep(0.01)
         return False
 
+    def process_group_snapshot(self, process_group):
+        try:
+            result = subprocess.run(
+                ["ps", "-A", "-o", "pid=,ppid=,pgid=,state=,command="],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=1,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            return f"ps unavailable: {error}"
+        if result.returncode:
+            return f"ps exit {result.returncode}: {result.stderr.strip()}"
+        members = []
+        for line in result.stdout.splitlines():
+            fields = line.split(None, 4)
+            if len(fields) >= 3 and fields[2] == str(process_group):
+                members.append(line.strip())
+        return "; ".join(members) or "group has no ps members"
+
     def test_executed_pass_and_failure(self):
         for name, returncode, outcome in [("good", 0, "PASS"), ("bad", 1, "FAIL")]:
             variant = self.variant(name)
@@ -119,13 +139,13 @@ class ExecutionTest(unittest.TestCase):
             os.environ.pop(execution.CLEANUP_ALLOWANCE_ENV, None)
             self.assertEqual(
                 execution.cleanup_allowances(),
-                (execution.ROOT_CLEANUP_ALLOWANCE_SECONDS, 1.0),
+                (execution.ROOT_CLEANUP_ALLOWANCE_SECONDS, 0.8),
             )
 
         with patch.dict(
             os.environ, {execution.CLEANUP_ALLOWANCE_ENV: "0.5"}, clear=False
         ):
-            self.assertEqual(execution.cleanup_allowances(), (0.5, 0.25))
+            self.assertEqual(execution.cleanup_allowances(), (0.5, 0.2))
 
     def test_stop_process_group_reports_an_unreaped_process_within_its_budget(self):
         class UnreapedProcess:
@@ -159,6 +179,42 @@ class ExecutionTest(unittest.TestCase):
         self.assertGreaterEqual(len(process.wait_timeouts), 1)
         self.assertNotIn(None, process.wait_timeouts)
         self.assertEqual(process.kill_calls, 1)
+
+    def test_stop_process_group_spends_one_inherited_cleanup_budget(self):
+        clock = [0.0]
+
+        def monotonic():
+            return clock[0]
+
+        def advance(seconds):
+            clock[0] += seconds
+
+        class UnreapedProcess:
+            pid = 4245
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                return None
+
+            def wait(self, timeout=None):
+                advance(timeout)
+                raise subprocess.TimeoutExpired("fixture", timeout)
+
+        with patch.object(execution.os, "killpg"):
+            with patch.object(
+                execution, "process_group_exists", return_value=True
+            ):
+                with patch.object(execution.time, "monotonic", side_effect=monotonic):
+                    with patch.object(execution.time, "sleep", side_effect=advance):
+                        result = execution.stop_process_group(
+                            UnreapedProcess(), 0.2
+                        )
+
+        self.assertAlmostEqual(clock[0], 0.2)
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
 
     def test_stop_process_group_treats_signal_refusal_as_incomplete(self):
         class RefusedProcess:
@@ -722,7 +778,8 @@ class ExecutionTest(unittest.TestCase):
             process_group = int(group_file.read_text(encoding="ascii"))
             self.assertFalse(
                 execution.process_group_exists(process_group),
-                f"probe {probe} returned while process group {process_group} survived",
+                f"probe {probe} returned while process group {process_group} survived: "
+                f"{self.process_group_snapshot(process_group)}",
             )
 
     def test_symlinked_directory_resolves_both_executable_paths(self):

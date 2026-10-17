@@ -333,8 +333,12 @@ aggregate terminate variant groups that deliberately use separate sessions.
 A supervisor gives its nested child a cleanup allowance smaller than the
 allowance its parent reserves for the supervisor. The ordering lets three
 nested supervisors finish descendant cleanup before an ancestor escalates to
-SIGKILL. A calibrated resistant-leaf fixture requires every owned process group
-to be absent before the outer supervisor returns.
+SIGKILL. Each inherited allowance covers the complete termination and reap
+sequence. The child share excludes a bounded response reserve, and the parent
+retains a separate final-reap interval. The response reserve spans two polling
+intervals, which leaves time for signal observation and host scheduling before
+an ancestor escalates. A calibrated resistant-leaf fixture requires every
+owned process group to be absent before the outer supervisor returns.
 A successful direct child that leaves an owned descendant also triggers group
 cleanup before the supervisor publishes PASS.
 

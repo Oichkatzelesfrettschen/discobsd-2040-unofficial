@@ -26,6 +26,8 @@ TERMINATE_GRACE_SECONDS = 1.0
 CLEANUP_ALLOWANCE_ENV = "_DISCOBSD_TEST_EXECUTION_CLEANUP_ALLOWANCE_SECONDS"
 ROOT_CLEANUP_ALLOWANCE_SECONDS = 2.0 * TERMINATE_GRACE_SECONDS
 MINIMUM_CHILD_CLEANUP_SECONDS = 0.02
+REAP_RESERVE_SECONDS = 0.1
+SUPERVISOR_RESPONSE_SECONDS = 0.2
 
 
 @dataclasses.dataclass(frozen=True)
@@ -51,34 +53,58 @@ def process_group_exists(process_group):
     return True
 
 
-def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
+def terminate_grace_seconds(cleanup_seconds):
+    return min(
+        TERMINATE_GRACE_SECONDS,
+        max(0, cleanup_seconds - REAP_RESERVE_SECONDS),
+    )
+
+
+def stop_process_group(
+    process, cleanup_seconds=ROOT_CLEANUP_ALLOWANCE_SECONDS
+):
+    started = time.monotonic()
+    terminate_deadline = started + terminate_grace_seconds(cleanup_seconds)
+    cleanup_deadline = started + cleanup_seconds
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
         pass
-    deadline = time.monotonic() + grace_seconds
-    while time.monotonic() < deadline and process_group_exists(process.pid):
+    while (
+        time.monotonic() < terminate_deadline
+        and process_group_exists(process.pid)
+    ):
         process.poll()
-        time.sleep(min(0.02, max(0, deadline - time.monotonic())))
+        time.sleep(
+            min(0.02, max(0, terminate_deadline - time.monotonic()))
+        )
     if process_group_exists(process.pid):
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
     try:
-        child_exit = process.wait(timeout=max(0.1, grace_seconds))
+        child_exit = process.wait(
+            timeout=max(0, cleanup_deadline - time.monotonic())
+        )
     except subprocess.TimeoutExpired:
         try:
             process.kill()
         except (ProcessLookupError, PermissionError):
             pass
         try:
-            child_exit = process.wait(timeout=max(0.1, grace_seconds))
+            child_exit = process.wait(
+                timeout=max(0, cleanup_deadline - time.monotonic())
+            )
         except subprocess.TimeoutExpired:
             child_exit = None
-    group_deadline = time.monotonic() + grace_seconds
-    while time.monotonic() < group_deadline and process_group_exists(process.pid):
-        time.sleep(min(0.02, max(0, group_deadline - time.monotonic())))
+    while (
+        time.monotonic() < cleanup_deadline
+        and process_group_exists(process.pid)
+    ):
+        time.sleep(
+            min(0.02, max(0, cleanup_deadline - time.monotonic()))
+        )
     return StopResult(child_exit, not process_group_exists(process.pid))
 
 
@@ -89,7 +115,10 @@ def cleanup_allowances():
     allowance = float(value)
     if not math.isfinite(allowance) or allowance <= 0:
         raise ValueError(f"invalid inherited cleanup allowance: {value}")
-    child_allowance = max(MINIMUM_CHILD_CLEANUP_SECONDS, allowance / 2.0)
+    child_allowance = max(
+        MINIMUM_CHILD_CLEANUP_SECONDS,
+        terminate_grace_seconds(allowance) - SUPERVISOR_RESPONSE_SECONDS,
+    )
     return allowance, child_allowance
 
 

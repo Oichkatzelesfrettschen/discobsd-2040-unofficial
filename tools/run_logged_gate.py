@@ -372,6 +372,7 @@ def run(args):
         "started_at": start_wall,
         "updated_at": start_wall,
         "elapsed_seconds": 0.0,
+        "timeout_seconds": args.timeout_seconds,
         "quiet_seconds": 0.0,
         "output_bytes": 0,
         "last_output": "",

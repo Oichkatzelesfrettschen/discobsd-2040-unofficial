@@ -187,12 +187,9 @@ class LoggedBuildCheckTest(unittest.TestCase):
         )
         make.chmod(0o755)
 
-        started = time.monotonic()
         result = self.run_sequence(make, timeout_seconds="0.55")
-        elapsed = time.monotonic() - started
 
         self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
-        self.assertLess(elapsed, 0.85)
         summary = json.loads(
             (self.evidence_root / "rp2040-check-local.latest.json").read_text(
                 encoding="utf-8"
@@ -202,6 +199,10 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.assertEqual(summary["termination"], "hard_timeout")
         self.assertEqual(summary["stages"]["build"]["state"], "completed")
         self.assertEqual(summary["stages"]["check"]["state"], "timed_out")
+        invocation = Path(summary["evidence_directory"])
+        check = json.loads((invocation / "check.status.json").read_text())
+        self.assertGreater(check["timeout_seconds"], 0)
+        self.assertLess(check["timeout_seconds"], 0.3)
 
     def test_exhausted_deadline_does_not_launch_check(self):
         args = sequence.parse_arguments(

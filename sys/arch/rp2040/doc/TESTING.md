@@ -41,13 +41,14 @@ output-idle deadline and a 3600-second hard deadline. `logged-check` runs build
 and check as correlated stages under one 3600-second total deadline. A failed
 build publishes a `blocked` check receipt in the same invocation directory.
 The sequence summary publishes each stage as `running` with its status path
-before the stage starts. The coordinator owns SIGINT and SIGTERM between stage
-runners, publishes a terminal `interrupted` summary and blocks an unstarted
-check before releasing the product lock. The coordinator never starts the next
-stage after the shared absolute deadline; the check receipt records
-`deadline_exhausted` instead. An unexpected stage-runner exception publishes an
-`error` stage receipt and a terminal sequence receipt; a build-stage exception
-also publishes the correlated `blocked` check receipt.
+before the stage starts. Each launched stage receipt records the hard-deadline
+budget assigned by the coordinator. The coordinator owns SIGINT and SIGTERM
+between stage runners, publishes a terminal `interrupted` summary and blocks an
+unstarted check before releasing the product lock. The coordinator never starts
+the next stage after the shared absolute deadline; the check receipt records
+`deadline_exhausted` instead. An unexpected stage-runner exception publishes
+an `error` stage receipt and a terminal sequence receipt; a build-stage
+exception also publishes the correlated `blocked` check receipt.
 The internal `build`, `distribution`, `flash`, `kernel` and `check` targets
 remain direct recursive-make surfaces.
 The runner forwards live bmake or GNU make jobserver pipe descriptors named by
@@ -61,9 +62,9 @@ rejected by the full terminal queue; the durable log retains those bytes.
 SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
 and every exit path after launch terminates and reaps the owned process group.
 Immediately before timeout or signal termination, the log records a bounded
-process-tree snapshot with process, parent, group, session, state, elapsed,
-CPU-time and command fields. The snapshot establishes the observed host process
-state at termination; the child log remains the authority for its own output.
+process-tree snapshot with process, parent, group, state, elapsed, CPU-time and
+command fields. The snapshot establishes the observed host process state at
+termination; the child log remains the authority for its own output.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a

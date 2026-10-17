@@ -75,6 +75,8 @@
 #define SYSUNS          26
 #define SYSMEM          27
 #define SYSTYPE         28
+#define SYSCOMMAND      30
+#define SYSGETOPTS      31
 
 /* used for input and output of shell */
 #define INIO            19
@@ -99,8 +101,10 @@
 #include "mac.h"
 #include "mode.h"
 #include "name.h"
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 /*      error catching */
 extern int              errno;
@@ -108,30 +112,149 @@ extern int              errno;
 /* result type declarations */
 
 #define free                             afree
-extern char                             *allat();
-extern char                             *make();
+extern void             addblok();
+extern void             afree();
 extern char             *alloc();
-extern void                              addblok();
-extern char                             *movstr();
-extern char                             *movstrn();
+extern int              any();
+extern void             assnum();
+extern void             assign();
+extern void             await();
+extern void             chktrap();
+extern void             clrsig();
+extern void             cmdfail();
+extern int              chkopen();
+extern void             chkpipe();
+extern void             chkpr();
+extern void             clear_buff();
+extern void             clearup();
+extern int              cf();
+extern BOOL             chkid();
 extern struct trenod    *cmd();
-extern struct trenod    *makefork();
-extern struct namnod    *lookup();
+extern void             copy();
+extern int              create();
+extern void             cwd();
+extern char             *cwdpath();
+extern void             dfault();
+extern _Noreturn void   done();
+extern int              echo();
+extern void             error();
+extern int              estabf();
+extern int              execa();
+extern int              execute();
+extern void             execexp();
+extern _Noreturn void   exitsh();
+extern int              expand();
+extern _Noreturn void   failed();
+extern _Noreturn void   failure();
 extern struct namnod    *findnam();
+extern int              findpath();
+extern void             flushb();
+extern void             freefunc();
+extern void             freetree();
+extern void             func_unhash();
+extern int              getarg();
+extern char             *getpath();
+extern void             getsig();
+extern int              gmatch();
+extern void             hash_func();
+extern short            hash_cmd();
+extern void             hashpr();
+extern void             hcreate();
+extern void             hscan();
+extern void             initf();
+extern int              initio();
+extern int              ignsig();
+extern void             itos();
+extern int              length();
+extern void             link_iodocs();
+extern char             *mactrim();
+extern char             *make();
+extern void             makearg();
+extern struct trenod    *makefork();
+extern char             *macro();
+extern char             *movstr();
+extern char             *movstrn();
+extern void             namscan();
+extern int              nextc();
+extern char             *nextpath();
+extern void             oldsigs();
+extern int              options();
+extern int              pathopen();
+extern short            pathlook();
+extern int              pop();
+extern int              poptemp();
+extern void             post();
+extern void             postclr();
+extern void             prc();
+extern void             prc_buff();
+extern void             prf();
+extern void             prn();
+extern void             prn_buff();
+extern void             prp();
+extern void             prprompt();
+extern void             prs();
+extern void             prs_buff();
+extern void             prs_cntl();
+extern void             prt();
+extern void             push();
+extern int              readc();
+extern int              readvar();
+extern void             rename();
+extern void             replace();
+extern void             reset_dir();
+extern void             restore();
+extern void             rmfunctmp();
+extern void             rmtemp();
+extern char             **scan();
+extern int              savefd();
+extern void             set_dotpath();
+extern void             setargs();
+extern char             *setbrk();
+extern char             **setenvv();
+extern void             setlist();
+extern void             setmail();
+extern void             setup_env();
+extern void             settmp();
+extern int              skipc();
+extern char             *simple();
+extern void             stakchk();
+extern void             stdsigs();
+extern int              stoi();
+extern void             subst();
+extern void             swap_iodoc_nm();
+extern int              syslook();
+extern void             tdystak();
+extern int              test();
+extern int              tmpfil();
+extern void             trim();
+extern void             unset_name();
+extern int              word();
+extern void             zapcd();
+extern void             zaphash();
+extern void             cwdprint();
+extern void             what_is_path();
+extern struct namnod    *lookup();
+struct command_env;
+extern struct command_env *command_beginlist();
+extern void             command_setlist();
+extern void             command_unwind_input();
+extern int              command_recovery_allowed();
+extern void             command_restorelist();
+extern void             command_name_changed();
+extern void             command_attribute_changed();
+extern void             getoptsreset();
+extern struct dolnod    *freeargs();
 extern struct dolnod    *useargs();
 extern float                    expr();
 extern char                             *catpath();
-extern char                             *getpath();
-extern char                             *nextpath();
-extern char                             **scan();
-extern char                             *mactrim();
-extern char                             *macro();
-extern char                             *cwdpath();
-extern int                              exname();
-extern int                              printnam();
-extern int                              printro();
-extern int                              printexp();
-extern char                             **setenvv();
+extern int                              special_builtin();
+extern short                            command_pathlook();
+extern int                              command_report();
+extern int                              execa_path();
+extern void                             exname();
+extern void                             printnam();
+extern void                             printro();
+extern void                             printexp();
 extern long                             time();
 
 #define attrib(n,f)             (n->namflg |= f)
@@ -283,7 +406,7 @@ extern unsigned                 brkincr;
 #define SIGMOD          8
 #define SIGCAUGHT	16
 
-extern void                             done();
+extern _Noreturn void                   done();
 extern void				fault();
 extern BOOL				trapnote;
 extern char				*trapcom[];
@@ -303,6 +426,7 @@ extern BOOL				execbrk;
 extern int				loopcnt;
 extern int				breakcnt;
 extern int				funcnt;
+extern jmp_buf				*command_errshell;
 
 /* messages */
 extern char				mailmsg[];

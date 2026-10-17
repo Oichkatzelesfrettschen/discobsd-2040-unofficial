@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "command-null-builtin",
+  "source": "bin/sh/msg.c",
+  "object": "msg.o",
+  "old": "\t{ \"command\",    SYSCOMMAND },",
+  "new": "\t{ \"command\",    SYSNULL },",
+  "snippet": "command echo hi",
+  "environment": {
+    ".MAKE.LEVEL.ENV": "MAKELEVEL"
+  },
+  "known_good": {
+    "stdout": "hi\n",
+    "exit_code": 0
+  },
+  "known_bad": {
+    "stdout": "",
+    "exit_code": 0
+  },
+  "caught_break": "command stops executing its operand"
+}

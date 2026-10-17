@@ -34,8 +34,9 @@ makefork(flgs, i)
 	return((struct trenod *)t);
 }
 
-static int
+static void
 prsym(sym)
+	int	sym;
 {
 	if (sym & SYMFLG)
 	{
@@ -58,7 +59,7 @@ prsym(sym)
 	}
 }
 
-static int
+static void
 synbad()
 {
 	prp();
@@ -85,7 +86,7 @@ makelist(type, i, r)
 	int	type;
 	struct trenod *i, *r;
 {
-	register struct lstnod *t;
+	register struct lstnod *t = (struct lstnod *)NIL;
 
 	if (i == NIL || r == NIL)
 		synbad();
@@ -107,8 +108,9 @@ skipnl()
 	return(wdval);
 }
 
-static int
+static void
 chksym(sym)
+	int	sym;
 {
 	register int	x = sym & wdval;
 
@@ -159,7 +161,7 @@ register int	esym;
 	}
 }
 
-static int
+static void
 chkword()
 {
 	if (word())
@@ -191,6 +193,7 @@ inout(lastio)
 			iof |= IOAPP;
 			break;
 		}
+		/* FALLTHROUGH */
 
 	case '<':
 		if ((c = nextc(0)) == '&')
@@ -353,6 +356,7 @@ item(flag)
 	default:
 		if (io == NIL)
 			return(NIL);
+		/* FALLTHROUGH */
 
 	case 0:
 		{
@@ -455,7 +459,7 @@ item(flag)
 	}
 	reserv++;
 	word();
-	if (io = inout(io))
+	if ((io = inout(io)))
 	{
 		r = makefork(0,r);
 		r->treio = io;
@@ -470,6 +474,7 @@ item(flag)
  */
 static struct trenod *
 term(flg)
+	int	flg;
 {
 	register struct trenod *t;
 
@@ -499,6 +504,7 @@ term(flg)
  */
 static struct trenod *
 list(flg)
+	int	flg;
 {
 	register struct trenod *r;
 	register int		b;
@@ -542,9 +548,10 @@ cmd(sym, flg)
 			i = makefork(FINT | FPRS | FAMP, i);
 		else
 			synbad();
+		/* FALLTHROUGH */
 
 	case ';':
-		if (e = cmd(sym, flg | MTFLG))
+		if ((e = cmd(sym, flg | MTFLG)))
 			i = makelist(TLST, i, e);
 		else if (i == NIL)
 			synbad();
@@ -553,6 +560,7 @@ cmd(sym, flg)
 	case EOFSYM:
 		if (sym == NL)
 			break;
+		/* FALLTHROUGH */
 
 	default:
 		if (sym)

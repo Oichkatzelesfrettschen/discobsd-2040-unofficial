@@ -241,18 +241,18 @@
         "shell options.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "shell a.out text and data",
           "shell peak stack",
           "144 KiB process-window occupancy",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/shell-command-getopts-growth-exception.md"
       },
-      "deciding_gate": "Reconcile the compact 4.4BSD cursor algorithm with the pinned modern FreeBSD transitions and current FreeBSD and NetBSD tests, then pass OPTIND, OPTARG, leading-colon, missing-operand, illegal-option, clustered-option, repeated-call, explicit-argument, and reset witnesses under host and ILP32 builds.",
-      "disposition": "candidate",
-      "residual": "Map the donor cursors onto the current shell variable and positional-parameter implementation and measure the linked shell."
+      "deciding_gate": "Re-run the OPTIND, OPTARG, leading-colon, missing-operand, illegal-option, clustered-option, repeated-call, explicit-argument, reset, cross-build, linked-shell, process-window, and packed-root witnesses after changes to the getopts state machine.",
+      "disposition": "promoted",
+      "residual": "The C17 rewrite and measured compatibility subset are promoted. Runtime peak shell stack and heap remain unmeasured, and the positive shell and packed-root deltas require the recorded independent growth-exception approval before merge."
     },
     {
       "id": "shell-command",
@@ -302,18 +302,18 @@
         "shell eval.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "shell a.out text and data",
           "shell peak stack",
           "144 KiB process-window occupancy",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/shell-command-getopts-growth-exception.md"
       },
-      "deciding_gate": "Pass reporting-order, function-shadowing execution, special-builtin execution, -p, -v, -V, failure-status, and diagnostic witnesses under host and ILP32 builds with a nonpositive linked-shell delta.",
-      "disposition": "candidate",
-      "residual": "Audit the current shell lookup graph and derive one shared reporting and execution path before implementation."
+      "deciding_gate": "Re-run reporting-order, function-shadowing execution, special-builtin execution, -p, -v, -V, failure-status, diagnostic, cross-build, linked-shell, process-window, and packed-root witnesses after changes to command lookup or dispatch.",
+      "disposition": "promoted",
+      "residual": "The shared lookup and dispatch mechanisms and measured compatibility subset are promoted. Runtime peak shell stack and heap remain unmeasured, and the positive shell and packed-root deltas require the recorded independent growth-exception approval before merge."
     },
     {
       "id": "utility-printf",

@@ -24,6 +24,40 @@ def main():
     rows = dpucp.parse_requirements(root / "docs/research/dpucp-2024-requirements.tsv")
     dpucp.validate_documents(root, corpus, entities, profile, rows)
 
+    expected_shell_witnesses = {
+        "shell-command-host-contract",
+        "shell-getopts-host-contract",
+    }
+    missing_shell_witnesses = expected_shell_witnesses - profile["witnesses"].keys()
+    if missing_shell_witnesses:
+        raise AssertionError(
+            "missing shell profile witnesses: "
+            + ", ".join(sorted(missing_shell_witnesses))
+        )
+    shell_rows = {
+        row["name"]: row
+        for row in rows
+        if row["requirement_id"] in {
+            "dpucp-2024:utility:command",
+            "dpucp-2024:utility:getopts",
+        }
+    }
+    for name, witness_id in (
+        ("command", "shell-command-host-contract"),
+        ("getopts", "shell-getopts-host-contract"),
+    ):
+        row = shell_rows[name]
+        if (
+            row["implementation"] != "partial"
+            or row["evidence"] != "host"
+            or row["residual"] != "open"
+            or row["witness"] != witness_id
+        ):
+            raise AssertionError(f"unbound shell compatibility witness: {name}")
+        witness = profile["witnesses"][witness_id]
+        if witness["known_good"] == witness["known_bad"]:
+            raise AssertionError(f"uncalibrated shell witness: {name}")
+
     expected_state_order = {
         "applicability": [
             "base",

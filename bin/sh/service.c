@@ -11,17 +11,19 @@
 
 extern char     *sysmsg[];
 extern short topfd;
+static void     gocsh();
 
 
 /*
  * service routines for `execute'
  */
+int
 initio(iop, save)
 	struct ionod    *iop;
 	int             save;
 {
 	register char   *ion;
-	register int    iof, fd;
+	register int    iof, fd = -1;
 	int             ioufd;
 	short   lastfd;
 
@@ -119,6 +121,7 @@ getpath(s)
 		return(cpystak(path));
 }
 
+int
 pathopen(path, name)
 register char *path, *name;
 {
@@ -222,7 +225,9 @@ register char   *t[];
 		 */
 
 		setargs(t);
+		command_errshell = NIL;
 		longjmp(subshell, 1);
+		return(prefix);
 
 	case ENOMEM:
 		failure(p, toobig, EXNOEXEC);
@@ -235,6 +240,7 @@ register char   *t[];
 
 	default:
 		xecmsg = badexec;
+		/* FALLTHROUGH */
 	case ENOENT:
 		return(prefix);
 	}
@@ -244,6 +250,14 @@ int     execa(at, pos)
 	char    *at[];
 	short pos;
 {
+	return(execa_path(at, pos, NIL));
+}
+
+int     execa_path(at, pos, search_path)
+	char    *at[];
+	short pos;
+	char    *search_path;
+{
 	register char   *path;
 	register char   **t = at;
 	int             cnt;
@@ -251,7 +265,7 @@ int     execa(at, pos)
 	if ((flags & noexec) == 0)
 	{
 		xecmsg = notfound;
-		path = getpath(*t);
+		path = search_path && !any('/', *t) ? search_path : getpath(*t);
 		xecenv = setenvv();
 
 		if (pos > 0)
@@ -263,20 +277,21 @@ int     execa(at, pos)
 				path = nextpath(path);
 			}
 			execs(path, t);
-			path = getpath(*t);
+			path = search_path && !any('/', *t) ? search_path : getpath(*t);
 		}
-		while (path = execs(path,t))
+		while ((path = execs(path,t)))
 			;
 		failure(*t, xecmsg,
 		    xecmsg == notfound ? EXNOTFOUND : EXNOEXEC);
 	}
+	return(0);
 }
 
+static void
 gocsh( t, cp, xecenv )
 	register char **t, *cp, **xecenv;
 {
 	char *newt[ 1000 ];
-	register char **p;
 	register int i;
 
 	for( i=0; t[i] ; i++ )
@@ -295,6 +310,7 @@ gocsh( t, cp, xecenv )
 static int      pwlist[MAXP];
 static int      pwc;
 
+void
 postclr()
 {
 	register int    *pw = pwlist;
@@ -304,6 +320,7 @@ postclr()
 	pwc = 0;
 }
 
+void
 post(pcsid)
 int     pcsid;
 {
@@ -321,6 +338,7 @@ int     pcsid;
 	}
 }
 
+void
 await(i, bckg)
 int     i, bckg;
 {
@@ -377,7 +395,7 @@ int     i, bckg;
 			continue;
 		}
 		w_hi = w.w_retcode;
-		if (sig = w.w_termsig)
+		if ((sig = w.w_termsig))
 		{
 			if (sig == 0177)        /* ptrace! return */
 			{
@@ -415,6 +433,7 @@ int     i, bckg;
 
 BOOL            nosubst;
 
+void
 trim(at)
 char    *at;
 {
@@ -423,13 +442,13 @@ char    *at;
 	register char   c;
 	register char   q = 0;
 
-	if (p = at)
+	if ((p = at))
 	{
 		ptr = p;
-		while (c = *p++)
+		while ((c = *p++))
 		{
 			/* @@@ if (*ptr = c & STRIP) */
-			if( *ptr = smask(c))
+			if ((*ptr = smask(c)))
 				++ptr;
 			q |= c;
 		}
@@ -450,7 +469,7 @@ char    *s;
 	return(t);
 }
 
-static int
+static void
 gsort(from, to)
 char    *from[], *to[];
 {
@@ -564,6 +583,7 @@ register char   *s;
 /*
  * Argument list generation
  */
+int
 getarg(ac)
 struct comnod   *ac;
 {
@@ -571,7 +591,7 @@ struct comnod   *ac;
 	register int            count = 0;
 	register struct comnod  *c;
 
-	if (c = ac)
+	if ((c = ac))
 	{
 		argp = c->comarg;
 		while (argp)

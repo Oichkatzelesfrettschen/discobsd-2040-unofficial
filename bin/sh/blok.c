@@ -18,7 +18,6 @@ struct blk *blokp;                      /*current search pointer*/
 struct blk *bloktop;            /* top of arena (last blok) */
 
 char            *brkbegin;
-char            *setbrk();
 
 char *
 alloc(nbytes)
@@ -38,7 +37,7 @@ alloc(nbytes)
 			{
 				while (!busy(q = p->word))
 					p->word = q->word;
-				if ((char *)q - (char *)p >= rbytes)
+				if ((unsigned)((char *)q - (char *)p) >= rbytes)
 				{
 					blokp = (struct blk *)((char *)p + rbytes);
 					if (q > blokp)

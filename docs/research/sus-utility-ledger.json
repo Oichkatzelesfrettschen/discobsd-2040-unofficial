@@ -236,15 +236,15 @@
         "check-posix-sh"
       ],
       "behavior_cases": {
-        "command": "bi_command",
-        "getopts": "bi_getopts"
+        "command": "bi_command_exec",
+        "getopts": "bi_getopts_simple"
       },
-      "kind": "bourne-builtin-absent",
+      "kind": "bourne-builtin-present",
       "names": [
         "command",
         "getopts"
       ],
-      "verification": "missing-name-with-recorded-xfails"
+      "verification": "builtin-name-with-bounded-behavior"
     },
     {
       "behavior_gates": [],

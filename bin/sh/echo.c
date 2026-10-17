@@ -9,7 +9,9 @@
 
 extern int exitval;
 
+int
 echo(argc, argv)
+int argc;
 char **argv;
 {
 	register char   *cp;

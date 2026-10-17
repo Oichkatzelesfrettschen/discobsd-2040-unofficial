@@ -8,6 +8,12 @@
 #include <sys/stat.h>
 #include <sys/dir.h>
 
+#ifdef SH_HOST_RAWDIR
+#define read_directory_block sh_host_getdents
+#else
+#define read_directory_block read
+#endif
+
 struct direct           *getdir();
 
 static char             entry[MAXNAMLEN+1];
@@ -16,7 +22,7 @@ static DIR dirbuf;
 
 #define XXX 0200
 
-static int
+static void
 addg(as1, as2, as3)
 char    *as1, *as2, *as3;
 {
@@ -25,7 +31,7 @@ char    *as1, *as2, *as3;
 
 	s2 = locstak() + BYTESPERWORD;
 	s1 = as1;
-	while (c = /* @@@ *s1++ */ cii(*s1++))
+	while ((c = /* @@@ *s1++ */ cii(*s1++)))
 	{
 		if (/* @@@ (c &= STRIP)*/ (c=smask(c)) == 0)
 		{
@@ -35,12 +41,13 @@ char    *as1, *as2, *as3;
 		*s2++ = c;
 	}
 	s1 = as2;
-	while (*s2 = *s1++)
+	while ((*s2 = *s1++))
 		s2++;
-	if (s1 = as3)
+	if ((s1 = as3))
 	{
 		*s2++ = '/';
-		while (*s2++ = *++s1);
+		while ((*s2++ = *++s1))
+			;
 	}
 	makearg(endstak(s2));
 }
@@ -54,8 +61,10 @@ char    *as1, *as2, *as3;
  * "[...a-z...]" in params matches a through z.
  *
  */
+int
 expand(as, rcnt)
 	char    *as;
+	int     rcnt;
 {
 	int     count, dirf;
 	BOOL    dir = 0;
@@ -99,6 +108,7 @@ expand(as, rcnt)
 			case ']':
 				if (open == 0)
 					continue;
+				/* FALLTHROUGH */
 
 			case '?':
 			case '*':
@@ -208,7 +218,7 @@ expand(as, rcnt)
 		register char   c;
 
 		s = as;
-		while (c = *s)
+		while ((c = *s))
 			/* @@@ *s++ = (c & STRIP ? c : '/'); */
 			*s++ = smask(c) ? c: '/';
 	}
@@ -216,6 +226,7 @@ expand(as, rcnt)
 }
 
 
+void
 reset_dir()
 {
 	dirbuf.dd_loc = 0;
@@ -230,11 +241,12 @@ reset_dir()
 
 struct direct *
 getdir(dirf)
+	int     dirf;
 {
 	struct direct *dp;
 	for (;;) {
 		if (dirbuf.dd_loc == 0) {
-			dirbuf.dd_size = read(dirf, dirbuf.dd_buf,
+			dirbuf.dd_size = read_directory_block(dirf, dirbuf.dd_buf,
 			    DIRBLKSIZ);
 			if (dirbuf.dd_size <= 0)
 				return NULL;
@@ -255,13 +267,14 @@ getdir(dirf)
 }
 
 
+int
 gmatch(s, p)
 register char   *s, *p;
 {
 	register int    scc;
 	char            c;
 
-	if (scc = /* @@@ *s++ */ cii( *s++))
+	if ((scc = /* @@@ *s++ */ cii( *s++)))
 	{
 		if ( /* @@@ (scc &= STRIP) */  smask(scc) == 0)
 			scc=XXX;
@@ -281,7 +294,7 @@ register char   *s, *p;
 				notflag = 1;
 				p++;
 			}
-			while (c = /* @@@ *p++ */ cii(*p++))
+			while ((c = /* @@@ *p++ */ cii(*p++)))
 			{
 				if (c == ']')
 					return(ok ? gmatch(s, p) : 0);
@@ -325,6 +338,7 @@ register char   *s, *p;
 	default:
 		if (/* @@@ (c & STRIP)*/ ismask(c) != scc)
 			return(0);
+		/* FALLTHROUGH */
 
 	case '?':
 		return(scc ? gmatch(s, p) : 0);
@@ -348,6 +362,7 @@ register char   *s, *p;
 	}
 }
 
+void
 makearg(args)
 	register struct argnod *args;
 {

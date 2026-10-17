@@ -5,15 +5,333 @@
  */
 #include "defs.h"
 #include <errno.h>
+#include <sys/stat.h>
+#include <sys/times.h>
 #include "sym.h"
 #include "hash.h"
 
 static int      parent;
+static int      getopts_index = 1;
+static int      getopts_offset;
+static void     execprint();
+extern short    topfd;
+
+#define COMMAND_EXECUTE 0
+#define COMMAND_SMALL_V 1
+#define COMMAND_BIG_V 2
+#define COMMAND_EMPTY 3
+#define COMMAND_BAD -1
+
+void
+getoptsreset(value)
+	char *value;
+{
+	while (*value == '0')
+		value++;
+	if (value[0] == '1' && value[1] == 0)
+	{
+		getopts_index = 1;
+		getopts_offset = 0;
+	}
+}
+
+static int
+getopts_assign(name, value)
+	char *name;
+	char *value;
+{
+	struct namnod *node;
+
+	node = lookup(name);
+	if (node == &mchknod && !digit(value[0]))
+	{
+		prs("getopts");
+		prs(colon);
+		prs(name);
+		prs(colon);
+		prs(badnum);
+		newline();
+		return(0);
+	}
+	assign(node, value);
+	return(1);
+}
+
+static int
+getopts_assignable(name)
+	char *name;
+{
+	struct namnod *node;
+	char *reason;
+
+	reason = NIL;
+	if (!chkid(name))
+		reason = notid;
+	else if ((node = findnam(name)) && (node->namflg & N_RDONLY))
+		reason = wtfailed;
+	if (reason == NIL)
+		return(1);
+	prs("getopts");
+	prs(colon);
+	prs(name);
+	prs(colon);
+	prs(reason);
+	newline();
+	return(0);
+}
+
+static void
+getopts_publish_index()
+{
+	if (getopts_index == 1)
+		return;
+	itos(getopts_index);
+	assign(lookup("OPTIND"), numbuf);
+}
+
+static int
+getopts_finish(name)
+	char *name;
+{
+	if (!getopts_assign(name, "?"))
+		return(2);
+	unset_name("OPTARG");
+	getopts_publish_index();
+	return(1);
+}
+
+static int
+getopts_builtin(argn, arguments)
+	int argn;
+	char **arguments;
+{
+	char **option_arguments;
+	char *option_string;
+	char *argument;
+	char *match;
+	char *diagnostic = NIL;
+	char result[2];
+	int argument_count;
+	int option;
+	int silent;
+
+	if (argn < 3)
+	{
+		prs("getopts: usage: getopts optstring name [arg ...]\n");
+		return(2);
+	}
+	if (!getopts_assignable(arguments[2]) ||
+	    !getopts_assignable("OPTIND") ||
+	    !getopts_assignable("OPTARG"))
+		return(2);
+	option_string = arguments[1];
+	silent = option_string[0] == ':';
+	match = option_string + silent;
+	if (argn > 3)
+	{
+		option_arguments = &arguments[3];
+		argument_count = argn - 3;
+	}
+	else
+	{
+		option_arguments = &dolv[1];
+		argument_count = dolc;
+	}
+
+	if (getopts_offset < 0)
+		return(getopts_finish(arguments[2]));
+	if (getopts_offset == 0)
+	{
+		if (getopts_index > argument_count)
+		{
+			getopts_offset = -1;
+			return(getopts_finish(arguments[2]));
+		}
+		argument = option_arguments[getopts_index - 1];
+		if (argument[0] != '-' || argument[1] == 0)
+		{
+			getopts_offset = -1;
+			return(getopts_finish(arguments[2]));
+		}
+		getopts_index++;
+		if (argument[1] == '-' && argument[2] == 0)
+		{
+			getopts_offset = -1;
+			return(getopts_finish(arguments[2]));
+		}
+		getopts_offset = 1;
+	}
+	argument = option_arguments[getopts_index - 2];
+	option = argument[getopts_offset++];
+	if (argument[getopts_offset] == 0)
+		getopts_offset = 0;
+	result[0] = option;
+
+	while (*match && *match != option)
+	{
+		match++;
+		if (*match == ':')
+			match++;
+	}
+	if (*match == 0 || option == ':')
+	{
+		result[0] = '?';
+		if (silent)
+		{
+			char option_argument[2];
+
+			option_argument[0] = option;
+			option_argument[1] = 0;
+			getopts_assign("OPTARG", option_argument);
+		}
+		else
+		{
+			unset_name("OPTARG");
+			diagnostic = "illegal option -- ";
+		}
+	}
+	else if (match[1] == ':')
+	{
+		if (getopts_offset)
+		{
+			getopts_assign("OPTARG", &argument[getopts_offset]);
+			getopts_offset = 0;
+		}
+		else if (getopts_index <= argument_count)
+			getopts_assign("OPTARG", option_arguments[getopts_index++ - 1]);
+		else
+		{
+			char option_argument[2];
+
+			option_argument[0] = option;
+			option_argument[1] = 0;
+			result[0] = silent ? ':' : '?';
+			if (silent)
+				getopts_assign("OPTARG", option_argument);
+			else
+			{
+				unset_name("OPTARG");
+				diagnostic = "option requires an argument -- ";
+			}
+		}
+	}
+	else
+	{
+		result[0] = option;
+		unset_name("OPTARG");
+	}
+	if (diagnostic)
+	{
+		prs("getopts: ");
+		prs(diagnostic);
+		prc(option);
+		prc(NL);
+	}
+	result[1] = 0;
+	if (!getopts_assign(arguments[2], result))
+		return(2);
+	getopts_publish_index();
+	return(0);
+}
+
+static int
+command_options(argn, arguments, first, standard_path)
+	int argn;
+	char **arguments;
+	int *first;
+	int *standard_path;
+{
+	int index = 1;
+	int mode = COMMAND_EXECUTE;
+	char *option;
+
+	*standard_path = 0;
+	while (index < argn && arguments[index][0] == '-' &&
+	    arguments[index][1] != 0)
+	{
+		option = &arguments[index][1];
+		if (option[0] == '-' && option[1] == 0)
+		{
+			index++;
+			break;
+		}
+		while (*option)
+		{
+			if (*option == 'p')
+				*standard_path = 1;
+			else if (*option == 'v')
+				mode = COMMAND_SMALL_V;
+			else if (*option == 'V')
+				mode = COMMAND_BIG_V;
+			else
+				return(COMMAND_BAD);
+			option++;
+		}
+		index++;
+	}
+	*first = index;
+	if (index == argn)
+		return(mode == COMMAND_EXECUTE ? COMMAND_EMPTY : COMMAND_BAD);
+	if (mode != COMMAND_EXECUTE && index + 1 != argn)
+		return(COMMAND_BAD);
+	return(mode);
+}
+
+struct command_context
+{
+	jmp_buf error;
+	jmp_buf *previous;
+	struct command_context *previous_context;
+	struct command_env *environment;
+	struct fileblk *input_checkpoint;
+	char *path;
+	short io;
+	short wrapped;
+	short recoverable;
+	int saved_loopcnt;
+	int saved_breakcnt;
+	BOOL saved_execbrk;
+};
+
+static struct command_context *command_current;
+
+#define ERREXIT_SUPPRESSED (-1)
+#define ERREXIT_CONTEXT(errorflg) \
+	((errorflg) < 0 ? ERREXIT_SUPPRESSED : (errorflg) | eflag)
+
+int
+command_recovery_allowed()
+{
+	return(command_current && command_current->recoverable);
+}
+
+void
+command_unwind_input()
+{
+	if (command_current == NIL)
+		return;
+	while (standin != command_current->input_checkpoint && pop())
+		;
+}
+
+static void
+command_context_end(context)
+	struct command_context *context;
+{
+	if (context->environment)
+		command_restorelist(context->environment);
+	command_errshell = context->previous;
+	command_current = context->previous_context;
+	free(context);
+}
 
 /* ========     command execution       ========*/
 
+int
 execute(argt, exec_link, errorflg, pf1, pf2)
 struct trenod   *argt;
+volatile int exec_link;
+int     errorflg;
 int     *pf1, *pf2;
 {
 	/*
@@ -23,16 +341,17 @@ int     *pf1, *pf2;
 	char            *sav = savstak();
 
 	sigchk();
-	if (!errorflg)
+	if (errorflg <= 0)
 		flags &= ~errflg;
 
 	if ((t = argt) && execbrk == 0)
 	{
 		register int    treeflgs;
-		int                     type;
+		volatile int            type;
 		register char   **com;
-		short                   pos;
-		int                     linked;
+		struct command_context *volatile command_state = NIL;
+		volatile short          pos;
+		volatile int            linked;
 		int                     execflg;
 
 		linked = exec_link >> 1;
@@ -52,6 +371,7 @@ int     *pf1, *pf2;
 
 				if (n->namflg & N_RDONLY)
 					failed(n->namid, wtfailed);
+				command_name_changed(n);
 
 				if (n->namflg & N_FUNCTN)
 					freefunc(n);
@@ -76,10 +396,11 @@ int     *pf1, *pf2;
 		case TCOM:
 			{
 				char    *a1;
-				int     argn, internal;
+				volatile int argn;
+				int     internal;
 				struct argnod   *schain = gchain;
-				struct ionod    *io = t->treio;
-				short   cmdhash;
+				struct ionod *volatile io = t->treio;
+				short   cmdhash = 0;
 				short   comtype;
 
 				exitval = 0;
@@ -93,7 +414,9 @@ int     *pf1, *pf2;
 				if (argn != 0)
 					cmdhash = pathlook(com[0], 1, comptr(t)->comset);
 
-				if (argn == 0 || (comtype = hashtype(cmdhash)) == BUILTIN)
+				if (argn == 0 ||
+				    ((comtype = hashtype(cmdhash)) == BUILTIN &&
+				    hashdata(cmdhash) != SYSCOMMAND))
 					setlist(comptr(t)->comset, 0);
 
 				if (argn && (flags&noexec) == 0)
@@ -103,8 +426,14 @@ int     *pf1, *pf2;
 					if (flags & execpr)
 						execprint(com);
 
+					command_dispatch:
 					if (comtype == NOTFOUND)
 					{
+						if (command_state && command_state->wrapped)
+						{
+							command_state->io = topfd;
+							initio(io, 1);
+						}
 						pos = hashdata(cmdhash);
 						if (pos == 1)
 							cmdfail(*com, notfound, EXNOTFOUND);
@@ -112,6 +441,16 @@ int     *pf1, *pf2;
 							cmdfail(*com, badexec, EXNOEXEC);
 						else
 							cmdfail(*com, badperm, EXNOEXEC);
+						if (command_state && command_state->io >= 0)
+						{
+							restore(command_state->io);
+							command_state->io = -1;
+						}
+						if (command_state)
+						{
+							command_context_end(command_state);
+							command_state = NIL;
+						}
 						break;
 					}
 
@@ -128,9 +467,116 @@ int     *pf1, *pf2;
 					else if (comtype == BUILTIN)
 					{
 						short index;
+							int command_catch;
 
 						internal = hashdata(cmdhash);
+							if (internal == SYSCOMMAND)
+							{
+								int first;
+								int standard_path;
+								int mode;
+
+								if (!command_state)
+								{
+									command_state = (struct command_context *)
+									    alloc(sizeof *command_state);
+									command_state->previous = command_errshell;
+									command_state->previous_context = command_current;
+									command_state->environment = NIL;
+									command_state->input_checkpoint = standin;
+									command_state->path = NIL;
+									command_state->io = -1;
+									command_state->wrapped = 0;
+									command_state->recoverable = 1;
+									command_state->saved_loopcnt = loopcnt;
+									command_state->saved_breakcnt = breakcnt;
+									command_state->saved_execbrk = execbrk;
+									command_current = command_state;
+									command_errshell = &command_state->error;
+									if (setjmp(command_state->error))
+									{
+										loopcnt = command_state->saved_loopcnt;
+										breakcnt = command_state->saved_breakcnt;
+										execbrk = command_state->saved_execbrk;
+										if (command_state->io >= 0)
+											restore(command_state->io);
+										command_context_end(command_state);
+										command_state = NIL;
+										flushb();
+										chktrap();
+										break;
+									}
+									command_state->environment = command_beginlist();
+									command_state->recoverable = 0;
+									command_setlist(command_state->environment,
+									    comptr(t)->comset);
+									command_state->recoverable = 1;
+								}
+								mode = command_options(argn, com, &first,
+								    &standard_path);
+								if (mode == COMMAND_BAD)
+								{
+									command_state->io = topfd;
+									initio(io, 1);
+									prs("command");
+									prs(colon);
+									prs(badopt);
+									newline();
+									exitval = EXNOTFOUND;
+									flushb();
+									restore(command_state->io);
+									command_state->io = -1;
+									command_context_end(command_state);
+									command_state = NIL;
+									chktrap();
+									break;
+								}
+								if (mode == COMMAND_EMPTY)
+								{
+									command_state->io = topfd;
+									initio(io, 1);
+									exitval = 0;
+									restore(command_state->io);
+									command_state->io = -1;
+									command_context_end(command_state);
+									command_state = NIL;
+									break;
+								}
+								if (!any('/', com[first]))
+								{
+									if (standard_path)
+										command_state->path = defpath + 1;
+									else if (command_state->path == NIL)
+										command_state->path = getpath(com[first]);
+								}
+								if (mode == COMMAND_SMALL_V ||
+								    mode == COMMAND_BIG_V)
+								{
+									command_state->io = topfd;
+									initio(io, 1);
+									exitval = command_report(com[first],
+									    mode == COMMAND_BIG_V, command_state->path);
+									flushb();
+									restore(command_state->io);
+									command_state->io = -1;
+									command_context_end(command_state);
+									command_state = NIL;
+									chktrap();
+									break;
+								}
+								com += first;
+								argn -= first;
+								a1 = com[1];
+								command_state->wrapped = 1;
+								cmdhash = command_pathlook(com[0],
+								    command_state->path);
+								comtype = hashtype(cmdhash);
+								goto command_dispatch;
+							}
+							if (command_state)
+								command_state->io = topfd;
 						index = initio(io, (internal != SYSEXEC));
+							command_catch = command_state != NIL;
 
 						switch (internal)
 						{
@@ -148,12 +594,12 @@ int     *pf1, *pf2;
 
 						case SYSTIMES:
 							{
-								long int t[4];
+									struct tms t;
 
-								times(t);
-								prt(t[2]);
+									times(&t);
+									prt(t.tms_cutime);
 								prc_buff(SP);
-								prt(t[3]);
+									prt(t.tms_cstime);
 								prc_buff(NL);
 							}
 							break;
@@ -240,13 +686,20 @@ int     *pf1, *pf2;
 							{
 								break;
 							}
+							if (command_state)
+								command_state->recoverable = 0;
+							/* FALLTHROUGH */
 
 						case SYSLOGIN:
+							if (command_state)
+								command_state->recoverable = 0;
 							oldsigs();
 							execa(com, -1);
 							done();
 
 						case SYSNEWGRP:
+							if (command_state)
+								command_state->recoverable = 0;
 							if (flags & rshflg)
 								failed(com[0], restricted);
 							else
@@ -270,7 +723,8 @@ int     *pf1, *pf2;
 								     *a1 == '/' ||
 								     cf(a1, ".") == 0 ||
 								     cf(a1, "..") == 0 ||
-								     (*a1 == '.' && (a1[1] == '/' || a1[1] == '.' && a1[2] == '/')))
+							     (*a1 == '.' &&
+							     (a1[1] == '/' || (a1[1] == '.' && a1[2] == '/'))))
 									cdpath = nullstr;
 
 								do
@@ -356,7 +810,12 @@ int     *pf1, *pf2;
 							if (a1)
 							{
 								while (*++com)
-									attrib(lookup(*com), N_RDONLY);
+								{
+									struct namnod *node = lookup(*com);
+
+									command_attribute_changed(node, N_RDONLY);
+									attrib(node, N_RDONLY);
+								}
 							}
 							else
 								namscan(printro);
@@ -376,7 +835,10 @@ int     *pf1, *pf2;
 										if (n->namflg & N_FUNCTN)
 											error(badexport);
 										else
+									{
+										command_attribute_changed(n, N_EXPORT);
 											attrib(n, N_EXPORT);
+									}
 									}
 								}
 								else
@@ -529,6 +991,10 @@ int     *pf1, *pf2;
 							}
 							break;
 
+							case SYSGETOPTS:
+								exitval = getopts_builtin(argn, com);
+								break;
+
 						case SYSUNS:
 							exitval = 0;
 							if (a1)
@@ -545,6 +1011,13 @@ int     *pf1, *pf2;
 
 						flushb();
 						restore(index);
+						if (command_state)
+							command_state->io = -1;
+						if (command_catch)
+						{
+							command_context_end(command_state);
+							command_state = NIL;
+						}
 						chktrap();
 						break;
 					}
@@ -553,13 +1026,32 @@ int     *pf1, *pf2;
 					{
 						struct namnod *n;
 						short index;
+						jmp_buf function_context;
+						jmp_buf *previous_command_context;
 
 						n = findnam(com[0]);
 
 						funcnt++;
+						if (command_state)
+							command_state->io = topfd;
 						index = initio(io, 1);
 						setargs(com);
+						previous_command_context = command_errshell;
+						if (previous_command_context)
+						{
+							command_errshell = &function_context;
+							if (setjmp(function_context))
+							{
+								command_errshell = previous_command_context;
+								execbrk = 0;
+								restore(index);
+								funcnt--;
+								longjmp(*previous_command_context, 1);
+							}
+						}
 						execute((struct trenod *)(n->namenv), exec_link, errorflg, pf1, pf2);
+						if (previous_command_context)
+							command_errshell = previous_command_context;
 						execbrk = 0;
 						restore(index);
 						funcnt--;
@@ -574,6 +1066,7 @@ int     *pf1, *pf2;
 				}
 
 			}
+			/* FALLTHROUGH */
 
 		case TFORK:
 			exitval = 0;
@@ -635,6 +1128,11 @@ int     *pf1, *pf2;
 					post(parent);
 				else
 					assnum(&pcsadr, parent);
+				if (command_state)
+				{
+					command_context_end(command_state);
+					command_state = NIL;
+				}
 				chktrap();
 				break;
 			}
@@ -703,9 +1201,13 @@ int     *pf1, *pf2;
 				else if (com[0] != ENDARGS)
 				{
 					eflag = 0;
-					setlist(comptr(t)->comset, N_EXPORT);
+					if (command_state)
+						command_state->recoverable = 0;
+					if (!command_state)
+						setlist(comptr(t)->comset, N_EXPORT);
 					rmtemp(NIL);
-					execa(com, pos);
+					execa_path(com, pos,
+					    command_state ? command_state->path : NIL);
 				}
 				done();
 			}
@@ -727,18 +1229,21 @@ int     *pf1, *pf2;
 			break;
 
 		case TLST:
-			execute(lstptr(t)->lstlef, 0, errorflg);
-			execute(lstptr(t)->lstrit, exec_link, errorflg);
+			execute(lstptr(t)->lstlef, 0, ERREXIT_CONTEXT(errorflg));
+			execute(lstptr(t)->lstrit, exec_link,
+			    ERREXIT_CONTEXT(errorflg));
 			break;
 
 		case TAND:
-			if (execute(lstptr(t)->lstlef, 0, 0) == 0)
-				execute(lstptr(t)->lstrit, exec_link, errorflg);
+			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED) == 0)
+				execute(lstptr(t)->lstrit, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			break;
 
 		case TORF:
-			if (execute(lstptr(t)->lstlef, 0, 0) != 0)
-				execute(lstptr(t)->lstrit, exec_link, errorflg);
+			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED) != 0)
+				execute(lstptr(t)->lstrit, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			break;
 
 		case TFOR:
@@ -782,9 +1287,12 @@ int     *pf1, *pf2;
 				int     i = 0;
 
 				loopcnt++;
-				while (execbrk == 0 && (execute(whptr(t)->whtre, 0, 0) == 0) == (type == TWH))
+				while (execbrk == 0 &&
+				    (execute(whptr(t)->whtre, 0, ERREXIT_SUPPRESSED) == 0) ==
+				    (type == TWH))
 				{
-					i = execute(whptr(t)->dotre, 0, errorflg);
+					i = execute(whptr(t)->dotre, 0,
+					    ERREXIT_CONTEXT(errorflg));
 					if (breakcnt < 0)
 						execbrk = (++breakcnt != 0);
 				}
@@ -797,10 +1305,12 @@ int     *pf1, *pf2;
 			break;
 
 		case TIF:
-			if (execute(ifptr(t)->iftre, 0, 0) == 0)
-				execute(ifptr(t)->thtre, exec_link, errorflg);
+			if (execute(ifptr(t)->iftre, 0, ERREXIT_SUPPRESSED) == 0)
+				execute(ifptr(t)->thtre, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			else if (ifptr(t)->eltre)
-				execute(ifptr(t)->eltre, exec_link, errorflg);
+				execute(ifptr(t)->eltre, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			else
 				exitval = 0;    /* force zero exit for if-then-fi */
 			break;
@@ -842,6 +1352,7 @@ int     *pf1, *pf2;
 	return(exitval);
 }
 
+void
 execexp(s, f)
 char    *s;
 int     f;
@@ -860,6 +1371,7 @@ int     f;
 	pop();
 }
 
+static void
 execprint(com)
 	char **com;
 {

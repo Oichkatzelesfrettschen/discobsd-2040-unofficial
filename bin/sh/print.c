@@ -25,6 +25,7 @@ extern void     prn_buff();
 /*
  * printing and io conversion
  */
+void
 prp()
 {
 	if ((flags & prompt) == 0 && cmdadr)
@@ -34,23 +35,26 @@ prp()
 	}
 }
 
+void
 prs(as)
 char    *as;
 {
 	register char   *s;
 
-	if (s = as)
+	if ((s = as))
 		write(output, s, length(s) - 1);
 }
 
 /* print a prompt */
 /* it's a subject for future expansion @@@ */
+void
 prprompt(as)
 char *as;
 {
 	prs(as);
 }
 
+void
 prc(c)
 char    c;
 {
@@ -58,6 +62,7 @@ char    c;
 		write(output, &c, 1);
 }
 
+void
 prt(t)
 long    t;
 {
@@ -76,7 +81,7 @@ long    t;
 	t /= HZ;
 	min = t % hz;
 
-	if (hr = t / hz)
+	if ((hr = t / hz))
 	{
 		prn_buff(hr);
 		prc_buff('h');
@@ -88,6 +93,7 @@ long    t;
 	prc_buff('s');
 }
 
+void
 prn(n)
 	int     n;
 {
@@ -102,6 +108,7 @@ prn(n)
  * unsigned int holds, so a process id or line number at or above 100000
  * keeps its leading digits instead of folding them into one byte.
  */
+void
 itos(n)
 	int	n;
 {
@@ -122,6 +129,7 @@ itos(n)
 	*abuf++ = 0;
 }
 
+int
 stoi(icp)
 char    *icp;
 {
@@ -140,6 +148,7 @@ char    *icp;
 		return(r);
 }
 
+void
 prl(n)
 long n;
 {
@@ -203,6 +212,7 @@ prs_buff(s)
 }
 
 
+void
 clear_buff()
 {
 	index = 0;

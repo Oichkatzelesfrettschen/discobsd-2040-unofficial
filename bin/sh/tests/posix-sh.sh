@@ -33,11 +33,14 @@ WORK=$OUT/work
 SOURCES="setbrk blok stak cmd fault main word string name args xec service
 	error io print macro ctype msg test defs echo hash hashserv pwd func pwname"
 
-CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h"
+CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h
+	-D_FILE_OFFSET_BITS=64 -DSH_HOST_COMMAND_ALLOC_FAILURE"
 
 # blok.c defines global alloc() and free(); rename both so a libc
 # internal free() never lands in the shell's own arena walker.
-CFLAGS="$CFLAGS -Dalloc=sh_alloc -Dfree=sh_free"
+# The shell also owns a global variable named tmpnam; rename that host symbol
+# so glibc's link-warning section does not mistake it for tmpnam(3) use.
+CFLAGS="$CFLAGS -Dalloc=sh_alloc -Dfree=sh_free -Dtmpnam=sh_tmpnam"
 
 build()
 {
@@ -53,11 +56,30 @@ build()
 		exit 2
 	fi
 
+	$HOST_CC -m32 -std=gnu17 -Wall -Wextra -Werror \
+	    -D_FILE_OFFSET_BITS=64 \
+	    -c -o "$OUT/hostshim.o" "$SRCDIR/hostshim.c"
+	mkdir "$WORK/dir-layout"
+	: > "$WORK/dir-layout/abcde"
+
+	# The getdents64 adapter and every consumer must agree on a directory
+	# record layout that preserves Linux inode and offset widths.
+	# shellcheck disable=SC2086
+	$HOST_CC $CFLAGS -Wall -Wextra -Werror \
+	    -o "$OUT/hostshim_layout_test" \
+	    "$SRCDIR/hostshim_layout_test.c" "$OUT/hostshim.o"
+	"$OUT/hostshim_layout_test" "$WORK/dir-layout"
+
 	# expand.c reads directory blocks itself; give it a complete DIR and
 	# route its one read(2) call at hostshim.c.
 	# shellcheck disable=SC2086
-	$HOST_CC $CFLAGS -DSH_HOST_RAWDIR -Dread=sh_host_getdents \
+	$HOST_CC $CFLAGS -DSH_HOST_RAWDIR \
 	    -c -o "$OUT/expand.o" "$SHSRC/expand.c"
+	if ! nm -u "$OUT/expand.o" | \
+	    grep -Eq '[[:space:]]U[[:space:]]+sh_host_getdents$'; then
+		echo "ERROR build: expand.o bypasses sh_host_getdents." >&2
+		exit 3
+	fi
 	# edit.c already carries a termios path for its own host test.
 	# shellcheck disable=SC2086
 	$HOST_CC $CFLAGS -DHOSTBUILD -c -o "$OUT/edit.o" "$SHSRC/edit.c"
@@ -65,7 +87,6 @@ build()
 		# shellcheck disable=SC2086
 		$HOST_CC $CFLAGS -c -o "$OUT/$unit.o" "$SHSRC/$unit.c"
 	done
-	$HOST_CC -m32 -w -c -o "$OUT/hostshim.o" "$SRCDIR/hostshim.c"
 	$HOST_CC -m32 -o "$SH" "$OUT"/*.o
 }
 
@@ -81,6 +102,27 @@ rc=0
 _run()
 {
 	if out=$(cd "$WORK" && "$SH" -c "$1" < /dev/null 2>&1); then
+		rc=0
+	else
+		rc=$?
+	fi
+}
+
+# _run_stdin SCRIPT -- runs a complete script through the shell input stack.
+_run_stdin()
+{
+	if out=$(cd "$WORK" && printf '%s\n' "$1" | "$SH" 2>&1); then
+		rc=0
+	else
+		rc=$?
+	fi
+}
+
+# _run_command_alloc_failure SNIPPET -- fails command environment allocation.
+_run_command_alloc_failure()
+{
+	if out=$(cd "$WORK" && SH_TEST_COMMAND_BEGINLIST_FAIL=1 \
+	    "$SH" -c "$1" < /dev/null 2>/dev/null); then
 		rc=0
 	else
 		rc=$?
@@ -112,6 +154,34 @@ okrc()
 		fail=$((fail + 1))
 		failed="$failed $1"
 		echo "FAIL $1: want [$2] rc $3, got [$out] rc $rc"
+	fi
+}
+
+# okstdin NAME EXPECTED SCRIPT
+okstdin()
+{
+	_run_stdin "$3"
+	if [ "$out" = "$2" ] && [ "$rc" -eq 0 ]; then
+		pass=$((pass + 1))
+		echo "PASS $1"
+	else
+		fail=$((fail + 1))
+		failed="$failed $1"
+		echo "FAIL $1: want [$2] rc 0, got [$out] rc $rc"
+	fi
+}
+
+# okalloc NAME EXPECTED SNIPPET
+okalloc()
+{
+	_run_command_alloc_failure "$3"
+	if [ "$out" = "$2" ] && [ "$rc" -eq 0 ]; then
+		pass=$((pass + 1))
+		echo "PASS $1"
+	else
+		fail=$((fail + 1))
+		failed="$failed $1"
+		echo "FAIL $1: want [$2] rc 0, got [$out] rc $rc"
 	fi
 }
 
@@ -272,12 +342,11 @@ ok status_not_found_or_list \
     'nosuchcmd_xyz 2>/dev/null || echo yes: nosuchcmd_xyz: not found
 yes' \
     'nosuchcmd_xyz 2>/dev/null || echo yes'
-# set -e does not act in this shell (opt_e_exits_on_error below), and a
-# command not found is no exception; cmdfail() defers to failure() under
-# errflg, so this row moves the day set -e itself does.
-xfail status_not_found_errexit 2.8.1 \
+# A command not found is no exception to set -e; cmdfail() defers to
+# failure() under errflg.
+okrc status_not_found_errexit \
     'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached: nosuchcmd_xyz: not found' \
-    'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached'
+    127 'set -e; nosuchcmd_xyz 2>/dev/null; echo not-reached'
 
 # ---- XCU 2.8.2 exit status ----
 ok status_exit_value '7' 'sh -c "exit 7" > /dev/null 2>&1 || echo $?'
@@ -304,7 +373,7 @@ ok cmd_if_elif 'e' 'if false; then echo t; elif true; then echo e; else echo f; 
 ok cmd_case 'm' 'case a in b) echo b;; a) echo m;; esac'
 ok cmd_case_star 'd' 'case zz in a) echo a;; *) echo d;; esac'
 ok cmd_function_args 'p' 'f(){ echo $1; }; f p'
-xfail func_beats_regular_builtin 2.9.1.1 'mycd' 'cd(){ echo mycd; }; cd /'
+ok func_beats_regular_builtin 'mycd' 'cd(){ echo mycd; }; cd /'
 ok cmd_break 'ok' 'for i in 1 2 3; do break; done; echo ok'
 ok cmd_continue '2' 'for i in 1 2; do case $i in 1) continue;; esac; echo $i; done'
 
@@ -338,8 +407,229 @@ ok bi_read 'rv' 'echo rv > f9; read v < f9; echo $v'
 ok bi_pwd_matches 'same' 'p=`pwd`; case $p in /*) echo same;; *) echo other;; esac'
 ok bi_umask 'ok' 'umask > /dev/null; echo ok'
 ok bi_type_builtin 'echo is a shell builtin' 'type echo'
-xfail bi_getopts 2.14 '0' 'set -- -a; getopts a o; echo $?'
-xfail bi_command 2.14 'hi' 'command echo hi'
+ok bi_type_special_builtin 'export is a special shell builtin' 'type export'
+ok bi_type_function 'fcmd is a function' 'fcmd(){ :; }; type fcmd'
+ok bi_type_keyword 'if is a shell keyword' 'type if'
+ok bi_type_hashed 'cat is hashed (/bin/cat)' \
+    'PATH=/bin:/usr/bin; hash cat; type cat'
+ok bi_type_missing 'nosuchcmd_xyz not found' 'type nosuchcmd_xyz'
+
+# command executes after removing only the function layer from lookup.  Its
+# reporting modes retain that layer so scripts can inspect the actual lookup
+# order without changing PATH or executing the result.
+ok bi_command_exec 'hi' 'command echo hi'
+ok bi_command_double_dash 'hi' 'command -- echo hi'
+ok bi_command_nested 'hi' 'command command echo hi'
+ok bi_command_nested_prefix_assignment 'hi
+old' \
+    'x=old; x=new command command echo hi; echo "$x"'
+okrc bi_command_nested_cleanup '' 1 \
+    '(command command :; export 1bad=x 2>/dev/null; echo unreachable)'
+ok bi_command_empty '0' 'command; echo $?'
+ok bi_command_bypass_function 'external' \
+    'echo "echo external" > fcmd; chmod 755 fcmd; PATH=.:/bin:/usr/bin; fcmd(){ echo function; }; command fcmd'
+ok bi_command_v_builtin 'echo' 'command -v echo'
+ok bi_command_V_builtin 'echo is a shell builtin' 'command -V echo'
+ok bi_command_V_special_builtin 'export is a special shell builtin' \
+    'command -V export'
+ok bi_command_function_beats_regular_builtin 'function
+wrapped' \
+    'echo(){ /bin/echo function; }; echo plain; command echo wrapped'
+ok bi_command_special_beats_function 'special' \
+    'command_order=special; export(){ echo function; }; export command_order; echo "$command_order"'
+ok bi_command_V_shadowed_builtin 'echo is a function' \
+    'echo(){ :; }; command -V echo'
+ok bi_command_v_function 'fcmd' 'fcmd(){ :; }; command -v fcmd'
+ok bi_command_V_function 'fcmd is a function' 'fcmd(){ :; }; command -V fcmd'
+ok bi_command_v_keyword 'if' 'command -v if'
+ok bi_command_V_keyword 'if is a shell keyword' 'command -V if'
+ok bi_command_v_path "$WORK/./xcmd" \
+    'echo "exit 0" > xcmd; chmod 755 xcmd; PATH=.:/bin:/usr/bin; command -v xcmd'
+ok bi_command_V_path "xcmd is $WORK/./xcmd" \
+    'echo "exit 0" > xcmd; chmod 755 xcmd; PATH=.:/bin:/usr/bin; command -V xcmd'
+ok bi_command_v_explicit_path "$WORK/./xcmd" 'command -v ./xcmd'
+ok bi_command_p_default_path 'ok' \
+    'echo "echo bad" > cat; chmod 755 cat; PATH=.; command -p cat /dev/null; echo ok'
+ok bi_command_p_preserves_path '.' \
+    'echo "echo bad" > cat; chmod 755 cat; PATH=.; command -p cat /dev/null; echo "$PATH"'
+ok bi_command_prefix_path 'prefix-path' \
+    'mkdir command-bin; echo "echo prefix-path" > command-bin/pathcmd; chmod 755 command-bin/pathcmd; PATH=command-bin command pathcmd'
+ok bi_command_p_overrides_prefix_path 'ok' \
+    'echo "echo bad" > cat; chmod 755 cat; PATH=. command -p cat /dev/null; echo ok'
+ok bi_command_v_missing '1' 'command -v nosuchcmd_xyz; echo $?'
+okrc bi_command_missing \
+    'command nosuchcmd_xyz: nosuchcmd_xyz: not found' 127 \
+    'command nosuchcmd_xyz'
+okrc bi_command_not_executable '' 126 \
+    'echo bad > noexec; chmod 644 noexec; command ./noexec 2>/dev/null'
+ok bi_command_regularizes_builtin_error 'after:1' \
+    'command export 1bad=x 2>/dev/null; status=$?; echo "after:$status"'
+okrc bi_command_errexit_builtin '' 1 \
+    'set -e; command export 1bad=x 2>/dev/null; echo after'
+okrc bi_command_errexit_missing '' 127 \
+    'set -e; command nosuchcmd_xyz 2>/dev/null; echo after'
+ok bi_command_errexit_and_context 'after' \
+    'set -e; command nosuchcmd_xyz 2>/dev/null && echo wrong; echo after'
+ok bi_command_errexit_or_context 'recovered
+after' \
+    'set -e; command nosuchcmd_xyz 2>/dev/null || echo recovered; echo after'
+ok bi_command_errexit_if_context 'after' \
+    'set -e; if command nosuchcmd_xyz 2>/dev/null; then echo wrong; fi; echo after'
+ok bi_errexit_function_and_context 'reached
+ok
+after' \
+    'set -e; f(){ :; false; echo reached; }; f && echo ok; echo after'
+ok bi_errexit_group_and_context 'reached
+ok
+after' \
+    'set -e; { :; false; echo reached; } && echo ok; echo after'
+ok bi_errexit_group_if_context 'reached
+after' \
+    'set -e; if { :; false; echo reached; }; then :; fi; echo after'
+ok bi_errexit_command_eval_or_context 'reached
+after' \
+    'set -e; command eval '\''false; echo reached'\'' || echo wrong; echo after'
+ok bi_errexit_while_context 'cond
+body
+after' \
+    'set -e; while { false; echo cond; }; do echo body; break; done; echo after'
+okrc bi_errexit_if_enables_option '' 1 \
+    'if set -e; then false; echo branch; fi; echo after'
+okrc bi_errexit_and_enables_option '' 1 \
+    'set -e && false; echo after'
+ok bi_command_subshell_builtin_error 'after:1' \
+    '(command export 1bad=x 2>/dev/null; echo "after:$?")'
+okrc bi_command_exec_failure_exits '' 127 \
+    'command exec /definitely-absent-shell-review 2>/dev/null; echo after'
+okrc bi_command_prefix_expansion_error \
+    'unset x; value=${x:?missing} command :; echo after: x: missing' 1 \
+    'unset x; value=${x:?missing} command :; echo after'
+ok bi_command_loop_unwind 'a
+end' \
+    'for outer in a b; do command eval '\''for inner in c; do shift bad; done'\'' 2>/dev/null; echo "$outer"; break 2; done; echo end'
+ok bi_command_v_skips_directory '/usr/bin/sh' \
+    'mkdir -p command-dir/sh; PATH=command-dir:/usr/bin; command -v sh'
+okrc bi_command_bad_option_continues 'after:127' 127 \
+    'command -z 2>/dev/null; status=$?; echo "after:$status"; exit $status'
+ok bi_command_missing_redirection 'after:127' \
+    'command nosuchcmd_xyz 2>/dev/null; echo "after:$?"'
+ok bi_command_external_missing_continues 'after:127' \
+    'command /definitely-absent-shell-review 2>/dev/null; echo "after:$?"'
+ok bi_command_enoexec_error_continues 'after:1' \
+    'echo "echo external" > command-no-shebang; chmod 755 command-no-shebang; echo(){ shift bad; }; command ./command-no-shebang 2>/dev/null; /bin/echo "after:$?"'
+ok bi_command_partial_redirection_unwind 'after' \
+    'command : > command-output 2>/dev/null </definitely-absent-shell-review; echo after'
+okstdin bi_command_nested_input_unwind 'after
+end' 'command eval "shift x" 2>/dev/null
+echo after
+echo end'
+okalloc bi_command_allocation_failure_unwind 'after:1' \
+    'command :; echo "after:$?"'
+ok bi_command_prefix_assignment 'hi
+old' \
+    'x=old; x=new command echo hi; echo "$x"'
+ok bi_command_prefix_expansion_snapshot 'changed' \
+    'x=; z=${x:=changed} x=temp command :; echo "$x"'
+ok bi_command_prefix_assignment_error 'old' \
+    'x=old; x=new command export 1bad=x 2>/dev/null; echo "$x"'
+ok bi_command_prefix_expands_once_builtin 'observed
+done' \
+    'x=`echo observed >&2` command :; echo done'
+ok bi_command_prefix_expands_once_external 'observed
+done' \
+    'x=`echo observed >&2` command /bin/true; echo done'
+okrc bi_command_partial_assignment_failure \
+    'x=old; MAILCHECK=abc x=new command :; echo "x=$x": abc: bad number' 1 \
+    'x=old; MAILCHECK=abc x=new command :; echo "x=$x"'
+ok bi_command_prefix_keeps_export 'temp
+old' \
+    'x=old; export x; x=temp command eval '\''/usr/bin/printenv x'\''; echo "$x"'
+ok bi_command_nested_p_default_path 'status:0' \
+    'PATH=/does-not-exist; command -p command cat /dev/null; echo status:$?'
+ok bi_command_special_effect_persists 'visible' \
+    'command_visible=visible; command export command_visible; sh -c "echo \$command_visible"'
+ok bi_command_prefix_export_effect 'old' \
+    'x=old; x=new command export x; sh -c "echo \$x"'
+ok bi_command_prefix_read_effect 'explicit' \
+    'echo explicit > command-input; x=old; x=temporary command read x < command-input; echo "$x"'
+ok bi_command_nested_prefix_read_effect 'explicit' \
+    'echo explicit > command-input; x=old; x=outer command eval '\''x=inner command read x < command-input'\''; echo "$x"'
+ok bi_command_prefix_readonly_effect 'old
+1' \
+    'x=old; x=new command readonly x; export x; sh -c "echo \$x"; (x=after) 2>/dev/null; echo "$?"'
+ok bi_command_prefix_unset_effect 'unset' \
+    'x=old; x=new command unset x; echo "${x-unset}"'
+ok bi_command_prefix_function_collision 'f is a function
+function
+unset' \
+    'f(){ echo function; }; f=new command export f; command -V f; f; sh -c '\''echo "${f-unset}"'\'''
+ok bi_command_eval_cleanup 'ok' \
+    'command eval "shift x" 2>/dev/null; command eval "echo ok"'
+okrc bi_command_function_cleanup '' 1 \
+    '(f(){ shift x; }; command eval f 2>/dev/null; return 7 2>/dev/null)'
+okrc bi_command_bad_option \
+    'command: bad option(s)' 127 \
+    '(command -z 2>command.err); status=$?; cat command.err; exit $status'
+
+# getopts publishes its cursor on every call.  The tests use literal expected
+# transitions so a stale OPTIND, stale OPTARG, or wrong cluster branch cannot
+# satisfy them through the parser's own bookkeeping.
+ok bi_getopts_initial_optind '1' 'echo "$OPTIND"'
+ok bi_getopts_simple '0|a|2|unset' \
+    'set -- -a; getopts a option; echo "$?|$option|$OPTIND|${OPTARG-unset}"'
+ok bi_getopts_cluster '0|a|2
+0|b|2
+1|2' \
+    'set -- -ab; getopts ab option; echo "$?|$option|$OPTIND"; getopts ab option; echo "$?|$option|$OPTIND"; getopts ab option; echo "$?|$OPTIND"'
+ok bi_getopts_attached_operand '0|a|2|unset
+0|b|2|value' \
+    'set -- -abvalue; getopts ab: option; echo "$?|$option|$OPTIND|${OPTARG-unset}"; getopts ab: option; echo "$?|$option|$OPTIND|$OPTARG"'
+ok bi_getopts_separate_operand '0|b|3|value' \
+    'set -- -b value tail; getopts b: option; echo "$?|$option|$OPTIND|$OPTARG"'
+ok bi_getopts_double_dash '0|a|2
+1|3' \
+    'set -- -a -- -b; getopts ab option; echo "$?|$option|$OPTIND"; getopts ab option; echo "$?|$OPTIND"'
+ok bi_getopts_end_status '1|1' \
+    'set -- operand; getopts a option; echo "$?|$OPTIND"'
+ok bi_getopts_illegal_option 'getopts: illegal option -- z
+0|?|unset|2' \
+    'set -- -z; getopts a option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_missing_operand 'getopts: option requires an argument -- a
+0|?|unset|2' \
+    'set -- -a; getopts a: option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_silent_illegal '0|?|z|2' \
+    'set -- -z; getopts :a option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|$OPTARG|$OPTIND"'
+ok bi_getopts_silent_missing '0|:|a|2' \
+    'set -- -a; getopts :a: option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|$OPTARG|$OPTIND"'
+ok bi_getopts_explicit_arguments '0|b|2' \
+    'set -- -a; getopts ab option -b; echo "$?|$option|$OPTIND"'
+ok bi_getopts_repeated_explicit 'a|b|2' \
+    'args=-ab; getopts ab option $args; first=$option; getopts ab option $args; echo "$first|$option|$OPTIND"'
+ok bi_getopts_repeated_after_set 'a|b|2' \
+    'set -- -ab; getopts ab option; first=$option; set -f; getopts ab option; echo "$first|$option|$OPTIND"'
+ok bi_getopts_reset_mid_cluster 'a|a|2' \
+    'set -- -ab; getopts ab option; first=$option; OPTIND=1; getopts ab option; echo "$first|$option|$OPTIND"'
+ok bi_getopts_end_clears_state '0|a|value|3
+1|?|unset|3' \
+    'set -- -a value; getopts a: option; echo "$?|$option|$OPTARG|$OPTIND"; getopts a: option; echo "$?|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_operand_clears_state '1|?|unset|1' \
+    'set -- operand; option=old; OPTARG=old; getopts a option; echo "$?|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_dashdash_clears_state '1|?|unset|2' \
+    'set -- -- tail; option=old; OPTARG=old; getopts a option; echo "$?|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_error_loop '?|z
+a|unset
+end|2|?|unset' \
+    'set -- -za; while getopts :a option; do echo "$option|${OPTARG-unset}"; done; echo "end|$OPTIND|$option|${OPTARG-unset}"'
+ok bi_getopts_invalid_destination 'invalid:2|1' \
+    'OPTIND=1; getopts a 1bad -a 2>/dev/null; echo "invalid:$?|$OPTIND"'
+ok bi_getopts_readonly_destination 'readonly:2|1' \
+    'OPTIND=1; readonly result; getopts a result -a 2>/dev/null; echo "readonly:$?|$OPTIND"'
+ok bi_getopts_readonly_optind 'optind:2|1' \
+    'OPTIND=1; readonly OPTIND; getopts a result -a 2>/dev/null; echo "optind:$?|$OPTIND"'
+ok bi_getopts_readonly_optarg 'optarg:2|1|old' \
+    'OPTIND=1; OPTARG=old; readonly OPTARG; getopts a result -a 2>/dev/null; echo "optarg:$?|$OPTIND|$OPTARG"'
+ok bi_getopts_setter_failure 'after:2' \
+    'getopts a MAILCHECK -a 2>/dev/null; echo "after:$?"'
 
 # ---- sh utility options ----
 ok opt_c_string 'c' 'echo c'
@@ -353,12 +643,19 @@ okrc opt_u_unset_is_error \
     'set -u; echo ${nosuchvar} 2>/dev/null'
 ok opt_f_disables_glob 'g*' 'set -f; rm -f g1 g2; : > g1; echo g*'
 ok opt_n_no_exec 'ok' 'sh -n -c "echo never" ; echo ok'
-xfail opt_e_exits_on_error sh '' 'set -e; false; echo notreached'
+okrc opt_e_exits_on_error '' 1 'set -e; false; echo notreached'
 
 echo "--"
 echo "pass $pass  fail $fail  xfail $xfail"
 if [ "$fail" -ne 0 ]; then
 	echo "failing:$failed"
+	(
+		cd "$WORK"
+		stat -c 'stat path=%n inode=%i device=%d' . .. g1 g2 xcmd
+		: > .sh-directory-trace
+		SH_TEST_DIRECTORY_TRACE=1 "$SH" -c \
+		    'echo g[12]*; pwd; command -v ./xcmd'
+	) 2>&1 || :
 	echo "SHTEST FAILED"
 	exit 1
 fi

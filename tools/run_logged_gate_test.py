@@ -173,7 +173,7 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(status["state"], "interrupted")
         self.assertEqual(status["termination"], "signal_15")
 
-    def test_ready_output_drain_stops_at_its_deadline(self):
+    def test_completion_event_drain_stops_at_its_deadline(self):
         pump_calls = []
 
         def perpetually_ready_pump(wait_seconds):
@@ -185,13 +185,31 @@ class LoggedGateTest(unittest.TestCase):
             "monotonic",
             side_effect=(0.0, 0.01, 0.02, 0.03),
         ):
-            runner.drain_ready_output(
+            runner.drain_completion_events(
                 perpetually_ready_pump,
                 lambda: True,
                 0.03,
             )
 
         self.assertEqual(pump_calls, [0, 0])
+
+    def test_completion_event_drain_stops_when_output_closes(self):
+        pump_calls = []
+        output_open = True
+
+        def close_output(wait_seconds):
+            nonlocal output_open
+            pump_calls.append(wait_seconds)
+            output_open = False
+            return False
+
+        runner.drain_completion_events(
+            close_output,
+            lambda: output_open,
+            0.2,
+        )
+
+        self.assertEqual(pump_calls, [0])
 
     def test_idle_timeout_emits_heartbeats_and_stops_the_process_group(self):
         terminated = self.directory / "descendant-terminated"

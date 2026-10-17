@@ -663,10 +663,17 @@ def group_exists(process_group):
     return True
 
 
-def drain_ready_output(pump, output_open, drain_seconds):
+def drain_completion_events(pump, output_open, drain_seconds):
     deadline = time.monotonic() + drain_seconds
-    while output_open() and time.monotonic() < deadline and pump(0):
-        pass
+    while output_open() and time.monotonic() < deadline:
+        if pump(0):
+            continue
+        if not output_open():
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        pump(remaining)
 
 
 def stop_process_group(process, grace_seconds, pump=None, output_open=None):
@@ -1131,7 +1138,7 @@ def run(args):
                         next_heartbeat = now + args.heartbeat_seconds
 
                     if process.poll() is not None:
-                        drain_ready_output(
+                        drain_completion_events(
                             pump,
                             lambda: output_open,
                             TERMINAL_CLOSE_SECONDS,

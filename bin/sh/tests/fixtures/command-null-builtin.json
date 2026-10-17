@@ -6,6 +6,9 @@
   "old": "\t{ \"command\",    SYSCOMMAND },",
   "new": "\t{ \"command\",    SYSNULL },",
   "snippet": "command echo hi",
+  "environment": {
+    ".MAKE.LEVEL.ENV": "MAKELEVEL"
+  },
   "known_good": {
     "stdout": "hi\n",
     "exit_code": 0

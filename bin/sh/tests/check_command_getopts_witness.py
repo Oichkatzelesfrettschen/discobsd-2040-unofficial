@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -31,6 +32,7 @@ COMPILE_FLAGS = (
     "-I",
     str(SHELL_SOURCE),
 )
+SHELL_ENVIRONMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 class WitnessError(RuntimeError):
@@ -54,6 +56,7 @@ def load_fixture(path):
             "old",
             "new",
             "snippet",
+            "environment",
             "known_good",
             "known_bad",
             "caught_break",
@@ -65,15 +68,37 @@ def load_fixture(path):
             set(fixture[state]) == {"stdout", "exit_code"},
             f"malformed {state}: {path}",
         )
+    require(isinstance(fixture["environment"], dict), f"bad environment: {path}")
+    require(
+        all(
+            isinstance(name, str) and isinstance(value, str)
+            for name, value in fixture["environment"].items()
+        ),
+        f"non-string environment entry: {path}",
+    )
     require(fixture["old"] != fixture["new"], f"inert mutation: {path}")
     require(bool(fixture["caught_break"]), f"unnamed break: {path}")
     return fixture
 
 
-def run_shell(executable, snippet, work_directory):
+def shell_environment(extra_environment):
+    # A directly executed bmake recipe can inherit dotted internal controls.
+    # The witness owns command/getopts behavior, so give the subject the same
+    # identifier-shaped environment that an intervening POSIX shell exports.
+    candidate_environment = os.environ.copy()
+    candidate_environment.update(extra_environment)
+    return {
+        name: value
+        for name, value in candidate_environment.items()
+        if SHELL_ENVIRONMENT_NAME.fullmatch(name)
+    }
+
+
+def run_shell(executable, snippet, work_directory, extra_environment):
     result = subprocess.run(
         [os.fspath(executable), "-c", snippet],
         cwd=work_directory,
+        env=shell_environment(extra_environment),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         check=False,
@@ -121,13 +146,23 @@ def main():
         work_directory.mkdir()
         for fixture_path in FIXTURES:
             fixture = load_fixture(fixture_path)
-            observed_good = run_shell(baseline, fixture["snippet"], work_directory)
+            observed_good = run_shell(
+                baseline,
+                fixture["snippet"],
+                work_directory,
+                fixture["environment"],
+            )
             require(
                 observed_good == fixture["known_good"],
                 f"known-good witness drift: {fixture['id']}: {observed_good}",
             )
             mutant = compile_mutant(fixture, compiler, temporary_root / fixture["id"])
-            observed_bad = run_shell(mutant, fixture["snippet"], work_directory)
+            observed_bad = run_shell(
+                mutant,
+                fixture["snippet"],
+                work_directory,
+                fixture["environment"],
+            )
             require(
                 observed_bad == fixture["known_bad"],
                 f"known-bad witness drift: {fixture['id']}: {observed_bad}",

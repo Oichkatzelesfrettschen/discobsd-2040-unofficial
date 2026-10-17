@@ -244,6 +244,14 @@ int     execa(at, pos)
 	char    *at[];
 	short pos;
 {
+	return(execa_path(at, pos, NIL));
+}
+
+int     execa_path(at, pos, search_path)
+	char    *at[];
+	short pos;
+	char    *search_path;
+{
 	register char   *path;
 	register char   **t = at;
 	int             cnt;
@@ -251,7 +259,7 @@ int     execa(at, pos)
 	if ((flags & noexec) == 0)
 	{
 		xecmsg = notfound;
-		path = getpath(*t);
+		path = search_path && !any('/', *t) ? search_path : getpath(*t);
 		xecenv = setenvv();
 
 		if (pos > 0)
@@ -263,7 +271,7 @@ int     execa(at, pos)
 				path = nextpath(path);
 			}
 			execs(path, t);
-			path = getpath(*t);
+			path = search_path && !any('/', *t) ? search_path : getpath(*t);
 		}
 		while (path = execs(path,t))
 			;

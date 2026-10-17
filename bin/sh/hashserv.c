@@ -16,6 +16,32 @@ static int	dotpath;
 static int	multrel;
 static struct entry     *relcmd = NIL;
 
+int
+special_builtin(internal)
+	int internal;
+{
+	switch (internal)
+	{
+	case SYSDOT:
+	case SYSNULL:
+	case SYSBREAK:
+	case SYSCONT:
+	case SYSEVAL:
+	case SYSEXEC:
+	case SYSEXIT:
+	case SYSXPORT:
+	case SYSRDONLY:
+	case SYSRETURN:
+	case SYSSET:
+	case SYSSHFT:
+	case SYSTIMES:
+	case SYSTRAP:
+	case SYSUNS:
+		return(1);
+	}
+	return(0);
+}
+
 static int
 argpath(arg)
 	register struct argnod	*arg;
@@ -255,17 +281,18 @@ hash_func(name)
 
 	if (h)
 	{
-
-		if (h->data & (BUILTIN | FUNCTION))
+		if ((h->data & BUILTIN) && special_builtin(hashdata(h->data)))
 			return;
-		else
-			h->data = FUNCTION;
+		if (h->data & FUNCTION)
+			return;
+		h->data = FUNCTION;
 	}
 	else
 	{
 		int i;
 
-		if (i = syslook(name, commands, no_commands))
+		if ((i = syslook(name, commands, no_commands)) &&
+		    special_builtin(i))
 			hentry.data = (BUILTIN | i);
 		else
 			hentry.data = FUNCTION;
@@ -464,4 +491,136 @@ pr_path(name, count)
 
 	catpath(path, name);
 	prs_buff(curstak());
+}
+
+static int
+findpath_on(name, path)
+	char *name;
+	char *path;
+{
+	int count = 1;
+	int error_code = 1;
+	int access_error = 1;
+
+	while (path)
+	{
+		path = catpath(path, name);
+		access_error = chk_access(curstak());
+		if (access_error == 0)
+			break;
+		error_code = max(error_code, access_error);
+		count++;
+	}
+	return(access_error ? -error_code : count);
+}
+
+short
+command_pathlook(name, path)
+	char *name;
+	char *path;
+{
+	int count;
+	int builtin;
+
+	if (any('/', name))
+		return(COMMAND);
+	if (builtin = syslook(name, commands, no_commands))
+		return(BUILTIN | builtin);
+	if (path == NIL)
+		path = getpath(name);
+	count = findpath_on(name, path);
+	return(count > 0 ? COMMAND | count : -count);
+}
+
+static void
+command_pr_absolute(name)
+	char *name;
+{
+	char *directory;
+
+	if (*name != '/')
+	{
+		directory = cwdpath();
+		prs_buff(directory);
+		if (!(directory[0] == '/' && directory[1] == 0))
+			prc_buff('/');
+	}
+	prs_buff(name);
+}
+
+static void
+command_pr_path(name, count, path)
+	char *name;
+	int count;
+	char *path;
+{
+	if (any('/', name))
+	{
+		command_pr_absolute(name);
+		return;
+	}
+	if (path == NIL)
+		path = getpath(name);
+	while (--count && path)
+		path = nextpath(path);
+	catpath(path, name);
+	command_pr_absolute(curstak());
+}
+
+int
+command_report(name, verbose, path)
+	char *name;
+	int verbose;
+	char *path;
+{
+	struct namnod *function;
+	int builtin;
+	int count;
+
+	if (syslook(name, reserved, no_reserved))
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a shell keyword");
+	}
+	else if ((builtin = syslook(name, commands, no_commands)) &&
+	    special_builtin(builtin))
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a special shell builtin");
+	}
+	else if ((function = findnam(name)) && (function->namflg & N_FUNCTN))
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a function");
+	}
+	else if (builtin)
+	{
+		prs_buff(name);
+		if (verbose)
+			prs_buff(" is a shell builtin");
+	}
+	else
+	{
+		if (any('/', name))
+			count = chk_access(name) == 0 ? 1 : -1;
+		else
+		{
+			if (path == NIL)
+				path = getpath(name);
+			count = findpath_on(name, path);
+		}
+		if (count < 1)
+			return(1);
+		if (verbose)
+		{
+			prs_buff(name);
+			prs_buff(" is ");
+		}
+		command_pr_path(name, count, path);
+	}
+	prc_buff(NL);
+	return(0);
 }

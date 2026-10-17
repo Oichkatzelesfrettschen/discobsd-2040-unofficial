@@ -19,6 +19,11 @@ int     xno;
 		prs(s2);
 	}
 	newline();
+	if (command_errshell)
+	{
+		exitval = xno;
+		longjmp(*command_errshell, 1);
+	}
 	exitsh(xno);
 }
 

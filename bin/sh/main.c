@@ -273,6 +273,7 @@ char    **e;
 	 */
 
 	setup_env();
+	assign(lookup("OPTIND"), "1");
 
 	/*
 	 * 'rsflag' is non-zero if SHELL variable is

@@ -304,7 +304,7 @@ ok cmd_if_elif 'e' 'if false; then echo t; elif true; then echo e; else echo f; 
 ok cmd_case 'm' 'case a in b) echo b;; a) echo m;; esac'
 ok cmd_case_star 'd' 'case zz in a) echo a;; *) echo d;; esac'
 ok cmd_function_args 'p' 'f(){ echo $1; }; f p'
-xfail func_beats_regular_builtin 2.9.1.1 'mycd' 'cd(){ echo mycd; }; cd /'
+ok func_beats_regular_builtin 'mycd' 'cd(){ echo mycd; }; cd /'
 ok cmd_break 'ok' 'for i in 1 2 3; do break; done; echo ok'
 ok cmd_continue '2' 'for i in 1 2; do case $i in 1) continue;; esac; echo $i; done'
 
@@ -338,8 +338,140 @@ ok bi_read 'rv' 'echo rv > f9; read v < f9; echo $v'
 ok bi_pwd_matches 'same' 'p=`pwd`; case $p in /*) echo same;; *) echo other;; esac'
 ok bi_umask 'ok' 'umask > /dev/null; echo ok'
 ok bi_type_builtin 'echo is a shell builtin' 'type echo'
-xfail bi_getopts 2.14 '0' 'set -- -a; getopts a o; echo $?'
-xfail bi_command 2.14 'hi' 'command echo hi'
+
+# command executes after removing only the function layer from lookup.  Its
+# reporting modes retain that layer so scripts can inspect the actual lookup
+# order without changing PATH or executing the result.
+ok bi_command_exec 'hi' 'command echo hi'
+ok bi_command_double_dash 'hi' 'command -- echo hi'
+ok bi_command_nested 'hi' 'command command echo hi'
+ok bi_command_nested_prefix_assignment 'hi
+old' \
+    'x=old; x=new command command echo hi; echo "$x"'
+okrc bi_command_nested_cleanup '' 1 \
+    '(command command :; export 1bad=x 2>/dev/null; echo unreachable)'
+ok bi_command_empty '0' 'command; echo $?'
+ok bi_command_bypass_function 'external' \
+    'echo "echo external" > fcmd; chmod 755 fcmd; PATH=.:/bin:/usr/bin; fcmd(){ echo function; }; command fcmd'
+ok bi_command_v_builtin 'echo' 'command -v echo'
+ok bi_command_V_builtin 'echo is a shell builtin' 'command -V echo'
+ok bi_command_V_special_builtin 'export is a special shell builtin' \
+    'command -V export'
+ok bi_command_function_beats_regular_builtin 'function
+wrapped' \
+    'echo(){ /bin/echo function; }; echo plain; command echo wrapped'
+ok bi_command_special_beats_function 'special' \
+    'command_order=special; export(){ echo function; }; export command_order; echo "$command_order"'
+ok bi_command_V_shadowed_builtin 'echo is a function' \
+    'echo(){ :; }; command -V echo'
+ok bi_command_v_function 'fcmd' 'fcmd(){ :; }; command -v fcmd'
+ok bi_command_V_function 'fcmd is a function' 'fcmd(){ :; }; command -V fcmd'
+ok bi_command_v_keyword 'if' 'command -v if'
+ok bi_command_V_keyword 'if is a shell keyword' 'command -V if'
+ok bi_command_v_path "$WORK/./xcmd" \
+    'echo "exit 0" > xcmd; chmod 755 xcmd; PATH=.:/bin:/usr/bin; command -v xcmd'
+ok bi_command_V_path "xcmd is $WORK/./xcmd" \
+    'echo "exit 0" > xcmd; chmod 755 xcmd; PATH=.:/bin:/usr/bin; command -V xcmd'
+ok bi_command_v_explicit_path "$WORK/./xcmd" 'command -v ./xcmd'
+ok bi_command_p_default_path 'ok' \
+    'echo "echo bad" > cat; chmod 755 cat; PATH=.; command -p cat /dev/null; echo ok'
+ok bi_command_p_preserves_path '.' \
+    'echo "echo bad" > cat; chmod 755 cat; PATH=.; command -p cat /dev/null; echo "$PATH"'
+ok bi_command_prefix_path 'prefix-path' \
+    'mkdir command-bin; echo "echo prefix-path" > command-bin/pathcmd; chmod 755 command-bin/pathcmd; PATH=command-bin command pathcmd'
+ok bi_command_p_overrides_prefix_path 'ok' \
+    'echo "echo bad" > cat; chmod 755 cat; PATH=. command -p cat /dev/null; echo ok'
+ok bi_command_v_missing '1' 'command -v nosuchcmd_xyz; echo $?'
+okrc bi_command_missing \
+    'command nosuchcmd_xyz: nosuchcmd_xyz: not found' 127 \
+    'command nosuchcmd_xyz'
+okrc bi_command_not_executable '' 126 \
+    'echo bad > noexec; chmod 644 noexec; command ./noexec 2>/dev/null'
+ok bi_command_regularizes_builtin_error 'after:1' \
+    'command export 1bad=x 2>/dev/null; status=$?; echo "after:$status"'
+okrc bi_command_bad_option_continues 'after:1' 1 \
+    'command -z 2>/dev/null; status=$?; echo "after:$status"; exit $status'
+ok bi_command_missing_redirection 'after:127' \
+    'command nosuchcmd_xyz 2>/dev/null; echo "after:$?"'
+ok bi_command_prefix_assignment 'hi
+old' \
+    'x=old; x=new command echo hi; echo "$x"'
+ok bi_command_prefix_assignment_error 'old' \
+    'x=old; x=new command export 1bad=x 2>/dev/null; echo "$x"'
+ok bi_command_special_effect_persists 'visible' \
+    'command_visible=visible; command export command_visible; sh -c "echo \$command_visible"'
+ok bi_command_prefix_export_effect 'old' \
+    'x=old; x=new command export x; sh -c "echo \$x"'
+ok bi_command_prefix_read_effect 'explicit' \
+    'echo explicit > command-input; x=old; x=temporary command read x < command-input; echo "$x"'
+ok bi_command_nested_prefix_read_effect 'explicit' \
+    'echo explicit > command-input; x=old; x=outer command eval '\''x=inner command read x < command-input'\''; echo "$x"'
+ok bi_command_prefix_readonly_effect 'old
+1' \
+    'x=old; x=new command readonly x; export x; sh -c "echo \$x"; (x=after) 2>/dev/null; echo "$?"'
+ok bi_command_prefix_unset_effect 'unset' \
+    'x=old; x=new command unset x; echo "${x-unset}"'
+ok bi_command_prefix_function_collision 'f is a function
+function
+unset' \
+    'f(){ echo function; }; f=new command export f; command -V f; f; sh -c '\''echo "${f-unset}"'\'''
+ok bi_command_eval_cleanup 'ok' \
+    'command eval "shift x" 2>/dev/null; command eval "echo ok"'
+okrc bi_command_function_cleanup '' 1 \
+    '(f(){ shift x; }; command eval f 2>/dev/null; return 7 2>/dev/null)'
+okrc bi_command_bad_option \
+    'command: bad option(s)' 1 \
+    '(command -z 2>command.err); status=$?; cat command.err; exit $status'
+
+# getopts publishes its cursor on every call.  The tests use literal expected
+# transitions so a stale OPTIND, stale OPTARG, or wrong cluster branch cannot
+# satisfy them through the parser's own bookkeeping.
+ok bi_getopts_initial_optind '1' 'echo "$OPTIND"'
+ok bi_getopts_simple '0|a|2|unset' \
+    'set -- -a; getopts a option; echo "$?|$option|$OPTIND|${OPTARG-unset}"'
+ok bi_getopts_cluster '0|a|2
+0|b|2
+1|2' \
+    'set -- -ab; getopts ab option; echo "$?|$option|$OPTIND"; getopts ab option; echo "$?|$option|$OPTIND"; getopts ab option; echo "$?|$OPTIND"'
+ok bi_getopts_attached_operand '0|a|2|unset
+0|b|2|value' \
+    'set -- -abvalue; getopts ab: option; echo "$?|$option|$OPTIND|${OPTARG-unset}"; getopts ab: option; echo "$?|$option|$OPTIND|$OPTARG"'
+ok bi_getopts_separate_operand '0|b|3|value' \
+    'set -- -b value tail; getopts b: option; echo "$?|$option|$OPTIND|$OPTARG"'
+ok bi_getopts_double_dash '0|a|2
+1|3' \
+    'set -- -a -- -b; getopts ab option; echo "$?|$option|$OPTIND"; getopts ab option; echo "$?|$OPTIND"'
+ok bi_getopts_end_status '1|1' \
+    'set -- operand; getopts a option; echo "$?|$OPTIND"'
+ok bi_getopts_illegal_option 'getopts: illegal option -- z
+0|?|unset|2' \
+    'set -- -z; getopts a option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_missing_operand 'getopts: option requires an argument -- a
+0|?|unset|2' \
+    'set -- -a; getopts a: option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_silent_illegal '0|?|z|2' \
+    'set -- -z; getopts :a option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|$OPTARG|$OPTIND"'
+ok bi_getopts_silent_missing '0|:|a|2' \
+    'set -- -a; getopts :a: option 2>getopts.err; status=$?; cat getopts.err; echo "$status|$option|$OPTARG|$OPTIND"'
+ok bi_getopts_explicit_arguments '0|b|2' \
+    'set -- -a; getopts ab option -b; echo "$?|$option|$OPTIND"'
+ok bi_getopts_repeated_explicit 'a|b|2' \
+    'args=-ab; getopts ab option $args; first=$option; getopts ab option $args; echo "$first|$option|$OPTIND"'
+ok bi_getopts_repeated_after_set 'a|b|2' \
+    'set -- -ab; getopts ab option; first=$option; set -f; getopts ab option; echo "$first|$option|$OPTIND"'
+ok bi_getopts_reset_mid_cluster 'a|a|2' \
+    'set -- -ab; getopts ab option; first=$option; OPTIND=1; getopts ab option; echo "$first|$option|$OPTIND"'
+ok bi_getopts_end_clears_state '0|a|value|3
+1|?|unset|3' \
+    'set -- -a value; getopts a: option; echo "$?|$option|$OPTARG|$OPTIND"; getopts a: option; echo "$?|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_operand_clears_state '1|?|unset|1' \
+    'set -- operand; option=old; OPTARG=old; getopts a option; echo "$?|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_dashdash_clears_state '1|?|unset|2' \
+    'set -- -- tail; option=old; OPTARG=old; getopts a option; echo "$?|$option|${OPTARG-unset}|$OPTIND"'
+ok bi_getopts_error_loop '?|z
+a|unset
+end|2|?|unset' \
+    'set -- -za; while getopts :a option; do echo "$option|${OPTARG-unset}"; done; echo "end|$OPTIND|$option|${OPTARG-unset}"'
 
 # ---- sh utility options ----
 ok opt_c_string 'c' 'echo c'

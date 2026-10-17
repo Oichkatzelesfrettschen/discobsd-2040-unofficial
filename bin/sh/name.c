@@ -128,6 +128,184 @@ int	xp;
 	}
 }
 
+struct namnod_save
+{
+	struct namnod_save *next;
+	struct namnod_save *previous_context;
+	struct namnod *node;
+	char *value;
+	char *environment;
+	int flags;
+	int modified;
+};
+
+static struct namnod_save *command_active;
+static int command_applying;
+
+static struct namnod_save *
+command_saved_node(saved, node)
+	struct namnod_save *saved;
+	struct namnod *node;
+{
+	while (saved && saved->node != node)
+		saved = saved->next;
+	return(saved);
+}
+
+void
+command_name_changed(node)
+	struct namnod *node;
+{
+	struct namnod_save *entry;
+	struct namnod_save *context;
+
+	if (command_applying)
+		return;
+	for (context = command_active; context;
+	    context = context->previous_context)
+	{
+		for (entry = context; entry; entry = entry->next)
+		{
+			if (entry->node == node)
+				entry->modified = 1;
+		}
+	}
+}
+
+struct namnod_save *
+command_setlist(arg)
+	register struct argnod *arg;
+{
+	struct argnod *apply_arg = arg;
+	struct namnod_save *saved = NIL;
+	struct namnod_save *entry;
+	struct namnod *node;
+	char *assignment;
+	char *separator;
+
+	/* Validate and capture every original node before changing any value. */
+	while (arg)
+	{
+		assignment = mactrim(arg->argval);
+		separator = assignment;
+		while (*separator && *separator != '=')
+			separator++;
+		*separator = 0;
+		node = lookup(assignment);
+		*separator = '=';
+		if (node->namflg & N_RDONLY)
+			failed(node->namid, wtfailed);
+#ifndef RES
+		if ((flags & rshflg) &&
+		    (node == &pathnod || eq(node->namid, "SHELL")))
+			failed(node->namid, restricted);
+#endif
+		if (command_saved_node(saved, node) == NIL)
+		{
+			entry = (struct namnod_save *)alloc(sizeof *entry);
+			entry->node = node;
+			entry->flags = node->namflg;
+			if (node->namflg & N_FUNCTN)
+			{
+				entry->value = node->namval;
+				entry->environment = node->namenv;
+			}
+			else
+			{
+				entry->value = make(node->namval);
+				entry->environment = make(node->namenv);
+			}
+			entry->modified = 0;
+			entry->previous_context = NIL;
+			entry->next = saved;
+			saved = entry;
+		}
+		arg = arg->argnxt;
+	}
+
+	command_applying++;
+	for (entry = saved; entry; entry = entry->next)
+	{
+		if (entry->flags & N_FUNCTN)
+		{
+			func_unhash(entry->node->namid);
+			entry->node->namval = NIL;
+			entry->node->namenv = NIL;
+			entry->node->namflg = N_DEFAULT;
+		}
+	}
+	for (; apply_arg; apply_arg = apply_arg->argnxt)
+		setname(mactrim(apply_arg->argval), 0);
+	command_applying--;
+	if (saved)
+	{
+		saved->previous_context = command_active;
+		command_active = saved;
+	}
+
+	return(saved);
+}
+
+void
+command_restorelist(saved)
+	struct namnod_save *saved;
+{
+	struct namnod_save *next;
+	struct namnod *node;
+	int persistent_flags;
+
+	if (saved && command_active == saved)
+		command_active = saved->previous_context;
+
+	while (saved)
+	{
+		node = saved->node;
+		if (saved->modified)
+		{
+			if (saved->flags & N_FUNCTN)
+				freetree((struct trenod *)saved->environment);
+			else
+			{
+				free(saved->value);
+				free(saved->environment);
+			}
+		}
+		else
+		{
+			persistent_flags = node->namflg & (N_EXPORT | N_RDONLY);
+			if (node->namflg & N_FUNCTN)
+			{
+				func_unhash(node->namid);
+				freefunc(node);
+			}
+			else if (node->namval == node->namenv)
+				free(node->namval);
+			else
+			{
+				free(node->namval);
+				free(node->namenv);
+			}
+			node->namval = saved->value;
+			node->namenv = saved->environment;
+			node->namflg = saved->flags;
+			if (!(saved->flags & N_FUNCTN))
+				node->namflg |= persistent_flags;
+			if (node->namflg & N_FUNCTN)
+				hash_func(node->namid);
+			if (node == &mchknod)
+				mailchk = stoi(node->namval);
+			if (node == &pathnod)
+			{
+				zaphash();
+				set_dotpath();
+			}
+		}
+		next = saved->next;
+		free(saved);
+		saved = next;
+	}
+}
+
 
 setname(argi, xp)	/* does parameter assignments */
 char	*argi;
@@ -199,6 +377,7 @@ char	*v;
 		n->namenv = NIL;
 		n->namflg = N_DEFAULT;
 	}
+	command_name_changed(n);
 
 	if (n == &mchknod)
 	{
@@ -207,6 +386,8 @@ char	*v;
 
 	replace(&n->namval, v);
 	attrib(n, N_ENVCHG);
+	if (eq(n->namid, "OPTIND"))
+		getoptsreset(v);
 
 	if (n == &pathnod)
 	{
@@ -565,6 +746,7 @@ unset_name(name)
 			failed(name, restricted);
 
 #endif
+		command_name_changed(n);
 
 		if (n->namflg & N_FUNCTN)
 		{

@@ -75,6 +75,8 @@
 #define SYSUNS          26
 #define SYSMEM          27
 #define SYSTYPE         28
+#define SYSCOMMAND      30
+#define SYSGETOPTS      31
 
 /* used for input and output of shell */
 #define INIO            19
@@ -118,11 +120,20 @@ extern struct trenod    *cmd();
 extern struct trenod    *makefork();
 extern struct namnod    *lookup();
 extern struct namnod    *findnam();
+struct namnod_save;
+extern struct namnod_save *command_setlist();
+extern void             command_restorelist();
+extern void             command_name_changed();
+extern void             getoptsreset();
 extern struct dolnod    *useargs();
 extern float                    expr();
 extern char                             *catpath();
 extern char                             *getpath();
 extern char                             *nextpath();
+extern int                              special_builtin();
+extern short                            command_pathlook();
+extern int                              command_report();
+extern int                              execa_path();
 extern char                             **scan();
 extern char                             *mactrim();
 extern char                             *macro();
@@ -303,6 +314,7 @@ extern BOOL				execbrk;
 extern int				loopcnt;
 extern int				breakcnt;
 extern int				funcnt;
+extern jmp_buf				*command_errshell;
 
 /* messages */
 extern char				mailmsg[];

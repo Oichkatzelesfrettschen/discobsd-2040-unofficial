@@ -185,7 +185,7 @@ class LoggedGateTest(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 1)
         self.assertEqual(self.read_status()["termination"], "signal_15")
 
-    def test_receipt_failure_stops_the_launched_process_group(self):
+    def test_receipt_failure_after_child_ready_stops_the_process_group(self):
         marker = self.directory / "receipt-child-terminated"
         arguments = runner.parse_arguments([
             "--label", "receipt-failure",
@@ -204,12 +204,12 @@ class LoggedGateTest(unittest.TestCase):
             str(marker),
         ])
         original_status = runner.atomic_status
-        calls = 0
+        injected = False
 
         def fail_after_launch(path, record):
-            nonlocal calls
-            calls += 1
-            if calls == 2:
+            nonlocal injected
+            if not injected and record["last_output"] == "ready":
+                injected = True
                 raise OSError("injected receipt failure")
             original_status(path, record)
 
@@ -217,6 +217,7 @@ class LoggedGateTest(unittest.TestCase):
             result = runner.run(arguments)
 
         self.assertEqual(result, runner.RUNNER_ERROR_EXIT)
+        self.assertTrue(injected)
         self.assertTrue(marker.is_file())
 
     def test_log_failure_stops_the_launched_process_group(self):
@@ -237,12 +238,12 @@ class LoggedGateTest(unittest.TestCase):
             "print('ready', flush=True); time.sleep(60)",
             str(marker),
         ])
-        calls = 0
+        injected = False
 
         def fail_after_launch(stream, data):
-            nonlocal calls
-            calls += 1
-            if calls == 2:
+            nonlocal injected
+            if not injected and data.strip() == b"ready":
+                injected = True
                 raise OSError("injected log failure")
             stream.write(data)
             stream.flush()
@@ -253,6 +254,7 @@ class LoggedGateTest(unittest.TestCase):
             result = runner.run(arguments)
 
         self.assertEqual(result, runner.RUNNER_ERROR_EXIT)
+        self.assertTrue(injected)
         self.assertTrue(marker.is_file())
 
     def test_terminal_backpressure_cannot_suspend_the_hard_deadline(self):

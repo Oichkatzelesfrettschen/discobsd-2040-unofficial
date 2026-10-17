@@ -417,8 +417,11 @@ typedef int size_t; \
 typedef int ssize_t; \
 typedef int useconds_t;\
 typedef int intptr_t;\
-enum { _SC_ARG_MAX = 1, _SC_CLK_TCK = 3, _SC_NGROUPS_MAX = 4,\
-       _SC_OPEN_MAX = 5, _SC_JOB_CONTROL = 6, _CS_PATH = 1 };\
+enum { _SC_ARG_MAX = 1, _SC_CLK_TCK = 3,\
+       _SC_NGROUPS_MAX = 4, _SC_OPEN_MAX = 5, _SC_JOB_CONTROL = 6,\
+       _SC_NPROCESSORS_CONF = 7, _SC_NPROCESSORS_ONLN = 8,\
+       _SC_NSIG = 9, _SC_PAGESIZE = 10, _SC_DEVICE_CONTROL = 11,\
+       _CS_PATH = 1 };\
 ";
 
 /* all unistd.h functions */

@@ -74,7 +74,7 @@ def render_requirements(rows):
     )
     writer.writeheader()
     writer.writerows(rows)
-    return output.getvalue()
+    return output.getvalue().replace("\t\n", '\t""\n')
 
 
 def parse_requirements(path):
@@ -133,13 +133,23 @@ def default_requirement(entity, mapped):
     }
 
 
-def derive_requirements(corpus, entities):
+def derive_requirements(corpus, entities, previous_rows=None):
     mapped = mapped_entities(corpus)
-    return [
-        default_requirement(entity, mapped)
-        for entity in entities
-        if entity.issue8_source
-    ]
+    previous = {
+        row["requirement_id"]: row for row in (previous_rows or [])
+    }
+    state_columns = REQUIREMENT_COLUMNS[5:]
+    rows = []
+    for entity in entities:
+        if not entity.issue8_source:
+            continue
+        row = default_requirement(entity, mapped)
+        prior = previous.get(row["requirement_id"])
+        if prior is not None:
+            for column in state_columns:
+                row[column] = prior[column]
+        rows.append(row)
+    return rows
 
 
 def count_states(rows):
@@ -320,7 +330,8 @@ def self_test(root, corpus, entities, profile, rows):
 
 
 def refresh_generated(root, profile_path, requirements_path, corpus, entities, profile):
-    rows = derive_requirements(corpus, entities)
+    previous_rows = parse_requirements(requirements_path) if requirements_path.is_file() else []
+    rows = derive_requirements(corpus, entities, previous_rows)
     profile = copy.deepcopy(profile)
     profile["requirements"]["row_count"] = len(rows)
     profile["requirements"]["ordered_row_sha256"] = ordered_sha256(rows)

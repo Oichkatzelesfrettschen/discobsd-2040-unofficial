@@ -31,27 +31,41 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/syslimits.h>
+#include <sys/param.h>
+#include <sys/signal.h>
 
 #include <errno.h>
 #include <unistd.h>
 
+_Static_assert(NSIG == 1 << 5, "sysconf signal encoding must match NSIG");
+_Static_assert(DEV_BSIZE == 1 << 10,
+    "sysconf page-size encoding must match DEV_BSIZE");
+
 long
 sysconf(int name)
 {
-	volatile int selector = name;
+	unsigned int selector = (unsigned int)name;
 
-	/* Volatile comparisons keep Thumb-1 from importing a switch helper. */
-	if (selector == _SC_ARG_MAX)
-		return ARG_MAX;
-	if (selector == _SC_CLK_TCK)
-		return CLK_TCK;
-	if (selector == _SC_NGROUPS_MAX)
-		return NGROUPS_MAX;
-	if (selector == _SC_OPEN_MAX)
-		return OPEN_MAX;
-	if (selector == _SC_JOB_CONTROL)
-		return 1;
+	if (selector <= _SC_OPEN_MAX) {
+		if (selector < _SC_NGROUPS_MAX) {
+			if (selector == _SC_ARG_MAX)
+				return ARG_MAX;
+			if (selector == _SC_CLK_TCK)
+				return CLK_TCK;
+		} else {
+			if (selector == _SC_NGROUPS_MAX)
+				return NGROUPS_MAX;
+			if (selector == _SC_OPEN_MAX)
+				return OPEN_MAX;
+		}
+	} else {
+		if (selector <= _SC_NPROCESSORS_ONLN)
+			return 1;
+		if (selector <= _SC_PAGESIZE)
+			return 1L << ((selector - _SC_NPROCESSORS_ONLN) * 5);
+		if (selector == _SC_DEVICE_CONTROL)
+			return _POSIX_DEVICE_CONTROL;
+	}
 	errno = EINVAL;
 	return -1;
 }

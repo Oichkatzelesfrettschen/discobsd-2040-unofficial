@@ -1541,7 +1541,7 @@ retry:
 	    perror("TIOCGPGRP");
 	    exit(1);
 	}
-	if (tgrp != getpgrp(0)) {
+	if (tgrp != getpgrp()) {
 	    kill(0, SIGTTOU);
 	    goto retry;
 	}

@@ -40,9 +40,22 @@ def main():
         if list(state_counts[dimension]) != expected:
             raise AssertionError(f"nondeterministic state order for {dimension}")
 
-    derived = dpucp.derive_requirements(corpus, entities)
+    derived = dpucp.derive_requirements(corpus, entities, rows)
     if dpucp.render_requirements(derived) != dpucp.render_requirements(rows):
         raise AssertionError("committed requirements differ from deterministic derivation")
+    if any(line.endswith("\t") for line in dpucp.render_requirements(rows).splitlines()):
+        raise AssertionError("rendered requirement row ends in trailing whitespace")
+
+    reviewed = copy.deepcopy(rows)
+    reviewed[0]["option_owner"] = "none-known"
+    reviewed[0]["applicability"] = "environment-constrained"
+    reviewed[0]["implementation"] = "partial"
+    reviewed[0]["evidence"] = "static"
+    reviewed[0]["next_action"] = "Run the deciding environment experiment."
+    preserved = dpucp.derive_requirements(corpus, entities, reviewed)
+    for column in dpucp.REQUIREMENT_COLUMNS[5:]:
+        if preserved[0][column] != reviewed[0][column]:
+            raise AssertionError(f"refresh discarded reviewed {column}")
 
     cases = []
     changed_rows = copy.deepcopy(rows)

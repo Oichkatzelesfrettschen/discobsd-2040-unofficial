@@ -293,8 +293,8 @@ the functions with invalid argument forms. `usr.bin/uucp/uuxqt.c` calls
 `value(ETIMEOUT)` to `alarm` instead of converting it with `number`. Both
 programs are absent from the RP2040 `full` manifest. The next batch must
 repair and migrate each complete translation unit under C17 conventions
-before those two header prototypes close. `getpgrp(pid_t)` now matches the
-kernel syscall record and shipped `compress` caller `getpgrp(0)`.
+before those two header prototypes close. `getpgrp(void)` now matches the
+zero-argument kernel syscall record and shipped `compress` caller `getpgrp()`.
 
 The next device-boundary units are
 `sys/arch/rp2040/dev/usb.c` and the Dhara metadata path in

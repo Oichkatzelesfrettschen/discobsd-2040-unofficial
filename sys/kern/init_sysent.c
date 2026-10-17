@@ -95,7 +95,7 @@ const uint8_t syscall_nargs[] = {
     0,
     2,
     2,
-    1,
+    0,
     2,
     3,
     0,

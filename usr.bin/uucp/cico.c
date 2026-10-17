@@ -185,7 +185,7 @@ register char *argv[];
 	}
 #endif
 #ifdef BSD4_2
-	if (getpgrp(0) == 0) { /* We have no controlling terminal */
+	if (getpgrp() == 0) { /* We have no controlling terminal */
 		setpgrp(0, getpid());
 	}
 #endif

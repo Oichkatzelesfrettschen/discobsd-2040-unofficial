@@ -49,8 +49,8 @@ the requirement inside a selected option.
 | `scandir()`, `alphasort()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/scandir.html), first standardized in Issue 7; [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/scandir.html) carries no new normative delta | Typed public declarations, transactional result publication, selected-entry growth, compact self-describing records, complete failure cleanup and per-call typed sorting. `alphasort()` uses the fixed bytewise locale and preserves errno; the historical `struct direct` header and absent locale-aware `strcoll()` retain a bounded compatibility claim. | `check-scandir-contracts` executes native, ILP32, sanitizer and six calibrated mutation lanes; `check-scandir-contracts-cross` compiles the target and calibrates import inspection. [libc-scandir-allocation-contract.md](libc-scandir-allocation-contract.md) records resource accounts and residuals. |
 | `strcasecmp()`, `strncasecmp()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/strcasecmp.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/strcasecmp.html), Base; the POSIX locale acts as lowercase conversion followed by byte comparison; Issue 8 requires unchanged `errno` on valid POSIX-locale input | Typed definitions fold ASCII uppercase letters, preserve high bytes and compare unsigned byte values without permanent storage. | The exhaustive 65,536-pair oracle passes under signed and unsigned char at native/ILP32/sanitized widths, including errno and NUL/count boundaries. Four mutations calibrate rejection. `libc-ascii-casefold-contract.md` records the intentional high-byte compatibility change and linked savings; board execution remains open. |
 | `vscanf()`, `vfscanf()`, `vsscanf()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/vscanf.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/vscanf.html), Base | `include/stdio.h` declares all three interfaces; `scanf.o` implements them over `_doscan`, and `vsscanf()` shares the bounded string-stream constructor with `sscanf()` | `check-libc-scanf` executes all three paths at host width, ILP32 and under AddressSanitizer. The Smaller C `t18_stdio` fixture compiles, links and executes `vsscanf()` through the target archive. Board loading and execution remain a separate evidence class. |
-| `getpgrp()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/getpgrp.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/getpgrp.html), Base, signature `pid_t getpgrp(void)` | `include/unistd.h` declares the historical `pid_t getpgrp(pid_t)` and the syscall consumes a PID | Choose a public POSIX/BSD compatibility boundary, preserve the syscall convention where required, and compile function-pointer and wrong-arity probes before changing the header. |
-| `sysconf()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/sysconf.html), Base; Issue 8 adds selectors including `_SC_NPROCESSORS_CONF`, `_SC_NPROCESSORS_ONLN`, `_SC_DEVICE_CONTROL` and `_SC_NSIG` | `lib/libc/gen/sysconf.c` implements five explicitly named selectors | `check-libc-runtime-limits` executes the five values and unknown-selector `EINVAL`; the cross gate proves target compilation and the expected errno import. Every other required selector remains an explicit gap. |
+| `getpgrp()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/getpgrp.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/getpgrp.html), Base, signature `pid_t getpgrp(void)` | `include/unistd.h` declares `pid_t getpgrp(void)`. Syscall 81 takes zero arguments and returns the calling process group without a failure path. | `check-libc-host-contracts` binds the function-pointer type and rejects an argument. `check-kernel` executes the current-process result while preserving poisoned argument storage, and `check-kernel-metadata` rejects an argument-bearing syscall 81. |
+| `sysconf()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/sysconf.html), Base; Issue 8 adds selectors including `_SC_NPROCESSORS_CONF`, `_SC_NPROCESSORS_ONLN`, `_SC_DEVICE_CONTROL` and `_SC_NSIG` | `lib/libc/gen/sysconf.c` implements ten explicitly named selectors: five inherited limits, the configured and online processor counts, signal count, software page size and the unsupported Device Control option. | `check-libc-runtime-limits` executes every selected value, distinguishes an unsupported option from an invalid selector through `errno`, and rejects five focused mutations; the cross gate proves target compilation and the expected errno import. `_SC_CHILD_MAX` remains absent because `fork1()` counts effective UIDs and admits a twenty-first process when `MAXUPRC` is 20. Every other required selector remains an explicit gap. |
 | `confstr()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/confstr.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/confstr.html), Base; Issue 8 advances `_V6_`/`_V7_` environment names to `_V7_`/`_V8_` | `lib/libc/gen/confstr.c` implements `_CS_PATH` only | `check-libc-runtime-limits` executes length, truncation, termination and unknown-selector behavior for `_CS_PATH`; the cross gate proves target compilation and the expected errno import. Versioned environment strings remain absent. |
 
 The scanner count bound uses `EOVERFLOW=82`. Both editions of
@@ -66,12 +66,23 @@ POSIX gap.
 
 ## Feature and limit reporting
 
-`include/unistd.h` exposes only `_SC_ARG_MAX`, `_SC_CLK_TCK`,
-`_SC_NGROUPS_MAX`, `_SC_OPEN_MAX`, `_SC_JOB_CONTROL` and `_CS_PATH`.
-`check-libc-runtime-limits` binds those selectors to `ARG_MAX=5120`,
-`CLK_TCK=60`, `NGROUPS_MAX=16`, `OPEN_MAX=30`, job-control value one and
-`_PATH_STDPATH`; it also rejects unknown selectors. The cross gate compiles
-the target objects and verifies their expected errno import.
+`include/unistd.h` exposes `_SC_ARG_MAX`, `_SC_CLK_TCK`,
+`_SC_NGROUPS_MAX`, `_SC_OPEN_MAX`, `_SC_JOB_CONTROL`,
+`_SC_NPROCESSORS_CONF`, `_SC_NPROCESSORS_ONLN`, `_SC_NSIG`, `_SC_PAGESIZE`,
+`_SC_DEVICE_CONTROL` and `_CS_PATH`. `check-libc-runtime-limits` binds those
+selectors to `ARG_MAX=5120`, `CLK_TCK=60`, `NGROUPS_MAX=16`, `OPEN_MAX=30`,
+job-control value one, one configured and online kernel processor, `NSIG=32`,
+the 1,024-byte software page and `_POSIX_DEVICE_CONTROL=-1`, plus
+`_PATH_STDPATH`. The Device Control selector preserves `errno`; invalid
+selectors set `EINVAL`. Five source mutations calibrate those distinctions and
+values. The cross gate compiles the target objects and verifies their expected
+errno import.
+
+`_SC_CHILD_MAX` stays absent. `fork1()` counts `p_uid`, the effective UID, and
+tests `a > MAXUPRC` before creating a child. With `MAXUPRC=20`, the kernel can
+create a twenty-first process for that effective UID. A truthful selector
+requires a separate kernel change that defines and enforces the real-UID limit
+without increasing the process-table footprint.
 The header defines neither `_POSIX_VERSION`, `_POSIX2_VERSION` nor
 `_XOPEN_VERSION`.
 

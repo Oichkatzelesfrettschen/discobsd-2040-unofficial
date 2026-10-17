@@ -80,7 +80,7 @@
 78|0|nosys|ALWAYS|#78|-
 79|2|getgroups|ALWAYS|getgroups|getgroups=79
 80|2|setgroups|ALWAYS|setgroups|setgroups=80
-81|1|getpgrp|ALWAYS|getpgrp|getpgrp=81
+81|0|getpgrp|ALWAYS|getpgrp|getpgrp=81
 82|2|setpgrp|ALWAYS|setpgrp|setpgrp=82
 83|3|setitimer|ALWAYS|setitimer|setitimer=83
 84|0|nosys|ALWAYS|old wait|-

@@ -154,6 +154,7 @@ Grouped by what they investigate.
 | `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
 | `libc-array-memory-line-reading.md` | C17 `reallocarray`, `memmem`, `getdelim` and `getline` promotion, behavior gates, archive selection and complete RP2040 size accounting |
 | `libc-array-memory-line-reading.json` | machine-checked Task 4 root-block arithmetic and bounded mechanism stack and line-buffer measurements |
+| `libc-process-runtime-interfaces.md` | zero-argument `getpgrp`, bounded runtime selectors, stripped board-libc symbols and complete RP2040 size accounting |
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |

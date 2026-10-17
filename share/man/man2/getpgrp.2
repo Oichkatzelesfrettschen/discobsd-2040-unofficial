@@ -11,17 +11,15 @@ getpgrp \- get process group
 .SH SYNOPSIS
 .ft B
 .nf
-pgrp = getpgrp(pid)
-int pgrp;
-int pid;
+#include <sys/types.h>
+#include <unistd.h>
+.sp
+pid_t getpgrp(void);
 .fi
 .ft R
 .SH DESCRIPTION
-The process group of the specified process is returned by
+The process group of the calling process is returned by
 .I getpgrp.
-If
-.I pid
-is zero, then the call applies to the current process.
 .PP
 Process groups are used for distribution of signals, and
 by terminals to arbitrate requests for their input: processes

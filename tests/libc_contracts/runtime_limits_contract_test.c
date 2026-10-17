@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <limits.h>
 #include <paths.h>
 #include <unistd.h>
 
@@ -53,6 +54,13 @@ check_sysconf(void)
 	CHECK(db_sysconf(_SC_NGROUPS_MAX) == 16);
 	CHECK(db_sysconf(_SC_OPEN_MAX) == 30);
 	CHECK(db_sysconf(_SC_JOB_CONTROL) == 1);
+	CHECK(db_sysconf(_SC_NPROCESSORS_CONF) == 1);
+	CHECK(db_sysconf(_SC_NPROCESSORS_ONLN) == 1);
+	CHECK(db_sysconf(_SC_NSIG) == 32);
+	CHECK(db_sysconf(_SC_PAGESIZE) == 1024);
+	runtime_limits_errno = 53;
+	CHECK(db_sysconf(_SC_DEVICE_CONTROL) == -1);
+	CHECK(runtime_limits_errno == 53);
 
 	runtime_limits_errno = 0;
 	CHECK(db_sysconf(2) == -1);
@@ -124,6 +132,12 @@ main(void)
 	CHECK(_SC_NGROUPS_MAX == 4);
 	CHECK(_SC_OPEN_MAX == 5);
 	CHECK(_SC_JOB_CONTROL == 6);
+	CHECK(_SC_NPROCESSORS_CONF == 7);
+	CHECK(_SC_NPROCESSORS_ONLN == 8);
+	CHECK(_SC_NSIG == 9);
+	CHECK(_SC_PAGESIZE == 10);
+	CHECK(_SC_DEVICE_CONTROL == 11);
+	CHECK(_POSIX_DEVICE_CONTROL == -1);
 	CHECK(_CS_PATH == 1);
 	check_sysconf();
 	check_confstr();

@@ -261,7 +261,7 @@ int main(c, av)
 	 * If we are an interactive shell, then start fiddling
 	 * with the signals; this is a tricky game.
 	 */
-	shpgrp = getpgrp(0);
+	shpgrp = getpgrp();
 	opgrp = tpgrp = -1;
 	oldisc = -1;
 	if (setintr) {

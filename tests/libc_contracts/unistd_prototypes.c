@@ -4,7 +4,7 @@
 int
 main(void)
 {
-	pid_t (*getpgrp_function)(pid_t) = getpgrp;
+	pid_t (*getpgrp_function)(void) = getpgrp;
 	off_t (*lseek_function)(int, off_t, int) = lseek;
 	ssize_t (*read_function)(int, void *, size_t) = read;
 	unsigned int (*sleep_function)(unsigned int) = sleep;
@@ -39,6 +39,7 @@ main(void)
 	(void)geteuid();
 	(void)getgid();
 	(void)getlogin();
+	(void)getpgrp();
 	(void)getpid();
 	(void)getppid();
 	(void)getuid();

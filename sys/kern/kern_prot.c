@@ -25,19 +25,7 @@ getppid()
 void
 getpgrp()
 {
-    register struct a {
-        int pid;
-    } *uap = (struct a *)u.u_arg;
-    register struct proc *p;
-
-    if (uap->pid == 0)      /* silly... */
-        uap->pid = u.u_procp->p_pid;
-    p = pfind(uap->pid);
-    if (p == 0) {
-        u.u_error = ESRCH;
-        return;
-    }
-    u.u_rval = p->p_pgrp;
+    u.u_rval = u.u_procp->p_pgrp;
 }
 
 void

@@ -1,5 +1,21 @@
 # Board-native link library for DiscoBSD/RP2040
 
+## Current archive
+
+Commit `80a526fa` retains the 151-member closure and assembles each member with
+the tree assembler's `-X` option. The option removes compiler-local `L*` and
+`.*` symbols after their relocations have been bound while preserving external
+symbols and linkable relocation records. The calibrated board-archive gate
+proves the default and stripped label behavior, rejects retained `.L*` symbols,
+links the selected archive and rejects a copy missing `vfprintf.o`.
+
+The clean RP2040 distribution archive measures 43,010 bytes, down from 54,086
+bytes at base commit `145e19b7470ce6c783299ca7d7e4e33b72f57317`. The packed
+root uses 682 data blocks and reports 297 free blocks, compared with 692 and
+287 at the base. [libc-process-runtime-interfaces.md](../../../../../docs/research/libc-process-runtime-interfaces.md)
+records the complete kernel, process, archive and root measurements. The
+historical construction report follows.
+
 Worktree: `~/worktrees/discobsd/board-libc`, branch `board-libc`, off
 `rp2040-port` at `3fcbdb41`. Board not touched; every check below runs on
 the host against the tree's own as/ld/ar (`tools/bin/*`, host binaries
@@ -53,17 +69,17 @@ compat}`, `lib/libc/arm/{sys,gen,string}`), then for each:
 - **A `.c` source**: `arm-none-eabi-gcc -S` with the tree's exact libc
   flags (`bmake -n MACHINE=rp2040 -C lib/libc`) plus `-fno-jump-tables`
   (ARMv6-M has no divide or jump-table instruction, and the board carries
-  no libgcc to supply `__gnu_thumb1_case_*`), then the tree's own `as`
-  assembles the `.s`.
+  no libgcc to supply `__gnu_thumb1_case_*`), then the tree's own `as -X`
+  assembles the `.s` without compiler-local symbols.
 - **A hand-written `.S`** (`aeabi_div.S`, `memmove.S`/`strcmp.S`'s arm
   overrides, `_exit.S`/`_brk.S`/`pipe.S`/`ptrace.S`/`sigaction.S`): `gcc -E
   -P -x assembler-with-cpp` expands the SYS.h-style macros to plain Thumb-1
-  text, then the tree's `as` assembles it.
+  text, then the tree's `as -X` assembles it.
 - **A syscall stub** (the `SYSOBJS` in `lib/libc/arm/sys/Makefile`, no
   source file): the same `#include "SYS.h"\nSYS(name)\n` snippet
   `lib/libc/arm/sys/Makefile` pipes into `$(AS)`, preprocessed the same way.
 
-All 89 `.o` files are archived with the tree's own `ar` (`rc`) and indexed
+All `.o` files are archived with the tree's own `ar` (`rc`) and indexed
 with the tree's own `ranlib` -- a.out format end to end, since `usr.bin/ld`
 on the board reads a.out only.
 

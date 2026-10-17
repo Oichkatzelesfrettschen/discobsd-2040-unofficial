@@ -913,7 +913,7 @@ main(int argc, char **argv)
 #ifdef notdef     /* This works for csh but we don't want it. */
     { int tgrp;
     if (background_flag == 0 && ioctl(2, TIOCGPGRP, (char *)&tgrp) == 0 &&
-      getpgrp(0) != tgrp)
+      getpgrp() != tgrp)
 	background_flag = 1;
     }
 #endif

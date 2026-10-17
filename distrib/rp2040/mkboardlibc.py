@@ -5,10 +5,12 @@ boardlibc-members, compiled with the tree's exact libc flags (see
 `bmake -n MACHINE=rp2040 -C lib/libc`) plus -fno-jump-tables, since the
 board carries no libgcc to supply __gnu_thumb1_case_* for a jump table.
 Each member is compiled or preprocessed to plain Thumb-1 assembly with
-the host's arm-none-eabi-gcc, then assembled by the tree's own `as` (the
-same assembler distrib/rp2040/cc runs on the board) and archived by the
-tree's own `ar`, so the result is an a.out archive from end to end,
-never an ELF one -- lib/libc.a stays ELF-only, for the host cross build.
+the host's arm-none-eabi-gcc, then assembled by the tree's own `as -X`
+(the same assembler distrib/rp2040/cc runs on the board) and archived by
+the tree's own `ar`.  The `-X` option removes compiler-local labels after
+relocations have bound them while retaining link-visible symbols.  The
+result is an a.out archive from end to end, never an ELF one --
+lib/libc.a stays ELF-only, for the host cross build.
 
 usr.bin/as/tests/thumb-link.sh proves this same as/ar pair against the
 full 329-member library; this script narrows the member list to the
@@ -226,7 +228,7 @@ def main():
         else:
             raise SystemExit("unreachable")
 
-        run([as_tool, sfile, "-o", ofile])
+        run([as_tool, "-X", sfile, "-o", ofile])
         objs.append(ofile)
 
     if os.path.exists(args.out):

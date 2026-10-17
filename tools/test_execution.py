@@ -15,6 +15,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import run_logged_gate as execution_ownership
+
 ROOT = Path(__file__).resolve().parent.parent
 INVENTORY = ROOT / "tools/test-execution-inventory.json"
 TIMEOUT_EXIT = 124
@@ -109,6 +111,11 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
         process = subprocess.Popen(
             command, cwd=cwd, env=child_environment, start_new_session=True
         )
+        try:
+            execution_ownership.register_inherited_execution_group(process.pid)
+        except (OSError, ValueError, TimeoutError):
+            stop_process_group(process, cleanup_seconds)
+            return 125, "cleanup_incomplete"
         try:
             returncode = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
@@ -245,6 +252,8 @@ def run_variant(variant, command, timeout_seconds=VARIANT_TIMEOUT_SECONDS):
         executable=evidence, termination=termination,
         timeout_seconds=timeout_seconds,
     )
+    if termination == "cleanup_incomplete":
+        return 125
     return {"PASS": 0, "FAIL": 1, "ERROR": 2}[outcome]
 
 

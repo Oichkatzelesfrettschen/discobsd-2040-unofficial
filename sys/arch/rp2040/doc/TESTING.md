@@ -70,14 +70,21 @@ Immediately before timeout or signal termination, the log records a bounded
 process-tree snapshot with process, parent, group, state, elapsed, CPU-time and
 command fields. The snapshot establishes the observed host process state at
 termination; the child log remains the authority for its own output.
-A cleanup-incomplete invocation that owns a product lock writes
-`<execution-lock>.quarantine.json` before releasing the lock. The receipt names
-the process group, invocation, status path and creation time. A later logged
-target acquires the lock and then rejects product mutation with
-`execution_quarantined` while that process group remains visible. Once the
-recorded group has disappeared, a later invocation may proceed; the quarantine
-receipt remains as evidence. PID reuse ambiguity therefore closes mutation
-rather than risking concurrent writers.
+Before child launch, a product owner writes
+`<execution-lock>.ownership.json` with active state. Direct and nested
+supervisors register every independently created process group in that receipt.
+Verified cleanup changes the receipt to released state. Incomplete cleanup
+changes the receipt to cleanup-incomplete state before later evidence writes;
+an active receipt remains fail-closed when finalization itself fails.
+A cleanup-incomplete invocation also writes
+`<execution-lock>.quarantine.json` before releasing the lock. The retained
+quarantine receipt names the process groups, invocation, status path and
+creation time. A later logged target acquires the lock and then rejects product
+mutation with `execution_quarantined` while the ownership state is active,
+while an unknown group set remains, or while a recorded group remains visible.
+Once every recorded group has disappeared, a later invocation may proceed; the
+quarantine receipt remains as evidence. PID reuse ambiguity therefore closes
+mutation rather than risking concurrent writers.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a

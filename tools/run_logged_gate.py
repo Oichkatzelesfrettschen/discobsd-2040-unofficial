@@ -26,6 +26,9 @@ READ_SIZE = 65536
 TERMINAL_QUEUE_CHUNKS = 32
 TERMINAL_CLOSE_SECONDS = 0.2
 PROCESS_SNAPSHOT_SECONDS = 1.0
+OWNERSHIP_LOCK_SECONDS = 1.0
+OWNERSHIP_PATH_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_PATH"
+OWNERSHIP_INVOCATION_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_INVOCATION"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -143,28 +146,36 @@ def execution_quarantine_path(path):
     return path.with_name(f"{path.name}.quarantine.json")
 
 
-def read_execution_quarantine(path):
+def execution_ownership_path(path):
+    return path.with_name(f"{path.name}.ownership.json")
+
+
+def _read_regular_json(path, description):
     try:
         existing = os.lstat(path)
     except FileNotFoundError:
         return None
     if not stat.S_ISREG(existing.st_mode):
-        raise ValueError(f"execution quarantine must name a regular file: {path}")
+        raise ValueError(f"{description} must name a regular file: {path}")
     flags = os.O_RDONLY
     flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError(
-                f"execution quarantine must name a regular file: {path}"
-            )
+            raise ValueError(f"{description} must name a regular file: {path}")
         with os.fdopen(descriptor, encoding="utf-8") as stream:
             descriptor = None
-            record = json.load(stream)
+            return json.load(stream)
     except Exception:
         if descriptor is not None:
             os.close(descriptor)
         raise
+
+
+def read_execution_quarantine(path):
+    record = _read_regular_json(path, "execution quarantine")
+    if record is None:
+        return None
     if not isinstance(record, dict) or record.get("schema") != 1:
         raise ValueError(f"invalid execution quarantine receipt: {path}")
     process_group = record.get("process_group")
@@ -176,6 +187,127 @@ def read_execution_quarantine(path):
     ):
         raise ValueError(f"invalid execution quarantine receipt: {path}")
     return record
+
+
+def read_execution_ownership(path):
+    record = _read_regular_json(path, "execution ownership receipt")
+    if record is None:
+        return None
+    if not isinstance(record, dict) or record.get("schema") != 1:
+        raise ValueError(f"invalid execution ownership receipt: {path}")
+    process_groups = record.get("process_groups")
+    if (
+        record.get("state") not in {
+            "active", "cleanup_incomplete", "released"
+        }
+        or not isinstance(record.get("invocation_id"), str)
+        or not isinstance(process_groups, list)
+        or any(
+            not isinstance(group, int)
+            or isinstance(group, bool)
+            or group <= 0
+            for group in process_groups
+        )
+        or len(process_groups) != len(set(process_groups))
+    ):
+        raise ValueError(f"invalid execution ownership receipt: {path}")
+    return record
+
+
+def execution_ownership_blocks(record):
+    if record["state"] == "active":
+        return True
+    if record["state"] == "released":
+        return False
+    groups = record["process_groups"]
+    return not groups or any(group_exists(group) for group in groups)
+
+
+def _acquire_ownership_update_lock(path):
+    lock_path = path.with_name(f".{path.name}.update.lock")
+    flags = os.O_RDWR | os.O_CREAT
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(lock_path, flags, 0o666)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(
+                f"execution ownership update lock must name a regular file: "
+                f"{lock_path}"
+            )
+        deadline = time.monotonic() + OWNERSHIP_LOCK_SECONDS
+        while True:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return descriptor
+            except BlockingIOError as error:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"execution ownership update lock timed out: {lock_path}"
+                    ) from error
+                time.sleep(0.01)
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def begin_execution_ownership(path, record):
+    ownership = {
+        "schema": 1,
+        "state": "active",
+        "process_groups": [],
+        "label": record["label"],
+        "invocation_id": record["invocation_id"],
+        "created_at": utc_timestamp(),
+        "status_path": record["status_path"],
+    }
+    atomic_status(path, ownership)
+
+
+def register_execution_group(path, invocation_id, process_group):
+    descriptor = _acquire_ownership_update_lock(path)
+    try:
+        record = read_execution_ownership(path)
+        if record is None or record["invocation_id"] != invocation_id:
+            raise ValueError(f"execution ownership invocation mismatch: {path}")
+        if record["state"] not in {"active", "cleanup_incomplete"}:
+            raise ValueError(f"execution ownership is already released: {path}")
+        if process_group not in record["process_groups"]:
+            record["process_groups"].append(process_group)
+            record["process_groups"].sort()
+            atomic_status(path, record)
+    finally:
+        os.close(descriptor)
+
+
+def register_inherited_execution_group(process_group):
+    path = os.environ.get(OWNERSHIP_PATH_ENV)
+    invocation_id = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if path is None and invocation_id is None:
+        return
+    if path is None or invocation_id is None:
+        raise ValueError("incomplete inherited execution ownership environment")
+    register_execution_group(Path(path), invocation_id, process_group)
+
+
+def finish_execution_ownership(path, invocation_id, force_incomplete=False):
+    descriptor = _acquire_ownership_update_lock(path)
+    try:
+        record = read_execution_ownership(path)
+        if record is None or record["invocation_id"] != invocation_id:
+            raise ValueError(f"execution ownership invocation mismatch: {path}")
+        surviving = [
+            group for group in record["process_groups"] if group_exists(group)
+        ]
+        record["state"] = (
+            "cleanup_incomplete"
+            if force_incomplete or surviving
+            else "released"
+        )
+        record["updated_at"] = utc_timestamp()
+        atomic_status(path, record)
+        return surviving
+    finally:
+        os.close(descriptor)
 
 
 def acquire_execution_lock(path):
@@ -199,22 +331,44 @@ def acquire_execution_lock(path):
                 f"{path}: process group {quarantine['process_group']} from "
                 f"{quarantine.get('invocation_id', 'unknown')} remains live"
             )
+        ownership_path = execution_ownership_path(path)
+        ownership = read_execution_ownership(ownership_path)
+        if ownership is not None and execution_ownership_blocks(ownership):
+            raise ExecutionQuarantined(
+                "execution ownership holds "
+                f"{path}: invocation {ownership['invocation_id']} remains "
+                f"{ownership['state']}"
+            )
         return descriptor
     except Exception:
         os.close(descriptor)
         raise
 
 
-def publish_execution_quarantine(args, record):
+def execution_quarantine_for_args(args):
     path = getattr(args, "execution_quarantine", None)
     if path is None and args.execution_lock is not None:
         path = execution_quarantine_path(args.execution_lock)
+    return path
+
+
+def execution_ownership_for_args(args):
+    path = getattr(args, "execution_ownership", None)
+    if path is None and args.execution_lock is not None:
+        path = execution_ownership_path(args.execution_lock)
+    return path
+
+
+def publish_execution_quarantine(args, record, process_groups=None):
+    path = execution_quarantine_for_args(args)
     if path is None:
         return
+    groups = sorted(set(process_groups or [record["pid"]]))
     quarantine = {
         "schema": 1,
         "state": "cleanup_incomplete",
-        "process_group": record["pid"],
+        "process_group": groups[0],
+        "process_groups": groups,
         "label": record["label"],
         "invocation_id": record["invocation_id"],
         "created_at": utc_timestamp(),
@@ -474,6 +628,10 @@ def run(args):
         "sequence_invocation_id": getattr(args, "sequence_invocation_id", None),
     }
     execution_lock = None
+    ownership_path = execution_ownership_for_args(args)
+    owns_ownership = args.execution_lock is not None
+    ownership_started = False
+    ownership_finished = False
     if args.execution_lock is not None:
         try:
             execution_lock = acquire_execution_lock(args.execution_lock)
@@ -521,6 +679,27 @@ def run(args):
         if execution_lock is not None:
             os.close(execution_lock)
         return RUNNER_ERROR_EXIT
+    if owns_ownership:
+        try:
+            begin_execution_ownership(ownership_path, record)
+            ownership_started = True
+        except (OSError, ValueError) as error:
+            record.update(
+                state="error",
+                updated_at=utc_timestamp(),
+                elapsed_seconds=round(time.monotonic() - start, 3),
+                exit_code=RUNNER_ERROR_EXIT,
+                termination="execution_ownership_error",
+            )
+            try:
+                publish_status(args, record)
+            except OSError:
+                pass
+            print(f"logged-gate: {error}", file=sys.stderr)
+            log_stream.close()
+            os.close(log_lock)
+            os.close(execution_lock)
+            return RUNNER_ERROR_EXIT
     signal_received = None
     process = None
     selector = None
@@ -571,6 +750,12 @@ def run(args):
                 f"command={shlex.join(command)}\n"
             )
             try:
+                child_environment = os.environ.copy()
+                if ownership_path is not None:
+                    child_environment[OWNERSHIP_PATH_ENV] = str(ownership_path)
+                    child_environment[OWNERSHIP_INVOCATION_ENV] = (
+                        record["sequence_invocation_id"] or record["invocation_id"]
+                    )
                 process = subprocess.Popen(
                     command,
                     stdout=subprocess.PIPE,
@@ -578,14 +763,25 @@ def run(args):
                     start_new_session=True,
                     bufsize=0,
                     pass_fds=make_jobserver_descriptors(),
+                    env=child_environment,
                 )
-            except OSError as error:
+                if ownership_path is not None:
+                    register_execution_group(
+                        ownership_path,
+                        child_environment[OWNERSHIP_INVOCATION_ENV],
+                        process.pid,
+                    )
+            except (OSError, ValueError, TimeoutError) as error:
                 record.update(
                     state="error",
                     updated_at=utc_timestamp(),
                     elapsed_seconds=round(time.monotonic() - start, 3),
                     exit_code=RUNNER_ERROR_EXIT,
-                    termination="launch_error",
+                    termination=(
+                        "launch_error"
+                        if process is None
+                        else "execution_ownership_error"
+                    ),
                 )
                 safe_emit(
                     f"[logged-gate] error label={args.label} "
@@ -741,6 +937,21 @@ def run(args):
                         exit_code = child_exit if child_exit >= 0 else 128 - child_exit
                         state = "completed" if exit_code == 0 else "failed"
 
+                ownership_groups = []
+                ownership_survivors = []
+                if ownership_path is not None:
+                    ownership_record = read_execution_ownership(ownership_path)
+                    if ownership_record is not None:
+                        ownership_groups = ownership_record["process_groups"]
+                        ownership_survivors = [
+                            group for group in ownership_groups
+                            if group_exists(group)
+                        ]
+                if ownership_survivors:
+                    exit_code = RUNNER_ERROR_EXIT
+                    state = "error"
+                    termination = "cleanup_incomplete"
+
                 elapsed = time.monotonic() - start
                 quiet = time.monotonic() - last_output_time
                 record.update(
@@ -752,8 +963,28 @@ def run(args):
                     exit_code=exit_code,
                     termination=termination,
                 )
+                if ownership_path is not None and (
+                    owns_ownership or termination == "cleanup_incomplete"
+                ):
+                    finish_execution_ownership(
+                        ownership_path,
+                        record["sequence_invocation_id"] or record["invocation_id"],
+                        force_incomplete=(termination == "cleanup_incomplete"),
+                    )
+                    ownership_finished = owns_ownership
                 if termination == "cleanup_incomplete":
-                    publish_execution_quarantine(args, record)
+                    try:
+                        publish_execution_quarantine(
+                            args,
+                            record,
+                            process_groups=(ownership_groups or [record["pid"]]),
+                        )
+                    except OSError as quarantine_error:
+                        safe_emit(
+                            f"[logged-gate] quarantine-write-error "
+                            f"label={args.label} time={utc_timestamp()}: "
+                            f"{quarantine_error}\n"
+                        )
                 emit(
                     f"[logged-gate] {state} label={args.label} exit={exit_code} "
                     f"time={utc_timestamp()} elapsed={elapsed:.1f}s "
@@ -774,6 +1005,14 @@ def run(args):
                     cleanup_incomplete = not stop_result.group_stopped
                 else:
                     child_exit = process.poll()
+                ownership_groups = []
+                if ownership_path is not None:
+                    ownership_record = read_execution_ownership(ownership_path)
+                    if ownership_record is not None:
+                        ownership_groups = ownership_record["process_groups"]
+                        cleanup_incomplete = cleanup_incomplete or any(
+                            group_exists(group) for group in ownership_groups
+                        )
                 record.update(
                     state="error",
                     updated_at=utc_timestamp(),
@@ -784,8 +1023,28 @@ def run(args):
                         "cleanup_incomplete" if cleanup_incomplete else "runner_error"
                     ),
                 )
+                if ownership_path is not None and (
+                    owns_ownership or cleanup_incomplete
+                ):
+                    finish_execution_ownership(
+                        ownership_path,
+                        record["sequence_invocation_id"] or record["invocation_id"],
+                        force_incomplete=cleanup_incomplete,
+                    )
+                    ownership_finished = owns_ownership
                 if cleanup_incomplete:
-                    publish_execution_quarantine(args, record)
+                    try:
+                        publish_execution_quarantine(
+                            args,
+                            record,
+                            process_groups=(ownership_groups or [record["pid"]]),
+                        )
+                    except OSError as quarantine_error:
+                        safe_emit(
+                            f"[logged-gate] quarantine-write-error "
+                            f"label={args.label} time={utc_timestamp()}: "
+                            f"{quarantine_error}\n"
+                        )
                 safe_emit(
                     f"[logged-gate] error label={args.label} "
                     f"time={utc_timestamp()}: {error}\n"
@@ -795,6 +1054,21 @@ def run(args):
     finally:
         if process is not None and group_exists(process.pid):
             stop_process_group(process, args.terminate_grace_seconds)
+        if owns_ownership and ownership_started and not ownership_finished:
+            try:
+                finish_execution_ownership(
+                    ownership_path,
+                    record["invocation_id"],
+                    force_incomplete=(
+                        record.get("termination") == "cleanup_incomplete"
+                        or (
+                            process is not None
+                            and group_exists(process.pid)
+                        )
+                    ),
+                )
+            except (OSError, ValueError, TimeoutError):
+                pass
         if selector is not None:
             selector.close()
         if process is not None and process.stdout is not None:

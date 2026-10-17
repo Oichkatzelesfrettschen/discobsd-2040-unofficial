@@ -693,6 +693,114 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(quarantine.read_text(encoding="utf-8"), quarantine_text)
 
+    def test_nested_cleanup_incomplete_quarantines_successor_before_launch(self):
+        execution_lock = self.directory / "products.lock"
+        group_file = self.directory / "nested-group"
+        marker = self.directory / "successor-launched"
+        nested = self.directory / "nested-cleanup.py"
+        nested_child = (
+            "import os, pathlib, sys, time; "
+            "pathlib.Path(sys.argv[1]).write_text("
+            "str(os.getpgrp()), encoding='ascii'); time.sleep(60)"
+        )
+        nested.write_text(
+            "import os, pathlib, sys\n"
+            f"sys.path.insert(0, {str(ROOT / 'tools')!r})\n"
+            "import test_execution\n"
+            "group_file = pathlib.Path(sys.argv[1])\n"
+            f"child = {nested_child!r}\n"
+            "def leave_group_running(process, _grace_seconds):\n"
+            "    return test_execution.StopResult(process.poll(), False)\n"
+            "test_execution.stop_process_group = leave_group_running\n"
+            "returncode, _termination = test_execution.run_bounded(\n"
+            "    [sys.executable, '-c', child, str(group_file)], 0.1\n"
+            ")\n"
+            "raise SystemExit(returncode)\n",
+            encoding="ascii",
+        )
+
+        first = self.run_gate(
+            f"exec(compile(open({str(nested)!r}, encoding='ascii').read(), "
+            f"{str(nested)!r}, 'exec'))",
+            timeout="2",
+            program_arguments=(group_file,),
+            execution_lock=execution_lock,
+        )
+        self.assertEqual(first.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertTrue(group_file.is_file(), first.stdout + first.stderr)
+        process_group = int(group_file.read_text(encoding="ascii"))
+        try:
+            second = self.run_gate(
+                "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text("
+                "'launched', encoding='ascii')",
+                program_arguments=(marker,),
+                execution_lock=execution_lock,
+            )
+            self.assertEqual(second.returncode, runner.RUNNER_ERROR_EXIT)
+            self.assertFalse(marker.exists())
+            self.assertEqual(
+                self.read_status()["termination"], "execution_quarantined"
+            )
+        finally:
+            try:
+                os.killpg(process_group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    def test_quarantine_write_failure_retains_prelaunch_ownership_barrier(self):
+        execution_lock = self.directory / "products.lock"
+        quarantine = Path(f"{execution_lock}.quarantine.json")
+        marker = self.directory / "successor-launched"
+        arguments = runner.parse_arguments([
+            "--label", "quarantine-write-failure",
+            "--log", str(self.log),
+            "--status", str(self.status),
+            "--execution-lock", str(execution_lock),
+            "--heartbeat-seconds", "0.05",
+            "--idle-timeout-seconds", "0",
+            "--timeout-seconds", "0.1",
+            "--terminate-grace-seconds", "0.1",
+            "--", sys.executable, "-c", "import time; time.sleep(60)",
+        ])
+
+        def leave_group_running(process, _grace_seconds, **_kwargs):
+            return runner.StopResult(process.poll(), False)
+
+        original_atomic_status = runner.atomic_status
+
+        def reject_cleanup_record(path, record):
+            if path == quarantine and record.get("state") == "cleanup_incomplete":
+                raise OSError("injected quarantine write failure")
+            original_atomic_status(path, record)
+
+        process_group = None
+        try:
+            with mock.patch.object(
+                runner, "stop_process_group", side_effect=leave_group_running
+            ), mock.patch.object(
+                runner, "atomic_status", side_effect=reject_cleanup_record
+            ):
+                self.assertEqual(runner.run(arguments), runner.RUNNER_ERROR_EXIT)
+            process_group = self.read_status()["pid"]
+
+            second = self.run_gate(
+                "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text("
+                "'launched', encoding='ascii')",
+                program_arguments=(marker,),
+                execution_lock=execution_lock,
+            )
+            self.assertEqual(second.returncode, runner.RUNNER_ERROR_EXIT)
+            self.assertFalse(marker.exists())
+            self.assertEqual(
+                self.read_status()["termination"], "execution_quarantined"
+            )
+        finally:
+            if process_group is not None:
+                try:
+                    os.killpg(process_group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
     def test_common_helper_has_an_independent_outer_deadline(self):
         completed = subprocess.CompletedProcess([], 0, "", "")
         with mock.patch.object(subprocess, "run", return_value=completed) as run:

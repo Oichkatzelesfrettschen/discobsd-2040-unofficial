@@ -26,6 +26,7 @@ def stage_arguments(args, invocation_id, directory, stage, timeout_seconds):
         evidence_root=None,
         execution_lock=None,
         execution_quarantine=gate.execution_quarantine_path(args.execution_lock),
+        execution_ownership=gate.execution_ownership_path(args.execution_lock),
         sequence_invocation_id=invocation_id,
         heartbeat_seconds=args.heartbeat_seconds,
         idle_timeout_seconds=args.idle_timeout_seconds,
@@ -191,6 +192,8 @@ def run(args):
         },
     }
     lock_descriptor = None
+    ownership_path = gate.execution_ownership_path(args.execution_lock)
+    ownership_started = False
     previous_handlers = {}
     try:
         lock_descriptor = gate.acquire_execution_lock(args.execution_lock)
@@ -208,6 +211,25 @@ def run(args):
         )
         publish_summary(summary_path, evidence.latest_status, summary)
         print(f"logged-build-check: {error}", file=sys.stderr)
+        return gate.RUNNER_ERROR_EXIT
+
+    try:
+        gate.begin_execution_ownership(ownership_path, summary)
+        ownership_started = True
+    except (OSError, ValueError) as error:
+        summary.update(
+            state="error",
+            updated_at=gate.utc_timestamp(),
+            elapsed_seconds=round(time.monotonic() - started, 3),
+            exit_code=gate.RUNNER_ERROR_EXIT,
+            termination="execution_ownership_error",
+        )
+        try:
+            publish_summary(summary_path, evidence.latest_status, summary)
+        except OSError:
+            pass
+        print(f"logged-build-check: {error}", file=sys.stderr)
+        os.close(lock_descriptor)
         return gate.RUNNER_ERROR_EXIT
 
     def interrupt(number, _frame):
@@ -401,6 +423,17 @@ def run(args):
     finally:
         for number, handler in previous_handlers.items():
             signal.signal(number, handler)
+        if ownership_started:
+            try:
+                gate.finish_execution_ownership(
+                    ownership_path,
+                    evidence.invocation_id,
+                    force_incomplete=(
+                        summary.get("termination") == "cleanup_incomplete"
+                    ),
+                )
+            except (OSError, ValueError, TimeoutError):
+                pass
         os.close(lock_descriptor)
 
 

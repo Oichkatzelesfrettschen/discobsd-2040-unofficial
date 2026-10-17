@@ -321,7 +321,7 @@ int     *pf1, *pf2;
 		register char   **com;
 		struct command_context *volatile command_state = NIL;
 		volatile short          pos;
-		int                     linked;
+		volatile int            linked;
 		int                     execflg;
 
 		linked = exec_link >> 1;

@@ -34,7 +34,7 @@ SOURCES="setbrk blok stak cmd fault main word string name args xec service
 	error io print macro ctype msg test defs echo hash hashserv pwd func pwname"
 
 CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h
-	-DSH_HOST_COMMAND_ALLOC_FAILURE"
+	-D_FILE_OFFSET_BITS=64 -DSH_HOST_COMMAND_ALLOC_FAILURE"
 
 # blok.c defines global alloc() and free(); rename both so a libc
 # internal free() never lands in the shell's own arena walker.
@@ -56,6 +56,14 @@ build()
 		exit 2
 	fi
 
+	# The getdents64 adapter and every consumer must agree on a directory
+	# record layout that preserves Linux inode and offset widths.
+	# shellcheck disable=SC2086
+	$HOST_CC $CFLAGS -Wall -Wextra -Werror \
+	    -o "$OUT/hostshim_layout_test" \
+	    "$SRCDIR/hostshim_layout_test.c"
+	"$OUT/hostshim_layout_test"
+
 	# expand.c reads directory blocks itself; give it a complete DIR and
 	# route its one read(2) call at hostshim.c.
 	# shellcheck disable=SC2086
@@ -68,7 +76,8 @@ build()
 		# shellcheck disable=SC2086
 		$HOST_CC $CFLAGS -c -o "$OUT/$unit.o" "$SHSRC/$unit.c"
 	done
-	$HOST_CC -m32 -w -c -o "$OUT/hostshim.o" "$SRCDIR/hostshim.c"
+	$HOST_CC -m32 -w -D_FILE_OFFSET_BITS=64 \
+	    -c -o "$OUT/hostshim.o" "$SRCDIR/hostshim.c"
 	$HOST_CC -m32 -o "$SH" "$OUT"/*.o
 }
 

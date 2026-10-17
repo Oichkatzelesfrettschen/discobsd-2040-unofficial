@@ -384,6 +384,26 @@
       ]
     },
     {
+      "id": "libc.line-reading.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-array-memory-line",
+      "root_target": "check-libc-array-memory-line",
+      "program": "line_reading_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "line_reading_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.line-reading.native -- ./line_reading_contract_test",
+      "aliases": [
+        "check-libc-array-memory-line",
+        "check-libc-host-contracts"
+      ]
+    },
+    {
       "id": "libc.reallocarray.sanitized",
       "owner": "firmware/posix-sh",
       "width": "native",

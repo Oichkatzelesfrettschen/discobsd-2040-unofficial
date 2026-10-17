@@ -38,6 +38,28 @@ verify_members()
 	done
 }
 
+verify_promoted_selection()
+{
+	selection_map=$1
+	expected_members=$2
+	for promoted_member in reallocarray.o memmem.o getdelim.o getline.o
+	do
+		case " $expected_members " in
+		*" $promoted_member "*) expected=yes ;;
+		*) expected=no ;;
+		esac
+		if grep -Fq "libc.a($promoted_member)" "$selection_map"; then
+			observed=yes
+		else
+			observed=no
+		fi
+		if [ "$observed" != "$expected" ]; then
+			echo "$selection_map: $promoted_member selected=$observed expected=$expected" >&2
+			return 1
+		fi
+	done
+}
+
 if [ ! -f "$archive_path" ]; then
 	echo "$archive_path: build the RP2040 libc before this gate" >&2
 	exit 2
@@ -82,26 +104,39 @@ if [ "$self_test" = yes ]; then
 	echo "array-memory archive negative control passed"
 fi
 
-"$arm_compiler" $target_cflags \
-    -c "$script_directory/array_memory_link_contract.c" \
-    -o "$temporary_directory/array_memory_link_contract.o"
-
-link_map=$temporary_directory/array_memory_link_contract.map
-"$arm_compiler" -n -nostartfiles -fno-dwarf2-cfi-asm \
-    -Wl,--warn-rwx-segments -Wl,--fatal-warnings \
-    -T"$source_root/lib/elf32-arm.ld" "$source_root/lib/crt0.o" \
-    -L"$source_root/lib" -o "$temporary_directory/array_memory_link_contract.elf" \
-    "$temporary_directory/array_memory_link_contract.o" -lc -Wl,-Map="$link_map"
-
-for required_member in reallocarray.o memmem.o getdelim.o getline.o
+for contract in empty reallocarray memmem getdelim getline
 do
-	selection_count=$(awk -v member="($required_member)" \
-	    'index($0, "libc.a" member) { count++ } END { print count + 0 }' \
-	    "$link_map")
-	if [ "$selection_count" -lt 1 ]; then
-		echo "$link_map: linker selected no $required_member" >&2
+	case $contract in
+	empty) contract_define=ARRAY_MEMORY_LINK_EMPTY; expected_members="" ;;
+	reallocarray) contract_define=ARRAY_MEMORY_LINK_REALLOCARRAY; expected_members=reallocarray.o ;;
+	memmem) contract_define=ARRAY_MEMORY_LINK_MEMMEM; expected_members=memmem.o ;;
+	getdelim) contract_define=ARRAY_MEMORY_LINK_GETDELIM; expected_members=getdelim.o ;;
+	getline) contract_define=ARRAY_MEMORY_LINK_GETLINE; expected_members="getline.o getdelim.o" ;;
+	esac
+	contract_object=$temporary_directory/$contract.o
+	contract_map=$temporary_directory/$contract.map
+	"$arm_compiler" $target_cflags -D$contract_define \
+	    -c "$script_directory/array_memory_link_contract.c" \
+	    -o "$contract_object"
+	"$arm_compiler" -n -nostartfiles -fno-dwarf2-cfi-asm \
+	    -Wl,--warn-rwx-segments -Wl,--fatal-warnings \
+	    -T"$source_root/lib/elf32-arm.ld" "$source_root/lib/crt0.o" \
+	    -L"$source_root/lib" -o "$temporary_directory/$contract.elf" \
+	    "$contract_object" -lc -Wl,-Map="$contract_map"
+	verify_promoted_selection "$contract_map" "$expected_members"
+done
+
+if [ "$self_test" = yes ]; then
+	unexpected_map=$temporary_directory/reallocarray-unexpected.map
+	{
+		cat "$temporary_directory/reallocarray.map"
+		echo "libc.a(memmem.o)"
+	} > "$unexpected_map"
+	if verify_promoted_selection "$unexpected_map" reallocarray.o >/dev/null 2>&1; then
+		echo "selection negative control accepted an unexpected member" >&2
 		exit 1
 	fi
-done
+	echo "array-memory exact-selection negative control passed"
+fi
 
 echo "array-memory strict C17, libc archive and link-map contracts passed"

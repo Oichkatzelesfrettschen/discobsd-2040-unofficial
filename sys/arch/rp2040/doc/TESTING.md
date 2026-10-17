@@ -74,9 +74,9 @@ processes while bmake owns the cross-shard concurrency. The board-build tier
 gives each on-device program a target. These graphs accept the jobserver count
 directly.
 
-`check-libc-array-memory-line` executes the tree's `reallocarray()` and
-`memmem()` implementations natively and exercises `getdelim()` and `getline()`
-through the textbox line-reading contract. Native and ILP32 address and
+`check-libc-array-memory-line` executes the tree's `reallocarray()`, `memmem()`,
+`getdelim()` and `getline()` implementations unconditionally at native width.
+Native and ILP32 address and
 undefined-behavior sanitizer variants remain separate execution-inventory
 rows. `check-libc-array-memory-line-cross` compiles all four sources with the
 strict Cortex-M0+ C17 profile, rejects a GNU-extension fixture, verifies one
@@ -85,6 +85,9 @@ that omit a member or link a helper object directly. The cross gate establishes
 target compilation and archive selection; host execution establishes only the
 exercised behavior on the recorded host widths. Neither gate supplies Renode or
 physical-board evidence.
+The root `check-cross` graph runs the array-memory composition gate after the
+parallel cross-contract group because its consumer-map proof cleans and relinks
+shared utility directories.
 
 The complete 12-job maintained host tier takes 5.80 seconds on the measured
 host. Tail's 2,016 subprocess cases remain serial inside their target because

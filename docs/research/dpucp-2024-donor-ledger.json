@@ -126,7 +126,7 @@
         "surfaces": [
           "libc archive bytes",
           "affected a.out text and data",
-          "peak stack",
+          "mechanism stack-frame bytes",
           "largest 144 KiB process-window consumer",
           "packed Dhara root blocks"
         ],
@@ -134,7 +134,7 @@
       },
       "deciding_gate": "Re-run the behavior, strict-C17, archive-member, consumer-map, clean distribution, per-program and packed-root gates after changes to memmem or its consumers.",
       "disposition": "promoted",
-      "residual": "The compact linear libc mechanism is promoted. The DPUCP requirement row stays open until an Issue 8 facet audit demonstrates that the executable witness covers the complete cited interface contract."
+      "residual": "The compact linear libc mechanism is promoted. Whole-program runtime stack peaks remain unmeasured. The DPUCP requirement row stays open until an Issue 8 facet audit demonstrates that the executable witness covers the complete cited interface contract."
     },
     {
       "id": "libc-getdelim-getline",
@@ -187,7 +187,8 @@
         "surfaces": [
           "libc archive bytes",
           "affected a.out text and data",
-          "peak heap",
+          "line-buffer payload bound",
+          "mechanism stack-frame bytes",
           "largest 144 KiB process-window consumer",
           "packed Dhara root blocks"
         ],
@@ -195,7 +196,7 @@
       },
       "deciding_gate": "Re-run the line-reading behavior, sanitizer, strict-C17, archive-member, consumer-map, clean distribution, per-program and packed-root gates after changes to getdelim, getline or their consumers.",
       "disposition": "promoted",
-      "residual": "The shared getdelim engine and thin getline wrapper are promoted. Their DPUCP requirement rows stay open until an Issue 8 facet audit demonstrates that the executable witness covers each complete cited interface contract."
+      "residual": "The shared getdelim engine and thin getline wrapper are promoted. Whole-program runtime heap and stack peaks, including allocator metadata and unrelated callers, remain unmeasured. Their DPUCP requirement rows stay open until an Issue 8 facet audit demonstrates that the executable witness covers each complete cited interface contract."
     },
     {
       "id": "shell-getopts",

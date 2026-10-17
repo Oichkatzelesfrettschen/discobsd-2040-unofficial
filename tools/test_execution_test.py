@@ -284,6 +284,24 @@ class ExecutionTest(unittest.TestCase):
             observed.extend(re.findall(r"\brun ([a-z0-9_.-]+) --", contents))
         self.assertCountEqual(observed, variants)
 
+    def test_array_memory_cross_gate_is_aggregate_owned(self):
+        result = subprocess.run(
+            ["bmake", "-C", str(execution.ROOT), "-V", "CROSS_COMPOSITION_GATES"],
+            text=True, capture_output=True, check=True,
+        )
+        self.assertEqual(
+            result.stdout.split().count("check-libc-array-memory-line-cross"), 1
+        )
+
+    def test_line_reading_has_unconditional_native_recipe(self):
+        result = subprocess.run(
+            ["bmake", "-n", "-C", str(execution.ROOT / "tests/libc_contracts"),
+             "MACHINE=rp2040", "ARRAY_MEMORY_SAN_OK=no",
+             "ARRAY_MEMORY_SAN32_OK=no", "check-array-memory-line"],
+            text=True, capture_output=True, check=True,
+        )
+        self.assertIn("run libc.line-reading.native --", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

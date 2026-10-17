@@ -72,9 +72,11 @@ ARRAY_MEMORY_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
 ARRAY_MEMORY_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 \
 	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS}
 
-check-array-memory-line: reallocarray_contract_test memmem_contract_test
+check-array-memory-line: reallocarray_contract_test memmem_contract_test \
+	line_reading_contract_test
 	${TEST_EXECUTION} run libc.reallocarray.native -- ./reallocarray_contract_test
 	${TEST_EXECUTION} run libc.memmem.native -- ./memmem_contract_test
+	${TEST_EXECUTION} run libc.line-reading.native -- ./line_reading_contract_test
 .if ${ARRAY_MEMORY_SAN_OK} == "yes"
 	@${MAKE} reallocarray_contract_test_san memmem_contract_test_san \
 	    line_reading_contract_test_san
@@ -125,6 +127,11 @@ array_reallocarray.o: ${STDLIB_DIR}/reallocarray.c
 
 memmem_contract_test: memmem_contract_test.c string_memmem.o
 	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} -o $@ memmem_contract_test.c string_memmem.o
+
+line_reading_contract_test: ${TOPSRC}/usr.bin/textbox/tests/getline_test.c \
+    ${STDIO_DIR}/getdelim.c ${STDIO_DIR}/getline.c
+	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} -o $@ \
+	    ${TOPSRC}/usr.bin/textbox/tests/getline_test.c
 
 string_memmem.o: ${STRING_DIR}/memmem.c
 	${HOSTCC} ${ARRAY_MEMORY_CFLAGS} ${MEMMEM_RENAMES} -c -o $@ \
@@ -1093,6 +1100,7 @@ clean:
 		string_timingsafe_bcmp.o string_timingsafe_bcmp_target.o \
 		string_timingsafe_bcmp_bad_target.o
 	rm -f reallocarray_contract_test memmem_contract_test \
+		line_reading_contract_test \
 		array_reallocarray.o string_memmem.o \
 		reallocarray_contract_test_san memmem_contract_test_san \
 		line_reading_contract_test_san array_reallocarray_san.o \

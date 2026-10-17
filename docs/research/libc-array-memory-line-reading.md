@@ -40,13 +40,19 @@ unrelated programs.
 | PICO kernel BSS | 39848 | 39848 | 0 |
 | board libc archive bytes | 54086 | 54086 | 0 |
 | largest process, `warp`, loaded bytes | 101300 | 101300 | 0 |
-| packed root reported blocks | 702 | 692 | -10 |
+| packed root data blocks | 693 | 692 | -1 |
 | packed root reported free blocks | 286 | 287 | +1 |
 
 The full build archive grows from 405960 to 410038 bytes because it gains four
 independently selectable members. The packed root ships the unchanged 54086-byte
 board libc subset. The full archive is therefore a build surface rather than a
 constrained flash or process surface for this image.
+
+The 988-block root uses nine inode-list metadata blocks in both images. The
+comparable accounting identities are `693 + 286 + 9 = 988` for the base and
+`692 + 287 + 9 = 988` for the candidate. The machine-readable companion
+`libc-array-memory-line-reading.json` binds those counters and rejects
+arithmetic drift.
 
 | program | base loaded bytes | candidate loaded bytes | delta | base packed bytes | candidate packed bytes | packed blocks delta |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -70,9 +76,21 @@ bytes and 15 packed blocks, exactly matching the base. A separate ABI-safe
 change may reconsider Kilo only when it supplies an offset on every constrained
 surface.
 
+The target disassembly reports a 24-byte local frame for both the old and new
+`memmem()` implementations. The former private `getline()` contributes 48
+bytes of local and callee-save stack; the promoted `getline()` wrapper and
+`getdelim()` engine contribute 8 and 40 bytes along the same call chain. The
+300-byte growth witness ends with a 512-byte caller-owned buffer. A target
+`realloc()` that must move the second growth can temporarily hold the old
+256-byte and new 512-byte payloads, so the bounded payload peak is 768 bytes,
+excluding allocator metadata. The predecessor follows the same 128, 256 and
+512-byte allocation sequence. These mechanism bounds do not establish the
+whole-program runtime heap or stack peaks, which remain unmeasured.
+
 ## Behavioral and composition evidence
 
-`bmake MACHINE=rp2040 check-libc-array-memory-line` covers multiplication
+`bmake MACHINE=rp2040 check-libc-array-memory-line` unconditionally executes
+the native line-reading witness and covers multiplication
 overflow, allocator failure, preserved ownership, zero-sized requests, bounded
 binary search, empty needles, delimiter retention, embedded NUL data, EOF,
 stream errors, caller-owned buffers and refused growth. Native and ILP32
@@ -81,9 +99,13 @@ sanitizer variants execute separately. The line-reading variants report 44 and
 
 `bmake MACHINE=rp2040 check-libc-array-memory-line-cross` compiles the four
 production sources with strict C17 Cortex-M0+ flags, rejects GNU `typeof`, checks
-the archive member set, and checks each affected consumer map. Calibrated
-controls remove `memmem.o` from an archive and inject a direct `LOAD memmem.o`;
-both controls must fail for the gate to pass.
+the archive member set, proves exact promoted-member extraction for empty and
+per-interface consumers, and checks each affected consumer map. `getline()` is
+the deliberate two-member case because it delegates to `getdelim()`. Calibrated
+controls remove `memmem.o` from an archive, add an unexpected member to a
+per-interface map, and inject a direct `LOAD memmem.o`; all controls must fail
+for the gate to pass. The root cross graph runs the composition gate after the
+parallel contract group because it cleans and relinks shared program outputs.
 
 The clean distribution build and the focused host, cross and execution-inventory
 gates passed. Renode and physical-board execution remain unrun. These results

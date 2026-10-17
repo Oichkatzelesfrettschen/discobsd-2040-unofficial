@@ -1,6 +1,7 @@
 """Mutation controls for the bounded DPUCP donor ledger."""
 
 import copy
+import json
 import sys
 from pathlib import Path
 
@@ -22,6 +23,33 @@ def main():
         root / "docs/research/dpucp-2024-requirements.tsv"
     )
     donors.validate_document(root, document, requirement_ids)
+
+    measurement_path = root / "docs/research/libc-array-memory-line-reading.json"
+    if not measurement_path.is_file():
+        raise AssertionError("missing machine-readable Task 4 measurement")
+    measurement = json.loads(measurement_path.read_text(encoding="utf-8"))
+    validator = getattr(donors, "validate_foundation_measurement", None)
+    if validator is None:
+        raise AssertionError("missing Task 4 measurement validator")
+    validator(measurement)
+
+    changed_measurement = copy.deepcopy(measurement)
+    changed_measurement["root"]["candidate"]["data_blocks"] += 1
+    try:
+        validator(changed_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("root arithmetic mutation passed")
+
+    changed_measurement = copy.deepcopy(measurement)
+    changed_measurement["resources"]["line_reader"]["stack_bytes"] += 4
+    try:
+        validator(changed_measurement)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("resource-bound mutation passed")
 
     promoted_ids = {
         "libc-reallocarray",

@@ -804,6 +804,10 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout
 
+# Composition gates clean and relink shared program directories, so the cross
+# graph runs them after the parallel read-only contract group.
+CROSS_COMPOSITION_GATES=	check-libc-array-memory-line-cross
+
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:
 		sh tools/check-lint.sh
@@ -955,7 +959,8 @@ check-cross-assembler:
 		${MAKE} -C tests/rp2040/divider_ownership check
 
 check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
-		check-cross-kernel .WAIT check-cross-assembler
+		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
+		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop and the Smaller C suite executed
 # rather than only linked.

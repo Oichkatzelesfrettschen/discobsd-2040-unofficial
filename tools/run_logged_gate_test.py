@@ -138,6 +138,60 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(status["termination"], "hard_timeout")
         self.assertGreater(status["output_bytes"], 0)
 
+    def test_timeout_retains_process_tree_snapshot_before_termination(self):
+        program = (
+            "import subprocess, sys, time; "
+            "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+            "print('snapshot-ready', flush=True); time.sleep(60)"
+        )
+
+        result = self.run_gate(
+            program,
+            heartbeat="0.05",
+            idle="1",
+            timeout="0.2",
+        )
+
+        self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
+        log_text = self.log.read_text(encoding="utf-8")
+        self.assertIn("[logged-gate] process-snapshot", log_text)
+        self.assertIn("PID PPID PGID STATE ELAPSED CPU COMMAND", log_text)
+        process_lines = [
+            line for line in log_text.splitlines()
+            if line.startswith("[logged-gate] process ")
+        ]
+        self.assertGreaterEqual(len(process_lines), 2)
+        self.assertTrue(any("time.sleep(60)" in line for line in process_lines))
+
+    def test_process_snapshot_uses_portable_ps_argument_vector(self):
+        fake_ps = self.directory / "ps"
+        fake_ps.write_text(
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "test \"$#\" -eq 3\n"
+            "test \"$1\" = -A\n"
+            "test \"$2\" = -o\n"
+            "test \"$3\" = "
+            "pid=,ppid=,pgid=,state=,etime=,time=,command=\n"
+            "printf '%s\\n' "
+            "'4242 1 4242 S 00:01 0:00 snapshot-parent' "
+            "'4243 4242 4242 S 00:01 0:00 snapshot-child'\n",
+            encoding="ascii",
+        )
+        fake_ps.chmod(0o755)
+        environment = {"PATH": f"{self.directory}{os.pathsep}{os.environ['PATH']}"}
+
+        with mock.patch.dict(os.environ, environment):
+            snapshot = runner.process_tree_snapshot(4242)
+
+        process_lines = [
+            line for line in snapshot.splitlines()
+            if line.startswith("[logged-gate] process ")
+        ]
+        self.assertEqual(len(process_lines), 2, snapshot)
+        self.assertTrue(any("snapshot-parent" in line for line in process_lines))
+        self.assertTrue(any("snapshot-child" in line for line in process_lines))
+
     def test_timeout_retains_shutdown_output(self):
         program = (
             "import signal, sys, time; "
@@ -307,6 +361,213 @@ class LoggedGateTest(unittest.TestCase):
         self.assertIn("regular file", result.stderr)
         self.assertFalse(marker.exists())
         self.assertEqual(self.read_status()["termination"], "log_open_error")
+
+    def test_concurrent_runner_cannot_truncate_active_log(self):
+        first_command = [
+            sys.executable,
+            str(RUNNER),
+            "--label", "first-owner",
+            "--log", str(self.log),
+            "--status", str(self.status),
+            "--heartbeat-seconds", "0.05",
+            "--idle-timeout-seconds", "2",
+            "--timeout-seconds", "3",
+            "--",
+            sys.executable,
+            "-c",
+            "import time; print('FIRST-START', flush=True); "
+            "time.sleep(0.4); print('FIRST-END', flush=True)",
+        ]
+        first = subprocess.Popen(
+            first_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        self.addCleanup(self.stop_runner, first)
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if self.log.is_file() and "FIRST-START" in self.log.read_text(
+                    encoding="utf-8"):
+                break
+            time.sleep(0.01)
+        else:
+            self.fail("first runner did not publish its start marker")
+
+        second = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "second-owner",
+                "--log", str(self.log),
+                "--status", str(self.status),
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "1",
+                "--timeout-seconds", "2",
+                "--",
+                sys.executable,
+                "-c", "print('SECOND-RAN', flush=True)",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+        )
+        first_output, _ = first.communicate(timeout=TEST_HELPER_TIMEOUT_SECONDS)
+
+        self.assertEqual(first.returncode, 0, first_output)
+        self.assertEqual(second.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertIn("active log owner", second.stderr)
+        log_text = self.log.read_text(encoding="utf-8")
+        self.assertIn("FIRST-START", log_text)
+        self.assertIn("FIRST-END", log_text)
+        self.assertNotIn("SECOND-RAN", log_text)
+        self.assertEqual(self.read_status()["label"], "first-owner")
+
+    def test_evidence_root_retains_sequential_invocations(self):
+        evidence_root = self.directory / "evidence"
+        for marker in ("FIRST-EVIDENCE", "SECOND-EVIDENCE"):
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(RUNNER),
+                    "--label", "retained-run",
+                    "--evidence-root", str(evidence_root),
+                    "--heartbeat-seconds", "0.05",
+                    "--idle-timeout-seconds", "1",
+                    "--timeout-seconds", "2",
+                    "--",
+                    sys.executable,
+                    "-c", f"print({marker!r}, flush=True)",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=TEST_HELPER_TIMEOUT_SECONDS,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        invocation_directories = sorted(
+            path for path in evidence_root.glob("retained-run-*")
+            if path.is_dir()
+        )
+        self.assertEqual(len(invocation_directories), 2)
+        retained_logs = [
+            (path / "gate.log").read_text(encoding="utf-8")
+            for path in invocation_directories
+        ]
+        self.assertTrue(any("FIRST-EVIDENCE" in log for log in retained_logs))
+        self.assertTrue(any("SECOND-EVIDENCE" in log for log in retained_logs))
+        for path in invocation_directories:
+            status = json.loads((path / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(status["label"], "retained-run")
+            self.assertEqual(status["evidence_directory"], str(path))
+            self.assertEqual(status["invocation_id"], path.name)
+
+        latest = json.loads(
+            (evidence_root / "retained-run.latest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(latest["state"], "completed")
+        self.assertIn(Path(latest["evidence_directory"]), invocation_directories)
+
+    def test_unusable_evidence_root_fails_without_launch_or_traceback(self):
+        evidence_root = self.directory / "occupied-evidence-root"
+        evidence_root.write_text("regular file\n", encoding="ascii")
+        child_marker = self.directory / "child-launched"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "unusable-evidence",
+                "--evidence-root", str(evidence_root),
+                "--",
+                sys.executable,
+                "-c",
+                "import pathlib, sys; pathlib.Path(sys.argv[1]).touch()",
+                str(child_marker),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+        )
+
+        self.assertEqual(result.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertIn("logged-gate:", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse(child_marker.exists())
+
+    def test_execution_lock_rejects_overlapping_product_mutation(self):
+        execution_lock = self.directory / "product.lock"
+        first_log = self.directory / "first.log"
+        first_status = self.directory / "first.status.json"
+        first = subprocess.Popen(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "first-product-owner",
+                "--log", str(first_log),
+                "--status", str(first_status),
+                "--execution-lock", str(execution_lock),
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "2",
+                "--timeout-seconds", "3",
+                "--",
+                sys.executable,
+                "-c",
+                "import time; print('PRODUCT-LOCKED', flush=True); time.sleep(0.4)",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        self.addCleanup(self.stop_runner, first)
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if first_log.is_file() and "PRODUCT-LOCKED" in first_log.read_text(
+                    encoding="utf-8"):
+                break
+            time.sleep(0.01)
+        else:
+            self.fail("first runner did not acquire the execution lock")
+
+        second_log = self.directory / "second.log"
+        second_status = self.directory / "second.status.json"
+        second_marker = self.directory / "second-launched"
+        second = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "second-product-owner",
+                "--log", str(second_log),
+                "--status", str(second_status),
+                "--execution-lock", str(execution_lock),
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "1",
+                "--timeout-seconds", "2",
+                "--",
+                sys.executable,
+                "-c",
+                "import pathlib, sys; pathlib.Path(sys.argv[1]).write_text("
+                "'launched', encoding='ascii')",
+                str(second_marker),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+        )
+        first_output, _ = first.communicate(timeout=TEST_HELPER_TIMEOUT_SECONDS)
+
+        self.assertEqual(first.returncode, 0, first_output)
+        self.assertEqual(second.returncode, runner.RUNNER_ERROR_EXIT)
+        self.assertIn("active execution owner", second.stderr)
+        self.assertFalse(second_marker.exists())
+        self.assertFalse(second_log.exists())
+        second_record = json.loads(second_status.read_text(encoding="utf-8"))
+        self.assertEqual(second_record["state"], "error")
+        self.assertEqual(second_record["termination"], "execution_lock_busy")
 
     def test_common_helper_has_an_independent_outer_deadline(self):
         completed = subprocess.CompletedProcess([], 0, "", "")

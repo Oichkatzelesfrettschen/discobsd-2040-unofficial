@@ -90,38 +90,38 @@ check-python:
 # bound. Internal build targets stay unwrapped so recursive make remains direct.
 logged-build: check-python
 		${PYTHON} tools/run_logged_gate.py --label rp2040-build-local \
-		    --log .build-logs/rp2040-build-local.log \
-		    --status .build-logs/rp2040-build-local.status.json \
+		    --evidence-root .build-logs \
+		    --execution-lock .build-logs/rp2040-products.lock \
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
 		    -- ${MAKE} MACHINE=rp2040 build
 
 logged-distribution: check-python
 		${PYTHON} tools/run_logged_gate.py --label rp2040-distribution-local \
-		    --log .build-logs/rp2040-distribution-local.log \
-		    --status .build-logs/rp2040-distribution-local.status.json \
+		    --evidence-root .build-logs \
+		    --execution-lock .build-logs/rp2040-products.lock \
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
 		    -- ${MAKE} MACHINE=rp2040 distribution
 
 logged-flash: check-python
 		${PYTHON} tools/run_logged_gate.py --label rp2040-flash-local \
-		    --log .build-logs/rp2040-flash-local.log \
-		    --status .build-logs/rp2040-flash-local.status.json \
+		    --evidence-root .build-logs \
+		    --execution-lock .build-logs/rp2040-products.lock \
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
 		    -- ${MAKE} MACHINE=rp2040 flash
 
 logged-kernel: check-python
 		${PYTHON} tools/run_logged_gate.py --label rp2040-kernel-local \
-		    --log .build-logs/rp2040-kernel-local.log \
-		    --status .build-logs/rp2040-kernel-local.status.json \
+		    --evidence-root .build-logs \
+		    --execution-lock .build-logs/rp2040-products.lock \
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
 		    -- ${MAKE} MACHINE=rp2040 kernel
 
-logged-check: check-python logged-build
-		${PYTHON} tools/run_logged_gate.py --label rp2040-check-local \
-		    --log .build-logs/rp2040-check-local.log \
-		    --status .build-logs/rp2040-check-local.status.json \
+logged-check: check-python
+		${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local \
+		    --evidence-root .build-logs \
+		    --execution-lock .build-logs/rp2040-products.lock \
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
-		    -- ${MAKE} MACHINE=rp2040 check
+		    -- ${MAKE} MACHINE=rp2040
 
 .PHONY: logged-build logged-distribution logged-flash logged-kernel logged-check
 
@@ -653,6 +653,7 @@ check-agent-instructions: check-python
 
 check-run-logging: check-python
 		${PYTHON} tools/run_logged_gate_test.py
+		${PYTHON} tools/run_logged_build_check_test.py
 		${PYTHON} tools/build_observability_test.py
 		${PYTHON} tools/storage_counter_driver_test.py
 

@@ -108,26 +108,43 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(execution.run_variant(variant, [str(self.directory / "fixture")]), 2)
         self.assertEqual(self.record(variant)["outcome"], "ERROR")
 
+    def test_cleanup_allowance_reserves_current_budget_before_child_share(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(execution.CLEANUP_ALLOWANCE_ENV, None)
+            self.assertEqual(
+                execution.cleanup_allowances(),
+                (execution.ROOT_CLEANUP_ALLOWANCE_SECONDS, 1.0),
+            )
+
+        with patch.dict(
+            os.environ, {execution.CLEANUP_ALLOWANCE_ENV: "0.5"}, clear=False
+        ):
+            self.assertEqual(execution.cleanup_allowances(), (0.5, 0.25))
+
     def test_variant_timeout_records_error_and_stops_process_group(self):
         variant = self.variant()
         marker = self.directory / "variant-descendant-terminated"
+        ready = self.directory / "variant-descendant-ready"
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
             "import pathlib, signal, subprocess, sys, time\n"
             "child = (\"import pathlib, signal, sys, time; \""
-            "         \"marker=pathlib.Path(sys.argv[1]); \""
+            "         \"marker, ready=map(pathlib.Path, sys.argv[1:]); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
-            "         \"sys.exit(0))); time.sleep(60)\")\n"
-            "subprocess.Popen([sys.executable, '-c', child, sys.argv[1]])\n"
+            "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \""
+            "         \"time.sleep(60)\")\n"
+            "subprocess.Popen([sys.executable, '-c', child, *sys.argv[1:]])\n"
             "time.sleep(60)\n"
         )
         executable.chmod(0o755)
 
         self.assertEqual(
             execution.run_variant(
-                variant, [str(executable), str(marker)], timeout_seconds=0.2
+                variant,
+                [str(executable), str(marker), str(ready)],
+                timeout_seconds=2.0,
             ),
             2,
         )
@@ -136,7 +153,8 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(record["outcome"], "ERROR")
         self.assertEqual(record["returncode"], execution.TIMEOUT_EXIT)
         self.assertEqual(record["termination"], "hard_timeout")
-        self.assertEqual(record["timeout_seconds"], 0.2)
+        self.assertEqual(record["timeout_seconds"], 2.0)
+        self.assertTrue(ready.is_file())
         self.assertTrue(marker.is_file())
 
     def test_successful_variant_stops_its_surviving_descendant(self):
@@ -207,6 +225,57 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(returncode, execution.TIMEOUT_EXIT)
         self.assertEqual(termination, "hard_timeout")
         self.assertTrue(self.wait_for_file(marker, 1))
+
+    def test_three_nested_supervisors_stop_resistant_leaf_before_return(self):
+        for probe in range(3):
+            ready = self.directory / f"nested-resistant-ready-{probe}"
+            group_file = self.directory / f"nested-resistant-group-{probe}"
+            self.addCleanup(self.stop_recorded_group, group_file)
+            leaf = self.directory / f"nested-resistant-leaf-{probe}.py"
+            leaf.write_text(
+                "import os, pathlib, signal, sys, time\n"
+                "ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
+                "group_file.write_text(str(os.getpgrp()), encoding='ascii')\n"
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                "ready.write_text('ready', encoding='ascii')\n"
+                "time.sleep(60)\n",
+                encoding="ascii",
+            )
+            child = [sys.executable, str(leaf), str(ready), str(group_file)]
+            for level in range(3):
+                supervisor = self.directory / f"nested-supervisor-{probe}-{level}.py"
+                delayed_cleanup = (
+                    "original_stop = test_execution.stop_process_group\n"
+                    "def delayed_stop(*args, **kwargs):\n"
+                    "    time.sleep(0.05)\n"
+                    "    return original_stop(*args, **kwargs)\n"
+                    "test_execution.stop_process_group = delayed_stop\n"
+                    if level == 0 else ""
+                )
+                supervisor_source = (
+                    "import sys, time\n"
+                    f"sys.path.insert(0, {str(execution.ROOT / 'tools')!r})\n"
+                    "import test_execution\n"
+                    + delayed_cleanup
+                    + f"command = {child!r}\n"
+                    "test_execution.run_bounded(command, 60)\n"
+                )
+                supervisor.write_text(
+                    supervisor_source,
+                    encoding="ascii",
+                )
+                child = [sys.executable, str(supervisor)]
+
+            returncode, termination = execution.run_bounded(child, 2.0)
+
+            self.assertEqual(returncode, execution.TIMEOUT_EXIT)
+            self.assertEqual(termination, "hard_timeout")
+            self.assertTrue(self.wait_for_file(ready, 1))
+            process_group = int(group_file.read_text(encoding="ascii"))
+            self.assertFalse(
+                execution.process_group_exists(process_group),
+                f"probe {probe} returned while process group {process_group} survived",
+            )
 
     def test_symlinked_directory_resolves_both_executable_paths(self):
         variant = self.variant()

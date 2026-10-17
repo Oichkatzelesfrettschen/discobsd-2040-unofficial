@@ -53,6 +53,10 @@ Makefiles are tracked; synchronize both when generation inputs change.
   PICO_UART kernel and stands outside the aggregate. Board execution requires
   explicit opt-in. `sys/arch/rp2040/doc/TESTING.md` owns each gate's execution
   class and claim; add new gates there and to the root Makefile and CI owner.
+- Logged local targets allocate immutable invocation directories under
+  `.build-logs`, update a label-specific latest receipt and share one worktree
+  product lock. `logged-check` applies one total deadline across build and
+  check; a failed build records the check stage as blocked.
 - `BUILD_LEGACY_NON_ARM=yes legacy-non-arm-verify` checks archive identity.
   `BUILD_PDP11_V6=yes` explicitly opts into isolated PDP-11/V6 tests; neither
   makes legacy code part of the maintained ARM build. See

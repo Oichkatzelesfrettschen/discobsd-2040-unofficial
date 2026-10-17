@@ -155,7 +155,7 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
         log_text = self.log.read_text(encoding="utf-8")
         self.assertIn("[logged-gate] process-snapshot", log_text)
-        self.assertIn("PID PPID PGID SID STATE ELAPSED CPU COMMAND", log_text)
+        self.assertIn("PID PPID PGID STATE ELAPSED CPU COMMAND", log_text)
         process_lines = [
             line for line in log_text.splitlines()
             if line.startswith("[logged-gate] process ")
@@ -172,10 +172,10 @@ class LoggedGateTest(unittest.TestCase):
             "test \"$1\" = -A\n"
             "test \"$2\" = -o\n"
             "test \"$3\" = "
-            "pid=,ppid=,pgid=,sid=,state=,etime=,time=,command=\n"
+            "pid=,ppid=,pgid=,state=,etime=,time=,command=\n"
             "printf '%s\\n' "
-            "'4242 1 4242 4242 S 00:01 0:00 snapshot-parent' "
-            "'4243 4242 4242 4242 S 00:01 0:00 snapshot-child'\n",
+            "'4242 1 4242 S 00:01 0:00 snapshot-parent' "
+            "'4243 4242 4242 S 00:01 0:00 snapshot-child'\n",
             encoding="ascii",
         )
         fake_ps.chmod(0o755)

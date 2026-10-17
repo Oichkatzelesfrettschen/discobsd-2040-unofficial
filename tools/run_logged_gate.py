@@ -283,13 +283,13 @@ def output_state(previous_tail, chunk):
 
 
 def process_tree_snapshot(root_pid):
-    header = "PID PPID PGID SID STATE ELAPSED CPU COMMAND"
+    header = "PID PPID PGID STATE ELAPSED CPU COMMAND"
     timestamp = utc_timestamp()
     try:
         result = subprocess.run(
             [
                 "ps", "-A", "-o",
-                "pid=,ppid=,pgid=,sid=,state=,etime=,time=,command=",
+                "pid=,ppid=,pgid=,state=,etime=,time=,command=",
             ],
             text=True,
             capture_output=True,
@@ -312,17 +312,16 @@ def process_tree_snapshot(root_pid):
 
     records = {}
     for line in result.stdout.splitlines():
-        fields = line.strip().split(None, 7)
-        if len(fields) != 8:
+        fields = line.strip().split(None, 6)
+        if len(fields) != 7:
             continue
         try:
-            pid, parent_pid, process_group, session_id = map(int, fields[:4])
+            pid, parent_pid, process_group = map(int, fields[:3])
         except ValueError:
             continue
         records[pid] = {
             "parent": parent_pid,
             "group": process_group,
-            "session": session_id,
             "fields": fields,
         }
 

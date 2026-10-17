@@ -953,6 +953,34 @@ def run(args):
                 except OSError:
                     pass
 
+            def finalize_ownership(force_incomplete):
+                nonlocal ownership_finished
+                try:
+                    finish_execution_ownership(
+                        ownership_path,
+                        ownership_invocation_id,
+                        force_incomplete=force_incomplete,
+                    )
+                except (OSError, ValueError, TimeoutError) as error:
+                    record.update(
+                        state="error",
+                        updated_at=utc_timestamp(),
+                        elapsed_seconds=round(time.monotonic() - start, 3),
+                        exit_code=RUNNER_ERROR_EXIT,
+                        termination="execution_ownership_error",
+                        error_type=type(error).__name__,
+                        diagnostic=str(error),
+                    )
+                    safe_emit(
+                        f"[logged-gate] ownership-finalization-error "
+                        f"label={args.label} time={utc_timestamp()}: {error}\n"
+                    )
+                    safe_status()
+                    ownership_finished = owns_ownership
+                    return False
+                ownership_finished = owns_ownership
+                return True
+
             emit(
                 f"[logged-gate] start label={args.label} time={start_wall} "
                 f"command={shlex.join(command)}\n"
@@ -1192,12 +1220,10 @@ def run(args):
                 if ownership_path is not None and (
                     owns_ownership or termination == "cleanup_incomplete"
                 ):
-                    finish_execution_ownership(
-                        ownership_path,
-                        ownership_invocation_id,
-                        force_incomplete=(termination == "cleanup_incomplete"),
-                    )
-                    ownership_finished = owns_ownership
+                    if not finalize_ownership(
+                        termination == "cleanup_incomplete"
+                    ):
+                        return RUNNER_ERROR_EXIT
                 if termination == "cleanup_incomplete":
                     try:
                         publish_execution_quarantine(
@@ -1265,12 +1291,8 @@ def run(args):
                 if ownership_path is not None and (
                     owns_ownership or cleanup_incomplete
                 ):
-                    finish_execution_ownership(
-                        ownership_path,
-                        ownership_invocation_id,
-                        force_incomplete=cleanup_incomplete,
-                    )
-                    ownership_finished = owns_ownership
+                    if not finalize_ownership(cleanup_incomplete):
+                        return RUNNER_ERROR_EXIT
                 if cleanup_incomplete:
                     try:
                         publish_execution_quarantine(

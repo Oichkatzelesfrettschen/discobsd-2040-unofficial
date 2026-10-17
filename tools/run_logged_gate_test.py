@@ -782,6 +782,38 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(ownership["state"], "released")
         self.assertEqual(ownership["pending_launches"], [])
 
+    def test_ownership_finalization_failure_publishes_terminal_error(self):
+        execution_lock = self.directory / "products.lock"
+        arguments = runner.parse_arguments([
+            "--label", "ownership-finalization-failure",
+            "--log", str(self.log),
+            "--status", str(self.status),
+            "--execution-lock", str(execution_lock),
+            "--heartbeat-seconds", "0.05",
+            "--idle-timeout-seconds", "1",
+            "--timeout-seconds", "2",
+            "--", sys.executable, "-c", "raise SystemExit(0)",
+        ])
+
+        with mock.patch.object(
+            runner,
+            "finish_execution_ownership",
+            side_effect=OSError("injected ownership finalization failure"),
+        ):
+            result = runner.run(arguments)
+
+        self.assertEqual(result, runner.RUNNER_ERROR_EXIT)
+        status = self.read_status()
+        self.assertEqual(status["state"], "error")
+        self.assertEqual(status["exit_code"], runner.RUNNER_ERROR_EXIT)
+        self.assertEqual(status["termination"], "execution_ownership_error")
+        self.assertEqual(status["error_type"], "OSError")
+        self.assertIn("finalization failure", status["diagnostic"])
+        self.assertIn(
+            "ownership-finalization-error",
+            self.log.read_text(encoding="utf-8"),
+        )
+
     def test_registration_error_with_incomplete_cleanup_blocks_successor(self):
         execution_lock = self.directory / "products.lock"
         marker = self.directory / "successor-launched"

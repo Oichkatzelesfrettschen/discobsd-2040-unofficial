@@ -497,6 +497,31 @@ class LoggedBuildCheckTest(unittest.TestCase):
         lock_descriptor = sequence.gate.acquire_execution_lock(self.execution_lock)
         os.close(lock_descriptor)
 
+    def test_ownership_finalization_failure_reports_sequence_error(self):
+        make = self.directory / "successful-make"
+        make.write_text("#!/bin/sh\nset -eu\nexit 0\n", encoding="ascii")
+        make.chmod(0o755)
+        arguments = sequence.parse_arguments(self.sequence_command(make)[2:])
+
+        with mock.patch.object(
+            sequence.gate,
+            "finish_execution_ownership",
+            side_effect=OSError("injected ownership finalization failure"),
+        ):
+            result = sequence.run(arguments)
+
+        self.assertEqual(result, sequence.gate.RUNNER_ERROR_EXIT)
+        summary = json.loads(
+            (self.evidence_root / "rp2040-check-local.latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(summary["state"], "error")
+        self.assertEqual(summary["exit_code"], sequence.gate.RUNNER_ERROR_EXIT)
+        self.assertEqual(summary["termination"], "execution_ownership_error")
+        self.assertEqual(summary["error_type"], "OSError")
+        self.assertIn("finalization failure", summary["diagnostic"])
+
     def test_unusable_evidence_root_fails_without_launch_or_traceback(self):
         self.evidence_root.write_text("regular file\n", encoding="ascii")
         make = self.directory / "marker-make"

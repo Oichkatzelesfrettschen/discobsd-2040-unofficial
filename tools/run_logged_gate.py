@@ -311,14 +311,7 @@ def register_inherited_execution_group(process_group):
     register_execution_group(Path(path), invocation_id, process_group)
 
 
-def reserve_inherited_execution_launch():
-    path = os.environ.get(OWNERSHIP_PATH_ENV)
-    invocation_id = os.environ.get(OWNERSHIP_INVOCATION_ENV)
-    if path is None and invocation_id is None:
-        return None
-    if path is None or invocation_id is None:
-        raise ValueError("incomplete inherited execution ownership environment")
-    ownership_path = Path(path)
+def reserve_execution_launch(ownership_path, invocation_id):
     descriptor = _acquire_ownership_update_lock(ownership_path)
     try:
         record = read_execution_ownership(ownership_path)
@@ -337,6 +330,16 @@ def reserve_inherited_execution_launch():
         return ExecutionLaunchReservation(ownership_path, invocation_id, token)
     finally:
         os.close(descriptor)
+
+
+def reserve_inherited_execution_launch():
+    path = os.environ.get(OWNERSHIP_PATH_ENV)
+    invocation_id = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if path is None and invocation_id is None:
+        return None
+    if path is None or invocation_id is None:
+        raise ValueError("incomplete inherited execution ownership environment")
+    return reserve_execution_launch(Path(path), invocation_id)
 
 
 def complete_inherited_execution_launch(reservation, process_group):
@@ -462,6 +465,22 @@ def finish_execution_ownership(path, invocation_id, force_incomplete=False):
         os.close(descriptor)
 
 
+def execution_ownership_scope(
+    record, audits_complete_ownership, launch_reservation, process_group
+):
+    if audits_complete_ownership:
+        return record["process_groups"], record["pending_launches"]
+    groups = [
+        group for group in record["process_groups"] if group == process_group
+    ]
+    pending_launches = [
+        token
+        for token in record["pending_launches"]
+        if launch_reservation is not None and token == launch_reservation.token
+    ]
+    return groups, pending_launches
+
+
 def acquire_execution_lock(path):
     """Own the build products shared by logged targets in one worktree."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -508,6 +527,14 @@ def execution_ownership_for_args(args):
     path = getattr(args, "execution_ownership", None)
     if path is None and args.execution_lock is not None:
         path = execution_ownership_path(args.execution_lock)
+    inherited_path = os.environ.get(OWNERSHIP_PATH_ENV)
+    inherited_invocation = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if path is None and inherited_path is None and inherited_invocation is None:
+        return None
+    if path is None and (inherited_path is None or inherited_invocation is None):
+        raise ValueError("incomplete inherited execution ownership environment")
+    if path is None:
+        path = Path(inherited_path)
     return path
 
 
@@ -796,6 +823,21 @@ def run(args):
     execution_lock = None
     ownership_path = execution_ownership_for_args(args)
     owns_ownership = args.execution_lock is not None
+    audits_complete_ownership = (
+        owns_ownership or getattr(args, "execution_ownership", None) is not None
+    )
+    ownership_invocation_id = None
+    if ownership_path is not None:
+        ownership_invocation_id = (
+            record["sequence_invocation_id"]
+            or (
+                record["invocation_id"]
+                if owns_ownership
+                else os.environ.get(OWNERSHIP_INVOCATION_ENV)
+            )
+        )
+        if ownership_invocation_id is None:
+            raise ValueError("execution ownership requires an invocation id")
     ownership_started = False
     ownership_finished = False
     if args.execution_lock is not None:
@@ -918,10 +960,13 @@ def run(args):
             child_environment = os.environ.copy()
             if ownership_path is not None:
                 child_environment[OWNERSHIP_PATH_ENV] = str(ownership_path)
-                child_environment[OWNERSHIP_INVOCATION_ENV] = (
-                    record["sequence_invocation_id"] or record["invocation_id"]
-                )
+                child_environment[OWNERSHIP_INVOCATION_ENV] = ownership_invocation_id
+            launch_reservation = None
             try:
+                if ownership_path is not None:
+                    launch_reservation = reserve_execution_launch(
+                        ownership_path, ownership_invocation_id
+                    )
                 process = subprocess.Popen(
                     command,
                     stdout=subprocess.PIPE,
@@ -932,6 +977,8 @@ def run(args):
                     env=child_environment,
                 )
             except OSError as error:
+                if launch_reservation is not None:
+                    cancel_inherited_execution_launch(launch_reservation)
                 record.update(
                     state="error",
                     updated_at=utc_timestamp(),
@@ -948,12 +995,9 @@ def run(args):
 
             record["pid"] = process.pid
             try:
-                if ownership_path is not None:
-                    register_execution_group(
-                        ownership_path,
-                        child_environment[OWNERSHIP_INVOCATION_ENV],
-                        process.pid,
-                    )
+                complete_inherited_execution_launch(
+                    launch_reservation, process.pid
+                )
                 record.update(
                     state="running", pid=process.pid, updated_at=utc_timestamp()
                 )
@@ -1107,8 +1151,7 @@ def run(args):
                 ):
                     unregister_execution_group(
                         ownership_path,
-                        record["sequence_invocation_id"]
-                        or record["invocation_id"],
+                        ownership_invocation_id,
                         process.pid,
                     )
                 ownership_groups = []
@@ -1117,10 +1160,15 @@ def run(args):
                 if ownership_path is not None:
                     ownership_record = read_execution_ownership(ownership_path)
                     if ownership_record is not None:
-                        ownership_groups = ownership_record["process_groups"]
-                        ownership_pending_launches = ownership_record[
-                            "pending_launches"
-                        ]
+                        (
+                            ownership_groups,
+                            ownership_pending_launches,
+                        ) = execution_ownership_scope(
+                            ownership_record,
+                            audits_complete_ownership,
+                            launch_reservation,
+                            process.pid,
+                        )
                         ownership_survivors = [
                             group for group in ownership_groups
                             if group_exists(group)
@@ -1146,7 +1194,7 @@ def run(args):
                 ):
                     finish_execution_ownership(
                         ownership_path,
-                        record["sequence_invocation_id"] or record["invocation_id"],
+                        ownership_invocation_id,
                         force_incomplete=(termination == "cleanup_incomplete"),
                     )
                     ownership_finished = owns_ownership
@@ -1188,10 +1236,15 @@ def run(args):
                 if ownership_path is not None:
                     ownership_record = read_execution_ownership(ownership_path)
                     if ownership_record is not None:
-                        ownership_groups = ownership_record["process_groups"]
-                        ownership_pending_launches = ownership_record[
-                            "pending_launches"
-                        ]
+                        (
+                            ownership_groups,
+                            ownership_pending_launches,
+                        ) = execution_ownership_scope(
+                            ownership_record,
+                            audits_complete_ownership,
+                            launch_reservation,
+                            process.pid,
+                        )
                         cleanup_incomplete = cleanup_incomplete or any(
                             group_exists(group) for group in ownership_groups
                         )
@@ -1214,7 +1267,7 @@ def run(args):
                 ):
                     finish_execution_ownership(
                         ownership_path,
-                        record["sequence_invocation_id"] or record["invocation_id"],
+                        ownership_invocation_id,
                         force_incomplete=cleanup_incomplete,
                     )
                     ownership_finished = owns_ownership

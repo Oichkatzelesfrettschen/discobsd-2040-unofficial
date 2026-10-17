@@ -302,7 +302,7 @@ class LoggedGateTest(unittest.TestCase):
 
         def fail_after_launch(path, record):
             nonlocal injected
-            if not injected and record["last_output"] == "ready":
+            if not injected and record.get("last_output") == "ready":
                 injected = True
                 raise OSError("injected receipt failure")
             original_status(path, record)
@@ -648,6 +648,109 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(ownership["state"], "released")
         self.assertEqual(ownership["process_groups"], [])
 
+    def test_recursive_logged_gate_retains_detached_child_ownership(self):
+        execution_lock = self.directory / "products.lock"
+        nested_log = self.directory / "nested.log"
+        nested_status = self.directory / "nested.status.json"
+        leaf_group_path = self.directory / "leaf-group"
+        leaf_program = (
+            "import os, pathlib, sys, time; "
+            "pathlib.Path(sys.argv[1]).write_text(str(os.getpgrp()), "
+            "encoding='ascii'); time.sleep(60)"
+        )
+        parent_program = (
+            "import os, pathlib, signal, subprocess, sys, time; "
+            "marker = pathlib.Path(sys.argv[4]); "
+            "nested = subprocess.Popen([sys.executable, sys.argv[1], "
+            "'--label', 'nested', '--log', sys.argv[2], '--status', sys.argv[3], "
+            "'--heartbeat-seconds', '0.05', '--idle-timeout-seconds', '2', "
+            "'--timeout-seconds', '3', '--', sys.executable, '-c', sys.argv[5], "
+            "sys.argv[4]]); "
+            "deadline = time.monotonic() + 2; "
+            "exec(\"while not marker.exists():\\n"
+            "    if nested.poll() is not None:\\n"
+            "        raise SystemExit('nested runner stopped before leaf launch')\\n"
+            "    if time.monotonic() >= deadline:\\n"
+            "        raise SystemExit('leaf launch deadline expired')\\n"
+            "    time.sleep(0.01)\"); "
+            "os.kill(nested.pid, signal.SIGKILL); nested.wait()"
+        )
+
+        leaf_group = None
+        try:
+            result = self.run_gate(
+                parent_program,
+                execution_lock=execution_lock,
+                program_arguments=(
+                    RUNNER,
+                    nested_log,
+                    nested_status,
+                    leaf_group_path,
+                    leaf_program,
+                ),
+            )
+            leaf_group = int(leaf_group_path.read_text(encoding="ascii"))
+            ownership = json.loads(
+                Path(f"{execution_lock}.ownership.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            self.assertEqual(
+                result.returncode,
+                runner.RUNNER_ERROR_EXIT,
+                result.stdout + result.stderr,
+            )
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            self.assertIn(leaf_group, ownership["process_groups"])
+            successor_marker = self.directory / "successor-launched"
+            successor = self.run_gate(
+                "import pathlib, sys; pathlib.Path(sys.argv[1]).touch()",
+                execution_lock=execution_lock,
+                program_arguments=(successor_marker,),
+            )
+            self.assertEqual(
+                successor.returncode,
+                runner.RUNNER_ERROR_EXIT,
+                successor.stdout + successor.stderr,
+            )
+            self.assertFalse(successor_marker.exists())
+        finally:
+            if leaf_group is not None:
+                try:
+                    os.killpg(leaf_group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_successful_recursive_logged_gate_ignores_ancestor_group(self):
+        execution_lock = self.directory / "products.lock"
+        nested_log = self.directory / "nested-success.log"
+        nested_status = self.directory / "nested-success.status.json"
+        parent_program = (
+            "import subprocess, sys; "
+            "result = subprocess.run([sys.executable, sys.argv[1], "
+            "'--label', 'nested-success', '--log', sys.argv[2], "
+            "'--status', sys.argv[3], '--heartbeat-seconds', '0.05', "
+            "'--idle-timeout-seconds', '1', '--timeout-seconds', '2', "
+            "'--', sys.executable, '-c', 'raise SystemExit(0)'], check=False); "
+            "raise SystemExit(result.returncode)"
+        )
+
+        result = self.run_gate(
+            parent_program,
+            execution_lock=execution_lock,
+            program_arguments=(RUNNER, nested_log, nested_status),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        nested = json.loads(nested_status.read_text(encoding="utf-8"))
+        self.assertEqual(nested["state"], "completed")
+        ownership = json.loads(
+            Path(f"{execution_lock}.ownership.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(ownership["state"], "released")
+        self.assertEqual(ownership["process_groups"], [])
+
     def test_execution_unit_fixture_cannot_retain_outer_launch_reservation(self):
         execution_lock = self.directory / "products.lock"
         result = subprocess.run(
@@ -700,7 +803,7 @@ class LoggedGateTest(unittest.TestCase):
             return runner.StopResult(result.child_exit_code, False)
 
         with mock.patch.object(
-            runner, "register_execution_group",
+            runner, "complete_inherited_execution_launch",
             side_effect=OSError("injected registration failure"),
         ), mock.patch.object(
             runner, "stop_process_group", side_effect=report_incomplete

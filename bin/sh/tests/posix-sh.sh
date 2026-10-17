@@ -475,6 +475,28 @@ after' \
     'set -e; command nosuchcmd_xyz 2>/dev/null || echo recovered; echo after'
 ok bi_command_errexit_if_context 'after' \
     'set -e; if command nosuchcmd_xyz 2>/dev/null; then echo wrong; fi; echo after'
+ok bi_errexit_function_and_context 'reached
+ok
+after' \
+    'set -e; f(){ :; false; echo reached; }; f && echo ok; echo after'
+ok bi_errexit_group_and_context 'reached
+ok
+after' \
+    'set -e; { :; false; echo reached; } && echo ok; echo after'
+ok bi_errexit_group_if_context 'reached
+after' \
+    'set -e; if { :; false; echo reached; }; then :; fi; echo after'
+ok bi_errexit_command_eval_or_context 'reached
+after' \
+    'set -e; command eval '\''false; echo reached'\'' || echo wrong; echo after'
+ok bi_errexit_while_context 'cond
+body
+after' \
+    'set -e; while { false; echo cond; }; do echo body; break; done; echo after'
+okrc bi_errexit_if_enables_option '' 1 \
+    'if set -e; then false; echo branch; fi; echo after'
+okrc bi_errexit_and_enables_option '' 1 \
+    'set -e && false; echo after'
 ok bi_command_subshell_builtin_error 'after:1' \
     '(command export 1bad=x 2>/dev/null; echo "after:$?")'
 okrc bi_command_exec_failure_exits '' 127 \

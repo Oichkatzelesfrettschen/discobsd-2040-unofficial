@@ -295,6 +295,10 @@ struct command_context
 
 static struct command_context *command_current;
 
+#define ERREXIT_SUPPRESSED (-1)
+#define ERREXIT_CONTEXT(errorflg) \
+	((errorflg) < 0 ? ERREXIT_SUPPRESSED : (errorflg) | eflag)
+
 int
 command_recovery_allowed()
 {
@@ -337,7 +341,7 @@ int     *pf1, *pf2;
 	char            *sav = savstak();
 
 	sigchk();
-	if (!errorflg)
+	if (errorflg <= 0)
 		flags &= ~errflg;
 
 	if ((t = argt) && execbrk == 0)
@@ -1225,18 +1229,21 @@ int     *pf1, *pf2;
 			break;
 
 		case TLST:
-			execute(lstptr(t)->lstlef, 0, errorflg | eflag);
-			execute(lstptr(t)->lstrit, exec_link, errorflg | eflag);
+			execute(lstptr(t)->lstlef, 0, ERREXIT_CONTEXT(errorflg));
+			execute(lstptr(t)->lstrit, exec_link,
+			    ERREXIT_CONTEXT(errorflg));
 			break;
 
 		case TAND:
-			if (execute(lstptr(t)->lstlef, 0, 0) == 0)
-				execute(lstptr(t)->lstrit, exec_link, errorflg);
+			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED) == 0)
+				execute(lstptr(t)->lstrit, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			break;
 
 		case TORF:
-			if (execute(lstptr(t)->lstlef, 0, 0) != 0)
-				execute(lstptr(t)->lstrit, exec_link, errorflg);
+			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED) != 0)
+				execute(lstptr(t)->lstrit, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			break;
 
 		case TFOR:
@@ -1280,9 +1287,12 @@ int     *pf1, *pf2;
 				int     i = 0;
 
 				loopcnt++;
-				while (execbrk == 0 && (execute(whptr(t)->whtre, 0, 0) == 0) == (type == TWH))
+				while (execbrk == 0 &&
+				    (execute(whptr(t)->whtre, 0, ERREXIT_SUPPRESSED) == 0) ==
+				    (type == TWH))
 				{
-					i = execute(whptr(t)->dotre, 0, errorflg);
+					i = execute(whptr(t)->dotre, 0,
+					    ERREXIT_CONTEXT(errorflg));
 					if (breakcnt < 0)
 						execbrk = (++breakcnt != 0);
 				}
@@ -1295,10 +1305,12 @@ int     *pf1, *pf2;
 			break;
 
 		case TIF:
-			if (execute(ifptr(t)->iftre, 0, 0) == 0)
-				execute(ifptr(t)->thtre, exec_link, errorflg);
+			if (execute(ifptr(t)->iftre, 0, ERREXIT_SUPPRESSED) == 0)
+				execute(ifptr(t)->thtre, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			else if (ifptr(t)->eltre)
-				execute(ifptr(t)->eltre, exec_link, errorflg);
+				execute(ifptr(t)->eltre, exec_link,
+				    ERREXIT_CONTEXT(errorflg));
 			else
 				exitval = 0;    /* force zero exit for if-then-fi */
 			break;

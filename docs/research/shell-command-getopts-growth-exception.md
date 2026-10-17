@@ -10,7 +10,7 @@ The behavior evidence covers the named compatibility subset exercised by
 ## Compared states
 
 The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
-implementation is `944d64cac82c3aa41b05cb3e8c6dcded509683b6`. Both states used
+implementation is `4236a3cfb4a5fda5ce85962498788641c571a0ac`. Both states used
 the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
 Each state was built from clean. The base used `bmake MACHINE=rp2040
 logged-distribution`, and the final candidate used the supervised command
@@ -30,7 +30,7 @@ clean-distribution command below. The runner retained combined output, emitted
 PYTHON=/usr/bin/python
 export PYTHON
 "$PYTHON" tools/run_logged_gate.py \
-    --label shell-full-warning-clean-distribution \
+    --label shell-review-fixes-clean-distribution \
     --evidence-root .build-logs \
     --heartbeat-seconds 30 \
     --idle-timeout-seconds 60 \
@@ -39,19 +39,21 @@ export PYTHON
 ```
 
 The terminal receipt is
-`.build-logs/shell-full-warning-clean-distribution.latest.json`. It records
-exit status 0, 174.777 seconds elapsed and 821,371 output bytes.
+`.build-logs/shell-review-fixes-clean-distribution.latest.json`. It records
+exit status 0, 343.126 seconds elapsed and 1,555,244 output bytes. The build
+ran immediately before the implementation commit; the committed source and
+test diff is byte-identical to the measured tracked tree.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
 | --- | ---: | ---: | ---: | ---: |
 | PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,226 flash bytes after text and data |
 | PICO kernel data | 248 bytes | 248 bytes | 0 | unchanged |
 | PICO kernel bss | 39,848 bytes | 39,848 bytes | 0 | unchanged |
-| Shell a.out file | 32,576 bytes | 35,168 bytes | +2,592 bytes | n/a |
-| Shell text | 30,132 bytes | 32,704 bytes | +2,572 bytes | n/a |
+| Shell a.out file | 32,576 bytes | 35,528 bytes | +2,952 bytes | n/a |
+| Shell text | 30,132 bytes | 33,064 bytes | +2,932 bytes | n/a |
 | Shell data | 2,412 bytes | 2,432 bytes | +20 bytes | n/a |
-| Shell bss | 7,152 bytes | 7,168 bytes | +16 bytes | n/a |
-| Shell process-window occupancy before stack | 39,696 bytes | 42,304 bytes | +2,608 bytes | 105,152 bytes before stack |
+| Shell bss | 7,152 bytes | 7,172 bytes | +20 bytes | n/a |
+| Shell process-window occupancy before stack | 39,696 bytes | 42,668 bytes | +2,972 bytes | 104,788 bytes before stack |
 | Packed root data blocks | 682 | 684 | +2 blocks | 295 free 1 KiB blocks, or 302,080 bytes |
 | Packed root files | 95 | 95 | 0 | unchanged |
 
@@ -77,12 +79,17 @@ reduced the candidate to 35,240 bytes while retaining every behavior witness:
   four bss bytes.
 - Sharing the two `getopts` diagnostic tails removed four text bytes.
 
-The final-review behavior repairs and GNU17 warning cleanup reduced that
-candidate by another 72 a.out bytes and 72 text bytes, producing the measured
-35,168-byte candidate. An optimized `-fstack-usage` comparison measured the
-ordinary `execute()` static frame at 96 bytes in the base and 208 bytes in the
-candidate, a 112-byte increase. The compiler measurement bounds one static
-frame; it does not measure recursion depth, runtime peak stack or heap use.
+The first final-review behavior repairs and GNU17 warning cleanup reduced that
+candidate by another 72 a.out bytes and 72 text bytes. The subsequent recovery
+repair pass adds 360 a.out bytes, 360 aligned text bytes and four bss bytes for
+child-error routing, redirection and input unwind checkpoints, single-pass
+prefix expansion snapshots, initialized allocation-failure cleanup and
+nonmutating `getopts` destination validation. The measured 35,528-byte result
+remains 16 bytes smaller than the feature-first shell. An optimized
+`-fstack-usage` comparison measured the ordinary `execute()` static frame at 96
+bytes in the base and 216 bytes in the candidate, a 120-byte increase. The
+compiler measurement bounds one static frame; it does not measure recursion
+depth, runtime peak stack or heap use.
 
 An external `command` applet cannot bypass shell functions, classify builtins,
 or remove special-builtin properties inside the invoking shell. An external

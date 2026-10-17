@@ -26,6 +26,7 @@ READ_SIZE = 65536
 TERMINAL_QUEUE_CHUNKS = 32
 TERMINAL_CLOSE_SECONDS = 0.2
 PROCESS_SNAPSHOT_SECONDS = 1.0
+PROCESS_EXIT_POLL_SECONDS = 0.1
 OWNERSHIP_LOCK_SECONDS = 1.0
 OWNERSHIP_PATH_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_PATH"
 OWNERSHIP_INVOCATION_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_INVOCATION"
@@ -662,6 +663,12 @@ def group_exists(process_group):
     return True
 
 
+def drain_ready_output(pump, output_open, drain_seconds):
+    deadline = time.monotonic() + drain_seconds
+    while output_open() and time.monotonic() < deadline and pump(0):
+        pass
+
+
 def stop_process_group(process, grace_seconds, pump=None, output_open=None):
     try:
         os.killpg(process.pid, signal.SIGTERM)
@@ -1092,14 +1099,20 @@ def run(args):
                         termination = "idle_timeout"
                         break
 
-                    deadlines = [next_heartbeat]
+                    deadlines = [
+                        next_heartbeat,
+                        now + PROCESS_EXIT_POLL_SECONDS,
+                    ]
                     if hard_deadline is not None:
                         deadlines.append(hard_deadline)
                     if idle_deadline is not None:
                         deadlines.append(idle_deadline)
-                    received = pump(max(0, min(deadlines) - now))
+                    pump(max(0, min(deadlines) - now))
 
                     now = time.monotonic()
+                    if signal_received is not None:
+                        termination = f"signal_{signal_received}"
+                        break
                     if now >= next_heartbeat:
                         elapsed = now - start
                         quiet = now - last_output_time
@@ -1117,10 +1130,15 @@ def run(args):
                         publish_status(args, record)
                         next_heartbeat = now + args.heartbeat_seconds
 
-                    if process.poll() is not None and not received:
-                        pump(0)
-                        if not output_open:
-                            break
+                    if process.poll() is not None:
+                        drain_ready_output(
+                            pump,
+                            lambda: output_open,
+                            TERMINAL_CLOSE_SECONDS,
+                        )
+                        if signal_received is not None:
+                            termination = f"signal_{signal_received}"
+                        break
 
                 if termination is not None:
                     emit(

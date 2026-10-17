@@ -1,6 +1,7 @@
 """Record actual test invocations and require every designated CI variant."""
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import math
@@ -23,6 +24,12 @@ TERMINATE_GRACE_SECONDS = 1.0
 CLEANUP_ALLOWANCE_ENV = "_DISCOBSD_TEST_EXECUTION_CLEANUP_ALLOWANCE_SECONDS"
 ROOT_CLEANUP_ALLOWANCE_SECONDS = 2.0 * TERMINATE_GRACE_SECONDS
 MINIMUM_CHILD_CLEANUP_SECONDS = 0.02
+
+
+@dataclasses.dataclass(frozen=True)
+class StopResult:
+    child_exit_code: object
+    group_stopped: bool
 
 
 class BoundedSignal(Exception):
@@ -63,10 +70,17 @@ def stop_process_group(process, grace_seconds=TERMINATE_GRACE_SECONDS):
         except ProcessLookupError:
             pass
     try:
-        return process.wait(timeout=max(0.1, grace_seconds))
+        child_exit = process.wait(timeout=max(0.1, grace_seconds))
     except subprocess.TimeoutExpired:
         process.kill()
-        return process.wait()
+        try:
+            child_exit = process.wait(timeout=max(0.1, grace_seconds))
+        except subprocess.TimeoutExpired:
+            child_exit = None
+    group_deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < group_deadline and process_group_exists(process.pid):
+        time.sleep(min(0.02, max(0, group_deadline - time.monotonic())))
+    return StopResult(child_exit, not process_group_exists(process.pid))
 
 
 def cleanup_allowances():
@@ -98,16 +112,26 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
         try:
             returncode = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
-            stop_process_group(process, cleanup_seconds)
-            return TIMEOUT_EXIT, "hard_timeout"
+            result = stop_process_group(process, cleanup_seconds)
+            return (
+                (TIMEOUT_EXIT, "hard_timeout")
+                if result.group_stopped
+                else (125, "cleanup_incomplete")
+            )
         except BoundedSignal as interruption:
-            stop_process_group(process, cleanup_seconds)
-            return 128 + interruption.number, f"signal_{interruption.number}"
+            result = stop_process_group(process, cleanup_seconds)
+            return (
+                (128 + interruption.number, f"signal_{interruption.number}")
+                if result.group_stopped
+                else (125, "cleanup_incomplete")
+            )
         except BaseException:
             stop_process_group(process, cleanup_seconds)
             raise
         if process_group_exists(process.pid):
-            stop_process_group(process, cleanup_seconds)
+            result = stop_process_group(process, cleanup_seconds)
+            if not result.group_stopped:
+                return 125, "cleanup_incomplete"
         return returncode, None
     finally:
         for number, handler in previous_handlers.items():

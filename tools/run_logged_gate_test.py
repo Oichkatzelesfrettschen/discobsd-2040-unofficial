@@ -138,6 +138,37 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(status["termination"], "hard_timeout")
         self.assertGreater(status["output_bytes"], 0)
 
+    def test_stop_process_group_reports_an_unreaped_process_within_its_budget(self):
+        class UnreapedProcess:
+            pid = 4242
+
+            def __init__(self):
+                self.wait_timeouts = []
+                self.kill_calls = 0
+
+            def poll(self):
+                return None
+
+            def kill(self):
+                self.kill_calls += 1
+
+            def wait(self, timeout=None):
+                self.wait_timeouts.append(timeout)
+                raise subprocess.TimeoutExpired("fixture", timeout)
+
+        process = UnreapedProcess()
+        started = time.monotonic()
+        with mock.patch.object(runner.os, "killpg"):
+            with mock.patch.object(runner, "group_exists", return_value=True):
+                result = runner.stop_process_group(process, 0.01)
+
+        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertIsNone(result.child_exit_code)
+        self.assertFalse(result.group_stopped)
+        self.assertGreaterEqual(len(process.wait_timeouts), 1)
+        self.assertNotIn(None, process.wait_timeouts)
+        self.assertEqual(process.kill_calls, 1)
+
     def test_timeout_retains_process_tree_snapshot_before_termination(self):
         program = (
             "import subprocess, sys, time; "

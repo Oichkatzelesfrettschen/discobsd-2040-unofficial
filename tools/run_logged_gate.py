@@ -1,6 +1,7 @@
 """Run one build or gate with streaming logs, heartbeats, and deadlines."""
 
 import argparse
+import dataclasses
 import datetime
 import fcntl
 import json
@@ -25,6 +26,12 @@ READ_SIZE = 65536
 TERMINAL_QUEUE_CHUNKS = 32
 TERMINAL_CLOSE_SECONDS = 0.2
 PROCESS_SNAPSHOT_SECONDS = 1.0
+
+
+@dataclasses.dataclass(frozen=True)
+class StopResult:
+    child_exit_code: object
+    group_stopped: bool
 
 
 def utc_timestamp():
@@ -265,12 +272,23 @@ def stop_process_group(process, grace_seconds, pump=None, output_open=None):
         child_exit = process.wait(timeout=max(0.1, grace_seconds))
     except subprocess.TimeoutExpired:
         process.kill()
-        child_exit = process.wait()
+        try:
+            child_exit = process.wait(timeout=max(0.1, grace_seconds))
+        except subprocess.TimeoutExpired:
+            child_exit = None
+    group_deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < group_deadline and group_exists(process.pid):
+        wait_seconds = min(0.02, max(0, group_deadline - time.monotonic()))
+        if pump is None:
+            time.sleep(wait_seconds)
+        else:
+            pump(wait_seconds)
+    group_stopped = not group_exists(process.pid)
     if pump is not None and output_open is not None:
         drain_deadline = time.monotonic() + TERMINAL_CLOSE_SECONDS
         while output_open() and time.monotonic() < drain_deadline:
             pump(min(0.02, drain_deadline - time.monotonic()))
-    return child_exit
+    return StopResult(child_exit, group_stopped)
 
 
 def output_state(previous_tail, chunk):
@@ -606,24 +624,49 @@ def run(args):
                         f"time={utc_timestamp()} reason={termination}\n"
                     )
                     emit(process_tree_snapshot(process.pid))
-                    child_exit = stop_process_group(
+                    stop_result = stop_process_group(
                         process,
                         args.terminate_grace_seconds,
                         pump=pump,
                         output_open=lambda: output_open,
                     )
-                    exit_code = (
-                        128 + signal_received
-                        if signal_received is not None
-                        else TIMEOUT_EXIT
-                    )
-                    state = (
-                        "interrupted" if signal_received is not None else "timed_out"
-                    )
+                    child_exit = stop_result.child_exit_code
+                    if not stop_result.group_stopped:
+                        exit_code = RUNNER_ERROR_EXIT
+                        state = "error"
+                        termination = "cleanup_incomplete"
+                    else:
+                        exit_code = (
+                            128 + signal_received
+                            if signal_received is not None
+                            else TIMEOUT_EXIT
+                        )
+                        state = (
+                            "interrupted"
+                            if signal_received is not None
+                            else "timed_out"
+                        )
                 else:
-                    child_exit = process.wait()
-                    exit_code = child_exit if child_exit >= 0 else 128 - child_exit
-                    state = "completed" if exit_code == 0 else "failed"
+                    child_exit = process.returncode
+                    if child_exit is None:
+                        child_exit = process.wait(
+                            timeout=max(0.1, args.terminate_grace_seconds)
+                        )
+                    stop_result = None
+                    if group_exists(process.pid):
+                        stop_result = stop_process_group(
+                            process,
+                            args.terminate_grace_seconds,
+                            pump=pump,
+                            output_open=lambda: output_open,
+                        )
+                    if stop_result is not None and not stop_result.group_stopped:
+                        exit_code = RUNNER_ERROR_EXIT
+                        state = "error"
+                        termination = "cleanup_incomplete"
+                    else:
+                        exit_code = child_exit if child_exit >= 0 else 128 - child_exit
+                        state = "completed" if exit_code == 0 else "failed"
 
                 elapsed = time.monotonic() - start
                 quiet = time.monotonic() - last_output_time
@@ -644,22 +687,27 @@ def run(args):
                 publish_status(args, record)
                 return exit_code
             except Exception as error:
+                cleanup_incomplete = False
                 if group_exists(process.pid):
-                    child_exit = stop_process_group(
+                    stop_result = stop_process_group(
                         process,
                         args.terminate_grace_seconds,
                         pump=pump_callback,
                         output_open=(lambda: output_open) if selector is not None else None,
                     )
+                    child_exit = stop_result.child_exit_code
+                    cleanup_incomplete = not stop_result.group_stopped
                 else:
-                    child_exit = process.wait()
+                    child_exit = process.poll()
                 record.update(
                     state="error",
                     updated_at=utc_timestamp(),
                     elapsed_seconds=round(time.monotonic() - start, 3),
                     child_exit_code=child_exit,
                     exit_code=RUNNER_ERROR_EXIT,
-                    termination="runner_error",
+                    termination=(
+                        "cleanup_incomplete" if cleanup_incomplete else "runner_error"
+                    ),
                 )
                 safe_emit(
                     f"[logged-gate] error label={args.label} "

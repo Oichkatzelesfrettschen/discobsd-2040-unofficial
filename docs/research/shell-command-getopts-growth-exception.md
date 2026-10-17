@@ -10,7 +10,7 @@ The behavior evidence covers the named compatibility subset exercised by
 ## Compared states
 
 The clean base is `e7730db124a0324b62afe209b31dd210c270c0dc`. The measured
-implementation is `a5a5282cc3402889a1139b3cb8f2334c7d2fcb8d`. Both states used
+implementation is `b460187ab03bdcaf10844e7621c856e810803693`. Both states used
 the same GNU Arm Embedded toolchain and caller-selected Python interpreter.
 Each state was built from clean. The base used `bmake MACHINE=rp2040
 logged-distribution`, and the final candidate used the supervised command
@@ -30,8 +30,9 @@ clean-distribution command below. The runner retained combined output, emitted
 PYTHON=/usr/bin/python
 export PYTHON
 "$PYTHON" tools/run_logged_gate.py \
-    --label shell-ci-portability-clean-distribution \
-    --evidence-root .build-logs \
+    --label pr299-b460187a-clean-distribution \
+    --log .build-logs/pr299-b460187a-clean-distribution.log \
+    --status .build-logs/pr299-b460187a-clean-distribution.status.json \
     --heartbeat-seconds 30 \
     --idle-timeout-seconds 60 \
     --timeout-seconds 1800 \
@@ -39,17 +40,16 @@ export PYTHON
 ```
 
 The terminal receipt is
-`.build-logs/shell-ci-portability-clean-distribution.latest.json`. It records
-exit status 0, 155.918 seconds elapsed and 821,371 output bytes. The clean
-confirmation ran at `a796d28270213052f06dc316042d9754cbb98a98`. The subsequent
-ILP32 adapter repairs through `a5a5282cc3402889a1139b3cb8f2334c7d2fcb8d`
-change host-test support and add an `SH_HOST_RAWDIR` selection in `expand.c`.
+`.build-logs/pr299-b460187a-clean-distribution.status.json`. It records exit
+status 0, 104.1 seconds elapsed and 1,555,650 output bytes. The clean build ran
+at `b460187ab03bdcaf10844e7621c856e810803693`. The ILP32 adapter repairs add an
+`SH_HOST_RAWDIR` selection in `expand.c`.
 The target build leaves `SH_HOST_RAWDIR` undefined, so the selection
 preprocesses to the existing `read` call. A clean GNU17 target-shell rebuild at
-the measured implementation commit reproduces the 35,524-byte OMAGIC file and
-its 33,060/2,432/7,172-byte text/data/bss sections. The rebuilt shell and the
+the measured implementation commit reproduces the 35,856-byte OMAGIC file and
+its 33,392/2,432/7,172-byte text/data/bss sections. The rebuilt shell and the
 retained clean-distribution shell are byte-identical with SHA-256
-`1d97eaf94318e723bc016cbf70d29de8e0e76a0f3f5146cd5d7fa67aa0949ad3`, so
+`86885e2783154fed0aefa7b342a128801599fe5b52a94dd745becdf3031bfa5a`, so
 the packed-root payload and allocation remain unchanged.
 
 | Constrained surface | Base | Candidate | Delta | Retained margin |
@@ -57,16 +57,16 @@ the packed-root payload and allocation remain unchanged.
 | PICO kernel text | 104,598 bytes | 104,598 bytes | 0 | 26,226 flash bytes after text and data |
 | PICO kernel data | 248 bytes | 248 bytes | 0 | unchanged |
 | PICO kernel bss | 39,848 bytes | 39,848 bytes | 0 | unchanged |
-| Shell a.out file | 32,576 bytes | 35,524 bytes | +2,948 bytes | n/a |
-| Shell text | 30,132 bytes | 33,060 bytes | +2,928 bytes | n/a |
+| Shell a.out file | 32,576 bytes | 35,856 bytes | +3,280 bytes | n/a |
+| Shell text | 30,132 bytes | 33,392 bytes | +3,260 bytes | n/a |
 | Shell data | 2,412 bytes | 2,432 bytes | +20 bytes | n/a |
 | Shell bss | 7,152 bytes | 7,172 bytes | +20 bytes | n/a |
-| Shell process-window occupancy before stack | 39,696 bytes | 42,664 bytes | +2,968 bytes | 104,792 bytes before stack |
+| Shell process-window occupancy before stack | 39,696 bytes | 42,996 bytes | +3,300 bytes | 104,460 bytes before stack |
 | Packed root data blocks | 682 | 684 | +2 blocks | 295 free 1 KiB blocks, or 302,080 bytes |
 | Packed root files | 95 | 95 | 0 | unchanged |
 
-GNU `arm-none-eabi-size` reports 33,058 text bytes for the transient shell ELF.
-The target `size` tool reports 33,060 text bytes for the installed OMAGIC a.out.
+GNU `arm-none-eabi-size` reports 33,390 text bytes for the transient shell ELF.
+The target `size` tool reports 33,392 text bytes for the installed OMAGIC a.out.
 The process-window accounting uses the shipped a.out format and its target-tool
 measurement.
 
@@ -93,17 +93,20 @@ reduced the candidate to 35,240 bytes while retaining every behavior witness:
 - Sharing the two `getopts` diagnostic tails removed four text bytes.
 
 The first final-review behavior repairs and GNU17 warning cleanup reduced that
-candidate by another 72 a.out bytes and 72 text bytes. The subsequent recovery
-repair pass adds 360 a.out bytes, 360 aligned text bytes and four bss bytes for
+candidate by another 72 a.out bytes and 72 text bytes. The first recovery
+repair pass added 360 a.out bytes, 360 aligned text bytes and four bss bytes for
 child-error routing, redirection and input unwind checkpoints, single-pass
 prefix expansion snapshots, initialized allocation-failure cleanup and
 nonmutating `getopts` destination validation. Defining the fork-link state
-across command recovery jumps removes four target text bytes; the accompanying
-64-bit host-directory contract and direct `getdents64` record pass-through do
-not enter the target image. The measured 35,524-byte result remains 20 bytes
-smaller than the feature-first shell. An optimized
+across command recovery jumps removed four target text bytes. The independent
+whole-branch review then required explicit recovery eligibility, loop-state
+unwind, destructive-exec exclusion, directory rejection, dynamic `set -e`
+propagation and contained `getopts` publication errors. Those corrections add
+332 a.out and text bytes, producing a result 312 bytes larger than the
+feature-first shell. The accompanying 64-bit host-directory contract and direct
+`getdents64` record pass-through do not enter the target image. An optimized
 `-fstack-usage` comparison measured the ordinary `execute()` static frame at 96
-bytes in the base and 216 bytes in the candidate, a 120-byte increase. The
+bytes in the base and 208 bytes in the candidate, a 112-byte increase. The
 compiler measurement bounds one static frame; it does not measure recursion
 depth, runtime peak stack or heap use.
 

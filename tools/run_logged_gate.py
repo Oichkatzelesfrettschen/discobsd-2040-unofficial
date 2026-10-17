@@ -2,10 +2,12 @@
 
 import argparse
 import datetime
+import fcntl
 import json
 import math
 import os
 import queue
+import re
 import selectors
 import shlex
 import signal
@@ -14,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 TIMEOUT_EXIT = 124
@@ -21,6 +24,7 @@ RUNNER_ERROR_EXIT = 125
 READ_SIZE = 65536
 TERMINAL_QUEUE_CHUNKS = 32
 TERMINAL_CLOSE_SECONDS = 0.2
+PROCESS_SNAPSHOT_SECONDS = 1.0
 
 
 def utc_timestamp():
@@ -50,6 +54,36 @@ def atomic_status(path, record):
     os.replace(temporary, path)
 
 
+def publish_status(args, record):
+    atomic_status(args.status, record)
+    if args.latest_status is not None:
+        atomic_status(args.latest_status, record)
+
+
+def prepare_evidence(args):
+    if args.evidence_root is None:
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ"
+        )
+        args.invocation_id = f"{args.label}-{timestamp}-{os.getpid()}"
+        args.evidence_directory = args.log.parent
+        args.latest_status = None
+        return
+
+    args.evidence_root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y%m%dT%H%M%SZ"
+    )
+    args.invocation_id = (
+        f"{args.label}-{timestamp}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+    )
+    args.evidence_directory = args.evidence_root / args.invocation_id
+    args.evidence_directory.mkdir()
+    args.log = args.evidence_directory / "gate.log"
+    args.status = args.evidence_directory / "status.json"
+    args.latest_status = args.evidence_root / f"{args.label}.latest.json"
+
+
 def write_log(stream, data):
     stream.write(data)
     stream.flush()
@@ -70,6 +104,44 @@ def open_regular_log(path):
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise ValueError(f"log path must name a regular file: {path}")
         return os.fdopen(descriptor, "wb")
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def acquire_log_lock(path):
+    """Own one log path without truncating another active invocation."""
+    lock_path = path.with_name(f".{path.name}.lock")
+    flags = os.O_RDWR | os.O_CREAT
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(lock_path, flags, 0o666)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"log lock must name a regular file: {lock_path}")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError(f"active log owner holds {path}") from error
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def acquire_execution_lock(path):
+    """Own the build products shared by logged targets in one worktree."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_RDWR | os.O_CREAT
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o666)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"execution lock must name a regular file: {path}")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError(f"active execution owner holds {path}") from error
+        return descriptor
     except Exception:
         os.close(descriptor)
         raise
@@ -210,6 +282,75 @@ def output_state(previous_tail, chunk):
     return tail, lines[-1][-400:] if lines else ""
 
 
+def process_tree_snapshot(root_pid):
+    header = "PID PPID PGID SID STATE ELAPSED CPU COMMAND"
+    timestamp = utc_timestamp()
+    try:
+        result = subprocess.run(
+            [
+                "ps", "-axo",
+                "pid=,ppid=,pgid=,sid=,state=,etime=,time=,command=",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=PROCESS_SNAPSHOT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return (
+            f"[logged-gate] process-snapshot time={timestamp} "
+            f"root={root_pid} unavailable={error}\n"
+            f"[logged-gate] process-snapshot-columns time={timestamp} {header}\n"
+        )
+    if result.returncode != 0:
+        diagnostic = result.stderr.strip().replace("\r", " ").replace("\n", " ")
+        return (
+            f"[logged-gate] process-snapshot time={timestamp} root={root_pid} "
+            f"ps-exit={result.returncode} diagnostic={diagnostic}\n"
+            f"[logged-gate] process-snapshot-columns time={timestamp} {header}\n"
+        )
+
+    records = {}
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 7)
+        if len(fields) != 8:
+            continue
+        try:
+            pid, parent_pid, process_group, session_id = map(int, fields[:4])
+        except ValueError:
+            continue
+        records[pid] = {
+            "parent": parent_pid,
+            "group": process_group,
+            "session": session_id,
+            "fields": fields,
+        }
+
+    selected = {
+        pid for pid, record in records.items()
+        if pid == root_pid or record["group"] == root_pid
+    }
+    changed = True
+    while changed:
+        changed = False
+        for pid, record in records.items():
+            if pid not in selected and record["parent"] in selected:
+                selected.add(pid)
+                changed = True
+
+    lines = [
+        f"[logged-gate] process-snapshot time={timestamp} "
+        f"root={root_pid} count={len(selected)}",
+        f"[logged-gate] process-snapshot-columns time={timestamp} {header}",
+    ]
+    for pid in sorted(selected):
+        lines.append(
+            f"[logged-gate] process time={timestamp} "
+            f"{' '.join(records[pid]['fields'])}"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def run(args):
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command:
@@ -217,6 +358,7 @@ def run(args):
     if os.name != "posix":
         raise ValueError("logged gate process-group control requires a POSIX host")
 
+    prepare_evidence(args)
     args.log.parent.mkdir(parents=True, exist_ok=True)
     args.status.parent.mkdir(parents=True, exist_ok=True)
     start_wall = utc_timestamp()
@@ -238,7 +380,37 @@ def run(args):
         "exit_code": None,
         "termination": None,
         "terminal_queue_dropped_bytes": 0,
+        "invocation_id": args.invocation_id,
+        "evidence_directory": str(args.evidence_directory),
+        "log_path": str(args.log),
+        "status_path": str(args.status),
+        "sequence_invocation_id": getattr(args, "sequence_invocation_id", None),
     }
+    execution_lock = None
+    if args.execution_lock is not None:
+        try:
+            execution_lock = acquire_execution_lock(args.execution_lock)
+        except (OSError, ValueError) as error:
+            record.update(
+                state="error",
+                updated_at=utc_timestamp(),
+                elapsed_seconds=round(time.monotonic() - start, 3),
+                exit_code=RUNNER_ERROR_EXIT,
+                termination="execution_lock_busy",
+            )
+            try:
+                publish_status(args, record)
+            except OSError:
+                pass
+            print(f"logged-gate: {error}", file=sys.stderr)
+            return RUNNER_ERROR_EXIT
+    try:
+        log_lock = acquire_log_lock(args.log)
+    except (OSError, ValueError) as error:
+        print(f"logged-gate: {error}", file=sys.stderr)
+        if execution_lock is not None:
+            os.close(execution_lock)
+        return RUNNER_ERROR_EXIT
     try:
         log_stream = open_regular_log(args.log)
     except (OSError, ValueError) as error:
@@ -250,10 +422,13 @@ def run(args):
             termination="log_open_error",
         )
         try:
-            atomic_status(args.status, record)
+            publish_status(args, record)
         except OSError:
             pass
         print(f"logged-gate: {error}", file=sys.stderr)
+        os.close(log_lock)
+        if execution_lock is not None:
+            os.close(execution_lock)
         return RUNNER_ERROR_EXIT
     signal_received = None
     process = None
@@ -296,7 +471,7 @@ def run(args):
 
             def safe_status():
                 try:
-                    atomic_status(args.status, record)
+                    publish_status(args, record)
                 except OSError:
                     pass
 
@@ -332,7 +507,7 @@ def run(args):
                 record.update(
                     state="running", pid=process.pid, updated_at=utc_timestamp()
                 )
-                atomic_status(args.status, record)
+                publish_status(args, record)
                 selector = selectors.DefaultSelector()
                 selector.register(process.stdout, selectors.EVENT_READ, "output")
                 selector.register(wake_read, selectors.EVENT_READ, "signal")
@@ -417,7 +592,7 @@ def run(args):
                             elapsed_seconds=round(elapsed, 3),
                             quiet_seconds=round(quiet, 3),
                         )
-                        atomic_status(args.status, record)
+                        publish_status(args, record)
                         next_heartbeat = now + args.heartbeat_seconds
 
                     if process.poll() is not None and not received:
@@ -430,6 +605,7 @@ def run(args):
                         f"[logged-gate] stopping label={args.label} "
                         f"time={utc_timestamp()} reason={termination}\n"
                     )
+                    emit(process_tree_snapshot(process.pid))
                     child_exit = stop_process_group(
                         process,
                         args.terminate_grace_seconds,
@@ -465,7 +641,7 @@ def run(args):
                     f"time={utc_timestamp()} elapsed={elapsed:.1f}s "
                     f"bytes={record['output_bytes']}\n"
                 )
-                atomic_status(args.status, record)
+                publish_status(args, record)
                 return exit_code
             except Exception as error:
                 if group_exists(process.pid):
@@ -506,13 +682,19 @@ def run(args):
         for number, handler in previous_handlers.items():
             signal.signal(number, handler)
         terminal_mirror.close()
+        os.close(log_lock)
+        if execution_lock is not None:
+            os.close(execution_lock)
 
 
 def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", required=True)
-    parser.add_argument("--log", type=Path, required=True)
-    parser.add_argument("--status", type=Path, required=True)
+    parser.add_argument("--log", type=Path)
+    parser.add_argument("--status", type=Path)
+    parser.add_argument("--evidence-root", type=Path)
+    parser.add_argument("--execution-lock", type=Path)
+    parser.add_argument("--sequence-invocation-id")
     parser.add_argument(
         "--heartbeat-seconds",
         type=lambda value: positive_seconds(value, "heartbeat"),
@@ -534,12 +716,23 @@ def parse_arguments(argv=None):
         default=1.0,
     )
     parser.add_argument("command", nargs=argparse.REMAINDER)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", args.label):
+        parser.error("label must contain only letters, digits, dot, underscore or dash")
+    explicit_paths = args.log is not None or args.status is not None
+    if args.evidence_root is not None and explicit_paths:
+        parser.error("--evidence-root cannot be combined with --log or --status")
+    if args.evidence_root is None and (args.log is None or args.status is None):
+        parser.error("either --evidence-root or both --log and --status are required")
+    return args
 
 
 def main(argv=None):
     try:
         return run(parse_arguments(argv))
+    except OSError as error:
+        print(f"logged-gate: evidence setup failed: {error}", file=sys.stderr)
+        return RUNNER_ERROR_EXIT
     except ValueError as error:
         print(f"logged-gate: {error}", file=sys.stderr)
         return 2

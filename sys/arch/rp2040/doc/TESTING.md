@@ -33,10 +33,19 @@ ignored `.build-logs` directory.
 
 The caller-facing `logged-build`, `logged-distribution`, `logged-flash`,
 `logged-kernel` and `logged-check` targets are the required local routes.
-Each target uses a distinct log and status receipt under `.build-logs`, a
-600-second output-idle deadline and a 3600-second hard deadline.
-`logged-check` depends on `logged-build`; the internal `build`, `distribution`,
-`flash`, `kernel` and `check` targets remain direct recursive-make surfaces.
+Each invocation owns an immutable directory under `.build-logs`, containing
+its log and status receipt, while `<label>.latest.json` names the most recently
+updated invocation. A worktree-wide execution lock rejects a second logged
+target before it mutates shared build products. Each target uses a 600-second
+output-idle deadline and a 3600-second hard deadline. `logged-check` runs build
+and check as correlated stages under one 3600-second total deadline. A failed
+build publishes a `blocked` check receipt in the same invocation directory.
+The sequence summary publishes the completed build and running check transition
+before the check stage starts. An unexpected stage-runner exception publishes
+an `error` stage receipt and a terminal sequence receipt; a build-stage
+exception also publishes the correlated `blocked` check receipt.
+The internal `build`, `distribution`, `flash`, `kernel` and `check` targets
+remain direct recursive-make surfaces.
 The runner forwards live bmake or GNU make jobserver pipe descriptors named by
 the inherited make flags. A logged target therefore preserves the caller's
 parallelism limit without handing a recursive make closed jobserver descriptors.
@@ -47,12 +56,18 @@ cannot suspend the idle and hard deadlines. The status receipt records bytes
 rejected by the full terminal queue; the durable log retains those bytes.
 SIGINT and SIGTERM wake the supervisor independently of the heartbeat interval,
 and every exit path after launch terminates and reaps the owned process group.
+Immediately before timeout or signal termination, the log records a bounded
+process-tree snapshot with process, parent, group, session, state, elapsed,
+CPU-time and command fields. The snapshot establishes the observed host process
+state at termination; the child log remains the authority for its own output.
 The runner opens the log without following a final symlink and accepts only a
 regular file. A FIFO, socket, device, directory or symlink produces runner
 status 125 before child launch. The log and receipt directory must reside on a
-responsive filesystem: a blocked regular-filesystem write can suspend the
-Python process itself. CI job and step deadlines and any enclosing local
-supervisor remain independent outer bounds for that failure class.
+responsive filesystem. Evidence-root setup failure returns status 125 without
+launching the child or printing a Python traceback; an unusable evidence root
+cannot contain a failure receipt. A blocked regular-filesystem write can
+suspend the Python process itself. CI job and step deadlines and any enclosing
+local supervisor remain independent outer bounds for that failure class.
 
 Select and export the interpreter, then use the caller-facing target:
 
@@ -71,9 +86,12 @@ timed-out gates retain their last status. The upload action explicitly includes
 hidden files because `.build-logs` is a hidden directory. `check-run-logging`
 calibrates runner success, failure, exceptional cleanup, idle termination, hard
 termination, signal wakeup, terminal backpressure, shutdown-output retention
-and invalid arguments. Its test helper carries a separate five-second deadline,
-and a FIFO fixture calibrates pre-launch rejection. The gate rejects firmware
-workflow changes that remove bounded active commands or retained logs.
+and invalid arguments. It also calibrates active-log exclusion, immutable
+sequential evidence, worktree product locking, pre-termination process capture,
+correlated build/check receipts and the shared total deadline. Its test helper
+carries a separate five-second deadline, and a FIFO fixture calibrates
+pre-launch rejection. The gate rejects firmware workflow changes that remove
+bounded active commands or retained logs.
 
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding

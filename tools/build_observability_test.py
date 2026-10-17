@@ -1,6 +1,9 @@
 """Calibrate the firmware workflow's bounded, retained build logging."""
 
+import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,43 +37,44 @@ HOST_GATES= check-run-logging
 
 check-run-logging: check-python
 \t${PYTHON} tools/run_logged_gate_test.py
+\t${PYTHON} tools/run_logged_build_check_test.py
 \t${PYTHON} tools/build_observability_test.py
 \t${PYTHON} tools/storage_counter_driver_test.py
 
 logged-build: check-python
 \t${PYTHON} tools/run_logged_gate.py --label rp2040-build-local \\
-\t    --log .build-logs/rp2040-build-local.log \\
-\t    --status .build-logs/rp2040-build-local.status.json \\
+\t    --evidence-root .build-logs \\
+\t    --execution-lock .build-logs/rp2040-products.lock \\
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040 build
 
 logged-distribution: check-python
 \t${PYTHON} tools/run_logged_gate.py --label rp2040-distribution-local \\
-\t    --log .build-logs/rp2040-distribution-local.log \\
-\t    --status .build-logs/rp2040-distribution-local.status.json \\
+\t    --evidence-root .build-logs \\
+\t    --execution-lock .build-logs/rp2040-products.lock \\
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040 distribution
 
 logged-flash: check-python
 \t${PYTHON} tools/run_logged_gate.py --label rp2040-flash-local \\
-\t    --log .build-logs/rp2040-flash-local.log \\
-\t    --status .build-logs/rp2040-flash-local.status.json \\
+\t    --evidence-root .build-logs \\
+\t    --execution-lock .build-logs/rp2040-products.lock \\
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040 flash
 
 logged-kernel: check-python
 \t${PYTHON} tools/run_logged_gate.py --label rp2040-kernel-local \\
-\t    --log .build-logs/rp2040-kernel-local.log \\
-\t    --status .build-logs/rp2040-kernel-local.status.json \\
+\t    --evidence-root .build-logs \\
+\t    --execution-lock .build-logs/rp2040-products.lock \\
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040 kernel
 
-logged-check: check-python logged-build
-\t${PYTHON} tools/run_logged_gate.py --label rp2040-check-local \\
-\t    --log .build-logs/rp2040-check-local.log \\
-\t    --status .build-logs/rp2040-check-local.status.json \\
+logged-check: check-python
+\t${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local \\
+\t    --evidence-root .build-logs \\
+\t    --execution-lock .build-logs/rp2040-products.lock \\
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
-\t    -- ${MAKE} MACHINE=rp2040 check
+\t    -- ${MAKE} MACHINE=rp2040
 """
 
 
@@ -262,6 +266,7 @@ class BuildObservabilityTest(unittest.TestCase):
         mutations = (
             ("HOST_GATES= check-run-logging", "HOST_GATES="),
             ("${PYTHON} tools/run_logged_gate_test.py", "true"),
+            ("${PYTHON} tools/run_logged_build_check_test.py", "true"),
             ("${PYTHON} tools/build_observability_test.py", "true"),
             ("${PYTHON} tools/storage_counter_driver_test.py", "true"),
         )
@@ -283,15 +288,81 @@ class BuildObservabilityTest(unittest.TestCase):
             ("-- ${MAKE} MACHINE=rp2040 flash", "-- true"),
             ("logged-kernel: check-python", "unlogged-kernel: check-python"),
             ("-- ${MAKE} MACHINE=rp2040 kernel", "-- true"),
-            ("logged-check: check-python logged-build", "logged-check: check-python"),
+            ("logged-check: check-python", "unlogged-check: check-python"),
             ("--label rp2040-check-local", "--label wrong-check-local"),
-            ("-- ${MAKE} MACHINE=rp2040 check", "-- true"),
+            ("-- ${MAKE} MACHINE=rp2040", "-- true"),
         )
         for original, replacement in mutations:
             with self.subTest(original=original):
                 source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
                 with self.assertRaisesRegex(ValueError, "logged-"):
                     observability.validate_makefile(source)
+
+    def test_local_logged_targets_allocate_owned_evidence(self):
+        environment = os.environ.copy()
+        environment.pop("MAKEFLAGS", None)
+        environment.pop("MFLAGS", None)
+        for target in (
+            "logged-build",
+            "logged-distribution",
+            "logged-flash",
+            "logged-kernel",
+        ):
+            with self.subTest(target=target):
+                result = subprocess.run(
+                    [
+                        "bmake",
+                        "-n",
+                        f"PYTHON={sys.executable}",
+                        "MACHINE=rp2040",
+                        target,
+                    ],
+                    cwd=ROOT,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                output = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 0, output)
+                self.assertIn("--evidence-root .build-logs", output)
+                self.assertIn(
+                    "--execution-lock .build-logs/rp2040-products.lock",
+                    output,
+                )
+                self.assertNotRegex(
+                    output,
+                    rf"--log \.build-logs/rp2040-{target.removeprefix('logged-')}-local\.log",
+                )
+
+    def test_logged_check_uses_one_bounded_sequence(self):
+        environment = os.environ.copy()
+        environment.pop("MAKEFLAGS", None)
+        environment.pop("MFLAGS", None)
+        result = subprocess.run(
+            [
+                "bmake",
+                "-n",
+                f"PYTHON={sys.executable}",
+                "MACHINE=rp2040",
+                "logged-check",
+            ],
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("tools/run_logged_build_check.py", output)
+        self.assertIn("--evidence-root .build-logs", output)
+        self.assertIn(
+            "--execution-lock .build-logs/rp2040-products.lock",
+            output,
+        )
+        self.assertNotIn("tools/run_logged_gate.py --label rp2040-check-local", output)
+        self.assertNotIn("tools/run_logged_gate.py --label rp2040-build-local", output)
 
 
 if __name__ == "__main__":

@@ -248,7 +248,7 @@ class ExecutionTest(unittest.TestCase):
                 )
                 child = [sys.executable, str(supervisor)]
 
-            returncode, termination = execution.run_bounded(child, 0.3)
+            returncode, termination = execution.run_bounded(child, 2.0)
 
             self.assertEqual(returncode, execution.TIMEOUT_EXIT)
             self.assertEqual(termination, "hard_timeout")

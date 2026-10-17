@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "841fea7485f9e0e07de2b2dfda5b7f55247e714dfa583a2c6ddd89903a87f9a7"
+    "ordered_row_sha256": "96fc49bab96b2ff31f86e93e71080e91a54a480b83dc5de1d83d50dda53c6742"
   },
   "state_counts": {
     "applicability": {
@@ -58,8 +58,8 @@
     },
     "evidence": {
       "none": 1471,
-      "static": 42,
-      "host": 5,
+      "static": 41,
+      "host": 6,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -95,6 +95,12 @@
       "evidence": "host",
       "known_good": "bin/sh/tests/posix-sh.sh",
       "known_bad": "bin/sh/tests/fixtures/getopts-optind-skip.json"
+    },
+    "utility-printf-native-ilp32-cross-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-printf-contracts check-printf-contracts-ilp32 check-printf-contracts-cross",
+      "evidence": "host",
+      "known_good": "tests/printf_contracts/behavior_test.py",
+      "known_bad": "tests/printf_contracts/known_bad.sh"
     }
   },
   "growth_policy": {

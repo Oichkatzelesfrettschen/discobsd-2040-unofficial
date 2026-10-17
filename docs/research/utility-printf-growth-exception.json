@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "91c9338a3854b4950da752f3825b2026d34d1dfc",
+  "implementation_commit": "6879c95f318e6232993e53bf2dbaadfd4d4a35c3",
+  "block_bytes": 1024,
+  "kernel": {
+    "region_bytes": 131072,
+    "base": {
+      "text_bytes": 104598,
+      "data_bytes": 248,
+      "bss_bytes": 39848,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
+    },
+    "candidate": {
+      "text_bytes": 104598,
+      "data_bytes": 248,
+      "bss_bytes": 39848,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
+    },
+    "delta": {
+      "text_bytes": 0,
+      "data_bytes": 0,
+      "bss_bytes": 0
+    }
+  },
+  "programs": {
+    "process_window_bytes": 147456,
+    "standalone_printf": {
+      "base": {
+        "text_bytes": 8234,
+        "data_bytes": 212,
+        "bss_bytes": 196,
+        "window_occupancy_before_stack_bytes": 8642,
+        "window_margin_before_stack_bytes": 138814,
+        "raw_bytes": 8480,
+        "packed_bytes": 7400,
+        "packed_blocks": 9
+      },
+      "candidate": {
+        "text_bytes": 7856,
+        "data_bytes": 200,
+        "bss_bytes": 72,
+        "window_occupancy_before_stack_bytes": 8128,
+        "window_margin_before_stack_bytes": 139328,
+        "raw_bytes": 8088,
+        "packed_bytes": 7150,
+        "packed_blocks": 8
+      },
+      "delta": {
+        "text_bytes": -378,
+        "data_bytes": -12,
+        "bss_bytes": -124,
+        "window_occupancy_before_stack_bytes": -514,
+        "raw_bytes": -392,
+        "packed_bytes": -250,
+        "packed_blocks": -1
+      }
+    },
+    "utilbox": {
+      "base": {
+        "text_bytes": 53316,
+        "data_bytes": 581,
+        "bss_bytes": 4255,
+        "window_occupancy_before_stack_bytes": 58152,
+        "window_margin_before_stack_bytes": 89304,
+        "raw_bytes": 53929,
+        "packed_bytes": 43803,
+        "packed_blocks": 44
+      },
+      "candidate": {
+        "text_bytes": 54068,
+        "data_bytes": 581,
+        "bss_bytes": 4255,
+        "window_occupancy_before_stack_bytes": 58904,
+        "window_margin_before_stack_bytes": 88552,
+        "raw_bytes": 54681,
+        "packed_bytes": 44514,
+        "packed_blocks": 45
+      },
+      "delta": {
+        "text_bytes": 752,
+        "data_bytes": 0,
+        "bss_bytes": 0,
+        "window_occupancy_before_stack_bytes": 752,
+        "raw_bytes": 752,
+        "packed_bytes": 711,
+        "packed_blocks": 1
+      }
+    },
+    "largest_process": {
+      "name": "warp",
+      "base_loaded_bytes": 101300,
+      "candidate_loaded_bytes": 101300,
+      "delta_loaded_bytes": 0,
+      "candidate_window_margin_before_stack_bytes": 46156
+    }
+  },
+  "root": {
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {
+      "files": 95,
+      "data_blocks": 685,
+      "free_blocks": 294
+    },
+    "candidate": {
+      "files": 95,
+      "data_blocks": 686,
+      "free_blocks": 293
+    },
+    "delta": {
+      "files": 0,
+      "data_blocks": 1,
+      "free_blocks": -1
+    },
+    "candidate_free_bytes": 300032
+  },
+  "composition": {
+    "shipped_form": "utilbox",
+    "standalone_rejected_added_root_blocks": 8,
+    "candidate_standalone_libc_members": 35,
+    "candidate_utilbox_libc_members": 112
+  },
+  "reviewer_approval": {
+    "status": "pending",
+    "reviewer": "",
+    "evidence": ""
+  }
+}

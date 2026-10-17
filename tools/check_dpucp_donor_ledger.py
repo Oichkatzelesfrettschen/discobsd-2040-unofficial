@@ -99,11 +99,14 @@ PROMOTED_CANDIDATES = {
     "libc-getdelim-getline",
     "shell-getopts",
     "shell-command",
+    "utility-printf",
 }
 FOUNDATION_MEASUREMENT = "docs/research/libc-array-memory-line-reading.md"
 FOUNDATION_MEASUREMENT_DATA = "docs/research/libc-array-memory-line-reading.json"
 SHELL_MEASUREMENT = "docs/research/shell-command-getopts-growth-exception.md"
 SHELL_MEASUREMENT_DATA = "docs/research/shell-command-getopts-growth-exception.json"
+PRINTF_MEASUREMENT = "docs/research/utility-printf-growth-exception.md"
+PRINTF_MEASUREMENT_DATA = "docs/research/utility-printf-growth-exception.json"
 
 
 class DonorError(RuntimeError):
@@ -354,6 +357,213 @@ def validate_shell_measurement(measurement):
         )
 
 
+def validate_printf_measurement(measurement):
+    require(
+        set(measurement) == {
+            "schema_version",
+            "profile_id",
+            "base_commit",
+            "implementation_commit",
+            "block_bytes",
+            "kernel",
+            "programs",
+            "root",
+            "composition",
+            "reviewer_approval",
+        },
+        "malformed printf growth exception",
+    )
+    require(measurement["schema_version"] == 1, "unsupported printf measurement schema")
+    require(measurement["profile_id"] == "DPUCP-2024", "wrong printf measurement profile")
+    for field in ("base_commit", "implementation_commit"):
+        require(
+            re.fullmatch(r"[0-9a-f]{40}", measurement[field]) is not None,
+            f"bad printf measurement {field}",
+        )
+    require(measurement["block_bytes"] == 1024, "printf measurement block size drift")
+
+    kernel = measurement["kernel"]
+    require(
+        set(kernel) == {"region_bytes", "base", "candidate", "delta"},
+        "malformed printf kernel measurement",
+    )
+    require(kernel["region_bytes"] == 131072, "printf kernel region drift")
+    kernel_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "loaded_flash_span_bytes",
+        "load_tail_margin_bytes",
+    }
+    for state in ("base", "candidate"):
+        require(set(kernel[state]) == kernel_fields, f"malformed {state} printf kernel")
+        require_nonnegative_integers(kernel[state], kernel_fields, f"{state} printf kernel")
+        require(
+            kernel[state]["load_tail_margin_bytes"]
+            == kernel["region_bytes"] - kernel[state]["loaded_flash_span_bytes"],
+            f"inconsistent {state} printf kernel margin",
+        )
+    for field in ("text_bytes", "data_bytes", "bss_bytes"):
+        require(
+            kernel["delta"][field] == kernel["candidate"][field] - kernel["base"][field],
+            f"inconsistent printf kernel {field} delta",
+        )
+
+    programs = measurement["programs"]
+    require(
+        set(programs) == {
+            "process_window_bytes",
+            "standalone_printf",
+            "utilbox",
+            "largest_process",
+        },
+        "malformed printf program measurement",
+    )
+    require(programs["process_window_bytes"] == 147456, "printf process window drift")
+    program_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "window_occupancy_before_stack_bytes",
+        "window_margin_before_stack_bytes",
+        "raw_bytes",
+        "packed_bytes",
+        "packed_blocks",
+    }
+    delta_fields = program_fields - {"window_margin_before_stack_bytes"}
+    for program_name in ("standalone_printf", "utilbox"):
+        program = programs[program_name]
+        require(set(program) == {"base", "candidate", "delta"}, f"malformed {program_name}")
+        for state in ("base", "candidate"):
+            values = program[state]
+            require(set(values) == program_fields, f"malformed {state} {program_name}")
+            require_nonnegative_integers(values, program_fields, f"{state} {program_name}")
+            occupancy = values["text_bytes"] + values["data_bytes"] + values["bss_bytes"]
+            require(
+                values["window_occupancy_before_stack_bytes"] == occupancy,
+                f"inconsistent {state} {program_name} occupancy",
+            )
+            require(
+                values["window_margin_before_stack_bytes"]
+                == programs["process_window_bytes"] - occupancy,
+                f"inconsistent {state} {program_name} margin",
+            )
+        require(set(program["delta"]) == delta_fields, f"malformed {program_name} delta")
+        for field in delta_fields:
+            require(
+                program["delta"][field]
+                == program["candidate"][field] - program["base"][field],
+                f"inconsistent {program_name} {field} delta",
+            )
+
+    largest = programs["largest_process"]
+    require(
+        set(largest) == {
+            "name",
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "delta_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "malformed largest-process measurement",
+    )
+    require(largest["name"] == "warp", "largest-process identity drift")
+    require_nonnegative_integers(
+        largest,
+        {
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "largest-process measurement",
+    )
+    require(
+        largest["delta_loaded_bytes"]
+        == largest["candidate_loaded_bytes"] - largest["base_loaded_bytes"],
+        "inconsistent largest-process delta",
+    )
+    require(
+        largest["candidate_window_margin_before_stack_bytes"]
+        == programs["process_window_bytes"] - largest["candidate_loaded_bytes"],
+        "inconsistent largest-process margin",
+    )
+
+    root = measurement["root"]
+    require(
+        set(root) == {
+            "partition_blocks",
+            "inode_list_blocks",
+            "base",
+            "candidate",
+            "delta",
+            "candidate_free_bytes",
+        },
+        "malformed printf root measurement",
+    )
+    require(root["partition_blocks"] == 988, "printf root partition drift")
+    require(root["inode_list_blocks"] == 9, "printf root inode-list drift")
+    for state in ("base", "candidate"):
+        require(
+            set(root[state]) == {"files", "data_blocks", "free_blocks"},
+            f"malformed printf root {state}",
+        )
+        require_nonnegative_integers(
+            root[state], {"files", "data_blocks", "free_blocks"}, f"printf root {state}"
+        )
+        require(
+            root[state]["data_blocks"] + root[state]["free_blocks"]
+            + root["inode_list_blocks"] == root["partition_blocks"],
+            f"inconsistent printf root {state} arithmetic",
+        )
+    for field in ("files", "data_blocks", "free_blocks"):
+        require(
+            root["delta"][field] == root["candidate"][field] - root["base"][field],
+            f"inconsistent printf root {field} delta",
+        )
+    require(
+        root["candidate_free_bytes"]
+        == root["candidate"]["free_blocks"] * measurement["block_bytes"],
+        "inconsistent printf root free-byte margin",
+    )
+
+    composition = measurement["composition"]
+    require(
+        set(composition) == {
+            "shipped_form",
+            "standalone_rejected_added_root_blocks",
+            "candidate_standalone_libc_members",
+            "candidate_utilbox_libc_members",
+        },
+        "malformed printf composition measurement",
+    )
+    require(composition["shipped_form"] == "utilbox", "printf shipped-form drift")
+    require(
+        composition["standalone_rejected_added_root_blocks"]
+        == programs["standalone_printf"]["candidate"]["packed_blocks"],
+        "inconsistent rejected standalone root cost",
+    )
+    require_nonnegative_integers(
+        composition,
+        {"candidate_standalone_libc_members", "candidate_utilbox_libc_members"},
+        "printf archive-member count",
+    )
+
+    approval = measurement["reviewer_approval"]
+    require(
+        set(approval) == {"status", "reviewer", "evidence"},
+        "malformed printf reviewer approval",
+    )
+    require(approval["status"] in {"pending", "approved"}, "bad printf approval state")
+    if approval["status"] == "approved":
+        require(bool(approval["reviewer"]), "approved printf exception lacks reviewer")
+        require(bool(approval["evidence"]), "approved printf exception lacks evidence")
+    else:
+        require(
+            not approval["reviewer"] and not approval["evidence"],
+            "pending printf approval has evidence",
+        )
+
+
 def safe_path(value):
     path = PurePosixPath(value)
     return bool(value) and not path.is_absolute() and ".." not in path.parts
@@ -385,6 +595,9 @@ def validate_document(root, document, requirement_ids):
     shell_measurement_path = root / SHELL_MEASUREMENT_DATA
     require(shell_measurement_path.is_file(), "missing shell growth-exception data")
     validate_shell_measurement(load_json(shell_measurement_path))
+    printf_measurement_path = root / PRINTF_MEASUREMENT_DATA
+    require(printf_measurement_path.is_file(), "missing printf growth-exception data")
+    validate_printf_measurement(load_json(printf_measurement_path))
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",
@@ -483,11 +696,12 @@ def validate_document(root, document, requirement_ids):
         )
         if candidate_id in PROMOTED_CANDIDATES:
             require(size["status"] == "measured", f"unmeasured promotion: {candidate_id}")
-            expected_evidence = (
-                SHELL_MEASUREMENT
-                if candidate_id in {"shell-getopts", "shell-command"}
-                else FOUNDATION_MEASUREMENT
-            )
+            if candidate_id in {"shell-getopts", "shell-command"}:
+                expected_evidence = SHELL_MEASUREMENT
+            elif candidate_id == "utility-printf":
+                expected_evidence = PRINTF_MEASUREMENT
+            else:
+                expected_evidence = FOUNDATION_MEASUREMENT
             require(size["evidence"] == expected_evidence, f"unbound size evidence: {candidate_id}")
             require(
                 (root / expected_evidence).is_file(),

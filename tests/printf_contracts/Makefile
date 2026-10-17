@@ -17,9 +17,16 @@ SANITIZER_FLAGS= -fsanitize=address,undefined -fno-sanitize-recover=all \
 SANITIZER_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} \
 	${SANITIZER_FLAGS}
 
-check: printf_host check-sanitized
+check: printf_host check-sanitized check-oracle
 	PYTHON=${PYTHON:Q} ${TEST_EXECUTION} run utility.printf.native -- \
 	    sh ${.CURDIR}/run_behavior_test.sh ${.CURDIR}/printf_host
+
+check-oracle:
+	@if PYTHON=${PYTHON:Q} sh ${.CURDIR}/run_behavior_test.sh \
+	    ${.CURDIR}/known_bad.sh >/dev/null 2>&1; then \
+		echo "printf contracts: known-bad fixture passed" >&2; \
+		exit 1; \
+	fi
 
 check-ilp32:
 .if ${ILP32_OK} == "yes"
@@ -61,4 +68,4 @@ clean:
 
 all: check
 
-.PHONY: all check check-ilp32 check-sanitized check-cross clean
+.PHONY: all check check-ilp32 check-sanitized check-oracle check-cross clean

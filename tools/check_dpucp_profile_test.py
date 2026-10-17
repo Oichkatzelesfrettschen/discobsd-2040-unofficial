@@ -58,6 +58,34 @@ def main():
         if witness["known_good"] == witness["known_bad"]:
             raise AssertionError(f"uncalibrated shell witness: {name}")
 
+    printf_row = next(
+        row
+        for row in rows
+        if row["requirement_id"] == "dpucp-2024:utility:printf"
+    )
+    printf_witness_id = "utility-printf-native-ilp32-cross-contract"
+    if (
+        printf_row["implementation"] != "partial"
+        or printf_row["evidence"] != "host"
+        or printf_row["residual"] != "open"
+        or printf_row["witness"] != printf_witness_id
+    ):
+        raise AssertionError("unbound printf compatibility witness")
+    printf_witness = profile["witnesses"].get(printf_witness_id)
+    if printf_witness is None:
+        raise AssertionError("missing printf profile witness")
+    if printf_witness["evidence"] != "host":
+        raise AssertionError("printf witness evidence is not host")
+    for target in (
+        "check-printf-contracts",
+        "check-printf-contracts-ilp32",
+        "check-printf-contracts-cross",
+    ):
+        if target not in printf_witness["command"]:
+            raise AssertionError(f"printf witness omits {target}")
+    if printf_witness["known_good"] == printf_witness["known_bad"]:
+        raise AssertionError("uncalibrated printf witness")
+
     expected_state_order = {
         "applicability": [
             "base",

@@ -33,11 +33,17 @@ blocks. `dpucp-2024-multicall-sizes.tsv` retains all seven multicall rows and
 all 71 primary standalone rows. The verifier binds the TSV digest, checks every
 row against the ledger, and runs `hsaout -s` over the current artifacts during
 the live-map gate. The ledger records the exact hsaout command pattern,
-captured host-tool digest, ARM compiler version, and bmake version. Host binary
-digests remain capture identities because another supported host compiler may
-produce a different host executable; source digests and measured output carry
-the portable gate. The comparison does not infer savings from source line
-counts or object sizes.
+captured host-tool digest, ARM compiler version, and bmake version. A live run
+with that recorded version pair must reproduce every retained byte and block
+count. A supported but different toolchain can change instruction selection,
+compression, and block rounding, so the live gate instead measures all 78
+artifacts together and requires every multicall image to consume fewer packed
+blocks than its standalone applets. The gate reports that evidence downgrade
+explicitly. The retained exact comparison remains bound to its recorded
+toolchain and source hashes; cross-toolchain output does not replace it. Host
+binary digests likewise remain capture identities because another supported
+host compiler may produce a different executable. The comparison does not
+infer savings from source line counts or object sizes.
 
 ## Static archive closure
 
@@ -70,9 +76,11 @@ geometry, inode use, and root block counts. The composition verifier hashes
 each receipt, compares every summarized terminal field with the retained
 payload, derives used inodes from the retained image counters, binds candidate
 links to the live manifest, and rejects positive candidate data-block or inode
-growth. The live gate also reads the current candidate image through fsutil and
-compares the measured partition, inode-list, free-inode, data-block, and
-free-block values with the retained receipt.
+growth. The live gate also reads the current candidate image through fsutil. A
+matching measurement toolchain must reproduce every retained root counter. A
+different toolchain must preserve the partition and inode-list geometry, root
+block arithmetic, and positive free block and inode capacity; the retained
+same-toolchain receipt remains the zero-growth evidence.
 
 The DPUCP `logname` row remains `partial`, with host evidence from
 `check-id-aliases` and composition evidence from this gate. Packed-image

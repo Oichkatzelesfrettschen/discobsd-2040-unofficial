@@ -47,6 +47,86 @@ def main():
     )
     composition.validate_document(root, document)
 
+    size_records = composition.parse_size_inventory(
+        root / document["measurement_inventory"]["path"]
+    )
+    live_measurements = [
+        (
+            record["raw_bytes"],
+            record["packed_bytes"],
+            record["raw_blocks"],
+            record["packed_blocks"],
+        )
+        for record in size_records
+    ]
+    live_measurements[0] = (34016, 28170, 35, 29)
+    composition.validate_live_measurements(
+        size_records, document["boxes"], live_measurements, exact=False
+    )
+    try:
+        composition.validate_live_measurements(
+            size_records, document["boxes"], live_measurements, exact=True
+        )
+    except composition.CompositionError:
+        pass
+    else:
+        raise AssertionError("exact measurement accepted cross-toolchain byte drift")
+    no_savings = list(live_measurements)
+    first_box_standalone = sum(
+        measurement[3]
+        for record, measurement in zip(size_records, live_measurements)
+        if record["kind"] == "standalone"
+        and record["box"] == document["boxes"][0]["id"]
+    )
+    no_savings[0] = (*no_savings[0][:3], first_box_standalone)
+    try:
+        composition.validate_live_measurements(
+            size_records, document["boxes"], no_savings, exact=False
+        )
+    except composition.CompositionError:
+        pass
+    else:
+        raise AssertionError("cross-toolchain measurement accepted no block savings")
+
+    candidate_receipt = composition.load_json(
+        root
+        / document["clean_distribution_receipts"]["candidate"]["receipt_path"]
+    )
+    retained_root = candidate_receipt["root_image"]
+    live_root = {
+        field: retained_root[field]
+        for field in (
+            "partition_blocks",
+            "inode_list_blocks",
+            "free_blocks",
+            "free_inodes",
+            "data_blocks",
+        )
+    }
+    live_root["data_blocks"] += 1
+    live_root["free_blocks"] -= 1
+    composition.validate_live_root_measurement(
+        document, retained_root, live_root, exact=False
+    )
+    try:
+        composition.validate_live_root_measurement(
+            document, retained_root, live_root, exact=True
+        )
+    except composition.CompositionError:
+        pass
+    else:
+        raise AssertionError("exact root measurement accepted cross-toolchain drift")
+    invalid_root = dict(live_root)
+    invalid_root["partition_blocks"] += 1
+    try:
+        composition.validate_live_root_measurement(
+            document, retained_root, invalid_root, exact=False
+        )
+    except composition.CompositionError:
+        pass
+    else:
+        raise AssertionError("cross-toolchain root accepted partition drift")
+
     with tempfile.TemporaryDirectory() as temporary_name:
         map_path = Path(temporary_name) / "fixture.map"
         map_path.write_text(

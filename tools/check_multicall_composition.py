@@ -153,6 +153,73 @@ def measure_hsaout(root, tool_path, records):
     return measured
 
 
+def validate_live_measurements(records, boxes, measured, exact):
+    if len(measured) != len(records):
+        raise CompositionError("live hsaout measurement row count differs")
+    live_by_identity = {}
+    for record, values in zip(records, measured):
+        if (
+            not isinstance(values, tuple)
+            or len(values) != 4
+            or any(
+                not isinstance(value, int) or isinstance(value, bool) or value <= 0
+                for value in values
+            )
+        ):
+            raise CompositionError(
+                f"{record['program']} live hsaout measurement is invalid"
+            )
+        identity = (record["kind"], record["box"], record["program"])
+        live_by_identity[identity] = values
+        if exact:
+            require_equal(
+                values,
+                (
+                    record["raw_bytes"],
+                    record["packed_bytes"],
+                    record["raw_blocks"],
+                    record["packed_blocks"],
+                ),
+                f"{record['program']} live hsaout measurement",
+            )
+    for box in boxes:
+        box_id = box["id"]
+        multicall_blocks = live_by_identity[("multicall", box_id, box_id)][3]
+        standalone_blocks = sum(
+            live_by_identity[("standalone", box_id, program)][3]
+            for program in box.get("tools", [])
+        )
+        if multicall_blocks >= standalone_blocks:
+            raise CompositionError(
+                f"{box_id} live composition saves no packed blocks: "
+                f"{multicall_blocks} against {standalone_blocks}"
+            )
+
+
+def command_version(command, label):
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise CompositionError(f"cannot read {label} version: {result.stderr.strip()}")
+    lines = result.stdout.splitlines()
+    if not lines or not lines[0].strip():
+        raise CompositionError(f"cannot read {label} version")
+    return lines[0].strip()
+
+
+def measurement_environment_matches(summary):
+    observed_arm_cc = command_version(
+        ["arm-none-eabi-gcc", "--version"], "ARM compiler"
+    )
+    observed_bmake = command_version(
+        ["bmake", "-V", "MAKE_VERSION"], "bmake"
+    )
+    exact = (
+        observed_arm_cc == summary["arm_cc_version"]
+        and observed_bmake == summary["bmake_version"]
+    )
+    return exact, observed_arm_cc, observed_bmake
+
+
 def capture_inventory(document, map_root):
     consumers = [box["id"] for box in document["boxes"]]
     consumers.extend(program["id"] for program in document["standalone_programs"])
@@ -494,18 +561,12 @@ def validate_measurement_inventory(root, document, boxes, live):
         raise CompositionError("invalid captured hsaout digest")
     if live:
         measured = measure_hsaout(root, tool_path, records)
-        for record, values in zip(records, measured):
-            require_equal(
-                values,
-                (
-                    record["raw_bytes"],
-                    record["packed_bytes"],
-                    record["raw_blocks"],
-                    record["packed_blocks"],
-                ),
-                f"{record['program']} live hsaout measurement",
-            )
-    return records
+        exact, observed_arm_cc, observed_bmake = measurement_environment_matches(
+            summary
+        )
+        validate_live_measurements(records, boxes, measured, exact)
+        return records, exact, observed_arm_cc, observed_bmake
+    return records, True, summary["arm_cc_version"], summary["bmake_version"]
 
 
 def measure_root_image(fsutil_path, image_path):
@@ -533,7 +594,46 @@ def measure_root_image(fsutil_path, image_path):
     return values
 
 
-def validate_root_measurement(root, document, candidate_receipt, live):
+def validate_live_root_measurement(document, retained, measured, exact):
+    for field in (
+        "partition_blocks",
+        "inode_list_blocks",
+        "free_blocks",
+        "free_inodes",
+        "data_blocks",
+    ):
+        value = measured.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise CompositionError(f"candidate live root {field} is invalid")
+    require_equal(
+        measured["partition_blocks"],
+        document["root"]["partition_blocks"],
+        "candidate live root partition_blocks",
+    )
+    require_equal(
+        measured["inode_list_blocks"],
+        document["root"]["inode_list_blocks"],
+        "candidate live root inode_list_blocks",
+    )
+    require_equal(
+        measured["data_blocks"] + measured["free_blocks"],
+        measured["partition_blocks"] - measured["inode_list_blocks"],
+        "candidate live root block arithmetic",
+    )
+    if measured["free_blocks"] == 0 or measured["free_inodes"] == 0:
+        raise CompositionError("candidate live root has no free capacity")
+    if exact:
+        for field in (
+            "partition_blocks",
+            "inode_list_blocks",
+            "free_blocks",
+            "free_inodes",
+            "data_blocks",
+        ):
+            require_equal(measured[field], retained[field], f"candidate live root {field}")
+
+
+def validate_root_measurement(root, document, candidate_receipt, live, exact):
     summary = document.get("root_measurement", {})
     expected_fields = {
         "fsutil_path",
@@ -551,14 +651,7 @@ def validate_root_measurement(root, document, candidate_receipt, live):
     if live:
         image = candidate_receipt["root_image"]
         measured = measure_root_image(fsutil_path, root / image["path"])
-        for field in (
-            "partition_blocks",
-            "inode_list_blocks",
-            "free_blocks",
-            "free_inodes",
-            "data_blocks",
-        ):
-            require_equal(measured[field], image[field], f"candidate live root {field}")
+        validate_live_root_measurement(document, image, measured, exact)
     manifest = candidate_receipt["manifest"]
     require_equal(
         sha256_path(root / manifest["path"]),
@@ -657,7 +750,9 @@ def validate_document(root, document, map_root=None):
         raise CompositionError("duplicate multicall box identity")
     if len(installed_paths) != len(set(installed_paths)):
         raise CompositionError("duplicate multicall installed path")
-    validate_measurement_inventory(root, document, boxes, map_root is not None)
+    _, exact_measurement, observed_arm_cc, observed_bmake = (
+        validate_measurement_inventory(root, document, boxes, map_root is not None)
+    )
 
     packs, links = parse_manifest(root / "distrib/rp2040/mi.rp2040")
     shipped_paths = []
@@ -765,7 +860,20 @@ def validate_document(root, document, map_root=None):
     validate_archive_summary(root, document, map_root)
     receipts = validate_clean_distribution_receipts(root, document)
     validate_root(document, links, receipts)
-    validate_root_measurement(root, document, receipts["candidate"], map_root is not None)
+    validate_root_measurement(
+        root,
+        document,
+        receipts["candidate"],
+        map_root is not None,
+        exact_measurement,
+    )
+    if map_root is not None and not exact_measurement:
+        print(
+            "multicall composition: live toolchain differs from retained "
+            f"measurement: ARM compiler={observed_arm_cc!r}, "
+            f"bmake={observed_bmake!r}; validated live block savings and "
+            "root capacity without claiming exact byte replay"
+        )
 
 
 def parse_arguments():

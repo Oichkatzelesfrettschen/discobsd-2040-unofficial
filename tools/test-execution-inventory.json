@@ -75,6 +75,24 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-printf-contracts",
+      "to": "tests/printf_contracts:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-printf-contracts-ilp32",
+      "to": "tests/printf_contracts:check-ilp32",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": [
+        "check-printf-contracts",
+        "check-printf-contracts-ilp32"
+      ],
+      "kind": "required utility printf variants"
+    },
+    {
       "from": "check-libc-zone",
       "to": "tests/libc_contracts:check-zone",
       "kind": "recursive make"
@@ -750,6 +768,48 @@
       ]
     },
     {
+      "id": "utility.printf.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/printf_contracts",
+      "makefile": "tests/printf_contracts/Makefile",
+      "target": "check",
+      "root_target": "check-printf-contracts",
+      "program": "sh",
+      "condition": "unconditional",
+      "prerequisites": [
+        "printf_host"
+      ],
+      "recipe": "PYTHON=${PYTHON:Q} ${TEST_EXECUTION} run utility.printf.native -- sh ${.CURDIR}/run_behavior_test.sh ${.CURDIR}/printf_host",
+      "script": "tests/printf_contracts/run_behavior_test.sh",
+      "subject": "tests/printf_contracts/printf_host",
+      "aliases": [
+        "check-printf-contracts"
+      ]
+    },
+    {
+      "id": "utility.printf.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/printf_contracts",
+      "makefile": "tests/printf_contracts/Makefile",
+      "target": "check-sanitized",
+      "root_target": "check-printf-contracts",
+      "program": "sh",
+      "condition": "SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined sanitizers",
+      "prerequisites": [
+        "printf_host_sanitized"
+      ],
+      "recipe": "PYTHON=${PYTHON:Q} ${TEST_EXECUTION} run utility.printf.sanitized -- sh ${.CURDIR}/run_behavior_test.sh ${.CURDIR}/printf_host_sanitized",
+      "script": "tests/printf_contracts/run_behavior_test.sh",
+      "subject": "tests/printf_contracts/printf_host_sanitized",
+      "aliases": [
+        "check-printf-contracts"
+      ]
+    },
+    {
       "id": "libc.scanf.native",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1033,6 +1093,27 @@
       "recipe": "${TEST_EXECUTION} run libc.printf.ilp32 -- ./printf_contract_test32",
       "aliases": [
         "check-libc-printf"
+      ]
+    },
+    {
+      "id": "utility.printf.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/printf_contracts",
+      "makefile": "tests/printf_contracts/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-printf-contracts-ilp32",
+      "program": "sh",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "printf_host32"
+      ],
+      "recipe": "PYTHON=${PYTHON:Q} ${TEST_EXECUTION} run utility.printf.ilp32 -- sh ${.CURDIR}/run_behavior_test.sh ${.CURDIR}/printf_host32",
+      "script": "tests/printf_contracts/run_behavior_test.sh",
+      "subject": "tests/printf_contracts/printf_host32",
+      "aliases": [
+        "check-printf-contracts-ilp32"
       ]
     },
     {

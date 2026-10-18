@@ -350,21 +350,24 @@
       "c_language": "The donor is modern C but depends on intmax, wide-character, locale, floating-point, err, and FreeBSD compatibility helpers.",
       "c17_rewrite": "Retain only the selected byte-locale behavior, target numeric conversions, and bounded parser states; exclude unselected locale tables and heavyweight helpers.",
       "archive_members": [
-        "textbox printf applet object"
+        "utilbox printf applet object"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
-          "textbox a.out text and data",
-          "textbox peak stack",
+          "standalone printf a.out text, data, bss, raw and packed bytes",
+          "utilbox a.out text, data, admitted bss, raw and packed bytes",
+          "standalone and utilbox libc archive-member maps",
           "144 KiB process-window occupancy",
-          "packed Dhara root blocks"
+          "largest process-window consumer",
+          "PICO kernel region occupancy",
+          "complete packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/utility-printf-growth-exception.md"
       },
       "deciding_gate": "Pass percent-b, backslash-c, embedded-NUL, repeated-format, width, precision, malformed-format, numeric-error, and final-status witnesses and preserve all constrained surfaces.",
-      "disposition": "candidate",
-      "residual": "Map the selected behavior to the existing utility and measure whether shared escape helpers reduce complete textbox and packed-root size."
+      "disposition": "promoted",
+      "residual": "The selected byte-locale subset is implemented and measured with a pending growth exception. Keep the Base requirement open until every required XBD File Format Notation facet and utility-specific exception has an executable witness and the approved complete-image measurement remains within its retained margins. Treat floating conversions and positional star operands as optional extensions, and mixed numbering as unspecified behavior."
     },
     {
       "id": "utility-readlink",

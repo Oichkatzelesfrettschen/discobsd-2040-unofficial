@@ -1,0 +1,137 @@
+{
+  "schema_version": 2,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "91c9338a3854b4950da752f3825b2026d34d1dfc",
+  "implementation_commit": "86c762d704c512c294836871234a1c77ca2d9ffc",
+  "block_bytes": 1024,
+  "kernel": {
+    "region_bytes": 131072,
+    "base": {
+      "text_bytes": 104598,
+      "data_bytes": 248,
+      "bss_bytes": 39848,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
+    },
+    "candidate": {
+      "text_bytes": 104598,
+      "data_bytes": 248,
+      "bss_bytes": 39848,
+      "loaded_flash_span_bytes": 104848,
+      "load_tail_margin_bytes": 26224
+    },
+    "delta": {
+      "text_bytes": 0,
+      "data_bytes": 0,
+      "bss_bytes": 0
+    }
+  },
+  "programs": {
+    "process_window_bytes": 147456,
+    "standalone_printf": {
+      "base": {
+        "text_bytes": 8236,
+        "data_bytes": 212,
+        "bss_bytes": 196,
+        "window_occupancy_before_stack_bytes": 8644,
+        "window_margin_before_stack_bytes": 138812,
+        "raw_bytes": 8480,
+        "packed_bytes": 7400,
+        "packed_blocks": 9
+      },
+      "candidate": {
+        "text_bytes": 8252,
+        "data_bytes": 200,
+        "bss_bytes": 72,
+        "window_occupancy_before_stack_bytes": 8524,
+        "window_margin_before_stack_bytes": 138932,
+        "raw_bytes": 8484,
+        "packed_bytes": 7418,
+        "packed_blocks": 9
+      },
+      "delta": {
+        "text_bytes": 16,
+        "data_bytes": -12,
+        "bss_bytes": -124,
+        "window_occupancy_before_stack_bytes": -120,
+        "raw_bytes": 4,
+        "packed_bytes": 18,
+        "packed_blocks": 0
+      }
+    },
+    "utilbox": {
+      "base": {
+        "text_bytes": 53316,
+        "data_bytes": 581,
+        "bss_bytes": 4255,
+        "window_occupancy_before_stack_bytes": 58152,
+        "window_margin_before_stack_bytes": 89304,
+        "raw_bytes": 53929,
+        "packed_bytes": 43803,
+        "packed_blocks": 44
+      },
+      "candidate": {
+        "text_bytes": 54464,
+        "data_bytes": 581,
+        "bss_bytes": 4255,
+        "window_occupancy_before_stack_bytes": 59300,
+        "window_margin_before_stack_bytes": 88156,
+        "raw_bytes": 55077,
+        "packed_bytes": 44773,
+        "packed_blocks": 45
+      },
+      "delta": {
+        "text_bytes": 1148,
+        "data_bytes": 0,
+        "bss_bytes": 0,
+        "window_occupancy_before_stack_bytes": 1148,
+        "raw_bytes": 1148,
+        "packed_bytes": 970,
+        "packed_blocks": 1
+      }
+    },
+    "largest_process": {
+      "name": "warp",
+      "base_loaded_bytes": 101300,
+      "candidate_loaded_bytes": 101300,
+      "delta_loaded_bytes": 0,
+      "candidate_window_margin_before_stack_bytes": 46156
+    }
+  },
+  "root": {
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {
+      "files": 95,
+      "data_blocks": 685,
+      "free_blocks": 294
+    },
+    "candidate": {
+      "files": 95,
+      "data_blocks": 686,
+      "free_blocks": 293
+    },
+    "delta": {
+      "files": 0,
+      "data_blocks": 1,
+      "free_blocks": -1
+    },
+    "candidate_free_bytes": 300032
+  },
+  "composition": {
+    "shipped_form": "utilbox",
+    "archive_members_evidence": "docs/research/utility-printf-archive-members.tsv",
+    "candidate_standalone_libc_members": 36,
+    "candidate_utilbox_libc_members": 113,
+    "alternative_utilbox_libc_members": 111,
+    "alternative_utilbox_packed_blocks": 43,
+    "alternative_standalone_packed_blocks": 9,
+    "alternative_combined_packed_blocks": 52,
+    "standalone_rejected_net_root_blocks": 7
+  },
+  "reviewer_approval": {
+    "status": "approved",
+    "reviewer": "Codex independent read-only reviewer",
+    "evidence": "Independently reviewed HEAD 199a6e3ac175c5fb85a75deacb60d61ef1b6e328; reproduced baseline and candidate kernel, a.out, packed-root, alternative-composition, and archive-inventory measurements; reran all 68 ILP32 behavior checks; verified supervised aggregate completion. Approves utilbox growth of 1148 loaded bytes and one packed-root block with the documented retained margins, rejected offsets, user-visible benefit, rollback scope, and explicit runtime stack/heap uncertainty. DPUCP printf remains partial and open without a conformance claim."
+  }
+}

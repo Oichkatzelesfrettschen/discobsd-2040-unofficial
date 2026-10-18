@@ -62,6 +62,19 @@ def main():
         raise AssertionError("missing shell growth-exception validator")
     shell_validator(shell_measurement)
 
+    printf_measurement_path = (
+        root / "docs/research/utility-printf-growth-exception.json"
+    )
+    if not printf_measurement_path.is_file():
+        raise AssertionError("missing machine-readable printf growth exception")
+    printf_measurement = json.loads(
+        printf_measurement_path.read_text(encoding="utf-8")
+    )
+    printf_validator = getattr(donors, "validate_printf_measurement", None)
+    if printf_validator is None:
+        raise AssertionError("missing printf growth-exception validator")
+    printf_validator(printf_measurement, root)
+
     for state in ("base", "candidate"):
         kernel_measurement = shell_measurement["kernel"][state]
         if kernel_measurement.get("section_sum_spare_bytes") != 26226:
@@ -138,12 +151,67 @@ def main():
     else:
         raise AssertionError("negative shell process-window margin passed")
 
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["programs"]["utilbox"]["candidate"][
+        "text_bytes"
+    ] += 4
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf utilbox delta mutation passed")
+
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["programs"]["standalone_printf"]["base"][
+        "raw_bytes"
+    ] += 1
+    changed_printf_measurement["programs"]["standalone_printf"]["candidate"][
+        "raw_bytes"
+    ] += 1
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf a.out raw-size mutation passed")
+
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["root"]["candidate"]["free_blocks"] += 1
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf root arithmetic mutation passed")
+
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["composition"]["shipped_form"] = "standalone"
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf shipped-form mutation passed")
+
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["composition"][
+        "candidate_standalone_libc_members"
+    ] += 1
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf archive-member count mutation passed")
+
     promoted_ids = {
         "libc-reallocarray",
         "libc-memmem",
         "libc-getdelim-getline",
         "shell-getopts",
         "shell-command",
+        "utility-printf",
     }
     for candidate in document["candidates"]:
         if candidate["id"] in promoted_ids:

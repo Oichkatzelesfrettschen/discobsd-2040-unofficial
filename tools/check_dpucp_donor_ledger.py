@@ -102,6 +102,7 @@ PROMOTED_CANDIDATES = {
     "utility-printf",
     "utility-readlink",
     "utility-realpath",
+    "utility-timeout",
     "utility-uudecode",
 }
 FOUNDATION_MEASUREMENT = "docs/research/libc-array-memory-line-reading.md"
@@ -114,6 +115,8 @@ RECOVERY_MEASUREMENT = "docs/research/recovery-path-utilities-growth-exception.m
 RECOVERY_MEASUREMENT_DATA = "docs/research/recovery-path-utilities-growth-exception.json"
 PROCESS_CONTROL_MEASUREMENT = "docs/research/process-control-prerequisites.md"
 PROCESS_CONTROL_MEASUREMENT_DATA = "docs/research/process-control-prerequisites.json"
+TIMEOUT_MEASUREMENT = "docs/research/timeout-process-control-growth-exception.md"
+TIMEOUT_MEASUREMENT_DATA = "docs/research/timeout-process-control-growth-exception.json"
 
 
 class DonorError(RuntimeError):
@@ -1569,6 +1572,527 @@ def validate_process_control_measurement(measurement, root):
         )
 
 
+def validate_timeout_measurement(measurement, root):
+    require(
+        set(measurement)
+        == {
+            "schema_version",
+            "profile_id",
+            "base_commit",
+            "measurement_date",
+            "block_bytes",
+            "candidate_source_sha256",
+            "kernel",
+            "programs",
+            "root",
+            "composition",
+            "maps",
+            "resources",
+            "alternatives_examined",
+            "growth_exception",
+            "clean_distribution_receipt",
+            "reviewer_approval",
+            "residuals",
+        },
+        "malformed timeout growth exception",
+    )
+    require(measurement["schema_version"] == 1, "unsupported timeout schema")
+    require(measurement["profile_id"] == "DPUCP-2024", "wrong timeout profile")
+    require(
+        re.fullmatch(r"[0-9a-f]{40}", measurement["base_commit"]) is not None,
+        "bad timeout base commit",
+    )
+    require(
+        re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", measurement["measurement_date"])
+        is not None,
+        "bad timeout measurement date",
+    )
+    require(measurement["block_bytes"] == 1024, "timeout block size drift")
+
+    source_hashes = measurement["candidate_source_sha256"]
+    expected_sources = {
+        "usr.bin/timeout/timeout.c",
+        "lib/libc/gen/setpgid.c",
+        "include/unistd.h",
+        "sys/sys/signal.h",
+    }
+    require(set(source_hashes) == expected_sources, "timeout source set drift")
+    require(
+        all(valid_sha256_digest(digest) for digest in source_hashes.values()),
+        "bad timeout source hash",
+    )
+
+    kernel = measurement["kernel"]
+    require(
+        set(kernel) == {"region_bytes", "PICO", "PICO_UART"},
+        "malformed timeout kernel measurement",
+    )
+    require(kernel["region_bytes"] == 131072, "timeout kernel region drift")
+    kernel_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "loaded_flash_span_bytes",
+        "load_tail_margin_bytes",
+    }
+    kernel_delta_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "loaded_flash_span_bytes",
+    }
+    for kernel_name in ("PICO", "PICO_UART"):
+        variant = kernel[kernel_name]
+        require(
+            set(variant) == {"base", "candidate", "delta"},
+            f"malformed timeout {kernel_name} measurement",
+        )
+        for state in ("base", "candidate"):
+            values = variant[state]
+            require(
+                set(values) == kernel_fields,
+                f"malformed timeout {kernel_name} {state}",
+            )
+            require_nonnegative_integers(
+                values, kernel_fields, f"timeout {kernel_name} {state}"
+            )
+            require(
+                values["load_tail_margin_bytes"]
+                == kernel["region_bytes"] - values["loaded_flash_span_bytes"],
+                f"inconsistent timeout {kernel_name} margin",
+            )
+        require(
+            set(variant["delta"]) == kernel_delta_fields,
+            f"malformed timeout {kernel_name} delta",
+        )
+        for field in kernel_delta_fields:
+            require(
+                variant["delta"][field]
+                == variant["candidate"][field] - variant["base"][field],
+                f"inconsistent timeout {kernel_name} {field} delta",
+            )
+        require(
+            all(variant["delta"][field] <= 0 for field in kernel_delta_fields),
+            f"timeout {kernel_name} grew",
+        )
+
+    programs = measurement["programs"]
+    require(
+        set(programs)
+        == {"process_window_bytes", "adminbox", "standalone_timeout", "largest_process"},
+        "malformed timeout program measurement",
+    )
+    require(programs["process_window_bytes"] == 147456, "timeout process window drift")
+    adminbox = programs["adminbox"]
+    require(
+        set(adminbox) == {"base", "candidate", "delta"},
+        "malformed timeout adminbox measurement",
+    )
+    adminbox_fields = {
+        "text_bytes",
+        "data_bytes",
+        "aout_bss_bytes",
+        "elf_diagnostic_bss_bytes",
+        "window_occupancy_before_stack_bytes",
+        "window_margin_before_stack_bytes",
+        "raw_bytes",
+        "packed_bytes",
+        "packed_blocks",
+    }
+    for state in ("base", "candidate"):
+        values = adminbox[state]
+        require(set(values) == adminbox_fields, f"malformed timeout adminbox {state}")
+        require_nonnegative_integers(values, adminbox_fields, f"timeout adminbox {state}")
+        occupancy = values["text_bytes"] + values["data_bytes"] + values["aout_bss_bytes"]
+        require(
+            values["window_occupancy_before_stack_bytes"] == occupancy,
+            f"inconsistent timeout adminbox {state} occupancy",
+        )
+        require(
+            values["window_margin_before_stack_bytes"]
+            == programs["process_window_bytes"] - occupancy,
+            f"inconsistent timeout adminbox {state} margin",
+        )
+        require(
+            values["raw_bytes"] == 32 + values["text_bytes"] + values["data_bytes"],
+            f"inconsistent timeout adminbox {state} a.out size",
+        )
+    adminbox_delta_fields = adminbox_fields - {"window_margin_before_stack_bytes"}
+    require(
+        set(adminbox["delta"]) == adminbox_delta_fields,
+        "malformed timeout adminbox delta",
+    )
+    for field in adminbox_delta_fields:
+        require(
+            adminbox["delta"][field]
+            == adminbox["candidate"][field] - adminbox["base"][field],
+            f"inconsistent timeout adminbox {field} delta",
+        )
+
+    standalone = programs["standalone_timeout"]
+    standalone_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "window_occupancy_before_stack_bytes",
+        "window_margin_before_stack_bytes",
+        "raw_bytes",
+        "packed_bytes",
+        "packed_blocks",
+    }
+    require(set(standalone) == standalone_fields, "malformed standalone timeout")
+    require_nonnegative_integers(standalone, standalone_fields, "standalone timeout")
+    standalone_occupancy = (
+        standalone["text_bytes"] + standalone["data_bytes"] + standalone["bss_bytes"]
+    )
+    require(
+        standalone["window_occupancy_before_stack_bytes"] == standalone_occupancy,
+        "inconsistent standalone timeout occupancy",
+    )
+    require(
+        standalone["window_margin_before_stack_bytes"]
+        == programs["process_window_bytes"] - standalone_occupancy,
+        "inconsistent standalone timeout margin",
+    )
+    require(
+        standalone["raw_bytes"]
+        == 32 + standalone["text_bytes"] + standalone["data_bytes"],
+        "inconsistent standalone timeout a.out size",
+    )
+
+    largest = programs["largest_process"]
+    require(
+        set(largest)
+        == {
+            "path",
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "delta_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "malformed timeout largest-process measurement",
+    )
+    require(largest["path"] == "games/warp/warp", "timeout largest process drift")
+    require(
+        largest["delta_loaded_bytes"]
+        == largest["candidate_loaded_bytes"] - largest["base_loaded_bytes"]
+        == 0,
+        "timeout largest process grew",
+    )
+    require(
+        largest["candidate_window_margin_before_stack_bytes"]
+        == programs["process_window_bytes"] - largest["candidate_loaded_bytes"],
+        "inconsistent timeout largest-process margin",
+    )
+
+    root_measurement = measurement["root"]
+    require(
+        set(root_measurement)
+        == {
+            "partition_blocks",
+            "inode_list_blocks",
+            "base",
+            "candidate",
+            "delta",
+            "candidate_free_bytes",
+        },
+        "malformed timeout root measurement",
+    )
+    require(root_measurement["partition_blocks"] == 988, "timeout root partition drift")
+    require(root_measurement["inode_list_blocks"] == 9, "timeout inode-list drift")
+    root_fields = {"files", "data_blocks", "free_blocks"}
+    for state in ("base", "candidate"):
+        values = root_measurement[state]
+        require(set(values) == root_fields, f"malformed timeout root {state}")
+        require_nonnegative_integers(values, root_fields, f"timeout root {state}")
+        require(
+            values["data_blocks"] + values["free_blocks"]
+            + root_measurement["inode_list_blocks"]
+            == root_measurement["partition_blocks"],
+            f"inconsistent timeout root {state} arithmetic",
+        )
+    require(set(root_measurement["delta"]) == root_fields, "malformed timeout root delta")
+    for field in root_fields:
+        require(
+            root_measurement["delta"][field]
+            == root_measurement["candidate"][field] - root_measurement["base"][field],
+            f"inconsistent timeout root {field} delta",
+        )
+    require(root_measurement["delta"]["data_blocks"] == 2, "timeout root delta drift")
+    require(
+        root_measurement["candidate_free_bytes"]
+        == root_measurement["candidate"]["free_blocks"] * measurement["block_bytes"],
+        "inconsistent timeout root free-byte margin",
+    )
+
+    composition = measurement["composition"]
+    require(
+        set(composition)
+        == {
+            "shipped_form",
+            "archive_members_evidence",
+            "archive_members_sha256",
+            "base_adminbox_libc_members",
+            "candidate_adminbox_libc_members",
+            "added_libc_members",
+            "standalone_timeout_packed_blocks",
+            "base_adminbox_packed_blocks",
+            "candidate_adminbox_packed_blocks",
+            "multicall_saved_root_blocks",
+        },
+        "malformed timeout composition",
+    )
+    require(composition["shipped_form"] == "adminbox-hard-link", "timeout shipped-form drift")
+    for field in (
+        "base_adminbox_libc_members",
+        "candidate_adminbox_libc_members",
+        "standalone_timeout_packed_blocks",
+        "base_adminbox_packed_blocks",
+        "candidate_adminbox_packed_blocks",
+        "multicall_saved_root_blocks",
+    ):
+        require_nonnegative_integers(composition, {field}, "timeout composition")
+    require(
+        composition["base_adminbox_packed_blocks"] == adminbox["base"]["packed_blocks"]
+        and composition["candidate_adminbox_packed_blocks"]
+        == adminbox["candidate"]["packed_blocks"]
+        and composition["standalone_timeout_packed_blocks"]
+        == standalone["packed_blocks"],
+        "inconsistent timeout composition block counts",
+    )
+    require(
+        composition["multicall_saved_root_blocks"]
+        == composition["base_adminbox_packed_blocks"]
+        + composition["standalone_timeout_packed_blocks"]
+        - composition["candidate_adminbox_packed_blocks"],
+        "inconsistent timeout multicall savings",
+    )
+    evidence_relative = composition["archive_members_evidence"]
+    require(safe_path(evidence_relative), "unsafe timeout archive-member evidence path")
+    require(
+        valid_sha256_digest(composition["archive_members_sha256"]),
+        "bad timeout archive-member evidence hash",
+    )
+    evidence_path = root / evidence_relative
+    require(evidence_path.is_file(), "missing timeout archive-member evidence")
+    evidence_bytes = evidence_path.read_bytes()
+    require(
+        hashlib.sha256(evidence_bytes).hexdigest()
+        == composition["archive_members_sha256"],
+        "timeout archive-member evidence hash drift",
+    )
+    try:
+        reader = csv.DictReader(io.StringIO(evidence_bytes.decode("utf-8")), delimiter="\t")
+        require(
+            reader.fieldnames == ["program", "archive_member"],
+            "malformed timeout archive-member header",
+        )
+        evidence_rows = list(reader)
+    except (UnicodeError, csv.Error) as error:
+        raise DonorError(f"cannot read timeout archive-member evidence: {error}") from error
+    expected_programs = {
+        "adminbox_without_timeout": "base_adminbox_libc_members",
+        "adminbox_with_timeout": "candidate_adminbox_libc_members",
+    }
+    require(
+        {row["program"] for row in evidence_rows} == set(expected_programs),
+        "unexpected timeout archive-member program",
+    )
+    require(
+        all(
+            re.fullmatch(r"libc[.]a[(][A-Za-z0-9_.]+[)]", row["archive_member"])
+            is not None
+            for row in evidence_rows
+        ),
+        "malformed timeout archive-member name",
+    )
+    require(
+        len({(row["program"], row["archive_member"]) for row in evidence_rows})
+        == len(evidence_rows),
+        "duplicate timeout archive member",
+    )
+    members = {}
+    for program, count_field in expected_programs.items():
+        members[program] = {
+            row["archive_member"] for row in evidence_rows if row["program"] == program
+        }
+        require(
+            len(members[program]) == composition[count_field],
+            f"inconsistent {program} archive-member count",
+        )
+    added_members = sorted(
+        members["adminbox_with_timeout"] - members["adminbox_without_timeout"]
+    )
+    require(
+        composition["added_libc_members"] == added_members,
+        "timeout added archive members drift",
+    )
+
+    maps = measurement["maps"]
+    require(
+        set(maps) == {"adminbox_without_timeout", "adminbox_with_timeout", "standalone_timeout"},
+        "malformed timeout map identities",
+    )
+    for map_name in ("adminbox_without_timeout", "adminbox_with_timeout"):
+        require(
+            set(maps[map_name]) == {"map_sha256", "binary_sha256"},
+            f"malformed timeout {map_name} identity",
+        )
+        require(
+            all(valid_sha256_digest(value) for value in maps[map_name].values()),
+            f"bad timeout {map_name} identity",
+        )
+    require(
+        set(maps["standalone_timeout"]) == {"binary_sha256"}
+        and valid_sha256_digest(maps["standalone_timeout"]["binary_sha256"]),
+        "bad standalone timeout identity",
+    )
+
+    resources = measurement["resources"]
+    require(
+        set(resources) == {"static_stack", "runtime_uncertainty"},
+        "malformed timeout resources",
+    )
+    stack = resources["static_stack"]
+    stack_fields = {
+        "main_bytes",
+        "main_ceiling_bytes",
+        "pre_fork_chain_bytes",
+        "pre_fork_chain_ceiling_bytes",
+        "known_bad_main_bytes",
+    }
+    require(
+        set(stack) == stack_fields | {"classification"},
+        "malformed timeout stack measurement",
+    )
+    require(stack["classification"] == "static", "timeout stack is not static")
+    require_nonnegative_integers(stack, stack_fields, "timeout stack")
+    require(stack["main_bytes"] <= stack["main_ceiling_bytes"], "timeout main frame grew")
+    require(
+        stack["pre_fork_chain_bytes"] <= stack["pre_fork_chain_ceiling_bytes"],
+        "timeout pre-fork chain grew",
+    )
+    require(
+        stack["known_bad_main_bytes"] > stack["main_ceiling_bytes"],
+        "timeout known-bad stack fits",
+    )
+    require(
+        isinstance(resources["runtime_uncertainty"], str)
+        and "unmeasured" in resources["runtime_uncertainty"],
+        "timeout runtime uncertainty is absent",
+    )
+
+    alternatives = measurement["alternatives_examined"]
+    require(
+        isinstance(alternatives, list) and len(alternatives) >= 4,
+        "timeout alternatives are absent",
+    )
+    for alternative in alternatives:
+        require(
+            set(alternative) == {"name", "result", "reason"}
+            and alternative["result"] in {"applied", "rejected"}
+            and all(
+                isinstance(alternative[field], str) and alternative[field]
+                for field in ("name", "reason")
+            ),
+            "malformed timeout alternative",
+        )
+
+    exception = measurement["growth_exception"]
+    require(
+        set(exception) == {"retained_margins", "user_visible_benefit", "rollback_point"},
+        "malformed timeout growth decision",
+    )
+    require(
+        isinstance(exception["retained_margins"], list)
+        and len(exception["retained_margins"]) >= 5
+        and all(
+            isinstance(margin, str) and margin for margin in exception["retained_margins"]
+        ),
+        "timeout retained margins are absent",
+    )
+    require(
+        all(
+            isinstance(exception[field], str) and exception[field]
+            for field in ("user_visible_benefit", "rollback_point")
+        ),
+        "timeout benefit or rollback point is absent",
+    )
+
+    receipt = measurement["clean_distribution_receipt"]
+    receipt_fields = {
+        "command",
+        "state",
+        "exit_code",
+        "elapsed_seconds",
+        "output_bytes",
+        "terminal_queue_dropped_bytes",
+        "heartbeat_seconds",
+        "output_idle_timeout_seconds",
+        "hard_timeout_seconds",
+        "status_sha256",
+        "log_sha256",
+    }
+    require(set(receipt) == receipt_fields, "malformed timeout build receipt")
+    require(
+        receipt["command"]
+        == ["bmake", "MACHINE=rp2040", "cleanall", "distribution"],
+        "timeout build command drift",
+    )
+    require(
+        receipt["state"] == "completed"
+        and receipt["exit_code"] == 0
+        and receipt["terminal_queue_dropped_bytes"] == 0,
+        "timeout clean distribution did not complete",
+    )
+    require(
+        receipt["elapsed_seconds"] > 0
+        and receipt["output_bytes"] > 0
+        and receipt["heartbeat_seconds"] == 30
+        and receipt["output_idle_timeout_seconds"] == 600
+        and receipt["hard_timeout_seconds"] == 3600,
+        "timeout build supervision drift",
+    )
+    require(
+        valid_sha256_digest(receipt["status_sha256"])
+        and valid_sha256_digest(receipt["log_sha256"]),
+        "bad timeout build receipt hash",
+    )
+
+    approval = measurement["reviewer_approval"]
+    require(
+        set(approval) == {"status", "reviewer", "evidence"},
+        "malformed timeout reviewer approval",
+    )
+    require(approval["status"] == "approved", "timeout growth lacks approval")
+    require(
+        isinstance(approval["reviewer"], str)
+        and approval["reviewer"]
+        and isinstance(approval["evidence"], str)
+        and approval["evidence"],
+        "approved timeout exception lacks review evidence",
+    )
+
+    residuals = measurement["residuals"]
+    require(
+        isinstance(residuals, list)
+        and residuals
+        and all(isinstance(residual, str) and residual for residual in residuals),
+        "timeout residuals are absent",
+    )
+    residual_text = " ".join(residuals)
+    for required_residual in (
+        "Renode execution remains unrun",
+        "Physical-board execution remains unrun",
+        "runtime stack and heap peaks remain unmeasured",
+        "remains partial and open",
+    ):
+        require(
+            required_residual in residual_text,
+            f"missing timeout residual: {required_residual}",
+        )
+
+
 def safe_path(value):
     path = PurePosixPath(value)
     return bool(value) and not path.is_absolute() and ".." not in path.parts
@@ -1614,6 +2138,19 @@ def validate_document(root, document, requirement_ids):
     process_measurement = load_json(process_measurement_path)
     validate_process_control_measurement(process_measurement, root)
     for relative_path, expected_hash in process_measurement[
+        "candidate_source_sha256"
+    ].items():
+        source_path = root / relative_path
+        require(source_path.is_file(), f"missing measured source: {relative_path}")
+        require(
+            hashlib.sha256(source_path.read_bytes()).hexdigest() == expected_hash,
+            f"measured source drift: {relative_path}",
+        )
+    timeout_measurement_path = root / TIMEOUT_MEASUREMENT_DATA
+    require(timeout_measurement_path.is_file(), "missing timeout growth-exception data")
+    timeout_measurement = load_json(timeout_measurement_path)
+    validate_timeout_measurement(timeout_measurement, root)
+    for relative_path, expected_hash in timeout_measurement[
         "candidate_source_sha256"
     ].items():
         source_path = root / relative_path
@@ -1730,6 +2267,8 @@ def validate_document(root, document, requirement_ids):
                 "utility-uudecode",
             }:
                 expected_evidence = RECOVERY_MEASUREMENT
+            elif candidate_id == "utility-timeout":
+                expected_evidence = TIMEOUT_MEASUREMENT
             else:
                 expected_evidence = FOUNDATION_MEASUREMENT
             require(size["evidence"] == expected_evidence, f"unbound size evidence: {candidate_id}")

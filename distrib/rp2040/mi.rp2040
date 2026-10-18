@@ -300,8 +300,8 @@ target /bin/sysbox
 link /sbin/umount
 target /bin/sysbox
 #
-# /sbin/adminbox holds shutdown, reboot, sysctl, true, false and nohup,
-# dispatched the same way as box and sysbox; halt and bootloader are
+# /sbin/adminbox holds shutdown, reboot, sysctl, timeout, true, false and
+# nohup, dispatched the same way as box and sysbox; halt and bootloader are
 # names reboot's own argv[0] check answers to, so they link straight to
 # adminbox too. See sbin/adminbox/Makefile.
 #
@@ -428,6 +428,8 @@ target /sbin/adminbox
 link /usr/bin/false
 target /sbin/adminbox
 link /usr/bin/nohup
+target /sbin/adminbox
+link /usr/bin/timeout
 target /sbin/adminbox
 link /usr/bin/vi
 target /usr/bin/stevie

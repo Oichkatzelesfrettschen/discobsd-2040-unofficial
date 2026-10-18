@@ -520,24 +520,25 @@
         "process-group or equivalent forwarding policy"
       ],
       "c_language": "The FreeBSD donor is modern C but depends on procctl reapers, siginfo, wait6, resource limits, getopt_long and floating-duration helpers. NetBSD retains the older FreeBSD-derived signal-flag state machine. OpenBSD adds pledge and strtonum while retaining the same waitpid, process-group and interval-timer core.",
-      "c17_rewrite": "Design a target-native C17 state machine only after each kernel primitive has an executable witness. Compare the NetBSD and OpenBSD waitpid loops with current FreeBSD status mapping, and omit reaper, pledge, long-option and floating-duration machinery unless independently selected.",
+      "c17_rewrite": "The target-native strict-C17 state machine uses the verified interval-timer, waitpid, signal and process-group primitives. It omits reaper, pledge, long-option and floating-duration machinery outside the selected subset.",
       "archive_members": [
-        "textbox timeout applet object"
+        "adminbox timeout applet object"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
-          "kernel text and data prerequisites",
-          "textbox a.out text and data",
-          "textbox peak stack",
+          "adminbox a.out text, data, bss, raw and packed bytes",
+          "standalone timeout a.out text, data, bss, raw and packed bytes",
+          "Cortex-M0+ static timeout frames",
           "largest 144 KiB process-window consumer",
-          "packed Dhara root blocks"
+          "PICO and PICO_UART kernel region occupancy",
+          "packed Dhara root blocks and free-block margin"
         ],
-        "evidence": ""
+        "evidence": "docs/research/timeout-process-control-growth-exception.md"
       },
-      "deciding_gate": "Require focused alarm, kill, waitpid, signal-forwarding, stop-and-continue, exit-126, exit-127, timeout-124, preserve-status, and escalation witnesses before utility implementation or registration.",
-      "disposition": "candidate",
-      "residual": "The prerequisite measurement records partial host and cross-build evidence for alarm, kill and waitpid while timeout remains absent. Execute kernel wait-status transitions, process-group forwarding, signal escalation and timeout status mapping before utility implementation, and leave the utility requirement open."
+      "deciding_gate": "Pass native alarm, kill, waitpid, process-group forwarding, signal escalation, stop-and-continue, execution-status, timeout-status and preserve-status witnesses; compile the exact source under strict C17 for Cortex-M0+; link the target a.out; and admit the measured adminbox and packed-root growth exception.",
+      "disposition": "promoted",
+      "residual": "The selected -f, -k, -p and -s subset is implemented in adminbox and measured through host, strict-C17 cross, target-link and packed-root gates. Keep the utility requirement partial and open until target execution confirms timer, wait-status, process-group and signal-delivery behavior. Renode and physical-board execution remain unrun, and whole-program runtime stack and heap peaks remain unmeasured."
     },
     {
       "id": "utility-uudecode",

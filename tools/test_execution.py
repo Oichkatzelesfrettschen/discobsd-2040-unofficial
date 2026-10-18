@@ -28,12 +28,24 @@ ROOT_CLEANUP_ALLOWANCE_SECONDS = 2.0 * TERMINATE_GRACE_SECONDS
 MINIMUM_CHILD_CLEANUP_SECONDS = 0.02
 REAP_RESERVE_SECONDS = 0.1
 SUPERVISOR_RESPONSE_SECONDS = 0.2
+TREE_OWNERSHIP_PATH_ENV = "_DISCOBSD_TEST_EXECUTION_TREE_OWNERSHIP_PATH"
+TREE_OWNERSHIP_INVOCATION_ENV = (
+    "_DISCOBSD_TEST_EXECUTION_TREE_OWNERSHIP_INVOCATION"
+)
 
 
 @dataclasses.dataclass(frozen=True)
 class StopResult:
     child_exit_code: object
     group_stopped: bool
+
+
+@dataclasses.dataclass
+class ExecutionTree:
+    path: Path
+    invocation_id: str
+    owns_registry: bool
+    temporary_directory: object = None
 
 
 def positive_seconds(value):
@@ -57,6 +69,110 @@ def terminate_grace_seconds(cleanup_seconds):
     return min(
         TERMINATE_GRACE_SECONDS,
         max(0, cleanup_seconds - REAP_RESERVE_SECONDS),
+    )
+
+
+def prepare_execution_tree(child_environment):
+    path_value = os.environ.get(TREE_OWNERSHIP_PATH_ENV)
+    invocation_id = os.environ.get(TREE_OWNERSHIP_INVOCATION_ENV)
+    if (path_value is None) != (invocation_id is None):
+        raise ValueError("incomplete test-execution tree ownership environment")
+    temporary_directory = None
+    owns_registry = path_value is None
+    if owns_registry:
+        temporary_directory = tempfile.TemporaryDirectory(
+            prefix="discobsd-test-execution-tree-"
+        )
+        path = Path(temporary_directory.name) / "ownership.json"
+        invocation_id = f"test-execution-{os.getpid()}-{time.time_ns()}"
+        execution_ownership.begin_execution_ownership(
+            path,
+            {
+                "label": "test-execution-tree",
+                "invocation_id": invocation_id,
+                "status_path": str(Path(temporary_directory.name) / "status.json"),
+            },
+        )
+    else:
+        path = Path(path_value)
+    child_environment[TREE_OWNERSHIP_PATH_ENV] = str(path)
+    child_environment[TREE_OWNERSHIP_INVOCATION_ENV] = invocation_id
+    return ExecutionTree(
+        path,
+        invocation_id,
+        owns_registry,
+        temporary_directory,
+    )
+
+
+def execution_tree_state(tree):
+    record = execution_ownership.read_execution_ownership(tree.path)
+    if record is None or record["invocation_id"] != tree.invocation_id:
+        raise ValueError(f"test-execution tree ownership mismatch: {tree.path}")
+    live_groups = [
+        process_group
+        for process_group in record["process_groups"]
+        if process_group_exists(process_group)
+    ]
+    return live_groups, record["pending_launches"]
+
+
+def signal_execution_tree(tree, signal_number, signaled_groups):
+    live_groups, pending_launches = execution_tree_state(tree)
+    for process_group in live_groups:
+        if process_group in signaled_groups:
+            continue
+        try:
+            os.killpg(process_group, signal_number)
+        except (ProcessLookupError, PermissionError):
+            pass
+        signaled_groups.add(process_group)
+    return live_groups, pending_launches
+
+
+def stop_execution_tree(process, tree, cleanup_seconds):
+    started = time.monotonic()
+    terminate_deadline = started + terminate_grace_seconds(cleanup_seconds)
+    cleanup_deadline = started + cleanup_seconds
+    terminated_groups = set()
+    while time.monotonic() < terminate_deadline:
+        live_groups, pending_launches = signal_execution_tree(
+            tree, signal.SIGTERM, terminated_groups
+        )
+        process.poll()
+        if not live_groups and not pending_launches:
+            break
+        time.sleep(
+            min(0.02, max(0, terminate_deadline - time.monotonic()))
+        )
+    killed_groups = set()
+    while time.monotonic() < cleanup_deadline:
+        live_groups, pending_launches = signal_execution_tree(
+            tree, signal.SIGKILL, killed_groups
+        )
+        if not live_groups and not pending_launches:
+            break
+        process.poll()
+        time.sleep(min(0.02, max(0, cleanup_deadline - time.monotonic())))
+    try:
+        child_exit = process.wait(
+            timeout=max(0, cleanup_deadline - time.monotonic())
+        )
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+        except (ProcessLookupError, PermissionError):
+            pass
+        try:
+            child_exit = process.wait(
+                timeout=max(0, cleanup_deadline - time.monotonic())
+            )
+        except subprocess.TimeoutExpired:
+            child_exit = None
+    live_groups, pending_launches = execution_tree_state(tree)
+    return StopResult(
+        child_exit,
+        not live_groups and not pending_launches,
     )
 
 
@@ -127,6 +243,7 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
     cleanup_seconds, child_cleanup_seconds = cleanup_allowances()
     child_environment = os.environ.copy() if env is None else env.copy()
     child_environment[CLEANUP_ALLOWANCE_ENV] = str(child_cleanup_seconds)
+    execution_tree = prepare_execution_tree(child_environment)
     signal_received = None
 
     def interrupt(number, _frame):
@@ -138,6 +255,11 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
 
     def release_registered_group(process_group):
         try:
+            execution_ownership.unregister_execution_group(
+                execution_tree.path,
+                execution_tree.invocation_id,
+                process_group,
+            )
             execution_ownership.unregister_inherited_execution_group(
                 process_group
             )
@@ -152,6 +274,11 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
 
     def retain_incomplete_group(process_group):
         try:
+            execution_ownership.mark_execution_group_cleanup_incomplete(
+                execution_tree.path,
+                execution_tree.invocation_id,
+                process_group,
+            )
             execution_ownership.mark_inherited_execution_group_cleanup_incomplete(
                 process_group
             )
@@ -164,9 +291,14 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             return False
         return True
 
-    def cancel_launch_reservation(reservation):
+    def cancel_launch_reservations(tree_reservation, inherited_reservation):
         try:
-            execution_ownership.cancel_inherited_execution_launch(reservation)
+            execution_ownership.cancel_inherited_execution_launch(
+                tree_reservation
+            )
+            execution_ownership.cancel_inherited_execution_launch(
+                inherited_reservation
+            )
         except (OSError, ValueError, TimeoutError) as error:
             print(
                 f"test-execution: launch reservation release failed: {error}",
@@ -176,30 +308,91 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             return False
         return True
 
+    def reserve_launch():
+        tree_reservation = execution_ownership.reserve_execution_launch(
+            execution_tree.path,
+            execution_tree.invocation_id,
+        )
+        try:
+            inherited_reservation = (
+                execution_ownership.reserve_inherited_execution_launch()
+            )
+        except BaseException:
+            execution_ownership.cancel_inherited_execution_launch(
+                tree_reservation
+            )
+            raise
+        return tree_reservation, inherited_reservation
+
+    def complete_launch(
+        tree_reservation, inherited_reservation, process_group
+    ):
+        execution_ownership.complete_inherited_execution_launch(
+            tree_reservation, process_group
+        )
+        execution_ownership.complete_inherited_execution_launch(
+            inherited_reservation, process_group
+        )
+
+    def stop_launched_process(process):
+        if execution_tree.owns_registry:
+            return stop_execution_tree(
+                process, execution_tree, cleanup_seconds
+            )
+        return stop_process_group(process, cleanup_seconds)
+
+    def finish_result(result):
+        if not execution_tree.owns_registry:
+            return result
+        try:
+            surviving_groups = execution_ownership.finish_execution_ownership(
+                execution_tree.path,
+                execution_tree.invocation_id,
+            )
+            record = execution_ownership.read_execution_ownership(
+                execution_tree.path
+            )
+        except (OSError, ValueError, TimeoutError) as error:
+            print(
+                f"test-execution: tree ownership finalization failed: {error}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 125, "cleanup_incomplete"
+        if surviving_groups or record["pending_launches"]:
+            return 125, "cleanup_incomplete"
+        return result
+
     try:
         try:
-            reservation = execution_ownership.reserve_inherited_execution_launch()
+            tree_reservation, inherited_reservation = reserve_launch()
         except (OSError, ValueError, TimeoutError) as error:
             print(
                 f"test-execution: ownership reservation failed: {error}",
                 file=sys.stderr,
                 flush=True,
             )
-            return 125, "cleanup_incomplete"
+            return finish_result((125, "cleanup_incomplete"))
         if signal_received is not None:
-            if not cancel_launch_reservation(reservation):
-                return 125, "cleanup_incomplete"
-            return 128 + signal_received, f"signal_{signal_received}"
+            if not cancel_launch_reservations(
+                tree_reservation, inherited_reservation
+            ):
+                return finish_result((125, "cleanup_incomplete"))
+            return finish_result(
+                (128 + signal_received, f"signal_{signal_received}")
+            )
         try:
             process = subprocess.Popen(
                 command, cwd=cwd, env=child_environment, start_new_session=True
             )
         except BaseException:
-            cancel_launch_reservation(reservation)
+            cancel_launch_reservations(
+                tree_reservation, inherited_reservation
+            )
             raise
         try:
-            execution_ownership.complete_inherited_execution_launch(
-                reservation, process.pid
+            complete_launch(
+                tree_reservation, inherited_reservation, process.pid
             )
         except (OSError, ValueError, TimeoutError) as error:
             print(
@@ -209,17 +402,19 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             )
             result = stop_process_group(process, cleanup_seconds)
             if result.group_stopped:
-                cancel_launch_reservation(reservation)
+                cancel_launch_reservations(
+                    tree_reservation, inherited_reservation
+                )
             else:
                 retain_incomplete_group(process.pid)
-            return 125, "cleanup_incomplete"
+            return finish_result((125, "cleanup_incomplete"))
         if signal_received is not None:
-            result = stop_process_group(process, cleanup_seconds)
+            result = stop_launched_process(process)
             if result.group_stopped and not release_registered_group(process.pid):
-                return 125, "cleanup_incomplete"
+                return finish_result((125, "cleanup_incomplete"))
             if not result.group_stopped:
                 retain_incomplete_group(process.pid)
-            return (
+            return finish_result(
                 (128 + signal_received, f"signal_{signal_received}")
                 if result.group_stopped
                 else (125, "cleanup_incomplete")
@@ -227,24 +422,24 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
         deadline = time.monotonic() + timeout_seconds
         while True:
             if signal_received is not None:
-                result = stop_process_group(process, cleanup_seconds)
+                result = stop_launched_process(process)
                 if result.group_stopped and not release_registered_group(process.pid):
-                    return 125, "cleanup_incomplete"
+                    return finish_result((125, "cleanup_incomplete"))
                 if not result.group_stopped:
                     retain_incomplete_group(process.pid)
-                return (
+                return finish_result(
                     (128 + signal_received, f"signal_{signal_received}")
                     if result.group_stopped
                     else (125, "cleanup_incomplete")
                 )
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                result = stop_process_group(process, cleanup_seconds)
+                result = stop_launched_process(process)
                 if result.group_stopped and not release_registered_group(process.pid):
-                    return 125, "cleanup_incomplete"
+                    return finish_result((125, "cleanup_incomplete"))
                 if not result.group_stopped:
                     retain_incomplete_group(process.pid)
-                return (
+                return finish_result(
                     (TIMEOUT_EXIT, "hard_timeout")
                     if result.group_stopped
                     else (125, "cleanup_incomplete")
@@ -255,19 +450,29 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             except subprocess.TimeoutExpired:
                 continue
             except BaseException:
-                stop_process_group(process, cleanup_seconds)
+                stop_launched_process(process)
                 raise
         if process_group_exists(process.pid):
-            result = stop_process_group(process, cleanup_seconds)
+            result = stop_launched_process(process)
             if not result.group_stopped:
                 retain_incomplete_group(process.pid)
-                return 125, "cleanup_incomplete"
+                return finish_result((125, "cleanup_incomplete"))
         if not release_registered_group(process.pid):
-            return 125, "cleanup_incomplete"
-        return returncode, None
+            return finish_result((125, "cleanup_incomplete"))
+        if execution_tree.owns_registry:
+            live_groups, pending_launches = execution_tree_state(execution_tree)
+            if live_groups or pending_launches:
+                result = stop_execution_tree(
+                    process, execution_tree, cleanup_seconds
+                )
+                if not result.group_stopped:
+                    return finish_result((125, "cleanup_incomplete"))
+        return finish_result((returncode, None))
     finally:
         for number, handler in previous_handlers.items():
             signal.signal(number, handler)
+        if execution_tree.temporary_directory is not None:
+            execution_tree.temporary_directory.cleanup()
 
 
 def inventory(path=INVENTORY):

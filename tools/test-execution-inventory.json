@@ -345,6 +345,21 @@
       "from": "check-ilp32-execution-recipes",
       "to": "check-recovery-utility-contracts",
       "kind": "required recovery utility variants"
+    },
+    {
+      "from": "check-host",
+      "to": "check-timeout-contracts",
+      "kind": "expanded prerequisite"
+    },
+    {
+      "from": "check-timeout-contracts",
+      "to": "tests/timeout_contracts:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-timeout-contracts",
+      "kind": "required timeout native variant"
     }
   ],
   "optional_investigations": [
@@ -906,6 +921,29 @@
       "script": "tests/recovery_utility_contracts/run.sh",
       "aliases": [
         "check-recovery-utility-contracts"
+      ]
+    },
+    {
+      "id": "utility.timeout.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler, process control, and signal runtime",
+      "directory": "tests/timeout_contracts",
+      "makefile": "tests/timeout_contracts/Makefile",
+      "target": "check-behavior",
+      "root_target": "check-timeout-contracts",
+      "program": "sh",
+      "condition": "unconditional",
+      "prerequisites": [
+        "behavior_test.py",
+        "known_bad.c",
+        "probe.c",
+        "run_behavior_test.sh"
+      ],
+      "recipe": "${TEST_EXECUTION} run utility.timeout.native -- sh ${.CURDIR}/run_behavior_test.sh ${TOPSRC} ${HOSTCC:Q}",
+      "script": "tests/timeout_contracts/run_behavior_test.sh",
+      "aliases": [
+        "check-timeout-contracts"
       ]
     },
     {

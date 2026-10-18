@@ -354,6 +354,15 @@ check-recovery-utility-contracts: check-python
 check-recovery-utility-contracts-cross:
 		${MAKE} -C tests/recovery_utility_contracts check-cross
 
+check-timeout-contracts: check-python
+		${MAKE} -C tests/timeout_contracts check
+
+check-timeout-contracts-cross:
+		${MAKE} -C tests/timeout_contracts check-cross
+
+check-timeout-target-link:
+		${MAKE} -C tests/timeout_contracts check-target-link
+
 check-libc-tempfiles:
 		${MAKE} -C tests/libc_tempfiles check
 
@@ -850,7 +859,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts check-printf-contracts \
-		check-recovery-utility-contracts \
+		check-recovery-utility-contracts check-timeout-contracts \
 		check-libc-tempfiles \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
@@ -876,6 +885,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-touch-contracts-cross \
 		check-printf-contracts-cross check-recovery-utility-contracts-cross \
+		check-timeout-contracts-cross \
 		check-libc-random-cross \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
@@ -891,7 +901,8 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 
 # Composition gates clean and relink shared program directories, so the cross
 # graph runs them after the parallel read-only contract group.
-CROSS_COMPOSITION_GATES=	check-libc-array-memory-line-cross
+CROSS_COMPOSITION_GATES=	check-libc-array-memory-line-cross \
+		check-timeout-target-link
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:
@@ -1011,7 +1022,8 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-libtcl-contracts check-printf-contracts \
-		check-printf-contracts-ilp32 check-recovery-utility-contracts
+		check-printf-contracts-ilp32 check-recovery-utility-contracts \
+		check-timeout-contracts
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py
@@ -1159,7 +1171,8 @@ installfs:
 		check-touch-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \
 		check-recovery-utility-contracts \
-		check-recovery-utility-contracts-cross \
+		check-recovery-utility-contracts-cross check-timeout-contracts \
+		check-timeout-contracts-cross check-timeout-target-link \
 		check-libc-tempfiles check-libc-ctime \
 		check-libc-ctime-cross check-libc-zone check-libc-mktime \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \

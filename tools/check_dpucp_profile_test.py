@@ -97,6 +97,32 @@ def main():
         if witness["known_good"] == witness["known_bad"]:
             raise AssertionError(f"uncalibrated process-control witness: {witness_id}")
 
+    timeout_row = next(
+        row
+        for row in rows
+        if row["requirement_id"] == "dpucp-2024:utility:timeout"
+    )
+    timeout_witness_id = "timeout-native-cross-link-contract"
+    if (
+        timeout_row["implementation"] != "partial"
+        or timeout_row["evidence"] != "host"
+        or timeout_row["residual"] != "open"
+        or timeout_row["witness"] != timeout_witness_id
+    ):
+        raise AssertionError("unbound timeout compatibility witness")
+    timeout_witness = profile["witnesses"].get(timeout_witness_id)
+    if timeout_witness is None:
+        raise AssertionError("missing timeout profile witness")
+    for target in (
+        "check-timeout-contracts",
+        "check-timeout-contracts-cross",
+        "check-timeout-target-link",
+    ):
+        if target not in timeout_witness["command"]:
+            raise AssertionError(f"timeout witness omits {target}")
+    if timeout_witness["known_good"] == timeout_witness["known_bad"]:
+        raise AssertionError("uncalibrated timeout witness")
+
     expected_state_order = {
         "applicability": [
             "base",

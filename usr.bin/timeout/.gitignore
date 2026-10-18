@@ -1,0 +1,4 @@
+timeout
+timeout.o
+timeout.elf
+*.map

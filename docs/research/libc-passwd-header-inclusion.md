@@ -54,9 +54,36 @@ damaged/restored stdio archive control pass. The native suite starts after host
 preprocessing and uses a Linux EABI execution shim; on-device preprocessing,
 physical-board execution and full native C17 development remain separate work.
 
-The header adds an include guard and explanatory comments. The unit introduces
-no runtime allocation, syscall, field or executable interface. Paired clean
-static-resource acceptance remains the deciding gate before integration;
-runtime stack, heap and storage traffic retain their independent states.
-The source row records the header's C17 language acceptance and preserved ABI,
-while password lookup behavior and complete DPUCP interface closure remain open.
+The paired clean distributions bind parent `d94785b85090d02dbea488e95ea8ce985aab1ef8` and candidate
+`57799558824e468a53e0348439e835597816d289` to identical compiler and measurement-tool identities.
+The resource comparison reports 154 zero static deltas and unchanged archive
+selection across 34 program/native groups. Both configurations retain their
+kernel flash and resident-section extents. Every shipped a.out retains its
+loaded occupancy, raw size and packed allocation; native libc and crt0.o retain
+their recorded sizes and archive sets.
+
+| Static surface | Parent and candidate |
+| --- | ---: |
+| PICO loaded flash extent | 104,768 bytes |
+| PICO_UART loaded flash extent | 92,284 bytes |
+| Root allocated data blocks | 692 |
+| Root free blocks / inodes | 287 / 33 |
+| Largest shipped loaded text/data/BSS | 75,412 bytes, smlrc |
+
+The retained `pwd-parent-resources.json`, `pwd-candidate-resources.json` and
+`pwd-resource-delta.json` identify source snapshots, completed execution receipts,
+artifact hashes and the complete static vectors. Their SHA-256 values are:
+
+| Retained artifact | SHA-256 |
+| --- | --- |
+| Parent resource receipt | `69235434920adaac260cb79625b16d9267cf3c7533b31a8f97c4e9a5ce8fc736` |
+| Candidate resource receipt | `d2bc359fb67996b59fcd9aadec974aef8ea33569be7373221a7c956bdd982084` |
+| Paired resource delta | `69d849b42ea398293a4da4dc1029d3512a8f61f34cf1106d1633db2302a02219` |
+
+The header adds an include guard and explanatory comments while preserving
+runtime declarations and layout. Runtime stack, heap and storage traffic retain
+unmeasured states; the clean distribution and compiler gates establish their
+named static and compilation claims. The source row records the header's C17
+language acceptance and preserved ABI, while password lookup behavior and
+complete DPUCP interface closure remain open. Physical-board qualification
+retains its separate authorization and measurement contract.

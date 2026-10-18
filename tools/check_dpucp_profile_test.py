@@ -8,10 +8,22 @@ import check_dpucp_profile as dpucp
 import check_sus_requirement_corpus as sus
 
 
-def expect_failure(name, root, corpus, entities, profile, rows):
+def expect_failure(
+    name,
+    root,
+    corpus,
+    entities,
+    profile,
+    rows,
+    expected_message=None,
+):
     try:
         dpucp.validate_documents(root, corpus, entities, profile, rows)
-    except dpucp.ProfileError:
+    except dpucp.ProfileError as error:
+        if expected_message is not None and expected_message not in str(error):
+            raise AssertionError(
+                f"mutation failed at the wrong invariant: {name}: {error}"
+            ) from error
         return
     raise AssertionError(f"mutation passed: {name}")
 
@@ -59,6 +71,50 @@ def main():
     profile = dpucp.load_json(root / "docs/research/dpucp-2024-profile.json")
     rows = dpucp.parse_requirements(root / "docs/research/dpucp-2024-requirements.tsv")
     dpucp.validate_documents(root, corpus, entities, profile, rows)
+
+    expected_first_hardware_release = [
+        "shell-command",
+        "shell-getopts",
+        "utility-printf",
+        "utility-readlink",
+        "utility-realpath",
+        "utility-uudecode",
+        "utility-timeout",
+    ]
+    if profile.get("first_hardware_release") != expected_first_hardware_release:
+        raise AssertionError("first hardware release surface differs")
+    expected_first_hardware_release_bindings = {
+        "shell-command": (
+            "dpucp-2024:utility:command",
+            "shell-command-host-contract",
+        ),
+        "shell-getopts": (
+            "dpucp-2024:utility:getopts",
+            "shell-getopts-host-contract",
+        ),
+        "utility-printf": (
+            "dpucp-2024:utility:printf",
+            "utility-printf-native-ilp32-cross-contract",
+        ),
+        "utility-readlink": (
+            "dpucp-2024:utility:readlink",
+            "recovery-utilities-native-cross-contract",
+        ),
+        "utility-realpath": (
+            "dpucp-2024:utility:realpath",
+            "recovery-utilities-native-cross-contract",
+        ),
+        "utility-uudecode": (
+            "dpucp-2024:utility:uudecode",
+            "recovery-utilities-native-cross-contract",
+        ),
+        "utility-timeout": (
+            "dpucp-2024:utility:timeout",
+            "timeout-native-cross-link-contract",
+        ),
+    }
+    if dpucp.FIRST_HARDWARE_RELEASE_BINDINGS != expected_first_hardware_release_bindings:
+        raise AssertionError("first hardware release bindings differ")
 
     if profile["schema_version"] != 2:
         raise AssertionError("later compatibility contracts require schema 2")
@@ -289,6 +345,130 @@ def main():
     changed_profile["profile"]["version"] = "2024.1"
     cases.append(("profile version drift", changed_profile, rows))
 
+    first_release_cases = []
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["first_hardware_release"] = expected_first_hardware_release[:-1]
+    first_release_cases.append(
+        (
+            "first hardware release missing member",
+            changed_profile,
+            rows,
+            "first hardware release surface drift",
+        )
+    )
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["first_hardware_release"][0:2] = reversed(
+        changed_profile["first_hardware_release"][0:2]
+    )
+    first_release_cases.append(
+        (
+            "first hardware release reordered members",
+            changed_profile,
+            rows,
+            "first hardware release surface drift",
+        )
+    )
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["first_hardware_release"][-1] = "utility-uudecode"
+    first_release_cases.append(
+        (
+            "first hardware release duplicate substitution",
+            changed_profile,
+            rows,
+            "first hardware release surface drift",
+        )
+    )
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["first_hardware_release"][-1] = "utility-unknown"
+    first_release_cases.append(
+        (
+            "first hardware release unknown member",
+            changed_profile,
+            rows,
+            "first hardware release surface drift",
+        )
+    )
+
+    changed_rows = copy.deepcopy(rows)
+    readlink_row = next(
+        row
+        for row in changed_rows
+        if row["requirement_id"] == "dpucp-2024:utility:readlink"
+    )
+    readlink_row["implementation"] = "absent"
+    first_release_cases.append(
+        (
+            "first hardware release absent implementation",
+            profile,
+            changed_rows,
+            "first release requirement is not implemented: utility-readlink",
+        )
+    )
+
+    changed_rows = copy.deepcopy(rows)
+    readlink_row = next(
+        row
+        for row in changed_rows
+        if row["requirement_id"] == "dpucp-2024:utility:readlink"
+    )
+    readlink_row["evidence"] = "none"
+    readlink_row["witness"] = ""
+    first_release_cases.append(
+        (
+            "first hardware release missing evidence",
+            profile,
+            changed_rows,
+            "first release requirement lacks evidence: utility-readlink",
+        )
+    )
+
+    changed_rows = copy.deepcopy(rows)
+    readlink_row = next(
+        row
+        for row in changed_rows
+        if row["requirement_id"] == "dpucp-2024:utility:readlink"
+    )
+    readlink_row["witness"] = "getpgrp-host-contract"
+    first_release_cases.append(
+        (
+            "first hardware release witness substitution",
+            profile,
+            changed_rows,
+            "first release witness differs: utility-readlink",
+        )
+    )
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["witnesses"]["recovery-utilities-native-cross-contract"][
+        "command"
+    ] = ":"
+    first_release_cases.append(
+        (
+            "first hardware release witness command substitution",
+            changed_profile,
+            rows,
+            "first release witness identity differs: recovery-utilities-native-cross-contract",
+        )
+    )
+
+    changed_profile = copy.deepcopy(profile)
+    recovery_witness = changed_profile["witnesses"][
+        "recovery-utilities-native-cross-contract"
+    ]
+    recovery_witness["known_bad"] = recovery_witness["known_good"]
+    first_release_cases.append(
+        (
+            "first hardware release calibration substitution",
+            changed_profile,
+            rows,
+            "first release witness identity differs: recovery-utilities-native-cross-contract",
+        )
+    )
+
     changed_profile = copy.deepcopy(profile)
     changed_profile["later_families"] = []
     cases.append(("missing later compatibility families", changed_profile, rows))
@@ -350,12 +530,23 @@ def main():
     changed_profile["state_counts"] = dpucp.count_states(changed_rows)
     cases.append(("witness evidence mismatch", changed_profile, changed_rows))
 
+    for name, mutated_profile, mutated_rows, expected_message in first_release_cases:
+        expect_failure(
+            name,
+            root,
+            corpus,
+            entities,
+            mutated_profile,
+            mutated_rows,
+            expected_message,
+        )
+
     for name, mutated_profile, mutated_rows in cases:
         expect_failure(name, root, corpus, entities, mutated_profile, mutated_rows)
 
     print(
         "PASS DPUCP-2024 calibration: "
-        f"{len(cases) + 2} mutations rejected"
+        f"{len(cases) + len(first_release_cases) + 2} mutations rejected"
     )
     return 0
 

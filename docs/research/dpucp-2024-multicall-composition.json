@@ -238,5 +238,6 @@
     "The logname row remains partial until packed-image execution observes its session identity, failure diagnostic, and status.",
     "Renode execution remains unrun.",
     "Physical-board execution remains unrun and requires explicit owner authorization immediately before flash or serial access."
-  ]
+  ],
+  "retained_source_commit": "42bb56fb10c0b2620b2e862fda52fc03241d512c"
 }

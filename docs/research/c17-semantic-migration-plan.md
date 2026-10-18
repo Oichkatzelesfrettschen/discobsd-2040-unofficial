@@ -1,5 +1,121 @@
 # C17 semantic migration plan
 
+## RP2040 modernization execution contract
+
+The maintained target is a tiny BSD on Cortex-M0+, ARMv6-M and Thumb-1.
+The program modernizes the shipped kernel, libc, shell and utilities before
+expanding to the remaining maintained ARM source and host tools. Production
+uses GNU17; portable mechanisms also pass strict C17. The native Smaller C
+implementation is maintained code, while its accepted input language remains
+a separate compatibility contract. Full on-device C17 development stays in
+the later DPUCP family.
+
+The integration baseline is `42bb56fb10c0b2620b2e862fda52fc03241d512c`.
+The DPUCP profile, donor ledger, allocation and line-reading libc members,
+process/runtime interfaces, shell command and getopts, utility printf,
+recovery utilities, timeout and multicall accounting are delivered foundations.
+`dpucp-2024-board-acceptance.md` records seven surfaces and thirteen cases
+on its identified image pair. The capture leaves the complete Issue 8 rows
+partial. Revalidating the record does not execute the image again.
+
+The source denominator at that baseline contains 2,590 C/header paths:
+4 accepted, 64 migration-open, 543 excluded and 1,979 unreviewed. Those states
+measure review accounting rather than independent defects. The shell already
+passes its strict-C17 compilation gate; pointer-through-int transport and
+runtime resource acceptance remain separate obligations. The finite DPUCP
+ledger contains 1,518 Issue 8 rows, with one closed and 1,517 open.
+
+### Architecture and resource invariants
+
+- Preserve the 128 KiB kernel region, 144 KiB base process window, Dhara root
+  partition and raw-swap allocation. Existing conditional window extensions
+  retain their own admission contracts.
+- Account for loaded text/data/BSS, alignment, simultaneous scratch, heap and
+  stack. Packed file size does not establish process-window fit.
+- Preserve syscall numbers, calling conventions and public layouts. Additive
+  interfaces require separate kernel/libc contracts and measured acceptance.
+- Preserve erase-sector ownership, program-page alignment, transaction commit
+  points, recoverability and the meaning of measured storage counters.
+- Require nonpositive growth on each constrained surface by default. A positive
+  delta needs the existing growth-exception record and review; savings across
+  distinct resource surfaces do not cancel.
+- Retain fixed-table values and USIZE until the capacity corpus admits a change.
+  The retained two-slot inode reserve and 220-byte stack-paint remainder are
+  workload observations rather than available optimization budgets.
+- Keep language, interface, security, native compatibility, compile footprint,
+  runtime resources, persistence and hardware acceptance separate.
+
+### Structural refactoring and header ownership
+
+Headers, translation units and archive members may be split or consolidated
+when ownership, dependency closure or measured target cost justifies the
+boundary. Historical filenames retain provenance rather than architectural
+authority. A structural change records its invariant before choosing its file
+layout and rebuilds every affected consumer.
+
+Public ABI headers own exported types, constants and declarations. Private
+subsystem headers own internal contracts. Portable mechanism headers avoid
+unnecessary kernel configuration and MMIO dependencies. RP2040 hardware
+headers own access widths, alignment, ordering and initialization requirements.
+Each ABI type has one authoritative definition. Generated syscall and assembly
+interfaces derive from their owning description when generation prevents drift.
+Public include names remain compatibility entry points when consumers require
+them; compatibility wrappers do not duplicate declarations or storage.
+
+Header gates exercise supported standalone inclusion, repeated inclusion,
+include orders, exact function-pointer types, target sizeof/alignment/offsets,
+assembly consumers and Smaller C inputs. Deliberately invalid fixtures have
+expected-rejection contracts rather than a portable-C17 acceptance claim.
+
+### Ordered modernization queue
+
+The queue below owns program order. The historical ordered work queue later
+in this document records delivered units and their residuals; it does not
+restart those implementations. Each row expands into one caller-complete
+mechanism per PR. A blocked row records its deciding experiment before the
+next independent row starts.
+
+| Order | Mechanism | Dependency | Deciding output |
+| --- | --- | --- | --- |
+| 1 | Baseline and document reconciliation | Identified source revision and retained records | Delivered work, bounded residuals and one current queue |
+| 2 | Configuration-keyed shipped dependency closure | Evaluated commands, compiler dependencies, generated inputs, installed manifest and final links | Calibrated closure checker for PICO and PICO_UART, with archive/member and native-header ownership |
+| 3 | Reproducible resource comparison | Clean matched-toolchain parent/candidate distributions | Artifact-bound kernel/SRAM/a.out/root/member receipts; runtime and wear states remain explicit |
+| 4 | Header ownership boundaries | Shipped closure and resource baseline | Caller-complete headers with inclusion, ABI, assembly and native-input gates |
+| 5 | Calibrated compiler and analysis coverage | Header contracts and exact production commands | GNU17 target and strict-C17 portable coverage, expected-rejection fixtures and scoped analysis |
+| 6 | Shipped trust boundaries | Caller-complete interfaces and calibrated negative controls | Executable admission, copying, path, credential and parser invariants with target resource acceptance |
+| 7 | Libc and public interfaces | Existing libc evidence reconciled; all consumers identified | One interface family per change, clean consumer rebuild and native-header acceptance |
+| 8 | Typed shell execution input | Existing C17 shell behavior and parser ownership contracts | Typed string/argv and descriptor entry points; eval/source/trap/nesting/failure tests and resource receipts |
+| 9 | Filesystem and archive identity | Additive directory-relative kernel/libc contracts | Separate compress, tar and cpio race/failure gates with bounded linked costs |
+| 10 | RP2040 hardware and persistence ownership | Register/ROM/IRQ/buffer contracts and portable controls | PICO/PICO_UART builds; separately authorized silicon and recovery evidence |
+| 11 | Remaining shipped utilities and multicall units | Shipped T1 obligations addressed before broad T3 cleanup | Shipped language/interface closure and lifetime-safe composition measurements |
+| 12 | Remaining maintained source | Shipped-system milestone | Optional ARM, host tools, adapters and Smaller C implementation acceptance; justified exclusions and global closure |
+
+`c17-shipped-build-baseline.md` records the implemented capture/closure/resource
+foundation at `e7040aa1`. Its source and resource companions bind 580 tracked
+C/header paths and 36 artifact groups to that revision. Shipped language
+acceptance, unreviewed migration ownership/risk decisions, runtime measurements
+and hardware qualification retain separate open states.
+
+A leaf unit may calibrate a compiler gate, but convenient leaf migration does
+not displace shipped T1 trust boundaries. The shipped denominator follows real
+build and link dependencies, including selected libc members, generated headers
+and multicall overlays, rather than only the union of manifest source names.
+
+Each PR records its contract, caller closure, baseline and falsifier; calibrates
+its deciding test; implements the complete unit; runs behavior/compiler/ABI and
+resource gates; updates the existing ledgers; and passes review and CI before
+merge. Public-header or libc changes require a clean consumer rebuild. New
+gates register with the root Makefile, TESTING.md and the CI owner. Use the
+logged local entry points with caller-selected PYTHON and preserve the product
+lock and cleanup/quarantine contracts.
+
+Release states are reconciled baseline, modernized shipped system,
+hardware-qualified shipped system and maintained-source closure. Each state
+requires its own evidence. Hardware execution requires explicit authorization
+for the exact operation and artifacts. Networking, regex/text facilities,
+locale, threads, realtime, dynamic linking and full native C17 development
+remain separately gated DPUCP families.
+
 ## Scope
 
 `docs/research/c17-formatting-linting.md` measures the syntactic frontier:
@@ -214,17 +330,17 @@ RAM and runtime evidence".
 
 | Field | Content |
 | --- | --- |
-| Layer and profile | ISO C17 library semantics (7.21.6.2) and the BSD/2.11 ABI (`FILE` unchanged); modernized cross userland |
+| Layer and profile | ISO C17 library semantics (7.21.6.2) and the established BSD/2.11 ABI; the separate stdio core unit owns the 24-byte `FILE` layout; modernized cross userland |
 | Tier | T1: `sysctl -w kern.hostid=<digits>` reaches `%ld` conversion with caller-written input |
-| Native input | The libc members are cross-built; `include/stdio.h` is native input when a natively compiled program includes it. Native acceptance of the changed header is not recorded |
+| Native input | The libc members are cross-built. `t18_stdio` accepts the expanded `include/stdio.h` declarations and exercises a Smaller C scanning consumer; on-device preprocessing and board execution retain separate states |
 | Contract | The project defines integer-conversion saturation at the destination limit as an extension; C17 does not generally define an unrepresentable scanf conversion result. Separately, `%X` and uppercase floating conversions follow C17 lowercase semantics; `%D` and `%O` remain as documented extensions; `%n`, `%i`, `%p` and the C99 length modifiers are supported |
 | Invariants | No staging buffer on the integer path; a 32-byte automatic scanset bitmap with nothing carried between directives; float staging bounded by `MANT_DIGITS` with `_Static_assert` ties to `DBL_DIG` |
 | Falsifier | The replaced scanner aborts under the sanitizer, first on `%X` storing a long through `unsigned int *`, then on a digit run overrunning the 64-byte `_innum` staging buffer |
-| Gates | `check-libc-scanf` (host width, ILP32 and AddressSanitizer) |
+| Gates | `check-libc-scanf` (host width, ILP32 and AddressSanitizer), plus `check-c17-smaller-c` for the expanded-header/native consumer boundary |
 | Resources | `doscan.o` text +176, data -256; frame 128 to 120 bytes; over 244 programs built both ways, 42 changed and the sum is -1,096 bytes; `trek` and `primes` gain about 1.3 KiB by linking the float scanner |
 | Evidence class | Host and cross |
-| Ledger states | 1 language: done. 2 interface: done. 3 native: open (acceptance of the changed `include/stdio.h` not recorded). 4 hardening: done. 5 resource: done. 6 program closure: open, with the residual below |
-| Residuals | Native acceptance of the changed public header: owner, the native-toolchain ledger; deciding gate, a Smaller C compile of a `scanf` consumer. The pushback slot moved to the stdio core unit (`stdio-core-c17-unit.md`) |
+| Ledger states | 1 language: done. 2 interface: done. 3 native: expanded-header parser/codegen and exercised scanning paths covered by `t18_stdio`; on-device preprocessing and board execution remain open. 4 hardening: done. 5 resource: done. 6 program closure: open, with the residual below |
+| Residuals | Repeat the expanded-header/native consumer gate after public-header changes. On-device preprocessing, board execution and full native C17 development remain separate obligations. The pushback slot belongs to the stdio core unit (`stdio-core-c17-unit.md`) |
 
 Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
 
@@ -234,14 +350,14 @@ Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
 | --- | --- |
 | Layer and profile | ISO C17, POSIX directory interfaces and the BSD/2.11 ABI; modernized cross userland |
 | Tier | T1: parses directory records read from the filesystem |
-| Native input | `DIR` is laid out in the public header `sys/sys/dir.h`; native acceptance of that header is unrecorded |
+| Native input | `t18_stdio` consumes expanded `sys/dir.h` and checks the 1,040-byte `DIR` layout through Smaller C; the fixture starts after host preprocessing |
 | Contract | Allocation failure preserves `errno`; free entries are skipped; cookies need no allocation; a failed seek leaves the stream unchanged; close owns the buffer |
 | Invariants | A 1 KiB directory block held intact; record lengths and names bounded before use; `telldir` is arithmetic only |
 | Falsifier | The pre-change source fails strict C17 at its K&R definitions before the layout fixture rejects the 1,108-byte stream |
 | Gates | `check-dirent-contracts`, `check-dirent-contracts-cross` |
 | Resources | `sizeof(DIR)` 1,108 to 1,040 (-68 heap bytes per open directory); five-member text +80 |
 | Evidence class | Host and cross; board enumeration unmeasured |
-| Ledger states | 1 language: done. 2 interface: open in this row; the scanner, directory admission/CLOEXEC and close-result units (continuation item 7) carry the calibrated interface evidence. 3 native: open (acceptance of `sys/sys/dir.h` unrecorded). 4 hardening: open (the six malformed-record classes are not calibrated against the pre-change reader). 5 resource: done. 6 program closure: open, with the residual below |
+| Ledger states | 1 language: done. 2 interface: open in this row; the scanner, directory admission/CLOEXEC and close-result units (continuation item 7) carry the calibrated interface evidence. 3 native: expanded declarations and target layout covered by `t18_stdio`; on-device preprocessing and board execution remain open. 4 hardening: open (the six malformed-record classes are not calibrated against the pre-change reader). 5 resource: done. 6 program closure: open, with the residual below |
 | Residuals | The recorded falsifier is syntactic and layout-based; the six malformed-record classes are not recorded as calibrated against the pre-change reader. Owner: this row; deciding gate: a pre-change behavioral run of those cases. Board cross-block cookie replay: owner, the hardware gate. The scanner, directory admission/CLOEXEC and integer close-result units below supply separate calibrated interface evidence |
 
 Source: `bsd-workspace-directory-stream-c17.md`.

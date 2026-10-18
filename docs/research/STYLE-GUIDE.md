@@ -1,5 +1,10 @@
 # Compact, constrained C for DiscoBSD RP2040
 
+The ordered RP2040 modernization queue and structural/header ownership contract
+are in `c17-semantic-migration-plan.md`. Header and translation-unit boundaries
+may change when caller closure, ABI, lifetime and target-resource evidence
+justify the result. Historical file layout is not an acceptance invariant.
+
 ## Scope, authority and evidence
 
 The original review inspected
@@ -170,11 +175,12 @@ source, resolves.
 ## 4. Language profiles: C17 is not one global switch
 
 The shared ARM userland command selects `-std=gnu17 -fno-common`, but leaf
-Makefiles can select older dialects later on the command line: `bin/sh` and
-`games/atc` add `-ansi`, and the archived
+Makefiles can select older dialects later on the command line: `games/atc`
+adds `-ansi`, and the archived
 `legacy/non-arm/mips-pic32/usr.bin/smallc` adds `-std=gnu89` outside the ARM
-build. The warning policy also has
-full and legacy profiles. Describe the tree by evaluated compilation command,
+build. The shipped Bourne shell uses GNU17 production and strict-C17 checks;
+its typed execution-input seam remains a separate semantic migration. The
+warning policy also has full and legacy profiles. Describe the tree by evaluated compilation command,
 not by the first standard flag found in a shared Makefile.
 
 Use these migration profiles:

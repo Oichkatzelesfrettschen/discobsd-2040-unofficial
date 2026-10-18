@@ -157,6 +157,7 @@ check-dpucp-board-acceptance: check-python
 # dependency, C17, ABI and footprint gates agree. Mutation controls reject
 # provenance, requirement, dependency, size-evidence and decision drift.
 check-dpucp-donor-ledger: check-python
+		${PYTHON} tools/measurement_source_identity_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger.py --root ${TOPSRC}
 
@@ -255,6 +256,13 @@ check-c17-kernel-inventory:	check-python
 # deterministic language, ownership, extension and hazard classification.
 # Historical and archive exclusions carry exact hashes; unreviewed rows remain
 # visible and make --closure fail rather than becoming implicit passes.
+# The opt-in capture wrapper exercises actual target compiler, linker,
+# archive and object transformations with calibrated rejected controls.
+check-c17-tool-capture:	check-python
+		${PYTHON} tools/c17/record_tool_test.py
+		${PYTHON} tools/c17/shipped_closure_test.py
+		${PYTHON} tools/c17/shipped_resources_test.py
+
 check-c17-source-denominator:	check-python
 		${PYTHON} tools/c17/source_denominator_test.py
 		${PYTHON} tools/c17/source_denominator.py
@@ -1085,7 +1093,7 @@ check-posix-sh:
 # because its link proof rebuilds the shared a.out libc.
 check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
-check-cross-kernel:	check-divider .WAIT check-swapram .WAIT \
+check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT \
@@ -1202,7 +1210,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

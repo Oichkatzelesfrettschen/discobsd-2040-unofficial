@@ -121,3 +121,10 @@ compatibility binding.
 Runtime peak stack and heap remain unmeasured. Renode execution remains a
 separate evidence class. Physical-board execution remains unrun and requires
 explicit authorization immediately before flash or serial access.
+
+The `retained_source_commit` field identifies the Git blobs that match all 17
+recorded source hashes. The shared retained-source validator verifies those
+bytes and reports live differences separately. The live-map gate still
+evaluates dispatch variables, manifest membership, selected archive members,
+packed sizes, block savings and root capacity. Historical source identity and
+current composition acceptance remain separate claims.

@@ -9,6 +9,8 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
+from measurement_source_identity import RetainedSourceError, validate_retained_sources
+
 EXPECTED_REPOSITORIES = {
     "4.4BSD-Lite2": (
         "https://github.com/Oichkatzelesfrettschen/4.4BSD-Lite2.git",
@@ -1084,6 +1086,7 @@ def validate_process_control_measurement(measurement, root):
             "profile_id",
             "base_commit",
             "candidate_source_sha256",
+            "retained_source_commit",
             "measurement_date",
             "tools",
             "receipts",
@@ -1107,6 +1110,8 @@ def validate_process_control_measurement(measurement, root):
         "bad process-control measurement date",
     )
 
+    require(re.fullmatch(r"[0-9a-f]{40}", measurement["retained_source_commit"]) is not None,
+            "bad retained source revision")
     source_hashes = measurement["candidate_source_sha256"]
     expected_sources = {
         "lib/libc/gen/waitpid.c",
@@ -1582,6 +1587,7 @@ def validate_timeout_measurement(measurement, root):
             "measurement_date",
             "block_bytes",
             "candidate_source_sha256",
+            "retained_source_commit",
             "kernel",
             "programs",
             "root",
@@ -1609,6 +1615,8 @@ def validate_timeout_measurement(measurement, root):
     )
     require(measurement["block_bytes"] == 1024, "timeout block size drift")
 
+    require(re.fullmatch(r"[0-9a-f]{40}", measurement["retained_source_commit"]) is not None,
+            "bad retained source revision")
     source_hashes = measurement["candidate_source_sha256"]
     expected_sources = {
         "usr.bin/timeout/timeout.c",
@@ -2114,6 +2122,13 @@ def load_requirement_ids(path):
     return {row["requirement_id"] for row in reader}
 
 
+def validate_measured_sources(root, hashes, revision):
+    try:
+        return validate_retained_sources(root, hashes, revision)
+    except RetainedSourceError as error:
+        raise DonorError(str(error)) from error
+
+
 def validate_document(root, document, requirement_ids):
     require(set(document) == REQUIRED_DOCUMENT_FIELDS, "malformed donor ledger")
     require(document.get("schema_version") == 2, "unsupported donor schema")
@@ -2137,28 +2152,14 @@ def validate_document(root, document, requirement_ids):
     )
     process_measurement = load_json(process_measurement_path)
     validate_process_control_measurement(process_measurement, root)
-    for relative_path, expected_hash in process_measurement[
-        "candidate_source_sha256"
-    ].items():
-        source_path = root / relative_path
-        require(source_path.is_file(), f"missing measured source: {relative_path}")
-        require(
-            hashlib.sha256(source_path.read_bytes()).hexdigest() == expected_hash,
-            f"measured source drift: {relative_path}",
-        )
+    validate_measured_sources(root, process_measurement["candidate_source_sha256"],
+                              process_measurement["retained_source_commit"])
     timeout_measurement_path = root / TIMEOUT_MEASUREMENT_DATA
     require(timeout_measurement_path.is_file(), "missing timeout growth-exception data")
     timeout_measurement = load_json(timeout_measurement_path)
     validate_timeout_measurement(timeout_measurement, root)
-    for relative_path, expected_hash in timeout_measurement[
-        "candidate_source_sha256"
-    ].items():
-        source_path = root / relative_path
-        require(source_path.is_file(), f"missing measured source: {relative_path}")
-        require(
-            hashlib.sha256(source_path.read_bytes()).hexdigest() == expected_hash,
-            f"measured source drift: {relative_path}",
-        )
+    validate_measured_sources(root, timeout_measurement["candidate_source_sha256"],
+                              timeout_measurement["retained_source_commit"])
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",
@@ -2322,6 +2323,12 @@ def main():
     count = validate_document(root, document, requirement_ids)
     if arguments.workspace is not None:
         verify_workspace(document, arguments.workspace.resolve())
+    for measurement_name in [PROCESS_CONTROL_MEASUREMENT_DATA, TIMEOUT_MEASUREMENT_DATA]:
+        measurement = load_json(root / measurement_name)
+        changed = validate_measured_sources(root, measurement["candidate_source_sha256"],
+                                            measurement["retained_source_commit"])
+        print(f"Retained measurement {measurement_name}: {len(changed)} live source differences; "
+              "current resource acceptance requires separate evidence")
     print(f"DPUCP donor ledger: {count} bounded candidates")
     return 0
 

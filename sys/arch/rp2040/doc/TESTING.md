@@ -504,7 +504,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-dpucp-profile` | The DPUCP-2024 verifier accounts for all 1,518 Issue 8 entities and all 152 Issue 8-only entities inside the 1,617-row union. It checks stable identities, citations, state vocabularies, conservative option handling, deterministic row order and hash, registered executable witnesses, mandatory witnesses for closed rows, and deciding actions for open or blocked rows. The `command`, `getopts`, utility `printf`, and `logname` rows remain partial and open while binding their measured host evidence to registered executable witnesses. The first hardware release is the exact ordered set of shell `command`, shell `getopts`, utility `printf`, `readlink`, `realpath`, `uudecode` and `timeout`; every member must retain an implemented Issue 8 row, nonempty evidence and a witness with the exact command, evidence class and calibration artifacts. Schema 2 also binds profile version 2024.2 and the seven later compatibility families to exact Issue 8 authority sets, option-boundary kinds and owner sets, Base residuals, dependencies, minimum useful subsets, hardware feasibility questions, screening footprint estimates, deciding experiments and existing repository sources. Thirty-two mutation controls reject missing and duplicate rows, Issue 7-only admission, unknown states, unsupported option exclusions, unwitnessed closure, absent next actions, count and hash drift, mismatched witness evidence, removal of the `logname` host and multicall binding, substitution of its known-bad fixture, a POSIX conformance claim, profile-version drift, missing, reordered, duplicate or unknown first-release members, absent first-release implementation or evidence, first-release row/witness drift, first-release command or calibration substitution, a missing family set or contract field, an unknown family option boundary, family-authority or owner drift, an empty dependency closure, a missing family source, incomplete footprint surfaces and an absent deciding experiment. The logname behavior gate rejects an effective-user implementation that delegates to `whoami`. The profile gate establishes ledger and roadmap consistency; the registered gates execute the behavior witnesses separately. Screening footprint classes are planning evidence rather than measured byte counts. The profile claims neither POSIX nor UNIX conformance. |
 | `check-dpucp-board-acceptance` | The retained physical-board record binds source and profile-contract commits, exact kernel and root UF2 identities, UF2 intervals, toolchain versions, the one approved flash execution, the by-id and resolved console identities, bounded runner settings, terminal receipt and transcript hashes, all thirteen observed cases, evidence-class attribution and residual uncertainty. Seventeen mutations reject schema, profile, evidence-class, source, surface-order, artifact, flash-count, host-path, runner-state, dropped-output, case-set, case-status, case-output, exact-case-command, Renode-promotion, residual and conformance-claim drift. The gate validates the checked-in record; it does not reopen the serial device, replay the external raw transcript, infer Renode execution, measure runtime stack or heap peaks, or close any complete POSIX requirement. |
 | `check-multicall-composition` | The cross graph separates each shared-product composition gate with `.WAIT`. The gate runs shell clean and link as separate recursive makes, cleans and sequentially relinks the seven RP2040 multicall boxes, and relinks `/bin/sh` through an optional link-map seam. It then checks seven box identities, 80 shipped multicall names, 84 total manifest hard links, 192 distinct retained libc archive members, per-consumer archive closure, retained `hsaout` rows for 71 primary standalone images and seven multicall images, and current `hsaout` output for all 78 artifacts. The retained toolchain measures 182 multicall blocks against 615 standalone blocks. A live run with the recorded ARM compiler, ARM linker, and bmake versions must reproduce every retained archive-member set, byte, block, and root counter. Another supported toolchain parses every live link map, rejects an empty archive-member set, reports per-consumer member additions and removals, and preserves positive per-box packed-block savings, fixed root geometry, root arithmetic, and free capacity while reporting that exact archive-member and byte replay is unavailable. Canonical base and candidate receipts bind terminal status, manifest identity and links, root-image identity, inode use, partition counters, and the exact zero-growth claim to their recorded toolchain. Nineteen document mutations reject conformance claims, denominator drift, duplicate boxes, missing applets, archive-count drift, impossible size fields, manifest-link drift, positive retained root growth, failed, missing, placeholder or mismatched receipts, source-identity drift, and Makefile membership drift. Dedicated live controls reject exact-mode byte drift, cross-toolchain loss of block savings, exact-mode root drift, changed partition geometry, exact-mode archive-member drift, an empty cross-toolchain archive-member set, and ARM linker-version drift. Three Makefile structure controls reject concurrent composition gates, concurrent shell clean/link goals, and stale multicall maps. The measured `/usr/bin/logname` hard link changes the root from 83 to 84 links while files, data blocks, and free blocks remain unchanged. The gate establishes static composition and packed-image accounting; it does not establish runtime stack or heap peaks, packed-root execution, Renode behavior, or physical-board behavior. |
-| `check-dpucp-donor-ledger` | The DPUCP-2024 donor verifier checks the pinned revisions and origins for eight local BSD research trees and each source repository, path, SHA-256, license, behavior, invariants, algorithm, dependency closure, C-language boundary, C17 rewrite, expected archive members, size surfaces, disposition and deciding gate for 11 selected mechanisms. The shell, utility-printf and recovery utility growth exception records bind exact kernel, process-window, executable-composition, archive-member inventory, a.out header arithmetic and packed-root arithmetic to machine-readable evidence; runtime peak stack and heap remain unmeasured, and independent approval remains mandatory before merge. The process-control prerequisite record binds source hashes, supervised terminal receipts, both kernel variants, retained parent and candidate rows for every OMAGIC program, full and reduced libc payloads, and packed-root arithmetic without promoting timeout; eight process-control measurement mutations reject kernel-delta, summary-only program comparison, placeholder program and receipt digests, one changed program field, root arithmetic, archive-payload drift and blank full-ELF digests. The recovery record also binds map and binary identities, the target-native link-map seam, static realpath frame classification and the rejected standalone composition. The printf calibration mutates utilbox arithmetic, a.out size, archive-member count, root accounting, and shipped-form selection; six recovery mutations reject textbox arithmetic, a.out size, root accounting, shipped-form, archive-count and dynamic-stack drift. The donor-ledger suite requires its documented mutation count to match the executed controls; 24 mutations reject candidate-set, requirement-binding, provenance, path, hash, license, semantic-field, archive-expectation, size-state, size-evidence, decision and conformance-claim drift. The normal host gate validates the committed ledger without requiring the external research workspace. An explicit `${PYTHON} tools/check_dpucp_donor_ledger.py --workspace "${BSD_WORKSPACE}"` additionally reads each file from its pinned Git object and verifies its SHA-256; that caller-selected workspace check is research evidence and stays outside CI. Promotion closes no complete DPUCP row and makes no POSIX or UNIX conformance claim. |
+| `check-dpucp-donor-ledger` | The DPUCP-2024 donor verifier checks the pinned revisions and origins for eight local BSD research trees and each source repository, path, SHA-256, license, behavior, invariants, algorithm, dependency closure, C-language boundary, C17 rewrite, expected archive members, size surfaces, disposition and deciding gate for 11 selected mechanisms. The shell, utility-printf and recovery utility growth exception records bind exact kernel, process-window, executable-composition, archive-member inventory, a.out header arithmetic and packed-root arithmetic to machine-readable evidence; runtime peak stack and heap remain unmeasured, and independent approval remains mandatory before merge. The process-control and timeout records bind source hashes to retained Git commits and report live drift separately; seven retained-source controls reject changed digests, unavailable objects and unsafe or ambiguous identities while preserving historical records after live edits. The process-control prerequisite record binds source hashes, supervised terminal receipts, both kernel variants, retained parent and candidate rows for every OMAGIC program, full and reduced libc payloads, and packed-root arithmetic without promoting timeout; eight process-control measurement mutations reject kernel-delta, summary-only program comparison, placeholder program and receipt digests, one changed program field, root arithmetic, archive-payload drift and blank full-ELF digests. The recovery record also binds map and binary identities, the target-native link-map seam, static realpath frame classification and the rejected standalone composition. The printf calibration mutates utilbox arithmetic, a.out size, archive-member count, root accounting, and shipped-form selection; six recovery mutations reject textbox arithmetic, a.out size, root accounting, shipped-form, archive-count and dynamic-stack drift. The donor-ledger suite requires its documented mutation count to match the executed controls; 24 mutations reject candidate-set, requirement-binding, provenance, path, hash, license, semantic-field, archive-expectation, size-state, size-evidence, decision and conformance-claim drift. The normal host gate validates the committed ledger without requiring the external research workspace. An explicit `${PYTHON} tools/check_dpucp_donor_ledger.py --workspace "${BSD_WORKSPACE}"` additionally reads each file from its pinned Git object and verifies its SHA-256; that caller-selected workspace check is research evidence and stays outside CI. Promotion closes no complete DPUCP row and makes no POSIX or UNIX conformance claim. |
 | `check-c17-source-denominator` | The schema-2 ledger accounts for every tracked C and header path exactly once and records a deterministic source kind, build surface, required language mode, extension policy, risk family, separate risk tier and seven lexical hazard-candidate families. Macro replacement tokens participate in discovery while comments and literals remain blank. Twenty-one calibrated failures reject missing, duplicate, unsafe, unknown, unwitnessed, fabricated, source-drift, stale-count-report, closure-bootstrap, invalid-refresh, temporary-write and replacement-failure states; each rejected mutation preserves the destination bytes. The 543 excluded rows retain exact quarantine hashes. The production shell's 28 translation units and 13 active project headers are classified; the ledger records 1,974 unreviewed and 64 migration-open rows, and both states remain open. A candidate-free lexical result is discovery evidence rather than semantic clearance. |
 | `check-c17-compile-profiles` | The existing case-folding mechanism compiles with strict C17 and warnings as errors on the host and with `-std=c17 -pedantic-errors` for Cortex-M0+, where a target-only GNU statement expression calibrates rejection. Both complete kernels then compile and link with their generated GNU17 freestanding PICO and PICO_UART commands. The target composes compiler evidence and changes no classification state. `check-c17-smaller-c` runs the native compiler suite separately; its result establishes neither ISO C17 acceptance nor the production kernel build. |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
@@ -1365,3 +1365,156 @@ the aggregate check and Linux/macOS firmware CI run it without racing other
 kernel inspections. It neither
 flashes a board nor measures a workload; STORAGE.md describes how to interpret
 the read-only counters.
+
+### Executed tool capture
+
+`check-c17-tool-capture` belongs to the cross tier and firmware CI's
+`check-cross` invocation. Fifteen ARM-toolchain and evaluated-make fixtures establish compiler
+header discovery, unchanged object bytes, original dependency-file retention,
+failed-command attribution, generated stdin identity, selected archive members,
+configuration separation, in-place object-transform identities, output-path
+confinement, response-input rejection and forwarded query stdout. The fixtures
+execute host tool processes; they do not execute the resulting ARM image.
+
+`C17_CAPTURE_DIR` opts userland, kernel, multicall and board-libc tool paths
+into `tools/c17/record_tool.py`. The caller supplies an absolute, fresh capture
+directory and PYTHON. The wrapper forwards argv without a shell, retains
+compiler dependencies and output bytes, and saves final link maps before ELF
+cleanup. Existing dependency destinations and map destinations remain available.
+The wrapper rejects unsupported response input before execution. A tool failure
+retains its exit status and carries no successful-output claim; a capture error
+fails the build even when the tool itself returned zero. Default builds omit
+the wrapper. A complete shipped-source claim additionally requires clean-build
+coverage, manifest membership, archive provenance and generated-input edges;
+the wrapper's fixture gate alone establishes none of those aggregate states.
+
+The same cross gate runs twenty-one shipped-closure fixtures against real ARM
+compiler and archive output. An executable includes its selected archive
+member; an installed development archive includes all members. Missing
+producers, changed headers/artifacts, damaged retained outputs, a dependency
+row removed from the compiler's recorded dependency set, missing denominator
+rows and open language acceptance reject closure. Equal object bytes under
+multiple source names retain every possible owner conservatively.
+
+Eighteen resource fixtures calibrate kernel flash initializers, SRAM region
+coverage and overlap, loaded a.out BSS, exact manifest membership, root free
+capacity, per-program growth, archive-member changes, executor provenance,
+matched toolchains and explicit unmeasured runtime states. The resource
+comparer writes all deltas and returns failure for positive constrained-surface
+consumption. A changed archive-member set is reported even when final sizes
+remain equal; an added dependency requires measured review and rejects default
+acceptance. Static resource acceptance leaves runtime stack, heap and storage
+traffic open; those measurements require separate calibrated receipts.
+
+A complete manifest capture additionally binds a tracked-file/index snapshot,
+a successful logged `clean cleankernel cleanfs` invocation, and the subsequent
+successful logged distribution. The checker verifies their ordering, immutable
+status receipts and log digests, resolves every packed executable and installed
+archive, and preserves PICO/PICO_UART as separate configurations. Generator
+provider records remain explicit, and generated C/header language acceptance
+stays open until its separate compiler/semantic obligation is recorded.
+
+Capture receipts bind every selected producer to the logged execution ownership
+invocation and `C17_SOURCE_SNAPSHOT` digest. A fresh capture exports that
+snapshot path alongside `C17_CAPTURE_DIR`. Link receipts retain the archive
+bytes selected through explicit filenames, `-l` lookup and linker maps. The
+closure checker rejects an archive replaced outside recorded producer commands.
+Tracked linker scripts remain inputs rather than generated outputs; separated,
+attached and compiler-forwarded script options retain their source identities.
+Nested linker INCLUDE directives require an explicit capture adapter and are
+rejected by the current wrapper. Installed native startup objects join archives
+and packed programs in the manifest denominator. Resource capture requires the
+same immutable distribution receipt and manifest digest as dependency closure.
+
+The image builder creates multicall hardlinks inside the filesystem image;
+standalone files in DESTDIR remain independent build products. Closure checks
+`fsutil -vvv` inode identities for every manifest alias and binds the resulting
+image digest to resource capture. The native libc archive uses the BSD a.out
+ranlib index; closure reads that format with the repository's host-built `ar`
+and excludes the index from the source-member denominator. Generated multicall
+linker fragments retain their Makefile, generator and verifier providers.
+
+For a complete local capture, start with staged, stable source and a fresh
+capture directory. Select PYTHON in the caller, then run from the checkout:
+
+```sh
+set -eu
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
+C17_SOURCE_SNAPSHOT="$(pwd)/.build-logs/c17-source.json"
+C17_CAPTURE_DIR="$(pwd)/.build-logs/c17-command-capture"
+export C17_SOURCE_SNAPSHOT C17_CAPTURE_DIR
+[ ! -e "$C17_SOURCE_SNAPSHOT" ]
+[ ! -e "$C17_CAPTURE_DIR" ]
+"${PYTHON}" tools/c17/shipped_closure.py --root . --snapshot "$C17_SOURCE_SNAPSHOT"
+"${PYTHON}" tools/run_logged_gate.py --label rp2040-c17-clean \
+    --evidence-root .build-logs --execution-lock .build-logs/rp2040-products.lock \
+    --idle-timeout-seconds 600 --timeout-seconds 600 \
+    -- bmake MACHINE=rp2040 clean cleankernel cleanfs
+bmake -j4 MACHINE=rp2040 logged-distribution
+"${PYTHON}" tools/c17/shipped_closure.py --root . \
+    --records "$C17_CAPTURE_DIR" --source-snapshot "$C17_SOURCE_SNAPSHOT" \
+    --manifest distrib/rp2040/_manifest \
+    --generated-inputs tools/c17/generated-inputs.json \
+    --clean-receipt .build-logs/rp2040-c17-clean.latest.json \
+    --distribution-receipt .build-logs/rp2040-distribution-local.latest.json \
+    --output .build-logs/c17-closure.json
+"${PYTHON}" tools/c17/shipped_resources.py capture --root . \
+    --closure .build-logs/c17-closure.json \
+    --distribution-receipt .build-logs/rp2040-distribution-local.latest.json \
+    --output .build-logs/c17-resources.json
+```
+
+Keep aggregate reports outside the command-capture directory. Use unique
+snapshot, capture and report names for each execution. Source or index changes
+require another frozen capture. Retain immutable invocation receipts rather
+than relying on latest pointers after later builds. `--require-language-acceptance`
+adds the separate language-closure gate and rejects open denominator rows.
+
+Run the sequence for clean parent and candidate distributions under identical
+toolchains and configurations, retaining each resource report. Compare with:
+
+```sh
+"${PYTHON}" tools/c17/shipped_resources.py compare \
+    --base parent-resources.json --candidate candidate-resources.json \
+    --output resource-delta.json
+```
+
+A same-source repeat calibrates reproducibility; it establishes no parent-to-
+candidate implementation delta. A comparison against artifacts lacking command
+and manifest provenance remains outside accepted paired resource evidence.
+Loaded text/data/BSS occupancy excludes measured runtime stack and heap, which
+retain explicit unmeasured states. A static fit result cannot admit a process.
+
+Packed-program block accounting includes the four direct addresses and the
+256-address single, double and triple indirect trees. Root totals come from
+fsutil's measured allocation summary. The closure checker repeats the tracked
+source/index snapshot check after graph resolution, so a concurrent tracked
+change also rejects the snapshot claim.
+
+Resource receipts measure installed native-development archives and startup
+objects as separate byte surfaces beside the packed programs. Comparisons bind
+hsaout, fsutil and objdump executable hashes in addition to compiler/linker
+versions, and record the collector source digest. Native archive-member growth
+uses the same review gate as linked program dependencies.
+
+Retained process-control and timeout measurements identify Git commits that
+contain their exact SHA-256-pinned source subsets. The donor gate validates
+those blobs and reports changed live paths. The retained-source commit does
+not identify unrecorded build inputs or replace the original measurement
+receipts. Live changes require their own compiler, behavior and resource gates;
+passing historical provenance establishes the historical record only. Firmware
+CI already fetches full history for the relocation verifier. A shallow local
+checkout must provide the pinned objects before the donor gate can pass.
+
+The capture prefix owns its trailing argument separator only when enabled.
+The disabled ELF2AOUT and OBJCOPY values remain exact executable paths for
+consumers that quote a path or pass it as one subprocess argument. Evaluated
+make-variable controls cover both disabled paths and enabled argv separation.
+
+The donor and multicall ledgers share `measurement_source_identity.py` for
+retained Git-blob validation. Multicall source hashes remain the recorded
+17-path subset at their retained-source commit; the live-map gate separately
+checks evaluated build membership, archive selections, packed sizes, block
+savings and root capacity. The generic Git-fixture controls calibrate both
+callers' retained-source boundary.

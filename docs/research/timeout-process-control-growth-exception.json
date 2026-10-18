@@ -233,5 +233,6 @@
     "Physical-board execution remains unrun and requires explicit owner authorization immediately before flash or serial access.",
     "Whole-program runtime stack and heap peaks remain unmeasured.",
     "The DPUCP timeout row remains partial and open until target execution evidence closes its residual."
-  ]
+  ],
+  "retained_source_commit": "1c172dd808b07f7a67cdb4583c37ca4c9503831e"
 }

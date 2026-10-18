@@ -191,11 +191,6 @@ check-unistd-prototypes:
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 	    -nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
 	    ${.CURDIR}/unistd_prototypes.c
-	${ARM_COMPILER} -std=c17 -pedantic-errors -Wall -Wextra -Werror \
-	    -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes \
-	    -fno-common -mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian \
-	    -mthumb -mfloat-abi=soft -ffreestanding -nostdinc \
-	    -isystem ${TOPSRC}/include -fsyntax-only ${TARGET_DIR}/alarm.c
 	@set -e; for function in fork getegid geteuid getgid getlogin getpgrp getpid sync \
 	    getppid getuid getusershell endusershell gethostid setusershell vfork; do \
 	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
@@ -220,11 +215,18 @@ ALARM_CFLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 ALARM_SOURCE_CFLAGS=	${ALARM_CFLAGS} -nostdinc \
 		-isystem ${TOPSRC}/include -Dalarm=db_alarm \
 		-Dsetitimer=test_setitimer
+ALARM_TARGET_CFLAGS=	${ALARM_CFLAGS} -fno-common -mcpu=cortex-m0plus \
+		-mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft \
+		-ffreestanding -nostdinc -isystem ${TOPSRC}/include
 
 check-alarm-contract: alarm_contract_test
 	${TEST_EXECUTION} run libc.alarm.native -- ./alarm_contract_test
 	${PYTHON} ${.CURDIR}/alarm_contract_mutate.py ${TOPSRC} \
 	    ${HOSTCC:Q} ${.CURDIR}/alarm_contract_test.c
+
+check-alarm-contract-cross:
+	${ARM_COMPILER} ${ALARM_TARGET_CFLAGS} -fsyntax-only \
+	    ${TARGET_DIR}/alarm.c
 
 alarm_contract_test: alarm_contract_test.c alarm_contract.o
 	${HOSTCC} ${ALARM_CFLAGS} -D_DEFAULT_SOURCE -o $@ \
@@ -1149,7 +1151,7 @@ all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
-	check-alarm-contract \
+	check-alarm-contract check-alarm-contract-cross \
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \

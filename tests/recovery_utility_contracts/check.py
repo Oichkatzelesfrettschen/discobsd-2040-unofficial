@@ -155,6 +155,21 @@ def check_realpath(binary, work_directory):
         "realpath -E canonicalizes a missing final component incorrectly",
     )
 
+    root_missing_path = Path(f"/.discobsd-realpath-missing-{os.getpid()}")
+    require(
+        not os.path.lexists(root_missing_path),
+        "realpath root-level missing fixture collides with an existing path",
+    )
+    result = run_program([str(binary), "-E", str(root_missing_path)])
+    require(
+        result.returncode == 0,
+        "realpath -E rejects a missing final component immediately below root",
+    )
+    require(
+        result.stdout == (str(root_missing_path) + "\n").encode(),
+        "realpath -E loses a missing basename immediately below root",
+    )
+
     result = run_program([str(binary), "-e", str(missing_path)])
     require(result.returncode != 0, "realpath -e accepts a missing final component")
     require(result.stdout == b"", "realpath -e writes stdout for a failed canonicalization")

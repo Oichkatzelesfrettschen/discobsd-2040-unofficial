@@ -112,12 +112,14 @@ resolve_missing_final(const char *path, char *resolved)
 				return -1;
 		} else {
 			base = slash + 1;
-			if (slash == current)
-				current[1] = '\0';
-			else
+			if (slash == current) {
+				if (realpath("/", resolved) == NULL)
+					return -1;
+			} else {
 				*slash = '\0';
-			if (realpath(current, resolved) == NULL)
-				return -1;
+				if (realpath(current, resolved) == NULL)
+					return -1;
+			}
 		}
 		if (*base == '\0') {
 			errno = ENOENT;

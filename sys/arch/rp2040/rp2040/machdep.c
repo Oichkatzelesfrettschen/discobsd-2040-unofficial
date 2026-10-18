@@ -30,6 +30,7 @@
 #include <machine/intr.h>
 #include <machine/mpu.h>
 #include <machine/scb.h>
+#include <machine/usercopy.h>
 #include <machine/watchdog.h>
 
 #include <rp2040/dev/uart.h>
@@ -896,18 +897,19 @@ strlen(const char *s)
 	return s - s0 - 1;
 }
 
-/*
- * Return 0 if a user address is valid.
- * There is only one memory region allowed for user: RAM.
- */
+/* Return nonzero unless the complete non-wrapping span is user-accessible. */
+static int
+baduaddr_span(caddr_t addr, u_int nbytes)
+{
+	return !rp2040_user_span_contains((u_int)__user_data_start,
+	    (u_int)USER_TOP(u.u_procp), (u_int)addr, nbytes);
+}
+
+/* Return 0 when one byte at addr is user-accessible. */
 int
 baduaddr(caddr_t addr)
 {
-	if (addr >= (caddr_t)__user_data_start &&
-	    addr < (caddr_t)USER_TOP(u.u_procp))
-		return 0;
-
-	return 1;
+	return baduaddr_span(addr, 1);
 }
 
 /*
@@ -1141,9 +1143,9 @@ int
 copyout(caddr_t from, caddr_t to, u_int nbytes)
 {
 	/* printf("copyout(from=%p, to=%p, nbytes=%u)\n", from, to, nbytes); */
-	if (nbytes == 0)	/* Else to + nbytes - 1 underflows to to - 1. */
+	if (nbytes == 0)
 		return 0;
-	if (baduaddr(to) || baduaddr(to + nbytes - 1))
+	if (baduaddr_span(to, nbytes))
 		return EFAULT;
 	bcopy(from, to, nbytes);
 
@@ -1153,9 +1155,9 @@ copyout(caddr_t from, caddr_t to, u_int nbytes)
 int
 copyin(caddr_t from, caddr_t to, u_int nbytes)
 {
-	if (nbytes == 0)	/* Else from + nbytes - 1 underflows to from - 1. */
+	if (nbytes == 0)
 		return 0;
-	if (baduaddr(from) || baduaddr(from + nbytes - 1))
+	if (baduaddr_span(from, nbytes))
 		return EFAULT;
 	bcopy(from, to, nbytes);
 

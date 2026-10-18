@@ -767,7 +767,7 @@ emulator behavior and board observations to their separate tests.
 
 ### The kernel's printf, and why it needs a narrower host
 
-`check-kernel-ilp32` is separate from `check-kernel` for seven files
+`check-kernel-ilp32` is separate from `check-kernel` for selected files
 that compile or hold only at the target's width. sys/kern/sys_generic.c
 is built again as rwuio_test32: off_t, size_t and u_int are all four
 bytes on the target, so the vector sum that wrapped there is reproduced
@@ -790,6 +790,13 @@ whole. A calibrated mutation bypasses the production single-process
 `cansignal()` decision and must fail the permission assertion with exit status
 1; compilation failure, a crash, or an unrelated assertion cannot satisfy the
 control.
+
+The same ILP32 tier extracts `baduaddr_span`, `baduaddr`, `copyin` and
+`copyout` from the exact RP2040 `machdep.c`. The fixture admits the first,
+last and full process-window spans, preserves zero-length success, rejects
+crossing and wrapped spans before `bcopy`, and exercises the conditional
+`USER_TOP` extension. Restoring the former first/last endpoint checks must
+fail the wraparound assertion with status 1.
 
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
 extent of `vm.swapmap` as a pointer difference held in an int and whose
@@ -1069,6 +1076,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-dhara-metadata` | the production Dhara `journal.c` metadata reader and flash driver's shared page-range predicate compiled as strict C17 under address and undefined-behavior sanitizers: valid buffered and NAND-backed user-page metadata reads; rejection of checkpoint and out-of-range page indexes, invalid shift geometry and metadata slices larger than the configured NAND page before buffer access or NAND calls; valid first/last NOR pages, rejected out-of-range page indexes and overflow-safe sub-page byte ranges; and a validator-bypass mutation calibrated to reproduce the checkpoint-slot stack-buffer-overread |
 | `check-dhara-amplification` | the vendored Dhara map and journal linked as strict C17 under address and undefined-behavior sanitizers against a counting NOR model with the `dev/flash.h` geometry and garbage-collection ratio: the derived geometry equals `sys/arch/rp2040/doc/dhara-geometry.txt`; from an empty journal, twenty isolated write+sync requests program eight Dhara pages each, and N writes followed by one sync program `8 * ceil(N / 7)` pages for every N from 1 to 21; every trace reads back. Traces at the `auto_gc()` threshold and at 100 to 50 percent live occupancy are printed, not asserted. A geometry table disagreeing with `flash.h`, a journal forced to two-page checkpoint groups and a `dhara_map_sync()` without its padding loop must each be rejected, the mutants by assertion status rather than a crash. It establishes the host model's page-program and erase counts, not chip command counts, timing or wear |
 | `check-namei-user-path` | the production `ufs_namei.c` pathname-copy helper compiles as strict C17 under address and undefined-behavior sanitizers; user paths use `copyin`, invalid pointers and a missing NUL at the process-window boundary return `EFAULT`, an in-range terminator at the boundary succeeds, a path without a terminator in `MAXPATHLEN` returns the existing `ENOENT`, kernel-owned paths retain `copystr`, and a direct-copy mutation fails the boundary oracle |
+| `check-rp2040-usercopy-span` | The portable RP2040 span predicate compiles with warnings as errors under host GCC, host Clang, Arm GCC and Arm Clang strict C17 profiles; host GCC also executes the fixture under address, undefined-behavior and alignment sanitizers, and exact PICO and PICO_UART GNU17 commands compile `machdep.c`. The fixture pins repeated inclusion, the exact function type, ordered bounds, empty and full spans, the last byte, a crossing span, the reproduced 32-bit wraparound and malformed bounds. A wrapped-end predicate and a removed include guard calibrate rejection. The companion `check-kernel-ilp32` execution extracts the production copy functions and proves that rejected spans publish zero `bcopy` calls. These host and compiler gates establish the exercised arithmetic and publication contract; MPU enforcement, runtime resource peaks and board behavior remain separate. |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |
 

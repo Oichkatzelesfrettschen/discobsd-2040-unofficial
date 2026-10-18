@@ -1008,6 +1008,39 @@ class ExecutionTest(unittest.TestCase):
             observed.extend(re.findall(r"\brun ([a-z0-9_.-]+) --", contents))
         self.assertCountEqual(observed, variants)
 
+    def test_printf_variants_are_owned_by_detached_aggregate(self):
+        root_makefile = (execution.ROOT / "Makefile").read_text()
+        logical_makefile = root_makefile.replace("\\\n", " ")
+        declaration = re.search(
+            r"^check-ilp32-execution-recipes:[^\n]*$",
+            logical_makefile,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(declaration)
+        prerequisites = set(declaration.group(0).split())
+        expected_targets = {
+            "check-printf-contracts",
+            "check-printf-contracts-ilp32",
+        }
+        self.assertTrue(
+            expected_targets <= prerequisites,
+            expected_targets - prerequisites,
+        )
+
+        inventory_document = json.loads(execution.INVENTORY.read_text())
+        recorded_targets = set()
+        for edge in inventory_document["edges"]:
+            if edge["from"] != inventory_document["aggregate"]:
+                continue
+            targets = edge["to"]
+            recorded_targets.update(
+                targets if isinstance(targets, list) else [targets]
+            )
+        self.assertTrue(
+            expected_targets <= recorded_targets,
+            expected_targets - recorded_targets,
+        )
+
     def test_array_memory_cross_gate_is_aggregate_owned(self):
         result = subprocess.run(
             ["bmake", "-C", str(execution.ROOT), "-V", "CROSS_COMPOSITION_GATES"],

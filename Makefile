@@ -991,7 +991,8 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
 		check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
-		check-libtcl-contracts check-printf-contracts-ilp32
+		check-libtcl-contracts check-printf-contracts \
+		check-printf-contracts-ilp32
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py

@@ -85,6 +85,14 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-ilp32-execution-recipes",
+      "to": [
+        "check-printf-contracts",
+        "check-printf-contracts-ilp32"
+      ],
+      "kind": "required utility printf variants"
+    },
+    {
       "from": "check-libc-zone",
       "to": "tests/libc_contracts:check-zone",
       "kind": "recursive make"

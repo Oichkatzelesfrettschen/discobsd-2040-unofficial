@@ -30,7 +30,7 @@
 
 /*
  * The variable below caches the name of the current working directory
- * in order to avoid repeated calls to getwd.  The string is malloc-ed.
+ * in order to avoid repeated calls to getcwd.  The string is malloc-ed.
  * NULL means the cache needs to be refreshed.
  */
 
@@ -1158,14 +1158,7 @@ Tcl_PwdCmd(dummy, interp, argc, argv)
 	return TCL_ERROR;
     }
     if (currentDir == NULL) {
-#if TCL_GETWD
-	if (getwd(buffer) == NULL) {
-	    Tcl_AppendResult(interp, "error getting working directory name: ",
-		    buffer, (char *) NULL);
-	    return TCL_ERROR;
-	}
-#else
-	if (getwd(buffer) == NULL) {
+	if (getcwd(buffer, sizeof(buffer)) == NULL) {
 	    if (errno == ERANGE) {
 		interp->result = "working directory name is too long";
 	    } else {
@@ -1175,7 +1168,6 @@ Tcl_PwdCmd(dummy, interp, argc, argv)
 	    }
 	    return TCL_ERROR;
 	}
-#endif
 	currentDir = (char *) malloc((unsigned) (strlen(buffer) + 1));
 	strcpy(currentDir, buffer);
     }

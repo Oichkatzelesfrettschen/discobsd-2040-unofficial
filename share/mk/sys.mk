@@ -67,7 +67,19 @@ KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 # old-style definitions are gone. GCC 15 and later default to C23. The dialect
 # and tentative-definition policy ride on CC because several Makefiles replace
 # CFLAGS outright.
-CC=		${GCCPREFIX}-gcc ${WARNERR} -std=gnu17 -fno-common \
+# Capture records executed argv and compiler dependencies without changing the
+# default tool commands. The caller owns one absolute invocation directory.
+C17_CAPTURE_PREFIX=
+.if defined(C17_CAPTURE_DIR) && !empty(C17_CAPTURE_DIR)
+.if empty(PYTHON)
+.error C17 capture requires caller-selected PYTHON
+.endif
+C17_CAPTURE_PREFIX= ${PYTHON} ${TOPSRC}/tools/c17/record_tool.py \
+    --root ${TOPSRC} --records ${C17_CAPTURE_DIR} --
+.export C17_CAPTURE_DIR
+.endif
+
+CC=		${C17_CAPTURE_PREFIX} ${GCCPREFIX}-gcc ${WARNERR} -std=gnu17 -fno-common \
 		${MACHINE_ARCH_FLAGS} ${KERNEL_LAYOUT_CFLAGS} \
 		-nostdinc -I${TOPSRC}/include ${INCLUDES}
 
@@ -143,9 +155,9 @@ YACC!=	if command -v byacc >/dev/null 2>&1 ; then \
 
 YFLAGS=	-d
 
-LD=		${GCCPREFIX}-ld
-AR=		${GCCPREFIX}-ar
-RANLIB=		${GCCPREFIX}-ranlib
+LD=		${C17_CAPTURE_PREFIX} ${GCCPREFIX}-ld
+AR=		${C17_CAPTURE_PREFIX} ${GCCPREFIX}-ar
+RANLIB=		${C17_CAPTURE_PREFIX} ${GCCPREFIX}-ranlib
 SIZE=		${GCCPREFIX}-size
 AS=		${CC} -x assembler-with-cpp -c
 
@@ -170,7 +182,7 @@ EX!=		if command -v ex >/dev/null 2>&1 ; then \
 			echo 'vim -es -u NONE' ; \
 		fi
 
-ELF2AOUT=	${TOOLBINDIR}/elf2aout
+ELF2AOUT=	${C17_CAPTURE_PREFIX} ${TOOLBINDIR}/elf2aout
 
 AOUT_AR=	${TOOLBINDIR}/ar
 AOUT_AS=	${TOOLBINDIR}/as

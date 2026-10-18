@@ -144,6 +144,12 @@ def classify(stem):
 
 
 def run(cmd, **kw):
+    capture_directory = os.environ.get("C17_CAPTURE_DIR")
+    if capture_directory:
+        cmd = [
+            sys.executable, os.path.join(TOPSRC, "tools/c17/record_tool.py"),
+            "--root", TOPSRC, "--records", capture_directory,
+        ] + (["--stdout-file", kw["stdout"].name] if "stdout" in kw else []) + ["--"] + cmd
     subprocess.run(cmd, check=True, **kw)
 
 

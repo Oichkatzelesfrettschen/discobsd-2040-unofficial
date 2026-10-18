@@ -1,0 +1,100 @@
+{
+  "bin/expr/y.tab.c": [
+    "bin/expr/Makefile",
+    "bin/expr/expr.y"
+  ],
+  "games/gamebox/gamebox.c": [
+    "games/gamebox/Makefile",
+    "games/gamebox/gamebox.c.in"
+  ],
+  "games/gamebox/multicall-bss-overlay.ld": [
+    "games/gamebox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/adminbox/adminbox.c": [
+    "sbin/adminbox/Makefile",
+    "sbin/adminbox/adminbox.c.in"
+  ],
+  "sbin/adminbox/multicall-bss-overlay.ld": [
+    "sbin/adminbox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/box/box.c": [
+    "sbin/box/Makefile",
+    "sbin/box/box.c.in"
+  ],
+  "sbin/box/multicall-bss-overlay.ld": [
+    "sbin/box/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/grepbox/grepbox.c": [
+    "sbin/grepbox/Makefile",
+    "sbin/grepbox/grepbox.c.in"
+  ],
+  "sbin/grepbox/multicall-bss-overlay.ld": [
+    "sbin/grepbox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/sysbox/multicall-bss-overlay.ld": [
+    "sbin/sysbox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/sysbox/sysbox.c": [
+    "sbin/sysbox/Makefile",
+    "sbin/box/box.c.in"
+  ],
+  "sbin/textbox/multicall-bss-overlay.ld": [
+    "sbin/textbox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/textbox/textbox.c": [
+    "sbin/textbox/Makefile",
+    "sbin/textbox/textbox.c.in"
+  ],
+  "sbin/utilbox/multicall-bss-overlay.ld": [
+    "sbin/utilbox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "sbin/utilbox/utilbox.c": [
+    "sbin/utilbox/Makefile",
+    "sbin/utilbox/utilbox.c.in"
+  ],
+  "sys/arch/rp2040/compile/PICO/vers.c": [
+    "sys/conf/newvers.sh"
+  ],
+  "sys/arch/rp2040/compile/PICO_UART/vers.c": [
+    "sys/conf/newvers.sh"
+  ],
+  "usr.bin/awk/awk.h": [
+    "usr.bin/awk/Makefile",
+    "usr.bin/awk/awk.g.y"
+  ],
+  "usr.bin/awk/lex.yy.c": [
+    "usr.bin/awk/Makefile",
+    "usr.bin/awk/awk.lx.l"
+  ],
+  "usr.bin/awk/proctab.c": [
+    "usr.bin/awk/Makefile",
+    "usr.bin/awk/proc.c",
+    "usr.bin/awk/awk.g.y",
+    "usr.bin/awk/tokenscript"
+  ],
+  "usr.bin/awk/y.tab.c": [
+    "usr.bin/awk/Makefile",
+    "usr.bin/awk/awk.g.y"
+  ]
+}

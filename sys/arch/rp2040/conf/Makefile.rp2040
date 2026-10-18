@@ -188,7 +188,7 @@ boot2.bin: boot2.elf
 	${OBJCOPY} -O binary boot2.elf $@
 
 boot2.S: boot2.bin ${BOOT2SUM}
-	${BOOT2SUM} boot2.bin $@
+	${C17_CAPTURE_PREFIX} ${BOOT2SUM} boot2.bin $@
 
 boot2.o: boot2.S
 	${COMPILE_S}

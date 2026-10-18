@@ -16,7 +16,7 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-OBJCOPY=	${GCCPREFIX}-objcopy
+OBJCOPY=	${C17_CAPTURE_PREFIX} ${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.

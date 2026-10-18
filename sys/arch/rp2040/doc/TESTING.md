@@ -1365,3 +1365,135 @@ the aggregate check and Linux/macOS firmware CI run it without racing other
 kernel inspections. It neither
 flashes a board nor measures a workload; STORAGE.md describes how to interpret
 the read-only counters.
+
+### Executed tool capture
+
+`check-c17-tool-capture` belongs to the cross tier and firmware CI's
+`check-cross` invocation. Thirteen real ARM-toolchain fixtures establish compiler
+header discovery, unchanged object bytes, original dependency-file retention,
+failed-command attribution, generated stdin identity, selected archive members,
+configuration separation, in-place object-transform identities, output-path
+confinement, response-input rejection and forwarded query stdout. The fixtures
+execute host tool processes; they do not execute the resulting ARM image.
+
+`C17_CAPTURE_DIR` opts userland, kernel, multicall and board-libc tool paths
+into `tools/c17/record_tool.py`. The caller supplies an absolute, fresh capture
+directory and PYTHON. The wrapper forwards argv without a shell, retains
+compiler dependencies and output bytes, and saves final link maps before ELF
+cleanup. Existing dependency destinations and map destinations remain available.
+The wrapper rejects unsupported response input before execution. A tool failure
+retains its exit status and carries no successful-output claim; a capture error
+fails the build even when the tool itself returned zero. Default builds omit
+the wrapper. A complete shipped-source claim additionally requires clean-build
+coverage, manifest membership, archive provenance and generated-input edges;
+the wrapper's fixture gate alone establishes none of those aggregate states.
+
+The same cross gate runs twenty-one shipped-closure fixtures against real ARM
+compiler and archive output. An executable includes its selected archive
+member; an installed development archive includes all members. Missing
+producers, changed headers/artifacts, damaged retained outputs, a dependency
+row removed from the compiler's recorded dependency set, missing denominator
+rows and open language acceptance reject closure. Equal object bytes under
+multiple source names retain every possible owner conservatively.
+
+Eighteen resource fixtures calibrate kernel flash initializers, SRAM region
+coverage and overlap, loaded a.out BSS, exact manifest membership, root free
+capacity, per-program growth, archive-member changes, executor provenance,
+matched toolchains and explicit unmeasured runtime states. The resource
+comparer writes all deltas and returns failure for positive constrained-surface
+consumption. A changed archive-member set is reported even when final sizes
+remain equal; an added dependency requires measured review and rejects default
+acceptance. Static resource acceptance leaves runtime stack, heap and storage
+traffic open; those measurements require separate calibrated receipts.
+
+A complete manifest capture additionally binds a tracked-file/index snapshot,
+a successful logged `clean cleankernel cleanfs` invocation, and the subsequent
+successful logged distribution. The checker verifies their ordering, immutable
+status receipts and log digests, resolves every packed executable and installed
+archive, and preserves PICO/PICO_UART as separate configurations. Generator
+provider records remain explicit, and generated C/header language acceptance
+stays open until its separate compiler/semantic obligation is recorded.
+
+Capture receipts bind every selected producer to the logged execution ownership
+invocation and `C17_SOURCE_SNAPSHOT` digest. A fresh capture exports that
+snapshot path alongside `C17_CAPTURE_DIR`. Link receipts retain the archive
+bytes selected through explicit filenames, `-l` lookup and linker maps. The
+closure checker rejects an archive replaced outside recorded producer commands.
+Tracked linker scripts remain inputs rather than generated outputs; separated,
+attached and compiler-forwarded script options retain their source identities.
+Nested linker INCLUDE directives require an explicit capture adapter and are
+rejected by the current wrapper. Installed native startup objects join archives
+and packed programs in the manifest denominator. Resource capture requires the
+same immutable distribution receipt and manifest digest as dependency closure.
+
+The image builder creates multicall hardlinks inside the filesystem image;
+standalone files in DESTDIR remain independent build products. Closure checks
+`fsutil -vvv` inode identities for every manifest alias and binds the resulting
+image digest to resource capture. The native libc archive uses the BSD a.out
+ranlib index; closure reads that format with the repository's host-built `ar`
+and excludes the index from the source-member denominator. Generated multicall
+linker fragments retain their Makefile, generator and verifier providers.
+
+For a complete local capture, start with staged, stable source and a fresh
+capture directory. Select PYTHON in the caller, then run from the checkout:
+
+```sh
+set -eu
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
+C17_SOURCE_SNAPSHOT="$(pwd)/.build-logs/c17-source.json"
+C17_CAPTURE_DIR="$(pwd)/.build-logs/c17-command-capture"
+export C17_SOURCE_SNAPSHOT C17_CAPTURE_DIR
+[ ! -e "$C17_SOURCE_SNAPSHOT" ]
+[ ! -e "$C17_CAPTURE_DIR" ]
+"${PYTHON}" tools/c17/shipped_closure.py --root . --snapshot "$C17_SOURCE_SNAPSHOT"
+"${PYTHON}" tools/run_logged_gate.py --label rp2040-c17-clean \
+    --evidence-root .build-logs --execution-lock .build-logs/rp2040-products.lock \
+    --idle-timeout-seconds 600 --timeout-seconds 600 \
+    -- bmake MACHINE=rp2040 clean cleankernel cleanfs
+bmake -j4 MACHINE=rp2040 logged-distribution
+"${PYTHON}" tools/c17/shipped_closure.py --root . \
+    --records "$C17_CAPTURE_DIR" --source-snapshot "$C17_SOURCE_SNAPSHOT" \
+    --manifest distrib/rp2040/_manifest \
+    --generated-inputs tools/c17/generated-inputs.json \
+    --clean-receipt .build-logs/rp2040-c17-clean.latest.json \
+    --distribution-receipt .build-logs/rp2040-distribution-local.latest.json \
+    --output .build-logs/c17-closure.json
+"${PYTHON}" tools/c17/shipped_resources.py capture --root . \
+    --closure .build-logs/c17-closure.json \
+    --distribution-receipt .build-logs/rp2040-distribution-local.latest.json \
+    --output .build-logs/c17-resources.json
+```
+
+Keep aggregate reports outside the command-capture directory. Use unique
+snapshot, capture and report names for each execution. Source or index changes
+require another frozen capture. Retain immutable invocation receipts rather
+than relying on latest pointers after later builds. `--require-language-acceptance`
+adds the separate language-closure gate and rejects open denominator rows.
+
+Run the sequence for clean parent and candidate distributions under identical
+toolchains and configurations, retaining each resource report. Compare with:
+
+```sh
+"${PYTHON}" tools/c17/shipped_resources.py compare \
+    --base parent-resources.json --candidate candidate-resources.json \
+    --output resource-delta.json
+```
+
+A same-source repeat calibrates reproducibility; it establishes no parent-to-
+candidate implementation delta. A comparison against artifacts lacking command
+and manifest provenance remains outside accepted paired resource evidence.
+Loaded text/data/BSS occupancy excludes measured runtime stack and heap, which
+retain explicit unmeasured states. A static fit result cannot admit a process.
+
+Packed-program block accounting includes the four direct addresses and the
+256-address single, double and triple indirect trees. Root totals come from
+fsutil's measured allocation summary. The closure checker repeats the tracked
+source/index snapshot check after graph resolution, so a concurrent tracked
+change also rejects the snapshot claim.
+
+Resource receipts measure installed native-development archives and startup
+objects as separate byte surfaces beside the packed programs. Comparisons bind
+hsaout, fsutil and objdump executable hashes in addition to compiler/linker
+versions, and record the collector source digest. Native archive-member growth
+uses the same review gate as linked program dependencies.

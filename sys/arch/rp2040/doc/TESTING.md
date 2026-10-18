@@ -65,9 +65,9 @@ during registration stops the launched process group before the supervisor
 returns.
 The supervisor caps each idle selector wait at 100 milliseconds independently
 of output and heartbeat deadlines. After observing leader exit, the supervisor
-drains ready output against a 200-millisecond deadline and enters the existing
-bounded process-group cleanup even when a descendant still holds the
-combined-output pipe open.
+drains ready output and waits for signal wakeups against a 200-millisecond
+deadline before entering the existing bounded process-group cleanup when a
+descendant still holds the combined-output pipe open.
 Every termination path makes a bounded attempt to terminate and reap its owned
 process group, and every wait after SIGKILL carries a finite cleanup deadline.
 If the process leader cannot be reaped or any member of the process group

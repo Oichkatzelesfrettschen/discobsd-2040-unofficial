@@ -325,6 +325,21 @@
       "from": "check-sysctl-status",
       "to": "tests/sysctl_status:check",
       "kind": "recursive make"
+    },
+    {
+      "from": "check-host",
+      "to": "check-recovery-utility-contracts",
+      "kind": "expanded prerequisite"
+    },
+    {
+      "from": "check-recovery-utility-contracts",
+      "to": "tests/recovery_utility_contracts:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-recovery-utility-contracts",
+      "kind": "required recovery utility variants"
     }
   ],
   "optional_investigations": [
@@ -807,6 +822,51 @@
       "subject": "tests/printf_contracts/printf_host_sanitized",
       "aliases": [
         "check-printf-contracts"
+      ]
+    },
+    {
+      "id": "utility.recovery.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/recovery_utility_contracts",
+      "makefile": "tests/recovery_utility_contracts/Makefile",
+      "target": "check-native",
+      "root_target": "check-recovery-utility-contracts",
+      "program": "sh",
+      "condition": "unconditional",
+      "prerequisites": [
+        "check.py",
+        "known_bad.c",
+        "realpath_legacy_guard.c",
+        "run.sh"
+      ],
+      "recipe": "${TEST_EXECUTION} run utility.recovery.native -- sh ./run.sh native ${HOSTCC} ${TOPSRC}",
+      "script": "tests/recovery_utility_contracts/run.sh",
+      "aliases": [
+        "check-recovery-utility-contracts"
+      ]
+    },
+    {
+      "id": "utility.recovery.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/recovery_utility_contracts",
+      "makefile": "tests/recovery_utility_contracts/Makefile",
+      "target": "check-sanitized",
+      "root_target": "check-recovery-utility-contracts",
+      "program": "sh",
+      "condition": "SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined sanitizers",
+      "prerequisites": [
+        "check.py",
+        "known_bad.c",
+        "run.sh"
+      ],
+      "recipe": "${TEST_EXECUTION} run utility.recovery.sanitized -- sh ./run.sh sanitized ${HOSTCC} ${TOPSRC}",
+      "script": "tests/recovery_utility_contracts/run.sh",
+      "aliases": [
+        "check-recovery-utility-contracts"
       ]
     },
     {

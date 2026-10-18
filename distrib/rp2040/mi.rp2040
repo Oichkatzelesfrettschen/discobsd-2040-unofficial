@@ -346,6 +346,10 @@ link /usr/bin/uuencode
 target /usr/bin/textbox
 link /usr/bin/uudecode
 target /usr/bin/textbox
+link /usr/bin/readlink
+target /usr/bin/textbox
+link /usr/bin/realpath
+target /usr/bin/textbox
 link /usr/bin/fold
 target /usr/bin/textbox
 link /usr/bin/rev

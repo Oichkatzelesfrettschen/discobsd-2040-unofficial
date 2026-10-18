@@ -54,8 +54,25 @@ local collector mutations calibrate the internal-archive and path-ownership
 controls by dropping non-libc selections and admitting parent-directory paths.
 The known-good collector passes both deciding tests.
 
-The clean parent at `5c5f1b26` supplies 36 closure groups and 68 selected archive
-entries. The schema-2 collector successfully remeasured those artifacts.
-Paired candidate resource acceptance and the logged aggregate remain the
-integration gates for the unit. Runtime stack, heap, storage traffic and
-hardware qualification retain their independent acceptance states.
+The clean parent at `5c5f1b260594b9509b04663836dc966f82691dbb` and candidate at
+`fa25f1e30efc6ca901fc37883f6e671e8e52c5c6` each supply 36 closure groups and 68
+selected archive entries. The schema-2 collector remeasured the preserved parent
+artifacts before candidate cleaning. Both captures use collector SHA-256
+`5a7b5a1073eb2caf445bfed4bd4c556879bd44e1cf27482b6df46ebe528b3e1f`.
+The paired comparison reports 154 zero numeric deltas and unchanged archive
+identities, selected member names and selected member hashes in every group.
+Both captures retain 2,459 compiler records with equal evaluated-command
+multisets and matching compiler executable hashes. Clean distributions passed
+in 312.6 seconds for the parent and 138.9 seconds for the candidate; elapsed
+build time serves as execution context, rather than a performance claim.
+
+The retained schema-2 parent receipt has SHA-256
+`6ed88d5f9234fd80d4810e614e9efc41f5ea4637ee9a76192b68ccb120bbba75`;
+the candidate receipt has SHA-256
+`382f4a3f4a320ffd7c5ae4107ec1f8a5fd152e30133a5e9e2464f4956c3369c9`.
+The comparison receipt has SHA-256
+`c9922e8f2a37fc99ecfca6d809d3d2b7309ad6d45e8df05705d099894e9a8a13`.
+Raw captures, both measured root images and the command comparison remain
+retained with the unit's integration evidence. The logged aggregate remains
+an integration gate. Runtime stack, heap, storage traffic and hardware
+qualification retain their independent acceptance states.

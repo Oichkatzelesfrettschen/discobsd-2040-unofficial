@@ -59,7 +59,8 @@ grepbox.c:	grepbox.c.in Makefile
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" grepbox.c.in > $@
 
 ${PROG}:	grepbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf grepbox.o ${OBJS} ${LIBS}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} \
+	    -o $@.elf grepbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

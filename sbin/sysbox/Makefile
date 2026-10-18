@@ -51,7 +51,8 @@ sysbox.c:	../box/box.c.in Makefile
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" ../box/box.c.in > $@
 
 ${PROG}:	sysbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf sysbox.o ${OBJS} ${LIBS}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} \
+	    -o $@.elf sysbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

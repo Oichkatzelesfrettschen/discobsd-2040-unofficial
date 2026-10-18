@@ -7,6 +7,8 @@ fail()
 	exit 1
 }
 
+logname_program=${LOGNAME_PROGRAM:-./logname}
+
 output=$(./whoami)
 [ "$output" = "effective-user" ] || fail "whoami effective identity"
 
@@ -16,7 +18,7 @@ output=$(./groups)
 output=$(./groups alice)
 [ "$output" = "staff extra" ] || fail "groups named membership"
 
-output=$(./logname)
+output=$("$logname_program")
 [ "$output" = "session-login" ] || fail "logname session identity"
 
 output=$(./id_host -un)
@@ -38,7 +40,7 @@ case "$output" in
 *) fail "groups usage diagnostic" ;;
 esac
 
-if output=$(TEST_GETLOGIN_FAIL=1 ./logname 2>&1); then
+if output=$(TEST_GETLOGIN_FAIL=1 "$logname_program" 2>&1); then
 	fail "logname accepts a missing login session"
 fi
 case "$output" in

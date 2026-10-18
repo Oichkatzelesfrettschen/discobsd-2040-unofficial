@@ -690,6 +690,30 @@ check-run-logging: check-python
 
 .PHONY: check-run-logging
 
+# Relink every shipped multicall executable through the shared map seam before
+# the finite ledger compares dispatch names, manifest links, libc members and
+# packed-root arithmetic. The maps remain ignored build evidence.
+check-multicall-composition: check-python .WAIT symlinks
+		@set -eu; \
+		map_root=${TOPSRC}/.build-logs/multicall-link-maps; \
+		mkdir -p "$$map_root"; \
+		for specification in \
+		    sbin/box:box sbin/sysbox:sysbox sbin/adminbox:adminbox \
+		    sbin/textbox:textbox sbin/utilbox:utilbox \
+		    sbin/grepbox:grepbox games/gamebox:gamebox; do \
+			directory=$${specification%%:*}; \
+			program=$${specification#*:}; \
+			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} \
+			    LINK_MAP="$$map_root/$$program.map" all; \
+		done
+		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean all \
+		    LINK_MAP="${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
+		${PYTHON} tools/check_multicall_composition.py --root ${TOPSRC} \
+		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps
+		${PYTHON} tools/check_multicall_composition_test.py
+
+.PHONY: check-multicall-composition
+
 check-graft-cache-reader: check-python
 		${PYTHON} -B tools/graft_cache_reader_test.py
 
@@ -902,7 +926,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 # Composition gates clean and relink shared program directories, so the cross
 # graph runs them after the parallel read-only contract group.
 CROSS_COMPOSITION_GATES=	check-libc-array-memory-line-cross \
-		check-timeout-target-link
+		check-timeout-target-link check-multicall-composition
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:

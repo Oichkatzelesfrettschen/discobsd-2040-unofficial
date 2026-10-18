@@ -33,10 +33,6 @@ ALIASES=
 OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		textbox
 
-.if defined(LINK_MAP) && !empty(LINK_MAP)
-LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
-.endif
-
 all:		${PROG}
 include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 

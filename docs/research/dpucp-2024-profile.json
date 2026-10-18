@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "d77f4821a89aea0d86be6f6c9ff81898f1be9be27b1a0c2e50f8653975e09b30"
+    "ordered_row_sha256": "687a536dfd6d4e73c7387226dbdebc487c7e092674d1726ca1c5210c09763525"
   },
   "state_counts": {
     "applicability": {
@@ -52,14 +52,14 @@
     },
     "implementation": {
       "present": 1,
-      "partial": 51,
-      "absent": 1466,
+      "partial": 52,
+      "absent": 1465,
       "divergent": 0
     },
     "evidence": {
-      "none": 1466,
+      "none": 1465,
       "static": 39,
-      "host": 13,
+      "host": 14,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -131,6 +131,12 @@
       "evidence": "host",
       "known_good": "tests/timeout_contracts/behavior_test.py",
       "known_bad": "tests/timeout_contracts/known_bad.c"
+    },
+    "logname-host-multicall-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-id-aliases check-multicall-composition",
+      "evidence": "host",
+      "known_good": "tests/id_aliases/check.sh",
+      "known_bad": "tests/id_aliases/logname_effective_user_bad.sh"
     }
   },
   "growth_policy": {

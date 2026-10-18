@@ -8,8 +8,7 @@
 /* ========	storage allocation	======== */
 
 char *
-getstak(asize)			/* allocate requested stack */
-int	asize;
+getstak(int asize)
 {
 	register char	*oldstak;
 	register int	size;
@@ -25,7 +24,7 @@ int	asize;
  * should be followed by `endstak'
  */
 char *
-locstak()
+locstak(void)
 {
 	if (brkend - stakbot < BRKINCR)
 	{
@@ -38,15 +37,14 @@ locstak()
 }
 
 char *
-savstak()
+savstak(void)
 {
 	assert(staktop == stakbot);
 	return(stakbot);
 }
 
 char *
-endstak(argp)		/* tidy up after `locstak' */
-register char	*argp;
+endstak(char *argp)
 {
 	register char	*oldstak;
 
@@ -57,8 +55,7 @@ register char	*argp;
 }
 
 void
-tdystak(x)		/* try to bring stack back to x */
-register char	*x;
+tdystak(char *x)
 {
 	while ((char *)(stakbsy) > (char *)(x))
 	{
@@ -66,19 +63,18 @@ register char	*x;
 		stakbsy = stakbsy->word;
 	}
 	staktop = stakbot = max((char *)(x), (char *)(stakbas));
-	rmtemp(x);
+	rmtemp((struct ionod *)x);
 }
 
 void
-stakchk()
+stakchk(void)
 {
 	if ((brkend - stakbas) > BRKINCR + BRKINCR)
 		setbrk(-BRKINCR);
 }
 
 char *
-cpystak(x)
-char	*x;
+cpystak(char *x)
 {
 	return(endstak(movstr(x, locstak())));
 }

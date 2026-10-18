@@ -3,18 +3,16 @@
  *
  * Bell Telephone Laboratories
  */
-#include "defs.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/dir.h>
+#include "defs.h"
 
 #ifdef SH_HOST_RAWDIR
 #define read_directory_block sh_host_getdents
 #else
 #define read_directory_block read
 #endif
-
-struct direct           *getdir();
 
 static char             entry[MAXNAMLEN+1];
 
@@ -23,8 +21,7 @@ static DIR dirbuf;
 #define XXX 0200
 
 static void
-addg(as1, as2, as3)
-char    *as1, *as2, *as3;
+addg(char *as1, char *as2, char *as3)
 {
 	register char   *s1, *s2;
 	register int    c;
@@ -49,7 +46,7 @@ char    *as1, *as2, *as3;
 		while ((*s2++ = *++s1))
 			;
 	}
-	makearg(endstak(s2));
+	makearg((struct argnod *)endstak(s2));
 }
 
 /*
@@ -62,9 +59,7 @@ char    *as1, *as2, *as3;
  *
  */
 int
-expand(as, rcnt)
-	char    *as;
-	int     rcnt;
+expand(char *as, int rcnt)
 {
 	int     count, dirf;
 	BOOL    dir = 0;
@@ -227,7 +222,7 @@ expand(as, rcnt)
 
 
 void
-reset_dir()
+reset_dir(void)
 {
 	dirbuf.dd_loc = 0;
 }
@@ -240,8 +235,7 @@ reset_dir()
  */
 
 struct direct *
-getdir(dirf)
-	int     dirf;
+getdir(int dirf)
 {
 	struct direct *dp;
 	for (;;) {
@@ -268,8 +262,7 @@ getdir(dirf)
 
 
 int
-gmatch(s, p)
-register char   *s, *p;
+gmatch(char *s, char *p)
 {
 	register int    scc;
 	char            c;
@@ -363,8 +356,7 @@ register char   *s, *p;
 }
 
 void
-makearg(args)
-	register struct argnod *args;
+makearg(struct argnod *args)
 {
 	args->argnxt = gchain;
 	gchain = args;

@@ -8,10 +8,10 @@
  * Backwards compatible alarm.
  */
 #include <sys/time.h>
+#include <unistd.h>
 
-int
-alarm(secs)
-	int secs;
+unsigned int
+alarm(unsigned int secs)
 {
 	struct itimerval it, oitv;
 	register struct itimerval *itp = &it;
@@ -20,8 +20,8 @@ alarm(secs)
 	itp->it_value.tv_sec = secs;
 	itp->it_value.tv_usec = 0;
 	if (setitimer(ITIMER_REAL, itp, &oitv) < 0)
-		return (-1);
-	if (oitv.it_value.tv_usec)
+		return ((unsigned int)-1);
+	if (oitv.it_value.tv_usec != 0)
 		oitv.it_value.tv_sec++;
-	return (oitv.it_value.tv_sec);
+	return ((unsigned int)oitv.it_value.tv_sec);
 }

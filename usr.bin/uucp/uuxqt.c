@@ -182,7 +182,7 @@ doprocess:
 	while (gtxfile(xfile) > 0) {
 		/* if /etc/nologin exists, exit cleanly */
 #if defined(BSD4_2) || defined(USG)
-		if (access(NOLOGIN) == 0) {
+		if (access(NOLOGIN, F_OK) == 0) {
 #else
 		ultouch();
 		if (nologinflag) {

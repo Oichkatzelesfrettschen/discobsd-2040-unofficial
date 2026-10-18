@@ -34,8 +34,7 @@ static char promptuser[32];
 static char prompthost[32];
 
 static char *
-promptexpand(ps1)
-	char *ps1;
+promptexpand(char *ps1)
 {
 	char *cwd;
 	char *home = homenod.namval;
@@ -108,18 +107,12 @@ static char     *mailp;
 static long     *mod_time = (long *)NIL;
 
 
-extern char     *simple();
-
 static void      exfile(BOOL);
-void             chkpr();
-void             settmp();
-void             Ldup(int, int);
-void             chkmail();
-void             setmail(char *);
+static void Ldup(int fa, int fb);
+static void chkmail(void);
 
 static void
-exfile(prof)
-BOOL    prof;
+exfile(BOOL prof)
 {
 	volatile long mailtime = 0;
 	long    curtime = 0;
@@ -244,16 +237,13 @@ BOOL    prof;
 
 		flags &= ~waiting;
 
-		execute(cmd(NL, MTFLG), 0, eflag);
+		execute(cmd(NL, MTFLG), 0, eflag, NIL, NIL);
 		eof |= (flags & oneflg);
 	}
 }
 
 int
-main(c, v, e)
-int     c;
-char    **v;
-char    **e;
+main(int c, char **v, char **e)
 {
 	volatile int    rflag = ttyflg;
 	volatile int    rsflag = 1;     /* local restricted flag */
@@ -394,23 +384,22 @@ char    **e;
 }
 
 void
-chkpr()
+chkpr(void)
 {
 	if ((flags & prompt) && standin->fstak == NIL)
 		prs(ps2nod.namval);
 }
 
 void
-settmp()
+settmp(void)
 {
 	itos(getpid());
 	serial = 0;
 	tmpnam = movstr(numbuf, &tmpout[TMPNAM]);
 }
 
-void
-Ldup(fa, fb)
-register int    fa, fb;
+static void
+Ldup(int fa, int fb)
 {
 #ifdef RES
 
@@ -427,8 +416,8 @@ register int    fa, fb;
 #endif
 }
 
-void
-chkmail()
+static void
+chkmail(void)
 {
 	register char   *s = mailp;
 	register char   *save;
@@ -492,8 +481,7 @@ chkmail()
 }
 
 void
-setmail(mailpath)
-	char *mailpath;
+setmail(char *mailpath)
 {
 	register char   *s = mailpath;
 	register int    cnt = 1;

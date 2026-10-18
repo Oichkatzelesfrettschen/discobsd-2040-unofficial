@@ -2233,14 +2233,16 @@
     },
     {
       "path": "bin/sh/args.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2261,24 +2263,23 @@
             "dynamic-storage"
           ],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/blok.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2306,14 +2307,16 @@
     },
     {
       "path": "bin/sh/brkincr.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2337,14 +2340,16 @@
     },
     {
       "path": "bin/sh/cmd.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2361,23 +2366,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/ctype.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2401,14 +2406,16 @@
     },
     {
       "path": "bin/sh/ctype.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2436,14 +2443,16 @@
     },
     {
       "path": "bin/sh/defs.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2467,14 +2476,16 @@
     },
     {
       "path": "bin/sh/defs.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2495,23 +2506,23 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/dup.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2535,14 +2546,16 @@
     },
     {
       "path": "bin/sh/echo.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2561,23 +2574,23 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/edit.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2600,24 +2613,23 @@
             "integer-pointer-cast",
             "pointer-integer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/edit.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2641,14 +2653,16 @@
     },
     {
       "path": "bin/sh/error.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2671,23 +2685,23 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/expand.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2704,24 +2718,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/fault.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2745,24 +2758,23 @@
             "integer-pointer-cast",
             "pointer-integer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/func.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2781,23 +2793,23 @@
             "dynamic-storage"
           ],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/hash.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2819,24 +2831,23 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/hash.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2853,23 +2864,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/hashserv.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2886,23 +2897,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/io.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2921,23 +2932,23 @@
             "dynamic-storage"
           ],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/mac.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2961,14 +2972,16 @@
     },
     {
       "path": "bin/sh/macro.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2989,24 +3002,23 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/main.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3028,24 +3040,23 @@
             "dynamic-storage"
           ],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/mode.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3075,14 +3086,16 @@
     },
     {
       "path": "bin/sh/msg.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3106,14 +3119,16 @@
     },
     {
       "path": "bin/sh/name.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3136,24 +3151,23 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/name.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3177,14 +3191,16 @@
     },
     {
       "path": "bin/sh/print.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3201,10 +3217,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -3250,14 +3263,16 @@
     },
     {
       "path": "bin/sh/pwd.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3272,29 +3287,27 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/pwname.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3318,14 +3331,16 @@
     },
     {
       "path": "bin/sh/pwname.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3349,14 +3364,16 @@
     },
     {
       "path": "bin/sh/service.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3380,24 +3397,23 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/setbrk.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3414,23 +3430,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/stak.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3451,23 +3467,23 @@
           "pointer": [
             "pointer-integer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/stak.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3484,23 +3500,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/string.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3517,23 +3533,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/sym.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3557,14 +3573,16 @@
     },
     {
       "path": "bin/sh/test.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3581,9 +3599,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -3796,14 +3812,16 @@
     },
     {
       "path": "bin/sh/timeout.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3862,14 +3880,16 @@
     },
     {
       "path": "bin/sh/word.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3886,24 +3906,23 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/sh/xec.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3928,8 +3947,7 @@
             "integer-pointer-cast"
           ],
           "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
+            "old-style-declaration"
           ],
           "variadic": []
         }
@@ -17824,9 +17842,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": [
             "variadic-interface"
           ]
@@ -36904,12 +36920,12 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -62618,6 +62634,41 @@
           "pointer": [
             "integer-pointer-cast"
           ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/libc_contracts/alarm_contract_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/libc_contracts",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
           "prototype": [],
           "variadic": []
         }

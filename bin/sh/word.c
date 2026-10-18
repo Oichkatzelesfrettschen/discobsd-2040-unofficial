@@ -9,11 +9,11 @@
 /* ========     character handling for command lines    ========*/
 
 static int nextc_quoted;
-static int readb();
+static int readb(void);
 #define PEEKQUOTE 0x200
 
 int
-word()
+word(void)
 {
 	register char   c, d;
 	struct argnod   *arg = (struct argnod *)locstak();
@@ -139,7 +139,7 @@ word()
 }
 
 int
-skipc()
+skipc(void)
 {
 	register char c;
 
@@ -149,8 +149,7 @@ skipc()
 }
 
 int
-nextc(quote)
-char    quote;
+nextc(char quote)
 {
 	register char   c, d;
 
@@ -176,7 +175,7 @@ retry:
 }
 
 int
-readc()
+readc(void)
 {
 	register char   c;
 	register int    len;
@@ -235,7 +234,7 @@ retry:
 }
 
 static int
-readb()
+readb(void)
 {
 	register struct fileblk *f = standin;
 	register int    len;

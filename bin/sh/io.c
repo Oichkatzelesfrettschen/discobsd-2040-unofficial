@@ -14,8 +14,7 @@ short topfd;
 /* ========     input output and file copying ======== */
 
 void
-initf(fd)
-int     fd;
+initf(int fd)
 {
 	register struct fileblk *f = standin;
 
@@ -28,8 +27,7 @@ int     fd;
 }
 
 int
-estabf(s)
-register char *s;
+estabf(char *s)
 {
 	register struct fileblk *f;
 
@@ -40,8 +38,7 @@ register char *s;
 }
 
 void
-push(af)
-struct fileblk *af;
+push(struct fileblk *af)
 {
 	register struct fileblk *f;
 
@@ -52,7 +49,7 @@ struct fileblk *af;
 }
 
 int
-pop()
+pop(void)
 {
 	register struct fileblk *f;
 
@@ -69,10 +66,8 @@ pop()
 
 struct tempblk *tmpfptr;
 
-void
-pushtemp(fd,tb)
-	int fd;
-	struct tempblk *tb;
+static void
+pushtemp(int fd, struct tempblk *tb)
 {
 	tb->fdes = fd;
 	tb->Fstak = tmpfptr;
@@ -80,7 +75,7 @@ pushtemp(fd,tb)
 }
 
 int
-poptemp()
+poptemp(void)
 {
 	if (tmpfptr)
 	{
@@ -93,16 +88,14 @@ poptemp()
 }
 
 void
-chkpipe(pv)
-int     *pv;
+chkpipe(int *pv)
 {
 	if (pipe(pv) < 0 || pv[INPIPE] < 0 || pv[OTPIPE] < 0)
 		error(piperr);
 }
 
 int
-chkopen(idf)
-char *idf;
+chkopen(char *idf)
 {
 	register int    rc;
 
@@ -113,8 +106,7 @@ char *idf;
 }
 
 void
-rename(f1, f2)
-register int    f1, f2;
+rename(int f1, int f2)
 {
 #ifdef RES
 	if (f1 != f2)
@@ -142,8 +134,7 @@ register int    f1, f2;
 }
 
 int
-create(s)
-char *s;
+create(char *s)
 {
 	register int    rc;
 
@@ -154,8 +145,7 @@ char *s;
 }
 
 int
-tmpfil(tb)
-	struct tempblk *tb;
+tmpfil(struct tempblk *tb)
 {
 	int fd;
 
@@ -169,8 +159,7 @@ tmpfil(tb)
 #define                 CPYSIZ          512
 
 static char *
-heredoc_delimiter(delimiter)
-	char *delimiter;
+heredoc_delimiter(char *delimiter)
 {
 	char *source;
 	char *destination;
@@ -189,8 +178,7 @@ heredoc_delimiter(delimiter)
 }
 
 void
-copy(ioparg)
-struct ionod    *ioparg;
+copy(struct ionod *ioparg)
 {
 	register char   *cline;
 	register char   *clinep;
@@ -287,8 +275,7 @@ struct ionod    *ioparg;
 
 
 void
-link_iodocs(i)
-	struct ionod    *i;
+link_iodocs(struct ionod *i)
 {
 	while(i)
 	{
@@ -305,8 +292,7 @@ link_iodocs(i)
 
 
 void
-swap_iodoc_nm(i)
-	struct ionod    *i;
+swap_iodoc_nm(struct ionod *i)
 {
 	while(i)
 	{
@@ -320,8 +306,7 @@ swap_iodoc_nm(i)
 
 
 int
-savefd(fd)
-	int fd;
+savefd(int fd)
 {
 	register int    f;
 
@@ -331,8 +316,7 @@ savefd(fd)
 
 
 void
-restore(last)
-	register int    last;
+restore(int last)
 {
 	register int    i;
 	register int    dupfd;

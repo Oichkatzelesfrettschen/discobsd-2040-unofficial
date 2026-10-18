@@ -212,8 +212,8 @@ delimiter rows below fail.
 | tag_18_14 | `trap` | pass | `msg.c:143`, `fault.c`; cases `sb_trap_exit`, `sb_trap_reset` |
 | tag_18_14 | `unset` | pass | `msg.c:143`; case `sb_unset` |
 | 2.14 | A special built-in's failure aborts a non-interactive shell | pass | `error.c:37` `exitsh()`; case `sb_readonly` |
-| 2.14 | `command` is available as a regular built-in | fail | absent from `msg.c:143` `commands[]`; case `bi_command` |
-| 2.14 | `getopts` is available as a regular built-in | fail | absent from `msg.c:143` `commands[]`; case `bi_getopts` |
+| 2.14 | `command` is available as a regular built-in | pass | `msg.c` maps `command` to `SYSCOMMAND`; `xec.c` implements execution, `-p`, `-v`, `-V`, lookup precedence and status propagation; the `bi_command_*` cases and calibrated command mutant execute through `check-posix-sh` |
+| 2.14 | `getopts` is available as a regular built-in | pass | `msg.c` maps `getopts` to `SYSGETOPTS`; `xec.c` publishes `OPTIND` and `OPTARG`, leading-colon results, operand failures, repeated calls and reset state; the `bi_getopts_*` cases and calibrated OPTIND mutant execute through `check-posix-sh` |
 
 All fifteen special built-ins of 2.14 are present. The table at `msg.c:143`
 also carries `cd`, `echo`, `hash`, `login`, `newgrp`, `pwd`, `read`, `test`,
@@ -298,8 +298,7 @@ change, and none was attempted.
 - `!` as a reserved word. `syslook()` at `name.c:78` binary-searches a sorted
   table, so `"!"` goes at the front of `reserved[]` and `no_reserved` goes to
   16, but `cmd.c` also has to carry the negation through the pipeline node.
-- Tilde expansion, `>|`, `<>`, `alias`, `getopts`, `command`, `set -o` and
-  `set -C`.
+- Tilde expansion, `>|`, `<>`, `alias`, `set -o` and `set -C`.
 - The here-document quoted-delimiter rule, which needs a quoting
   representation that marks a quoted ordinary letter. The KIAE `_ctype3[]`
   mapping in `ctype.h:89` deliberately does not.

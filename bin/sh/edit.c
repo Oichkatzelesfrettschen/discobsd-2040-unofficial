@@ -33,8 +33,8 @@
 #include "edit.h"
 
 #ifndef HOSTBUILD
-extern struct direct *getdir();
-extern int reset_dir();
+extern struct direct * getdir(int dirf);
+extern void reset_dir(void);
 #endif
 
 #define ED_MAX      126     /* leaves room in a 128-byte fbuf for the NL */
@@ -50,9 +50,7 @@ static int  hist_count = 0;
 static int  hist_next  = 0;
 
 static void
-hist_push(s, n)
-	char *s;
-	int n;
+hist_push(char *s, int n)
 {
 	int last;
 
@@ -74,10 +72,7 @@ hist_push(s, n)
 
 /* hpos == 0 is the most recently pushed line, hpos == hist_count-1 the oldest */
 static int
-hist_load(hpos, buf, max)
-	int hpos;
-	char *buf;
-	int max;
+hist_load(int hpos, char *buf, int max)
 {
 	int idx, n;
 
@@ -98,8 +93,7 @@ static int have_saved = 0;
 static struct termios saved_tio;
 
 static int
-tty_raw(fd)
-	int fd;
+tty_raw(int fd)
 {
 	struct termios t;
 
@@ -119,8 +113,7 @@ tty_raw(fd)
 }
 
 static void
-tty_cooked(fd)
-	int fd;
+tty_cooked(int fd)
 {
 	if (have_saved)
 		tcsetattr(fd, TCSANOW, &saved_tio);
@@ -144,8 +137,7 @@ static struct sgttyb saved_sg;
  * the queue PENDIN for canonical reprocessing.
  */
 static int
-tty_raw(fd)
-	int fd;
+tty_raw(int fd)
 {
 	struct sgttyb sg;
 
@@ -164,8 +156,7 @@ tty_raw(fd)
 }
 
 static void
-tty_cooked(fd)
-	int fd;
+tty_cooked(int fd)
 {
 	if (have_saved)
 		ioctl(fd, TIOCSETN, &saved_sg);
@@ -183,8 +174,7 @@ tty_cooked(fd)
  * same burst and are read with an ordinary blocking read().
  */
 static int
-bytes_pending(fd)
-	int fd;
+bytes_pending(int fd)
 {
 	/*
 	 * FIONREAD's argument is a device `long` (sys/sys/ioctl.h:
@@ -210,8 +200,7 @@ bytes_pending(fd)
 static volatile int got_intr;
 
 static void
-edit_onintr(sig)
-	int sig;
+edit_onintr(int sig)
 {
 	(void)sig;
 	signal(SIGINT, edit_onintr); /* reinstall: this port's signal() is not BSD-reliable */
@@ -235,8 +224,7 @@ edit_onintr(sig)
 static volatile int got_fatal;
 
 static void
-edit_onfatal(sig)
-	int sig;
+edit_onfatal(int sig)
 {
 	signal(sig, edit_onfatal);
 	got_fatal = sig;
@@ -245,28 +233,21 @@ edit_onfatal(sig)
 /* ---- small output helpers (no stdio) ---- */
 
 static void
-ed_write(fd, s, n)
-	int fd;
-	const char *s;
-	int n;
+ed_write(int fd, const char *s, int n)
 {
 	if (n > 0)
 		write(fd, s, n);
 }
 
 static void
-ed_puts(fd, s)
-	int fd;
-	const char *s;
+ed_puts(int fd, const char *s)
 {
 	ed_write(fd, s, strlen(s));
 }
 
 /* small unsigned-int to decimal, returns length written into out (no NUL) */
 static int
-ed_itoa(v, out)
-	int v;
-	char *out;
+ed_itoa(int v, char *out)
 {
 	char tmp[6];
 	int i, n;
@@ -289,11 +270,7 @@ ed_itoa(v, out)
 }
 
 static void
-redraw(fdout, prompt, buf, len, cur)
-	int fdout;
-	const char *prompt;
-	char *buf;
-	int len, cur;
+redraw(int fdout, const char *prompt, char *buf, int len, int cur)
 {
 	char num[6];
 	int n, back;
@@ -320,12 +297,7 @@ redraw(fdout, prompt, buf, len, cur)
  * silently discarding them with no signal to the typist.
  */
 static void
-insert_text(fdout, buf, plen, pcur, max, s, n)
-	int fdout;
-	char *buf;
-	int *plen, *pcur, max;
-	const char *s;
-	int n;
+insert_text(int fdout, char *buf, int *plen, int *pcur, int max, const char *s, int n)
 {
 	int room, i;
 
@@ -345,9 +317,7 @@ insert_text(fdout, buf, plen, pcur, max, s, n)
 }
 
 static void
-delete_back(buf, plen, pcur)
-	char *buf;
-	int *plen, *pcur;
+delete_back(char *buf, int *plen, int *pcur)
 {
 	int i;
 
@@ -360,9 +330,7 @@ delete_back(buf, plen, pcur)
 }
 
 static void
-delete_fwd(buf, plen, pcur)
-	char *buf;
-	int *plen, *pcur;
+delete_fwd(char *buf, int *plen, int *pcur)
 {
 	int i;
 
@@ -386,9 +354,7 @@ struct cstate {
 };
 
 static void
-complete_cb(name, vctx)
-	char *name;
-	void *vctx;
+complete_cb(char *name, void *vctx)
 {
 	struct cstate *st = (struct cstate *)vctx;
 	int l, k;
@@ -427,13 +393,7 @@ complete_cb(name, vctx)
  * target reuses the shell's one DIRBLKSIZ reader.  Neither path accumulates
  * directory entries here. */
 static void
-scan_matches(dirlist, is_pathlist, prefix, prefixlen, cb, ctx)
-	char *dirlist;
-	int is_pathlist;
-	const char *prefix;
-	int prefixlen;
-	void (*cb)(char *, void *);
-	void *ctx;
+scan_matches(char *dirlist, int is_pathlist, const char *prefix, int prefixlen, void (*cb)(char *, void *), void *ctx)
 {
 	char pbuf[64];
 	char *p, *colon;
@@ -507,11 +467,7 @@ scan_matches(dirlist, is_pathlist, prefix, prefixlen, cb, ctx)
 }
 
 static void
-complete(fdout, path, buf, plen, pcur, max)
-	int fdout;
-	const char *path;
-	char *buf;
-	int *plen, *pcur, max;
+complete(int fdout, const char *path, char *buf, int *plen, int *pcur, int max)
 {
 	int wstart, i, slash, is_first, is_pathlist;
 	char dirbuf[64];
@@ -589,11 +545,7 @@ complete(fdout, path, buf, plen, pcur, max)
 /* ---- main entry point ---- */
 
 int
-editline(fdin, fdout, prompt, path, buf, bufsz)
-	int fdin, fdout;
-	const char *prompt, *path;
-	char *buf;
-	int bufsz;
+editline(int fdin, int fdout, const char *prompt, const char *path, char *buf, int bufsz)
 {
 	char work[ED_MAX + 1];
 	int len, cur, max, hpos, raw, n, done;

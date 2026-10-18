@@ -5,9 +5,9 @@
  */
 #include "defs.h"
 
-static struct dolnod *copyargs();
-static void freedolh();
-extern struct dolnod *freeargs();
+static struct dolnod *copyargs(char **from, int n);
+static void freedolh(void);
+static struct dolnod *clean_args(struct dolnod *blk);
 static struct dolnod *dolh;
 
 char	flagadr[14];
@@ -52,9 +52,7 @@ long	flagval[]  =
 
 
 int
-options(argc,argv)
-	char	**argv;
-	int	argc;
+options(int argc, char **argv)
 {
 	register char *cp;
 	register char **argp = argv;
@@ -156,8 +154,7 @@ options(argc,argv)
  * sets up positional parameters
  */
 void
-setargs(argi)
-	char	*argi[];
+setargs(char **argi)
 {
 	register char **argp = argi;	/* count args */
 	register int argn = 0;
@@ -174,7 +171,7 @@ setargs(argi)
 
 
 static void
-freedolh()
+freedolh(void)
 {
 	register char **argp;
 	register struct dolnod *argblk;
@@ -191,8 +188,7 @@ freedolh()
 }
 
 struct dolnod *
-freeargs(blk)
-	struct dolnod *blk;
+freeargs(struct dolnod *blk)
 {
 	register char **argp;
 	register struct dolnod *argr = NIL;
@@ -225,9 +221,7 @@ freeargs(blk)
 }
 
 static struct dolnod *
-copyargs(from, n)
-	char	*from[];
-	int	n;
+copyargs(char **from, int n)
 {
 	register struct dolnod *np = (struct dolnod *) alloc(sizeof(char**) * n + 3 * BYTESPERWORD);
 	register char **fp = from;
@@ -244,9 +238,8 @@ copyargs(from, n)
 }
 
 
-struct dolnod *
-clean_args(blk)
-	struct dolnod *blk;
+static struct dolnod *
+clean_args(struct dolnod *blk)
 {
 	register char **argp;
 	register struct dolnod *argr = NIL;
@@ -269,7 +262,7 @@ clean_args(blk)
 }
 
 void
-clearup()
+clearup(void)
 {
 	/*
 	 * force `for' $* lists to go away
@@ -290,7 +283,7 @@ clearup()
 }
 
 struct dolnod *
-useargs()
+useargs(void)
 {
 	if (dolh)
 	{

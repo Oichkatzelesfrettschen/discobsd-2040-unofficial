@@ -24,6 +24,8 @@ LIB_CFLAGS=	-std=c17 -D_DEFAULT_SOURCE -w -g -O1 ${SAN} \
 		-fno-sanitize=bounds -DTCL_FILE_CMDS -DTCL_ENV_CMDS
 TEST_CFLAGS=	-std=c17 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror \
 		-g -O1 ${SAN}
+HOST_FATAL_LINK_WARNINGS!= if [ "$$(uname -s)" = Darwin ]; then \
+		echo -Wl,-fatal_warnings; else echo -Wl,--fatal-warnings; fi
 
 # Each negative control restores one defect the library carried, a narrow
 # width, a sentinel, the command separator or the inverted regexp result,
@@ -122,7 +124,8 @@ check:
 .endif
 
 libtcl_contract_test: libtcl_contract_test.c lib-good/libtcl.a
-	${HOSTCC} ${TEST_CFLAGS} -Ilib-good/include -Ilib-good/src -o $@ \
+	${HOSTCC} ${TEST_CFLAGS} ${HOST_FATAL_LINK_WARNINGS} \
+	    -Ilib-good/include -Ilib-good/src -o $@ \
 	    libtcl_contract_test.c lib-good/libtcl.a
 
 lib-good/libtcl.a: ${LIBTCL_SOURCES} build-libtcl.sh
@@ -132,7 +135,8 @@ lib-good/libtcl.a: ${LIBTCL_SOURCES} build-libtcl.sh
 libtcl_${n}_bad_test: libtcl_contract_test.c ${LIBTCL_SOURCES} build-libtcl.sh
 	sh ./build-libtcl.sh lib-${n} ${TOPSRC} ${HOSTCC:Q} ${LIB_CFLAGS:Q} \
 	    ${MUTATE.${n}}
-	${HOSTCC} ${TEST_CFLAGS} -Ilib-${n}/include -Ilib-${n}/src -o $@ \
+	${HOSTCC} ${TEST_CFLAGS} ${HOST_FATAL_LINK_WARNINGS} \
+	    -Ilib-${n}/include -Ilib-${n}/src -o $@ \
 	    libtcl_contract_test.c lib-${n}/libtcl.a
 .endfor
 

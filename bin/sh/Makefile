@@ -11,7 +11,16 @@ all:		sh
 check-gnu17:	tests/gnu17.c
 		${CC} ${CFLAGS} -fsyntax-only tests/gnu17.c
 
-.PHONY: check-gnu17
+check-strict-c17:
+		@set -eu; \
+		for source in ${OBJS:S/.o$/.c/}; do \
+			${CC} ${CFLAGS} -std=c17 -pedantic-errors \
+			    -Wall -Wextra -Werror -Wstrict-prototypes \
+			    -Wold-style-definition -Wmissing-prototypes \
+			    -fsyntax-only $$source; \
+		done
+
+.PHONY: check-gnu17 check-strict-c17
 
 sh:		${OBJS}
 		${CC} ${CFLAGS} ${LDFLAGS} -o sh.elf ${OBJS} ${LIBS}

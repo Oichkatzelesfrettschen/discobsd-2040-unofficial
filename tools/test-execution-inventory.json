@@ -669,6 +669,23 @@
       "aliases": []
     },
     {
+      "id": "libc.alarm.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-alarm-contract",
+      "root_target": "check-libc-host-contracts",
+      "program": "alarm_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "alarm_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.alarm.native -- ./alarm_contract_test",
+      "aliases": []
+    },
+    {
       "id": "libc.runtime-limits.native",
       "owner": "firmware/posix-sh",
       "width": "native",

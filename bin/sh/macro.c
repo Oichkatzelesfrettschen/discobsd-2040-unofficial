@@ -9,11 +9,10 @@
 static char     quote;  /* used locally */
 static char     quoted; /* used locally */
 
-static int      getch();
+static int getch(char endch);
 
 static void
-copyto(endch)
-register char   endch;
+copyto(char endch)
 {
 	register char   c;
 
@@ -25,8 +24,7 @@ register char   endch;
 }
 
 static void
-skipto(endch)
-register char   endch;
+skipto(char endch)
 {
 	/*
 	 * skip chars up to }
@@ -55,7 +53,7 @@ register char   endch;
 }
 
 static void
-comsubst()
+comsubst(void)
 {
 	/*
 	 * command substn
@@ -109,8 +107,7 @@ comsubst()
 }
 
 static int
-getch(endch)
-char    endch;
+getch(char endch)
 {
 	register char   d;
 
@@ -408,8 +405,7 @@ retry:
 }
 
 char *
-macro(as)
-char    *as;
+macro(char *as)
 {
 	/*
 	 * Strip "" and do $ substitution
@@ -419,7 +415,7 @@ char    *as;
 	register char   savq = quote;
 	struct filehdr  fb;
 
-	push(&fb);
+	push((struct fileblk *)&fb);
 	estabf(as);
 	usestak();
 	quote = 0;
@@ -437,8 +433,7 @@ char    *as;
 }
 
 static void
-flush(ot)
-int     ot;
+flush(int ot)
 {
 	write(ot, stakbot, staktop - stakbot);
 	if (flags & execpr)
@@ -449,8 +444,7 @@ int     ot;
 #define CPYSIZ  512
 
 void
-subst(in, ot)
-int     in, ot;
+subst(int in, int ot)
 {
 	register char   c;
 	struct fileblk  fb;

@@ -122,6 +122,16 @@ def main():
         b"0",
     )
     case(
+        "unsigned decimal accepts target maximum",
+        ("%u", "4294967295"),
+        b"4294967295",
+    )
+    case(
+        "unsigned hexadecimal accepts target maximum",
+        ("%x", "0xffffffff"),
+        b"ffffffff",
+    )
+    case(
         "literal width overflow",
         ("%2147483648s", "x"),
         b"",

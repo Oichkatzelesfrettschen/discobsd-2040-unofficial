@@ -132,8 +132,10 @@ Write an unsigned octal, decimal, or hexadecimal integer.
 .B %
 Write a percent sign without consuming an argument.
 .PP
-Integer operands use the C integer syntax accepted by
+Signed integer operands use the C integer syntax accepted by
 .BR strtol (3),
+and unsigned integer operands use
+.BR strtoul (3),
 including an optional sign and base prefixes.
 An operand whose first byte is a quote uses the following byte's unsigned
 value; trailing bytes do not affect that value.  A quote followed by the

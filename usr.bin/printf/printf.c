@@ -49,7 +49,7 @@ static int number_valid;
 static void diagnostic(const char *);
 static int decimal(const char **, int *);
 static const char *argument(int);
-static long number(int);
+static long number(int, unsigned long *);
 static int output_byte(unsigned char);
 static int decode(const unsigned char **, int, unsigned char *, int *);
 static int output_b(const char *, int, int, int, int *);
@@ -117,7 +117,7 @@ argument(int number)
 }
 
 static long
-number(int argument_number)
+number(int argument_number, unsigned long *unsigned_pointer)
 {
 	const char *operand;
 	char *end_pointer;
@@ -125,10 +125,20 @@ number(int argument_number)
 
 	operand = argument(argument_number);
 	number_valid = 1;
+	if (unsigned_pointer != NULL)
+		*unsigned_pointer = 0;
 	if (operand == NULL)
 		return (0);
 	if (*operand == '\'' || *operand == '"') {
 		value = (unsigned char)operand[1];
+		if (unsigned_pointer != NULL)
+			*unsigned_pointer = (unsigned char)operand[1];
+	} else if (unsigned_pointer != NULL) {
+		errno = 0;
+		*unsigned_pointer = strtoul(operand, &end_pointer, 0);
+		value = 0;
+		if (end_pointer == operand || *end_pointer != '\0' || errno == ERANGE)
+			number_valid = 0;
 	} else {
 		errno = 0;
 		value = strtol(operand, &end_pointer, 0);
@@ -267,6 +277,7 @@ conversion(const char **cursor_pointer, int *stop_pointer)
 	int value;
 	int width;
 	long parsed_number;
+	unsigned long unsigned_value;
 
 	cursor = *cursor_pointer;
 	argument_number = 0;
@@ -296,7 +307,7 @@ conversion(const char **cursor_pointer, int *stop_pointer)
 	}
 	if (*cursor == '*') {
 		cursor++;
-		parsed_number = number(0);
+		parsed_number = number(0, NULL);
 		if (!number_valid || parsed_number < -FORMAT_LIMIT ||
 		    parsed_number > FORMAT_LIMIT)
 			goto range_error;
@@ -313,7 +324,7 @@ conversion(const char **cursor_pointer, int *stop_pointer)
 		cursor++;
 		if (*cursor == '*') {
 			cursor++;
-			parsed_number = number(0);
+			parsed_number = number(0, NULL);
 			if (!number_valid || parsed_number < -FORMAT_LIMIT ||
 			    parsed_number > FORMAT_LIMIT)
 				goto range_error;
@@ -356,9 +367,10 @@ conversion(const char **cursor_pointer, int *stop_pointer)
 	}
 	if (code == 'd' || code == 'i')
 		return (printf(normalized, width, precision,
-		    number(argument_number)) >= 0);
+		    number(argument_number, NULL)) >= 0);
+	(void)number(argument_number, &unsigned_value);
 	return (printf(normalized, width, precision,
-	    (unsigned long)number(argument_number)) >= 0);
+	    unsigned_value) >= 0);
 
 range_error:
 	diagnostic("field width or precision is out of range");

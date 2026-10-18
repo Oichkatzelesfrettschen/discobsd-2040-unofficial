@@ -12,6 +12,11 @@ MAIN_FRAME_LIMIT = 128
 PARSE_DURATION_FRAME_LIMIT = 48
 PRE_FORK_CHAIN_LIMIT = MAIN_FRAME_LIMIT + PARSE_DURATION_FRAME_LIMIT
 STACK_MUTATION_ANCHOR = "struct timeout_duration {"
+DOCUMENTED_LIMITS_FRAGMENT = (
+    f"a {MAIN_FRAME_LIMIT}-byte `main` frame, a "
+    f"{PARSE_DURATION_FRAME_LIMIT}-byte `parse_duration` frame, and a derived "
+    f"{PRE_FORK_CHAIN_LIMIT}-byte pre-fork call-chain ceiling"
+)
 
 
 class StackFailure(RuntimeError):
@@ -53,6 +58,13 @@ def validate_production_frames(main_frame: int, parse_duration_frame: int) -> in
         f"main={main_frame}, parse_duration={parse_duration_frame}",
     )
     return pre_fork_chain
+
+
+def validate_documented_limits(testing_text: str) -> None:
+    require(
+        DOCUMENTED_LIMITS_FRAGMENT in testing_text,
+        "timeout TESTING policy omits the measured stack limits",
+    )
 
 
 def compile_source(compiler: str, root: Path, source: Path, output: Path) -> Path:
@@ -108,6 +120,10 @@ def main() -> int:
     compiler = sys.argv[2]
     production_source = root / "usr.bin" / "timeout" / "timeout.c"
     source_text = production_source.read_text(encoding="utf-8")
+    testing_text = (root / "sys" / "arch" / "rp2040" / "doc" / "TESTING.md").read_text(
+        encoding="utf-8"
+    )
+    validate_documented_limits(testing_text)
     require(
         source_text.count(STACK_MUTATION_ANCHOR) == 1,
         "duration-structure stack mutation has a stale source anchor",

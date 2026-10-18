@@ -18,6 +18,16 @@ class StackDiagnosticTest(unittest.TestCase):
             stack_test.MAIN_FRAME_LIMIT + stack_test.PARSE_DURATION_FRAME_LIMIT,
         )
 
+    def test_documented_limits_reject_the_old_chain_ceiling(self) -> None:
+        with self.assertRaisesRegex(
+            stack_test.StackFailure,
+            "timeout TESTING policy omits the measured stack limits",
+        ):
+            stack_test.validate_documented_limits(
+                "128-byte main frame, 48-byte parse_duration frame, "
+                "and 168-byte pre-fork call-chain ceiling"
+            )
+
     def test_bound_failure_reports_components_total_and_limit(self) -> None:
         with self.assertRaisesRegex(
             stack_test.StackFailure,

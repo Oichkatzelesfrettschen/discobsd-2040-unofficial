@@ -31,6 +31,9 @@ battlestar:     ${OBJS}
 		${SIZE} battlestar.elf
 		${ELF2AOUT} battlestar.elf $@ && rm battlestar.elf
 
+# The four targets share one generator and one writable message store.  bmake
+# must finish the first target before reconsidering the remaining side effects.
+.ORDER: battle_strings _globals.c _dayfile.c _nightfile.c
 battle_strings _globals.c _dayfile.c _nightfile.c: mkstr globals.c dayfile.c nightfile.c
 		./mkstr battle_strings _ globals.c dayfile.c nightfile.c
 

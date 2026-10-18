@@ -690,6 +690,11 @@ check-run-logging: check-python
 
 .PHONY: check-run-logging
 
+check-battlestar-generation: check-python
+		${PYTHON} tools/check_battlestar_generation.py --root ${TOPSRC}
+
+.PHONY: check-battlestar-generation
+
 # Relink every shipped multicall executable through the shared map seam before
 # the finite ledger compares dispatch names, manifest links, libc members and
 # packed-root arithmetic. The maps remain ignored build evidence.
@@ -864,7 +869,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
-		check-run-logging \
+		check-run-logging check-battlestar-generation \
 		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger \

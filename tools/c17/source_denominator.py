@@ -617,7 +617,7 @@ def initial_row(path):
     }
 
 
-def bootstrap(root, ledger_path, quarantine_path):
+def bootstrap(root, ledger_path, quarantine_path, closure=False):
     require(not ledger_path.exists(), f"refusing to replace existing ledger: {ledger_path}")
     require(
         not quarantine_path.exists(), f"refusing to replace existing manifest: {quarantine_path}"
@@ -641,7 +641,7 @@ def bootstrap(root, ledger_path, quarantine_path):
     ledger = {"schema_version": 2, "rows": rows}
     quarantine = {"schema_version": 1, "entries": entries}
     discovered = [row["path"] for row in rows]
-    counts = validate_documents(root, discovered, ledger, quarantine)
+    counts = validate_documents(root, discovered, ledger, quarantine, closure)
     validate_count_report(root, counts)
     ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
     quarantine_path.write_text(json.dumps(quarantine, indent=2) + "\n", encoding="utf-8")
@@ -733,7 +733,7 @@ def main():
             "select only one ledger mutation mode",
         )
         if args.bootstrap:
-            counts = bootstrap(root, ledger_path, quarantine_path)
+            counts = bootstrap(root, ledger_path, quarantine_path, args.closure)
         elif args.sync_paths:
             discovered = tracked_sources(root)
             quarantine = load_json(quarantine_path)

@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -263,6 +264,55 @@ def main():
             encoding="utf-8",
         )
 
+        bootstrap_root = root / "bootstrap"
+        (bootstrap_root / "docs/research").mkdir(parents=True)
+        (bootstrap_root / "src").mkdir()
+        (bootstrap_root / "src/new.c").write_text(
+            "int new_source(void) { return 0; }\n", encoding="utf-8"
+        )
+        (bootstrap_root / "docs/research/c17-semantic-migration-plan.md").write_text(
+            "Those classifications preserve all 0 accepted, 0 migration-open, 0 "
+            "excluded and 1 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            ["git", "init", "--quiet", str(bootstrap_root)],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(bootstrap_root), "config", "core.fsmonitor", "false"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(bootstrap_root), "add", "src/new.c"],
+            check=True,
+        )
+        bootstrap_result = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("source_denominator.py")),
+                "--root",
+                str(bootstrap_root),
+                "--ledger",
+                "source-denominator.json",
+                "--quarantine",
+                "quarantine.json",
+                "--bootstrap",
+                "--closure",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if bootstrap_result.returncode == 0:
+            raise AssertionError("bootstrap ignored the closure requirement")
+        if "closure rejected: unreviewed source rows remain" not in bootstrap_result.stderr:
+            raise AssertionError("bootstrap failed outside the closure requirement")
+        if (bootstrap_root / "source-denominator.json").exists():
+            raise AssertionError("rejected closure bootstrap published a ledger")
+        if (bootstrap_root / "quarantine.json").exists():
+            raise AssertionError("rejected closure bootstrap published a manifest")
+
         refresh_ledger = copy.deepcopy(ledger)
         refresh_ledger["rows"].append(copy.deepcopy(refresh_ledger["rows"][0]))
         refresh_path = root / "source-denominator.json"
@@ -465,7 +515,7 @@ def main():
         cases.append(("closure with unreviewed row", changed, quarantine, discovered, True))
         for name, mutated_ledger, mutated_quarantine, paths, closure in cases:
             expect_failure(name, root, paths, mutated_ledger, mutated_quarantine, closure)
-    print(f"PASS C17 source denominator calibration: {len(cases) + 7} failures rejected")
+    print(f"PASS C17 source denominator calibration: {len(cases) + 8} failures rejected")
     return 0
 
 

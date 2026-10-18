@@ -457,17 +457,24 @@ def exercise_mutation(
         require(result.returncode == 127, "not-found status mutation escaped detection")
         return
     if name == "missing-sigcont":
-        marker = work_directory / "stopped"
-        process = subprocess.Popen(
-            [str(timeout_binary), "0.05", str(probe_binary), "stop-pid", str(marker)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+        marker = work_directory / "term-cont-count"
+        result = run(
+            [
+                str(timeout_binary),
+                "0.20",
+                str(probe_binary),
+                "count-term",
+                str(marker),
+            ],
+            timeout_seconds=1.0,
         )
-        child_pid = wait_for_pid(marker, process)
-        status = require_process_completion(
-            process, child_pid, "missing SIGCONT mutation escaped detection"
+        require(result.returncode == 124, "missing SIGCONT mutation changed timeout status")
+        delivered = marker.read_bytes()
+        require(
+            single_term_cont_delivery(delivered),
+            "missing SIGCONT mutation escaped the exact-delivery count: "
+            f"{delivered!r}",
         )
-        require(status == 124, "stopped-child mutation changed timeout status")
         return
     if name == "encoded-signal-status":
         result = run([str(timeout_binary), "1", str(probe_binary), "signal", "15"])

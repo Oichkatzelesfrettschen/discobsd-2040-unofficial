@@ -18,6 +18,13 @@ The content identity keeps installation directories outside the portable key.
 Colliding normalized identities reject rather than merging independent maps.
 Member names and tree paths preserve their ownership boundaries.
 
+Capture verifies each canonical group against its exact installed artifact
+path and SHA-256 before running measurement tools. The kernel, packed-program
+and native checks use the named owner throughout capture. A kernel artifact
+found under a peer group cannot support that kernel's archive selection. The
+attribution controls move kernel, packed-program and native artifacts across
+groups and require rejection before measurement.
+
 The existing libc and native member lists remain compatibility projections of
 the complete table. Validation checks both projections against their owning
 groups. Comparison reports added, removed and changed members for every
@@ -39,7 +46,7 @@ requires schema 2 on both inputs; the tool never invents missing selections
 from an old receipt. The retained baseline JSON remains byte-identical.
 
 `check-c17-tool-capture` owns the compiler/closure/resource test sequence in the
-cross tier and firmware CI. Its 70 tests include 34 resource tests. The resource
+cross tier and firmware CI. Its 72 tests include 36 resource tests. The resource
 controls reject new kernel members, non-libc members and whole archives with
 zero numeric growth; malformed member evidence, missing groups, inconsistent
 projections, missing closure binding and changed collectors also reject. Two

@@ -140,6 +140,14 @@ def validate_archive_members(archives, group):
             sha(member_hash, "archive member:" + member)
 
 
+def verify_artifact_owners(groups, expected):
+    require(isinstance(groups, dict) and set(groups) == set(expected),
+            "dependency closure artifact owner denominator differs")
+    for name, artifact in expected.items():
+        require(isinstance(groups[name], dict) and groups[name].get("artifacts") == [artifact],
+                "dependency closure artifact owner differs: " + name)
+
+
 def collect_archive_selections(groups):
     selections = {}
     for name, group in groups.items():
@@ -356,6 +364,11 @@ def capture(root, closure_path, receipt_path):
     manifest_path = root / "distrib/rp2040/_manifest"
     require(digest(manifest_path) == provenance["manifest_sha256"],
             "manifest differs from closure provenance")
+    expected_paths = manifest_artifacts(root, manifest_path)
+    expected_paths.update({configuration: f"sys/arch/rp2040/compile/{configuration}/unix"
+                           for configuration in ("PICO", "PICO_UART")})
+    verify_artifact_owners(groups, {name: {"path": relative, "sha256": digest(root / relative)}
+                                   for name, relative in expected_paths.items()})
     packs, links = parse_manifest(manifest_path)
     destination = root / "distrib/obj/destdir.rp2040"
     programs = {}
@@ -366,11 +379,10 @@ def capture(root, closure_path, receipt_path):
         path = root / entry["path"]
         parsed = parse_aout(path, DEFAULT_TEXT_BASE)
         program_hash = digest(path)
-        owners = [group for group in groups.values()
-                  if any(artifact["path"] == entry["path"] and
-                         artifact["sha256"] == program_hash for artifact in group["artifacts"])]
-        require(len(owners) == 1, "program lacks one current dependency-closure owner: " + name)
-        libc_members = sorted({member for archive, members in owners[0]["archive_members"].items()
+        owner = groups[artifact_group("root", name)]
+        require(owner["artifacts"] == [{"path": entry["path"], "sha256": program_hash}],
+                "program dependency closure artifact owner differs: " + name)
+        libc_members = sorted({member for archive, members in owner["archive_members"].items()
                                if Path(archive).name == "libc.a" for member in members})
         raw, packed, _, blocks = measurement
         programs[name] = {"sha256": program_hash, "text": parsed["text_size"],
@@ -382,9 +394,9 @@ def capture(root, closure_path, receipt_path):
         relative = f"sys/arch/rp2040/compile/{configuration}/unix"
         path = root / relative
         kernel = section_inventory(path, root)
-        require(any(artifact["path"] == relative and artifact["sha256"] == kernel["sha256"]
-                    for group in groups.values() for artifact in group["artifacts"]),
-                "kernel lacks current dependency-closure evidence: " + configuration)
+        require(groups[configuration]["artifacts"] == [
+                    {"path": relative, "sha256": kernel["sha256"]}],
+                "kernel dependency closure artifact owner differs: " + configuration)
         kernels[configuration] = kernel
     native = {}
     for name, relative in manifest_artifacts(root, manifest_path).items():
@@ -392,11 +404,10 @@ def capture(root, closure_path, receipt_path):
             continue
         path = root / relative
         artifact_hash = digest(path)
-        owners = [group for group in groups.values()
-                  if any(artifact["path"] == relative and artifact["sha256"] == artifact_hash
-                         for artifact in group["artifacts"])]
-        require(len(owners) == 1, "native artifact lacks current dependency closure")
-        members = sorted({member for archive in owners[0]["archive_members"].values()
+        owner = groups[name]
+        require(owner["artifacts"] == [{"path": relative, "sha256": artifact_hash}],
+                "native dependency closure artifact owner differs: " + name)
+        members = sorted({member for archive in owner["archive_members"].values()
                           for member in archive})
         native["/" + path.relative_to(destination).as_posix()] = {
             "sha256": artifact_hash, "bytes": path.stat().st_size, "archive_members": members}

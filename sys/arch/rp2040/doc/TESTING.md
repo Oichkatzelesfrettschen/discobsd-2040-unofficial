@@ -1482,6 +1482,9 @@ toolchains and configurations, retaining each resource report. Compare with:
     --output resource-delta.json
 ```
 
+Capture first requires each canonical group to own its exact expected artifact
+path and hash. Kernel, packed-program and native checks retain that named owner.
+
 The collector writes schema-2 receipts. Complete comparison requires schema 2
 on both sides and matching collector digests, measurement-tool hashes and
 recorded toolchain identities. Every PICO, PICO_UART, packed-program and native

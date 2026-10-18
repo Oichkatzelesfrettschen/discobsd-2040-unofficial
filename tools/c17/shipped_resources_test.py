@@ -1,6 +1,7 @@
 """Calibrate per-surface resource accounting and reject unsupported acceptance."""
 
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -314,6 +315,70 @@ class ResourceAccountingTest(unittest.TestCase):
         delta = json.loads((self.directory / "delta.json").read_text())
         self.assertEqual(delta["archive_selection_changes"]["native.usr.lib.libc.a"][
             "tree:lib/libc/aout.libc.a"]["added"], ["unused.o"])
+
+    def test_canonical_group_owns_exactly_its_expected_artifact(self):
+        self.assertTrue(callable(getattr(shipped_resources, "verify_artifact_owners", None)))
+        expected = {"PICO": {"path": "kernel/unix", "sha256": "a" * 64},
+                    "root.bin.fixture": {"path": "dest/bin/fixture", "sha256": "b" * 64},
+                    "native.usr.lib.crt0.o": {"path": "dest/usr/lib/crt0.o", "sha256": "c" * 64}}
+        groups = {name: {"artifacts": [dict(artifact)]} for name, artifact in expected.items()}
+        shipped_resources.verify_artifact_owners(groups, expected)
+        for name in expected:
+            for field, replacement in (("path", "other/object"), ("sha256", "d" * 64)):
+                with self.subTest(group=name, field=field):
+                    changed = copy.deepcopy(groups)
+                    changed[name]["artifacts"][0][field] = replacement
+                    with self.assertRaisesRegex(shipped_resources.ResourceError, "artifact owner"):
+                        shipped_resources.verify_artifact_owners(changed, expected)
+
+    def test_capture_rejects_misowned_groups_before_measurement(self):
+        root = self.directory / "owner-fixture"
+        root.mkdir()
+        manifest = root / "distrib/rp2040/_manifest"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("pack /bin/fixture\nfile /usr/lib/crt0.o\n")
+        paths = {"PICO": "sys/arch/rp2040/compile/PICO/unix",
+                 "PICO_UART": "sys/arch/rp2040/compile/PICO_UART/unix",
+                 "root.bin.fixture": "distrib/obj/destdir.rp2040/bin/fixture",
+                 "native.usr.lib.crt0.o": "distrib/obj/destdir.rp2040/usr/lib/crt0.o"}
+        groups = {}
+        for name, relative in paths.items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = (name + " attribution fixture").encode()
+            path.write_bytes(payload)
+            groups[name] = {"artifacts": [{"path": relative,
+                             "sha256": hashlib.sha256(payload).hexdigest()}],
+                            "archive_members": {}}
+        log = root / "gate.log"
+        log.write_text("attribution metadata control\n")
+        receipt = {"state": "completed", "exit_code": 0,
+                   "terminal_queue_dropped_bytes": 0, "status_path": "status.json",
+                   "log_path": "gate.log", "command": ["bmake", "MACHINE=rp2040", "distribution"],
+                   "started_at": "2000-01-01T00:00:00Z", "updated_at": "2000-01-01T00:00:01Z",
+                   "invocation_id": "artifact-attribution-control"}
+        status = root / "status.json"
+        status.write_text(json.dumps(receipt))
+        execution = {"receipt_sha256": hashlib.sha256(status.read_bytes()).hexdigest(),
+                     "log_sha256": hashlib.sha256(log.read_bytes()).hexdigest(),
+                     "started_at": receipt["started_at"], "updated_at": receipt["updated_at"],
+                     "invocation_id": receipt["invocation_id"]}
+        for victim in ("PICO_UART", "root.bin.fixture", "native.usr.lib.crt0.o"):
+            with self.subTest(victim=victim):
+                changed = copy.deepcopy(groups)
+                changed["PICO"]["artifacts"].extend(changed[victim]["artifacts"])
+                changed[victim]["artifacts"] = []
+                closure = root / "closure.json"
+                closure.write_text(json.dumps({"configurations": changed, "provenance": {
+                    "distribution": execution,
+                    "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}}))
+                result = subprocess.run([sys.executable, str(CHECKER), "capture", "--root",
+                    str(root), "--closure", str(closure), "--distribution-receipt", str(status),
+                    "--output", str(root / "resources.json")], capture_output=True,
+                    text=True, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("artifact owner", result.stderr)
+                self.assertFalse((root / "resources.json").exists())
 
     def test_native_artifact_growth_is_a_constrained_surface(self):
         candidate = snapshot()

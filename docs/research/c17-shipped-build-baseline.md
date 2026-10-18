@@ -42,8 +42,8 @@ change must compare its own clean parent and candidate receipts. The retained
 uninstrumented parent artifacts lack the complete command graph required for
 accepted dependency attribution and remain outside that paired claim.
 
-At the recorded baseline, the cross gate ran 54 recorder, closure and resource
-controls. The donor gate
+The foundation integration at `eb3d16cf` supplied 54 recorder, closure and
+resource controls. The donor gate
 adds seven retained-source controls. The controls reject incorrect producer
 identity, missing dependencies, changed archives/images, generated-input gaps,
 concurrent source changes, omitted indirect blocks, native artifact growth,

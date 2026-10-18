@@ -1,5 +1,115 @@
 # C17 semantic migration plan
 
+## RP2040 modernization execution contract
+
+The maintained target is a tiny BSD on Cortex-M0+, ARMv6-M and Thumb-1.
+The program modernizes the shipped kernel, libc, shell and utilities before
+expanding to the remaining maintained ARM source and host tools. Production
+uses GNU17; portable mechanisms also pass strict C17. The native Smaller C
+implementation is maintained code, while its accepted input language remains
+a separate compatibility contract. Full on-device C17 development stays in
+the later DPUCP family.
+
+The integration baseline is `42bb56fb10c0b2620b2e862fda52fc03241d512c`.
+The DPUCP profile, donor ledger, allocation and line-reading libc members,
+process/runtime interfaces, shell command and getopts, utility printf,
+recovery utilities, timeout and multicall accounting are delivered foundations.
+`dpucp-2024-board-acceptance.md` records seven surfaces and thirteen cases
+on its identified image pair. The capture leaves the complete Issue 8 rows
+partial. Revalidating the record does not execute the image again.
+
+The source denominator at that baseline contains 2,590 C/header paths:
+4 accepted, 64 migration-open, 543 excluded and 1,979 unreviewed. Those states
+measure review accounting rather than independent defects. The shell already
+passes its strict-C17 compilation gate; pointer-through-int transport and
+runtime resource acceptance remain separate obligations. The finite DPUCP
+ledger contains 1,518 Issue 8 rows, with one closed and 1,517 open.
+
+### Architecture and resource invariants
+
+- Preserve the 128 KiB kernel region, 144 KiB base process window, Dhara root
+  partition and raw-swap allocation. Existing conditional window extensions
+  retain their own admission contracts.
+- Account for loaded text/data/BSS, alignment, simultaneous scratch, heap and
+  stack. Packed file size does not establish process-window fit.
+- Preserve syscall numbers, calling conventions and public layouts. Additive
+  interfaces require separate kernel/libc contracts and measured acceptance.
+- Preserve erase-sector ownership, program-page alignment, transaction commit
+  points, recoverability and the meaning of measured storage counters.
+- Require nonpositive growth on each constrained surface by default. A positive
+  delta needs the existing growth-exception record and review; savings across
+  distinct resource surfaces do not cancel.
+- Retain fixed-table values and USIZE until the capacity corpus admits a change.
+  The retained two-slot inode reserve and 220-byte stack-paint remainder are
+  workload observations rather than available optimization budgets.
+- Keep language, interface, security, native compatibility, compile footprint,
+  runtime resources, persistence and hardware acceptance separate.
+
+### Structural refactoring and header ownership
+
+Headers, translation units and archive members may be split or consolidated
+when ownership, dependency closure or measured target cost justifies the
+boundary. Historical filenames retain provenance rather than architectural
+authority. A structural change records its invariant before choosing its file
+layout and rebuilds every affected consumer.
+
+Public ABI headers own exported types, constants and declarations. Private
+subsystem headers own internal contracts. Portable mechanism headers avoid
+unnecessary kernel configuration and MMIO dependencies. RP2040 hardware
+headers own access widths, alignment, ordering and initialization requirements.
+Each ABI type has one authoritative definition. Generated syscall and assembly
+interfaces derive from their owning description when generation prevents drift.
+Public include names remain compatibility entry points when consumers require
+them; compatibility wrappers do not duplicate declarations or storage.
+
+Header gates exercise supported standalone inclusion, repeated inclusion,
+include orders, exact function-pointer types, target sizeof/alignment/offsets,
+assembly consumers and Smaller C inputs. Deliberately invalid fixtures have
+expected-rejection contracts rather than a portable-C17 acceptance claim.
+
+### Ordered modernization queue
+
+The queue below owns program order. The historical ordered work queue later
+in this document records delivered units and their residuals; it does not
+restart those implementations. Each row expands into one caller-complete
+mechanism per PR. A blocked row records its deciding experiment before the
+next independent row starts.
+
+| Order | Mechanism | Dependency | Deciding output |
+| --- | --- | --- | --- |
+| 1 | Baseline and document reconciliation | Identified source revision and retained records | Delivered work, bounded residuals and one current queue |
+| 2 | Configuration-keyed shipped dependency closure | Evaluated commands, compiler dependencies, generated inputs, installed manifest and final links | Calibrated closure checker for PICO and PICO_UART, with archive/member and native-header ownership |
+| 3 | Reproducible resource comparison | Clean matched-toolchain parent/candidate distributions | Artifact-bound kernel/SRAM/a.out/root/member receipts; runtime and wear states remain explicit |
+| 4 | Header ownership boundaries | Shipped closure and resource baseline | Caller-complete headers with inclusion, ABI, assembly and native-input gates |
+| 5 | Calibrated compiler and analysis coverage | Header contracts and exact production commands | GNU17 target and strict-C17 portable coverage, expected-rejection fixtures and scoped analysis |
+| 6 | Shipped trust boundaries | Caller-complete interfaces and calibrated negative controls | Executable admission, copying, path, credential and parser invariants with target resource acceptance |
+| 7 | Libc and public interfaces | Existing libc evidence reconciled; all consumers identified | One interface family per change, clean consumer rebuild and native-header acceptance |
+| 8 | Typed shell execution input | Existing C17 shell behavior and parser ownership contracts | Typed string/argv and descriptor entry points; eval/source/trap/nesting/failure tests and resource receipts |
+| 9 | Filesystem and archive identity | Additive directory-relative kernel/libc contracts | Separate compress, tar and cpio race/failure gates with bounded linked costs |
+| 10 | RP2040 hardware and persistence ownership | Register/ROM/IRQ/buffer contracts and portable controls | PICO/PICO_UART builds; separately authorized silicon and recovery evidence |
+| 11 | Remaining shipped utilities and multicall units | Shipped T1 obligations addressed before broad T3 cleanup | Shipped language/interface closure and lifetime-safe composition measurements |
+| 12 | Remaining maintained source | Shipped-system milestone | Optional ARM, host tools, adapters and Smaller C implementation acceptance; justified exclusions and global closure |
+
+A leaf unit may calibrate a compiler gate, but convenient leaf migration does
+not displace shipped T1 trust boundaries. The shipped denominator follows real
+build and link dependencies, including selected libc members, generated headers
+and multicall overlays, rather than only the union of manifest source names.
+
+Each PR records its contract, caller closure, baseline and falsifier; calibrates
+its deciding test; implements the complete unit; runs behavior/compiler/ABI and
+resource gates; updates the existing ledgers; and passes review and CI before
+merge. Public-header or libc changes require a clean consumer rebuild. New
+gates register with the root Makefile, TESTING.md and the CI owner. Use the
+logged local entry points with caller-selected PYTHON and preserve the product
+lock and cleanup/quarantine contracts.
+
+Release states are reconciled baseline, modernized shipped system,
+hardware-qualified shipped system and maintained-source closure. Each state
+requires its own evidence. Hardware execution requires explicit authorization
+for the exact operation and artifacts. Networking, regex/text facilities,
+locale, threads, realtime, dynamic linking and full native C17 development
+remain separately gated DPUCP families.
+
 ## Scope
 
 `docs/research/c17-formatting-linting.md` measures the syntactic frontier:

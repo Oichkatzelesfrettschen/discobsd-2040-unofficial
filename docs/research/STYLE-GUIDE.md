@@ -1,5 +1,10 @@
 # Compact, constrained C for DiscoBSD RP2040
 
+The ordered RP2040 modernization queue and structural/header ownership contract
+are in `c17-semantic-migration-plan.md`. Header and translation-unit boundaries
+may change when caller closure, ABI, lifetime and target-resource evidence
+justify the result. Historical file layout is not an acceptance invariant.
+
 ## Scope, authority and evidence
 
 The original review inspected

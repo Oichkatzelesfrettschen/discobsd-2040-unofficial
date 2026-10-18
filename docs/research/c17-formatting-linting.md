@@ -1,5 +1,11 @@
 # C17 formatting and linting for DiscoBSD
 
+The current execution order is the RP2040 modernization queue in
+`c17-semantic-migration-plan.md`. The revision-bound syntax counts below remain
+audit observations. Shipped trust boundaries precede broad leaf conversion;
+source classification, compiler acceptance and semantic/resource closure remain
+separate states. Header decomposition follows ownership and dependency evidence.
+
 This guide turns `docs/research/STYLE-GUIDE.md` into a reproducible tooling
 plan. It covers project-owned C source from K&R through C11 as a migration
 frontier: every maintainable translation unit moves to the repository C17

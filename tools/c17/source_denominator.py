@@ -638,13 +638,14 @@ def bootstrap(root, ledger_path, quarantine_path):
                 "reason": "Named historical source boundary outside the maintained ARM migration.",
             }
         )
-    ledger_path.write_text(
-        json.dumps({"schema_version": 2, "rows": rows}, indent=2) + "\n", encoding="utf-8"
-    )
-    quarantine_path.write_text(
-        json.dumps({"schema_version": 1, "entries": entries}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    ledger = {"schema_version": 2, "rows": rows}
+    quarantine = {"schema_version": 1, "entries": entries}
+    discovered = [row["path"] for row in rows]
+    counts = validate_documents(root, discovered, ledger, quarantine)
+    validate_count_report(root, counts)
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    quarantine_path.write_text(json.dumps(quarantine, indent=2) + "\n", encoding="utf-8")
+    return counts
 
 
 def refresh_classification(root, ledger_path, discovered, quarantine, closure=False):
@@ -657,6 +658,7 @@ def refresh_classification(root, ledger_path, discovered, quarantine, closure=Fa
         row["classification"] = derive_classification(root, row)
     ledger["schema_version"] = 2
     counts = validate_documents(root, discovered, ledger, quarantine, closure)
+    validate_count_report(root, counts)
     atomic_write_text(ledger_path, json.dumps(ledger, indent=2) + "\n")
     return counts
 
@@ -705,6 +707,7 @@ def sync_paths(
         added_rows.append(row)
     ledger["rows"] = sorted(retained_rows + added_rows, key=lambda row: row["path"])
     counts = validate_documents(root, discovered, ledger, quarantine, closure)
+    validate_count_report(root, counts)
     atomic_write_text(ledger_path, json.dumps(ledger, indent=2) + "\n")
     return counts
 
@@ -730,10 +733,10 @@ def main():
             "select only one ledger mutation mode",
         )
         if args.bootstrap:
-            bootstrap(root, ledger_path, quarantine_path)
-        discovered = tracked_sources(root)
-        quarantine = load_json(quarantine_path)
-        if args.sync_paths:
+            counts = bootstrap(root, ledger_path, quarantine_path)
+        elif args.sync_paths:
+            discovered = tracked_sources(root)
+            quarantine = load_json(quarantine_path)
             counts = sync_paths(
                 root,
                 ledger_path,
@@ -744,14 +747,18 @@ def main():
                 args.closure,
             )
         elif args.refresh_classification:
+            discovered = tracked_sources(root)
+            quarantine = load_json(quarantine_path)
             counts = refresh_classification(
                 root, ledger_path, discovered, quarantine, args.closure
             )
         else:
+            discovered = tracked_sources(root)
+            quarantine = load_json(quarantine_path)
             counts = validate_documents(
                 root, discovered, load_json(ledger_path), quarantine, args.closure
             )
-        validate_count_report(root, counts)
+            validate_count_report(root, counts)
     except (DenominatorError, subprocess.CalledProcessError) as error:
         print(f"FAIL C17 source denominator: {error}", file=sys.stderr)
         return 1

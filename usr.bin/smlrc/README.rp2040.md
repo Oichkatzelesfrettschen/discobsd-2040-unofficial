@@ -199,8 +199,10 @@ definitions displace the DiscoBSD ones and everything above them -- printf,
 malloc, the string functions -- is the tree's own libc. Output is compared
 against a checked-in `.expected` file.
 
-`t18_stdio` consumes the expanded public `stdio.h` and `sys/dir.h` interfaces
-through Smaller C. It pins the 24-byte `FILE` and 1,040-byte `DIR` layouts,
+`t18_stdio` consumes the expanded public `stdio.h`, `sys/dir.h` and `pwd.h`
+interfaces through Smaller C. It pins the 24-byte `FILE`, 1,040-byte `DIR`
+and 28-byte password-entry layouts, password-field offsets, nested alignment,
+repeated password-header inclusion and the password database key constants,
 independent unbuffered streams over one descriptor, stream-owned pushback,
 `scanf`, `sscanf`, `vsscanf`, EOF/error clearing, string-stream pushback and
 bounded `snprintf` results. The `scanf` host contract separately executes

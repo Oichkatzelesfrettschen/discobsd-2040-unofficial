@@ -112,11 +112,12 @@ output, and `fsutil` reports the packed `/usr/bin/passwd` inode as mode
 `0104755`, owner 0. The account-image checker and all five manifest profiles
 pass.
 
-This is a per-file migration, not proof that the file's shared declarations
-are strict-prototype clean. Adding `-Wstrict-prototypes` reaches pre-existing
-empty-parameter declarations in `include/pwd.h` and `include/unistd.h` before
-it can certify this translation unit; those headers remain separate C17
-frontier entries.
+The passwd migration measured the translation unit at its stated source base.
+At that revision, `-Wstrict-prototypes` also reached empty-parameter declarations
+in `include/pwd.h` and `include/unistd.h`. The later header batches recorded below
+repaired those declarations. `libc-passwd-header-inclusion.md` records the
+separate repeated-inclusion, type/layout, native-input and paired-resource
+contracts; password lookup semantics retain their own acceptance boundary.
 
 ## Shipped login privilege handoff and C17 migration
 
@@ -145,9 +146,10 @@ the final UID check, a Kerberos credential check, a mode restore or a required
 handoff stage. `shellcheck -S error`, the contract script, and
 `bmake MACHINE=rp2040 -C tests/getty_contracts clean check` pass. The login
 target builds with `-Wall -Wextra -Werror -Wold-style-definition` under the
-repository GNU17 target mode. A standalone strict-prototype check remains
-blocked by the shared `include/unistd.h` declarations for `access` and
-`alarm`; those declarations are separate frontier work.
+repository GNU17 target mode. At the login migration's stated source base,
+a standalone strict-prototype check reached the shared `include/unistd.h`
+declarations for `access` and `alarm`. The later header batch recorded below
+repaired both declarations and calibrated their call contracts.
 
 Matched Cortex-M0+ artifacts use repository startup, libc and libutil with
 `-Os`. The login source changes from 620 lines / 14,559 bytes to 611 lines /
@@ -724,10 +726,11 @@ translation unit uses complete prototypes, internal linkage, `_Static_assert`,
 Clang accept the complete host unit as C17 with pedantic, prototype and
 conversion diagnostics treated as errors, and both sanitizer suites pass.
 The target build also passes its production warning contract. A direct target
-probe with `-Wstrict-prototypes` still diagnoses declarations in the shared
-`unistd.h` and `pwd.h`; target stdio and ioctl macros also trigger conversion
-diagnostics. Those shared-header migrations remain outside the tar unit and
-must not be represented as tar source failures.
+probe at the tar migration's stated source base diagnosed declarations in the
+shared `unistd.h` and `pwd.h`; target stdio and ioctl macros also triggered
+conversion diagnostics. The later header batches recorded above repaired the
+named prototype declarations. The tar unit's historical diagnostics remain
+bound to its source base; current acceptance follows each owning gate.
 
 The base source is `bin/tar/tar.c` at commit
 `1bed0b4dc4aeb5c3fb0d0a2a3a559a809b5af592` (SHA-256

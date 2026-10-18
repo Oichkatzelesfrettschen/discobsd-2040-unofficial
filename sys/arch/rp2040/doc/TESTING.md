@@ -1055,6 +1055,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-dirent-contracts-cross` | The five exact stream members compile as strict C17 for Cortex-M0+. The layout fixture pins the 1,040-byte DIR and intact 1 KiB block. Import inspection requires fstat/fcntl in opendir and rejects lseek in telldir. Good imports, either missing admission import, a forbidden seek import and a failed inspector calibrate the check before real objects are inspected. |
 | `check-getwd-lifetime-cross` | Exact getwd implementation compiles as C17 for Cortex-M0+ with warnings as errors; host lifetime behavior remains a separate receipt. |
 | `check-libc-casefold-cross` | Strict C17 Cortex-M0+ compilation exports exactly strcasecmp and strncasecmp. Calibrated nm/size inspection rejects imports, permanent storage and malformed tool output. Compilation and object inspection establish a target object contract; board execution remains separate. |
+| `check-passwd-header-contracts` | Compiler acceptance for the password public header: standalone/repeated inclusion, sys/types and stddef include orders, seven field types/offsets, structure size/alignment, seven function-pointer signatures and both database keys. Five mandatory profiles cover the host compiler, native Clang, Clang ARM32 and production GNU ARM GNU17/strict C17. Two host ILP32 profiles probe availability and retain explicit unrun states. Every executed profile accepts four valid forms and rejects a removed guard, unsigned UID and incompatible lookup callback. Four profile-policy controls include a synthetic driver diagnostic; real compiler probes decide actual availability and source errors stay failures. Firmware CI runs the gate through check-cross on Linux and macOS; compilation establishes header/ABI acceptance rather than runtime password behavior. |
 | `check-libc-output-cross` | Exact fprintf, vfprintf, fputs, printf, vprintf, sprintf, vsprintf and doprnt implementations compile as C17 for Cortex-M0+ with warnings and old-style definitions treated as errors. Host semantics and target compilation retain separate receipts. |
 | `check-board-libc-output` | The cross compiler emits a fprintf consumer, the tree assembler produces a.out, and the tree linker resolves the consumer with the selected shipped libc archive and startup object. A temporary archive copy with vfprintf.o removed must fail the named dependency. The gate builds the selected archive when stale; it executes neither the consumer nor board hardware. |
 | `check-cat-contracts-cross` | the exact cat source compiled as strict C17 for Cortex-M0+ with full warnings; its static assertions bind the transfer buffer to the target's BUFSIZ, MAXBSIZE and DEV_BSIZE |
@@ -1441,6 +1442,7 @@ capture directory. Select PYTHON in the caller, then run from the checkout:
 set -eu
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
+mkdir -p .build-logs
 C17_SOURCE_SNAPSHOT="$(pwd)/.build-logs/c17-source.json"
 C17_CAPTURE_DIR="$(pwd)/.build-logs/c17-command-capture"
 export C17_SOURCE_SNAPSHOT C17_CAPTURE_DIR
@@ -1518,3 +1520,27 @@ retained Git-blob validation. Multicall source hashes remain the recorded
 checks evaluated build membership, archive selections, packed sizes, block
 savings and root capacity. The generic Git-fixture controls calibrate both
 callers' retained-source boundary.
+
+
+### Password public header
+
+`check-passwd-header-contracts` owns the standalone, repeated-inclusion,
+peer-order, type and layout compiler contract for `include/pwd.h`. The default
+cross gate executes four accepted fixtures and three deliberate rejections per
+available profile. Five mandatory profiles always run; the host compiler and
+Clang ILP32 variants may record `unrun` only after a recognized driver rejection
+of `-m32`. A compiler source error containing unsupported-option wording remains
+a failure. The policy calibration uses a diagnostic fixture for an unavailable
+mode and real accepted/rejected C probes for the source boundary. The receipt
+records compiler executable hashes, versions, argv, source/diagnostic bytes,
+header/verifier hashes and every profile state.
+
+The evaluated libc compiler supplies the production GNU17 ARM command. Strict
+C17 adds pedantic and prototype checks without replacing the target ABI flags.
+The independent Clang ARM profile and GNU profiles require 32-bit pointers,
+a 28-byte password entry and four-byte alignment. Native host declarations
+remain a separate width, and a compiler verdict executes no password lookup.
+The `t18_stdio` Smaller C fixture separately accepts repeated expanded pwd.h
+inclusion and executes password size, offset, nested-alignment and key checks
+through its Linux EABI test layer. On-device preprocessing and board execution
+retain their own acceptance states.

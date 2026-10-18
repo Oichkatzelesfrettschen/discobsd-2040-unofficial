@@ -1,4 +1,5 @@
 PASS native stdio layouts
+PASS password header layout
 PASS stream-owned input
 PASS scanf and vsscanf
 PASS string pushback

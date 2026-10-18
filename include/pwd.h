@@ -15,6 +15,14 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#ifndef _PWD_H_
+#define _PWD_H_
+
+/*
+ * C callers need only built-in types for the password lookup interface.
+ * Lookup results borrow libc's shared entry and string storage; a later
+ * lookup may overwrite those objects. setpwfile borrows its filename.
+ */
 #define _PW_KEYBYNAME       '0'
 #define _PW_KEYBYUID        '1'
 
@@ -35,3 +43,5 @@ void endpwent(void);
 void setpwfile(const char *);
 int setpwent(void);
 int setpassent(int);
+
+#endif /* _PWD_H_ */

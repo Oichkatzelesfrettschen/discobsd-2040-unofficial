@@ -103,6 +103,12 @@ scope; complete new comparisons require schema-2 captures. The password-header
 inclusion unit records its independent ABI/native and paired static acceptance
 in `libc-passwd-header-inclusion.md`.
 
+`syscall-dispatch-header-contract.md` records the generated callable
+header boundary: generated handler declarations, compatible systm/glob entry
+points, configuration-selected table checks and native-input acceptance.
+The surrounding kernel declarations and handler implementations retain their
+independent migration obligations.
+
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real
 build and link dependencies, including selected libc members, generated headers
@@ -606,8 +612,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 5 accepted, 64 migration-open, 543
-excluded and 1,978 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 9 accepted, 65 migration-open, 543
+excluded and 1,975 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

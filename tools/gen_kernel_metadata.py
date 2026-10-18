@@ -207,6 +207,32 @@ def render_syscall_header(syscalls: list[Syscall]) -> str:
     return "".join(lines)
 
 
+def render_dispatch_header(syscalls: list[Syscall]) -> str:
+    handlers = {call.handler for call in syscalls}
+    if any(call.condition in {"IFNET", "GLOB"} for call in syscalls):
+        handlers.add("nosys")
+    if any(call.condition == "ERRNET" for call in syscalls):
+        handlers.add("nonet")
+    lines = [
+        SYSCALL_TABLE_LICENSE,
+        "\n",
+        generated_notice("syscalls.master"),
+        "#ifndef _SYS_SYSCALL_DISPATCH_H_\n#define _SYS_SYSCALL_DISPATCH_H_\n\n",
+        "/* Kernel dispatch consumers use built-in C types.\n",
+        " * Separate arrays keep pointers naturally aligned and counts byte-sized.\n",
+        " */\n",
+        "typedef void (*syscall_handler_t)(void);\n",
+        "extern const unsigned char syscall_nargs[];\n",
+        "extern const syscall_handler_t syscall_handlers[];\n",
+        "extern const int nsysent;\n",
+        "const char *syscall_name(unsigned int code);\n\n",
+        "/* Handlers read arguments and publish results through the kernel u-area. */\n",
+    ]
+    lines.extend(f"void {handler}(void);\n" for handler in sorted(handlers))
+    lines.append("\n#endif /* _SYS_SYSCALL_DISPATCH_H_ */\n")
+    return "".join(lines)
+
+
 def conditional_nargs(call: Syscall) -> list[str]:
     if call.condition in {"IFNET", "ERRNET"}:
         return [
@@ -245,8 +271,7 @@ def render_init_sysent(syscalls: list[Syscall]) -> str:
         SYSCALL_TABLE_LICENSE,
         "\n",
         generated_notice("syscalls.master"),
-        "#include <sys/param.h>\n#include <sys/systm.h>\n\n",
-        "extern void sc_msec(void);\n\n",
+        "#include <sys/syscall_dispatch.h>\n#include <sys/stdint.h>\n\n",
         "const uint8_t syscall_nargs[] = {\n",
     ]
     for call in syscalls:
@@ -279,7 +304,7 @@ def render_syscall_names(syscalls: list[Syscall]) -> str:
         SYSCALL_TABLE_LICENSE,
         "\n",
         generated_notice("syscalls.master"),
-        "#include <sys/param.h>\n#include <sys/systm.h>\n\n",
+        "#include <sys/syscall_dispatch.h>\n#include <sys/stdint.h>\n\n",
         "static const char syscall_name_pool[] =\n",
     ]
     lines.extend(f"    {c_string(call.trace_name)}\n" for call in syscalls)
@@ -294,8 +319,8 @@ def render_syscall_names(syscalls: list[Syscall]) -> str:
             f"    sizeof(syscall_name_offsets[0]) == {len(syscalls)},\n",
             '    "syscall name and ABI counts differ");\n\n',
             "const char *\n",
-            "syscall_name(u_int code)\n{\n",
-            "    if (code >= (u_int)nsysent)\n        return \"?\";\n",
+            "syscall_name(unsigned int code)\n{\n",
+            "    if (code >= (unsigned int)nsysent)\n        return \"?\";\n",
             "    return syscall_name_pool + syscall_name_offsets[code];\n}\n",
         ]
     )
@@ -341,6 +366,7 @@ def render_all(root: Path) -> dict[Path, str]:
     messages = parse_errlist(root / "sys/kern/errlist.master")
     return {
         Path("include/syscall.h"): render_syscall_header(syscalls),
+        Path("sys/sys/syscall_dispatch.h"): render_dispatch_header(syscalls),
         Path("sys/kern/init_sysent.c"): render_init_sysent(syscalls),
         Path("sys/kern/syscalls.c"): render_syscall_names(syscalls),
         Path("sys/kern/errlist.c"): render_errlist(messages),

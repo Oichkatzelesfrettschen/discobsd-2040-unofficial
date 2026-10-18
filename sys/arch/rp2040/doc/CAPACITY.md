@@ -20,8 +20,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 `sys/kern/syscalls.master` is the single authority for syscall numbers,
 argument counts, handlers, trace names, and public definitions. The generator
-emits `include/syscall.h`, `sys/kern/init_sysent.c`, and
-`sys/kern/syscalls.c`. The master preserves this tree's ABI: slot 23 is
+emits `include/syscall.h`, `sys/sys/syscall_dispatch.h`,
+`sys/kern/init_sysent.c`, and `sys/kern/syscalls.c`. The master preserves this tree's ABI: slot 23 is
 `__sysctl`, dispatch slot 66 is `vfork`, `SYS_vfork` remains the public alias
 for slot 2, and every handler retains the `void handler(void)` calling
 convention. A donor syscall master is unsuitable because equal slot numbers
@@ -31,6 +31,13 @@ name different operations across the small BSD descendants.
 used by RP2040, STM32, and PIC32. Both pools use 16-bit offsets. The syscall
 dispatch keeps its function pointers in a separate naturally aligned array;
 ARMv6-M cannot safely trade alignment for a packed pointer record.
+
+The guarded private dispatch header owns handler prototypes and array types
+without device or process prerequisites. `systm.h` and kernel `glob.h` retain
+compatible include entry points. The argument-count declaration uses the
+underlying unsigned-byte type so Smaller C can accept the interface without
+parsing unrelated 64-bit integer typedefs. The metadata gate checks generation,
+types, all configuration-selected rows and the preserved numeric assembly ABI.
 
 The compact representations remove this gross storage from an RP2040 kernel:
 

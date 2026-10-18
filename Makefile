@@ -328,6 +328,9 @@ check-kernel-metadata:
 		${PYTHON} tools/gen_kernel_metadata.py --root ${TOPSRC} --self-test
 		${PYTHON} tools/gen_kernel_metadata.py --root ${TOPSRC} --check
 		${PYTHON} tests/kernel_metadata/check.py --root ${TOPSRC}
+		${PYTHON} tests/kernel_metadata/dispatch_contracts.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/syscall-dispatch-contracts.json
 
 check-root-noatime:
 		${PYTHON} tests/root_noatime/check.py --root ${TOPSRC}

@@ -33,6 +33,7 @@
  */
 #include "conf.h"
 #include <sys/stdint.h>
+#include <sys/syscall_dispatch.h>
 
 extern int securelevel;         /* system security level */
 
@@ -51,11 +52,6 @@ extern const int nblkdev;
  * Number of character switch entries.
  */
 extern const int nchrdev;
-
-/*
- * Number of system call entries.
- */
-extern const int nsysent;
 
 extern int  mpid;                   /* generic for unique process id's */
 extern char runin;                  /* scheduling flag */
@@ -109,16 +105,6 @@ struct proc;
 struct inode;
 daddr_t bmap (struct inode *ip, daddr_t bn, int rwflg, int flags);
 
-extern void kmemdev(void);
-
-/*
- * The separate arrays keep every function pointer naturally aligned while
- * giving each argument count its actual one-byte representation.
- */
-typedef void (*syscall_handler_t)(void);
-extern const uint8_t syscall_nargs[];
-extern const syscall_handler_t syscall_handlers[];
-const char *syscall_name(u_int code);
 const char *kernel_errmsg(u_int error);
 
 /*
@@ -220,73 +206,6 @@ void dk_alloc (int *dkn, int slots, char *name);
 void coutinit (void);
 
 /*
- * Syscalls.
- */
-void    nosys (void);
-
-/* 1.1 processes and protection */
-void    getpid (void);
-void    getppid (void), fork (void), rexit (void), execv (void), execve (void);
-void    wait4 (void), getuid (void), getgid (void), getgroups (void), setgroups (void);
-void    geteuid (void), getegid (void);
-void    getpgrp (void), setpgrp (void);
-void    setgid (void), setegid (void), setuid (void), seteuid (void);
-void    ucall (void);                   /* 2BSD calls */
-
-/* 1.2 memory management */
-void    brk (void);
-void    ustore (void);                                  /* 2BSD calls */
-void    ufetch (void);                                  /* 2BSD calls */
-
-/* 1.3 signals */
-void    sigstack (void), sigreturn (void);
-void    sigaction (void), sigprocmask (void), sigpending (void), sigaltstack (void), sigsuspend (void);
-void    sigwait (void), kill (void), killpg (void);
-
-/* 1.4 timing and statistics */
-void    gettimeofday (void), settimeofday (void);
-void    getitimer (void), setitimer (void);
-void    adjtime (void);
-
-/* 1.5 descriptors */
-void    getdtablesize (void), dup (void), dup2 (void), close (void);
-void    pselect (void), select (void), fcntl (void), flock (void);
-
-/* 1.6 resource controls */
-void    getpriority (void), setpriority (void), getrusage (void), getrlimit (void), setrlimit (void);
-
-/* 1.7 system operation support */
-void    umount (void), smount (void);
-void    sync (void), reboot (void), __sysctl (void);
-
-/* 2.1 generic operations */
-void    read (void), write (void), readv (void), writev (void), ioctl (void);
-
-/* 2.2 file system */
-void    chdir (void), fchdir (void), chroot (void);
-void    mkdir (void), rmdir (void), chflags (void), fchflags (void);
-void    open (void), mknod (void), unlink (void), stat (void), fstat (void), lstat (void);
-void    chown (void), fchown (void), chmod (void), fchmod (void), utimes (void);
-void    link (void), symlink (void), readlink (void), rename (void);
-void    lseek (void), truncate (void), ftruncate (void), saccess (void), fsync (void);
-void    statfs (void), fstatfs (void), getfsstat (void);
-
-/* 2.3 communications */
-void    socket (void), bind (void), listen (void), accept (void), connect (void);
-void    socketpair (void), sendto (void), send (void), recvfrom (void), recv (void);
-void    sendmsg (void), recvmsg (void), shutdown (void), setsockopt (void), getsockopt (void);
-void    getsockname (void), getpeername (void), pipe (void);
-
-void    umask (void);           /* XXX */
-
-/* 2.4 processes */
-void    ptrace (void);
-
-void    profil (void);          /* 'cuz sys calls are interruptible */
-void    vhangup (void);         /* should just do in exit (void) */
-void    vfork (void);           /* awaiting fork w/ copy on write */
-
-/*
  * Drivers.
  */
 struct buf;
@@ -307,7 +226,6 @@ extern struct tty cnttys[];
 int mmrw (dev_t dev, struct uio *uio, int flag);
 int seltrue (dev_t dev, int rw);
 void nostrategy (struct buf *bp);
-void nonet (void);
 
 int syopen (dev_t dev, int flag, int mode);
 int syread (dev_t dev, struct uio *uio, int flag);

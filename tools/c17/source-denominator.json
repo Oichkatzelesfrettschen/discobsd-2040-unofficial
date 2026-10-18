@@ -57048,14 +57048,18 @@
     },
     {
       "path": "sys/kern/init_sysent.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "E",
+      "scope": "generated",
+      "owner": "kernel-syscall-dispatch-interface",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/syscall-dispatch-header-contract.md",
+        "tests/kernel_metadata/dispatch_contracts.py",
+        "tools/gen_kernel_metadata.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58006,14 +58010,18 @@
     },
     {
       "path": "sys/kern/syscalls.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "E",
+      "scope": "generated",
+      "owner": "kernel-syscall-dispatch-interface",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/syscall-dispatch-header-contract.md",
+        "tests/kernel_metadata/dispatch_contracts.py",
+        "tools/gen_kernel_metadata.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58028,6 +58036,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
@@ -59305,14 +59314,18 @@
     },
     {
       "path": "sys/sys/glob.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-syscall-dispatch-interface",
+      "profile": "rp2040-kernel-port",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/syscall-dispatch-header-contract.md",
+        "tests/kernel_metadata/dispatch_contracts.py",
+        "tools/gen_kernel_metadata.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -59331,9 +59344,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -60183,6 +60194,41 @@
       "language_state": "unreviewed",
       "evidence": [],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "kernel-syscall",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/sys/syscall_dispatch.h",
+      "class": "E",
+      "scope": "generated",
+      "owner": "kernel-syscall-dispatch-interface",
+      "profile": "rp2040-kernel-port",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/syscall-dispatch-header-contract.md",
+        "tests/kernel_metadata/dispatch_contracts.py",
+        "tools/gen_kernel_metadata.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -79545,6 +79591,39 @@
           "variadic": [
             "variadic-interface"
           ]
+        }
+      }
+    },
+    {
+      "path": "usr.bin/smlrc/tests/t19_dispatch.c",
+      "class": "B",
+      "scope": "maintained",
+      "owner": "usr.bin/smlrc",
+      "profile": "native-smaller-c-implementation",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/STYLE-GUIDE.md"
+      ],
+      "blocker": "File-level C17 and native-suite acceptance remain unreviewed.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "native-smaller-c",
+        "required_mode": "c17-migration",
+        "extension_policy": "native-subset-separated",
+        "extension_signals": [],
+        "risk_family": "native-compiler",
+        "risk_tier": "T1",
+        "risk_tier_basis": "native-compiler-input",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
         }
       }
     },

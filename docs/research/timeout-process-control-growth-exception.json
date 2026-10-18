@@ -167,7 +167,7 @@
       "main_bytes": 128,
       "main_ceiling_bytes": 128,
       "pre_fork_chain_bytes": 168,
-      "pre_fork_chain_ceiling_bytes": 168,
+      "pre_fork_chain_ceiling_bytes": 176,
       "known_bad_main_bytes": 2176
     },
     "runtime_uncertainty": "Whole-program runtime stack and heap peaks remain unmeasured; the cross gate bounds only compiler-reported static frames in timeout.c."

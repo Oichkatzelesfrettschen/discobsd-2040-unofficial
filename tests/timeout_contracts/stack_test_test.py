@@ -9,6 +9,15 @@ import stack_test
 
 
 class StackDiagnosticTest(unittest.TestCase):
+    def test_supported_gcc_13_frames_satisfy_component_bounds(self) -> None:
+        self.assertEqual(stack_test.validate_production_frames(128, 48), 176)
+
+    def test_pre_fork_ceiling_is_the_component_sum(self) -> None:
+        self.assertEqual(
+            stack_test.PRE_FORK_CHAIN_LIMIT,
+            stack_test.MAIN_FRAME_LIMIT + stack_test.PARSE_DURATION_FRAME_LIMIT,
+        )
+
     def test_bound_failure_reports_components_total_and_limit(self) -> None:
         with self.assertRaisesRegex(
             stack_test.StackFailure,

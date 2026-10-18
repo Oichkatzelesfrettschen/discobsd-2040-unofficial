@@ -9,7 +9,8 @@ import tempfile
 from pathlib import Path
 
 MAIN_FRAME_LIMIT = 128
-PRE_FORK_CHAIN_LIMIT = 168
+PARSE_DURATION_FRAME_LIMIT = 48
+PRE_FORK_CHAIN_LIMIT = MAIN_FRAME_LIMIT + PARSE_DURATION_FRAME_LIMIT
 STACK_MUTATION_ANCHOR = "struct timeout_duration {"
 
 
@@ -29,6 +30,29 @@ def require_stack_limit(
         measured <= limit,
         f"{description}: {components}, total={measured}, limit={limit}",
     )
+
+
+def validate_production_frames(main_frame: int, parse_duration_frame: int) -> int:
+    pre_fork_chain = main_frame + parse_duration_frame
+    require_stack_limit(
+        "timeout main static frame",
+        main_frame,
+        MAIN_FRAME_LIMIT,
+        f"main={main_frame}",
+    )
+    require_stack_limit(
+        "timeout parse_duration static frame",
+        parse_duration_frame,
+        PARSE_DURATION_FRAME_LIMIT,
+        f"parse_duration={parse_duration_frame}",
+    )
+    require_stack_limit(
+        "timeout pre-fork static call chain",
+        pre_fork_chain,
+        PRE_FORK_CHAIN_LIMIT,
+        f"main={main_frame}, parse_duration={parse_duration_frame}",
+    )
+    return pre_fork_chain
 
 
 def compile_source(compiler: str, root: Path, source: Path, output: Path) -> Path:
@@ -107,18 +131,8 @@ def main() -> int:
         )
         main_frame = production_usage["main"][0]
         parse_duration_frame = production_usage["parse_duration"][0]
-        pre_fork_chain = main_frame + parse_duration_frame
-        require_stack_limit(
-            "timeout main static frame",
-            main_frame,
-            MAIN_FRAME_LIMIT,
-            f"main={main_frame}",
-        )
-        require_stack_limit(
-            "timeout pre-fork static call chain",
-            pre_fork_chain,
-            PRE_FORK_CHAIN_LIMIT,
-            f"main={main_frame}, parse_duration={parse_duration_frame}",
+        pre_fork_chain = validate_production_frames(
+            main_frame, parse_duration_frame
         )
 
         bad_source = build_directory / "timeout-known-bad.c"

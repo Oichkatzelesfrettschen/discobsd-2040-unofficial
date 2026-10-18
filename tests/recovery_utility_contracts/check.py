@@ -345,7 +345,7 @@ def main():
                     / "realpath_legacy_guard.c",
                 ],
                 textbox_sources,
-                extra_flags=("-Wl,--wrap=realpath",),
+                extra_flags=("-Drealpath=discobsd_test_realpath",),
             )
             compile_program(
                 arguments.cc,

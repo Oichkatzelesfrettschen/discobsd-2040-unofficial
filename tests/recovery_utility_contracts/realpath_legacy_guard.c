@@ -3,10 +3,12 @@
 #include <errno.h>
 #include <stdlib.h>
 
-char *__real_realpath(const char *, char *);
+#undef realpath
+
+char *realpath(const char *, char *);
 
 char *
-__wrap_realpath(const char *path, char *resolved)
+discobsd_test_realpath(const char *path, char *resolved)
 {
 	struct stat status;
 
@@ -14,5 +16,5 @@ __wrap_realpath(const char *path, char *resolved)
 		errno = ELOOP;
 		return NULL;
 	}
-	return __real_realpath(path, resolved);
+	return realpath(path, resolved);
 }

@@ -60,10 +60,26 @@ profile. Dependency capture counts tracked generated files as source inputs;
 the existing metadata freshness gate binds those bytes to the master and
 generator. The generated-input provider map retains its established scope.
 
-The clean parent distribution at `b55c5124` passed in 245.6 seconds and retains
-36 artifact groups. Candidate consumer rebuilds, resource comparison, full
-aggregate and hosted CI remain integration gates. Language acceptance for the
-three generated files and `glob.h` covers the declared header/table/name
-contracts. Handler-definition migration, the broader `systm.h` collection,
-syscall copying, runtime stack/heap, persistence and silicon behavior retain
-independent open states.
+Clean distributions at parent `b55c5124c3e5b075097b20458d4a892ec81f140f` and
+candidate `1f150273b312e3189ed52c642d4822c525ff2ce8` passed in 245.6 and 163.5
+seconds. Both captures retain 36 artifact groups and 2,459 compiler commands;
+the evaluated compiler-command multisets and compiler executable hashes match.
+The static comparison reports 154 zero deltas and unchanged archive identities,
+selected members and member hashes. The installed private header matches its
+authoritative generated source byte for byte. Elapsed build time records the
+execution conditions rather than establishing a performance improvement.
+
+The parent resource receipt has SHA-256
+`a5e8b6ef01e31be074588e8547ed73a19d5133462cb11a96820513af1fadb27f`;
+the candidate resource receipt has SHA-256
+`6ec4d5c9b01635603ea1298f566f919b8081c3ec63b5d396bcf25b9d6fad658a`.
+The comparison receipt has SHA-256
+`c9922e8f2a37fc99ecfca6d809d3d2b7309ad6d45e8df05705d099894e9a8a13`.
+The raw captures and both measured root images accompany retained integration
+evidence. A fresh read-only branch review reports zero actionable findings.
+The full aggregate and hosted CI remain integration gates.
+
+Language acceptance for the three generated files and `glob.h` covers the
+declared header/table/name contracts. Handler-definition migration, the broader
+`systm.h` collection, syscall copying, runtime stack/heap, persistence and silicon
+behavior retain independent open states.

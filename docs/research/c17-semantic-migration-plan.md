@@ -103,7 +103,7 @@ scope; complete new comparisons require schema-2 captures. The password-header
 inclusion unit records its independent ABI/native and paired static acceptance
 in `libc-passwd-header-inclusion.md`.
 
-`syscall-dispatch-header-contract.md` records the next caller-complete
+`syscall-dispatch-header-contract.md` records the generated callable
 header boundary: generated handler declarations, compatible systm/glob entry
 points, configuration-selected table checks and native-input acceptance.
 The surrounding kernel declarations and handler implementations retain their

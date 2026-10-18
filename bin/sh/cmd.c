@@ -8,9 +8,8 @@
 
 /* ======== storage allocation for functions ======== */
 
-char *
-getstor(asize)
-	int asize;
+static char *
+getstor(int asize)
 {
 	if (fndef)
 		return alloc(asize);
@@ -21,9 +20,7 @@ getstor(asize)
 /* ========	command line decoding	========*/
 
 struct trenod *
-makefork(flgs, i)
-	int	flgs;
-	struct trenod *i;
+makefork(int flgs, struct trenod *i)
 {
 	register struct forknod *t;
 
@@ -35,8 +32,7 @@ makefork(flgs, i)
 }
 
 static void
-prsym(sym)
-	int	sym;
+prsym(int sym)
 {
 	if (sym & SYMFLG)
 	{
@@ -60,7 +56,7 @@ prsym(sym)
 }
 
 static void
-synbad()
+synbad(void)
 {
 	prp();
 	prs(synmsg);
@@ -82,9 +78,7 @@ synbad()
 }
 
 static struct trenod *
-makelist(type, i, r)
-	int	type;
-	struct trenod *i, *r;
+makelist(int type, struct trenod *i, struct trenod *r)
 {
 	register struct lstnod *t = (struct lstnod *)NIL;
 
@@ -101,7 +95,7 @@ makelist(type, i, r)
 }
 
 static int
-skipnl()
+skipnl(void)
 {
 	while ((reserv++, word() == NL))
 		chkpr();
@@ -109,8 +103,7 @@ skipnl()
 }
 
 static void
-chksym(sym)
-	int	sym;
+chksym(int sym)
 {
 	register int	x = sym & wdval;
 
@@ -119,8 +112,7 @@ chksym(sym)
 }
 
 static struct regnod *
-syncase(esym)
-register int	esym;
+syncase(int esym)
 {
 	skipnl();
 	if (wdval == esym)
@@ -162,15 +154,14 @@ register int	esym;
 }
 
 static void
-chkword()
+chkword(void)
 {
 	if (word())
 		synbad();
 }
 
 static struct ionod *
-inout(lastio)
-	struct ionod *lastio;
+inout(struct ionod *lastio)
 {
 	register int	iof;
 	register struct ionod *iop;
@@ -241,8 +232,7 @@ inout(lastio)
  *	begin ... end
  */
 static struct trenod *
-item(flag)
-	BOOL	flag;
+item(BOOL flag)
 {
 	register struct trenod *r;
 	register struct ionod *io;
@@ -349,7 +339,7 @@ item(flag)
 			p = (struct parnod *)getstor(sizeof(struct parnod));
 			p->partre = cmd(')', NLFLG);
 			p->partyp = TPAR;
-			r = makefork(0, p);
+			r = makefork(0, (struct trenod *)p);
 			break;
 		}
 
@@ -473,8 +463,7 @@ item(flag)
  *	item |^ term
  */
 static struct trenod *
-term(flg)
-	int	flg;
+term(int flg)
 {
 	register struct trenod *t;
 
@@ -503,8 +492,7 @@ term(flg)
  *	list || term
  */
 static struct trenod *
-list(flg)
-	int	flg;
+list(int flg)
 {
 	register struct trenod *r;
 	register int		b;
@@ -523,9 +511,7 @@ list(flg)
  *	list [ ; cmd ]
  */
 struct trenod *
-cmd(sym, flg)
-	register int	sym;
-	int		flg;
+cmd(int sym, int flg)
 {
 	register struct trenod *i, *e;
 

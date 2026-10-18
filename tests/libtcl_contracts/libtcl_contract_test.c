@@ -332,12 +332,88 @@ regexp_substitute_case(void)
 	return ok;
 }
 
+static int
+pwd_contract(void)
+{
+	static const char name[] = "pwd-contract";
+	unsigned char script[] = "pwd";
+	char expected[4096];
+	Tcl_Interp *interp;
+	int ok = 1;
+
+	if (!expect(getcwd(expected, sizeof(expected)) != NULL, name,
+	    "host getcwd failed"))
+		return 0;
+	interp = Tcl_CreateInterp();
+	if (!expect(interp != NULL, name, "interpreter allocation failed"))
+		return 0;
+	ok &= expect(Tcl_Eval(interp, script, 0, NULL) == TCL_OK, name,
+	    "pwd evaluation failed");
+	ok &= expect(strcmp((const char *)interp->result, expected) == 0, name,
+	    "pwd differs from getcwd");
+	Tcl_DeleteInterp(interp);
+	return ok;
+}
+
+static int
+pipeline_temporary_files(void)
+{
+	static const char name[] = "pipeline-temporary-files";
+	static unsigned char command[] = "/bin/cat";
+	static unsigned char redirect[] = "<<";
+	static unsigned char input[] = "pipeline-input";
+	unsigned char *arguments[] = { command, redirect, input, NULL };
+	char output_buffer[32];
+	char error_buffer[2];
+	Tcl_Interp *interp;
+	int *processes = NULL;
+	int output_descriptor = -1;
+	int error_descriptor = -1;
+	int process_count;
+	int process_status = 0;
+	ssize_t output_length;
+	ssize_t error_length;
+	int ok = 1;
+
+	interp = Tcl_CreateInterp();
+	if (!expect(interp != NULL, name, "interpreter allocation failed"))
+		return 0;
+	process_count = Tcl_CreatePipeline(interp, 3, arguments, &processes,
+	    NULL, &output_descriptor, &error_descriptor);
+	if (!expect(process_count == 1, name, "pipeline creation failed")) {
+		Tcl_DeleteInterp(interp);
+		return 0;
+	}
+	output_length = read(output_descriptor, output_buffer,
+	    sizeof(output_buffer));
+	ok &= expect(output_length == (ssize_t)strlen((const char *)input), name,
+	    "pipeline returned an unexpected byte count");
+	ok &= expect(output_length >= 0 &&
+	    memcmp(output_buffer, input, (size_t)output_length) == 0, name,
+	    "pipeline changed immediate input bytes");
+	ok &= expect(close(output_descriptor) == 0, name,
+	    "pipeline output close failed");
+	ok &= expect(Tcl_WaitPids(process_count, processes, &process_status) ==
+	    processes[0] && WIFEXITED(process_status) &&
+	    WEXITSTATUS(process_status) == 0, name,
+	    "pipeline child did not exit successfully");
+	error_length = read(error_descriptor, error_buffer, sizeof(error_buffer));
+	ok &= expect(error_length == 0, name, "pipeline stderr was not empty");
+	ok &= expect(close(error_descriptor) == 0, name,
+	    "pipeline stderr close failed");
+	free(processes);
+	Tcl_DeleteInterp(interp);
+	return ok;
+}
+
 struct native_case {
 	const char *name;
 	int (*body)(void);
 };
 
 static const struct native_case native_cases[] = {
+	{ "pwd-contract", pwd_contract },
+	{ "pipeline-temporary-files", pipeline_temporary_files },
 	{ "regexp-backtrack", regexp_backtrack },
 	{ "regexp-program", regexp_program },
 	{ "regexp-substitute", regexp_substitute_case },

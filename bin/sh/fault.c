@@ -7,7 +7,8 @@
 
 char    *trapcom[MAXTRAP];
 
-static void setsig();
+static void setsig(int n);
+static void sigdone(int sig);
 
 BOOL    trapflg[MAXTRAP] =
 {
@@ -37,38 +38,44 @@ BOOL    trapflg[MAXTRAP] =
 	0,      /* 23 tint */
 };
 
-void (*sigval[])() = {
+sig_t sigval[] = {
 	0,
-	done,
+	sigdone,
 	fault,
 	fault,
-	done,
-	done,
-	abort,
-	done,
-	done,
+	sigdone,
+	sigdone,
 	SIG_DFL,
-	done,
-	done,
-	done,
-	done,
+	sigdone,
+	sigdone,
+	SIG_DFL,
+	sigdone,
+	sigdone,
+	sigdone,
+	sigdone,
 	fault,
 	fault,
-	done,
+	sigdone,
 	SIG_DFL,
 	SIG_DFL,
 	SIG_DFL,
-	done,
+	sigdone,
 	SIG_DFL,
 	SIG_DFL,
 	SIG_DFL,
 };
 
+static void
+sigdone(int sig)
+{
+	(void)sig;
+	done();
+}
+
 /* ========     fault handling routines    ======== */
 
 void
-fault(sig)
-register int    sig;
+fault(int sig)
 {
 	register int    flag;
 
@@ -94,7 +101,7 @@ register int    sig;
 }
 
 void
-stdsigs()
+stdsigs(void)
 {
 	setsig(SIGHUP);
 	setsig(SIGINT);
@@ -119,8 +126,7 @@ stdsigs()
 }
 
 int
-ignsig(n)
-	int	n;
+ignsig(int n)
 {
 	register int    s = 0, i;
 
@@ -137,8 +143,7 @@ ignsig(n)
 }
 
 void
-getsig(n)
-	int	n;
+getsig(int n)
 {
 	register int    i;
 
@@ -148,8 +153,7 @@ getsig(n)
 
 
 static void
-setsig(n)
-	int	n;
+setsig(int n)
 {
 	register int    i;
 
@@ -158,7 +162,7 @@ setsig(n)
 }
 
 void
-oldsigs()
+oldsigs(void)
 {
 	register int    i;
 	register char   *t;
@@ -175,8 +179,7 @@ oldsigs()
 }
 
 void
-clrsig(i)
-int     i;
+clrsig(int i)
 {
 	free(trapcom[i]);
 	trapcom[i] = NIL;
@@ -191,7 +194,7 @@ int     i;
  * check for traps
  */
 void
-chktrap()
+chktrap(void)
 {
 	register int    i = MAXTRAP;
 	register char   *t;

@@ -12,16 +12,14 @@ static void prarg(struct argnod *);
 static void prio(struct ionod *);
 
 void
-freefunc(n)
-	struct namnod 	*n;
+freefunc(struct namnod *n)
 {
 	freetree((struct trenod *)(n->namenv));
 }
 
 
 void
-freetree(t)
-	register struct trenod *t;
+freetree(struct trenod *t)
 {
 	if (t)
 	{
@@ -103,8 +101,7 @@ freetree(t)
 }
 
 static void
-free_arg(argp)
-	register struct argnod 	*argp;
+free_arg(struct argnod *argp)
 {
 	register struct argnod 	*sav;
 
@@ -118,8 +115,7 @@ free_arg(argp)
 
 
 static void
-freeio(iop)
-	register struct ionod *iop;
+freeio(struct ionod *iop)
 {
 	register struct ionod *sav;
 
@@ -158,8 +154,7 @@ freeio(iop)
 
 
 static void
-freereg(regp)
-	register struct regnod 	*regp;
+freereg(struct regnod *regp)
 {
 	register struct regnod 	*sav;
 
@@ -175,8 +170,7 @@ freereg(regp)
 
 
 void
-prf(t)
-	register struct trenod	*t;
+prf(struct trenod *t)
 {
 	sigchk();
 
@@ -341,8 +335,7 @@ prf(t)
 }
 
 static void
-prarg(argp)
-	register struct argnod	*argp;
+prarg(struct argnod *argp)
 {
 	while (argp)
 	{
@@ -354,8 +347,7 @@ prarg(argp)
 
 
 static void
-prio(iop)
-	register struct ionod	*iop;
+prio(struct ionod *iop)
 {
 	register int	iof;
 	register char	*ion;

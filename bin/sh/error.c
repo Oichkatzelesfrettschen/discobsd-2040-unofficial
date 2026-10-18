@@ -8,9 +8,7 @@
 /* ========     error handling  ======== */
 
 _Noreturn void
-failure(s1, s2, xno)
-char    *s1, *s2;
-int     xno;
+failure(char *s1, char *s2, int xno)
 {
 	prp();
 	prs_cntl(s1);
@@ -24,8 +22,7 @@ int     xno;
 }
 
 _Noreturn void
-recover_or_exit(xno)
-int     xno;
+recover_or_exit(int xno)
 {
 	if (command_errshell && (flags & errflg) == 0 &&
 	    command_recovery_allowed())
@@ -38,8 +35,7 @@ int     xno;
 }
 
 _Noreturn void
-failed(s1, s2)
-char    *s1, *s2;
+failed(char *s1, char *s2)
 {
 	failure(s1, s2, ERROR);
 }
@@ -54,9 +50,7 @@ char    *s1, *s2;
  * exits as it does on any failure.
  */
 void
-cmdfail(s1, s2, xno)
-char    *s1, *s2;
-int     xno;
+cmdfail(char *s1, char *s2, int xno)
 {
 	if (flags & (forked | errflg))
 		failure(s1, s2, xno);
@@ -72,15 +66,13 @@ int     xno;
 }
 
 void
-error(s)
-char    *s;
+error(char *s)
 {
 	failed(s, NIL);
 }
 
 _Noreturn void
-exitsh(xno)
-int     xno;
+exitsh(int xno)
 {
 	/*
 	 * Arrive here from `FATAL' errors
@@ -106,7 +98,7 @@ int     xno;
 }
 
 _Noreturn void
-done()
+done(void)
 {
 	register char   *t;
 
@@ -129,8 +121,7 @@ done()
 }
 
 void
-rmtemp(base)
-struct ionod    *base;
+rmtemp(struct ionod *base)
 {
 	while (iotemp > base)
 	{
@@ -141,7 +132,7 @@ struct ionod    *base;
 }
 
 void
-rmfunctmp()
+rmfunctmp(void)
 {
 	while (fiotemp)
 	{

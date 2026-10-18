@@ -28,8 +28,7 @@ char            *brkbegin;
 static int      parse_allocation_state;
 
 char *
-alloc(nbytes)
-	unsigned int nbytes;
+alloc(unsigned int nbytes)
 {
 	register unsigned int rbytes = round(nbytes+BYTESPERWORD, BYTESPERWORD);
 
@@ -65,8 +64,7 @@ alloc(nbytes)
 }
 
 void
-addblok(reqd)
-	unsigned int reqd;
+addblok(unsigned int reqd)
 {
 	if (stakbot == NIL)
 	{
@@ -105,8 +103,7 @@ addblok(reqd)
 }
 
 void
-free(ap)
-	struct blk *ap;
+free(void *ap)
 {
 	register struct blk *p;
 
@@ -121,14 +118,13 @@ free(ap)
 }
 
 void
-parse_alloc_begin()
+parse_alloc_begin(void)
 {
 	parse_allocation_state = PARSE_ACTIVE;
 }
 
 static void
-parse_alloc_finish(rollback)
-	int rollback;
+parse_alloc_finish(int rollback)
 {
 	register struct blk *p = (struct blk *)brkbegin;
 	register struct blk *q;
@@ -156,13 +152,13 @@ parse_alloc_finish(rollback)
 }
 
 void
-parse_alloc_commit()
+parse_alloc_commit(void)
 {
 	parse_alloc_finish(0);
 }
 
 void
-parse_alloc_rollback()
+parse_alloc_rollback(void)
 {
 	parse_alloc_finish(1);
 }

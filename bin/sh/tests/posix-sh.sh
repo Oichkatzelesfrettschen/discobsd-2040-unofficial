@@ -388,6 +388,7 @@ xfail status_negation 2.9.2 '0' '! false; echo $?'
 
 ok status_signal_terminated 'ok' \
     'exec 2>/dev/null; sh -c "kill -9 \$\$"; case $? in 137) echo ok;; *) echo bad;; esac'
+okrc status_sigabrt_default '' 134 'kill -6 $$'
 
 # ---- XCU 2.9 shell commands ----
 ok cmd_and_or 'y' 'true && echo y || echo n'

@@ -53,7 +53,7 @@ ILP32_CC= ${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
 
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
-	check-unistd-prototypes \
+	check-unistd-prototypes check-alarm-contract \
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
@@ -200,7 +200,7 @@ check-unistd-prototypes:
 		echo "$$function accepted an extra argument" >&2; exit 1; \
 	    fi; \
 	done; \
-	for function in lseek read sleep ttyname crypt getpass getwd psignal \
+	for function in access alarm lseek read sleep ttyname crypt getpass getwd psignal \
 	    re_comp sethostid ualarm usleep; do \
 	    if ${HOSTCC} -std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 		-nostdinc -isystem ${TOPSRC}/include -fsyntax-only \
@@ -209,6 +209,31 @@ check-unistd-prototypes:
 		echo "$$function accepted a missing argument" >&2; exit 1; \
 	    fi; \
 	done
+
+ALARM_CFLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
+		-Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes
+ALARM_SOURCE_CFLAGS=	${ALARM_CFLAGS} -nostdinc \
+		-isystem ${TOPSRC}/include -Dalarm=db_alarm \
+		-Dsetitimer=test_setitimer
+ALARM_TARGET_CFLAGS=	${ALARM_CFLAGS} -fno-common -mcpu=cortex-m0plus \
+		-mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft \
+		-ffreestanding -nostdinc -isystem ${TOPSRC}/include
+
+check-alarm-contract: alarm_contract_test
+	${TEST_EXECUTION} run libc.alarm.native -- ./alarm_contract_test
+	${PYTHON} ${.CURDIR}/alarm_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} ${.CURDIR}/alarm_contract_test.c
+
+check-alarm-contract-cross:
+	${ARM_COMPILER} ${ALARM_TARGET_CFLAGS} -fsyntax-only \
+	    ${TARGET_DIR}/alarm.c
+
+alarm_contract_test: alarm_contract_test.c alarm_contract.o
+	${HOSTCC} ${ALARM_CFLAGS} -D_DEFAULT_SOURCE -o $@ \
+	    alarm_contract_test.c alarm_contract.o
+
+alarm_contract.o: ${TARGET_DIR}/alarm.c
+	${HOSTCC} ${ALARM_SOURCE_CFLAGS} -c -o $@ ${TARGET_DIR}/alarm.c
 
 # <stdio.h> declares no gets() and neither libc builds one, so a caller fails
 # at its implicit declaration rather than storing a whole line into a fixed
@@ -1071,6 +1096,7 @@ header_contract.o: header_contract.c
 
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
+	rm -f alarm_contract_test alarm_contract.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
@@ -1125,6 +1151,7 @@ all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
+	check-alarm-contract check-alarm-contract-cross \
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \

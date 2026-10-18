@@ -309,7 +309,7 @@ static void send(c)
     }
 tryagain:
     timedout = 0;
-    alarm(value(ETIMEOUT));
+    alarm((unsigned int)number(value(ETIMEOUT)));
     read(FD, &cc, 1);
     alarm(0);
     if (timedout) {
@@ -390,7 +390,7 @@ void transmit(fd, eofchars, command)
             printf("\r%d", ++lcount);
         if (boolean(value(ECHOCHECK))) {
             timedout = 0;
-            alarm(value(ETIMEOUT));
+            alarm((unsigned int)number(value(ETIMEOUT)));
             do {    /* wait for prompt */
                 read(FD, (char *)&c, 1);
                 if (timedout || stop) {

@@ -215,13 +215,13 @@ detailed sections below.
 
 | Translation unit | C17 gate and current status | Source lines / bytes | Object T/D/B; ELF T/D/B | a.out raw / packed; root blocks | Remaining work |
 | --- | --- | ---: | --- | --- | --- |
-| `usr.bin/login/login.c` | Target `-Wall -Wextra -Werror -Wold-style-definition` passes under GNU17; source-contract negative controls cover the privilege handoff. | 611 / 14,638 | 3,128/12/164; 21,912/693/3,432 | 22,637 / 19,255; 20 blocks | Shared `access` and `alarm` prototypes block direct strict-prototype certification; the optional Kerberos branch lacks a target build and injected-failure test. |
-| `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 282 / 7,147 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | `include/unistd.h` retains two unspecified argument lists for malformed source-only callers; close those callers before whole-unit `-Wstrict-prototypes` certification. |
+| `usr.bin/login/login.c` | Target `-Wall -Wextra -Werror -Wold-style-definition` passes under GNU17; source-contract negative controls cover the privilege handoff. | 611 / 14,638 | 3,128/12/164; 21,912/693/3,432 | 22,637 / 19,255; 20 blocks | The public `access()` and `alarm()` declarations are fully prototyped. A direct strict-prototype certification run and the optional Kerberos target build with injected-failure coverage remain open. |
+| `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 282 / 7,147 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | The public `access()` and `alarm()` declarations are fully prototyped. A fresh complete strict-prototype certification remains open. |
 | `usr.bin/compress/compress.c` | Production and DEBUG forms pass host strict C17 with pedantic warnings treated as errors. | 1,424 / 37,245 | 4,911/32/30,216; 13,326/236/30,344 | 13,596 / 11,241; 12 blocks | Close the pathname identity race in the `stat`/`freopen`/metadata lifecycle with descriptor-relative APIs; retain input on metadata failure. |
 | `usr.bin/cpio/cpio.c` | GCC and Clang pass host strict C17 with conversion diagnostics; host behavior tests pass ASan and UBSan. | 566 / 18,086 | 3,540/0/776; 11,501/204/900 | 11,740 / 9,323; 11 blocks | Close the stable-namespace rename race through directory-relative APIs or a bounded staging design. The measured internal stack paths are 256-byte input and 224-byte output. |
 | `bin/tar/tar.c` | GCC and Clang pass host strict C17 with pedantic, prototype and conversion diagnostics; target production warning contract passes. | 2,770 / 84,055 | 14,024/58/2,181; 28,308/692/3,936 | 29,032 / 23,681; 25 blocks | Shared headers and target stdio/ioctl macros still block the direct target strict-prototype/conversion probe; the stable-namespace extraction race remains. |
-| `include/pwd.h` / `lib/libc/gen/getpwent.c` | Header API passes standalone strict C17 prototype checking. The implementation has full parameter lists and passes target `-Wold-style-definition -Werror`; whole-unit strict-prototype checking still reports two declarations in `include/unistd.h`. The full RP2040 build and aggregate check pass. | Header 37 / 1,455; C 205 / 4,030 (base 34 / 1,384 and 209 / 4,063); 54 C/header includers | `getpwent.o`: 620/4/344 bytes; identical section sizes to the pre-edit object. Maximum measured function frame: 24 bytes. | Linked through libc; no standalone executable measurement. | The remaining `unistd.h` argument lists depend on correcting source-only legacy callers. No public structure layout or function ABI changed. |
-| `include/unistd.h` | At `2f05c54a285af10b782f09cd98c43d19302a5483`, 13 no-argument and 13 argument-taking APIs had typed declarations. This batch types `sync(void)`; C17 function-pointer and wrong-arity checks cover the 27 typed declarations. | 179 / 6,834 | Header emits no object; `passwd.o` 1,955/0/4 | `passwd` 14,932 raw / 12,249 packed; 13 blocks; `libc.a` 406,408 bytes | Two unspecified declarations remain: `access` and `alarm`. Their callers are in source-only `uucp` and `tip`; both programs are absent from the RP2040 `full` root manifest. |
+| `include/pwd.h` / `lib/libc/gen/getpwent.c` | Header API passes standalone strict C17 prototype checking. The implementation has full parameter lists and passes target `-Wold-style-definition -Werror`. | Header 37 / 1,455; C 205 / 4,030 (base 34 / 1,384 and 209 / 4,063); 54 C/header includers | `getpwent.o`: 620/4/344 bytes; identical section sizes to the pre-edit object. Maximum measured function frame: 24 bytes. | Linked through libc; no standalone executable measurement. | The public `access()` and `alarm()` declarations are fully prototyped. A clean complete build must re-establish all consumers after the public-header change. |
+| `include/unistd.h` / `lib/libc/gen/alarm.c` | `access(const char *, int)` and `alarm(unsigned int)` have exact public declarations. Compile-time function-pointer and wrong-arity controls cover both contracts. `alarm.c` passes strict C17 Cortex-M0+ compilation and preserves the existing `setitimer()` mechanism while rounding a nonzero remaining microsecond field upward. | Header 187 / 7,154; C 27 / 654 | `alarm.o`: 52/0/0 bytes; full ELF libc 410,054 bytes; board libc 43,010 bytes | a.out member 120 bytes; a.out libc 114,458 bytes; full root 686 blocks | The malformed UUCP and tip callers are repaired. Complete strict-C17 migration of those source-only subsystems remains open. Runtime allocation and stack peaks remain unmeasured. |
 | `sbin/fdisk/fdisk.c` | Complete target translation unit builds as C17 with `-Wall -Wextra -Werror -Wmissing-prototypes -Wold-style-definition`; the `fdisk` Makefile enables the full warning profile. The shared `sync` API now rejects arguments at compile time. | 341 / 6,391 | 2,397/0/516; 10,042/216/588 | a.out 10,292 raw bytes; absent from RP2040 root manifest | Repair the four baseline warning sites, correct the `sync(fd)` call, make helper/global symbols internal, check partition bounds without signed overflow, and handle descriptor zero and pathname formatting. A separate audit still needs to validate numeric parsing and MBR I/O failure handling. |
 
 The source and binary snapshot can be repeated in a clean worktree after
@@ -287,14 +287,41 @@ remains outside the shipped manifest, so these sizes do not change RP2040
 root-image totals. Numeric parsing and MBR I/O failure handling remain
 separate audit work for this source-only utility.
 
-Two declarations remain open because repository-wide build consumers call
-the functions with invalid argument forms. `usr.bin/uucp/uuxqt.c` calls
-`access(NOLOGIN)` without a mode; `usr.bin/tip/cmds.c` passes the string
-`value(ETIMEOUT)` to `alarm` instead of converting it with `number`. Both
-programs are absent from the RP2040 `full` manifest. The next batch must
-repair and migrate each complete translation unit under C17 conventions
-before those two header prototypes close. `getpgrp(void)` now matches the
-zero-argument kernel syscall record and shipped `compress` caller `getpgrp()`.
+The public header now declares `access(const char *, int)` and
+`alarm(unsigned int)`. `usr.bin/uucp/uuxqt.c` supplies `F_OK`, and
+`usr.bin/tip/cmds.c` converts `value(ETIMEOUT)` with `number()` before calling
+`alarm()`. Both programs remain absent from the RP2040 `full` manifest. Their
+repaired production objects compile, while complete UUCP and tip strict-C17
+migrations remain open. `getpgrp(void)` matches the zero-argument kernel
+syscall record and shipped `compress` caller `getpgrp()`.
+
+The native `alarm()` contract injects `setitimer()` results and covers request
+construction, cancellation, whole-second return values, partial-second
+rounding, `UINT_MAX` and syscall failure. Its calibrated mutation removes the
+rounding increment and must fail the partial-second case. The clean parent and
+candidate builds contain byte-identical 52/0/0-byte `alarm.o` sections,
+852-byte ELF objects and 120-byte a.out members. The full ELF libc hashes
+match. The board and a.out libc archive sizes match, while their archive hashes
+differ; the size comparison therefore establishes non-growth rather than
+archive identity.
+The candidate distribution retains the parent's 104,598/248/39,848-byte
+kernel, 101,300-byte largest process, 686 root data blocks and 293 free blocks.
+These static measurements do not establish runtime stack or heap peaks.
+
+The host Tcl contract link treats linker warnings as fatal. The library uses
+`getcwd()` for `pwd` and `mkstemp()` for pipeline input and error files, which
+removes the host linker's unsafe `getwd()` and `mktemp()` diagnostics. The
+pipeline witness supplies the required null-terminated argument vector,
+passes immediate input through the real temporary-file path, waits for the
+child and requires empty stderr. That witness also exercises the first
+`Tcl_Fork()` wait-table allocation; the library skips the prior-entry copy
+when the table contains zero entries instead of passing a null source to
+`memcpy()`. The full ASan/UBSan suite passes 15 positive cases and rejects all
+15 calibrated library mutations. Receipt
+`.build-logs/libtcl-fatal-link-warning-green-20261018T041413Z-3753625-fd2eecb3/status.json`
+records exit 0, 78.316 seconds, 37,299 output bytes and zero dropped terminal
+bytes. Tcl remains outside the packed RP2040 root, while the clean target
+distribution confirms that its production library sources still cross-build.
 
 The next device-boundary units are
 `sys/arch/rp2040/dev/usb.c` and the Dhara metadata path in

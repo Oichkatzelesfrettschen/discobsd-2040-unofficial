@@ -204,8 +204,10 @@ Tcl_Fork()
 	newSize = waitTableSize + WAIT_TABLE_GROW_BY;
 	newWaitTable = (WaitInfo *) malloc((unsigned)
 		(newSize * sizeof(WaitInfo)));
-	memcpy((void *) newWaitTable, (void *) waitTable,
-		(waitTableSize * sizeof(WaitInfo)));
+	if (waitTableSize != 0) {
+	    memcpy((void *) newWaitTable, (void *) waitTable,
+		    (waitTableSize * sizeof(WaitInfo)));
+	}
 	if (waitTable != NULL) {
 	    free((char *) waitTable);
 	}
@@ -573,8 +575,7 @@ Tcl_CreatePipeline(interp, argc, argv, pidArrayPtr, inPipePtr,
 	    int length;
 
 	    strcpy(inName, TMP_STDIN_NAME);
-	    mktemp(inName);
-	    inputId = open(inName, O_RDWR|O_CREAT|O_TRUNC, 0600);
+	    inputId = mkstemp(inName);
 	    if (inputId < 0) {
 		Tcl_AppendResult(interp,
 			"couldn't create input file for command: ",
@@ -666,8 +667,7 @@ Tcl_CreatePipeline(interp, argc, argv, pidArrayPtr, inPipePtr,
 	char errName[sizeof(TMP_STDERR_NAME) + 1];
 
 	strcpy(errName, TMP_STDERR_NAME);
-	mktemp(errName);
-	errorId = open(errName, O_WRONLY|O_CREAT|O_TRUNC, 0600);
+	errorId = mkstemp(errName);
 	if (errorId < 0) {
 	    errFileError:
 	    Tcl_AppendResult(interp,

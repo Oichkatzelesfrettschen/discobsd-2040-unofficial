@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile_id": "DPUCP-2024",
   "base_commit": "91c9338a3854b4950da752f3825b2026d34d1dfc",
-  "implementation_commit": "6879c95f318e6232993e53bf2dbaadfd4d4a35c3",
+  "implementation_commit": "e60deffcd89494b600baca855e439a16743a44d9",
   "block_bytes": 1024,
   "kernel": {
     "region_bytes": 131072,
@@ -40,22 +40,22 @@
         "packed_blocks": 9
       },
       "candidate": {
-        "text_bytes": 7856,
+        "text_bytes": 7848,
         "data_bytes": 200,
         "bss_bytes": 72,
-        "window_occupancy_before_stack_bytes": 8128,
-        "window_margin_before_stack_bytes": 139328,
-        "raw_bytes": 8088,
-        "packed_bytes": 7150,
+        "window_occupancy_before_stack_bytes": 8120,
+        "window_margin_before_stack_bytes": 139336,
+        "raw_bytes": 8080,
+        "packed_bytes": 7141,
         "packed_blocks": 8
       },
       "delta": {
-        "text_bytes": -378,
+        "text_bytes": -386,
         "data_bytes": -12,
         "bss_bytes": -124,
-        "window_occupancy_before_stack_bytes": -514,
-        "raw_bytes": -392,
-        "packed_bytes": -250,
+        "window_occupancy_before_stack_bytes": -522,
+        "raw_bytes": -400,
+        "packed_bytes": -259,
         "packed_blocks": -1
       }
     },
@@ -71,22 +71,22 @@
         "packed_blocks": 44
       },
       "candidate": {
-        "text_bytes": 54068,
+        "text_bytes": 54060,
         "data_bytes": 581,
         "bss_bytes": 4255,
-        "window_occupancy_before_stack_bytes": 58904,
-        "window_margin_before_stack_bytes": 88552,
-        "raw_bytes": 54681,
-        "packed_bytes": 44514,
+        "window_occupancy_before_stack_bytes": 58896,
+        "window_margin_before_stack_bytes": 88560,
+        "raw_bytes": 54673,
+        "packed_bytes": 44496,
         "packed_blocks": 45
       },
       "delta": {
-        "text_bytes": 752,
+        "text_bytes": 744,
         "data_bytes": 0,
         "bss_bytes": 0,
-        "window_occupancy_before_stack_bytes": 752,
-        "raw_bytes": 752,
-        "packed_bytes": 711,
+        "window_occupancy_before_stack_bytes": 744,
+        "raw_bytes": 744,
+        "packed_bytes": 693,
         "packed_blocks": 1
       }
     },

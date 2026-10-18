@@ -4,14 +4,14 @@ Status: pending independent approval.
 
 The DPUCP-2024 utility `printf` implementation adds a tested compatibility
 subset without claiming POSIX or UNIX conformance. The shipped utilbox grows by
-752 text bytes and one packed-root block. The standalone program becomes
+744 text bytes and one packed-root block. The standalone program becomes
 smaller, but shipping a second executable would consume eight additional
 packed-root blocks and therefore fails the complete-image constraint.
 
 ## Compared states
 
 The clean base is `91c9338a3854b4950da752f3825b2026d34d1dfc`. The production
-implementation is `6879c95f318e6232993e53bf2dbaadfd4d4a35c3`. Exact parent
+implementation is `e60deffcd89494b600baca855e439a16743a44d9`. Exact parent
 relinks and candidate relinks used the same applet set, GNU17 Cortex-M0+ flags,
 DiscoBSD startup object, linker script, and libc archive.
 
@@ -27,15 +27,24 @@ bmake MACHINE=rp2040 logged-distribution
 ```
 
 The terminal receipt is
-`.build-logs/rp2040-distribution-local-20261017T225126Z-1047320-4d2b7c7f/status.json`.
-The receipt records exit status 0, 321.627 seconds elapsed, 1,574,408 child
+`.build-logs/rp2040-distribution-local-20261018T002716Z-1962787-c6933dd6/status.json`.
+The receipt records exit status 0, 55.148 seconds elapsed, 833,326 child
 output bytes, zero terminal-queue dropped bytes, a 600-second output-idle
 deadline, and a 3,600-second hard deadline. Thirty-second heartbeat records
 updated elapsed time, quiet time, byte count, process ID, and the latest output.
 The supervisor therefore exposed active compilation instead of leaving a
-silent, unbounded build. The retained log contains 1,575,977 bytes. A search
+silent, unbounded build. The retained log contains 833,694 bytes. A search
 for compiler warnings, errors, fatal diagnostics, timeout stops, incomplete
 cleanup, and dropped-output records returned an empty set.
+
+The full build-plus-check receipt is
+`.build-logs/rp2040-check-local-20261018T002145Z-1830404-b7377392/status.json`.
+Its build stage completed in 53.215 seconds with 825,677 child-output bytes;
+its check stage completed in 255.440 seconds with 705,129 child-output bytes.
+Both stages recorded exit status zero, zero terminal-queue dropped bytes, and
+scheduled heartbeats while active. Diagnostics that contain `FAIL`, sanitizer
+errors, or timeout language belong to named calibrated negative controls whose
+enclosing gates pass.
 
 `tools/bin/rp2040/size` supplies a.out text, data, and BSS measurements.
 `tools/bin/rp2040/hsaout -s` supplies raw, packed, and allocated-block
@@ -49,17 +58,17 @@ inputs.
 | PICO kernel text | 104,598 | 104,598 | 0 | 26,224 loaded-span bytes |
 | PICO kernel data | 248 | 248 | 0 | unchanged |
 | PICO kernel BSS | 39,848 | 39,848 | 0 | unchanged |
-| Standalone text | 8,234 | 7,856 | -378 | 139,328 process-window bytes before stack |
+| Standalone text | 8,234 | 7,848 | -386 | 139,336 process-window bytes before stack |
 | Standalone data | 212 | 200 | -12 | included above |
 | Standalone BSS | 196 | 72 | -124 | included above |
-| Standalone raw a.out | 8,480 | 8,088 | -392 | n/a |
-| Standalone packed payload | 7,400 | 7,150 | -250 | n/a |
+| Standalone raw a.out | 8,480 | 8,080 | -400 | n/a |
+| Standalone packed payload | 7,400 | 7,141 | -259 | n/a |
 | Standalone packed blocks | 9 | 8 | -1 | n/a |
-| Utilbox text | 53,316 | 54,068 | +752 | 88,552 process-window bytes before stack |
+| Utilbox text | 53,316 | 54,060 | +744 | 88,560 process-window bytes before stack |
 | Utilbox data | 581 | 581 | 0 | included above |
 | Utilbox admitted BSS | 4,255 | 4,255 | 0 | included above |
-| Utilbox raw a.out | 53,929 | 54,681 | +752 | n/a |
-| Utilbox packed payload | 43,803 | 44,514 | +711 | n/a |
+| Utilbox raw a.out | 53,929 | 54,673 | +744 | n/a |
+| Utilbox packed payload | 43,803 | 44,496 | +693 | n/a |
 | Utilbox packed blocks | 44 | 45 | +1 | n/a |
 | Largest process, `warp`, loaded bytes | 101,300 | 101,300 | 0 | 46,156 bytes before stack |
 | Packed-root data blocks | 685 | 686 | +1 | 293 free 1 KiB blocks |
@@ -96,7 +105,7 @@ hard link remains the smaller complete-root composition.
 ## Examined offsets
 
 The first strict-C17 implementation increased utilbox text by 1,984 bytes.
-The accepted parser reduced that growth to 752 bytes through these bounded
+The accepted parser reduced that growth to 744 bytes through these bounded
 mechanisms:
 
 - Global ILP32 argument indices replace heap-backed conversion state.
@@ -134,8 +143,9 @@ byte-locale policy.
 
 Recovery scripts gain binary-clean `%b`, immediate `\c` termination, numbered
 conversion selection, bounded dynamic fields, repeated format application, and
-truthful failure status. Reverting implementation commit
-`6879c95f318e6232993e53bf2dbaadfd4d4a35c3` restores the base utilbox and one
+truthful failure status. Reverting the feature commits from
+`6879c95f318e6232993e53bf2dbaadfd4d4a35c3` through
+`e60deffcd89494b600baca855e439a16743a44d9` restores the base utilbox and one
 packed-root block while removing those behaviors.
 
 ## Approval

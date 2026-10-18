@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -35,6 +37,30 @@ class ToolCaptureTest(unittest.TestCase):
 
     def receipts(self):
         return [json.loads(path.read_text()) for path in sorted(self.records.glob("*.json"))]
+
+    def test_disabled_capture_preserves_quoted_executable_paths(self):
+        root = Path(__file__).resolve().parents[2]
+        environment = dict(os.environ, PYTHON=sys.executable)
+        environment.pop("C17_CAPTURE_DIR", None)
+        for directory, variable in [("tests/rp2040/elf2aout_layout", "ELF2AOUT"),
+                                    ("sys/arch/rp2040/compile/PICO", "OBJCOPY")]:
+            result = subprocess.run(["bmake", "-C", str(root / directory),
+                                     "MACHINE=rp2040", "-V", "${" + variable + "}"],
+                                    env=environment, capture_output=True, text=True, check=True)
+            value = result.stdout.rstrip("\n")
+            self.assertEqual(value, value.strip())
+            self.assertTrue(Path(value).is_file(), value)
+
+    def test_enabled_capture_separates_prefix_from_executable(self):
+        root = Path(__file__).resolve().parents[2]
+        environment = dict(os.environ, PYTHON=sys.executable,
+                           C17_CAPTURE_DIR=str(self.records))
+        result = subprocess.run(["bmake", "-C", str(root / "tests/rp2040/elf2aout_layout"),
+                                 "MACHINE=rp2040", "-V", "${ELF2AOUT}"],
+                                env=environment, capture_output=True, text=True, check=True)
+        arguments = shlex.split(result.stdout.strip())
+        self.assertEqual(arguments[-2], "--")
+        self.assertEqual(arguments[-1], str(root / "tools/bin/rp2040/elf2aout"))
 
     def test_compile_tracks_used_header_and_preserves_object(self):
         normal = subprocess.run(

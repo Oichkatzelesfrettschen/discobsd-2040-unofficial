@@ -330,17 +330,17 @@ RAM and runtime evidence".
 
 | Field | Content |
 | --- | --- |
-| Layer and profile | ISO C17 library semantics (7.21.6.2) and the BSD/2.11 ABI (`FILE` unchanged); modernized cross userland |
+| Layer and profile | ISO C17 library semantics (7.21.6.2) and the established BSD/2.11 ABI; the separate stdio core unit owns the 24-byte `FILE` layout; modernized cross userland |
 | Tier | T1: `sysctl -w kern.hostid=<digits>` reaches `%ld` conversion with caller-written input |
-| Native input | The libc members are cross-built; `include/stdio.h` is native input when a natively compiled program includes it. Native acceptance of the changed header is not recorded |
+| Native input | The libc members are cross-built. `t18_stdio` accepts the expanded `include/stdio.h` declarations and exercises a Smaller C scanning consumer; on-device preprocessing and board execution retain separate states |
 | Contract | The project defines integer-conversion saturation at the destination limit as an extension; C17 does not generally define an unrepresentable scanf conversion result. Separately, `%X` and uppercase floating conversions follow C17 lowercase semantics; `%D` and `%O` remain as documented extensions; `%n`, `%i`, `%p` and the C99 length modifiers are supported |
 | Invariants | No staging buffer on the integer path; a 32-byte automatic scanset bitmap with nothing carried between directives; float staging bounded by `MANT_DIGITS` with `_Static_assert` ties to `DBL_DIG` |
 | Falsifier | The replaced scanner aborts under the sanitizer, first on `%X` storing a long through `unsigned int *`, then on a digit run overrunning the 64-byte `_innum` staging buffer |
-| Gates | `check-libc-scanf` (host width, ILP32 and AddressSanitizer) |
+| Gates | `check-libc-scanf` (host width, ILP32 and AddressSanitizer), plus `check-c17-smaller-c` for the expanded-header/native consumer boundary |
 | Resources | `doscan.o` text +176, data -256; frame 128 to 120 bytes; over 244 programs built both ways, 42 changed and the sum is -1,096 bytes; `trek` and `primes` gain about 1.3 KiB by linking the float scanner |
 | Evidence class | Host and cross |
-| Ledger states | 1 language: done. 2 interface: done. 3 native: open (acceptance of the changed `include/stdio.h` not recorded). 4 hardening: done. 5 resource: done. 6 program closure: open, with the residual below |
-| Residuals | Native acceptance of the changed public header: owner, the native-toolchain ledger; deciding gate, a Smaller C compile of a `scanf` consumer. The pushback slot moved to the stdio core unit (`stdio-core-c17-unit.md`) |
+| Ledger states | 1 language: done. 2 interface: done. 3 native: expanded-header parser/codegen and exercised scanning paths covered by `t18_stdio`; on-device preprocessing and board execution remain open. 4 hardening: done. 5 resource: done. 6 program closure: open, with the residual below |
+| Residuals | Repeat the expanded-header/native consumer gate after public-header changes. On-device preprocessing, board execution and full native C17 development remain separate obligations. The pushback slot belongs to the stdio core unit (`stdio-core-c17-unit.md`) |
 
 Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
 
@@ -350,14 +350,14 @@ Source: `211bsd-patch-scope.md`, "The first migration unit: `_doscan`".
 | --- | --- |
 | Layer and profile | ISO C17, POSIX directory interfaces and the BSD/2.11 ABI; modernized cross userland |
 | Tier | T1: parses directory records read from the filesystem |
-| Native input | `DIR` is laid out in the public header `sys/sys/dir.h`; native acceptance of that header is unrecorded |
+| Native input | `t18_stdio` consumes expanded `sys/dir.h` and checks the 1,040-byte `DIR` layout through Smaller C; the fixture starts after host preprocessing |
 | Contract | Allocation failure preserves `errno`; free entries are skipped; cookies need no allocation; a failed seek leaves the stream unchanged; close owns the buffer |
 | Invariants | A 1 KiB directory block held intact; record lengths and names bounded before use; `telldir` is arithmetic only |
 | Falsifier | The pre-change source fails strict C17 at its K&R definitions before the layout fixture rejects the 1,108-byte stream |
 | Gates | `check-dirent-contracts`, `check-dirent-contracts-cross` |
 | Resources | `sizeof(DIR)` 1,108 to 1,040 (-68 heap bytes per open directory); five-member text +80 |
 | Evidence class | Host and cross; board enumeration unmeasured |
-| Ledger states | 1 language: done. 2 interface: open in this row; the scanner, directory admission/CLOEXEC and close-result units (continuation item 7) carry the calibrated interface evidence. 3 native: open (acceptance of `sys/sys/dir.h` unrecorded). 4 hardening: open (the six malformed-record classes are not calibrated against the pre-change reader). 5 resource: done. 6 program closure: open, with the residual below |
+| Ledger states | 1 language: done. 2 interface: open in this row; the scanner, directory admission/CLOEXEC and close-result units (continuation item 7) carry the calibrated interface evidence. 3 native: expanded declarations and target layout covered by `t18_stdio`; on-device preprocessing and board execution remain open. 4 hardening: open (the six malformed-record classes are not calibrated against the pre-change reader). 5 resource: done. 6 program closure: open, with the residual below |
 | Residuals | The recorded falsifier is syntactic and layout-based; the six malformed-record classes are not recorded as calibrated against the pre-change reader. Owner: this row; deciding gate: a pre-change behavioral run of those cases. Board cross-block cookie replay: owner, the hardware gate. The scanner, directory admission/CLOEXEC and integer close-result units below supply separate calibrated interface evidence |
 
 Source: `bsd-workspace-directory-stream-c17.md`.

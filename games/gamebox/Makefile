@@ -11,7 +11,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-OBJCOPY=	${C17_CAPTURE_PREFIX} ${GCCPREFIX}-objcopy
+OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 BINDIR=		/usr/games
 
 TOOLS=		fifteen keen bubble

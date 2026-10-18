@@ -1369,7 +1369,7 @@ the read-only counters.
 ### Executed tool capture
 
 `check-c17-tool-capture` belongs to the cross tier and firmware CI's
-`check-cross` invocation. Thirteen real ARM-toolchain fixtures establish compiler
+`check-cross` invocation. Fifteen ARM-toolchain and evaluated-make fixtures establish compiler
 header discovery, unchanged object bytes, original dependency-file retention,
 failed-command attribution, generated stdin identity, selected archive members,
 configuration separation, in-place object-transform identities, output-path
@@ -1506,3 +1506,8 @@ receipts. Live changes require their own compiler, behavior and resource gates;
 passing historical provenance establishes the historical record only. Firmware
 CI already fetches full history for the relocation verifier. A shallow local
 checkout must provide the pinned objects before the donor gate can pass.
+
+The capture prefix owns its trailing argument separator only when enabled.
+The disabled ELF2AOUT and OBJCOPY values remain exact executable paths for
+consumers that quote a path or pass it as one subprocess argument. Evaluated
+make-variable controls cover both disabled paths and enabled argv separation.

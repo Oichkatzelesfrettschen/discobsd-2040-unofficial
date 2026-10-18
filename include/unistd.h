@@ -77,8 +77,8 @@
 #define CLK_TCK                 60      /* times(3) ticks per second */
 
 void    _exit (int);
-int     access();
-int     alarm();
+int     access (const char *, int);
+unsigned int alarm (unsigned int);
 pid_t   fork (void);
 gid_t   getegid (void);
 uid_t   geteuid (void);

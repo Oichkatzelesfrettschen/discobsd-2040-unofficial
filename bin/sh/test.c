@@ -20,9 +20,7 @@ int fsizep(char *);
 void bfailed(char *, char *, char *);
 
 int
-test(argn, com)
-char	*com[];
-int	argn;
+test(int argn, char **com)
 {
 	ac = argn;
 	av = com;
@@ -38,9 +36,8 @@ int	argn;
 	return(exp0() ? 0 : 1);
 }
 
-char *
-nxtarg(mt)
-	int	mt;
+static char *
+nxtarg(int mt)
 {
 	if (ap >= ac)
 	{
@@ -55,7 +52,7 @@ nxtarg(mt)
 }
 
 int
-exp0()
+exp0(void)
 {
 	int	p1;
 	char	*p2;
@@ -75,7 +72,7 @@ exp0()
 }
 
 int
-e1()
+e1(void)
 {
 	int	p1;
 	char	*p2;
@@ -90,7 +87,7 @@ e1()
 }
 
 int
-e2()
+e2(void)
 {
 	if (eq(nxtarg(0), "!"))
 		return(!e3());
@@ -99,7 +96,7 @@ e2()
 }
 
 int
-e3()
+e3(void)
 {
 	int	p1;
 	register char	*a;
@@ -193,9 +190,7 @@ e3()
 }
 
 int
-tio(a, f)
-char	*a;
-int	f;
+tio(char *a, int f)
 {
 	if (access(a, f) == 0)
 		return(1);
@@ -204,9 +199,7 @@ int	f;
 }
 
 int
-ftype(f, field)
-char	*f;
-int	field;
+ftype(char *f, int field)
 {
 	struct stat statb;
 
@@ -218,9 +211,7 @@ int	field;
 }
 
 int
-filtyp(f,field)
-char	*f;
-int field;
+filtyp(char *f, int field)
 {
 	struct stat statb;
 
@@ -235,8 +226,7 @@ int field;
 
 
 int
-fsizep(f)
-char	*f;
+fsizep(char *f)
 {
 	struct stat statb;
 
@@ -250,10 +240,7 @@ char	*f;
  * test(1) diagnostics
  */
 void
-bfailed(s1, s2, s3)
-char	*s1;
-char	*s2;
-char	*s3;
+bfailed(char *s1, char *s2, char *s3)
 {
 	prp();
 	prs(s1);

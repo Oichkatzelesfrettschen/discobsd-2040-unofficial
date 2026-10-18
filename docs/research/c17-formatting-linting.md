@@ -688,7 +688,7 @@ verifier derives those fields from the live path and source and rejects
 classification drift. Candidate discovery does not establish semantic absence
 or language acceptance.
 
-The 17 calibrated failure cases reject additions, removals, duplicates, unsafe
+The 18 calibrated failure cases reject additions, removals, duplicates, unsafe
 paths, unknown states and tiers, unwitnessed accepted rows, fabricated hazard
 signals, changed source classifications, changed quarantine bytes, invalid
 refresh input, and temporary-write or atomic-replacement failures. Failed

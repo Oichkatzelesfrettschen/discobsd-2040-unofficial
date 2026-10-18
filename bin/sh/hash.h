@@ -29,6 +29,7 @@ typedef struct entry
 	struct entry	*next;
 } ENTRY;
 
-extern ENTRY	*hfind();
-extern ENTRY	*henter();
-extern void	hcreate();
+extern ENTRY * hfind(char *str);
+extern ENTRY * henter(ENTRY item);
+extern void hcreate(void);
+extern void hscan(void (*uscan)(ENTRY *));

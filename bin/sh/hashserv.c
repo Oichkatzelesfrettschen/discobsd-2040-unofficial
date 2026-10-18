@@ -20,8 +20,7 @@ static int chk_access(char *);
 static void pr_path(char *, int);
 
 int
-special_builtin(internal)
-	int internal;
+special_builtin(int internal)
 {
 	switch (internal)
 	{
@@ -46,8 +45,7 @@ special_builtin(internal)
 }
 
 static int
-argpath(arg)
-	register struct argnod	*arg;
+argpath(struct argnod *arg)
 {
 	register char 	*s;
 	register char	*start;
@@ -82,10 +80,7 @@ argpath(arg)
 }
 
 short
-pathlook(com, flg, arg)
-	char	*com;
-	int		flg;
-	register struct argnod	*arg;
+pathlook(char *com, int flg, struct argnod *arg)
 {
 	register char	*name = com;
 	register ENTRY	*h;
@@ -185,21 +180,20 @@ pathsrch:
 
 
 static void
-zapentry(h)
-	ENTRY *h;
+zapentry(ENTRY *h)
 {
 	h->data &= HASHZAP;
 }
 
 void
-zaphash()
+zaphash(void)
 {
 	hscan(zapentry);
 	relcmd = 0;
 }
 
 void
-zapcd()
+zapcd(void)
 {
 	while (relcmd)
 	{
@@ -210,8 +204,7 @@ zapcd()
 
 
 static void
-hashout(h)
-	ENTRY *h;
+hashout(ENTRY *h)
 {
 	sigchk();
 
@@ -236,7 +229,7 @@ hashout(h)
 }
 
 void
-hashpr()
+hashpr(void)
 {
 	prs_buff("hits	cost	command\n");
 	hscan(hashout);
@@ -244,7 +237,7 @@ hashpr()
 
 
 void
-set_dotpath()
+set_dotpath(void)
 {
 	register char	*path;
 	register int	cnt = 1;
@@ -275,8 +268,7 @@ set_dotpath()
 
 
 void
-hash_func(name)
-	char *name;
+hash_func(char *name)
 {
 	ENTRY	*h;
 	ENTRY	hentry;
@@ -310,8 +302,7 @@ hash_func(name)
 }
 
 void
-func_unhash(name)
-	char *name;
+func_unhash(char *name)
 {
 	ENTRY 	*h;
 
@@ -323,8 +314,7 @@ func_unhash(name)
 
 
 short
-hash_cmd(name)
-	char *name;
+hash_cmd(char *name)
 {
 	ENTRY	*h;
 
@@ -346,8 +336,7 @@ hash_cmd(name)
 
 
 void
-what_is_path(name)
-	register char *name;
+what_is_path(char *name)
 {
 	if (command_report(name, 2, NIL))
 	{
@@ -358,10 +347,7 @@ what_is_path(name)
 
 
 int
-findpath(name, oldpath, path)
-	register char *name;
-	int oldpath;
-	register char *path;
+findpath(char *name, int oldpath, char *path)
 {
 	register int	count = 1;
 
@@ -413,8 +399,7 @@ findpath(name, oldpath, path)
 
 
 static int
-chk_access(name)
-	register char	*name;
+chk_access(char *name)
 {
 	struct stat status;
 
@@ -428,25 +413,21 @@ chk_access(name)
 
 
 static void
-pr_path(name, count)
-	register char	*name;
-	int count;
+pr_path(char *name, int count)
 {
 	register char	*path;
 
 	path = getpath(name);
 
 	while (--count && path)
-		path = nextpath(path, name);
+		path = nextpath(path);
 
 	catpath(path, name);
 	prs_buff(curstak());
 }
 
 short
-command_pathlook(name, path)
-	char *name;
-	char *path;
+command_pathlook(char *name, char *path)
 {
 	int count;
 	int builtin;
@@ -462,8 +443,7 @@ command_pathlook(name, path)
 }
 
 static void
-command_pr_absolute(name)
-	char *name;
+command_pr_absolute(char *name)
 {
 	char *directory;
 
@@ -478,10 +458,7 @@ command_pr_absolute(name)
 }
 
 static void
-command_pr_path(name, count, path)
-	char *name;
-	int count;
-	char *path;
+command_pr_path(char *name, int count, char *path)
 {
 	if (any('/', name))
 	{
@@ -497,10 +474,7 @@ command_pr_path(name, count, path)
 }
 
 int
-command_report(name, verbose, path)
-	char *name;
-	int verbose;
-	char *path;
+command_report(char *name, int verbose, char *path)
 {
 	struct namnod *function;
 	ENTRY *hashed;

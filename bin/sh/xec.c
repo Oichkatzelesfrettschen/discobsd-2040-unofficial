@@ -13,7 +13,7 @@
 static int      parent;
 static int      getopts_index = 1;
 static int      getopts_offset;
-static void     execprint();
+static void execprint(char **com);
 extern short    topfd;
 
 #define COMMAND_EXECUTE 0
@@ -23,8 +23,7 @@ extern short    topfd;
 #define COMMAND_BAD -1
 
 void
-getoptsreset(value)
-	char *value;
+getoptsreset(char *value)
 {
 	while (*value == '0')
 		value++;
@@ -36,9 +35,7 @@ getoptsreset(value)
 }
 
 static int
-getopts_assign(name, value)
-	char *name;
-	char *value;
+getopts_assign(char *name, char *value)
 {
 	struct namnod *node;
 
@@ -58,8 +55,7 @@ getopts_assign(name, value)
 }
 
 static int
-getopts_assignable(name)
-	char *name;
+getopts_assignable(char *name)
 {
 	struct namnod *node;
 	char *reason;
@@ -81,7 +77,7 @@ getopts_assignable(name)
 }
 
 static void
-getopts_publish_index()
+getopts_publish_index(void)
 {
 	if (getopts_index == 1)
 		return;
@@ -90,8 +86,7 @@ getopts_publish_index()
 }
 
 static int
-getopts_finish(name)
-	char *name;
+getopts_finish(char *name)
 {
 	if (!getopts_assign(name, "?"))
 		return(2);
@@ -101,9 +96,7 @@ getopts_finish(name)
 }
 
 static int
-getopts_builtin(argn, arguments)
-	int argn;
-	char **arguments;
+getopts_builtin(int argn, char **arguments)
 {
 	char **option_arguments;
 	char *option_string;
@@ -235,11 +228,7 @@ getopts_builtin(argn, arguments)
 }
 
 static int
-command_options(argn, arguments, first, standard_path)
-	int argn;
-	char **arguments;
-	int *first;
-	int *standard_path;
+command_options(int argn, char **arguments, int *first, int *standard_path)
 {
 	int index = 1;
 	int mode = COMMAND_EXECUTE;
@@ -301,14 +290,14 @@ static struct command_context *command_current;
 	((errorflg) < 0 ? ERREXIT_SUPPRESSED : (errorflg) | eflag)
 
 int
-command_recovery_allowed()
+command_recovery_allowed(void)
 {
 	return(command_current && command_current->recoverable &&
 	    command_current->owner_pid == getpid());
 }
 
 void
-command_unwind_input()
+command_unwind_input(void)
 {
 	if (command_current == NIL)
 		return;
@@ -317,8 +306,7 @@ command_unwind_input()
 }
 
 static void
-command_context_end(context)
-	struct command_context *context;
+command_context_end(struct command_context *context)
 {
 	if (context->environment)
 		command_restorelist(context->environment);
@@ -330,11 +318,7 @@ command_context_end(context)
 /* ========     command execution       ========*/
 
 int
-execute(argt, exec_link, errorflg, pf1, pf2)
-struct trenod   *argt;
-volatile int exec_link;
-int     errorflg;
-int     *pf1, *pf2;
+execute(struct trenod *argt, volatile int exec_link, int errorflg, int *pf1, int *pf2)
 {
 	/*
 	 * `stakbot' is preserved by this routine
@@ -408,7 +392,7 @@ int     *pf1, *pf2;
 				exitval = 0;
 
 				gchain = NIL;
-				argn = getarg(t);
+				argn = getarg(comptr(t));
 				com = scan(argn);
 				a1 = com[1];
 				gchain = schain;
@@ -851,7 +835,7 @@ int     *pf1, *pf2;
 
 						case SYSEVAL:
 							if (a1)
-								execexp(a1, &com[2], errorflg);
+								execexp(a1, (int)(intptr_t)&com[2], errorflg);
 							break;
 
 #ifndef RES
@@ -1199,7 +1183,8 @@ int     *pf1, *pf2;
 
 				if (type != TCOM)
 				{
-					execute(forkptr(t)->forktre, exec_link | 01, errorflg);
+					execute(forkptr(t)->forktre, exec_link | 01, errorflg,
+					    NIL, NIL);
 				}
 				else if (com[0] != ENDARGS)
 				{
@@ -1216,7 +1201,7 @@ int     *pf1, *pf2;
 			}
 
 		case TPAR:
-			execute(parptr(t)->partre, exec_link, errorflg);
+			execute(parptr(t)->partre, exec_link, errorflg, NIL, NIL);
 			done();
 
 		case TFIL:
@@ -1232,21 +1217,24 @@ int     *pf1, *pf2;
 			break;
 
 		case TLST:
-			execute(lstptr(t)->lstlef, 0, ERREXIT_CONTEXT(errorflg));
+			execute(lstptr(t)->lstlef, 0, ERREXIT_CONTEXT(errorflg),
+			    NIL, NIL);
 			execute(lstptr(t)->lstrit, exec_link,
-			    ERREXIT_CONTEXT(errorflg));
+			    ERREXIT_CONTEXT(errorflg), NIL, NIL);
 			break;
 
 		case TAND:
-			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED) == 0)
+			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED,
+			    NIL, NIL) == 0)
 				execute(lstptr(t)->lstrit, exec_link,
-				    ERREXIT_CONTEXT(errorflg));
+				    ERREXIT_CONTEXT(errorflg), NIL, NIL);
 			break;
 
 		case TORF:
-			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED) != 0)
+			if (execute(lstptr(t)->lstlef, 0, ERREXIT_SUPPRESSED,
+			    NIL, NIL) != 0)
 				execute(lstptr(t)->lstrit, exec_link,
-				    ERREXIT_CONTEXT(errorflg));
+				    ERREXIT_CONTEXT(errorflg), NIL, NIL);
 			break;
 
 		case TFOR:
@@ -1272,7 +1260,7 @@ int     *pf1, *pf2;
 				while (*args != ENDARGS && execbrk == 0)
 				{
 					assign(n, *args++);
-					execute(forptr(t)->fortre, 0, errorflg);
+					execute(forptr(t)->fortre, 0, errorflg, NIL, NIL);
 					if (breakcnt < 0)
 						execbrk = (++breakcnt != 0);
 				}
@@ -1291,11 +1279,12 @@ int     *pf1, *pf2;
 
 				loopcnt++;
 				while (execbrk == 0 &&
-				    (execute(whptr(t)->whtre, 0, ERREXIT_SUPPRESSED) == 0) ==
+				    (execute(whptr(t)->whtre, 0, ERREXIT_SUPPRESSED,
+				    NIL, NIL) == 0) ==
 				    (type == TWH))
 				{
 					i = execute(whptr(t)->dotre, 0,
-					    ERREXIT_CONTEXT(errorflg));
+					    ERREXIT_CONTEXT(errorflg), NIL, NIL);
 					if (breakcnt < 0)
 						execbrk = (++breakcnt != 0);
 				}
@@ -1308,12 +1297,13 @@ int     *pf1, *pf2;
 			break;
 
 		case TIF:
-			if (execute(ifptr(t)->iftre, 0, ERREXIT_SUPPRESSED) == 0)
+			if (execute(ifptr(t)->iftre, 0, ERREXIT_SUPPRESSED,
+			    NIL, NIL) == 0)
 				execute(ifptr(t)->thtre, exec_link,
-				    ERREXIT_CONTEXT(errorflg));
+				    ERREXIT_CONTEXT(errorflg), NIL, NIL);
 			else if (ifptr(t)->eltre)
 				execute(ifptr(t)->eltre, exec_link,
-				    ERREXIT_CONTEXT(errorflg));
+				    ERREXIT_CONTEXT(errorflg), NIL, NIL);
 			else
 				exitval = 0;    /* force zero exit for if-then-fi */
 			break;
@@ -1334,7 +1324,8 @@ int     *pf1, *pf2;
 
 						if (gmatch(r, s = macro(rex->argval)) || (trim(s), eq(r, s)))
 						{
-							execute(regp->regcom, 0, errorflg);
+							execute(regp->regcom, 0, errorflg,
+							    NIL, NIL);
 							regp = NIL;
 							break;
 						}
@@ -1356,7 +1347,7 @@ int     *pf1, *pf2;
 }
 
 static struct trenod *
-recoverable_parse()
+recoverable_parse(void)
 {
 	struct trenod   *tree;
 	jmp_buf         parse_context;
@@ -1398,10 +1389,7 @@ recoverable_parse()
 }
 
 void
-execexp(s, f, errorflg)
-char    *s;
-int     f;
-int     errorflg;
+execexp(char *s, int f, int errorflg)
 {
 	struct fileblk  fb;
 	struct trenod   *tree;
@@ -1418,13 +1406,12 @@ int     errorflg;
 		tree = recoverable_parse();
 	else
 		tree = cmd(NL, NLFLG | MTFLG);
-	execute(tree, 0, errorflg);
+	execute(tree, 0, errorflg, NIL, NIL);
 	pop();
 }
 
 static void
-execprint(com)
-	char **com;
+execprint(char **com)
 {
 	register int    argn = 0;
 

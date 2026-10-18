@@ -6,8 +6,7 @@
 #include "defs.h"
 
 char *
-setbrk(incr)
-int	incr;
+setbrk(int incr)
 {
 	register char *a = sbrk(incr);
 

@@ -6,8 +6,6 @@
 #include "defs.h"
 #include <sys/param.h>
 
-extern char *getenv();
-
 #define BUFLEN  256
 
 int hz = (-1);
@@ -16,17 +14,11 @@ static char     buffer[BUFLEN];
 static int      index = 0;
 char            numbuf[12];
 
-extern void     prc_buff();
-extern void     prs_buff();
-extern void     prn_buff();
-extern void     prs_cntl();
-extern void     prn_buff();
-
 /*
  * printing and io conversion
  */
 void
-prp()
+prp(void)
 {
 	if ((flags & prompt) == 0 && cmdadr)
 	{
@@ -36,8 +28,7 @@ prp()
 }
 
 void
-prs(as)
-char    *as;
+prs(char *as)
 {
 	register char   *s;
 
@@ -48,23 +39,20 @@ char    *as;
 /* print a prompt */
 /* it's a subject for future expansion @@@ */
 void
-prprompt(as)
-char *as;
+prprompt(char *as)
 {
 	prs(as);
 }
 
 void
-prc(c)
-char    c;
+prc(char c)
 {
 	if (c)
 		write(output, &c, 1);
 }
 
 void
-prt(t)
-long    t;
+prt(long t)
 {
 	register int hr, min, sec;
 	char *s;
@@ -94,8 +82,7 @@ long    t;
 }
 
 void
-prn(n)
-	int     n;
+prn(int n)
 {
 	itos(n);
 
@@ -109,8 +96,7 @@ prn(n)
  * keeps its leading digits instead of folding them into one byte.
  */
 void
-itos(n)
-	int	n;
+itos(int n)
 {
 	register char		*abuf = numbuf;
 	register unsigned int	a = n;
@@ -130,8 +116,7 @@ itos(n)
 }
 
 int
-stoi(icp)
-char    *icp;
+stoi(char *icp)
 {
 	register char   *cp = icp;
 	register int    r = 0;
@@ -149,8 +134,7 @@ char    *icp;
 }
 
 void
-prl(n)
-long n;
+prl(long n)
 {
 	int i;
 
@@ -165,7 +149,7 @@ long n;
 }
 
 void
-flushb()
+flushb(void)
 {
 	if (index)
 	{
@@ -176,8 +160,7 @@ flushb()
 }
 
 void
-prc_buff(c)
-	char c;
+prc_buff(char c)
 {
 	if (c)
 	{
@@ -194,8 +177,7 @@ prc_buff(c)
 }
 
 void
-prs_buff(s)
-	char *s;
+prs_buff(char *s)
 {
 	register int len = length(s) - 1;
 
@@ -213,15 +195,14 @@ prs_buff(s)
 
 
 void
-clear_buff()
+clear_buff(void)
 {
 	index = 0;
 }
 
 
 void
-prs_cntl(s)
-	char *s;
+prs_cntl(char *s)
 {
 	register char *ptr;
 	register char *end = buffer + sizeof buffer;
@@ -273,8 +254,7 @@ prs_cntl(s)
 
 
 void
-prn_buff(n)
-	int     n;
+prn_buff(int n)
 {
 	itos(n);
 

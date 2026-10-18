@@ -713,7 +713,11 @@ check-sh-gnu17: symlinks
 		${MAKE} -C bin/sh clean
 		${MAKE} -C bin/sh check-gnu17 all
 
-.PHONY: check-sh-gnu17
+check-sh-c17-contracts: symlinks
+		${MAKE} -C bin/sh clean
+		${MAKE} -C bin/sh check-strict-c17 check-gnu17 all
+
+.PHONY: check-sh-gnu17 check-sh-c17-contracts
 
 # The inherited sources once passed bare identifiers through macros that
 # quoted their parameter names.  Compile the exact consumers so their C17
@@ -853,7 +857,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
-		check-sh-gnu17 .WAIT check-sh-heap-boundary \
+		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
 		check-libc-ctime-cross check-touch-contracts-cross \
 		check-printf-contracts-cross \
@@ -1128,7 +1132,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-warning-policy-host check-warning-policy-cross check-sh-gnu17 \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

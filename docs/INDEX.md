@@ -152,6 +152,7 @@ Grouped by what they investigate.
 | `dpucp-2024-profile.json` | versioned DPUCP-2024 identity, denominator, language modes, hardware limits, state counts and witness catalog |
 | `dpucp-2024-requirements.tsv` | 1,518 Issue 8 requirement rows with applicability, implementation, evidence, residual and next-action states |
 | `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
+| `shell-c17-contracts.md` | the production Bourne shell's strict-C17 declaration boundary, corrected diagnostic census, host conditional coverage, ILP32 residual and linked-image measurements |
 | `libc-array-memory-line-reading.md` | C17 `reallocarray`, `memmem`, `getdelim` and `getline` promotion, behavior gates, archive selection and complete RP2040 size accounting |
 | `libc-array-memory-line-reading.json` | machine-checked Task 4 root-block arithmetic and bounded mechanism stack and line-buffer measurements |
 | `libc-process-runtime-interfaces.md` | zero-argument `getpgrp`, bounded runtime selectors, stripped board-libc symbols and complete RP2040 size accounting |

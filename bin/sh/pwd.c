@@ -3,6 +3,9 @@
  *
  * Bell Telephone Laboratories
  */
+#include <sys/types.h>
+#include <sys/dir.h>
+#include <sys/stat.h>
 #include "mac.h"
 #include "defs.h"
 
@@ -20,8 +23,7 @@ static int didpwd = FALSE;
  * This routine will remove repeated slashes from string.
  */
 static void
-rmslash(string)
-	char *string;
+rmslash(char *string)
 {
 	register char *pstring;
 
@@ -49,8 +51,7 @@ rmslash(string)
 }
 
 void
-cwd(dir)
-	register char *dir;
+cwd(char *dir)
 {
 	register char *pcwd;
 	register char *pdir;
@@ -151,18 +152,11 @@ cwd(dir)
 /*
  * Find the current directory the hard way.
  */
-#include <sys/types.h>
-#include <sys/dir.h>
-#include <sys/stat.h>
-
 static char dotdots[] =
 "../../../../../../../../../../../../../../../../../../../../../../../..";
 
-extern struct direct	*getdir(int);
-extern char		*movstrn();
-
 static void
-pwd()
+pwd(void)
 {
 	struct stat		cdir;	/* current directory status */
 	struct stat		tdir;
@@ -269,7 +263,7 @@ pwd()
 }
 
 char *
-cwdpath()
+cwdpath(void)
 {
 	if (didpwd == FALSE)
 		pwd();
@@ -279,8 +273,8 @@ cwdpath()
 /*
  * Print the current working directory.
  */
-void
-prcwd()
+static void
+prcwd(void)
 {
 	if (didpwd == FALSE)
 		pwd();
@@ -288,7 +282,7 @@ prcwd()
 }
 
 void
-cwdprint()
+cwdprint(void)
 {
 	prcwd();
 	prc_buff(NL);

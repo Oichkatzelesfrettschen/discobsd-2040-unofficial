@@ -196,9 +196,9 @@ def write_fork_interposer(path: Path) -> None:
     path.write_text(
         """#define _POSIX_C_SOURCE 200809L
 #include <sys/types.h>
-#include <sys/wait.h>
 
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 
 #undef fork
@@ -207,19 +207,69 @@ extern pid_t fork(void);
 pid_t
 timeout_test_fork(void)
 {
-    siginfo_t child_info;
+    struct sigaction action;
     pid_t child_pid;
 
-    child_pid = fork();
-    if (child_pid > 0) {
-        while (waitid(P_PID, (id_t)child_pid, &child_info,
-            WEXITED | WNOWAIT) < 0 && errno == EINTR)
-            ;
+    if (sigaction(SIGCHLD, NULL, &action) < 0)
+        return -1;
+    if (action.sa_handler == SIG_IGN) {
+        errno = ECHILD;
+        return -1;
     }
+    child_pid = fork();
     return child_pid;
 }
 """,
         encoding="utf-8",
+    )
+
+
+def exercise_fork_interposer(
+    compiler: str, fork_interposer: Path, build_directory: Path
+) -> None:
+    driver_source = build_directory / "fork-interposer-driver.c"
+    driver_binary = build_directory / "fork-interposer-driver"
+    driver_source.write_text(
+        """#define _POSIX_C_SOURCE 200809L
+#include <signal.h>
+
+#include <errno.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+extern pid_t timeout_test_fork(void);
+
+int
+main(void)
+{
+    struct sigaction action;
+    pid_t child_pid;
+
+    action.sa_handler = SIG_IGN;
+    action.sa_flags = 0;
+    if (sigemptyset(&action.sa_mask) < 0 ||
+        sigaction(SIGCHLD, &action, NULL) < 0)
+        return 2;
+    child_pid = timeout_test_fork();
+    if (child_pid == 0)
+        _exit(0);
+    if (child_pid > 0)
+        return 1;
+    return errno == ECHILD ? 0 : 2;
+}
+""",
+        encoding="utf-8",
+    )
+    compile_program(
+        compiler,
+        driver_binary,
+        [driver_source, fork_interposer],
+        ("-Dfork=timeout_test_fork",),
+    )
+    result = run([str(driver_binary)])
+    require(
+        result.returncode == 0,
+        "fork interposer admits a launch before SIGCHLD handler installation",
     )
 
 
@@ -862,6 +912,7 @@ def main() -> int:
         exercise_without_extension_signals(portability_binary, probe_binary)
         fork_interposer = build_directory / "fork-interposer.c"
         write_fork_interposer(fork_interposer)
+        exercise_fork_interposer(compiler, fork_interposer, build_directory)
         sigaction_interposer = build_directory / "sigaction-interposer.c"
         write_sigaction_interposer(sigaction_interposer)
         sigchld_binary = build_directory / "timeout-sigchld-order"

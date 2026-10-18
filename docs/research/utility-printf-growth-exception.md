@@ -157,12 +157,14 @@ operands, missing operands, width and precision bounds, narrowing wrap,
 malformed formats, repeated flags, and failed standard output.
 
 The requirement remains `partial` and `open`. The deciding next action is to
-measure bounded required floating and wide-character conversions against the
-no-FPU, byte-locale, process-window, and packed-root limits. Positional `*m$`
-width and precision selection is an optional implementation extension, and
-mixing numbered and unnumbered argument-consuming conversions has unspecified
-behavior; neither is an unmet Base obligation. Locale behavior remains outside
-the first-release byte-locale policy.
+audit every required XBD File Format Notation facet and utility-specific
+exception against executable witnesses, then measure any unsupported required
+facets against the byte-locale, process-window, and packed-root limits. Issue 8
+permits omission of floating conversions and defines `%c` in bytes. Positional
+`*m$` width and precision selection is an optional implementation extension,
+and mixing numbered and unnumbered argument-consuming conversions has
+unspecified behavior. Locale behavior remains outside the first-release
+byte-locale policy.
 
 Recovery scripts gain binary-clean `%b`, immediate `\c` termination, numbered
 conversion selection, bounded dynamic fields, repeated format application, and

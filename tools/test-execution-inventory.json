@@ -108,6 +108,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libc-waitpid-cross",
+      "to": "tests/libc_contracts:check-waitpid-contract-cross",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-libc-runtime-limits",
       "to": "tests/libc_contracts:check-runtime-limits",
       "kind": "recursive make"
@@ -683,6 +688,23 @@
         "alarm_contract_test"
       ],
       "recipe": "${TEST_EXECUTION} run libc.alarm.native -- ./alarm_contract_test",
+      "aliases": []
+    },
+    {
+      "id": "libc.waitpid.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-waitpid-contract",
+      "root_target": "check-libc-host-contracts",
+      "program": "waitpid_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "waitpid_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.waitpid.native -- ./waitpid_contract_test",
       "aliases": []
     },
     {

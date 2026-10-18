@@ -54,6 +54,7 @@ include ${TOPSRC}/tools/test-execution.mk
 
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
+	check-waitpid-contract \
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
@@ -234,6 +235,31 @@ alarm_contract_test: alarm_contract_test.c alarm_contract.o
 
 alarm_contract.o: ${TARGET_DIR}/alarm.c
 	${HOSTCC} ${ALARM_SOURCE_CFLAGS} -c -o $@ ${TARGET_DIR}/alarm.c
+
+WAITPID_CFLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
+		-Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes
+WAITPID_SOURCE_CFLAGS=	${WAITPID_CFLAGS} -nostdinc \
+		-isystem ${TOPSRC}/include -Dwaitpid=db_waitpid \
+		-Dwait4=test_wait4
+WAITPID_TARGET_CFLAGS=	${WAITPID_CFLAGS} -fno-common -mcpu=cortex-m0plus \
+		-mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft \
+		-ffreestanding -nostdinc -isystem ${TOPSRC}/include
+
+check-waitpid-contract: waitpid_contract_test
+	${TEST_EXECUTION} run libc.waitpid.native -- ./waitpid_contract_test
+	${PYTHON} ${.CURDIR}/waitpid_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} ${.CURDIR}/waitpid_contract_test.c
+
+check-waitpid-contract-cross:
+	${ARM_COMPILER} ${WAITPID_TARGET_CFLAGS} -fsyntax-only \
+	    ${TARGET_DIR}/waitpid.c
+
+waitpid_contract_test: waitpid_contract_test.c waitpid_contract.o
+	${HOSTCC} ${WAITPID_CFLAGS} -o $@ waitpid_contract_test.c \
+	    waitpid_contract.o
+
+waitpid_contract.o: ${TARGET_DIR}/waitpid.c
+	${HOSTCC} ${WAITPID_SOURCE_CFLAGS} -c -o $@ ${TARGET_DIR}/waitpid.c
 
 # <stdio.h> declares no gets() and neither libc builds one, so a caller fails
 # at its implicit declaration rather than storing a whole line into a fixed
@@ -1146,12 +1172,14 @@ clean:
 	rm -f ansi_contract_test ansi_contract_test32 ansi_contract_test32_san \
 		${ANSI_OBJS} ${ANSI_OBJS32} ${ANSI_SAN32_OBJS} \
 		ansi_shared_byte_bad.o ansi_shared_byte_bad_test ansi_shared_byte_bad.log
+	rm -f waitpid_contract_test waitpid_contract.o
 
 all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
 	check-alarm-contract check-alarm-contract-cross \
+	check-waitpid-contract check-waitpid-contract-cross \
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \

@@ -455,6 +455,10 @@ check-ilp32:
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
 	${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test
+	${PYTHON} ${.CURDIR}/sigauth_mutate.py ${TOPSRC} ${HOST_CC:Q} \
+	    ${.CURDIR}/sigauth_test.c ${.CURDIR}/sigauth_prot2.o \
+	    ${.CURDIR}/sigauth_proc.o ${.CURDIR}/sigauth_shim.o \
+	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
 	${TEST_EXECUTION} run kernel.sysctl-compact.ilp32 -- ./sysctl_test_compact
 	${TEST_EXECUTION} run kernel.sysctl-wide.ilp32 -- ./sysctl_test_wide

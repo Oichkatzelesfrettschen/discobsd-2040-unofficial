@@ -212,6 +212,9 @@ setitimer()
     } *uap = (struct a *)u.u_arg;
     struct itimerval aitv;
     register struct itimerval *aitvp;
+    register struct timeval *tv;
+    register int n;
+    long tick_limit;
     int s;
 
     if (uap->which > ITIMER_PROF) {
@@ -222,6 +225,8 @@ setitimer()
     if (uap->oitv) {
         uap->itv = uap->oitv;
         getitimer();
+        if (u.u_error)
+            return;
     }
     if (aitvp == 0)
         return;
@@ -229,6 +234,17 @@ setitimer()
         sizeof (struct itimerval));
     if (u.u_error)
         return;
+    tick_limit = LONG_MAX;
+    if (uap->which != ITIMER_REAL)
+        tick_limit /= hz;
+    tv = &aitv.it_interval;
+    n = 2;
+    do {
+        if (itimerfix(tv) || tv->tv_sec > tick_limit ||
+            (tv->tv_usec && tv->tv_sec == tick_limit))
+            goto bad;
+        tv = &aitv.it_value;
+    } while (--n);
     s = splclock();
     if (uap->which == ITIMER_REAL) {
         register struct proc *p = u.u_procp;
@@ -250,6 +266,9 @@ setitimer()
             t->it_interval += hz;
     }
     splx(s);
+    return;
+bad:
+    u.u_error = EINVAL;
 }
 
 /*

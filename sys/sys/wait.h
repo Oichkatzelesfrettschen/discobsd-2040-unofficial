@@ -82,6 +82,6 @@ union wait  {
 
 int wait (int *istat);
 int wait3 (int *istat, int options, struct rusage *rup);
-int waitpid (int pid, int *istat, int options);
-int wait4 (int pid, int *istat, int options, struct rusage *rup);
+pid_t waitpid (pid_t pid, int *istat, int options);
+pid_t wait4 (pid_t pid, int *istat, int options, struct rusage *rup);
 #endif

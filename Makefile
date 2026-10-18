@@ -397,6 +397,9 @@ check-libc-host-contracts:
 check-libc-alarm-cross:
 		${MAKE} -C tests/libc_contracts check-alarm-contract-cross
 
+check-libc-waitpid-cross:
+		${MAKE} -C tests/libc_contracts check-waitpid-contract-cross
+
 check-libc-array-memory-line:
 		${MAKE} -C tests/libc_contracts check-array-memory-line
 
@@ -870,6 +873,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
 		check-libc-alarm-cross \
+		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-touch-contracts-cross \
 		check-printf-contracts-cross check-recovery-utility-contracts-cross \
 		check-libc-random-cross \
@@ -1161,6 +1165,7 @@ installfs:
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross check-libc-contracts \
 		check-libc-host-contracts check-libc-alarm-cross \
+		check-libc-waitpid-cross \
 		check-libc-aout-contracts check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-random check-libc-random-cross check-libc-scanf \

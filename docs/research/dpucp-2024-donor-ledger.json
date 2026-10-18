@@ -490,6 +490,18 @@
           "path": "bin/timeout/timeout.c",
           "sha256": "29d5cae6d8125868e4eb74cc699a7a132db0e6ec46b8f92340013dd30e8494b1",
           "license": "BSD-2-Clause"
+        },
+        {
+          "repository": "netbsd-src",
+          "path": "usr.bin/timeout/timeout.c",
+          "sha256": "9cc2dfc034955443aa07521f46637727ed022cceb97a7b38e112ed2bb662b0a1",
+          "license": "BSD-2-Clause"
+        },
+        {
+          "repository": "openbsd-src",
+          "path": "usr.bin/timeout/timeout.c",
+          "sha256": "e1379ce6280b91b7b3f913dc19481dbcb4e8cc295a07058aaa9affb53877816d",
+          "license": "BSD-2-Clause"
         }
       ],
       "behavior": "Run a command under a duration, deliver the selected signal on expiry, forward relevant signals, and map timeout, execution, exit, and signal results accurately.",
@@ -507,8 +519,8 @@
         "waitpid status semantics",
         "process-group or equivalent forwarding policy"
       ],
-      "c_language": "The donor is modern C but depends on FreeBSD procctl reapers, siginfo, wait6, resource limits, getopt_long, and floating-duration helpers.",
-      "c17_rewrite": "Design a target-native state machine only after each kernel primitive has an executable witness; omit FreeBSD-only reaper and long-option machinery unless independently selected.",
+      "c_language": "The FreeBSD donor is modern C but depends on procctl reapers, siginfo, wait6, resource limits, getopt_long and floating-duration helpers. NetBSD retains the older FreeBSD-derived signal-flag state machine. OpenBSD adds pledge and strtonum while retaining the same waitpid, process-group and interval-timer core.",
+      "c17_rewrite": "Design a target-native C17 state machine only after each kernel primitive has an executable witness. Compare the NetBSD and OpenBSD waitpid loops with current FreeBSD status mapping, and omit reaper, pledge, long-option and floating-duration machinery unless independently selected.",
       "archive_members": [
         "textbox timeout applet object"
       ],
@@ -525,7 +537,7 @@
       },
       "deciding_gate": "Require focused alarm, kill, waitpid, signal-forwarding, stop-and-continue, exit-126, exit-127, timeout-124, preserve-status, and escalation witnesses before utility implementation or registration.",
       "disposition": "candidate",
-      "residual": "Inventory and execute the process-control prerequisite matrix; split any missing primitive into a kernel-support change and leave the utility requirement open."
+      "residual": "The prerequisite measurement records partial host and cross-build evidence for alarm, kill and waitpid while timeout remains absent. Execute kernel wait-status transitions, process-group forwarding, signal escalation and timeout status mapping before utility implementation, and leave the utility requirement open."
     },
     {
       "id": "utility-uudecode",

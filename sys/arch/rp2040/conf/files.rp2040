@@ -24,7 +24,7 @@ kern/kern_sig2.c			standard
 kern/kern_subr.c			standard
 kern/kern_synch.c			standard
 kern/kern_sysctl.c			standard
-kern/kern_time.c			standard
+kern/kern_time.c			standard compile-with "${COMPILE_SIZE_C}"
 kern/subr_log.c				optional log
 kern/subr_capacity.c			optional capacity_stats
 kern/subr_prf.c				standard

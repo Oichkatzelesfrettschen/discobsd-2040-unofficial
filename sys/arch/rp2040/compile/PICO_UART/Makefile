@@ -86,6 +86,8 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
+COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+		${CMACHFLAGS} -Os ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 # PARAM reaches every object as -D flags, and .params holds the PARAM text
@@ -337,7 +339,7 @@ kern_sysctl.o: $S/kern/kern_sysctl.c
 	${COMPILE_C}
 
 kern_time.o: $S/kern/kern_time.c
-	${COMPILE_C}
+	${COMPILE_SIZE_C}
 
 subr_capacity.o: $S/kern/subr_capacity.c
 	${COMPILE_C}

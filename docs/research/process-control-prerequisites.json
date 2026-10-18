@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "b7d570fd9bc1a4a84532f0011745d76730894bc2",
+  "candidate_source_sha256": {
+    "lib/libc/gen/waitpid.c": "2b34a5e3dac0ca96e672cbe13ad3c260b3059db9856356de4df0cacbed9ee78b",
+    "sys/arch/rp2040/compile/PICO/Makefile": "ea3b30312031f48998710350f8babd1e821c25cc904cafababd872f749876a7d",
+    "sys/arch/rp2040/compile/PICO_UART/Makefile": "8f760f919a06c6634e526deed5ef8b30210e43c33902c57dde8c03a5a875ecfc",
+    "sys/arch/rp2040/conf/Makefile.rp2040": "e2ea51bfd3e77ed3bed13e8811e9fe384513faa4378c6eb880888f175f4698ac",
+    "sys/arch/rp2040/conf/files.rp2040": "9c84ac77f9c0c81ef685b55e7146157c9696ceeac52c6a8a69da865281a744fb",
+    "sys/kern/kern_time.c": "14102663b0d4fdfd1a7f058f56f5498061885de4c95374853ff734c98a785f07",
+    "sys/sys/wait.h": "915bbdc626cc1d633e0ce5bdc7e2184af11cd428ac3e410db4794b09fe6065be"
+  },
+  "measurement_date": "2026-10-18",
+  "tools": {
+    "host": "Linux 7.2.9-2-cachyos x86_64",
+    "bmake": "20260912",
+    "arm_none_eabi_gcc": "16.2.0",
+    "arm_none_eabi_binutils": "2.47.20260726",
+    "host_gcc": "16.2.1 20260810",
+    "python": "3.14.7"
+  },
+  "receipts": {
+    "clean_distribution": {
+      "command": [
+        "bmake",
+        "MACHINE=rp2040",
+        "cleanall",
+        "distribution"
+      ],
+      "invocation_id": "process-control-branch-final-clean-distribution-20261018T064533Z-473088-1dbd9c0c",
+      "started_at": "2026-10-18T06:45:33Z",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 139.546,
+      "output_bytes": 1670547,
+      "terminal_queue_dropped_bytes": 0,
+      "heartbeat_seconds": 30,
+      "output_idle_timeout_seconds": 600,
+      "hard_timeout_seconds": 3600,
+      "status_sha256": "6d1c4926da497010da872f71ebb43acc0503b90f8e78d0470429ddd8b9b02453"
+    },
+    "focused_gates": {
+      "command": [
+        "bmake",
+        "MACHINE=rp2040",
+        "check-lint",
+        "check-comment-hygiene",
+        "check-config-generated-sync",
+        "check-storage-correctness",
+        "check-libc-host-contracts",
+        "check-libc-waitpid-cross",
+        "check-c17-source-denominator",
+        "check-dpucp-profile",
+        "check-dpucp-donor-ledger"
+      ],
+      "invocation_id": "process-control-review-ready-20261018T071314Z-758036-b12d87a0",
+      "started_at": "2026-10-18T07:13:14Z",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 56.734,
+      "output_bytes": 98395,
+      "terminal_queue_dropped_bytes": 0,
+      "heartbeat_seconds": 30,
+      "output_idle_timeout_seconds": 600,
+      "hard_timeout_seconds": 1800,
+      "status_sha256": "4a7b6664c68943ddd3b91c7199218997ebab3efd83762b32770c833d3c76d94b"
+    },
+    "aggregate_build": {
+      "command": [
+        "bmake",
+        "MACHINE=rp2040",
+        "build"
+      ],
+      "invocation_id": "rp2040-check-local-build-20261018T065312Z-572629",
+      "started_at": "2026-10-18T06:53:12Z",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 85.727,
+      "output_bytes": 846002,
+      "terminal_queue_dropped_bytes": 0,
+      "heartbeat_seconds": 30,
+      "output_idle_timeout_seconds": 600,
+      "hard_timeout_seconds": 3600,
+      "status_sha256": "4c4aa4195fce95ba72c6725c2bdea027fe095cfd482bb736930accc612f65ac5"
+    },
+    "aggregate_check": {
+      "command": [
+        "bmake",
+        "MACHINE=rp2040",
+        "check"
+      ],
+      "invocation_id": "rp2040-check-local-check-20261018T065438Z-572629",
+      "started_at": "2026-10-18T06:54:38Z",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 456.902,
+      "output_bytes": 763098,
+      "terminal_queue_dropped_bytes": 0,
+      "heartbeat_seconds": 30,
+      "output_idle_timeout_seconds": 600,
+      "hard_timeout_seconds": 3514.271217073998,
+      "status_sha256": "bf60cf03b186b5d13278d1be001bc163f8a23dfb084c06fd8535cb2fbe19d2d0"
+    }
+  },
+  "kernel": {
+    "region_bytes": 131072,
+    "PICO": {
+      "base": {
+        "text_bytes": 104598,
+        "data_bytes": 248,
+        "bss_bytes": 39848,
+        "section_sum_bytes": 104846,
+        "loaded_flash_span_bytes": 104848,
+        "load_tail_margin_bytes": 26224
+      },
+      "candidate": {
+        "text_bytes": 104518,
+        "data_bytes": 248,
+        "bss_bytes": 39848,
+        "section_sum_bytes": 104766,
+        "loaded_flash_span_bytes": 104768,
+        "load_tail_margin_bytes": 26304
+      },
+      "delta": {
+        "text_bytes": -80,
+        "data_bytes": 0,
+        "bss_bytes": 0,
+        "section_sum_bytes": -80,
+        "loaded_flash_span_bytes": -80
+      }
+    },
+    "PICO_UART": {
+      "base": {
+        "text_bytes": 92172,
+        "data_bytes": 192,
+        "bss_bytes": 14832,
+        "section_sum_bytes": 92364,
+        "loaded_flash_span_bytes": 92364,
+        "load_tail_margin_bytes": 38708
+      },
+      "candidate": {
+        "text_bytes": 92092,
+        "data_bytes": 192,
+        "bss_bytes": 14832,
+        "section_sum_bytes": 92284,
+        "loaded_flash_span_bytes": 92284,
+        "load_tail_margin_bytes": 38788
+      },
+      "delta": {
+        "text_bytes": -80,
+        "data_bytes": 0,
+        "bss_bytes": 0,
+        "section_sum_bytes": -80,
+        "loaded_flash_span_bytes": -80
+      }
+    },
+    "kern_time_object": {
+      "base_text_bytes": 1264,
+      "candidate_text_bytes": 1180,
+      "delta_text_bytes": -84
+    }
+  },
+  "programs": {
+    "process_window_bytes": 147456,
+    "count": 269,
+    "size_changed": 0,
+    "hash_changed": 1,
+    "parent_table_path": "docs/research/process-control-programs-parent.tsv",
+    "candidate_table_path": "docs/research/process-control-programs-candidate.tsv",
+    "parent_table_sha256": "dab60c4a32f0d4815032618d0d2b4f7190cc57fef0b46cf2a59f25d3e30b29ae",
+    "candidate_table_sha256": "0894bf0b38ad3de99333171aad9ade1f047a86a8d88435b73e040c5b3e7e2c6c",
+    "only_hash_change": {
+      "path": "usr.bin/pdc/pdc",
+      "cause": "compiled-time string",
+      "base_value": "23:28:57 Oct 17 2026",
+      "candidate_value": "23:46:37 Oct 17 2026"
+    },
+    "largest_process": {
+      "path": "games/warp/warp",
+      "base_loaded_bytes": 101300,
+      "candidate_loaded_bytes": 101300,
+      "delta_loaded_bytes": 0,
+      "candidate_window_margin_before_stack_bytes": 46156
+    }
+  },
+  "root": {
+    "block_bytes": 1024,
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {
+      "files": 95,
+      "data_blocks": 690,
+      "free_blocks": 289
+    },
+    "candidate": {
+      "files": 95,
+      "data_blocks": 690,
+      "free_blocks": 289
+    },
+    "delta": {
+      "files": 0,
+      "data_blocks": 0,
+      "free_blocks": 0
+    },
+    "candidate_free_bytes": 295936
+  },
+  "libraries": {
+    "full_elf": {
+      "base_bytes": 410054,
+      "candidate_bytes": 410054,
+      "base_sha256": "ac0d8174b2cac3802ad4c004deaba6dfae68c254265e6bf89e040ba87c07d620",
+      "candidate_sha256": "ac0d8174b2cac3802ad4c004deaba6dfae68c254265e6bf89e040ba87c07d620",
+      "byte_identical": true
+    },
+    "aout": {
+      "base": {
+        "bytes": 114458,
+        "member_count": 371,
+        "member_list_sha256": "f81b95eccf48305291ec5203d5f994cefdcbb07e0a64e566e5b5d0987f4ef693",
+        "payload_manifest_sha256": "7b480d362a6ac4c3037a8a9ef012ad7500699f01c2b903353bc82c97eae416b2",
+        "container_sha256": "7767bf883a9badfdabe8c0ca77ec475e75f2b4bdd84f7392c0d20ff5537a6b83"
+      },
+      "candidate": {
+        "bytes": 114458,
+        "member_count": 371,
+        "member_list_sha256": "f81b95eccf48305291ec5203d5f994cefdcbb07e0a64e566e5b5d0987f4ef693",
+        "payload_manifest_sha256": "7b480d362a6ac4c3037a8a9ef012ad7500699f01c2b903353bc82c97eae416b2",
+        "container_sha256": "4df3498ef33804f45aace0823dfc7bdb68854fc78afdd43e6d116e00c29a5175"
+      },
+      "waitpid_payload_sha256": "337223abdfd6ffa6982f7092ef54104afcc81ed88fddf0876d50046e053d869a"
+    },
+    "board_aout": {
+      "base": {
+        "bytes": 43010,
+        "member_count": 152,
+        "member_list_sha256": "dbbe0176d72c722932a3b9cf93328a647afe3fcdbad01237b5c460cd71f90d28",
+        "payload_manifest_sha256": "a22c3abcd507b48668b758903321360eb1276b9045b81ce7140c6c447bfb1d6b",
+        "container_sha256": "d0b447342c9aca4e7bc0400c08530738f4381445b947e1c1655fe68f8cc32e96"
+      },
+      "candidate": {
+        "bytes": 43010,
+        "member_count": 152,
+        "member_list_sha256": "dbbe0176d72c722932a3b9cf93328a647afe3fcdbad01237b5c460cd71f90d28",
+        "payload_manifest_sha256": "a22c3abcd507b48668b758903321360eb1276b9045b81ce7140c6c447bfb1d6b",
+        "container_sha256": "1baae9116ae0d77adbf987fc2e02cdb43f51baf7aef0fbdf7cc0e39d3521fcab"
+      }
+    }
+  },
+  "residuals": [
+    "timeout remains absent and its DPUCP requirement remains open",
+    "kernel wait-status transitions, process-group forwarding and timeout status mapping lack target execution witnesses",
+    "whole-program runtime stack and heap peaks remain unmeasured",
+    "Renode execution remains unrun",
+    "physical-board execution remains unrun and requires explicit owner authorization"
+  ]
+}

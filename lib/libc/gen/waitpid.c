@@ -35,11 +35,8 @@
 #include <sys/wait.h>
 #include <sys/resource.h>
 
-int
-waitpid(pid, istat, options)
-	int pid;
-	int *istat;
-	int options;
+pid_t
+waitpid(pid_t pid, int *istat, int options)
 {
 	return (wait4(pid, istat, options, (struct rusage *)0));
 }

@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "2a6862167e4c1a38975cf4eff147506b06a24ff38cbf9244c95de05d5d83376f"
+    "ordered_row_sha256": "8bce0faa8d6948e4fd0d0af70fdb82bdb89c0141809bcfc7f1fad39ca1072b33"
   },
   "state_counts": {
     "applicability": {
@@ -52,14 +52,14 @@
     },
     "implementation": {
       "present": 1,
-      "partial": 48,
-      "absent": 1469,
+      "partial": 50,
+      "absent": 1467,
       "divergent": 0
     },
     "evidence": {
-      "none": 1469,
-      "static": 40,
-      "host": 9,
+      "none": 1467,
+      "static": 39,
+      "host": 12,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -107,6 +107,24 @@
       "evidence": "host",
       "known_good": "tests/recovery_utility_contracts/check.py",
       "known_bad": "tests/recovery_utility_contracts/known_bad.c"
+    },
+    "alarm-process-control-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-host-contracts check-libc-alarm-cross check-kernel",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/alarm_contract_test.c",
+      "known_bad": "tests/libc_contracts/alarm_contract_mutate.py"
+    },
+    "kill-process-control-ilp32-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-kernel-ilp32",
+      "evidence": "host",
+      "known_good": "tests/kernel/sigauth_test.c",
+      "known_bad": "tests/kernel/sigauth_mutate.py"
+    },
+    "waitpid-process-control-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-host-contracts check-libc-waitpid-cross",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/waitpid_contract_test.c",
+      "known_bad": "tests/libc_contracts/waitpid_contract_mutate.py"
     }
   },
   "growth_policy": {

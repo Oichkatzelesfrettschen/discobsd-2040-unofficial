@@ -1,8 +1,10 @@
 """Mutation controls for the bounded DPUCP donor ledger."""
 
 import copy
+import hashlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 import check_dpucp_donor_ledger as donors
@@ -33,6 +35,7 @@ def require_documented_mutation_count(testing_text, mutation_count):
     for required_phrase in (
         "recovery utility growth exception",
         "six recovery mutations reject",
+        "eight process-control measurement mutations reject",
         "target-native link-map seam",
     ):
         if required_phrase not in gate_line:
@@ -108,6 +111,25 @@ def main():
     if recovery_validator is None:
         raise AssertionError("missing recovery growth-exception validator")
     recovery_validator(recovery_measurement, root)
+
+    process_measurement_path = (
+        root / "docs/research/process-control-prerequisites.json"
+    )
+    if getattr(donors, "PROCESS_CONTROL_MEASUREMENT_DATA", None) != str(
+        process_measurement_path.relative_to(root)
+    ):
+        raise AssertionError("process-control measurement is not bound to the verifier")
+    if not process_measurement_path.is_file():
+        raise AssertionError("missing machine-readable process-control measurement")
+    process_measurement = json.loads(
+        process_measurement_path.read_text(encoding="utf-8")
+    )
+    process_validator = getattr(
+        donors, "validate_process_control_measurement", None
+    )
+    if process_validator is None:
+        raise AssertionError("missing process-control measurement validator")
+    process_validator(process_measurement, root)
 
     for state in ("base", "candidate"):
         kernel_measurement = shell_measurement["kernel"][state]
@@ -303,6 +325,109 @@ def main():
         pass
     else:
         raise AssertionError("recovery dynamic stack classification passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["kernel"]["PICO"]["candidate"][
+        "text_bytes"
+    ] += 1
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control kernel delta mutation passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["programs"]["size_changed"] = 1
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control program comparison mutation passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["root"]["candidate"]["free_blocks"] += 1
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control root arithmetic mutation passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["libraries"]["aout"]["candidate"][
+        "payload_manifest_sha256"
+    ] = "0" * 64
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control archive payload mutation passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["programs"]["parent_table_sha256"] = "0" * 64
+    changed_process_measurement["programs"]["candidate_table_sha256"] = "0" * 64
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control placeholder program digests passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["receipts"]["focused_gates"]["status_sha256"] = (
+        "0" * 64
+    )
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control placeholder receipt digest passed")
+
+    with tempfile.TemporaryDirectory(prefix="process-control-program-table-") as name:
+        mutation_root = Path(name)
+        research_directory = mutation_root / "docs/research"
+        research_directory.mkdir(parents=True)
+        parent_table_path = root / process_measurement["programs"]["parent_table_path"]
+        candidate_table_path = (
+            root / process_measurement["programs"]["candidate_table_path"]
+        )
+        mutated_parent_path = mutation_root / process_measurement["programs"][
+            "parent_table_path"
+        ]
+        mutated_candidate_path = mutation_root / process_measurement["programs"][
+            "candidate_table_path"
+        ]
+        mutated_parent_path.write_bytes(parent_table_path.read_bytes())
+        candidate_lines = candidate_table_path.read_text(encoding="utf-8").splitlines()
+        candidate_fields = candidate_lines[0].split("\t")
+        candidate_fields[5] = str(int(candidate_fields[5]) + 1)
+        candidate_lines[0] = "\t".join(candidate_fields)
+        mutated_candidate_bytes = ("\n".join(candidate_lines) + "\n").encode("utf-8")
+        mutated_candidate_path.write_bytes(mutated_candidate_bytes)
+        changed_process_measurement = copy.deepcopy(process_measurement)
+        changed_process_measurement["programs"]["candidate_table_sha256"] = (
+            hashlib.sha256(mutated_candidate_bytes).hexdigest()
+        )
+        try:
+            process_validator(changed_process_measurement, mutation_root)
+        except donors.DonorError:
+            pass
+        else:
+            raise AssertionError("process-control per-program size mutation passed")
+
+    changed_process_measurement = copy.deepcopy(process_measurement)
+    changed_process_measurement["libraries"]["full_elf"]["base_sha256"] = ""
+    changed_process_measurement["libraries"]["full_elf"]["candidate_sha256"] = ""
+    try:
+        process_validator(changed_process_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("process-control blank full ELF digest passed")
 
     promoted_ids = {
         "libc-reallocarray",

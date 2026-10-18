@@ -112,6 +112,8 @@ PRINTF_MEASUREMENT = "docs/research/utility-printf-growth-exception.md"
 PRINTF_MEASUREMENT_DATA = "docs/research/utility-printf-growth-exception.json"
 RECOVERY_MEASUREMENT = "docs/research/recovery-path-utilities-growth-exception.md"
 RECOVERY_MEASUREMENT_DATA = "docs/research/recovery-path-utilities-growth-exception.json"
+PROCESS_CONTROL_MEASUREMENT = "docs/research/process-control-prerequisites.md"
+PROCESS_CONTROL_MEASUREMENT_DATA = "docs/research/process-control-prerequisites.json"
 
 
 class DonorError(RuntimeError):
@@ -130,6 +132,14 @@ def require_nonnegative_integers(values, fields, label):
             isinstance(value, int) and not isinstance(value, bool) and value >= 0,
             f"invalid {label} {field}",
         )
+
+
+def valid_sha256_digest(value):
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+        and value != "0" * 64
+    )
 
 
 def validate_foundation_measurement(measurement):
@@ -1017,6 +1027,548 @@ def validate_recovery_measurement(measurement, repository_root):
         )
 
 
+def load_process_program_table(root, relative_path, expected_digest, label):
+    require(safe_path(relative_path), f"unsafe {label} program table path")
+    require(valid_sha256_digest(expected_digest), f"bad {label} program table hash")
+    table_path = root / relative_path
+    require(table_path.is_file(), f"missing {label} program table")
+    table_bytes = table_path.read_bytes()
+    require(
+        hashlib.sha256(table_bytes).hexdigest() == expected_digest,
+        f"{label} program table hash drift",
+    )
+    try:
+        table_text = table_bytes.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise DonorError(f"invalid {label} program table encoding: {error}") from error
+    require(table_text.endswith("\n"), f"unterminated {label} program table")
+
+    records = {}
+    prior_path = None
+    for row_number, row in enumerate(
+        csv.reader(io.StringIO(table_text), delimiter="\t"), start=1
+    ):
+        require(len(row) == 7, f"malformed {label} program row {row_number}")
+        program_path = row[0]
+        require(safe_path(program_path), f"unsafe {label} program path")
+        require(program_path not in records, f"duplicate {label} program path")
+        require(
+            prior_path is None or prior_path < program_path,
+            f"unordered {label} program table",
+        )
+        try:
+            sizes = tuple(int(field) for field in row[1:6])
+        except ValueError as error:
+            raise DonorError(
+                f"nonnumeric {label} program row {row_number}"
+            ) from error
+        require(all(value >= 0 for value in sizes), f"negative {label} program size")
+        require(
+            sizes[3] == sizes[0] + sizes[1] + sizes[2],
+            f"inconsistent {label} loaded program size: {program_path}",
+        )
+        require(valid_sha256_digest(row[6]), f"bad {label} program hash")
+        records[program_path] = sizes + (row[6],)
+        prior_path = program_path
+    return records
+
+
+def validate_process_control_measurement(measurement, root):
+    require(
+        set(measurement)
+        == {
+            "schema_version",
+            "profile_id",
+            "base_commit",
+            "candidate_source_sha256",
+            "measurement_date",
+            "tools",
+            "receipts",
+            "kernel",
+            "programs",
+            "root",
+            "libraries",
+            "residuals",
+        },
+        "malformed process-control measurement",
+    )
+    require(measurement["schema_version"] == 1, "unsupported process-control schema")
+    require(measurement["profile_id"] == "DPUCP-2024", "wrong process-control profile")
+    require(
+        re.fullmatch(r"[0-9a-f]{40}", measurement["base_commit"]) is not None,
+        "bad process-control base commit",
+    )
+    require(
+        re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", measurement["measurement_date"])
+        is not None,
+        "bad process-control measurement date",
+    )
+
+    source_hashes = measurement["candidate_source_sha256"]
+    expected_sources = {
+        "lib/libc/gen/waitpid.c",
+        "sys/arch/rp2040/compile/PICO/Makefile",
+        "sys/arch/rp2040/compile/PICO_UART/Makefile",
+        "sys/arch/rp2040/conf/Makefile.rp2040",
+        "sys/arch/rp2040/conf/files.rp2040",
+        "sys/kern/kern_time.c",
+        "sys/sys/wait.h",
+    }
+    require(set(source_hashes) == expected_sources, "process-control source set drift")
+    require(
+        all(valid_sha256_digest(digest) for digest in source_hashes.values()),
+        "bad process-control source hash",
+    )
+
+    tools = measurement["tools"]
+    require(
+        set(tools)
+        == {
+            "host",
+            "bmake",
+            "arm_none_eabi_gcc",
+            "arm_none_eabi_binutils",
+            "host_gcc",
+            "python",
+        },
+        "malformed process-control tool record",
+    )
+    require(
+        all(isinstance(version, str) and version for version in tools.values()),
+        "blank process-control tool version",
+    )
+
+    expected_commands = {
+        "clean_distribution": [
+            "bmake",
+            "MACHINE=rp2040",
+            "cleanall",
+            "distribution",
+        ],
+        "focused_gates": [
+            "bmake",
+            "MACHINE=rp2040",
+            "check-lint",
+            "check-comment-hygiene",
+            "check-config-generated-sync",
+            "check-storage-correctness",
+            "check-libc-host-contracts",
+            "check-libc-waitpid-cross",
+            "check-c17-source-denominator",
+            "check-dpucp-profile",
+            "check-dpucp-donor-ledger",
+        ],
+        "aggregate_build": ["bmake", "MACHINE=rp2040", "build"],
+        "aggregate_check": ["bmake", "MACHINE=rp2040", "check"],
+    }
+    receipts = measurement["receipts"]
+    require(set(receipts) == set(expected_commands), "process-control receipt set drift")
+    receipt_fields = {
+        "command",
+        "invocation_id",
+        "started_at",
+        "state",
+        "exit_code",
+        "elapsed_seconds",
+        "output_bytes",
+        "terminal_queue_dropped_bytes",
+        "heartbeat_seconds",
+        "output_idle_timeout_seconds",
+        "hard_timeout_seconds",
+        "status_sha256",
+    }
+    for receipt_name, expected_command in expected_commands.items():
+        receipt = receipts[receipt_name]
+        require(set(receipt) == receipt_fields, f"malformed {receipt_name} receipt")
+        require(receipt["command"] == expected_command, f"{receipt_name} command drift")
+        require(
+            isinstance(receipt["invocation_id"], str) and receipt["invocation_id"],
+            f"blank {receipt_name} invocation",
+        )
+        require(
+            re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+                receipt["started_at"],
+            )
+            is not None,
+            f"bad {receipt_name} start time",
+        )
+        require(receipt["state"] == "completed", f"incomplete {receipt_name} receipt")
+        require(receipt["exit_code"] == 0, f"failed {receipt_name} receipt")
+        require(
+            isinstance(receipt["elapsed_seconds"], (int, float))
+            and receipt["elapsed_seconds"] > 0,
+            f"bad {receipt_name} elapsed time",
+        )
+        require(
+            isinstance(receipt["output_bytes"], int)
+            and receipt["output_bytes"] > 0,
+            f"bad {receipt_name} output count",
+        )
+        require(
+            receipt["terminal_queue_dropped_bytes"] == 0,
+            f"dropped output in {receipt_name}",
+        )
+        for field in (
+            "heartbeat_seconds",
+            "output_idle_timeout_seconds",
+            "hard_timeout_seconds",
+        ):
+            require(
+                isinstance(receipt[field], (int, float)) and receipt[field] > 0,
+                f"bad {receipt_name} {field}",
+            )
+        require(
+            valid_sha256_digest(receipt["status_sha256"]),
+            f"bad {receipt_name} receipt hash",
+        )
+
+    kernel = measurement["kernel"]
+    require(
+        set(kernel) == {"region_bytes", "PICO", "PICO_UART", "kern_time_object"},
+        "malformed process-control kernel measurement",
+    )
+    require(kernel["region_bytes"] == 131072, "process-control kernel region drift")
+    state_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "section_sum_bytes",
+        "loaded_flash_span_bytes",
+        "load_tail_margin_bytes",
+    }
+    delta_fields = state_fields - {"load_tail_margin_bytes"}
+    for kernel_name in ("PICO", "PICO_UART"):
+        kernel_measurement = kernel[kernel_name]
+        require(
+            set(kernel_measurement) == {"base", "candidate", "delta"},
+            f"malformed {kernel_name} process-control measurement",
+        )
+        for state_name in ("base", "candidate"):
+            state = kernel_measurement[state_name]
+            require(
+                set(state) == state_fields,
+                f"malformed {kernel_name} {state_name} measurement",
+            )
+            require_nonnegative_integers(
+                state, state_fields, f"{kernel_name} {state_name}"
+            )
+            require(
+                state["section_sum_bytes"]
+                == state["text_bytes"] + state["data_bytes"],
+                f"inconsistent {kernel_name} {state_name} section sum",
+            )
+            require(
+                state["loaded_flash_span_bytes"] >= state["section_sum_bytes"],
+                f"short {kernel_name} {state_name} loaded span",
+            )
+            require(
+                state["load_tail_margin_bytes"]
+                == kernel["region_bytes"] - state["loaded_flash_span_bytes"],
+                f"inconsistent {kernel_name} {state_name} margin",
+            )
+        require(
+            set(kernel_measurement["delta"]) == delta_fields,
+            f"malformed {kernel_name} delta",
+        )
+        for field in delta_fields:
+            require(
+                kernel_measurement["delta"][field]
+                == kernel_measurement["candidate"][field]
+                - kernel_measurement["base"][field],
+                f"inconsistent {kernel_name} {field} delta",
+            )
+            require(
+                kernel_measurement["delta"][field] <= 0,
+                f"{kernel_name} {field} grew",
+            )
+    object_measurement = kernel["kern_time_object"]
+    require(
+        set(object_measurement)
+        == {"base_text_bytes", "candidate_text_bytes", "delta_text_bytes"},
+        "malformed kern_time object measurement",
+    )
+    require_nonnegative_integers(
+        object_measurement,
+        {"base_text_bytes", "candidate_text_bytes"},
+        "kern_time object",
+    )
+    require(
+        object_measurement["delta_text_bytes"]
+        == object_measurement["candidate_text_bytes"]
+        - object_measurement["base_text_bytes"],
+        "inconsistent kern_time object delta",
+    )
+    require(object_measurement["delta_text_bytes"] <= 0, "kern_time object grew")
+
+    programs = measurement["programs"]
+    require(
+        set(programs)
+        == {
+            "process_window_bytes",
+            "count",
+            "size_changed",
+            "hash_changed",
+            "parent_table_path",
+            "candidate_table_path",
+            "parent_table_sha256",
+            "candidate_table_sha256",
+            "only_hash_change",
+            "largest_process",
+        },
+        "malformed process-control program measurement",
+    )
+    require(programs["process_window_bytes"] == 147456, "process window drift")
+    require(programs["count"] == 269, "process-control program count drift")
+    require(programs["size_changed"] == 0, "process-control program size drift")
+    require(programs["hash_changed"] == 1, "process-control hash count drift")
+    parent_programs = load_process_program_table(
+        root,
+        programs["parent_table_path"],
+        programs["parent_table_sha256"],
+        "parent",
+    )
+    candidate_programs = load_process_program_table(
+        root,
+        programs["candidate_table_path"],
+        programs["candidate_table_sha256"],
+        "candidate",
+    )
+    require(
+        set(parent_programs) == set(candidate_programs),
+        "process-control program path set drift",
+    )
+    require(len(parent_programs) == programs["count"], "program table count drift")
+    calculated_size_changes = sum(
+        parent_programs[path][:5] != candidate_programs[path][:5]
+        for path in parent_programs
+    )
+    calculated_hash_changes = [
+        path
+        for path in parent_programs
+        if parent_programs[path][5] != candidate_programs[path][5]
+    ]
+    require(
+        calculated_size_changes == programs["size_changed"],
+        "process-control program size comparison drift",
+    )
+    require(
+        len(calculated_hash_changes) == programs["hash_changed"],
+        "process-control program hash comparison drift",
+    )
+    hash_change = programs["only_hash_change"]
+    require(
+        set(hash_change) == {"path", "cause", "base_value", "candidate_value"},
+        "malformed process-control hash change",
+    )
+    require(hash_change["path"] == "usr.bin/pdc/pdc", "unexpected program hash change")
+    require(
+        calculated_hash_changes == [hash_change["path"]],
+        "unbound process-control hash change",
+    )
+    require(
+        hash_change["cause"] == "compiled-time string",
+        "unclassified program hash change",
+    )
+    largest = programs["largest_process"]
+    require(
+        set(largest)
+        == {
+            "path",
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "delta_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "malformed process-control largest-process measurement",
+    )
+    require(largest["path"] == "games/warp/warp", "largest process identity drift")
+    calculated_largest_path, calculated_largest_record = max(
+        candidate_programs.items(), key=lambda item: (item[1][3], item[0])
+    )
+    require(
+        calculated_largest_path == largest["path"]
+        and calculated_largest_record[3] == largest["candidate_loaded_bytes"]
+        and parent_programs[calculated_largest_path][3]
+        == largest["base_loaded_bytes"],
+        "largest process differs from retained table",
+    )
+    require_nonnegative_integers(
+        largest,
+        {
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "process-control largest process",
+    )
+    require(
+        largest["delta_loaded_bytes"]
+        == largest["candidate_loaded_bytes"] - largest["base_loaded_bytes"],
+        "inconsistent process-control largest-process delta",
+    )
+    require(
+        largest["delta_loaded_bytes"] <= 0,
+        "process-control largest process grew",
+    )
+    require(
+        largest["candidate_window_margin_before_stack_bytes"]
+        == programs["process_window_bytes"] - largest["candidate_loaded_bytes"],
+        "inconsistent process-control process-window margin",
+    )
+
+    root = measurement["root"]
+    require(
+        set(root)
+        == {
+            "block_bytes",
+            "partition_blocks",
+            "inode_list_blocks",
+            "base",
+            "candidate",
+            "delta",
+            "candidate_free_bytes",
+        },
+        "malformed process-control root measurement",
+    )
+    require(root["block_bytes"] == 1024, "process-control root block size drift")
+    require(root["partition_blocks"] == 988, "process-control partition drift")
+    require(root["inode_list_blocks"] == 9, "process-control inode-list drift")
+    for state_name in ("base", "candidate"):
+        state = root[state_name]
+        require(
+            set(state) == {"files", "data_blocks", "free_blocks"},
+            f"malformed process-control root {state_name}",
+        )
+        require_nonnegative_integers(
+            state,
+            {"files", "data_blocks", "free_blocks"},
+            f"process-control root {state_name}",
+        )
+        require(
+            state["data_blocks"] + state["free_blocks"] + root["inode_list_blocks"]
+            == root["partition_blocks"],
+            f"inconsistent process-control root {state_name}",
+        )
+    require(
+        set(root["delta"]) == {"files", "data_blocks", "free_blocks"},
+        "malformed process-control root delta",
+    )
+    for field in root["delta"]:
+        require(
+            root["delta"][field] == root["candidate"][field] - root["base"][field],
+            f"inconsistent process-control root {field} delta",
+        )
+    require(root["delta"]["data_blocks"] <= 0, "process-control root grew")
+    require(
+        root["candidate_free_bytes"]
+        == root["candidate"]["free_blocks"] * root["block_bytes"],
+        "inconsistent process-control root free-byte margin",
+    )
+
+    libraries = measurement["libraries"]
+    require(
+        set(libraries) == {"full_elf", "aout", "board_aout"},
+        "malformed process-control library measurement",
+    )
+    full_elf = libraries["full_elf"]
+    require(
+        set(full_elf)
+        == {
+            "base_bytes",
+            "candidate_bytes",
+            "base_sha256",
+            "candidate_sha256",
+            "byte_identical",
+        },
+        "malformed full ELF libc measurement",
+    )
+    require(
+        full_elf["base_bytes"] == full_elf["candidate_bytes"] == 410054,
+        "full ELF libc size drift",
+    )
+    require(
+        valid_sha256_digest(full_elf["base_sha256"])
+        and valid_sha256_digest(full_elf["candidate_sha256"])
+        and
+        full_elf["byte_identical"]
+        and full_elf["base_sha256"] == full_elf["candidate_sha256"],
+        "full ELF libc differs",
+    )
+    archive_fields = {
+        "bytes",
+        "member_count",
+        "member_list_sha256",
+        "payload_manifest_sha256",
+        "container_sha256",
+    }
+    for archive_name, expected_bytes, expected_members in (
+        ("aout", 114458, 371),
+        ("board_aout", 43010, 152),
+    ):
+        archive = libraries[archive_name]
+        expected_archive_fields = {"base", "candidate"}
+        if archive_name == "aout":
+            expected_archive_fields.add("waitpid_payload_sha256")
+        require(
+            set(archive) == expected_archive_fields,
+            f"malformed {archive_name} libc measurement",
+        )
+        for state_name in ("base", "candidate"):
+            state = archive[state_name]
+            require(set(state) == archive_fields, f"malformed {archive_name} {state_name}")
+            require(state["bytes"] == expected_bytes, f"{archive_name} size drift")
+            require(
+                state["member_count"] == expected_members,
+                f"{archive_name} member-count drift",
+            )
+            require(
+                all(
+                    valid_sha256_digest(state[field])
+                    for field in (
+                        "member_list_sha256",
+                        "payload_manifest_sha256",
+                        "container_sha256",
+                    )
+                ),
+                f"bad {archive_name} archive hash",
+            )
+        for field in ("bytes", "member_count", "member_list_sha256", "payload_manifest_sha256"):
+            require(
+                archive["base"][field] == archive["candidate"][field],
+                f"{archive_name} payload drift",
+            )
+        require(
+            archive["base"]["container_sha256"]
+            != archive["candidate"]["container_sha256"],
+            f"{archive_name} container metadata difference disappeared",
+        )
+    require(
+        re.fullmatch(r"[0-9a-f]{64}", libraries["aout"]["waitpid_payload_sha256"])
+        is not None,
+        "bad waitpid payload hash",
+    )
+
+    residuals = measurement["residuals"]
+    require(
+        isinstance(residuals, list)
+        and residuals
+        and all(isinstance(residual, str) and residual for residual in residuals),
+        "process-control residuals are absent",
+    )
+    residual_text = " ".join(residuals)
+    for required_residual in (
+        "timeout remains absent",
+        "runtime stack and heap",
+        "Renode execution remains unrun",
+        "physical-board execution remains unrun",
+    ):
+        require(
+            required_residual in residual_text,
+            f"missing process-control residual: {required_residual}",
+        )
+
+
 def safe_path(value):
     path = PurePosixPath(value)
     return bool(value) and not path.is_absolute() and ".." not in path.parts
@@ -1054,6 +1606,22 @@ def validate_document(root, document, requirement_ids):
     recovery_measurement_path = root / RECOVERY_MEASUREMENT_DATA
     require(recovery_measurement_path.is_file(), "missing recovery growth-exception data")
     validate_recovery_measurement(load_json(recovery_measurement_path), root)
+    process_measurement_path = root / PROCESS_CONTROL_MEASUREMENT_DATA
+    require(
+        process_measurement_path.is_file(),
+        "missing process-control measurement data",
+    )
+    process_measurement = load_json(process_measurement_path)
+    validate_process_control_measurement(process_measurement, root)
+    for relative_path, expected_hash in process_measurement[
+        "candidate_source_sha256"
+    ].items():
+        source_path = root / relative_path
+        require(source_path.is_file(), f"missing measured source: {relative_path}")
+        require(
+            hashlib.sha256(source_path.read_bytes()).hexdigest() == expected_hash,
+            f"measured source drift: {relative_path}",
+        )
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",

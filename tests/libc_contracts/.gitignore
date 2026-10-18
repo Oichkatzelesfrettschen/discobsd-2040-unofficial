@@ -1,5 +1,6 @@
 libc_contracts_test
 alarm_contract_test
+waitpid_contract_test
 asctime_contract_test
 asctime_contract_bad_test
 asctime_asctime.o

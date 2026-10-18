@@ -27,6 +27,7 @@ static struct inode node;
 static char data[sizeof(struct fs) + DEV_BSIZE];
 static unsigned writes, delayed, asynchronous, flushes, updates;
 static int write_error, flush_error, update_error, mount_error;
+static int copyout_error;
 static unsigned mount_flushes;
 /* Delayed buffers bflush() would find, and the block superblock writes use. */
 static unsigned dirty_buffers, superblock_gets;
@@ -38,7 +39,12 @@ void gate_sync(void);
 int copyin(const caddr_t src, caddr_t dst, u_int n)
 { bcopy(src, dst, n); return 0; }
 int copyout(const caddr_t src, caddr_t dst, u_int n)
-{ bcopy(src, dst, n); return 0; }
+{
+    if (copyout_error)
+        return copyout_error;
+    bcopy(src, dst, n);
+    return 0;
+}
 int suser(void) { return 1; }
 void psignal(struct proc *p, int signal) { (void)p; (void)signal; }
 void sleep(caddr_t chan, int priority) { (void)chan; (void)priority; }
@@ -95,7 +101,14 @@ static void clock_cases(void)
 {
     static const long values[] = { -32769, -32768, 0, 32767, 32768 };
     struct { struct timeval *delta, *old; } *args = (void *)u.u_arg;
+    struct {
+        u_int which;
+        struct itimerval *value;
+        struct itimerval *old_value;
+    } *timer_args = (void *)u.u_arg;
+    struct proc process = {0};
     struct timeval delta, old;
+    struct itimerval timer, old_timer;
     unsigned i;
 
     for (i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
@@ -124,6 +137,97 @@ static void clock_cases(void)
     HK_CHECK(u.u_error == EINVAL);
     HK_CHECK(time.tv_sec == 2147483647L && adjdelta == 9);
     HK_CHECK(hk_ipl == 0);
+
+    u.u_procp = &process;
+    process.p_realtimer.it_value = 11;
+    process.p_realtimer.it_interval = 13;
+    timer_args->which = ITIMER_REAL;
+    timer_args->value = &timer;
+    timer_args->old_value = NULL;
+
+    timer = (struct itimerval){0};
+    timer.it_value.tv_sec = 2;
+    timer.it_value.tv_usec = 1;
+    timer.it_interval.tv_sec = 3;
+    timer.it_interval.tv_usec = 1;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(process.p_realtimer.it_value == 3);
+    HK_CHECK(process.p_realtimer.it_interval == 4);
+
+    timer = (struct itimerval){0};
+    timer.it_value.tv_sec = -1;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(process.p_realtimer.it_value == 3);
+    HK_CHECK(process.p_realtimer.it_interval == 4);
+
+    timer = (struct itimerval){0};
+    timer.it_interval.tv_usec = 1000000;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(process.p_realtimer.it_value == 3);
+    HK_CHECK(process.p_realtimer.it_interval == 4);
+
+    timer = (struct itimerval){0};
+    timer.it_value.tv_sec = LONG_MAX / hz + 1;
+    timer_args->which = ITIMER_VIRTUAL;
+    u.u_timer[ITIMER_VIRTUAL - 1].it_value = 17;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(u.u_timer[ITIMER_VIRTUAL - 1].it_value == 17);
+
+    timer = (struct itimerval){0};
+    timer.it_value.tv_sec = LONG_MAX / hz;
+    timer.it_value.tv_usec = 1;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(u.u_timer[ITIMER_VIRTUAL - 1].it_value == 17);
+
+    timer = (struct itimerval){0};
+    timer.it_interval.tv_sec = LONG_MAX / hz + 1;
+    u.u_timer[ITIMER_VIRTUAL - 1].it_interval = 19;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(u.u_timer[ITIMER_VIRTUAL - 1].it_interval == 19);
+
+    timer_args->which = ITIMER_PROF + 1;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(process.p_realtimer.it_value == 3);
+    HK_CHECK(hk_ipl == 0);
+
+    timer = (struct itimerval){0};
+    timer.it_value.tv_sec = 23;
+    old_timer = (struct itimerval){0};
+    timer_args->which = ITIMER_REAL;
+    timer_args->value = &timer;
+    timer_args->old_value = &old_timer;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(old_timer.it_value.tv_sec == 3);
+    HK_CHECK(old_timer.it_interval.tv_sec == 4);
+    HK_CHECK(process.p_realtimer.it_value == 23);
+
+    timer.it_value.tv_sec = 29;
+    timer_args->which = ITIMER_REAL;
+    timer_args->old_value = &old_timer;
+    copyout_error = EFAULT;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == EFAULT);
+    HK_CHECK(process.p_realtimer.it_value == 23);
+    HK_CHECK(process.p_realtimer.it_interval == 0);
+    copyout_error = 0;
+    timer_args->old_value = NULL;
 }
 
 static int write_case(int kind, int mount_flags, int flags, unsigned count)

@@ -184,6 +184,45 @@ def main():
             True,
         ),
         (
+            "skip-interval-timer-validation",
+            "io",
+            {
+                "kern_time.c": (
+                    "        if (itimerfix(tv) || tv->tv_sec > tick_limit ||\n"
+                    "            (tv->tv_usec && tv->tv_sec == tick_limit))\n"
+                    "            goto bad;",
+                    "        if (itimerfix(tv) || tv->tv_sec > tick_limit ||\n"
+                    "            (tv->tv_usec && tv->tv_sec == tick_limit))\n"
+                    "            if (0) goto bad;",
+                )
+            },
+            True,
+        ),
+        (
+            "continue-after-old-timer-copyout-failure",
+            "io",
+            {
+                "kern_time.c": (
+                    "        getitimer();\n"
+                    "        if (u.u_error)\n"
+                    "            return;",
+                    "        getitimer();",
+                )
+            },
+            True,
+        ),
+        (
+            "replace-new-timer-pointer-after-old-timer-copyout",
+            "io",
+            {
+                "kern_time.c": (
+                    "    u.u_error = copyin((caddr_t)aitvp, (caddr_t)&aitv,",
+                    "    u.u_error = copyin((caddr_t)uap->itv, (caddr_t)&aitv,",
+                )
+            },
+            True,
+        ),
+        (
             "discard-io-sync",
             "io",
             {

@@ -85,6 +85,14 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "generated Makefile differs"):
             sync.check(self.root)
 
+    def test_kern_time_uses_size_optimized_compile_rule(self):
+        template = (self.root / sync.CONF / "Makefile.rp2040").read_text()
+        self.assertIn("COMPILE_SIZE_C=", template)
+        for board in sync.BOARDS:
+            generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
+            rule = "kern_time.o: $S/kern/kern_time.c\n\t${COMPILE_SIZE_C}\n"
+            self.assertIn(rule, generated)
+
     def test_board_file_list_is_a_real_input(self):
         path = self.root / sync.COMPILE / "PICO_UART/files.PICO_UART"
         path.write_text("rp2040/sync_fixture.c standard\n")

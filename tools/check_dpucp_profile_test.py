@@ -86,6 +86,17 @@ def main():
     if printf_witness["known_good"] == printf_witness["known_bad"]:
         raise AssertionError("uncalibrated printf witness")
 
+    for witness_id in (
+        "alarm-process-control-host-contract",
+        "kill-process-control-ilp32-contract",
+        "waitpid-process-control-host-contract",
+    ):
+        witness = profile["witnesses"].get(witness_id)
+        if witness is None:
+            raise AssertionError(f"missing process-control witness: {witness_id}")
+        if witness["known_good"] == witness["known_bad"]:
+            raise AssertionError(f"uncalibrated process-control witness: {witness_id}")
+
     expected_state_order = {
         "applicability": [
             "base",

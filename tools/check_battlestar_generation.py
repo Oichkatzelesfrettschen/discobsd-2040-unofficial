@@ -1,6 +1,7 @@
 """Calibrate and verify Battlestar's shared message-generation ordering."""
 
 import argparse
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -28,9 +29,15 @@ def run_fixture(make_command, ordered):
             "\n".join(makefile_lines) + "\n", encoding="utf-8"
         )
         (fixture_root / "input").write_text("fixture\n", encoding="utf-8")
+        fixture_environment = {
+            name: value
+            for name, value in os.environ.items()
+            if name not in ("MAKEFLAGS", "MFLAGS")
+        }
         result = subprocess.run(
             [make_command, "-j3", "all"],
             cwd=fixture_root,
+            env=fixture_environment,
             check=False,
             capture_output=True,
             text=True,

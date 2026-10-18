@@ -46,10 +46,10 @@ of the retained candidate log for compiler warnings, errors, fatal diagnostics,
 timeout stops, incomplete cleanup, and dropped-output records returned an empty
 set.
 
-The full build-plus-check receipt is
-`.build-logs/rp2040-check-local-20261018T002145Z-1830404-b7377392/status.json`.
-Its build stage completed in 53.215 seconds with 825,677 child-output bytes;
-its check stage completed in 255.440 seconds with 705,129 child-output bytes.
+The final build-plus-check receipt is
+`.build-logs/rp2040-check-local-20261018T004814Z-2143840-0e9a1ff3/status.json`.
+Its build stage completed in 50.062 seconds with 823,037 child-output bytes;
+its check stage completed in 541.779 seconds with 704,247 child-output bytes.
 Both stages recorded exit status zero, zero terminal-queue dropped bytes, and
 scheduled heartbeats while active. Diagnostics that contain `FAIL`, sanitizer
 errors, or timeout language belong to named calibrated negative controls whose

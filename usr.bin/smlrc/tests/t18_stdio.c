@@ -1,16 +1,22 @@
 /*
- * Native Smaller C acceptance for the public stdio and directory layouts.
- * The fixture uses only constructs that the maintained compiler already
- * accepts; later public-header migrations add their own construct probes.
+ * Native Smaller C acceptance for public stdio, directory and password
+ * layouts. The fixture uses the maintained native language subset.
  */
 #include <sys/types.h>
 #include <sys/dir.h>
+#include <pwd.h>
+#include <pwd.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+
+struct passwd_alignment_probe {
+	char alignment_byte;
+	struct passwd entry;
+};
 
 static int
 scan_variadic(const char *input, const char *format, ...)
@@ -42,6 +48,27 @@ check_layouts(void)
 	    sizeof(size_t) != 4 || sizeof(fpos_t) != 4 || sizeof(short) != 2 ||
 	    sizeof(char) != 1)
 		return 3;
+	return 0;
+}
+
+static int
+check_passwd_layout(void)
+{
+	if (sizeof(struct passwd) != 28 ||
+	    offsetof(struct passwd, pw_name) != 0 ||
+	    offsetof(struct passwd, pw_passwd) != 4 ||
+	    offsetof(struct passwd, pw_uid) != 8 ||
+	    offsetof(struct passwd, pw_gid) != 12 ||
+	    offsetof(struct passwd, pw_gecos) != 16 ||
+	    offsetof(struct passwd, pw_dir) != 20 ||
+	    offsetof(struct passwd, pw_shell) != 24)
+		return 4;
+	if (sizeof(((struct passwd *)0)->pw_uid) != 4 ||
+	    sizeof(((struct passwd *)0)->pw_gid) != 4 ||
+	    offsetof(struct passwd_alignment_probe, entry) != 4)
+		return 5;
+	if (_PW_KEYBYNAME != '0' || _PW_KEYBYUID != '1')
+		return 6;
 	return 0;
 }
 
@@ -217,6 +244,10 @@ main(void)
 	if (status != 0)
 		return status;
 	puts("PASS native stdio layouts");
+	status = check_passwd_layout();
+	if (status != 0)
+		return status;
+	puts("PASS password header layout");
 	status = check_stream_input();
 	if (status != 0)
 		return status;

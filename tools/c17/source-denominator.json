@@ -17020,14 +17020,18 @@
     },
     {
       "path": "include/pwd.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-passwd-public-header",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/libc-passwd-header-inclusion.md",
+        "tools/c17/passwd_header_contracts.py",
+        "usr.bin/smlrc/tests/t18_stdio.c"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",

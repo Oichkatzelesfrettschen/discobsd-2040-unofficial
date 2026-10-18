@@ -276,6 +276,12 @@ check-c17-compile-profiles:	check-python .WAIT symlinks
 		${MAKE} -C tests/libc_casefold check-cross
 		${MAKE} kernel
 
+check-passwd-header-contracts: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/passwd_header_contracts.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/passwd-header-contracts.json
+
 check-c17-smaller-c:	check-python .WAIT symlinks
 		${MAKE} -C usr.bin/smlrc test
 
@@ -924,7 +930,8 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-bubble-host check-fifteen-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
+		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
 		check-libc-alarm-cross \
@@ -1266,3 +1273,5 @@ installfs:
 .PHONY: check-board-libc-output
 
 .PHONY: check-sysctl-status
+
+.PHONY: check-passwd-header-contracts

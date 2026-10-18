@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "beba2cd6c9765a14a67dc99751f185d49a72d4ad",
+  "measurement_date": "2026-10-18",
+  "block_bytes": 1024,
+  "candidate_source_sha256": {
+    "usr.bin/timeout/timeout.c": "f5c27f0ec494f875e7b5ee6827c735b7fb1afa544f728c0d3c602d1ccd7b4c81",
+    "lib/libc/gen/setpgid.c": "80a00f382f15457f8a77e1e8ae1d58bc31db721743e7d9a4fd98ee79cd142572",
+    "include/unistd.h": "a1de3ac499c06b1f8003656f83a333d11cb9525c26abbea3010279759ea985e7",
+    "sys/sys/signal.h": "b8cfa049b90eaf776ddaec360ac6c873710b6ed2439eaa695a5d0e2da301dcec"
+  },
+  "kernel": {
+    "region_bytes": 131072,
+    "PICO": {
+      "base": {
+        "text_bytes": 104518,
+        "data_bytes": 248,
+        "bss_bytes": 39848,
+        "loaded_flash_span_bytes": 104768,
+        "load_tail_margin_bytes": 26304
+      },
+      "candidate": {
+        "text_bytes": 104518,
+        "data_bytes": 248,
+        "bss_bytes": 39848,
+        "loaded_flash_span_bytes": 104768,
+        "load_tail_margin_bytes": 26304
+      },
+      "delta": {
+        "text_bytes": 0,
+        "data_bytes": 0,
+        "bss_bytes": 0,
+        "loaded_flash_span_bytes": 0
+      }
+    },
+    "PICO_UART": {
+      "base": {
+        "text_bytes": 92092,
+        "data_bytes": 192,
+        "bss_bytes": 14832,
+        "loaded_flash_span_bytes": 92284,
+        "load_tail_margin_bytes": 38788
+      },
+      "candidate": {
+        "text_bytes": 92092,
+        "data_bytes": 192,
+        "bss_bytes": 14832,
+        "loaded_flash_span_bytes": 92284,
+        "load_tail_margin_bytes": 38788
+      },
+      "delta": {
+        "text_bytes": 0,
+        "data_bytes": 0,
+        "bss_bytes": 0,
+        "loaded_flash_span_bytes": 0
+      }
+    }
+  },
+  "programs": {
+    "process_window_bytes": 147456,
+    "adminbox": {
+      "base": {
+        "text_bytes": 24580,
+        "data_bytes": 1716,
+        "aout_bss_bytes": 2524,
+        "elf_diagnostic_bss_bytes": 5550,
+        "window_occupancy_before_stack_bytes": 28820,
+        "window_margin_before_stack_bytes": 118636,
+        "raw_bytes": 26328,
+        "packed_bytes": 21653,
+        "packed_blocks": 23
+      },
+      "candidate": {
+        "text_bytes": 26720,
+        "data_bytes": 1716,
+        "aout_bss_bytes": 2524,
+        "elf_diagnostic_bss_bytes": 5558,
+        "window_occupancy_before_stack_bytes": 30960,
+        "window_margin_before_stack_bytes": 116496,
+        "raw_bytes": 28468,
+        "packed_bytes": 23573,
+        "packed_blocks": 25
+      },
+      "delta": {
+        "text_bytes": 2140,
+        "data_bytes": 0,
+        "aout_bss_bytes": 0,
+        "elf_diagnostic_bss_bytes": 8,
+        "window_occupancy_before_stack_bytes": 2140,
+        "raw_bytes": 2140,
+        "packed_bytes": 1920,
+        "packed_blocks": 2
+      }
+    },
+    "standalone_timeout": {
+      "text_bytes": 9296,
+      "data_bytes": 220,
+      "bss_bytes": 128,
+      "window_occupancy_before_stack_bytes": 9644,
+      "window_margin_before_stack_bytes": 137812,
+      "raw_bytes": 9548,
+      "packed_bytes": 8253,
+      "packed_blocks": 10
+    },
+    "largest_process": {
+      "path": "games/warp/warp",
+      "base_loaded_bytes": 101300,
+      "candidate_loaded_bytes": 101300,
+      "delta_loaded_bytes": 0,
+      "candidate_window_margin_before_stack_bytes": 46156
+    }
+  },
+  "root": {
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {
+      "files": 95,
+      "data_blocks": 690,
+      "free_blocks": 289
+    },
+    "candidate": {
+      "files": 95,
+      "data_blocks": 692,
+      "free_blocks": 287
+    },
+    "delta": {
+      "files": 0,
+      "data_blocks": 2,
+      "free_blocks": -2
+    },
+    "candidate_free_bytes": 293888
+  },
+  "composition": {
+    "shipped_form": "adminbox-hard-link",
+    "archive_members_evidence": "docs/research/timeout-process-control-archive-members.tsv",
+    "archive_members_sha256": "4085017c513f865ea81b92c02d0c5cc95df7107d2a6c56096bec117fa773c5f4",
+    "base_adminbox_libc_members": 112,
+    "candidate_adminbox_libc_members": 116,
+    "added_libc_members": [
+      "libc.a(setpgid.o)",
+      "libc.a(setpgrp.o)",
+      "libc.a(setrlimit.o)",
+      "libc.a(sigsuspend.o)"
+    ],
+    "standalone_timeout_packed_blocks": 10,
+    "base_adminbox_packed_blocks": 23,
+    "candidate_adminbox_packed_blocks": 25,
+    "multicall_saved_root_blocks": 8
+  },
+  "maps": {
+    "adminbox_without_timeout": {
+      "map_sha256": "cdfcc1c4459e2ec16de7fbf5f714aba21d215f8a886789660570f60d64a9f04c",
+      "binary_sha256": "df69b9c28e71cd8f95521d0fde0db39bc2d9ac66578b5ef0bcb5e8265f280798"
+    },
+    "adminbox_with_timeout": {
+      "map_sha256": "7ab08a3098ab81e483c3920c26f62c5830efca9726c19f9a2787bf9d561371da",
+      "binary_sha256": "58d48b5dc1532155ef9eb3dabaa64ae9a598d465974066127364a4effed989a6"
+    },
+    "standalone_timeout": {
+      "binary_sha256": "a446b30a6b370e7f289ddcae4e8e81873d88b678fc8b4220e2f209fedcf833c8"
+    }
+  },
+  "resources": {
+    "static_stack": {
+      "classification": "static",
+      "main_bytes": 128,
+      "main_ceiling_bytes": 128,
+      "pre_fork_chain_bytes": 168,
+      "pre_fork_chain_ceiling_bytes": 168,
+      "known_bad_main_bytes": 2176
+    },
+    "runtime_uncertainty": "Whole-program runtime stack and heap peaks remain unmeasured; the cross gate bounds only compiler-reported static frames in timeout.c."
+  },
+  "alternatives_examined": [
+    {
+      "name": "standalone executable",
+      "result": "rejected",
+      "reason": "The standalone image costs ten packed root blocks; the adminbox hard-link form costs two incremental blocks and saves eight blocks."
+    },
+    {
+      "name": "compiler size flags",
+      "result": "rejected",
+      "reason": "No tested no-inline, IPA, jump-table, switch-conversion, or combined size variant was smaller than default -Os."
+    },
+    {
+      "name": "locale ctype dependency",
+      "result": "applied",
+      "reason": "ASCII digit comparisons removed the isdigit dependency and reduced timeout.o text by 16 bytes without changing the byte-locale contract."
+    },
+    {
+      "name": "reduced process-group semantics",
+      "result": "rejected",
+      "reason": "Child-led or child-only default signaling fails the selected Issue 8 process-group behavior and the calibrated descendant witness."
+    }
+  ],
+  "growth_exception": {
+    "retained_margins": [
+      "PICO retains 26304 bytes in the 128 KiB kernel region.",
+      "PICO_UART retains 38788 bytes in the 128 KiB kernel region.",
+      "warp retains 46156 bytes before stack use in the 144 KiB process window.",
+      "adminbox retains 116496 bytes before stack use in the 144 KiB process window.",
+      "the packed root retains 287 free 1 KiB blocks."
+    ],
+    "user_visible_benefit": "The recovery image gains the Issue 8 timeout options -f, -k, -p, and -s, process-group forwarding, escalation, and 124/125/126/127 status mapping under the bounded DPUCP-2024 compatibility claim.",
+    "rollback_point": "Remove timeout from sbin/adminbox/Makefile and usr.bin/Makefile, remove the /usr/bin/timeout manifest hard link, restore MAX_PACKED_ROOT_BLOCKS to 23, remove setpgid.c from lib/libc/gen/Makefile, lib/libc_aout/libc/Makefile, and distrib/rp2040/mkboardlibc.py, remove the timeout-only setpgid wrapper and header declarations, and remove the timeout profile, denominator, and donor-ledger accounting."
+  },
+  "clean_distribution_receipt": {
+    "command": [
+      "bmake",
+      "MACHINE=rp2040",
+      "cleanall",
+      "distribution"
+    ],
+    "state": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 120.021,
+    "output_bytes": 1636837,
+    "terminal_queue_dropped_bytes": 0,
+    "heartbeat_seconds": 30,
+    "output_idle_timeout_seconds": 600,
+    "hard_timeout_seconds": 3600,
+    "status_sha256": "72aeaae8608bc1334349f8cbe1ee3458f08bf0252e27ac6bd6453c48fbf6a6cb",
+    "log_sha256": "4a8eae4bc78d5ddc858678444219c7e0095f9fe546b9f64a2449740d76ebf23b"
+  },
+  "reviewer_approval": {
+    "status": "approved",
+    "reviewer": "Codex independent reviewer (review_timeout_growth_exception)",
+    "evidence": "The initial complete staged review found two Important signal-state defects. Focused follow-up review verified that external forwarding preserves the deadline and that -k 0 disables SIGKILL escalation while retaining SIGCONT delivery, then reported zero Critical and zero Important findings and approved the two-block packed-root exception. Adminbox occupies 25 packed blocks, retains 116496 process-window bytes before stack use and leaves 287 free root blocks; multicall composition saves eight blocks against standalone timeout. Focused host and cross gates rejected 15 behavioral mutations, passed 14 setpgid checks and measured 128-byte main and 168-byte pre-fork static frames. Renode, physical-board, whole-program runtime-memory, exhaustive signal-race and complete-conformance residuals remain open."
+  },
+  "residuals": [
+    "Renode execution remains unrun.",
+    "Physical-board execution remains unrun and requires explicit owner authorization immediately before flash or serial access.",
+    "Whole-program runtime stack and heap peaks remain unmeasured.",
+    "The DPUCP timeout row remains partial and open until target execution evidence closes its residual."
+  ]
+}

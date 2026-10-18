@@ -83,7 +83,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    initgroups.o isatty.o isinff.o isnanf.o ldexp.o malloc.o mktemp.o \
                    modff.o ndbm.o nlist.o knlist.o opendir.o perror.o popen.o \
                    psignal.o qsort.o raise.o random.o readdir.o regex.o scandir.o \
-                   seekdir.o setmode.o sethostname.o setenv.o siglist.o \
+                   seekdir.o setmode.o sethostname.o setenv.o setpgid.o siglist.o \
                    signal.o siginterrupt.o sigsetops.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \

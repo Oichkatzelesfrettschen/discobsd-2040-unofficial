@@ -24,7 +24,7 @@ STDSRC		= abort.c alarm.c asctime.c atof.c atoi.c atol.c \
 		  knlist.c ldexp.c malloc.c mktemp.c mktime.c modf.c modff.c ndbm.c \
 		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c raise.c \
 		  random.c readdir.c regex.c rindex.c scandir.c seekdir.c \
-		  setenv.c sethostname.c setmode.c siginterrupt.c \
+		  setenv.c sethostname.c setmode.c setpgid.c siginterrupt.c \
 		  siglist.c signal.c sigsetops.c sleep.c strcasecmp.c \
 		  strcat.c strcmp.c strcpy.c strdup.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
@@ -45,7 +45,7 @@ STDOBJ		= abort.o alarm.o asctime.o atof.o atoi.o atol.o \
 		  knlist.o ldexp.o malloc.o mktemp.o mktime.o modf.o modff.o ndbm.o \
 		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o raise.o \
 		  random.o readdir.o regex.o rindex.o scandir.o seekdir.o \
-		  setenv.o sethostname.o setmode.o siginterrupt.o \
+		  setenv.o sethostname.o setmode.o setpgid.o siginterrupt.o \
 		  siglist.o signal.o sigsetops.o sleep.o strcasecmp.o \
 		  strcat.o strcmp.o strcpy.o strdup.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \

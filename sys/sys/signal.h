@@ -44,6 +44,7 @@
 #define SIGUSR2     31      /* user defined signal 2 */
 
 typedef void (*sig_t) (int); /* type of signal function */
+typedef int sig_atomic_t;
 
 #define SIG_ERR     (sig_t) -1
 #define SIG_DFL     (sig_t) 0

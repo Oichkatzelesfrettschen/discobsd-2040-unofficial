@@ -140,6 +140,7 @@ int     setegid (gid_t egid);
 int     setreuid (uid_t ruid, uid_t euid);
 int     setregid (gid_t rgid, gid_t egid);
 int     setpgrp (pid_t pid, pid_t pgrp);
+int     setpgid (pid_t pid, pid_t pgrp);
 int     isatty (int fd);
 int     chdir (const char *path);
 int     fchdir (int fd);

@@ -131,6 +131,23 @@ def main():
         raise AssertionError("missing process-control measurement validator")
     process_validator(process_measurement, root)
 
+    timeout_measurement_path = (
+        root / "docs/research/timeout-process-control-growth-exception.json"
+    )
+    if getattr(donors, "TIMEOUT_MEASUREMENT_DATA", None) != str(
+        timeout_measurement_path.relative_to(root)
+    ):
+        raise AssertionError("timeout growth exception is not bound to the verifier")
+    if not timeout_measurement_path.is_file():
+        raise AssertionError("missing machine-readable timeout growth exception")
+    timeout_measurement = json.loads(
+        timeout_measurement_path.read_text(encoding="utf-8")
+    )
+    timeout_validator = getattr(donors, "validate_timeout_measurement", None)
+    if timeout_validator is None:
+        raise AssertionError("missing timeout growth-exception validator")
+    timeout_validator(timeout_measurement, root)
+
     for state in ("base", "candidate"):
         kernel_measurement = shell_measurement["kernel"][state]
         if kernel_measurement.get("section_sum_spare_bytes") != 26226:
@@ -429,6 +446,70 @@ def main():
     else:
         raise AssertionError("process-control blank full ELF digest passed")
 
+    changed_timeout_measurement = copy.deepcopy(timeout_measurement)
+    changed_timeout_measurement["programs"]["adminbox"]["candidate"][
+        "text_bytes"
+    ] += 4
+    try:
+        timeout_validator(changed_timeout_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("timeout adminbox delta mutation passed")
+
+    changed_timeout_measurement = copy.deepcopy(timeout_measurement)
+    changed_timeout_measurement["root"]["candidate"]["free_blocks"] += 1
+    try:
+        timeout_validator(changed_timeout_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("timeout root arithmetic mutation passed")
+
+    changed_timeout_measurement = copy.deepcopy(timeout_measurement)
+    changed_timeout_measurement["composition"]["shipped_form"] = "standalone"
+    try:
+        timeout_validator(changed_timeout_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("timeout shipped-form mutation passed")
+
+    changed_timeout_measurement = copy.deepcopy(timeout_measurement)
+    changed_timeout_measurement["composition"][
+        "candidate_adminbox_libc_members"
+    ] += 1
+    try:
+        timeout_validator(changed_timeout_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("timeout archive-member mutation passed")
+
+    changed_timeout_measurement = copy.deepcopy(timeout_measurement)
+    changed_timeout_measurement["resources"]["static_stack"][
+        "classification"
+    ] = "dynamic"
+    try:
+        timeout_validator(changed_timeout_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("timeout dynamic-stack classification passed")
+
+    changed_timeout_measurement = copy.deepcopy(timeout_measurement)
+    changed_timeout_measurement["reviewer_approval"] = {
+        "status": "pending",
+        "reviewer": "",
+        "evidence": "",
+    }
+    try:
+        timeout_validator(changed_timeout_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("unapproved timeout growth passed")
+
     promoted_ids = {
         "libc-reallocarray",
         "libc-memmem",
@@ -438,6 +519,7 @@ def main():
         "utility-printf",
         "utility-readlink",
         "utility-realpath",
+        "utility-timeout",
         "utility-uudecode",
     }
     for candidate in document["candidates"]:

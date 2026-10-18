@@ -20,7 +20,7 @@ OBJCOPY=	${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
-TOOLS=		shutdown reboot sysctl
+TOOLS=		shutdown reboot sysctl timeout
 
 # The built-in applets replace one-block scripts without adding private BSS.
 BUILTIN_TOOLS=	true false nohup
@@ -32,6 +32,9 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 BUILTIN_OBJS=	tiny_applets.o
 PROG=		adminbox
 HSAOUT=		${TOOLBINDIR}/hsaout
+.if defined(LINK_MAP) && !empty(LINK_MAP)
+LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
+.endif
 # Root budget for the packed image, a regression watermark rather than a
 # hardware limit: hsaout -s reports 23 blocks from arm-none-eabi-gcc 16
 # (Arch) for this tree, against 22 for the same toolchain before the C17
@@ -40,8 +43,11 @@ HSAOUT=		${TOOLBINDIR}/hsaout
 # precision -- and it is 472 raw bytes, 372 packed. It cannot be opted out
 # of the way the 64-bit and float digit paths can: doprnt_llong.o and
 # doprnt_float.o stay behind PRINTF_LLONG and PRINTF_FLOAT with weak
-# __doprnt_ll and __doprnt_cvt, so adminbox links neither.
-MAX_PACKED_ROOT_BLOCKS= 23
+# __doprnt_ll and __doprnt_cvt, so adminbox links neither. The Issue 8
+# timeout state machine raises the measured watermark by two blocks; the
+# retained margins and rejected standalone form are recorded in
+# docs/research/timeout-process-control-growth-exception.md.
+MAX_PACKED_ROOT_BLOCKS= 25
 
 CFLAGS+=	-Wall -Wextra -Werror -Wformat=2
 
@@ -82,7 +88,7 @@ verify-builtin-bss: ${BUILTIN_OBJS}
 
 ${PROG}:	adminbox.o ${OBJS} ${BUILTIN_OBJS} verify-builtin-bss \
 		${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf \
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} -o $@.elf \
 	    adminbox.o ${OBJS} ${BUILTIN_OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
@@ -99,6 +105,6 @@ install:	all
 	${INSTALL} -m 755 ${PROG} ${DESTDIR}/sbin/${PROG}
 
 clean:
-	rm -f *.o *.r *.elf ${PROG} adminbox.c
+	rm -f *.o *.r *.elf ${PROG} adminbox.c ${LINK_MAP}
 
 .PHONY:		verify-builtin-bss

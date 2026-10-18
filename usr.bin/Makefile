@@ -27,7 +27,7 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  column find fmt fold forth fstat id kilo la login m4 make man med menu more nm passwd \
 		  pdc ${_PICOC} printf readlink realpath ranlib re renice retroforth scm sed setty sl \
 		  stevie \
-		  uname xargs xinstall zmodem msec compress tip tclsh uucp virus \
+		  timeout uname xargs xinstall zmodem msec compress tip tclsh uucp virus \
 		  whereis yacc ${MDSUBDIR} basename cal cb cmp col colrm comm diskspeed du \
 		  fgrep file grep head hostid join last mesg nice od pagesize pr \
 		  printenv rev size sort split sum tail tee time touch tr tsort tty \

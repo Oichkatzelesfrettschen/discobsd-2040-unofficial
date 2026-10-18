@@ -135,8 +135,9 @@ Write a percent sign without consuming an argument.
 Integer operands use the C integer syntax accepted by
 .BR strtol (3),
 including an optional sign and base prefixes.
-An operand consisting of a quote followed by one byte uses that byte's unsigned
-value.
+An operand whose first byte is a quote uses the following byte's unsigned
+value; trailing bytes do not affect that value.  A quote followed by the
+terminating NUL therefore supplies zero.
 An invalid or out-of-range numeric operand produces a diagnostic, supplies the
 converted value, and makes the final status unsuccessful.
 .PP

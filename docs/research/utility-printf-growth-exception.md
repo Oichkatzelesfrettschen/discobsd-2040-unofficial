@@ -119,7 +119,7 @@ deltas.
 
 ## Behavior and residuals
 
-Native strict C17, native ASan/UBSan, and ILP32 executions each pass 63 checks.
+Native strict C17, native ASan/UBSan, and ILP32 executions each pass 64 checks.
 The exact production source also compiles as strict C17 for Cortex-M0+. The
 witnesses cover `%b`, `\c`, embedded NUL bytes, byte precision, field width,
 ordinary and numbered format reuse, malformed and nonnumeric continuation,

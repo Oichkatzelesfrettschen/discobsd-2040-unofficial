@@ -129,8 +129,6 @@ number(int argument_number)
 		return (0);
 	if (*operand == '\'' || *operand == '"') {
 		value = (unsigned char)operand[1];
-		if (operand[1] == '\0' || operand[2] != '\0')
-			number_valid = 0;
 	} else {
 		errno = 0;
 		value = strtol(operand, &end_pointer, 0);

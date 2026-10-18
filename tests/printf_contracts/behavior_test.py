@@ -112,11 +112,14 @@ def main():
         b"65:66",
     )
     case(
-        "quoted byte trailing data",
+        "quoted byte ignores trailing data",
         ("%d:%s", "'+3", "tail"),
         b"43:tail",
-        1,
-        True,
+    )
+    case(
+        "quoted empty operand uses NUL",
+        ("%d", "'"),
+        b"0",
     )
     case(
         "literal width overflow",

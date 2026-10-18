@@ -22,6 +22,15 @@ def require(condition: bool, description: str) -> None:
         raise StackFailure(description)
 
 
+def require_stack_limit(
+    description: str, measured: int, limit: int, components: str
+) -> None:
+    require(
+        measured <= limit,
+        f"{description}: {components}, total={measured}, limit={limit}",
+    )
+
+
 def compile_source(compiler: str, root: Path, source: Path, output: Path) -> Path:
     command = [
         compiler,
@@ -97,11 +106,19 @@ def main() -> int:
             "production stack report contains a dynamic frame",
         )
         main_frame = production_usage["main"][0]
-        pre_fork_chain = main_frame + production_usage["parse_duration"][0]
-        require(main_frame <= MAIN_FRAME_LIMIT, "timeout main static frame exceeds 128 bytes")
-        require(
-            pre_fork_chain <= PRE_FORK_CHAIN_LIMIT,
-            "timeout pre-fork static call chain exceeds 168 bytes",
+        parse_duration_frame = production_usage["parse_duration"][0]
+        pre_fork_chain = main_frame + parse_duration_frame
+        require_stack_limit(
+            "timeout main static frame",
+            main_frame,
+            MAIN_FRAME_LIMIT,
+            f"main={main_frame}",
+        )
+        require_stack_limit(
+            "timeout pre-fork static call chain",
+            pre_fork_chain,
+            PRE_FORK_CHAIN_LIMIT,
+            f"main={main_frame}, parse_duration={parse_duration_frame}",
         )
 
         bad_source = build_directory / "timeout-known-bad.c"

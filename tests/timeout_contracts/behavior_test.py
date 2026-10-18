@@ -136,6 +136,62 @@ def compile_program(
     )
 
 
+def compile_without_extension_signals(
+    compiler: str, production_source: Path, output: Path
+) -> None:
+    source_text = production_source.read_text(encoding="utf-8")
+    signal_include = "#include <signal.h>\n"
+    require(
+        source_text.count(signal_include) == 1,
+        "extension-signal portability fixture has a stale include anchor",
+    )
+    portability_source = output.with_suffix(".c")
+    portability_source.write_text(
+        source_text.replace(
+            signal_include,
+            signal_include + "#undef SIGIO\n#undef SIGWINCH\n",
+        ),
+        encoding="utf-8",
+    )
+    compile_program(compiler, output, [portability_source])
+
+
+def exercise_without_extension_signals(
+    timeout_binary: Path, probe_binary: Path
+) -> None:
+    result = run(
+        [
+            str(timeout_binary),
+            "-p",
+            "-s",
+            "USR1",
+            "0.05",
+            str(probe_binary),
+            "pause",
+        ]
+    )
+    require(
+        result.returncode == -signal.SIGUSR1,
+        "extension-signal guards misalign signal names and numbers",
+    )
+    for unavailable_name in ("IO", "WINCH"):
+        result = run(
+            [
+                str(timeout_binary),
+                "-s",
+                unavailable_name,
+                "1",
+                str(probe_binary),
+                "exit",
+                "0",
+            ]
+        )
+        require(
+            result.returncode == 125,
+            f"hidden signal {unavailable_name} remains selectable",
+        )
+
+
 def write_fork_interposer(path: Path) -> None:
     path.write_text(
         """#define _POSIX_C_SOURCE 200809L
@@ -788,6 +844,11 @@ def main() -> int:
         timeout_binary = build_directory / "timeout"
         compile_program(compiler, timeout_binary, [production_source])
         exercise(timeout_binary, probe_binary, build_directory / "production-work")
+        portability_binary = build_directory / "timeout-posix-signals"
+        compile_without_extension_signals(
+            compiler, production_source, portability_binary
+        )
+        exercise_without_extension_signals(portability_binary, probe_binary)
         fork_interposer = build_directory / "fork-interposer.c"
         write_fork_interposer(fork_interposer)
         sigaction_interposer = build_directory / "sigaction-interposer.c"

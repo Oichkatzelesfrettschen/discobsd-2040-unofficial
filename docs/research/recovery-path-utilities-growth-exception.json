@@ -2,7 +2,7 @@
   "schema_version": 1,
   "profile_id": "DPUCP-2024",
   "base_commit": "cabcb4a2ff85d4438e893cff737595175674b046",
-  "implementation_commit": "90eeede4533e49ddd02cdd9d70c12a2d48e9474d",
+  "implementation_commit": "7b8450f55c0060ce9d8d7d5acca05e6ca22795a9",
   "block_bytes": 1024,
   "kernel": {
     "region_bytes": 131072,
@@ -40,22 +40,22 @@
         "packed_blocks": 30
       },
       "candidate": {
-        "text_bytes": 38868,
+        "text_bytes": 38888,
         "data_bytes": 544,
         "bss_bytes": 1168,
-        "window_occupancy_before_stack_bytes": 40580,
-        "window_margin_before_stack_bytes": 106876,
-        "raw_bytes": 39444,
-        "packed_bytes": 32171,
+        "window_occupancy_before_stack_bytes": 40600,
+        "window_margin_before_stack_bytes": 106856,
+        "raw_bytes": 39464,
+        "packed_bytes": 32200,
         "packed_blocks": 33
       },
       "delta": {
-        "text_bytes": 2896,
+        "text_bytes": 2916,
         "data_bytes": 0,
         "bss_bytes": 0,
-        "window_occupancy_before_stack_bytes": 2896,
-        "raw_bytes": 2896,
-        "packed_bytes": 2639,
+        "window_occupancy_before_stack_bytes": 2916,
+        "raw_bytes": 2916,
+        "packed_bytes": 2668,
         "packed_blocks": 3
       }
     },
@@ -101,13 +101,13 @@
       "packed_blocks": 7
     },
     "realpath": {
-      "text_bytes": 9016,
+      "text_bytes": 9036,
       "data_bytes": 212,
       "bss_bytes": 120,
-      "window_occupancy_before_stack_bytes": 9348,
-      "window_margin_before_stack_bytes": 138108,
-      "raw_bytes": 9260,
-      "packed_bytes": 8105,
+      "window_occupancy_before_stack_bytes": 9368,
+      "window_margin_before_stack_bytes": 138088,
+      "raw_bytes": 9280,
+      "packed_bytes": 8122,
       "packed_blocks": 9
     },
     "largest_process": {
@@ -166,12 +166,12 @@
       "binary_sha256": "3cb70671bed6928c019e6a9b56a877f21920a7a32a23c9c1f6a38f1626aa6aa6"
     },
     "realpath": {
-      "map_sha256": "9749f561a449d8a6cf56a9e3c25f7eae3fa3b34cddc784d0d3eefbdaf9a186a9",
-      "binary_sha256": "f9659b4e76062f863ac82f77de1f407b9b1bd1db2a8d16384faad8831a9098ad"
+      "map_sha256": "390ef5491da6d673acd40ee12b5b94609596e1912f378f31046c24d3ef1e8759",
+      "binary_sha256": "2d65e4fc47d6b6e385da25b05b2d501889503b8aaf48192e8e92003dd55d4f4b"
     },
     "textbox": {
-      "map_sha256": "95182fb15a036410e5f25c66bed71d83b394a5d1cbd15e6bb9f623535581e5c6",
-      "binary_sha256": "a779a175d1b3c562e743beb192e848a76328bd533dcafed6500f49ffd5bfc333"
+      "map_sha256": "a5bbaaee7c7aaa973a88c06f53ec3b52ba5253e85cdb842bcd0fb0ce01a738f9",
+      "binary_sha256": "e6056dd11f7096b44477f06f668188bf5ef3c078fe49a96255d0c7e007347208"
     },
     "textbox_without_path_applets": {
       "map_sha256": "336e1d20440455299d158cd41a49959030f7587ee008aeeea09c13ccfcab7e87",

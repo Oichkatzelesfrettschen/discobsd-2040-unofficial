@@ -60,6 +60,25 @@ def main():
     rows = dpucp.parse_requirements(root / "docs/research/dpucp-2024-requirements.tsv")
     dpucp.validate_documents(root, corpus, entities, profile, rows)
 
+    if profile["schema_version"] != 2:
+        raise AssertionError("later compatibility contracts require schema 2")
+    expected_family_fields = {
+        "id",
+        "title",
+        "option_boundary",
+        "dependencies",
+        "minimum_useful_subset",
+        "hardware_feasibility_questions",
+        "footprint_estimate",
+        "deciding_experiment",
+        "source_paths",
+    }
+    for family in profile["later_families"]:
+        if not isinstance(family, dict) or set(family) != expected_family_fields:
+            raise AssertionError("later compatibility family lacks its contract fields")
+        if "authorities" not in family["option_boundary"]:
+            raise AssertionError("later compatibility family lacks authority set")
+
     expected_shell_witnesses = {
         "shell-command-host-contract",
         "shell-getopts-host-contract",
@@ -265,6 +284,54 @@ def main():
     changed_profile = copy.deepcopy(profile)
     changed_profile["claims"]["posix_conformance"] = True
     cases.append(("POSIX conformance claim", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["profile"]["version"] = "2024.1"
+    cases.append(("profile version drift", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"] = []
+    cases.append(("missing later compatibility families", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    del changed_profile["later_families"][0]["dependencies"]
+    cases.append(("missing later-family contract field", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"][0]["option_boundary"]["kind"] = "unknown"
+    cases.append(("unknown later-family option boundary", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"][0]["option_boundary"]["authorities"] = [
+        "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/regex.h.html"
+    ]
+    cases.append(("later-family option authority drift", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"][3]["option_boundary"]["owners"] = [
+        "CX -- selectable locale objects"
+    ]
+    cases.append(("later-family option owner drift", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"][0]["dependencies"] = []
+    cases.append(("empty later-family dependency closure", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"][0]["source_paths"] = [
+        "docs/research/missing-family-source.md"
+    ]
+    cases.append(("missing later-family source", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    del changed_profile["later_families"][0]["footprint_estimate"]["surfaces"][
+        "runtime_memory"
+    ]
+    cases.append(("incomplete later-family footprint", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["later_families"][0]["deciding_experiment"] = ""
+    cases.append(("missing later-family deciding experiment", changed_profile, rows))
 
     changed_profile = copy.deepcopy(profile)
     changed_profile["witnesses"]["fixture-static"] = {

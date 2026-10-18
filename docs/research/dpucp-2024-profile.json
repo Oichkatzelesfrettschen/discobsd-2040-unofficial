@@ -1,9 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile": {
     "id": "DPUCP-2024",
     "name": "DiscoBSD/Pico Unix Compatibility Profile 2024",
-    "version": "2024.1",
+    "version": "2024.2",
     "target": "DiscoBSD on RP2040"
   },
   "claims": {
@@ -151,12 +151,365 @@
     "recovery-file-path-utilities"
   ],
   "later_families": [
-    "on-device-c",
-    "regex-and-text-processing",
-    "networking",
-    "locale",
-    "threads",
-    "realtime",
-    "dynamic-linking"
+    {
+      "id": "on-device-c",
+      "title": "On-device C compiler and development environment",
+      "option_boundary": {
+        "kind": "standard-option",
+        "owners": [
+          "CD -- C-Language Development Utilities (_POSIX2_C_DEV)"
+        ],
+        "base_residual": "Base interfaces used by a compiler, assembler, linker, and generated program remain row-specific requirements even while the CD option stays unselected.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/c17.html"
+        ]
+      },
+      "dependencies": [
+        "Thumb-1 code generation without hardware division",
+        "OMAGIC a.out assembly and relocation output",
+        "C17 headers and archive-isolated libc development members",
+        "bounded temporary-file and compiler-workspace storage",
+        "on-device assembler and linker contracts"
+      ],
+      "minimum_useful_subset": [
+        "preprocess and compile one strict-C17 translation unit",
+        "assemble and link a native OMAGIC executable",
+        "compile a program that calls one shipped libc interface",
+        "report unsupported language and relocation constructs without corrupting output"
+      ],
+      "hardware_feasibility_questions": [
+        "Does the compiler, assembler, and linker peak below the 147456-byte process window for the selected corpus?",
+        "Do intermediate files fit the packed root without exhausting logical blocks or increasing flash wear beyond the measured policy?",
+        "Can Thumb-1 helper calls replace unsupported divide and wide-arithmetic instructions without importing an unbounded runtime?"
+      ],
+      "footprint_estimate": {
+        "class": "high",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "No kernel growth is expected for a pure userland toolchain; new syscall needs invalidate that estimate.",
+          "process": "The parser, code generator, assembler, or linker is expected to approach the process-window limit before a trivial source corpus establishes a measured peak.",
+          "packed_root": "Multiple executables, headers, startup objects, and archive members create high packed-root pressure and require per-member maps.",
+          "runtime_memory": "Peak compiler arena, symbol table, input buffer, output buffer, and stack use remain unmeasured."
+        },
+        "basis": "The retained Smaller C and native-compiler research identifies Thumb-1, relocation, process-memory, and installed-toolchain closure as separate costs; no RP2040 on-device compile has qualified the combined surface."
+      },
+      "deciding_experiment": "Build the smallest candidate toolchain, compile and execute hello.c plus one libc-calling program on the target execution model, and retain link maps, packed-root blocks, temporary writes, peak process memory, output hashes, and unsupported-construct diagnostics.",
+      "source_paths": [
+        "docs/research/ondevice-c-compilers.md",
+        "usr.bin/smlrc/Makefile"
+      ]
+    },
+    {
+      "id": "regex-and-text-processing",
+      "title": "Shared BRE/ERE and text-processing facilities",
+      "option_boundary": {
+        "kind": "mixed",
+        "owners": [
+          "Base -- Regular Expression Handling (_POSIX_REGEXP)",
+          "XSI -- utility-specific extensions including nl p<BRE>"
+        ],
+        "base_residual": "Base regex interfaces and Base utility behavior stay open independently of XSI-only selectors.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/regex.h.html",
+          "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nl.html"
+        ]
+      },
+      "dependencies": [
+        "one strict-C17 shared BRE/ERE provider",
+        "bounded compiled-pattern representation",
+        "byte-locale bracket, range, and character-class policy",
+        "archive isolation for consumers that do not use regex",
+        "shared error-string and cleanup contracts"
+      ],
+      "minimum_useful_subset": [
+        "regcomp, regexec, regerror, and regfree for byte-locale BRE and ERE",
+        "shared provider use by grep and sed without private engines",
+        "nl p<BRE> selection through the same provider",
+        "deterministic rejection of unsupported collation and multibyte facets"
+      ],
+      "hardware_feasibility_questions": [
+        "What maximum pattern, capture, and input lengths fit without recursion or unbounded backtracking?",
+        "Can one compiled representation serve libc and utilities without pulling regex into unrelated binaries?",
+        "Does the worst accepted expression retain stack and heap headroom inside the process window?"
+      ],
+      "footprint_estimate": {
+        "class": "medium",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "No kernel growth is expected.",
+          "process": "Code plus compiled-pattern and execution state are expected to consume a moderate share of small utility processes.",
+          "packed_root": "One shared archive implementation may replace duplicated utility logic, but live link maps must establish the net block result.",
+          "runtime_memory": "Pattern-state and match-vector peaks depend on bounded expression and capture limits and remain unmeasured."
+        },
+        "basis": "The donor ledger rejects a private nl engine and identifies a shared provider as the dependency that can amortize code across text consumers."
+      },
+      "deciding_experiment": "Prototype one allocation-bounded provider against the Issue 8 BRE/ERE corpus, link grep, sed, and nl separately, and compare archive members, a.out occupancy, packed-root blocks, malformed-pattern cleanup, and worst-case runtime memory with calibrated rejection fixtures.",
+      "source_paths": [
+        "docs/research/sus-edition-contracts.md",
+        "docs/research/dpucp-2024-donor-ledger.json"
+      ]
+    },
+    {
+      "id": "networking",
+      "title": "Networking and socket utilities",
+      "option_boundary": {
+        "kind": "mixed",
+        "owners": [
+          "Base -- socket interfaces",
+          "IP6 -- IPv6 (_POSIX_IPV6)",
+          "RS -- raw sockets (_POSIX_RAW_SOCKETS)"
+        ],
+        "base_residual": "Base socket and name-resolution rows stay open even when IPv6 and raw-socket options remain unselected.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/sys_socket.h.html",
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html"
+        ]
+      },
+      "dependencies": [
+        "bounded kernel socket, protocol-control-block, mbuf, and timer storage",
+        "one qualified RP2040 network-device or serial-link transport",
+        "descriptor readiness integration",
+        "byte-order and address-conversion libc interfaces",
+        "failure and teardown behavior under packet loss and memory pressure"
+      ],
+      "minimum_useful_subset": [
+        "AF_INET SOCK_DGRAM and SOCK_STREAM endpoints",
+        "bind, connect, listen, accept, send, receive, shutdown, and socket options",
+        "loopback plus one physically usable link",
+        "one diagnostic utility and one file-transfer or remote-console client"
+      ],
+      "hardware_feasibility_questions": [
+        "Which physical transport supplies a reproducible link without consuming the USB console path?",
+        "How many sockets, packets, and retransmission timers fit while the kernel stays inside 131072 bytes and SRAM retains interrupt headroom?",
+        "Can fixed mbuf pools fail explicitly without deadlocking filesystem, timer, or signal paths?"
+      ],
+      "footprint_estimate": {
+        "class": "system",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "A protocol stack, descriptor integration, timers, and a device driver create substantial kernel text, data, and bss pressure.",
+          "process": "Socket utilities are individually moderate, but resolver and formatting dependencies can enlarge every consumer.",
+          "packed_root": "The stack-facing utilities and configuration files add several independently linked consumers unless multicall composition offsets them.",
+          "runtime_memory": "Packet buffers, protocol state, retransmission queues, and interrupt-time reserves dominate the unknown SRAM peak."
+        },
+        "basis": "The current RP2040 configuration exposes no network device, and the retained BSD mining report classifies mbuf networking as a system-level dependency rather than a leaf utility port."
+      },
+      "deciding_experiment": "Implement a fixed-pool loopback UDP slice behind a compile-time configuration, measure kernel and SRAM peaks under saturation and forced allocation failure, then decide whether one physical transport and TCP can fit without reducing existing filesystem, swap, or console margins.",
+      "source_paths": [
+        "docs/research/netbsd110-tinyspace.md",
+        "sys/arch/rp2040/rp2040/conf.c"
+      ]
+    },
+    {
+      "id": "locale",
+      "title": "Locale and internationalization",
+      "option_boundary": {
+        "kind": "mixed",
+        "owners": [
+          "Base -- ISO C locale interfaces and mandatory CX extensions, including locale objects",
+          "_POSIX2_LOCALEDEF -- locale creation capability; XSI requires support"
+        ],
+        "base_residual": "Base locale, collation, character-class, message, and locale-object rows stay open regardless of localedef creation support.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/locale.h.html",
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html",
+          "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/localedef.html"
+        ]
+      },
+      "dependencies": [
+        "explicit C and POSIX locale objects",
+        "ctype, collation, numeric, time, and message-domain ownership",
+        "bounded locale-data format and loader",
+        "multibyte and wide-character policy",
+        "shared tables that remain absent from byte-only consumers"
+      ],
+      "minimum_useful_subset": [
+        "truthful setlocale and localeconv for C and POSIX",
+        "byte-locale strcoll, strxfrm, ctype, and casefold behavior",
+        "nl_langinfo values required by selected utilities",
+        "explicit rejection of unavailable named locales"
+      ],
+      "hardware_feasibility_questions": [
+        "Can C and POSIX locale objects close Base byte-locale rows without importing general locale tables?",
+        "What compressed representation and cache policy would one additional locale require?",
+        "Can per-process locale state remain independent without increasing every process's permanent data?"
+      ],
+      "footprint_estimate": {
+        "class": "high",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "No kernel growth is expected unless locale loading requires new filesystem semantics.",
+          "process": "The C and POSIX-only subset can stay small; general collation, conversion, and message state can become a major process-data consumer.",
+          "packed_root": "General locale tables and catalogs can exceed the code they serve; the byte-only subset requires no table corpus.",
+          "runtime_memory": "Locale object, conversion state, and table cache peaks remain unmeasured."
+        },
+        "basis": "Current casefold and scandir contracts deliberately implement byte-locale behavior without locale tables; general locale data is the dominant later-family cost."
+      },
+      "deciding_experiment": "Close a C/POSIX-only locale object contract first, measure every affected archive member and process image, then encode one additional locale in a candidate table format and compare packed bytes, lookup RAM, collation behavior, and flash reads before selecting broader support.",
+      "source_paths": [
+        "docs/research/libc-ascii-casefold-contract.md",
+        "docs/research/libc-scandir-allocation-contract.md"
+      ]
+    },
+    {
+      "id": "threads",
+      "title": "Threads",
+      "option_boundary": {
+        "kind": "mixed",
+        "owners": [
+          "Base -- Threads (_POSIX_THREADS)",
+          "TPS -- Thread Execution Scheduling",
+          "TPI and TPP -- non-robust mutex priority inheritance and protection",
+          "RPI and RPP -- robust mutex priority inheritance and protection",
+          "TSH -- process-shared thread synchronization",
+          "TSS and TSA -- thread stack attributes",
+          "TCT and TSP -- thread CPU-time clocks and sporadic-server scheduling"
+        ],
+        "base_residual": "Base pthread creation, synchronization, cleanup, and thread-safe interface rows stay open independently of optional scheduling and process-shared extensions.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/pthread.h.html",
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html"
+        ]
+      },
+      "dependencies": [
+        "kernel scheduling entities within one flat address space",
+        "bounded per-thread stacks and guard policy without an MMU",
+        "libc reentrancy and thread-local errno",
+        "mutex, condition-variable, once, and thread-specific-data primitives",
+        "signal, fork, exit, and descriptor semantics for multiple threads"
+      ],
+      "minimum_useful_subset": [
+        "pthread_create, pthread_join, pthread_exit, and pthread_self",
+        "mutexes, condition variables, pthread_once, and thread-specific data",
+        "fixed maximum thread count with explicit allocation failure",
+        "thread-safe errno and selected libc interfaces"
+      ],
+      "hardware_feasibility_questions": [
+        "How many independently useful stacks fit after the kernel, process image, heap, signal frames, and interrupt reserve?",
+        "Can stack overflow be detected or contained without virtual memory or guard pages?",
+        "What libc global state must become per-thread, and what permanent data growth does that impose on every process?"
+      ],
+      "footprint_estimate": {
+        "class": "system",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "Scheduler, sleep-queue, signal, and exit paths require structural changes rather than archive-only additions.",
+          "process": "Every live thread needs a bounded stack inside the single 147456-byte process window.",
+          "packed_root": "pthread and reentrant-libc code affects many consumers unless archive isolation remains exact.",
+          "runtime_memory": "Per-thread stacks, scheduler state, synchronization queues, and thread-local libc state dominate the unknown peak."
+        },
+        "basis": "The target has one flat process window and no MMU; the retained migration guidance rejects importing thread APIs without solving stack and libc-state ownership."
+      },
+      "deciding_experiment": "Add a two-thread kernel fixture with fixed stacks and no public pthread ABI, measure context-switch correctness, stack high-water marks, signal and exit behavior, and kernel/SRAM deltas, then admit or reject a minimal pthread mapping from those measurements.",
+      "source_paths": [
+        "docs/research/netbsd110-tinyspace.md",
+        "docs/research/STYLE-GUIDE.md"
+      ]
+    },
+    {
+      "id": "realtime",
+      "title": "Realtime interfaces",
+      "option_boundary": {
+        "kind": "mixed",
+        "owners": [
+          "Base -- realtime signals, timers, semaphores, asynchronous I/O, and memory protection",
+          "CPT -- Process CPU-Time Clocks",
+          "PS -- Process Scheduling",
+          "PIO -- Prioritized Input and Output",
+          "MSG -- Message Passing",
+          "SHM -- Shared Memory Objects",
+          "ML and MLR -- Memory Locking",
+          "TYM -- Typed Memory Objects"
+        ],
+        "base_residual": "Mandatory Issue 8 realtime primitives stay open when optional scheduling, messaging, shared-memory, and locking groups remain unselected.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html"
+        ]
+      },
+      "dependencies": [
+        "monotonic high-resolution clock source",
+        "bounded timer and queued-signal storage",
+        "scheduler latency and priority policy",
+        "semaphore and asynchronous-I/O completion ownership",
+        "measured interrupt latency and clock drift"
+      ],
+      "minimum_useful_subset": [
+        "clock_gettime and clock_nanosleep on a monotonic clock",
+        "timer_create, timer_settime, and timer_delete with fixed timer capacity",
+        "queued realtime signal delivery with explicit exhaustion",
+        "unnamed process-local semaphores"
+      ],
+      "hardware_feasibility_questions": [
+        "What resolution, drift, and worst-case interrupt latency can the RP2040 timers sustain while flash and USB interrupts are active?",
+        "How many queued timers and signals fit without stealing filesystem or process-window memory?",
+        "Can the scheduler state a truthful latency bound, or must DPUCP report only functional timing behavior?"
+      ],
+      "footprint_estimate": {
+        "class": "high",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "Timer queues, queued signals, semaphore waiters, clock conversion, and scheduling policy add kernel text and permanent state.",
+          "process": "User wrappers are small, but signal frames and asynchronous completion state reduce stack and heap headroom.",
+          "packed_root": "Selected diagnostic utilities add limited root pressure; libc and kernel costs dominate.",
+          "runtime_memory": "Peak timer, queued-signal, waiter, and signal-frame storage remains unmeasured."
+        },
+        "basis": "The current alarm, kill, waitpid, and timeout witnesses establish prerequisites but explicitly leave realtime queues, precision, and board timing behavior open."
+      },
+      "deciding_experiment": "Implement a fixed-capacity monotonic timer and queued-signal fixture, saturate every queue under concurrent USB and flash activity, and retain resolution, drift, latency, exhaustion, cleanup, kernel, stack, and SRAM measurements before exposing public interfaces.",
+      "source_paths": [
+        "docs/research/process-control-prerequisites.md",
+        "docs/research/timeout-process-control-growth-exception.md"
+      ]
+    },
+    {
+      "id": "dynamic-linking",
+      "title": "Dynamic linking and shared objects",
+      "option_boundary": {
+        "kind": "mixed",
+        "owners": [
+          "Base -- dynamic linking interfaces in dlfcn.h",
+          "CD -- c17 shared-library production and dynamic-link selection"
+        ],
+        "base_residual": "Base dlopen-family rows stay open even when the CD toolchain option remains unselected.",
+        "authorities": [
+          "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/dlfcn.h.html",
+          "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/c17.html"
+        ]
+      },
+      "dependencies": [
+        "position-independent or explicitly relocated target objects",
+        "runtime symbol table and dependency representation",
+        "bounded executable-memory allocation and cache coherency",
+        "loader rollback and destructor ordering",
+        "toolchain support for shared-object metadata"
+      ],
+      "minimum_useful_subset": [
+        "load one dependency-free module from the filesystem",
+        "resolve one exported function and one exported object",
+        "report loader diagnostics through dlerror",
+        "unload or deterministically retain the module without leaking its arena"
+      ],
+      "hardware_feasibility_questions": [
+        "Where can relocated executable text reside without violating the fixed process window or flash-write policy?",
+        "Can Thumb-1 relocations and symbol lookup remain bounded without a general ELF runtime loader?",
+        "How are executable permissions and stale function pointers handled without virtual memory?"
+      ],
+      "footprint_estimate": {
+        "class": "system",
+        "confidence": "screening",
+        "surfaces": {
+          "kernel": "Permission and executable-storage support may require kernel changes despite the MPU providing no address translation.",
+          "process": "Loader metadata, relocated text/data, dependency state, and the application share one flat process window.",
+          "packed_root": "Shared objects may reduce duplicate text only after loader and metadata costs; the current static archive model already pulls one-function members selectively.",
+          "runtime_memory": "Relocation workspaces, symbol tables, module arenas, and rollback state remain unmeasured."
+        },
+        "basis": "The current linker emits statically linked OMAGIC a.out images, and archive granularity already avoids many duplicate members without a runtime loader."
+      },
+      "deciding_experiment": "Define one dependency-free module format, relocate a two-symbol fixture into a fixed arena, execute and unload it under host and Cortex-M0+ instruction witnesses, and compare total root blocks, process occupancy, relocation memory, failure rollback, and static-link alternatives.",
+      "source_paths": [
+        "docs/research/ondevice-c-compilers.md",
+        "lib/elf32-arm.ld"
+      ]
+    }
   ]
 }

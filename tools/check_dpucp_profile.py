@@ -41,6 +41,122 @@ IMPLEMENTATION_STATES = ("present", "partial", "absent", "divergent")
 EVIDENCE_STATES = ("none", "static", "host", "cross", "qemu-user", "renode", "board")
 RESIDUAL_STATES = ("closed", "open", "blocked")
 UNOWNED_OPTIONS = {"none-known", "pending-source-analysis"}
+LATER_FAMILY_IDS = (
+    "on-device-c",
+    "regex-and-text-processing",
+    "networking",
+    "locale",
+    "threads",
+    "realtime",
+    "dynamic-linking",
+)
+LATER_FAMILY_BOUNDARIES = {
+    "on-device-c": (
+        "standard-option",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/c17.html",
+        ),
+    ),
+    "regex-and-text-processing": (
+        "mixed",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/regex.h.html",
+            "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/nl.html",
+        ),
+    ),
+    "networking": (
+        "mixed",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/sys_socket.h.html",
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html",
+        ),
+    ),
+    "locale": (
+        "mixed",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/locale.h.html",
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html",
+            "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/localedef.html",
+        ),
+    ),
+    "threads": (
+        "mixed",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/pthread.h.html",
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html",
+        ),
+    ),
+    "realtime": (
+        "mixed",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/unistd.h.html",
+        ),
+    ),
+    "dynamic-linking": (
+        "mixed",
+        (
+            "https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/dlfcn.h.html",
+            "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/c17.html",
+        ),
+    ),
+}
+LATER_FAMILY_OWNERS = {
+    "on-device-c": (
+        "CD -- C-Language Development Utilities (_POSIX2_C_DEV)",
+    ),
+    "regex-and-text-processing": (
+        "Base -- Regular Expression Handling (_POSIX_REGEXP)",
+        "XSI -- utility-specific extensions including nl p<BRE>",
+    ),
+    "networking": (
+        "Base -- socket interfaces",
+        "IP6 -- IPv6 (_POSIX_IPV6)",
+        "RS -- raw sockets (_POSIX_RAW_SOCKETS)",
+    ),
+    "locale": (
+        "Base -- ISO C locale interfaces and mandatory CX extensions, including locale objects",
+        "_POSIX2_LOCALEDEF -- locale creation capability; XSI requires support",
+    ),
+    "threads": (
+        "Base -- Threads (_POSIX_THREADS)",
+        "TPS -- Thread Execution Scheduling",
+        "TPI and TPP -- non-robust mutex priority inheritance and protection",
+        "RPI and RPP -- robust mutex priority inheritance and protection",
+        "TSH -- process-shared thread synchronization",
+        "TSS and TSA -- thread stack attributes",
+        "TCT and TSP -- thread CPU-time clocks and sporadic-server scheduling",
+    ),
+    "realtime": (
+        "Base -- realtime signals, timers, semaphores, asynchronous I/O, and memory protection",
+        "CPT -- Process CPU-Time Clocks",
+        "PS -- Process Scheduling",
+        "PIO -- Prioritized Input and Output",
+        "MSG -- Message Passing",
+        "SHM -- Shared Memory Objects",
+        "ML and MLR -- Memory Locking",
+        "TYM -- Typed Memory Objects",
+    ),
+    "dynamic-linking": (
+        "Base -- dynamic linking interfaces in dlfcn.h",
+        "CD -- c17 shared-library production and dynamic-link selection",
+    ),
+}
+LATER_FAMILY_FIELDS = {
+    "id",
+    "title",
+    "option_boundary",
+    "dependencies",
+    "minimum_useful_subset",
+    "hardware_feasibility_questions",
+    "footprint_estimate",
+    "deciding_experiment",
+    "source_paths",
+}
+OPTION_BOUNDARY_FIELDS = {"kind", "owners", "base_residual", "authorities"}
+OPTION_BOUNDARY_KINDS = {"base", "standard-option", "mixed"}
+FOOTPRINT_FIELDS = {"class", "confidence", "surfaces", "basis"}
+FOOTPRINT_CLASSES = {"low", "medium", "high", "system"}
+FOOTPRINT_SURFACES = {"kernel", "process", "packed_root", "runtime_memory"}
 
 
 class ProfileError(RuntimeError):
@@ -55,6 +171,110 @@ def require(condition, message):
 def valid_relative_path(value):
     path = PurePosixPath(value)
     return bool(value) and not path.is_absolute() and ".." not in path.parts
+
+
+def require_string_list(value, label):
+    require(isinstance(value, list) and value, f"{label} is absent")
+    require(
+        all(isinstance(item, str) and item.strip() for item in value),
+        f"{label} contains an empty or non-string value",
+    )
+    require(len(value) == len(set(value)), f"{label} contains duplicate values")
+
+
+def validate_later_families(root, profile):
+    families = profile.get("later_families")
+    require(isinstance(families, list), "later compatibility families are absent")
+    require(
+        [family.get("id") if isinstance(family, dict) else None for family in families]
+        == list(LATER_FAMILY_IDS),
+        "later compatibility family set or order drift",
+    )
+    for family in families:
+        family_id = family["id"]
+        require(set(family) == LATER_FAMILY_FIELDS, f"family fields drift: {family_id}")
+        require(
+            isinstance(family["title"], str) and family["title"].strip(),
+            f"family title is absent: {family_id}",
+        )
+
+        boundary = family["option_boundary"]
+        require(isinstance(boundary, dict), f"option boundary is absent: {family_id}")
+        require(
+            set(boundary) == OPTION_BOUNDARY_FIELDS,
+            f"option boundary fields drift: {family_id}",
+        )
+        require(
+            boundary["kind"] in OPTION_BOUNDARY_KINDS,
+            f"option boundary kind is unknown: {family_id}",
+        )
+        expected_kind, expected_authorities = LATER_FAMILY_BOUNDARIES[family_id]
+        require(
+            boundary["kind"] == expected_kind,
+            f"option boundary kind drift: {family_id}",
+        )
+        require_string_list(boundary["owners"], f"option owners for {family_id}")
+        require(
+            boundary["owners"] == list(LATER_FAMILY_OWNERS[family_id]),
+            f"option owners drift: {family_id}",
+        )
+        require(
+            isinstance(boundary["base_residual"], str)
+            and boundary["base_residual"].strip(),
+            f"Base residual is absent: {family_id}",
+        )
+        require_string_list(
+            boundary["authorities"], f"Issue 8 option authorities for {family_id}"
+        )
+        require(
+            boundary["authorities"] == list(expected_authorities),
+            f"Issue 8 option authorities drift: {family_id}",
+        )
+
+        for field in (
+            "dependencies",
+            "minimum_useful_subset",
+            "hardware_feasibility_questions",
+        ):
+            require_string_list(family[field], f"{field} for {family_id}")
+
+        estimate = family["footprint_estimate"]
+        require(isinstance(estimate, dict), f"footprint estimate is absent: {family_id}")
+        require(
+            set(estimate) == FOOTPRINT_FIELDS,
+            f"footprint estimate fields drift: {family_id}",
+        )
+        require(
+            estimate["class"] in FOOTPRINT_CLASSES,
+            f"footprint class is unknown: {family_id}",
+        )
+        require(
+            estimate["confidence"] == "screening",
+            f"footprint confidence is unsupported: {family_id}",
+        )
+        surfaces = estimate["surfaces"]
+        require(
+            isinstance(surfaces, dict) and set(surfaces) == FOOTPRINT_SURFACES,
+            f"footprint surfaces drift: {family_id}",
+        )
+        require(
+            all(isinstance(value, str) and value.strip() for value in surfaces.values()),
+            f"footprint surface estimate is absent: {family_id}",
+        )
+        require(
+            isinstance(estimate["basis"], str) and estimate["basis"].strip(),
+            f"footprint basis is absent: {family_id}",
+        )
+
+        require(
+            isinstance(family["deciding_experiment"], str)
+            and family["deciding_experiment"].strip(),
+            f"deciding experiment is absent: {family_id}",
+        )
+        require_string_list(family["source_paths"], f"source paths for {family_id}")
+        for source_path in family["source_paths"]:
+            require(valid_relative_path(source_path), f"unsafe family source path: {family_id}")
+            require((root / source_path).is_file(), f"missing family source path: {family_id}")
 
 
 def load_json(path):
@@ -192,7 +412,7 @@ def validate_witnesses(root, profile, row):
 
 
 def validate_documents(root, corpus, entities, profile, rows):
-    require(profile.get("schema_version") == 1, "unsupported DPUCP schema")
+    require(profile.get("schema_version") == 2, "unsupported DPUCP schema")
     identity = profile.get("profile")
     require(isinstance(identity, dict), "profile identity is absent")
     require(identity.get("id") == "DPUCP-2024", "profile id drift")
@@ -200,6 +420,7 @@ def validate_documents(root, corpus, entities, profile, rows):
         identity.get("name") == "DiscoBSD/Pico Unix Compatibility Profile 2024",
         "profile name drift",
     )
+    require(identity.get("version") == "2024.2", "profile version drift")
 
     claims = profile.get("claims")
     require(isinstance(claims, dict), "profile claims are absent")
@@ -211,6 +432,7 @@ def validate_documents(root, corpus, entities, profile, rows):
     require(language.get("iso_basis") == "ISO/IEC 9899:2018", "C17 basis drift")
     require(language.get("production") == "gnu17", "production language mode drift")
     require(language.get("portable_gate") == "c17", "portable language gate drift")
+    validate_later_families(root, profile)
 
     corpus_counts = corpus.get("corpus", {})
     issue8_entities = [entity for entity in entities if entity.issue8_source]

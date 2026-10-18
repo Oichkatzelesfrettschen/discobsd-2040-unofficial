@@ -44,6 +44,25 @@ not offset a larger process-window maximum. An exception records exact deltas,
 examined alternatives, retained margins, user benefit, rollback point and
 reviewer approval.
 
+## Later compatibility families
+
+The schema-2 `later_families` records keep seven deferred families inside the
+finite profile instead of treating them as an unbounded wish list. Each record
+names its Issue 8 Base or standard-option boundary, Base residual, dependency
+closure, minimum useful subset, RP2040 feasibility questions, screening
+footprint estimate, deciding experiment and repository evidence paths.
+
+The screening classes describe expected engineering pressure, not measured
+bytes. A family advances only after its deciding experiment produces the
+kernel, process-window, packed-root and runtime-memory measurements required by
+the normal growth policy. An unavailable standard option never closes a Base
+row that POSIX places outside that option.
+
+The seven families are the on-device C environment, shared BRE/ERE and text
+processing, networking, locale, threads, realtime interfaces and dynamic
+linking. Their order records dependency planning only; it grants no conformance
+or implementation status.
+
 ## Reproduction
 
 Set the caller-selected interpreter and run the calibrated repository gate:
@@ -63,6 +82,8 @@ git diff -- docs/research/dpucp-2024-profile.json \
     docs/research/dpucp-2024-requirements.tsv
 ```
 
-The refresh command resets rows from the source corpus and existing bounded
-mappings. Use it only when intentionally rebuilding the initial ledger; normal
-profile work edits reviewed rows and updates the pinned counts and hash.
+The refresh command re-derives corpus-ordered rows while preserving reviewed
+state columns by requirement identifier. It then refreshes the row count,
+ordered-row hash and state counts while preserving the profile contract,
+including the later-family records. Use it only when intentionally reconciling
+corpus or bounded-mapping changes, and inspect both generated-file diffs.

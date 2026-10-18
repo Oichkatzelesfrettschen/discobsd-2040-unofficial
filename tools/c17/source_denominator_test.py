@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -214,6 +215,104 @@ def main():
         discovered = ["bin/good.c", "src/guest.h"]
         source_denominator.validate_documents(root, discovered, ledger, quarantine, True)
 
+        count_report = root / "docs/research/c17-semantic-migration-plan.md"
+        count_report.parent.mkdir(parents=True)
+        fixture_counts = {
+            "accepted": 1,
+            "excluded": 1,
+            "migration-open": 0,
+            "unreviewed": 0,
+        }
+        count_report.write_text(
+            "Those classifications preserve all 1 accepted, 0 migration-open, 1\n"
+            "excluded and 0 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+        source_denominator.validate_count_report(root, fixture_counts)
+        count_report.write_text(
+            "Those classifications preserve all 1 accepted, 1 migration-open, 1\n"
+            "excluded and 0 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+        try:
+            source_denominator.validate_count_report(root, fixture_counts)
+        except source_denominator.DenominatorError:
+            pass
+        else:
+            raise AssertionError("stale denominator prose was accepted")
+
+        stale_refresh_path = root / "stale-refresh-ledger.json"
+        stale_refresh_ledger = copy.deepcopy(ledger)
+        stale_refresh_ledger["schema_version"] = 1
+        stale_refresh_path.write_text(
+            json.dumps(stale_refresh_ledger) + "\n", encoding="utf-8"
+        )
+        stale_refresh_bytes = stale_refresh_path.read_bytes()
+        try:
+            source_denominator.refresh_classification(
+                root, stale_refresh_path, discovered, quarantine, False
+            )
+        except source_denominator.DenominatorError:
+            pass
+        else:
+            raise AssertionError("stale denominator prose allowed ledger refresh")
+        if stale_refresh_path.read_bytes() != stale_refresh_bytes:
+            raise AssertionError("stale denominator prose changed ledger bytes")
+        count_report.write_text(
+            "Those classifications preserve all 1 accepted, 0 migration-open, 1\n"
+            "excluded and 0 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+
+        bootstrap_root = root / "bootstrap"
+        (bootstrap_root / "docs/research").mkdir(parents=True)
+        (bootstrap_root / "src").mkdir()
+        (bootstrap_root / "src/new.c").write_text(
+            "int new_source(void) { return 0; }\n", encoding="utf-8"
+        )
+        (bootstrap_root / "docs/research/c17-semantic-migration-plan.md").write_text(
+            "Those classifications preserve all 0 accepted, 0 migration-open, 0 "
+            "excluded and 1 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            ["git", "init", "--quiet", str(bootstrap_root)],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(bootstrap_root), "config", "core.fsmonitor", "false"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(bootstrap_root), "add", "src/new.c"],
+            check=True,
+        )
+        bootstrap_result = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("source_denominator.py")),
+                "--root",
+                str(bootstrap_root),
+                "--ledger",
+                "source-denominator.json",
+                "--quarantine",
+                "quarantine.json",
+                "--bootstrap",
+                "--closure",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if bootstrap_result.returncode == 0:
+            raise AssertionError("bootstrap ignored the closure requirement")
+        if "closure rejected: unreviewed source rows remain" not in bootstrap_result.stderr:
+            raise AssertionError("bootstrap failed outside the closure requirement")
+        if (bootstrap_root / "source-denominator.json").exists():
+            raise AssertionError("rejected closure bootstrap published a ledger")
+        if (bootstrap_root / "quarantine.json").exists():
+            raise AssertionError("rejected closure bootstrap published a manifest")
+
         refresh_ledger = copy.deepcopy(ledger)
         refresh_ledger["rows"].append(copy.deepcopy(refresh_ledger["rows"][0]))
         refresh_path = root / "source-denominator.json"
@@ -296,6 +395,11 @@ def main():
             "int new_source(void) { return 0; }\n", encoding="utf-8"
         )
         synced_discovered = ["bin/new.c", "src/guest.h"]
+        count_report.write_text(
+            "Those classifications preserve all 0 accepted, 0 migration-open, 1\n"
+            "excluded and 1 unreviewed language states.\n",
+            encoding="utf-8",
+        )
         source_denominator.sync_paths(
             root,
             sync_path,
@@ -411,7 +515,7 @@ def main():
         cases.append(("closure with unreviewed row", changed, quarantine, discovered, True))
         for name, mutated_ledger, mutated_quarantine, paths, closure in cases:
             expect_failure(name, root, paths, mutated_ledger, mutated_quarantine, closure)
-    print(f"PASS C17 source denominator calibration: {len(cases) + 5} failures rejected")
+    print(f"PASS C17 source denominator calibration: {len(cases) + 8} failures rejected")
     return 0
 
 

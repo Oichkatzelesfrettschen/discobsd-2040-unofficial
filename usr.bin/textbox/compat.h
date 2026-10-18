@@ -34,9 +34,12 @@
 
 extern char *argv0;
 
-void  eprintf(const char *, ...) __attribute__((noreturn));
-void  weprintf(const char *, ...);
-void  xvprintf(const char *, va_list);
+void  eprintf(const char *, ...)
+    __attribute__((format(printf, 1, 2), nonnull(1), noreturn));
+void  weprintf(const char *, ...)
+    __attribute__((format(printf, 1, 2), nonnull(1)));
+void  xvprintf(const char *, va_list)
+    __attribute__((format(printf, 1, 0), nonnull(1)));
 
 void *emalloc(size_t);
 char *estrdup(const char *);

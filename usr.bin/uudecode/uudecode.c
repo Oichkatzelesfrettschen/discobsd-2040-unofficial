@@ -14,8 +14,21 @@
  * is well under this, and the buffer only bounds one header line. */
 #define PATH_MAX 256
 
-static int mflag = 0;
 static int oflag = 0;
+
+static void
+write_output(FILE *outfp, const void *buffer, size_t length)
+{
+	if (length != 0 && fwrite(buffer, 1, length, outfp) != length)
+		eprintf("write error:");
+}
+
+static void
+write_byte(FILE *outfp, int byte)
+{
+	if (putc(byte, outfp) == EOF)
+		eprintf("write error:");
+}
 
 static FILE *
 parsefile(const char *fname)
@@ -76,7 +89,7 @@ parseheader(FILE *fp, const char *s, char **header, mode_t *mode, char **fname)
 		eprintf("header string does not contain output file\n");
 }
 
-static const char b64dt[] = {
+static const signed char b64dt[] = {
 	-1,-1,-1,-1,-1,-1,-1,-1,-1,-2,-2,-2,-2,-2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
 	-1,-1,-1,-1,-1,-1,-1,-1,-2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,-1,-1,63,
 	52,53,54,55,56,57,58,59,60,61,-1,-1,-1, 0,-1,-1,-1, 0, 1, 2, 3, 4, 5, 6,
@@ -97,22 +110,23 @@ uudecodeb64(FILE *fp, FILE *outfp)
 	char out[45], *po;
 	size_t n;
 	int b = 0, e, t = -1, l = 1;
+	unsigned char byte;
 	unsigned char b24[3] = {0, 0, 0};
 
 	while ((n = fread(bufb, 1, sizeof(bufb), fp))) {
 		for (pb = bufb, po = out; pb < bufb + n; pb++) {
-			if (*pb == '\n') {
+			byte = (unsigned char)*pb;
+			if (byte == '\n') {
 				l++;
 				continue;
-			} else if (*pb == '=') {
+			} else if (byte == '=') {
 				switch (b) {
 				case 0:
 					/* expected '=' remaining
 					 * including footer */
 					if (--t) {
-						fwrite(out, 1,
-						       (po - out),
-						       outfp);
+						write_output(outfp, out,
+						    (size_t)(po - out));
 						return;
 					}
 					continue;
@@ -131,8 +145,8 @@ uudecodeb64(FILE *fp, FILE *outfp)
 					t = 6; /* expect 6 '=' */
 					continue;
 				}
-			} else if ((e = b64dt[(int)*pb]) == -1)
-				eprintf("%d: invalid byte \"%c\"\n", l, *pb);
+			} else if ((e = b64dt[byte]) == -1)
+				eprintf("%d: invalid byte \"%c\"\n", l, byte);
 			else if (e == -2) /* whitespace */
 				continue;
 			else if (t > 0) /* state is parsing pad/footer */
@@ -155,7 +169,7 @@ uudecodeb64(FILE *fp, FILE *outfp)
 				b = 0;
 			}
 		}
-		fwrite(out, 1, (po - out), outfp);
+		write_output(outfp, out, (size_t)(po - out));
 	}
 	eprintf("%d: invalid uudecode footer \"====\" not found\n", l);
 }
@@ -165,6 +179,7 @@ uudecode(FILE *fp, FILE *outfp)
 {
 	char *bufb = NULL, *p;
 	size_t n = 0;
+	size_t payload_length, required_length;
 	ssize_t len;
 	int ch, i;
 
@@ -182,6 +197,14 @@ uudecode(FILE *fp, FILE *outfp)
 		/* check for last line */
 		if ((i = DEC(*p)) <= 0)
 			break;
+		if (i > 45)
+			eprintf("encoded payload count exceeds 45 bytes\n");
+		payload_length = (size_t)len - 2;
+		required_length = (size_t)(i / 3) * 4;
+		if (i % 3 != 0)
+			required_length += (size_t)(i % 3) + 1;
+		if (payload_length < required_length)
+			eprintf("short encoded payload line\n");
 		for (++p; i > 0; p += 4, i -= 3) {
 			if (i >= 3) {
 				if (!(IS_DEC(*p) && IS_DEC(*(p + 1)) &&
@@ -189,18 +212,18 @@ uudecode(FILE *fp, FILE *outfp)
 					OUT_OF_RANGE(*p);
 
 				ch = DEC(p[0]) << 2 | DEC(p[1]) >> 4;
-				putc(ch, outfp);
+				write_byte(outfp, ch);
 				ch = DEC(p[1]) << 4 | DEC(p[2]) >> 2;
-				putc(ch, outfp);
+				write_byte(outfp, ch);
 				ch = DEC(p[2]) << 6 | DEC(p[3]);
-				putc(ch, outfp);
+				write_byte(outfp, ch);
 			} else {
 				if (i >= 1) {
 					if (!(IS_DEC(*p) && IS_DEC(*(p + 1))))
 						OUT_OF_RANGE(*p);
 
 					ch = DEC(p[0]) << 2 | DEC(p[1]) >> 4;
-					putc(ch, outfp);
+					write_byte(outfp, ch);
 				}
 				if (i >= 2) {
 					if (!(IS_DEC(*(p + 1)) &&
@@ -208,7 +231,7 @@ uudecode(FILE *fp, FILE *outfp)
 						OUT_OF_RANGE(*p);
 
 					ch = DEC(p[1]) << 4 | DEC(p[2]) >> 2;
-					putc(ch, outfp);
+					write_byte(outfp, ch);
 				}
 			}
 		}
@@ -240,7 +263,7 @@ main(int argc, char *argv[])
 
 	ARGBEGIN {
 	case 'm':
-		mflag = 1; /* accepted but unused (autodetect file type) */
+		/* File type is always selected from the encoded header. */
 		break;
 	case 'o':
 		oflag = 1;

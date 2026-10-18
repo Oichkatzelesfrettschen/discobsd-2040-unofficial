@@ -147,7 +147,9 @@ def check_realpath(binary, work_directory):
     require(result.stderr == b"", "realpath -e writes a diagnostic on success")
 
     missing_path = existing_directory / "missing"
-    expected_missing = str(missing_path).encode() + b"\n"
+    expected_missing = (
+        str(existing_directory.resolve() / missing_path.name).encode() + b"\n"
+    )
     result = run_program([str(binary), "-E", str(missing_path)])
     require(result.returncode == 0, "realpath -E rejects a missing final component")
     require(
@@ -371,6 +373,11 @@ def main():
             work_directory.mkdir()
             check_readlink(readlink_binary, work_directory)
             check_realpath(realpath_binary, work_directory)
+            canonical_parent = build_directory / "canonical-parent"
+            canonical_parent.mkdir()
+            parent_alias = build_directory / "parent-alias"
+            parent_alias.symlink_to(canonical_parent, target_is_directory=True)
+            check_realpath(realpath_binary, parent_alias)
             legacy_guard_directory = build_directory / "legacy-realpath-guard"
             legacy_guard_directory.mkdir()
             check_realpath(realpath_legacy_guard, legacy_guard_directory)

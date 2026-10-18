@@ -1511,3 +1511,10 @@ The capture prefix owns its trailing argument separator only when enabled.
 The disabled ELF2AOUT and OBJCOPY values remain exact executable paths for
 consumers that quote a path or pass it as one subprocess argument. Evaluated
 make-variable controls cover both disabled paths and enabled argv separation.
+
+The donor and multicall ledgers share `measurement_source_identity.py` for
+retained Git-blob validation. Multicall source hashes remain the recorded
+17-path subset at their retained-source commit; the live-map gate separately
+checks evaluated build membership, archive selections, packed sizes, block
+savings and root capacity. The generic Git-fixture controls calibrate both
+callers' retained-source boundary.

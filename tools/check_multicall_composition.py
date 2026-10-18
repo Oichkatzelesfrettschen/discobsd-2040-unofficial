@@ -8,6 +8,8 @@ import subprocess
 from collections import Counter
 from pathlib import Path
 
+from measurement_source_identity import RetainedSourceError, validate_retained_sources
+
 
 class CompositionError(ValueError):
     """The composition ledger disagrees with its source or arithmetic."""
@@ -764,14 +766,11 @@ def validate_document(root, document, map_root=None):
     source_hashes = document.get("source_sha256")
     if not isinstance(source_hashes, dict) or not source_hashes:
         raise CompositionError("composition source identities are absent")
-    for relative_path, expected_hash in source_hashes.items():
-        if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
-            raise CompositionError(f"invalid source digest for {relative_path}")
-        require_equal(
-            sha256_path(root / relative_path),
-            expected_hash,
-            f"source digest {relative_path}",
-        )
+    try:
+        changed_sources = validate_retained_sources(
+            root, source_hashes, document.get("retained_source_commit"))
+    except RetainedSourceError as error:
+        raise CompositionError(str(error)) from error
 
     boxes = document.get("boxes")
     if not isinstance(boxes, list) or not boxes:
@@ -901,6 +900,9 @@ def validate_document(root, document, map_root=None):
         map_root is not None,
         exact_measurement,
     )
+    if map_root is not None:
+        print(f"multicall composition: {len(changed_sources)} live source differences from "
+              "the retained source subset; live composition/resource checks ran separately")
     if map_root is not None and not exact_measurement:
         for consumer, added_members, removed_members in archive_deltas:
             print(

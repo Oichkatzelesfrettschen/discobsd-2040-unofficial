@@ -9,6 +9,8 @@ import re
 import subprocess
 from pathlib import Path, PurePosixPath
 
+from measurement_source_identity import RetainedSourceError, validate_retained_sources
+
 EXPECTED_REPOSITORIES = {
     "4.4BSD-Lite2": (
         "https://github.com/Oichkatzelesfrettschen/4.4BSD-Lite2.git",
@@ -2121,27 +2123,10 @@ def load_requirement_ids(path):
 
 
 def validate_measured_sources(root, hashes, revision):
-    """Verify retained bytes and report live drift without moving old evidence."""
-    require(isinstance(revision, str) and re.fullmatch(r"[0-9a-f]{40}", revision),
-            "invalid retained source revision")
-    changed = []
-    for relative_path, expected_hash in sorted(hashes.items()):
-        require(safe_path(relative_path), "unsafe measured source path")
-        require(valid_sha256_digest(expected_hash), "invalid retained source digest")
-        result = subprocess.run(["git", "-C", str(root), "cat-file", "blob",
-                                 revision + ":" + relative_path], capture_output=True,
-                                check=False)
-        require(result.returncode == 0, "retained source object unavailable: " + relative_path)
-        require(hashlib.sha256(result.stdout).hexdigest() == expected_hash,
-                "retained source digest differs: " + relative_path)
-        source_path = root / relative_path
-        require(source_path.resolve().is_relative_to(root.resolve()),
-                "measured source path escapes checkout")
-        observed = (hashlib.sha256(source_path.read_bytes()).hexdigest()
-                    if source_path.is_file() else None)
-        if observed != expected_hash:
-            changed.append(relative_path)
-    return changed
+    try:
+        return validate_retained_sources(root, hashes, revision)
+    except RetainedSourceError as error:
+        raise DonorError(str(error)) from error
 
 
 def validate_document(root, document, requirement_ids):

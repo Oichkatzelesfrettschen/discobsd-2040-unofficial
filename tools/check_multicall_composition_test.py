@@ -43,9 +43,6 @@ def main():
     document = composition.load_json(
         root / "docs/research/dpucp-2024-multicall-composition.json"
     )
-    document["source_sha256"]["tools/check_multicall_composition_test.py"] = (
-        composition.sha256_path(Path(__file__))
-    )
     composition.validate_document(root, document)
 
     size_records = composition.parse_size_inventory(

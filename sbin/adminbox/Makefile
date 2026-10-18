@@ -32,9 +32,6 @@ OBJS=		${TOOLS:S/$/.tool.o/}
 BUILTIN_OBJS=	tiny_applets.o
 PROG=		adminbox
 HSAOUT=		${TOOLBINDIR}/hsaout
-.if defined(LINK_MAP) && !empty(LINK_MAP)
-LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
-.endif
 # Root budget for the packed image, a regression watermark rather than a
 # hardware limit: hsaout -s reports 23 blocks from arm-none-eabi-gcc 16
 # (Arch) for this tree, against 22 for the same toolchain before the C17

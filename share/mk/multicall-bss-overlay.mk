@@ -8,6 +8,9 @@ MULTICALL_BSS_LDSCRIPT= ${.CURDIR}/multicall-bss-overlay.ld
 MULTICALL_BSS_GENERATOR= ${TOPSRC}/tools/generate_multicall_bss_overlay.sh
 MULTICALL_BSS_VERIFIER= ${TOPSRC}/tools/verify_multicall_bss_objects.sh
 MULTICALL_BSS_LDFLAGS= -Wl,-T,${MULTICALL_BSS_LDSCRIPT}
+.if defined(LINK_MAP) && !empty(LINK_MAP)
+LINK_MAP_FLAG= -Wl,-Map,${LINK_MAP}
+.endif
 # Convert tentative applet definitions into owned BSS before the relocatable
 # link so every overlay input has one explicit section owner.
 MULTICALL_APPLET_COPTS= ${COPTS} -fno-common

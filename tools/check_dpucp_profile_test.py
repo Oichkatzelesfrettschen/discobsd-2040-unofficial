@@ -16,6 +16,42 @@ def expect_failure(name, root, corpus, entities, profile, rows):
     raise AssertionError(f"mutation passed: {name}")
 
 
+def require_logname_binding(profile, rows):
+    logname_row = next(
+        (
+            row
+            for row in rows
+            if row["requirement_id"] == "dpucp-2024:utility:logname"
+        ),
+        None,
+    )
+    witness_id = "logname-host-multicall-contract"
+    if logname_row is None:
+        raise AssertionError("missing logname requirement row")
+    if (
+        logname_row["implementation"] != "partial"
+        or logname_row["evidence"] != "host"
+        or logname_row["residual"] != "open"
+        or logname_row["witness"] != witness_id
+    ):
+        raise AssertionError("unbound logname compatibility witness")
+    witness = profile["witnesses"].get(witness_id)
+    if witness is None:
+        raise AssertionError("missing logname profile witness")
+    if witness["evidence"] != "host":
+        raise AssertionError("logname witness evidence is not host")
+    for target in ("check-id-aliases", "check-multicall-composition"):
+        if target not in witness["command"]:
+            raise AssertionError(f"logname witness omits {target}")
+    expected_fixtures = {
+        "known_good": "tests/id_aliases/check.sh",
+        "known_bad": "tests/id_aliases/logname_effective_user_bad.sh",
+    }
+    for fixture_kind, expected_path in expected_fixtures.items():
+        if witness[fixture_kind] != expected_path:
+            raise AssertionError(f"logname {fixture_kind} fixture differs")
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     corpus = sus.load_json(root / "docs/research/sus-requirement-corpus.json")
@@ -123,6 +159,35 @@ def main():
     if timeout_witness["known_good"] == timeout_witness["known_bad"]:
         raise AssertionError("uncalibrated timeout witness")
 
+    require_logname_binding(profile, rows)
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["witnesses"]["logname-host-multicall-contract"][
+        "known_bad"
+    ] = "tests/id_aliases/identity_stubs.c"
+    try:
+        require_logname_binding(changed_profile, rows)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("logname known-bad mutation passed")
+
+    changed_rows = copy.deepcopy(rows)
+    logname_row = next(
+        row
+        for row in changed_rows
+        if row["requirement_id"] == "dpucp-2024:utility:logname"
+    )
+    logname_row["implementation"] = "absent"
+    logname_row["evidence"] = "none"
+    logname_row["witness"] = ""
+    try:
+        require_logname_binding(profile, changed_rows)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("logname compatibility mutation passed")
+
     expected_state_order = {
         "applicability": [
             "base",
@@ -221,7 +286,10 @@ def main():
     for name, mutated_profile, mutated_rows in cases:
         expect_failure(name, root, corpus, entities, mutated_profile, mutated_rows)
 
-    print(f"PASS DPUCP-2024 calibration: {len(cases)} mutations rejected")
+    print(
+        "PASS DPUCP-2024 calibration: "
+        f"{len(cases) + 2} mutations rejected"
+    )
     return 0
 
 

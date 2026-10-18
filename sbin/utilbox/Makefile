@@ -63,12 +63,13 @@ utilbox.c:	utilbox.c.in Makefile
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" utilbox.c.in > $@
 
 ${PROG}:	utilbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf utilbox.o ${OBJS} ${LIBS}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} \
+	    -o $@.elf utilbox.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 resize-symbol-contract: utilbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} \
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} \
 	    -o utilbox.contract.elf utilbox.o ${OBJS} ${LIBS}
 	sh ${TOPSRC}/tests/resize_contracts/symbol_closure.sh ${TOPSRC} \
 	    utilbox.contract.elf

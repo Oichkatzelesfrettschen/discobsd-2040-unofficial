@@ -52,7 +52,8 @@ box.c:		box.c.in Makefile
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" box.c.in > $@
 
 ${PROG}:	box.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
-	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} -o $@.elf box.o ${OBJS} ${LIBS}
+	${CC} ${CFLAGS} ${MULTICALL_BSS_LDFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} \
+	    -o $@.elf box.o ${OBJS} ${LIBS}
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 

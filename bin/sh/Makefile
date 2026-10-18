@@ -1,6 +1,10 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
+.if defined(LINK_MAP) && !empty(LINK_MAP)
+LINK_MAP_FLAG=	-Wl,-Map,${LINK_MAP}
+.endif
+
 OBJS            = setbrk.o blok.o stak.o cmd.o fault.o main.o word.o \
                   string.o name.o args.o xec.o service.o error.o io.o \
                   print.o macro.o expand.o ctype.o msg.o test.o defs.o \
@@ -23,7 +27,7 @@ check-strict-c17:
 .PHONY: check-gnu17 check-strict-c17
 
 sh:		${OBJS}
-		${CC} ${CFLAGS} ${LDFLAGS} -o sh.elf ${OBJS} ${LIBS}
+		${CC} ${CFLAGS} ${LDFLAGS} ${LINK_MAP_FLAG} -o sh.elf ${OBJS} ${LIBS}
 		${OBJDUMP} -S sh.elf > sh.dis
 		${SIZE} sh.elf
 		${ELF2AOUT} sh.elf $@ && rm sh.elf

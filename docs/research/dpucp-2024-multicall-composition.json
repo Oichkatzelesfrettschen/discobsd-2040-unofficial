@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "profile_id": "DPUCP-2024",
+  "base_commit": "bccbbf3291a93c67032388b9e570671e8bbb46f7",
+  "candidate_commit": "1f72b07a66d0dacb5bc05b2c108e919819a2c121",
+  "measurement_date": "2026-10-18",
+  "claims": {
+    "posix_conformance": false,
+    "unix_conformance": false,
+    "statement": "The ledger reports a measured compatibility composition and makes no POSIX or UNIX conformance claim."
+  },
+  "denominator": {
+    "packed_executables": 32,
+    "manifest_hard_links": 84,
+    "multicall_executables": 7,
+    "multicall_hard_links": 80,
+    "dispatch_names": 80
+  },
+  "source_sha256": {
+    "Makefile": "16ada0b8264c738d932b69ec3e7437c19cf52de82776e94f61330af72af05670",
+    "bin/sh/Makefile": "a9c75137275294f70bf095886d70f0e35c83eb4885ca2f995355a80966a77ea0",
+    "distrib/rp2040/mi.rp2040": "0ee4dda12af19629ec466d02a122e7b5df8b302367e27e6e8ef0105694a8fd75",
+    "games/gamebox/Makefile": "de88a785b2de277673abdb8b690cbd77c43450654ae3073f0ee08fc289c327ba",
+    "sbin/adminbox/Makefile": "8cf02782b9c2df802c67ee8040b798fd35ce691630f835da621adf429f0e90f7",
+    "sbin/box/Makefile": "682e12fc3c448d28651a582435b91bdd8d056558ff3bd7e2da7335b2b59e04a7",
+    "sbin/grepbox/Makefile": "e2d5151b2b1d03f35b42c842536b3bc28c007e30d609877d5dbffdd41853e87f",
+    "sbin/sysbox/Makefile": "5ebe03cb66b67984655cd1d4694e77b5a4b37dea8f049114c7e3da81293653f9",
+    "sbin/textbox/Makefile": "b58577cc69f20e01c659bb651d9c7fbff948cc1a258235a4c4c1460dac6417c9",
+    "sbin/utilbox/Makefile": "fa9580d05254cf674beaffa519507dd5707f2f92e087e1e72e2aecfe7ef9b4b7",
+    "share/mk/multicall-bss-overlay.mk": "05856af460e78fb78c7dfb640ef25a89c7f72bb8b9b952d4cf6acf849d4e0672",
+    "tools/check_multicall_composition.py": "c512f109697403cf74432d9613d0fba60ddf42cbe4c4f26c08dc1e31570df134",
+    "tools/check_multicall_composition_test.py": "d7fce85b7e74d2978f117db1c92f12fb2d0a1fa29966d9ff2739bd3d91e10979",
+    "tools/fsutil/fsutil.c": "be2a847ab3b77805e3e00ff4d413e7b7bf010f5a27dabce4ed1f7f1fe59a8b63",
+    "tools/fsutil/superblock.c": "273df13d8f290bc6543a7b715c1d762522d06f9ab9d7a21c90d54521b1037930",
+    "tools/hsaout/hsaout.c": "e377d74fe29064806fb06d0f24c879b5a9847894048752fe626f8ddc6d2b25d9",
+    "tools/hsaout/libhsaout.c": "ecef0c46f5de592df86a4cfba2710b2d3cbf8e61f1bacc58bcde7a86c8d49e92"
+  },
+  "boxes": [
+    {
+      "id": "box",
+      "makefile": "sbin/box/Makefile",
+      "installed_path": "/bin/box",
+      "tools": ["cat", "chgrp", "chmod", "chown", "cp", "echo", "hostname", "kill", "ln", "ls", "mkdir", "mv", "pwd", "rm", "rmdir", "sleep", "sync", "test"],
+      "builtin_tools": [],
+      "aliases": ["[:test"],
+      "shipped_names": ["/bin/[", "/bin/cat", "/bin/chgrp", "/bin/chmod", "/bin/cp", "/bin/echo", "/bin/hostname", "/bin/kill", "/bin/ln", "/bin/ls", "/bin/mkdir", "/bin/mv", "/bin/pwd", "/bin/rm", "/bin/rmdir", "/bin/sleep", "/bin/sync", "/bin/test", "/sbin/chown"],
+      "unshipped_dispatch_names": [],
+      "link_map": "box.map",
+      "libc_member_count": 112,
+      "raw_bytes": 33756,
+      "packed_bytes": 27977,
+      "raw_blocks": 34,
+      "packed_blocks": 29,
+      "standalone_primary_packed_blocks": 134,
+      "packed_block_savings": 105
+    },
+    {
+      "id": "sysbox",
+      "makefile": "sbin/sysbox/Makefile",
+      "installed_path": "/bin/sysbox",
+      "tools": ["date", "dd", "df", "mknod", "mount", "umount", "stty"],
+      "builtin_tools": [],
+      "aliases": [],
+      "shipped_names": ["/bin/date", "/bin/dd", "/bin/df", "/bin/stty", "/sbin/mknod", "/sbin/mount", "/sbin/umount"],
+      "unshipped_dispatch_names": [],
+      "link_map": "sysbox.map",
+      "libc_member_count": 101,
+      "raw_bytes": 32316,
+      "packed_bytes": 26233,
+      "raw_blocks": 33,
+      "packed_blocks": 27,
+      "standalone_primary_packed_blocks": 68,
+      "packed_block_savings": 41
+    },
+    {
+      "id": "adminbox",
+      "makefile": "sbin/adminbox/Makefile",
+      "installed_path": "/sbin/adminbox",
+      "tools": ["shutdown", "reboot", "sysctl", "timeout"],
+      "builtin_tools": ["true", "false", "nohup"],
+      "aliases": ["halt:reboot", "bootloader:reboot"],
+      "shipped_names": ["/sbin/bootloader", "/sbin/halt", "/sbin/reboot", "/sbin/shutdown", "/sbin/sysctl", "/usr/bin/false", "/usr/bin/nohup", "/usr/bin/timeout", "/usr/bin/true"],
+      "unshipped_dispatch_names": [],
+      "link_map": "adminbox.map",
+      "libc_member_count": 116,
+      "raw_bytes": 28468,
+      "packed_bytes": 23573,
+      "raw_blocks": 29,
+      "packed_blocks": 25,
+      "standalone_primary_packed_blocks": 53,
+      "packed_block_savings": 28
+    },
+    {
+      "id": "textbox",
+      "makefile": "sbin/textbox/Makefile",
+      "installed_path": "/usr/bin/textbox",
+      "tools": ["cut", "paste", "seq", "dirname", "nl", "cksum", "expand", "unexpand", "uuencode", "uudecode", "readlink", "realpath", "fold", "rev", "comm", "look", "deroff", "colrm"],
+      "builtin_tools": [],
+      "aliases": [],
+      "shipped_names": ["/usr/bin/cksum", "/usr/bin/colrm", "/usr/bin/comm", "/usr/bin/cut", "/usr/bin/deroff", "/usr/bin/dirname", "/usr/bin/expand", "/usr/bin/fold", "/usr/bin/look", "/usr/bin/nl", "/usr/bin/paste", "/usr/bin/readlink", "/usr/bin/realpath", "/usr/bin/rev", "/usr/bin/seq", "/usr/bin/unexpand", "/usr/bin/uudecode", "/usr/bin/uuencode"],
+      "unshipped_dispatch_names": [],
+      "link_map": "textbox.map",
+      "libc_member_count": 87,
+      "raw_bytes": 39464,
+      "packed_bytes": 32200,
+      "raw_blocks": 40,
+      "packed_blocks": 33,
+      "standalone_primary_packed_blocks": 156,
+      "packed_block_savings": 123
+    },
+    {
+      "id": "utilbox",
+      "makefile": "sbin/utilbox/Makefile",
+      "installed_path": "/usr/bin/utilbox",
+      "tools": ["expr", "id", "more", "uniq", "head", "tr", "wc", "cmp", "sort", "basename", "env", "printf", "touch", "xargs", "tty", "uname", "md5", "resize", "md"],
+      "builtin_tools": [],
+      "aliases": ["whoami:id", "groups:id", "logname:id"],
+      "shipped_names": ["/bin/expr", "/bin/md5", "/usr/bin/basename", "/usr/bin/cmp", "/usr/bin/env", "/usr/bin/groups", "/usr/bin/head", "/usr/bin/id", "/usr/bin/logname", "/usr/bin/md", "/usr/bin/more", "/usr/bin/printf", "/usr/bin/resize", "/usr/bin/sort", "/usr/bin/touch", "/usr/bin/tr", "/usr/bin/tty", "/usr/bin/uname", "/usr/bin/uniq", "/usr/bin/wc", "/usr/bin/whoami", "/usr/bin/xargs"],
+      "unshipped_dispatch_names": [],
+      "link_map": "utilbox.map",
+      "libc_member_count": 113,
+      "raw_bytes": 55077,
+      "packed_bytes": 44773,
+      "raw_blocks": 55,
+      "packed_blocks": 45,
+      "standalone_primary_packed_blocks": 162,
+      "packed_block_savings": 117
+    },
+    {
+      "id": "grepbox",
+      "makefile": "sbin/grepbox/Makefile",
+      "installed_path": "/usr/bin/grepbox",
+      "tools": ["grep", "fgrep"],
+      "builtin_tools": [],
+      "aliases": [],
+      "shipped_names": ["/usr/bin/fgrep", "/usr/bin/grep"],
+      "unshipped_dispatch_names": [],
+      "link_map": "grepbox.map",
+      "libc_member_count": 46,
+      "raw_bytes": 11736,
+      "packed_bytes": 10183,
+      "raw_blocks": 13,
+      "packed_blocks": 11,
+      "standalone_primary_packed_blocks": 18,
+      "packed_block_savings": 7
+    },
+    {
+      "id": "gamebox",
+      "makefile": "games/gamebox/Makefile",
+      "installed_path": "/usr/games/gamebox",
+      "tools": ["fifteen", "keen", "bubble"],
+      "builtin_tools": [],
+      "aliases": [],
+      "shipped_names": ["/usr/games/bubble", "/usr/games/fifteen", "/usr/games/keen"],
+      "unshipped_dispatch_names": [],
+      "link_map": "gamebox.map",
+      "libc_member_count": 37,
+      "raw_bytes": 12248,
+      "packed_bytes": 10835,
+      "raw_blocks": 13,
+      "packed_blocks": 12,
+      "standalone_primary_packed_blocks": 24,
+      "packed_block_savings": 12
+    }
+  ],
+  "standalone_programs": [
+    {
+      "id": "sh",
+      "installed_path": "/bin/sh",
+      "link_map": "sh.map",
+      "libc_member_count": 57
+    }
+  ],
+  "standalone_comparison": {
+    "primary_executables": 71,
+    "standalone_packed_blocks": 615,
+    "multicall_packed_blocks": 182,
+    "saved_packed_blocks": 433,
+    "scope": "Primary applet executables only; aliases and built-in applets own no additional standalone code image."
+  },
+  "measurement_inventory": {
+    "path": "docs/research/dpucp-2024-multicall-sizes.tsv",
+    "sha256": "78fa91faebf16cee9f2172a74815583fa084e611b2ffe7369f754eca05fe1adf",
+    "hsaout_path": "tools/bin/rp2040/hsaout",
+    "captured_hsaout_sha256": "ee37aa1a766fca96cf52f35760e1e70fe58316f84762f688354b0ba4523668ad",
+    "command_pattern": "tools/bin/rp2040/hsaout -s <ordered inventory paths>",
+    "arm_cc_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+    "arm_ld_version": "GNU ld (GNU Binutils) 2.47.20260726",
+    "bmake_version": "20260912"
+  },
+  "archive_summary": {
+    "inventory_path": "docs/research/dpucp-2024-multicall-libc-members.tsv",
+    "inventory_sha256": "66013c307cf77ccea9072c36737d8b404a454c41591aad961bd5bfed9b2e63be",
+    "consumer_edges": 669,
+    "distinct_members": 192,
+    "shared_members": 130,
+    "single_consumer_members": 62
+  },
+  "root": {
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "base": {"files": 95, "links": 83, "data_blocks": 692, "free_blocks": 287},
+    "candidate": {"files": 95, "links": 84, "data_blocks": 692, "free_blocks": 287},
+    "delta": {"files": 0, "links": 1, "data_blocks": 0, "free_blocks": 0}
+  },
+  "root_measurement": {
+    "fsutil_path": "tools/bin/rp2040/fsutil",
+    "captured_fsutil_sha256": "3b083d5b66b787318edb81afc1df7b77af39e9d4eac1216c4eb0c53ea63af08d",
+    "command_pattern": "tools/bin/rp2040/fsutil --verbose --partition=1 <root image>"
+  },
+  "clean_distribution_receipts": {
+    "base": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 104.163,
+      "output_bytes": 1592244,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_path": "docs/research/dpucp-2024-multicall-base-receipt.json",
+      "receipt_sha256": "011d76604076db1c39f9339251b12cb41f009279725db6bd3bd2f468415808d4"
+    },
+    "candidate": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 114.767,
+      "output_bytes": 1702047,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_path": "docs/research/dpucp-2024-multicall-candidate-receipt.json",
+      "receipt_sha256": "4f37e5ce2972c81072144c6eec874cd6a25992c15985cdba8a2fe63e9f734f56"
+    }
+  },
+  "deduplication_disposition": {
+    "archive_overlap": "The inventory exposes every libc member shared by shell and the seven boxes. Static linking already shares each member inside one box but repeats it across independent process images.",
+    "private_applet_symbols": "Applet-local symbol names are not folded across localized objects because equal names do not establish equal behavior, state ownership, or lifetime.",
+    "decision": "Keep the seven process images separate and retain the proven BSS overlays; the measured composition saves 433 packed-root blocks relative to the primary standalone images."
+  },
+  "residuals": [
+    "Whole-program runtime stack and heap peaks remain unmeasured.",
+    "The logname row remains partial until packed-image execution observes its session identity, failure diagnostic, and status.",
+    "Renode execution remains unrun.",
+    "Physical-board execution remains unrun and requires explicit owner authorization immediately before flash or serial access."
+  ]
+}

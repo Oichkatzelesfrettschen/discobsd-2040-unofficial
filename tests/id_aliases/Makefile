@@ -21,8 +21,19 @@ RENAMES= -Dmain=discobsd_id_main -Dgetuid=test_getuid \
 	-Dgetpwnam=test_getpwnam -Dgetgrgid=test_getgrgid
 ALIASES= whoami groups logname
 
-check: ${PROG} ${ALIASES}
+check: ${PROG} ${ALIASES} check-known-bad
 	sh ./check.sh
+
+check-known-bad: ${PROG} ${ALIASES}
+	@if output=$$(LOGNAME_PROGRAM=./logname_effective_user_bad.sh \
+	    sh ./check.sh 2>&1); then \
+		echo "id alias test: effective-user logname fixture passed" >&2; \
+		exit 1; \
+	fi; \
+	case "$$output" in \
+	*"id alias test: logname session identity"*) ;; \
+	*) echo "id alias test: logname negative control drift" >&2; exit 1 ;; \
+	esac
 
 ${PROG}: driver.c identity_stubs.c id.o
 	${HOSTCC} ${CFLAGS} ${HOST_CFLAGS} -o $@ driver.c identity_stubs.c \
@@ -39,4 +50,4 @@ clean:
 
 all: check
 
-.PHONY: all check clean
+.PHONY: all check check-known-bad clean

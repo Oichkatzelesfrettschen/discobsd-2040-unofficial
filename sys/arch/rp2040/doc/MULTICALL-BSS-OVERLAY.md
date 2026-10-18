@@ -86,12 +86,23 @@ applets without consuming another inode or data block. Recompute whole-image
 used and free blocks after any userland change because libc and applet growth
 change those totals independently of packing and overlay savings.
 
+The current finite composition has seven multicall executable inodes and 80
+shipped hard-link names. Seventy-one primary applet executables occupy 615
+packed blocks when linked separately; the seven boxes occupy 182 blocks, a
+433-block reduction. Built-in applets and aliases have no separate standalone
+image and remain outside that 71-image denominator. Link maps for the boxes and
+shell contain 669 consumer edges across 192 distinct libc archive members, of
+which 130 serve more than one consumer. The archive inventory measures static
+selection; identical private symbol names do not prove that localized applet
+state or behavior can be folded safely.
+
 Reproduce the host gates with:
 
 ```sh
 bmake -C tests/rp2040/elf2aout_layout check MACHINE=rp2040 PYTHON="${PYTHON}"
 bmake -C usr.bin/sort test MACHINE=rp2040 HOST_CC=cc PYTHON="${PYTHON}"
 bmake check-tiny-utility-multicall
+bmake MACHINE=rp2040 check-multicall-composition
 shellcheck -S error tools/generate_multicall_bss_overlay.sh \
     tools/verify_multicall_bss_objects.sh \
     tools/verify_packed_root_configs.sh

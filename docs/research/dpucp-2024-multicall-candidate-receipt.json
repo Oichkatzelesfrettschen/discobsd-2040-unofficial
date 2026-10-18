@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "evidence_class": "cross-build",
+  "source_commit": "1f72b07a66d0dacb5bc05b2c108e919819a2c121",
+  "command": ["bmake", "MACHINE=rp2040", "cleanall", "distribution"],
+  "state": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 114.767,
+  "output_bytes": 1702047,
+  "terminal_queue_dropped_bytes": 0,
+  "manifest": {
+    "path": "distrib/rp2040/mi.rp2040",
+    "sha256": "0ee4dda12af19629ec466d02a122e7b5df8b302367e27e6e8ef0105694a8fd75",
+    "hard_links": 84
+  },
+  "root_image": {
+    "path": "distrib/rp2040/sdcard.img",
+    "sha256": "d86fc1ba46eb2cd07559cf8aec66dac48d721d53fbe4ab964fbee5eb4c01814a",
+    "partition": 1,
+    "partition_blocks": 988,
+    "inode_list_blocks": 9,
+    "inode_capacity": 128,
+    "free_inodes": 33,
+    "data_blocks": 692,
+    "free_blocks": 287
+  },
+  "last_output": "RP2040 account image: root locked; operator empty; /etc/shadow mode 0600; passwd and su packed modes verified"
+}

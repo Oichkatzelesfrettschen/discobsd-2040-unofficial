@@ -387,6 +387,8 @@ link /usr/bin/whoami
 target /usr/bin/utilbox
 link /usr/bin/groups
 target /usr/bin/utilbox
+link /usr/bin/logname
+target /usr/bin/utilbox
 link /usr/bin/more
 target /usr/bin/utilbox
 link /usr/bin/uniq

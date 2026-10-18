@@ -230,17 +230,15 @@ def write_sigaction_interposer(path: Path) -> None:
 
 #include <errno.h>
 
-extern int __real_sigaction(int, const struct sigaction *, struct sigaction *);
-
-int
-__wrap_sigaction(int signal_number, const struct sigaction *action,
+static int
+timeout_test_sigaction(int signal_number, const struct sigaction *action,
     struct sigaction *inherited_action)
 {
     if (action != 0 && action->sa_flags != 0) {
         errno = EINVAL;
         return -1;
     }
-    return __real_sigaction(signal_number, action, inherited_action);
+    return sigaction(signal_number, action, inherited_action);
 }
 """,
         encoding="utf-8",
@@ -287,11 +285,17 @@ def compile_mutation(
             ("-Dfork=timeout_test_fork",),
         )
     elif name == "mimic-sigaction-flags":
+        interposed_source = build_directory / "timeout-sigaction-interposed.c"
+        interposed_source.write_text(
+            f'#include "{sigaction_interposer.name}"\n'
+            "#define sigaction(...) timeout_test_sigaction(__VA_ARGS__)\n"
+            f'#include "{mutated_source.name}"\n',
+            encoding="utf-8",
+        )
         compile_program(
             compiler,
             mutated_binary,
-            [mutated_source, sigaction_interposer],
-            ("-Wl,--wrap=sigaction",),
+            [interposed_source],
         )
     else:
         compile_program(compiler, mutated_binary, [mutated_source])

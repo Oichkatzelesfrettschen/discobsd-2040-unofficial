@@ -30,10 +30,27 @@ def require_documented_mutation_count(testing_text, mutation_count):
             "DPUCP donor mutation count documentation differs from calibration: "
             f"expected {mutation_count}"
         )
+    for required_phrase in (
+        "recovery utility growth exception",
+        "six recovery mutations reject",
+        "target-native link-map seam",
+    ):
+        if required_phrase not in gate_line:
+            raise AssertionError(
+                f"DPUCP donor documentation lacks {required_phrase}"
+            )
 
 
 def main():
     root = Path(__file__).resolve().parents[1]
+    for utility in ("readlink", "realpath"):
+        makefile_text = (root / "usr.bin" / utility / "Makefile").read_text(
+            encoding="utf-8"
+        )
+        if "LINK_MAP_FLAG=\t-Wl,-Map,${LINK_MAP}" not in makefile_text:
+            raise AssertionError(f"{utility} lacks the target-native link-map seam")
+        if "${LDFLAGS} ${LINK_MAP_FLAG} -o $@.elf" not in makefile_text:
+            raise AssertionError(f"{utility} link does not consume the link-map seam")
     document = donors.load_json(root / "docs/research/dpucp-2024-donor-ledger.json")
     requirement_ids = donors.load_requirement_ids(
         root / "docs/research/dpucp-2024-requirements.tsv"
@@ -74,6 +91,23 @@ def main():
     if printf_validator is None:
         raise AssertionError("missing printf growth-exception validator")
     printf_validator(printf_measurement, root)
+
+    recovery_measurement_path = (
+        root / "docs/research/recovery-path-utilities-growth-exception.json"
+    )
+    if getattr(donors, "RECOVERY_MEASUREMENT_DATA", None) != str(
+        recovery_measurement_path.relative_to(root)
+    ):
+        raise AssertionError("recovery growth exception is not bound to the verifier")
+    if not recovery_measurement_path.is_file():
+        raise AssertionError("missing machine-readable recovery growth exception")
+    recovery_measurement = json.loads(
+        recovery_measurement_path.read_text(encoding="utf-8")
+    )
+    recovery_validator = getattr(donors, "validate_recovery_measurement", None)
+    if recovery_validator is None:
+        raise AssertionError("missing recovery growth-exception validator")
+    recovery_validator(recovery_measurement, root)
 
     for state in ("base", "candidate"):
         kernel_measurement = shell_measurement["kernel"][state]
@@ -204,6 +238,71 @@ def main():
         pass
     else:
         raise AssertionError("printf archive-member count mutation passed")
+
+    changed_recovery_measurement = copy.deepcopy(recovery_measurement)
+    changed_recovery_measurement["programs"]["textbox"]["candidate"][
+        "text_bytes"
+    ] += 4
+    try:
+        recovery_validator(changed_recovery_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("recovery textbox delta mutation passed")
+
+    changed_recovery_measurement = copy.deepcopy(recovery_measurement)
+    changed_recovery_measurement["programs"]["uudecode"]["base"][
+        "raw_bytes"
+    ] += 1
+    changed_recovery_measurement["programs"]["uudecode"]["candidate"][
+        "raw_bytes"
+    ] += 1
+    try:
+        recovery_validator(changed_recovery_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("recovery a.out raw-size mutation passed")
+
+    changed_recovery_measurement = copy.deepcopy(recovery_measurement)
+    changed_recovery_measurement["root"]["candidate"]["free_blocks"] += 1
+    try:
+        recovery_validator(changed_recovery_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("recovery root arithmetic mutation passed")
+
+    changed_recovery_measurement = copy.deepcopy(recovery_measurement)
+    changed_recovery_measurement["composition"]["shipped_form"] = "standalone"
+    try:
+        recovery_validator(changed_recovery_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("recovery shipped-form mutation passed")
+
+    changed_recovery_measurement = copy.deepcopy(recovery_measurement)
+    changed_recovery_measurement["composition"][
+        "candidate_textbox_libc_members"
+    ] += 1
+    try:
+        recovery_validator(changed_recovery_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("recovery archive-member count mutation passed")
+
+    changed_recovery_measurement = copy.deepcopy(recovery_measurement)
+    changed_recovery_measurement["resources"]["realpath_stack"][
+        "classification"
+    ] = "dynamic"
+    try:
+        recovery_validator(changed_recovery_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("recovery dynamic stack classification passed")
 
     promoted_ids = {
         "libc-reallocarray",

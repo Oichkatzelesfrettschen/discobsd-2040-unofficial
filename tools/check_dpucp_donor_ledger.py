@@ -107,6 +107,8 @@ SHELL_MEASUREMENT = "docs/research/shell-command-getopts-growth-exception.md"
 SHELL_MEASUREMENT_DATA = "docs/research/shell-command-getopts-growth-exception.json"
 PRINTF_MEASUREMENT = "docs/research/utility-printf-growth-exception.md"
 PRINTF_MEASUREMENT_DATA = "docs/research/utility-printf-growth-exception.json"
+RECOVERY_MEASUREMENT = "docs/research/recovery-path-utilities-growth-exception.md"
+RECOVERY_MEASUREMENT_DATA = "docs/research/recovery-path-utilities-growth-exception.json"
 
 
 class DonorError(RuntimeError):
@@ -639,6 +641,379 @@ def validate_printf_measurement(measurement, repository_root):
         )
 
 
+def validate_recovery_measurement(measurement, repository_root):
+    require(
+        set(measurement) == {
+            "schema_version",
+            "profile_id",
+            "base_commit",
+            "implementation_commit",
+            "block_bytes",
+            "kernel",
+            "programs",
+            "root",
+            "composition",
+            "maps",
+            "resources",
+            "reviewer_approval",
+        },
+        "malformed recovery growth exception",
+    )
+    require(measurement["schema_version"] == 1, "unsupported recovery schema")
+    require(measurement["profile_id"] == "DPUCP-2024", "wrong recovery profile")
+    for field in ("base_commit", "implementation_commit"):
+        require(
+            re.fullmatch(r"[0-9a-f]{40}", measurement[field]) is not None,
+            f"bad recovery measurement {field}",
+        )
+    require(measurement["block_bytes"] == 1024, "recovery block size drift")
+
+    kernel = measurement["kernel"]
+    require(
+        set(kernel) == {"region_bytes", "base", "candidate", "delta"},
+        "malformed recovery kernel measurement",
+    )
+    require(kernel["region_bytes"] == 131072, "recovery kernel region drift")
+    kernel_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "loaded_flash_span_bytes",
+        "load_tail_margin_bytes",
+    }
+    for state in ("base", "candidate"):
+        require(set(kernel[state]) == kernel_fields, f"malformed {state} recovery kernel")
+        require_nonnegative_integers(
+            kernel[state], kernel_fields, f"{state} recovery kernel"
+        )
+        require(
+            kernel[state]["load_tail_margin_bytes"]
+            == kernel["region_bytes"] - kernel[state]["loaded_flash_span_bytes"],
+            f"inconsistent {state} recovery kernel margin",
+        )
+    require(
+        set(kernel["delta"]) == {"text_bytes", "data_bytes", "bss_bytes"},
+        "malformed recovery kernel delta",
+    )
+    for field in kernel["delta"]:
+        require(
+            kernel["delta"][field]
+            == kernel["candidate"][field] - kernel["base"][field],
+            f"inconsistent recovery kernel {field} delta",
+        )
+
+    programs = measurement["programs"]
+    require(
+        set(programs)
+        == {
+            "process_window_bytes",
+            "textbox",
+            "uudecode",
+            "readlink",
+            "realpath",
+            "largest_process",
+        },
+        "malformed recovery program measurement",
+    )
+    require(programs["process_window_bytes"] == 147456, "recovery process window drift")
+    program_fields = {
+        "text_bytes",
+        "data_bytes",
+        "bss_bytes",
+        "window_occupancy_before_stack_bytes",
+        "window_margin_before_stack_bytes",
+        "raw_bytes",
+        "packed_bytes",
+        "packed_blocks",
+    }
+    delta_fields = program_fields - {"window_margin_before_stack_bytes"}
+    for program_name in ("textbox", "uudecode"):
+        program = programs[program_name]
+        require(set(program) == {"base", "candidate", "delta"}, f"malformed {program_name}")
+        for state in ("base", "candidate"):
+            values = program[state]
+            require(set(values) == program_fields, f"malformed {state} {program_name}")
+            require_nonnegative_integers(values, program_fields, f"{state} {program_name}")
+            occupancy = values["text_bytes"] + values["data_bytes"] + values["bss_bytes"]
+            require(
+                values["window_occupancy_before_stack_bytes"] == occupancy,
+                f"inconsistent {state} {program_name} occupancy",
+            )
+            require(
+                values["window_margin_before_stack_bytes"]
+                == programs["process_window_bytes"] - occupancy,
+                f"inconsistent {state} {program_name} margin",
+            )
+            require(
+                values["raw_bytes"] == 32 + values["text_bytes"] + values["data_bytes"],
+                f"inconsistent {state} {program_name} a.out size",
+            )
+        require(set(program["delta"]) == delta_fields, f"malformed {program_name} delta")
+        for field in delta_fields:
+            require(
+                program["delta"][field]
+                == program["candidate"][field] - program["base"][field],
+                f"inconsistent {program_name} {field} delta",
+            )
+
+    for program_name in ("readlink", "realpath"):
+        values = programs[program_name]
+        require(set(values) == program_fields, f"malformed {program_name}")
+        require_nonnegative_integers(values, program_fields, program_name)
+        occupancy = values["text_bytes"] + values["data_bytes"] + values["bss_bytes"]
+        require(
+            values["window_occupancy_before_stack_bytes"] == occupancy,
+            f"inconsistent {program_name} occupancy",
+        )
+        require(
+            values["window_margin_before_stack_bytes"]
+            == programs["process_window_bytes"] - occupancy,
+            f"inconsistent {program_name} margin",
+        )
+        require(
+            values["raw_bytes"] == 32 + values["text_bytes"] + values["data_bytes"],
+            f"inconsistent {program_name} a.out size",
+        )
+
+    largest = programs["largest_process"]
+    require(
+        set(largest)
+        == {
+            "name",
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "delta_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "malformed recovery largest-process measurement",
+    )
+    require(largest["name"] == "warp", "recovery largest-process identity drift")
+    require_nonnegative_integers(
+        largest,
+        {
+            "base_loaded_bytes",
+            "candidate_loaded_bytes",
+            "candidate_window_margin_before_stack_bytes",
+        },
+        "recovery largest-process measurement",
+    )
+    require(
+        largest["delta_loaded_bytes"]
+        == largest["candidate_loaded_bytes"] - largest["base_loaded_bytes"],
+        "inconsistent recovery largest-process delta",
+    )
+    require(
+        largest["candidate_window_margin_before_stack_bytes"]
+        == programs["process_window_bytes"] - largest["candidate_loaded_bytes"],
+        "inconsistent recovery largest-process margin",
+    )
+
+    root = measurement["root"]
+    require(
+        set(root)
+        == {
+            "partition_blocks",
+            "inode_list_blocks",
+            "base",
+            "candidate",
+            "delta",
+            "candidate_free_bytes",
+        },
+        "malformed recovery root measurement",
+    )
+    require(root["partition_blocks"] == 988, "recovery root partition drift")
+    require(root["inode_list_blocks"] == 9, "recovery root inode-list drift")
+    for state in ("base", "candidate"):
+        require(
+            set(root[state]) == {"files", "data_blocks", "free_blocks"},
+            f"malformed recovery root {state}",
+        )
+        require_nonnegative_integers(
+            root[state], {"files", "data_blocks", "free_blocks"}, f"recovery root {state}"
+        )
+        require(
+            root[state]["data_blocks"] + root[state]["free_blocks"]
+            + root["inode_list_blocks"] == root["partition_blocks"],
+            f"inconsistent recovery root {state} arithmetic",
+        )
+    require(
+        set(root["delta"]) == {"files", "data_blocks", "free_blocks"},
+        "malformed recovery root delta",
+    )
+    for field in root["delta"]:
+        require(
+            root["delta"][field] == root["candidate"][field] - root["base"][field],
+            f"inconsistent recovery root {field} delta",
+        )
+    require(
+        root["candidate_free_bytes"]
+        == root["candidate"]["free_blocks"] * measurement["block_bytes"],
+        "inconsistent recovery root free-byte margin",
+    )
+
+    composition = measurement["composition"]
+    require(
+        set(composition)
+        == {
+            "shipped_form",
+            "archive_members_evidence",
+            "candidate_readlink_libc_members",
+            "candidate_realpath_libc_members",
+            "candidate_textbox_libc_members",
+            "alternative_textbox_libc_members",
+            "alternative_textbox",
+            "alternative_readlink_packed_blocks",
+            "alternative_realpath_packed_blocks",
+            "alternative_combined_packed_blocks",
+            "shipped_textbox_packed_blocks",
+            "multicall_saved_root_blocks",
+        },
+        "malformed recovery composition measurement",
+    )
+    require(composition["shipped_form"] == "textbox", "recovery shipped-form drift")
+    require(
+        safe_path(composition["archive_members_evidence"]),
+        "unsafe recovery archive-member evidence path",
+    )
+    count_fields = {
+        "candidate_readlink_libc_members",
+        "candidate_realpath_libc_members",
+        "candidate_textbox_libc_members",
+        "alternative_textbox_libc_members",
+        "alternative_readlink_packed_blocks",
+        "alternative_realpath_packed_blocks",
+        "alternative_combined_packed_blocks",
+        "shipped_textbox_packed_blocks",
+        "multicall_saved_root_blocks",
+    }
+    require_nonnegative_integers(composition, count_fields, "recovery composition")
+    alternative = composition["alternative_textbox"]
+    alternative_fields = program_fields - {"window_margin_before_stack_bytes"}
+    require(set(alternative) == alternative_fields, "malformed alternative textbox")
+    require_nonnegative_integers(alternative, alternative_fields, "alternative textbox")
+    require(
+        alternative["window_occupancy_before_stack_bytes"]
+        == alternative["text_bytes"] + alternative["data_bytes"] + alternative["bss_bytes"],
+        "inconsistent alternative textbox occupancy",
+    )
+    require(
+        alternative["raw_bytes"] == 32 + alternative["text_bytes"] + alternative["data_bytes"],
+        "inconsistent alternative textbox a.out size",
+    )
+    require(
+        composition["alternative_readlink_packed_blocks"] == programs["readlink"]["packed_blocks"],
+        "inconsistent alternative readlink block count",
+    )
+    require(
+        composition["alternative_realpath_packed_blocks"] == programs["realpath"]["packed_blocks"],
+        "inconsistent alternative realpath block count",
+    )
+    require(
+        composition["alternative_combined_packed_blocks"]
+        == alternative["packed_blocks"]
+        + composition["alternative_readlink_packed_blocks"]
+        + composition["alternative_realpath_packed_blocks"],
+        "inconsistent recovery alternative block count",
+    )
+    require(
+        composition["shipped_textbox_packed_blocks"]
+        == programs["textbox"]["candidate"]["packed_blocks"],
+        "inconsistent shipped textbox block count",
+    )
+    require(
+        composition["multicall_saved_root_blocks"]
+        == composition["alternative_combined_packed_blocks"]
+        - composition["shipped_textbox_packed_blocks"],
+        "inconsistent recovery multicall savings",
+    )
+
+    evidence_path = repository_root / composition["archive_members_evidence"]
+    require(evidence_path.is_file(), "missing recovery archive-member evidence")
+    try:
+        with evidence_path.open(encoding="utf-8", newline="") as evidence_file:
+            reader = csv.DictReader(evidence_file, delimiter="\t")
+            require(
+                reader.fieldnames == ["program", "archive_member"],
+                "malformed recovery archive-member header",
+            )
+            evidence_rows = list(reader)
+    except (OSError, UnicodeError, csv.Error) as error:
+        raise DonorError(f"cannot read recovery archive-member evidence: {error}") from error
+    expected_programs = {
+        "standalone_readlink": "candidate_readlink_libc_members",
+        "standalone_realpath": "candidate_realpath_libc_members",
+        "textbox": "candidate_textbox_libc_members",
+        "textbox_without_path_applets": "alternative_textbox_libc_members",
+    }
+    require(
+        {row["program"] for row in evidence_rows} == set(expected_programs),
+        "unexpected recovery archive-member program",
+    )
+    require(
+        all(
+            re.fullmatch(r"libc[.]a[(][A-Za-z0-9_.]+[)]", row["archive_member"])
+            is not None
+            for row in evidence_rows
+        ),
+        "malformed recovery archive-member name",
+    )
+    require(
+        len({(row["program"], row["archive_member"]) for row in evidence_rows})
+        == len(evidence_rows),
+        "duplicate recovery archive member",
+    )
+    for program, count_field in expected_programs.items():
+        require(
+            sum(row["program"] == program for row in evidence_rows)
+            == composition[count_field],
+            f"inconsistent {program} archive-member count",
+        )
+
+    maps = measurement["maps"]
+    require(
+        set(maps) == {"readlink", "realpath", "textbox", "textbox_without_path_applets"},
+        "malformed recovery map identities",
+    )
+    for map_name, identities in maps.items():
+        require(
+            set(identities) == {"map_sha256", "binary_sha256"},
+            f"malformed {map_name} identity",
+        )
+        require(
+            all(re.fullmatch(r"[0-9a-f]{64}", value) is not None for value in identities.values()),
+            f"bad {map_name} identity",
+        )
+
+    resources = measurement["resources"]
+    require(set(resources) == {"realpath_stack"}, "malformed recovery resources")
+    stack = resources["realpath_stack"]
+    require(
+        set(stack) == {"classification", "measured_bytes", "ceiling_bytes", "known_bad_bytes"},
+        "malformed realpath stack measurement",
+    )
+    require(stack["classification"] == "static", "realpath stack is not static")
+    require_nonnegative_integers(
+        stack, {"measured_bytes", "ceiling_bytes", "known_bad_bytes"}, "realpath stack"
+    )
+    require(stack["measured_bytes"] <= stack["ceiling_bytes"], "realpath stack exceeds ceiling")
+    require(stack["known_bad_bytes"] > stack["ceiling_bytes"], "realpath known-bad stack fits")
+
+    approval = measurement["reviewer_approval"]
+    require(
+        set(approval) == {"status", "reviewer", "evidence"},
+        "malformed recovery reviewer approval",
+    )
+    require(approval["status"] in {"pending", "approved"}, "bad recovery approval state")
+    if approval["status"] == "approved":
+        require(bool(approval["reviewer"]), "approved recovery exception lacks reviewer")
+        require(bool(approval["evidence"]), "approved recovery exception lacks evidence")
+    else:
+        require(
+            not approval["reviewer"] and not approval["evidence"],
+            "pending recovery approval has evidence",
+        )
+
+
 def safe_path(value):
     path = PurePosixPath(value)
     return bool(value) and not path.is_absolute() and ".." not in path.parts
@@ -673,6 +1048,9 @@ def validate_document(root, document, requirement_ids):
     printf_measurement_path = root / PRINTF_MEASUREMENT_DATA
     require(printf_measurement_path.is_file(), "missing printf growth-exception data")
     validate_printf_measurement(load_json(printf_measurement_path), root)
+    recovery_measurement_path = root / RECOVERY_MEASUREMENT_DATA
+    require(recovery_measurement_path.is_file(), "missing recovery growth-exception data")
+    validate_recovery_measurement(load_json(recovery_measurement_path), root)
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",

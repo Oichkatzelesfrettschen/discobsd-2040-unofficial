@@ -44,6 +44,20 @@ not offset a larger process-window maximum. An exception records exact deltas,
 examined alternatives, retained margins, user benefit, rollback point and
 reviewer approval.
 
+## First hardware release
+
+The first hardware release binds each shipped acceptance surface to an Issue 8
+row and its calibrated pre-board witness. The ordered surface is shell
+`command`, shell `getopts`, utility `printf`, `readlink`, `realpath`, `uudecode`
+and `timeout`. Group labels cannot stand in for individual utilities because a
+group could remain unchanged while one shipped program silently leaves the
+board workload.
+
+Host, ILP32, sanitizer and cross evidence prepare these utilities for the
+release. Renode remains a separate emulator class. Physical-board evidence is
+recorded only after the approved UF2 pair executes each named surface through
+the measured USB console.
+
 ## Later compatibility families
 
 The schema-2 `later_families` records keep seven deferred families inside the

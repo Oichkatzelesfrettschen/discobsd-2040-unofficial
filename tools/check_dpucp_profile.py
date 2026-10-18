@@ -41,6 +41,96 @@ IMPLEMENTATION_STATES = ("present", "partial", "absent", "divergent")
 EVIDENCE_STATES = ("none", "static", "host", "cross", "qemu-user", "renode", "board")
 RESIDUAL_STATES = ("closed", "open", "blocked")
 UNOWNED_OPTIONS = {"none-known", "pending-source-analysis"}
+FIRST_HARDWARE_RELEASE = (
+    "shell-command",
+    "shell-getopts",
+    "utility-printf",
+    "utility-readlink",
+    "utility-realpath",
+    "utility-uudecode",
+    "utility-timeout",
+)
+FIRST_HARDWARE_RELEASE_BINDINGS = {
+    "shell-command": (
+        "dpucp-2024:utility:command",
+        "shell-command-host-contract",
+    ),
+    "shell-getopts": (
+        "dpucp-2024:utility:getopts",
+        "shell-getopts-host-contract",
+    ),
+    "utility-printf": (
+        "dpucp-2024:utility:printf",
+        "utility-printf-native-ilp32-cross-contract",
+    ),
+    "utility-readlink": (
+        "dpucp-2024:utility:readlink",
+        "recovery-utilities-native-cross-contract",
+    ),
+    "utility-realpath": (
+        "dpucp-2024:utility:realpath",
+        "recovery-utilities-native-cross-contract",
+    ),
+    "utility-uudecode": (
+        "dpucp-2024:utility:uudecode",
+        "recovery-utilities-native-cross-contract",
+    ),
+    "utility-timeout": (
+        "dpucp-2024:utility:timeout",
+        "timeout-native-cross-link-contract",
+    ),
+}
+FIRST_HARDWARE_RELEASE_WITNESSES = {
+    "shell-command-host-contract": {
+        "command": (
+            ': "${PYTHON:?set PYTHON to the intended interpreter}"; '
+            "export PYTHON; bmake MACHINE=rp2040 check-posix-sh"
+        ),
+        "evidence": "host",
+        "known_good": "bin/sh/tests/posix-sh.sh",
+        "known_bad": "bin/sh/tests/fixtures/command-null-builtin.json",
+    },
+    "shell-getopts-host-contract": {
+        "command": (
+            ': "${PYTHON:?set PYTHON to the intended interpreter}"; '
+            "export PYTHON; bmake MACHINE=rp2040 check-posix-sh"
+        ),
+        "evidence": "host",
+        "known_good": "bin/sh/tests/posix-sh.sh",
+        "known_bad": "bin/sh/tests/fixtures/getopts-optind-skip.json",
+    },
+    "utility-printf-native-ilp32-cross-contract": {
+        "command": (
+            ': "${PYTHON:?set PYTHON to the intended interpreter}"; '
+            "export PYTHON; bmake MACHINE=rp2040 check-printf-contracts "
+            "check-printf-contracts-ilp32 check-printf-contracts-cross"
+        ),
+        "evidence": "host",
+        "known_good": "tests/printf_contracts/behavior_test.py",
+        "known_bad": "tests/printf_contracts/known_bad.sh",
+    },
+    "recovery-utilities-native-cross-contract": {
+        "command": (
+            ': "${PYTHON:?set PYTHON to the intended interpreter}"; '
+            "export PYTHON; bmake MACHINE=rp2040 "
+            "check-recovery-utility-contracts "
+            "check-recovery-utility-contracts-cross"
+        ),
+        "evidence": "host",
+        "known_good": "tests/recovery_utility_contracts/check.py",
+        "known_bad": "tests/recovery_utility_contracts/known_bad.c",
+    },
+    "timeout-native-cross-link-contract": {
+        "command": (
+            ': "${PYTHON:?set PYTHON to the intended interpreter}"; '
+            "export PYTHON; bmake MACHINE=rp2040 check-timeout-contracts "
+            "check-timeout-contracts-cross check-timeout-target-link"
+        ),
+        "evidence": "host",
+        "known_good": "tests/timeout_contracts/behavior_test.py",
+        "known_bad": "tests/timeout_contracts/known_bad.c",
+    },
+}
 LATER_FAMILY_IDS = (
     "on-device-c",
     "regex-and-text-processing",
@@ -411,6 +501,36 @@ def validate_witnesses(root, profile, row):
     return witness_ids
 
 
+def validate_first_hardware_release(profile, rows_by_id):
+    release = profile.get("first_hardware_release")
+    require(
+        release == list(FIRST_HARDWARE_RELEASE),
+        "first hardware release surface drift",
+    )
+    witnesses = profile.get("witnesses")
+    require(isinstance(witnesses, dict), "profile witness catalog is absent")
+    for release_id in FIRST_HARDWARE_RELEASE:
+        requirement_id, witness_id = FIRST_HARDWARE_RELEASE_BINDINGS[release_id]
+        row = rows_by_id.get(requirement_id)
+        require(row is not None, f"first release requirement is absent: {release_id}")
+        require(
+            row["implementation"] in {"present", "partial"},
+            f"first release requirement is not implemented: {release_id}",
+        )
+        require(
+            row["evidence"] != "none",
+            f"first release requirement lacks evidence: {release_id}",
+        )
+        require(
+            witness_id in row["witness"].split(";"),
+            f"first release witness differs: {release_id}",
+        )
+        require(
+            witnesses.get(witness_id) == FIRST_HARDWARE_RELEASE_WITNESSES[witness_id],
+            f"first release witness identity differs: {witness_id}",
+        )
+
+
 def validate_documents(root, corpus, entities, profile, rows):
     require(profile.get("schema_version") == 2, "unsupported DPUCP schema")
     identity = profile.get("profile")
@@ -508,6 +628,10 @@ def validate_documents(root, corpus, entities, profile, rows):
     require(set(seen) == set(expected_entities), "DPUCP entity set differs from Issue 8")
     expected_order = [(entity.kind, entity.name) for entity in issue8_entities]
     require(list(seen) == expected_order, "DPUCP rows are not in corpus order")
+    validate_first_hardware_release(
+        profile,
+        {row["requirement_id"]: row for row in rows},
+    )
 
     requirements = profile.get("requirements")
     require(isinstance(requirements, dict), "requirements metadata is absent")

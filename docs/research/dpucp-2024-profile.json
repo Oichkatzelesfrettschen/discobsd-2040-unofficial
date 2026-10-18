@@ -148,7 +148,10 @@
     "shell-command",
     "shell-getopts",
     "utility-printf",
-    "recovery-file-path-utilities"
+    "utility-readlink",
+    "utility-realpath",
+    "utility-uudecode",
+    "utility-timeout"
   ],
   "later_families": [
     {

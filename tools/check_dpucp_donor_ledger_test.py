@@ -73,7 +73,7 @@ def main():
     printf_validator = getattr(donors, "validate_printf_measurement", None)
     if printf_validator is None:
         raise AssertionError("missing printf growth-exception validator")
-    printf_validator(printf_measurement)
+    printf_validator(printf_measurement, root)
 
     for state in ("base", "candidate"):
         kernel_measurement = shell_measurement["kernel"][state]
@@ -156,16 +156,30 @@ def main():
         "text_bytes"
     ] += 4
     try:
-        printf_validator(changed_printf_measurement)
+        printf_validator(changed_printf_measurement, root)
     except donors.DonorError:
         pass
     else:
         raise AssertionError("printf utilbox delta mutation passed")
 
     changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["programs"]["standalone_printf"]["base"][
+        "raw_bytes"
+    ] += 1
+    changed_printf_measurement["programs"]["standalone_printf"]["candidate"][
+        "raw_bytes"
+    ] += 1
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf a.out raw-size mutation passed")
+
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
     changed_printf_measurement["root"]["candidate"]["free_blocks"] += 1
     try:
-        printf_validator(changed_printf_measurement)
+        printf_validator(changed_printf_measurement, root)
     except donors.DonorError:
         pass
     else:
@@ -174,11 +188,22 @@ def main():
     changed_printf_measurement = copy.deepcopy(printf_measurement)
     changed_printf_measurement["composition"]["shipped_form"] = "standalone"
     try:
-        printf_validator(changed_printf_measurement)
+        printf_validator(changed_printf_measurement, root)
     except donors.DonorError:
         pass
     else:
         raise AssertionError("printf shipped-form mutation passed")
+
+    changed_printf_measurement = copy.deepcopy(printf_measurement)
+    changed_printf_measurement["composition"][
+        "candidate_standalone_libc_members"
+    ] += 1
+    try:
+        printf_validator(changed_printf_measurement, root)
+    except donors.DonorError:
+        pass
+    else:
+        raise AssertionError("printf archive-member count mutation passed")
 
     promoted_ids = {
         "libc-reallocarray",

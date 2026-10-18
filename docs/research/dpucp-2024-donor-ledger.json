@@ -367,7 +367,7 @@
       },
       "deciding_gate": "Pass percent-b, backslash-c, embedded-NUL, repeated-format, width, precision, malformed-format, numeric-error, and final-status witnesses and preserve all constrained surfaces.",
       "disposition": "promoted",
-      "residual": "The selected byte-locale subset is implemented and measured with a pending growth exception. Keep the requirement open until Issue 8 positional star operands and mixed numbered-format behavior have executable witnesses and the approved complete-image measurement remains within its retained margins."
+      "residual": "The selected byte-locale subset is implemented and measured with a pending growth exception. Keep the Base requirement open until required floating and wide-character conversions have bounded executable witnesses and the approved complete-image measurement remains within its retained margins. Treat positional star operands as an optional extension and mixed numbering as unspecified behavior."
     },
     {
       "id": "utility-readlink",

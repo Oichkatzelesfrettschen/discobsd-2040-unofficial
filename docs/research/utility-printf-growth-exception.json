@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile_id": "DPUCP-2024",
   "base_commit": "91c9338a3854b4950da752f3825b2026d34d1dfc",
-  "implementation_commit": "e60deffcd89494b600baca855e439a16743a44d9",
+  "implementation_commit": "86c762d704c512c294836871234a1c77ca2d9ffc",
   "block_bytes": 1024,
   "kernel": {
     "region_bytes": 131072,
@@ -30,33 +30,33 @@
     "process_window_bytes": 147456,
     "standalone_printf": {
       "base": {
-        "text_bytes": 8234,
+        "text_bytes": 8236,
         "data_bytes": 212,
         "bss_bytes": 196,
-        "window_occupancy_before_stack_bytes": 8642,
-        "window_margin_before_stack_bytes": 138814,
+        "window_occupancy_before_stack_bytes": 8644,
+        "window_margin_before_stack_bytes": 138812,
         "raw_bytes": 8480,
         "packed_bytes": 7400,
         "packed_blocks": 9
       },
       "candidate": {
-        "text_bytes": 7848,
+        "text_bytes": 8252,
         "data_bytes": 200,
         "bss_bytes": 72,
-        "window_occupancy_before_stack_bytes": 8120,
-        "window_margin_before_stack_bytes": 139336,
-        "raw_bytes": 8080,
-        "packed_bytes": 7141,
-        "packed_blocks": 8
+        "window_occupancy_before_stack_bytes": 8524,
+        "window_margin_before_stack_bytes": 138932,
+        "raw_bytes": 8484,
+        "packed_bytes": 7418,
+        "packed_blocks": 9
       },
       "delta": {
-        "text_bytes": -386,
+        "text_bytes": 16,
         "data_bytes": -12,
         "bss_bytes": -124,
-        "window_occupancy_before_stack_bytes": -522,
-        "raw_bytes": -400,
-        "packed_bytes": -259,
-        "packed_blocks": -1
+        "window_occupancy_before_stack_bytes": -120,
+        "raw_bytes": 4,
+        "packed_bytes": 18,
+        "packed_blocks": 0
       }
     },
     "utilbox": {
@@ -71,22 +71,22 @@
         "packed_blocks": 44
       },
       "candidate": {
-        "text_bytes": 54060,
+        "text_bytes": 54464,
         "data_bytes": 581,
         "bss_bytes": 4255,
-        "window_occupancy_before_stack_bytes": 58896,
-        "window_margin_before_stack_bytes": 88560,
-        "raw_bytes": 54673,
-        "packed_bytes": 44496,
+        "window_occupancy_before_stack_bytes": 59300,
+        "window_margin_before_stack_bytes": 88156,
+        "raw_bytes": 55077,
+        "packed_bytes": 44773,
         "packed_blocks": 45
       },
       "delta": {
-        "text_bytes": 744,
+        "text_bytes": 1148,
         "data_bytes": 0,
         "bss_bytes": 0,
-        "window_occupancy_before_stack_bytes": 744,
-        "raw_bytes": 744,
-        "packed_bytes": 693,
+        "window_occupancy_before_stack_bytes": 1148,
+        "raw_bytes": 1148,
+        "packed_bytes": 970,
         "packed_blocks": 1
       }
     },
@@ -120,9 +120,14 @@
   },
   "composition": {
     "shipped_form": "utilbox",
-    "standalone_rejected_added_root_blocks": 8,
-    "candidate_standalone_libc_members": 35,
-    "candidate_utilbox_libc_members": 112
+    "archive_members_evidence": "docs/research/utility-printf-archive-members.tsv",
+    "candidate_standalone_libc_members": 36,
+    "candidate_utilbox_libc_members": 113,
+    "alternative_utilbox_libc_members": 111,
+    "alternative_utilbox_packed_blocks": 43,
+    "alternative_standalone_packed_blocks": 9,
+    "alternative_combined_packed_blocks": 52,
+    "standalone_rejected_net_root_blocks": 7
   },
   "reviewer_approval": {
     "status": "pending",

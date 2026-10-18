@@ -357,7 +357,7 @@ def validate_shell_measurement(measurement):
         )
 
 
-def validate_printf_measurement(measurement):
+def validate_printf_measurement(measurement, repository_root):
     require(
         set(measurement) == {
             "schema_version",
@@ -373,7 +373,7 @@ def validate_printf_measurement(measurement):
         },
         "malformed printf growth exception",
     )
-    require(measurement["schema_version"] == 1, "unsupported printf measurement schema")
+    require(measurement["schema_version"] == 2, "unsupported printf measurement schema")
     require(measurement["profile_id"] == "DPUCP-2024", "wrong printf measurement profile")
     for field in ("base_commit", "implementation_commit"):
         require(
@@ -447,6 +447,11 @@ def validate_printf_measurement(measurement):
                 values["window_margin_before_stack_bytes"]
                 == programs["process_window_bytes"] - occupancy,
                 f"inconsistent {state} {program_name} margin",
+            )
+            require(
+                values["raw_bytes"]
+                == 32 + values["text_bytes"] + values["data_bytes"],
+                f"inconsistent {state} {program_name} a.out size",
             )
         require(set(program["delta"]) == delta_fields, f"malformed {program_name} delta")
         for field in delta_fields:
@@ -530,23 +535,93 @@ def validate_printf_measurement(measurement):
     require(
         set(composition) == {
             "shipped_form",
-            "standalone_rejected_added_root_blocks",
+            "archive_members_evidence",
             "candidate_standalone_libc_members",
             "candidate_utilbox_libc_members",
+            "alternative_utilbox_libc_members",
+            "alternative_utilbox_packed_blocks",
+            "alternative_standalone_packed_blocks",
+            "alternative_combined_packed_blocks",
+            "standalone_rejected_net_root_blocks",
         },
         "malformed printf composition measurement",
     )
     require(composition["shipped_form"] == "utilbox", "printf shipped-form drift")
     require(
-        composition["standalone_rejected_added_root_blocks"]
-        == programs["standalone_printf"]["candidate"]["packed_blocks"],
-        "inconsistent rejected standalone root cost",
+        safe_path(composition["archive_members_evidence"]),
+        "unsafe printf archive-member evidence path",
     )
     require_nonnegative_integers(
         composition,
-        {"candidate_standalone_libc_members", "candidate_utilbox_libc_members"},
+        {
+            "candidate_standalone_libc_members",
+            "candidate_utilbox_libc_members",
+            "alternative_utilbox_libc_members",
+            "alternative_utilbox_packed_blocks",
+            "alternative_standalone_packed_blocks",
+            "alternative_combined_packed_blocks",
+            "standalone_rejected_net_root_blocks",
+        },
         "printf archive-member count",
     )
+    require(
+        composition["alternative_standalone_packed_blocks"]
+        == programs["standalone_printf"]["candidate"]["packed_blocks"],
+        "inconsistent alternative standalone block count",
+    )
+    require(
+        composition["alternative_combined_packed_blocks"]
+        == composition["alternative_utilbox_packed_blocks"]
+        + composition["alternative_standalone_packed_blocks"],
+        "inconsistent alternative combined block count",
+    )
+    require(
+        composition["standalone_rejected_net_root_blocks"]
+        == composition["alternative_combined_packed_blocks"]
+        - programs["utilbox"]["candidate"]["packed_blocks"],
+        "inconsistent rejected standalone net block cost",
+    )
+
+    evidence_path = repository_root / composition["archive_members_evidence"]
+    require(evidence_path.is_file(), "missing printf archive-member evidence")
+    try:
+        with evidence_path.open(encoding="utf-8", newline="") as evidence_file:
+            reader = csv.DictReader(evidence_file, delimiter="\t")
+            require(
+                reader.fieldnames == ["program", "archive_member"],
+                "malformed printf archive-member header",
+            )
+            evidence_rows = list(reader)
+    except (OSError, UnicodeError, csv.Error) as error:
+        raise DonorError(f"cannot read printf archive-member evidence: {error}") from error
+    expected_programs = {
+        "standalone_printf": "candidate_standalone_libc_members",
+        "utilbox": "candidate_utilbox_libc_members",
+        "utilbox_without_printf": "alternative_utilbox_libc_members",
+    }
+    require(
+        {row["program"] for row in evidence_rows} == set(expected_programs),
+        "unexpected printf archive-member program",
+    )
+    require(
+        all(
+            re.fullmatch(r"libc[.]a[(][A-Za-z0-9_.]+[)]", row["archive_member"])
+            is not None
+            for row in evidence_rows
+        ),
+        "malformed printf archive-member name",
+    )
+    require(
+        len({(row["program"], row["archive_member"]) for row in evidence_rows})
+        == len(evidence_rows),
+        "duplicate printf archive member",
+    )
+    for program, count_field in expected_programs.items():
+        require(
+            sum(row["program"] == program for row in evidence_rows)
+            == composition[count_field],
+            f"inconsistent {program} archive-member count",
+        )
 
     approval = measurement["reviewer_approval"]
     require(
@@ -597,7 +672,7 @@ def validate_document(root, document, requirement_ids):
     validate_shell_measurement(load_json(shell_measurement_path))
     printf_measurement_path = root / PRINTF_MEASUREMENT_DATA
     require(printf_measurement_path.is_file(), "missing printf growth-exception data")
-    validate_printf_measurement(load_json(printf_measurement_path))
+    validate_printf_measurement(load_json(printf_measurement_path), root)
     require(
         "makes no POSIX or UNIX conformance claim" in document.get("claim", ""),
         "donor ledger makes a conformance claim",

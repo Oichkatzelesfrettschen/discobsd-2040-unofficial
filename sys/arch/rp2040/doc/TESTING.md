@@ -339,15 +339,19 @@ host sizing; every production invocation retains a positive deadline. A
 SIGINT or SIGTERM received by an execution supervisor first terminates its
 owned group and records the signal result. That propagation lets an enclosing
 aggregate terminate variant groups that deliberately use separate sessions.
-A supervisor gives its nested child a cleanup allowance smaller than the
-allowance its parent reserves for the supervisor. The ordering lets three
-nested supervisors finish descendant cleanup before an ancestor escalates to
-SIGKILL. Each inherited allowance covers the complete termination and reap
-sequence. The child share excludes a bounded response reserve, and the parent
-retains a separate final-reap interval. The response reserve spans two polling
-intervals, which leaves time for signal observation and host scheduling before
-an ancestor escalates. A calibrated resistant-leaf fixture requires every
-owned process group to be absent before the outer supervisor returns.
+A top-level executable supervisor creates a private ownership receipt for its
+process tree. Nested supervisors reserve each launch in that receipt before
+creating a detached group and replace the reservation with the group identifier
+after launch. Expiration sends SIGTERM to every registered group together,
+discovers groups registered during cleanup, then sends SIGKILL to every survivor
+within the same bounded cleanup interval. A live group or unresolved launch
+reservation produces `cleanup_incomplete`; scheduler latency between nested
+signal handlers cannot turn an orphaned group into an ordinary timeout verdict.
+Nested supervisors retain smaller direct-child cleanup allowances, but the
+top-level tree cleanup does not depend on each child finishing before its parent
+escalates. A calibrated resistant-leaf fixture delays the innermost supervisor
+past the former response reserve and requires every owned process group to be
+absent before the outer supervisor returns.
 A successful direct child that leaves an owned descendant also triggers group
 cleanup before the supervisor publishes PASS.
 

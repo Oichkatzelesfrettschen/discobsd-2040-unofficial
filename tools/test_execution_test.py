@@ -751,7 +751,7 @@ class ExecutionTest(unittest.TestCase):
                 delayed_cleanup = (
                     "original_stop = test_execution.stop_process_group\n"
                     "def delayed_stop(*args, **kwargs):\n"
-                    "    time.sleep(0.05)\n"
+                    "    time.sleep(0.35)\n"
                     "    return original_stop(*args, **kwargs)\n"
                     "test_execution.stop_process_group = delayed_stop\n"
                     if level == 0 else ""

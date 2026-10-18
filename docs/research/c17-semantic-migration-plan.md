@@ -90,6 +90,12 @@ next independent row starts.
 | 11 | Remaining shipped utilities and multicall units | Shipped T1 obligations addressed before broad T3 cleanup | Shipped language/interface closure and lifetime-safe composition measurements |
 | 12 | Remaining maintained source | Shipped-system milestone | Optional ARM, host tools, adapters and Smaller C implementation acceptance; justified exclusions and global closure |
 
+`c17-shipped-build-baseline.md` records the implemented capture/closure/resource
+foundation at `e7040aa1`. Its source and resource companions bind 580 tracked
+C/header paths and 36 artifact groups to that revision. Shipped language
+acceptance, unreviewed migration ownership/risk decisions, runtime measurements
+and hardware qualification retain separate open states.
+
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real
 build and link dependencies, including selected libc members, generated headers

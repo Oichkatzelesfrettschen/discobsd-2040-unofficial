@@ -157,6 +157,7 @@ check-dpucp-board-acceptance: check-python
 # dependency, C17, ABI and footprint gates agree. Mutation controls reject
 # provenance, requirement, dependency, size-evidence and decision drift.
 check-dpucp-donor-ledger: check-python
+		${PYTHON} tools/measurement_source_identity_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger.py --root ${TOPSRC}
 

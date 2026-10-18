@@ -120,3 +120,9 @@ Renode execution, physical-board execution, and whole-program runtime peak
 measurements remain open. Physical-board work requires an exact command,
 artifact hash, resolved device, reason, and immediate owner approval before
 flash or serial access.
+
+The companion record's `retained_source_commit` identifies Git blobs whose
+bytes match the recorded candidate source hashes. The donor verifier checks
+those retained blobs and reports live differences separately. The recorded
+measurement values and original execution receipts retain their original
+scope; later source changes require separate current acceptance evidence.

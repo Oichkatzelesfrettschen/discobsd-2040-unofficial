@@ -253,5 +253,6 @@
     "whole-program runtime stack and heap peaks remain unmeasured",
     "Renode execution remains unrun",
     "physical-board execution remains unrun and requires explicit owner authorization"
-  ]
+  ],
+  "retained_source_commit": "152e5777c6f7d400efda48bdbcceec9cd9783a77"
 }

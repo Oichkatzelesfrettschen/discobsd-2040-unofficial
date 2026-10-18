@@ -150,3 +150,9 @@ The remaining process-control work is explicit:
 - Renode execution remains unrun.
 - Physical-board execution remains unrun and requires explicit owner
   authorization immediately before any flash or serial action.
+
+The companion record's `retained_source_commit` identifies Git blobs whose
+bytes match the recorded candidate source hashes. The donor verifier checks
+those retained blobs and reports live differences separately. The recorded
+measurement values and original execution receipts retain their original
+scope; later source changes require separate current acceptance evidence.

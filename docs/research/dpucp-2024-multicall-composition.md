@@ -33,9 +33,10 @@ blocks. `dpucp-2024-multicall-sizes.tsv` retains all seven multicall rows and
 all 71 primary standalone rows. The verifier binds the TSV digest, checks every
 row against the ledger, and runs `hsaout -s` over the current artifacts during
 the live-map gate. The ledger records the exact hsaout command pattern,
-captured host-tool digest, ARM compiler version, and bmake version. A live run
-with that recorded version pair must reproduce every retained byte and block
-count. A supported but different toolchain can change instruction selection,
+captured host-tool digest, ARM compiler version, ARM linker version, and bmake
+version. A live run with the recorded compiler, linker, and bmake versions must
+reproduce every retained byte and block count. A supported but different
+toolchain can change instruction selection,
 compression, and block rounding, so the live gate instead measures all 78
 artifacts together and requires every multicall image to consume fewer packed
 blocks than its standalone applets. The gate reports that evidence downgrade
@@ -50,11 +51,16 @@ infer savings from source line counts or object sizes.
 The optional `LINK_MAP` seam leaves normal links unchanged and emits a GNU ld
 map only when the caller names a destination. The composition gate relinks the
 seven boxes and `/bin/sh`, then compares the maps with the committed archive
-inventory. The measured eight-consumer closure has 669 consumer edges across
-192 distinct libc members: 130 members serve multiple consumers and 62 serve
-one consumer. Per-consumer counts are 116 for adminbox, 112 for box, 37 for
-gamebox, 46 for grepbox, 57 for sh, 101 for sysbox, 87 for textbox, and 113 for
-utilbox.
+inventory when the recorded compiler, linker, and bmake versions match. A
+different supported toolchain can select or synthesize different libc helpers.
+The live gate therefore parses every map, rejects an empty member set, reports each
+added or removed member by consumer, and states that exact archive-member
+replay remains unproved. The retained inventory remains bound as the exact
+same-toolchain receipt. The measured eight-consumer closure has 669 consumer
+edges across 192 distinct libc members: 130 members serve multiple consumers
+and 62 serve one consumer. Per-consumer counts are 116 for adminbox, 112 for
+box, 37 for gamebox, 46 for grepbox, 57 for sh, 101 for sysbox, 87 for textbox,
+and 113 for utilbox.
 
 Static linking shares one selected archive member inside one executable. It
 does not share that member across separate process images. Equal private symbol
@@ -89,13 +95,14 @@ missing-login diagnostic, and exit status before the residual can close.
 
 ## Verification
 
-Run a clean RP2040 build before the composition gate because libc and public
-header changes must reach every linked program:
+Run a logged clean RP2040 distribution before the composition gate because
+libc and public header changes must reach every linked program and the verifier
+reads the generated `sdcard.img`:
 
 ```sh
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
-bmake MACHINE=rp2040 build
+bmake MACHINE=rp2040 logged-distribution
 bmake MACHINE=rp2040 check-multicall-composition
 ```
 
@@ -103,12 +110,13 @@ The cross graph separates the three composition gates with `.WAIT` boundaries
 because every gate cleans or relinks shared products. The composition recipe
 runs the shell clean and link in separate recursive makes and relinks the other
 consumers sequentially. It then validates the source identities, dispatch and
-manifest denominators, archive inventory, per-program image measurements,
-retained receipts, and root-image accounting. Nineteen document mutations and
-three Makefile structure controls reject conformance claims, denominator drift,
-unmeasured sizes, manifest and root drift, missing or forged receipts, source
-identity drift, stale link maps, and unsafe build ordering. `check-dpucp-profile` separately
-rejects removal or weakening of the `logname` compatibility binding.
+manifest denominators, archive inventory and live deltas, per-program image
+measurements, retained receipts, and root-image accounting. Nineteen document
+mutations and three Makefile structure controls reject conformance claims,
+denominator drift, unmeasured sizes, manifest and root drift, missing or forged
+receipts, source identity drift, stale link maps, and unsafe build ordering.
+`check-dpucp-profile` separately rejects removal or weakening of the `logname`
+compatibility binding.
 
 Runtime peak stack and heap remain unmeasured. Renode execution remains a
 separate evidence class. Physical-board execution remains unrun and requires

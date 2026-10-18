@@ -3,6 +3,7 @@
 import copy
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 import check_multicall_composition as composition
 
@@ -139,6 +140,57 @@ def main():
         members = composition.parse_libc_members(map_path)
         if members != ("libc.a(puts.o)", "libc.a(write.o)"):
             raise AssertionError(f"link-map member parse drift: {members}")
+
+    retained_members = ("libc.a(memcpy.o)", "libc.a(write.o)")
+    linux_members = (
+        "libc.a(memcpy.o)",
+        "libc.a(memmove.o)",
+        "libc.a(write.o)",
+    )
+    added_members, removed_members = composition.validate_live_archive_members(
+        retained_members, linux_members, exact=False
+    )
+    if added_members != ("libc.a(memmove.o)",) or removed_members:
+        raise AssertionError(
+            "cross-toolchain archive delta accounting differs: "
+            f"added={added_members}, removed={removed_members}"
+        )
+    try:
+        composition.validate_live_archive_members(
+            retained_members, linux_members, exact=True
+        )
+    except composition.CompositionError:
+        pass
+    else:
+        raise AssertionError("exact archive replay accepted a linker-member delta")
+    try:
+        composition.validate_live_archive_members(
+            retained_members, (), exact=False
+        )
+    except composition.CompositionError:
+        pass
+    else:
+        raise AssertionError("cross-toolchain archive accounting accepted no members")
+
+    version_summary = {
+        "arm_cc_version": "recorded compiler",
+        "arm_ld_version": "recorded linker",
+        "bmake_version": "recorded bmake",
+    }
+    with mock.patch.object(
+        composition,
+        "command_version",
+        side_effect=("recorded compiler", "different linker", "recorded bmake"),
+    ):
+        exact, observed_cc, observed_ld, observed_bmake = (
+            composition.measurement_environment_matches(version_summary)
+        )
+    if exact or (
+        observed_cc,
+        observed_ld,
+        observed_bmake,
+    ) != ("recorded compiler", "different linker", "recorded bmake"):
+        raise AssertionError("ARM linker drift retained exact measurement mode")
 
     cases = []
 

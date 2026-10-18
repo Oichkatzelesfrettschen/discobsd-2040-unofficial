@@ -28,8 +28,8 @@
     "sbin/textbox/Makefile": "b58577cc69f20e01c659bb651d9c7fbff948cc1a258235a4c4c1460dac6417c9",
     "sbin/utilbox/Makefile": "fa9580d05254cf674beaffa519507dd5707f2f92e087e1e72e2aecfe7ef9b4b7",
     "share/mk/multicall-bss-overlay.mk": "05856af460e78fb78c7dfb640ef25a89c7f72bb8b9b952d4cf6acf849d4e0672",
-    "tools/check_multicall_composition.py": "e51696e3f9c69215b1d7c58027eb67ea3aab8dd835fe480ae1bc42eee3dabd8e",
-    "tools/check_multicall_composition_test.py": "835b31ac9365a8a335d8d1e2cdae533aeaedf0d5461d984d4f75bb51bf81dc3e",
+    "tools/check_multicall_composition.py": "c512f109697403cf74432d9613d0fba60ddf42cbe4c4f26c08dc1e31570df134",
+    "tools/check_multicall_composition_test.py": "d7fce85b7e74d2978f117db1c92f12fb2d0a1fa29966d9ff2739bd3d91e10979",
     "tools/fsutil/fsutil.c": "be2a847ab3b77805e3e00ff4d413e7b7bf010f5a27dabce4ed1f7f1fe59a8b63",
     "tools/fsutil/superblock.c": "273df13d8f290bc6543a7b715c1d762522d06f9ab9d7a21c90d54521b1037930",
     "tools/hsaout/hsaout.c": "e377d74fe29064806fb06d0f24c879b5a9847894048752fe626f8ddc6d2b25d9",
@@ -185,6 +185,7 @@
     "captured_hsaout_sha256": "ee37aa1a766fca96cf52f35760e1e70fe58316f84762f688354b0ba4523668ad",
     "command_pattern": "tools/bin/rp2040/hsaout -s <ordered inventory paths>",
     "arm_cc_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+    "arm_ld_version": "GNU ld (GNU Binutils) 2.47.20260726",
     "bmake_version": "20260912"
   },
   "archive_summary": {
@@ -230,7 +231,7 @@
   "deduplication_disposition": {
     "archive_overlap": "The inventory exposes every libc member shared by shell and the seven boxes. Static linking already shares each member inside one box but repeats it across independent process images.",
     "private_applet_symbols": "Applet-local symbol names are not folded across localized objects because equal names do not establish equal behavior, state ownership, or lifetime.",
-    "decision": "Keep the seven process images separate and retain the proven BSS overlays; the 433-block packed-root saving over primary standalone images is larger than any unproved cross-process folding candidate."
+    "decision": "Keep the seven process images separate and retain the proven BSS overlays; the measured composition saves 433 packed-root blocks relative to the primary standalone images."
   },
   "residuals": [
     "Whole-program runtime stack and heap peaks remain unmeasured.",

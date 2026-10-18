@@ -48,6 +48,21 @@ def parse_libc_members(path):
     return tuple(sorted(members))
 
 
+def validate_live_archive_members(
+    retained_members, live_members, exact, label="live libc members"
+):
+    if not live_members:
+        raise CompositionError("live link map names no libc archive members")
+    if exact:
+        require_equal(live_members, retained_members, label)
+    retained_set = set(retained_members)
+    live_set = set(live_members)
+    return (
+        tuple(sorted(live_set - retained_set)),
+        tuple(sorted(retained_set - live_set)),
+    )
+
+
 def parse_inventory(path):
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -210,14 +225,18 @@ def measurement_environment_matches(summary):
     observed_arm_cc = command_version(
         ["arm-none-eabi-gcc", "--version"], "ARM compiler"
     )
+    observed_arm_ld = command_version(
+        ["arm-none-eabi-ld", "--version"], "ARM linker"
+    )
     observed_bmake = command_version(
         ["bmake", "-V", "MAKE_VERSION"], "bmake"
     )
     exact = (
         observed_arm_cc == summary["arm_cc_version"]
+        and observed_arm_ld == summary["arm_ld_version"]
         and observed_bmake == summary["bmake_version"]
     )
-    return exact, observed_arm_cc, observed_bmake
+    return exact, observed_arm_cc, observed_arm_ld, observed_bmake
 
 
 def capture_inventory(document, map_root):
@@ -519,6 +538,7 @@ def validate_measurement_inventory(root, document, boxes, live):
         "captured_hsaout_sha256",
         "command_pattern",
         "arm_cc_version",
+        "arm_ld_version",
         "bmake_version",
     }
     if not isinstance(summary, dict) or set(summary) != expected_fields:
@@ -561,12 +581,18 @@ def validate_measurement_inventory(root, document, boxes, live):
         raise CompositionError("invalid captured hsaout digest")
     if live:
         measured = measure_hsaout(root, tool_path, records)
-        exact, observed_arm_cc, observed_bmake = measurement_environment_matches(
-            summary
+        exact, observed_arm_cc, observed_arm_ld, observed_bmake = (
+            measurement_environment_matches(summary)
         )
         validate_live_measurements(records, boxes, measured, exact)
-        return records, exact, observed_arm_cc, observed_bmake
-    return records, True, summary["arm_cc_version"], summary["bmake_version"]
+        return records, exact, observed_arm_cc, observed_arm_ld, observed_bmake
+    return (
+        records,
+        True,
+        summary["arm_cc_version"],
+        summary["arm_ld_version"],
+        summary["bmake_version"],
+    )
 
 
 def measure_root_image(fsutil_path, image_path):
@@ -660,7 +686,7 @@ def validate_root_measurement(root, document, candidate_receipt, live, exact):
     )
 
 
-def validate_archive_summary(root, document, map_root):
+def validate_archive_summary(root, document, map_root, exact):
     summary = document.get("archive_summary", {})
     inventory_path = root / summary.get("inventory_path", "")
     require_equal(
@@ -680,6 +706,7 @@ def validate_archive_summary(root, document, map_root):
         + [program["id"] for program in document.get("standalone_programs", [])]
     )
     require_equal(sorted(consumer_members), expected_consumers, "archive consumers")
+    live_deltas = []
     for consumer in [*document["boxes"], *document.get("standalone_programs", [])]:
         members = consumer_members[consumer["id"]]
         require_equal(
@@ -688,11 +715,15 @@ def validate_archive_summary(root, document, map_root):
             f"{consumer['id']} archive-member count",
         )
         if map_root is not None:
-            require_equal(
-                list(parse_libc_members(map_root / consumer["link_map"])),
-                members,
+            live_members = parse_libc_members(map_root / consumer["link_map"])
+            added_members, removed_members = validate_live_archive_members(
+                tuple(members), live_members, exact,
                 f"{consumer['id']} live libc members",
             )
+            if added_members or removed_members:
+                live_deltas.append(
+                    (consumer["id"], added_members, removed_members)
+                )
     shared = sorted(
         member for member, consumer_count in member_consumers.items()
         if consumer_count > 1
@@ -713,6 +744,7 @@ def validate_archive_summary(root, document, map_root):
     )
     require_equal(summary.get("shared_members"), len(shared), "shared archive members")
     require_equal(summary.get("single_consumer_members"), len(unique), "single-consumer members")
+    return live_deltas
 
 
 def validate_document(root, document, map_root=None):
@@ -750,7 +782,7 @@ def validate_document(root, document, map_root=None):
         raise CompositionError("duplicate multicall box identity")
     if len(installed_paths) != len(set(installed_paths)):
         raise CompositionError("duplicate multicall installed path")
-    _, exact_measurement, observed_arm_cc, observed_bmake = (
+    _, exact_measurement, observed_arm_cc, observed_arm_ld, observed_bmake = (
         validate_measurement_inventory(root, document, boxes, map_root is not None)
     )
 
@@ -857,7 +889,9 @@ def validate_document(root, document, map_root=None):
     shell_makefile = (root / "bin/sh/Makefile").read_text(encoding="utf-8")
     if "${LINK_MAP_FLAG}" not in shell_makefile:
         raise CompositionError("shell link does not consume LINK_MAP_FLAG")
-    validate_archive_summary(root, document, map_root)
+    archive_deltas = validate_archive_summary(
+        root, document, map_root, exact_measurement
+    )
     receipts = validate_clean_distribution_receipts(root, document)
     validate_root(document, links, receipts)
     validate_root_measurement(
@@ -868,11 +902,19 @@ def validate_document(root, document, map_root=None):
         exact_measurement,
     )
     if map_root is not None and not exact_measurement:
+        for consumer, added_members, removed_members in archive_deltas:
+            print(
+                "multicall composition: cross-toolchain libc member delta "
+                f"{consumer}: added={list(added_members)!r}, "
+                f"removed={list(removed_members)!r}"
+            )
         print(
             "multicall composition: live toolchain differs from retained "
             f"measurement: ARM compiler={observed_arm_cc!r}, "
-            f"bmake={observed_bmake!r}; validated live block savings and "
-            "root capacity without claiming exact byte replay"
+            f"ARM linker={observed_arm_ld!r}, "
+            f"bmake={observed_bmake!r}; validated live link-map accounting, "
+            "block savings, and root capacity without claiming exact "
+            "archive-member or byte replay"
         )
 
 

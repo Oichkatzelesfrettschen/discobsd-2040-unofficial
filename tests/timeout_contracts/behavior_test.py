@@ -273,6 +273,79 @@ main(void)
     )
 
 
+def write_sigprocmask_interposer(path: Path) -> None:
+    path.write_text(
+        """#define _POSIX_C_SOURCE 200809L
+#include <signal.h>
+
+#include <errno.h>
+#include <stddef.h>
+
+static int timeout_test_block_count;
+static int timeout_test_drain_seen;
+
+int
+timeout_test_sigprocmask(int operation, const sigset_t *signals,
+    sigset_t *inherited_signals)
+{
+    if (signals != NULL && operation == SIG_UNBLOCK)
+        timeout_test_drain_seen = 1;
+    if (signals != NULL && operation == SIG_BLOCK) {
+        timeout_test_block_count++;
+        if (timeout_test_block_count > 1 && !timeout_test_drain_seen) {
+            errno = EINVAL;
+            return -1;
+        }
+    }
+    return sigprocmask(operation, signals, inherited_signals);
+}
+""",
+        encoding="utf-8",
+    )
+
+
+def exercise_sigprocmask_interposer(
+    compiler: str, sigprocmask_interposer: Path, build_directory: Path
+) -> None:
+    driver_source = build_directory / "sigprocmask-interposer-driver.c"
+    driver_binary = build_directory / "sigprocmask-interposer-driver"
+    driver_source.write_text(
+        """#define _POSIX_C_SOURCE 200809L
+#include <signal.h>
+
+#include <errno.h>
+#include <stddef.h>
+
+extern int timeout_test_sigprocmask(int, const sigset_t *, sigset_t *);
+
+int
+main(void)
+{
+    sigset_t signals;
+
+    if (sigemptyset(&signals) < 0 || sigaddset(&signals, SIGTERM) < 0 ||
+        timeout_test_sigprocmask(SIG_BLOCK, &signals, NULL) < 0)
+        return 2;
+    errno = 0;
+    if (timeout_test_sigprocmask(SIG_BLOCK, &signals, NULL) == 0)
+        return 1;
+    return errno == EINVAL ? 0 : 2;
+}
+""",
+        encoding="utf-8",
+    )
+    compile_program(
+        compiler,
+        driver_binary,
+        [driver_source, sigprocmask_interposer],
+    )
+    result = run([str(driver_binary)])
+    require(
+        result.returncode == 0,
+        "sigprocmask interposer admits a second block without a drain",
+    )
+
+
 def write_sigaction_interposer(path: Path) -> None:
     path.write_text(
         """#define _POSIX_C_SOURCE 200809L
@@ -320,6 +393,7 @@ def compile_mutation(
     original: str,
     replacement: str,
     fork_interposer: Path,
+    sigprocmask_interposer: Path,
     sigaction_interposer: Path,
 ) -> Path:
     source_text = production_source.read_text(encoding="utf-8")
@@ -333,6 +407,19 @@ def compile_mutation(
             mutated_binary,
             [mutated_source, fork_interposer],
             ("-Dfork=timeout_test_fork",),
+        )
+    elif name == "self-signal-drain":
+        interposed_source = build_directory / "timeout-sigprocmask-interposed.c"
+        interposed_source.write_text(
+            f'#include "{sigprocmask_interposer.name}"\n'
+            "#define sigprocmask(...) timeout_test_sigprocmask(__VA_ARGS__)\n"
+            f'#include "{mutated_source.name}"\n',
+            encoding="utf-8",
+        )
+        compile_program(
+            compiler,
+            mutated_binary,
+            [interposed_source],
         )
     elif name == "mimic-sigaction-flags":
         interposed_source = build_directory / "timeout-sigaction-interposed.c"
@@ -647,6 +734,7 @@ def calibrate_mutations(
     probe_binary: Path,
     build_directory: Path,
     fork_interposer: Path,
+    sigprocmask_interposer: Path,
     sigaction_interposer: Path,
 ) -> None:
     for name, original, replacement in MUTATIONS:
@@ -658,6 +746,7 @@ def calibrate_mutations(
             original,
             replacement,
             fork_interposer,
+            sigprocmask_interposer,
             sigaction_interposer,
         )
         try:
@@ -913,6 +1002,11 @@ def main() -> int:
         fork_interposer = build_directory / "fork-interposer.c"
         write_fork_interposer(fork_interposer)
         exercise_fork_interposer(compiler, fork_interposer, build_directory)
+        sigprocmask_interposer = build_directory / "sigprocmask-interposer.c"
+        write_sigprocmask_interposer(sigprocmask_interposer)
+        exercise_sigprocmask_interposer(
+            compiler, sigprocmask_interposer, build_directory
+        )
         sigaction_interposer = build_directory / "sigaction-interposer.c"
         write_sigaction_interposer(sigaction_interposer)
         sigchld_binary = build_directory / "timeout-sigchld-order"
@@ -929,6 +1023,7 @@ def main() -> int:
             probe_binary,
             build_directory,
             fork_interposer,
+            sigprocmask_interposer,
             sigaction_interposer,
         )
 

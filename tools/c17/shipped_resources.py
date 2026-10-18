@@ -103,8 +103,108 @@ def packed_file_blocks(length):
     return data_blocks + metadata
 
 
+def archive_component(value, label):
+    require(isinstance(value, str) and value not in {"", ".", ".."}
+            and "/" not in value and "\\" not in value
+            and all(ord(character) >= 32 and ord(character) != 127 for character in value),
+            "invalid archive component: " + label)
+    return value
+
+
+def archive_basename(identity):
+    require(isinstance(identity, str), "invalid archive identity")
+    if identity.startswith("external:"):
+        basename, separator, archive_hash = identity.removeprefix("external:").rpartition("@")
+        require(separator, "external archive identity lacks its retained digest")
+        sha(archive_hash, "external archive")
+        return archive_component(basename, "external archive basename")
+    require(identity.startswith("tree:"), "archive identity lacks an ownership prefix")
+    relative = identity.removeprefix("tree:")
+    path = Path(relative)
+    require(relative and not path.is_absolute() and path.as_posix() == relative
+            and all(part not in {".", ".."} for part in path.parts),
+            "invalid tree archive path")
+    for part in path.parts:
+        archive_component(part, "tree archive path")
+    return path.name
+
+
+def validate_archive_members(archives, group):
+    require(isinstance(archives, dict), "archive selections are absent: " + group)
+    for identity, members in archives.items():
+        archive_basename(identity)
+        require(isinstance(members, dict) and members,
+                "archive has an empty or invalid selected-member set: " + group)
+        for member, member_hash in members.items():
+            archive_component(member, "selected member")
+            sha(member_hash, "archive member:" + member)
+
+
+def verify_artifact_owners(groups, expected):
+    require(isinstance(groups, dict) and set(groups) == set(expected),
+            "dependency closure artifact owner denominator differs")
+    for name, artifact in expected.items():
+        require(isinstance(groups[name], dict) and groups[name].get("artifacts") == [artifact],
+                "dependency closure artifact owner differs: " + name)
+
+
+def collect_archive_selections(groups):
+    selections = {}
+    for name, group in groups.items():
+        archives = group.get("archive_members")
+        require(isinstance(archives, dict), "closure archive selections are absent: " + name)
+        selected = {}
+        for label, members in archives.items():
+            require(isinstance(label, str), "invalid closure archive identity")
+            if label.startswith("external:"):
+                archive_hash = group.get("external_inputs", {}).get(label)
+                sha(archive_hash, "external archive:" + label)
+                identity = "external:" + Path(label).name + "@" + archive_hash
+            else:
+                identity = "tree:" + label
+            require(identity not in selected, "archive identity collision: " + name)
+            require(isinstance(members, dict), "invalid closure archive members: " + name)
+            selected[identity] = dict(members)
+        validate_archive_members(selected, name)
+        selections[name] = selected
+    return selections
+
+
+def artifact_group(prefix, name):
+    require(isinstance(name, str) and name.startswith("/")
+            and Path(name).as_posix() == name and ".." not in Path(name).parts,
+            "invalid manifest archive-selection path")
+    return prefix + "." + name.lstrip("/").replace("/", ".")
+
+
+def validate_archive_selections(document):
+    expected = ["PICO", "PICO_UART"]
+    expected.extend(artifact_group("root", name) for name in document["manifest"]["packs"])
+    expected.extend(artifact_group("native", name)
+                    for name in document["manifest"]["native_files"])
+    selections = document.get("archive_selections")
+    require(isinstance(selections, dict) and len(set(expected)) == len(expected)
+            and set(selections) == set(expected), "archive selection denominator differs")
+    for name, archives in selections.items():
+        validate_archive_members(archives, name)
+    for name, program in document["programs"].items():
+        archives = selections[artifact_group("root", name)]
+        projected = sorted({member for archive, members in archives.items()
+                            if archive_basename(archive) == "libc.a" for member in members})
+        require(program["libc_members"] == projected, "libc archive projection differs: " + name)
+    for name, artifact in document["native_artifacts"].items():
+        archives = selections[artifact_group("native", name)]
+        projected = sorted({member for members in archives.values() for member in members})
+        require(artifact["archive_members"] == projected,
+                "native archive projection differs: " + name)
+
+
 def validate(document):
-    require(document["schema_version"] == 1, "unsupported resource schema")
+    require(type(document["schema_version"]) is int and document["schema_version"] in {1, 2},
+            "unsupported resource schema")
+    if document["schema_version"] == 2:
+        sha(document["collector_sha256"], "collector")
+        sha(document["execution"]["closure_sha256"], "closure")
     require(re.fullmatch(r"[0-9a-f]{40}", document["source"]["commit"]),
             "source commit identity is absent")
     for name in ["cc", "ld", "bmake"]:
@@ -170,12 +270,18 @@ def validate(document):
     for name in ["stack", "heap", "storage_traffic"]:
         require(document["runtime"][name] == {"status": "unmeasured"},
                 "runtime measurement requires a separate calibrated receipt: " + name)
+    if document["schema_version"] == 2:
+        validate_archive_selections(document)
     return metrics
 
 
 def compare(base, candidate):
     baseline = validate(base)
     measured = validate(candidate)
+    require(base["schema_version"] == candidate["schema_version"] == 2,
+            "complete archive comparison requires schema 2 receipts")
+    require(base["collector_sha256"] == candidate["collector_sha256"],
+            "paired collector identities differ")
     require(base["toolchain"] == candidate["toolchain"], "paired toolchain identities differ")
     require(base["measurement_tools"] == candidate["measurement_tools"],
             "paired measurement tool identities differ")
@@ -190,9 +296,22 @@ def compare(base, candidate):
         old = set(base["native_artifacts"][name]["archive_members"])
         new = set(artifact["archive_members"])
         changes["native:" + name] = {"added": sorted(new - old), "removed": sorted(old - new)}
-    return {"schema_version": 1, "deltas": deltas,
+    selections = {}
+    for name, archives in candidate["archive_selections"].items():
+        previous = base["archive_selections"][name]
+        selections[name] = {}
+        for archive in sorted(set(previous) | set(archives)):
+            old = previous.get(archive, {})
+            new = archives.get(archive, {})
+            selections[name][archive] = {
+                "added": sorted(set(new) - set(old)),
+                "removed": sorted(set(old) - set(new)),
+                "changed": sorted(member for member in set(old) & set(new)
+                                  if old[member] != new[member])}
+    return {"schema_version": 2, "deltas": deltas,
             "positive_deltas": [name for name, delta in deltas.items() if delta > 0],
-            "archive_changes": changes, "runtime_acceptance": "open"}
+            "archive_changes": changes, "archive_selection_changes": selections,
+            "runtime_acceptance": "open"}
 
 
 def output_of(command, cwd):
@@ -245,6 +364,11 @@ def capture(root, closure_path, receipt_path):
     manifest_path = root / "distrib/rp2040/_manifest"
     require(digest(manifest_path) == provenance["manifest_sha256"],
             "manifest differs from closure provenance")
+    expected_paths = manifest_artifacts(root, manifest_path)
+    expected_paths.update({configuration: f"sys/arch/rp2040/compile/{configuration}/unix"
+                           for configuration in ("PICO", "PICO_UART")})
+    verify_artifact_owners(groups, {name: {"path": relative, "sha256": digest(root / relative)}
+                                   for name, relative in expected_paths.items()})
     packs, links = parse_manifest(manifest_path)
     destination = root / "distrib/obj/destdir.rp2040"
     programs = {}
@@ -255,11 +379,10 @@ def capture(root, closure_path, receipt_path):
         path = root / entry["path"]
         parsed = parse_aout(path, DEFAULT_TEXT_BASE)
         program_hash = digest(path)
-        owners = [group for group in groups.values()
-                  if any(artifact["path"] == entry["path"] and
-                         artifact["sha256"] == program_hash for artifact in group["artifacts"])]
-        require(len(owners) == 1, "program lacks one current dependency-closure owner: " + name)
-        libc_members = sorted({member for archive, members in owners[0]["archive_members"].items()
+        owner = groups[artifact_group("root", name)]
+        require(owner["artifacts"] == [{"path": entry["path"], "sha256": program_hash}],
+                "program dependency closure artifact owner differs: " + name)
+        libc_members = sorted({member for archive, members in owner["archive_members"].items()
                                if Path(archive).name == "libc.a" for member in members})
         raw, packed, _, blocks = measurement
         programs[name] = {"sha256": program_hash, "text": parsed["text_size"],
@@ -271,9 +394,9 @@ def capture(root, closure_path, receipt_path):
         relative = f"sys/arch/rp2040/compile/{configuration}/unix"
         path = root / relative
         kernel = section_inventory(path, root)
-        require(any(artifact["path"] == relative and artifact["sha256"] == kernel["sha256"]
-                    for group in groups.values() for artifact in group["artifacts"]),
-                "kernel lacks current dependency-closure evidence: " + configuration)
+        require(groups[configuration]["artifacts"] == [
+                    {"path": relative, "sha256": kernel["sha256"]}],
+                "kernel dependency closure artifact owner differs: " + configuration)
         kernels[configuration] = kernel
     native = {}
     for name, relative in manifest_artifacts(root, manifest_path).items():
@@ -281,11 +404,10 @@ def capture(root, closure_path, receipt_path):
             continue
         path = root / relative
         artifact_hash = digest(path)
-        owners = [group for group in groups.values()
-                  if any(artifact["path"] == relative and artifact["sha256"] == artifact_hash
-                         for artifact in group["artifacts"])]
-        require(len(owners) == 1, "native artifact lacks current dependency closure")
-        members = sorted({member for archive in owners[0]["archive_members"].values()
+        owner = groups[name]
+        require(owner["artifacts"] == [{"path": relative, "sha256": artifact_hash}],
+                "native dependency closure artifact owner differs: " + name)
+        members = sorted({member for archive in owner["archive_members"].values()
                           for member in archive})
         native["/" + path.relative_to(destination).as_posix()] = {
             "sha256": artifact_hash, "bytes": path.stat().st_size, "archive_members": members}
@@ -293,7 +415,8 @@ def capture(root, closure_path, receipt_path):
     root_measurements = measure_root_image(root / "tools/bin/rp2040/fsutil", image_path)
     root_measurements["sha256"] = bound_image(image_path, provenance)
     document = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "archive_selections": collect_archive_selections(groups),
         "source": {"commit": provenance["source_commit"],
                    "tracked_files_sha256": provenance["tracked_files_sha256"]},
         "toolchain": {
@@ -338,12 +461,19 @@ def main():
             result = capture(args.root, args.closure, args.distribution_receipt)
             args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
         elif args.operation == "validate":
-            validate(json.loads(args.candidate.read_text()))
+            candidate = json.loads(args.candidate.read_text())
+            validate(candidate)
+            if candidate["schema_version"] == 1:
+                print("PASS historical schema-1 static measurements; complete archive "
+                      "comparison requires schema 2; runtime remains unmeasured")
+                return 0
         else:
             result = compare(json.loads(args.base.read_text()),
                              json.loads(args.candidate.read_text()))
             args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-            require(not any(change["added"] for change in result["archive_changes"].values()),
+            require(not any(change["added"]
+                            for group in result["archive_selection_changes"].values()
+                            for change in group.values()),
                     "added archive dependencies require measured review")
             require(not result["positive_deltas"],
                     "positive constrained-surface deltas require reviewed exceptions: " +

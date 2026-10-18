@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -5,6 +6,8 @@
 
 unsigned int db_alarm(unsigned int);
 int test_setitimer(int, const struct itimerval *, struct itimerval *);
+
+int alarm_test_errno;
 
 static int setitimer_result;
 static struct itimerval prior_timer;
@@ -22,6 +25,8 @@ test_setitimer(int timer_kind, const struct itimerval *new_timer,
 	}
 	requested_timer = *new_timer;
 	*old_timer = prior_timer;
+	if (setitimer_result < 0)
+		alarm_test_errno = EIO;
 	return (setitimer_result);
 }
 
@@ -75,9 +80,11 @@ main(void)
 	    "preserves the unsigned request through time_t");
 
 	prepare(5, 500000, -1);
+	alarm_test_errno = 0;
 	remaining = db_alarm(3);
 	check(remaining == UINT_MAX,
 	    "maps a setitimer failure to the unsigned error sentinel");
+	check(alarm_test_errno == EIO, "preserves errno from setitimer");
 
 	if (failures != 0)
 		return (1);

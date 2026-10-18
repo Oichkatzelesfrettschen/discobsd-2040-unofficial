@@ -100,6 +100,9 @@ PROMOTED_CANDIDATES = {
     "shell-getopts",
     "shell-command",
     "utility-printf",
+    "utility-readlink",
+    "utility-realpath",
+    "utility-uudecode",
 }
 FOUNDATION_MEASUREMENT = "docs/research/libc-array-memory-line-reading.md"
 FOUNDATION_MEASUREMENT_DATA = "docs/research/libc-array-memory-line-reading.json"
@@ -1153,6 +1156,12 @@ def validate_document(root, document, requirement_ids):
                 expected_evidence = SHELL_MEASUREMENT
             elif candidate_id == "utility-printf":
                 expected_evidence = PRINTF_MEASUREMENT
+            elif candidate_id in {
+                "utility-readlink",
+                "utility-realpath",
+                "utility-uudecode",
+            }:
+                expected_evidence = RECOVERY_MEASUREMENT
             else:
                 expected_evidence = FOUNDATION_MEASUREMENT
             require(size["evidence"] == expected_evidence, f"unbound size evidence: {candidate_id}")

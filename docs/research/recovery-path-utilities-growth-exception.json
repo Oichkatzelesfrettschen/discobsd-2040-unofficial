@@ -187,8 +187,8 @@
     }
   },
   "reviewer_approval": {
-    "status": "pending",
-    "reviewer": "",
-    "evidence": ""
+    "status": "approved",
+    "reviewer": "Codex independent reviewer (review_recovery_root_fix)",
+    "evidence": "Independent reproduction of HEAD 3cf8c07f8036f4a1cc95f1a2b88c827d79f512ba confirmed corrected sizes, hashes, archive-member sets, focused gates, retained margins and the rejected standalone composition; runtime peaks and complete base64 padding and footer validation remain open."
   }
 }

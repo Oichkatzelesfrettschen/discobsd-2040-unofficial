@@ -311,6 +311,9 @@ def main():
         "shell-getopts",
         "shell-command",
         "utility-printf",
+        "utility-readlink",
+        "utility-realpath",
+        "utility-uudecode",
     }
     for candidate in document["candidates"]:
         if candidate["id"] in promoted_ids:

@@ -1,6 +1,6 @@
 # Recovery path utilities growth exception
 
-Status: pending independent review.
+Status: approved.
 
 The DPUCP-2024 recovery utility work adds tested `readlink`, `realpath`, and
 `uudecode -o -` compatibility subsets without claiming POSIX or UNIX
@@ -144,11 +144,13 @@ cost. Shipping separate path executables fails the packed-root comparison.
 
 Uudecode already ships as a standalone file and retains the same 11-block
 allocation. The 32-byte loaded growth preserves binary-clean `-o -`, checked
-write failures, complete encoded-line validation, truncated-input rejection,
-and signed base64 sentinels under Cortex-M0+ unsigned-char mode. Removing any
-of those repairs reintroduces a witnessed data-corruption or error-reporting
-failure. No examined valid decomposition produces nonpositive deltas on every
-constrained surface.
+write failures, complete traditional encoded-line validation, missing
+traditional-footer rejection, and signed base64 sentinels under Cortex-M0+
+unsigned-char mode. Removing any of those repairs reintroduces a witnessed
+data-corruption or error-reporting failure. Complete base64 padding and `====`
+footer validation remains open: incomplete base64 input can emit decoded bytes
+and return success. No examined valid decomposition produces nonpositive deltas
+on every constrained surface.
 
 ## User-visible benefit and rollback
 
@@ -172,9 +174,11 @@ execution.
 
 ## Approval
 
-Reviewer: pending.
+Reviewer: Codex independent reviewer (`review_recovery_root_fix`).
 
-Approval requires an independent read-only review of the implementation
-commit, checked-in measurements, archive inventory, target-native map seam,
-retained margins, rejected alternatives, rollback point, and residual runtime
-uncertainty.
+The reviewer reproduced HEAD `3cf8c07f8036f4a1cc95f1a2b88c827d79f512ba`,
+including corrected a.out and packed sizes, map and binary hashes, archive-member
+sets, the focused native, sanitizer and cross gates, the retained kernel,
+process-window and root margins, and the rejected standalone composition. The
+approval retains runtime peak stack and heap as unmeasured surfaces and complete
+base64 padding and footer validation as an open decoder residual.

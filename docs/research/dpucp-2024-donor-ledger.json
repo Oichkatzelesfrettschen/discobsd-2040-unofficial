@@ -405,18 +405,21 @@
         "textbox readlink applet object"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
-          "textbox a.out text and data",
-          "textbox peak stack",
+          "standalone readlink a.out text, data, bss, raw and packed bytes",
+          "textbox a.out text, data, bss, raw and packed bytes",
+          "standalone and textbox libc archive-member maps",
           "144 KiB process-window occupancy",
+          "largest process-window consumer",
+          "PICO kernel region occupancy",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/recovery-path-utilities-growth-exception.md"
       },
       "deciding_gate": "Pass symlink, empty target where supported, maximum target, non-link, missing path, newline, and write-error witnesses and compare standalone against textbox packed-root composition.",
-      "disposition": "candidate",
-      "residual": "Confirm the target readlink contract and choose a measured buffer strategy before applet registration."
+      "disposition": "promoted",
+      "residual": "The one-operand and newline-control subset is implemented and measured through the shared textbox image. Keep the Base requirement partial and open until the remaining Issue 8 facets have executable witnesses and target execution confirms the selected behavior. Runtime peak stack and heap remain unmeasured."
     },
     {
       "id": "utility-realpath",
@@ -436,13 +439,13 @@
           "license": "BSD-3-Clause"
         }
       ],
-      "behavior": "Canonicalize each path with the existing libc resolver, print successful paths, continue across operands, and return failure when any operand fails.",
+      "behavior": "Canonicalize one path with the existing libc resolver, select whether the final component must exist through -e or -E, and write one canonical path line.",
       "invariants": [
         "Path resolution remains owned by libc rather than duplicated in the applet.",
-        "Each successful operand emits one canonical path line.",
-        "The final status reports any failed operand while preserving prior output."
+        "A successful operand emits one canonical path line.",
+        "A resolution or output failure reaches the utility exit status."
       ],
-      "algorithm": "Iterate operands, call realpath into one bounded buffer, emit successes, diagnose failures unless quiet operation is selected, and accumulate status.",
+      "algorithm": "Validate one operand, resolve a bounded chain of final symbolic links, delegate canonicalization to libc realpath, optionally admit one missing final component, and emit the resulting path.",
       "dependencies": [
         "existing libc realpath",
         "PATH_MAX policy or bounded dynamic buffer",
@@ -454,18 +457,22 @@
         "textbox realpath applet object"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
-          "textbox a.out text and data",
-          "textbox peak stack",
+          "standalone realpath a.out text, data, bss, raw and packed bytes",
+          "textbox a.out text, data, bss, raw and packed bytes",
+          "standalone and textbox libc archive-member maps",
+          "Cortex-M0+ static realpath frame",
           "144 KiB process-window occupancy",
+          "largest process-window consumer",
+          "PICO kernel region occupancy",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/recovery-path-utilities-growth-exception.md"
       },
-      "deciding_gate": "Pass relative, dot-dot, symlink, missing-component, repeated-operand, write-error, and accumulated-status witnesses and prove textbox composition is smaller than a standalone utility.",
-      "disposition": "candidate",
-      "residual": "Audit the existing realpath failure modes and measure the thin wrapper with the target path buffer."
+      "deciding_gate": "Pass one-operand, relative, dot-dot, symlink, missing-final, missing-prefix, trailing-slash, write-error, and option-precedence witnesses and prove textbox composition is smaller than a standalone utility.",
+      "disposition": "promoted",
+      "residual": "The one-operand -e and -E subset is implemented and measured through the shared textbox image. Keep the Base requirement partial and open until the remaining Issue 8 facets have executable witnesses and target execution confirms the selected behavior. Runtime peak stack and heap remain unmeasured beyond the bounded 672-byte static frame."
     },
     {
       "id": "utility-timeout",
@@ -558,18 +565,19 @@
         "textbox uudecode applet object"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
-          "textbox a.out text and data",
-          "textbox peak stack",
+          "uudecode a.out text, data, bss, raw and packed bytes",
           "144 KiB process-window occupancy",
+          "largest process-window consumer",
+          "PICO kernel region occupancy",
           "packed Dhara root blocks"
         ],
-        "evidence": ""
+        "evidence": "docs/research/recovery-path-utilities-growth-exception.md"
       },
-      "deciding_gate": "Pass binary-NUL stdout, malformed-header, malformed-line, truncated-input, write-failure, file-output regression, and packed-root composition witnesses with a nonpositive textbox delta.",
-      "disposition": "candidate",
-      "residual": "Characterize the existing decoder and add the stdout sink only after the link map identifies reusable output and parsing code."
+      "deciding_gate": "Pass binary-NUL stdout, malformed-header, malformed traditional line, missing traditional footer, write-failure, file-output regression, and packed-root witnesses.",
+      "disposition": "promoted",
+      "residual": "The binary-clean -o - and checked-output subset is implemented and measured. Keep the Base requirement partial and open until the remaining Issue 8 facets have executable witnesses. Complete base64 padding and ==== footer validation remains open because incomplete base64 input can return success after emitting decoded bytes. Runtime peak stack and heap remain unmeasured."
     },
     {
       "id": "utility-nl-bre",

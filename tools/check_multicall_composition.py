@@ -72,6 +72,87 @@ def parse_inventory(path):
     return inventory
 
 
+def parse_size_inventory(path):
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise CompositionError(f"cannot read size inventory {path}: {error}") from error
+    expected_header = (
+        "kind\tbox\tprogram\tpath\traw_bytes\tpacked_bytes\traw_blocks"
+        "\tpacked_blocks"
+    )
+    if not lines or lines[0] != expected_header:
+        raise CompositionError("size inventory header differs")
+    records = []
+    identities = set()
+    for line_number, line in enumerate(lines[1:], 2):
+        fields = line.split("\t")
+        if len(fields) != 8:
+            raise CompositionError(f"invalid size inventory row {line_number}")
+        kind, box_id, program, path = fields[:4]
+        if kind not in {"multicall", "standalone"}:
+            raise CompositionError(f"invalid size kind at row {line_number}")
+        if not box_id or not program or not path or Path(path).is_absolute():
+            raise CompositionError(f"invalid size identity at row {line_number}")
+        identity = (kind, box_id, program)
+        if identity in identities:
+            raise CompositionError(f"duplicate size identity at row {line_number}")
+        identities.add(identity)
+        values = []
+        for field_name, value in zip(
+            ("raw_bytes", "packed_bytes", "raw_blocks", "packed_blocks"),
+            fields[4:],
+        ):
+            try:
+                parsed = int(value, 10)
+            except ValueError as error:
+                raise CompositionError(
+                    f"invalid {field_name} at size row {line_number}"
+                ) from error
+            if parsed <= 0:
+                raise CompositionError(
+                    f"nonpositive {field_name} at size row {line_number}"
+                )
+            values.append(parsed)
+        records.append(
+            {
+                "kind": kind,
+                "box": box_id,
+                "program": program,
+                "path": path,
+                "raw_bytes": values[0],
+                "packed_bytes": values[1],
+                "raw_blocks": values[2],
+                "packed_blocks": values[3],
+            }
+        )
+    return records
+
+
+def measure_hsaout(root, tool_path, records):
+    command = [str(tool_path), "-s"]
+    command.extend(str(root / record["path"]) for record in records)
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise CompositionError(f"hsaout measurement failed: {result.stderr.strip()}")
+    lines = result.stdout.splitlines()
+    if not lines or lines[0].split() != ["file", "raw", "packed", "rblk", "pblk"]:
+        raise CompositionError("hsaout measurement header differs")
+    if len(lines) != len(records) + 1:
+        raise CompositionError("hsaout measurement row count differs")
+    measured = []
+    for line_number, line in enumerate(lines[1:], 2):
+        fields = line.split()
+        if len(fields) < 5:
+            raise CompositionError(f"malformed hsaout row {line_number}")
+        try:
+            values = tuple(int(value, 10) for value in fields[-4:])
+        except ValueError as error:
+            raise CompositionError(f"malformed hsaout row {line_number}") from error
+        measured.append(values)
+    return measured
+
+
 def capture_inventory(document, map_root):
     consumers = [box["id"] for box in document["boxes"]]
     consumers.extend(program["id"] for program in document["standalone_programs"])
@@ -143,7 +224,7 @@ def require_equal(actual, expected, label):
         raise CompositionError(f"{label}: expected {expected!r}, got {actual!r}")
 
 
-def validate_root(document):
+def validate_root(document, links, receipts):
     root = document.get("root")
     if not isinstance(root, dict):
         raise CompositionError("missing root accounting")
@@ -167,9 +248,121 @@ def validate_root(document):
             candidate.get(field) - base.get(field),
             f"root delta {field}",
         )
+    require_equal(candidate.get("links"), len(links), "candidate manifest links")
+    if candidate.get("data_blocks", -1) > base.get("data_blocks", -1):
+        raise CompositionError("candidate packed root grew")
+    if candidate.get("files", -1) > base.get("files", -1):
+        raise CompositionError("candidate inode use grew")
+    for state in ("base", "candidate"):
+        receipt = receipts[state]
+        image = receipt["root_image"]
+        manifest = receipt["manifest"]
+        require_equal(root[state]["links"], manifest["hard_links"], f"{state} receipt links")
+        require_equal(
+            root[state]["files"],
+            image["inode_capacity"] - image["free_inodes"],
+            f"{state} receipt inode use",
+        )
+        require_equal(
+            root[state]["data_blocks"],
+            image["data_blocks"],
+            f"{state} receipt data blocks",
+        )
+        require_equal(
+            root[state]["free_blocks"],
+            image["free_blocks"],
+            f"{state} receipt free blocks",
+        )
+        require_equal(
+            partition_blocks,
+            image["partition_blocks"],
+            f"{state} receipt partition blocks",
+        )
+        require_equal(
+            inode_blocks,
+            image["inode_list_blocks"],
+            f"{state} receipt inode-list blocks",
+        )
 
 
-def validate_clean_distribution_receipts(document):
+def validate_receipt_payload(document, receipt_name, payload):
+    expected_fields = {
+        "schema_version",
+        "evidence_class",
+        "source_commit",
+        "command",
+        "state",
+        "exit_code",
+        "elapsed_seconds",
+        "output_bytes",
+        "terminal_queue_dropped_bytes",
+        "manifest",
+        "root_image",
+        "last_output",
+    }
+    if not isinstance(payload, dict) or set(payload) != expected_fields:
+        raise CompositionError(f"malformed retained {receipt_name} receipt")
+    if payload["schema_version"] != 1 or payload["evidence_class"] != "cross-build":
+        raise CompositionError(f"invalid retained {receipt_name} receipt identity")
+    expected_commit = document[f"{receipt_name}_commit"]
+    require_equal(payload["source_commit"], expected_commit, f"{receipt_name} receipt commit")
+    if (
+        not isinstance(payload["command"], list)
+        or not payload["command"]
+        or payload["command"][0] != "bmake"
+    ):
+        raise CompositionError(f"invalid retained {receipt_name} command")
+    if not isinstance(payload["last_output"], str) or not payload["last_output"]:
+        raise CompositionError(f"missing retained {receipt_name} terminal output")
+    manifest = payload["manifest"]
+    if not isinstance(manifest, dict) or set(manifest) != {"path", "sha256", "hard_links"}:
+        raise CompositionError(f"malformed retained {receipt_name} manifest")
+    if (
+        manifest["path"] != "distrib/rp2040/mi.rp2040"
+        or re.fullmatch(r"[0-9a-f]{64}", manifest["sha256"]) is None
+        or manifest["sha256"] == "0" * 64
+        or not isinstance(manifest["hard_links"], int)
+        or isinstance(manifest["hard_links"], bool)
+        or manifest["hard_links"] <= 0
+    ):
+        raise CompositionError(f"invalid retained {receipt_name} manifest")
+    image = payload["root_image"]
+    image_fields = {
+        "path",
+        "sha256",
+        "partition",
+        "partition_blocks",
+        "inode_list_blocks",
+        "inode_capacity",
+        "free_inodes",
+        "data_blocks",
+        "free_blocks",
+    }
+    if not isinstance(image, dict) or set(image) != image_fields:
+        raise CompositionError(f"malformed retained {receipt_name} root image")
+    if (
+        image["path"] != "distrib/rp2040/sdcard.img"
+        or re.fullmatch(r"[0-9a-f]{64}", image["sha256"]) is None
+        or image["sha256"] == "0" * 64
+    ):
+        raise CompositionError(f"invalid retained {receipt_name} image identity")
+    for field in image_fields - {"path", "sha256"}:
+        if (
+            not isinstance(image[field], int)
+            or isinstance(image[field], bool)
+            or image[field] < 0
+        ):
+            raise CompositionError(f"invalid retained {receipt_name} image {field}")
+    if image["partition"] != 1:
+        raise CompositionError(f"invalid retained {receipt_name} image partition")
+    require_equal(
+        image["data_blocks"] + image["free_blocks"] + image["inode_list_blocks"],
+        image["partition_blocks"],
+        f"{receipt_name} retained image arithmetic",
+    )
+
+
+def validate_clean_distribution_receipts(root, document):
     receipts = document.get("clean_distribution_receipts")
     if not isinstance(receipts, dict) or set(receipts) != {"base", "candidate"}:
         raise CompositionError("clean-distribution receipt set differs")
@@ -179,7 +372,8 @@ def validate_clean_distribution_receipts(document):
         "elapsed_seconds",
         "output_bytes",
         "terminal_queue_dropped_bytes",
-        "status_sha256",
+        "receipt_path",
+        "receipt_sha256",
     }
     for receipt_name in ("base", "candidate"):
         receipt = receipts[receipt_name]
@@ -215,13 +409,162 @@ def validate_clean_distribution_receipts(document):
             raise CompositionError(
                 f"dropped output in {receipt_name} clean-distribution receipt"
             )
+        if not isinstance(receipt["receipt_path"], str):
+            raise CompositionError(f"invalid {receipt_name} receipt path")
+        receipt_path = (root / receipt["receipt_path"]).resolve()
+        if not receipt_path.is_relative_to(root):
+            raise CompositionError(f"invalid {receipt_name} receipt path")
         if (
-            not isinstance(receipt["status_sha256"], str)
-            or re.fullmatch(r"[0-9a-f]{64}", receipt["status_sha256"]) is None
+            not isinstance(receipt["receipt_sha256"], str)
+            or re.fullmatch(r"[0-9a-f]{64}", receipt["receipt_sha256"]) is None
+            or receipt["receipt_sha256"] == "0" * 64
         ):
             raise CompositionError(
                 f"invalid {receipt_name} clean-distribution receipt hash"
             )
+        require_equal(
+            sha256_path(receipt_path),
+            receipt["receipt_sha256"],
+            f"{receipt_name} retained receipt digest",
+        )
+        payload = load_json(receipt_path)
+        validate_receipt_payload(document, receipt_name, payload)
+        for field in (
+            "state",
+            "exit_code",
+            "elapsed_seconds",
+            "output_bytes",
+            "terminal_queue_dropped_bytes",
+        ):
+            require_equal(receipt[field], payload[field], f"{receipt_name} receipt {field}")
+    return {
+        receipt_name: load_json((root / receipts[receipt_name]["receipt_path"]).resolve())
+        for receipt_name in ("base", "candidate")
+    }
+
+
+def validate_measurement_inventory(root, document, boxes, live):
+    summary = document.get("measurement_inventory", {})
+    expected_fields = {
+        "path",
+        "sha256",
+        "hsaout_path",
+        "captured_hsaout_sha256",
+        "command_pattern",
+        "arm_cc_version",
+        "bmake_version",
+    }
+    if not isinstance(summary, dict) or set(summary) != expected_fields:
+        raise CompositionError("measurement inventory metadata differs")
+    inventory_path = root / summary["path"]
+    require_equal(sha256_path(inventory_path), summary["sha256"], "size inventory digest")
+    records = parse_size_inventory(inventory_path)
+    expected_identities = []
+    for box in boxes:
+        expected_identities.append(("multicall", box["id"], box["id"]))
+        expected_identities.extend(
+            ("standalone", box["id"], program) for program in box.get("tools", [])
+        )
+    identities = [(record["kind"], record["box"], record["program"]) for record in records]
+    require_equal(identities, expected_identities, "size inventory identities")
+    records_by_identity = {
+        (record["kind"], record["box"], record["program"]): record
+        for record in records
+    }
+    for box in boxes:
+        multicall = records_by_identity[("multicall", box["id"], box["id"])]
+        expected_path = str(Path(box["makefile"]).parent / box["id"])
+        require_equal(multicall["path"], expected_path, f"{box['id']} measured path")
+        for field in ("raw_bytes", "packed_bytes", "raw_blocks", "packed_blocks"):
+            require_equal(box.get(field), multicall[field], f"{box['id']} {field}")
+        standalone_records = [
+            records_by_identity[("standalone", box["id"], program)]
+            for program in box.get("tools", [])
+        ]
+        require_equal(
+            box.get("standalone_primary_packed_blocks"),
+            sum(record["packed_blocks"] for record in standalone_records),
+            f"{box['id']} standalone measured blocks",
+        )
+    tool_path = root / summary["hsaout_path"]
+    if (
+        re.fullmatch(r"[0-9a-f]{64}", summary["captured_hsaout_sha256"]) is None
+        or summary["captured_hsaout_sha256"] == "0" * 64
+    ):
+        raise CompositionError("invalid captured hsaout digest")
+    if live:
+        measured = measure_hsaout(root, tool_path, records)
+        for record, values in zip(records, measured):
+            require_equal(
+                values,
+                (
+                    record["raw_bytes"],
+                    record["packed_bytes"],
+                    record["raw_blocks"],
+                    record["packed_blocks"],
+                ),
+                f"{record['program']} live hsaout measurement",
+            )
+    return records
+
+
+def measure_root_image(fsutil_path, image_path):
+    command = [str(fsutil_path), "--verbose", "--partition=1", str(image_path)]
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise CompositionError(f"root image measurement failed: {result.stderr.strip()}")
+    patterns = {
+        "partition_blocks": r"^\s*Volume size:\s+(\d+) blocks$",
+        "inode_list_blocks": r"^\s*Inode list size:\s+(\d+) blocks$",
+        "free_blocks": r"^\s*Total free blocks:\s+(\d+) blocks$",
+        "free_inodes": r"^\s*Total free inodes:\s+(\d+) inodes$",
+    }
+    values = {}
+    for field, pattern in patterns.items():
+        matches = re.findall(pattern, result.stdout, re.MULTILINE)
+        if len(matches) != 1:
+            raise CompositionError(f"root image {field} measurement differs")
+        values[field] = int(matches[0], 10)
+    values["data_blocks"] = (
+        values["partition_blocks"]
+        - values["inode_list_blocks"]
+        - values["free_blocks"]
+    )
+    return values
+
+
+def validate_root_measurement(root, document, candidate_receipt, live):
+    summary = document.get("root_measurement", {})
+    expected_fields = {
+        "fsutil_path",
+        "captured_fsutil_sha256",
+        "command_pattern",
+    }
+    if not isinstance(summary, dict) or set(summary) != expected_fields:
+        raise CompositionError("root measurement metadata differs")
+    fsutil_path = root / summary["fsutil_path"]
+    if (
+        re.fullmatch(r"[0-9a-f]{64}", summary["captured_fsutil_sha256"]) is None
+        or summary["captured_fsutil_sha256"] == "0" * 64
+    ):
+        raise CompositionError("invalid captured fsutil digest")
+    if live:
+        image = candidate_receipt["root_image"]
+        measured = measure_root_image(fsutil_path, root / image["path"])
+        for field in (
+            "partition_blocks",
+            "inode_list_blocks",
+            "free_blocks",
+            "free_inodes",
+            "data_blocks",
+        ):
+            require_equal(measured[field], image[field], f"candidate live root {field}")
+    manifest = candidate_receipt["manifest"]
+    require_equal(
+        sha256_path(root / manifest["path"]),
+        manifest["sha256"],
+        "candidate retained manifest digest",
+    )
 
 
 def validate_archive_summary(root, document, map_root):
@@ -284,6 +627,9 @@ def validate_document(root, document, map_root=None):
         raise CompositionError("unsupported composition schema")
     if document.get("profile_id") != "DPUCP-2024":
         raise CompositionError("composition profile identity differs")
+    for commit_field in ("base_commit", "candidate_commit"):
+        if re.fullmatch(r"[0-9a-f]{40}", document.get(commit_field, "")) is None:
+            raise CompositionError(f"invalid composition {commit_field}")
     claims = document.get("claims", {})
     if claims.get("posix_conformance") is not False:
         raise CompositionError("composition ledger claims POSIX conformance")
@@ -311,6 +657,7 @@ def validate_document(root, document, map_root=None):
         raise CompositionError("duplicate multicall box identity")
     if len(installed_paths) != len(set(installed_paths)):
         raise CompositionError("duplicate multicall installed path")
+    validate_measurement_inventory(root, document, boxes, map_root is not None)
 
     packs, links = parse_manifest(root / "distrib/rp2040/mi.rp2040")
     shipped_paths = []
@@ -416,8 +763,9 @@ def validate_document(root, document, map_root=None):
     if "${LINK_MAP_FLAG}" not in shell_makefile:
         raise CompositionError("shell link does not consume LINK_MAP_FLAG")
     validate_archive_summary(root, document, map_root)
-    validate_root(document)
-    validate_clean_distribution_receipts(document)
+    receipts = validate_clean_distribution_receipts(root, document)
+    validate_root(document, links, receipts)
+    validate_root_measurement(root, document, receipts["candidate"], map_root is not None)
 
 
 def parse_arguments():

@@ -7,18 +7,43 @@ from pathlib import Path
 import check_multicall_composition as composition
 
 
-def expect_failure(name, root, document):
+def mutation_is_rejected(root, document):
     try:
         composition.validate_document(root, document)
     except composition.CompositionError:
-        return
-    raise AssertionError(f"mutation passed: {name}")
+        return True
+    return False
+
+
+def makefile_contract_failures(root):
+    makefile_text = (root / "Makefile").read_text(encoding="utf-8")
+    required_composition_order = (
+        "CROSS_COMPOSITION_GATES=\tcheck-libc-array-memory-line-cross \\\n"
+        "\t\t.WAIT check-timeout-target-link .WAIT \\\n"
+        "\t\tcheck-multicall-composition"
+    )
+    failures = []
+    if required_composition_order not in makefile_text:
+        failures.append("parallel composition gates")
+    if "${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean all" in makefile_text:
+        failures.append("parallel shell clean and all")
+    box_clean_then_link = (
+        "\t\t\t${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} clean; \\\n"
+        "\t\t\t${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} \\\n"
+        "\t\t\t    LINK_MAP=\"$$map_root/$$program.map\" all;"
+    )
+    if box_clean_then_link not in makefile_text:
+        failures.append("stale multicall link maps")
+    return failures
 
 
 def main():
     root = Path(__file__).resolve().parents[1]
     document = composition.load_json(
         root / "docs/research/dpucp-2024-multicall-composition.json"
+    )
+    document["source_sha256"]["tools/check_multicall_composition_test.py"] = (
+        composition.sha256_path(Path(__file__))
     )
     composition.validate_document(root, document)
 
@@ -70,8 +95,50 @@ def main():
     cases.append(("packed-root arithmetic drift", changed))
 
     changed = copy.deepcopy(document)
+    changed["boxes"][0]["raw_bytes"] = -1
+    cases.append(("negative raw byte measurement", changed))
+
+    changed = copy.deepcopy(document)
+    changed["boxes"][0]["packed_bytes"] = 999999999
+    cases.append(("forged packed byte measurement", changed))
+
+    changed = copy.deepcopy(document)
+    changed["boxes"][0]["raw_blocks"] = -10
+    cases.append(("negative raw block measurement", changed))
+
+    changed = copy.deepcopy(document)
+    changed["root"]["candidate"]["links"] -= 1
+    changed["root"]["delta"]["links"] = 0
+    cases.append(("candidate manifest-link drift", changed))
+
+    changed = copy.deepcopy(document)
+    changed["root"]["candidate"]["data_blocks"] += 1
+    changed["root"]["candidate"]["free_blocks"] -= 1
+    changed["root"]["delta"]["data_blocks"] += 1
+    changed["root"]["delta"]["free_blocks"] -= 1
+    cases.append(("positive candidate root growth", changed))
+
+    changed = copy.deepcopy(document)
     changed["clean_distribution_receipts"]["candidate"]["exit_code"] = 1
     cases.append(("failed clean-distribution receipt", changed))
+
+    changed = copy.deepcopy(document)
+    changed["clean_distribution_receipts"]["candidate"]["receipt_sha256"] = (
+        "0" * 64
+    )
+    cases.append(("placeholder clean-distribution digest", changed))
+
+    changed = copy.deepcopy(document)
+    changed["clean_distribution_receipts"]["candidate"]["receipt_path"] = (
+        "docs/research/missing-multicall-receipt.json"
+    )
+    cases.append(("missing clean-distribution receipt", changed))
+
+    changed = copy.deepcopy(document)
+    changed["clean_distribution_receipts"]["candidate"]["receipt_sha256"] = (
+        "f" * 64
+    )
+    cases.append(("clean-distribution digest mismatch", changed))
 
     changed = copy.deepcopy(document)
     first_source = next(iter(changed["source_sha256"]))
@@ -82,8 +149,18 @@ def main():
     changed["boxes"][0]["aliases"].append("duplicate:cat")
     cases.append(("Makefile member drift", changed))
 
-    for name, changed in cases:
-        expect_failure(name, root, changed)
+    failures = makefile_contract_failures(root)
+    failures.extend(
+        name for name, changed in cases
+        if not mutation_is_rejected(root, changed)
+    )
+    for receipt_name in ("base", "candidate"):
+        if "receipt_path" not in document["clean_distribution_receipts"][receipt_name]:
+            failures.append(f"missing retained {receipt_name} receipt")
+    if "measurement_inventory" not in document:
+        failures.append("missing retained size inventory")
+    if failures:
+        raise AssertionError("unrejected controls: " + ", ".join(failures))
 
     print(
         "PASS DPUCP-2024 multicall composition calibration: "

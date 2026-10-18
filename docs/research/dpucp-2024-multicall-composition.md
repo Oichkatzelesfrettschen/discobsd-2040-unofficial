@@ -29,7 +29,15 @@ executables that have a separately linked form.
 | **Total** | **182** | **615** | **433** |
 
 The block comparison measures complete packed a.out images in 1,024-byte root
-blocks. It does not infer savings from source line counts or object sizes.
+blocks. `dpucp-2024-multicall-sizes.tsv` retains all seven multicall rows and
+all 71 primary standalone rows. The verifier binds the TSV digest, checks every
+row against the ledger, and runs `hsaout -s` over the current artifacts during
+the live-map gate. The ledger records the exact hsaout command pattern,
+captured host-tool digest, ARM compiler version, and bmake version. Host binary
+digests remain capture identities because another supported host compiler may
+produce a different host executable; source digests and measured output carry
+the portable gate. The comparison does not infer savings from source line
+counts or object sizes.
 
 ## Static archive closure
 
@@ -56,6 +64,16 @@ Both roots contain 95 files, 692 data blocks, and 287 free blocks. The
 candidate contains 84 links instead of 83. The hard link points at the existing
 utilbox inode and consumes zero additional data blocks or inodes.
 
+The base and candidate receipt files retain the source commit, command,
+terminal result, manifest digest and link count, image digest, partition
+geometry, inode use, and root block counts. The composition verifier hashes
+each receipt, compares every summarized terminal field with the retained
+payload, derives used inodes from the retained image counters, binds candidate
+links to the live manifest, and rejects positive candidate data-block or inode
+growth. The live gate also reads the current candidate image through fsutil and
+compares the measured partition, inode-list, free-inode, data-block, and
+free-block values with the retained receipt.
+
 The DPUCP `logname` row remains `partial`, with host evidence from
 `check-id-aliases` and composition evidence from this gate. Packed-image
 execution must still observe session identity, operand rejection, the
@@ -73,10 +91,15 @@ bmake MACHINE=rp2040 build
 bmake MACHINE=rp2040 check-multicall-composition
 ```
 
-The gate relinks consumers sequentially because each multicall build cleans
-shared applet directories. It then validates the source identities, dispatch
-and manifest denominators, archive inventory, image sizes, root arithmetic,
-and eleven calibrated negative mutations. `check-dpucp-profile` separately
+The cross graph separates the three composition gates with `.WAIT` boundaries
+because every gate cleans or relinks shared products. The composition recipe
+runs the shell clean and link in separate recursive makes and relinks the other
+consumers sequentially. It then validates the source identities, dispatch and
+manifest denominators, archive inventory, per-program image measurements,
+retained receipts, and root-image accounting. Nineteen document mutations and
+three Makefile structure controls reject conformance claims, denominator drift,
+unmeasured sizes, manifest and root drift, missing or forged receipts, source
+identity drift, stale link maps, and unsafe build ordering. `check-dpucp-profile` separately
 rejects removal or weakening of the `logname` compatibility binding.
 
 Runtime peak stack and heap remain unmeasured. Renode execution remains a

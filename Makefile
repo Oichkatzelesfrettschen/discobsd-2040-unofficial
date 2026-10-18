@@ -703,10 +703,12 @@ check-multicall-composition: check-python .WAIT symlinks
 		    sbin/grepbox:grepbox games/gamebox:gamebox; do \
 			directory=$${specification%%:*}; \
 			program=$${specification#*:}; \
+			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} clean; \
 			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} \
 			    LINK_MAP="$$map_root/$$program.map" all; \
 		done
-		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean all \
+		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean
+		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} all \
 		    LINK_MAP="${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${PYTHON} tools/check_multicall_composition.py --root ${TOPSRC} \
 		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps
@@ -926,7 +928,8 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-control-char-contracts \
 # Composition gates clean and relink shared program directories, so the cross
 # graph runs them after the parallel read-only contract group.
 CROSS_COMPOSITION_GATES=	check-libc-array-memory-line-cross \
-		check-timeout-target-link check-multicall-composition
+		.WAIT check-timeout-target-link .WAIT \
+		check-multicall-composition
 
 # Shell scripts under shellcheck at error severity and Python under ruff.
 check-lint:

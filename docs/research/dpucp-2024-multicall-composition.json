@@ -2,6 +2,7 @@
   "schema_version": 1,
   "profile_id": "DPUCP-2024",
   "base_commit": "bccbbf3291a93c67032388b9e570671e8bbb46f7",
+  "candidate_commit": "1f72b07a66d0dacb5bc05b2c108e919819a2c121",
   "measurement_date": "2026-10-18",
   "claims": {
     "posix_conformance": false,
@@ -16,6 +17,7 @@
     "dispatch_names": 80
   },
   "source_sha256": {
+    "Makefile": "f8986147e3ce41977f4729353d50b5e8783b1f84fafefee19be1dc139fd56360",
     "bin/sh/Makefile": "a9c75137275294f70bf095886d70f0e35c83eb4885ca2f995355a80966a77ea0",
     "distrib/rp2040/mi.rp2040": "0ee4dda12af19629ec466d02a122e7b5df8b302367e27e6e8ef0105694a8fd75",
     "games/gamebox/Makefile": "de88a785b2de277673abdb8b690cbd77c43450654ae3073f0ee08fc289c327ba",
@@ -26,8 +28,12 @@
     "sbin/textbox/Makefile": "b58577cc69f20e01c659bb651d9c7fbff948cc1a258235a4c4c1460dac6417c9",
     "sbin/utilbox/Makefile": "fa9580d05254cf674beaffa519507dd5707f2f92e087e1e72e2aecfe7ef9b4b7",
     "share/mk/multicall-bss-overlay.mk": "05856af460e78fb78c7dfb640ef25a89c7f72bb8b9b952d4cf6acf849d4e0672",
-    "tools/check_multicall_composition.py": "13d7bdf44f170be5b0e112e9e93df256bde16bc3d9c8e5cbbbdcd691aec8a6be",
-    "tools/check_multicall_composition_test.py": "ab8098250da5d7b743e2d458501d80634c224554cc96a4fbb84614e966ecbf1d"
+    "tools/check_multicall_composition.py": "6ef47ff2536b217bff7ebaa9111115e8c39487102fb2472c5a5dce63baed27b1",
+    "tools/check_multicall_composition_test.py": "6330c2e7c6817d50c135d0dccb5a3c85ef3a97bc31686e71dfc68048ffba07f9",
+    "tools/fsutil/fsutil.c": "be2a847ab3b77805e3e00ff4d413e7b7bf010f5a27dabce4ed1f7f1fe59a8b63",
+    "tools/fsutil/superblock.c": "273df13d8f290bc6543a7b715c1d762522d06f9ab9d7a21c90d54521b1037930",
+    "tools/hsaout/hsaout.c": "e377d74fe29064806fb06d0f24c879b5a9847894048752fe626f8ddc6d2b25d9",
+    "tools/hsaout/libhsaout.c": "ecef0c46f5de592df86a4cfba2710b2d3cbf8e61f1bacc58bcde7a86c8d49e92"
   },
   "boxes": [
     {
@@ -172,6 +178,15 @@
     "saved_packed_blocks": 433,
     "scope": "Primary applet executables only; aliases and built-in applets own no additional standalone code image."
   },
+  "measurement_inventory": {
+    "path": "docs/research/dpucp-2024-multicall-sizes.tsv",
+    "sha256": "78fa91faebf16cee9f2172a74815583fa084e611b2ffe7369f754eca05fe1adf",
+    "hsaout_path": "tools/bin/rp2040/hsaout",
+    "captured_hsaout_sha256": "ee37aa1a766fca96cf52f35760e1e70fe58316f84762f688354b0ba4523668ad",
+    "command_pattern": "tools/bin/rp2040/hsaout -s <ordered inventory paths>",
+    "arm_cc_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+    "bmake_version": "20260912"
+  },
   "archive_summary": {
     "inventory_path": "docs/research/dpucp-2024-multicall-libc-members.tsv",
     "inventory_sha256": "66013c307cf77ccea9072c36737d8b404a454c41591aad961bd5bfed9b2e63be",
@@ -187,14 +202,20 @@
     "candidate": {"files": 95, "links": 84, "data_blocks": 692, "free_blocks": 287},
     "delta": {"files": 0, "links": 1, "data_blocks": 0, "free_blocks": 0}
   },
+  "root_measurement": {
+    "fsutil_path": "tools/bin/rp2040/fsutil",
+    "captured_fsutil_sha256": "3b083d5b66b787318edb81afc1df7b77af39e9d4eac1216c4eb0c53ea63af08d",
+    "command_pattern": "tools/bin/rp2040/fsutil --verbose --partition=1 <root image>"
+  },
   "clean_distribution_receipts": {
     "base": {
       "state": "completed",
       "exit_code": 0,
-      "elapsed_seconds": 114.935,
-      "output_bytes": 1702616,
+      "elapsed_seconds": 104.163,
+      "output_bytes": 1592244,
       "terminal_queue_dropped_bytes": 0,
-      "status_sha256": "ec0b1c3bdd9952064b7ba741f7f953994b3e91d5686c3884d9bdd627657b34dc"
+      "receipt_path": "docs/research/dpucp-2024-multicall-base-receipt.json",
+      "receipt_sha256": "011d76604076db1c39f9339251b12cb41f009279725db6bd3bd2f468415808d4"
     },
     "candidate": {
       "state": "completed",
@@ -202,7 +223,8 @@
       "elapsed_seconds": 114.767,
       "output_bytes": 1702047,
       "terminal_queue_dropped_bytes": 0,
-      "status_sha256": "c8db0ad79102bc9a9229255b0a8a513877f6ed3f4e7d96b21a6a79a00eaa79a1"
+      "receipt_path": "docs/research/dpucp-2024-multicall-candidate-receipt.json",
+      "receipt_sha256": "4f37e5ce2972c81072144c6eec874cd6a25992c15985cdba8a2fe63e9f734f56"
     }
   },
   "deduplication_disposition": {

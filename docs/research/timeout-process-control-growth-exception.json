@@ -5,7 +5,7 @@
   "measurement_date": "2026-10-18",
   "block_bytes": 1024,
   "candidate_source_sha256": {
-    "usr.bin/timeout/timeout.c": "f5c27f0ec494f875e7b5ee6827c735b7fb1afa544f728c0d3c602d1ccd7b4c81",
+    "usr.bin/timeout/timeout.c": "c6b4ac327901e28a8775044a9bd2cfe4595b6fbaef4f23b3809606aca405a2de",
     "lib/libc/gen/setpgid.c": "80a00f382f15457f8a77e1e8ae1d58bc31db721743e7d9a4fd98ee79cd142572",
     "include/unistd.h": "a1de3ac499c06b1f8003656f83a333d11cb9525c26abbea3010279759ea985e7",
     "sys/sys/signal.h": "b8cfa049b90eaf776ddaec360ac6c873710b6ed2439eaa695a5d0e2da301dcec"

@@ -214,6 +214,32 @@ def main():
         discovered = ["bin/good.c", "src/guest.h"]
         source_denominator.validate_documents(root, discovered, ledger, quarantine, True)
 
+        count_report = root / "docs/research/c17-semantic-migration-plan.md"
+        count_report.parent.mkdir(parents=True)
+        fixture_counts = {
+            "accepted": 1,
+            "excluded": 1,
+            "migration-open": 0,
+            "unreviewed": 0,
+        }
+        count_report.write_text(
+            "Those classifications preserve all 1 accepted, 0 migration-open, 1\n"
+            "excluded and 0 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+        source_denominator.validate_count_report(root, fixture_counts)
+        count_report.write_text(
+            "Those classifications preserve all 1 accepted, 1 migration-open, 1\n"
+            "excluded and 0 unreviewed language states.\n",
+            encoding="utf-8",
+        )
+        try:
+            source_denominator.validate_count_report(root, fixture_counts)
+        except source_denominator.DenominatorError:
+            pass
+        else:
+            raise AssertionError("stale denominator prose was accepted")
+
         refresh_ledger = copy.deepcopy(ledger)
         refresh_ledger["rows"].append(copy.deepcopy(refresh_ledger["rows"][0]))
         refresh_path = root / "source-denominator.json"
@@ -411,7 +437,7 @@ def main():
         cases.append(("closure with unreviewed row", changed, quarantine, discovered, True))
         for name, mutated_ledger, mutated_quarantine, paths, closure in cases:
             expect_failure(name, root, paths, mutated_ledger, mutated_quarantine, closure)
-    print(f"PASS C17 source denominator calibration: {len(cases) + 5} failures rejected")
+    print(f"PASS C17 source denominator calibration: {len(cases) + 6} failures rejected")
     return 0
 
 

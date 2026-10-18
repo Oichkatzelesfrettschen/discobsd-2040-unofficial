@@ -14,7 +14,6 @@
  * is well under this, and the buffer only bounds one header line. */
 #define PATH_MAX 256
 
-static int mflag = 0;
 static int oflag = 0;
 
 static void
@@ -264,7 +263,7 @@ main(int argc, char *argv[])
 
 	ARGBEGIN {
 	case 'm':
-		mflag = 1; /* accepted but unused (autodetect file type) */
+		/* File type is always selected from the encoded header. */
 		break;
 	case 'o':
 		oflag = 1;

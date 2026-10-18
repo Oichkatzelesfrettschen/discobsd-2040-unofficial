@@ -194,5 +194,3 @@ sys/kern/vm_swp.c definition physio both
 sys/kern/vm_swp.c definition rawrw both
 sys/sys/config.h declaration d_init both
 sys/sys/config.h declaration svc_attach both
-sys/sys/glob.h declaration rdglob scan
-sys/sys/glob.h declaration wrglob scan

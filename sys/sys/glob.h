@@ -2,8 +2,7 @@
 #define _GLOB_H
 
 #ifdef KERNEL
-extern void rdglob();
-extern void wrglob();
+#include <sys/syscall_dispatch.h>
 #else
 extern int rdglob(int);
 extern int wrglob(int,int);

@@ -4,6 +4,8 @@
  */
 #include <sys/types.h>
 #include <sys/dir.h>
+#include <sys/glob.h>
+#include <sys/glob.h>
 #include <pwd.h>
 #include <pwd.h>
 #include <errno.h>

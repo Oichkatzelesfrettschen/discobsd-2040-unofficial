@@ -96,6 +96,13 @@ C/header paths and 36 artifact groups to that revision. Shipped language
 acceptance, unreviewed migration ownership/risk decisions, runtime measurements
 and hardware qualification retain separate open states.
 
+`shipped-archive-selection-comparison.md` extends the resource comparison from
+libc/native projections to every closure archive, including kernel libgcc and
+non-libc packed-program dependencies. Schema-1 records keep their historical
+scope; complete new comparisons require schema-2 captures. The password-header
+inclusion unit records its independent ABI/native and paired static acceptance
+in `libc-passwd-header-inclusion.md`.
+
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real
 build and link dependencies, including selected libc members, generated headers

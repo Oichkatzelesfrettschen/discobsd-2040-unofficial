@@ -1482,6 +1482,24 @@ toolchains and configurations, retaining each resource report. Compare with:
     --output resource-delta.json
 ```
 
+The collector writes schema-2 receipts. Complete comparison requires schema 2
+on both sides and matching collector digests, measurement-tool hashes and
+recorded toolchain identities. Every PICO, PICO_UART, packed-program and native
+artifact group retains all selected archives and member digests. Tree archive
+identities remain repository-relative; external identities combine a basename
+with the retained whole-archive digest. Added archives or selected members
+reject even when all numeric deltas are zero. Removed members and changed bytes
+remain visible in `archive_selection_changes`. Libc/native compatibility lists
+must agree with the complete table.
+
+`validate` accepts schema-1 receipts as explicitly historical numeric and
+libc/native measurements. `compare` rejects those partial archive records.
+Remeasure preserved parent artifacts with the same frozen collector used for
+the candidate, or repeat the clean parent capture. Preserve the original
+receipt; a historical receipt alone cannot supply absent archive selections.
+The mechanism and calibrated controls are recorded in
+`docs/research/shipped-archive-selection-comparison.md`.
+
 A same-source repeat calibrates reproducibility; it establishes no parent-to-
 candidate implementation delta. A comparison against artifacts lacking command
 and manifest provenance remains outside accepted paired resource evidence.
@@ -1497,8 +1515,9 @@ change also rejects the snapshot claim.
 Resource receipts measure installed native-development archives and startup
 objects as separate byte surfaces beside the packed programs. Comparisons bind
 hsaout, fsutil and objdump executable hashes in addition to compiler/linker
-versions, and record the collector source digest. Native archive-member growth
-uses the same review gate as linked program dependencies.
+versions, and record the collector source digest. The complete archive table
+extends the dependency review gate to kernel and non-libc selections alongside
+libc and native members.
 
 Retained process-control and timeout measurements identify Git commits that
 contain their exact SHA-256-pinned source subsets. The donor gate validates

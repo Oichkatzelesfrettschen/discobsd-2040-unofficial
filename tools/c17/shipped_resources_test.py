@@ -23,7 +23,8 @@ def snapshot():
          "lma": 0x10000500, "contents": True},
         {"name": ".bss", "size": 64, "vma": 0x20024020,
          "lma": 0x20024020, "contents": False}]}
-    return {"schema_version": 1, "source": {"commit": "b" * 40},
+    return {"schema_version": 2, "source": {"commit": "b" * 40},
+            "collector_sha256": "9" * 64,
             "toolchain": {"cc": "fixture compiler", "ld": "fixture linker",
                           "bmake": "fixture make"},
             "measurement_tools": {"hsaout": "2" * 64, "fsutil": "3" * 64,
@@ -32,7 +33,8 @@ def snapshot():
                          "native_files": ["/usr/lib/crt0.o"],
                          "links": {"/bin/alias": "/bin/fixture"}},
             "execution": {"state": "completed", "exit_code": 0,
-                          "receipt_sha256": "d" * 64, "log_sha256": "e" * 64},
+                          "receipt_sha256": "d" * 64, "log_sha256": "e" * 64,
+                          "closure_sha256": "a" * 64},
             "kernels": {"PICO": copy.deepcopy(kernel), "PICO_UART": copy.deepcopy(kernel)},
             "programs": {"/bin/fixture": {"sha256": "f" * 64, "text": 1024,
                 "data": 32, "bss": 64, "raw_bytes": 1088,
@@ -40,6 +42,12 @@ def snapshot():
                 "libc_members": ["write.o"]}},
             "native_artifacts": {"/usr/lib/crt0.o": {"sha256": "1" * 64, "bytes": 64,
                                                        "archive_members": []}},
+            "archive_selections": {
+                "PICO": {"external:libgcc.a@" + "5" * 64: {"div.o": "6" * 64}},
+                "PICO_UART": {"external:libgcc.a@" + "5" * 64: {"div.o": "6" * 64}},
+                "root.bin.fixture": {"tree:lib/libc.a": {"write.o": "7" * 64},
+                                     "tree:lib/libutil.a": {"helper.o": "8" * 64}},
+                "native.usr.lib.crt0.o": {}},
             "root": {"sha256": "0" * 64, "partition_blocks": 988,
                      "inode_list_blocks": 9, "data_blocks": 695,
                      "free_blocks": 284, "free_inodes": 20},
@@ -72,6 +80,7 @@ class ResourceAccountingTest(unittest.TestCase):
     def test_unchanged_surfaces_compare_without_growth(self):
         result = self.invoke("compare", snapshot(), snapshot())
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.directory / "delta.json").is_file(), result.stderr)
         data = json.loads((self.directory / "delta.json").read_text())
         self.assertEqual(data["positive_deltas"], [])
         self.assertEqual(data["runtime_acceptance"], "open")
@@ -124,6 +133,7 @@ class ResourceAccountingTest(unittest.TestCase):
         candidate["programs"]["/bin/fixture"]["bss"] += 1
         result = self.invoke("compare", candidate, snapshot())
         self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((self.directory / "delta.json").is_file(), result.stderr)
         data = json.loads((self.directory / "delta.json").read_text())
         self.assertIn("program:/bin/fixture:loaded_bytes", data["positive_deltas"])
 
@@ -141,11 +151,169 @@ class ResourceAccountingTest(unittest.TestCase):
     def test_added_archive_member_requires_review(self):
         candidate = snapshot()
         candidate["programs"]["/bin/fixture"]["libc_members"] = ["unused.o", "write.o"]
+        candidate["archive_selections"]["root.bin.fixture"]["tree:lib/libc.a"].update(
+            {"unused.o": "b" * 64})
         result = self.invoke("compare", candidate, snapshot())
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("archive", result.stderr)
+        self.assertTrue((self.directory / "delta.json").is_file(), result.stderr)
         data = json.loads((self.directory / "delta.json").read_text())
         self.assertEqual(data["archive_changes"]["/bin/fixture"]["added"], ["unused.o"])
+
+    def assert_added_selection_rejected(self, group, archive):
+        candidate = snapshot()
+        candidate["archive_selections"][group].setdefault(archive, {})["added.o"] = "c" * 64
+        result = self.invoke("compare", candidate, snapshot())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("added archive dependencies", result.stderr)
+        delta = json.loads((self.directory / "delta.json").read_text())
+        self.assertEqual(delta["archive_selection_changes"][group][archive]["added"], ["added.o"])
+        self.assertEqual(delta["positive_deltas"], [])
+
+    def test_added_kernel_member_rejects_even_with_zero_numeric_growth(self):
+        self.assert_added_selection_rejected("PICO", "external:libgcc.a@" + "5" * 64)
+
+    def test_added_nonlibc_member_rejects_even_with_zero_numeric_growth(self):
+        self.assert_added_selection_rejected("root.bin.fixture", "tree:lib/libutil.a")
+
+    def test_added_archive_rejects_even_with_zero_numeric_growth(self):
+        self.assert_added_selection_rejected("root.bin.fixture", "tree:lib/libnew.a")
+
+    def test_removed_nonlibc_archive_is_visible_and_accepted(self):
+        candidate = snapshot()
+        del candidate["archive_selections"]["root.bin.fixture"]["tree:lib/libutil.a"]
+        result = self.invoke("compare", candidate, snapshot())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        delta = json.loads((self.directory / "delta.json").read_text())
+        self.assertEqual(delta["archive_selection_changes"]["root.bin.fixture"]["tree:lib/libutil.a"],
+                         {"added": [], "removed": ["helper.o"], "changed": []})
+
+    def test_changed_member_bytes_are_visible_without_new_dependency(self):
+        candidate = snapshot()
+        candidate["archive_selections"]["root.bin.fixture"]["tree:lib/libutil.a"].update(
+            {"helper.o": "d" * 64})
+        result = self.invoke("compare", candidate, snapshot())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        delta = json.loads((self.directory / "delta.json").read_text())
+        self.assertEqual(delta["archive_selection_changes"]["root.bin.fixture"]["tree:lib/libutil.a"],
+                         {"added": [], "removed": [], "changed": ["helper.o"]})
+
+    def test_missing_archive_group_rejects_partial_comparison(self):
+        candidate = snapshot()
+        del candidate["archive_selections"]["PICO_UART"]
+        result = self.invoke("validate", candidate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("archive selection denominator", result.stderr)
+
+    def test_libc_projection_cannot_omit_a_selected_member(self):
+        candidate = snapshot()
+        candidate["programs"]["/bin/fixture"]["libc_members"] = []
+        result = self.invoke("validate", candidate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("libc archive projection", result.stderr)
+
+    def test_member_hash_and_name_validation_rejects_malformed_evidence(self):
+        for members in ({"helper.o": "wrong hash"}, {"../helper.o": "e" * 64}, {}):
+            with self.subTest(members=members):
+                candidate = snapshot()
+                candidate["archive_selections"]["root.bin.fixture"]["tree:lib/libutil.a"] = members
+                result = self.invoke("validate", candidate)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("archive", result.stderr)
+
+    def test_missing_closure_binding_rejects_complete_archive_claim(self):
+        candidate = snapshot()
+        del candidate["execution"]["closure_sha256"]
+        result = self.invoke("validate", candidate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("closure", result.stderr)
+
+    def test_changed_collector_cannot_claim_paired_measurement(self):
+        candidate = snapshot()
+        candidate["collector_sha256"] = "f" * 64
+        result = self.invoke("compare", candidate, snapshot())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("collector", result.stderr)
+
+    def test_historical_receipt_validates_without_complete_comparison(self):
+        historical = snapshot()
+        historical["schema_version"] = 1
+        del historical["archive_selections"]
+        result = self.invoke("validate", historical)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("historical", result.stdout)
+        result = self.invoke("compare", historical, historical)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("schema 2", result.stderr)
+
+    def test_external_archive_identity_uses_retained_bytes_not_install_directory(self):
+        self.assertTrue(callable(getattr(shipped_resources, "collect_archive_selections", None)),
+                        "collector must preserve complete archive selections")
+        groups = {
+            "PICO": {"archive_members": {"external:/first/libgcc.a": {"div.o": "a" * 64}},
+                     "external_inputs": {"external:/first/libgcc.a": "b" * 64}},
+            "PICO_UART": {"archive_members": {"external:/second/libgcc.a": {"div.o": "a" * 64}},
+                          "external_inputs": {"external:/second/libgcc.a": "b" * 64}}}
+        actual = shipped_resources.collect_archive_selections(groups)
+        expected_archive = {"external:libgcc.a@" + "b" * 64: {"div.o": "a" * 64}}
+        self.assertEqual(actual, {"PICO": expected_archive, "PICO_UART": expected_archive})
+        groups["PICO"]["external_inputs"] = {}
+        with self.assertRaisesRegex(shipped_resources.ResourceError, "external archive"):
+            shipped_resources.collect_archive_selections(groups)
+
+    def test_collector_preserves_every_internal_archive_and_empty_group(self):
+        groups = {
+            "root.bin.fixture": {"archive_members": {
+                "lib/libc.a": {"write.o": "a" * 64},
+                "lib/libutil.a": {"helper.o": "b" * 64}}},
+            "native.usr.lib.crt0.o": {"archive_members": {}}}
+        actual = shipped_resources.collect_archive_selections(groups)
+        self.assertEqual(actual, {
+            "root.bin.fixture": {"tree:lib/libc.a": {"write.o": "a" * 64},
+                                 "tree:lib/libutil.a": {"helper.o": "b" * 64}},
+            "native.usr.lib.crt0.o": {}})
+
+    def test_unsafe_tree_archive_identity_rejects_partial_ownership(self):
+        candidate = snapshot()
+        archives = candidate["archive_selections"]["root.bin.fixture"]
+        archives["tree:../libutil.a"] = archives.pop("tree:lib/libutil.a")
+        result = self.invoke("validate", candidate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tree archive path", result.stderr)
+
+    def test_colliding_archive_identities_cannot_erase_selection_evidence(self):
+        self.assertTrue(callable(getattr(shipped_resources, "collect_archive_selections", None)),
+                        "collector must preserve complete archive selections")
+        groups = {"PICO": {"archive_members": {
+            "external:/first/libgcc.a": {"first.o": "a" * 64},
+            "external:/second/libgcc.a": {"second.o": "b" * 64}},
+            "external_inputs": {"external:/first/libgcc.a": "c" * 64,
+                                "external:/second/libgcc.a": "c" * 64}}}
+        with self.assertRaisesRegex(shipped_resources.ResourceError, "collision"):
+            shipped_resources.collect_archive_selections(groups)
+
+    def test_native_archive_projection_and_growth_follow_full_selection(self):
+        baseline = snapshot()
+        baseline["manifest"]["native_files"].append("/usr/lib/libc.a")
+        baseline["native_artifacts"]["/usr/lib/libc.a"] = {
+            "sha256": "a" * 64, "bytes": 128, "archive_members": ["init.o"]}
+        baseline["archive_selections"]["native.usr.lib.libc.a"] = {
+            "tree:lib/libc/aout.libc.a": {"init.o": "b" * 64}}
+        candidate = copy.deepcopy(baseline)
+        candidate["native_artifacts"]["/usr/lib/libc.a"]["archive_members"] = []
+        result = self.invoke("validate", candidate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("native archive projection", result.stderr)
+        candidate = copy.deepcopy(baseline)
+        candidate["native_artifacts"]["/usr/lib/libc.a"]["archive_members"].append("unused.o")
+        candidate["archive_selections"]["native.usr.lib.libc.a"][
+            "tree:lib/libc/aout.libc.a"].update({"unused.o": "c" * 64})
+        result = self.invoke("compare", candidate, baseline)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("added archive dependencies", result.stderr)
+        delta = json.loads((self.directory / "delta.json").read_text())
+        self.assertEqual(delta["archive_selection_changes"]["native.usr.lib.libc.a"][
+            "tree:lib/libc/aout.libc.a"]["added"], ["unused.o"])
 
     def test_native_artifact_growth_is_a_constrained_surface(self):
         candidate = snapshot()
@@ -157,6 +325,7 @@ class ResourceAccountingTest(unittest.TestCase):
         candidate["native_artifacts"]["/usr/lib/crt0.o"]["bytes"] += 1
         result = self.invoke("compare", candidate, baseline)
         self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((self.directory / "delta.json").is_file(), result.stderr)
         data = json.loads((self.directory / "delta.json").read_text())
         self.assertIn("native:/usr/lib/crt0.o:bytes", data["positive_deltas"])
 

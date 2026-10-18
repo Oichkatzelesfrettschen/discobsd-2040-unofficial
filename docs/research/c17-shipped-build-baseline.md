@@ -42,7 +42,8 @@ change must compare its own clean parent and candidate receipts. The retained
 uninstrumented parent artifacts lack the complete command graph required for
 accepted dependency attribution and remain outside that paired claim.
 
-The cross gate runs 54 recorder, closure and resource controls. The donor gate
+At the recorded baseline, the cross gate ran 54 recorder, closure and resource
+controls. The donor gate
 adds seven retained-source controls. The controls reject incorrect producer
 identity, missing dependencies, changed archives/images, generated-input gaps,
 concurrent source changes, omitted indirect blocks, native artifact growth,
@@ -56,6 +57,13 @@ commands. A resource receipt can be checked independently with:
 "${PYTHON}" tools/c17/shipped_resources.py validate \
     --candidate docs/research/c17-shipped-resource-baseline.json
 ```
+
+The retained schema-1 receipt preserves its numeric and libc/native archive
+projection scope. `shipped-archive-selection-comparison.md` defines schema 2,
+which adds every kernel and non-libc archive selection and requires matching
+collector digests. The validator labels the retained record as historical;
+complete comparisons require a newly measured schema-2 pair. The historical
+JSON and its recorded measurements remain unchanged.
 
 Runtime stack, heap and storage traffic remain unmeasured in the receipt.
 Physical-board execution remains outside the capture operation. The twelve-stage

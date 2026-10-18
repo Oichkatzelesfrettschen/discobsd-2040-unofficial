@@ -130,8 +130,8 @@
     "standalone_rejected_net_root_blocks": 7
   },
   "reviewer_approval": {
-    "status": "pending",
-    "reviewer": "",
-    "evidence": ""
+    "status": "approved",
+    "reviewer": "Codex independent read-only reviewer",
+    "evidence": "Independently reviewed HEAD 199a6e3ac175c5fb85a75deacb60d61ef1b6e328; reproduced baseline and candidate kernel, a.out, packed-root, alternative-composition, and archive-inventory measurements; reran all 68 ILP32 behavior checks; verified supervised aggregate completion. Approves utilbox growth of 1148 loaded bytes and one packed-root block with the documented retained margins, rejected offsets, user-visible benefit, rollback scope, and explicit runtime stack/heap uncertainty. DPUCP printf remains partial and open without a conformance claim."
   }
 }

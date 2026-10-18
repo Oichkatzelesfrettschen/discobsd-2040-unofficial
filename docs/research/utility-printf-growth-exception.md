@@ -1,6 +1,6 @@
 # Utility printf growth exception
 
-Status: pending independent approval.
+Status: independently approved.
 
 The DPUCP-2024 utility `printf` implementation adds a tested compatibility
 subset without claiming POSIX or UNIX conformance. The shipped utilbox grows by
@@ -175,8 +175,14 @@ packed-root block while removing those behaviors.
 
 ## Approval
 
-Reviewer approval remains pending. The reviewer must reproduce the standalone,
-utilbox, largest-process, kernel, and complete-root measurements; inspect the
-selected behavior witnesses and archive composition; and approve the retained
-margins, rejected offsets, user-visible benefit, rollback point, and runtime
-stack and heap uncertainty before merge.
+The Codex independent read-only reviewer approved the exception at
+199a6e3ac175c5fb85a75deacb60d61ef1b6e328. The review reproduced
+the baseline and candidate kernel, standalone, utilbox, largest-process, and
+complete-root measurements; the 43-block alternative utilbox and nine-block
+standalone composition; the 36, 113, and 111-member archive inventories; and
+all 68 ILP32 behavior checks. The review also verified the final supervised
+aggregate receipt. The approval accepts 1,148 loaded utilbox bytes and one
+packed-root block with the documented retained margins, rejected offsets,
+user-visible benefit, rollback scope, and explicit runtime stack and heap
+uncertainty. DPUCP utility printf remains partial and open without a
+conformance claim.

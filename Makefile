@@ -146,6 +146,13 @@ check-dpucp-profile: check-python
 		${PYTHON} tools/check_dpucp_profile_test.py
 		${PYTHON} tools/check_dpucp_profile.py --root ${TOPSRC} --self-test
 
+# The retained board record binds the approved UF2 pair, the single flash
+# execution, bounded terminal receipt, seven release surfaces and thirteen
+# direct observations without promoting any complete POSIX requirement.
+check-dpucp-board-acceptance: check-python
+		${PYTHON} tools/check_dpucp_board_acceptance_test.py
+		${PYTHON} tools/check_dpucp_board_acceptance.py --root ${TOPSRC}
+
 # The donor ledger keeps selected BSD mechanisms advisory until license,
 # dependency, C17, ABI and footprint gates agree. Mutation controls reject
 # provenance, requirement, dependency, size-evidence and decision drift.
@@ -872,7 +879,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-run-logging check-battlestar-generation \
 		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
-		check-dpucp-donor-ledger \
+		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
 		check-capacity-corpus \
 		check-comment-hygiene \
@@ -1191,7 +1198,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

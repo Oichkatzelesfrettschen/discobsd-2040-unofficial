@@ -35,7 +35,11 @@ last-byte, crossing, wraparound and malformed-bound cases. Exact evaluated
 PICO and PICO_UART GNU17 commands compile the production `machdep.c`. A wrapped
 endpoint predicate and a removed include guard are calibrated rejected forms.
 The gate records thirteen compiler and execution cases with source and tool
-hashes in `.build-logs/usercopy-span-contracts.json`.
+hashes in `.build-logs/usercopy-span-contracts.json`. The kernel harness binds
+both ILP32 executables to the helper header. Its generated machine-header stamp
+tracks changes to the RP2040 include directory and removes stale forwarding
+headers before rebuilding the set. `tests/kernel/.gitignore` owns the two
+extracted sources and two executables.
 
 `check-kernel-ilp32` extracts the exact four production functions by signature
 and runs them with 32-bit `caddr_t`, `u_int` and `size_t`. It covers single-byte
@@ -50,9 +54,29 @@ artifact groups. Its schema-2 resource receipt has SHA-256
 `81c930bf745df4942cb3b3e29d4bbbb914c68ac6041180a0d1b3ed4c5a45318a`;
 the source capture has SHA-256
 `2d23fb2f50d2db48add54edeb5b0eed40b7a1b3418aa03a5148b0400114964a6`.
-The candidate must reproduce the same toolchain, source closure and complete
-static denominator before integration. Runtime stack, heap and storage traffic
-remain unmeasured and keep their corresponding acceptance states open.
+The frozen candidate at `46a0844a28f1a235c4c946905156efd89b992290`
+completed a 5.011-second clean and a 103.344-second clean distribution. Its
+closure accounts for all 36 shipped groups, including 173 tracked C or header
+paths for PICO and 165 for PICO_UART. The candidate source, closure, resource,
+delta and root-image SHA-256 values are, respectively,
+`38774eb5779cdb30908c67f0a9100d257433ca93ba232a48daa5ca1ee168bfda`,
+`5c87c1d08046fe088467e71aff54ded889dd3af85fe1d079d770fafeafa74fba`,
+`e29d9e5ff056be1429fd5d159e3692bbbf300c745606f74a4c0af6ae426b3707`,
+`58b3d473e891ca33a0e292f7ea2a6b7c7598e3977530c28ab21dc799e335332b`
+and `badab7ba8d2bb83d04fdcbe8f71e4386eb688fba05c57d3070533f7a4267262d`.
+The distribution receipt has SHA-256
+`1ad07ea79ee4a6af699a81ee60fa44e75875ba2c3171ed151cc70337fb71943d`.
+
+The schema-2 comparison accepts all 154 static numeric surfaces. It reports
+152 zero deltas and an eight-byte flash reduction in each kernel configuration,
+with candidate flash occupancy of 104,758 bytes for PICO and 92,276 bytes for
+PICO_UART. All 36 archive-owner groups retain their member selections. The
+packed root retains 692 data blocks, 287 free blocks and 33 free inodes. The
+largest loaded text, data and BSS occupancy remains 75,412 bytes for
+`/usr/libexec/smlrc`; the installed native `libc.a` remains 43,010 bytes with
+151 members. The comparison verifies matching toolchain and measurement-tool
+identities. Runtime stack, heap and storage traffic remain unmeasured and keep
+their corresponding acceptance states open.
 
 This unit closes the span-admission mechanism for callers that use `copyin` or
 `copyout`. Direct `baduaddr` consumers retain separate migration units:

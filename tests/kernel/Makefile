@@ -4,6 +4,7 @@ include ${TOPSRC}/share/mk/sys.mk
 HOST_CC?= cc
 
 PORT_INCLUDE=	${TOPSRC}/sys/arch/${MACHINE}/include
+USERCOPY_HEADER=	${PORT_INCLUDE}/usercopy.h
 
 # sys/param.h reaches a port's headers as <machine/*.h>. config(8) spells that
 # name as a symlink in the kernel build directory, which a gate that has to
@@ -119,6 +120,7 @@ UFS_EXPLICIT_TIME_LDFLAGS=	-Wl,--gc-sections
 # for Cortex-M0+.
 SHUTDOWN_SYNC_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/shutdown_sync.c
 MACHDEP_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
+USERCOPY_SRC=		${MACHDEP_SRC}
 
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
@@ -168,8 +170,9 @@ RWUIO_JUMP=	rwuio_jump.c rwuio_jump.h
 
 all: ${PROGS}
 
-${MACHINE_STAMP}: hostintr.h
+${MACHINE_STAMP}: hostintr.h ${PORT_INCLUDE}
 	@mkdir -p machine
+	@rm -f machine/*.h
 	@for header in ${PORT_INCLUDE}/*.h; do \
 		name=`basename $$header`; \
 		echo "#include <${MACHINE}/include/$$name>" > machine/$$name; \
@@ -444,10 +447,38 @@ rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
 	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -DHK_ILP32 -o $@ \
 	    rwuio_test.c rwuio_kernel32.o rwuio_shim32.o rwuio_jump32.o hostkern32.o
 
+usercopy_functions.c: usercopy_extract.py ${USERCOPY_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for usercopy extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} usercopy_extract.py --source ${USERCOPY_SRC} --output $@
+
+usercopy_endpoint_mutant.c: usercopy_extract.py ${USERCOPY_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for usercopy extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} usercopy_extract.py --source ${USERCOPY_SRC} --output $@ \
+	    --endpoint-mutant
+
+usercopy_span_test32: usercopy_span_test.c usercopy_functions.c \
+    ${USERCOPY_HEADER} ${MACHINE_STAMP}
+	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys \
+	    -I${TOPSRC}/sys/arch -o $@ usercopy_span_test.c
+
+usercopy_span_endpoint_mutant: usercopy_span_test.c \
+    usercopy_endpoint_mutant.c ${USERCOPY_HEADER} ${MACHINE_STAMP}
+	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys \
+	    -I${TOPSRC}/sys/arch \
+	    -DUSERCOPY_FUNCTIONS='"usercopy_endpoint_mutant.c"' \
+	    -o $@ usercopy_span_test.c
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 sigauth_test \
+	    usercopy_span_test32 usercopy_span_endpoint_mutant \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -460,6 +491,13 @@ check-ilp32:
 	    ${.CURDIR}/sigauth_proc.o ${.CURDIR}/sigauth_shim.o \
 	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
+	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
+	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS user-copy endpoint mutation rejected"
 	${TEST_EXECUTION} run kernel.sysctl-compact.ilp32 -- ./sysctl_test_compact
 	${TEST_EXECUTION} run kernel.sysctl-wide.ilp32 -- ./sysctl_test_wide
 	${TEST_EXECUTION} run kernel.inode.ilp32 -- ./ialloc_test
@@ -474,6 +512,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-compact.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-wide.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -505,6 +544,8 @@ clean:
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o
+	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
+	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o

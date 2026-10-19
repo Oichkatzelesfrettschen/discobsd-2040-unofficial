@@ -52489,6 +52489,40 @@
       }
     },
     {
+      "path": "sys/arch/rp2040/include/usercopy.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-usercopy-span",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-usercopy-span-admission.md",
+        "tests/rp2040/usercopy_span/check.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "hardware-seam",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "sys/arch/rp2040/include/watchdog.h",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -52727,14 +52761,18 @@
     },
     {
       "path": "sys/arch/rp2040/rp2040/machdep.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-usercopy-span",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-usercopy-span-admission.md",
+        "tests/kernel/usercopy_span_test.c",
+        "tests/rp2040/usercopy_span/check.py"
+      ],
+      "blocker": "The user-copy span mechanism is accepted; direct address consumers and the remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -62677,6 +62715,42 @@
           ],
           "object_lifetime": [],
           "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/usercopy_span_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-usercopy-span-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

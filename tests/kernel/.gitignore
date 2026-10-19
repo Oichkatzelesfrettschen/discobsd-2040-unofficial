@@ -60,3 +60,7 @@ shutdown_sync_test
 shutdown_sync_*.mutant.c
 shutdown_sync_*.mutant.o
 shutdown_sync_*.mutant.test
+usercopy_functions.c
+usercopy_endpoint_mutant.c
+usercopy_span_test32
+usercopy_span_endpoint_mutant

@@ -839,6 +839,11 @@ check-storage-correctness: check-python
 check-namei-user-path:
 		sh tests/rp2040/namei_path/check.sh
 
+check-rp2040-usercopy-span: check-python
+		${PYTHON} tests/rp2040/usercopy_span/check.py \
+		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json
+
 check-usb-reset:
 		${MAKE} -C tests/rp2040/usb_reset check
 
@@ -920,7 +925,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-namei-user-path check-storage-correctness \
+		check-namei-user-path check-rp2040-usercopy-span \
+		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
 		check-usb-standard-requests \
 		check-usb-set-configuration \
@@ -1220,7 +1226,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

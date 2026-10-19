@@ -4,6 +4,7 @@ include ${TOPSRC}/share/mk/sys.mk
 HOST_CC?= cc
 
 PORT_INCLUDE=	${TOPSRC}/sys/arch/${MACHINE}/include
+USERCOPY_HEADER=	${PORT_INCLUDE}/usercopy.h
 
 # sys/param.h reaches a port's headers as <machine/*.h>. config(8) spells that
 # name as a symlink in the kernel build directory, which a gate that has to
@@ -169,8 +170,9 @@ RWUIO_JUMP=	rwuio_jump.c rwuio_jump.h
 
 all: ${PROGS}
 
-${MACHINE_STAMP}: hostintr.h
+${MACHINE_STAMP}: hostintr.h ${PORT_INCLUDE}
 	@mkdir -p machine
+	@rm -f machine/*.h
 	@for header in ${PORT_INCLUDE}/*.h; do \
 		name=`basename $$header`; \
 		echo "#include <${MACHINE}/include/$$name>" > machine/$$name; \
@@ -461,12 +463,12 @@ usercopy_endpoint_mutant.c: usercopy_extract.py ${USERCOPY_SRC}
 	    --endpoint-mutant
 
 usercopy_span_test32: usercopy_span_test.c usercopy_functions.c \
-    ${MACHINE_STAMP}
+    ${USERCOPY_HEADER} ${MACHINE_STAMP}
 	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys \
 	    -I${TOPSRC}/sys/arch -o $@ usercopy_span_test.c
 
 usercopy_span_endpoint_mutant: usercopy_span_test.c \
-    usercopy_endpoint_mutant.c ${MACHINE_STAMP}
+    usercopy_endpoint_mutant.c ${USERCOPY_HEADER} ${MACHINE_STAMP}
 	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys \
 	    -I${TOPSRC}/sys/arch \
 	    -DUSERCOPY_FUNCTIONS='"usercopy_endpoint_mutant.c"' \

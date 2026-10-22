@@ -37,6 +37,7 @@ install:	all
 
 clean:
 		rm -f sh *.o *~ *.elf *.dis
+		${MAKE} -C tests clean
 
 args.o: args.c defs.h mac.h mode.h name.h stak.h brkincr.h ctype.h
 blok.o: blok.c defs.h mac.h mode.h name.h stak.h brkincr.h ctype.h

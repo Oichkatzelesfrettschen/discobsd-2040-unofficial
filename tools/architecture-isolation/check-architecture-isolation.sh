@@ -852,7 +852,7 @@ then
 	cat "$cleanup_environment_log" >&2
 	fail "cleanup inherited a caller machine or make override"
 fi
-expect_equal "cleanup environment observation count" "25" \
+expect_equal "cleanup environment observation count" "30" \
     "$(wc -l <"$cleanup_environment_log" | awk '{$1=$1; print}')"
 if [ -e "$cleanup_stamp" ] || [ -L "$cleanup_stamp" ]; then
 	fail "cleanup environment fixture retained the architecture stamp"

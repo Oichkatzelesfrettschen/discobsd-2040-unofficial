@@ -60,6 +60,7 @@ done
 
 run_make -C "$source_root" cleantools
 run_make -C "$source_root" cleankernel
+run_make -C "$source_root" cleantests
 
 if [ "$cleanup_status" -ne 0 ]; then
 	echo "cleanall left $stamp_path in place" >&2

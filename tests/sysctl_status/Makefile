@@ -12,4 +12,7 @@ check: check.sh check.py fixture.c shim.c check_workload.py
 .endif
 	${PYTHON} check_workload.py ${TOPSRC} /bin/sh
 
-.PHONY: check
+clean:
+	rm -rf out
+
+.PHONY: check clean

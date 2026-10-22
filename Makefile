@@ -1202,6 +1202,14 @@ cleankernel:
 			    MACHINE=$$machine clean || status=1; \
 		done; exit $$status
 
+cleantests:
+		status=0; for mf in tests/*/Makefile tests/rp2040/*/Makefile \
+		    sys/arch/rp2040/test/swapram/Makefile; do \
+			[ -f "$$mf" ] || continue; \
+			grep -q '^clean:' "$$mf" || continue; \
+			${MAKE} -C "$${mf%/Makefile}" clean || status=1; \
+		done; exit $$status
+
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG)
@@ -1267,7 +1275,7 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-host-package check-board-build check symlinks etc-distribution \
-		${FSIMG} fs installfs clean cleantools cleanfs cleanall \
+		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \
 
 # Architecture-specific debugging and loading.

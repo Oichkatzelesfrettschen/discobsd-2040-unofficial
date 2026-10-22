@@ -59,4 +59,9 @@ check-arithmetic: check_arithmetic.py check_arithmetic.sh
 .else
 	${TEST_EXECUTION} skip libc.output.arithmetic "output: sanitizer runtime unavailable"
 .endif
-.PHONY: check-arithmetic
+
+clean:
+	rm -rf native ilp32 sanitized ${MUTANTS:S/^/mutant_/} \
+	    output_native output_ilp32 output_sanitized *_target.o
+
+.PHONY: check-arithmetic clean

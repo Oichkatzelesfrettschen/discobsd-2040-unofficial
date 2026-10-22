@@ -154,3 +154,18 @@ ansi_shared_byte_bad_test
 ansi_shared_byte_bad.log
 
 syslog_doprnt.o
+reallocarray_contract_test
+reallocarray_contract_test_san
+reallocarray_contract_test32_san
+memmem_contract_test
+memmem_contract_test_san
+memmem_contract_test32_san
+line_reading_contract_test
+line_reading_contract_test_san
+line_reading_contract_test32_san
+array_reallocarray.o
+array_reallocarray_san.o
+array_reallocarray32_san.o
+string_memmem.o
+string_memmem_san.o
+string_memmem32_san.o

@@ -1,0 +1,4 @@
+/printf_host
+/printf_host32
+/printf_host_sanitized
+/printf_target.o

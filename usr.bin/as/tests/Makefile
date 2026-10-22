@@ -34,7 +34,7 @@ test:
 clean:
 		rm -f *.o *.dis *.gcc-dis *.aout *.aout.sec _diff.txt
 		rm -f cat.s echo.s wc.s
-		rm -rf thumb-toolroot thumb-saved
+		rm -rf thumb-toolroot thumb-saved thumb-wrap
 		rm -rf archive-extended-name-padding
 		rm -rf archive-transactional-rewrite
 		rm -rf archive-extract-all

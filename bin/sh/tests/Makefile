@@ -24,6 +24,6 @@ test:		host pwname
 		./${PWBIN}
 
 clean:
-		rm -f ${BIN} ${PWBIN} *.o
+		rm -rf ${BIN} ${PWBIN} *.o out
 
 .PHONY:		host pwname test clean

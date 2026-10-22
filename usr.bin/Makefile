@@ -57,6 +57,6 @@ install:
 clean:
 		status=0; /bin/rm -f a.out core *.s *.o *.dis *.elf *~ \
 		    y.tab.[ch] errs || status=1; \
-		for i in ${SUBDIR}; do \
+		for i in ${SUBDIR} md resize; do \
 			(cd $$i && ${MAKE} ${MFLAGS} clean) || status=1; \
 		done; exit $$status

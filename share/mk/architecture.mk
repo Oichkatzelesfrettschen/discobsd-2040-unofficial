@@ -92,7 +92,7 @@ LEGACY_SUBDIRS+=         legacy/pdp11-v6
 # separate host-tool collision.
 ARCHITECTURE_STAMP:=     ${TOPSRC}/distrib/obj/.build-machine
 _ARCHITECTURE_CLEAN_TARGETS= clean cleanall clean-all cleantools cleankernel \
-                            cleanfs cleanflash
+                            cleanfs cleanflash cleantests
 _ARCHITECTURE_ACTIVE_TARGETS= ${.TARGETS}
 .for _clean_target in ${_ARCHITECTURE_CLEAN_TARGETS}
 _ARCHITECTURE_ACTIVE_TARGETS:= ${_ARCHITECTURE_ACTIVE_TARGETS:N${_clean_target}}

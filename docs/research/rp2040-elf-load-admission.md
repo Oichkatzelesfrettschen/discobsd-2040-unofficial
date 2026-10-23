@@ -102,12 +102,12 @@ owns both executables and all five rejection controls. Exact PICO and PICO_UART
 GNU17 Cortex-M0+ commands compile `exec_elf.o` and `exec_subr.o` with warnings
 treated as errors.
 
-The measurements below bind the corrected candidate at
-`20055ae0edff157a457414fe6f8010ea24e03230` to the clean parent at
+The measurements below bind the reviewed candidate at
+`def5e810b53f541cf8a5ccf0fa5896cbe40902a6` to the clean parent at
 `4dc6be2afee29283b4eb0d4f2230c075e3933784`. Both captures use Arm GCC
 16.2.0, GNU ld 2.47.20260726 and bmake 20260912. Parent clean and distribution
-stages completed in 9.3 and 168.5 seconds; corrected-candidate stages completed
-in 8.9 and 223.7 seconds. Both closure receipts account for 36 shipped artifact
+stages completed in 9.3 and 168.5 seconds; reviewed-candidate stages completed
+in 4.6 and 313.2 seconds. Both closure receipts account for 36 shipped artifact
 groups, 173 PICO C/header paths, 165 PICO_UART C/header paths and the same
 151-member, 43,010-byte native board `libc.a`.
 
@@ -116,20 +116,20 @@ The parent source, closure and resource receipts have SHA-256 values
 `2187c98b9e756fe5b54584c962f4e28b96546ff54b42bbef99882c62f0a9b34c`
 and `cf3f782b866b55bdef92dbea5415519e8ae6bcf9e62780a175575a163100e485`.
 The candidate source, closure and resource receipts have SHA-256 values
-`564510b1ea9fb32a71da6d1a9826529023bd40d786f2eeb2ae5d7f00fbfcbf43`,
-`80bee21c280a15208ec4a44649e8c33b15567020b61ae9c78368575eb6fab50d`
-and `31ebc24ce6d6663575728eab4774c37cea5b0cc6e6dd67a036c46a752ae5a514`.
+`fd02274e04a1ec34fd3d8394337e7b4a43dee327e094cf1be70e0de9149e3694`,
+`496596c36af4fb2c6b961f53762c1d8c03fcb8104ca0e43f74da28ff60dcf20a`
+and `ea9f7e20934e651b055113b6566d4b4d82e37ae0b0fe5d0c2c64395c5ef1a788`.
 The delta receipt has SHA-256
-`b008167c42c90c4bbb8e82c07323e904eb4270f36e694544c6d62ee9d41cd8ed`.
+`df6294f19a23a31455dd7d901dcfc5eb9182249d02e5f9ac2d3f36df1e5ef039`.
 The candidate clean and distribution receipts have SHA-256 values
-`698745ecaa518622b06e80b2da21a54e092617e2de338dd1b6c29eec219b0a4c`
-and `7762e5a273e80d1a9822e8a310d0b485ec699237dcdaf82e2a43676a38244837`.
+`92d22f7c978a8c631419fe123286cc3d635ae87f15706fea6b164f0649477136`
+and `7b5748636844dd5c133fde19a9bb1170108769e373c85dea0bdcf81bd704eb73`.
 
 | Constrained surface | Parent | Candidate | Delta | Candidate margin |
 | --- | ---: | ---: | ---: | ---: |
-| PICO loaded flash span | 104,806 | 104,902 | +96 | 26,170 bytes |
+| PICO loaded flash span | 104,806 | 104,918 | +112 | 26,154 bytes |
 | PICO SRAM allocations and extents | measured baseline | unchanged | 0 | unchanged |
-| PICO_UART loaded flash span | 92,324 | 92,412 | +88 | 38,660 bytes |
+| PICO_UART loaded flash span | 92,324 | 92,436 | +112 | 38,636 bytes |
 | PICO_UART SRAM allocations and extents | measured baseline | unchanged | 0 | unchanged |
 | Native board `libc.a` | 43,010 | 43,010 | 0 | unchanged |
 | Packed-root data blocks | 692 | 692 | 0 | 287 free blocks |
@@ -138,28 +138,29 @@ and `7762e5a273e80d1a9822e8a310d0b485ec699237dcdaf82e2a43676a38244837`.
 
 Exact production commands augmented with `-fstack-usage` and reproducible path
 maps bind object size, symbol size, disassembly and static-frame results for all
-six changed exec translation units to each source revision. Repeating the
-capture produced byte-identical receipts. `exec_aout.o` and `exec_script.o`
-retain their parent text, data, BSS and static-frame sizes in both
-configurations.
+six changed exec translation units to each source revision. `exec_aout.o` and
+`exec_script.o` retain their parent text, data, BSS and static-frame sizes in
+both configurations.
 
 | Configuration | Changed-object text delta | Changed symbol sizes | Static-frame changes |
 | --- | ---: | --- | --- |
-| PICO with SYSTRACE | +100 | `exec_hsaout_check` +4, `exec_elf_check` +48, `exec_save_args` +16, `execve` +24 | `exec_elf_check` 56 to 64; `execve` 392 to 400 bytes |
-| PICO_UART | +88 | `exec_elf_check` +44, `exec_save_args` +12, `execve` +24 | `execve` 392 to 400 bytes |
+| PICO with SYSTRACE | +116 | `exec_hsaout_check` +4, `exec_elf_check` +68, `exec_save_args` +16, `exec_setupstack` -4, `execve` +24 | `exec_elf_check` 56 to 64; `execve` 392 to 400 bytes |
+| PICO_UART | +108 | `exec_elf_check` +68, `exec_save_args` +12, `exec_setupstack` -4, `execve` +24 | `execve` 392 to 400 bytes |
 
 The parent and candidate static-resource receipts have SHA-256 values
 `494cbe57ce0689485e66b95e94f5dfc01aae908074a12166b975cdf94b15bfcd`
-and `960e5254f7c169f4f1de07e032da7dccb442b381fedb9010f12c5a35e28fd2d8`.
+and `7bce8d31389dce89f4688a652e226544b5ed61239bb131e37511ce88c893681f`.
 Their comparison receipt has SHA-256
-`7283ad08400d19300039a6aec26a84123ec9be9bdb24771d33a78ad6be4600e9`.
+`316567c4942bb22edfb1dbe3b315a585b2208f2d3a2aa02d2fcae1236c8a9b9f`.
 The resource comparer rejects both positive flash deltas by design pending
-review. The candidate requests bounded exceptions for 96 PICO flash bytes, 88
+review. The candidate requests bounded exceptions for 112 PICO flash bytes, 112
 PICO_UART flash bytes, eight static `execve` frame bytes in both configurations
-and eight static PICO `exec_elf_check` frame bytes. The deepest changed PICO
-call chain can therefore use 16 additional static bytes; PICO_UART can use
-eight. Complete geometry admission and terminal handling of incomplete
-committed images require the added checks and state. Removing them would
+and eight static PICO `exec_elf_check` frame bytes. The positive per-function
+frame deltas total 16 bytes for PICO and eight bytes for PICO_UART. Those sums
+do not bound the direct fatal-teardown path: the complete 400-byte `execve`
+frame remains live while `exit` runs. Complete geometry admission and terminal
+handling of incomplete committed images require the added checks and state.
+Removing them would
 restore the reproduced out-of-inode segment admission or incomplete-image
 publication defects. Runtime peak stack remains unmeasured, and the retained
 220-byte stack-paint remainder belongs to an older image and workload rather

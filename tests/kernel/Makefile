@@ -193,6 +193,31 @@ FIONREAD_LDFLAGS=	${FILE_OWNER_LDFLAGS}
 FIONREAD_GENERIC_RENAMES=	-Dioctl=fionread_ioctl
 FIONREAD_INODE_RENAMES=	-Dsetjmp=fionread_setjmp
 FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width
+FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
+	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
+	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
+	${TOPSRC}/sys/sys/dir.h ${TOPSRC}/sys/sys/errno.h \
+	${TOPSRC}/sys/sys/exec.h ${TOPSRC}/sys/sys/exec_aout.h \
+	${TOPSRC}/sys/sys/exec_elf.h ${TOPSRC}/sys/sys/fcntl.h \
+	${TOPSRC}/sys/sys/file.h ${TOPSRC}/sys/sys/fs.h \
+	${TOPSRC}/sys/sys/inode.h ${TOPSRC}/sys/sys/ioctl.h \
+	${TOPSRC}/sys/sys/kernel.h ${TOPSRC}/sys/sys/mount.h \
+	${TOPSRC}/sys/sys/param.h ${TOPSRC}/sys/sys/proc.h \
+	${TOPSRC}/sys/sys/resource.h ${TOPSRC}/sys/sys/select.h \
+	${TOPSRC}/sys/sys/signal.h ${TOPSRC}/sys/sys/stat.h \
+	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
+	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
+	${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/tty.h \
+	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
+	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/uio.h \
+	${PORT_INCLUDE}/elf_machdep.h ${PORT_INCLUDE}/intr.h \
+	${PORT_INCLUDE}/limits.h ${PORT_INCLUDE}/machparam.h \
+	${PORT_INCLUDE}/scb.h ${PORT_INCLUDE}/signal.h \
+	${PORT_INCLUDE}/types.h ${MACHINE_STAMP}
+FIONREAD_BUILD_TARGETS=	fionread_generic.o fionread_inode.o fionread_test \
+	fionread_generic32.o fionread_inode32.o fionread_test32 \
+	fionread_test_sanitized \
+	${FIONREAD_MUTANTS:@mutation@fionread_${mutation}.mutant.test@}
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -491,6 +516,8 @@ fionread_generic.o: ${FIONREAD_IOCTL_FUNCTION} ${MACHINE_STAMP}
 ${FIONREAD_INODE_FUNCTION}: fionread_extract.py ${FIONREAD_INODE_SRC}
 	${PYTHON} fionread_extract.py --function ino_ioctl \
 	    --source ${FIONREAD_INODE_SRC} --output $@
+
+${FIONREAD_BUILD_TARGETS}: ${FIONREAD_HEADER_DEPS}
 
 fionread_inode.o: ${FIONREAD_INODE_FUNCTION} ${MACHINE_STAMP}
 	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \

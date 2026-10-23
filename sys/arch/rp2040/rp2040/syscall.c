@@ -204,36 +204,46 @@ syscall(struct trapframe *frame)
 
 	const volatile u_int dispatch_code = code < nsysent ? (u_int)code : 0;
 	const volatile uint8_t nargs = syscall_nargs[dispatch_code];
+	const u_int argument_words = sizeof(u.u_arg) / sizeof(u.u_arg[0]);
 
-	if (nargs) {
+	for (u_int argument_index = 0; argument_index < argument_words;
+	    argument_index++)
+		u.u_arg[argument_index] = 0;
+
+	if (nargs > argument_words) {
+		u.u_error = EINVAL;
+	} else if (nargs) {
 		/* In AAPCS, first four args are from trapframe regs r0-r3. */
 		u.u_arg[0] = u.u_frame->tf_r0;	/* $a1 */
 		u.u_arg[1] = u.u_frame->tf_r1;	/* $a2 */
 		u.u_arg[2] = u.u_frame->tf_r2;	/* $a3 */
 		u.u_arg[3] = u.u_frame->tf_r3;	/* $a4 */
 
-		/* In AAPCS, stack must be double-word aligned. */
-		int stkalign = 0;
-		if (u.u_frame->tf_psr & XPSR_STKALIGN) {
-			stkalign = 4;		/* Skip over padding byte. */
-		}
-
 		/* Remaining args are from the stack, after the trapframe. */
 		if (nargs > 4) {
-			u_int addr = (u.u_frame->tf_sp + 32 + stkalign) & ~3;
-			if (!baduaddr((caddr_t)addr))
-				u.u_arg[4] = *(u_int *)addr;
-		}
-		if (nargs > 5) {
-			u_int addr = (u.u_frame->tf_sp + 36 + stkalign) & ~3;
-			if (!baduaddr((caddr_t)addr))
-				u.u_arg[5] = *(u_int *)addr;
+			u_int stack_offset = 8 * sizeof(u_int);
+			u_int stack_words = nargs - 4;
+			u_int stack_bytes = stack_words * sizeof(u.u_arg[0]);
+
+			/* ARMv6-M records one alignment word after the frame. */
+			if (u.u_frame->tf_psr & XPSR_STKALIGN)
+				stack_offset += sizeof(u_int);
+			if (u.u_frame->tf_sp > ~0U - stack_offset) {
+				u.u_error = EFAULT;
+			} else {
+				u_int stack_address =
+				    (u.u_frame->tf_sp + stack_offset) & ~3U;
+
+				if (copyin((caddr_t)stack_address,
+				    (caddr_t)&u.u_arg[4], stack_bytes) != 0)
+					u.u_error = EFAULT;
+			}
 		}
 	}
 
 	u.u_rval = 0;
 
-	if (setjmp(&u.u_qsave) == 0) {
+	if (u.u_error == 0 && setjmp(&u.u_qsave) == 0) {
 		syscall_handlers[dispatch_code]();	/* Make syscall. */
 	}
 

@@ -115,6 +115,13 @@ before publication while preserving zero-length behavior, `EFAULT`, the
 conditional process-window upper bound and their public ABI. Direct
 `baduaddr` consumers and syscall stack-argument state retain separate units.
 
+`rp2040-syscall-stack-argument-admission.md` records the caller-complete
+syscall stack-tail unit. The RP2040 adapter clears the fixed six-word argument
+array, preserves the four-register calling convention, copies a one- or
+two-word tail through complete-span `copyin`, and withholds handler dispatch
+after argument admission fails. Exception entry, signal-context copying and
+the remaining translation-unit semantics retain separate obligations.
+
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real
 build and link dependencies, including selected libc members, generated headers
@@ -618,8 +625,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 11 accepted, 66 migration-open, 543
-excluded and 1,974 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 12 accepted, 67 migration-open, 543
+excluded and 1,973 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

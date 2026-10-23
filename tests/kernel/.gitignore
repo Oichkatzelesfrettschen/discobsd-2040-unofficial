@@ -64,3 +64,7 @@ usercopy_functions.c
 usercopy_endpoint_mutant.c
 usercopy_span_test32
 usercopy_span_endpoint_mutant
+syscall_args_block.c
+syscall_args_dispatch_mutant.c
+syscall_args_test32
+syscall_args_dispatch_mutant

@@ -52,6 +52,7 @@ GATE_WARN=	-Wall -Wextra -Werror
 KERN_CFLAGS=	${KERN_BASE} ${KERN_WARN}
 GATE_CFLAGS=	${KERN_BASE} ${GATE_WARN}
 HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
+SYSCALL_GATE_CFLAGS=	-std=c17 -pedantic-errors ${GATE_WARN}
 
 # sys/kern/subr_prf.c walks its own arguments as an array of four-byte slots,
 # so it is faithful only where a pointer, a long and an int are four bytes
@@ -121,6 +122,7 @@ UFS_EXPLICIT_TIME_LDFLAGS=	-Wl,--gc-sections
 SHUTDOWN_SYNC_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/shutdown_sync.c
 MACHDEP_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 USERCOPY_SRC=		${MACHDEP_SRC}
+SYSCALL_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
 
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
@@ -474,11 +476,36 @@ usercopy_span_endpoint_mutant: usercopy_span_test.c \
 	    -DUSERCOPY_FUNCTIONS='"usercopy_endpoint_mutant.c"' \
 	    -o $@ usercopy_span_test.c
 
+syscall_args_block.c: syscall_args_extract.py ${SYSCALL_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for syscall extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} syscall_args_extract.py --source ${SYSCALL_SRC} --output $@
+
+syscall_args_dispatch_mutant.c: syscall_args_extract.py ${SYSCALL_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for syscall extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} syscall_args_extract.py --source ${SYSCALL_SRC} --output $@ \
+	    --dispatch-after-failure-mutant
+
+syscall_args_test32: syscall_args_test.c syscall_args_block.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ syscall_args_test.c
+
+syscall_args_dispatch_mutant: syscall_args_test.c \
+    syscall_args_dispatch_mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DSYSCALL_ARGS_BLOCK='"syscall_args_dispatch_mutant.c"' \
+	    -o $@ syscall_args_test.c
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 sigauth_test \
-	    usercopy_span_test32 usercopy_span_endpoint_mutant \
+	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
+	    syscall_args_dispatch_mutant \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -492,6 +519,13 @@ check-ilp32:
 	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
 	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
+	${TEST_EXECUTION} run kernel.syscall-arguments.ilp32 -- ./syscall_args_test32
+	@if ./syscall_args_dispatch_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL syscall dispatch mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS syscall dispatch-after-failure mutation rejected"
 	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
 	if [ "$$status" -ne 1 ]; then \
 		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
@@ -513,6 +547,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-compact.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-wide.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -546,6 +581,8 @@ clean:
 	rm -f rwuio_jump.o rwuio_jump32.o
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
+	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
+	rm -f syscall_args_test32 syscall_args_dispatch_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o

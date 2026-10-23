@@ -54,6 +54,12 @@ GATE_CFLAGS=	${KERN_BASE} ${GATE_WARN}
 HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
 SYSCALL_GATE_CFLAGS=	-std=c17 -pedantic-errors ${GATE_WARN}
 
+# The surrounding ELF fixture includes the exact production swaptext()
+# definition.  That inherited definition uses K&R parameter syntax, so Clang
+# needs the same narrow exception as other exact kernel-source gates.
+ELF_SURROUNDING_CFLAGS=	${SYSCALL_GATE_CFLAGS} \
+			-Wno-deprecated-non-prototype
+
 # sys/kern/subr_prf.c walks its own arguments as an array of four-byte slots,
 # so it is faithful only where a pointer, a long and an int are four bytes
 # and arguments sit on the stack. That is the target, and it is what -m32
@@ -641,14 +647,14 @@ exec_elf_surrounding_contract_test32: exec_elf_surrounding_contract_test.c \
     exec_elf_admission_function.c exec_estab_function.c \
     exec_setupstack_function.c swaptext_function.c \
     exec_text_release_function.c ${MACHINE_STAMP}
-	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	${HOST_CC} ${ELF_SURROUNDING_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
 	    -o $@ exec_elf_surrounding_contract_test.c
 
 exec_stack_geometry_mutant: exec_elf_surrounding_contract_test.c \
     exec_elf_admission_function.c exec_estab_function.c \
     exec_setupstack_geometry_mutant.c swaptext_function.c \
     exec_text_release_function.c ${MACHINE_STAMP}
-	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	${HOST_CC} ${ELF_SURROUNDING_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
 	    -DEXEC_SETUPSTACK_FUNCTION='"exec_setupstack_geometry_mutant.c"' \
 	    -o $@ exec_elf_surrounding_contract_test.c
 
@@ -656,7 +662,7 @@ exec_elf_text_ownership_mutant: exec_elf_surrounding_contract_test.c \
     exec_elf_text_ownership_mutant.c exec_estab_function.c \
     exec_setupstack_function.c swaptext_function.c \
     exec_text_release_function.c ${MACHINE_STAMP}
-	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	${HOST_CC} ${ELF_SURROUNDING_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
 	    -DEXEC_ELF_FUNCTION='"exec_elf_text_ownership_mutant.c"' \
 	    -o $@ exec_elf_surrounding_contract_test.c
 

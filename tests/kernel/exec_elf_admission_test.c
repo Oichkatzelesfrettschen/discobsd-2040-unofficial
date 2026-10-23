@@ -121,7 +121,6 @@ static int clear_calls;
 static int setup_calls;
 static unsigned int setup_entry;
 static int signal_calls;
-static int signaled_number;
 static int failures;
 static jmp_buf exit_jump;
 static int exit_armed;
@@ -214,8 +213,8 @@ static void
 psignal(struct proc *target, int signal_number)
 {
 	(void)target;
+	(void)signal_number;
 	signal_calls++;
-	signaled_number = signal_number;
 }
 
 static void
@@ -310,7 +309,6 @@ reset_fixture(struct exec_params *parameters)
 	setup_calls = 0;
 	setup_entry = 0;
 	signal_calls = 0;
-	signaled_number = 0;
 	exit_armed = 0;
 	exit_calls = 0;
 	exit_status = 0;

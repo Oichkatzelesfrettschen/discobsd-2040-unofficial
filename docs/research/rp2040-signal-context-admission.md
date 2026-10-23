@@ -4,10 +4,10 @@ The RP2040 `sigreturn` path formerly probed the first byte of the user signal
 context and the byte immediately after it, then restored every process field
 through direct typed loads from mutable user storage. The second probe rejected
 an otherwise valid context ending exactly at the process-window boundary. The
-two probes did not establish that the 72-byte object was readable, and direct
-loads could observe multiple versions if user storage changed while the
-kernel restored it. A misaligned context also made those word loads unsuitable
-for ARMv6-M.
+one-past probe was an indirect and overstrict span check instead of a complete
+copy. Direct loads could observe multiple versions if user storage changed
+while the kernel restored it. A misaligned context also made those word loads
+unsuitable for ARMv6-M.
 
 The signal trampoline enters syscall 103 with `tf_sp` at the base of the
 eight-word hardware frame and the saved `struct sigcontext` 32 bytes above it.
@@ -36,14 +36,18 @@ invalid first byte, a truncated final byte, injected `copyin` failure, wrapped
 `tf_sp + 32` arithmetic and a successful restoration of every saved register,
 mask and alternate-stack flag. Each rejection must preserve the trapframe,
 mask, stack flags and unpublished return state. A generated mutant removes the
-snapshot and restores direct user loads; the fixture must reject it with exit
+snapshot and restores direct user loads. A second generated mutant performs
+the complete copy and then points restoration back at user storage. The copy
+seam changes the admitted user bytes after copying while the oracle retains an
+independent expected context, so the fixture must reject both mutants with exit
 status 1.
 
 The inherited implementation fails the calibrated fixture on exact-span
 admission, complete-copy use, injected-copy failure and wrapped address
 construction. The candidate fixture passes, and the direct-user mutant fails
-with the required status. `check-test-execution` validates the run/skip
-inventory, and `check-kernel-ilp32` owns the executable gate.
+with the required status. The copy-then-user-reread mutant also fails with the
+required status. `check-test-execution` validates the run/skip inventory, and
+`check-kernel-ilp32` owns the executable gate.
 
 The clean parent at `cdc0e4987156e7a980a84bb2bec823828e1bbf6a` and the
 committed candidate at `80ecf12b926913ab8480e5bcc426fb9e5b07d270` use

@@ -21,6 +21,9 @@ DIRECT_ADMISSION = """\tuser_context = regs->tf_sp + 32U;
 \tscp = (struct sigcontext *)user_context;
 \tif (baduaddr((caddr_t)scp) ||
 \t    baduaddr((caddr_t)scp + sizeof(*scp))) {"""
+SNAPSHOT_PUBLICATION = "\tu.u_error = EJUSTRETURN;"
+REREAD_PUBLICATION = """\tscp = (struct sigcontext *)user_context;
+\tu.u_error = EJUSTRETURN;"""
 
 
 def extract_function(source, signature):
@@ -45,7 +48,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--direct-user-mutant", action="store_true")
+    mutations = parser.add_mutually_exclusive_group()
+    mutations.add_argument("--direct-user-mutant", action="store_true")
+    mutations.add_argument("--reread-user-mutant", action="store_true")
     arguments = parser.parse_args()
 
     source_bytes = arguments.source.read_bytes()
@@ -55,9 +60,13 @@ def main():
             raise SystemExit("direct-user declaration mutation does not match source")
         if function.count(SNAPSHOT_ADMISSION) != 1:
             raise SystemExit("direct-user admission mutation does not match source")
-        function = function.replace(
-            SNAPSHOT_DECLARATIONS, DIRECT_DECLARATIONS, 1
-        ).replace(SNAPSHOT_ADMISSION, DIRECT_ADMISSION, 1)
+        function = function.replace(SNAPSHOT_DECLARATIONS, DIRECT_DECLARATIONS, 1).replace(
+            SNAPSHOT_ADMISSION, DIRECT_ADMISSION, 1
+        )
+    elif arguments.reread_user_mutant:
+        if function.count(SNAPSHOT_PUBLICATION) != 1:
+            raise SystemExit("user-reread publication mutation does not match source")
+        function = function.replace(SNAPSHOT_PUBLICATION, REREAD_PUBLICATION, 1)
 
     source_hash = hashlib.sha256(source_bytes).hexdigest()
     arguments.output.write_text(

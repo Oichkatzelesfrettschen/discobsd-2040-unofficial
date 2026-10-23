@@ -1650,7 +1650,8 @@
       "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
       "prerequisites": [
         "sigreturn_context_test32",
-        "sigreturn_context_direct_mutant"
+        "sigreturn_context_direct_mutant",
+        "sigreturn_context_reread_mutant"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- ./sigreturn_context_test32",
       "aliases": [

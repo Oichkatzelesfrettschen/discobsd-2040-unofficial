@@ -94,6 +94,7 @@ static uintptr_t copyin_source;
 static uintptr_t copyin_destination;
 static u_int copyin_length;
 static int force_copyin_failure;
+static int overwrite_user_after_copy;
 static int failures;
 
 static int
@@ -120,6 +121,8 @@ copyin(caddr_t source, caddr_t destination, u_int length)
 	    length > logical_user_upper - start)
 		return EFAULT;
 	memcpy(destination, source, length);
+	if (overwrite_user_after_copy)
+		memset(source, 0x3c, length);
 	return 0;
 }
 
@@ -171,6 +174,7 @@ reset_fixture(u_int frame_base)
 	copyin_destination = 0;
 	copyin_length = 0;
 	force_copyin_failure = 0;
+	overwrite_user_after_copy = 0;
 }
 
 static void
@@ -213,12 +217,15 @@ static void
 check_exact_complete_context(void)
 {
 	struct context_storage storage;
+	struct sigcontext expected;
 
 	memset(&storage, 0, sizeof(storage));
-	fill_context(&storage.context);
+	fill_context(&expected);
+	storage.context = expected;
 	reset_fixture((u_int)(uintptr_t)&storage);
 	logical_user_lower = (uintptr_t)&storage.context;
 	logical_user_upper = logical_user_lower + sizeof(storage.context);
+	overwrite_user_after_copy = 1;
 	sigreturn();
 	CHECK("exact context uses one complete copy", copyin_calls == 1);
 	CHECK("exact context copies seventy-two bytes",
@@ -227,27 +234,32 @@ check_exact_complete_context(void)
 	CHECK("copy destination is sigcontext-aligned",
 	    copyin_destination % _Alignof(struct sigcontext) == 0);
 	CHECK("snapshot path avoids probe-only admission", baduaddr_calls == 0);
-	check_restored_context(&storage.context);
+	CHECK("copy seam changes user context after snapshot",
+	    memcmp(&storage.context, &expected, sizeof(expected)) != 0);
+	check_restored_context(&expected);
 }
 
 static void
 check_misaligned_context(void)
 {
 	unsigned char storage[32 + sizeof(struct sigcontext) + 2];
-	struct sigcontext source;
+	struct sigcontext expected;
 	uintptr_t context_address = (uintptr_t)&storage[33];
 
-	fill_context(&source);
-	memcpy((void *)context_address, &source, sizeof(source));
+	fill_context(&expected);
+	memcpy((void *)context_address, &expected, sizeof(expected));
 	reset_fixture((u_int)(context_address - 32U));
 	logical_user_lower = context_address;
-	logical_user_upper = context_address + sizeof(source) + 1U;
+	logical_user_upper = context_address + sizeof(expected) + 1U;
+	overwrite_user_after_copy = 1;
 	sigreturn();
 	CHECK("misaligned source uses one complete copy", copyin_calls == 1);
 	CHECK("misaligned source address preserved", copyin_source == context_address);
 	CHECK("misaligned destination is aligned",
 	    copyin_destination % _Alignof(struct sigcontext) == 0);
-	check_restored_context(&source);
+	CHECK("misaligned user context changes after snapshot",
+	    memcmp((void *)context_address, &expected, sizeof(expected)) != 0);
+	check_restored_context(&expected);
 }
 
 static void

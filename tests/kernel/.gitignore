@@ -72,3 +72,5 @@ sigreturn_context_function.c
 sigreturn_context_direct_mutant.c
 sigreturn_context_test32
 sigreturn_context_direct_mutant
+sigreturn_context_reread_mutant.c
+sigreturn_context_reread_mutant

@@ -820,10 +820,13 @@ source, invalid and truncated spans, injected `copyin` failure and wrapped
 frame-offset arithmetic. Every rejected case preserves the trapframe, signal
 mask and alternate-stack state; a successful case restores every saved
 register and masks signals that cannot be blocked. A generated direct-user
-load mutant must fail the same executable with status 1. The fixture
-establishes complete-span snapshot admission and publication ordering at
-ILP32. It leaves xPSR policy, exception return, runtime stack use, MPU
-enforcement and physical hardware to their separate evidence classes.
+load mutant and a generated copy-then-user-reread mutant must each fail the
+same executable with status 1. The successful copy seam changes user storage
+after copying while the oracle retains an independent expected context, so
+restored state must come from the admitted snapshot. The fixture establishes
+complete-span snapshot admission and publication ordering at ILP32. It leaves
+xPSR policy, exception return, runtime stack use, MPU enforcement and physical
+hardware to their separate evidence classes.
 
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
 extent of `vm.swapmap` as a pointer difference held in an int and whose

@@ -122,6 +122,13 @@ two-word tail through complete-span `copyin`, and withholds handler dispatch
 after argument admission fails. Exception entry, signal-context copying and
 the remaining translation-unit semantics retain separate obligations.
 
+`rp2040-file-owner-control-admission.md` records the bounded file-owner unit.
+The four `fcntl` and `ioctl` entries reject unrepresentable process-group
+values before negation or dispatch, stage driver and caller payloads, and
+publish results only after successful validation. General ioctl payloads,
+flag rollback, conditional INET behavior and remaining descriptor semantics
+retain separate obligations.
+
 `rp2040-signal-context-admission.md` records the next RP2040 user-pointer
 boundary. `sigreturn` rejects frame-offset wrap, copies exactly one complete
 72-byte context into aligned kernel storage and publishes process state only
@@ -502,6 +509,25 @@ Source: `rp2040-credential-transition-contract.md` and `TESTING.md`
 Source: `rp2040-syscall-io-span-admission.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-rp2040-usercopy-span`).
 
+### R9 -- file-owner control admission (`sys/kern/kern_descrip.c`, `sys_generic.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD file-control/ioctl ABI; RP2040 kernel profile |
+| Tier | T1: caller-selected owner values and driver-produced process groups cross the syscall boundary |
+| Native input | No |
+| Contract | `F_SETOWN` and `FIOSETOWN` validate a PID or negative process-group representation before negation and dispatch; `F_GETOWN` and `FIOGETOWN` publish only a successful representable driver result; ioctl payloads cross through complete-span `copyin`/`copyout` |
+| Invariants | Syscalls 54 and 92, command values, public layouts, descriptor/access precedence, positive-PID lookup, negative-group convention and driver errors remain unchanged |
+| Falsifier | Restoring unconditional get-owner publication or direct ioctl user-pointer dereferences must fail the 36-check fixture with assertion status 1. Restoring unchecked negation must terminate with process status 1 or `SIGABRT` and emit the signed-negation diagnostic when the undefined-behavior sanitizer runtime is admitted; the gate records a skip otherwise |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-c17-kernel-inventory`, `check-kernel-metadata`, exact PICO/PICO_UART compilation and maintained STM32 compilation |
+| Resources | Clean parent `a740bc40` and implementation `290fd394` schema-2 receipts report +96 flash bytes in each kernel and zero delta for every static SRAM region, shipped a.out, packed-root surface, native artifact and archive/member selection. `kern_descrip.o` and `sys_generic.o` each gain 48 text bytes; `fgetown()` and `ioctl()` each gain eight static frame bytes. The bounded exception accepts those costs; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the five typed definitions and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the four preserved owner-control entries. 3 native: n/a. 4 hardening: done for the exercised value, copy and publication boundary. 5 resource: measured and accepted with a bounded positive flash/frame exception; runtime peaks remain open. 6 program closure: done for the bounded owner-control seam |
+| Residuals | General ioctl payloads, `FIONBIO`, `FIOASYNC`, `F_SETFL` rollback, descriptor duplication and locking, and conditional INET owner handling remain separate units. `/dev/mem`, `ptrace`, broad kernel declarations, runtime peaks, MPU behavior and physical-board execution retain separate evidence states |
+
+Source: `rp2040-file-owner-control-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -683,8 +709,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 20 accepted, 84 migration-open, 543
-excluded and 1,951 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 21 accepted, 85 migration-open, 543
+excluded and 1,950 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

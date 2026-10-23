@@ -965,6 +965,29 @@ class ExecutionTest(unittest.TestCase):
                       if line.startswith("sh ") and "stdio_bounds.sh" in line)
         self.assertEqual(shlex.split(recipe)[-2:], ["cc -O1", "stdio_bounds_work"])
 
+    def test_file_owner_mutants_skip_ubsan_when_runtime_is_unavailable(self):
+        environment = os.environ.copy()
+        environment.pop("MAKEFLAGS", None)
+        environment.pop("MFLAGS", None)
+        result = subprocess.run(
+            ["bmake", "-n", "-C", str(execution.ROOT / "tests/kernel"),
+             "MACHINE=rp2040", "KERNEL_SANITIZER_OK=no",
+             "check-file-owner-mutants"],
+            env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("file_owner_test_sanitized", result.stdout)
+        self.assertIn(" skip kernel.file-owner.ubsan-mutant ", result.stdout)
+
+    def test_file_owner_sanitizer_has_one_parent_graph_owner(self):
+        contents = (execution.ROOT / "tests/kernel/Makefile").read_text()
+        self.assertIn(
+            '.if ${KERNEL_SANITIZER_OK} == "yes"\n'
+            'check-file-owner-sanitizer: file_owner_test_sanitized\n',
+            contents,
+        )
+        self.assertNotIn("\t@${MAKE} file_owner_test_sanitized\n", contents)
+
     def test_required_undefined_sanitizer_rejects_recoverable_fault(self):
         source = self.directory / "undefined.c"
         source.write_text(

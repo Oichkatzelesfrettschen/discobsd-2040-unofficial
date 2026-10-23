@@ -16,13 +16,9 @@ sys/kern/kern_descrip.c definition dup2 both
 sys/kern/kern_descrip.c definition dupfdopen both
 sys/kern/kern_descrip.c definition dupit both
 sys/kern/kern_descrip.c definition falloc both
-sys/kern/kern_descrip.c definition fcntl both
 sys/kern/kern_descrip.c definition fdopen both
-sys/kern/kern_descrip.c definition fgetown both
-sys/kern/kern_descrip.c definition fioctl both
 sys/kern/kern_descrip.c definition flock both
 sys/kern/kern_descrip.c definition fset both
-sys/kern/kern_descrip.c definition fsetown both
 sys/kern/kern_descrip.c definition fstat both
 sys/kern/kern_descrip.c definition getdtablesize both
 sys/kern/kern_descrip.c definition getf both
@@ -100,7 +96,6 @@ sys/kern/subr_rmap.c definition malloc both
 sys/kern/subr_rmap.c definition malloc3 both
 sys/kern/subr_rmap.c definition malloc3_contiguous both
 sys/kern/subr_rmap.c definition mfree both
-sys/kern/sys_generic.c definition ioctl both
 sys/kern/sys_generic.c definition nonet both
 sys/kern/sys_generic.c definition nostrategy both
 sys/kern/sys_generic.c definition pselect both

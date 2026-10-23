@@ -1588,6 +1588,46 @@
       ]
     },
     {
+      "id": "kernel.file-owner.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-file-owner-sanitizer",
+      "root_target": "check-kernel",
+      "program": "file_owner_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "file_owner_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.file-owner.sanitized -- ./file_owner_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
+      "id": "kernel.file-owner.ubsan-mutant",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-file-owner-ubsan-mutant",
+      "root_target": "check-kernel",
+      "program": "sh",
+      "script": "tests/kernel/file_owner_ubsan_mutant_check.sh",
+      "subject": "tests/kernel/file_owner_unchecked-negation.mutant.test",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "file_owner_unchecked-negation.mutant.test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.file-owner.ubsan-mutant -- sh ./file_owner_ubsan_mutant_check.sh ./file_owner_unchecked-negation.mutant.test",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.printf.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -1640,6 +1680,25 @@
         "rwuio_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.file-owner.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "file_owner_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "file_owner_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

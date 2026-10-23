@@ -57952,14 +57952,18 @@
         "docs/research/rp2040-syscall-io-span-admission.md",
         "docs/research/rp2040-file-owner-control-admission.md",
         "docs/research/rp2040-file-status-control-admission.md",
+        "docs/research/rp2040-fionread-result-admission.md",
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/rwuio_test.c",
         "tests/kernel/rwuio_mutate.py",
         "tests/kernel/file_owner_test.c",
         "tests/kernel/file_owner_mutate.py",
-        "tests/kernel/file_status_mutate.py"
+        "tests/kernel/file_status_mutate.py",
+        "tests/kernel/fionread_test.c",
+        "tests/kernel/fionread_extract.py",
+        "tests/kernel/fionread_mutate.py"
       ],
-      "blocker": "The read, write, readv, writev, shared rwuio, file-owner ioctl and direct file-status ioctl seams are accepted; general ioctl payloads, select, socket stubs and the remaining translation-unit semantics retain separate migration units.",
+      "blocker": "The read, write, readv, writev, shared rwuio, file-owner ioctl, direct file-status ioctl and FIONREAD result seams are accepted; general ioctl input and bidirectional payloads, select, socket stubs and the remaining translation-unit semantics retain separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -62294,6 +62298,45 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/fionread_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-fionread-result-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/fionread_extract.py",
+        "tests/kernel/fionread_mutate.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [],

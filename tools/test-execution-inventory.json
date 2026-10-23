@@ -1608,6 +1608,25 @@
       "description": "The shared fixture covers file-owner and file-status control contracts."
     },
     {
+      "id": "kernel.fionread.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-fionread-sanitizer",
+      "root_target": "check-kernel",
+      "program": "fionread_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "fionread_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.fionread.sanitized -- ./fionread_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.file-owner.ubsan-mutant",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1704,6 +1723,25 @@
         "check-kernel-ilp32"
       ],
       "description": "The shared fixture covers file-owner and file-status control contracts."
+    },
+    {
+      "id": "kernel.fionread.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "fionread_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "fionread_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
     },
     {
       "id": "kernel.usercopy-span.ilp32",

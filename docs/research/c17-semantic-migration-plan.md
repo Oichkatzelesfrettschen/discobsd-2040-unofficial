@@ -555,6 +555,25 @@ Source: `rp2040-file-owner-control-admission.md` and `TESTING.md`
 Source: `rp2040-file-status-control-admission.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`).
 
+### R11 -- FIONREAD result admission (`sys/kern/sys_generic.c`, `sys_inode.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD ioctl ABI; RP2040 kernel profile with the focused definitions compiled in C17 mode |
+| Tier | T1: driver-produced byte counts cross from aligned kernel storage to a caller-selected output address |
+| Native input | No |
+| Contract | Every shipped `FIONREAD` provider receives an initialized aligned `off_t`; `ioctl()` publishes the complete result through `copyout()` only after provider success |
+| Invariants | Syscall 54, command value, public `long`/`off_t` representation, descriptor/access and span-check precedence, provider selection, provider errors, and regular-file, directory, pipe and tty result calculations remain unchanged |
+| Falsifier | Three warning-clean mutations restore direct caller-pointer access, unconditional failed-result publication or a short copy; each must fail its named assertion with status 1, while the inherited source must reproduce an alignment-sanitizer failure |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, C17 GCC and Clang host compilation, exact PICO/PICO_UART production builds, `check-c17-source-denominator` and `check-kernel-metadata` |
+| Resources | Matched clean distributions at parent `bd0d28c8` and candidate `549628e8` attribute a 64-byte PICO and PICO_UART flash increase to `sys_generic.o` and `ioctl()`; static SRAM, every shipped a.out, native libc size and membership, packed-root counters and the 24-byte `ioctl()` frame remain unchanged. The bounded flash exception is accepted with 25,928 PICO and 38,404 PICO_UART bytes remaining. Runtime stack high-water remains open |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the two exact extracted definitions and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the preserved `FIONREAD` command and result representation. 3 native: n/a. 4 hardening: done for the exercised alignment, ownership and publication boundary. 5 resource: done for static surfaces through a bounded 64-byte per-kernel exception; runtime peaks stay open. 6 program closure: done for `FIONREAD` across shipped providers |
+| Residuals | General input and bidirectional ioctl payloads, malformed command geometry, swap-device result semantics, tty local-mode arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+
+Source: `rp2040-fionread-result-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -736,7 +755,7 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 21 accepted, 85 migration-open, 543
+set. Those classifications preserve all 22 accepted, 85 migration-open, 543
 excluded and 1,950 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's

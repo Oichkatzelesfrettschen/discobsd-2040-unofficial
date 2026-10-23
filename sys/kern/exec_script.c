@@ -63,7 +63,7 @@ exec_script_check(struct exec_params *epp)
         return ENOEXEC;
     bzero(&nd, sizeof nd);
     ndp = &nd;
-    NDINIT_KERNEL (ndp, LOOKUP, FOLLOW, cp);
+    NAMEI_INIT_KERNEL (ndp, LOOKUP, FOLLOW, cp);
     while (*cp && *cp != ' ')
         cp++;
     if (*cp != '\0') {

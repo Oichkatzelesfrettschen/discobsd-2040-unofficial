@@ -32,7 +32,7 @@ getmdev(dev_t *pdev, caddr_t fname)
 
     if (!suser())
         return (u.u_error);
-    NDINIT (ndp, LOOKUP, FOLLOW, fname);
+    NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, fname);
     ip = namei(ndp);
     if (ip == NULL) {
         if (u.u_error == ENOENT)
@@ -104,7 +104,7 @@ smount(void)
     u.u_error = getmdev (&dev, uap->fspec);
     if (u.u_error)
         return;
-    NDINIT (ndp, LOOKUP, FOLLOW, uap->freg);
+    NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, uap->freg);
     if ((ip = namei(ndp)) == NULL)
         return;
     if ((ip->i_mode&IFMT) != IFDIR) {

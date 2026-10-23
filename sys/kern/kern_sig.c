@@ -570,7 +570,7 @@ core(void)
     while ((*np++ = *cp++))
         ;
     u.u_error = 0;
-    NDINIT_KERNEL (ndp, CREATE, FOLLOW, name);
+    NAMEI_INIT_KERNEL (ndp, CREATE, FOLLOW, name);
     ip = namei(ndp);
     if (ip == NULL) {
         if (u.u_error)

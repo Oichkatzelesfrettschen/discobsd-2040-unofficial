@@ -414,17 +414,18 @@ Source: `bsd-workspace-directory-stream-c17.md`.
 | Layer and profile | GNU17 freestanding kernel and the BSD/2.11 errno ABI; RP2040 kernel profile, with the copy helper compiled strictly on the host seam |
 | Tier | T1: syscall user-pointer boundary |
 | Native input | No |
-| Contract | User paths use `copyin`; kernel-owned paths keep `copystr`; path origin is preserved through `vn_open`, `link` and `rename` |
+| Contract | User paths use `copyin`; kernel-owned paths keep `copystr`; every kernel initialization states its origin; operation-only resets preserve the pathname and its origin |
 | Invariants | An invalid pointer or a missing NUL at the process-window boundary returns `EFAULT`; an in-range terminator at the boundary succeeds; no terminator within `MAXPATHLEN` returns `ENOENT` |
-| Falsifier | A direct-copy mutation fails the boundary oracle |
-| Gates | `check-namei-user-path` (address and undefined-behavior sanitizers) |
-| Resources | Unmeasured in the change record (commit `98ae3f2b`) |
+| Falsifier | Direct user copying, a dropped reset origin, a changed caller origin or pathname, a direct field write, or an unexpected caller fails its calibrated oracle |
+| Gates | `check-namei-user-path` (finite caller inventory plus strict-C17 address and undefined-behavior sanitizers), clean PICO and PICO_UART dependency/resource captures |
+| Resources | PICO kernel flash is unchanged; PICO_UART kernel flash decreases eight bytes; both SRAM maps, all shipped programs, packed-root occupancy, native artifacts and archive selections are unchanged. Fourteen affected objects retain identical sections, symbols and static frames; both `vfs_vnops.c` objects lose four text bytes while retaining data, BSS and static frames |
 | Evidence class | Host and exact kernel build |
-| Ledger states | 1 language: done for the helper. 2 interface: open, not recorded (ABI representation and caller closure are not stated). 3 native: n/a (no native input). 4 hardening: done for the helper. 5 resource: open (kernel text and frame cost). 6 program closure: open, with the residual below |
-| Residuals | Kernel text and frame cost: owner, this row; deciding gate, before-and-after `ufs_namei.o` and kernel size. Protection beyond software bounds checks needs MPU fault evidence (`MPU.md`); owner, the executable-loading P1 row |
+| Ledger states | 1 language: done for the bounded helper and header seam; remaining translation-unit semantics stay migration-open in the source denominator. 2 interface: done for the unchanged ABI representation and all 30 kernel transitions. 3 native: n/a (no native input). 4 hardening: done for the helper and origin boundary. 5 resource: done for the declared static surfaces; runtime stack, heap and storage traffic remain unmeasured. 6 program closure: done for the pathname-origin mechanism |
+| Residuals | The broader lookup traversal, name-cache union semantics and caller translation units retain separate migration units. Protection beyond software bounds checks needs MPU fault evidence (`MPU.md`). Runtime resource peaks and physical-board execution require their own authorized workloads |
 
-Source: `TESTING.md` (`check-namei-user-path`) and `security-c17-frontier.md`,
-"Ranked residual frontier".
+Source: `rp2040-namei-path-origin-contract.md`, `TESTING.md`
+(`check-namei-user-path`) and `security-c17-frontier.md`, "Ranked residual
+frontier".
 
 ### R5 -- Dhara page metadata (`sys/arch/rp2040/dhara/journal.c` and `map.c`, raw NOR callbacks in `sys/arch/rp2040/dev/flash.c`)
 
@@ -644,8 +645,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 15 accepted, 70 migration-open, 543
-excluded and 1,970 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 16 accepted, 79 migration-open, 543
+excluded and 1,960 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

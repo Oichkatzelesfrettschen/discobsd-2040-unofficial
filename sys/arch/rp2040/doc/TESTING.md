@@ -798,6 +798,20 @@ crossing and wrapped spans before `bcopy`, and exercises the conditional
 `USER_TOP` extension. Restoring the former first/last endpoint checks must
 fail the wraparound assertion with status 1.
 
+The tier also extracts the RP2040 syscall argument-admission and dispatch
+block from the exact `syscall.c`. The ILP32 fixture preserves the target's
+four-byte pointer, `int`, `u_int` and `size_t` widths while real backing
+storage and separate logical user bounds distinguish addressability from host
+mapping. Five- and six-argument calls, xPSR alignment padding, the four-register
+publication convention, zero-argument state clearing and invalid-number routing
+exercise successful dispatch. Invalid and truncated stack tails, injected
+`copyin` failure, wrapped frame arithmetic and metadata above the six-word ABI
+must set their declared error and reach neither `setjmp` nor a handler. A
+generated mutant restores dispatch after admission failure and must fail the
+same executable with status 1. The fixture executes argument admission and
+dispatch selection; it does not exercise longjmp recovery, exception entry,
+MPU enforcement or physical hardware.
+
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
 extent of `vm.swapmap` as a pointer difference held in an int and whose
 fill_from_u() reads a process u area through an int-valued p_addr.

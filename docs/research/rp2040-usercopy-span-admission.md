@@ -81,8 +81,8 @@ their corresponding acceptance states open.
 This unit closes the span-admission mechanism for callers that use `copyin` or
 `copyout`. Direct `baduaddr` consumers retain separate migration units:
 `sys_generic.c` ioctl buffers, `vm_swp.c` physical I/O, `mem.c` mixed address
-spaces, `sig_machdep.c` signal contexts and `syscall.c` stack arguments. The
-syscall stack-argument unit also owns stale `u_arg` preservation and dispatch
-failure behavior. MPU permission coverage, deliberate faults, runtime resource
+spaces and `sig_machdep.c` signal contexts. The completed syscall stack-argument
+unit is recorded in `rp2040-syscall-stack-argument-admission.md`. MPU permission
+coverage, deliberate faults, runtime resource
 peaks, persistence effects and physical-board behavior retain their separate
 evidence and authorization contracts.

@@ -119,6 +119,7 @@ Grouped by what they investigate.
 | `shipped-archive-selection-comparison.md` | complete kernel, packed-program and native archive selection; schema-2 comparison, historical receipts and calibrated dependency-growth rejection |
 | `syscall-dispatch-header-contract.md` | generated private syscall declarations, configuration-selected dispatch checks and native-header boundaries |
 | `rp2040-usercopy-span-admission.md` | overflow-safe RP2040 `copyin` and `copyout` span admission, exact ILP32 behavior and direct-address residuals |
+| `rp2040-syscall-io-span-admission.md` | complete read, write, readv and writev buffer-span admission before dispatch, calibrated refusal controls and measured kernel cost |
 | `rp2040-syscall-stack-argument-admission.md` | complete RP2040 syscall stack-tail admission, stale-state clearing and dispatch failure behavior |
 | `rp2040-elf-load-admission.md` | complete flat ELF file and process-window admission, Thumb entry validation and committed-read failure behavior |
 | `rp2040-namei-path-origin-contract.md` | explicit user and kernel pathname origin across every kernel `namei` transition, calibrated caller closure and zero static-resource delta |

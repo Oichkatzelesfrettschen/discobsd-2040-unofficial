@@ -33,6 +33,10 @@ rwuio_kernel32.o
 rwuio_shim32.o
 rwuio_jump.o
 rwuio_jump32.o
+rwuio_*.mutant.c
+rwuio_*.mutant.test
+rwuio_*.mutant.out
+rwuio_test_sanitized
 sysctl_test_compact
 sysctl_test_wide
 sysctl_kernel_compact.o

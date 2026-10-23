@@ -898,7 +898,7 @@ strlen(const char *s)
 }
 
 /* Return nonzero unless the complete non-wrapping span is user-accessible. */
-static int
+int
 baduaddr_span(caddr_t addr, u_int nbytes)
 {
 	return !rp2040_user_span_contains((u_int)__user_data_start,

@@ -788,18 +788,24 @@ strlen(const char *s)
 	return s - s0 - 1;
 }
 
-/*
- * Return 0 if a user address is valid.
- * There is only one memory region allowed for user: RAM.
- */
+/* Return nonzero unless the complete non-wrapping span is user-accessible. */
+int
+baduaddr_span(caddr_t addr, u_int nbytes)
+{
+	u_int lower = (u_int)__user_data_start;
+	u_int upper = (u_int)__user_data_end;
+	u_int start = (u_int)addr;
+
+	if (start < lower || start > upper)
+		return 1;
+	return nbytes > upper - start;
+}
+
+/* Return 0 when one byte at addr is user-accessible. */
 int
 baduaddr(caddr_t addr)
 {
-	if (addr >= (caddr_t)__user_data_start &&
-	    addr < (caddr_t)__user_data_end)
-		return 0;
-
-	return 1;
+	return baduaddr_span(addr, 1);
 }
 
 /*

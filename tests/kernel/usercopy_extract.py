@@ -30,7 +30,7 @@ def main():
     source_bytes = arguments.source.read_bytes()
     source = source_bytes.decode()
     signatures = []
-    span_signature = "static int\nbaduaddr_span(caddr_t addr, u_int nbytes)"
+    span_signature = "int\nbaduaddr_span(caddr_t addr, u_int nbytes)"
     if span_signature in source:
         signatures.append(span_signature)
     signatures.extend(

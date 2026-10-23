@@ -21,15 +21,14 @@ int selwait;
 #define RWUIO_MAX   0x7fffffffU
 
 static void
-rwuio (uio)
-    register struct uio *uio;
+rwuio(struct uio *uio)
 {
     struct a {
         int     fdes;
     };
     register struct file *fp;
-    register struct iovec *iov;
-    u_int i, count;
+    register struct iovec *vector;
+    u_int vector_index, total_count;
 
     GETF(fp, ((struct a *)u.u_arg)->fdes);
     if ((fp->f_flag & (uio->uio_rw == UIO_READ ? FREAD : FWRITE)) == 0) {
@@ -51,14 +50,25 @@ rwuio (uio)
      * tests/kernel/rwuio_test.c holds this at the host width and at ILP32.
      */
     uio->uio_resid = 0;
-    for (iov = uio->uio_iov, i = 0; i < (u_int)uio->uio_iovcnt; i++, iov++) {
-        if (iov->iov_len > RWUIO_MAX - uio->uio_resid) {
+    for (vector = uio->uio_iov, vector_index = 0;
+        vector_index < (u_int)uio->uio_iovcnt;
+        vector_index++, vector++) {
+        if (vector->iov_len > RWUIO_MAX - uio->uio_resid) {
             u.u_error = EINVAL;
             return;
         }
-        uio->uio_resid += iov->iov_len;
+        uio->uio_resid += vector->iov_len;
     }
-    count = uio->uio_resid;
+    for (vector = uio->uio_iov, vector_index = 0;
+        vector_index < (u_int)uio->uio_iovcnt;
+        vector_index++, vector++) {
+        if (vector->iov_len != 0 &&
+            baduaddr_span(vector->iov_base, vector->iov_len)) {
+            u.u_error = EFAULT;
+            return;
+        }
+    }
+    total_count = uio->uio_resid;
     if (setjmp (&u.u_qsave)) {
         /*
          * The ONLY way we can get here is via the longjump in sleep.  Thus signals
@@ -67,20 +77,20 @@ rwuio (uio)
          * call will either be restarted or reported as interrupted.  If bytes have
          * been transferred then we need to calculate the number of bytes transferred.
          */
-        if (uio->uio_resid == count)
+        if (uio->uio_resid == total_count)
             return;
         u.u_error = 0;
     } else
         u.u_error = (*Fops[fp->f_type]->fo_rw) (fp, uio);
 
-    u.u_rval = count - uio->uio_resid;
+    u.u_rval = total_count - uio->uio_resid;
 }
 
 /*
  * Read system call.
  */
 void
-read()
+read(void)
 {
     register struct a {
         int     fdes;
@@ -99,7 +109,7 @@ read()
 }
 
 void
-readv()
+readv(void)
 {
     register struct a {
         int     fdes;
@@ -127,7 +137,7 @@ readv()
  * Write system call
  */
 void
-write()
+write(void)
 {
     register struct a {
         int     fdes;
@@ -146,7 +156,7 @@ write()
 }
 
 void
-writev()
+writev(void)
 {
     register struct a {
         int     fdes;

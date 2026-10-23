@@ -55,10 +55,10 @@ HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
 SYSCALL_GATE_CFLAGS=	-std=c17 -pedantic-errors ${GATE_WARN}
 CRED_KERN_CFLAGS=	${KERN_CFLAGS} -Wstrict-prototypes \
 			-Wold-style-definition
-CRED_SANITIZER_FLAGS=	-fsanitize=address,undefined \
+KERNEL_SANITIZER_FLAGS=	-fsanitize=address,undefined \
 			-fno-sanitize-recover=all -fno-omit-frame-pointer
-CRED_SANITIZER_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native \
-			${HOST_CC} ${CRED_SANITIZER_FLAGS}
+KERNEL_SANITIZER_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native \
+			${HOST_CC} ${KERNEL_SANITIZER_FLAGS}
 
 # The surrounding ELF fixture includes the exact production swaptext()
 # definition.  That inherited definition uses K&R parameter syntax, so Clang
@@ -188,6 +188,7 @@ SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
 RWUIO_SRC=	${TOPSRC}/sys/kern/sys_generic.c
 RWUIO_DEFS=	-include rwuio_setjmp.h
 RWUIO_JUMP=	rwuio_jump.c rwuio_jump.h
+RWUIO_MUTANTS=	removed_admission first_byte_only
 
 all: ${PROGS}
 
@@ -294,20 +295,20 @@ cred_test: cred_test.c ${CRED_SRC} hostkern_kern.c hostkern.o hostkern.h \
 
 cred_test_sanitized: cred_test.c ${CRED_SRC} hostkern_kern.c hostkern.c \
     hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${CRED_KERN_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	${HOST_CC} ${CRED_KERN_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
 	    -c -o cred_prot_sanitized.o ${TOPSRC}/sys/kern/kern_prot.c
-	${HOST_CC} ${CRED_KERN_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	${HOST_CC} ${CRED_KERN_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
 	    -c -o cred_prot2_sanitized.o ${TOPSRC}/sys/kern/kern_prot2.c
-	${HOST_CC} ${KERN_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	${HOST_CC} ${KERN_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
 	    -c -o cred_proc_sanitized.o ${TOPSRC}/sys/kern/kern_proc.c
-	${HOST_CC} ${HARNESS_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
 	    -c -o hostkern_sanitized.o hostkern.c
-	${HOST_CC} ${GATE_CFLAGS} ${CRED_SANITIZER_FLAGS} -o $@ \
+	${HOST_CC} ${GATE_CFLAGS} ${KERNEL_SANITIZER_FLAGS} -o $@ \
 	    cred_test.c hostkern_kern.c cred_prot_sanitized.o \
 	    cred_prot2_sanitized.o cred_proc_sanitized.o hostkern_sanitized.o
 
 check-credential-sanitizer:
-.if ${CRED_SANITIZER_OK} == "yes"
+.if ${KERNEL_SANITIZER_OK} == "yes"
 	@${MAKE} cred_test_sanitized
 	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
 	    ${TEST_EXECUTION} run kernel.credentials.sanitized -- \
@@ -327,12 +328,65 @@ resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ resource_test.c hostkern_kern.c \
 	    resource_kernel.o resource_proc.o hostkern.o
 
-rwuio_test: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
+rwuio_jump.o: ${RWUIO_JUMP}
+	${HOST_CC} ${HARNESS_CFLAGS} -c -o $@ rwuio_jump.c
+
+rwuio_test: rwuio_test.c rwuio_setjmp.h rwuio_jump.o ${RWUIO_SRC} \
     hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} -c -o rwuio_kernel.o ${RWUIO_SRC}
-	${HOST_CC} ${HARNESS_CFLAGS} -c -o rwuio_jump.o rwuio_jump.c
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    rwuio_test.c hostkern_kern.c rwuio_kernel.o rwuio_jump.o hostkern.o
+
+.for mutation in ${RWUIO_MUTANTS}
+rwuio_${mutation}.mutant.c: rwuio_mutate.py ${RWUIO_SRC}
+	${PYTHON} rwuio_mutate.py --source ${RWUIO_SRC} --output $@ \
+	    --mutation ${mutation}
+
+rwuio_${mutation}.mutant.test: rwuio_${mutation}.mutant.c rwuio_test.c \
+    rwuio_setjmp.h rwuio_jump.o hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} -c \
+	    -o rwuio_${mutation}.mutant.o rwuio_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} -o $@ rwuio_test.c hostkern_kern.c \
+	    rwuio_${mutation}.mutant.o rwuio_jump.o hostkern.o
+.endfor
+
+check-rwuio-mutants: ${RWUIO_MUTANTS:@mutation@rwuio_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${RWUIO_MUTANTS}; do \
+		output=rwuio_$$mutation.mutant.out; \
+		if ./rwuio_$$mutation.mutant.test >$$output 2>&1; then status=0; \
+		else status=$$?; fi; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "u.u_error == EFAULT && rw_calls == 0" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL rwuio $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS rwuio $$mutation mutation rejected"; \
+	done
+
+rwuio_test_sanitized: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} \
+    ${RWUIO_SRC} hostkern_kern.c hostkern.c hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o rwuio_kernel_sanitized.o ${RWUIO_SRC}
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o rwuio_jump_sanitized.o rwuio_jump.c
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o rwuio_hostkern_sanitized.o hostkern.c
+	${HOST_CC} ${GATE_CFLAGS} ${KERNEL_SANITIZER_FLAGS} -o $@ \
+	    rwuio_test.c hostkern_kern.c rwuio_kernel_sanitized.o \
+	    rwuio_jump_sanitized.o rwuio_hostkern_sanitized.o
+
+check-rwuio-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+	@${MAKE} rwuio_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.rwuio.sanitized -- \
+	    ./rwuio_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.rwuio.sanitized \
+	    "rwuio contracts: sanitizer runtime unavailable"
+.endif
 
 # The harness again at the narrower width, since every object in one binary
 # has to agree.
@@ -843,7 +897,8 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
-check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer
+check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
+    check-rwuio-mutants check-rwuio-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -864,6 +919,10 @@ clean:
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o
+	rm -f rwuio_*.mutant.c rwuio_*.mutant.o rwuio_*.mutant.test \
+	    rwuio_*.mutant.out
+	rm -f rwuio_test_sanitized rwuio_kernel_sanitized.o \
+	    rwuio_jump_sanitized.o rwuio_hostkern_sanitized.o
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
@@ -899,4 +958,5 @@ clean:
 	@if [ -d machine ]; then rmdir machine; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-shutdown-order check-capacity-mutants check-credential-sanitizer clean
+	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
+	check-rwuio-mutants check-rwuio-sanitizer clean

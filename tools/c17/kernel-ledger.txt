@@ -104,9 +104,6 @@ sys/kern/sys_generic.c definition ioctl both
 sys/kern/sys_generic.c definition nonet both
 sys/kern/sys_generic.c definition nostrategy both
 sys/kern/sys_generic.c definition pselect both
-sys/kern/sys_generic.c definition read both
-sys/kern/sys_generic.c definition readv both
-sys/kern/sys_generic.c definition rwuio both
 sys/kern/sys_generic.c definition select both
 sys/kern/sys_generic.c definition select1 both
 sys/kern/sys_generic.c definition selscan both
@@ -116,8 +113,6 @@ sys/kern/sys_generic.c definition socls both
 sys/kern/sys_generic.c definition soctl both
 sys/kern/sys_generic.c definition sorw both
 sys/kern/sys_generic.c definition sosel both
-sys/kern/sys_generic.c definition write both
-sys/kern/sys_generic.c definition writev both
 sys/kern/sys_pipe.c definition pipe both
 sys/kern/sys_pipe.c definition pipe_close both
 sys/kern/sys_pipe.c definition pipe_rw both

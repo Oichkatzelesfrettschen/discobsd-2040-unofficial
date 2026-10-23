@@ -828,9 +828,10 @@ complete-span snapshot admission and publication ordering at ILP32. It leaves
 xPSR policy, exception return, runtime stack use, MPU enforcement and physical
 hardware to their separate evidence classes.
 
-The tier also extracts the exact `exec_elf_check` function. The ILP32 fixture
-separates inode length, program-header reads, segment reads and publication
-calls. A valid flat image and a zero-BSS image each commit and publish once.
+The tier also extracts the exact `exec_elf_check` and `exec_finish` functions.
+The ILP32 fixture separates inode length, program-header reads, segment reads,
+resource release, termination and publication calls. A valid flat image and a
+zero-BSS image each commit and publish once.
 The valid case uses seven argument/environment bytes and requires an eight-byte
 word-rounded stack contribution.
 The fixture rejects multiple program headers, a negative inode size, a
@@ -840,11 +841,14 @@ truncated or wrapped segment bytes, wrapped and truncated program-header spans,
 an even Thumb entry, an entry outside file-backed bytes and failed or short
 program-header reads before commitment. Argument capture and process-window
 admission failures also withhold segment reads and publication. A segment error
-or residual after commitment must send `SIGKILL` and reach neither `exec_clear`
-nor `exec_setupstack`. Generated mutants remove the segment file-span check
-and the committed-read failure block; each must fail the same executable with
-status 1. The fixture establishes flat-image geometry and publication ordering
-at ILP32. It does not execute filesystem reads, process replacement, MPU
+or residual after commitment marks the private terminal state. The finalizer
+releases the argument spool, allocator buffers and executable inode before
+calling `exit(SIGKILL)` directly. Traced-process and PID 1 fixtures must enter
+that terminal path without queuing a suppressible signal. Generated mutants
+remove the segment file-span check, omit the terminal state or replace direct
+exit with `psignal`; each must fail the same executable with status 1. The
+fixture establishes flat-image geometry, cleanup and terminal ordering at
+ILP32. It does not execute filesystem reads, full process teardown, MPU
 enforcement, runtime resource peaks or physical hardware.
 
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the

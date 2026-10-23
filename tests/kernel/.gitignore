@@ -80,3 +80,9 @@ exec_elf_read_failure_mutant.c
 exec_elf_admission_test32
 exec_elf_segment_span_mutant
 exec_elf_read_failure_mutant
+exec_finish_function.c
+exec_finish_signal_mutant.c
+exec_finish_signal_mutant
+capacity_test
+capacity_*.mutant.c
+capacity_*.mutant.test

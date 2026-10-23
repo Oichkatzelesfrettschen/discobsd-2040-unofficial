@@ -33,36 +33,56 @@ core allocation. Every file, segment and entry check runs before that commit,
 so a rejected image preserves the running process.
 
 After `exec_estab` succeeds, a segment read error or nonzero residual describes
-an incomplete committed image. The loader sends `SIGKILL`, returns the I/O
-error or `EIO` for a short read, and reaches neither `exec_clear` nor
-`exec_setupstack`. `SIGKILL` prevents any inherited catchable handler from
-running out of overwritten process memory. Successful reads preserve the
-existing entry value, ABI and publication sequence.
+an incomplete committed image. The loader marks `EXEC_COMMITTED_FAILURE`,
+returns the I/O error or `EIO` for a short read, and reaches neither
+`exec_clear` nor `exec_setupstack`. The flag survives recursive script
+execution in the private `exec_params` contract. The syscall owner releases
+the argument spool, allocator buffers and outer executable inode before it
+calls `exit(SIGKILL)` directly.
+
+Queuing `SIGKILL` through `psignal` does not establish that terminal contract.
+A traced process can let its tracer replace the pending signal with zero, and
+the generic signal path discards default actions for PID 1. Direct exit clears
+tracing and makes an ordinary process a zombie; PID 1 reaches the kernel's
+existing `init died` panic. Neither path can return to the overwritten user
+image. Raw a.out and packed a.out loaders use the same common terminal state
+for their post-commit read or expansion failures. Successful reads preserve
+the existing entry value, ABI and publication sequence.
 
 `tests/kernel/exec_elf_admission_extract.py` extracts the exact production
-function and binds generated source to the complete production-file hash.
-`exec_elf_admission_test.c` compiles that function at ILP32 and separates inode
-length, program-header reads, segment reads, commit, clearing and stack
-publication. The fixture covers a valid image, zero BSS, multiple program
+loader and finalizer functions and binds each generated source to its complete
+production-file hash. `exec_elf_admission_test.c` compiles the functions at
+ILP32 and separates inode length, program-header reads, segment reads, commit,
+clearing, resource release, termination and stack publication. The fixture
+covers a valid image, zero BSS, multiple program
 headers, negative inode length, segment type, permissions, base and nonempty
 file requirements, file bytes larger than memory, a segment beyond the process
 ceiling, truncated or wrapped segment bytes, wrapped and truncated
 program-header spans, entries below or beyond file-backed bytes, an even Thumb
 entry, failed and short header reads, argument and process-window admission
-errors, a committed I/O error and a committed short read. The inherited
-function fails 34 named assertions; the repaired function passes the complete
-fixture.
+errors, a committed I/O error and a committed short read. Traced-process and
+PID 1 cases require allocation and inode cleanup before direct termination.
+The inherited function fails 34 named assertions; the repaired functions pass
+the complete fixture.
 
-Two generated mutations calibrate the deciding contracts. One removes the
-inode bound from the segment file-span check. The other removes the
-post-commit read-failure block. Each mutant must run the same fixture and exit
-with status 1. `check-test-execution` owns the run/skip inventory, and
-`check-kernel-ilp32` owns the executable and both rejection controls. Exact
+Three generated mutations calibrate the deciding contracts. One removes the
+inode bound from the segment file-span check. Another returns a committed-read
+error without marking the terminal state. The third replaces direct exit with
+the suppressible queued-signal behavior. Each mutant must run the same fixture
+and exit with status 1. `check-test-execution` owns the run/skip inventory, and
+`check-kernel-ilp32` owns the executable and three rejection controls. Exact
 PICO and PICO_UART GNU17 Cortex-M0+ commands compile `exec_elf.o` with warnings
 treated as errors.
 
+The measurements below bind the initially reviewed loader at
+`07178858fd514ad6a3bc39e6aec1def5fd53c8d6`. The traced-process and PID 1
+review rejected that revision's queued-signal termination mechanism. These
+receipts establish the geometry repair's cost, but they do not establish the
+corrected common terminal-exec implementation's final cost. A corrected clean
+comparison must supersede them before integration.
+
 The clean parent at `4dc6be2afee29283b4eb0d4f2230c075e3933784` and the
-committed candidate at `07178858fd514ad6a3bc39e6aec1def5fd53c8d6` use Arm
+initial candidate at `07178858fd514ad6a3bc39e6aec1def5fd53c8d6` use Arm
 GCC 16.2.0, GNU ld 2.47.20260726 and bmake 20260912. Parent clean and
 distribution stages completed in 9.3 and 168.5 seconds; candidate stages
 completed in 5.2 and 206.0 seconds. Both closure receipts account for 36
@@ -106,7 +126,7 @@ and `3dbf02279f42b128ea9a9d7d3bea62c4d2b13b88c2a41de5b92640335807d3fc`.
 The resource comparer rejects both positive flash deltas by design pending
 review. The candidate requests the bounded flash exception and the eight-byte
 PICO static-frame exception because complete geometry admission and committed
-read-failure suppression require the added checks. Removing the checks would
+read-failure termination require the added checks. Removing the checks would
 restore the reproduced out-of-inode segment admission or incomplete-image
 publication defects. Runtime peak stack remains unmeasured, and the retained
 220-byte stack-paint remainder belongs to an older image and workload rather

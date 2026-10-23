@@ -125,6 +125,7 @@ USERCOPY_SRC=		${MACHDEP_SRC}
 SYSCALL_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
 SIGRETURN_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/sig_machdep.c
 EXEC_ELF_SRC=		${TOPSRC}/sys/kern/exec_elf.c
+KERN_EXEC_SRC=		${TOPSRC}/sys/kern/kern_exec.c
 
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
@@ -569,21 +570,43 @@ exec_elf_read_failure_mutant.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
 	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_ELF_SRC} \
 	    --output $@ --read-failure-mutant
 
+exec_finish_function.c: exec_elf_admission_extract.py ${KERN_EXEC_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec completion extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${KERN_EXEC_SRC} \
+	    --output $@ --finish
+
+exec_finish_signal_mutant.c: exec_elf_admission_extract.py ${KERN_EXEC_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec completion extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${KERN_EXEC_SRC} \
+	    --output $@ --finish-signal-mutant
+
 exec_elf_admission_test32: exec_elf_admission_test.c \
-    exec_elf_admission_function.c ${MACHINE_STAMP}
+    exec_elf_admission_function.c exec_finish_function.c ${MACHINE_STAMP}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
 	    -o $@ exec_elf_admission_test.c
 
 exec_elf_segment_span_mutant: exec_elf_admission_test.c \
-    exec_elf_segment_span_mutant.c ${MACHINE_STAMP}
+    exec_elf_segment_span_mutant.c exec_finish_function.c ${MACHINE_STAMP}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
 	    -DEXEC_ELF_FUNCTION='"exec_elf_segment_span_mutant.c"' \
 	    -o $@ exec_elf_admission_test.c
 
 exec_elf_read_failure_mutant: exec_elf_admission_test.c \
-    exec_elf_read_failure_mutant.c ${MACHINE_STAMP}
+    exec_elf_read_failure_mutant.c exec_finish_function.c ${MACHINE_STAMP}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
 	    -DEXEC_ELF_FUNCTION='"exec_elf_read_failure_mutant.c"' \
+	    -o $@ exec_elf_admission_test.c
+
+exec_finish_signal_mutant: exec_elf_admission_test.c \
+    exec_elf_admission_function.c exec_finish_signal_mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -DEXEC_FINISH_FUNCTION='"exec_finish_signal_mutant.c"' \
 	    -o $@ exec_elf_admission_test.c
 
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
@@ -594,7 +617,7 @@ check-ilp32:
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
-	    exec_elf_read_failure_mutant \
+	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -643,6 +666,12 @@ check-ilp32:
 		exit 1; \
 	fi; \
 	echo "PASS ELF read-failure mutation rejected"
+	@if ./exec_finish_signal_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL exec signal-termination mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS exec signal-termination mutation rejected"
 	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
 	if [ "$$status" -ne 1 ]; then \
 		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
@@ -707,9 +736,10 @@ clean:
 	rm -f sigreturn_context_test32 sigreturn_context_direct_mutant \
 	    sigreturn_context_reread_mutant
 	rm -f exec_elf_admission_function.c exec_elf_segment_span_mutant.c \
-	    exec_elf_read_failure_mutant.c
+	    exec_elf_read_failure_mutant.c exec_finish_function.c \
+	    exec_finish_signal_mutant.c
 	rm -f exec_elf_admission_test32 exec_elf_segment_span_mutant \
-	    exec_elf_read_failure_mutant
+	    exec_elf_read_failure_mutant exec_finish_signal_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o

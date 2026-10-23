@@ -71,7 +71,6 @@
 #include <sys/exec.h>
 #include <sys/exec_elf.h>
 #include <sys/fcntl.h>
-#include <sys/signalvar.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <machine/debug.h>
@@ -203,7 +202,7 @@ exec_elf_check(struct exec_params *epp)
     error = rdwri(UIO_READ, epp->ip, (caddr_t)ph->p_vaddr,
         ph->p_filesz, ph->p_offset, IO_UNIT, &resid);
     if (error != 0 || resid != 0) {
-        psignal(u.u_procp, SIGKILL);
+        epp->flags |= EXEC_COMMITTED_FAILURE;
         return error != 0 ? error : EIO;
     }
 

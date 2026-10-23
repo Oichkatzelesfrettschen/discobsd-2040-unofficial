@@ -503,10 +503,10 @@ exec_arg_iter_init (struct exec_arg_iter *iterator,
 {
     iterator->params = epp;
     iterator->index = 0;
-    iterator->prefix_count = epp->sh.interpreted ?
+    iterator->prefix_count = (epp->flags & EXEC_INTERPRETED) != 0 ?
         2 + (epp->sh.interparg[0] != '\0') : 0;
     iterator->next = epp->userargp;
-    iterator->skip_first = epp->sh.interpreted;
+    iterator->skip_first = (epp->flags & EXEC_INTERPRETED) != 0;
 }
 
 static int

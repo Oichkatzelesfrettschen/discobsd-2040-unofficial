@@ -124,10 +124,12 @@ callers of a name that a header prototype and a definition both carry.
   destroys the running image on a damaged container. It expands both
   streams into a discard buffer and compares lengths and CRCs with the
   header while the old image is intact; only after that does it commit,
-  and a mismatch on the second expansion into the user window kills the
-  process before any of its bytes run.
+  and a mismatch on the second expansion into the user window marks the
+  common terminal exec state before any of its bytes run.
 - Enforced by: the function's order (file comment L1-L10; preflight
-  L145-L160; commit comment L188-L193; `psignal(p, SIGKILL)` L206).
+  L145-L160; commit comment L188-L193;
+  `epp->flags |= EXEC_COMMITTED_FAILURE` L205). `exec_finish` releases exec
+  allocations and the outer inode before calling `exit(SIGKILL)` directly.
   Every failure after recognition is `EFTYPE`, which the exec dispatcher
   passes through so the container is never offered to another format
   (L2-L5, L119).
@@ -163,16 +165,18 @@ callers of a name that a header prototype and a definition both carry.
   the complete data, BSS, heap and stack requirement against the process
   window before core allocation.
 - Failure preservation: every geometry failure leaves the old image intact.
-  A segment I/O error or residual after `exec_estab` sends `SIGKILL` and
-  reaches neither `exec_clear` nor `exec_setupstack`, because the old image is
-  already unavailable and the incomplete image cannot run safely.
+  A segment I/O error or residual after `exec_estab` marks the common terminal
+  state and reaches neither `exec_clear` nor `exec_setupstack`. Recursive
+  script execution returns through its inode cleanup; `exec_finish` then
+  releases remaining exec resources and calls `exit(SIGKILL)` directly, so a
+  tracer or PID 1 signal policy cannot resume the incomplete image.
 - Existing test: `kernel.elf-admission.ilp32` extracts and executes the exact
   production function. It covers the valid zero-BSS case, word-rounded
   argument storage, bad memory and file extents, wrapped and truncated
   program-header spans, even or non-file-backed entries, short reads and both
   error and residual failures after commitment.
-  Mutations that remove the file-span bound or committed-read failure handling
-  must each exit with status 1.
+  Mutations that remove the file-span bound, omit terminal-state publication or
+  replace direct exit with a queued signal must each exit with status 1.
 - Open: the host fixture establishes ILP32 geometry and publication ordering.
   It does not execute process replacement, filesystem I/O, MPU enforcement or
   silicon. Section-header contents remain outside the loader's execution

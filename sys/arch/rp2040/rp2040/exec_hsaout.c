@@ -24,7 +24,6 @@
 #include <sys/exec_hsaout.h>
 #include <sys/dir.h>
 #include <sys/uio.h>
-#include <sys/signal.h>
 #include <machine/hsx_decoder.h>
 #include <machine/debug.h>
 #ifdef SWAPRAM
@@ -189,7 +188,7 @@ exec_hsaout_check (struct exec_params *epp)
      * Committed: the old image is gone. The executable is retained as
      * p_tip before the second pass so a failure here leaves the process
      * with its text reference and the exclusion in place for exit to
-     * release; SIGKILL keeps the half-written window from ever running.
+     * release. The outer exec path terminates after releasing its resources.
      */
     exec_text_release (p, epp->ip);
     epp->ip->i_count++;
@@ -203,7 +202,7 @@ exec_hsaout_check (struct exec_params *epp)
         brelse (bp);
         printf ("pid %d: packed executable changed between passes\n",
             p->p_pid);
-        psignal (p, SIGKILL);
+        epp->flags |= EXEC_COMMITTED_FAILURE;
         return EFTYPE;
     }
     brelse (bp);

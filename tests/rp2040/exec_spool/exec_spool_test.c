@@ -524,7 +524,7 @@ script_argument_order (void)
     bzero (&params, sizeof params);
     params.userfname = "/tmp/script";
     params.userargp = user_arguments;
-    params.sh.interpreted = 1;
+    params.flags |= EXEC_INTERPRETED;
     bytes_copy (params.sh.interpname, "/bin/sh", sizeof "/bin/sh");
     bytes_copy (params.sh.interparg, "-e", sizeof "-e");
     CHECK (exec_save_args (&params) == 0);
@@ -536,7 +536,7 @@ script_argument_order (void)
     bzero (&params, sizeof params);
     params.userfname = "/tmp/script";
     params.userargp = user_arguments;
-    params.sh.interpreted = 1;
+    params.flags |= EXEC_INTERPRETED;
     bytes_copy (params.sh.interpname, "/bin/sh", sizeof "/bin/sh");
     expected[1] = "/tmp/script";
     expected[2] = "one";
@@ -653,7 +653,7 @@ invalid_user_sources (void)
 
     reset_models ();
     bzero (&params, sizeof params);
-    params.sh.interpreted = 1;
+    params.flags |= EXEC_INTERPRETED;
     bytes_copy (params.sh.interpname, "/bin/sh", sizeof "/bin/sh");
     params.userfname = (char *)1;
     CHECK (exec_save_args (&params) == EFAULT);

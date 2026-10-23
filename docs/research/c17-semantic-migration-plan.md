@@ -134,9 +134,12 @@ stack peaks and physical hardware execution retain separate obligations.
 loader admits its one program header and file-backed segment against the
 inode size, requires one RWX segment at the process base, validates the Thumb
 entry inside file-backed bytes and completes every geometry check before
-`exec_estab`. A segment read failure after commitment sends `SIGKILL` and
-withholds process-state publication. Section-header policy, runtime resource
-peaks and physical hardware execution retain separate obligations.
+`exec_estab`. A segment read failure after commitment propagates a private
+terminal state through recursive script execution; the syscall owner releases
+exec resources before calling `exit(SIGKILL)` directly. Raw and packed a.out
+loaders use the same terminal contract for their post-commit failures.
+Section-header policy, runtime resource peaks and physical hardware execution
+retain separate obligations.
 
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real

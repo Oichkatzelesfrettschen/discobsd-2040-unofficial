@@ -56966,7 +56966,7 @@
         "tests/kernel/exec_elf_admission_test.c",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "Flat-segment geometry, complete file admission, Thumb entry validation and committed-read failure handling are accepted; section-header semantics, debug paths and the remaining translation-unit semantics require separate migration units.",
+      "blocker": "Flat-segment geometry, complete file admission, Thumb entry validation and post-commit terminal cleanup are accepted; section-header semantics, debug paths and the remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",

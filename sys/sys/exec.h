@@ -15,6 +15,8 @@
 #include "exec_elf.h"
 
 #define NO_ADDR     ((caddr_t)(~0U)) /* Indicates addr. not yet filled in */
+#define EXEC_INTERPRETED        0x01
+#define EXEC_COMMITTED_FAILURE  0x02
 
 struct memsect {
     caddr_t vaddr;
@@ -33,11 +35,11 @@ struct exec_params {
     int hdr_len;                /* number of bytes valid in image_header */
     u_short argc, envc;         /* count of argument and environment strings */
     u_short argbc, envbc;       /* total number of chars in argc and envc string pool */
+    u_char flags;               /* recursive and post-commit execution state */
     union {
         struct {
             char interpname[20];        /* real name of the script interpreter */
             char interparg[SHPATHLEN];  /* interpreter arg */
-            char interpreted;           /* flag - this executable is interpreted */
         } sh;
         struct {
             struct buf *stbp;   /* String table buffer pointer */

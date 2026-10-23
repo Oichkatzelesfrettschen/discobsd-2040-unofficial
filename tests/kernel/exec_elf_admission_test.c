@@ -15,6 +15,7 @@
  */
 
 #include <limits.h>
+#include <setjmp.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -27,6 +28,9 @@
 #ifndef EXEC_ELF_FUNCTION
 #define EXEC_ELF_FUNCTION "exec_elf_admission_function.c"
 #endif
+#ifndef EXEC_FINISH_FUNCTION
+#define EXEC_FINISH_FUNCTION "exec_finish_function.c"
+#endif
 
 typedef char *caddr_t;
 
@@ -38,6 +42,9 @@ typedef char *caddr_t;
 #define IO_UNIT 0
 #define UIO_READ 0
 #define SIGKILL 9
+#define P_TRACED 0x0010
+#define EXEC_INTERPRETED 0x01
+#define EXEC_COMMITTED_FAILURE 0x02
 #define SSIZE 2048U
 #define NBPW 4U
 #define USER_BASE 0x20000000U
@@ -52,6 +59,7 @@ typedef char *caddr_t;
 
 struct proc {
 	int p_pid;
+	int p_flag;
 };
 
 struct inode {
@@ -72,6 +80,7 @@ struct exec_params {
 	unsigned short envc;
 	unsigned short argbc;
 	unsigned short envbc;
+	unsigned char flags;
 	struct inode *ip;
 	struct memsect text;
 	struct memsect data;
@@ -110,6 +119,14 @@ static unsigned int setup_entry;
 static int signal_calls;
 static int signaled_number;
 static int failures;
+static jmp_buf exit_jump;
+static int exit_armed;
+static int exit_calls;
+static int exit_status;
+static int finish_order;
+static int allocation_release_order;
+static int inode_release_order;
+static int exit_order;
 
 static void *
 exec_alloc(int size, int alignment, struct exec_params *parameters)
@@ -190,7 +207,35 @@ psignal(struct proc *target, int signal_number)
 	signaled_number = signal_number;
 }
 
+static void
+exec_alloc_freeall(struct exec_params *parameters)
+{
+	(void)parameters;
+	allocation_release_order = ++finish_order;
+}
+
+static void
+iput(struct inode *inode)
+{
+	(void)inode;
+	inode_release_order = ++finish_order;
+}
+
+static void
+kernel_exit(int status)
+{
+	exit_calls++;
+	exit_status = status;
+	exit_order = ++finish_order;
+	if (exit_armed)
+		longjmp(exit_jump, 1);
+	failures++;
+}
+
 #include EXEC_ELF_FUNCTION
+#define exit kernel_exit
+#include EXEC_FINISH_FUNCTION
+#undef exit
 
 #define CHECK(label, expression) do { \
 	if (!(expression)) { \
@@ -233,6 +278,8 @@ reset_fixture(struct exec_params *parameters)
 	supplied_program_header.p_flags = PF_R | PF_W | PF_X;
 	supplied_program_header.p_align = 4;
 	u.u_procp = &process;
+	process.p_pid = 2;
+	process.p_flag = 0;
 	allocation_calls = 0;
 	allocated_bytes = 0;
 	read_calls = 0;
@@ -253,6 +300,13 @@ reset_fixture(struct exec_params *parameters)
 	setup_entry = 0;
 	signal_calls = 0;
 	signaled_number = 0;
+	exit_armed = 0;
+	exit_calls = 0;
+	exit_status = 0;
+	finish_order = 0;
+	allocation_release_order = 0;
+	inode_release_order = 0;
+	exit_order = 0;
 }
 
 static void
@@ -452,17 +506,71 @@ check_read_failures(void)
 	segment_read_error = EIO;
 	CHECK("committed segment read error is returned",
 	    exec_elf_check(&parameters) == EIO);
-	CHECK("committed read error kills process",
-	    signal_calls == 1 && signaled_number == SIGKILL);
+	CHECK("committed read error marks terminal cleanup",
+	    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
+	CHECK("committed read error queues no suppressible signal",
+	    signal_calls == 0);
 	CHECK("read error withholds publication", clear_calls == 0 && setup_calls == 0);
 
 	reset_fixture(&parameters);
 	segment_read_residual = 1;
 	CHECK("committed short read reports I/O failure",
 	    exec_elf_check(&parameters) == EIO);
-	CHECK("committed short read kills process",
-	    signal_calls == 1 && signaled_number == SIGKILL);
+	CHECK("committed short read marks terminal cleanup",
+	    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
+	CHECK("committed short read queues no suppressible signal",
+	    signal_calls == 0);
 	CHECK("short read withholds publication", clear_calls == 0 && setup_calls == 0);
+}
+
+static void
+check_finish_contract(void)
+{
+	struct exec_params parameters;
+
+	reset_fixture(&parameters);
+	exec_finish(&parameters, &executable_inode);
+	CHECK("ordinary finish releases allocations then inode",
+	    allocation_release_order == 1 && inode_release_order == 2);
+	CHECK("ordinary finish returns without exit", exit_calls == 0);
+
+	reset_fixture(&parameters);
+	segment_read_error = EIO;
+	CHECK("traced fatal fixture reaches committed failure",
+	    exec_elf_check(&parameters) == EIO &&
+	    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
+	process.p_pid = 42;
+	process.p_flag = P_TRACED;
+	exit_armed = 1;
+	if (setjmp(exit_jump) == 0) {
+		exec_finish(&parameters, &executable_inode);
+		CHECK("traced committed failure cannot return", 0);
+	}
+	exit_armed = 0;
+	CHECK("traced failure releases allocations and inode before exit",
+	    allocation_release_order == 1 && inode_release_order == 2 &&
+	    exit_order == 3);
+	CHECK("traced failure exits with SIGKILL status",
+	    exit_calls == 1 && exit_status == SIGKILL && signal_calls == 0);
+
+	reset_fixture(&parameters);
+	segment_read_residual = 1;
+	CHECK("PID 1 fatal fixture reaches committed failure",
+	    exec_elf_check(&parameters) == EIO &&
+	    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
+	process.p_pid = 1;
+	process.p_flag = 0;
+	exit_armed = 1;
+	if (setjmp(exit_jump) == 0) {
+		exec_finish(&parameters, &executable_inode);
+		CHECK("PID 1 committed failure cannot return", 0);
+	}
+	exit_armed = 0;
+	CHECK("PID 1 failure releases allocations and inode before exit",
+	    allocation_release_order == 1 && inode_release_order == 2 &&
+	    exit_order == 3);
+	CHECK("PID 1 failure enters direct terminal path",
+	    exit_calls == 1 && exit_status == SIGKILL && signal_calls == 0);
 }
 
 static void
@@ -491,6 +599,7 @@ int
 main(void)
 {
 	(void)&psignal;
+	(void)&kernel_exit;
 	check_valid_segment();
 	check_zero_bss_segment();
 	check_bad_header_geometry();
@@ -500,5 +609,6 @@ main(void)
 	check_bad_entry();
 	check_read_failures();
 	check_precommit_failures();
+	check_finish_contract();
 	return failures != 0;
 }

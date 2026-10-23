@@ -1541,6 +1541,25 @@
       ]
     },
     {
+      "id": "kernel.credentials.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-credential-sanitizer",
+      "root_target": "check-kernel",
+      "program": "cred_test_sanitized",
+      "condition": "CRED_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "cred_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.credentials.sanitized -- ./cred_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.printf.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

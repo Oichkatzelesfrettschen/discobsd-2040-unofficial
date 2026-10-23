@@ -191,6 +191,11 @@ int copyin (const caddr_t from, caddr_t to, u_int nbytes);
 int groupmember (gid_t gid);
 
 /*
+ * Test whether the current effective user ID grants kernel privilege.
+ */
+int suser (void);
+
+/*
  * Wake up all processes sleeping on chan.
  */
 void wakeup (caddr_t chan);

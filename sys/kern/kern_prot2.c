@@ -40,89 +40,100 @@
 #include <sys/proc.h>
 #include <sys/systm.h>
 
-void
-setuid()
+/*
+ * Privileged credential transitions and their callers use the effective
+ * user ID.  A refusal publishes EPERM through the current u-area.
+ */
+int
+suser(void)
 {
-    struct a {
-        uid_t uid;
-    } *uap = (struct a*) u.u_arg;
-    register uid_t uid;
+    if (u.u_uid == 0)
+        return (1);
+    u.u_error = EPERM;
+    return (0);
+}
 
-    uid = uap->uid;
-    if (uid != u.u_ruid && ! suser())
+void
+setuid(void)
+{
+    struct setuid_args {
+        uid_t uid;
+    } *arguments = (struct setuid_args *)u.u_arg;
+    uid_t requested_uid;
+
+    requested_uid = arguments->uid;
+    if (requested_uid != u.u_ruid && !suser())
         return;
-    /*
-     * Everything's okay, do it.
-     */
-    u.u_procp->p_uid = uid;
-    u.u_uid = uid;
-    u.u_ruid = uid;
-    u.u_svuid = uid;
+    /* Admission is complete; the credential assignments cannot fail. */
+    u.u_procp->p_uid = requested_uid;
+    u.u_uid = requested_uid;
+    u.u_ruid = requested_uid;
+    u.u_svuid = requested_uid;
     u.u_error = 0;
 }
 
 void
-seteuid()
+seteuid(void)
 {
-    struct a {
+    struct seteuid_args {
         uid_t euid;
-    } *uap = (struct a *)u.u_arg;
-    register uid_t euid;
+    } *arguments = (struct seteuid_args *)u.u_arg;
+    uid_t requested_euid;
 
-    euid = uap->euid;
-    if (euid != u.u_ruid && euid != u.u_svuid && ! suser())
+    requested_euid = arguments->euid;
+    if (requested_euid != u.u_ruid && requested_euid != u.u_svuid &&
+        !suser())
         return;
     /*
      * The effective uid lives twice: u_uid in the u area, and p_uid in the
      * proc entry, which cansignal() in kern_sig.c and the tty signal paths
-     * read because the target's u area may be swapped out. setuid() writes
-     * both; a seteuid() that wrote only u_uid left a process that had
-     * dropped root still able to signal anyone, and one that had regained
-     * it unable to.
+     * read because the target's u area may be swapped out.  Both copies
+     * publish the same identity so those paths observe the u-area credential.
      */
-    u.u_procp->p_uid = euid;
-    u.u_uid = euid;
+    u.u_procp->p_uid = requested_euid;
+    u.u_uid = requested_euid;
     u.u_error = 0;
 }
 
 void
-setgid()
+setgid(void)
 {
-    struct a {
+    struct setgid_args {
         gid_t gid;
-    } *uap = (struct a *)u.u_arg;
-    register gid_t gid;
+    } *arguments = (struct setgid_args *)u.u_arg;
+    gid_t requested_gid;
 
-    gid = uap->gid;
-    if (gid == NOGROUP) {
+    requested_gid = arguments->gid;
+    if (requested_gid == NOGROUP) {
         u.u_error = EINVAL;
         return;
     }
-    if (gid != u.u_rgid && ! suser())
+    if (requested_gid != u.u_rgid && !suser())
         return;
 
-    u.u_groups[0] = gid;        /* effective gid is u_groups[0] */
-    u.u_rgid = gid;
-    u.u_svgid = gid;
+    u.u_groups[0] = requested_gid;
+    u.u_rgid = requested_gid;
+    u.u_svgid = requested_gid;
     u.u_error = 0;
 }
 
 void
-setegid()
+setegid(void)
 {
-    struct a {
+    struct setegid_args {
         gid_t egid;
-    } *uap = (struct a *)u.u_arg;
-    register gid_t egid;
+    } *arguments = (struct setegid_args *)u.u_arg;
+    gid_t requested_egid;
 
-    egid = uap->egid;
-    if (egid == NOGROUP) {
+    requested_egid = arguments->egid;
+    if (requested_egid == NOGROUP) {
         u.u_error = EINVAL;
         return;
     }
-    if (egid != u.u_rgid && egid != u.u_svgid && ! suser())
+    if (requested_egid != u.u_rgid && requested_egid != u.u_svgid &&
+        !suser())
         return;
 
-    u.u_groups[0] = egid;
+    u.u_groups[0] = requested_egid;
     u.u_error = 0;
 }

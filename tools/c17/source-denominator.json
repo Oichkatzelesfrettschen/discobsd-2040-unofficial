@@ -57425,14 +57425,17 @@
     },
     {
       "path": "sys/kern/kern_prot.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-credential-transition",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -57451,23 +57454,24 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "sys/kern/kern_prot2.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-credential-transition",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -57484,9 +57488,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -58396,14 +58398,17 @@
     },
     {
       "path": "sys/kern/ufs_fio.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-filesystem-attributes",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Only suser() definition ownership was removed; remaining filesystem access, attribute, and mount semantics and old-style definitions require caller-complete review.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -59786,14 +59791,17 @@
     },
     {
       "path": "sys/sys/proc.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-process-interface",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Only the misplaced suser() declaration was removed; remaining process declarations, layouts, and consumers require caller-complete header review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -60451,14 +60459,17 @@
     },
     {
       "path": "sys/sys/systm.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-service-interface",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Only the suser() service declaration was reviewed; remaining broad kernel declarations, GNU attributes, and consumers require caller-complete header review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -62121,14 +62132,17 @@
     },
     {
       "path": "tests/kernel/cred_test.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "tests",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-credential-transition",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "test-only",
@@ -62661,14 +62675,17 @@
     },
     {
       "path": "tests/kernel/sigauth_test.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "tests",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "kernel-signal-authorization",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-credential-transition-contract.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Production suser() linkage is covered; the remaining signal-authorization fixture and kern_sig semantics retain their separate migration unit.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "test-only",

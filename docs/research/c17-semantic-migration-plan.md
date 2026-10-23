@@ -349,8 +349,8 @@ evidence:
 
 ## Seed rows
 
-The six rows below are migrations already on main. They record what a
-finished row looks like and which of its ledgers remain open.
+The seven rows below record bounded migrations with repository evidence. They
+show what a reviewed row looks like and which of its ledgers remain open.
 
 ### R1 -- LZW decoder (`usr.bin/compress`)
 
@@ -463,6 +463,25 @@ Source: `security-c17-frontier.md`, "Dhara page metadata bounds".
 
 Source: `memory-ownership-plan.md`, "Physical-page flash staging and
 erase-aligned swap images".
+
+### R7 -- kernel credential transitions (`sys/kern/kern_prot.c`, `kern_prot2.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD credential and syscall ABI; RP2040 kernel profile |
+| Tier | T1: privilege-changing syscalls and the shared kernel privilege predicate |
+| Native input | No |
+| Contract | `setuid`, `seteuid`, `setgid`, `setegid`, and `setgroups` finish admission before publication; every refusal preserves all UID, GID, process-UID, and group-slot state; `suser()` admits effective UID zero and otherwise records `EPERM` |
+| Invariants | Syscall numbers, argument counts, public layouts, 32-bit `uid_t`/`gid_t` representation, BSD real/saved-ID rules, effective GID in `u_groups[0]`, and `NOGROUP` termination remain unchanged; `setgroups` stages and validates the complete vector before publishing it |
+| Falsifier | Fifteen independent mutations widen process groups, corrupt `getpgrp`, admit the group sentinel or a non-root caller, bypass each privileged setter, retain replaced saved IDs, leave `p_uid` stale, change the real GID through `setegid`, publish groups before validation, or retain the old tail; each must fail the 267-assertion credential fixture with status 1 |
+| Gates | `check-kernel` (strict prototype diagnostics, behavior, mutation runner, address/undefined-behavior/alignment sanitizers), `check-kernel-ilp32` (signal and filesystem callers), `check-kernel-metadata`, `check-c17-kernel-inventory`, and exact PICO/PICO_UART production builds |
+| Resources | Paired parent/candidate kernel, object, shipped-program, packed-root, and archive receipts remain open until they bind the immutable implementation commit; runtime stack and heap peaks remain unmeasured |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for both credential translation units and the focused fixture. 2 interface: done for the preserved syscall and privilege contracts. 3 native: n/a. 4 hardening: done for the exercised credential transition boundary. 5 resource: open pending paired static receipts; runtime peaks remain open. 6 program closure: done for the bounded credential handlers, with the residuals below assigned separately |
+| Residuals | Negative `getgroups` capacity, zero-length group-list semantics, `setreuid`, `setregid`, and `initgroups` policy are separate units. The broad kernel headers, remaining `ufs_fio.c` semantics, runtime resource peaks, MPU behavior and physical-board execution retain separate evidence states |
+
+Source: `rp2040-credential-transition-contract.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`).
 
 ## Open measurements this plan depends on
 
@@ -645,8 +664,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 16 accepted, 79 migration-open, 543
-excluded and 1,960 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 19 accepted, 83 migration-open, 543
+excluded and 1,953 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

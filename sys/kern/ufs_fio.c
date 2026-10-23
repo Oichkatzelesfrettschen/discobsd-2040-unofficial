@@ -85,21 +85,6 @@ found:
     return (1);
 }
 
-/* copied, for supervisory networking, to sys_net.c */
-/*
- * Test if the current user is the
- * super user.
- */
-int
-suser(void)
-{
-    if (u.u_uid == 0) {
-        return (1);
-    }
-    u.u_error = EPERM;
-    return (0);
-}
-
 /*
  * Set the attributes on a file.  This was placed here because ufs_syscalls
  * is too large already (it will probably be split into two files eventually).

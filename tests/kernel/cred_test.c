@@ -41,6 +41,7 @@ struct proc proc[NPROC];
 
 /* Injected failure for the two copies, since neither can fail on a host. */
 static int copy_fails;
+static u_int copy_bytes_before_failure;
 
 /*
  * The kernel's copyin and copyout. On the board they cross the user and
@@ -50,8 +51,16 @@ static int copy_fails;
 int
 copyin(const caddr_t from, caddr_t to, u_int nbytes)
 {
-	if (copy_fails)
+	if (copy_fails) {
+		if (copy_bytes_before_failure != 0) {
+			u_int partial_bytes = copy_bytes_before_failure;
+
+			if (partial_bytes > nbytes)
+				partial_bytes = nbytes;
+			bcopy(from, to, partial_bytes);
+		}
 		return EFAULT;
+	}
 	bcopy(from, to, nbytes);
 	return 0;
 }
@@ -62,21 +71,6 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 	if (copy_fails)
 		return EFAULT;
 	bcopy(from, to, nbytes);
-	return 0;
-}
-
-/*
- * suser() as sys/kern/ufs_fio.c defines it, in six lines: root passes, and
- * anyone else is refused with the error recorded for the caller to return.
- * It lives in a file whose other contents reach the whole filesystem, which
- * is why the gate carries these six lines rather than linking that.
- */
-int
-suser(void)
-{
-	if (u.u_uid == 0)
-		return 1;
-	u.u_error = EPERM;
 	return 0;
 }
 
@@ -92,7 +86,7 @@ struct pgrp_arg {
 
 struct gidset_arg {
 	u_int gidsetsize;
-	int *gidset;
+	gid_t *gidset;
 };
 
 struct uid_arg {
@@ -155,7 +149,48 @@ reset(uid_t effective, uid_t real)
 	u.u_error = 0;
 	u.u_rval = 0;
 	copy_fails = 0;
+	copy_bytes_before_failure = 0;
 	hk_reset_output();
+}
+
+struct credential_snapshot {
+	uid_t effective_uid;
+	uid_t real_uid;
+	uid_t saved_uid;
+	uid_t process_uid;
+	gid_t real_gid;
+	gid_t saved_gid;
+	gid_t groups[NGROUPS];
+};
+
+static void
+capture_credentials(struct credential_snapshot *snapshot)
+{
+	unsigned group_index;
+
+	snapshot->effective_uid = u.u_uid;
+	snapshot->real_uid = u.u_ruid;
+	snapshot->saved_uid = u.u_svuid;
+	snapshot->process_uid = u.u_procp->p_uid;
+	snapshot->real_gid = u.u_rgid;
+	snapshot->saved_gid = u.u_svgid;
+	for (group_index = 0; group_index < NGROUPS; group_index++)
+		snapshot->groups[group_index] = u.u_groups[group_index];
+}
+
+static void
+check_credentials(const struct credential_snapshot *snapshot)
+{
+	unsigned group_index;
+
+	HK_CHECK(u.u_uid == snapshot->effective_uid);
+	HK_CHECK(u.u_ruid == snapshot->real_uid);
+	HK_CHECK(u.u_svuid == snapshot->saved_uid);
+	HK_CHECK(u.u_procp->p_uid == snapshot->process_uid);
+	HK_CHECK(u.u_rgid == snapshot->real_gid);
+	HK_CHECK(u.u_svgid == snapshot->saved_gid);
+	for (group_index = 0; group_index < NGROUPS; group_index++)
+		HK_CHECK(u.u_groups[group_index] == snapshot->groups[group_index]);
 }
 
 /*
@@ -302,7 +337,7 @@ set_process_group(void)
 static void
 read_groups(void)
 {
-	static int received[NGROUPS];
+	static gid_t received[NGROUPS];
 	struct gidset_arg *a;
 
 	reset(REAL_UID, REAL_UID);
@@ -322,12 +357,12 @@ read_groups(void)
 	a = (struct gidset_arg *)u.u_arg;
 	u.u_groups[1] = OTHER_GID;
 	u.u_groups[2] = 7;
-	received[0] = -1;
+	received[0] = NOGROUP;
 	a->gidsetsize = 2;
 	a->gidset = received;
 	getgroups();
 	HK_CHECK(u.u_error == EINVAL);
-	HK_CHECK(received[0] == -1);
+	HK_CHECK(received[0] == NOGROUP);
 
 	/* A copy that faults reports the fault and leaves no answer. */
 	reset(REAL_UID, REAL_UID);
@@ -348,17 +383,19 @@ read_groups(void)
 static void
 write_groups(void)
 {
-	static int supplied[4] = { 10, 11, 12, 13 };
+	static gid_t supplied[4] = { 10, 11, 12, 13 };
 	struct gidset_arg *a;
+	struct credential_snapshot before;
 
 	/* An ordinary user cannot. */
 	reset(REAL_UID, REAL_UID);
 	a = (struct gidset_arg *)u.u_arg;
 	a->gidsetsize = 4;
 	a->gidset = supplied;
+	capture_credentials(&before);
 	setgroups();
 	HK_CHECK(u.u_error == EPERM);
-	HK_CHECK(u.u_groups[0] == REAL_GID);
+	check_credentials(&before);
 
 	/* Root can, and the tail is cleared. */
 	reset(0, REAL_UID);
@@ -379,18 +416,24 @@ write_groups(void)
 	a = (struct gidset_arg *)u.u_arg;
 	a->gidsetsize = NGROUPS + 1;
 	a->gidset = supplied;
+	capture_credentials(&before);
 	setgroups();
 	HK_CHECK(u.u_error == EINVAL);
-	HK_CHECK(u.u_groups[0] == REAL_GID);
+	check_credentials(&before);
 
-	/* A copy that faults leaves the set as it was. */
+	/* A copy that faults after one entry still leaves the set as it was. */
 	reset(0, REAL_UID);
 	a = (struct gidset_arg *)u.u_arg;
+	u.u_groups[1] = 99;
+	u.u_groups[2] = 98;
 	a->gidsetsize = 2;
 	a->gidset = supplied;
 	copy_fails = 1;
+	copy_bytes_before_failure = sizeof(gid_t);
+	capture_credentials(&before);
 	setgroups();
 	HK_CHECK(u.u_error == EFAULT);
+	check_credentials(&before);
 
 	/* Membership scans to the first NOGROUP and no further. */
 	reset(0, REAL_UID);
@@ -412,6 +455,7 @@ static void
 change_user(void)
 {
 	struct uid_arg *a;
+	struct credential_snapshot before;
 
 	/* Dropping to the real uid needs no privilege, and drops the saved
 	   id too, so the program cannot come back. */
@@ -429,11 +473,10 @@ change_user(void)
 	reset(REAL_UID, REAL_UID);
 	a = (struct uid_arg *)u.u_arg;
 	a->uid = OTHER_UID;
+	capture_credentials(&before);
 	setuid();
 	HK_CHECK(u.u_error == EPERM);
-	HK_CHECK(u.u_uid == REAL_UID);
-	HK_CHECK(u.u_ruid == REAL_UID);
-	HK_CHECK(u.u_svuid == SAVED_UID);
+	check_credentials(&before);
 
 	/* Root may become anyone. */
 	reset(0, REAL_UID);
@@ -451,7 +494,9 @@ change_user(void)
 	seteuid();
 	HK_CHECK(u.u_error == 0);
 	HK_CHECK(u.u_uid == SAVED_UID);
+	HK_CHECK(proc[0].p_uid == SAVED_UID);
 	HK_CHECK(u.u_ruid == REAL_UID);
+	HK_CHECK(u.u_svuid == SAVED_UID);
 
 	reset(SAVED_UID, REAL_UID);
 	a = (struct uid_arg *)u.u_arg;
@@ -459,14 +504,18 @@ change_user(void)
 	seteuid();
 	HK_CHECK(u.u_error == 0);
 	HK_CHECK(u.u_uid == REAL_UID);
+	HK_CHECK(proc[0].p_uid == REAL_UID);
+	HK_CHECK(u.u_ruid == REAL_UID);
+	HK_CHECK(u.u_svuid == SAVED_UID);
 
 	/* And nothing else. */
 	reset(REAL_UID, REAL_UID);
 	a = (struct uid_arg *)u.u_arg;
 	a->uid = OTHER_UID;
+	capture_credentials(&before);
 	seteuid();
 	HK_CHECK(u.u_error == EPERM);
-	HK_CHECK(u.u_uid == REAL_UID);
+	check_credentials(&before);
 }
 
 /*
@@ -477,6 +526,7 @@ static void
 change_group(void)
 {
 	struct gid_arg *a;
+	struct credential_snapshot before;
 
 	reset(REAL_UID, REAL_UID);
 	a = (struct gid_arg *)u.u_arg;
@@ -490,10 +540,10 @@ change_group(void)
 	reset(REAL_UID, REAL_UID);
 	a = (struct gid_arg *)u.u_arg;
 	a->gid = OTHER_GID;
+	capture_credentials(&before);
 	setgid();
 	HK_CHECK(u.u_error == EPERM);
-	HK_CHECK(u.u_rgid == REAL_GID);
-	HK_CHECK(u.u_svgid == SAVED_GID);
+	check_credentials(&before);
 
 	reset(0, REAL_UID);
 	a = (struct gid_arg *)u.u_arg;
@@ -511,13 +561,15 @@ change_group(void)
 	HK_CHECK(u.u_error == 0);
 	HK_CHECK(u.u_groups[0] == SAVED_GID);
 	HK_CHECK(u.u_rgid == REAL_GID);
+	HK_CHECK(u.u_svgid == SAVED_GID);
 
 	reset(REAL_UID, REAL_UID);
 	a = (struct gid_arg *)u.u_arg;
 	a->gid = OTHER_GID;
+	capture_credentials(&before);
 	setegid();
 	HK_CHECK(u.u_error == EPERM);
-	HK_CHECK(u.u_groups[0] == REAL_GID);
+	check_credentials(&before);
 }
 
 static void
@@ -525,7 +577,7 @@ compact_boundaries(void)
 {
     static const int rejected[] = { -1, 32768, 65536, 65553, 2147483647 };
     static const int accepted[] = { 0, 29999, 30000, 32767 };
-    static int groups[] = { 65535, 65536, 42 };
+    static gid_t groups[] = { 65535, 65536, 42 };
     struct pgrp_arg *p;
     struct gidset_arg *g;
     unsigned i;
@@ -558,7 +610,7 @@ compact_boundaries(void)
     HK_CHECK(groupmember(65536));
     HK_CHECK(groupmember(42));
     HK_CHECK(u.u_groups[3] == NOGROUP);
-    groups[1] = -1;
+    groups[1] = NOGROUP;
     u.u_error = 0;
     setgroups();
     HK_CHECK(u.u_error == EINVAL);

@@ -126,8 +126,16 @@ the remaining translation-unit semantics retain separate obligations.
 The four `fcntl` and `ioctl` entries reject unrepresentable process-group
 values before negation or dispatch, stage driver and caller payloads, and
 publish results only after successful validation. General ioctl payloads,
-flag rollback, conditional INET behavior and remaining descriptor semantics
-retain separate obligations.
+conditional INET behavior and remaining descriptor semantics retain separate
+obligations.
+
+`rp2040-file-status-control-admission.md` records the bounded file-status
+unit. `F_SETFL`, `FIONBIO`, and `FIOASYNC` stage caller intent and publish
+nonblocking or asynchronous state only after driver acceptance. A rejected
+asynchronous transition compensates the successful nonblocking transition;
+failed compensation leaves the accepted driver state visible while preserving
+the original error. General ioctl payloads, descriptor duplication and locking,
+runtime resources and physical-board execution retain separate obligations.
 
 `rp2040-signal-context-admission.md` records the next RP2040 user-pointer
 boundary. `sigreturn` rejects frame-offset wrap, copies exactly one complete
@@ -526,6 +534,25 @@ Source: `rp2040-syscall-io-span-admission.md` and `TESTING.md`
 | Residuals | General ioctl payloads, `FIONBIO`, `FIOASYNC`, `F_SETFL` rollback, descriptor duplication and locking, and conditional INET owner handling remain separate units. `/dev/mem`, `ptrace`, broad kernel declarations, runtime peaks, MPU behavior and physical-board execution retain separate evidence states |
 
 Source: `rp2040-file-owner-control-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`).
+
+### R10 -- file-status control admission (`sys/kern/kern_descrip.c`, `sys_generic.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD file-control/ioctl ABI; RP2040 kernel profile |
+| Tier | T1: caller-selected status values and driver acceptance cross the syscall boundary |
+| Native input | No |
+| Contract | `F_SETFL`, `FIONBIO`, and `FIOASYNC` copy or stage caller intent, call each driver transition before publishing its matching status bit, and compensate an accepted nonblocking transition when asynchronous setup fails |
+| Invariants | Syscalls 54 and 92, command values, public layouts, descriptor/access precedence, driver errors, and `FAPPEND`/`FFSYNC` meanings remain unchanged; failed compensation leaves the accepted nonblocking state visible and preserves the asynchronous error |
+| Falsifier | Four warning-clean mutations restore early helper publication, early complete `F_SETFL` publication, zero-only nonblocking rollback, or direct ioctl caller-pointer access; each must fail its named assertion with status 1 |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-c17-kernel-inventory`, `check-kernel-metadata`, and exact PICO/PICO_UART production builds |
+| Resources | Clean parent `c6f64b2b` and implementation `88a9c1c0` schema-2 receipts report +24 flash bytes in each kernel and zero delta for every static SRAM region, shipped a.out, packed-root surface, native artifact and archive/member selection. `kern_descrip.o` and `sys_generic.o` each gain 12 text bytes; `fset()` and `fcntl()` each gain eight static frame bytes while `ioctl()` remains at 24 bytes. The bounded exception accepts those costs; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the typed `fset()` definition and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the three preserved status-control entries. 3 native: n/a. 4 hardening: done for the exercised copy, publication and compensation boundary. 5 resource: measured and accepted with a bounded positive flash/frame exception; runtime peaks remain open. 6 program closure: done for the bounded file-status seam |
+| Residuals | General ioctl payloads, descriptor duplication and locking, and conditional INET controls remain separate units. `/dev/mem`, `ptrace`, broad kernel declarations, runtime peaks, MPU behavior and physical-board execution retain separate evidence states |
+
+Source: `rp2040-file-status-control-admission.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`).
 
 ## Open measurements this plan depends on

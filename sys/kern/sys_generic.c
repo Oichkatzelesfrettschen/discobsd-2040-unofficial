@@ -221,11 +221,15 @@ ioctl(void)
         u.u_pofile[uap->fdes] &= ~UF_EXCLOSE;
         return;
     case FIONBIO:
-        u.u_error = fset (fp, FNONBLOCK, *(int*) uap->cmarg);
+    case FIOASYNC: {
+        int value;
+        int bit = com == FIONBIO ? FNONBLOCK : FASYNC;
+
+        u.u_error = copyin(uap->cmarg, (caddr_t)&value, sizeof value);
+        if (u.u_error == 0)
+            u.u_error = fset(fp, bit, value);
         return;
-    case FIOASYNC:
-        u.u_error = fset (fp, FASYNC, *(int*) uap->cmarg);
-        return;
+    }
     case FIOSETOWN: {
         int owner;
 

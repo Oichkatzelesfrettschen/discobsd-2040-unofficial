@@ -18,7 +18,6 @@ sys/kern/kern_descrip.c definition dupit both
 sys/kern/kern_descrip.c definition falloc both
 sys/kern/kern_descrip.c definition fdopen both
 sys/kern/kern_descrip.c definition flock both
-sys/kern/kern_descrip.c definition fset both
 sys/kern/kern_descrip.c definition fstat both
 sys/kern/kern_descrip.c definition getdtablesize both
 sys/kern/kern_descrip.c definition getf both

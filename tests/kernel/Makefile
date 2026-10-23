@@ -177,6 +177,11 @@ FILE_OWNER_GENERIC_MUTANTS=	direct-user-pointer
 FILE_OWNER_UBSAN_MUTANTS=	unchecked-negation
 FILE_OWNER_NATIVE_MUTANTS=	${FILE_OWNER_DESCRIP_MUTANTS} \
 	${FILE_OWNER_GENERIC_MUTANTS}
+FILE_STATUS_DESCRIP_MUTANTS=	early-fset-publication \
+		early-setfl-publication zero-setfl-rollback
+FILE_STATUS_GENERIC_MUTANTS=	direct-status-pointer
+FILE_STATUS_MUTANTS=	${FILE_STATUS_DESCRIP_MUTANTS} \
+	${FILE_STATUS_GENERIC_MUTANTS}
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -593,6 +598,67 @@ check-file-owner-sanitizer: file_owner_test_sanitized
 	${TEST_EXECUTION} skip kernel.file-owner.sanitized \
 	    "file-owner contracts: sanitizer runtime unavailable"
 .endif
+
+.for mutation in ${FILE_STATUS_DESCRIP_MUTANTS}
+file_status_${mutation}.mutant.c: file_status_mutate.py \
+    ${FILE_OWNER_DESCRIP_SRC} ${FILE_OWNER_GENERIC_SRC}
+	${PYTHON} file_status_mutate.py \
+	    --descriptor-source ${FILE_OWNER_DESCRIP_SRC} \
+	    --generic-source ${FILE_OWNER_GENERIC_SRC} \
+	    --output $@ --mutation ${mutation}
+
+file_status_${mutation}.mutant.test: file_status_${mutation}.mutant.c \
+    file_owner_test.c file_owner_generic.o hostkern_kern.c hostkern.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} -c -o file_status_${mutation}.mutant.o \
+	    file_status_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${FILE_OWNER_LDFLAGS} -o $@ file_owner_test.c hostkern_kern.c \
+	    file_status_${mutation}.mutant.o file_owner_generic.o hostkern.o
+.endfor
+
+.for mutation in ${FILE_STATUS_GENERIC_MUTANTS}
+file_status_${mutation}.mutant.c: file_status_mutate.py \
+    ${FILE_OWNER_DESCRIP_SRC} ${FILE_OWNER_GENERIC_SRC}
+	${PYTHON} file_status_mutate.py \
+	    --descriptor-source ${FILE_OWNER_DESCRIP_SRC} \
+	    --generic-source ${FILE_OWNER_GENERIC_SRC} \
+	    --output $@ --mutation ${mutation}
+
+file_status_${mutation}.mutant.test: file_status_${mutation}.mutant.c \
+    file_owner_test.c file_owner_descrip.o hostkern_kern.c hostkern.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} -c -o file_status_${mutation}.mutant.o \
+	    file_status_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${FILE_OWNER_LDFLAGS} -o $@ file_owner_test.c hostkern_kern.c \
+	    file_owner_descrip.o file_status_${mutation}.mutant.o hostkern.o
+.endfor
+
+check-file-status-mutants: \
+    ${FILE_STATUS_MUTANTS:@mutation@file_status_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${FILE_STATUS_MUTANTS}; do \
+		output=file_status_$$mutation.mutant.out; \
+		if ./file_status_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		early-fset-publication) expected='driver_flags[0] == (FREAD | FWRITE)' ;; \
+		early-setfl-publication) expected='driver_flags[0] == old_flags' ;; \
+		zero-setfl-rollback) expected='driver_inputs[2] != 0' ;; \
+		direct-status-pointer) expected='copyin_calls == 1 && driver_calls == 1' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL file-status $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS file-status $$mutation mutation rejected"; \
+	done
 
 # The harness again at the narrower width, since every object in one binary
 # has to agree.
@@ -1107,7 +1173,8 @@ check-ilp32:
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
-    check-file-owner-mutants check-file-owner-sanitizer
+    check-file-owner-mutants check-file-owner-sanitizer \
+    check-file-status-mutants
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1138,6 +1205,8 @@ clean:
 	    file_owner_generic_sanitized.o file_owner_hostkern_sanitized.o
 	rm -f file_owner_*.mutant.c file_owner_*.mutant.o \
 	    file_owner_*.mutant.test file_owner_*.mutant.out
+	rm -f file_status_*.mutant.c file_status_*.mutant.o \
+	    file_status_*.mutant.test file_status_*.mutant.out
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
@@ -1178,4 +1247,4 @@ clean:
 	check-file-owner-mutants check-file-owner-native-mutants \
 	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \
 	check-file-owner-linker-flags \
-	check-file-owner-sanitizer clean
+	check-file-owner-sanitizer check-file-status-mutants clean

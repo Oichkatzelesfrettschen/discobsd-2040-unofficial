@@ -1,10 +1,13 @@
 /*
- * Host gate for file-owner control in kern_descrip.c and sys_generic.c.
+ * Host gate for file-owner and file-status control in kern_descrip.c and
+ * sys_generic.c.
  *
  * The helper cases pin conversion between the public negative-process-group
  * convention and the nonnegative TIOCSPGRP/TIOCGPGRP payload.  The syscall
  * cases pin descriptor and access checks, user-copy staging, driver failure,
- * and publication only after a successful representable result.
+ * and publication only after a successful representable result.  The status
+ * cases require driver acceptance before flag publication and exercise the
+ * compensating nonblocking transition when F_SETFL cannot set async mode.
  */
 #include "hostkern.h"
 
@@ -40,6 +43,11 @@ static int driver_error;
 static int driver_output;
 static int driver_writes_output;
 static int driver_input;
+#define DRIVER_HISTORY 4
+static u_int driver_commands[DRIVER_HISTORY];
+static int driver_inputs[DRIVER_HISTORY];
+static int driver_flags[DRIVER_HISTORY];
+static int driver_errors[DRIVER_HISTORY];
 
 static unsigned int copyin_calls;
 static unsigned int copyout_calls;
@@ -62,14 +70,24 @@ stub_rw(struct file *file, struct uio *uio)
 static int
 stub_ioctl(struct file *file, u_int command, char *data)
 {
-	(void)file;
+	unsigned int call_index = driver_calls;
+	int error;
+
 	driver_calls++;
 	driver_command = command;
 	if (command == TIOCGPGRP && driver_writes_output)
 		bcopy(&driver_output, data, sizeof driver_output);
-	if (command == TIOCSPGRP)
+	if (command == TIOCSPGRP || command == FIONBIO || command == FIOASYNC)
 		bcopy(data, &driver_input, sizeof driver_input);
-	return driver_error;
+	if (call_index < DRIVER_HISTORY) {
+		driver_commands[call_index] = command;
+		driver_inputs[call_index] = driver_input;
+		driver_flags[call_index] = file->f_flag;
+	}
+	error = driver_error;
+	if (call_index < DRIVER_HISTORY && driver_errors[call_index] != 0)
+		error = driver_errors[call_index];
+	return error;
 }
 
 static int
@@ -167,6 +185,10 @@ reset(int flags)
 	driver_output = 0;
 	driver_writes_output = 0;
 	driver_input = -1;
+	bzero(driver_commands, sizeof driver_commands);
+	bzero(driver_inputs, sizeof driver_inputs);
+	bzero(driver_flags, sizeof driver_flags);
+	bzero(driver_errors, sizeof driver_errors);
 	copyin_calls = 0;
 	copyout_calls = 0;
 	copyin_error = 0;
@@ -335,6 +357,115 @@ fcntl_cases(void)
 }
 
 static void
+helper_status_cases(void)
+{
+	int error;
+
+	reset(FREAD | FWRITE);
+	error = fset(&owner_file, FNONBLOCK, 1);
+	HK_CHECK(error == 0 && driver_calls == 1);
+	HK_CHECK(driver_command == FIONBIO && driver_input == 1);
+	HK_CHECK(driver_flags[0] == (FREAD | FWRITE));
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE | FNONBLOCK));
+
+	reset(FREAD | FWRITE);
+	driver_error = ENOTTY;
+	error = fset(&owner_file, FNONBLOCK, 1);
+	HK_CHECK(error == ENOTTY && driver_calls == 1);
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE));
+
+	reset(FREAD | FWRITE | FNONBLOCK);
+	driver_error = EIO;
+	error = fset(&owner_file, FNONBLOCK, 0);
+	HK_CHECK(error == EIO && driver_calls == 1 && driver_input == 0);
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE | FNONBLOCK));
+
+	reset(FREAD | FWRITE);
+	error = fset(&owner_file, FASYNC, 7);
+	HK_CHECK(error == 0 && driver_command == FIOASYNC && driver_input == 7);
+	HK_CHECK(driver_flags[0] == (FREAD | FWRITE));
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE | FASYNC));
+}
+
+static void
+fcntl_status_cases(void)
+{
+	int old_flags = FREAD | FWRITE | FAPPEND;
+	int requested = O_RDWR | O_NONBLOCK | O_ASYNC | O_FSYNC;
+	int nonblocking_flags = old_flags | FNONBLOCK;
+
+	reset(old_flags);
+	call_fcntl(FD, F_SETFL, requested);
+	HK_CHECK(u.u_error == 0 && driver_calls == 2);
+	HK_CHECK(driver_commands[0] == FIONBIO && driver_inputs[0] != 0);
+	HK_CHECK(driver_commands[1] == FIOASYNC && driver_inputs[1] != 0);
+	HK_CHECK(driver_flags[0] == old_flags);
+	HK_CHECK(driver_flags[1] == (old_flags | FNONBLOCK));
+	HK_CHECK(owner_file.f_flag ==
+	    (FREAD | FWRITE | FNONBLOCK | FASYNC | FFSYNC));
+
+	reset(old_flags);
+	driver_errors[0] = ENOTTY;
+	call_fcntl(FD, F_SETFL, requested);
+	HK_CHECK(u.u_error == ENOTTY && driver_calls == 1);
+	HK_CHECK(owner_file.f_flag == old_flags);
+
+	reset(old_flags);
+	driver_errors[1] = EIO;
+	call_fcntl(FD, F_SETFL, requested);
+	HK_CHECK(u.u_error == EIO && driver_calls == 3);
+	HK_CHECK(driver_commands[2] == FIONBIO && driver_inputs[2] == 0);
+	HK_CHECK(owner_file.f_flag == old_flags);
+
+	reset(old_flags);
+	driver_errors[1] = EIO;
+	driver_errors[2] = EPERM;
+	call_fcntl(FD, F_SETFL, requested);
+	HK_CHECK(u.u_error == EIO && driver_calls == 3);
+	HK_CHECK(owner_file.f_flag == (old_flags | FNONBLOCK));
+
+	reset(nonblocking_flags);
+	driver_errors[1] = EIO;
+	call_fcntl(FD, F_SETFL, O_RDWR | O_ASYNC | O_FSYNC);
+	HK_CHECK(u.u_error == EIO && driver_calls == 3);
+	HK_CHECK(driver_commands[2] == FIONBIO && driver_inputs[2] != 0);
+	HK_CHECK(owner_file.f_flag == nonblocking_flags);
+}
+
+static void
+ioctl_status_cases(void)
+{
+	caddr_t unaligned = (caddr_t)&user_storage[5];
+	caddr_t crossing = (caddr_t)&user_storage[10];
+
+	reset(FREAD | FWRITE);
+	store_user_int(unaligned, 3);
+	call_ioctl(FD, FIONBIO, unaligned);
+	HK_CHECK(u.u_error == 0 && copyin_calls == 1 && driver_calls == 1);
+	HK_CHECK(driver_command == FIONBIO && driver_input == 3);
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE | FNONBLOCK));
+
+	reset(FREAD | FWRITE);
+	store_user_int(unaligned, 1);
+	copyin_error = EFAULT;
+	call_ioctl(FD, FIOASYNC, unaligned);
+	HK_CHECK(u.u_error == EFAULT && copyin_calls == 1 && driver_calls == 0);
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE));
+
+	reset(FREAD | FWRITE);
+	call_ioctl(FD, FIONBIO, crossing);
+	HK_CHECK(u.u_error == EFAULT && copyin_calls == 0 && driver_calls == 0);
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE));
+
+	reset(FREAD | FWRITE | FASYNC);
+	store_user_int(unaligned, 0);
+	driver_error = ENOTTY;
+	call_ioctl(FD, FIOASYNC, unaligned);
+	HK_CHECK(u.u_error == ENOTTY && copyin_calls == 1 && driver_calls == 1);
+	HK_CHECK(owner_file.f_flag == (FREAD | FWRITE | FASYNC));
+}
+
+static void
 ioctl_set_cases(void)
 {
 	caddr_t unaligned = (caddr_t)&user_storage[5];
@@ -413,8 +544,11 @@ main(void)
 {
 	helper_set_cases();
 	helper_get_cases();
+	helper_status_cases();
 	fcntl_cases();
+	fcntl_status_cases();
+	ioctl_status_cases();
 	ioctl_set_cases();
 	ioctl_get_cases();
-	return hk_verdict("file-owner control contracts");
+	return hk_verdict("file control contracts");
 }

@@ -106,13 +106,13 @@ compiler frames do not establish a complete call-chain or runtime high-water
 mark.
 
 The resource comparer correctly rejects the +40-byte PICO and +56-byte
-PICO_UART flash deltas under the default nonpositive-growth rule. This unit
-requests an explicit exception for those two linked flash deltas and the
-PICO_UART static-frame changes. The added code closes a reproduced syscall
+PICO_UART flash deltas under the default nonpositive-growth rule. The bounded
+exception accepts those two linked flash deltas and the PICO_UART static-frame
+changes for integration. The added code closes a reproduced syscall
 trust-boundary defect for all four read/write entry points; removing the pass or
 checking only the first byte restores the calibrated failure. The change adds
-zero SRAM, process-window, packed-root, native-library, or archive-selection
-consumption. Independent review must accept the exception before integration.
+zero static SRAM allocation, process-window, packed-root, native-library, or
+archive-selection consumption. Runtime kernel stack high-water remains open.
 
 The receipt hashes are:
 

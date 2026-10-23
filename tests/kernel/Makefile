@@ -328,10 +328,12 @@ resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
 	${HOST_CC} ${GATE_CFLAGS} -o $@ resource_test.c hostkern_kern.c \
 	    resource_kernel.o resource_proc.o hostkern.o
 
-rwuio_test: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
+rwuio_jump.o: ${RWUIO_JUMP}
+	${HOST_CC} ${HARNESS_CFLAGS} -c -o $@ rwuio_jump.c
+
+rwuio_test: rwuio_test.c rwuio_setjmp.h rwuio_jump.o ${RWUIO_SRC} \
     hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} -c -o rwuio_kernel.o ${RWUIO_SRC}
-	${HOST_CC} ${HARNESS_CFLAGS} -c -o rwuio_jump.o rwuio_jump.c
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    rwuio_test.c hostkern_kern.c rwuio_kernel.o rwuio_jump.o hostkern.o
 
@@ -341,7 +343,7 @@ rwuio_${mutation}.mutant.c: rwuio_mutate.py ${RWUIO_SRC}
 	    --mutation ${mutation}
 
 rwuio_${mutation}.mutant.test: rwuio_${mutation}.mutant.c rwuio_test.c \
-    rwuio_setjmp.h ${RWUIO_JUMP} hostkern_kern.c hostkern.o hostkern.h \
+    rwuio_setjmp.h rwuio_jump.o hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${RWUIO_DEFS} -c \
 	    -o rwuio_${mutation}.mutant.o rwuio_${mutation}.mutant.c

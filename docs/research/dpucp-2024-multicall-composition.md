@@ -95,14 +95,16 @@ missing-login diagnostic, and exit status before the residual can close.
 
 ## Verification
 
-Run a logged clean RP2040 distribution before the composition gate because
-libc and public header changes must reach every linked program and the verifier
-reads the generated `sdcard.img`:
+Run a logged clean RP2040 build before a directly selected composition gate
+because libc and public header changes must reach every linked program. The
+gate declares `sdcard.img` as a prerequisite and builds the image from the
+installed tree before reading it. `logged-check` supplies the same build-then-
+check order automatically:
 
 ```sh
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
-bmake MACHINE=rp2040 logged-distribution
+bmake MACHINE=rp2040 logged-build
 bmake MACHINE=rp2040 check-multicall-composition
 ```
 

@@ -459,16 +459,79 @@ def wait_for_bytes(path: Path, expected: bytes, process: subprocess.Popen[bytes]
     raise ContractFailure(f"child readiness marker {expected!r} was not observed")
 
 
+def parse_published_pid(pid_text: str) -> int | None:
+    if not pid_text.endswith("\n"):
+        return None
+    digits = pid_text[:-1]
+    if not digits or digits[0] not in "123456789" or not digits.isascii():
+        return None
+    if not digits.isdecimal():
+        return None
+    return int(digits)
+
+
 def wait_for_pid(path: Path, process: subprocess.Popen[bytes]) -> int:
     pid_path = Path(str(path) + ".pid")
     deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline:
-        if pid_path.exists():
-            return int(pid_path.read_text(encoding="ascii"))
+        try:
+            process_id = parse_published_pid(pid_path.read_text(encoding="ascii"))
+        except (FileNotFoundError, UnicodeDecodeError):
+            process_id = None
+        if process_id is not None:
+            return process_id
         if process.poll() is not None:
             break
         time.sleep(0.01)
-    raise ContractFailure(f"child process identifier {pid_path} was not observed")
+    raise ContractFailure(
+        f"complete positive decimal child process identifier {pid_path} was not observed"
+    )
+
+
+def exercise_pid_publication(work_directory: Path) -> None:
+    work_directory.mkdir(parents=True)
+    marker = work_directory / "staged"
+    pid_path = Path(str(marker) + ".pid")
+    pid_path.write_bytes(b"")
+    publisher = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import pathlib, sys, time; "
+                "path = pathlib.Path(sys.argv[1]); "
+                "time.sleep(0.05); path.write_text('12', encoding='ascii'); "
+                "time.sleep(0.05); path.write_text('12345\\n', encoding='ascii')"
+            ),
+            str(pid_path),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        process_id = wait_for_pid(marker, publisher)
+        require(process_id == 12345, "PID reader accepted incomplete publication")
+        require(publisher.wait(timeout=1.0) == 0, "staged PID publisher failed")
+    except BaseException:
+        publisher.kill()
+        publisher.wait()
+        raise
+
+    malformed_marker = work_directory / "malformed"
+    malformed_pid_path = Path(str(malformed_marker) + ".pid")
+    malformed_pid_path.write_text("12x\n", encoding="ascii")
+    completed_process = subprocess.Popen(
+        [sys.executable, "-c", "raise SystemExit(0)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    require(completed_process.wait(timeout=1.0) == 0, "PID sentinel failed")
+    try:
+        wait_for_pid(malformed_marker, completed_process)
+    except ContractFailure:
+        pass
+    else:
+        raise ContractFailure("PID reader accepted malformed publication")
 
 
 def wait_for_marker_bytes(path: Path, expected: bytes) -> bytes:
@@ -979,6 +1042,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="timeout-contract-") as temporary:
         build_directory = Path(temporary)
+        exercise_pid_publication(build_directory / "pid-publication")
         bad_binary = build_directory / "known-bad"
         probe_binary = build_directory / "probe"
         compile_program(compiler, bad_binary, [test_root / "known_bad.c"])

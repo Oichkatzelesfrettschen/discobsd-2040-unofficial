@@ -97,6 +97,8 @@ def build(work, suite, changes):
             # HASH() folds a wait channel through int, narrower than a host
             # pointer; the target's pointers are int-sized.
             extra += ["-Wno-pointer-to-int-cast"]
+        elif name in ("kern_prot.c", "kern_prot2.c"):
+            extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])
         objects.append(str(obj))
@@ -271,7 +273,7 @@ def main():
         (
             "narrow-process-group",
             "credentials",
-            {"kern_prot.c": ("if (!PGRP_VALID(uap->pgrp))", "if (0)")},
+            {"kern_prot.c": ("if (!PGRP_VALID(arguments->pgrp))", "if (0)")},
             True,
         ),
         (
@@ -288,7 +290,132 @@ def main():
         (
             "accept-group-sentinel",
             "credentials",
-            {"kern_prot.c": ("if (groups[i] == NOGROUP)", "if (0)")},
+            {"kern_prot.c": ("if (groups[group_index] == NOGROUP)", "if (0)")},
+            True,
+        ),
+        (
+            "privilege-admits-nonroot",
+            "credentials",
+            {"kern_prot2.c": ("if (u.u_uid == 0)", "if (1)")},
+            True,
+        ),
+        (
+            "setuid-bypasses-admission",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "if (requested_uid != u.u_ruid && !suser())",
+                    "if (0)",
+                )
+            },
+            True,
+        ),
+        (
+            "seteuid-bypasses-admission",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "if (requested_euid != u.u_ruid && "
+                    "requested_euid != u.u_svuid &&\n        !suser())",
+                    "if (0)",
+                )
+            },
+            True,
+        ),
+        (
+            "setgid-bypasses-admission",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "if (requested_gid != u.u_rgid && !suser())",
+                    "if (0)",
+                )
+            },
+            True,
+        ),
+        (
+            "setegid-bypasses-admission",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "if (requested_egid != u.u_rgid && "
+                    "requested_egid != u.u_svgid &&\n        !suser())",
+                    "if (0)",
+                )
+            },
+            True,
+        ),
+        (
+            "setgroups-bypasses-admission",
+            "credentials",
+            {"kern_prot.c": ("if (!suser())", "if (0)")},
+            True,
+        ),
+        (
+            "setuid-retains-saved-id",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "u.u_svuid = requested_uid;",
+                    "(void)requested_uid;",
+                )
+            },
+            True,
+        ),
+        (
+            "seteuid-leaves-process-id-stale",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "u.u_procp->p_uid = requested_euid;",
+                    "(void)requested_euid;",
+                )
+            },
+            True,
+        ),
+        (
+            "setgid-retains-saved-id",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "u.u_svgid = requested_gid;",
+                    "(void)requested_gid;",
+                )
+            },
+            True,
+        ),
+        (
+            "setegid-changes-real-id",
+            "credentials",
+            {
+                "kern_prot2.c": (
+                    "u.u_groups[0] = requested_egid;",
+                    "u.u_groups[0] = requested_egid;\n"
+                    "    u.u_rgid = requested_egid;",
+                )
+            },
+            True,
+        ),
+        (
+            "setgroups-publishes-before-validation",
+            "credentials",
+            {
+                "kern_prot.c": (
+                    "gid_t groups[NGROUPS];",
+                    "gid_t *groups = u.u_groups;",
+                )
+            },
+            True,
+        ),
+        (
+            "setgroups-retains-old-tail",
+            "credentials",
+            {
+                "kern_prot.c": (
+                    "*group_pointer = NOGROUP;",
+                    "(void)group_pointer;",
+                )
+            },
             True,
         ),
         (

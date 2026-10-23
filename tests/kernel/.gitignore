@@ -54,6 +54,7 @@ balloc_shim.o
 balloc_shim_pico.o
 ufs_explicit_time_test
 ufs_explicit_time_bad
+ufs_explicit_time_cred.o
 ufs_fio_noatime_bad.c
 shutdown_sync_kernel.o
 shutdown_sync_test
@@ -95,3 +96,4 @@ exec_elf_text_ownership_mutant
 capacity_test
 capacity_*.mutant.c
 capacity_*.mutant.test
+cred_test_sanitized

@@ -286,7 +286,11 @@ identity.
 gcc-multilib, runs the existing libc host aggregate, kernel ILP32 aggregate,
 shell conformance, dd, umount, backgammon, libc sysctl, and textbox suites.
 The textbox suite includes the separately compiled `getline_test32`.
-The libc ANSI ILP32 variant links the tree's own stream table.
+The libc ANSI ILP32 variant links the tree's own stream table. The detached
+recipe aggregate creates a fresh receipt directory, runs `check-kernel` before
+`check-kernel-ilp32` with a `.WAIT` boundary, and records the native credential
+sanitizer plus target-width kernel callers in that one execution set. The
+ordering prevents the two kernel targets from sharing mutable test products.
 
 `tools/test-execution-inventory.json` enumerates executable variants, their
 compiler width, capability condition, build prerequisites, recipe, recursive
@@ -296,7 +300,9 @@ and their libc native, sanitizer, and negative-control companions. Other
 host gates retain their documented owners. Smaller C's differential `fuzz`
 target is an explicitly optional investigation requiring cross artifacts,
 qemu-arm and a 32-bit reference compiler; its prerequisite `test` does not
-execute the fuzz recipe.
+execute the fuzz recipe. The inventory regression requires each variant's root
+target or one recorded alias to be reachable from the detached aggregate and
+therefore rejects a required recipe that the aggregate cannot invoke.
 
 The outcomes describe execution, separately from root-target reachability:
 
@@ -505,11 +511,11 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-dpucp-board-acceptance` | The retained physical-board record binds source and profile-contract commits, exact kernel and root UF2 identities, UF2 intervals, toolchain versions, the one approved flash execution, the by-id and resolved console identities, bounded runner settings, terminal receipt and transcript hashes, all thirteen observed cases, evidence-class attribution and residual uncertainty. Seventeen mutations reject schema, profile, evidence-class, source, surface-order, artifact, flash-count, host-path, runner-state, dropped-output, case-set, case-status, case-output, exact-case-command, Renode-promotion, residual and conformance-claim drift. The gate validates the checked-in record; it does not reopen the serial device, replay the external raw transcript, infer Renode execution, measure runtime stack or heap peaks, or close any complete POSIX requirement. |
 | `check-multicall-composition` | The cross graph separates each shared-product composition gate with `.WAIT`. The gate runs shell clean and link as separate recursive makes, cleans and sequentially relinks the seven RP2040 multicall boxes, and relinks `/bin/sh` through an optional link-map seam. It then checks seven box identities, 80 shipped multicall names, 84 total manifest hard links, 192 distinct retained libc archive members, per-consumer archive closure, retained `hsaout` rows for 71 primary standalone images and seven multicall images, and current `hsaout` output for all 78 artifacts. The retained toolchain measures 182 multicall blocks against 615 standalone blocks. A live run with the recorded ARM compiler, ARM linker, and bmake versions must reproduce every retained archive-member set, byte, block, and root counter. Another supported toolchain parses every live link map, rejects an empty archive-member set, reports per-consumer member additions and removals, and preserves positive per-box packed-block savings, fixed root geometry, root arithmetic, and free capacity while reporting that exact archive-member and byte replay is unavailable. Canonical base and candidate receipts bind terminal status, manifest identity and links, root-image identity, inode use, partition counters, and the exact zero-growth claim to their recorded toolchain. Nineteen document mutations reject conformance claims, denominator drift, duplicate boxes, missing applets, archive-count drift, impossible size fields, manifest-link drift, positive retained root growth, failed, missing, placeholder or mismatched receipts, source-identity drift, and Makefile membership drift. Dedicated live controls reject exact-mode byte drift, cross-toolchain loss of block savings, exact-mode root drift, changed partition geometry, exact-mode archive-member drift, an empty cross-toolchain archive-member set, and ARM linker-version drift. Three Makefile structure controls reject concurrent composition gates, concurrent shell clean/link goals, and stale multicall maps. The measured `/usr/bin/logname` hard link changes the root from 83 to 84 links while files, data blocks, and free blocks remain unchanged. The gate establishes static composition and packed-image accounting; it does not establish runtime stack or heap peaks, packed-root execution, Renode behavior, or physical-board behavior. |
 | `check-dpucp-donor-ledger` | The DPUCP-2024 donor verifier checks the pinned revisions and origins for eight local BSD research trees and each source repository, path, SHA-256, license, behavior, invariants, algorithm, dependency closure, C-language boundary, C17 rewrite, expected archive members, size surfaces, disposition and deciding gate for 11 selected mechanisms. The shell, utility-printf and recovery utility growth exception records bind exact kernel, process-window, executable-composition, archive-member inventory, a.out header arithmetic and packed-root arithmetic to machine-readable evidence; runtime peak stack and heap remain unmeasured, and independent approval remains mandatory before merge. The process-control and timeout records bind source hashes to retained Git commits and report live drift separately; seven retained-source controls reject changed digests, unavailable objects and unsafe or ambiguous identities while preserving historical records after live edits. The process-control prerequisite record binds source hashes, supervised terminal receipts, both kernel variants, retained parent and candidate rows for every OMAGIC program, full and reduced libc payloads, and packed-root arithmetic without promoting timeout; eight process-control measurement mutations reject kernel-delta, summary-only program comparison, placeholder program and receipt digests, one changed program field, root arithmetic, archive-payload drift and blank full-ELF digests. The recovery record also binds map and binary identities, the target-native link-map seam, static realpath frame classification and the rejected standalone composition. The printf calibration mutates utilbox arithmetic, a.out size, archive-member count, root accounting, and shipped-form selection; six recovery mutations reject textbox arithmetic, a.out size, root accounting, shipped-form, archive-count and dynamic-stack drift. The donor-ledger suite requires its documented mutation count to match the executed controls; 24 mutations reject candidate-set, requirement-binding, provenance, path, hash, license, semantic-field, archive-expectation, size-state, size-evidence, decision and conformance-claim drift. The normal host gate validates the committed ledger without requiring the external research workspace. An explicit `${PYTHON} tools/check_dpucp_donor_ledger.py --workspace "${BSD_WORKSPACE}"` additionally reads each file from its pinned Git object and verifies its SHA-256; that caller-selected workspace check is research evidence and stays outside CI. Promotion closes no complete DPUCP row and makes no POSIX or UNIX conformance claim. |
-| `check-c17-source-denominator` | The schema-2 ledger accounts for every tracked C and header path exactly once and records a deterministic source kind, build surface, required language mode, extension policy, risk family, separate risk tier and seven lexical hazard-candidate families. Macro replacement tokens participate in discovery while comments and literals remain blank. Twenty-one calibrated failures reject missing, duplicate, unsafe, unknown, unwitnessed, fabricated, source-drift, stale-count-report, closure-bootstrap, invalid-refresh, temporary-write and replacement-failure states; each rejected mutation preserves the destination bytes. The 543 excluded rows retain exact quarantine hashes. The ledger records 16 accepted, 79 migration-open and 1,960 unreviewed rows; both open states retain their deciding migration units. A candidate-free lexical result is discovery evidence rather than semantic clearance. |
+| `check-c17-source-denominator` | The schema-2 ledger accounts for every tracked C and header path exactly once and records a deterministic source kind, build surface, required language mode, extension policy, risk family, separate risk tier and seven lexical hazard-candidate families. Macro replacement tokens participate in discovery while comments and literals remain blank. Twenty-one calibrated failures reject missing, duplicate, unsafe, unknown, unwitnessed, fabricated, source-drift, stale-count-report, closure-bootstrap, invalid-refresh, temporary-write and replacement-failure states; each rejected mutation preserves the destination bytes. The 543 excluded rows retain exact quarantine hashes. The ledger records 19 accepted, 83 migration-open and 1,953 unreviewed rows; both open states retain their deciding migration units. A candidate-free lexical result is discovery evidence rather than semantic clearance. |
 | `check-c17-compile-profiles` | The existing case-folding mechanism compiles with strict C17 and warnings as errors on the host and with `-std=c17 -pedantic-errors` for Cortex-M0+, where a target-only GNU statement expression calibrates rejection. Both complete kernels then compile and link with their generated GNU17 freestanding PICO and PICO_UART commands. The target composes compiler evidence and changes no classification state. `check-c17-smaller-c` runs the native compiler suite separately; its result establishes neither ISO C17 acceptance nor the production kernel build. |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
-| `check-kernel` | eight sys/kern sources and the production RP2040 shutdown helper compiled from the kernel tree and run against 1349 assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write, whose four typed definitions also compile with `-Wold-style-definition` under Werror; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and the process lookups they decide with, including zero-argument `getpgrp()` returning the caller's changed group while poisoned argument storage remains unchanged; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does. The shutdown helper's 124 assertions are described by `check-rp2040-shutdown` |
+| `check-kernel` | eight sys/kern sources and the production RP2040 shutdown helper compiled from the kernel tree and run against 1,566 baseline assertions: subr_rmap.c, the swap allocator, in three descriptor shapes; kern_subr.c, the uio machinery under every read and write, whose four typed definitions also compile with `-Wold-style-definition` under Werror; tty_subr.c, the character lists every tty queues through; kern_prot.c, kern_prot2.c and kern_proc.c, the protection syscalls and process lookups they decide with, including complete credential-state preservation on every rejected transition; kern_resource.c, scheduling priority, resource limits and usage accounting; sys_generic.c, the read, write, readv and writev entry points, whose vector sum is held to SSIZE_MAX at the limit, beside it, for one oversized vector and for an overflow spread across vectors, against a 64-bit reference over 1100 vector sets in each direction, with a rejected readv or writev reaching no file operation and leaving a nonzero offset where it stood, the sixteen-vector boundary summed through its last element, and the descriptor, count, copy, short-transfer and interrupted paths pinned. The credential objects additionally compile with `-Wstrict-prototypes -Wold-style-definition -Werror`; the 333 credential assertions run again under native address and undefined-behavior sanitizers, including alignment checks, when the compiler probe admits the runtime. The inventory records a skipped state when that sanitizer capability is unavailable. rwuio_setjmp.h resolves the kernel's setjmp call to the host library's over a jmp_buf the harness owns, so the file operation stub can longjmp out of it the way sleep() does. The shutdown helper's 124 assertions are described by `check-rp2040-shutdown` |
 | `check-kernel-metadata` | the syscall and errno masters regenerate every shipped output, including the private dispatch header, byte for byte and reject duplicate or missing ordinals, out-of-range argument counts, invalid conditions, orphaned or accidental public aliases, oversized 16-bit pools and incomplete errno sequences; the contract checker pins syscall 23, the vfork alias and dispatch slot, syscall 81 as a zero-argument entry, compact device and tty tables, every capacity allocation seam, process and clist occupancy formulas, historical notices, every generated RP2040/STM32/PIC32 Makefile input, and both reset-time u-area paints before `SystemInit`. A focused mutation restores syscall 81's former one-argument metadata and must fail. Known-bad metadata, device, tty and reset-paint fixtures calibrate the verdict. The dispatch compiler gate adds 121 calibrated cases for header inclusion/types, all 156 selected handler/count/name rows across INET/GLOB options and defined-zero semantics, numeric assembly and PICO/PICO_UART production commands. Host stub executions establish table selection; optional handler implementations remain unrun. Smaller C header acceptance belongs to the separate native suite. Firmware CI owns the gate through check-host on Linux and macOS. The gate reads and generates temporary files; it neither boots a kernel nor establishes workload headroom |
 | `check-rp2040-shutdown` | the production RP2040 shutdown synchronizer compiled against the kernel headers and executed at host width: admission, nested reentry, root-superblock marking, interrupt masking, immediate and delayed buffer drain, completion during the final delay, timeout reporting, mounted-device recorded-error reporting and retained error latches. Linux and macOS `check-host` own the executable invocation. The gate establishes reporting and orchestration for modeled buffers; it does not establish physical power-loss persistence. |
 | `check-root-noatime` | both RP2040 configurations and their generated Makefiles select `ROOT_MOUNT_FLAGS=MNT_NOATIME`, the initial root mount consumes the policy, `/etc/fstab` preserves it across `mount -a`, automatic read sites retain their guards, and explicit atime requests remain outside those guards. Five in-memory mutations calibrate the policy checker |
@@ -773,7 +779,8 @@ is built again as rwuio_test32: off_t, size_t and u_int are all four
 bytes on the target, so the vector sum that wrapped there is reproduced
 only at this width, and the gate asserts those widths statically before
 it runs. sys/kern/kern_sig.c casts pointers to int in issignal() and
-core(); sigauth_test links it with kern_prot2.c and kern_proc.c and
+core(); sigauth_test links it with kern_prot2.c and kern_proc.c, including
+the production `suser()` definition, and
 judges seteuid() by what kill() does afterwards, since cansignal() reads
 the effective uid from p_uid in the proc entry rather than from the u
 area: a process that drops root with seteuid() is refused a SIGUSR1 to
@@ -790,6 +797,12 @@ whole. A calibrated mutation bypasses the production single-process
 `cansignal()` decision and must fail the permission assertion with exit status
 1; compilation failure, a crash, or an unrelated assertion cannot satisfy the
 control.
+
+The explicit-filesystem-timestamp fixture also links `kern_prot2.c` under
+function-section garbage collection beside `ufs_fio.c`. The positive and
+known-bad noatime executables therefore exercise the production privilege
+predicate after its ownership move. A missing credential object fails the
+link instead of being hidden by a test-local predicate.
 
 The same ILP32 tier extracts `baduaddr_span`, `baduaddr`, `copyin` and
 `copyout` from the exact RP2040 `machdep.c`. The fixture admits the first,
@@ -1384,9 +1397,34 @@ step overflow refusal, both fields of each interval timer, invalid timeval
 fields, whole-second and fractional CPU-timer overflow, interval overflow and
 an old-timer copyout failure that leaves the active timer unchanged. The
 time/I/O/synchronization/storage fixture executes 149 assertions. The suite
-also checks process-group input bounds, wide supplementary GIDs,
-sentinel rejection without partial updates, current-process group reporting
-after a group change, explicit IO_SYNC on async mounts,
+also executes 333 credential assertions over process-group input bounds,
+identity queries, wide supplementary GIDs, permanent and effective UID/GID
+transitions, current-process group reporting after a group change, and the
+production `suser()` predicate. Every refused transition snapshots and
+preserves the effective, real, and saved UIDs, the mirrored process UID, the
+real and saved GIDs, and all `NGROUPS` entries. `setgroups()` rejects a
+sentinel or injected copy fault after a partial private-buffer write before
+publishing any group, and clears the old tail after a successful shorter
+vector. The credential objects compile with strict-prototype and
+old-style-definition diagnostics under Werror. The same fixture runs under
+native address and undefined-behavior sanitizers, including alignment checks,
+when the compiler probe admits the runtime. The execution inventory records an
+explicit skipped state otherwise.
+
+Clean parent `4514cd81be7d82e03d5d97977398e3aa3b6d7921` and credential
+implementation `34df4b4156deee5924aa0c221867c6bd933fa4ba` captures use the complete
+manifest workflow under bmake 20260912, arm-none-eabi-gcc 16.2.0, GNU ld
+2.47.20260726, and Python 3.14.8. The schema-2 comparison reports zero delta
+for both kernel flash/SRAM vectors, all shipped a.out and packed-root vectors,
+native artifacts, and every archive/member selection.  Exact recorded PICO and
+PICO_UART compiler commands replayed with `-fstack-usage` retain all measured
+frames; the 32-byte `suser()` text symbol moves from `ufs_fio.o` to
+`kern_prot2.o`.  The delta and stack/object receipts have SHA-256 values
+`c9922e8f2a37fc99ecfca6d809d3d2b7309ad6d45e8df05705d099894e9a8a13` and
+`307934121eaf66638bf63297540578af80e64c460f56154f0b8c9ecb8f4101bf`.
+These static observations leave runtime stack and heap high-water marks open.
+
+The suite checks explicit IO_SYNC on async mounts,
 data/flush/inode-update failures, counter saturation, 70000 events in one
 `vmmeter()` interval reaching `sum` and `rate` whole, and `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the
@@ -1406,10 +1444,13 @@ allocations are reclaimed before pointer publication, busy parents are released,
 original errors survive cleanup and earlier valid ancestors remain intact.
 The fixture uses NSHIFT for depth boundaries and only index zero; its native
 daddr_t width is not evidence about the target's on-disk encoding.
-Nineteen source mutations, among them bypassing interval-timer validation,
+Thirty-one source mutations, among them bypassing interval-timer validation,
 continuing after an old-timer copyout failure, replacing the saved new-timer
 pointer after a successful old-timer copyout and making `getpgrp()` return
-the caller's process ID, restoring `sync()`'s clean-superblock skip, visiting a mount with
+the caller's process ID, bypassing each privileged credential transition,
+retaining replaced saved IDs, leaving the mirrored process UID stale,
+publishing groups before validation, retaining the old group tail, restoring
+`sync()`'s clean-superblock skip, visiting a mount with
 one superblock list locked, an `ITIMES()` that
 drops a failed update's dirty state in a private copy of `sys/inode.h`, and narrowing
 `struct vmrate` in a private copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as

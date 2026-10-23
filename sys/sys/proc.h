@@ -258,11 +258,6 @@ void swapin (struct proc *p);
 int inferior (struct proc *p);
 
 /*
- * Test if the current user is the super user.
- */
-int suser (void);
-
-/*
  * Load from user area (probably swapped out): real uid,
  * controlling terminal device, and controlling terminal pointer.
  */

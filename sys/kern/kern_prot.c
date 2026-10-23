@@ -11,146 +11,153 @@
 #include <sys/systm.h>
 
 void
-getpid()
+getpid(void)
 {
     u.u_rval = u.u_procp->p_pid;
 }
 
 void
-getppid()
+getppid(void)
 {
     u.u_rval = u.u_procp->p_ppid;
 }
 
 void
-getpgrp()
+getpgrp(void)
 {
     u.u_rval = u.u_procp->p_pgrp;
 }
 
 void
-getuid()
+getuid(void)
 {
     u.u_rval = u.u_ruid;
 }
 
 void
-geteuid()
+geteuid(void)
 {
     u.u_rval = u.u_uid;
 }
 
 void
-getgid()
+getgid(void)
 {
     u.u_rval = u.u_rgid;
 }
 
 void
-getegid()
+getegid(void)
 {
     u.u_rval = u.u_groups[0];
 }
 
 /*
- * The user structure stores group entries as gid_t while the system-call
- * interface exchanges int values, so both calls convert each entry.
+ * The user structure and public system-call interface both use gid_t
+ * entries.  The count occupies one unsigned system-call word.
  */
 void
-getgroups()
+getgroups(void)
 {
-    register struct a {
+    struct getgroups_args {
         u_int   gidsetsize;
-        int *gidset;
-    } *uap = (struct a *)u.u_arg;
-    register gid_t *gp;
+        gid_t *gidset;
+    } *arguments = (struct getgroups_args *)u.u_arg;
+    gid_t *group_pointer;
 
-    for (gp = &u.u_groups[NGROUPS]; gp > u.u_groups; gp--)
-        if (gp[-1] != NOGROUP)
+    for (group_pointer = &u.u_groups[NGROUPS];
+        group_pointer > u.u_groups; group_pointer--)
+        if (group_pointer[-1] != NOGROUP)
             break;
-    if (uap->gidsetsize < (u_int)(gp - u.u_groups)) {
+    if (arguments->gidsetsize <
+        (u_int)(group_pointer - u.u_groups)) {
         u.u_error = EINVAL;
         return;
     }
-    uap->gidsetsize = gp - u.u_groups;
-    u.u_error = copyout((caddr_t)u.u_groups, (caddr_t)uap->gidset,
-        uap->gidsetsize * sizeof(u.u_groups[0]));
+    arguments->gidsetsize = group_pointer - u.u_groups;
+    u.u_error = copyout((caddr_t)u.u_groups,
+        (caddr_t)arguments->gidset,
+        arguments->gidsetsize * sizeof(u.u_groups[0]));
     if (u.u_error)
         return;
-    u.u_rval = uap->gidsetsize;
+    u.u_rval = arguments->gidsetsize;
 }
 
 void
-setpgrp()
+setpgrp(void)
 {
-    register struct proc *p;
-    register struct a {
+    struct proc *process;
+    struct setpgrp_args {
         int pid;
         int pgrp;
-    } *uap = (struct a *)u.u_arg;
+    } *arguments = (struct setpgrp_args *)u.u_arg;
 
-    if (!PGRP_VALID(uap->pgrp)) {
+    if (!PGRP_VALID(arguments->pgrp)) {
         u.u_error = EINVAL;
         return;
     }
-    if (uap->pid == 0)      /* silly... */
-        uap->pid = u.u_procp->p_pid;
-    p = pfind(uap->pid);
-    if (p == 0) {
+    if (arguments->pid == 0)
+        arguments->pid = u.u_procp->p_pid;
+    process = pfind(arguments->pid);
+    if (process == 0) {
         u.u_error = ESRCH;
         return;
     }
-    /* need better control mechanisms for process groups */
-    if (p->p_uid != u.u_uid && u.u_uid && !inferior(p)) {
+    if (process->p_uid != u.u_uid && u.u_uid && !inferior(process)) {
         u.u_error = EPERM;
         return;
     }
-    p->p_pgrp = uap->pgrp;
+    process->p_pgrp = arguments->pgrp;
 }
 
 void
-setgroups()
+setgroups(void)
 {
-    register struct a {
+    struct setgroups_args {
         u_int   gidsetsize;
-        int *gidset;
-    } *uap = (struct a *)u.u_arg;
-    register gid_t *gp;
+        gid_t *gidset;
+    } *arguments = (struct setgroups_args *)u.u_arg;
+    gid_t *group_pointer;
     gid_t groups[NGROUPS];
-    u_int i;
+    u_int group_index;
 
     if (!suser())
         return;
-    if (uap->gidsetsize > sizeof (u.u_groups) / sizeof (u.u_groups[0])) {
+    if (arguments->gidsetsize >
+        sizeof(u.u_groups) / sizeof(u.u_groups[0])) {
         u.u_error = EINVAL;
         return;
     }
-    u.u_error = copyin((caddr_t)uap->gidset, (caddr_t)groups,
-    uap->gidsetsize * sizeof (u.u_groups[0]));
+    u.u_error = copyin((caddr_t)arguments->gidset, (caddr_t)groups,
+        arguments->gidsetsize * sizeof(u.u_groups[0]));
     if (u.u_error)
         return;
-    for (i = 0; i < uap->gidsetsize; i++) {
-        if (groups[i] == NOGROUP) {
+    for (group_index = 0; group_index < arguments->gidsetsize;
+        group_index++) {
+        if (groups[group_index] == NOGROUP) {
             u.u_error = EINVAL;
             return;
         }
     }
-    bcopy(groups, u.u_groups, uap->gidsetsize * sizeof(groups[0]));
-    for (gp = &u.u_groups[uap->gidsetsize]; gp < &u.u_groups[NGROUPS]; gp++)
-        *gp = NOGROUP;
+    bcopy(groups, u.u_groups,
+        arguments->gidsetsize * sizeof(groups[0]));
+    for (group_pointer = &u.u_groups[arguments->gidsetsize];
+        group_pointer < &u.u_groups[NGROUPS]; group_pointer++)
+        *group_pointer = NOGROUP;
 }
 
 /*
  * Check if gid is a member of the group set.
  */
 int
-groupmember(gid)
-    gid_t gid;
+groupmember(gid_t group)
 {
-    register gid_t *gp;
+    gid_t *group_pointer;
 
-    for (gp = u.u_groups; gp < &u.u_groups[NGROUPS] && *gp != NOGROUP; gp++)
-        if (*gp == gid)
+    for (group_pointer = u.u_groups;
+        group_pointer < &u.u_groups[NGROUPS] &&
+        *group_pointer != NOGROUP; group_pointer++)
+        if (*group_pointer == group)
             return (1);
     return (0);
 }

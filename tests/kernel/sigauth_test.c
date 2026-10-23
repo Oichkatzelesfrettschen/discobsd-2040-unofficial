@@ -87,16 +87,6 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 	return 0;
 }
 
-/* suser() as sys/kern/ufs_fio.c defines it. */
-int
-suser(void)
-{
-	if (u.u_uid == 0)
-		return 1;
-	u.u_error = EPERM;
-	return 0;
-}
-
 /*
  * The real uid of a process whose u area the kernel would read from swap.
  * cansignal() calls it for the target; the gate answers from its table.

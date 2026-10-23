@@ -53,6 +53,12 @@ KERN_CFLAGS=	${KERN_BASE} ${KERN_WARN}
 GATE_CFLAGS=	${KERN_BASE} ${GATE_WARN}
 HARNESS_CFLAGS=	-std=gnu17 ${GATE_WARN}
 SYSCALL_GATE_CFLAGS=	-std=c17 -pedantic-errors ${GATE_WARN}
+CRED_KERN_CFLAGS=	${KERN_CFLAGS} -Wstrict-prototypes \
+			-Wold-style-definition
+CRED_SANITIZER_FLAGS=	-fsanitize=address,undefined \
+			-fno-sanitize-recover=all -fno-omit-frame-pointer
+CRED_SANITIZER_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native \
+			${HOST_CC} ${CRED_SANITIZER_FLAGS}
 
 # The surrounding ELF fixture includes the exact production swaptext()
 # definition.  That inherited definition uses K&R parameter syntax, so Clang
@@ -117,6 +123,7 @@ BALLOC_PICO_DEFS=	${IALLOC_PICO_DEFS}
 # sections let the gate link that routine from ufs_fio.c without inventing
 # stubs for the unrelated access and mount helpers in the same source file.
 UFS_EXPLICIT_TIME_SRC=	${TOPSRC}/sys/kern/ufs_fio.c
+UFS_EXPLICIT_TIME_CRED_SRC=	${TOPSRC}/sys/kern/kern_prot2.c
 UFS_EXPLICIT_TIME_DEFS=	${IALLOC_PICO_DEFS}
 UFS_EXPLICIT_TIME_CFLAGS=	-ffunction-sections
 UFS_EXPLICIT_TIME_LDFLAGS=	-Wl,--gc-sections
@@ -277,11 +284,38 @@ clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
 
 cred_test: cred_test.c ${CRED_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} -c -o cred_prot.o ${TOPSRC}/sys/kern/kern_prot.c
-	${HOST_CC} ${KERN_CFLAGS} -c -o cred_prot2.o ${TOPSRC}/sys/kern/kern_prot2.c
+	${HOST_CC} ${CRED_KERN_CFLAGS} -c -o cred_prot.o \
+	    ${TOPSRC}/sys/kern/kern_prot.c
+	${HOST_CC} ${CRED_KERN_CFLAGS} -c -o cred_prot2.o \
+	    ${TOPSRC}/sys/kern/kern_prot2.c
 	${HOST_CC} ${KERN_CFLAGS} -c -o cred_proc.o ${TOPSRC}/sys/kern/kern_proc.c
 	${HOST_CC} ${GATE_CFLAGS} -o $@ cred_test.c hostkern_kern.c \
 	    cred_prot.o cred_prot2.o cred_proc.o hostkern.o
+
+cred_test_sanitized: cred_test.c ${CRED_SRC} hostkern_kern.c hostkern.c \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${CRED_KERN_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	    -c -o cred_prot_sanitized.o ${TOPSRC}/sys/kern/kern_prot.c
+	${HOST_CC} ${CRED_KERN_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	    -c -o cred_prot2_sanitized.o ${TOPSRC}/sys/kern/kern_prot2.c
+	${HOST_CC} ${KERN_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	    -c -o cred_proc_sanitized.o ${TOPSRC}/sys/kern/kern_proc.c
+	${HOST_CC} ${HARNESS_CFLAGS} ${CRED_SANITIZER_FLAGS} \
+	    -c -o hostkern_sanitized.o hostkern.c
+	${HOST_CC} ${GATE_CFLAGS} ${CRED_SANITIZER_FLAGS} -o $@ \
+	    cred_test.c hostkern_kern.c cred_prot_sanitized.o \
+	    cred_prot2_sanitized.o cred_proc_sanitized.o hostkern_sanitized.o
+
+check-credential-sanitizer:
+.if ${CRED_SANITIZER_OK} == "yes"
+	@${MAKE} cred_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.credentials.sanitized -- \
+	    ./cred_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.credentials.sanitized \
+	    "credential contracts: sanitizer runtime unavailable"
+.endif
 
 resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
     ${TOPSRC}/sys/kern/kern_proc.c hostkern_kern.c hostkern.o hostkern.h \
@@ -316,7 +350,7 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_sig.o \
 	    ${TOPSRC}/sys/kern/kern_sig.c
-	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_prot2.o \
+	${HOST_CC} ${CRED_KERN_CFLAGS} ${ILP32} -c -o sigauth_prot2.o \
 	    ${TOPSRC}/sys/kern/kern_prot2.c
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_proc.o \
 	    ${TOPSRC}/sys/kern/kern_proc.c
@@ -390,14 +424,18 @@ balloc_test_pico: balloc_test.c ${BALLOC_SRC} hostkern_kern.c hostkern32.o \
 	    ${ILP32} -o $@ balloc_test.c balloc_kernel_pico.o \
 	    balloc_shim_pico.o hostkern32.o
 
+ufs_explicit_time_cred.o: ${UFS_EXPLICIT_TIME_CRED_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${CRED_KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o $@ ${UFS_EXPLICIT_TIME_CRED_SRC}
+
 ufs_explicit_time_test: ufs_explicit_time_test.c ${UFS_EXPLICIT_TIME_SRC} \
-    hostkern32.o hostkern.h ${MACHINE_STAMP}
+    ufs_explicit_time_cred.o hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o ufs_explicit_time_kernel.o \
 	    ${UFS_EXPLICIT_TIME_SRC}
 	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
-	    ufs_explicit_time_kernel.o hostkern32.o
+	    ufs_explicit_time_kernel.o ufs_explicit_time_cred.o hostkern32.o
 
 capacity_test: capacity_test.c capacity_uarea.c ${CAPACITY_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
@@ -442,13 +480,13 @@ ufs_fio_noatime_bad.c: ${UFS_EXPLICIT_TIME_SRC}
 	    END { if (!changed) exit 1 }' ${UFS_EXPLICIT_TIME_SRC} > $@
 
 ufs_explicit_time_bad: ufs_explicit_time_test.c ufs_fio_noatime_bad.c \
-    hostkern32.o hostkern.h ${MACHINE_STAMP}
+    ufs_explicit_time_cred.o hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o ufs_explicit_time_bad_kernel.o \
 	    ufs_fio_noatime_bad.c
 	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
-	    ufs_explicit_time_bad_kernel.o hostkern32.o
+	    ufs_explicit_time_bad_kernel.o ufs_explicit_time_cred.o hostkern32.o
 
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
@@ -805,7 +843,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
-check: ${PROGS} ${SHUTDOWN_CHECKS}
+check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -819,6 +857,8 @@ clean:
 	rm -f shutdown_sync_*.mutant.c shutdown_sync_*.mutant.o \
 	    shutdown_sync_*.mutant.test
 	rm -f cred_prot.o cred_prot2.o cred_proc.o
+	rm -f cred_test_sanitized cred_prot_sanitized.o cred_prot2_sanitized.o \
+	    cred_proc_sanitized.o hostkern_sanitized.o
 	rm -f resource_kernel.o resource_proc.o
 	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
@@ -850,7 +890,8 @@ clean:
 	rm -f balloc_kernel.o balloc_kernel_pico.o
 	rm -f balloc_shim.o balloc_shim_pico.o
 	rm -f balloc_test balloc_test_pico
-	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o
+	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o \
+	    ufs_explicit_time_cred.o
 	rm -f ufs_explicit_time_test ufs_explicit_time_bad ufs_fio_noatime_bad.c
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
@@ -858,4 +899,4 @@ clean:
 	@if [ -d machine ]; then rmdir machine; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-shutdown-order check-capacity-mutants clean
+	check-shutdown-order check-capacity-mutants check-credential-sanitizer clean

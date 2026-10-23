@@ -26,6 +26,12 @@ def makefile_contract_failures(root):
     failures = []
     if required_composition_order not in makefile_text:
         failures.append("parallel composition gates")
+    image_prerequisite = (
+        "check-multicall-composition: check-python .WAIT symlinks "
+        ".WAIT ${FSIMG}"
+    )
+    if image_prerequisite not in makefile_text:
+        failures.append("missing root image prerequisite")
     if "${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean all" in makefile_text:
         failures.append("parallel shell clean and all")
     box_clean_then_link = (

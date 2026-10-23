@@ -37,6 +37,13 @@ rwuio_*.mutant.c
 rwuio_*.mutant.test
 rwuio_*.mutant.out
 rwuio_test_sanitized
+file_owner_test
+file_owner_test32
+file_owner_test_sanitized
+file_owner_*.o
+file_owner_*.mutant.c
+file_owner_*.mutant.test
+file_owner_*.mutant.out
 sysctl_test_compact
 sysctl_test_wide
 sysctl_kernel_compact.o

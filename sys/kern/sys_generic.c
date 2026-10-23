@@ -184,7 +184,7 @@ writev(void)
  * Ioctl system call
  */
 void
-ioctl()
+ioctl(void)
 {
     register struct file *fp;
     register struct a {
@@ -226,12 +226,23 @@ ioctl()
     case FIOASYNC:
         u.u_error = fset (fp, FASYNC, *(int*) uap->cmarg);
         return;
-    case FIOSETOWN:
-        u.u_error = fsetown (fp, *(int*) uap->cmarg);
+    case FIOSETOWN: {
+        int owner;
+
+        u.u_error = copyin(uap->cmarg, (caddr_t)&owner, sizeof owner);
+        if (u.u_error == 0)
+            u.u_error = fsetown(fp, owner);
         return;
-    case FIOGETOWN:
-        u.u_error = fgetown (fp, (int*) uap->cmarg);
+    }
+    case FIOGETOWN: {
+        int owner;
+
+        u.u_error = fgetown(fp, &owner);
+        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&owner, uap->cmarg,
+                sizeof owner);
         return;
+    }
     }
     u.u_error = (*Fops[fp->f_type]->fo_ioctl) (fp, com, uap->cmarg);
 }

@@ -161,6 +161,28 @@ CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
 		${TOPSRC}/sys/kern/kern_proc.c
 
+# File-owner conversion and the fcntl/ioctl entry points that publish it.
+# Function sections retain only the caller-complete unit from the two kernel
+# translation units and avoid linking unrelated descriptor/syscall services.
+FILE_OWNER_DESCRIP_SRC=	${TOPSRC}/sys/kern/kern_descrip.c
+FILE_OWNER_GENERIC_SRC=	${TOPSRC}/sys/kern/sys_generic.c
+FILE_OWNER_CFLAGS=	-ffunction-sections -fdata-sections
+FILE_OWNER_LDFLAGS=	-Wl,--gc-sections
+FILE_OWNER_DESCRIP_MUTANTS=	unconditional-publication
+FILE_OWNER_GENERIC_MUTANTS=	direct-user-pointer
+FILE_OWNER_UBSAN_MUTANTS=	unchecked-negation
+FILE_OWNER_MUTANTS=	${FILE_OWNER_DESCRIP_MUTANTS} \
+	${FILE_OWNER_GENERIC_MUTANTS} ${FILE_OWNER_UBSAN_MUTANTS}
+# Prevent host libc and sanitizer calls from selecting same-named syscall
+# handlers out of the production objects. The fixture compiles with the same
+# names and calls the renamed handlers directly.
+FILE_OWNER_RENAMES=	-Dclose=owner_close -Ddup=owner_dup \
+	-Ddup2=owner_dup2 -Dfcntl=owner_fcntl -Dfstat=owner_fstat \
+	-Dflock=owner_flock -Dioctl=owner_ioctl -Dlog=owner_log \
+	-Dpselect=owner_pselect -Dselect=owner_select \
+	-Dread=owner_read -Dreadv=owner_readv \
+	-Dwrite=owner_write -Dwritev=owner_writev
+
 # The resource map allocator runs in three shapes across the maintained ports:
 # the sixteen-bit descriptors sys/arch/rp2040/compile/PICO configures, the
 # wide descriptors STM32 uses, and a DIAGNOSTIC kernel, where
@@ -170,7 +192,7 @@ WIDE_DEFS=
 DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
-	clist_test cred_test resource_test rwuio_test
+	clist_test cred_test resource_test rwuio_test file_owner_test
 
 SHUTDOWN_CHECKS=
 .if ${MACHINE:U} == "rp2040"
@@ -386,6 +408,150 @@ check-rwuio-sanitizer:
 .else
 	${TEST_EXECUTION} skip kernel.rwuio.sanitized \
 	    "rwuio contracts: sanitizer runtime unavailable"
+.endif
+
+file_owner_descrip.o: ${FILE_OWNER_DESCRIP_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} ${FILE_OWNER_RENAMES} -c -o $@ \
+	    ${FILE_OWNER_DESCRIP_SRC}
+
+file_owner_generic.o: ${FILE_OWNER_GENERIC_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} ${FILE_OWNER_RENAMES} -c -o $@ \
+	    ${FILE_OWNER_GENERIC_SRC}
+
+file_owner_test: file_owner_test.c file_owner_descrip.o file_owner_generic.o \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} ${FILE_OWNER_LDFLAGS} -o $@ \
+	    file_owner_test.c hostkern_kern.c file_owner_descrip.o \
+	    file_owner_generic.o hostkern.o
+
+file_owner_descrip32.o: ${FILE_OWNER_DESCRIP_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${ILP32} -c -o $@ \
+	    ${FILE_OWNER_DESCRIP_SRC}
+
+file_owner_generic32.o: ${FILE_OWNER_GENERIC_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${ILP32} -c -o $@ \
+	    ${FILE_OWNER_GENERIC_SRC}
+
+file_owner_test32: file_owner_test.c file_owner_descrip32.o \
+    file_owner_generic32.o hostkern_kern.c hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -DHK_ILP32 ${FILE_OWNER_LDFLAGS} -o $@ file_owner_test.c \
+	    hostkern_kern.c file_owner_descrip32.o file_owner_generic32.o \
+	    hostkern32.o
+
+file_owner_test_sanitized: file_owner_test.c ${FILE_OWNER_DESCRIP_SRC} \
+    ${FILE_OWNER_GENERIC_SRC} hostkern_kern.c hostkern.c hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${KERNEL_SANITIZER_FLAGS} -c -o file_owner_descrip_sanitized.o \
+	    ${FILE_OWNER_DESCRIP_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${KERNEL_SANITIZER_FLAGS} -c -o file_owner_generic_sanitized.o \
+	    ${FILE_OWNER_GENERIC_SRC}
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o file_owner_hostkern_sanitized.o hostkern.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${KERNEL_SANITIZER_FLAGS} ${FILE_OWNER_LDFLAGS} -o $@ \
+	    file_owner_test.c hostkern_kern.c \
+	    file_owner_descrip_sanitized.o file_owner_generic_sanitized.o \
+	    file_owner_hostkern_sanitized.o
+
+.for mutation in ${FILE_OWNER_UBSAN_MUTANTS}
+file_owner_${mutation}.mutant.c: file_owner_mutate.py \
+    ${FILE_OWNER_DESCRIP_SRC} ${FILE_OWNER_GENERIC_SRC}
+	${PYTHON} file_owner_mutate.py \
+	    --descriptor-source ${FILE_OWNER_DESCRIP_SRC} \
+	    --generic-source ${FILE_OWNER_GENERIC_SRC} \
+	    --output $@ --mutation ${mutation}
+
+file_owner_${mutation}.mutant.test: file_owner_${mutation}.mutant.c \
+    file_owner_test.c file_owner_test_sanitized hostkern_kern.c \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o file_owner_${mutation}.mutant.o \
+	    file_owner_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${KERNEL_SANITIZER_FLAGS} ${FILE_OWNER_LDFLAGS} -o $@ \
+	    file_owner_test.c hostkern_kern.c \
+	    file_owner_${mutation}.mutant.o file_owner_generic_sanitized.o \
+	    file_owner_hostkern_sanitized.o
+.endfor
+
+.for mutation in ${FILE_OWNER_DESCRIP_MUTANTS}
+file_owner_${mutation}.mutant.c: file_owner_mutate.py \
+    ${FILE_OWNER_DESCRIP_SRC} ${FILE_OWNER_GENERIC_SRC}
+	${PYTHON} file_owner_mutate.py \
+	    --descriptor-source ${FILE_OWNER_DESCRIP_SRC} \
+	    --generic-source ${FILE_OWNER_GENERIC_SRC} \
+	    --output $@ --mutation ${mutation}
+
+file_owner_${mutation}.mutant.test: file_owner_${mutation}.mutant.c \
+    file_owner_test.c file_owner_generic.o hostkern_kern.c hostkern.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} -c -o file_owner_${mutation}.mutant.o \
+	    file_owner_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${FILE_OWNER_LDFLAGS} -o $@ file_owner_test.c hostkern_kern.c \
+	    file_owner_${mutation}.mutant.o file_owner_generic.o hostkern.o
+.endfor
+
+.for mutation in ${FILE_OWNER_GENERIC_MUTANTS}
+file_owner_${mutation}.mutant.c: file_owner_mutate.py \
+    ${FILE_OWNER_DESCRIP_SRC} ${FILE_OWNER_GENERIC_SRC}
+	${PYTHON} file_owner_mutate.py \
+	    --descriptor-source ${FILE_OWNER_DESCRIP_SRC} \
+	    --generic-source ${FILE_OWNER_GENERIC_SRC} \
+	    --output $@ --mutation ${mutation}
+
+file_owner_${mutation}.mutant.test: file_owner_${mutation}.mutant.c \
+    file_owner_test.c file_owner_descrip.o hostkern_kern.c hostkern.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} -c -o file_owner_${mutation}.mutant.o \
+	    file_owner_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} \
+	    ${FILE_OWNER_LDFLAGS} -o $@ file_owner_test.c hostkern_kern.c \
+	    file_owner_descrip.o file_owner_${mutation}.mutant.o hostkern.o
+.endfor
+
+check-file-owner-mutants: \
+    ${FILE_OWNER_MUTANTS:@mutation@file_owner_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${FILE_OWNER_MUTANTS}; do \
+		output=file_owner_$$mutation.mutant.out; \
+		if ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
+		    UBSAN_OPTIONS=halt_on_error=1 \
+		    ./file_owner_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		unchecked-negation) expected='runtime error: negation of -2147483648' ;; \
+		unconditional-publication) expected='error == ENOTTY && result == 91 && driver_calls == 1' ;; \
+		direct-user-pointer) expected='copyin_calls == 1 && copyout_calls == 0' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL file-owner $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS file-owner $$mutation mutation rejected"; \
+	done
+
+check-file-owner-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+	@${MAKE} file_owner_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.file-owner.sanitized -- \
+	    ./file_owner_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.file-owner.sanitized \
+	    "file-owner contracts: sanitizer runtime unavailable"
 .endif
 
 # The harness again at the narrower width, since every object in one binary
@@ -784,7 +950,7 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test rwuio_test32 sigauth_test \
+	@${MAKE} prf_test rwuio_test32 file_owner_test32 sigauth_test \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
@@ -804,6 +970,7 @@ check-ilp32:
 	    ${.CURDIR}/sigauth_proc.o ${.CURDIR}/sigauth_shim.o \
 	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
+	${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32
 	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
 	${TEST_EXECUTION} run kernel.syscall-arguments.ilp32 -- ./syscall_args_test32
 	@if ./syscall_args_dispatch_mutant; then status=0; else status=$$?; fi; \
@@ -880,6 +1047,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -898,7 +1066,8 @@ check-ilp32:
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
-    check-rwuio-mutants check-rwuio-sanitizer
+    check-rwuio-mutants check-rwuio-sanitizer \
+    check-file-owner-mutants check-file-owner-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -923,6 +1092,12 @@ clean:
 	    rwuio_*.mutant.out
 	rm -f rwuio_test_sanitized rwuio_kernel_sanitized.o \
 	    rwuio_jump_sanitized.o rwuio_hostkern_sanitized.o
+	rm -f file_owner_test file_owner_descrip.o file_owner_generic.o
+	rm -f file_owner_test32 file_owner_descrip32.o file_owner_generic32.o
+	rm -f file_owner_test_sanitized file_owner_descrip_sanitized.o \
+	    file_owner_generic_sanitized.o file_owner_hostkern_sanitized.o
+	rm -f file_owner_*.mutant.c file_owner_*.mutant.o \
+	    file_owner_*.mutant.test file_owner_*.mutant.out
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
@@ -959,4 +1134,5 @@ clean:
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
-	check-rwuio-mutants check-rwuio-sanitizer clean
+	check-rwuio-mutants check-rwuio-sanitizer \
+	check-file-owner-mutants check-file-owner-sanitizer clean

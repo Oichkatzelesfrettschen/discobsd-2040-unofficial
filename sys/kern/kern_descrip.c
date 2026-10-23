@@ -110,7 +110,7 @@ dup2()
  * The file control system call.
  */
 void
-fcntl()
+fcntl(void)
 {
     register struct file *fp;
     register struct a {
@@ -175,10 +175,7 @@ fcntl()
 }
 
 int
-fioctl(fp, cmd, value)
-    register struct file *fp;
-    u_int cmd;
-    caddr_t value;
+fioctl(struct file *fp, u_int cmd, caddr_t value)
 {
     return ((*Fops[fp->f_type]->fo_ioctl)(fp, cmd, value));
 }
@@ -203,11 +200,10 @@ fset (fp, bit, value)
  * Get process group id for a file.
  */
 int
-fgetown(fp, valuep)
-    register struct file *fp;
-    register int *valuep;
+fgetown(struct file *fp, int *valuep)
 {
-    register int error;
+    int error;
+    int value = -1;
 
 #ifdef INET
     if (fp->f_type == DTYPE_SOCKET) {
@@ -215,18 +211,20 @@ fgetown(fp, valuep)
         return (0);
     }
 #endif
-    error = fioctl(fp, (u_int)TIOCGPGRP, (caddr_t)valuep);
-    *valuep = -*valuep;
-    return (error);
+    error = fioctl(fp, (u_int)TIOCGPGRP, (caddr_t)&value);
+    if (error)
+        return (error);
+    if (!PGRP_VALID(value))
+        return (EINVAL);
+    *valuep = -value;
+    return (0);
 }
 
 /*
  * Set process group id for a file.
  */
 int
-fsetown(fp, value)
-    register struct file *fp;
-    int value;
+fsetown(struct file *fp, int value)
 {
 #ifdef INET
     if (fp->f_type == DTYPE_SOCKET) {
@@ -235,12 +233,18 @@ fsetown(fp, value)
     }
 #endif
     if (value > 0) {
-        register struct proc *p = pfind(value);
+        struct proc *p = pfind(value);
+
         if (p == 0)
             return (ESRCH);
         value = p->p_pgrp;
-    } else
+    } else {
+        if (value < -SHRT_MAX)
+            return (EINVAL);
         value = -value;
+    }
+    if (!PGRP_VALID(value))
+        return (EINVAL);
     return (fioctl(fp, (u_int)TIOCSPGRP, (caddr_t)&value));
 }
 

@@ -876,6 +876,30 @@ compiler-reported frame bytes in `fset()` and `fcntl()`. The bounded resource
 exception accepts those static costs. Runtime stack high-water, general ioctl
 payloads, conditional INET behavior and physical-board execution remain open.
 
+## FIONREAD result admission
+
+The general `FIONREAD` path now gives every shipped provider an initialized,
+aligned kernel `off_t` and publishes the complete result through `copyout()`
+only after provider success. Regular files, directories, both pipe ends and
+the tty providers retain their existing result calculations. Provider failure,
+copyout failure and a crossing user span preserve caller storage.
+
+The 51-assertion fixture compiles the exact extracted production `ioctl()` and
+`ino_ioctl()` definitions in C17 mode and runs at native and ILP32 widths and
+under address, undefined-behavior and alignment sanitizers. The inherited
+source fails 22 assertions and produces a sanitizer misaligned-store
+diagnostic. Three mutations restore direct caller-pointer access, failed-result
+publication or a short copy; each fails its named assertion. Both shipped
+kernel configurations compile and link under their exact GNU17 commands.
+
+Matched clean parent and candidate distributions attribute a 64-byte flash
+increase in each kernel to `sys_generic.o` and `ioctl()`. The `ioctl()` frame
+remains 24 bytes. Static SRAM, all shipped a.out measurements, native libc size
+and membership, packed-root counters and archive selections remain unchanged.
+The bounded exception leaves 25,928 PICO and 38,404 PICO_UART flash bytes and
+closes static resource acceptance for the unit. Runtime stack high-water and
+physical-board execution remain open.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |

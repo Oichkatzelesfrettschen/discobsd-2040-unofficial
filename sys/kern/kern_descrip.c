@@ -120,6 +120,8 @@ fcntl(void)
     } *uap;
     register int i;
     register char *pop;
+    int old_flags;
+    int new_flags;
 
     uap = (struct a *)u.u_arg;
     fp = getf(uap->fdes);
@@ -151,14 +153,17 @@ fcntl(void)
         break;
 
     case F_SETFL:
-        fp->f_flag &= ~FCNTLFLAGS;
-        fp->f_flag |= (FFLAGS(uap->arg)) & FCNTLFLAGS;
-        u.u_error = fset (fp, FNONBLOCK, fp->f_flag & FNONBLOCK);
+        old_flags = fp->f_flag;
+        new_flags = (old_flags & ~FCNTLFLAGS) |
+            ((FFLAGS(uap->arg)) & FCNTLFLAGS);
+        u.u_error = fset(fp, FNONBLOCK, new_flags & FNONBLOCK);
         if (u.u_error)
             break;
-        u.u_error = fset (fp, FASYNC, fp->f_flag & FASYNC);
+        u.u_error = fset(fp, FASYNC, new_flags & FASYNC);
         if (u.u_error)
-            (void) fset (fp, FNONBLOCK, 0);
+            (void)fset(fp, FNONBLOCK, old_flags & FNONBLOCK);
+        else
+            fp->f_flag = new_flags;
         break;
 
     case F_GETOWN:
@@ -184,16 +189,19 @@ fioctl(struct file *fp, u_int cmd, caddr_t value)
  * Set/clear file flags: nonblock and async.
  */
 int
-fset (fp, bit, value)
-    register struct file *fp;
-    int bit, value;
+fset(struct file *fp, int bit, int value)
 {
+    int error;
+
+    error = fioctl(fp, (u_int)(bit == FNONBLOCK ? FIONBIO : FIOASYNC),
+        (caddr_t)&value);
+    if (error)
+        return (error);
     if (value)
         fp->f_flag |= bit;
     else
         fp->f_flag &= ~bit;
-    return (fioctl(fp, (u_int)(bit == FNONBLOCK ? FIONBIO : FIOASYNC),
-            (caddr_t)&value));
+    return (0);
 }
 
 /*

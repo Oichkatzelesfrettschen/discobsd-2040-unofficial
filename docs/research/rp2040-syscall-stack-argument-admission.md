@@ -58,8 +58,38 @@ parent source, closure and resource receipts have SHA-256 values
 `a64d3e44d354e1dd4ac2828a58eefbd73d4b384529f9fd943d8c3ee7ce900190`,
 `8ffae6c92d919de62495a26c701789076c8ac85961688c6d2d65aa734b4b7a15` and
 `768ffab7e821170eb5d07bb08dfa0ee7a37984e413b9875b4568e7edde3b8f07`.
-The candidate static comparison remains open until a clean committed source
-identity produces its matched distribution, closure and resource receipts.
+The committed candidate at `d5193996c796fbda4b9681f7c2640775dba8a505`
+completed its clean and distribution stages in 10.0 and 207.3 seconds. The
+candidate closure retains the same 36 shipped artifact groups, 173 PICO and
+165 PICO_UART C/header paths, and 151-member, 43,010-byte native board
+`libc.a`. The source snapshot, closure, resource and delta receipts have
+SHA-256 values
+`f4c7da90841759de47156fa08ec6fba83f50dde65281ffda0620dc0012b4865f`,
+`8c89769942338b81a80a301f776e1b381f8293ddca4a93ff5afcf45ea32892fe`,
+`58f5d6ec6502b2449b17f5175222c27b6908683e5e1b3ed9413b0c246a2eabb2` and
+`2a5308c4bd154d7d30f21f166d98a7b3c43ded03ea10cb944af151d7b17af91b`.
+
+The resource comparison records the following constrained surfaces:
+
+| Surface | Parent | Candidate | Delta | Candidate margin |
+| --- | ---: | ---: | ---: | ---: |
+| PICO loaded flash span | 104,758 | 104,806 | +48 | 26,266 bytes |
+| PICO SRAM allocations and extents | measured baseline | unchanged | 0 | unchanged |
+| PICO_UART loaded flash span | 92,276 | 92,332 | +56 | 38,740 bytes |
+| PICO_UART SRAM allocations and extents | measured baseline | unchanged | 0 | unchanged |
+| Native board `libc.a` | 43,010 | 43,010 | 0 | unchanged |
+| Packed-root data blocks | 692 | 692 | 0 | 287 free blocks |
+| Every shipped a.out size and packed occupancy | measured baseline | unchanged | 0 | unchanged |
+| Selected archive-member sets | measured baseline | unchanged | 0 | unchanged |
+
+The resource comparer rejects the two positive flash deltas by design pending
+review. The candidate requests the bounded exception because complete tail
+copying, overflow rejection and dispatch suppression are required to enforce
+the six-word syscall ABI. Removing those checks would restore the reproduced
+stale-argument, partial-admission or post-failure dispatch defects. The change
+consumes 48 bytes in PICO and 56 bytes in PICO_UART while leaving kernel SRAM,
+every process image, root occupancy and dependency selection unchanged. Review
+of the exact receipts and retained margins decides the exception.
 
 The exact-source fixture executes argument admission and handler selection. It
 does not execute the naked exception-entry assembly, longjmp recovery, syscall

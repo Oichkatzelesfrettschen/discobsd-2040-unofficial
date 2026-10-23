@@ -182,6 +182,17 @@ FILE_STATUS_DESCRIP_MUTANTS=	early-fset-publication \
 FILE_STATUS_GENERIC_MUTANTS=	direct-status-pointer
 FILE_STATUS_MUTANTS=	${FILE_STATUS_DESCRIP_MUTANTS} \
 	${FILE_STATUS_GENERIC_MUTANTS}
+FIONREAD_GENERIC_SRC=	${TOPSRC}/sys/kern/sys_generic.c
+FIONREAD_INODE_SRC=	${TOPSRC}/sys/kern/sys_inode.c
+FIONREAD_IOCTL_FUNCTION=	fionread_ioctl_function.c
+FIONREAD_INODE_FUNCTION=	fionread_inode_function.c
+FIONREAD_CFLAGS=	-ffunction-sections -fdata-sections
+FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 \
+	-Wstrict-prototypes -Wold-style-definition
+FIONREAD_LDFLAGS=	${FILE_OWNER_LDFLAGS}
+FIONREAD_GENERIC_RENAMES=	-Dioctl=fionread_ioctl
+FIONREAD_INODE_RENAMES=	-Dsetjmp=fionread_setjmp
+FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -201,7 +212,8 @@ WIDE_DEFS=
 DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
-	clist_test cred_test resource_test rwuio_test file_owner_test
+	clist_test cred_test resource_test rwuio_test file_owner_test \
+	fionread_test
 
 SHUTDOWN_CHECKS=
 .if ${MACHINE:U} == "rp2040"
@@ -467,6 +479,109 @@ file_owner_test_sanitized: file_owner_test.c ${FILE_OWNER_DESCRIP_SRC} \
 	    file_owner_test.c hostkern_kern.c \
 	    file_owner_descrip_sanitized.o file_owner_generic_sanitized.o \
 	    file_owner_hostkern_sanitized.o
+
+${FIONREAD_IOCTL_FUNCTION}: fionread_extract.py ${FIONREAD_GENERIC_SRC}
+	${PYTHON} fionread_extract.py --function ioctl \
+	    --source ${FIONREAD_GENERIC_SRC} --output $@
+
+fionread_generic.o: ${FIONREAD_IOCTL_FUNCTION} ${MACHINE_STAMP}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \
+	    ${FIONREAD_GENERIC_RENAMES} -c -o $@ ${FIONREAD_IOCTL_FUNCTION}
+
+${FIONREAD_INODE_FUNCTION}: fionread_extract.py ${FIONREAD_INODE_SRC}
+	${PYTHON} fionread_extract.py --function ino_ioctl \
+	    --source ${FIONREAD_INODE_SRC} --output $@
+
+fionread_inode.o: ${FIONREAD_INODE_FUNCTION} ${MACHINE_STAMP}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \
+	    ${FIONREAD_INODE_RENAMES} -c -o $@ ${FIONREAD_INODE_FUNCTION}
+
+fionread_test: fionread_test.c fionread_generic.o fionread_inode.o \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} -Dioctl=fionread_ioctl \
+	    ${FIONREAD_LDFLAGS} -o $@ fionread_test.c hostkern_kern.c \
+	    fionread_generic.o fionread_inode.o hostkern.o
+
+fionread_generic32.o: ${FIONREAD_IOCTL_FUNCTION} ${MACHINE_STAMP}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} ${ILP32} \
+	    ${FIONREAD_GENERIC_RENAMES} -c -o $@ ${FIONREAD_IOCTL_FUNCTION}
+
+fionread_inode32.o: ${FIONREAD_INODE_FUNCTION} ${MACHINE_STAMP}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} ${ILP32} \
+	    ${FIONREAD_INODE_RENAMES} -c -o $@ ${FIONREAD_INODE_FUNCTION}
+
+fionread_test32: fionread_test.c fionread_generic32.o fionread_inode32.o \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -DHK_ILP32 \
+	    -Dioctl=fionread_ioctl ${FIONREAD_LDFLAGS} -o $@ \
+	    fionread_test.c hostkern_kern.c fionread_generic32.o \
+	    fionread_inode32.o hostkern32.o
+
+fionread_test_sanitized: fionread_test.c ${FIONREAD_IOCTL_FUNCTION} \
+    ${FIONREAD_INODE_FUNCTION} hostkern_kern.c hostkern.c hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \
+	    ${FIONREAD_GENERIC_RENAMES} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o fionread_generic_sanitized.o ${FIONREAD_IOCTL_FUNCTION}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \
+	    ${FIONREAD_INODE_RENAMES} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o fionread_inode_sanitized.o ${FIONREAD_INODE_FUNCTION}
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o fionread_hostkern_sanitized.o hostkern.c
+	${HOST_CC} ${GATE_CFLAGS} -Dioctl=fionread_ioctl \
+	    ${KERNEL_SANITIZER_FLAGS} ${FIONREAD_LDFLAGS} -o $@ \
+	    fionread_test.c hostkern_kern.c fionread_generic_sanitized.o \
+	    fionread_inode_sanitized.o fionread_hostkern_sanitized.o
+
+check-fionread-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+check-fionread-sanitizer: fionread_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.fionread.sanitized -- \
+	    ./fionread_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.fionread.sanitized \
+	    "FIONREAD contracts: sanitizer runtime unavailable"
+.endif
+
+.for mutation in ${FIONREAD_MUTANTS}
+fionread_${mutation}.mutant.c: fionread_mutate.py \
+    ${FIONREAD_IOCTL_FUNCTION}
+	${PYTHON} fionread_mutate.py --source ${FIONREAD_IOCTL_FUNCTION} \
+	    --output $@ --mutation ${mutation}
+
+fionread_${mutation}.mutant.test: fionread_${mutation}.mutant.c \
+    fionread_test.c fionread_inode.o hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \
+	    ${FIONREAD_GENERIC_RENAMES} -c \
+	    -o fionread_${mutation}.mutant.o fionread_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} -Dioctl=fionread_ioctl \
+	    ${FIONREAD_LDFLAGS} -o $@ fionread_test.c hostkern_kern.c \
+	    fionread_${mutation}.mutant.o fionread_inode.o hostkern.o
+.endfor
+
+check-fionread-mutants: \
+    ${FIONREAD_MUTANTS:@mutation@fionread_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${FIONREAD_MUTANTS}; do \
+		output=fionread_$$mutation.mutant.out; \
+		if ./fionread_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		direct-user-pointer) expected='provider_data != unaligned' ;; \
+		unconditional-publication) expected='u.u_error == EIO && provider_calls == 1' ;; \
+		wrong-width) expected='copyout_bytes == sizeof(off_t)' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL FIONREAD $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS FIONREAD $$mutation mutation rejected"; \
+	done
 
 .for mutation in ${FILE_OWNER_UBSAN_MUTANTS}
 file_owner_${mutation}.mutant.c: file_owner_mutate.py \
@@ -1056,7 +1171,7 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test rwuio_test32 file_owner_test32 sigauth_test \
+	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
@@ -1077,6 +1192,7 @@ check-ilp32:
 	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
 	${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32
+	${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32
 	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
 	${TEST_EXECUTION} run kernel.syscall-arguments.ilp32 -- ./syscall_args_test32
 	@if ./syscall_args_dispatch_mutant; then status=0; else status=$$?; fi; \
@@ -1154,6 +1270,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.fionread.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -1174,7 +1291,8 @@ check-ilp32:
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
-    check-file-status-mutants
+    check-file-status-mutants check-fionread-mutants \
+    check-fionread-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1207,6 +1325,13 @@ clean:
 	    file_owner_*.mutant.test file_owner_*.mutant.out
 	rm -f file_status_*.mutant.c file_status_*.mutant.o \
 	    file_status_*.mutant.test file_status_*.mutant.out
+	rm -f fionread_test fionread_generic.o fionread_inode.o
+	rm -f fionread_test32 fionread_generic32.o fionread_inode32.o
+	rm -f fionread_test_sanitized fionread_generic_sanitized.o \
+	    fionread_inode_sanitized.o fionread_hostkern_sanitized.o \
+	    ${FIONREAD_IOCTL_FUNCTION} ${FIONREAD_INODE_FUNCTION}
+	rm -f fionread_*.mutant.c fionread_*.mutant.o \
+	    fionread_*.mutant.test fionread_*.mutant.out
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
@@ -1247,4 +1372,5 @@ clean:
 	check-file-owner-mutants check-file-owner-native-mutants \
 	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \
 	check-file-owner-linker-flags \
-	check-file-owner-sanitizer check-file-status-mutants clean
+	check-file-owner-sanitizer check-file-status-mutants \
+	check-fionread-mutants check-fionread-sanitizer clean

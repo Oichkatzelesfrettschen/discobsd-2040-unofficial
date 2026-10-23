@@ -135,7 +135,7 @@ execve(void)
     struct exec_params eparam;
 
     DEBUG("\n\texecve(): resolve path and argument vectors\n");
-    NDINIT (ndp, LOOKUP, FOLLOW, uap->fname);
+    NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, uap->fname);
     ip = namei (ndp);
     if (ip == NULL) {
         DEBUG("\texecve(): path lookup failed\n");

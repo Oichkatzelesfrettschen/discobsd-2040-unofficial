@@ -2,6 +2,7 @@
 #define NAMEI_SOURCE "../../../sys/kern/ufs_namei.c"
 #endif
 #include NAMEI_SOURCE
+#include <sys/namei.h>
 
 static u_long user_limit;
 
@@ -61,7 +62,7 @@ check_user_path(void)
 	char source[MAXPATHLEN] = "/usr/bin/tool";
 	char destination[MAXPATHLEN];
 
-	NDINIT(&name, LOOKUP, FOLLOW, source);
+	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, source);
 	if ((name.ni_nameiop & NI_USERPATH) == 0)
 		return 1;
 	user_limit = 0;
@@ -77,7 +78,7 @@ check_invalid_user_path(void)
 	struct nameidata name;
 	char destination[MAXPATHLEN];
 
-	NDINIT(&name, LOOKUP, FOLLOW, (caddr_t)1);
+	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, (caddr_t)1);
 	if (namei_copy_path(&name, destination) != EFAULT)
 		return 1;
 	return 0;
@@ -90,7 +91,7 @@ check_user_boundary_terminator(void)
 	char source[MAXPATHLEN] = "/abc";
 	char destination[MAXPATHLEN];
 
-	NDINIT(&name, LOOKUP, FOLLOW, source);
+	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, source);
 	user_limit = (u_long)source + sizeof "/abc";
 	if (namei_copy_path(&name, destination) != 0 ||
 	    !test_strings_equal(destination, "/abc"))
@@ -105,7 +106,7 @@ check_missing_terminator_at_boundary(void)
 	char source[MAXPATHLEN] = "abcde";
 	char destination[MAXPATHLEN];
 
-	NDINIT(&name, LOOKUP, FOLLOW, source);
+	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, source);
 	user_limit = (u_long)source + 5;
 	if (namei_copy_path(&name, destination) != EFAULT)
 		return 1;
@@ -122,7 +123,7 @@ check_maximum_length_path(void)
 
 	for (index = 0; index < MAXPATHLEN; index++)
 		source[index] = 'x';
-	NDINIT(&name, LOOKUP, FOLLOW, source);
+	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, source);
 	user_limit = 0;
 	if (namei_copy_path(&name, destination) != ENOENT)
 		return 1;
@@ -136,11 +137,32 @@ check_kernel_path(void)
 	char source[MAXPATHLEN] = "/core.core";
 	char destination[MAXPATHLEN];
 
-	NDINIT_KERNEL(&name, CREATE, FOLLOW, source);
+	NAMEI_INIT_KERNEL(&name, CREATE, FOLLOW, source);
 	if (name.ni_nameiop & NI_USERPATH)
 		return 1;
 	if (namei_copy_path(&name, destination) != 0 ||
 	    !test_strings_equal(destination, source))
+		return 2;
+	return 0;
+}
+
+static int
+check_operation_reset(void)
+{
+	struct nameidata name;
+	char user_path[MAXPATHLEN] = "/user";
+	char kernel_path[MAXPATHLEN] = "/kernel";
+
+	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, user_path);
+	NAMEI_RESET_OPERATION(&name, CREATE, NOFOLLOW);
+	if (name.ni_dirp != user_path ||
+	    name.ni_nameiop != (CREATE | NI_USERPATH))
+		return 1;
+
+	NAMEI_INIT_KERNEL(&name, CREATE, NOFOLLOW, kernel_path);
+	NAMEI_RESET_OPERATION(&name, LOOKUP, FOLLOW);
+	if (name.ni_dirp != kernel_path ||
+	    name.ni_nameiop != (LOOKUP | FOLLOW))
 		return 2;
 	return 0;
 }
@@ -168,5 +190,8 @@ main(void)
 	error = check_kernel_path();
 	if (error != 0)
 		return 50 + error;
+	error = check_operation_reset();
+	if (error != 0)
+		return 60 + error;
 	return 0;
 }

@@ -41,13 +41,25 @@ struct nameidata {
 #define NOFOLLOW    0x0     /* don't follow symbolic links (pseudo) */
 #define NI_USERPATH 0x80    /* ni_dirp points to user memory */
 
-#define NDINIT(ndp,op,flags,namep) {\
-    (ndp)->ni_nameiop = op | flags | NI_USERPATH; \
-    (ndp)->ni_dirp = namep; }
+#if (NI_USERPATH & (CREATE | DELETE | LOCKPARENT | NOCACHE | FOLLOW)) != 0
+#error "NI_USERPATH overlaps a namei operation or modifier"
+#endif
 
-#define NDINIT_KERNEL(ndp,op,flags,namep) {\
-    (ndp)->ni_nameiop = op | flags; \
-    (ndp)->ni_dirp = namep; }
+#define NAMEI_INIT_USER(ndp, operation, modifiers, pathname) do { \
+    (ndp)->ni_nameiop = \
+        (short)((operation) | (modifiers) | NI_USERPATH); \
+    (ndp)->ni_dirp = (caddr_t)(pathname); \
+} while (0)
+
+#define NAMEI_INIT_KERNEL(ndp, operation, modifiers, pathname) do { \
+    (ndp)->ni_nameiop = (short)((operation) | (modifiers)); \
+    (ndp)->ni_dirp = (caddr_t)(pathname); \
+} while (0)
+
+#define NAMEI_RESET_OPERATION(ndp, operation, modifiers) do { \
+    (ndp)->ni_nameiop = (short)(((ndp)->ni_nameiop & NI_USERPATH) | \
+        (operation) | (modifiers)); \
+} while (0)
 
 /*
  * This structure describes the elements in the cache of recent

@@ -55,7 +55,7 @@ statfs(void)
     register struct nameidata *ndp = &nd;
     struct  mount   *mp;
 
-    NDINIT (ndp, LOOKUP, FOLLOW, uap->path);
+    NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, uap->path);
     ip = namei(ndp);
     if (! ip)
         return;
@@ -294,7 +294,7 @@ utimes(void)
         if (u.u_error)
             return;
     }
-    NDINIT (ndp, LOOKUP, FOLLOW, uap->fname);
+    NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, uap->fname);
     if ((ip = namei(ndp)) == NULL)
         return;
     vattr.va_atime = tv[0].tv_sec;

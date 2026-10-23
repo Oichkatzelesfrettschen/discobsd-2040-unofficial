@@ -6,7 +6,9 @@ topsrc=$(cd "$(dirname "$0")/../../.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/namei-path.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 ln -s "$topsrc/sys/arch/rp2040/include" "$work/machine"
-mkdir "$work/mutant"
+mkdir "$work/mutant" "$work/header-mutant" "$work/header-mutant/sys"
+ln -s "$topsrc/sys/sys/uio.h" "$work/header-mutant/sys/uio.h"
+ln -s "$topsrc/sys/sys/types.h" "$work/header-mutant/sys/types.h"
 
 case $(uname -s) in
 Darwin)
@@ -64,4 +66,25 @@ if ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
 	echo "namei_path: FAIL: direct user copy mutation was accepted" >&2
 	exit 1
 fi
-echo "namei_path: PASS (user-copy boundary, source type, calibrated direct-copy rejection)"
+
+sed 's/(ndp)->ni_nameiop & NI_USERPATH/0/' \
+	"$topsrc/sys/sys/namei.h" >"$work/header-mutant/sys/namei.h"
+${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror \
+	-Wstrict-prototypes -Wold-style-definition -Wno-sign-compare \
+	-Wno-unused-function -fno-builtin -fsanitize=address,undefined \
+	-ffunction-sections -fdata-sections -DKERNEL $host_warning_flags \
+	-I"$work/header-mutant" -I"$work" -I"$topsrc/sys" \
+	-I"$topsrc/sys/arch" -I"$topsrc/sys/arch/arm/include" \
+	-I"$topsrc/sys/arch/rp2040/dhara/compat" \
+	-I"$topsrc/sys/arch/rp2040/heatshrink/compat" \
+	$section_gc_flags -DNAMEI_SOURCE=\"$topsrc/sys/kern/ufs_namei.c\" \
+	-o "$work/namei-origin-mutant" \
+	"$topsrc/tests/rp2040/namei_path/namei_path_test.c"
+if ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+    UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+	"$work/namei-origin-mutant" >"$work/header-mutant.log" 2>&1; then
+	echo "namei_path: FAIL: dropped operation origin was accepted" >&2
+	exit 1
+fi
+
+echo "namei_path: PASS (user-copy boundary, path origin, two calibrated mutations)"

@@ -836,7 +836,8 @@ check-storage-counters: tools
 check-storage-correctness: check-python
 		${PYTHON} tests/kernel/check_correctness.py
 
-check-namei-user-path:
+check-namei-user-path: check-python
+		${PYTHON} tests/rp2040/namei_path/check_origin.py --root ${TOPSRC:Q}
 		sh tests/rp2040/namei_path/check.sh
 
 check-rp2040-usercopy-span: check-python

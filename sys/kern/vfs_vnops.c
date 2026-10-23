@@ -71,10 +71,8 @@ vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
     register int error;
 
     if (fmode & O_CREAT) {
-        if ((fmode & O_EXCL) == 0)
-            ndp->ni_nameiop |= (CREATE|FOLLOW);
-        else
-            NAMEI_RESET_OPERATION(ndp, CREATE, NOFOLLOW);
+        NAMEI_RESET_OPERATION(ndp, CREATE,
+            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);
         ip = namei(ndp);
         if (ip == NULL) {
             if (u.u_error) {

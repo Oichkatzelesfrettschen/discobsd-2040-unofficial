@@ -49,16 +49,24 @@ EXPECTED_CALLS = {
         "NAMEI_INIT_USER(ndp,LOOKUP,FOLLOW,uap->fname)",
     ],
     "sys/kern/vfs_vnops.c": [
-        "NAMEI_RESET_OPERATION(ndp,CREATE,NOFOLLOW)",
+        "NAMEI_RESET_OPERATION(ndp,CREATE,(fmode&O_EXCL)?NOFOLLOW:FOLLOW)",
         "NAMEI_RESET_OPERATION(ndp,LOOKUP,FOLLOW)",
     ],
 }
 
+# The conditional vn_open reset expresses separate O_EXCL and non-O_EXCL
+# transitions through one macro invocation so the Thumb-1 build shares the
+# origin-preservation sequence.
+CONDITIONAL_TRANSITION_CASES = 1
+
 CALL_PATTERN = re.compile(
     r"\b(?:NAMEI_INIT_USER|NAMEI_INIT_KERNEL|NAMEI_RESET_OPERATION)\s*"
-    r"\([^;\n]*\)"
+    r"\([^;]*\)"
 )
-DIRECT_WRITE_PATTERN = re.compile(r"(?:->|\.)\s*ni_(?:dirp|nameiop)\s*=")
+DIRECT_WRITE_PATTERN = re.compile(
+    r"(?:->|\.)\s*ni_(?:dirp|nameiop)\s*"
+    r"(?:=(?!=)|[+\-*/%&^|]=|<<=|>>=)"
+)
 LEGACY_INIT_PATTERN = re.compile(r"\bNDINIT(?:_KERNEL)?\s*\(")
 
 
@@ -137,11 +145,22 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     direct_write_sources = dict(clean_sources)
     caller_path = "sys/kern/vfs_vnops.c"
     direct_write_sources[caller_path] = direct_write_sources[caller_path].replace(
-        "NAMEI_RESET_OPERATION(ndp, CREATE, NOFOLLOW);",
+        "NAMEI_RESET_OPERATION(ndp, LOOKUP, FOLLOW);",
         "ndp->ni_nameiop = CREATE;",
         1,
     )
     require_rejection("direct-origin-write", direct_write_sources)
+    rejected += 1
+
+    compound_write_sources = dict(clean_sources)
+    caller_path = "sys/kern/vfs_vnops.c"
+    compound_write_sources[caller_path] = compound_write_sources[caller_path].replace(
+        "NAMEI_RESET_OPERATION(ndp, CREATE,\n"
+        "            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);",
+        "ndp->ni_nameiop &= ~NI_USERPATH;",
+        1,
+    )
+    require_rejection("compound-origin-write", compound_write_sources)
     rejected += 1
 
     unexpected_caller_sources = dict(clean_sources)
@@ -169,7 +188,10 @@ def main() -> int:
             print(f"FAIL namei path origin: {error}")
         return 1
 
-    call_count = sum(len(calls) for calls in EXPECTED_CALLS.values())
+    call_count = (
+        sum(len(calls) for calls in EXPECTED_CALLS.values())
+        + CONDITIONAL_TRANSITION_CASES
+    )
     print(
         "PASS namei path origin: "
         f"{call_count} transitions, {rejected_mutations} mutations rejected"

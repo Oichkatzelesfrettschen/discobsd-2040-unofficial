@@ -286,7 +286,11 @@ identity.
 gcc-multilib, runs the existing libc host aggregate, kernel ILP32 aggregate,
 shell conformance, dd, umount, backgammon, libc sysctl, and textbox suites.
 The textbox suite includes the separately compiled `getline_test32`.
-The libc ANSI ILP32 variant links the tree's own stream table.
+The libc ANSI ILP32 variant links the tree's own stream table. The detached
+recipe aggregate creates a fresh receipt directory, runs `check-kernel` before
+`check-kernel-ilp32` with a `.WAIT` boundary, and records the native credential
+sanitizer plus target-width kernel callers in that one execution set. The
+ordering prevents the two kernel targets from sharing mutable test products.
 
 `tools/test-execution-inventory.json` enumerates executable variants, their
 compiler width, capability condition, build prerequisites, recipe, recursive
@@ -296,7 +300,9 @@ and their libc native, sanitizer, and negative-control companions. Other
 host gates retain their documented owners. Smaller C's differential `fuzz`
 target is an explicitly optional investigation requiring cross artifacts,
 qemu-arm and a 32-bit reference compiler; its prerequisite `test` does not
-execute the fuzz recipe.
+execute the fuzz recipe. The inventory regression requires each variant's root
+target or one recorded alias to be reachable from the detached aggregate and
+therefore rejects a required recipe that the aggregate cannot invoke.
 
 The outcomes describe execution, separately from root-target reachability:
 

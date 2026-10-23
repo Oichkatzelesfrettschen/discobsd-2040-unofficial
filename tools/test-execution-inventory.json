@@ -60,6 +60,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libtcl-contracts",
+      "to": "tests/libtcl_contracts:check",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-libc-sysctl",
       "to": "tests/libc_sysctl:check",
       "kind": "recursive make"
@@ -262,6 +267,7 @@
       "from": "check-ilp32-execution-recipes",
       "to": [
         "check-libc-host-contracts",
+        "check-kernel",
         "check-kernel-ilp32",
         "check-dd-contracts",
         "check-umount-contracts",
@@ -273,7 +279,8 @@
         "check-dirent-contracts",
         "check-getwd-lifetime",
         "check-libc-casefold",
-        "check-sysctl-status"
+        "check-sysctl-status",
+        "check-libtcl-contracts"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },
@@ -306,6 +313,7 @@
       "from": "check-ilp32-execution-recipes",
       "to": [
         "check-libc-host-contracts",
+        "check-kernel",
         "check-kernel-ilp32",
         "check-dd-contracts",
         "check-umount-contracts",
@@ -317,7 +325,8 @@
         "check-dirent-contracts",
         "check-getwd-lifetime",
         "check-libc-output",
-        "check-sysctl-status"
+        "check-sysctl-status",
+        "check-libtcl-contracts"
       ],
       "kind": "prerequisites after symlinks .WAIT"
     },

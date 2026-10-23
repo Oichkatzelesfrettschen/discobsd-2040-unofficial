@@ -96,6 +96,12 @@ with the fixture's assertion-failure status:
 undefined-behavior sanitizers, including alignment checks, when the native
 compiler probe establishes that runtime capability.  The execution inventory
 records an explicit skipped state when the capability is unavailable.
+The detached ILP32 recipe aggregate creates a fresh receipt directory and
+runs `check-kernel` before `check-kernel-ilp32`, separated by `.WAIT`.  The
+same execution set therefore contains the native credential-sanitizer receipt
+and the target-width signal and filesystem caller receipts without concurrent
+kernel-test builds sharing products.  The execution-inventory regression
+requires every recorded variant to have a reachable root target or alias.
 `check-kernel-ilp32` exercises the production privilege predicate through
 signal authorization and the filesystem timestamp caller at target width.
 The kernel metadata gate checks the unchanged syscall-dispatch declarations.

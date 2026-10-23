@@ -1008,6 +1008,52 @@ class ExecutionTest(unittest.TestCase):
             observed.extend(re.findall(r"\brun ([a-z0-9_.-]+) --", contents))
         self.assertCountEqual(observed, variants)
 
+    def test_detached_aggregate_reaches_each_variant_root_or_alias(self):
+        inventory_document = json.loads(execution.INVENTORY.read_text())
+        logical_makefile = (execution.ROOT / "Makefile").read_text().replace(
+            "\\\n", " "
+        )
+        declaration = re.search(
+            r"^check-ilp32-execution-recipes:[^\n]*$",
+            logical_makefile,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(declaration)
+        declared_targets = set(declaration.group(0).split())
+
+        adjacent_targets = {}
+        for edge in inventory_document["edges"]:
+            destinations = edge["to"]
+            adjacent_targets.setdefault(edge["from"], set()).update(
+                destinations if isinstance(destinations, list) else [destinations]
+            )
+
+        reachable_targets = {inventory_document["aggregate"]}
+        pending_targets = [inventory_document["aggregate"]]
+        while pending_targets:
+            source_target = pending_targets.pop()
+            for destination_target in adjacent_targets.get(source_target, ()):
+                if destination_target in reachable_targets:
+                    continue
+                reachable_targets.add(destination_target)
+                pending_targets.append(destination_target)
+
+        missing_from_makefile = set()
+        missing_from_inventory = set()
+        for variant in inventory_document["variants"]:
+            variant_targets = {variant["root_target"], *variant["aliases"]}
+            if declared_targets.isdisjoint(variant_targets):
+                missing_from_makefile.add(variant["id"])
+            if reachable_targets.isdisjoint(variant_targets):
+                missing_from_inventory.add(variant["id"])
+        self.assertEqual(
+            {
+                "Makefile": missing_from_makefile,
+                "inventory": missing_from_inventory,
+            },
+            {"Makefile": set(), "inventory": set()},
+        )
+
     def test_printf_variants_are_owned_by_detached_aggregate(self):
         root_makefile = (execution.ROOT / "Makefile").read_text()
         logical_makefile = root_makefile.replace("\\\n", " ")

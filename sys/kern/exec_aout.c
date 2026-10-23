@@ -14,7 +14,6 @@
 #include <sys/exec_aout.h>
 #include <sys/dir.h>
 #include <sys/uio.h>
-#include <sys/signal.h>
 #ifdef EXEC_HSAOUT
 #include <sys/exec_hsaout.h>
 #endif
@@ -232,13 +231,8 @@ int exec_aout_check(struct exec_params *epp)
                sizeof(struct exec) + epp->hdr.aout.a_text, IO_UNIT, 0);
     if (error) {
         DEBUG("\texec_aout_check(): error: read image returned: %d\n", error);
-        /*
-         * All is lost: the old image is overwritten and the new one is
-         * incomplete. Its signal handlers still stand until exec_clear,
-         * so a catchable signal would run whatever now lies at the old
-         * handler's address; SIGKILL runs nothing.
-         */
-        psignal (u.u_procp, SIGKILL);
+        /* The outer exec path releases its resources, then terminates. */
+        epp->flags |= EXEC_COMMITTED_FAILURE;
         return error;
     }
 

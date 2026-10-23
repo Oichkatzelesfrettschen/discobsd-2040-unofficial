@@ -71,7 +71,6 @@
 #include <sys/exec.h>
 #include <sys/exec_elf.h>
 #include <sys/fcntl.h>
-#include <sys/signalvar.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <machine/debug.h>
@@ -95,7 +94,8 @@ int
 exec_elf_check(struct exec_params *epp)
 {
     struct elf_phdr *ph;
-    int error, i, phsize;
+    unsigned entry;
+    int error, i, resid;
 
     const char elfident[] = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3,
                  ELFCLASS32, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV, 0};
@@ -122,56 +122,74 @@ exec_elf_check(struct exec_params *epp)
         return ENOEXEC;
     if (epp->hdr.elf.e_machine != ELF32_MACHDEP_ID || epp->hdr.elf.e_version != EV_CURRENT)
         return ENOEXEC;
-    if (epp->hdr.elf.e_phentsize != sizeof(struct elf_phdr) || epp->hdr.elf.e_phoff == 0 || epp->hdr.elf.e_phnum == 0)
+    if (epp->hdr.elf.e_phentsize != sizeof(struct elf_phdr) ||
+        epp->hdr.elf.e_phoff == 0 || epp->hdr.elf.e_phnum != 1)
         return ENOEXEC;
     if (epp->hdr.elf.e_shnum == 0 || epp->hdr.elf.e_shentsize != sizeof(struct elf_shdr))
         return ENOEXEC;
 
     /*
-     * Read program headers
+     * The loader supports one flat segment. Admit the table from the inode
+     * size before allocating storage or asking rdwri to traverse it.
      */
-    phsize = epp->hdr.elf.e_phnum * sizeof(struct elf_phdr);
-    ph = exec_alloc(phsize, NBPW, epp);
+    if (epp->ip->i_size < 0 ||
+        epp->hdr.elf.e_phoff > UINT_MAX - sizeof(*ph) ||
+        (unsigned long)epp->hdr.elf.e_phoff + sizeof(*ph) >
+        (unsigned long)epp->ip->i_size)
+        return ENOEXEC;
+    ph = exec_alloc(sizeof(*ph), NBPW, epp);
     if (ph == NULL) {
-        printf("can't alloc ph[] sz=%d\n", phsize);
+        printf("can't alloc ELF program header\n");
         return ENOEXEC;
     }
-    if ((error = rdwri(UIO_READ, epp->ip, (caddr_t)ph, phsize, epp->hdr.elf.e_phoff, IO_UNIT, 0)) != 0)
+    resid = 0;
+    error = rdwri(UIO_READ, epp->ip, (caddr_t)ph, sizeof(*ph),
+        epp->hdr.elf.e_phoff, IO_UNIT, &resid);
+    if (error != 0 || resid != 0)
+        return ENOEXEC;
+
+    /*
+     * Validate every segment-derived address and length before exec_estab
+     * can replace the old image. The entry must name file-backed Thumb code;
+     * BSS contains no instruction bytes.
+     */
+    if (ph->p_type != PT_LOAD || ph->p_flags != (PF_R | PF_W | PF_X) ||
+        ph->p_vaddr != (unsigned)__user_data_start ||
+        ph->p_filesz > ph->p_memsz || ph->p_filesz == 0)
+        return ENOEXEC;
+    if (ph->p_memsz > (unsigned)USER_WINDOW_MAX)
+        return ENOMEM;
+    if (ph->p_offset > UINT_MAX - ph->p_filesz ||
+        (unsigned long)ph->p_offset + ph->p_filesz >
+        (unsigned long)epp->ip->i_size)
+        return ENOEXEC;
+#if defined(__thumb__) || defined(__thumb2__)
+    if ((epp->hdr.elf.e_entry & 1U) == 0)
+        return ENOEXEC;
+    entry = epp->hdr.elf.e_entry & ~1U;
+#else
+    entry = epp->hdr.elf.e_entry;
+    if ((entry & 1U) != 0)
+        return ENOEXEC;
+#endif
+    if (entry < ph->p_vaddr || entry - ph->p_vaddr >= ph->p_filesz)
         return ENOEXEC;
 
     if ((error = exec_save_args(epp)) != 0)
         return error;
 
-    epp->text.len = epp->data.len = epp->bss.len = epp->stack.len = epp->heap.len = 0;
-    epp->text.vaddr = epp->data.vaddr = epp->bss.vaddr = epp->stack.vaddr = epp->heap.vaddr = NO_ADDR;
-
-    if (epp->hdr.elf.e_phnum == 1 && ph[0].p_type == PT_LOAD && ph[0].p_flags == (PF_R|PF_W|PF_X)) {
-        /*
-         * In the simple a.out type link, in elf format, there is only
-         * one loadable segment that is RWE containing everything
-         * Here we fix the memory allocation, and we are done.
-         */
-        epp->data.vaddr = (caddr_t)ph[0].p_vaddr;
-        epp->data.len = ph[0].p_memsz;
-        epp->heap.vaddr = (caddr_t)ph[0].p_vaddr + ph[0].p_memsz;
-        epp->heap.len = 0;
-        epp->stack.len = SSIZE + epp->argbc + epp->envbc + (epp->argc+epp->envc+4)*NBPW;
-        epp->stack.vaddr = (caddr_t)USER_TOP (u.u_procp) - epp->stack.len;
-
-        /*
-         * We assume .bss is the different between the memory data
-         * section size and the file size.
-         */
-        epp->bss.vaddr = epp->data.vaddr + ph[0].p_filesz;
-        epp->bss.len = ph[0].p_memsz - ph[0].p_filesz;
-        epp->data.len = epp->bss.vaddr - epp->data.vaddr;
-    } else {
-        /*
-         * At the current moment we don't handle anything else
-         * The rest of the code is implemented as need arise.
-         */
-        return ENOEXEC;
-    }
+    epp->text.len = epp->bss.len = epp->stack.len = epp->heap.len = 0;
+    epp->text.vaddr = epp->bss.vaddr = epp->stack.vaddr =
+        epp->heap.vaddr = NO_ADDR;
+    epp->data.vaddr = (caddr_t)ph->p_vaddr;
+    epp->data.len = ph->p_filesz;
+    epp->bss.vaddr = epp->data.vaddr + ph->p_filesz;
+    epp->bss.len = ph->p_memsz - ph->p_filesz;
+    epp->heap.vaddr = epp->bss.vaddr + epp->bss.len;
+    epp->heap.len = 0;
+    epp->stack.len = SSIZE + roundup(epp->argbc + epp->envbc, NBPW) +
+        (epp->argc + epp->envc + 4) * NBPW;
+    epp->stack.vaddr = (caddr_t)USER_TOP(u.u_procp) - epp->stack.len;
 
     /*
      * Establish memory
@@ -180,24 +198,20 @@ exec_elf_check(struct exec_params *epp)
         return error;
 
     /*
-     * Now load the program sections into memory
+     * The flat RWX segment is entirely swap-backed. Release the preceding
+     * a.out text owner after commitment and publish that swapin must restore
+     * zero bytes from an executable inode.
      */
-    for (i = 0; i < epp->hdr.elf.e_phnum; i++) {
-        if (ph[i].p_type != PT_LOAD)
-            continue;
-        /*
-         * Sanity check that the load is to our intended address space.
-         */
-        if (!((epp->text.vaddr != NO_ADDR
-               && ((caddr_t)ph[i].p_vaddr >= epp->text.vaddr
-                   && (caddr_t)ph[i].p_vaddr + ph[i].p_filesz <= epp->text.vaddr + epp->text.len))
-              || (epp->data.vaddr != NO_ADDR
-                  && (caddr_t)ph[i].p_vaddr >= epp->data.vaddr
-                  && (caddr_t)ph[i].p_vaddr + ph[i].p_filesz <= epp->data.vaddr + epp->data.len))
-            || ph[i].p_filesz >= ph[i].p_memsz || ph[i].p_filesz <= 0)
-                return ENOEXEC;
+    exec_text_release(u.u_procp, NULL);
+    u.u_procp->p_tsize = 0;
 
-        error = rdwri(UIO_READ, epp->ip, (caddr_t)ph[i].p_vaddr, ph[i].p_filesz, ph[i].p_offset, IO_UNIT, 0);
+    /* The old image is gone. A failed read must leave no runnable image. */
+    resid = 0;
+    error = rdwri(UIO_READ, epp->ip, (caddr_t)ph->p_vaddr,
+        ph->p_filesz, ph->p_offset, IO_UNIT, &resid);
+    if (error != 0 || resid != 0) {
+        epp->flags |= EXEC_COMMITTED_FAILURE;
+        return error != 0 ? error : EIO;
     }
 
     exec_clear(epp);

@@ -23,9 +23,10 @@ exec_script_check(struct exec_params *epp)
      * script file.
      * Check is to see if it starts with the magic marker:  #!
      */
-    if (epp->hdr.sh[0] != '#' || epp->hdr.sh[1] != '!' || epp->sh.interpreted)
+    if (epp->hdr.sh[0] != '#' || epp->hdr.sh[1] != '!' ||
+        (epp->flags & EXEC_INTERPRETED) != 0)
         return ENOEXEC;
-    epp->sh.interpreted = 1;
+    epp->flags |= EXEC_INTERPRETED;
 
     /*
      * If setuid/gid scripts were to be disallowed this is where it would

@@ -56955,14 +56955,19 @@
     },
     {
       "path": "sys/kern/exec_elf.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-elf-load-admission",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-elf-load-admission.md",
+        "tests/kernel/exec_elf_admission_test.c",
+        "tests/kernel/exec_elf_surrounding_contract_test.c",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Flat-segment geometry, complete file admission, Thumb entry validation, predecessor text ownership, complete swap selection and post-commit terminal cleanup are accepted; section-header semantics, debug paths and the remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -57021,14 +57026,18 @@
     },
     {
       "path": "sys/kern/exec_subr.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-elf-load-admission",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-elf-load-admission.md",
+        "tests/kernel/exec_elf_surrounding_contract_test.c",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Argument-vector and trap-frame stack publication geometry are accepted; spool backing, allocator, process-window extension and the remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -62094,6 +62103,83 @@
           ],
           "object_lifetime": [],
           "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/exec_elf_admission_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-elf-load-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/exec_elf_surrounding_contract_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-elf-load-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

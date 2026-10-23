@@ -28,6 +28,24 @@ struct execa {
 };
 
 /*
+ * An incomplete committed image cannot return through signal delivery: a
+ * tracer can suppress a pending signal and PID 1 discards default actions.
+ * Release every exec-owned resource, then enter the kernel exit path directly.
+ */
+static void
+exec_finish(struct exec_params *epp, struct inode *ip)
+{
+    int terminate;
+
+    terminate = (epp->flags & EXEC_COMMITTED_FAILURE) != 0;
+    exec_alloc_freeall(epp);
+    if (ip != NULL)
+        iput(ip);
+    if (terminate)
+        exit(SIGKILL);
+}
+
+/*
  * This is the internal form of the exec() function.
  *
  * It is called with the inode of the executable
@@ -150,9 +168,7 @@ execve(void)
     if ((error = exec_check(&eparam)))
         u.u_error = error;
 done:
-    exec_alloc_freeall(&eparam);
-    if (ip)
-        iput(ip);
+    exec_finish(&eparam, ip);
 
     DEBUG("\texecve(): end\n\n");
 }

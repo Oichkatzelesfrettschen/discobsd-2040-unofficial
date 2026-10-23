@@ -124,10 +124,12 @@ callers of a name that a header prototype and a definition both carry.
   destroys the running image on a damaged container. It expands both
   streams into a discard buffer and compares lengths and CRCs with the
   header while the old image is intact; only after that does it commit,
-  and a mismatch on the second expansion into the user window kills the
-  process before any of its bytes run.
+  and a mismatch on the second expansion into the user window marks the
+  common terminal exec state before any of its bytes run.
 - Enforced by: the function's order (file comment L1-L10; preflight
-  L145-L160; commit comment L188-L193; `psignal(p, SIGKILL)` L206).
+  L145-L160; commit comment L188-L193;
+  `epp->flags |= EXEC_COMMITTED_FAILURE` L205). `exec_finish` releases exec
+  allocations and the outer inode before calling `exit(SIGKILL)` directly.
   Every failure after recognition is `EFTYPE`, which the exec dispatcher
   passes through so the container is never offered to another format
   (L2-L5, L119).
@@ -148,6 +150,48 @@ callers of a name that a header prototype and a definition both carry.
 - Open: the verdict for `AOUT_TOOBIG` is `ENOMEM` rather than `EFTYPE`
   (L134), the one recognized failure a caller could retry after freeing
   memory; whether any caller does is not traced here.
+
+### Flat ELF images
+
+- Claim: `exec_elf_check` admits the complete one-header, one-segment file
+  geometry before `exec_estab` replaces the old process image. The segment
+  starts at `__user_data_start`, has exact RWX permissions, satisfies
+  `0 < p_filesz <= p_memsz <= USER_WINDOW_MAX`, fits inside the inode without
+  unsigned wrap and contains the cleared Thumb entry in its file-backed bytes.
+- Enforced by: `sys/kern/exec_elf.c` checks the program-header span before
+  allocation, rejects a short header read, validates the segment and entry
+  before `exec_save_args` and calls `exec_estab` only after constructing data,
+  BSS, heap and the rounded argument-stack extent. `exec_estab` accounts for
+  the complete data, BSS, heap and stack requirement against the process
+  window before core allocation.
+- Failure preservation: every geometry failure leaves the old image intact.
+  A segment I/O error or residual after `exec_estab` marks the common terminal
+  state and reaches neither `exec_clear` nor `exec_setupstack`. Recursive
+  script execution returns through its inode cleanup; `exec_finish` then
+  releases remaining exec resources and calls `exit(SIGKILL)` directly, so a
+  tracer or PID 1 signal policy cannot resume the incomplete image.
+- Publication and swap ownership: the shared stack publisher uses byte
+  arithmetic for argument vectors and derives the saved stack displacement from
+  the architecture trap-frame size. A committed ELF image releases the
+  preceding executable text owner and publishes `p_tsize == 0`, so swapout and
+  swapin cover the complete flat RWX image.
+- Existing test: `kernel.elf-admission.ilp32` extracts and executes the exact
+  production function. It covers the valid zero-BSS case, word-rounded
+  argument storage, bad memory and file extents, wrapped and truncated
+  program-header spans, even or non-file-backed entries, short reads and both
+  error and residual failures after commitment.
+  Mutations that remove the file-span bound, omit terminal-state publication or
+  replace direct exit with a queued signal must each exit with status 1.
+- Surrounding test: `kernel.elf-surrounding-contract.ilp32` executes the exact
+  admission, stack-publication and swap-text-selection functions. A full-window
+  200-argument case must preserve every byte below the admitted stack, and an
+  ELF replacement of file-backed a.out text must select zero executable bytes
+  for swap restoration. Pointer-scaling and retained-owner mutants must exit
+  with status 1.
+- Open: the host fixture establishes ILP32 geometry and publication ordering.
+  It does not execute process replacement, filesystem I/O, MPU enforcement or
+  silicon. Section-header contents remain outside the loader's execution
+  contract; runtime stack, heap and storage traffic retain separate evidence.
 
 ## 3. USB console: who owns an endpoint buffer
 

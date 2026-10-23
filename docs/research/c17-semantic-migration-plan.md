@@ -130,6 +130,17 @@ trampoline convention and handler-visible register values remain unchanged.
 Arbitrary restored xPSR contents, exception-return behavior, runtime kernel
 stack peaks and physical hardware execution retain separate obligations.
 
+`rp2040-elf-load-admission.md` records the flat ELF loader boundary. The
+loader admits its one program header and file-backed segment against the
+inode size, requires one RWX segment at the process base, validates the Thumb
+entry inside file-backed bytes and completes every geometry check before
+`exec_estab`. A segment read failure after commitment propagates a private
+terminal state through recursive script execution; the syscall owner releases
+exec resources before calling `exit(SIGKILL)` directly. Raw and packed a.out
+loaders use the same terminal contract for their post-commit failures.
+Section-header policy, runtime resource peaks and physical hardware execution
+retain separate obligations.
+
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real
 build and link dependencies, including selected libc members, generated headers
@@ -633,8 +644,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 13 accepted, 68 migration-open, 543
-excluded and 1,972 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 15 accepted, 70 migration-open, 543
+excluded and 1,970 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

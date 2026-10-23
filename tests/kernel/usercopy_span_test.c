@@ -59,6 +59,10 @@ recording_bcopy(const void *source, void *destination, size_t length)
 #define bcopy recording_bcopy
 #include USERCOPY_FUNCTIONS
 
+_Static_assert(_Generic(&baduaddr_span,
+    int (*)(caddr_t, u_int): 1,
+    default: 0), "user span service type");
+
 static int failures;
 
 #define CHECK(expression) do { \
@@ -89,6 +93,9 @@ check_single_address_admission(void)
 	CHECK(baduaddr(address(0x20023fffU)) == 0);
 	CHECK(baduaddr(address(0x1fffffffU)) == 1);
 	CHECK(baduaddr(address(0x20024000U)) == 1);
+	CHECK(baduaddr_span(address(0x20000000U), 0x24000U) == 0);
+	CHECK(baduaddr_span(address(0x20023fffU), 2U) == 1);
+	CHECK(baduaddr_span(address(0x20001000U), 0xfffff001U) == 1);
 	user_top_value = 0x20028000U;
 	CHECK(baduaddr(address(0x20024000U)) == 0);
 }

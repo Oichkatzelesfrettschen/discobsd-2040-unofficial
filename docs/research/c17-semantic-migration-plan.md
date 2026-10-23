@@ -664,8 +664,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 19 accepted, 83 migration-open, 543
-excluded and 1,953 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 20 accepted, 84 migration-open, 543
+excluded and 1,951 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

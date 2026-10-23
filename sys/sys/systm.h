@@ -153,6 +153,7 @@ void cnidentify (void);
 void cnputc (char c);
 int cngetc (void);
 int baduaddr (caddr_t addr);        /* detect bad user address */
+int baduaddr_span (caddr_t addr, u_int nbytes); /* detect bad user span */
 int badkaddr (caddr_t addr);        /* detect bad kernel address */
 
 int strncmp (const char *s1, const char *s2, size_t n);

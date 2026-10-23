@@ -104,6 +104,9 @@ const struct fileops pipeops = { stub_rw, stub_ioctl, stub_select, stub_close };
 
 /* Injected failure for the copies, which cannot fail on a host. */
 static int copy_fails;
+static int check_user_spans;
+static u_long user_span_lower;
+static u_long user_span_upper;
 
 int
 copyin(const caddr_t from, caddr_t to, u_int nbytes)
@@ -123,6 +126,18 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 	return 0;
 }
 
+int
+baduaddr_span(caddr_t addr, u_int nbytes)
+{
+	u_long start = (u_long)addr;
+
+	if (!check_user_spans)
+		return 0;
+	if (start < user_span_lower || start > user_span_upper)
+		return 1;
+	return (u_long)nbytes > user_span_upper - start;
+}
+
 /* The rest of what sys_generic.c names, none of it reached by rwuio. */
 struct file *getf(int f) { (void)f; return NULL; }
 int fset(struct file *f, int bit, int value) { (void)f; (void)bit; (void)value; return 0; }
@@ -136,7 +151,7 @@ void wakeup(caddr_t chan) { (void)chan; }
 int hzto(struct timeval *tv) { (void)tv; return 0; }
 void timevaladd(struct timeval *t1, struct timeval *t2) { (void)t1; (void)t2; }
 int itimerfix(struct timeval *tv) { (void)tv; return 0; }
-int baduaddr(caddr_t addr) { (void)addr; return 0; }
+int baduaddr(caddr_t addr) { return baduaddr_span(addr, 1); }
 int ffs(u_long i) { int n = 0; if (i == 0) return 0; while (!(i & 1)) { i >>= 1; n++; } return n + 1; }
 
 /* The argument shapes the kernel casts u.u_arg to. */
@@ -170,6 +185,9 @@ reset(int flags)
 	rw_error = 0;
 	rw_interrupt = 0;
 	copy_fails = 0;
+	check_user_spans = 0;
+	user_span_lower = 0x20000000UL;
+	user_span_upper = 0x20024000UL;
 	hk_reset_output();
 }
 
@@ -180,6 +198,17 @@ vectorize(const u_int *lengths, unsigned n)
 
 	for (i = 0; i < n; i++) {
 		vectors[i].iov_base = buffer;
+		vectors[i].iov_len = lengths[i];
+	}
+}
+
+static void
+vectorize_at(const u_long *addresses, const u_int *lengths, unsigned n)
+{
+	unsigned i;
+
+	for (i = 0; i < n; i++) {
+		vectors[i].iov_base = (caddr_t)addresses[i];
 		vectors[i].iov_len = lengths[i];
 	}
 }
@@ -499,6 +528,108 @@ transfer_cases(void)
 	HK_CHECK(u.u_error == 0 && u.u_rval == 6 && rw_direction == UIO_WRITE);
 }
 
+/* Every nonempty user vector is admitted in full before the file operation. */
+static void
+span_cases(void)
+{
+	static const u_long valid_then_crossing[] = {
+		0x20000000UL, 0x20023fffUL,
+	};
+	static const u_int one_then_two[] = { 1, 2 };
+	static const u_long last_byte[] = { 0x20023fffUL };
+	static const u_int one[] = { 1 };
+	static const u_long full_window[] = { 0x20000000UL };
+	static const u_int window_length[] = { 0x24000U };
+	static const u_long invalid_empty[] = { 0xffffffffUL };
+	static const u_int empty[] = { 0 };
+	static const u_long below_window[] = { 0x1fffffffUL };
+	static const u_long at_ceiling[] = { 0x20024000UL };
+	static const u_long wrapping[] = { 0x20001000UL };
+	static const u_int wrapping_length[] = { 0xfffff001U };
+	struct rw_arg *scalar = (struct rw_arg *)u.u_arg;
+
+	reset(FREAD);
+	check_user_spans = 1;
+	fp.f_offset = START_OFFSET;
+	buffer[0] = 0x5a;
+	vectorize_at(valid_then_crossing, one_then_two, 2);
+	call_readv(FD, 2);
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+	HK_CHECK(fp.f_offset == START_OFFSET && u.u_rval == 0);
+	HK_CHECK(buffer[0] == 0x5a);
+
+	reset(FWRITE);
+	check_user_spans = 1;
+	fp.f_offset = START_OFFSET;
+	vectorize_at(valid_then_crossing, one_then_two, 2);
+	call_writev(FD, 2);
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+	HK_CHECK(fp.f_offset == START_OFFSET && u.u_rval == 0);
+
+	reset(FREAD | FWRITE);
+	check_user_spans = 1;
+	fp.f_offset = START_OFFSET;
+	scalar->fdes = FD;
+	scalar->cbuf = (char *)0x20024000UL;
+	scalar->count = 1;
+	read();
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+	HK_CHECK(fp.f_offset == START_OFFSET && u.u_rval == 0);
+
+	reset(FREAD | FWRITE);
+	check_user_spans = 1;
+	fp.f_offset = START_OFFSET;
+	scalar->fdes = FD;
+	scalar->cbuf = (char *)0x1fffffffUL;
+	scalar->count = 1;
+	write();
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+	HK_CHECK(fp.f_offset == START_OFFSET && u.u_rval == 0);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	vectorize_at(last_byte, one, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == 0 && rw_calls == 1);
+
+	reset(FWRITE);
+	check_user_spans = 1;
+	vectorize_at(full_window, window_length, 1);
+	call_writev(FD, 1);
+	HK_CHECK(u.u_error == 0 && rw_calls == 1);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	vectorize_at(invalid_empty, empty, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == 0 && rw_calls == 1 && rw_resid_seen == 0);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	vectorize_at(below_window, one, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	vectorize_at(at_ceiling, one, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	vectorize_at(wrapping, wrapping_length, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == EINVAL && rw_calls == 0);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	user_span_upper = 0x20028000UL;
+	vectorize_at(at_ceiling, one, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == 0 && rw_calls == 1);
+}
+
 int
 main(void)
 {
@@ -517,5 +648,6 @@ main(void)
 	single_count_cases();
 	entry_cases();
 	transfer_cases();
+	span_cases();
 	return hk_verdict("rwuio");
 }

@@ -1559,11 +1559,30 @@
       "target": "check-credential-sanitizer",
       "root_target": "check-kernel",
       "program": "cred_test_sanitized",
-      "condition": "CRED_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
       "prerequisites": [
         "cred_test_sanitized"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.credentials.sanitized -- ./cred_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
+      "id": "kernel.rwuio.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-rwuio-sanitizer",
+      "root_target": "check-kernel",
+      "program": "rwuio_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "rwuio_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.rwuio.sanitized -- ./rwuio_test_sanitized",
       "aliases": [
         "check-kernel"
       ]

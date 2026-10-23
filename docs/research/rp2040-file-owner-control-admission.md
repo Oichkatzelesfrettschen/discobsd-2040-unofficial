@@ -50,8 +50,10 @@ calibrate the gate:
 
 1. `unchecked-negation` restores signed negation without the magnitude check;
    an admitted undefined-behavior sanitizer runtime must terminate it with
-   status 1 and the signed-negation diagnostic.  The mutation gate records an
-   explicit skip when that sanitizer runtime is unavailable.
+   process status 1 or `SIGABRT` and emit the signed-negation diagnostic.  The
+   oracle calibration accepts both runtime forms and rejects success, status 2,
+   and an unrelated diagnostic.  The mutation gate records an explicit skip
+   when that sanitizer runtime is unavailable.
 2. `unconditional-publication` restores publication after driver failure and
    before returned-group validation; the native fixture must fail its named
    assertion with status 1.

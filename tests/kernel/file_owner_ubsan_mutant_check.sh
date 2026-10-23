@@ -18,7 +18,19 @@ else
 fi
 
 expected='runtime error: negation of -2147483648'
-if [ "$status" -ne 1 ] || ! grep -F "$expected" "$output" >/dev/null; then
+# GCC's runtime exits with status 1. Darwin's Clang runtime raises SIGABRT,
+# which Darwin's /bin/sh reports as 128 plus signal 6.
+case $status in
+1|134)
+	accepted_status=yes
+	;;
+*)
+	accepted_status=no
+	;;
+esac
+
+if [ "$accepted_status" != yes ] || \
+    ! grep -F "$expected" "$output" >/dev/null; then
 	cat "$output" >&2
 	echo "FAIL file-owner unchecked-negation mutation rejection" >&2
 	exit 1

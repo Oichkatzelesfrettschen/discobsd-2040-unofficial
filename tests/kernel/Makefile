@@ -544,6 +544,13 @@ check-file-owner-native-mutants: \
 		echo "PASS file-owner $$mutation mutation rejected"; \
 	done
 
+check-file-owner-ubsan-mutant: check-file-owner-ubsan-oracle
+
+check-file-owner-ubsan-oracle: file_owner_ubsan_mutant_check.sh \
+    file_owner_ubsan_mutant_check_test.sh
+	sh ./file_owner_ubsan_mutant_check_test.sh \
+	    ${.CURDIR}/file_owner_ubsan_mutant_check.sh
+
 check-file-owner-ubsan-mutant:
 .if ${KERNEL_SANITIZER_OK} == "yes"
 check-file-owner-ubsan-mutant: file_owner_unchecked-negation.mutant.test \
@@ -1169,5 +1176,6 @@ clean:
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-rwuio-mutants check-rwuio-sanitizer \
 	check-file-owner-mutants check-file-owner-native-mutants \
-	check-file-owner-ubsan-mutant check-file-owner-linker-flags \
+	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \
+	check-file-owner-linker-flags \
 	check-file-owner-sanitizer clean

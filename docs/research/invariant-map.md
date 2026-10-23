@@ -264,8 +264,10 @@ callers of a name that a header prototype and a definition both carry.
   kernel copy, rather than provenance. A handler can still rewrite `sc_psr`;
   the allowed handler-visible xPSR bits and the exception return's treatment
   of an arbitrary value require a separate ARMv6-M policy and hardware test.
-  The snapshot also adds a 72-byte local object whose static and runtime
-  kernel-stack costs retain their separate measurements.
+  The snapshot also adds a 72-byte local object. Exact compiler records put
+  the static `sigreturn` frame at 112 bytes for PICO and 80 bytes for
+  PICO_UART, increases of 80 and 64 bytes. Runtime kernel-stack cost remains
+  unmeasured.
 
 ## 5. Heap growth: the kernel refuses, libc keeps the refusal, malloc keeps its arena
 

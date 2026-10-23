@@ -278,7 +278,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     topp = (char ***)(epp->stack.vaddr + epp->stack.len - NBPW);            /* Last word of RAM */
     ucp = (char *)((unsigned)topp - roundup(epp->envbc + epp->argbc,NBPW)); /* arg string space */
     envp = (char **)(ucp - (epp->envc+1)*NBPW); /* Make place for envp[...], +1 for the 0 */
-    argp = envp - (epp->argc+1)*NBPW;           /* Make place for argv[...] */
+    argp = (char **)((char *)envp - (epp->argc+1)*NBPW); /* argv and NULL */
 
     /*
      * The ARM EABI hands _start an 8-byte aligned stack, and va_arg rounds a
@@ -293,7 +293,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     envp = (char **)((char *)envp - pad);
     argp = (char **)((char *)argp - pad);
 
-    u.u_frame->tf_sp = (int)(argp-0x40);        /* 0x40 for svc trap frame. */
+    u.u_frame->tf_sp = (int)((char *)argp - sizeof *u.u_frame);
     u.u_frame->tf_r0 = epp->argc;               /* $a1 := argc */
     u.u_rval         = epp->argc;               /* $a1 := argc via syscall() */
     u.u_frame->tf_r1 = (int)argp;               /* $a2 := argp */

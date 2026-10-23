@@ -828,7 +828,8 @@ complete-span snapshot admission and publication ordering at ILP32. It leaves
 xPSR policy, exception return, runtime stack use, MPU enforcement and physical
 hardware to their separate evidence classes.
 
-The tier also extracts the exact `exec_elf_check` and `exec_finish` functions.
+The tier also extracts the exact `exec_elf_check`, `exec_estab`,
+`exec_setupstack`, `exec_text_release`, `swaptext` and `exec_finish` functions.
 The ILP32 fixture separates inode length, program-header reads, segment reads,
 resource release, termination and publication calls. A valid flat image and a
 zero-BSS image each commit and publish once.
@@ -850,6 +851,17 @@ exit with `psignal`; each must fail the same executable with status 1. The
 fixture establishes flat-image geometry, cleanup and terminal ordering at
 ILP32. It does not execute filesystem reads, full process teardown, MPU
 enforcement, runtime resource peaks or physical hardware.
+
+A second ILP32 fixture fills the complete admitted process window with a flat
+ELF image and 200 empty arguments. It requires the production stack publisher
+to keep the argument vector, saved stack pointer and every stack write inside
+the admitted stack extent. The replacement case starts with a file-backed a.out
+text owner and requires successful ELF commitment to release that inode, set
+`p_tsize` to zero and make the production swap selector restore the complete
+ELF image from swap. Pointer-scaled stack and retained-text-owner mutations
+must each fail this executable with status 1. The fixture establishes the
+shared publisher and swap-selection contracts at ILP32; it does not perform a
+live swap, filesystem I/O, runtime peak measurement or physical-board run.
 
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
 extent of `vm.swapmap` as a pointer difference held in an int and whose

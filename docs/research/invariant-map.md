@@ -170,6 +170,11 @@ callers of a name that a header prototype and a definition both carry.
   script execution returns through its inode cleanup; `exec_finish` then
   releases remaining exec resources and calls `exit(SIGKILL)` directly, so a
   tracer or PID 1 signal policy cannot resume the incomplete image.
+- Publication and swap ownership: the shared stack publisher uses byte
+  arithmetic for argument vectors and derives the saved stack displacement from
+  the architecture trap-frame size. A committed ELF image releases the
+  preceding executable text owner and publishes `p_tsize == 0`, so swapout and
+  swapin cover the complete flat RWX image.
 - Existing test: `kernel.elf-admission.ilp32` extracts and executes the exact
   production function. It covers the valid zero-BSS case, word-rounded
   argument storage, bad memory and file extents, wrapped and truncated
@@ -177,6 +182,12 @@ callers of a name that a header prototype and a definition both carry.
   error and residual failures after commitment.
   Mutations that remove the file-span bound, omit terminal-state publication or
   replace direct exit with a queued signal must each exit with status 1.
+- Surrounding test: `kernel.elf-surrounding-contract.ilp32` executes the exact
+  admission, stack-publication and swap-text-selection functions. A full-window
+  200-argument case must preserve every byte below the admitted stack, and an
+  ELF replacement of file-backed a.out text must select zero executable bytes
+  for swap restoration. Pointer-scaling and retained-owner mutants must exit
+  with status 1.
 - Open: the host fixture establishes ILP32 geometry and publication ordering.
   It does not execute process replacement, filesystem I/O, MPU enforcement or
   silicon. Section-header contents remain outside the loader's execution

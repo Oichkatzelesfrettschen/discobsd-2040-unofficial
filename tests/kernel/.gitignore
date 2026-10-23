@@ -83,6 +83,15 @@ exec_elf_read_failure_mutant
 exec_finish_function.c
 exec_finish_signal_mutant.c
 exec_finish_signal_mutant
+exec_estab_function.c
+exec_setupstack_function.c
+exec_setupstack_geometry_mutant.c
+exec_elf_text_ownership_mutant.c
+swaptext_function.c
+exec_text_release_function.c
+exec_elf_surrounding_contract_test32
+exec_stack_geometry_mutant
+exec_elf_text_ownership_mutant
 capacity_test
 capacity_*.mutant.c
 capacity_*.mutant.test

@@ -197,6 +197,14 @@ exec_elf_check(struct exec_params *epp)
     if ((error = exec_estab(epp)) != 0)
         return error;
 
+    /*
+     * The flat RWX segment is entirely swap-backed. Release the preceding
+     * a.out text owner after commitment and publish that swapin must restore
+     * zero bytes from an executable inode.
+     */
+    exec_text_release(u.u_procp, NULL);
+    u.u_procp->p_tsize = 0;
+
     /* The old image is gone. A failed read must leave no runnable image. */
     resid = 0;
     error = rdwri(UIO_READ, epp->ip, (caddr_t)ph->p_vaddr,

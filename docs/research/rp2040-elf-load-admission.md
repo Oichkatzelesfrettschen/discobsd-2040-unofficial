@@ -9,6 +9,14 @@ and retained the final segment-read status only in a local variable, so an
 incomplete image could reach `exec_clear`, stack publication and a successful
 return after the old process image was already unavailable.
 
+The shared stack publisher also subtracted a byte count from `char **`, so C
+pointer scaling multiplied the argument-vector reservation by the pointer
+width. A sufficiently large valid argument vector could therefore publish
+pointers and the saved stack pointer below the stack extent admitted by
+`exec_estab`. Successful ELF replacement also retained the preceding a.out
+image's `p_tip` and `p_tsize`; swapout then omitted that stale text length and
+swapin restored the preceding executable over the new ELF image.
+
 `exec_elf_check` supports one flat load-segment form. The form differs from the
 two-segment text/data ELF intermediate that `lib/elf32-arm.ld` produces for
 shipped programs; `elf2aout` converts those intermediates to a.out before
@@ -32,6 +40,14 @@ the selected 144 KiB base window or the existing conditional extension before
 core allocation. Every file, segment and entry check runs before that commit,
 so a rejected image preserves the running process.
 
+`exec_setupstack` subtracts argument-vector bytes through `char *` arithmetic
+and derives the saved stack pointer from `sizeof *u.u_frame`. The publisher's
+lowest address therefore uses the same byte units as the admitted stack extent.
+After `exec_estab` commits an ELF image, the loader releases the preceding
+file-backed text owner and sets `p_tsize` to zero. The flat RWX ELF segment is
+fully swap-backed, so swapout writes the complete image and swapin restores no
+prefix from an executable inode.
+
 After `exec_estab` succeeds, a segment read error or nonzero residual describes
 an incomplete committed image. The loader marks `EXEC_COMMITTED_FAILURE`,
 returns the I/O error or `EIO` for a short read, and reaches neither
@@ -50,8 +66,9 @@ for their post-commit read or expansion failures. Successful reads preserve
 the existing entry value, ABI and publication sequence.
 
 `tests/kernel/exec_elf_admission_extract.py` extracts the exact production
-loader and finalizer functions and binds each generated source to its complete
-production-file hash. `exec_elf_admission_test.c` compiles the functions at
+loader, admission, stack-publication, text-release, swap-text-selection and finalizer
+functions and binds each generated source to its complete production-file
+hash. `exec_elf_admission_test.c` compiles the loader and finalizer at
 ILP32 and separates inode length, program-header reads, segment reads, commit,
 clearing, resource release, termination and stack publication. The fixture
 covers a valid image, zero BSS, multiple program
@@ -65,13 +82,24 @@ PID 1 cases require allocation and inode cleanup before direct termination.
 The inherited function fails 34 named assertions; the repaired functions pass
 the complete fixture.
 
-Three generated mutations calibrate the deciding contracts. One removes the
+`exec_elf_surrounding_contract_test.c` executes the production loader with the
+PICO_UART branch of `exec_estab`, the production `exec_setupstack` and the
+production `swaptext` selector. A boundary image carries 200 empty arguments,
+uses the complete admitted process window and preserves sentinel bytes below
+the stack. The published argument vector and saved stack pointer must remain at
+or above the admitted stack base. A replacement case begins with a 64-byte
+file-backed a.out text owner and requires its release, a zero `p_tsize` and a
+zero swapin executable-text selection after successful ELF publication.
+
+Five generated mutations calibrate the deciding contracts. One removes the
 inode bound from the segment file-span check. Another returns a committed-read
 error without marking the terminal state. The third replaces direct exit with
-the suppressible queued-signal behavior. Each mutant must run the same fixture
-and exit with status 1. `check-test-execution` owns the run/skip inventory, and
-`check-kernel-ilp32` owns the executable and three rejection controls. Exact
-PICO and PICO_UART GNU17 Cortex-M0+ commands compile `exec_elf.o` with warnings
+the suppressible queued-signal behavior. The fourth restores the pointer-scaled
+stack calculations, and the fifth retains the preceding executable's text
+owner. Each mutant must run its control fixture and exit with status 1.
+`check-test-execution` owns the run/skip inventory, and `check-kernel-ilp32`
+owns both executables and all five rejection controls. Exact PICO and PICO_UART
+GNU17 Cortex-M0+ commands compile `exec_elf.o` and `exec_subr.o` with warnings
 treated as errors.
 
 The measurements below bind the corrected candidate at

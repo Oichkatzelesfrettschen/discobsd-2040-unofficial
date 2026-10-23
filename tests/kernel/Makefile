@@ -126,6 +126,9 @@ SYSCALL_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
 SIGRETURN_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/sig_machdep.c
 EXEC_ELF_SRC=		${TOPSRC}/sys/kern/exec_elf.c
 KERN_EXEC_SRC=		${TOPSRC}/sys/kern/kern_exec.c
+EXEC_SUBR_SRC=		${TOPSRC}/sys/kern/exec_subr.c
+VM_SWAP_SRC=		${TOPSRC}/sys/kern/vm_swap.c
+EXEC_AOUT_SRC=		${TOPSRC}/sys/kern/exec_aout.c
 
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
@@ -586,6 +589,77 @@ exec_finish_signal_mutant.c: exec_elf_admission_extract.py ${KERN_EXEC_SRC}
 	${PYTHON} exec_elf_admission_extract.py --source ${KERN_EXEC_SRC} \
 	    --output $@ --finish-signal-mutant
 
+exec_estab_function.c: exec_elf_admission_extract.py ${EXEC_SUBR_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec admission extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_SUBR_SRC} \
+	    --output $@ --establish
+
+exec_setupstack_function.c: exec_elf_admission_extract.py ${EXEC_SUBR_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for stack publisher extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_SUBR_SRC} \
+	    --output $@ --setupstack
+
+exec_setupstack_geometry_mutant.c: exec_elf_admission_extract.py ${EXEC_SUBR_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for stack mutation" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_SUBR_SRC} \
+	    --output $@ --setupstack-geometry-mutant
+
+exec_elf_text_ownership_mutant.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for ELF ownership mutation" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_ELF_SRC} \
+	    --output $@ --text-ownership-mutant
+
+swaptext_function.c: exec_elf_admission_extract.py ${VM_SWAP_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for swap text extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${VM_SWAP_SRC} \
+	    --output $@ --swaptext
+
+exec_text_release_function.c: exec_elf_admission_extract.py ${EXEC_AOUT_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for text-owner extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_AOUT_SRC} \
+	    --output $@ --text-release
+
+exec_elf_surrounding_contract_test32: exec_elf_surrounding_contract_test.c \
+    exec_elf_admission_function.c exec_estab_function.c \
+    exec_setupstack_function.c swaptext_function.c \
+    exec_text_release_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -o $@ exec_elf_surrounding_contract_test.c
+
+exec_stack_geometry_mutant: exec_elf_surrounding_contract_test.c \
+    exec_elf_admission_function.c exec_estab_function.c \
+    exec_setupstack_geometry_mutant.c swaptext_function.c \
+    exec_text_release_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -DEXEC_SETUPSTACK_FUNCTION='"exec_setupstack_geometry_mutant.c"' \
+	    -o $@ exec_elf_surrounding_contract_test.c
+
+exec_elf_text_ownership_mutant: exec_elf_surrounding_contract_test.c \
+    exec_elf_text_ownership_mutant.c exec_estab_function.c \
+    exec_setupstack_function.c swaptext_function.c \
+    exec_text_release_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -DEXEC_ELF_FUNCTION='"exec_elf_text_ownership_mutant.c"' \
+	    -o $@ exec_elf_surrounding_contract_test.c
+
 exec_elf_admission_test32: exec_elf_admission_test.c \
     exec_elf_admission_function.c exec_finish_function.c ${MACHINE_STAMP}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
@@ -618,6 +692,8 @@ check-ilp32:
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
+	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
+	    exec_elf_text_ownership_mutant \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -672,6 +748,20 @@ check-ilp32:
 		exit 1; \
 	fi; \
 	echo "PASS exec signal-termination mutation rejected"
+	${TEST_EXECUTION} run kernel.elf-surrounding-contract.ilp32 -- \
+	    ./exec_elf_surrounding_contract_test32
+	@if ./exec_stack_geometry_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL stack geometry mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS stack geometry mutation rejected"
+	@if ./exec_elf_text_ownership_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL ELF text ownership mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS ELF text ownership mutation rejected"
 	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
 	if [ "$$status" -ne 1 ]; then \
 		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
@@ -696,6 +786,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-admission.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.elf-surrounding-contract.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-compact.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-wide.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -737,9 +828,14 @@ clean:
 	    sigreturn_context_reread_mutant
 	rm -f exec_elf_admission_function.c exec_elf_segment_span_mutant.c \
 	    exec_elf_read_failure_mutant.c exec_finish_function.c \
-	    exec_finish_signal_mutant.c
+	    exec_finish_signal_mutant.c exec_estab_function.c \
+	    exec_setupstack_function.c exec_setupstack_geometry_mutant.c \
+	    exec_elf_text_ownership_mutant.c swaptext_function.c \
+	    exec_text_release_function.c
 	rm -f exec_elf_admission_test32 exec_elf_segment_span_mutant \
-	    exec_elf_read_failure_mutant exec_finish_signal_mutant
+	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
+	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
+	    exec_elf_text_ownership_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o

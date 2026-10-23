@@ -57,9 +57,13 @@ typedef char *caddr_t;
 	(((value) + (alignment) - 1U) & ~((alignment) - 1U))
 #define __thumb__ 1
 
+struct inode;
+
 struct proc {
 	int p_pid;
 	int p_flag;
+	unsigned int p_tsize;
+	struct inode *p_tip;
 };
 
 struct inode {
@@ -197,6 +201,13 @@ exec_setupstack(unsigned int entry, struct exec_params *parameters)
 	(void)parameters;
 	setup_calls++;
 	setup_entry = entry;
+}
+
+static void
+exec_text_release(struct proc *target, struct inode *next)
+{
+	(void)next;
+	target->p_tip = NULL;
 }
 
 static void

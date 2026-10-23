@@ -123,6 +123,7 @@ SHUTDOWN_SYNC_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/shutdown_sync.c
 MACHDEP_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 USERCOPY_SRC=		${MACHDEP_SRC}
 SYSCALL_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
+SIGRETURN_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/sig_machdep.c
 
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
@@ -500,12 +501,56 @@ syscall_args_dispatch_mutant: syscall_args_test.c \
 	    -DSYSCALL_ARGS_BLOCK='"syscall_args_dispatch_mutant.c"' \
 	    -o $@ syscall_args_test.c
 
+sigreturn_context_function.c: sigreturn_context_extract.py ${SIGRETURN_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sigreturn extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sigreturn_context_extract.py --source ${SIGRETURN_SRC} \
+	    --output $@
+
+sigreturn_context_direct_mutant.c: sigreturn_context_extract.py \
+    ${SIGRETURN_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sigreturn extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sigreturn_context_extract.py --source ${SIGRETURN_SRC} \
+	    --output $@ --direct-user-mutant
+
+sigreturn_context_reread_mutant.c: sigreturn_context_extract.py \
+    ${SIGRETURN_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sigreturn extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sigreturn_context_extract.py --source ${SIGRETURN_SRC} \
+	    --output $@ --reread-user-mutant
+
+sigreturn_context_test32: sigreturn_context_test.c \
+    sigreturn_context_function.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -o $@ sigreturn_context_test.c
+
+sigreturn_context_direct_mutant: sigreturn_context_test.c \
+    sigreturn_context_direct_mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DSIGRETURN_CONTEXT_FUNCTION='"sigreturn_context_direct_mutant.c"' \
+	    -o $@ sigreturn_context_test.c
+
+sigreturn_context_reread_mutant: sigreturn_context_test.c \
+    sigreturn_context_reread_mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DSIGRETURN_CONTEXT_FUNCTION='"sigreturn_context_reread_mutant.c"' \
+	    -o $@ sigreturn_context_test.c
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 sigauth_test \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
-	    syscall_args_dispatch_mutant \
+	    syscall_args_dispatch_mutant sigreturn_context_test32 \
+	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -526,6 +571,20 @@ check-ilp32:
 		exit 1; \
 	fi; \
 	echo "PASS syscall dispatch-after-failure mutation rejected"
+	${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- \
+	    ./sigreturn_context_test32
+	@if ./sigreturn_context_direct_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL sigreturn direct-user mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS sigreturn direct-user mutation rejected"
+	@if ./sigreturn_context_reread_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL sigreturn user-reread mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS sigreturn user-reread mutation rejected"
 	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
 	if [ "$$status" -ne 1 ]; then \
 		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
@@ -548,6 +607,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-compact.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-wide.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -583,6 +643,10 @@ clean:
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
 	rm -f syscall_args_test32 syscall_args_dispatch_mutant
+	rm -f sigreturn_context_function.c \
+	    sigreturn_context_direct_mutant.c sigreturn_context_reread_mutant.c
+	rm -f sigreturn_context_test32 sigreturn_context_direct_mutant \
+	    sigreturn_context_reread_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o

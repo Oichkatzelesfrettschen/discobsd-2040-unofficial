@@ -155,24 +155,30 @@ void
 sigreturn(void)
 {
 	struct trapframe *regs = u.u_frame;
+	struct sigcontext context;
+	struct sigcontext *scp = &context;
+	u_int user_context;
 	/*
 	 * sigtramp issues the sigreturn SVC with sp at the handler entry
 	 * value, sfp + 32, and the SVC entry pushes its own eight-word
 	 * frame there, so tf_sp is sfp again and the context sits past
 	 * sf_hwframe.
 	 */
-	struct sigcontext *scp =
-	    (struct sigcontext *)(regs->tf_sp + 32);
-
-#ifdef DIAGNOSTIC
-	printf("(%u)sigreturn stack=%#x, context=%p\n",
-	    u.u_procp->p_pid, regs->tf_sp, scp);
-#endif
-	if (baduaddr((caddr_t)scp) ||
-	    baduaddr((caddr_t)scp + sizeof(*scp))) {
+	if (regs->tf_sp > ~0U - 32U) {
 		u.u_error = EFAULT;
 		return;
 	}
+	user_context = regs->tf_sp + 32U;
+	if (copyin((caddr_t)user_context, (caddr_t)scp,
+	    sizeof(*scp)) != 0) {
+		u.u_error = EFAULT;
+		return;
+	}
+
+#ifdef DIAGNOSTIC
+	printf("(%u)sigreturn stack=%#x, context=%p\n",
+	    u.u_procp->p_pid, regs->tf_sp, (void *)user_context);
+#endif
 	u.u_error = EJUSTRETURN;
 	if (scp->sc_onstack & SA_ONSTACK)
 		u.u_sigstk.ss_flags |= SA_ONSTACK;
@@ -182,7 +188,7 @@ sigreturn(void)
 
 	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
 		printf("[%u] sigreturn sc=%#x to pc=%#x sp=%#x psr=%#x "
-		    "mask=%#x onstack=%d\n", u.u_procp->p_pid, (u_int)scp,
+		    "mask=%#x onstack=%d\n", u.u_procp->p_pid, user_context,
 		    scp->sc_pc, scp->sc_sp, scp->sc_psr, (u_int)scp->sc_mask,
 		    scp->sc_onstack);
 

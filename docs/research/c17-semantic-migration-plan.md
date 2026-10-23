@@ -122,6 +122,14 @@ two-word tail through complete-span `copyin`, and withholds handler dispatch
 after argument admission fails. Exception entry, signal-context copying and
 the remaining translation-unit semantics retain separate obligations.
 
+`rp2040-signal-context-admission.md` records the next RP2040 user-pointer
+boundary. `sigreturn` rejects frame-offset wrap, copies exactly one complete
+72-byte context into aligned kernel storage and publishes process state only
+after that snapshot succeeds. The public context layout, syscall number,
+trampoline convention and handler-visible register values remain unchanged.
+Arbitrary restored xPSR contents, exception-return behavior, runtime kernel
+stack peaks and physical hardware execution retain separate obligations.
+
 A leaf unit may calibrate a compiler gate, but convenient leaf migration does
 not displace shipped T1 trust boundaries. The shipped denominator follows real
 build and link dependencies, including selected libc members, generated headers
@@ -625,8 +633,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 12 accepted, 67 migration-open, 543
-excluded and 1,973 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 13 accepted, 68 migration-open, 543
+excluded and 1,972 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

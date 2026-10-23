@@ -812,6 +812,22 @@ same executable with status 1. The fixture executes argument admission and
 dispatch selection; it does not exercise longjmp recovery, exception entry,
 MPU enforcement or physical hardware.
 
+The same tier extracts the exact RP2040 `sigreturn` function. Static
+assertions pin the 72-byte, four-byte-aligned signal-context ABI and selected
+trapframe offsets. The fixture gives real host storage separate logical user
+bounds and covers an exactly bounded complete context, a misaligned user
+source, invalid and truncated spans, injected `copyin` failure and wrapped
+frame-offset arithmetic. Every rejected case preserves the trapframe, signal
+mask and alternate-stack state; a successful case restores every saved
+register and masks signals that cannot be blocked. A generated direct-user
+load mutant and a generated copy-then-user-reread mutant must each fail the
+same executable with status 1. The successful copy seam changes user storage
+after copying while the oracle retains an independent expected context, so
+restored state must come from the admitted snapshot. The fixture establishes
+complete-span snapshot admission and publication ordering at ILP32. It leaves
+xPSR policy, exception return, runtime stack use, MPU enforcement and physical
+hardware to their separate evidence classes.
+
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
 extent of `vm.swapmap` as a pointer difference held in an int and whose
 fill_from_u() reads a process u area through an int-valued p_addr.

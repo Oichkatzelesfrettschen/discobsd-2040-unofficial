@@ -150,6 +150,33 @@ SIGAUTH_SRC=	${TOPSRC}/sys/kern/kern_sig.c ${TOPSRC}/sys/kern/kern_prot2.c \
 		${TOPSRC}/sys/kern/kern_proc.c
 
 RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
+SWAP_IOCTL_SRC=	${TOPSRC}/sys/dev/swap.c
+SWAP_IOCTL_FUNCTION=	swap_ioctl_function.c
+SWAP_IOCTL_DEFS=	${COMPACT_DEFS}
+SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
+			-Wstrict-prototypes -Wold-style-definition
+SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
+	shortage-output-suppression unrounded-free stale-released-size
+SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
+	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
+	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
+	${TOPSRC}/sys/sys/errno.h ${TOPSRC}/sys/sys/fcntl.h \
+	${TOPSRC}/sys/sys/ioctl.h ${TOPSRC}/sys/sys/map.h \
+	${TOPSRC}/sys/sys/param.h ${TOPSRC}/sys/sys/swap.h \
+	${TOPSRC}/sys/sys/select.h ${TOPSRC}/sys/sys/signal.h \
+	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
+	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
+	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
+	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/vm.h \
+	${TOPSRC}/sys/sys/vmparam.h ${TOPSRC}/sys/sys/vmmac.h \
+	${TOPSRC}/sys/sys/vmmeter.h ${TOPSRC}/sys/sys/vmsystm.h \
+	${PORT_INCLUDE}/intr.h ${PORT_INCLUDE}/limits.h \
+	${PORT_INCLUDE}/machparam.h ${PORT_INCLUDE}/scb.h \
+	${PORT_INCLUDE}/signal.h ${PORT_INCLUDE}/types.h ${MACHINE_STAMP}
+SWAP_IOCTL_BUILD_TARGETS=	swap_ioctl_function.o swap_ioctl_rmap.o \
+	swap_ioctl_test swap_ioctl_function32.o swap_ioctl_rmap32.o \
+	swap_ioctl_test32 swap_ioctl_test_sanitized \
+	${SWAP_IOCTL_MUTANTS:@mutation@swap_ioctl_${mutation}.mutant.test@}
 UIO_SRC=	${TOPSRC}/sys/kern/kern_subr.c
 CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 CAPACITY_SRC=	${TOPSRC}/sys/kern/subr_capacity.c
@@ -238,7 +265,7 @@ DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
 	clist_test cred_test resource_test rwuio_test file_owner_test \
-	fionread_test
+	fionread_test swap_ioctl_test
 
 SHUTDOWN_CHECKS=
 .if ${MACHINE:U} == "rp2040"
@@ -297,6 +324,107 @@ rmap_test_diagnostic: rmap_test.c ${RMAP_SRC} hostkern_kern.c hostkern.o \
 	    -c -o rmap_kernel_diagnostic.o ${RMAP_SRC}
 	${HOST_CC} ${GATE_CFLAGS} ${DIAGNOSTIC_DEFS} -o $@ \
 	    rmap_test.c hostkern_kern.c rmap_kernel_diagnostic.o hostkern.o
+
+${SWAP_IOCTL_FUNCTION}: swap_ioctl_extract.py ${SWAP_IOCTL_SRC}
+	${PYTHON} swap_ioctl_extract.py --source ${SWAP_IOCTL_SRC} --output $@
+
+${SWAP_IOCTL_BUILD_TARGETS}: ${SWAP_IOCTL_HEADER_DEPS}
+
+swap_ioctl_rmap.o: ${RMAP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${SWAP_IOCTL_DEFS} -c -o $@ \
+	    ${RMAP_SRC}
+
+swap_ioctl_function.o: ${SWAP_IOCTL_FUNCTION} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_IOCTL_C17_CFLAGS} ${SWAP_IOCTL_DEFS} -c -o $@ \
+	    ${SWAP_IOCTL_FUNCTION}
+
+swap_ioctl_test: swap_ioctl_test.c swap_ioctl_function.o swap_ioctl_rmap.o \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${SWAP_IOCTL_DEFS} -o $@ \
+	    swap_ioctl_test.c hostkern_kern.c swap_ioctl_function.o \
+	    swap_ioctl_rmap.o hostkern.o
+
+swap_ioctl_function32.o: ${SWAP_IOCTL_FUNCTION} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_IOCTL_C17_CFLAGS} ${SWAP_IOCTL_DEFS} ${ILP32} \
+	    -c -o $@ ${SWAP_IOCTL_FUNCTION}
+
+swap_ioctl_rmap32.o: ${RMAP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${SWAP_IOCTL_DEFS} ${ILP32} \
+	    -c -o $@ ${RMAP_SRC}
+
+swap_ioctl_test32: swap_ioctl_test.c swap_ioctl_function32.o \
+    swap_ioctl_rmap32.o hostkern_kern.c hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${SWAP_IOCTL_DEFS} ${ILP32} -DHK_ILP32 \
+	    -o $@ swap_ioctl_test.c hostkern_kern.c swap_ioctl_function32.o \
+	    swap_ioctl_rmap32.o hostkern32.o
+
+swap_ioctl_test_sanitized: swap_ioctl_test.c ${SWAP_IOCTL_FUNCTION} \
+    ${RMAP_SRC} hostkern_kern.c hostkern.c hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_IOCTL_C17_CFLAGS} ${SWAP_IOCTL_DEFS} \
+	    ${KERNEL_SANITIZER_FLAGS} -c -o swap_ioctl_function_sanitized.o \
+	    ${SWAP_IOCTL_FUNCTION}
+	${HOST_CC} ${KERN_CFLAGS} ${SWAP_IOCTL_DEFS} \
+	    ${KERNEL_SANITIZER_FLAGS} -c -o swap_ioctl_rmap_sanitized.o \
+	    ${RMAP_SRC}
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o swap_ioctl_hostkern_sanitized.o hostkern.c
+	${HOST_CC} ${GATE_CFLAGS} ${SWAP_IOCTL_DEFS} \
+	    ${KERNEL_SANITIZER_FLAGS} -o $@ swap_ioctl_test.c hostkern_kern.c \
+	    swap_ioctl_function_sanitized.o swap_ioctl_rmap_sanitized.o \
+	    swap_ioctl_hostkern_sanitized.o
+
+check-swap-ioctl-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+check-swap-ioctl-sanitizer: swap_ioctl_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.swap-ioctl.sanitized -- \
+	    ./swap_ioctl_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.swap-ioctl.sanitized \
+	    "swap ioctl contracts: sanitizer runtime unavailable"
+.endif
+
+.for mutation in ${SWAP_IOCTL_MUTANTS}
+swap_ioctl_${mutation}.mutant.c: swap_ioctl_mutate.py \
+    ${SWAP_IOCTL_FUNCTION}
+	${PYTHON} swap_ioctl_mutate.py --source ${SWAP_IOCTL_FUNCTION} \
+	    --output $@ --mutation ${mutation}
+
+swap_ioctl_${mutation}.mutant.test: swap_ioctl_${mutation}.mutant.c \
+    swap_ioctl_test.c swap_ioctl_rmap.o hostkern_kern.c hostkern.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_IOCTL_C17_CFLAGS} ${SWAP_IOCTL_DEFS} -c \
+	    -o swap_ioctl_${mutation}.mutant.o \
+	    swap_ioctl_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${SWAP_IOCTL_DEFS} -o $@ \
+	    swap_ioctl_test.c hostkern_kern.c \
+	    swap_ioctl_${mutation}.mutant.o swap_ioctl_rmap.o hostkern.o
+.endfor
+
+check-swap-ioctl-mutants: \
+    ${SWAP_IOCTL_MUTANTS:@mutation@swap_ioctl_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${SWAP_IOCTL_MUTANTS}; do \
+		output=swap_ioctl_$$mutation.mutant.out; \
+		if ./swap_ioctl_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		release-fallthrough) expected='call_ioctl(0, TFALLOC, &blocks, FREAD) == 0' ;; \
+		media-size-fallthrough) expected='call_ioctl(1, DIOCGETMEDIASIZE, &media_size, FREAD) == 0' ;; \
+		shortage-output-suppression) expected='blocks == 0' ;; \
+		unrounded-free) expected='free_total() == MAP_BLOCKS' ;; \
+		stale-released-size) expected='swap_ioctl_test_size(0) == 0' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL swap ioctl $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS swap ioctl $$mutation mutation rejected"; \
+	done
 
 uio_test: uio_test.c ${UIO_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
@@ -1199,6 +1327,7 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
+	    swap_ioctl_test32 \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
@@ -1220,6 +1349,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
 	${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32
 	${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32
+	${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32
 	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
 	${TEST_EXECUTION} run kernel.syscall-arguments.ilp32 -- ./syscall_args_test32
 	@if ./syscall_args_dispatch_mutant; then status=0; else status=$$?; fi; \
@@ -1298,6 +1428,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.fionread.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.swap-ioctl.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -1319,7 +1450,8 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
     check-file-status-mutants check-fionread-mutants \
-    check-fionread-sanitizer
+    check-fionread-sanitizer check-swap-ioctl-mutants \
+    check-swap-ioctl-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1328,6 +1460,12 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
 clean:
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
+	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
+	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
+	rm -f swap_ioctl_test_sanitized swap_ioctl_function_sanitized.o \
+	    swap_ioctl_rmap_sanitized.o swap_ioctl_hostkern_sanitized.o
+	rm -f swap_ioctl_*.mutant.c swap_ioctl_*.mutant.o \
+	    swap_ioctl_*.mutant.test swap_ioctl_*.mutant.out
 	rm -f uio_kernel.o clist_kernel.o
 	rm -f shutdown_sync_kernel.o shutdown_sync_test
 	rm -f shutdown_sync_*.mutant.c shutdown_sync_*.mutant.o \

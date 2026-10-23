@@ -289,14 +289,14 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 			    unit, (u_long)requested);
 
 			return 0;
-		} else {
-			/* printf("temp%d: released allocation\n", unit); */
 		}
+		if (*offtval == 0)
+			return 0;
 		break;
 
 	case DIOCGETMEDIASIZE:
 		*uival = swsize(dev);
-		break;
+		return 0;
 	}
 
 	return EINVAL;

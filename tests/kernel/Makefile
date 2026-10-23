@@ -167,7 +167,11 @@ CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
 FILE_OWNER_DESCRIP_SRC=	${TOPSRC}/sys/kern/kern_descrip.c
 FILE_OWNER_GENERIC_SRC=	${TOPSRC}/sys/kern/sys_generic.c
 FILE_OWNER_CFLAGS=	-ffunction-sections -fdata-sections
+.if ${_HOST_OSNAME} == "Darwin"
+FILE_OWNER_LDFLAGS=	-Wl,-dead_strip
+.else
 FILE_OWNER_LDFLAGS=	-Wl,--gc-sections
+.endif
 FILE_OWNER_DESCRIP_MUTANTS=	unconditional-publication
 FILE_OWNER_GENERIC_MUTANTS=	direct-user-pointer
 FILE_OWNER_UBSAN_MUTANTS=	unchecked-negation
@@ -553,7 +557,24 @@ check-file-owner-ubsan-mutant: file_owner_unchecked-negation.mutant.test \
 .endif
 
 check-file-owner-mutants: check-file-owner-native-mutants \
-    check-file-owner-ubsan-mutant
+    check-file-owner-ubsan-mutant check-file-owner-linker-flags
+
+check-file-owner-linker-flags: file_owner_linker_flags_test.sh
+	@set -eu; \
+	if sh ./file_owner_linker_flags_test.sh Darwin -Wl,--gc-sections \
+	    >/dev/null 2>&1; then \
+		echo "file-owner linker flags: accepted the Darwin negative control" >&2; \
+		exit 1; \
+	fi; \
+	sh ./file_owner_linker_flags_test.sh Darwin -Wl,-dead_strip; \
+	sh ./file_owner_linker_flags_test.sh Linux -Wl,--gc-sections; \
+	darwin_flags=`env MAKEFLAGS= MFLAGS= ${MAKE:T} -V FILE_OWNER_LDFLAGS \
+	    _HOST_OSNAME=Darwin MACHINE=${MACHINE:Q}`; \
+	elf_flags=`env MAKEFLAGS= MFLAGS= ${MAKE:T} -V FILE_OWNER_LDFLAGS \
+	    _HOST_OSNAME=Linux MACHINE=${MACHINE:Q}`; \
+	sh ./file_owner_linker_flags_test.sh Darwin "$$darwin_flags"; \
+	sh ./file_owner_linker_flags_test.sh Linux "$$elf_flags"; \
+	echo "file-owner linker flag selection passed"
 
 check-file-owner-sanitizer:
 .if ${KERNEL_SANITIZER_OK} == "yes"
@@ -1148,4 +1169,5 @@ clean:
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-rwuio-mutants check-rwuio-sanitizer \
 	check-file-owner-mutants check-file-owner-native-mutants \
-	check-file-owner-ubsan-mutant check-file-owner-sanitizer clean
+	check-file-owner-ubsan-mutant check-file-owner-linker-flags \
+	check-file-owner-sanitizer clean

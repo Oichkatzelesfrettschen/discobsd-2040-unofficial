@@ -61,6 +61,12 @@ calibrate the gate:
 The ILP32 tier runs the positive fixture and does not claim sanitizer-dependent
 mutation execution.
 
+The fixture keeps each kernel source in function and data sections because the
+host link admits only the caller-complete file-owner unit.  A calibrated
+linker-selection check requires Apple ld's `-dead_strip` spelling on Darwin
+and GNU ld's `--gc-sections` spelling on ELF hosts; the deliberately swapped
+Darwin spelling must fail the check.
+
 The registered kernel aggregate reaches 1,618 assertions after adding the
 file-owner fixture.  The execution inventory records native sanitizer and
 ILP32 variants separately.  Exact GNU17 Cortex-M0+ PICO and PICO_UART builds

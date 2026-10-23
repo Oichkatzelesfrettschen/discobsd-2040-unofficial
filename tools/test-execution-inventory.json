@@ -1604,7 +1604,8 @@
       "recipe": "${TEST_EXECUTION} run kernel.file-owner.sanitized -- ./file_owner_test_sanitized",
       "aliases": [
         "check-kernel"
-      ]
+      ],
+      "description": "The shared fixture covers file-owner and file-status control contracts."
     },
     {
       "id": "kernel.file-owner.ubsan-mutant",
@@ -1701,7 +1702,8 @@
       "recipe": "${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32",
       "aliases": [
         "check-kernel-ilp32"
-      ]
+      ],
+      "description": "The shared fixture covers file-owner and file-status control contracts."
     },
     {
       "id": "kernel.usercopy-span.ilp32",

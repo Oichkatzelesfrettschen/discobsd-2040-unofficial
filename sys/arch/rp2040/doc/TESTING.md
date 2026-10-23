@@ -1405,6 +1405,19 @@ native address and undefined-behavior sanitizers, including alignment checks,
 when the compiler probe admits the runtime. The execution inventory records an
 explicit skipped state otherwise.
 
+Clean parent `4514cd81be7d82e03d5d97977398e3aa3b6d7921` and credential
+implementation `34df4b4156deee5924aa0c221867c6bd933fa4ba` captures use the complete
+manifest workflow under bmake 20260912, arm-none-eabi-gcc 16.2.0, GNU ld
+2.47.20260726, and Python 3.14.8. The schema-2 comparison reports zero delta
+for both kernel flash/SRAM vectors, all shipped a.out and packed-root vectors,
+native artifacts, and every archive/member selection.  Exact recorded PICO and
+PICO_UART compiler commands replayed with `-fstack-usage` retain all measured
+frames; the 32-byte `suser()` text symbol moves from `ufs_fio.o` to
+`kern_prot2.o`.  The delta and stack/object receipts have SHA-256 values
+`c9922e8f2a37fc99ecfca6d809d3d2b7309ad6d45e8df05705d099894e9a8a13` and
+`307934121eaf66638bf63297540578af80e64c460f56154f0b8c9ecb8f4101bf`.
+These static observations leave runtime stack and heap high-water marks open.
+
 The suite checks explicit IO_SYNC on async mounts,
 data/flush/inode-update failures, counter saturation, 70000 events in one
 `vmmeter()` interval reaching `sum` and `rate` whole, and `tsleep()` accepting

@@ -102,6 +102,50 @@ The kernel metadata gate checks the unchanged syscall-dispatch declarations.
 The C17 kernel inventory compares the lexical and compiler oracles for both
 target configurations.
 
+## Measured target resources
+
+Clean distributions compare parent `4514cd81be7d82e03d5d97977398e3aa3b6d7921`
+with implementation commit `34df4b4156deee5924aa0c221867c6bd933fa4ba`.
+Both captures used bmake 20260912, arm-none-eabi-gcc 16.2.0, GNU ld
+2.47.20260726, and Python 3.14.8. The schema-2 comparison reports zero
+positive deltas and unchanged archive/member selections across both kernels,
+every installed a.out, the native startup object and libc archive, and the
+packed root.
+
+| Surface | Parent | Candidate | Delta |
+| --- | ---: | ---: | ---: |
+| PICO flash bytes | 104,920 | 104,920 | 0 |
+| PICO `.bss` / SwapRAM pool / scratch bytes | 15,272 / 16,384 / 8,192 | 15,272 / 16,384 / 8,192 | 0 / 0 / 0 |
+| PICO_UART flash / `.bss` bytes | 92,428 / 14,832 | 92,428 / 14,832 | 0 / 0 |
+| Three affected objects, text/data/BSS bytes per configuration | 1,444 / 0 / 0 | 1,444 / 0 / 0 | 0 / 0 / 0 |
+| Native libc bytes / members | 43,010 / 151 | 43,010 / 151 | 0 / 0 |
+| Packed-root data / free blocks | 692 / 287 | 692 / 287 | 0 / 0 |
+| Packed-root free inodes | 33 | 33 | 0 |
+
+The object comparison exposes the intentional ownership move without hiding it
+inside the zero linked-kernel delta.  `kern_prot2.o` gains the 32-byte `suser`
+symbol and `ufs_fio.o` loses the same 32 text bytes; `kern_prot.o` remains 556
+text bytes.  Exact recorded PICO and PICO_UART commands replayed with
+`-fstack-usage` report the same frame for every preserved function.  `suser()`
+retains a zero-byte static frame, `setgroups()` remains the largest credential
+frame at 72 bytes, and `ufs_setattr()` remains the largest measured
+filesystem-object frame at 32 bytes.  A compiler-reported frame bounds one
+function; it does not establish a complete call-chain or runtime high-water
+mark.
+
+The evidence hashes are:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| Parent source snapshot | `9635ad5e31a1720366599bc0089512664247082a59db4acdf3fc01ee0b1098d6` |
+| Parent dependency closure | `7e59ba405c624b4df003892666145ce8c229a0c2e27f2dbc17e2d97020e370a4` |
+| Parent schema-2 resources | `a6282db231aae6ccc96d5bab293290045fa5dcc605a16998d84deb05c2992e7a` |
+| Candidate source snapshot | `f0c4975d135be709dfa8dba9d2d88ba2b34478078e7d3553f5f751fb4fffb47a` |
+| Candidate dependency closure | `c352c3ca6a5fbd4f398b9e1838593b230d39aa3f73b5d774a11e900bd40a98ca` |
+| Candidate schema-2 resources | `8f4f85cf53ba18689afb6c1dfc473e9df5092d875dee1f9fd785c8e77ef5a4a4` |
+| Static-resource delta | `c9922e8f2a37fc99ecfca6d809d3d2b7309ad6d45e8df05705d099894e9a8a13` |
+| Exact-command stack/object measurement | `307934121eaf66638bf63297540578af80e64c460f56154f0b8c9ecb8f4101bf` |
+
 ## Evidence states and residuals
 
 The host fixtures establish the exercised admission, refusal-preservation,
@@ -110,12 +154,11 @@ GNU17 Cortex-M0+ compilation and linkage.  These results do not execute a
 credential transition on RP2040 silicon, exercise MPU privilege transitions,
 or measure runtime stack and heap high-water marks.
 
-Paired parent and candidate distribution receipts decide kernel flash, SRAM,
-affected-object sections and static frames, every shipped a.out, packed-root
-occupancy, and archive selection.  Those static resource states remain open
-until the receipts bind an immutable implementation commit.  Credential
-transitions do not write persistent storage, so this unit makes no flash-wear
-claim.
+The paired receipts accept the static kernel, affected-object, shipped a.out,
+packed-root, native-artifact, and archive-selection surfaces for implementation
+commit `34df4b4156deee5924aa0c221867c6bd933fa4ba`.  Runtime stack and heap
+high-water marks remain unmeasured.  Credential transitions do not write
+persistent storage, so this unit makes no flash-wear claim.
 
 Negative `getgroups()` capacity, zero-length group-list semantics,
 `setreuid()`, `setregid()`, and `initgroups()` policy remain separate migration

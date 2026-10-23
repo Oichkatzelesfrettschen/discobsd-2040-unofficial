@@ -122,7 +122,7 @@ Grouped by what they investigate.
 | `rp2040-syscall-stack-argument-admission.md` | complete RP2040 syscall stack-tail admission, stale-state clearing and dispatch failure behavior |
 | `rp2040-elf-load-admission.md` | complete flat ELF file and process-window admission, Thumb entry validation and committed-read failure behavior |
 | `rp2040-namei-path-origin-contract.md` | explicit user and kernel pathname origin across every kernel `namei` transition, calibrated caller closure and zero static-resource delta |
-| `rp2040-credential-transition-contract.md` | typed kernel credential admission, complete refusal-state preservation, production privilege-predicate ownership and calibrated transition mutations |
+| `rp2040-credential-transition-contract.md` | typed kernel credential admission, complete refusal-state preservation, production privilege-predicate ownership, calibrated transition mutations and zero-delta static resources |
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
 | `libc-opendir-directory-cloexec.md` | opened-descriptor directory admission, close-on-exec setup, calibrated cleanup gates, and measured stack, linked and packed-root costs |

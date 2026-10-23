@@ -220,14 +220,16 @@ callers of a name that a header prototype and a definition both carry.
   B1.5.6) ahead of the saved context, and clears STKALIGN (xPSR bit 9) in
   the frame the handler starts on, so the handler enters AAPCS-aligned and
   the saved context is never overwritten by the hardware frame.
-  `sigreturn` finds the context at `tf_sp + 32` and restores the original
-  xPSR, mask and stack state.
+  `sigreturn` rejects wrap in `tf_sp + 32`, copies the complete context from
+  that address into aligned kernel storage and restores xPSR, mask and stack
+  state only after the snapshot succeeds.
 - Enforced by: sendsig L37-L48 (frame comment, `sizeof(struct sigframe)`
   104, a multiple of eight), L71-L74 (`& ~7U` on both the signal stack and
   the interrupted sp), L122-L128 (STKALIGN cleared for the handler,
   restored by sigreturn); a frame that does not fit the stack raises
-  SIGILL (L79-L84). sigreturn L164-L176 rejects an unreadable context
-  with EFAULT and masks `sigcantmask` out of the restored mask.
+  SIGILL (L79-L84). `sigreturn` rejects wrapped or incomplete context spans
+  with EFAULT, publishes nothing after rejection and masks `sigcantmask` out
+  of the restored mask.
 - Caller obligation: libc's trampoline (lib/libc/arm/sys/sigaction.S)
   issues the sigreturn SVC with sp at the handler entry value, `sfp + 32`
   (sigreturn comment L155-L160); a trampoline that moves sp first breaks
@@ -240,8 +242,11 @@ callers of a name that a header prototype and a definition both carry.
   cited. Rank 1: tests/rp2040/sigtest/sigtest.c on the board, whose four
   checks are each the symptom of one wrong layout (mask equals the
   trampoline address, EINTR returns the handler address, and so on).
-- Existing test: sigtest on the board, "SIGTEST OK"; `sysctl -w
-  kern.systrace=2` shows each frame.
+- Existing tests: `kernel.sigreturn-context.ilp32` executes the exact
+  `sigreturn` function against complete, misaligned, invalid, truncated,
+  injected-failure and wrapped inputs, and rejects a direct-user-load mutant.
+  The retained board sigtest prints `SIGTEST OK`; `sysctl -w kern.systrace=2`
+  shows each frame.
 - Board observation (rank 1, 2026-09-19, the PICO #1 kernel named in
   section 3): sigtest built from this tree (7280 bytes, cksum
   1576466912), sent over the console and verified by cksum on the board,
@@ -255,10 +260,12 @@ callers of a name that a header prototype and a definition both carry.
   swapping in the session that preceded the hang recorded in section 3;
   its output was not captured, so the packed-text restoration claim of
   section 2 has no new board result.
-- Open: sigreturn checks that the context is readable, not that it was
-  written by sendsig; a handler that rewrites `sc_psr` chooses its own
-  xPSR, and what the exception return does with an arbitrary value there
-  is a question for the ARM ARM rather than the port.
+- Open: the complete snapshot establishes span admission and one stable
+  kernel copy, rather than provenance. A handler can still rewrite `sc_psr`;
+  the allowed handler-visible xPSR bits and the exception return's treatment
+  of an arbitrary value require a separate ARMv6-M policy and hardware test.
+  The snapshot also adds a 72-byte local object whose static and runtime
+  kernel-stack costs retain their separate measurements.
 
 ## 5. Heap growth: the kernel refuses, libc keeps the refusal, malloc keeps its arena
 

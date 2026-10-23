@@ -68,3 +68,7 @@ syscall_args_block.c
 syscall_args_dispatch_mutant.c
 syscall_args_test32
 syscall_args_dispatch_mutant
+sigreturn_context_function.c
+sigreturn_context_direct_mutant.c
+sigreturn_context_test32
+sigreturn_context_direct_mutant

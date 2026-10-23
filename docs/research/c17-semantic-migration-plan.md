@@ -483,6 +483,25 @@ erase-aligned swap images".
 Source: `rp2040-credential-transition-contract.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`).
 
+### R8 -- syscall I/O buffer spans (`sys/kern/sys_generic.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD syscall/uio ABI; RP2040 kernel profile with the span predicate extracted under strict C17 |
+| Tier | T1: direct syscall user-pointer boundary before filesystem, pipe, device or tty transfer |
+| Native input | No |
+| Contract | `read`, `write`, `readv` and `writev` admit every complete nonempty user span before `setjmp`, file-operation dispatch, offset movement or transfer publication; empty vectors retain their existing behavior |
+| Invariants | Syscall numbers and arguments, `iovec`/`uio` layouts, sixteen-vector capacity, descriptor and access checks, `SSIZE_MAX` error precedence, short transfers and interruption behavior remain unchanged |
+| Falsifier | Removing the admission pass or reducing it to a first-byte check must exit with the 226-assertion fixture's named refusal failure after the inherited source reaches the file-operation stub on invalid scalar and final-vector cases |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-rp2040-usercopy-span`, `check-c17-kernel-inventory`, `check-kernel-metadata`, exact PICO/PICO_UART compilation and maintained STM32 compilation |
+| Resources | Clean parent `6f7cce1a` and implementation `838270f0` schema-2 receipts report PICO flash +40 bytes and PICO_UART flash +56 bytes; all SRAM regions, shipped a.out and packed-root surfaces, native artifacts and archive selections are unchanged. `rwuio` gains 44 text bytes and retains its 32-byte frame; PICO_UART's callable span service adds eight object-text bytes and changes the `copyin`/`copyout` static frames from 8 to 24 bytes. The explicit bounded exception remains subject to independent review |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the five typed definitions and focused fixture; remaining `sys_generic.c` semantics stay migration-open. 2 interface: done for the unchanged read/write ABI and callable span service. 3 native: n/a. 4 hardening: done for the four syscall entries. 5 resource: measured with a bounded positive flash/frame exception pending review; runtime peaks remain open. 6 program closure: done for the bounded syscall I/O seam |
+| Residuals | Direct addresses in `ioctl`, `/dev/mem` and `ptrace` remain separate boundaries. `ptrace` first needs an ARM writable-register and PSR policy. Select/socket semantics, wider uio-origin tracking, broad kernel declarations, runtime peaks, MPU behavior and physical-board execution retain separate evidence states |
+
+Source: `rp2040-syscall-io-span-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-rp2040-usercopy-span`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:

@@ -52769,6 +52769,7 @@
       "language_state": "migration-open",
       "evidence": [
         "docs/research/rp2040-usercopy-span-admission.md",
+        "docs/research/rp2040-syscall-io-span-admission.md",
         "tests/kernel/rwuio_test.c",
         "tests/kernel/usercopy_span_test.c",
         "tests/rp2040/usercopy_span/check.py"
@@ -57941,6 +57942,7 @@
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
+        "docs/research/rp2040-syscall-io-span-admission.md",
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/rwuio_test.c",
         "tests/kernel/rwuio_mutate.py"
@@ -60472,6 +60474,7 @@
       "language_state": "migration-open",
       "evidence": [
         "docs/research/rp2040-credential-transition-contract.md",
+        "docs/research/rp2040-syscall-io-span-admission.md",
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/rwuio_test.c"
       ],
@@ -62623,6 +62626,7 @@
       "native_input": "no",
       "language_state": "accepted",
       "evidence": [
+        "docs/research/rp2040-syscall-io-span-admission.md",
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/rwuio_mutate.py"
       ],

@@ -149,6 +149,35 @@ callers of a name that a header prototype and a definition both carry.
   (L134), the one recognized failure a caller could retry after freeing
   memory; whether any caller does is not traced here.
 
+### Flat ELF images
+
+- Claim: `exec_elf_check` admits the complete one-header, one-segment file
+  geometry before `exec_estab` replaces the old process image. The segment
+  starts at `__user_data_start`, has exact RWX permissions, satisfies
+  `0 < p_filesz <= p_memsz <= USER_WINDOW_MAX`, fits inside the inode without
+  unsigned wrap and contains the cleared Thumb entry in its file-backed bytes.
+- Enforced by: `sys/kern/exec_elf.c` checks the program-header span before
+  allocation, rejects a short header read, validates the segment and entry
+  before `exec_save_args` and calls `exec_estab` only after constructing data,
+  BSS, heap and the rounded argument-stack extent. `exec_estab` accounts for
+  the complete data, BSS, heap and stack requirement against the process
+  window before core allocation.
+- Failure preservation: every geometry failure leaves the old image intact.
+  A segment I/O error or residual after `exec_estab` sends `SIGKILL` and
+  reaches neither `exec_clear` nor `exec_setupstack`, because the old image is
+  already unavailable and the incomplete image cannot run safely.
+- Existing test: `kernel.elf-admission.ilp32` extracts and executes the exact
+  production function. It covers the valid zero-BSS case, word-rounded
+  argument storage, bad memory and file extents, wrapped and truncated
+  program-header spans, even or non-file-backed entries, short reads and both
+  error and residual failures after commitment.
+  Mutations that remove the file-span bound or committed-read failure handling
+  must each exit with status 1.
+- Open: the host fixture establishes ILP32 geometry and publication ordering.
+  It does not execute process replacement, filesystem I/O, MPU enforcement or
+  silicon. Section-header contents remain outside the loader's execution
+  contract; runtime stack, heap and storage traffic retain separate evidence.
+
 ## 3. USB console: who owns an endpoint buffer
 
 - Claim: a DPSRAM endpoint buffer belongs to the controller while

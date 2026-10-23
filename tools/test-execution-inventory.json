@@ -1659,6 +1659,27 @@
       ]
     },
     {
+      "id": "kernel.elf-admission.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "exec_elf_admission_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "exec_elf_admission_test32",
+        "exec_elf_segment_span_mutant",
+        "exec_elf_read_failure_mutant"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.elf-admission.ilp32 -- ./exec_elf_admission_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.sysctl-compact.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

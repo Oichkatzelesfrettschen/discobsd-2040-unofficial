@@ -828,6 +828,25 @@ complete-span snapshot admission and publication ordering at ILP32. It leaves
 xPSR policy, exception return, runtime stack use, MPU enforcement and physical
 hardware to their separate evidence classes.
 
+The tier also extracts the exact `exec_elf_check` function. The ILP32 fixture
+separates inode length, program-header reads, segment reads and publication
+calls. A valid flat image and a zero-BSS image each commit and publish once.
+The valid case uses seven argument/environment bytes and requires an eight-byte
+word-rounded stack contribution.
+The fixture rejects multiple program headers, a negative inode size, a
+non-load segment, non-flat permissions, a displaced segment, an empty segment,
+file bytes larger than memory, a segment beyond the process-window ceiling,
+truncated or wrapped segment bytes, wrapped and truncated program-header spans,
+an even Thumb entry, an entry outside file-backed bytes and failed or short
+program-header reads before commitment. Argument capture and process-window
+admission failures also withhold segment reads and publication. A segment error
+or residual after commitment must send `SIGKILL` and reach neither `exec_clear`
+nor `exec_setupstack`. Generated mutants remove the segment file-span check
+and the committed-read failure block; each must fail the same executable with
+status 1. The fixture establishes flat-image geometry and publication ordering
+at ILP32. It does not execute filesystem reads, process replacement, MPU
+enforcement, runtime resource peaks or physical hardware.
+
 The third file is sys/kern/kern_sysctl.c, whose vm_sysctl() takes the
 extent of `vm.swapmap` as a pointer difference held in an int and whose
 fill_from_u() reads a process u area through an int-valued p_addr.

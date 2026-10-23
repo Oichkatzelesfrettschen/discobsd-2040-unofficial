@@ -120,6 +120,7 @@ Grouped by what they investigate.
 | `syscall-dispatch-header-contract.md` | generated private syscall declarations, configuration-selected dispatch checks and native-header boundaries |
 | `rp2040-usercopy-span-admission.md` | overflow-safe RP2040 `copyin` and `copyout` span admission, exact ILP32 behavior and direct-address residuals |
 | `rp2040-syscall-stack-argument-admission.md` | complete RP2040 syscall stack-tail admission, stale-state clearing and dispatch failure behavior |
+| `rp2040-elf-load-admission.md` | complete flat ELF file and process-window admission, Thumb entry validation and committed-read failure behavior |
 | `netbsd-11-micro-backports.md` | NetBSD 11 micro-fixes composed into C17 libc and cat contracts, target footprint evidence, and the remaining candidate frontier |
 | `userland-bounded-io-memory.md` | bounded `tee` and `du`, strict `resize`, secret-memory primitives, BSD provenance, and complete RP2040 size accounting |
 | `libc-opendir-directory-cloexec.md` | opened-descriptor directory admission, close-on-exec setup, calibrated cleanup gates, and measured stack, linked and packed-root costs |

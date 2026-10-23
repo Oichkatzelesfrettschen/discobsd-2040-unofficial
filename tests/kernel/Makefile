@@ -124,6 +124,7 @@ MACHDEP_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 USERCOPY_SRC=		${MACHDEP_SRC}
 SYSCALL_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
 SIGRETURN_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/sig_machdep.c
+EXEC_ELF_SRC=		${TOPSRC}/sys/kern/exec_elf.c
 
 # kill() and the cansignal() it decides with, over seteuid() and the
 # process lookups. kern_sig.c casts pointers to int in issignal() and
@@ -544,6 +545,47 @@ sigreturn_context_reread_mutant: sigreturn_context_test.c \
 	    -DSIGRETURN_CONTEXT_FUNCTION='"sigreturn_context_reread_mutant.c"' \
 	    -o $@ sigreturn_context_test.c
 
+exec_elf_admission_function.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for ELF loader extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_ELF_SRC} \
+	    --output $@
+
+exec_elf_segment_span_mutant.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for ELF loader extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_ELF_SRC} \
+	    --output $@ --segment-span-mutant
+
+exec_elf_read_failure_mutant.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for ELF loader extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_ELF_SRC} \
+	    --output $@ --read-failure-mutant
+
+exec_elf_admission_test32: exec_elf_admission_test.c \
+    exec_elf_admission_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -o $@ exec_elf_admission_test.c
+
+exec_elf_segment_span_mutant: exec_elf_admission_test.c \
+    exec_elf_segment_span_mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -DEXEC_ELF_FUNCTION='"exec_elf_segment_span_mutant.c"' \
+	    -o $@ exec_elf_admission_test.c
+
+exec_elf_read_failure_mutant: exec_elf_admission_test.c \
+    exec_elf_read_failure_mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -DEXEC_ELF_FUNCTION='"exec_elf_read_failure_mutant.c"' \
+	    -o $@ exec_elf_admission_test.c
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
@@ -551,6 +593,8 @@ check-ilp32:
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
+	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
+	    exec_elf_read_failure_mutant \
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -585,6 +629,20 @@ check-ilp32:
 		exit 1; \
 	fi; \
 	echo "PASS sigreturn user-reread mutation rejected"
+	${TEST_EXECUTION} run kernel.elf-admission.ilp32 -- \
+	    ./exec_elf_admission_test32
+	@if ./exec_elf_segment_span_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL ELF segment-span mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS ELF segment-span mutation rejected"
+	@if ./exec_elf_read_failure_mutant; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ]; then \
+		echo "FAIL ELF read-failure mutation returned $$status, expected 1" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS ELF read-failure mutation rejected"
 	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
 	if [ "$$status" -ne 1 ]; then \
 		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
@@ -608,6 +666,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.elf-admission.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-compact.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sysctl-wide.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -647,6 +706,10 @@ clean:
 	    sigreturn_context_direct_mutant.c sigreturn_context_reread_mutant.c
 	rm -f sigreturn_context_test32 sigreturn_context_direct_mutant \
 	    sigreturn_context_reread_mutant
+	rm -f exec_elf_admission_function.c exec_elf_segment_span_mutant.c \
+	    exec_elf_read_failure_mutant.c
+	rm -f exec_elf_admission_test32 exec_elf_segment_span_mutant \
+	    exec_elf_read_failure_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o

@@ -74,3 +74,9 @@ sigreturn_context_test32
 sigreturn_context_direct_mutant
 sigreturn_context_reread_mutant.c
 sigreturn_context_reread_mutant
+exec_elf_admission_function.c
+exec_elf_segment_span_mutant.c
+exec_elf_read_failure_mutant.c
+exec_elf_admission_test32
+exec_elf_segment_span_mutant
+exec_elf_read_failure_mutant

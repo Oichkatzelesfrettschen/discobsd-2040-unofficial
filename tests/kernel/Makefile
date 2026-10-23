@@ -171,8 +171,8 @@ FILE_OWNER_LDFLAGS=	-Wl,--gc-sections
 FILE_OWNER_DESCRIP_MUTANTS=	unconditional-publication
 FILE_OWNER_GENERIC_MUTANTS=	direct-user-pointer
 FILE_OWNER_UBSAN_MUTANTS=	unchecked-negation
-FILE_OWNER_MUTANTS=	${FILE_OWNER_DESCRIP_MUTANTS} \
-	${FILE_OWNER_GENERIC_MUTANTS} ${FILE_OWNER_UBSAN_MUTANTS}
+FILE_OWNER_NATIVE_MUTANTS=	${FILE_OWNER_DESCRIP_MUTANTS} \
+	${FILE_OWNER_GENERIC_MUTANTS}
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -519,19 +519,16 @@ file_owner_${mutation}.mutant.test: file_owner_${mutation}.mutant.c \
 	    file_owner_descrip.o file_owner_${mutation}.mutant.o hostkern.o
 .endfor
 
-check-file-owner-mutants: \
-    ${FILE_OWNER_MUTANTS:@mutation@file_owner_${mutation}.mutant.test@}
-	@set -eu; for mutation in ${FILE_OWNER_MUTANTS}; do \
+check-file-owner-native-mutants: \
+    ${FILE_OWNER_NATIVE_MUTANTS:@mutation@file_owner_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${FILE_OWNER_NATIVE_MUTANTS}; do \
 		output=file_owner_$$mutation.mutant.out; \
-		if ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 \
-		    UBSAN_OPTIONS=halt_on_error=1 \
-		    ./file_owner_$$mutation.mutant.test >$$output 2>&1; then \
+		if ./file_owner_$$mutation.mutant.test >$$output 2>&1; then \
 			status=0; \
 		else \
 			status=$$?; \
 		fi; \
 		case $$mutation in \
-		unchecked-negation) expected='runtime error: negation of -2147483648' ;; \
 		unconditional-publication) expected='error == ENOTTY && result == 91 && driver_calls == 1' ;; \
 		direct-user-pointer) expected='copyin_calls == 1 && copyout_calls == 0' ;; \
 		esac; \
@@ -543,9 +540,24 @@ check-file-owner-mutants: \
 		echo "PASS file-owner $$mutation mutation rejected"; \
 	done
 
+check-file-owner-ubsan-mutant:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+check-file-owner-ubsan-mutant: file_owner_unchecked-negation.mutant.test \
+    file_owner_ubsan_mutant_check.sh
+	${TEST_EXECUTION} run kernel.file-owner.ubsan-mutant -- \
+	    sh ./file_owner_ubsan_mutant_check.sh \
+	    ./file_owner_unchecked-negation.mutant.test
+.else
+	${TEST_EXECUTION} skip kernel.file-owner.ubsan-mutant \
+	    "file-owner unchecked-negation mutation: sanitizer runtime unavailable"
+.endif
+
+check-file-owner-mutants: check-file-owner-native-mutants \
+    check-file-owner-ubsan-mutant
+
 check-file-owner-sanitizer:
 .if ${KERNEL_SANITIZER_OK} == "yes"
-	@${MAKE} file_owner_test_sanitized
+check-file-owner-sanitizer: file_owner_test_sanitized
 	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
 	    ${TEST_EXECUTION} run kernel.file-owner.sanitized -- \
 	    ./file_owner_test_sanitized
@@ -1135,4 +1147,5 @@ clean:
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-rwuio-mutants check-rwuio-sanitizer \
-	check-file-owner-mutants check-file-owner-sanitizer clean
+	check-file-owner-mutants check-file-owner-native-mutants \
+	check-file-owner-ubsan-mutant check-file-owner-sanitizer clean

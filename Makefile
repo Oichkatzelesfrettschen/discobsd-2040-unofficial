@@ -721,8 +721,10 @@ check-battlestar-generation: check-python
 
 # Relink every shipped multicall executable through the shared map seam before
 # the finite ledger compares dispatch names, manifest links, libc members and
-# packed-root arithmetic. The maps remain ignored build evidence.
-check-multicall-composition: check-python .WAIT symlinks
+# packed-root arithmetic. The gate opens the root image directly, so its
+# dependency must build the image instead of accepting worktree residue. The
+# maps remain ignored build evidence.
+check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 		@set -eu; \
 		map_root=${TOPSRC}/.build-logs/multicall-link-maps; \
 		mkdir -p "$$map_root"; \

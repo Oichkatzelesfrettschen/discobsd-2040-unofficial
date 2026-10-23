@@ -70,7 +70,7 @@ old-style definition for either credential translation unit.
 
 ## Calibrated behavior evidence
 
-The native credential executable runs 267 assertions.  It covers identity
+The native credential executable runs 333 assertions.  It covers identity
 queries, process lookup, process-group admission, group reads and writes,
 group membership, effective and permanent UID transitions, effective and
 permanent GID transitions, wide IDs, the `NOGROUP` sentinel, copy failures,

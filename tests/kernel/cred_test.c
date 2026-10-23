@@ -578,6 +578,7 @@ compact_boundaries(void)
     static const int rejected[] = { -1, 32768, 65536, 65553, 2147483647 };
     static const int accepted[] = { 0, 29999, 30000, 32767 };
     static gid_t groups[] = { 65535, 65536, 42 };
+    struct credential_snapshot before;
     struct pgrp_arg *p;
     struct gidset_arg *g;
     unsigned i;
@@ -612,19 +613,25 @@ compact_boundaries(void)
     HK_CHECK(u.u_groups[3] == NOGROUP);
     groups[1] = NOGROUP;
     u.u_error = 0;
+    capture_credentials(&before);
     setgroups();
     HK_CHECK(u.u_error == EINVAL);
+    check_credentials(&before);
     HK_CHECK(u.u_groups[0] == 65535);
     HK_CHECK(u.u_groups[1] == 65536);
     HK_CHECK(u.u_groups[2] == 42);
     groups[1] = 65536;
     reset(0, REAL_UID);
     ((struct gid_arg *)u.u_arg)->gid = NOGROUP;
+    capture_credentials(&before);
     setgid();
     HK_CHECK(u.u_error == EINVAL && u.u_groups[0] == REAL_GID);
+    check_credentials(&before);
     u.u_error = 0;
+    capture_credentials(&before);
     setegid();
     HK_CHECK(u.u_error == EINVAL && u.u_groups[0] == REAL_GID);
+    check_credentials(&before);
 }
 
 int

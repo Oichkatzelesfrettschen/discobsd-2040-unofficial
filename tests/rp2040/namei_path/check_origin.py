@@ -121,6 +121,17 @@ def require_rejection(label: str, sources: dict[str, str]) -> None:
         raise RuntimeError(f"{label}: malformed caller inventory was accepted")
 
 
+def require_direct_write_rejection(
+    label: str, caller_path: str, sources: dict[str, str]
+) -> None:
+    expected_error = f"{caller_path}: 1 direct nameidata origin writes"
+    errors = validate_sources(sources)
+    if errors != [expected_error]:
+        raise RuntimeError(
+            f"{label}: expected only {expected_error!r}, observed {errors!r}"
+        )
+
+
 def run_self_tests(clean_sources: dict[str, str]) -> int:
     rejected = 0
 
@@ -146,10 +157,17 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     caller_path = "sys/kern/vfs_vnops.c"
     direct_write_sources[caller_path] = direct_write_sources[caller_path].replace(
         "NAMEI_RESET_OPERATION(ndp, LOOKUP, FOLLOW);",
-        "ndp->ni_nameiop = CREATE;",
+        "NAMEI_RESET_OPERATION(ndp, LOOKUP, FOLLOW);\n"
+        "        ndp->ni_nameiop = CREATE;",
         1,
     )
-    require_rejection("direct-origin-write", direct_write_sources)
+    if normalized_calls(direct_write_sources[caller_path]) != normalized_calls(
+        clean_sources[caller_path]
+    ):
+        raise RuntimeError("direct-write mutation changed the caller inventory")
+    require_direct_write_rejection(
+        "direct-origin-write", caller_path, direct_write_sources
+    )
     rejected += 1
 
     compound_write_sources = dict(clean_sources)
@@ -157,10 +175,18 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     compound_write_sources[caller_path] = compound_write_sources[caller_path].replace(
         "NAMEI_RESET_OPERATION(ndp, CREATE,\n"
         "            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);",
-        "ndp->ni_nameiop &= ~NI_USERPATH;",
+        "NAMEI_RESET_OPERATION(ndp, CREATE,\n"
+        "            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);\n"
+        "        ndp->ni_nameiop &= ~NI_USERPATH;",
         1,
     )
-    require_rejection("compound-origin-write", compound_write_sources)
+    if normalized_calls(compound_write_sources[caller_path]) != normalized_calls(
+        clean_sources[caller_path]
+    ):
+        raise RuntimeError("compound-write mutation changed the caller inventory")
+    require_direct_write_rejection(
+        "compound-origin-write", caller_path, compound_write_sources
+    )
     rejected += 1
 
     unexpected_caller_sources = dict(clean_sources)

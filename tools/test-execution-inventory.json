@@ -410,6 +410,7 @@
       "prerequisites": [
         "usr.bin/cpio/cpio.c",
         "usr.bin/cpio/tests/cpiotest.sh",
+        "usr.bin/cpio/tests/cleanup_identity_interpose.h",
         "usr.bin/cpio/tests/cleanup_identity_shim.c",
         "usr.bin/cpio/tests/cleanup_identity_shim.h"
       ],
@@ -431,6 +432,7 @@
       "prerequisites": [
         "usr.bin/cpio/cpio.c",
         "usr.bin/cpio/tests/cleanup_identity_test.sh",
+        "usr.bin/cpio/tests/cleanup_identity_interpose.h",
         "usr.bin/cpio/tests/cleanup_identity_shim.c",
         "usr.bin/cpio/tests/cleanup_identity_shim.h"
       ],

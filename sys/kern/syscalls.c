@@ -172,6 +172,8 @@ static const char syscall_name_pool[] =
     "openat\0"
     "unlinkat_beneath\0"
     "publishat_beneath\0"
+    "openat_beneath\0"
+    "mkdirat_beneath\0"
     ;
 
 static const uint16_t syscall_name_offsets[] = {
@@ -188,11 +190,11 @@ static const uint16_t syscall_name_offsets[] = {
     830, 836, 843, 856, 863, 870, 879, 884, 889, 896, 905, 915,
     921, 926, 933, 942, 953, 959, 965, 972, 977, 985, 997, 1002,
     1007, 1017, 1027, 1034, 1039, 1048, 1054, 1066, 1071, 1078, 1085, 1091,
-    1096, 1104, 1111, 1128,
+    1096, 1104, 1111, 1128, 1146, 1161,
 };
 
 _Static_assert(sizeof(syscall_name_offsets) /
-    sizeof(syscall_name_offsets[0]) == 160,
+    sizeof(syscall_name_offsets[0]) == 162,
     "syscall name and ABI counts differ");
 
 const char *

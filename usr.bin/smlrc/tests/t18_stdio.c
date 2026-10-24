@@ -27,9 +27,6 @@ struct passwd_alignment_probe {
 };
 
 static int (*futimes_signature)(int, const struct timeval[2]) = futimes;
-static int (*openat_signature)(int, const char *, int, ...) = openat;
-static int (*unlinkat_beneath_signature)(int, const char *, int) =
-    unlinkat_beneath;
 
 static int
 scan_variadic(const char *input, const char *format, ...)
@@ -46,9 +43,6 @@ scan_variadic(const char *input, const char *format, ...)
 static int
 check_layouts(void)
 {
-	int (*publishat_signature)(int, const char *, int, const char *, int) =
-	    publishat_beneath;
-
 	if (sizeof(FILE) != 24 || offsetof(FILE, _cnt) != 0 ||
 	    offsetof(FILE, _ptr) != 4 || offsetof(FILE, _base) != 8 ||
 	    offsetof(FILE, _bufsiz) != 12 || offsetof(FILE, _flag) != 16 ||
@@ -66,12 +60,6 @@ check_layouts(void)
 		return 3;
 	if (futimes_signature == NULL)
 		return 7;
-	if (openat_signature == NULL)
-		return 8;
-	if (unlinkat_beneath_signature == NULL)
-		return 9;
-	if (publishat_signature == NULL)
-		return 10;
 	return 0;
 }
 

@@ -62879,7 +62879,9 @@
           "object_lifetime": [
             "compound-literal"
           ],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -71294,14 +71296,18 @@
     },
     {
       "path": "usr.bin/cpio/cpio.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "usr.bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "cpio-rooted-creation-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/cpio-rooted-creation-identity-plan.md",
+        "usr.bin/cpio/tests/cleanup_identity_test.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Strict-C17 compilation and rooted extraction directory creation, staged regular-file creation, descriptor-owned data transfer, publication and failure cleanup are accepted; archive-creation traversal, links, metadata fidelity and remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -71328,15 +71334,54 @@
       }
     },
     {
-      "path": "usr.bin/cpio/tests/cleanup_identity_shim.c",
+      "path": "usr.bin/cpio/tests/cleanup_identity_interpose.h",
       "class": "A",
       "scope": "maintained",
-      "owner": "cpio-cleanup-identity",
+      "owner": "cpio-rooted-creation-identity",
       "profile": "modernized-cross-userland",
       "native_input": "no",
       "language_state": "accepted",
       "evidence": [
-        "docs/research/rooted-conditional-unlink-plan.md",
+        "docs/research/cpio-rooted-creation-identity-plan.md",
+        "usr.bin/cpio/tests/cleanup_identity_test.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
+        }
+      }
+    },
+    {
+      "path": "usr.bin/cpio/tests/cleanup_identity_shim.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "cpio-rooted-creation-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/cpio-rooted-creation-identity-plan.md",
         "usr.bin/cpio/tests/cleanup_identity_test.sh",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
@@ -71354,11 +71399,15 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],
-          "variadic": []
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },
@@ -71366,12 +71415,12 @@
       "path": "usr.bin/cpio/tests/cleanup_identity_shim.h",
       "class": "A",
       "scope": "maintained",
-      "owner": "cpio-cleanup-identity",
+      "owner": "cpio-rooted-creation-identity",
       "profile": "modernized-cross-userland",
       "native_input": "no",
       "language_state": "accepted",
       "evidence": [
-        "docs/research/rooted-conditional-unlink-plan.md",
+        "docs/research/cpio-rooted-creation-identity-plan.md",
         "usr.bin/cpio/tests/cleanup_identity_test.sh",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
@@ -71393,7 +71442,9 @@
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],
-          "variadic": []
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },
@@ -80859,11 +80910,11 @@
       "language_state": "migration-open",
       "evidence": [
         "docs/research/STYLE-GUIDE.md",
-        "docs/research/openat-directory-relative-lookup.md",
-        "docs/research/rooted-conditional-unlink-plan.md",
-        "docs/research/compress-publication-identity-plan.md"
+        "docs/research/libc-passwd-header-inclusion.md",
+        "docs/research/tar-descriptor-timestamp-identity.md",
+        "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "The openat, unlinkat_beneath, and publishat_beneath public declarations and selected archive members pass the native fixture; broader file-level C17 and native-suite acceptance remain migration-open.",
+      "blocker": "The stdio, directory, password and futimes public declarations, layouts and selected archive members pass the native fixture; directory-relative interfaces moved to the bounded t20_rooted_interfaces consumer, while broader file-level C17 and native-suite acceptance remain migration-open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "native-smaller-c",
@@ -80923,6 +80974,45 @@
           "pointer": [],
           "prototype": [],
           "variadic": []
+        }
+      }
+    },
+    {
+      "path": "usr.bin/smlrc/tests/t20_rooted_interfaces.c",
+      "class": "B",
+      "scope": "maintained",
+      "owner": "usr.bin/smlrc",
+      "profile": "native-smaller-c-implementation",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/cpio-rooted-creation-identity-plan.md",
+        "usr.bin/smlrc/tests/stdio_red_control.py",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "native-smaller-c",
+        "required_mode": "c17-migration",
+        "extension_policy": "native-subset-separated",
+        "extension_signals": [],
+        "risk_family": "native-compiler",
+        "risk_tier": "T1",
+        "risk_tier_basis": "native-compiler-input",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },

@@ -100,13 +100,13 @@ chroot(void)
  * and call the device open routine if any.
  */
 static int
-copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
+copen(int dirfd, int mode, int cmode, caddr_t fname, int namei_policy)
 {
     register struct inode *ip;
     register struct file *fp;
     struct  nameidata nd;
     register struct nameidata *ndp = &nd;
-    int indx, type, flags, error;
+    int indx, type, flags, error, namespace_owned;
 
     if ((mode & O_SEARCH) &&
         ((mode & O_ACCMODE) != O_RDONLY ||
@@ -114,11 +114,19 @@ copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
         return EINVAL;
     if (! fname)
         fname = "";
+    namespace_owned = 0;
+    if (namei_policy & NI_BENEATH) {
+        error = ufs_namespace_enter();
+        if (error != 0)
+            return error;
+        namespace_owned = 1;
+    }
 //printf ("copen (mode=%#o, cmode=%#o, fname=%#x '%s')\n", mode, cmode, fname, fname);
     fp = falloc();
     if (fp == NULL) {
 //printf ("copen: falloc failed, errno=%d\n", u.u_error);
-        return(u.u_error);  /* XXX */
+        error = u.u_error;
+        goto out;
     }
     flags = FFLAGS(mode);   /* convert from open to kernel flags */
     fp->f_flag = flags & FMASK;
@@ -127,8 +135,10 @@ copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
     indx = u.u_rval;
     u.u_dupfd = -indx - 1;
     NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, fname);
-    if (reject_empty)
+    if (namei_policy & NI_NOEMPTY)
         NAMEI_REJECT_EMPTY(ndp);
+    if (namei_policy & NI_BENEATH)
+        NAMEI_RESTRICT_BENEATH(ndp);
 
     /*
      * ENODEV is returned by the 'fdopen()' routine - see the comments in that
@@ -142,7 +152,7 @@ copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
      * premium in 2.11 while space in the u structure is relatively free.  Also
      * there were more unused (pad) fields available in 'u' as compared to 'proc'.
      */
-    error = vn_open_at(ndp, flags, cmode, dirfd);
+    error = vn_open_at(ndp, flags, cmode, dirfd, &namespace_owned);
     if (error) {
 //printf ("copen: vn_open failed, errno=%d\n", error);
         fp->f_count = 0;
@@ -150,10 +160,11 @@ copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
             u.u_dupfd >= 0 &&
             (error = dupfdopen(indx,u.u_dupfd,flags,error) == 0)) {
             u.u_rval = indx;
-            return(0);
+            error = 0;
+            goto out;
         }
         u.u_ofile[indx] = NULL;
-        return(error);
+        goto out;
     }
     ip = ndp->ni_ip;
     u.u_dupfd = 0;
@@ -175,6 +186,9 @@ copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
         }
     }
 //printf ("copen returned errno=%d\n", error);
+out:
+    if (namespace_owned)
+        ufs_namespace_exit();
     return(error);
 }
 
@@ -206,7 +220,26 @@ openat(void)
         int     crtmode;
     } *uap = (struct a *)u.u_arg;
 
-    u.u_error = copen(uap->fd, uap->mode, uap->crtmode, uap->path, 1);
+    u.u_error = copen(uap->fd, uap->mode, uap->crtmode, uap->path,
+        NI_NOEMPTY);
+}
+
+/*
+ * Open beneath an acquired directory while UFS namespace serialization
+ * protects the complete strict-relative lookup and optional creation.
+ */
+void
+openat_beneath(void)
+{
+    register struct a {
+        int     rootfd;
+        char    *path;
+        int     mode;
+        int     crtmode;
+    } *uap = (struct a *)u.u_arg;
+
+    u.u_error = copen(uap->rootfd, uap->mode, uap->crtmode, uap->path,
+        NI_NOEMPTY | NI_BENEATH);
 }
 
 /*
@@ -475,6 +508,34 @@ release_expected:
  * inodes that the caller authorized.  A target descriptor of -1 requires an
  * absent destination.
  */
+static int
+publish_target_error(struct inode *expected_staged,
+    struct inode *expected_target, struct inode *staged_parent,
+    struct inode *target_inode, struct inode *target_parent)
+{
+    if (target_parent != staged_parent ||
+        INODE_DEVICE(target_parent) != INODE_DEVICE(expected_staged))
+        return EXDEV;
+    if (expected_target == NULL) {
+        if (target_inode != NULL)
+            return EEXIST;
+    } else if (target_inode != expected_target) {
+        return ESTALE;
+    }
+    if (target_inode == expected_staged)
+        return EINVAL;
+    if (target_inode != NULL &&
+        ((target_inode->i_flags & (IMMUTABLE | APPEND)) ||
+        (target_parent->i_flags & APPEND)))
+        return EPERM;
+    if (target_inode != NULL &&
+        (target_parent->i_mode & ISVTX) && u.u_uid != 0 &&
+        u.u_uid != target_parent->i_uid &&
+        target_inode->i_uid != u.u_uid)
+        return EPERM;
+    return 0;
+}
+
 void
 publishat_beneath(void)
 {
@@ -488,16 +549,16 @@ publishat_beneath(void)
     register struct inode *staged_inode, *target_inode;
     struct inode *expected_staged, *expected_target;
     struct inode *staged_parent, *target_parent;
-    struct nameidata nd;
-    register struct nameidata *ndp = &nd;
-    int error, publication_complete, reserved_link;
+    struct nameidata staged_nd, target_nd;
+    register struct nameidata *staged_ndp = &staged_nd;
+    register struct nameidata *target_ndp = &target_nd;
+    int error, reserved_link;
 
     expected_target = NULL;
     staged_inode = NULL;
     target_inode = NULL;
     staged_parent = NULL;
     target_parent = NULL;
-    publication_complete = 0;
     reserved_link = 0;
 
     if (uap->target_fd < -1) {
@@ -532,12 +593,13 @@ publishat_beneath(void)
         goto release_expected;
     }
 
-    NAMEI_INIT_USER(ndp, DELETE, LOCKPARENT | NOCACHE, uap->staged_path);
-    NAMEI_RESTRICT_BENEATH(ndp);
-    staged_inode = namei_at(ndp, uap->rootfd);
+    NAMEI_INIT_USER(staged_ndp, DELETE, LOCKPARENT | NOCACHE,
+        uap->staged_path);
+    NAMEI_RESTRICT_BENEATH(staged_ndp);
+    staged_inode = namei_at(staged_ndp, uap->rootfd);
     if (staged_inode == NULL)
         goto leave_namespace;
-    staged_parent = ndp->ni_pdir;
+    staged_parent = staged_ndp->ni_pdir;
     if (staged_inode != expected_staged) {
         u.u_error = ESTALE;
         goto release_staged_lookup;
@@ -568,58 +630,73 @@ publishat_beneath(void)
     staged_inode = NULL;
     iunlock(staged_parent);
 
-    NAMEI_INIT_USER(ndp, CREATE, LOCKPARENT | NOCACHE, uap->target_path);
-    NAMEI_RESTRICT_BENEATH(ndp);
-    target_inode = namei_at(ndp, uap->rootfd);
+    NAMEI_INIT_USER(target_ndp, CREATE, LOCKPARENT | NOCACHE,
+        uap->target_path);
+    NAMEI_RESTRICT_BENEATH(target_ndp);
+    target_inode = namei_at(target_ndp, uap->rootfd);
     if (u.u_error != 0)
         goto rollback_link;
-    target_parent = ndp->ni_pdir;
-    if (target_parent != staged_parent) {
-        u.u_error = EXDEV;
+    target_parent = target_ndp->ni_pdir;
+    error = publish_target_error(expected_staged, expected_target,
+        staged_parent, target_inode, target_parent);
+    if (error != 0) {
+        u.u_error = error;
         goto release_target_lookup;
     }
-    if (INODE_DEVICE(target_parent) != INODE_DEVICE(expected_staged)) {
-        u.u_error = EXDEV;
-        goto release_target_lookup;
+
+    if (target_inode != NULL) {
+        iput(target_inode);
+        target_inode = NULL;
     }
-    if (expected_target == NULL) {
-        if (target_inode != NULL) {
-            u.u_error = EEXIST;
-            goto release_target_lookup;
-        }
-    } else {
-        if (target_inode != expected_target) {
-            u.u_error = ESTALE;
-            goto release_target_lookup;
-        }
+    iput(target_parent);
+    target_parent = NULL;
+
+    NAMEI_INIT_USER(staged_ndp, DELETE, LOCKPARENT | NOCACHE,
+        uap->staged_path);
+    NAMEI_RESTRICT_BENEATH(staged_ndp);
+    staged_inode = namei_at(staged_ndp, uap->rootfd);
+    if (staged_inode == NULL)
+        goto rollback_link;
+    target_parent = staged_ndp->ni_pdir;
+    if (staged_inode != expected_staged || target_parent != staged_parent) {
+        u.u_error = ESTALE;
+        goto release_removal_lookup;
     }
-    if (target_inode == expected_staged) {
-        u.u_error = EINVAL;
-        goto release_target_lookup;
-    }
-    if (target_inode != NULL &&
-        ((target_inode->i_flags & (IMMUTABLE | APPEND)) ||
-        (target_parent->i_flags & APPEND))) {
-        u.u_error = EPERM;
-        goto release_target_lookup;
-    }
-    if (target_inode != NULL &&
-        (target_parent->i_mode & ISVTX) && u.u_uid != 0 &&
-        u.u_uid != target_parent->i_uid &&
-        target_inode->i_uid != u.u_uid) {
-        u.u_error = EPERM;
+    if (!dirremove(staged_ndp))
+        goto release_removal_lookup;
+    staged_inode->i_nlink--;
+    staged_inode->i_flag |= ICHG;
+    if (target_parent == staged_inode)
+        irele(staged_inode);
+    else
+        iput(staged_inode);
+    iput(target_parent);
+    staged_inode = NULL;
+    target_parent = NULL;
+
+    NAMEI_INIT_USER(target_ndp, CREATE, LOCKPARENT | NOCACHE,
+        uap->target_path);
+    NAMEI_RESTRICT_BENEATH(target_ndp);
+    target_inode = namei_at(target_ndp, uap->rootfd);
+    if (u.u_error != 0)
+        goto rollback_link;
+    target_parent = target_ndp->ni_pdir;
+    error = publish_target_error(expected_staged, expected_target,
+        staged_parent, target_inode, target_parent);
+    if (error != 0) {
+        u.u_error = error;
         goto release_target_lookup;
     }
 
     if (target_inode == NULL) {
-        error = direnter(expected_staged, ndp);
+        error = direnter(expected_staged, target_ndp);
         target_parent = NULL;
         if (error != 0) {
             u.u_error = error;
             goto rollback_link;
         }
     } else {
-        dirrewrite(target_parent, expected_staged, ndp);
+        dirrewrite(target_parent, expected_staged, target_ndp);
         target_parent = NULL;
         if (u.u_error != 0)
             goto release_target_after_write;
@@ -628,32 +705,7 @@ publishat_beneath(void)
         iput(target_inode);
         target_inode = NULL;
     }
-    publication_complete = 1;
-
-    NAMEI_INIT_USER(ndp, DELETE, LOCKPARENT | NOCACHE, uap->staged_path);
-    NAMEI_RESTRICT_BENEATH(ndp);
-    staged_inode = namei_at(ndp, uap->rootfd);
-    if (staged_inode == NULL) {
-        if (u.u_error == ENOENT)
-            u.u_error = 0;
-        goto release_parent_reference;
-    }
-    target_parent = ndp->ni_pdir;
-    if (staged_inode == expected_staged) {
-        if (dirremove(ndp)) {
-            staged_inode->i_nlink--;
-            staged_inode->i_flag |= ICHG;
-        }
-    } else {
-        u.u_error = 0;
-    }
-    if (target_parent == staged_inode)
-        irele(staged_inode);
-    else
-        iput(staged_inode);
-    iput(target_parent);
-    staged_inode = NULL;
-    target_parent = NULL;
+    reserved_link = 0;
     goto release_parent_reference;
 
 release_target_after_write:
@@ -669,12 +721,23 @@ release_target_lookup:
     iput(target_parent);
     target_parent = NULL;
 rollback_link:
-    if (!publication_complete && reserved_link) {
+    if (reserved_link) {
         ilock(expected_staged);
         expected_staged->i_nlink--;
         expected_staged->i_flag |= ICHG;
         iunlock(expected_staged);
     }
+    goto release_parent_reference;
+
+release_removal_lookup:
+    if (target_parent == staged_inode)
+        irele(staged_inode);
+    else
+        iput(staged_inode);
+    iput(target_parent);
+    staged_inode = NULL;
+    target_parent = NULL;
+    goto rollback_link;
 release_parent_reference:
     irele(staged_parent);
     staged_parent = NULL;
@@ -1440,33 +1503,39 @@ const struct dirtemplate mastertemplate = {
     0, DIRBLKSIZ - 12,  2, "..",
 };
 
-/*
- * Mkdir system call
- */
-void
-mkdir(void)
+static void
+mkdir_common(int rootfd, caddr_t name, int dmode, int namei_policy)
 {
-    register struct a {
-        char    *name;
-        int     dmode;
-    } *uap = (struct a *)u.u_arg;
     register struct inode *ip, *dp;
     struct dirtemplate dirtemplate;
     struct  nameidata nd;
     register struct nameidata *ndp = &nd;
+    int error;
 
-    NAMEI_INIT_USER (ndp, CREATE, NOFOLLOW, uap->name);
-    ip = namei(ndp);
+    if (namei_policy & NI_BENEATH) {
+        error = ufs_namespace_enter();
+        if (error != 0) {
+            u.u_error = error;
+            return;
+        }
+    }
+
+    NAMEI_INIT_USER(ndp, CREATE, NOFOLLOW, name);
+    if (namei_policy & NI_NOEMPTY)
+        NAMEI_REJECT_EMPTY(ndp);
+    if (namei_policy & NI_BENEATH)
+        NAMEI_RESTRICT_BENEATH(ndp);
+    ip = namei_at(ndp, rootfd);
     if (u.u_error)
-        return;
+        goto out;
     if (ip != NULL) {
         iput(ip);
         u.u_error = EEXIST;
-        return;
+        goto out;
     }
     dp = ndp->ni_pdir;
-    uap->dmode &= 0777;
-    uap->dmode |= IFDIR;
+    dmode &= 0777;
+    dmode |= IFDIR;
     /*
      * Must simulate part of maknode here
      * in order to acquire the inode, but
@@ -1477,10 +1546,10 @@ mkdir(void)
     ip = ialloc(dp);
     if (ip == NULL) {
         iput(dp);
-        return;
+        goto out;
     }
     ip->i_flag |= IACC|IUPD|ICHG;
-    ip->i_mode = uap->dmode & ~u.u_cmask;
+    ip->i_mode = dmode & ~u.u_cmask;
     ip->i_nlink = 2;
     ip->i_uid = u.u_uid;
     ip->i_gid = dp->i_gid;
@@ -1516,16 +1585,19 @@ mkdir(void)
      * install the entry for it in
      * the parent directory.
      */
+    dp->i_count++;
     u.u_error = direnter(ip, ndp);
-    dp = NULL;
     if (u.u_error) {
-        NAMEI_INIT_USER (ndp, LOOKUP, NOCACHE, uap->name);
-        dp = namei(ndp);
-        if (dp) {
-            dp->i_nlink--;
-            dp->i_flag |= ICHG;
-        }
+        error = u.u_error;
+        ilock(dp);
+        dp->i_nlink--;
+        dp->i_flag |= ICHG;
+        iput(dp);
+        u.u_error = error;
+    } else {
+        irele(dp);
     }
+    dp = NULL;
 bad:
     /*
      * No need to do an explicit itrunc here,
@@ -1539,6 +1611,39 @@ bad:
     if (dp)
         iput(dp);
     iput(ip);
+out:
+    if (namei_policy & NI_BENEATH)
+        ufs_namespace_exit();
+}
+
+/*
+ * Mkdir system call
+ */
+void
+mkdir(void)
+{
+    register struct a {
+        char    *name;
+        int     dmode;
+    } *uap = (struct a *)u.u_arg;
+
+    mkdir_common(AT_FDCWD, uap->name, uap->dmode, 0);
+}
+
+/*
+ * Create a directory through a strict relative walk beneath an acquired root.
+ */
+void
+mkdirat_beneath(void)
+{
+    register struct a {
+        int     rootfd;
+        char    *path;
+        int     dmode;
+    } *uap = (struct a *)u.u_arg;
+
+    mkdir_common(uap->rootfd, uap->path, uap->dmode,
+        NI_NOEMPTY | NI_BENEATH);
 }
 
 /*

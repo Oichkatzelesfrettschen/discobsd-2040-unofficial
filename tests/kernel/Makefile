@@ -160,13 +160,24 @@ OPENAT_MULTIFS_DEFS=	-DNMOUNT=2 -DLINEAR_NAME_CACHE -DNNAMECACHE=4
 OPENAT_MULTIFS_CFLAGS=	-ffunction-sections -fdata-sections \
 			${OPENAT_MULTIFS_DEFS}
 OPENAT_RENAMES=	-Dopen=kernel_open -Dopenat=kernel_openat \
+		-Dopenat_beneath=kernel_openat_beneath \
+		-Dmkdir=kernel_mkdir \
+		-Dmkdirat_beneath=kernel_mkdirat_beneath \
 		-Dsetjmp=openat_setjmp -Diput=iput_openat
 OPENAT_SYSCALL_RENAMES=	${OPENAT_RENAMES} -Dmaknode=openat_syscalls_maknode
 OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd \
 			accept-empty-beneath follow-beneath-symlink \
 			cross-beneath-mount
-OPENAT_VNOPS_MUTANTS=	follow-final-symlink
-OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS}
+OPENAT_VNOPS_MUTANTS=	follow-final-symlink \
+			hold-namespace-during-open-provider
+OPENAT_SYSCALL_MUTANTS=	omit-rooted-open-policy release-before-open \
+			omit-rooted-open-release release-competing-open-owner \
+			omit-rooted-mkdir-policy \
+			release-before-mkdir-publication \
+			omit-rooted-mkdir-release omit-mkdir-parent-rollback \
+			omit-mkdir-parent-iput
+OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS} \
+		${OPENAT_SYSCALL_MUTANTS}
 UNLINKAT_BENEATH_NAMEI_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
 UNLINKAT_BENEATH_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
 UNLINKAT_BENEATH_CFLAGS=	-ffunction-sections -fdata-sections \
@@ -183,7 +194,8 @@ PUBLISHAT_BENEATH_CFLAGS=	-ffunction-sections -fdata-sections \
 PUBLISHAT_BENEATH_MUTANTS=	discard-reserve-write-error \
 				skip-staged-identity skip-staged-sticky \
 				skip-target-identity use-at-fdcwd \
-				release-before-publication skip-same-parent
+				release-before-publication skip-same-parent \
+				publish-after-remove-error
 PUBLISHAT_NAMEI_MUTANTS=	discard-enter-write-error
 DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
 DIRREMOVE_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
@@ -1733,6 +1745,7 @@ check-publishat-beneath-mutants: \
 		use-at-fdcwd) expected='root_descriptor == ROOT_DESCRIPTOR' ;; \
 		release-before-publication) expected='namespace_owned == 1' ;; \
 		skip-same-parent) expected='name_data->ni_pdir == &root_inode' ;; \
+		publish-after-remove-error) expected='enter_calls == 0' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -1957,6 +1970,22 @@ openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
 	    ufs_namespace_kernel32.o hostkern32.o
 .endfor
 
+.for mutation in ${OPENAT_SYSCALL_MUTANTS}
+openat_${mutation}.mutant.c: openat_syscall_mutate.py ${OPENAT_SYSCALL_SRC}
+	${PYTHON} openat_syscall_mutate.py --source ${OPENAT_SYSCALL_SRC} \
+	    --output $@ --mutation ${mutation}
+
+openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
+    openat_test.c openat_vnops32.o ufs_namespace_kernel32.o hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} \
+	    ${OPENAT_SYSCALL_RENAMES} ${ILP32} -c -o \
+	    openat_${mutation}.mutant.o openat_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ openat_test.c openat_vnops32.o \
+	    openat_${mutation}.mutant.o ufs_namespace_kernel32.o hostkern32.o
+.endfor
+
 check-openat-mutants: \
     ${OPENAT_MUTANTS:@mutation@openat_${mutation}.mutant.test@}
 	@set -eu; for mutation in ${OPENAT_MUTANTS}; do \
@@ -1973,6 +2002,18 @@ check-openat-mutants: \
 		follow-beneath-symlink) expected='u.u_error == ELOOP' ;; \
 		cross-beneath-mount) expected='u.u_error == EXDEV' ;; \
 		follow-final-symlink) expected='u.u_error == ELOOP' ;; \
+		hold-namespace-during-open-provider) \
+			expected='!namespace_is_owned()' ;; \
+		omit-rooted-open-policy|omit-rooted-mkdir-policy) \
+			expected='expected_namei_policy' ;; \
+		release-before-open|release-before-mkdir-publication|\
+		release-competing-open-owner) expected='namespace_is_owned()' ;; \
+		omit-rooted-open-release|omit-rooted-mkdir-release) \
+			expected='!namespace_is_owned()' ;; \
+		omit-mkdir-parent-rollback) \
+			expected='mkdir_parent_inode.i_nlink == 2' ;; \
+		omit-mkdir-parent-iput) \
+			expected='mkdir_parent_inode.i_count == 0' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

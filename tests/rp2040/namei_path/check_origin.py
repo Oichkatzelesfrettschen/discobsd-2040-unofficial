@@ -41,12 +41,12 @@ EXPECTED_CALLS = {
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->from)",
         "NAMEI_INIT_USER(ndp,CREATE,LOCKPARENT|NOCACHE,uap->to)",
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->from)",
-        "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->name)",
-        "NAMEI_INIT_USER(ndp,LOOKUP,NOCACHE,uap->name)",
+        "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,name)",
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->name)",
-        "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
-        "NAMEI_INIT_USER(ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
-        "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+        "NAMEI_INIT_USER(staged_ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+        "NAMEI_INIT_USER(target_ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
+        "NAMEI_INIT_USER(staged_ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+        "NAMEI_INIT_USER(target_ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
     ],
     "sys/kern/ufs_syscalls2.c": [
         "NAMEI_INIT_USER(ndp,LOOKUP,FOLLOW,uap->path)",
@@ -59,12 +59,14 @@ EXPECTED_CALLS = {
 }
 
 PUBLISHAT_BENEATH_CALLS = [
-    "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
-    "NAMEI_INIT_USER(ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
-    "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+    "NAMEI_INIT_USER(staged_ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+    "NAMEI_INIT_USER(target_ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
+    "NAMEI_INIT_USER(staged_ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+    "NAMEI_INIT_USER(target_ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
 ]
 PUBLISH_TARGET_CALL = (
-    "NAMEI_INIT_USER(ndp, CREATE, LOCKPARENT | NOCACHE, uap->target_path);"
+    "NAMEI_INIT_USER(target_ndp, CREATE, LOCKPARENT | NOCACHE,\n"
+    "        uap->target_path);"
 )
 
 # Each conditional vn_open reset expresses two flag-dependent transitions

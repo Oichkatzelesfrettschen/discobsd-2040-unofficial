@@ -23,6 +23,7 @@
 
 struct user u;
 struct mount mount[NMOUNT];
+struct timeval time;
 
 static struct inode descriptor_inode;
 static int descriptor_lookups;
@@ -31,6 +32,10 @@ static int unlock_calls;
 static int access_calls;
 static int access_mode;
 static int access_error;
+static int namespace_probe;
+static int namespace_wait_error;
+
+static int namespace_is_owned(void);
 
 static void
 copy_bytes(caddr_t destination, const caddr_t source, u_int length)
@@ -132,11 +137,36 @@ wakeup(caddr_t channel)
 int
 tsleep(caddr_t channel, int priority, u_int timeout)
 {
-    (void)channel;
-    (void)priority;
-    (void)timeout;
+    HK_CHECK(channel != NULL);
+    HK_CHECK(priority == (PINOD | PCATCH));
+    HK_CHECK(timeout == 0);
+    if (namespace_probe)
+        return EINTR;
+    if (namespace_wait_error != 0)
+        return namespace_wait_error;
     HK_CHECK(0);
     return EINTR;
+}
+
+static int
+namespace_is_owned(void)
+{
+    int error;
+
+    namespace_probe = 1;
+    error = ufs_namespace_enter();
+    namespace_probe = 0;
+    if (error == 0) {
+        ufs_namespace_exit();
+        return 0;
+    }
+    return error == EINTR;
+}
+
+static void
+check_namespace_released(void)
+{
+    HK_CHECK(!namespace_is_owned());
 }
 
 void
@@ -643,6 +673,7 @@ main(void)
     restricted_lookup_rejects_mount_transitions();
 #endif
     restricted_delete_checks_the_locked_final_inode();
+    check_namespace_released();
     return hk_verdict("directory-relative namei contract");
 }
 
@@ -654,6 +685,7 @@ static int expected_directory_descriptor;
 static caddr_t expected_path;
 static int expected_lookup_operation;
 static int expected_lookup_modifiers;
+static int expected_namei_policy;
 static int lookup_calls;
 static int lookup_error;
 static int allocation_calls;
@@ -667,9 +699,25 @@ static int open_inode_error;
 static int jump_result;
 static int advisory_lock_calls;
 static int advisory_lock_error;
+static struct inode mkdir_parent_inode;
+static struct inode mkdir_created_inode;
+static int mkdir_active;
+static int regular_create_active;
+static int inode_allocation_calls;
+static int inode_allocation_error;
+static int inode_update_calls;
+static int directory_initialization_calls;
+static int directory_initialization_error;
+static int directory_entry_calls;
+static int directory_entry_error;
+static int regular_creation_calls;
+static int regular_creation_error;
 
 extern void kernel_open(void);
 extern void kernel_openat(void);
+extern void kernel_openat_beneath(void);
+extern void kernel_mkdirat_beneath(void);
+void iput_openat(struct inode *inode);
 
 int
 baduaddr(caddr_t address)
@@ -707,24 +755,36 @@ suser(void)
 struct inode *
 ialloc(struct inode *parent)
 {
-    (void)parent;
-    HK_CHECK(0);
-    return NULL;
+    HK_CHECK(mkdir_active);
+    HK_CHECK(parent == &mkdir_parent_inode);
+    HK_CHECK(namespace_is_owned());
+    inode_allocation_calls++;
+    if (inode_allocation_error != 0) {
+        u.u_error = inode_allocation_error;
+        return NULL;
+    }
+    mkdir_created_inode.i_flag |= ILOCKED;
+    return &mkdir_created_inode;
 }
 
 int
 rdwri(enum uio_rw operation, struct inode *inode, caddr_t buffer, int length,
     off_t offset, int flags, int *residual)
 {
-    (void)operation;
-    (void)inode;
-    (void)buffer;
-    (void)length;
-    (void)offset;
-    (void)flags;
+    const struct dirtemplate *template = (const struct dirtemplate *)buffer;
+
+    HK_CHECK(mkdir_active);
+    HK_CHECK(namespace_is_owned());
+    HK_CHECK(operation == UIO_WRITE);
+    HK_CHECK(inode == &mkdir_created_inode);
+    HK_CHECK(length == (int)sizeof(*template));
+    HK_CHECK(offset == 0);
+    HK_CHECK(flags == (IO_UNIT | IO_SYNC));
     (void)residual;
-    HK_CHECK(0);
-    return EIO;
+    HK_CHECK(template->dot_ino == mkdir_created_inode.i_number);
+    HK_CHECK(template->dotdot_ino == mkdir_parent_inode.i_number);
+    directory_initialization_calls++;
+    return directory_initialization_error;
 }
 
 int
@@ -740,12 +800,14 @@ int
 iupdat(struct inode *inode, struct timeval *access_time,
     struct timeval *modification_time, int wait)
 {
-    (void)inode;
-    (void)access_time;
-    (void)modification_time;
-    (void)wait;
-    HK_CHECK(0);
-    return EIO;
+    HK_CHECK(mkdir_active);
+    HK_CHECK(namespace_is_owned());
+    HK_CHECK(inode == &mkdir_created_inode || inode == &mkdir_parent_inode);
+    HK_CHECK(access_time == &time);
+    HK_CHECK(modification_time == &time);
+    HK_CHECK(wait == 1);
+    inode_update_calls++;
+    return 0;
 }
 
 int
@@ -795,10 +857,13 @@ ufs_setattr(struct inode *inode, struct vattr *attributes)
 int
 direnter(struct inode *inode, struct nameidata *name)
 {
-    (void)inode;
-    (void)name;
-    HK_CHECK(0);
-    return EIO;
+    HK_CHECK(mkdir_active);
+    HK_CHECK(namespace_is_owned());
+    HK_CHECK(inode == &mkdir_created_inode);
+    HK_CHECK(name->ni_pdir == &mkdir_parent_inode);
+    directory_entry_calls++;
+    iput_openat(&mkdir_parent_inode);
+    return directory_entry_error;
 }
 
 int
@@ -822,12 +887,20 @@ namei_at(struct nameidata *name, int directory_descriptor)
     HK_CHECK(name->ni_dirp == expected_path);
     HK_CHECK(operation == expected_lookup_operation);
     HK_CHECK(modifiers == expected_lookup_modifiers);
+    HK_CHECK((name->ni_nameiop & (NI_NOEMPTY | NI_BENEATH)) ==
+        expected_namei_policy);
+    if (expected_namei_policy & NI_BENEATH)
+        HK_CHECK(namespace_is_owned());
     if (lookup_error != 0) {
         u.u_error = lookup_error;
         return NULL;
     }
     if (lookup_result != NULL)
         lookup_result->i_flag |= ILOCKED;
+    if ((mkdir_active || regular_create_active) && lookup_result == NULL) {
+        mkdir_parent_inode.i_flag |= ILOCKED;
+        name->ni_pdir = &mkdir_parent_inode;
+    }
     name->ni_ip = lookup_result;
     return lookup_result;
 }
@@ -875,6 +948,8 @@ ino_lock(struct file *file, int operation)
 {
     HK_CHECK(file == &allocated_file);
     HK_CHECK(operation != 0);
+    if (expected_namei_policy & NI_BENEATH)
+        check_namespace_released();
     advisory_lock_calls++;
     return advisory_lock_error;
 }
@@ -882,10 +957,20 @@ ino_lock(struct file *file, int operation)
 struct inode *
 maknode(int mode, struct nameidata *name)
 {
-    (void)mode;
-    (void)name;
-    HK_CHECK(0);
-    return NULL;
+    HK_CHECK(regular_create_active);
+    HK_CHECK(namespace_is_owned());
+    HK_CHECK(name->ni_pdir == &mkdir_parent_inode);
+    regular_creation_calls++;
+    if (regular_creation_error != 0) {
+        u.u_error = regular_creation_error;
+        iput_openat(&mkdir_parent_inode);
+        return NULL;
+    }
+    descriptor_inode.i_mode = IFREG | (mode & 0777);
+    descriptor_inode.i_flag |= ILOCKED;
+    name->ni_ip = &descriptor_inode;
+    iput_openat(&mkdir_parent_inode);
+    return &descriptor_inode;
 }
 
 void
@@ -900,7 +985,10 @@ itrunc(struct inode *inode, off_t length, int flags)
 int
 openi(struct inode *inode, int mode)
 {
-    HK_CHECK(inode == lookup_result);
+    HK_CHECK(inode == lookup_result ||
+        (regular_create_active && inode == &descriptor_inode));
+    if (expected_namei_policy & NI_BENEATH)
+        check_namespace_released();
     open_inode_calls++;
     open_inode_mode = mode;
     return open_inode_error;
@@ -924,6 +1012,7 @@ reset_open_fixture(void)
     expected_path = NULL;
     expected_lookup_operation = LOOKUP;
     expected_lookup_modifiers = FOLLOW;
+    expected_namei_policy = 0;
     lookup_calls = 0;
     lookup_error = 0;
     allocation_calls = 0;
@@ -937,19 +1026,48 @@ reset_open_fixture(void)
     jump_result = 0;
     advisory_lock_calls = 0;
     advisory_lock_error = 0;
+    mkdir_parent_inode = (struct inode){
+        .i_count = 1,
+        .i_mode = IFDIR | 0755,
+        .i_nlink = 2,
+        .i_gid = 44,
+        .i_number = 7,
+    };
+    mkdir_created_inode = (struct inode){
+        .i_count = 1,
+        .i_number = 42,
+    };
+    mkdir_active = 0;
+    regular_create_active = 0;
+    inode_allocation_calls = 0;
+    inode_allocation_error = 0;
+    inode_update_calls = 0;
+    directory_initialization_calls = 0;
+    directory_initialization_error = 0;
+    directory_entry_calls = 0;
+    directory_entry_error = 0;
+    regular_creation_calls = 0;
+    regular_creation_error = 0;
     lock_calls = 0;
     unlock_calls = 0;
     access_calls = 0;
     access_mode = 0;
     access_error = 0;
+    namespace_probe = 0;
+    namespace_wait_error = 0;
 }
 
 void
 iput_openat(struct inode *inode)
 {
-    HK_CHECK(inode == lookup_result);
+    HK_CHECK(inode == lookup_result ||
+        (regular_create_active && inode == &mkdir_parent_inode) ||
+        (mkdir_active && (inode == &mkdir_parent_inode ||
+        inode == &mkdir_created_inode)));
     HK_CHECK((inode->i_flag & ILOCKED) != 0);
     inode->i_flag &= ~ILOCKED;
+    if (mkdir_active || regular_create_active)
+        inode->i_count--;
     inode_put_calls++;
 }
 
@@ -968,7 +1086,56 @@ call_openat(int descriptor, char *path, int flags, int mode)
     copy_bytes((caddr_t)u.u_arg, (caddr_t)&arguments, sizeof(arguments));
     expected_directory_descriptor = descriptor;
     expected_path = path;
+    expected_namei_policy = NI_NOEMPTY;
     kernel_openat();
+}
+
+static void
+call_openat_beneath(int descriptor, char *path, int flags, int mode)
+{
+    struct {
+        int rootfd;
+        char *path;
+        int flags;
+        int mode;
+    } arguments = { descriptor, path, flags, mode };
+
+    _Static_assert(sizeof(arguments) == sizeof(int) * 4,
+        "openat_beneath syscall arguments must occupy four words");
+    copy_bytes((caddr_t)u.u_arg, (caddr_t)&arguments, sizeof(arguments));
+    expected_directory_descriptor = descriptor;
+    expected_path = path;
+    expected_namei_policy = NI_NOEMPTY | NI_BENEATH;
+    if (flags & O_CREAT) {
+        expected_lookup_operation = CREATE;
+        expected_lookup_modifiers =
+            (flags & (O_EXCL | O_NOFOLLOW)) ? NOFOLLOW : FOLLOW;
+        regular_create_active = 1;
+    }
+    kernel_openat_beneath();
+    regular_create_active = 0;
+}
+
+static void
+call_mkdirat_beneath(int descriptor, char *path, int mode)
+{
+    struct {
+        int rootfd;
+        char *path;
+        int mode;
+    } arguments = { descriptor, path, mode };
+
+    _Static_assert(sizeof(arguments) == sizeof(int) * 3,
+        "mkdirat_beneath syscall arguments must occupy three words");
+    copy_bytes((caddr_t)u.u_arg, (caddr_t)&arguments, sizeof(arguments));
+    expected_directory_descriptor = descriptor;
+    expected_path = path;
+    expected_lookup_operation = CREATE;
+    expected_lookup_modifiers = NOFOLLOW;
+    expected_namei_policy = NI_NOEMPTY | NI_BENEATH;
+    mkdir_active = 1;
+    kernel_mkdirat_beneath();
+    mkdir_active = 0;
 }
 
 static void
@@ -1102,6 +1269,149 @@ truncate_and_lock_failures_preserve_cleanup(void)
     HK_CHECK(u.u_ofile[3] == NULL);
 }
 
+static void
+rooted_open_holds_and_releases_namespace_serialization(void)
+{
+    char relative[] = "leaf";
+
+    reset_open_fixture();
+    call_openat_beneath(7, relative, O_RDONLY, 0);
+    HK_CHECK(u.u_error == 0 && u.u_rval == 3);
+    HK_CHECK(lookup_calls == 1 && open_inode_calls == 1);
+    check_namespace_released();
+
+    reset_open_fixture();
+    HK_CHECK(ufs_namespace_enter() == 0);
+    namespace_wait_error = ERESTART;
+    call_openat_beneath(7, relative, O_RDONLY, 0);
+    HK_CHECK(u.u_error == ERESTART);
+    HK_CHECK(allocation_calls == 0 && lookup_calls == 0);
+    HK_CHECK(namespace_is_owned());
+    ufs_namespace_exit();
+    check_namespace_released();
+}
+
+static void
+rooted_exclusive_create_owns_the_new_inode_until_open(void)
+{
+    char relative[] = "directory/stage";
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    call_openat_beneath(7, relative,
+        O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    HK_CHECK(u.u_error == 0 && u.u_rval == 3);
+    HK_CHECK(lookup_calls == 1);
+    HK_CHECK(regular_creation_calls == 1);
+    HK_CHECK(allocated_file.f_data == (caddr_t)&descriptor_inode);
+    HK_CHECK((descriptor_inode.i_mode & (IFMT | 0777)) == (IFREG | 0600));
+    HK_CHECK(open_inode_calls == 1);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    check_namespace_released();
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    regular_creation_error = ENOSPC;
+    call_openat_beneath(7, relative,
+        O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    HK_CHECK(u.u_error == ENOSPC);
+    HK_CHECK(regular_creation_calls == 1);
+    HK_CHECK(open_inode_calls == 0);
+    HK_CHECK(allocated_file.f_count == 0);
+    HK_CHECK(u.u_ofile[3] == NULL);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    check_namespace_released();
+}
+
+static void
+rooted_mkdir_initializes_and_publishes_under_serialization(void)
+{
+    char relative[] = "directory";
+
+    reset_open_fixture();
+    u.u_uid = 33;
+    u.u_cmask = 0022;
+    lookup_result = NULL;
+    call_mkdirat_beneath(7, relative, 0777);
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(lookup_calls == 1);
+    HK_CHECK(inode_allocation_calls == 1);
+    HK_CHECK(inode_update_calls == 2);
+    HK_CHECK(directory_initialization_calls == 1);
+    HK_CHECK(directory_entry_calls == 1);
+    HK_CHECK(mkdir_created_inode.i_mode == (IFDIR | 0755));
+    HK_CHECK(mkdir_created_inode.i_nlink == 2);
+    HK_CHECK(mkdir_created_inode.i_uid == 33);
+    HK_CHECK(mkdir_created_inode.i_gid == 44);
+    HK_CHECK(mkdir_created_inode.i_size == DIRBLKSIZ);
+    HK_CHECK(mkdir_parent_inode.i_nlink == 3);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    HK_CHECK(mkdir_created_inode.i_count == 0);
+    check_namespace_released();
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    directory_entry_error = EIO;
+    call_mkdirat_beneath(7, relative, 0755);
+    HK_CHECK(u.u_error == EIO);
+    HK_CHECK(directory_initialization_calls == 1);
+    HK_CHECK(directory_entry_calls == 1);
+    HK_CHECK(mkdir_parent_inode.i_nlink == 2);
+    HK_CHECK(mkdir_created_inode.i_nlink == 0);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    HK_CHECK(mkdir_created_inode.i_count == 0);
+    check_namespace_released();
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    directory_entry_error = ENOSPC;
+    call_mkdirat_beneath(7, relative, 0755);
+    HK_CHECK(u.u_error == ENOSPC);
+    HK_CHECK(directory_initialization_calls == 1);
+    HK_CHECK(directory_entry_calls == 1);
+    HK_CHECK(mkdir_parent_inode.i_nlink == 2);
+    HK_CHECK(mkdir_created_inode.i_nlink == 0);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    HK_CHECK(mkdir_created_inode.i_count == 0);
+    check_namespace_released();
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    HK_CHECK(ufs_namespace_enter() == 0);
+    namespace_wait_error = ERESTART;
+    call_mkdirat_beneath(7, relative, 0755);
+    HK_CHECK(u.u_error == ERESTART);
+    HK_CHECK(lookup_calls == 0 && inode_allocation_calls == 0);
+    HK_CHECK(namespace_is_owned());
+    ufs_namespace_exit();
+    check_namespace_released();
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    inode_allocation_error = ENOSPC;
+    call_mkdirat_beneath(7, relative, 0755);
+    HK_CHECK(u.u_error == ENOSPC);
+    HK_CHECK(inode_allocation_calls == 1);
+    HK_CHECK(directory_initialization_calls == 0);
+    HK_CHECK(directory_entry_calls == 0);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    check_namespace_released();
+
+    reset_open_fixture();
+    lookup_result = NULL;
+    directory_initialization_error = EIO;
+    call_mkdirat_beneath(7, relative, 0755);
+    HK_CHECK(u.u_error == EIO);
+    HK_CHECK(inode_allocation_calls == 1);
+    HK_CHECK(directory_initialization_calls == 1);
+    HK_CHECK(directory_entry_calls == 0);
+    HK_CHECK(mkdir_parent_inode.i_nlink == 2);
+    HK_CHECK(mkdir_created_inode.i_nlink == 0);
+    HK_CHECK(mkdir_parent_inode.i_count == 0);
+    HK_CHECK(mkdir_created_inode.i_count == 0);
+    check_namespace_released();
+}
+
 int
 main(void)
 {
@@ -1110,6 +1420,9 @@ main(void)
     search_open_grants_only_directory_search();
     failures_release_allocated_descriptor_and_inode();
     truncate_and_lock_failures_preserve_cleanup();
+    rooted_open_holds_and_releases_namespace_serialization();
+    rooted_exclusive_create_owns_the_new_inode_until_open();
+    rooted_mkdir_initializes_and_publishes_under_serialization();
     return hk_verdict("directory-relative open contract");
 }
 

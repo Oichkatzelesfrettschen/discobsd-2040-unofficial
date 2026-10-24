@@ -53,7 +53,8 @@ __sysctl accept access adjtime bind chdir chflags chmod chown chroot close
 connect dup dup2 execve fchdir fchflags fchmod fchown fcntl flock fork fstat
 fsync ftruncate getdtablesize getgroups getitimer getsockname getpeername
 getpriority getrlimit getrusage getsockopt gettimeofday ioctl kill killpg
-link listen lstat mkdir mknod mount open openat pselect quota read readlink readv
+link listen lstat mkdir mkdirat_beneath mknod mount open openat openat_beneath
+pselect quota read readlink readv
 reboot recv recvfrom recvmsg rename rmdir select send sendmsg sendto
 setgroups setitimer setpgrp setpriority setquota setuid seteuid setgid
 setegid setrlimit setsockopt settimeofday shutdown sigaltstack socket

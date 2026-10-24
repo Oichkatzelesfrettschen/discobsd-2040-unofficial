@@ -128,6 +128,7 @@ int     close (int fd);
 int     dup (int oldfd);
 int     dup2 (int oldfd, int newfd);
 int     unlink (const char *pathname);
+int     mkdirat_beneath (int rootfd, const char *path, mode_t mode);
 int     unlinkat_beneath (int rootfd, const char *path, int expected_fd);
 int     publishat_beneath (int rootfd, const char *staged_path, int staged_fd,
             const char *target_path, int target_fd);

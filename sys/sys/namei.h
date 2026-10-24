@@ -141,7 +141,8 @@ void nchinit (void);
  * Common code for vnode open operations.
  */
 int vn_open (struct nameidata *ndp, int fmode, int cmode);
-int vn_open_at (struct nameidata *ndp, int fmode, int cmode, int dirfd);
+int vn_open_at (struct nameidata *ndp, int fmode, int cmode, int dirfd,
+    int *namespace_owned);
 
 /*
  * Write a directory entry after a call to namei.

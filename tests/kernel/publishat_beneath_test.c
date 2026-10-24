@@ -176,11 +176,17 @@ namei_at(struct nameidata *name_data, int root_descriptor)
         return return_lookup(name_data, destination_parent,
             destination_lookup_inode, destination_lookup_error);
     }
-    HK_CHECK(lookup_index == 3);
-    HK_CHECK(operation == DELETE);
-    HK_CHECK(hk_streq(name_data->ni_dirp, "stage"));
-    return return_lookup(name_data, &root_inode, cleanup_lookup_inode,
-        cleanup_lookup_error);
+    if (lookup_index == 3) {
+        HK_CHECK(operation == DELETE);
+        HK_CHECK(hk_streq(name_data->ni_dirp, "stage"));
+        return return_lookup(name_data, &root_inode, cleanup_lookup_inode,
+            cleanup_lookup_error);
+    }
+    HK_CHECK(lookup_index == 4);
+    HK_CHECK(operation == CREATE);
+    HK_CHECK(hk_streq(name_data->ni_dirp, "target"));
+    return return_lookup(name_data, destination_parent,
+        destination_lookup_inode, destination_lookup_error);
 }
 
 int
@@ -436,21 +442,23 @@ write_and_cleanup_failures_preserve_link_accounting(void)
     directory_write_error = EIO;
     call_publishat(STAGED_DESCRIPTOR, -1);
     HK_CHECK(u.u_error == EIO);
-    HK_CHECK(staged_inode.i_nlink == 1);
-    HK_CHECK(remove_calls == 0);
+    HK_CHECK(staged_inode.i_nlink == 0);
+    HK_CHECK(remove_calls == 1);
 
     reset_fixture();
     directory_remove_error = EIO;
     call_publishat(STAGED_DESCRIPTOR, -1);
     HK_CHECK(u.u_error == EIO);
-    HK_CHECK(staged_inode.i_nlink == 2);
+    HK_CHECK(enter_calls == 0);
+    HK_CHECK(staged_inode.i_nlink == 1);
     HK_CHECK(remove_calls == 1);
 
     reset_fixture();
     cleanup_lookup_inode = &replacement_inode;
     call_publishat(STAGED_DESCRIPTOR, -1);
-    HK_CHECK(u.u_error == 0);
-    HK_CHECK(staged_inode.i_nlink == 2);
+    HK_CHECK(u.u_error == ESTALE);
+    HK_CHECK(enter_calls == 0);
+    HK_CHECK(staged_inode.i_nlink == 1);
     HK_CHECK(replacement_inode.i_nlink == 1);
 }
 

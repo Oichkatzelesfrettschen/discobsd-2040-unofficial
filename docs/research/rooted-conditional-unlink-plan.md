@@ -151,9 +151,12 @@ not establish kernel atomicity.
    The denominator delta contains the four kernel fixtures and the cpio shim
    source/header as one six-path accepted test mechanism.  Existing Linux and
    macOS `check-host` jobs own the two registered cpio execution variants.
-9. [ ] Run focused strict-C17, GNU17, ILP32, ABI, Smaller C, cpio, mutation,
+9. [x] Run focused strict-C17, GNU17, ILP32, ABI, Smaller C, cpio, mutation,
    and generated-file gates.  Rebuild every public-header and libc consumer
    from a clean tree.
+   The exact PICO/PICO_UART production compiles, focused 32-bit fixtures,
+   generated metadata, 19-program Smaller C suite, damaged-archive control,
+   strict-C17 cpio suites, and clean libc/cpio target rebuilds pass.
 10. [ ] Compare clean parent and candidate distributions for PICO and PICO_UART.
     Record kernel flash and SRAM, affected object and frame sizes, cpio a.out
     occupancy, libc archive selection, packed-root bytes and blocks, and the

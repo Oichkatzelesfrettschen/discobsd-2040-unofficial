@@ -45,6 +45,12 @@ static int found_pid;
 static unsigned int pfind_calls;
 static unsigned int setrun_calls;
 
+static size_t
+user_storage_offset(u_int address)
+{
+	return (size_t)(address - USER_LOWER);
+}
+
 int
 baduaddr_span(caddr_t address, u_int nbytes)
 {
@@ -73,10 +79,10 @@ copyin(const caddr_t from, caddr_t to, u_int nbytes)
 	if (copied > nbytes)
 		copied = nbytes;
 	if (copied != 0)
-		bcopy(user_storage + start - USER_LOWER, to, copied);
+		bcopy(user_storage + user_storage_offset(start), to, copied);
 	if (copyin_error != 0)
 		return copyin_error;
-	bcopy(user_storage + start - USER_LOWER, to, nbytes);
+	bcopy(user_storage + user_storage_offset(start), to, nbytes);
 	return 0;
 }
 
@@ -90,7 +96,7 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 		return copyout_error;
 	if (baduaddr_span(to, nbytes))
 		return EFAULT;
-	bcopy(from, user_storage + start - USER_LOWER, nbytes);
+	bcopy(from, user_storage + user_storage_offset(start), nbytes);
 	return 0;
 }
 
@@ -152,7 +158,7 @@ frame_offset(const u_int *word)
 static void
 store_user_int(u_int address, int value)
 {
-	bcopy(&value, user_storage + address - USER_LOWER, sizeof value);
+	bcopy(&value, user_storage + user_storage_offset(address), sizeof value);
 }
 
 static int
@@ -160,7 +166,7 @@ load_user_int(u_int address)
 {
 	int value;
 
-	bcopy(user_storage + address - USER_LOWER, &value, sizeof value);
+	bcopy(user_storage + user_storage_offset(address), &value, sizeof value);
 	return value;
 }
 

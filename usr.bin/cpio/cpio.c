@@ -48,6 +48,8 @@ _Static_assert(sizeof(struct cpio_header) == HEADER_SIZE,
     "odc header must remain 76 bytes");
 _Static_assert(CPIO_PATH_LIMIT <= MAXPATHLEN,
     "cpio path limit must fit the platform path limit");
+_Static_assert(CPIO_PATH_LIMIT <= BUFFER_SIZE,
+    "cpio staging path must fit the shared I/O buffer");
 
 static char archive_path[CPIO_PATH_LIMIT];
 static char io_buffer[BUFFER_SIZE];
@@ -57,6 +59,8 @@ static int table_flag;
 static void validate_archive_path(const char *name);
 static char *enter_parent_directories(int root_descriptor,
     int create_missing);
+
+#define STAGING_ATTEMPTS 62U
 
 static _Noreturn void
 fatal_message(const char *message)
@@ -391,15 +395,97 @@ enter_parent_directories(int root_descriptor, int create_missing)
     return component;
 }
 
-static int
-create_output_file(const char *leaf_name, mode_t mode)
+static void
+open_rooted_directory(int root_descriptor, const char *path,
+    mode_t creation_mode)
 {
-    int descriptor = open(leaf_name, O_WRONLY | O_CREAT | O_EXCL,
-        mode & 0777);
+    mode_t directory_mode;
+    mode_t creation_mask;
+    int directory_descriptor;
+    int mkdir_error;
 
-    if (descriptor < 0)
-        fatal_path("create new output", archive_path);
-    return descriptor;
+    creation_mask = umask(0);
+    directory_mode = ((creation_mode & 0777) & ~creation_mask) | S_IRWXU;
+    if (mkdirat_beneath(root_descriptor, path, directory_mode) == 0) {
+        mkdir_error = 0;
+    } else {
+        mkdir_error = errno;
+    }
+    (void)umask(creation_mask);
+    if (mkdir_error != 0 && mkdir_error != EEXIST) {
+        errno = mkdir_error;
+        fatal_path("mkdir", archive_path);
+    }
+    directory_descriptor = openat_beneath(root_descriptor, path,
+        O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    if (directory_descriptor < 0)
+        fatal_path("open directory", archive_path);
+    if (close(directory_descriptor) < 0)
+        fatal_path("close directory", archive_path);
+}
+
+static void
+create_parent_directories(int root_descriptor)
+{
+    const char *cursor;
+
+    for (cursor = archive_path; *cursor != '\0'; cursor++) {
+        size_t prefix_length;
+
+        if (*cursor != '/')
+            continue;
+        prefix_length = (size_t)(cursor - archive_path);
+        memcpy(io_buffer, archive_path, prefix_length);
+        io_buffer[prefix_length] = '\0';
+        open_rooted_directory(root_descriptor, io_buffer, 0777);
+    }
+}
+
+static void
+make_staging_path(unsigned attempt)
+{
+    static const char alphabet[] =
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    const char *target_leaf = strrchr(archive_path, '/');
+    char *staged_leaf;
+    size_t leaf_length;
+    size_t path_length = strlen(archive_path);
+    size_t position;
+
+    target_leaf = target_leaf == NULL ? archive_path : target_leaf + 1;
+    memcpy(io_buffer, archive_path, path_length + 1);
+    staged_leaf = io_buffer + (target_leaf - archive_path);
+    leaf_length = strlen(target_leaf);
+    memset(staged_leaf, alphabet[0], leaf_length);
+    for (position = leaf_length; position > 0 && attempt > 0; position--) {
+        staged_leaf[position - 1] = alphabet[attempt % STAGING_ATTEMPTS];
+        attempt /= STAGING_ATTEMPTS;
+    }
+}
+
+static int
+create_staged_output(int root_descriptor, mode_t mode,
+    unsigned *chosen_attempt)
+{
+    unsigned attempt;
+
+    for (attempt = 0; attempt < STAGING_ATTEMPTS; attempt++) {
+        int descriptor;
+
+        make_staging_path(attempt);
+        if (strcmp(io_buffer, archive_path) == 0)
+            continue;
+        descriptor = openat_beneath(root_descriptor, io_buffer,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode & 0777);
+        if (descriptor >= 0) {
+            *chosen_attempt = attempt;
+            return descriptor;
+        }
+        if (errno != EEXIST && errno != ELOOP)
+            fatal_path("create staged output", archive_path);
+    }
+    errno = EEXIST;
+    fatal_path("allocate staged output", archive_path);
 }
 
 static void
@@ -410,25 +496,26 @@ report_cleanup_error(const char *operation, const char *path, int error)
 }
 
 static void
-remove_incomplete_output(int root_descriptor, const char *path,
+remove_incomplete_output(int root_descriptor, unsigned staging_attempt,
     int output_descriptor)
 {
     int remove_error = 0;
     int close_error = 0;
 
-    if (unlinkat_beneath(root_descriptor, path, output_descriptor) < 0)
+    make_staging_path(staging_attempt);
+    if (unlinkat_beneath(root_descriptor, io_buffer, output_descriptor) < 0)
         remove_error = errno;
     if (close(output_descriptor) < 0)
         close_error = errno;
     if (remove_error != 0)
-        report_cleanup_error("remove", path, remove_error);
+        report_cleanup_error("remove", io_buffer, remove_error);
     if (close_error != 0)
-        report_cleanup_error("close", path, close_error);
+        report_cleanup_error("close", archive_path, close_error);
 }
 
 static void
 copy_archive_data(unsigned long file_size, int root_descriptor,
-    int output_descriptor)
+    int output_descriptor, unsigned staging_attempt)
 {
     unsigned long remaining = file_size;
 
@@ -439,7 +526,7 @@ copy_archive_data(unsigned long file_size, int root_descriptor,
 
         if (received != requested) {
             if (output_descriptor >= 0)
-                remove_incomplete_output(root_descriptor, archive_path,
+                remove_incomplete_output(root_descriptor, staging_attempt,
                     output_descriptor);
             fatal_message("truncated file data");
         }
@@ -447,7 +534,7 @@ copy_archive_data(unsigned long file_size, int root_descriptor,
             write_all(output_descriptor, io_buffer, received) < 0) {
             int saved_errno = errno;
 
-            remove_incomplete_output(root_descriptor, archive_path,
+            remove_incomplete_output(root_descriptor, staging_attempt,
                 output_descriptor);
             errno = saved_errno;
             fatal_path("write output", archive_path);
@@ -471,9 +558,9 @@ copy_in(void)
         unsigned long name_size;
         unsigned long file_size;
         unsigned long mode_value;
+        unsigned staging_attempt = 0;
         size_t header_bytes = read_full(STDIN_FILENO, &header,
             sizeof(header));
-        char *leaf_name;
         int output_descriptor = -1;
 
         if (header_bytes == 0)
@@ -517,22 +604,33 @@ copy_in(void)
         if (table_flag) {
             printf("%s\n", archive_path);
         } else {
-            leaf_name = enter_parent_directories(root_descriptor, 1);
+            create_parent_directories(root_descriptor);
             if (S_ISDIR((mode_t)mode_value)) {
-                open_verified_directory(leaf_name,
-                    (mode_t)mode_value & 07777, 0, 1);
+                open_rooted_directory(root_descriptor, archive_path,
+                    (mode_t)mode_value & 07777);
             } else {
-                output_descriptor = create_output_file(leaf_name,
-                    (mode_t)mode_value);
+                output_descriptor = create_staged_output(root_descriptor,
+                    (mode_t)mode_value, &staging_attempt);
             }
             if (verbose_flag)
                 fprintf(stderr, "%s\n", archive_path);
         }
-        leaf_name = strrchr(archive_path, '/');
-        leaf_name = leaf_name == NULL ? archive_path : leaf_name + 1;
-        copy_archive_data(file_size, root_descriptor, output_descriptor);
-        if (output_descriptor >= 0 && close(output_descriptor) < 0)
-            fatal_path("close output", archive_path);
+        copy_archive_data(file_size, root_descriptor, output_descriptor,
+            staging_attempt);
+        if (output_descriptor >= 0) {
+            make_staging_path(staging_attempt);
+            if (publishat_beneath(root_descriptor, io_buffer,
+                output_descriptor, archive_path, -1) < 0) {
+                int saved_errno = errno;
+
+                remove_incomplete_output(root_descriptor, staging_attempt,
+                    output_descriptor);
+                errno = saved_errno;
+                fatal_path("publish output", archive_path);
+            }
+            if (close(output_descriptor) < 0)
+                fatal_path("close output", archive_path);
+        }
     }
 }
 

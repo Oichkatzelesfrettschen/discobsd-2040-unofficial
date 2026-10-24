@@ -159,3 +159,5 @@
 157|4|openat|ALWAYS|openat|openat=157
 158|3|unlinkat_beneath|ALWAYS|unlinkat_beneath|unlinkat_beneath=158
 159|5|publishat_beneath|ALWAYS|publishat_beneath|publishat_beneath=159
+160|4|openat_beneath|ALWAYS|openat_beneath|openat_beneath=160
+161|3|mkdirat_beneath|ALWAYS|mkdirat_beneath|mkdirat_beneath=161

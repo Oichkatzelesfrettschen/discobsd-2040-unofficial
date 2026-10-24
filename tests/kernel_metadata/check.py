@@ -61,8 +61,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
 
     syscall_master = "sys/kern/syscalls.master"
     syscall_records = records_text(source(syscall_master), syscall_master, 6)
-    if len(syscall_records) != 160:
-        raise CheckError("syscall master must contain slots 0 through 159")
+    if len(syscall_records) != 162:
+        raise CheckError("syscall master must contain slots 0 through 161")
     if syscall_records[23][2:5] != ["__sysctl", "ALWAYS", "__sysctl"]:
         raise CheckError("syscall 23 must remain __sysctl")
     if syscall_records[66][2] != "vfork":
@@ -90,6 +90,20 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     ]:
         raise CheckError(
             "syscall 159 must remain five-argument publishat_beneath"
+        )
+    if syscall_records[160] != [
+        "160", "4", "openat_beneath", "ALWAYS", "openat_beneath",
+        "openat_beneath=160",
+    ]:
+        raise CheckError(
+            "syscall 160 must remain four-argument openat_beneath"
+        )
+    if syscall_records[161] != [
+        "161", "3", "mkdirat_beneath", "ALWAYS", "mkdirat_beneath",
+        "mkdirat_beneath=161",
+    ]:
+        raise CheckError(
+            "syscall 161 must remain three-argument mkdirat_beneath"
         )
     public = source("include/syscall.h")
     generated_files = {
@@ -119,6 +133,18 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     ):
         raise CheckError(
             "SYS_publishat_beneath must retain its additive public number"
+        )
+    if not re.search(
+        r"^#define SYS_openat_beneath\s+160$", public, re.MULTILINE
+    ):
+        raise CheckError(
+            "SYS_openat_beneath must retain its additive public number"
+        )
+    if not re.search(
+        r"^#define SYS_mkdirat_beneath\s+161$", public, re.MULTILINE
+    ):
+        raise CheckError(
+            "SYS_mkdirat_beneath must retain its additive public number"
         )
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
@@ -256,6 +282,36 @@ def main() -> int:
                     "publishat_beneath=159",
                     "159|4|publishat_beneath|ALWAYS|publishat_beneath|"
                     "publishat_beneath=159",
+                    1,
+                )
+            },
+        ),
+    )
+    expect_bad(
+        "short openat_beneath argument record",
+        lambda: check_tree(
+            root,
+            {
+                syscall_path: syscall_source.replace(
+                    "160|4|openat_beneath|ALWAYS|openat_beneath|"
+                    "openat_beneath=160",
+                    "160|3|openat_beneath|ALWAYS|openat_beneath|"
+                    "openat_beneath=160",
+                    1,
+                )
+            },
+        ),
+    )
+    expect_bad(
+        "short mkdirat_beneath argument record",
+        lambda: check_tree(
+            root,
+            {
+                syscall_path: syscall_source.replace(
+                    "161|3|mkdirat_beneath|ALWAYS|mkdirat_beneath|"
+                    "mkdirat_beneath=161",
+                    "161|2|mkdirat_beneath|ALWAYS|mkdirat_beneath|"
+                    "mkdirat_beneath=161",
                     1,
                 )
             },

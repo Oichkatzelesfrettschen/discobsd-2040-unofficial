@@ -66,7 +66,7 @@
  */
 int
 vn_open_at(register struct nameidata *ndp, volatile int fmode, int cmode,
-    int dirfd)
+    int dirfd, int *namespace_owned)
 {
     register struct inode *ip;
     register int error;
@@ -152,6 +152,10 @@ vn_open_at(register struct nameidata *ndp, volatile int fmode, int cmode,
      * 2.11 returns the inode unlocked (for now).
      */
     iunlock(ip);        /* because namei returns a locked inode */
+    if (namespace_owned != NULL && *namespace_owned) {
+        ufs_namespace_exit();
+        *namespace_owned = 0;
+    }
     if (setjmp(&u.u_qsave)) {
         error = EINTR;  /* opens are not restarted after signals */
         goto lbad;
@@ -184,7 +188,7 @@ retuerr:
 int
 vn_open(register struct nameidata *ndp, int fmode, int cmode)
 {
-    return vn_open_at(ndp, fmode, cmode, AT_FDCWD);
+    return vn_open_at(ndp, fmode, cmode, AT_FDCWD, NULL);
 }
 
 /*

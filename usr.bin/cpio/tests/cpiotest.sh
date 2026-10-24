@@ -23,13 +23,22 @@ if [ $# -ge 1 ]; then
 	CPIO=$1
 else
 	CPIO=$work/cpio
-	${CC:-cc} -D_DEFAULT_SOURCE -DCPIO_PATH_LIMIT=256 -std=c17 -O1 \
+	common_flags="-D_DEFAULT_SOURCE -DCPIO_PATH_LIMIT=256 -std=c17 -O1 \
 	    -Wall -Wextra -Werror \
 	    -Wpedantic -Wstrict-prototypes -Wold-style-definition \
 	    -fno-omit-frame-pointer -fsanitize=address,undefined \
-	    -include "$srcdir/tests/cleanup_identity_shim.h" \
-	    -o "$CPIO" "$srcdir/cpio.c" \
+	    -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3"
+	# shellcheck disable=SC2086
+	${CC:-cc} $common_flags \
+	    -include "$srcdir/tests/cleanup_identity_interpose.h" \
+	    -c -o "$work/cpio.o" "$srcdir/cpio.c" ||
+	    fail "host compile of cpio.c"
+	# shellcheck disable=SC2086
+	${CC:-cc} $common_flags -c -o "$work/cpio-shim.o" \
 	    "$srcdir/tests/cleanup_identity_shim.c" ||
+	    fail "host compile of cpio cleanup shim"
+	${CC:-cc} -fno-omit-frame-pointer -fsanitize=address,undefined \
+	    -o "$CPIO" "$work/cpio.o" "$work/cpio-shim.o" ||
 	    fail "host build of cpio.c"
 fi
 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0

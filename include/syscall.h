@@ -138,7 +138,9 @@
 #define SYS_openat      157
 #define SYS_unlinkat_beneath 158
 #define SYS_publishat_beneath 159
+#define SYS_openat_beneath 160
+#define SYS_mkdirat_beneath 161
 
-#define SYS_MAXSYSCALL 160
+#define SYS_MAXSYSCALL 162
 
 #endif

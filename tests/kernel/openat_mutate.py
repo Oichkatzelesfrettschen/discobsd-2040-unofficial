@@ -71,6 +71,17 @@ def mutate(source: str, mutation: str) -> str:
             "",
             mutation,
         )
+    if mutation == "hold-namespace-during-open-provider":
+        return replace_once(
+            source,
+            """    if (namespace_owned != NULL && *namespace_owned) {
+        ufs_namespace_exit();
+        *namespace_owned = 0;
+    }
+""",
+            "    (void)namespace_owned;\n",
+            mutation,
+        )
     raise SystemExit(f"unknown mutation: {mutation}")
 
 

@@ -63,56 +63,65 @@ def mutate_function(function: str, mutation: str) -> str:
     if mutation == "skip-target-identity":
         return replace_once(
             function,
-            """        if (target_inode != expected_target) {
-            u.u_error = ESTALE;
-            goto release_target_lookup;
-        }
+            """    } else if (target_inode != expected_target) {
+        return ESTALE;
 """,
             "",
             mutation,
         )
     if mutation == "use-at-fdcwd":
-        count = function.count("namei_at(ndp, uap->rootfd)")
-        if count != 3:
+        count = function.count("uap->rootfd")
+        if count != 4:
             raise SystemExit(
-                f"{mutation}: expected three rooted lookups, found {count}"
+                f"{mutation}: expected four rooted lookups, found {count}"
             )
-        return function.replace(
-            "namei_at(ndp, uap->rootfd)", "namei_at(ndp, AT_FDCWD)"
-        )
+        return function.replace("uap->rootfd", "AT_FDCWD")
     if mutation == "release-before-publication":
         return replace_once(
             function,
             """    if (target_inode == NULL) {
-        error = direnter(expected_staged, ndp);
+        error = direnter(expected_staged, target_ndp);
 """,
             """    ufs_namespace_exit();
     if (target_inode == NULL) {
-        error = direnter(expected_staged, ndp);
+        error = direnter(expected_staged, target_ndp);
 """,
             mutation,
         )
     if mutation == "skip-same-parent":
         return replace_once(
             function,
-            """    if (target_parent != staged_parent) {
-        u.u_error = EXDEV;
-        goto release_target_lookup;
-    }
+            """    if (target_parent != staged_parent ||
+        INODE_DEVICE(target_parent) != INODE_DEVICE(expected_staged))
+        return EXDEV;
 """,
-            "",
+            """    (void)staged_parent;
+    if (INODE_DEVICE(target_parent) !=
+        INODE_DEVICE(expected_staged))
+        return EXDEV;
+""",
+            mutation,
+        )
+    if mutation == "publish-after-remove-error":
+        return replace_once(
+            function,
+            """    if (!dirremove(staged_ndp))
+        goto release_removal_lookup;
+""",
+            """    if (!dirremove(staged_ndp))
+        u.u_error = 0;
+""",
             mutation,
         )
     raise SystemExit(f"unknown mutation: {mutation}")
 
 
 def mutate(source: str, mutation: str) -> str:
-    signature = "void\npublishat_beneath(void)"
-    start = source.index(signature)
-    function = extract_function(source, signature, "publishat_beneath")
-    end = start + len(function)
-    mutated_function = mutate_function(function, mutation)
-    return source[:start] + mutated_function + source[end:]
+    functions = [
+        extract_function(source, signature, name)
+        for name, signature in FUNCTIONS
+    ]
+    return mutate_function("\n\n".join(functions), mutation)
 
 
 def main() -> None:
@@ -124,10 +133,6 @@ def main() -> None:
 
     source_bytes = arguments.source.read_bytes()
     mutated = mutate(source_bytes.decode("utf-8"), arguments.mutation)
-    functions = [
-        extract_function(mutated, signature, name)
-        for name, signature in FUNCTIONS
-    ]
     arguments.output.write_text(
         "/* Mutated from "
         + arguments.source.as_posix()
@@ -136,7 +141,7 @@ def main() -> None:
         + ". */\n"
         + INCLUDES
         + "#include <sys/fcntl.h>\n\n"
-        + "\n\n".join(functions)
+        + mutated
         + "\n",
         encoding="utf-8",
     )

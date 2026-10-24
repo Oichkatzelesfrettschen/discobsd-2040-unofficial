@@ -10,6 +10,10 @@ from pathlib import Path
 from unlinkat_beneath_extract import INCLUDES, extract_function
 
 FUNCTIONS = (
+    (
+        "publish_target_error",
+        "static int\npublish_target_error(struct inode *expected_staged,",
+    ),
     ("publishat_beneath", "void\npublishat_beneath(void)"),
     ("getinode", "struct inode *\ngetinode(int fdes)"),
 )

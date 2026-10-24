@@ -529,17 +529,17 @@ absent_target_uses_production_enter_and_remove(void)
 }
 
 static void
-failed_compacted_slot_write_preserves_the_stage(void)
+failed_target_write_leaves_both_names_absent(void)
 {
     reset_fixture();
     directory_buffer_write_error = EIO;
     call_publishat("stage", -1);
     HK_CHECK(u.u_error == EIO);
-    HK_CHECK(find_entry("stage") != NULL);
+    HK_CHECK(find_entry("stage") == NULL);
     HK_CHECK(find_entry("target") == NULL);
     HK_CHECK(directory_buffer_writes == 1);
-    HK_CHECK(directory_record_writes == 0);
-    HK_CHECK(staged_inode.i_nlink == 1);
+    HK_CHECK(directory_record_writes == 1);
+    HK_CHECK(staged_inode.i_nlink == 0);
     HK_CHECK(staged_inode.i_count == 1);
     HK_CHECK(root_inode.i_count == 1);
     check_namespace_released();
@@ -657,7 +657,7 @@ int
 main(void)
 {
     absent_target_uses_production_enter_and_remove();
-    failed_compacted_slot_write_preserves_the_stage();
+    failed_target_write_leaves_both_names_absent();
     existing_target_uses_production_rewrite_and_remove();
     restricted_paths_and_final_symlinks_precede_writes();
     competing_renames_are_observed_after_gate_handoff();

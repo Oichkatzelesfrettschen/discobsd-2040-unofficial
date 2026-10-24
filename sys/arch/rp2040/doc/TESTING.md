@@ -512,7 +512,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-dpucp-board-acceptance` | The retained physical-board record binds source and profile-contract commits, exact kernel and root UF2 identities, UF2 intervals, toolchain versions, the one approved flash execution, the by-id and resolved console identities, bounded runner settings, terminal receipt and transcript hashes, all thirteen observed cases, evidence-class attribution and residual uncertainty. Seventeen mutations reject schema, profile, evidence-class, source, surface-order, artifact, flash-count, host-path, runner-state, dropped-output, case-set, case-status, case-output, exact-case-command, Renode-promotion, residual and conformance-claim drift. The gate validates the checked-in record; it does not reopen the serial device, replay the external raw transcript, infer Renode execution, measure runtime stack or heap peaks, or close any complete POSIX requirement. |
 | `check-multicall-composition` | The cross graph separates each shared-product composition gate with `.WAIT`. The gate declares the root image after its symlink barrier, runs shell clean and link as separate recursive makes, cleans and sequentially relinks the seven RP2040 multicall boxes, and relinks `/bin/sh` through an optional link-map seam. It then checks seven box identities, 80 shipped multicall names, 84 total manifest hard links, 192 distinct retained libc archive members, per-consumer archive closure, retained `hsaout` rows for 71 primary standalone images and seven multicall images, and current `hsaout` output for all 78 artifacts. The retained toolchain measures 182 multicall blocks against 615 standalone blocks. A live run with the recorded ARM compiler, ARM linker, and bmake versions must reproduce every retained archive-member set, byte, block, and root counter. Another supported toolchain parses every live link map, rejects an empty archive-member set, reports per-consumer member additions and removals, and preserves positive per-box packed-block savings, fixed root geometry, root arithmetic, and free capacity while reporting that exact archive-member and byte replay is unavailable. Canonical base and candidate receipts bind terminal status, manifest identity and links, root-image identity, inode use, partition counters, and the exact zero-growth claim to their recorded toolchain. Nineteen document mutations reject conformance claims, denominator drift, duplicate boxes, missing applets, archive-count drift, impossible size fields, manifest-link drift, positive retained root growth, failed, missing, placeholder or mismatched receipts, source-identity drift, and Makefile membership drift. Dedicated live controls reject exact-mode byte drift, cross-toolchain loss of block savings, exact-mode root drift, changed partition geometry, exact-mode archive-member drift, an empty cross-toolchain archive-member set, and ARM linker-version drift. Four Makefile structure controls reject concurrent composition gates, concurrent shell clean/link goals, stale multicall maps, and an undeclared root-image input. The measured `/usr/bin/logname` hard link changes the root from 83 to 84 links while files, data blocks, and free blocks remain unchanged. The gate establishes static composition and packed-image accounting; it does not establish runtime stack or heap peaks, packed-root execution, Renode behavior, or physical-board behavior. |
 | `check-dpucp-donor-ledger` | The DPUCP-2024 donor verifier checks the pinned revisions and origins for eight local BSD research trees and each source repository, path, SHA-256, license, behavior, invariants, algorithm, dependency closure, C-language boundary, C17 rewrite, expected archive members, size surfaces, disposition and deciding gate for 11 selected mechanisms. The shell, utility-printf and recovery utility growth exception records bind exact kernel, process-window, executable-composition, archive-member inventory, a.out header arithmetic and packed-root arithmetic to machine-readable evidence; runtime peak stack and heap remain unmeasured, and independent approval remains mandatory before merge. The process-control and timeout records bind source hashes to retained Git commits and report live drift separately; seven retained-source controls reject changed digests, unavailable objects and unsafe or ambiguous identities while preserving historical records after live edits. The process-control prerequisite record binds source hashes, supervised terminal receipts, both kernel variants, retained parent and candidate rows for every OMAGIC program, full and reduced libc payloads, and packed-root arithmetic without promoting timeout; eight process-control measurement mutations reject kernel-delta, summary-only program comparison, placeholder program and receipt digests, one changed program field, root arithmetic, archive-payload drift and blank full-ELF digests. The recovery record also binds map and binary identities, the target-native link-map seam, static realpath frame classification and the rejected standalone composition. The printf calibration mutates utilbox arithmetic, a.out size, archive-member count, root accounting, and shipped-form selection; six recovery mutations reject textbox arithmetic, a.out size, root accounting, shipped-form, archive-count and dynamic-stack drift. The donor-ledger suite requires its documented mutation count to match the executed controls; 24 mutations reject candidate-set, requirement-binding, provenance, path, hash, license, semantic-field, archive-expectation, size-state, size-evidence, decision and conformance-claim drift. The normal host gate validates the committed ledger without requiring the external research workspace. An explicit `${PYTHON} tools/check_dpucp_donor_ledger.py --workspace "${BSD_WORKSPACE}"` additionally reads each file from its pinned Git object and verifies its SHA-256; that caller-selected workspace check is research evidence and stays outside CI. Promotion closes no complete DPUCP row and makes no POSIX or UNIX conformance claim. |
-| `check-c17-source-denominator` | The schema-2 ledger accounts for every tracked C and header path exactly once and records a deterministic source kind, build surface, required language mode, extension policy, risk family, separate risk tier and seven lexical hazard-candidate families. Macro replacement tokens participate in discovery while comments and literals remain blank. Twenty-one calibrated failures reject missing, duplicate, unsafe, unknown, unwitnessed, fabricated, source-drift, stale-count-report, closure-bootstrap, invalid-refresh, temporary-write and replacement-failure states; each rejected mutation preserves the destination bytes. The 543 excluded rows retain exact quarantine hashes. The ledger records 88 accepted, 57 migration-open and 1,932 unreviewed rows; both open states retain their deciding migration units. A candidate-free lexical result is discovery evidence rather than semantic clearance. |
+| `check-c17-source-denominator` | The schema-2 ledger accounts for every tracked C and header path exactly once and records a deterministic source kind, build surface, required language mode, extension policy, risk family, separate risk tier and seven lexical hazard-candidate families. Macro replacement tokens participate in discovery while comments and literals remain blank. Twenty-one calibrated failures reject missing, duplicate, unsafe, unknown, unwitnessed, fabricated, source-drift, stale-count-report, closure-bootstrap, invalid-refresh, temporary-write and replacement-failure states; each rejected mutation preserves the destination bytes. The 543 excluded rows retain exact quarantine hashes. The ledger records 90 accepted, 58 migration-open and 1,931 unreviewed rows; both open states retain their deciding migration units. A candidate-free lexical result is discovery evidence rather than semantic clearance. |
 | `check-c17-compile-profiles` | The existing case-folding mechanism compiles with strict C17 and warnings as errors on the host and with `-std=c17 -pedantic-errors` for Cortex-M0+, where a target-only GNU statement expression calibrates rejection. Both complete kernels then compile and link with their generated GNU17 freestanding PICO and PICO_UART commands. The target composes compiler evidence and changes no classification state. `check-c17-smaller-c` runs the native compiler suite separately; its result establishes neither ISO C17 acceptance nor the production kernel build. |
 | `check-aout` | sys/sys/exec_aout.h's midmag macros and the layout check exec runs before committing to an image |
 | `check-fs-stress` | tools/fsutil, the host filesystem library every root image is built with: files across each indirection boundary, a free list fragmented by out-of-order deletes, a volume filled until it refuses, and the tree's own checker required to report nothing after each round |
@@ -579,7 +579,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-tar-host`: bin/tar/tests/timestamp_identity_test.sh | The exact tar source compiles under strict C17 warnings with timestamp calls interposed. Immediately before timestamp publication, the fixture renames an extracted regular file or verified directory and creates a same-kind replacement at the original pathname. The moved descriptor-owned object must receive the archive timestamp while the replacement retains its timestamp and file contents. A warning-clean source mutation restores pathname `utimes(2)` and must fail because the moved object did not receive the timestamp. The gate establishes the two scheduled replacement cases; remaining create, link, removal, parent-relocation, persistence, and board behavior retain separate contracts. |
 | usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils, and getline_test over the tree's own getline.c: buffer ownership after a refused growth, the byte that did not fit pushed back, the bytes before a stream error terminated, and the capacity policy held at SSIZE_MAX + 1 at the host width and at -m32 |
 | usr.bin/cpio/tests/cpiotest.sh | the exact cpio source built as strict C17 under the address and undefined-behavior sanitizers with the target's 256-byte path limit: odc archives round-tripped in both directions through host cpio; exact octal fields, one trailing name terminator and the mandatory trailer; the 255-byte maximum input name with newline and EOF delimiters; refusal of 256-byte and NUL-bearing input records; listing from an execute-only current directory; refusal of absolute, `..`, empty and dot path components, control-byte listings, symlinked extraction parents and targets, existing targets, directory data, unsupported types, and final or parent symlinks plus absolute or missing archive-creation inputs; setuid and setgid removal; owner traversal retained under `umask 0777` for a created directory before a later child. The pre-change source fails the same gate by accepting the absolute escape archive; review head `468b2c2327ce2a5a098e139744d7c22030fb728a` fails all four added boundary controls. |
-| `check-cpio-host`: usr.bin/cpio/tests/cleanup_identity_test.sh | The exact cpio source compiles under strict C17 warnings with the additive rooted-removal call plus output write and close calls interposed. Truncated input and an injected `ENOSPC` remove the incomplete descriptor-owned regular file before closing it. A scheduled same-name replacement arrives before cleanup; the identity mismatch preserves its bytes, reports the cleanup failure separately and retains the write error as the primary failure. An injected close error occurs after the shim consumes the descriptor and must preserve the completed pathname. Warning-clean mutations pass an invalid expected descriptor, restore pathname `unlink(2)`, or restore post-close pathname cleanup; the first must leave the owned incomplete output behind, the second must delete the replacement, and the third must delete the completed output. The host shim establishes the utility protocol after deterministic replacement and close events. `kernel.unlinkat-beneath.ilp32` separately establishes comparison and mutation under the production parent lock. The execution inventory records `cpio.archive.native` and `cpio.cleanup.native`; `check-ilp32-execution-recipes` requires their root target, while `check-host` reaches the same target through `HOST_PROGRAM_GATES`. The Linux and macOS firmware jobs own `check-host`. Neither host case establishes unscheduled host-filesystem atomicity, crash recovery, persistence or board behavior. |
+| `check-cpio-host`: usr.bin/cpio/tests/cleanup_identity_test.sh | The exact cpio source compiles under strict C17 warnings, address and undefined-behavior sanitizers, and `_FORTIFY_SOURCE=3`. Post-system-header interposition covers rooted open, directory creation, conditional removal, publication, output write, and close. Truncated input and injected `ENOSPC` remove only the incomplete descriptor-owned stage; a replacement during failed cleanup survives while the write error remains primary. Scheduled ancestor relocation before directory creation, staged creation, and publication cannot move a mutation outside the retained extraction root. Scheduled foreign target and staged-file replacements prevent publication and retain their bytes. A replacement after directory creation retains its own mode, and a preexisting staging-name symbolic link survives while extraction advances to the next candidate. An injected close error preserves the completed target. Explicit traces reject a fortified-wrapper bypass before the filesystem oracle can report success. Seven warning-clean source mutations cover cleanup identity, direct final-name creation, process-current-directory traversal, pathname-based directory chmod, and premature failure on a staging symbolic link; each fails its named filesystem assertion. A separate interposition mutation reproduces false success while its missing trace is detected. `kernel.unlinkat-beneath.ilp32`, `kernel.publishat-beneath.ilp32`, and the rooted open/mkdir fixtures separately establish comparison and mutation under production UFS namespace serialization. The execution inventory records `cpio.archive.native` and `cpio.cleanup.native`; `check-ilp32-execution-recipes` requires their root target, while `check-host` reaches the same target through `HOST_PROGRAM_GATES`. The Linux and macOS firmware jobs own `check-host`. The host schedules establish the named transitions rather than unscheduled host-filesystem atomicity, crash recovery, persistence, or board behavior. |
 | `check-compress-host`: usr.bin/compress/tests/compresscheck.sh | The exact shipped 12-bit LZW encoder and decoder compile as strict C17 with warnings as errors and execute under address and undefined-behavior sanitizers. Codec controls cover strict decimal `-b` grammar, saturating oversized values, round trips, host gzip interoperability, malformed/truncated headers, the bounded CVE-2006-1168 cyclic-prefix reproducer, corruption status, and the calibrated dictionary/stack mutation. Standard-output controls preserve named symbolic-link and multiple-link input behavior without acquiring publication resources. A non-privileged control publishes from a mode-0300 parent and rejects replacement of search access with directory-read access. Named publishing controls retain the parent, input, optional target, and staged output; exercise paths longer than the former diagnostic buffer; preserve the input across write, explicit flush, output-close, input-close, ownership, mode, timestamp, publication, removal, cleanup, descriptor, allocation, and signal-mask failures; reject final symlinks and scheduled input, destination, stage, metadata, publication, cleanup, and removal replacements; and leave foreign entries unchanged. A combined write and cleanup failure retains the write diagnostic first and reports cleanup second. `SIGINT` immediately after stage creation removes the descriptor-identified stage, while an unmasked source mutation leaves it behind. Signal-mask block and restore failures terminate after cleanup. A DEBUG syntax build keeps the complete translation unit under the same strict-C17 warning profile. The shim schedules exact host filesystem events; production kernel atomicity belongs to `kernel.publishat-beneath.ilp32` and `kernel.publishat-beneath-namei.ilp32`. |
 
 The tar creation gate also follows a symlinked parent with `-h` from a
@@ -1898,19 +1898,19 @@ blocks, 33 free inodes, and the existing native-libc size and membership.
 
 `check-kernel-ilp32` owns `kernel.publishat-beneath.ilp32` and
 `kernel.publishat-beneath-namei.ilp32`. The first fixture links the production
-`publishat_beneath()` and `getinode()` definitions and executes 974 assertions
+`publishat_beneath()` and `getinode()` definitions and executes 1,055 assertions
 over descriptor and restricted-path admission, absent and retained targets,
 staged and target identity, sticky-directory permission, immutable and
 append-only refusal, same-parent and same-filesystem enforcement, directory
 and link-count reservation write errors, post-publication staged-name removal,
 and balanced inode and namespace ownership. The second fixture links the production restricted
 lookup, namespace gate, `direnter()`, and publication definitions and executes
-875 assertions through cold and populated name-cache routes.
+1,014 assertions through cold and populated name-cache routes.
 
-Seven warning-clean syscall mutations discard the link-count reservation
+Eight warning-clean syscall mutations discard the link-count reservation
 write error or remove staged identity, sticky-directory permission, target
 identity, rooted lookup, namespace serialization, or same-parent enforcement.
-One adjacent namei mutation
+The eighth mutation publishes after staged-name removal fails. One adjacent namei mutation
 discards the first directory-write error. Each mutation must exit with status
 1 at its named assertion; compilation failure or a different assertion cannot
 satisfy the rejection contract. A host whose native ILP32 execution is
@@ -1948,3 +1948,88 @@ traffic, crash recovery, and physical-board behavior remain unmeasured.
 `docs/research/compress-publication-identity-plan.md` owns the complete
 interface, utility lifecycle, selected archive-member delta, static-resource
 exception, and remaining evidence boundaries.
+
+### Cpio rooted creation and publication
+
+`check-kernel-ilp32` extends the three `openat` fixtures with
+`openat_beneath()` and `mkdirat_beneath()`. The single-filesystem namei
+fixture executes 249 assertions, the multi-filesystem fixture executes 310,
+and the syscall fixture executes 511 assertions over rooted lookup, exclusive regular
+creation, directory verification and creation, namespace acquisition and
+release, interruption, directory-write rollback, inode ownership, and
+descriptor publication. The provider-open and advisory-lock cases require the
+namespace gate to be released after inode ownership. Sixteen warning-clean
+namei, vnode-open, and syscall
+mutations remove a rooted policy, follow a symbolic link, cross a mounted
+filesystem, release serialization before publication, retain serialization
+after return, permit a competing owner, or discard mkdir rollback ownership.
+Each mutation must exit at its named assertion.
+
+`check-namei-user-path` records 35 pathname-origin transitions and rejects nine
+mutations, including the strict-beneath empty, symbolic-link, and mounted-root
+cases. `check-kernel-metadata` owns additive syscall 160 with four words and
+syscall 161 with three words, their generated public numbers and dispatch
+outputs, and ARM numeric-header preprocessing. Focused metadata mutations
+shorten each argument record and must fail at the master-row contract.
+`check-c17-smaller-c` owns repeated public-header inclusion, both exact
+function-pointer types, and one selected wrapper member for each interface.
+
+`check-cpio-host` applies all libc interposition after host system headers and
+compiles the interposed objects with `_FORTIFY_SOURCE=3`. Explicit traces prove
+that rooted open, mkdir, removal, and publication hooks observe each scheduled
+transition. Ancestor relocation runs immediately before directory creation,
+staged regular-file creation, and publication. Foreign target and staged-file
+replacement run before publication, while a separate staged replacement runs
+during failed cleanup. The requested target appears only after the staged
+descriptor has received the complete archive payload and
+`publishat_beneath()` accepts the retained identities. The process working
+directory remains unchanged throughout extraction. Cpio passes the final
+umask-filtered owner-access mode during rooted directory creation, so a later
+replacement keeps its own mode. A preexisting staging-name symbolic link
+remains unchanged while extraction advances to the next bounded candidate.
+Production publication preflights the target, removes the staged name,
+revalidates the target, and performs the final directory-entry commit. A
+staged-removal write failure precedes target mutation. A later target-write
+failure can leave both names absent while the live descriptor retains the
+inode, and the syscall cannot report failure after target publication.
+
+Seven warning-clean cpio mutations cover cleanup identity, direct final-name
+creation, current-directory parent traversal, pathname-based directory chmod,
+and premature failure on a staging symbolic link. A separate interposition
+mutation removes the rooted-open rename and reproduces false success without
+reaching the scheduled hook; the missing trace rejects the result. The
+portable shim models only the named host transitions. Production atomicity
+belongs to the ILP32 fixtures under UFS namespace serialization.
+
+`docs/research/cpio-rooted-creation-identity-plan.md` owns the interface,
+bounded staging-name construction, utility lifecycle, static-resource receipt,
+and remaining evidence boundaries.
+
+Matched parent and candidate schema-2 captures report +496 PICO and +496
+PICO_UART flash bytes with zero linked static-SRAM delta. Cpio grows from
+10,384/200/884 to 10,760/200/884 text/data/BSS bytes, from 10,616 to 10,992
+raw bytes, and from 8,852 to 9,144 packed bytes. Its packed allocation remains
+ten blocks; the root remains at 693 data blocks, 286 free blocks, and 33 free
+inodes. The native board libc remains 43,010 bytes with 151 members. Cpio adds
+`mkdirat_beneath.o`, `openat_beneath.o`, `publishat_beneath.o`, and
+`strrchr.o`, and drops `fchmod.o` and `mkdir.o`; every other shipped program and archive
+selection is unchanged.
+
+Exact recorded PICO and cpio compiler commands replayed with
+`-fstack-usage` attribute +10 text bytes to `init_sysent.o`, +35 to
+`syscalls.o`, +412 to `ufs_syscalls.o`, +36 to `vfs_vnops.o`, and +337
+to `cpio.o`; `ufs_namei.o` remains unchanged. `namei_at()` retains its
+392-byte static frame. `publishat_beneath()` grows from 136 to 240 bytes and
+becomes its translation unit's maximum. Cpio's maximum moves from the
+128-byte `copy_in()` frame to the 152-byte `copy_out()` frame; `copy_in()`
+uses 136 bytes in the candidate, and `main()` remains 32 bytes. The resource
+comparison and object/frame receipt have SHA-256 values
+`4d7079934d3c0ba7b7a976c1a6de62a19fb672a75619541afdd72f2fa175a810`
+and `f1e1018384df4a91a25f2d8fb3cf957ccf11ac1ea37779eaf75e8fd829ceb372`.
+
+The comparer rejects the positive kernel, cpio, and archive-selection deltas
+under the default nonpositive-growth rule. The bounded exception retains
+22,706 PICO and 35,188 PICO_UART flash bytes and 135,612 static bytes in the
+144 KiB process window. Runtime stack, heap, descriptor high-water, and
+storage traffic remain open; the static remainder does not establish process
+admission for an unmeasured workload.

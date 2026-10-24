@@ -62,7 +62,7 @@ def digest(content):
     return hashlib.sha256(content).hexdigest()
 
 
-def harness_environment(root, machine, cpu, library, output):
+def harness_environment(root, machine, cpu, library, output, test_name="t18_stdio"):
     environment = os.environ.copy()
     environment.update(
         {
@@ -78,7 +78,7 @@ def harness_environment(root, machine, cpu, library, output):
             "DEVICE_LDFLAGS": os.environ["DEVICE_LDFLAGS"],
             "REQUIRE_QEMU": "1",
             "SMLRC_TEST_LIBC": str(library),
-            "SMLRC_TEST_ONLY": "t18_stdio",
+            "SMLRC_TEST_ONLY": test_name,
             "SMLRC_TEST_OUT": str(output),
         }
     )
@@ -223,10 +223,40 @@ def main():
         )
         for member in ("filbuf.o", "ungetc.o", "scanf.o", "doscan.o", "closedir.o",
                        "fprintf.o", "vfprintf.o", "fputs.o", "futimes.o",
-                       "openat.o", "unlinkat_beneath.o",
-                       "publishat_beneath.o"):
+                       ):
             if member not in map_text:
                 raise RuntimeError(f"t18_stdio link map omits {member}")
+
+        rooted_environment = harness_environment(
+            root,
+            machine,
+            cpu,
+            source_library,
+            work / "rooted-run",
+            test_name="t20_rooted_interfaces",
+        )
+        rooted_result = run_stdio_harness(root, rooted_environment)
+        rooted_output = rooted_result.stdout + rooted_result.stderr
+        require_success(rooted_result, "run rooted-interface native control")
+        if (
+            "PASS t20_rooted_interfaces" not in rooted_output
+            or "passed 1, failed 0" not in rooted_output
+        ):
+            raise RuntimeError("rooted-interface control lacks the green receipt")
+        rooted_map = (work / "rooted-run" / "t20_rooted_interfaces.map").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        for member in (
+            "openat.o",
+            "openat_beneath.o",
+            "mkdirat_beneath.o",
+            "unlinkat_beneath.o",
+            "publishat_beneath.o",
+        ):
+            if member not in rooted_map:
+                raise RuntimeError(
+                    f"t20_rooted_interfaces link map omits {member}"
+                )
 
         print(
             "Smaller C stdio red control: filbuf.o "

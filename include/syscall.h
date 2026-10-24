@@ -135,7 +135,8 @@
 #define SYS_ufetch      153
 #define SYS_ucall       154
 #define SYS_futimes     156
+#define SYS_openat      157
 
-#define SYS_MAXSYSCALL 157
+#define SYS_MAXSYSCALL 158
 
 #endif

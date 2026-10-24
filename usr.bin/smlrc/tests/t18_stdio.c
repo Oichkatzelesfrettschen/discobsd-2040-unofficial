@@ -11,6 +11,8 @@
 #include <pwd.h>
 #include <pwd.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -23,6 +25,7 @@ struct passwd_alignment_probe {
 };
 
 static int (*futimes_signature)(int, const struct timeval[2]) = futimes;
+static int (*openat_signature)(int, const char *, int, ...) = openat;
 
 static int
 scan_variadic(const char *input, const char *format, ...)
@@ -56,6 +59,8 @@ check_layouts(void)
 		return 3;
 	if (futimes_signature == NULL)
 		return 7;
+	if (openat_signature == NULL)
+		return 8;
 	return 0;
 }
 

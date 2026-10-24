@@ -1774,3 +1774,34 @@ The `t18_stdio` Smaller C fixture separately accepts repeated expanded pwd.h
 inclusion and executes password size, offset, nested-alignment and key checks
 through its Linux EABI test layer. On-device preprocessing and board execution
 retain their own acceptance states.
+
+### Directory-relative open and lookup
+
+`check-kernel-ilp32` owns `kernel.openat-namei.ilp32` and
+`kernel.openat.ilp32`. The two ILP32 programs link production
+`ufs_namei.c`, `vfs_vnops.c`, and `ufs_syscalls.c`. The lookup program executes
+64 assertions over cwd, descriptor and root selection, path-copy precedence,
+permissions, traversal references, dot-dot and root clamping. The open program
+executes 121 assertions over `O_NOFOLLOW`, `O_DIRECTORY`, `O_SEARCH`, empty
+paths, descriptor allocation, interruption, device-open failure and unchanged
+ordinary `open()` behavior.
+
+`check-openat-mutants` generates three warning-clean source variants. The
+current-directory substitution must fail `result == &descriptor_inode`; the
+absolute-path descriptor consultation must fail `result == &root_inode`; and
+the final-link following variant must fail `u.u_error == ELOOP`. Compilation or
+an unrelated assertion cannot satisfy the expected-rejection contract.
+
+`check-namei-user-path` continues to own the exact pathname-origin transition
+inventory and its five mutations. `check-kernel-metadata` owns syscall 157,
+the four-word argument record, generated outputs and ARM numeric-header
+preprocessing. `check-c17-smaller-c` owns repeated public-header inclusion,
+the typed `openat` declaration and selected `openat.o` native archive member.
+
+These gates establish the exercised software lookup/open boundary. Ordinary
+directory-relative lookup does not establish beneath-root confinement under
+parent components, absolute links or concurrent rename. Runtime descriptor
+pressure, stack and heap high-water, persistence, deliberate faults and
+physical-board behavior retain separate evidence states. The contract and
+matched resource receipts are recorded in
+`docs/research/openat-directory-relative-lookup.md`.

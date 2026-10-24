@@ -100,7 +100,7 @@ chroot(void)
  * and call the device open routine if any.
  */
 static int
-copen(int mode, int cmode, caddr_t fname)
+copen(int dirfd, int mode, int cmode, caddr_t fname, int reject_empty)
 {
     register struct inode *ip;
     register struct file *fp;
@@ -108,6 +108,10 @@ copen(int mode, int cmode, caddr_t fname)
     register struct nameidata *ndp = &nd;
     int indx, type, flags, error;
 
+    if ((mode & O_SEARCH) &&
+        ((mode & O_ACCMODE) != O_RDONLY ||
+        (mode & (O_CREAT | O_TRUNC | O_EXCL)) != 0))
+        return EINVAL;
     if (! fname)
         fname = "";
 //printf ("copen (mode=%#o, cmode=%#o, fname=%#x '%s')\n", mode, cmode, fname, fname);
@@ -123,6 +127,8 @@ copen(int mode, int cmode, caddr_t fname)
     indx = u.u_rval;
     u.u_dupfd = -indx - 1;
     NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, fname);
+    if (reject_empty)
+        NAMEI_REJECT_EMPTY(ndp);
 
     /*
      * ENODEV is returned by the 'fdopen()' routine - see the comments in that
@@ -136,7 +142,7 @@ copen(int mode, int cmode, caddr_t fname)
      * premium in 2.11 while space in the u structure is relatively free.  Also
      * there were more unused (pad) fields available in 'u' as compared to 'proc'.
      */
-    error = vn_open(ndp, flags, cmode);
+    error = vn_open_at(ndp, flags, cmode, dirfd);
     if (error) {
 //printf ("copen: vn_open failed, errno=%d\n", error);
         fp->f_count = 0;
@@ -184,7 +190,23 @@ open(void)
         int     crtmode;
     } *uap = (struct a *) u.u_arg;
 
-    u.u_error = copen (uap->mode, uap->crtmode, uap->fname);
+    u.u_error = copen (AT_FDCWD, uap->mode, uap->crtmode, uap->fname, 0);
+}
+
+/*
+ * Open relative to an acquired directory without changing u.u_cdir.
+ */
+void
+openat(void)
+{
+    register struct a {
+        int     fd;
+        char    *path;
+        int     mode;
+        int     crtmode;
+    } *uap = (struct a *)u.u_arg;
+
+    u.u_error = copen(uap->fd, uap->mode, uap->crtmode, uap->path, 1);
 }
 
 /*

@@ -154,9 +154,10 @@ check_operation_reset(void)
 	char kernel_path[MAXPATHLEN] = "/kernel";
 
 	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, user_path);
+	NAMEI_REJECT_EMPTY(&name);
 	NAMEI_RESET_OPERATION(&name, CREATE, NOFOLLOW);
 	if (name.ni_dirp != user_path ||
-	    name.ni_nameiop != (CREATE | NI_USERPATH))
+	    name.ni_nameiop != (CREATE | NI_USERPATH | NI_NOEMPTY))
 		return 1;
 
 	NAMEI_INIT_KERNEL(&name, CREATE, NOFOLLOW, kernel_path);

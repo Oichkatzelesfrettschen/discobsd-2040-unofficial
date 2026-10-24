@@ -87,6 +87,7 @@
 #define O_EXLOCK    0x0020      /* open with exclusive file lock */
 #define O_ASYNC     0x0040      /* signal pgrp when data ready */
 #define O_FSYNC     0x0080      /* synchronous writes */
+#define O_NOFOLLOW  0x0100      /* fail on a final symbolic link */
 #define O_CREAT     0x0200      /* create if nonexistant */
 #define O_TRUNC     0x0400      /* truncate to zero length */
 #define O_EXCL      0x0800      /* error if already exists */
@@ -99,13 +100,23 @@
 /* Not currently implemented but it may be placed on the TODO list shortly */
 #define O_NOCTTY    0x4000      /* don't assign controlling terminal */
 
+/* Directory-opening flags retain the donor BSD numeric assignments. */
+#define O_DIRECTORY 0x00020000  /* fail if the result is not a directory */
+#define O_SEARCH    0x00040000  /* open a directory for search only */
+
+/* Directory descriptor value for process-current-directory lookup. */
+#define AT_FDCWD    (-100)
+
 #ifdef KERNEL
+#define FSEARCH     O_SEARCH
 /* convert from open() flags to/from fflags; convert O_RD/WR to FREAD/FWRITE */
-#define FFLAGS(oflags)  ((oflags) + 1)
-#define OFLAGS(fflags)  ((fflags) - 1)
+#define FFLAGS(oflags)  (((oflags) & O_SEARCH) ? \
+    ((oflags) & ~O_ACCMODE) : ((oflags) + 1))
+#define OFLAGS(fflags)  (((fflags) & FSEARCH) ? \
+    (fflags) : ((fflags) - 1))
 
 /* bits to save after open */
-#define FMASK       (FREAD|FWRITE|FAPPEND|FASYNC|FFSYNC|FNONBLOCK)
+#define FMASK       (FREAD|FWRITE|FAPPEND|FASYNC|FFSYNC|FNONBLOCK|FSEARCH)
 /* bits settable by fcntl(F_SETFL, ...) */
 #define FCNTLFLAGS  (FAPPEND|FASYNC|FFSYNC|FNONBLOCK)
 #endif

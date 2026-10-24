@@ -60,14 +60,20 @@ DESCRIPTOR_MUTATIONS = {
 
 GENERIC_MUTATIONS = {
     "direct-status-pointer": (
-        """    case FIONBIO:
+        (
+            """    case FIONBIO:
+    case FIOASYNC:
+    case FIOSETOWN:
+""",
+            """    case FIOSETOWN:
+""",
+        ),
+        (
+            """    case FIONBIO:
     case FIOASYNC: {
-        int value;
         int bit = com == FIONBIO ? FNONBLOCK : FASYNC;
 
-        u.u_error = copyin(uap->cmarg, (caddr_t)&value, sizeof value);
-        if (u.u_error == 0)
-            u.u_error = fset(fp, bit, value);
+        u.u_error = fset(fp, bit, input.integer);
         return;
     }
 """,
@@ -78,6 +84,7 @@ GENERIC_MUTATIONS = {
         u.u_error = fset(fp, FASYNC, *(int *)uap->cmarg);
         return;
 """,
+        ),
     ),
 }
 
@@ -103,12 +110,15 @@ def main() -> None:
     if arguments.mutation in DESCRIPTOR_MUTATIONS:
         source_path = arguments.descriptor_source
         before, after = DESCRIPTOR_MUTATIONS[arguments.mutation]
+        replacements = ((before, after),)
     else:
         source_path = arguments.generic_source
-        before, after = GENERIC_MUTATIONS[arguments.mutation]
+        replacements = GENERIC_MUTATIONS[arguments.mutation]
     source = source_path.read_text(encoding="utf-8")
+    for before, after in replacements:
+        source = replace_once(source, before, after, arguments.mutation)
     arguments.output.write_text(
-        replace_once(source, before, after, arguments.mutation), encoding="utf-8"
+        source, encoding="utf-8"
     )
 
 

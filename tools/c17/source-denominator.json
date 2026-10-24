@@ -57950,7 +57950,7 @@
       "path": "sys/kern/sys_generic.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "rp2040-syscall-io-span-admission",
+      "owner": "rp2040-sys-generic-trust-boundary-migration",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
@@ -57970,7 +57970,7 @@
         "tests/kernel/fionread_extract.py",
         "tests/kernel/fionread_mutate.py"
       ],
-      "blocker": "The read, write, readv, writev, shared rwuio, file-owner ioctl, direct file-status ioctl, FIONREAD result and ioctl command-geometry seams are accepted; general ioctl input and bidirectional payload ownership, select, socket stubs and the remaining translation-unit semantics retain separate migration units.",
+      "blocker": "The read, write, readv, writev, shared rwuio, file-owner ioctl, direct file-status ioctl, FIONREAD result, ioctl command-geometry and shipped-provider ioctl input and bidirectional payload-ownership seams are accepted; select, socket stubs and the remaining translation-unit semantics retain separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -57982,7 +57982,9 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "union-access"
+          ],
           "inline_assembly": [],
           "integer": [
             "shift-expression",

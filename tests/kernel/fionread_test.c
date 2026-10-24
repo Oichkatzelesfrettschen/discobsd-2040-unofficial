@@ -23,6 +23,7 @@
 #include <sys/conf.h>
 #include <sys/uio.h>
 #include <sys/ioctl.h>
+#include <sys/swap.h>
 #include <sys/tty.h>
 #include <sys/kernel.h>
 #include <sys/syscall_dispatch.h>
@@ -60,8 +61,12 @@ static int provider_error;
 static int provider_writes_before_error;
 static int provider_succeeds_without_write;
 static off_t provider_error_value;
+static u_int provider_capture_bytes;
+static unsigned char provider_capture[16];
 
 static unsigned int copyin_calls;
+static u_int copyin_bytes;
+static int copyin_error;
 static unsigned int copyout_calls;
 static u_int copyout_bytes;
 static int copyout_error;
@@ -80,6 +85,8 @@ observed_ioctl(struct file *file, u_int command, char *data)
 	provider_calls++;
 	provider_command = command;
 	provider_data = data;
+	if (provider_capture_bytes != 0)
+		bcopy(data, provider_capture, provider_capture_bytes);
 	if (provider_writes_before_error)
 		bcopy(&provider_error_value, data, sizeof provider_error_value);
 	if (provider_error != 0)
@@ -195,6 +202,9 @@ int
 copyin(const caddr_t from, caddr_t to, u_int nbytes)
 {
 	copyin_calls++;
+	copyin_bytes = nbytes;
+	if (copyin_error != 0)
+		return copyin_error;
 	if (baduaddr_span(from, nbytes))
 		return EFAULT;
 	bcopy(from, to, nbytes);
@@ -240,12 +250,36 @@ reset(int file_type, int mode, int flags)
 	provider_writes_before_error = 0;
 	provider_succeeds_without_write = 0;
 	provider_error_value = 0;
+	provider_capture_bytes = 0;
+	bzero(provider_capture, sizeof provider_capture);
 	copyin_calls = 0;
+	copyin_bytes = 0;
+	copyin_error = 0;
 	copyout_calls = 0;
 	copyout_bytes = 0;
 	copyout_error = 0;
 	user_span_lower = (u_long)&user_storage[USER_LOWER];
 	user_span_upper = (u_long)&user_storage[USER_UPPER];
+}
+
+static void
+store_user_bytes(caddr_t address, u_int nbytes)
+{
+	u_int index;
+
+	for (index = 0; index < nbytes; index++)
+		address[index] = (char)(0x20 + index);
+}
+
+static int
+same_bytes(const unsigned char *left, const unsigned char *right, u_int nbytes)
+{
+	u_int index;
+
+	for (index = 0; index < nbytes; index++)
+		if (left[index] != right[index])
+			return 0;
+	return 1;
 }
 
 static off_t
@@ -388,6 +422,127 @@ command_geometry_cases(void)
 	HK_CHECK(provider_calls == 1 && provider_command == command);
 	HK_CHECK(provider_data == argument);
 	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	argument = (caddr_t)&user_storage[USER_LOWER + 1];
+	store_user_bytes(argument, sizeof(struct winsize));
+	command = TIOCSWINSZ | (1U << 24);
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, command, argument);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(provider_command == command && provider_data == argument);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+}
+
+static void
+input_ownership_cases(void)
+{
+	static const struct input_case {
+		u_int command;
+		u_int nbytes;
+		u_int alignment;
+	} cases[] = {
+		{ TIOCSETD, sizeof(int), _Alignof(int) },
+		{ TIOCSETP, sizeof(struct sgttyb), _Alignof(struct sgttyb) },
+		{ TIOCSETN, sizeof(struct sgttyb), _Alignof(struct sgttyb) },
+		{ TIOCFLUSH, sizeof(int), _Alignof(int) },
+		{ TIOCSETC, sizeof(struct tchars), _Alignof(struct tchars) },
+		{ TIOCLBIS, sizeof(int), _Alignof(int) },
+		{ TIOCLBIC, sizeof(int), _Alignof(int) },
+		{ TIOCLSET, sizeof(int), _Alignof(int) },
+		{ TIOCSPGRP, sizeof(int), _Alignof(int) },
+		{ TIOCSLTC, sizeof(struct ltchars), _Alignof(struct ltchars) },
+		{ TIOCSTI, sizeof(char), _Alignof(char) },
+		{ TIOCSWINSZ, sizeof(struct winsize), _Alignof(struct winsize) },
+	};
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	unsigned char original[sizeof(struct winsize)];
+	u_int index;
+
+	for (index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+		reset(DTYPE_INODE, IFREG, FREAD);
+		store_user_bytes(unaligned, cases[index].nbytes);
+		bcopy(unaligned, original, cases[index].nbytes);
+		provider_capture_bytes = cases[index].nbytes;
+		provider_succeeds_without_write = 1;
+		call_ioctl(FD, cases[index].command, unaligned);
+		HK_CHECK(u.u_error == 0 && provider_calls == 1);
+		HK_CHECK(provider_command == cases[index].command);
+		HK_CHECK(provider_data != unaligned);
+		HK_CHECK((u_long)provider_data % cases[index].alignment == 0);
+		HK_CHECK(copyin_calls == 1 && copyin_bytes == cases[index].nbytes);
+		HK_CHECK(copyout_calls == 0);
+		HK_CHECK(same_bytes(provider_capture, original,
+		    cases[index].nbytes));
+		HK_CHECK(same_bytes((unsigned char *)unaligned, original,
+		    cases[index].nbytes));
+	}
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof(struct winsize));
+	copyin_error = EFAULT;
+	call_ioctl(FD, TIOCSWINSZ, unaligned);
+	HK_CHECK(u.u_error == EFAULT && copyin_calls == 1);
+	HK_CHECK(provider_calls == 0 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	call_ioctl(FD, TIOCFLUSH, NULL);
+	HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+}
+
+static void
+inout_ownership_cases(void)
+{
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	off_t requested;
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	requested = 5;
+	store_user_off(unaligned, requested);
+	provider_capture_bytes = sizeof requested;
+	provider_writes_before_error = 1;
+	provider_error_value = 0;
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, TFALLOC, unaligned);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(provider_data != unaligned);
+	HK_CHECK((u_long)provider_data % _Alignof(off_t) == 0);
+	HK_CHECK(copyin_calls == 1 && copyin_bytes == sizeof requested);
+	HK_CHECK(copyout_calls == 1 && copyout_bytes == sizeof requested);
+	HK_CHECK(load_user_off(unaligned) == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	requested = -3;
+	store_user_off(unaligned, requested);
+	provider_writes_before_error = 1;
+	provider_error_value = 99;
+	provider_error = EINVAL;
+	call_ioctl(FD, TFALLOC, unaligned);
+	HK_CHECK(u.u_error == EINVAL && provider_calls == 1);
+	HK_CHECK(load_user_off(unaligned) == requested);
+	HK_CHECK(copyin_calls == 1 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	requested = 5;
+	store_user_off(unaligned, requested);
+	copyin_error = EFAULT;
+	call_ioctl(FD, TFALLOC, unaligned);
+	HK_CHECK(u.u_error == EFAULT && copyin_calls == 1);
+	HK_CHECK(provider_calls == 0 && copyout_calls == 0);
+	HK_CHECK(load_user_off(unaligned) == requested);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	requested = 5;
+	store_user_off(unaligned, requested);
+	provider_writes_before_error = 1;
+	provider_error_value = 0;
+	provider_succeeds_without_write = 1;
+	copyout_error = EFAULT;
+	call_ioctl(FD, TFALLOC, unaligned);
+	HK_CHECK(u.u_error == EFAULT && provider_calls == 1);
+	HK_CHECK(copyin_calls == 1 && copyout_calls == 1);
+	HK_CHECK(load_user_off(unaligned) == requested);
 }
 
 int
@@ -396,5 +551,7 @@ main(void)
 	provider_cases();
 	failure_cases();
 	command_geometry_cases();
+	input_ownership_cases();
+	inout_ownership_cases();
 	return hk_verdict("ioctl and FIONREAD admission");
 }

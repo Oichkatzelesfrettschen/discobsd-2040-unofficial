@@ -10,6 +10,7 @@
 #include <sys/inode.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
+#include <sys/swap.h>
 #include <sys/conf.h>
 #include <sys/uio.h>
 #include <sys/kernel.h>
@@ -186,6 +187,15 @@ writev(void)
 void
 ioctl(void)
 {
+    union ioctl_input {
+        int integer;
+        off_t offset;
+        struct sgttyb parameters;
+        struct tchars characters;
+        struct ltchars local_characters;
+        struct winsize window;
+        char character;
+    } input;
     register struct file *fp;
     register struct a {
         int     fdes;
@@ -193,6 +203,9 @@ ioctl(void)
         caddr_t cmarg;
     } *uap;
     u_int com;
+
+    _Static_assert(sizeof input >= sizeof(struct winsize),
+        "ioctl input storage must hold the largest accepted payload");
 
     uap = (struct a *)u.u_arg;
     fp = getf(uap->fdes);
@@ -219,45 +232,63 @@ ioctl(void)
     case FIONCLEX:
         u.u_pofile[uap->fdes] &= ~UF_EXCLOSE;
         return;
+    case FIOGETOWN:
+        u.u_error = fgetown(fp, &input.integer);
+        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&input.integer, uap->cmarg,
+                sizeof input.integer);
+        return;
+    case FIONREAD:
+        input.offset = 0;
+        u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
+            (caddr_t)&input.offset);
+        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&input.offset, uap->cmarg,
+                sizeof input.offset);
+        return;
+    case FIONBIO:
+    case FIOASYNC:
+    case FIOSETOWN:
+    case TIOCSETD:
+    case TIOCSETP:
+    case TIOCSETN:
+    case TIOCFLUSH:
+    case TIOCSETC:
+    case TIOCLBIS:
+    case TIOCLBIC:
+    case TIOCLSET:
+    case TIOCSPGRP:
+    case TIOCSLTC:
+    case TIOCSTI:
+    case TIOCSWINSZ:
+    case TFALLOC:
+        break;
+    default:
+        u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);
+        return;
+    }
+
+    u.u_error = copyin(uap->cmarg, (caddr_t)&input,
+        (com >> 16) & IOCPARM_MASK);
+    if (u.u_error != 0)
+        return;
+
+    switch (com) {
     case FIONBIO:
     case FIOASYNC: {
-        int value;
         int bit = com == FIONBIO ? FNONBLOCK : FASYNC;
 
-        u.u_error = copyin(uap->cmarg, (caddr_t)&value, sizeof value);
-        if (u.u_error == 0)
-            u.u_error = fset(fp, bit, value);
+        u.u_error = fset(fp, bit, input.integer);
         return;
     }
-    case FIOSETOWN: {
-        int owner;
-
-        u.u_error = copyin(uap->cmarg, (caddr_t)&owner, sizeof owner);
-        if (u.u_error == 0)
-            u.u_error = fsetown(fp, owner);
+    case FIOSETOWN:
+        u.u_error = fsetown(fp, input.integer);
         return;
     }
-    case FIOGETOWN: {
-        int owner;
-
-        u.u_error = fgetown(fp, &owner);
-        if (u.u_error == 0)
-            u.u_error = copyout((caddr_t)&owner, uap->cmarg,
-                sizeof owner);
-        return;
-    }
-    case FIONREAD: {
-        off_t available = 0;
-
-        u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
-            (caddr_t)&available);
-        if (u.u_error == 0)
-            u.u_error = copyout((caddr_t)&available, uap->cmarg,
-                sizeof available);
-        return;
-    }
-    }
-    u.u_error = (*Fops[fp->f_type]->fo_ioctl) (fp, com, uap->cmarg);
+    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, (caddr_t)&input);
+    if (u.u_error == 0 && com == TFALLOC)
+        u.u_error = copyout((caddr_t)&input.offset, uap->cmarg,
+            (com >> 16) & IOCPARM_MASK);
 }
 
 int nselcoll;

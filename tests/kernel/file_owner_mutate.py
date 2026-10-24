@@ -31,31 +31,40 @@ DESCRIPTOR_MUTATIONS = {
 
 GENERIC_MUTATIONS = {
     "direct-user-pointer": (
-        """    case FIOSETOWN: {
-        int owner;
-
-        u.u_error = copyin(uap->cmarg, (caddr_t)&owner, sizeof owner);
-        if (u.u_error == 0)
-            u.u_error = fsetown(fp, owner);
-        return;
-    }
-    case FIOGETOWN: {
-        int owner;
-
-        u.u_error = fgetown(fp, &owner);
-        if (u.u_error == 0)
-            u.u_error = copyout((caddr_t)&owner, uap->cmarg,
-                sizeof owner);
-        return;
-    }
+        (
+            """    case FIONBIO:
+    case FIOASYNC:
+    case FIOSETOWN:
+    case TIOCSETD:
 """,
-        """    case FIOSETOWN:
+            """    case FIONBIO:
+    case FIOASYNC:
+    case TIOCSETD:
+""",
+        ),
+        (
+            """    case FIOSETOWN:
+        u.u_error = fsetown(fp, input.integer);
+        return;
+""",
+            """    case FIOSETOWN:
         u.u_error = fsetown(fp, *(int *)uap->cmarg);
         return;
-    case FIOGETOWN:
+""",
+        ),
+        (
+            """    case FIOGETOWN:
+        u.u_error = fgetown(fp, &input.integer);
+        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&input.integer, uap->cmarg,
+                sizeof input.integer);
+        return;
+""",
+            """    case FIOGETOWN:
         u.u_error = fgetown(fp, (int *)uap->cmarg);
         return;
 """,
+        ),
     ),
 }
 
@@ -81,12 +90,15 @@ def main() -> None:
     if arguments.mutation in DESCRIPTOR_MUTATIONS:
         source_path = arguments.descriptor_source
         before, after = DESCRIPTOR_MUTATIONS[arguments.mutation]
+        replacements = ((before, after),)
     else:
         source_path = arguments.generic_source
-        before, after = GENERIC_MUTATIONS[arguments.mutation]
+        replacements = GENERIC_MUTATIONS[arguments.mutation]
     source = source_path.read_text()
+    for before, after in replacements:
+        source = replace_once(source, before, after, arguments.mutation)
     arguments.output.write_text(
-        replace_once(source, before, after, arguments.mutation)
+        source
     )
 
 

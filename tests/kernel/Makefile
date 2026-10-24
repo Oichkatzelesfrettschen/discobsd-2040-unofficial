@@ -220,7 +220,9 @@ FIONREAD_LDFLAGS=	${FILE_OWNER_LDFLAGS}
 FIONREAD_GENERIC_RENAMES=	-Dioctl=fionread_ioctl
 FIONREAD_INODE_RENAMES=	-Dsetjmp=fionread_setjmp
 FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
-			unmasked-size endpoint-span
+			unmasked-size endpoint-span direct-input-pointer \
+			short-input-copy masked-input-command \
+			unconditional-inout-publication omitted-inout-publication
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -233,6 +235,7 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/param.h ${TOPSRC}/sys/sys/proc.h \
 	${TOPSRC}/sys/sys/resource.h ${TOPSRC}/sys/sys/select.h \
 	${TOPSRC}/sys/sys/signal.h ${TOPSRC}/sys/sys/stat.h \
+	${TOPSRC}/sys/sys/swap.h \
 	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
 	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
 	${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/tty.h \
@@ -732,6 +735,11 @@ check-fionread-mutants: \
 		wrong-width) expected='copyout_bytes == sizeof(off_t)' ;; \
 		unmasked-size) expected='provider_calls == 1 && provider_command == command' ;; \
 		endpoint-span) expected='u.u_error == ENOTTY && provider_calls == 1' ;; \
+		direct-input-pointer) expected='provider_data != unaligned' ;; \
+		short-input-copy) expected='copyin_calls == 1 && copyin_bytes == cases[index].nbytes' ;; \
+		masked-input-command) expected='provider_command == command && provider_data == argument' ;; \
+		unconditional-inout-publication) expected='u.u_error == EINVAL && provider_calls == 1' ;; \
+		omitted-inout-publication) expected='copyout_calls == 1 && copyout_bytes == sizeof requested' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

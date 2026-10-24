@@ -162,6 +162,9 @@ OPENAT_SYSCALL_RENAMES=	${OPENAT_RENAMES} -Dmaknode=openat_syscalls_maknode
 OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd
 OPENAT_VNOPS_MUTANTS=	follow-final-symlink
 OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS}
+DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
+DIRREMOVE_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+DIRREMOVE_MUTANTS=	discard-first-write-error discard-coalesced-write-error
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -1516,6 +1519,54 @@ check-openat-ilp32: openat_namei_test32 openat_test32
 	${TEST_EXECUTION} run kernel.openat-namei.ilp32 -- ./openat_namei_test32
 	${TEST_EXECUTION} run kernel.openat.ilp32 -- ./openat_test32
 
+dirremove_kernel32.o: ${DIRREMOVE_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${DIRREMOVE_CFLAGS} ${ILP32} -c -o $@ \
+	    ${DIRREMOVE_SRC}
+
+dirremove_test32: dirremove_test.c dirremove_kernel32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ dirremove_test.c dirremove_kernel32.o \
+	    hostkern32.o
+
+check-dirremove-ilp32: dirremove_test32
+	${TEST_EXECUTION} run kernel.dirremove.ilp32 -- ./dirremove_test32
+
+.for mutation in ${DIRREMOVE_MUTANTS}
+dirremove_${mutation}.mutant.c: dirremove_mutate.py ${DIRREMOVE_SRC}
+	${PYTHON} dirremove_mutate.py --source ${DIRREMOVE_SRC} --output $@ \
+	    --mutation ${mutation}
+
+dirremove_${mutation}.mutant.test: dirremove_${mutation}.mutant.c \
+    dirremove_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${DIRREMOVE_CFLAGS} ${ILP32} -c -o \
+	    dirremove_${mutation}.mutant.o dirremove_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ dirremove_test.c \
+	    dirremove_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-dirremove-mutants: \
+    ${DIRREMOVE_MUTANTS:@mutation@dirremove_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${DIRREMOVE_MUTANTS}; do \
+		output=dirremove_$$mutation.mutant.out; \
+		if ./dirremove_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		discard-first-write-error) expected='dirremove(&name) == 0' ;; \
+		discard-coalesced-write-error) expected='u.u_error == EIO' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL dirremove $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS dirremove $$mutation mutation rejected"; \
+	done
+
 .for mutation in ${OPENAT_NAMEI_MUTANTS}
 openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
 	${PYTHON} openat_mutate.py --source ${OPENAT_NAMEI_SRC} --output $@ \
@@ -1928,6 +1979,7 @@ check-ilp32:
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
+	    check-dirremove-ilp32 check-dirremove-mutants \
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
@@ -2046,6 +2098,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.futimes.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat-namei.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -2159,6 +2212,9 @@ clean:
 	    openat_namei_test32 openat_test32
 	rm -f openat_*.mutant.c openat_*.mutant.o openat_*.mutant.test \
 	    openat_*.mutant.out
+	rm -f dirremove_kernel32.o dirremove_test32
+	rm -f dirremove_*.mutant.c dirremove_*.mutant.o \
+	    dirremove_*.mutant.test dirremove_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2174,6 +2230,7 @@ clean:
 	check-fionread-mutants check-fionread-sanitizer \
 	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
 	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
+	check-dirremove-ilp32 check-dirremove-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

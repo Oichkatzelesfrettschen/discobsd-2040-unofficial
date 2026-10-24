@@ -2271,6 +2271,25 @@
       ]
     },
     {
+      "id": "kernel.dirremove.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-dirremove-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "dirremove_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "dirremove_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.dirremove.ilp32 -- ./dirremove_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.capacity.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

@@ -1137,13 +1137,14 @@ dirremove(register struct nameidata *ndp)
     register struct inode *dp = ndp->ni_pdir;
     register struct buf *bp;
     struct direct *ep;
+    int error;
 
     if (ndp->ni_count == 0) {
         /*
          * First entry in block: set d_ino to zero.
          */
         ndp->ni_dent.d_ino = 0;
-        (void) rdwri (UIO_WRITE, dp, (caddr_t) &ndp->ni_dent,
+        error = rdwri (UIO_WRITE, dp, (caddr_t) &ndp->ni_dent,
                 (int) DIRSIZ(&ndp->ni_dent), ndp->ni_offset,
                 IO_UNIT | IO_SYNC, (int*) 0);
     } else {
@@ -1154,9 +1155,13 @@ dirremove(register struct nameidata *ndp)
         if (bp == 0)
             return (0);
         ep->d_reclen += ndp->ni_dent.d_reclen;
-        bwrite(bp);
-        dp->i_flag |= IUPD|ICHG;
+        error = bwrite(bp);
     }
+    if (error) {
+        u.u_error = error;
+        return (0);
+    }
+    dp->i_flag |= IUPD|ICHG;
     return (1);
 }
 

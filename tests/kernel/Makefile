@@ -134,6 +134,23 @@ UFS_EXPLICIT_TIME_DEFS=	${IALLOC_PICO_DEFS}
 UFS_EXPLICIT_TIME_CFLAGS=	-ffunction-sections
 UFS_EXPLICIT_TIME_LDFLAGS=	-Wl,--gc-sections
 
+# futimes(2) stages the complete timeval pair before descriptor lookup, then
+# publishes timestamps to the locked inode owned by that descriptor. Function
+# sections isolate the caller-complete syscall from unrelated UFS entry points.
+FUTIMES_SRC=	${TOPSRC}/sys/kern/ufs_syscalls2.c
+FUTIMES_CFLAGS=	-ffunction-sections -fdata-sections
+FUTIMES_RENAMES=	-Dstatfs=futimes_gate_statfs \
+	-Dfstatfs=futimes_gate_fstatfs -Dgetfsstat=futimes_gate_getfsstat \
+	-Dumask=futimes_gate_umask -Dlseek=futimes_gate_lseek \
+	-Dfsync=futimes_gate_fsync -Dutimes=futimes_gate_utimes \
+	-Dfutimes=kernel_futimes
+FUTIMES_MUTANTS=	short-copy descriptor-before-copy
+.if ${_HOST_OSNAME} == "Darwin"
+FUTIMES_LDFLAGS=	-Wl,-dead_strip
+.else
+FUTIMES_LDFLAGS=	-Wl,--gc-sections
+.endif
+
 # The RP2040 shutdown path. The production helper uses bounded flags, counts
 # and kernel structure fields, so the host-width gate can exercise its
 # sequencing and output; both production configurations compile it separately
@@ -1430,6 +1447,54 @@ ufs_explicit_time_test: ufs_explicit_time_test.c ${UFS_EXPLICIT_TIME_SRC} \
 	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
 	    ufs_explicit_time_kernel.o ufs_explicit_time_cred.o hostkern32.o
 
+futimes_kernel32.o: ${FUTIMES_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} ${FUTIMES_CFLAGS} \
+	    ${FUTIMES_RENAMES} -c -o $@ \
+	    ${FUTIMES_SRC}
+
+futimes_test32: futimes_test.c futimes_kernel32.o hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} ${FUTIMES_RENAMES} \
+	    ${FUTIMES_LDFLAGS} -o $@ \
+	    futimes_test.c futimes_kernel32.o hostkern32.o
+
+.for mutation in ${FUTIMES_MUTANTS}
+futimes_${mutation}.mutant.c: futimes_mutate.py ${FUTIMES_SRC}
+	${PYTHON} futimes_mutate.py --source ${FUTIMES_SRC} --output $@ \
+	    --mutation ${mutation}
+
+futimes_${mutation}.mutant.test: futimes_${mutation}.mutant.c \
+    futimes_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} ${FUTIMES_CFLAGS} \
+	    ${FUTIMES_RENAMES} -c -o futimes_${mutation}.mutant.o \
+	    futimes_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} ${FUTIMES_RENAMES} \
+	    ${FUTIMES_LDFLAGS} -o $@ futimes_test.c \
+	    futimes_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-futimes-mutants: \
+    ${FUTIMES_MUTANTS:@mutation@futimes_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${FUTIMES_MUTANTS}; do \
+		output=futimes_$$mutation.mutant.out; \
+		if ./futimes_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		short-copy) expected='length == sizeof(struct timeval) * 2' ;; \
+		descriptor-before-copy) expected='descriptor_calls == 0' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL futimes $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS futimes $$mutation mutation rejected"; \
+	done
+
 capacity_test: capacity_test.c capacity_uarea.c ${CAPACITY_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${CAPACITY_DEFS} ${ILP32} \
@@ -1767,7 +1832,9 @@ check-ilp32:
 	    sysctl_test_compact sysctl_test_wide \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
-	    ufs_explicit_time_test ufs_explicit_time_bad capacity_test \
+	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
+	    check-futimes-mutants \
+	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
 	${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test
@@ -1855,6 +1922,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
 	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
+	${TEST_EXECUTION} run kernel.futimes.ilp32 -- ./futimes_test32
 	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
 .else
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -1881,6 +1949,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.block-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.futimes.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -1987,6 +2056,9 @@ clean:
 	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o \
 	    ufs_explicit_time_cred.o
 	rm -f ufs_explicit_time_test ufs_explicit_time_bad ufs_fio_noatime_bad.c
+	rm -f futimes_kernel32.o futimes_test32
+	rm -f futimes_*.mutant.c futimes_*.mutant.o futimes_*.mutant.test \
+	    futimes_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2001,6 +2073,7 @@ clean:
 	check-file-owner-sanitizer check-file-status-mutants \
 	check-fionread-mutants check-fionread-sanitizer \
 	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
+	check-futimes-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

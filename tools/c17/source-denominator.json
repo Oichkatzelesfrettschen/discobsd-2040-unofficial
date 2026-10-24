@@ -4062,14 +4062,18 @@
     },
     {
       "path": "bin/tar/tar.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tar-descriptor-timestamp-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/tar-descriptor-timestamp-identity.md",
+        "bin/tar/tests/timestamp_identity_test.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "Strict-C17 compilation and descriptor-owned timestamp publication are accepted; creation, hard-link, removal, symlink, parent-relocation and remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -4128,6 +4132,43 @@
           "integer": [
             "integer-cast",
             "shift-expression",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "bin/tar/tests/timestamp_identity_shim.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tar-descriptor-timestamp-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/tar-descriptor-timestamp-identity.md",
+        "bin/tar/tests/timestamp_identity_test.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
@@ -58782,9 +58823,12 @@
         "docs/research/rp2040-namei-path-origin-contract.md",
         "tests/rp2040/namei_path/check_origin.py",
         "tests/rp2040/namei_path/namei_path_test.c",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/tar-descriptor-timestamp-identity.md",
+        "tests/kernel/futimes_test.c",
+        "tests/kernel/futimes_mutate.py"
       ],
-      "blocker": "User and kernel pathname copying plus every pathname-origin transition are accepted; the remaining translation-unit semantics require separate migration units.",
+      "blocker": "Pathname-origin transitions and descriptor-owned timestamp staging, locking and publication are accepted; the remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -60650,14 +60694,18 @@
     },
     {
       "path": "sys/sys/time.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tar-descriptor-timestamp-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/tar-descriptor-timestamp-identity.md",
+        "usr.bin/smlrc/tests/t18_stdio.c",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "The futimes declaration, repeated inclusion, function-pointer type and native archive member are accepted; remaining public time interfaces, layouts and consumers require caller-complete review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -62475,6 +62523,46 @@
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/futimes_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/tar-descriptor-timestamp-identity.md",
+        "tests/kernel/futimes_mutate.py",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [
+            "compound-literal"
+          ],
           "pointer": [],
           "prototype": [],
           "variadic": []

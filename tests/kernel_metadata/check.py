@@ -61,14 +61,18 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
 
     syscall_master = "sys/kern/syscalls.master"
     syscall_records = records_text(source(syscall_master), syscall_master, 6)
-    if len(syscall_records) != 156:
-        raise CheckError("syscall master must contain slots 0 through 155")
+    if len(syscall_records) != 157:
+        raise CheckError("syscall master must contain slots 0 through 156")
     if syscall_records[23][2:5] != ["__sysctl", "ALWAYS", "__sysctl"]:
         raise CheckError("syscall 23 must remain __sysctl")
     if syscall_records[66][2] != "vfork":
         raise CheckError("dispatch slot 66 must remain vfork")
     if syscall_records[81] != ["81", "0", "getpgrp", "ALWAYS", "getpgrp", "getpgrp=81"]:
         raise CheckError("syscall 81 must remain zero-argument getpgrp")
+    if syscall_records[156] != [
+        "156", "2", "futimes", "ALWAYS", "futimes", "futimes=156"
+    ]:
+        raise CheckError("syscall 156 must remain two-argument futimes")
     public = source("include/syscall.h")
     generated_files = {
         "include/syscall.h": "Copyright (c) 1980 Regents",

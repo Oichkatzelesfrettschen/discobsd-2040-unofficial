@@ -107,6 +107,12 @@ ufs_explicit_time_test
 ufs_explicit_time_bad
 ufs_explicit_time_cred.o
 ufs_fio_noatime_bad.c
+futimes_kernel32.o
+futimes_test32
+futimes_*.mutant.c
+futimes_*.mutant.o
+futimes_*.mutant.test
+futimes_*.mutant.out
 shutdown_sync_kernel.o
 shutdown_sync_test
 shutdown_sync_*.mutant.c

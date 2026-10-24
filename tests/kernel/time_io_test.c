@@ -45,6 +45,43 @@ int copyout(const caddr_t src, caddr_t dst, u_int n)
     bcopy(src, dst, n);
     return 0;
 }
+/*
+ * The I/O correctness gate links the complete ufs_syscalls2.c translation
+ * unit because the tested utimes() path shares that owner.  Resolve the
+ * descriptor-only futimes() dependencies explicitly; reaching any stub means
+ * the gate entered a syscall outside its declared time-I/O surface.
+ */
+struct inode *
+getinode(int descriptor)
+{
+    (void)descriptor;
+    HK_CHECK(0);
+    return NULL;
+}
+
+void
+ilock(struct inode *ip)
+{
+    (void)ip;
+    HK_CHECK(0);
+}
+
+void
+iunlock(struct inode *ip)
+{
+    (void)ip;
+    HK_CHECK(0);
+}
+
+int
+ufs_setattr(struct inode *ip, struct vattr *attributes)
+{
+    (void)ip;
+    (void)attributes;
+    HK_CHECK(0);
+    return EINVAL;
+}
+
 int suser(void) { return 1; }
 void psignal(struct proc *p, int signal) { (void)p; (void)signal; }
 void sleep(caddr_t chan, int priority) { (void)chan; (void)priority; }

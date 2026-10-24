@@ -612,6 +612,25 @@ Source: `rp2040-swap-ioctl-result-contract.md` and `TESTING.md`
 Source: `rp2040-ioctl-command-geometry.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
 
+### R14 -- accepted ioctl input payload ownership (`sys/kern/sys_generic.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD ioctl/provider ABI; RP2040 kernel profile with the focused definitions compiled in C17 mode |
+| Tier | T1: caller-selected input bytes become typed objects inside tty, file-control and temporary-swap providers |
+| Native input | No |
+| Contract | Every exact input or input/output command accepted by a shipped PICO or PICO_UART provider receives a complete copy in typed, aligned kernel storage; `TFALLOC` publishes its result only after provider success |
+| Invariants | Syscall 54 and its four-argument dispatch record, public command values and layouts, descriptor/access/span precedence, complete command identity, provider selection and provider-specific rejection remain unchanged; unknown commands retain original-pointer dispatch |
+| Falsifier | Ten warning-clean mutations restore direct result or input pointers, unconditional or omitted publication, short copies, wrong result width, unmasked size extraction, endpoint admission or reserved-bit-stripped classification; each must fail its named assertion with status 1 |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-test-execution`, Ruff, exact PICO/PICO_UART GNU17 builds, complete `logged-check`, schema-2 dependency/resource comparison and exact-command object/frame replay |
+| Resources | Matched clean distributions at parent `a028337a` and candidate `101823d2` report +208 flash bytes in each kernel. Static SRAM, every shipped a.out, packed-root surface, native-artifact size and archive/member selection are unchanged. `sys_generic.o` and `ioctl()` each gain 208 text bytes in both configurations while the 24-byte `ioctl()` static frame is unchanged. The bounded exception leaves 25,730 PICO and 38,204 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the focused `ioctl()` ownership seam and fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the preserved command/provider ABI. 3 native: n/a. 4 hardening: done for every exact input or input/output command accepted by shipped providers. 5 resource: done for static surfaces through a bounded 208-byte per-kernel exception; runtime peaks stay open. 6 program closure: done for the accepted shipped-provider input set |
+| Residuals | Output-only tty, flash and swap commands other than accepted `FIOGETOWN` and `FIONREAD` staging remain a separate ownership unit. Optional providers, tty local-mode signed arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+
+Source: `rp2040-ioctl-input-payload-ownership.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:

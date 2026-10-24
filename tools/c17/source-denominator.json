@@ -57960,6 +57960,7 @@
         "docs/research/rp2040-file-status-control-admission.md",
         "docs/research/rp2040-fionread-result-admission.md",
         "docs/research/rp2040-ioctl-command-geometry.md",
+        "docs/research/rp2040-ioctl-input-payload-ownership.md",
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/rwuio_test.c",
         "tests/kernel/rwuio_mutate.py",

@@ -52763,18 +52763,21 @@
       "path": "sys/arch/rp2040/rp2040/machdep.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "rp2040-usercopy-span",
+      "owner": "rp2040-address-span-admission",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
         "docs/research/rp2040-usercopy-span-admission.md",
         "docs/research/rp2040-syscall-io-span-admission.md",
+        "docs/research/rp2040-memory-device-span-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/mem_span_test.c",
         "tests/kernel/rwuio_test.c",
         "tests/kernel/usercopy_span_test.c",
         "tests/rp2040/usercopy_span/check.py"
       ],
-      "blocker": "The user-copy span mechanism and callable admission service are accepted; direct address consumers and remaining translation-unit semantics require separate migration units.",
+      "blocker": "The user-copy, syscall-I/O and memory-device span mechanisms are accepted; ptrace, remaining direct-address consumers and remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -55648,14 +55651,18 @@
     },
     {
       "path": "sys/arch/stm32/stm32/machdep.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "memory-device-span-admission",
+      "profile": "maintained-arm-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-memory-device-span-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/mem_span_test.c"
+      ],
+      "blocker": "The baduaddr_span(), badkaddr_span() and one-byte wrapper definitions pass the exact STM32 F405 production compile; full-warning and remaining translation-unit semantics require later maintained-ARM migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "maintained-arm",
@@ -55885,14 +55892,19 @@
     },
     {
       "path": "sys/dev/mem.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "memory-device-span-admission",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-memory-device-span-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/mem_span_test.c",
+        "tests/kernel/mem_span_mutate.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -60511,10 +60523,12 @@
       "evidence": [
         "docs/research/rp2040-credential-transition-contract.md",
         "docs/research/rp2040-syscall-io-span-admission.md",
+        "docs/research/rp2040-memory-device-span-admission.md",
         "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/mem_span_test.c",
         "tests/kernel/rwuio_test.c"
       ],
-      "blocker": "The suser() and baduaddr_span() service declarations are reviewed; remaining broad kernel declarations, GNU attributes and consumers require caller-complete header review.",
+      "blocker": "The suser(), baduaddr_span() and badkaddr_span() service declarations are reviewed; remaining broad kernel declarations, GNU attributes and consumers require caller-complete header review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -62550,6 +62564,7 @@
       "native_input": "no",
       "language_state": "accepted",
       "evidence": [
+        "docs/research/rp2040-memory-device-span-admission.md",
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/mem_span_extract.py",
         "tests/kernel/mem_span_mutate.py"

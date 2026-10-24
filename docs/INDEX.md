@@ -127,6 +127,7 @@ Grouped by what they investigate.
 | `rp2040-ioctl-input-payload-ownership.md` | aligned private ownership for every input and input/output payload accepted by shipped ioctl providers, with calibrated failure and resource evidence |
 | `rp2040-ioctl-output-payload-ownership.md` | aligned private ownership and success-gated publication for every output-only payload accepted by shipped ioctl providers |
 | `rp2040-tty-local-mode-arithmetic.md` | unsigned 32-bit tty local-mode operations, preserved RP2040 layout, exhaustive arithmetic tests and nonpositive static-resource deltas |
+| `rp2040-memory-device-span-admission.md` | complete nonwrapping `/dev/mem` and `/dev/kmem` span admission across disjoint kernel and process intervals, with calibrated failure and resource evidence |
 | `rp2040-swap-ioctl-result-contract.md` | temporary-swap allocation, release and media-size result semantics with calibrated allocator and resource evidence |
 | `rp2040-syscall-stack-argument-admission.md` | complete RP2040 syscall stack-tail admission, stale-state clearing and dispatch failure behavior |
 | `rp2040-elf-load-admission.md` | complete flat ELF file and process-window admission, Thumb entry validation and committed-read failure behavior |

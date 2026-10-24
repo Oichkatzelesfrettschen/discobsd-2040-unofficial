@@ -669,6 +669,25 @@ Source: `rp2040-ioctl-output-payload-ownership.md` and `TESTING.md`
 Source: `rp2040-tty-local-mode-arithmetic.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
 
+### R17 -- memory-device span admission (`sys/dev/mem.c`, RP2040 and STM32 `machdep.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established memory-device entry point; exact RP2040 and STM32 target profiles with the focused caller also compiled under strict C17 at host and ILP32 widths |
+| Tier | T1: `/dev/mem` and `/dev/kmem` pass a caller-selected address and length into the kernel transfer machinery |
+| Native input | No |
+| Contract | A memory-device transfer reaches `uiomove()` only when its complete nonwrapping span fits inside one kernel RAM, kernel flash, or process-window interval; the one-byte address predicates remain compatible wrappers |
+| Invariants | Memory-device major/minor values, read/write entry point, `EFAULT`, process-window selection, kernel linker bounds, public syscall ABI, and `/dev/null` and `/dev/zero` behavior remain unchanged |
+| Falsifier | Four warning-clean mutations restore endpoint-only admission, reject every valid user or kernel span, or reduce kernel validation to one byte; the ILP32 endpoint oracle independently requires both discontiguous and wrapped requests to fail |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-test-execution`, Ruff, exact PICO/PICO_UART GNU17 distributions, exact STM32 F405 production compilation, schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Matched clean distributions at parent `ead253a1` and implementation `ae668f67` report +24 PICO and +16 PICO_UART flash bytes. Static SRAM, every shipped a.out, packed-root surface, native artifact, and archive/member selection are unchanged. `machdep.o` gains 32 text bytes and `mem.o` loses 12 text bytes in each configuration; `mmrw()` retains its 24-byte frame, while `badkaddr()` and the new `badkaddr_span()` each use eight-byte static frames. The bounded exception leaves 25,594 PICO and 38,076 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32, and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for complete `sys/dev/mem.c`, the focused RP2040 and STM32 predicates, and the fixture; remaining machine-dependent semantics stay migration-open. 2 interface: done for the compatible memory-device and one-byte predicate interfaces. 3 native: n/a. 4 hardening: done for shipped memory-device transfer admission. 5 resource: static constrained surfaces accepted through a bounded linked-flash and static-frame exception; runtime peaks remain open. 6 program closure: done for the shipped `/dev/mem` and `/dev/kmem` path |
+| Residuals | `ptrace`, remaining broad kernel declarations, runtime peaks, MPU behavior, deliberate hardware faults, and physical-board execution retain separate states or migration units; full-warning STM32 translation-unit closure remains later maintained-ARM work |
+
+Source: `rp2040-memory-device-span-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -850,8 +869,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 26 accepted, 89 migration-open, 543
-excluded and 1,946 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 27 accepted, 90 migration-open, 543
+excluded and 1,944 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

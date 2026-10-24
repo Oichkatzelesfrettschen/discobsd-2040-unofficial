@@ -58154,14 +58154,23 @@
     },
     {
       "path": "sys/kern/tty.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-tty-local-mode-arithmetic",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-tty-local-mode-arithmetic.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/tty_local_mode_test.c",
+        "tests/kernel/tty_local_mode_extract.py",
+        "tests/kernel/tty_local_mode_mutate.py",
+        "tests/kernel/tty_local_mode_ubsan_mutant_check.sh",
+        "tests/kernel/tty_local_mode_ubsan_mutant_check_test.sh",
+        "tests/kernel/tty_layout_contract.c"
+      ],
+      "blocker": "The unsigned local-mode representation and four TIOCL operations are accepted; remaining old-style definitions, pointer conversions, tty input/read semantics, and complete translation-unit semantics retain separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58182,7 +58191,9 @@
             "shift-expression"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [
             "old-style-definition"
           ],
@@ -60593,14 +60604,18 @@
     },
     {
       "path": "sys/sys/tty.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-tty-local-mode-arithmetic",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-tty-local-mode-arithmetic.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/tty_layout_contract.c"
+      ],
+      "blocker": "The unsigned t_flags representation and RP2040 structure layout are accepted; remaining declarations, conditional members, consumers, and complete header semantics retain separate migration units.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -63041,6 +63056,82 @@
           "object_lifetime": [
             "compound-literal"
           ],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/tty_layout_contract.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-tty-local-mode-arithmetic.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "gnu-extension-review",
+        "extension_signals": [
+          "target-builtin"
+        ],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/tty_local_mode_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-tty-local-mode-arithmetic.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/tty_local_mode_extract.py",
+        "tests/kernel/tty_local_mode_mutate.py",
+        "tests/kernel/tty_local_mode_ubsan_mutant_check.sh",
+        "tests/kernel/tty_local_mode_ubsan_mutant_check_test.sh"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "shift-expression"
+          ],
+          "object_lifetime": [],
           "pointer": [],
           "prototype": [],
           "variadic": []
@@ -88128,14 +88219,17 @@
     },
     {
       "path": "usr.sbin/pstat/pstat.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "usr.sbin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-tty-local-mode-arithmetic",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-tty-local-mode-arithmetic.md",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "The unsigned tty-flag format conversion is accepted; remaining old-style definitions, casts, inspection semantics, and complete translation-unit behavior retain separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",

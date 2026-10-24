@@ -63,7 +63,7 @@ struct tty {
     caddr_t         T_LINEP;            /* ### */
     caddr_t         t_addr;             /* ??? */
     dev_t           t_dev;              /* device */
-    long            t_flags;            /* some of both */
+    uint32_t        t_flags;            /* some of both */
     long            t_state;            /* some of both */
     int             t_pgrp;             /* tty */
     int             t_delct;            /* tty */

@@ -380,6 +380,31 @@ ttnread (tp)
     return (nread);
 }
 
+static uint32_t
+tty_local_mode_bis(uint32_t flags, uint32_t local_mode)
+{
+    return flags | ((local_mode & UINT32_C(0xffff)) << 16);
+}
+
+static uint32_t
+tty_local_mode_bic(uint32_t flags, uint32_t local_mode)
+{
+    return flags & ~((local_mode & UINT32_C(0xffff)) << 16);
+}
+
+static uint32_t
+tty_local_mode_set(uint32_t flags, uint32_t local_mode)
+{
+    return (flags & UINT32_C(0xffff)) |
+        ((local_mode & UINT32_C(0xffff)) << 16);
+}
+
+static uint32_t
+tty_local_mode_get(uint32_t flags)
+{
+    return flags >> 16;
+}
+
 /*
  * Common code for tty ioctls.
  */
@@ -392,7 +417,7 @@ ttioctl(tp, com, data, flag)
     int flag;
 {
     int s;
-    long newflags;
+    uint32_t newflags;
 
 //printf ("ttioctl (com=%08x, data=%08x, flag=%d)\n", com, data, flag);
     /*
@@ -513,7 +538,8 @@ ttioctl(tp, com, data, flag)
         tp->t_kill = sg->sg_kill;
         tp->t_ispeed = sg->sg_ispeed;
         tp->t_ospeed = sg->sg_ospeed;
-        newflags = (tp->t_flags&0xffff0000) | (sg->sg_flags&0xffffL);
+        newflags = (tp->t_flags & UINT32_C(0xffff0000)) |
+            ((uint32_t)sg->sg_flags & UINT32_C(0xffff));
         s = spltty();
         if (tp->t_flags & RAW || newflags & RAW || com == TIOCSETP) {
             ttywait(tp);
@@ -584,20 +610,19 @@ ttioctl(tp, com, data, flag)
      * Modify local mode word.
      */
     case TIOCLBIS:
-        tp->t_flags |= (long)*(u_int *)data << 16;
+        tp->t_flags = tty_local_mode_bis(tp->t_flags, (uint32_t)*(int *)data);
         break;
 
     case TIOCLBIC:
-        tp->t_flags &= ~((long)*(u_int *)data << 16);
+        tp->t_flags = tty_local_mode_bic(tp->t_flags, (uint32_t)*(int *)data);
         break;
 
     case TIOCLSET:
-        tp->t_flags &= 0xffffL;
-        tp->t_flags |= (long)*(u_int *)data << 16;
+        tp->t_flags = tty_local_mode_set(tp->t_flags, (uint32_t)*(int *)data);
         break;
 
     case TIOCLGET:
-        *(int *)data = tp->t_flags >> 16;
+        *(int *)data = (int)tty_local_mode_get(tp->t_flags);
         break;
 
     /*
@@ -1004,7 +1029,7 @@ ttyinput (c, tp)
     register int c;
     register struct tty *tp;
 {
-    long t_flags = tp->t_flags;
+    uint32_t t_flags = tp->t_flags;
     int i;
 
     /*
@@ -1346,7 +1371,7 @@ ttread (tp, uio, flag)
 {
     register struct clist *qp;
     register int c;
-    long t_flags;
+    uint32_t t_flags;
     int s, first, error = 0, carrier;
 
 loop:

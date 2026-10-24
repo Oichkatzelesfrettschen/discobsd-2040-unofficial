@@ -383,7 +383,8 @@ int line;
 	tp = atp;
 
 	printf("%4d%4d", tp->t_rawq.c_cc, tp->t_canq.c_cc);
-	printf("%4d %12.1lo %8x %4d %4d ", tp->t_outq.c_cc, tp->t_flags,
+	printf("%4d %12.1lo %8x %4d %4d ", tp->t_outq.c_cc,
+		(unsigned long)tp->t_flags,
 		tp->t_addr, tp->t_delct, tp->t_col);
 	putf(tp->t_state&TS_TIMEOUT, 'T');
 	putf(tp->t_state&TS_WOPEN, 'W');

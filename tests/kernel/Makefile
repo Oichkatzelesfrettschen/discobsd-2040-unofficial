@@ -75,6 +75,9 @@ ELF_SURROUNDING_CFLAGS=	${SYSCALL_GATE_CFLAGS} \
 ILP32=		-m32
 ILP32_CC= ${HOST_CC}
 include ${TOPSRC}/tools/test-execution.mk
+TTY_LOCAL_MODE_ILP32_UBSAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
+			${HOST_CC} ${ILP32} -fsanitize=undefined \
+			-fno-sanitize-recover=all
 
 # printf and panic are both defined by subr_prf.c and both owned by libc in a
 # host binary, so they move aside the way malloc does elsewhere in this tier.
@@ -253,6 +256,17 @@ FIONREAD_BUILD_TARGETS=	fionread_generic.o fionread_inode.o fionread_test \
 	fionread_generic32.o fionread_inode32.o fionread_test32 \
 	fionread_test_sanitized \
 	${FIONREAD_MUTANTS:@mutation@fionread_${mutation}.mutant.test@}
+TTY_SRC=		${TOPSRC}/sys/kern/tty.c
+TTY_LOCAL_MODE_FUNCTIONS=	tty_local_mode_functions.c
+TTY_LOCAL_MODE_CFLAGS=	-std=c17 -pedantic-errors ${GATE_WARN}
+TTY_LOCAL_MODE_MUTANTS=	lost-local-high-bit bis-and bic-or set-retains-high \
+			signed-get
+TTY_LOCAL_MODE_UBSAN_MUTANT=	signed-shift
+TTY_LAYOUT_CFLAGS=	-std=c17 -pedantic-errors -mcpu=cortex-m0plus \
+			-mthumb -ffreestanding -fno-builtin -fno-common \
+			-nostdinc -DKERNEL -I. -I${TOPSRC}/sys \
+			-I${TOPSRC}/sys/arch -I${PORT_INCLUDE} ${GATE_WARN}
+TTY_LAYOUT_BAD_OUTPUT=	tty_layout_contract_bad.out
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -273,7 +287,7 @@ DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
 	clist_test cred_test resource_test rwuio_test file_owner_test \
-	fionread_test swap_ioctl_test
+	fionread_test swap_ioctl_test tty_local_mode_test
 
 SHUTDOWN_CHECKS=
 .if ${MACHINE:U} == "rp2040"
@@ -304,6 +318,115 @@ ${MACHINE_STAMP}: hostintr.h ${PORT_INCLUDE}
 	done
 	@echo '#include "../hostintr.h"' >> machine/intr.h
 	@touch $@
+
+${TTY_LOCAL_MODE_FUNCTIONS}: tty_local_mode_extract.py ${TTY_SRC}
+	${PYTHON} tty_local_mode_extract.py --source ${TTY_SRC} --output $@
+
+tty_local_mode_test: tty_local_mode_test.c ${TTY_LOCAL_MODE_FUNCTIONS}
+	${HOST_CC} ${TTY_LOCAL_MODE_CFLAGS} -o $@ tty_local_mode_test.c
+
+tty_local_mode_test32: tty_local_mode_test.c ${TTY_LOCAL_MODE_FUNCTIONS}
+	${HOST_CC} ${TTY_LOCAL_MODE_CFLAGS} ${ILP32} -o $@ tty_local_mode_test.c
+
+tty_local_mode_test_sanitized: tty_local_mode_test.c \
+    ${TTY_LOCAL_MODE_FUNCTIONS}
+	${HOST_CC} ${TTY_LOCAL_MODE_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -o $@ tty_local_mode_test.c
+
+.for mutation in ${TTY_LOCAL_MODE_MUTANTS} ${TTY_LOCAL_MODE_UBSAN_MUTANT}
+tty_local_mode_${mutation}.mutant.c: tty_local_mode_mutate.py \
+    ${TTY_LOCAL_MODE_FUNCTIONS}
+	${PYTHON} tty_local_mode_mutate.py --source ${TTY_LOCAL_MODE_FUNCTIONS} \
+	    --output $@ --mutation ${mutation}
+.endfor
+
+.for mutation in ${TTY_LOCAL_MODE_MUTANTS}
+tty_local_mode_${mutation}.mutant.test: tty_local_mode_test.c \
+    tty_local_mode_${mutation}.mutant.c
+	${HOST_CC} ${TTY_LOCAL_MODE_CFLAGS} \
+	    -DTTY_LOCAL_MODE_FUNCTIONS='"tty_local_mode_${mutation}.mutant.c"' \
+	    -o $@ tty_local_mode_test.c
+.endfor
+
+tty_local_mode_${TTY_LOCAL_MODE_UBSAN_MUTANT}.mutant.test: \
+    tty_local_mode_test.c \
+    tty_local_mode_${TTY_LOCAL_MODE_UBSAN_MUTANT}.mutant.c
+	${HOST_CC} ${TTY_LOCAL_MODE_CFLAGS} ${ILP32} -fsanitize=undefined \
+	    -fno-sanitize-recover=all \
+	    -DTTY_LOCAL_MODE_FUNCTIONS='"tty_local_mode_${TTY_LOCAL_MODE_UBSAN_MUTANT}.mutant.c"' \
+	    -o $@ tty_local_mode_test.c
+
+check-tty-local-mode-mutants: check-tty-local-mode-ubsan-oracle \
+    ${TTY_LOCAL_MODE_MUTANTS:@mutation@tty_local_mode_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${TTY_LOCAL_MODE_MUTANTS}; do \
+		output=tty_local_mode_$$mutation.mutant.out; \
+		if ./tty_local_mode_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		if [ "$$status" -ne 1 ]; then \
+			cat $$output >&2; \
+			echo "FAIL tty local-mode $$mutation mutation returned $$status" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS tty local-mode $$mutation mutation rejected"; \
+	done
+
+check-tty-local-mode-ubsan-oracle: tty_local_mode_ubsan_mutant_check.sh \
+    tty_local_mode_ubsan_mutant_check_test.sh
+	sh ./tty_local_mode_ubsan_mutant_check_test.sh \
+	    ${.CURDIR}/tty_local_mode_ubsan_mutant_check.sh
+
+check-tty-local-mode-ilp32-mutant: check-tty-local-mode-ubsan-oracle
+.if ${TTY_LOCAL_MODE_ILP32_UBSAN_OK} == "yes"
+check-tty-local-mode-ilp32-mutant: \
+    tty_local_mode_${TTY_LOCAL_MODE_UBSAN_MUTANT}.mutant.test \
+    tty_local_mode_ubsan_mutant_check.sh
+	${TEST_EXECUTION} run kernel.tty-local-mode.signed-shift-negative -- \
+	    sh ./tty_local_mode_ubsan_mutant_check.sh \
+	    ./tty_local_mode_${TTY_LOCAL_MODE_UBSAN_MUTANT}.mutant.test
+.else
+	${TEST_EXECUTION} skip kernel.tty-local-mode.signed-shift-negative \
+	    "tty local-mode signed-shift mutation: ILP32 sanitizer runtime unavailable"
+.endif
+
+check-tty-local-mode-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+check-tty-local-mode-sanitizer: tty_local_mode_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.tty-local-mode.sanitized -- \
+	    ./tty_local_mode_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.tty-local-mode.sanitized \
+	    "tty local-mode contracts: sanitizer runtime unavailable"
+.endif
+
+tty-layout-contract-force:
+
+tty_layout_contract.o: tty-layout-contract-force tty_layout_contract.c \
+    ${MACHINE_STAMP}
+	${GCCPREFIX}-gcc ${TTY_LAYOUT_CFLAGS} -MMD -MP \
+	    -MF tty_layout_contract.d -c -o $@ tty_layout_contract.c
+
+.sinclude "tty_layout_contract.d"
+
+check-tty-layout-cross: tty_layout_contract.o
+	@set -eu; \
+	if ${GCCPREFIX}-gcc ${TTY_LAYOUT_CFLAGS} \
+	    -DTTY_LAYOUT_EXPECTED_SIZE=121 -fsyntax-only \
+	    tty_layout_contract.c >${TTY_LAYOUT_BAD_OUTPUT} 2>&1; then \
+		cat ${TTY_LAYOUT_BAD_OUTPUT} >&2; \
+		echo "FAIL tty layout accepted a 121-byte structure contract" >&2; \
+		exit 1; \
+	fi; \
+	if ! grep -F "struct tty size changed" \
+	    ${TTY_LAYOUT_BAD_OUTPUT} >/dev/null; then \
+		cat ${TTY_LAYOUT_BAD_OUTPUT} >&2; \
+		echo "FAIL tty layout rejection missed the size assertion" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS tty layout rejects a 121-byte structure contract"
 
 # The harness carries no kernel header, so it compiles without the renames
 # and reaches <setjmp.h>, <stdio.h> and <string.h> the way any host program
@@ -1347,7 +1470,8 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
-	    swap_ioctl_test32 \
+	    swap_ioctl_test32 tty_local_mode_test32 \
+	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
 	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
@@ -1370,6 +1494,8 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32
 	${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32
 	${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32
+	${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- \
+	    ./tty_local_mode_test32
 	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
 	${TEST_EXECUTION} run kernel.syscall-arguments.ilp32 -- ./syscall_args_test32
 	@if ./syscall_args_dispatch_mutant; then status=0; else status=$$?; fi; \
@@ -1449,6 +1575,8 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.fionread.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.swap-ioctl.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.tty-local-mode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.tty-local-mode.signed-shift-negative "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -1471,7 +1599,8 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
     check-file-status-mutants check-fionread-mutants \
     check-fionread-sanitizer check-swap-ioctl-mutants \
-    check-swap-ioctl-sanitizer
+    check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
+    check-tty-local-mode-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1517,6 +1646,11 @@ clean:
 	    ${FIONREAD_IOCTL_FUNCTION} ${FIONREAD_INODE_FUNCTION}
 	rm -f fionread_*.mutant.c fionread_*.mutant.o \
 	    fionread_*.mutant.test fionread_*.mutant.out
+	rm -f tty_local_mode_test tty_local_mode_test32 tty_layout_contract.o \
+	    tty_layout_contract.d ${TTY_LAYOUT_BAD_OUTPUT} \
+	    tty_local_mode_test_sanitized ${TTY_LOCAL_MODE_FUNCTIONS}
+	rm -f tty_local_mode_*.mutant.c tty_local_mode_*.mutant.test \
+	    tty_local_mode_*.mutant.out
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
@@ -1558,4 +1692,8 @@ clean:
 	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \
 	check-file-owner-linker-flags \
 	check-file-owner-sanitizer check-file-status-mutants \
-	check-fionread-mutants check-fionread-sanitizer clean
+	check-fionread-mutants check-fionread-sanitizer \
+	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
+	check-tty-local-mode-ilp32-mutant \
+	check-tty-local-mode-sanitizer check-tty-layout-cross \
+	tty-layout-contract-force clean

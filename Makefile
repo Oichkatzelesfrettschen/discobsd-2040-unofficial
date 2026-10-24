@@ -1058,6 +1058,9 @@ check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES
 check-kernel-ilp32:
 		${MAKE} -C tests/kernel check-ilp32
 
+check-tty-layout-cross:
+		${MAKE} -C tests/kernel check-tty-layout-cross
+
 check-rp2040-shutdown:
 		${MAKE} -C tests/kernel check-shutdown
 
@@ -1115,7 +1118,7 @@ check-cross-contracts:	${CROSS_CONTRACT_GATES}
 check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
-		check-kernel-printf-formats .WAIT \
+		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
 		check-hsaout .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
@@ -1237,6 +1240,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
+		check-tty-layout-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \

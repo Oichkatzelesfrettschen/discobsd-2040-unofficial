@@ -593,6 +593,25 @@ Source: `rp2040-fionread-result-admission.md` and `TESTING.md`
 Source: `rp2040-swap-ioctl-result-contract.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`).
 
+### R13 -- ioctl command geometry (`sys/kern/sys_generic.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD ioctl command encoding; RP2040 kernel profile with the focused definitions compiled in C17 mode |
+| Tier | T1: encoded command geometry controls admission of a caller-selected address before provider dispatch |
+| Native input | No |
+| Contract | `ioctl()` extracts payload length only from bits 16 through 23, admits the complete span through `baduaddr_span()`, treats an encoded zero length as an empty span, and passes the complete command value to the provider |
+| Invariants | Syscall 54, public command values and layouts, descriptor/access precedence, provider selection, provider errors and the accepted `FIONREAD` result contract remain unchanged; providers retain unknown-command authority |
+| Falsifier | Two warning-clean mutations include reserved command bits in the extracted size or restore first/last-address probes with zero-length subtraction; each must fail its named assertion with status 1 |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-test-execution`, Ruff, exact PICO/PICO_UART GNU17 builds, schema-2 dependency/resource comparison and exact-command object/frame replay |
+| Resources | Matched clean distributions at parent `7f828e2b` and candidate `997d27d7` report 16-byte flash reductions for PICO and PICO_UART. Static SRAM, every shipped a.out, packed-root surface, native artifact and archive/member selection are unchanged. `sys_generic.o` and `ioctl()` each lose 16 text bytes in both configurations; the 24-byte `ioctl()` static frame is unchanged. The default nonpositive-growth rule accepts every constrained surface; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the exact extracted geometry seam and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for preserved command encoding and provider dispatch. 3 native: n/a. 4 hardening: done for the exercised encoded-size, empty-span and complete-span boundary. 5 resource: done for static surfaces with nonpositive growth; runtime peaks stay open. 6 program closure: done for the bounded command-geometry seam |
+| Residuals | General input and bidirectional ioctl payload ownership, tty local-mode signed arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+
+Source: `rp2040-ioctl-command-geometry.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:

@@ -925,6 +925,31 @@ selections remain unchanged. The bounded exception leaves 25,920 PICO and
 38,396 PICO_UART flash bytes. Runtime stack high-water, general `TFALLOC`
 marshalling and physical-board execution remain open.
 
+## Ioctl command geometry
+
+The general `ioctl()` path now extracts payload length only from the public
+eight-bit field in command bits 16 through 23 and admits the complete span
+through `baduaddr_span()`. A directional command with encoded size zero owns
+an empty span. The provider still receives the complete command value and
+retains authority to reject an unknown or malformed command.
+
+The 67-assertion ioctl and `FIONREAD` fixture retains every result-ownership
+case and adds four zero-length address cases plus a reserved-bit command case.
+Native, ILP32, and address/undefined-behavior/alignment sanitizer variants
+pass. Two new
+warning-clean mutations restore reserved-bit size inflation or first/last
+address probing with zero-length subtraction; each fails its named assertion.
+Both shipped kernel configurations compile and link under their exact GNU17
+commands.
+
+Matched schema-2 distributions measure 16-byte flash reductions for PICO and
+PICO_UART. `sys_generic.o` and `ioctl()` each lose 16 text bytes, while
+the `ioctl()` frame remains 24 bytes. Static SRAM, every shipped a.out,
+packed-root counters, native artifacts and archive/member selections remain
+unchanged. The default nonpositive-growth rule accepts the unit. Runtime
+stack and heap peaks, general input and bidirectional ioctl ownership, tty
+local-mode arithmetic and physical-board execution remain open.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
@@ -933,7 +958,7 @@ marshalling and physical-board execution remain open.
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
-| P1 | remaining direct-address syscall consumers | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, the two file-owner ioctl payloads, and both direct file-status ioctl payloads. Other `ioctl` commands, `/dev/mem`, and `ptrace` still consume caller-selected addresses through separate paths; `ptrace` also lacks an ARM writable-register and PSR policy for `PT_WRITE_U`. | Retain `check-exec-spool`, `check-namei-user-path`, `check-rp2040-usercopy-span`, the 226-assertion rwuio gate and the 72-assertion file-control gate. Define the ARM ptrace policy before implementing its bounds, then add calibrated invalid-pointer and deliberate-fault evidence for each remaining boundary. |
+| P1 | remaining direct-address syscall consumers | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, the two file-owner ioctl payloads, both direct file-status ioctl payloads, `FIONREAD` results and ioctl command geometry. General input and bidirectional ioctl payload ownership, `/dev/mem`, and `ptrace` still consume caller-selected addresses through separate paths; `ptrace` also lacks an ARM writable-register and PSR policy for `PT_WRITE_U`. | Retain `check-exec-spool`, `check-namei-user-path`, `check-rp2040-usercopy-span`, the 226-assertion rwuio gate, the 72-assertion file-control gate and the 67-assertion ioctl/`FIONREAD` gate. Define the ARM ptrace policy before implementing its bounds, then add calibrated invalid-pointer and deliberate-fault evidence for each remaining boundary. |
 | P1 | USB reset execution evidence | Standard and CDC request geometry plus Pico reset request fields now have production predicates and calibrated host controls. Reset requests require type `0x21`, configured interface 2, exact `wIndex`, zero `wLength`, and command-specific `wValue`; the source-wiring check requires an EP0 stall before action and a two-bit ROM mask. `SET_FEATURE` remains stalled because endpoint halt is unimplemented and remote wakeup is disabled. | `check-usb-set-configuration`, `check-usb-set-address-interface`, `check-usb-get-descriptor`, `check-usb-cdc-requests`, `check-usb-standard-requests` and `check-usb-reset` cover the implemented fields with calibrated mutations. The CDC contract follows PSTN 1.2 sections 6.3.10-6.3.13: <https://www.usb.org/sites/default/files/CDC1.2_WMC1.1_012011.zip>; standard request geometry follows USB 2.0 Chapter 9: <https://www.usb.org/document-library/usb-20-specification>; reset semantics follow pinned Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`. Earlier CDC and standard-request changes measured `usb.o` text at 3,936 to 4,016 bytes (+80) and 4,016 to 4,184 bytes (+168). The clean-base reset comparison measures `usb.o` text +44 bytes (4,208 to 4,252), PICO kernel text +40 bytes (103,310 to 103,350), unchanged object data/BSS 8,200/344, unchanged kernel data/BSS 248/39,816, and unchanged PICO_UART 90,960/192/14,768. USB-controller dispatch and physical-board reset behavior remain unmeasured. |
 | P2 | source-only setuid utilities | `chpass` and related password-database editors are outside the image but retain older dialect and privileged temporary-file logic. | Manifest reachability proof, strict-C17 build, concurrent update/failure harness and explicit decision to ship or quarantine. |
 

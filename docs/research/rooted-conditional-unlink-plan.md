@@ -125,6 +125,86 @@ replacement to survive.  A separate production-kernel fixture establishes the
 comparison and mutation under the actual parent lock; the host shim alone does
 not establish kernel atomicity.
 
+## Matched resource evidence
+
+Clean schema-2 distributions compare parent `0938a979` with candidate
+`0c4dee43`.  Both captures used bmake 20260912, arm-none-eabi-gcc 16.2.0,
+GNU ld 2.47.20260726, and Python 3.14.8.  The dependency closures account for
+174 PICO and 166 PICO_UART C/header paths plus every installed a.out, native
+startup and libc artifact, generated input, selected archive member, and the
+packed root.  Cpio's closure moves from 82 to 81 C/header paths because its
+identity-conditioned cleanup removes the `strrchr.o` and `unlink.o`
+dependencies and selects `unlinkat_beneath.o`.
+
+| Constrained surface | Parent | Candidate | Delta | Candidate margin |
+| --- | ---: | ---: | ---: | ---: |
+| PICO flash bytes | 106,382 | 107,050 | +668 | 24,022 bytes below 128 KiB |
+| PICO `.bss` / SwapRAM / scratch bytes | 15,272 / 16,384 / 8,192 | 15,272 / 16,384 / 8,192 | 0 / 0 / 0 | unchanged |
+| PICO_UART flash / `.bss` bytes | 93,908 / 14,832 | 94,568 / 14,832 | +660 / 0 | 36,504 flash bytes below 128 KiB |
+| Cpio text / data / BSS bytes | 10,292 / 200 / 884 | 10,384 / 200 / 884 | +92 / 0 / 0 | 11,468 loaded bytes |
+| Cpio raw / packed bytes / packed blocks | 10,524 / 8,770 / 10 | 10,616 / 8,852 / 10 | +92 / +82 / 0 | unchanged block count |
+| Native board `libc.a` bytes / members | 43,010 / 151 | 43,010 / 151 | 0 / 0 | unchanged |
+| Packed-root data / free blocks | 692 / 287 | 692 / 287 | 0 / 0 | unchanged |
+| Packed-root free inodes | 33 | 33 | 0 | unchanged |
+| Every other shipped a.out and archive selection | measured baseline | unchanged | 0 | unchanged |
+
+The comparer rejects the positive flash and cpio deltas and the changed cpio
+archive selection by design.  The candidate requests a bounded exception for
+the caller-complete namespace identity mechanism.  Cpio adds the 20-byte
+`unlinkat_beneath.o` wrapper while dropping `strrchr.o` and `unlink.o`; every
+other selected member remains unchanged.  The exception adds zero linked
+static SRAM, process-window allocation, packed-root blocks, inodes, or native
+library bytes.
+
+Exact recorded production commands replayed with `-fstack-usage` and
+reproducible path maps produce the following affected-object results in both
+kernel configurations:
+
+| Object | Parent text/data/BSS | Candidate text/data/BSS | Delta |
+| --- | ---: | ---: | ---: |
+| `init_sysent.o` | 794/0/0 | 799/0/0 | +5/0/0 |
+| `ufs_namei.o` | 4,608/0/36 | 4,984/0/40 | +376/0/+4 |
+| `ufs_syscalls.o` | 4,633/0/0 | 4,893/0/0 | +260/0/0 |
+| `cpio.o` | 3,540/0/776 | 3,652/0/776 | +112/0/0 |
+| ARM ELF and a.out syscall wrappers | absent | 20/0/0 each | +20/0/0 each |
+
+`namei_at()` retains a 392-byte static frame, `dirremove()` retains 40 bytes,
+`rename()` retains 192 bytes, and `unlink()` retains 120 bytes.  The new
+namespace enter and exit functions use 16 and 8 bytes; the two gate flags are
+one byte each, with the object growing four BSS bytes after alignment.  The new
+`unlinkat_beneath()` frame is 120 bytes.  Cpio's `main()` and `copy_in()`
+frames retain 32 and 128 bytes, while `remove_incomplete_output()` uses 24
+bytes.  Compiler frames do not establish complete call-chain or runtime stack
+high-water bounds.
+
+Cpio holds one extraction-root descriptor and one output descriptor at the
+cleanup call, in addition to its standard streams.  The mechanism allocates no
+new descriptor-table slot.  The syscall temporarily owns one reference copied
+from the expected output inode plus the final parent and target lookup
+references.  Including the two descriptor-owned references, the operation can
+hold five inode references across at most three distinct inodes for a nested
+path.  Fixed descriptor and inode table limits remain unchanged.
+
+| Receipt | SHA-256 |
+| --- | --- |
+| Parent clean execution | `96a8544fb0d6fc70220a516a1585d61f0629ce32d488b488b3cc891cec213909` |
+| Parent distribution execution | `c2b1d5ab641e9cf804fe6915fc977ad5d720811ffc4926ad2d816f25753d709c` |
+| Parent source snapshot | `bde7cf181c82f5786037e8941ed2d4afe45b4da06ff0322335e8c90c674f1360` |
+| Parent dependency closure | `dfd7d440bcf14c961205f20fbb19ab8fe8998425474b2ee16acfe4973b30a738` |
+| Parent schema-2 resources | `7c5b6251a62c5eded8de17d91b94467023ab33581e698cad3d679ebe8baa1f99` |
+| Parent exact-command objects and frames | `5c5f68c4931d116437fc7d10837a49d080838dc6280a6bdd6adec77f1aeaeca2` |
+| Candidate clean execution | `32177fb2bc8f2c0449002d1dc681bad405959ea82871008e73c00480b6a46f66` |
+| Candidate distribution execution | `4fdd7bbaebb124fc27082169d68c3eba6895569bdc07a6dc795ab4e854ac6c55` |
+| Candidate source snapshot | `ad2d94e0bee94c15469143a8a62e85830452601847720dfa16f6e3b9ddde96bd` |
+| Candidate dependency closure | `c26b631ab4447ed97c45af09ab8e9a41d9a6c123e83e5227ca4f7582f8033010` |
+| Candidate schema-2 resources | `f54addcc1f44aaece7f10a268fa2ec892dff0275bd02431cf4a9c2a7bff15642` |
+| Candidate exact-command objects and frames | `23b082ad399af8941675af3beee248dd63fe4be07b4115cac4533b85bf8e5106` |
+| Static-resource comparison | `1dece889fd5d171f2ca7aca48f0ebb6a60abf12a3458b274f0e9f72907864a27` |
+
+Runtime stack and heap high-water, storage traffic, persistence recovery, and
+physical-board behavior remain unmeasured.  Each state stays open rather than
+borrowing acceptance from the static comparison.
+
 ## Ordered tasks
 
 1. [x] Add a failing `dirremove()` write-error fixture for both directory-entry
@@ -157,11 +237,14 @@ not establish kernel atomicity.
    The exact PICO/PICO_UART production compiles, focused 32-bit fixtures,
    generated metadata, 19-program Smaller C suite, damaged-archive control,
    strict-C17 cpio suites, and clean libc/cpio target rebuilds pass.
-10. [ ] Compare clean parent and candidate distributions for PICO and PICO_UART.
+10. [x] Compare clean parent and candidate distributions for PICO and PICO_UART.
     Record kernel flash and SRAM, affected object and frame sizes, cpio a.out
     occupancy, libc archive selection, packed-root bytes and blocks, and the
     maximum simultaneous descriptor and inode ownership.  Positive constrained
     growth requires a bounded reviewed exception.
+    The matched schema-2 receipts and exact-command replay above measure every
+    declared static surface.  The candidate requests the bounded growth and
+    archive-selection exception; pull-request review remains part of task 11.
 11. [ ] Run `logged-check`, review the staged diff and a fresh-context branch
     review, push the focused branch, open and merge a pull request with a merge
     commit, synchronize `main`, and retire the clean worktree.

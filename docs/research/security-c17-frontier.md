@@ -1114,14 +1114,19 @@ the completed pathname. Three cpio mutations, five
 topology, and restricted-lookup controls calibrate identity, serialization,
 traversal, and write-publication rejection.
 
-Focused target builds add 28 linked text bytes to each kernel with unchanged
-linked data/BSS. The ARM wrapper occupies 20 bytes. Cpio adds 112 object-text
-bytes and 92 final a.out bytes with unchanged data/BSS; `main()` and
-`copy_in()` retain 32-byte and 128-byte static frames, and the cleanup helper
-uses 24 bytes. The clean distribution, packed-root, and full archive-selection
-comparison remains open. Cpio creation confinement, tar creation/link/removal,
-compress publication, runtime peaks, persistence, and physical-board behavior
-remain separate claims.
+Matched parent `0938a979` and candidate `0c4dee43` distributions add 668
+PICO and 660 PICO_UART flash bytes with zero linked static-SRAM delta. Cpio
+adds 92 raw/loaded bytes and 82 packed bytes while retaining ten packed blocks;
+its archive selection adds the 20-byte `unlinkat_beneath.o` wrapper and drops
+`strrchr.o` and `unlink.o`. Every other shipped a.out, archive selection,
+native artifact, packed-root block, and inode count remains unchanged. Exact
+production-command replay retains the existing namei, directory-removal,
+rename, unlink, cpio main, and cpio copy frames; the namespace entry/exit,
+conditional unlink, and cpio cleanup frames use 16, 8, 120, and 24 bytes. The
+bounded exception request leaves 24,022 PICO and 36,504 PICO_UART flash bytes.
+Runtime peaks and storage traffic remain unmeasured. Cpio creation confinement,
+tar creation/link/removal, compress publication, persistence, and
+physical-board behavior remain separate claims.
 
 ## Ranked residual frontier
 

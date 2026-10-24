@@ -76,7 +76,7 @@ P=${DESTDIR}${MDIR}
 REM= sbrk.0 dup2.0 fstat.0 lstat.0 readv.0 recvfrom.0 sendmsg.0 recvmsg.0 \
 	sendto.0 fstatfs.0 wait3.0 wait4.0 waitpid.0 fchdir.0 fchflags.0 \
 	fchmod.0 fchown.0 umount.0 writev.0 getppid.0 ftruncate.0 \
-	futimes.0 openat.0 \
+	futimes.0 openat.0 unlinkat_beneath.0 \
 	pselect.0 \
 	sethostid.0 setitimer.0 setrlimit.0 setsockopt.0 sethostname.0 \
 	setpriority.0 settimeofday.0 setlogin.0 geteuid.0 setgid.0 \
@@ -108,6 +108,7 @@ install: _make_01
 	ln -f ${P}/truncate.0 ${P}/ftruncate.0
 	ln -f ${P}/utimes.0 ${P}/futimes.0
 	ln -f ${P}/open.0 ${P}/openat.0
+	ln -f ${P}/unlink.0 ${P}/unlinkat_beneath.0
 	ln -f ${P}/gethostid.0 ${P}/sethostid.0
 	ln -f ${P}/getitimer.0 ${P}/setitimer.0
 	ln -f ${P}/getrlimit.0 ${P}/setrlimit.0

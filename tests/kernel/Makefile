@@ -156,12 +156,49 @@ OPENAT_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
 OPENAT_DEFS=	-DSINGLE_UFS_ROOT -DNMOUNT=1 -DLINEAR_NAME_CACHE \
 		-DNNAMECACHE=4
 OPENAT_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+OPENAT_MULTIFS_DEFS=	-DNMOUNT=2 -DLINEAR_NAME_CACHE -DNNAMECACHE=4
+OPENAT_MULTIFS_CFLAGS=	-ffunction-sections -fdata-sections \
+			${OPENAT_MULTIFS_DEFS}
 OPENAT_RENAMES=	-Dopen=kernel_open -Dopenat=kernel_openat \
 		-Dsetjmp=openat_setjmp -Diput=iput_openat
 OPENAT_SYSCALL_RENAMES=	${OPENAT_RENAMES} -Dmaknode=openat_syscalls_maknode
-OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd
+OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd \
+			accept-empty-beneath follow-beneath-symlink \
+			cross-beneath-mount
 OPENAT_VNOPS_MUTANTS=	follow-final-symlink
 OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS}
+UNLINKAT_BENEATH_NAMEI_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
+UNLINKAT_BENEATH_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
+UNLINKAT_BENEATH_CFLAGS=	-ffunction-sections -fdata-sections \
+				${OPENAT_MULTIFS_DEFS}
+UNLINKAT_BENEATH_RENAMES=	-Dlink=conditional_unlink_link \
+				-Dunlink=conditional_unlink_legacy \
+				-Drename=conditional_unlink_rename
+UNLINKAT_BENEATH_MUTANTS=	omit-namespace-acquisition \
+				release-before-removal skip-identity-comparison \
+				drop-expected-reference decrement-on-write-error
+DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
+DIRREMOVE_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+DIRREMOVE_MUTANTS=	discard-first-write-error discard-coalesced-write-error
+UFS_NAMESPACE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
+UFS_NAMESPACE_CFLAGS=	-ffunction-sections -fdata-sections -DDIAGNOSTIC \
+			${OPENAT_DEFS}
+UFS_NAMESPACE_RENAMES=	-Dcheckpath=namespace_checkpath \
+			-Dnamei=namespace_namei -Dnamei_at=namespace_namei_at \
+			-Ddirempty=namespace_dirempty \
+			-Dcacheinval=namespace_cacheinval \
+			-Ddirrewrite=namespace_dirrewrite \
+			-Ddirenter=namespace_direnter \
+			-Ddirremove=namespace_dirremove
+UFS_NAMESPACE_MUTANTS=	omit-acquisition omit-wakeup clear-on-interrupt
+UFS_TOPOLOGY_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
+UFS_TOPOLOGY_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+UFS_TOPOLOGY_RENAMES=	-Dlink=kernel_link -Dunlink=kernel_unlink \
+			-Drename=kernel_rename -Dnamei=topology_namei
+UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
+			release-before-source-lookup \
+			release-before-directory-checkpath allow-directory-link \
+			allow-directory-unlink
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -1494,6 +1531,10 @@ openat_namei32.o: ${OPENAT_NAMEI_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} -c -o $@ \
 	    ${OPENAT_NAMEI_SRC}
 
+openat_namei_multifs32.o: ${OPENAT_NAMEI_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_MULTIFS_CFLAGS} ${ILP32} -c -o $@ \
+	    ${OPENAT_NAMEI_SRC}
+
 openat_vnops32.o: ${OPENAT_VNOPS_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_RENAMES} ${ILP32} \
 	    -c -o $@ ${OPENAT_VNOPS_SRC}
@@ -1507,14 +1548,260 @@ openat_namei_test32: openat_test.c openat_namei32.o hostkern32.o
 	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
 	    openat_namei32.o hostkern32.o
 
-openat_test32: openat_test.c openat_vnops32.o openat_syscalls32.o hostkern32.o
+openat_namei_multifs_test32: openat_test.c openat_namei_multifs32.o \
+    hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
+	    openat_namei_multifs32.o hostkern32.o
+
+openat_test32: openat_test.c openat_vnops32.o openat_syscalls32.o \
+    ufs_namespace_kernel32.o hostkern32.o
 	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
 	    ${OPENAT_LDFLAGS} -o $@ openat_test.c openat_vnops32.o \
-	    openat_syscalls32.o hostkern32.o
+	    openat_syscalls32.o ufs_namespace_kernel32.o hostkern32.o
 
-check-openat-ilp32: openat_namei_test32 openat_test32
+check-openat-ilp32: openat_namei_test32 openat_namei_multifs_test32 \
+    openat_test32
 	${TEST_EXECUTION} run kernel.openat-namei.ilp32 -- ./openat_namei_test32
+	${TEST_EXECUTION} run kernel.openat-namei-multifs.ilp32 -- \
+	    ./openat_namei_multifs_test32
 	${TEST_EXECUTION} run kernel.openat.ilp32 -- ./openat_test32
+
+unlinkat_beneath_namei32.o: ${UNLINKAT_BENEATH_NAMEI_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UNLINKAT_BENEATH_CFLAGS} ${ILP32} \
+	    -c -o $@ ${UNLINKAT_BENEATH_NAMEI_SRC}
+
+unlinkat_beneath_functions.c: unlinkat_beneath_extract.py \
+    ${UNLINKAT_BENEATH_SYSCALL_SRC}
+	${PYTHON} unlinkat_beneath_extract.py \
+	    --source ${UNLINKAT_BENEATH_SYSCALL_SRC} --output $@
+
+unlinkat_beneath_syscalls32.o: unlinkat_beneath_functions.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UNLINKAT_BENEATH_CFLAGS} ${ILP32} \
+	    ${UNLINKAT_BENEATH_RENAMES} -c -o $@ \
+	    unlinkat_beneath_functions.c
+
+unlinkat_beneath_test32: unlinkat_beneath_test.c \
+    unlinkat_beneath_namei32.o unlinkat_beneath_syscalls32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${UNLINKAT_BENEATH_RENAMES} ${OPENAT_LDFLAGS} -o $@ \
+	    unlinkat_beneath_test.c unlinkat_beneath_namei32.o \
+	    unlinkat_beneath_syscalls32.o hostkern32.o
+
+check-unlinkat-beneath-ilp32: unlinkat_beneath_test32
+	${TEST_EXECUTION} run kernel.unlinkat-beneath.ilp32 -- \
+	    ./unlinkat_beneath_test32
+
+.for mutation in ${UNLINKAT_BENEATH_MUTANTS}
+unlinkat_beneath_${mutation}.mutant.c: unlinkat_beneath_mutate.py \
+    unlinkat_beneath_extract.py ${UNLINKAT_BENEATH_SYSCALL_SRC}
+	${PYTHON} unlinkat_beneath_mutate.py \
+	    --source ${UNLINKAT_BENEATH_SYSCALL_SRC} --output $@ \
+	    --mutation ${mutation}
+
+unlinkat_beneath_${mutation}.mutant.test: \
+    unlinkat_beneath_${mutation}.mutant.c unlinkat_beneath_test.c \
+    unlinkat_beneath_namei32.o hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UNLINKAT_BENEATH_CFLAGS} ${ILP32} \
+	    ${UNLINKAT_BENEATH_RENAMES} -c -o \
+	    unlinkat_beneath_${mutation}.mutant.o \
+	    unlinkat_beneath_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${UNLINKAT_BENEATH_RENAMES} ${OPENAT_LDFLAGS} -o $@ \
+	    unlinkat_beneath_test.c unlinkat_beneath_namei32.o \
+	    unlinkat_beneath_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-unlinkat-beneath-mutants: \
+    ${UNLINKAT_BENEATH_MUTANTS:@mutation@unlinkat_beneath_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${UNLINKAT_BENEATH_MUTANTS}; do \
+		output=unlinkat_beneath_$$mutation.mutant.out; \
+		if ./unlinkat_beneath_$$mutation.mutant.test \
+		    >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		omit-namespace-acquisition) expected='namespace_is_owned()' ;; \
+		release-before-removal) expected='namespace_is_owned()' ;; \
+		skip-identity-comparison) expected='u.u_error == ESTALE' ;; \
+		drop-expected-reference) expected='expected_inode.i_count == 1' ;; \
+		decrement-on-write-error) expected='expected_inode.i_nlink == 2' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL unlinkat_beneath $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS unlinkat_beneath $$mutation mutation rejected"; \
+	done
+
+dirremove_kernel32.o: ${DIRREMOVE_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${DIRREMOVE_CFLAGS} ${ILP32} -c -o $@ \
+	    ${DIRREMOVE_SRC}
+
+dirremove_test32: dirremove_test.c dirremove_kernel32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ dirremove_test.c dirremove_kernel32.o \
+	    hostkern32.o
+
+check-dirremove-ilp32: dirremove_test32
+	${TEST_EXECUTION} run kernel.dirremove.ilp32 -- ./dirremove_test32
+
+.for mutation in ${DIRREMOVE_MUTANTS}
+dirremove_${mutation}.mutant.c: dirremove_mutate.py ${DIRREMOVE_SRC}
+	${PYTHON} dirremove_mutate.py --source ${DIRREMOVE_SRC} --output $@ \
+	    --mutation ${mutation}
+
+dirremove_${mutation}.mutant.test: dirremove_${mutation}.mutant.c \
+    dirremove_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${DIRREMOVE_CFLAGS} ${ILP32} -c -o \
+	    dirremove_${mutation}.mutant.o dirremove_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ dirremove_test.c \
+	    dirremove_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-dirremove-mutants: \
+    ${DIRREMOVE_MUTANTS:@mutation@dirremove_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${DIRREMOVE_MUTANTS}; do \
+		output=dirremove_$$mutation.mutant.out; \
+		if ./dirremove_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		discard-first-write-error) expected='dirremove(&name) == 0' ;; \
+		discard-coalesced-write-error) expected='u.u_error == EIO' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL dirremove $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS dirremove $$mutation mutation rejected"; \
+	done
+
+ufs_namespace_kernel32.o: ${UFS_NAMESPACE_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} ${ILP32} -c -o $@ \
+	    ${UFS_NAMESPACE_RENAMES} ${UFS_NAMESPACE_SRC}
+
+ufs_namespace_test32: ufs_namespace_test.c ufs_namespace_kernel32.o \
+    hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_namespace_test.c \
+	    ufs_namespace_kernel32.o hostkern32.o
+
+check-ufs-namespace-ilp32: ufs_namespace_test32
+	${TEST_EXECUTION} run kernel.ufs-namespace.ilp32 -- \
+	    ./ufs_namespace_test32
+
+.for mutation in ${UFS_NAMESPACE_MUTANTS}
+ufs_namespace_${mutation}.mutant.c: ufs_namespace_mutate.py \
+    ${UFS_NAMESPACE_SRC}
+	${PYTHON} ufs_namespace_mutate.py --source ${UFS_NAMESPACE_SRC} \
+	    --output $@ --mutation ${mutation}
+
+ufs_namespace_${mutation}.mutant.test: \
+    ufs_namespace_${mutation}.mutant.c ufs_namespace_test.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} \
+	    ${UFS_NAMESPACE_RENAMES} ${ILP32} -c -o \
+	    ufs_namespace_${mutation}.mutant.o \
+	    ufs_namespace_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_namespace_test.c \
+	    ufs_namespace_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-ufs-namespace-mutants: \
+    ${UFS_NAMESPACE_MUTANTS:@mutation@ufs_namespace_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${UFS_NAMESPACE_MUTANTS}; do \
+		output=ufs_namespace_$$mutation.mutant.out; \
+		if ./ufs_namespace_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		omit-acquisition) expected='FAIL unexpected panic: ufs namespace gate' ;; \
+		omit-wakeup) expected='wakeup_calls == 1' ;; \
+		clear-on-interrupt) expected='sleep_calls == 2' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL UFS namespace $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS UFS namespace $$mutation mutation rejected"; \
+	done
+
+ufs_topology_functions.c: ufs_topology_extract.py ${UFS_TOPOLOGY_SRC}
+	${PYTHON} ufs_topology_extract.py --source ${UFS_TOPOLOGY_SRC} \
+	    --output $@
+
+ufs_topology_syscalls32.o: ufs_topology_functions.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_TOPOLOGY_CFLAGS} \
+	    ${UFS_TOPOLOGY_RENAMES} ${ILP32} -c -o $@ \
+	    ufs_topology_functions.c
+
+ufs_topology_test32: ufs_topology_test.c ufs_topology_syscalls32.o \
+    ufs_namespace_kernel32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_topology_test.c \
+	    ufs_topology_syscalls32.o ufs_namespace_kernel32.o hostkern32.o
+
+check-ufs-topology-ilp32: ufs_topology_test32
+	${TEST_EXECUTION} run kernel.ufs-topology.ilp32 -- ./ufs_topology_test32
+
+.for mutation in ${UFS_TOPOLOGY_MUTANTS}
+ufs_topology_${mutation}.mutant.c: ufs_topology_mutate.py \
+    ufs_topology_extract.py ${UFS_TOPOLOGY_SRC}
+	${PYTHON} ufs_topology_mutate.py --source ${UFS_TOPOLOGY_SRC} \
+	    --output $@ --mutation ${mutation}
+
+ufs_topology_${mutation}.mutant.test: \
+    ufs_topology_${mutation}.mutant.c ufs_topology_test.c \
+    ufs_namespace_kernel32.o hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_TOPOLOGY_CFLAGS} \
+	    ${UFS_TOPOLOGY_RENAMES} ${ILP32} -c -o \
+	    ufs_topology_${mutation}.mutant.o \
+	    ufs_topology_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_topology_test.c \
+	    ufs_topology_${mutation}.mutant.o ufs_namespace_kernel32.o \
+	    hostkern32.o
+.endfor
+
+check-ufs-topology-mutants: \
+    ${UFS_TOPOLOGY_MUTANTS:@mutation@ufs_topology_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${UFS_TOPOLOGY_MUTANTS}; do \
+		output=ufs_topology_$$mutation.mutant.out; \
+		if ./ufs_topology_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		omit-rename-acquisition|release-before-source-lookup|\
+		release-before-directory-checkpath) \
+			expected='error == EINTR' ;; \
+		allow-directory-link|allow-directory-unlink) \
+			expected='u.u_error == EPERM' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL UFS topology $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS UFS topology $$mutation mutation rejected"; \
+	done
 
 .for mutation in ${OPENAT_NAMEI_MUTANTS}
 openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
@@ -1523,9 +1810,9 @@ openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
 
 openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
     openat_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_MULTIFS_CFLAGS} ${ILP32} \
 	    -c -o openat_${mutation}.mutant.o openat_${mutation}.mutant.c
-	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
 	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
 	    openat_${mutation}.mutant.o hostkern32.o
 .endfor
@@ -1536,12 +1823,14 @@ openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_VNOPS_SRC}
 	    --mutation ${mutation}
 
 openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
-    openat_test.c openat_syscalls32.o hostkern32.o hostkern.h ${MACHINE_STAMP}
+    openat_test.c openat_syscalls32.o ufs_namespace_kernel32.o hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_RENAMES} ${ILP32} \
 	    -c -o openat_${mutation}.mutant.o openat_${mutation}.mutant.c
 	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
 	    ${OPENAT_LDFLAGS} -o $@ openat_test.c \
-	    openat_${mutation}.mutant.o openat_syscalls32.o hostkern32.o
+	    openat_${mutation}.mutant.o openat_syscalls32.o \
+	    ufs_namespace_kernel32.o hostkern32.o
 .endfor
 
 check-openat-mutants: \
@@ -1556,6 +1845,9 @@ check-openat-mutants: \
 		case $$mutation in \
 		cwd-instead-of-dirfd) expected='result == &descriptor_inode' ;; \
 		absolute-consults-dirfd) expected='result == &root_inode' ;; \
+		accept-empty-beneath) expected='namei_at(&name, 7) == NULL' ;; \
+		follow-beneath-symlink) expected='u.u_error == ELOOP' ;; \
+		cross-beneath-mount) expected='u.u_error == EXDEV' ;; \
 		follow-final-symlink) expected='u.u_error == ELOOP' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
@@ -1928,6 +2220,10 @@ check-ilp32:
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
+	    check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
+	    check-dirremove-ilp32 check-dirremove-mutants \
+	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
+	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
@@ -2045,7 +2341,12 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.futimes.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat-namei.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.openat-namei-multifs.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.unlinkat-beneath.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.ufs-namespace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -2155,10 +2456,25 @@ clean:
 	rm -f futimes_kernel32.o futimes_test32
 	rm -f futimes_*.mutant.c futimes_*.mutant.o futimes_*.mutant.test \
 	    futimes_*.mutant.out
-	rm -f openat_namei32.o openat_vnops32.o openat_syscalls32.o \
-	    openat_namei_test32 openat_test32
+	rm -f openat_namei32.o openat_namei_multifs32.o openat_vnops32.o \
+	    openat_syscalls32.o openat_namei_test32 \
+	    openat_namei_multifs_test32 openat_test32
 	rm -f openat_*.mutant.c openat_*.mutant.o openat_*.mutant.test \
 	    openat_*.mutant.out
+	rm -f unlinkat_beneath_functions.c unlinkat_beneath_namei32.o \
+	    unlinkat_beneath_syscalls32.o unlinkat_beneath_test32
+	rm -f unlinkat_beneath_*.mutant.c unlinkat_beneath_*.mutant.o \
+	    unlinkat_beneath_*.mutant.test unlinkat_beneath_*.mutant.out
+	rm -f dirremove_kernel32.o dirremove_test32
+	rm -f dirremove_*.mutant.c dirremove_*.mutant.o \
+	    dirremove_*.mutant.test dirremove_*.mutant.out
+	rm -f ufs_namespace_kernel32.o ufs_namespace_test32
+	rm -f ufs_namespace_*.mutant.c ufs_namespace_*.mutant.o \
+	    ufs_namespace_*.mutant.test ufs_namespace_*.mutant.out
+	rm -f ufs_topology_functions.c ufs_topology_syscalls32.o \
+	    ufs_topology_test32
+	rm -f ufs_topology_*.mutant.c ufs_topology_*.mutant.o \
+	    ufs_topology_*.mutant.test ufs_topology_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2174,6 +2490,10 @@ clean:
 	check-fionread-mutants check-fionread-sanitizer \
 	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
 	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
+	check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
+	check-dirremove-ilp32 check-dirremove-mutants \
+	check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
+	check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

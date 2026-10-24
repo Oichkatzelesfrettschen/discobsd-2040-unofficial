@@ -19,6 +19,45 @@
 int dirchk = 0;
 struct nchstats nchstats;
 
+/*
+ * A UFS pathname mutation acquires this gate before its first inode lock and
+ * releases every inode before leaving it.  The kernel is uniprocessor and no
+ * interrupt handler changes these flags, so a process cannot lose the gate
+ * between observing it busy and entering tsleep(), which inserts the waiter
+ * under splhigh().
+ */
+static u_char ufs_namespace_busy;
+static u_char ufs_namespace_wanted;
+
+int
+ufs_namespace_enter(void)
+{
+    int error;
+
+    while (ufs_namespace_busy) {
+        ufs_namespace_wanted = 1;
+        error = tsleep((caddr_t)&ufs_namespace_busy, PINOD | PCATCH, 0);
+        if (error != 0)
+            return error;
+    }
+    ufs_namespace_busy = 1;
+    return 0;
+}
+
+void
+ufs_namespace_exit(void)
+{
+#ifdef DIAGNOSTIC
+    if (!ufs_namespace_busy)
+        panic("ufs namespace gate");
+#endif
+    ufs_namespace_busy = 0;
+    if (ufs_namespace_wanted) {
+        ufs_namespace_wanted = 0;
+        wakeup((caddr_t)&ufs_namespace_busy);
+    }
+}
+
 static int
 namei_copy_user_path(caddr_t source, char *destination)
 {
@@ -55,6 +94,51 @@ namei_copy_path(struct nameidata *ndp, char *destination)
 	if (ndp->ni_nameiop & NI_USERPATH)
 		return namei_copy_user_path(ndp->ni_dirp, destination);
 	return copystr(ndp->ni_dirp, destination, MAXPATHLEN, (u_int *)0);
+}
+
+static int
+namei_validate_beneath_path(const char *path)
+{
+    const char *component;
+    const char *cursor = path;
+    u_int length;
+
+    if (*cursor == '\0')
+        return ENOENT;
+    if (*cursor == '/')
+        return EINVAL;
+    for (;;) {
+        component = cursor;
+        while (*cursor != '\0' && *cursor != '/')
+            cursor++;
+        length = (u_int)(cursor - component);
+        if (length == 0 ||
+            (length == 1 && component[0] == '.') ||
+            (length == 2 && component[0] == '.' && component[1] == '.'))
+            return EINVAL;
+        if (*cursor == '\0')
+            return 0;
+        cursor++;
+        if (*cursor == '\0')
+            return EINVAL;
+    }
+}
+
+static int
+namei_beneath_target_error(struct nameidata *ndp, struct inode *parent,
+    struct inode *target)
+{
+    if ((ndp->ni_nameiop & NI_BENEATH) == 0)
+        return 0;
+    if ((target->i_mode & IFMT) == IFLNK)
+        return ELOOP;
+#ifdef SINGLE_UFS_ROOT
+    (void)parent;
+#else
+    if (INODE_DEVICE(target) != INODE_DEVICE(parent))
+        return EXDEV;
+#endif
+    return 0;
 }
 
 /*
@@ -269,7 +353,7 @@ namei_at(register struct nameidata *ndp, int dirfd)
     lockparent = ndp->ni_nameiop & LOCKPARENT;
     docache = (ndp->ni_nameiop & NOCACHE) ^ NOCACHE;
     flag = ndp->ni_nameiop &~
-        (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH|NI_NOEMPTY);
+        (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH|NI_NOEMPTY|NI_BENEATH);
     if (flag == DELETE || lockparent)
         docache = 0;
     /*
@@ -279,6 +363,17 @@ namei_at(register struct nameidata *ndp, int dirfd)
     if (error) {
         u.u_error = error;
         goto retNULL;
+    }
+    if (ndp->ni_nameiop & NI_BENEATH) {
+        error = namei_validate_beneath_path(path);
+        if (error) {
+            u.u_error = error;
+            goto retNULL;
+        }
+        if (flag == DELETE && !lockparent) {
+            u.u_error = EINVAL;
+            goto retNULL;
+        }
     }
     if ((ndp->ni_nameiop & NI_NOEMPTY) && path[0] == '\0') {
         u.u_error = ENOENT;
@@ -778,6 +873,13 @@ found:
                     goto bad;
                 }
             }
+            error = namei_beneath_target_error(ndp, ndp->ni_pdir, dp);
+            if (error) {
+                iput(ndp->ni_pdir);
+                ndp->ni_pdir = NULL;
+                u.u_error = error;
+                goto bad;
+            }
         }
         goto retDP;
     }
@@ -831,6 +933,13 @@ found:
         dp = iget(INODE_DEVICE(dp), fs, ndp->ni_dent.d_ino);
         if (dp == NULL) {
             iput(ndp->ni_pdir);
+            goto bad;
+        }
+        error = namei_beneath_target_error(ndp, ndp->ni_pdir, dp);
+        if (error) {
+            iput(ndp->ni_pdir);
+            ndp->ni_pdir = NULL;
+            u.u_error = error;
             goto bad;
         }
         goto retDP;
@@ -918,6 +1027,11 @@ found:
     }
 
 haveino:
+    error = namei_beneath_target_error(ndp, pdp, dp);
+    if (error) {
+        u.u_error = error;
+        goto bad2;
+    }
     fs = INODE_FILESYSTEM(dp);
 
     /*
@@ -1137,13 +1251,14 @@ dirremove(register struct nameidata *ndp)
     register struct inode *dp = ndp->ni_pdir;
     register struct buf *bp;
     struct direct *ep;
+    int error;
 
     if (ndp->ni_count == 0) {
         /*
          * First entry in block: set d_ino to zero.
          */
         ndp->ni_dent.d_ino = 0;
-        (void) rdwri (UIO_WRITE, dp, (caddr_t) &ndp->ni_dent,
+        error = rdwri (UIO_WRITE, dp, (caddr_t) &ndp->ni_dent,
                 (int) DIRSIZ(&ndp->ni_dent), ndp->ni_offset,
                 IO_UNIT | IO_SYNC, (int*) 0);
     } else {
@@ -1154,9 +1269,13 @@ dirremove(register struct nameidata *ndp)
         if (bp == 0)
             return (0);
         ep->d_reclen += ndp->ni_dent.d_reclen;
-        bwrite(bp);
-        dp->i_flag |= IUPD|ICHG;
+        error = bwrite(bp);
     }
+    if (error) {
+        u.u_error = error;
+        return (0);
+    }
+    dp->i_flag |= IUPD|ICHG;
     return (1);
 }
 

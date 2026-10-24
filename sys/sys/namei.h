@@ -41,8 +41,9 @@ struct nameidata {
 #define NOFOLLOW    0x0     /* don't follow symbolic links (pseudo) */
 #define NI_USERPATH 0x80    /* ni_dirp points to user memory */
 #define NI_NOEMPTY  0x100   /* reject an empty copied pathname */
+#define NI_BENEATH  0x200   /* confine a strict relative component walk */
 
-#if ((NI_USERPATH | NI_NOEMPTY) & \
+#if ((NI_USERPATH | NI_NOEMPTY | NI_BENEATH) & \
     (CREATE | DELETE | LOCKPARENT | NOCACHE | FOLLOW)) != 0
 #error "private namei flags overlap an operation or modifier"
 #endif
@@ -60,11 +61,16 @@ struct nameidata {
 
 #define NAMEI_RESET_OPERATION(ndp, operation, modifiers) do { \
     (ndp)->ni_nameiop = (short)(((ndp)->ni_nameiop & NI_USERPATH) | \
-        ((ndp)->ni_nameiop & NI_NOEMPTY) | (operation) | (modifiers)); \
+        ((ndp)->ni_nameiop & (NI_NOEMPTY | NI_BENEATH)) | \
+        (operation) | (modifiers)); \
 } while (0)
 
 #define NAMEI_REJECT_EMPTY(ndp) do { \
     (ndp)->ni_nameiop = (short)((ndp)->ni_nameiop | NI_NOEMPTY); \
+} while (0)
+
+#define NAMEI_RESTRICT_BENEATH(ndp) do { \
+    (ndp)->ni_nameiop = (short)((ndp)->ni_nameiop | NI_BENEATH); \
 } while (0)
 
 /*
@@ -146,6 +152,10 @@ int direnter (struct inode *ip, struct nameidata *ndp);
  * Remove a directory entry after a call to namei.
  */
 int dirremove (struct nameidata *ndp);
+
+/* Serialize UFS namespace topology changes across complete pathname walks. */
+int ufs_namespace_enter (void);
+void ufs_namespace_exit (void);
 
 #endif /* KERNEL */
 

@@ -448,7 +448,7 @@ Source: `bsd-workspace-directory-stream-c17.md`.
 | Gates | `check-namei-user-path` (finite caller inventory plus strict-C17 address and undefined-behavior sanitizers), clean PICO and PICO_UART dependency/resource captures |
 | Resources | PICO kernel flash is unchanged; PICO_UART kernel flash decreases eight bytes; both SRAM maps, all shipped programs, packed-root occupancy, native artifacts and archive selections are unchanged. Fourteen affected objects retain identical sections, symbols and static frames; both `vfs_vnops.c` objects lose four text bytes while retaining data, BSS and static frames |
 | Evidence class | Host and exact kernel build |
-| Ledger states | 1 language: done for the bounded helper and header seam; remaining translation-unit semantics stay migration-open in the source denominator. 2 interface: done for the unchanged ABI representation and all 30 kernel transitions. 3 native: n/a (no native input). 4 hardening: done for the helper and origin boundary. 5 resource: done for the declared static surfaces; runtime stack, heap and storage traffic remain unmeasured. 6 program closure: done for the pathname-origin mechanism |
+| Ledger states | 1 language: done for the bounded helper and header seam; remaining translation-unit semantics stay migration-open in the source denominator. 2 interface: done for the unchanged ABI representation and all 32 kernel transitions. 3 native: n/a (no native input). 4 hardening: done for the helper and origin boundary. 5 resource: done for the declared static surfaces; runtime stack, heap and storage traffic remain unmeasured. 6 program closure: done for the pathname-origin mechanism |
 | Residuals | The broader lookup traversal, name-cache union semantics and caller translation units retain separate migration units. Protection beyond software bounds checks needs MPU fault evidence (`MPU.md`). Runtime resource peaks and physical-board execution require their own authorized workloads |
 
 Source: `rp2040-namei-path-origin-contract.md`, `TESTING.md`
@@ -778,6 +778,26 @@ Source: `tar-descriptor-timestamp-identity.md` and `TESTING.md`
 Source: `openat-directory-relative-lookup.md` and `TESTING.md`
 (`check-kernel-ilp32`, `check-namei-user-path`, `check-kernel-metadata`).
 
+### R22 -- rooted conditional unlink and cpio failure cleanup
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | Private UFS namespace serialization, restricted `namei_at()` traversal, additive BSD syscall and ARM libc wrapper, GNU17 freestanding kernel, strict-C17 cpio cleanup helper and host fixture, generated metadata, and Smaller C public-header consumer |
+| Tier | T1: archive failure cleanup crosses a concurrent filesystem namespace before destructive mutation |
+| Native input | `t18_stdio` repeatedly includes `unistd.h`, checks the exact `unlinkat_beneath` function-pointer type, and requires one `unlinkat_beneath.o` member in the native link map; on-device preprocessing remains open |
+| Contract | Acquire namespace serialization before any inode lookup; reject absolute, empty, dot, dot-dot, symbolic-link, and mounted-filesystem traversal; retain the root and expected regular-file inodes; compare the locked final inode with the descriptor-owned inode; remove only the matching entry; propagate both directory-write paths; keep serialization across every legacy `rename(2)` lookup and mutation; reject directory `link(2)` and `unlink(2)` topology changes |
+| Invariants | Existing syscall ordinals and public layouts retain their values; additive syscall 158 carries three words; permission, sticky-directory, immutable, append-only, read-only filesystem, directory write, cpio primary-error, and descriptor-close behavior retain their existing precedence |
+| Falsifier | Five warning-clean `unlinkat_beneath` mutations cover namespace acquisition and release, identity comparison and retained references, and failed-write link counts. Adjacent calibrated mutations cover both directory-write layouts, namespace wait/wakeup/interruption, regular and directory rename participation, early release before directory relocation, directory topology rejection, and restricted traversal. Three warning-clean cpio mutations pass an invalid descriptor, restore pathname-only cleanup, or remove a completed pathname after descriptor consumption. Each must fail its named assertion |
+| Gates | Required `check-kernel-ilp32`, `check-kernel-metadata`, `check-cpio-host`, `check-test-execution`, Smaller C, source-denominator, exact PICO/PICO_UART GNU17 builds, clean libc and cpio rebuilds, matched schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Clean parent `0938a979` and candidate `0c4dee43` schema-2 receipts report +668 PICO and +660 PICO_UART flash bytes with zero linked static-SRAM delta. Cpio moves from 10,292/200/884 to 10,384/200/884 text/data/BSS bytes, +92 raw/loaded bytes, +82 packed bytes, and zero packed-block delta. Its selected libc set adds the 20-byte `unlinkat_beneath.o` wrapper and drops `strrchr.o` and `unlink.o`. Every other shipped a.out, archive selection, native artifact, packed-root block, and inode count remains unchanged. `init_sysent.o`, `ufs_namei.o`, and `ufs_syscalls.o` gain 5, 376, and 260 text bytes; `ufs_namei.o` also gains four aligned BSS bytes. Existing namei, directory-removal, rename, unlink, cpio main, and cpio copy frames remain unchanged; new gate entry/exit, conditional unlink, and cpio cleanup frames use 16, 8, 120, and 24 bytes. The bounded exception request leaves 24,022 PICO and 36,504 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | ILP32 production-source behavior, calibrated mutations, strict-C17 host behavior, generated metadata, native-header/link acceptance, exact target builds, matched schema-2 distribution/resource comparison, and exact-command object/frame replay; runtime and physical-board evidence remain open |
+| Ledger states | 1 language: done for the six focused fixtures; broader kernel and cpio translation units remain migration-open or unreviewed. 2 interface: done for additive slot 158 and its generated/libc callers. 3 native: expanded-header and selected-member acceptance pass; on-device preprocessing remains open. 4 hardening: done for cpio's truncated-input and write-failure cleanup identity. 5 resource: all declared static surfaces are measured and the bounded flash/archive exception awaits pull-request review; runtime peaks remain open. 6 program closure: both kernels, cpio, complete shipped dependency closure, image, archive selection, and packed-root accounting pass |
+| Residuals | Cpio creation and parent traversal, tar creation/link/removal, compress publication/metadata/removal, runtime peaks, persistence recovery, MPU behavior, deliberate faults, and physical-board execution remain separate units |
+
+Source: `rooted-conditional-unlink-plan.md` and `TESTING.md`
+(`check-kernel-ilp32`, `check-kernel-metadata`, `check-cpio-host`,
+`check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -959,7 +979,7 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 77 accepted, 56 migration-open, 543
+set. Those classifications preserve all 83 accepted, 56 migration-open, 543
 excluded and 1,934 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's

@@ -25,6 +25,11 @@
       "kind": "expanded prerequisites"
     },
     {
+      "from": "check-host",
+      "to": "check-cpio-host",
+      "kind": "HOST_PROGRAM_GATES member"
+    },
+    {
       "from": "check-ilp32-execution",
       "to": "check-ilp32-execution-recipes",
       "kind": "detached submake with fresh receipts"
@@ -369,6 +374,11 @@
       "from": "check-ilp32-execution-recipes",
       "to": "check-timeout-contracts",
       "kind": "required timeout native variant"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-cpio-host",
+      "kind": "required cpio native variants"
     }
   ],
   "optional_investigations": [
@@ -386,6 +396,48 @@
     }
   ],
   "variants": [
+    {
+      "id": "cpio.archive.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler, sanitizer runtime and GNU cpio interoperability tool",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-cpio-host",
+      "root_target": "check-cpio-host",
+      "program": "sh",
+      "condition": "unconditional; cpiotest.sh rejects an unavailable reference cpio or sanitizer runtime",
+      "prerequisites": [
+        "usr.bin/cpio/cpio.c",
+        "usr.bin/cpio/tests/cpiotest.sh",
+        "usr.bin/cpio/tests/cleanup_identity_shim.c",
+        "usr.bin/cpio/tests/cleanup_identity_shim.h"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run cpio.archive.native -- sh usr.bin/cpio/tests/cpiotest.sh",
+      "script": "usr.bin/cpio/tests/cpiotest.sh",
+      "aliases": []
+    },
+    {
+      "id": "cpio.cleanup.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler with address and undefined-behavior sanitizer runtime",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-cpio-host",
+      "root_target": "check-cpio-host",
+      "program": "sh",
+      "condition": "unconditional; cleanup_identity_test.sh rejects an unavailable sanitizer runtime",
+      "prerequisites": [
+        "usr.bin/cpio/cpio.c",
+        "usr.bin/cpio/tests/cleanup_identity_test.sh",
+        "usr.bin/cpio/tests/cleanup_identity_shim.c",
+        "usr.bin/cpio/tests/cleanup_identity_shim.h"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run cpio.cleanup.native -- sh usr.bin/cpio/tests/cleanup_identity_test.sh",
+      "script": "usr.bin/cpio/tests/cleanup_identity_test.sh",
+      "aliases": []
+    },
     {
       "id": "libc.base.native",
       "owner": "firmware/posix-sh",
@@ -2252,6 +2304,25 @@
       ]
     },
     {
+      "id": "kernel.openat-namei-multifs.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with two UFS mount slots",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-openat-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "openat_namei_multifs_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "openat_namei_multifs_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.openat-namei-multifs.ilp32 -- ./openat_namei_multifs_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.openat.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -2266,6 +2337,82 @@
         "openat_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.openat.ilp32 -- ./openat_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.unlinkat-beneath.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with two UFS mount slots",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-unlinkat-beneath-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "unlinkat_beneath_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "unlinkat_beneath_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.unlinkat-beneath.ilp32 -- ./unlinkat_beneath_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.dirremove.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-dirremove-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "dirremove_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "dirremove_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.dirremove.ilp32 -- ./dirremove_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.ufs-namespace.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ufs-namespace-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ufs_namespace_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ufs_namespace_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.ufs-namespace.ilp32 -- ./ufs_namespace_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.ufs-topology.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ufs-topology-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ufs_topology_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ufs_topology_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.ufs-topology.ilp32 -- ./ufs_topology_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

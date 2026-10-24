@@ -274,7 +274,8 @@ link(void)
     ip = namei(ndp);    /* well, this routine is doomed anyhow */
     if (ip == NULL)
         return;
-    if ((ip->i_mode&IFMT) == IFDIR && !suser()) {
+    if ((ip->i_mode&IFMT) == IFDIR) {
+        u.u_error = EPERM;
         iput(ip);
         return;
     }
@@ -377,8 +378,10 @@ unlink(void)
     if (ip == NULL)
         return;
     dp = ndp->ni_pdir;
-    if ((ip->i_mode&IFMT) == IFDIR && !suser())
+    if ((ip->i_mode&IFMT) == IFDIR) {
+        u.u_error = EPERM;
         goto out;
+    }
     /*
      * Don't unlink a mounted file.
      */
@@ -400,6 +403,70 @@ out:
     else
         iput(ip);
     iput(dp);
+}
+
+/*
+ * Remove a regular-file entry beneath an acquired directory only when the
+ * locked lookup result is the inode retained by the expected descriptor.
+ */
+void
+unlinkat_beneath(void)
+{
+    register struct a {
+        int     rootfd;
+        char    *path;
+        int     expected_fd;
+    } *uap = (struct a *)u.u_arg;
+    register struct inode *expected, *ip, *dp;
+    struct nameidata nd;
+    register struct nameidata *ndp = &nd;
+    int error;
+
+    expected = getinode(uap->expected_fd);
+    if (expected == NULL)
+        return;
+    if ((expected->i_mode & IFMT) != IFREG) {
+        u.u_error = EINVAL;
+        return;
+    }
+    igrab(expected);
+    iunlock(expected);
+
+    error = ufs_namespace_enter();
+    if (error != 0) {
+        u.u_error = error;
+        irele(expected);
+        return;
+    }
+
+    NAMEI_INIT_USER(ndp, DELETE, LOCKPARENT, uap->path);
+    NAMEI_RESTRICT_BENEATH(ndp);
+    ip = namei_at(ndp, uap->rootfd);
+    if (ip == NULL)
+        goto release_expected;
+    dp = ndp->ni_pdir;
+    if (ip != expected) {
+        u.u_error = ESTALE;
+        goto out;
+    }
+    if ((ip->i_flags & (IMMUTABLE | APPEND)) ||
+        (dp->i_flags & APPEND)) {
+        u.u_error = EPERM;
+        goto out;
+    }
+    if (dirremove(ndp)) {
+        ip->i_nlink--;
+        ip->i_flag |= ICHG;
+    }
+out:
+    if (dp == ip)
+        irele(ip);
+    else
+        iput(ip);
+    iput(dp);
+release_expected:
+    irele(expected);
+    ufs_namespace_exit();
 }
 
 /*
@@ -810,10 +877,15 @@ rename(void)
     register struct nameidata *ndp = &nd;
     int error = 0;
 
+    error = ufs_namespace_enter();
+    if (error != 0) {
+        u.u_error = error;
+        return;
+    }
     NAMEI_INIT_USER (ndp, DELETE, LOCKPARENT, uap->from);
     ip = namei(ndp);
     if (ip == NULL)
-        return;
+        goto done;
     dp = ndp->ni_pdir;
     /*
      * 'from' file can not be renamed if it is immutable/appendonly or if its
@@ -826,7 +898,7 @@ rename(void)
         else
             iput(ip);
         u.u_error = EPERM;
-        return;
+        goto done;
     }
 
     if ((ip->i_mode&IFMT) == IFDIR) {
@@ -845,7 +917,7 @@ rename(void)
             else
                 iput(ip);
             u.u_error = EINVAL;
-            return;
+            goto done;
         }
         ip->i_flag |= IRENAME;
         oldparent = dp->i_number;
@@ -1075,7 +1147,7 @@ rename(void)
     irele(ip);
     if (error)
         u.u_error = error;
-    return;
+    goto done;
 
 bad:
     iput(dp);
@@ -1088,6 +1160,8 @@ out:
     irele(ip);
     if (error)
         u.u_error = error;
+done:
+    ufs_namespace_exit();
 }
 
 /*

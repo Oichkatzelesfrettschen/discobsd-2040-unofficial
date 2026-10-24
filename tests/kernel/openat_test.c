@@ -129,6 +129,16 @@ wakeup(caddr_t channel)
     (void)channel;
 }
 
+int
+tsleep(caddr_t channel, int priority, u_int timeout)
+{
+    (void)channel;
+    (void)priority;
+    (void)timeout;
+    HK_CHECK(0);
+    return EINTR;
+}
+
 void
 igrab(struct inode *inode)
 {
@@ -142,55 +152,100 @@ igrab(struct inode *inode)
 static struct inode root_inode;
 static struct inode cwd_inode;
 static struct inode regular_inode;
+static struct inode symlink_inode;
+#ifndef SINGLE_UFS_ROOT
+static struct inode mounted_inode;
+#endif
 static struct file descriptor_file;
+static struct inode *directory_target;
+static char *directory_entry_name;
+static union {
+    struct direct entry;
+    char bytes[DIRBLKSIZ];
+} directory_storage;
+static struct buf directory_buffer;
+static int inode_get_calls;
+static int directory_block_reads;
+static int directory_buffer_releases;
 struct inode *rootdir;
 struct namecache namecache[NNAMECACHE];
+
+static void
+set_inode_location(struct inode *inode, dev_t device, struct fs *filesystem)
+{
+#ifndef SINGLE_UFS_ROOT
+    inode->i_dev = device;
+    inode->i_fs = filesystem;
+#else
+    (void)inode;
+    (void)device;
+    (void)filesystem;
+#endif
+}
+
+static void
+configure_directory_entry(char *name, struct inode *target)
+{
+    directory_entry_name = name;
+    directory_target = target;
+}
 
 struct inode *
 iget(dev_t device, struct fs *filesystem, ino_t number)
 {
-    (void)device;
-    (void)filesystem;
-    (void)number;
-    HK_CHECK(0);
-    return NULL;
-}
-
-struct buf *
-blkatoff(struct inode *inode, off_t offset, char **result)
-{
-    (void)inode;
-    (void)offset;
-    (void)result;
-    HK_CHECK(0);
-    return NULL;
+    inode_get_calls++;
+    HK_CHECK(directory_target != NULL);
+    HK_CHECK(device == INODE_DEVICE(&descriptor_inode));
+    HK_CHECK(filesystem == INODE_FILESYSTEM(&descriptor_inode));
+    HK_CHECK(number == directory_target->i_number);
+    ilock(directory_target);
+    directory_target->i_count++;
+    return directory_target;
 }
 
 struct buf *
 bread(dev_t device, daddr_t block)
 {
-    (void)device;
-    (void)block;
-    HK_CHECK(0);
-    return NULL;
+    struct direct *entry = &directory_storage.entry;
+    u_int byte_index;
+    u_int length;
+
+    directory_block_reads++;
+    HK_CHECK(device == INODE_DEVICE(&descriptor_inode));
+    HK_CHECK(block == 1);
+    HK_CHECK(directory_target != NULL);
+    HK_CHECK(directory_entry_name != NULL);
+    for (byte_index = 0; byte_index < sizeof(directory_storage.bytes);
+        byte_index++)
+        directory_storage.bytes[byte_index] = 0;
+    for (length = 0; directory_entry_name[length] != '\0'; length++)
+        entry->d_name[length] = directory_entry_name[length];
+    entry->d_name[length] = '\0';
+    entry->d_namlen = length;
+    entry->d_ino = directory_target->i_number;
+    entry->d_reclen = DIRBLKSIZ;
+    directory_buffer = (struct buf){
+        .b_addr = (caddr_t)directory_storage.bytes,
+        .b_bcount = DIRBLKSIZ,
+    };
+    return &directory_buffer;
 }
 
 daddr_t
 bmap(struct inode *inode, daddr_t block, int operation, int size)
 {
-    (void)inode;
-    (void)block;
-    (void)operation;
-    (void)size;
-    HK_CHECK(0);
-    return 0;
+    HK_CHECK(inode == &descriptor_inode);
+    HK_CHECK(block == 0);
+    HK_CHECK(operation == B_READ);
+    HK_CHECK(size == 0);
+    return 1;
 }
 
 void
 brelse(struct buf *buffer)
 {
-    (void)buffer;
-    HK_CHECK(0);
+    HK_CHECK(buffer == &directory_buffer);
+    directory_buffer_releases++;
 }
 
 void
@@ -214,12 +269,51 @@ dirbadentry(struct direct *entry, int offset)
 static void
 reset_namei_fixture(void)
 {
+    unsigned byte_index;
+    unsigned cache_index;
+
     u = (struct user){0};
     mount[0] = (struct mount){0};
-    root_inode = (struct inode){ .i_count = 1, .i_mode = IFDIR };
-    cwd_inode = (struct inode){ .i_count = 1, .i_mode = IFDIR };
-    descriptor_inode = (struct inode){ .i_count = 1, .i_mode = IFDIR };
-    regular_inode = (struct inode){ .i_count = 1, .i_mode = IFREG };
+#ifndef SINGLE_UFS_ROOT
+    mount[1] = (struct mount){0};
+#endif
+    mount[0].m_dev = 1;
+#ifndef SINGLE_UFS_ROOT
+    mount[1].m_dev = 2;
+#endif
+    root_inode = (struct inode){
+        .i_count = 1, .i_number = ROOTINO, .i_mode = IFDIR,
+    };
+    cwd_inode = (struct inode){
+        .i_count = 1, .i_number = 3, .i_mode = IFDIR,
+    };
+    descriptor_inode = (struct inode){
+        .i_count = 1, .i_number = 10, .i_mode = IFDIR,
+        .i_size = DIRBLKSIZ,
+    };
+    regular_inode = (struct inode){
+        .i_count = 1, .i_number = 20, .i_mode = IFREG,
+    };
+    symlink_inode = (struct inode){
+        .i_count = 1, .i_number = 21, .i_mode = IFLNK,
+    };
+#ifndef SINGLE_UFS_ROOT
+    mounted_inode = (struct inode){
+        .i_count = 1, .i_number = ROOTINO, .i_mode = IFDIR,
+    };
+#endif
+    set_inode_location(&root_inode, mount[0].m_dev, &mount[0].m_filsys);
+    set_inode_location(&cwd_inode, mount[0].m_dev, &mount[0].m_filsys);
+    set_inode_location(&descriptor_inode, mount[0].m_dev,
+        &mount[0].m_filsys);
+    set_inode_location(&regular_inode, mount[0].m_dev,
+        &mount[0].m_filsys);
+    set_inode_location(&symlink_inode, mount[0].m_dev,
+        &mount[0].m_filsys);
+#ifndef SINGLE_UFS_ROOT
+    set_inode_location(&mounted_inode, mount[1].m_dev,
+        &mount[1].m_filsys);
+#endif
     descriptor_file = (struct file){
         .f_count = 1,
         .f_type = DTYPE_INODE,
@@ -228,12 +322,23 @@ reset_namei_fixture(void)
     rootdir = &root_inode;
     u.u_cdir = &cwd_inode;
     u.u_ofile[7] = &descriptor_file;
+    for (cache_index = 0; cache_index < NNAMECACHE; cache_index++)
+        namecache[cache_index] = (struct namecache){0};
+    directory_target = NULL;
+    directory_entry_name = NULL;
+    for (byte_index = 0; byte_index < sizeof(directory_storage.bytes);
+        byte_index++)
+        directory_storage.bytes[byte_index] = 0;
+    directory_buffer = (struct buf){0};
     descriptor_lookups = 0;
     lock_calls = 0;
     unlock_calls = 0;
     access_calls = 0;
     access_mode = 0;
     access_error = 0;
+    inode_get_calls = 0;
+    directory_block_reads = 0;
+    directory_buffer_releases = 0;
 }
 
 static struct inode *
@@ -349,6 +454,179 @@ copy_and_permission_failures_preserve_owners(void)
     HK_CHECK(lock_calls == 0 && unlock_calls == 1);
 }
 
+static void
+restricted_lookup_rejects_escaping_syntax(void)
+{
+    static char *const invalid_paths[] = {
+        "/absolute", ".", "..", "a//b", "a/./b", "a/../b", "a/",
+    };
+    struct nameidata name;
+    unsigned index;
+
+    NAMEI_INIT_KERNEL(&name, LOOKUP, NOFOLLOW, "leaf");
+    NAMEI_RESTRICT_BENEATH(&name);
+    NAMEI_RESET_OPERATION(&name, DELETE, LOCKPARENT);
+    HK_CHECK((name.ni_nameiop & NI_BENEATH) != 0);
+
+    reset_namei_fixture();
+    NAMEI_INIT_KERNEL(&name, LOOKUP, NOFOLLOW, "");
+    NAMEI_RESTRICT_BENEATH(&name);
+    HK_CHECK(namei_at(&name, 7) == NULL);
+    HK_CHECK(u.u_error == ENOENT);
+    HK_CHECK(descriptor_lookups == 0);
+
+    for (index = 0; index < sizeof(invalid_paths) / sizeof(invalid_paths[0]);
+        index++) {
+        reset_namei_fixture();
+        NAMEI_INIT_KERNEL(&name, LOOKUP, NOFOLLOW, invalid_paths[index]);
+        NAMEI_RESTRICT_BENEATH(&name);
+        HK_CHECK(namei_at(&name, 7) == NULL);
+        HK_CHECK(u.u_error == EINVAL);
+        HK_CHECK(descriptor_lookups == 0);
+    }
+}
+
+static struct inode *
+restricted_lookup(char *path, int operation, int modifiers)
+{
+    struct nameidata name = {0};
+
+    NAMEI_INIT_KERNEL(&name, operation, modifiers, path);
+    NAMEI_RESTRICT_BENEATH(&name);
+    return namei_at(&name, 7);
+}
+
+static void
+restricted_lookup_accepts_plain_components(void)
+{
+    struct inode *result;
+
+    reset_namei_fixture();
+    configure_directory_entry("leaf", &regular_inode);
+    result = restricted_lookup("leaf", LOOKUP, NOFOLLOW);
+    HK_CHECK(result == &regular_inode);
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(descriptor_lookups == 1);
+    HK_CHECK(directory_block_reads == 1);
+    HK_CHECK(directory_buffer_releases == 1);
+    HK_CHECK(inode_get_calls == 1);
+    HK_CHECK(descriptor_inode.i_count == 1);
+    HK_CHECK(regular_inode.i_count == 2);
+    HK_CHECK((regular_inode.i_flag & ILOCKED) != 0);
+    if (result != NULL)
+        iput(result);
+    HK_CHECK(regular_inode.i_count == 1);
+}
+
+static void
+restricted_delete_requires_locked_parent(void)
+{
+    struct nameidata name = {0};
+
+    reset_namei_fixture();
+    NAMEI_INIT_KERNEL(&name, DELETE, NOFOLLOW, "leaf");
+    NAMEI_RESTRICT_BENEATH(&name);
+    HK_CHECK(namei_at(&name, 7) == NULL);
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(descriptor_lookups == 0);
+    HK_CHECK(descriptor_inode.i_count == 1);
+}
+
+static void
+restricted_lookup_rejects_symlinks(void)
+{
+    static char final_path[] = "link";
+    static char intermediate_path[] = "link/leaf";
+    char *paths[] = { final_path, intermediate_path };
+    unsigned index;
+
+    for (index = 0; index < sizeof(paths) / sizeof(paths[0]); index++) {
+        reset_namei_fixture();
+        configure_directory_entry("link", &symlink_inode);
+        HK_CHECK(restricted_lookup(paths[index], LOOKUP, NOFOLLOW) == NULL);
+        HK_CHECK(u.u_error == ELOOP);
+        HK_CHECK(descriptor_lookups == 1);
+        HK_CHECK(directory_block_reads == 1);
+        HK_CHECK(directory_buffer_releases == 1);
+        HK_CHECK(inode_get_calls == 1);
+        HK_CHECK(descriptor_inode.i_count == 1);
+        HK_CHECK(symlink_inode.i_count == 1);
+        HK_CHECK((descriptor_inode.i_flag & ILOCKED) == 0);
+        HK_CHECK((symlink_inode.i_flag & ILOCKED) == 0);
+    }
+}
+
+#ifndef SINGLE_UFS_ROOT
+static void
+restricted_lookup_rejects_mount_transitions(void)
+{
+    reset_namei_fixture();
+    configure_directory_entry("mounted", &mounted_inode);
+    HK_CHECK(restricted_lookup("mounted", LOOKUP, NOFOLLOW) == NULL);
+    HK_CHECK(u.u_error == EXDEV);
+    HK_CHECK(descriptor_lookups == 1);
+    HK_CHECK(directory_block_reads == 1);
+    HK_CHECK(directory_buffer_releases == 1);
+    HK_CHECK(inode_get_calls == 1);
+    HK_CHECK(descriptor_inode.i_count == 1);
+    HK_CHECK(mounted_inode.i_count == 1);
+    HK_CHECK((descriptor_inode.i_flag & ILOCKED) == 0);
+    HK_CHECK((mounted_inode.i_flag & ILOCKED) == 0);
+}
+#endif
+
+static void
+restricted_delete_checks_the_locked_final_inode(void)
+{
+    struct inode *result;
+    struct nameidata name;
+
+    reset_namei_fixture();
+    configure_directory_entry("leaf", &regular_inode);
+    name = (struct nameidata){0};
+    NAMEI_INIT_KERNEL(&name, DELETE, LOCKPARENT, "leaf");
+    NAMEI_RESTRICT_BENEATH(&name);
+    result = namei_at(&name, 7);
+    HK_CHECK(result == &regular_inode);
+    HK_CHECK(name.ni_pdir == &descriptor_inode);
+    HK_CHECK(regular_inode.i_count == 2);
+    HK_CHECK(descriptor_inode.i_count == 2);
+    HK_CHECK((regular_inode.i_flag & ILOCKED) != 0);
+    HK_CHECK((descriptor_inode.i_flag & ILOCKED) != 0);
+    if (result != NULL)
+        iput(result);
+    if (name.ni_pdir != NULL)
+        iput(name.ni_pdir);
+    HK_CHECK(regular_inode.i_count == 1);
+    HK_CHECK(descriptor_inode.i_count == 1);
+
+    reset_namei_fixture();
+    configure_directory_entry("link", &symlink_inode);
+    name = (struct nameidata){0};
+    NAMEI_INIT_KERNEL(&name, DELETE, LOCKPARENT, "link");
+    NAMEI_RESTRICT_BENEATH(&name);
+    HK_CHECK(namei_at(&name, 7) == NULL);
+    HK_CHECK(u.u_error == ELOOP);
+    HK_CHECK(symlink_inode.i_count == 1);
+    HK_CHECK(descriptor_inode.i_count == 1);
+    HK_CHECK((symlink_inode.i_flag & ILOCKED) == 0);
+    HK_CHECK((descriptor_inode.i_flag & ILOCKED) == 0);
+
+#ifndef SINGLE_UFS_ROOT
+    reset_namei_fixture();
+    configure_directory_entry("mounted", &mounted_inode);
+    name = (struct nameidata){0};
+    NAMEI_INIT_KERNEL(&name, DELETE, LOCKPARENT, "mounted");
+    NAMEI_RESTRICT_BENEATH(&name);
+    HK_CHECK(namei_at(&name, 7) == NULL);
+    HK_CHECK(u.u_error == EXDEV);
+    HK_CHECK(mounted_inode.i_count == 1);
+    HK_CHECK(descriptor_inode.i_count == 1);
+    HK_CHECK((mounted_inode.i_flag & ILOCKED) == 0);
+    HK_CHECK((descriptor_inode.i_flag & ILOCKED) == 0);
+#endif
+}
+
 int
 main(void)
 {
@@ -357,6 +635,14 @@ main(void)
     absolute_path_ignores_descriptor();
     relative_descriptor_errors_are_specific();
     copy_and_permission_failures_preserve_owners();
+    restricted_lookup_rejects_escaping_syntax();
+    restricted_lookup_accepts_plain_components();
+    restricted_delete_requires_locked_parent();
+    restricted_lookup_rejects_symlinks();
+#ifndef SINGLE_UFS_ROOT
+    restricted_lookup_rejects_mount_transitions();
+#endif
+    restricted_delete_checks_the_locked_final_inode();
     return hk_verdict("directory-relative namei contract");
 }
 

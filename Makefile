@@ -1032,8 +1032,11 @@ check-tar-host:
 check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh
 
-check-cpio-host:
-		sh usr.bin/cpio/tests/cpiotest.sh
+check-cpio-host: check-python
+		${PYTHON} tools/test_execution.py run cpio.archive.native -- \
+		    sh usr.bin/cpio/tests/cpiotest.sh
+		${PYTHON} tools/test_execution.py run cpio.cleanup.native -- \
+		    sh usr.bin/cpio/tests/cleanup_identity_test.sh
 
 check-compress-host: check-python
 		PYTHON=${PYTHON:Q} sh usr.bin/compress/tests/compresscheck.sh
@@ -1097,6 +1100,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
 		check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
+		check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-recovery-utility-contracts \
 		check-timeout-contracts

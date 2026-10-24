@@ -612,12 +612,15 @@ Table mode removes its former root-directory open. These syscall counts explain
 the direction of runtime change, but the audit has no Cortex-M0+ cycle capture
 for cpio and makes no target-speed claim.
 
-DiscoBSD lacks `openat`, `O_NOFOLLOW` and an `openat2`-style beneath-root
-resolver. A concurrent process can rename a verified directory after the
-identity check and before a descendant is created. The extractor also streams
+DiscoBSD now provides `openat(2)` and the narrower
+`unlinkat_beneath(2)` removal operation. Cpio keeps an incomplete output
+descriptor live and uses the rooted operation after truncated input or write
+failure, so a same-name replacement survives cleanup. Cpio creation and parent
+traversal still use separate pathname checks; a concurrent process can rename a
+verified directory before a descendant is created. The extractor also streams
 effects: corruption discovered after a complete earlier entry does not roll
-that earlier entry back. Those residuals require a directory-descriptor API or
-a bounded staging design, not another pathname precheck.
+that earlier entry back. Those residuals require caller-complete rooted
+creation operations or a bounded staging design.
 
 ## `compress` option grammar
 
@@ -1089,11 +1092,50 @@ identity-conditioned create/link/remove contract remain necessary before tar,
 cpio, or compress can close concurrent namespace identity claims. Runtime
 peaks, persistence and physical-board behavior remain open.
 
+## Rooted conditional unlink and cpio failure cleanup
+
+The kernel now serializes UFS namespace topology before lookup, holds the gate
+across every legacy `rename(2)` lookup and mutation, rejects directory
+`link(2)` and `unlink(2)`, and supports a restricted relative
+`namei_at()` traversal. Additive syscall 158,
+`unlinkat_beneath(rootfd, path, expected_fd)`, rejects absolute, empty, dot,
+dot-dot, symbolic-link, and mounted-filesystem traversal, retains the root and
+expected regular-file inodes, and removes the locked final entry only when its
+inode matches the descriptor-owned inode. Both `dirremove()` storage paths now
+propagate write failure without publishing link-count changes.
+
+Cpio retains the incomplete output descriptor across truncated-input and write
+failure cleanup. A deterministic replacement fixture moves a competing regular
+file into the same name before cleanup; the identity mismatch preserves the
+replacement, reports cleanup failure separately, and keeps the write error as
+the primary failure. A close failure after descriptor consumption preserves
+the completed pathname. Three cpio mutations, five
+`unlinkat_beneath` mutations, and the adjacent directory-write, namespace,
+regular- and directory-rename topology, and restricted-lookup controls
+calibrate identity, serialization, traversal, and write-publication rejection.
+The production-source fixtures exercise `a/b/leaf` through cold and populated
+name-cache routes and hold directory relocation through `checkpath()`,
+destination relookup, `..` rewriting, and source removal.
+
+Matched parent `0938a979` and candidate `0c4dee43` distributions add 668
+PICO and 660 PICO_UART flash bytes with zero linked static-SRAM delta. Cpio
+adds 92 raw/loaded bytes and 82 packed bytes while retaining ten packed blocks;
+its archive selection adds the 20-byte `unlinkat_beneath.o` wrapper and drops
+`strrchr.o` and `unlink.o`. Every other shipped a.out, archive selection,
+native artifact, packed-root block, and inode count remains unchanged. Exact
+production-command replay retains the existing namei, directory-removal,
+rename, unlink, cpio main, and cpio copy frames; the namespace entry/exit,
+conditional unlink, and cpio cleanup frames use 16, 8, 120, and 24 bytes. The
+bounded exception request leaves 24,022 PICO and 36,504 PICO_UART flash bytes.
+Runtime peaks and storage traffic remain unmeasured. Cpio creation confinement,
+tar creation/link/removal, compress publication, persistence, and
+physical-board behavior remain separate claims.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
-| P1 | archive namespace serialization | Additive `openat(2)` now preserves an ordinary directory-relative start, and `futimes(2)` preserves timestamp target identity. Parent components, absolute links, ancestor rename, final create/link/remove, cpio cleanup, and compress publication still lack a beneath-root, identity-conditioned mutation contract. | Retain the openat and descriptor timestamp controls. Specify rename serialization from the retained root through final mutation, define lock/sleep/interruption ordering, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
+| P1 | archive creation and publication identity | Additive `openat(2)` preserves an ordinary directory-relative start, `futimes(2)` preserves timestamp target identity, and `unlinkat_beneath(2)` closes cpio's incomplete-output removal identity. Cpio creation, tar creation/link/removal, and compress publication still lack caller-complete rooted mutation contracts. | Retain the openat, descriptor timestamp, namespace-serialization, restricted-lookup, identity-conditioned removal, and directory-write controls. Specify each creation or publication operation through its final locked mutation, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |

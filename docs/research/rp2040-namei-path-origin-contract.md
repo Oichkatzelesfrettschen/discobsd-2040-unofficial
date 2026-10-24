@@ -23,9 +23,9 @@ numbers, and calling conventions remain unchanged.
 ## Complete kernel transition inventory
 
 The migration replaces every initializer and direct origin-field write under
-`sys/kern`. The finite inventory contains 25 user paths, two kernel-owned
-paths, and three operation-reset cases. `vn_open` shares one reset expression
-between its exclusive and nonexclusive create cases so Thumb-1 code generation
+`sys/kern`. The finite inventory contains 26 user paths, two kernel-owned
+paths, and four operation-reset cases. `vn_open` shares each conditional reset
+expression between its two flag-dependent cases so Thumb-1 code generation
 does not duplicate the origin-preservation sequence.
 
 | Translation unit | User initialization | Kernel initialization | Operation-reset case |
@@ -34,14 +34,14 @@ does not duplicate the origin-preservation sequence.
 | `kern_exec.c` | 1 | 0 | 0 |
 | `kern_sig.c` | 0 | 1 | 0 |
 | `ufs_mount.c` | 2 | 0 | 0 |
-| `ufs_syscalls.c` | 20 | 0 | 0 |
+| `ufs_syscalls.c` | 21 | 0 | 0 |
 | `ufs_syscalls2.c` | 2 | 0 | 0 |
-| `vfs_vnops.c` | 0 | 0 | 3 |
-| **Total** | **25** | **2** | **3** |
+| `vfs_vnops.c` | 0 | 0 | 4 |
+| **Total** | **26** | **2** | **4** |
 
 `tests/rp2040/namei_path/check_origin.py` reads every kernel C translation
 unit and compares the normalized operation, modifiers, and pathname expression
-at 29 call sites covering all 30 transitions. The checker also rejects the old
+at 30 call sites covering all 32 transitions. The checker also rejects the old
 initializers, direct `ni_dirp` or `ni_nameiop` plain or compound assignment
 through either structure-access form, and an initializer in an unexpected
 translation unit. Five self-mutations change an origin, change a pathname

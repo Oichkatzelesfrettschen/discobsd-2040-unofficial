@@ -161,21 +161,21 @@ with the namespace residual in
   namespace mechanism: rename-serialized beneath-root lookup plus
   identity-conditioned mutation.
 
-- [ ] Add the changed and new source rows to the finite denominator, assigning
+- [x] Add the changed and new source rows to the finite denominator, assigning
   this mechanism and claim-specific acceptance states without converting
   unmeasured runtime or hardware fields to passing states.
-- [ ] Register the ILP32 execution and mutation controls in the test inventory
+- [x] Register the ILP32 execution and mutation controls in the test inventory
   and `TESTING.md`.
-- [ ] Run focused compiler, metadata, ILP32, inventory, and source-denominator
+- [x] Run focused compiler, metadata, ILP32, inventory, and source-denominator
   gates, then run the logged clean build and logged non-hardware check.
-- [ ] Capture matched schema-2 parent and candidate distributions using the
+- [x] Capture matched schema-2 parent and candidate distributions using the
   recorded toolchain. Compare both kernels, static SRAM, every installed a.out,
   packed-root bytes and blocks, native files, and selected archive members.
-- [ ] Capture exact-command object sizes and `-fstack-usage` results for
+- [x] Capture exact-command object sizes and `-fstack-usage` results for
   `namei`, `namei_at`, `vn_open`, `vn_open_at`, `copen`, `open`, and `openat`.
-- [ ] Record measured deltas, hashes, commands, residuals, and any bounded
+- [x] Record measured deltas, hashes, commands, residuals, and any bounded
   positive exception. Keep descriptor pressure, runtime peaks, persistence,
   confinement, and physical-board execution explicit.
-- [ ] Commit the evidence record and ledger updates.
-- [ ] Review the complete branch against the spec, fix every important finding
+- [x] Commit the evidence record and ledger updates.
+- [x] Review the complete branch against the spec, fix every important finding
   through a failing test, and run the full non-hardware gate again.

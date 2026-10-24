@@ -799,12 +799,13 @@ metadata revalidation and hard-link provenance explain the direction. These
 timings establish neither Cortex-M0+ latency nor board peak RAM.
 
 The descriptor walk proves resistance to archive-controlled and pre-existing
-symlinks only while the directory namespace remains stable. DiscoBSD provides
-neither `openat`, `linkat`, `O_NOFOLLOW` nor descriptor-based timestamp
-updates. A hostile concurrent writer can rename a verified directory before
-the later pathname operation; path-based `link` and `utimes` retain the same
-check/use window. Closing that residual requires a kernel and libc
-directory-relative API, followed by adversarial rename tests. Streaming also
+symlinks only while the directory namespace remains stable. DiscoBSD now
+provides `openat`, `O_NOFOLLOW` and descriptor-based timestamp updates;
+`linkat`, `unlinkat`, beneath-root resolution and namespace serialization remain
+absent. A hostile concurrent writer can rename a verified directory before a
+later create, link or removal. Closing that residual requires rename
+serialization through the final identity-conditioned mutation, followed by
+adversarial rename tests. Streaming also
 means a later malformed record does not roll back earlier extracted files.
 
 The namespace-race claim is directly reproduced at source revision
@@ -818,9 +819,9 @@ the deciding order explicit: verified parent traversal, hostile rename, then
 creation. The ordinary strict-C17 ASan/UBSan tar suite still passes because
 its symlink and traversal cases assume a stable directory namespace.
 
-A start-directory pointer alone cannot close the finding. If a future
-`openat`-style call starts at an already-open intermediate directory, a rename
-can move that inode outside the root before the final operation. A complete
+The implemented start-directory descriptor alone cannot close the finding.
+A rename can move the selected inode outside the root before the final
+operation. A complete
 beneath-root contract must instead resolve from the retained root descriptor,
 reject absolute paths, dot-dot and symbolic-link traversal, and prevent a
 directory rename from interleaving with resolution and the final create,
@@ -1066,11 +1067,33 @@ of the equal-sized `utimes.o` wrapper. The bounded exception leaves 25,082 PICO
 and 37,564 PICO_UART flash bytes. Runtime peaks, remaining archive namespace
 operations, persistence behavior, and physical-board execution remain open.
 
+## Directory-relative open foundation
+
+DiscoBSD now provides additive `openat(2)`, `namei_at()`, `vn_open_at()`,
+`AT_FDCWD`, `O_NOFOLLOW`, `O_DIRECTORY`, and `O_SEARCH`. The production-source
+ILP32 fixtures distinguish cwd, descriptor and process-root lookup, reject
+invalid roots and final links, and verify descriptor/refcount cleanup across
+allocation, interruption and device-open failures. Three source mutations
+calibrate the directory selection, absolute-path and final-link oracles.
+
+Matched distributions measure +392 PICO and +400 PICO_UART linked flash bytes.
+Static SRAM, every shipped a.out and packed-root surface, native artifacts,
+and archive/member selections remain unchanged. The bounded exception leaves
+24,690 PICO and 37,164 PICO_UART flash bytes.
+
+The interface establishes an ordinary directory-relative start. The interface
+does not keep an extraction beneath its retained root when a path contains
+parent components or absolute links, or when another process renames an
+ancestor. Rename serialization through the final mutation and an
+identity-conditioned create/link/remove contract remain necessary before tar,
+cpio, or compress can close concurrent namespace identity claims. Runtime
+peaks, persistence and physical-board behavior remain open.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
-| P1 | `bin/tar` namespace-race residual | Additive `futimes(2)` and tar's still-open regular-file and verified-directory descriptors close timestamp substitution for the two calibrated replacement schedules. Creation, hard-link sources, replacement removal, symlink publication, parent relocation, and traversal remain pathname-separated. | Retain the descriptor timestamp fixtures and ABI checks. Specify directory-rooted lookup plus identity-conditioned final-leaf mutation, or a bounded staged-publication design, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
+| P1 | archive namespace serialization | Additive `openat(2)` now preserves an ordinary directory-relative start, and `futimes(2)` preserves timestamp target identity. Parent components, absolute links, ancestor rename, final create/link/remove, cpio cleanup, and compress publication still lack a beneath-root, identity-conditioned mutation contract. | Retain the openat and descriptor timestamp controls. Specify rename serialization from the retained root through final mutation, define lock/sleep/interruption ordering, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |

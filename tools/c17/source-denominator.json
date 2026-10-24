@@ -16559,14 +16559,19 @@
     },
     {
       "path": "include/fcntl.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "directory-relative-open",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "The openat declaration and Smaller C function-pointer contract are accepted; remaining public file-control declarations and include-boundary obligations require review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -17576,14 +17581,19 @@
     },
     {
       "path": "include/syscall.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "E",
+      "scope": "generated",
+      "owner": "kernel-syscall-dispatch-interface",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/syscall-dispatch-header-contract.md",
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel_metadata/dispatch_contracts.py",
+        "tools/gen_kernel_metadata.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -58702,17 +58712,17 @@
       "path": "sys/kern/ufs_namei.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "rp2040-namei-path-origin",
+      "owner": "directory-relative-open",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
-        "docs/research/rp2040-namei-path-origin-contract.md",
-        "tests/rp2040/namei_path/check_origin.py",
-        "tests/rp2040/namei_path/namei_path_test.c",
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "User and kernel pathname copying plus every pathname-origin transition are accepted; the remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58777,17 +58787,17 @@
       "path": "sys/kern/ufs_syscalls.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "rp2040-namei-path-origin",
+      "owner": "directory-relative-open",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
-        "docs/research/rp2040-namei-path-origin-contract.md",
-        "tests/rp2040/namei_path/check_origin.py",
-        "tests/rp2040/namei_path/namei_path_test.c",
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "User and kernel pathname copying plus every pathname-origin transition are accepted; the remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58858,17 +58868,17 @@
       "path": "sys/kern/vfs_vnops.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "rp2040-namei-path-origin",
+      "owner": "directory-relative-open",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
-        "docs/research/rp2040-namei-path-origin-contract.md",
-        "tests/rp2040/namei_path/check_origin.py",
-        "tests/rp2040/namei_path/namei_path_test.c",
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "User and kernel pathname copying plus every pathname-origin transition are accepted; the remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -59511,14 +59521,19 @@
     },
     {
       "path": "sys/sys/fcntl.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "directory-relative-open",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "The directory-relative constants, conversion rules and consumers are accepted; remaining public and kernel file-control interfaces require separate review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -59646,14 +59661,19 @@
     },
     {
       "path": "sys/sys/inode.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "directory-relative-open",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "The namei_at declaration and complete kernel consumers are accepted; remaining inode layout and declaration families require separate review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -59876,17 +59896,17 @@
       "path": "sys/sys/namei.h",
       "class": "A",
       "scope": "maintained",
-      "owner": "rp2040-namei-path-origin",
+      "owner": "directory-relative-open",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
-        "docs/research/rp2040-namei-path-origin-contract.md",
-        "tests/rp2040/namei_path/check_origin.py",
-        "tests/rp2040/namei_path/namei_path_test.c",
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "Pathname-origin initialization and reset, bit separation, repeated inclusion and complete kernel consumer compilation are accepted; remaining nameidata and name-cache type and union semantics require separate migration units.",
+      "blocker": "Directory-relative entry points, private flag separation, repeated inclusion and complete kernel consumers are accepted; remaining nameidata and name-cache semantics require separate migration units.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -62769,6 +62789,47 @@
             "integer-cast"
           ],
           "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/openat_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "directory-relative-open",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/openat-directory-relative-lookup.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [
+            "compound-literal"
+          ],
           "pointer": [],
           "prototype": [],
           "variadic": []
@@ -80399,9 +80460,10 @@
       "native_input": "yes",
       "language_state": "migration-open",
       "evidence": [
-        "docs/research/STYLE-GUIDE.md"
+        "docs/research/STYLE-GUIDE.md",
+        "docs/research/openat-directory-relative-lookup.md"
       ],
-      "blocker": "File-level C17 and native-suite acceptance remain unreviewed.",
+      "blocker": "The openat public declaration and archive member pass the native fixture; broader file-level C17 and native-suite acceptance remain migration-open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "native-smaller-c",

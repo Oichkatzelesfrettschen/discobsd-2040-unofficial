@@ -759,6 +759,25 @@ Source: `rp2040-signal-context-admission.md`,
 Source: `tar-descriptor-timestamp-identity.md` and `TESTING.md`
 (`check-tar-host`, `check-kernel-ilp32`, `check-kernel-metadata`).
 
+### R21 -- descriptor-relative open lookup (`openat(2)`, `namei_at()`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | Additive BSD/POSIX syscall and libc wrapper, GNU17 freestanding kernel, strict-C17 ILP32 fixture, generated metadata, and Smaller C public-header consumer |
+| Tier | T1: directory identity enters pathname traversal and later archive publication |
+| Native input | `t18_stdio` repeatedly includes `fcntl.h`, checks the `openat` function-pointer type, and requires `openat.o` in the native link map; on-device preprocessing remains open |
+| Contract | Copy and classify the pathname before descriptor lookup; ignore the descriptor for absolute paths; use `AT_FDCWD` for cwd and a directory inode for other relative roots; keep `struct nameidata` unchanged; reject empty `openat` paths, final links under `O_NOFOLLOW`, non-directories under `O_DIRECTORY`, and contradictory `O_SEARCH` flags; preserve `open()` through wrappers |
+| Invariants | Existing syscall ordinals and layouts remain unchanged; additive syscall 157 carries four words; process-root, cwd, permissions, name-cache behavior, inode reference states, and the live open interruption frame retain their existing contracts |
+| Falsifier | Three warning-clean mutations select cwd instead of the directory descriptor, consult the descriptor for an absolute path, or follow the final link. Each must fail its named runtime assertion; pathname-origin and metadata controls retain their independent mutations |
+| Gates | Required `check-kernel-ilp32`, `check-namei-user-path`, `check-kernel-metadata`, `check-test-execution`, Smaller C, source-denominator and kernel-inventory gates, exact PICO/PICO_UART GNU17 builds, matched schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Clean parent `cae4d630` and implementation `39ec39ce` report +392 PICO and +400 PICO_UART linked flash bytes. Static SRAM, every shipped a.out and packed-root surface, native artifacts, and archive/member selections are unchanged. Affected object text grows by 360 bytes. The `namei_at()` and `vn_open_at()` frames retain 392 and 24 bytes; their wrappers use eight bytes each. The shared `copen()` frame is 144 bytes, making the `open()` and `openat()` static call chains 168 bytes. The bounded exception leaves 24,690 PICO and 37,164 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | ILP32 production-source behavior, calibrated mutations, generated metadata, native-header/link acceptance, exact target builds, matched static-resource comparison, and exact-command frame replay; physical-board evidence remains open |
+| Ledger states | 1 language: done for the focused lookup/open mechanism and fixture; broader translation units and system headers remain migration-open. 2 interface: done for additive slot 157 and complete generated/libc callers. 3 native: host preprocessing/link selection passes; on-device preprocessing remains open. 4 hardening: done for ordinary directory-relative start identity and final-link refusal; beneath-root confinement and identity-conditioned mutation remain open. 5 resource: static constrained surfaces are accepted through the bounded linked-flash exception; runtime peaks remain open. 6 program closure: both shipped kernel configurations, dependency closure, images, and archive selections pass |
+| Residuals | Rename-serialized beneath-root traversal and identity-conditioned create/link/remove/metadata publication remain the next archive mechanism. Runtime peaks, persistence recovery, MPU behavior, deliberate faults, and physical-board execution retain separate states |
+
+Source: `openat-directory-relative-lookup.md` and `TESTING.md`
+(`check-kernel-ilp32`, `check-namei-user-path`, `check-kernel-metadata`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -940,8 +959,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 75 accepted, 53 migration-open, 543
-excluded and 1,938 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 77 accepted, 56 migration-open, 543
+excluded and 1,934 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

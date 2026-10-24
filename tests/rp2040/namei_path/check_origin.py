@@ -30,6 +30,7 @@ EXPECTED_CALLS = {
         "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->linkname)",
         "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->linkname)",
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->fname)",
+        "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->path)",
         "NAMEI_INIT_USER(ndp,LOOKUP,FOLLOW,uap->fname)",
         "NAMEI_INIT_USER(ndp,LOOKUP,follow,uap->fname)",
         "NAMEI_INIT_USER(ndp,LOOKUP,NOFOLLOW,uap->name)",

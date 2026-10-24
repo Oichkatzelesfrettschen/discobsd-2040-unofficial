@@ -25,11 +25,11 @@ UNCONDITIONAL_PUBLICATION = """        u.u_error = copyout((caddr_t)&available,
             uap->cmarg, sizeof available);"""
 GEOMETRY = """        u_int nbytes = (com >> 16) & IOCPARM_MASK;
 
-        if (baduaddr_span(uap->cmarg, nbytes)) {"""
+        if (nbytes != 0 && baduaddr_span(uap->cmarg, nbytes)) {"""
 UNMASKED_SIZE = """        u_int nbytes =
             (com & ~(IOC_INOUT | IOC_VOID)) >> 16;
 
-        if (baduaddr_span(uap->cmarg, nbytes)) {"""
+        if (nbytes != 0 && baduaddr_span(uap->cmarg, nbytes)) {"""
 ENDPOINT_SPAN = """        u_int nbytes = (com >> 16) & IOCPARM_MASK;
 
         if (baduaddr(uap->cmarg) ||

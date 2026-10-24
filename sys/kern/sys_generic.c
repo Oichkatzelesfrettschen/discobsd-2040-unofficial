@@ -206,7 +206,7 @@ ioctl(void)
     if (com & (IOC_IN | IOC_OUT)) {
         u_int nbytes = (com >> 16) & IOCPARM_MASK;
 
-        if (baduaddr_span(uap->cmarg, nbytes)) {
+        if (nbytes != 0 && baduaddr_span(uap->cmarg, nbytes)) {
             u.u_error = EFAULT;
             return;
         }

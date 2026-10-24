@@ -180,9 +180,7 @@ baduaddr_span(caddr_t address, u_int nbytes)
 {
 	u_long start = (u_long)address;
 
-	if (nbytes == 0)
-		return 0;
-	if (start < user_span_lower || start >= user_span_upper)
+	if (start < user_span_lower || start > user_span_upper)
 		return 1;
 	return (u_long)nbytes > user_span_upper - start;
 }
@@ -361,16 +359,28 @@ static void
 command_geometry_cases(void)
 {
 	caddr_t argument = (caddr_t)&user_storage[USER_LOWER];
+	caddr_t zero_length_arguments[4];
+	unsigned int index;
 	u_int command;
 
 	reset(DTYPE_INODE, IFREG, FREAD);
 	command = IOC_IN | ((u_int)UNKNOWN_GROUP << 8) | UNKNOWN_NUMBER;
-	call_ioctl(FD, command, argument);
-	HK_CHECK(u.u_error == ENOTTY && provider_calls == 1);
-	HK_CHECK(provider_command == command && provider_data == argument);
-	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+	zero_length_arguments[0] = (caddr_t)0;
+	zero_length_arguments[1] = (caddr_t)(user_span_lower - 1);
+	zero_length_arguments[2] = (caddr_t)user_span_upper;
+	zero_length_arguments[3] = (caddr_t)(user_span_upper + 1);
+	for (index = 0; index < sizeof zero_length_arguments /
+	    sizeof zero_length_arguments[0]; index++) {
+		reset(DTYPE_INODE, IFREG, FREAD);
+		argument = zero_length_arguments[index];
+		call_ioctl(FD, command, argument);
+		HK_CHECK(u.u_error == ENOTTY && provider_calls == 1);
+		HK_CHECK(provider_command == command && provider_data == argument);
+		HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+	}
 
 	reset(DTYPE_INODE, IFREG, FREAD);
+	argument = (caddr_t)&user_storage[USER_LOWER];
 	command = IOC_IN | (1U << 24) | ((u_int)sizeof(int) << 16) |
 	    ((u_int)UNKNOWN_GROUP << 8) | UNKNOWN_NUMBER;
 	call_ioctl(FD, command, argument);

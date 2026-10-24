@@ -569,7 +569,7 @@ Source: `rp2040-file-status-control-admission.md` and `TESTING.md`
 | Resources | Matched clean distributions at parent `bd0d28c8` and candidate `549628e8` attribute a 64-byte PICO and PICO_UART flash increase to `sys_generic.o` and `ioctl()`; static SRAM, every shipped a.out, native libc size and membership, packed-root counters and the 24-byte `ioctl()` frame remain unchanged. The bounded flash exception is accepted with 25,928 PICO and 38,404 PICO_UART bytes remaining. Runtime stack high-water remains open |
 | Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
 | Ledger states | 1 language: done for the two exact extracted definitions and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the preserved `FIONREAD` command and result representation. 3 native: n/a. 4 hardening: done for the exercised alignment, ownership and publication boundary. 5 resource: done for static surfaces through a bounded 64-byte per-kernel exception; runtime peaks stay open. 6 program closure: done for `FIONREAD` across shipped providers |
-| Residuals | General input and bidirectional ioctl payloads, malformed command geometry, tty local-mode arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+| Residuals | General input and bidirectional ioctl payloads, malformed command geometry, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
 
 Source: `rp2040-fionread-result-admission.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`).
@@ -607,7 +607,7 @@ Source: `rp2040-swap-ioctl-result-contract.md` and `TESTING.md`
 | Resources | Matched clean distributions at parent `7f828e2b` and candidate `997d27d7` report 16-byte flash reductions for PICO and PICO_UART. Static SRAM, every shipped a.out, packed-root surface, native artifact and archive/member selection are unchanged. `sys_generic.o` and `ioctl()` each lose 16 text bytes in both configurations; the 24-byte `ioctl()` static frame is unchanged. The default nonpositive-growth rule accepts every constrained surface; runtime peaks remain open |
 | Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
 | Ledger states | 1 language: done for the exact extracted geometry seam and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for preserved command encoding and provider dispatch. 3 native: n/a. 4 hardening: done for the exercised encoded-size, empty-span and complete-span boundary. 5 resource: done for static surfaces with nonpositive growth; runtime peaks stay open. 6 program closure: done for the bounded command-geometry seam |
-| Residuals | General input and bidirectional ioctl payload ownership, tty local-mode signed arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+| Residuals | General input and bidirectional ioctl payload ownership, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
 
 Source: `rp2040-ioctl-command-geometry.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
@@ -626,7 +626,7 @@ Source: `rp2040-ioctl-command-geometry.md` and `TESTING.md`
 | Resources | Matched clean distributions at parent `a028337a` and candidate `101823d2` report +208 flash bytes in each kernel. Static SRAM, every shipped a.out, packed-root surface, native-artifact size and archive/member selection are unchanged. `sys_generic.o` and `ioctl()` each gain 208 text bytes in both configurations while the 24-byte `ioctl()` static frame is unchanged. The bounded exception leaves 25,730 PICO and 38,204 PICO_UART flash bytes; runtime peaks remain open |
 | Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
 | Ledger states | 1 language: done for the focused `ioctl()` ownership seam and fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the preserved command/provider ABI. 3 native: n/a. 4 hardening: done for every exact input or input/output command accepted by shipped providers. 5 resource: done for static surfaces through a bounded 208-byte per-kernel exception; runtime peaks stay open. 6 program closure: done for the accepted shipped-provider input set |
-| Residuals | Output-only tty, flash and swap commands other than accepted `FIOGETOWN` and `FIONREAD` staging remain a separate ownership unit. Optional providers, tty local-mode signed arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+| Residuals | Output-only tty, flash and swap commands other than accepted `FIOGETOWN` and `FIONREAD` staging remain a separate ownership unit. Optional providers, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
 
 Source: `rp2040-ioctl-input-payload-ownership.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
@@ -645,9 +645,28 @@ Source: `rp2040-ioctl-input-payload-ownership.md` and `TESTING.md`
 | Resources | Matched clean distributions at parent `6c67ebe6` and candidate `baa4f41d` report +176 PICO and +168 PICO_UART flash bytes. Static SRAM, every shipped a.out, packed-root surface, native-artifact size, and archive/member selection are unchanged. `sys_generic.o` and `ioctl()` each gain 172 text bytes in both configurations; the `ioctl()` static frame grows from 24 to 32 bytes. The bounded exception leaves 25,552 PICO and 38,036 PICO_UART flash bytes; runtime peaks remain open |
 | Evidence class | Host, sanitizer, ILP32, and exact target build; physical-board execution unrun |
 | Ledger states | 1 language: done for the focused `ioctl()` output-ownership seam and fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the preserved command/provider ABI. 3 native: n/a. 4 hardening: done for every exact output-only command accepted by shipped providers. 5 resource: done for static surfaces through a bounded linked-flash and static-frame exception; runtime peaks remain open. 6 program closure: done for the accepted shipped-provider output set |
-| Residuals | Kernel-internal ioctl callers, optional providers, tty local-mode arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior, and physical-board execution retain separate states or migration units |
+| Residuals | Kernel-internal ioctl callers, optional providers, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior, and physical-board execution retain separate states or migration units |
 
 Source: `rp2040-ioctl-output-payload-ownership.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
+
+### R16 -- tty local-mode unsigned arithmetic (`sys/kern/tty.c`, `sys/sys/tty.h`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD tty ABI; RP2040 kernel profile with the arithmetic helpers compiled under strict C17 at host and ILP32 widths |
+| Tier | T1: caller-provided local-mode bits alter the shared terminal representation used by the tty layer and inspection tools |
+| Native input | No |
+| Contract | `TIOCLBIS`, `TIOCLBIC`, `TIOCLSET`, and `TIOCLGET` operate on one unsigned 32-bit representation; setters use only the low 16 payload bits, preserve the required complementary word, and avoid signed-shift behavior |
+| Invariants | Public command numbers and payload widths, syscall dispatch, tty flag bit positions, `struct tty` size/alignment/offsets, terminal-driver interpretation, and `pstat` octal presentation remain unchanged |
+| Falsifier | Six mutations lose local-mode bit 15, substitute the wrong set or clear operation, retain the prior high word during SET, restore signed GET, or restore the inherited signed left shift; the first five exit at their named assertion and the last emits the ILP32 undefined-behavior diagnostic |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-tty-layout-cross`, `check-test-execution`, Ruff, exact PICO/PICO_UART GNU17 builds, clean `pstat` compilation and linkage, complete `logged-check`, schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Matched clean distributions at parent `de585a0d` and the candidate source tree report -64 PICO and -56 PICO_UART flash bytes. `tty.o` loses 60 text bytes, `ttioctl()` loses four symbol bytes, and its 56-byte static frame is unchanged. `pstat`, static SRAM, every shipped a.out, packed-root surfaces, native artifacts, and every archive/member selection are unchanged. Runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32, layout compile, and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the focused unsigned arithmetic and two fixtures; remaining `tty.c`, `tty.h`, and `pstat.c` semantics stay migration-open. 2 interface: done for the preserved TIOCL commands, structure layout, and inspection presentation. 3 native: n/a. 4 hardening: done for the exercised signed-shift boundary. 5 resource: static constrained surfaces accepted with nonpositive growth; runtime peaks remain open. 6 program closure: done for the bounded local-mode arithmetic seam |
+| Residuals | Remaining tty declarations and translation-unit semantics, kernel-internal ioctl callers, optional providers, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior, terminal-driver timing, and physical-board execution retain separate states or migration units |
+
+Source: `rp2040-tty-local-mode-arithmetic.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
 
 ## Open measurements this plan depends on
@@ -831,8 +850,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 23 accepted, 86 migration-open, 543
-excluded and 1,949 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 25 accepted, 89 migration-open, 543
+excluded and 1,946 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

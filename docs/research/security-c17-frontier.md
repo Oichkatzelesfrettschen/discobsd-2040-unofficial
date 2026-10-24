@@ -947,8 +947,8 @@ PICO_UART. `sys_generic.o` and `ioctl()` each lose 16 text bytes, while
 the `ioctl()` frame remains 24 bytes. Static SRAM, every shipped a.out,
 packed-root counters, native artifacts and archive/member selections remain
 unchanged. The default nonpositive-growth rule accepts the unit. Runtime
-stack and heap peaks, general input and bidirectional ioctl ownership, tty
-local-mode arithmetic and physical-board execution remain open.
+stack and heap peaks, general input and bidirectional ioctl ownership, and
+physical-board execution remain open.
 
 ## Ioctl input payload ownership
 
@@ -1003,6 +1003,31 @@ artifact, and archive/member selection remains unchanged. `sys_generic.o` and
 static frame grows from 24 to 32 bytes. The bounded exception leaves 25,552
 PICO and 38,036 PICO_UART flash bytes. Runtime peaks, kernel-internal and
 optional-provider ioctl ownership, and physical-board execution remain open.
+
+## Tty local-mode unsigned arithmetic
+
+The tty layer now represents its combined ordinary and local-mode flags as
+`uint32_t`. Four focused helpers set, clear, replace, or extract the upper
+16-bit local-mode word. Setter payloads use only their low 16 bits. The
+implementation therefore preserves the public bit layout while avoiding the
+inherited signed left shift at local-mode bit 15 and implementation-defined
+right shift of a negative flag word.
+
+Native, ILP32, and sanitizer fixtures each execute 262,147 assertions across
+all 65,536 local-mode values and high-payload controls. Six mutations reject a
+lost high local-mode bit, incorrect set or clear operations, stale high-word
+state, signed extraction, and the inherited undefined shift. A strict-C17
+Cortex-M0+ layout contract pins the 120-byte `struct tty`, its four-byte
+alignment, the four-byte `t_flags`, and the adjacent field offsets. Clean PICO
+and PICO_UART builds compile and link every kernel consumer, and the clean
+distribution compiles and links `pstat` with its preserved octal display.
+
+Matched schema-2 distributions measure 64 fewer PICO flash bytes and 56 fewer
+PICO_UART flash bytes. `tty.o` loses 60 text bytes, `ttioctl()` loses four
+symbol bytes, and its 56-byte static frame remains unchanged. `pstat`, static
+SRAM, every shipped a.out, packed-root counters, native artifacts, and all
+archive/member selections remain unchanged. Runtime peaks, terminal-driver
+timing, and physical-board execution remain open.
 
 ## Ranked residual frontier
 

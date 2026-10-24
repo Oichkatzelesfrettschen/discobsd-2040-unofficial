@@ -1646,6 +1646,25 @@
       ]
     },
     {
+      "id": "kernel.tty-local-mode.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-tty-local-mode-sanitizer",
+      "root_target": "check-kernel",
+      "program": "tty_local_mode_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "tty_local_mode_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.tty-local-mode.sanitized -- ./tty_local_mode_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.file-owner.ubsan-mutant",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1777,6 +1796,48 @@
         "swap_ioctl_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.tty-local-mode.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "tty_local_mode_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "tty_local_mode_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- ./tty_local_mode_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.tty-local-mode.signed-shift-negative",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable undefined-behavior sanitizer runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-tty-local-mode-ilp32-mutant",
+      "root_target": "check-kernel-ilp32",
+      "program": "sh",
+      "script": "tests/kernel/tty_local_mode_ubsan_mutant_check.sh",
+      "subject": "tests/kernel/tty_local_mode_signed-shift.mutant.test",
+      "condition": "ILP32_OK == yes and TTY_LOCAL_MODE_ILP32_UBSAN_OK == yes; compiler-probe.sh compiles and executes an ILP32 undefined-behavior sanitizer binary",
+      "prerequisites": [
+        "tty_local_mode_signed-shift.mutant.test",
+        "tty_local_mode_ubsan_mutant_check.sh",
+        "tty_local_mode_ubsan_mutant_check_test.sh"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.tty-local-mode.signed-shift-negative -- sh ./tty_local_mode_ubsan_mutant_check.sh ./tty_local_mode_signed-shift.mutant.test",
       "aliases": [
         "check-kernel-ilp32"
       ]

@@ -778,6 +778,26 @@ Source: `tar-descriptor-timestamp-identity.md` and `TESTING.md`
 Source: `openat-directory-relative-lookup.md` and `TESTING.md`
 (`check-kernel-ilp32`, `check-namei-user-path`, `check-kernel-metadata`).
 
+### R22 -- rooted conditional unlink and cpio failure cleanup
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | Private UFS namespace serialization, restricted `namei_at()` traversal, additive BSD syscall and ARM libc wrapper, GNU17 freestanding kernel, strict-C17 cpio cleanup helper and host fixture, generated metadata, and Smaller C public-header consumer |
+| Tier | T1: archive failure cleanup crosses a concurrent filesystem namespace before destructive mutation |
+| Native input | `t18_stdio` repeatedly includes `unistd.h`, checks the exact `unlinkat_beneath` function-pointer type, and requires one `unlinkat_beneath.o` member in the native link map; on-device preprocessing remains open |
+| Contract | Acquire namespace serialization before any inode lookup; reject absolute, empty, dot, dot-dot, symbolic-link, and mounted-filesystem traversal; retain the root and expected regular-file inodes; compare the locked final inode with the descriptor-owned inode; remove only the matching entry; propagate both directory-write paths; keep serialization across every legacy `rename(2)` lookup and mutation; reject directory `link(2)` and `unlink(2)` topology changes |
+| Invariants | Existing syscall ordinals and public layouts retain their values; additive syscall 158 carries three words; permission, sticky-directory, immutable, append-only, read-only filesystem, directory write, cpio primary-error, and descriptor-close behavior retain their existing precedence |
+| Falsifier | Five warning-clean `unlinkat_beneath` mutations cover namespace acquisition and release, identity comparison and retained references, and failed-write link counts. Adjacent calibrated mutations cover both directory-write layouts, namespace wait/wakeup/interruption, rename participation, directory topology rejection, and restricted traversal. Three warning-clean cpio mutations pass an invalid descriptor, restore pathname-only cleanup, or remove a completed pathname after descriptor consumption. Each must fail its named assertion |
+| Gates | Required `check-kernel-ilp32`, `check-kernel-metadata`, `check-cpio-host`, `check-test-execution`, Smaller C, source-denominator, exact PICO/PICO_UART GNU17 builds, clean libc and cpio rebuilds, matched schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Focused exact builds record +28 linked text bytes in each kernel, unchanged linked data/BSS, a 20-byte ARM wrapper object, and one selected `unlinkat_beneath.o` member. Cpio moves from 3,540 to 3,652 object-text bytes and from 10,524 to 10,616 a.out bytes; data/BSS remain unchanged, `main()` remains 32 bytes, `copy_in()` remains 128 bytes, and the cleanup helper uses 24 bytes. Clean parent/candidate distributions, packed-root counters, and full archive closure remain pending |
+| Evidence class | ILP32 production-source behavior, calibrated mutations, strict-C17 host behavior, generated metadata, native-header/link acceptance, exact target builds, and focused static-resource measurements; clean distribution and physical-board evidence remain open |
+| Ledger states | 1 language: done for the six focused fixtures; broader kernel and cpio translation units remain migration-open or unreviewed. 2 interface: done for additive slot 158 and its generated/libc callers. 3 native: expanded-header and selected-member acceptance pass; on-device preprocessing remains open. 4 hardening: done for cpio's truncated-input and write-failure cleanup identity. 5 resource: focused deltas are measured; matched distribution and runtime peaks remain open. 6 program closure: exact cpio target build passes; clean image and packed-root comparison remains open |
+| Residuals | Cpio creation and parent traversal, tar creation/link/removal, compress publication/metadata/removal, runtime peaks, persistence recovery, MPU behavior, deliberate faults, and physical-board execution remain separate units |
+
+Source: `rooted-conditional-unlink-plan.md` and `TESTING.md`
+(`check-kernel-ilp32`, `check-kernel-metadata`, `check-cpio-host`,
+`check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -959,7 +979,7 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 77 accepted, 56 migration-open, 543
+set. Those classifications preserve all 83 accepted, 56 migration-open, 543
 excluded and 1,934 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's

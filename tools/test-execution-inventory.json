@@ -25,6 +25,11 @@
       "kind": "expanded prerequisites"
     },
     {
+      "from": "check-host",
+      "to": "check-cpio-host",
+      "kind": "HOST_PROGRAM_GATES member"
+    },
+    {
       "from": "check-ilp32-execution",
       "to": "check-ilp32-execution-recipes",
       "kind": "detached submake with fresh receipts"
@@ -369,6 +374,11 @@
       "from": "check-ilp32-execution-recipes",
       "to": "check-timeout-contracts",
       "kind": "required timeout native variant"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-cpio-host",
+      "kind": "required cpio native variants"
     }
   ],
   "optional_investigations": [
@@ -386,6 +396,48 @@
     }
   ],
   "variants": [
+    {
+      "id": "cpio.archive.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler, sanitizer runtime and GNU cpio interoperability tool",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-cpio-host",
+      "root_target": "check-cpio-host",
+      "program": "sh",
+      "condition": "unconditional; cpiotest.sh rejects an unavailable reference cpio or sanitizer runtime",
+      "prerequisites": [
+        "usr.bin/cpio/cpio.c",
+        "usr.bin/cpio/tests/cpiotest.sh",
+        "usr.bin/cpio/tests/cleanup_identity_shim.c",
+        "usr.bin/cpio/tests/cleanup_identity_shim.h"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run cpio.archive.native -- sh usr.bin/cpio/tests/cpiotest.sh",
+      "script": "usr.bin/cpio/tests/cpiotest.sh",
+      "aliases": []
+    },
+    {
+      "id": "cpio.cleanup.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler with address and undefined-behavior sanitizer runtime",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-cpio-host",
+      "root_target": "check-cpio-host",
+      "program": "sh",
+      "condition": "unconditional; cleanup_identity_test.sh rejects an unavailable sanitizer runtime",
+      "prerequisites": [
+        "usr.bin/cpio/cpio.c",
+        "usr.bin/cpio/tests/cleanup_identity_test.sh",
+        "usr.bin/cpio/tests/cleanup_identity_shim.c",
+        "usr.bin/cpio/tests/cleanup_identity_shim.h"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run cpio.cleanup.native -- sh usr.bin/cpio/tests/cleanup_identity_test.sh",
+      "script": "usr.bin/cpio/tests/cleanup_identity_test.sh",
+      "aliases": []
+    },
     {
       "id": "libc.base.native",
       "owner": "firmware/posix-sh",

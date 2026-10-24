@@ -145,9 +145,12 @@ not establish kernel atomicity.
 7. [x] Add failing cpio cleanup and replacement fixtures, then keep the output
    descriptor live through identity-conditioned cleanup of truncated input,
    write failure, and the target kernel's regular-file close path.
-8. [ ] Register the focused gates with the root Makefile, testing guide,
+8. [x] Register the focused gates with the root Makefile, testing guide,
    execution inventory, and CI owner.  Refresh the source denominator and
    correct the testing guide's stale source-state counts.
+   The denominator delta contains the four kernel fixtures and the cpio shim
+   source/header as one six-path accepted test mechanism.  Existing Linux and
+   macOS `check-host` jobs own the two registered cpio execution variants.
 9. [ ] Run focused strict-C17, GNU17, ILP32, ABI, Smaller C, cpio, mutation,
    and generated-file gates.  Rebuild every public-header and libc consumer
    from a clean tree.

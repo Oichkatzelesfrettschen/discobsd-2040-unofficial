@@ -204,10 +204,9 @@ ioctl(void)
     }
     com = (u_int) uap->cmd;
     if (com & (IOC_IN | IOC_OUT)) {
-        /* Check user address. */
-        u_int nbytes = (com & ~(IOC_INOUT | IOC_VOID)) >> 16;
-        if (baduaddr (uap->cmarg) ||
-            baduaddr (uap->cmarg + nbytes - 1)) {
+        u_int nbytes = (com >> 16) & IOCPARM_MASK;
+
+        if (nbytes != 0 && baduaddr_span(uap->cmarg, nbytes)) {
             u.u_error = EFAULT;
             return;
         }

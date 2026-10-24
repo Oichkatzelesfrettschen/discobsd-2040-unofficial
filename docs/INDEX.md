@@ -123,6 +123,7 @@ Grouped by what they investigate.
 | `rp2040-file-owner-control-admission.md` | checked file-owner conversion, four-byte ioctl staging, failure-path publication rules and measured kernel cost |
 | `rp2040-file-status-control-admission.md` | driver-first file-status publication, staged ioctl payloads, compensating F_SETFL transitions and measured kernel cost |
 | `rp2040-fionread-result-admission.md` | aligned private FIONREAD result staging, success-gated publication, calibrated provider coverage and measured kernel cost |
+| `rp2040-ioctl-command-geometry.md` | eight-bit ioctl payload-length extraction, empty-span admission, complete command preservation and measured kernel savings |
 | `rp2040-swap-ioctl-result-contract.md` | temporary-swap allocation, release and media-size result semantics with calibrated allocator and resource evidence |
 | `rp2040-syscall-stack-argument-admission.md` | complete RP2040 syscall stack-tail admission, stale-state clearing and dispatch failure behavior |
 | `rp2040-elf-load-admission.md` | complete flat ELF file and process-window admission, Thumb entry validation and committed-read failure behavior |

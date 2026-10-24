@@ -219,7 +219,8 @@ FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 \
 FIONREAD_LDFLAGS=	${FILE_OWNER_LDFLAGS}
 FIONREAD_GENERIC_RENAMES=	-Dioctl=fionread_ioctl
 FIONREAD_INODE_RENAMES=	-Dsetjmp=fionread_setjmp
-FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width
+FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
+			unmasked-size endpoint-span
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -729,6 +730,8 @@ check-fionread-mutants: \
 		direct-user-pointer) expected='provider_data != unaligned' ;; \
 		unconditional-publication) expected='u.u_error == EIO && provider_calls == 1' ;; \
 		wrong-width) expected='copyout_bytes == sizeof(off_t)' ;; \
+		unmasked-size) expected='provider_calls == 1 && provider_command == command' ;; \
+		endpoint-span) expected='u.u_error == ENOTTY && provider_calls == 1' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

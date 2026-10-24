@@ -61,8 +61,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
 
     syscall_master = "sys/kern/syscalls.master"
     syscall_records = records_text(source(syscall_master), syscall_master, 6)
-    if len(syscall_records) != 158:
-        raise CheckError("syscall master must contain slots 0 through 157")
+    if len(syscall_records) != 159:
+        raise CheckError("syscall master must contain slots 0 through 158")
     if syscall_records[23][2:5] != ["__sysctl", "ALWAYS", "__sysctl"]:
         raise CheckError("syscall 23 must remain __sysctl")
     if syscall_records[66][2] != "vfork":
@@ -77,6 +77,13 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         "157", "4", "openat", "ALWAYS", "openat", "openat=157"
     ]:
         raise CheckError("syscall 157 must remain four-argument openat")
+    if syscall_records[158] != [
+        "158", "3", "unlinkat_beneath", "ALWAYS", "unlinkat_beneath",
+        "unlinkat_beneath=158",
+    ]:
+        raise CheckError(
+            "syscall 158 must remain three-argument unlinkat_beneath"
+        )
     public = source("include/syscall.h")
     generated_files = {
         "include/syscall.h": "Copyright (c) 1980 Regents",
@@ -94,6 +101,12 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("SYS_sbrk must retain its public spelling")
     if not re.search(r"^#define SYS_openat\s+157$", public, re.MULTILINE):
         raise CheckError("SYS_openat must retain its additive public number")
+    if not re.search(
+        r"^#define SYS_unlinkat_beneath\s+158$", public, re.MULTILINE
+    ):
+        raise CheckError(
+            "SYS_unlinkat_beneath must retain its additive public number"
+        )
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
     if len(errno_records) != 83 or errno_records[-1] != [
@@ -200,6 +213,21 @@ def main() -> int:
                 syscall_path: syscall_source.replace(
                     "157|4|openat|ALWAYS|openat|openat=157",
                     "157|3|openat|ALWAYS|openat|openat=157",
+                    1,
+                )
+            },
+        ),
+    )
+    expect_bad(
+        "short unlinkat_beneath argument record",
+        lambda: check_tree(
+            root,
+            {
+                syscall_path: syscall_source.replace(
+                    "158|3|unlinkat_beneath|ALWAYS|unlinkat_beneath|"
+                    "unlinkat_beneath=158",
+                    "158|2|unlinkat_beneath|ALWAYS|unlinkat_beneath|"
+                    "unlinkat_beneath=158",
                     1,
                 )
             },

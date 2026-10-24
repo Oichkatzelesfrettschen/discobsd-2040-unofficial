@@ -7,12 +7,17 @@
 .TH UNLINK 2 "May 22, 1985"
 .UC 4
 .SH NAME
-unlink \- remove directory entry
+unlink, unlinkat_beneath \- remove directory entry
 .SH SYNOPSIS
 .nf
 .ft B
-unlink(path)
-char *path;
+#include <unistd.h>
+.PP
+.ft B
+int unlink(const char *path);
+.PP
+.ft B
+int unlinkat_beneath(int rootfd, const char *path, int expected_fd);
 .fi
 .ft R
 .SH DESCRIPTION
@@ -26,13 +31,25 @@ all resources associated with the file are reclaimed.
 If, however, the file was open in any process, the actual
 resource reclamation is delayed until it is closed,
 even though the directory entry has disappeared.
-.SH "RETURN VALUE
+.PP
+.I Unlinkat_beneath
+starts at the directory referred to by
+.I rootfd
+and accepts only a nonempty relative path whose components differ from
+``.'' and ``..''.
+It follows neither symbolic links nor mounted-file-system transitions.
+The call removes the final entry only when the locked lookup result is the
+same regular file retained by
+.I expected_fd.
+The directory descriptor, expected descriptor, and resolved entry must remain
+valid for the duration of the call.
+.SH "RETURN VALUE"
 Upon successful completion, a value of 0 is returned.
 Otherwise, a value of \-1 is returned and
 .I errno
 is set to indicate the error.
-.SH "ERRORS
-The \fIunlink\fP succeeds unless:
+.SH "ERRORS"
+The calls fail when:
 .TP 15
 [ENOTDIR]
 A component of the path prefix is not a directory.
@@ -46,6 +63,26 @@ or an entire path name exceeded 1023 characters.
 .TP 15
 [ENOENT]
 The named file does not exist.
+.TP 15
+[EBADF]
+.I Unlinkat_beneath
+was given an invalid directory or expected-file descriptor.
+.TP 15
+[ENOTDIR]
+.I Rootfd
+does not refer to a directory.
+.TP 15
+[EINVAL]
+.I Expected_fd
+does not refer to a regular file, or the restricted path contains an empty,
+``.'', or ``..'' component.
+.TP 15
+[ESTALE]
+The final entry does not refer to the regular file retained by
+.I expected_fd.
+.TP 15
+[EXDEV]
+The restricted lookup would cross a mounted-file-system boundary.
 .TP 15
 [EACCES]
 Search permission is denied for a component of the path prefix.
@@ -81,4 +118,4 @@ The named file resides on a read-only file system.
 .I Path
 points outside the process's allocated address space.
 .SH "SEE ALSO"
-close(2), link(2), rmdir(2)
+close(2), link(2), openat(2), rmdir(2)

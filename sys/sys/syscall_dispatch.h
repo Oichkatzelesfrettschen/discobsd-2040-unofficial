@@ -135,6 +135,7 @@ void ufetch(void);
 void umask(void);
 void umount(void);
 void unlink(void);
+void unlinkat_beneath(void);
 void ustore(void);
 void utimes(void);
 void vfork(void);

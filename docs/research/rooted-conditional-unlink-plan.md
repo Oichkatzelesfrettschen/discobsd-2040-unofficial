@@ -127,35 +127,36 @@ not establish kernel atomicity.
 
 ## Ordered tasks
 
-1. Add a failing `dirremove()` write-error fixture for both directory-entry
+1. [x] Add a failing `dirremove()` write-error fixture for both directory-entry
    layouts, then make the production provider publish only successful writes.
-2. Add a failing namespace-gate fixture for free acquisition, wakeup, explicit
-   interruption, and balanced release, then implement the private gate.
-3. Add failing legacy-topology fixtures, then hold the gate across all
+2. [x] Add a failing namespace-gate fixture for free acquisition, wakeup,
+   explicit interruption, and balanced release, then implement the private
+   gate.
+3. [x] Add failing legacy-topology fixtures, then hold the gate across all
    `rename(2)` exits and reject directory `link(2)` and `unlink(2)` calls.
-4. Add failing restricted-lookup fixtures for pathname syntax, symbolic links,
-   mounted-filesystem changes, and ownership cleanup, then add the bounded
-   `namei_at()` mode.
-5. Add failing syscall fixtures for descriptor validation, lock order,
+4. [x] Add failing restricted-lookup fixtures for pathname syntax, symbolic
+   links, mounted-filesystem changes, and ownership cleanup, then add the
+   bounded `namei_at()` mode.
+5. [x] Add failing syscall fixtures for descriptor validation, lock order,
    expected-inode mismatch, provider errors, and success, then implement
    `unlinkat_beneath()`.
-6. Add generated-metadata, public-prototype, function-pointer, Smaller C, and
-   archive-selection failures, then append syscall 158 and its libc member.
-7. Add failing cpio cleanup and replacement fixtures, then keep the output
+6. [x] Add generated-metadata, public-prototype, function-pointer, Smaller C,
+   and archive-selection failures, then append syscall 158 and its libc member.
+7. [ ] Add failing cpio cleanup and replacement fixtures, then keep the output
    descriptor live through identity-conditioned cleanup of truncated input,
    write failure, and the target kernel's regular-file close path.
-8. Register the focused gates with the root Makefile, testing guide, execution
-   inventory, and CI owner.  Refresh the source denominator and correct the
-   testing guide's stale source-state counts.
-9. Run focused strict-C17, GNU17, ILP32, ABI, Smaller C, cpio, mutation, and
-   generated-file gates.  Rebuild every public-header and libc consumer from a
-   clean tree.
-10. Compare clean parent and candidate distributions for PICO and PICO_UART.
+8. [ ] Register the focused gates with the root Makefile, testing guide,
+   execution inventory, and CI owner.  Refresh the source denominator and
+   correct the testing guide's stale source-state counts.
+9. [ ] Run focused strict-C17, GNU17, ILP32, ABI, Smaller C, cpio, mutation,
+   and generated-file gates.  Rebuild every public-header and libc consumer
+   from a clean tree.
+10. [ ] Compare clean parent and candidate distributions for PICO and PICO_UART.
     Record kernel flash and SRAM, affected object and frame sizes, cpio a.out
     occupancy, libc archive selection, packed-root bytes and blocks, and the
     maximum simultaneous descriptor and inode ownership.  Positive constrained
     growth requires a bounded reviewed exception.
-11. Run `logged-check`, review the staged diff and a fresh-context branch
+11. [ ] Run `logged-check`, review the staged diff and a fresh-context branch
     review, push the focused branch, open and merge a pull request with a merge
     commit, synchronize `main`, and retire the clean worktree.
 

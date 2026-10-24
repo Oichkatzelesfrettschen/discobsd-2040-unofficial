@@ -128,6 +128,7 @@ int     close (int fd);
 int     dup (int oldfd);
 int     dup2 (int oldfd, int newfd);
 int     unlink (const char *pathname);
+int     unlinkat_beneath (int rootfd, const char *path, int expected_fd);
 int     link (const char *oldpath, const char *newpath);
 int     symlink (const char *, const char *);
 ssize_t readlink (const char *path, char *buf, size_t bufsiz);

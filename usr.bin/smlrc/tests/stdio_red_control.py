@@ -223,7 +223,7 @@ def main():
         )
         for member in ("filbuf.o", "ungetc.o", "scanf.o", "doscan.o", "closedir.o",
                        "fprintf.o", "vfprintf.o", "fputs.o", "futimes.o",
-                       "openat.o"):
+                       "openat.o", "unlinkat_beneath.o"):
             if member not in map_text:
                 raise RuntimeError(f"t18_stdio link map omits {member}")
 

@@ -379,6 +379,11 @@
       "from": "check-ilp32-execution-recipes",
       "to": "check-cpio-host",
       "kind": "required cpio native variants"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-tar-host",
+      "kind": "required tar hard-link identity native variant"
     }
   ],
   "optional_investigations": [
@@ -438,6 +443,28 @@
       ],
       "recipe": "${PYTHON} tools/test_execution.py run cpio.cleanup.native -- sh usr.bin/cpio/tests/cleanup_identity_test.sh",
       "script": "usr.bin/cpio/tests/cleanup_identity_test.sh",
+      "aliases": []
+    },
+    {
+      "id": "tar.hardlink-identity.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler with address and undefined-behavior sanitizer runtime",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-tar-host",
+      "root_target": "check-tar-host",
+      "program": "sh",
+      "condition": "unconditional; hardlink_identity_test.sh rejects an unavailable sanitizer runtime",
+      "prerequisites": [
+        "bin/tar/tar.c",
+        "bin/tar/tests/hardlink_identity_test.sh",
+        "bin/tar/tests/rooted_link_host.c",
+        "bin/tar/tests/rooted_link_host.h",
+        "bin/tar/tests/tarfixture.c"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run tar.hardlink-identity.native -- sh bin/tar/tests/hardlink_identity_test.sh",
+      "script": "bin/tar/tests/hardlink_identity_test.sh",
       "aliases": []
     },
     {
@@ -2396,6 +2423,25 @@
         "publishat_beneath_namei_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.publishat-beneath-namei.ilp32 -- ./publishat_beneath_namei_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.linkat-beneath.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with two UFS mount slots",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-linkat-beneath-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "linkat_beneath_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "linkat_beneath_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.linkat-beneath.ilp32 -- ./linkat_beneath_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

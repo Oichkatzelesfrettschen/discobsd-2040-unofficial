@@ -15,7 +15,8 @@ fail() {
 compiler=${CC:-cc}
 common_flags="-D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
     -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
-    -Wold-style-definition -Wconversion -Wsign-conversion"
+    -Wold-style-definition -Wconversion -Wsign-conversion \
+    -include $source_directory/tests/rooted_link_host.h"
 
 $compiler $common_flags -Dfutimes=tar_test_futimes \
     -Dutimes=tar_test_utimes -c -o "$work_directory/tar.o" \
@@ -23,8 +24,12 @@ $compiler $common_flags -Dfutimes=tar_test_futimes \
 $compiler $common_flags -c -o "$work_directory/timestamp_identity_shim.o" \
     "$source_directory/tests/timestamp_identity_shim.c" ||
     fail "compile timestamp identity shim"
+$compiler $common_flags -c -o "$work_directory/rooted_link_host.o" \
+    "$source_directory/tests/rooted_link_host.c" ||
+    fail "compile rooted link host shim"
 $compiler -o "$work_directory/tar" "$work_directory/tar.o" \
-    "$work_directory/timestamp_identity_shim.o" ||
+    "$work_directory/timestamp_identity_shim.o" \
+    "$work_directory/rooted_link_host.o" ||
     fail "link timestamp identity fixture"
 
 run_case() {
@@ -105,7 +110,8 @@ $compiler $common_flags -Dfutimes=tar_test_futimes \
     "$work_directory/tar_pathname_mutant.c" || fail "compile pathname mutant"
 $compiler -o "$work_directory/tar_pathname_mutant" \
     "$work_directory/tar_pathname_mutant.o" \
-    "$work_directory/timestamp_identity_shim.o" || fail "link pathname mutant"
+    "$work_directory/timestamp_identity_shim.o" \
+    "$work_directory/rooted_link_host.o" || fail "link pathname mutant"
 
 mutant_output=$work_directory/pathname-mutant.out
 if run_case "$work_directory/tar_pathname_mutant" file pathname-mutant \

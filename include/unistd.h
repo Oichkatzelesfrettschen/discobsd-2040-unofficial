@@ -132,6 +132,8 @@ int     mkdirat_beneath (int rootfd, const char *path, mode_t mode);
 int     unlinkat_beneath (int rootfd, const char *path, int expected_fd);
 int     publishat_beneath (int rootfd, const char *staged_path, int staged_fd,
             const char *target_path, int target_fd);
+int     linkat_beneath (int rootfd, const char *source_path,
+            int expected_source_fd, const char *target_path);
 int     link (const char *oldpath, const char *newpath);
 int     symlink (const char *, const char *);
 ssize_t readlink (const char *path, char *buf, size_t bufsiz);

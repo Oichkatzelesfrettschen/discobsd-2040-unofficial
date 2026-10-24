@@ -191,6 +191,9 @@ main(int argc, char **argv)
         write_entry("inside-link", '1', "../outside-existing", 0644, NULL);
     } else if (strcmp(argv[1], "hardlink-source") == 0) {
         write_entry("inside-link", '1', "source", 0644, NULL);
+    } else if (strcmp(argv[1], "hardlink-race") == 0) {
+        write_entry("source", '0', NULL, 0644, "archive source\n");
+        write_entry("alias", '1', "source", 0644, NULL);
     } else if (strcmp(argv[1], "special") == 0) {
         write_entry("setid", '0', NULL, 06755, "payload\n");
     } else if (strcmp(argv[1], "unsupported") == 0) {

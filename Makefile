@@ -1028,6 +1028,8 @@ check-sh-heap-boundary: check-python
 check-tar-host:
 		sh bin/tar/tests/tartest.sh
 		PYTHON=${PYTHON:Q} sh bin/tar/tests/timestamp_identity_test.sh
+		${PYTHON} tools/test_execution.py run tar.hardlink-identity.native -- \
+		    sh bin/tar/tests/hardlink_identity_test.sh
 
 check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh
@@ -1100,7 +1102,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-dd-contracts check-umount-contracts check-backgammon-contracts \
 		check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
-		check-cpio-host \
+		check-tar-host check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-recovery-utility-contracts \
 		check-timeout-contracts

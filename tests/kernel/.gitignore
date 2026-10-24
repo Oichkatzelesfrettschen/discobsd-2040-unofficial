@@ -132,6 +132,13 @@ unlinkat_beneath_*.mutant.c
 unlinkat_beneath_*.mutant.o
 unlinkat_beneath_*.mutant.test
 unlinkat_beneath_*.mutant.out
+linkat_beneath_functions.c
+linkat_beneath_syscalls32.o
+linkat_beneath_test32
+linkat_beneath_*.mutant.c
+linkat_beneath_*.mutant.o
+linkat_beneath_*.mutant.test
+linkat_beneath_*.mutant.out
 dirremove_kernel32.o
 dirremove_test32
 dirremove_*.mutant.c

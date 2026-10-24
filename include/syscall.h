@@ -140,7 +140,8 @@
 #define SYS_publishat_beneath 159
 #define SYS_openat_beneath 160
 #define SYS_mkdirat_beneath 161
+#define SYS_linkat_beneath 162
 
-#define SYS_MAXSYSCALL 162
+#define SYS_MAXSYSCALL 163
 
 #endif

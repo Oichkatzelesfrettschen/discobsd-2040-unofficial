@@ -39,8 +39,10 @@ else
 	    -Wold-style-definition -Wconversion -Wsign-conversion \
 	    -fno-omit-frame-pointer \
 	    -fsanitize=address,undefined \
+	    -include "$srcdir/tests/rooted_link_host.h" \
 	    ${ZPROG:+-DCOMPRESS=\"$ZPROG\"} \
-	    -o "$TAR" "$srcdir/tar.c" ||
+	    -o "$TAR" "$srcdir/tar.c" \
+	    "$srcdir/tests/rooted_link_host.c" ||
 	    fail "host build of tar.c"
 fi
 NATIVE_TAR=$work/tar-native-paths
@@ -48,7 +50,9 @@ ${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=4096 -std=c17 -O1 \
 	-Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
 	-Wold-style-definition -Wconversion -Wsign-conversion \
 	-fno-omit-frame-pointer -fsanitize=address,undefined \
-	-o "$NATIVE_TAR" "$srcdir/tar.c" ||
+	-include "$srcdir/tests/rooted_link_host.h" \
+	-o "$NATIVE_TAR" "$srcdir/tar.c" \
+	"$srcdir/tests/rooted_link_host.c" ||
 	fail "host build of tar.c with native pathname capacity"
 MUTANT_TAR=$work/tar-without-metadata-path-bound
 "$PYTHON" - "$srcdir/tar.c" "$work/tar-without-metadata-path-bound.c" <<'PY'
@@ -69,7 +73,9 @@ ${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=4096 -std=c17 -O1 \
 	-Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
 	-Wold-style-definition -Wconversion -Wsign-conversion \
 	-fno-omit-frame-pointer -fsanitize=address,undefined \
-	-o "$MUTANT_TAR" "$work/tar-without-metadata-path-bound.c" ||
+	-include "$srcdir/tests/rooted_link_host.h" \
+	-o "$MUTANT_TAR" "$work/tar-without-metadata-path-bound.c" \
+	"$srcdir/tests/rooted_link_host.c" ||
 	fail "host build of unbounded metadata-path mutation"
 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
@@ -706,7 +712,9 @@ ${CC:-cc} -D_DEFAULT_SOURCE -std=c17 -O1 \
     -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
     -Wold-style-definition -Wconversion -Wsign-conversion \
     -fno-omit-frame-pointer -fsanitize=address,undefined \
-    -o "$HOST_WIDTH_TAR" "$srcdir/tar.c" ||
+    -include "$srcdir/tests/rooted_link_host.h" \
+    -o "$HOST_WIDTH_TAR" "$srcdir/tar.c" \
+    "$srcdir/tests/rooted_link_host.c" ||
     fail "native path-width host build of tar.c"
 mkdir -p "native-update-source/$deep"
 long_leaf=abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqr
@@ -782,7 +790,9 @@ ${CC:-cc} -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
     -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
     -Wold-style-definition -Wconversion -Wsign-conversion \
     -fno-omit-frame-pointer -fsanitize=address,undefined \
-    -DCOMPRESS=\"$FIXTURE\" -o "$FILTER_TAR" "$srcdir/tar.c" ||
+    -include "$srcdir/tests/rooted_link_host.h" \
+    -DCOMPRESS=\"$FIXTURE\" -o "$FILTER_TAR" "$srcdir/tar.c" \
+    "$srcdir/tests/rooted_link_host.c" ||
     fail "host build of tar.c with the nonterminating filter fixture"
 : > filter-input
 mkdir filter-root

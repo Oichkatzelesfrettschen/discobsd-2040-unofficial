@@ -94,7 +94,7 @@ def check(root, host_cc):
     require(prototypes == handlers, 'dispatch prototypes differ from master/fallback set')
     # Assembly includes the numeric ABI output through libc/arm/sys/SYS.h.
     require(digest(root / 'include/syscall.h') ==
-            '0cb7434961cdeaf6ecdb8a8f1df72eeb66e39d93ef2631e126d9ea6c65b99196',
+            'fe739a97e770fb07e109acd8be297b8073afbbec9abe34156f5a4ef84cf3872d',
             'public numeric syscall header changed')
     host = shlex.split(host_cc)
     require(host and shutil.which(host[0]), 'host compiler is unavailable')
@@ -230,13 +230,14 @@ def check(root, host_cc):
                             '.word SYS_unlinkat_beneath\n'
                             '.word SYS_publishat_beneath\n'
                             '.word SYS_openat_beneath\n'
-                            '.word SYS_mkdirat_beneath\n')
+                            '.word SYS_mkdirat_beneath\n'
+                            '.word SYS_linkat_beneath\n')
         output = run_command([arm, '-E', '-P', '-x', 'assembler-with-cpp',
                               '-nostdinc', '-I' + str(root / 'include'), str(consumer)],
                              'numeric-assembly', cases)
-        require(output.split() == ['.word', '162', '.word', '2', '.word', '157',
+        require(output.split() == ['.word', '163', '.word', '2', '.word', '157',
                                    '.word', '158', '.word', '159', '.word', '160',
-                                   '.word', '161'],
+                                   '.word', '161', '.word', '162'],
                 'numeric assembly differs')
         for configuration in ['PICO', 'PICO_UART']:
             build = root / 'sys/arch/rp2040/compile' / configuration

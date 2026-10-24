@@ -16,6 +16,8 @@ static int (*mkdirat_beneath_signature)(int, const char *, mode_t) =
 static int (*openat_signature)(int, const char *, int, ...) = openat;
 static int (*unlinkat_beneath_signature)(int, const char *, int) =
     unlinkat_beneath;
+static int (*linkat_beneath_signature)(int, const char *, int,
+    const char *) = linkat_beneath;
 
 int
 main(void)
@@ -30,15 +32,17 @@ main(void)
         return 3;
     if (unlinkat_beneath_signature == NULL)
         return 4;
+    if (linkat_beneath_signature == NULL)
+        return 5;
     {
         int (*publishat_signature)(int, const char *, int, const char *, int) =
             publishat_beneath;
 
         if (publishat_signature == NULL)
-            return 5;
+            return 6;
     }
     if (write(STDOUT_FILENO, success, sizeof(success) - 1) !=
         (ssize_t)(sizeof(success) - 1))
-        return 6;
+        return 7;
     return 0;
 }

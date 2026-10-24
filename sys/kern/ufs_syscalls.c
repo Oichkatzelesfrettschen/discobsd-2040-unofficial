@@ -345,6 +345,126 @@ out:
 }
 
 /*
+ * Create a hard link beneath an acquired directory only while the source
+ * pathname still identifies the regular inode retained by the descriptor.
+ */
+void
+linkat_beneath(void)
+{
+    register struct a {
+        int     rootfd;
+        char    *source_path;
+        int     expected_source_fd;
+        char    *target_path;
+    } *uap = (struct a *)u.u_arg;
+    register struct inode *expected, *source, *target, *parent;
+    struct nameidata source_nd, target_nd;
+    register struct nameidata *source_ndp = &source_nd;
+    register struct nameidata *target_ndp = &target_nd;
+    int error, reserved_link;
+
+    source = NULL;
+    target = NULL;
+    parent = NULL;
+    reserved_link = 0;
+
+    expected = getinode(uap->expected_source_fd);
+    if (expected == NULL)
+        return;
+    if ((expected->i_mode & IFMT) != IFREG) {
+        u.u_error = EINVAL;
+        return;
+    }
+    igrab(expected);
+    iunlock(expected);
+
+    error = ufs_namespace_enter();
+    if (error != 0) {
+        u.u_error = error;
+        goto release_expected;
+    }
+
+    NAMEI_INIT_USER(source_ndp, LOOKUP, NOFOLLOW | NOCACHE,
+        uap->source_path);
+    NAMEI_RESTRICT_BENEATH(source_ndp);
+    source = namei_at(source_ndp, uap->rootfd);
+    if (source == NULL)
+        goto leave_namespace;
+    if (source != expected) {
+        u.u_error = ESTALE;
+        goto release_source;
+    }
+    if ((source->i_mode & IFMT) != IFREG) {
+        u.u_error = EINVAL;
+        goto release_source;
+    }
+    if (source->i_flags & (IMMUTABLE | APPEND)) {
+        u.u_error = EPERM;
+        goto release_source;
+    }
+    if (source->i_nlink == USHRT_MAX) {
+        u.u_error = EMLINK;
+        goto release_source;
+    }
+    source->i_nlink++;
+    source->i_flag |= ICHG;
+    error = iupdat(source, &time, &time, 1);
+    if (error != 0) {
+        source->i_nlink--;
+        source->i_flag |= ICHG;
+        u.u_error = error;
+        goto release_source;
+    }
+    reserved_link = 1;
+    iput(source);
+    source = NULL;
+
+    NAMEI_INIT_USER(target_ndp, CREATE, NOFOLLOW | LOCKPARENT | NOCACHE,
+        uap->target_path);
+    NAMEI_RESTRICT_BENEATH(target_ndp);
+    target = namei_at(target_ndp, uap->rootfd);
+    if (u.u_error != 0)
+        goto rollback_link;
+    parent = target_ndp->ni_pdir;
+    if (target != NULL) {
+        u.u_error = EEXIST;
+        goto release_target;
+    }
+    if (INODE_DEVICE(parent) != INODE_DEVICE(expected)) {
+        u.u_error = EXDEV;
+        goto release_target;
+    }
+    error = direnter(expected, target_ndp);
+    parent = NULL;
+    if (error != 0) {
+        u.u_error = error;
+        goto rollback_link;
+    }
+    reserved_link = 0;
+    goto leave_namespace;
+
+release_target:
+    if (target != NULL)
+        iput(target);
+    iput(parent);
+rollback_link:
+    if (reserved_link) {
+        ilock(expected);
+        expected->i_nlink--;
+        expected->i_flag |= ICHG;
+        iunlock(expected);
+    }
+    goto leave_namespace;
+
+release_source:
+    iput(source);
+leave_namespace:
+    ufs_namespace_exit();
+release_expected:
+    irele(expected);
+}
+
+/*
  * symlink -- make a symbolic link
  */
 void

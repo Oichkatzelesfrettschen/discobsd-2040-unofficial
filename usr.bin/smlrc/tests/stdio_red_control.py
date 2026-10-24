@@ -252,6 +252,7 @@ def main():
             "mkdirat_beneath.o",
             "unlinkat_beneath.o",
             "publishat_beneath.o",
+            "linkat_beneath.o",
         ):
             if member not in rooted_map:
                 raise RuntimeError(

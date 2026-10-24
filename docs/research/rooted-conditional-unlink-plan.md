@@ -253,17 +253,19 @@ borrowing acceptance from the static comparison.
 11. [ ] Run `logged-check`, review the staged diff and a fresh-context branch
     review, push the focused branch, open and merge a pull request with a merge
     commit, synchronize `main`, and retire the clean worktree.
-    The exact-head aggregate at `c1abb1a1` completed both stages on
-    2026-10-24: the clean build passed in 72.115 seconds and the non-hardware
-    check tier passed in 360.649 seconds.  The aggregate status receipt has
-    SHA-256
-    `c2f0bf650947007db3083a84403dbe299d6cea7700ca651e73edd65ed2f8304d`.
     Fresh-context review found no critical implementation defect. Its directory
     relocation and nested-lookup coverage gap is closed by a 138-assertion
     topology fixture, a fifth topology mutation, and 756 rooted-unlink
-    assertions over cold and populated name-cache routes. The corrected focused
-    gates pass. A new exact-head aggregate, publication, exact-head CI,
-    integration, synchronization, and worktree retirement remain open.
+    assertions over cold and populated name-cache routes. Follow-up review
+    reports no critical or important finding. The corrected focused gates pass.
+    The exact-head aggregate at `b55c0255` completed both stages on 2026-10-24:
+    the clean build passed in 61.8 seconds, the non-hardware check tier passed
+    in 356.6 seconds, and the complete invocation passed in 418.417 seconds.
+    Invocation `rp2040-check-local-20261024T153947Z-3373339-1601499f` has status
+    SHA-256
+    `9d4e058530f13593d3ae8d5107ff2a898536da4da44da96a50c5c7eb58faad20`.
+    Publication, exact-head CI, integration, synchronization, and worktree
+    retirement remain open.
 
 Physical-board execution, flash programming, serial access, and persistence
 fault injection remain outside this unit and require separate authorization.

@@ -4,7 +4,6 @@ import argparse
 import hashlib
 from pathlib import Path
 
-
 STATE_START = "#define TD_APPEND_DISABLED 0xffffU\n"
 STATE_END = "static struct swtemp td[NTMP];"
 SWSIZE_SIGNATURE = "daddr_t\nswsize(dev_t dev)"

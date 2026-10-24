@@ -3,7 +3,6 @@
 import argparse
 from pathlib import Path
 
-
 RELEASE_SUCCESS = """\t\tif (*offtval == 0)
 \t\t\treturn 0;
 \t\tbreak;"""

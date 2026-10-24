@@ -57,6 +57,18 @@ accepts both Python tools with its cache disabled. Clean PICO and PICO_UART
 distributions compile and link the changed kernel objects under the recorded
 GNU17 Cortex-M0+ commands.
 
+The exact implementation and evidence revision `9af05219` passes
+`PYTHON=/usr/local/bin/python3 bmake MACHINE=rp2040 logged-check`. The logged
+sequence `rp2040-check-local-20261024T054546Z-616506-e33a5307` completed its
+build stage in 88.973 seconds and its non-hardware check stage in 505.260
+seconds. The immutable sequence, build-stage, and check-stage status records
+have SHA-256 identities `f4902cd39b3449e653cf749d9d00c7f6114d0f9ef72de9cd56ccf83b84569328`,
+`03f013576e0b6051c45dcc901efe7fdfc44c8981c856ead0cb09854e40b0be0f`, and
+`75984ac4fbdc37fc617c192a9db2d539c2f0a2d1369a82c8f12ad1a5831f29ea`.
+The aggregate reran the clean build, host, ILP32, cross, qemu-user,
+host-package, and board-build tiers. The invocation performed no
+physical-board execution.
+
 The committed STM32 F405 production command also compiles its changed
 `machdep.c` for Cortex-M4. A supplementary `-Wextra -Werror` invocation reaches
 three pre-existing translation-unit diagnostics in `nodump()`, `boot()`, and

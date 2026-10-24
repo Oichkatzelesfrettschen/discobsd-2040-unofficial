@@ -63,8 +63,9 @@ points to memory that is not a valid part of the process
 address space.
 .TP
 [EINVAL]
-The process status longword is invalid or would improperly
-raise the privilege level of the process.
+The process status longword is invalid, the program counter does not name
+a complete aligned instruction halfword in an executable user region, or the
+stack pointer cannot supply the complete aligned exception-return frame.
 .SH "SEE ALSO"
 sigvec(2), setjmp(3)
 .SH "NOTES  (PDP-11)"

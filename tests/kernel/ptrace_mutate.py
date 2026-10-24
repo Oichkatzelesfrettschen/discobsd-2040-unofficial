@@ -44,19 +44,17 @@ MUTATIONS = {
 """,
     ),
     "pc-misalignment": (
-        """    if (program_counter % INSN_SZ != 0)
-        return 0;
+        """    return machine_user_pc_valid(program_counter);
 """,
-        """    if (program_counter % INSN_SZ != 0 && program_counter == 0)
-        return 0;
+        """    return machine_user_pc_valid(program_counter & ~1U);
 """,
     ),
     "sp-misalignment": (
-        """    if (stack_pointer % 8U != 0)
-        return 0;
+        """    return machine_user_stack_valid(stack_pointer,
+        PTRACE_EXCEPTION_FRAME_SIZE);
 """,
-        """    if (stack_pointer % 8U != 0 && stack_pointer == 0)
-        return 0;
+        """    return machine_user_stack_valid(stack_pointer & ~7U,
+        PTRACE_EXCEPTION_FRAME_SIZE);
 """,
     ),
     "arbitrary-u-write": (

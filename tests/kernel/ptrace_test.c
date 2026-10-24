@@ -14,6 +14,7 @@
 #include <sys/ptrace.h>
 
 #include <machine/frame.h>
+#include <machine/user_context.h>
 
 #define USER_LOWER UINT32_C(0x20000000)
 #define USER_UPPER UINT32_C(0x20000100)
@@ -403,7 +404,19 @@ check_control_register_writes(void)
 	HK_CHECK(run_request(PT_WRITE_U, (u_int)frame_offset(&frame->tf_pc),
 	    USER_LOWER + 8) == 0);
 	HK_CHECK(frame->tf_pc == USER_LOWER + 8);
+#ifdef RP2040_USER_BOOT_ROM_END
+	HK_CHECK(run_request(PT_WRITE_U, (u_int)frame_offset(&frame->tf_pc),
+	    0) == 0);
+	HK_CHECK(frame->tf_pc == 0);
+	HK_CHECK(run_request(PT_WRITE_U, (u_int)frame_offset(&frame->tf_pc),
+	    RP2040_USER_BOOT_ROM_END - INSN_SZ) == 0);
+	HK_CHECK(frame->tf_pc == RP2040_USER_BOOT_ROM_END - INSN_SZ);
 	original = frame->tf_pc;
+	HK_CHECK(run_request(PT_WRITE_U, (u_int)frame_offset(&frame->tf_pc),
+	    RP2040_USER_BOOT_ROM_END) == 0);
+	HK_CHECK(ipc.ip_req == -1);
+	HK_CHECK(frame->tf_pc == original);
+#endif
 	HK_CHECK(run_request(PT_WRITE_U, (u_int)frame_offset(&frame->tf_pc),
 	    USER_LOWER + 9) == 0);
 	HK_CHECK(ipc.ip_req == -1);
@@ -424,6 +437,15 @@ check_continue_and_step(void)
 {
 	reset();
 	frame->tf_pc = USER_LOWER + 2;
+#ifdef RP2040_USER_BOOT_ROM_END
+	HK_CHECK(run_request(PT_CONTINUE,
+	    RP2040_USER_BOOT_ROM_END - INSN_SZ, 0) == 1);
+	HK_CHECK(frame->tf_pc == RP2040_USER_BOOT_ROM_END - INSN_SZ);
+	HK_CHECK(child.p_ptracesig == 0);
+
+	reset();
+	frame->tf_pc = USER_LOWER + 2;
+#endif
 	HK_CHECK(run_request(PT_CONTINUE, USER_LOWER + 8, SIGTERM) == 1);
 	HK_CHECK(frame->tf_pc == USER_LOWER + 8);
 	HK_CHECK(child.p_ptracesig == SIGTERM);

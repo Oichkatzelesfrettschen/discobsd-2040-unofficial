@@ -1703,6 +1703,25 @@
       ]
     },
     {
+      "id": "kernel.sigreturn-context.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-sigreturn-sanitizer",
+      "root_target": "check-kernel",
+      "program": "sigreturn_context_test_sanitized",
+      "condition": "SIGRETURN_SANITIZER_OK == yes; compiler-probe.sh compiles and executes ILP32 address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "sigreturn_context_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.sigreturn-context.sanitized -- ./sigreturn_context_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.file-owner.ubsan-mutant",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1972,8 +1991,7 @@
       "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
       "prerequisites": [
         "sigreturn_context_test32",
-        "sigreturn_context_direct_mutant",
-        "sigreturn_context_reread_mutant"
+        "check-sigreturn-mutants"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- ./sigreturn_context_test32",
       "aliases": [

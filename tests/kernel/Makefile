@@ -5,6 +5,7 @@ HOST_CC?= cc
 
 PORT_INCLUDE=	${TOPSRC}/sys/arch/${MACHINE}/include
 USERCOPY_HEADER=	${PORT_INCLUDE}/usercopy.h
+USER_CONTEXT_HEADER=	${PORT_INCLUDE}/user_context.h
 
 # sys/param.h reaches a port's headers as <machine/*.h>. config(8) spells that
 # name as a symlink in the kernel build directory, which a gate that has to
@@ -75,6 +76,8 @@ ELF_SURROUNDING_CFLAGS=	${SYSCALL_GATE_CFLAGS} \
 ILP32=		-m32
 ILP32_CC= ${HOST_CC}
 include ${TOPSRC}/tools/test-execution.mk
+SIGRETURN_SANITIZER_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
+			${HOST_CC} ${ILP32} ${KERNEL_SANITIZER_FLAGS}
 TTY_LOCAL_MODE_ILP32_UBSAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
 			${HOST_CC} ${ILP32} -fsanitize=undefined \
 			-fno-sanitize-recover=all
@@ -140,6 +143,12 @@ MACHDEP_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 USERCOPY_SRC=		${MACHDEP_SRC}
 SYSCALL_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
 SIGRETURN_SRC=		${TOPSRC}/sys/arch/rp2040/rp2040/sig_machdep.c
+SIGRETURN_HEADER_DEPS=	${TOPSRC}/sys/arch/rp2040/include/frame.h \
+			${TOPSRC}/sys/arch/rp2040/include/scb.h \
+			${TOPSRC}/sys/arch/rp2040/include/signal.h \
+			${TOPSRC}/sys/arch/rp2040/include/user_context.h
+SIGRETURN_MUTANTS=	direct-user reread-user pc-admission sp-alignment \
+			frame-width padding-width psr-policy early-publication
 EXEC_ELF_SRC=		${TOPSRC}/sys/kern/exec_elf.c
 KERN_EXEC_SRC=		${TOPSRC}/sys/kern/kern_exec.c
 EXEC_SUBR_SRC=		${TOPSRC}/sys/kern/exec_subr.c
@@ -283,7 +292,7 @@ PTRACE_FUNCTIONS=	ptrace_functions.c
 PTRACE_HEADER_DEPS=	${TOPSRC}/sys/sys/param.h \
 			${TOPSRC}/sys/sys/systm.h ${TOPSRC}/sys/sys/user.h \
 			${TOPSRC}/sys/sys/proc.h ${TOPSRC}/sys/sys/ptrace.h \
-			${PORT_INCLUDE}/frame.h
+			${PORT_INCLUDE}/frame.h ${USER_CONTEXT_HEADER}
 PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
 			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
 			pc-misalignment sp-misalignment psr-control-overwrite \
@@ -1542,40 +1551,69 @@ sigreturn_context_function.c: sigreturn_context_extract.py ${SIGRETURN_SRC}
 	${PYTHON} sigreturn_context_extract.py --source ${SIGRETURN_SRC} \
 	    --output $@
 
-sigreturn_context_direct_mutant.c: sigreturn_context_extract.py \
+.for mutation in ${SIGRETURN_MUTANTS}
+sigreturn_context_${mutation}.mutant.c: sigreturn_context_extract.py \
     ${SIGRETURN_SRC}
 	@if [ -z "${PYTHON}" ]; then \
 		echo "PYTHON must name the interpreter for sigreturn extraction" >&2; \
 		exit 2; \
 	fi
 	${PYTHON} sigreturn_context_extract.py --source ${SIGRETURN_SRC} \
-	    --output $@ --direct-user-mutant
+	    --output $@ --mutation ${mutation}
 
-sigreturn_context_reread_mutant.c: sigreturn_context_extract.py \
-    ${SIGRETURN_SRC}
-	@if [ -z "${PYTHON}" ]; then \
-		echo "PYTHON must name the interpreter for sigreturn extraction" >&2; \
-		exit 2; \
-	fi
-	${PYTHON} sigreturn_context_extract.py --source ${SIGRETURN_SRC} \
-	    --output $@ --reread-user-mutant
+sigreturn_context_${mutation}.mutant.test: sigreturn_context_test.c \
+    sigreturn_context_${mutation}.mutant.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DSIGRETURN_CONTEXT_FUNCTION='"sigreturn_context_${mutation}.mutant.c"' \
+	    -o $@ sigreturn_context_test.c
+.endfor
 
 sigreturn_context_test32: sigreturn_context_test.c \
-    sigreturn_context_function.c
+    sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
 	    -o $@ sigreturn_context_test.c
 
-sigreturn_context_direct_mutant: sigreturn_context_test.c \
-    sigreturn_context_direct_mutant.c
+sigreturn_context_test_sanitized: sigreturn_context_test.c \
+    sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
-	    -DSIGRETURN_CONTEXT_FUNCTION='"sigreturn_context_direct_mutant.c"' \
+	    ${KERNEL_SANITIZER_FLAGS} \
 	    -o $@ sigreturn_context_test.c
 
-sigreturn_context_reread_mutant: sigreturn_context_test.c \
-    sigreturn_context_reread_mutant.c
-	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
-	    -DSIGRETURN_CONTEXT_FUNCTION='"sigreturn_context_reread_mutant.c"' \
-	    -o $@ sigreturn_context_test.c
+check-sigreturn-mutants: \
+    ${SIGRETURN_MUTANTS:@mutation@sigreturn_context_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${SIGRETURN_MUTANTS}; do \
+		output=sigreturn_context_$$mutation.mutant.out; \
+		if ./sigreturn_context_$$mutation.mutant.test \
+		    >$$output 2>&1; then status=0; else status=$$?; fi; \
+		case $$mutation in \
+		direct-user) expected='exact context uses one complete copy' ;; \
+		reread-user) expected='sigreturn restores low registers' ;; \
+		pc-admission) expected='odd PC reports EINVAL' ;; \
+		sp-alignment) expected='misaligned SP reports EINVAL' ;; \
+		frame-width) expected='short base frame reports EINVAL' ;; \
+		padding-width) expected='missing alignment padding reports EINVAL' ;; \
+		psr-policy) expected='missing Thumb bit reports EINVAL' ;; \
+		early-publication) expected='rejection preserves signal mask' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL sigreturn $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS sigreturn $$mutation mutation rejected"; \
+	done
+
+check-sigreturn-sanitizer:
+.if ${SIGRETURN_SANITIZER_OK} == "yes"
+check-sigreturn-sanitizer: sigreturn_context_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.sigreturn-context.sanitized -- \
+	    ./sigreturn_context_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.sigreturn-context.sanitized \
+	    "sigreturn context: ILP32 sanitizer runtime unavailable"
+.endif
 
 exec_elf_admission_function.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
 	@if [ -z "${PYTHON}" ]; then \
@@ -1721,7 +1759,7 @@ check-ilp32:
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
-	    sigreturn_context_direct_mutant sigreturn_context_reread_mutant \
+	    check-sigreturn-mutants \
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
@@ -1768,18 +1806,6 @@ check-ilp32:
 	echo "PASS syscall dispatch-after-failure mutation rejected"
 	${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- \
 	    ./sigreturn_context_test32
-	@if ./sigreturn_context_direct_mutant; then status=0; else status=$$?; fi; \
-	if [ "$$status" -ne 1 ]; then \
-		echo "FAIL sigreturn direct-user mutation returned $$status, expected 1" >&2; \
-		exit 1; \
-	fi; \
-	echo "PASS sigreturn direct-user mutation rejected"
-	@if ./sigreturn_context_reread_mutant; then status=0; else status=$$?; fi; \
-	if [ "$$status" -ne 1 ]; then \
-		echo "FAIL sigreturn user-reread mutation returned $$status, expected 1" >&2; \
-		exit 1; \
-	fi; \
-	echo "PASS sigreturn user-reread mutation rejected"
 	${TEST_EXECUTION} run kernel.elf-admission.ilp32 -- \
 	    ./exec_elf_admission_test32
 	@if ./exec_elf_segment_span_mutant; then status=0; else status=$$?; fi; \
@@ -1865,7 +1891,8 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-fionread-sanitizer check-swap-ioctl-mutants \
     check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
     check-tty-local-mode-sanitizer check-mem-span-mutants \
-    check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer
+    check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer \
+    check-sigreturn-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1935,10 +1962,10 @@ clean:
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
 	rm -f syscall_args_test32 syscall_args_dispatch_mutant
-	rm -f sigreturn_context_function.c \
-	    sigreturn_context_direct_mutant.c sigreturn_context_reread_mutant.c
-	rm -f sigreturn_context_test32 sigreturn_context_direct_mutant \
-	    sigreturn_context_reread_mutant
+	rm -f sigreturn_context_function.c sigreturn_context_test32 \
+	    sigreturn_context_test_sanitized
+	rm -f sigreturn_context_*.mutant.c sigreturn_context_*.mutant.test \
+	    sigreturn_context_*.mutant.out
 	rm -f exec_elf_admission_function.c exec_elf_segment_span_mutant.c \
 	    exec_elf_read_failure_mutant.c exec_finish_function.c \
 	    exec_finish_signal_mutant.c exec_estab_function.c \

@@ -11,6 +11,7 @@
 #include <sys/vm.h>
 #include <sys/ptrace.h>
 #include <machine/frame.h>
+#include <machine/user_context.h>
 
 struct ipc ipc;
 
@@ -35,17 +36,13 @@ ptrace_user_word_offset_valid(int offset)
 static int
 ptrace_pc_valid(u_int program_counter)
 {
-    if (program_counter % INSN_SZ != 0)
-        return 0;
-    return !baduaddr_span((caddr_t)(u_long)program_counter, INSN_SZ);
+    return machine_user_pc_valid(program_counter);
 }
 
 static int
 ptrace_sp_valid(u_int stack_pointer)
 {
-    if (stack_pointer % 8U != 0)
-        return 0;
-    return !baduaddr_span((caddr_t)(u_long)stack_pointer,
+    return machine_user_stack_valid(stack_pointer,
         PTRACE_EXCEPTION_FRAME_SIZE);
 }
 

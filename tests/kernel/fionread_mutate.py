@@ -1,15 +1,15 @@
-"""Create calibrated FIONREAD result-publication mutations."""
+"""Create calibrated ioctl payload-ownership mutations."""
 
 import argparse
 from pathlib import Path
 
 STAGING = """    case FIONREAD:
-        input.offset = 0;
+        payload.offset = 0;
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
-            (caddr_t)&input.offset);
+            (caddr_t)&payload.offset);
         if (u.u_error == 0)
-            u.u_error = copyout((caddr_t)&input.offset, uap->cmarg,
-                sizeof input.offset);
+            u.u_error = copyout((caddr_t)&payload.offset, uap->cmarg,
+                sizeof payload.offset);
         return;
 """
 DIRECT = """    case FIONREAD:
@@ -17,10 +17,10 @@ DIRECT = """    case FIONREAD:
         return;
 """
 CONDITIONAL_PUBLICATION = """        if (u.u_error == 0)
-            u.u_error = copyout((caddr_t)&input.offset, uap->cmarg,
-                sizeof input.offset);"""
+            u.u_error = copyout((caddr_t)&payload.offset, uap->cmarg,
+                sizeof payload.offset);"""
 UNCONDITIONAL_PUBLICATION = """        u.u_error = copyout(
-            (caddr_t)&input.offset, uap->cmarg, sizeof input.offset);"""
+            (caddr_t)&payload.offset, uap->cmarg, sizeof payload.offset);"""
 GEOMETRY = """    if (com & (IOC_IN | IOC_OUT)) {
         u_int nbytes = (com >> 16) & IOCPARM_MASK;
 
@@ -36,24 +36,46 @@ ENDPOINT_SPAN = """    if (com & (IOC_IN | IOC_OUT)) {
             baduaddr(uap->cmarg + nbytes - 1)) {"""
 DIRECT_INPUT = (
     "    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, "
-    "(caddr_t)&input);"
+    "(caddr_t)&payload);"
 )
 DIRECT_INPUT_MUTANT = (
     "    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);"
 )
-COMPLETE_COPYIN = """    u.u_error = copyin(uap->cmarg, (caddr_t)&input,
+COMPLETE_COPYIN = """    u.u_error = copyin(uap->cmarg, (caddr_t)&payload,
         (com >> 16) & IOCPARM_MASK);"""
-SHORT_COPYIN = """    u.u_error = copyin(uap->cmarg, (caddr_t)&input, 1);"""
+SHORT_COPYIN = """    u.u_error = copyin(uap->cmarg, (caddr_t)&payload, 1);"""
 CLASSIFICATION = """    switch (com) {
     case FIOCLEX:"""
 MASKED_CLASSIFICATION = """    switch (com & ~(1U << 24)) {
     case FIOCLEX:"""
 INOUT_PUBLICATION = """    if (u.u_error == 0 && com == TFALLOC)
-        u.u_error = copyout((caddr_t)&input.offset, uap->cmarg,
+        u.u_error = copyout((caddr_t)&payload.offset, uap->cmarg,
             (com >> 16) & IOCPARM_MASK);"""
 UNCONDITIONAL_INOUT_PUBLICATION = """    if (com == TFALLOC)
-        u.u_error = copyout((caddr_t)&input.offset, uap->cmarg,
+        u.u_error = copyout((caddr_t)&payload.offset, uap->cmarg,
             (com >> 16) & IOCPARM_MASK);"""
+OUTPUT_DISPATCH = """        bzero((caddr_t)&payload, sizeof payload);
+        u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
+            (caddr_t)&payload);
+        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&payload, uap->cmarg,
+                (com >> 16) & IOCPARM_MASK);
+        return;"""
+DIRECT_OUTPUT_DISPATCH = """        u.u_error =
+            (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);
+        return;"""
+OUTPUT_PUBLICATION = """        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&payload, uap->cmarg,
+                (com >> 16) & IOCPARM_MASK);"""
+UNCONDITIONAL_OUTPUT_PUBLICATION = """        u.u_error = copyout(
+            (caddr_t)&payload, uap->cmarg,
+            (com >> 16) & IOCPARM_MASK);"""
+SHORT_OUTPUT_PUBLICATION = """        if (u.u_error == 0)
+            u.u_error = copyout((caddr_t)&payload, uap->cmarg, 1);"""
+OUTPUT_INITIALIZATION = "        bzero((caddr_t)&payload, sizeof payload);"
+CORRUPT_OUTPUT_INITIALIZATION = """        bzero((caddr_t)&payload,
+            sizeof payload);
+        payload.partition.dp_status = 1;"""
 
 
 def replace_once(source, old, new, label):
@@ -79,6 +101,11 @@ def main():
             "masked-input-command",
             "unconditional-inout-publication",
             "omitted-inout-publication",
+            "direct-output-pointer",
+            "unconditional-output-publication",
+            "short-output-copy",
+            "omitted-output-publication",
+            "corrupt-output-initialization",
         ),
         required=True,
     )
@@ -97,7 +124,7 @@ def main():
     elif arguments.mutation == "wrong-width":
         source = replace_once(
             source,
-            "                sizeof input.offset);",
+            "                sizeof payload.offset);",
             "                sizeof(short));",
             arguments.mutation,
         )
@@ -122,8 +149,32 @@ def main():
             UNCONDITIONAL_INOUT_PUBLICATION,
             arguments.mutation,
         )
-    else:
+    elif arguments.mutation == "omitted-inout-publication":
         source = replace_once(source, INOUT_PUBLICATION, "", arguments.mutation)
+    elif arguments.mutation == "direct-output-pointer":
+        source = replace_once(
+            source, OUTPUT_DISPATCH, DIRECT_OUTPUT_DISPATCH, arguments.mutation
+        )
+    elif arguments.mutation == "unconditional-output-publication":
+        source = replace_once(
+            source,
+            OUTPUT_PUBLICATION,
+            UNCONDITIONAL_OUTPUT_PUBLICATION,
+            arguments.mutation,
+        )
+    elif arguments.mutation == "short-output-copy":
+        source = replace_once(
+            source, OUTPUT_PUBLICATION, SHORT_OUTPUT_PUBLICATION, arguments.mutation
+        )
+    elif arguments.mutation == "omitted-output-publication":
+        source = replace_once(source, OUTPUT_PUBLICATION, "", arguments.mutation)
+    else:
+        source = replace_once(
+            source,
+            OUTPUT_INITIALIZATION,
+            CORRUPT_OUTPUT_INITIALIZATION,
+            arguments.mutation,
+        )
     arguments.output.write_text(source)
 
 

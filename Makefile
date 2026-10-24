@@ -1027,6 +1027,7 @@ check-sh-heap-boundary: check-python
 
 check-tar-host:
 		sh bin/tar/tests/tartest.sh
+		PYTHON=${PYTHON:Q} sh bin/tar/tests/timestamp_identity_test.sh
 
 check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh

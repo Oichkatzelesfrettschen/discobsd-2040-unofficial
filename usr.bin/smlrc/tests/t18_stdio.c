@@ -6,6 +6,8 @@
 #include <sys/dir.h>
 #include <sys/glob.h>
 #include <sys/glob.h>
+#include <sys/time.h>
+#include <sys/time.h>
 #include <pwd.h>
 #include <pwd.h>
 #include <errno.h>
@@ -19,6 +21,8 @@ struct passwd_alignment_probe {
 	char alignment_byte;
 	struct passwd entry;
 };
+
+static int (*futimes_signature)(int, const struct timeval[2]) = futimes;
 
 static int
 scan_variadic(const char *input, const char *format, ...)
@@ -50,6 +54,8 @@ check_layouts(void)
 	    sizeof(size_t) != 4 || sizeof(fpos_t) != 4 || sizeof(short) != 2 ||
 	    sizeof(char) != 1)
 		return 3;
+	if (futimes_signature == NULL)
+		return 7;
 	return 0;
 }
 

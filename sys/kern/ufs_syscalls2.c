@@ -272,6 +272,29 @@ fsync(void)
         u.u_error = error;
 }
 
+static int
+prepare_utimes_attributes(const struct timeval *user_times,
+    struct vattr *attributes)
+{
+    struct timeval staged_times[2];
+    int error;
+
+    VATTR_NULL(attributes);
+    attributes->va_vaflags = 0;
+    if (user_times == NULL) {
+        staged_times[0].tv_sec = staged_times[1].tv_sec = time.tv_sec;
+        attributes->va_vaflags |= VA_UTIMES_NULL;
+    } else {
+        error = copyin((caddr_t)user_times, (caddr_t)staged_times,
+            sizeof(staged_times));
+        if (error != 0)
+            return error;
+    }
+    attributes->va_atime = staged_times[0].tv_sec;
+    attributes->va_mtime = staged_times[1].tv_sec;
+    return 0;
+}
+
 void
 utimes(void)
 {
@@ -282,23 +305,34 @@ utimes(void)
     register struct inode *ip;
     struct  nameidata nd;
     register struct nameidata *ndp = &nd;
-    struct timeval tv[2];
     struct vattr vattr;
 
-    VATTR_NULL(&vattr);
-    if (uap->tptr == NULL) {
-        tv[0].tv_sec = tv[1].tv_sec = time.tv_sec;
-        vattr.va_vaflags |= VA_UTIMES_NULL;
-    } else {
-        u.u_error = copyin ((caddr_t)uap->tptr,(caddr_t)tv,sizeof(tv));
-        if (u.u_error)
-            return;
-    }
+    u.u_error = prepare_utimes_attributes(uap->tptr, &vattr);
+    if (u.u_error != 0)
+        return;
     NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, uap->fname);
     if ((ip = namei(ndp)) == NULL)
         return;
-    vattr.va_atime = tv[0].tv_sec;
-    vattr.va_mtime = tv[1].tv_sec;
     u.u_error = ufs_setattr(ip, &vattr);
     iput(ip);
+}
+
+void
+futimes(void)
+{
+    register struct a {
+        int     fd;
+        struct  timeval *tptr;
+    } *uap = (struct a *)u.u_arg;
+    register struct inode *ip;
+    struct vattr vattr;
+
+    u.u_error = prepare_utimes_attributes(uap->tptr, &vattr);
+    if (u.u_error != 0)
+        return;
+    if ((ip = getinode(uap->fd)) == NULL)
+        return;
+    ilock(ip);
+    u.u_error = ufs_setattr(ip, &vattr);
+    iunlock(ip);
 }

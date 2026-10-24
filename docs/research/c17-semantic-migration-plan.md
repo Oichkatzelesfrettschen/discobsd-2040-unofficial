@@ -740,6 +740,25 @@ Source: `rp2040-signal-context-admission.md`,
 `rp2040-ptrace-address-admission.md`, and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
 
+### R20 -- tar descriptor-owned timestamps (`futimes(2)`, `bin/tar/tar.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | Additive BSD syscall and ARM libc wrapper, GNU17 freestanding kernel, strict-C17 portable tar helper and host fixture, Smaller C public-header consumer |
+| Tier | T1: archive metadata crosses a concurrent filesystem namespace before privileged inode mutation |
+| Native input | `t18_stdio` repeatedly includes `sys/time.h`, checks the `futimes` function-pointer type, and requires `futimes.o` in the native link map |
+| Contract | Stage both explicit timestamps before descriptor lookup; use kernel time with `VA_UTIMES_NULL` for a null pointer; lock the descriptor-owned inode across `ufs_setattr()`; unlock after success or failure; make tar publish regular-file and verified-directory timestamps through their still-open descriptors |
+| Invariants | Existing syscall numbers and public layouts retain their values; additive syscall 156 occupies two argument words; `utimes(2)` behavior, `ufs_setattr()` permission and filesystem checks, tar error reporting, and one-descriptor-at-a-time ownership remain intact |
+| Falsifier | A scheduled rename and same-kind replacement immediately before publication must leave the replacement untouched and timestamp the moved object. A pathname mutation must fail that assertion. Kernel mutations that copy one `timeval` or look up the descriptor before staging must fail their named ILP32 assertions |
+| Gates | `check-tar-host`, required `check-kernel-ilp32`, `check-kernel-metadata`, `check-test-execution`, Smaller C, source-denominator, exact PICO/PICO_UART distribution builds, schema-2 dependency/resource comparison, and affected-object/frame replay |
+| Resources | Clean parent `82ce6359` and staged-candidate schema-2 receipts report +164 PICO and +156 PICO_UART flash bytes, -184 tar raw/loaded bytes, and -164 tar packed bytes. Static SRAM, every other shipped a.out, packed-root counters, and native artifacts are unchanged. `ufs_syscalls2.o` gains 140 text bytes; `tar.o` loses 211 text bytes. `utimes()` retains its 160-byte static frame, new `futimes()` uses 56 bytes, tar's new descriptor helper uses 32 bytes, and `storedirmetadata()` drops from 192 to 168 bytes. The selected tar archive member changes from the 20-byte `utimes.o` wrapper to the equal-sized `futimes.o` wrapper. The bounded exception leaves 25,082 PICO and 37,564 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | Strict-C17 host behavior, calibrated mutation, ILP32 syscall behavior, generated metadata, native-header/link acceptance, exact target build, matched static-resource comparison, and exact-command object/frame replay; physical-board evidence remains open |
+| Ledger states | 1 language: done for the focused tar helper and both fixtures; the broader tar translation unit and public time header remain migration-open. 2 interface: done for additive slot 156 and its generated callers. 3 native: the expanded-header and full-cross-libc selected-member contract is exercised; the measured board-libc closure remains byte-identical and on-device preprocessing remains open. 4 hardening: done for descriptor-owned timestamp publication in the two scheduled replacement cases. 5 resource: static constrained surfaces are accepted through the bounded linked-flash and archive-member exception; runtime peaks remain open. 6 program closure: exact target build, matched archive selection, image closure, and packed-root accounting pass |
+| Residuals | Tar creation, hard-link source lookup, replacement removal, symlink publication, parent relocation and traversal; cpio cleanup; compress metadata/publication/removal; runtime peaks, persistence recovery, and physical-board execution remain separate units |
+
+Source: `tar-descriptor-timestamp-identity.md` and `TESTING.md`
+(`check-tar-host`, `check-kernel-ilp32`, `check-kernel-metadata`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -921,8 +940,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 73 accepted, 51 migration-open, 543
-excluded and 1,940 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 75 accepted, 53 migration-open, 543
+excluded and 1,938 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

@@ -221,7 +221,7 @@ static void storedirmetadata(char *, const struct directory_metadata *);
 static void setdirmetadata(char *, const struct directory_metadata *);
 static void setdirmetadata_at_parent(const char *, const char *,
     const struct stat *, const struct directory_metadata *);
-static void setimes(char *, time_t);
+static void set_descriptor_times(int, const char *, time_t);
 static int contains_control_character(const char *);
 static int archive_path_is_safe(const char *);
 static int copy_normalized_creation_path(char *, size_t, const char *);
@@ -1381,7 +1381,8 @@ doxtract(char **argv)
         if (pflag && fchmod(output_descriptor, stbuf.st_mode & 0777) < 0)
             archive_path_error("set output mode", curname);
         if (mflag == 0)
-            setimes(curname, stbuf.st_mtime);
+            set_descriptor_times(output_descriptor, curname,
+                stbuf.st_mtime);
         record_extracted_file(output_descriptor);
         if (close(output_descriptor) < 0)
             archive_path_error("close output", curname);
@@ -2694,7 +2695,6 @@ setdirmetadata_at_parent(const char *name, const char *display_path,
 {
     struct stat path_status;
     struct stat descriptor_status;
-    struct timeval tv[2];
     int descriptor;
 
     if (lstat(name, &path_status) < 0)
@@ -2714,18 +2714,8 @@ setdirmetadata_at_parent(const char *name, const char *display_path,
         descriptor_status.st_ino != path_status.st_ino)
         archive_error("directory changed before metadata restoration");
     if (metadata->modification_time != (time_t)-1) {
-        tv[0].tv_sec = time((time_t *)0);
-        tv[1].tv_sec = metadata->modification_time;
-        tv[0].tv_usec = tv[1].tv_usec = 0;
-        if (utimes(name, tv) < 0) {
-            int saved_errno = errno;
-
-            fprintf(stderr, "tar: cannot set modification time on %s: ",
-                display_path);
-            errno = saved_errno;
-            perror("");
-            operation_failed = 1;
-        }
+        set_descriptor_times(descriptor, display_path,
+            metadata->modification_time);
     }
     if (metadata->mode != (mode_t)-1 &&
         fchmod(descriptor, metadata->mode) < 0)
@@ -2735,36 +2725,21 @@ setdirmetadata_at_parent(const char *name, const char *display_path,
 }
 
 static void
-setimes(char *path, time_t modification_time)
+set_descriptor_times(int descriptor, const char *display_path,
+    time_t modification_time)
 {
-    char *leaf_name;
-    char *trailing_slash = NULL;
-    struct stat status;
     struct timeval tv[2];
 
-    if (path[0] == '\0')
-        return;
-    if (path[strlen(path) - 1] == '/') {
-        trailing_slash = path + strlen(path) - 1;
-        *trailing_slash = '\0';
-    }
-    leaf_name = enter_parent_directories(extraction_root_descriptor,
-        path, 0, 0);
-    if (lstat(leaf_name, &status) < 0)
-        archive_path_error("lstat metadata target", path);
-    if (!S_ISREG(status.st_mode) && !S_ISDIR(status.st_mode))
-        archive_error("metadata target changed type");
     tv[0].tv_sec = time((time_t *) 0);
     tv[1].tv_sec = modification_time;
     tv[0].tv_usec = tv[1].tv_usec = 0;
-    if (utimes(leaf_name, tv) < 0) {
+    if (futimes(descriptor, tv) < 0) {
         int saved_errno = errno;
 
-        fprintf(stderr, "tar: cannot set modification time on %s: ", path);
+        fprintf(stderr, "tar: cannot set modification time on %s: ",
+            display_path);
         errno = saved_errno;
         perror("");
         operation_failed = 1;
     }
-    if (trailing_slash != NULL)
-        *trailing_slash = '/';
 }

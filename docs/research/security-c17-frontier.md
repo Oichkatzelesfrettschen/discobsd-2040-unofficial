@@ -1055,11 +1055,22 @@ bounded exception leaves 25,594 PICO and 38,076 PICO_UART flash bytes. Runtime
 peaks, MPU enforcement, deliberate hardware faults, and physical-board
 execution remain open.
 
+Tar's descriptor-owned timestamp unit adds `futimes(2)` and publishes regular
+file and deferred-directory timestamps through the still-open descriptor.
+Scheduled rename-and-replacement fixtures reject the former pathname update.
+Matched schema-2 distributions measure +164 PICO and +156 PICO_UART flash
+bytes, while tar shrinks by 184 loaded bytes and 164 packed bytes. Static SRAM,
+every other shipped a.out, packed-root counters, and the 43,010-byte native
+libc remain unchanged. Tar selects the new 20-byte `futimes.o` wrapper instead
+of the equal-sized `utimes.o` wrapper. The bounded exception leaves 25,082 PICO
+and 37,564 PICO_UART flash bytes. Runtime peaks, remaining archive namespace
+operations, persistence behavior, and physical-board execution remain open.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
-| P1 | `bin/tar` namespace-race residual | Replace stable-namespace pathname operations with directory-relative create, link and timestamp APIs without increasing the one-process window beyond its 144-kbyte limit. | Kernel and libc API design, adversarial concurrent-rename fixtures, ABI review, target stack and packed-root comparison. |
+| P1 | `bin/tar` namespace-race residual | Additive `futimes(2)` and tar's still-open regular-file and verified-directory descriptors close timestamp substitution for the two calibrated replacement schedules. Creation, hard-link sources, replacement removal, symlink publication, parent relocation, and traversal remain pathname-separated. | Retain the descriptor timestamp fixtures and ABI checks. Specify directory-rooted lookup plus identity-conditioned final-leaf mutation, or a bounded staged-publication design, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |

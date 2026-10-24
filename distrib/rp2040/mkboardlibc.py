@@ -58,7 +58,7 @@ reboot recv recvfrom recvmsg rename rmdir select send sendmsg sendto
 setgroups setitimer setpgrp setpriority setquota setuid seteuid setgid
 setegid setrlimit setsockopt settimeofday shutdown sigaltstack socket
 socketpair stat symlink sigprocmask sigstack sigwait statfs fstatfs
-getfsstat truncate umount unlink utimes wait4 write writev lseek sigsuspend
+getfsstat truncate umount unlink utimes futimes wait4 write writev lseek sigsuspend
 getgid getegid getpgrp getpid getppid getuid geteuid profil sigpending sync
 ufetch ustore ucall umask vfork vhangup rdglob wrglob msec kmemdev
 """.split()

@@ -155,3 +155,4 @@
 153|1|ufetch|ALWAYS|ufetch|ufetch=153
 154|4|ucall|ALWAYS|ucall|ucall=154
 155|0|nosys|ALWAYS|#155|-
+156|2|futimes|ALWAYS|futimes|futimes=156

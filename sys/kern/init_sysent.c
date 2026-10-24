@@ -236,6 +236,7 @@ const uint8_t syscall_nargs[] = {
     1,
     4,
     0,
+    2,
 };
 
 const syscall_handler_t syscall_handlers[] = {
@@ -471,6 +472,7 @@ const syscall_handler_t syscall_handlers[] = {
     ufetch,
     ucall,
     nosys,
+    futimes,
 };
 
 _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
@@ -478,7 +480,7 @@ _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
     "syscall metadata arrays differ in length");
 
 _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
-    156, "syscall master count differs from ABI");
+    157, "syscall master count differs from ABI");
 
 const int nsysent =
     sizeof(syscall_handlers) / sizeof(syscall_handlers[0]);

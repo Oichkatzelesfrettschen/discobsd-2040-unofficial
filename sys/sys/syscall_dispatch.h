@@ -48,6 +48,7 @@ void fstat(void);
 void fstatfs(void);
 void fsync(void);
 void ftruncate(void);
+void futimes(void);
 void getdtablesize(void);
 void getegid(void);
 void geteuid(void);

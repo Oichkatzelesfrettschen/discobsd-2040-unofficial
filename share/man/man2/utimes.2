@@ -4,42 +4,58 @@
 .\"
 .\"	@(#)utimes.2	6.4 (Berkeley) 8/26/85
 .\"
-.TH UTIMES 2 "August 26, 1985"
+.TH UTIMES 2 "October 24, 2026"
 .UC 4
 .SH NAME
-utimes \- set file times
+utimes, futimes \- set file times
 .SH SYNOPSIS
 .nf
 .ft B
 #include <sys/time.h>
 .PP
 .ft B
-utimes(file, tvp)
-char *file;
-struct timeval tvp[2];
+int utimes(const char *file, const struct timeval tvp[2]);
+.PP
+.ft B
+int futimes(int fd, const struct timeval tvp[2]);
 .fi
 .SH DESCRIPTION
 The
 .I utimes
-call
-uses the
+and
+.I futimes
+calls
+use the
 \*(lqaccessed\*(rq and \*(lqupdated\*(rq times in that order
 from the
 .I tvp
 vector
-to set the corresponding recorded times for
-.I file.
+to set the corresponding recorded times.  The
+.I utimes
+call resolves
+.I file,
+while
+.I futimes
+updates the object owned by the open descriptor
+.I fd.
+.PP
+When
+.I tvp
+is a null pointer, both timestamps are set to the current time.
 .PP
 The caller must be the owner of the file or the super-user.
 The \*(lqinode-changed\*(rq time of the file is set to the current time.
-.SH "RETURN VALUE
+.SH "RETURN VALUE"
 Upon successful completion, a value of 0 is returned.
 Otherwise, a value of \-1 is returned and
 .I errno
 is set to indicate the error.
-.SH "ERRORS
-.I Utime
-will fail if one or more of the following are true:
+.SH ERRORS
+The calls fail if one or more of the following are true:
+.TP 15
+[EBADF]
+.I Fd
+is not an open descriptor.
 .TP 15
 [ENOTDIR]
 A component of the path prefix is not a directory.
@@ -69,6 +85,10 @@ The file system containing the file is mounted read-only.
 [EFAULT]
 .I File
 or \fItvp\fP points outside the process's allocated address space.
+.TP 15
+[EINVAL]
+.I Fd
+does not refer to an inode-backed object.
 .TP 15
 [EIO]
 An I/O error occurred while reading or writing the affected inode.

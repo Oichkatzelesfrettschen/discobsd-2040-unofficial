@@ -178,6 +178,18 @@ fixture admits both ROM endpoints, rejects the adjacent gap, and retains all
 twelve calibrated mutations at native and ILP32 widths. The STM32
 implementation preserves the process-window policy through its own header.
 
+The matched signal-return follow-up compares parent `b946b7d5` with candidate
+`4e250f35`. Sharing the RP2040 Boot ROM and process-window PC policy changes
+`sys_process.o` text from 684 to 708 bytes while preserving its 36 read-only
+data bytes and 16 BSS bytes. The 40-byte PC predicate replaces 16 bytes in
+`procxmt()`: `ptrace()` remains 232 bytes and `procxmt()` moves from 452 to 436
+bytes. Their 16-byte and 24-byte static frames remain unchanged. The complete
+linked change, including signal-return validation, adds 96 PICO and 104
+PICO_UART flash bytes while leaving static SRAM, every shipped a.out, packed
+root counters, native artifacts, and every archive/member selection unchanged.
+The shared follow-up therefore preserves the ptrace unit's accepted resource
+surfaces and leaves its physical-board qualification open.
+
 The bounded unit closes the shipped direct-address `ptrace` path. A real
 single-step mechanism remains a separate additive architecture project: it
 needs breakpoint instruction ownership, cache and flash policy, signal

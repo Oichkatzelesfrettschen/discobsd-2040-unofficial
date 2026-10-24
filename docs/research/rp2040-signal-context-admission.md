@@ -159,3 +159,67 @@ contract. The exact PICO and PICO_UART production builds establish target
 compilation and linkage. Exception return, runtime stack high-water, MPU
 enforcement, deliberate faults, and physical-board behavior remain separate
 evidence classes that require an explicitly authorized board workload.
+
+### Resumed-state resource acceptance
+
+Matched clean schema-2 distributions compare parent `b946b7d5` with committed
+candidate `4e250f35`. Both captures use bmake 20260912, Arm GCC 16.2.0, GNU ld
+2.47.20260726, and Python 3.14.8. The parent closure accounts for 173 PICO and
+165 PICO_UART C/header paths. The candidate closure adds the RP2040
+machine-owned header and accounts for 174 and 166 paths. Both closures retain
+all 36 shipped artifact groups, every installed a.out, generated inputs, the
+native startup object, the 151-member 43,010-byte board libc, and the packed
+root.
+
+| Surface | Parent | Candidate | Delta |
+| --- | ---: | ---: | ---: |
+| PICO loaded flash | 105,732 bytes | 105,828 bytes | +96 bytes |
+| PICO_UART loaded flash | 93,248 bytes | 93,352 bytes | +104 bytes |
+| PICO `.bss` / SwapRAM / scratch | 15,272 / 16,384 / 8,192 bytes | 15,272 / 16,384 / 8,192 bytes | 0 / 0 / 0 |
+| PICO_UART `.bss` | 14,832 bytes | 14,832 bytes | 0 |
+| `sig_machdep.o` text, both configurations | measured parent | parent + 76 bytes | +76 bytes |
+| `sigreturn()` symbol, both configurations | measured parent | parent + 76 bytes | +76 bytes |
+| `sys_process.o` text / read-only data / BSS | 684 / 36 / 16 bytes | 708 / 36 / 16 bytes | +24 / 0 / 0 bytes |
+| `ptrace()` / `procxmt()` symbols | 232 / 452 bytes | 232 / 436 bytes | 0 / -16 bytes |
+| Shared RP2040 ptrace PC predicate | inlined process-window check | 40-byte Boot ROM and process-window predicate | +40 bytes |
+| Native `libc.a` | 43,010 bytes, 151 members | 43,010 bytes, 151 members | 0 bytes, 0 members |
+| Packed-root data / free blocks | 692 / 287 | 692 / 287 | 0 / 0 |
+| Packed-root free inodes | 33 | 33 | 0 |
+
+Every shipped a.out measurement, static SRAM allocation, native artifact,
+archive selection, and archive-member set is unchanged. Exact recorded compiler
+commands replayed with `-fstack-usage` report an unchanged 112-byte PICO
+`sigreturn()` frame, a PICO_UART change from 80 to 88 bytes, and unchanged
+16-byte `ptrace()` and 24-byte `procxmt()` frames. Compiler-reported static
+frames do not establish complete call-chain or runtime high-water use.
+
+The resource comparer rejects both flash increases under the default
+nonpositive-growth rule. The bounded exception accepts the 96-byte PICO and
+104-byte PICO_UART increases and the eight-byte PICO_UART `sigreturn()` frame
+increase. The added code closes reproduced executable-address,
+exception-frame, xPSR, and publication-order failures while consuming zero
+additional static SRAM, process-window space, packed-root storage, native
+library bytes, or archive dependencies. The candidate retains 25,244 PICO and
+37,720 PICO_UART bytes below the 128 KiB kernel limit.
+
+The retained evidence records have these SHA-256 identities:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| Parent source snapshot | `ae782807da118af81c18f14a91a5e001cc6219204b0acb916a7f08e4d75217a8` |
+| Parent dependency closure | `9c735b13c8941402e8cbab195959a21de90990a1a6ab0cbd3e8890f18fc87936` |
+| Parent schema-2 resources | `26e8c4327aa92a5daeb02892f1689e885a5d5af42f8375438492917d87c03b6c` |
+| Parent clean status | `f7eef7a23a90cec9b0dbf5c2cf8f1a4478cf6652b45c100026f8d2d9a44a766f` |
+| Parent distribution status | `9db798426d99c1599085b3fe3462b54575674b9a6461e8f0394bb4e422d53dfe` |
+| Candidate source snapshot | `04ccd1163542055f38163da268b6d559d30ab6e5da86592c794aa9f6697ff199` |
+| Candidate dependency closure | `45198c19626d6e0e064b26d54c6a88ea43250fb0e8b69f50051b7739759d794a` |
+| Candidate schema-2 resources | `6e9b293faf18f834ddfcaa6e0280408f79d99ed06a461c271ecbe54171eae94a` |
+| Static-resource comparison | `148652974d054289d7642b62d388efe11516ba5f2d8ff5ae3751e22b857a0391` |
+| Object and frame replay | `b155b69fb0f8aa0e14e88716bf59dce2a74fc1a2229be53ef0ecabd416be5134` |
+| Candidate clean status | `d79dcc7fb02235f818e657f911b4a114fb7e9447d2c8bf34cd7fd5844f458300` |
+| Candidate distribution status | `3ba6eed8f6e059b17f1d1d145adac52931a5b4ed83f0564863f6f6bfb2fdcb90` |
+
+The parent clean and distribution stages completed in 4.791 and 125.242
+seconds. The candidate stages completed in 4.947 and 123.598 seconds. Runtime
+stack and heap high-water and storage traffic remain unmeasured. Physical-board
+execution remains separately authorized evidence.

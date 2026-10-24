@@ -137,13 +137,15 @@ failed compensation leaves the accepted driver state visible while preserving
 the original error. General ioctl payloads, descriptor duplication and locking,
 runtime resources and physical-board execution retain separate obligations.
 
-`rp2040-signal-context-admission.md` records the next RP2040 user-pointer
-boundary. `sigreturn` rejects frame-offset wrap, copies exactly one complete
-72-byte context into aligned kernel storage and publishes process state only
-after that snapshot succeeds. The public context layout, syscall number,
+`rp2040-signal-context-admission.md` records the RP2040 signal-return boundary.
+`sigreturn` rejects frame-offset wrap, copies exactly one complete 72-byte
+context into aligned kernel storage, and validates the resumed PC, exception
+frame and xPSR before publishing process state. The machine-owned PC and stack
+predicates also repair ptrace's Boot ROM execution policy while preserving the
+STM32 process-window policy. The public context layout, syscall number,
 trampoline convention and handler-visible register values remain unchanged.
-Arbitrary restored xPSR contents, exception-return behavior, runtime kernel
-stack peaks and physical hardware execution retain separate obligations.
+Exception-return behavior, runtime kernel-stack peaks, MPU enforcement,
+deliberate faults and physical hardware execution retain separate obligations.
 
 `rp2040-elf-load-admission.md` records the flat ELF loader boundary. The
 loader admits its one program header and file-backed segment against the
@@ -705,6 +707,26 @@ Source: `rp2040-memory-device-span-admission.md` and `TESTING.md`
 | Residuals | Software single-step, runtime peaks, MPU behavior, deliberate hardware faults, physical-board execution, signal-return xPSR admission, and remaining broad frame-header semantics retain separate states or migration units |
 
 Source: `rp2040-ptrace-address-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
+
+### R19 -- ARM signal-return resumed-state admission (`sig_machdep.c`, machine user-context headers)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding ARM kernel, ARMv6-M exception-return geometry, RP2040 MPU execution policy, and maintained STM32 process-window policy |
+| Tier | T1: a signal handler controls the saved PC, SP, xPSR, registers, mask, and alternate-stack state consumed by privileged syscall and exception return |
+| Native input | No |
+| Contract | `sigreturn` copies one complete context, admits a complete Thumb halfword in RP2040 Boot ROM or the selected process window, admits an eight-byte-aligned complete 32-byte or padded 36-byte exception frame, requires Thumb state, accepts only NZCV and stacked-alignment xPSR fields, and publishes every process field only after all checks pass. Ptrace uses the same machine-owned PC and stack predicates; STM32 retains process-window-only PC admission |
+| Invariants | Syscall 103, the 72-byte signal context, the 64-byte trapframe, public field offsets, the trampoline's 32-byte displacement, `EFAULT` for storage rejection, `EINVAL` for semantic rejection, and the existing signal-mask filtering remain unchanged |
+| Falsifier | Eight warning-clean mutations restore direct user reads, reread storage after copying, bypass PC or SP admission, shorten the base frame, omit alignment padding, bypass xPSR policy, or publish the signal mask before validation. Each must fail its named oracle; the ptrace fixture retains all twelve of its calibrated mutations while exercising both Boot ROM endpoints and the adjacent gap |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-test-execution`, `check-kernel-metadata`, source-denominator and kernel-inventory checks, Ruff and ShellCheck, Smaller C header acceptance, exact PICO/PICO_UART GNU17 builds, maintained STM32 F405 production compilation, schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Clean parent `b946b7d5` and implementation `4e250f35` schema-2 receipts report +96 PICO and +104 PICO_UART flash bytes. Static SRAM, every shipped a.out, packed-root counters, native artifacts, and archive/member selections are unchanged. `sig_machdep.o` gains 76 text bytes entirely in `sigreturn()`; `sys_process.o` gains 24 text bytes as the 40-byte shared RP2040 PC predicate replaces 16 bytes in `procxmt()`. The PICO `sigreturn()` static frame remains 112 bytes; PICO_UART moves from 80 to 88 bytes. The bounded exception leaves 25,244 PICO and 37,720 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32, mutation, exact target compile, matched distribution, static-resource comparison, and exact-command frame replay; physical-board evidence remains open |
+| Ledger states | 1 language: done for the focused signal-return mechanism, both machine headers, shared ptrace callers, and fixtures. 2 interface: done for the preserved syscall, context and trapframe ABI. 3 native: n/a. 4 hardening: done for the exercised software admission boundary after mutation calibration. 5 resource: static constrained surfaces accepted through a bounded linked-flash and PICO_UART static-frame exception; runtime peaks remain open. 6 program closure: done for both shipped kernel configurations after clean distribution linkage |
+| Residuals | Exception return, runtime stack and heap high-water, MPU enforcement, deliberate hardware faults, signal delivery and return on silicon, and remaining broad frame-header semantics retain separate states or migration units |
+
+Source: `rp2040-signal-context-admission.md`,
+`rp2040-ptrace-address-admission.md`, and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
 
 ## Open measurements this plan depends on

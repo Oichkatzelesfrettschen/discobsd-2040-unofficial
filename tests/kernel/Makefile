@@ -222,11 +222,15 @@ FIONREAD_INODE_RENAMES=	-Dsetjmp=fionread_setjmp
 FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 			unmasked-size endpoint-span direct-input-pointer \
 			short-input-copy masked-input-command \
-			unconditional-inout-publication omitted-inout-publication
+				unconditional-inout-publication omitted-inout-publication \
+				direct-output-pointer unconditional-output-publication \
+				short-output-copy omitted-output-publication \
+				corrupt-output-initialization
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
-	${TOPSRC}/sys/sys/dir.h ${TOPSRC}/sys/sys/errno.h \
+		${TOPSRC}/sys/sys/dir.h ${TOPSRC}/sys/sys/disk.h \
+		${TOPSRC}/sys/sys/errno.h \
 	${TOPSRC}/sys/sys/exec.h ${TOPSRC}/sys/sys/exec_aout.h \
 	${TOPSRC}/sys/sys/exec_elf.h ${TOPSRC}/sys/sys/fcntl.h \
 	${TOPSRC}/sys/sys/file.h ${TOPSRC}/sys/sys/fs.h \
@@ -740,6 +744,11 @@ check-fionread-mutants: \
 		masked-input-command) expected='provider_command == command && provider_data == argument' ;; \
 		unconditional-inout-publication) expected='u.u_error == EINVAL && provider_calls == 1' ;; \
 		omitted-inout-publication) expected='copyout_calls == 1 && copyout_bytes == sizeof requested' ;; \
+			direct-output-pointer) expected='provider_data != unaligned' ;; \
+			unconditional-output-publication) expected='u.u_error == EIO && provider_calls == 1' ;; \
+			short-output-copy) expected='copyout_bytes == cases[index].nbytes' ;; \
+			omitted-output-publication) expected='copyin_calls == 0 && copyout_calls == 1' ;; \
+			corrupt-output-initialization) expected='(unsigned char)unaligned[byte_index] == 0' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

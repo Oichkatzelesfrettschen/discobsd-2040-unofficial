@@ -1,10 +1,10 @@
 /*
- * Host gate for ioctl command geometry and FIONREAD result ownership.
+ * Host gate for ioctl command geometry and payload ownership.
  *
  * The syscall must limit payload length to the public eight-bit size field,
- * admit its complete span, give every FIONREAD provider aligned kernel
- * storage, then publish the complete off_t only after provider success.  The
- * production inode provider supplies regular-file, directory and pipe results
+ * admit its complete span, give every accepted shipped provider aligned kernel
+ * storage, then publish output only after provider success.  The production
+ * inode provider supplies regular-file, directory and pipe FIONREAD results
  * behind a small observing adapter so the gate can distinguish kernel storage
  * from the caller-selected destination.
  */
@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <sys/mount.h>
 #include <sys/conf.h>
+#include <sys/disk.h>
 #include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <sys/swap.h>
@@ -58,11 +59,11 @@ static unsigned int provider_calls;
 static u_int provider_command;
 static caddr_t provider_data;
 static int provider_error;
-static int provider_writes_before_error;
 static int provider_succeeds_without_write;
-static off_t provider_error_value;
+static u_int provider_write_bytes;
+static unsigned char provider_write[sizeof(struct diskpart)];
 static u_int provider_capture_bytes;
-static unsigned char provider_capture[16];
+static unsigned char provider_capture[sizeof(struct diskpart)];
 
 static unsigned int copyin_calls;
 static u_int copyin_bytes;
@@ -87,8 +88,8 @@ observed_ioctl(struct file *file, u_int command, char *data)
 	provider_data = data;
 	if (provider_capture_bytes != 0)
 		bcopy(data, provider_capture, provider_capture_bytes);
-	if (provider_writes_before_error)
-		bcopy(&provider_error_value, data, sizeof provider_error_value);
+	if (provider_write_bytes != 0)
+		bcopy(provider_write, data, provider_write_bytes);
 	if (provider_error != 0)
 		return provider_error;
 	if (provider_succeeds_without_write)
@@ -247,9 +248,9 @@ reset(int file_type, int mode, int flags)
 	provider_command = 0;
 	provider_data = NULL;
 	provider_error = 0;
-	provider_writes_before_error = 0;
 	provider_succeeds_without_write = 0;
-	provider_error_value = 0;
+	provider_write_bytes = 0;
+	bzero(provider_write, sizeof provider_write);
 	provider_capture_bytes = 0;
 	bzero(provider_capture, sizeof provider_capture);
 	copyin_calls = 0;
@@ -289,6 +290,14 @@ load_user_off(caddr_t address)
 
 	bcopy(address, &value, sizeof value);
 	return value;
+}
+
+static void
+set_provider_write(const void *value, u_int nbytes)
+{
+	HK_CHECK(nbytes <= sizeof provider_write);
+	provider_write_bytes = nbytes;
+	bcopy(value, provider_write, nbytes);
 }
 
 static void
@@ -349,8 +358,11 @@ failure_cases(void)
 	reset(DTYPE_INODE, IFREG, FREAD);
 	store_user_off(unaligned, 1234);
 	provider_error = EIO;
-	provider_writes_before_error = 1;
-	provider_error_value = 999;
+	{
+		off_t provider_value = 999;
+
+		set_provider_write(&provider_value, sizeof provider_value);
+	}
 	call_ioctl(FD, FIONREAD, unaligned);
 	HK_CHECK(u.u_error == EIO && provider_calls == 1);
 	HK_CHECK(load_user_off(unaligned) == 1234);
@@ -387,6 +399,119 @@ failure_cases(void)
 	call_ioctl(FD + 1, FIONREAD, unaligned);
 	HK_CHECK(u.u_error == EBADF && provider_calls == 0);
 	HK_CHECK(copyout_calls == 0);
+}
+
+static void
+output_ownership_cases(void)
+{
+	static const struct output_case {
+		u_int command;
+		u_int nbytes;
+		u_int alignment;
+	} cases[] = {
+		{ TIOCGETD, sizeof(int), _Alignof(int) },
+		{ TIOCGETP, sizeof(struct sgttyb), _Alignof(struct sgttyb) },
+		{ TIOCGETC, sizeof(struct tchars), _Alignof(struct tchars) },
+		{ TIOCLGET, sizeof(int), _Alignof(int) },
+		{ TIOCGPGRP, sizeof(int), _Alignof(int) },
+		{ TIOCGLTC, sizeof(struct ltchars), _Alignof(struct ltchars) },
+		{ TIOCOUTQ, sizeof(int), _Alignof(int) },
+		{ TIOCGWINSZ, sizeof(struct winsize), _Alignof(struct winsize) },
+		{ DIOCGETMEDIASIZE, sizeof(int), _Alignof(int) },
+		{ DIOCGETPART, sizeof(struct diskpart), _Alignof(struct diskpart) },
+	};
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	unsigned char expected[sizeof(struct diskpart)];
+	unsigned char original[sizeof(struct diskpart)];
+	u_int index;
+	u_int byte_index;
+
+	for (byte_index = 0; byte_index < sizeof expected; byte_index++)
+		expected[byte_index] = (unsigned char)(0x80 + byte_index);
+	for (index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+		unsigned int after = USER_LOWER + 1 + cases[index].nbytes;
+
+		reset(DTYPE_INODE, IFREG, FREAD);
+		store_user_bytes(unaligned, cases[index].nbytes);
+		bcopy(unaligned, original, cases[index].nbytes);
+		set_provider_write(expected, cases[index].nbytes);
+		provider_succeeds_without_write = 1;
+		call_ioctl(FD, cases[index].command, unaligned);
+		HK_CHECK(u.u_error == 0 && provider_calls == 1);
+		HK_CHECK(provider_command == cases[index].command);
+		HK_CHECK(provider_data != unaligned);
+		HK_CHECK((u_long)provider_data % cases[index].alignment == 0);
+		HK_CHECK(copyin_calls == 0 && copyout_calls == 1);
+		HK_CHECK(copyout_bytes == cases[index].nbytes);
+		HK_CHECK(same_bytes((unsigned char *)unaligned, expected,
+		    cases[index].nbytes));
+		HK_CHECK(!same_bytes((unsigned char *)unaligned, original,
+		    cases[index].nbytes));
+		HK_CHECK(user_storage[USER_LOWER] == USER_FILL);
+		HK_CHECK(user_storage[after] == USER_FILL);
+	}
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof(struct diskpart));
+	bcopy(unaligned, original, sizeof original);
+	set_provider_write(expected, sizeof expected);
+	provider_error = EIO;
+	call_ioctl(FD, DIOCGETPART, unaligned);
+	HK_CHECK(u.u_error == EIO && provider_calls == 1);
+	HK_CHECK(provider_data != unaligned && copyout_calls == 0);
+	HK_CHECK(same_bytes((unsigned char *)unaligned, original,
+	    sizeof original));
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof(struct diskpart));
+	bcopy(unaligned, original, sizeof original);
+	set_provider_write(expected, sizeof expected);
+	provider_succeeds_without_write = 1;
+	copyout_error = EFAULT;
+	call_ioctl(FD, DIOCGETPART, unaligned);
+	HK_CHECK(u.u_error == EFAULT && provider_calls == 1);
+	HK_CHECK(copyout_calls == 1 && copyout_bytes == sizeof(struct diskpart));
+	HK_CHECK(same_bytes((unsigned char *)unaligned, original,
+	    sizeof original));
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof(struct diskpart));
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, DIOCGETPART, unaligned);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(copyout_calls == 1 && copyout_bytes == sizeof(struct diskpart));
+	for (byte_index = 0; byte_index < sizeof(struct diskpart); byte_index++)
+		HK_CHECK((unsigned char)unaligned[byte_index] == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	unaligned = (caddr_t)(user_span_upper - sizeof(struct diskpart));
+	set_provider_write(expected, sizeof expected);
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, DIOCGETPART, unaligned);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(copyout_calls == 1 && copyout_bytes == sizeof(struct diskpart));
+	HK_CHECK(same_bytes((unsigned char *)unaligned, expected, sizeof expected));
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	call_ioctl(FD, DIOCGETPART,
+	    (caddr_t)(user_span_upper - sizeof(struct diskpart) + 1));
+	HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
+	HK_CHECK(copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof(struct diskpart));
+	call_ioctl(FD, DIOCGETPART | (1U << 24), unaligned);
+	HK_CHECK(u.u_error == ENOTTY && provider_calls == 1);
+	HK_CHECK(provider_command == (DIOCGETPART | (1U << 24)));
+	HK_CHECK(provider_data == unaligned);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	call_ioctl(FD, TIOCMGET, unaligned);
+	HK_CHECK(u.u_error == ENOTTY && provider_calls == 1);
+	HK_CHECK(provider_command == TIOCMGET && provider_data == unaligned);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
 }
 
 static void
@@ -501,8 +626,11 @@ inout_ownership_cases(void)
 	requested = 5;
 	store_user_off(unaligned, requested);
 	provider_capture_bytes = sizeof requested;
-	provider_writes_before_error = 1;
-	provider_error_value = 0;
+	{
+		off_t provider_value = 0;
+
+		set_provider_write(&provider_value, sizeof provider_value);
+	}
 	provider_succeeds_without_write = 1;
 	call_ioctl(FD, TFALLOC, unaligned);
 	HK_CHECK(u.u_error == 0 && provider_calls == 1);
@@ -515,8 +643,11 @@ inout_ownership_cases(void)
 	reset(DTYPE_INODE, IFREG, FREAD);
 	requested = -3;
 	store_user_off(unaligned, requested);
-	provider_writes_before_error = 1;
-	provider_error_value = 99;
+	{
+		off_t provider_value = 99;
+
+		set_provider_write(&provider_value, sizeof provider_value);
+	}
 	provider_error = EINVAL;
 	call_ioctl(FD, TFALLOC, unaligned);
 	HK_CHECK(u.u_error == EINVAL && provider_calls == 1);
@@ -535,8 +666,11 @@ inout_ownership_cases(void)
 	reset(DTYPE_INODE, IFREG, FREAD);
 	requested = 5;
 	store_user_off(unaligned, requested);
-	provider_writes_before_error = 1;
-	provider_error_value = 0;
+	{
+		off_t provider_value = 0;
+
+		set_provider_write(&provider_value, sizeof provider_value);
+	}
 	provider_succeeds_without_write = 1;
 	copyout_error = EFAULT;
 	call_ioctl(FD, TFALLOC, unaligned);
@@ -551,6 +685,7 @@ main(void)
 	provider_cases();
 	failure_cases();
 	command_geometry_cases();
+	output_ownership_cases();
 	input_ownership_cases();
 	inout_ownership_cases();
 	return hk_verdict("ioctl and FIONREAD admission");

@@ -73,7 +73,7 @@ GENERIC_MUTATIONS = {
     case FIOASYNC: {
         int bit = com == FIONBIO ? FNONBLOCK : FASYNC;
 
-        u.u_error = fset(fp, bit, input.integer);
+        u.u_error = fset(fp, bit, payload.integer);
         return;
     }
 """,

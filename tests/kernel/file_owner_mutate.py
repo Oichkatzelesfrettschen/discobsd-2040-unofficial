@@ -44,7 +44,7 @@ GENERIC_MUTATIONS = {
         ),
         (
             """    case FIOSETOWN:
-        u.u_error = fsetown(fp, input.integer);
+        u.u_error = fsetown(fp, payload.integer);
         return;
 """,
             """    case FIOSETOWN:
@@ -54,10 +54,10 @@ GENERIC_MUTATIONS = {
         ),
         (
             """    case FIOGETOWN:
-        u.u_error = fgetown(fp, &input.integer);
+        u.u_error = fgetown(fp, &payload.integer);
         if (u.u_error == 0)
-            u.u_error = copyout((caddr_t)&input.integer, uap->cmarg,
-                sizeof input.integer);
+            u.u_error = copyout((caddr_t)&payload.integer, uap->cmarg,
+                sizeof payload.integer);
         return;
 """,
             """    case FIOGETOWN:

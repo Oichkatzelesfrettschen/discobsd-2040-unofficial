@@ -16,6 +16,7 @@ INCLUDES = """#include <sys/param.h>
 #include <sys/inode.h>
 #include <sys/file.h>
 #include <sys/conf.h>
+#include <sys/disk.h>
 #include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <sys/swap.h>

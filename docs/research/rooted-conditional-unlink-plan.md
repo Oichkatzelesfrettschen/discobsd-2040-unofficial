@@ -248,6 +248,13 @@ borrowing acceptance from the static comparison.
 11. [ ] Run `logged-check`, review the staged diff and a fresh-context branch
     review, push the focused branch, open and merge a pull request with a merge
     commit, synchronize `main`, and retire the clean worktree.
+    The exact-head aggregate at `c1abb1a1` completed both stages on
+    2026-10-24: the clean build passed in 72.115 seconds and the non-hardware
+    check tier passed in 360.649 seconds.  The aggregate status receipt has
+    SHA-256
+    `c2f0bf650947007db3083a84403dbe299d6cea7700ca651e73edd65ed2f8304d`.
+    Review, publication, exact-head CI, integration, synchronization, and
+    worktree retirement remain open.
 
 Physical-board execution, flash programming, serial access, and persistence
 fault injection remain outside this unit and require separate authorization.

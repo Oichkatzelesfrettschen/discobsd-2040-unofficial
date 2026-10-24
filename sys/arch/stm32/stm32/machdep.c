@@ -809,20 +809,33 @@ baduaddr(caddr_t addr)
 }
 
 /*
- * Return 0 if a kernel address is valid.
- * There are two memory regions allowed for kernel: RAM and flash.
+ * Return nonzero unless the complete non-wrapping span lies inside one
+ * kernel region. Kernel RAM and kernel flash are separate intervals.
  */
 int
-badkaddr(caddr_t addr)
+badkaddr_span(caddr_t addr, u_int nbytes)
 {
-	if (addr >= (caddr_t)__kernel_data_start &&
-	    addr < (caddr_t)__kernel_data_end)
+	u_int lower = (u_int)__kernel_data_start;
+	u_int upper = (u_int)__kernel_data_end;
+	u_int start = (u_int)addr;
+
+	if (upper >= lower && start >= lower && start <= upper &&
+	    nbytes <= upper - start)
 		return 0;
-	if (addr >= (caddr_t)__kernel_flash_start &&
-	    addr < (caddr_t)__kernel_flash_end)
+	lower = (u_int)__kernel_flash_start;
+	upper = (u_int)__kernel_flash_end;
+	if (upper >= lower && start >= lower && start <= upper &&
+	    nbytes <= upper - start)
 		return 0;
 
 	return 1;
+}
+
+/* Return 0 when one byte at addr is kernel-accessible. */
+int
+badkaddr(caddr_t addr)
+{
+	return badkaddr_span(addr, 1);
 }
 
 /*

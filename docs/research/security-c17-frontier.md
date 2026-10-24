@@ -1029,6 +1029,32 @@ SRAM, every shipped a.out, packed-root counters, native artifacts, and all
 archive/member selections remain unchanged. Runtime peaks, terminal-driver
 timing, and physical-board execution remain open.
 
+## Memory-device span admission
+
+`/dev/mem` and `/dev/kmem` now admit one complete nonwrapping transfer span
+inside kernel RAM, kernel flash, or the selected process window before
+`uiomove()`. RP2040 and STM32 expose the same `badkaddr_span()` service, while
+the inherited one-byte `badkaddr()` entry point remains a wrapper. The repair
+rejects the reproduced discontiguous flash-to-RAM crossing and 32-bit wrapped
+length without changing the memory-device ABI or the other minor-device paths.
+
+The exact production caller and extracted RP2040 predicates pass 61 assertions
+at native and ILP32 widths and under address, undefined-behavior, and alignment
+sanitizers. Four mutations restore endpoint-only admission, reject one valid
+address family, or reduce kernel validation to a single byte; each fails its
+named oracle. Both shipped kernel configurations compile and link under their
+exact GNU17 commands, and the changed STM32 source passes its F405 production
+compile.
+
+Matched schema-2 distributions measure +24 PICO and +16 PICO_UART flash bytes.
+Static SRAM, every shipped a.out, packed-root counters, native artifacts, and
+archive/member selection remain unchanged. `machdep.o` gains 32 text bytes and
+`mem.o` loses 12 text bytes in each configuration. `mmrw()` retains its 24-byte
+static frame; `badkaddr()` and `badkaddr_span()` each use eight-byte frames. The
+bounded exception leaves 25,594 PICO and 38,076 PICO_UART flash bytes. Runtime
+peaks, MPU enforcement, deliberate hardware faults, and physical-board
+execution remain open.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
@@ -1037,7 +1063,7 @@ timing, and physical-board execution remain open.
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
-| P1 | remaining direct-address syscall consumers | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, the two file-owner ioctl payloads, both direct file-status ioctl payloads, `FIONREAD` results, ioctl command geometry, and every input, input/output, or output-only command accepted by the shipped providers. `/dev/mem` and `ptrace` still consume caller-selected addresses through separate paths; `ptrace` also lacks an ARM writable-register and PSR policy for `PT_WRITE_U`. Kernel-internal ioctl callers and optional providers retain separate ownership contracts. | Retain `check-exec-spool`, `check-namei-user-path`, `check-rp2040-usercopy-span`, the 226-assertion rwuio gate, the 72-assertion file-control gate, and the 338-assertion ioctl/`FIONREAD` gate. Define the ARM ptrace policy before implementing its bounds, then add calibrated invalid-pointer and deliberate-fault evidence for each remaining boundary. |
+| P1 | remaining direct-address syscall consumers | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, the two file-owner ioctl payloads, both direct file-status ioctl payloads, `FIONREAD` results, ioctl command geometry, every input, input/output, or output-only command accepted by the shipped providers, and `/dev/mem` and `/dev/kmem` transfers. `ptrace` still consumes caller-selected addresses and lacks an ARM writable-register and PSR policy for `PT_WRITE_U`. Kernel-internal ioctl callers and optional providers retain separate ownership contracts. | Retain `check-exec-spool`, `check-namei-user-path`, `check-rp2040-usercopy-span`, the 226-assertion rwuio gate, the 72-assertion file-control gate, the 338-assertion ioctl/`FIONREAD` gate, and the 61-assertion memory-device gate. Define the ARM ptrace policy before implementing its bounds, then add calibrated invalid-pointer and deliberate-fault evidence for that boundary. |
 | P1 | USB reset execution evidence | Standard and CDC request geometry plus Pico reset request fields now have production predicates and calibrated host controls. Reset requests require type `0x21`, configured interface 2, exact `wIndex`, zero `wLength`, and command-specific `wValue`; the source-wiring check requires an EP0 stall before action and a two-bit ROM mask. `SET_FEATURE` remains stalled because endpoint halt is unimplemented and remote wakeup is disabled. | `check-usb-set-configuration`, `check-usb-set-address-interface`, `check-usb-get-descriptor`, `check-usb-cdc-requests`, `check-usb-standard-requests` and `check-usb-reset` cover the implemented fields with calibrated mutations. The CDC contract follows PSTN 1.2 sections 6.3.10-6.3.13: <https://www.usb.org/sites/default/files/CDC1.2_WMC1.1_012011.zip>; standard request geometry follows USB 2.0 Chapter 9: <https://www.usb.org/document-library/usb-20-specification>; reset semantics follow pinned Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`. Earlier CDC and standard-request changes measured `usb.o` text at 3,936 to 4,016 bytes (+80) and 4,016 to 4,184 bytes (+168). The clean-base reset comparison measures `usb.o` text +44 bytes (4,208 to 4,252), PICO kernel text +40 bytes (103,310 to 103,350), unchanged object data/BSS 8,200/344, unchanged kernel data/BSS 248/39,816, and unchanged PICO_UART 90,960/192/14,768. USB-controller dispatch and physical-board reset behavior remain unmeasured. |
 | P2 | source-only setuid utilities | `chpass` and related password-database editors are outside the image but retain older dialect and privileged temporary-file logic. | Manifest reachability proof, strict-C17 build, concurrent update/failure harness and explicit decision to ship or quarantine. |
 

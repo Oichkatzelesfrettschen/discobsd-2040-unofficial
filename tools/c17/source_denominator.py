@@ -17,6 +17,7 @@ CLASSES = {"A", "B", "C", "D", "E", "unreviewed"}
 SCOPES = {"maintained", "quarantine", "archive", "generated", "unreviewed"}
 PROFILES = {
     "rp2040-kernel-port",
+    "maintained-arm-kernel-port",
     "modernized-cross-userland",
     "historical-cross-userland",
     "native-smaller-c-implementation",

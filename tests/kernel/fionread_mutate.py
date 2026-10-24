@@ -23,6 +23,17 @@ CONDITIONAL_PUBLICATION = """        if (u.u_error == 0)
                 sizeof available);"""
 UNCONDITIONAL_PUBLICATION = """        u.u_error = copyout((caddr_t)&available,
             uap->cmarg, sizeof available);"""
+GEOMETRY = """        u_int nbytes = (com >> 16) & IOCPARM_MASK;
+
+        if (baduaddr_span(uap->cmarg, nbytes)) {"""
+UNMASKED_SIZE = """        u_int nbytes =
+            (com & ~(IOC_INOUT | IOC_VOID)) >> 16;
+
+        if (baduaddr_span(uap->cmarg, nbytes)) {"""
+ENDPOINT_SPAN = """        u_int nbytes = (com >> 16) & IOCPARM_MASK;
+
+        if (baduaddr(uap->cmarg) ||
+            baduaddr(uap->cmarg + nbytes - 1)) {"""
 
 
 def replace_once(source, old, new, label):
@@ -37,7 +48,13 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--mutation",
-        choices=("direct-user-pointer", "unconditional-publication", "wrong-width"),
+        choices=(
+            "direct-user-pointer",
+            "unconditional-publication",
+            "wrong-width",
+            "unmasked-size",
+            "endpoint-span",
+        ),
         required=True,
     )
     arguments = parser.parse_args()
@@ -52,13 +69,17 @@ def main():
             UNCONDITIONAL_PUBLICATION,
             arguments.mutation,
         )
-    else:
+    elif arguments.mutation == "wrong-width":
         source = replace_once(
             source,
             "                sizeof available);",
             "                sizeof(short));",
             arguments.mutation,
         )
+    elif arguments.mutation == "unmasked-size":
+        source = replace_once(source, GEOMETRY, UNMASKED_SIZE, arguments.mutation)
+    else:
+        source = replace_once(source, GEOMETRY, ENDPOINT_SPAN, arguments.mutation)
     arguments.output.write_text(source)
 
 

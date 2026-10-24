@@ -1,11 +1,12 @@
 /*
- * Host gate for FIONREAD result ownership in sys_generic.c and sys_inode.c.
+ * Host gate for ioctl command geometry and FIONREAD result ownership.
  *
- * The syscall must give every provider aligned kernel storage, then publish
- * the complete off_t only after provider success.  The production inode
- * provider supplies regular-file, directory and pipe results behind a small
- * observing adapter so the gate can distinguish kernel storage from the
- * caller-selected destination.
+ * The syscall must limit payload length to the public eight-bit size field,
+ * admit its complete span, give every FIONREAD provider aligned kernel
+ * storage, then publish the complete off_t only after provider success.  The
+ * production inode provider supplies regular-file, directory and pipe results
+ * behind a small observing adapter so the gate can distinguish kernel storage
+ * from the caller-selected destination.
  */
 #include "hostkern.h"
 
@@ -38,6 +39,8 @@ _Static_assert(sizeof(off_t) == sizeof(long),
 #define USER_LOWER 4
 #define USER_UPPER 28
 #define USER_FILL 0x5a
+#define UNKNOWN_GROUP 'z'
+#define UNKNOWN_NUMBER 1U
 
 struct user u;
 struct timeval time;
@@ -354,10 +357,34 @@ failure_cases(void)
 	HK_CHECK(copyout_calls == 0);
 }
 
+static void
+command_geometry_cases(void)
+{
+	caddr_t argument = (caddr_t)&user_storage[USER_LOWER];
+	u_int command;
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	command = IOC_IN | ((u_int)UNKNOWN_GROUP << 8) | UNKNOWN_NUMBER;
+	call_ioctl(FD, command, argument);
+	HK_CHECK(u.u_error == ENOTTY && provider_calls == 1);
+	HK_CHECK(provider_command == command && provider_data == argument);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	command = IOC_IN | (1U << 24) | ((u_int)sizeof(int) << 16) |
+	    ((u_int)UNKNOWN_GROUP << 8) | UNKNOWN_NUMBER;
+	call_ioctl(FD, command, argument);
+	HK_CHECK(u.u_error == ENOTTY);
+	HK_CHECK(provider_calls == 1 && provider_command == command);
+	HK_CHECK(provider_data == argument);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+}
+
 int
 main(void)
 {
 	provider_cases();
 	failure_cases();
-	return hk_verdict("FIONREAD result admission");
+	command_geometry_cases();
+	return hk_verdict("ioctl and FIONREAD admission");
 }

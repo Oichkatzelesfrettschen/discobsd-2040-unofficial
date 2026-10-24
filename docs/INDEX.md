@@ -113,7 +113,7 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
-| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and seven seed rows |
+| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and fourteen bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |
 | `shipped-archive-selection-comparison.md` | complete kernel, packed-program and native archive selection; schema-2 comparison, historical receipts and calibrated dependency-growth rejection |
@@ -124,6 +124,7 @@ Grouped by what they investigate.
 | `rp2040-file-status-control-admission.md` | driver-first file-status publication, staged ioctl payloads, compensating F_SETFL transitions and measured kernel cost |
 | `rp2040-fionread-result-admission.md` | aligned private FIONREAD result staging, success-gated publication, calibrated provider coverage and measured kernel cost |
 | `rp2040-ioctl-command-geometry.md` | eight-bit ioctl payload-length extraction, empty-span admission, complete command preservation and measured kernel savings |
+| `rp2040-ioctl-input-payload-ownership.md` | aligned private ownership for every input and input/output payload accepted by shipped ioctl providers, with calibrated failure and resource evidence |
 | `rp2040-swap-ioctl-result-contract.md` | temporary-swap allocation, release and media-size result semantics with calibrated allocator and resource evidence |
 | `rp2040-syscall-stack-argument-admission.md` | complete RP2040 syscall stack-tail admission, stale-state clearing and dispatch failure behavior |
 | `rp2040-elf-load-admission.md` | complete flat ELF file and process-window admission, Thumb entry validation and committed-read failure behavior |

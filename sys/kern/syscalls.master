@@ -158,3 +158,4 @@
 156|2|futimes|ALWAYS|futimes|futimes=156
 157|4|openat|ALWAYS|openat|openat=157
 158|3|unlinkat_beneath|ALWAYS|unlinkat_beneath|unlinkat_beneath=158
+159|5|publishat_beneath|ALWAYS|publishat_beneath|publishat_beneath=159

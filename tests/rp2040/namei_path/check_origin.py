@@ -44,6 +44,9 @@ EXPECTED_CALLS = {
         "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->name)",
         "NAMEI_INIT_USER(ndp,LOOKUP,NOCACHE,uap->name)",
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->name)",
+        "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+        "NAMEI_INIT_USER(ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
+        "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
     ],
     "sys/kern/ufs_syscalls2.c": [
         "NAMEI_INIT_USER(ndp,LOOKUP,FOLLOW,uap->path)",
@@ -54,6 +57,15 @@ EXPECTED_CALLS = {
         "NAMEI_RESET_OPERATION(ndp,LOOKUP,(fmode&O_NOFOLLOW)?NOFOLLOW:FOLLOW)",
     ],
 }
+
+PUBLISHAT_BENEATH_CALLS = [
+    "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+    "NAMEI_INIT_USER(ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
+    "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT|NOCACHE,uap->staged_path)",
+]
+PUBLISH_TARGET_CALL = (
+    "NAMEI_INIT_USER(ndp, CREATE, LOCKPARENT | NOCACHE, uap->target_path);"
+)
 
 # Each conditional vn_open reset expresses two flag-dependent transitions
 # through one macro invocation so the Thumb-1 build shares the
@@ -73,6 +85,27 @@ LEGACY_INIT_PATTERN = re.compile(r"\bNDINIT(?:_KERNEL)?\s*\(")
 
 def normalized_calls(source_text: str) -> Counter[str]:
     return Counter(re.sub(r"\s+", "", call) for call in CALL_PATTERN.findall(source_text))
+
+
+def function_source(source_text: str, function_name: str) -> str | None:
+    signature_pattern = re.compile(
+        rf"\b{re.escape(function_name)}\s*\([^;{{}}]*\)\s*\{{"
+    )
+    signature_match = signature_pattern.search(source_text)
+    if signature_match is None:
+        return None
+
+    opening_brace = source_text.find("{", signature_match.start())
+    brace_depth = 0
+    for source_index in range(opening_brace, len(source_text)):
+        source_character = source_text[source_index]
+        if source_character == "{":
+            brace_depth += 1
+        elif source_character == "}":
+            brace_depth -= 1
+            if brace_depth == 0:
+                return source_text[opening_brace : source_index + 1]
+    return None
 
 
 def load_kernel_sources(root: Path) -> dict[str, str]:
@@ -113,6 +146,22 @@ def validate_sources(sources: dict[str, str]) -> list[str]:
             errors.append(
                 f"{relative_path}: missing origin calls {missing}; "
                 f"unexpected origin calls {unexpected}"
+            )
+
+    publishat_source = function_source(
+        sources.get("sys/kern/ufs_syscalls.c", ""), "publishat_beneath"
+    )
+    if publishat_source is None:
+        errors.append("sys/kern/ufs_syscalls.c: missing publishat_beneath definition")
+    else:
+        expected = Counter(PUBLISHAT_BENEATH_CALLS)
+        observed = normalized_calls(publishat_source)
+        if observed != expected:
+            missing = sorted((expected - observed).elements())
+            unexpected = sorted((observed - expected).elements())
+            errors.append(
+                "sys/kern/ufs_syscalls.c: publishat_beneath missing origin calls "
+                f"{missing}; unexpected origin calls {unexpected}"
             )
     return errors
 
@@ -198,6 +247,44 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
         "\nNAMEI_INIT_USER(ndp, LOOKUP, FOLLOW, pathname);\n"
     )
     require_rejection("unexpected-caller", unexpected_caller_sources)
+    rejected += 1
+
+    removed_publication_call_sources = dict(clean_sources)
+    caller_path = "sys/kern/ufs_syscalls.c"
+    removed_publication_call_sources[caller_path] = removed_publication_call_sources[
+        caller_path
+    ].replace(PUBLISH_TARGET_CALL, "", 1)
+    require_rejection("removed-publication-call", removed_publication_call_sources)
+    rejected += 1
+
+    changed_publication_call_sources = dict(clean_sources)
+    changed_publication_call_sources[caller_path] = changed_publication_call_sources[
+        caller_path
+    ].replace(
+        PUBLISH_TARGET_CALL,
+        PUBLISH_TARGET_CALL.replace("uap->target_path", "uap->staged_path"),
+        1,
+    )
+    require_rejection("changed-publication-call", changed_publication_call_sources)
+    rejected += 1
+
+    duplicated_publication_call_sources = dict(clean_sources)
+    duplicated_publication_call_sources[caller_path] = duplicated_publication_call_sources[
+        caller_path
+    ].replace(PUBLISH_TARGET_CALL, f"{PUBLISH_TARGET_CALL}\n    {PUBLISH_TARGET_CALL}", 1)
+    require_rejection("duplicated-publication-call", duplicated_publication_call_sources)
+    rejected += 1
+
+    misplaced_publication_call_sources = dict(clean_sources)
+    misplaced_publication_call_sources[caller_path] = misplaced_publication_call_sources[
+        caller_path
+    ].replace(PUBLISH_TARGET_CALL, "", 1)
+    misplaced_publication_call_sources[caller_path] += f"\n{PUBLISH_TARGET_CALL}\n"
+    if normalized_calls(misplaced_publication_call_sources[caller_path]) != normalized_calls(
+        clean_sources[caller_path]
+    ):
+        raise RuntimeError("misplaced publication call changed the caller inventory")
+    require_rejection("misplaced-publication-call", misplaced_publication_call_sources)
     rejected += 1
 
     return rejected

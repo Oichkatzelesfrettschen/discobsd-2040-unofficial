@@ -85,6 +85,7 @@ void pipe(void);
 void profil(void);
 void pselect(void);
 void ptrace(void);
+void publishat_beneath(void);
 void rdglob(void);
 void read(void);
 void readlink(void);

@@ -137,7 +137,8 @@
 #define SYS_futimes     156
 #define SYS_openat      157
 #define SYS_unlinkat_beneath 158
+#define SYS_publishat_beneath 159
 
-#define SYS_MAXSYSCALL 159
+#define SYS_MAXSYSCALL 160
 
 #endif

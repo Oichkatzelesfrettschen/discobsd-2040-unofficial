@@ -46,6 +46,9 @@ scan_variadic(const char *input, const char *format, ...)
 static int
 check_layouts(void)
 {
+	int (*publishat_signature)(int, const char *, int, const char *, int) =
+	    publishat_beneath;
+
 	if (sizeof(FILE) != 24 || offsetof(FILE, _cnt) != 0 ||
 	    offsetof(FILE, _ptr) != 4 || offsetof(FILE, _base) != 8 ||
 	    offsetof(FILE, _bufsiz) != 12 || offsetof(FILE, _flag) != 16 ||
@@ -67,6 +70,8 @@ check_layouts(void)
 		return 8;
 	if (unlinkat_beneath_signature == NULL)
 		return 9;
+	if (publishat_signature == NULL)
+		return 10;
 	return 0;
 }
 

@@ -177,6 +177,14 @@ UNLINKAT_BENEATH_RENAMES=	-Dlink=conditional_unlink_link \
 UNLINKAT_BENEATH_MUTANTS=	omit-namespace-acquisition \
 				release-before-removal skip-identity-comparison \
 				drop-expected-reference decrement-on-write-error
+PUBLISHAT_BENEATH_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
+PUBLISHAT_BENEATH_CFLAGS=	-ffunction-sections -fdata-sections \
+				${OPENAT_MULTIFS_DEFS}
+PUBLISHAT_BENEATH_MUTANTS=	discard-reserve-write-error \
+				skip-staged-identity skip-staged-sticky \
+				skip-target-identity use-at-fdcwd \
+				release-before-publication skip-same-parent
+PUBLISHAT_NAMEI_MUTANTS=	discard-enter-write-error
 DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
 DIRREMOVE_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
 DIRREMOVE_MUTANTS=	discard-first-write-error discard-coalesced-write-error
@@ -1638,6 +1646,122 @@ check-unlinkat-beneath-mutants: \
 		echo "PASS unlinkat_beneath $$mutation mutation rejected"; \
 	done
 
+publishat_beneath_functions.c: publishat_beneath_extract.py \
+    unlinkat_beneath_extract.py ${PUBLISHAT_BENEATH_SYSCALL_SRC}
+	${PYTHON} publishat_beneath_extract.py \
+	    --source ${PUBLISHAT_BENEATH_SYSCALL_SRC} --output $@
+
+publishat_beneath_syscalls32.o: publishat_beneath_functions.c \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${PUBLISHAT_BENEATH_CFLAGS} ${ILP32} \
+	    -c -o $@ publishat_beneath_functions.c
+
+publishat_beneath_test32: publishat_beneath_test.c \
+    publishat_beneath_syscalls32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ publishat_beneath_test.c \
+	    publishat_beneath_syscalls32.o hostkern32.o
+
+publishat_beneath_namei_test32: publishat_beneath_namei_test.c \
+    unlinkat_beneath_namei32.o publishat_beneath_syscalls32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ publishat_beneath_namei_test.c \
+	    unlinkat_beneath_namei32.o publishat_beneath_syscalls32.o \
+	    hostkern32.o
+
+check-publishat-beneath-ilp32: publishat_beneath_test32 \
+    publishat_beneath_namei_test32
+	${TEST_EXECUTION} run kernel.publishat-beneath.ilp32 -- \
+	    ./publishat_beneath_test32
+	${TEST_EXECUTION} run kernel.publishat-beneath-namei.ilp32 -- \
+	    ./publishat_beneath_namei_test32
+
+.for mutation in ${PUBLISHAT_BENEATH_MUTANTS}
+publishat_beneath_${mutation}.mutant.c: publishat_beneath_mutate.py \
+    publishat_beneath_extract.py unlinkat_beneath_extract.py \
+    ${PUBLISHAT_BENEATH_SYSCALL_SRC}
+	${PYTHON} publishat_beneath_mutate.py \
+	    --source ${PUBLISHAT_BENEATH_SYSCALL_SRC} --output $@ \
+	    --mutation ${mutation}
+
+publishat_beneath_${mutation}.mutant.test: \
+    publishat_beneath_${mutation}.mutant.c publishat_beneath_test.c \
+    hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${PUBLISHAT_BENEATH_CFLAGS} ${ILP32} \
+	    -c -o publishat_beneath_${mutation}.mutant.o \
+	    publishat_beneath_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ publishat_beneath_test.c \
+	    publishat_beneath_${mutation}.mutant.o hostkern32.o
+.endfor
+
+.for mutation in ${PUBLISHAT_NAMEI_MUTANTS}
+publishat_beneath_${mutation}.mutant.c: dirremove_mutate.py \
+    ${UNLINKAT_BENEATH_NAMEI_SRC}
+	${PYTHON} dirremove_mutate.py --source ${UNLINKAT_BENEATH_NAMEI_SRC} \
+	    --output $@ --mutation ${mutation}
+
+publishat_beneath_${mutation}.mutant.test: \
+    publishat_beneath_${mutation}.mutant.c \
+    publishat_beneath_namei_test.c publishat_beneath_syscalls32.o \
+    hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${PUBLISHAT_BENEATH_CFLAGS} ${ILP32} \
+	    -c -o publishat_beneath_${mutation}.mutant.o \
+	    publishat_beneath_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ publishat_beneath_namei_test.c \
+	    publishat_beneath_${mutation}.mutant.o \
+	    publishat_beneath_syscalls32.o hostkern32.o
+.endfor
+
+check-publishat-beneath-mutants: \
+    ${PUBLISHAT_BENEATH_MUTANTS:@mutation@publishat_beneath_${mutation}.mutant.test@} \
+    ${PUBLISHAT_NAMEI_MUTANTS:@mutation@publishat_beneath_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${PUBLISHAT_BENEATH_MUTANTS}; do \
+		output=publishat_beneath_$$mutation.mutant.out; \
+		if ./publishat_beneath_$$mutation.mutant.test \
+		    >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		discard-reserve-write-error) expected='u.u_error == EIO' ;; \
+		skip-staged-identity) expected='u.u_error == ESTALE' ;; \
+		skip-staged-sticky) expected='u.u_error == EPERM' ;; \
+		skip-target-identity) expected='u.u_error == ESTALE' ;; \
+		use-at-fdcwd) expected='root_descriptor == ROOT_DESCRIPTOR' ;; \
+		release-before-publication) expected='namespace_owned == 1' ;; \
+		skip-same-parent) expected='name_data->ni_pdir == &root_inode' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL publishat_beneath $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS publishat_beneath $$mutation mutation rejected"; \
+	done
+	@set -eu; for mutation in ${PUBLISHAT_NAMEI_MUTANTS}; do \
+		output=publishat_beneath_$$mutation.mutant.out; \
+		if ./publishat_beneath_$$mutation.mutant.test \
+		    >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		discard-enter-write-error) expected='u.u_error == EIO' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL publishat_beneath $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS publishat_beneath $$mutation mutation rejected"; \
+	done
+
 dirremove_kernel32.o: ${DIRREMOVE_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${DIRREMOVE_CFLAGS} ${ILP32} -c -o $@ \
 	    ${DIRREMOVE_SRC}
@@ -2221,6 +2345,7 @@ check-ilp32:
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
+	    check-publishat-beneath-ilp32 check-publishat-beneath-mutants \
 	    check-dirremove-ilp32 check-dirremove-mutants \
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
@@ -2465,6 +2590,10 @@ clean:
 	    unlinkat_beneath_syscalls32.o unlinkat_beneath_test32
 	rm -f unlinkat_beneath_*.mutant.c unlinkat_beneath_*.mutant.o \
 	    unlinkat_beneath_*.mutant.test unlinkat_beneath_*.mutant.out
+	rm -f publishat_beneath_functions.c publishat_beneath_syscalls32.o \
+	    publishat_beneath_test32 publishat_beneath_namei_test32
+	rm -f publishat_beneath_*.mutant.c publishat_beneath_*.mutant.o \
+	    publishat_beneath_*.mutant.test publishat_beneath_*.mutant.out
 	rm -f dirremove_kernel32.o dirremove_test32
 	rm -f dirremove_*.mutant.c dirremove_*.mutant.o \
 	    dirremove_*.mutant.test dirremove_*.mutant.out
@@ -2491,6 +2620,7 @@ clean:
 	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
 	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
+	check-publishat-beneath-ilp32 check-publishat-beneath-mutants \
 	check-dirremove-ilp32 check-dirremove-mutants \
 	check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	check-ufs-topology-ilp32 check-ufs-topology-mutants \

@@ -102,6 +102,8 @@ static const char_type magic_header[] = { 0x1f, 0x9d };
 #include <stdio.h>
 #include <limits.h>
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <string.h>
 #include <strings.h>
@@ -113,6 +115,9 @@ static const char_type magic_header[] = { 0x1f, 0x9d };
 #ifdef notdef
 #include <sys/ioctl.h>
 #endif
+
+int unlinkat_beneath(int, const char *, int);
+int publishat_beneath(int, const char *, int, const char *, int);
 
 #define ARGVAL() (*++(*argv) || (--argc && *++argv))
 
@@ -163,7 +168,6 @@ static void print_ratio(FILE *, long int, long int);
 static void clear_block(void);
 static void compress_input(void);
 static void decompress_input(void);
-static void copy_stats(const char *, const char *);
 static code_int get_code(void);
 static _Noreturn void corrupt_input(void);
 static void push_decompress_byte(char_type **, char_type);
@@ -172,6 +176,21 @@ static int make_compressed_name(char *, size_t, const char *);
 static int make_decompressed_name(char *, size_t, const char *);
 static int set_decompression_parameters(int, const char *);
 static int parse_maxbits(const char *, int *);
+static int split_path(const char *, char *, size_t, char *, size_t);
+static int block_interrupt(sigset_t *);
+static int restore_interrupt_mask(const sigset_t *);
+static _Noreturn void terminate_after_signal_mask_failure(void);
+static void print_destination_path(FILE *, const char *);
+static void report_destination_error(const char *);
+static int open_named_input(const char *, int);
+static int open_named_target(void);
+static int create_staged_output(void);
+static int finish_named_output(const char *);
+static void process_named_file(char *, int);
+static int close_named_input(const char *);
+static void close_named_descriptors(void);
+static void discard_staged_output(void);
+static void reset_named_transaction(void);
 
 #ifdef DEBUG
 static void print_codes(void);
@@ -182,8 +201,9 @@ static int debug;
 
 static int nomagic;	/* Use a 3-byte magic number header, unless old file. */
 static int zcat_flg;	/* Write output on stdout and suppress messages. */
-static int precious = 1;	/* Preserve a complete output file on interrupt. */
 static int quiet = 1;	/* Suppress compression statistics. */
+static FILE *input_stream;
+static FILE *output_stream;
 
 /*
  * block compression parameters -- after all codes are used up,
@@ -202,7 +222,25 @@ static count_int checkpoint = CHECK_GAP;
 #define	CLEAR	256	/* table clear output code */
 
 static int force;
-static char output_name[100];
+static const char *diagnostic_input_path = "stdout";
+struct named_transaction {
+    int parent_descriptor;
+    int input_descriptor;
+    int target_descriptor;
+    int staged_descriptor;
+    FILE *input_file;
+    FILE *output_file;
+    struct stat input_status;
+    char input_leaf[100];
+    char output_leaf[100];
+    char staged_leaf[16];
+    int staged_entry_exists;
+};
+static struct named_transaction named_transaction;
+static volatile sig_atomic_t interrupt_cleanup_active;
+static volatile sig_atomic_t interrupt_parent_descriptor = -1;
+static volatile sig_atomic_t interrupt_staged_descriptor = -1;
+static char interrupt_staged_leaf[sizeof(named_transaction.staged_leaf)];
 #ifdef DEBUG
 static int verbose;
 #endif /* DEBUG */
@@ -249,8 +287,9 @@ static void
 on_interrupt(int signal_number)
 {
 	(void)signal_number;
-	if (!precious)
-		unlink(output_name);
+	if (interrupt_cleanup_active)
+		(void)unlinkat_beneath((int)interrupt_parent_descriptor,
+		    interrupt_staged_leaf, (int)interrupt_staged_descriptor);
 	_exit(1);
 }
 
@@ -277,9 +316,8 @@ version(void)
 static void
 write_error(void)
 {
-	perror(output_name);
-	if (!precious)
-		unlink(output_name);
+	report_destination_error(diagnostic_input_path);
+	discard_staged_output();
 	exit(1);
 }
 
@@ -287,8 +325,7 @@ static _Noreturn void
 corrupt_input(void)
 {
 	fprintf(stderr, "uncompress: corrupt input\n");
-	if (!precious)
-		unlink(output_name);
+	discard_staged_output();
 	exit(1);
 }
 
@@ -312,7 +349,9 @@ clear_hash(count_int table_size)		/* reset code table */
 static int offset;
 static long int in_count = 1;		/* length of input */
 static long int bytes_out;		/* length of compressed output */
+#ifdef DEBUG
 static long int out_count;		/* number of codes output */
+#endif
 
 /*****************************************************************
  * TAG(output)
@@ -385,7 +424,7 @@ output_code(code_int code)
 	    bits = n_bits;
 	    bytes_out += bits;
 	    do
-		putchar(*buffer_pointer++);
+		putc(*buffer_pointer++, output_stream);
 	    while(--bits);
 	    offset = 0;
 	}
@@ -401,7 +440,7 @@ output_code(code_int code)
 	     * discover the size increase until after it has read it.
 	     */
 	    if (offset > 0) {
-		if (fwrite(buf, 1, (size_t)n_bits, stdout) !=
+		if (fwrite(buf, 1, (size_t)n_bits, output_stream) !=
 		    (size_t)n_bits)
 			write_error();
 		bytes_out += n_bits;
@@ -431,16 +470,16 @@ output_code(code_int code)
 	 * At EOF, write the rest of the buffer.
 	 */
 	if (offset > 0 && fwrite(buf, 1, (size_t)((offset + 7) / 8),
-	    stdout) != (size_t)((offset + 7) / 8))
+	    output_stream) != (size_t)((offset + 7) / 8))
 		write_error();
 	bytes_out += (offset + 7) / 8;
 	offset = 0;
-	fflush(stdout);
+	fflush(output_stream);
 #ifdef DEBUG
 	if (verbose)
 	    fprintf(stderr, "\n");
 #endif /* DEBUG */
-	if (ferror(stdout))
+	if (ferror(output_stream))
 		write_error();
     }
 }
@@ -533,16 +572,19 @@ compress_input(void)
 
 #ifndef COMPATIBLE
     if (nomagic == 0) {
-	putchar(magic_header[0]); putchar(magic_header[1]);
-	putchar((char)(maxbits | block_compress));
-	if (ferror(stdout))
+	putc(magic_header[0], output_stream);
+	putc(magic_header[1], output_stream);
+	putc((char)(maxbits | block_compress), output_stream);
+	if (ferror(output_stream))
 		write_error();
     }
 #endif /* COMPATIBLE */
 
     offset = 0;
     bytes_out = 3;		/* includes 3-byte header mojo */
+#ifdef DEBUG
     out_count = 0;
+#endif
     clear_flg = 0;
     ratio = 0;
     in_count = 1;
@@ -550,7 +592,7 @@ compress_input(void)
     maxcode = MAXCODE(n_bits = INIT_BITS);
     free_ent = ((block_compress) ? FIRST : 256);
 
-    current_code = getchar();
+    current_code = getc(input_stream);
 
     hash_shift = 0;
     for (hash_key = (long int)hsize; hash_key < 65536L; hash_key *= 2L)
@@ -560,7 +602,7 @@ compress_input(void)
     table_size = hsize;
     clear_hash((count_int)table_size);
 
-    while ((input_byte = getchar()) != EOF) {
+    while ((input_byte = getc(input_stream)) != EOF) {
 	in_count++;
 	hash_key = ((long int)input_byte << maxbits) + current_code;
 	hash_index = (input_byte << hash_shift) ^ current_code;
@@ -585,7 +627,9 @@ probe:
 	    goto probe;
 nomatch:
 	output_code(current_code);
+#ifdef DEBUG
 	out_count++;
+#endif
 	current_code = input_byte;
 	if (free_ent < maxmaxcode) {
 	    codetabof(hash_index) = free_ent++;
@@ -598,7 +642,9 @@ nomatch:
      * Put out the final code.
      */
     output_code(current_code);
+#ifdef DEBUG
     out_count++;
+#endif
     output_code((code_int)-1);
 
     /*
@@ -656,8 +702,8 @@ decompress_input(void)
 	return;			/* Get out of here */
     if (previous_code > 255)
 	corrupt_input();
-    putchar((char)final_character);
-    if (ferror(stdout))		/* Crash if can't write */
+    putc((char)final_character, output_stream);
+    if (ferror(output_stream))	/* Crash if can't write */
 	write_error();
     stack_pointer = de_stack;
 
@@ -702,7 +748,7 @@ decompress_input(void)
 	 * And put them out in forward order
 	 */
 	do
-	    putchar(*--stack_pointer);
+	    putc(*--stack_pointer, output_stream);
 	while (stack_pointer > de_stack);
 
 	/*
@@ -718,83 +764,433 @@ decompress_input(void)
 	 */
 	previous_code = input_code;
     }
-    fflush(stdout);
-    if (ferror(stdout))
+    fflush(output_stream);
+    if (ferror(output_stream))
 	write_error();
 }
 
 static void
-copy_stats(const char *input_name, const char *destination_name)
+reset_named_transaction(void)
 {
-    struct stat statbuf;
-    mode_t mode;
-    struct timeval timep[2];
+    named_transaction = (struct named_transaction){
+        .parent_descriptor = -1,
+        .input_descriptor = -1,
+        .target_descriptor = -1,
+        .staged_descriptor = -1,
+    };
+}
 
-    if (fclose(stdout) == EOF) {
-	perror(destination_name);
-	perm_stat = 1;
-	goto remove_destination;
-    }
-    if (stat(input_name, &statbuf)) {	/* Get stat on input file */
-	perror(input_name);
-	perm_stat = 1;
-	goto remove_destination;
-    }
-    if (!S_ISREG(statbuf.st_mode)) {
-	if (quiet)
-		fprintf(stderr, "%s: ", input_name);
-	fprintf(stderr, " -- not a regular file: unchanged");
-	exit_stat = 1;
-	perm_stat = 1;
-    } else if (statbuf.st_nlink > 1) {
-	if (quiet)
-		fprintf(stderr, "%s: ", input_name);
-	fprintf(stderr, " -- has %lu other links: unchanged",
-		(unsigned long)statbuf.st_nlink - 1UL);
-	exit_stat = 1;
-	perm_stat = 1;
-    } else if (exit_stat == 2 && (!force)) { /* No compression: remove file.Z */
-	if (!quiet)
-		fprintf(stderr, " -- file unchanged");
-    } else {			/* ***** Successful Compression ***** */
-	exit_stat = 0;
-	mode = statbuf.st_mode & 07777;
-	if (chmod(destination_name, mode)) {	/* Copy modes */
-	    perror(destination_name);
-	    goto metadata_failure;
-	}
-	if (chown(destination_name, statbuf.st_uid, statbuf.st_gid)) {
-	    perror(destination_name);
-	    goto metadata_failure;
-	}
-	timep[0].tv_sec = statbuf.st_atime;
-	timep[0].tv_usec = 0;
-	timep[1].tv_sec = statbuf.st_mtime;
-	timep[1].tv_usec = 0;
-	if (utimes(destination_name, timep)) {
-	    perror(destination_name);
-	    goto metadata_failure;
-	}
-	if (unlink(input_name)) {
-	    perror(input_name);
-	    perm_stat = 1;
-	    return;
-	}
-	if (!quiet)
-		fprintf(stderr, " -- replaced with %s", destination_name);
-	return;		/* Successful return */
-    }
+static int
+block_interrupt(sigset_t *previous_mask)
+{
+    sigset_t interrupt_mask;
 
-    /* Unsuccessful return -- one of the tests failed */
-remove_destination:
-    if (unlink(destination_name)) {
-	perror(destination_name);
-    }
-    return;
+    if (sigemptyset(&interrupt_mask) < 0 ||
+        sigaddset(&interrupt_mask, SIGINT) < 0 ||
+        sigprocmask(SIG_BLOCK, &interrupt_mask, previous_mask) < 0)
+        return -1;
+    return 0;
+}
 
-metadata_failure:
-    perm_stat = 1;
-    goto remove_destination;
+static int
+restore_interrupt_mask(const sigset_t *previous_mask)
+{
+    return sigprocmask(SIG_SETMASK, previous_mask, NULL);
+}
+
+static _Noreturn void
+terminate_after_signal_mask_failure(void)
+{
+    int cleanup_errno = 0;
+    int mask_errno = errno;
+
+    if (named_transaction.staged_entry_exists &&
+        unlinkat_beneath(named_transaction.parent_descriptor,
+        named_transaction.staged_leaf,
+        named_transaction.staged_descriptor) < 0 && errno != ENOENT)
+        cleanup_errno = errno;
+    else {
+        interrupt_cleanup_active = 0;
+        named_transaction.staged_entry_exists = 0;
+    }
+    errno = mask_errno;
+    perror("sigprocmask");
+    if (cleanup_errno != 0) {
+        errno = cleanup_errno;
+        report_destination_error(diagnostic_input_path);
+    }
+    _exit(1);
+}
+
+static int
+split_path(const char *path, char *parent, size_t parent_capacity,
+    char *leaf, size_t leaf_capacity)
+{
+    const char *separator = strrchr(path, '/');
+    const char *leaf_start;
+    size_t parent_length;
+    size_t leaf_length;
+
+    if (separator == NULL) {
+        parent_length = 1;
+        leaf_start = path;
+        if (parent_capacity < 2)
+            return -1;
+        parent[0] = '.';
+        parent[1] = '\0';
+    } else {
+        parent_length = (size_t)(separator - path);
+        leaf_start = separator + 1;
+        if (parent_length == 0)
+            parent_length = 1;
+        if (parent_length >= parent_capacity)
+            return -1;
+        if (separator == path)
+            parent[0] = '/';
+        else
+            memcpy(parent, path, parent_length);
+        parent[parent_length] = '\0';
+    }
+    leaf_length = strlen(leaf_start);
+    if (leaf_length == 0 || leaf_length >= leaf_capacity)
+        return -1;
+    memcpy(leaf, leaf_start, leaf_length + 1);
+    return 0;
+}
+
+static void
+close_named_descriptors(void)
+{
+    sigset_t previous_mask;
+    int mask_blocked;
+
+    mask_blocked = block_interrupt(&previous_mask) == 0;
+    if (!mask_blocked)
+        terminate_after_signal_mask_failure();
+    interrupt_cleanup_active = 0;
+    if (named_transaction.target_descriptor >= 0)
+        (void)close(named_transaction.target_descriptor);
+    if (named_transaction.staged_descriptor >= 0)
+        (void)close(named_transaction.staged_descriptor);
+    if (named_transaction.input_descriptor >= 0)
+        (void)close(named_transaction.input_descriptor);
+    if (named_transaction.parent_descriptor >= 0)
+        (void)close(named_transaction.parent_descriptor);
+    reset_named_transaction();
+    if (restore_interrupt_mask(&previous_mask) < 0)
+        terminate_after_signal_mask_failure();
+}
+
+static void
+discard_staged_output(void)
+{
+    sigset_t previous_mask;
+    int saved_errno;
+
+    if (!named_transaction.staged_entry_exists)
+        return;
+    if (block_interrupt(&previous_mask) < 0)
+        terminate_after_signal_mask_failure();
+    if (unlinkat_beneath(named_transaction.parent_descriptor,
+        named_transaction.staged_leaf,
+        named_transaction.staged_descriptor) < 0) {
+        saved_errno = errno;
+        if (restore_interrupt_mask(&previous_mask) < 0)
+            terminate_after_signal_mask_failure();
+        errno = saved_errno;
+        if (errno != ENOENT) {
+            report_destination_error(diagnostic_input_path);
+            perm_stat = 1;
+        }
+        return;
+    }
+    interrupt_cleanup_active = 0;
+    named_transaction.staged_entry_exists = 0;
+    if (restore_interrupt_mask(&previous_mask) < 0)
+        terminate_after_signal_mask_failure();
+}
+
+static int
+open_named_input(const char *path, int publication_required)
+{
+    int stream_descriptor;
+
+    reset_named_transaction();
+    if (publication_required) {
+        char *parent;
+        size_t path_length = strlen(path);
+        size_t parent_capacity;
+
+        if (path_length > (size_t)-1 - 2) {
+            fprintf(stderr, "%s: filename is too long\n", path);
+            return -1;
+        }
+        parent_capacity = path_length + 2;
+        parent = malloc(parent_capacity);
+        if (parent == NULL) {
+            fprintf(stderr, "compress: cannot allocate the parent path\n");
+            return -1;
+        }
+        if (split_path(path, parent, parent_capacity,
+            named_transaction.input_leaf,
+            sizeof(named_transaction.input_leaf)) != 0) {
+            fprintf(stderr, "%s: filename is too long\n", path);
+            free(parent);
+            return -1;
+        }
+        named_transaction.parent_descriptor =
+            open(parent, O_SEARCH | O_DIRECTORY);
+        if (named_transaction.parent_descriptor < 0) {
+            perror(parent);
+            free(parent);
+            return -1;
+        }
+        free(parent);
+        named_transaction.input_descriptor = openat(
+            named_transaction.parent_descriptor,
+            named_transaction.input_leaf, O_RDONLY | O_NOFOLLOW);
+    } else {
+        named_transaction.input_descriptor = open(path, O_RDONLY);
+    }
+    if (named_transaction.input_descriptor < 0) {
+        perror(path);
+        close_named_descriptors();
+        return -1;
+    }
+    if (fstat(named_transaction.input_descriptor,
+        &named_transaction.input_status) < 0) {
+        perror(path);
+        close_named_descriptors();
+        return -1;
+    }
+    if (publication_required &&
+        !S_ISREG(named_transaction.input_status.st_mode)) {
+        fprintf(stderr, "%s:  -- not a regular file: unchanged\n", path);
+        close_named_descriptors();
+        return -1;
+    }
+    if (publication_required && named_transaction.input_status.st_nlink > 1) {
+        fprintf(stderr, "%s:  -- has %lu other links: unchanged\n", path,
+            (unsigned long)named_transaction.input_status.st_nlink - 1UL);
+        close_named_descriptors();
+        return -1;
+    }
+    stream_descriptor = dup(named_transaction.input_descriptor);
+    if (stream_descriptor < 0) {
+        perror(path);
+        close_named_descriptors();
+        return -1;
+    }
+    named_transaction.input_file = fdopen(stream_descriptor, "r");
+    if (named_transaction.input_file == NULL) {
+        perror(path);
+        (void)close(stream_descriptor);
+        close_named_descriptors();
+        return -1;
+    }
+    input_stream = named_transaction.input_file;
+    return 0;
+}
+
+static int
+open_named_target(void)
+{
+    named_transaction.target_descriptor = openat(
+        named_transaction.parent_descriptor, named_transaction.output_leaf,
+        O_WRONLY | O_NOFOLLOW);
+    if (named_transaction.target_descriptor >= 0) {
+        struct stat target_status;
+
+        if (fstat(named_transaction.target_descriptor, &target_status) < 0)
+            return -1;
+        if (!S_ISREG(target_status.st_mode)) {
+            errno = EINVAL;
+            return -1;
+        }
+        return 1;
+    }
+    if (errno == ENOENT) {
+        named_transaction.target_descriptor = -1;
+        return 0;
+    }
+    return -1;
+}
+
+static void
+make_staged_leaf(unsigned value)
+{
+    static const char hexadecimal[] = "0123456789abcdef";
+    unsigned index;
+
+    memcpy(named_transaction.staged_leaf, ".cmp", 4);
+    for (index = 0; index < 8; index++) {
+        named_transaction.staged_leaf[11 - index] =
+            hexadecimal[value & 0xfU];
+        value >>= 4;
+    }
+    named_transaction.staged_leaf[12] = '\0';
+}
+
+static int
+create_staged_output(void)
+{
+    unsigned attempt;
+    unsigned seed = (unsigned)getpid();
+    int stream_descriptor;
+    int saved_errno;
+    sigset_t previous_mask;
+
+    if (block_interrupt(&previous_mask) < 0)
+        terminate_after_signal_mask_failure();
+
+    for (attempt = 0; attempt < 65536U; attempt++) {
+        make_staged_leaf((seed << 16) ^ attempt);
+        named_transaction.staged_descriptor = openat(
+            named_transaction.parent_descriptor,
+            named_transaction.staged_leaf,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+        if (named_transaction.staged_descriptor >= 0)
+            break;
+        if (errno != EEXIST)
+            goto failed;
+    }
+    if (named_transaction.staged_descriptor < 0) {
+        errno = EEXIST;
+        goto failed;
+    }
+    interrupt_parent_descriptor = named_transaction.parent_descriptor;
+    interrupt_staged_descriptor = named_transaction.staged_descriptor;
+    memcpy(interrupt_staged_leaf, named_transaction.staged_leaf,
+        sizeof(interrupt_staged_leaf));
+    named_transaction.staged_entry_exists = 1;
+    interrupt_cleanup_active = 1;
+    stream_descriptor = dup(named_transaction.staged_descriptor);
+    if (stream_descriptor < 0)
+        goto failed;
+    named_transaction.output_file = fdopen(stream_descriptor, "w");
+    if (named_transaction.output_file == NULL) {
+        (void)close(stream_descriptor);
+        goto failed;
+    }
+    output_stream = named_transaction.output_file;
+    if (restore_interrupt_mask(&previous_mask) < 0)
+        terminate_after_signal_mask_failure();
+    return 0;
+
+failed:
+    saved_errno = errno;
+    if (restore_interrupt_mask(&previous_mask) < 0)
+        terminate_after_signal_mask_failure();
+    errno = saved_errno;
+    return -1;
+}
+
+static int
+close_named_input(const char *path)
+{
+    int result = 0;
+
+    if (named_transaction.input_file != NULL &&
+        fclose(named_transaction.input_file) == EOF) {
+        perror(path);
+        result = -1;
+    }
+    named_transaction.input_file = NULL;
+    input_stream = stdin;
+    return result;
+}
+
+static int
+finish_named_output(const char *input_path)
+{
+    struct timeval timestamps[2];
+    int failed = 0;
+
+    if (fclose(named_transaction.output_file) == EOF) {
+        report_destination_error(input_path);
+        failed = 1;
+    }
+    named_transaction.output_file = NULL;
+    output_stream = stdout;
+    if (close_named_input(input_path) != 0)
+        failed = 1;
+    if (failed) {
+        perm_stat = 1;
+        discard_staged_output();
+        close_named_descriptors();
+        return -1;
+    }
+    if (exit_stat == 2 && !force) {
+        if (!quiet)
+            fprintf(stderr, " -- file unchanged");
+        discard_staged_output();
+        close_named_descriptors();
+        return 0;
+    }
+    timestamps[0].tv_sec = named_transaction.input_status.st_atime;
+    timestamps[0].tv_usec = 0;
+    timestamps[1].tv_sec = named_transaction.input_status.st_mtime;
+    timestamps[1].tv_usec = 0;
+    if (fchown(named_transaction.staged_descriptor,
+        named_transaction.input_status.st_uid,
+        named_transaction.input_status.st_gid) < 0 ||
+        fchmod(named_transaction.staged_descriptor,
+        named_transaction.input_status.st_mode & 07777) < 0 ||
+        futimes(named_transaction.staged_descriptor, timestamps) < 0) {
+        report_destination_error(input_path);
+        perm_stat = 1;
+        discard_staged_output();
+        close_named_descriptors();
+        return -1;
+    }
+    if (publishat_beneath(named_transaction.parent_descriptor,
+        named_transaction.staged_leaf,
+        named_transaction.staged_descriptor,
+        named_transaction.output_leaf,
+        named_transaction.target_descriptor) < 0) {
+        report_destination_error(input_path);
+        perm_stat = 1;
+        discard_staged_output();
+        close_named_descriptors();
+        return -1;
+    }
+    interrupt_cleanup_active = 0;
+    named_transaction.staged_entry_exists = 0;
+    exit_stat = 0;
+    if (unlinkat_beneath(named_transaction.parent_descriptor,
+        named_transaction.input_leaf,
+        named_transaction.input_descriptor) < 0) {
+        perror(input_path);
+        perm_stat = 1;
+        close_named_descriptors();
+        return -1;
+    }
+    if (!quiet) {
+        fprintf(stderr, " -- replaced with ");
+        print_destination_path(stderr, input_path);
+    }
+    close_named_descriptors();
+    return 0;
+}
+
+static void
+print_destination_path(FILE *stream, const char *input_path)
+{
+    size_t input_length = strlen(input_path);
+
+    if (decompress_mode && has_z_suffix(input_path))
+        (void)fprintf(stream, "%.*s", (int)(input_length - 2), input_path);
+    else
+        (void)fprintf(stream, "%s.Z", input_path);
+}
+
+static void
+report_destination_error(const char *input_path)
+{
+    int saved_errno = errno;
+
+    print_destination_path(stderr, input_path);
+    (void)fprintf(stderr, ": %s\n", strerror(saved_errno));
 }
 
 static int
@@ -858,6 +1254,196 @@ set_decompression_parameters(int header_byte, const char *input_name)
 	return 0;
 }
 
+static void
+release_named_input(const char *input_path)
+{
+    if (close_named_input(input_path) != 0)
+        perm_stat = 1;
+    close_named_descriptors();
+}
+
+static int
+overwrite_is_authorized(int overwrite, const char *input_path)
+{
+    char response[2] = { 'n', '\n' };
+    ssize_t response_length;
+    char response_tail;
+
+    if (named_transaction.target_descriptor < 0 || overwrite)
+        return 1;
+    print_destination_path(stderr, input_path);
+    fprintf(stderr, " already exists;");
+    if (background_flag == 0 && isatty(2)) {
+        fprintf(stderr, " do you wish to overwrite ");
+        print_destination_path(stderr, input_path);
+        fprintf(stderr, " (y or n)? ");
+        fflush(stderr);
+        response_length = read(2, response, sizeof(response));
+        if (response_length < 0) {
+            perror("stderr");
+            response[0] = 'n';
+        }
+        while (response_length == 2 && response[1] != '\n') {
+            response_length = read(2, &response_tail, 1);
+            if (response_length <= 0 || response_tail == '\n')
+                break;
+        }
+    }
+    if (response[0] == 'y')
+        return 1;
+    fprintf(stderr, "\tnot overwritten\n");
+    return 0;
+}
+
+static void
+run_codec(void)
+{
+    if (decompress_mode == 0)
+        compress_input();
+#ifndef DEBUG
+    else
+        decompress_input();
+#else
+    else if (debug == 0)
+        decompress_input();
+    else
+        print_codes();
+    if (verbose)
+        dump_table();
+#endif
+}
+
+static void
+process_named_file(char *requested_path, int overwrite)
+{
+    char *allocated_input_path = NULL;
+    char *input_path = requested_path;
+    int target_state;
+
+    exit_stat = 0;
+    input_stream = stdin;
+    output_stream = stdout;
+    if (decompress_mode) {
+        if (!has_z_suffix(input_path)) {
+            size_t input_length = strlen(input_path);
+
+            if (input_length > (size_t)-1 - 3) {
+                fprintf(stderr, "%s: filename is too long\n", input_path);
+                perm_stat = 1;
+                goto done;
+            }
+            allocated_input_path = malloc(input_length + 3);
+            if (allocated_input_path == NULL) {
+                fprintf(stderr, "compress: cannot allocate the input path\n");
+                perm_stat = 1;
+                goto done;
+            }
+            (void)make_compressed_name(allocated_input_path,
+                input_length + 3, input_path);
+            input_path = allocated_input_path;
+        }
+    } else if (has_z_suffix(input_path)) {
+        fprintf(stderr, "%s: already has .Z suffix -- no change\n",
+            input_path);
+        goto done;
+    }
+
+    if (open_named_input(input_path, !zcat_flg) != 0) {
+        perm_stat = 1;
+        goto done;
+    }
+    diagnostic_input_path = zcat_flg ? "stdout" : input_path;
+    if (decompress_mode) {
+        if (nomagic == 0) {
+            if (getc(input_stream) != (magic_header[0] & 0xFF) ||
+                getc(input_stream) != (magic_header[1] & 0xFF)) {
+                fprintf(stderr, "%s: not in compressed format\n",
+                    input_path);
+                perm_stat = 1;
+                release_named_input(input_path);
+                goto done;
+            }
+            if (set_decompression_parameters(getc(input_stream),
+                input_path) != 0) {
+                perm_stat = 1;
+                release_named_input(input_path);
+                goto done;
+            }
+        }
+        if (!zcat_flg &&
+            make_decompressed_name(named_transaction.output_leaf,
+            sizeof(named_transaction.output_leaf),
+            named_transaction.input_leaf) != 0) {
+            fprintf(stderr, "%s: output filename is too long\n", input_path);
+            perm_stat = 1;
+            release_named_input(input_path);
+            goto done;
+        }
+    } else {
+        fsize = (long)named_transaction.input_status.st_size;
+        hsize = HSIZE;
+        if (fsize < (1 << 12))
+            hsize = MINIMUM(5003, HSIZE);
+        else if (fsize < (1 << 13))
+            hsize = MINIMUM(9001, HSIZE);
+        else if (fsize < (1 << 14))
+            hsize = MINIMUM(18013, HSIZE);
+        else if (fsize < (1 << 15))
+            hsize = MINIMUM(35023, HSIZE);
+        else if (fsize < 47000)
+            hsize = MINIMUM(50021, HSIZE);
+        if (!zcat_flg &&
+            make_compressed_name(named_transaction.output_leaf,
+            sizeof(named_transaction.output_leaf),
+            named_transaction.input_leaf) != 0) {
+            fprintf(stderr, "%s: output filename is too long\n", input_path);
+            perm_stat = 1;
+            release_named_input(input_path);
+            goto done;
+        }
+#ifndef BSD4_2
+        if (!zcat_flg && strlen(named_transaction.output_leaf) > 14) {
+            fprintf(stderr, "%s: filename too long to tack on .Z\n",
+                named_transaction.output_leaf);
+            release_named_input(input_path);
+            goto done;
+        }
+#endif
+    }
+
+    if (zcat_flg) {
+        run_codec();
+        release_named_input(input_path);
+        goto done;
+    }
+    target_state = open_named_target();
+    if (target_state < 0) {
+        report_destination_error(input_path);
+        perm_stat = 1;
+        release_named_input(input_path);
+        goto done;
+    }
+    if (!overwrite_is_authorized(overwrite, input_path)) {
+        release_named_input(input_path);
+        goto done;
+    }
+    if (create_staged_output() != 0) {
+        report_destination_error(input_path);
+        perm_stat = 1;
+        discard_staged_output();
+        release_named_input(input_path);
+        goto done;
+    }
+    if (!quiet)
+        fprintf(stderr, "%s: ", input_path);
+    run_codec();
+    (void)finish_named_output(input_path);
+    if (exit_stat == 1 || !quiet)
+        putc('\n', stderr);
+done:
+    free(allocated_input_path);
+}
+
 /*****************************************************************
  * TAG(main)
  *
@@ -898,11 +1484,13 @@ int
 main(int argc, char **argv)
 {
     int overwrite = 0;	/* Do not overwrite unless given -f flag */
-    char input_name[100];
     char **file_list;
     char **file_pointer;
     char *base_name;
-    struct stat statbuf;
+
+    reset_named_transaction();
+    input_stream = stdin;
+    output_stream = stdout;
 
     /* This bg check only works for sh. */
     previous_interrupt = signal(SIGINT, SIG_IGN);
@@ -1033,167 +1621,8 @@ main(int argc, char **argv)
     maxmaxcode = 1 << maxbits;
 
     if (*file_list != NULL) {
-	for (file_pointer = file_list; *file_pointer; file_pointer++) {
-	    exit_stat = 0;
-	    if (decompress_mode) {		/* DECOMPRESSION */
-		/* Check for .Z suffix */
-		if (!has_z_suffix(*file_pointer)) {
-		    /* No .Z: tack one on */
-		    if (make_compressed_name(input_name, sizeof(input_name),
-			*file_pointer) != 0) {
-			fprintf(stderr, "%s: filename is too long\n",
-			    *file_pointer);
-			perm_stat = 1;
-			continue;
-		    }
-		    *file_pointer = input_name;
-		}
-		/* Open input file */
-		if (freopen(*file_pointer, "r", stdin) == NULL) {
-		    perror(*file_pointer);
-		    perm_stat = 1;
-		    continue;
-		}
-		/* Check the magic number */
-		if (nomagic == 0) {
-		    if ((getchar() != (magic_header[0] & 0xFF))
-		     || (getchar() != (magic_header[1] & 0xFF))) {
-			fprintf(stderr, "%s: not in compressed format\n",
-			    *file_pointer);
-			perm_stat = 1;
-		    continue;
-		    }
-		    if (set_decompression_parameters(getchar(),
-			*file_pointer) != 0) {
-			perm_stat = 1;
-			continue;
-		    }
-		}
-		if (zcat_flg == 0) {
-		    /* Generate output filename */
-		    if (make_decompressed_name(output_name, sizeof(output_name),
-			*file_pointer) != 0) {
-			fprintf(stderr, "%s: output filename is too long\n",
-			    *file_pointer);
-			perm_stat = 1;
-			continue;
-		    }
-		}
-	    } else {					/* COMPRESSION */
-		if (has_z_suffix(*file_pointer)) {
-		    	fprintf(stderr, "%s: already has .Z suffix -- no change\n",
-			    *file_pointer);
-		    continue;
-		}
-		/* Open input file */
-		if (freopen(*file_pointer, "r", stdin) == NULL) {
-		    perror(*file_pointer);
-		    perm_stat = 1;
-		    continue;
-		}
-		if (stat(*file_pointer, &statbuf) != 0) {
-		    perror(*file_pointer);
-		    perm_stat = 1;
-		    continue;
-		}
-		fsize = (long) statbuf.st_size;
-		/*
-		 * tune hash table size for small files -- ad hoc,
-		 * but the sizes match earlier #defines, which
-		 * serve as upper bounds on the number of output codes.
-		 */
-		hsize = HSIZE;
-		if (fsize < (1 << 12))
-		    hsize = MINIMUM(5003, HSIZE);
-		else if (fsize < (1 << 13))
-		    hsize = MINIMUM(9001, HSIZE);
-		else if (fsize < (1 << 14))
-		    hsize = MINIMUM(18013, HSIZE);
-		else if (fsize < (1 << 15))
-		    hsize = MINIMUM(35023, HSIZE);
-		else if (fsize < 47000)
-		    hsize = MINIMUM(50021, HSIZE);
-
-		if (zcat_flg == 0) {
-		    /* Generate output filename */
-		    if (make_compressed_name(output_name, sizeof(output_name),
-			*file_pointer) != 0) {
-			fprintf(stderr, "%s: output filename is too long\n",
-			    *file_pointer);
-			perm_stat = 1;
-			continue;
-		    }
-#ifndef BSD4_2		/* Short filenames */
-		    if ((base_name = strrchr(output_name, '/')) != NULL)
-			base_name++;
-		    else
-			base_name = output_name;
-		    if (strlen(base_name) > 14) {
-			fprintf(stderr, "%s: filename too long to tack on .Z\n",
-			    base_name);
-			continue;
-		    }
-#endif  /* BSD4_2		Long filenames allowed */
-		}
-	    }
-	    /* Check for overwrite of existing file */
-	    if (overwrite == 0 && zcat_flg == 0) {
-		if (stat(output_name, &statbuf) == 0) {
-		    char response[2];
-		    ssize_t response_length;
-		    char response_tail;
-
-		    response[0] = 'n';
-		    response[1] = '\n';
-		    fprintf(stderr, "%s already exists;", output_name);
-		    if (background_flag == 0 && isatty(2)) {
-			fprintf(stderr, " do you wish to overwrite %s (y or n)? ",
-			output_name);
-			fflush(stderr);
-			response_length = read(2, response, sizeof(response));
-			if (response_length < 0) {
-			    perror("stderr");
-			    response[0] = 'n';
-			}
-			while (response_length == 2 && response[1] != '\n') {
-			    response_length = read(2, &response_tail, 1);
-			    if (response_length <= 0 || response_tail == '\n')
-				break;
-			}
-		    }
-		    if (response[0] != 'y') {
-			fprintf(stderr, "\tnot overwritten\n");
-			continue;
-		    }
-		}
-	    }
-	    if (zcat_flg == 0) {		/* Open output file */
-		if (freopen(output_name, "w", stdout) == NULL) {
-		    perror(output_name);
-		    perm_stat = 1;
-		    continue;
-		}
-		precious = 0;
-		if (!quiet)
-			fprintf(stderr, "%s: ", *file_pointer);
-	    }
-
-	    /* Actually do the compression/decompression */
-	    if (decompress_mode == 0)	compress_input();
-#ifndef DEBUG
-	    else			decompress_input();
-#else
-	    else if (debug == 0)	decompress_input();
-	    else			print_codes();
-	    if (verbose)		dump_table();
-#endif /* DEBUG */
-	    if (zcat_flg == 0) {
-		copy_stats(*file_pointer, output_name);
-		precious = 1;
-		if ((exit_stat == 1) || (!quiet))
-			putc('\n', stderr);
-	    }
-	}
+        for (file_pointer = file_list; *file_pointer; file_pointer++)
+            process_named_file(*file_pointer, overwrite);
     } else {		/* Standard input */
 	if (decompress_mode == 0) {
 		compress_input();
@@ -1205,13 +1634,13 @@ main(int argc, char **argv)
 	} else {
 	    /* Check the magic number */
 	    if (nomagic == 0) {
-		if ((getchar()!=(magic_header[0] & 0xFF))
-		 || (getchar()!=(magic_header[1] & 0xFF))) {
+		if ((getc(input_stream)!=(magic_header[0] & 0xFF))
+		 || (getc(input_stream)!=(magic_header[1] & 0xFF))) {
 		    fprintf(stderr, "stdin: not in compressed format\n");
 		    exit(1);
 		}
 		fsize = 100000;		/* assume stdin large for USERMEM */
-		if (set_decompression_parameters(getchar(), "stdin") != 0)
+		if (set_decompression_parameters(getc(input_stream), "stdin") != 0)
 			exit(1);
 	    }
 #ifndef DEBUG
@@ -1264,7 +1693,7 @@ get_code(void)
     	    maxcode = MAXCODE (n_bits = INIT_BITS);
 	    clear_flg = 0;
 	}
-	size = fread(buf, 1, n_bits, stdin);
+	size = fread(buf, 1, n_bits, input_stream);
 	if (size <= 0)
 	    return -1;			/* end of file */
 	offset = 0;

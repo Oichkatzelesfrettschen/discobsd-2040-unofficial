@@ -2361,6 +2361,44 @@
       ]
     },
     {
+      "id": "kernel.publishat-beneath.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with two UFS mount slots",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-publishat-beneath-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "publishat_beneath_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "publishat_beneath_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.publishat-beneath.ilp32 -- ./publishat_beneath_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.publishat-beneath-namei.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with production restricted UFS lookup and directory writes",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-publishat-beneath-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "publishat_beneath_namei_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "publishat_beneath_namei_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.publishat-beneath-namei.ilp32 -- ./publishat_beneath_namei_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.dirremove.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

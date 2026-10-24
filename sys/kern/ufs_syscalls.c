@@ -470,6 +470,232 @@ release_expected:
 }
 
 /*
+ * Publish a staged regular file beneath an acquired directory.  The locked
+ * source and destination lookups must still identify the descriptor-owned
+ * inodes that the caller authorized.  A target descriptor of -1 requires an
+ * absent destination.
+ */
+void
+publishat_beneath(void)
+{
+    register struct a {
+        int     rootfd;
+        char    *staged_path;
+        int     staged_fd;
+        char    *target_path;
+        int     target_fd;
+    } *uap = (struct a *)u.u_arg;
+    register struct inode *staged_inode, *target_inode;
+    struct inode *expected_staged, *expected_target;
+    struct inode *staged_parent, *target_parent;
+    struct nameidata nd;
+    register struct nameidata *ndp = &nd;
+    int error, publication_complete, reserved_link;
+
+    expected_target = NULL;
+    staged_inode = NULL;
+    target_inode = NULL;
+    staged_parent = NULL;
+    target_parent = NULL;
+    publication_complete = 0;
+    reserved_link = 0;
+
+    if (uap->target_fd < -1) {
+        u.u_error = EINVAL;
+        return;
+    }
+    expected_staged = getinode(uap->staged_fd);
+    if (expected_staged == NULL)
+        return;
+    if ((expected_staged->i_mode & IFMT) != IFREG) {
+        u.u_error = EINVAL;
+        return;
+    }
+    igrab(expected_staged);
+    iunlock(expected_staged);
+
+    if (uap->target_fd >= 0) {
+        expected_target = getinode(uap->target_fd);
+        if (expected_target == NULL)
+            goto release_staged;
+        if ((expected_target->i_mode & IFMT) != IFREG) {
+            u.u_error = EINVAL;
+            goto release_staged;
+        }
+        igrab(expected_target);
+        iunlock(expected_target);
+    }
+
+    error = ufs_namespace_enter();
+    if (error != 0) {
+        u.u_error = error;
+        goto release_expected;
+    }
+
+    NAMEI_INIT_USER(ndp, DELETE, LOCKPARENT | NOCACHE, uap->staged_path);
+    NAMEI_RESTRICT_BENEATH(ndp);
+    staged_inode = namei_at(ndp, uap->rootfd);
+    if (staged_inode == NULL)
+        goto leave_namespace;
+    staged_parent = ndp->ni_pdir;
+    if (staged_inode != expected_staged) {
+        u.u_error = ESTALE;
+        goto release_staged_lookup;
+    }
+    if ((staged_inode->i_flags & (IMMUTABLE | APPEND)) ||
+        (staged_parent->i_flags & APPEND)) {
+        u.u_error = EPERM;
+        goto release_staged_lookup;
+    }
+    if ((staged_parent->i_mode & ISVTX) && u.u_uid != 0 &&
+        u.u_uid != staged_parent->i_uid &&
+        staged_inode->i_uid != u.u_uid) {
+        u.u_error = EPERM;
+        goto release_staged_lookup;
+    }
+
+    staged_inode->i_nlink++;
+    staged_inode->i_flag |= ICHG;
+    error = iupdat(staged_inode, &time, &time, 1);
+    if (error != 0) {
+        staged_inode->i_nlink--;
+        staged_inode->i_flag |= ICHG;
+        u.u_error = error;
+        goto release_staged_lookup;
+    }
+    reserved_link = 1;
+    iput(staged_inode);
+    staged_inode = NULL;
+    iunlock(staged_parent);
+
+    NAMEI_INIT_USER(ndp, CREATE, LOCKPARENT | NOCACHE, uap->target_path);
+    NAMEI_RESTRICT_BENEATH(ndp);
+    target_inode = namei_at(ndp, uap->rootfd);
+    if (u.u_error != 0)
+        goto rollback_link;
+    target_parent = ndp->ni_pdir;
+    if (target_parent != staged_parent) {
+        u.u_error = EXDEV;
+        goto release_target_lookup;
+    }
+    if (INODE_DEVICE(target_parent) != INODE_DEVICE(expected_staged)) {
+        u.u_error = EXDEV;
+        goto release_target_lookup;
+    }
+    if (expected_target == NULL) {
+        if (target_inode != NULL) {
+            u.u_error = EEXIST;
+            goto release_target_lookup;
+        }
+    } else {
+        if (target_inode != expected_target) {
+            u.u_error = ESTALE;
+            goto release_target_lookup;
+        }
+    }
+    if (target_inode == expected_staged) {
+        u.u_error = EINVAL;
+        goto release_target_lookup;
+    }
+    if (target_inode != NULL &&
+        ((target_inode->i_flags & (IMMUTABLE | APPEND)) ||
+        (target_parent->i_flags & APPEND))) {
+        u.u_error = EPERM;
+        goto release_target_lookup;
+    }
+    if (target_inode != NULL &&
+        (target_parent->i_mode & ISVTX) && u.u_uid != 0 &&
+        u.u_uid != target_parent->i_uid &&
+        target_inode->i_uid != u.u_uid) {
+        u.u_error = EPERM;
+        goto release_target_lookup;
+    }
+
+    if (target_inode == NULL) {
+        error = direnter(expected_staged, ndp);
+        target_parent = NULL;
+        if (error != 0) {
+            u.u_error = error;
+            goto rollback_link;
+        }
+    } else {
+        dirrewrite(target_parent, expected_staged, ndp);
+        target_parent = NULL;
+        if (u.u_error != 0)
+            goto release_target_after_write;
+        target_inode->i_nlink--;
+        target_inode->i_flag |= ICHG;
+        iput(target_inode);
+        target_inode = NULL;
+    }
+    publication_complete = 1;
+
+    NAMEI_INIT_USER(ndp, DELETE, LOCKPARENT | NOCACHE, uap->staged_path);
+    NAMEI_RESTRICT_BENEATH(ndp);
+    staged_inode = namei_at(ndp, uap->rootfd);
+    if (staged_inode == NULL) {
+        if (u.u_error == ENOENT)
+            u.u_error = 0;
+        goto release_parent_reference;
+    }
+    target_parent = ndp->ni_pdir;
+    if (staged_inode == expected_staged) {
+        if (dirremove(ndp)) {
+            staged_inode->i_nlink--;
+            staged_inode->i_flag |= ICHG;
+        }
+    } else {
+        u.u_error = 0;
+    }
+    if (target_parent == staged_inode)
+        irele(staged_inode);
+    else
+        iput(staged_inode);
+    iput(target_parent);
+    staged_inode = NULL;
+    target_parent = NULL;
+    goto release_parent_reference;
+
+release_target_after_write:
+    iput(target_inode);
+    target_inode = NULL;
+    goto rollback_link;
+
+release_target_lookup:
+    if (target_inode != NULL) {
+        iput(target_inode);
+        target_inode = NULL;
+    }
+    iput(target_parent);
+    target_parent = NULL;
+rollback_link:
+    if (!publication_complete && reserved_link) {
+        ilock(expected_staged);
+        expected_staged->i_nlink--;
+        expected_staged->i_flag |= ICHG;
+        iunlock(expected_staged);
+    }
+release_parent_reference:
+    irele(staged_parent);
+    staged_parent = NULL;
+    goto leave_namespace;
+
+release_staged_lookup:
+    if (staged_parent == staged_inode)
+        irele(staged_inode);
+    else
+        iput(staged_inode);
+    iput(staged_parent);
+leave_namespace:
+    ufs_namespace_exit();
+release_expected:
+    if (expected_target != NULL)
+        irele(expected_target);
+release_staged:
+    irele(expected_staged);
+}
+
+/*
  * Access system call
  */
 void

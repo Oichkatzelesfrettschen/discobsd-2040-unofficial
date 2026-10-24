@@ -792,10 +792,30 @@ Source: `openat-directory-relative-lookup.md` and `TESTING.md`
 | Resources | Clean parent `0938a979` and candidate `0c4dee43` schema-2 receipts report +668 PICO and +660 PICO_UART flash bytes with zero linked static-SRAM delta. Cpio moves from 10,292/200/884 to 10,384/200/884 text/data/BSS bytes, +92 raw/loaded bytes, +82 packed bytes, and zero packed-block delta. Its selected libc set adds the 20-byte `unlinkat_beneath.o` wrapper and drops `strrchr.o` and `unlink.o`. Every other shipped a.out, archive selection, native artifact, packed-root block, and inode count remains unchanged. `init_sysent.o`, `ufs_namei.o`, and `ufs_syscalls.o` gain 5, 376, and 260 text bytes; `ufs_namei.o` also gains four aligned BSS bytes. Existing namei, directory-removal, rename, unlink, cpio main, and cpio copy frames remain unchanged; new gate entry/exit, conditional unlink, and cpio cleanup frames use 16, 8, 120, and 24 bytes. The bounded exception request leaves 24,022 PICO and 36,504 PICO_UART flash bytes; runtime peaks remain open |
 | Evidence class | ILP32 production-source behavior, calibrated mutations, strict-C17 host behavior, generated metadata, native-header/link acceptance, exact target builds, matched schema-2 distribution/resource comparison, and exact-command object/frame replay; runtime and physical-board evidence remain open |
 | Ledger states | 1 language: done for the six focused fixtures; broader kernel and cpio translation units remain migration-open or unreviewed. 2 interface: done for additive slot 158 and its generated/libc callers. 3 native: expanded-header and selected-member acceptance pass; on-device preprocessing remains open. 4 hardening: done for cpio's truncated-input and write-failure cleanup identity. 5 resource: all declared static surfaces are measured and the bounded flash/archive exception awaits pull-request review; runtime peaks remain open. 6 program closure: both kernels, cpio, complete shipped dependency closure, image, archive selection, and packed-root accounting pass |
-| Residuals | Cpio creation and parent traversal, tar creation/link/removal, compress publication/metadata/removal, runtime peaks, persistence recovery, MPU behavior, deliberate faults, and physical-board execution remain separate units |
+| Residuals | Cpio creation and parent traversal, tar creation/link/removal, runtime peaks, persistence recovery, MPU behavior, deliberate faults, and physical-board execution remain separate units |
 
 Source: `rooted-conditional-unlink-plan.md` and `TESTING.md`
 (`check-kernel-ilp32`, `check-kernel-metadata`, `check-cpio-host`,
+`check-test-execution`).
+
+### R23 -- descriptor-owned compress publication
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | Additive BSD syscall and ARM libc wrapper, serialized UFS mutation, strict-C17 host utility and fixtures, GNU17 Cortex-M0+ production build, generated metadata, and Smaller C public-header consumer |
+| Tier | T1: compression writes attacker-selectable pathnames and later publishes metadata and removes the input |
+| Native input | `t18_stdio` repeatedly includes `unistd.h`, checks the exact `publishat_beneath` function-pointer type, and requires one `publishat_beneath.o` member in the native link map; on-device preprocessing remains open |
+| Contract | Open a retained search-only parent, input, optional destination, and same-parent staged regular file without following final symbolic links; preserve ordinary named-input behavior in standard-output mode; apply ownership, mode, and timestamps through the staged descriptor; publish only while staged and target entries still identify their authorized descriptors; remove the input through its retained descriptor only after publication; keep `SIGINT` cleanup ownership coherent across stage creation, publication, cleanup, and descriptor release |
+| Invariants | Existing syscall ordinals retain their values; additive syscall 159 carries five words; codec format and tables remain unchanged; pathname traversal stays beneath the retained parent; sticky-directory, immutable, append-only, read-only filesystem, directory-write, metadata, primary-error, close, and signal-mask failure behavior retain explicit precedence |
+| Falsifier | Seven syscall mutations discard the durable link-count reservation error or remove staged identity, staged sticky-directory permission, target identity, rooted lookup, namespace serialization, or same-parent enforcement; one adjacent namei mutation discards the first directory-write error. A utility mutation leaves `SIGINT` unblocked across stage ownership publication. Each warning-clean mutation must fail its named assertion or staged-file oracle |
+| Gates | `check-compress-host`, required `check-kernel-ilp32`, `check-kernel-metadata`, `check-test-execution`, Smaller C, source-denominator, exact PICO/PICO_UART GNU17 distributions, schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Matched parent `5a5e075f` and candidate schema-2 receipts report +820 PICO and +820 PICO_UART flash bytes with zero linked static-SRAM delta. `compress` moves from 12,116/232/30,328 to 13,484/244/30,552 text/data/BSS bytes, +1,380 raw bytes, +1,153 packed bytes, and +1 packed/root data block. Its selected libc set adds ten descriptor, signal, and directory-relative members and drops six pathname members. The native board libc retains 43,010 bytes and 151 members. The bounded exception leaves 23,202 PICO and 35,684 PICO_UART flash bytes and 103,176 process-window bytes; runtime peaks remain open |
+| Evidence class | Strict-C17 host behavior under address and undefined-behavior sanitizers, direct-host and admitted-emulator ILP32 production-source behavior, calibrated mutations, generated metadata, native-header/link acceptance, exact target builds, matched static-resource comparison, and exact-command frame replay; persistence and physical-board evidence remain open |
+| Ledger states | 1 language: done for the caller-complete utility, three maintained C fixtures, and focused kernel seam; broader kernel translation units remain migration-open. 2 interface: done for additive slot 159 and its generated/libc callers. 3 native: expanded-header and selected-member acceptance pass; on-device preprocessing remains open. 4 hardening: done for the exercised open, metadata, publication, cleanup, input-removal, signal, and failure schedules. 5 resource: static constrained surfaces are measured and the bounded flash/process/root/archive exception awaits pull-request review; runtime peaks and storage traffic remain open. 6 program closure: both kernels, `compress`, complete shipped dependency closure, image, archive selection, and packed-root accounting pass |
+| Residuals | Crash recovery after directory writes, persistent-media traffic, runtime stack/heap/descriptor high-water, cpio creation, tar creation/link/removal, ancestor relocation outside the retained parent, MPU behavior, deliberate faults, and physical-board execution remain separate units |
+
+Source: `compress-publication-identity-plan.md` and `TESTING.md`
+(`check-compress-host`, `check-kernel-ilp32`, `check-kernel-metadata`,
 `check-test-execution`).
 
 ## Open measurements this plan depends on
@@ -979,8 +999,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 83 accepted, 56 migration-open, 543
-excluded and 1,934 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 88 accepted, 57 migration-open, 543
+excluded and 1,932 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

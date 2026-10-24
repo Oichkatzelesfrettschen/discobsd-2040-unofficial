@@ -20,6 +20,7 @@
 #define	INSN_SZ		2	/* Thumb are 2 bytes; some are 4 bytes. */
 
 #define	PSR_C		(1UL << 29U)	/* Carry bit. */
+#define	PSR_NZCV	(0xfUL << 28U)	/* User-visible condition flags. */
 
 struct	trapframe {
 /* The following 8 registers are pushed on stack by hardware in an SVCall. */

@@ -113,8 +113,6 @@ sys/kern/sys_pipe.c definition pipe_rw both
 sys/kern/sys_pipe.c definition pipe_select both
 sys/kern/sys_pipe.c definition readp both
 sys/kern/sys_pipe.c definition writep both
-sys/kern/sys_process.c definition procxmt both
-sys/kern/sys_process.c definition ptrace both
 sys/kern/tty.c definition nullmodem both
 sys/kern/tty.c definition scanc both
 sys/kern/tty.c definition ttbreakc both

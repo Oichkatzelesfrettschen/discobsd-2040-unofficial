@@ -16,6 +16,7 @@
 
 #include <machine/frame.h>
 #include <machine/scb.h>
+#include <machine/user_context.h>
 
 #if 0
 #define DIAGNOSTIC
@@ -141,6 +142,36 @@ sendsig(sig_t p, int sig, long mask)
 #endif
 }
 
+/* The exception return reads eight words and may consume one padding word. */
+#define SIGRETURN_EXCEPTION_FRAME_SIZE (8U * sizeof(u_int))
+#define SIGRETURN_PSR_THUMB (1UL << 24U)
+#define SIGRETURN_PSR_ALLOWED \
+	(PSR_NZCV | SIGRETURN_PSR_THUMB | XPSR_STKALIGN)
+
+static int
+sigreturn_psr_valid(u_int processor_status)
+{
+	if ((processor_status & SIGRETURN_PSR_THUMB) == 0)
+		return 0;
+
+	return (processor_status & ~SIGRETURN_PSR_ALLOWED) == 0;
+}
+
+static int
+sigreturn_context_valid(const struct sigcontext *context)
+{
+	u_int frame_size = SIGRETURN_EXCEPTION_FRAME_SIZE;
+
+	if (!sigreturn_psr_valid(context->sc_psr))
+		return 0;
+	if (context->sc_psr & XPSR_STKALIGN)
+		frame_size += sizeof(u_int);
+	if (!machine_user_pc_valid(context->sc_pc))
+		return 0;
+
+	return machine_user_stack_valid(context->sc_sp, frame_size);
+}
+
 /*
  * System call to cleanup state after a signal
  * has been taken.  Reset signal mask and
@@ -172,6 +203,10 @@ sigreturn(void)
 	if (copyin((caddr_t)user_context, (caddr_t)scp,
 	    sizeof(*scp)) != 0) {
 		u.u_error = EFAULT;
+		return;
+	}
+	if (!sigreturn_context_valid(scp)) {
+		u.u_error = EINVAL;
 		return;
 	}
 

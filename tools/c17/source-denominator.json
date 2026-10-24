@@ -52494,6 +52494,43 @@
       }
     },
     {
+      "path": "sys/arch/rp2040/include/user_context.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "signal-context-and-ptrace-admission",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-signal-context-admission.md",
+        "docs/research/rp2040-ptrace-address-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/sigreturn_context_test.c",
+        "tests/kernel/ptrace_test.c"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "hardware-seam",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "sys/arch/rp2040/include/usercopy.h",
       "class": "A",
       "scope": "maintained",
@@ -52889,7 +52926,7 @@
         "tests/kernel/sigreturn_context_test.c",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "Signal-context span admission, stable snapshot and publication ordering are accepted; sendsig, xPSR policy, exception return, runtime stack use and the remaining translation-unit semantics require separate migration units.",
+      "blocker": "Signal-context snapshot ownership, resumed PC/SP/xPSR admission and failure-preserving publication are accepted; sendsig, exception entry/return, runtime stack use, hardware enforcement and remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -52904,7 +52941,8 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "shift-expression"
           ],
           "object_lifetime": [],
           "pointer": [
@@ -55559,6 +55597,43 @@
       }
     },
     {
+      "path": "sys/arch/stm32/include/user_context.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "signal-context-and-ptrace-admission",
+      "profile": "maintained-arm-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-signal-context-admission.md",
+        "docs/research/rp2040-ptrace-address-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/sigreturn_context_test.c",
+        "tests/kernel/ptrace_test.c"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "maintained-arm",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "hardware-seam",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "sys/arch/stm32/stm32/clock.c",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -58101,7 +58176,7 @@
       "path": "sys/kern/sys_process.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "ptrace-address-register-admission",
+      "owner": "ptrace-and-signal-context-admission",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "accepted",
@@ -58110,7 +58185,8 @@
         "sys/arch/rp2040/doc/TESTING.md",
         "tests/kernel/ptrace_test.c",
         "tests/kernel/ptrace_extract.py",
-        "tests/kernel/ptrace_mutate.py"
+        "tests/kernel/ptrace_mutate.py",
+        "docs/research/rp2040-signal-context-admission.md"
       ],
       "blocker": "",
       "classification": {
@@ -62978,6 +63054,7 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
+            "shift-expression",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],

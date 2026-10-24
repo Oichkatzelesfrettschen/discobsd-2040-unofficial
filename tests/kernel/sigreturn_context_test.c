@@ -22,15 +22,22 @@
 
 typedef char *caddr_t;
 typedef unsigned int u_int;
+typedef unsigned long u_long;
 
+static int baduaddr_span(caddr_t, u_int);
+
+#define USER_DATA_START UINT32_C(0x20000000)
 #include "../../sys/arch/rp2040/include/frame.h"
+#include "../../sys/arch/rp2040/include/scb.h"
 #include "../../sys/arch/rp2040/include/signal.h"
+#include "../../sys/arch/rp2040/include/user_context.h"
 
 #ifndef SIGRETURN_CONTEXT_FUNCTION
 #define SIGRETURN_CONTEXT_FUNCTION "sigreturn_context_function.c"
 #endif
 
 #define EFAULT 14
+#define EINVAL 22
 #define EJUSTRETURN (-2)
 #define SA_ONSTACK 0x0001
 #define SYSTRACE_SIGNAL 2
@@ -88,6 +95,7 @@ static struct trapframe frame;
 static const long sigcantmask = 0x00000300L;
 static uintptr_t logical_user_lower;
 static uintptr_t logical_user_upper;
+static u_int logical_process_upper;
 static unsigned int baduaddr_calls;
 static unsigned int copyin_calls;
 static uintptr_t copyin_source;
@@ -96,6 +104,17 @@ static u_int copyin_length;
 static int force_copyin_failure;
 static int overwrite_user_after_copy;
 static int failures;
+static unsigned long checks;
+
+static int
+baduaddr_span(caddr_t address, u_int length)
+{
+	u_int start = (u_int)(uintptr_t)address;
+
+	if (start < USER_DATA_START || start > logical_process_upper)
+		return 1;
+	return length > logical_process_upper - start;
+}
 
 static int
 baduaddr(caddr_t address)
@@ -129,6 +148,7 @@ copyin(caddr_t source, caddr_t destination, u_int length)
 #include SIGRETURN_CONTEXT_FUNCTION
 
 #define CHECK(label, expression) do { \
+	checks++; \
 	if (!(expression)) { \
 		fprintf(stderr, "FAIL %s\n", label); \
 		failures++; \
@@ -144,10 +164,10 @@ fill_context(struct sigcontext *context)
 	context->sc_r1 = 0x11111111U;
 	context->sc_r2 = 0x12121212U;
 	context->sc_r3 = 0x13131313U;
-	context->sc_sp = 0x20202020U;
+	context->sc_sp = USER_DATA_START + 0x80U;
 	context->sc_lr = 0x21212121U;
-	context->sc_pc = 0x22222223U;
-	context->sc_psr = 0x61000200U;
+	context->sc_pc = USER_DATA_START + 2U;
+	context->sc_psr = UINT32_C(0x61000200);
 	context->sc_r4 = 0x14141414U;
 	context->sc_r5 = 0x15151515U;
 	context->sc_r6 = 0x16161616U;
@@ -168,6 +188,7 @@ reset_fixture(u_int frame_base)
 	u.u_procp = &process;
 	u.u_frame = &frame;
 	process.p_sigmask = 0x55aa55aaL;
+	logical_process_upper = USER_DATA_START + 0x100U;
 	baduaddr_calls = 0;
 	copyin_calls = 0;
 	copyin_source = 0;
@@ -202,10 +223,10 @@ check_restored_context(const struct sigcontext *context)
 }
 
 static void
-check_rejected_state(const char *case_name, const struct trapframe *before,
-    int stack_flags, long signal_mask)
+check_rejected_state(const char *case_name, int expected_error,
+    const struct trapframe *before, int stack_flags, long signal_mask)
 {
-	CHECK(case_name, u.u_error == EFAULT);
+	CHECK(case_name, u.u_error == expected_error);
 	CHECK("rejection preserves trapframe",
 	    memcmp(&frame, before, sizeof(frame)) == 0);
 	CHECK("rejection preserves alternate-stack state",
@@ -282,7 +303,7 @@ check_invalid_or_truncated_context(int first_byte_invalid)
 	sigreturn();
 	check_rejected_state(first_byte_invalid ?
 	    "invalid context reports EFAULT" :
-	    "truncated context reports EFAULT", &before, stack_flags,
+	    "truncated context reports EFAULT", EFAULT, &before, stack_flags,
 	    signal_mask);
 	CHECK("rejected context requests one complete copy", copyin_calls == 1);
 	CHECK("rejected context avoids probe-only admission", baduaddr_calls == 0);
@@ -306,7 +327,8 @@ check_forced_copy_failure(void)
 	stack_flags = u.u_sigstk.ss_flags;
 	signal_mask = process.p_sigmask;
 	sigreturn();
-	check_rejected_state("copy failure reports EFAULT", &before, stack_flags,
+	check_rejected_state("copy failure reports EFAULT", EFAULT, &before,
+	    stack_flags,
 	    signal_mask);
 	CHECK("forced failure requests one complete copy", copyin_calls == 1);
 }
@@ -325,10 +347,148 @@ check_context_address_wrap(void)
 	stack_flags = u.u_sigstk.ss_flags;
 	signal_mask = process.p_sigmask;
 	sigreturn();
-	check_rejected_state("wrapped context reports EFAULT", &before,
+	check_rejected_state("wrapped context reports EFAULT", EFAULT, &before,
 	    stack_flags, signal_mask);
 	CHECK("wrapped context skips copy", copyin_calls == 0);
 	CHECK("wrapped context skips probe", baduaddr_calls == 0);
+}
+
+static void
+check_semantic_outcome(const char *case_name, struct sigcontext *context,
+    u_int process_upper, int expected_error)
+{
+	struct context_storage storage;
+	struct trapframe before;
+	int stack_flags;
+	long signal_mask;
+
+	memset(&storage, 0, sizeof(storage));
+	storage.context = *context;
+	reset_fixture((u_int)(uintptr_t)&storage);
+	logical_user_lower = (uintptr_t)&storage.context;
+	logical_user_upper = logical_user_lower + sizeof(storage.context);
+	logical_process_upper = process_upper;
+	before = frame;
+	stack_flags = u.u_sigstk.ss_flags;
+	signal_mask = process.p_sigmask;
+	sigreturn();
+	CHECK("semantic admission uses one complete copy", copyin_calls == 1);
+	if (expected_error == EJUSTRETURN)
+		check_restored_context(context);
+	else
+		check_rejected_state(case_name, expected_error, &before,
+		    stack_flags, signal_mask);
+}
+
+static void
+check_program_counter_admission(void)
+{
+	struct sigcontext context;
+	u_int process_upper = USER_DATA_START + 0x100U;
+
+	fill_context(&context);
+	context.sc_pc = 0;
+	check_semantic_outcome("boot ROM lower endpoint accepted", &context,
+	    process_upper, EJUSTRETURN);
+	context.sc_pc = RP2040_USER_BOOT_ROM_END - INSN_SZ;
+	check_semantic_outcome("boot ROM final halfword accepted", &context,
+	    process_upper, EJUSTRETURN);
+	context.sc_pc = RP2040_USER_BOOT_ROM_END;
+	check_semantic_outcome("post-ROM gap reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_pc = USER_DATA_START - INSN_SZ;
+	check_semantic_outcome("pre-window gap reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_pc = USER_DATA_START;
+	check_semantic_outcome("process lower endpoint accepted", &context,
+	    process_upper, EJUSTRETURN);
+	context.sc_pc = process_upper - INSN_SZ;
+	check_semantic_outcome("process final halfword accepted", &context,
+	    process_upper, EJUSTRETURN);
+	context.sc_pc = process_upper - 1U;
+	check_semantic_outcome("odd PC reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_pc = process_upper;
+	check_semantic_outcome("incomplete final PC reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_pc = UINT_MAX - 1U;
+	check_semantic_outcome("wrapped PC reports EINVAL", &context,
+	    process_upper, EINVAL);
+}
+
+static void
+check_stack_admission(void)
+{
+	struct sigcontext context;
+	u_int process_upper = USER_DATA_START + 0x100U;
+
+	fill_context(&context);
+	context.sc_psr = UINT32_C(0x01000000);
+	context.sc_sp = process_upper - 32U;
+	check_semantic_outcome("exact base frame accepted", &context,
+	    process_upper, EJUSTRETURN);
+	context.sc_sp = USER_DATA_START + 0xe0U;
+	check_semantic_outcome("short base frame reports EINVAL", &context,
+	    USER_DATA_START + 0xfcU, EINVAL);
+	context.sc_sp = USER_DATA_START + 0x81U;
+	check_semantic_outcome("misaligned SP reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_sp = USER_DATA_START - 8U;
+	check_semantic_outcome("pre-window SP reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_sp = UINT_MAX - 7U;
+	check_semantic_outcome("wrapped SP reports EINVAL", &context,
+	    process_upper, EINVAL);
+
+	context.sc_psr = UINT32_C(0x01000000) | XPSR_STKALIGN;
+	context.sc_sp = process_upper - 32U;
+	check_semantic_outcome("missing alignment padding reports EINVAL",
+	    &context, process_upper, EINVAL);
+	process_upper = USER_DATA_START + 0x104U;
+	context.sc_sp = process_upper - 36U;
+	check_semantic_outcome("exact padded frame accepted", &context,
+	    process_upper, EJUSTRETURN);
+}
+
+static void
+check_processor_status_admission(void)
+{
+	struct sigcontext context;
+	u_int condition_flags;
+	u_int alignment_case;
+	unsigned int bit;
+	char case_name[80];
+
+	for (alignment_case = 0; alignment_case < 2; alignment_case++) {
+		for (condition_flags = 0; condition_flags < 16;
+		    condition_flags++) {
+			fill_context(&context);
+			context.sc_psr = (condition_flags << 28U) |
+			    UINT32_C(0x01000000);
+			if (alignment_case != 0)
+				context.sc_psr |= XPSR_STKALIGN;
+			check_semantic_outcome("allowed xPSR accepted", &context,
+			    USER_DATA_START + 0x100U, EJUSTRETURN);
+		}
+	}
+
+	fill_context(&context);
+	context.sc_psr = 0;
+	check_semantic_outcome("missing Thumb bit reports EINVAL", &context,
+	    USER_DATA_START + 0x100U, EINVAL);
+	for (bit = 0; bit < 32; bit++) {
+		u_int bit_mask = UINT32_C(1) << bit;
+
+		if ((bit_mask & (PSR_NZCV | UINT32_C(0x01000000) |
+		    XPSR_STKALIGN)) != 0)
+			continue;
+		fill_context(&context);
+		context.sc_psr = UINT32_C(0x01000000) | bit_mask;
+		(void)snprintf(case_name, sizeof(case_name),
+		    "prohibited xPSR bit %u reports EINVAL", bit);
+		check_semantic_outcome(case_name, &context,
+		    USER_DATA_START + 0x100U, EINVAL);
+	}
 }
 
 int
@@ -342,5 +502,10 @@ main(void)
 	check_invalid_or_truncated_context(0);
 	check_forced_copy_failure();
 	check_context_address_wrap();
+	check_program_counter_admission();
+	check_stack_admission();
+	check_processor_status_admission();
+	if (failures == 0)
+		printf("sigreturn context admission: %lu checks passed\n", checks);
 	return failures != 0;
 }

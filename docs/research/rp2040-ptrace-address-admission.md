@@ -39,7 +39,9 @@ request values:
   accept all bit patterns. The saved stack pointer must be eight-byte aligned
   and leave room for the complete eight-word exception-return frame inside the
   process window. The program counter must be halfword aligned and address a
-  complete Thumb instruction halfword inside that window.
+  complete Thumb instruction halfword in an unprivileged executable region.
+  RP2040 admits both its 16 KB Boot ROM and the process window; maintained
+  STM32 retains its process-window-only policy.
 - An xPSR write may change only the N, Z, C, and V condition flags. Thumb
   state, stacked alignment, exception state, and every reserved field retain
   their saved values.
@@ -61,7 +63,7 @@ offset convention, and parent-child traced-stop handshake remain unchanged.
 
 `tests/kernel/ptrace_extract.py` binds the production helpers, `ptrace()`, and
 `procxmt()` to a source SHA-256 before the host fixture includes them. Native,
-ILP32, and sanitizer runs execute 135 assertions over parent and child lock
+ILP32, and sanitizer runs execute 145 assertions over parent and child lock
 ownership, traced-child admission, successful `-1` result propagation,
 complete and crossing user words, injected partial-copy failure, user-area
 offsets, every writable register, prohibited user fields, stack and program
@@ -167,9 +169,18 @@ physical-board operation.
 
 Runtime stack and heap high-water and storage traffic remain unmeasured.
 
+The later signal-return resumed-state unit moved executable-PC and
+exception-frame geometry into machine-owned headers. That change corrects the
+RP2040 process-window-only PC policy recorded by the original unit:
+unprivileged processes execute libc floating-point helpers from Boot ROM, so a
+traced child may legitimately stop or resume there. The expanded ptrace
+fixture admits both ROM endpoints, rejects the adjacent gap, and retains all
+twelve calibrated mutations at native and ILP32 widths. The STM32
+implementation preserves the process-window policy through its own header.
+
 The bounded unit closes the shipped direct-address `ptrace` path. A real
 single-step mechanism remains a separate additive architecture project: it
 needs breakpoint instruction ownership, cache and flash policy, signal
 delivery semantics, collision behavior, cleanup after tracer death, and board
-execution evidence. The signal-return xPSR boundary remains governed by its
-own admission record and does not inherit the ptrace mask by implication.
+execution evidence. Signal-return xPSR admission remains governed by its own
+record and does not inherit the ptrace mask by implication.

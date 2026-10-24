@@ -22,10 +22,10 @@ copy failure returns `EFAULT` with those states unchanged.
 The change preserves syscall 103, `struct sigcontext` size and offsets, the
 trampoline's 32-byte frame convention, `sigcantmask` filtering and every
 handler-visible register value. The snapshot does not authenticate provenance:
-a handler can modify its own saved context before return. The change also
-preserves the existing unfiltered `sc_psr` restoration. Defining the allowed
-xPSR bits requires a separate contract covering BSD handler semantics,
-ARMv6-M exception-return rules and a deliberate hardware test.
+a handler can modify its own saved context before return. The snapshot unit
+preserved the existing unfiltered `sc_psr` restoration; the resumed-state
+admission extension below defines the later processor-status and
+exception-return geometry contract.
 
 `tests/kernel/sigreturn_context_extract.py` extracts the exact production
 function and binds the generated source to the complete production-file hash.
@@ -106,3 +106,56 @@ entry or return, MPU enforcement, interrupt behavior or silicon. The retained
 board signal-frame record predates the candidate and establishes only its
 identified image and workload. Physical-board execution for the candidate
 remains a separately authorized evidence class.
+
+## Resumed-state admission extension
+
+The copied context is untrusted state even after `copyin()` succeeds. The
+kernel validates the copied PC, SP, and xPSR before publishing `EJUSTRETURN`,
+alternate-stack flags, the signal mask, or any trapframe byte. Semantic
+rejection returns `EINVAL`; inaccessible context storage retains `EFAULT`.
+Every rejection preserves the complete prior trapframe, signal mask, and
+alternate-stack flags.
+
+The executable-PC policy follows the RP2040 MPU. An admitted PC is halfword
+aligned and names a complete two-byte Thumb halfword in either the 16 KB Boot
+ROM or the process-specific SRAM window. The Boot ROM belongs to the user
+execution domain because libc floating-point routines enter it while the
+process remains unprivileged. The process-window half of the check delegates
+to `baduaddr_span()`, preserving the conditional `USER_TOP()` extension
+contract. The common `sys_process.c` ptrace caller uses the same machine-owned
+policy; the maintained STM32 header retains its process-window-only policy.
+
+`sc_sp` names the base of the hardware exception frame that the privileged
+syscall return writes and the exception return consumes. The address must be
+eight-byte aligned. A context with xPSR bit 9 clear needs a complete 32-byte
+span. A context with stacked-alignment bit 9 set needs 36 bytes so exception
+return can consume the padding word. The RP2040 datasheet's Configuration and
+Control Register description states that stack alignment is permanently
+enabled and that exception return uses stacked PSR bit 9 to restore the
+interrupted alignment.
+
+ARMv6-M signal return accepts the N, Z, C, and V condition flags, requires the
+Thumb bit at xPSR bit 24, accepts stacked-alignment bit 9, and rejects every
+other bit. The rejected set includes every nonzero IPSR exception-number bit,
+so the restored state remains Thread mode. `CONTROL`, `PRIMASK`, and the fixed
+exception-return token remain kernel-owned and absent from `struct
+sigcontext`.
+
+The expanded ILP32 fixture retains all snapshot cases and adds both Boot ROM
+endpoints, both process-window endpoints, the intervening gaps, odd and
+wrapped PCs, exact and incomplete 32-byte frames, exact and incomplete
+36-byte padded frames, misaligned and wrapped SPs, all 16 NZCV combinations
+with both alignment states, a missing Thumb bit, and every prohibited xPSR bit
+individually. The successful path still restores every register and keeps the
+copy-then-overwrite seam. Eight calibrated mutants remove snapshot ownership,
+reread user storage, bypass PC admission, bypass SP alignment, shorten the
+base frame, omit alignment padding, bypass xPSR policy, or publish the signal
+mask before validation. Each mutant must exit through its named assertion
+with status 1. The fixture also runs with ILP32 address, undefined-behavior,
+and alignment sanitizers.
+
+The host fixtures establish the software predicate and failure-preservation
+contract. The exact PICO and PICO_UART production builds establish target
+compilation and linkage. Exception return, runtime stack high-water, MPU
+enforcement, deliberate faults, and physical-board behavior remain separate
+evidence classes that require an explicitly authorized board workload.

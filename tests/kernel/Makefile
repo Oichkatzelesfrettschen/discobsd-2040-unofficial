@@ -165,6 +165,10 @@ OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS}
 DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
 DIRREMOVE_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
 DIRREMOVE_MUTANTS=	discard-first-write-error discard-coalesced-write-error
+UFS_NAMESPACE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
+UFS_NAMESPACE_CFLAGS=	-ffunction-sections -fdata-sections -DDIAGNOSTIC \
+			${OPENAT_DEFS}
+UFS_NAMESPACE_MUTANTS=	omit-acquisition omit-wakeup clear-on-interrupt
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -1567,6 +1571,60 @@ check-dirremove-mutants: \
 		echo "PASS dirremove $$mutation mutation rejected"; \
 	done
 
+ufs_namespace_kernel32.o: ${UFS_NAMESPACE_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} ${ILP32} -c -o $@ \
+	    ${UFS_NAMESPACE_SRC}
+
+ufs_namespace_test32: ufs_namespace_test.c ufs_namespace_kernel32.o \
+    hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_namespace_test.c \
+	    ufs_namespace_kernel32.o hostkern32.o
+
+check-ufs-namespace-ilp32: ufs_namespace_test32
+	${TEST_EXECUTION} run kernel.ufs-namespace.ilp32 -- \
+	    ./ufs_namespace_test32
+
+.for mutation in ${UFS_NAMESPACE_MUTANTS}
+ufs_namespace_${mutation}.mutant.c: ufs_namespace_mutate.py \
+    ${UFS_NAMESPACE_SRC}
+	${PYTHON} ufs_namespace_mutate.py --source ${UFS_NAMESPACE_SRC} \
+	    --output $@ --mutation ${mutation}
+
+ufs_namespace_${mutation}.mutant.test: \
+    ufs_namespace_${mutation}.mutant.c ufs_namespace_test.c hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} ${ILP32} -c -o \
+	    ufs_namespace_${mutation}.mutant.o \
+	    ufs_namespace_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_namespace_test.c \
+	    ufs_namespace_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-ufs-namespace-mutants: \
+    ${UFS_NAMESPACE_MUTANTS:@mutation@ufs_namespace_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${UFS_NAMESPACE_MUTANTS}; do \
+		output=ufs_namespace_$$mutation.mutant.out; \
+		if ./ufs_namespace_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		omit-acquisition) expected='FAIL unexpected panic: ufs namespace gate' ;; \
+		omit-wakeup) expected='wakeup_calls == 1' ;; \
+		clear-on-interrupt) expected='sleep_calls == 2' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL UFS namespace $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS UFS namespace $$mutation mutation rejected"; \
+	done
+
 .for mutation in ${OPENAT_NAMEI_MUTANTS}
 openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
 	${PYTHON} openat_mutate.py --source ${OPENAT_NAMEI_SRC} --output $@ \
@@ -1980,6 +2038,7 @@ check-ilp32:
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    check-dirremove-ilp32 check-dirremove-mutants \
+	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
@@ -2099,6 +2158,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.openat-namei.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.ufs-namespace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -2215,6 +2275,9 @@ clean:
 	rm -f dirremove_kernel32.o dirremove_test32
 	rm -f dirremove_*.mutant.c dirremove_*.mutant.o \
 	    dirremove_*.mutant.test dirremove_*.mutant.out
+	rm -f ufs_namespace_kernel32.o ufs_namespace_test32
+	rm -f ufs_namespace_*.mutant.c ufs_namespace_*.mutant.o \
+	    ufs_namespace_*.mutant.test ufs_namespace_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2231,6 +2294,7 @@ clean:
 	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
 	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	check-dirremove-ilp32 check-dirremove-mutants \
+	check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

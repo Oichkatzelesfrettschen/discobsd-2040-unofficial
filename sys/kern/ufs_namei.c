@@ -19,6 +19,45 @@
 int dirchk = 0;
 struct nchstats nchstats;
 
+/*
+ * A UFS pathname mutation acquires this gate before its first inode lock and
+ * releases every inode before leaving it.  The kernel is uniprocessor and no
+ * interrupt handler changes these flags, so a process cannot lose the gate
+ * between observing it busy and entering tsleep(), which inserts the waiter
+ * under splhigh().
+ */
+static u_char ufs_namespace_busy;
+static u_char ufs_namespace_wanted;
+
+int
+ufs_namespace_enter(void)
+{
+    int error;
+
+    while (ufs_namespace_busy) {
+        ufs_namespace_wanted = 1;
+        error = tsleep((caddr_t)&ufs_namespace_busy, PINOD | PCATCH, 0);
+        if (error != 0)
+            return error;
+    }
+    ufs_namespace_busy = 1;
+    return 0;
+}
+
+void
+ufs_namespace_exit(void)
+{
+#ifdef DIAGNOSTIC
+    if (!ufs_namespace_busy)
+        panic("ufs namespace gate");
+#endif
+    ufs_namespace_busy = 0;
+    if (ufs_namespace_wanted) {
+        ufs_namespace_wanted = 0;
+        wakeup((caddr_t)&ufs_namespace_busy);
+    }
+}
+
 static int
 namei_copy_user_path(caddr_t source, char *destination)
 {

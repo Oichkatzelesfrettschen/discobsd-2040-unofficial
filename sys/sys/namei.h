@@ -147,6 +147,10 @@ int direnter (struct inode *ip, struct nameidata *ndp);
  */
 int dirremove (struct nameidata *ndp);
 
+/* Serialize UFS namespace topology changes across complete pathname walks. */
+int ufs_namespace_enter (void);
+void ufs_namespace_exit (void);
+
 #endif /* KERNEL */
 
 /*

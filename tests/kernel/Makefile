@@ -146,6 +146,23 @@ FUTIMES_RENAMES=	-Dstatfs=futimes_gate_statfs \
 	-Dfutimes=kernel_futimes
 FUTIMES_MUTANTS=	short-copy descriptor-before-copy
 .if ${_HOST_OSNAME} == "Darwin"
+OPENAT_LDFLAGS=	-Wl,-dead_strip
+.else
+OPENAT_LDFLAGS=	-Wl,--gc-sections
+.endif
+OPENAT_NAMEI_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
+OPENAT_VNOPS_SRC=	${TOPSRC}/sys/kern/vfs_vnops.c
+OPENAT_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
+OPENAT_DEFS=	-DSINGLE_UFS_ROOT -DNMOUNT=1 -DLINEAR_NAME_CACHE \
+		-DNNAMECACHE=4
+OPENAT_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+OPENAT_RENAMES=	-Dopen=kernel_open -Dopenat=kernel_openat \
+		-Dsetjmp=openat_setjmp -Diput=iput_openat
+OPENAT_SYSCALL_RENAMES=	${OPENAT_RENAMES} -Dmaknode=openat_syscalls_maknode
+OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd
+OPENAT_VNOPS_MUTANTS=	follow-final-symlink
+OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS}
+.if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
 FUTIMES_LDFLAGS=	-Wl,--gc-sections
@@ -1473,6 +1490,83 @@ futimes_${mutation}.mutant.test: futimes_${mutation}.mutant.c \
 	    futimes_${mutation}.mutant.o hostkern32.o
 .endfor
 
+openat_namei32.o: ${OPENAT_NAMEI_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} -c -o $@ \
+	    ${OPENAT_NAMEI_SRC}
+
+openat_vnops32.o: ${OPENAT_VNOPS_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_RENAMES} ${ILP32} \
+	    -c -o $@ ${OPENAT_VNOPS_SRC}
+
+openat_syscalls32.o: ${OPENAT_SYSCALL_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_SYSCALL_RENAMES} ${ILP32} \
+	    -c -o $@ ${OPENAT_SYSCALL_SRC}
+
+openat_namei_test32: openat_test.c openat_namei32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
+	    openat_namei32.o hostkern32.o
+
+openat_test32: openat_test.c openat_vnops32.o openat_syscalls32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ openat_test.c openat_vnops32.o \
+	    openat_syscalls32.o hostkern32.o
+
+check-openat-ilp32: openat_namei_test32 openat_test32
+	${TEST_EXECUTION} run kernel.openat-namei.ilp32 -- ./openat_namei_test32
+	${TEST_EXECUTION} run kernel.openat.ilp32 -- ./openat_test32
+
+.for mutation in ${OPENAT_NAMEI_MUTANTS}
+openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
+	${PYTHON} openat_mutate.py --source ${OPENAT_NAMEI_SRC} --output $@ \
+	    --mutation ${mutation}
+
+openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
+    openat_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	    -c -o openat_${mutation}.mutant.o openat_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
+	    openat_${mutation}.mutant.o hostkern32.o
+.endfor
+
+.for mutation in ${OPENAT_VNOPS_MUTANTS}
+openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_VNOPS_SRC}
+	${PYTHON} openat_mutate.py --source ${OPENAT_VNOPS_SRC} --output $@ \
+	    --mutation ${mutation}
+
+openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
+    openat_test.c openat_syscalls32.o hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_RENAMES} ${ILP32} \
+	    -c -o openat_${mutation}.mutant.o openat_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ openat_test.c \
+	    openat_${mutation}.mutant.o openat_syscalls32.o hostkern32.o
+.endfor
+
+check-openat-mutants: \
+    ${OPENAT_MUTANTS:@mutation@openat_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${OPENAT_MUTANTS}; do \
+		output=openat_$$mutation.mutant.out; \
+		if ./openat_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		cwd-instead-of-dirfd) expected='result == &descriptor_inode' ;; \
+		absolute-consults-dirfd) expected='result == &root_inode' ;; \
+		follow-final-symlink) expected='u.u_error == ELOOP' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL openat $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS openat $$mutation mutation rejected"; \
+	done
+
 check-futimes-mutants: \
     ${FUTIMES_MUTANTS:@mutation@futimes_${mutation}.mutant.test@}
 	@set -eu; for mutation in ${FUTIMES_MUTANTS}; do \
@@ -1833,7 +1927,7 @@ check-ilp32:
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
-	    check-futimes-mutants \
+	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
@@ -1950,6 +2044,8 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.futimes.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.openat-namei.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -2059,6 +2155,10 @@ clean:
 	rm -f futimes_kernel32.o futimes_test32
 	rm -f futimes_*.mutant.c futimes_*.mutant.o futimes_*.mutant.test \
 	    futimes_*.mutant.out
+	rm -f openat_namei32.o openat_vnops32.o openat_syscalls32.o \
+	    openat_namei_test32 openat_test32
+	rm -f openat_*.mutant.c openat_*.mutant.o openat_*.mutant.test \
+	    openat_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2073,7 +2173,7 @@ clean:
 	check-file-owner-sanitizer check-file-status-mutants \
 	check-fionread-mutants check-fionread-sanitizer \
 	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
-	check-futimes-mutants \
+	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

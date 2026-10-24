@@ -227,6 +227,7 @@ int closei (struct inode *ip, int flag);
  * Convert a pathname into a pointer to a locked inode.
  */
 struct inode *namei (struct nameidata *ndp);
+struct inode *namei_at (struct nameidata *ndp, int dirfd);
 
 enum uio_rw;
 int rdwri (enum uio_rw rw, struct inode *ip, caddr_t base, int len,

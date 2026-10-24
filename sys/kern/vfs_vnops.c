@@ -65,15 +65,16 @@
  * would leave u_qsave pointing at a returned frame during error cleanup.
  */
 int
-vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
+vn_open_at(register struct nameidata *ndp, volatile int fmode, int cmode,
+    int dirfd)
 {
     register struct inode *ip;
     register int error;
 
     if (fmode & O_CREAT) {
         NAMEI_RESET_OPERATION(ndp, CREATE,
-            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);
-        ip = namei(ndp);
+            (fmode & (O_EXCL | O_NOFOLLOW)) ? NOFOLLOW : FOLLOW);
+        ip = namei_at(ndp, dirfd);
         if (ip == NULL) {
             if (u.u_error) {
                 goto retuerr;
@@ -91,10 +92,29 @@ vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
             fmode &= ~O_CREAT;
         }
     } else {
-        NAMEI_RESET_OPERATION(ndp, LOOKUP, FOLLOW);
-        ip = namei(ndp);
+        NAMEI_RESET_OPERATION(ndp, LOOKUP,
+            (fmode & O_NOFOLLOW) ? NOFOLLOW : FOLLOW);
+        ip = namei_at(ndp, dirfd);
         if (ip == NULL) {
             goto retuerr;
+        }
+    }
+    if ((fmode & O_NOFOLLOW) && (ip->i_mode & IFMT) == IFLNK) {
+        error = ELOOP;
+        goto bad;
+    }
+    if ((fmode & O_DIRECTORY) && (ip->i_mode & IFMT) != IFDIR) {
+        error = ENOTDIR;
+        goto bad;
+    }
+    if (fmode & FSEARCH) {
+        if ((ip->i_mode & IFMT) != IFDIR) {
+            error = ENOTDIR;
+            goto bad;
+        }
+        if (access(ip, IEXEC)) {
+            error = u.u_error;
+            goto bad;
         }
     }
     if ((ip->i_mode & IFMT) == IFSOCK) {
@@ -106,7 +126,7 @@ vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
         goto bad;
     }
     if ((fmode & O_CREAT) == 0) {
-        if (fmode & FREAD) {
+        if ((fmode & FSEARCH) == 0 && (fmode & FREAD)) {
             if (access(ip, IREAD)) {
                 error = u.u_error;  /* XXX */
                 goto bad;
@@ -136,7 +156,7 @@ vn_open(register struct nameidata *ndp, volatile int fmode, int cmode)
         error = EINTR;  /* opens are not restarted after signals */
         goto lbad;
     }
-    error = openi (ip, fmode);
+    error = openi(ip, fmode & ~(O_DIRECTORY | O_NOFOLLOW));
     if (error) {
         goto lbad;
     }
@@ -159,6 +179,12 @@ bad:
 
 retuerr:
     return(u.u_error);  /* XXX - Bletch */
+}
+
+int
+vn_open(register struct nameidata *ndp, int fmode, int cmode)
+{
+    return vn_open_at(ndp, fmode, cmode, AT_FDCWD);
 }
 
 /*

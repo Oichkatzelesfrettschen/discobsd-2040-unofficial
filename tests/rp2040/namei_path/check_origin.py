@@ -49,15 +49,15 @@ EXPECTED_CALLS = {
         "NAMEI_INIT_USER(ndp,LOOKUP,FOLLOW,uap->fname)",
     ],
     "sys/kern/vfs_vnops.c": [
-        "NAMEI_RESET_OPERATION(ndp,CREATE,(fmode&O_EXCL)?NOFOLLOW:FOLLOW)",
-        "NAMEI_RESET_OPERATION(ndp,LOOKUP,FOLLOW)",
+        "NAMEI_RESET_OPERATION(ndp,CREATE,(fmode&(O_EXCL|O_NOFOLLOW))?NOFOLLOW:FOLLOW)",
+        "NAMEI_RESET_OPERATION(ndp,LOOKUP,(fmode&O_NOFOLLOW)?NOFOLLOW:FOLLOW)",
     ],
 }
 
-# The conditional vn_open reset expresses separate O_EXCL and non-O_EXCL
-# transitions through one macro invocation so the Thumb-1 build shares the
+# Each conditional vn_open reset expresses two flag-dependent transitions
+# through one macro invocation so the Thumb-1 build shares the
 # origin-preservation sequence.
-CONDITIONAL_TRANSITION_CASES = 1
+CONDITIONAL_TRANSITION_CASES = 2
 
 CALL_PATTERN = re.compile(
     r"\b(?:NAMEI_INIT_USER|NAMEI_INIT_KERNEL|NAMEI_RESET_OPERATION)\s*"
@@ -156,8 +156,10 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     direct_write_sources = dict(clean_sources)
     caller_path = "sys/kern/vfs_vnops.c"
     direct_write_sources[caller_path] = direct_write_sources[caller_path].replace(
-        "NAMEI_RESET_OPERATION(ndp, LOOKUP, FOLLOW);",
-        "NAMEI_RESET_OPERATION(ndp, LOOKUP, FOLLOW);\n"
+        "NAMEI_RESET_OPERATION(ndp, LOOKUP,\n"
+        "            (fmode & O_NOFOLLOW) ? NOFOLLOW : FOLLOW);",
+        "NAMEI_RESET_OPERATION(ndp, LOOKUP,\n"
+        "            (fmode & O_NOFOLLOW) ? NOFOLLOW : FOLLOW);\n"
         "        ndp->ni_nameiop = CREATE;",
         1,
     )
@@ -174,9 +176,9 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     caller_path = "sys/kern/vfs_vnops.c"
     compound_write_sources[caller_path] = compound_write_sources[caller_path].replace(
         "NAMEI_RESET_OPERATION(ndp, CREATE,\n"
-        "            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);",
+        "            (fmode & (O_EXCL | O_NOFOLLOW)) ? NOFOLLOW : FOLLOW);",
         "NAMEI_RESET_OPERATION(ndp, CREATE,\n"
-        "            (fmode & O_EXCL) ? NOFOLLOW : FOLLOW);\n"
+        "            (fmode & (O_EXCL | O_NOFOLLOW)) ? NOFOLLOW : FOLLOW);\n"
         "        ndp->ni_nameiop &= ~NI_USERPATH;",
         1,
     )

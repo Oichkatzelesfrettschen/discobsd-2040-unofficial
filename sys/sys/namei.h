@@ -40,9 +40,11 @@ struct nameidata {
 #define FOLLOW      0x40    /* follow symbolic links */
 #define NOFOLLOW    0x0     /* don't follow symbolic links (pseudo) */
 #define NI_USERPATH 0x80    /* ni_dirp points to user memory */
+#define NI_NOEMPTY  0x100   /* reject an empty copied pathname */
 
-#if (NI_USERPATH & (CREATE | DELETE | LOCKPARENT | NOCACHE | FOLLOW)) != 0
-#error "NI_USERPATH overlaps a namei operation or modifier"
+#if ((NI_USERPATH | NI_NOEMPTY) & \
+    (CREATE | DELETE | LOCKPARENT | NOCACHE | FOLLOW)) != 0
+#error "private namei flags overlap an operation or modifier"
 #endif
 
 #define NAMEI_INIT_USER(ndp, operation, modifiers, pathname) do { \
@@ -58,7 +60,11 @@ struct nameidata {
 
 #define NAMEI_RESET_OPERATION(ndp, operation, modifiers) do { \
     (ndp)->ni_nameiop = (short)(((ndp)->ni_nameiop & NI_USERPATH) | \
-        (operation) | (modifiers)); \
+        ((ndp)->ni_nameiop & NI_NOEMPTY) | (operation) | (modifiers)); \
+} while (0)
+
+#define NAMEI_REJECT_EMPTY(ndp) do { \
+    (ndp)->ni_nameiop = (short)((ndp)->ni_nameiop | NI_NOEMPTY); \
 } while (0)
 
 /*
@@ -129,6 +135,7 @@ void nchinit (void);
  * Common code for vnode open operations.
  */
 int vn_open (struct nameidata *ndp, int fmode, int cmode);
+int vn_open_at (struct nameidata *ndp, int fmode, int cmode, int dirfd);
 
 /*
  * Write a directory entry after a call to namei.

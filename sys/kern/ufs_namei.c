@@ -13,6 +13,8 @@
 #include <sys/buf.h>
 #include <sys/namei.h>
 #include <sys/proc.h>
+#include <sys/file.h>
+#include <sys/fcntl.h>
 
 int dirchk = 0;
 struct nchstats nchstats;
@@ -226,7 +228,7 @@ dirbadentry(register struct direct *ep, int entryoffsetinblock)
  *   but unlocked.
  */
 struct inode *
-namei(register struct nameidata *ndp)
+namei_at(register struct nameidata *ndp, int dirfd)
 {
     register char *cp;          /* pointer into pathname argument */
 /* these variables refer to things which must be freed or unlocked */
@@ -266,7 +268,8 @@ namei(register struct nameidata *ndp)
 
     lockparent = ndp->ni_nameiop & LOCKPARENT;
     docache = (ndp->ni_nameiop & NOCACHE) ^ NOCACHE;
-    flag = ndp->ni_nameiop &~ (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH);
+    flag = ndp->ni_nameiop &~
+        (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH|NI_NOEMPTY);
     if (flag == DELETE || lockparent)
         docache = 0;
     /*
@@ -275,6 +278,10 @@ namei(register struct nameidata *ndp)
     error = namei_copy_path(ndp, path);
     if (error) {
         u.u_error = error;
+        goto retNULL;
+    }
+    if ((ndp->ni_nameiop & NI_NOEMPTY) && path[0] == '\0') {
+        u.u_error = ENOENT;
         goto retNULL;
     }
 
@@ -287,8 +294,19 @@ namei(register struct nameidata *ndp)
             cp++;
         if ((dp = u.u_rdir) == NULL)
             dp = rootdir;
-    } else
+    } else if (dirfd == AT_FDCWD) {
         dp = u.u_cdir;
+    } else {
+        struct file *fp = getf(dirfd);
+
+        if (fp == NULL)
+            goto retNULL;
+        if (fp->f_type != DTYPE_INODE) {
+            u.u_error = ENOTDIR;
+            goto retNULL;
+        }
+        dp = (struct inode *)fp->f_data;
+    }
     fs = INODE_FILESYSTEM(dp);
     ILOCK(dp);
     dp->i_count++;
@@ -979,6 +997,12 @@ bad:
 retNULL:
     ndp->ni_ip = NULL;
     return (NULL);
+}
+
+struct inode *
+namei(register struct nameidata *ndp)
+{
+    return namei_at(ndp, AT_FDCWD);
 }
 
 /*

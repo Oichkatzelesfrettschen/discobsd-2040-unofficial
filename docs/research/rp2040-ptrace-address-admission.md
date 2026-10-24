@@ -3,7 +3,7 @@
 Date: 2026-10-24 UTC
 Baseline revision: `6fb7903da37ff0603fca5dd4e0bff803440b3dd9`
 Implementation revision: `1e47182015a6bf8b0ee91f4caf1b135cb9bd0d1c`
-Aggregate validation revision: `43996d19529b741d86893b160b9651521954421b`
+Aggregate validation revision: `2d2598b36c8a75d58146beab0a15c329ecf66738`
 
 ## Finding and historical contract
 
@@ -147,15 +147,15 @@ The retained evidence records have these SHA-256 identities:
 | Object and frame comparison | `66420a9d1e5aafe99ae92660606f1adeaf8a752ed993102133cb3233921517e6` |
 | Candidate clean status | `4eaef3928a8b76c613e48d75f5d54e63f8f343bac8073b2759e24c31b952c36f` |
 | Candidate distribution status | `829f17240c19934e85fa4191736f7aba53f60e43e37fe8bae10ada5bb5b569ac` |
-| Exact-head aggregate sequence status | `c03ddc9851fe8c40bbfe1fcd6f827630a956c1f6295bfbab220e95315fc316fb` |
-| Exact-head aggregate build status | `11a1cb692763e045b40b22ef66e82fc92407318f210f3071a41f37af5ba31840` |
-| Exact-head aggregate check status | `d218d9bdbcb08ad7c9354ca55a2cdf1f9ee8896c1f112ffec0b604d0858ca3f9` |
+| Exact-head aggregate sequence status | `1dea46df13ea81fb8f117d062dbfdf38643288d3b240804e4154ccef36ef8c76` |
+| Exact-head aggregate build status | `556fa661c7a7dfe327b8ff2b492f7900ec6f5578b8387103d49e776d8f74e253` |
+| Exact-head aggregate check status | `24f94fbadf577ebe4ff146d4b1b3e79440c1e592cc949fc0f80d177784de7c7b` |
 
 The exact-head `logged-check` invocation
-`rp2040-check-local-20261024T065545Z-796583-b6100ca1` completed with status 0
-at aggregate validation revision `43996d19`. Its build stage completed with
-status 0 in 50.681 seconds, its check stage completed with status 0 in 401.156
-seconds, and the complete sequence took 451.839 seconds. The aggregate ran the
+`rp2040-check-local-20261024T071335Z-3047259-81d5a00f` completed with status 0
+at aggregate validation revision `2d2598b3`. Its build stage completed with
+status 0 in 48.448 seconds, its check stage completed with status 0 in 316.443
+seconds, and the complete sequence took 364.893 seconds. The aggregate ran the
 host, ILP32, sanitizer, mutation, target-build, archive, image, and accounting
 gates registered under `logged-check`. The invocation performed no
 physical-board operation.

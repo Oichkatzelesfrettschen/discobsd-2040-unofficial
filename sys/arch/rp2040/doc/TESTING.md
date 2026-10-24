@@ -579,6 +579,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-tar-host`: bin/tar/tests/timestamp_identity_test.sh | The exact tar source compiles under strict C17 warnings with timestamp calls interposed. Immediately before timestamp publication, the fixture renames an extracted regular file or verified directory and creates a same-kind replacement at the original pathname. The moved descriptor-owned object must receive the archive timestamp while the replacement retains its timestamp and file contents. A warning-clean source mutation restores pathname `utimes(2)` and must fail because the moved object did not receive the timestamp. The gate establishes the two scheduled replacement cases; remaining create, link, removal, parent-relocation, persistence, and board behavior retain separate contracts. |
 | usr.bin/textbox/tests/run.sh | the sbase text tools against GNU coreutils and sharutils, and getline_test over the tree's own getline.c: buffer ownership after a refused growth, the byte that did not fit pushed back, the bytes before a stream error terminated, and the capacity policy held at SSIZE_MAX + 1 at the host width and at -m32 |
 | usr.bin/cpio/tests/cpiotest.sh | the exact cpio source built as strict C17 under the address and undefined-behavior sanitizers with the target's 256-byte path limit: odc archives round-tripped in both directions through host cpio; exact octal fields, one trailing name terminator and the mandatory trailer; the 255-byte maximum input name with newline and EOF delimiters; refusal of 256-byte and NUL-bearing input records; listing from an execute-only current directory; refusal of absolute, `..`, empty and dot path components, control-byte listings, symlinked extraction parents and targets, existing targets, directory data, unsupported types, and final or parent symlinks plus absolute or missing archive-creation inputs; setuid and setgid removal; owner traversal retained under `umask 0777` for a created directory before a later child. The pre-change source fails the same gate by accepting the absolute escape archive; review head `468b2c2327ce2a5a098e139744d7c22030fb728a` fails all four added boundary controls. |
+| `check-cpio-host`: usr.bin/cpio/tests/cleanup_identity_test.sh | The exact cpio source compiles under strict C17 warnings with the additive rooted-removal call plus output write and close calls interposed. Truncated input and an injected `ENOSPC` remove the incomplete descriptor-owned regular file before closing it. A scheduled same-name replacement arrives before cleanup; the identity mismatch preserves its bytes, reports the cleanup failure separately and retains the write error as the primary failure. An injected close error occurs after the shim consumes the descriptor and must preserve the completed pathname. Warning-clean mutations pass an invalid expected descriptor, restore pathname `unlink(2)`, or restore post-close pathname cleanup; the first must leave the owned incomplete output behind, the second must delete the replacement, and the third must delete the completed output. The host shim establishes the utility protocol after deterministic replacement and close events. `kernel.unlinkat-beneath.ilp32` separately establishes comparison and mutation under the production parent lock. Neither host case establishes unscheduled host-filesystem atomicity, crash recovery, persistence or board behavior. |
 | `check-compress-host`: usr.bin/compress/tests/compresscheck.sh | the shipped 12-bit LZW encoder and decoder under the address and undefined-behavior sanitizers: strict decimal `-b` grammar, clamping oversized decimal values without integer overflow, a known-good self round trip, host gzip interoperability, named-input stdout operation beyond the fixed output-name capacity, rejection of invalid magic and truncated or out-of-range headers before header-controlled shifts, the CVE-2006-1168 cyclic-prefix reproducer constrained to the target header, nonzero corruption status and removal of partial named output; a forced metadata-copy failure must preserve the input, remove the destination and report failure; a mutation removes the dictionary-range, prefix-order and stack-end checks and must reproduce the `htab` global-buffer-overflow under AddressSanitizer. A DEBUG syntax build keeps the complete translation unit under `-Wall -Wextra -Werror` |
 
 The tar creation gate also follows a symlinked parent with `-h` from a
@@ -1858,3 +1859,26 @@ and appears once in the 389-member archive; the extracted archive member is
 byte-identical to the compiled object. These measurements establish linked
 placement and archive isolation for the recorded toolchain. They do not make
 the remaining kernel headroom available to unrelated changes.
+
+`check-cpio-host` adds `cleanup_identity_test.sh` to the existing odc and
+confinement suite. The cleanup fixture compiles the exact cpio source with a
+host-only `unlinkat_beneath()` shim and an injected output-write provider. It
+exercises truncated input, `ENOSPC`, a replacement immediately before cleanup,
+separate cleanup reporting, descriptor lifetime, and an error after the close
+shim consumes the descriptor. Invalid-expected-descriptor, pathname-only
+unlink and post-close pathname-cleanup mutations have distinct deciding
+filesystem assertions. The shim compares identities before calling host
+`unlinkat(2)` and therefore cannot establish concurrent host atomicity;
+`kernel.unlinkat-beneath.ilp32` owns that production-kernel claim.
+
+Against the exact pre-caller source at `9de6aaec`, the target cpio object gains
+112 text bytes and retains data and BSS. The linked ELF and a.out each gain 92
+bytes; the a.out grows from 10,524 to 10,616 bytes. The `main()` and `copy_in()`
+static frames remain 32 and 128 bytes, and the cleanup helper adds a 24-byte
+frame without changing the larger existing input path. The utility retains its
+fixed 256-byte path and 512-byte I/O buffers, allocates no heap, and holds only
+the extraction-root and output descriptors during cleanup. Archive selection
+replaces the equal-sized `unlink.o` syscall member with
+`unlinkat_beneath.o`. The caller-complete identity repair therefore carries a
+bounded 92-byte a.out exception. Packed-root and clean-distribution effects
+remain assigned to the final matched comparison.

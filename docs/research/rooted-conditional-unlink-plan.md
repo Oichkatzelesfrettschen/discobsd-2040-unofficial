@@ -142,7 +142,7 @@ not establish kernel atomicity.
    `unlinkat_beneath()`.
 6. [x] Add generated-metadata, public-prototype, function-pointer, Smaller C,
    and archive-selection failures, then append syscall 158 and its libc member.
-7. [ ] Add failing cpio cleanup and replacement fixtures, then keep the output
+7. [x] Add failing cpio cleanup and replacement fixtures, then keep the output
    descriptor live through identity-conditioned cleanup of truncated input,
    write failure, and the target kernel's regular-file close path.
 8. [ ] Register the focused gates with the root Makefile, testing guide,

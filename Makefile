@@ -1032,8 +1032,9 @@ check-tar-host:
 check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh
 
-check-cpio-host:
+check-cpio-host: check-python
 		sh usr.bin/cpio/tests/cpiotest.sh
+		PYTHON=${PYTHON:Q} sh usr.bin/cpio/tests/cleanup_identity_test.sh
 
 check-compress-host: check-python
 		PYTHON=${PYTHON:Q} sh usr.bin/compress/tests/compresscheck.sh

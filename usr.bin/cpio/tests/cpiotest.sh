@@ -27,7 +27,9 @@ else
 	    -Wall -Wextra -Werror \
 	    -Wpedantic -Wstrict-prototypes -Wold-style-definition \
 	    -fno-omit-frame-pointer -fsanitize=address,undefined \
-	    -o "$CPIO" "$srcdir/cpio.c" ||
+	    -include "$srcdir/tests/cleanup_identity_shim.h" \
+	    -o "$CPIO" "$srcdir/cpio.c" \
+	    "$srcdir/tests/cleanup_identity_shim.c" ||
 	    fail "host build of cpio.c"
 fi
 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0

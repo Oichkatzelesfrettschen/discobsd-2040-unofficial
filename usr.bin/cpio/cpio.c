@@ -403,8 +403,32 @@ create_output_file(const char *leaf_name, mode_t mode)
 }
 
 static void
-copy_archive_data(unsigned long file_size, int output_descriptor,
-    const char *leaf_name)
+report_cleanup_error(const char *operation, const char *path, int error)
+{
+    fprintf(stderr, "cpio: cleanup %s %s: %s\n", operation, path,
+        strerror(error));
+}
+
+static void
+remove_incomplete_output(int root_descriptor, const char *path,
+    int output_descriptor)
+{
+    int remove_error = 0;
+    int close_error = 0;
+
+    if (unlinkat_beneath(root_descriptor, path, output_descriptor) < 0)
+        remove_error = errno;
+    if (close(output_descriptor) < 0)
+        close_error = errno;
+    if (remove_error != 0)
+        report_cleanup_error("remove", path, remove_error);
+    if (close_error != 0)
+        report_cleanup_error("close", path, close_error);
+}
+
+static void
+copy_archive_data(unsigned long file_size, int root_descriptor,
+    int output_descriptor)
 {
     unsigned long remaining = file_size;
 
@@ -414,18 +438,17 @@ copy_archive_data(unsigned long file_size, int output_descriptor,
         size_t received = read_full(STDIN_FILENO, io_buffer, requested);
 
         if (received != requested) {
-            if (output_descriptor >= 0) {
-                (void)close(output_descriptor);
-                (void)unlink(leaf_name);
-            }
+            if (output_descriptor >= 0)
+                remove_incomplete_output(root_descriptor, archive_path,
+                    output_descriptor);
             fatal_message("truncated file data");
         }
         if (output_descriptor >= 0 &&
             write_all(output_descriptor, io_buffer, received) < 0) {
             int saved_errno = errno;
 
-            (void)close(output_descriptor);
-            (void)unlink(leaf_name);
+            remove_incomplete_output(root_descriptor, archive_path,
+                output_descriptor);
             errno = saved_errno;
             fatal_path("write output", archive_path);
         }
@@ -507,14 +530,9 @@ copy_in(void)
         }
         leaf_name = strrchr(archive_path, '/');
         leaf_name = leaf_name == NULL ? archive_path : leaf_name + 1;
-        copy_archive_data(file_size, output_descriptor, leaf_name);
-        if (output_descriptor >= 0 && close(output_descriptor) < 0) {
-            int saved_errno = errno;
-
-            (void)unlink(leaf_name);
-            errno = saved_errno;
+        copy_archive_data(file_size, root_descriptor, output_descriptor);
+        if (output_descriptor >= 0 && close(output_descriptor) < 0)
             fatal_path("close output", archive_path);
-        }
     }
 }
 

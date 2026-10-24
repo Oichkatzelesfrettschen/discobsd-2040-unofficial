@@ -105,7 +105,7 @@ done(void)
 	if ((t = trapcom[0]))
 	{
 		trapcom[0] = NIL;
-		execexp(t, 0, (int)(flags & errflg));
+		execute_string_input(t, (int)(flags & errflg));
 		free(t);
 	}
 	else

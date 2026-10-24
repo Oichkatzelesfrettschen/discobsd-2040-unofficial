@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "execution-input-descriptor-mode",
+  "source": "bin/sh/xec.c",
+  "object": "xec.o",
+  "old": "\t\t\t\t\t\t\t\t\texecute_descriptor_input(f, errorflg);",
+  "new": "\t\t\t\t\t\t\t\t\texecute_string_input(a1, errorflg);",
+  "snippet": "echo 'echo sourced' > typed-source; . ./typed-source 2>/dev/null; echo after:$?",
+  "environment": {},
+  "known_good": {
+    "stdout": "sourced\nafter:0\n",
+    "exit_code": 0
+  },
+  "known_bad": {
+    "stdout": "echo 'echo sourced' > typed-source; . ./typed-source 2>/dev/null; echo after:$?: typed-source: restricted\n",
+    "exit_code": 1
+  },
+  "caught_break": "dot parses the pathname text instead of the opened descriptor"
+}

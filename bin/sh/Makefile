@@ -12,8 +12,13 @@ OBJS            = setbrk.o blok.o stak.o cmd.o fault.o main.o word.o \
 
 all:		sh
 
-check-gnu17:	tests/gnu17.c
+check-gnu17:	tests/gnu17.c tests/execution_input_types_bad.c.in
 		${CC} ${CFLAGS} -fsyntax-only tests/gnu17.c
+		@if ${CC} ${CFLAGS} -x c -fsyntax-only \
+		    tests/execution_input_types_bad.c.in >/dev/null 2>&1; then \
+			echo "execution-input type mismatch was accepted" >&2; \
+			exit 1; \
+		fi
 
 check-strict-c17:
 		@set -eu; \
@@ -23,6 +28,18 @@ check-strict-c17:
 			    -Wold-style-definition -Wmissing-prototypes \
 			    -fsyntax-only $$source; \
 		done
+		${CC} ${CFLAGS} -std=c17 -pedantic-errors \
+		    -Wall -Wextra -Werror -Wstrict-prototypes \
+		    -Wold-style-definition -Wmissing-prototypes \
+		    -fsyntax-only tests/gnu17.c
+		@if ${CC} ${CFLAGS} -std=c17 -pedantic-errors \
+		    -Wall -Wextra -Werror -Wstrict-prototypes \
+		    -Wold-style-definition -Wmissing-prototypes \
+		    -x c -fsyntax-only tests/execution_input_types_bad.c.in \
+		    >/dev/null 2>&1; then \
+			echo "strict C17 execution-input type mismatch was accepted" >&2; \
+			exit 1; \
+		fi
 
 .PHONY: check-gnu17 check-strict-c17
 

@@ -147,6 +147,17 @@ trampoline convention and handler-visible register values remain unchanged.
 Exception-return behavior, runtime kernel-stack peaks, MPU enforcement,
 deliberate faults and physical hardware execution retain separate obligations.
 
+`shell-c17-contracts.md` records the typed shell execution-input boundary.
+Eval passes its argument vector through `char **`, sourced files transfer an
+opened descriptor, and traps pass command text. The pushed input frame retains
+the established normal and recoverable-unwind cleanup paths. Exact GNU17 and
+strict-C17 declaration checks, GCC and Clang ILP32 behavior runs, and three
+execution-input mutants cover the caller-complete seam. Matched clean resource
+receipts record four fewer raw and loaded shell bytes, unchanged static input
+frames and root allocation, and a reviewed three-byte packed-payload exception.
+Other tagged-pointer representations, runtime process-memory peaks, and
+physical-board execution retain separate evidence states.
+
 `rp2040-elf-load-admission.md` records the flat ELF loader boundary. The
 loader admits its one program header and file-backed segment against the
 inode size, requires one RWX segment at the process base, validates the Thumb
@@ -910,8 +921,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 31 accepted, 92 migration-open, 543
-excluded and 1,941 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 73 accepted, 51 migration-open, 543
+excluded and 1,940 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

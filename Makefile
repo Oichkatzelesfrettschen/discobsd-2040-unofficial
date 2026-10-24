@@ -1112,7 +1112,7 @@ check-test-execution: check-python
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
-		${PYTHON} bin/sh/tests/check_command_getopts_witness.py
+		${PYTHON} bin/sh/tests/check_shell_witnesses.py
 		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run

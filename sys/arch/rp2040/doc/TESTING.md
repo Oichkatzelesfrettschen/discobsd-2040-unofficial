@@ -1814,3 +1814,26 @@ separate evidence states. `docs/research/openat-directory-relative-lookup.md`
 records the ordinary openat contract and matched resource receipts.
 `docs/research/rooted-conditional-unlink-plan.md` records the restricted lookup
 contract and its resource obligations.
+
+### Rooted identity-conditioned unlink
+
+`check-kernel-ilp32` owns `kernel.unlinkat-beneath.ilp32`. The 32-bit fixture
+links the production `unlinkat_beneath()`, `getinode()`, `namei_at()`,
+namespace gate, and `dirremove()` definitions. It executes 514 assertions over
+expected-descriptor validation, restricted path and root-descriptor errors,
+interrupted and handed-off namespace acquisition, regular and directory
+identity replacement, immutable and append-only refusal, directory-write
+failure, successful publication, balanced locks and references, and an
+injected release of the descriptor-owned inode reference during lookup. Five
+warning-clean mutations omit namespace acquisition, release serialization
+before removal, omit identity
+comparison, drop the retained expected-inode reference, or decrement the link
+count after a failed directory write. Each mutation must fail its named
+assertion.
+
+The gate establishes that the exercised UFS removal compares the locked lookup
+inode with a retained descriptor inode and holds namespace serialization
+through the directory write and link-count publication. The gate does not
+establish crash recovery, power-loss atomicity, storage-media completion,
+concurrent file-content consistency, or physical-board behavior. Those claims
+retain separate evidence states.

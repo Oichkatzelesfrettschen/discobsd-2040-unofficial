@@ -406,6 +406,70 @@ out:
 }
 
 /*
+ * Remove a regular-file entry beneath an acquired directory only when the
+ * locked lookup result is the inode retained by the expected descriptor.
+ */
+void
+unlinkat_beneath(void)
+{
+    register struct a {
+        int     rootfd;
+        char    *path;
+        int     expected_fd;
+    } *uap = (struct a *)u.u_arg;
+    register struct inode *expected, *ip, *dp;
+    struct nameidata nd;
+    register struct nameidata *ndp = &nd;
+    int error;
+
+    expected = getinode(uap->expected_fd);
+    if (expected == NULL)
+        return;
+    if ((expected->i_mode & IFMT) != IFREG) {
+        u.u_error = EINVAL;
+        return;
+    }
+    igrab(expected);
+    iunlock(expected);
+
+    error = ufs_namespace_enter();
+    if (error != 0) {
+        u.u_error = error;
+        irele(expected);
+        return;
+    }
+
+    NAMEI_INIT_USER(ndp, DELETE, LOCKPARENT, uap->path);
+    NAMEI_RESTRICT_BENEATH(ndp);
+    ip = namei_at(ndp, uap->rootfd);
+    if (ip == NULL)
+        goto release_expected;
+    dp = ndp->ni_pdir;
+    if (ip != expected) {
+        u.u_error = ESTALE;
+        goto out;
+    }
+    if ((ip->i_flags & (IMMUTABLE | APPEND)) ||
+        (dp->i_flags & APPEND)) {
+        u.u_error = EPERM;
+        goto out;
+    }
+    if (dirremove(ndp)) {
+        ip->i_nlink--;
+        ip->i_flag |= ICHG;
+    }
+out:
+    if (dp == ip)
+        irele(ip);
+    else
+        iput(ip);
+    iput(dp);
+release_expected:
+    irele(expected);
+    ufs_namespace_exit();
+}
+
+/*
  * Access system call
  */
 void

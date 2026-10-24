@@ -2290,6 +2290,25 @@
       ]
     },
     {
+      "id": "kernel.unlinkat-beneath.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with two UFS mount slots",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-unlinkat-beneath-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "unlinkat_beneath_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "unlinkat_beneath_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.unlinkat-beneath.ilp32 -- ./unlinkat_beneath_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.dirremove.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

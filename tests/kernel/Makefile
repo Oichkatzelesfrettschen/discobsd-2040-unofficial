@@ -169,7 +169,8 @@ OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd \
 			accept-empty-beneath follow-beneath-symlink \
 			cross-beneath-mount
 OPENAT_VNOPS_MUTANTS=	follow-final-symlink \
-			hold-namespace-during-open-provider
+			hold-namespace-during-open-provider \
+			open-identity-provider
 OPENAT_SYSCALL_MUTANTS=	omit-rooted-open-policy release-before-open \
 			omit-rooted-open-release release-competing-open-owner \
 			omit-rooted-mkdir-policy \
@@ -2080,6 +2081,7 @@ check-openat-mutants: \
 		follow-final-symlink) expected='u.u_error == ELOOP' ;; \
 		hold-namespace-during-open-provider) \
 			expected='!namespace_is_owned()' ;; \
+		open-identity-provider) expected='open_inode_calls == 0' ;; \
 		omit-rooted-open-policy|omit-rooted-mkdir-policy) \
 			expected='expected_namei_policy' ;; \
 		release-before-open|release-before-mkdir-publication|\

@@ -1782,22 +1782,28 @@ retain their own acceptance states.
 `check-kernel-ilp32` owns `kernel.openat-namei.ilp32`,
 `kernel.openat-namei-multifs.ilp32`, and `kernel.openat.ilp32`. All three ILP32
 programs link production `ufs_namei.c`, `vfs_vnops.c`, or `ufs_syscalls.c` as
-their exercised boundary requires. The one-mount lookup program executes 248
+their exercised boundary requires. The one-mount lookup program executes 249
 assertions over cwd, descriptor and root selection, path-copy precedence,
 permissions, restricted pathname syntax, symbolic links, locked-parent
 deletion, and balanced traversal references. The two-mount lookup program
-executes the same contracts plus mounted-filesystem refusal for 309 assertions.
-The open program executes 121 assertions over `O_NOFOLLOW`, `O_DIRECTORY`,
-`O_SEARCH`, empty paths, descriptor allocation, interruption, device-open
-failure and unchanged ordinary `open()` behavior.
+executes the same contracts plus mounted-filesystem refusal for 310 assertions.
+The open program executes 569 assertions over `O_NOFOLLOW`, `O_DIRECTORY`,
+`O_SEARCH`, `O_IDENTITY`, empty paths, descriptor allocation, interruption,
+device-open failure, rooted open and mkdir namespace ownership, and unchanged
+ordinary `open()` behavior. Identity acquisition accepts only regular inodes,
+grants `FIDENTITY` without data access, skips `openi()`, releases namespace
+ownership, and rejects fourteen contradictory flag classes before allocation
+or lookup.
 
-`check-openat-mutants` generates six warning-clean source variants. The
-current-directory substitution must fail `result == &descriptor_inode`; the
-absolute-path descriptor consultation must fail `result == &root_inode`; an
-accepted empty restricted path must fail `namei_at(&name, 7) == NULL`; and
-restricted symlink following, mounted-filesystem continuation, and final-link
-following must fail their respective `ELOOP` or `EXDEV` assertions. Compilation
-or an unrelated assertion cannot satisfy the expected-rejection contract.
+`check-openat-mutants` generates seventeen warning-clean source variants. Five
+namei mutations cover directory/root selection, empty restricted paths,
+restricted symbolic links, and mounted filesystems. Three `vn_open_at()`
+mutations cover final-link following, namespace ownership across a provider,
+and forbidden provider dispatch for identity-only opens. Nine syscall
+mutations cover rooted lookup policy, namespace release and handoff, competing
+ownership, and mkdir rollback references. Each mutation must fail its named
+assertion; compilation or a different assertion cannot satisfy the
+expected-rejection contract.
 
 `check-namei-user-path` continues to own the exact pathname-origin transition
 inventory and its nine mutations. `check-kernel-metadata` owns syscall 157,
@@ -2107,3 +2113,75 @@ and `06a94f7851fd08a9b65860213c2397a494e6668ec394eeca5b4956453ed690b2`.
 Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic, and
 physical-board behavior retain separate evidence states.
+
+### Tar rooted regular-file publication
+
+`check-tar-host` owns `tar.regular-publication.native`. The exact tar
+source and host shim compile under strict C17 warnings, address and
+undefined-behavior sanitizers. Tar retains an optional extraction-owned target
+descriptor and a staged descriptor, writes the complete regular payload and
+metadata through the stage, and calls `publishat_beneath()` only while both
+pathnames still identify those descriptors. Successful publication clears
+staged cleanup ownership. Every ordinary failure and fatal archive-read exit
+calls descriptor-conditioned cleanup before filter teardown.
+
+The host schedule covers first publication, repeated write-only and mode-zero
+members, truncated payload, archive-read `EIO` after exactly one header record,
+output-write failure, staged and target replacement, pathname publication, and
+all 62 occupied staging candidates. Mutations remove `done()` cleanup, staged
+or target identity, rooted publication, or bounded stage search. Each mutation
+must leave its named foreign entry unchanged or expose the expected retained
+stage; a missing hook trace, different status, or unrelated diagnostic cannot
+satisfy the oracle. The shim maps `O_IDENTITY` to Linux `O_PATH` or macOS
+`O_EVTONLY` for the scheduled host comparison. Kernel permission independence,
+provider suppression, `FIDENTITY`, and namespace release belong to
+`kernel.openat.ilp32`.
+
+Matched clean parent and candidate schema-2 captures report these constrained
+surfaces:
+
+| Constrained surface | Parent | Candidate | Delta | Candidate margin |
+| --- | ---: | ---: | ---: | ---: |
+| PICO flash / kernel-region allocation | 108,728 / 32,216 | 108,800 / 32,216 | +72 / 0 | 22,272 flash bytes below 128 KiB |
+| PICO_UART flash / kernel-region allocation | 96,252 / 15,336 | 96,316 / 15,336 | +64 / 0 | 34,756 flash bytes below 128 KiB |
+| Tar text / data / BSS bytes | 27,000 / 688 / 3,920 | 28,092 / 696 / 3,924 | +1,092 / +8 / +4 | 32,712 loaded bytes; 114,744 static bytes below 144 KiB |
+| Tar raw / packed bytes / packed blocks | 27,720 / 23,022 / 24 | 28,820 / 23,809 / 25 | +1,100 / +787 / +1 | one additional root block |
+| Native board `libc.a` bytes / members | 43,010 / 151 | 43,010 / 151 | 0 / 0 | unchanged |
+| Packed-root data / free blocks / free inodes | 693 / 286 / 33 | 694 / 285 / 33 | +1 / -1 / 0 | 285 free blocks |
+| Every other shipped a.out and archive selection | measured baseline | unchanged | 0 | unchanged |
+
+Tar adds `openat_beneath.o`, `publishat_beneath.o`, and
+`unlinkat_beneath.o` to its selected libc members. The default comparer rejects
+those dependencies and every positive constrained-surface delta. The bounded
+exception request covers the caller-complete regular-file creation,
+replacement, and cleanup mechanism. Tar allocates one 256-byte staging-path
+buffer during extraction; the static process-window remainder excludes that
+heap allocation, stack use, and other simultaneous runtime ownership.
+
+Exact production commands replayed with `-fstack-usage` report +4 text bytes
+in each `ufs_syscalls.o`, +60 text bytes in each `vfs_vnops.o`, and
++1,032/+8/+4 text/data/BSS bytes in `tar.o`. `publishat_beneath()` retains the
+240-byte kernel maximum, `copen()` retains 152 bytes, and `vn_open_at()` retains
+24 bytes. Tar's `done()` frame grows from 16 bytes plus an 8-byte constant
+variant to 40 bytes after inlined cleanup; the existing 832-byte `putfile()`
+maximum and 176-byte `main()` frame remain unchanged. Compiler static frames
+establish neither a complete call chain nor runtime high-water.
+
+The parent closure/resource, candidate closure/resource, resource comparison,
+and exact-command object/frame receipts have SHA-256 values
+`cc746588cb410494f705f1839ac5680d4b65424a43eefd1c54f9138d3d32edb9`,
+`08fbccbccfc79780b7ef0b2984eca978fabddea474811b240dd21b5776045981`,
+`0dfe3a44ac84a159eff893a7fac47b1c65499c32d7f40fd2cb99fca6562e4b98`,
+`ce9650458e564bde4467d9fbe13eafd51fc39748d275a52582aa04c00567dd12`,
+`46bb1d91be5967140a952c2d4a8fd9427b07ead82720a04b3da4653a546621ac`,
+and `78df80eaf7dfa434183676dbcb1e5149670882a4fcd4b263d096d8c11beb21d8`.
+The candidate closure binds the repaired test schedule to source snapshot
+`ad3bbf7ddb08565df26c30278c7aba071e2c7463eed7e4ad26cde03bdc07d937`.
+The receipt-hash update is the only later source change. `tar.c`,
+`ufs_syscalls.c`, and `vfs_vnops.c` retain the source hashes recorded by the
+object/frame receipt, so that receipt and the resource-comparison receipt
+remain byte-identical.
+Runtime stack and heap high-water, descriptor/inode pressure under a complete
+extraction workload, directory-write recovery, persistent-media traffic,
+symbolic-link publication, conditional removal, directory metadata
+reacquisition, and physical-board behavior retain separate evidence states.

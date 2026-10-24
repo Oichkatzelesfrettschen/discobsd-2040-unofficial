@@ -34,6 +34,8 @@ main(void)
         return 4;
     if (linkat_beneath_signature == NULL)
         return 5;
+    if (O_IDENTITY != 0x00080000)
+        return 8;
     {
         int (*publishat_signature)(int, const char *, int, const char *, int) =
             publishat_beneath;

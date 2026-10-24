@@ -110,7 +110,10 @@ copen(int dirfd, int mode, int cmode, caddr_t fname, int namei_policy)
 
     if ((mode & O_SEARCH) &&
         ((mode & O_ACCMODE) != O_RDONLY ||
-        (mode & (O_CREAT | O_TRUNC | O_EXCL)) != 0))
+        (mode & (O_CREAT | O_TRUNC | O_EXCL | O_IDENTITY)) != 0))
+        return EINVAL;
+    if ((mode & O_IDENTITY) &&
+        (mode & ~(O_IDENTITY | O_NOFOLLOW)) != 0)
         return EINVAL;
     if (! fname)
         fname = "";

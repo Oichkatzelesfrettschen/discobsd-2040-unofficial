@@ -117,6 +117,18 @@ vn_open_at(register struct nameidata *ndp, volatile int fmode, int cmode,
             goto bad;
         }
     }
+    if (fmode & FIDENTITY) {
+        if ((ip->i_mode & IFMT) != IFREG) {
+            error = EFTYPE;
+            goto bad;
+        }
+        iunlock(ip);
+        if (namespace_owned != NULL && *namespace_owned) {
+            ufs_namespace_exit();
+            *namespace_owned = 0;
+        }
+        return(0);
+    }
     if ((ip->i_mode & IFMT) == IFSOCK) {
         error = EOPNOTSUPP;
         goto bad;

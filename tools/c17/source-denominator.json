@@ -4071,9 +4071,10 @@
       "evidence": [
         "docs/research/tar-descriptor-timestamp-identity.md",
         "bin/tar/tests/timestamp_identity_test.sh",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "bin/tar/tests/regular_publication_identity_test.sh"
       ],
-      "blocker": "Strict-C17 compilation and descriptor-owned timestamp publication are accepted; creation, hard-link, removal, symlink, parent-relocation and remaining translation-unit semantics require separate migration units.",
+      "blocker": "Strict-C17 compilation, descriptor-owned timestamp publication, rooted hard-link publication and rooted regular-file creation/replacement are accepted; symbolic-link publication, conditional nonregular removal, directory metadata reacquisition, parent relocation/traversal and remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -4110,13 +4111,14 @@
       "path": "bin/tar/tests/rooted_link_host.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "tar-hardlink-source-identity",
+      "owner": "tar-rooted-extraction-identity",
       "profile": "modernized-cross-userland",
       "native_input": "no",
       "language_state": "accepted",
       "evidence": [
         "bin/tar/tests/hardlink_identity_test.sh",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "bin/tar/tests/regular_publication_identity_test.sh"
       ],
       "blocker": "",
       "classification": {
@@ -4138,7 +4140,9 @@
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],
-          "variadic": []
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },
@@ -4146,13 +4150,14 @@
       "path": "bin/tar/tests/rooted_link_host.h",
       "class": "A",
       "scope": "maintained",
-      "owner": "tar-hardlink-source-identity",
+      "owner": "tar-rooted-extraction-identity",
       "profile": "modernized-cross-userland",
       "native_input": "no",
       "language_state": "accepted",
       "evidence": [
         "bin/tar/tests/hardlink_identity_test.sh",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "bin/tar/tests/regular_publication_identity_test.sh"
       ],
       "blocker": "",
       "classification": {
@@ -4172,20 +4177,26 @@
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],
-          "variadic": []
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },
     {
       "path": "bin/tar/tests/tarfixture.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tar-rooted-extraction-fixtures",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "bin/tar/tests/hardlink_identity_test.sh",
+        "bin/tar/tests/regular_publication_identity_test.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -58876,9 +58887,11 @@
         "docs/research/rooted-conditional-unlink-plan.md",
         "docs/research/compress-publication-identity-plan.md",
         "tests/kernel/publishat_beneath_mutate.py",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/openat_test.c",
+        "tests/kernel/openat_mutate.py"
       ],
-      "blocker": "Directory-relative lookup/open, rooted conditional removal, descriptor-owned publication, and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open, permission-independent identity open, rooted conditional removal, descriptor-owned publication, and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58959,7 +58972,7 @@
         "tests/kernel/openat_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "Directory-relative lookup/open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open, permission-independent regular-inode identity open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -59614,7 +59627,7 @@
         "tests/kernel/openat_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "The directory-relative constants, conversion rules and consumers are accepted; remaining public and kernel file-control interfaces require separate review.",
+      "blocker": "The directory-relative constants, identity-only regular-inode descriptor, conversion rules and consumers are accepted; remaining public and kernel file-control interfaces require separate review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -62965,7 +62978,8 @@
         "docs/research/openat-directory-relative-lookup.md",
         "tests/kernel/openat_test.c",
         "tests/kernel/openat_mutate.py",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "bin/tar/tests/regular_publication_identity_test.sh"
       ],
       "blocker": "",
       "classification": {
@@ -81097,7 +81111,8 @@
       "evidence": [
         "docs/research/cpio-rooted-creation-identity-plan.md",
         "usr.bin/smlrc/tests/stdio_red_control.py",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/openat-directory-relative-lookup.md"
       ],
       "blocker": "",
       "classification": {

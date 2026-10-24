@@ -383,7 +383,7 @@
     {
       "from": "check-ilp32-execution-recipes",
       "to": "check-tar-host",
-      "kind": "required tar hard-link identity native variant"
+      "kind": "required tar identity native variants"
     }
   ],
   "optional_investigations": [
@@ -465,6 +465,28 @@
       ],
       "recipe": "${PYTHON} tools/test_execution.py run tar.hardlink-identity.native -- sh bin/tar/tests/hardlink_identity_test.sh",
       "script": "bin/tar/tests/hardlink_identity_test.sh",
+      "aliases": []
+    },
+    {
+      "id": "tar.regular-publication.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler with address and undefined-behavior sanitizer runtime",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-tar-host",
+      "root_target": "check-tar-host",
+      "program": "sh",
+      "condition": "unconditional; regular_publication_identity_test.sh rejects an unavailable sanitizer runtime",
+      "prerequisites": [
+        "bin/tar/tar.c",
+        "bin/tar/tests/regular_publication_identity_test.sh",
+        "bin/tar/tests/rooted_link_host.c",
+        "bin/tar/tests/rooted_link_host.h",
+        "bin/tar/tests/tarfixture.c"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run tar.regular-publication.native -- sh bin/tar/tests/regular_publication_identity_test.sh",
+      "script": "bin/tar/tests/regular_publication_identity_test.sh",
       "aliases": []
     },
     {

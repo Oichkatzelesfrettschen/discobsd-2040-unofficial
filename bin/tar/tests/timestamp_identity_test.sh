@@ -54,13 +54,20 @@ import sys
 os.utime(sys.argv[1], (946684800, 946684800))
 PY
     tar --format=ustar -cf "$archive" -C "$source_root" member
-    (
-        cd "$extraction_root"
-        TAR_TIMESTAMP_ORIGINAL=member \
-        TAR_TIMESTAMP_MOVED=moved-member \
-        TAR_TIMESTAMP_KIND=$kind \
+    if [ "$kind" = file ]; then
+        (
+            cd "$extraction_root"
             "$binary" xf "$archive"
-    ) || {
+        )
+    else
+        (
+            cd "$extraction_root"
+            TAR_TIMESTAMP_ORIGINAL=member \
+            TAR_TIMESTAMP_MOVED=moved-member \
+            TAR_TIMESTAMP_KIND=$kind \
+                "$binary" xf "$archive"
+        )
+    fi || {
         echo "$label $kind extraction failed" >&2
         return 1
     }
@@ -73,15 +80,18 @@ kind = sys.argv[1]
 replacement = pathlib.Path(sys.argv[2])
 moved = pathlib.Path(sys.argv[3])
 expected_time = 946684800
+if kind == "file":
+    if int(replacement.stat().st_mtime) != expected_time:
+        raise SystemExit("published file did not receive the archive timestamp")
+    if replacement.read_text(encoding="utf-8") != "archive payload\n":
+        raise SystemExit("published file lost the archive payload")
+    if moved.exists():
+        raise SystemExit("regular timestamp control created a moved path")
+    raise SystemExit(0)
 if int(moved.stat().st_mtime) != expected_time:
     raise SystemExit("moved object did not receive the archive timestamp")
 if int(replacement.stat().st_mtime) == expected_time:
     raise SystemExit("replacement object received the archive timestamp")
-if kind == "file":
-    if moved.read_text(encoding="utf-8") != "archive payload\n":
-        raise SystemExit("moved file lost the archive payload")
-    if replacement.read_text(encoding="utf-8") != "replacement\n":
-        raise SystemExit("replacement file contents changed")
 PY
 }
 
@@ -121,7 +131,7 @@ else
     mutant_status=$?
 fi
 if [ "$mutant_status" -ne 1 ] ||
-    ! grep -F "moved object did not receive the archive timestamp" \
+    ! grep -F "cannot set modification time on member" \
         "$mutant_output" >/dev/null; then
     cat "$mutant_output" >&2
     fail "pathname mutation missed its deciding assertion"

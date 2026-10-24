@@ -111,6 +111,49 @@ The comparison receipt is
 The resource comparator deliberately reports the two positive linked-flash
 deltas until this bounded exception receives review.
 
+## Identity-only regular-file extension
+
+The tar regular-file publication unit adds `O_IDENTITY = 0x00080000` to the
+public flag vocabulary without adding or changing a syscall. `copen()` admits
+that mode only with optional `O_NOFOLLOW`. `vn_open_at()` then retains only an
+existing regular inode, records `FIDENTITY` without `FREAD` or `FWRITE`, skips
+`openi()`, and releases namespace ownership. Directories and every data,
+creation, truncation, append, search, execution, nonblocking, synchronization,
+and locking combination are rejected before descriptor allocation or lookup.
+The mode gives identity-conditioned rooted publication a descriptor that does
+not depend on the target's read permission, including repeated tar members
+whose first mode is `0200` or `0000`.
+
+The ILP32 open fixture now executes 569 assertions. The new cases require
+permission-independent regular identity, suppressed provider dispatch,
+namespace release, directory refusal, and fourteen contradictory flag
+classes. Seventeen calibrated mutations include one that restores provider
+`openi()` for identity acquisition. Smaller C repeatedly includes `fcntl.h`
+and checks the exact numeric value. The complete kernel ILP32 aggregate,
+pathname-origin inventory, metadata, test-execution inventory, denominator,
+and both exact target distributions pass.
+
+The matched parent and candidate resource receipts report 108,728 to 108,800
+PICO flash bytes and 96,252 to 96,316 PICO_UART flash bytes. Static SRAM
+allocations and extents remain unchanged. Exact-command replay reports +4 text
+bytes in each `ufs_syscalls.o` and +60 text bytes in each `vfs_vnops.o`;
+`copen()` and `vn_open_at()` retain 152-byte and 24-byte static frames. The
+parent closure/resource, candidate closure/resource, comparison, and
+object/frame receipt SHA-256 values are
+`cc746588cb410494f705f1839ac5680d4b65424a43eefd1c54f9138d3d32edb9`,
+`08fbccbccfc79780b7ef0b2984eca978fabddea474811b240dd21b5776045981`,
+`0dfe3a44ac84a159eff893a7fac47b1c65499c32d7f40fd2cb99fca6562e4b98`,
+`ce9650458e564bde4467d9fbe13eafd51fc39748d275a52582aa04c00567dd12`,
+`46bb1d91be5967140a952c2d4a8fd9427b07ead82720a04b3da4653a546621ac`,
+and `78df80eaf7dfa434183676dbcb1e5149670882a4fcd4b263d096d8c11beb21d8`.
+The candidate closure binds the repaired test schedule to source snapshot
+`ad3bbf7ddb08565df26c30278c7aba071e2c7463eed7e4ad26cde03bdc07d937`.
+The receipt-hash update is the only later source change. The three production
+sources named by the object/frame receipt retain their recorded SHA-256
+values, so that receipt and the resource-comparison receipt remain
+byte-identical.
+The comparer keeps the positive linked-flash delta open for bounded review.
+
 ## Residual namespace contract
 
 Directory-relative lookup preserves the identity of the starting directory

@@ -32,6 +32,8 @@ _Static_assert(sizeof(struct ustar_header) == RECORD_SIZE,
 static int malformed_size_field;
 static int padded_time_field;
 static int maximum_directory_path;
+static unsigned long declared_size_override;
+static int omit_archive_end;
 
 static void
 fail(const char *operation)
@@ -98,7 +100,8 @@ write_entry(const char *name, char type, const char *link_target,
     put_octal(header.mode, sizeof(header.mode), mode);
     put_octal(header.uid, sizeof(header.uid), 0);
     put_octal(header.gid, sizeof(header.gid), 0);
-    put_octal(header.size, sizeof(header.size), content_length);
+    put_octal(header.size, sizeof(header.size), declared_size_override != 0 ?
+        declared_size_override : content_length);
     if (malformed_size_field)
         header.size[0] = '8';
     put_octal(header.mtime, sizeof(header.mtime), 0);
@@ -194,6 +197,21 @@ main(int argc, char **argv)
     } else if (strcmp(argv[1], "hardlink-race") == 0) {
         write_entry("source", '0', NULL, 0644, "archive source\n");
         write_entry("alias", '1', "source", 0644, NULL);
+    } else if (strcmp(argv[1], "regular-publication") == 0) {
+        write_entry("victim", '0', NULL, 0644, "new payload\n");
+    } else if (strcmp(argv[1], "regular-replacement") == 0) {
+        write_entry("victim", '0', NULL, 0644, "old payload\n");
+        write_entry("victim", '0', NULL, 0644, "new payload\n");
+    } else if (strcmp(argv[1], "regular-replacement-write-only") == 0) {
+        write_entry("victim", '0', NULL, 0200, "old payload\n");
+        write_entry("victim", '0', NULL, 0644, "new payload\n");
+    } else if (strcmp(argv[1], "regular-replacement-zero-mode") == 0) {
+        write_entry("victim", '0', NULL, 0000, "old payload\n");
+        write_entry("victim", '0', NULL, 0644, "new payload\n");
+    } else if (strcmp(argv[1], "regular-truncated") == 0) {
+        declared_size_override = 1024;
+        omit_archive_end = 1;
+        write_entry("victim", '0', NULL, 0644, "partial payload\n");
     } else if (strcmp(argv[1], "special") == 0) {
         write_entry("setid", '0', NULL, 06755, "payload\n");
     } else if (strcmp(argv[1], "unsupported") == 0) {
@@ -232,6 +250,7 @@ main(int argc, char **argv)
         fprintf(stderr, "tarfixture: unknown scenario: %s\n", argv[1]);
         return 1;
     }
-    write_end();
+    if (!omit_archive_end)
+        write_end();
     return fflush(stdout) == EOF ? 1 : 0;
 }

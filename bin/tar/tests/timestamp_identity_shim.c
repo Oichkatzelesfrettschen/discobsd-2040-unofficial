@@ -62,6 +62,8 @@ substitute_path(void)
 int
 tar_test_futimes(int descriptor, const struct timeval times[2])
 {
+    if (getenv("TAR_TIMESTAMP_KIND") == NULL)
+        return futimes(descriptor, times);
     if (substitute_path() < 0)
         return -1;
     return futimes(descriptor, times);
@@ -72,7 +74,9 @@ tar_test_utimes(const char *path, const struct timeval times[2])
 {
     const char *original_path = getenv("TAR_TIMESTAMP_ORIGINAL");
 
-    if (original_path == NULL || strcmp(path, original_path) != 0) {
+    if (original_path == NULL)
+        return utimes(path, times);
+    if (strcmp(path, original_path) != 0) {
         errno = EINVAL;
         return -1;
     }

@@ -1219,6 +1219,57 @@ search_open_grants_only_directory_search(void)
 }
 
 static void
+identity_open_retains_regular_inode_without_data_access(void)
+{
+    static const int contradictory_flags[] = {
+        O_WRONLY,
+        O_RDWR,
+        O_NONBLOCK,
+        O_APPEND,
+        O_SHLOCK,
+        O_EXLOCK,
+        O_ASYNC,
+        O_FSYNC,
+        O_CREAT,
+        O_TRUNC,
+        O_EXCL,
+        O_NOCTTY,
+        O_DIRECTORY,
+        O_SEARCH
+    };
+    char relative[] = "regular";
+    size_t flag_index;
+
+    reset_open_fixture();
+    access_error = EACCES;
+    expected_lookup_modifiers = NOFOLLOW;
+    call_openat_beneath(7, relative, O_IDENTITY | O_NOFOLLOW, 0);
+    HK_CHECK(u.u_error == 0 && u.u_rval == 3);
+    HK_CHECK(access_calls == 0 && open_inode_calls == 0);
+    HK_CHECK((allocated_file.f_flag & FIDENTITY) != 0);
+    HK_CHECK((allocated_file.f_flag & (FREAD | FWRITE)) == 0);
+    HK_CHECK(allocated_file.f_data == (caddr_t)&descriptor_inode);
+    check_namespace_released();
+
+    reset_open_fixture();
+    descriptor_inode.i_mode = IFDIR;
+    expected_lookup_modifiers = NOFOLLOW;
+    call_openat_beneath(7, relative, O_IDENTITY | O_NOFOLLOW, 0);
+    HK_CHECK(u.u_error == EFTYPE);
+    HK_CHECK(open_inode_calls == 0 && inode_put_calls == 1);
+
+    for (flag_index = 0;
+        flag_index < sizeof(contradictory_flags) /
+        sizeof(contradictory_flags[0]); flag_index++) {
+        reset_open_fixture();
+        call_openat_beneath(7, relative,
+            O_IDENTITY | contradictory_flags[flag_index], 0600);
+        HK_CHECK(u.u_error == EINVAL);
+        HK_CHECK(allocation_calls == 0 && lookup_calls == 0);
+    }
+}
+
+static void
 failures_release_allocated_descriptor_and_inode(void)
 {
     char relative[] = "leaf";
@@ -1418,6 +1469,7 @@ main(void)
     relative_and_legacy_open_publish_descriptor();
     nofollow_and_directory_flags_reject_wrong_kind();
     search_open_grants_only_directory_search();
+    identity_open_retains_regular_inode_without_data_access();
     failures_release_allocated_descriptor_and_inode();
     truncate_and_lock_failures_preserve_cleanup();
     rooted_open_holds_and_releases_namespace_serialization();

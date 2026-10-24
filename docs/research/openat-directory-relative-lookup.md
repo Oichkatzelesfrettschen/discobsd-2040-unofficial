@@ -111,6 +111,43 @@ The comparison receipt is
 The resource comparator deliberately reports the two positive linked-flash
 deltas until this bounded exception receives review.
 
+## Identity-only regular-file extension
+
+The tar regular-file publication unit adds `O_IDENTITY = 0x00080000` to the
+public flag vocabulary without adding or changing a syscall. `copen()` admits
+that mode only with optional `O_NOFOLLOW`. `vn_open_at()` then retains only an
+existing regular inode, records `FIDENTITY` without `FREAD` or `FWRITE`, skips
+`openi()`, and releases namespace ownership. Directories and every data,
+creation, truncation, append, search, execution, nonblocking, synchronization,
+and locking combination are rejected before descriptor allocation or lookup.
+The mode gives identity-conditioned rooted publication a descriptor that does
+not depend on the target's read permission, including repeated tar members
+whose first mode is `0200` or `0000`.
+
+The ILP32 open fixture now executes 569 assertions. The new cases require
+permission-independent regular identity, suppressed provider dispatch,
+namespace release, directory refusal, and fourteen contradictory flag
+classes. Seventeen calibrated mutations include one that restores provider
+`openi()` for identity acquisition. Smaller C repeatedly includes `fcntl.h`
+and checks the exact numeric value. The complete kernel ILP32 aggregate,
+pathname-origin inventory, metadata, test-execution inventory, denominator,
+and both exact target distributions pass.
+
+The matched parent and candidate resource receipts report 108,728 to 108,800
+PICO flash bytes and 96,252 to 96,316 PICO_UART flash bytes. Static SRAM
+allocations and extents remain unchanged. Exact-command replay reports +4 text
+bytes in each `ufs_syscalls.o` and +60 text bytes in each `vfs_vnops.o`;
+`copen()` and `vn_open_at()` retain 152-byte and 24-byte static frames. The
+parent closure/resource, candidate closure/resource, comparison, and
+object/frame receipt SHA-256 values are
+`cc746588cb410494f705f1839ac5680d4b65424a43eefd1c54f9138d3d32edb9`,
+`08fbccbccfc79780b7ef0b2984eca978fabddea474811b240dd21b5776045981`,
+`d1a79e9b571f6a3bbce497c3c1d0482905343eebccca013807f379954752cbfa`,
+`7d4aa291cd4c672b1c1bd8f5281a062b90df88abfcac68e64875666c4b94fb60`,
+`46bb1d91be5967140a952c2d4a8fd9427b07ead82720a04b3da4653a546621ac`,
+and `78df80eaf7dfa434183676dbcb1e5149670882a4fcd4b263d096d8c11beb21d8`.
+The comparer keeps the positive linked-flash delta open for bounded review.
+
 ## Residual namespace contract
 
 Directory-relative lookup preserves the identity of the starting directory

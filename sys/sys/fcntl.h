@@ -103,20 +103,22 @@
 /* Directory-opening flags retain the donor BSD numeric assignments. */
 #define O_DIRECTORY 0x00020000  /* fail if the result is not a directory */
 #define O_SEARCH    0x00040000  /* open a directory for search only */
+#define O_IDENTITY  0x00080000  /* retain a regular inode without data access */
 
 /* Directory descriptor value for process-current-directory lookup. */
 #define AT_FDCWD    (-100)
 
 #ifdef KERNEL
 #define FSEARCH     O_SEARCH
+#define FIDENTITY   O_IDENTITY
 /* convert from open() flags to/from fflags; convert O_RD/WR to FREAD/FWRITE */
-#define FFLAGS(oflags)  (((oflags) & O_SEARCH) ? \
+#define FFLAGS(oflags)  (((oflags) & (O_SEARCH | O_IDENTITY)) ? \
     ((oflags) & ~O_ACCMODE) : ((oflags) + 1))
-#define OFLAGS(fflags)  (((fflags) & FSEARCH) ? \
+#define OFLAGS(fflags)  (((fflags) & (FSEARCH | FIDENTITY)) ? \
     (fflags) : ((fflags) - 1))
 
 /* bits to save after open */
-#define FMASK       (FREAD|FWRITE|FAPPEND|FASYNC|FFSYNC|FNONBLOCK|FSEARCH)
+#define FMASK       (FREAD|FWRITE|FAPPEND|FASYNC|FFSYNC|FNONBLOCK|FSEARCH|FIDENTITY)
 /* bits settable by fcntl(F_SETFL, ...) */
 #define FCNTLFLAGS  (FAPPEND|FASYNC|FFSYNC|FNONBLOCK)
 #endif

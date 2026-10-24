@@ -134,6 +134,13 @@ ufs_namespace_*.mutant.c
 ufs_namespace_*.mutant.o
 ufs_namespace_*.mutant.test
 ufs_namespace_*.mutant.out
+ufs_topology_syscalls32.o
+ufs_topology_test32
+ufs_topology_functions.c
+ufs_topology_*.mutant.c
+ufs_topology_*.mutant.o
+ufs_topology_*.mutant.test
+ufs_topology_*.mutant.out
 shutdown_sync_kernel.o
 shutdown_sync_test
 shutdown_sync_*.mutant.c

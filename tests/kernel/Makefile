@@ -168,7 +168,21 @@ DIRREMOVE_MUTANTS=	discard-first-write-error discard-coalesced-write-error
 UFS_NAMESPACE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
 UFS_NAMESPACE_CFLAGS=	-ffunction-sections -fdata-sections -DDIAGNOSTIC \
 			${OPENAT_DEFS}
+UFS_NAMESPACE_RENAMES=	-Dcheckpath=namespace_checkpath \
+			-Dnamei=namespace_namei -Dnamei_at=namespace_namei_at \
+			-Ddirempty=namespace_dirempty \
+			-Dcacheinval=namespace_cacheinval \
+			-Ddirrewrite=namespace_dirrewrite \
+			-Ddirenter=namespace_direnter \
+			-Ddirremove=namespace_dirremove
 UFS_NAMESPACE_MUTANTS=	omit-acquisition omit-wakeup clear-on-interrupt
+UFS_TOPOLOGY_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
+UFS_TOPOLOGY_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+UFS_TOPOLOGY_RENAMES=	-Dlink=kernel_link -Dunlink=kernel_unlink \
+			-Drename=kernel_rename -Dnamei=topology_namei
+UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
+			release-before-source-lookup allow-directory-link \
+			allow-directory-unlink
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -1514,10 +1528,11 @@ openat_namei_test32: openat_test.c openat_namei32.o hostkern32.o
 	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
 	    openat_namei32.o hostkern32.o
 
-openat_test32: openat_test.c openat_vnops32.o openat_syscalls32.o hostkern32.o
+openat_test32: openat_test.c openat_vnops32.o openat_syscalls32.o \
+    ufs_namespace_kernel32.o hostkern32.o
 	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
 	    ${OPENAT_LDFLAGS} -o $@ openat_test.c openat_vnops32.o \
-	    openat_syscalls32.o hostkern32.o
+	    openat_syscalls32.o ufs_namespace_kernel32.o hostkern32.o
 
 check-openat-ilp32: openat_namei_test32 openat_test32
 	${TEST_EXECUTION} run kernel.openat-namei.ilp32 -- ./openat_namei_test32
@@ -1573,7 +1588,7 @@ check-dirremove-mutants: \
 
 ufs_namespace_kernel32.o: ${UFS_NAMESPACE_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} ${ILP32} -c -o $@ \
-	    ${UFS_NAMESPACE_SRC}
+	    ${UFS_NAMESPACE_RENAMES} ${UFS_NAMESPACE_SRC}
 
 ufs_namespace_test32: ufs_namespace_test.c ufs_namespace_kernel32.o \
     hostkern32.o
@@ -1594,7 +1609,8 @@ ufs_namespace_${mutation}.mutant.c: ufs_namespace_mutate.py \
 ufs_namespace_${mutation}.mutant.test: \
     ufs_namespace_${mutation}.mutant.c ufs_namespace_test.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} ${ILP32} -c -o \
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_NAMESPACE_CFLAGS} \
+	    ${UFS_NAMESPACE_RENAMES} ${ILP32} -c -o \
 	    ufs_namespace_${mutation}.mutant.o \
 	    ufs_namespace_${mutation}.mutant.c
 	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
@@ -1625,6 +1641,67 @@ check-ufs-namespace-mutants: \
 		echo "PASS UFS namespace $$mutation mutation rejected"; \
 	done
 
+ufs_topology_functions.c: ufs_topology_extract.py ${UFS_TOPOLOGY_SRC}
+	${PYTHON} ufs_topology_extract.py --source ${UFS_TOPOLOGY_SRC} \
+	    --output $@
+
+ufs_topology_syscalls32.o: ufs_topology_functions.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_TOPOLOGY_CFLAGS} \
+	    ${UFS_TOPOLOGY_RENAMES} ${ILP32} -c -o $@ \
+	    ufs_topology_functions.c
+
+ufs_topology_test32: ufs_topology_test.c ufs_topology_syscalls32.o \
+    ufs_namespace_kernel32.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_topology_test.c \
+	    ufs_topology_syscalls32.o ufs_namespace_kernel32.o hostkern32.o
+
+check-ufs-topology-ilp32: ufs_topology_test32
+	${TEST_EXECUTION} run kernel.ufs-topology.ilp32 -- ./ufs_topology_test32
+
+.for mutation in ${UFS_TOPOLOGY_MUTANTS}
+ufs_topology_${mutation}.mutant.c: ufs_topology_mutate.py \
+    ufs_topology_extract.py ${UFS_TOPOLOGY_SRC}
+	${PYTHON} ufs_topology_mutate.py --source ${UFS_TOPOLOGY_SRC} \
+	    --output $@ --mutation ${mutation}
+
+ufs_topology_${mutation}.mutant.test: \
+    ufs_topology_${mutation}.mutant.c ufs_topology_test.c \
+    ufs_namespace_kernel32.o hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_TOPOLOGY_CFLAGS} \
+	    ${UFS_TOPOLOGY_RENAMES} ${ILP32} -c -o \
+	    ufs_topology_${mutation}.mutant.o \
+	    ufs_topology_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_topology_test.c \
+	    ufs_topology_${mutation}.mutant.o ufs_namespace_kernel32.o \
+	    hostkern32.o
+.endfor
+
+check-ufs-topology-mutants: \
+    ${UFS_TOPOLOGY_MUTANTS:@mutation@ufs_topology_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${UFS_TOPOLOGY_MUTANTS}; do \
+		output=ufs_topology_$$mutation.mutant.out; \
+		if ./ufs_topology_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		omit-rename-acquisition|release-before-source-lookup) \
+			expected='error == EINTR' ;; \
+		allow-directory-link|allow-directory-unlink) \
+			expected='u.u_error == EPERM' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL UFS topology $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS UFS topology $$mutation mutation rejected"; \
+	done
+
 .for mutation in ${OPENAT_NAMEI_MUTANTS}
 openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
 	${PYTHON} openat_mutate.py --source ${OPENAT_NAMEI_SRC} --output $@ \
@@ -1645,12 +1722,14 @@ openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_VNOPS_SRC}
 	    --mutation ${mutation}
 
 openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
-    openat_test.c openat_syscalls32.o hostkern32.o hostkern.h ${MACHINE_STAMP}
+    openat_test.c openat_syscalls32.o ufs_namespace_kernel32.o hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_RENAMES} ${ILP32} \
 	    -c -o openat_${mutation}.mutant.o openat_${mutation}.mutant.c
 	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
 	    ${OPENAT_LDFLAGS} -o $@ openat_test.c \
-	    openat_${mutation}.mutant.o openat_syscalls32.o hostkern32.o
+	    openat_${mutation}.mutant.o openat_syscalls32.o \
+	    ufs_namespace_kernel32.o hostkern32.o
 .endfor
 
 check-openat-mutants: \
@@ -2039,6 +2118,7 @@ check-ilp32:
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    check-dirremove-ilp32 check-dirremove-mutants \
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
+	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
@@ -2159,6 +2239,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-namespace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -2278,6 +2359,10 @@ clean:
 	rm -f ufs_namespace_kernel32.o ufs_namespace_test32
 	rm -f ufs_namespace_*.mutant.c ufs_namespace_*.mutant.o \
 	    ufs_namespace_*.mutant.test ufs_namespace_*.mutant.out
+	rm -f ufs_topology_functions.c ufs_topology_syscalls32.o \
+	    ufs_topology_test32
+	rm -f ufs_topology_*.mutant.c ufs_topology_*.mutant.o \
+	    ufs_topology_*.mutant.test ufs_topology_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2295,6 +2380,7 @@ clean:
 	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	check-dirremove-ilp32 check-dirremove-mutants \
 	check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
+	check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

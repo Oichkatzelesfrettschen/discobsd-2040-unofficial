@@ -129,6 +129,16 @@ wakeup(caddr_t channel)
     (void)channel;
 }
 
+int
+tsleep(caddr_t channel, int priority, u_int timeout)
+{
+    (void)channel;
+    (void)priority;
+    (void)timeout;
+    HK_CHECK(0);
+    return EINTR;
+}
+
 void
 igrab(struct inode *inode)
 {

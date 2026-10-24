@@ -274,7 +274,8 @@ link(void)
     ip = namei(ndp);    /* well, this routine is doomed anyhow */
     if (ip == NULL)
         return;
-    if ((ip->i_mode&IFMT) == IFDIR && !suser()) {
+    if ((ip->i_mode&IFMT) == IFDIR) {
+        u.u_error = EPERM;
         iput(ip);
         return;
     }
@@ -377,8 +378,10 @@ unlink(void)
     if (ip == NULL)
         return;
     dp = ndp->ni_pdir;
-    if ((ip->i_mode&IFMT) == IFDIR && !suser())
+    if ((ip->i_mode&IFMT) == IFDIR) {
+        u.u_error = EPERM;
         goto out;
+    }
     /*
      * Don't unlink a mounted file.
      */
@@ -810,10 +813,15 @@ rename(void)
     register struct nameidata *ndp = &nd;
     int error = 0;
 
+    error = ufs_namespace_enter();
+    if (error != 0) {
+        u.u_error = error;
+        return;
+    }
     NAMEI_INIT_USER (ndp, DELETE, LOCKPARENT, uap->from);
     ip = namei(ndp);
     if (ip == NULL)
-        return;
+        goto done;
     dp = ndp->ni_pdir;
     /*
      * 'from' file can not be renamed if it is immutable/appendonly or if its
@@ -826,7 +834,7 @@ rename(void)
         else
             iput(ip);
         u.u_error = EPERM;
-        return;
+        goto done;
     }
 
     if ((ip->i_mode&IFMT) == IFDIR) {
@@ -845,7 +853,7 @@ rename(void)
             else
                 iput(ip);
             u.u_error = EINVAL;
-            return;
+            goto done;
         }
         ip->i_flag |= IRENAME;
         oldparent = dp->i_number;
@@ -1075,7 +1083,7 @@ rename(void)
     irele(ip);
     if (error)
         u.u_error = error;
-    return;
+    goto done;
 
 bad:
     iput(dp);
@@ -1088,6 +1096,8 @@ out:
     irele(ip);
     if (error)
         u.u_error = error;
+done:
+    ufs_namespace_exit();
 }
 
 /*

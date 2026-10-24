@@ -267,6 +267,17 @@ TTY_LAYOUT_CFLAGS=	-std=c17 -pedantic-errors -mcpu=cortex-m0plus \
 			-nostdinc -DKERNEL -I. -I${TOPSRC}/sys \
 			-I${TOPSRC}/sys/arch -I${PORT_INCLUDE} ${GATE_WARN}
 TTY_LAYOUT_BAD_OUTPUT=	tty_layout_contract_bad.out
+MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
+MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
+MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
+MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected
+MEM_SPAN_FUNCTION_MUTANTS=	kernel-first-byte
+MEM_SPAN_MUTANTS=	${MEM_SPAN_DRIVER_MUTANTS} ${MEM_SPAN_FUNCTION_MUTANTS}
+MEM_SPAN_CFLAGS=	-ffunction-sections -fdata-sections
+MEM_SPAN_GATE_CFLAGS=	${GATE_CFLAGS} -Wno-pointer-to-int-cast
+MEM_SPAN_LDFLAGS=	${FILE_OWNER_LDFLAGS}
+MEM_SPAN_HEADER_DEPS=	${FIONREAD_HEADER_DEPS} ${USERCOPY_HEADER} \
+			${TOPSRC}/sys/sys/user.h
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -287,7 +298,7 @@ DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
 	clist_test cred_test resource_test rwuio_test file_owner_test \
-	fionread_test swap_ioctl_test tty_local_mode_test
+	fionread_test swap_ioctl_test tty_local_mode_test mem_span_test
 
 SHUTDOWN_CHECKS=
 .if ${MACHINE:U} == "rp2040"
@@ -318,6 +329,108 @@ ${MACHINE_STAMP}: hostintr.h ${PORT_INCLUDE}
 	done
 	@echo '#include "../hostintr.h"' >> machine/intr.h
 	@touch $@
+
+${MEM_SPAN_FUNCTIONS}: mem_span_extract.py ${MEM_SPAN_MACHDEP_SRC}
+	${PYTHON} mem_span_extract.py --source ${MEM_SPAN_MACHDEP_SRC} \
+	    --output $@
+
+mem_span_kernel.o: ${MEM_SPAN_SRC} ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} -c -o $@ ${MEM_SPAN_SRC}
+
+mem_span_test: mem_span_test.c ${MEM_SPAN_FUNCTIONS} mem_span_kernel.o \
+    hostkern.o ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${MEM_SPAN_GATE_CFLAGS} ${MEM_SPAN_LDFLAGS} -o $@ \
+	    mem_span_test.c mem_span_kernel.o hostkern.o
+
+mem_span_kernel32.o: ${MEM_SPAN_SRC} ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} ${ILP32} \
+	    -c -o $@ ${MEM_SPAN_SRC}
+
+mem_span_test32: mem_span_test.c ${MEM_SPAN_FUNCTIONS} \
+    mem_span_kernel32.o hostkern32.o ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${MEM_SPAN_GATE_CFLAGS} ${ILP32} ${MEM_SPAN_LDFLAGS} -o $@ \
+	    mem_span_test.c mem_span_kernel32.o hostkern32.o
+
+.for mutation in ${MEM_SPAN_DRIVER_MUTANTS}
+mem_span_${mutation}.mutant.c: mem_span_mutate.py ${MEM_SPAN_SRC}
+	${PYTHON} mem_span_mutate.py --source ${MEM_SPAN_SRC} --output $@ \
+	    --mutation ${mutation}
+
+mem_span_${mutation}.mutant.o: mem_span_${mutation}.mutant.c \
+    ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} -c -o $@ \
+	    mem_span_${mutation}.mutant.c
+
+mem_span_${mutation}.mutant.test: mem_span_test.c ${MEM_SPAN_FUNCTIONS} \
+    mem_span_${mutation}.mutant.o hostkern.o ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${MEM_SPAN_GATE_CFLAGS} ${MEM_SPAN_LDFLAGS} -o $@ \
+	    mem_span_test.c mem_span_${mutation}.mutant.o hostkern.o
+.endfor
+
+mem_span_kernel-first-byte.mutant.c: mem_span_mutate.py ${MEM_SPAN_FUNCTIONS}
+	${PYTHON} mem_span_mutate.py --source ${MEM_SPAN_FUNCTIONS} --output $@ \
+	    --mutation kernel-first-byte
+
+mem_span_kernel-first-byte.mutant.test: mem_span_test.c \
+    mem_span_kernel-first-byte.mutant.c mem_span_kernel.o hostkern.o \
+    ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${MEM_SPAN_GATE_CFLAGS} ${MEM_SPAN_LDFLAGS} \
+	    -DMEM_KERNEL_SPAN_FUNCTIONS='"mem_span_kernel-first-byte.mutant.c"' \
+	    -o $@ mem_span_test.c mem_span_kernel.o hostkern.o
+
+mem_span_endpoint-admission.mutant32.o: \
+    mem_span_endpoint-admission.mutant.c ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} ${ILP32} -c -o $@ \
+	    mem_span_endpoint-admission.mutant.c
+
+mem_span_endpoint-admission.mutant32.test: mem_span_test.c \
+    ${MEM_SPAN_FUNCTIONS} mem_span_endpoint-admission.mutant32.o \
+    hostkern32.o ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${MEM_SPAN_GATE_CFLAGS} ${ILP32} ${MEM_SPAN_LDFLAGS} -o $@ \
+	    mem_span_test.c mem_span_endpoint-admission.mutant32.o hostkern32.o
+
+check-mem-span-mutants: \
+    ${MEM_SPAN_MUTANTS:@mutation@mem_span_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${MEM_SPAN_MUTANTS}; do \
+		output=mem_span_$$mutation.mutant.out; \
+		if ./mem_span_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		if [ "$$status" -ne 1 ]; then \
+			cat $$output >&2; \
+			echo "FAIL memory-device $$mutation mutation returned $$status" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS memory-device $$mutation mutation rejected"; \
+	done
+
+mem_span_kernel_sanitized.o: ${MEM_SPAN_SRC} ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} \
+	    ${KERNEL_SANITIZER_FLAGS} -c -o $@ ${MEM_SPAN_SRC}
+
+mem_span_hostkern_sanitized.o: hostkern.c hostkern.h
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o $@ hostkern.c
+
+mem_span_test_sanitized: mem_span_test.c ${MEM_SPAN_FUNCTIONS} \
+    mem_span_kernel_sanitized.o mem_span_hostkern_sanitized.o \
+    ${MEM_SPAN_HEADER_DEPS}
+	${HOST_CC} ${MEM_SPAN_GATE_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    ${MEM_SPAN_LDFLAGS} -o $@ mem_span_test.c \
+	    mem_span_kernel_sanitized.o mem_span_hostkern_sanitized.o
+
+check-mem-span-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+check-mem-span-sanitizer: mem_span_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.mem-span.sanitized -- \
+	    ./mem_span_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.mem-span.sanitized \
+	    "memory-device span contracts: sanitizer runtime unavailable"
+.endif
 
 ${TTY_LOCAL_MODE_FUNCTIONS}: tty_local_mode_extract.py ${TTY_SRC}
 	${PYTHON} tty_local_mode_extract.py --source ${TTY_SRC} --output $@
@@ -1470,7 +1583,8 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
-	    swap_ioctl_test32 tty_local_mode_test32 \
+	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
+	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
 	    syscall_args_dispatch_mutant sigreturn_context_test32 \
@@ -1496,6 +1610,20 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32
 	${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- \
 	    ./tty_local_mode_test32
+	${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32
+	@if ./mem_span_endpoint-admission.mutant32.test \
+	    >mem_span_endpoint-admission.mutant32.out 2>&1; then status=0; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || \
+	    ! grep -F "discontiguous_error == EFAULT" \
+	    mem_span_endpoint-admission.mutant32.out >/dev/null || \
+	    ! grep -F "wrapped_error == EFAULT" \
+	    mem_span_endpoint-admission.mutant32.out >/dev/null; then \
+		cat mem_span_endpoint-admission.mutant32.out >&2; \
+		echo "FAIL memory-device ILP32 endpoint mutation" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS memory-device ILP32 endpoint mutation rejected"
 	${TEST_EXECUTION} run kernel.usercopy-span.ilp32 -- ./usercopy_span_test32
 	${TEST_EXECUTION} run kernel.syscall-arguments.ilp32 -- ./syscall_args_test32
 	@if ./syscall_args_dispatch_mutant; then status=0; else status=$$?; fi; \
@@ -1577,6 +1705,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.swap-ioctl.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.tty-local-mode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.tty-local-mode.signed-shift-negative "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.mem-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -1600,7 +1729,8 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-file-status-mutants check-fionread-mutants \
     check-fionread-sanitizer check-swap-ioctl-mutants \
     check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
-    check-tty-local-mode-sanitizer
+    check-tty-local-mode-sanitizer check-mem-span-mutants \
+    check-mem-span-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1651,6 +1781,13 @@ clean:
 	    tty_local_mode_test_sanitized ${TTY_LOCAL_MODE_FUNCTIONS}
 	rm -f tty_local_mode_*.mutant.c tty_local_mode_*.mutant.test \
 	    tty_local_mode_*.mutant.out
+	rm -f ${MEM_SPAN_FUNCTIONS} mem_span_kernel.o mem_span_kernel32.o \
+	    mem_span_test32 mem_span_test_sanitized mem_span_kernel_sanitized.o \
+	    mem_span_hostkern_sanitized.o
+	rm -f mem_span_*.mutant.c mem_span_*.mutant.o \
+	    mem_span_*.mutant.test mem_span_*.mutant.out \
+	    mem_span_*.mutant32.o mem_span_*.mutant32.test \
+	    mem_span_*.mutant32.out
 	rm -f usercopy_functions.c usercopy_endpoint_mutant.c
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c

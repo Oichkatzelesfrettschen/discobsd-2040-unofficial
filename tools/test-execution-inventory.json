@@ -1665,6 +1665,25 @@
       ]
     },
     {
+      "id": "kernel.mem-span.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-mem-span-sanitizer",
+      "root_target": "check-kernel",
+      "program": "mem_span_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "mem_span_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.mem-span.sanitized -- ./mem_span_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.file-owner.ubsan-mutant",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1815,6 +1834,26 @@
         "tty_local_mode_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- ./tty_local_mode_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.mem-span.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "mem_span_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "mem_span_test32",
+        "mem_span_endpoint-admission.mutant32.test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

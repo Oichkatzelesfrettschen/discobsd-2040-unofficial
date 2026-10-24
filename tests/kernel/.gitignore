@@ -67,6 +67,15 @@ tty_local_mode_functions.c
 tty_local_mode_*.mutant.c
 tty_local_mode_*.mutant.test
 tty_local_mode_*.mutant.out
+mem_span_test
+mem_span_test32
+mem_span_test_sanitized
+mem_kernel_span_functions.c
+mem_span_*.mutant.c
+mem_span_*.mutant.test
+mem_span_*.mutant.out
+mem_span_*.mutant32.test
+mem_span_*.mutant32.out
 swap_ioctl_test
 swap_ioctl_test32
 swap_ioctl_test_sanitized

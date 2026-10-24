@@ -62542,6 +62542,43 @@
       }
     },
     {
+      "path": "tests/kernel/mem_span_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/mem_span_extract.py",
+        "tests/kernel/mem_span_mutate.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "tests/kernel/prf_test.c",
       "class": "unreviewed",
       "scope": "unreviewed",

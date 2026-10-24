@@ -156,10 +156,15 @@ OPENAT_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
 OPENAT_DEFS=	-DSINGLE_UFS_ROOT -DNMOUNT=1 -DLINEAR_NAME_CACHE \
 		-DNNAMECACHE=4
 OPENAT_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
+OPENAT_MULTIFS_DEFS=	-DNMOUNT=2 -DLINEAR_NAME_CACHE -DNNAMECACHE=4
+OPENAT_MULTIFS_CFLAGS=	-ffunction-sections -fdata-sections \
+			${OPENAT_MULTIFS_DEFS}
 OPENAT_RENAMES=	-Dopen=kernel_open -Dopenat=kernel_openat \
 		-Dsetjmp=openat_setjmp -Diput=iput_openat
 OPENAT_SYSCALL_RENAMES=	${OPENAT_RENAMES} -Dmaknode=openat_syscalls_maknode
-OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd
+OPENAT_NAMEI_MUTANTS=	cwd-instead-of-dirfd absolute-consults-dirfd \
+			accept-empty-beneath follow-beneath-symlink \
+			cross-beneath-mount
 OPENAT_VNOPS_MUTANTS=	follow-final-symlink
 OPENAT_MUTANTS=	${OPENAT_NAMEI_MUTANTS} ${OPENAT_VNOPS_MUTANTS}
 DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
@@ -1515,6 +1520,10 @@ openat_namei32.o: ${OPENAT_NAMEI_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} -c -o $@ \
 	    ${OPENAT_NAMEI_SRC}
 
+openat_namei_multifs32.o: ${OPENAT_NAMEI_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_MULTIFS_CFLAGS} ${ILP32} -c -o $@ \
+	    ${OPENAT_NAMEI_SRC}
+
 openat_vnops32.o: ${OPENAT_VNOPS_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${OPENAT_RENAMES} ${ILP32} \
 	    -c -o $@ ${OPENAT_VNOPS_SRC}
@@ -1528,14 +1537,23 @@ openat_namei_test32: openat_test.c openat_namei32.o hostkern32.o
 	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
 	    openat_namei32.o hostkern32.o
 
+openat_namei_multifs_test32: openat_test.c openat_namei_multifs32.o \
+    hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
+	    openat_namei_multifs32.o hostkern32.o
+
 openat_test32: openat_test.c openat_vnops32.o openat_syscalls32.o \
     ufs_namespace_kernel32.o hostkern32.o
 	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
 	    ${OPENAT_LDFLAGS} -o $@ openat_test.c openat_vnops32.o \
 	    openat_syscalls32.o ufs_namespace_kernel32.o hostkern32.o
 
-check-openat-ilp32: openat_namei_test32 openat_test32
+check-openat-ilp32: openat_namei_test32 openat_namei_multifs_test32 \
+    openat_test32
 	${TEST_EXECUTION} run kernel.openat-namei.ilp32 -- ./openat_namei_test32
+	${TEST_EXECUTION} run kernel.openat-namei-multifs.ilp32 -- \
+	    ./openat_namei_multifs_test32
 	${TEST_EXECUTION} run kernel.openat.ilp32 -- ./openat_test32
 
 dirremove_kernel32.o: ${DIRREMOVE_SRC} ${MACHINE_STAMP}
@@ -1709,9 +1727,9 @@ openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
 
 openat_${mutation}.mutant.test: openat_${mutation}.mutant.c \
     openat_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_MULTIFS_CFLAGS} ${ILP32} \
 	    -c -o openat_${mutation}.mutant.o openat_${mutation}.mutant.c
-	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
 	    -DOPENAT_NAMEI_CONTRACT ${OPENAT_LDFLAGS} -o $@ openat_test.c \
 	    openat_${mutation}.mutant.o hostkern32.o
 .endfor
@@ -1744,6 +1762,9 @@ check-openat-mutants: \
 		case $$mutation in \
 		cwd-instead-of-dirfd) expected='result == &descriptor_inode' ;; \
 		absolute-consults-dirfd) expected='result == &root_inode' ;; \
+		accept-empty-beneath) expected='namei_at(&name, 7) == NULL' ;; \
+		follow-beneath-symlink) expected='u.u_error == ELOOP' ;; \
+		cross-beneath-mount) expected='u.u_error == EXDEV' ;; \
 		follow-final-symlink) expected='u.u_error == ELOOP' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
@@ -2236,6 +2257,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.explicit-time-negative.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.futimes.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat-namei.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.openat-namei-multifs.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-namespace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -2349,8 +2371,9 @@ clean:
 	rm -f futimes_kernel32.o futimes_test32
 	rm -f futimes_*.mutant.c futimes_*.mutant.o futimes_*.mutant.test \
 	    futimes_*.mutant.out
-	rm -f openat_namei32.o openat_vnops32.o openat_syscalls32.o \
-	    openat_namei_test32 openat_test32
+	rm -f openat_namei32.o openat_namei_multifs32.o openat_vnops32.o \
+	    openat_syscalls32.o openat_namei_test32 \
+	    openat_namei_multifs_test32 openat_test32
 	rm -f openat_*.mutant.c openat_*.mutant.o openat_*.mutant.test \
 	    openat_*.mutant.out
 	rm -f dirremove_kernel32.o dirremove_test32

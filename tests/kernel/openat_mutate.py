@@ -31,6 +31,35 @@ def mutate(source: str, mutation: str) -> str:
             "    cp = path;\n    if (*cp == '/' && dirfd == AT_FDCWD) {\n",
             mutation,
         )
+    if mutation == "accept-empty-beneath":
+        return replace_once(
+            source,
+            """    if (*cursor == '\\0')
+        return ENOENT;
+""",
+            """    if (*cursor == '\\0')
+        return 0;
+""",
+            mutation,
+        )
+    if mutation == "follow-beneath-symlink":
+        return replace_once(
+            source,
+            """    if ((target->i_mode & IFMT) == IFLNK)
+        return ELOOP;
+""",
+            "",
+            mutation,
+        )
+    if mutation == "cross-beneath-mount":
+        return replace_once(
+            source,
+            """    if (INODE_DEVICE(target) != INODE_DEVICE(parent))
+        return EXDEV;
+""",
+            "    (void)parent;\n",
+            mutation,
+        )
     if mutation == "follow-final-symlink":
         return replace_once(
             source,

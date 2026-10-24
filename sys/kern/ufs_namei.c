@@ -96,6 +96,51 @@ namei_copy_path(struct nameidata *ndp, char *destination)
 	return copystr(ndp->ni_dirp, destination, MAXPATHLEN, (u_int *)0);
 }
 
+static int
+namei_validate_beneath_path(const char *path)
+{
+    const char *component;
+    const char *cursor = path;
+    u_int length;
+
+    if (*cursor == '\0')
+        return ENOENT;
+    if (*cursor == '/')
+        return EINVAL;
+    for (;;) {
+        component = cursor;
+        while (*cursor != '\0' && *cursor != '/')
+            cursor++;
+        length = (u_int)(cursor - component);
+        if (length == 0 ||
+            (length == 1 && component[0] == '.') ||
+            (length == 2 && component[0] == '.' && component[1] == '.'))
+            return EINVAL;
+        if (*cursor == '\0')
+            return 0;
+        cursor++;
+        if (*cursor == '\0')
+            return EINVAL;
+    }
+}
+
+static int
+namei_beneath_target_error(struct nameidata *ndp, struct inode *parent,
+    struct inode *target)
+{
+    if ((ndp->ni_nameiop & NI_BENEATH) == 0)
+        return 0;
+    if ((target->i_mode & IFMT) == IFLNK)
+        return ELOOP;
+#ifdef SINGLE_UFS_ROOT
+    (void)parent;
+#else
+    if (INODE_DEVICE(target) != INODE_DEVICE(parent))
+        return EXDEV;
+#endif
+    return 0;
+}
+
 /*
  * Structures associated with name cacheing.
  */
@@ -308,7 +353,7 @@ namei_at(register struct nameidata *ndp, int dirfd)
     lockparent = ndp->ni_nameiop & LOCKPARENT;
     docache = (ndp->ni_nameiop & NOCACHE) ^ NOCACHE;
     flag = ndp->ni_nameiop &~
-        (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH|NI_NOEMPTY);
+        (LOCKPARENT|NOCACHE|FOLLOW|NI_USERPATH|NI_NOEMPTY|NI_BENEATH);
     if (flag == DELETE || lockparent)
         docache = 0;
     /*
@@ -318,6 +363,17 @@ namei_at(register struct nameidata *ndp, int dirfd)
     if (error) {
         u.u_error = error;
         goto retNULL;
+    }
+    if (ndp->ni_nameiop & NI_BENEATH) {
+        error = namei_validate_beneath_path(path);
+        if (error) {
+            u.u_error = error;
+            goto retNULL;
+        }
+        if (flag == DELETE && !lockparent) {
+            u.u_error = EINVAL;
+            goto retNULL;
+        }
     }
     if ((ndp->ni_nameiop & NI_NOEMPTY) && path[0] == '\0') {
         u.u_error = ENOENT;
@@ -817,6 +873,13 @@ found:
                     goto bad;
                 }
             }
+            error = namei_beneath_target_error(ndp, ndp->ni_pdir, dp);
+            if (error) {
+                iput(ndp->ni_pdir);
+                ndp->ni_pdir = NULL;
+                u.u_error = error;
+                goto bad;
+            }
         }
         goto retDP;
     }
@@ -870,6 +933,13 @@ found:
         dp = iget(INODE_DEVICE(dp), fs, ndp->ni_dent.d_ino);
         if (dp == NULL) {
             iput(ndp->ni_pdir);
+            goto bad;
+        }
+        error = namei_beneath_target_error(ndp, ndp->ni_pdir, dp);
+        if (error) {
+            iput(ndp->ni_pdir);
+            ndp->ni_pdir = NULL;
+            u.u_error = error;
             goto bad;
         }
         goto retDP;
@@ -957,6 +1027,11 @@ found:
     }
 
 haveino:
+    error = namei_beneath_target_error(ndp, pdp, dp);
+    if (error) {
+        u.u_error = error;
+        goto bad2;
+    }
     fs = INODE_FILESYSTEM(dp);
 
     /*

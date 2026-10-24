@@ -2252,6 +2252,25 @@
       ]
     },
     {
+      "id": "kernel.openat-namei-multifs.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32 with two UFS mount slots",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-openat-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "openat_namei_multifs_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "openat_namei_multifs_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.openat-namei-multifs.ilp32 -- ./openat_namei_multifs_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.openat.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

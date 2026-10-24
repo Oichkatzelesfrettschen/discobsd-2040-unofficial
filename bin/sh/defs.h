@@ -103,7 +103,6 @@
 #include "name.h"
 #include <fcntl.h>
 #include <signal.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
@@ -148,7 +147,34 @@ extern void error(char *s);
 extern int estabf(char *s);
 extern int execa(char **at, short pos);
 extern int execute(struct trenod *argt, volatile int exec_link, int errorflg, int *pf1, int *pf2);
-extern void execexp(char *s, int f, int errorflg);
+union execution_input_tail
+{
+	char **arguments;
+	int descriptor;
+};
+extern void execute_input(char *string, union execution_input_tail tail,
+    int errorflg);
+static inline void
+execute_argument_input(char **arguments, int errorflg)
+{
+	union execution_input_tail tail = { .arguments = &arguments[1] };
+
+	execute_input(arguments[0], tail, errorflg);
+}
+static inline void
+execute_descriptor_input(int descriptor, int errorflg)
+{
+	union execution_input_tail tail = { .descriptor = descriptor };
+
+	execute_input(NIL, tail, errorflg);
+}
+static inline void
+execute_string_input(char *string, int errorflg)
+{
+	union execution_input_tail tail = { .arguments = (char **)NIL };
+
+	execute_input(string, tail, errorflg);
+}
 extern _Noreturn void exitsh(int xno);
 extern int expand(char *as, int rcnt);
 extern _Noreturn void failed(char *s1, char *s2);

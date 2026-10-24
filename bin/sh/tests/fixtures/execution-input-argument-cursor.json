@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "execution-input-argument-cursor",
+  "source": "bin/sh/xec.c",
+  "object": "xec.o",
+  "old": "\t\tfb.feval = tail.arguments;",
+  "new": "\t\tfb.feval = &tail.arguments[1];",
+  "snippet": "eval echo left right",
+  "environment": {},
+  "known_good": {
+    "stdout": "left right\n",
+    "exit_code": 0
+  },
+  "known_bad": {
+    "stdout": "right\n",
+    "exit_code": 0
+  },
+  "caught_break": "eval skips an argument after advancing its private cursor twice"
+}

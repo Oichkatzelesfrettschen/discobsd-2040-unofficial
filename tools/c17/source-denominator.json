@@ -2238,11 +2238,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2275,11 +2275,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2312,11 +2312,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2345,11 +2345,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2378,11 +2378,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2411,11 +2411,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2448,11 +2448,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2481,11 +2481,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2497,7 +2497,9 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "union-access"
+          ],
           "inline_assembly": [],
           "integer": [
             "integer-cast"
@@ -2518,11 +2520,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2551,11 +2553,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2586,11 +2588,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2625,11 +2627,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2658,11 +2660,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2697,11 +2699,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2730,11 +2732,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2770,11 +2772,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2805,11 +2807,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2843,11 +2845,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2876,11 +2878,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2909,11 +2911,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -2944,11 +2946,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -2977,11 +2979,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3014,11 +3016,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3052,11 +3054,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3091,11 +3093,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3124,11 +3126,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3163,11 +3165,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3196,11 +3198,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3268,11 +3270,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3303,11 +3305,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3336,11 +3338,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3369,11 +3371,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3409,11 +3411,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3442,11 +3444,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3479,11 +3481,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3512,11 +3514,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3545,11 +3547,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3578,11 +3580,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3642,14 +3644,16 @@
     },
     {
       "path": "bin/sh/tests/gnu17.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
+      "class": "A",
+      "scope": "maintained",
       "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/shell-c17-contracts.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3817,11 +3821,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -3885,11 +3889,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3918,11 +3922,11 @@
       "owner": "bin",
       "profile": "modernized-cross-userland",
       "native_input": "no",
-      "language_state": "migration-open",
+      "language_state": "accepted",
       "evidence": [
         "docs/research/shell-c17-contracts.md"
       ],
-      "blocker": "The wider-pointer execexp() ABI and complete semantic and host-compiler acceptance remain open.",
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -3934,7 +3938,9 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "union-access"
+          ],
           "inline_assembly": [],
           "integer": [
             "integer-cast",

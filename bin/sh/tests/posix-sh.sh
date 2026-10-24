@@ -418,6 +418,12 @@ ok func_exit_status_of_body '0' 'f(){ true; }; f; echo $?'
 ok sb_colon '0' ': ; echo $?'
 ok sb_dot 'ok' 'echo echo ok > d1; . ./d1'
 ok sb_eval 'ev' 'eval "echo ev"'
+ok sb_eval_arguments 'left right' 'eval echo left right'
+ok sb_eval_nested 'inner tail' 'eval eval echo inner tail'
+ok sb_dot_multiline 'first
+second
+after' \
+    'echo "echo first" > d2; echo "echo second" >> d2; . ./d2; echo after'
 ok sb_exec_redirect 'x' '(exec > f8; echo x); cat f8'
 okrc sb_exit '' 5 'exit 5'
 ok sb_export 'v' 'x=v; export x; sh -c "echo \$x"'
@@ -429,6 +435,7 @@ ok sb_shift 'b' 'set a b; shift; echo $1'
 ok sb_times 'ok' 'times > /dev/null; echo ok'
 ok sb_trap_exit 'hi
 bye' 'trap "echo bye" 0; echo hi'
+ok sb_trap_eval_arguments 'trap tail' 'trap "eval echo trap tail" 0'
 ok sb_trap_reset 'hi' 'trap "echo bye" 0; trap 0; echo hi'
 ok sb_unset 'unset' 'x=1; unset x; echo "${x-unset}"'
 ok sb_break_in_loop 'ok' 'for i in 1; do break; done; echo ok'

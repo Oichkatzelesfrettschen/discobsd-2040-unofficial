@@ -209,7 +209,7 @@ chktrap(void)
 			{
 				int     savxit = exitval;
 
-				execexp(t, 0, (int)(flags & errflg));
+				execute_string_input(t, (int)(flags & errflg));
 				exitval = savxit;
 				exitset();
 			}

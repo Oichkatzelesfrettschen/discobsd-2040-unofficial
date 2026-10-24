@@ -575,7 +575,7 @@ execute(struct trenod *argt, volatile int exec_link, int errorflg, int *pf1, int
 								if ((f = pathopen(getpath(a1), a1)) < 0)
 									failed(a1, notfound);
 								else
-									execexp(NIL, f, errorflg);
+									execute_descriptor_input(f, errorflg);
 							}
 							break;
 
@@ -835,7 +835,7 @@ execute(struct trenod *argt, volatile int exec_link, int errorflg, int *pf1, int
 
 						case SYSEVAL:
 							if (a1)
-								execexp(a1, (int)(intptr_t)&com[2], errorflg);
+								execute_argument_input(&com[1], errorflg);
 							break;
 
 #ifndef RES
@@ -1389,19 +1389,19 @@ recoverable_parse(void)
 }
 
 void
-execexp(char *s, int f, int errorflg)
+execute_input(char *string, union execution_input_tail tail, int errorflg)
 {
 	struct fileblk  fb;
 	struct trenod   *tree;
 
 	push(&fb);
-	if (s)
+	if (string)
 	{
-		estabf(s);
-		fb.feval = (char **)(f);
+		estabf(string);
+		fb.feval = tail.arguments;
 	}
-	else if (f >= 0)
-		initf(f);
+	else
+		initf(tail.descriptor);
 	if (command_errshell && command_recovery_allowed())
 		tree = recoverable_parse();
 	else

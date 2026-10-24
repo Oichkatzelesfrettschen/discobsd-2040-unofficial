@@ -1,4 +1,4 @@
-"""Calibrate the command and getopts host witnesses with ILP32 mutants."""
+"""Calibrate shell command, getopts, and execution-input ILP32 witnesses."""
 
 import json
 import os
@@ -17,6 +17,9 @@ BASELINE_OBJECTS = TEST_DIRECTORY / "out"
 FIXTURES = (
     TEST_DIRECTORY / "fixtures/command-null-builtin.json",
     TEST_DIRECTORY / "fixtures/getopts-optind-skip.json",
+    TEST_DIRECTORY / "fixtures/execution-input-eval-mode.json",
+    TEST_DIRECTORY / "fixtures/execution-input-argument-cursor.json",
+    TEST_DIRECTORY / "fixtures/execution-input-descriptor-mode.json",
 )
 COMPILE_FLAGS = (
     "-m32",

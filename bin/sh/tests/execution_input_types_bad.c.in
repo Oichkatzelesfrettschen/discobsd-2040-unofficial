@@ -1,0 +1,21 @@
+/* Expected rejection: each execution-input mode must retain its native type. */
+#include "../defs.h"
+
+static void
+check_bad_execution_input_types(void)
+{
+	void (*argument_input)(char *, int) = execute_argument_input;
+	void (*descriptor_input)(char *, int) = execute_descriptor_input;
+	void (*string_input)(int, int) = execute_string_input;
+
+	(void)argument_input;
+	(void)descriptor_input;
+	(void)string_input;
+}
+
+int
+main(void)
+{
+	check_bad_execution_input_types();
+	return 0;
+}

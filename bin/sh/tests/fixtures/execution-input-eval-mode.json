@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "execution-input-eval-mode",
+  "source": "bin/sh/xec.c",
+  "object": "xec.o",
+  "old": "\t\t\t\t\t\t\t\texecute_argument_input(&com[1], errorflg);",
+  "new": "\t\t\t\t\t\t\t\texecute_string_input(a1, errorflg);",
+  "snippet": "eval echo left right",
+  "environment": {},
+  "known_good": {
+    "stdout": "left right\n",
+    "exit_code": 0
+  },
+  "known_bad": {
+    "stdout": "\n",
+    "exit_code": 0
+  },
+  "caught_break": "eval selects string input and drops its remaining arguments"
+}

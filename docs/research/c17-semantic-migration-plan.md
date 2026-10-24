@@ -838,6 +838,25 @@ Source: `cpio-rooted-creation-identity-plan.md` and `TESTING.md`
 (`check-cpio-host`, `check-kernel-ilp32`, `check-namei-user-path`,
 `check-kernel-metadata`, `check-test-execution`).
 
+### R25 -- tar rooted hard-link publication
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | Additive BSD syscall and ARM libc wrapper, serialized UFS mutation, strict-C17 host utility and fixture, GNU17 Cortex-M0+ production build, generated metadata, and Smaller C public-header consumer |
+| Tier | T1: archive extraction publishes an attacker-named hard link from an extraction-owned source |
+| Native input | `t20_rooted_interfaces` repeatedly includes `unistd.h`, checks the exact four-argument `linkat_beneath` function-pointer type, and requires `linkat_beneath.o` in the native link map; the separate translation unit preserves Smaller C's fixed symbol-table bound, while on-device preprocessing remains open |
+| Contract | Tar opens and validates the extracted regular-file source, retains its descriptor across lookup and publication, and asks the kernel to add a target entry beneath the retained extraction root only while the source pathname still identifies that descriptor; the destination must remain absent through serialized publication |
+| Invariants | Existing syscall ordinals retain their values; additive syscall 162 carries four words; rooted traversal rejects absolute, empty, dot, dot-dot, repeated-separator, trailing-separator, symbolic-link, and mounted-filesystem transitions; source and destination share a filesystem; source immutability, append-only state, link-count saturation, target-directory append-only semantics, link-count reservation, directory-write failure, rollback, and descriptor ownership retain explicit results |
+| Falsifier | Nine warning-clean kernel mutations remove source identity, the retained root, final no-follow, namespace ownership through publication, reservation-error preservation, failed-publication rollback, absent-target enforcement, or the link-count limit, or incorrectly reject addition to an append-only directory. The tar fixture substitutes a foreign regular file or symbolic link after source validation; a pathname-link mutation must publish the substituted regular inode, while an abort after substitution must fail the status-and-diagnostic contract |
+| Gates | `check-tar-host`, required `check-kernel-ilp32`, `check-namei-user-path`, `check-kernel-metadata`, `check-test-execution`, Smaller C, source-denominator, exact PICO/PICO_UART GNU17 distributions, schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Matched clean parent and candidate schema-2 receipts report +360 PICO and +368 PICO_UART flash bytes with zero linked static-SRAM delta. Tar moves from 26,976/688/3,920 to 27,000/688/3,920 text/data/BSS bytes, +24 raw/loaded bytes, +32 packed bytes, and zero packed-block delta. Its selected libc set replaces `link.o` with `linkat_beneath.o`; every other shipped archive selection is unchanged. The native board libc remains 43,010 bytes and 151 members. Exact-command replay attributes +5 text bytes to `init_sysent.o`, +19 to `syscalls.o`, +340 to `ufs_syscalls.o`, and +24 to `tar.o`. The new `linkat_beneath()` frame uses 216 bytes, the existing kernel maximum remains 240 bytes, and tar's 832-byte maximum remains unchanged. The bounded exception request leaves 22,346 PICO and 34,820 PICO_UART flash bytes plus 115,848 static process-window bytes; runtime peaks remain open |
+| Evidence class | Strict-C17 host behavior under address and undefined-behavior sanitizers, direct-host ILP32 production-source behavior under the admitted external execution boundary, calibrated mutations, generated metadata, native-header/link acceptance, exact target builds, matched static-resource comparison, shipped dependency closure, and exact-command object/frame replay; runtime, persistence, and physical-board evidence remain open |
+| Ledger states | 1 language: done for the caller-complete utility seam and focused fixtures; broader kernel and tar translation units remain migration-open. 2 interface: done for additive slot 162 and its generated/libc callers. 3 native: expanded-header and selected-member acceptance pass; on-device preprocessing remains open. 4 hardening: host sanitizer and direct-host ILP32 schedules pass under their admitted execution boundaries for source identity and absent-target publication. 5 resource: static constrained surfaces are measured and the bounded flash/process/archive exception awaits pull-request review; runtime peaks and storage traffic remain open. 6 program closure: both kernels, tar, complete shipped dependency closure, image, archive selection, and packed-root accounting pass |
+| Residuals | Tar regular-file creation and replacement, symbolic-link publication, conditional removal, directory metadata reacquisition, runtime stack/heap/descriptor/inode high-water, directory-write crash recovery, persistent-media traffic, MPU behavior, deliberate faults, and physical-board execution remain separate units |
+
+Source: `TESTING.md` (`check-tar-host`, `check-kernel-ilp32`,
+`check-namei-user-path`, `check-kernel-metadata`, `check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -1019,7 +1038,7 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 90 accepted, 58 migration-open, 543
+set. Those classifications preserve all 93 accepted, 58 migration-open, 543
 excluded and 1,931 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's

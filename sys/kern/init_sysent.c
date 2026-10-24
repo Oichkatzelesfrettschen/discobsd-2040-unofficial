@@ -242,6 +242,7 @@ const uint8_t syscall_nargs[] = {
     5,
     4,
     3,
+    4,
 };
 
 const syscall_handler_t syscall_handlers[] = {
@@ -483,6 +484,7 @@ const syscall_handler_t syscall_handlers[] = {
     publishat_beneath,
     openat_beneath,
     mkdirat_beneath,
+    linkat_beneath,
 };
 
 _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
@@ -490,7 +492,7 @@ _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
     "syscall metadata arrays differ in length");
 
 _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
-    162, "syscall master count differs from ABI");
+    163, "syscall master count differs from ABI");
 
 const int nsysent =
     sizeof(syscall_handlers) / sizeof(syscall_handlers[0]);

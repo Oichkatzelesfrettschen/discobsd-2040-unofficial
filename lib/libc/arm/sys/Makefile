@@ -18,7 +18,7 @@ SYSOBJS		= __sysctl.o accept.o access.o adjtime.o bind.o chdir.o \
 		  fcntl.o flock.o fork.o fstat.o fsync.o ftruncate.o \
 		  getdtablesize.o getgroups.o getitimer.o getsockname.o \
 		  getpeername.o getpriority.o getrlimit.o getrusage.o getsockopt.o \
-		  gettimeofday.o ioctl.o kill.o killpg.o link.o listen.o lstat.o mkdir.o \
+		  gettimeofday.o ioctl.o kill.o killpg.o link.o linkat_beneath.o listen.o lstat.o mkdir.o \
 		  mkdirat_beneath.o mknod.o mount.o open.o openat.o openat_beneath.o \
 		  pselect.o quota.o read.o readlink.o readv.o \
 		  reboot.o \

@@ -1323,6 +1323,8 @@ doxtract(char **argv)
             continue;
         }
         if (dblock.dbuf.linkflag == LNKTYPE) {
+            int link_result;
+            int saved_errno;
             int source_descriptor;
             struct stat source_status;
 
@@ -1335,13 +1337,17 @@ doxtract(char **argv)
                 archive_error("hard-link source was not created by this extraction");
             if ((source_status.st_mode & (S_ISUID | S_ISGID | S_ISVTX)) != 0)
                 archive_error("hard-link source carries special mode bits");
-            if (close(source_descriptor) < 0)
-                archive_path_error("close hard-link source", curlink);
             leaf_name = enter_parent_directories(extraction_root_descriptor,
                 curname, 1, 0);
             remove_extracted_output(leaf_name);
             restore_directory_root(extraction_root_descriptor);
-            if (link(curlink, curname) < 0) {
+            link_result = linkat_beneath(extraction_root_descriptor,
+                curlink, source_descriptor, curname);
+            saved_errno = errno;
+            if (close(source_descriptor) < 0 && link_result == 0)
+                archive_path_error("close hard-link source", curlink);
+            errno = saved_errno;
+            if (link_result < 0) {
                 archive_path_error("create hard link", curname);
             }
             if (vflag)

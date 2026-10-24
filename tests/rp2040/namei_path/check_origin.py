@@ -28,6 +28,8 @@ EXPECTED_CALLS = {
         "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->fname)",
         "NAMEI_INIT_USER(ndp,LOOKUP,FOLLOW,uap->target)",
         "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->linkname)",
+        "NAMEI_INIT_USER(source_ndp,LOOKUP,NOFOLLOW|NOCACHE,uap->source_path)",
+        "NAMEI_INIT_USER(target_ndp,CREATE,NOFOLLOW|LOCKPARENT|NOCACHE,uap->target_path)",
         "NAMEI_INIT_USER(ndp,CREATE,NOFOLLOW,uap->linkname)",
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->fname)",
         "NAMEI_INIT_USER(ndp,DELETE,LOCKPARENT,uap->path)",
@@ -67,6 +69,14 @@ PUBLISHAT_BENEATH_CALLS = [
 PUBLISH_TARGET_CALL = (
     "NAMEI_INIT_USER(target_ndp, CREATE, LOCKPARENT | NOCACHE,\n"
     "        uap->target_path);"
+)
+LINKAT_BENEATH_CALLS = [
+    "NAMEI_INIT_USER(source_ndp,LOOKUP,NOFOLLOW|NOCACHE,uap->source_path)",
+    "NAMEI_INIT_USER(target_ndp,CREATE,NOFOLLOW|LOCKPARENT|NOCACHE,uap->target_path)",
+]
+LINK_SOURCE_CALL = (
+    "NAMEI_INIT_USER(source_ndp, LOOKUP, NOFOLLOW | NOCACHE,\n"
+    "        uap->source_path);"
 )
 
 # Each conditional vn_open reset expresses two flag-dependent transitions
@@ -163,6 +173,22 @@ def validate_sources(sources: dict[str, str]) -> list[str]:
             unexpected = sorted((observed - expected).elements())
             errors.append(
                 "sys/kern/ufs_syscalls.c: publishat_beneath missing origin calls "
+                f"{missing}; unexpected origin calls {unexpected}"
+            )
+
+    linkat_source = function_source(
+        sources.get("sys/kern/ufs_syscalls.c", ""), "linkat_beneath"
+    )
+    if linkat_source is None:
+        errors.append("sys/kern/ufs_syscalls.c: missing linkat_beneath definition")
+    else:
+        expected = Counter(LINKAT_BENEATH_CALLS)
+        observed = normalized_calls(linkat_source)
+        if observed != expected:
+            missing = sorted((expected - observed).elements())
+            unexpected = sorted((observed - expected).elements())
+            errors.append(
+                "sys/kern/ufs_syscalls.c: linkat_beneath missing origin calls "
                 f"{missing}; unexpected origin calls {unexpected}"
             )
     return errors
@@ -287,6 +313,18 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     ):
         raise RuntimeError("misplaced publication call changed the caller inventory")
     require_rejection("misplaced-publication-call", misplaced_publication_call_sources)
+    rejected += 1
+
+    misplaced_link_call_sources = dict(clean_sources)
+    misplaced_link_call_sources[caller_path] = misplaced_link_call_sources[
+        caller_path
+    ].replace(LINK_SOURCE_CALL, "", 1)
+    misplaced_link_call_sources[caller_path] += f"\n{LINK_SOURCE_CALL}\n"
+    if normalized_calls(misplaced_link_call_sources[caller_path]) != normalized_calls(
+        clean_sources[caller_path]
+    ):
+        raise RuntimeError("misplaced link call changed the caller inventory")
+    require_rejection("misplaced-link-call", misplaced_link_call_sources)
     rejected += 1
 
     return rejected

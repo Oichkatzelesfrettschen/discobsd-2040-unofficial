@@ -197,6 +197,14 @@ PUBLISHAT_BENEATH_MUTANTS=	discard-reserve-write-error \
 				release-before-publication skip-same-parent \
 				publish-after-remove-error
 PUBLISHAT_NAMEI_MUTANTS=	discard-enter-write-error
+LINKAT_BENEATH_SYSCALL_SRC=	${TOPSRC}/sys/kern/ufs_syscalls.c
+LINKAT_BENEATH_CFLAGS=	-ffunction-sections -fdata-sections \
+				${OPENAT_MULTIFS_DEFS}
+LINKAT_BENEATH_MUTANTS=	skip-source-identity use-at-fdcwd \
+				follow-source-symlink release-before-publication \
+				discard-reserve-write-error skip-rollback-decrement \
+				skip-target-exists skip-link-count-limit \
+				reject-append-parent
 DIRREMOVE_SRC=	${TOPSRC}/sys/kern/ufs_namei.c
 DIRREMOVE_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
 DIRREMOVE_MUTANTS=	discard-first-write-error discard-coalesced-write-error
@@ -1775,6 +1783,74 @@ check-publishat-beneath-mutants: \
 		echo "PASS publishat_beneath $$mutation mutation rejected"; \
 	done
 
+linkat_beneath_functions.c: linkat_beneath_extract.py \
+    unlinkat_beneath_extract.py ${LINKAT_BENEATH_SYSCALL_SRC}
+	${PYTHON} linkat_beneath_extract.py \
+	    --source ${LINKAT_BENEATH_SYSCALL_SRC} --output $@
+
+linkat_beneath_syscalls32.o: linkat_beneath_functions.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${LINKAT_BENEATH_CFLAGS} ${ILP32} \
+	    -c -o $@ linkat_beneath_functions.c
+
+linkat_beneath_test32: linkat_beneath_test.c linkat_beneath_syscalls32.o \
+    hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ linkat_beneath_test.c \
+	    linkat_beneath_syscalls32.o hostkern32.o
+
+check-linkat-beneath-ilp32: linkat_beneath_test32
+	${TEST_EXECUTION} run kernel.linkat-beneath.ilp32 -- \
+	    ./linkat_beneath_test32
+
+.for mutation in ${LINKAT_BENEATH_MUTANTS}
+linkat_beneath_${mutation}.mutant.c: linkat_beneath_mutate.py \
+    linkat_beneath_extract.py unlinkat_beneath_extract.py \
+    ${LINKAT_BENEATH_SYSCALL_SRC}
+	${PYTHON} linkat_beneath_mutate.py \
+	    --source ${LINKAT_BENEATH_SYSCALL_SRC} --output $@ \
+	    --mutation ${mutation}
+
+linkat_beneath_${mutation}.mutant.test: \
+    linkat_beneath_${mutation}.mutant.c linkat_beneath_test.c \
+    hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${LINKAT_BENEATH_CFLAGS} ${ILP32} \
+	    -c -o linkat_beneath_${mutation}.mutant.o \
+	    linkat_beneath_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_MULTIFS_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ linkat_beneath_test.c \
+	    linkat_beneath_${mutation}.mutant.o hostkern32.o
+.endfor
+
+check-linkat-beneath-mutants: \
+    ${LINKAT_BENEATH_MUTANTS:@mutation@linkat_beneath_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${LINKAT_BENEATH_MUTANTS}; do \
+		output=linkat_beneath_$$mutation.mutant.out; \
+		if ./linkat_beneath_$$mutation.mutant.test \
+		    >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		skip-source-identity) expected='u.u_error == ESTALE' ;; \
+		use-at-fdcwd) expected='root_descriptor == ROOT_DESCRIPTOR' ;; \
+		follow-source-symlink) expected='(name_data->ni_nameiop & FOLLOW) == 0' ;; \
+		release-before-publication) expected='namespace_owned == 1' ;; \
+		discard-reserve-write-error) expected='u.u_error == EIO' ;; \
+		skip-rollback-decrement) expected='source_inode.i_nlink == 1' ;; \
+		skip-target-exists) expected='u.u_error == EEXIST' ;; \
+		skip-link-count-limit) expected='u.u_error == EMLINK' ;; \
+		reject-append-parent) expected='u.u_error == 0' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL linkat_beneath $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS linkat_beneath $$mutation mutation rejected"; \
+	done
+
 dirremove_kernel32.o: ${DIRREMOVE_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${DIRREMOVE_CFLAGS} ${ILP32} -c -o $@ \
 	    ${DIRREMOVE_SRC}
@@ -2387,6 +2463,7 @@ check-ilp32:
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
 	    check-publishat-beneath-ilp32 check-publishat-beneath-mutants \
+	    check-linkat-beneath-ilp32 check-linkat-beneath-mutants \
 	    check-dirremove-ilp32 check-dirremove-mutants \
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
@@ -2510,6 +2587,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.openat-namei-multifs.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.openat.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.unlinkat-beneath.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.linkat-beneath.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-namespace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -2635,6 +2713,10 @@ clean:
 	    publishat_beneath_test32 publishat_beneath_namei_test32
 	rm -f publishat_beneath_*.mutant.c publishat_beneath_*.mutant.o \
 	    publishat_beneath_*.mutant.test publishat_beneath_*.mutant.out
+	rm -f linkat_beneath_functions.c linkat_beneath_syscalls32.o \
+	    linkat_beneath_test32
+	rm -f linkat_beneath_*.mutant.c linkat_beneath_*.mutant.o \
+	    linkat_beneath_*.mutant.test linkat_beneath_*.mutant.out
 	rm -f dirremove_kernel32.o dirremove_test32
 	rm -f dirremove_*.mutant.c dirremove_*.mutant.o \
 	    dirremove_*.mutant.test dirremove_*.mutant.out
@@ -2662,6 +2744,7 @@ clean:
 	check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
 	check-publishat-beneath-ilp32 check-publishat-beneath-mutants \
+	check-linkat-beneath-ilp32 check-linkat-beneath-mutants \
 	check-dirremove-ilp32 check-dirremove-mutants \
 	check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	check-ufs-topology-ilp32 check-ufs-topology-mutants \

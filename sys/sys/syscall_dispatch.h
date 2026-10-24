@@ -72,6 +72,7 @@ void kill(void);
 void killpg(void);
 void kmemdev(void);
 void link(void);
+void linkat_beneath(void);
 void listen(void);
 void lseek(void);
 void lstat(void);

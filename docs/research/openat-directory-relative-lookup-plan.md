@@ -129,18 +129,18 @@ with the namespace residual in
   wrappers, Smaller C accepted header/member selection, and installed manual
   alias `openat(2)`.
 
-- [ ] Extend the metadata and Smaller C controls first. Run
+- [x] Extend the metadata and Smaller C controls first. Run
   `bmake MACHINE=rp2040 check-kernel-metadata` and
   `bmake MACHINE=rp2040 check-c17-smaller-c`; require the missing syscall,
   declaration, and archive member to fail their named assertions.
-- [ ] Add syscall 157 with four argument words, regenerate the owned dispatch
+- [x] Add syscall 157 with four argument words, regenerate the owned dispatch
   outputs, review the numeric diff, and update the pinned public-header digest.
-- [ ] Add the public declaration, both libc members, and board-libc
+- [x] Add the public declaration, both libc members, and board-libc
   classification. Update the manual with descriptor, absolute-path, empty-path,
   search-only, final-link, and residual-confinement behavior.
-- [ ] Run the metadata, Smaller C, public-header, and exact target compiler
+- [x] Run the metadata, Smaller C, public-header, and exact target compiler
   gates; require warning-clean acceptance and calibrated rejection controls.
-- [ ] Commit the caller-complete public ABI and generated outputs.
+- [x] Commit the caller-complete public ABI and generated outputs.
 
 ### Evidence ledgers and constrained-resource acceptance
 

@@ -7,16 +7,17 @@
 .TH OPEN 2 "Nov 30, 1994"
 .UC 4
 .SH NAME
-open \- open a file for reading or writing, or create a new file
+open, openat \- open a file for reading or writing, or create a new file
 .SH SYNOPSIS
 .nf
 .ft B
 #include <fcntl.h>
 .PP
 .ft B
-open(path, flags, mode)
-char *path;
-int flags, mode;
+int open(const char *path, int flags, ...);
+.PP
+.ft B
+int openat(int dirfd, const char *path, int flags, ...);
 .fi
 .SH DESCRIPTION
 .I Open
@@ -25,6 +26,16 @@ opens the file
 for reading and/or writing, as specified by the
 .I flags
 argument and returns a descriptor for that file.
+For a relative path,
+.I openat
+starts lookup at the directory referred to by
+.I dirfd.
+The special value AT_FDCWD starts lookup at the process working directory.
+An absolute path starts at the process root and ignores
+.I dirfd.
+The directory descriptor selects the start of lookup; it does not confine
+lookup beneath that directory.  Parent components and absolute symbolic links
+can resolve outside it.
 The
 .I flags
 argument may indicate the file is to be
@@ -55,6 +66,9 @@ the following values
  O_NOCTTY	do not acquire as controlling terminal
  O_SHLOCK	atomically obtain a shared lock
  O_EXLOCK	atomically obtain an exclusive lock
+ O_NOFOLLOW	fail when the final component is a symbolic link
+ O_DIRECTORY	fail unless the result is a directory
+ O_SEARCH	open a directory for search only
 .RE
 .PP
 Opening a file with O_APPEND set causes each write on the file
@@ -66,6 +80,11 @@ implement a simple exclusive access locking mechanism.
 If O_EXCL is set and the last component of the pathname is
 a symbolic link, the open will fail even if the symbolic
 link points to a non-existent name.
+O_NOFOLLOW returns ELOOP when the final component is a symbolic link.
+O_DIRECTORY returns ENOTDIR unless the result is a directory.
+O_SEARCH requires search permission on a directory and grants neither read
+nor write access through the returned descriptor.  O_SEARCH cannot be combined
+with a write access mode, O_CREAT, O_TRUNC, or O_EXCL.
 If the O_NONBLOCK flag is specified and the open call would result
 in the process being blocked for some reason (e.g. waiting for
 carrier on a dialup line), the open returns immediately. 
@@ -102,11 +121,27 @@ returns the current system limit.
 The named file is opened unless one or more of the
 following are true:
 .TP 15
+[EBADF]
+.I Openat
+was given a relative path and
+.I dirfd
+is not an open descriptor.
+.TP 15
 [ENOTDIR]
 A component of the path prefix is not a directory.
 .TP 15
+[ENOTDIR]
+.I Openat
+was given a relative path and
+.I dirfd
+does not refer to a directory, or O_DIRECTORY or O_SEARCH selected a
+non-directory result.
+.TP 15
 [EINVAL]
 The pathname contains a character with the high-order bit set.
+.TP 15
+[EINVAL]
+O_SEARCH was combined with a write access mode, O_CREAT, O_TRUNC, or O_EXCL.
 .TP 15
 [ENAMETOOLONG]
 A component of a pathname exceeded 255 characters,
@@ -117,6 +152,10 @@ O_CREAT is not set and the named file does not exist.
 .TP 15
 [ENOENT]
 A component of the path name that must exist does not exist.
+.TP 15
+[ENOENT]
+.I Openat
+was given an empty pathname.
 .TP 15
 [EACCES]
 Search permission is denied for a component of the path prefix.
@@ -133,6 +172,9 @@ does not permit writing.
 .TP 15
 [ELOOP]
 Too many symbolic links were encountered in translating the pathname.
+.TP 15
+[ELOOP]
+O_NOFOLLOW was specified and the final component is a symbolic link.
 .TP 15
 [EISDIR]
 The named file is a directory, and the arguments specify

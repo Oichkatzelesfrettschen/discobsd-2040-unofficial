@@ -47,5 +47,6 @@
 #include <sys/fcntl.h>
 
 int open (const char *path, int oflag, ...);
+int openat (int fd, const char *path, int oflag, ...);
 int creat (const char *path, mode_t mode);
 int fcntl (int fildes, int cmd, ...);

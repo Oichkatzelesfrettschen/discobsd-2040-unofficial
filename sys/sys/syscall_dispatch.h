@@ -80,6 +80,7 @@ void mknod(void);
 void nonet(void);
 void nosys(void);
 void open(void);
+void openat(void);
 void pipe(void);
 void profil(void);
 void pselect(void);

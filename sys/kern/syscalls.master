@@ -156,3 +156,4 @@
 154|4|ucall|ALWAYS|ucall|ucall=154
 155|0|nosys|ALWAYS|#155|-
 156|2|futimes|ALWAYS|futimes|futimes=156
+157|4|openat|ALWAYS|openat|openat=157

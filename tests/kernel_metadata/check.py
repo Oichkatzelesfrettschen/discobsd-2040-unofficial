@@ -61,8 +61,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
 
     syscall_master = "sys/kern/syscalls.master"
     syscall_records = records_text(source(syscall_master), syscall_master, 6)
-    if len(syscall_records) != 157:
-        raise CheckError("syscall master must contain slots 0 through 156")
+    if len(syscall_records) != 158:
+        raise CheckError("syscall master must contain slots 0 through 157")
     if syscall_records[23][2:5] != ["__sysctl", "ALWAYS", "__sysctl"]:
         raise CheckError("syscall 23 must remain __sysctl")
     if syscall_records[66][2] != "vfork":
@@ -73,6 +73,10 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         "156", "2", "futimes", "ALWAYS", "futimes", "futimes=156"
     ]:
         raise CheckError("syscall 156 must remain two-argument futimes")
+    if syscall_records[157] != [
+        "157", "4", "openat", "ALWAYS", "openat", "openat=157"
+    ]:
+        raise CheckError("syscall 157 must remain four-argument openat")
     public = source("include/syscall.h")
     generated_files = {
         "include/syscall.h": "Copyright (c) 1980 Regents",
@@ -88,6 +92,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("SYS_vfork must remain the compatibility alias for fork")
     if not re.search(r"^#define SYS_sbrk\s+69$", public, re.MULTILINE):
         raise CheckError("SYS_sbrk must retain its public spelling")
+    if not re.search(r"^#define SYS_openat\s+157$", public, re.MULTILINE):
+        raise CheckError("SYS_openat must retain its additive public number")
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
     if len(errno_records) != 83 or errno_records[-1] != [
@@ -181,6 +187,19 @@ def main() -> int:
                 syscall_path: syscall_source.replace(
                     "81|0|getpgrp|ALWAYS|getpgrp|getpgrp=81",
                     "81|1|getpgrp|ALWAYS|getpgrp|getpgrp=81",
+                    1,
+                )
+            },
+        ),
+    )
+    expect_bad(
+        "short openat argument record",
+        lambda: check_tree(
+            root,
+            {
+                syscall_path: syscall_source.replace(
+                    "157|4|openat|ALWAYS|openat|openat=157",
+                    "157|3|openat|ALWAYS|openat|openat=157",
                     1,
                 )
             },

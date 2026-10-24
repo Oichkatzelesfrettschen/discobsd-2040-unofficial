@@ -900,6 +900,31 @@ The bounded exception leaves 25,928 PICO and 38,404 PICO_UART flash bytes and
 closes static resource acceptance for the unit. Runtime stack high-water and
 physical-board execution remain open.
 
+## Temporary-swap ioctl result contract
+
+`swcioctl()` now returns success after a zero-valued `TFALLOC` releases its
+extent and after `DIOCGETMEDIASIZE` publishes the logical block count. Positive
+allocation, shortage-as-zero, negative-request release, erase-aligned map
+ownership, append cursor publication, invalid-minor and unknown-command results
+retain their established behavior.
+
+The 56-assertion fixture compiles the exact extracted `swsize()` and
+`swcioctl()` definitions in C17 mode, links the production resource-map
+allocator, and runs at native and ILP32 widths and under address,
+undefined-behavior and alignment sanitizers. The inherited source fails the
+two successful-operation result assertions. Five mutations restore either
+fallthrough, suppress shortage output, free the unrounded logical extent or
+retain the released logical size; each fails its named assertion. Both shipped
+kernel configurations compile and link under their exact GNU17 commands.
+
+Matched clean parent and candidate distributions attribute an eight-byte flash
+increase in each kernel to `swap.o` and `swcioctl()`. The `swcioctl()` and
+`swsize()` frames remain 56 and eight bytes. Static SRAM, all shipped a.out
+measurements, native libc size and membership, packed-root counters and archive
+selections remain unchanged. The bounded exception leaves 25,920 PICO and
+38,396 PICO_UART flash bytes. Runtime stack high-water, general `TFALLOC`
+marshalling and physical-board execution remain open.
+
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |

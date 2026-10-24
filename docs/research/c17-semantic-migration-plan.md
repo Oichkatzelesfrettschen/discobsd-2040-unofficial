@@ -569,9 +569,28 @@ Source: `rp2040-file-status-control-admission.md` and `TESTING.md`
 | Resources | Matched clean distributions at parent `bd0d28c8` and candidate `549628e8` attribute a 64-byte PICO and PICO_UART flash increase to `sys_generic.o` and `ioctl()`; static SRAM, every shipped a.out, native libc size and membership, packed-root counters and the 24-byte `ioctl()` frame remain unchanged. The bounded flash exception is accepted with 25,928 PICO and 38,404 PICO_UART bytes remaining. Runtime stack high-water remains open |
 | Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
 | Ledger states | 1 language: done for the two exact extracted definitions and focused fixture; remaining translation-unit semantics stay migration-open. 2 interface: done for the preserved `FIONREAD` command and result representation. 3 native: n/a. 4 hardening: done for the exercised alignment, ownership and publication boundary. 5 resource: done for static surfaces through a bounded 64-byte per-kernel exception; runtime peaks stay open. 6 program closure: done for `FIONREAD` across shipped providers |
-| Residuals | General input and bidirectional ioctl payloads, malformed command geometry, swap-device result semantics, tty local-mode arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
+| Residuals | General input and bidirectional ioctl payloads, malformed command geometry, tty local-mode arithmetic, `/dev/mem`, `ptrace`, runtime peaks, MPU behavior and physical-board execution retain separate states or migration units |
 
 Source: `rp2040-fionread-result-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`).
+
+### R12 -- temporary-swap ioctl results (`sys/dev/swap.c`)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel and the established BSD temporary-swap ioctl ABI; RP2040 kernel profile with the focused definitions compiled in C17 mode |
+| Tier | T1: filesystem recovery tools allocate, resize, release and query temporary swap extents |
+| Native input | No |
+| Contract | `TFALLOC` reports successful positive allocation, zero-length release and representable shortage through status zero and its `off_t` payload; `DIOCGETMEDIASIZE` reports the logical block count through its `u_int` payload and status zero; negative requests release the previous extent and return `EINVAL` without changing the negative payload |
+| Invariants | Command values, public widths, read-only descriptor acceptance, invalid-minor rejection, erase-aligned reservation and release, logical size, append cursor publication, replacement semantics and unknown-command rejection remain unchanged |
+| Falsifier | Five warning-clean mutations restore zero-release or media-size fallthrough, suppress shortage output, free the logical rather than erase-aligned extent, or retain the released logical size; each must fail its named assertion with status 1 |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, C17 GCC and Clang host compilation, exact PICO/PICO_UART production builds, `check-c17-source-denominator` and `check-kernel-metadata` |
+| Resources | Matched clean distributions at parent `c4f802d6` and candidate `ca4f06f9` attribute an eight-byte flash increase in each kernel to `swap.o` and `swcioctl()`; static SRAM, every shipped a.out, packed-root surface, native artifact and archive/member selection are unchanged. The 56-byte `swcioctl()` and eight-byte `swsize()` static frames are unchanged. The bounded exception leaves 25,920 PICO and 38,396 PICO_UART flash bytes. Runtime stack high-water remains open |
+| Evidence class | Host, sanitizer, ILP32 and exact target build; physical-board execution unrun |
+| Ledger states | 1 language: done for the exact `swsize()` and `swcioctl()` definitions and focused fixture; remaining `swap.c` semantics stay migration-open. 2 interface: done for the preserved provider results and ABI. 3 native: n/a. 4 hardening: done for the exercised allocation, release, shortage and media-size result boundary. 5 resource: done for static surfaces through a bounded eight-byte per-kernel exception; runtime peaks stay open. 6 program closure: done for the bounded temporary-swap provider results |
+| Residuals | General `TFALLOC` input and bidirectional marshalling still passes a caller-selected address to the provider. Malformed command geometry, open/read/write/strategy semantics, runtime peaks, MPU behavior and physical-board execution retain separate evidence states or migration units |
+
+Source: `rp2040-swap-ioctl-result-contract.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`).
 
 ## Open measurements this plan depends on

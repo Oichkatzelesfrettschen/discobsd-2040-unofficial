@@ -55924,6 +55924,7 @@
       "language_state": "migration-open",
       "evidence": [
         "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/rp2040-swap-ioctl-result-contract.md",
         "tests/kernel/swap_ioctl_test.c",
         "tests/kernel/swap_ioctl_extract.py",
         "tests/kernel/swap_ioctl_mutate.py"
@@ -62871,6 +62872,7 @@
       "language_state": "accepted",
       "evidence": [
         "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/rp2040-swap-ioctl-result-contract.md",
         "tests/kernel/swap_ioctl_extract.py",
         "tests/kernel/swap_ioctl_mutate.py"
       ],

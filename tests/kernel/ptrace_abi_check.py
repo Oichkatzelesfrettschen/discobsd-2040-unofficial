@@ -52,15 +52,11 @@ def main() -> None:
         r"mvns?\s+r0, r0",
         r"bx\s+lr",
     )
-    position = 0
-    for pattern in required_patterns:
-        while position < len(instructions) and re.match(
-            pattern, instructions[position]
-        ) is None:
-            position += 1
-        if position == len(instructions):
+    if len(instructions) < len(required_patterns):
+        fail("missing ordered instruction pattern " + required_patterns[len(instructions)])
+    for position, pattern in enumerate(required_patterns):
+        if re.match(pattern, instructions[position]) is None:
             fail("missing ordered instruction pattern " + pattern)
-        position += 1
     if sum(instruction.startswith("svc") for instruction in instructions) != 1:
         fail("ptrace must contain exactly one supervisor call")
     if "R_ARM_ABS32\terrno" not in output:

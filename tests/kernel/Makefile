@@ -280,13 +280,17 @@ MEM_SPAN_HEADER_DEPS=	${FIONREAD_HEADER_DEPS} ${USERCOPY_HEADER} \
 			${TOPSRC}/sys/sys/user.h
 PTRACE_SRC=		${TOPSRC}/sys/kern/sys_process.c
 PTRACE_FUNCTIONS=	ptrace_functions.c
-PTRACE_HEADER_DEPS=	${TOPSRC}/sys/sys/ptrace.h \
-			${TOPSRC}/sys/sys/user.h ${PORT_INCLUDE}/frame.h
+PTRACE_HEADER_DEPS=	${TOPSRC}/sys/sys/param.h \
+			${TOPSRC}/sys/sys/systm.h ${TOPSRC}/sys/sys/user.h \
+			${TOPSRC}/sys/sys/proc.h ${TOPSRC}/sys/sys/ptrace.h \
+			${PORT_INCLUDE}/frame.h
 PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
 			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
 			pc-misalignment sp-misalignment psr-control-overwrite \
 			continue-early-pc signal-upper-endpoint step-fallthrough
 PTRACE_ASM_SRC=	${TOPSRC}/lib/libc/arm/sys/ptrace.S
+PTRACE_ASM_HEADER_DEPS=	${TOPSRC}/lib/libc/arm/sys/SYS.h \
+			${TOPSRC}/include/syscall.h
 PTRACE_ASM_FLAGS=	-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
 			-I${TOPSRC}/include -I${TOPSRC}/lib/libc/arm/sys
 # Prevent host libc and sanitizer calls from selecting same-named syscall
@@ -423,29 +427,44 @@ check-ptrace-mutants: \
 		echo "PASS ptrace $$mutation mutation rejected"; \
 	done
 
-ptrace_syscall.o: ${PTRACE_ASM_SRC}
+ptrace_syscall.o: ${PTRACE_ASM_SRC} ${PTRACE_ASM_HEADER_DEPS}
 	${GCCPREFIX}-gcc ${PTRACE_ASM_FLAGS} -c -o $@ ${PTRACE_ASM_SRC}
 
 ptrace_syscall_clobber.S: ptrace_abi_mutate.py ${PTRACE_ASM_SRC}
-	${PYTHON} ptrace_abi_mutate.py --source ${PTRACE_ASM_SRC} --output $@
+	${PYTHON} ptrace_abi_mutate.py --source ${PTRACE_ASM_SRC} --output $@ \
+	    --mutation drop-save-restore
 
-ptrace_syscall_clobber.o: ptrace_syscall_clobber.S
+ptrace_syscall_clobber.o: ptrace_syscall_clobber.S \
+    ${PTRACE_ASM_HEADER_DEPS}
 	${GCCPREFIX}-gcc ${PTRACE_ASM_FLAGS} -c -o $@ ptrace_syscall_clobber.S
 
-check-ptrace-libc-abi: ptrace_syscall.o ptrace_syscall_clobber.o
+ptrace_syscall_postrestore_clobber.S: ptrace_abi_mutate.py ${PTRACE_ASM_SRC}
+	${PYTHON} ptrace_abi_mutate.py --source ${PTRACE_ASM_SRC} --output $@ \
+	    --mutation postrestore-clobber
+
+ptrace_syscall_postrestore_clobber.o: ptrace_syscall_postrestore_clobber.S \
+    ${PTRACE_ASM_HEADER_DEPS}
+	${GCCPREFIX}-gcc ${PTRACE_ASM_FLAGS} -c -o $@ \
+	    ptrace_syscall_postrestore_clobber.S
+
+check-ptrace-libc-abi: ptrace_syscall.o ptrace_syscall_clobber.o \
+    ptrace_syscall_postrestore_clobber.o
 	${PYTHON} ptrace_abi_check.py --objdump ${GCCPREFIX}-objdump \
 	    --object ptrace_syscall.o
-	@if ${PYTHON} ptrace_abi_check.py --objdump ${GCCPREFIX}-objdump \
-	    --object ptrace_syscall_clobber.o \
-	    >ptrace_syscall_clobber.out 2>&1; then status=0; else status=$$?; fi; \
-	if [ "$$status" -ne 1 ] || \
-	    ! grep -F 'missing ordered instruction pattern' \
-	    ptrace_syscall_clobber.out >/dev/null; then \
-		cat ptrace_syscall_clobber.out >&2; \
-		echo "FAIL ptrace libc clobber mutation rejection" >&2; \
-		exit 1; \
-	fi; \
-	echo "PASS ptrace libc clobber mutation rejected"
+	@set -eu; for mutation in clobber postrestore_clobber; do \
+		output=ptrace_syscall_$$mutation.out; \
+		if ${PYTHON} ptrace_abi_check.py --objdump ${GCCPREFIX}-objdump \
+		    --object ptrace_syscall_$$mutation.o \
+		    >$$output 2>&1; then status=0; else status=$$?; fi; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F 'missing ordered instruction pattern' \
+		    $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL ptrace libc $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS ptrace libc $$mutation mutation rejected"; \
+	done
 
 mem_span_kernel.o: ${MEM_SPAN_SRC} ${MEM_SPAN_HEADER_DEPS}
 	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} -c -o $@ ${MEM_SPAN_SRC}
@@ -1864,7 +1883,10 @@ clean:
 	    ptrace_hostkern_sanitized.o
 	rm -f ptrace_*.mutant.c ptrace_*.mutant.test ptrace_*.mutant.out
 	rm -f ptrace_syscall.o ptrace_syscall_clobber.S \
-	    ptrace_syscall_clobber.o ptrace_syscall_clobber.out
+	    ptrace_syscall_clobber.o ptrace_syscall_clobber.out \
+	    ptrace_syscall_postrestore_clobber.S \
+	    ptrace_syscall_postrestore_clobber.o \
+	    ptrace_syscall_postrestore_clobber.out
 	rm -f swap_ioctl_*.mutant.c swap_ioctl_*.mutant.o \
 	    swap_ioctl_*.mutant.test swap_ioctl_*.mutant.out
 	rm -f uio_kernel.o clist_kernel.o

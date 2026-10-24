@@ -74,9 +74,10 @@ write an arbitrary user-area field, relax PC or SP alignment, overwrite xPSR
 control fields, publish PC before signal admission, admit signal `NSIG`, or
 restore the inherited `PT_STEP` fallthrough. Each mutation must exit through
 its named assertion with status 1. The assembly checker reads the Cortex-M0+
-object disassembly, requires the balanced r0-r3 save and restore before the
-single `svc 26`, and checks both `errno` stores and return sequences. Removing
-the save and restore calibrates its rejection path.
+object disassembly, requires the exact balanced r0-r3 save, `errno` clear,
+restore, and immediate `svc 26` sequence, and checks both `errno` stores and
+return sequences. One mutation removes the save and restore; another inserts
+an argument clobber after the restore. Both calibrate distinct rejection paths.
 
 The exact PICO and PICO_UART GNU17 production commands compile the shared
 kernel translation unit with `-Wall -Wextra -Werror`. The libc entry assembles

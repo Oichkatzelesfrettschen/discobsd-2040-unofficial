@@ -1684,6 +1684,25 @@
       ]
     },
     {
+      "id": "kernel.ptrace.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ptrace-sanitizer",
+      "root_target": "check-kernel",
+      "program": "ptrace_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "ptrace_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.ptrace.sanitized -- ./ptrace_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.file-owner.ubsan-mutant",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1854,6 +1873,25 @@
         "mem_span_endpoint-admission.mutant32.test"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.ptrace.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ptrace_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ptrace_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.ptrace.ilp32 -- ./ptrace_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

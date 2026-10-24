@@ -7,9 +7,11 @@
 
 ENTRY(ptrace)
 	/* ptrace may return -1 on success, so errno carries the error verdict. */
+	push	{r0-r3}
 	ldr	r1, =errno
 	mov	r2, #0
 	str	r2, [r1]
+	pop	{r0-r3}
 	svc	#SYS_ptrace
 	bcs	1f
 	bx	lr

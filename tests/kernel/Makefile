@@ -278,6 +278,21 @@ MEM_SPAN_GATE_CFLAGS=	${GATE_CFLAGS} -Wno-pointer-to-int-cast
 MEM_SPAN_LDFLAGS=	${FILE_OWNER_LDFLAGS}
 MEM_SPAN_HEADER_DEPS=	${FIONREAD_HEADER_DEPS} ${USERCOPY_HEADER} \
 			${TOPSRC}/sys/sys/user.h
+PTRACE_SRC=		${TOPSRC}/sys/kern/sys_process.c
+PTRACE_FUNCTIONS=	ptrace_functions.c
+PTRACE_HEADER_DEPS=	${TOPSRC}/sys/sys/param.h \
+			${TOPSRC}/sys/sys/systm.h ${TOPSRC}/sys/sys/user.h \
+			${TOPSRC}/sys/sys/proc.h ${TOPSRC}/sys/sys/ptrace.h \
+			${PORT_INCLUDE}/frame.h
+PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
+			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
+			pc-misalignment sp-misalignment psr-control-overwrite \
+			continue-early-pc signal-upper-endpoint step-fallthrough
+PTRACE_ASM_SRC=	${TOPSRC}/lib/libc/arm/sys/ptrace.S
+PTRACE_ASM_HEADER_DEPS=	${TOPSRC}/lib/libc/arm/sys/SYS.h \
+			${TOPSRC}/include/syscall.h
+PTRACE_ASM_FLAGS=	-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
+			-I${TOPSRC}/include -I${TOPSRC}/lib/libc/arm/sys
 # Prevent host libc and sanitizer calls from selecting same-named syscall
 # handlers out of the production objects. The fixture compiles with the same
 # names and calls the renamed handlers directly.
@@ -298,7 +313,8 @@ DIAGNOSTIC_DEFS=	-DCOMPACT_SWAPMAP -DDIAGNOSTIC
 
 PROGS=	rmap_test_compact rmap_test_wide rmap_test_diagnostic uio_test \
 	clist_test cred_test resource_test rwuio_test file_owner_test \
-	fionread_test swap_ioctl_test tty_local_mode_test mem_span_test
+	fionread_test swap_ioctl_test tty_local_mode_test mem_span_test \
+	ptrace_test
 
 SHUTDOWN_CHECKS=
 .if ${MACHINE:U} == "rp2040"
@@ -333,6 +349,122 @@ ${MACHINE_STAMP}: hostintr.h ${PORT_INCLUDE}
 ${MEM_SPAN_FUNCTIONS}: mem_span_extract.py ${MEM_SPAN_MACHDEP_SRC}
 	${PYTHON} mem_span_extract.py --source ${MEM_SPAN_MACHDEP_SRC} \
 	    --output $@
+
+${PTRACE_FUNCTIONS}: ptrace_extract.py ${PTRACE_SRC}
+	${PYTHON} ptrace_extract.py --source ${PTRACE_SRC} --output $@
+
+ptrace_test: ptrace_test.c ${PTRACE_FUNCTIONS} ${PTRACE_HEADER_DEPS} \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} -o $@ ptrace_test.c hostkern_kern.c \
+	    hostkern.o
+
+ptrace_test32: ptrace_test.c ${PTRACE_FUNCTIONS} ${PTRACE_HEADER_DEPS} \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -DHK_ILP32 -o $@ \
+	    ptrace_test.c hostkern_kern.c hostkern32.o
+
+ptrace_test_sanitized: ptrace_test.c ${PTRACE_FUNCTIONS} \
+    ${PTRACE_HEADER_DEPS} hostkern_kern.c hostkern.c hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
+	    -c -o ptrace_hostkern_sanitized.o hostkern.c
+	${HOST_CC} ${GATE_CFLAGS} ${KERNEL_SANITIZER_FLAGS} -o $@ \
+	    ptrace_test.c hostkern_kern.c ptrace_hostkern_sanitized.o
+
+check-ptrace-sanitizer:
+.if ${KERNEL_SANITIZER_OK} == "yes"
+check-ptrace-sanitizer: ptrace_test_sanitized
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ${TEST_EXECUTION} run kernel.ptrace.sanitized -- \
+	    ./ptrace_test_sanitized
+.else
+	${TEST_EXECUTION} skip kernel.ptrace.sanitized \
+	    "ptrace contracts: sanitizer runtime unavailable"
+.endif
+
+.for mutation in ${PTRACE_MUTANTS}
+ptrace_${mutation}.mutant.c: ptrace_mutate.py ${PTRACE_FUNCTIONS}
+	${PYTHON} ptrace_mutate.py --source ${PTRACE_FUNCTIONS} --output $@ \
+	    --mutation ${mutation}
+
+ptrace_${mutation}.mutant.test: ptrace_${mutation}.mutant.c ptrace_test.c \
+    ${PTRACE_HEADER_DEPS} hostkern_kern.c hostkern.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} \
+	    -DPTRACE_FUNCTIONS='"ptrace_${mutation}.mutant.c"' -o $@ \
+	    ptrace_test.c hostkern_kern.c hostkern.o
+.endfor
+
+check-ptrace-mutants: \
+    ${PTRACE_MUTANTS:@mutation@ptrace_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${PTRACE_MUTANTS}; do \
+		output=ptrace_$$mutation.mutant.out; \
+		if ./ptrace_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		case $$mutation in \
+		negative-trace) expected='(parent.p_flag & P_TRACED) == 0' ;; \
+		short-read) expected='ipc.ip_data == 0x12345678' ;; \
+		partial-read-publication) expected='ipc.ip_data == 0x55667788' ;; \
+		misaligned-u-offset) expected='ipc.ip_req == -1' ;; \
+		u-upper-endpoint) expected='ptrace_user_word_offset_valid(USIZE) == 0' ;; \
+		arbitrary-u-write) expected='u.u_uid == 17' ;; \
+		pc-misalignment) expected='ipc.ip_req == -1' ;; \
+		sp-misalignment) expected='ipc.ip_req == -1' ;; \
+		psr-control-overwrite) expected='frame->tf_psr == UINT32_C(0xa100023f)' ;; \
+		continue-early-pc) expected='frame->tf_pc == USER_LOWER + 2' ;; \
+		signal-upper-endpoint) expected='ipc.ip_req == -1' ;; \
+		step-fallthrough) expected='ipc.ip_req == -1' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL ptrace $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS ptrace $$mutation mutation rejected"; \
+	done
+
+ptrace_syscall.o: ${PTRACE_ASM_SRC} ${PTRACE_ASM_HEADER_DEPS}
+	${GCCPREFIX}-gcc ${PTRACE_ASM_FLAGS} -c -o $@ ${PTRACE_ASM_SRC}
+
+ptrace_syscall_clobber.S: ptrace_abi_mutate.py ${PTRACE_ASM_SRC}
+	${PYTHON} ptrace_abi_mutate.py --source ${PTRACE_ASM_SRC} --output $@ \
+	    --mutation drop-save-restore
+
+ptrace_syscall_clobber.o: ptrace_syscall_clobber.S \
+    ${PTRACE_ASM_HEADER_DEPS}
+	${GCCPREFIX}-gcc ${PTRACE_ASM_FLAGS} -c -o $@ ptrace_syscall_clobber.S
+
+ptrace_syscall_postrestore_clobber.S: ptrace_abi_mutate.py ${PTRACE_ASM_SRC}
+	${PYTHON} ptrace_abi_mutate.py --source ${PTRACE_ASM_SRC} --output $@ \
+	    --mutation postrestore-clobber
+
+ptrace_syscall_postrestore_clobber.o: ptrace_syscall_postrestore_clobber.S \
+    ${PTRACE_ASM_HEADER_DEPS}
+	${GCCPREFIX}-gcc ${PTRACE_ASM_FLAGS} -c -o $@ \
+	    ptrace_syscall_postrestore_clobber.S
+
+check-ptrace-libc-abi: ptrace_syscall.o ptrace_syscall_clobber.o \
+    ptrace_syscall_postrestore_clobber.o
+	${PYTHON} ptrace_abi_check.py --objdump ${GCCPREFIX}-objdump \
+	    --object ptrace_syscall.o
+	@set -eu; for mutation in clobber postrestore_clobber; do \
+		output=ptrace_syscall_$$mutation.out; \
+		if ${PYTHON} ptrace_abi_check.py --objdump ${GCCPREFIX}-objdump \
+		    --object ptrace_syscall_$$mutation.o \
+		    >$$output 2>&1; then status=0; else status=$$?; fi; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F 'missing ordered instruction pattern' \
+		    $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL ptrace libc $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS ptrace libc $$mutation mutation rejected"; \
+	done
 
 mem_span_kernel.o: ${MEM_SPAN_SRC} ${MEM_SPAN_HEADER_DEPS}
 	${HOST_CC} ${KERN_CFLAGS} ${MEM_SPAN_CFLAGS} -c -o $@ ${MEM_SPAN_SRC}
@@ -1584,6 +1716,7 @@ check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
+	    ptrace_test32 \
 	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
@@ -1611,6 +1744,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- \
 	    ./tty_local_mode_test32
 	${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32
+	${TEST_EXECUTION} run kernel.ptrace.ilp32 -- ./ptrace_test32
 	@if ./mem_span_endpoint-admission.mutant32.test \
 	    >mem_span_endpoint-admission.mutant32.out 2>&1; then status=0; \
 	else status=$$?; fi; \
@@ -1706,6 +1840,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.tty-local-mode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.tty-local-mode.signed-shift-negative "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.mem-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.ptrace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -1730,7 +1865,7 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-fionread-sanitizer check-swap-ioctl-mutants \
     check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
     check-tty-local-mode-sanitizer check-mem-span-mutants \
-    check-mem-span-sanitizer
+    check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -1743,6 +1878,14 @@ clean:
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
 	rm -f swap_ioctl_test_sanitized swap_ioctl_function_sanitized.o \
 	    swap_ioctl_rmap_sanitized.o swap_ioctl_hostkern_sanitized.o
+	rm -f ${PTRACE_FUNCTIONS} ptrace_test32 ptrace_test_sanitized \
+	    ptrace_hostkern_sanitized.o
+	rm -f ptrace_*.mutant.c ptrace_*.mutant.test ptrace_*.mutant.out
+	rm -f ptrace_syscall.o ptrace_syscall_clobber.S \
+	    ptrace_syscall_clobber.o ptrace_syscall_clobber.out \
+	    ptrace_syscall_postrestore_clobber.S \
+	    ptrace_syscall_postrestore_clobber.o \
+	    ptrace_syscall_postrestore_clobber.out
 	rm -f swap_ioctl_*.mutant.c swap_ioctl_*.mutant.o \
 	    swap_ioctl_*.mutant.test swap_ioctl_*.mutant.out
 	rm -f uio_kernel.o clist_kernel.o
@@ -1830,6 +1973,7 @@ clean:
 	check-file-owner-linker-flags \
 	check-file-owner-sanitizer check-file-status-mutants \
 	check-fionread-mutants check-fionread-sanitizer \
+	check-ptrace-mutants check-ptrace-sanitizer check-ptrace-libc-abi \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

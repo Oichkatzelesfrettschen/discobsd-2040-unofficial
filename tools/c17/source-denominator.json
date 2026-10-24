@@ -52024,14 +52024,19 @@
     },
     {
       "path": "sys/arch/rp2040/include/frame.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "ptrace-address-register-admission",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-ptrace-address-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/ptrace_test.c",
+        "tests/kernel/ptrace_abi_check.py"
+      ],
+      "blocker": "The 64-byte trapframe layout and ptrace NZCV mask are accepted; remaining exception-entry, signal-return, scheduler, debugger and complete header semantics retain separate migration units.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-kernel",
@@ -55259,14 +55264,19 @@
     },
     {
       "path": "sys/arch/stm32/include/frame.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "ptrace-address-register-admission",
+      "profile": "maintained-arm-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/rp2040-ptrace-address-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/ptrace_test.c",
+        "tests/kernel/ptrace_abi_check.py"
+      ],
+      "blocker": "The 64-byte trapframe layout and ptrace NZCV mask are accepted; remaining exception-entry, signal-return, scheduler, debugger and complete header semantics retain separate migration units.",
       "classification": {
         "source_kind": "header",
         "build_surface": "maintained-arm",
@@ -58089,14 +58099,20 @@
     },
     {
       "path": "sys/kern/sys_process.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "ptrace-address-register-admission",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-ptrace-address-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/ptrace_test.c",
+        "tests/kernel/ptrace_extract.py",
+        "tests/kernel/ptrace_mutate.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58108,9 +58124,7 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [
-            "cast-dereference"
-          ],
+          "aliasing": [],
           "inline_assembly": [],
           "integer": [
             "integer-cast"
@@ -58119,9 +58133,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -62621,6 +62633,47 @@
           ],
           "object_lifetime": [],
           "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/ptrace_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/rp2040-ptrace-address-admission.md",
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/ptrace_extract.py",
+        "tests/kernel/ptrace_mutate.py",
+        "tests/kernel/ptrace_abi_check.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

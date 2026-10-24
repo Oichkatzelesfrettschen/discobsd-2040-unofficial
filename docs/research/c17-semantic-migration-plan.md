@@ -688,6 +688,25 @@ Source: `rp2040-tty-local-mode-arithmetic.md` and `TESTING.md`
 Source: `rp2040-memory-device-span-admission.md` and `TESTING.md`
 (`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
 
+### R18 -- ptrace address and register admission (`sys/kern/sys_process.c`, ARM libc entry)
+
+| Field | Content |
+| --- | --- |
+| Layer and profile | GNU17 freestanding kernel, the established BSD ptrace ABI, and the ARM AAPCS syscall entry; RP2040 and maintained STM32 frame layouts |
+| Tier | T1: a tracing parent supplies child addresses, user-area offsets, saved register values, continuation state, and signals |
+| Native input | No |
+| Contract | Instruction and data requests copy complete four-byte spans; user-area offsets are aligned and bounded; writes resolve only to admitted saved registers; SP and PC satisfy exception-return and Thumb geometry; xPSR retains every field except NZCV; continuation validates signal and PC before publication; Cortex-M single-step returns a deterministic refusal |
+| Invariants | Syscall 26, public request numbers and prototype, IPC layout, user-area byte-offset convention, traced-child handshake, successful `-1` return semantics, and the 64-byte ARM trapframe layout remain unchanged |
+| Falsifier | Twelve warning-clean mutations restore negative trace admission, short or partially published reads, rounded or endpoint user offsets, arbitrary user-area writes, relaxed PC/SP alignment, full xPSR replacement, early PC publication, the invalid `NSIG` endpoint, or `PT_STEP` fallthrough; two assembly mutations remove argument preservation or clobber an argument after restoration. Each must fail its named oracle |
+| Gates | `check-kernel`, required `check-kernel-ilp32`, `check-test-execution`, Ruff, exact PICO/PICO_UART GNU17 builds, maintained STM32 production compilation, ARM disassembly, complete `logged-check`, schema-2 dependency/resource comparison, and exact-command object/frame replay |
+| Resources | Clean parent `6fb7903d` and implementation `1e471820` schema-2 receipts report +252 bytes for both PICO and PICO_UART flash; static SRAM, every shipped a.out, packed-root surface, native artifact, and archive/member selection are unchanged. `sys_process.o` gains 256 text bytes and loses four read-only-data bytes; `ptrace()` retains its 16-byte static frame, `procxmt()` moves from 8 to 24 bytes, and the libc argument save uses 16 temporary stack bytes. The bounded exception leaves 25,342 PICO and 37,824 PICO_UART flash bytes; runtime peaks remain open |
+| Evidence class | Host, sanitizer, ILP32, disassembly, exact target compile, matched distribution, static-resource comparison, and exact-head aggregate; physical-board evidence remains open |
+| Ledger states | 1 language: done for `sys_process.c`, the focused frame constants, libc entry, and fixture after exact-head aggregate acceptance. 2 interface: done for the preserved syscall/request and user-area offset ABI. 3 native: n/a. 4 hardening: done for the exercised ptrace boundary after mutation calibration. 5 resource: static constrained surfaces accepted through a bounded linked-flash and static-frame exception; runtime peaks remain open. 6 program closure: done for the shipped kernel/libc path after exact distribution linkage |
+| Residuals | Software single-step, runtime peaks, MPU behavior, deliberate hardware faults, physical-board execution, signal-return xPSR admission, and remaining broad frame-header semantics retain separate states or migration units |
+
+Source: `rp2040-ptrace-address-admission.md` and `TESTING.md`
+(`check-kernel`, `check-kernel-ilp32`, `check-test-execution`).
+
 ## Open measurements this plan depends on
 
 - Whether `qemu-arm` with an ARMv6-M CPU model faults on an unaligned access:
@@ -869,8 +888,8 @@ decision corpus. The source classification program in
 has exactly one row and every excluded row has a hashed quarantine or archive
 record. Schema 2 assigns every row a deterministic source kind, build surface,
 required dialect, extension boundary, risk family and lexical hazard-candidate
-set. Those classifications preserve all 27 accepted, 90 migration-open, 543
-excluded and 1,944 unreviewed language states. Candidate-free lexical output
+set. Those classifications preserve all 29 accepted, 92 migration-open, 543
+excluded and 1,941 unreviewed language states. Candidate-free lexical output
 is not semantic clearance. Tracked-path and classification accounting are
 closed; language acceptance remains open and executable through the checker's
 separate `--closure` mode.

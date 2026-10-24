@@ -119,8 +119,34 @@ The retained parent evidence records have these SHA-256 identities:
 - parent schema-2 resources: `38a1bf20ce5517fa6595c95fc04f26a5fe065525df68ad229588ec0db5c20f46`
 - parent object and frame: `a4004d2196a9155020c947ea227256bd4c9dfb87021dfa12d834fe44907f8dbe`
 
-The candidate receipt identities and aggregate `logged-check` state remain open
-until a clean capture binds them to the implementation commit.
+The exact-head candidate captures bind to implementation commit
+`eb3d292f836e26e91728fdd267a16e82cdc90a49`. The supervised clean invocation
+`tty-candidate-v5-clean-20261024T042931Z-1118498-d7dad59f` completed in 9.646
+seconds, and the immutable distribution invocation
+`rp2040-distribution-local-20261024T042941Z-1153995-b1633275` completed in
+180.402 seconds. Both exited zero without termination or dropped terminal
+output. The exact recorded PICO compiler command, augmented with
+`-fstack-usage`, reproduced the candidate `tty.o` bytes and bound the object,
+`ttioctl()` symbol, and static-frame measurements to the v5 compiler record.
+
+The complete non-hardware aggregate invocation
+`rp2040-check-local-20261024T043340Z-2183993-c4d7078a` ran the required clean
+build and check stages with `PYTHON=/usr/bin/python`. The build stage completed
+in 63.478 seconds, the check stage completed in 514.524 seconds, and both
+exited zero. The immutable aggregate status receipt covers 578.004 seconds and
+records neither termination nor dropped terminal output.
+
+The exact-head candidate evidence records have these SHA-256 identities:
+
+- candidate source snapshot: `3cf21cdf65bba4a3c2283a290cc8b0f879ffe8a6924f4c43240025f5e5c85ac2`
+- candidate dependency closure: `52fb646bf82cd65198925744b874756bc25c9714a88851e0514d10cae0435909`
+- candidate schema-2 resources: `f3a72693ef4b7cad3f314b7fb2f4f0aa6492126e04253b54f423180f22295379`
+- static-resource comparison: `99c7f71a9cf42fab59e68764731e17455d9f0c4ddc7e133c398009b64899a91e`
+- candidate object and frame: `c085e624cd3cdea84c4cdbaf3844ddf5400fd9f20551fc83395dc05dae4dfdcc`
+- object and frame comparison: `9eaa1fecaec2f13a52761f1fb159f97e0694917f836018cea73745a5b67f672a`
+- candidate clean status: `9ccddcc2ca3507c3b870adb7ddcbb811ad5492d047162fc2c289083e689f9cda`
+- immutable distribution status: `1f8d6ddfd2a41b2f185355b9bebcf9b540da33f3bfdf05bf38e36e112a459b6a`
+- aggregate `logged-check` status: `075edf3a8ac13fee8e39b394fa50dd845bd2c4b6bca112bffd1ecd7597477a46`
 
 ## Evidence boundaries and residuals
 

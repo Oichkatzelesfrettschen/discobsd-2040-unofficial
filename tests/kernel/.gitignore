@@ -57,6 +57,14 @@ fionread_*.mutant.test
 fionread_*.mutant.out
 fionread_ioctl_function.c
 fionread_inode_function.c
+swap_ioctl_test
+swap_ioctl_test32
+swap_ioctl_test_sanitized
+swap_ioctl_*.o
+swap_ioctl_*.mutant.c
+swap_ioctl_*.mutant.test
+swap_ioctl_*.mutant.out
+swap_ioctl_function.c
 sysctl_test_compact
 sysctl_test_wide
 sysctl_kernel_compact.o

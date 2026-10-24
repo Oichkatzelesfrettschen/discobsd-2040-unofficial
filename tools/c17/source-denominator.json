@@ -55916,14 +55916,20 @@
     },
     {
       "path": "sys/dev/swap.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sys",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "rp2040-swap-ioctl-result-contract",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/rp2040-swap-ioctl-result-contract.md",
+        "tests/kernel/swap_ioctl_test.c",
+        "tests/kernel/swap_ioctl_extract.py",
+        "tests/kernel/swap_ioctl_mutate.py"
+      ],
+      "blocker": "The exact swsize() and swcioctl() definitions are accepted for the temporary-swap result contract; open, close, read, write, strategy and remaining translation-unit semantics retain separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -62851,6 +62857,44 @@
           "pointer": [
             "integer-pointer-cast"
           ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/swap_ioctl_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/rp2040-swap-ioctl-result-contract.md",
+        "tests/kernel/swap_ioctl_extract.py",
+        "tests/kernel/swap_ioctl_mutate.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
           "prototype": [],
           "variadic": []
         }

@@ -1627,6 +1627,25 @@
       ]
     },
     {
+      "id": "kernel.swap-ioctl.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address, undefined-behavior and alignment sanitizer runtime",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-swap-ioctl-sanitizer",
+      "root_target": "check-kernel",
+      "program": "swap_ioctl_test_sanitized",
+      "condition": "KERNEL_SANITIZER_OK == yes; compiler-probe.sh compiles and executes native address and undefined-behavior sanitizers",
+      "prerequisites": [
+        "swap_ioctl_test_sanitized"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.swap-ioctl.sanitized -- ./swap_ioctl_test_sanitized",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.file-owner.ubsan-mutant",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1739,6 +1758,25 @@
         "fionread_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.swap-ioctl.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "swap_ioctl_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "swap_ioctl_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

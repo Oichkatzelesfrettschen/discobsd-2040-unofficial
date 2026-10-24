@@ -1111,8 +1111,11 @@ replacement, reports cleanup failure separately, and keeps the write error as
 the primary failure. A close failure after descriptor consumption preserves
 the completed pathname. Three cpio mutations, five
 `unlinkat_beneath` mutations, and the adjacent directory-write, namespace,
-topology, and restricted-lookup controls calibrate identity, serialization,
-traversal, and write-publication rejection.
+regular- and directory-rename topology, and restricted-lookup controls
+calibrate identity, serialization, traversal, and write-publication rejection.
+The production-source fixtures exercise `a/b/leaf` through cold and populated
+name-cache routes and hold directory relocation through `checkpath()`,
+destination relookup, `..` rewriting, and source removal.
 
 Matched parent `0938a979` and candidate `0c4dee43` distributions add 668
 PICO and 660 PICO_UART flash bytes with zero linked static-SRAM delta. Cpio

@@ -115,11 +115,15 @@ The kernel fixtures must reject these production-source mutations:
 9. Remove the final entry after an `ESTALE` identity mismatch.
 10. Permit `link(2)` or `unlink(2)` to mutate a directory entry as a directory
     topology operation.
+11. Release namespace serialization before a relocated directory passes
+    `checkpath()`, destination relookup, `..` rewriting, and source removal.
 
 The fixtures exercise a gate waiter that wakes, a signal-interrupted waiter,
-every lookup and descriptor error, sticky and immutable refusals, first-entry
-and coalesced-entry write failures, identity mismatch, successful removal, and
-balanced reference and lock ownership.  The cpio host fixture schedules a
+invalid expected and root descriptors, an empty restricted path, sticky,
+append-only and immutable refusals, first-entry and coalesced-entry write
+failures, identity mismatch, successful single- and multi-component removal,
+cold and populated name-cache routes, and balanced reference and lock
+ownership.  The cpio host fixture schedules a
 replacement before its cleanup provider acquires the name and requires the
 replacement to survive.  A separate production-kernel fixture establishes the
 comparison and mutation under the actual parent lock; the host shim alone does
@@ -179,11 +183,12 @@ high-water bounds.
 
 Cpio holds one extraction-root descriptor and one output descriptor at the
 cleanup call, in addition to its standard streams.  The mechanism allocates no
-new descriptor-table slot.  The syscall temporarily owns one reference copied
-from the expected output inode plus the final parent and target lookup
-references.  Including the two descriptor-owned references, the operation can
-hold five inode references across at most three distinct inodes for a nested
-path.  Fixed descriptor and inode table limits remain unchanged.
+new descriptor-table slot. The syscall temporarily owns one reference copied
+from the expected output inode while `namei_at()` owns its current and prior
+traversal inodes. Including the extraction-root and output descriptor
+references, a nested walk can hold five inode references across four distinct
+inodes. The calibrated `a/b/leaf` cold- and populated-cache cases observe that
+bound. Fixed descriptor and inode table limits remain unchanged.
 
 | Receipt | SHA-256 |
 | --- | --- |
@@ -253,8 +258,12 @@ borrowing acceptance from the static comparison.
     check tier passed in 360.649 seconds.  The aggregate status receipt has
     SHA-256
     `c2f0bf650947007db3083a84403dbe299d6cea7700ca651e73edd65ed2f8304d`.
-    Review, publication, exact-head CI, integration, synchronization, and
-    worktree retirement remain open.
+    Fresh-context review found no critical implementation defect. Its directory
+    relocation and nested-lookup coverage gap is closed by a 138-assertion
+    topology fixture, a fifth topology mutation, and 756 rooted-unlink
+    assertions over cold and populated name-cache routes. The corrected focused
+    gates pass. A new exact-head aggregate, publication, exact-head CI,
+    integration, synchronization, and worktree retirement remain open.
 
 Physical-board execution, flash programming, serial access, and persistence
 fault injection remain outside this unit and require separate authorization.

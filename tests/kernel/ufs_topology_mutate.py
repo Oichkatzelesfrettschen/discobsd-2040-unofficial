@@ -48,6 +48,18 @@ def mutate(source: str, mutation: str) -> str:
 """,
             mutation,
         )
+    if mutation == "release-before-directory-checkpath":
+        return replace_once(
+            source,
+            """    if (doingdirectory && newparent) {
+        if (access(ip, IWRITE))
+""",
+            """    if (doingdirectory && newparent) {
+        ufs_namespace_exit();
+        if (access(ip, IWRITE))
+""",
+            mutation,
+        )
     if mutation == "allow-directory-link":
         start = source.index("void\nlink(void)")
         end = source.index("void\nsymlink(void)", start)

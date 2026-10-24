@@ -196,7 +196,8 @@ UFS_TOPOLOGY_CFLAGS=	-ffunction-sections -fdata-sections ${OPENAT_DEFS}
 UFS_TOPOLOGY_RENAMES=	-Dlink=kernel_link -Dunlink=kernel_unlink \
 			-Drename=kernel_rename -Dnamei=topology_namei
 UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
-			release-before-source-lookup allow-directory-link \
+			release-before-source-lookup \
+			release-before-directory-checkpath allow-directory-link \
 			allow-directory-unlink
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
@@ -1787,7 +1788,8 @@ check-ufs-topology-mutants: \
 			status=$$?; \
 		fi; \
 		case $$mutation in \
-		omit-rename-acquisition|release-before-source-lookup) \
+		omit-rename-acquisition|release-before-source-lookup|\
+		release-before-directory-checkpath) \
 			expected='error == EINTR' ;; \
 		allow-directory-link|allow-directory-unlink) \
 			expected='u.u_error == EPERM' ;; \

@@ -1820,17 +1820,27 @@ contract and its resource obligations.
 
 `check-kernel-ilp32` owns `kernel.unlinkat-beneath.ilp32`. The 32-bit fixture
 links the production `unlinkat_beneath()`, `getinode()`, `namei_at()`,
-namespace gate, and `dirremove()` definitions. It executes 514 assertions over
+namespace gate, and `dirremove()` definitions. It executes 756 assertions over
 expected-descriptor validation, restricted path and root-descriptor errors,
 interrupted and handed-off namespace acquisition, regular and directory
 identity replacement, immutable and append-only refusal, directory-write
-failure, successful publication, balanced locks and references, and an
-injected release of the descriptor-owned inode reference during lookup. Five
+failure, sticky-directory refusal, successful single- and multi-component
+publication through cold and populated name-cache routes, the five-reference
+and four-distinct-inode nested ownership peak, balanced locks and references,
+and an injected release of the descriptor-owned inode reference during lookup. Five
 warning-clean mutations omit namespace acquisition, release serialization
 before removal, omit identity
 comparison, drop the retained expected-inode reference, or decrement the link
 count after a failed directory write. Each mutation must fail its named
 assertion.
+
+The adjacent 138-assertion topology fixture runs regular-file and directory
+rename. The directory case exercises `checkpath()`, destination relookup,
+target publication, `..` rewriting, source removal, and `IRENAME` cleanup while
+the namespace gate remains owned. Five topology mutations omit gate
+acquisition, release it before the second source lookup or directory
+`checkpath()`, or restore privileged directory link and unlink; each fails its
+named assertion.
 
 The gate establishes that the exercised UFS removal compares the locked lookup
 inode with a retained descriptor inode and holds namespace serialization
@@ -1880,5 +1890,6 @@ fixed 256-byte path and 512-byte I/O buffers, allocates no heap, and holds only
 the extraction-root and output descriptors during cleanup. Archive selection
 replaces the equal-sized `unlink.o` syscall member with
 `unlinkat_beneath.o`. The caller-complete identity repair therefore carries a
-bounded 92-byte a.out exception. Packed-root and clean-distribution effects
-remain assigned to the final matched comparison.
+bounded 92-byte a.out exception. The final matched clean distributions record
+an 82-byte packed-root increase while retaining 692 data blocks, 287 free
+blocks, 33 free inodes, and the existing native-libc size and membership.

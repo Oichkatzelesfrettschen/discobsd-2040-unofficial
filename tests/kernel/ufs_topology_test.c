@@ -32,6 +32,7 @@ enum operation_kind {
     OP_LINK_DIRECTORY,
     OP_UNLINK_DIRECTORY,
     OP_RENAME_REGULAR,
+    OP_RENAME_DIRECTORY,
     OP_RENAME_MISSING,
     OP_RENAME_DESTINATION_ERROR,
     OP_RENAME_SAME_TARGET,
@@ -48,6 +49,9 @@ static unsigned dirremove_calls;
 static unsigned sleep_calls;
 static unsigned wakeup_calls;
 static unsigned suser_calls;
+static unsigned checkpath_calls;
+static unsigned directory_template_reads;
+static unsigned directory_template_writes;
 static int sleep_result;
 
 int
@@ -95,6 +99,7 @@ topology_namei(struct nameidata *name)
         name->ni_pdir = &source_parent;
         return &source_inode;
     case OP_RENAME_REGULAR:
+    case OP_RENAME_DIRECTORY:
     case OP_RENAME_DESTINATION_ERROR:
     case OP_RENAME_SAME_TARGET:
         if (namei_calls == 1) {
@@ -107,7 +112,8 @@ topology_namei(struct nameidata *name)
             };
             return &source_inode;
         }
-        if (namei_calls == 2) {
+        if (namei_calls == 2 ||
+            (operation == OP_RENAME_DIRECTORY && namei_calls == 3)) {
             name->ni_pdir = &destination_parent;
             if (operation == OP_RENAME_DESTINATION_ERROR) {
                 u.u_error = EACCES;
@@ -182,8 +188,11 @@ access(struct inode *inode, int mode)
 int
 checkpath(struct inode *source, struct inode *target)
 {
-    (void)source;
-    (void)target;
+    HK_CHECK(operation == OP_RENAME_DIRECTORY);
+    HK_CHECK(source == &source_inode);
+    HK_CHECK(target == &destination_parent);
+    require_namespace_gate();
+    checkpath_calls++;
     return 0;
 }
 
@@ -222,13 +231,30 @@ int
 rdwri(enum uio_rw direction, struct inode *inode, caddr_t bytes, int length,
     off_t offset, int flags, int *residual)
 {
-    (void)direction;
-    (void)inode;
-    (void)bytes;
-    (void)length;
-    (void)offset;
-    (void)flags;
-    (void)residual;
+    struct dirtemplate *directory = (struct dirtemplate *)bytes;
+
+    HK_CHECK(operation == OP_RENAME_DIRECTORY);
+    HK_CHECK(inode == &source_inode);
+    HK_CHECK((unsigned)length == sizeof(*directory));
+    HK_CHECK(offset == 0);
+    HK_CHECK(residual == NULL);
+    require_namespace_gate();
+    if (direction == UIO_READ) {
+        HK_CHECK(flags == IO_UNIT);
+        *directory = (struct dirtemplate){
+            .dot_namlen = 1,
+            .dot_name = ".",
+            .dotdot_namlen = 2,
+            .dotdot_name = "..",
+            .dotdot_ino = source_parent.i_number,
+        };
+        directory_template_reads++;
+    } else {
+        HK_CHECK(direction == UIO_WRITE);
+        HK_CHECK(flags == (IO_UNIT | IO_SYNC));
+        HK_CHECK(directory->dotdot_ino == destination_parent.i_number);
+        directory_template_writes++;
+    }
     return 0;
 }
 
@@ -261,7 +287,8 @@ reset_fixture(enum operation_kind requested_operation, uid_t user_id)
         .i_flag = ILOCKED,
         .i_count = 2,
         .i_number = 10,
-        .i_mode = requested_operation >= OP_RENAME_REGULAR ? IFREG : IFDIR,
+        .i_mode = requested_operation == OP_RENAME_DIRECTORY ? IFDIR :
+            requested_operation >= OP_RENAME_REGULAR ? IFREG : IFDIR,
         .i_nlink = 1,
     };
     source_parent = (struct inode){
@@ -280,6 +307,9 @@ reset_fixture(enum operation_kind requested_operation, uid_t user_id)
     sleep_calls = 0;
     wakeup_calls = 0;
     suser_calls = 0;
+    checkpath_calls = 0;
+    directory_template_reads = 0;
+    directory_template_writes = 0;
     sleep_result = 0;
 }
 
@@ -341,6 +371,24 @@ rename_holds_gate_through_source_removal(void)
 }
 
 static void
+directory_rename_holds_gate_through_relocation(void)
+{
+    reset_fixture(OP_RENAME_DIRECTORY, 100);
+    set_rename_arguments();
+    kernel_rename();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(namei_calls == 4);
+    HK_CHECK(checkpath_calls == 1);
+    HK_CHECK(direnter_calls == 1);
+    HK_CHECK(dirremove_calls == 1);
+    HK_CHECK(directory_template_reads == 1);
+    HK_CHECK(directory_template_writes == 1);
+    HK_CHECK((source_inode.i_flag & IRENAME) == 0);
+
+    require_gate_free();
+}
+
+static void
 rename_releases_gate_after_lookup_errors(void)
 {
     reset_fixture(OP_RENAME_MISSING, 100);
@@ -387,6 +435,7 @@ main(void)
     directory_unlink_is_rejected(0);
     directory_unlink_is_rejected(100);
     rename_holds_gate_through_source_removal();
+    directory_rename_holds_gate_through_relocation();
     rename_releases_gate_after_lookup_errors();
     rename_preserves_owner_when_gate_wait_is_interrupted();
     return hk_verdict("UFS topology mutation serialization");

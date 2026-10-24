@@ -35,11 +35,14 @@ static struct inode root_inode;
 static struct inode expected_inode;
 static struct inode replacement_inode;
 static struct inode directory_inode;
+static struct inode first_directory_inode;
+static struct inode second_directory_inode;
 static struct file root_file;
 static struct file expected_file;
 static struct file other_file;
 static struct inode *directory_target;
 static char *directory_entry_name;
+static struct inode *active_lookup_parent;
 static union {
     struct direct entry;
     char bytes[DIRBLKSIZ];
@@ -53,6 +56,8 @@ static int wait_error;
 static int release_descriptor_reference_during_lookup;
 static int directory_write_error;
 static int directory_entry_removed;
+static int nested_walk;
+static int observed_nested_reference_peak;
 static unsigned root_descriptor_lookups;
 static unsigned inode_get_calls;
 static unsigned directory_block_reads;
@@ -153,6 +158,13 @@ igrab(struct inode *inode)
     HK_CHECK(inode != NULL);
     ilock(inode);
     inode->i_count++;
+    if (nested_walk && inode == &second_directory_inode) {
+        HK_CHECK(root_inode.i_count == 1);
+        HK_CHECK(expected_inode.i_count == 2);
+        HK_CHECK(first_directory_inode.i_count == 1);
+        HK_CHECK(second_directory_inode.i_count == 1);
+        observed_nested_reference_peak = 1;
+    }
 }
 
 int
@@ -214,28 +226,57 @@ check_namespace_released(void)
 struct inode *
 iget(dev_t device, struct fs *filesystem, ino_t number)
 {
+    struct inode *target;
+
     inode_get_calls++;
-    HK_CHECK(directory_target != NULL);
     HK_CHECK(device == INODE_DEVICE(&root_inode));
     HK_CHECK(filesystem == INODE_FILESYSTEM(&root_inode));
-    HK_CHECK(number == directory_target->i_number);
-    ilock(directory_target);
-    directory_target->i_count++;
-    return directory_target;
+    if (nested_walk && number == first_directory_inode.i_number)
+        target = &first_directory_inode;
+    else if (nested_walk && number == second_directory_inode.i_number)
+        target = &second_directory_inode;
+    else {
+        HK_CHECK(directory_target != NULL);
+        HK_CHECK(number == directory_target->i_number);
+        target = directory_target;
+    }
+    ilock(target);
+    target->i_count++;
+    if (nested_walk && target == &second_directory_inode) {
+        HK_CHECK(root_inode.i_count == 1);
+        HK_CHECK(expected_inode.i_count == 2);
+        HK_CHECK(first_directory_inode.i_count == 1);
+        HK_CHECK(second_directory_inode.i_count == 1);
+        observed_nested_reference_peak = 1;
+    }
+    return target;
 }
 
 struct buf *
 bread(dev_t device, daddr_t block)
 {
     struct direct *entry = &directory_storage.entry;
+    struct inode *target;
+    const char *entry_name;
     u_int byte_index;
     u_int length;
 
     directory_block_reads++;
     HK_CHECK(device == INODE_DEVICE(&root_inode));
     HK_CHECK(block == 1);
-    HK_CHECK(directory_target != NULL);
-    HK_CHECK(directory_entry_name != NULL);
+    if (nested_walk && active_lookup_parent == &root_inode) {
+        target = &first_directory_inode;
+        entry_name = "a";
+    } else if (nested_walk &&
+        active_lookup_parent == &first_directory_inode) {
+        target = &second_directory_inode;
+        entry_name = "b";
+    } else {
+        HK_CHECK(directory_target != NULL);
+        HK_CHECK(directory_entry_name != NULL);
+        target = directory_target;
+        entry_name = directory_entry_name;
+    }
     if (release_descriptor_reference_during_lookup) {
         /*
          * A caller cannot close its descriptor concurrently in this
@@ -251,11 +292,11 @@ bread(dev_t device, daddr_t block)
     for (byte_index = 0; byte_index < sizeof(directory_storage.bytes);
         byte_index++)
         directory_storage.bytes[byte_index] = 0;
-    for (length = 0; directory_entry_name[length] != '\0'; length++)
-        entry->d_name[length] = directory_entry_name[length];
+    for (length = 0; entry_name[length] != '\0'; length++)
+        entry->d_name[length] = entry_name[length];
     entry->d_name[length] = '\0';
     entry->d_namlen = length;
-    entry->d_ino = directory_target->i_number;
+    entry->d_ino = target->i_number;
     entry->d_reclen = DIRBLKSIZ;
     directory_buffer = (struct buf){
         .b_addr = (caddr_t)directory_storage.bytes,
@@ -267,7 +308,12 @@ bread(dev_t device, daddr_t block)
 daddr_t
 bmap(struct inode *inode, daddr_t block, int operation, int size)
 {
-    HK_CHECK(inode == &root_inode);
+    if (nested_walk)
+        HK_CHECK(inode == &root_inode || inode == &first_directory_inode ||
+            inode == &second_directory_inode);
+    else
+        HK_CHECK(inode == &root_inode);
+    active_lookup_parent = inode;
     HK_CHECK(block == 0);
     HK_CHECK(operation == B_READ);
     HK_CHECK(size == 0);
@@ -297,7 +343,7 @@ rdwri(enum uio_rw operation, struct inode *inode, caddr_t bytes, int length,
 
     HK_CHECK(namespace_is_owned());
     HK_CHECK(operation == UIO_WRITE);
-    HK_CHECK(inode == &root_inode);
+    HK_CHECK(inode == (nested_walk ? &second_directory_inode : &root_inode));
     HK_CHECK((unsigned)length == DIRSIZ(entry));
     HK_CHECK(offset == 0);
     HK_CHECK(flags == (IO_UNIT | IO_SYNC));
@@ -349,11 +395,29 @@ reset_fixture(void)
         .i_mode = IFDIR | 0700,
         .i_nlink = 2,
     };
+    first_directory_inode = (struct inode){
+        .i_number = 30,
+        .i_id = 30,
+        .i_mode = IFDIR | 0700,
+        .i_size = DIRBLKSIZ,
+        .i_nlink = 2,
+    };
+    second_directory_inode = (struct inode){
+        .i_number = 31,
+        .i_id = 31,
+        .i_mode = IFDIR | 0700,
+        .i_size = DIRBLKSIZ,
+        .i_nlink = 2,
+    };
     set_inode_location(&root_inode, mount[0].m_dev, &mount[0].m_filsys);
     set_inode_location(&expected_inode, mount[0].m_dev, &mount[0].m_filsys);
     set_inode_location(&replacement_inode, mount[0].m_dev,
         &mount[0].m_filsys);
     set_inode_location(&directory_inode, mount[0].m_dev,
+        &mount[0].m_filsys);
+    set_inode_location(&first_directory_inode, mount[0].m_dev,
+        &mount[0].m_filsys);
+    set_inode_location(&second_directory_inode, mount[0].m_dev,
         &mount[0].m_filsys);
     root_file = (struct file){
         .f_count = 1,
@@ -375,6 +439,7 @@ reset_fixture(void)
     rootdir = &root_inode;
     directory_target = &expected_inode;
     directory_entry_name = "leaf";
+    active_lookup_parent = NULL;
     for (cache_index = 0; cache_index < NNAMECACHE; cache_index++)
         namecache[cache_index] = (struct namecache){0};
     directory_buffer = (struct buf){0};
@@ -385,6 +450,8 @@ reset_fixture(void)
     release_descriptor_reference_during_lookup = 0;
     directory_write_error = 0;
     directory_entry_removed = 0;
+    nested_walk = 0;
+    observed_nested_reference_peak = 0;
     root_descriptor_lookups = 0;
     inode_get_calls = 0;
     directory_block_reads = 0;
@@ -394,6 +461,7 @@ reset_fixture(void)
     handoff_waits = 0;
     probe_waits = 0;
     wakeup_calls = 0;
+    nchstats = (struct nchstats){0};
 }
 
 static void
@@ -416,6 +484,31 @@ call_unlinkat_beneath(int root_descriptor, char *path,
     syscall_active = 1;
     unlinkat_beneath();
     syscall_active = 0;
+}
+
+static void
+populate_nested_name_cache(void)
+{
+    namecache[0] = (struct namecache){
+        .nc_ip = &first_directory_inode,
+        .nc_ino = root_inode.i_number,
+        .nc_dev = INODE_DEVICE(&root_inode),
+        .nc_idev = INODE_DEVICE(&first_directory_inode),
+        .nc_id = first_directory_inode.i_id,
+        .nc_used = 1,
+        .nc_nlen = 1,
+        .nc_name = "a",
+    };
+    namecache[1] = (struct namecache){
+        .nc_ip = &second_directory_inode,
+        .nc_ino = first_directory_inode.i_number,
+        .nc_dev = INODE_DEVICE(&first_directory_inode),
+        .nc_idev = INODE_DEVICE(&second_directory_inode),
+        .nc_id = second_directory_inode.i_id,
+        .nc_used = 1,
+        .nc_nlen = 1,
+        .nc_name = "b",
+    };
 }
 
 static void
@@ -530,6 +623,17 @@ inode_and_parent_flags_refuse_removal(void)
     HK_CHECK(directory_write_calls == 0);
     HK_CHECK(expected_inode.i_nlink == 2);
     check_namespace_released();
+
+    reset_fixture();
+    u.u_uid = 100;
+    root_inode.i_mode |= ISVTX;
+    root_inode.i_uid = 200;
+    expected_inode.i_uid = 300;
+    call_unlinkat_beneath(ROOT_DESCRIPTOR, "leaf", EXPECTED_DESCRIPTOR);
+    HK_CHECK(u.u_error == EPERM);
+    HK_CHECK(directory_write_calls == 0);
+    HK_CHECK(expected_inode.i_nlink == 2);
+    check_namespace_released();
 }
 
 static void
@@ -589,6 +693,42 @@ retained_expected_reference_survives_injected_descriptor_release(void)
     check_namespace_released();
 }
 
+static void
+nested_removal_covers_cold_and_cached_ancestor_walks(void)
+{
+    reset_fixture();
+    nested_walk = 1;
+    call_unlinkat_beneath(ROOT_DESCRIPTOR, "a/b/leaf", EXPECTED_DESCRIPTOR);
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(observed_nested_reference_peak);
+    HK_CHECK(inode_get_calls == 3);
+    HK_CHECK(directory_block_reads == 3);
+    HK_CHECK(directory_buffer_releases == 3);
+    HK_CHECK(directory_entry_removed == 1);
+    HK_CHECK(first_directory_inode.i_count == 0);
+    HK_CHECK(second_directory_inode.i_count == 0);
+    HK_CHECK(expected_inode.i_count == 1);
+    HK_CHECK(root_inode.i_count == 1);
+    check_namespace_released();
+
+    reset_fixture();
+    nested_walk = 1;
+    populate_nested_name_cache();
+    call_unlinkat_beneath(ROOT_DESCRIPTOR, "a/b/leaf", EXPECTED_DESCRIPTOR);
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(observed_nested_reference_peak);
+    HK_CHECK(nchstats.ncs_goodhits == 2);
+    HK_CHECK(inode_get_calls == 1);
+    HK_CHECK(directory_block_reads == 1);
+    HK_CHECK(directory_buffer_releases == 1);
+    HK_CHECK(directory_entry_removed == 1);
+    HK_CHECK(first_directory_inode.i_count == 0);
+    HK_CHECK(second_directory_inode.i_count == 0);
+    HK_CHECK(expected_inode.i_count == 1);
+    HK_CHECK(root_inode.i_count == 1);
+    check_namespace_released();
+}
+
 int
 main(void)
 {
@@ -600,5 +740,6 @@ main(void)
     directory_write_failure_preserves_link_publication();
     successful_removal_holds_serialization_through_publication();
     retained_expected_reference_survives_injected_descriptor_release();
+    nested_removal_covers_cold_and_cached_ancestor_walks();
     return hk_verdict("rooted identity-conditioned unlink");
 }

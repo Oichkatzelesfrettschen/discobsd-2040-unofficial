@@ -113,11 +113,15 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
-| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: dialect rule, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and sixteen bounded migration-unit rows |
+| `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |
 | `shipped-archive-selection-comparison.md` | complete kernel, packed-program and native archive selection; schema-2 comparison, historical receipts and calibrated dependency-growth rejection |
 | `syscall-dispatch-header-contract.md` | generated private syscall declarations, configuration-selected dispatch checks and native-header boundaries |
+| `tar-descriptor-timestamp-identity.md` | descriptor-owned tar timestamp publication, competing-replacement fixtures and measured target cost |
+| `openat-directory-relative-lookup-plan.md` | additive directory-relative open lookup, final-link refusal, generated ABI ownership and matched resource evidence |
+| `rooted-conditional-unlink-plan.md` | serialized beneath-root lookup, identity-conditioned cpio cleanup, calibrated namespace mutations and matched resource evidence |
+| `compress-publication-identity-plan.md` | descriptor-owned compress staging, metadata, publication, cleanup and input removal, including signal ownership and bounded resource exceptions |
 | `rp2040-usercopy-span-admission.md` | overflow-safe RP2040 `copyin` and `copyout` span admission, exact ILP32 behavior and direct-address residuals |
 | `rp2040-syscall-io-span-admission.md` | complete read, write, readv and writev buffer-span admission before dispatch, calibrated refusal controls and measured kernel cost |
 | `rp2040-file-owner-control-admission.md` | checked file-owner conversion, four-byte ioctl staging, failure-path publication rules and measured kernel cost |

@@ -17591,7 +17591,8 @@
         "docs/research/syscall-dispatch-header-contract.md",
         "docs/research/openat-directory-relative-lookup.md",
         "tests/kernel_metadata/dispatch_contracts.py",
-        "tools/gen_kernel_metadata.py"
+        "tools/gen_kernel_metadata.py",
+        "docs/research/compress-publication-identity-plan.md"
       ],
       "blocker": "",
       "classification": {
@@ -17877,14 +17878,20 @@
     },
     {
       "path": "include/unistd.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "descriptor-relative-filesystem",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/openat-directory-relative-lookup.md",
+        "docs/research/rooted-conditional-unlink-plan.md",
+        "docs/research/compress-publication-identity-plan.md",
+        "usr.bin/smlrc/tests/t18_stdio.c",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "The openat, unlinkat_beneath, and publishat_beneath declarations and Smaller C function-pointer/archive contracts are accepted; remaining public process, descriptor, path, and configuration declarations require review.",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -57281,7 +57288,8 @@
       "evidence": [
         "docs/research/syscall-dispatch-header-contract.md",
         "tests/kernel_metadata/dispatch_contracts.py",
-        "tools/gen_kernel_metadata.py"
+        "tools/gen_kernel_metadata.py",
+        "docs/research/compress-publication-identity-plan.md"
       ],
       "blocker": "",
       "classification": {
@@ -58282,7 +58290,8 @@
       "evidence": [
         "docs/research/syscall-dispatch-header-contract.md",
         "tests/kernel_metadata/dispatch_contracts.py",
-        "tools/gen_kernel_metadata.py"
+        "tools/gen_kernel_metadata.py",
+        "docs/research/compress-publication-identity-plan.md"
       ],
       "blocker": "",
       "classification": {
@@ -58712,17 +58721,18 @@
       "path": "sys/kern/ufs_namei.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "directory-relative-open",
+      "owner": "filesystem-namespace-identity",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
         "docs/research/openat-directory-relative-lookup.md",
-        "tests/kernel/openat_test.c",
-        "tests/kernel/openat_mutate.py",
+        "docs/research/rooted-conditional-unlink-plan.md",
+        "docs/research/compress-publication-identity-plan.md",
+        "tests/kernel/publishat_beneath_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "Directory-relative lookup/open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open, rooted conditional removal, descriptor-owned publication, and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -58787,17 +58797,18 @@
       "path": "sys/kern/ufs_syscalls.c",
       "class": "A",
       "scope": "maintained",
-      "owner": "directory-relative-open",
+      "owner": "filesystem-namespace-identity",
       "profile": "rp2040-kernel-port",
       "native_input": "no",
       "language_state": "migration-open",
       "evidence": [
         "docs/research/openat-directory-relative-lookup.md",
-        "tests/kernel/openat_test.c",
-        "tests/kernel/openat_mutate.py",
+        "docs/research/rooted-conditional-unlink-plan.md",
+        "docs/research/compress-publication-identity-plan.md",
+        "tests/kernel/publishat_beneath_mutate.py",
         "sys/arch/rp2040/doc/TESTING.md"
       ],
-      "blocker": "Directory-relative lookup/open and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
+      "blocker": "Directory-relative lookup/open, rooted conditional removal, descriptor-owned publication, and pathname-origin transitions are accepted; remaining translation-unit semantics require separate migration units.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-kernel",
@@ -60549,7 +60560,8 @@
       "evidence": [
         "docs/research/syscall-dispatch-header-contract.md",
         "tests/kernel_metadata/dispatch_contracts.py",
-        "tools/gen_kernel_metadata.py"
+        "tools/gen_kernel_metadata.py",
+        "docs/research/compress-publication-identity-plan.md"
       ],
       "blocker": "",
       "classification": {
@@ -62942,6 +62954,88 @@
           "pointer": [
             "integer-pointer-cast"
           ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/publishat_beneath_namei_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "compress-publication-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/compress-publication-identity-plan.md",
+        "tests/kernel/dirremove_mutate.py",
+        "tests/kernel/publishat_beneath_namei_test.c",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [
+            "compound-literal"
+          ],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/kernel/publishat_beneath_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "compress-publication-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/compress-publication-identity-plan.md",
+        "tests/kernel/publishat_beneath_mutate.py",
+        "tests/kernel/publishat_beneath_test.c",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [
+            "compound-literal"
+          ],
+          "pointer": [],
           "prototype": [],
           "variadic": []
         }
@@ -71075,14 +71169,18 @@
     },
     {
       "path": "usr.bin/compress/compress.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "usr.bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "compress-publication-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/compress-publication-identity-plan.md",
+        "usr.bin/compress/tests/compresscheck.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -71103,6 +71201,7 @@
             "shift-expression"
           ],
           "object_lifetime": [
+            "compound-literal",
             "dynamic-storage"
           ],
           "pointer": [
@@ -71110,6 +71209,86 @@
           ],
           "prototype": [],
           "variadic": []
+        }
+      }
+    },
+    {
+      "path": "usr.bin/compress/tests/publication_identity_shim.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "compress-publication-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/compress-publication-identity-plan.md",
+        "usr.bin/compress/tests/compresscheck.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
+        }
+      }
+    },
+    {
+      "path": "usr.bin/compress/tests/publication_interpose.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "compress-publication-identity",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/compress-publication-identity-plan.md",
+        "usr.bin/compress/tests/compresscheck.sh",
+        "sys/arch/rp2040/doc/TESTING.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },
@@ -80680,9 +80859,11 @@
       "language_state": "migration-open",
       "evidence": [
         "docs/research/STYLE-GUIDE.md",
-        "docs/research/openat-directory-relative-lookup.md"
+        "docs/research/openat-directory-relative-lookup.md",
+        "docs/research/rooted-conditional-unlink-plan.md",
+        "docs/research/compress-publication-identity-plan.md"
       ],
-      "blocker": "The openat public declaration and archive member pass the native fixture; broader file-level C17 and native-suite acceptance remain migration-open.",
+      "blocker": "The openat, unlinkat_beneath, and publishat_beneath public declarations and selected archive members pass the native fixture; broader file-level C17 and native-suite acceptance remain migration-open.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "native-smaller-c",

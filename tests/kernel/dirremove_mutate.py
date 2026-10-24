@@ -34,8 +34,25 @@ def mutate(source: str, mutation: str) -> str:
     if mutation == "discard-coalesced-write-error":
         return replace_once(
             source,
-            "        error = bwrite(bp);\n",
-            "        (void) bwrite(bp);\n        error = 0;\n",
+            """        ep->d_reclen += ndp->ni_dent.d_reclen;
+        error = bwrite(bp);
+""",
+            """        ep->d_reclen += ndp->ni_dent.d_reclen;
+        (void) bwrite(bp);
+        error = 0;
+""",
+            mutation,
+        )
+    if mutation == "discard-enter-write-error":
+        return replace_once(
+            source,
+            """    error = bwrite(bp);
+    if (error == 0) {
+""",
+            """    (void) bwrite(bp);
+    error = 0;
+    if (error == 0) {
+""",
             mutation,
         )
     raise SystemExit(f"unknown mutation: {mutation}")

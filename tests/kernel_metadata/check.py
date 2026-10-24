@@ -61,8 +61,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
 
     syscall_master = "sys/kern/syscalls.master"
     syscall_records = records_text(source(syscall_master), syscall_master, 6)
-    if len(syscall_records) != 159:
-        raise CheckError("syscall master must contain slots 0 through 158")
+    if len(syscall_records) != 160:
+        raise CheckError("syscall master must contain slots 0 through 159")
     if syscall_records[23][2:5] != ["__sysctl", "ALWAYS", "__sysctl"]:
         raise CheckError("syscall 23 must remain __sysctl")
     if syscall_records[66][2] != "vfork":
@@ -83,6 +83,13 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     ]:
         raise CheckError(
             "syscall 158 must remain three-argument unlinkat_beneath"
+        )
+    if syscall_records[159] != [
+        "159", "5", "publishat_beneath", "ALWAYS", "publishat_beneath",
+        "publishat_beneath=159",
+    ]:
+        raise CheckError(
+            "syscall 159 must remain five-argument publishat_beneath"
         )
     public = source("include/syscall.h")
     generated_files = {
@@ -106,6 +113,12 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     ):
         raise CheckError(
             "SYS_unlinkat_beneath must retain its additive public number"
+        )
+    if not re.search(
+        r"^#define SYS_publishat_beneath\s+159$", public, re.MULTILINE
+    ):
+        raise CheckError(
+            "SYS_publishat_beneath must retain its additive public number"
         )
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
@@ -228,6 +241,21 @@ def main() -> int:
                     "unlinkat_beneath=158",
                     "158|2|unlinkat_beneath|ALWAYS|unlinkat_beneath|"
                     "unlinkat_beneath=158",
+                    1,
+                )
+            },
+        ),
+    )
+    expect_bad(
+        "short publishat_beneath argument record",
+        lambda: check_tree(
+            root,
+            {
+                syscall_path: syscall_source.replace(
+                    "159|5|publishat_beneath|ALWAYS|publishat_beneath|"
+                    "publishat_beneath=159",
+                    "159|4|publishat_beneath|ALWAYS|publishat_beneath|"
+                    "publishat_beneath=159",
                     1,
                 )
             },

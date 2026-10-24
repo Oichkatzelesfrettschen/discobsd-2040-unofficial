@@ -207,10 +207,11 @@ an upstream advisory alone does not establish that the named component ships.
 This register covers the security-sensitive translation units already
 migrated and measured below; it is a bounded starting set, not a census of
 every C translation unit linked into every RP2040 profile. The
-passwd/compress/cpio/tar rows preserve the source snapshot rebuilt at
+passwd, cpio, and tar rows preserve the source snapshot rebuilt at
 `34902d8a3aa0a742729989be32fea67a2732ee35` with the RP2040 Cortex-M0+ flags,
-repository startup object and repository libc. Later rows name their own
-source batch and target measurement. Object and final ELF sections come from
+repository startup object and repository libc. The compress row records the
+later descriptor-owned publication capture described below. Other later rows
+name their own source batch and target measurement. Object and final ELF sections come from
 `arm-none-eabi-size`; raw and packed a.out sizes and root blocks come from
 `tools/bin/rp2040/hsaout -s`. Earlier base-to-repair deltas remain in the
 detailed sections below.
@@ -219,7 +220,7 @@ detailed sections below.
 | --- | --- | ---: | --- | --- | --- |
 | `usr.bin/login/login.c` | Target `-Wall -Wextra -Werror -Wold-style-definition` passes under GNU17; source-contract negative controls cover the privilege handoff. | 611 / 14,638 | 3,128/12/164; 21,912/693/3,432 | 22,637 / 19,255; 20 blocks | The public `access()` and `alarm()` declarations are fully prototyped. A direct strict-prototype certification run and the optional Kerberos target build with injected-failure coverage remain open. |
 | `usr.bin/passwd/passwd.c` | Target `-std=c17 -Wall -Wextra -Wold-style-definition -Werror` passes; production target remains GNU17. | 282 / 7,147 | 1,955/0/4; 14,274/624/1,620 | 14,932 / 12,249; 13 blocks | The public `access()` and `alarm()` declarations are fully prototyped. A fresh complete strict-prototype certification remains open. |
-| `usr.bin/compress/compress.c` | Production and DEBUG forms pass host strict C17 with pedantic warnings treated as errors. | 1,424 / 37,245 | 4,911/32/30,216; 13,326/236/30,344 | 13,596 / 11,241; 12 blocks | Close the pathname identity race in the `stat`/`freopen`/metadata lifecycle with descriptor-relative APIs; retain input on metadata failure. |
+| `usr.bin/compress/compress.c` | Production and DEBUG forms pass strict C17 with warnings as errors; descriptor-owned publication and failure fixtures pass under address and undefined-behavior sanitizers. | 1,853 / 51,416 | 6,185/40/30,440; 13,484/244/30,552 | 13,760 / 11,824; 13 blocks | Measure runtime stack, heap, descriptor pressure, storage traffic, crash recovery, and authorized physical-board behavior. |
 | `usr.bin/cpio/cpio.c` | GCC and Clang pass host strict C17 with conversion diagnostics; host behavior tests pass ASan and UBSan. | 566 / 18,086 | 3,540/0/776; 11,501/204/900 | 11,740 / 9,323; 11 blocks | Close the stable-namespace rename race through directory-relative APIs or a bounded staging design. The measured internal stack paths are 256-byte input and 224-byte output. |
 | `bin/tar/tar.c` | GCC and Clang pass host strict C17 with pedantic, prototype and conversion diagnostics; target production warning contract passes. | 2,770 / 84,055 | 14,024/58/2,181; 28,308/692/3,936 | 29,032 / 23,681; 25 blocks | Shared headers and target stdio/ioctl macros still block the direct target strict-prototype/conversion probe; the stable-namespace extraction race remains. |
 | `include/pwd.h` / `lib/libc/gen/getpwent.c` | Header API passes standalone strict C17 prototype checking. The implementation has full parameter lists and passes target `-Wold-style-definition -Werror`. | Header 37 / 1,455; C 205 / 4,030 (base 34 / 1,384 and 209 / 4,063); 54 C/header includers | `getpwent.o`: 620/4/344 bytes; identical section sizes to the pre-edit object. Maximum measured function frame: 24 bytes. | Linked through libc; no standalone executable measurement. | The public `access()` and `alarm()` declarations are fully prototyped. A clean complete build must re-establish all consumers after the public-header change. |
@@ -1128,17 +1129,54 @@ rename, unlink, cpio main, and cpio copy frames; the namespace entry/exit,
 conditional unlink, and cpio cleanup frames use 16, 8, 120, and 24 bytes. The
 bounded exception request leaves 24,022 PICO and 36,504 PICO_UART flash bytes.
 Runtime peaks and storage traffic remain unmeasured. Cpio creation confinement,
-tar creation/link/removal, compress publication, persistence, and
-physical-board behavior remain separate claims.
+tar creation/link/removal, persistence, and physical-board behavior remain
+separate claims.
+
+## Descriptor-owned compress publication
+
+Named `compress` operations now retain the parent directory, input, optional
+destination, and same-parent staged output through descriptors. Metadata is
+applied through the staged descriptor. Additive syscall 159 publishes the
+staged inode only while the staged and destination entries still identify the
+authorized descriptors, under UFS namespace serialization. Successful
+publication removes the input through `unlinkat_beneath()` while the input
+descriptor remains live. Failed cleanup compares the staged entry with its
+descriptor before removal.
+
+The strict-C17 host fixture preserves ordinary standard-output input semantics
+and publishes from a non-privileged mode-0300 parent.  It schedules input and
+destination replacement after open, staged replacement during metadata and
+before publication, destination replacement before publication, staged
+replacement during cleanup, and input replacement before removal.  It injects
+write, explicit flush, both stream-close, ownership, mode, timestamp,
+publication, removal, cleanup, descriptor, allocation, and signal-mask
+failures; a combined write and cleanup case checks diagnostic precedence.  The
+fixture also delivers `SIGINT` immediately after stage creation.
+The production-kernel fixtures execute 974 syscall assertions and 875
+restricted-namei assertions. Eight warning-clean mutations remove one identity,
+permission, serialization, root, same-parent, or directory-write invariant at
+a time and fail their named oracles. Direct ILP32 execution passes outside the
+managed sandbox; the sandbox seccomp policy terminates the same probes with
+`SIGSYS`. Explicit `qemu-i386` executions pass as a separate emulator evidence
+class.
+
+Matched distributions add 820 PICO and 820 PICO_UART flash bytes with zero
+linked static-SRAM delta. `compress` adds 1,604 loaded bytes, 1,153 packed
+bytes, and one packed-root block. The resulting 44,280-byte loaded image leaves
+103,176 bytes in the 144 KiB base process window. The board libc retains
+43,010 bytes and 151 members. The positive flash, process, packed-file,
+root-block, and selected-member deltas require one bounded review exception.
+Runtime stack, heap, descriptor high-water, storage traffic, persistence
+recovery, and physical-board behavior remain open.
 
 ## Ranked residual frontier
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
-| P1 | archive creation and publication identity | Additive `openat(2)` preserves an ordinary directory-relative start, `futimes(2)` preserves timestamp target identity, and `unlinkat_beneath(2)` closes cpio's incomplete-output removal identity. Cpio creation, tar creation/link/removal, and compress publication still lack caller-complete rooted mutation contracts. | Retain the openat, descriptor timestamp, namespace-serialization, restricted-lookup, identity-conditioned removal, and directory-write controls. Specify each creation or publication operation through its final locked mutation, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
+| P1 | remaining archive creation and publication identity | Additive `openat(2)` preserves an ordinary directory-relative start, `futimes(2)` preserves timestamp target identity, `unlinkat_beneath(2)` closes cpio's incomplete-output removal identity, and `publishat_beneath(2)` closes the exercised `compress` publication lifecycle. Cpio creation and tar creation/link/removal still lack caller-complete rooted mutation contracts. | Retain the existing descriptor, namespace-serialization, restricted-lookup, identity-conditioned mutation, sticky-directory, signal-cleanup, and directory-write controls. Specify each remaining creation or publication operation through its final locked mutation, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
 | P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
-| P1 | `compress` descriptor lifecycle | `stat` followed by `freopen`, then pathname `chmod`, `chown`, `utimes` and `unlink`, admits rename and symlink races that can apply metadata to or remove a replacement path. Reported metadata failures now preserve the input and remove the destination, but pathname identity remains unbound. | Competing-rename/symlink harness, descriptor-based create/update design, failure injection and packed-size comparison. |
+| P1 | `compress` runtime and persistence qualification | Descriptor-owned open, metadata, publication, cleanup, input removal, and signal ownership pass the exercised host, ILP32-emulator, target-build, and static-resource contracts. Runtime high-water, storage traffic, crash recovery after directory writes, and silicon behavior remain unmeasured. | Measure stack, heap, descriptor/inode pressure, and persistent writes under the retained workload. Exercise interruption and recovery at each directory-write boundary. Run any silicon workload only after exact hardware authorization. |
 | P1 | signal-return hardware qualification | `sigreturn` now copies one complete context and validates the resumed PC, complete 32/36-byte exception frame, eight-byte SP alignment, required Thumb state, allowed NZCV/STKALIGN xPSR fields, and failure-preserving publication order. The RP2040 machine policy admits complete Thumb halfwords in Boot ROM or the selected process window; STM32 retains process-window-only admission. The 535-assertion fixture, eight mutations, sanitizers, exact target builds, and matched resource comparison establish the exercised software boundary without executing exception return on silicon. | Retain the signal-return fixture, eight mutation controls, exact PICO/PICO_UART builds, STM32 production compile, and static-resource exception. An explicitly authorized board workload must deliver and return from signals at admitted process and Boot ROM PCs, exercise base and padded frames, reject PC/SP/xPSR cases without partial publication, record runtime kernel-stack high-water, and include MPU deliberate-fault controls before hardware behavior closes. |
 | P1 | ptrace hardware qualification | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, shipped ioctl payloads, `/dev/mem`, `/dev/kmem`, and the shipped `ptrace` path. The ptrace contract bounds user words and user-area offsets, limits register writes, preserves xPSR control fields, validates PC, SP, and signals before publication, and rejects unsupported Cortex-M single-step. Host, ILP32, sanitizer, target-compile, and disassembly gates do not execute exception return or deliberate faults on silicon. Kernel-internal ioctl callers and optional providers retain separate ownership contracts. | Retain the 145-assertion ptrace fixture, twelve mutation controls, libc disassembly control, exact target builds, and resource comparison. An explicitly authorized board workload must trace a child through accepted reads, writes, register changes, continuation, rejected PC/SP/xPSR cases, and deliberate-fault controls before hardware behavior closes. |
 | P1 | USB reset execution evidence | Standard and CDC request geometry plus Pico reset request fields now have production predicates and calibrated host controls. Reset requests require type `0x21`, configured interface 2, exact `wIndex`, zero `wLength`, and command-specific `wValue`; the source-wiring check requires an EP0 stall before action and a two-bit ROM mask. `SET_FEATURE` remains stalled because endpoint halt is unimplemented and remote wakeup is disabled. | `check-usb-set-configuration`, `check-usb-set-address-interface`, `check-usb-get-descriptor`, `check-usb-cdc-requests`, `check-usb-standard-requests` and `check-usb-reset` cover the implemented fields with calibrated mutations. The CDC contract follows PSTN 1.2 sections 6.3.10-6.3.13: <https://www.usb.org/sites/default/files/CDC1.2_WMC1.1_012011.zip>; standard request geometry follows USB 2.0 Chapter 9: <https://www.usb.org/document-library/usb-20-specification>; reset semantics follow pinned Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`. Earlier CDC and standard-request changes measured `usb.o` text at 3,936 to 4,016 bytes (+80) and 4,016 to 4,184 bytes (+168). The clean-base reset comparison measures `usb.o` text +44 bytes (4,208 to 4,252), PICO kernel text +40 bytes (103,310 to 103,350), unchanged object data/BSS 8,200/344, unchanged kernel data/BSS 248/39,816, and unchanged PICO_UART 90,960/192/14,768. USB-controller dispatch and physical-board reset behavior remain unmeasured. |

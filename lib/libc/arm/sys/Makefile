@@ -28,7 +28,8 @@ SYSOBJS		= __sysctl.o accept.o access.o adjtime.o bind.o chdir.o \
 		  sigaltstack.o socket.o socketpair.o stat.o symlink.o \
 		  sigprocmask.o sigstack.o sigwait.o \
 		  statfs.o fstatfs.o getfsstat.o \
-		  truncate.o umount.o unlink.o unlinkat_beneath.o utimes.o futimes.o \
+		  truncate.o umount.o unlink.o unlinkat_beneath.o publishat_beneath.o \
+		  utimes.o futimes.o \
 		  wait4.o write.o writev.o \
 		  lseek.o sigsuspend.o \
 		  getgid.o getegid.o getpgrp.o getpid.o \

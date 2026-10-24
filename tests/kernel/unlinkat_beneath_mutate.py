@@ -100,9 +100,10 @@ def mutate_function(function: str, mutation: str) -> str:
 def mutate(source: str, mutation: str) -> str:
     signature = "void\nunlinkat_beneath(void)"
     start = source.index(signature)
-    end = source.index("/*\n * Access system call", start)
-    function = mutate_function(source[start:end], mutation)
-    return source[:start] + function + source[end:]
+    function = extract_function(source, signature, "unlinkat_beneath")
+    end = start + len(function)
+    mutated_function = mutate_function(function, mutation)
+    return source[:start] + mutated_function + source[end:]
 
 
 def main() -> None:

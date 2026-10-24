@@ -1225,10 +1225,12 @@ direnter(struct inode *ip, register struct nameidata *ndp)
         ep = (struct direct *)((char *)ep + dsize);
     }
     bcopy((caddr_t)&ndp->ni_dent, (caddr_t)ep, (u_int)newentrysize);
-    bwrite(bp);
-    dp->i_flag |= IUPD|ICHG;
-    if (ndp->ni_endoff && ndp->ni_endoff < dp->i_size)
-        itrunc(dp, ndp->ni_endoff, 0);
+    error = bwrite(bp);
+    if (error == 0) {
+        dp->i_flag |= IUPD|ICHG;
+        if (ndp->ni_endoff && ndp->ni_endoff < dp->i_size)
+            itrunc(dp, ndp->ni_endoff, 0);
+    }
     iput(dp);
     return (error);
 }

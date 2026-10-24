@@ -3,7 +3,7 @@
 Date: 2026-10-24 UTC
 Baseline revision: `6fb7903da37ff0603fca5dd4e0bff803440b3dd9`
 Implementation revision: `1e47182015a6bf8b0ee91f4caf1b135cb9bd0d1c`
-Aggregate validation revision: `9991a9bb9927161c7e46d5638579db8e3f57c86b`
+Aggregate validation revision: `828ef819a6abfed37d3f4f451f507b945d63c0f0`
 
 ## Finding and historical contract
 
@@ -78,6 +78,10 @@ object disassembly, requires the exact balanced r0-r3 save, `errno` clear,
 restore, and immediate `svc 26` sequence, and checks both `errno` stores and
 return sequences. One mutation removes the save and restore; another inserts
 an argument clobber after the restore. Both calibrate distinct rejection paths.
+The host fixture converts each logical RP2040 address to a buffer-relative
+offset before pointer arithmetic. GCC and Clang sanitizer runs cover that
+mapping; Clang's undefined-behavior sanitizer rejects the prior
+left-associative absolute-address expression as an out-of-bounds index.
 
 The exact PICO and PICO_UART GNU17 production commands compile the shared
 kernel translation unit with `-Wall -Wextra -Werror`. The libc entry assembles
@@ -147,15 +151,15 @@ The retained evidence records have these SHA-256 identities:
 | Object and frame comparison | `66420a9d1e5aafe99ae92660606f1adeaf8a752ed993102133cb3233921517e6` |
 | Candidate clean status | `4eaef3928a8b76c613e48d75f5d54e63f8f343bac8073b2759e24c31b952c36f` |
 | Candidate distribution status | `829f17240c19934e85fa4191736f7aba53f60e43e37fe8bae10ada5bb5b569ac` |
-| Exact-head aggregate sequence status | `4cae394a4872f8929def17de34a28b52977fe273378102b3d3f9f29a4af3a6c7` |
-| Exact-head aggregate build status | `690ff6fee23f5db16a272fc37f536930eda7465c2a98c3ba2fc54faf4b326e6a` |
-| Exact-head aggregate check status | `4560b4d4973e4f436430d0630ab7e401f62fffec0580ead0a946050b96cf7ae3` |
+| Exact-head aggregate sequence status | `b0a5a6b2b47408511cee3eba542d5e1b00b0ce5da70fcb37b114708235043979` |
+| Exact-head aggregate build status | `4d39cf1c3c974d6bba1eb4158d512802e892cfca5f21f1162ca63cfcc149e794` |
+| Exact-head aggregate check status | `33248ba28b5143a6c2ca789496fecd1ae729f050f540480af87532dd40e905aa` |
 
 The exact-head `logged-check` invocation
-`rp2040-check-local-20261024T073031Z-1115699-e1b35939` completed with status 0
-at aggregate validation revision `9991a9bb`. Its build stage completed with
-status 0 in 47.072 seconds, its check stage completed with status 0 in 299.118
-seconds, and the complete sequence took 346.192 seconds. The aggregate ran the
+`rp2040-check-local-20261024T074855Z-4079213-5b44a341` completed with status 0
+at aggregate validation revision `828ef819`. Its build stage completed with
+status 0 in 46.932 seconds, its check stage completed with status 0 in 299.298
+seconds, and the complete sequence took 346.232 seconds. The aggregate ran the
 host, ILP32, sanitizer, mutation, target-build, archive, image, and accounting
 gates registered under `logged-check`. The required execution inventory
 recorded 145 of 145 variants as passing. The invocation performed no

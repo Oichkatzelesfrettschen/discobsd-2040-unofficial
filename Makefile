@@ -318,6 +318,12 @@ check-fs-stress:
 check-kernel:
 		${MAKE} -C tests/kernel check
 
+# The ARM libc wrapper is a cross-target contract. Keep it outside the host
+# kernel aggregate so the required ILP32 execution job needs only its declared
+# host compiler and runtime, while check-cross retains the exact disassembly.
+check-ptrace-libc-abi:
+		${MAKE} -C tests/kernel check-ptrace-libc-abi
+
 # One local authority emits the syscall ABI, dispatch metadata, trace names,
 # and errno text. The check regenerates into a private temporary directory
 # before comparing every shipped output byte for byte.
@@ -1119,6 +1125,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
+		check-ptrace-libc-abi .WAIT \
 		check-hsaout .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
@@ -1241,7 +1248,7 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

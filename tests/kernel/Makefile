@@ -1865,8 +1865,7 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
     check-fionread-sanitizer check-swap-ioctl-mutants \
     check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
     check-tty-local-mode-sanitizer check-mem-span-mutants \
-    check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer \
-    check-ptrace-libc-abi
+    check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \

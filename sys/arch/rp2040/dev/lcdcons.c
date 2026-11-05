@@ -259,23 +259,23 @@ lcdcons_render_stack_free(void)
 	return i * sizeof(u_int);
 }
 
-/* Deliver the terminal reports queued during a draw. */
+/*
+ * Deliver the terminal reports queued during a draw in one masked
+ * section, so a keystroke the keyboard poll delivers cannot land between
+ * the bytes of a report and make the client reject it.
+ */
 static void
 reply_flush(void)
 {
-	char c;
-	int s;
+	struct tty *tp = &lcdttys[0];
+	int s = spltty();
 
-	for (;;) {
-		s = spltty();
-		if (reply_tail == reply_head) {
-			splx(s);
-			return;
-		}
-		c = reply[reply_tail++ % REPLY_RING];
-		splx(s);
-		lcdcons_input(&c, 1);
+	while (reply_tail != reply_head) {
+		if (tp->t_state & TS_ISOPEN)
+			ttyinput((u_char)reply[reply_tail % REPLY_RING], tp);
+		reply_tail++;
 	}
+	splx(s);
 }
 
 void lcdrender(void);

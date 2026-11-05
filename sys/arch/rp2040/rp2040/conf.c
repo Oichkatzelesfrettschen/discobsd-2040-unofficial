@@ -35,6 +35,10 @@
 #include <sys/pty.h>
 #endif
 
+#ifdef PICOCALC_ENABLED
+#include <rp2040/dev/picocalc.h>
+#endif
+
 #ifdef SDIO_ENABLED
 #endif
 
@@ -217,6 +221,16 @@ const struct cdevsw cdevsw[] = {
 		NOCDEV
 #endif
 	},
+#ifdef PICOCALC_ENABLED
+	{	/* 10 - PicoCalc panel and keyboard console */
+#if LCDCONS_MAJOR != 10
+#error Wrong LCDCONS_MAJOR value!
+#endif
+		lcdopen,	lcdclose,	lcdread,	lcdwrite,
+		lcdioctl,	nullstop,	lcdttys,	lcdselect,
+		nostrategy,	lcdgetc,	lcdputc,
+	},
+#endif
 	/*
 	 * End the list with a blank entry.
 	 */

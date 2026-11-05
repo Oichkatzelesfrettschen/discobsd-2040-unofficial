@@ -51279,7 +51279,9 @@
         "build_surface": "rp2040-kernel",
         "required_mode": "gnu17-freestanding",
         "extension_policy": "localized-gnu",
-        "extension_signals": [],
+        "extension_signals": [
+          "gnu-attribute"
+        ],
         "risk_family": "hardware-seam",
         "risk_tier": "T1",
         "risk_tier_basis": "boundary-family-conservative",

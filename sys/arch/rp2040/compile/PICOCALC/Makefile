@@ -122,10 +122,11 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
 	mem.o swap.o clock.o conf.o fault.o machdep.o shutdown_sync.o \
 	mpu.o sig_machdep.o syscall.o sysctl.o systick.o uart.o usb.o \
-	lcdcons.o lcdterm.o lcdfont.o st7365p.o picokbd.o picokbd_map.o \
-	flash.o flash_swap.o error.o journal.o map.o swapram.o \
-	swapram_pool.o heatshrink_encoder.o heatshrink_decoder.o \
-	subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o
+	lcdcons.o lcdrender.o lcdterm.o lcdfont.o st7365p.o picokbd.o \
+	picokbd_map.o flash.o flash_swap.o error.o journal.o map.o \
+	swapram.o swapram_pool.o heatshrink_encoder.o \
+	heatshrink_decoder.o subr_crc32.o exec_hsaout.o hsx_stream.o \
+	hsx_decoder.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -479,6 +480,9 @@ usb.o: $S/arch/rp2040/dev/usb.c
 
 lcdcons.o: $S/arch/rp2040/dev/lcdcons.c
 	${COMPILE_C}
+
+lcdrender.o: $S/arch/rp2040/dev/lcdrender.S
+	${COMPILE_S}
 
 lcdterm.o: $S/arch/rp2040/dev/lcdterm.c
 	${COMPILE_C}

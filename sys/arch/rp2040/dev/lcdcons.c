@@ -26,7 +26,8 @@
  * inside the SysTick exception, which cannot preempt itself. lcdstart()
  * marks the tty busy and pends IRQ 26, which the RP2040 leaves unconnected
  * so software can pend it through NVIC_ISPR (datasheet 2.3.2). Its
- * handler, SPARE_IRQ_0_Handler(), runs at the IPL_SOFTCLOCK priority byte
+ * handler, lcdrender(), entered on a stack of its own through
+ * SPARE_IRQ_0_Handler in lcdrender.S, runs at the IPL_SOFTCLOCK priority byte
  * (128): SysTick and the UART and USB interrupts (0 and 64) preempt it,
  * and PendSV (192), which switches processes, waits until it returns, so
  * no switch lands inside a panel window. The renderer masks interrupts
@@ -67,6 +68,29 @@
 #define	LCD_RENDER_IRQ	26		/* SPARE_IRQ_0, never wired. */
 #define	NVIC_ISPR	0xe000e200UL
 
+/*
+ * The renderer's stack (lcdrender.S switches to it). 2 KB holds the
+ * renderer and every exception that can nest above it: the static
+ * estimate in docs/research/picocalc-console-review.md is about 460
+ * bytes for the renderer, 420 for SysTick and its callouts and 520-680
+ * for a fault report. It is painted at init so that
+ * lcdcons_render_stack_free() reports the depth never touched.
+ */
+#define	LCD_RSTACK_WORDS	512
+#define	LCD_RSTACK_PAINT	0x5afe57acU
+
+static u_int lcd_render_stack[LCD_RSTACK_WORDS] __attribute__((aligned(8)));
+void *const lcd_render_sp = &lcd_render_stack[LCD_RSTACK_WORDS];
+
+/*
+ * Terminal reports wait here until the drawing flag is released, so the
+ * tty input path never runs inside a draw.
+ */
+#define	REPLY_RING	16		/* Power of two. */
+
+static char reply[REPLY_RING];
+static u_int reply_head, reply_tail;
+
 struct tty lcdttys[LCDCONS_NTTY];
 
 static int lcd_ready;
@@ -83,8 +107,12 @@ static const char lost_marker[] = "\r\n[console output lost]\r\n";
 void
 lcdcons_init(void)
 {
+	int i;
+
 	if (lcd_ready)
 		return;
+	for (i = 0; i < LCD_RSTACK_WORDS; i++)
+		lcd_render_stack[i] = LCD_RSTACK_PAINT;
 	st7365p_init();
 	lcdterm_init();
 	st7365p_display_on();
@@ -124,11 +152,6 @@ lcd_acquire(void)
 {
 	int s = spltty(), got = 0;
 
-	if (lcd_owned && panicstr != NULL && !lcd_abandoned) {
-		splx(s);
-		lcdabandon();
-		s = spltty();
-	}
 	if (!lcd_owned) {
 		lcd_owned = 1;
 		got = 1;
@@ -137,10 +160,15 @@ lcd_acquire(void)
 	return got;
 }
 
+/*
+ * Queue a byte for the owner. Once the ring has overflowed, later bytes
+ * are dropped too until the drain prints the loss marker, so the marker
+ * stands where the gap is rather than after output queued behind it.
+ */
 static void
 defer_put(int c)
 {
-	if (defer_head - defer_tail < DEFER_RING)
+	if (defer_lost == 0 && defer_head - defer_tail < DEFER_RING)
 		defer[defer_head++ % DEFER_RING] = (char)c;
 	else
 		defer_lost++;
@@ -200,13 +228,51 @@ lcdstart(struct tty *tp)
 	render_pend();
 }
 
-/* The render interrupt: draw the queued output, preemptible by the clock. */
+/* Bytes of the render stack no exception has reached since boot. */
+u_int
+lcdcons_render_stack_free(void)
+{
+	u_int i = 0;
+
+	while (i < LCD_RSTACK_WORDS && lcd_render_stack[i] == LCD_RSTACK_PAINT)
+		i++;
+	return i * sizeof(u_int);
+}
+
+/* Deliver the terminal reports queued during a draw. */
+static void
+reply_flush(void)
+{
+	char c;
+	int s;
+
+	for (;;) {
+		s = spltty();
+		if (reply_tail == reply_head) {
+			splx(s);
+			return;
+		}
+		c = reply[reply_tail++ % REPLY_RING];
+		splx(s);
+		lcdcons_input(&c, 1);
+	}
+}
+
+void lcdrender(void);
+
+/*
+ * The render interrupt, entered on the render stack through
+ * SPARE_IRQ_0_Handler in lcdrender.S: draw the queued output, preemptible
+ * by the clock.
+ */
 void
-SPARE_IRQ_0_Handler(void)
+lcdrender(void)
 {
 	struct tty *tp = &lcdttys[0];
 	int s, c;
 
+	if (panicstr != NULL)
+		return;		/* The panic printer owns the panel. */
 	if (!lcd_acquire()) {
 		/*
 		 * A kernel message this interrupt preempted holds the flag;
@@ -226,6 +292,7 @@ SPARE_IRQ_0_Handler(void)
 	}
 	splx(s);
 	lcd_release();
+	reply_flush();
 	s = spltty();
 	tp->t_state &= ~TS_BUSY;
 	ttyowake(tp);
@@ -242,12 +309,29 @@ lcdputc(dev_t dev __unused, char c)
 
 	if (!lcd_ready)
 		lcdcons_init();
+	if (panicstr != NULL) {
+		/*
+		 * panic() prints with interrupts enabled. From here on the
+		 * panic printer draws with them masked, so no renderer or
+		 * nested output can interrupt or abandon it; an owner it
+		 * interrupted, which will never resume, is abandoned once.
+		 */
+		s = splhigh();
+		if (lcd_owned && !lcd_abandoned)
+			lcdabandon();
+		defer_put((u_char)c);
+		if (lcd_acquire())
+			lcd_release();
+		splx(s);
+		return;
+	}
 	s = spltty();
 	defer_put((u_char)c);
 	splx(s);
 	if (!lcd_acquire())
 		return;		/* The owner drains the byte. */
 	lcd_release();
+	reply_flush();
 	s = spltty();
 	if (tp->t_outq.c_cc > 0 && (tp->t_state & TS_ISOPEN))
 		ttstart(tp);
@@ -276,11 +360,18 @@ lcdcons_input(const char *s, int n)
 	splx(x);
 }
 
-/* Terminal reports go to the input queue as though typed. */
+/*
+ * Terminal reports go to the input queue as though typed, after the draw
+ * that produced them releases the drawing flag.
+ */
 void
 lcdterm_reply(const char *s, int n)
 {
-	lcdcons_input(s, n);
+	int x = spltty();
+
+	while (n-- > 0 && reply_head - reply_tail < REPLY_RING)
+		reply[reply_head++ % REPLY_RING] = *s++;
+	splx(x);
 }
 
 int

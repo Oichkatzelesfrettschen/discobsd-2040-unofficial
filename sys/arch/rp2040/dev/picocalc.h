@@ -60,6 +60,7 @@ void		lcdputc(dev_t dev, char c);
 char		lcdgetc(dev_t dev);
 void		lcdcons_init(void);
 void		lcdabandon(void);
+u_int		lcdcons_render_stack_free(void);
 
 extern struct tty lcdttys[LCDCONS_NTTY];
 

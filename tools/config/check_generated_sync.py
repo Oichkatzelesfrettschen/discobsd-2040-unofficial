@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_UART")
+BOARDS = ("PICO", "PICO_UART", "PICOCALC")
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")
 BUILD_INPUTS = tuple(Path("tools/config") / name for name in (

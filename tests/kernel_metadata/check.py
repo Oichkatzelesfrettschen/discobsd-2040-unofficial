@@ -170,10 +170,22 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     if count_initializer_rows(conf, "const struct bdevsw bdevsw[] = {") != 6:
         raise CheckError("RP2040 bdevsw must contain majors 0..4 and its terminator")
     # PTY_ENABLED contributes one alternate source row, so the source has 12
-    # initializers while either preprocessed table has majors 0..9 plus the
-    # terminator.
-    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 12:
-        raise CheckError("RP2040 cdevsw must retain only majors 0..9")
+    # initializers outside the PICOCALC_ENABLED block while the PICO and
+    # PICO_UART tables have majors 0..9 plus the terminator. The PICOCALC
+    # configuration alone adds major 10, the panel and keyboard console, as
+    # the one row of that block.
+    cdevsw_body = conf.split("const struct cdevsw cdevsw[] = {", 1)[1].split("\n};", 1)[0]
+    picocalc = re.search(
+        r"^#ifdef PICOCALC_ENABLED\n(.*?)^#endif\n(?=\s*/\*\s*\n\s*\* End the list)",
+        cdevsw_body,
+        re.MULTILINE | re.DOTALL,
+    )
+    if picocalc is None or len(re.findall(r"^\s*\{", picocalc.group(1), re.MULTILINE)) != 1:
+        raise CheckError("RP2040 cdevsw must add exactly major 10 under PICOCALC_ENABLED")
+    if "/* 10 - " not in picocalc.group(1):
+        raise CheckError("RP2040 cdevsw PICOCALC row must be major 10")
+    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 13:
+        raise CheckError("RP2040 cdevsw must retain only majors 0..9 outside PICOCALC")
 
     tty = source("sys/kern/tty.c")
     high = array_values(tty, "uint16_t", "tthiwat")

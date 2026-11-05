@@ -29,6 +29,7 @@
 #define	PC_RESETS_BASE		0x4000c000UL
 #define	PC_RESETS_RESET		0x0
 #define	PC_RESETS_DONE		0x8
+#define	PC_ATOMIC_SET		0x2000
 #define	PC_ATOMIC_CLR		0x3000
 
 #define	PC_RESET_I2C1		(1UL << 4)

@@ -23,21 +23,32 @@
  * as (state, key), and (0, 0) when the FIFO is empty. The board routes no
  * interrupt from the controller, so a callout polls.
  *
- * The exchange is split across two callouts so that no poll waits on the
- * bus: one queues the write with STOP, the next, KBD_POLL_TICKS later,
- * queues two reads with STOP, and the one after that collects the bytes
- * and queues the next write. DW_apb_i2c (datasheet 4.3) holds the queued
- * commands in its transmit FIFO and runs them on its own. The 16 ms gap
- * between write and read is the wait the vendor's reference driver
- * (picocalc_helloworld/i2ckbd.c) leaves; its FUZIX port splits the same
- * way. A NACK or lost arbitration raises TX_ABRT, which flushes the
- * queued commands; the poll counts it and restarts the exchange.
+ * The exchange is split across callouts so that no poll waits on the bus:
+ * one queues the write with STOP, the next queues two reads with STOP, and
+ * the one after that collects the bytes and queues the next write.
+ * DW_apb_i2c (datasheet 4.3) holds the queued commands in its transmit FIFO
+ * and runs them on its own. While the keyboard is idle the callouts run
+ * KBD_POLL_MS apart, the wait the vendor's reference driver
+ * (picocalc_helloworld/i2ckbd.c) leaves between write and read; its FUZIX
+ * port splits the exchange the same way. Once an event arrives they run
+ * KBD_FAST_TICKS apart until KBD_FAST_EXCHANGES exchanges in a row come back
+ * empty. The fast rate matters for more than latency: the controller's FIFO
+ * holds 31 events and drops new ones when full (picocalc_keyboard
+ * conf_app.h and fifo.ino), and a dropped Ctrl release would leave Ctrl
+ * applied to every later key, since the controller exposes no modifier
+ * state to resynchronize from.
  *
- * The controller is a DW_apb_i2c master in fast-mode timing at
- * KBD_I2C_HZ. ic_clk is clk_sys (datasheet 4.3.2), and the counts follow
- * the Pico SDK's i2c_set_baudrate: a 3:2 low-to-high split of the SCL
- * period, a spike filter of one sixteenth of the low count, and a 300 ns
- * SDA hold.
+ * A NACK or lost arbitration raises TX_ABRT, which flushes the queued
+ * commands; the poll counts it and restarts the exchange. An abort after
+ * the FIFO register write has landed loses that one event, because the
+ * controller dequeues it when the write arrives.
+ *
+ * The controller is a DW_apb_i2c master in fast-mode timing programmed
+ * for KBD_I2C_HZ. ic_clk is clk_sys (datasheet 4.3.2), and the counts
+ * follow the Pico SDK's i2c_set_baudrate: a 3:2 low-to-high split of the
+ * SCL period, a spike filter of one sixteenth of the low count, and a
+ * 300 ns SDA hold. Datasheet 4.3.14.1 adds one ic_clk to the low count and
+ * SPKLEN + 7 to the high count, so SCL runs near 96 kHz.
  */
 
 #include <sys/param.h>
@@ -63,6 +74,7 @@
 #define	IC_CLR_TX_ABRT		0x54
 #define	IC_CLR_STOP_DET		0x60
 #define	IC_ENABLE		0x6c
+#define	IC_ENABLE_ABORT		(1UL << 1)
 #define	IC_RXFLR		0x78
 #define	IC_SDA_HOLD		0x7c
 #define	IC_ENABLE_STATUS	0x9c
@@ -88,6 +100,8 @@
 
 #define	KBD_POLL_MS		16
 #define	KBD_POLL_TICKS		((KBD_POLL_MS * HZ + 999) / 1000)
+#define	KBD_FAST_TICKS		((2 * HZ + 999) / 1000)
+#define	KBD_FAST_EXCHANGES	8
 #define	KBD_STALL_POLLS		8	/* Phases without progress before reset. */
 #define	KBD_SYNC_TIMEOUT_US	50000
 
@@ -101,6 +115,7 @@ enum {
 
 static int phase;
 static int stall;
+static int fast;		/* Exchanges left at the fast rate. */
 static int ctrl;
 static int polling;
 static int fw_version = -1;
@@ -109,36 +124,61 @@ static u_int kbd_errors;
 static char ring[KBD_RING];
 static u_int ring_head, ring_tail;
 
-static void
+/* Set or clear IC_ENABLE and wait for IC_ENABLE_STATUS; 0 on a timeout. */
+static int
 i2c_enable(int on)
 {
 	u_int t0 = pc_micros();
 
 	I2C_REG(IC_ENABLE) = on ? 1 : 0;
-	while ((I2C_REG(IC_ENABLE_STATUS) & 1) != (u_int)(on ? 1 : 0) &&
-	    pc_micros() - t0 < 10000)
-		continue;
+	while ((I2C_REG(IC_ENABLE_STATUS) & 1) != (u_int)(on ? 1 : 0)) {
+		if (pc_micros() - t0 >= 10000)
+			return 0;
+	}
+	return 1;
 }
 
+static void i2c_setup(void);
+
+/*
+ * Return the block to an idle, enabled master. A disable that does not
+ * complete within 10 ms (datasheet 4.3.10.3 makes the poll end in an
+ * error) is followed by IC_ENABLE.ABORT, which relinquishes the bus
+ * (4.3.10.4); if the block still reports enabled, it goes through its
+ * reset and is programmed again.
+ */
 static void
 i2c_restart(void)
 {
-	i2c_enable(0);
+	u_int t0;
+
+	if (!i2c_enable(0)) {
+		kbd_errors++;
+		I2C_REG(IC_ENABLE) = 1 | IC_ENABLE_ABORT;
+		t0 = pc_micros();
+		while ((I2C_REG(IC_ENABLE) & IC_ENABLE_ABORT) &&
+		    pc_micros() - t0 < 10000)
+			continue;
+		if (!i2c_enable(0)) {
+			PC_REG32(PC_RESETS_BASE + PC_ATOMIC_SET +
+			    PC_RESETS_RESET) = PC_RESET_I2C1;
+			pc_unreset(PC_RESET_I2C1);
+			i2c_setup();
+		}
+	}
 	(void)I2C_REG(IC_CLR_TX_ABRT);
 	(void)I2C_REG(IC_CLR_STOP_DET);
-	i2c_enable(1);
+	(void)i2c_enable(1);
 	phase = PH_WRITE;
 	stall = 0;
 }
 
-void
-picokbd_init(void)
+/* Program the block, which must be disabled. */
+static void
+i2c_setup(void)
 {
 	u_int period, lcnt, hcnt;
 
-	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_I2C1);
-
-	i2c_enable(0);
 	I2C_REG(IC_CON) = IC_CON_MASTER | IC_CON_SPEED_FAST |
 	    IC_CON_RESTART_EN | IC_CON_SLAVE_DISABLE | IC_CON_TX_EMPTY_CTRL;
 	I2C_REG(IC_TX_TL) = 0;
@@ -153,6 +193,14 @@ picokbd_init(void)
 	I2C_REG(IC_FS_SPKLEN) = lcnt < 16 ? 1 : lcnt / 16;
 	I2C_REG(IC_SDA_HOLD) = (CPU_KHZ * 3UL) / 10000 + 1;
 	I2C_REG(IC_TAR) = PICOCALC_KBD_ADDR;
+}
+
+void
+picokbd_init(void)
+{
+	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_I2C1);
+	(void)i2c_enable(0);
+	i2c_setup();
 
 	pc_pin(PICOCALC_KBD_SDA, PC_FUNC_I2C, PC_PADS_PUE | PC_PADS_SCHMITT);
 	pc_pin(PICOCALC_KBD_SCL, PC_FUNC_I2C, PC_PADS_PUE | PC_PADS_SCHMITT);
@@ -228,16 +276,19 @@ kbd_poll(caddr_t arg __unused)
 	} else {
 		stall = 0;
 		if (r == STEP_EVENT) {
+			fast = KBD_FAST_EXCHANGES;
 			n = picokbd_translate(state, key, lcdterm_app_cursor(),
 			    &ctrl, seq);
 			if (n > 0)
 				lcdcons_input(seq, n);
-		}
+		} else if (phase == PH_WRITE && fast > 0)
+			fast--;		/* An empty exchange completed. */
 		/* A collected exchange queues the next write at once. */
 		if (phase == PH_WRITE)
 			(void)kbd_step(KBD_REG_FIFO, &state, &key);
 	}
-	timeout(kbd_poll, (caddr_t)0, KBD_POLL_TICKS);
+	timeout(kbd_poll, (caddr_t)0,
+	    fast > 0 ? KBD_FAST_TICKS : KBD_POLL_TICKS);
 }
 
 /*

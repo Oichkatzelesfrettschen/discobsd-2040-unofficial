@@ -177,14 +177,20 @@ distribution:	build
 .endif
 
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
-# images; check-uf2-images applies it to the built kernel and root pair that
-# discobsd-flash loads, so it follows `kernel` and `flash`.
+# images; check-uf2-images applies it to each kernel and root pair that
+# discobsd-flash loads, so it follows `kernel` and `flash`. Every board
+# kernel in MACHINE_KERNEL_CONFIGS pairs with the one distrib/rp2040/flash.uf2:
+# the root occupies the same flash region on every board and carries no
+# board-specific file, so a PICO and a PICOCALC board flash the same root.
 check-uf2-validator: check-python
 		${PYTHON} tools/check_rp2040_uf2.py --self-test
 
 check-uf2-images: check-python
-		${PYTHON} tools/check_rp2040_uf2.py \
-		    sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			${PYTHON} tools/check_rp2040_uf2.py \
+			    sys/arch/rp2040/compile/$$configuration/unix.uf2 \
+			    distrib/rp2040/flash.uf2; \
+		done
 
 .PHONY: check-uf2-validator check-uf2-images
 

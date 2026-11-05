@@ -244,6 +244,7 @@ jobs:
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 distrib/rp2040/flash.uf2
 
       - name: Retain build and gate logs
@@ -261,6 +262,7 @@ jobs:
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
+            sys/arch/rp2040/compile/PICOCALC/unix.uf2
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
@@ -467,7 +469,9 @@ jobs:
             -- bmake -C usr.bin/smlrc test
       - name: Confirm the images exist
         run: |
-          ls -l sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+          ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
+                distrib/rp2040/flash.uf2
       - name: Retain build and gate logs
         if: always()
         uses: actions/upload-artifact@v4

@@ -53,6 +53,7 @@
 #include <sys/param.h>
 #include <sys/conf.h>
 #include <sys/user.h>
+#include <sys/proc.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
@@ -281,6 +282,21 @@ reply_flush(void)
 void lcdrender(void);
 
 /*
+ * The renderer runs above thread mode, so every process, every system
+ * call and the PendSV context switch wait while it draws. It draws for at
+ * most LCD_RENDER_SLICE_US per pass and, with output still queued, lets
+ * thread mode run for a tick before the next pass. A single escape that
+ * redraws a scrolling region cannot be split and can exceed the slice.
+ */
+#define	LCD_RENDER_SLICE_US	8000
+
+static void
+render_resume(caddr_t arg __unused)
+{
+	render_pend();		/* From the callout; the IRQ draws. */
+}
+
+/*
  * The render interrupt, entered on the render stack through
  * SPARE_IRQ_0_Handler in lcdrender.S: draw the queued output, preemptible
  * by the clock.
@@ -289,7 +305,8 @@ void
 lcdrender(void)
 {
 	struct tty *tp = &lcdttys[0];
-	int s, c;
+	u_int t0;
+	int s, c, sliced;
 
 	if (panicstr != NULL)
 		return;		/* The panic printer owns the panel. */
@@ -303,8 +320,14 @@ lcdrender(void)
 		splx(s);
 		return;
 	}
+	t0 = pc_micros();
+	sliced = 0;
 	s = spltty();
 	while (tp->t_outq.c_cc > 0 && (tp->t_state & TS_TTSTOP) == 0) {
+		if (pc_micros() - t0 >= LCD_RENDER_SLICE_US) {
+			sliced = 1;
+			break;
+		}
 		c = getc(&tp->t_outq);
 		splx(s);
 		lcdterm_putc(c);
@@ -314,6 +337,13 @@ lcdrender(void)
 	lcd_release();
 	reply_flush();
 	s = spltty();
+	if (sliced) {
+		/* Still busy; thread mode runs for a tick first. */
+		ttyowake(tp);
+		timeout(render_resume, (caddr_t)0, 1);
+		splx(s);
+		return;
+	}
 	tp->t_state &= ~TS_BUSY;
 	ttyowake(tp);
 	if (tp->t_outq.c_cc > 0)

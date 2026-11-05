@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 119,172 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,888 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 119,332 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,888 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -137,6 +137,11 @@ the UART and USB interrupts (64) preempt it, and PendSV (192), which
 switches processes, waits for it, so no switch lands inside a panel
 window. The handler masks interrupts only to take a byte off the output
 queue, so a region redraw of hundreds of cells never holds the clock off.
+Because it runs above thread mode, it also holds off every process, system
+call and the PendSV context switch while it draws, so it draws for at most
+8 ms per pass and, with output still queued, lets thread mode run for a
+tick before a callout pends it again. One escape that redraws a scrolling
+region cannot be split and can exceed the slice.
 
 ARMv6-M has one handler stack, MSP, and this kernel keeps it in the
 current process's u-area, where the measured kernel-stack peak leaves about

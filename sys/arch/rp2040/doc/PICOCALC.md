@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,232 of 130,816 bytes (`RP2040.ld` FLASH), bss 43,736 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,312 of 130,816 bytes (`RP2040.ld` FLASH), bss 43,744 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -124,10 +124,15 @@ A scroll confined to a region, and line insertion or deletion, move the
 store and redraw the affected rows.
 
 The tty layer calls a start routine with `spltty()` held, which on this
-port is PRIMASK, so `lcdstart()` draws nothing: it marks the tty busy and
-schedules `lcdrender()`, which `softclock()` runs with interrupts enabled
-and which masks them only to take a byte off the output queue. A region
-redraw of hundreds of cells therefore never holds the clock off.
+port is PRIMASK, and `softclock()` runs callouts inside the SysTick
+exception, which cannot preempt itself, so neither may draw a queue.
+`lcdstart()` marks the tty busy and pends IRQ 26, which the RP2040 leaves
+unconnected for software to pend through NVIC_ISPR (datasheet 2.3.2). Its
+handler draws at the `IPL_SOFTCLOCK` priority byte, 128: SysTick (0) and
+the UART and USB interrupts (64) preempt it, and PendSV (192), which
+switches processes, waits for it, so no switch lands inside a panel
+window. The handler masks interrupts only to take a byte off the output
+queue, so a region redraw of hundreds of cells never holds the clock off.
 
 A cell is one panel write window. `lcdcons.c` serializes drawing with an
 owner flag: the renderer and the kernel's console putc each take the

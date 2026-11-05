@@ -19,6 +19,10 @@ The parent `doc` directory also carries `CAPACITY.md`, the authority for the
 generated metadata representations, fixed-table counters, and u-area
 watermark that the metadata generator, `sys/kern/subr_capacity.c`, and
 `sbin/sysctl` implement.
+It also carries `PICOCALC.md`, the authority for the ClockworkPi PicoCalc
+pin map in `sys/arch/rp2040/dev/picocalc.h` and for the panel, keyboard
+and console timing choices the PICOCALC configuration
+(`sys/arch/rp2040/compile/PICOCALC/Config`) builds.
 
 Every other note written during the port (option surveys, backport and size
 audits, tuning reports, handback notes, USB and storage investigations)

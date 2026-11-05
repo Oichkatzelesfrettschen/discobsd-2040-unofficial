@@ -18,13 +18,19 @@
  * The PicoCalc console: a tty whose output lcdterm.c draws on the panel
  * and whose input picokbd.c polls from the keyboard controller.
  *
- * Tty output is drawn from a callout, never from the start routine. The
- * tty layer calls the start routine with spltty() held, which on this
- * port is PRIMASK, so drawing there would hold every interrupt off for a
- * whole queue: a region redraw is hundreds of cells at about 122 us each.
- * lcdstart() only marks the tty busy and schedules lcdrender(), which
- * softclock() runs with interrupts enabled; it masks them only to take a
- * byte off the queue.
+ * Tty output is drawn from a software interrupt, never from the start
+ * routine. The tty layer calls the start routine with spltty() held, which
+ * on this port is PRIMASK, so drawing there would hold every interrupt off
+ * for a whole queue: a region redraw is hundreds of cells at about 122 us
+ * each. A callout would not do either, because softclock() runs callouts
+ * inside the SysTick exception, which cannot preempt itself. lcdstart()
+ * marks the tty busy and pends IRQ 26, which the RP2040 leaves unconnected
+ * so software can pend it through NVIC_ISPR (datasheet 2.3.2). Its
+ * handler, SPARE_IRQ_0_Handler(), runs at the IPL_SOFTCLOCK priority byte
+ * (128): SysTick and the UART and USB interrupts (0 and 64) preempt it,
+ * and PendSV (192), which switches processes, waits until it returns, so
+ * no switch lands inside a panel window. The renderer masks interrupts
+ * only to take a byte off the queue.
  *
  * Drawing a cell is a panel write window that another drawer must not
  * interrupt, and the kernel prints from interrupt handlers. One owner
@@ -45,22 +51,28 @@
 #include <sys/param.h>
 #include <sys/conf.h>
 #include <sys/user.h>
-#include <sys/proc.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
 #include <sys/config.h>
 
+#include <machine/intr.h>
+
 #include <rp2040/dev/picocalc.h>
+#include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
 
 #define	DEFER_RING	128		/* Power of two. */
+
+#define	LCD_RENDER_IRQ	26		/* SPARE_IRQ_0, never wired. */
+#define	NVIC_ISPR	0xe000e200UL
 
 struct tty lcdttys[LCDCONS_NTTY];
 
 static int lcd_ready;
 static int lcd_owned;
 static int lcd_abandoned;
+static int render_wanted;	/* The renderer found the flag held. */
 
 static char defer[DEFER_RING];
 static u_int defer_head, defer_tail;
@@ -77,7 +89,15 @@ lcdcons_init(void)
 	lcdterm_init();
 	st7365p_display_on();
 	picokbd_init();
+	arm_intr_set_priority(LCD_RENDER_IRQ, IPL_SOFTCLOCK);
+	arm_intr_enable_irq(LCD_RENDER_IRQ);
 	lcd_ready = 1;
+}
+
+static void
+render_pend(void)
+{
+	PC_REG32(NVIC_ISPR) = 1UL << LCD_RENDER_IRQ;
 }
 
 /*
@@ -156,13 +176,15 @@ lcd_release(void)
 			cursor_drawn = 1;
 		} else {
 			lcd_owned = 0;
+			if (render_wanted) {
+				render_wanted = 0;
+				render_pend();
+			}
 			splx(s);
 			return;
 		}
 	}
 }
-
-static void lcdrender(caddr_t arg);
 
 /* Called by the tty layer at spltty(). */
 static void
@@ -175,19 +197,24 @@ lcdstart(struct tty *tp)
 		return;
 	}
 	tp->t_state |= TS_BUSY;
-	timeout(lcdrender, (caddr_t)tp, 1);
+	render_pend();
 }
 
-/* Callout: draw the queued output with interrupts enabled. */
-static void
-lcdrender(caddr_t arg)
+/* The render interrupt: draw the queued output, preemptible by the clock. */
+void
+SPARE_IRQ_0_Handler(void)
 {
-	struct tty *tp = (struct tty *)arg;
+	struct tty *tp = &lcdttys[0];
 	int s, c;
 
 	if (!lcd_acquire()) {
-		/* A kernel message below this callout is drawing; retry. */
-		timeout(lcdrender, arg, 1);
+		/*
+		 * A kernel message this interrupt preempted holds the flag;
+		 * its release pends the renderer again.
+		 */
+		s = spltty();
+		render_wanted = 1;
+		splx(s);
 		return;
 	}
 	s = spltty();

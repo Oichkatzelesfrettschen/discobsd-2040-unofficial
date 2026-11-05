@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 117,644 of 130,816 bytes (`RP2040.ld` FLASH), bss 43,728 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,232 of 130,816 bytes (`RP2040.ld` FLASH), bss 43,736 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -95,10 +95,14 @@ The panel shows 320 of the controller's 480 lines. VSCRDEF sets a top
 fixed area of 0, a scroll area of 320 and a bottom fixed area of 160,
 which sums to 480 as page 184 requires, with MADCTL MV clear as scrolling
 requires (page 184). VSCSAD (37h) then picks the RAM line shown at the
-top of the panel. The initialization sequence (gamma, power, VCOM, frame
+top of the panel. The initialization values (gamma, power, VCOM, frame
 rate, inversion on, display function, entry mode, adjust control,
-MADCTL 48h) is the one the vendor's PicoMite firmware sends for its
-ILI9488P (320x320) mode on this panel.
+MADCTL 48h) come from the vendor's PicoMite ILI9488P (320x320) sequence
+for this panel, with three deliberate differences: command E9h, which the
+vendor sends but the ST7365P command table does not list, is omitted; the
+scroll definition is programmed before the display turns on; and DISPON
+follows lcdterm's first full clear, so power-on RAM contents never show.
+A board capture decides whether E9h matters.
 
 The board drives the backlight from the keyboard controller, which turns
 it on at reset; the kernel does not touch it.
@@ -119,12 +123,24 @@ leaves, advances the ring and moves VSCSAD, so it costs one row of fill.
 A scroll confined to a region, and line insertion or deletion, move the
 store and redraw the affected rows.
 
+The tty layer calls a start routine with `spltty()` held, which on this
+port is PRIMASK, so `lcdstart()` draws nothing: it marks the tty busy and
+schedules `lcdrender()`, which `softclock()` runs with interrupts enabled
+and which masks them only to take a byte off the output queue. A region
+redraw of hundreds of cells therefore never holds the clock off.
+
 A cell is one panel write window. `lcdcons.c` serializes drawing with an
-owner flag rather than by masking interrupts across a cell: the tty
-output routine and the kernel's console putc each take the flag, draw,
-and release it; a putc from an interrupt nested over the owner appends to
-a 128-byte deferred ring the owner drains before releasing. A panic
-bypasses the flag so its message reaches the panel.
+owner flag: the renderer and the kernel's console putc each take the
+flag, draw, and release it; a putc from an interrupt nested over the
+owner appends to a 128-byte deferred ring that the owner drains in order
+before releasing, and a full ring counts what it drops and prints
+"[console output lost]" in its place. Kernel putc draws synchronously at
+its caller's priority, one cell per character or one row fill at a
+newline that scrolls. A kernel fault (`arm_fault()`, before it prints)
+and a panic abandon the owner, which will never resume: `lcdabandon()`
+lets the byte in the PL022 shifter finish, raises chip select to end the
+panel's write window, resets the terminal parser and frees the flag, so
+the report draws from a clean bus.
 
 Measured costs are owed to the board run. At 12.5 MHz a cell is 180 bytes
 of pixels plus an 11-byte window, about 122 us of wire time, which bounds
@@ -136,13 +152,24 @@ The keyboard controller is an STM32F103 running the vendor's
 `picocalc_keyboard` firmware as an I2C target at 0x1F on I2C1. A register
 read is a one-byte write of its number, then a two-byte read; FIFO
 register 0x09 yields one event as (state, key), and (0, 0) when empty.
-The board routes no interrupt line to the Pico, so a callout polls every
-16 ms, the gap the vendor's reference driver leaves between write and
-read. Each exchange is split across two callouts and never waits on the
-bus. TX_ABRT (no acknowledge) and a phase that makes no progress for
-eight polls restart the controller and count in `picokbd_errors()`.
-Reading register 0x08 resets the keyboard controller, so the driver
-never reads it.
+The board routes no interrupt line to the Pico, so a callout polls. Each
+exchange is split across callouts and never waits on the bus. While idle
+the phases run 16 ms apart, the gap the vendor's reference driver leaves
+between write and read; once an event arrives they run 2 ms apart until
+eight exchanges in a row come back empty, about 250 events per second.
+The rate matters because the controller's FIFO holds 31 events and drops
+new ones when full, and a dropped Ctrl release would leave Ctrl applied
+to every later key: the controller exposes no modifier state to
+resynchronize from. Whether the controller answers a read issued 2 ms
+after the register write is a board check.
+
+TX_ABRT (no acknowledge) and a phase that makes no progress for eight
+polls restart the I2C block and count in `picokbd_errors()`; an abort after
+the FIFO register write loses that one event, because the controller
+dequeues it when the write arrives. A disable that does not complete in
+10 ms escalates to IC_ENABLE.ABORT (datasheet 4.3.10.4) and then to a
+reset of the block. Reading register 0x08 resets the keyboard
+controller, so the driver never reads it.
 
 The firmware applies Shift, Caps Lock and the Alt symbol layer and
 repeats held keys, but reports Ctrl as key 0xA5 changing state without
@@ -152,8 +179,10 @@ Arrows send `ESC [ x` or, after an application sets cursor-key mode,
 `ESC O x`; Home, End, Insert, Delete, Page Up/Down and F1-F10 send the
 xterm termcap entry's `kh`, `@7`, `kI`, `kD`, `kP`, `kN` and `k1`-`k;`.
 
-The bus runs at 100 kHz, between the vendor helloworld's 10 kHz and its
-FUZIX port's 400 kHz.
+The counts are programmed for 100 kHz, between the vendor helloworld's
+10 kHz and its FUZIX port's 400 kHz; datasheet 4.3.14.1 adds one ic_clk
+to the low count and SPKLEN + 7 to the high count, so SCL runs near
+96 kHz.
 
 ## Building and flashing
 

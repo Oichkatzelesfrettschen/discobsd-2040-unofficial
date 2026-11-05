@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,804 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,824 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,844 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,824 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -115,6 +115,10 @@ domain Misc-Fixed 6x9 font (`dev/fonts/6x9-ascii.bdf`, NOTICE section
 implements what the `xterm-basic` termcap entry emits, because
 `/etc/ttys` names the console `xterm`; curses, `more`, `ls` and readline
 take the 53x32 size from `TIOCGWINSZ`, which the driver sets at open.
+`login(1)` sets a zero window size on every console login
+(`usr.bin/login/login.c`), and a zero row or column count means the size is
+unknown, so the driver puts the panel's size in its place; a nonzero size
+a program sets is kept.
 The DEC line-drawing set maps to `+`, `-` and `|`.
 
 The cell store is 3,392 bytes: one character and one attribute per cell,
@@ -160,8 +164,11 @@ With a scrolling region set by a program, a newline at the region's
 bottom redraws the region cell by cell, up to about 200 ms at the caller's
 priority; that is the price of keeping kernel messages synchronous.
 
-A kernel fault (`arm_fault()`, before it prints) abandons the owner, which
-will never resume: `lcdabandon()` lets the byte in the PL022 shifter
+The first kernel fault or panic resets the terminal (parser, character
+set, attributes, scrolling region, scroll start) whether or not a drawer
+was active, so a program's colors or an unfinished escape cannot shape or
+swallow the report. A kernel fault (`arm_fault()`, before it prints)
+abandons the owner, which will never resume: `lcdabandon()` lets the byte in the PL022 shifter
 finish, raises chip select to end the panel's write window, resets the
 terminal parser, character set, attributes and scrolling region, rewrites
 the panel's scroll start and frees the flag, so the report draws in plain

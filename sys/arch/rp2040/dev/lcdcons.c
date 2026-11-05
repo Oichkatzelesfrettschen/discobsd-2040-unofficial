@@ -137,8 +137,15 @@ lcdabandon(void)
 {
 	int s = splhigh();
 
-	if (lcd_ready && lcd_owned) {
-		st7365p_abort();
+	if (lcd_ready) {
+		/*
+		 * End a transfer only if a drawer was in one, but reset the
+		 * terminal either way: a program's colors, character set,
+		 * scrolling region or unfinished escape would otherwise shape
+		 * or swallow the report.
+		 */
+		if (lcd_owned)
+			st7365p_abort();
 		lcdterm_abort();
 	}
 	lcd_owned = 0;
@@ -317,7 +324,7 @@ lcdputc(dev_t dev __unused, char c)
 		 * interrupted, which will never resume, is abandoned once.
 		 */
 		s = splhigh();
-		if (lcd_owned && !lcd_abandoned)
+		if (!lcd_abandoned)
 			lcdabandon();
 		defer_put((u_char)c);
 		if (lcd_acquire())
@@ -433,8 +440,24 @@ lcdselect(dev_t dev, int rw)
 int
 lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
+	struct winsize *ws;
 	int error;
 
+	/*
+	 * A zero row or column count means the size is unknown, which
+	 * login(1) sets on every console login (usr.bin/login/login.c).
+	 * The panel's size is always known, so it stands in; a nonzero
+	 * size a program sets is kept.
+	 */
+	if (cmd == TIOCSWINSZ) {
+		ws = (struct winsize *)addr;
+		if (ws->ws_row == 0 || ws->ws_col == 0) {
+			ws->ws_row = LT_ROWS;
+			ws->ws_col = LT_COLS;
+			ws->ws_xpixel = LT_COLS * LT_CELL_W;
+			ws->ws_ypixel = LT_ROWS * LT_CELL_H;
+		}
+	}
 	error = ttioctl(&lcdttys[minor(dev)], cmd, addr, flag);
 	if (error < 0)
 		error = ENOTTY;

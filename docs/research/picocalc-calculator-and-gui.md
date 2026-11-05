@@ -328,7 +328,7 @@ Proposal:
   mode switch or a restore path.
 
 Costs (estimates): 300-500 bytes of text, 1,152 bytes of bss, against a
-measured PICOCALC kernel flash headroom of 12,012 bytes (130,816 - 118,804,
+measured PICOCALC kernel flash headroom of 11,972 bytes (130,816 - 118,844,
 `size` on the linked `unix`). A tile redraw costs one cell, 115 us. A full-screen update
 costs 1,696 cells = 195 ms.
 
@@ -471,8 +471,8 @@ new gate is needed. Board steps run only with the repository's exact opt-in.
 - RGB565 over four-wire SPI and a 25 MHz clock are not validated for this
   panel; both are decisions for the console owner. The console's HEAD uses
   12.5 MHz and RGB666 deliberately.
-- Kernel flash headroom: the PICOCALC kernel links at 118,804 bytes of text
-  against the 130,816-byte FLASH region of `conf/RP2040.ld`, leaving 12,012
+- Kernel flash headroom: the PICOCALC kernel links at 118,844 bytes of text
+  against the 130,816-byte FLASH region of `conf/RP2040.ld`, leaving 11,972
   bytes. The pixel device and tile atlas (items 8 and 9) estimate about
   2.6 KB of text together, which fits; re-measure `size` on `unix` before
   committing each.

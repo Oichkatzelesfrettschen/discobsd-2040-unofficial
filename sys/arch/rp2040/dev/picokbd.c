@@ -35,8 +35,12 @@
  * empty. The fast rate matters for more than latency: the controller's FIFO
  * holds 31 events and drops new ones when full (picocalc_keyboard
  * conf_app.h and fifo.ino), and a dropped Ctrl release would leave Ctrl
- * applied to every later key, since the controller exposes no modifier
- * state to resynchronize from.
+ * applied to every later key. Two rules bound that: an I2C restart, which
+ * may have discarded the release, clears Ctrl; and a latched Ctrl expires
+ * KBD_CTRL_EXPIRE_MS after the last Ctrl event, because the firmware
+ * reports a held key again every 100 ms once it has been held for
+ * KEY_HOLD_TIME, 300 ms (keyboard.ino KEY_STATE_HOLD, keyboard.h), so a
+ * Ctrl still held is never silent that long.
  *
  * A NACK or lost arbitration raises TX_ABRT, which flushes the queued
  * commands; the poll counts it and restarts the exchange. An abort after
@@ -102,6 +106,8 @@
 #define	KBD_POLL_TICKS		((KBD_POLL_MS * HZ + 999) / 1000)
 #define	KBD_FAST_TICKS		((2 * HZ + 999) / 1000)
 #define	KBD_FAST_EXCHANGES	8
+#define	KBD_CTRL_EXPIRE_MS	600
+#define	KEY_MOD_CTRL		0xa5
 #define	KBD_STALL_POLLS		8	/* Phases without progress before reset. */
 #define	KBD_SYNC_TIMEOUT_US	50000
 
@@ -116,6 +122,7 @@ enum {
 static int phase;
 static int stall;
 static int fast;		/* Exchanges left at the fast rate. */
+static u_int ctrl_seen_us;	/* pc_micros() of the last Ctrl event. */
 static int ctrl;
 static int polling;
 static int fw_version = -1;
@@ -154,6 +161,8 @@ i2c_restart(void)
 
 	if (!i2c_enable(0)) {
 		kbd_errors++;
+		/* ABORT is honored only while the block is enabled. */
+		I2C_REG(IC_ENABLE) = 1;
 		I2C_REG(IC_ENABLE) = 1 | IC_ENABLE_ABORT;
 		t0 = pc_micros();
 		while ((I2C_REG(IC_ENABLE) & IC_ENABLE_ABORT) &&
@@ -171,6 +180,7 @@ i2c_restart(void)
 	(void)i2c_enable(1);
 	phase = PH_WRITE;
 	stall = 0;
+	ctrl = 0;	/* The restart may have discarded a Ctrl release. */
 }
 
 /* Program the block, which must be disabled. */
@@ -277,6 +287,11 @@ kbd_poll(caddr_t arg __unused)
 		stall = 0;
 		if (r == STEP_EVENT) {
 			fast = KBD_FAST_EXCHANGES;
+			if (key == KEY_MOD_CTRL)
+				ctrl_seen_us = pc_micros();
+			else if (ctrl && pc_micros() - ctrl_seen_us >
+			    KBD_CTRL_EXPIRE_MS * 1000U)
+				ctrl = 0;
 			n = picokbd_translate(state, key, lcdterm_app_cursor(),
 			    &ctrl, seq);
 			if (n > 0)

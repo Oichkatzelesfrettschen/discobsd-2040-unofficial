@@ -380,6 +380,37 @@ test_cursor_overlay(void)
 }
 
 static void
+test_review_cases(void)
+{
+	int i, row, col;
+
+	/* G0 designation right after DECSTR selects line drawing. */
+	reset();
+	out("\033[!p\033(0q\033(B");
+	expect_line("ESC ( after CSI ! p", 0, "-");
+
+	/* IND at a pending wrap indexes once and keeps the column. */
+	reset();
+	for (i = 0; i < LT_COLS; i++)
+		lcdterm_putc('i');
+	out("\033DX");
+	lcdterm_cursor(&row, &col);
+	expect_int("IND clears wrap row", row, 1);
+	expect_int("IND keeps column", lcdterm_cell(1, LT_COLS - 1), 'X');
+
+	/* The fatal reset leaves plain ASCII and full-screen scrolling. */
+	reset();
+	out("\033(0\033[3;6r\033[7m");
+	lcdterm_abort();
+	out("\033[32;1Hq\nz");
+	expect_line("abort clears line drawing", LT_ROWS - 2, "q");
+	expect_int("abort resets SGR", (int)lcdterm_attr(LT_ROWS - 2, 0),
+	    LT_ATTR_DEFAULT);
+	expect_int("abort restores full-screen scroll", panel_top, 1);
+	expect_consistent("review cases");
+}
+
+static void
 key(int state, int k, int app, int *ctrl, const char *want, const char *what)
 {
 	char buf[PICOKBD_MAXSEQ];
@@ -431,6 +462,7 @@ main(void)
 	test_attributes();
 	test_save_restore_reports();
 	test_cursor_overlay();
+	test_review_cases();
 	test_keymap();
 	if (failures != 0) {
 		fprintf(stderr, "lcdterm_test: %d failures\n", failures);

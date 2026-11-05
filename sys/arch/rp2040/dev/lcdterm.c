@@ -606,15 +606,20 @@ full_reset(void)
 }
 
 /*
- * Forget a sequence and a drawn cursor that an abandoned drawer left half
- * done; lcdcons.c calls this on the fatal path, where the interrupted
- * drawer never resumes.
+ * Forget a sequence, a drawn cursor and the modes an abandoned drawer or
+ * the last program left behind; lcdcons.c calls this on the fatal path,
+ * where the interrupted drawer never resumes. The fault report then draws
+ * in plain ASCII with full-screen scrolling, and the panel's scroll start
+ * is written again in case the drawer stopped between moving the ring and
+ * telling the panel.
  */
 void
 lcdterm_abort(void)
 {
 	state = ST_GROUND;
 	cursor_drawn = 0;
+	reset_modes();
+	lcd_set_top(top);
 }
 
 void
@@ -637,6 +642,7 @@ esc_final(int c)
 		break;
 	case '(':
 		state = ST_CHARSET;
+		inter = 0;	/* G0; a prior CSI may have left '!'. */
 		break;
 	case ')':
 	case '*':
@@ -651,6 +657,7 @@ esc_final(int c)
 		restore_cursor();
 		break;
 	case 'D':
+		wrapnext = 0;
 		index_down();
 		break;
 	case 'E':

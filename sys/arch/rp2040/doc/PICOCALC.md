@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,312 of 130,816 bytes (`RP2040.ld` FLASH), bss 43,744 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,804 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,824 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -134,18 +134,40 @@ switches processes, waits for it, so no switch lands inside a panel
 window. The handler masks interrupts only to take a byte off the output
 queue, so a region redraw of hundreds of cells never holds the clock off.
 
+ARMv6-M has one handler stack, MSP, and this kernel keeps it in the
+current process's u-area, where the measured kernel-stack peak leaves about
+220 of 2,048 bytes (`CAPACITY.md`). The renderer is an extra exception
+level that SysTick, USB and a fault report can nest above, so
+`SPARE_IRQ_0_Handler` (`dev/lcdrender.S`) switches to a 2 KB render stack
+in kernel bss before calling `lcdrender()` and switches back before the
+exception return; every exception that preempts the renderer stacks there.
+The render stack is painted at boot, and `boot()` prints how much of it no
+exception ever reached ("lcd0: render stack N of 2048 bytes never used")
+on halt or reboot. Terminal reports (cursor position, device attributes)
+queue during a draw and reach the tty input queue after the drawing flag is
+released, so `ttyinput()` never runs inside a draw.
+
 A cell is one panel write window. `lcdcons.c` serializes drawing with an
 owner flag: the renderer and the kernel's console putc each take the
 flag, draw, and release it; a putc from an interrupt nested over the
 owner appends to a 128-byte deferred ring that the owner drains in order
-before releasing, and a full ring counts what it drops and prints
-"[console output lost]" in its place. Kernel putc draws synchronously at
-its caller's priority, one cell per character or one row fill at a
-newline that scrolls. A kernel fault (`arm_fault()`, before it prints)
-and a panic abandon the owner, which will never resume: `lcdabandon()`
-lets the byte in the PL022 shifter finish, raises chip select to end the
-panel's write window, resets the terminal parser and frees the flag, so
-the report draws from a clean bus.
+before releasing; once the ring overflows, later bytes are dropped as well
+until the drain prints "[console output lost]", so the marker stands at
+the gap. Kernel putc draws synchronously at its caller's priority: three
+cells per character (cursor hide, the glyph, cursor show), about 366 us,
+plus one row fill, about 6 ms, at a newline that scrolls the full screen.
+With a scrolling region set by a program, a newline at the region's
+bottom redraws the region cell by cell, up to about 200 ms at the caller's
+priority; that is the price of keeping kernel messages synchronous.
+
+A kernel fault (`arm_fault()`, before it prints) abandons the owner, which
+will never resume: `lcdabandon()` lets the byte in the PL022 shifter
+finish, raises chip select to end the panel's write window, resets the
+terminal parser, character set, attributes and scrolling region, rewrites
+the panel's scroll start and frees the flag, so the report draws in plain
+ASCII from a clean bus. Once `panicstr` is set, `panic()`'s own output
+draws with interrupts masked, so neither the renderer, which stops drawing
+tty output, nor nested output can interrupt or abandon the panic message.
 
 Measured costs are owed to the board run. At 12.5 MHz a cell is 180 bytes
 of pixels plus an 11-byte window, about 122 us of wire time, which bounds
@@ -164,15 +186,20 @@ between write and read; once an event arrives they run 2 ms apart until
 eight exchanges in a row come back empty, about 250 events per second.
 The rate matters because the controller's FIFO holds 31 events and drops
 new ones when full, and a dropped Ctrl release would leave Ctrl applied
-to every later key: the controller exposes no modifier state to
-resynchronize from. Whether the controller answers a read issued 2 ms
-after the register write is a board check.
+to every later key. Two rules bound that: an I2C restart, which may have
+discarded the release, clears Ctrl, and a latched Ctrl expires 600 ms
+after the last Ctrl event, because the firmware reports a held key again
+every 100 ms once it has been held for 300 ms (`keyboard.ino`,
+KEY_STATE_HOLD), so a Ctrl still held is never silent that long. Whether
+the controller answers a read issued 2 ms after the register write is a
+board check.
 
 TX_ABRT (no acknowledge) and a phase that makes no progress for eight
 polls restart the I2C block and count in `picokbd_errors()`; an abort after
 the FIFO register write loses that one event, because the controller
 dequeues it when the write arrives. A disable that does not complete in
-10 ms escalates to IC_ENABLE.ABORT (datasheet 4.3.10.4) and then to a
+10 ms escalates to IC_ENABLE.ABORT (datasheet 4.3.10.4), written after
+ENABLE because the block honors ABORT only while enabled, and then to a
 reset of the block. Reading register 0x08 resets the keyboard
 controller, so the driver never reads it.
 
@@ -216,7 +243,13 @@ version (I2C timing, address); typing at the login prompt echoes
 (escape coverage). A blank panel with a version line implicates SPI or
 init; a version line of "not answering" implicates I2C speed or pull-ups.
 Then measure: characters per second for `cat` of a large file, and
-cell-draw time by toggling a spare GPIO, to decide on RGB565.
+cell-draw time by toggling a spare GPIO, to decide on RGB565. After a
+workload of `vi` region scrolling, held-key typing and a deliberate
+`mputest` fault, read `sysctl kern.capacity` (`stack_minimum_free` for
+the u-area stack) and halt to read the render stack's unused depth; a
+u-area figure below the 220 bytes `CAPACITY.md` records for PICO, or a
+render-stack figure near zero, means the stack budget needs work before
+the console ships.
 
 ### SD card on SPI0
 

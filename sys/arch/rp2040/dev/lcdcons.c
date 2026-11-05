@@ -84,9 +84,10 @@ void *const lcd_render_sp = &lcd_render_stack[LCD_RSTACK_WORDS];
 
 /*
  * Terminal reports wait here until the drawing flag is released, so the
- * tty input path never runs inside a draw.
+ * tty input path never runs inside a draw. A report is queued whole or
+ * not at all: 64 bytes hold eight of the longest, "ESC [ 32 ; 53 R".
  */
-#define	REPLY_RING	16		/* Power of two. */
+#define	REPLY_RING	64		/* Power of two. */
 
 static char reply[REPLY_RING];
 static u_int reply_head, reply_tail;
@@ -376,8 +377,10 @@ lcdterm_reply(const char *s, int n)
 {
 	int x = spltty();
 
-	while (n-- > 0 && reply_head - reply_tail < REPLY_RING)
-		reply[reply_head++ % REPLY_RING] = *s++;
+	if (n > 0 && reply_head - reply_tail + (u_int)n <= REPLY_RING) {
+		while (n-- > 0)
+			reply[reply_head++ % REPLY_RING] = *s++;
+	}
 	splx(x);
 }
 

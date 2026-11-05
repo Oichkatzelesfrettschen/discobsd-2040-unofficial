@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 118,844 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,824 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 119,172 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,888 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -148,8 +148,9 @@ exception return; every exception that preempts the renderer stacks there.
 The render stack is painted at boot, and `boot()` prints how much of it no
 exception ever reached ("lcd0: render stack N of 2048 bytes never used")
 on halt or reboot. Terminal reports (cursor position, device attributes)
-queue during a draw and reach the tty input queue after the drawing flag is
-released, so `ttyinput()` never runs inside a draw.
+queue during a draw, whole or not at all, in a 64-byte ring that holds
+eight of the longest report, and reach the tty input queue after the
+drawing flag is released, so `ttyinput()` never runs inside a draw.
 
 A cell is one panel write window. `lcdcons.c` serializes drawing with an
 owner flag: the renderer and the kernel's console putc each take the
@@ -207,7 +208,10 @@ the FIFO register write loses that one event, because the controller
 dequeues it when the write arrives. A disable that does not complete in
 10 ms escalates to IC_ENABLE.ABORT (datasheet 4.3.10.4), written after
 ENABLE because the block honors ABORT only while enabled, and then to a
-reset of the block. Reading register 0x08 resets the keyboard
+reset of the block. The poll callout runs inside the SysTick exception, so
+it takes those steps one per poll rather than waiting; only the polled
+exchange of the probe and of the console's getc, which runs with
+interrupts masked anyway, waits them out. Reading register 0x08 resets the keyboard
 controller, so the driver never reads it.
 
 The firmware applies Shift, Caps Lock and the Alt symbol layer and

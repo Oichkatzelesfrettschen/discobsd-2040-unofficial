@@ -183,6 +183,109 @@ i2c_restart(void)
 	ctrl = 0;	/* The restart may have discarded a Ctrl release. */
 }
 
+/*
+ * Recovery the poll callout runs without waiting. The callout runs inside
+ * the SysTick exception, which cannot preempt itself, so a 10 ms wait
+ * there would lose clock ticks; instead each poll advances one step:
+ * disable, then ABORT if the disable does not complete in 10 ms, then a
+ * block reset if ABORT does not, then enable. kbd_exchange(), which runs
+ * with interrupts masked anyway, recovers with i2c_restart() instead.
+ */
+enum {
+	REC_IDLE,
+	REC_DISABLE,		/* IC_ENABLE cleared; waiting for status. */
+	REC_ABORT,		/* ABORT set; waiting for it to clear. */
+	REC_ENABLE,		/* IC_ENABLE set; waiting for status. */
+};
+
+static int recovering;
+static u_int recover_t0;
+static int sync_mode;		/* kbd_exchange() is running. */
+
+static void
+recover_begin(void)
+{
+	I2C_REG(IC_ENABLE) = 0;
+	recovering = REC_DISABLE;
+	recover_t0 = pc_micros();
+	phase = PH_WRITE;
+	stall = 0;
+	ctrl = 0;	/* The fault may have discarded a Ctrl release. */
+}
+
+static void
+recover_enable(void)
+{
+	(void)I2C_REG(IC_CLR_TX_ABRT);
+	(void)I2C_REG(IC_CLR_STOP_DET);
+	I2C_REG(IC_ENABLE) = 1;
+	recovering = REC_ENABLE;
+	recover_t0 = pc_micros();
+}
+
+static void
+recover_reset(void)
+{
+	kbd_errors++;
+	PC_REG32(PC_RESETS_BASE + PC_ATOMIC_SET + PC_RESETS_RESET) =
+	    PC_RESET_I2C1;
+	pc_unreset(PC_RESET_I2C1);
+	i2c_setup();
+	recover_enable();
+}
+
+/* One step of the callout's recovery; nonzero once the block is enabled. */
+static int
+recover_step(void)
+{
+	u_int elapsed = pc_micros() - recover_t0;
+	int enabled = (I2C_REG(IC_ENABLE_STATUS) & 1) != 0;
+
+	switch (recovering) {
+	case REC_DISABLE:
+		if (!enabled)
+			recover_enable();
+		else if (elapsed >= 10000) {
+			kbd_errors++;
+			/* ABORT is honored only while the block is enabled. */
+			I2C_REG(IC_ENABLE) = 1;
+			I2C_REG(IC_ENABLE) = 1 | IC_ENABLE_ABORT;
+			recovering = REC_ABORT;
+			recover_t0 = pc_micros();
+		}
+		return 0;
+	case REC_ABORT:
+		if ((I2C_REG(IC_ENABLE) & IC_ENABLE_ABORT) == 0) {
+			recover_begin();	/* Disable again. */
+			return 0;
+		}
+		if (elapsed >= 10000)
+			recover_reset();
+		return 0;
+	case REC_ENABLE:
+		if (enabled) {
+			recovering = REC_IDLE;
+			return 1;
+		}
+		if (elapsed >= 10000)
+			recover_reset();
+		return 0;
+	default:
+		return 1;
+	}
+}
+
+/* A fault in the exchange: recover by waiting or by callout steps. */
+static void
+kbd_fault(void)
+{
+	kbd_errors++;
+	if (sync_mode)
+		i2c_restart();
+	else
+		recover_begin();
+}
+
 /* Program the block, which must be disabled. */
 static void
 i2c_setup(void)
@@ -232,8 +335,7 @@ kbd_step(int reg, int *state, int *key)
 	u_int raw = I2C_REG(IC_RAW_INTR_STAT);
 
 	if (raw & IC_INTR_TX_ABRT) {
-		kbd_errors++;
-		i2c_restart();
+		kbd_fault();
 		return STEP_DONE;
 	}
 
@@ -277,12 +379,16 @@ kbd_poll(caddr_t arg __unused)
 	char seq[PICOKBD_MAXSEQ];
 	int state, key, n, r;
 
+	if (recovering != REC_IDLE && !recover_step()) {
+		timeout(kbd_poll, (caddr_t)0, KBD_FAST_TICKS);
+		return;
+	}
 	r = kbd_step(KBD_REG_FIFO, &state, &key);
 	if (r == STEP_WAIT) {
-		if (++stall > KBD_STALL_POLLS) {
-			kbd_errors++;
-			i2c_restart();
-		}
+		if (++stall > KBD_STALL_POLLS)
+			kbd_fault();
+	} else if (recovering != REC_IDLE) {
+		/* kbd_step() began a recovery; the next polls step it. */
 	} else {
 		stall = 0;
 		if (r == STEP_EVENT) {
@@ -353,15 +459,19 @@ kbd_exchange(int reg, int *state, int *key)
 	int s, r = STEP_DONE;
 
 	s = spltty();
+	sync_mode = 1;
 	*state = *key = 0;
-	if (phase != PH_WRITE)
+	if (phase != PH_WRITE || recovering != REC_IDLE) {
 		i2c_restart();
+		recovering = REC_IDLE;
+	}
 	(void)kbd_step(reg, state, key);
 	t0 = pc_micros();
 	while (pc_micros() - t0 < KBD_POLL_MS * 1000)
 		continue;
 	if (kbd_step_sync(reg, state, key) == STEP_DONE && phase == PH_COLLECT)
 		r = kbd_step_sync(reg, state, key);
+	sync_mode = 0;
 	splx(s);
 	return r == STEP_EVENT;
 }

@@ -384,6 +384,16 @@
       "from": "check-ilp32-execution-recipes",
       "to": "check-tar-host",
       "kind": "required tar hard-link identity native variant"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-libbn",
+      "kind": "required libbn variants"
+    },
+    {
+      "from": "check-libbn",
+      "to": "tests/libbn:check",
+      "kind": "recursive make"
     }
   ],
   "optional_investigations": [
@@ -3496,6 +3506,81 @@
       ],
       "script": "tests/sysctl_status/check.sh",
       "subject": "tests/sysctl_status/out/sysctl"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.native",
+      "width": "native",
+      "program": "bn_test",
+      "capability": "native compiler and runtime",
+      "target": "check-native",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libbn.native -- ./bn_test vectors.txt",
+      "prerequisites": [
+        "bn_test",
+        "vectors.txt"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.ilp32",
+      "width": "ilp32",
+      "program": "bn_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-ilp32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libbn.ilp32 -- ./bn_test32 vectors.txt",
+      "prerequisites": [
+        "bn_test32",
+        "vectors.txt"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.sanitized",
+      "width": "native",
+      "program": "bn_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-sanitized",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libbn.sanitized -- ./bn_test_san vectors.txt",
+      "prerequisites": [
+        "bn_test_san",
+        "vectors.txt"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "HOSTCC=${HOSTCC} ${TEST_EXECUTION} run libbn.negative -- sh ./check_mutants.sh vectors.txt ${LIBDIR}",
+      "prerequisites": [
+        "mutants.stamp",
+        "vectors.txt",
+        "bn_test.c",
+        "check_mutants.sh"
+      ],
+      "script": "tests/libbn/check_mutants.sh"
     }
   ]
 }

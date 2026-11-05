@@ -19,8 +19,9 @@
  * and whose input picokbd.c polls from the keyboard controller.
  *
  * Tty output is drawn from a software interrupt, never from the start
- * routine. The tty layer calls the start routine with spltty() held, which
- * on this port is PRIMASK, so drawing there would hold every interrupt off
+ * routine. The tty layer calls the start routine with spltty() held,
+ * which on this port is PRIMASK, from most paths, so drawing there would
+ * hold every interrupt off
  * for a whole queue: a region redraw is hundreds of cells at about 122 us
  * each. A callout would not do either, because softclock() runs callouts
  * inside the SysTick exception, which cannot preempt itself. lcdstart()
@@ -222,18 +223,29 @@ lcd_release(void)
 	}
 }
 
-/* Called by the tty layer at spltty(). */
+/*
+ * The tty start routine. Most callers hold spltty(), but ttwrite() calls
+ * ttstart() without it (sys/kern/tty.c), so the state checks and the
+ * TS_BUSY update take it here: a keyboard poll that sets TS_TTSTOP for a
+ * Ctrl-S between the check and the store would otherwise be overwritten.
+ */
 static void
 lcdstart(struct tty *tp)
 {
-	if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP))
+	int s = spltty();
+
+	if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP)) {
+		splx(s);
 		return;
+	}
 	if (tp->t_outq.c_cc == 0) {
 		ttyowake(tp);
+		splx(s);
 		return;
 	}
 	tp->t_state |= TS_BUSY;
 	render_pend();
+	splx(s);
 }
 
 /* Bytes of the render stack no exception has reached since boot. */

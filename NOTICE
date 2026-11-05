@@ -316,6 +316,15 @@ no proprietary plugins), so the Exception permits their distribution
 under the terms above. No GCC source is part of the image.
 
 ------------------------------------------------------------------------
+15. Markus Kuhn and the X Consortium (the Misc-Fixed 6x9 font, in the
+    PICOCALC kernel's LCD console)
+    License: public domain ("Public domain font. Share and enjoy.")
+
+sys/arch/rp2040/dev/fonts/6x9-ascii.bdf is the ASCII subset of the
+Misc-Fixed 6x9 BDF font, revision 1.28, and sys/arch/rp2040/dev/lcdfont.c
+is generated from it by tools/picocalc/bdf_font.py.
+
+------------------------------------------------------------------------
 Appendix. Build and test dependencies, which no image contains
 
 The sections above cover everything a redistributed image carries. The

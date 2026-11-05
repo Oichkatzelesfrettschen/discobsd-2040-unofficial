@@ -45,6 +45,7 @@
 void usbdrain(void);
 void usbpoll(void);
 void usbabandon(void);
+void lcdabandon(void);
 
 /*
  * HardFault_Handler()
@@ -125,6 +126,11 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	 */
 	if (fault_lr != 0xfffffffdUL)
 		usbabandon();
+#endif
+#ifdef PICOCALC_ENABLED
+	/* The panel console's drawer is abandoned the same way. */
+	if (fault_lr != 0xfffffffdUL)
+		lcdabandon();
 #endif
 
 	/*

@@ -36,6 +36,9 @@
 #include <rp2040/dev/uart.h>
 #include <rp2040/dev/usb.h>
 #include <rp2040/dev/flash.h>
+#ifdef PICOCALC_ENABLED
+#include <rp2040/dev/picocalc.h>
+#endif
 
 #define	MREG32(a)		(*(volatile u_int *)(a))
 
@@ -706,6 +709,10 @@ boot(dev_t dev __unused, int howto)
 	    bfreelist[0].av_forw != NULL)
 		rp2040_shutdown_sync(howto);
 	(void)splhigh();
+#ifdef PICOCALC_ENABLED
+	printf("lcd0: render stack %u of 2048 bytes never used\n",
+	    lcdcons_render_stack_free());
+#endif
 	if (howto & RB_BOOTLOADER) {
 		/*
 		 * Enter the boot ROM's USB loader (datasheet 2.8.3.1,

@@ -57,7 +57,6 @@ mutant-reverse-erase:
 
 clean:
 	rm -f lcdterm_test
-	rm -rf mutant.tmp
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase clean

@@ -529,6 +529,11 @@ check-libc-casefold: check-python
 check-libc-casefold-cross: check-python
 		${MAKE} -C tests/libc_casefold check-cross
 
+# The tree-libm variant compiles lib/libm against include/, whose
+# include/machine link the symlinks target creates.
+check-libcalc: check-python .WAIT symlinks
+		${MAKE} -C tests/libcalc check
+
 check-libbn: check-python
 		${MAKE} -C tests/libbn check
 
@@ -1120,7 +1125,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-tar-host check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-recovery-utility-contracts \
-		check-timeout-contracts check-libbn
+		check-timeout-contracts check-libcalc check-libbn
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py
@@ -1319,7 +1324,7 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
-.PHONY: check-libc-casefold check-libc-casefold-cross check-libbn
+.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn
 
 .PHONY: check-libc-output check-libc-output-cross
 

@@ -190,6 +190,8 @@ Grouped by what they investigate.
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |
+| `picomite-maths-clean-room-spec.md` | behavioral specification of a calculator mathematics library, written for clean-room reimplementation, with the reviewer's similarity checklist |
+| `libcalc-implementation.md` | `lib/libcalc` built from that specification: provenance, numeric decisions, the gate and its copying review (`copy-reviews/libcalc-vs-picomite-maths.txt`) |
 | `openbsd-dc-bn-port.md` | the BN_* subset OpenBSD dc(1) and bc(1) use, the clean-room `lib/libbn` that supplies it, its evidence and the remaining port steps |
 | `ondevice-c-compilers.md` | native C compilers that can run on the board |
 | `unifdef-off-manifest-measurement.md` | the bounded C17 unifdef port, its calibrated contracts, and its measured but unshipped RP2040 cost |

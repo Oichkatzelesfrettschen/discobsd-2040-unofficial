@@ -1,0 +1,8 @@
+/* Negative control for check_object.sh: an allocator reference. */
+#include <stdlib.h>
+
+void *
+leak(unsigned n)
+{
+	return malloc(n);
+}

@@ -59,11 +59,14 @@ int		lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
 void		lcdputc(dev_t dev, char c);
 char		lcdgetc(dev_t dev);
 void		lcdcons_init(void);
+void		lcdabandon(void);
 
 extern struct tty lcdttys[LCDCONS_NTTY];
 
 /* st7365p.c */
 void		st7365p_init(void);
+void		st7365p_display_on(void);
+void		st7365p_abort(void);
 
 /* picokbd.c */
 void		picokbd_init(void);

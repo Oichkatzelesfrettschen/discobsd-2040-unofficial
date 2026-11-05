@@ -32,9 +32,13 @@
  * The panel shows 320 of the controller's 480 lines, so the vertical
  * scroll definition is a 320-line scroll area with a 160-line bottom
  * fixed area, which sums to 480 as page 184 requires, and with MADCTL MV
- * clear as scrolling requires. The initialization values are those the
- * vendor's PicoMite firmware sends for its ILI9488P (320x320) mode on
- * this panel; sys/arch/rp2040/doc/PICOCALC.md cites them.
+ * clear as scrolling requires. The register values come from the
+ * vendor's PicoMite ILI9488P (320x320) initialization for this panel,
+ * with three deliberate differences that PICOCALC.md lists: the command
+ * E9h, absent from the ST7365P command table, is not sent; the scroll
+ * definition is programmed before the display turns on; and the display
+ * turns on only after lcdterm has cleared every cell, so power-on RAM
+ * contents never show.
  */
 
 #include <sys/param.h>
@@ -243,9 +247,11 @@ lcd_set_top(int prow)
 }
 
 /*
- * Reset the panel and program it. The reset pulse and the waits exceed
- * the ST7365P minimums (TRW 10 us; 120 ms after reset from Sleep Out and
- * after SLPOUT, pages 59-60 and 165).
+ * Reset the panel and program it, leaving the display off. The reset pulse
+ * exceeds TRW, 10 us (page 59). The 120 ms after reset release covers note
+ * 7 of page 60: 5 ms before any command and 120 ms before SLPOUT. The
+ * 120 ms after SLPOUT exceeds the 5 ms page 165 requires before the next
+ * command.
  */
 void
 st7365p_init(void)
@@ -293,11 +299,37 @@ st7365p_init(void)
 	put16(0);
 	lcd_deselect();
 
-	/* Clear the two columns right of the last cell, then the cells. */
+	/* The two columns right of the last cell; lcdterm clears the cells. */
 	lcd_select();
 	lcd_window(LT_COLS * LT_CELL_W, 0, 319, LCD_LINES - 1);
 	for (x = (320 - LT_COLS * LT_CELL_W) * LCD_LINES; x > 0; x--)
 		put_pixel(palette[0]);
+	lcd_deselect();
+}
+
+void
+st7365p_display_on(void)
+{
+	lcd_select();
 	lcd_command(CMD_DISPON);
 	lcd_deselect();
+}
+
+/*
+ * End whatever transfer an abandoned drawer left open: let the byte in the
+ * shifter finish, empty the receive FIFO and raise chip select, which ends
+ * the panel's write window. The next window starts from a clean command.
+ */
+void
+st7365p_abort(void)
+{
+	u_int t0 = pc_micros();
+
+	while ((SPI_REG(SSPSR) & SSPSR_BSY) && pc_micros() - t0 < 1000)
+		continue;
+	while (SPI_REG(SSPSR) & SSPSR_RNE)
+		(void)SPI_REG(SSPDR);
+	SPI_REG(SSPICR) = SSPICR_RORIC;
+	pc_gpio_put(PICOCALC_LCD_CS, 1);
+	pc_gpio_put(PICOCALC_LCD_DC, 1);
 }

@@ -18,19 +18,34 @@
  * The PicoCalc console: a tty whose output lcdterm.c draws on the panel
  * and whose input picokbd.c polls from the keyboard controller.
  *
+ * Tty output is drawn from a callout, never from the start routine. The
+ * tty layer calls the start routine with spltty() held, which on this
+ * port is PRIMASK, so drawing there would hold every interrupt off for a
+ * whole queue: a region redraw is hundreds of cells at about 122 us each.
+ * lcdstart() only marks the tty busy and schedules lcdrender(), which
+ * softclock() runs with interrupts enabled; it masks them only to take a
+ * byte off the queue.
+ *
  * Drawing a cell is a panel write window that another drawer must not
- * interrupt, yet the kernel prints from interrupt handlers. One owner
- * flag serializes drawing without masking interrupts across it: the
- * output routine and the kernel's putc each take the flag, draw, and
- * release it; a putc that finds the flag held, which only an interrupt
- * nested over the owner can, appends to a deferred ring that the owner
- * drains before it releases. A panic bypasses the flag so its message
- * reaches the panel.
+ * interrupt, and the kernel prints from interrupt handlers. One owner
+ * flag serializes drawing: the renderer and the kernel's console putc
+ * each take it, draw and release it; a putc that finds it held, which
+ * only an interrupt nested over the owner can, appends to a deferred ring
+ * that the owner drains, in order, before releasing. A full ring counts
+ * what it drops and the drain prints a marker in its place. Kernel putc
+ * draws synchronously at whatever priority its caller holds, so a kernel
+ * message costs its caller one cell, or one row fill at a newline that
+ * scrolls.
+ *
+ * A fatal kernel fault or a panic abandons the owner, which will never
+ * resume: lcdabandon() ends the open panel transfer, resets the terminal
+ * parser and frees the flag, so the report draws from a clean bus.
  */
 
 #include <sys/param.h>
 #include <sys/conf.h>
 #include <sys/user.h>
+#include <sys/proc.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
@@ -45,9 +60,13 @@ struct tty lcdttys[LCDCONS_NTTY];
 
 static int lcd_ready;
 static int lcd_owned;
+static int lcd_abandoned;
 
 static char defer[DEFER_RING];
 static u_int defer_head, defer_tail;
+static u_int defer_lost;
+
+static const char lost_marker[] = "\r\n[console output lost]\r\n";
 
 void
 lcdcons_init(void)
@@ -56,8 +75,27 @@ lcdcons_init(void)
 		return;
 	st7365p_init();
 	lcdterm_init();
+	st7365p_display_on();
 	picokbd_init();
 	lcd_ready = 1;
+}
+
+/*
+ * End an owner that will never resume. Called by arm_fault() for a kernel
+ * fault, before it prints, and by the putc path once panic() has run.
+ */
+void
+lcdabandon(void)
+{
+	int s = splhigh();
+
+	if (lcd_ready && lcd_owned) {
+		st7365p_abort();
+		lcdterm_abort();
+	}
+	lcd_owned = 0;
+	lcd_abandoned = 1;
+	splx(s);
 }
 
 /* Take the drawing flag; 0 when another context holds it. */
@@ -66,7 +104,12 @@ lcd_acquire(void)
 {
 	int s = spltty(), got = 0;
 
-	if (!lcd_owned || panicstr != NULL) {
+	if (lcd_owned && panicstr != NULL && !lcd_abandoned) {
+		splx(s);
+		lcdabandon();
+		s = spltty();
+	}
+	if (!lcd_owned) {
 		lcd_owned = 1;
 		got = 1;
 	}
@@ -75,61 +118,93 @@ lcd_acquire(void)
 }
 
 static void
-lcd_release(void)
-{
-	int s = spltty(), c;
-
-	while (defer_tail != defer_head) {
-		c = defer[defer_tail++ % DEFER_RING];
-		splx(s);
-		lcdterm_putc(c);
-		s = spltty();
-	}
-	lcdterm_cursor_show();
-	lcd_owned = 0;
-	splx(s);
-}
-
-static void
 defer_put(int c)
 {
 	if (defer_head - defer_tail < DEFER_RING)
 		defer[defer_head++ % DEFER_RING] = (char)c;
+	else
+		defer_lost++;
 }
 
+/*
+ * Draw the deferred bytes in order and the cursor, then free the flag. The
+ * flag clears only with interrupts masked and the ring seen empty, so a
+ * byte an interrupt defers while the cursor draws is drawn too.
+ */
+static void
+lcd_release(void)
+{
+	const char *m;
+	int s, c, cursor_drawn = 0;
+
+	for (;;) {
+		s = spltty();
+		if (defer_tail != defer_head) {
+			c = defer[defer_tail++ % DEFER_RING];
+			splx(s);
+			lcdterm_putc((u_char)c);
+			cursor_drawn = 0;
+		} else if (defer_lost != 0) {
+			defer_lost = 0;
+			splx(s);
+			for (m = lost_marker; *m != '\0'; m++)
+				lcdterm_putc((u_char)*m);
+			cursor_drawn = 0;
+		} else if (!cursor_drawn) {
+			splx(s);
+			lcdterm_cursor_show();
+			cursor_drawn = 1;
+		} else {
+			lcd_owned = 0;
+			splx(s);
+			return;
+		}
+	}
+}
+
+static void lcdrender(caddr_t arg);
+
+/* Called by the tty layer at spltty(). */
 static void
 lcdstart(struct tty *tp)
 {
-	int s, c;
-
-again:
-	s = spltty();
-	if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP)) {
-		splx(s);
+	if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP))
 		return;
-	}
-	if (!lcd_acquire()) {
-		/* The owner's release restarts output. */
-		splx(s);
+	if (tp->t_outq.c_cc == 0) {
+		ttyowake(tp);
 		return;
 	}
 	tp->t_state |= TS_BUSY;
+	timeout(lcdrender, (caddr_t)tp, 1);
+}
+
+/* Callout: draw the queued output with interrupts enabled. */
+static void
+lcdrender(caddr_t arg)
+{
+	struct tty *tp = (struct tty *)arg;
+	int s, c;
+
+	if (!lcd_acquire()) {
+		/* A kernel message below this callout is drawing; retry. */
+		timeout(lcdrender, arg, 1);
+		return;
+	}
+	s = spltty();
 	while (tp->t_outq.c_cc > 0 && (tp->t_state & TS_TTSTOP) == 0) {
 		c = getc(&tp->t_outq);
 		splx(s);
 		lcdterm_putc(c);
 		s = spltty();
 	}
-	tp->t_state &= ~TS_BUSY;
 	splx(s);
 	lcd_release();
-	/*
-	 * Output a nested start found the drawing flag held for, between the
-	 * loop's last check and the release above, is still queued.
-	 */
-	if (tp->t_outq.c_cc > 0 && (tp->t_state & TS_TTSTOP) == 0)
-		goto again;
+	s = spltty();
+	tp->t_state &= ~TS_BUSY;
 	ttyowake(tp);
+	if (tp->t_outq.c_cc > 0)
+		lcdstart(tp);
+	splx(s);
 }
 
 void
@@ -141,16 +216,15 @@ lcdputc(dev_t dev __unused, char c)
 	if (!lcd_ready)
 		lcdcons_init();
 	s = spltty();
-	if (!lcd_acquire()) {
-		defer_put((u_char)c);
-		splx(s);
-		return;
-	}
+	defer_put((u_char)c);
 	splx(s);
-	lcdterm_putc((u_char)c);
+	if (!lcd_acquire())
+		return;		/* The owner drains the byte. */
 	lcd_release();
+	s = spltty();
 	if (tp->t_outq.c_cc > 0 && (tp->t_state & TS_ISOPEN))
 		ttstart(tp);
+	splx(s);
 }
 
 char

@@ -132,7 +132,10 @@ expect_bytes(const char *what, const char *got, int n, const char *want)
 	}
 }
 
-/* The store and the model panel agree on every visible cell. */
+/*
+ * The store and the model panel agree on the character and the attribute of
+ * every visible cell, the cursor cell excepted while the cursor is drawn.
+ */
 static void
 expect_consistent(const char *what)
 {
@@ -141,7 +144,8 @@ expect_consistent(const char *what)
 	for (r = 0; r < LT_ROWS; r++) {
 		p = (panel_top + r) % LT_ROWS;
 		for (c = 0; c < LT_COLS; c++) {
-			if (lcdterm_cell(r, c) != panel_ch[p][c]) {
+			if (lcdterm_cell(r, c) != panel_ch[p][c] ||
+			    lcdterm_attr(r, c) != panel_at[p][c]) {
 				fprintf(stderr, "FAIL %s: store and panel differ "
 				    "at %d,%d\n", what, r, c);
 				failures++;
@@ -195,6 +199,27 @@ test_wrap(void)
 	expect_int("xn holds col", col, LT_COLS - 1);
 	lcdterm_putc('Z');
 	expect_line("wrap next line", 1, "Z");
+
+	/* Rubout of the 53rd character erases it, not the 52nd. */
+	out("\033[5;1H");
+	for (i = 0; i < LT_COLS; i++)
+		lcdterm_putc('r');
+	out("\b \b");
+	lcdterm_cursor(&row, &col);
+	expect_int("rubout at margin col", col, LT_COLS - 1);
+	expect_int("rubout keeps 52nd", lcdterm_cell(4, LT_COLS - 2), 'r');
+	expect_int("rubout clears 53rd", lcdterm_cell(4, LT_COLS - 1), ' ');
+
+	/* A full line then LF does not leave a pending wrap behind. */
+	out("\033[8;1H");
+	for (i = 0; i < LT_COLS; i++)
+		lcdterm_putc('f');
+	out("\nX");
+	lcdterm_cursor(&row, &col);
+	expect_int("LF clears wrap row", row, 8);
+	expect_int("LF clears wrap col", col, LT_COLS - 1);
+	expect_int("LF then glyph stays on its row", lcdterm_cell(8, LT_COLS - 1),
+	    'X');
 	out("\033[?7l");
 	out("\033[3;1H");
 	for (i = 0; i < LT_COLS + 5; i++)
@@ -303,6 +328,17 @@ test_attributes(void)
 	expect_int("panel attr drawn", panel_at[(panel_top) % LT_ROWS][4], (int)a);
 	out("\033[0m\033(0lqk\033(B");
 	expect_line("line drawing", 0, "RVNUB+-+");
+	expect_consistent("attributes");
+
+	/* Reverse video erases with the background it displays: red here. */
+	out("\033[2;1H\033[31;44;7m\033[K\033[0m");
+	a = lcdterm_attr(1, 10);
+	expect_int("reverse erase bg", LT_ATTR_BG(a), 1);
+	out("\033[3;1H\033[32;7m\033[J\033[0m");
+	expect_int("reverse ED bg", LT_ATTR_BG(lcdterm_attr(5, 0)), 2);
+	out("\033[4;1H\033[33;7m\033[3X\033[0m");
+	expect_int("reverse ECH bg", LT_ATTR_BG(lcdterm_attr(3, 2)), 3);
+	expect_consistent("reverse erase");
 }
 
 static void

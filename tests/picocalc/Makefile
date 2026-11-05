@@ -4,10 +4,11 @@
 # address and undefined-behavior sanitizers; the font table must match
 # its BDF source byte for byte.
 #
-# Before the verdict counts, three mutants of the sources must fail:
-# a terminal whose full-screen scroll forgets the hardware scroll start,
-# one that skips the panel redraw after a region scroll, and a keymap that
-# ignores Ctrl. A harness that passed them would be checking nothing.
+# Once the shipped sources pass, four mutants of them must fail: a
+# terminal whose full-screen scroll forgets the hardware scroll start, one
+# that skips the panel redraw after a region scroll, one that erases with
+# the stored rather than the displayed background under reverse video, and
+# a keymap that ignores Ctrl. A harness that passed them would be checking nothing.
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -36,7 +37,7 @@ font-sync:
 
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
-mutants: mutant-scroll mutant-region mutant-ctrl
+mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -50,9 +51,13 @@ mutant-ctrl:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
 	    's/\*ctrl = 1;/(void)0;/'
 
+mutant-reverse-erase:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/sgr_rev ? sgr_fg : sgr_bg/sgr_bg/'
+
 clean:
 	rm -f lcdterm_test
 	rm -rf mutant.tmp
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
-	mutant-ctrl clean
+	mutant-ctrl mutant-reverse-erase clean

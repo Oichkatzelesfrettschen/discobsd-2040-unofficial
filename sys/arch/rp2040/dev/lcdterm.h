@@ -24,7 +24,7 @@
  * row r lives in physical row (top + r) % LT_ROWS, and a full-screen
  * scroll advances top and moves the panel's hardware scroll start
  * instead of redrawing. The file includes no kernel header, so the host
- * test in tests/host/picocalc links it against recording primitives.
+ * test in tests/picocalc links it against recording primitives.
  */
 
 #ifndef _LCDTERM_H
@@ -61,6 +61,7 @@ void	lcd_set_top(int prow);
 void	lcdterm_reply(const char *s, int n);
 
 void	lcdterm_init(void);
+void	lcdterm_abort(void);
 void	lcdterm_putc(int c);
 void	lcdterm_cursor_show(void);
 int	lcdterm_app_cursor(void);

@@ -102,10 +102,11 @@ resolve_attr(void)
 	cattr = LT_ATTR(fg, bg, sgr_ul);
 }
 
+/* Erased cells take the background the current rendition displays. */
 static unsigned
 erase_attr(void)
 {
-	return LT_ATTR(7, sgr_bg, 0);
+	return LT_ATTR(7, sgr_rev ? sgr_fg : sgr_bg, 0);
 }
 
 static void
@@ -604,6 +605,18 @@ full_reset(void)
 	state = ST_GROUND;
 }
 
+/*
+ * Forget a sequence and a drawn cursor that an abandoned drawer left half
+ * done; lcdcons.c calls this on the fatal path, where the interrupted
+ * drawer never resumes.
+ */
+void
+lcdterm_abort(void)
+{
+	state = ST_GROUND;
+	cursor_drawn = 0;
+}
+
 void
 lcdterm_init(void)
 {
@@ -687,17 +700,24 @@ control(int c)
 {
 	switch (c) {
 	case '\b':
+		/*
+		 * Backspace from a pending wrap returns onto the last column,
+		 * so the tty's rubout ("\b \b") of the 53rd character of a
+		 * line erases that character rather than the one before it.
+		 */
 		if (wrapnext)
 			wrapnext = 0;
-		if (ccol > 0)
+		else if (ccol > 0)
 			ccol--;
 		break;
 	case '\t':
+		wrapnext = 0;
 		ccol = clamp((ccol / 8 + 1) * 8, 0, LT_COLS - 1);
 		break;
 	case '\n':
 	case '\v':
 	case '\f':
+		wrapnext = 0;
 		index_down();
 		break;
 	case '\r':

@@ -12,7 +12,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_UART", "PICOCALC")
+BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM")
+# (variant, base, directives the variant adds to the base Config).
+VARIANTS = (("PICOCALC_PSRAM", "PICOCALC", ("device psram",)),)
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")
 BUILD_INPUTS = tuple(Path("tools/config") / name for name in (
@@ -98,6 +100,39 @@ def generate(generator, directory, board):
     return output.read_bytes()
 
 
+def option_lines(path):
+    """Return a Config's directive lines without comments or blank lines."""
+    lines = []
+    for line in path.read_text().splitlines():
+        directive = line.split("#", 1)[0].strip()
+        if directive:
+            lines.append(re.sub(r"\s+", " ", directive))
+    return lines
+
+
+def check_variant_delta(root):
+    """Hold a variant Config to its base Config plus the variant's own lines.
+
+    config(8) has no include directive, so each variant repeats its base. The
+    comparison is by directive: the board line carries the variant's name and
+    the listed directives are the only additions.
+    """
+    for variant, base, additions in VARIANTS:
+        expected = [
+            f'board "{variant}"' if line == f'board "{base}"' else line
+            for line in option_lines(root / COMPILE / base / "Config")
+        ] + list(additions)
+        actual = option_lines(root / COMPILE / variant / "Config")
+        if sorted(expected) != sorted(actual):
+            raise SyncError(
+                f"{variant}: Config must equal {base} Config plus "
+                f"{', '.join(additions)} and its own board line\n"
+                + "".join(difflib.unified_diff(
+                    [line + "\n" for line in sorted(expected)],
+                    [line + "\n" for line in sorted(actual)],
+                    fromfile=f"{base} plus delta", tofile=f"{variant} Config")))
+
+
 def compare(root, workspace, generator):
     hashes = {}
     differences = []
@@ -125,6 +160,7 @@ def check(root, make="bmake"):
     with tempfile.TemporaryDirectory(prefix="discobsd-config-sync-") as temporary:
         workspace = Path(temporary)
         copy_inputs(root, workspace)
+        check_variant_delta(workspace)
         generator = build_generator(workspace, make)
         return compare(root, workspace, generator)
 

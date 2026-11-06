@@ -12,13 +12,17 @@ U_KBYTES=	0
 # below, so BOARD chooses only which kernel pairs with flash.uf2 and which
 # root profile an unset PROFILE builds: the PICO board's default is full,
 # the PicoCalc's is picocalc, which adds the closures that board carries.
+# PICOCALC_PSRAM is the PicoCalc kernel with the ESP-PSRAM64H swap driver
+# linked in: the same board and profile, selected only by naming it. The
+# default BOARD=PICOCALC kernel carries no PSRAM driver.
 BOARD?=		PICO
-BOARDS=		PICO PICOCALC
+BOARDS=		PICO PICOCALC PICOCALC_PSRAM
 .if empty(BOARDS:M${BOARD})
 .error BOARD must be one of ${BOARDS}, not ${BOARD}
 .endif
 BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
+BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
 BOARD_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${BOARD}/unix.uf2
 
 # The root filesystem profile. distrib/rp2040/mi.rp2040 brackets each

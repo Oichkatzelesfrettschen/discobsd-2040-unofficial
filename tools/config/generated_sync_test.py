@@ -73,6 +73,23 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "missing required input.*config.y"):
             sync.check(self.root)
 
+    def test_variant_config_drift_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC/Config", 'options         "NFL=2"',
+                    'options         "NFL=3"')
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+            sync.check(self.root)
+
+    def test_variant_without_its_device_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", "device          psram\n", "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+            sync.check(self.root)
+
+    def test_base_config_carrying_the_variant_device_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC/Config", "device          picocalc\n",
+                    "device          picocalc\ndevice          psram\n")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+            sync.check(self.root)
+
     def test_production_identity_is_preserved(self):
         self.mutate(sync.COMPILE / "PICO/Config", 'board           "PICO"',
                     'board           "SYNTHETIC"')

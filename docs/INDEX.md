@@ -213,6 +213,7 @@ Grouped by what they investigate.
 | Document | Establishes |
 | --- | --- |
 | `arm-main-legacy-build-isolation.md` | the canonical ARM tuples, default-off legacy options, finite relocation proof, shared-artifact boundary, calibrated gates, and restoration criteria |
+| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a DiscoBSD a.out loader prototype, and the whole-kernel QEMU options |
 | `retrobsd-port-scope.md` | the original scoping of a RetroBSD/DiscoBSD port to this chip |
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |

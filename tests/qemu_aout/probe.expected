@@ -1,0 +1,8 @@
+argc=3
+argv[0]=probe
+argv[1]=alpha
+argv[2]=beta
+div 142857 -142857 1
+float 337 428
+int64 -1666
+heap 7

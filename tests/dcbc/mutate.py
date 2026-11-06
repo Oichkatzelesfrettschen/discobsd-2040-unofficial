@@ -155,6 +155,11 @@ def main():
     parser.add_argument("--hostcc", default=os.environ.get("HOSTCC", "cc"))
     parser.add_argument("--bison", default=os.environ.get("BISON", "bison"))
     parser.add_argument("--flex", default=os.environ.get("LEX_HOST", "flex"))
+    parser.add_argument(
+        "--no-peak",
+        action="store_true",
+        help="skip the -m32 heap run; a mutant only it would reject is reported UNJUDGED",
+    )
     args = parser.parse_args()
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.abspath(args.root)
@@ -182,6 +187,7 @@ def main():
     done = run([args.flex, "-o", scan, os.path.join(bcdir, "scan.l")], work)
     if done.returncode:
         raise SystemExit("mutate.py: flex failed: " + done.stderr)
+    unjudged = []
     survivors = []
     for name, target, old, new in MUTATIONS:
         mutated = write_mutant(root, work, name, target, old, new)
@@ -260,9 +266,10 @@ def main():
                 "--wrap=strdup,--wrap=free",
             ]
         )
-        done = run(peak_build, work)
-        if done.returncode:
-            raise SystemExit("mutate.py: %s: peak build failed:\n%s" % (name, done.stderr))
+        if not args.no_peak:
+            done = run(peak_build, work)
+            if done.returncode:
+                raise SystemExit("mutate.py: %s: peak build failed:\n%s" % (name, done.stderr))
         reason = None
         done = run(
             [
@@ -283,6 +290,10 @@ def main():
         if done.returncode:
             lines = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL")]
             reason = lines[0][:100] if lines else "exit %d" % done.returncode
+        elif args.no_peak:
+            unjudged.append(name)
+            print("UNJUDGED %s: only the -m32 heap run could reject it" % name)
+            continue
         else:
             done = run(
                 [
@@ -309,7 +320,9 @@ def main():
     if survivors:
         print("dcbc mutants: %d of %d survived" % (len(survivors), len(MUTATIONS)))
         return 1
-    print("dcbc mutants: %d of %d rejected" % (len(MUTATIONS), len(MUTATIONS)))
+    rejected = len(MUTATIONS) - len(unjudged)
+    print("dcbc mutants: %d of %d rejected, %d unjudged without the -m32 heap run"
+          % (rejected, len(MUTATIONS), len(unjudged)))
     return 0
 
 

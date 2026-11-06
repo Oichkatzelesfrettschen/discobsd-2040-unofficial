@@ -145,10 +145,20 @@ check-peak:
 	@echo "SKIP dcbc peak: no -m32 C library (probe ${ILP32_OK}, headers ${ILP32_LIBC_OK}); no heap was measured"
 .endif
 
+# The heap-leak mutants are rejected only by the -m32 peak run, so without
+# the 32-bit C library they are reported UNJUDGED; REQUIRE_ILP32=1 fails.
+MUTATE=		HOSTCC="${HOSTCC}" BISON="${BISON}" LEX_HOST="${LEX_HOST}" \
+		${PYTHON} -I mutate.py --root ${TOPSRC} --golden golden.json \
+		--work build/mutants
+
 check-mutants: build/native/dc/dc build/native/bc/bc
-	HOSTCC="${HOSTCC}" BISON="${BISON}" LEX_HOST="${LEX_HOST}" \
-	    ${PYTHON} -I mutate.py --root ${TOPSRC} --golden golden.json \
-	    --work build/mutants
+.if ${ILP32_OK} == "yes" && ${ILP32_LIBC_OK} == "yes"
+	${MUTATE}
+.elif ${REQUIRE_ILP32} == "1"
+	@echo "FAIL dcbc mutants: REQUIRE_ILP32=1 but no -m32 C library for the heap run" >&2; exit 1
+.else
+	${MUTATE} --no-peak
+.endif
 
 # dc cases only: bc needs fork, which newlib in user mode lacks. newlib's
 # getopt neither has optreset nor stops at the first operand the way

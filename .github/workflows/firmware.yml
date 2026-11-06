@@ -286,7 +286,7 @@ jobs:
   posix-sh:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -318,14 +318,14 @@ jobs:
       # dc and bc need the 32-bit C library headers the gates job lacks,
       # so their ILP32 cases run here, where a missing runtime fails.
       - name: Execute dc and bc at ILP32
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-dcbc-ilp32 \
             --log .build-logs/posix-dcbc-ilp32.log \
             --status .build-logs/posix-dcbc-ilp32.status.json \
-            --idle-timeout-seconds 240 --timeout-seconds 420 \
-            -- bmake -C tests/dcbc check-ilp32 check-peak REQUIRE_ILP32=1
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake -C tests/dcbc check-ilp32 check-peak check-mutants REQUIRE_ILP32=1
       - name: Retain ILP32 gate logs
         if: always()
         uses: actions/upload-artifact@v4

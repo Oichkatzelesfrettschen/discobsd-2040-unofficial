@@ -35,26 +35,28 @@ MUTANTS = [
         "inverse_threshold_zero",
         "calc_matrix.c",
         "\tif (lu_factor(work, n, perm, &sign,\n"
-        "\t    (double)n * DBL_EPSILON * max_abs(a, n * n)) != 0)\n"
-        "\t\treturn CALC_E_SINGULAR;\n\tif (ill_conditioned(a, work, n, perm, NULL))\n"
+        "\t    (double)n * DBL_EPSILON * max_abs(work, n * n)) != 0)\n"
+        "\t\treturn CALC_E_SINGULAR;\n\tif (ill_conditioned(a, work, n, perm, e, NULL))\n"
         "\t\treturn CALC_E_ILLCOND;\n\t/* Column j",
         "\tif (lu_factor(work, n, perm, &sign, 0.0) != 0)\n"
-        "\t\treturn CALC_E_SINGULAR;\n\tif (ill_conditioned(a, work, n, perm, NULL))\n"
+        "\t\treturn CALC_E_SINGULAR;\n\tif (ill_conditioned(a, work, n, perm, e, NULL))\n"
         "\t\treturn CALC_E_ILLCOND;\n\t/* Column j",
         "singular test reduced to an exact zero pivot",
     ),
     (
         "inverse_condition_ignored",
         "calc_matrix.c",
-        "\tif (ill_conditioned(a, work, n, perm, NULL))\n\t\treturn CALC_E_ILLCOND;\n\t/* Column j",
+        "\tif (ill_conditioned(a, work, n, perm, e, NULL))\n\t\treturn CALC_E_ILLCOND;\n"
+        "\t/* Column j",
         "\t/* Column j",
         "inverse returns a matrix whose condition number exceeds 1 / (n eps)",
     ),
     (
         "solve_condition_ignored",
         "calc_matrix.c",
-        "\tif (ill_conditioned(a, work, n, perm, NULL))\n\t\treturn CALC_E_ILLCOND;\n\tfor (c = 0;",
-        "\tfor (c = 0;",
+        "\tif (ill_conditioned(a, work, n, perm, e, NULL))\n\t\treturn CALC_E_ILLCOND;\n"
+        "\t/*\n\t * A right-hand side",
+        "\t/*\n\t * A right-hand side",
         "solve returns a solution of a matrix beyond 1 / (n eps)",
     ),
     (
@@ -311,6 +313,41 @@ MUTANTS = [
         "atanh within 2^-500 of a pole keeps 4x/d, which overflows",
     ),
     (
+        "lu_unscaled",
+        "calc_matrix.c",
+        "\tif (m > 0x1p1000)\n\t\t(void)calc__frexp1(m, &e);",
+        "\tif (m > 0x1p1000 && 0)\n\t\t(void)calc__frexp1(m, &e);",
+        "elimination runs on entries near DBL_MAX and overflows a factor",
+    ),
+    (
+        "solve_rhs_unscaled",
+        "calc_matrix.c",
+        "\tif (bm > 0x1p1000 && calc__isfinite(bm))",
+        "\tif (bm > 0x1p1000 && calc__isfinite(bm) && 0)",
+        "substitution sums a right-hand side near DBL_MAX",
+    ),
+    (
+        "span_mix_end_rounded",
+        "calc_interp.c",
+        "\tif (t == 1.0)\n\t\treturn hi;\n",
+        "",
+        "the upper end comes from lo + (hi - lo), which rounding can miss",
+    ),
+    (
+        "power_inplace_sign_late",
+        "calc_elem.c",
+        "\t\tif (odd && neg)",
+        "\t\tif (odd && calc__signbit(in[i]) + 0 * neg)",
+        "an in-place power reads the base's sign after overwriting it",
+    ),
+    (
+        "power_squaring_unbounded",
+        "calc_elem.c",
+        "#define POW_INT_MAX\t64.0",
+        "#define POW_INT_MAX\t2147483648.0",
+        "repeated squaring amplifies the base's rounding for a large exponent",
+    ),
+    (
         "asin_tiny_imaginary_dropped",
         "calc_complex.c",
         "\tif (ay < 1.0e-154 && x < 1.0e150) {",
@@ -453,8 +490,8 @@ MUTANTS = [
     (
         "power_large_parity",
         "calc_elem.c",
-        "\t\tif (odd && calc__signbit(in[i]))",
-        "\t\tif (0 && odd && calc__signbit(in[i]))",
+        "\t\tif (odd && neg)",
+        "\t\tif (0 && odd && neg)",
         "negative base with a large odd exponent loses its sign",
     ),
     (

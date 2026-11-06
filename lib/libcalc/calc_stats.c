@@ -232,7 +232,11 @@ calc_variance(const double *a, size_t n, int sample, double *out)
 		return CALC_E_ARG;
 	if (n == 0 || (sample && n < 2))
 		return CALC_E_SIZE;
-	if (variance_rerun(a, n, sample, 0.0, &v, &e))
+	/*
+	 * A zero or subnormal variance may be squares that a flush-to-zero
+	 * provider dropped (the boot ROM's), so it reruns scaled as stddev does.
+	 */
+	if (variance_rerun(a, n, sample, DBL_MIN, &v, &e))
 		v = scale_back(v, e, 2);
 	*out = v;
 	return CALC_OK;

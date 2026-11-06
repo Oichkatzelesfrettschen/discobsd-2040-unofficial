@@ -816,6 +816,23 @@ test_matrices(void)
 			CHECK_ST(calc_mat_cond(unit, 2, work, &cond_unit), CALC_OK);
 			CHECK_NEAR(cond, cond_unit);
 		}
+		/*
+		 * Elimination overflows a factor of entries near DBL_MAX: the
+		 * system is divided by 2^e first, so the solution is finite.
+		 */
+		{
+			static const double big2[] = { 1e308, 1e308, -1e308, 1e308 };
+			static const double unit2[] = { 1, 1, -1, 1 };
+			static const double bb2[] = { 1e308, 1e308 };
+			double cond2, cond2_unit;
+
+			CHECK_ST(calc_mat_solve(big2, 2, bb2, 1, work, x), CALC_OK);
+			CHECK_NEAR(x[0], 0);
+			CHECK_NEAR(x[1], 1);
+			CHECK_ST(calc_mat_cond(big2, 2, work, &cond2), CALC_OK);
+			CHECK_ST(calc_mat_cond(unit2, 2, work, &cond2_unit), CALC_OK);
+			CHECK_NEAR(cond2, cond2_unit);
+		}
 		/* extra: two right-hand sides at once */
 		CHECK_ST(calc_mat_solve(a1, 3, bm, 2, work, x), CALC_OK);
 		CHECK_NEAR(x[0], 2);
@@ -1775,6 +1792,13 @@ test_lists(void)
 			CHECK_ST(calc_interp_table(u, ys, 2, 0.375, out), CALC_OK);
 			CHECK_TOL(out[0], 5e307, 1e-15);
 		}
+		/* The ends come back exactly where hi - lo rounds. */
+		{
+			static const double e2[] = { 1, 2 };
+
+			CHECK_ST(calc_rescale(e2, 2, 1e16, 1, out, NULL, NULL), CALC_OK);
+			CHECK(out[0] == 1e16 && out[1] == 1.0);
+		}
 		CHECK_ST(calc_rescale(z, 3, 0, 1, out, &lo, &hi), CALC_E_DOMAIN);
 		CHECK_ST(calc_rescale(z, 0, 0, 1, out, &lo, &hi), CALC_E_SIZE);
 		{
@@ -1837,6 +1861,20 @@ test_lists(void)
 
 			CHECK_ST(calc_power(h, 2, -1023, hr), CALC_OK);
 			CHECK(hr[0] == 0x1p1023 && hr[1] == -0x1p1023);
+		}
+		{
+			/*
+			 * Repeated squaring doubles the base's rounding error per step,
+			 * so a large exponent goes through exp(k log x) (an 80-digit
+			 * reference); and an in-place call reads the base's sign
+			 * before writing its result.
+			 */
+			double nb = 1.000000001, mone = -1.0;
+
+			CHECK_ST(calc_power(&nb, 1, 2147483648.0, &nb), CALC_OK);
+			CHECK(fabs(nb / 8.5632845409363354 - 1.0) <= 1e-13);
+			CHECK_ST(calc_power(&mone, 1, 2147483649.0, &mone), CALC_OK);
+			CHECK(mone == -1.0);
 		}
 		CHECK_ST(calc_power(a, 3, 2, r), CALC_OK);
 		CHECK_NEAR(r[0], 1);

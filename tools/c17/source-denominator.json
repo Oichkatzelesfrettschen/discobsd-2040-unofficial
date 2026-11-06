@@ -45703,6 +45703,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "shift-expression"
           ],
           "object_lifetime": [],
@@ -45850,10 +45851,13 @@
           ],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

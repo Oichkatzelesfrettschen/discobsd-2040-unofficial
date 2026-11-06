@@ -33,6 +33,11 @@ span_mix(double lo, double hi, double t)
 {
 	double d = hi - lo, h;
 
+	/* the ends exactly: hi - lo can round so that lo + (hi - lo) misses hi */
+	if (t == 0.0)
+		return lo;
+	if (t == 1.0)
+		return hi;
 	if (calc__isfinite(d) || !calc__isfinite(lo) || !calc__isfinite(hi))
 		return d * t + lo;
 	h = 0.5 * hi - 0.5 * lo;

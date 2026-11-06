@@ -166,6 +166,40 @@ max_abs(const double *a, size_t count)
 }
 
 /*
+ * Copy a into w, divided by 2^e when its largest entry exceeds 2^1000, and
+ * return e (0 otherwise). Partial pivoting grows an entry by at most 2^(n-1),
+ * 2^11 for CALC_MAT_MAX, so unscaled factors of entries up to 2^1000 stay
+ * finite; past that, eliminating one row from another can overflow while the
+ * solution is representable. Division by 2^e is exact and the callers undo
+ * it: the determinant by 2^(n e), a solution and the inverse by 2^-e.
+ */
+static int
+lu_load(const double *a, size_t n, double *w)
+{
+	double m = max_abs(a, n * n);
+	size_t i;
+	int e = 0;
+
+	if (m > 0x1p1000)
+		(void)calc__frexp1(m, &e);
+	for (i = 0; i < n * n; i++)
+		w[i] = e != 0 ? calc__ldexp(a[i], -e) : a[i];
+	return e;
+}
+
+/* Non-zero when every one of count entries is finite. */
+static int
+all_finite(const double *a, size_t count)
+{
+	size_t i;
+
+	for (i = 0; i < count; i++)
+		if (!calc__isfinite(a[i]))
+			return 0;
+	return 1;
+}
+
+/*
  * Common argument checks for the LU users; sets *bytes. A NaN or infinite
  * entry is CALC_E_DOMAIN: the pivot search compares magnitudes, and a NaN
  * compares false against every pivot candidate.
@@ -193,18 +227,15 @@ calc_mat_det(const double *a, size_t n, double *work, double *out)
 	size_t bytes, i;
 	calc_status st = lu_check(a, n, work, &bytes);
 	double mant;
-	int sign, ex = 0, e;
+	int sign, ex, e;
 
 	if (st != CALC_OK)
 		return st;
 	if (out == NULL)
 		return CALC_E_ARG;
-	if (work != a) {
-		if (calc__overlap(a, bytes, work, bytes))
-			return CALC_E_ALIAS;
-		for (i = 0; i < n * n; i++)
-			work[i] = a[i];
-	}
+	if (work != a && calc__overlap(a, bytes, work, bytes))
+		return CALC_E_ALIAS;
+	ex = (int)n * lu_load(a, n, work);
 	if (lu_factor(work, n, perm, &sign, 0.0) != 0) {
 		*out = 0.0;
 		return CALC_OK;
@@ -233,17 +264,20 @@ calc_mat_det(const double *a, size_t n, double *work, double *out)
 /*
  * Solve with the factors in w: forward substitution through the unit lower
  * factor, back substitution through the upper factor. x and b are n by
- * nrhs; row i of the permuted right-hand side is row perm[i] of b.
+ * nrhs; row i of the permuted right-hand side is row perm[i] of b, read
+ * divided by 2^bs.
  */
 static void
 lu_substitute(const double *w, size_t n, const size_t *perm, const double *b,
-    size_t nrhs, size_t c, double *x)
+    size_t nrhs, size_t c, int bs, double *x)
 {
 	size_t i, k;
 	double s;
 
 	for (i = 0; i < n; i++) {
 		s = b[perm[i] * nrhs + c];
+		if (bs != 0)
+			s = calc__ldexp(s, -bs);
 		for (k = 0; k < i; k++)
 			s -= w[i * n + k] * x[k * nrhs + c];
 		x[i * nrhs + c] = s;
@@ -289,7 +323,7 @@ static void
 lu_substitute_vector(const double *w, size_t n, const size_t *perm,
     const double *b, double *x)
 {
-	lu_substitute(w, n, perm, b, 1, 0, x);
+	lu_substitute(w, n, perm, b, 1, 0, 0, x);
 }
 
 static double
@@ -422,13 +456,14 @@ norm1_scaled(const double *a, size_t n, int *e)
  */
 static int
 ill_conditioned(const double *a, const double *w, size_t n, const size_t *perm,
-    double *cond)
+    int scale, double *cond)
 {
 	int e;
 	double c = norm1_scaled(a, n, &e) * inverse_norm1_estimate(w, n, perm);
 
-	if (e != 0)
-		c = calc__ldexp(c, e);
+	/* w factors a / 2^scale, whose inverse's norm is 2^scale times a's */
+	if (e != scale)
+		c = calc__ldexp(c, e - scale);
 
 	if (cond != NULL)
 		*cond = c;
@@ -442,7 +477,8 @@ calc_mat_solve(const double *a, size_t n, const double *b, size_t nrhs,
 	size_t perm[CALC_MAT_MAX];
 	size_t bytes, rbytes, i, c;
 	calc_status st = lu_check(a, n, work, &bytes);
-	int sign;
+	double bm;
+	int sign, e, bs = 0;
 
 	if (st != CALC_OK)
 		return st;
@@ -455,16 +491,25 @@ calc_mat_solve(const double *a, size_t n, const double *b, size_t nrhs,
 	    calc__overlap(b, rbytes, x, rbytes) || calc__overlap(work, bytes, b, rbytes) ||
 	    calc__overlap(work, bytes, x, rbytes))
 		return CALC_E_ALIAS;
-	for (i = 0; i < n * n; i++)
-		work[i] = a[i];
+	e = lu_load(a, n, work);
 	if (lu_factor(work, n, perm, &sign,
-	    (double)n * DBL_EPSILON * max_abs(a, n * n)) != 0)
+	    (double)n * DBL_EPSILON * max_abs(work, n * n)) != 0)
 		return CALC_E_SINGULAR;
-	if (ill_conditioned(a, work, n, perm, NULL))
+	if (ill_conditioned(a, work, n, perm, e, NULL))
 		return CALC_E_ILLCOND;
+	/*
+	 * A right-hand side past 2^1000 is read divided by 2^bs for the same
+	 * reason the matrix is: x = (A / 2^e)^-1 (B / 2^bs) 2^(bs - e).
+	 */
+	bm = max_abs(b, n * nrhs);
+	if (bm > 0x1p1000 && calc__isfinite(bm))
+		(void)calc__frexp1(bm, &bs);
 	for (c = 0; c < nrhs; c++)
-		lu_substitute(work, n, perm, b, nrhs, c, x);
-	return CALC_OK;
+		lu_substitute(work, n, perm, b, nrhs, c, bs, x);
+	if (bs != e)
+		for (i = 0; i < n * nrhs; i++)
+			x[i] = calc__ldexp(x[i], bs - e);
+	return all_finite(x, n * nrhs) ? CALC_OK : CALC_E_RANGE;
 }
 
 calc_status
@@ -474,7 +519,7 @@ calc_mat_inverse(const double *a, size_t n, double *work, double *out)
 	size_t bytes, i, j, k;
 	calc_status st = lu_check(a, n, work, &bytes);
 	double s;
-	int sign;
+	int sign, e;
 
 	if (st != CALC_OK)
 		return st;
@@ -483,12 +528,11 @@ calc_mat_inverse(const double *a, size_t n, double *work, double *out)
 	if (calc__overlap(a, bytes, work, bytes) || calc__overlap(a, bytes, out, bytes) ||
 	    calc__overlap(work, bytes, out, bytes))
 		return CALC_E_ALIAS;
-	for (i = 0; i < n * n; i++)
-		work[i] = a[i];
+	e = lu_load(a, n, work);
 	if (lu_factor(work, n, perm, &sign,
-	    (double)n * DBL_EPSILON * max_abs(a, n * n)) != 0)
+	    (double)n * DBL_EPSILON * max_abs(work, n * n)) != 0)
 		return CALC_E_SINGULAR;
-	if (ill_conditioned(a, work, n, perm, NULL))
+	if (ill_conditioned(a, work, n, perm, e, NULL))
 		return CALC_E_ILLCOND;
 	/* Column j of the inverse solves A x = e_j; row i of P e_j is 1 where perm[i] == j. */
 	for (j = 0; j < n; j++) {
@@ -505,16 +549,19 @@ calc_mat_inverse(const double *a, size_t n, double *work, double *out)
 			out[i * n + j] = s / work[i * n + i];
 		}
 	}
-	return CALC_OK;
+	if (e != 0)
+		for (i = 0; i < n * n; i++)
+			out[i] = calc__ldexp(out[i], -e);
+	return all_finite(out, n * n) ? CALC_OK : CALC_E_RANGE;
 }
 
 calc_status
 calc_mat_cond(const double *a, size_t n, double *work, double *cond)
 {
 	size_t perm[CALC_MAT_MAX];
-	size_t bytes, i;
+	size_t bytes;
 	calc_status st = lu_check(a, n, work, &bytes);
-	int sign;
+	int sign, e;
 
 	if (st != CALC_OK)
 		return st;
@@ -522,11 +569,10 @@ calc_mat_cond(const double *a, size_t n, double *work, double *cond)
 		return CALC_E_ARG;
 	if (calc__overlap(a, bytes, work, bytes))
 		return CALC_E_ALIAS;
-	for (i = 0; i < n * n; i++)
-		work[i] = a[i];
+	e = lu_load(a, n, work);
 	if (lu_factor(work, n, perm, &sign,
-	    (double)n * DBL_EPSILON * max_abs(a, n * n)) != 0)
+	    (double)n * DBL_EPSILON * max_abs(work, n * n)) != 0)
 		return CALC_E_SINGULAR;
-	(void)ill_conditioned(a, work, n, perm, cond);
+	(void)ill_conditioned(a, work, n, perm, e, cond);
 	return CALC_OK;
 }

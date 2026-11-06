@@ -78,17 +78,17 @@ calc_quat_inverse(calc_quat q, calc_quat *out)
 calc_status
 calc_quat_from_vector(double x, double y, double z, calc_quat *q, double *magnitude)
 {
-	double v[3], m;
+	double v[3], u[3], m;
 
 	if (q == NULL || magnitude == NULL)
 		return CALC_E_ARG;
 	v[0] = x;
 	v[1] = y;
 	v[2] = z;
-	/* Same scaled norm as calc_magnitude, via the public entry point. */
-	if (calc_magnitude(v, 3, &m) != CALC_OK || m == 0.0)
+	/* The scaled norm of calc_magnitude; the direction survives a norm above DBL_MAX. */
+	if (calc__direction(v, 3, u, &m) != CALC_OK)
 		return CALC_E_DOMAIN;
-	*q = qmk(0.0, x / m, y / m, z / m);
+	*q = qmk(0.0, u[0], u[1], u[2]);
 	*magnitude = m;
 	return CALC_OK;
 }
@@ -97,18 +97,18 @@ calc_status
 calc_quat_from_axis_angle(double ax, double ay, double az, double angle,
     calc_angle_unit u, calc_quat *q)
 {
-	double v[3], m, h, s, c;
+	double v[3], d[3], h, s, c;
 
 	if (q == NULL)
 		return CALC_E_ARG;
 	v[0] = ax;
 	v[1] = ay;
 	v[2] = az;
-	if (calc_magnitude(v, 3, &m) != CALC_OK || m == 0.0)
+	if (calc__direction(v, 3, d, NULL) != CALC_OK)
 		return CALC_E_DOMAIN;
 	h = 0.5 * calc_angle_to_rad(u, angle);
 	calc__sincos(h, &s, &c);
-	*q = qmk(c, ax / m * s, ay / m * s, az / m * s);
+	*q = qmk(c, d[0] * s, d[1] * s, d[2] * s);
 	return CALC_OK;
 }
 

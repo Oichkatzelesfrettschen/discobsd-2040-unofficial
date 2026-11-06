@@ -45845,7 +45845,9 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
           "integer": [
             "width-sensitive-sizeof"
@@ -46027,7 +46029,8 @@
           ],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "shift-expression"
           ],
           "object_lifetime": [],
           "pointer": [
@@ -67119,7 +67122,9 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
           "integer": [
             "integer-cast",

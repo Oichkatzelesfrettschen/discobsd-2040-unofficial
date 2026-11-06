@@ -10,12 +10,26 @@ calc_lerp(double a, double b, double t)
 	return (b - a) * t + a;
 }
 
+/*
+ * (x - lo) / span for span = hi - lo. When span exceeds DBL_MAX (halve != 0)
+ * the ratio comes from halved differences: halving is exact and gives the
+ * quotient the unbounded range would.
+ */
+static double
+fraction(double x, double lo, double hi, double span, int halve)
+{
+	if (halve)
+		return (0.5 * x - 0.5 * lo) / (0.5 * hi - 0.5 * lo);
+	return (x - lo) / span;
+}
+
 calc_status
 calc_rescale(const double *in, size_t n, double output_min, double output_max,
     double *out, double *input_min, double *input_max)
 {
 	double lo, hi, span, orange;
 	size_t i;
+	int halve;
 
 	if (in == NULL || out == NULL)
 		return CALC_E_ARG;
@@ -34,8 +48,9 @@ calc_rescale(const double *in, size_t n, double output_min, double output_max,
 	if (span == 0.0)
 		return CALC_E_DOMAIN;
 	orange = output_max - output_min;
+	halve = !calc__isfinite(span) && calc__isfinite(lo) && calc__isfinite(hi);
 	for (i = 0; i < n; i++)
-		out[i] = (in[i] - lo) / span * orange + output_min;
+		out[i] = fraction(in[i], lo, hi, span, halve) * orange + output_min;
 	if (input_min != NULL)
 		*input_min = lo;
 	if (input_max != NULL)
@@ -47,6 +62,7 @@ calc_status
 calc_interp_table(const double *xs, const double *ys, size_t n, double x, double *out)
 {
 	size_t lo, hi, mid, i;
+	double span, t;
 
 	if (xs == NULL || ys == NULL || out == NULL)
 		return CALC_E_ARG;
@@ -72,7 +88,9 @@ calc_interp_table(const double *xs, const double *ys, size_t n, double x, double
 	} else if (x == xs[hi]) {
 		*out = ys[hi];
 	} else {
-		*out = calc_lerp(ys[lo], ys[hi], (x - xs[lo]) / (xs[hi] - xs[lo]));
+		span = xs[hi] - xs[lo];
+		t = fraction(x, xs[lo], xs[hi], span, !calc__isfinite(span));
+		*out = calc_lerp(ys[lo], ys[hi], t);
 	}
 	return CALC_OK;
 }

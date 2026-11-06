@@ -1,5 +1,8 @@
 # Host and cross gate for lib/libcalc.
 #
+#   check-null-sweep  every status-returning entry point of mathematics.h has a
+#                  NULL_ARG entry in the NULL-pointer sweep of calc_test.c; a
+#                  copy of the test without the calc_stddev entry must fail
 #   check          host build and run against the specification vectors:
 #                  native, -m32 (ILP32) where the host runs it, AddressSanitizer
 #                  plus UndefinedBehaviorSanitizer where available, and the
@@ -13,7 +16,8 @@
 #                  program and run under qemu-arm user-mode emulation with
 #                  libgcc's IEEE soft-float; a skipped run reports that no ARM
 #                  execution occurred
-#   vectors        regenerate complex_vectors.h from the specification
+#   vectors        regenerate complex_vectors.h from the specification and,
+#                  for the pole-approach rows, from mpmath
 #
 # The caller selects PYTHON, as for every Python-backed gate in the tree.
 TOPSRC!=cd ../..; pwd
@@ -51,7 +55,8 @@ TREELIBM_OBJS=	${TREELIBM:S/^/tl_/:S/$/.o/} tl_errno.o
 
 all: check
 
-# complex_vectors.h is committed; it changes only when the specification does.
+# complex_vectors.h is committed; it changes only when the specification or the
+# pole-approach rows of gen_complex_vectors.py do. The pole rows need mpmath.
 vectors:
 	${PYTHON} -I gen_complex_vectors.py ${SPEC} complex_vectors.h
 
@@ -82,7 +87,7 @@ calc_test_treelibm: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS} ${TREELI
 	${HOSTCC} ${BASE_FLAGS} -fno-builtin -o $@ calc_test.c ${LIBSRCS} \
 	    ${TREELIBM_OBJS} -lm
 
-check: check-native check-ilp32 check-sanitized check-treelibm check-mutants
+check: check-native check-ilp32 check-sanitized check-treelibm check-mutants check-null-sweep
 
 check-native: calc_test
 	${TEST_EXECUTION} run libcalc.native -- ./calc_test
@@ -114,6 +119,19 @@ check-treelibm:
 	${TEST_EXECUTION} skip libcalc.treelibm "libcalc: objcopy unavailable"
 .endif
 
+# The calibration input is the test without one sweep entry: the script must
+# reject it before its verdict on the real test counts.
+check-null-sweep: check_null_sweep.sh calc_test.c ${LIBDIR}/mathematics.h
+	@sed '/NULL_ARG(calc_stddev(/d' calc_test.c > null_sweep_negative.c
+	@if sh ./check_null_sweep.sh ${LIBDIR}/mathematics.h null_sweep_negative.c \
+	    >/dev/null 2>&1; then \
+		echo "libcalc: null sweep check accepted a test without a calc_stddev entry" >&2; \
+		rm -f null_sweep_negative.c; exit 1; \
+	fi
+	@rm -f null_sweep_negative.c
+	@echo "libcalc: null sweep check rejects the missing-entry negative control"
+	sh ./check_null_sweep.sh ${LIBDIR}/mathematics.h calc_test.c
+
 mutants.stamp: calc_mutate.py ${LIBSRCS} ${HEADERS}
 	${PYTHON} -I calc_mutate.py ${LIBDIR} mutants
 	touch $@
@@ -143,10 +161,12 @@ check-cross: bad_malloc.o check_object.sh
 # The host complex.h grid is left out: newlib's catan, casinh, cacosh and
 # catanh do not follow Annex G on the branch cuts, so they cannot serve as
 # the reference there. The Annex G table in complex_vectors.h still runs.
+# CALC_TEST_NO_SIGNALS drops the fault recovery of the NULL-pointer sweep: the
+# bare-metal C library has no sigaction, and a fault ends the run.
 calc_test_arm: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS} ${QEMU_SUPPORT}
 	${GCCPREFIX}-gcc -std=gnu17 -Wall -Wextra -Werror -Os \
 	    -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
-	    -DCALC_TEST_NO_HOST_COMPLEX -I${LIBDIR} \
+	    -DCALC_TEST_NO_HOST_COMPLEX -DCALC_TEST_NO_SIGNALS -I${LIBDIR} \
 	    -nostartfiles -Wl,-Ttext=0x20000 -o $@ calc_test.c ${QEMU_SUPPORT} \
 	    ${LIBSRCS} -lm -lc -lgcc
 
@@ -162,8 +182,8 @@ check-qemu:
 
 clean:
 	rm -f calc_test calc_test32 calc_test_san calc_test_treelibm calc_test_arm tl_*.o \
-	    bad_malloc.o mutants.stamp
+	    bad_malloc.o mutants.stamp null_sweep_negative.c
 	$(PYTHON) -I -c 'import shutil; shutil.rmtree("mutants", ignore_errors=True)'
 
 .PHONY: all vectors check check-native check-ilp32 check-sanitized \
-    check-treelibm check-mutants check-cross check-qemu clean
+    check-treelibm check-mutants check-null-sweep check-cross check-qemu clean

@@ -321,12 +321,20 @@ cacos_(double x, double y)
 	return cmk(re, -calc__copysign(lg, y));
 }
 
-/* atanh from its real and imaginary parts; the poles are screened by the caller. */
+/*
+ * atanh from its real and imaginary parts; the poles are screened by the
+ * caller. The real part is odd in x, so it is formed for |x| and takes the
+ * sign of x: 4x/d rounds to -1 at x = -1 and log1p(-1) is -infinity, where
+ * the reflected argument gives the same value as the +1 side. Within 2^-500 of
+ * a pole (d = |1 - x|^2 + y^2 below 2^-1000, where d would underflow and 4x/d
+ * overflow) the real part is half the difference of two logarithms of exactly
+ * representable moduli.
+ */
 static calc_cplx
 catanh_(double x, double y)
 {
 	double m = calc__fabs(x) > calc__fabs(y) ? calc__fabs(x) : calc__fabs(y);
-	double xs, ys, den, d;
+	double xs, ys, den, d, xa, re;
 
 	if (m > 1.0e150) {
 		xs = x / m;
@@ -334,8 +342,13 @@ catanh_(double x, double y)
 		den = m * (xs * xs + ys * ys);
 		return cmk(xs / den, calc__copysign(CALC_HALF_PI, y));
 	}
-	d = (1.0 - x) * (1.0 - x) + y * y;
-	return cmk(0.25 * calc__log1p(4.0 * x / d),
+	xa = calc__fabs(x);
+	d = (1.0 - xa) * (1.0 - xa) + y * y;
+	if (d < 0x1p-1000)
+		re = 0.5 * (calc__log(calc__hypot(1.0 + xa, y)) - calc__log(calc__hypot(1.0 - xa, y)));
+	else
+		re = 0.25 * calc__log1p(4.0 * xa / d);
+	return cmk(calc__copysign(re, x),
 	    0.5 * calc__atan2(2.0 * y, (1.0 - x) * (1.0 + x) - y * y));
 }
 

@@ -80,6 +80,57 @@ calc__isinf(double x)
 	return !calc__isnan(x) && !calc__isfinite(x);
 }
 
+/*
+ * Power-of-two scaling from the IEEE exponent field. A power of two is exact
+ * on the host and on the ROM float provider, so a value scaled by one and
+ * scaled back returns every mantissa bit while the intermediate stays inside
+ * the normal range. The ROM flushes subnormals, so no helper forms a
+ * subnormal factor.
+ */
+
+/* 2^e exactly, for e in [-1022, 1023]. */
+static inline double
+calc__pow2(int e)
+{
+	union { double d; uint64_t u; } v;
+
+	v.u = (uint64_t)(e + 1023) << 52;
+	return v.d;
+}
+
+/*
+ * x * 2^e for e in [-2044, 2044]: two factors of 2^(e / 2) and 2^(e - e / 2),
+ * each inside [2^-1022, 2^1022]. Exact when x and the result are normal and
+ * no partial product leaves the normal range.
+ */
+static inline double
+calc__ldexp(double x, int e)
+{
+	int h = e / 2;
+
+	return x * calc__pow2(h) * calc__pow2(e - h);
+}
+
+/*
+ * The finite non-zero x with its exponent replaced by 0: a value in [1, 2)
+ * with the sign of x kept. *e receives the exponent, so x = result * 2^*e.
+ */
+static inline double
+calc__frexp1(double x, int *e)
+{
+	union { double d; uint64_t u; } v;
+	int shift = 0;
+
+	v.d = x;
+	if (((v.u >> 52) & 0x7ff) == 0) {
+		v.d *= 0x1p54;
+		shift = 54;
+	}
+	*e = (int)((v.u >> 52) & 0x7ff) - 1023 - shift;
+	v.u = (v.u & ~((uint64_t)0x7ff << 52)) | ((uint64_t)1023 << 52);
+	return v.d;
+}
+
 /* Non-zero when the byte ranges [a, a + abytes) and [b, b + bbytes) share a byte. */
 static inline int
 calc__overlap(const void *a, size_t abytes, const void *b, size_t bbytes)
@@ -99,6 +150,13 @@ calc__partial(const void *a, const void *b, size_t bytes)
 {
 	return a != b && calc__overlap(a, bytes, b, bytes);
 }
+
+/*
+ * out = a / |a| for n components, overflow-safe; *mag (may be NULL) receives
+ * |a|, which is infinite when it exceeds DBL_MAX while out stays exact.
+ * CALC_E_DOMAIN for the zero vector (out unwritten). out may equal a.
+ */
+calc_status calc__direction(const double *a, size_t n, double *out, double *mag);
 
 double calc__exp(double x);
 double calc__log(double x);

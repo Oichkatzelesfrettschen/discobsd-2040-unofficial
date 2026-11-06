@@ -26,6 +26,14 @@
  *
  *   - A finite input of normal magnitude whose exact result is a normal
  *     double gives the documented value within the accuracy the tests state.
+ *     The routines that evaluate a formula the header states term by term
+ *     (calc_dot, calc_cross3, calc_mat_mul, calc_mat_vec, calc_rotate2d,
+ *     calc_rotate2d_i32, calc_lerp, calc_blend, calc_quat_mul and
+ *     calc_quat_rotate) keep the promise only when every documented
+ *     intermediate product and sum is itself finite: calc_dot of
+ *     (1e200, -1e200, 1) with (1e200, 1e200, 1) overflows in a product and
+ *     returns NaN where the exact result is 1. Scaling each call by its
+ *     largest operand would cost a pass over the data per call.
  *   - A NaN produced by arithmetic (0/0, inf - inf, inf * 0, a NaN summand)
  *     arrives as an infinity. The functions whose documented value is a NaN
  *     are calc_asinh, calc_acosh and calc_atanh outside their domains, the
@@ -277,7 +285,11 @@ calc_quat calc_quat_conj(calc_quat q);
  * when a component of the inverse is not finite. out is unwritten otherwise.
  */
 calc_status calc_quat_inverse(calc_quat q, calc_quat *out);
-/* w = 0, unit xyz and the original length. DOMAIN for the zero vector. */
+/*
+ * w = 0, unit xyz and the original length. DOMAIN for the zero vector. A
+ * length above DBL_MAX is returned as +infinity with CALC_OK; the unit
+ * direction stays exact.
+ */
 calc_status calc_quat_from_vector(double x, double y, double z, calc_quat *q,
     double *magnitude);
 /* The axis is normalized first; a zero axis is CALC_E_DOMAIN. */
@@ -361,7 +373,9 @@ calc_status calc_scale_i64(const int64_t *in, size_t n, double s, int64_t *out);
 /*
  * Raise each element to a power. CALC_E_DOMAIN for a negative base with a
  * non-integer exponent and for 0 raised to a negative exponent; nothing is
- * written then.
+ * written then. An exponent is an integer when it is finite and equals its
+ * floor, whatever its magnitude: (-1) raised to 1e300 is 1 and to 2^31 + 1
+ * is -1.
  */
 calc_status calc_power(const double *in, size_t n, double exponent, double *out);
 
@@ -429,7 +443,15 @@ typedef struct {
 	double integrator, last_error, differentiator, last_measurement, output;
 } calc_pid;
 
-/* CALC_E_ARG for period < 0.001, tau < 0, an inverted limit pair or a NaN. */
+/*
+ * CALC_E_ARG for period < 0.001, tau <= 0, an inverted limit pair or a NaN.
+ * With tau = 0 the bilinear recurrence reduces to d[n] = -d[n-1] - 2 kd
+ * (m[n] - m[n-1]) / T, which alternates for a held measurement and filters
+ * nothing, so tau = 0 has no meaning as a derivative band limit.
+ *
+ * The derivative acts on the measurement, d[n] = (-2 kd (m[n] - m[n-1]) +
+ * (2 tau - T) d[n-1]) / (2 tau + T), the Tustin form of -kd s / (tau s + 1).
+ */
 calc_status calc_pid_init(calc_pid *c, double kp, double ki, double kd, double tau,
     double period, double out_lo, double out_hi, double integ_lo, double integ_hi);
 double calc_pid_update(calc_pid *c, double setpoint, double measurement);

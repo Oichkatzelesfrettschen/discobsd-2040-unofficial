@@ -105,7 +105,8 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
     reports a short buffer as `CALC_E_SIZE`.
 15. **PID.** `calc_pid` is a struct whose field order and names differ from the original 14-element array,
     which belongs to the interpreter binding. `calc_pid_init` returns `CALC_E_ARG` for a period below 0.001
-    (the original's INIT rule), a negative `tau`, an inverted limit pair or a non-finite gain.
+    (the original's INIT rule), a `tau` that is zero or negative, an inverted limit pair or a non-finite gain.
+    The derivative recurrence is the trapezoidal form of the specification's section 3.12 (decision 25).
 16. **Complex.** One `calc_c_arg` serves both the C_ARG and C_CARG spellings; the calculator command should
     document that the manual says `C_ARG` and the original dispatches `C_CARG`. A non-finite operand passes
     through without a range check. Overflow of finite operands is `CALC_E_RANGE`. Magnitudes beyond 1e150
@@ -117,8 +118,12 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
     `CALC_E_RANGE` the outputs are unspecified.
 19. **Median.** `scratch` must not overlap the input (`CALC_E_ALIAS`); NaN input gives an unspecified order
     but no out-of-bounds access (the heap sort compares with strict less-than).
-20. **Power.** Integral exponents up to 1e9 use binary exponentiation (exact for small integers, and the only
-    route for a negative base); other exponents use `exp(e * log(x))`; exponent 0.5 uses `sqrt`.
+20. **Power.** An exponent is integral when it is finite and equals its floor, whatever its size. Integral
+    exponents up to 2^31 in magnitude use binary exponentiation (exact for small integers, at most 32
+    squarings); larger integral exponents use `exp(e * log|x|)` with the sign of a negative base taken from
+    the parity of the exponent (every finite double of magnitude 2^53 or more is even). Other exponents use
+    `exp(e * log(x))`; exponent 0.5 uses `sqrt`. The former cut at 1e9 made `(-1)^1000000001` and
+    `(-1)^1e300` report `CALC_E_DOMAIN`.
 
 21. **Conditioning (beyond the specification).** The pivot threshold accepts matrices whose inverse carries
     no correct digit: the 12-by-12 Hilbert matrix returned `CALC_OK` with `max|A * inv - I|` 0.0625, and
@@ -149,6 +154,62 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
     execution under the hardware opt-in is the measurement that confirms or revises it. The prediction to
     falsify: the NaN-propagation and subnormal-range checks fail on the board and every finite
     normal-range check passes. The new quaternion range check (`1e-310`) is such a subnormal check.
+24. **NULL required pointers.** `calc_stddev` wrote through its output before checking it. A sweep in
+    `calc_test.c` calls every status-returning entry point once per required pointer with that pointer NULL
+    and requires `CALC_E_ARG`; the sweep catches SIGSEGV and SIGBUS with `sigaction` and `sigsetjmp`, so a
+    deleted guard is a `FAIL` line and not a crash. The qemu-arm run defines `CALC_TEST_NO_SIGNALS`
+    (bare-metal newlib has no `sigaction`) and runs the same calls without recovery. `check_null_sweep.sh`
+    holds the sweep to the status-returning entry points declared in `mathematics.h`, so a new function
+    without a sweep entry fails the `check-null-sweep` target.
+25. **PID derivative.** The derivative acts on the measurement, D(s) = -Kd s / (tau s + 1) M(s). The bilinear
+    transform gives d[n] = (-2 Kd (m[n] - m[n-1]) + (2 tau - T) d[n-1]) / (2 tau + T), whose pole is
+    (2 tau - T) / (2 tau + T). The shipped code and the specification carried the feedback term with the
+    sign of the input term, which put the pole at the negative of that value: with tau much larger than T
+    the derivative rang with alternating sign, and a ramp of slope r settled at -Kd r T / (2 tau) instead of
+    -Kd r. The specification (section 3.12) now records the legacy form and the corrected form as a
+    Required divergence, the first vector of section 5.14 is regenerated, and `tau <= 0` is `CALC_E_ARG`
+    (at tau = 0 the corrected form alternates between plus and minus 2 Kd / T and the old one accumulates).
+    Two properties independent of any stored vector gate the recurrence: a ramp settles at -Kd r, and a held
+    step decays monotonically with one sign for tau >= T / 2.
+26. **Range of intermediates.** The promise
+    in `mathematics.h` is that a finite normal input with a normal exact result gives the documented value.
+    Eleven routines broke it by overflowing or underflowing an intermediate. Each fix keeps the plain
+    expression on the common path and reruns on a scaled copy only when the plain result left the normal
+    range, using the helpers of `calc_internal.h` (`calc__pow2`, `calc__ldexp`, `calc__frexp1`), which build a
+    power of two from the IEEE exponent field. A power of two is exact on the host and on the ROM provider,
+    and no helper forms a subnormal factor.
+    - Statistics (`calc_stats.c`): `calc_mean`, `calc_variance`, `calc_stddev`, `calc_correl` and
+      `calc_chi_square` rerun on the list scaled by 2^(1 - e), e being the exponent of the largest magnitude,
+      when the plain result is non-finite (mean, variance, chi-square), outside [DBL_MIN, DBL_MAX]
+      (standard deviation: a deviation inside the range can belong to a variance outside it) or when a
+      variance of the correlation is outside that range. The rerun skips lists with a NaN, an infinity or
+      nothing above the subnormal range. The even-length median uses `lo + (hi - lo) / 2` when `lo + hi`
+      overflows. Chi-square always forms `rowtot * (coltot / total)` and `d * (d / e)`: the products of two
+      totals and of two deviations underflow into the subnormal range near 1e-160 and overflow near 1e154.
+    - `calc_mat_det` keeps the product of the pivots as a mantissa in (-2^n, 2^n) and an integer exponent,
+      always (not only on overflow): the result equals the plain product bit for bit while no partial
+      product leaves the normal range, and a partial product that underflowed into the subnormal range no
+      longer costs bits. `diag(2^600, 2^600, 2^-600, 2^-600)` gives 1 in every order.
+    - The condition estimate scales its test vectors so that each has 1-norm at most 1: the dual vector
+      entries are +-1/n and the alternating vector is multiplied by 2 / (3 n). `DBL_MIN * I` gave an
+      infinite estimate and `CALC_E_ILLCOND`. A matrix whose inverse has a 1-norm beyond DBL_MAX still
+      has an infinite estimate (entries near 1e-300 with a condition number of 1e8 give `inf` from
+      `calc_mat_cond` and `CALC_E_ILLCOND` from `calc_mat_inverse`); that residual is not fixed.
+    - `calc_normalize`, `calc_quat_from_vector` and `calc_quat_from_axis_angle` share `calc__direction`. When
+      the norm exceeds DBL_MAX the quotient is formed from operands scaled by 2^-32, which returns the
+      quotient the unbounded range would. `calc_quat_from_vector` of `(DBL_MAX, DBL_MAX, DBL_MAX)` returns
+      the exact unit direction and a length of +infinity with `CALC_OK`.
+    - `catanh_` (serving `atanh` and `atan`) evaluates the real part at |x| and copies the sign of x,
+      since `4x/d` rounds to -1 at x = -1; within 2^-500 of a pole it uses half the difference of two
+      logarithms of moduli. `calc__log1p` returns `log(x)` above 2^53.
+    - `calc_rescale` and `calc_interp_table` form the ratio from halved differences when the range of the
+      inputs exceeds DBL_MAX.
+27. **Contract narrowing.** The raw bilinear forms (`calc_dot`, `calc_cross3`, `calc_mat_mul`,
+    `calc_mat_vec`, `calc_rotate2d`, `calc_rotate2d_i32`, `calc_lerp`, `calc_blend`, `calc_quat_mul`,
+    `calc_quat_rotate`) evaluate the formula the header states. `calc_dot` of `(1e200, -1e200, 1)` with
+    `(1e200, 1e200, 1)` is NaN where the exact result is 1. Scaling each call costs a pass over the data per
+    call, so `mathematics.h` now limits the range promise for these routines to inputs whose documented
+    intermediate products and sums are finite.
 
 ## Findings about the tree's `lib/libm`
 
@@ -181,16 +242,16 @@ Commands (the caller exports `PYTHON`, as for every Python-backed gate in the tr
 
 `check` builds `calc_test.c` against the library sources with
 `-std=c17 -pedantic-errors -Wall -Wextra -Werror -Wshadow -Wconversion -Wold-style-definition -O1` and runs
-it four ways; each run executes 13511 checks and passes. `check-qemu` links the same test with newlib as a
+it four ways; each run executes 14645 checks and passes. `check-qemu` links the same test with newlib as a
 Thumb-1 program and runs it under qemu-arm user-mode emulation:
 
 | Variant | Evidence class | Result |
 |---|---|---|
-| native (x86-64, host libm) | host execution | 13511 checks pass |
-| `-m32 -msse2 -mfpmath=sse` (ILP32) | host execution at the target's integer widths | 13511 pass |
-| AddressSanitizer plus UndefinedBehaviorSanitizer, `-fno-sanitize-recover=all` | host execution | 13511 pass |
-| tree `lib/libm` sources linked ahead of the host libm | host execution against the tree's libm | 13511 pass |
-| `-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft`, newlib, qemu-arm 11.1.3 | instruction execution under emulation with libgcc soft-float (IEEE) | 10654 pass |
+| native (x86-64, host libm) | host execution | 14645 checks pass |
+| `-m32 -msse2 -mfpmath=sse` (ILP32) | host execution at the target's integer widths | 14645 pass |
+| AddressSanitizer plus UndefinedBehaviorSanitizer, `-fno-sanitize-recover=all` | host execution | 14645 pass |
+| tree `lib/libm` sources linked ahead of the host libm | host execution against the tree's libm | 14645 pass |
+| `-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft`, newlib, qemu-arm 11.1.3 | instruction execution under emulation with libgcc soft-float (IEEE) | 11788 pass |
 
 The qemu run uses `tests/libbn/qemu_support.c` for the Linux system calls newlib needs and defines
 `CALC_TEST_NO_HOST_COMPLEX`: the 15-function comparison with the C library's `<complex.h>` drops out,
@@ -239,8 +300,9 @@ Measured errors sit near 2 percent of the bound (3.1e-14 against 5.3e-12 at n = 
 table path above 4 and 8 points went unchecked despite this record. A twiddle table scaled by a relative
 1e-10 now fails the check by three to four orders of magnitude (mutant `fft_twiddle_tenth_digit`).
 
-Mutants (`calc_mutate.py`, `check_mutants.sh`): the unmutated sources pass, then 34 single-fault copies must
-each make `calc_test` exit 1 with a `FAIL` line. All 34 are rejected (`calc mutants: 34 of 34 rejected`;
+Mutants (`calc_mutate.py`, `check_mutants.sh`): the unmutated sources pass, then 55 single-fault copies must
+each make `calc_test` exit 1 with a `FAIL` line. All 55 are rejected (`calc mutants: 55 of 55 rejected`;
+the 34 of the first round are listed next and the 21 of the range review after them;
 the 28 listed next, then six added for conditioning, non-finite matrices, the quaternion scaling and the
 twiddle table):
 LU without pivoting, determinant sign dropped, inverse threshold reduced to exact zero, wrong FFT bit
@@ -253,7 +315,18 @@ unscaled magnitude, wrong ATAN3 wrap, wrong sine/cosine quadrant sign, inexact p
 invalid characters read as zero, OR performing AND, wrong rescale offset and PID derivative sign; then
 inverse without the condition check, solve without it, a condition estimate that never leaves its first
 iterate, non-finite entries reaching the factorization, an unscaled quaternion inverse and a twiddle table
-wrong in the tenth digit. The `inverse_threshold_zero` anchor moved with the new check. The
+wrong in the tenth digit. The `inverse_threshold_zero` anchor moved with the new check.
+The 21 mutants of the range review restore the former expression of one fix each: the PID feedback sign
+(`pid_feedback_negated`; `pid_derivative_sign` now drops the input sign) and a zero `tau`; the missing
+`calc_stddev` output guard, which the NULL sweep reports as a fault; the unscaled condition-estimate vectors;
+the plain determinant product; the atanh real part at x instead of |x|, without the log-difference branch
+near a pole, and `calc__log1p` without its large-argument branch; the mean, median, variance and standard
+deviation without their overflow reruns, the standard deviation without the underflow rerun, the
+correlation without the overflow rerun and without the underflow rerun, the chi-square with the product
+order and without the total rerun; normalization without the scaled direction; the power with the 1e9
+integer cut and without the parity sign; and rescaling and table interpolation without halved
+differences. `check-mutants` runs them with the rest. The NULL sweep is held to the header by
+`check_null_sweep.sh` (64 entry points), calibrated by a copy of the test without the `calc_stddev` entry. The
 powers-of-ten mutant survived the first test version (the specification's vectors do not expose the
 inexact cases), which led to the exact-power checks. Separately, the first run of the near-axis and
 large-magnitude complex checks found two real defects in `calc_complex.c`, both fixed: an unscaled operand
@@ -273,20 +346,28 @@ are in text:
 | Object | text | data | bss |
 |---|---|---|---|
 | `calc_base64.o` | 685 | 0 | 0 |
-| `calc_complex.o` | 4816 | 0 | 0 |
+| `calc_complex.o` | 4928 | 0 | 0 |
 | `calc_crc.o` | 868 | 0 | 0 |
-| `calc_elem.o` | 2444 | 0 | 0 |
+| `calc_elem.o` | 2556 | 0 | 0 |
 | `calc_fft.o` | 868 | 0 | 0 |
-| `calc_interp.o` | 652 | 0 | 0 |
-| `calc_matrix.o` | 4008 | 0 | 0 |
-| `calc_pid.o` | 696 | 0 | 0 |
-| `calc_quat.o` | 2004 | 0 | 0 |
+| `calc_interp.o` | 932 | 0 | 0 |
+| `calc_matrix.o` | 4208 | 0 | 0 |
+| `calc_pid.o` | 692 | 0 | 0 |
+| `calc_quat.o` | 1912 | 0 | 0 |
 | `calc_rng.o` | 576 | 0 | 0 |
 | `calc_scalar.o` | 2140 | 0 | 0 |
-| `calc_stats.o` | 3756 | 0 | 0 |
-| `calc_util.o` | 1512 | 0 | 0 |
-| `calc_vector.o` | 1492 | 0 | 0 |
-| **total** | **26517** | **0** | **0** |
+| `calc_stats.o` | 4940 | 0 | 0 |
+| `calc_util.o` | 1544 | 0 | 0 |
+| `calc_vector.o` | 1704 | 0 | 0 |
+| **total** | **28553** | **0** | **0** |
+
+The range review added 2036 bytes of text (26517 to 28553, 7.7 percent), measured by `arm-none-eabi-size` on
+the objects before and after (`arm-none-eabi-gcc` 16.2.0, `-Os`): `calc_stats.o` +1184, `calc_interp.o` +280,
+`calc_matrix.o` +200, `calc_elem.o` +112, `calc_complex.o` +112, `calc_vector.o` +212, `calc_util.o` +32,
+`calc_quat.o` -92, `calc_pid.o` -4. The statistics dominate because five functions gained a scaled rerun
+with its soft-float loops. The common path of each routine runs the same operations as before, apart from
+the determinant, which always multiplies mantissas, and the quaternion constructors, which share
+`calc__direction`.
 
 Largest function frame (`-fstack-usage`): 560 bytes (`inverse_norm1_estimate`, four 12-entry vectors plus
 the inlined substitutions); `calc_mat_inverse` adds 176 (the 12-entry permutation array included), so the
@@ -294,8 +375,8 @@ inverse path peaks near 740 bytes, and the largest frame outside the matrix obje
 (`calc_quat_from_euler`). The linked objects reference only `atan2`, `cos`,
 `exp`, `floor`, `log`, `sin`, `sqrt`, `memcpy`, `memset` and compiler-runtime `__aeabi_*` helpers; `check-cross` links
 the objects with `ld -r`, lists the undefined symbols against that allow-list, and rejects a calibration
-object that calls `malloc`. The 26.5 KB total (24.6 KB before the conditioning estimate and the scaled
-quaternion inverse) lies far below the 144 KB process window; a program that links
+object that calls `malloc`. The 28.6 KB total (26.5 KB before the range fixes, 24.6 KB before the
+conditioning estimate and the scaled quaternion inverse) lies far below the 144 KB process window; a program that links
 only the statistics or the CRC pulls in one or two objects plus `calc_util.o`.
 
 Not run: execution on the ISA of silicon, and execution through the boot ROM float routines. The qemu-arm run
@@ -331,18 +412,24 @@ Each change answers a finding in `docs/research/calculator-and-games-review.md`.
 - Spelling: "centre" became "center" in `calc_stats.c`.
 - `tests/libbn/check_mutants.sh` bounds each mutant at 120 seconds, as the libcalc runner does.
 
-## Follow-ups
+## Revision after the second review
 
-- Add `libcalc` and `libbn` to `SUBDIR` in `lib/Makefile` with the first program that links them. The
-  gates already run in every tier: `check-libcalc` and `check-libbn` in `HOST_GATES` and the required ILP32
-  recipes, `check-libcalc-cross` and `check-libbn-cross` in the cross tier, and both qemu runs in
-  `check-qemu` (`sys/arch/rp2040/doc/TESTING.md`).
-- Run `calc_test` on the board under the hardware opt-in to measure which checks move under the ROM float
-  routines (prediction in decision 23).
-- The reviewer's similarity checklist (section 6 of the specification) applies to `lib/libcalc` and
-  `tests/libcalc`. Author-side search (case-insensitive grep of the section 6.2 and 6.3 identifiers and
-  constants over both trees) found no distinctive identifier, no 6069 or 4357, no 0xffffffff divisor, no
-  1.5e308 or 3.0e38 sentinel and no chi-square table; the only hits are the published CRC parameter values
-  0xFFFFFFFF in the catalog presets and tests. The PID fields `kp`, `ki`, `kd` and `tau` are the standard
-  controller symbols and match the checklist's case-insensitive search by name only; the struct layout
-  differs from the original array order.
+The range, PID and NULL-pointer rows of the round 2 adjudication (`docs/research/calculator-and-games-review-round2.md`
+on the calculator-and-games branch) are implemented as decisions 20 and 24 to 27. The check count of
+`calc_test` rose from 13511 to 14645 on the host variants and from 10654 to 11788 under qemu-arm. The new
+checks are: the NULL sweep (64 entry points, one call per required pointer); the exact scale relation at
+k = -1000, -500, 500 and 1000 for mean, median, standard deviation, variance (k = +-500, the result of
+k = +-1000 is not a normal double), correlation (each list scaled alone and both inversely), chi-square,
+normalization, magnitude, the quaternion constructors, the condition estimate, the determinant with one row
+scaled, rescaling and table interpolation; the determinant of every ordering of diagonals with a
+representable exact determinant; the extreme-range cases (lists of 1e308, squares near 1e154 and 1e-160, tables of
+1e300 and 1e-160, vectors of `DBL_MAX`, `DBL_MIN * I`); power at exponents 2^31 + 1, 2^52 + 1, 2^53 and
+1e300 for bases -1, -2, -0.5, 2, 0.5, 1 and 0; the PID ramp and held-step properties; and 28 pole-approach
+rows (atanh at +-1 and atan at +-i with offsets of 1e-10, 1e-153 and 1e-160 on either side of each pole, and
+at 1 - 1e-10), generated by `gen_complex_vectors.py` from mpmath at 60 digits. The mpmath values agree with
+the reference values of the review (atanh(-1 + 1e-10 i) = -11.8594990552502 + 0.785398163422448 i). The new
+test run against the sources before the range fixes reports 281 failed checks on 79 distinct lines, among them the
+`calc_stddev` call with a NULL output, which the sweep recovers from as a fault.
+
+Not changed: the condition estimate is infinite for a matrix whose inverse 1-norm exceeds DBL_MAX (decision
+26), and the raw bilinear forms keep their narrowed promise (decision 27).

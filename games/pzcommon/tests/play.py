@@ -150,7 +150,10 @@ class Game:
             if test is not None:
                 os.environ["GAMEBOX_TEST"] = test
             os.execv(prog, [prog] + list(args))
-        self.pull()
+        # The first frame follows the generator, which takes about a second
+        # for the largest Flood board on a loaded host; pull() returns as soon
+        # as output arrives and goes quiet.
+        self.pull(10.0)
 
     def pull(self, timeout=0.4):
         end = time.time() + timeout

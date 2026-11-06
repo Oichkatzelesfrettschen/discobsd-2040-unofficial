@@ -168,10 +168,15 @@ def test_syntax_highlighting():
     and comments in color on the very first screen, with nothing typed.
     A .txt file opened with the same content hits HL_NORMAL for every
     character and paints no color at all -- editorSelectSyntaxHighlight
-    matches C_HL_extensions (".c", ".h", ...) and nothing else."""
+    matches C_HL_extensions (".c", ".h", ...) and nothing else. The .c
+    file sits in a directory whose name holds ".c" earlier in the path,
+    which an extension matched anywhere in the name instead of at its end
+    takes for the extension."""
     c_content = "int main(void) {\n    /* a comment */\n    return 0;\n}\n"
-    c_path = os.path.join(tempfile.gettempdir(),
-                           "kilo-test-pty-%d.c" % os.getpid())
+    c_dir = os.path.join(tempfile.gettempdir(),
+                         "kilo-test-pty-%d.cache" % os.getpid())
+    os.mkdir(c_dir)
+    c_path = os.path.join(c_dir, "kilo-test-pty-%d.c" % os.getpid())
     txt_path = os.path.join(tempfile.gettempdir(),
                              "kilo-test-pty-%d.txt" % os.getpid())
     with open(c_path, "w") as f:
@@ -203,6 +208,7 @@ def test_syntax_highlighting():
                     sys.exit(1)
     finally:
         os.unlink(c_path)
+        os.rmdir(c_dir)
         os.unlink(txt_path)
 
     print("PASS: .c file highlights keywords and comments, "

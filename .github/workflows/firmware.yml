@@ -325,7 +325,7 @@ jobs:
             --log .build-logs/posix-dcbc-ilp32.log \
             --status .build-logs/posix-dcbc-ilp32.status.json \
             --idle-timeout-seconds 240 --timeout-seconds 420 \
-            -- bmake -C tests/dcbc check-ilp32 REQUIRE_ILP32=1
+            -- bmake -C tests/dcbc check-ilp32 check-peak REQUIRE_ILP32=1
       - name: Retain ILP32 gate logs
         if: always()
         uses: actions/upload-artifact@v4

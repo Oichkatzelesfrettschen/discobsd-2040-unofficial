@@ -58,7 +58,7 @@ EXPECTED_COMMANDS = {
         "bmake MACHINE=rp2040 check-ilp32-execution "
         'TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"'
     ),
-    "posix-dcbc-ilp32": "bmake -C tests/dcbc check-ilp32 REQUIRE_ILP32=1",
+    "posix-dcbc-ilp32": "bmake -C tests/dcbc check-ilp32 check-peak REQUIRE_ILP32=1",
     "posix-inventory": "bmake MACHINE=rp2040 check-test-execution",
     "sdk-flash-id": "bmake MACHINE=rp2040 check-flash-id",
 }

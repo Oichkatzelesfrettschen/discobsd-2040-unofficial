@@ -135,8 +135,15 @@ check-sanitized:
 
 # Peak live heap of dc at -m32 over the programs in peak.json, against the
 # ceilings recorded there.
-check-peak: build/peak/dc/dc
+check-peak:
+.if ${ILP32_OK} == "yes" && ${ILP32_LIBC_OK} == "yes"
+	@${MAKE} build/peak/dc/dc
 	${PYTHON} -I run_cases.py --peak build/peak/dc/dc --peak-limits peak.json
+.elif ${REQUIRE_ILP32} == "1"
+	@echo "FAIL dcbc peak: REQUIRE_ILP32=1 but no -m32 C library (probe ${ILP32_OK}, headers ${ILP32_LIBC_OK})" >&2; exit 1
+.else
+	@echo "SKIP dcbc peak: no -m32 C library (probe ${ILP32_OK}, headers ${ILP32_LIBC_OK}); no heap was measured"
+.endif
 
 check-mutants: build/native/dc/dc build/native/bc/bc
 	HOSTCC="${HOSTCC}" BISON="${BISON}" LEX_HOST="${LEX_HOST}" \

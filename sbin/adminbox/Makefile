@@ -16,11 +16,18 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
+BINDIR=		/sbin
+
 OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
 TOOLS=		shutdown reboot sysctl timeout
+
+# Dispatch names the manifest deliberately leaves unlinked; the multicall
+# composition gate (tools/check_multicall_composition.py) rejects any
+# other dispatch name that ships no link.
+UNSHIPPED_TOOLS=
 
 # The built-in applets replace one-block scripts without adding private BSS.
 BUILTIN_TOOLS=	true false nohup
@@ -99,7 +106,7 @@ ${PROG}:	adminbox.o ${OBJS} ${BUILTIN_OBJS} verify-builtin-bss \
 .endif
 
 install:	all
-	${INSTALL} -m 755 ${PROG} ${DESTDIR}/sbin/${PROG}
+	${INSTALL} -m 755 ${PROG} ${DESTDIR}${BINDIR}/${PROG}
 
 clean:
 	rm -f *.o *.r *.elf ${PROG} adminbox.c ${LINK_MAP}

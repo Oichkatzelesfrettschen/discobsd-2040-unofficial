@@ -251,20 +251,26 @@ op_binary(const char *op, const char *sa, const char *sb, const char *want)
 	int same = strcmp(sa, sb) == 0;
 	unsigned v;
 
-	for (v = 0; v < 6; v++) {
-		BIGNUM *a = from_hex(sa), *b, *r, *all[3];
+	/* v / 2 picks the aliasing and v & 1 the context, so every aliasing
+	 * runs both with and without a BN_CTX. */
+	for (v = 0; v < 10; v++) {
+		BIGNUM *a, *b, *r, *all[3];
 		BN_CTX *ctx = pick_ctx(v);
+		unsigned alias = v / 2;
 		int ok;
 
-		/* Variants 4 and 5 pass one BIGNUM as both operands, which
+		/* Aliasings 3 and 4 pass one BIGNUM as both operands, which
 		 * is only legal when the vector's operands are equal. */
-		if (same && v >= 4)
+		if (alias >= 3 && !same)
+			continue;
+		a = from_hex(sa);
+		if (alias >= 3)
 			b = a;
 		else
 			b = from_hex(sb);
-		if (v == 2 || (v == 4 && same))
+		if (alias == 1 || alias == 3)
 			r = a;
-		else if (v == 3)
+		else if (alias == 2)
 			r = b;
 		else
 			r = dirty();
@@ -288,7 +294,8 @@ op_div(const char *sa, const char *sd, const char *sq, const char *sr)
 {
 	unsigned v;
 
-	for (v = 0; v < 12; v++) {
+	/* v / 2 picks the aliasing and v & 1 the context. */
+	for (v = 0; v < 18; v++) {
 		BIGNUM *a = from_hex(sa), *d = from_hex(sd);
 		BIGNUM *dv = NULL, *rem = NULL, *all[4];
 		BN_CTX *ctx = pick_ctx(v);
@@ -318,9 +325,24 @@ op_div(const char *sa, const char *sd, const char *sq, const char *sr)
 			rem = dirty();
 			ok = BN_div(dv, rem, a, d, ctx);
 			break;
-		default: /* remainder replaces the dividend or the divisor */
+		case 5: /* remainder replaces the dividend */
 			dv = dirty();
-			rem = (v & 1) ? a : d;
+			rem = a;
+			ok = BN_div(dv, rem, a, d, ctx);
+			break;
+		case 6: /* remainder replaces the divisor */
+			dv = dirty();
+			rem = d;
+			ok = BN_div(dv, rem, a, d, ctx);
+			break;
+		case 7: /* quotient over the dividend, remainder over the divisor */
+			dv = a;
+			rem = d;
+			ok = BN_div(dv, rem, a, d, ctx);
+			break;
+		default: /* quotient over the divisor, remainder over the dividend */
+			dv = d;
+			rem = a;
 			ok = BN_div(dv, rem, a, d, ctx);
 			break;
 		}
@@ -587,7 +609,7 @@ static void
 direct_checks(void)
 {
 	BIGNUM *a = from_hex("-5"), *p = from_hex("-3"), *r = from_hex("7");
-	BIGNUM *z = from_hex("0");
+	BIGNUM *z = from_hex("0"), *m = from_hex("0");
 
 	group = "direct";
 	lineno = 0;
@@ -601,6 +623,13 @@ direct_checks(void)
 	check_long("BN_set_negative on zero", BN_is_negative(z), 0);
 	check_long("BN_rshift with negative count fails", BN_rshift(r, a, -1), 0);
 	check_long("BN_mask_bits negative count fails", BN_mask_bits(a, -1), 0);
+	/* The manual page's rule, which libcrypto's word-index test departs
+	 * from near a word boundary: 1 is shorter than 2 bits, 0 is not
+	 * shorter than 0 bits. */
+	BN_set_word(m, 1);
+	check_long("BN_mask_bits(1, 2) fails", BN_mask_bits(m, 2), 0);
+	BN_set_word(m, 0);
+	check_long("BN_mask_bits(0, 0) succeeds", BN_mask_bits(m, 0), 1);
 	check_long("BN_is_bit_set negative index", BN_is_bit_set(a, -1), 0);
 	check_long("BN_copy to self returns self", BN_copy(a, a) == a, 1);
 	BN_free(NULL);
@@ -609,6 +638,7 @@ direct_checks(void)
 	BN_free(p);
 	BN_free(r);
 	BN_free(z);
+	BN_free(m);
 }
 
 /* Fail the k-th allocation of an operation for k = 1, 2, ... until the

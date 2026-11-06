@@ -6,7 +6,7 @@ OpenBSD dc(1) and bc(1) need 31 `BN_*` identifiers from libcrypto plus three
 (`bmake MACHINE=rp2040 -C lib/libbn`, `bn.o`: 3,276 `.text` plus 17
 `.rodata`, no data, no bss), written from the manual-page contract and textbook
 algorithms with no OpenSSL or LibreSSL source consulted. The host test checks
-every exported function against Python integers (63,550 vectors, 842,292
+every exported function against Python integers (63,550 vectors, 1,124,964
 checks, zero failures) natively, at `-m32`, under AddressSanitizer plus
 UndefinedBehaviorSanitizer, and as a Thumb-1 program under qemu-arm user-mode
 emulation; 14 of 14 seeded faults are rejected. The owner-approved
@@ -227,14 +227,17 @@ files named here.
   hex strings through `10^600`. The generator asserts the C truncation
   identity on every division vector.
 - Native, `-m32` (ILP32) and sanitized (`-fsanitize=address,undefined
-  -fno-sanitize-recover=all`): each reports `vectors=63550 checks=842292
+  -fno-sanitize-recover=all`): each reports `vectors=63550 checks=1124964
   failures=0 injected_failures=42` and `PASS libbn`. The compile line is
   `-std=c17 -pedantic-errors -Wall -Wextra -Werror -Wold-style-definition
   -Wshadow -Wconversion`. clang 23.1.4 also builds and passes the native and
   sanitized runs.
-- Aliasing and dirty destinations. Each add, sub, mul, div, mod, exp and
-  rshift vector runs with a pre-filled result and with every legal
-  result-operand aliasing, with and without a `BN_CTX`.
+- Aliasing and dirty destinations. Each add, sub, mul, div, mod and exp
+  vector runs with a pre-filled result and with every legal result-operand
+  aliasing, each aliasing both with and without a `BN_CTX`; division also
+  writes the quotient and the remainder over the two operands at once, in
+  both assignments. Each rshift vector runs in place and into a separate
+  result.
 - Allocation failure. The test replaces `malloc`, `realloc` and `free` with
   counting wrappers and fails the k-th allocation of 18 operations, plus
   `BN_bn2dec`, `BN_bn2hex` and `BN_dup`, for k = 1, 2, ... until the operation succeeds: each failing run returned the
@@ -377,7 +380,8 @@ found. The board run of the same corpus remains open.
 Scope of the comparison. Both dc binaries were LP64 host builds, so dc's
 own `u_long` held 64 bits on both sides. The libcrypto side used 64-bit
 `BN_ULONG` words and the libbn side used libbn's 32-bit `BN_ULONG`. The run
-therefore covers libbn's semantics and its 32-bit limb arithmetic through
+therefore covers libbn's semantics and its 32-bit `BN_ULONG` word arithmetic
+(over 16-bit limbs) through
 dc's operators, and leaves dc's 32-bit `u_long` of the target unexercised; the
 ILP32 test of libbn itself (`bn_test32`) covers libbn but not dc's own
 `u_long` uses.

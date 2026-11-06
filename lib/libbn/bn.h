@@ -59,6 +59,9 @@ int BN_ucmp(const BIGNUM *, const BIGNUM *);
 int BN_num_bits(const BIGNUM *);
 #define BN_num_bytes(a) ((BN_num_bits(a) + 7) / 8)
 int BN_is_bit_set(const BIGNUM *, int);
+/* Fails for n < 0 and for a value with fewer than n bits, the manual page's
+ * rule; libcrypto tests the limb index instead, so its result near a limb
+ * boundary depends on its word size. */
 int BN_mask_bits(BIGNUM *, int);
 int BN_rshift(BIGNUM *, const BIGNUM *, int);
 int BN_rshift1(BIGNUM *, const BIGNUM *);

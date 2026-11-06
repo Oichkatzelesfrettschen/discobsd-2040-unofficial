@@ -63,6 +63,9 @@ mkdir -p "$OUTPUT"
 # A decoder that cannot tell a good frame from a bad one reports nothing.
 "$PYTHON" -I "$SCRIPT_DIR/picocalc_fb.py" --self-test
 
+# The same holds for the Status-line assertions: a sleeping panel must fail.
+"$PYTHON" -I "$SCRIPT_DIR/check-picocalc.py" --self-test
+
 # The driver exits 1 on a failed assertion and 2 when the emulator stops
 # answering; both end the gate, but the log is worth reading either way.
 status=0

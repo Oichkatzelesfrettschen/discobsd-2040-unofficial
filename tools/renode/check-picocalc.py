@@ -17,6 +17,7 @@ the init commands the driver sends (MADCTL, COLMOD, VSCRDEF, DISPON), no
 unmodeled commands, and no pixel written outside the CASET/RASET window.
 
 Usage: check-picocalc.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
+       check-picocalc.py --self-test    calibrate the Status-line assertions
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
@@ -173,24 +174,74 @@ def panel_status(renode: Renode) -> str:
     return ""
 
 
+def panel_status_failures(status: str) -> list[str]:
+    """The assertions a panel Status line fails, empty when it passes.
+
+    The model renders graphics RAM whether or not the panel left sleep mode,
+    so the rendered console alone cannot show that the driver sent SLPOUT;
+    the line must read "sleep out" as well as "display on".
+    """
+    failures: list[str] = []
+
+    def expect(condition: bool, message: str) -> None:
+        if not condition:
+            failures.append(message)
+
+    expect(status.startswith("display on,"), "panel: DISPON was never received")
+    expect(", sleep out," in status, "panel: SLPOUT was never received (still in sleep mode)")
+    expect("madctl 0x48" in status, "panel: MADCTL 0x48 not programmed")
+    expect("colmod 0x66" in status, "panel: COLMOD 0x66 not programmed")
+    expect("scroll top 0 area 320 bottom 160" in status,
+           "panel: VSCRDEF 0/320/160 not programmed")
+    expect(" 0 unknown commands" in status, "panel: unmodeled commands received")
+    expect(" 0 outside the window" in status, "panel: pixels written outside the window")
+    expect(" 0 without chip select" in status, "panel: bytes arrived with chip select high")
+    pixels = re.search(r"(\d+) pixels", status)
+    count = int(pixels.group(1)) if pixels else 0
+    expect(count > 10000, f"panel: {count} pixels written, expected a screenful")
+    return failures
+
+
 def check_panel_registers(run: Run) -> None:
     status = panel_status(run.renode)
     print(f"check-picocalc: panel {status}")
-    run.expect(", display on," in status or status.startswith("display on"),
-               "panel: DISPON was never received")
-    run.expect("madctl 0x48" in status, "panel: MADCTL 0x48 not programmed")
-    run.expect("colmod 0x66" in status, "panel: COLMOD 0x66 not programmed")
-    run.expect("scroll top 0 area 320 bottom 160" in status,
-               "panel: VSCRDEF 0/320/160 not programmed")
-    run.expect(" 0 unknown commands" in status, "panel: unmodeled commands received")
-    run.expect(" 0 outside the window" in status, "panel: pixels written outside the window")
-    run.expect(" 0 without chip select" in status, "panel: bytes arrived with chip select high")
-    pixels = re.search(r"(\d+) pixels", status)
-    count = int(pixels.group(1)) if pixels else 0
-    run.expect(count > 10000, f"panel: {count} pixels written, expected a screenful")
+    for message in panel_status_failures(status):
+        run.expect(False, message)
+
+
+# A Status line the model printed after a passing boot (st7365p.cs Status()).
+GOOD_STATUS = (
+    "display on, sleep out, invert on, madctl 0x48, colmod 0x66, "
+    "scroll top 0 area 320 bottom 160 start 0, 779602 bytes, 250660 pixels, "
+    "0 outside the window, 0 unknown commands, 0 without chip select")
+
+
+def self_test() -> int:
+    """Calibrate panel_status_failures on a good line and on mutants of it."""
+    failures = panel_status_failures(GOOD_STATUS)
+    if failures:
+        print(f"self-test: the recorded good Status line failed: {failures}", file=sys.stderr)
+        return 1
+    mutants = {
+        "sleeping panel": ("sleep out", "sleep in", "SLPOUT"),
+        "display off": ("display on", "display off", "DISPON"),
+        "wrong MADCTL": ("madctl 0x48", "madctl 0x00", "MADCTL"),
+        "unknown command": ("0 unknown commands", "1 unknown commands", "unmodeled"),
+        "no pixels": ("250660 pixels", "0 pixels", "pixels written"),
+    }
+    for name, (old, new, word) in mutants.items():
+        broken = panel_status_failures(GOOD_STATUS.replace(old, new))
+        if not any(word in message for message in broken):
+            print(f"self-test: the {name} Status line was not rejected: {broken}",
+                  file=sys.stderr)
+            return 1
+    print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants)")
+    return 0
 
 
 def main(argv: list[str]) -> int:
+    if argv == ["--self-test"]:
+        return self_test()
     if len(argv) != 4:
         print(__doc__, file=sys.stderr)
         return 2

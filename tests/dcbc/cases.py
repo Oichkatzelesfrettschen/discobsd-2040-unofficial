@@ -439,12 +439,6 @@ BC_PROGRAMS = (
     ("big_fraction", "scale=60\n1/3\n2/7\n10^30/7\n"),
     ("negative_scale_div", "scale=3\n-7/2\n7/-2\n-7/-2\n-7%2\n7%-2\n"),
     ("mod_scale", "scale=5\n7.5%2\n-7.5%2\n10%3.3\n"),
-    # The grammar of the pinned source takes an array only after a comma:
-    # f(a[]) is a syntax error and f(x,a[]) calls.
-    (
-        "array_arg_position",
-        "define f(a[]) {\n return (a[0])\n}\ndefine g(x,a[]) {\n return (a[0]+x)\n}\nb[0]=7\ng(1,b[])\nf(b[])\n9\n",
-    ),
     ("div_zero", "1/0\n1%0\nscale=2\n5/0\n"),
     ("sqrt_negative", "sqrt(-4)\n"),
     ("undefined_function", "foo(3)\n"),
@@ -702,6 +696,34 @@ def remainder_cases():
     return cases
 
 
+# Leading, sole and repeated array arguments.  Expected values were decided by
+# reading each function by hand (arrays pass by value, so m() cannot change
+# c[0]) and matched GNU bc 1.08.2 on a host that had it.
+ARRAY_ARG_PROGRAM = (
+    "define f(a[]) {\n return (a[0])\n}\n"
+    "define g(x,a[]) {\n return (a[0]+x)\n}\n"
+    "define s(a[], n) {\n auto i, t\n for (i=0;i<n;i++) t+=a[i]\n return (t)\n}\n"
+    "define d(a[], b[]) {\n return (a[1]*b[1])\n}\n"
+    "define m(a[]) {\n a[0]=99\n return (a[0])\n}\n"
+    "define u(n, a[], b[]) {\n return (n+a[0]+b[0])\n}\n"
+    "b[0]=7\n"
+    "g(1,b[])\nf(b[])\nf(b[])+1\n"
+    "for (i=0;i<5;i++) c[i]=i+1\n"
+    "s(c[], 5)\ns(c[], 3)\nd(c[], c[])\nm(c[])\nc[0]\nu(2, c[], b[])\n9\n"
+)
+
+
+def array_argument_cases():
+    return [
+        _case(
+            "bc",
+            "array_arg_position",
+            ARRAY_ARG_PROGRAM,
+            expect="8\n7\n8\n15\n6\n4\n99\n1\n10\n9\n",
+        )
+    ]
+
+
 def all_cases():
     cases = []
     cases += arithmetic_cases()
@@ -711,5 +733,6 @@ def all_cases():
     cases += bc_cases()
     cases += many_names_cases()
     cases += remainder_cases()
+    cases += array_argument_cases()
     cases += corpus_cases()
     return cases

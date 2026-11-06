@@ -6,14 +6,14 @@ usage: mutate.py --root TREE --golden golden.json --work DIRECTORY
 Each mutation replaces text that must occur exactly once in usr.bin/dc/bcode.c
 (the lazily allocated register table, the count J pops and the scale of the
 remainder), usr.bin/dc/stack.c (the ownership of a value's array) or
-usr.bin/bc/bc.y (the name table that replaced hcreate and hsearch), builds dc
-and bc from the faulted copy, and runs run_cases.py against it; a faulted dc
-is also built with the allocation accounting and run against peak.json. A
-mutant is rejected when either run exits nonzero. The script exits nonzero
-when a mutant survives or its anchor text has moved, so a refactor cannot
-leave an unfaulted "mutant" behind. Every run starts in its own process group
-(procgroup.py), and the script exits nonzero when a process of a mutant build
-directory outlives its run.
+usr.bin/bc/bc.y (the name table that replaced hcreate and hsearch, and the
+leading array argument), builds dc and bc from the faulted copy, and runs
+run_cases.py against it; a faulted dc is also built with the allocation
+accounting and run against peak.json. A mutant is rejected when either run
+exits nonzero. The script exits nonzero when a mutant survives or its anchor
+text has moved, so a refactor cannot leave an unfaulted "mutant" behind. Every
+run starts in its own process group (procgroup.py), and the script exits
+nonzero when a process of a mutant build directory outlives its run.
 """
 
 import argparse
@@ -113,6 +113,14 @@ MUTATIONS = (
         BCODE,
         "return max(dividend->scale, divisor->scale + bmachine.scale);",
         "return max(dividend->scale, divisor->scale);",
+    ),
+    (
+        "array_arg_first_rejected",
+        BCY,
+        "\t\t| LETTER LBRACKET RBRACKET\n\t\t\t{\n"
+        "\t\t\t\t$$ = node(cs(\"l\"), array_node($1), END_NODE);\n"
+        "\t\t\t\tfree($1);\n\t\t\t}\n",
+        "",
     ),
     (
         "names_compare_first_byte",

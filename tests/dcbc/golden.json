@@ -49,11 +49,6 @@
 "out": "3\n12\n3\n1\n1024\n-3\n-2\n",
 "rc": 0
 },
-"bc.array_arg_position": {
-"err": "bc: stdin:9: syntax error: ] unexpected\n",
-"out": "8\n9\n",
-"rc": 0
-},
 "bc.array_names": {
 "err": "",
 "out": "29\n",

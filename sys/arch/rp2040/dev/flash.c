@@ -61,6 +61,7 @@
 #include <rp2040/dev/flash.h>
 #include <rp2040/dev/flash_swap.h>
 #include <rp2040/dhara/map.h>
+#include <rp2040/rp2040/clock_catchup.h>
 
 #ifdef STORAGE_STATS
 static struct storage_stats flstats = {
@@ -294,6 +295,9 @@ flash_enter_xip(void)
  * Erase len bytes at offset, both multiples of the chip sector. Runs from
  * RAM with interrupts masked, because XIP is down for the duration and an
  * interrupt vectoring into flash would fetch from a disabled interface.
+ * SysTick holds one pending tick across the window, so clock_catchup()
+ * accounts the rest before the mask lifts; flstrategy and fl_raw repeat the
+ * call for the Dhara work between the erases and programs.
  */
 static __ramfunc int
 flash_erase(u_int offset, u_int len)
@@ -313,6 +317,7 @@ flash_erase(u_int offset, u_int len)
 	flrom.flush();
 	flash_enter_xip();
 	watchdog_site(WD_SITE_NONE, 0);
+	clock_catchup();
 	splx(s);
 	return 0;
 }
@@ -339,6 +344,7 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	flrom.flush();
 	flash_enter_xip();
 	watchdog_site(WD_SITE_NONE, 0);
+	clock_catchup();
 	splx(s);
 	return 0;
 }
@@ -669,10 +675,12 @@ fl_raw(struct buf *bp, u_int off, u_int len)
 	    FLASH_SWAP_SCRATCH_OFFSET, flscratch) != 0) {
 	fail:
 		flscratch_owner = FLS_FREE;
+		clock_catchup();
 		splx(s);
 		return 1;
 	}
 	flscratch_owner = FLS_FREE;
+	clock_catchup();
 	splx(s);
 	return 0;
 }
@@ -782,6 +790,7 @@ flstrategy(struct buf *bp)
 	if (! (bp->b_flags & B_READ) && ! fail && fl_sync() != 0)
 		fail = 1;
 	flscratch_owner = FLS_FREE;
+	clock_catchup();
 	splx(s);
 
 done:

@@ -91,6 +91,7 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
 | `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |

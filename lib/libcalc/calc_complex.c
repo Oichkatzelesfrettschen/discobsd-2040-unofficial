@@ -352,6 +352,27 @@ asin_core(double x, double y, double *root, double *lg)
 {
 	double ay = calc__fabs(y), y2, r, s, a, am1, amx, apx;
 
+	/*
+	 * Below 1e-154, y^2 is not a normal double and the half-sum formulas
+	 * lose y entirely. There A = (|z+1| + |z-1|) / 2 is 1 + O(y^2) for
+	 * x < 1, x + O(y^2) for x > 1 and 1 + y / 2 + O(y^2) at x = 1, which
+	 * gives the root and acosh(A) to first order in y (Hull, Fairgrieve and
+	 * Tang, ACM TOMS 23(3), 1997, section 2.3).
+	 */
+	if (ay < 1.0e-154 && x < 1.0e150) {
+		if (x < 1.0) {
+			*root = sqrt((1.0 - x) * (1.0 + x));
+			*lg = ay / *root;
+		} else if (x > 1.0) {
+			r = sqrt((x - 1.0) * (x + 1.0));
+			*root = ay * (x / r);
+			*lg = calc__log1p((x - 1.0) + r);
+		} else {
+			*root = sqrt(ay);
+			*lg = *root;
+		}
+		return;
+	}
 	if (x > 1.0e150 || ay > 1.0e150) {
 		/* log|z| from the larger component, so |z| past DBL_MAX stays finite */
 		double big = x > ay ? x : ay, small = x > ay ? ay : x, q = small / big;

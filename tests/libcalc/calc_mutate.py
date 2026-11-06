@@ -311,6 +311,13 @@ MUTANTS = [
         "atanh within 2^-500 of a pole keeps 4x/d, which overflows",
     ),
     (
+        "asin_tiny_imaginary_dropped",
+        "calc_complex.c",
+        "\tif (ay < 1.0e-154 && x < 1.0e150) {",
+        "\tif (0 && ay < 1.0e-154 && x < 1.0e150) {",
+        "the inverse functions square an imaginary part below sqrt(DBL_MIN)",
+    ),
+    (
         "hyp_mul_sign_replaced",
         "calc_complex.c",
         "\t*sh = (0.5 * fs * e) * e;\n\tif (y < 0.0)\n\t\t*sh = -*sh;",

@@ -35,6 +35,7 @@
 /* Largest argument for which exp is finite, and the smallest that is not 0. */
 #define CALC_EXP_MAX	709.782712893384
 #define CALC_EXP_MIN	(-745.2)
+#define CALC_DBL_MIN	0x1p-1022	/* smallest normal double */
 
 /* Sign bit of a double, including negative zero and NaN. */
 static inline int

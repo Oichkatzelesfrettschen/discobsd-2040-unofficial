@@ -108,25 +108,50 @@ calc_c_mul(calc_cplx a, calc_cplx b, calc_cplx *out)
 	return cstore(a, b, cmk(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re), out);
 }
 
-/* Smith's algorithm: divide through by the larger component of the divisor. */
+/*
+ * Smith's algorithm: divide through by the larger component of the divisor.
+ * *den receives the denominator so the caller can see it leave the range.
+ */
+static calc_cplx
+smith(calc_cplx a, calc_cplx b, double *den)
+{
+	double r;
+
+	if (calc__fabs(b.re) >= calc__fabs(b.im)) {
+		r = b.im / b.re;
+		*den = b.re + b.im * r;
+		return cmk((a.re + a.im * r) / *den, (a.im - a.re * r) / *den);
+	}
+	r = b.re / b.im;
+	*den = b.re * r + b.im;
+	return cmk((a.re * r + a.im) / *den, (a.im * r - a.re) / *den);
+}
+
+/*
+ * The denominator lies between the divisor's larger component and twice it,
+ * so it overflows for a divisor near DBL_MAX and leaves the normal range for
+ * one near DBL_MIN while the quotient may still be a normal double. Then the
+ * divisor is divided by 2^e, e the exponent of its larger component, which
+ * is exact, and the quotient is multiplied by 2^-e.
+ */
 calc_status
 calc_c_div(calc_cplx a, calc_cplx b, calc_cplx *out)
 {
-	double r, den;
+	double den, m;
 	calc_cplx q;
+	int e;
 
 	if (out == NULL)
 		return CALC_E_ARG;
 	if (b.re == 0.0 && b.im == 0.0)
 		return CALC_E_DOMAIN;
-	if (calc__fabs(b.re) >= calc__fabs(b.im)) {
-		r = b.im / b.re;
-		den = b.re + b.im * r;
-		q = cmk((a.re + a.im * r) / den, (a.im - a.re * r) / den);
-	} else {
-		r = b.re / b.im;
-		den = b.re * r + b.im;
-		q = cmk((a.re * r + a.im) / den, (a.im * r - a.re) / den);
+	q = smith(a, b, &den);
+	if ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN) &&
+	    calc__isfinite(b.re) && calc__isfinite(b.im)) {
+		m = calc__fabs(b.re) >= calc__fabs(b.im) ? b.re : b.im;
+		(void)calc__frexp1(m, &e);
+		q = smith(a, cmk(calc__ldexp(b.re, -e), calc__ldexp(b.im, -e)), &den);
+		q = cmk(calc__ldexp(q.re, -e), calc__ldexp(q.im, -e));
 	}
 	return cstore(a, b, q, out);
 }
@@ -279,8 +304,11 @@ asin_core(double x, double y, double *root, double *lg)
 	double ay = calc__fabs(y), y2, r, s, a, am1, amx, apx;
 
 	if (x > 1.0e150 || ay > 1.0e150) {
+		/* log|z| from the larger component, so |z| past DBL_MAX stays finite */
+		double big = x > ay ? x : ay, small = x > ay ? ay : x, q = small / big;
+
 		*root = ay;
-		*lg = CALC_LN2 + calc__log(calc__hypot(x, ay));
+		*lg = CALC_LN2 + calc__log(big) + 0.5 * calc__log1p(q * q);
 		return;
 	}
 	y2 = ay * ay;

@@ -125,8 +125,8 @@ MUTANTS = [
     (
         "complex_div_denominator",
         "calc_complex.c",
-        "\t\tden = b.re + b.im * r;",
-        "\t\tden = b.re - b.im * r;",
+        "\t\t*den = b.re + b.im * r;",
+        "\t\t*den = b.re - b.im * r;",
         "wrong Smith denominator",
     ),
     (
@@ -309,6 +309,20 @@ MUTANTS = [
         "\tif (d < 0x1p-1000)",
         "\tif (0)",
         "atanh within 2^-500 of a pole keeps 4x/d, which overflows",
+    ),
+    (
+        "cdiv_unscaled",
+        "calc_complex.c",
+        "\tif ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN) &&",
+        "\tif (0 &&",
+        "complex division keeps a denominator that overflowed or went subnormal",
+    ),
+    (
+        "asin_large_modulus",
+        "calc_complex.c",
+        "\t\t*lg = CALC_LN2 + calc__log(big) + 0.5 * calc__log1p(q * q);",
+        "\t\t*lg = CALC_LN2 + calc__log(calc__hypot(x, ay));\n\t\t(void)big;\n\t\t(void)q;",
+        "the asymptotic inverse functions form |z|, which overflows past DBL_MAX",
     ),
     (
         "log1p_large_argument",

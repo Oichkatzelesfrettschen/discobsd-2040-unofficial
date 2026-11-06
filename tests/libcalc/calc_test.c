@@ -3040,6 +3040,35 @@ test_complex_poles(void)
 	CHECK_TOL(calc__log1p(DBL_MAX), 709.782712893384, 1e-14);
 	CHECK_TOL(calc__log1p(0x1p60), 41.58883083359672, 1e-14);
 	CHECK_TOL(calc__log1p(0x1p53), 36.7368005696771, 1e-14);
+
+	/*
+	 * A modulus past DBL_MAX with a finite logarithm: the inverse functions
+	 * take log|z| from the larger component (mpmath references).
+	 */
+	{
+		static const struct { int fn; double er, ei; } big[] = {
+			{ CALC_C_ASIN, 0.78539816339744831, 710.64139452111415 },
+			{ CALC_C_ACOS, 0.78539816339744831, -710.64139452111415 },
+			{ CALC_C_ASINH, 710.64139452111415, 0.78539816339744831 },
+			{ CALC_C_ACOSH, 710.64139452111415, 0.78539816339744831 },
+		};
+
+		for (i = 0; i < COUNT(big); i++) {
+			CHECK_ST(calc_c_func((calc_cfn)big[i].fn,
+			    calc_c_make(1.5e308, 1.5e308), &r), CALC_OK);
+			check_cplx(r, big[i].er, big[i].ei, TOL, __LINE__);
+		}
+		CHECK_ST(calc_c_func(CALC_C_ASIN, calc_c_make(1.5e308, -1e308), &r), CALC_OK);
+		check_cplx(r, 0.98279372324732907, -710.47868332089684, TOL, __LINE__);
+	}
+
+	/* A divisor whose Smith denominator overflows or leaves the normal range. */
+	CHECK_ST(calc_c_div(calc_c_make(1e308, 0.0), calc_c_make(1e308, 1e308), &r), CALC_OK);
+	check_cplx(r, 0.5, -0.5, TOL, __LINE__);
+	CHECK_ST(calc_c_div(calc_c_make(1e300, 1e300), calc_c_make(DBL_MAX, DBL_MAX), &r), CALC_OK);
+	check_cplx(r, 1e300 / DBL_MAX, 0.0, TOL, __LINE__);
+	CHECK_ST(calc_c_div(calc_c_make(4e-308, 0.0), calc_c_make(2e-308, 2e-308), &r), CALC_OK);
+	check_cplx(r, 1.0, -1.0, TOL, __LINE__);
 }
 
 int

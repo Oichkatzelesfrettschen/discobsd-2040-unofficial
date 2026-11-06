@@ -32,6 +32,9 @@
  */
 #define	PSRAM_CHUNK		64
 
+/* IO_BANK0 FUNCSEL value that routes a pin to PIO0 (datasheet 2.19.2). */
+#define	PSRAM_FUNC_PIO0		6
+
 #define	PSRAM_E_TIMEOUT		(-1)	/* the state machine stopped */
 #define	PSRAM_E_STALL		(-2)	/* the RX FIFO overran during a read */
 #define	PSRAM_E_RANGE		(-3)	/* the range leaves the device */

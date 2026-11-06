@@ -439,6 +439,32 @@ def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
         r.pio.imem[: c.length] == [w for w, _a, _s in WORDS],
         "program words loaded into instruction memory",
     )
+    import ctypes
+
+    pads = dict(r.pins)
+    # PADS_BANK0 GPIOn (datasheet 2.19.6.3): reset 0x56, DRIVE bits 5:4 hold
+    # the strength, not a mask to OR into. 8 mA is 0b10, so the register
+    # must read IE|DRIVE=2|SCHMITT|SLEWFAST = 0x63, plus PDE on the four
+    # data pins = 0x67; an OR into the reset field would read 0x73 / 0x77.
+    want = {2: 0x67, 3: 0x67, 4: 0x67, 5: 0x67, 20: 0x63, 21: 0x63}
+    check(
+        pads == want,
+        "pad words %s want %s" % ({k: hex(v) for k, v in sorted(pads.items())},
+                                  {k: hex(v) for k, v in sorted(want.items())}),
+    )
+    check(
+        all((v >> 4) & 3 == 2 for v in pads.values()),
+        "every PSRAM pad selects 8 mA",
+    )
+    # A pad word that names no drive strength leaves the reset 4 mA alone.
+    r.lib.psram_host_unreset()
+    r.lib.psram_host_pin(10, 0x8 | 0x2)
+    r.lib.psram_host_pad_word.restype = ctypes.c_uint
+    check(
+        r.lib.psram_host_pad_word(10) == 0x5A,
+        "a pad request without a drive field keeps 4 mA: %#x"
+        % r.lib.psram_host_pad_word(10),
+    )
     err = r.device_init()
     check(err == 0, "device init returned %d" % err)
     check(r.ids() == (0x0D, 0x5D), "ids %s" % (r.ids(),))

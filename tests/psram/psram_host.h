@@ -6,10 +6,22 @@
 #ifndef PSRAM_HOST_H
 #define PSRAM_HOST_H
 
+/*
+ * picocalc_reg.h runs unchanged: its register accesses land in a model of
+ * PADS_BANK0 and IO_BANK0 that psram_host_unreset() returns to the
+ * datasheet reset values, so pc_pin() computes the pad word the silicon
+ * would hold.
+ */
+typedef unsigned int u_int;
+unsigned int *psram_host_reg(unsigned long addr);
+#define	PC_REG32(a)		(*psram_host_reg(a))
+#include <rp2040/dev/picocalc_reg.h>
+
 unsigned int psram_host_rd(unsigned int off);
 void psram_host_wr(unsigned int off, unsigned int v);
 void psram_host_unreset(void);
 void psram_host_pin(unsigned int n, unsigned int pad);
+unsigned int psram_host_pad_word(unsigned int n);
 void psram_host_delay_us(unsigned int us);
 int psram_host_irq_save(void);
 void psram_host_irq_restore(int s);

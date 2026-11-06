@@ -42,7 +42,6 @@
 #define	PSRAM_WR(off, v)	(PC_REG32(PSRAM_PIO_BASE + (off)) = (v))
 #define	PSRAM_UNRESET()		pc_unreset(PC_RESET_IO_BANK0 | \
 				    PC_RESET_PADS_BANK0 | (1UL << 10))
-#define	PSRAM_FUNC_PIO0		6
 #define	PSRAM_PIN(n, pad)	pc_pin((n), PSRAM_FUNC_PIO0, (pad))
 #define	PSRAM_DELAY_US(us)	do { \
 		unsigned int t0_ = pc_micros(); \

@@ -255,7 +255,8 @@ simulator's pad delays at 3 ns each:
 | Interrupts masked per frame | 5.2 us at most |
 | Faults | a failing die, a wrong manufacturer, an absent part and a stuck SIO2 are each reported with the right error; a 3.2 us register access cost and a 30 ns pad delay are each noticed |
 | Block range | `psram_block_offset()` refuses negative blocks, blocks past the device (4194304 blocks of 1024 bytes wrap a 32-bit offset to 0) and lengths past the end |
-| Mutants | eleven, each killed: SCK never rising, data changing in the rising cycle, CS left low, one wait clock short, one address nibble dropped, a 128-byte frame, a frame ignoring the 64-byte block, a word that no longer matches its comment, a turnaround one pass long, a block number multiplied before it is bounded, a length not bounded against the device end |
+| Pad drive | the six pads read back 0x67 (SIO0-3) and 0x63 (CS, SCK) from a PADS_BANK0 model reset to 0x56: DRIVE 8 mA, replacing the reset 4 mA field |
+| Mutants | twelve, each killed: SCK never rising, data changing in the rising cycle, CS left low, one wait clock short, one address nibble dropped, a 128-byte frame, a frame ignoring the 64-byte block, a word that no longer matches its comment, a turnaround one pass long, a block number multiplied before it is bounded, a length not bounded against the device end, a pad drive strength ORed into the reset field |
 
 Size, from `arm-none-eabi-size`, PICOCALC: text 119,316 to 121,324, data 304
 to 360, bss 45,888 to 46,032. The text budget was 3.5 KB. PICO (108,480

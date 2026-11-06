@@ -47,16 +47,52 @@ psram_host_wr(unsigned int off, unsigned int v)
 	hook_wr(off, v);
 }
 
+/*
+ * PADS_BANK0 GPIO0-GPIO29 at 0x4001c004 + 4n and IO_BANK0 GPIOn_CTRL at
+ * 0x40014004 + 8n. A pad register resets to 0x56 (RP2040 datasheet,
+ * 2.19.6.3: IE 1, DRIVE 1, PDE 1, SCHMITT 1, the rest 0).
+ */
+#define	PAD_RESET		0x56u
+#define	NPAD			30
+static unsigned int pads[NPAD];
+static unsigned int ioctrl[NPAD];
+static unsigned int scratch;
+
+unsigned int *
+psram_host_reg(unsigned long addr)
+{
+	if (addr >= 0x4001c004ul && addr < 0x4001c004ul + 4 * NPAD)
+		return &pads[(addr - 0x4001c004ul) / 4];
+	if (addr >= 0x40014004ul && addr < 0x40014004ul + 8 * NPAD &&
+	    (addr - 0x40014004ul) % 8 == 0)
+		return &ioctrl[(addr - 0x40014004ul) / 8];
+	scratch = 0;
+	return &scratch;
+}
+
 void
 psram_host_unreset(void)
 {
+	unsigned int i;
+
+	for (i = 0; i < NPAD; i++) {
+		pads[i] = PAD_RESET;
+		ioctrl[i] = 0x1f;
+	}
 	hook_unreset();
+}
+
+unsigned int
+psram_host_pad_word(unsigned int n)
+{
+	return pads[n];
 }
 
 void
 psram_host_pin(unsigned int n, unsigned int pad)
 {
-	hook_pin(n, pad);
+	pc_pin(n, PSRAM_FUNC_PIO0, pad);
+	hook_pin(n, pads[n]);
 }
 
 void

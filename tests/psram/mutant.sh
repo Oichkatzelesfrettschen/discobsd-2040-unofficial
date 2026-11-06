@@ -16,7 +16,7 @@ trap 'rm -rf "$work"' EXIT INT TERM
 
 mkdir -p "$work/rp2040/dev"
 cp "$src"/psram_pio.h "$src"/psram_xfer.c "$src"/psram_xfer.h \
-    "$work/rp2040/dev/"
+    "$src"/picocalc_reg.h "$work/rp2040/dev/"
 sed "$script" "$work/rp2040/dev/$file" > "$work/edited"
 if cmp -s "$work/edited" "$work/rp2040/dev/$file"; then
 	echo "mutant edit did not change $file: $script" >&2

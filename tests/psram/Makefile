@@ -10,8 +10,9 @@
 # dropped, a frame long enough to pass tCEM, a frame that no longer stops at
 # a 64-byte block, a word whose comment no longer matches it, a
 # turnaround one pass too long, a block number that is multiplied before it
-# is bounded, and a length that is not bounded against the device end. A
-# gate that passed them would be checking nothing.
+# is bounded, a length that is not bounded against the device end, and a
+# pad drive strength ORed into the reset field. A gate that passed them
+# would be checking nothing.
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -35,7 +36,7 @@ check: libpsram.so
 	${MAKE} mutants
 
 libpsram.so: psram_host.c psram_host.h ${DEV}/psram_xfer.c \
-    ${DEV}/psram_xfer.h ${DEV}/psram_pio.h
+    ${DEV}/psram_xfer.h ${DEV}/psram_pio.h ${DEV}/picocalc_reg.h
 	${HOST_CC} ${CFLAGS} -I. -I${ARCH} -o $@ psram_host.c \
 	    ${DEV}/psram_xfer.c
 
@@ -43,7 +44,7 @@ MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-tcem mutant-block mutant-comment mutant-turnaround \
-	mutant-blkrange mutant-blklen
+	mutant-blkrange mutant-blklen mutant-drive
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -97,9 +98,14 @@ mutant-blkrange:
 mutant-blklen:
 	${MUT} psram_xfer.c 's/if (len > PSRAM_BYTES - addr)$$/if (0)/'
 
+# A pad request ORed into the reset DRIVE field: 8 mA reads as 12 mA.
+mutant-drive:
+	${MUT} picocalc_reg.h \
+	    's/if ((pad & PC_PADS_DRIVE_MASK) != 0)/if (0)/'
+
 clean:
 	rm -f libpsram.so
 
 .PHONY: all check mutants mutant-sideset mutant-setup mutant-cs mutant-wait \
 	mutant-address mutant-tcem mutant-block mutant-comment \
-	mutant-turnaround mutant-blkrange mutant-blklen clean
+	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive clean

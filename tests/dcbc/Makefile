@@ -107,12 +107,7 @@ check: check-grammar check-native check-ilp32 check-sanitized check-mutants
 # grammar at the one shift/reduce and sixteen reduce/reduce conflicts the
 # OpenBSD grammar has.
 check-grammar:
-	@out=`${BISON} -y -Wno-yacc -Wconflicts-sr -Wconflicts-rr -o /dev/null ${BCDIR}/bc.y 2>&1`; \
-	case "$$out" in \
-	*"1 shift/reduce conflict "*"16 reduce/reduce conflicts"*) \
-		echo "PASS dcbc grammar: 1 shift/reduce, 16 reduce/reduce" ;; \
-	*) echo "FAIL dcbc grammar: $$out"; exit 1 ;; \
-	esac
+	@sh ${.CURDIR}/check_grammar.sh ${BISON} ${BCDIR}/bc.y
 
 check-native: build/native/dc/dc build/native/bc/bc
 	${RUN_CASES} --dc build/native/dc/dc --bc build/native/bc/bc

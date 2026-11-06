@@ -4,7 +4,14 @@
 # docs/research/openbsd-dc-bn-port.md) and a host libcrypto; it runs the
 # downloaded dc, so it is an owner-approved manual check, not a CI gate.
 #
-# usage: run.sh DC_SRC [PROGRAMS]
+# usage: [M32=yes] [SIDE_B=pinned|ported] run.sh DC_SRC [PROGRAMS]
+#
+# Side a is the pinned sources against libcrypto. Side b links lib/libbn:
+# SIDE_B=pinned (the default) builds the pinned sources with the
+# compatibility header in this directory; SIDE_B=ported builds usr.bin/dc
+# from this tree, whose own compat.h carries the same adaptations. M32=yes
+# builds side b at -m32, so dc's u_long and size_t are 32 bits as on the
+# target.
 set -eu
 src=$1
 count=${2:-3000}
@@ -16,10 +23,29 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir "$work/a" "$work/b"
 files="$src/main.c $src/dc.c $src/bcode.c $src/inout.c $src/mem.c $src/stack.c"
 flags="-O1 -w -include $here/obsd_compat.h -I$src"
+m32=
+[ "${M32:-no}" = yes ] && m32=-m32
 # shellcheck disable=SC2086
 cc $flags -o "$work/a/dc" $files -lcrypto
-# shellcheck disable=SC2086
-cc $flags -I"$here/bnshim" -o "$work/b/dc" $files "$root/lib/libbn/bn.c"
+case ${SIDE_B:-pinned} in
+pinned)
+	# shellcheck disable=SC2086
+	cc $m32 $flags -I"$here/bnshim" -o "$work/b/dc" $files "$root/lib/libbn/bn.c"
+	;;
+ported)
+	port="$root/usr.bin/dc"
+	printf 'extern const char *__progname;\n' > "$work/port.h"
+	printf 'int optreset;\n' > "$work/port.c"
+	cc $m32 -std=c17 -pedantic-errors -Wall -Wextra -Werror -D_DEFAULT_SOURCE -O1 \
+	    -include "$work/port.h" -I"$root/lib/libbn" -o "$work/b/dc" \
+	    "$port/main.c" "$port/dc.c" "$port/bcode.c" "$port/inout.c" \
+	    "$port/mem.c" "$port/stack.c" "$root/lib/libbn/bn.c" "$work/port.c"
+	;;
+*)
+	echo "run.sh: SIDE_B must be pinned or ported" >&2
+	exit 2
+	;;
+esac
 "$PYTHON" -I "$here/gen_corpus.py" "$count" > "$work/corpus"
 n=0
 diffs=0

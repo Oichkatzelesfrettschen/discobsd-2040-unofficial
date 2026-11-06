@@ -278,13 +278,13 @@ file /usr/lib/crt0.o
 #endclosure toolchainlib
 
 #
-# bc -l reads its function library from /usr/share/misc/lib.b, read-only
+# bc -l reads its function library from /usr/share/misc/bc.library, read-only
 # as usr.bin/bc/Makefile installs it.
 #
 default
 filemode 0444
 #closure calc-bignum
-file /usr/share/misc/lib.b
+file /usr/share/misc/bc.library
 #endclosure calc-bignum
 
 default

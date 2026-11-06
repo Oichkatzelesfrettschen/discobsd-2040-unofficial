@@ -489,12 +489,21 @@ interface, plus a tile-blit operation that draws from a tile table the
 process passes; the text console restores itself from its cell store
 when a graphics client closes.
 
-The first item ships the tree's Plan 9 `bc` and `dc` (MIT license, already
-built for rp2040, in no profile) as a manifest closure. It changes the
-full manifest, which `docs/research/c17-shipped-resource-baseline.json`
-pins by hash and by packed program, so it lands with a re-recorded
-baseline from a distribution run and a `NOTICE` section for the Plan 9
-Foundation license.
+The first item ships OpenBSD `bc` and `dc` (ISC, Otto Moerbeek; the manual
+pages and `bc.library` under the Caldera license, `NOTICE` sections 16 and 3)
+as the `calc-bignum` manifest closure of the `picocalc` profile. They link
+`lib/libbn`, the tree's clean-room `BN_*` subset, in place of libcrypto; dc
+allocates its register stacks in 256-entry pages on first touch, because the
+extended table is 789,504 bytes against the 144 KB process window, and bc
+keeps a name table in place of a 65,536-entry hash table and reads its input
+with `getc` in place of libedit. `bc` is 31,176 bytes packed, `dc` 18,644 and
+`/usr/share/misc/bc.library` 5,125; the closure costs 59 blocks and the
+`picocalc` profile leaves 189 free (`PROFILES.md`). `bc` forks a child that
+runs dc's evaluator on a pipe, which needs the 39 KB bc image twice in swap:
+the arithmetic fits the 384 KB raw swap, and no board run has forked it.
+`tests/dcbc` (`check-dcbc`, and `check-qemu` for dc) is the host evidence,
+`tests/rp2040/dcbc_smoke/board_dcbc_smoke.py` the closed board script, and
+`docs/research/openbsd-dc-bn-port.md` the port record.
 
 ### Strict C17 for the remaining console files
 

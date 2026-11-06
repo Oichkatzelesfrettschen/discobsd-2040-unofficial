@@ -351,6 +351,11 @@ PLAY_MUTANTS = [
 
 
 PLAY_RUNS = 3
+# Mutants that only a pty case with a sub-deadline inter-byte gap can see.
+# The macOS runner schedules the game later than the gap often enough that
+# every byte arrives in one read, so there a survivor is reported as
+# unobserved; Linux hosts, including the Linux CI job, must reject them.
+TIMING_MUTANTS = {"escape-deadline-5-ms"}
 
 
 def play_mutants(src):
@@ -400,6 +405,9 @@ def play_mutants(src):
                 )
                 if r.returncode != 0:
                     break
+            if r.returncode == 0 and name in TIMING_MUTANTS and sys.platform == "darwin":
+                print("play mutant %-28s UNOBSERVED: timing mutant on a macOS host" % name)
+                continue
             if r.returncode == 0:
                 print("play mutant %-28s SURVIVED" % name)
                 failures += 1

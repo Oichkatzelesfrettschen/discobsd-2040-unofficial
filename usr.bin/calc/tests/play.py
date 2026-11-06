@@ -389,6 +389,9 @@ def test_fkeys(prog):
     check(restored(g), "terminal modes after F10")
 
 
+SPLIT_ATTEMPTS = 10
+
+
 def test_fkey_variants(prog):
     seqs = fkey_sequences()
     # vt220 F1-F4, shifted xterm F1, Linux console F1, split delivery, ignored sequences
@@ -407,12 +410,29 @@ def test_fkey_variants(prog):
         g.send(seq)
         check(g.find(want), "%r did not select %r\n%s" % (seq, want, g.term.text()))
         g.kill()
-    g = Calc(prog)
-    # One byte at a time with 10 ms gaps, a fifth of the 50 ms lone-Esc wait,
-    # so a loaded host's late wakeup still lands inside the window.
-    for ch in seqs[0]:
-        os.write(g.fd, ch.encode())
-        time.sleep(0.01)
+    # One byte at a time with 10 ms gaps, a fifth of the 50 ms lone-Esc wait.
+    # The gap is spun, because a slept 10 ms on a loaded macOS runner lands
+    # past the wait; an attempt whose measured gap still reached 37 ms tests
+    # nothing and is repeated.
+    widths = []
+    for _ in range(SPLIT_ATTEMPTS):
+        g = Calc(prog)
+        stamps = []
+        for ch in seqs[0]:
+            os.write(g.fd, ch.encode())
+            stamps.append(time.monotonic())
+            until = stamps[-1] + 0.01
+            while time.monotonic() < until:
+                pass
+        widest = max(b - a for a, b in zip(stamps, stamps[1:]))
+        if widest < 0.037:
+            break
+        widths.append(widest)
+        g.kill()
+    else:
+        check(False, "F1 one byte at a time: no attempt in %d kept the gaps under 37 ms "
+              "(widest %s)" % (SPLIT_ATTEMPTS, ", ".join("%.0f ms" % (w * 1000) for w in widths)))
+        return
     g.settle()
     check(g.find("calc: scientific calculator"), "F1 delivered one byte at a time")
     before = g.term.text()

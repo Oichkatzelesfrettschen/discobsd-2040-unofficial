@@ -542,7 +542,7 @@ def selftest(
     cases.append(
         (
             "reject",
-            "bc without the dc it runs",
+            "calc-bignum without dc",
             ["calc-bignum"],
             "pack /usr/bin/dc",
             "needs /usr/bin/dc",
@@ -553,8 +553,8 @@ def selftest(
             "reject",
             "bc without its -l library",
             ["calc-bignum"],
-            "file /usr/share/misc/lib.b",
-            "needs /usr/share/misc/lib.b",
+            "file /usr/share/misc/bc.library",
+            "needs /usr/share/misc/bc.library",
         )
     )
     cases.append(

@@ -1,4 +1,5 @@
 # ruff: noqa: E501
+# flake8: noqa: E501
 """Case definitions for the dc and bc host gate.
 
 Three kinds of case share one record:

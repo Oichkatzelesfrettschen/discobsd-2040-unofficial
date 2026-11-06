@@ -284,12 +284,13 @@ KB of twiddles, which a program must hold in bss or heap, not on the stack.
 libbn is 3,293 bytes of text; dc's 771 KB extended register table, not
 libbn, is the blocker for dc in the 144 KB window (`openbsd-dc-bn-port.md`,
 step 3). fourfall measures 5,536 text, 8 data, 6,968 bss as a standalone
-a.out (6,144 bytes are the frame buffer); the record's out-of-tree trial puts
-the four-game `gamebox` at a 17,140-byte a.out against 12,248 today
-(`docs/research/c17-shipped-resource-baseline.json`, gamebox record), so the
-`games` closure grows from 14 blocks by an estimated 4 to 5 blocks and the
-`full` profile's 270 free blocks fall to about 265 (estimate; the
-`check-fs-profiles` rebuild measures it). Neither library enters the image.
+a.out (6,144 bytes are the frame buffer). The four-game `gamebox` measures
+17,900 bytes raw and 15,968 packed (17 blocks) with `hsaout -s`, against
+12,248 bytes for the three-game box
+(`docs/research/c17-shipped-resource-baseline.json`, gamebox record); the
+`games` closure costs 18 blocks and the `full` profile keeps 281 free blocks
+(`sys/arch/rp2040/doc/PROFILES.md`, measured by `check-fs-profiles`).
+Neither library enters the image.
 
 **TF-3 minor, suspected: console behavior is unmeasured.**
 fourfall waits in `select()` on descriptor 0 (`fourfall.c:949-960`) and tells

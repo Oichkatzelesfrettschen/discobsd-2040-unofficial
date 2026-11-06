@@ -136,7 +136,7 @@ Conventions every new game follows:
 | Revision | `puzzles-20260923.616da16` |
 | License | MIT; the notice in `LICENCE` travels with any copied file; `NOTICE` gains a section |
 | Language | C (C99 with `bool`, `stdint`); 125 top-level entries, 74 `.c` files; 40 `thegame` definitions (39 puzzles and `nullgame`); `CMakeLists.txt` links one common library (`combi`, `divvy`, `dsf`, `findloop`, `grid`, `latin`, `loopgen`, `matching`, `midend`, `misc`, `random`, `sort`, `tdq`, `tree234` and others) into every puzzle |
-| Float use | `float` in the colour table, animation and flash times, and `double` in `midend_size`'s pixel ratio (`puzzles.h`, `midend.c`); logic code is integer |
+| Float use | `float` in the color table, animation and flash times, and `double` in `midend_size`'s pixel ratio (`puzzles.h`, `midend.c`); logic code is integer |
 | Portability to this tree | Needs `<stdbool.h>`, `<stdint.h>`, `snprintf`/`vsnprintf`, `qsort`, `atof` in `midend.c`; the tree's libc coverage for each is a compile-time check before import, not tested here |
 
 Measured object text (bytes), all compiled alone with the flags above. "Deps"

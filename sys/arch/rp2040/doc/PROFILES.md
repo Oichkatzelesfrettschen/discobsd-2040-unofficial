@@ -43,6 +43,13 @@ also a KiB count. The inode column is the difference in free inodes, which
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
+Each closure row is measured against `base` alone, and the all-maintained
+row on one image that holds every closure. The closure rows sum to 205, one
+block more than that image measures: a directory such as `/usr/bin` grows
+in whole blocks, so entries that two closures add can share a block that
+either closure alone allocates (inferred from the allocation unit, not
+traced block by block).
+
 The two legacy rows are measured only in an image built with
 `BUILD_PDP11_V6=yes`; they are absent from the maintained manifest and
 profiles. `/usr/v6/root.rk` is 1024000 bytes of V6 pack and its closure costs 157 blocks, not

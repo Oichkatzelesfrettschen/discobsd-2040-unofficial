@@ -1,0 +1,248 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 5 Nov 2026 18:40:00 -0800
+Subject: [PATCH 5/7] gpio: correct the SPI and UART function select table
+ from GP9 up
+
+RP2040 datasheet section 1.4.3 (GPIO Functions, Table 2) assigns the SPI
+signals to a repeating group of four pins, RX, CSn, SCK and TX, and the UART
+signals to TX, RX, CTS and RTS, so GP10 is SPI1 SCK, GP11 SPI1 TX, GP12
+SPI1 RX and GP13 SPI1 CSn. The model's pinMapping rows are right through GP8
+and shifted one pin from GP9 on: GP9 is SPI1 SCK where the chip has CSn,
+GP10 is SPI1 TX where it has SCK, and so on, with the UART column offset
+the same way. PL022 reads that table through OnGpioFunctionSelect to find its
+clock, transmit, receive and chip-select pins, so a driver that routes SPI1
+to GP10-GP13 as the PicoCalc does gets its serial data on the clock pin and
+no clock edges at all. The rows for GP9 to GP29 now follow the datasheet
+pattern: SPI0 on GP0-GP7 and GP16-GP23, SPI1 on GP8-GP15 and GP24-GP29,
+UART0 on GP0-GP3, GP12-GP19 and GP28-GP29, UART1 on GP4-GP11 and GP20-GP27.
+
+Assisted-by: Claude Code (claude-sonnet-5-5)
+---
+ emulation/peripherals/gpio/rp2040_gpio.cs | 80 +++++++++++------------
+ 1 file changed, 40 insertions(+), 40 deletions(-)
+
+diff --git a/emulation/peripherals/gpio/rp2040_gpio.cs b/emulation/peripherals/gpio/rp2040_gpio.cs
+index 2306bc9..261d4ad 100644
+--- a/emulation/peripherals/gpio/rp2040_gpio.cs
++++ b/emulation/peripherals/gpio/rp2040_gpio.cs
+@@ -142,8 +142,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[8, 7] = GpioFunction.NONE;
+             pinMapping[8, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[9, 0] = GpioFunction.SPI1_SCK;
+-            pinMapping[9, 1] = GpioFunction.UART1_CTS;
++            pinMapping[9, 0] = GpioFunction.SPI1_CSN;
++            pinMapping[9, 1] = GpioFunction.UART1_RX;
+             pinMapping[9, 2] = GpioFunction.I2C0_SCL;
+             pinMapping[9, 3] = GpioFunction.PWM4_B;
+             pinMapping[9, 4] = GpioFunction.SIO;
+@@ -152,8 +152,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[9, 7] = GpioFunction.NONE;
+             pinMapping[9, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[10, 0] = GpioFunction.SPI1_TX;
+-            pinMapping[10, 1] = GpioFunction.UART1_RTS;
++            pinMapping[10, 0] = GpioFunction.SPI1_SCK;
++            pinMapping[10, 1] = GpioFunction.UART1_CTS;
+             pinMapping[10, 2] = GpioFunction.I2C1_SDA;
+             pinMapping[10, 3] = GpioFunction.PWM5_A;
+             pinMapping[10, 4] = GpioFunction.SIO;
+@@ -162,8 +162,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[10, 7] = GpioFunction.NONE;
+             pinMapping[10, 8] = GpioFunction.USB_VBUS_DET;
+ 
+-            pinMapping[11, 0] = GpioFunction.SPI1_RX;
+-            pinMapping[11, 1] = GpioFunction.UART0_TX;
++            pinMapping[11, 0] = GpioFunction.SPI1_TX;
++            pinMapping[11, 1] = GpioFunction.UART1_RTS;
+             pinMapping[11, 2] = GpioFunction.I2C1_SCL;
+             pinMapping[11, 3] = GpioFunction.PWM5_B;
+             pinMapping[11, 4] = GpioFunction.SIO;
+@@ -172,8 +172,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[11, 7] = GpioFunction.NONE;
+             pinMapping[11, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[12, 0] = GpioFunction.SPI1_CSN;
+-            pinMapping[12, 1] = GpioFunction.UART0_RX;
++            pinMapping[12, 0] = GpioFunction.SPI1_RX;
++            pinMapping[12, 1] = GpioFunction.UART0_TX;
+             pinMapping[12, 2] = GpioFunction.I2C0_SDA;
+             pinMapping[12, 3] = GpioFunction.PWM6_A;
+             pinMapping[12, 4] = GpioFunction.SIO;
+@@ -182,8 +182,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[12, 7] = GpioFunction.NONE;
+             pinMapping[12, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[13, 0] = GpioFunction.SPI1_SCK;
+-            pinMapping[13, 1] = GpioFunction.UART0_CTS;
++            pinMapping[13, 0] = GpioFunction.SPI1_CSN;
++            pinMapping[13, 1] = GpioFunction.UART0_RX;
+             pinMapping[13, 2] = GpioFunction.I2C0_SCL;
+             pinMapping[13, 3] = GpioFunction.PWM6_B;
+             pinMapping[13, 4] = GpioFunction.SIO;
+@@ -192,8 +192,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[13, 7] = GpioFunction.NONE;
+             pinMapping[13, 8] = GpioFunction.USB_VBUS_DET;
+ 
+-            pinMapping[14, 0] = GpioFunction.SPI1_TX;
+-            pinMapping[14, 1] = GpioFunction.UART0_RTS;
++            pinMapping[14, 0] = GpioFunction.SPI1_SCK;
++            pinMapping[14, 1] = GpioFunction.UART0_CTS;
+             pinMapping[14, 2] = GpioFunction.I2C1_SDA;
+             pinMapping[14, 3] = GpioFunction.PWM7_A;
+             pinMapping[14, 4] = GpioFunction.SIO;
+@@ -202,8 +202,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[14, 7] = GpioFunction.NONE;
+             pinMapping[14, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[15, 0] = GpioFunction.SPI0_RX;
+-            pinMapping[15, 1] = GpioFunction.UART0_TX;
++            pinMapping[15, 0] = GpioFunction.SPI1_TX;
++            pinMapping[15, 1] = GpioFunction.UART0_RTS;
+             pinMapping[15, 2] = GpioFunction.I2C1_SCL;
+             pinMapping[15, 3] = GpioFunction.PWM7_B;
+             pinMapping[15, 4] = GpioFunction.SIO;
+@@ -212,8 +212,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[15, 7] = GpioFunction.NONE;
+             pinMapping[15, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[16, 0] = GpioFunction.SPI0_CSN;
+-            pinMapping[16, 1] = GpioFunction.UART0_RX;
++            pinMapping[16, 0] = GpioFunction.SPI0_RX;
++            pinMapping[16, 1] = GpioFunction.UART0_TX;
+             pinMapping[16, 2] = GpioFunction.I2C0_SDA;
+             pinMapping[16, 3] = GpioFunction.PWM0_A;
+             pinMapping[16, 4] = GpioFunction.SIO;
+@@ -222,8 +222,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[16, 7] = GpioFunction.NONE;
+             pinMapping[16, 8] = GpioFunction.USB_VBUS_DET;
+ 
+-            pinMapping[17, 0] = GpioFunction.SPI0_SCK;
+-            pinMapping[17, 1] = GpioFunction.UART0_CTS;
++            pinMapping[17, 0] = GpioFunction.SPI0_CSN;
++            pinMapping[17, 1] = GpioFunction.UART0_RX;
+             pinMapping[17, 2] = GpioFunction.I2C0_SCL;
+             pinMapping[17, 3] = GpioFunction.PWM0_B;
+             pinMapping[17, 4] = GpioFunction.SIO;
+@@ -232,8 +232,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[17, 7] = GpioFunction.NONE;
+             pinMapping[17, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[18, 0] = GpioFunction.SPI0_TX;
+-            pinMapping[18, 1] = GpioFunction.UART0_RTS;
++            pinMapping[18, 0] = GpioFunction.SPI0_SCK;
++            pinMapping[18, 1] = GpioFunction.UART0_CTS;
+             pinMapping[18, 2] = GpioFunction.I2C1_SDA;
+             pinMapping[18, 3] = GpioFunction.PWM1_A;
+             pinMapping[18, 4] = GpioFunction.SIO;
+@@ -242,8 +242,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[18, 7] = GpioFunction.NONE;
+             pinMapping[18, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[19, 0] = GpioFunction.SPI0_RX;
+-            pinMapping[19, 1] = GpioFunction.UART1_TX;
++            pinMapping[19, 0] = GpioFunction.SPI0_TX;
++            pinMapping[19, 1] = GpioFunction.UART0_RTS;
+             pinMapping[19, 2] = GpioFunction.I2C1_SCL;
+             pinMapping[19, 3] = GpioFunction.PWM1_B;
+             pinMapping[19, 4] = GpioFunction.SIO;
+@@ -252,8 +252,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[19, 7] = GpioFunction.NONE;
+             pinMapping[19, 8] = GpioFunction.USB_VBUS_DET;
+ 
+-            pinMapping[20, 0] = GpioFunction.SPI0_CSN;
+-            pinMapping[20, 1] = GpioFunction.UART1_RX;
++            pinMapping[20, 0] = GpioFunction.SPI0_RX;
++            pinMapping[20, 1] = GpioFunction.UART1_TX;
+             pinMapping[20, 2] = GpioFunction.I2C0_SDA;
+             pinMapping[20, 3] = GpioFunction.PWM2_A;
+             pinMapping[20, 4] = GpioFunction.SIO;
+@@ -262,8 +262,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[20, 7] = GpioFunction.CLOCK_GPIN0;
+             pinMapping[20, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[21, 0] = GpioFunction.SPI0_SCK;
+-            pinMapping[21, 1] = GpioFunction.UART1_CTS;
++            pinMapping[21, 0] = GpioFunction.SPI0_CSN;
++            pinMapping[21, 1] = GpioFunction.UART1_RX;
+             pinMapping[21, 2] = GpioFunction.I2C0_SCL;
+             pinMapping[21, 3] = GpioFunction.PWM2_B;
+             pinMapping[21, 4] = GpioFunction.SIO;
+@@ -272,8 +272,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[21, 7] = GpioFunction.CLOCK_GPOUT0;
+             pinMapping[21, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[22, 0] = GpioFunction.SPI0_TX;
+-            pinMapping[22, 1] = GpioFunction.UART1_RTS;
++            pinMapping[22, 0] = GpioFunction.SPI0_SCK;
++            pinMapping[22, 1] = GpioFunction.UART1_CTS;
+             pinMapping[22, 2] = GpioFunction.I2C1_SDA;
+             pinMapping[22, 3] = GpioFunction.PWM3_A;
+             pinMapping[22, 4] = GpioFunction.SIO;
+@@ -282,8 +282,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[22, 7] = GpioFunction.CLOCK_GPIN1;
+             pinMapping[22, 8] = GpioFunction.USB_VBUS_DET;
+ 
+-            pinMapping[23, 0] = GpioFunction.SPI1_RX;
+-            pinMapping[23, 1] = GpioFunction.UART1_TX;
++            pinMapping[23, 0] = GpioFunction.SPI0_TX;
++            pinMapping[23, 1] = GpioFunction.UART1_RTS;
+             pinMapping[23, 2] = GpioFunction.I2C1_SCL;
+             pinMapping[23, 3] = GpioFunction.PWM3_B;
+             pinMapping[23, 4] = GpioFunction.SIO;
+@@ -292,8 +292,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[23, 7] = GpioFunction.CLOCK_GPOUT1;
+             pinMapping[23, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[24, 0] = GpioFunction.SPI1_CSN;
+-            pinMapping[24, 1] = GpioFunction.UART1_RX;
++            pinMapping[24, 0] = GpioFunction.SPI1_RX;
++            pinMapping[24, 1] = GpioFunction.UART1_TX;
+             pinMapping[24, 2] = GpioFunction.I2C0_SDA;
+             pinMapping[24, 3] = GpioFunction.PWM4_A;
+             pinMapping[24, 4] = GpioFunction.SIO;
+@@ -302,8 +302,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[24, 7] = GpioFunction.CLOCK_GPOUT2;
+             pinMapping[24, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[25, 0] = GpioFunction.SPI1_SCK;
+-            pinMapping[25, 1] = GpioFunction.UART1_CTS;
++            pinMapping[25, 0] = GpioFunction.SPI1_CSN;
++            pinMapping[25, 1] = GpioFunction.UART1_RX;
+             pinMapping[25, 2] = GpioFunction.I2C0_SCL;
+             pinMapping[25, 3] = GpioFunction.PWM4_B;
+             pinMapping[25, 4] = GpioFunction.SIO;
+@@ -312,8 +312,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[25, 7] = GpioFunction.CLOCK_GPOUT3;
+             pinMapping[25, 8] = GpioFunction.USB_VBUS_DET;
+ 
+-            pinMapping[26, 0] = GpioFunction.SPI1_TX;
+-            pinMapping[26, 1] = GpioFunction.UART1_RTS;
++            pinMapping[26, 0] = GpioFunction.SPI1_SCK;
++            pinMapping[26, 1] = GpioFunction.UART1_CTS;
+             pinMapping[26, 2] = GpioFunction.I2C1_SDA;
+             pinMapping[26, 3] = GpioFunction.PWM5_A;
+             pinMapping[26, 4] = GpioFunction.SIO;
+@@ -322,8 +322,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[26, 7] = GpioFunction.NONE;
+             pinMapping[26, 8] = GpioFunction.USB_VBUS_EN;
+ 
+-            pinMapping[27, 0] = GpioFunction.SPI1_RX;
+-            pinMapping[27, 1] = GpioFunction.UART0_TX;
++            pinMapping[27, 0] = GpioFunction.SPI1_TX;
++            pinMapping[27, 1] = GpioFunction.UART1_RTS;
+             pinMapping[27, 2] = GpioFunction.I2C1_SCL;
+             pinMapping[27, 3] = GpioFunction.PWM5_B;
+             pinMapping[27, 4] = GpioFunction.SIO;
+@@ -332,8 +332,8 @@ namespace Antmicro.Renode.Peripherals.GPIOPort
+             pinMapping[27, 7] = GpioFunction.NONE;
+             pinMapping[27, 8] = GpioFunction.USB_OVCUR_DET;
+ 
+-            pinMapping[28, 0] = GpioFunction.SPI1_CSN;
+-            pinMapping[28, 1] = GpioFunction.UART0_RX;
++            pinMapping[28, 0] = GpioFunction.SPI1_RX;
++            pinMapping[28, 1] = GpioFunction.UART0_TX;
+             pinMapping[28, 2] = GpioFunction.I2C0_SDA;
+             pinMapping[28, 3] = GpioFunction.PWM6_A;
+             pinMapping[28, 4] = GpioFunction.SIO;

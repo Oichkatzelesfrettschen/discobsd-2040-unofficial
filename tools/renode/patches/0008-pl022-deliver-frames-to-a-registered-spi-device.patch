@@ -1,0 +1,127 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 5 Nov 2026 19:30:00 -0800
+Subject: [PATCH 8/8] pl022: hand frames to a registered ISPIPeripheral
+
+PL022 derives from NullRegistrationPointPeripheralContainer<ISPIPeripheral>
+but clocks every frame out on the GPIO pins, one managed-thread step per
+clock edge, and never calls the device registered beneath it. The thread
+costs about thirty microseconds of host time per step, so a display that
+takes a few hundred kilobytes per boot screen makes a virtual second take
+minutes. When a device is registered, a write to SSPDR now calls its
+Transmit() with the frame (two calls, high byte first, above eight bits),
+queues the reply in the receive FIFO and keeps BSY set for the frame's
+duration at the programmed bit rate, so a driver that waits on BSY sees the
+durations silicon gives. A controller with no registered device keeps the
+pin-level path, which PIO interworking needs.
+
+Assisted-by: Claude Code (claude-sonnet-5-5)
+---
+ emulation/peripherals/spi/rp2040_spi.cs | 52 +++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
+--- a/emulation/peripherals/spi/rp2040_spi.cs
++++ b/emulation/peripherals/spi/rp2040_spi.cs
+@@ -16,6 +16,7 @@
+ using Antmicro.Renode.Utilities.Collections;
+ using Antmicro.Renode.Peripherals.GPIOPort;
+ using Antmicro.Renode.Peripherals.Miscellaneous;
++using Antmicro.Renode.Time;
+ 
+ namespace Antmicro.Renode.Peripherals.SPI
+ {
+@@ -32,6 +33,7 @@
+     public PL022(IMachine machine, RP2040GPIO gpio, int id, RP2040Clocks clocks, ulong address) : base(machine)
+     {
+       this.id = id;
++      this.owner = machine;
+       this.gpio = gpio;
+       this.clocks = clocks;
+       txPins = new HashSet<int>();
+@@ -106,6 +108,7 @@
+       {
+         newFrequency = 1;
+       }
++      bitRate = newFrequency;
+       if (newFrequency != this._executionThread.Frequency)
+       {
+         this._executionThread.Frequency = newFrequency;
+@@ -224,6 +227,46 @@
+       return false;
+     }
+ 
++    // With an ISPIPeripheral registered under this controller, a frame
++    // written to SSPDR goes to that device as bytes, most significant
++    // first, and its reply lands in the receive FIFO at once. The controller
++    // stays busy for the time the frame occupies the wire at the programmed
++    // bit rate, so a driver that waits on BSY sees the same durations as on
++    // silicon. Without a registered device the controller clocks the frame
++    // out on the GPIO pins, bit by bit, as before.
++    private void TransferFrame(ISPIPeripheral device, ushort frame)
++    {
++      ushort reply = 0;
++      if (loopbackMode)
++      {
++        reply = frame;
++      }
++      else if (dataSize > 8)
++      {
++        reply = (ushort)(device.Transmit((byte)(frame >> 8)) << 8);
++        reply |= device.Transmit((byte)(frame & 0xff));
++      }
++      else
++      {
++        reply = device.Transmit((byte)(frame & 0xff));
++      }
++      if (rxBuffer.Count < rxBuffer.Capacity)
++      {
++        rxBuffer.Enqueue(reply);
++      }
++      var now = owner.ElapsedVirtualTime.TimeElapsed;
++      if (frameBusyUntil < now)
++      {
++        frameBusyUntil = now;
++      }
++      frameBusyUntil += TimeInterval.FromMicroseconds((ulong)(((decimal)dataSize * 1000000m) / (bitRate == 0 ? 1 : bitRate)));
++    }
++
++    private bool FrameBusy()
++    {
++      return RegisteredPeripheral != null && owner.ElapsedVirtualTime.TimeElapsed < frameBusyUntil;
++    }
++
+     private void Step()
+     {
+       if (transmitCounter > dataSize - 1)
+@@ -361,6 +404,11 @@
+           return 0;
+         }, writeCallback: (_, value) =>
+         {
++          if (RegisteredPeripheral != null)
++          {
++            TransferFrame(RegisteredPeripheral, (ushort)value);
++            return;
++          }
+           Logger.Log(LogLevel.Noisy, "SPI{0}: Adding to queue: {1}", id, value);
+           if (txBuffer.Count < txBuffer.Capacity)
+           {
+@@ -381,7 +429,7 @@
+         .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count != txBuffer.Capacity, name: "SSPSR_TNF")
+         .WithFlag(2, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count != 0, name: "SSPSR_RNE")
+         .WithFlag(3, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count == rxBuffer.Capacity, name: "SSPSR_RFF")
+-        .WithFlag(4, FieldMode.Read, valueProviderCallback: _ => running, name: "SSPSR_BSY");
++        .WithFlag(4, FieldMode.Read, valueProviderCallback: _ => running || FrameBusy(), name: "SSPSR_BSY");
+ 
+       Registers.SSPCPSR.Define(registers)
+         .WithValueField(0, 8, valueProviderCallback: _ => clockPrescaleDivisor,
+@@ -441,6 +489,9 @@
+     private bool slaveModeDisabled;
+     private bool running;
+     private byte clockPrescaleDivisor;
++    private readonly IMachine owner;
++    private ulong bitRate;
++    private TimeInterval frameBusyUntil;
+ 
+     private DoubleWordRegisterCollection registers;
+ 

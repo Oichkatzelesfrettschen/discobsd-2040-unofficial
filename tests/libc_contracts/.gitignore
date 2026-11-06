@@ -169,3 +169,10 @@ array_reallocarray32_san.o
 string_memmem.o
 string_memmem_san.o
 string_memmem32_san.o
+printf_g_contract_test
+printf_g_contract_test_arm
+pg_*.o
+huge_val_contract_test
+huge_val_contract_test_arm
+hv_*.o
+huge_val_header*.o

@@ -295,8 +295,8 @@ ALG = [
     err("1e308*10", "overflow"),
     err("10^400", "overflow"),
     err("sinh(1000)", "overflow"),
-    # lib/libm's exp returns the finite HUGE_VAL past its range; the power
-    # must still report overflow (the tree-libm run exercises that exp)
+    # the power must report overflow before exp runs, whatever exp returns
+    # past its range (the tree-libm run exercises the tree's exp)
     err("pow(1e200,2.5)", "overflow"),
     err("1e200^2.5", "overflow"),
     err("todeg(1e308)", "overflow"),

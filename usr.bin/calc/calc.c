@@ -339,9 +339,9 @@ ipow(double a, long n)
  * An integral exponent up to 1024 multiplies; beyond that, and for a
  * fractional one, the value comes from pow on |a|. A negative base takes its
  * sign from the parity of an integral exponent; every double of magnitude
- * 2^53 or more is even. lib/libm's exp returns the finite HUGE_VAL past its
- * range instead of an infinity, so the logarithm of the result is compared
- * with the largest finite double's before pow runs.
+ * 2^53 or more is even. The logarithm of the result is compared with the
+ * largest finite double's before pow runs, so the overflow is reported the
+ * same way whichever value the C library's exp returns past its range.
  */
 static double
 dpow(double a, double b)
@@ -1077,10 +1077,8 @@ outf(const char *fmt, ...)
 /*
  * The text of x with at most `digits` significant digits, in the style of
  * printf("%.*g"): fixed notation for decimal exponents from -4 to digits - 1,
- * exponential otherwise, trailing zeros removed. The digits come from "%e".
- * The target's "%g" (lib/libc/stdio/doprnt_float.c) counts the zeros after
- * the decimal point of a value below 0.1 as significant digits and so prints
- * too few of them; its "%e" does not.
+ * exponential otherwise, trailing zeros removed. The digits come from "%e",
+ * so the text does not depend on how a C library chooses the style of "%g".
  */
 static void
 fmtnum(char *buf, size_t n, double x)

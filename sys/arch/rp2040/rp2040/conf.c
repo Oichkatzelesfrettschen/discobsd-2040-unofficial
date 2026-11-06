@@ -287,6 +287,11 @@ iskmemdev(dev_t dev)
 int
 isdisk(dev_t dev, int type)
 {
+#ifdef SD_ENABLED
+	/* openi() refuses a write open of rsd0 at securelevel 2. */
+	if (type == IFCHR)
+		return major(dev) == SD_CMAJOR;
+#endif
 	if (type != IFBLK)
 		return 0;
 

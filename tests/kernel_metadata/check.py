@@ -211,6 +211,19 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 14:
         raise CheckError("RP2040 cdevsw must retain only majors 0..9 outside PICOCALC")
 
+    # openi() refuses a write open of any disk character device at
+    # securelevel 2 through isdisk(dev, IFCHR), so the raw SD major must be
+    # classified as a disk for the character type as well as the block type.
+    isdisk = re.search(r"^isdisk\(dev_t dev, int type\)\n\{\n(.*?)\n\}\n", conf,
+                       re.MULTILINE | re.DOTALL)
+    if isdisk is None or not re.search(
+        r"^#ifdef SD_ENABLED\n[^\n]*\n\tif \(type == IFCHR\)\n"
+        r"\t\treturn major\(dev\) == SD_CMAJOR;\n#endif\n",
+        isdisk.group(1),
+        re.MULTILINE,
+    ):
+        raise CheckError("isdisk must classify the raw SD character major as a disk")
+
     tty = source("sys/kern/tty.c")
     high = array_values(tty, "uint16_t", "tthiwat")
     low = array_values(tty, "uint8_t", "ttlowat")
@@ -392,6 +405,18 @@ def main() -> int:
     expect_bad(
         "trailing device row",
         lambda: check_tree(root, {conf_path: extra_device}),
+    )
+
+    expect_bad(
+        "raw SD device outside the disk classification",
+        lambda: check_tree(
+            root,
+            {
+                conf_path: conf.replace(
+                    "\treturn major(dev) == SD_CMAJOR;\n", "\treturn 0;\n", 1
+                )
+            },
+        ),
     )
 
     tty_path = "sys/kern/tty.c"

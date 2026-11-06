@@ -326,7 +326,9 @@ its partitions. The partition table is read at the first open from sector 0
 the card's end is dropped. A raw transfer must be a multiple of 1 KiB, the
 filesystem block, and block and raw opens are tracked apart so that closing
 `rsd0a` leaves a mounted `sd0a` open. `chrtoblk()` maps `rsd0` to `sd0`, so
-the secure levels guard a raw write to a mounted partition. The card is
+securelevel 1 guards a raw write to a mounted partition, and
+`isdisk(dev, IFCHR)` classifies major 11 as a disk, so securelevel 2 refuses
+every write open of `rsd0`. The card is
 initialized at the first open and forgotten at the last close, which is how
 a replaced card gets a fresh initialization.
 

@@ -1,3 +1,4 @@
 lcdterm_test
 kbdreq_test
 sdspi_test
+sdstrat_test

@@ -323,12 +323,15 @@ holds the caller for up to 500 ms; ticks still run.
 the whole card and 1 to 4 for the MBR partitions a to d, as `fl` numbers
 its partitions. The partition table is read at the first open from sector 0
 (`fdisk` rewrites it and calls `DIOCREINIT`); an entry that reaches past
-the card's end is dropped. A raw transfer must be a multiple of 1 KiB, the
-filesystem block, and block and raw opens are tracked apart so that closing
-`rsd0a` leaves a mounted `sd0a` open. `chrtoblk()` maps `rsd0` to `sd0`, so
-securelevel 1 guards a raw write to a mounted partition, and
-`isdisk(dev, IFCHR)` classifies major 11 as a disk, so securelevel 2 refuses
-every write open of `rsd0`. The card is
+the card's end is dropped. A transfer is any whole number of 512-byte
+sectors, and its start is a 1 KiB block number because `physio()` shifts the
+file offset right by `DEV_BSHIFT`; the one-sector transfers `fdisk` makes at
+offset 0 reach sector 0, and a request that crosses the partition end moves
+the sectors that fit and reports the rest in `b_resid`. Block and raw opens
+are tracked apart so that closing `rsd0a` leaves a mounted `sd0a` open.
+`chrtoblk()` maps `rsd0` to `sd0`, so securelevel 1 guards a raw write to a
+mounted partition, and `isdisk(dev, IFCHR)` classifies major 11 as a disk, so
+securelevel 2 refuses every write open of `rsd0`. The card is
 initialized at the first open and forgotten at the last close, which is how
 a replaced card gets a fresh initialization.
 

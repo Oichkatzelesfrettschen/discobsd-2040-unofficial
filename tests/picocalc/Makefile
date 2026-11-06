@@ -20,21 +20,33 @@
 # replays recorded command transcripts; twenty mutants of sdspi.c must fail
 # it.
 #
+# sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
+# kernel's buf.h and disk.h through the headers in shim/ and a card behind
+# fake sdspi calls, then drives sdopen, sdstrategy and sdsize with the
+# requests physio() and the buffer cache make; twelve mutants of sd.c must
+# fail it.
+#
 TOPSRC!=	cd ../..; pwd
 
 HOST_CC?=	cc
 DEV=		${TOPSRC}/sys/arch/rp2040/dev
 CSTD=		-std=c17 -pedantic-errors -Wall -Wextra -Werror
 SAN=		-fsanitize=address,undefined -fno-sanitize-recover=all
+# The kernel compiles under the GNU17 profile, and sd.c uses the BSD types
+# that profile exposes.
+KCSTD=		-std=gnu17 -Wall -Wextra -Werror \
+		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
+		-I${TOPSRC}/tests/picocalc/shim -I${TOPSRC}/sys/arch
 SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test kbdreq_test sdspi_test font-sync
+check: lcdterm_test kbdreq_test sdspi_test sdstrat_test font-sync
 	./lcdterm_test
 	./kbdreq_test
 	./sdspi_test
-	${MAKE} mutants kbdreq-mutants sdspi-mutants
+	./sdstrat_test
+	${MAKE} mutants kbdreq-mutants sdspi-mutants sdstrat-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -46,6 +58,10 @@ kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ sdspi_test.c \
 	    ${DEV}/sdspi.c
+
+sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
+	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ sdstrat_test.c ${DEV}/sd.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -238,8 +254,74 @@ sdspi-mutant-range-check:
 	${SDSPI_MUT} sdspi.c \
 	    's/ || sector >= sd->nsectors//' ${SDSPI_SRC}
 
+
+SDSTRAT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		sdstrat_test.c
+
+sdstrat-mutants: \
+	sdstrat-mutant-whole-block-only \
+	sdstrat-mutant-stale-resid \
+	sdstrat-mutant-truncation-resid \
+	sdstrat-mutant-truncation-clamp \
+	sdstrat-mutant-eof-resid \
+	sdstrat-mutant-eof-past \
+	sdstrat-mutant-odd-tail \
+	sdstrat-mutant-partition-offset \
+	sdstrat-mutant-block-units \
+	sdstrat-mutant-direction \
+	sdstrat-mutant-card-changed \
+	sdstrat-mutant-open-check
+
+sdstrat-mutant-whole-block-only:
+	${SDSTRAT_MUT} sd.c \
+	    's/(bp->b_bcount \& (SD_SECTOR - 1))/(bp->b_bcount \& (DEV_BSIZE - 1))/' sd.c
+
+sdstrat-mutant-stale-resid:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tbp->b_resid = 0;/\t(void)0;/' sd.c
+
+sdstrat-mutant-truncation-resid:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid = (n - avail) \* SD_SECTOR;/(void)0;/' sd.c
+
+sdstrat-mutant-truncation-clamp:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (n > avail) {/if (0) {/' sd.c
+
+sdstrat-mutant-eof-resid:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid = bp->b_bcount;/(void)0;/' sd.c
+
+sdstrat-mutant-eof-past:
+	${SDSTRAT_MUT} sd.c \
+	    's/if ((u_int)bp->b_blkno == blocks) {/if ((u_int)bp->b_blkno >= blocks) {/' sd.c
+
+sdstrat-mutant-odd-tail:
+	${SDSTRAT_MUT} sd.c \
+	    's/(p->dp_nsectors + 1) >> 1;/p->dp_nsectors >> 1;/' sd.c
+
+sdstrat-mutant-partition-offset:
+	${SDSTRAT_MUT} sd.c \
+	    's/sector = p->dp_offset + first;/sector = first;/' sd.c
+
+sdstrat-mutant-block-units:
+	${SDSTRAT_MUT} sd.c \
+	    's/(u_int)bp->b_blkno \* (DEV_BSIZE \/ SD_SECTOR)/(u_int)bp->b_blkno/' sd.c
+
+sdstrat-mutant-direction:
+	${SDSTRAT_MUT} sd.c \
+	    's/err = (bp->b_flags \& B_READ) ?/err = (bp->b_flags \& B_READ) == 0 ?/' sd.c
+
+sdstrat-mutant-card-changed:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (card_changed ||/if (/' sd.c
+
+sdstrat-mutant-open-check:
+	${SDSTRAT_MUT} sd.c \
+	    's/(sd_openpart \& (1U << part)) == 0) {/0) {/' sd.c
+
 clean:
-	rm -f lcdterm_test kbdreq_test sdspi_test
+	rm -f lcdterm_test kbdreq_test sdspi_test sdstrat_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -269,3 +351,17 @@ clean:
 	sdspi-mutant-ocr-ready \
 	sdspi-mutant-acmd-illegal \
 	sdspi-mutant-range-check
+
+.PHONY: sdstrat-mutants \
+	sdstrat-mutant-whole-block-only \
+	sdstrat-mutant-stale-resid \
+	sdstrat-mutant-truncation-resid \
+	sdstrat-mutant-truncation-clamp \
+	sdstrat-mutant-eof-resid \
+	sdstrat-mutant-eof-past \
+	sdstrat-mutant-odd-tail \
+	sdstrat-mutant-partition-offset \
+	sdstrat-mutant-block-units \
+	sdstrat-mutant-direction \
+	sdstrat-mutant-card-changed \
+	sdstrat-mutant-open-check

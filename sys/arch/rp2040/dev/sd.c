@@ -37,8 +37,13 @@
  * for the old card must not reach the new one. The pin's polarity is not
  * interpreted: any stable change counts.
  *
- * A raw transfer must be a multiple of DEV_BSIZE (1 KiB) long. The driver
- * reads and writes one 512-byte sector per command (CMD17, CMD24).
+ * The driver reads and writes one 512-byte sector per command (CMD17,
+ * CMD24), and a transfer is any whole number of sectors. The request names
+ * its start as a DEV_BSIZE (1 KiB) block number: physio() derives b_blkno
+ * from the file offset shifted right by DEV_BSHIFT, so a raw transfer of one
+ * sector, as fdisk makes for the master boot record, addresses the first
+ * sector of its block. A request that crosses the end of its partition
+ * transfers the sectors that fit and reports the rest in b_resid.
  */
 
 #include <sys/param.h>
@@ -247,39 +252,45 @@ sdstrategy(struct buf *bp)
 {
 	int part = sdpart(bp->b_dev);
 	struct diskpart *p;
-	daddr_t part_size;
-	long nblk = btod(bp->b_bcount);
-	u_int sector, i, n;
+	u_int first, avail, blocks, sector, i, n;
 	u_char *addr = (u_char *)bp->b_addr;
 	int err = 0;
 
+	/*
+	 * physio() subtracts b_resid from the count it saved, and a cached
+	 * buffer arrives with whatever its last user left, so every request
+	 * states its own residual.
+	 */
+	bp->b_resid = 0;
 	if (sdunit(bp->b_dev) != 0 || part > MAXPARTITIONS ||
 	    (sd_openpart & (1U << part)) == 0) {
 		bp->b_error = ENXIO;
 		goto bad;
 	}
-	if (card_changed || (bp->b_bcount & (DEV_BSIZE - 1)) != 0) {
+	if (card_changed || (bp->b_bcount & (SD_SECTOR - 1)) != 0) {
 		bp->b_error = card_changed ? EIO : EINVAL;
 		goto bad;
 	}
 	p = &sdpt[part];
-	part_size = p->dp_nsectors >> 1;
-	if (bp->b_blkno + nblk > part_size) {
-		/* Exactly at the end reads as end of file; else truncate. */
-		if (bp->b_blkno == part_size) {
+	blocks = (p->dp_nsectors + 1) >> 1;	/* The last may hold one sector. */
+	if ((u_int)bp->b_blkno >= blocks) {
+		/* Exactly at the end reads as end of file. */
+		if ((u_int)bp->b_blkno == blocks) {
 			bp->b_resid = bp->b_bcount;
 			biodone(bp);
 			return;
 		}
-		nblk = part_size - bp->b_blkno;
-		if (nblk <= 0) {
-			bp->b_error = EINVAL;
-			goto bad;
-		}
-		bp->b_bcount = nblk << DEV_BSHIFT;
+		bp->b_error = EINVAL;
+		goto bad;
 	}
-	sector = p->dp_offset + (u_int)bp->b_blkno * (DEV_BSIZE / SD_SECTOR);
-	n = (u_int)nblk * (DEV_BSIZE / SD_SECTOR);
+	first = (u_int)bp->b_blkno * (DEV_BSIZE / SD_SECTOR);
+	avail = p->dp_nsectors - first;
+	n = bp->b_bcount / SD_SECTOR;
+	if (n > avail) {
+		bp->b_resid = (n - avail) * SD_SECTOR;
+		n = avail;
+	}
+	sector = p->dp_offset + first;
 	for (i = 0; i < n && err == 0; i++, addr += SD_SECTOR)
 		err = (bp->b_flags & B_READ) ?
 		    sdspi_read(&sdcard, sector + i, addr) :

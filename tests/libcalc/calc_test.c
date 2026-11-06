@@ -1754,6 +1754,15 @@ test_lists(void)
 		CHECK_NEAR(out[1], -0.333333333333333);
 		CHECK_NEAR(out[2], 0.333333333333333);
 		CHECK_NEAR(out[3], 1);
+		/* An output span past DBL_MAX between finite ends (half differences). */
+		{
+			static const double u[] = { 0, 0.5, 1 }, ys[] = { -1e308, 1e308 };
+
+			CHECK_ST(calc_rescale(u, 3, -1e308, 1e308, out, NULL, NULL), CALC_OK);
+			CHECK(out[0] == -1e308 && out[1] == 0.0 && out[2] == 1e308);
+			CHECK_ST(calc_interp_table(u, ys, 2, 0.375, out), CALC_OK);
+			CHECK_TOL(out[0], 5e307, 1e-15);
+		}
 		CHECK_ST(calc_rescale(z, 3, 0, 1, out, &lo, &hi), CALC_E_DOMAIN);
 		CHECK_ST(calc_rescale(z, 0, 0, 1, out, &lo, &hi), CALC_E_SIZE);
 		{
@@ -3106,6 +3115,11 @@ test_complex_poles(void)
 	CHECK_ST(calc_c_func(CALC_C_COSH, calc_c_make(710.6, 0.7853981633974483), &r), CALC_OK);
 	check_cplx(r, 1.4391757976662108e308, 1.4391757976662107e308, TOL, __LINE__);
 	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(1.0, -712.0), &r), CALC_E_RANGE);
+	/* A negative trigonometric factor keeps its sign past the threshold. */
+	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(3.141592653589793, 709.0), &r), CALC_OK);
+	check_cplx(r, 5.0323231959410104e291, -4.1092037307774861e307, TOL, __LINE__);
+	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(3.141592653589793, -709.0), &r), CALC_OK);
+	check_cplx(r, 5.0323231959410104e291, 4.1092037307774861e307, TOL, __LINE__);
 
 	/* A divisor whose Smith denominator overflows or leaves the normal range. */
 	CHECK_ST(calc_c_div(calc_c_make(1e308, 0.0), calc_c_make(1e308, 1e308), &r), CALC_OK);
@@ -3114,6 +3128,12 @@ test_complex_poles(void)
 	check_cplx(r, 1e300 / DBL_MAX, 0.0, TOL, __LINE__);
 	CHECK_ST(calc_c_div(calc_c_make(4e-308, 0.0), calc_c_make(2e-308, 2e-308), &r), CALC_OK);
 	check_cplx(r, 1.0, -1.0, TOL, __LINE__);
+	/* A dividend whose Smith numerators overflow, in both branches. */
+	CHECK_ST(calc_c_div(calc_c_make(1e308, 1e308), calc_c_make(1.0, 1.0), &r), CALC_OK);
+	check_cplx(r, 1e308, 0.0, TOL, __LINE__);
+	CHECK_ST(calc_c_div(calc_c_make(1e308, -1e308), calc_c_make(1.0, 2.0), &r), CALC_OK);
+	check_cplx(r, -2e307, -6e307, TOL, __LINE__);
+	CHECK_ST(calc_c_div(calc_c_make(1e308, 1e308), calc_c_make(1e-300, 0.0), &r), CALC_E_RANGE);
 }
 
 int

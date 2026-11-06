@@ -23,11 +23,27 @@ fraction(double x, double lo, double hi, double span, int halve)
 	return (x - lo) / span;
 }
 
+/*
+ * lo + (hi - lo) t for t in [0, 1]. When hi - lo exceeds DBL_MAX with both
+ * ends finite, the half difference h = hi / 2 - lo / 2 is exact and finite,
+ * and lo + t h + t h stays between lo and hi at every step.
+ */
+static double
+span_mix(double lo, double hi, double t)
+{
+	double d = hi - lo, h;
+
+	if (calc__isfinite(d) || !calc__isfinite(lo) || !calc__isfinite(hi))
+		return d * t + lo;
+	h = 0.5 * hi - 0.5 * lo;
+	return (lo + t * h) + t * h;
+}
+
 calc_status
 calc_rescale(const double *in, size_t n, double output_min, double output_max,
     double *out, double *input_min, double *input_max)
 {
-	double lo, hi, span, orange;
+	double lo, hi, span;
 	size_t i;
 	int halve;
 
@@ -47,10 +63,10 @@ calc_rescale(const double *in, size_t n, double output_min, double output_max,
 	span = hi - lo;
 	if (span == 0.0)
 		return CALC_E_DOMAIN;
-	orange = output_max - output_min;
 	halve = !calc__isfinite(span) && calc__isfinite(lo) && calc__isfinite(hi);
 	for (i = 0; i < n; i++)
-		out[i] = fraction(in[i], lo, hi, span, halve) * orange + output_min;
+		out[i] = span_mix(output_min, output_max,
+		    fraction(in[i], lo, hi, span, halve));
 	if (input_min != NULL)
 		*input_min = lo;
 	if (input_max != NULL)
@@ -90,7 +106,7 @@ calc_interp_table(const double *xs, const double *ys, size_t n, double x, double
 	} else {
 		span = xs[hi] - xs[lo];
 		t = fraction(x, xs[lo], xs[hi], span, !calc__isfinite(span));
-		*out = calc_lerp(ys[lo], ys[hi], t);
+		*out = span_mix(ys[lo], ys[hi], t);
 	}
 	return CALC_OK;
 }

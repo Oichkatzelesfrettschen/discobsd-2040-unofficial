@@ -127,31 +127,53 @@ smith(calc_cplx a, calc_cplx b, double *den)
 	return cmk((a.re * r + a.im) / *den, (a.im * r - a.re) / *den);
 }
 
+/* The exponent of the larger component of a finite non-zero z, else 0. */
+static int
+cexponent(calc_cplx z)
+{
+	double m = calc__fabs(z.re) >= calc__fabs(z.im) ? z.re : z.im;
+	int e = 0;
+
+	if (m != 0.0)
+		(void)calc__frexp1(m, &e);
+	return e;
+}
+
 /*
  * The denominator lies between the divisor's larger component and twice it,
- * so it overflows for a divisor near DBL_MAX and leaves the normal range for
- * one near DBL_MIN while the quotient may still be a normal double. Then the
- * divisor is divided by 2^e, e the exponent of its larger component, which
- * is exact, and the quotient is multiplied by 2^-e.
+ * and each numerator is a sum of the dividend's components, so either can
+ * leave the double range while the quotient is a normal double: a divisor
+ * near DBL_MAX or DBL_MIN, or a dividend near DBL_MAX. Then dividend and
+ * divisor are each divided by 2^e, e the exponent of the larger component,
+ * which is exact, and the quotient is multiplied by 2^(ea - eb).
  */
 calc_status
 calc_c_div(calc_cplx a, calc_cplx b, calc_cplx *out)
 {
-	double den, m;
+	double den;
 	calc_cplx q;
-	int e;
+	int ea, eb;
 
 	if (out == NULL)
 		return CALC_E_ARG;
 	if (b.re == 0.0 && b.im == 0.0)
 		return CALC_E_DOMAIN;
 	q = smith(a, b, &den);
-	if ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN) &&
+	if ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN ||
+	    !calc__isfinite(q.re) || !calc__isfinite(q.im)) &&
+	    calc__isfinite(a.re) && calc__isfinite(a.im) &&
 	    calc__isfinite(b.re) && calc__isfinite(b.im)) {
-		m = calc__fabs(b.re) >= calc__fabs(b.im) ? b.re : b.im;
-		(void)calc__frexp1(m, &e);
-		q = smith(a, cmk(calc__ldexp(b.re, -e), calc__ldexp(b.im, -e)), &den);
-		q = cmk(calc__ldexp(q.re, -e), calc__ldexp(q.im, -e));
+		ea = cexponent(a);
+		eb = cexponent(b);
+		q = smith(cmk(calc__ldexp(a.re, -ea), calc__ldexp(a.im, -ea)),
+		    cmk(calc__ldexp(b.re, -eb), calc__ldexp(b.im, -eb)), &den);
+		/* calc__ldexp takes [-2044, 2044]; past it the quotient is out of range anyway */
+		ea -= eb;
+		if (ea > 2044)
+			ea = 2044;
+		if (ea < -2044)
+			ea = -2044;
+		q = cmk(calc__ldexp(q.re, ea), calc__ldexp(q.im, ea));
 	}
 	return cstore(a, b, q, out);
 }
@@ -241,7 +263,9 @@ hyp_mul(double y, double fc, double fs, double *ch, double *sh)
 	}
 	e = calc__exp(0.5 * ay);
 	*ch = (0.5 * fc * e) * e;
-	*sh = calc__copysign((0.5 * fs * e) * e, y);
+	*sh = (0.5 * fs * e) * e;
+	if (y < 0.0)
+		*sh = -*sh;
 }
 
 static calc_cplx

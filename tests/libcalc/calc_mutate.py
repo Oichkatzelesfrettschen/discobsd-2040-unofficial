@@ -237,8 +237,8 @@ MUTANTS = [
     (
         "rescale_offset",
         "calc_interp.c",
-        "* orange + output_min;",
-        "* orange + lo;",
+        "\t\tout[i] = span_mix(output_min, output_max,",
+        "\t\tout[i] = span_mix(output_min + lo, output_max,",
         "wrong output offset",
     ),
     (
@@ -311,6 +311,27 @@ MUTANTS = [
         "atanh within 2^-500 of a pole keeps 4x/d, which overflows",
     ),
     (
+        "hyp_mul_sign_replaced",
+        "calc_complex.c",
+        "\t*sh = (0.5 * fs * e) * e;\n\tif (y < 0.0)\n\t\t*sh = -*sh;",
+        "\t*sh = calc__copysign((0.5 * fs * e) * e, y);",
+        "the large-argument sinh product takes the sign of y alone",
+    ),
+    (
+        "cdiv_numerator_unscaled",
+        "calc_complex.c",
+        " ||\n\t    !calc__isfinite(q.re) || !calc__isfinite(q.im)) &&",
+        ") &&",
+        "complex division keeps a Smith numerator that overflowed",
+    ),
+    (
+        "span_mix_unscaled",
+        "calc_interp.c",
+        "\tif (calc__isfinite(d) || !calc__isfinite(lo) || !calc__isfinite(hi))",
+        "\tif (1)",
+        "rescaling and table lookup keep an output span that overflowed",
+    ),
+    (
         "hyp_mul_overflow",
         "calc_complex.c",
         "\tif (ay < 709.0) {",
@@ -327,8 +348,8 @@ MUTANTS = [
     (
         "cdiv_unscaled",
         "calc_complex.c",
-        "\tif ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN) &&",
-        "\tif (0 &&",
+        "\tif ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN ||",
+        "\tif (0 && (!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN ||",
         "complex division keeps a denominator that overflowed or went subnormal",
     ),
     (

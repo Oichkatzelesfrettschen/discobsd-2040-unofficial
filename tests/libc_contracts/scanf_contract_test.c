@@ -26,6 +26,9 @@
 /* The tree's stdio references the table; the gate never opens a real file. */
 struct _iobuf _iob[3];
 
+/* The tree strtod reports overflow through errno, renamed away from the host's. */
+int scanf_test_errno;
+
 int db_sscanf(const char *, const char *, ...);
 int db_vfscanf(FILE *, const char *, va_list);
 int db_vscanf(const char *, va_list);

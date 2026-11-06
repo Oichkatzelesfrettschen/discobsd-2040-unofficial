@@ -1349,12 +1349,12 @@ numbers.
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
-the device probe and on to a shell prompt, then holds the Renode log to a
-fixed set of warning classes. It stands outside `check` because it wants
-four
-things this tree does not carry, and reports whichever is missing by name:
-the `renode-test` harness, the models `tools/renode/fetch-renode-rp2040.sh`
-clones, a PICO_UART kernel, and a flash image.
+the device probe, logs in, runs `uname`, `sysctl kern.capacity`, `mputest`
+and `mputest residue`, then holds the Renode log to a fixed set of warning
+classes. It stands outside `check` because it wants three things this tree
+does not carry, and reports whichever is missing by name: the models
+`tools/renode/fetch-renode-rp2040.sh` clones and builds, a PICO_UART
+kernel, and a flash image.
 
 Nothing in this tree pins Renode itself, and the third-party models are
 built against whichever one is installed, so the gate names both before it
@@ -1367,24 +1367,22 @@ against Renode 1.17.0+20260907gitf1dd1b4af.
 
 tools/renode/machine.resc builds the machine and stops there. boot.resc
 includes it and adds a socket console and a GDB server for a person;
-boot.robot includes the same file and attaches a terminal tester, so the
-machine someone debugs is the machine the gate asserts on.
+check-boot.py includes the same file, so the machine someone debugs is the
+machine the gate asserts on.
 
-`renode-test` drives the suite through whatever `python3` resolves to, and
-Renode's own harness needs robotframework and four other packages no
-distribution installs with the emulator. check-boot.sh builds a virtual
-environment from Renode's own `tests/requirements.txt` under
-tools/renode/vendor, which .gitignore already excludes, rather than naming
-versions here that would drift from the installed emulator.
+check-boot.py and check-picocalc.py drive Renode through its console
+monitor on stdin (tools/renode/renode_monitor.py): each monitor command is
+followed by an `echo` of a numbered marker, and virtual time advances in
+half-second `RunFor` slices between checks. The UART0 gate captures the
+console through the UART model's file backend and types through its
+`WriteChar`, and matches each expected line after the previous match, so
+the lines must arrive in order. No process listens on a socket, which
+lets both gates run on a host that refuses listening sockets and needs no
+Robot Framework or virtual environment.
 
-One trap worth knowing: Robot Framework separates arguments on two or more
-spaces, so a console line like `phys mem  = 264 kbytes` has to spell its
-padding `${SPACE}${SPACE}`. Written plainly, the rest of the line is parsed
-as the next argument and the failure reads as a type error inside Renode.
-
-Each test case opens a Renode log under tools/renode/vendor/results, and
-check-boot.sh runs tools/renode/check-warnings.py over both when the suite
-finishes. The models warn wherever they fall short of the silicon, and a
+The run writes its Renode log and the UART0 transcript under
+tools/renode/vendor/results/boot, and check-boot.sh runs
+tools/renode/check-warnings.py over the log when the driver finishes. The models warn wherever they fall short of the silicon, and a
 boot that reaches a shell still produces some thirty-six thousand of them,
 so the gate cannot forbid warnings; tools/renode/warning-classes.txt names
 every class the boot is known to produce, says what the model is missing

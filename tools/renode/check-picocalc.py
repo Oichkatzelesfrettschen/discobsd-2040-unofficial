@@ -22,15 +22,14 @@ Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 
 import os
 import re
-import subprocess
 import sys
-import time
 from collections.abc import Callable
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import picocalc_fb  # noqa: E402
+from renode_monitor import Renode, RenodeError, monitor_int  # noqa: E402
 
 SLICE_SECONDS = 0.5
 BOOT_BUDGET_SECONDS = 20.0
@@ -45,60 +44,8 @@ BANNER_LINES = [
 ]
 
 
-class RenodeError(Exception):
-    """The emulator stopped answering."""
-
-
 class StageFailed(Exception):
     """A stage's expected text never reached the panel; later stages cannot run."""
-
-
-class Renode:
-    """One Renode process driven through its console on stdin."""
-
-    def __init__(self, renode: str, log_path: str) -> None:
-        self.log_path = log_path
-        self.log = open(log_path, "wb")
-        self.proc = subprocess.Popen(
-            [renode, "--disable-gui", "--console", "--plain", "--port", "-1"],
-            stdin=subprocess.PIPE, stdout=self.log, stderr=subprocess.STDOUT)
-        self.serial = 0
-        self.deadline = time.monotonic() + WALL_SECONDS
-
-    def _text(self) -> str:
-        with open(self.log_path, encoding="utf-8", errors="replace") as handle:
-            return handle.read()
-
-    def command(self, line: str) -> str:
-        """Send one monitor line and return the output it produced."""
-        self.serial += 1
-        mark = f"@@done-{self.serial}"
-        before = len(self._text())
-        assert self.proc.stdin is not None
-        self.proc.stdin.write(f'{line}\necho "{mark}"\n'.encode())
-        self.proc.stdin.flush()
-        pattern = re.compile(r"^" + re.escape(mark) + r"\s*$", re.M)
-        while True:
-            text = self._text()
-            found = pattern.search(text, before)
-            if found:
-                return text[before:found.start()]
-            if self.proc.poll() is not None:
-                raise RenodeError(f"Renode exited with {self.proc.returncode} during: {line}")
-            if time.monotonic() > self.deadline:
-                raise RenodeError(f"wall-clock budget spent during: {line}")
-            time.sleep(0.2)
-
-    def close(self) -> None:
-        try:
-            self.command("quit")
-        except RenodeError:
-            pass
-        try:
-            self.proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-        self.log.close()
 
 
 class Run:
@@ -218,17 +165,6 @@ def expected_init_trace(path: str = DRIVER_SOURCE) -> list[str]:
     return trace
 
 
-def monitor_int(renode: Renode, line: str) -> int:
-    """Read an integer property; the monitor prints it as 0x-prefixed hex."""
-    out = renode.command(line).strip().splitlines()
-    for text in reversed(out):
-        try:
-            return int(text.strip(), 0)
-        except ValueError:
-            continue
-    return -1
-
-
 def panel_status(renode: Renode) -> str:
     out = renode.command("sysbus.spi1.lcd Status")
     for line in out.splitlines():
@@ -260,7 +196,7 @@ def main(argv: list[str]) -> int:
         return 2
     renode_path, unix_bin, flash_bin, outdir = argv
     os.makedirs(outdir, exist_ok=True)
-    renode = Renode(renode_path, os.path.join(outdir, "renode.log"))
+    renode = Renode(renode_path, os.path.join(outdir, "renode.log"), WALL_SECONDS)
     run = Run(renode, outdir)
     try:
         renode.command(f"$unix_bin=@{unix_bin}")

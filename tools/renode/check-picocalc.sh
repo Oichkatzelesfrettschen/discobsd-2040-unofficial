@@ -5,9 +5,9 @@
 # the keyboard controller modeled (tools/renode/picocalc/), advances virtual
 # time in slices, decodes the panel's frame back to console text and asserts
 # the boot banner, the panel registers the driver programs, the login prompt
-# and a keyboard-driven login. It needs what check-boot.sh needs, less the
-# Robot harness: the console-mode Renode monitor on stdin replaces
-# renode-test, so no virtual environment and no network listener are
+# and a keyboard-driven login. It drives Renode the way check-boot.sh does,
+# through the console-mode monitor on stdin (renode_monitor.py), so no
+# virtual environment and no network listener are
 # involved. It needs a PICOCALC kernel and a flash image in place of the
 # PICO_UART kernel.
 #

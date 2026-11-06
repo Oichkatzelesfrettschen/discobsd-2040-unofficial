@@ -81,25 +81,25 @@ an earlier one.
 | Cross | `check-cross`, `check-cross-kernel`, `check-board-build` | Kernel, libc and programs build for Cortex-M0+ with warnings as errors and fit the layout | runs in `logged-check` and CI | arm-none-eabi toolchain |
 | qemu-user Thumb-1 | `check-qemu` | Code compiled for Cortex-M0+ executes on the ARMv6-M model: libcalc, libbn, calc, the libc contracts, the u-area exchange loop, Smaller C | runs in `logged-check` and CI | qemu-arm; `REQUIRE_QEMU=1` turns a missing emulator into a failure |
 | qemu a.out loader | `bmake -C tests/qemu_aout check` | A real DiscoBSD a.out runs its own libc and system calls | prototype, outside `check-qemu` | serves no fork, exec, signals, stat or tty ioctl |
-| Renode, bare Pico | `check-renode` | The PICO_UART kernel boots from the boot ROM to a shell and runs `mputest` | outside `check`; not run on this host | Renode and fetched models; renode-test needs a listening socket |
+| Renode, bare Pico | `check-renode` | The PICO_UART kernel boots from the boot ROM to a shell, reports its capacity record and passes `mputest` and its residue probe | passes, 76 s wall, outside `check` | Renode and fetched models with patches through 0008 |
 | Renode, PicoCalc | `check-renode-picocalc` | The PICOCALC console path to a login and a typed command against panel and keyboard models | passes, 90 s wall, outside `check` | Renode, fetched models with patches through 0008 |
 | Bare Pico board | `discobsd-flash` or `picotool`, then the drivers under `tests/rp2040` | Behavior on the measured silicon: flash, USB console, MPU, swap | not run for this work | the owner's explicit flash opt-in |
 | PicoCalc hardware | the bring-up order in `PICOCALC.md`, "Board bring-up of the console" | Panel, scroll, keyboard firmware, USB-C power, character rate | not run: no PicoCalc has booted this kernel | a PicoCalc on the bench and the owner's opt-in |
 
-The host that produced this note kills any process that holds a listening
-socket on 0.0.0.0, which `renode-test` and Renode's default monitor need, so
-`check-renode` could not run here; `check-renode-picocalc` drives Renode
-through its console monitor instead. Patches 0005-0008 touch only the PL022
-and GPIO rows above GP8, which the PICO_UART kernel does not use.
+Both Renode gates drive the emulator through its console monitor on stdin
+(`tools/renode/renode_monitor.py`) and hold no listening socket, so they
+run on a host that refuses one, as the host that produced this note does.
+Patches 0005-0008 touch only the PL022 and GPIO rows above GP8, which the
+PICO_UART kernel does not use, and `check-renode` passes with them applied.
 
 ## Next work
 
 Pipeline:
 
-1. Run `check-renode` on a host that allows listening sockets, with patches
-   0005-0008 applied, and record its receipt in `TESTING.md`; then move it
-   to the console-monitor driver `check-renode-picocalc` uses so both run
-   on any host, and give both a CI owner.
+1. Give `check-renode` and `check-renode-picocalc` a CI owner: a job that
+   caches the fetched and built models keyed on `RP2040_COMMIT` and the
+   patch series, installs the pinned Renode build, and runs both gates
+   after the kernel and flash image build.
 2. Grow the qemu a.out loader into a gate: serve stat, dup, fcntl and a
    path-root prefix (estimated one day), then fork, exec and wait (two), so
    the shipped utility binaries run against host files; then join

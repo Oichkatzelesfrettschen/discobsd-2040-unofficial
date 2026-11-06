@@ -1,17 +1,17 @@
 #!/bin/sh
 # Run the Renode boot gate, or say exactly what is missing and stop.
 #
-# The gate boots the UART0-console kernel under Renode and asserts the console
-# lines through the end of the device probe. It needs four things this tree
-# does not carry: the renode-test harness, the third-party RP2040 peripheral
-# models fetch-renode-rp2040.sh clones, a PICO_UART kernel, and a flash image.
-# Each is reported by name rather than by a failed command deep inside the
-# harness.
+# The gate boots the UART0-console kernel under Renode from the real boot
+# ROM, asserts the console lines through the device probe, logs in and runs
+# uname, sysctl kern.capacity and the MPU fault and exec residue probes
+# (check-boot.py). It needs three things this tree does not carry: the
+# third-party RP2040 peripheral models fetch-renode-rp2040.sh clones and
+# builds, a PICO_UART kernel, and a flash image. Each is reported by name
+# rather than by a failed command deep inside the emulator.
 #
-# renode-test runs the Robot suite through whatever "python3" resolves to,
-# and Renode's own suite needs robotframework and four other packages that no
-# distribution installs with the emulator. A virtual environment beside the
-# vendored models supplies them and goes first on PATH for this run only.
+# The console-mode Renode monitor on stdin drives the run
+# (renode_monitor.py), so no Robot harness, no virtual environment and no
+# listening socket are involved, the same way check-picocalc.sh runs.
 #
 # Usage: sh tools/renode/check-boot.sh
 
@@ -23,17 +23,18 @@ TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
 RP2040_COMMIT=$(sed -n 's/^RP2040_COMMIT=//p' "$SCRIPT_DIR/fetch-renode-rp2040.sh")
-VENV="$SCRIPT_DIR/vendor/robotvenv"
 KERNEL="$TOP/sys/arch/rp2040/compile/PICO_UART/unix.bin"
 IMAGE="$TOP/distrib/rp2040/flash.bin"
+MODELS="$VENDOR/emulation/bin/Release/net9.0/Peripherals.dll"
+OUTPUT="$SCRIPT_DIR/vendor/results/boot"
 
 missing() {
 	echo "check-renode: $1" >&2
 	exit 2
 }
 
-command -v renode-test >/dev/null 2>&1 ||
-	missing "no renode-test in PATH; install Renode 1.17 or later"
+command -v renode >/dev/null 2>&1 ||
+	missing "no renode in PATH; install Renode 1.17 or later"
 
 # Name what is about to run. The models are built against whichever Renode
 # is installed, and nothing in this tree pins that, so a gate that starts
@@ -48,51 +49,34 @@ if [ -n "$RUNNING_RENODE" ] && [ "$RUNNING_RENODE" != "$VERIFIED_RENODE" ]; then
 	echo "check-renode: last verified against $VERIFIED_RENODE" >&2
 fi
 
-
 [ -d "$VENDOR/cores" ] ||
 	missing "no RP2040 models; run sh tools/renode/fetch-renode-rp2040.sh"
+[ -r "$MODELS" ] ||
+	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
 
-# sys/arch/rp2040/compile/Makefile lists PICO and PICO_UART, so the ordinary
-# kernel target builds both; a tree that has one and not the other has a
-# PICO_UART directory config(8) has not been run in.
+# sys/arch/rp2040/compile/Makefile builds every MACHINE_KERNEL_CONFIGS entry,
+# PICO_UART among them, so a tree without PICO_UART's image
+# has a directory config(8) has not been run in.
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
 
 [ -r "$IMAGE" ] || missing "no $IMAGE; run bmake MACHINE=rp2040 flash"
 
-# Renode ships the package list its own suites need; reuse it rather than
-# naming versions here that would drift from the installed emulator.
-REQUIREMENTS=/opt/renode/tests/requirements.txt
-if [ ! -d "$VENV" ]; then
-	[ -r "$REQUIREMENTS" ] ||
-		missing "no $REQUIREMENTS; this Renode install ships no test harness"
-	"$PYTHON" -m venv "$VENV"
-	"$VENV/bin/pip" install --quiet --requirement "$REQUIREMENTS"
-fi
-
-# renode-test writes its report beside the suite; keep that out of the tree.
-OUTPUT="$SCRIPT_DIR/vendor/results"
 mkdir -p "$OUTPUT"
 
-# boot.robot names these, one per test case. Remove them first so a suite
-# that dies before it opens one cannot leave the previous run's log to be
-# classified as this run's.
-rm -f "$OUTPUT/probe.log" "$OUTPUT/login.log"
-
-PATH="$VENV/bin:$PATH"
-export PATH
-cd "$OUTPUT"
-renode-test "$SCRIPT_DIR/boot.robot"
+# The driver exits 1 on a failed assertion and 2 when the emulator stops
+# answering; both end the gate, but the log is worth reading either way.
+status=0
+"$PYTHON" -I "$SCRIPT_DIR/check-boot.py" renode "$KERNEL" "$IMAGE" "$OUTPUT" ||
+	status=$?
 
 # The console assertions say the kernel reached a shell; the warning classes
 # say the models it reached it through behaved the way they did when those
 # ceilings were measured. A new class of infidelity fails here even when
 # every console line still arrives.
-status=0
-for log in "$OUTPUT/probe.log" "$OUTPUT/login.log"; do
-	[ -r "$log" ] || missing "no $log; boot.robot did not open its log"
-	echo "check-renode: $(basename "$log")"
-	"$PYTHON" "$SCRIPT_DIR/check-warnings.py" \
-		"$SCRIPT_DIR/warning-classes.txt" "$log" || status=1
-done
+if [ -r "$OUTPUT/renode.log" ]; then
+	echo "check-renode: renode.log"
+	"$PYTHON" -I "$SCRIPT_DIR/check-warnings.py" \
+		"$SCRIPT_DIR/warning-classes.txt" "$OUTPUT/renode.log" || status=1
+fi
 exit "$status"

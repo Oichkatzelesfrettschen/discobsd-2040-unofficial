@@ -267,20 +267,13 @@ vendor sends and this driver omits, and only a board capture decides it.
 
 ## What did not run
 
-- `check-renode` (the UART0 gate): not run in this session. Renode's
-  `renode-test` harness starts a Robot server that listens on `0.0.0.0`, and
-  this session's environment ends any process that holds a wildcard
-  listening socket for more than a few seconds with SIGKILL (a Python script
-  that bound `0.0.0.0` was killed; one bound to `127.0.0.1` ran to
-  completion; `renode --robot-server-port` died four seconds after it bound
-  its port, and so did a Renode started with its default monitor port; with neither
-  listener, Renode ran). That is a property of the sandbox, not of the tree.
-  The four corrections touch code the UART0 kernel reaches only through
-  `PL022`, which that kernel never programs, and the GPIO rows for GP0 to GP8,
-  which are unchanged, so the risk is low; a UART0-kernel boot through the
-  same stdin driver is the substitute run recorded under "Acceptance" and is
-  not the gate. Run `check-renode` on a host that allows listening sockets
-  before merging.
+- `check-renode` (the UART0 gate) under `renode-test`: not run. Its Robot
+  server listens on `0.0.0.0`, and the host that produced this note ends any
+  process holding a wildcard listening socket with SIGKILL (a Python script
+  bound to `0.0.0.0` was killed, one bound to `127.0.0.1` ran; Renode with
+  its default monitor port died four seconds after binding it). The gate
+  moved to the console-monitor driver `tools/renode/check-boot.py` instead,
+  recorded under "Acceptance".
 - A Robot Framework suite for the PicoCalc: not written. The same constraint
   prevents running one, and an unrun suite is not evidence. The stdin driver
   gives the same waits in virtual time; the model's monitor commands are
@@ -323,17 +316,20 @@ Calibration and controls:
 - The PICO_UART kernel, which draws nothing on the panel, run through the same
   driver, exits 1 at the first stage after 20 virtual seconds with `FAIL
   banner: [...] not on the panel`, as it must (measured).
-- Substitute for the UART0 gate (not the gate): `machine.resc` with the
-  PICO_UART kernel and root image, the corrected models, 20 virtual seconds
-  driven through the same stdin monitor, UART0 captured to a file. The
-  capture ends `Starting daemons:  update`, the system banner and `login:`,
-  so the model corrections leave that boot working. `check-boot.sh` itself
-  did not run (see above).
+- `bmake MACHINE=rp2040 check-renode`, with patches 0005-0008 applied, exit
+  0 in 76 s of wall clock: the device probe after 0.5 virtual seconds, the
+  file system check and daemons after 3.5, `login:` after 6.5, then `uname`,
+  the capacity record, `MPUTEST OK (mpu on)` and `RESIDUE OK` by 9.5;
+  check-warnings counts 35,190 warnings in 19 classes, 0 errors. The
+  patches touch only `PL022` and the GPIO rows above GP8, which the UART0
+  kernel does not reach. Calibration: an expected probe line changed to
+  `swap size = 381 kbytes`, and the capacity record's u-area line changed
+  to `stack 2049`, each fail the driver with status 1.
 
 ## Next steps
 
-1. Run `check-renode` and `check-renode-picocalc` on a host without the
-   listener restriction and record both receipts in `TESTING.md`.
+1. Give `check-renode` and `check-renode-picocalc` a CI owner that caches
+   the fetched and built models keyed on the pinned commit and the patches.
 2. Send patches 0005 to 0008 upstream as reports after the deliberate-request
    rule in `AGENTS.md` (drafts under `docs/research`, assistant drafting
    disclosed in the first line).

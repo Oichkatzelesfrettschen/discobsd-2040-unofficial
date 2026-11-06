@@ -3,8 +3,8 @@
 # one shared virtual address range for zero-initialized private storage.
 set -eu
 
-if [ "$#" -lt 3 ]; then
-	echo "usage: $0 output.ld applet.tool.o applet.tool.o ..." >&2
+if [ "$#" -lt 2 ]; then
+	echo "usage: $0 output.ld applet.tool.o [applet.tool.o ...]" >&2
 	exit 2
 fi
 
@@ -38,13 +38,18 @@ trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
 	printf '%s\n' \
 	    '  .app_bss_extent __app_bss_start (NOLOAD) : { . = __app_bss_end - __app_bss_start; }' \
 	    '}'
-	printf 'NOCROSSREFS('
-	for object_path do
-		object_name=${object_path##*/}
-		applet_name=${object_name%.tool.o}
-		printf ' .app_bss_%s' "$applet_name"
-	done
-	printf '%s\n' ' );' 'INSERT BEFORE .bss;'
+	# NOCROSSREFS relates sibling applets, so a binary that carries one
+	# applet has no pair to forbid.
+	if [ "$#" -gt 1 ]; then
+		printf 'NOCROSSREFS('
+		for object_path do
+			object_name=${object_path##*/}
+			applet_name=${object_name%.tool.o}
+			printf ' .app_bss_%s' "$applet_name"
+		done
+		printf '%s\n' ' );'
+	fi
+	printf '%s\n' 'INSERT BEFORE .bss;'
 } >"$temporary_path"
 
 mv "$temporary_path" "$output_path"

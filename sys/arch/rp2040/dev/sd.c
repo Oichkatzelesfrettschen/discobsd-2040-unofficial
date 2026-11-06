@@ -42,8 +42,12 @@
  * its start as a DEV_BSIZE (1 KiB) block number: physio() derives b_blkno
  * from the file offset shifted right by DEV_BSHIFT, so a raw transfer of one
  * sector, as fdisk makes for the master boot record, addresses the first
- * sector of its block. A request that crosses the end of its partition
- * transfers the sectors that fit and reports the rest in b_resid.
+ * sector of its block. Because the low ten offset bits are lost on the way
+ * to b_blkno, sdread and sdwrite refuse a raw request that does not start at
+ * a DEV_BSIZE multiple, or whose non-final segments are not whole blocks,
+ * with EINVAL instead of transferring the wrong sector. A request that
+ * crosses the end of its partition transfers the sectors that fit and
+ * reports the rest in b_resid.
  */
 
 #include <sys/param.h>
@@ -54,6 +58,7 @@
 #include <sys/disk.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
@@ -310,6 +315,40 @@ sdstrategy(struct buf *bp)
 bad:
 	bp->b_flags |= B_ERROR;
 	biodone(bp);
+}
+
+/*
+ * physio() builds b_blkno from uio_offset >> DEV_BSHIFT and then advances
+ * by what moved, so a transfer is exact only when it starts on a block and
+ * every segment but the last is a whole number of blocks.
+ */
+static int
+sd_misaligned(const struct uio *uio)
+{
+	int i;
+
+	if ((uio->uio_offset & (DEV_BSIZE - 1)) != 0)
+		return 1;
+	for (i = 0; i < uio->uio_iovcnt - 1; i++)
+		if ((uio->uio_iov[i].iov_len & (DEV_BSIZE - 1)) != 0)
+			return 1;
+	return 0;
+}
+
+int
+sdread(dev_t dev, struct uio *uio, int flag)
+{
+	if (sd_misaligned(uio))
+		return EINVAL;
+	return rawrw(dev, uio, flag);
+}
+
+int
+sdwrite(dev_t dev, struct uio *uio, int flag)
+{
+	if (sd_misaligned(uio))
+		return EINVAL;
+	return rawrw(dev, uio, flag);
 }
 
 int

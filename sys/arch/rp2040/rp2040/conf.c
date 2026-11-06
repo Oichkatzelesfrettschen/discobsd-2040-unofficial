@@ -252,7 +252,7 @@ const struct cdevsw cdevsw[] = {
 #if SD_CMAJOR != 11
 #error Wrong SD_CMAJOR value!
 #endif
-		sdopen,		sdclose,	rawrw,		rawrw,
+		sdopen,		sdclose,	sdread,		sdwrite,
 		sdioctl,	nullstop,	0,		seltrue,
 		sdstrategy,	0,		0,
 	},

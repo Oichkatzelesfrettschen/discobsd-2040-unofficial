@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 124,092 of 130,816 bytes (`RP2040.ld` FLASH), bss 47,608; the console alone measured 119,316 and 45,888, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,600) add 4,776 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 124,268 of 130,816 bytes (`RP2040.ld` FLASH), bss 47,608; the console alone measured 119,316 and 45,888, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,776) add 4,952 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -45,7 +45,7 @@ name a file there, with a page for a PDF.
 | BEL (0x07) reaches the bell primitive once per byte, from the ground state and inside a control sequence, and draws, moves and scrolls nothing; other controls stay silent | host | observed by `check-picocalc-host` against the model panel; two mutants fail it |
 | `picoaudio.c` compiles into PICOCALC only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
 | The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
-| `sd.c` and `sdspi.c` compile into PICOCALC only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,600 bytes (2,635 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,696 over the audio build |
+| `sd.c` and `sdspi.c` compile into PICOCALC only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,776 bytes (2,771 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,696 over the audio build |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
@@ -323,11 +323,20 @@ holds the caller for up to 500 ms; ticks still run.
 the whole card and 1 to 4 for the MBR partitions a to d, as `fl` numbers
 its partitions. The partition table is read at the first open from sector 0
 (`fdisk` rewrites it and calls `DIOCREINIT`); an entry that reaches past
-the card's end is dropped. A transfer is any whole number of 512-byte
+the card's end is dropped. `DIOCREINIT` builds the new table apart and
+replaces the live one only after sector 0 reads, so a read error returns
+`EIO` and leaves the open partitions' mappings as they were. A transfer is any whole number of 512-byte
 sectors, and its start is a 1 KiB block number because `physio()` shifts the
-file offset right by `DEV_BSHIFT`; the one-sector transfers `fdisk` makes at
-offset 0 reach sector 0, and a request that crosses the partition end moves
-the sectors that fit and reports the rest in `b_resid`. Block and raw opens
+file offset right by `DEV_BSHIFT`, which drops the low ten offset bits. Raw
+I/O therefore works at 1 KiB-aligned offsets: `sdread` and `sdwrite` (the
+`rsd` entries in `conf.c`, in front of `rawrw()`) refuse with `EINVAL` a
+request whose offset is not a multiple of `DEV_BSIZE`, or whose segments
+before the last are not whole blocks, because a 512-byte transfer at offset
+512 would otherwise address the sector before it. Use `dd bs=1k` or a
+multiple (`dd` defaults to 512-byte blocks and fails at its second read);
+the one-sector transfers `fdisk` makes at offset 0 reach sector 0. A request
+that crosses the partition end moves the sectors that fit and reports the
+rest in `b_resid`. Block and raw opens
 are tracked apart so that closing `rsd0a` leaves a mounted `sd0a` open.
 `chrtoblk()` maps `rsd0` to `sd0`, so securelevel 1 guards a raw write to a
 mounted partition, and `isdisk(dev, IFCHR)` classifies major 11 as a disk, so
@@ -346,8 +355,8 @@ level means present.
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
 generic mount code replaces the single-root shortcuts; that, with the
-`conf.c` entries and the detect hook, is the roughly 965 of the 3,600 added
-text bytes that the two SD objects (2,635) do not account for; the figure is
+`conf.c` entries and the detect hook, is the roughly 1,005 of the 3,776 added
+text bytes that the two SD objects (2,771) do not account for; the figure is
 the difference of object sizes, not a separate build. Userland is
 still built with the PICO kernels' layout (`KERNEL_LAYOUT_CFLAGS` in
 `share/mk/sys.mk`), which is harmless for the shipped programs: `ps` reads

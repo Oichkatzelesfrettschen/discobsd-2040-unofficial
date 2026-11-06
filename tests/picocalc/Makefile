@@ -23,7 +23,7 @@
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
 # kernel's buf.h and disk.h through the headers in shim/ and a card behind
 # fake sdspi calls, then drives sdopen, sdstrategy and sdsize with the
-# requests physio() and the buffer cache make; twelve mutants of sd.c must
+# requests physio() and the buffer cache make; nineteen mutants of sd.c must
 # fail it.
 #
 # picoaudio_test compiles the bell driver (picoaudio.c) unchanged against
@@ -285,7 +285,12 @@ sdstrat-mutants: \
 	sdstrat-mutant-card-changed \
 	sdstrat-mutant-open-check \
 	sdstrat-mutant-reinit-early-clear \
-	sdstrat-mutant-reinit-keep-old
+	sdstrat-mutant-reinit-keep-old \
+	sdstrat-mutant-raw-read-unchecked \
+	sdstrat-mutant-raw-write-unchecked \
+	sdstrat-mutant-raw-offset-unchecked \
+	sdstrat-mutant-raw-sector-granularity \
+	sdstrat-mutant-raw-segments-unchecked
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
@@ -342,6 +347,26 @@ sdstrat-mutant-reinit-early-clear:
 sdstrat-mutant-reinit-keep-old:
 	${SDSTRAT_MUT} sd.c \
 	    's/^\t\tbcopy(pt, sdpt, sizeof(sdpt));/\t\t(void)0;/' sd.c
+
+sdstrat-mutant-raw-read-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sdread(/,/^}/s/sd_misaligned(uio)/0/' sd.c
+
+sdstrat-mutant-raw-write-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sdwrite(/,/^}/s/sd_misaligned(uio)/0/' sd.c
+
+sdstrat-mutant-raw-offset-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    's/(uio->uio_offset \& (DEV_BSIZE - 1)) != 0/0/' sd.c
+
+sdstrat-mutant-raw-sector-granularity:
+	${SDSTRAT_MUT} sd.c \
+	    's/(uio->uio_offset \& (DEV_BSIZE - 1))/(uio->uio_offset \& (SD_SECTOR - 1))/' sd.c
+
+sdstrat-mutant-raw-segments-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    's/(uio->uio_iov\[i\].iov_len \& (DEV_BSIZE - 1)) != 0/0/' sd.c
 
 
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
@@ -426,7 +451,12 @@ clean:
 	sdstrat-mutant-card-changed \
 	sdstrat-mutant-open-check \
 	sdstrat-mutant-reinit-early-clear \
-	sdstrat-mutant-reinit-keep-old
+	sdstrat-mutant-reinit-keep-old \
+	sdstrat-mutant-raw-read-unchecked \
+	sdstrat-mutant-raw-write-unchecked \
+	sdstrat-mutant-raw-offset-unchecked \
+	sdstrat-mutant-raw-sector-granularity \
+	sdstrat-mutant-raw-segments-unchecked
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

@@ -23,7 +23,10 @@ typedef int		daddr_t;
 /* Register access goes to the model in tests/picocalc/regmodel.h. */
 extern volatile unsigned *shim_reg(unsigned long addr);
 #define	PC_REG32(a)	(*shim_reg((unsigned long)(a)))
+/* macOS <sys/cdefs.h> already defines __unused. */
+#ifndef __unused
 #define	__unused	__attribute__((unused))
+#endif
 #define	IFCHR		0020000
 #define	IFBLK		0060000
 

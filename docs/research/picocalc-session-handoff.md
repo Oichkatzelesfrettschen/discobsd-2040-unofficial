@@ -133,26 +133,34 @@ Software:
 9. Port OpenBSD dc and bc onto `lib/libbn`: a lazy register table in place
    of the 771 KB extended one, an `hcreate` replacement, libedit removed,
    then the -m32 differential (`docs/research/openbsd-dc-bn-port.md`).
-10. Done (PR #353): `%g` in `lib/libc/stdio/doprnt_float.c` runs
-    `general_cvt()`, which counts significant digits from the first nonzero
-    digit as C17 7.21.6.1p8 requires, and `check-libc-printf-g` rejects the
-    leading-zero mutant (`sys/arch/rp2040/doc/TESTING.md`). Open limits of
-    the tree formatter, measured on a host build of the tree sources: digits
-    beyond the 11th significant digit are not correctly rounded and an exact
-    tie rounds up; negative zero prints without its sign under every decimal
-    conversion; `%010.2f` of 3.14159 prints `      3.14` with space padding
-    where 7.21.6.1p6 asks for `0000003.14`. A `%lg` width defect named by an
-    earlier note is not reproduced: `%10lg` and `%-10lg` of 3.5 pad to ten
-    columns, so the failing input is still unidentified. calc formats from
-    `%e` and stays as it is.
-11. Done (PR #353): `include/math.h` defines `HUGE_VAL`, `HUGE_VALF`,
-    `HUGE_VALL` and `INFINITY` as infinities, and `check-libc-huge-val` holds
-    the overflow returns of lib/libm (`sys/arch/rp2040/doc/TESTING.md`).
-    Open limits: `exp()` compares its argument with `maxf`, which is
-    `DBL_MAX_10_EXP * 2.5` = 770, so an argument between 709.78 and 770
-    overflows inside `ldexp()` and gets its `ERANGE` there; `log(0)` sets
-    `EDOM` where C17 7.12.1 treats the pole error as a range error
-    (`ERANGE`). calc and libcalc still range-check before calling libm.
+10. Done (PR #353 and the printf/libm conformance branch): `%g` in
+    `lib/libc/stdio/doprnt_float.c` runs `general_cvt()`, which counts
+    significant digits from the first nonzero digit as C17 7.21.6.1p8
+    requires. The decimal conversions generate digits from the double's bits
+    in exact integer arithmetic (`decimal_cvt()`), so every digit is
+    correctly rounded with ties to even, the 0 flag pads with zeros under
+    every floating conversion (`%010.2f` of 3.14159 is `0000003.14`), a
+    negative zero keeps its sign, `l` leaves the default precision at six,
+    and `%F` prints. `check-libc-printf-g` holds each of these with a mutant
+    (`sys/arch/rp2040/doc/TESTING.md`). Open limits: a precision past about
+    320 digits prints the exact digits and then zeros; the `%lg` width defect
+    named by an earlier note is not reproduced (`%10lg` and `%-10lg` of 3.5
+    pad to ten columns, and the `%lf` and `%lg` defect found instead was the
+    default precision of 15), so the failing input of that note stays
+    unidentified. calc formats from `%e` and stays as it is.
+11. Done (PR #353 and the printf/libm conformance branch):
+    `include/math.h` defines `HUGE_VAL`, `HUGE_VALF`, `HUGE_VALL` and
+    `INFINITY` as infinities, and `check-libc-huge-val` holds the overflow
+    and pole returns of lib/libm (`sys/arch/rp2040/doc/TESTING.md`). `exp()`
+    overflows above ln(DBL_MAX) with `ERANGE` and reduces its argument with a
+    split ln 2, which moves its error from 5e-14 to 5e-16 and lets
+    `exp(709.782712893384)` return a finite value; `log(0)`, `y0(0)`,
+    `y1(0)`, `yn(n, 0)` and `pow(0, y<0)` report the pole as `ERANGE`. Open
+    limits: `log` and the Bessel functions return `-HUGE_VAL` for a negative
+    argument where Annex F asks for a NaN; `pow` of a negative base and a
+    non-integer power returns 0 with `EDOM`; `ldexp` flushes a result under
+    2^-1024 to zero, so `exp` returns zero where the result is a subnormal
+    under 2^-1024. calc and libcalc still range-check before calling libm.
 12. The remaining games from `docs/research/picocalc-games-survey.md` and
     the tile-graphics device from `docs/research/picocalc-calculator-and-gui.md`.
 13. `sys/exec.h:51` declares an empty struct, a GNU extension that keeps

@@ -1208,14 +1208,18 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests and the calc line interface executed as Thumb-1 programs rather
-# than only linked.
+# libbn tests, the calc line interface and the libc strtol/strtoul, random and
+# printf contracts executed as Thumb-1 programs rather than only linked.
+# tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
+# contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
+		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.

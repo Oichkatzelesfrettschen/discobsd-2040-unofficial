@@ -169,3 +169,6 @@ array_reallocarray32_san.o
 string_memmem.o
 string_memmem_san.o
 string_memmem32_san.o
+strtox_test_arm
+random_contract_test_arm
+printf_contract_test_arm

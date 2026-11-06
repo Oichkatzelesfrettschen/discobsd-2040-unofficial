@@ -16,11 +16,7 @@
 #                         (tl_NAME.o) plus tl_errno.o; a host program linked
 #                         with them ahead of -lm calls the libm code the
 #                         target links, on host IEEE arithmetic
-#   QEMU_ARM              the qemu-arm path, empty when it is absent
-#   QEMU_ARM_CC, QEMU_ARM_CFLAGS, QEMU_ARM_LIBS, QEMU_SUPPORT
-#                         a newlib link of a test program for Cortex-M0+ with
-#                         the Linux EABI system calls of
-#                         tests/libbn/qemu_support.c, for qemu-arm user mode
+#   QEMU_ARM*             the qemu-arm user-mode resources of tools/qemu-arm.mk
 #
 # A consumer that finds qemu-arm absent prints a SKIP line naming the missing
 # execution, and fails instead when REQUIRE_QEMU is set (root check-qemu).
@@ -55,9 +51,4 @@ tl_errno.o:	${TOPSRC}/tests/libcalc/tl_errno.c
 		${HOSTCC} -std=c17 -pedantic-errors -Wall -Wextra -Werror -c \
 		    ${TOPSRC}/tests/libcalc/tl_errno.c -o $@
 
-QEMU_ARM!=	command -v qemu-arm 2>/dev/null || true
-QEMU_ARM_CC=	${GCCPREFIX}-gcc
-QEMU_ARM_CFLAGS= -std=gnu17 -Wall -Wextra -Werror -Os -mcpu=cortex-m0plus \
-		-mthumb -mfloat-abi=soft -nostartfiles -Wl,-Ttext=0x20000
-QEMU_ARM_LIBS=	-lc -lgcc
-QEMU_SUPPORT=	${TOPSRC}/tests/libbn/qemu_support.c
+include ${TOPSRC}/tools/qemu-arm.mk

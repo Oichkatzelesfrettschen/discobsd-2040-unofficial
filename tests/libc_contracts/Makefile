@@ -51,6 +51,7 @@ RANDOM_UBSAN=	-fsanitize=undefined -fno-sanitize-recover=all
 ILP32=		-m32
 ILP32_CC= ${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
+include ${TOPSRC}/tools/qemu-arm.mk
 
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
@@ -1173,6 +1174,77 @@ clean:
 		${ANSI_OBJS} ${ANSI_OBJS32} ${ANSI_SAN32_OBJS} \
 		ansi_shared_byte_bad.o ansi_shared_byte_bad_test ansi_shared_byte_bad.log
 	rm -f waitpid_contract_test waitpid_contract.o
+	rm -f ${QEMU_TESTS} ${QEMU_STRTOX_OBJS} ${QEMU_PRINTF_OBJS} \
+		random_random_arm.o qemu_support_direct.o qemu_stdio_shim.o
+
+# Thumb-1 execution. The tree sources behind check-strtox, check-random and
+# check-printf compile for Cortex-M0+ with the target's own char signedness
+# (unsigned; the host variants force -fsigned-char) and run as a newlib
+# program under qemu-arm on the ARMv6-M CPU model (tools/qemu-arm.mk), which
+# faults on Thumb-2 and unaligned accesses. Each test is the host test
+# unchanged. REQUIRE_QEMU makes a missing qemu-arm an error; otherwise the
+# target prints SKIP and no ARM execution has occurred. The tests print to
+# stdout or stderr through qemu_support.c, and the printf test links the
+# tree's stdio over qemu_stdio_shim.c in place of newlib's.
+QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common
+QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm
+QEMU_STRTOX_OBJS= strtox_strtol_arm.o strtox_strtoul_arm.o
+QEMU_PRINTF_OBJS= ${PRINTF_OBJS:S/^printf_/printf_arm_/}
+
+check-qemu:
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "libc contracts qemu: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
+	@echo "SKIP libc contracts qemu: qemu-arm unavailable; no ARM execution occurred"
+.else
+	@${MAKE} ${QEMU_TESTS}
+	${QEMU_ARM_RUN} ./strtox_test_arm
+	${QEMU_ARM_RUN} ./random_contract_test_arm
+	${QEMU_ARM_RUN} ./printf_contract_test_arm
+.endif
+
+qemu_support_direct.o: ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} -std=gnu17 -Wall -Wextra -Werror ${QEMU_OBJCFLAGS} \
+	    -DQEMU_SUPPORT_EXIT_DIRECT -c -o $@ ${QEMU_SUPPORT}
+
+qemu_stdio_shim.o: qemu_stdio_shim.c
+	${QEMU_ARM_CC} -std=gnu17 -Wall -Wextra -Werror ${QEMU_OBJCFLAGS} \
+	    -ffreestanding -fno-builtin -c -o $@ qemu_stdio_shim.c
+
+strtox_strtol_arm.o: ${STRTOX_DIR}/strtol.c
+	${QEMU_ARM_CC} ${STRTOX_CFLAGS:N-fsigned-char} ${QEMU_OBJCFLAGS} \
+	    -Dstrtol=db_strtol -c -o $@ ${STRTOX_DIR}/strtol.c
+
+strtox_strtoul_arm.o: ${STRTOX_DIR}/strtoul.c
+	${QEMU_ARM_CC} ${STRTOX_CFLAGS:N-fsigned-char} ${QEMU_OBJCFLAGS} \
+	    -Dstrtoul=db_strtoul -c -o $@ ${STRTOX_DIR}/strtoul.c
+
+strtox_test_arm: strtox_test.c ${QEMU_STRTOX_OBJS} ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} ${STRTOX_CFLAGS:N-fsigned-char} ${QEMU_ARM_CFLAGS} \
+	    -o $@ strtox_test.c ${QEMU_STRTOX_OBJS} ${QEMU_SUPPORT} \
+	    ${QEMU_ARM_LIBS}
+
+random_random_arm.o: ${TARGET_DIR}/random.c
+	${QEMU_ARM_CC} ${RANDOM_CFLAGS} ${QEMU_OBJCFLAGS} -ffreestanding \
+	    -c -o $@ ${TARGET_DIR}/random.c
+
+random_contract_test_arm: random_contract_test.c random_random_arm.o \
+    ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} -std=c17 ${QEMU_ARM_CFLAGS:N-std=*} \
+	    -o $@ random_contract_test.c random_random_arm.o ${QEMU_SUPPORT} \
+	    ${QEMU_ARM_LIBS}
+
+.for _m in snprintf vsnprintf doprnt flsbuf doprnt_llong
+printf_arm_${_m}.o: ${PRINTF_DIR}/${_m}.c
+	${QEMU_ARM_CC} ${PRINTF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${PRINTF_DIR}/${_m}.c
+.endfor
+
+printf_contract_test_arm: printf_contract_test.c ${QEMU_PRINTF_OBJS} \
+    qemu_support_direct.o qemu_stdio_shim.o
+	${QEMU_ARM_CC} ${PRINTF_CFLAGS} ${QEMU_ARM_CFLAGS:N-std=*} \
+	    -o $@ printf_contract_test.c ${QEMU_PRINTF_OBJS} \
+	    qemu_support_direct.o qemu_stdio_shim.o ${QEMU_ARM_LIBS}
 
 all: check
 
@@ -1185,7 +1257,7 @@ all: check
 	check-random check-random-cross \
 	check-printf-float check-rwmode check-scanf check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
-	check-syslog check-vis clean
+	check-syslog check-vis check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings
 # fopen accepts and the descriptor flags they produce, fflush over every

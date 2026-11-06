@@ -1286,8 +1286,8 @@ register, a missing wait, a wrong magnitude mask) must each fail. The run
 establishes the helpers' sign, zero-divisor, `INT_MIN`, register-preservation
 and operand/result-order behavior against the divider contract of datasheet
 2.3.1.5; it does not establish the eight-cycle wait, the divider's arithmetic
-or overflow behavior, or the user MPU grant, which only a board run shows.
-usr.bin/smlrc's suite compiles each test with the
+or overflow behavior, or the user MPU grant, which only a board run shows
+(tests/rp2040/divtest). usr.bin/smlrc's suite compiles each test with the
 Thumb-1 back end, links it against a copy of the tree's libc with the
 Boot ROM float members and `aeabi_div.o` removed (qemu-arm maps no ROM at
 address 0x10 and no SIO block at 0xd0000000, so libgcc's soft-float and
@@ -1437,7 +1437,12 @@ attached, recorded in emulation.md.
 
 `check-board-build` builds the on-device regression programs to a.out
 through tests/rp2040/Makefile: fptest (Boot ROM float, bit-exact),
-sigtest (signal frames), streamtest (NSTATIC), stdiocap (syscall-sampled
+divtest (the SIO-divider integer helpers: an edge corpus against a restoring
+division, a loop that divides across 10 ms SIGALRM deliveries whose handler
+divides, and the same divider sequence with 0 to 6 padding branches, which
+reports the smallest error-free wait next to the shipped four branches; board
+execution needs the owner's explicit opt-in, and the wait result is the only
+evidence for the eight-cycle margin), sigtest (signal frames), streamtest (NSTATIC), stdiocap (syscall-sampled
 process-stack extent), tartest (the -Z filter
 across a pipe), romprobe (ROM table dump), textcrc (packed executable
 text restoration), swapmaptest (the swap map read through sysctl(3), each

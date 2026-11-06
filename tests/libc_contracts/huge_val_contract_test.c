@@ -5,7 +5,8 @@
  * than a large finite number. lib/libm, lib/libc/gen (ldexp, frexp, atof)
  * and lib/libc/stdlib (strtod) are compiled from the tree under tree_
  * names; the formatter is the one printf_g_contract_test compares with
- * the host snprintf, here for the text of an infinity and of a NaN.
+ * the host snprintf, here held to the C17 text of an infinity and of a
+ * NaN.
  */
 #include <errno.h>
 #include <float.h>
@@ -74,15 +75,57 @@ check_call(const char *what, double value, int sign, int errno_expected)
 		check_call(#expression, (expression), (sign), (errno_expected)); \
 	} while (0)
 
+/*
+ * The text C17 7.21.6.1p8 gives an infinity or a NaN under a floating
+ * conversion: "inf" or "nan", in capitals for F, E, G and A, signed as a
+ * number is (a leading '-', or '+' or ' ' by flag), padded with spaces to
+ * the width on the side '-' selects; precision, '#' and '0' do not apply.
+ * The expectation is computed here rather than taken from the host's
+ * snprintf, because the newlib the Thumb-1 run links has no %F or %a.
+ */
+static void
+expected_text(char *out, size_t size, const char *format, double value)
+{
+	const char *p = format + 1, *word;
+	char body[16];
+	int left = 0, plus = 0, space = 0, width = 0, upper;
+
+	for (;; p++) {
+		if (*p == '-')
+			left = 1;
+		else if (*p == '+')
+			plus = 1;
+		else if (*p == ' ')
+			space = 1;
+		else if (*p != '#' && *p != '0')
+			break;
+	}
+	while (*p >= '0' && *p <= '9')
+		width = width * 10 + (*p++ - '0');
+	if (*p == '.')
+		for (p++; *p >= '0' && *p <= '9'; p++)
+			continue;
+	upper = *p == 'F' || *p == 'E' || *p == 'G' || *p == 'A';
+	if (isnan(value))
+		word = upper ? "NAN" : "nan";
+	else
+		word = upper ? "INF" : "inf";
+	snprintf(body, sizeof body, "%s%s",
+	    !isnan(value) && value < 0 ? "-" : plus ? "+" : space ? " " : "",
+	    word);
+	snprintf(out, size, left ? "%-*s%s" : "%*s%s", width, body, p + 1);
+}
+
 static void
 compare_print(const char *format, double value)
 {
 	char got[64], want[64], message[256];
 
 	tree_snprintf(got, sizeof got, format, value);
-	snprintf(want, sizeof want, format, value);
-	snprintf(message, sizeof message, "%s of %g prints \"%s\", host \"%s\"",
-	    format, value, got, want);
+	expected_text(want, sizeof want, format, value);
+	snprintf(message, sizeof message,
+	    "%s of %g prints \"%s\", C17 gives \"%s\"", format, value, got,
+	    want);
 	check(strcmp(got, want) == 0, message);
 }
 

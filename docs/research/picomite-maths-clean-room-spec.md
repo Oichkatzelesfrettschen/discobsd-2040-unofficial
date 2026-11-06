@@ -553,7 +553,16 @@ for the calculator and rejects larger sizes with the range status.
   measurement. Per update with setpoint sp and measurement m:
   - e = sp - m; the proportional term is Kp*e.
   - integrator += 0.5 * Ki * T * (e + previous_e); clamp to [integrator_min, integrator_max].
-  - differentiator = -(2*Kd*(m - previous_m) + (2*tau - T)*differentiator) / (2*tau + T).
+  - Legacy: differentiator = -(2*Kd*(m - previous_m) + (2*tau - T)*differentiator) / (2*tau + T). The
+    feedback term carries the minus sign of the input term, which puts the pole at z = -(2*tau - T)/(2*tau + T)
+    and makes the filtered derivative alternate in sign for tau above T/2.
+    Required (divergence from legacy): differentiator = (-2*Kd*(m - previous_m) + (2*tau - T)*differentiator) /
+    (2*tau + T), the trapezoidal (Tustin) form of D(s) = -Kd*s/(tau*s + 1)*M(s) under
+    s = (2/T)*(1 - 1/z)/(1 + 1/z). The pole is z = (2*tau - T)/(2*tau + T), the image of s = -1/tau: positive for
+    tau >= T/2, inside the unit circle for tau > 0. A measurement ramp of slope r settles at
+    differentiator = -Kd*r, and a held step decays monotonically for tau >= T/2.
+  - Required (divergence from legacy): tau <= 0 is an invalid parameter. At tau = 0 neither form is a usable
+    derivative: legacy accumulates and the Tustin form alternates between plus and minus 2*Kd/T.
   - output = proportional + integrator + differentiator, clamped to [out_min, out_max].
   - store e and m for the next call.
 - The 14-element float parameter array is, in order: Kp, Ki, Kd, tau, out_min, out_max, integrator_min,
@@ -1175,10 +1184,11 @@ decode of a length not a multiple of 4 -> error class: invalid input (legacy dro
 
 ### 5.14 PID update formula (tolerance 1e-12; the vectors check the formula, not the scheduler)
 ```
-Kp 2, Ki 0.5, Kd 0.1, tau 0.02, output limits [-10, 10], integrator limits [-5, 5], T 0.1, setpoint 1; measurements [0, 0.2, 0.5, 0.9, 1] -> outputs [2.025, 1.38428571428571, 0.551479591836735, -0.490080174927114, -0.36896293211162]
+Kp 2, Ki 0.5, Kd 0.1, tau 0.02, output limits [-10, 10], integrator limits [-5, 5], T 0.1, setpoint 1; measurements [0, 0.2, 0.5, 0.9, 1] -> outputs [2.025, 1.38428571428571, 0.796377551020408, -0.122733236151604, 0.165814244064973]
 Kp 100, Ki 10, Kd 0, tau 0.05, output limits [-10, 10], integrator limits [-2, 2], T 0.01, setpoint 1; measurements [0, 0, 0.1] -> outputs [10, 10, 10]
 Kp 0, Ki 1, Kd 0, tau 0.05, output limits [-1, 1], integrator limits [-0.25, 0.25], T 0.5, setpoint 2; measurements [0, 0, 0, 0] -> outputs [0.25, 0.25, 0.25, 0.25]
 ```
+The first row follows the Required recurrence of section 3.12, derived independently of the legacy expression (tau 0.02 is below T/2 = 0.05, so the pole is z = -0.43 and the response rings while it decays). Two properties hold for any parameters and need no stored vector: with Kp = Ki = 0, a measurement ramp m[n] = n*T*r settles at output = -Kd*r; with Kp = Ki = 0 and tau >= T/2, a held step in m gives a differentiator that keeps one sign and shrinks in magnitude at every update.
 
 ### 5.15 AES-128 (NIST FIPS 197 and SP 800-38A vectors produced with the OpenSSL command-line tool)
 ```

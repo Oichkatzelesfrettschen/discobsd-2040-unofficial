@@ -67119,7 +67119,9 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
           "integer": [
             "integer-cast",

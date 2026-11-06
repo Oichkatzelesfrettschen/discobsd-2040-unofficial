@@ -105,7 +105,8 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
     reports a short buffer as `CALC_E_SIZE`.
 15. **PID.** `calc_pid` is a struct whose field order and names differ from the original 14-element array,
     which belongs to the interpreter binding. `calc_pid_init` returns `CALC_E_ARG` for a period below 0.001
-    (the original's INIT rule), a negative `tau`, an inverted limit pair or a non-finite gain.
+    (the original's INIT rule), a `tau` that is zero or negative, an inverted limit pair or a non-finite gain.
+    The derivative recurrence is the trapezoidal form of the specification's section 3.12 (decision 25).
 16. **Complex.** One `calc_c_arg` serves both the C_ARG and C_CARG spellings; the calculator command should
     document that the manual says `C_ARG` and the original dispatches `C_CARG`. A non-finite operand passes
     through without a range check. Overflow of finite operands is `CALC_E_RANGE`. Magnitudes beyond 1e150
@@ -156,6 +157,16 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
     (bare-metal newlib has no `sigaction`) and runs the same calls without recovery. `check_null_sweep.sh`
     holds the sweep to the status-returning entry points declared in `mathematics.h`, so a new function
     without a sweep entry fails the `check-null-sweep` target.
+25. **PID derivative.** The derivative acts on the measurement, D(s) = -Kd s / (tau s + 1) M(s). The bilinear
+    transform gives d[n] = (-2 Kd (m[n] - m[n-1]) + (2 tau - T) d[n-1]) / (2 tau + T), whose pole is
+    (2 tau - T) / (2 tau + T). The shipped code and the specification carried the feedback term with the
+    sign of the input term, which put the pole at the negative of that value: with tau much larger than T
+    the derivative rang with alternating sign, and a ramp of slope r settled at -Kd r T / (2 tau) instead of
+    -Kd r. The specification (section 3.12) now records the legacy form and the corrected form as a
+    Required divergence, the first vector of section 5.14 is regenerated, and `tau <= 0` is `CALC_E_ARG`
+    (at tau = 0 the corrected form alternates between plus and minus 2 Kd / T and the old one accumulates).
+    Two properties independent of any stored vector gate the recurrence: a ramp settles at -Kd r, and a held
+    step decays monotonically with one sign for tau >= T / 2.
 
 ## Findings about the tree's `lib/libm`
 

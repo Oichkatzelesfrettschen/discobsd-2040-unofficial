@@ -249,9 +249,23 @@ MUTANTS = [
     (
         "pid_derivative_sign",
         "calc_pid.c",
-        "\tc->differentiator = -(2.0 * c->kd",
+        "\tc->differentiator = (-2.0 * c->kd",
         "\tc->differentiator = (2.0 * c->kd",
         "derivative on measurement loses its sign",
+    ),
+    (
+        "pid_feedback_negated",
+        "calc_pid.c",
+        "\tc->differentiator = (-2.0 * c->kd * (measurement - c->last_measurement) +",
+        "\tc->differentiator = -(2.0 * c->kd * (measurement - c->last_measurement) +",
+        "feedback term carries the sign of the input term, moving the pole to z = -a",
+    ),
+    (
+        "pid_tau_zero_accepted",
+        "calc_pid.c",
+        "!(tau > 0.0)",
+        "!(tau >= 0.0)",
+        "a zero derivative time constant is accepted",
     ),
 ]
 

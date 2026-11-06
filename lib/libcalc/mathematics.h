@@ -429,7 +429,15 @@ typedef struct {
 	double integrator, last_error, differentiator, last_measurement, output;
 } calc_pid;
 
-/* CALC_E_ARG for period < 0.001, tau < 0, an inverted limit pair or a NaN. */
+/*
+ * CALC_E_ARG for period < 0.001, tau <= 0, an inverted limit pair or a NaN.
+ * With tau = 0 the bilinear recurrence reduces to d[n] = -d[n-1] - 2 kd
+ * (m[n] - m[n-1]) / T, which alternates for a held measurement and filters
+ * nothing, so tau = 0 has no meaning as a derivative band limit.
+ *
+ * The derivative acts on the measurement, d[n] = (-2 kd (m[n] - m[n-1]) +
+ * (2 tau - T) d[n-1]) / (2 tau + T), the Tustin form of -kd s / (tau s + 1).
+ */
 calc_status calc_pid_init(calc_pid *c, double kp, double ki, double kd, double tau,
     double period, double out_lo, double out_hi, double integ_lo, double integ_hi);
 double calc_pid_update(calc_pid *c, double setpoint, double measurement);

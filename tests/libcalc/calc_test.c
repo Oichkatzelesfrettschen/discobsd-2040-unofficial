@@ -1980,7 +1980,7 @@ test_pid(void)
 		double want[5];
 	} v[] = {
 		{ 2, 0.5, 0.1, 0.02, -10, 10, -5, 5, 0.1, 1, { 0, 0.2, 0.5, 0.9, 1 }, 5,
-		    { 2.025, 1.38428571428571, 0.551479591836735, -0.490080174927114, -0.36896293211162 } },
+		    { 2.025, 1.38428571428571, 0.796377551020408, -0.122733236151604, 0.165814244064973 } },
 		{ 100, 10, 0, 0.05, -10, 10, -2, 2, 0.01, 1, { 0, 0, 0.1, 0, 0 }, 3, { 10, 10, 10, 0, 0 } },
 		{ 0, 1, 0, 0.05, -1, 1, -0.25, 0.25, 0.5, 2, { 0, 0, 0, 0, 0 }, 4, { 0.25, 0.25, 0.25, 0.25, 0 } },
 	};
@@ -1999,8 +1999,59 @@ test_pid(void)
 	CHECK_ST(calc_pid_init(&c, 1, 0, 0, 0.1, 0.1, 1, -1, -1, 1), CALC_E_ARG);
 	CHECK_ST(calc_pid_init(&c, 1, 0, 0, 0.1, 0.1, -1, 1, 1, -1), CALC_E_ARG);
 	CHECK_ST(calc_pid_init(&c, 1, 0, 0, -0.1, 0.1, -1, 1, -1, 1), CALC_E_ARG);
+	CHECK_ST(calc_pid_init(&c, 1, 0, 0, 0.0, 0.1, -1, 1, -1, 1), CALC_E_ARG);
+	CHECK_ST(calc_pid_init(&c, 1, 0, 0, -0.0, 0.1, -1, 1, -1, 1), CALC_E_ARG);
+	CHECK_ST(calc_pid_init(&c, 1, 0, 0, 1e-300, 0.1, -1, 1, -1, 1), CALC_OK);
 	CHECK_ST(calc_pid_init(&c, NAN, 0, 0, 0.1, 0.1, -1, 1, -1, 1), CALC_E_ARG);
 	CHECK_ST(calc_pid_init(NULL, 1, 0, 0, 0.1, 0.1, -1, 1, -1, 1), CALC_E_ARG);
+}
+
+/*
+ * Properties of the derivative term that need no stored vector. With Kp = Ki
+ * = 0 the output is the derivative term d[n] = (-2 Kd (m[n] - m[n-1]) +
+ * (2 tau - T) d[n-1]) / (2 tau + T), whose pole (2 tau - T) / (2 tau + T)
+ * is positive for tau >= T / 2.
+ */
+static void
+test_pid_properties(void)
+{
+	static const struct { double kd, tau, T, r; } ramp[] = {
+		{ 2.5, 0.3, 0.1, 4 },		/* pole 5/7 */
+		{ 1, 0.02, 0.1, -3 },		/* pole -3/7: rings while it decays */
+		{ 0.5, 0.05, 0.1, 10 },		/* pole 0 */
+		{ 4, 1, 0.01, 0.25 },		/* pole near 1 */
+	};
+	calc_pid c;
+	double prev, cur;
+	size_t i, k;
+
+	for (i = 0; i < COUNT(ramp); i++) {
+		CHECK_ST(calc_pid_init(&c, 0, 0, ramp[i].kd, ramp[i].tau, ramp[i].T,
+		    -1000, 1000, -1, 1), CALC_OK);
+		cur = 0;
+		for (k = 1; k <= 3000; k++)
+			cur = calc_pid_update(&c, 0, (double)k * ramp[i].T * ramp[i].r);
+		/* a ramp of slope r settles at -Kd r, whatever T and tau are */
+		CHECK_TOL(cur, -ramp[i].kd * ramp[i].r, 1e-9);
+	}
+
+	/* a held step: the derivative term decays geometrically with a positive ratio */
+	for (i = 0; i < 3; i++) {
+		static const double tau[] = { 0.3, 0.05, 2.0 };
+
+		CHECK_ST(calc_pid_init(&c, 0, 0, 1, tau[i], 0.1, -100, 100, -1, 1), CALC_OK);
+		prev = calc_pid_update(&c, 0, 1);
+		CHECK_NEAR(prev, -2.0 / (2.0 * tau[i] + 0.1));
+		for (k = 0; k < 20; k++) {
+			cur = calc_pid_update(&c, 0, 1);
+			CHECK(cur <= 0.0);
+			CHECK(cur == 0.0 || cur > prev);	/* negative and shrinking in magnitude */
+			CHECK_NEAR(cur, prev * (2.0 * tau[i] - 0.1) / (2.0 * tau[i] + 0.1));
+			prev = cur;
+			if (prev == 0.0)
+				break;
+		}
+	}
 }
 
 
@@ -2417,6 +2468,7 @@ main(void)
 	test_lists();
 	test_base64();
 	test_pid();
+	test_pid_properties();
 	test_null_arguments();
 	test_accuracy();
 #ifdef CALC_TEST_NO_HOST_COMPLEX

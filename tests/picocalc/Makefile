@@ -26,6 +26,12 @@
 # requests physio() and the buffer cache make; twelve mutants of sd.c must
 # fail it.
 #
+# picoaudio_test compiles the bell driver (picoaudio.c) unchanged against
+# the register model in regmodel.h, stops the tone at every counter phase
+# and reads each amplifier pin's level from the registers the driver left
+# under the PWM slice's double-buffered compare and the GPIO output
+# override; six mutants of picoaudio.c must fail it.
+#
 TOPSRC!=	cd ../..; pwd
 
 HOST_CC?=	cc
@@ -41,12 +47,15 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test kbdreq_test sdspi_test sdstrat_test font-sync
+check: lcdterm_test kbdreq_test sdspi_test sdstrat_test picoaudio_test \
+	font-sync
 	./lcdterm_test
 	./kbdreq_test
 	./sdspi_test
 	./sdstrat_test
-	${MAKE} mutants kbdreq-mutants sdspi-mutants sdstrat-mutants
+	./picoaudio_test
+	${MAKE} mutants kbdreq-mutants sdspi-mutants sdstrat-mutants \
+	    picoaudio-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -62,6 +71,10 @@ sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
 sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
 	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h
 	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ sdstrat_test.c ${DEV}/sd.c
+
+picoaudio_test: picoaudio_test.c regmodel.h ${DEV}/picoaudio.c \
+	    ${DEV}/picocalc_reg.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ picoaudio_test.c ${DEV}/picoaudio.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -320,8 +333,45 @@ sdstrat-mutant-open-check:
 	${SDSTRAT_MUT} sd.c \
 	    's/(sd_openpart \& (1U << part)) == 0) {/0) {/' sd.c
 
+
+PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		picoaudio_test.c
+
+picoaudio-mutants: \
+	picoaudio-mutant-left-override \
+	picoaudio-mutant-right-override \
+	picoaudio-mutant-override-high \
+	picoaudio-mutant-slice-left-on \
+	picoaudio-mutant-override-kept \
+	picoaudio-mutant-busy-kept
+
+picoaudio-mutant-left-override:
+	${PICOAUDIO_MUT} picoaudio.c \
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+
+picoaudio-mutant-right-override:
+	${PICOAUDIO_MUT} picoaudio.c \
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+
+picoaudio-mutant-override-high:
+	${PICOAUDIO_MUT} picoaudio.c \
+	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c
+
+picoaudio-mutant-slice-left-on:
+	${PICOAUDIO_MUT} picoaudio.c \
+	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c
+
+picoaudio-mutant-override-kept:
+	${PICOAUDIO_MUT} picoaudio.c \
+	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c
+
+picoaudio-mutant-busy-kept:
+	${PICOAUDIO_MUT} picoaudio.c \
+	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
+
 clean:
-	rm -f lcdterm_test kbdreq_test sdspi_test sdstrat_test
+	rm -f lcdterm_test kbdreq_test sdspi_test sdstrat_test \
+	    picoaudio_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -365,3 +415,11 @@ clean:
 	sdstrat-mutant-direction \
 	sdstrat-mutant-card-changed \
 	sdstrat-mutant-open-check
+
+.PHONY: picoaudio-mutants \
+	picoaudio-mutant-left-override \
+	picoaudio-mutant-right-override \
+	picoaudio-mutant-override-high \
+	picoaudio-mutant-slice-left-on \
+	picoaudio-mutant-override-kept \
+	picoaudio-mutant-busy-kept

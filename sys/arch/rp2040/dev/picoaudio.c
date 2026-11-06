@@ -27,9 +27,14 @@
  * stops it, so the terminal's output path neither waits for the tone nor
  * holds a timer; a BEL that arrives while the tone sounds is absorbed.
  *
- * Stopping drives the compare value to zero before the slice is disabled,
- * which leaves both outputs low rather than at whatever level the counter
- * stopped on.
+ * A disabled slice stops counting and its outputs hold the level they had.
+ * CC is double buffered (datasheet 4.5.2.3): a store reaches the compare
+ * logic only when the counter wraps, so zeroing it and disabling the slice
+ * at once leaves the old duty cycle in force. Stopping therefore forces both
+ * pins low through the GPIO output override (OUTOVER in GPIOn_CTRL, datasheet 2.19.6)
+ * before it disables the slice, which holds in every phase of the period
+ * and needs no wait. Starting a tone routes the pins back to the slice,
+ * which removes the override.
  */
 
 #include <sys/param.h>
@@ -52,6 +57,7 @@
 
 #define	PC_RESET_PWM		(1UL << 14)
 #define	PC_FUNC_PWM		4
+#define	GPIO_OUTOVER_LOW	(2UL << 8)	/* GPIOn_CTRL bits 9:8. */
 
 #define	BELL_HZ			1000
 #define	BELL_MS			100
@@ -65,13 +71,16 @@ _Static_assert(BELL_DIV_INT >= 1 && BELL_DIV_INT <= 255,
 _Static_assert(BELL_COUNT >= 2 && BELL_COUNT <= 65536,
     "TOP is sixteen bits");
 
-static int bell_ready;		/* The slice is out of reset, pins routed. */
+static int bell_ready;		/* The slice and the pin banks are out of reset. */
 static int bell_on;		/* The tone sounds or its start is under way. */
 
 static void
 bell_stop(caddr_t arg __unused)
 {
-	PWM_REG(PWM_CC) = 0;
+	PC_REG32(PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =
+	    PC_FUNC_PWM | GPIO_OUTOVER_LOW;
+	PC_REG32(PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =
+	    PC_FUNC_PWM | GPIO_OUTOVER_LOW;
 	PWM_REG(PWM_CSR) = 0;
 	bell_on = 0;
 }
@@ -95,13 +104,13 @@ lcd_bell(void)
 	if (!bell_ready) {
 		pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 |
 		    PC_RESET_PWM);
-		pc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);
-		pc_pin(PICOCALC_AUDIO_R, PC_FUNC_PWM, 0);
 		bell_ready = 1;
 	}
 	PWM_REG(PWM_TOP) = BELL_COUNT - 1;
 	PWM_REG(PWM_DIV) = PWM_DIV_INT(BELL_DIV_INT);
 	PWM_REG(PWM_CC) = cc | (cc << 16);
 	PWM_REG(PWM_CSR) = PWM_CSR_EN;
+	pc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);
+	pc_pin(PICOCALC_AUDIO_R, PC_FUNC_PWM, 0);
 	timeout(bell_stop, (caddr_t)0, BELL_TICKS);
 }

@@ -542,6 +542,24 @@ def selftest(
     cases.append(
         (
             "reject",
+            "bc without the dc it runs",
+            ["calc-bignum"],
+            "pack /usr/bin/dc",
+            "needs /usr/bin/dc",
+        )
+    )
+    cases.append(
+        (
+            "reject",
+            "bc without its -l library",
+            ["calc-bignum"],
+            "file /usr/share/misc/lib.b",
+            "needs /usr/share/misc/lib.b",
+        )
+    )
+    cases.append(
+        (
+            "reject",
             "gamebox without its directory",
             ["games"],
             "dir /usr/games",

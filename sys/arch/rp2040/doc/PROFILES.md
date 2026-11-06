@@ -20,9 +20,10 @@ stands in the directory block, `pack /usr/games/gamebox` in the executable
 block, and the four entry points in the link block at the end.
 
 `tools/fsutil/manifest.c` skips a comment line whole, so the markers leave
-the manifest fsutil reads unchanged. `PROFILE=full` names every closure,
-which makes the composed manifest byte-identical to the tracked manifest
-with its marker lines removed.
+the manifest fsutil reads unchanged. `PROFILE=picocalc` names every
+closure, which makes its composed manifest byte-identical to the tracked
+manifest with its marker lines removed; `full` names every closure except
+the PicoCalc's own.
 
 ## The closures, measured
 
@@ -37,7 +38,8 @@ also a KiB count. The inode column is the difference in free inodes, which
 | `coremark` | 16 | 1 | `/usr/bin/coremark` |
 | `games` | 18 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall` |
 | `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
-| all maintained closures | 166 | 10 | |
+| `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
+| all maintained closures | 204 | 13 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
@@ -59,7 +61,8 @@ bytes.
 | `benchmark` | `coremark` | 431 | 42 |
 | `games` | `games` | 429 | 41 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
-| `full` | every maintained closure | 281 | 33 |
+| `full` | every closure except the PicoCalc's | 281 | 33 |
+| `picocalc` | `full` plus `calc-bignum` | 243 | 30 |
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:
@@ -72,10 +75,14 @@ does not add another maintained profile or change what `full` means:
 | `developer` | 144 | 33 |
 | `full` | 111 | 30 |
 
-`full` is the default. `distrib/rp2040/Makefile.inc` sets `PROFILE?=full`,
-so a build that names no profile writes the image the port ships:
+`BOARD` picks the default profile. `distrib/rp2040/Makefile.inc` sets
+`BOARD?=PICO` and `PROFILE?=` the board's profile, `full` for the PICO board
+and `picocalc` for the PicoCalc, and refuses any other `BOARD`. Every kernel
+boots every profile's root, so the board choice decides what the image
+carries, not whether it boots:
 
     bmake MACHINE=rp2040 distribution              # full
+    bmake MACHINE=rp2040 BOARD=PICOCALC distribution # picocalc
     bmake MACHINE=rp2040 PROFILE=base distribution # base
     bmake MACHINE=rp2040 PROFILE=base flash        # its UF2
     bmake MACHINE=rp2040 BUILD_PDP11_V6=yes \

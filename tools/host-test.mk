@@ -11,8 +11,9 @@
 #   SAN_FLAGS, SAN_OK     AddressSanitizer plus UndefinedBehaviorSanitizer,
 #                         and "yes" when tools/compiler-probe.sh links them
 #   OBJCOPY_OK            "yes" when objcopy is on the path
-#   TREELIBM, TREELIBM_OBJS
-#                         the tree's lib/libm routines compiled for the host
+#   TREELIBM, TREELIBC, TREELIBM_OBJS
+#                         the tree's lib/libm routines, and the lib/libc/gen
+#                         ldexp and frexp they call, compiled for the host
 #                         (tl_NAME.o) plus tl_errno.o; a host program linked
 #                         with them ahead of -lm calls the libm code the
 #                         target links, on host IEEE arithmetic
@@ -34,7 +35,10 @@ SAN_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
 
 OBJCOPY_OK!=	if command -v objcopy >/dev/null 2>&1; then echo yes; else echo no; fi
 TREELIBM=	sin sinh log exp atan sqrt pow hypot tanh asin floor fmod tan
-TREELIBM_OBJS=	${TREELIBM:S/^/tl_/:S/$/.o/} tl_errno.o
+# lib/libm's exp scales its result with the tree libc's ldexp, which needs
+# frexp, so those two come from lib/libc/gen as well.
+TREELIBC=	ldexp frexp
+TREELIBM_OBJS=	${TREELIBM:S/^/tl_/:S/$/.o/} ${TREELIBC:S/^/tl_/:S/$/.o/} tl_errno.o
 
 # The tree libm is K&R C that predates the host dialect; its diagnostics
 # belong to lib/libm, not to the consumer. Builtins are off so the tree
@@ -45,6 +49,12 @@ tl_${f}.o:	${TOPSRC}/lib/libm/${f}.c
 		${HOSTCC} -std=gnu89 -w -O1 -fno-builtin -I${TOPSRC}/include -c \
 		    ${TOPSRC}/lib/libm/${f}.c -o $@
 		objcopy --redefine-sym errno=tl_errno $@
+.endfor
+
+.for f in ${TREELIBC}
+tl_${f}.o:	${TOPSRC}/lib/libc/gen/${f}.c
+		${HOSTCC} -std=gnu89 -w -O1 -fno-builtin -I${TOPSRC}/include -c \
+		    ${TOPSRC}/lib/libc/gen/${f}.c -o $@
 .endfor
 
 tl_errno.o:	${TOPSRC}/tests/libcalc/tl_errno.c

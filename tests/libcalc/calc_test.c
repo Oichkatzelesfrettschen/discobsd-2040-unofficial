@@ -816,6 +816,23 @@ test_matrices(void)
 			CHECK_ST(calc_mat_cond(unit, 2, work, &cond_unit), CALC_OK);
 			CHECK_NEAR(cond, cond_unit);
 		}
+		/*
+		 * Elimination overflows a factor of entries near DBL_MAX: the
+		 * system is divided by 2^e first, so the solution is finite.
+		 */
+		{
+			static const double big2[] = { 1e308, 1e308, -1e308, 1e308 };
+			static const double unit2[] = { 1, 1, -1, 1 };
+			static const double bb2[] = { 1e308, 1e308 };
+			double cond2, cond2_unit;
+
+			CHECK_ST(calc_mat_solve(big2, 2, bb2, 1, work, x), CALC_OK);
+			CHECK_NEAR(x[0], 0);
+			CHECK_NEAR(x[1], 1);
+			CHECK_ST(calc_mat_cond(big2, 2, work, &cond2), CALC_OK);
+			CHECK_ST(calc_mat_cond(unit2, 2, work, &cond2_unit), CALC_OK);
+			CHECK_NEAR(cond2, cond2_unit);
+		}
 		/* extra: two right-hand sides at once */
 		CHECK_ST(calc_mat_solve(a1, 3, bm, 2, work, x), CALC_OK);
 		CHECK_NEAR(x[0], 2);
@@ -980,6 +997,18 @@ check_cplx(calc_cplx got, double er, double ei, double tol, int line)
 }
 
 #define CHECK_CPLX(got, er, ei) check_cplx((got), (er), (ei), TOL, __LINE__)
+
+/* Each component within tol of its own magnitude, for components far below 1. */
+static void
+check_cplx_rel(calc_cplx got, double er, double ei, double tol, int line)
+{
+	checks += 2;
+	if (!(fabs(got.re - er) <= tol * fabs(er)) || !(fabs(got.im - ei) <= tol * fabs(ei))) {
+		failures++;
+		printf("FAIL %s:%d: (%.17g, %.17g), expected (%.17g, %.17g) relative\n",
+		    __FILE__, line, got.re, got.im, er, ei);
+	}
+}
 
 static void
 test_complex(void)
@@ -1754,6 +1783,22 @@ test_lists(void)
 		CHECK_NEAR(out[1], -0.333333333333333);
 		CHECK_NEAR(out[2], 0.333333333333333);
 		CHECK_NEAR(out[3], 1);
+		/* An output span past DBL_MAX between finite ends (half differences). */
+		{
+			static const double u[] = { 0, 0.5, 1 }, ys[] = { -1e308, 1e308 };
+
+			CHECK_ST(calc_rescale(u, 3, -1e308, 1e308, out, NULL, NULL), CALC_OK);
+			CHECK(out[0] == -1e308 && out[1] == 0.0 && out[2] == 1e308);
+			CHECK_ST(calc_interp_table(u, ys, 2, 0.375, out), CALC_OK);
+			CHECK_TOL(out[0], 5e307, 1e-15);
+		}
+		/* The ends come back exactly where hi - lo rounds. */
+		{
+			static const double e2[] = { 1, 2 };
+
+			CHECK_ST(calc_rescale(e2, 2, 1e16, 1, out, NULL, NULL), CALC_OK);
+			CHECK(out[0] == 1e16 && out[1] == 1.0);
+		}
 		CHECK_ST(calc_rescale(z, 3, 0, 1, out, &lo, &hi), CALC_E_DOMAIN);
 		CHECK_ST(calc_rescale(z, 0, 0, 1, out, &lo, &hi), CALC_E_SIZE);
 		{
@@ -1816,6 +1861,20 @@ test_lists(void)
 
 			CHECK_ST(calc_power(h, 2, -1023, hr), CALC_OK);
 			CHECK(hr[0] == 0x1p1023 && hr[1] == -0x1p1023);
+		}
+		{
+			/*
+			 * Repeated squaring doubles the base's rounding error per step,
+			 * so a large exponent goes through exp(k log x) (an 80-digit
+			 * reference); and an in-place call reads the base's sign
+			 * before writing its result.
+			 */
+			double nb = 1.000000001, mone = -1.0;
+
+			CHECK_ST(calc_power(&nb, 1, 2147483648.0, &nb), CALC_OK);
+			CHECK(fabs(nb / 8.5632845409363354 - 1.0) <= 1e-13);
+			CHECK_ST(calc_power(&mone, 1, 2147483649.0, &mone), CALC_OK);
+			CHECK(mone == -1.0);
 		}
 		CHECK_ST(calc_power(a, 3, 2, r), CALC_OK);
 		CHECK_NEAR(r[0], 1);
@@ -3106,6 +3165,34 @@ test_complex_poles(void)
 	CHECK_ST(calc_c_func(CALC_C_COSH, calc_c_make(710.6, 0.7853981633974483), &r), CALC_OK);
 	check_cplx(r, 1.4391757976662108e308, 1.4391757976662107e308, TOL, __LINE__);
 	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(1.0, -712.0), &r), CALC_E_RANGE);
+	/*
+	 * An imaginary part whose square is below DBL_MIN still reaches the
+	 * inverse functions' components (mpmath references).
+	 */
+	{
+		static const struct { int fn; double zr, zi, er, ei; } tiny[] = {
+			{ CALC_C_ASIN, 0.5, 1e-200, 0.52359877559829887, 1.1547005383792515e-200 },
+			{ CALC_C_ACOS, 2.0, 1e-200, 5.7735026918962575e-201, -1.3169578969248167 },
+			{ CALC_C_ASIN, 2.0, -1e-200, 1.5707963267948966, -1.3169578969248167 },
+			{ CALC_C_ACOS, -0.5, 1e-200, 2.0943951023931955, -1.1547005383792515e-200 },
+			{ CALC_C_ASIN, 1.0, 1e-200, 1.5707963267948966, 1e-100 },
+			{ CALC_C_ASINH, 1e-200, 0.5, 1.1547005383792515e-200, 0.52359877559829887 },
+			{ CALC_C_ACOSH, 2.0, 1e-200, 1.3169578969248167, 5.7735026918962575e-201 },
+			{ CALC_C_ACOS, 0.5, -1e-170, 1.0471975511965977, 1.1547005383792515e-170 },
+		};
+
+		for (i = 0; i < COUNT(tiny); i++) {
+			CHECK_ST(calc_c_func((calc_cfn)tiny[i].fn,
+			    calc_c_make(tiny[i].zr, tiny[i].zi), &r), CALC_OK);
+			check_cplx_rel(r, tiny[i].er, tiny[i].ei, TOL, __LINE__);
+		}
+	}
+
+	/* A negative trigonometric factor keeps its sign past the threshold. */
+	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(3.141592653589793, 709.0), &r), CALC_OK);
+	check_cplx(r, 5.0323231959410104e291, -4.1092037307774861e307, TOL, __LINE__);
+	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(3.141592653589793, -709.0), &r), CALC_OK);
+	check_cplx(r, 5.0323231959410104e291, 4.1092037307774861e307, TOL, __LINE__);
 
 	/* A divisor whose Smith denominator overflows or leaves the normal range. */
 	CHECK_ST(calc_c_div(calc_c_make(1e308, 0.0), calc_c_make(1e308, 1e308), &r), CALC_OK);
@@ -3114,6 +3201,12 @@ test_complex_poles(void)
 	check_cplx(r, 1e300 / DBL_MAX, 0.0, TOL, __LINE__);
 	CHECK_ST(calc_c_div(calc_c_make(4e-308, 0.0), calc_c_make(2e-308, 2e-308), &r), CALC_OK);
 	check_cplx(r, 1.0, -1.0, TOL, __LINE__);
+	/* A dividend whose Smith numerators overflow, in both branches. */
+	CHECK_ST(calc_c_div(calc_c_make(1e308, 1e308), calc_c_make(1.0, 1.0), &r), CALC_OK);
+	check_cplx(r, 1e308, 0.0, TOL, __LINE__);
+	CHECK_ST(calc_c_div(calc_c_make(1e308, -1e308), calc_c_make(1.0, 2.0), &r), CALC_OK);
+	check_cplx(r, -2e307, -6e307, TOL, __LINE__);
+	CHECK_ST(calc_c_div(calc_c_make(1e308, 1e308), calc_c_make(1e-300, 0.0), &r), CALC_E_RANGE);
 }
 
 int

@@ -77,7 +77,8 @@ test-line-san:	require-python
 # trigonometric, exponential, logarithmic, power, root and rounding routines
 # come from the code the target links. It runs on host IEEE hardware, so it
 # measures that libm's algorithms and not the ROM float provider.
-${HOSTBIN}-treelibm:	${PROG}.c ${LIBSRCS} ${TREELIBM_OBJS} ${LIBDIR}/mathematics.h
+${HOSTBIN}-treelibm:	${PROG}.c ${LIBSRCS} ${TREELIBM_OBJS} ${LIBDIR}/mathematics.h \
+		${LIBDIR}/calc_internal.h
 		${HOSTCC} ${HOST_CFLAGS} -fno-builtin -o $@ ${PROG}.c ${LIBSRCS} \
 		    ${TREELIBM_OBJS} -lm
 
@@ -106,7 +107,8 @@ test:		test-line test-line-san test-line-treelibm test-play .WAIT test-mutants
 # The terminal code is compiled out (CALC_NO_TTY). The run covers the
 # generated code of calc.c and libcalc on Thumb-1; it does not run the
 # DiscoBSD a.out, whose syscalls and ROM float provider qemu-user lacks.
-${PROG}-arm:	${PROG}.c ${LIBSRCS} ${QEMU_SUPPORT} ${LIBDIR}/mathematics.h
+${PROG}-arm:	${PROG}.c ${LIBSRCS} ${QEMU_SUPPORT} ${LIBDIR}/mathematics.h \
+		${LIBDIR}/calc_internal.h
 		${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DCALC_NO_TTY -I${LIBDIR} \
 		    -o $@ ${PROG}.c ${QEMU_SUPPORT} ${LIBSRCS} -lm ${QEMU_ARM_LIBS}
 

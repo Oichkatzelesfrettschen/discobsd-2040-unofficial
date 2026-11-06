@@ -24,6 +24,7 @@ EXPECTED_LABELS = {
     "macos-lint",
     "macos-smaller-c",
     "macos-uf2",
+    "posix-dcbc-ilp32",
     "posix-ilp32",
     "posix-inventory",
     "sdk-flash-id",
@@ -57,6 +58,7 @@ EXPECTED_COMMANDS = {
         "bmake MACHINE=rp2040 check-ilp32-execution "
         'TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"'
     ),
+    "posix-dcbc-ilp32": "bmake -C tests/dcbc check-ilp32 REQUIRE_ILP32=1",
     "posix-inventory": "bmake MACHINE=rp2040 check-test-execution",
     "sdk-flash-id": "bmake MACHINE=rp2040 check-flash-id",
 }

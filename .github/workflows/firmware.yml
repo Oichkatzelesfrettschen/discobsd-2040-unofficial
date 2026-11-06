@@ -293,7 +293,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bmake build-essential gcc-multilib python3 pkg-config libbsd-dev
+            bmake build-essential gcc-multilib python3 pkg-config libbsd-dev \
+            bison flex
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
       - name: Calibrate execution accounting
         timeout-minutes: 5
@@ -314,6 +315,17 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 600 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
+      # dc and bc need the 32-bit C library headers the gates job lacks,
+      # so their ILP32 cases run here, where a missing runtime fails.
+      - name: Execute dc and bc at ILP32
+        timeout-minutes: 8
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label posix-dcbc-ilp32 \
+            --log .build-logs/posix-dcbc-ilp32.log \
+            --status .build-logs/posix-dcbc-ilp32.status.json \
+            --idle-timeout-seconds 240 --timeout-seconds 420 \
+            -- bmake -C tests/dcbc check-ilp32 REQUIRE_ILP32=1
       - name: Retain ILP32 gate logs
         if: always()
         uses: actions/upload-artifact@v4

@@ -105,12 +105,23 @@ check-grammar:
 check-native: build/native/dc/dc build/native/bc/bc
 	${RUN_CASES} --dc build/native/dc/dc --bc build/native/bc/bc
 
+# tools/compiler-probe.sh proves a -m32 program links and runs with
+# <stddef.h> alone; dc and bc also need the 32-bit C library headers
+# (<limits.h>, <sys/stat.h>), which a runner can lack while the probe
+# passes. REQUIRE_ILP32=1, set by the provisioned ILP32 CI job, turns a
+# missing runtime into a failure instead of a SKIP.
+ILP32_LIBC_OK!=	printf '\043include <limits.h>\n\043include <stdio.h>\n\043include <sys/stat.h>\nint main(void) { return 0; }\n' | \
+		${ILP32_CC:Ucc} -m32 -x c -o /dev/null - >/dev/null 2>&1 && echo yes || echo no
+REQUIRE_ILP32?=	0
+
 check-ilp32:
-.if ${ILP32_OK} == "yes"
+.if ${ILP32_OK} == "yes" && ${ILP32_LIBC_OK} == "yes"
 	@${MAKE} build/ilp32/dc/dc build/ilp32/bc/bc
 	${RUN_CASES} --dc build/ilp32/dc/dc --bc build/ilp32/bc/bc
+.elif ${REQUIRE_ILP32} == "1"
+	@echo "FAIL dcbc ilp32: REQUIRE_ILP32=1 but no -m32 C library (probe ${ILP32_OK}, headers ${ILP32_LIBC_OK})" >&2; exit 1
 .else
-	@echo "SKIP dcbc ilp32: ILP32 runtime unavailable; no -m32 execution occurred"
+	@echo "SKIP dcbc ilp32: no -m32 C library (probe ${ILP32_OK}, headers ${ILP32_LIBC_OK}); no -m32 execution occurred"
 .endif
 
 check-sanitized:

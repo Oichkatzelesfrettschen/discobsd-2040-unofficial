@@ -51,9 +51,17 @@ BC_HEADERS=	${BCDIR}/extern.h ${BCDIR}/pathnames.h
 
 all: check
 
-build/bc.c build/bc.h: ${BCDIR}/bc.y
+# One bison run writes the parser and its header. build/bc.c is the only
+# target with that recipe, so a parallel make cannot start a second writer;
+# build/bc.h waits for it and regenerates only when the header alone is gone.
+BC_BISON=	${BISON} -y -Wno-yacc -Wno-conflicts-sr -Wno-conflicts-rr -o bc.c -d ${BCDIR}/bc.y
+
+build/bc.c: ${BCDIR}/bc.y
 	mkdir -p build
-	cd build && ${BISON} -y -Wno-yacc -Wno-conflicts-sr -Wno-conflicts-rr -o bc.c -d ${BCDIR}/bc.y
+	cd build && ${BC_BISON}
+
+build/bc.h: build/bc.c
+	@test -f $@ || (cd build && ${BC_BISON})
 
 build/scan.c: ${BCDIR}/scan.l
 	mkdir -p build
@@ -87,6 +95,10 @@ include ${TOPSRC}/tools/host-test.mk
 
 .if ${HOST_OS} == "Linux"
 RUN_CASES=	${PYTHON} -I run_cases.py --golden golden.json
+
+# The recursive makes of check-ilp32 and check-sanitized run beside
+# check-native under -j, so the pair exists before any variant starts.
+check-native check-ilp32 check-sanitized: build/bc.h
 
 check: check-grammar check-native check-ilp32 check-sanitized check-mutants
 

@@ -77,6 +77,10 @@ register char *p;
 		exp = exp + eexp;
 	}
 
+	/* a zero significand is zero whatever the exponent; 0 * inf is a NaN */
+	if (fl == 0)
+		return(neg < 0 ? -fl : fl);
+
 	negexp = 1;
 	if (exp<0) {
 		negexp = -1;

@@ -5,9 +5,9 @@
  * The C library of the target provides sin, cos, exp, log, atan2, sqrt and
  * floor. Its sin and cos lose absolute accuracy in proportion to the
  * argument, its acos is wrong for negative arguments, its atan2 returns a
- * quarter turn for (0, 0), and exp returns a finite HUGE_VAL past the
- * double range. The wrappers below confine libcalc to the calls whose
- * accuracy the tests measure and replace the rest.
+ * quarter turn for (0, 0), and exp maps a NaN argument to zero.
+ * The wrappers below confine libcalc to the calls whose accuracy the tests
+ * measure and replace the rest.
  */
 
 #ifndef CALC_INTERNAL_H

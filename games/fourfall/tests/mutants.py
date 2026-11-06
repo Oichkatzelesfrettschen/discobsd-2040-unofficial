@@ -351,11 +351,14 @@ PLAY_MUTANTS = [
 
 
 PLAY_RUNS = 3
-# Mutants that only a pty case with a sub-deadline inter-byte gap can see.
-# The macOS runner schedules the game later than the gap often enough that
-# every byte arrives in one read, so there a survivor is reported as
-# unobserved; Linux hosts, including the Linux CI job, must reject them.
-TIMING_MUTANTS = {"escape-deadline-5-ms"}
+# Mutants that only a prompt host can see: escape-deadline-5-ms needs a
+# sub-deadline inter-byte gap to survive the pty, and flash-too-short needs
+# the collapse frame read within about 0.12 s of the drop, because a flash's
+# length is a sleep with no other observable. The macOS runner schedules the
+# game or the reader later than that often enough that a survivor there is
+# reported as unobserved; Linux hosts, including the Linux CI job, must
+# reject them.
+TIMING_MUTANTS = {"escape-deadline-5-ms", "flash-too-short"}
 
 
 def play_mutants(src):
@@ -434,6 +437,9 @@ def build_run(srcdir, work, vectors, san):
 
 
 def main():
+    # One verdict line per mutant reaches the logged gate as it is decided,
+    # so a long play run does not read as idle (see games/mutlib.py).
+    sys.stdout.reconfigure(line_buffering=True)
     args = sys.argv[1:]
     play = "--play" in args
     args = [a for a in args if a != "--play"]

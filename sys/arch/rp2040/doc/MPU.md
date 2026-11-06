@@ -70,10 +70,29 @@ region into eight (datasheet table 117, SRD), and only subregion 3, offsets
 inter-core FIFO, the spinlocks and the interpolators beside it stay closed.
 XN is set because nothing fetches instructions from a peripheral. The grant
 restores what user mode held before the MPU was programmed rather than
-adding a capability, and the divider already has exactly one owner: the
-kernel, its interrupts and its callouts contain no divider consumer, which
+adding a capability, and the divider has user code as its only consumer:
+the kernel, its interrupts and its callouts contain none, which
 `tools/verify_rp2040_divider_ownership.py` enforces on every linked kernel
-through `check-divider`.
+through `check-divider`. The consumers are the boot ROM's float division and
+the libc integer helpers `__aeabi_idiv`, `__aeabi_idivmod`, `__aeabi_uidiv`
+and `__aeabi_uidivmod` (lib/libc/arm/gen/aeabi_div.S), which write
+DIV_UDIVIDEND and DIV_UDIVISOR, wait eight cycles and read DIV_REMAINDER and
+then DIV_QUOTIENT.
+
+The kernel saves no divider state because no kernel path runs between a
+divisor write and the quotient read of an unprivileged sequence. A process
+switch happens in `swtch`, whose callers are `userret` (reached from the
+system-call path in PendSV_Handler and from the fault path), the exit and
+stop paths, and `tsleep` in kernel context; a signal is delivered in
+`userret`'s `postsig` loop. SysTick and device interrupts return to the
+interrupted instruction after `hardclock` and the drivers, none of which
+touch the divider. The helpers' sequence holds no `svc`, so the divider
+registers an interrupted process left are the registers it finds on return.
+A future kernel divider consumer, an asynchronous preemption point in an
+exception return, or a debugger breakpoint planted inside the sequence
+(ptrace stops a process at `userret`) breaks that argument; the first is
+rejected by `check-divider`, and the sequence's shape is held by its
+`--user-helper` check (doc/TESTING.md).
 
 144 KB is not a power of two, so the window takes two regions; a static
 assertion in mpu.c pins their sum to USER_DATA_SIZE and the low base to

@@ -461,13 +461,13 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
       - name: Run the host tier
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host \
             --log .build-logs/macos-host.log \
             --status .build-logs/macos-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 720 \
+            --idle-timeout-seconds 300 --timeout-seconds 1080 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
       - name: Run the cross tier
         timeout-minutes: 20

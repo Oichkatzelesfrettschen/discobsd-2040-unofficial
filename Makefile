@@ -538,6 +538,12 @@ check-libcalc: check-python .WAIT symlinks
 check-libbn: check-python
 		${MAKE} -C tests/libbn check
 
+# usr.bin/dc and usr.bin/bc built from the tree sources against lib/libbn and
+# run on the host at native width, at -m32 and under the sanitizers, with the
+# register-table heap ceilings and the fault-injection check.
+check-dcbc: check-python
+		${MAKE} -C tests/dcbc check check-peak
+
 # Cortex-M0+ objects of the two libraries, each with its import allow-list
 # and a known-bad negative control.
 check-libcalc-cross: check-python .WAIT symlinks
@@ -984,7 +990,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
-		check-libc-tempfiles check-libcalc check-libbn \
+		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
@@ -1208,14 +1214,15 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests and the calc line interface executed as Thumb-1 programs rather
-# than only linked.
+# libbn tests, the calc line interface and the dc evaluator executed as Thumb-1
+# programs rather than only linked.
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -1372,7 +1379,7 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
-.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn \
+.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 
 .PHONY: check-libc-output check-libc-output-cross

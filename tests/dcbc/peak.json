@@ -1,0 +1,34 @@
+[
+ {
+  "name": "one_register_plain",
+  "args": [],
+  "stdin": "5 sa la p\n",
+  "limit": 8192,
+  "note": "one 256-entry page of register stacks; the eager table was 3,072 bytes here"
+ },
+ {
+  "name": "one_register_extended",
+  "args": [
+   "-x"
+  ],
+  "stdin": "5 sa la p\n",
+  "limit": 8192,
+  "note": "page directory plus one page; the eager extended table was 789,504 bytes"
+ },
+ {
+  "name": "three_pages_extended",
+  "args": [
+   "-x"
+  ],
+  "stdin": "1 sa 2 s\u00ff\u0000\u0000 3 s\u00ff\u0010  la l\u00ff\u0000\u0000 l\u00ff\u0010  + + p\n",
+  "limit": 16384,
+  "note": "three pages of an extended table"
+ },
+ {
+  "name": "factorial_808_2001_digits",
+  "args": [],
+  "stdin": "[lp li * sp li 1 + si li 809 >f]sf 1sp 1si lfx lp p\n",
+  "limit": 24576,
+  "note": "808! has 2,001 digits and is printed; live requested bytes at -m32"
+ }
+]

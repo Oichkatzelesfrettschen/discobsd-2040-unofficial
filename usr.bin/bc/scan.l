@@ -231,10 +231,13 @@ abort_line(int sig)
 {
 	static const char str1[] = "[\n]P\n";
 	int save_errno;
+	ssize_t n;
 
 	(void)sig;
 	save_errno = errno;
-	write(STDOUT_FILENO, str1, sizeof(str1) - 1);
+	/* A signal handler has no one to report a failed write to. */
+	n = write(STDOUT_FILENO, str1, sizeof(str1) - 1);
+	(void)n;
 	errno = save_errno;
 }
 

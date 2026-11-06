@@ -1229,7 +1229,8 @@ main(int argc, char *argv[])
 		else if (dc != 0) {
 			signal(SIGCHLD, sigchld);
 			close(STDOUT_FILENO);
-			dup(p[1]);
+			if (dup(p[1]) == -1)
+				err(1, "cannot dup pipe");
 			close(p[0]);
 			close(p[1]);
 		} else {
@@ -1237,7 +1238,8 @@ main(int argc, char *argv[])
 			extern int dc_main(int, char **);
 
 			close(STDIN_FILENO);
-			dup(p[0]);
+			if (dup(p[0]) == -1)
+				err(1, "cannot dup pipe");
 			close(p[0]);
 			close(p[1]);
 

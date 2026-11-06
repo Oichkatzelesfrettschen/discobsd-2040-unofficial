@@ -300,6 +300,9 @@ ALG = [
     err("pow(1e200,2.5)", "overflow"),
     err("1e200^2.5", "overflow"),
     err("todeg(1e308)", "overflow"),
+    # the upper binade: lib/libm/exp.c scales through the tree's ldexp
+    num("exp(709.5)", math.exp(709.5)),
+    num("exp(709.78)", math.exp(709.78)),
     err("tan(1e10)", "argument out of range"),
     err("tan(-1e20)", "argument out of range"),
     num("(-1)^1025", -1.0),

@@ -533,6 +533,24 @@ def selftest(
     cases.append(
         (
             "reject",
+            "puzzlebox entry points without puzzlebox",
+            ["games", "puzzles"],
+            "pack /usr/games/puzzlebox",
+            "hard link /usr/games/flood has no source",
+        )
+    )
+    cases.append(
+        (
+            "reject",
+            "puzzlebox without the games closure that creates its directory",
+            ["puzzles"],
+            None,
+            "needs closure games",
+        )
+    )
+    cases.append(
+        (
+            "reject",
             "compiler without /usr/lib/libc.a",
             ["toolchain", "toolchainlib"],
             "file /usr/lib/libc.a",

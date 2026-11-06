@@ -272,7 +272,9 @@ packed, 35 blocks. Put into `gamebox`, the five games and four puzzles would
 come to more than 50 KB raw, past the 40 KB guideline of `STORAGE.md`. The split
 is reversible: the four tools move to `games/gamebox/Makefile` `TOOLS`
 and the manifest links retarget, and the owner reviews it. The `games`
-closure now costs 59 root blocks and 3 inodes (`PROFILES.md`).
+closure holds `gamebox` and costs 24 root blocks and 2 inodes, and the
+`puzzles` closure holds `puzzlebox` and costs 35 blocks and 1 inode
+(`PROFILES.md`); the `full` and `picocalc` profiles keep both.
 
 A puzzle is its wrapper (`games/<name>/<name>.c`) plus the collection's
 source included into one translation unit built with `-fwhole-program`. The

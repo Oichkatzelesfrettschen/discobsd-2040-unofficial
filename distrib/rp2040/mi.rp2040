@@ -232,8 +232,10 @@ pack /usr/libexec/smlrc
 #endclosure toolchain
 #closure games
 pack /usr/games/gamebox
-pack /usr/games/puzzlebox
 #endclosure games
+#closure puzzles
+pack /usr/games/puzzlebox
+#endclosure puzzles
 
 #
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
@@ -460,8 +462,10 @@ target /usr/bin/stevie
 # /usr/games/gamebox holds fifteen, keen, bubble, fourfall
 # and coil, and /usr/games/puzzlebox holds flood, samegame, unruly and
 # lightup, dispatched the same way as box, sysbox and textbox; the
-# names below are hard links. See games/gamebox/Makefile,
-# games/puzzlebox/Makefile and sys/arch/rp2040/doc/research/games.md.
+# names below are hard links. The games closure carries gamebox and its
+# links and the puzzles closure carries puzzlebox and its links. See
+# games/gamebox/Makefile, games/puzzlebox/Makefile and
+# sys/arch/rp2040/doc/research/games.md.
 #
 #closure games
 link /usr/games/fifteen
@@ -474,6 +478,8 @@ link /usr/games/fourfall
 target /usr/games/gamebox
 link /usr/games/coil
 target /usr/games/gamebox
+#endclosure games
+#closure puzzles
 link /usr/games/flood
 target /usr/games/puzzlebox
 link /usr/games/samegame
@@ -482,7 +488,7 @@ link /usr/games/unruly
 target /usr/games/puzzlebox
 link /usr/games/lightup
 target /usr/games/puzzlebox
-#endclosure games
+#endclosure puzzles
 
 #
 # Files: /var

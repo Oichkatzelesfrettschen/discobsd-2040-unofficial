@@ -6,11 +6,13 @@ usage: mutate.py --root TREE --golden golden.json --work DIRECTORY
 Each mutation replaces text that must occur exactly once in usr.bin/dc/bcode.c
 (the lazily allocated register table and the count J pops), usr.bin/dc/stack.c
 (the ownership of a value's array) or usr.bin/bc/bc.y (the name table that
-replaced hcreate and hsearch), builds dc and bc from the faulted copy, and runs
-run_cases.py against it; a faulted dc is also built with the allocation
+replaced hcreate and hsearch), builds dc and bc from the faulted copy, and
+runs run_cases.py against it; a faulted dc is also built with the allocation
 accounting and run against peak.json. A mutant is rejected when either run
 exits nonzero. The script exits nonzero when a mutant survives or its anchor
-text has moved, so a refactor cannot leave an unfaulted "mutant" behind.
+text has moved, so a refactor cannot leave an unfaulted "mutant" behind. Every
+run starts in its own process group (procgroup.py), and the script exits
+nonzero when a process of a mutant build directory outlives its run.
 """
 
 import argparse
@@ -18,6 +20,10 @@ import os
 import shutil
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import procgroup  # noqa: E402
 
 BCODE = "usr.bin/dc/bcode.c"
 STACKC = "usr.bin/dc/stack.c"
@@ -135,9 +141,21 @@ MUTATIONS = (
 
 
 def run(command, cwd, timeout=600):
-    return subprocess.run(
-        command, cwd=cwd, capture_output=True, text=True, timeout=timeout, check=False
+    """Run command as a session leader; a timeout kills its whole group."""
+    rc, out, err, timed_out = procgroup.run_group(command, cwd=cwd, timeout=timeout)
+    if timed_out:
+        raise subprocess.TimeoutExpired(command, timeout)
+    return subprocess.CompletedProcess(
+        command, rc, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
     )
+
+
+def leaked_processes(out, name, leaks):
+    """Record and kill any process still running from a mutant's build directory."""
+    found = procgroup.kill_processes_under(out)
+    for pid, exe in found:
+        print("LEAKED %s: pid %d still runs %s" % (name, pid, exe))
+        leaks.append((name, pid))
 
 
 def write_mutant(root, work, name, target, old, new):
@@ -201,6 +219,7 @@ def main():
         raise SystemExit("mutate.py: flex failed: " + done.stderr)
     unjudged = []
     survivors = []
+    leaks = []
     for name, target, old, new in MUTATIONS:
         mutated = write_mutant(root, work, name, target, old, new)
         bcsource = mutated if target == BCY else os.path.join(bcdir, "bc.y")
@@ -301,6 +320,7 @@ def main():
             ],
             work,
         )
+        leaked_processes(out, name, leaks)
         if done.returncode:
             lines = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL")]
             reason = lines[0][:100] if lines else "exit %d" % done.returncode
@@ -323,6 +343,7 @@ def main():
                 ],
                 work,
             )
+            leaked_processes(out, name, leaks)
             if done.returncode:
                 lines = [ln for ln in done.stdout.splitlines() if ln.startswith("FAIL")]
                 reason = lines[0][:100] if lines else "peak exit %d" % done.returncode
@@ -331,6 +352,9 @@ def main():
             print("SURVIVED %s" % name)
         else:
             print("PASS dcbc mutation %s rejected: %s" % (name, reason))
+    if leaks:
+        print("dcbc mutants: %d process(es) outlived their run" % len(leaks))
+        return 1
     if survivors:
         print("dcbc mutants: %d of %d survived" % (len(survivors), len(MUTATIONS)))
         return 1

@@ -15,7 +15,12 @@
 
 set -eu
 
-PYTHON=${PYTHON:-python3}
+# The caller selects the interpreter (the root Makefile exports PYTHON, empty
+# when unset); an unset or empty value is refused instead of defaulted.
+if [ -z "${PYTHON:-}" ]; then
+	echo "check-picocalc: PYTHON must name the interpreter" >&2
+	exit 2
+fi
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 

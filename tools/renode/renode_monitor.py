@@ -9,10 +9,16 @@ marker came back.
 
 Exit-status convention shared by the drivers: 0 pass, 1 an assertion
 failed, 2 the emulator did not answer.
+
+`python3 renode_monitor.py --self-test` drives a stand-in that has already
+exited and checks that every call reports RenodeError.
 """
 
+import os
 import re
 import subprocess
+import sys
+import tempfile
 import time
 
 # One line of Renode's log: a bracketed timestamp, a bracketed level, the
@@ -47,8 +53,19 @@ class Renode:
         before = len(self._text())
         if self.proc.stdin is None:
             raise RenodeError("Renode has no stdin")
-        self.proc.stdin.write(f'{line}\necho "{mark}"\n'.encode())
-        self.proc.stdin.flush()
+        try:
+            self.proc.stdin.write(f'{line}\necho "{mark}"\n'.encode())
+            self.proc.stdin.flush()
+        except OSError as error:
+            # The pipe is closed once Renode has exited; the exit status is
+            # the cause worth reporting, so it is reaped for a moment first.
+            try:
+                status = self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                status = None
+            raise RenodeError(
+                f"Renode stopped reading its monitor (exit status {status}, {error}) "
+                f"during: {line}") from error
         pattern = re.compile(r"^\r*" + re.escape(mark) + r"\s*$", re.M)
         while True:
             # Renode writes its log to the same stdout from another thread,
@@ -74,6 +91,12 @@ class Renode:
             self.proc.wait(timeout=30)
         except subprocess.TimeoutExpired:
             self.proc.kill()
+        if self.proc.stdin is not None:
+            try:
+                self.proc.stdin.close()
+            except OSError:
+                # A buffered command that never reached an exited Renode.
+                pass
         self.log.close()
 
 
@@ -86,3 +109,47 @@ def monitor_int(renode: Renode, line: str) -> int:
         except ValueError:
             continue
     return -1
+
+
+def self_test() -> int:
+    """Calibrate the dead-subprocess path: RenodeError, never BrokenPipeError.
+
+    The stand-in "renode" exits with status 3 before the first command, so the
+    monitor pipe has no reader. command() and close() must both turn that into
+    RenodeError (the drivers answer it with status 2) and close() must leave
+    the process reaped.
+    """
+    with tempfile.TemporaryDirectory() as scratch:
+        fake = os.path.join(scratch, "renode")
+        with open(fake, "w", encoding="ascii") as handle:
+            handle.write("#!/bin/sh\nexit 3\n")
+        os.chmod(fake, 0o755)
+        renode = Renode(fake, os.path.join(scratch, "renode.log"), 10.0)
+        renode.proc.wait(timeout=10)
+        try:
+            renode.command("version")
+        except RenodeError as error:
+            if "3" not in str(error):
+                print(f"self-test: the error omits the exit status: {error}", file=sys.stderr)
+                return 1
+        except Exception as error:  # the old behavior was BrokenPipeError
+            print(f"self-test: command() raised {type(error).__name__}, not RenodeError",
+                  file=sys.stderr)
+            return 1
+        else:
+            print("self-test: command() succeeded against an exited Renode", file=sys.stderr)
+            return 1
+        try:
+            renode.close()
+        except Exception as error:
+            print(f"self-test: close() raised {type(error).__name__}: {error}", file=sys.stderr)
+            return 1
+    print("renode_monitor self-test: ok (command() and close() against an exited Renode)")
+    return 0
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["--self-test"]:
+        sys.exit(self_test())
+    print(__doc__, file=sys.stderr)
+    sys.exit(2)

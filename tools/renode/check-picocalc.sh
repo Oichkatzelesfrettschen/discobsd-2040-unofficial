@@ -71,6 +71,9 @@ mkdir -p "$OUTPUT"
 # The same holds for the Status-line assertions: a sleeping panel must fail.
 "$PYTHON" -I "$SCRIPT_DIR/check-picocalc.py" --self-test
 
+# And for the monitor driver: an exited Renode must read as RenodeError.
+"$PYTHON" -I "$SCRIPT_DIR/renode_monitor.py" --self-test
+
 # The driver exits 1 on a failed assertion and 2 when the emulator stops
 # answering; both end the gate, but the log is worth reading either way.
 status=0

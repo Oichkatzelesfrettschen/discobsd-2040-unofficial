@@ -134,11 +134,15 @@ Software:
     fraction zeros as significant digits (up to 4.5e-9 relative error at 12
     digits); calc formats from `%e` around it. Fix the conversion and add a
     contract test.
-11. The remaining games from `docs/research/picocalc-games-survey.md` and
+11. `include/math.h` defines `HUGE_VAL` as the finite 3.40282347e+38, so
+    lib/libm's overflow returns look like ordinary results; calc and libcalc
+    guard their ranges before calling libm. Redefine it as an infinity
+    against a build of every libm caller.
+12. The remaining games from `docs/research/picocalc-games-survey.md` and
     the tile-graphics device from `docs/research/picocalc-calculator-and-gui.md`.
-12. `sys/exec.h:51` declares an empty struct, a GNU extension that keeps
+13. `sys/exec.h:51` declares an empty struct, a GNU extension that keeps
     `picokbd.c` and `lcdcons.c` off strict C17.
-13. Refresh the retained C17 shipped-source and shipped-resource baselines,
+14. Refresh the retained C17 shipped-source and shipped-resource baselines,
     which record an earlier tree and have no live gate.
 
 Open decisions and residuals:

@@ -49,11 +49,6 @@
 "out": "3\n12\n3\n1\n1024\n-3\n-2\n",
 "rc": 0
 },
-"bc.array_arg_position": {
-"err": "bc: stdin:9: syntax error: ] unexpected\n",
-"out": "8\n9\n",
-"rc": 0
-},
 "bc.array_names": {
 "err": "",
 "out": "29\n",
@@ -252,11 +247,6 @@
 "bc.long_names": {
 "err": "",
 "out": "12\n13\n",
-"rc": 0
-},
-"bc.mod_fraction_scale": {
-"err": "",
-"out": ".500\n",
 "rc": 0
 },
 "bc.mod_scale": {
@@ -2092,11 +2082,6 @@
 "dc.quit_n": {
 "err": "dc: Q command argument exceeded string execution depth\n",
 "out": "4\n5\n",
-"rc": 0
-},
-"dc.rem_fraction_scale": {
-"err": "",
-"out": ".500\n.500\n1.23\n.500\n",
 "rc": 0
 },
 "dc.scale_div": {

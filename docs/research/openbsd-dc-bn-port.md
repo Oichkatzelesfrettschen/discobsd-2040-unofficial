@@ -225,10 +225,10 @@ tree sources through byacc passes the same 560 cases as the bison build.
 | `dc/mem.c` | `bn_check` and `bn_checkp` call `errx(1, "BN failure")`; `basprintf` replaces `asprintf` with two `vsnprintf` calls |
 | `dc/dc.c` | `basprintf`; `pledge` and the `__progname` declaration removed; `errc` becomes `errno = EISDIR; err(...)` |
 | `dc/main.c` | `setproctitle` and `pledge` removed |
-| `dc/bcode.c` | `uint` is `u_int`; the register table is paged (below); the sign, unused-parameter and `calloc` argument order diagnostics of `-Wall -Wextra` repaired with casts and a `(void)` use; the jump-table range test, always false for a `u_char`, removed; `skipN` frees the count `J` pops, as `quitN` does |
+| `dc/bcode.c` | `uint` is `u_int`; the register table is paged (below); the sign, unused-parameter and `calloc` argument order diagnostics of `-Wall -Wextra` repaired with casts and a `(void)` use; the jump-table range test, always false for a `u_char`, removed; `skipN` frees the count `J` pops, as `quitN` does; `%` and `~` return the remainder at the scale it carries (divergence below) |
 | `dc/inout.c` | one signedness cast and an unused-parameter use |
 | `dc/stack.c` | one signedness cast; `stack_push` and `stack_set_tos` take over the array of the value they receive, which the pinned source copies and leaves the original unreachable |
-| `bc/bc.y` | `stdint.h` added for the name table's hash; `histedit.h`, `search.h`, `pledge`, `WCONTINUED`, the libedit setup, the dummy prompt and `__progname` removed; `asprintf` is `basprintf`; `hcreate`/`hsearch` are the name table below |
+| `bc/bc.y` | `stdint.h` added for the name table's hash; `histedit.h`, `search.h`, `pledge`, `WCONTINUED`, the libedit setup, the dummy prompt and `__progname` removed; `asprintf` is `basprintf`; `hcreate`/`hsearch` are the name table below; `argument_list` takes an array argument in the first position (divergence below) |
 | `bc/scan.l` | the `EditLine` input path, `bc_eof` and the `SIGTSTP` handler removed; `abort_line` keeps the `[\n]P` it writes to dc; `%option noinput` |
 | `bc/extern.h` | the `EditLine`, `termios` and `tty.c` declarations removed |
 | `bc/pathnames.h` | `_PATH_LIBB` can be overridden at compile time, which lets the host gate point `bc -l` at the tree's library |
@@ -283,6 +283,68 @@ where the Plan 9 pair cost 38: the `picocalc` profile leaves 189 free blocks
 a second copy of the dc evaluator; a multicall binary that dispatched on
 `argv[0]` would drop about 18 KB of packed text, at the price of one binary
 and no separate `dc` image.
+
+## Intentional divergences from the pinned source
+
+Two behaviors of the pinned OpenBSD sources are defects against the POSIX
+`bc` specification; the owner chose to fix them here, so the tree's dc and bc
+differ from the pinned programs on these inputs and agree with GNU bc 1.08.2
+and GNU dc 1.5.2. A reader comparing against OpenBSD output sees the old
+values on exactly these inputs.
+
+**Remainder scale (`usr.bin/dc/bcode.c`, `bmod` and `bdivmod`).** POSIX defines
+`a % b` as `a - b * q` with `q` the quotient truncated to `scale` digits, held
+at scale `max(scale + scale(b), scale(a))`. The pinned `bmod` and `bdivmod`
+raise the dividend to `s + scale` digits, where `s` is the larger operand
+scale, so `BN_mod` and `BN_div` return an integer remainder holding `s + scale`
+digits, and then label that integer with `max(scale(a), scale(b) + scale)`.
+The label equals `s + scale` only when `scale` is 0 or the divisor has at
+least as many fractional digits as the dividend; otherwise the digits are read
+at a scale that is too small. `2 k 1.235 1 % p` prints `.500` where the remainder is `.005`
+(`1.235 - 1 * 1.23`), and `1.235 1 ~ f` prints `.500` and `1.23`. The tree
+keeps the integer computation and drops the `s + scale - label` trailing
+digits afterwards with `remainder_rescale`; they are zero, because `a - b * q`
+has at most `max(scale(a), scale(b) + scale)` fractional digits. Integer
+operands, the dividend's sign on the remainder, the zero-divisor
+diagnostics (`remainder by zero` for `%`, `divide by zero` for `~`) and the
+quotient output of `~` are unchanged. bc compiles `%` and `%=` to dc's `%`, so
+one change covers both programs. Oracle: the expected values of the cases
+`dc.rem_scale*`, `dc.divmod_scale*` and `bc.mod_scale*` come from
+`_posix_divmod` in `tests/dcbc/cases.py`, which computes `a - b * q` with
+Python `Fraction` and the POSIX scale from the definition and owns no dc or bc
+source; all 144 hand-written and modeled remainder and array-argument cases
+were also run against GNU bc 1.08.2 (`bc -q`) and GNU dc 1.5.2 on the
+authoring host and agreed byte for byte (observed; the gate does not require
+those programs). The hand-written `dc.rem_fraction_scale` and
+`bc.mod_fraction_scale` take their `.005` from the same definition and the
+same GNU run. Zero remainders and zero quotients are left out of the model
+because dc prints a zero with its scale (`0.000`) and GNU prints `0`; the
+pinned print convention is unchanged. `golden.json` no longer carries
+`dc.rem_fraction_scale` and `bc.mod_fraction_scale`, whose recorded `.500` was
+the pinned program's output; the 300 random corpus programs contain no
+fractional remainder that differs, so a regeneration by `gen_golden.sh` over
+the pinned sources leaves every other record unchanged (checked on the
+current records: the tree's programs pass them all).
+
+**Array argument in the first position (`usr.bin/bc/bc.y`, `argument_list`).**
+The pinned production `argument_list: expression | argument_list COMMA
+expression | argument_list COMMA LETTER LBRACKET RBRACKET` takes an array
+only after a comma, so `f(a[])` is `syntax error: ] unexpected` while
+`f(1, b[])` calls.
+GNU bc 1.08.2 accepts `f(a[])`, `f(a[], n)` and `f(a[], b[])` (observed), and
+the definition side already takes an array in any position. The tree adds
+`argument_list: LETTER LBRACKET RBRACKET`, which emits the same `l` plus array
+node as the comma form. `bison -y` reports 1 shift/reduce and 16 reduce/reduce
+conflicts before and after; the conflict states in `bison -v` output are
+identical to the pinned grammar's once state and rule numbers are masked, and
+none contains `argument_list`, so `check_grammar.sh` keeps its pinned counts.
+Oracle: the case `bc.array_arg_position` holds values read off the program by
+hand (arrays pass by value, so `m(c[])` returns 99 and leaves `c[0]` at 1) and
+checked against GNU bc 1.08.2; the previous case pinned the syntax error.
+
+Gate mutants `rem_digits_unscaled`, `divmod_rem_digits_unscaled`,
+`rem_scale_operand_only` and `array_arg_first_rejected` restore each old
+behavior and are rejected by those cases.
 
 ## Evidence
 

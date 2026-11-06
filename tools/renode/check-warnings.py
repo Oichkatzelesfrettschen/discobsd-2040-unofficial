@@ -21,9 +21,14 @@ An error-level line has no class list: the models log at that level when
 a transfer or a write cannot proceed, and a boot that reaches a shell
 produces none, so one is a regression whatever it says.
 
-Usage: check-warnings.py CLASSES LOG
+A board that adds peripherals brings its own classes: every CLASSES file
+before LOG is read, in order, and a warning is tallied against the first
+pattern that matches across all of them.
+
+Usage: check-warnings.py CLASSES [CLASSES ...] LOG
 """
 
+import os
 import re
 import sys
 
@@ -39,6 +44,18 @@ HEX = re.compile(r"0x[0-9A-Fa-f]+")
 # W25QXX failed to handle, where 0x7 (a status read the model never serves)
 # and 0x0 (a byte after an opcode it did not recognize) are separate defects.
 IDENTIFYING = ("at ", "byte: ")
+
+
+def occurrences(text):
+    """How many warnings one log line stands for.
+
+    Renode folds a run of identical consecutive messages into one line that
+    ends in the run's length in parentheses. Where the folds break depends
+    on how fast the host advances the emulator, so counting lines would
+    measure wall-clock pacing; the classes are tallied in occurrences.
+    """
+    folded = REPEAT_COUNT.search(text)
+    return int(folded.group(0).strip(" ()")) if folded else 1
 
 
 def normalize(text):
@@ -61,7 +78,7 @@ def normalize(text):
 
 
 def read_classes(path):
-    """Return [(ceiling, compiled pattern, source line number)] in file order."""
+    """Return [(ceiling, compiled pattern, source file and line)] in file order."""
     classes = []
     with open(path, encoding="utf-8") as handle:
         for number, line in enumerate(handle, 1):
@@ -74,21 +91,24 @@ def read_classes(path):
             ceiling, pattern = fields
             if not ceiling.isdigit():
                 raise SystemExit(f"{path}:{number}: ceiling '{ceiling}' is not a count")
-            classes.append((int(ceiling), re.compile(pattern), number))
+            classes.append((int(ceiling), re.compile(pattern),
+                            f"{os.path.basename(path)}:{number}"))
     if not classes:
         raise SystemExit(f"{path}: no warning classes")
     return classes
 
 
 def main(argv):
-    if len(argv) != 3:
+    if len(argv) < 3:
         raise SystemExit(__doc__.strip().splitlines()[-1])
-    classes = read_classes(argv[1])
+    classes = []
+    for path in argv[1:-1]:
+        classes.extend(read_classes(path))
     counts = [0] * len(classes)
     unmatched = {}
     errors = {}
 
-    with open(argv[2], encoding="utf-8", errors="replace") as handle:
+    with open(argv[-1], encoding="utf-8", errors="replace") as handle:
         for line in handle:
             failed = ERROR.search(line)
             if failed:
@@ -99,18 +119,19 @@ def main(argv):
             if not found:
                 continue
             text = normalize(found.group(1))
+            weight = occurrences(found.group(1))
             for index, (_, pattern, _) in enumerate(classes):
                 if pattern.search(text):
-                    counts[index] += 1
+                    counts[index] += weight
                     break
             else:
-                unmatched[text] = unmatched.get(text, 0) + 1
+                unmatched[text] = unmatched.get(text, 0) + weight
 
     failures = []
     for index, (ceiling, pattern, number) in enumerate(classes):
         if counts[index] > ceiling:
             failures.append(
-                f"warning-classes.txt:{number}: {pattern.pattern} "
+                f"{number}: {pattern.pattern} "
                 f"appeared {counts[index]} times, ceiling {ceiling}"
             )
     for text, count in sorted(unmatched.items(), key=lambda item: -item[1]):

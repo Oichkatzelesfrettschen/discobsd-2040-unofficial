@@ -548,6 +548,12 @@ check-libcalc: check-python .WAIT symlinks
 check-libbn: check-python
 		${MAKE} -C tests/libbn check
 
+# usr.bin/dc and usr.bin/bc built from the tree sources against lib/libbn and
+# run on the host at native width, at -m32 and under the sanitizers, with the
+# register-table heap ceilings and the fault-injection check.
+check-dcbc: check-python
+		${MAKE} -C tests/dcbc check check-peak
+
 # Cortex-M0+ objects of the two libraries, each with its import allow-list
 # and a known-bad negative control.
 check-libcalc-cross: check-python .WAIT symlinks
@@ -728,6 +734,11 @@ check-architecture-isolation:
 
 check-fgrep-capacity:
 		${MAKE} -C usr.bin/fgrep test
+
+# The CRC-32 shared by the packed executable loader and the packer, against
+# zlib, with mutants of the table and the shifts that must each be rejected.
+check-crc32:	check-python
+		${MAKE} -C tests/crc32 check
 
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
@@ -994,10 +1005,10 @@ HOST_GATES=	check-architecture-isolation \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
-		check-libc-tempfiles check-libcalc check-libbn \
+		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
-		check-fgrep-capacity check-config-makefile check-swapram-evac \
+		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -1010,7 +1021,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
 		check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
@@ -1084,6 +1095,12 @@ check-fifteen-host:
 
 check-fourfall-host:
 		${MAKE} -C games/fourfall test
+
+check-coil-host:
+		${MAKE} -C games/coil test
+
+check-puzzlebox-host:
+		${MAKE} -C games/pzcommon test
 
 check-calc-host: check-python .WAIT symlinks
 		${MAKE} -C usr.bin/calc test
@@ -1218,16 +1235,21 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop, the AEABI division helpers over a
-# divider model, the Smaller C suite, the libcalc and libbn tests, the tree
-# formatter's float conversions and math library returns against newlib's and
-# the calc line interface executed as Thumb-1 programs rather than only linked.
+# divider model, the Smaller C suite, the libcalc and libbn tests, the calc
+# line interface, the dc evaluator, the libc strtol/strtoul, random and
+# printf contracts and the tree formatter's float conversions and math
+# library returns executed as Thumb-1 programs rather than only linked.
+# tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
+# contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
+		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
@@ -1236,6 +1258,15 @@ check-qemu:	check-python .WAIT symlinks
 # image, and tools/renode/check-boot.sh names whichever is missing.
 check-renode:
 		sh tools/renode/check-boot.sh
+
+# The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
+# controller modeled: the boot banner, the panel's registers, a login and a
+# command typed through the I2C keyboard, all read back from the decoded
+# frame. Outside "check" for the reason check-renode is, and a separate
+# evidence class from the board: tools/renode/check-picocalc.sh names what
+# is missing.
+check-renode-picocalc:
+		sh tools/renode/check-picocalc.sh
 
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside
@@ -1362,7 +1393,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
+		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \
@@ -1370,12 +1401,13 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
 		check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
+		check-renode-picocalc \
 		check-host-package check-board-build check symlinks etc-distribution \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \
@@ -1385,7 +1417,7 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
-.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn \
+.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 
 .PHONY: check-libc-output check-libc-output-cross

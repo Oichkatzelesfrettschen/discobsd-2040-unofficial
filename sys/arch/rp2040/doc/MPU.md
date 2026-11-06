@@ -170,8 +170,8 @@ fault.c prints its frame on the console before delivering SIGSEGV.
 ## Evidence
 
 Renode 1.17.0 with the matgla/Renode_RP2040 models, `check-renode`
-(tools/renode/boot.robot): the probe test asserts the `mpu:` line above;
-the login test runs mputest and asserts `MPUTEST OK (mpu on)`. The
+(tools/renode/check-boot.py): the probe stage asserts the `mpu:` line
+above; the shell stage runs mputest and asserts `MPUTEST OK (mpu on)`. The
 captured transcript of the login shell:
 
     $ sysctl machdep.mpu

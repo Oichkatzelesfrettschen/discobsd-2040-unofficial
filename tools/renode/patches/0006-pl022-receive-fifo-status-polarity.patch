@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 5 Nov 2026 18:50:00 -0800
+Subject: [PATCH 6/7] pl022: report receive FIFO not-empty and full with the
+ PrimeCell polarity
+
+SSPSR bit 2 (RNE) is set while the receive FIFO holds data and bit 3 (RFF)
+while it is full (RP2040 datasheet section 4.4.4, SSPSR). The model returned
+RNE for an empty FIFO and RFF for one with room, so the standard drain loop
+"while (SSPSR & RNE) read SSPDR" never ended on an idle controller: the
+PicoCalc console driver's spi_wait_idle() spins in it from its first panel
+command. SSPDR returned data and dequeued only while the FIFO was not full,
+so a full FIFO could never be read. SSPDR now dequeues whenever an entry
+exists, and the two status bits follow the datasheet.
+
+Assisted-by: Claude Code (claude-sonnet-5-5)
+---
+ emulation/peripherals/spi/rp2040_spi.cs | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
+index 3dd86e4..2ab0acf 100644
+--- a/emulation/peripherals/spi/rp2040_spi.cs
++++ b/emulation/peripherals/spi/rp2040_spi.cs
+@@ -352,10 +352,9 @@ namespace Antmicro.Renode.Peripherals.SPI
+       Registers.SSPDR.Define(registers)
+         .WithValueField(0, 16, valueProviderCallback: _ =>
+         {
+-          if (rxBuffer.Count < rxBuffer.Capacity)
++          ushort ret;
++          if (rxBuffer.TryDequeue(out ret))
+           {
+-            ushort ret;
+-            rxBuffer.TryDequeue(out ret);
+             return ret;
+           }
+           return 0;
+@@ -376,8 +375,8 @@ namespace Antmicro.Renode.Peripherals.SPI
+       Registers.SSPSR.Define(registers)
+         .WithFlag(0, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count == 0, name: "SSPSR_TFE")
+         .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count != txBuffer.Capacity, name: "SSPSR_TNF")
+-        .WithFlag(2, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count == 0, name: "SSPSR_RNE")
+-        .WithFlag(3, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count != rxBuffer.Capacity, name: "SSPSR_RFF")
++        .WithFlag(2, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count != 0, name: "SSPSR_RNE")
++        .WithFlag(3, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count == rxBuffer.Capacity, name: "SSPSR_RFF")
+         .WithFlag(4, FieldMode.Read, valueProviderCallback: _ => running, name: "SSPSR_BSY");
+ 
+       Registers.SSPCPSR.Define(registers)

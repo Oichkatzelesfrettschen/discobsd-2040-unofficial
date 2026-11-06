@@ -1,0 +1,2127 @@
+{
+"bc.arg_bad_option": {
+"err": "bc: invalid option -- 'z'\nusage: bc [-cl] [-e expression] [file ...]\n",
+"out": "",
+"rc": 1
+},
+"bc.arg_c_emit": {
+"err": "",
+"out": " 3k\n 1 3/ps.\nc[bc: stdin:3: syntax error: return unexpected]ec\n 2l\u0006xps.\nq",
+"rc": 0
+},
+"bc.arg_c_emit_long_names": {
+"err": "",
+"out": " 1s\u00ff\u0001\u0001\nl\u00ff\u0001\u0001 2:\u00ff\u0001\u0002\n[Sxlxl\u00ff\u0001\u0001+Lxs. 1QLxs.0 1Q]s\u00ff\u0001\u0003\n\n\n 2;\u00ff\u0001\u0002l\u00ff\u0001\u0003xps.\nq",
+"rc": 0
+},
+"bc.arg_e": {
+"err": "",
+"out": ".333\n",
+"rc": 0
+},
+"bc.arg_e_then_stdin": {
+"err": "",
+"out": "6\n81\n",
+"rc": 0
+},
+"bc.arg_e_twice": {
+"err": "",
+"out": "16\n",
+"rc": 0
+},
+"bc.arg_file": {
+"err": "",
+"out": "18446744073709551616\n",
+"rc": 0
+},
+"bc.arg_missing_file": {
+"err": "bc: cannot open no-such-file: No such file or directory\n",
+"out": "",
+"rc": 1
+},
+"bc.arg_two_files": {
+"err": "",
+"out": "42\n",
+"rc": 0
+},
+"bc.arith": {
+"err": "",
+"out": "3\n12\n3\n1\n1024\n-3\n-2\n",
+"rc": 0
+},
+"bc.array_names": {
+"err": "",
+"out": "29\n",
+"rc": 0
+},
+"bc.array_sum": {
+"err": "",
+"out": "285\n",
+"rc": 0
+},
+"bc.arrays": {
+"err": "",
+"out": "3\n0\n21\n",
+"rc": 0
+},
+"bc.assign_ops": {
+"err": "",
+"out": "8\n16\n4\n1\n1\n0\n",
+"rc": 0
+},
+"bc.big_fraction": {
+"err": "",
+"out": ".333333333333333333333333333333333333333333333333333333333333\n.285714285714285714285714285714285714285714285714285714285714\n142857142857142857142857142857.1428571428571428571428571428571428571\\\n42857142857142857142857\n",
+"rc": 0
+},
+"bc.big_numbers": {
+"err": "",
+"out": "1606938044258990275541962092341162602522202993782792835301376\n515377520732011331036461129765621272702107522001\n82817974522014550258408423595736849801612281185389443546420186410325\\\n4919330121223037770283296858019385573376\n2238393297946874000179418290327143433\n",
+"rc": 0
+},
+"bc.break_continue": {
+"err": "",
+"out": "0\n1\n2\n4\n5\n6\n",
+"rc": 0
+},
+"bc.break_outside": {
+"err": "bc: stdin:1: break not in for or while\nbc: stdin:2: continue not in for or while\n",
+"out": "7\n",
+"rc": 0
+},
+"bc.comments": {
+"err": "",
+"out": "2\n4\n3\n",
+"rc": 0
+},
+"bc.compare": {
+"err": "",
+"out": "1\n0\n1\n0\n1\n0\n1\n1\n0\n",
+"rc": 0
+},
+"bc.compare_chain": {
+"err": "",
+"out": "inn",
+"rc": 0
+},
+"bc.continuation": {
+"err": "",
+"out": "3\n30\n",
+"rc": 0
+},
+"bc.decimal_input": {
+"err": "",
+"out": "1.0\n.3\n1\n1\n",
+"rc": 0
+},
+"bc.div_zero": {
+"err": "bc: divide by zero\nbc: remainder by zero\nbc: divide by zero\n",
+"out": "0\n0\n0.00\n",
+"rc": 0
+},
+"bc.else_if": {
+"err": "",
+"out": "twon",
+"rc": 0
+},
+"bc.empty_lines": {
+"err": "",
+"out": "1\n2\n",
+"rc": 0
+},
+"bc.exp_big_precision": {
+"err": "bc: Runtime warning: non-zero fractional part in exponent\n",
+"out": "1\n",
+"rc": 0
+},
+"bc.exponent_assoc": {
+"err": "",
+"out": "512\n64\n4\n",
+"rc": 0
+},
+"bc.fib_recursive": {
+"err": "",
+"out": "610\n",
+"rc": 0
+},
+"bc.for_loop": {
+"err": "",
+"out": "0\n2\n4\n6\n8\n10\n",
+"rc": 0
+},
+"bc.function": {
+"err": "",
+"out": "3628800\n15511210043330985984000000\n",
+"rc": 0
+},
+"bc.function_auto": {
+"err": "",
+"out": "43\n0\n7\n",
+"rc": 0
+},
+"bc.function_void": {
+"err": "",
+"out": "5\n0\n2\n0\n",
+"rc": 0
+},
+"bc.halt_in_func": {
+"err": "",
+"out": "1\n",
+"rc": 0
+},
+"bc.hex_digits": {
+"err": "",
+"out": "21\n65535\n",
+"rc": 0
+},
+"bc.ibase_obase": {
+"err": "",
+"out": "FF\n1010\n255\n10\n",
+"rc": 0
+},
+"bc.if_else": {
+"err": "",
+"out": "10\n20\n1\n2\n",
+"rc": 0
+},
+"bc.incr": {
+"err": "",
+"out": "2\n2\n3\n2\n2\n1\n",
+"rc": 0
+},
+"bc.last": {
+"err": "",
+"out": "5\n5\n6\n12\n",
+"rc": 0
+},
+"bc.length": {
+"err": "",
+"out": "5\n6\n3\n3\n",
+"rc": 0
+},
+"bc.lib_bessel": {
+"err": "",
+"out": ".76519768655796655144\n.57672480775687338720\n.48609126058589107690\n",
+"rc": 0
+},
+"bc.lib_big": {
+"err": "",
+"out": "3.14159265358979323846264338327950288419716939937508\n2.71828182845904523536028747135266249775724709369995\n.69314718055994530941723212145817656807550013436025\n",
+"rc": 0
+},
+"bc.lib_exp_log": {
+"err": "",
+"out": "2.71828182845904523536\n2.30258509299404568401\n2.99999999999999999999\n1.00000000000000000000\n.36787944117144232159\n22026.46579480671651695790\n",
+"rc": 0
+},
+"bc.lib_identity": {
+"err": "",
+"out": ".999999999999999999999999999997\n",
+"rc": 0
+},
+"bc.lib_neg": {
+"err": "",
+"out": "-.841470984807896\n.540302305868139\n-.785398163397448\n.135335283236612\n",
+"rc": 0
+},
+"bc.lib_scale_5": {
+"err": "",
+"out": "1.00000\n-1.00000\n1.10714\n.69314\n",
+"rc": 0
+},
+"bc.lib_trig": {
+"err": "",
+"out": ".84147098480789650665\n.54030230586813971740\n.78539816339744830961\n3.14159265358979323844\n0.00000000000000000000\n1.00000000000000000000\n0\n",
+"rc": 0
+},
+"bc.lib_zero_scale": {
+"err": "",
+"out": ".84147098480789650665\n.54030230586813971740\n148.41315910257660342111\n4.60517018598809136803\n",
+"rc": 0
+},
+"bc.logic": {
+"err": "",
+"out": "1\n0\n0\n3\n1\n",
+"rc": 0
+},
+"bc.long_names": {
+"err": "",
+"out": "12\n13\n",
+"rc": 0
+},
+"bc.mod_scale": {
+"err": "",
+"out": "0.00000\n0.00000\n.000010\n",
+"rc": 0
+},
+"bc.name_kinds": {
+"err": "",
+"out": "1\n2\n13\n",
+"rc": 0
+},
+"bc.negative_scale_div": {
+"err": "",
+"out": "-3.500\n-3.500\n3.500\n0.000\n0.000\n",
+"rc": 0
+},
+"bc.nested_break": {
+"err": "",
+"out": "0\n1\n10\n11\n20\n21\n",
+"rc": 0
+},
+"bc.nested_functions": {
+"err": "",
+"out": "10\n",
+"rc": 0
+},
+"bc.obase_frac": {
+"err": "",
+"out": "3.243F3\n.1000\n",
+"rc": 0
+},
+"bc.param_shadow": {
+"err": "",
+"out": "2\n10\n",
+"rc": 0
+},
+"bc.pow_neg": {
+"err": "",
+"out": ".1250000000\n8\n-8\n16\n",
+"rc": 0
+},
+"bc.quit_early": {
+"err": "",
+"out": "1\n",
+"rc": 0
+},
+"bc.recursion_array": {
+"err": "",
+"out": "0\n1\n2\n3\n4\n5\n",
+"rc": 0
+},
+"bc.return_outside": {
+"err": "bc: stdin:2: return must be in a function\n",
+"out": "8\n",
+"rc": 0
+},
+"bc.scale_div": {
+"err": "",
+"out": ".33333\n.66666\n2\n.14285714285714285714\n",
+"rc": 0
+},
+"bc.scale_func": {
+"err": "",
+"out": "3.14\n2.71\n",
+"rc": 0
+},
+"bc.scale_mul": {
+"err": "",
+"out": "7.006\n2.25\n6.28318\n",
+"rc": 0
+},
+"bc.scale_read": {
+"err": "",
+"out": "0\n7\n.3333333\n7\n",
+"rc": 0
+},
+"bc.scale_saved": {
+"err": "",
+"out": "3\n3.333\n",
+"rc": 0
+},
+"bc.semicolons": {
+"err": "",
+"out": "3\n2\n",
+"rc": 0
+},
+"bc.single_names": {
+"err": "",
+"out": "55\n",
+"rc": 0
+},
+"bc.sqrt": {
+"err": "",
+"out": "1.414213562373095048801688724209\n12.000000000000000000000000000000\n.500000000000000000000000000000\n9\n",
+"rc": 0
+},
+"bc.sqrt_negative": {
+"err": "bc: square root of negative number\nbc: stack empty\nbc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"bc.strings": {
+"err": "",
+"out": "hello\\natab\\there\\nx2y\n",
+"rc": 0
+},
+"bc.syntax_error": {
+"err": "bc: stdin:2: syntax error: newline unexpected\nbc: stdin:2: syntax error: ascii char 0x20 unexpected\n",
+"out": "5\n",
+"rc": 0
+},
+"bc.unary_minus": {
+"err": "",
+"out": "-3\n-3\n3\n-6\n",
+"rc": 0
+},
+"bc.undefined_function": {
+"err": "bc: not a string\n",
+"out": "0\n",
+"rc": 0
+},
+"bc.while": {
+"err": "",
+"out": "0\n1\n4\n9\n16\n5\n",
+"rc": 0
+},
+"bc.while_break": {
+"err": "",
+"out": "7\n",
+"rc": 0
+},
+"dc.arg_bad_option": {
+"err": "dc: invalid option -- 'z'\nusage: dc [-x] [-e expression] [file]\n",
+"out": "",
+"rc": 1
+},
+"dc.arg_dash": {
+"err": "dc: cannot open file -: No such file or directory\n",
+"out": "",
+"rc": 1
+},
+"dc.arg_directory": {
+"err": "dc: .: Is a directory\n",
+"out": "",
+"rc": 1
+},
+"dc.arg_e": {
+"err": "",
+"out": "5\n",
+"rc": 0
+},
+"dc.arg_e_empty_array_copy": {
+"err": "",
+"out": "5\n",
+"rc": 0
+},
+"dc.arg_e_then_stdin": {
+"err": "",
+"out": "2\n",
+"rc": 0
+},
+"dc.arg_e_twice": {
+"err": "",
+"out": "2\n",
+"rc": 0
+},
+"dc.arg_file": {
+"err": "",
+"out": "302\ndone",
+"rc": 0
+},
+"dc.arg_file_no_stdin": {
+"err": "",
+"out": "1\n",
+"rc": 0
+},
+"dc.arg_missing_file": {
+"err": "dc: cannot open file no-such-file: No such file or directory\n",
+"out": "",
+"rc": 1
+},
+"dc.arg_two_files": {
+"err": "usage: dc [-x] [-e expression] [file]\n",
+"out": "",
+"rc": 1
+},
+"dc.arg_x_flag": {
+"err": "",
+"out": "5\n",
+"rc": 0
+},
+"dc.array_deep": {
+"err": "dc: idx too big\ndc: negative idx\n",
+"out": "6\n6\n6\n",
+"rc": 0
+},
+"dc.array_dup_empty": {
+"err": "",
+"out": "5\n5\n5\n5\n",
+"rc": 0
+},
+"dc.array_frame_move": {
+"err": "",
+"out": "0\n7\n8\n15\n7\n7\n8\n4\n",
+"rc": 0
+},
+"dc.array_squares": {
+"err": "",
+"out": "49\n361\n",
+"rc": 0
+},
+"dc.ascii": {
+"err": "",
+"out": "aa\nA\n\n\u00e8\n",
+"rc": 0
+},
+"dc.bad_bases": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: input base must be a number between 2 and 16 (inclusive)\ndc: output base must be a number greater than 1\ndc: output base must be a number greater than 1\n",
+"out": "1010\n",
+"rc": 0
+},
+"dc.big_pow": {
+"err": "",
+"out": "10715086071862673209484250490600018105614048117055336074437503883703\\\n51051124936122493198378815695858127594672917553146825187145285692314\\\n04359845775746985748039345677748242309854210746050623711418779541821\\\n53046474983581941267398767559165543946077062914571196477686542167660\\\n429831652624386837205668069376\n",
+"rc": 0
+},
+"dc.clear_reg": {
+"err": "",
+"out": "6\n7\n6\n",
+"rc": 0
+},
+"dc.comment": {
+"err": "",
+"out": "3\n",
+"rc": 0
+},
+"dc.cond_else": {
+"err": "dc: y (0171) is unimplemented\ndc: stack empty\ndc: internal error: reg num = -1\ndc: stack empty\ndc: b (0142) is unimplemented\n",
+"out": "",
+"rc": 0
+},
+"dc.cond_ops": {
+"err": "dc: register 'a' (0141) is empty\ndc: y (0171) is unimplemented\ndc: stack empty\ndc: internal error: reg num = -1\ndc: y (0171) is unimplemented\ndc: stack empty\ndc: internal error: reg num = -1\ndc: y (0171) is unimplemented\ndc: stack empty\ndc: internal error: reg num = -1\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus000": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "832987101589192995151050376303732651550427335614529574206251\n3\n-6455069212426945703965796369037897048070046088860202128553\n-6\n",
+"rc": 0
+},
+"dc.corpus001": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\ndc: stack empty\ndc: stack empty\n",
+"out": "138551214957832591051216626558225148080672966780892796458289\n51966453397092740895\n60\n7\n",
+"rc": 0
+},
+"dc.corpus002": {
+"err": "",
+"out": "18735499413212232628777220385508918085343430055529515471289.5\n59\n136877680478638417891370182866.7\n59\n",
+"rc": 0
+},
+"dc.corpus003": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "\u000b79\n",
+"rc": 0
+},
+"dc.corpus004": {
+"err": "dc: stack empty\n",
+"out": "\t\n7992476848048887097.750\n-3427159318379548567.0\n852\n",
+"rc": 0
+},
+"dc.corpus005": {
+"err": "dc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "2.1\n-72.985\n2\n-9\n-4.28739468\n496680772098157432866255179391457621301927327583130446148024\n9741800\n",
+"rc": 0
+},
+"dc.corpus006": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "-441.4\n-52\n-9\n324\n",
+"rc": 0
+},
+"dc.corpus007": {
+"err": "dc: stack empty\ndc: square root of negative number\n",
+"out": "-95570922\n-4\n3\n-81005836536034679033.3\n",
+"rc": 0
+},
+"dc.corpus008": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "-50109679.18238726\n10140408\n6\n6\n-67386324\n",
+"rc": 0
+},
+"dc.corpus009": {
+"err": "dc: stack empty\n",
+"out": "-.60796711\n-157\n-214735339983987994663629942754634365807630201690640129965756\n",
+"rc": 0
+},
+"dc.corpus010": {
+"err": "dc: stack empty\ndc: scale must be a nonnegative number\ndc: not a number\n",
+"out": "-133206596307315074224207847530517797266897992481138735545793\n61\n\n",
+"rc": 0
+},
+"dc.corpus011": {
+"err": "",
+"out": "27875380786624610767.776\n-9\n",
+"rc": 0
+},
+"dc.corpus012": {
+"err": "",
+"out": "-1\n73361305194690208018223891349277601120284694460340819279571\n-346\n",
+"rc": 0
+},
+"dc.corpus013": {
+"err": "",
+"out": "1\n-399\n30966075\n42477990\n104010565072034174473563466436882018019446178337225151350358.2\n",
+"rc": 0
+},
+"dc.corpus014": {
+"err": "dc: stack empty\n",
+"out": "-6\n88\n0\n22118065.572\n",
+"rc": 0
+},
+"dc.corpus015": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "- 31 18 26 09 22\n",
+"rc": 0
+},
+"dc.corpus016": {
+"err": "",
+"out": "67\n95590793\n",
+"rc": 0
+},
+"dc.corpus017": {
+"err": "",
+"out": "8\n-5\n633095627479888704443653157180236617125989630309421970781409\n8\n96160425641994888777\n81.4\n",
+"rc": 0
+},
+"dc.corpus018": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "413.973\n",
+"rc": 0
+},
+"dc.corpus019": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "683\n94456404113047142375771048316915531725346189917462060530289\n",
+"rc": 0
+},
+"dc.corpus021": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "89387911.0\n-250.367\n89387911.0\n6\n34434281\n7\n",
+"rc": 0
+},
+"dc.corpus022": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "-4.99906391\n-8639822\n",
+"rc": 0
+},
+"dc.corpus023": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "887689358678113286133379766504214911048504577725626454592879.4652977\n11\n-546077123547995287\n887689358678113286133379766504214911048504577725626454592879.4652977\n11\n-546077123547995287\n",
+"rc": 0
+},
+"dc.corpus025": {
+"err": "",
+"out": "9.1\n15\n38.60710195\n3\n210492676659208482.6\n",
+"rc": 0
+},
+"dc.corpus026": {
+"err": "dc: stack empty\n",
+"out": " 01 01 11 25 31 19 32 04 09 05 07 07 22 00\n 01 13 10 30 07 05\n 08 34.30 30\n",
+"rc": 0
+},
+"dc.corpus027": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "\u007f\n-52890157\n-32.16298467\n",
+"rc": 0
+},
+"dc.corpus028": {
+"err": "dc: stack empty\ndc: square root of negative number\n",
+"out": "5734737797520639683840840550058105175162360494555020908717.87381658\n",
+"rc": 0
+},
+"dc.corpus029": {
+"err": "dc: stack empty\n",
+"out": "-907647504220185588781698886035228580624742753408078541845812\n-907647504220185588781698886035228580624742753408078541845812\n",
+"rc": 0
+},
+"dc.corpus030": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "833.410\n-99\n55135423\n68\n",
+"rc": 0
+},
+"dc.corpus031": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "5\n-2\n0\n-27299018.4\n",
+"rc": 0
+},
+"dc.corpus033": {
+"err": "dc: stack empty\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "45289617\n-9\n536.64262210\n37644703\n4180335.1706543\n",
+"rc": 0
+},
+"dc.corpus034": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus035": {
+"err": "dc: stack empty\n",
+"out": "\u00d2-60434418\n40.77143455\n-440992402984831169789352693569213374907684080757280234774228\n0\n",
+"rc": 0
+},
+"dc.corpus036": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "-9\n570.6\n",
+"rc": 0
+},
+"dc.corpus037": {
+"err": "",
+"out": "37.173\n-2\n86678274\n\u0002\n-7.89787364\n",
+"rc": 0
+},
+"dc.corpus038": {
+"err": "dc: stack empty\ndc: stack empty\ndc: square root of negative number\n",
+"out": "0\n-1074032.951\n0\n-773402638638365465839993887693301574835395625381519227456800\n",
+"rc": 0
+},
+"dc.corpus040": {
+"err": "",
+"out": " 00005\n 01487 52262\n 01487 52262\n- 00001 11549 32542 27306 47321\n- 01383 46737\n 00002.60030\n- 00028\n",
+"rc": 0
+},
+"dc.corpus041": {
+"err": "",
+"out": "66244504904061602055\n336387686477171976211139386850828109200386822422932405786806.48327634\n-1\n315\n84133913206292746677622529995255381416435752449867829339612\n-22.2\n-74781498231368927520\n",
+"rc": 0
+},
+"dc.corpus042": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "33830270747131099230938502764988393551209318054247838974770410860937\\\n8450.5\n\u0096\n395346696\n8\n-672277298\n33830270747131099230938502764988393551209318054247838974770410860937\\\n8450.5\n\u0096\n395346696\n8\n-672277298\n",
+"rc": 0
+},
+"dc.corpus043": {
+"err": "dc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "71\n118822550994174714681397\n2\n-74629050580328964500.40292013\n",
+"rc": 0
+},
+"dc.corpus044": {
+"err": "dc: stack empty\n",
+"out": "-92447867360038140476\n",
+"rc": 0
+},
+"dc.corpus045": {
+"err": "",
+"out": "5\n59063190\n",
+"rc": 0
+},
+"dc.corpus046": {
+"err": "",
+"out": "18388310008965249795\n0\n18388310008965249795\n672205342037624392545574939924257275169768482145051006529395.171\n0\n2.2\n9\n",
+"rc": 0
+},
+"dc.corpus047": {
+"err": "",
+"out": "772\n772\n",
+"rc": 0
+},
+"dc.corpus048": {
+"err": "",
+"out": "-84312035337617290281.7\n",
+"rc": 0
+},
+"dc.corpus049": {
+"err": "dc: stack empty\n",
+"out": "-8\n4\n6\n556955710537059783814164047145914579347310602579705687525093.4\n56098405\n",
+"rc": 0
+},
+"dc.corpus050": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "-202854914699944980625754525454632332403976776665363760307636.271102\\\n50\n24\n-764326010376409681183408853956409283362619788918592419216810\n18\n72\n-40\n9.957\n4\n",
+"rc": 0
+},
+"dc.corpus051": {
+"err": "dc: | (0174) is unimplemented\ndc: not a number\n",
+"out": "-304645793468997581665145413754117319288054893892697652319878\n0\n\u00af\n-4\n-330.130\n-304645793468997581665145413754117319288054893892697652319878\n0\n",
+"rc": 0
+},
+"dc.corpus052": {
+"err": "dc: stack empty\ndc: stack empty\ndc: divide by zero\n",
+"out": "0\n0\n\u0014\n8.3236864\n-163189729531013194743064706136850140053818045870763113454488\n",
+"rc": 0
+},
+"dc.corpus053": {
+"err": "",
+"out": "0\n",
+"rc": 0
+},
+"dc.corpus054": {
+"err": "",
+"out": "-306801467061649591413515811021021187226376742072188161317111\n-306801467061649591413515811021021187226376742072188161317111\n71\n654.8\n-34595323887096953571\n341224662983136738963913206440427319404014182985338783681178.189\n9\n",
+"rc": 0
+},
+"dc.corpus055": {
+"err": "dc: stack empty\ndc: not a number\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus056": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "\u00b9\n4\n",
+"rc": 0
+},
+"dc.corpus057": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: output base must be a number greater than 1\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus058": {
+"err": "dc: stack empty\n",
+"out": "6.465\n61827813.98163928\n-9\n73.5\n6.465\n61827813.98163928\n-9\n73.5\n",
+"rc": 0
+},
+"dc.corpus059": {
+"err": "dc: stack empty\n",
+"out": "97.6\n1\n-69051061\n0\n1.95853798\nd\n",
+"rc": 0
+},
+"dc.corpus060": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "200220177714432585144094565534714265784212959660280081700966\n200220177714432585144094565534714265784212959660280081700966\n200220177714432585144094565534714265784212959660280081700966\n200220177714432585144094565534714265784212959660280081700966\n92287874\n-187\n200220177714432585144094565534714265784212959660280081700966\n200220177714432585144094565534714265784212959660280081700966\n",
+"rc": 0
+},
+"dc.corpus061": {
+"err": "dc: stack empty\ndc: scale must be a nonnegative number\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus062": {
+"err": "dc: scale must be a nonnegative number\ndc: | (0174) is unimplemented\n",
+"out": ".00000000000000000002\n658820214215880664309478240493929756067990287811947045409458\n21\n-5\n26776070316764463132\n-50\n-12.203\n",
+"rc": 0
+},
+"dc.corpus063": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "2\n490293557412040564.6\n",
+"rc": 0
+},
+"dc.corpus064": {
+"err": "",
+"out": "1\n",
+"rc": 0
+},
+"dc.corpus065": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "853901359808626782230937792388408760623299915758953157803785\n22.09366271\n",
+"rc": 0
+},
+"dc.corpus066": {
+"err": "",
+"out": "86.0\n272380931372302995.57700\n4.904\n61380339\n",
+"rc": 0
+},
+"dc.corpus068": {
+"err": "",
+"out": "-74009772104040144745.724\n9\n9\n15\n",
+"rc": 0
+},
+"dc.corpus069": {
+"err": "dc: stack empty\n",
+"out": "4.403\n-33.93474377\n339.4\n",
+"rc": 0
+},
+"dc.corpus070": {
+"err": "",
+"out": "-691\n\u0019\n-9\n-639581789260719403565052596878448565281023790095511750150756\n-661\n",
+"rc": 0
+},
+"dc.corpus071": {
+"err": "",
+"out": "49996586217886480033\n-143947735935348336003825543488749109332973543507596494797947929.6\n",
+"rc": 0
+},
+"dc.corpus072": {
+"err": "dc: | (0174) is unimplemented\ndc: not a number\n",
+"out": "\n-97559281594102714555.40542669\n7\n-35084944282503105886\n",
+"rc": 0
+},
+"dc.corpus073": {
+"err": "",
+"out": "-89473794.8\n-5.7\n",
+"rc": 0
+},
+"dc.corpus074": {
+"err": "dc: stack empty\n",
+"out": "3\n",
+"rc": 0
+},
+"dc.corpus075": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus076": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "6.37\n-7\n.6\n-913576009579786757560133976324424454148392673267751833921710\n-78514269404527841470.727\n7748123906998429745\n",
+"rc": 0
+},
+"dc.corpus077": {
+"err": "dc: stack empty\n",
+"out": "2\n-90040010831741628001.136\n-90040010831741628001.136\n-39433025505275476887\n",
+"rc": 0
+},
+"dc.corpus078": {
+"err": "",
+"out": "\u0006\n620\n5\n6\n-39778742\n89566396085146004727.9\n21741766736485918322\n-92\n",
+"rc": 0
+},
+"dc.corpus079": {
+"err": "dc: stack empty\n",
+"out": "60822124.98451005\n",
+"rc": 0
+},
+"dc.corpus080": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "428737923211724789793793107403111998692995039496198573933333\n-6\n",
+"rc": 0
+},
+"dc.corpus081": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "60147958955665951007.261\n-4.53406332\n",
+"rc": 0
+},
+"dc.corpus082": {
+"err": "dc: stack empty\n",
+"out": "1\n",
+"rc": 0
+},
+"dc.corpus083": {
+"err": "dc: stack empty\ndc: not a number\n",
+"out": "792\n\u0083\n",
+"rc": 0
+},
+"dc.corpus084": {
+"err": "",
+"out": "\u00af\n-29320925797230673652.12026914\n6.2\n",
+"rc": 0
+},
+"dc.corpus085": {
+"err": "dc: stack empty\n",
+"out": "8\n-916\n-90944559317948865011\n-365535274371611545147328321515195229150677428829470049623166.5880070\n2.1\n",
+"rc": 0
+},
+"dc.corpus086": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "-1000000101110101000101110100110101111011110001110100101001101010101\\\n01000100111010110110001010101011101011000000101000110000011000000111\\\n110010100000111111101111101101110001010100010101110110100110011.0011\\\n110100\n1010000\n-10\n\u00e7\n-1010000.011001100000000111100111111\n-1010000.011001100000000111100111111\n",
+"rc": 0
+},
+"dc.corpus087": {
+"err": "dc: stack empty\n",
+"out": "\u0001-37\n",
+"rc": 0
+},
+"dc.corpus088": {
+"err": "",
+"out": "-4\n-946637166604043252668903012266421763009227988122521188592481\n",
+"rc": 0
+},
+"dc.corpus089": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": " 79 20 31 29 14 36 78.81 48 08 97\n 79 20 31 29 14 36 78.81 48 08 97\n- 09\n 04 09.86 10\n0\n",
+"rc": 0
+},
+"dc.corpus090": {
+"err": "dc: stack empty\n",
+"out": "536714610938919002249476508629216619740456035155426612806633\n8\n0\n",
+"rc": 0
+},
+"dc.corpus091": {
+"err": "",
+"out": "X\n1\n",
+"rc": 0
+},
+"dc.corpus092": {
+"err": "",
+"out": "-3\n391\n37\n92.26290772\n0\n8095989834011173031.650\n6.7\n0\n",
+"rc": 0
+},
+"dc.corpus093": {
+"err": "dc: scale must be a nonnegative number\ndc: not a number\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus094": {
+"err": "",
+"out": "20\n32830132025650929425\n7\n",
+"rc": 0
+},
+"dc.corpus095": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "\u00029",
+"rc": 0
+},
+"dc.corpus097": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus098": {
+"err": "",
+"out": "-9\n8\n-9.413\n-74\n9\n-9\n8\n-9.413\n-74\n",
+"rc": 0
+},
+"dc.corpus099": {
+"err": "",
+"out": "-6\n86528681457517732622.216\n-43749524\n",
+"rc": 0
+},
+"dc.corpus100": {
+"err": "dc: square root of negative number\ndc: | (0174) is unimplemented\ndc: square root of negative number\n",
+"out": "-987\n-31\n8\n-80128758215961514769\n3\n9\n-23\n-80128758215961514769\n3\n9\n",
+"rc": 0
+},
+"dc.corpus101": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "\u0002@\u00d6\b\u0096\u00e2\u0003A/\u00c3K\u00b6\u0093\u0099Q\u000f\u00f1z\u0097\u00a3\"\u00b1}t\u008a8\n-508453054404143706830671171926854769133881777493410933361701\n-7\n-5.440\n9\n-19\n-562\n-23.4\n",
+"rc": 0
+},
+"dc.corpus102": {
+"err": "dc: stack empty\n",
+"out": ",17\n-178\n-16482212116997908195\n",
+"rc": 0
+},
+"dc.corpus103": {
+"err": "dc: output base must be a number greater than 1\n",
+"out": "34926615006166956204\n27\n-579\n4887550147804075244\n27\n34926615006166956204\n",
+"rc": 0
+},
+"dc.corpus104": {
+"err": "",
+"out": "20410\n-473.93728739\n41704097\n1\n5\n",
+"rc": 0
+},
+"dc.corpus105": {
+"err": "",
+"out": "7.2\n0\n0.0\n0\n",
+"rc": 0
+},
+"dc.corpus106": {
+"err": "dc: scale must be a nonnegative number\ndc: | (0174) is unimplemented\n",
+"out": "-9\n-8\n-9\n-116760367428547451438837274083\n-11.41137021\n9.88\n2\n1\n",
+"rc": 0
+},
+"dc.corpus107": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "-356\n3\n-356\n54\n-8\n1\n-2\n-118\n54\n-8\n",
+"rc": 0
+},
+"dc.corpus108": {
+"err": "dc: stack empty\n",
+"out": "\u0005209969657103911694299197809108124464449316330584335350103159\n",
+"rc": 0
+},
+"dc.corpus109": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus110": {
+"err": "",
+"out": "",
+"rc": 0
+},
+"dc.corpus111": {
+"err": "dc: stack empty\n",
+"out": "-296.0313\n-12497493604543713083\n89072284\n-296.0313\n-12497493604543713083\n",
+"rc": 0
+},
+"dc.corpus112": {
+"err": "",
+"out": ":28.89917068\n-4\n0\n1\n-2\n-2\n-2\n",
+"rc": 0
+},
+"dc.corpus113": {
+"err": "",
+"out": "3.893\n334.52247939\n525.795\n",
+"rc": 0
+},
+"dc.corpus114": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "-37852353.58034628\n7.6456666\n3.72720942\n",
+"rc": 0
+},
+"dc.corpus115": {
+"err": "dc: | (0174) is unimplemented\ndc: | (0174) is unimplemented\ndc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "\u0002\u00e0\u00da\u00cc\u0004R~k\u00d9\u0001\u00b5\u0011\u00a3\u00ac=\u00cc\u00b6--711\n9\n263\n-2\n-78\n-633320036217976274807088502329945327820662757644640662208797\n-637902292728576932446943009572411816732783862259132024429877.226\n",
+"rc": 0
+},
+"dc.corpus116": {
+"err": "",
+"out": "0\n-39\n6\n25825700\n84780984\n1\n214\n",
+"rc": 0
+},
+"dc.corpus117": {
+"err": "dc: stack empty\n",
+"out": "36116629649205981826\n-1.1\n-5.5\n78223797734414676426.13504672\n42176652032668945275\n-2\n886307264020453687784495144316285454171516923445063163098229\n",
+"rc": 0
+},
+"dc.corpus118": {
+"err": "dc: stack empty\n",
+"out": "-68662649779850016804.621\n0\n-68662649779850016804.621\n0\n",
+"rc": 0
+},
+"dc.corpus119": {
+"err": "",
+"out": "10011\n1000111001110010000100000111010100001111001100001111010010100100111\n",
+"rc": 0
+},
+"dc.corpus120": {
+"err": "dc: stack empty\n",
+"out": "-64516076\n70954504835119023212.2\n3\n",
+"rc": 0
+},
+"dc.corpus121": {
+"err": "dc: stack empty\n",
+"out": "1920573337778433207\n",
+"rc": 0
+},
+"dc.corpus122": {
+"err": "dc: stack empty\n",
+"out": "0\n",
+"rc": 0
+},
+"dc.corpus123": {
+"err": "dc: stack empty\n",
+"out": "9454226145222973711\n41\n-9447749\n81\n6.992\n9\n7.640\n",
+"rc": 0
+},
+"dc.corpus124": {
+"err": "dc: stack empty\n",
+"out": "-6\n-674312132810056781832649460087701326428327264759214693766122.924\n5\n63268419.102\n",
+"rc": 0
+},
+"dc.corpus125": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "18\n44378155989245923273\n-43.40172561\n8.42232346\n-16869175467627954656\n70254665745461369230\n-99.3\n",
+"rc": 0
+},
+"dc.corpus126": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "0\n1.8\n77\n95818636076431200600.1\n",
+"rc": 0
+},
+"dc.corpus127": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus128": {
+"err": "",
+"out": "- 08.09 76 56 25\n- 01.50\n 03 57\n- 39 27 23 24 87 06 52 45 87 94.47 30\n",
+"rc": 0
+},
+"dc.corpus129": {
+"err": "dc: stack empty\n",
+"out": "2\n-8\n8\n8214190916968226527\n4528329\n2\n-8\n8\n8214190916968226527\n4528329\n",
+"rc": 0
+},
+"dc.corpus130": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "98974738934397883953\n90\n-533157521793664011796408652349561203152020900716182336389526\n-24114942\n-63.65525527\n9948604873\n90\n-533157521793664011796408652349561203152020900716182336389526\n-24114942\n-63.65525527\n",
+"rc": 0
+},
+"dc.corpus131": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": " 02 19 29 27 24 21 00 27 10 34 16 01 03\n- 01 11 24 19 12 07\n",
+"rc": 0
+},
+"dc.corpus132": {
+"err": "",
+"out": "-35\n19101416\n2\n3229672831589000483.0\n48\n",
+"rc": 0
+},
+"dc.corpus133": {
+"err": "dc: stack empty\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "61219423\n4\n-558581888333120521477729338593853747639688617052600029288113\n156671928525896930175606904079158459710208084250331237481272\n4\n7\n-23130637\n",
+"rc": 0
+},
+"dc.corpus134": {
+"err": "dc: stack empty\n",
+"out": "i\n-17799085387463200595\n",
+"rc": 0
+},
+"dc.corpus135": {
+"err": "dc: stack empty\ndc: square root of negative number\ndc: stack empty\n",
+"out": "352\n",
+"rc": 0
+},
+"dc.corpus136": {
+"err": "",
+"out": "1000.0010010100\n100100\n1.110110000010111000010000110\n-110001\n1101000001.0100100111\n-1000110111010100010010101010011101010101000101010011101111011001000\n101100.0010010100\n-100111111\n1.110110000010111000010000110\n-110001\n",
+"rc": 0
+},
+"dc.corpus137": {
+"err": "dc: stack empty\ndc: not a number\ndc: not a number\n",
+"out": "68523453.3\n-7680958.158\n3.7\n!\n-65\n",
+"rc": 0
+},
+"dc.corpus138": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "\u00e0\u000f\u000b\u0081\u0011\u000fC\u008a\u00a5\u00b5\u00cb\u0013e\u00d7\u0016k\u00b7\u00d2\u00efI\u00fe\u00a5\u0002\t\u0089\u00c8",
+"rc": 0
+},
+"dc.corpus139": {
+"err": "",
+"out": "\u000b\u0018n\u00ae\\\u00a4\u00cf@A\\\u00f8r\u008ee\u00c80\u009e\u00e5\u0096\u00d8\u00fa\u00b1\u0083\r\u009b324\n69647198520317422949986597481388942593607563820069986438555\n",
+"rc": 0
+},
+"dc.corpus140": {
+"err": "",
+"out": "650168732670450221326554075799.894\n-668\n650168732670450221326554075131.894\n-.928\n4\n622.744\n622.744\n650168732670450221326554075131.894\n",
+"rc": 0
+},
+"dc.corpus141": {
+"err": "",
+"out": ".6\n-5.22519000\n1\n-1446210\n12\n",
+"rc": 0
+},
+"dc.corpus142": {
+"err": "",
+"out": "\u00016r\u008625908291\n-98\n",
+"rc": 0
+},
+"dc.corpus143": {
+"err": "dc: stack empty\n",
+"out": "-40.86073875\n3\n1039295270700533495994727597963487393831082843242286257460736.7\n-6\n",
+"rc": 0
+},
+"dc.corpus144": {
+"err": "dc: stack empty\ndc: output base must be a number greater than 1\n",
+"out": "18047950423886969527\n1\n",
+"rc": 0
+},
+"dc.corpus145": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "-91639642810713247752.490\n-95\n-5\n",
+"rc": 0
+},
+"dc.corpus146": {
+"err": "",
+"out": "25\n9\n4961291\n",
+"rc": 0
+},
+"dc.corpus147": {
+"err": "dc: not a number\n",
+"out": "\u0005\n",
+"rc": 0
+},
+"dc.corpus148": {
+"err": "dc: stack empty\n",
+"out": "\u0006",
+"rc": 0
+},
+"dc.corpus149": {
+"err": "",
+"out": "0\nE\n552\n-39313961229940129932\n-1\n",
+"rc": 0
+},
+"dc.corpus150": {
+"err": "dc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "-6.253\n-10\n67977202.30867758\n174288917997018246157281657353311601755320092795607305244441\n-232901701266841750982406682952561158397863260041950451684617\n.6\n",
+"rc": 0
+},
+"dc.corpus151": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: stack empty\n",
+"out": "803\n",
+"rc": 0
+},
+"dc.corpus152": {
+"err": "dc: stack empty\n",
+"out": "-403698623582610204447669657798589610569540581857283169760170\n",
+"rc": 0
+},
+"dc.corpus153": {
+"err": "dc: stack empty\ndc: scale must be a nonnegative number\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus154": {
+"err": "",
+"out": " 03\n",
+"rc": 0
+},
+"dc.corpus155": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "5\n325332574015760265973370616023498509619139734075784189750308\n-733\n91\n196827544905201473242269131650415475156467521037300563736863\n-14508291738153051535.7\n5\n325332574015760265973370616023498509619139734075784189750308\n",
+"rc": 0
+},
+"dc.corpus156": {
+"err": "dc: stack empty\n",
+"out": "-1\n6\n-390228885729535066262543430213734581587812176400445590186195.989214\\\n88\n648\n5\n535\n133\n30\n-1\n",
+"rc": 0
+},
+"dc.corpus157": {
+"err": "dc: output base must be a number greater than 1\ndc: stack empty\n",
+"out": "76385170\n0\n",
+"rc": 0
+},
+"dc.corpus158": {
+"err": "",
+"out": "77\n674.1\n6\n36914758\n8211570321071329461\n3.224\n",
+"rc": 0
+},
+"dc.corpus159": {
+"err": "dc: stack empty\n",
+"out": "5\n",
+"rc": 0
+},
+"dc.corpus160": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "-21122022111122100112000121122122001220121\n1001102\n",
+"rc": 0
+},
+"dc.corpus161": {
+"err": "dc: stack empty\n",
+"out": "8876735876\n",
+"rc": 0
+},
+"dc.corpus162": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "-64901843.6\n",
+"rc": 0
+},
+"dc.corpus163": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "21\n",
+"rc": 0
+},
+"dc.corpus164": {
+"err": "",
+"out": "20946177472099275069811133393746884390817223884465349515609663623195\\\n923044467197402331363518352307161918950296952697334.41\n",
+"rc": 0
+},
+"dc.corpus165": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "-63859275.6\n",
+"rc": 0
+},
+"dc.corpus166": {
+"err": "",
+"out": "-51103239.708\n-43\n105\n8.5\n1\n",
+"rc": 0
+},
+"dc.corpus167": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "6\n80\n1\n74561924\n",
+"rc": 0
+},
+"dc.corpus168": {
+"err": "dc: scale must be a nonnegative number\n",
+"out": " 19 86 71 05 23 59 15 62 24 57 24 38 43 43 12 25 96 18 46 50 47 99 4\\\n7 19 65 82 39 17 86 34.20\n\u0007\n",
+"rc": 0
+},
+"dc.corpus169": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "4\n2\n-4\n78\n-31000495660262937611.1\n4\n",
+"rc": 0
+},
+"dc.corpus170": {
+"err": "",
+"out": "-16\n-5\n",
+"rc": 0
+},
+"dc.corpus171": {
+"err": "dc: stack empty\ndc: not a number\n",
+"out": "\u0006\n-92657227344650555707\n98\n475769043802911982347198824827782687324020164449634220423288\n7\n-32.2\n31.5\n",
+"rc": 0
+},
+"dc.corpus172": {
+"err": "",
+"out": "-8\n",
+"rc": 0
+},
+"dc.corpus173": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "10.012\n2\n11011221010022010\n-101222120100011011120111120221101212212020.12102221121112020\n11\n",
+"rc": 0
+},
+"dc.corpus174": {
+"err": "dc: stack empty\n",
+"out": "14892042412802029746\n2\n-8\n76\n",
+"rc": 0
+},
+"dc.corpus175": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "y\u00a9<\u00f9\u0018\u00cd\u0085\u00c8\u008f\u008d\u0011y\u00aa\u00e6\u00e8R\u00fb\u0084\u00f8\u00f89\u001b]\u00b4\u00df72\n0\n37419617266486134232\n92675827304352330469\n82575068515689665772\n74.944\n-32\n72\n703651600667701617083809070286491321148441462415883772935767\n",
+"rc": 0
+},
+"dc.corpus176": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "932\n-833\n",
+"rc": 0
+},
+"dc.corpus177": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: scale must be a nonnegative number\n",
+"out": "29069085\n1\n1\n22\n3.6\n-4.32568919\n",
+"rc": 0
+},
+"dc.corpus178": {
+"err": "",
+"out": "2802498525473734412.6\n-771.94072807\n-6\n97293528.966\n7\n",
+"rc": 0
+},
+"dc.corpus179": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "36\n",
+"rc": 0
+},
+"dc.corpus180": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\ndc: | (0174) is unimplemented\n",
+"out": "320\n-228657\n799\n-39115062.233\n-13.14443734\n-30738596\n21\n320\n-228657\n799\n",
+"rc": 0
+},
+"dc.corpus181": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "-39054573707784147338.37116319\n",
+"rc": 0
+},
+"dc.corpus182": {
+"err": "dc: output base must be a number greater than 1\n",
+"out": "1\n-2.783\n296\n",
+"rc": 0
+},
+"dc.corpus183": {
+"err": "",
+"out": "68527261251268880631.89008968\n33460100\n7\n68527261251268880631.89008968\n33460100\n",
+"rc": 0
+},
+"dc.corpus184": {
+"err": "dc: stack empty\n",
+"out": "109432764449032081142215180497538618257848710898864382186625\n28414223858420176484078027236378586686521273636108890639854\n",
+"rc": 0
+},
+"dc.corpus185": {
+"err": "dc: stack empty\n",
+"out": "2427686\n-6\n63676168190593135937\n-111\n",
+"rc": 0
+},
+"dc.corpus186": {
+"err": "dc: stack empty\n",
+"out": "-96.1\n-116\n79942179304735934562.9\n-75825468459379219477\n-66.28865924\n618216604743925055201545349712291069690355796840587450705\n",
+"rc": 0
+},
+"dc.corpus187": {
+"err": "",
+"out": "82268242\n- 00004\n 01255 20562\n 00146 31842 56349 34098 26985 52394 48911 00358 61698 43162 46558 3\\\n0022 14257\n",
+"rc": 0
+},
+"dc.corpus188": {
+"err": "",
+"out": "70\n34.4\n2\n87153249163587049025413316069264061740275950745574786701112\n87153249163587049025413316069264061740275950745574786701112\n58562062\n15237880204818864420\n173\n",
+"rc": 0
+},
+"dc.corpus189": {
+"err": "dc: stack empty\n",
+"out": "211012220102021120101212120222220102111211.012\n20002122112212001001110111222010210202022211210102020222101221021112\\\n202100011111022012112111001212022101011200020011110222001\n",
+"rc": 0
+},
+"dc.corpus190": {
+"err": "dc: stack empty\ndc: stack empty\ndc: square root of negative number\n",
+"out": "45\n52\n-818\n43114481\n-2\n",
+"rc": 0
+},
+"dc.corpus191": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "33862021\n96027521471098510070.566\n-35193117530977850597.15\n44249173948586979572\n204\n-28510269356632695345\n5137566\n",
+"rc": 0
+},
+"dc.corpus192": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: input base must be a number between 2 and 16 (inclusive)\ndc: Runtime warning: non-zero fractional part in exponent\n",
+"out": "73212748236546286514893145784402659864756329180154870272905199002503\\\n72761648717757698353258642955274470033270913883236894632214811962602\\\n22217756521046110639925113438975482405753475077925731168229620182744\\\n99279581722832496159150754322991062477414187220005852021632617630900\\\n78170994802491218265439009233364869805181752166470895554201467399613\\\n51198965872888166320029839160189832817350205721041736561336901625647\\\n43854583480083182064529902870280743226408412185232162246244859141678\\\n17701552326881003333991074772852787435335185241351182008071432321179\\\n70255233288387333072684138180323740983406561747188591215372866905295\\\n61675989395704101139515154446221188867762431791780874257393811058708\\\n17624032858684497600398567170309001827727206165603766180466825020165\\\n51183101736489262502191003243430014979549272805164045899849276566163\\\n94628018138369322097723585703958833008674216656584028579749748988500\\\n38676284682204972136839450611516049596354951591327481771305899494872\\\n20425935077671286977720918692486855744246840133016629646799384134731\\\n47686925597933176908030640854453607476063225878724390878900577856216\\\n04019347257068334603927244893813725150713547603112463784872706966455\\\n90470677756652017760589868469710285753534157803222766893956863752647\\\n81610369923631317526083019862411676365348358149461385102102998864736\\\n25882327438523715174490163449131293070297507684931048289063614804147\\\n42926345233991906746556165371910795424797388631550470545863008663445\\\n49056905701475365454108054132930051396936542209345898123632666506345\\\n69697018572202595671713273764519687308195776740465549287404426580562\\\n49677236020423313390.545\n",
+"rc": 0
+},
+"dc.corpus193": {
+"err": "",
+"out": "\u0007-2\n5.361\n60\n",
+"rc": 0
+},
+"dc.corpus194": {
+"err": "dc: stack empty\n",
+"out": "X-56657208414528643489\n9.68292219\n18366534304946245247\n-6\n79.671\n",
+"rc": 0
+},
+"dc.corpus195": {
+"err": "dc: scale must be a nonnegative number\n",
+"out": "1\n36651385.1\n\u0002\n",
+"rc": 0
+},
+"dc.corpus196": {
+"err": "dc: stack empty\n",
+"out": "-69\n8.5\n33409863025939535993.20344977\n",
+"rc": 0
+},
+"dc.corpus197": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "16807131807755240491\n-35127140821852874998\n",
+"rc": 0
+},
+"dc.corpus198": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "7\n",
+"rc": 0
+},
+"dc.corpus199": {
+"err": "",
+"out": "\u001e\n16291478308692132095\n",
+"rc": 0
+},
+"dc.corpus200": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "0\n",
+"rc": 0
+},
+"dc.corpus201": {
+"err": "dc: stack empty\n",
+"out": "-59\n490.940\n9\n",
+"rc": 0
+},
+"dc.corpus202": {
+"err": "dc: output base must be a number greater than 1\ndc: stack empty\ndc: stack empty\ndc: scale must be a nonnegative number\ndc: stack empty\n",
+"out": "-25\n573475147355705190220881\n45791642858696333512332449722251158422737829952432029195827467641271\\\n7456\n25559125843177481134437\n117\n",
+"rc": 0
+},
+"dc.corpus203": {
+"err": "",
+"out": "29\n9\n-3.734\n61\n-32.71708817\n",
+"rc": 0
+},
+"dc.corpus204": {
+"err": "dc: stack empty\ndc: stack empty\ndc: scale must be a nonnegative number\n",
+"out": "2.56167497\n0\n12\n28\n2.56167497\n",
+"rc": 0
+},
+"dc.corpus205": {
+"err": "dc: stack empty\n",
+"out": "0\n- 62 89 31 49 70 66 68 20 12 62\n 81 82 07 18 47 26 95 99 98 29.54 80\n",
+"rc": 0
+},
+"dc.corpus206": {
+"err": "",
+"out": "-63\n4\n90\n-3191259.386\n5\n",
+"rc": 0
+},
+"dc.corpus207": {
+"err": "dc: | (0174) is unimplemented\ndc: | (0174) is unimplemented\n",
+"out": "-6\n7516715.38889543\n-81518746573584895321\n2.559\n-81\n3\n",
+"rc": 0
+},
+"dc.corpus208": {
+"err": "",
+"out": "601.0\n8\n",
+"rc": 0
+},
+"dc.corpus209": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus210": {
+"err": "",
+"out": "-1\n1.888\n506\n-9\n-6.6\n-93171762343768688313\n-7\n",
+"rc": 0
+},
+"dc.corpus211": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "-181.837\n2.5\n48377293407354484163\n77\n-99044709207418909830\n-43595176.3\n61\n2.500\n0\n48377293407354484163\n77\n-99044709207418909830\n",
+"rc": 0
+},
+"dc.corpus212": {
+"err": "dc: stack empty\ndc: stack empty\ndc: divide by zero\n",
+"out": "-9\n0\n0\n-8\n65143067930341021005554349714126282722517183601203542863311\n",
+"rc": 0
+},
+"dc.corpus213": {
+"err": "",
+"out": "71439762\n9.8\n66\n",
+"rc": 0
+},
+"dc.corpus214": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "89641435032214931792.79891924\n329.4\n-95086941.9\n-72\n47\n-9.11288238\n948\n47267299911031658741\n",
+"rc": 0
+},
+"dc.corpus215": {
+"err": "",
+"out": "-2.4\n1313345.6\n",
+"rc": 0
+},
+"dc.corpus216": {
+"err": "",
+"out": "\u0001\u008cc\u00c8$\u001ff\u00ab\n\u0003p\u0010\u00ca\u00133}D\u0094v\u00f6(\u00ed\u00e9Qy\u00ed-495.1\n-495.1\n-19818081269815126197.73072460\n0\n",
+"rc": 0
+},
+"dc.corpus217": {
+"err": "",
+"out": "569724\n1\n",
+"rc": 0
+},
+"dc.corpus218": {
+"err": "dc: stack empty\n",
+"out": "\u0001\u00c8\u00e5c-3\n736\n-11160389952757646799.1\n-5482086\n99321513\n99321513\n",
+"rc": 0
+},
+"dc.corpus219": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "2\n3255155830590505489.12\n-64568058.53082861\n",
+"rc": 0
+},
+"dc.corpus220": {
+"err": "dc: stack empty\n",
+"out": "586.9\n",
+"rc": 0
+},
+"dc.corpus221": {
+"err": "dc: square root of negative number\n",
+"out": "1\n-96.7734553\n4\n",
+"rc": 0
+},
+"dc.corpus222": {
+"err": "dc: scale must be a nonnegative number\ndc: stack empty\n",
+"out": "-4\n43\n-58\n906\n-19.785\n",
+"rc": 0
+},
+"dc.corpus223": {
+"err": "",
+"out": "0\n4\n30\n22771599313258362649\n399160843879680360053475252689964533496283660550285073594634\n",
+"rc": 0
+},
+"dc.corpus224": {
+"err": "dc: stack empty\ndc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\ndc: | (0174) is unimplemented\n",
+"out": " 48209 21476 35168 33130.16711\n- 00002 45156 16292 40799 32721\n 00006\n",
+"rc": 0
+},
+"dc.corpus225": {
+"err": "dc: stack empty\n",
+"out": "324870754761449221169673265107851840890788286687853024465908\n-8.9\n",
+"rc": 0
+},
+"dc.corpus226": {
+"err": "",
+"out": ";\u00e7\u009d\u00ddyP\u00efN\u00ce\u0007[H\u00bf\t\u00b1\u000f\u00e7\u000f\u00f4\u00a2\u0019\u00f1Ex\u00a9-150044696715204846469637914118410607782332614015327707787345.9\n",
+"rc": 0
+},
+"dc.corpus227": {
+"err": "dc: not a number\n",
+"out": "\u0007-492220400937579841494046996077822048606766342930644186422011\n942.4\n942.4\n0\n",
+"rc": 0
+},
+"dc.corpus228": {
+"err": "",
+"out": "318887233989359341825723903275393663193947905256548128788398\n318887233989359341825723903275393663193947905256548128788398\n4.02\n-720759313045233854356726952398216571129204062896035546142215\n",
+"rc": 0
+},
+"dc.corpus229": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "-29028937\n65661987916775987373.46309057\n7\n-28503847204321480280\n",
+"rc": 0
+},
+"dc.corpus230": {
+"err": "",
+"out": "-220010220211101220010002002120120122111021.1021222\n10\n",
+"rc": 0
+},
+"dc.corpus231": {
+"err": "dc: square root of negative number\n",
+"out": "-1\n2.30193405\n31800741735724047111\n1.981\n",
+"rc": 0
+},
+"dc.corpus232": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "-770099220634788605494775042656568734714604940135850871278156\n66230363848812344165.72534615\n2\n-770099220634788605494775042656568734714604940135850871278156\n",
+"rc": 0
+},
+"dc.corpus233": {
+"err": "dc: stack empty\n",
+"out": "6\n0\n-930.5\n12210\n11011201210002011\n-22011\n20\n0\n-1021110.111\n",
+"rc": 0
+},
+"dc.corpus234": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus235": {
+"err": "",
+"out": "",
+"rc": 0
+},
+"dc.corpus236": {
+"err": "dc: stack empty\n",
+"out": "-956\n-6\n",
+"rc": 0
+},
+"dc.corpus237": {
+"err": "dc: stack empty\n",
+"out": "76863617.74\n213.78304252\n134442949698988144133973813672595200181358533435467183006223\n95300255729214445852\n855.8\n",
+"rc": 0
+},
+"dc.corpus238": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: output base must be a number greater than 1\ndc: stack empty\n",
+"out": "\u0006-46893648\n",
+"rc": 0
+},
+"dc.corpus239": {
+"err": "dc: scale must be a nonnegative number\n",
+"out": "8.96636073\n93733961\n",
+"rc": 0
+},
+"dc.corpus240": {
+"err": "",
+"out": "191422436132961747967014249735598168523146571994854604909475\n244.52141919\n672649051516643840705060627168501881222644729164891757082678.5362737\n0\n8\n156.7\n-98974774176472175894\n-54462840\n",
+"rc": 0
+},
+"dc.corpus241": {
+"err": "",
+"out": " 24128 31372 54996 60813 30456 37682 24730 08134 61772 62568 48420 2\\\n4313\n0\n",
+"rc": 0
+},
+"dc.corpus242": {
+"err": "",
+"out": "102\n-50637883.46080881\n-505092182240172928728530529100872789247232668338116406113329\n",
+"rc": 0
+},
+"dc.corpus243": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "392\n-99171181\n-878.17\n-39\n",
+"rc": 0
+},
+"dc.corpus244": {
+"err": "",
+"out": "5\n1409913538\n409475079347166197401953672011762752424108590571680011144534\n9\n7\n221034203060500059000481115668101264861235959072298061852182\n",
+"rc": 0
+},
+"dc.corpus245": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus246": {
+"err": "",
+"out": "22768603344501949186.33212417\n22768603344501949186.33212417\n-94841397813524493279\n-94841397813524493279\n-4069421133124528610\n",
+"rc": 0
+},
+"dc.corpus247": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "309501081189232118565693219474885491031484727253617474741729\n9\n-6\n87.6\n",
+"rc": 0
+},
+"dc.corpus248": {
+"err": "dc: stack empty\n",
+"out": "63948689685871370621\n",
+"rc": 0
+},
+"dc.corpus249": {
+"err": "",
+"out": "856.18156231\n97757716980009409893\n",
+"rc": 0
+},
+"dc.corpus250": {
+"err": "",
+"out": "0\n-670.9\n-82432\n-21673410967130439481\n362.0\n",
+"rc": 0
+},
+"dc.corpus251": {
+"err": "",
+"out": "7\n-36159460\n",
+"rc": 0
+},
+"dc.corpus252": {
+"err": "",
+"out": "860.47223813\n221201511774264583703979176070294910604010444436571234146578.8\n-568479587702907330059833955529240728452814394308205718155933.8\n",
+"rc": 0
+},
+"dc.corpus253": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: | (0174) is unimplemented\n",
+"out": "37921252\n-92325823066911181213\n41\n-6.724\n-77\n71775755535214808992.55\n2\n",
+"rc": 0
+},
+"dc.corpus254": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\ndc: stack empty\n",
+"out": "23159417\n366\n-460489819998411338538706978035035484681351117991636500302524\n-460489819998411338538706978035035484681351117991636500302524\nZ\n",
+"rc": 0
+},
+"dc.corpus255": {
+"err": "dc: scale must be a nonnegative number\ndc: | (0174) is unimplemented\n",
+"out": " 00002\n 00043 50678 50242 49405 61041 45014 16119 47010 64432 57352 43469 1\\\n5419 13770\n 00627 08555\n- 00006\n0\n0\n",
+"rc": 0
+},
+"dc.corpus256": {
+"err": "dc: stack empty\n",
+"out": "77797610158679480785\n-3\n-98672852364721067539.133\n5\n",
+"rc": 0
+},
+"dc.corpus257": {
+"err": "",
+"out": "54714603\n-544510526177375248107574925095615688681694071800224766019829\n816096419587661846246171374784901521736469812240396214782818\n",
+"rc": 0
+},
+"dc.corpus258": {
+"err": "",
+"out": "1\n-53\n-19.1\n",
+"rc": 0
+},
+"dc.corpus259": {
+"err": "dc: stack empty\n",
+"out": "330\n68.27483625\n25681276355431086663\n",
+"rc": 0
+},
+"dc.corpus260": {
+"err": "dc: stack empty\ndc: scale must be a nonnegative number\n",
+"out": "43\n-70119809\n0\n",
+"rc": 0
+},
+"dc.corpus261": {
+"err": "dc: stack empty\n",
+"out": "1D12C9B66D220EFDD\n5.6CDC044\n300\n4BCE973\n",
+"rc": 0
+},
+"dc.corpus262": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus263": {
+"err": "dc: stack empty\n",
+"out": "-58\n",
+"rc": 0
+},
+"dc.corpus264": {
+"err": "dc: stack empty\n",
+"out": "60\n-12\n-89647171731902823380\n69919879795515063089\n",
+"rc": 0
+},
+"dc.corpus265": {
+"err": "",
+"out": "",
+"rc": 0
+},
+"dc.corpus266": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\ndc: | (0174) is unimplemented\n",
+"out": "-511020664497135588842150657304151430113879902398873616432912\n-46\n-476.8\n-9.6\n-874429590278034030037346608259325669160117888591413850331794.2\n74.737\n977.44\n524639291097746107891310826699662345265201812419047178649213\n6\n",
+"rc": 0
+},
+"dc.corpus267": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "\u0006\t0\n60.309\n",
+"rc": 0
+},
+"dc.corpus268": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "355359681011418750037340832784449666724302168389217536855100.546\n-4600940365055741240.627\n4.676\n-86\n7\n355359681011418750037340832784449666724302168389217536855100.546\n-4600940365055741240.627\n4.676\n-86\n",
+"rc": 0
+},
+"dc.corpus269": {
+"err": "",
+"out": "\u0002\u00aaj\u001678301828.4\n",
+"rc": 0
+},
+"dc.corpus270": {
+"err": "dc: stack empty\n",
+"out": "-455\n290\n-455\n",
+"rc": 0
+},
+"dc.corpus271": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus272": {
+"err": "dc: stack empty\n",
+"out": "3\n62450286536780561962\n7\n-2.3\n5.78\n-899466836739747525838674334377722184028445116849354319715121.818884\\\n47\n",
+"rc": 0
+},
+"dc.corpus273": {
+"err": "",
+"out": " 02\n 09\n 01\n0\n 01\n",
+"rc": 0
+},
+"dc.corpus274": {
+"err": "dc: stack empty\ndc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "-6\n37\n22\n-2433.883\n",
+"rc": 0
+},
+"dc.corpus275": {
+"err": "dc: | (0174) is unimplemented\n",
+"out": "11.6\n0\n17760658221456886859\n-6\n777\n38.5\n-657442123889943459244291577436080615591572050579813173700487\n-657442123889943459244291577436080615591572050579813173700487\n351.4\n8\n-2\n",
+"rc": 0
+},
+"dc.corpus276": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.corpus277": {
+"err": "dc: stack empty\ndc: stack empty\ndc: output base must be a number greater than 1\n",
+"out": "3\n-80\n0\n2.65052506\n3\n-80\n0\n",
+"rc": 0
+},
+"dc.corpus278": {
+"err": "dc: output base must be a number greater than 1\n",
+"out": "458540669932511819008671435675518470280657271410599540372012.524\n860\n",
+"rc": 0
+},
+"dc.corpus279": {
+"err": "",
+"out": "58122112289100471586\n629.425\n",
+"rc": 0
+},
+"dc.corpus280": {
+"err": "dc: stack empty\ndc: stack empty\ndc: | (0174) is unimplemented\ndc: scale must be a nonnegative number\n",
+"out": "604367964104726645734778970873539990969859752031578206561735\n85293333963124031727.2\n77153669\n-20\n",
+"rc": 0
+},
+"dc.corpus281": {
+"err": "dc: stack empty\ndc: scale must be a nonnegative number\n",
+"out": "-88623029\n\u00b7\n-99255712303915649608.809\n-629863156963779826253609439930687861249678157874942811738946\n76\n",
+"rc": 0
+},
+"dc.corpus282": {
+"err": "",
+"out": "195361846019621736647134642534620956293990435360356533253552\n-4\n6.5\n-8\n",
+"rc": 0
+},
+"dc.corpus283": {
+"err": "dc: stack empty\n",
+"out": "-9\n-41045523633215447606\n",
+"rc": 0
+},
+"dc.corpus284": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "60\n94\n-348\n",
+"rc": 0
+},
+"dc.corpus285": {
+"err": "dc: stack empty\n",
+"out": "88946325792662730871\n",
+"rc": 0
+},
+"dc.corpus286": {
+"err": "dc: stack empty\n",
+"out": "-DE43D8E0.0\n",
+"rc": 0
+},
+"dc.corpus287": {
+"err": "dc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "79\n3\n-872.83126803\n753591272899428317739767308864227823157208134444806100613655\n",
+"rc": 0
+},
+"dc.corpus288": {
+"err": "dc: square root of negative number\ndc: stack empty\ndc: | (0174) is unimplemented\n",
+"out": "-7\n-35.4\n-73\n-5\n-692\n-7\n-35.4\n-73\n-5\n-692\n",
+"rc": 0
+},
+"dc.corpus289": {
+"err": "",
+"out": "70\n-63192890.7\n",
+"rc": 0
+},
+"dc.corpus290": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "8\n+\n6\n-775\n-94\n",
+"rc": 0
+},
+"dc.corpus291": {
+"err": "dc: output base must be a number greater than 1\n",
+"out": "-742189575003321575340604233800629322516155655490736737752990\n91283562755025467243.22089821\n-16461009.646\n",
+"rc": 0
+},
+"dc.corpus292": {
+"err": "dc: stack empty\ndc: | (0174) is unimplemented\ndc: input base must be a number between 2 and 16 (inclusive)\n",
+"out": "6\n268314316428504048430303212188431524580906945049433499955613\n0\n61779479\n7.9\n0\n939\n-27.4\n",
+"rc": 0
+},
+"dc.corpus293": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "9.90\n",
+"rc": 0
+},
+"dc.corpus294": {
+"err": "dc: scale must be a nonnegative number\ndc: scale must be a nonnegative number\n",
+"out": "35417174\n-62439053\n853563129875024069120003269221893531806120823800896286981814.55034285\n395.8\n-2722509\n\b\n",
+"rc": 0
+},
+"dc.corpus295": {
+"err": "dc: stack empty\n",
+"out": "62.6\n-25.585\n\u0003\n",
+"rc": 0
+},
+"dc.corpus296": {
+"err": "dc: stack empty\n",
+"out": "982097902416005330882175873462765859974487774324063872207654\n0\n",
+"rc": 0
+},
+"dc.corpus297": {
+"err": "dc: stack empty\n",
+"out": "-592\n-4\n749072465102281119178878831599906712797561936276227137143639.160\n",
+"rc": 0
+},
+"dc.corpus298": {
+"err": "",
+"out": "\u0003-589.6\n-8\n204\n0\n-998157879081423579697525898472866623768300081955897303576515.3538123\n92808463386840858729\n",
+"rc": 0
+},
+"dc.corpus299": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "549090107816668309338492798557969603692043069894508096139452\n",
+"rc": 0
+},
+"dc.count_digits": {
+"err": "",
+"out": "7\n0\n3\n6\n5\n",
+"rc": 0
+},
+"dc.count_macro": {
+"err": "",
+"out": "10\n",
+"rc": 0
+},
+"dc.div_zero": {
+"err": "dc: divide by zero\ndc: remainder by zero\ndc: divide by zero\n",
+"out": "0\n0\n0\n0\n0\n0\n",
+"rc": 0
+},
+"dc.divmod_signs": {
+"err": "",
+"out": "-1\n-2\n1\n-2\n-1\n2\n1\n-1\n",
+"rc": 0
+},
+"dc.empty_stack": {
+"err": "dc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.fact_macro": {
+"err": "",
+"out": "2432902008176640000\n",
+"rc": 0
+},
+"dc.fib_loop": {
+"err": "",
+"out": "4660046610375530309\n",
+"rc": 0
+},
+"dc.fraction_mul": {
+"err": "",
+"out": "1234.5678\n6.28318\n",
+"rc": 0
+},
+"dc.gcd_macro": {
+"err": "",
+"out": "21\n",
+"rc": 0
+},
+"dc.ibase": {
+"err": "",
+"out": "255\n5\n",
+"rc": 0
+},
+"dc.input_in_macro": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.input_line": {
+"err": "dc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.long_line": {
+"err": "",
+"out": "99999999999999999968000000000000000004959999999999999999504000000000\\\n00000003595999999999999999798624000000000000009061919999999999999663\\\n41440000000000001051829999999999999971951200000000000000645122399999\\\n99999998709755200000000000022579283999999999999652626400000000000004\\\n71435599999999999994342772800000000000060108038999999999999434277280\\\n00000000000471435599999999999996526264000000000000022579283999999999\\\n99987097552000000000000064512239999999999999719512000000000000001051\\\n82999999999999999663414400000000000000906191999999999999997986240000\\\n00000000000359599999999999999999504000000000000000000495999999999999\\\n9999996800000000000000000001\n",
+"rc": 0
+},
+"dc.modexp": {
+"err": "dc: | (0174) is unimplemented\ndc: | (0174) is unimplemented\n",
+"out": "561\n497\n",
+"rc": 0
+},
+"dc.neg_exp": {
+"err": "",
+"out": "8\n0\n.12500\n.06250\n",
+"rc": 0
+},
+"dc.neg_idx": {
+"err": "dc: negative idx\ndc: idx too big\n",
+"out": "5\n",
+"rc": 0
+},
+"dc.nested_macro": {
+"err": "",
+"out": "nested\nnested\n",
+"rc": 0
+},
+"dc.obase_neg_frac": {
+"err": "",
+"out": "-FF.8\n101.1100000\n.14285\n",
+"rc": 0
+},
+"dc.obase_wide": {
+"err": "",
+"out": " 01 23 45\n 123 456 789\n 05\n 05 15\n",
+"rc": 0
+},
+"dc.pi_digits": {
+"err": "",
+"out": "3.142857142857142857142857142857142857142857142857142857142857\n1.414213562373095048801688724209698078569671875376948073176679\n1.732050807568877293527446341505872366942805253810380628055806\n.707106781186547524400844362104849039284835937688474036588339\n12.000000000000000000000000000000000000000000000000000000000000\n",
+"rc": 0
+},
+"dc.print_P_num": {
+"err": "",
+"out": "AA\n",
+"rc": 0
+},
+"dc.print_n": {
+"err": "",
+"out": "12a3\n",
+"rc": 0
+},
+"dc.quit_levels": {
+"err": "",
+"out": "1\n",
+"rc": 0
+},
+"dc.quit_n": {
+"err": "dc: Q command argument exceeded string execution depth\n",
+"out": "4\n5\n",
+"rc": 0
+},
+"dc.scale_div": {
+"err": "",
+"out": "1.4142135623\n.3333333333\n.33333333333333333333\n3\n",
+"rc": 0
+},
+"dc.scale_ops": {
+"err": "",
+"out": "3.375\n3.75\n.33333\n1.4142135\n1\n",
+"rc": 0
+},
+"dc.skip_jump": {
+"err": "dc: J command argument exceeded string execution depth\ndc: J command argument exceeded string execution depth\ndc: J command argument exceeded string execution depth\n",
+"out": "1\n3\n4\n5\n8\n9\n10\n11\n12\n13\n14\n",
+"rc": 0
+},
+"dc.sqrt_neg": {
+"err": "dc: square root of negative number\ndc: stack empty\n",
+"out": "",
+"rc": 0
+},
+"dc.stack_ops": {
+"err": "",
+"out": "3\n3\n2\n1\n3\n3\n2\n1\n3\n2\n1\n3\n0\n0\n10\n10\n",
+"rc": 0
+},
+"dc.string_exec": {
+"err": "dc: stack empty\ndc: stack empty\n",
+"out": "5\n5",
+"rc": 0
+},
+"dc.strings": {
+"err": "",
+"out": "hello world\n3\n4\n3\n5\n",
+"rc": 0
+},
+"dc.unknown_op": {
+"err": "dc: y (0171) is unimplemented\n",
+"out": "3\n",
+"rc": 0
+}
+}

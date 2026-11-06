@@ -15,12 +15,13 @@ the host libcrypto and against `lib/libbn/bn.c`, and feeds both 3,000 random
 programs: 2,995 produce identical output and exit status, and the other five
 all raise a number to an exponent of four million or more. That run compared
 an LP64 dc using 64-bit libcrypto words with an LP64 dc using libbn's 32-bit
-`BN_ULONG`, so the ILP32 dc that the target builds is unexercised by it. The
-OpenBSD programs themselves are not yet ported to the tree. Porting them needs
-a lazily allocated register table (dc's extended register array is 771 KB, the
-process window is 144 KB), a small compatibility layer (six missing interfaces
-and two declaration mismatches), and, for bc, a replacement for its
-65,536-entry hash table and for libedit.
+`BN_ULONG`; the ILP32 repeat and the run of the ported tree sources are
+recorded in the last section. `usr.bin/dc` and `usr.bin/bc` now hold the
+OpenBSD sources, ported as the section "The port in the tree" describes: a
+lazily allocated register table (dc's extended register array is 771 KB, the
+process window is 144 KB), a small compatibility layer, and for bc a name
+table in place of its 65,536-entry hash table and a plain line read in place
+of libedit.
 
 ## Sources and hashes
 
@@ -205,6 +206,146 @@ There is no error queue.
 never negative. The test reads limbs directly and checks all three after
 every operation.
 
+## The port in the tree
+
+`usr.bin/dc` and `usr.bin/bc` hold the pinned sources with the edits below; every
+file keeps its upstream header and `$OpenBSD$` line. The Plan 9 programs stay
+in git history. `lib/Makefile` builds `lib/libbn` ahead of both, and each
+program's Makefile links `-lbn`. `usr.bin/bc/Makefile` compiles the dc sources
+into the bc directory and runs `bison -y` (the invocation `usr.bin/awk` uses)
+and `flex` on `bc.y` and `scan.l`; the host carries bison 3.8.2 and flex 2.6.4.
+`bison` and byacc 2.0 20260126 (a generator OpenBSD builds bc with) both report
+one shift/reduce and 16 reduce/reduce conflicts in `bc.y`; a bc built from the
+tree sources through byacc passes the same 560 cases as the bison build.
+
+| File | Edit |
+| --- | --- |
+| `dc/compat.h` (new) | `__dead` as `_Noreturn`, the `optreset` declaration, the `basprintf` declaration; included first by `dc/extern.h` and `bc/extern.h` |
+| `dc/bcode.h` | `<bn.h>` for `<openssl/bn.h>`, plus `<stdio.h>` for `FILE` |
+| `dc/mem.c` | `bn_check` and `bn_checkp` call `errx(1, "BN failure")`; `basprintf` replaces `asprintf` with two `vsnprintf` calls |
+| `dc/dc.c` | `basprintf`; `pledge` and the `__progname` declaration removed; `errc` becomes `errno = EISDIR; err(...)` |
+| `dc/main.c` | `setproctitle` and `pledge` removed |
+| `dc/bcode.c` | `uint` is `u_int`; the register table is paged (below); the sign, unused-parameter and `calloc` argument order diagnostics of `-Wall -Wextra` repaired with casts and a `(void)` use; the jump-table range test, always false for a `u_char`, removed; `skipN` frees the count `J` pops, as `quitN` does; `%` and `~` return the remainder at the scale it carries (divergence below) |
+| `dc/inout.c` | one signedness cast and an unused-parameter use |
+| `dc/stack.c` | one signedness cast; `stack_push` and `stack_set_tos` take over the array of the value they receive, which the pinned source copies and leaves the original unreachable |
+| `bc/bc.y` | `stdint.h` added for the name table's hash; `histedit.h`, `search.h`, `pledge`, `WCONTINUED`, the libedit setup, the dummy prompt and `__progname` removed; `asprintf` is `basprintf`; `hcreate`/`hsearch` are the name table below; `argument_list` takes an array argument in the first position (divergence below) |
+| `bc/scan.l` | the `EditLine` input path, `bc_eof` and the `SIGTSTP` handler removed; `abort_line` keeps the `[\n]P` it writes to dc; `%option noinput` |
+| `bc/extern.h` | the `EditLine`, `termios` and `tty.c` declarations removed |
+| `bc/pathnames.h` | `_PATH_LIBB` can be overridden at compile time, which lets the host gate point `bc -l` at the tree's library |
+| `bc/tty.c` | not imported: it exists for libedit's terminal save and restore |
+
+**Register table.** `regstack(idx)` in `bcode.c` is the one accessor: it indexes a
+directory of `REG_ARRAY_SIZE / 256` page pointers (1 for plain dc, 257 for
+`-x`), allocates a 256-stack page (3,072 bytes at ILP32) with `bmalloc` the first
+time a register in it is named, and initializes each stack to empty. The seven
+sites that read `bmachine.reg[idx]` call it. A program that names one register
+under `-x` holds 4,413 requested bytes at `-m32`; the eager table was 789,504
+bytes for the stacks alone, 5.4 times the 144 KB process window, so `dc -x`
+and bc's child dc could not have started before this change (inferred from
+the sizes; no board run). A page that fails
+to allocate ends the program through `bmalloc`'s `err(1, NULL)`.
+
+**Name table.** `names_find` and `names_enter` in `bc.y` keep the (name plus
+type letter) to code map in an open-addressed table of power-of-two size: 64
+slots at start, doubling when half full, with a ceiling of 131,072 slots, the
+smallest power of two above twice the 63,504-variable limit `lookup` already
+enforces. A bc program with 40 names holds 64 slots (512 bytes at ILP32).
+
+**Interactive input.** `bc` reads the terminal through the kernel's line
+discipline with `getc`; the libedit history and editing are gone, and `^C`
+still writes `[\n]P` to the child dc. `lib/libreadline` was not used: it
+adds a library to a program the PicoCalc image already holds at 31 KB.
+
+**Fork.** bc forks before it parses and the child runs `dc_main` on the pipe,
+as upstream does. `fork1()` swaps the parent image out to make the child
+(`sys/kern/kern_fork.c`), so a fork needs room in swap for the image the process
+holds at that point. The bc a.out is 39,344 bytes and the heap at fork time
+holds the 512-byte name table and the argument vector, so the copy is about
+40 KB; the 384 KB raw swap holds two windows of 144 KB with 96 KB to spare
+(arithmetic, not a measurement). The fork is kept. No board run has forked the
+image: `board_dcbc_smoke.py` is the check, and `bc -c | dc -x` is the
+fallback that needs no fork.
+
+Sizes, from the build in this tree (`arm-none-eabi-size` on the linked ELF,
+a.out bytes, and packed bytes from `tools/bin/rp2040/fsutil --verbose
+--partition=1` on `distrib/rp2040/sdcard.img`):
+
+| Program | text | data | bss | a.out | packed in the image | Plan 9 program (packed) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `dc` | 21,779 | 244 | 1,212 | 22,060 | 18,644 | 16,189 |
+| `bc` | 38,783 | 524 | 1,960 | 39,344 | 31,176 | 17,042 |
+| `bc.library` | | | | 5,125 | 5,125 | 2,742 (`lib.b`) |
+
+Libc members and libgcc's `__aeabi_lmul`, `__aeabi_uidiv`, `__aeabi_idiv` and the
+`__gnu_thumb1_case_*` helpers are linked into both. The pair costs 59 blocks
+where the Plan 9 pair cost 38: the `picocalc` profile leaves 189 free blocks
+(210 before), and `full`, which excludes the closure, still leaves 280. bc holds
+a second copy of the dc evaluator; a multicall binary that dispatched on
+`argv[0]` would drop about 18 KB of packed text, at the price of one binary
+and no separate `dc` image.
+
+## Intentional divergences from the pinned source
+
+Two behaviors of the pinned OpenBSD sources are defects against the POSIX
+`bc` specification; the owner chose to fix them here, so the tree's dc and bc
+differ from the pinned programs on these inputs and agree with GNU bc 1.08.2
+and GNU dc 1.5.2. A reader comparing against OpenBSD output sees the old
+values on exactly these inputs.
+
+**Remainder scale (`usr.bin/dc/bcode.c`, `bmod` and `bdivmod`).** POSIX defines
+`a % b` as `a - b * q` with `q` the quotient truncated to `scale` digits, held
+at scale `max(scale + scale(b), scale(a))`. The pinned `bmod` and `bdivmod`
+raise the dividend to `s + scale` digits, where `s` is the larger operand
+scale, so `BN_mod` and `BN_div` return an integer remainder holding `s + scale`
+digits, and then label that integer with `max(scale(a), scale(b) + scale)`.
+The label equals `s + scale` only when `scale` is 0 or the divisor has at
+least as many fractional digits as the dividend; otherwise the digits are read
+at a scale that is too small. `2 k 1.235 1 % p` prints `.500` where the remainder is `.005`
+(`1.235 - 1 * 1.23`), and `1.235 1 ~ f` prints `.500` and `1.23`. The tree
+keeps the integer computation and drops the `s + scale - label` trailing
+digits afterwards with `remainder_rescale`; they are zero, because `a - b * q`
+has at most `max(scale(a), scale(b) + scale)` fractional digits. Integer
+operands, the dividend's sign on the remainder, the zero-divisor
+diagnostics (`remainder by zero` for `%`, `divide by zero` for `~`) and the
+quotient output of `~` are unchanged. bc compiles `%` and `%=` to dc's `%`, so
+one change covers both programs. Oracle: the expected values of the cases
+`dc.rem_scale*`, `dc.divmod_scale*` and `bc.mod_scale*` come from
+`_posix_divmod` in `tests/dcbc/cases.py`, which computes `a - b * q` with
+Python `Fraction` and the POSIX scale from the definition and owns no dc or bc
+source; all 144 hand-written and modeled remainder and array-argument cases
+were also run against GNU bc 1.08.2 (`bc -q`) and GNU dc 1.5.2 on the
+authoring host and agreed byte for byte (observed; the gate does not require
+those programs). The hand-written `dc.rem_fraction_scale` and
+`bc.mod_fraction_scale` take their `.005` from the same definition and the
+same GNU run. Zero remainders and zero quotients are left out of the model
+because dc prints a zero with its scale (`0.000`) and GNU prints `0`; the
+pinned print convention is unchanged. `golden.json` no longer carries
+`dc.rem_fraction_scale` and `bc.mod_fraction_scale`, whose recorded `.500` was
+the pinned program's output; the 300 random corpus programs contain no
+fractional remainder that differs, so a regeneration by `gen_golden.sh` over
+the pinned sources leaves every other record unchanged (checked on the
+current records: the tree's programs pass them all).
+
+**Array argument in the first position (`usr.bin/bc/bc.y`, `argument_list`).**
+The pinned production `argument_list: expression | argument_list COMMA
+expression | argument_list COMMA LETTER LBRACKET RBRACKET` takes an array
+only after a comma, so `f(a[])` is `syntax error: ] unexpected` while
+`f(1, b[])` calls.
+GNU bc 1.08.2 accepts `f(a[])`, `f(a[], n)` and `f(a[], b[])` (observed), and
+the definition side already takes an array in any position. The tree adds
+`argument_list: LETTER LBRACKET RBRACKET`, which emits the same `l` plus array
+node as the comma form. `bison -y` reports 1 shift/reduce and 16 reduce/reduce
+conflicts before and after; the conflict states in `bison -v` output are
+identical to the pinned grammar's once state and rule numbers are masked, and
+none contains `argument_list`, so `check_grammar.sh` keeps its pinned counts.
+Oracle: the case `bc.array_arg_position` holds values read off the program by
+hand (arrays pass by value, so `m(c[])` returns 99 and leaves `c[0]` at 1) and
+checked against GNU bc 1.08.2; the previous case pinned the syntax error.
+
+Gate mutants `rem_digits_unscaled`, `divmod_rem_digits_unscaled`,
+`rem_scale_operand_only` and `array_arg_first_rejected` restore each old
+behavior and are rejected by those cases.
+
 ## Evidence
 
 Environment: Linux 6.18.54.1-microsoft-standard-WSL2 x86_64; gcc 16.2.1, clang
@@ -298,58 +439,47 @@ is rejected, naming `__aeabi_lmul` and `__aeabi_uldivmod`.
 
 ## Not run
 
-- An ILP32 build of dc against libbn. The differential run compared LP64
-  builds: the libcrypto side used 64-bit words and the libbn side used libbn's
-  32-bit `BN_ULONG`, but both dc binaries held a 64-bit `u_long`. The dc that
-  the target builds has a 32-bit `u_long`; a `-m32` rebuild of the libbn side
-  of `run.sh`, diffed against the same corpus, settles it.
-- The differential corpus on the board image over the console.
-- `lib/libbn` is not listed in `lib/Makefile` `SUBDIR`, so `logged-build` does
-  not compile it until dc links it. Its gates run in every tier:
-  `check-libbn` in `HOST_GATES` and the required ILP32 recipes,
-  `check-libbn-cross` in the cross tier and the qemu run in `check-qemu`.
-- Any run or timing on the board.
+- The differential corpus on the board image over the console, and any other
+  run on the board. `tests/rp2040/dcbc_smoke/board_dcbc_smoke.py` is written
+  and closed unless `DISCOBSD_BOARD_DCBC` is exactly `run`; no board result
+  exists for dc, bc, the fork of the bc image, the wall time of `2 1000 ^ p`
+  or `dc -x` near the window limit.
+- bc under qemu-arm: newlib in user mode has no `fork`, so the Thumb-1 run
+  covers dc only. bc's host runs cover the grammar, scanner, name table and
+  the fork on the host's `fork`.
+- `tests/dcbc` on a macOS host: the gate prints a SKIP there.
+- `renode`: the boot of a kernel that execs dc or bc cannot run on the host
+  that built this tree (the host terminates processes that listen on
+  0.0.0.0).
 
-## Remaining steps to port dc and bc
+## Steps taken to port dc and bc
 
-1. Wire `lib/libbn` into the build: add `libbn` to `SUBDIR` in `lib/Makefile`
-   (after `libutil`) in the same change that links dc against it. The gates
-   (`check-libbn`, `check-libbn-cross`, the qemu run) and their
-   `TESTING.md` row are in place.
-2. Replace `usr.bin/dc` with the OpenBSD sources under a new NOTICE entry
-   (ISC, Otto Moerbeek, 2003) and apply the table above: one compatibility
-   header, four deleted calls, `errc` and `asprintf` replacements, the
-   `bn_check` rewrite. Keep the Plan 9 dc until the OpenBSD one passes the
-   board smoke script. Estimated binary: about 14 KB of text plus libc members
-   (inferred from the object sizes above; moderate confidence).
-3. Make the register table lazy. `init_bmachine` calls
-   `calloc(reg_array_size, sizeof(struct stack))` with 256 entries for plain dc
-   (3,072 bytes) and 65,792 for `-x`, which bc uses (789,504 bytes, 5.4 times the
-   whole 144 KB window). Allocate 256-entry pages on first touch from
-   `bmachine.reg[idx]`, whose seven use sites in `bcode.c` can go through one
-   accessor. Falsifier: `dc -x` starting with the window at its limit.
-4. bc, from the same tree: `bc.y` (1,190 lines, byacc) and `scan.l` (flex,
-   `%option always-interactive`; both tools are on the host that builds the
-   tree). Four changes. First, `hcreate(1 << 16)` and `hsearch` at `bc.y:997`
-   and `:868`: `<search.h>` is absent and a 65,536-entry table is hundreds of
-   kilobytes; replace with a small open-addressed table sized to the 252x252
-   variable limit actually used or a sorted array. Second, libedit
-   (`<histedit.h>`, `el_*`, `history`) in `bc.y`, `scan.l` and `tty.c`: the
-   tree has no libedit; compile the interactive path out to a plain
-   `fgets` read, or adapt it to `lib/libreadline`. Third, `fork`, `pipe`,
-   `dup` and `SIGCHLD` in `main`: the child runs `dc_main` after `fork`;
-   confirm a fork of a bc-sized image fits the swap before relying on it, or
-   keep only the `-c` mode that writes dc source for `bc -c | dc -x`. Fourth,
-   `pledge` and `asprintf`. `bc.library` (272 lines, Caldera license) installs
-   as `/usr/share/misc/bc.library`. Estimated text: 14 to 20 KB beyond dc
-   (inferred by scaling from `bcode.o`; low confidence, unmeasured).
-5. Differential check, remaining parts: the host LP64 run is recorded in the
-   last section. Repeat it with the libbn side built at `-m32`, then run the
-   same corpus on the board image over the console. Predicted result:
-   identical output; a divergence names the manual-page assumption that was
-   wrong.
-6. Re-measure after porting: `size` of the linked `dc` and `bc`, peak heap on
-   a 2,000-digit factorial, and wall time of `2 1000 ^ p` on the board.
+1. `lib/libbn` is in `lib/Makefile` `SUBDIR` after `libutil`, and both
+   programs link `-lbn`.
+2. `usr.bin/dc` holds the OpenBSD sources: one compatibility header
+   (`compat.h`), the deleted `pledge` and `setproctitle` calls, `basprintf` for
+   `asprintf`, `errno = EISDIR; err(...)` for `errc` and the `bn_check`
+   rewrite. NOTICE section 16 is now the ISC entry for Otto Moerbeek.
+3. The register table is paged through `regstack()`. Falsifier for the paging
+   (`dc -x` with the process window at its limit) is not run on a board; the
+   host stand-in is `check-peak`, where one register under `-x` peaks at 4,413
+   bytes against 790,845 for the eager table, and the mutant that allocates
+   every page at start fails it.
+4. `usr.bin/bc` holds `bc.y`, `scan.l`, the headers and `bc.library`, with
+   the name table, the plain line read, `pledge` removed and the fork kept
+   (reasons in the section above).
+5. Differential check: the ILP32 repeat, the ported-source run and the
+   Thumb-1 run are recorded in the last section; the board run of the corpus
+   is the remaining part. Predicted result of the board run: identical
+   output; a divergence names the manual-page assumption that was wrong.
+6. Re-measured: linked sizes and packed sizes are in the sizes table above;
+   the peak heap of a 2,001-digit factorial printed by `p` is 9,694 requested
+   bytes at `-m32` (6,799 without the print), measured by `tests/dcbc/peak_alloc.c`
+   (a lower bound: target allocator headers add to it). The wall time of
+   `2 1000 ^ p` on the board is not measured.
+
+Open decision for the owner: the bc image carries a second copy of the dc
+evaluator (about 18 KB packed). A single multicall binary would recover it.
 
 ## Differential run against a libcrypto-linked dc
 
@@ -377,11 +507,94 @@ case, `4 57170890 ^ Z p`, gives 34,420,306 digits from libbn, which is
 ceil(57,170,890 x log10 4), the exact length. No semantic divergence was
 found. The board run of the same corpus remains open.
 
-Scope of the comparison. Both dc binaries were LP64 host builds, so dc's
+Scope of the first comparison. Both dc binaries were LP64 host builds, so dc's
 own `u_long` held 64 bits on both sides. The libcrypto side used 64-bit
 `BN_ULONG` words and the libbn side used libbn's 32-bit `BN_ULONG`. The run
 therefore covers libbn's semantics and its 32-bit `BN_ULONG` word arithmetic
 (over 16-bit limbs) through
 dc's operators, and leaves dc's 32-bit `u_long` of the target unexercised; the
 ILP32 test of libbn itself (`bn_test32`) covers libbn but not dc's own
-`u_long` uses.
+`u_long` uses. The repeat below covers those.
+
+### Repeat at ILP32 and on the ported sources
+
+Run on 2026-11-06 on the same host and corpus (`gen_corpus.py 3000`, seed
+20261105), side a being the pinned sources against libcrypto at LP64, with
+three variants of side b through `run.sh`:
+
+| Variant | Command prefix | Programs | Differ |
+| --- | --- | ---: | ---: |
+| pinned sources, libbn at `-m32` (ILP32) | `M32=yes SIDE_B=pinned` | 3,000 | 14 |
+| tree sources `usr.bin/dc`, libbn at `-m32` | `M32=yes SIDE_B=ported` | 3,000 | 14 |
+| tree sources `usr.bin/dc`, libbn at LP64 | `SIDE_B=ported` | 3,000 | 14 |
+
+The three runs differ on the same 14 programs (lines 508, 809, 936, 956, 1312,
+1509, 1601, 1771, 1879, 1988, 2291, 2410, 2720 and 2873 of the corpus), so
+building dc at 32-bit `u_long` and `size_t`, and replacing the register table,
+the compatibility layer and the error helper, changes no output over the other
+2,986. Each of the 14 raises a number to an exponent of four million or more,
+and each was rerun on its own with a 100-second limit on both sides:
+
+- 10 programs (508, 936, 956, 1312, 1601, 1879, 1988, 2291, 2410, 2873):
+  libcrypto stops at once with "BN failure: bignum too long" and exit 1, and
+  `lib/libbn` keeps squaring past 100 seconds. libbn checks a size limit only
+  as a result grows, and the host has memory for the squarings; the board has
+  144 KB, where the same program ends in an allocation failure ("BN failure",
+  exit 1) after the squarings that fit, which at 18 cycles per 16-bit product is
+  minutes of CPU (an estimate from instruction counts, not run). A size test
+  on `bits(a) x p` at the head of `BN_exp` would refuse these at once like
+  libcrypto; that changes `lib/libbn` and its 14-mutant gate, so it is an open
+  item for the owner and not part of this port.
+- 1771: both sides exit 1 with "stack empty" and a BN failure; libcrypto adds
+  "bignum too long" to the line.
+- 809: libcrypto exceeds the limit and libbn exits 1 with "BN failure" at once.
+- 1509: both sides exceed the limit.
+- 2720 (`_57170890 10 i ^ p`): libcrypto exceeds the limit; libbn prints 0
+  and exits 0, the case the first run recorded for `4 _57170890 ^`.
+
+The first run recorded 5 differing programs, with no record of the host's
+load; this run found 14 with the host at a load average of 14 to 15 on 12
+cores, and the three variants agree on all 14. Load is the likely reason for
+the larger count, since the libcrypto side's early refusal does not depend on
+CPU while the runaway libbn programs and the slow libcrypto ones cross the
+60-second limit as CPU gets scarce; the first run's program list was not kept,
+so the two counts are not reconciled program by program (inferred, low
+confidence). No semantic divergence appears: every differing program
+is a refusal point of a huge exponent.
+
+### Evidence for the tree port
+
+Environment: the host of the first run, bison 3.8.2, flex 2.6.4, byacc
+2.0 20260126, GNU bc 1.08.2, gcc 16.2.1, clang 23.1.4, arm-none-eabi-gcc
+16.2.0 with newlib 4.6.0, qemu-arm 11.1.3, Python 3.14.9; source revision
+`main` at `97a5e3b1` plus the two commits that port the programs and gate them.
+
+- `bmake MACHINE=rp2040 check-dcbc` (exit 0): 560 cases at native width, at
+  `-m32` and under ASan/UBSan, each with 0 failures; the peak-heap ceilings
+  hold (one register 3,389 bytes plain and 4,413 under `-x`, three pages
+  10,677, 808! printed 9,694); 13 of 13 mutants rejected (the register table's
+  page index, slot index, initialization, allocation, eagerness and range, and
+  the name table's key compare, rehash, growth, probe, key, count and type
+  letter). The unfaulted programs pass first, as the known-good control.
+- `bmake MACHINE=rp2040 -C tests/dcbc check-qemu` (exit 0): dc as a Thumb-1
+  program under qemu-arm, 303 cases, 0 failures. `arm-none-eabi-size` of the
+  newlib test binary is 73,704 text and 1,768 data; it is not the board
+  binary.
+- Cross-check of the bc cases against GNU bc 1.08.2 (`bc -q`, with `-l` where
+  the case uses it): 62 of the 71 comparable cases agree byte for byte,
+  including the `-l` functions `e`, `l`, `j` and the arithmetic, array and
+  control-flow cases. The 9 that differ are dialect differences between the
+  two programs and not defects: `||` returns the operand's value in OpenBSD
+  bc (3) and 1 in GNU bc; zero prints with the current scale in OpenBSD
+  (`0.00`) and as `0` in GNU; string escapes stay literal in GNU; division by
+  zero prints a message and no value in GNU; a call of an undefined function
+  prints 0 in OpenBSD and a message alone in GNU; and the library functions
+  differ in the last digit or in the format of zero (`s(0)` at scale 20,
+  `c(3.14159)` at scale 5).
+- `bmake MACHINE=rp2040 logged-check` (exit 0 on the final commit, 110.6 s for
+  the build stage and 1,547.6 s for the check stage):
+  includes `check-dcbc`, the cross builds of both programs, `check-fs-profiles`,
+  `check-c17-source-denominator` and `check-qemu`.
+- The `picocalc` image leaves 189 free blocks (210 before) and `full` 280
+  (unchanged), read with `fsutil --verbose --partition=1` on images from
+  `logged-distribution`.

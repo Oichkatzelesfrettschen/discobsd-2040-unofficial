@@ -139,11 +139,21 @@ extern int main(int, char **);
 extern void __libc_init_array(void);
 extern void exit(int);
 
+/*
+ * newlib's exit() flushes and closes every newlib stream, which pulls
+ * fclose and fflush into the link. A test that supplies its own stdio (the
+ * tree's, under the same names) defines QEMU_SUPPORT_EXIT_DIRECT and leaves
+ * through _exit() so those two symbols stay the test's.
+ */
 void
 c_start(long *sp)
 {
 	__libc_init_array();
+#ifdef QEMU_SUPPORT_EXIT_DIRECT
+	_exit(main((int)sp[0], (char **)(sp + 1)));
+#else
 	exit(main((int)sp[0], (char **)(sp + 1)));
+#endif
 }
 
 __attribute__((naked)) void

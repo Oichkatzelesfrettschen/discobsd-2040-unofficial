@@ -23,6 +23,11 @@ HOST_CC=${HOST_CC:-cc}
 CROSS=${CROSS:-arm-none-eabi}
 PYTHON=${PYTHON:?PYTHON must name the host interpreter}
 CPU=${CPU:-cortex-m0plus}
+# The qemu-arm CPU model the execution tier runs on, as tools/qemu-arm.mk
+# selects it: cortex-m0 is ARMv6-M, which raises SIGILL on a Thumb-2
+# instruction and SIGBUS on an unaligned access like the Cortex-M0+, where
+# qemu-arm's default model accepts both.
+QEMU_ARM_CPU=${QEMU_ARM_CPU:-cortex-m0}
 TOOLBINDIR=${TOOLBINDIR:-$TOPSRC/tools/bin/$MACHINE}
 SRCDIR=$(cd "$(dirname "$0")" && pwd)
 TEST_ONLY=${SMLRC_TEST_ONLY:-}
@@ -153,7 +158,7 @@ cp "$LIBC" "$OUT/libc_qemu.a"
 $AR d "$OUT/libc_qemu.a" $($AR t "$LIBC" | grep -e '^rom_float_' -e '^aeabi_div\.o$')
 
 if command -v qemu-arm >/dev/null 2>&1; then
-	QEMU=qemu-arm
+	QEMU="qemu-arm -cpu $QEMU_ARM_CPU"
 elif [ "${REQUIRE_QEMU:-0}" = 1 ]; then
 	echo "qemu-arm is required: REQUIRE_QEMU=1 refuses the link-only run"
 	exit 2

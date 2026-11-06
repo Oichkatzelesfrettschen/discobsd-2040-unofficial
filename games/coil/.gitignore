@@ -1,0 +1,6 @@
+coil
+coil-host
+tests/logic_test
+*.o
+*.elf
+__pycache__/

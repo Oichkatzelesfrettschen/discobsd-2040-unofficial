@@ -1217,12 +1217,13 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
-# qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests, the tree formatter's float conversions and math library returns
-# against newlib's and the
-# calc line interface executed as Thumb-1 programs rather than only linked.
+# qemu-arm: the u-area exchange loop, the AEABI division helpers over a
+# divider model, the Smaller C suite, the libcalc and libbn tests, the tree
+# formatter's float conversions and math library returns against newlib's and
+# the calc line interface executed as Thumb-1 programs rather than only linked.
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
+		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu

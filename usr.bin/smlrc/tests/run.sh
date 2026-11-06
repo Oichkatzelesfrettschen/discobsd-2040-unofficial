@@ -146,11 +146,11 @@ $expected_arch_pattern)	;;
 	exit 1 ;;
 esac
 
-# The execution tier's copy of libc leaves out the Boot ROM float members;
-# the link line below says why.
+# The execution tier's copy of libc leaves out the Boot ROM float members and
+# the SIO-divider integer helpers; the link line below says why.
 AR="$CROSS-ar"
 cp "$LIBC" "$OUT/libc_qemu.a"
-$AR d "$OUT/libc_qemu.a" $($AR t "$LIBC" | grep '^rom_float_')
+$AR d "$OUT/libc_qemu.a" $($AR t "$LIBC" | grep -e '^rom_float_' -e '^aeabi_div\.o$')
 
 if command -v qemu-arm >/dev/null 2>&1; then
 	QEMU=qemu-arm
@@ -226,10 +226,13 @@ run_one()
 	fi
 
 	# Execution tier. The link takes the qemu copy of libc, from which
-	# the Boot ROM float members are removed: the tree's libc answers the
-	# __aeabi_* float helpers with trampolines into the RP2040 Boot ROM,
-	# whose table at address 0x10 qemu-arm never maps, so libgcc's
-	# soft-float has to satisfy those symbols instead.
+	# the Boot ROM float members and aeabi_div.o are removed: the tree's
+	# libc answers the __aeabi_* float helpers with trampolines into the
+	# RP2040 Boot ROM, whose table at address 0x10 qemu-arm never maps,
+	# and the integer helpers with stores to the SIO divider at
+	# 0xd0000000, which qemu-arm never maps either, so libgcc's
+	# soft-float and software division have to satisfy those symbols
+	# instead.
 	if ! $GCC -mcpu=$CPU -mthumb -mfloat-abi=soft \
 	    -nostartfiles -nostdlib -Wl,--no-warn-rwx-segments \
 	    -o "$base.qemu.elf" "$base.o" $extra "$OUT/qemusys.o" \

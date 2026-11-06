@@ -8,7 +8,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 SUBDIR=	libc_aout \
 	startup-${MACHINE_ARCH} libc libm libcurses libtermlib \
-	libutil libvmf libtcl libreadline libcalc
+	libutil libbn libvmf libtcl libreadline libcalc
 
 all:		$(SUBDIR)
 

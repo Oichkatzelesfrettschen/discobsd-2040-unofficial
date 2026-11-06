@@ -44,16 +44,16 @@ also a KiB count. The inode column is the difference in free inodes, which
 | `games` | 24 | 2 | `/usr/games`, `gamebox` (23 packed blocks), and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
 | `puzzles` | 35 | 1 | `puzzlebox` (35 packed blocks) and hard links `flood`, `samegame`, `unruly`, `lightup`; needs `games` |
 | `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
-| `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
+| `calc-bignum` | 59 | 3 | OpenBSD `bc` (31,176 bytes packed), `dc` (18,644) and `/usr/share/misc/bc.library` (5,125); PicoCalc only |
 | `calc` | 32 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
-| all maintained closures | 277 | 15 | |
+| all maintained closures | 298 | 15 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
 Each closure row is measured against `base` alone, and the all-maintained
 row on one image that holds every closure. The `puzzles` row is the
 difference between an image that holds `games` and `puzzles` and one that
-holds `games`, because `puzzles` cannot stand alone. The closure rows sum to 278, one
+holds `games`, because `puzzles` cannot stand alone. The closure rows sum to 299, one
 block more than that image measures: a directory such as `/usr/bin` grows
 in whole blocks, so entries that two closures add can share a block that
 either closure alone allocates (inferred from the allocation unit, not
@@ -78,7 +78,7 @@ bytes.
 | `games` | `games`, `puzzles` | 388 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 240 | 32 |
-| `picocalc` | `full` plus `calc-bignum` and `calc`, so also `puzzles` | 170 | 28 |
+| `picocalc` | `full` plus `calc-bignum` and `calc`, so also `puzzles` | 149 | 28 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1

@@ -90,8 +90,9 @@ which this file does, remains required.
 ------------------------------------------------------------------------
 3. Caldera International, Inc. (code descended from UNIX Versions 1-7
    and 32V: 2.11BSD's AT&T-derived programs such as sh, ed, sed, awk,
-   find, cpio, dd, look and deroff; parts of libc; and the Sixth
-   Edition UNIX pack in /usr/v6/root.rk)
+   find, cpio, dd, look and deroff; parts of libc; the OpenBSD bc and dc
+   manual pages and bc.library; and the Sixth Edition UNIX pack in
+   /usr/v6/root.rk)
    License: the Caldera ancient-UNIX license of January 23, 2002
 
 Copyright(C) Caldera International Inc. 2001-2002. All rights reserved.
@@ -325,34 +326,33 @@ Misc-Fixed 6x9 BDF font, revision 1.28, and sys/arch/rp2040/dev/lcdfont.c
 is generated from it by tools/picocalc/bdf_font.py.
 
 ------------------------------------------------------------------------
-16. Plan 9 Foundation (the arbitrary-precision calculator /usr/bin/bc and
-    /usr/bin/dc, in the picocalc root profile)
-    License: MIT
+16. Otto Moerbeek (the arbitrary-precision calculator /usr/bin/bc and
+    /usr/bin/dc, from OpenBSD, in the picocalc root profile)
+    License: ISC
 
-usr.bin/bc (bc.y and the -l library lib.b, installed as
-/usr/share/misc/lib.b) and usr.bin/dc carry this notice in their LICENSE
-files:
+usr.bin/dc (bcode.c, bcode.h, dc.c, extern.h, inout.c, main.c, mem.c and
+stack.c) and usr.bin/bc (bc.y, scan.l, extern.h and pathnames.h) are the
+OpenBSD sources at commit d5983e0c8e9e888c4dc0bb497f4501850db2ec9b of
+github.com/openbsd/src, adapted to this tree; each file keeps its header:
 
-Copyright 2021 Plan 9 Foundation
+Copyright (c) 2003, Otto Moerbeek <otto@drijf.net>
 
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
 
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+The manual pages dc.1 and bc.1 and the -l library bc.library (installed as
+/usr/share/misc/bc.library) carry the Caldera license of section 3. The
+arbitrary-precision integers come from lib/libbn, written for this tree and
+covered by section 1; no OpenSSL or LibreSSL source is part of the image.
 
 ------------------------------------------------------------------------
 17. Simon Tatham and contributors (the puzzles /usr/games/flood,

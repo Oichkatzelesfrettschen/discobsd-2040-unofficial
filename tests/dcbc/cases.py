@@ -19,6 +19,7 @@ tier ("base" or "corpus").
 """
 
 import random
+from fractions import Fraction
 
 # Corpus programs whose pinned-source run exceeds the generator's time bound
 # (a number raised to a huge exponent); filled in by gen_golden.sh output.
@@ -290,9 +291,6 @@ DC_PROGRAMS = (
     ("obase_neg_frac", "16 o _255.5 p 2 o 5.75 p 5 k 10 o 1 7 / p"),
     ("count_digits", "1000000 Z p 0 Z p 0.001 Z p 123.456 Z p _12345 Z p"),
     ("long_line", "99999999999999999999 d * d * d * d * d * p"),
-    # The remainder keeps the operand scale of the pinned source: with scale 2,
-    # 1.235 % 1 prints .500, not the .005 that a - (a / b) * b gives.
-    ("rem_fraction_scale", "2 k 1.235 1 % p 1.235 1 ~ f"),
     (
         "array_frame_move",
         "7 0:a 8 3:a La 0;a pR Sa 0;a pR 3;a pR La d Sa Sa 0;a 3;a + pR La c 0;a pR 5 sb La sb Lb sa 0;a pR 3;a pR 4 1:a 1;a pR",
@@ -441,8 +439,6 @@ BC_PROGRAMS = (
     ("big_fraction", "scale=60\n1/3\n2/7\n10^30/7\n"),
     ("negative_scale_div", "scale=3\n-7/2\n7/-2\n-7/-2\n-7%2\n7%-2\n"),
     ("mod_scale", "scale=5\n7.5%2\n-7.5%2\n10%3.3\n"),
-    # The remainder keeps the operand scale of the pinned source, as in dc.
-    ("mod_fraction_scale", "scale=2\n1.235%1\n"),
     # The grammar of the pinned source takes an array only after a comma:
     # f(a[]) is a syntax error and f(x,a[]) calls.
     (
@@ -571,6 +567,141 @@ def many_names_cases():
     return cases
 
 
+def _fraction(text):
+    """A dc or bc numeral as an exact Fraction, with its count of fraction digits."""
+    neg = text.startswith("-")
+    digits = text.lstrip("-")
+    whole, _, frac = digits.partition(".")
+    value = Fraction(int(whole or "0") * 10 ** len(frac) + int(frac or "0"), 10 ** len(frac))
+    return (-value if neg else value), len(frac)
+
+
+def _fixed(value, scale):
+    """The text dc prints for a nonzero value held at scale fraction digits.
+
+    The value must be exactly representable at that scale; a magnitude below
+    one prints without its leading zero, as in ".005" and "-.5".
+    """
+    mantissa = value * 10**scale
+    if mantissa.denominator != 1 or mantissa == 0:
+        raise ValueError("not a nonzero value at scale %d: %s" % (scale, value))
+    mantissa = int(mantissa)
+    sign = "-" if mantissa < 0 else ""
+    digits = str(abs(mantissa)).rjust(scale + 1, "0")
+    whole = digits[: len(digits) - scale]
+    frac = digits[len(digits) - scale :]
+    if whole == "0":
+        whole = ""
+    return sign + whole + ("." + frac if scale else "")
+
+
+def _posix_divmod(dividend, divisor, scale):
+    """POSIX bc a % b and dc ~ from the definition, with no dc or bc source.
+
+    The quotient is a / b truncated toward zero to scale digits, the remainder
+    is a - b * q at scale max(scale + scale(b), scale(a)).  Return
+    (quotient text, remainder text, remainder scale) or None when either
+    value is zero (dc prints zero with a scale-dependent form that this model
+    does not own).
+    """
+    a, sa = _fraction(dividend)
+    b, sb = _fraction(divisor)
+    exact = a / b * 10**scale
+    q = abs(exact.numerator) // exact.denominator
+    q = -q if exact < 0 else q
+    quotient = Fraction(q, 10**scale)
+    remainder = a - b * quotient
+    rscale = max(scale + sb, sa)
+    if quotient == 0 or remainder == 0:
+        return None
+    return _fixed(quotient, scale), _fixed(remainder, rscale), rscale
+
+
+def _dcarg(text):
+    return text.replace("-", "_")
+
+
+# Hand-written remainder cases: (dividend, divisor, scale).  Every expected
+# value below was fixed by _posix_divmod and, as an independent check made
+# when the case was written, matched GNU bc 1.08.2 and GNU dc 1.5.2 on a
+# host that had them; no gate depends on those programs being installed.
+REMAINDER_FIXED = (
+    ("1.235", "1", 2),
+    ("-1.235", "1", 2),
+    ("1.235", "-1", 2),
+    ("-1.235", "-1", 2),
+    ("10", "3", 3),
+    ("5.678", "2.5", 2),
+    ("5.678", "2.5", 1),
+    ("1.23456789", "0.01", 5),
+    ("0.5", "0.3", 0),
+    ("2.5", "0.7", 4),
+    ("100.001", "7", 0),
+)
+
+
+def remainder_cases():
+    """Fractional remainder scale: dc %, dc ~ and bc %, against the POSIX definition."""
+    rng = random.Random(0x52454D)
+    operands = list(REMAINDER_FIXED)
+    while len(operands) < 70:
+        sa = rng.randrange(0, 6)
+        sb = rng.randrange(0, 4)
+        a = str(rng.randrange(1, 10**rng.randrange(1, 6)))
+        b = str(rng.randrange(1, 10**rng.randrange(1, 4)))
+        if sa:
+            a = a.rjust(sa + 1, "0")
+            a = a[:-sa] + "." + a[-sa:]
+        if sb:
+            b = b.rjust(sb + 1, "0")
+            b = b[:-sb] + "." + b[-sb:]
+        a = "-" + a if rng.random() < 0.35 else a
+        b = "-" + b if rng.random() < 0.25 else b
+        operands.append((a, b, rng.randrange(0, 7)))
+    cases = []
+    for i, (a, b, scale) in enumerate(operands):
+        model = _posix_divmod(a, b, scale)
+        if model is None:
+            continue
+        quotient, remainder, rscale = model
+        cases.append(
+            _case(
+                "dc",
+                "rem_scale%02d" % i,
+                "%d k %s %s %% p\n" % (scale, _dcarg(a), _dcarg(b)),
+                expect=remainder + "\n",
+            )
+        )
+        cases.append(
+            _case(
+                "dc",
+                "divmod_scale%02d" % i,
+                "%d k %s %s ~ f\n" % (scale, _dcarg(a), _dcarg(b)),
+                expect=remainder + "\n" + quotient + "\n",
+            )
+        )
+        cases.append(
+            _case(
+                "bc",
+                "mod_scale%02d" % i,
+                "scale=%d\n%s %% %s\n" % (scale, a, b),
+                expect=remainder + "\n",
+            )
+        )
+    cases.append(
+        _case(
+            "dc",
+            "rem_fraction_scale",
+            "2 k 1.235 1 % p 1.235 1 ~ f\n",
+            expect=".005\n.005\n1.23\n.005\n",
+        )
+    )
+    cases.append(
+        _case("bc", "mod_fraction_scale", "scale=2\n1.235%1\n", expect=".005\n")
+    )
+    return cases
+
+
 def all_cases():
     cases = []
     cases += arithmetic_cases()
@@ -579,5 +710,6 @@ def all_cases():
     cases += dc_argument_cases()
     cases += bc_cases()
     cases += many_names_cases()
+    cases += remainder_cases()
     cases += corpus_cases()
     return cases

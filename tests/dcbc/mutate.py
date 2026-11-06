@@ -4,15 +4,16 @@ usage: mutate.py --root TREE --golden golden.json --work DIRECTORY
        [--hostcc CC] [--bison BISON] [--flex FLEX] [--list]
 
 Each mutation replaces text that must occur exactly once in usr.bin/dc/bcode.c
-(the lazily allocated register table and the count J pops), usr.bin/dc/stack.c
-(the ownership of a value's array) or usr.bin/bc/bc.y (the name table that
-replaced hcreate and hsearch), builds dc and bc from the faulted copy, and
-runs run_cases.py against it; a faulted dc is also built with the allocation
-accounting and run against peak.json. A mutant is rejected when either run
-exits nonzero. The script exits nonzero when a mutant survives or its anchor
-text has moved, so a refactor cannot leave an unfaulted "mutant" behind. Every
-run starts in its own process group (procgroup.py), and the script exits
-nonzero when a process of a mutant build directory outlives its run.
+(the lazily allocated register table, the count J pops and the scale of the
+remainder), usr.bin/dc/stack.c (the ownership of a value's array) or
+usr.bin/bc/bc.y (the name table that replaced hcreate and hsearch), builds dc
+and bc from the faulted copy, and runs run_cases.py against it; a faulted dc
+is also built with the allocation accounting and run against peak.json. A
+mutant is rejected when either run exits nonzero. The script exits nonzero
+when a mutant survives or its anchor text has moved, so a refactor cannot
+leave an unfaulted "mutant" behind. Every run starts in its own process group
+(procgroup.py), and the script exits nonzero when a process of a mutant build
+directory outlives its run.
 """
 
 import argparse
@@ -94,6 +95,24 @@ MUTATIONS = (
         STACKC,
         "\tif (a->size > 0)\n\t\tarray_grow(n, a->size);\n",
         "\tarray_grow(n, a->size);\n",
+    ),
+    (
+        "rem_digits_unscaled",
+        BCODE,
+        "\t\tremainder_rescale(r, scale + bmachine.scale, rscale);\n",
+        "",
+    ),
+    (
+        "divmod_rem_digits_unscaled",
+        BCODE,
+        "\t\tremainder_rescale(rmod, scale + bmachine.scale, rscale);\n",
+        "",
+    ),
+    (
+        "rem_scale_operand_only",
+        BCODE,
+        "return max(dividend->scale, divisor->scale + bmachine.scale);",
+        "return max(dividend->scale, divisor->scale);",
     ),
     (
         "names_compare_first_byte",

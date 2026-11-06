@@ -83,7 +83,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +      {
 +        frameBusyUntil = now;
 +      }
-+      frameBusyUntil += TimeInterval.FromMicroseconds((ulong)(((decimal)dataSize * 1000000m) / (bitRate == 0 ? 1 : bitRate)));
++      frameBusyUntil += TimeInterval.FromTicks(((ulong)dataSize * (ulong)TimeInterval.TicksPerSecond + bitRate - 1UL) / (bitRate == 0 ? 1UL : bitRate));
 +    }
 +
 +    private bool FrameBusy()

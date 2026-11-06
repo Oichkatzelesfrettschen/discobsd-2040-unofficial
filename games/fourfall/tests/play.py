@@ -605,6 +605,7 @@ def test_flash(prog):
     g.keys((ESC + b"[D") * 4 + b" ")
     check(b"~~" not in t.raw, "flash before the row was complete")
     t.chunks.clear()
+    dropped_at = time.time()
     g.keys(" ")
     g.wait_for(lambda: status_line(g) == "score 232 lines 1 level 1")
     g.settle(0.2)
@@ -614,8 +615,16 @@ def test_flash(prog):
     idx = [i for i, (_, d) in enumerate(t.chunks) if b"~~" in d]
     check(len(idx) == 1 and idx[0] + 1 < len(t.chunks), "flash frame count %r" % idx)
     check(t.chunks[idx[0]][1].count(b"~~") == 12, "the flash frame lacks a cell of the row")
-    gap = t.chunks[idx[0] + 1][0] - t.chunks[idx[0]][0]
-    check(0.12 <= gap <= 0.6, "flash lasted %.3f s, want about 0.15" % gap)
+    # The collapse cannot reach the terminal sooner than FLASH_MS after the
+    # drop was written, however late the host reads either frame, so the
+    # lower bound is measured from the write. A late read of the flash frame
+    # only shortens the frame-to-frame gap, so that gap bounds the flash
+    # from above only.
+    collapsed_at = t.chunks[idx[0] + 1][0]
+    check(collapsed_at - dropped_at >= 0.14,
+          "collapse %.3f s after the drop, want at least 0.15" % (collapsed_at - dropped_at))
+    gap = collapsed_at - t.chunks[idx[0]][0]
+    check(gap <= 0.6, "flash lasted %.3f s, want about 0.15" % gap)
     check(not t.lit(), "the cleared row is still drawn after the flash")
     check(t.text(23, 3, 26) == " " * 24, "collapsed row not blank")
     check(g.quit() == 0, "exit status %r" % g.status)
@@ -773,6 +782,9 @@ def test_job_control(prog):
 
 
 ESC_MS_SECONDS = 0.040
+# The abandoned-sequence cases need q to quit well inside the 4 s stalled
+# deadline the escape mutants restore, and far outside a runner's stall.
+QUIT_LIMIT = 2.0
 SPLIT_ATTEMPTS = 5
 
 
@@ -803,14 +815,14 @@ def test_escape_deadline(prog):
     g = Game(prog, test="O")
     g.send(ESC + b"[")
     time.sleep(0.2)
-    check(g.quit_within(0.5) == 0, "ESC [ then q: exit %r" % g.status)
+    check(g.quit_within(QUIT_LIMIT) == 0, "ESC [ then q: exit %r" % g.status)
     check(cooked(g.fd), "terminal not restored")
     # The same for SS3 and a partial numeric CSI.
     for frag in (ESC + b"O", ESC + b"[1", ESC + b"[11"):
         g = Game(prog, test="O")
         g.send(frag)
         time.sleep(0.2)
-        check(g.quit_within(0.5) == 0, "%r then q: exit %r" % (frag, g.status))
+        check(g.quit_within(QUIT_LIMIT) == 0, "%r then q: exit %r" % (frag, g.status))
     # A byte inside the sequence arrives within the deadline: ESC, a 10 ms
     # gap, then [A rotates. The claim holds only for gaps under the game's
     # 40 ms ESC_MS; a host that stalls a write past it delivers a bare Esc,
@@ -841,7 +853,7 @@ def test_stalled_gravity(prog):
     check(
         rows0 and rows1 and max(rows1) > max(rows0), "piece did not fall during a stalled sequence"
     )
-    check(g.quit_within(0.5) == 0, "exit status %r" % g.status)
+    check(g.quit_within(QUIT_LIMIT) == 0, "exit status %r" % g.status)
 
 
 def test_exit_restores(prog):

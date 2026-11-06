@@ -94,16 +94,23 @@ gtty_getkey(void)
 	}
 }
 
+/* The result is taken into a variable because glibc marks write
+ * warn_unused_result under _FORTIFY_SOURCE, and a cast to void does not
+ * silence that; a failed screen write leaves nothing to do. */
 static void
 gtty_clear(void)
 {
-	write(1, "\033[2J\033[H", 7);
+	ssize_t r = write(1, "\033[2J\033[H", 7);
+
+	(void)r;
 }
 
 static void
 gtty_home(void)
 {
-	write(1, "\033[H", 3);
+	ssize_t r = write(1, "\033[H", 3);
+
+	(void)r;
 }
 
 #endif /* GAMES_GAMETTY_H */

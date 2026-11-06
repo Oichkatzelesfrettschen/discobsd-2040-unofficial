@@ -1,0 +1,134 @@
+# Golden vectors for tests/hex_test.c. Cells are row,column. A staggered
+# ("hex") board shifts row r half a cell right when (r + stagger) is odd and
+# gives that row COLS - 1 cells; "sq" is the square mode.
+#
+# Neighbor sets, hexagonal, stagger 0 (row 0 flush, row 1 shifted).
+NEIGH-H0-0-0  NEIGH mode=hex stagger=0 cell=0,0 -> n=2 list=0,1;1,0
+NEIGH-H0-0-4  NEIGH mode=hex stagger=0 cell=0,4 -> n=4 list=0,3;0,5;1,3;1,4
+NEIGH-H0-0-7  NEIGH mode=hex stagger=0 cell=0,7 -> n=2 list=0,6;1,6
+NEIGH-H0-1-0  NEIGH mode=hex stagger=0 cell=1,0 -> n=5 list=0,0;0,1;1,1;2,0;2,1
+NEIGH-H0-1-3  NEIGH mode=hex stagger=0 cell=1,3 -> n=6 list=0,3;0,4;1,2;1,4;2,3;2,4
+NEIGH-H0-1-6  NEIGH mode=hex stagger=0 cell=1,6 -> n=5 list=0,6;0,7;1,5;2,6;2,7
+NEIGH-H0-2-0  NEIGH mode=hex stagger=0 cell=2,0 -> n=3 list=1,0;2,1;3,0
+NEIGH-H0-9-3  NEIGH mode=hex stagger=0 cell=9,3 -> n=4 list=8,3;8,4;9,2;9,4
+NEIGH-H0-9-6  NEIGH mode=hex stagger=0 cell=9,6 -> n=3 list=8,6;8,7;9,5
+# Stagger 1 (row 0 shifted, row 1 flush).
+NEIGH-H1-0-0  NEIGH mode=hex stagger=1 cell=0,0 -> n=3 list=0,1;1,0;1,1
+NEIGH-H1-0-6  NEIGH mode=hex stagger=1 cell=0,6 -> n=3 list=0,5;1,6;1,7
+NEIGH-H1-1-7  NEIGH mode=hex stagger=1 cell=1,7 -> n=3 list=0,6;1,6;2,6
+# Square mode.
+NEIGH-SQ-0-0  NEIGH mode=sq cell=0,0 -> n=2 list=0,1;1,0
+NEIGH-SQ-4-4  NEIGH mode=sq cell=4,4 -> n=4 list=3,4;4,3;4,5;5,4
+NEIGH-SQ-9-7  NEIGH mode=sq cell=9,7 -> n=2 list=8,7;9,6
+#
+# Matching, anchoring and scoring: attach color at row,column and resolve.
+# A trio pops for 10 each and a stranded bubble drops for 20 each.
+POP-HEX-ZIGZAG  POP mode=hex stagger=0 board=....1.../...1.... color=1 at=2,4 -> result=- score=30
+POP-HEX-RESETS  POP mode=hex stagger=0 misses=5 board=....1.../...1.... color=1 at=2,4 -> result=- score=30 misses_after=0
+POP-SQ-ZIGZAG-NO  POP mode=sq board=....1.../...1.... color=1 at=2,4 -> result=....1.../...1..../....1... score=0
+POP-HEX-NOADJ  POP mode=hex stagger=0 board=....1.../.....1.. color=1 at=2,5 -> result=....1.../.....1../.....1.. score=0 misses_after=1
+POP-HEX-ORPHAN  POP mode=hex stagger=0 board=..11..4./..2..2../..3..... color=1 at=0,4 -> result=......4./.....2.. score=70
+POP-HEX-ANCHOR-DIAG  POP mode=hex stagger=0 board=11..3.../...2.... color=1 at=0,2 -> result=....3.../...2.... score=30
+POP-SQ-ANCHOR-DIAG  POP mode=sq board=11..3.../...2.... color=1 at=0,2 -> result=....3... score=50
+POP-HEX-DESCENT  POP mode=hex stagger=0 misses=7 board=....1... color=2 at=1,3 -> result=1234123./....1.../...2.... score=0 misses_after=0 stagger_after=1
+POP-HEX-FLOOR  POP mode=hex stagger=0 board=....1.../...2..../....1.../...2..../....1.../...2..../....1.../...2..../....1... color=2 at=9,3 -> alive=0 result=....1.../...2..../....1.../...2..../....1.../...2..../....1.../...2..../....1.../...2.... score=0 misses_after=1
+POP-SQ-STRANDED  POP mode=sq board=.11...../...2.... color=1 at=0,3 -> result=- score=50
+POP-SQ-FLOATING  POP mode=sq board=11....../......../......../...22... color=1 at=0,2 -> result=- score=70
+POP-SQ-TWO-NO  POP mode=sq board=.1...... color=1 at=0,2 -> result=.11..... score=0
+#
+# Ceiling descent: the pile moves down a row, the stagger flips, and a new
+# row of colors 1,2,3,4,... enters (the test mode row).
+DESC-H0  DESC mode=hex stagger=0 board=3......./..2..... -> result=1234123./3......./..2..... stagger_after=1
+DESC-H1  DESC mode=hex stagger=1 board=1....... -> result=12341234/1....... stagger_after=0
+#
+# Whole shots. colors= is the shot color script, aims= the aim of each shot.
+REPLAY-HEX-ZIGZAG-POP  REPLAY mode=hex colors=111 aims=0,0,0 -> result=- score=30 stagger_after=0 misses_after=0
+REPLAY-HEX-DESCENT  REPLAY mode=hex colors=12 aims=0,0,0,0,0,0,0,0 -> result=1234123./....1.../...2..../....1.../...2..../....1.../...2..../....1.../...2.... score=0 stagger_after=1 misses_after=0
+REPLAY-HEX-FLOOR  REPLAY mode=hex colors=12 aims=0,0,0,0,0,0,0,0,0 -> alive=0 result=1234123./....1.../...2..../....1.../...2..../....1.../...2..../....1.../...2..../....1... score=0 stagger_after=1 misses_after=1
+REPLAY-SQ-TRIO  REPLAY mode=sq colors=111 aims=0,0,0 -> result=- score=30 stagger_after=0 misses_after=0
+#
+# Shot path and resting cell (row*8+column) with the number of distinct cells
+# it crosses. The aim table runs from -6 (shallow left) to +6 (shallow right).
+TRAJ-HEX-STRAIGHT-EMPTY  TRAJ mode=hex stagger=0 aim=0 -> cell=4 len=10
+TRAJ-HEX-STRAIGHT-BLOCKED  TRAJ mode=hex stagger=0 board=....1... aim=0 -> cell=11 len=9
+TRAJ-HEX1-STRAIGHT-EMPTY  TRAJ mode=hex stagger=1 aim=0 -> cell=3 len=10
+TRAJ-SQ-STRAIGHT-EMPTY  TRAJ mode=sq aim=0 -> cell=4 len=10
+TRAJ-SQ-STRAIGHT-BLOCKED  TRAJ mode=sq board=....1... aim=0 -> cell=12 len=9
+TRAJ-EMPTY-HEX0-A-6 TRAJ mode=hex stagger=0 aim=-6 -> cell=0 len=27
+TRAJ-EMPTY-HEX0-A-5 TRAJ mode=hex stagger=0 aim=-5 -> cell=4 len=20
+TRAJ-EMPTY-HEX0-A-4 TRAJ mode=hex stagger=0 aim=-4 -> cell=6 len=19
+TRAJ-EMPTY-HEX0-A-3 TRAJ mode=hex stagger=0 aim=-3 -> cell=2 len=16
+TRAJ-EMPTY-HEX0-A-2 TRAJ mode=hex stagger=0 aim=-2 -> cell=1 len=11
+TRAJ-EMPTY-HEX0-A-1 TRAJ mode=hex stagger=0 aim=-1 -> cell=0 len=13
+TRAJ-EMPTY-HEX0-A+1 TRAJ mode=hex stagger=0 aim=1 -> cell=7 len=12
+TRAJ-EMPTY-HEX0-A+2 TRAJ mode=hex stagger=0 aim=2 -> cell=6 len=17
+TRAJ-EMPTY-HEX0-A+3 TRAJ mode=hex stagger=0 aim=3 -> cell=5 len=15
+TRAJ-EMPTY-HEX0-A+4 TRAJ mode=hex stagger=0 aim=4 -> cell=1 len=18
+TRAJ-EMPTY-HEX0-A+5 TRAJ mode=hex stagger=0 aim=5 -> cell=3 len=24
+TRAJ-EMPTY-HEX0-A+6 TRAJ mode=hex stagger=0 aim=6 -> cell=7 len=26
+TRAJ-EMPTY-HEX1-A-6 TRAJ mode=hex stagger=1 aim=-6 -> cell=0 len=26
+TRAJ-EMPTY-HEX1-A-5 TRAJ mode=hex stagger=1 aim=-5 -> cell=4 len=25
+TRAJ-EMPTY-HEX1-A-4 TRAJ mode=hex stagger=1 aim=-4 -> cell=5 len=19
+TRAJ-EMPTY-HEX1-A-3 TRAJ mode=hex stagger=1 aim=-3 -> cell=2 len=15
+TRAJ-EMPTY-HEX1-A-2 TRAJ mode=hex stagger=1 aim=-2 -> cell=0 len=17
+TRAJ-EMPTY-HEX1-A-1 TRAJ mode=hex stagger=1 aim=-1 -> cell=0 len=14
+TRAJ-EMPTY-HEX1-A+1 TRAJ mode=hex stagger=1 aim=1 -> cell=6 len=14
+TRAJ-EMPTY-HEX1-A+2 TRAJ mode=hex stagger=1 aim=2 -> cell=6 len=10
+TRAJ-EMPTY-HEX1-A+3 TRAJ mode=hex stagger=1 aim=3 -> cell=4 len=15
+TRAJ-EMPTY-HEX1-A+4 TRAJ mode=hex stagger=1 aim=4 -> cell=1 len=19
+TRAJ-EMPTY-HEX1-A+5 TRAJ mode=hex stagger=1 aim=5 -> cell=2 len=20
+TRAJ-EMPTY-HEX1-A+6 TRAJ mode=hex stagger=1 aim=6 -> cell=6 len=26
+TRAJ-EMPTY-SQ-A-6 TRAJ mode=sq stagger=0 aim=-6 -> cell=0 len=28
+TRAJ-EMPTY-SQ-A-5 TRAJ mode=sq stagger=0 aim=-5 -> cell=4 len=24
+TRAJ-EMPTY-SQ-A-4 TRAJ mode=sq stagger=0 aim=-4 -> cell=6 len=20
+TRAJ-EMPTY-SQ-A-3 TRAJ mode=sq stagger=0 aim=-3 -> cell=2 len=16
+TRAJ-EMPTY-SQ-A-2 TRAJ mode=sq stagger=0 aim=-2 -> cell=1 len=15
+TRAJ-EMPTY-SQ-A-1 TRAJ mode=sq stagger=0 aim=-1 -> cell=0 len=14
+TRAJ-EMPTY-SQ-A+1 TRAJ mode=sq stagger=0 aim=1 -> cell=7 len=13
+TRAJ-EMPTY-SQ-A+2 TRAJ mode=sq stagger=0 aim=2 -> cell=6 len=14
+TRAJ-EMPTY-SQ-A+3 TRAJ mode=sq stagger=0 aim=3 -> cell=5 len=15
+TRAJ-EMPTY-SQ-A+4 TRAJ mode=sq stagger=0 aim=4 -> cell=1 len=19
+TRAJ-EMPTY-SQ-A+5 TRAJ mode=sq stagger=0 aim=5 -> cell=3 len=23
+TRAJ-EMPTY-SQ-A+6 TRAJ mode=sq stagger=0 aim=6 -> cell=7 len=27
+TRAJ-BLOCK-HEX0-A-6 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=-6 -> cell=10 len=24
+TRAJ-BLOCK-HEX0-A-5 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=-5 -> cell=5 len=19
+TRAJ-BLOCK-HEX0-A-4 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=-4 -> cell=6 len=19
+TRAJ-BLOCK-HEX0-A-3 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=-3 -> cell=8 len=14
+TRAJ-BLOCK-HEX0-A-2 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=-2 -> cell=1 len=11
+TRAJ-BLOCK-HEX0-A-1 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=-1 -> cell=0 len=13
+TRAJ-BLOCK-HEX0-A+1 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=1 -> cell=7 len=12
+TRAJ-BLOCK-HEX0-A+2 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=2 -> cell=6 len=17
+TRAJ-BLOCK-HEX0-A+3 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=3 -> cell=5 len=15
+TRAJ-BLOCK-HEX0-A+4 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=4 -> cell=10 len=16
+TRAJ-BLOCK-HEX0-A+5 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=5 -> cell=8 len=20
+TRAJ-BLOCK-HEX0-A+6 TRAJ mode=hex stagger=0 board=..1.1.../.2...... aim=6 -> cell=7 len=26
+TRAJ-BLOCK-HEX1-A-6 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=-6 -> cell=10 len=23
+TRAJ-BLOCK-HEX1-A-5 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=-5 -> cell=5 len=24
+TRAJ-BLOCK-HEX1-A-4 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=-4 -> cell=13 len=17
+TRAJ-BLOCK-HEX1-A-3 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=-3 -> cell=16 len=11
+TRAJ-BLOCK-HEX1-A-2 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=-2 -> cell=0 len=17
+TRAJ-BLOCK-HEX1-A-1 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=-1 -> cell=16 len=12
+TRAJ-BLOCK-HEX1-A+1 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=1 -> cell=6 len=14
+TRAJ-BLOCK-HEX1-A+2 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=2 -> cell=6 len=10
+TRAJ-BLOCK-HEX1-A+3 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=3 -> cell=5 len=14
+TRAJ-BLOCK-HEX1-A+4 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=4 -> cell=10 len=17
+TRAJ-BLOCK-HEX1-A+5 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=5 -> cell=8 len=17
+TRAJ-BLOCK-HEX1-A+6 TRAJ mode=hex stagger=1 board=..1.1.../.2...... aim=6 -> cell=6 len=26
+TRAJ-BLOCK-SQ-A-6 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=-6 -> cell=10 len=25
+TRAJ-BLOCK-SQ-A-5 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=-5 -> cell=5 len=23
+TRAJ-BLOCK-SQ-A-4 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=-4 -> cell=6 len=20
+TRAJ-BLOCK-SQ-A-3 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=-3 -> cell=17 len=13
+TRAJ-BLOCK-SQ-A-2 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=-2 -> cell=1 len=15
+TRAJ-BLOCK-SQ-A-1 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=-1 -> cell=17 len=11
+TRAJ-BLOCK-SQ-A+1 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=1 -> cell=7 len=13
+TRAJ-BLOCK-SQ-A+2 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=2 -> cell=6 len=14
+TRAJ-BLOCK-SQ-A+3 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=3 -> cell=5 len=15
+TRAJ-BLOCK-SQ-A+4 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=4 -> cell=10 len=17
+TRAJ-BLOCK-SQ-A+5 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=5 -> cell=8 len=19
+TRAJ-BLOCK-SQ-A+6 TRAJ mode=sq stagger=0 board=..1.1.../.2...... aim=6 -> cell=7 len=27
+#
+# One orphan drop through whole shots: two shots stack a color-2 bubble under
+# a color-1 bubble, two more shots put color 1 either side of the top one,
+# the trio pops (30) and the color-2 bubble, joined to the ceiling only
+# through the popped pair, drops (20).
+REPLAY-HEX-ORPHAN  REPLAY mode=hex colors=1211 aims=0,0,3,5 -> result=- score=50 stagger_after=0 misses_after=0

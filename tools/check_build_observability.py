@@ -9,6 +9,7 @@ EXPECTED_LABELS = {
     "linux-board-build",
     "linux-build",
     "linux-changed-comments",
+    "linux-changed-text",
     "linux-cross",
     "linux-flash",
     "linux-host",
@@ -33,6 +34,10 @@ EXPECTED_COMMANDS = {
     "linux-changed-comments": (
         'bmake MACHINE=rp2040 CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" '
         'CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" check-changed-comments'
+    ),
+    "linux-changed-text": (
+        'bmake MACHINE=rp2040 CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" '
+        'CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" check-changed-text'
     ),
     "linux-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "linux-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',

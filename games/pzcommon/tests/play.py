@@ -544,6 +544,25 @@ def test_seed_repeats(root):
         check(boards[0] != boards[2], "%s: two seeds gave one board" % name)
 
 
+def test_long_seed(root):
+    # A -s argument far longer than any fixed buffer must start the game, and
+    # every character of it must count: two seeds that differ only in the
+    # last character give two boards. The key n draws the next game from the
+    # same long seed.
+    for name in PUZZLES:
+        boards = []
+        for last in ("a", "a", "b"):
+            g = Game(root, name, ["-s", "x" * 4000 + last])
+            check(g.term.max_row > 0, "%s: a long seed drew nothing" % name)
+            boards.append([g.term.line(r) for r in range(3, 3 + 12)])
+            if last == "a" and len(boards) == 1:
+                g.send(b"n")
+                check(g.term.max_row > 0, "%s: n failed on a long seed" % name)
+            check(g.finish() == 0, "%s: exit after a long seed" % name)
+        check(boards[0] == boards[1], "%s: a long seed gave two boards" % name)
+        check(boards[0] != boards[2], "%s: the tail of a long seed was ignored" % name)
+
+
 def test_bad_args(root):
     for name in PUZZLES:
         for args in (["-z"], ["-s"], ["a", "b"], ["-m", "-m", "-q"]):

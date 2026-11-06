@@ -110,7 +110,7 @@ apply(char *m)
 static int
 start_game(const char *desc, const char **err)
 {
-	char seed[96], *d;
+	char *seed, *d;
 	random_state *rs;
 	void *s;
 
@@ -120,10 +120,14 @@ start_game(const char *desc, const char **err)
 	if (desc) {
 		d = dupstr(desc);
 	} else {
+		/* The seed text is the user's -s argument, a '.', the decimal
+		 * game number (at most 11 characters) and the terminator. */
+		seed = snewn(strlen(base_seed) + 13, char);
 		sprintf(seed, "%s.%d", base_seed, game_no++);
 		rs = random_new(seed, (int)strlen(seed));
 		d = op->new_desc(params, rs, &aux);
 		random_free(rs);
+		sfree(seed);
 	}
 	*err = op->check_desc(params, d);
 	if (*err) {

@@ -158,6 +158,24 @@ PLAY = [
     (
         "",
         "pzcommon/pzfront.c",
+        "seed-copied-into-a-fixed-buffer",
+        "\t\tseed = snewn(strlen(base_seed) + 13, char);\n"
+        "\t\tsprintf(seed, \"%s.%d\", base_seed, game_no++);\n"
+        "\t\trs = random_new(seed, (int)strlen(seed));\n"
+        "\t\td = op->new_desc(params, rs, &aux);\n"
+        "\t\trandom_free(rs);\n"
+        "\t\tsfree(seed);\n",
+        "\t\tchar fixed[96];\n"
+        "\t\tseed = fixed;\n"
+        "\t\tsprintf(seed, \"%s.%d\", base_seed, game_no++);\n"
+        "\t\trs = random_new(seed, (int)strlen(seed));\n"
+        "\t\td = op->new_desc(params, rs, &aux);\n"
+        "\t\trandom_free(rs);\n",
+        ["long_seed"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
         "bad-id-exits-zero",
         "\tif (err) {\n\t\tcomplain(err);\n\t\treturn 2;\n\t}",
         "\tif (err) {\n\t\tcomplain(err);\n\t\treturn 0;\n\t}",

@@ -52,8 +52,15 @@ ${PROG}:	${OBJS} ${TOPSRC}/lib/libbn.a
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 # bc.h carries the token numbers scan.l needs, and bison writes it with bc.c.
-bc.c bc.h:	bc.y
-		${YACC} -o bc.c -d ${.CURDIR}/bc.y
+# bc.c is the only target with the bison recipe, so a parallel make runs one
+# writer; bc.h waits for it and regenerates only when the header alone is gone.
+BCGEN=		${YACC} -o bc.c -d ${.CURDIR}/bc.y
+
+bc.c:		bc.y
+		${BCGEN}
+
+bc.h:		bc.c
+		@test -f $@ || ${BCGEN}
 
 # flex includes <inttypes.h> in a C99 scanner and this tree has only
 # <stdint.h>, which declares the fixed-width types the scanner uses.

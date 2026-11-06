@@ -439,6 +439,11 @@
 "out": "6\n6\n6\n",
 "rc": 0
 },
+"dc.array_frame_move": {
+"err": "",
+"out": "0\n7\n8\n15\n7\n7\n8\n4\n",
+"rc": 0
+},
 "dc.array_squares": {
 "err": "",
 "out": "49\n361\n",

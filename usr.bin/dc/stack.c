@@ -168,8 +168,7 @@ stack_push(struct stack *stack, struct value *v)
 		stack_pushstring(stack, v->u.string);
 		break;
 	}
-	stack->stack[stack->sp].array = v->array == NULL ?
-	    NULL : array_dup(v->array);
+	stack->stack[stack->sp].array = v->array;
 }
 
 struct value *
@@ -188,8 +187,6 @@ stack_set_tos(struct stack *stack, struct value *v)
 	else {
 		stack_free_value(&stack->stack[stack->sp]);
 		stack->stack[stack->sp] = *v;
-		stack->stack[stack->sp].array = v->array == NULL ?
-		    NULL : array_dup(v->array);
 	}
 }
 

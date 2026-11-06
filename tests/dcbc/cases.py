@@ -290,6 +290,10 @@ DC_PROGRAMS = (
     ("count_digits", "1000000 Z p 0 Z p 0.001 Z p 123.456 Z p _12345 Z p"),
     ("long_line", "99999999999999999999 d * d * d * d * d * p"),
     (
+        "array_frame_move",
+        "7 0:a 8 3:a La 0;a pR Sa 0;a pR 3;a pR La d Sa Sa 0;a 3;a + pR La c 0;a pR 5 sb La sb Lb sa 0;a pR 3;a pR 4 1:a 1;a pR",
+    ),
+    (
         "skip_jump",
         "[1p 0J 2p M 3p]x 4p [[5p 1J 6p] x 7p M 8p]x 9p 3J 10p _1J 11p [12p 2J 13p]x 14p",
     ),

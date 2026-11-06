@@ -4,7 +4,8 @@ usage: mutate.py --root TREE --golden golden.json --work DIRECTORY
        [--hostcc CC] [--bison BISON] [--flex FLEX] [--list]
 
 Each mutation replaces text that must occur exactly once in usr.bin/dc/bcode.c
-(the lazily allocated register table) or usr.bin/bc/bc.y (the name table that
+(the lazily allocated register table and the count J pops), usr.bin/dc/stack.c
+(the ownership of a value's array) or usr.bin/bc/bc.y (the name table that
 replaced hcreate and hsearch), builds dc and bc from the faulted copy, and runs
 run_cases.py against it; a faulted dc is also built with the allocation
 accounting and run against peak.json. A mutant is rejected when either run
@@ -19,6 +20,7 @@ import subprocess
 import sys
 
 BCODE = "usr.bin/dc/bcode.c"
+STACKC = "usr.bin/dc/stack.c"
 BCY = "usr.bin/bc/bc.y"
 
 # (name, file, original text, replacement)
@@ -66,6 +68,18 @@ MUTATIONS = (
         BCODE,
         "\ti = get_ulong(n);\n\tfree_number(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx(\"J command",
         "\ti = get_ulong(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx(\"J command",
+    ),
+    (
+        "stack_push_copies_array",
+        STACKC,
+        "\tstack->stack[stack->sp].array = v->array;\n",
+        "\tstack->stack[stack->sp].array = v->array == NULL ?\n\t    NULL : array_dup(v->array);\n",
+    ),
+    (
+        "stack_set_tos_copies_array",
+        STACKC,
+        "\t\tstack->stack[stack->sp] = *v;\n",
+        "\t\tstack->stack[stack->sp] = *v;\n\t\tstack->stack[stack->sp].array = v->array == NULL ?\n\t\t    NULL : array_dup(v->array);\n",
     ),
     (
         "names_compare_first_byte",
@@ -176,8 +190,8 @@ def main():
         # quoted includes find dc's extern.h and not bc's.
         copy = os.path.join(out, "dcsrc")
         shutil.copytree(dcdir, copy, ignore=shutil.ignore_patterns("*.o", "dc", "*.0"))
-        if target == BCODE:
-            shutil.copyfile(mutated, os.path.join(copy, "bcode.c"))
+        if target in (BCODE, STACKC):
+            shutil.copyfile(mutated, os.path.join(copy, os.path.basename(target)))
         bcode = os.path.join(copy, "bcode.c")
         os.makedirs(os.path.join(out, "dc"))
         os.makedirs(os.path.join(out, "bc"))

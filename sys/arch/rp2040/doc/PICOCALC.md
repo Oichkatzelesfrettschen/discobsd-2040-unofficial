@@ -313,12 +313,12 @@ interface, plus a tile-blit operation that draws from a tile table the
 process passes; the text console restores itself from its cell store
 when a graphics client closes.
 
-The first item ships the tree's Plan 9 `bc` and `dc` (MIT license, already
-built for rp2040, in no profile) as a manifest closure. It changes the
-full manifest, which `docs/research/c17-shipped-resource-baseline.json`
-pins by hash and by packed program, so it lands with a re-recorded
-baseline from a distribution run and a `NOTICE` section for the Plan 9
-Foundation license.
+The `picocalc` root profile ships the tree's Plan 9 `bc` and `dc` (MIT,
+`NOTICE` section 16) as the `calc-bignum` closure and `usr.bin/calc` as the
+`calc` closure; the `full` profile of the bare Pico names neither
+(`PROFILES.md`). `docs/research/c17-shipped-resource-baseline.json` still
+records the manifest from before those closures, and re-recording it from
+a distribution run is open work (`docs/research/picocalc-session-handoff.md`).
 
 ### Strict C17 for the remaining console files
 

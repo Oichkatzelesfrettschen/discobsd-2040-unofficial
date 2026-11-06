@@ -243,6 +243,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `audit-handbacks/step5-printf-float-handback.md` | printf floating conversion, its source and linkage |
 | `sixteen-bit-audit-response.md` | the 16-bit assumption audit ruled item by item: kernel items closed in `ce33939` with the `tsleep` bound gated since, the libtcl extent, cache, reference-count, separator, regexp and regsub defects, the `vmrate` counters and the `ps` UID width repaired with calibrated gates, retained narrow formats, and deferrals with their validation paths |
 | `picocalc-emulation.md` | the PicoCalc survey of emulators (Renode, rp2040js, QEMU), the Renode carrier model for the ST7365P panel and the keyboard controller, the four SPI-path corrections to the pinned RP2040 models, and the host-to-hardware test pipeline |
+| `picocalc-session-handoff.md` | the PicoCalc hand-off: what PRs #344, #345 and the test-pipeline PR put in the tree, the two board builds and what they share, every test stage from host to PicoCalc hardware with its state, and the ordered next work |
 | `renode-rp2040-upstream-reports.md` | two issue texts for matgla/Renode_RP2040 with their `git am` patch series and the board measurement behind them, unsent |
 
 ### Accounts, licensing and the host side

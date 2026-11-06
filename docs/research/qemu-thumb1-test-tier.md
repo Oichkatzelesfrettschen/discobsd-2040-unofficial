@@ -211,7 +211,7 @@ instruction or an unaligned access for the paths the probe and fptest cover.
 | tty ioctl and `sysctl` (`__sysctl`, `kmemdev`) | terminal modes translate; `machdep.*` and kmem describe kernel state the loader does not have | not worth emulating; stay board or Renode |
 | SIO divider | not used: `aeabi_div.S` divides in software; only `usr.bin/mputest` touches SIO | none |
 | u-area | kernel-only | none |
-| MPU/privilege | not modelled by qemu-user | none |
+| MPU/privilege | not modeled by qemu-user | none |
 | `dev` nodes | no `/dev` | out of scope |
 
 The loader checks one thing no host gate checks: that the code the board

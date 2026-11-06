@@ -1,6 +1,7 @@
 # Host, ILP32 and Thumb-1 gate for usr.bin/dc and usr.bin/bc.
 #
-#   check          check-native, check-ilp32, check-sanitized, check-mutants
+#   check          check-process-groups, check-native, check-ilp32,
+#                  check-sanitized, check-mutants
 #   check-native   host builds of both programs from the tree sources against
 #                  lib/libbn, run over cases.py: arithmetic against Python
 #                  integers, the register table against a model, and the rest
@@ -9,6 +10,10 @@
 #                  target's 32 bits
 #   check-sanitized the same under AddressSanitizer and UndefinedBehavior
 #                  Sanitizer
+#   check-process-groups
+#                  procgroup.py's calibration of the leak scan: a single-child
+#                  kill leaves an orphan the scan finds, the group launch of
+#                  run_cases.py and mutate.py leaves none
 #   check-mutants  every faulted copy of bcode.c's register table and bc.y's
 #                  name table must be rejected by the cases
 #   check-qemu     dc as a Thumb-1 (ARMv6-M) program under qemu-arm user-mode
@@ -103,7 +108,7 @@ RUN_CASES=	${PYTHON} -I run_cases.py --golden golden.json
 # check-native under -j, so the pair exists before any variant starts.
 check-native check-ilp32 check-sanitized: build/bc.h
 
-check: check-grammar check-native check-ilp32 check-sanitized check-mutants
+check: check-process-groups check-grammar check-native check-ilp32 check-sanitized check-mutants
 
 # usr.bin/bc builds with bison's conflict warnings off, because an LALR
 # bison cannot %expect reduce/reduce conflicts; this target holds the
@@ -111,6 +116,10 @@ check: check-grammar check-native check-ilp32 check-sanitized check-mutants
 # OpenBSD grammar has.
 check-grammar:
 	@sh ${.CURDIR}/check_grammar.sh ${BISON} ${BCDIR}/bc.y
+
+check-process-groups:
+	mkdir -p build
+	${PYTHON} -I procgroup.py --selftest build
 
 check-native: build/native/dc/dc build/native/bc/bc
 	${RUN_CASES} --dc build/native/dc/dc --bc build/native/bc/bc
@@ -199,12 +208,12 @@ check-qemu:
 	${RUN_CASES} --dc "${QEMU_ARM} build/arm/dc" --dc-only --corpus-limit 120 --no-host-text
 .endif
 .else
-check check-native check-ilp32 check-sanitized check-mutants check-peak check-qemu:
+check check-process-groups check-native check-ilp32 check-sanitized check-mutants check-peak check-qemu:
 	@echo "SKIP dcbc: the gate runs on Linux hosts only; no execution occurred"
 .endif
 
 clean:
 	rm -rf build dc-arm getopt-arm.o __pycache__
 
-.PHONY: all check check-grammar check-native check-ilp32 check-sanitized check-peak \
+.PHONY: all check check-grammar check-process-groups check-native check-ilp32 check-sanitized check-peak \
     check-mutants check-qemu clean

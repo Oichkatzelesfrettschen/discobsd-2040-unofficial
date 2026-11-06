@@ -143,7 +143,7 @@ MUTANTS = [
         [
             (
                 "on_signal(int sig)\n{\n\ttty_leave();",
-                "on_signal(int sig)\n{\n\t(void)write(1, reset_seq, (size_t)reset_len);",
+                "on_signal(int sig)\n{\n\tput_fd(1, reset_seq, (size_t)reset_len);",
             )
         ],
         [],
@@ -159,7 +159,7 @@ MUTANTS = [
     ),
     (
         "signal-reset-sequence-skipped",
-        [("\ttty_restore();\n\t(void)write(1, reset_seq, (size_t)reset_len);", "\ttty_restore();")],
+        [("\ttty_restore();\n\tput_fd(1, reset_seq, (size_t)reset_len);", "\ttty_restore();")],
         [],
         ["signals", "exit_paths"],
         False,

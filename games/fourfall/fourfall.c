@@ -830,6 +830,20 @@ static const char *const help[7] = {
 static char obuf[OBUF];
 static int olen;
 
+/*
+ * write(2) for output whose failure leaves nothing to do: the terminal is
+ * gone or an error is already on its way out. The result is taken into a
+ * variable because glibc marks write warn_unused_result under
+ * _FORTIFY_SOURCE, and a cast to void does not silence that.
+ */
+static void
+put_fd(int fd, const void *p, size_t n)
+{
+	ssize_t r = write(fd, p, n);
+
+	(void)r;
+}
+
 /* What the terminal shows: board cells, panel numbers, preview, state. */
 static unsigned char shadow[VIEW_ROWS][FF_COLS];
 static long p_score, p_lines, p_level;
@@ -842,7 +856,7 @@ static void
 ob_flush(void)
 {
 	if (olen > 0)
-		(void)write(1, obuf, (size_t)olen);
+		put_fd(1, obuf, (size_t)olen);
 	olen = 0;
 }
 
@@ -987,7 +1001,8 @@ draw_cells(void)
 		for (c = 0; c < FF_COLS; c++) {
 			if (shadow[r - FF_HIDDEN][c] == view[r - FF_HIDDEN][c])
 				continue;
-			(void)ff_board_pos(r, c, &tr, &tc);
+			if (!ff_board_pos(r, c, &tr, &tc))
+				continue;
 			if (tr != nr || tc != nc)
 				ob_goto(tr, tc);
 			ob_cell(view[r - FF_HIDDEN][c]);
@@ -1387,7 +1402,7 @@ on_stop(int sig)
 		gtty_restore();
 		raw_on = 0;
 	}
-	(void)write(1, park_seq, sizeof park_seq - 1);
+	put_fd(1, park_seq, sizeof park_seq - 1);
 	(void)signal(SIGTSTP, SIG_DFL);
 	(void)sigemptyset(&set);
 	(void)sigaddset(&set, SIGTSTP);
@@ -1423,7 +1438,7 @@ term_leave(void)
 		gtty_restore();
 		raw_on = 0;
 	}
-	(void)write(1, leave_seq, sizeof leave_seq - 1);
+	put_fd(1, leave_seq, sizeof leave_seq - 1);
 }
 
 static int
@@ -1443,7 +1458,7 @@ usage(void)
 	static const char msg[] =
 	    "usage: fourfall [-cgm] [start-level [seed]]\n";
 
-	(void)write(2, msg, sizeof msg - 1);
+	put_fd(2, msg, sizeof msg - 1);
 	return 2;
 }
 
@@ -1568,7 +1583,7 @@ main(int argc, char **argv)
 	}
 	term_leave();
 	if (err)
-		(void)write(2, err, strlen(err));
+		put_fd(2, err, strlen(err));
 	if (got_sig)
 		return 128 + (int)got_sig;
 	return status;

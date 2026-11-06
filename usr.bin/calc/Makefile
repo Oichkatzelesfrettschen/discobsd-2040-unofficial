@@ -37,7 +37,7 @@ HOSTSAN=	${PROG}-host-san
 LIBSRCS!=	ls ${LIBDIR}/calc_*.c
 HOST_CFLAGS=	-std=c17 -pedantic-errors -D_DEFAULT_SOURCE -DHOSTBUILD \
 		-Wall -Wextra -Werror -Wshadow -Wconversion \
-		-Wold-style-definition -O1 -I${LIBDIR}
+		-Wold-style-definition ${HOST_FORTIFY} -I${LIBDIR}
 # tools/host-test.mk supplies the sanitizer probe, the tree libm objects and
 # the qemu-arm newlib link shared with tests/libcalc and tests/libbn.
 include ${TOPSRC}/tools/host-test.mk

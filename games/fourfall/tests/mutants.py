@@ -241,8 +241,8 @@ PLAY_MUTANTS = [
     ),
     (
         "sigtstp-stops-in-raw-mode",
-        "\t\tgtty_restore();\n\t\traw_on = 0;\n\t}\n\t(void)write(1, park_seq",
-        "\t\traw_on = 0;\n\t}\n\t(void)write(1, park_seq",
+        "\t\tgtty_restore();\n\t\traw_on = 0;\n\t}\n\tput_fd(1, park_seq",
+        "\t\traw_on = 0;\n\t}\n\tput_fd(1, park_seq",
         ["job_control"],
     ),
     (

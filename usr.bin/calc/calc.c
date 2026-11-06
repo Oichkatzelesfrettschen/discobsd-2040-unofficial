@@ -947,6 +947,20 @@ evalstr(const char *s)
 static char obuf[512];
 static size_t olen;
 
+/*
+ * write(2) for output whose failure leaves nothing to do: the terminal is
+ * gone or an error is already on its way out. The result is taken into a
+ * variable because glibc marks write warn_unused_result under
+ * _FORTIFY_SOURCE, and a cast to void does not silence that.
+ */
+static void
+put_fd(int fd, const void *p, size_t n)
+{
+	ssize_t r = write(fd, p, n);
+
+	(void)r;
+}
+
 static void
 oflush(void)
 {
@@ -2008,7 +2022,7 @@ tty_leave(void)
 		return;
 	tty_raw = 0;
 	tty_restore();
-	(void)write(1, reset_seq, (size_t)reset_len);
+	put_fd(1, reset_seq, (size_t)reset_len);
 }
 
 /*
@@ -2350,7 +2364,7 @@ usage(void)
 {
 	static const char msg[] = "usage: calc [-dlpr] [expression ...]\n";
 
-	(void)write(2, msg, sizeof msg - 1);
+	put_fd(2, msg, sizeof msg - 1);
 	return 2;
 }
 

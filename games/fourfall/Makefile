@@ -28,7 +28,7 @@ ${PROG}:	${OBJS}
 # FIONREAD under strict C17 on a glibc host.
 host:		${PROG}.c ${TOPSRC}/games/gametty.h
 		${HOSTCC} -std=c17 -pedantic-errors -D_DEFAULT_SOURCE -Wall -Wextra -Werror \
-		    -DHOSTBUILD -o ${HOSTBIN} ${PROG}.c
+		    ${HOST_FORTIFY} -DHOSTBUILD -o ${HOSTBIN} ${PROG}.c
 
 # The rules half alone: tests/logic_test.c includes fourfall.c with
 # FOURFALL_LOGIC and runs every line of tests/vectors.txt plus the

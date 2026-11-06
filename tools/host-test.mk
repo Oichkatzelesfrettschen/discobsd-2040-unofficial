@@ -6,6 +6,8 @@
 # the first rule bmake reads becomes the default and this file defines the
 # tl_*.o rules.
 #
+#   HOST_FORTIFY          -O1 with _FORTIFY_SOURCE=2, for host builds of
+#                         programs that call write and read directly
 #   SAN_FLAGS, SAN_OK     AddressSanitizer plus UndefinedBehaviorSanitizer,
 #                         and "yes" when tools/compiler-probe.sh links them
 #   OBJCOPY_OK            "yes" when objcopy is on the path
@@ -22,6 +24,13 @@
 #
 # A consumer that finds qemu-arm absent prints a SKIP line naming the missing
 # execution, and fails instead when REQUIRE_QEMU is set (root check-qemu).
+
+# glibc's fortified headers mark write and read warn_unused_result and add
+# object-size checks, but only with optimization on and _FORTIFY_SOURCE set;
+# some distribution compilers set it by default and some do not. Host builds
+# that add HOST_FORTIFY see the same diagnostics on every host. The -U first
+# keeps a compiler's own definition from being redefined.
+HOST_FORTIFY=	-O1 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2
 
 SAN_FLAGS=	-fsanitize=address,undefined -fno-sanitize-recover=all \
 		-fno-omit-frame-pointer

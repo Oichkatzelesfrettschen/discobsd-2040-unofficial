@@ -161,7 +161,7 @@ def register_cases():
     out = "".join(_dec(values[r]) for r in sample)
     cases.append(_case("dc", "reg_ext_values", bytes(prog), ["-x"], out))
 
-    # Read back in reverse order and read neighbours that were never written.
+    # Read back in reverse order and read neighbors that were never written.
     untouched = [r for r in (2, 255 + 1 + 9, 700, 20000, 65000) if r not in values]
     prog = bytearray()
     for r in sample[::2]:
@@ -175,7 +175,7 @@ def register_cases():
             continue
         prog += b"l" + _ext(r) + b" p\n"
         out += "0\n"
-    cases.append(_case("dc", "reg_ext_neighbours", bytes(prog), ["-x"], out))
+    cases.append(_case("dc", "reg_ext_neighbors", bytes(prog), ["-x"], out))
 
     # Stack registers: push three values on each of several registers, pop.
     regs = [3, 256, 300, 5000, 65791]

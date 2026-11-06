@@ -53,7 +53,7 @@ all: check
 
 build/bc.c build/bc.h: ${BCDIR}/bc.y
 	mkdir -p build
-	cd build && ${BISON} -y -Wno-yacc -o bc.c -d ${BCDIR}/bc.y
+	cd build && ${BISON} -y -Wno-yacc -Wno-conflicts-sr -Wno-conflicts-rr -o bc.c -d ${BCDIR}/bc.y
 
 build/scan.c: ${BCDIR}/scan.l
 	mkdir -p build
@@ -88,7 +88,19 @@ include ${TOPSRC}/tools/host-test.mk
 .if ${HOST_OS} == "Linux"
 RUN_CASES=	${PYTHON} -I run_cases.py --golden golden.json
 
-check: check-native check-ilp32 check-sanitized check-mutants
+check: check-grammar check-native check-ilp32 check-sanitized check-mutants
+
+# usr.bin/bc builds with bison's conflict warnings off, because an LALR
+# bison cannot %expect reduce/reduce conflicts; this target holds the
+# grammar at the one shift/reduce and sixteen reduce/reduce conflicts the
+# OpenBSD grammar has.
+check-grammar:
+	@out=`${BISON} -y -Wno-yacc -Wconflicts-sr -Wconflicts-rr -o /dev/null ${BCDIR}/bc.y 2>&1`; \
+	case "$$out" in \
+	*"1 shift/reduce conflict "*"16 reduce/reduce conflicts"*) \
+		echo "PASS dcbc grammar: 1 shift/reduce, 16 reduce/reduce" ;; \
+	*) echo "FAIL dcbc grammar: $$out"; exit 1 ;; \
+	esac
 
 check-native: build/native/dc/dc build/native/bc/bc
 	${RUN_CASES} --dc build/native/dc/dc --bc build/native/bc/bc
@@ -156,5 +168,5 @@ check check-native check-ilp32 check-sanitized check-mutants check-peak check-qe
 clean:
 	rm -rf build dc-arm getopt-arm.o __pycache__
 
-.PHONY: all check check-native check-ilp32 check-sanitized check-peak \
+.PHONY: all check check-grammar check-native check-ilp32 check-sanitized check-peak \
     check-mutants check-qemu clean

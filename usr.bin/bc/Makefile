@@ -21,7 +21,18 @@ LIBBN=		${TOPSRC}/lib/libbn
 BISON!=		for b in /opt/homebrew/opt/bison/bin/bison /usr/local/opt/bison/bin/bison ; do \
 			if [ -x "$$b" ] ; then echo "$$b" ; exit 0 ; fi ; \
 		done ; echo bison
-YACC=		${BISON} -y -Wno-yacc
+# The OpenBSD grammar carries one shift/reduce and sixteen reduce/reduce
+# conflicts that the generators' defaults resolve; an LALR bison cannot
+# %expect a reduce/reduce conflict, so both classes are silenced here and
+# tests/dcbc check-grammar holds the two counts.
+YACC=		${BISON} -y -Wno-yacc -Wno-conflicts-sr -Wno-conflicts-rr
+# macOS's own flex writes a scanner whose yy_size_t comparisons fail
+# -Wsign-compare; Homebrew's flex, keg-only like its bison, writes the
+# scanner the Linux flex does, so that keg is looked for first.
+FLEX!=		for f in /opt/homebrew/opt/flex/bin/flex /usr/local/opt/flex/bin/flex ; do \
+			if [ -x "$$f" ] ; then echo "$$f" ; exit 0 ; fi ; \
+		done ; echo flex
+LEX=		${FLEX}
 
 DCSRCS=		dc.c bcode.c inout.c mem.c stack.c
 DCOBJS=		${DCSRCS:.c=.o}
@@ -51,8 +62,8 @@ scan.c:		scan.l
 		sed 's/^#include <inttypes.h>/#include <stdint.h>/' $@ > $@.new
 		mv $@.new $@
 
-# The generated parser and scanner are compiled with the diagnostics their
-# generators leave open; the hand-written objects keep the tree's full set.
+# The generated parser and scanner compile under the same warnings as the
+# hand-written objects; the scanner needs the parser's token header first.
 bc.o scan.o:	bc.h
 
 ${DCOBJS} bc.o scan.o: extern.h pathnames.h ${DCDIR}/compat.h ${LIBBN}/bn.h

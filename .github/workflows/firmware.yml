@@ -56,7 +56,7 @@ jobs:
       # of the host tools the kernel build runs first.
       # The tiers add: shellcheck and ruff (check-lint), qemu-user for
       # qemu-arm and libnewlib-arm-none-eabi for the C library the qemu-arm
-      # test programs link (check-qemu: libcalc, libbn, calc), which
+      # test programs link (check-qemu: libcalc, libbn, calc, dc), which
       # gcc-arm-none-eabi does not depend on, and capstone and pyelftools
       # for the divider verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
       # packages no ruff and pip refuses the system interpreter. The 32-bit

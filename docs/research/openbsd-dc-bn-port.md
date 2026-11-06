@@ -528,7 +528,8 @@ Environment: the host of the first run, bison 3.8.2, flex 2.6.4, byacc
   prints 0 in OpenBSD and a message alone in GNU; and the library functions
   differ in the last digit or in the format of zero (`s(0)` at scale 20,
   `c(3.14159)` at scale 5).
-- `bmake MACHINE=rp2040 logged-check` (exit 0, 2,283.6 s for the check stage):
+- `bmake MACHINE=rp2040 logged-check` (exit 0 on the final commit, 110.6 s for
+  the build stage and 1,547.6 s for the check stage):
   includes `check-dcbc`, the cross builds of both programs, `check-fs-profiles`,
   `check-c17-source-denominator` and `check-qemu`.
 - The `picocalc` image leaves 189 free blocks (210 before) and `full` 280

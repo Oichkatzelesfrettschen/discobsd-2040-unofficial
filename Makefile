@@ -798,6 +798,27 @@ check-changed-comments: check-python
 
 .PHONY: check-comment-hygiene check-changed-comments
 
+# Added text: whitespace errors anywhere and British spellings in Markdown
+# prose (tools/check_changed_text.py). check-text-hygiene calibrates the
+# checker on throwaway repositories; check-changed-text enforces it on an
+# explicit commit range, the same pair of commits check-changed-comments
+# compares.
+check-text-hygiene: check-python
+		${PYTHON} tools/changed_text_test.py
+
+check-changed-text: check-python
+		@set -eu; \
+		if [ -z "${CHANGED_COMMENT_BASE}" ] || \
+		    [ -z "${CHANGED_COMMENT_HEAD}" ]; then \
+			echo "check-changed-text requires CHANGED_COMMENT_BASE and CHANGED_COMMENT_HEAD" >&2; \
+			exit 2; \
+		fi; \
+		${PYTHON} tools/check_changed_text.py --root ${TOPSRC} \
+		    --base ${CHANGED_COMMENT_BASE:Q} \
+		    --revision ${CHANGED_COMMENT_HEAD:Q}
+
+.PHONY: check-text-hygiene check-changed-text
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -942,7 +963,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
 		check-capacity-corpus \
-		check-comment-hygiene \
+		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \

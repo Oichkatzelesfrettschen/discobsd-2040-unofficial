@@ -200,6 +200,19 @@ jobs:
               CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
               check-changed-comments
 
+      - name: Check text added by the tested revision
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-changed-text \
+            --log .build-logs/linux-changed-text.log \
+            --status .build-logs/linux-changed-text.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 \
+              CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" \
+              CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
+              check-changed-text
+
       - name: Run the host tier
         timeout-minutes: 15
         run: |

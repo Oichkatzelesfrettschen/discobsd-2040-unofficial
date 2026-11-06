@@ -209,6 +209,118 @@ def check_panel_registers(run: Run) -> None:
         run.expect(False, message)
 
 
+SPI1_SSPDR = 0x40040008
+SPI1_SSPSR = 0x4004000C
+SSPSR_TFE, SSPSR_TNF, SSPSR_RNE, SSPSR_BSY = 0x01, 0x02, 0x04, 0x10
+FIFO_DEPTH = 8
+FRAME_BYTE = 0xA5
+SPI_SETTLE_SLICES = 40
+
+
+def spi_fifo_failures(levels: dict[str, int], accepted: int, dropped: int,
+                      sent: int) -> list[str]:
+    """The assertions a PL022 transmit-FIFO observation fails.
+
+    levels maps a label to the SSPSR value read after that many back-to-back
+    SSPDR writes with virtual time held still: "one" after one frame, "fill"
+    after eight, "full" after nine, "over" after the extra writes of a driver
+    that skips the TNF wait, and "idle" once the wire has drained. The frame
+    in the shift register is not in the FIFO, so nine writes fill an
+    eight-entry FIFO; the writes beyond that are discarded, so the panel
+    receives nine bytes however many were written. accepted and dropped are
+    the panel's byte counter and without-chip-select counter deltas.
+    """
+    failures: list[str] = []
+
+    def expect(condition: bool, message: str) -> None:
+        if not condition:
+            failures.append(message)
+
+    one, fill = levels["one"], levels["fill"]
+    full, over, idle = levels["full"], levels["over"], levels["idle"]
+    expect(one & SSPSR_BSY != 0 and one & SSPSR_TFE != 0,
+           "spi1: after one frame BSY must be set and the FIFO empty (the frame is shifting)")
+    expect(fill & SSPSR_TNF != 0 and fill & SSPSR_TFE == 0,
+           f"spi1: with {FIFO_DEPTH - 1} frames queued TNF must be set and TFE clear")
+    expect(full & SSPSR_TNF == 0 and full & SSPSR_TFE == 0,
+           f"spi1: with {FIFO_DEPTH} frames queued TNF must be clear")
+    expect(over & SSPSR_TNF == 0, "spi1: TNF must stay clear while the FIFO is full")
+    expect(idle & SSPSR_BSY == 0 and idle & SSPSR_TNF != 0 and idle & SSPSR_TFE != 0,
+           "spi1: after the wire drains BSY must clear and TNF and TFE must set")
+    expect(accepted == FIFO_DEPTH + 1,
+           f"spi1: the panel received {accepted} bytes from {sent} writes; "
+           f"expected {FIFO_DEPTH + 1} (a full FIFO discards the rest)")
+    expect(dropped == accepted,
+           f"spi1: {dropped} of {accepted} probe bytes reached the panel with chip select high")
+    return failures
+
+
+# SSPSR values of a controller that behaves as described above, and the
+# observation of the model before the FIFO level existed (TNF and TFE
+# constant, every write delivered).
+GOOD_FIFO = ({"one": 0x17, "fill": 0x16, "full": 0x1c, "over": 0x1c, "idle": 0x0f},
+             FIFO_DEPTH + 1, FIFO_DEPTH + 1, FIFO_DEPTH + 4)
+UNBOUNDED_FIFO = ({"one": 0x17, "fill": 0x17, "full": 0x17, "over": 0x17, "idle": 0x0f},
+                  FIFO_DEPTH + 4, FIFO_DEPTH + 4, FIFO_DEPTH + 4)
+
+
+def panel_counter(renode: Renode, pattern: str) -> int:
+    match = re.search(pattern, panel_status(renode))
+    return int(match.group(1)) if match else -1
+
+
+def spi_settle(renode: Renode) -> bool:
+    """Run until the controller is idle: BSY clear and the FIFO empty.
+
+    The console redraws after a keystroke or a timer tick, so the controller
+    can still be busy when a stage ends; an idle kernel leaves it quiet.
+    """
+    for _ in range(SPI_SETTLE_SLICES):
+        renode.command('emulation RunFor "0.05"')
+        status = monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPSR:#x}")
+        if status & SSPSR_BSY == 0 and status & SSPSR_TFE != 0:
+            for _ in range(FIFO_DEPTH + 1):
+                monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPDR:#x}")
+            return True
+    return False
+
+
+def check_spi_fifo(run: Run) -> None:
+    """Write past the transmit FIFO of the panel's controller and read SSPSR.
+
+    The emulation is paused between monitor commands, so the frames queue at
+    one virtual instant. They are bytes for a deselected panel; the Status
+    counters show the controller did not hand it more than nine, and all of
+    them would arrive if the model's TNF stayed set.
+    """
+    renode = run.renode
+    if not spi_settle(renode):
+        run.fail("spi1: the controller never went idle, so its FIFO cannot be probed")
+        return
+    bytes0 = panel_counter(renode, r"(\d+) bytes")
+    dropped0 = panel_counter(renode, r"(\d+) without chip select")
+    levels: dict[str, int] = {}
+    sent = 0
+    for label, count in (("one", 1), ("fill", FIFO_DEPTH), ("full", FIFO_DEPTH + 1),
+                         ("over", FIFO_DEPTH + 4)):
+        while sent < count:
+            renode.command(f"sysbus WriteDoubleWord {SPI1_SSPDR:#x} {FRAME_BYTE:#x}")
+            sent += 1
+        levels[label] = monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPSR:#x}")
+    accepted = panel_counter(renode, r"(\d+) bytes") - bytes0
+    dropped = panel_counter(renode, r"(\d+) without chip select") - dropped0
+    # Twelve frames last 7.7 microseconds at the driver's 12.5 MHz.
+    renode.command('emulation RunFor "0.00002"')
+    levels["idle"] = monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPSR:#x}")
+    for _ in range(FIFO_DEPTH + 1):
+        monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPDR:#x}")
+    print("check-picocalc: spi1 SSPSR "
+          + " ".join(f"{label} {value:#04x}" for label, value in levels.items())
+          + f"; panel took {accepted} of {sent} writes")
+    for message in spi_fifo_failures(levels, accepted, dropped, sent):
+        run.fail(message)
+
+
 # A Status line the model printed after a passing boot (st7365p.cs Status()).
 GOOD_STATUS = (
     "display on, sleep out, invert on, madctl 0x48, colmod 0x66, "
@@ -235,7 +347,16 @@ def self_test() -> int:
             print(f"self-test: the {name} Status line was not rejected: {broken}",
                   file=sys.stderr)
             return 1
-    print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants)")
+    levels, accepted, dropped, sent = GOOD_FIFO
+    if spi_fifo_failures(levels, accepted, dropped, sent):
+        print("self-test: the recorded good FIFO observation failed", file=sys.stderr)
+        return 1
+    levels, accepted, dropped, sent = UNBOUNDED_FIFO
+    if len(spi_fifo_failures(levels, accepted, dropped, sent)) < 3:
+        print("self-test: the unbounded FIFO observation was not rejected", file=sys.stderr)
+        return 1
+    print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
+          "good and unbounded FIFO)")
     return 0
 
 
@@ -285,6 +406,7 @@ def main(argv: list[str]) -> int:
                    f"register 0x09, {dropped} dropped; expected 42, 42 and 0")
         transactions = monitor_int(renode, "sysbus.i2c1.kbd Transactions")
         run.expect(transactions > 0, "keyboard: no I2C transaction reached 0x1f")
+        check_spi_fifo(run)
     except StageFailed:
         pass
     except RenodeError as error:

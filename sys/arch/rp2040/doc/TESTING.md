@@ -1455,14 +1455,21 @@ tty, so `operator` logs in and `uname -sr` typed with a Backspace in it
 answers `DiscoBSD 2.7` on the panel. A warning-class check holds the log to
 tools/renode/warning-classes.txt plus picocalc-warning-classes.txt, and a
 decoder self-test calibrates the frame reader on a good frame, a
-reverse-video row and a corrupted cell before its verdict counts.
+reverse-video row and a corrupted cell before its verdict counts. After the
+login stage the gate holds the emulation still, writes twelve frames to
+SPI1's SSPDR back to back and reads SSPSR: BSY is set with the FIFO empty
+after one frame (the frame is in the shift register), TNF is clear and TFE
+clear with eight frames queued behind the one shifting, and the panel counts
+nine bytes, because the controller discards the frames written to a full
+FIFO. A controller whose TNF stays set delivers all twelve, and the
+self-test rejects that observation.
 
 What it does not establish: anything about the physical panel or the
 keyboard controller. The panel model keeps the graphics RAM as written and
 records MADCTL MX and BGR and the INVON polarity without applying them, so
 orientation, color order and polarity of a real panel remain board
-observations; the SPI clock is a duration on the PL022's busy flag, not an
-edge; the keyboard controller model has no 16 ms scan period, no hold-repeat
+observations; the SPI clock is a frame duration at the programmed bit rate that sets the
+PL022's busy flag and transmit-FIFO level, not an edge; the keyboard controller model has no 16 ms scan period, no hold-repeat
 events and no FIFO overflow interrupt, and it answers a read at once, so the
 2 ms write-to-read gap `picokbd.c` uses is not a test of the real STM32
 firmware; the AXP2101, backlight and PSRAM are not modeled; the USB device

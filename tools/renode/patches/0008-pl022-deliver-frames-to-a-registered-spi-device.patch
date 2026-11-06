@@ -12,34 +12,49 @@ minutes. When a device is registered, a write to SSPDR now calls its
 Transmit() with the frame (two calls, high byte first, above eight bits),
 queues the reply in the receive FIFO and keeps BSY set for the frame's
 duration at the programmed bit rate, so a driver that waits on BSY sees the
-durations silicon gives. A controller with no registered device keeps the
-pin-level path, which PIO interworking needs.
+durations silicon gives. The frames still on the wire stand in for the
+transmit FIFO and the shift register: the oldest is shifting, the others
+wait in an eight-entry FIFO, SSPSR TNF and TFE derive from that level, and
+a frame written to a full FIFO is discarded as the data register discards it
+on silicon, so a driver that skips the TNF wait loses frames and spi_put()
+keeps its backpressure. A clock-source timer ends each frame at its exact
+virtual time, because the machine clock a register callback reads advances
+in quanta much longer than a 640 ns frame and would let the FIFO drain once
+per quantum. A controller with no registered device keeps the pin-level
+path, which PIO interworking needs.
 
 Assisted-by: Claude Code (claude-sonnet-5-5)
 ---
- emulation/peripherals/spi/rp2040_spi.cs | 52 +++++++++++++++++++++++++
- 1 file changed, 52 insertions(+)
+ emulation/peripherals/spi/rp2040_spi.cs | 101 +++++++++++++++++++++++++++++++-
+ 1 file changed, 98 insertions(+), 3 deletions(-)
 
 diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
 --- a/emulation/peripherals/spi/rp2040_spi.cs
 +++ b/emulation/peripherals/spi/rp2040_spi.cs
-@@ -16,6 +16,7 @@
+@@ -12,10 +12,13 @@
+ using Antmicro.Renode.Logging;
+ using System;
+ using System.Collections.Generic;
++using System.Threading;
+ using Antmicro.Renode.Core.Structure.Registers;
  using Antmicro.Renode.Utilities.Collections;
  using Antmicro.Renode.Peripherals.GPIOPort;
  using Antmicro.Renode.Peripherals.Miscellaneous;
 +using Antmicro.Renode.Time;
++using Antmicro.Renode.Peripherals.Timers;
  
  namespace Antmicro.Renode.Peripherals.SPI
  {
-@@ -32,6 +33,7 @@
+@@ -32,6 +35,8 @@
      public PL022(IMachine machine, RP2040GPIO gpio, int id, RP2040Clocks clocks, ulong address) : base(machine)
      {
        this.id = id;
-+      this.owner = machine;
++      frameTimer = new LimitTimer(machine.ClockSource, 1000000000, this, "SSPFRAME", direction: Direction.Ascending, enabled: false, workMode: WorkMode.OneShot, eventEnabled: true, autoUpdate: true);
++      frameTimer.LimitReached += FrameDone;
        this.gpio = gpio;
        this.clocks = clocks;
        txPins = new HashSet<int>();
-@@ -106,6 +108,7 @@
+@@ -106,6 +111,7 @@
        {
          newFrequency = 1;
        }
@@ -47,7 +62,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
        if (newFrequency != this._executionThread.Frequency)
        {
          this._executionThread.Frequency = newFrequency;
-@@ -224,6 +227,46 @@
+@@ -224,6 +230,85 @@
        return false;
      }
  
@@ -58,8 +73,22 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +    // bit rate, so a driver that waits on BSY sees the same durations as on
 +    // silicon. Without a registered device the controller clocks the frame
 +    // out on the GPIO pins, bit by bit, as before.
++    //
++    // The frames still on the wire stand in for the transmit FIFO and the
++    // shift register: the oldest is being shifted, and the others wait in
++    // the FIFO, which holds eight entries (PL022 TNF and TFE derive from
++    // that level). A frame written while the FIFO is full is discarded, as
++    // the data register discards it on silicon, so a driver that skips the
++    // TNF wait loses frames here too. A clock-source timer ends each frame
++    // at its exact virtual time: the machine clock otherwise advances in
++    // quanta far longer than a frame, and a driver polling TNF would see the
++    // FIFO drain only once per quantum.
 +    private void TransferFrame(ISPIPeripheral device, ushort frame)
 +    {
++      if (FrameFifoLevel() >= txBuffer.Capacity)
++      {
++        return;
++      }
 +      ushort reply = 0;
 +      if (loopbackMode)
 +      {
@@ -78,23 +107,57 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +      {
 +        rxBuffer.Enqueue(reply);
 +      }
-+      var now = owner.ElapsedVirtualTime.TimeElapsed;
-+      if (frameBusyUntil < now)
++      if (Interlocked.Increment(ref framesOnWire) == 1)
 +      {
-+        frameBusyUntil = now;
++        StartFrameTimer();
 +      }
-+      frameBusyUntil += TimeInterval.FromTicks(((ulong)dataSize * (ulong)TimeInterval.TicksPerSecond + bitRate - 1UL) / (bitRate == 0 ? 1UL : bitRate));
++    }
++
++    // One frame lasts dataSize bit times; the timer counts nanoseconds.
++    private void StartFrameTimer()
++    {
++      var rate = bitRate == 0 ? 1UL : bitRate;
++      var bits = dataSize < 4 ? 4UL : (ulong)dataSize;
++      frameTimer.Enabled = false;
++      frameTimer.Limit = (bits * 1000000000UL + rate - 1UL) / rate;
++      frameTimer.Value = 0;
++      frameTimer.Enabled = true;
++    }
++
++    private void FrameDone()
++    {
++      if (Interlocked.Decrement(ref framesOnWire) > 0)
++      {
++        StartFrameTimer();
++      }
 +    }
 +
 +    private bool FrameBusy()
 +    {
-+      return RegisteredPeripheral != null && owner.ElapsedVirtualTime.TimeElapsed < frameBusyUntil;
++      return Volatile.Read(ref framesOnWire) > 0;
++    }
++
++    // Frames waiting in the transmit FIFO: every frame on the wire but the
++    // one in the shift register.
++    private int FrameFifoLevel()
++    {
++      var frames = Volatile.Read(ref framesOnWire);
++      return frames > 0 ? frames - 1 : 0;
 +    }
 +
      private void Step()
      {
        if (transmitCounter > dataSize - 1)
-@@ -361,6 +404,11 @@
+@@ -300,6 +385,8 @@
+ 
+       rxBuffer.Clear();
+       txBuffer.Clear();
++      frameTimer.Enabled = false;
++      Interlocked.Exchange(ref framesOnWire, 0);
+ 
+       _executionThread.Stop();
+ 
+@@ -361,6 +448,11 @@
            return 0;
          }, writeCallback: (_, value) =>
          {
@@ -106,8 +169,14 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
            Logger.Log(LogLevel.Noisy, "SPI{0}: Adding to queue: {1}", id, value);
            if (txBuffer.Count < txBuffer.Capacity)
            {
-@@ -381,7 +429,7 @@
-         .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count != txBuffer.Capacity, name: "SSPSR_TNF")
+@@ -377,11 +469,11 @@
+         }, name: "SSPDR_DATA");
+ 
+       Registers.SSPSR.Define(registers)
+-        .WithFlag(0, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count == 0, name: "SSPSR_TFE")
+-        .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count != txBuffer.Capacity, name: "SSPSR_TNF")
++        .WithFlag(0, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count == 0 && FrameFifoLevel() == 0, name: "SSPSR_TFE")
++        .WithFlag(1, FieldMode.Read, valueProviderCallback: _ => txBuffer.Count != txBuffer.Capacity && FrameFifoLevel() < txBuffer.Capacity, name: "SSPSR_TNF")
          .WithFlag(2, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count != 0, name: "SSPSR_RNE")
          .WithFlag(3, FieldMode.Read, valueProviderCallback: _ => rxBuffer.Count == rxBuffer.Capacity, name: "SSPSR_RFF")
 -        .WithFlag(4, FieldMode.Read, valueProviderCallback: _ => running, name: "SSPSR_BSY");
@@ -115,13 +184,13 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
  
        Registers.SSPCPSR.Define(registers)
          .WithValueField(0, 8, valueProviderCallback: _ => clockPrescaleDivisor,
-@@ -441,6 +489,9 @@
+@@ -441,6 +533,9 @@
      private bool slaveModeDisabled;
      private bool running;
      private byte clockPrescaleDivisor;
-+    private readonly IMachine owner;
 +    private ulong bitRate;
-+    private TimeInterval frameBusyUntil;
++    private readonly LimitTimer frameTimer;
++    private int framesOnWire;
  
      private DoubleWordRegisterCollection registers;
  

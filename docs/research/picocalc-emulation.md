@@ -130,8 +130,15 @@ emulator, with the falsifier stated first.
    and never calls the child. Patch 0008 does when a device is registered:
    the frame goes to `Transmit()`, the reply goes into the receive FIFO, and
    BSY stays set for `dataSize / bitRate` of virtual time so a driver that
-   waits on BSY sees silicon's durations. A controller with no registered
-   device keeps the pin-level path that PIO interworking needs.
+   waits on BSY sees silicon's durations. The frames on the wire stand in for
+   the eight-entry transmit FIFO plus the shift register: SSPSR TNF and TFE
+   derive from that level, and a frame written to a full FIFO is discarded
+   as on silicon (`check-picocalc.py` writes twelve frames at one virtual
+   instant and expects the panel to count nine). A clock-source timer ends
+   each frame at its exact virtual time, since the clock a register
+   callback reads moves in quanta far longer than a 640 ns frame. A
+   controller with no registered device keeps the pin-level path that PIO
+   interworking needs.
 
 Patches 0005 through 0008 follow the existing series' form (`git format-patch`
 headers, applied in order by `tools/renode/fetch-renode-rp2040.sh`, each
@@ -250,8 +257,8 @@ vendor sends and this driver omits, and only a board capture decides it.
   correctly colored image with MADCTL 0x48 and inversion on is a board row.
 - Whether the vendor's E9h command, omitted by `st7365p.c`, matters.
 - The 66 ns minimum write cycle, the 12.5 MHz clock and the reset and
-  sleep-out delays. The PL022 model's busy time follows the programmed bit
-  rate; the panel model accepts bytes at any time.
+  sleep-out delays. The PL022 model's busy time and FIFO level follow the
+  programmed bit rate; the panel model accepts bytes at any time.
 - The firmware's behavior between a register write and the read, its
   hold-repeat events, FIFO overflow, Ctrl release loss and the 2 ms
   write-to-read gap the driver uses while keys arrive. The model answers at

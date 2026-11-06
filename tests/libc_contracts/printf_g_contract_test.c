@@ -45,11 +45,57 @@ static void
 fail(const char *what, const char *format, double value, const char *got,
     const char *want)
 {
+	uint64_t bits;
+
+	memcpy(&bits, &value, sizeof bits);
 	failures++;
 	if (shown++ < 25)
-		printf("FAIL %s: %s of %.17g: tree \"%s\", host \"%s\"\n", what,
-		    format, value, got, want);
+		printf("FAIL %s: format \"%s\" value %.17g bits 0x%016llx: "
+		    "tree \"%s\", want \"%s\"\n", what, format, value,
+		    (unsigned long long)bits, got, want);
 }
+
+/*
+ * C17 7.21.6.1p13 asks for a correctly rounded result only up to
+ * DECIMAL_DIG (17 for a double) significant digits; beyond them any decimal
+ * between the two neighbours with 17 digits is allowed, so a host libc that
+ * prints another such decimal is conforming and cannot judge the tree. The
+ * macOS libc is not assumed to print the exact digits there, so a build with
+ * HOST_DIGITS_LIMITED, defined by default under __APPLE__, asks the host
+ * only for results of at most 17 significant digits. The tree is held to the
+ * exact digits by the literals of the vectors, which CPython computed, and by
+ * the Linux and Thumb-1 runs.
+ */
+#if defined(__APPLE__) && !defined(HOST_DIGITS_LIMITED)
+#define HOST_DIGITS_LIMITED 1
+#endif
+#ifdef HOST_DIGITS_LIMITED
+#define DECIMAL_DIG_DOUBLE 17
+static unsigned long host_skipped;
+#endif
+
+/*
+ * The number of significant digits text prints before any exponent: the
+ * digits from the first nonzero one to the end of the mantissa, trailing
+ * zeros included.
+ */
+#ifdef HOST_DIGITS_LIMITED
+static int
+significant_digits(const char *text)
+{
+	int count = 0, started = 0;
+
+	for (; *text != '\0' && *text != 'e' && *text != 'E' && *text != 'p' &&
+	    *text != 'P'; text++) {
+		if (*text < '0' || *text > '9')
+			continue;
+		if (*text != '0')
+			started = 1;
+		count += started;
+	}
+	return count;
+}
+#endif
 
 #ifdef HOST_G_TIE_BUG
 /*
@@ -99,6 +145,12 @@ compare(const char *what, const char *format, double value)
 #endif
 	tree_snprintf(got, sizeof got, format, value);
 	snprintf(want, sizeof want, format, value);
+#ifdef HOST_DIGITS_LIMITED
+	if (significant_digits(want) > DECIMAL_DIG_DOUBLE) {
+		host_skipped++;
+		return;
+	}
+#endif
 	compared++;
 	if (strcmp(got, want) != 0)
 		fail(what, format, value, got, want);
@@ -115,10 +167,20 @@ vector(const char *format, double value, const char *expected)
 	compared++;
 	if (strcmp(got, expected) != 0)
 		fail("vector", format, value, got, expected);
+#ifdef HOST_DIGITS_LIMITED
+	if (significant_digits(expected) > DECIMAL_DIG_DOUBLE) {
+		host_skipped++;
+		return;
+	}
+#endif
 	if (strcmp(want, expected) != 0) {
+		uint64_t bits;
+
+		memcpy(&bits, &value, sizeof bits);
 		failures++;
-		printf("FAIL vector oracle: %s of %.17g: host \"%s\", "
-		    "literal \"%s\"\n", format, value, want, expected);
+		printf("FAIL vector oracle: format \"%s\" value %.17g bits "
+		    "0x%016llx: host \"%s\", literal \"%s\"\n", format, value,
+		    (unsigned long long)bits, want, expected);
 	}
 }
 
@@ -548,6 +610,10 @@ main(void)
 		    failures, compared);
 		return 1;
 	}
+#ifdef HOST_DIGITS_LIMITED
+	printf("host comparisons beyond %d significant digits skipped: %lu\n",
+	    DECIMAL_DIG_DOUBLE, host_skipped);
+#endif
 	printf("printf %%g contract tests passed (%lu comparisons)\n", compared);
 	return 0;
 }

@@ -33,16 +33,18 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
     return source.replace(old, new, 1)
 
 
-def run_in_group(command: list[str]) -> int:
-    """Run command in its own process group; a run past the deadline is killed
-    with its group and reported as -1, which counts as rejected."""
-    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, start_new_session=True)
-    try:
-        return process.wait(timeout=TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
-        return -1
+def run_in_group(command: list[str], output: Path) -> int:
+    """Run command in its own process group with its output in `output`; a run
+    past the deadline is killed with its group and reported as -1, which counts
+    as rejected."""
+    with output.open("wb") as stream:
+        process = subprocess.Popen(command, stdout=stream, start_new_session=True)
+        try:
+            return process.wait(timeout=TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            return -1
 
 
 def build_and_run(
@@ -74,7 +76,7 @@ def build_and_run(
         + ["-lm"],
         check=True,
     )
-    return run_in_group([str(executable)])
+    return run_in_group([str(executable)], work / f"printf-g-{label}.out")
 
 
 def main() -> int:
@@ -257,19 +259,19 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="printf-g-") as temporary:
         work = Path(temporary)
-        if (
-            build_and_run(
-                compiler,
-                tree_flags,
-                test_source,
-                objects,
-                float_member(source),
-                work,
-                "known-good",
+        status = build_and_run(
+            compiler, tree_flags, test_source, objects, float_member(source), work, "known-good"
+        )
+        if status != 0:
+            # The first disagreeing cases, each with format, value bits, the
+            # tree result and the expected text, are what the test printed.
+            report = (work / "printf-g-known-good.out").read_text(
+                encoding="utf-8", errors="replace"
             )
-            != 0
-        ):
-            raise MutationError("known-good doprnt.c and doprnt_float.c failed the contract")
+            print(report, file=sys.stderr)
+            raise MutationError(
+                f"known-good doprnt.c and doprnt_float.c failed the contract (status {status})"
+            )
         for label, mutated in mutations.items():
             if build_and_run(compiler, tree_flags, test_source, objects, mutated, work, label) == 0:
                 raise MutationError(f"{label}: known-bad mutation passed")

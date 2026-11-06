@@ -271,6 +271,33 @@ class Game:
         self.status = os.waitstatus_to_exitcode(st)
         return self.status
 
+    def wait_for(self, predicate, limit=3.0):
+        """Read output until predicate() holds or limit seconds pass.
+
+        A fixed quiet window ends early on a loaded host whenever the game
+        is silent for longer than the window, as it is during the 150 ms
+        flash of a cleared row; waiting on the expected state does not."""
+        end = time.time() + limit
+        while not predicate() and time.time() < end:
+            self.settle(0.02, 0.05)
+        return predicate()
+
+    def send_timed(self, chunks, gap):
+        """Write chunks with gap seconds between them; return the widest
+        gap the writes achieved, measured on the host clock.
+
+        The gap is spun rather than slept: macOS rounds a 10 ms sleep up
+        past the 40 ms escape deadline often enough that five slept
+        attempts in a row overshot it on the CI runner."""
+        stamps = []
+        for chunk in chunks:
+            os.write(self.fd, chunk)
+            stamps.append(time.monotonic())
+            until = stamps[-1] + gap
+            while time.monotonic() < until:
+                pass
+        return max((b - a for a, b in zip(stamps, stamps[1:])), default=0.0)
+
     def quit_within(self, limit):
         """Send q and require the exit within limit seconds; returns the
         status. A game that does not leave is killed and the check fails."""
@@ -584,15 +611,26 @@ def test_flash(prog):
     g.keys((ESC + b"[D") * 4 + b" ")
     check(b"~~" not in t.raw, "flash before the row was complete")
     t.chunks.clear()
+    dropped_at = time.time()
     g.keys(" ")
+    g.wait_for(lambda: status_line(g) == "score 232 lines 1 level 1")
+    g.settle(0.2)
     check(status_line(g) == "score 232 lines 1 level 1", "flash replay status: %r" % status_line(g))
     marks = t.raw.count(b"\x1b[1m~~\x1b[0m")
     check(marks == 12, "%d flash cells drawn, want 12" % marks)
     idx = [i for i, (_, d) in enumerate(t.chunks) if b"~~" in d]
     check(len(idx) == 1 and idx[0] + 1 < len(t.chunks), "flash frame count %r" % idx)
     check(t.chunks[idx[0]][1].count(b"~~") == 12, "the flash frame lacks a cell of the row")
-    gap = t.chunks[idx[0] + 1][0] - t.chunks[idx[0]][0]
-    check(0.12 <= gap <= 0.6, "flash lasted %.3f s, want about 0.15" % gap)
+    # The collapse cannot reach the terminal sooner than FLASH_MS after the
+    # drop was written, however late the host reads either frame, so the
+    # lower bound is measured from the write. A late read of the flash frame
+    # only shortens the frame-to-frame gap, so that gap bounds the flash
+    # from above only.
+    collapsed_at = t.chunks[idx[0] + 1][0]
+    check(collapsed_at - dropped_at >= 0.14,
+          "collapse %.3f s after the drop, want at least 0.15" % (collapsed_at - dropped_at))
+    gap = collapsed_at - t.chunks[idx[0]][0]
+    check(gap <= 0.6, "flash lasted %.3f s, want about 0.15" % gap)
     check(not t.lit(), "the cleared row is still drawn after the flash")
     check(t.text(23, 3, 26) == " " * 24, "collapsed row not blank")
     check(g.quit() == 0, "exit status %r" % g.status)
@@ -749,36 +787,61 @@ def test_job_control(prog):
     check(cooked(g.fd), "terminal not restored to the mode before the first stop")
 
 
+ESC_MS_SECONDS = 0.040
+# The abandoned-sequence cases need q to quit well inside the 4 s stalled
+# deadline the escape mutants restore, and far outside a runner's stall.
+QUIT_LIMIT = 2.0
+SPLIT_ATTEMPTS = 10
+# Between the 5 ms deadline the escape-deadline-5-ms mutant sets and the
+# real 40 ms, with room under the 30 ms discard threshold.
+SPLIT_GAP = 0.015
+
+
+def split_csi_case(prog, chunks, what, rotated):
+    """Send one CSI in pieces SPLIT_GAP apart and require it to parse as one key.
+
+    An attempt whose measured gap reached the deadline tests nothing and is
+    repeated; the case fails if no attempt kept every gap under it."""
+    widths = []
+    for _ in range(SPLIT_ATTEMPTS):
+        g = Game(prog, test="I")
+        widest = g.send_timed(chunks, SPLIT_GAP)
+        if widest >= ESC_MS_SECONDS * 0.75:
+            widths.append(widest)
+            g.quit()
+            continue
+        g.keys(" ")
+        check(status_line(g) == "score 40 lines 0 level 1", "%s: %r" % (what, status_line(g)))
+        if rotated:
+            for r in (20, 21, 22, 23):
+                check(cell(g, r, 6) == "[]", "%s: rotated cell row %d missing" % (what, r))
+        check(g.quit() == 0, "exit status %r" % g.status)
+        return
+    check(False, "%s: no attempt in %d kept the gaps under %.0f ms (widest %s)"
+          % (what, SPLIT_ATTEMPTS, ESC_MS_SECONDS * 750,
+             ", ".join("%.0f ms" % (w * 1000) for w in widths)))
+
+
 def test_escape_deadline(prog):
     # A truncated sequence is abandoned at the deadline; the next q quits.
     g = Game(prog, test="O")
     g.send(ESC + b"[")
     time.sleep(0.2)
-    check(g.quit_within(0.5) == 0, "ESC [ then q: exit %r" % g.status)
+    check(g.quit_within(QUIT_LIMIT) == 0, "ESC [ then q: exit %r" % g.status)
     check(cooked(g.fd), "terminal not restored")
     # The same for SS3 and a partial numeric CSI.
     for frag in (ESC + b"O", ESC + b"[1", ESC + b"[11"):
         g = Game(prog, test="O")
         g.send(frag)
         time.sleep(0.2)
-        check(g.quit_within(0.5) == 0, "%r then q: exit %r" % (frag, g.status))
-    # A byte inside the sequence arrives within the deadline: ESC, a 10 ms
-    # gap, then [A rotates.
-    g = Game(prog, test="I")
-    g.send(ESC, 0.01)
-    g.send(b"[A", 0.01)
-    g.keys(" ")
-    check(status_line(g) == "score 40 lines 0 level 1", "ESC gap [A: %r" % status_line(g))
-    for r in (20, 21, 22, 23):
-        check(cell(g, r, 6) == "[]", "ESC gap [A: rotated cell row %d missing" % r)
-    check(g.quit() == 0, "exit status %r" % g.status)
-    # Every byte of one CSI split by 10 ms gaps still parses as one key.
-    g = Game(prog, test="I")
-    for ch in (b"\x1b", b"[", b"A"):
-        g.send(ch, 0.01)
-    g.keys(" ")
-    check(status_line(g) == "score 40 lines 0 level 1", "split CSI: %r" % status_line(g))
-    check(g.quit() == 0, "exit status %r" % g.status)
+        check(g.quit_within(QUIT_LIMIT) == 0, "%r then q: exit %r" % (frag, g.status))
+    # A byte inside the sequence arrives within the deadline: ESC, a 15 ms
+    # gap, then [A rotates. The claim holds only for gaps under the game's
+    # 40 ms ESC_MS; a host that stalls a write past it delivers a bare Esc,
+    # so such an attempt is discarded and repeated rather than judged.
+    split_csi_case(prog, (ESC, b"[A"), "ESC gap [A", rotated=True)
+    # Every byte of one CSI split by 15 ms gaps still parses as one key.
+    split_csi_case(prog, (b"\x1b", b"[", b"A"), "split CSI", rotated=False)
     # A bare Esc still pauses, after the deadline and not before a key follows.
     g = Game(prog, test="O")
     g.send(ESC)
@@ -802,7 +865,7 @@ def test_stalled_gravity(prog):
     check(
         rows0 and rows1 and max(rows1) > max(rows0), "piece did not fall during a stalled sequence"
     )
-    check(g.quit_within(0.5) == 0, "exit status %r" % g.status)
+    check(g.quit_within(QUIT_LIMIT) == 0, "exit status %r" % g.status)
 
 
 def test_exit_restores(prog):

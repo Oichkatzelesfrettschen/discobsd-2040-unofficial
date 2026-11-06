@@ -62,6 +62,12 @@ MUTATIONS = (
         "#define REG_ARRAY_SIZE_BIG\t(UCHAR_MAX + 1 + USHRT_MAX)",
     ),
     (
+        "skip_count_leaked",
+        BCODE,
+        "\ti = get_ulong(n);\n\tfree_number(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx(\"J command",
+        "\ti = get_ulong(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx(\"J command",
+    ),
+    (
         "names_compare_first_byte",
         BCY,
         "while (table[i].key != NULL && strcmp(table[i].key, key) != 0)",

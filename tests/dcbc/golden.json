@@ -2079,6 +2079,11 @@
 "out": "3.375\n3.75\n.33333\n1.4142135\n1\n",
 "rc": 0
 },
+"dc.skip_jump": {
+"err": "dc: J command argument exceeded string execution depth\ndc: J command argument exceeded string execution depth\ndc: J command argument exceeded string execution depth\n",
+"out": "1\n3\n4\n5\n8\n9\n10\n11\n12\n13\n14\n",
+"rc": 0
+},
 "dc.sqrt_neg": {
 "err": "dc: square root of negative number\ndc: stack empty\n",
 "out": "",

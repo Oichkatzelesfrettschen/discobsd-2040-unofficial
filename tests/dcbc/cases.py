@@ -289,11 +289,26 @@ DC_PROGRAMS = (
     ("obase_neg_frac", "16 o _255.5 p 2 o 5.75 p 5 k 10 o 1 7 / p"),
     ("count_digits", "1000000 Z p 0 Z p 0.001 Z p 123.456 Z p _12345 Z p"),
     ("long_line", "99999999999999999999 d * d * d * d * d * p"),
+    (
+        "skip_jump",
+        "[1p 0J 2p M 3p]x 4p [[5p 1J 6p] x 7p M 8p]x 9p 3J 10p _1J 11p [12p 2J 13p]x 14p",
+    ),
 )
 
 
 def dc_program_cases():
-    return [_case("dc", name, prog + "\n") for name, prog in DC_PROGRAMS]
+    cases = [_case("dc", name, prog + "\n") for name, prog in DC_PROGRAMS]
+    # Each of the 5000 passes executes 0J, which skips to the next M and
+    # pops its count; the counter ends at 5000.
+    cases.append(
+        _case(
+            "dc",
+            "skip_jump_loop",
+            "0sa [la 1 + sa 0J [skipped]P M la 5000 >f]sf lfx la p\n",
+            expect=_dec(5000),
+        )
+    )
+    return cases
 
 
 def dc_argument_cases():

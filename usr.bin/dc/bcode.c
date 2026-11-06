@@ -1556,6 +1556,7 @@ skipN(void)
 	if (n == NULL)
 		return;
 	i = get_ulong(n);
+	free_number(n);
 	if (i == (BN_ULONG)-1)
 		warnx("J command requires a number >= 0");
 	else if (i > 0 && bmachine.readsp < i)

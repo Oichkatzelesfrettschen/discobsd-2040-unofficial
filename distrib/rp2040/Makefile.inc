@@ -34,6 +34,22 @@ FS_PROFILE_ARGS=	--profiles=distrib/rp2040/profiles
 FS_CLOSURE_ARGS=	--manifest=distrib/rp2040/mi.rp2040
 FS_SELECT_ARGS=
 MI_MANIFEST_VARIANT=
+# Per-build additions and removals on top of PROFILE: space-separated
+# closure or group names (bmake MACHINE=rp2040 list-closures prints them).
+# mkmanifest.py refuses an unknown name, a closure both added and removed,
+# and any dependency the result leaves unmet.
+#   bmake MACHINE=rp2040 BOARD=PICOCALC IMAGE_WITHOUT="toolchain toolchainlib" distribution
+#   bmake MACHINE=rp2040 PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup" distribution
+# The names reach the shell unquoted, so they hold to the alphabet that
+# mkmanifest.py accepts.
+IMAGE_WITH?=
+IMAGE_WITHOUT?=
+.for _v in IMAGE_WITH IMAGE_WITHOUT
+.if !empty(${_v}:M*[^-A-Za-z0-9_]*)
+.error ${_v} takes closure or group names of letters, digits, - and _, not ${${_v}:M*[^-A-Za-z0-9_]*}
+.endif
+.endfor
+FS_IMAGE_ARGS=	${IMAGE_WITH:@w@--with=${w}@} ${IMAGE_WITHOUT:@w@--without=${w}@}
 .if ${BUILD_PDP11_V6} == "yes"
 FS_PROFILES+=	legacy/pdp11-v6/distrib/rp2040/profiles
 FS_CLOSURES+=	legacy/pdp11-v6/distrib/rp2040/mi.rp2040
@@ -44,17 +60,50 @@ MI_MANIFEST_VARIANT=	.pdp11-v6
 .endif
 MKMANIFEST=	distrib/rp2040/mkmanifest.py
 MI_MANIFEST:=	distrib/rp2040/_manifest.${PROFILE}${MI_MANIFEST_VARIANT}
+FS_COMPOSE=	${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
+		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
+		    ${FS_IMAGE_ARGS} --append=distrib/rp2040/md.rp2040
+
+# The multicall binaries link only the members the selection keeps: the
+# games Makefiles read GAMEBOX_TOOLS and PUZZLEBOX_TOOLS, which stay unset
+# (and every member builds) when PYTHON names no interpreter yet. A
+# selection mkmanifest.py refuses leaves them empty, and check-image-selection,
+# which build and fs wait for, reports the refusal before any program builds.
+.if !empty(PYTHON)
+.for _h in gamebox puzzlebox
+${_h:tu}_TOOLS!=	${FS_COMPOSE} --members=${_h} 2>/dev/null || true
+.export ${_h:tu}_TOOLS
+.endfor
+.endif
 # The shipped root uses fewer than 100 objects. Eight inode blocks provide
 # 128 slots while recovering eight 1-KB data blocks from the fixed image.
 FS_INODES=	128
 
 # The composed manifest the image rule concatenates with md.rp2040. The
 # md part reaches the checker as --append, so a hard link that crosses the
-# two files still resolves against one object set.
-${MI_MANIFEST}:	${FS_CLOSURES} ${FS_PROFILES} ${MKMANIFEST}
-		${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
+# two files still resolves against one object set. IMAGE_WITH and
+# IMAGE_WITHOUT change the composition without changing a file the rule
+# names, so the phony prerequisite recomposes on every invocation and
+# emit() leaves the file alone when the text is unchanged.
+${MI_MANIFEST}:	${FS_CLOSURES} ${FS_PROFILES} ${MKMANIFEST} image-selection
+		${FS_COMPOSE} --output=$@
+
+image-selection:
+
+# Decide the selection alone, ahead of the program builds.
+check-image-selection:	check-python .WAIT
+		${FS_COMPOSE} >/dev/null
+
+# Print each closure, its groups, dependencies, measured cost and the
+# selection PROFILE, IMAGE_WITH and IMAGE_WITHOUT keep (marked with *).
+list-closures:	check-python .WAIT
+		@${PYTHON} ${MKMANIFEST} --list-closures --profile=${PROFILE} \
 		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
-		    --append=distrib/rp2040/md.rp2040 --output=$@
+		    ${FS_IMAGE_ARGS} --append=distrib/rp2040/md.rp2040
+
+build fs:	check-image-selection
+
+.PHONY:		image-selection check-image-selection list-closures
 
 # The top-level Makefile does not include share/mk/sys.mk, so the tool
 # paths and install command it defines are not otherwise in scope here.

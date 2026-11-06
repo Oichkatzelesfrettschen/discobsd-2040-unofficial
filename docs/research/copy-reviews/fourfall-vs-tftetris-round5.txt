@@ -1,0 +1,137 @@
+FOURFALL CLEAN-ROOM COPYING CONFIRMATION REVIEW -- ROUND 5
+=========================================================
+
+VERDICT: CLEAN
+
+Round 4's three required changes are resolved. The implementation record no
+longer names the commercial game or its rights holder, the reviewer-only
+presentation descriptions match the current Fourfall source, and the prescribed
+shingle checker lexes comments and literals in one pass with an effective
+ordering self-test. The corrected checker places Fourfall at 66 shared runs out
+of 6,102 candidate runs, or 1.1 percent, below the 5 percent rejection threshold.
+
+Scope and evidence boundary
+---------------------------
+
+The review read the Round 4 report, the affected portions of the implementation
+record and clean-room specification, and the current presentation mechanisms in
+`games/fourfall/fourfall.c`. The review copied the specification's Python block
+byte-for-byte to
+`copyreview-fourfall/round5/shingle.py` under the supplied scratchpad and ran it
+with Python 3.14.9. The review used no network service and changed no repository
+file. The Graft CLI could not resolve this worktree because its available cache
+listed unrelated repositories, so exact bounded source reads supplied the
+locators below.
+
+Finding status
+--------------
+
+F1 -- RESOLVED
+
+`docs/research/fourfall-implementation.md:157-160` now describes only a generic
+2012 District of New Jersey look-and-feel decision and directs the reader to the
+reviewer-only copying record. A case-insensitive search for the standalone
+commercial title, `Tetris Holding`, and `The Tetris Company` returns no match in
+the implementation record. The legacy filename remains at
+`docs/research/fourfall-implementation.md:7` and
+`docs/research/fourfall-implementation.md:391`; the filename identifies the
+reviewed source and does not spell the commercial title as a standalone name.
+The exact case citation remains in reviewer-only evidence at
+`docs/research/calculator-and-games-review.md:71-72`; the retained copy-review
+reports also remain reviewer-only evidence.
+
+F2 -- RESOLVED
+
+- Board dimensions: `docs/research/falling-block-clean-room-spec.md:636` says
+  12 by 22 visible rows plus two hidden rows. `games/fourfall/fourfall.c:43-45`
+  defines 24 rows, 12 columns and two hidden rows, and
+  `games/fourfall/fourfall.c:402-410` suppresses those hidden rows from terminal
+  drawing.
+- Spawn: `docs/research/falling-block-clean-room-spec.md:645` gives
+  `(12 - box side) / 2`, including columns 4 and 5 by box size.
+  `games/fourfall/fourfall.c:154-169` implements
+  `(FF_COLS - ff_box[type]) / 2` with `FF_COLS` equal to 12.
+- Presentation: `docs/research/falling-block-clean-room-spec.md:647` describes
+  two-column glyph textures, the bright/dim grayscale default and opt-in color.
+  `docs/research/falling-block-clean-room-spec.md:687` explicitly names the
+  grayscale default and foreground SGR codes 31-37.
+  `games/fourfall/fourfall.c:387-394` defines the seven glyph textures;
+  `games/fourfall/fourfall.c:694-699` defines the palette digits; and
+  `games/fourfall/fourfall.c:789-826` renders default falling cells with SGR 37,
+  settled cells with SGR 90, and opt-in colored cells with foreground SGR
+  31-37. The specification and source therefore agree on every presentation
+  property named by F2.
+
+F3 -- RESOLVED
+
+`docs/research/falling-block-clean-room-spec.md:737-773` contains a single
+left-to-right lexer for block comments, line comments, strings, character
+literals and other tokens. The built-in sample at
+`docs/research/falling-block-clean-room-spec.md:763-768` covers comment markers
+inside strings, a quote inside a comment, an escaped quote and character
+literals. A zero-length diff confirms that the extracted Round 5 script is
+byte-identical to `docs/research/falling-block-clean-room-spec.md:744-773`.
+
+Every requested comparison passed the built-in self-test before producing a
+number. A negative control inserted a comment-removal substitution at the start
+of `toks()`, before literal lexing. The negative control exited with status 1
+and reported:
+
+    lexer self-test failed: ['ID', '=', 'ID', '=', 'CHR', ';']
+
+The self-test therefore detects the exact ordering regression identified in
+Round 4.
+
+Shingle results
+---------------
+
+Reference for every row:
+`legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c`.
+
+    known-bad renamed copy                         3111/3111  100.0 percent
+    games/keen/keen.c                                16/3732     0.4 percent
+    games/bubble/bubble.c                            12/2346     0.5 percent
+    games/fifteen/fifteen.c                           6/752      0.8 percent
+    legacy gpanel/flappy.c                           19/1395     1.4 percent
+    games/fourfall/fourfall.c                        66/6102     1.1 percent
+    games/fourfall/tests/logic_test.c                 21/7233     0.3 percent
+
+The renamed-copy calibration remains complete at 100.0 percent. All unrelated
+programs remain far below the rejection threshold, and both Fourfall inputs
+remain below it.
+
+Effects introduced by the fixes
+--------------------------------
+
+The correct lexer changes the token streams and therefore changes the shingle
+denominators from the Round 4 measurements. The change is expected: strings
+containing comment markers now remain literal tokens, and character literals
+normalize to `CHR`. The renamed-copy calibration remains 100.0 percent and the
+known-good controls retain the same low ordering, so the corrected counts do
+not reveal a copying regression.
+
+A supplemental Ruff check of the extracted scratch script reports E401 and
+I001 at line 1 and E501 at line 30. The scratch file reproduces the Markdown
+block exactly, and the repository lint gate at `tools/check-lint.sh:2-7` applies
+Ruff to tracked Python files rather than fenced Markdown snippets. These three
+style diagnostics do not alter execution, calibration, or the clean-room
+verdict. No substantive defect introduced by the three fixes was found.
+
+Repository preservation
+-----------------------
+
+The initial checkout observation recorded HEAD
+`9f0152a238c27e63e25e886f2b2eb3860ebd08f6`, the untracked calculator-and-games
+research and Fourfall paths, and an fsmonitor IPC error. A final invocation with
+fsmonitor disabled records the same HEAD, an empty index diff, the same untracked
+paths, and tracked worktree modifications in `Makefile`,
+`distrib/rp2040/mi.rp2040`, `distrib/rp2040/profiles`, `games/Makefile`,
+`games/gamebox/Makefile`, `sys/arch/rp2040/doc/PROFILES.md`, and
+`sys/arch/rp2040/doc/TESTING.md`. The failing initial fsmonitor observation did
+not expose those tracked modifications, so their before-and-after identity is
+unknown. The review commands wrote the two requested scratchpad artifacts. The
+supplemental Ruff check also wrote its cache under
+`a temporary ruff cache`; the cache remains in place because moving an
+outside-worktree path to trash requires separate authorization.
+The review ran no build, game test, hardware command, commit, or network action;
+those operations stand outside this copying-confirmation scope.

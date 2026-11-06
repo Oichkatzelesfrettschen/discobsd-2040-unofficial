@@ -1,0 +1,6 @@
+fourfall
+fourfall-host
+tests/logic_test
+*.o
+*.elf
+__pycache__/

@@ -965,7 +965,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-sh-editor \
+		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
@@ -1034,6 +1035,9 @@ check-bubble-host:
 
 check-fifteen-host:
 		${MAKE} -C games/fifteen test
+
+check-fourfall-host:
+		${MAKE} -C games/fourfall test
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -1310,7 +1314,8 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-sh-editor check-tar-host \
+		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \

@@ -10,6 +10,7 @@ FIXTURE_FLAGS+=	-Wl,--entry=entry -Wl,--section-start=.text=0x10000000
 FIXTURE_FLAGS+=	-Wl,--build-id=none
 FIXTURE_ELFS=	divider_safe.elf divider_negative.elf \
 		divider_control_flow_negative.elf divider_residual_negative.elf
+USER_HELPER_SOURCE=	${TOPSRC}/lib/libc/arm/gen/aeabi_div.S
 DEPENDENCY_FILE=	.deps/source_negative.dep
 COMMENT_DEPENDENCY_FILE=	.deps-comment/source_comment_safe.dep
 
@@ -87,6 +88,8 @@ check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE} \
 		status=$$?; test $$status -eq 2; \
 	fi
 	grep -F 'missing dependency directory' missing_dependencies.stderr
+	PYTHON="${PYTHON}" FIXTURE_CC="${FIXTURE_CC}" \
+	    sh ./user_helper_mutants.sh "${VERIFIER}" "${USER_HELPER_SOURCE}"
 
 .SUFFIXES: .S .elf
 
@@ -106,6 +109,7 @@ ${COMMENT_DEPENDENCY_FILE}: source_comment_safe.c
 	    -MT source_comment_safe.o -MF $@ source_comment_safe.c
 
 clean:
-	rm -rf .deps .deps-comment *.elf *.stderr *.stdout
+	rm -rf .deps .deps-comment *.elf *.stderr *.stdout user_helper_*.o \
+	    user_helper_*.S
 
 .PHONY: all check check-python clean

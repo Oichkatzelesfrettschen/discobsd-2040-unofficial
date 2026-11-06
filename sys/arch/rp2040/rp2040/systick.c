@@ -26,6 +26,8 @@
 
 #include <machine/scb.h>
 
+#include <rp2040/rp2040/clock_catchup.h>
+
 /*
  * SysTick_Handler()
  *
@@ -75,8 +77,11 @@ systick(struct clockframe *frame)
 {
 	/*
 	 * The STM32 tree advanced its HAL millisecond counter here.
-	 * Nothing on this target keeps one.
+	 * Nothing on this target keeps one. The tick time feeds
+	 * clock_catchup(), which restores the ticks a masked flash
+	 * operation drops.
 	 */
+	clock_tick_stamp();
 
 	hardclock((caddr_t)frame->cf_pc, frame->cf_psr);
 }

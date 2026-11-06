@@ -953,6 +953,9 @@ check-usb-get-descriptor:
 check-flash-device-bounds:
 		${MAKE} -C tests/rp2040/flash_device_bounds check
 
+check-clock-catchup:
+		${MAKE} -C tests/rp2040/clock_catchup check
+
 # tools/elf2aout over the layouts the ARM linker produces. The gate assembles
 # and links its own fixtures with the cross toolchain and reads
 # lib/elf32-arm.ld, so what it needs is tools, the toolchain and ${PYTHON}
@@ -1016,7 +1019,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
-		check-flash-device-bounds \
+		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
@@ -1234,15 +1237,17 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
-# qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests, the calc line interface, the dc evaluator, the libc
-# strtol/strtoul, random and printf contracts and the tree formatter's float
-# conversions and math library returns executed as Thumb-1 programs rather
-# than only linked. tests/qemu_cpu_model first proves that the ARMv6-M CPU
-# model the libc contracts run on faults on Thumb-2 and unaligned accesses.
+# qemu-arm: the u-area exchange loop, the AEABI division helpers over a
+# divider model, the Smaller C suite, the libcalc and libbn tests, the calc
+# line interface, the dc evaluator, the libc strtol/strtoul, random and
+# printf contracts and the tree formatter's float conversions and math
+# library returns executed as Thumb-1 programs rather than only linked.
+# tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
+# contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} -C tests/rp2040/uarea_exchange check
+		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
@@ -1364,7 +1369,7 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

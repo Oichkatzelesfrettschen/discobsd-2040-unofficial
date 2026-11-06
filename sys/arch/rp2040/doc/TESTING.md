@@ -501,6 +501,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-usb-get-descriptor` | The production `GET_DESCRIPTOR` predicate compiles as strict C17 with address and undefined-behavior sanitizers. It exhausts all request-type bytes, `wValue` and `wIndex` values, accepts only device/configuration/BOS index zero and existing string indexes with the supported language selector, and leaves `wLength` variable as Chapter 9 requires. Calibrated request-type, string-index and language-index mutations must fail. The host test validates request geometry, not EP0 dispatch or USB hardware. |
 | `check-usb-standard-requests` | The production `GET_CONFIGURATION`, `GET_INTERFACE`, `GET_STATUS` and endpoint feature predicates compile as strict C17 with address and undefined-behavior sanitizers. Exhaustive request-type, request-code, 16-bit field and endpoint-address sweeps cover the advertised device, interface and endpoint geometry; state tests keep EP0 GET_STATUS available before configuration and reject interface/nonzero-endpoint status until configuration; remote-wakeup and test-mode selectors are rejected; calibrated mutations accepting an oversized status length or a reserved endpoint-address byte must fail. The host test validates request geometry and state predicates, not EP0 dispatch or USB hardware. |
 | `check-flash-device-bounds` | The production flash drive/partition index predicate compiles as strict C17 with address and undefined-behavior sanitizers and is exercised over all 256 encoded device minor values. A mutation that accepts the first invalid drive calibrates rejection. The host test validates the predicate; it does not execute block strategy dispatch or flash hardware. |
+| `check-clock-catchup` | The production tick catch-up arithmetic (`sys/arch/rp2040/rp2040/clock_catchup.h`) compiles as strict C17 with address and undefined-behavior sanitizers against a model of SysTick with one pending bit, a 1 MHz `TIMERAWL`, `lbolt`, the time of day and a callout queue at the real `HZ`. A 45 ms masked erase advances exactly 45 ticks from every SysTick phase; nested and repeated catch-up, alternating masked and live time, a `TIMERAWL` wrap inside the window, a late tick handler (never above the ticks SysTick raised, at most one lost per window) and an unarmed clock hold; the callout batch update equals `hardclock`'s per-tick walk over 20,000 random queues and leaves due callouts queued for `softclock`. Seven calibrating mutants must fail: no catch-up, the pending tick counted twice, the record not advanced, the wrap ignored, no carry into seconds, a head-only callout decrement and an unarmed clock counted. A source-wiring check requires `clock_catchup()` before every `splx(s)` in `flash_erase`, `flash_program`, `fl_raw` and `flstrategy` and a calibrating copy without the calls must fail it. The host test does not execute SysTick, the timer or the boot ROM. Board check not run: `date` against an external reference across a swap-heavy workload (prediction: drift near zero; before, about 44 ms per sector erase) needs the explicit hardware opt-in. |
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates PICO and PICO_UART Makefiles byte for byte in private trees. The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
@@ -1256,7 +1257,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-rp2040-usercopy-span` | The portable RP2040 span predicate compiles with warnings as errors under host GCC, host Clang, Arm GCC and Arm Clang strict C17 profiles; host GCC also executes the fixture under address, undefined-behavior and alignment sanitizers, and exact PICO and PICO_UART GNU17 commands compile `machdep.c`. The fixture pins repeated inclusion, the exact function type, ordered bounds, empty and full spans, the last byte, a crossing span, the reproduced 32-bit wraparound and malformed bounds. A wrapped-end predicate and a removed include guard calibrate rejection. The companion `check-kernel-ilp32` execution extracts the production copy functions and proves that rejected spans publish zero `bcopy` calls. These host and compiler gates establish the exercised arithmetic and publication contract; MPU enforcement, runtime resource peaks and board behavior remain separate. |
 | `check-tty-layout-cross` | Arm GCC compiles the target `struct tty` layout assertions under strict C17 for Cortex-M0+. The object pins the 120-byte structure, four-byte alignment and `t_flags` width, plus the `t_flags`, `t_state`, and `t_pgrp` offsets. A generated dependency file makes every consumed header part of incremental freshness. A 121-byte expected-size control must fail at the named structure-size assertion. The gate establishes target compilation and layout; tty runtime behavior and physical-board execution remain separate. |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
-| tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures |
+| tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures, and the `--user-helper` check of `lib/libc/arm/gen/aeabi_div.S` assembled for Cortex-M0+: each of the two helper bodies must store the dividend (SIO offset 0x60) and then the divisor (0x64), spend at least eight modeled Cortex-M0+ cycles in ALU instructions or taken branches to the next instruction, load the remainder (0x74) and then the quotient (0x70), and contain no other divider or memory access, system call, call, breakpoint, push or pop in that window. Nine mutants of the real source (one branch removed from the wait, result loads swapped, a CSR poll in place of a wait slot, `svc`, `bl`, `push` and `bkpt` inside the window, a wrong base constant, a helper symbol removed) must each exit 1 with the finding named for it. The cycle table is a model of the Cortex-M0+ Technical Reference Manual, so the check establishes the window's structure, not the divider's timing on silicon |
 
 ## qemu tier
 
@@ -1290,10 +1291,31 @@ the DiscoBSD a.out loader prototype and the whole-kernel emulator options.
 
 tests/rp2040/uarea_exchange assembles the u-area exchange loop cut from
 locore.S between its markers and runs it under qemu-arm, checking every
-exchanged byte. usr.bin/smlrc's suite compiles each test with the
+exchanged byte. tests/rp2040/divider_helpers assembles `lib/libc/arm/gen/aeabi_div.S`
+with `DIVIDER_MODEL` and runs the four AEABI division helpers under
+`qemu-arm -cpu cortex-m0` over every pair of 210 edge operands (zero, one,
+all-ones, `INT_MIN`, `INT_MAX`, every power of two with its neighbors and
+negations) and 16,000 seeded random pairs, comparing quotient and remainder
+with the software helpers the library used before the hardware divider
+(`reference_div.S`) and with a restoring division written from C99 6.5.5.
+qemu-user has no SIO block, so the model replaces only the base address and
+the eight-cycle wait: the helper still stores to offsets 0x60 and 0x64, loads
+0x74 and then 0x70 from a RAM block, and a model step computes the unsigned
+quotient and remainder between them. The harness poisons the block before each
+call, counts a zero divisor that reaches the divider as a failure, requires
+r4 through r11 unchanged and every other word of the block untouched. Eleven
+mutants (remainder sign, either zero guard, swapped result offsets, the signed
+alias, quotient sign, the zero-divisor remainder, a clobbered callee-saved
+register, a missing wait, a wrong magnitude mask) must each fail. The run
+establishes the helpers' sign, zero-divisor, `INT_MIN`, register-preservation
+and operand/result-order behavior against the divider contract of datasheet
+2.3.1.5; it does not establish the eight-cycle wait, the divider's arithmetic
+or overflow behavior, or the user MPU grant, which only a board run shows
+(tests/rp2040/divtest). usr.bin/smlrc's suite compiles each test with the
 Thumb-1 back end, links it against a copy of the tree's libc with the
-Boot ROM float members removed (qemu-arm maps no ROM at address 0x10,
-so libgcc's soft-float stands in) and the Linux syscall layer in
+Boot ROM float members and `aeabi_div.o` removed (qemu-arm maps no ROM at
+address 0x10 and no SIO block at 0xd0000000, so libgcc's soft-float and
+software division stand in) and the Linux syscall layer in
 tests/qemusys.c, and compares the output; `REQUIRE_QEMU=1` refuses the
 link-only run the tier would otherwise silently accept. `t18_stdio` consumes
 the expanded public stdio and directory headers, checks their target layouts
@@ -1501,7 +1523,12 @@ that predates 0008.
 
 `check-board-build` builds the on-device regression programs to a.out
 through tests/rp2040/Makefile: fptest (Boot ROM float, bit-exact),
-sigtest (signal frames), streamtest (NSTATIC), stdiocap (syscall-sampled
+divtest (the SIO-divider integer helpers: an edge corpus against a restoring
+division, a loop that divides across 10 ms SIGALRM deliveries whose handler
+divides, and the same divider sequence with 0 to 6 padding branches, which
+reports the smallest error-free wait next to the shipped four branches; board
+execution needs the owner's explicit opt-in, and the wait result is the only
+evidence for the eight-cycle margin), sigtest (signal frames), streamtest (NSTATIC), stdiocap (syscall-sampled
 process-stack extent), tartest (the -Z filter
 across a pipe), romprobe (ROM table dump), textcrc (packed executable
 text restoration), swapmaptest (the swap map read through sysctl(3), each

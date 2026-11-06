@@ -7,7 +7,8 @@
 # forbidding the ones this boot is known to survive: a run that reaches a
 # shell logs some forty-five thousand warnings.
 #
-# Ceilings sit at about twice the count a passing run produces. The counts
+# Ceilings count occurrences, with Renode's folded "(N)" lines expanded, and
+# sit at about twice the count a passing run produces. The counts
 # track how many times the boot ROM re-enters XIP, which moves by a percent
 # or two between runs, so a tight ceiling would fail on scheduling rather
 # than on behavior. Lowering one after a model improvement is the intended

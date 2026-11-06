@@ -305,7 +305,7 @@
       "id": "uarea-renode-paths",
       "resources": ["USIZE"],
       "obligations": ["normal", "signal", "deliberate-fault", "swapram", "context-switch", "geometry", "recovery"],
-      "fixture": "tools/renode/boot.robot",
+      "fixture": "tools/renode/check-boot.py",
       "execution_class": "renode",
       "receipt_state": "open",
       "receipt": null,

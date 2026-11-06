@@ -1,0 +1,18 @@
+argc=3
+argv[0]=probe
+argv[1]=alpha
+argv[2]=beta
+div 142857 -142857 1
+float 337 428
+int64 -1666
+lseek set 4
+read 4
+lseek cur 7
+read 7
+lseek end 7
+lseek eof 10
+fseek set 0
+fgetc 3 ftell 4
+fseek end 0
+fgetc 8 ftell 9
+heap 7

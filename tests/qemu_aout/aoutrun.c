@@ -295,11 +295,11 @@ serve(u32 code, u32 *r, u32 sp, u32 *rv)
 		return E_NOTTY;
 	case B_LSEEK:
 		/*
-		 * lseek(int fd, int pad, off_t off, int whence) with off_t a
-		 * word: fd r0, off r2, whence on the stack (4.4BSD layout).
+		 * lseek(int fd, off_t off, int whence) with off_t a 32-bit long:
+		 * the kernel reads {fd, off, sbase} from r0..r2
+		 * (sys/kern/ufs_syscalls2.c) and the libc stub moves nothing.
 		 */
-		x = lx(L_LSEEK, (long)r[0], (long)r[2],
-		    (long)*(u32 *)(sp + 4u * 0u), 0, 0, 0);
+		x = lx(L_LSEEK, (long)r[0], (long)r[1], (long)r[2], 0, 0, 0);
 		break;
 	case B_FSTAT: {
 		struct lx_stat64 s;

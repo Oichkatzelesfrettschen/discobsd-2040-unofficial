@@ -39,7 +39,11 @@ probe.sites: probe.elf
 	${OBJDUMP} -d probe.elf | awk '/\tsvc\t/ { sub(":", "", $$1); print $$1 }' | \
 	    sort > $@
 
-check: aoutrun probe probe.sites
+# Fixture for the seek cases in probe.c.
+seek.dat:
+	printf '0123456789' > $@
+
+check: aoutrun probe probe.sites seek.dat
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
 	@echo "qemu a.out: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
 .elif empty(QEMU_ARM)
@@ -55,6 +59,6 @@ check: aoutrun probe probe.sites
 .endif
 
 clean:
-	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out
+	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out seek.dat
 
 .PHONY: all check clean

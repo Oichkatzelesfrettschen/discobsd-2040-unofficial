@@ -40,9 +40,9 @@ dir /usr/libexec
 #closure toolchainlib
 dir /usr/lib
 #endclosure toolchainlib
-#closure games
+#closure gamesdir
 dir /usr/games
-#endclosure games
+#endclosure gamesdir
 dir /usr/share
 dir /usr/share/misc
 dir /root
@@ -184,10 +184,12 @@ pack /usr/bin/awk
 #closure coremark
 pack /usr/bin/coremark
 #endclosure coremark
-#closure calc-bignum
+#closure bc
 pack /usr/bin/bc
+#endclosure bc
+#closure dc
 pack /usr/bin/dc
-#endclosure calc-bignum
+#endclosure dc
 #closure calc
 pack /usr/bin/calc
 #endclosure calc
@@ -206,11 +208,15 @@ pack /usr/bin/utilbox
 pack /usr/bin/tail
 pack /usr/bin/tee
 pack /usr/bin/du
-#closure toolchain
+#closure as
 pack /usr/bin/as
+#endclosure as
+#closure ld
 pack /usr/bin/ld
+#endclosure ld
+#closure cc
 file /usr/bin/cc
-#endclosure toolchain
+#endclosure cc
 file /usr/bin/mputest
 
 #
@@ -227,15 +233,15 @@ pack /usr/bin/cpio
 pack /usr/sbin/update
 
 pack /usr/libexec/getty
-#closure toolchain
+#closure smlrc
 pack /usr/libexec/smlrc
-#endclosure toolchain
-#closure games
+#endclosure smlrc
+#closure gamebox
 pack /usr/games/gamebox
-#endclosure games
-#closure puzzles
+#endclosure gamebox
+#closure puzzlebox
 pack /usr/games/puzzlebox
-#endclosure puzzles
+#endclosure puzzlebox
 
 #
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
@@ -256,9 +262,9 @@ file /usr/lib/crt0.o
 #
 default
 filemode 0444
-#closure calc-bignum
+#closure bc
 file /usr/share/misc/bc.library
-#endclosure calc-bignum
+#endclosure bc
 
 default
 filemode 0775
@@ -467,28 +473,42 @@ target /usr/bin/stevie
 # games/gamebox/Makefile, games/puzzlebox/Makefile and
 # sys/arch/rp2040/doc/research/games.md.
 #
-#closure games
+#closure fifteen
 link /usr/games/fifteen
 target /usr/games/gamebox
+#endclosure fifteen
+#closure keen
 link /usr/games/keen
 target /usr/games/gamebox
+#endclosure keen
+#closure bubble
 link /usr/games/bubble
 target /usr/games/gamebox
+#endclosure bubble
+#closure fourfall
 link /usr/games/fourfall
 target /usr/games/gamebox
+#endclosure fourfall
+#closure coil
 link /usr/games/coil
 target /usr/games/gamebox
-#endclosure games
-#closure puzzles
+#endclosure coil
+#closure flood
 link /usr/games/flood
 target /usr/games/puzzlebox
+#endclosure flood
+#closure samegame
 link /usr/games/samegame
 target /usr/games/puzzlebox
+#endclosure samegame
+#closure unruly
 link /usr/games/unruly
 target /usr/games/puzzlebox
+#endclosure unruly
+#closure lightup
 link /usr/games/lightup
 target /usr/games/puzzlebox
-#endclosure puzzles
+#endclosure lightup
 
 #
 # Files: /var

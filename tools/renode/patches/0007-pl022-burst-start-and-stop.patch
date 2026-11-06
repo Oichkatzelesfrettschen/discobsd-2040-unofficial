@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <iamhumanipromise1010101@gmail.com>
+Date: Thu, 5 Nov 2026 19:00:00 -0800
+Subject: [PATCH 7/7] pl022: start a burst with the queued frame and stop it
+ without a stray clock edge
+
+A write to SSPDR on an idle controller started the clocking thread with
+transmitData still zero, so the first frame on the wire was 0x00 and the
+byte the driver wrote followed it; the thread took the queued frame only
+when the first frame's bit counter wrapped. At the end of a burst the stop
+branch of Step() drove SCK and TX low and then fell through into the clock
+toggle, raising SCK once more with the thread already stopped. A slave that
+samples on the rising edge saw a ghost frame start and a spurious bit before
+every burst. The first frame is now dequeued at the write that starts the
+thread, and Step() returns after stopping, so SCK idles low between bursts
+as SPI mode 0 requires and the wire carries exactly the frames written.
+
+Assisted-by: Claude Code (claude-sonnet-5-5)
+---
+ emulation/peripherals/spi/rp2040_spi.cs | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
+--- a/emulation/peripherals/spi/rp2040_spi.cs
++++ b/emulation/peripherals/spi/rp2040_spi.cs
+@@ -243,6 +243,7 @@
+           SetMultiplePins(clockPins, false);
+           _executionThread.Stop();
+           running = false;
++          return;
+         }
+       }
+ 
+@@ -366,6 +367,9 @@
+             txBuffer.Enqueue((ushort)value);
+             if (!running)
+             {
++              txBuffer.TryDequeue(out transmitData);
++              transmitCounter = 0;
++              receiveData = 0;
+               running = true;
+               _executionThread.Start();
+             }

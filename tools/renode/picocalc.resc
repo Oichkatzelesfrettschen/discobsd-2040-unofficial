@@ -1,0 +1,25 @@
+# Boot the DiscoBSD PICOCALC kernel under Renode with the panel and keyboard
+# models, a UART0 socket and a GDB server.
+#
+# Usage, from a built tree:
+#   renode --disable-gui -e "include @tools/renode/picocalc.resc"
+# Then, in the Renode monitor:
+#   sysbus.spi1.lcd DumpPpm @/path/frame.ppm      write the visible 320x320 image
+#   sysbus.spi1.lcd Status                        panel registers and counters
+#   sysbus.i2c1.kbd TypeLine "uname -a"           queue keystrokes
+#   sysbus.i2c1.kbd TypeCtrl 'c'                  Ctrl-C
+# tools/renode/picocalc_fb.py reads the PPM back as 53x32 console text.
+
+$uart_port ?= 3456
+$gdb_port ?= 3333
+
+include $ORIGIN/picocalc-machine.resc
+
+emulation CreateServerSocketTerminal $uart_port "uart0term" false
+connector Connect sysbus.uart0 uart0term
+
+machine StartGdbServer $gdb_port
+
+start
+
+echo "picocalc: UART0 on tcp://localhost/$uart_port, GDB on tcp://localhost/$gdb_port"

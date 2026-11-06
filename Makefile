@@ -735,6 +735,11 @@ check-architecture-isolation:
 check-fgrep-capacity:
 		${MAKE} -C usr.bin/fgrep test
 
+# The CRC-32 shared by the packed executable loader and the packer, against
+# zlib, with mutants of the table and the shifts that must each be rejected.
+check-crc32:	check-python
+		${MAKE} -C tests/crc32 check
+
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
@@ -1003,7 +1008,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
-		check-fgrep-capacity check-config-makefile check-swapram-evac \
+		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -1230,10 +1235,13 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests, the tree formatter's float conversions and math library returns
-# against newlib's, the calc line interface and the dc evaluator executed as
-# Thumb-1 programs rather than only linked.
+# libbn tests, the calc line interface, the dc evaluator, the libc
+# strtol/strtoul, random and printf contracts and the tree formatter's float
+# conversions and math library returns executed as Thumb-1 programs rather
+# than only linked. tests/qemu_cpu_model first proves that the ARMv6-M CPU
+# model the libc contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
+		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
@@ -1248,6 +1256,15 @@ check-qemu:	check-python .WAIT symlinks
 # image, and tools/renode/check-boot.sh names whichever is missing.
 check-renode:
 		sh tools/renode/check-boot.sh
+
+# The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
+# controller modeled: the boot banner, the panel's registers, a login and a
+# command typed through the I2C keyboard, all read back from the decoded
+# frame. Outside "check" for the reason check-renode is, and a separate
+# evidence class from the board: tools/renode/check-picocalc.sh names what
+# is missing.
+check-renode-picocalc:
+		sh tools/renode/check-picocalc.sh
 
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside
@@ -1374,7 +1391,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
+		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \
@@ -1388,6 +1405,7 @@ installfs:
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
+		check-renode-picocalc \
 		check-host-package check-board-build check symlinks etc-distribution \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \

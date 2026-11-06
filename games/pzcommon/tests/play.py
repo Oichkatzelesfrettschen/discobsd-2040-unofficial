@@ -413,6 +413,27 @@ def test_flood_description_colors(root):
     check(g.finish() == 0, "exit")
 
 
+def test_flood_uniform_description(root):
+    # A grid of one color is complete from the start, but the imported
+    # new_game() leaves the completed flag clear: no move exists and S would
+    # read an unwritten solution string. A supplied uniform grid is refused
+    # before the game exists; one differing cell is playable and solvable.
+    if "flood" not in PUZZLES:
+        return
+    for desc in ("0000,5", "3333,0"):
+        g = Game(root, "flood", ["2x2c3m0:" + desc])
+        check(g.wait() == 2, "flood: uniform description %s did not exit 2" % desc)
+        out = g.term.raw.decode(errors="replace")
+        check("already one color" in out, "flood: no uniform message for %s: %r" % (desc, out))
+    g = Game(root, "flood", ["2x2c3m0:0001,5"])
+    check(g.term.line(1).startswith("FLOOD  moves 0/5"), "status: %r" % g.term.line(1))
+    g.send(b"S")
+    check(g.message(2) == "", "S on a playable grid left a note: %r" % g.message(2))
+    g.send(b"m")
+    check(g.message(2).startswith("SOLVED"), "solution step did not win: %r" % g.message(2))
+    check(g.finish() == 0, "exit")
+
+
 def test_samegame_fixture(root):
     if "samegame" not in PUZZLES:
         return

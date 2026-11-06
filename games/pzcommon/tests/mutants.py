@@ -272,6 +272,15 @@ PLAY = [
     (
         "flood",
         "flood/flood.c",
+        "flood-uniform-description-accepted",
+        "\tfor (i = 1; i < gp->w * gp->h; i++)\n\t\tif (desc[i] != desc[0])\n\t\t\treturn NULL;\n"
+        '\treturn "the grid is already one color";',
+        "\treturn NULL;",
+        ["flood_uniform_description"],
+    ),
+    (
+        "flood",
+        "flood/flood.c",
         "flood-region-not-bold",
         "cell->attr = reach[y * s->w + x] ? PZ_BOLD : 0;",
         "cell->attr = 0;",

@@ -84,6 +84,11 @@ w_new_desc(void *p, random_state *rs, char **aux)
  * say, and new_game() takes the color count from the description, so the
  * limit w_check() puts on the parameters does not bind a supplied game. The
  * grid characters have passed validate_desc() by the time they are tested.
+ *
+ * new_game() never sets the completed flag, so a grid of one color would be
+ * a game with no legal move that is not won, and solve_game() would return
+ * an empty move string with no terminator written. The generator redraws a
+ * uniform grid, so only a supplied game can be uniform; it is refused here.
  */
 static const char *
 w_check_desc(void *p, const char *desc)
@@ -97,7 +102,10 @@ w_check_desc(void *p, const char *desc)
 	for (i = 0; i < gp->w * gp->h; i++)
 		if (desc[i] - '0' >= MAXPLAY)
 			return "at most 8 colors fit the console";
-	return NULL;
+	for (i = 1; i < gp->w * gp->h; i++)
+		if (desc[i] != desc[0])
+			return NULL;
+	return "the grid is already one color";
 }
 
 static void *

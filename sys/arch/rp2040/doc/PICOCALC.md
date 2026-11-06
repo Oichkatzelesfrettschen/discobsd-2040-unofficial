@@ -33,7 +33,7 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 119,316 of 130,816 bytes (`RP2040.ld` FLASH), bss 45,888 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 124,092 of 130,816 bytes (`RP2040.ld` FLASH), bss 47,608; the console alone measured 119,316 and 45,888, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,600) add 4,776 |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -45,6 +45,11 @@ name a file there, with a page for a PDF.
 | BEL (0x07) reaches the bell primitive once per byte, from the ground state and inside a control sequence, and draws, moves and scrolls nothing; other controls stay silent | host | observed by `check-picocalc-host` against the model panel; two mutants fail it |
 | `picoaudio.c` compiles into PICOCALC only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
 | The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
+| `sd.c` and `sdspi.c` compile into PICOCALC only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,600 bytes (2,635 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,696 over the audio build |
+| The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
+| `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
+| A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
+| The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 
 ## Pin map
@@ -60,7 +65,7 @@ table and the sources that agree):
 | Keyboard controller, I2C1 at 0x1F | GP6 SDA, GP7 SCL | `picokbd.c` |
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
-| SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | none yet |
+| SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
 | Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
@@ -273,6 +278,110 @@ The counts are programmed for 100 kHz, between the vendor helloworld's
 to the low count and SPKLEN + 7 to the high count, so SCL runs near
 96 kHz.
 
+## SD card: sd.c and sdspi.c
+
+The socket is SPI0 (GP16 RX, GP18 SCK, GP19 TX) with GP17 as a SIO chip
+select and GP22 as card detect. `sdspi.c` speaks the SD card's SPI mode over
+a byte transport and includes no kernel header, so `tests/picocalc` links
+it against a card model; `sd.c` supplies the transport (the PL022 of
+datasheet 4.4) and the disk driver. The specification is the SD Physical
+Layer Simplified Specification, Part 1: Chapter 7 for SPI mode and Chapter 5
+for the CSD register. It is not vendored in this tree, and the section
+numbers in the source and below follow its version 6.00 layout from memory;
+they were not checked against a copy here.
+
+Initialization (7.2.1, 4.2.3): 80 clocks with chip select high, CMD0
+(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), ACMD41 until the
+card leaves idle within one second, CMD58 for the OCR, CMD16 to 512 bytes for
+a byte-addressed card, and CMD9 for the capacity. CMD0 and CMD8 are the
+only commands that carry a checked CRC in SPI mode (7.2.2); every other
+command sends a dummy CRC and CRC checking stays off. CMD8 answered as an
+illegal command marks a version 1.x card and the OCR's CCS bit marks
+block addressing for a version 2.0 or later card; an echo that does not
+return the voltage range and check pattern, an illegal CMD55 or ACMD41 (a
+MultiMediaCard), or an OCR that never reports power-up complete ends
+initialization with an error, and a card that never leaves idle ends it
+after one second. The clock runs at 398 kHz until initialization finishes
+(SCR 156 with prescale 2 from the 125 MHz peripheral clock, under the
+400 kHz identification limit), then at 12.5 MHz (prescale 10), half the
+25 MHz default-speed ceiling.
+
+A transfer is one 512-byte sector per command, CMD17 for a read and CMD24
+for a write. A read waits 100 ms for the 0xFE start token and fails on a
+data error token; a write checks the data response token and then waits for
+the card to stop signaling busy. Both busy waits, the wait for ready before
+each command and the initialization loop have a time limit in the model's
+and the kernel's microsecond clock, so a stuck card fails the transfer
+(`EIO`) instead of hanging the caller. The driver runs a transfer in the
+caller's context with interrupts enabled: the kernel does not switch
+processes inside a system call and no interrupt touches SPI0, so a transfer
+needs no lock. A write that hits the card's worst-case programming time
+holds the caller for up to 500 ms; ticks still run.
+
+`sd0` is block major 5 and `rsd0` is raw (character) major 11, minor 0 for
+the whole card and 1 to 4 for the MBR partitions a to d, as `fl` numbers
+its partitions. The partition table is read at the first open from sector 0
+(`fdisk` rewrites it and calls `DIOCREINIT`); an entry that reaches past
+the card's end is dropped. A raw transfer must be a multiple of 1 KiB, the
+filesystem block, and block and raw opens are tracked apart so that closing
+`rsd0a` leaves a mounted `sd0a` open. `chrtoblk()` maps `rsd0` to `sd0`, so
+the secure levels guard a raw write to a mounted partition. The card is
+initialized at the first open and forgotten at the last close, which is how
+a replaced card gets a fresh initialization.
+
+The keyboard poll callout samples GP22 (`sd_detect_poll()`). A level that
+holds 50 ms counts as a change, and a change while any partition is open
+makes every transfer fail with `EIO` until the last close, because buffers
+cached for the old card must not reach the new one. The driver does not
+interpret the polarity; the first insertion on a board settles which
+level means present.
+
+`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in PICOCALC, because
+`sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
+`i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
+generic mount code replaces the single-root shortcuts; that, with the
+`conf.c` entries and the detect hook, is the roughly 965 of the 3,600 added
+text bytes that the two SD objects (2,635) do not account for; the figure is
+the difference of object sizes, not a separate build. Userland is
+still built with the PICO kernels' layout (`KERNEL_LAYOUT_CFLAGS` in
+`share/mk/sys.mk`), which is harmless for the shipped programs: `ps` reads
+the process table, `df` and `mount` use `statfs` and `mount(2)`, and no
+shipped program reads the in-core inode or mount tables from `/dev/kmem`
+(checked in the sources of `fsck`, `mount`, `umount`, `df` and `ps`). A tool
+that did would misread them on PICOCALC.
+
+The picocalc profile carries the nodes in the `sdcard` closure
+(`distrib/rp2040/mi.rp2040`): `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`,
+`rsd0b` and the mount point `/mnt`. The root has 128 inodes, so the other
+two partitions' nodes are left to `mknod /dev/sd0c b 5 3` and the like. The
+PICO board's `full` profile has none of them, and its kernel has no driver
+behind those majors.
+
+### Putting a filesystem on a card
+
+The tree ships `sbin/mkfs` and `sbin/fdisk` as source but neither is in any
+root image, and adding them would spend flash blocks and inodes on tools
+no board run has exercised against the driver. The documented route is a
+host-side image with `tools/bin/rp2040/fsutil` (built with the tools),
+written to the card from the host. The partition layout is fsutil's: the
+table in sector 0, the first partition at sector 2.
+
+    fsutil --repartition=fs=64m card.img
+    fsutil --new --partition=1 card.img
+    dd if=card.img of=/dev/sdX bs=1M conv=fsync
+
+`/dev/sdX` is the card in a host reader. `fsutil --new --partition=1 card.img DIR`
+copies a directory tree in and `fsutil --check --partition=1 card.img`
+verifies it. Then, on the board:
+
+    mount /dev/sd0a /mnt
+
+and `umount /mnt` before removing the card. FAT is out of scope. An
+on-board `fdisk /dev/rsd0` and `mkfs -s BLOCKS /dev/rsd0a` are the second
+route; they use only the three disk ioctls the driver answers
+(`DIOCGETMEDIASIZE`, `DIOCGETPART`, `DIOCREINIT`) but have not run against
+it, so a closure that ships them waits on a board run.
+
 ## Building and flashing
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
@@ -310,13 +419,16 @@ the console ships.
 
 ### SD card on SPI0
 
-Pins GP16-GP19, card detect GP22. Model on `sys/arch/stm32/dev/sd.c` and
-`spi.c` (SPI-mode SD): CMD0/CMD8/ACMD41/CMD58 bring-up at 400 kHz, then
-12.5 MHz or higher; single-block CMD17/CMD24 through a `bdevsw` entry as
-`sd0` with an MBR partition table, `isdisk()` and `NMOUNT` raised to
-mount it beside the flash root. Card detect polls in the keyboard
-callout. Host-testable piece: the command and response parsing against a
-recorded card transcript. Cost estimate: 3-4 KB text, 600 bytes bss.
+The driver ships (see SD card above). The board checks that remain: the
+boot line `sd0: SPI0 on GP16-GP19, card detect GP22`; a first open with an
+SDSC, an SDHC and an SDXC card (the type and size line); a partition
+table from `fsutil` and then `mount /dev/sd0a /mnt` with files copied both
+ways and `fsck` clean afterward; the level of GP22 with and without a card;
+a card pulled while mounted, which must fail transfers with `EIO` and then
+reinitialize after `umount`; and the largest raw read rate at 12.5 MHz,
+which decides whether the clock can rise toward 25 MHz. Not built: a
+multi-block transfer (CMD18 and CMD25), which would cut the per-sector
+command overhead, and an on-board `mkfs`/`fdisk` closure.
 
 ### PSRAM as swap
 

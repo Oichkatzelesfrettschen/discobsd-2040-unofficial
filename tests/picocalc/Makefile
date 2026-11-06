@@ -16,6 +16,10 @@
 # model of the vendor firmware's register handler; eight mutants of
 # picokbd_req.c and picokbd_req.h must fail it.
 #
+# sdspi_test runs the SD card protocol layer against a card model that
+# replays recorded command transcripts; twenty mutants of sdspi.c must fail
+# it.
+#
 TOPSRC!=	cd ../..; pwd
 
 HOST_CC?=	cc
@@ -26,10 +30,11 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test kbdreq_test font-sync
+check: lcdterm_test kbdreq_test sdspi_test font-sync
 	./lcdterm_test
 	./kbdreq_test
-	${MAKE} mutants kbdreq-mutants
+	./sdspi_test
+	${MAKE} mutants kbdreq-mutants sdspi-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -37,6 +42,10 @@ lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ kbdreq_test.c \
 	    ${DEV}/picokbd_req.c
+
+sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
+	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ sdspi_test.c \
+	    ${DEV}/sdspi.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -122,8 +131,115 @@ kbdreq-mutant-off-ceiling:
 	${KBDREQ_MUT} picokbd_req.c \
 	    's/v > 255 ? 255 : v/v/' ${KBDREQ_SRC}
 
+SDSPI_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
+		sdspi_test.c
+
+SDSPI_SRC=	sdspi.c sdspi.h
+
+sdspi-mutants: \
+	sdspi-mutant-crc-cmd8 \
+	sdspi-mutant-crc-cmd0 \
+	sdspi-mutant-hcs \
+	sdspi-mutant-byte-address \
+	sdspi-mutant-echo-pattern \
+	sdspi-mutant-init-timeout \
+	sdspi-mutant-write-response \
+	sdspi-mutant-csd-v2-shift \
+	sdspi-mutant-csd-v1-mult \
+	sdspi-mutant-ccs \
+	sdspi-mutant-blocklen \
+	sdspi-mutant-fast-speed \
+	sdspi-mutant-busy-timeout \
+	sdspi-mutant-start-token \
+	sdspi-mutant-read-timeout \
+	sdspi-mutant-powerup-clocks \
+	sdspi-mutant-cmd0-tries \
+	sdspi-mutant-ocr-ready \
+	sdspi-mutant-acmd-illegal \
+	sdspi-mutant-range-check
+
+sdspi-mutant-crc-cmd8:
+	${SDSPI_MUT} sdspi.c \
+	    's/cmd == CMD8 ? 0x87/cmd == CMD8 ? 0x86/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-cmd0:
+	${SDSPI_MUT} sdspi.c \
+	    's/cmd == CMD0 ? 0x95/cmd == CMD0 ? 0x94/' ${SDSPI_SRC}
+
+sdspi-mutant-hcs:
+	${SDSPI_MUT} sdspi.c \
+	    's/hcs = v2 ? 0x40000000 : 0;/hcs = 0;/' ${SDSPI_SRC}
+
+sdspi-mutant-byte-address:
+	${SDSPI_MUT} sdspi.c \
+	    's/sd->type == SD_HC ? sector : sector \* SD_SECTOR/sd->type == SD_HC ? sector : sector/' ${SDSPI_SRC}
+
+sdspi-mutant-echo-pattern:
+	${SDSPI_MUT} sdspi.c \
+	    's/echo\[3\] != 0xaa/0/' ${SDSPI_SRC}
+
+sdspi-mutant-init-timeout:
+	${SDSPI_MUT} sdspi.c \
+	    's/o->micros() - t0 >= INIT_US/(o->micros() - t0) > 0xfffffff0U/' ${SDSPI_SRC}
+
+sdspi-mutant-write-response:
+	${SDSPI_MUT} sdspi.c \
+	    's/== DATA_ACCEPTED/< DATA_RESP_MASK/' ${SDSPI_SRC}
+
+sdspi-mutant-csd-v2-shift:
+	${SDSPI_MUT} sdspi.c \
+	    's/return (c_size + 1) << 10;/return (c_size + 1) << 9;/' ${SDSPI_SRC}
+
+sdspi-mutant-csd-v1-mult:
+	${SDSPI_MUT} sdspi.c \
+	    's/(mult + 2 + len - 9)/(mult + 1 + len - 9)/' ${SDSPI_SRC}
+
+sdspi-mutant-ccs:
+	${SDSPI_MUT} sdspi.c \
+	    's/(ocr\[0\] & 0x40) ? SD_HC/(ocr[0] \& 0x80) ? SD_HC/' ${SDSPI_SRC}
+
+sdspi-mutant-blocklen:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (sd->type != SD_HC) {/if (0) {/' ${SDSPI_SRC}
+
+sdspi-mutant-fast-speed:
+	${SDSPI_MUT} sdspi.c \
+	    's/o->speed(1);/(void)0;/' ${SDSPI_SRC}
+
+sdspi-mutant-busy-timeout:
+	${SDSPI_MUT} sdspi.c \
+	    's/o->micros() - t0 >= BUSY_US) {/(o->micros() - t0) > 0xfffffff0U) {/' ${SDSPI_SRC}
+
+sdspi-mutant-start-token:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (b != TOKEN_START)/if (0)/' ${SDSPI_SRC}
+
+sdspi-mutant-read-timeout:
+	${SDSPI_MUT} sdspi.c \
+	    's/o->micros() - t0 >= READ_US/(o->micros() - t0) > 0xfffffff0U/' ${SDSPI_SRC}
+
+sdspi-mutant-powerup-clocks:
+	${SDSPI_MUT} sdspi.c \
+	    's/POWERUP_CLOCKS\t\t10/POWERUP_CLOCKS\t\t2/' ${SDSPI_SRC}
+
+sdspi-mutant-cmd0-tries:
+	${SDSPI_MUT} sdspi.c \
+	    's/CMD0_TRIES\t\t5/CMD0_TRIES\t\t1/' ${SDSPI_SRC}
+
+sdspi-mutant-ocr-ready:
+	${SDSPI_MUT} sdspi.c \
+	    's/!(ocr\[0\] & 0x80)/0/' ${SDSPI_SRC}
+
+sdspi-mutant-acmd-illegal:
+	${SDSPI_MUT} sdspi.c \
+	    's/return (r & R1_ILLEGAL) ? SDE_UNSUPPORTED : SDE_IO;/return SDE_IO;/' ${SDSPI_SRC}
+
+sdspi-mutant-range-check:
+	${SDSPI_MUT} sdspi.c \
+	    's/ || sector >= sd->nsectors//' ${SDSPI_SRC}
+
 clean:
-	rm -f lcdterm_test kbdreq_test
+	rm -f lcdterm_test kbdreq_test sdspi_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -132,3 +248,24 @@ clean:
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
 	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \
 	kbdreq-mutant-off-ceiling
+
+.PHONY: sdspi-mutants sdspi-mutant-crc-cmd8 \
+	sdspi-mutant-crc-cmd0 \
+	sdspi-mutant-hcs \
+	sdspi-mutant-byte-address \
+	sdspi-mutant-echo-pattern \
+	sdspi-mutant-init-timeout \
+	sdspi-mutant-write-response \
+	sdspi-mutant-csd-v2-shift \
+	sdspi-mutant-csd-v1-mult \
+	sdspi-mutant-ccs \
+	sdspi-mutant-blocklen \
+	sdspi-mutant-fast-speed \
+	sdspi-mutant-busy-timeout \
+	sdspi-mutant-start-token \
+	sdspi-mutant-read-timeout \
+	sdspi-mutant-powerup-clocks \
+	sdspi-mutant-cmd0-tries \
+	sdspi-mutant-ocr-ready \
+	sdspi-mutant-acmd-illegal \
+	sdspi-mutant-range-check

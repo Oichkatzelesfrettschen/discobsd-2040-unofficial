@@ -68,12 +68,12 @@ closure calc needs path /usr/bin/calc
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
-#            arbitrary-precision calculator and the scientific calculator;
-#            the PICOCALC board's default
+#            arbitrary-precision calculator, the scientific calculator and
+#            the SD card's device nodes; the PICOCALC board's default
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games
 profile full coremark toolchain toolchainlib games
-profile picocalc coremark toolchain toolchainlib games calc-bignum calc
+profile picocalc coremark toolchain toolchainlib games calc-bignum calc sdcard

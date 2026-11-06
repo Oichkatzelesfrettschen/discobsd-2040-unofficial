@@ -167,14 +167,38 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("errno master must cover zero through ELAST")
 
     conf = source("sys/arch/rp2040/rp2040/conf.c")
-    if count_initializer_rows(conf, "const struct bdevsw bdevsw[] = {") != 6:
-        raise CheckError("RP2040 bdevsw must contain majors 0..4 and its terminator")
+    # The PICOCALC configuration alone adds block major 5 (sd) and character
+    # major 11 (rsd) under SD_ENABLED; the other kernels keep majors 0..4.
+    if count_initializer_rows(conf, "const struct bdevsw bdevsw[] = {") != 7:
+        raise CheckError(
+            "RP2040 bdevsw must contain majors 0..4, the SD row and its terminator"
+        )
+    bdevsw_body = conf.split("const struct bdevsw bdevsw[] = {", 1)[1].split("\n};", 1)[0]
+    sd_block = re.search(
+        r"^#ifdef SD_ENABLED\n(.*?)^#endif\n", bdevsw_body, re.MULTILINE | re.DOTALL
+    )
+    if (
+        sd_block is None
+        or len(re.findall(r"^\s*\{", sd_block.group(1), re.MULTILINE)) != 1
+        or "/* 5 - " not in sd_block.group(1)
+    ):
+        raise CheckError("RP2040 bdevsw must add exactly major 5 under SD_ENABLED")
     # PTY_ENABLED contributes one alternate source row, so the source has 12
     # initializers outside the PICOCALC_ENABLED block while the PICO and
     # PICO_UART tables have majors 0..9 plus the terminator. The PICOCALC
     # configuration alone adds major 10, the panel and keyboard console, as
     # the one row of that block.
     cdevsw_body = conf.split("const struct cdevsw cdevsw[] = {", 1)[1].split("\n};", 1)[0]
+    sd_char = re.search(
+        r"^#ifdef SD_ENABLED\n(.*?)^#endif\n", cdevsw_body, re.MULTILINE | re.DOTALL
+    )
+    if (
+        sd_char is None
+        or len(re.findall(r"^\s*\{", sd_char.group(1), re.MULTILINE)) != 1
+        or "/* 11 - " not in sd_char.group(1)
+    ):
+        raise CheckError("RP2040 cdevsw must add exactly major 11 under SD_ENABLED")
+    cdevsw_body = cdevsw_body.replace(sd_char.group(0), "", 1)
     picocalc = re.search(
         r"^#ifdef PICOCALC_ENABLED\n(.*?)^#endif\n(?=\s*/\*\s*\n\s*\* End the list)",
         cdevsw_body,
@@ -184,7 +208,7 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("RP2040 cdevsw must add exactly major 10 under PICOCALC_ENABLED")
     if "/* 10 - " not in picocalc.group(1):
         raise CheckError("RP2040 cdevsw PICOCALC row must be major 10")
-    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 13:
+    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 14:
         raise CheckError("RP2040 cdevsw must retain only majors 0..9 outside PICOCALC")
 
     tty = source("sys/kern/tty.c")

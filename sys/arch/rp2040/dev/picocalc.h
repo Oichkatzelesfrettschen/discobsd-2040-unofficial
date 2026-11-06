@@ -44,6 +44,13 @@
 #define	PICOCALC_KBD_SCL	7
 #define	PICOCALC_KBD_ADDR	0x1f
 
+/* SD card socket on SPI0; chip select is a SIO output. */
+#define	PICOCALC_SD_RX		16
+#define	PICOCALC_SD_CS		17
+#define	PICOCALC_SD_SCK		18
+#define	PICOCALC_SD_TX		19
+#define	PICOCALC_SD_DET		22
+
 /* Audio amplifier inputs, PWM slice 5 channels A (left) and B (right). */
 #define	PICOCALC_AUDIO_L	26
 #define	PICOCALC_AUDIO_R	27

@@ -72,6 +72,9 @@
 #include <rp2040/dev/picokbd_map.h>
 #include <rp2040/dev/picokbd_req.h>
 #include <rp2040/dev/lcdterm.h>
+#ifdef SD_ENABLED
+#include <rp2040/dev/sd.h>
+#endif
 
 #define	I2C1_BASE		0x40048000UL
 #define	IC_CON			0x00
@@ -426,6 +429,9 @@ kbd_poll(caddr_t arg __unused)
 	char seq[PICOKBD_MAXSEQ];
 	int state, key, n, r;
 
+#ifdef SD_ENABLED
+	sd_detect_poll();
+#endif
 	if (recovering != REC_IDLE && !recover_step()) {
 		timeout(kbd_poll, (caddr_t)0, KBD_FAST_TICKS);
 		return;

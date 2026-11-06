@@ -39,17 +39,21 @@
  * Control word, shifted out of the OSR from the most significant bit (the
  * OUT shift direction is left):
  *   31..22  nibbles to send, less one          -> X
- *   21..17  turnaround pulses plus 3, less one -> Y
+ *   21..17  turnaround pulses plus 2, less one -> Y
  *   16..7   nibbles to read                    -> ISR, then X
  *    6..0   unused, discarded
  * Data nibbles follow as 32-bit words, first nibble in bits 31..28.
  * The read side autopushes a word per eight nibbles, so a read count is a
  * multiple of eight.
  *
- * The read path samples two pulses behind the rising edge that launched
+ * The read path samples one pulse behind the rising edge that launched
  * the nibble: the IN instruction sits on the falling-edge cycle of the
- * pass after a rising edge, three PIO cycles behind the pad because the
- * input synchronizers are engaged (RP2040 datasheet 3.5.6.3).
+ * pass after a rising edge. It sees the pad as it stood three clk_sys
+ * cycles earlier (two synchronizer flip-flops and an input register stage,
+ * RP2040 datasheet 3.5.6.3), and the output stage adds one more clk_sys
+ * cycle before an edge reaches the pad. Those stages run on clk_sys, not on
+ * the divided state machine cycle (datasheet 3.5.5), so at PSRAM_CLKDIV 2
+ * the 32 ns they total equals one SCK period.
  */
 
 #ifndef _RP2040_DEV_PSRAM_PIO_H_
@@ -131,7 +135,7 @@
 #define	PSRAM_CLKDIV		2
 
 #define	PSRAM_CTRL_WORD(nout, wait, nin) \
-	((((unsigned int)(nout) - 1) << 22) | (((unsigned int)(wait) + 2) << 17) | \
+	((((unsigned int)(nout) - 1) << 22) | (((unsigned int)(wait) + 1) << 17) | \
 	    ((unsigned int)(nin) << 7))
 
 #endif /* !_RP2040_DEV_PSRAM_PIO_H_ */

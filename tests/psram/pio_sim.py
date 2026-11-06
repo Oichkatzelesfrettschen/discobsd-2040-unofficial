@@ -8,14 +8,22 @@ MOV, SET and the side-set field. Anything else raises, so a program that
 grows an instruction the model lacks fails loudly instead of passing.
 
 Time is in nanoseconds. A state machine cycle lasts clkdiv * 8 ns
-(clk_sys is 125 MHz). An instruction executed in cycle k changes the pad
-at the start of cycle k + 1 (one output register stage), reaches the device
-out_ns later, and a pad level reaches an IN instruction executed in cycle
-k three cycles after it left the pad when the input synchronizers are
-engaged (datasheet 3.5.6.2: a state machine observing its own pad sees four
-cycles, which is one output stage plus the three here). in_ns models the
-device pin to input flip-flop delay. out_ns and in_ns are board and pad
-properties the datasheets do not give; tests sweep them.
+(clk_sys is 125 MHz) and an instruction executes at the start of its cycle.
+The two input synchronizer flip-flops are timed against CLK_SYS (datasheet
+3.5.6.3, the warning on bypassing them), and the clock divider only gates
+state machine execution (3.5.5), so the synchronizers advance every clk_sys
+cycle whatever the divider. The datasheet also counts a register stage
+between the state machine and the pin mapping and one between the input
+mapping and the state machine, four cycles in all for a state machine that
+observes its own pad (3.5.6.1), without naming their clock. The model times
+both on clk_sys: an instruction executed in cycle k changes the pad
+OUT_STAGES clk_sys cycles after its cycle starts and reaches the device
+out_ns later, and an IN executed in cycle k sees the pad level IN_STAGES
+clk_sys cycles before its cycle starts, with in_ns modeling the device pin
+to input flip-flop delay. Pio(out_gated=True) and Pio(in_gated=True) move
+one stage onto the state machine cycle for the sensitivity run in
+test_stage_gating(). out_ns and in_ns are board and pad properties the
+datasheets do not give; tests sweep them.
 """
 
 import bisect
@@ -23,6 +31,8 @@ import random
 import re
 
 SYS_NS = 8.0
+OUT_STAGES = 1  # output register stage, clk_sys cycles
+IN_STAGES = 3  # two synchronizer flip-flops plus the input register stage
 
 # Datasheet Table 10-5 (page 17-18 of v1.1), nanoseconds.
 T_CLK_MIN = 7.0  # 133 MHz
@@ -531,9 +541,18 @@ class Pio:
     """One state machine of a PIO block with the registers the driver
     writes, driving a Device."""
 
-    def __init__(self, dev, out_ns=3.0, in_ns=3.0, access_ticks=6):
+    def __init__(
+        self,
+        dev,
+        out_ns=3.0,
+        in_ns=3.0,
+        access_ticks=6,
+        out_gated=False,
+        in_gated=False,
+    ):
         self.dev = dev
         self.out_ns, self.in_ns = out_ns, in_ns
+        self.out_gated, self.in_gated = out_gated, in_gated
         self.access_ticks = access_ticks
         self.imem = [0] * 32
         self.div = 1
@@ -571,6 +590,19 @@ class Pio:
     @property
     def cyc(self):
         return self.div * SYS_NS
+
+    @property
+    def out_latency(self):
+        """Output register stage: one clk_sys cycle, or one state machine
+        cycle when the stage advances on the clock enable."""
+        return self.cyc if self.out_gated else OUT_STAGES * SYS_NS
+
+    @property
+    def in_latency(self):
+        """Two synchronizer flip-flops on clk_sys plus the input register
+        stage, which is one clk_sys cycle or one state machine cycle."""
+        stage = self.cyc if self.in_gated else SYS_NS
+        return (IN_STAGES - 1) * SYS_NS + stage
 
     def _pull_thresh(self):
         return ((self.shiftctrl >> 25) & 31) or 32
@@ -674,7 +706,7 @@ class Pio:
         sck = self.level >> 21 & 1
         lvl = self.level >> 2 & 15
         dr = self.dirs >> 2 & 15
-        t = (cycle + 1) * self.cyc + self.out_ns
+        t = cycle * self.cyc + self.out_latency + self.out_ns
         t = max(t, self.last_event)
         self.last_event = t
         self.pad_hist.append((cycle + 1, cs, sck, lvl, dr))
@@ -714,7 +746,7 @@ class Pio:
 
     def _sample_pins(self, cycle):
         """The pin values an IN executed in `cycle` sees."""
-        t = (cycle - 3) * self.cyc - self.in_ns
+        t = cycle * self.cyc - self.in_latency - self.in_ns
         in_base = (self.pinctrl >> 15) & 31
         v = 0
         for i in range(4):

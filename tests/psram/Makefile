@@ -8,8 +8,9 @@
 # value that never raises SCK, data changed in the cycle SCK rises, chip
 # select left low, one turnaround clock too few, one address nibble
 # dropped, a frame long enough to pass tCEM, a frame that no longer stops at
-# a 64-byte block, and a word whose comment no longer matches it. A gate
-# that passed them would be checking nothing.
+# a 64-byte block, a word whose comment no longer matches it, and a
+# turnaround one pass too long. A gate that passed them would be checking
+# nothing.
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -40,7 +41,7 @@ libpsram.so: psram_host.c psram_host.h ${DEV}/psram_xfer.c \
 MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
-	mutant-tcem mutant-block mutant-comment
+	mutant-tcem mutant-block mutant-comment mutant-turnaround
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -78,8 +79,15 @@ mutant-block:
 mutant-comment:
 	${MUT} psram_pio.h 's/0x4004,/0x4005,/'
 
+# The turnaround one pass longer than the input path needs: the read lands
+# on the next nibble, the sampling the model showed before the output and
+# input register stages were timed on clk_sys.
+mutant-turnaround:
+	${MUT} psram_pio.h 's/(wait) + 1) << 17/(wait) + 2) << 17/'
+
 clean:
 	rm -f libpsram.so
 
 .PHONY: all check mutants mutant-sideset mutant-setup mutant-cs mutant-wait \
-	mutant-address mutant-tcem mutant-block mutant-comment clean
+	mutant-address mutant-tcem mutant-block mutant-comment \
+	mutant-turnaround clean

@@ -106,14 +106,19 @@ maximum and below the 84 MHz limit for a burst that crosses a page.
 The device launches nibble k after the falling edge that follows rising
 edge n+k-1, where n is the clock count before the first data clock, and
 holds it until the next falling edge plus tKOH. Valid time therefore runs
-from fall + tACLK(max) = fall + 6 ns to the next fall + 1.5 ns. An IN
-executed in cycle e sees the pad as it stood in cycle e-3 (the 2-flop input
-synchronizer plus one register stage, datasheet 3.5.6.3). The IN sits on
-the falling-edge instruction of a pass, two clocks after the rising edge
-that nibble is sampled on, so its sample lands c - s after that rising
-edge, with c the state machine cycle (16 ns) and s the sum of the output and
-input pad delays. The window then leaves 2c - s - 6 ns of margin against the device
-launching late and s + 1.5 ns against it holding too short:
+from fall + tACLK(max) = fall + 6 ns to the next fall + 1.5 ns. The output
+register stage, the two input synchronizer flip-flops and the input register
+stage run on clk_sys, not on the state machine's divided cycle: the clock
+divider gates execution only (datasheet 3.5.5) and the synchronizers are
+timed against CLK_SYS (3.5.6.3, the warning on bypassing them). An edge
+leaves the state machine one clk_sys cycle (8 ns) before it reaches the pad
+and an IN sees the pad as it stood three clk_sys cycles (24 ns) earlier, 32 ns
+in all, which is one SCK period at `PSRAM_CLKDIV` 2. An IN executed in the
+falling-edge instruction of a pass therefore lands c - s after the rising edge
+that nibble is sampled on, with c the state machine cycle (16 ns) and s the
+sum of the output and input pad delays. The window then leaves 2c - s - 6 ns
+of margin against the device launching late and s + 1.5 ns against it
+holding too short:
 
 | s (ns) | margin from tACLK (ns) | margin to the hold edge (ns) |
 | --- | --- | --- |
@@ -128,10 +133,31 @@ The sample point is 2c - s - 6 from one limit and s + 1.5 from the other, so
 a longer pad delay trades the first margin for the second; no s from 0 to 26
 ns leaves the window.
 
-The first IN executes after the rising edge two clocks past the one the
-first nibble is sampled on, so the turnaround loop runs the wait cycles plus
-three passes before it and the frame ends three clocks after the last data
-clock; the control word stores that as `wait + 2` after the less-one. A read
+The datasheet counts the stages as "a register stage between each state
+machine and the pin mapping logic, and a register stage between the input
+mapping logic and each state machine" without saying which clock advances
+the two register stages. `Pio(out_gated=..., in_gated=...)` in the
+simulator moves either one onto the state machine cycle, which lengthens the
+sample delay by 8 ns each at `PSRAM_CLKDIV` 2 and moves the sample point
+toward the tACLK edge. At s = 6 ns the shipped driver reads correctly under
+all four placements:
+
+| output stage | input stage | margin from tACLK (ns) | margin to the hold edge (ns) |
+| --- | --- | --- | --- |
+| clk_sys | clk_sys | 20 | 7.5 |
+| clk_sys | state machine cycle | 12 | 15.5 |
+| state machine cycle | clk_sys | 12 | 15.5 |
+| state machine cycle | state machine cycle | 4 | 23.5 |
+
+The shipped placement is clk_sys for both. If the board shows the stages on
+the state machine cycle, the margin from tACLK falls to 4 ns and a pad delay
+sum above 10 ns breaks the read; the divider or the pass count then decides
+the retune.
+
+The first IN executes after the rising edge one clock past the one the first
+nibble is sampled on, so the turnaround loop runs the wait cycles plus two
+passes before it and the frame ends two clocks after the last data clock; the
+control word stores that as `wait + 1` after the less-one. A read
 count is a multiple of
 eight nibbles because autopush pushes whole words; the driver rounds a read
 up to four bytes and discards the tail.
@@ -139,8 +165,8 @@ up to four bytes and discards the tail.
 ### Frame length against tCEM
 
 A frame of N bytes is 2 + 6 + 2N clocks (command, address, data) for a write
-and 2 + 6 + (6 + 3) + 2N' for a read, with N' the byte count rounded up to
-four. At 32 ns per clock and 64 bytes that is 4.4 us for a write and 4.75 us
+and 2 + 6 + (6 + 2) + 2N' for a read, with N' the byte count rounded up to
+four. At 32 ns per clock and 64 bytes that is 4.4 us for a write and 4.72 us
 for a read in the simulator, 59 percent of the 8 us limit. 128 bytes would
 hold CS low for about 8.9 us, past the limit, and is one of the mutants.
 `psram_chunk_len()` cuts a transfer at 64-byte block boundaries, which are
@@ -223,12 +249,12 @@ simulator's pad delays at 3 ns each:
 | --- | --- |
 | Every word of `PSRAM_PIO_WORDS` decodes, with an independent disassembler, to the assembly in its comment | 19 of 19 |
 | Waveforms on SIO0-3 against SCK rising edges for serial Read ID, quad write 0x38 and quad read 0xEB | command, address and data nibbles equal the datasheet's; pins released before the device drives them |
-| Longest frames (64 bytes) | CS low 4.45 us write, 4.75 us read, limit 8 us; tCSP 16 ns (limit 2.5), tCHD 48 ns (20), tCPH 352 ns (50), SCK period 32 ns (7) |
+| Longest frames (64 bytes) | CS low 4.45 us write, 4.72 us read, limit 8 us; tCSP 16 ns (limit 2.5), tCHD 48 ns (20), tCPH 352 ns (50), SCK period 32 ns (7) |
 | 199 frames from initialization and 40 random write and read pairs of 1 to 301 bytes at unaligned addresses, across 64-byte and 1 KB boundaries and the end of the device | memory equals a shadow copy, no timing violation, no indeterminate sample |
-| Read sampling window margin | 20 ns against tACLK, 7.5 ns against tKOH; pad delay sums from 0 to 10 ns pass |
+| Read sampling window margin | 20 ns against tACLK, 7.5 ns against tKOH with both register stages on clk_sys; 12 / 15.5 ns with one on the state machine cycle and 4 / 23.5 ns with both; pad delay sums from 0 to 10 ns pass |
 | Interrupts masked per frame | 5.2 us at most |
 | Faults | a failing die, a wrong manufacturer, an absent part and a stuck SIO2 are each reported with the right error; a 3.2 us register access cost and a 30 ns pad delay are each noticed |
-| Mutants | eight, each killed: SCK never rising, data changing in the rising cycle, CS left low, one wait clock short, one address nibble dropped, a 128-byte frame, a frame ignoring the 64-byte block, a word that no longer matches its comment |
+| Mutants | nine, each killed: SCK never rising, data changing in the rising cycle, CS left low, one wait clock short, one address nibble dropped, a 128-byte frame, a frame ignoring the 64-byte block, a word that no longer matches its comment, a turnaround one pass long |
 
 Size, from `arm-none-eabi-size`, PICOCALC: text 119,316 to 121,324, data 304
 to 360, bss 45,888 to 46,032. The text budget was 3.5 KB. PICO (108,480
@@ -238,7 +264,9 @@ baseline only in the build timestamp string.
 
 ### What the simulator cannot establish
 
-- The pad delays, the real tACLK between its 2 and 6 ns, the drive strength
+- Which clock advances the output and input register stages (the table
+  under "Where the read samples" bounds the consequence), the pad delays,
+  the real tACLK between its 2 and 6 ns, the drive strength
   and the trace on the PicoCalc board. The margin table above is a bound
   over the datasheet, not a measurement; a board capture of SCK against a
   read data line decides it, and the pad slew and drive settings in

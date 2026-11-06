@@ -85,7 +85,7 @@ class Consts:
 
 def ctrl_word(nout, wait, nin):
     """The control word from the layout in psram_pio.h, computed here."""
-    return ((nout - 1) << 22) | ((wait + 2) << 17) | (nin << 7)
+    return ((nout - 1) << 22) | ((wait + 1) << 17) | (nin << 7)
 
 
 # -- layer 1: the program --------------------------------------------------
@@ -237,7 +237,7 @@ def test_waveforms(words, c):
     rx = o.frame(tx, 2)
     f = o.dev.frames[-1]
     check(f["cmd"] == 0x9F, "serial read ID command decoded as %s" % f["cmd"])
-    check(f["pulses"] == 31 + 4 + 16, "read ID clocks %d" % f["pulses"])
+    check(f["pulses"] == 31 + 3 + 16, "read ID clocks %d" % f["pulses"])
     want_bits = [(0x9F >> (7 - k)) & 1 for k in range(8)]
     got = [s[0] for s in f["samples"][:8]]
     check(got == want_bits, "command bits on SIO0 %s != %s" % (got, want_bits))
@@ -288,9 +288,9 @@ def test_waveforms(words, c):
     check(not o.dev.violations, "write violations: %s" % o.dev.violations)
 
     # Quad-mode fast read 0xEB: command and address, six clocks with the
-    # pins released, then data; the state machine samples two clocks after
+    # pins released, then data; the state machine samples one clock after
     # the nibble's own rising edge, which is why the frame is longer than
-    # the datasheet's by two clocks of turnaround.
+    # the datasheet's by one clock of turnaround.
     o = Oracle(words, c)
     o.dev.qpi = True
     addr = 0x000400
@@ -302,7 +302,7 @@ def test_waveforms(words, c):
         sample_nibbles(f, 0, 8) == [14, 11, 0, 0, 0, 4, 0, 0],
         "read command and address nibbles %s" % sample_nibbles(f, 0, 8),
     )
-    check(f["pulses"] == 8 + 6 + 3 + 16, "read clocks %d" % f["pulses"])
+    check(f["pulses"] == 8 + 6 + 2 + 16, "read clocks %d" % f["pulses"])
     for j in range(8, f["pulses"]):
         rel = o.dev.master_at(0, f["rises"][j])[1]
         check(rel == 0, "SIO0 still driven at clock %d" % j)
@@ -383,8 +383,8 @@ def test_chunks(lib):
     check(covered == 3000, "chunks cover the request exactly")
 
 
-def test_driver(lib_path, c, access_ticks=6, quiet=False):
-    r = new_rig(lib_path, access_ticks=access_ticks)
+def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
+    r = new_rig(lib_path, access_ticks=access_ticks, **rig_kw)
     r.hw_init()
     check(
         sorted(p for p, _ in r.pins) == [2, 3, 4, 5, 20, 21],
@@ -497,6 +497,46 @@ def test_cpu_speed(lib_path, c):
     check(seen, "a 3.2 us register access cost goes unnoticed")
 
 
+def test_stage_gating(lib_path, c):
+    """The datasheet does not say whether the output register stage and the
+    input register stage advance on clk_sys or on the state machine's clock
+    enable (3.5.6.1). The driver must read correctly under all four
+    placements; the table records the sampling margin of each."""
+    table = {}
+    for out_gated in (False, True):
+        for in_gated in (False, True):
+            r = test_driver(
+                lib_path,
+                c,
+                quiet=True,
+                out_gated=out_gated,
+                in_gated=in_gated,
+            )
+            name = "out_%s_in_%s" % (
+                "enable" if out_gated else "sys",
+                "enable" if in_gated else "sys",
+            )
+            start = min(m[0] for m in r.dev.margins)
+            end = min(m[1] for m in r.dev.margins if m[1] is not None)
+            check(
+                not r.dev.violations,
+                "%s: %s" % (name, r.dev.violations[:3]),
+            )
+            check(
+                r.dev.poison == 0,
+                "%s: %d indeterminate samples" % (name, r.dev.poison),
+            )
+            check(
+                start >= 2.0 and end >= 2.0,
+                "%s: read margins %.1f / %.1f ns" % (name, start, end),
+            )
+            table[name] = {
+                "read_margin_start_ns": start,
+                "read_margin_end_ns": end,
+            }
+    return table
+
+
 def test_pad_delay(lib_path, c):
     """The read window is wide enough for any combined output and input
     delay s with 0 <= s <= 2*cycle - tACLK; a larger delay must show."""
@@ -552,6 +592,7 @@ def main():
     test_faults(a.lib, c)
     test_cpu_speed(a.lib, c)
     test_pad_delay(a.lib, c)
+    results["stage_gating"] = test_stage_gating(a.lib, c)
     print("psram: %d checks, %d failed" % (CHECKS, len(FAILS)))
     if a.json:
         json.dump(results, open(a.json, "w"), indent=2, sort_keys=True)

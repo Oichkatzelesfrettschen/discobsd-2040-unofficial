@@ -41,7 +41,7 @@ name a file there, with a page for a PDF.
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
-| `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults and eight mutants | host | observed by `check-psram-pio` (766 checks); the model's pad delays are assumptions |
+| `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and nine mutants | host | observed by `check-psram-pio` (1,141 checks); the model's pad delays and the clock of the two register stages are assumptions |
 | PICO and PICO_UART link unchanged by the PSRAM driver | build | observed: `size` equal, disassembly and read-only data equal except the version timestamp |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
@@ -299,8 +299,9 @@ and leaves `swapdev` on `fl1`. SCK runs at 31.25 MHz (`PSRAM_CLKDIV` in
 and interrupts are masked for that long per frame.
 
 Open for the board run: the read sampling margin depends on pad delays no
-datasheet gives (a scope capture of SCK against a read data line decides
-whether the clock can rise), whether the part ignores a serial command cut
+datasheet gives and on whether the output and input register stages run on
+clk_sys or on the state machine cycle (a scope capture of SCK against a read
+data line decides both, and whether the clock can rise), whether the part ignores a serial command cut
 short, and how a module in the shared header J703 loads the lines. Open
 for the owner: replacing `fl1` outright versus keeping it as a second tier
 behind PSRAM, and the cost of each (the research note's swap integration

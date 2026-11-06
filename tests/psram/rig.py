@@ -9,11 +9,23 @@ import pio_sim
 
 class Rig:
     def __init__(
-        self, lib_path, device=None, out_ns=3.0, in_ns=3.0, access_ticks=6
+        self,
+        lib_path,
+        device=None,
+        out_ns=3.0,
+        in_ns=3.0,
+        access_ticks=6,
+        out_gated=False,
+        in_gated=False,
     ):
         self.dev = device or pio_sim.Device()
         self.pio = pio_sim.Pio(
-            self.dev, out_ns=out_ns, in_ns=in_ns, access_ticks=access_ticks
+            self.dev,
+            out_ns=out_ns,
+            in_ns=in_ns,
+            access_ticks=access_ticks,
+            out_gated=out_gated,
+            in_gated=in_gated,
         )
         self.pins = []
         self.unresets = 0

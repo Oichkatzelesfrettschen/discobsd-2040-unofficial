@@ -9,6 +9,9 @@
  * with "FAIL " and the program exits 1.
  */
 
+/* sigsetjmp and sigaction are POSIX; the NULL-pointer sweep recovers from a fault with them. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <complex.h>
 #include <float.h>
 #include <math.h>
@@ -16,6 +19,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef CALC_TEST_NO_SIGNALS
+#include <setjmp.h>
+#include <signal.h>
+#endif
 
 #include "mathematics.h"
 
@@ -2150,6 +2158,247 @@ test_complex_grid(void)
 }
 #endif
 
+/* --- NULL required pointers ---------------------------------------------- */
+
+/*
+ * Every status-returning entry point, called once per required pointer with
+ * that pointer NULL and the rest valid, must return CALC_E_ARG. A fault is a
+ * failure that the run reports and survives, so a deleted guard shows up as a
+ * FAIL line and not as a crash. The ARM run defines CALC_TEST_NO_SIGNALS: the
+ * bare-metal C library has no sigaction, and a fault there ends the run.
+ */
+#ifndef CALC_TEST_NO_SIGNALS
+static sigjmp_buf null_env;
+static volatile sig_atomic_t null_armed;
+
+static void
+null_fault(int sig)
+{
+	if (null_armed)
+		siglongjmp(null_env, 1);
+	signal(sig, SIG_DFL);
+	raise(sig);
+}
+
+/* Installed with sigaction: signal() may reset the handler on delivery under POSIX feature macros. */
+static void
+catch_faults(void)
+{
+	struct sigaction sa;
+
+	memset(&sa, 0, sizeof sa);
+	sa.sa_handler = null_fault;
+	sigemptyset(&sa.sa_mask);
+	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGBUS, &sa, NULL);
+}
+
+#define NULL_ARG(call) do {							\
+	int st_ = -1;								\
+	checks++;								\
+	null_armed = 1;								\
+	if (sigsetjmp(null_env, 1) == 0) {					\
+		st_ = (int)(call);						\
+		null_armed = 0;							\
+		if (st_ != (int)CALC_E_ARG) {					\
+			failures++;						\
+			printf("FAIL %s:%d: %s returned %d, expected CALC_E_ARG\n",	\
+			    __FILE__, __LINE__, #call, st_);			\
+		}								\
+	} else {								\
+		null_armed = 0;							\
+		failures++;							\
+		printf("FAIL %s:%d: %s faulted on a NULL required pointer\n",	\
+		    __FILE__, __LINE__, #call);					\
+	}									\
+} while (0)
+#else
+#define NULL_ARG(call) CHECK_ST(call, CALC_E_ARG)
+#endif
+
+static void
+test_null_arguments(void)
+{
+	static const double da[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	static const double db[8] = { 8, 7, 6, 5, 4, 3, 2, 1 };
+	static const double mat[4] = { 2, 1, 1, 3 };
+	static const int64_t ia[4] = { 1, 2, 3, 4 };
+	static const int32_t ja[4] = { 1, 2, 3, 4 };
+	static const uint8_t bytes[3] = { 1, 2, 3 };
+	double o1[8], o2[8], w[4], c1;
+	size_t sz, df;
+	long li;
+	int64_t io[4];
+	int32_t jx[4], jy[4];
+	calc_cplx x[8];
+	calc_quat q, qi = { 1, 0, 0, 0 };
+	uint64_t crc;
+	char text[8];
+	uint8_t raw[8];
+	calc_cplx one = { 1, 2 }, two = { 3, 4 };
+
+#ifndef CALC_TEST_NO_SIGNALS
+	catch_faults();
+#endif
+	memset(x, 0, sizeof x);
+
+	/* scalar */
+	NULL_ARG(calc_sinh(1, NULL));
+	NULL_ARG(calc_cosh(1, NULL));
+	NULL_ARG(calc_tanh(1, NULL));
+	NULL_ARG(calc_log10(2, NULL));
+	/* statistics */
+	NULL_ARG(calc_sum(NULL, 4, o1));
+	NULL_ARG(calc_sum(da, 4, NULL));
+	NULL_ARG(calc_mean(NULL, 4, o1));
+	NULL_ARG(calc_mean(da, 4, NULL));
+	NULL_ARG(calc_median(NULL, 4, o2, o1));
+	NULL_ARG(calc_median(da, 4, NULL, o1));
+	NULL_ARG(calc_median(da, 4, o2, NULL));
+	NULL_ARG(calc_variance(NULL, 4, 0, o1));
+	NULL_ARG(calc_variance(da, 4, 0, NULL));
+	NULL_ARG(calc_stddev(NULL, 4, 0, o1));
+	NULL_ARG(calc_stddev(da, 4, 0, NULL));
+	NULL_ARG(calc_stddev(da, 4, 1, NULL));
+	NULL_ARG(calc_min(NULL, 4, o1, &sz));
+	NULL_ARG(calc_min(da, 4, NULL, &sz));
+	NULL_ARG(calc_max(NULL, 4, o1, &sz));
+	NULL_ARG(calc_max(da, 4, NULL, &sz));
+	NULL_ARG(calc_correl(NULL, db, 4, o1));
+	NULL_ARG(calc_correl(da, NULL, 4, o1));
+	NULL_ARG(calc_correl(da, db, 4, NULL));
+	NULL_ARG(calc_chi_square(NULL, 2, 2, o1, &df));
+	NULL_ARG(calc_chi_square(da, 2, 2, NULL, &df));
+	NULL_ARG(calc_chi_square(da, 2, 2, o1, NULL));
+	NULL_ARG(calc_chi_square_p(1.0, 1, NULL));
+	NULL_ARG(calc_crossing(NULL, 8, 0.5, 1, &li));
+	NULL_ARG(calc_crossing(da, 8, 0.5, 1, NULL));
+	/* vectors */
+	NULL_ARG(calc_dot(NULL, db, 4, o1));
+	NULL_ARG(calc_dot(da, NULL, 4, o1));
+	NULL_ARG(calc_dot(da, db, 4, NULL));
+	NULL_ARG(calc_magnitude(NULL, 4, o1));
+	NULL_ARG(calc_magnitude(da, 4, NULL));
+	NULL_ARG(calc_normalize(NULL, 4, o1));
+	NULL_ARG(calc_normalize(da, 4, NULL));
+	NULL_ARG(calc_cross3(NULL, db, o1));
+	NULL_ARG(calc_cross3(da, NULL, o1));
+	NULL_ARG(calc_cross3(da, db, NULL));
+	NULL_ARG(calc_rotate2d(0, 0, 1, CALC_RADIANS, NULL, db, 3, o1, o2));
+	NULL_ARG(calc_rotate2d(0, 0, 1, CALC_RADIANS, da, NULL, 3, o1, o2));
+	NULL_ARG(calc_rotate2d(0, 0, 1, CALC_RADIANS, da, db, 3, NULL, o2));
+	NULL_ARG(calc_rotate2d(0, 0, 1, CALC_RADIANS, da, db, 3, o1, NULL));
+	NULL_ARG(calc_rotate2d_i32(0, 0, 1, CALC_RADIANS, NULL, ja, 3, jx, jy));
+	NULL_ARG(calc_rotate2d_i32(0, 0, 1, CALC_RADIANS, ja, NULL, 3, jx, jy));
+	NULL_ARG(calc_rotate2d_i32(0, 0, 1, CALC_RADIANS, ja, ja, 3, NULL, jy));
+	NULL_ARG(calc_rotate2d_i32(0, 0, 1, CALC_RADIANS, ja, ja, 3, jx, NULL));
+	/* matrices */
+	NULL_ARG(calc_mat_mul(NULL, 2, 2, mat, 2, o1));
+	NULL_ARG(calc_mat_mul(mat, 2, 2, NULL, 2, o1));
+	NULL_ARG(calc_mat_mul(mat, 2, 2, mat, 2, NULL));
+	NULL_ARG(calc_mat_vec(NULL, 2, 2, da, o1));
+	NULL_ARG(calc_mat_vec(mat, 2, 2, NULL, o1));
+	NULL_ARG(calc_mat_vec(mat, 2, 2, da, NULL));
+	NULL_ARG(calc_mat_transpose(NULL, 2, 2, o1));
+	NULL_ARG(calc_mat_transpose(mat, 2, 2, NULL));
+	NULL_ARG(calc_mat_det(NULL, 2, w, o1));
+	NULL_ARG(calc_mat_det(mat, 2, NULL, o1));
+	NULL_ARG(calc_mat_det(mat, 2, w, NULL));
+	NULL_ARG(calc_mat_inverse(NULL, 2, w, o1));
+	NULL_ARG(calc_mat_inverse(mat, 2, NULL, o1));
+	NULL_ARG(calc_mat_inverse(mat, 2, w, NULL));
+	NULL_ARG(calc_mat_solve(NULL, 2, db, 1, w, o1));
+	NULL_ARG(calc_mat_solve(mat, 2, NULL, 1, w, o1));
+	NULL_ARG(calc_mat_solve(mat, 2, db, 1, NULL, o1));
+	NULL_ARG(calc_mat_solve(mat, 2, db, 1, w, NULL));
+	NULL_ARG(calc_mat_cond(NULL, 2, w, &c1));
+	NULL_ARG(calc_mat_cond(mat, 2, NULL, &c1));
+	NULL_ARG(calc_mat_cond(mat, 2, w, NULL));
+	/* complex */
+	NULL_ARG(calc_c_add(one, two, NULL));
+	NULL_ARG(calc_c_sub(one, two, NULL));
+	NULL_ARG(calc_c_mul(one, two, NULL));
+	NULL_ARG(calc_c_div(one, two, NULL));
+	NULL_ARG(calc_c_pow(one, two, NULL));
+	NULL_ARG(calc_c_func(CALC_C_EXP, one, NULL));
+	/* quaternions */
+	NULL_ARG(calc_quat_inverse(qi, NULL));
+	NULL_ARG(calc_quat_from_vector(1, 2, 3, NULL, o1));
+	NULL_ARG(calc_quat_from_vector(1, 2, 3, &q, NULL));
+	NULL_ARG(calc_quat_from_axis_angle(1, 0, 0, 1, CALC_RADIANS, NULL));
+	/* FFT */
+	NULL_ARG(calc_fft_twiddles(NULL, 8));
+	NULL_ARG(calc_fft(NULL, 8, 0, NULL));
+	NULL_ARG(calc_fft_magnitude(NULL, 8, o1));
+	NULL_ARG(calc_fft_magnitude(x, 8, NULL));
+	NULL_ARG(calc_fft_phase(NULL, 8, o1));
+	NULL_ARG(calc_fft_phase(x, 8, NULL));
+	/* interpolation and scaling */
+	NULL_ARG(calc_rescale(NULL, 4, 0, 1, o1, NULL, NULL));
+	NULL_ARG(calc_rescale(da, 4, 0, 1, NULL, NULL, NULL));
+	NULL_ARG(calc_interp_table(NULL, da, 4, 2.5, o1));
+	NULL_ARG(calc_interp_table(da, NULL, 4, 2.5, o1));
+	NULL_ARG(calc_interp_table(da, da, 4, 2.5, NULL));
+	/* element-wise lists */
+	NULL_ARG(calc_vec_add(NULL, db, 4, o1));
+	NULL_ARG(calc_vec_add(da, NULL, 4, o1));
+	NULL_ARG(calc_vec_add(da, db, 4, NULL));
+	NULL_ARG(calc_vec_sub(NULL, db, 4, o1));
+	NULL_ARG(calc_vec_sub(da, NULL, 4, o1));
+	NULL_ARG(calc_vec_sub(da, db, 4, NULL));
+	NULL_ARG(calc_vec_mul(NULL, db, 4, o1));
+	NULL_ARG(calc_vec_mul(da, NULL, 4, o1));
+	NULL_ARG(calc_vec_mul(da, db, 4, NULL));
+	NULL_ARG(calc_vec_div(NULL, db, 4, o1));
+	NULL_ARG(calc_vec_div(da, NULL, 4, o1));
+	NULL_ARG(calc_vec_div(da, db, 4, NULL));
+	NULL_ARG(calc_i64_add(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_add(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_add(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_sub(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_sub(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_sub(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_mul(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_mul(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_mul(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_div(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_div(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_div(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_and(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_and(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_and(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_or(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_or(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_or(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_xor(NULL, ia, 4, io));
+	NULL_ARG(calc_i64_xor(ia, NULL, 4, io));
+	NULL_ARG(calc_i64_xor(ia, ia, 4, NULL));
+	NULL_ARG(calc_i64_shift(NULL, 4, 1, 0, io));
+	NULL_ARG(calc_i64_shift(ia, 4, 1, 0, NULL));
+	NULL_ARG(calc_scale(NULL, 4, 2, o1));
+	NULL_ARG(calc_scale(da, 4, 2, NULL));
+	NULL_ARG(calc_scale_to_i64(NULL, 4, 2, io));
+	NULL_ARG(calc_scale_to_i64(da, 4, 2, NULL));
+	NULL_ARG(calc_scale_i64(NULL, 4, 2, io));
+	NULL_ARG(calc_scale_i64(ia, 4, 2, NULL));
+	NULL_ARG(calc_power(NULL, 4, 2, o1));
+	NULL_ARG(calc_power(da, 4, 2, NULL));
+	NULL_ARG(calc_blend(NULL, db, 4, 0.5, o1));
+	NULL_ARG(calc_blend(da, NULL, 4, 0.5, o1));
+	NULL_ARG(calc_blend(da, db, 4, 0.5, NULL));
+	/* CRC, base64, PID */
+	NULL_ARG(calc_crc(NULL, bytes, 3, &crc));
+	NULL_ARG(calc_crc(&calc_crc8, NULL, 3, &crc));
+	NULL_ARG(calc_crc(&calc_crc8, bytes, 3, NULL));
+	NULL_ARG(calc_b64_encode(NULL, 3, text, sizeof text, &sz));
+	NULL_ARG(calc_b64_encode(bytes, 3, NULL, sizeof text, &sz));
+	NULL_ARG(calc_b64_encode(bytes, 3, text, sizeof text, NULL));
+	NULL_ARG(calc_b64_decode(NULL, 4, raw, sizeof raw, &sz));
+	NULL_ARG(calc_b64_decode("Zm9v", 4, NULL, sizeof raw, &sz));
+	NULL_ARG(calc_b64_decode("Zm9v", 4, raw, sizeof raw, NULL));
+	NULL_ARG(calc_pid_init(NULL, 1, 0, 0, 0.1, 0.1, -1, 1, -1, 1));
+}
+
 int
 main(void)
 {
@@ -2168,6 +2417,7 @@ main(void)
 	test_lists();
 	test_base64();
 	test_pid();
+	test_null_arguments();
 	test_accuracy();
 #ifdef CALC_TEST_NO_HOST_COMPLEX
 	printf("INFO host complex grid skipped: C library lacks Annex G branch cuts\n");

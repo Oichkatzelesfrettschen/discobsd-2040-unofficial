@@ -240,6 +240,13 @@ MUTANTS = [
         "wrong output offset",
     ),
     (
+        "stddev_null_output_unguarded",
+        "calc_stats.c",
+        "\tif (out == NULL)\n\t\treturn CALC_E_ARG;\n\tst = calc_variance(a, n, sample, &v);",
+        "\tst = calc_variance(a, n, sample, &v);",
+        "standard deviation writes through a NULL output",
+    ),
+    (
         "pid_derivative_sign",
         "calc_pid.c",
         "\tc->differentiator = -(2.0 * c->kd",

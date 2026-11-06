@@ -149,6 +149,13 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
     execution under the hardware opt-in is the measurement that confirms or revises it. The prediction to
     falsify: the NaN-propagation and subnormal-range checks fail on the board and every finite
     normal-range check passes. The new quaternion range check (`1e-310`) is such a subnormal check.
+24. **NULL required pointers.** `calc_stddev` wrote through its output before checking it. A sweep in
+    `calc_test.c` calls every status-returning entry point once per required pointer with that pointer NULL
+    and requires `CALC_E_ARG`; the sweep catches SIGSEGV and SIGBUS with `sigaction` and `sigsetjmp`, so a
+    deleted guard is a `FAIL` line and not a crash. The qemu-arm run defines `CALC_TEST_NO_SIGNALS`
+    (bare-metal newlib has no `sigaction`) and runs the same calls without recovery. `check_null_sweep.sh`
+    holds the sweep to the status-returning entry points declared in `mathematics.h`, so a new function
+    without a sweep entry fails the `check-null-sweep` target.
 
 ## Findings about the tree's `lib/libm`
 

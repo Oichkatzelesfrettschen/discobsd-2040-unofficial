@@ -148,8 +148,11 @@ calc_status
 calc_stddev(const double *a, size_t n, int sample, double *out)
 {
 	double v;
-	calc_status st = calc_variance(a, n, sample, &v);
+	calc_status st;
 
+	if (out == NULL)
+		return CALC_E_ARG;
+	st = calc_variance(a, n, sample, &v);
 	if (st != CALC_OK)
 		return st;
 	*out = sqrt(v);

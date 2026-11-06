@@ -73,7 +73,7 @@ static unsigned char mkhex (unsigned char ch);
  */
 extern int __doprnt_cvt (double number, int prec, int sharpflag,
 	unsigned char *negp, unsigned char fmtch, unsigned char *startp,
-	unsigned char *endp) __attribute__((weak));
+	unsigned char *endp, int *extrap) __attribute__((weak));
 
 /*
  * The 64-bit conversion, doprnt_llong.c, linked on PRINTF_LLONG=yes. It
@@ -560,9 +560,17 @@ emit:
 					extrazeros = dwidth - 13;
 					dwidth = 13;
 				}
+			} else if (c == 'g' || c == 'G') {
+				/*
+				 * The style %g picks depends on the whole
+				 * precision, so __doprnt_cvt takes it
+				 * uncapped and returns the zeros # needs
+				 * beyond the digits it stores.
+				 */
+				if (dwidth == -1)
+					dwidth = (sz == SZ_LONG ? DBL_DIG : FLT_DIG);
 			} else if (dwidth > DBL_DIG) {
-				if ((c != 'g' && c != 'G') || sharpflag)
-					extrazeros = dwidth - DBL_DIG;
+				extrazeros = dwidth - DBL_DIG;
 				dwidth = DBL_DIG;
 			} else if (dwidth == -1) {
 				dwidth = (sz == SZ_LONG ? DBL_DIG : FLT_DIG);
@@ -598,7 +606,8 @@ emit:
 			} else {
 				*nbuf = 0;
 				size = __doprnt_cvt (d, dwidth, sharpflag, &neg, c,
-					nbuf, nbuf + sizeof(nbuf) - 1);
+					nbuf, nbuf + sizeof(nbuf) - 1,
+					&extrazeros);
 				if (*nbuf) {
 					s = nbuf;
 					nbuf [size] = 0;

@@ -5,6 +5,7 @@
  * calls frexp
  */
 #include <errno.h>
+#include <float.h>
 #include <math.h>
 
 
@@ -21,6 +22,8 @@ sqrt(arg)
 			errno = EDOM;
 		return(0.);
 	}
+	if(arg > DBL_MAX)
+		return(arg);
 	x = frexp(arg,&exp);
 	while(x < 0.5) {
 		x *= 2;

@@ -610,19 +610,29 @@ int editorSyntaxToColor(int hl) {
 }
 
 /* Select the syntax highlight scheme depending on the filename,
- * setting it in the global state E.syntax. */
+ * setting it in the global state E.syntax. A pattern that starts with
+ * '.' is an extension and matches only the end of the name, so a
+ * directory such as ".cache" in the path does not hide the ".c" of the
+ * file itself; any other pattern matches anywhere in the name. */
 void editorSelectSyntaxHighlight(char *filename) {
+    size_t namelen = strlen(filename);
+
     for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
         struct editorSyntax *s = HLDB+j;
         unsigned int i = 0;
         while(s->filematch[i]) {
-            char *p;
-            int patlen = strlen(s->filematch[i]);
-            if ((p = strstr(filename,s->filematch[i])) != NULL) {
-                if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
-                    E.syntax = s;
-                    return;
-                }
+            const char *pat = s->filematch[i];
+            size_t patlen = strlen(pat);
+            int hit;
+
+            if (pat[0] == '.')
+                hit = namelen >= patlen &&
+                    strcmp(filename + namelen - patlen, pat) == 0;
+            else
+                hit = strstr(filename, pat) != NULL;
+            if (hit) {
+                E.syntax = s;
+                return;
             }
             i++;
         }

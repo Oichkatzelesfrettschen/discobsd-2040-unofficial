@@ -16,7 +16,8 @@
 #                  program and run under qemu-arm user-mode emulation with
 #                  libgcc's IEEE soft-float; a skipped run reports that no ARM
 #                  execution occurred
-#   vectors        regenerate complex_vectors.h from the specification
+#   vectors        regenerate complex_vectors.h from the specification and,
+#                  for the pole-approach rows, from mpmath
 #
 # The caller selects PYTHON, as for every Python-backed gate in the tree.
 TOPSRC!=cd ../..; pwd
@@ -48,7 +49,8 @@ all: check
 # the qemu-arm newlib link shared with tests/libbn and usr.bin/calc.
 include ${TOPSRC}/tools/host-test.mk
 
-# complex_vectors.h is committed; it changes only when the specification does.
+# complex_vectors.h is committed; it changes only when the specification or the
+# pole-approach rows of gen_complex_vectors.py do. The pole rows need mpmath.
 vectors:
 	${PYTHON} -I gen_complex_vectors.py ${SPEC} complex_vectors.h
 

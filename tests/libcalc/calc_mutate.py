@@ -5,8 +5,10 @@ usage: calc_mutate.py LIBCALC_DIRECTORY DEST_DIRECTORY
 
 Each mutant replaces one exact text in one source file, and the replacement
 must match exactly once, so a rewrite of the library that moves the site
-stops this script instead of silently skipping the mutant. check_mutants.sh
-then builds the acceptance test against each copy and requires it to fail.
+stops this script instead of silently skipping the mutant. A fix that spans
+several expressions gives OLD and NEW as lists of equal length; each pair must
+match once. check_mutants.sh then builds the acceptance test against each copy
+and requires it to fail.
 """
 
 import os
@@ -158,15 +160,15 @@ MUTANTS = [
     (
         "median_even_average",
         "calc_stats.c",
-        "\t\t*out = 0.5 * (scratch[n / 2 - 1] + scratch[n / 2]);",
-        "\t\t*out = scratch[n / 2];",
+        "\tm = 0.5 * (lo + hi);",
+        "\tm = hi;",
         "even-length median takes one middle element",
     ),
     (
         "variance_divisor",
         "calc_stats.c",
         "(double)(sample ? n - 1 : n)",
-        "(double)n",
+        "(double)(sample ? n : n)",
         "sample variance divides by n",
     ),
     (
@@ -193,7 +195,7 @@ MUTANTS = [
     (
         "magnitude_unscaled",
         "calc_vector.c",
-        "\t\tt = a[i] / m;",
+        "\t\tt = a[i] / mx;",
         "\t\tt = a[i];",
         "magnitude overflows near 1e200",
     ),
@@ -235,16 +237,9 @@ MUTANTS = [
     (
         "rescale_offset",
         "calc_interp.c",
-        "(in[i] - lo) / span * orange + output_min;",
-        "(in[i] - lo) / span * orange + lo;",
+        "* orange + output_min;",
+        "* orange + lo;",
         "wrong output offset",
-    ),
-    (
-        "stddev_null_output_unguarded",
-        "calc_stats.c",
-        "\tif (out == NULL)\n\t\treturn CALC_E_ARG;\n\tst = calc_variance(a, n, sample, &v);",
-        "\tst = calc_variance(a, n, sample, &v);",
-        "standard deviation writes through a NULL output",
     ),
     (
         "pid_derivative_sign",
@@ -267,6 +262,159 @@ MUTANTS = [
         "!(tau >= 0.0)",
         "a zero derivative time constant is accepted",
     ),
+    (
+        "stddev_null_output_unguarded",
+        "calc_stats.c",
+        "\tif (a == NULL || out == NULL)\n\t\treturn CALC_E_ARG;\n"
+        "\tif (n == 0 || (sample && n < 2))\n\t\treturn CALC_E_SIZE;\n"
+        "\tif (variance_rerun(a, n, sample, DBL_MIN, &v, &e))",
+        "\tif (a == NULL)\n\t\treturn CALC_E_ARG;\n"
+        "\tif (n == 0 || (sample && n < 2))\n\t\treturn CALC_E_SIZE;\n"
+        "\tif (variance_rerun(a, n, sample, DBL_MIN, &v, &e))",
+        "standard deviation writes through a NULL output",
+    ),
+    (
+        "cond_vectors_unscaled",
+        "calc_matrix.c",
+        [
+            "\t\t\tz[i] = y[i] < 0.0 ? -1.0 / (double)n : 1.0 / (double)n;",
+            "\t\tx[i] = ((i & 1) != 0 ? -alt : alt) * (2.0 / (3.0 * (double)n));",
+            "\tg = sum_abs(y, n);\n\tif (g > est)\n\t\test = g;\n\treturn est;",
+        ],
+        [
+            "\t\t\tz[i] = y[i] < 0.0 ? -1.0 : 1.0;",
+            "\t\tx[i] = (i & 1) != 0 ? -alt : alt;",
+            "\tg = 2.0 * sum_abs(y, n) / (3.0 * (double)n);\n"
+            "\tif (g > est)\n\t\test = g;\n\treturn est;",
+        ],
+        "condition-estimate test vectors with entries up to 2 overflow near DBL_MIN",
+    ),
+    (
+        "det_plain_product",
+        "calc_matrix.c",
+        "\t\tmant *= calc__frexp1(work[i * n + i], &e);\n\t\tex += e;",
+        "\t\tmant *= work[i * n + i];\n\t\te = 0;\n\t\tex += e;",
+        "determinant multiplies the pivots directly and overflows or underflows early",
+    ),
+    (
+        "catanh_odd_symmetry",
+        "calc_complex.c",
+        "\txa = calc__fabs(x);",
+        "\txa = x;",
+        "atanh real part evaluated at x instead of |x|: log1p(-1) near x = -1",
+    ),
+    (
+        "catanh_log_difference",
+        "calc_complex.c",
+        "\tif (d < 0x1p-1000)",
+        "\tif (0)",
+        "atanh within 2^-500 of a pole keeps 4x/d, which overflows",
+    ),
+    (
+        "log1p_large_argument",
+        "calc_util.c",
+        "\tif (x > 0x1p53)\n\t\treturn calc__log(x);\n",
+        "",
+        "log1p of a huge argument forms log(u) * x, which overflows",
+    ),
+    (
+        "mean_overflow_rerun",
+        "calc_stats.c",
+        "\tif (!calc__isfinite(m) && scale_of(a, n, &e))\n\t\tm = scale_back(list_sum",
+        "\tif (0 && scale_of(a, n, &e))\n\t\tm = scale_back(list_sum",
+        "mean of a list whose sum overflows",
+    ),
+    (
+        "median_midpoint_overflow",
+        "calc_stats.c",
+        "\tif (!calc__isfinite(m) && calc__isfinite(hi - lo))",
+        "\tif (0)",
+        "even-length median adds two large values before halving",
+    ),
+    (
+        "variance_overflow_rerun",
+        "calc_stats.c",
+        "\tif (*v >= lowest && *v <= DBL_MAX)\n\t\treturn 0;",
+        "\tif (*v >= lowest)\n\t\treturn 0;",
+        "variance and deviation of data whose squared deviations overflow",
+    ),
+    (
+        "stddev_underflow_rerun",
+        "calc_stats.c",
+        "\tif (variance_rerun(a, n, sample, DBL_MIN, &v, &e))\n\t\t*out",
+        "\tif (variance_rerun(a, n, sample, 0.0, &v, &e))\n\t\t*out",
+        "standard deviation of a variance that underflows to zero",
+    ),
+    (
+        "correl_underflow_rerun",
+        "calc_stats.c",
+        "\treturn !(x >= DBL_MIN && x <= DBL_MAX);",
+        "\treturn !(x >= 0.0 && x <= DBL_MAX);",
+        "correlation whose variances underflow to zero is reported as constant",
+    ),
+    (
+        "correl_overflow_rerun",
+        "calc_stats.c",
+        "\treturn !(x >= DBL_MIN && x <= DBL_MAX);",
+        "\treturn !(x >= DBL_MIN);",
+        "correlation of lists whose squares overflow",
+    ),
+    (
+        "chi_square_product_order",
+        "calc_stats.c",
+        [
+            "\t\t\te = rowtot * (strided_sum(obs, j, cols, rows, on, s) / total);",
+            "\t\t\tacc_add(&stat, d * (d / e));",
+        ],
+        [
+            "\t\t\te = rowtot * strided_sum(obs, j, cols, rows, on, s) / total;",
+            "\t\t\tacc_add(&stat, d * d / e);",
+        ],
+        "expected count formed from the product of two totals",
+    ),
+    (
+        "chi_square_total_rerun",
+        "calc_stats.c",
+        "\tif (!calc__isfinite(x) && scale_of(obs, rows * cols, &e))",
+        "\tif (0 && scale_of(obs, rows * cols, &e))",
+        "chi-square of a table whose grand total overflows",
+    ),
+    (
+        "normalize_overflow_direction",
+        "calc_vector.c",
+        "\t\tif (!calc__isfinite(len)) {\n\t\t\tlen = m * 0x1p-32 * root;",
+        "\t\tif (0) {\n\t\t\tlen = m * 0x1p-32 * root;",
+        "normalization divides by a norm above DBL_MAX and returns zeros",
+    ),
+    (
+        "power_integral_limit",
+        "calc_elem.c",
+        "\tintegral = calc__isfinite(exponent) && exponent == floor(exponent);",
+        "\tintegral = calc__isfinite(exponent) && calc__fabs(exponent) <= 1.0e9 &&\n"
+        "\t    exponent == floor(exponent);",
+        "exponents above 1e9 are not integers",
+    ),
+    (
+        "power_large_parity",
+        "calc_elem.c",
+        "\t\tif (odd && calc__signbit(in[i]))",
+        "\t\tif (0 && odd && calc__signbit(in[i]))",
+        "negative base with a large odd exponent loses its sign",
+    ),
+    (
+        "rescale_span_overflow",
+        "calc_interp.c",
+        "\thalve = !calc__isfinite(span) && calc__isfinite(lo) && calc__isfinite(hi);",
+        "\thalve = 0;",
+        "rescale divides by an input range above DBL_MAX",
+    ),
+    (
+        "interp_span_overflow",
+        "calc_interp.c",
+        "fraction(x, xs[lo], xs[hi], span, !calc__isfinite(span));",
+        "fraction(x, xs[lo], xs[hi], span, 0);",
+        "table interpolation divides by a node spacing above DBL_MAX",
+    ),
 ]
 
 
@@ -285,12 +433,18 @@ def main() -> None:
         path = os.path.join(target, fname)
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-        if text.count(old) != 1:
-            sys.exit(
-                "calc_mutate: %s: %r occurs %d times in %s" % (name, old, text.count(old), fname)
-            )
+        olds = old if isinstance(old, list) else [old]
+        news = new if isinstance(new, list) else [new]
+        if len(olds) != len(news):
+            sys.exit("calc_mutate: %s: OLD and NEW differ in length" % name)
+        for o, n in zip(olds, news):
+            if text.count(o) != 1:
+                sys.exit(
+                    "calc_mutate: %s: %r occurs %d times in %s" % (name, o, text.count(o), fname)
+                )
+            text = text.replace(o, n)
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(text.replace(old, new))
+            fh.write(text)
     print("calc_mutate: wrote %d mutants" % len(MUTANTS))
 
 

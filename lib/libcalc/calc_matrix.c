@@ -192,8 +192,8 @@ calc_mat_det(const double *a, size_t n, double *work, double *out)
 	size_t perm[CALC_MAT_MAX];
 	size_t bytes, i;
 	calc_status st = lu_check(a, n, work, &bytes);
-	double d;
-	int sign;
+	double mant;
+	int sign, ex = 0, e;
 
 	if (st != CALC_OK)
 		return st;
@@ -209,10 +209,24 @@ calc_mat_det(const double *a, size_t n, double *work, double *out)
 		*out = 0.0;
 		return CALC_OK;
 	}
-	d = (double)sign;
-	for (i = 0; i < n; i++)
-		d *= work[i * n + i];
-	*out = d;
+	/*
+	 * The product of the pivots is kept as a mantissa in (-2^n, 2^n) and an
+	 * integer exponent, so a partial product outside the double range
+	 * (diag(2^600, 2^600, 2^-600, 2^-600) in either order) cannot overflow or
+	 * underflow before the later factors bring it back. With no partial
+	 * product outside the normal range the result equals the plain product.
+	 */
+	mant = (double)sign;
+	for (i = 0; i < n; i++) {
+		mant *= calc__frexp1(work[i * n + i], &e);
+		ex += e;
+	}
+	/* The mantissa is at least 1, so an exponent past +-2044 is an overflow or an underflow. */
+	if (ex > 2044)
+		ex = 2044;
+	else if (ex < -2044)
+		ex = -2044;
+	*out = calc__ldexp(mant, ex);
 	return CALC_OK;
 }
 
@@ -296,6 +310,14 @@ sum_abs(const double *a, size_t n)
  * alternating-sign vector test, which catches the matrices that defeat the
  * iteration. The estimate is a lower bound of the true norm and is
  * typically within a factor of three of it.
+ *
+ * Every test vector has a 1-norm of at most 1, so each solution has a 1-norm
+ * of at most |A^-1|_1 and the estimate overflows only when |A^-1|_1 does (a
+ * test vector with entries up to 2 overflowed for A = DBL_MIN * I). The dual
+ * vector carries the factor 1/n and the alternating vector the factor
+ * 2 / (3 n), since its entries average 1.5 in magnitude. The comparison of
+ * the transposed solution with its product against x is homogeneous in the
+ * dual vector, so the iteration visits the same vectors as the unscaled form.
  */
 static double
 inverse_norm1_estimate(const double *w, size_t n, const size_t *perm)
@@ -314,7 +336,7 @@ inverse_norm1_estimate(const double *w, size_t n, const size_t *perm)
 			break;
 		est = g;
 		for (i = 0; i < n; i++)
-			z[i] = y[i] < 0.0 ? -1.0 : 1.0;
+			z[i] = y[i] < 0.0 ? -1.0 / (double)n : 1.0 / (double)n;
 		lu_substitute_transpose(w, n, perm, z, y);
 		j = 0;
 		zmax = calc__fabs(y[0]);
@@ -335,10 +357,10 @@ inverse_norm1_estimate(const double *w, size_t n, const size_t *perm)
 	}
 	for (i = 0; i < n; i++) {
 		alt = n > 1 ? 1.0 + (double)i / (double)(n - 1) : 1.0;
-		x[i] = (i & 1) != 0 ? -alt : alt;
+		x[i] = ((i & 1) != 0 ? -alt : alt) * (2.0 / (3.0 * (double)n));
 	}
 	lu_substitute_vector(w, n, perm, x, y);
-	g = 2.0 * sum_abs(y, n) / (3.0 * (double)n);
+	g = sum_abs(y, n);
 	if (g > est)
 		est = g;
 	return est;

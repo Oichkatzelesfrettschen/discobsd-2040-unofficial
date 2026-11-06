@@ -33,7 +33,9 @@ calc__log(double x)
 
 /*
  * log(1 + x) without cancellation for small x: u = fl(1 + x) differs from
- * 1 by x(1 + e), and log(u) * x / (u - 1) cancels that error.
+ * 1 by x(1 + e), and log(u) * x / (u - 1) cancels that error. Above 2^53 the
+ * product log(u) * x overflows for x near DBL_MAX, and log(1 + x) equals
+ * log(x) to within 2^-53 (an absolute 1 / x against a logarithm above 36).
  */
 double
 calc__log1p(double x)
@@ -46,6 +48,8 @@ calc__log1p(double x)
 		return -CALC_INF;
 	if (calc__isinf(x))
 		return x;
+	if (x > 0x1p53)
+		return calc__log(x);
 	u = 1.0 + x;
 	if (u == 1.0)
 		return x;

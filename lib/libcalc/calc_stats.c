@@ -4,6 +4,7 @@
  * detector.
  */
 
+#include <float.h>
 #include <math.h>
 
 #include "calc_internal.h"
@@ -35,15 +36,58 @@ acc_value(const acc_t *a)
 	return a->s + a->c;
 }
 
+/*
+ * Element i of a, multiplied by the power of two s when on is non-zero. The
+ * plain pass (on == 0) forms no product, so the common path costs no more
+ * than an unscaled loop.
+ */
+#define ELEM(a, i, on, s)	((on) ? (a)[i] * (s) : (a)[i])
+
 static double
-list_sum(const double *a, size_t n)
+list_sum(const double *a, size_t n, int on, double s)
 {
 	acc_t acc = { 0.0, 0.0 };
 	size_t i;
 
 	for (i = 0; i < n; i++)
-		acc_add(&acc, a[i]);
+		acc_add(&acc, ELEM(a, i, on, s));
 	return acc_value(&acc);
+}
+
+/*
+ * Exponent of the largest magnitude in the n doubles of a, for a rerun on
+ * the list scaled by 2^(1 - *e), which puts the largest entry in [2, 4).
+ * The scaled sums and squares then stay finite. Returns 0 for a list that
+ * holds a NaN, an infinity, or nothing above the subnormal range: the plain
+ * result stands there.
+ */
+static int
+scale_of(const double *a, size_t n, int *e)
+{
+	union { double d; uint64_t u; } v;
+	uint32_t field, top = 0;
+	size_t i;
+
+	/* The largest exponent field is that of the largest magnitude; 0x7ff marks a NaN or an infinity. */
+	for (i = 0; i < n; i++) {
+		v.d = a[i];
+		field = (uint32_t)(v.u >> 52) & 0x7ffu;
+		if (field > top)
+			top = field;
+	}
+	if (top == 0 || top == 0x7ffu)
+		return 0;
+	*e = (int)top - 1023;
+	return 1;
+}
+
+/* Undo scale_of's scaling on a result that carries it p times. */
+static double
+scale_back(double v, int e, int p)
+{
+	while (p-- > 0)
+		v = calc__ldexp(v, e - 1);
+	return v;
 }
 
 calc_status
@@ -53,18 +97,24 @@ calc_sum(const double *a, size_t n, double *out)
 		return CALC_E_ARG;
 	if (n == 0)
 		return CALC_E_SIZE;
-	*out = list_sum(a, n);
+	*out = list_sum(a, n, 0, 1.0);
 	return CALC_OK;
 }
 
 calc_status
 calc_mean(const double *a, size_t n, double *out)
 {
+	double m;
+	int e;
+
 	if (a == NULL || out == NULL)
 		return CALC_E_ARG;
 	if (n == 0)
 		return CALC_E_SIZE;
-	*out = list_sum(a, n) / (double)n;
+	m = list_sum(a, n, 0, 1.0) / (double)n;
+	if (!calc__isfinite(m) && scale_of(a, n, &e))
+		m = scale_back(list_sum(a, n, 1, calc__pow2(1 - e)) / (double)n, e, 1);
+	*out = m;
 	return CALC_OK;
 }
 
@@ -106,6 +156,7 @@ heap_sort(double *h, size_t n)
 calc_status
 calc_median(const double *a, size_t n, double *scratch, double *out)
 {
+	double lo, hi, m;
 	size_t i;
 
 	if (a == NULL || scratch == NULL || out == NULL)
@@ -117,45 +168,94 @@ calc_median(const double *a, size_t n, double *scratch, double *out)
 	for (i = 0; i < n; i++)
 		scratch[i] = a[i];
 	heap_sort(scratch, n);
-	if (n % 2 == 1)
+	if (n % 2 == 1) {
 		*out = scratch[n / 2];
-	else
-		*out = 0.5 * (scratch[n / 2 - 1] + scratch[n / 2]);
+		return CALC_OK;
+	}
+	lo = scratch[n / 2 - 1];
+	hi = scratch[n / 2];
+	m = 0.5 * (lo + hi);
+	/* Operands of one sign whose sum overflows: lo + (hi - lo) / 2 stays inside. */
+	if (!calc__isfinite(m) && calc__isfinite(hi - lo))
+		m = lo + 0.5 * (hi - lo);
+	*out = m;
 	return CALC_OK;
 }
 
-calc_status
-calc_variance(const double *a, size_t n, int sample, double *out)
+/* Variance of the list, or of the list scaled by the power of two s when on. */
+static double
+variance_of(const double *a, size_t n, int sample, int on, double s)
 {
 	acc_t acc = { 0.0, 0.0 };
 	double mean, d;
 	size_t i;
 
+	mean = list_sum(a, n, on, s) / (double)n;
+	for (i = 0; i < n; i++) {
+		d = ELEM(a, i, on, s) - mean;
+		acc_add(&acc, d * d);
+	}
+	return acc_value(&acc) / (double)(sample ? n - 1 : n);
+}
+
+/* Non-zero when x is zero, subnormal, infinite or NaN: the squares left the normal range. */
+static int
+outside_normal(double x)
+{
+	return !(x >= DBL_MIN && x <= DBL_MAX);
+}
+
+/*
+ * Variance of the list. When it is below lowest, above DBL_MAX or NaN and the
+ * list is finite, the variance of the list scaled by 2^(1 - *e) replaces it
+ * and the function returns 1: the caller scales it back by e.
+ */
+static int
+variance_rerun(const double *a, size_t n, int sample, double lowest, double *v, int *e)
+{
+	*v = variance_of(a, n, sample, 0, 1.0);
+	if (*v >= lowest && *v <= DBL_MAX)
+		return 0;
+	if (!scale_of(a, n, e))
+		return 0;
+	*v = variance_of(a, n, sample, 1, calc__pow2(1 - *e));
+	return 1;
+}
+
+calc_status
+calc_variance(const double *a, size_t n, int sample, double *out)
+{
+	double v;
+	int e;
+
 	if (a == NULL || out == NULL)
 		return CALC_E_ARG;
 	if (n == 0 || (sample && n < 2))
 		return CALC_E_SIZE;
-	mean = list_sum(a, n) / (double)n;
-	for (i = 0; i < n; i++) {
-		d = a[i] - mean;
-		acc_add(&acc, d * d);
-	}
-	*out = acc_value(&acc) / (double)(sample ? n - 1 : n);
+	if (variance_rerun(a, n, sample, 0.0, &v, &e))
+		v = scale_back(v, e, 2);
+	*out = v;
 	return CALC_OK;
 }
 
+/*
+ * The standard deviation is taken from the scaled variance directly: a
+ * deviation inside the double range can belong to a variance outside it.
+ */
 calc_status
 calc_stddev(const double *a, size_t n, int sample, double *out)
 {
 	double v;
-	calc_status st;
+	int e;
 
-	if (out == NULL)
+	if (a == NULL || out == NULL)
 		return CALC_E_ARG;
-	st = calc_variance(a, n, sample, &v);
-	if (st != CALC_OK)
-		return st;
-	*out = sqrt(v);
+	if (n == 0 || (sample && n < 2))
+		return CALC_E_SIZE;
+	if (variance_rerun(a, n, sample, DBL_MIN, &v, &e))
+		*out = scale_back(sqrt(v), e, 1);
+	else
+		*out = sqrt(v);
 	return CALC_OK;
 }
 
@@ -195,31 +295,56 @@ calc_max(const double *a, size_t n, double *out, size_t *index)
 	return CALC_OK;
 }
 
+/*
+ * Centered sums of products for the lists a and b, each multiplied by its own
+ * power of two (sa, sb) when on.
+ */
+static void
+correl_sums(const double *a, const double *b, size_t n, int on, double sa, double sb,
+    double *cxy, double *vx, double *vy)
+{
+	acc_t sxy = { 0.0, 0.0 }, sxx = { 0.0, 0.0 }, syy = { 0.0, 0.0 };
+	double ma, mb, dx, dy;
+	size_t i;
+
+	ma = list_sum(a, n, on, sa) / (double)n;
+	mb = list_sum(b, n, on, sb) / (double)n;
+	for (i = 0; i < n; i++) {
+		dx = ELEM(a, i, on, sa) - ma;
+		dy = ELEM(b, i, on, sb) - mb;
+		acc_add(&sxy, dx * dy);
+		acc_add(&sxx, dx * dx);
+		acc_add(&syy, dy * dy);
+	}
+	*cxy = acc_value(&sxy);
+	*vx = acc_value(&sxx);
+	*vy = acc_value(&syy);
+}
+
 calc_status
 calc_correl(const double *a, const double *b, size_t n, double *out)
 {
-	acc_t sxy = { 0.0, 0.0 }, sxx = { 0.0, 0.0 }, syy = { 0.0, 0.0 };
-	double ma, mb, dx, dy, vx, vy, r;
-	size_t i;
+	double cxy, vx, vy, r;
+	int ea, eb;
 
 	if (a == NULL || b == NULL || out == NULL)
 		return CALC_E_ARG;
 	if (n == 0)
 		return CALC_E_SIZE;
-	ma = list_sum(a, n) / (double)n;
-	mb = list_sum(b, n) / (double)n;
-	for (i = 0; i < n; i++) {
-		dx = a[i] - ma;
-		dy = b[i] - mb;
-		acc_add(&sxy, dx * dy);
-		acc_add(&sxx, dx * dx);
-		acc_add(&syy, dy * dy);
-	}
-	vx = acc_value(&sxx);
-	vy = acc_value(&syy);
+	correl_sums(a, b, n, 0, 1.0, 1.0, &cxy, &vx, &vy);
+	/*
+	 * A variance that overflowed, or underflowed to zero or below the normal
+	 * range, means the squares left the double range (the cross sum is bounded
+	 * by the larger variance). The coefficient does not depend on the scale of
+	 * either list, so a rerun with each list scaled on its own needs no
+	 * rescaling.
+	 */
+	if ((outside_normal(vx) || outside_normal(vy)) &&
+	    scale_of(a, n, &ea) && scale_of(b, n, &eb))
+		correl_sums(a, b, n, 1, calc__pow2(1 - ea), calc__pow2(1 - eb), &cxy, &vx, &vy);
 	if (vx == 0.0 || vy == 0.0)
 		return CALC_E_DOMAIN;
-	r = acc_value(&sxy) / (sqrt(vx) * sqrt(vy));
+	r = cxy / (sqrt(vx) * sqrt(vy));
 	if (r > 1.0)
 		r = 1.0;
 	else if (r < -1.0)
@@ -337,50 +462,70 @@ calc_chi_square_p(double chi, size_t df, double *percent)
 	return CALC_OK;
 }
 
+/* Sum of count entries of a, from index first in steps of step, scaled by s when on. */
+static double
+strided_sum(const double *a, size_t first, size_t step, size_t count, int on, double s)
+{
+	double t = 0.0;
+	size_t i;
+
+	for (i = 0; i < count; i++)
+		t += ELEM(a, first + i * step, on, s);
+	return t;
+}
+
+/*
+ * Pearson statistic of the table, or of the table scaled by the power of two
+ * s when on. The expected count is rowtot * (coltot / total) and each term
+ * d * (d / e): the ratios are scale-free, so no product of two totals or of
+ * two deviations is formed.
+ */
+static double
+chi_stat(const double *obs, size_t rows, size_t cols, int on, double s)
+{
+	acc_t grand = { 0.0, 0.0 }, stat = { 0.0, 0.0 };
+	double rowtot, total, e, d;
+	size_t i, j;
+
+	for (i = 0; i < rows; i++)
+		acc_add(&grand, strided_sum(obs, i * cols, 1, cols, on, s));
+	total = acc_value(&grand);
+	for (i = 0; i < rows; i++) {
+		rowtot = strided_sum(obs, i * cols, 1, cols, on, s);
+		for (j = 0; j < cols; j++) {
+			e = rowtot * (strided_sum(obs, j, cols, rows, on, s) / total);
+			d = ELEM(obs, i * cols + j, on, s) - e;
+			acc_add(&stat, d * (d / e));
+		}
+	}
+	return acc_value(&stat);
+}
+
 calc_status
 calc_chi_square(const double *obs, size_t rows, size_t cols, double *chi, size_t *df)
 {
-	acc_t grand = { 0.0, 0.0 }, stat = { 0.0, 0.0 };
-	double rowtot, coltot, total, e, d;
-	size_t i, j, k;
+	double x;
+	size_t i, j;
+	int e;
 
 	if (obs == NULL || chi == NULL || df == NULL)
 		return CALC_E_ARG;
 	if (rows < 2 || cols < 2)
 		return CALC_E_SIZE;
-	for (i = 0; i < rows; i++) {
-		rowtot = 0.0;
-		for (j = 0; j < cols; j++) {
-			if (!(obs[i * cols + j] >= 0.0))
-				return CALC_E_DOMAIN;
-			rowtot += obs[i * cols + j];
-		}
-		if (rowtot == 0.0)
+	for (i = 0; i < rows * cols; i++)
+		if (!(obs[i] >= 0.0))
 			return CALC_E_DOMAIN;
-		acc_add(&grand, rowtot);
-	}
-	for (j = 0; j < cols; j++) {
-		coltot = 0.0;
-		for (i = 0; i < rows; i++)
-			coltot += obs[i * cols + j];
-		if (coltot == 0.0)
+	for (i = 0; i < rows; i++)
+		if (strided_sum(obs, i * cols, 1, cols, 0, 1.0) == 0.0)
 			return CALC_E_DOMAIN;
-	}
-	total = acc_value(&grand);
-	for (i = 0; i < rows; i++) {
-		rowtot = 0.0;
-		for (j = 0; j < cols; j++)
-			rowtot += obs[i * cols + j];
-		for (j = 0; j < cols; j++) {
-			coltot = 0.0;
-			for (k = 0; k < rows; k++)
-				coltot += obs[k * cols + j];
-			e = rowtot * coltot / total;
-			d = obs[i * cols + j] - e;
-			acc_add(&stat, d * d / e);
-		}
-	}
-	*chi = acc_value(&stat);
+	for (j = 0; j < cols; j++)
+		if (strided_sum(obs, j, cols, rows, 0, 1.0) == 0.0)
+			return CALC_E_DOMAIN;
+	x = chi_stat(obs, rows, cols, 0, 1.0);
+	/* A grand total above the double range makes every expected count 0. */
+	if (!calc__isfinite(x) && scale_of(obs, rows * cols, &e))
+		x = scale_back(chi_stat(obs, rows, cols, 1, calc__pow2(1 - e)), e, 1);
+	*chi = x;
 	*df = (rows - 1) * (cols - 1);
 	return CALC_OK;
 }

@@ -26,6 +26,7 @@
 #endif
 
 #include "mathematics.h"
+#include "calc_internal.h"
 
 static unsigned long checks;
 static unsigned long failures;
@@ -71,6 +72,18 @@ near(double got, double want, double tol)
 		failures++;							\
 		printf("FAIL %s:%d: %s returned %d, expected %d\n", __FILE__,	\
 		    __LINE__, #expr, (int)s_, (int)(want));			\
+	}									\
+} while (0)
+
+/* Exact equality of two doubles, signed zeros included; NaN equals NaN. */
+#define CHECK_EXACT(got, want) do {						\
+	double g_ = (got), w_ = (want);						\
+	checks++;								\
+	if (!((g_ == w_ && (signbit(g_) != 0) == (signbit(w_) != 0)) ||	\
+	    (g_ != g_ && w_ != w_))) {						\
+		failures++;							\
+		printf("FAIL %s:%d: %s = %.17g, expected exactly %.17g\n",	\
+		    __FILE__, __LINE__, #got, g_, w_);				\
 	}									\
 } while (0)
 
@@ -903,20 +916,24 @@ static const struct { int fn; double zr, zi, er, ei; } cunary[] = {
 #define CV_UNARY(n, zr, zi, er, ei) { cfn_##n, zr, zi, er, ei },
 #define CV_BINARY(n, ar, ai, br, bi, er, ei)
 #define CV_SCALAR(n, zr, zi, e)
+#define CV_POLE(n, zr, zi, er, ei)
 #include "complex_vectors.h"
 #undef CV_UNARY
 #undef CV_BINARY
 #undef CV_SCALAR
+#undef CV_POLE
 };
 
 static const struct { int op; double ar, ai, br, bi, er, ei; } cbinary[] = {
 #define CV_UNARY(n, zr, zi, er, ei)
 #define CV_BINARY(n, ar, ai, br, bi, er, ei) { op_##n, ar, ai, br, bi, er, ei },
 #define CV_SCALAR(n, zr, zi, e)
+#define CV_POLE(n, zr, zi, er, ei)
 #include "complex_vectors.h"
 #undef CV_UNARY
 #undef CV_BINARY
 #undef CV_SCALAR
+#undef CV_POLE
 };
 
 enum { sc_abs, sc_arg, sc_phase };
@@ -925,10 +942,12 @@ static const struct { int kind; double zr, zi, e; } cscalar[] = {
 #define CV_UNARY(n, zr, zi, er, ei)
 #define CV_BINARY(n, ar, ai, br, bi, er, ei)
 #define CV_SCALAR(n, zr, zi, e) { sc_##n, zr, zi, e },
+#define CV_POLE(n, zr, zi, er, ei)
 #include "complex_vectors.h"
 #undef CV_UNARY
 #undef CV_BINARY
 #undef CV_SCALAR
+#undef CV_POLE
 };
 
 static void
@@ -2450,6 +2469,579 @@ test_null_arguments(void)
 	NULL_ARG(calc_pid_init(NULL, 1, 0, 0, 0.1, 0.1, -1, 1, -1, 1));
 }
 
+/* --- range: intermediates that leave the double range --------------------- */
+
+/*
+ * Scale-invariance family. A routine f with f(2^k x) = 2^(p k) f(x) must
+ * return exactly that for k = -1000, -500, 500 and 1000 on inputs whose scaled
+ * values stay normal (the ROM provider flushes subnormals, so no input here
+ * needs one). The base inputs reach 2^23, so at k = 1000 the sums, squares or
+ * products of the plain formula overflow while the exact result is normal.
+ * p is 1 for mean, median, standard deviation, magnitude, chi-square and the
+ * determinant with one row scaled, 2 for variance, 0 for correlation,
+ * normalization, rescaling, table interpolation and the condition estimate.
+ * The relation is exact, not toleranced: a power of two commutes with
+ * rounding while no intermediate leaves the normal range.
+ */
+static const int kscale[] = { -1000, -500, 500, 1000 };
+
+static void
+scale_list(const double *in, double *out, size_t n, int k)
+{
+	size_t i;
+
+	for (i = 0; i < n; i++)
+		out[i] = ldexp(in[i], k);
+}
+
+static void
+test_scale_statistics(void)
+{
+	static const double s1[] = { 8388608, 8388608, 1.5, -3, 0.000244140625 };
+	static const double s2[] = { 0.000244140625, 1.5, 8388607, 8388608, 8388608, 8388608 };
+	static const double s3[] = { 1, 2, 3, 4, 5.5, 100000 };
+	static const double s4[] = { 0, 0, 0, 6144 };
+	static const double s5[] = { 1, 2, 3, 4, 5.5, 100 };
+	static const double cx[] = { 1, 2, 3, 4, 5, 6.5 };
+	static const double cy[] = { 2, 4, 5, 4, 5, 9 };
+	static const double t1[] = { 8388608, 4194304, 2097152, 6291456 };
+	static const double t2[] = { 12, 5, 7, 9, 3, 1, 8388608, 2 };
+	double a[8], b[8], scratch[8], out, base, base2, chi;
+	size_t i, df;
+	int k;
+
+	/* independent values for the unscaled inputs */
+	CHECK_ST(calc_mean(s1, 5, &base), CALC_OK);
+	CHECK_NEAR(base / 3355442.900048828125, 1.0);
+	CHECK_ST(calc_median(s2, 6, scratch, &out), CALC_OK);
+	CHECK(out == 8388607.5);
+	CHECK_ST(calc_variance(s4, 4, 0, &out), CALC_OK);
+	CHECK(out == 7077888.0);
+	CHECK_ST(calc_variance(s4, 4, 1, &out), CALC_OK);
+	CHECK(out == 9437184.0);
+
+	for (i = 0; i < COUNT(kscale); i++) {
+		k = kscale[i];
+
+		scale_list(s1, a, 5, k);
+		CHECK_ST(calc_mean(s1, 5, &base), CALC_OK);
+		CHECK_ST(calc_mean(a, 5, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, k));
+
+		scale_list(s2, a, 6, k);
+		CHECK_ST(calc_median(s2, 6, scratch, &base), CALC_OK);
+		CHECK_ST(calc_median(a, 6, scratch, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, k));
+
+		scale_list(s3, a, 6, k);
+		CHECK_ST(calc_stddev(s3, 6, 1, &base), CALC_OK);
+		CHECK_ST(calc_stddev(a, 6, 1, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, k));
+		CHECK_ST(calc_stddev(s3, 6, 0, &base), CALC_OK);
+		CHECK_ST(calc_stddev(a, 6, 0, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, k));
+		scale_list(s4, a, 4, k);
+		CHECK_ST(calc_stddev(s4, 4, 0, &base), CALC_OK);
+		CHECK_ST(calc_stddev(a, 4, 0, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, k));
+
+		scale_list(cx, a, 6, k);
+		scale_list(cy, b, 6, -k);
+		CHECK_ST(calc_correl(cx, cy, 6, &base), CALC_OK);
+		CHECK_NEAR(base, 0.8839203772962249);
+		CHECK_ST(calc_correl(a, cy, 6, &out), CALC_OK);
+		CHECK_EXACT(out, base);
+		CHECK_ST(calc_correl(cx, b, 6, &out), CALC_OK);
+		CHECK_EXACT(out, base);
+		CHECK_ST(calc_correl(a, b, 6, &out), CALC_OK);
+		CHECK_EXACT(out, base);
+
+		scale_list(t1, a, 4, k);
+		CHECK_ST(calc_chi_square(t1, 2, 2, &base, &df), CALC_OK);
+		CHECK_ST(calc_chi_square(a, 2, 2, &out, &df), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, k));
+		scale_list(t2, a, 8, k);
+		CHECK_ST(calc_chi_square(t2, 4, 2, &base2, &df), CALC_OK);
+		CHECK_ST(calc_chi_square(a, 4, 2, &chi, &df), CALC_OK);
+		CHECK_EXACT(chi, ldexp(base2, k));
+	}
+
+	/* variance scales by 2^(2k); the base inputs keep 2^(2k) var normal at k = +-500 */
+	for (i = 1; i < 3; i++) {
+		k = kscale[i];
+		scale_list(s4, a, 4, k);
+		CHECK_ST(calc_variance(s4, 4, 0, &base), CALC_OK);
+		CHECK_ST(calc_variance(a, 4, 0, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, 2 * k));
+		CHECK_ST(calc_variance(s4, 4, 1, &base), CALC_OK);
+		CHECK_ST(calc_variance(a, 4, 1, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, 2 * k));
+		scale_list(s5, a, 6, k);
+		CHECK_ST(calc_variance(s5, 6, 1, &base), CALC_OK);
+		CHECK_ST(calc_variance(a, 6, 1, &out), CALC_OK);
+		CHECK_EXACT(out, ldexp(base, 2 * k));
+	}
+}
+
+static void
+test_scale_vectors(void)
+{
+	static const double v1[] = { 8388608, -8388608, 8388608, 4194304 };
+	static const double v2[] = { 3, -4, 12, 0.001 };
+	double a[4], base[4], out[4], m0, m1, h[3], hb[3];
+	calc_quat q0, q1;
+	size_t i, j;
+	int k;
+
+	CHECK_ST(calc_normalize(v1, 4, base), CALC_OK);
+	CHECK_NEAR(base[0], 0.5547001962252291);
+	CHECK_NEAR(base[3], 0.2773500981126146);
+	for (i = 0; i < COUNT(kscale); i++) {
+		k = kscale[i];
+		scale_list(v1, a, 4, k);
+		CHECK_ST(calc_normalize(a, 4, out), CALC_OK);
+		for (j = 0; j < 4; j++)
+			CHECK_EXACT(out[j], base[j]);
+		/* in place, and the quaternion constructors built on the same direction */
+		CHECK_ST(calc_normalize(a, 4, a), CALC_OK);
+		for (j = 0; j < 4; j++)
+			CHECK_EXACT(a[j], base[j]);
+
+		scale_list(v2, a, 4, k);
+		CHECK_ST(calc_normalize(v2, 4, base), CALC_OK);
+		CHECK_ST(calc_normalize(a, 4, out), CALC_OK);
+		for (j = 0; j < 4; j++)
+			CHECK_EXACT(out[j], base[j]);
+		CHECK_ST(calc_magnitude(v2, 4, &m0), CALC_OK);
+		CHECK_ST(calc_magnitude(a, 4, &m1), CALC_OK);
+		CHECK_EXACT(m1, ldexp(m0, k));
+		CHECK_ST(calc_normalize(v1, 4, base), CALC_OK);
+
+		scale_list(v2, h, 3, k);
+		CHECK_ST(calc_quat_from_vector(v2[0], v2[1], v2[2], &q0, &m0), CALC_OK);
+		CHECK_ST(calc_quat_from_vector(h[0], h[1], h[2], &q1, &m1), CALC_OK);
+		CHECK(q1.w == 0.0);
+		CHECK_EXACT(q1.x, q0.x);
+		CHECK_EXACT(q1.y, q0.y);
+		CHECK_EXACT(q1.z, q0.z);
+		CHECK_EXACT(m1, ldexp(m0, k));
+		CHECK_ST(calc_quat_from_axis_angle(v2[0], v2[1], v2[2], 1.0, CALC_RADIANS, &q0), CALC_OK);
+		CHECK_ST(calc_quat_from_axis_angle(h[0], h[1], h[2], 1.0, CALC_RADIANS, &q1), CALC_OK);
+		CHECK_EXACT(q1.w, q0.w);
+		CHECK_EXACT(q1.x, q0.x);
+		CHECK_EXACT(q1.y, q0.y);
+		CHECK_EXACT(q1.z, q0.z);
+	}
+	(void)hb;
+
+	/* a vector whose norm exceeds DBL_MAX: exact direction, infinite length */
+	{
+		static const double big3[] = { DBL_MAX, DBL_MAX, DBL_MAX };
+		static const double neg3[] = { -DBL_MAX, 0, DBL_MAX };
+		double u[3];
+
+		CHECK_ST(calc_normalize(big3, 3, u), CALC_OK);
+		CHECK_TOL(u[0], 0.5773502691896258, 1e-15);
+		CHECK_EXACT(u[1], u[0]);
+		CHECK_EXACT(u[2], u[0]);
+		CHECK_ST(calc_normalize(neg3, 3, u), CALC_OK);
+		CHECK_TOL(u[0], -0.7071067811865476, 1e-15);
+		CHECK(u[1] == 0.0);
+		CHECK_TOL(u[2], 0.7071067811865476, 1e-15);
+		CHECK_ST(calc_magnitude(big3, 3, &m0), CALC_OK);
+		CHECK(m0 > DBL_MAX);
+		CHECK_ST(calc_quat_from_vector(DBL_MAX, DBL_MAX, DBL_MAX, &q0, &m0), CALC_OK);
+		CHECK(q0.w == 0.0);
+		CHECK_TOL(q0.x, 0.5773502691896258, 1e-15);
+		CHECK_TOL(q0.y, 0.5773502691896258, 1e-15);
+		CHECK_TOL(q0.z, 0.5773502691896258, 1e-15);
+		CHECK(m0 > DBL_MAX);
+		CHECK_ST(calc_quat_from_axis_angle(DBL_MAX, 0, 0, 90, CALC_DEGREES, &q0), CALC_OK);
+		CHECK_TOL(q0.w, 0.7071067811865476, 1e-15);
+		CHECK_TOL(q0.x, 0.7071067811865476, 1e-15);
+		CHECK(q0.y == 0.0 && q0.z == 0.0);
+		CHECK_ST(calc_quat_from_axis_angle(DBL_MAX, DBL_MAX, DBL_MAX, 180, CALC_DEGREES, &q0), CALC_OK);
+		CHECK_TOL(q0.x, 0.5773502691896258, 1e-15);
+		/* the zero vector and a NaN component keep their statuses */
+		CHECK_ST(calc_normalize(h, 0, u), CALC_E_SIZE);
+		h[0] = h[1] = h[2] = 0;
+		CHECK_ST(calc_normalize(h, 3, u), CALC_E_DOMAIN);
+		CHECK_ST(calc_quat_from_vector(0, 0, 0, &q0, &m0), CALC_E_DOMAIN);
+		CHECK_ST(calc_quat_from_axis_angle(0, 0, 0, 1, CALC_RADIANS, &q0), CALC_E_DOMAIN);
+		h[0] = NAN;
+		h[1] = 1;
+		CHECK_ST(calc_normalize(h, 3, u), CALC_OK);
+		CHECK(u[0] != u[0]);
+	}
+}
+
+static void
+test_scale_matrices(void)
+{
+	static const double m2[] = { 4, 1, 2, 3 };
+	static const double m3[] = { 4, -2, 1, 3, 6, -4, 2, 1, 8 };
+	static const double tri[] = { 2, 3, 5, 0, 7, 11, 0, 0, 13 };
+	double a[144], w[144], inv[144], base, got;
+	size_t i, n, j;
+	int k;
+
+	/* DBL_MIN times the identity: the estimate is 1 / DBL_MIN and the vectors must not overflow */
+	for (n = 2; n <= 12; n += 10) {
+		for (j = 0; j < n * n; j++)
+			a[j] = 0.0;
+		for (j = 0; j < n; j++)
+			a[j * n + j] = DBL_MIN;
+		CHECK_ST(calc_mat_cond(a, n, w, &got), CALC_OK);
+		CHECK_EXACT(got, 1.0);
+		CHECK_ST(calc_mat_inverse(a, n, w, inv), CALC_OK);
+		CHECK_EXACT(inv[0], 1.0 / DBL_MIN);
+		CHECK_EXACT(inv[n + 1], 1.0 / DBL_MIN);
+	}
+
+	for (i = 0; i < COUNT(kscale); i++) {
+		k = kscale[i];
+		for (j = 0; j < 4; j++)
+			a[j] = ldexp(m2[j], k);
+		CHECK_ST(calc_mat_cond(m2, 2, w, &base), CALC_OK);
+		CHECK_ST(calc_mat_cond(a, 2, w, &got), CALC_OK);
+		CHECK_EXACT(got, base);
+		for (j = 0; j < 9; j++)
+			a[j] = ldexp(m3[j], k);
+		CHECK_ST(calc_mat_cond(m3, 3, w, &base), CALC_OK);
+		CHECK_ST(calc_mat_cond(a, 3, w, &got), CALC_OK);
+		CHECK_EXACT(got, base);
+		CHECK_ST(calc_mat_inverse(a, 3, w, inv), CALC_OK);
+
+		/* the determinant with one row scaled by 2^k scales by 2^k */
+		for (j = 0; j < 9; j++)
+			a[j] = j < 3 ? ldexp(tri[j], k) : tri[j];
+		CHECK_ST(calc_mat_det(a, 3, w, &got), CALC_OK);
+		CHECK_EXACT(got, ldexp(182.0, k));
+	}
+}
+
+/* Every ordering of a diagonal whose exact determinant is representable gives that value. */
+static void
+permute_det(double *d, size_t n, size_t at, double want)
+{
+	double a[16], w[16], got, tmp;
+	size_t i, j;
+
+	if (at == n) {
+		for (i = 0; i < n * n; i++)
+			a[i] = 0.0;
+		for (i = 0; i < n; i++)
+			a[i * n + i] = d[i];
+		CHECK_ST(calc_mat_det(a, n, w, &got), CALC_OK);
+		CHECK_EXACT(got, want);
+		return;
+	}
+	for (j = at; j < n; j++) {
+		tmp = d[at];
+		d[at] = d[j];
+		d[j] = tmp;
+		permute_det(d, n, at + 1, want);
+		tmp = d[at];
+		d[at] = d[j];
+		d[j] = tmp;
+	}
+}
+
+static void
+test_determinant_range(void)
+{
+	double d4[] = { 0x1p600, 0x1p600, 0x1p-600, 0x1p-600 };
+	double d4m[] = { 1.5 * 0x1p700, 1.25 * 0x1p-700, 0x1p500, 0x1p-500 };
+	double d4n[] = { -1.5 * 0x1p700, 1.25 * 0x1p-700, 0x1p500, 0x1p-500 };
+	double a[144], w[144], got;
+	size_t i, j;
+
+	permute_det(d4, 4, 0, 1.0);
+	permute_det(d4m, 4, 0, 1.875);
+	permute_det(d4n, 4, 0, -1.875);
+	/* twelve pivots: 2^600 six times and 2^-600 six times, in the worst order */
+	for (j = 0; j < 144; j++)
+		a[j] = 0.0;
+	for (i = 0; i < 12; i++)
+		a[i * 12 + i] = i < 6 ? 0x1p600 : 0x1p-600;
+	CHECK_ST(calc_mat_det(a, 12, w, &got), CALC_OK);
+	CHECK_EXACT(got, 1.0);
+	for (i = 0; i < 12; i++)
+		a[i * 12 + i] = i < 6 ? 0x1p-600 : 0x1p600;
+	CHECK_ST(calc_mat_det(a, 12, w, &got), CALC_OK);
+	CHECK_EXACT(got, 1.0);
+	/* a row exchange: det [[0, 2^600], [2^-600, 0]] = -1 */
+	a[0] = 0.0;
+	a[1] = 0x1p600;
+	a[2] = 0x1p-600;
+	a[3] = 0.0;
+	CHECK_ST(calc_mat_det(a, 2, w, &got), CALC_OK);
+	CHECK_EXACT(got, -1.0);
+	/* a determinant outside the double range is the infinity or the zero it rounds to */
+	a[0] = 0x1p600;
+	a[1] = 0.0;
+	a[2] = 0.0;
+	a[3] = 0x1p600;
+	CHECK_ST(calc_mat_det(a, 2, w, &got), CALC_OK);
+	CHECK(got > DBL_MAX);
+	a[0] = -0x1p-600;
+	a[3] = 0x1p-600;
+	CHECK_ST(calc_mat_det(a, 2, w, &got), CALC_OK);
+	CHECK_EXACT(got, -0.0);
+	/* a zero pivot still gives exactly 0, and the plain product is unchanged */
+	a[0] = 3.0;
+	a[1] = 1.0;
+	a[2] = 6.0;
+	a[3] = 2.0;
+	CHECK_ST(calc_mat_det(a, 2, w, &got), CALC_OK);
+	CHECK(got == 0.0);
+	a[0] = 3.0;
+	a[3] = 5.0;
+	a[1] = 0.0;
+	a[2] = 0.0;
+	CHECK_ST(calc_mat_det(a, 2, w, &got), CALC_OK);
+	CHECK_EXACT(got, 15.0);
+}
+
+static void
+test_scale_lists(void)
+{
+	static const double r1[] = { -8388608, 0, 4194304, 8388608 };
+	static const double xs0[] = { -8388608, 8388608 };
+	static const double xq[] = { -8388608, -4194304, 0, 1000.5, 8388608 };
+	static const double ys0[] = { 0, 1 };
+	double a[8], base[8], out[8], xs[2], r0, r;
+	size_t i, j;
+	int k;
+
+	CHECK_ST(calc_rescale(r1, 4, -1, 1, base, NULL, NULL), CALC_OK);
+	CHECK(base[0] == -1.0 && base[1] == 0.0 && base[2] == 0.5 && base[3] == 1.0);
+	for (i = 0; i < COUNT(kscale); i++) {
+		k = kscale[i];
+		scale_list(r1, a, 4, k);
+		CHECK_ST(calc_rescale(a, 4, -1, 1, out, &r0, &r), CALC_OK);
+		for (j = 0; j < 4; j++)
+			CHECK_EXACT(out[j], base[j]);
+		CHECK_EXACT(r0, ldexp(-8388608.0, k));
+		CHECK_EXACT(r, ldexp(8388608.0, k));
+
+		xs[0] = ldexp(xs0[0], k);
+		xs[1] = ldexp(xs0[1], k);
+		for (j = 0; j < COUNT(xq); j++) {
+			CHECK_ST(calc_interp_table(xs0, ys0, 2, xq[j], &r0), CALC_OK);
+			CHECK_ST(calc_interp_table(xs, ys0, 2, ldexp(xq[j], k), &r), CALC_OK);
+			CHECK_EXACT(r, r0);
+		}
+	}
+	/* input ranges beyond DBL_MAX */
+	{
+		static const double wide[] = { -1e308, 0, 1e308 };
+		static const double xw[] = { -1e308, 1e308 };
+
+		CHECK_ST(calc_rescale(wide, 3, 0, 1, out, &r0, &r), CALC_OK);
+		CHECK(out[0] == 0.0 && out[1] == 0.5 && out[2] == 1.0);
+		CHECK(r0 == -1e308 && r == 1e308);
+		CHECK_ST(calc_rescale(wide, 3, 10, -10, out, NULL, NULL), CALC_OK);
+		CHECK(out[0] == 10.0 && out[1] == 0.0 && out[2] == -10.0);
+		CHECK_ST(calc_interp_table(xw, ys0, 2, 0.0, &r), CALC_OK);
+		CHECK(r == 0.5);
+		CHECK_ST(calc_interp_table(xw, ys0, 2, 5e307, &r), CALC_OK);
+		CHECK_NEAR(r, 0.75);
+		CHECK_ST(calc_interp_table(xw, ys0, 2, -1e308, &r), CALC_OK);
+		CHECK(r == 0.0);
+	}
+}
+
+static void
+test_statistics_range(void)
+{
+	static const double two[] = { 1e308, 1e308 };
+	static const double three[] = { 1e308, 1e308, -1e308 };
+	static const double pair[] = { 1.7e308, 1.6e308 };
+	static const double opp[] = { -1.7e308, 1.7e308 };
+	static const double lone[] = { 0, 0, 0, 2e154 };
+	static const double sym[] = { -1e200, 1e200 };
+	static const double rev[] = { 1e200, -1e200 };
+	static const double tiny[] = { -1e-200, 1e-200 };
+	static const double table[] = { 1, 2, 3, 4 };
+	static const double huge_table[] = { 1e300, 2e300, 3e300, 4e300 };
+	static const double full[] = { 1e308, 1e308, 1e308, 1e308 };
+	static const double small_table[] = { 1e-160, 2e-160, 3e-160, 4e-160 };
+	static const double nanl[] = { 1, NAN, 3 };
+	static const double infl[] = { 1e308, INFINITY };
+	double scratch[4], out, ref;
+	size_t df;
+
+	/* sums and averages whose plain forms overflow */
+	CHECK_ST(calc_mean(two, 2, &out), CALC_OK);
+	CHECK_NEAR(out / 1e308, 1.0);
+	CHECK_ST(calc_mean(three, 3, &out), CALC_OK);
+	CHECK_NEAR(out / (1e308 / 3.0), 1.0);
+	CHECK_ST(calc_median(two, 2, scratch, &out), CALC_OK);
+	CHECK_NEAR(out / 1e308, 1.0);
+	CHECK_ST(calc_median(pair, 2, scratch, &out), CALC_OK);
+	CHECK_NEAR(out / 1.65e308, 1.0);
+	CHECK_ST(calc_median(opp, 2, scratch, &out), CALC_OK);
+	CHECK(out == 0.0);
+	/* non-finite input keeps the plain result */
+	CHECK_ST(calc_mean(nanl, 3, &out), CALC_OK);
+	CHECK(out != out);
+	CHECK_ST(calc_mean(infl, 2, &out), CALC_OK);
+	CHECK(out == INFINITY);
+
+	/* squares that overflow although the variance or deviation does not */
+	CHECK_ST(calc_variance(lone, 4, 0, &out), CALC_OK);
+	CHECK_NEAR(out / 7.5e307, 1.0);
+	CHECK_ST(calc_variance(two, 2, 0, &out), CALC_OK);	/* a constant list: the mean overflows */
+	CHECK(out == 0.0);
+	CHECK_ST(calc_stddev(two, 2, 1, &out), CALC_OK);
+	CHECK(out == 0.0);
+	CHECK_ST(calc_stddev(sym, 2, 0, &out), CALC_OK);
+	CHECK_NEAR(out / 1e200, 1.0);
+	CHECK_ST(calc_stddev(sym, 2, 1, &out), CALC_OK);
+	CHECK_NEAR(out / 1.4142135623730951e200, 1.0);
+	CHECK_ST(calc_variance(sym, 2, 0, &out), CALC_OK);	/* 1e400 is outside the range */
+	CHECK(out == INFINITY);
+	CHECK_ST(calc_stddev(tiny, 2, 0, &out), CALC_OK);	/* squares underflow to 0 */
+	CHECK_NEAR(out / 1e-200, 1.0);
+	CHECK_ST(calc_stddev(table, 4, 0, &out), CALC_OK);
+	CHECK_NEAR(out, 1.118033988749895);
+	CHECK_ST(calc_stddev(nanl, 3, 0, &out), CALC_OK);
+	CHECK(out != out);
+
+	/* correlation is scale-free: squares overflow or underflow, r does not change */
+	CHECK_ST(calc_correl(sym, sym, 2, &out), CALC_OK);
+	CHECK_NEAR(out, 1.0);
+	CHECK_ST(calc_correl(sym, rev, 2, &out), CALC_OK);
+	CHECK_NEAR(out, -1.0);
+	CHECK_ST(calc_correl(tiny, tiny, 2, &out), CALC_OK);
+	CHECK_NEAR(out, 1.0);
+	CHECK_ST(calc_correl(sym, tiny, 2, &out), CALC_OK);
+	CHECK_NEAR(out, 1.0);
+	CHECK_ST(calc_correl(nanl, nanl, 3, &out), CALC_OK);
+	CHECK(out != out);
+
+	/* chi-square: totals and products of totals */
+	CHECK_ST(calc_chi_square(table, 2, 2, &ref, &df), CALC_OK);
+	CHECK_NEAR(ref, 0.0793650793650794);
+	CHECK(df == 1);
+	CHECK_ST(calc_chi_square(huge_table, 2, 2, &out, &df), CALC_OK);
+	CHECK_NEAR(out / (0.0793650793650794e300), 1.0);
+	CHECK_ST(calc_chi_square(full, 2, 2, &out, &df), CALC_OK);	/* the grand total exceeds DBL_MAX */
+	CHECK(out == 0.0);
+	/* counts near 1e-160: the product of two totals is subnormal, the ratio form is not */
+	CHECK_ST(calc_chi_square(small_table, 2, 2, &out, &df), CALC_OK);
+	CHECK_TOL(out / 7.93650793650794e-162, 1.0, 1e-12);
+}
+
+static void
+test_power_range(void)
+{
+	static const double bases[] = { -1.0, -2.0, -0.5, 2.0, 0.5, 1.0, 0.0 };
+	static const struct { double e; int odd; } ex[] = {
+		{ 2147483649.0, 1 },		/* 2^31 + 1 */
+		{ 9007199254740992.0, 0 },	/* 2^53 */
+		{ 4503599627370497.0, 1 },	/* 2^52 + 1 */
+		{ 1e300, 0 },
+		{ -2147483649.0, 1 },
+		{ -1e300, 0 },
+	};
+	double out, x, e, want;
+	size_t i, j;
+	int odd;
+
+	for (i = 0; i < COUNT(bases); i++) {
+		for (j = 0; j < COUNT(ex); j++) {
+			x = bases[i];
+			e = ex[j].e;
+			if (x == 0.0 && e < 0.0) {
+				CHECK_ST(calc_power(&x, 1, e, &out), CALC_E_DOMAIN);
+				continue;
+			}
+			CHECK_ST(calc_power(&x, 1, e, &out), CALC_OK);
+			odd = ex[j].odd && x < 0.0;
+			if (fabs(x) == 1.0)
+				want = odd ? -1.0 : 1.0;
+			else if (x == 0.0)
+				want = 0.0;
+			else if ((fabs(x) > 1.0) == (e > 0.0))
+				want = odd ? -INFINITY : INFINITY;
+			else
+				want = odd ? -0.0 : 0.0;
+			CHECK_EXACT(out, want);
+		}
+	}
+	/* the integer test no longer stops at 1e9, and pow_int still serves up to 2^31 */
+	{
+		x = -1.0;
+
+		CHECK_ST(calc_power(&x, 1, 1000000001.0, &out), CALC_OK);
+		CHECK_EXACT(out, -1.0);
+		CHECK_ST(calc_power(&x, 1, 2147483647.0, &out), CALC_OK);
+		CHECK_EXACT(out, -1.0);
+		CHECK_ST(calc_power(&x, 1, 2147483648.0, &out), CALC_OK);
+		CHECK_EXACT(out, 1.0);
+		x = -2.0;
+		CHECK_ST(calc_power(&x, 1, 2147483648.0, &out), CALC_OK);
+		CHECK_EXACT(out, INFINITY);
+		x = -0.0;
+		CHECK_ST(calc_power(&x, 1, 2147483649.0, &out), CALC_OK);
+		CHECK_EXACT(out, -0.0);
+		CHECK_ST(calc_power(&x, 1, 1e300, &out), CALC_OK);
+		CHECK_EXACT(out, 0.0);
+		/* a non-integer exponent with a negative base is still a domain error */
+		x = -1.0;
+		CHECK_ST(calc_power(&x, 1, 1e300, &out), CALC_OK);	/* every such double is an integer */
+		CHECK_EXACT(out, 1.0);
+		CHECK_ST(calc_power(&x, 1, 0.5, &out), CALC_E_DOMAIN);
+		CHECK_ST(calc_power(&x, 1, INFINITY, &out), CALC_E_DOMAIN);
+		CHECK_ST(calc_power(&x, 1, NAN, &out), CALC_E_DOMAIN);
+	}
+}
+
+
+/*
+ * Approach to the poles of atanh (+-1) and atan (+-i) from either side, with
+ * offsets of 1e-10, 1e-153 and 1e-160. The expected values come from
+ * gen_complex_vectors.py, which evaluates them at 60 digits with mpmath.
+ */
+static const struct { int fn; double zr, zi, er, ei; } cpole[] = {
+#define CV_UNARY(n, zr, zi, er, ei)
+#define CV_BINARY(n, ar, ai, br, bi, er, ei)
+#define CV_SCALAR(n, zr, zi, e)
+#define CV_POLE(n, zr, zi, er, ei) { cfn_##n, zr, zi, er, ei },
+#include "complex_vectors.h"
+#undef CV_UNARY
+#undef CV_BINARY
+#undef CV_SCALAR
+#undef CV_POLE
+};
+
+static void
+test_complex_poles(void)
+{
+	calc_cplx r;
+	size_t i;
+
+	for (i = 0; i < COUNT(cpole); i++) {
+		CHECK_ST(calc_c_func((calc_cfn)cpole[i].fn, calc_c_make(cpole[i].zr, cpole[i].zi), &r),
+		    CALC_OK);
+		check_cplx(r, cpole[i].er, cpole[i].ei, TOL, __LINE__);
+	}
+	CHECK(COUNT(cpole) == 28);
+
+	/*
+	 * calc__log1p is private to the library. The atanh and atan cores hand it
+	 * 4x/d only for d >= 2^-1000, so no public entry point reaches its
+	 * large-argument branch; it is pinned here directly. The plain product
+	 * log(1 + x) * x / x overflows from x about 2.5e305.
+	 */
+	CHECK_TOL(calc__log1p(1e306), 704.591038456178, 1e-14);
+	CHECK_TOL(calc__log1p(DBL_MAX), 709.782712893384, 1e-14);
+	CHECK_TOL(calc__log1p(0x1p60), 41.58883083359672, 1e-14);
+	CHECK_TOL(calc__log1p(0x1p53), 36.7368005696771, 1e-14);
+}
+
 int
 main(void)
 {
@@ -2470,6 +3062,14 @@ main(void)
 	test_pid();
 	test_pid_properties();
 	test_null_arguments();
+	test_scale_statistics();
+	test_scale_vectors();
+	test_scale_matrices();
+	test_determinant_range();
+	test_scale_lists();
+	test_statistics_range();
+	test_power_range();
+	test_complex_poles();
 	test_accuracy();
 #ifdef CALC_TEST_NO_HOST_COMPLEX
 	printf("INFO host complex grid skipped: C library lacks Annex G branch cuts\n");

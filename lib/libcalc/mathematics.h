@@ -277,7 +277,11 @@ calc_quat calc_quat_conj(calc_quat q);
  * when a component of the inverse is not finite. out is unwritten otherwise.
  */
 calc_status calc_quat_inverse(calc_quat q, calc_quat *out);
-/* w = 0, unit xyz and the original length. DOMAIN for the zero vector. */
+/*
+ * w = 0, unit xyz and the original length. DOMAIN for the zero vector. A
+ * length above DBL_MAX is returned as +infinity with CALC_OK; the unit
+ * direction stays exact.
+ */
 calc_status calc_quat_from_vector(double x, double y, double z, calc_quat *q,
     double *magnitude);
 /* The axis is normalized first; a zero axis is CALC_E_DOMAIN. */
@@ -361,7 +365,9 @@ calc_status calc_scale_i64(const int64_t *in, size_t n, double s, int64_t *out);
 /*
  * Raise each element to a power. CALC_E_DOMAIN for a negative base with a
  * non-integer exponent and for 0 raised to a negative exponent; nothing is
- * written then.
+ * written then. An exponent is an integer when it is finite and equals its
+ * floor, whatever its magnitude: (-1) raised to 1e300 is 1 and to 2^31 + 1
+ * is -1.
  */
 calc_status calc_power(const double *in, size_t n, double exponent, double *out);
 

@@ -252,6 +252,9 @@ calc_scale_i64(const int64_t *in, size_t n, double s, int64_t *out)
 	return CALC_OK;
 }
 
+/* Largest |exponent| for which pow_int runs: at most 32 squarings. */
+#define POW_INT_MAX	2147483648.0
+
 /* x^k for an integral exponent by repeated squaring; k may be negative. */
 static double
 pow_int(double x, double k)
@@ -271,7 +274,7 @@ pow_int(double x, double k)
 calc_status
 calc_power(const double *in, size_t n, double exponent, double *out)
 {
-	int integral;
+	int integral, odd;
 	size_t i;
 
 	if (in == NULL || out == NULL)
@@ -280,8 +283,15 @@ calc_power(const double *in, size_t n, double exponent, double *out)
 		return CALC_E_SIZE;
 	if (calc__partial(in, out, n * sizeof(double)))
 		return CALC_E_ALIAS;
-	integral = calc__isfinite(exponent) && calc__fabs(exponent) <= 1.0e9 &&
-	    exponent == floor(exponent);
+	/*
+	 * An exponent is integral when it is finite and equals its floor. Every
+	 * finite double of magnitude 2^53 or more is an even integer; the parity
+	 * of a smaller one is its low bit.
+	 */
+	integral = calc__isfinite(exponent) && exponent == floor(exponent);
+	/* Beyond pow_int's range the sign of a negative base comes from the parity of the exponent. */
+	odd = integral && calc__fabs(exponent) > POW_INT_MAX &&
+	    exponent - 2.0 * floor(0.5 * exponent) >= 1.0;
 	for (i = 0; i < n; i++) {
 		if (in[i] < 0.0 && !integral)
 			return CALC_E_DOMAIN;
@@ -291,14 +301,16 @@ calc_power(const double *in, size_t n, double exponent, double *out)
 	for (i = 0; i < n; i++) {
 		if (exponent == 1.0)
 			out[i] = in[i];
-		else if (integral)
+		else if (integral && calc__fabs(exponent) <= POW_INT_MAX)
 			out[i] = pow_int(in[i], exponent);
 		else if (exponent == 0.5)
 			out[i] = sqrt(in[i]);
 		else if (in[i] == 0.0)
 			out[i] = 0.0;
-		else
-			out[i] = calc__exp(exponent * calc__log(in[i]));
+		else	/* a negative base here has a large integral exponent: |x| carries the logarithm */
+			out[i] = calc__exp(exponent * calc__log(calc__fabs(in[i])));
+		if (odd && calc__signbit(in[i]))
+			out[i] = -out[i];
 	}
 	return CALC_OK;
 }

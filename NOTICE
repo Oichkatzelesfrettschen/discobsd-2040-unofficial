@@ -355,6 +355,50 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
+17. Simon Tatham and contributors (the puzzles /usr/games/flood,
+    /usr/games/samegame, /usr/games/unruly and /usr/games/lightup, in
+    the games root profile)
+    License: MIT
+
+games/pzcommon/tatham holds, unchanged, the files of Simon Tatham's Portable
+Puzzle Collection that these four puzzles need: puzzles.h, misc.c, random.c,
+malloc.c, combi.c, flood.c, samegame.c, unruly.c and lightup.c, with the
+collection's LICENCE file. They come from the source snapshot
+puzzles-20260923.616da16 at
+https://www.chiark.greenend.org.uk/~sgtatham/puzzles/puzzles.tar.gz, whose
+SHA-256 is cc419c8060b4e22be398aa03e30651fbce146eee510645c303fb6f5f1b77b78e;
+games/pzcommon/tatham.sha256 records the SHA-256 of each file and
+games/pzcommon/tests/check_import.py checks them. The collection's files
+carry no per-file header; its LICENCE reads:
+
+This software is copyright (c) 2004-2024 Simon Tatham.
+
+Portions copyright Richard Boulton, James Harvey, Mike Pinna, Jonas
+Kölker, Dariusz Olszewski, Michael Schierl, Lambros Lambrou, Bernd
+Schmidt, Steffen Bauer, Lennard Sprong, Rogier Goossens, Michael
+Quevillon, Asher Gordon, Didi Kohen, Ben Harris and Anders Höglund.
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software,
+and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+------------------------------------------------------------------------
 Appendix. Build and test dependencies, which no image contains
 
 The sections above cover everything a redistributed image carries. The

@@ -41,10 +41,11 @@ closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
 # games/gamebox dispatches on argv[0]; fifteen, keen, bubble, fourfall
-# and coil are hard links to it, and the manifest checker rejects a link whose source the
-# profile dropped.
+# and coil are hard links to it, and games/puzzlebox does the same for flood,
+# samegame, unruly and lightup; the manifest checker rejects a link whose
+# source the profile dropped.
 #
-closure games needs path /usr/games/gamebox
+closure games needs path /usr/games/gamebox /usr/games/puzzlebox
 
 #
 # usr.bin/bc compiles its input to dc source and runs /usr/bin/dc to
@@ -64,7 +65,7 @@ closure calc needs path /usr/bin/calc
 # base       the shell, /etc/rc, the multicall binaries and the editors
 # benchmark  base plus CoreMark, for a reported score on a bare board
 # developer  base plus the native compile chain and its link library
-# games      base plus gamebox and its five entry points
+# games      base plus gamebox and puzzlebox with their nine entry points
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the

@@ -1000,7 +1000,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
 		check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
@@ -1077,6 +1077,9 @@ check-fourfall-host:
 
 check-coil-host:
 		${MAKE} -C games/coil test
+
+check-puzzlebox-host:
+		${MAKE} -C games/pzcommon test
 
 check-calc-host: check-python .WAIT symlinks
 		${MAKE} -C usr.bin/calc test
@@ -1360,7 +1363,7 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
 		check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \

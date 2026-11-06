@@ -74689,7 +74689,9 @@
           "object_lifetime": [
             "dynamic-storage"
           ],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

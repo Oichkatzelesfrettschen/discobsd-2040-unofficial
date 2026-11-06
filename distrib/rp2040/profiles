@@ -47,11 +47,12 @@ closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 closure games needs path /usr/games/gamebox
 
 #
-# usr.bin/bc compiles its input to dc source and runs /usr/bin/dc to
-# evaluate it, and bc -l first reads /usr/share/misc/lib.b, so the
-# arbitrary-precision calculator ships all three or none.
+# usr.bin/bc compiles its input to dc source and evaluates it with the dc
+# evaluator linked into bc itself, in a forked child, so bc needs no
+# /usr/bin/dc to run. bc -l first reads /usr/share/misc/bc.library. The
+# arbitrary-precision calculator ships bc, dc and the library together.
 #
-closure calc-bignum needs path /usr/bin/bc /usr/bin/dc /usr/share/misc/lib.b
+closure calc-bignum needs path /usr/bin/bc /usr/bin/dc /usr/share/misc/bc.library
 
 # usr.bin/calc, the scientific calculator with the F-key item bar sized for
 # the PicoCalc's 53 by 32 console, is one self-contained program.

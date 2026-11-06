@@ -30,7 +30,7 @@ execution of the DiscoBSD a.out has happened. Every figure is marked measured
   sequences), keeps a scroll region above the bar and restores the terminal on
   every exit path. With a pipe, `-l`, or expression arguments it is line
   oriented and writes no escape sequence.
-- Measured size of the cross build: 37,924 bytes raw, 30,000 packed, 31
+- Measured size of the cross build: 39,140 bytes raw, 31,014 packed, 32
   root blocks (`hsaout -s`), about twice the plan's 20 KB estimate. The
   evidence section itemizes the cause.
 
@@ -133,8 +133,8 @@ All commands run from the repository root of this worktree with
 | `bmake -C usr.bin/calc MACHINE=rp2040 all` | warning free under `-Wall -Wextra -Werror -std=c17 -pedantic-errors -nostdinc` |
 
 Size. `bmake -C usr.bin/calc MACHINE=rp2040 all` followed by
-`tools/bin/rp2040/hsaout -s usr.bin/calc/calc` reports 37,924 bytes raw and
-30,000 packed, 31 root blocks; the `calc` closure costs 31 free blocks and
+`tools/bin/rp2040/hsaout -s usr.bin/calc/calc` reports 39,140 bytes raw and
+31,014 packed, 32 root blocks; the `calc` closure costs 32 free blocks and
 one inode in the `picocalc` image (`sys/arch/rp2040/doc/PROFILES.md`). A map
 of an earlier build puts about 16 KB in `calc.o` (9.7 KB of code, the rest
 the unit, constant and function tables), about 7.3 KB in the libcalc

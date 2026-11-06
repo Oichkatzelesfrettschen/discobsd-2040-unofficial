@@ -123,8 +123,8 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	mem.o swap.o clock.o conf.o fault.o machdep.o shutdown_sync.o \
 	mpu.o sig_machdep.o syscall.o sysctl.o systick.o uart.o usb.o \
 	lcdcons.o lcdrender.o lcdterm.o lcdfont.o st7365p.o picokbd.o \
-	picokbd_map.o flash.o flash_swap.o error.o journal.o map.o \
-	swapram.o swapram_pool.o heatshrink_encoder.o \
+	picokbd_map.o picokbd_req.o flash.o flash_swap.o error.o \
+	journal.o map.o swapram.o swapram_pool.o heatshrink_encoder.o \
 	heatshrink_decoder.o subr_crc32.o exec_hsaout.o hsx_stream.o \
 	hsx_decoder.o
 
@@ -155,7 +155,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/dev/usb.c $S/arch/rp2040/dev/lcdcons.c \
 	$S/arch/rp2040/dev/lcdterm.c $S/arch/rp2040/dev/lcdfont.c \
 	$S/arch/rp2040/dev/st7365p.c $S/arch/rp2040/dev/picokbd.c \
-	$S/arch/rp2040/dev/picokbd_map.c $S/arch/rp2040/dev/flash.c \
+	$S/arch/rp2040/dev/picokbd_map.c \
+	$S/arch/rp2040/dev/picokbd_req.c $S/arch/rp2040/dev/flash.c \
 	$S/arch/rp2040/dev/flash_swap.c $S/arch/rp2040/dhara/error.c \
 	$S/arch/rp2040/dhara/journal.c $S/arch/rp2040/dhara/map.c \
 	$S/arch/rp2040/rp2040/swapram.c \
@@ -497,6 +498,9 @@ picokbd.o: $S/arch/rp2040/dev/picokbd.c
 	${COMPILE_C}
 
 picokbd_map.o: $S/arch/rp2040/dev/picokbd_map.c
+	${COMPILE_C}
+
+picokbd_req.o: $S/arch/rp2040/dev/picokbd_req.c
 	${COMPILE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c

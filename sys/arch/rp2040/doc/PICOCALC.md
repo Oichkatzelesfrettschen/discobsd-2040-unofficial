@@ -40,6 +40,9 @@ name a file there, with a page for a PDF.
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
+| `machdep.picocalc.*` compiles into PICOCALC only; PICO and PICO_UART keep their text, data and bss sizes and differ from the earlier build only inside `version[]` and `osversion[]` | build | observed: PICOCALC text +916 bytes, bss +16 over 119,316 and 45,888; PICO 108,480 and PICO_UART 96,062 unchanged |
+| The register mailbox (`picokbd_req.c`) encodes reads and writes as the vendor firmware's `receiveEvent` decodes them, keeps a request off the key exchange, retries a faulted exchange three times, and drops a reply that outlives its deadline | host | observed by `check-picocalc-host` against a model of the firmware's register handler; eight mutants fail it |
+| The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 
 ## Pin map
 
@@ -219,6 +222,39 @@ exchange of the probe and of the console's getc, which runs with
 interrupts masked anyway, waits them out. Reading register 0x08 resets the keyboard
 controller, so the driver never reads it.
 
+A register request (battery, backlight, power-off) shares the poller. The
+write phase asks the mailbox in `picokbd_req.c` for a waiting request and
+sends it in place of register 0x09; a read is the register number, a write
+is the number with bit 7 set and one value byte, and the two-byte reply of
+either is (register, value), so a write reads back the value the firmware
+kept. The reply goes to the mailbox instead of the key map, and a reply
+whose first byte is not the requested register counts as a fault. A fault
+retries the request up to three exchanges before it fails with `EIO`. The
+caller of `picokbd_reg()` sleeps uninterruptibly on the mailbox, and a
+one-second callout (`HZ` ticks) ends a request the poller never answers
+with `ETIMEDOUT`, so no sysctl waits forever; a reply that arrives after
+its deadline is discarded because the mailbox no longer holds a request in
+flight. A request waits for the next write phase, which is at most one poll
+interval away (16 ms idle), and takes three phases, so a read answers in
+about 50 ms.
+
+`machdep.picocalc` (`machine/picocalcvar.h`, served by `picocalc_sysctl()`
+in `picokbd.c`, PICOCALC kernel only) exposes the registers. `__sysctl()`
+admits a write only from root before any handler runs.
+
+| Name | Register | Read | Write |
+| --- | --- | --- | --- |
+| `battery` | 0x0B | percent, bits 0-6 | refused (`EPERM`) |
+| `charging` | 0x0B | bit 7 | refused (`EPERM`) |
+| `lcd_backlight` | 0x05, 0x85 | level | level, clamped to 0-240; the firmware raises it to a multiple of 16, at least 16, so the panel never goes dark |
+| `kbd_backlight` | 0x0A, 0x8A | level | level, clamped to 0-240; the firmware rounds down to a multiple of 32 and turns the light off below 32 |
+| `poweroff` | 0x8E | the last countdown requested, 0 if none | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
+
+The firmware's `sync_bat` stores 0 when the PMU reports no battery
+(read from source, not observed), which `battery` would show as 0 percent
+and `charging` as 0, so a USB-C-only run could not be told from an empty
+cell by these two nodes alone.
+
 The firmware applies Shift, Caps Lock and the Alt symbol layer and
 repeats held keys, but reports Ctrl as key 0xA5 changing state without
 applying it, so `picokbd_map.c` applies Ctrl. Enter sends CR and
@@ -289,12 +325,14 @@ expansion header J703.
 
 ### Battery, backlight and power-off
 
-Keyboard-controller registers: 0x0B battery percent (bit 7 charging),
-0x05/0x85 LCD backlight, 0x0A/0x8A keyboard backlight, 0x8E power-off
-countdown (clamped to at least 6). Expose them as `machdep.picocalc.*`
-sysctls; the exchange must go through the same split-phase poller so it
-never collides with key polling (queue a register request that the next
-write phase sends instead of 0x09).
+The sysctls ship (see Keyboard above). The board checks that remain:
+`sysctl machdep.picocalc.battery` against the PMU's own reading, a
+`lcd_backlight` write that dims the panel in 16 steps, a `kbd_backlight`
+write that lights the keys, `poweroff=6` that cuts power six seconds
+later, and keys typed while a `sysctl` loop runs, which settles that a
+request never costs a key event. The firmware's `check_pmu_int` sleeps for the whole countdown before it
+shuts the PMU down, so keys typed in those seconds may be lost; the board
+run settles whether they are.
 
 ### Audio
 

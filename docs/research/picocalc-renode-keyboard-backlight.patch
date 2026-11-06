@@ -1,0 +1,36 @@
+diff --git a/tools/renode/picocalc/picocalc_keyboard.cs b/tools/renode/picocalc/picocalc_keyboard.cs
+index 7087b64..4c5bb46 100644
+--- a/tools/renode/picocalc/picocalc_keyboard.cs
++++ b/tools/renode/picocalc/picocalc_keyboard.cs
+@@ -9,7 +9,11 @@
+  * (state, key) event from a 31-entry FIFO that drops new events when full
+  * (conf_app.h FIFO_SIZE), 0x05 and 0x0A are the LCD and keyboard backlights,
+  * 0x0B the battery, 0x04 the FIFO depth and lock flags, and 0x0E the
+- * power-off countdown clamped to at least 6. Any other register answers
++ * power-off countdown clamped to at least 6. A backlight write is conditioned
++ * as backlight.ino does: the LCD level rounds down to a multiple of 16 and
++ * stays within 16..240, the keyboard level rounds down to a multiple of 32
++ * and drops to 0 below 32 or above 240, so a guest that writes a level reads
++ * back the level the light took. Any other register answers
+  * zeros. Register 0x08 resets the real controller after a delay, so the
+  * model records the request in ResetRequests and does nothing else.
+  *
+@@ -113,7 +117,7 @@ namespace Antmicro.Renode.Peripherals.I2C
+                 case RegBacklight:
+                     if(isWrite)
+                     {
+-                        backlight = value;
++                        backlight = (byte)Math.Min(240, Math.Max(16, value / 16 * 16));
+                     }
+                     reply[0] = reg;
+                     reply[1] = backlight;
+@@ -121,7 +125,8 @@ namespace Antmicro.Renode.Peripherals.I2C
+                 case RegKeyBacklight:
+                     if(isWrite)
+                     {
+-                        keyBacklight = value;
++                        var level = value / 32 * 32;
++                        keyBacklight = (byte)(level < 32 || level > 240 ? 0 : level);
+                     }
+                     reply[0] = reg;
+                     reply[1] = keyBacklight;

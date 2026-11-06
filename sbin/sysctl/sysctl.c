@@ -64,6 +64,10 @@
 #include <machine/mpuvar.h>
 #endif
 
+#ifdef CPU_PICOCALC
+#include <machine/picocalcvar.h>
+#endif
+
 struct ctlname topname[] = CTL_NAMES;
 struct ctlname kernname[] = CTL_KERN_NAMES;
 struct ctlname vmname[] = CTL_VM_NAMES;
@@ -129,6 +133,10 @@ int	sysctl_inet(char *, char **, int *, int, int *);
 #ifdef CPU_MPU
 int	sysctl_mpu(char *, char **, int *, int, int *);
 #endif /* CPU_MPU */
+#ifdef CPU_PICOCALC
+int	sysctl_picocalc(char *, char **, int *, int, int *);
+#endif /* CPU_PICOCALC */
+int	sysctl_leaf(char *, char **, int *, int *, struct list *);
 int	findname(char *, char *, char **, struct list *);
 void	usage(void);
 
@@ -365,6 +373,14 @@ parse(char *string, int flags)
 			break;
 		}
 #endif /* CPU_MPU */
+#ifdef CPU_PICOCALC
+		if (mib[1] == CPU_PICOCALC) {
+			len = sysctl_picocalc(string, &bufp, mib, flags, &type);
+			if (len <= 0)
+				return (len < 0);
+			break;
+		}
+#endif /* CPU_PICOCALC */
 		break;
 
 	case CTL_FS:
@@ -681,6 +697,28 @@ sysctl_inet(char *string, char **bufpp, int mib[], int flags, int *typep)
 }
 #endif /* PF_INET */
 
+/*
+ * Name the third level of a machdep node from its list: list every leaf
+ * when the name stops at the node, else store the leaf's index in mib[2].
+ * Returns the mib length, 0 after a listing or -1 for a bad name.
+ */
+int
+sysctl_leaf(char *string, char **bufpp, int mib[], int *typep,
+    struct list *lp)
+{
+	int indx;
+
+	if (*bufpp == NULL) {
+		listall(string, lp);
+		return (0);
+	}
+	if ((indx = findname(string, "third", bufpp, lp)) == -1)
+		return (-1);
+	mib[2] = indx;
+	*typep = lp->list[indx].ctl_type;
+	return (3);
+}
+
 #ifdef CPU_MPU
 struct ctlname mpuname[] = CTL_MPU_NAMES;
 struct list mpulist = { mpuname, CPU_MPU_MAXID };
@@ -691,20 +729,25 @@ struct list mpulist = { mpuname, CPU_MPU_MAXID };
 int
 sysctl_mpu(char *string, char **bufpp, int mib[], int flags, int *typep)
 {
-	int indx;
-
 	(void)flags;			/* Every mpu leaf is a plain integer. */
-	if (*bufpp == NULL) {
-		listall(string, &mpulist);
-		return (0);
-	}
-	if ((indx = findname(string, "third", bufpp, &mpulist)) == -1)
-		return (-1);
-	mib[2] = indx;
-	*typep = mpuname[indx].ctl_type;
-	return (3);
+	return (sysctl_leaf(string, bufpp, mib, typep, &mpulist));
 }
 #endif /* CPU_MPU */
+
+#ifdef CPU_PICOCALC
+struct ctlname picocalcname[] = CTL_PICOCALC_NAMES;
+struct list picocalclist = { picocalcname, CPU_PICOCALC_MAXID };
+
+/*
+ * Handle machdep.picocalc requests.
+ */
+int
+sysctl_picocalc(char *string, char **bufpp, int mib[], int flags, int *typep)
+{
+	(void)flags;			/* Every picocalc leaf is an integer. */
+	return (sysctl_leaf(string, bufpp, mib, typep, &picocalclist));
+}
+#endif /* CPU_PICOCALC */
 
 /*
  * Scan a list of names searching for a particular name.

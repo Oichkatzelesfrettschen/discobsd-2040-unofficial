@@ -37,6 +37,9 @@
 #ifdef UARTUSB_ENABLED
 #include <rp2040/dev/usb.h>
 #endif
+#ifdef PICOCALC_ENABLED
+#include <machine/picocalcvar.h>
+#endif
 
 /*
  * Kernel symbol name list.
@@ -191,6 +194,11 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 	case CPU_MPU:
 		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,
 		    newlen);
+#ifdef PICOCALC_ENABLED
+	case CPU_PICOCALC:
+		return picocalc_sysctl(name + 1, namelen - 1, oldp, oldlenp,
+		    newp, newlen);
+#endif
 	case CPU_WATCHDOG_REASON:
 		if (namelen != 1)
 			return ENOTDIR;

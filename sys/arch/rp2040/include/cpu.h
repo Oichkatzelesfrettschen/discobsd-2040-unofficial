@@ -58,7 +58,12 @@
 #define	CPU_WATCHDOG_SITE	16	/* int: masked section at the reset */
 #define	CPU_WATCHDOG_ARG	17	/* int: that section's argument */
 #define CPU_STORAGE_STATS       18      /* struct: optional storage accounting */
-#define	CPU_MAXID		19	/* number of valid machdep ids */
+/*
+ * The PicoCalc keyboard controller's battery, backlight and power-off
+ * registers (machine/picocalcvar.h); the PICOCALC kernel serves it.
+ */
+#define	CPU_PICOCALC		19	/* node: PicoCalc board registers */
+#define	CPU_MAXID		20	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -81,5 +86,6 @@
 	{ "watchdog_site", CTLTYPE_INT }, \
 	{ "watchdog_arg", CTLTYPE_INT }, \
 	{ "storage_stats", CTLTYPE_STRUCT }, \
+	{ "picocalc", CTLTYPE_NODE }, \
 }
 #endif	/* !KERNEL */

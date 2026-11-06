@@ -11,6 +11,10 @@
 # that maps SGR 90-97 onto the base colors, and a keymap that ignores
 # Ctrl. A harness that passed them would be checking nothing.
 #
+# kbdreq_test runs the keyboard-controller register mailbox against a
+# model of the vendor firmware's register handler; eight mutants of
+# picokbd_req.c and picokbd_req.h must fail it.
+#
 TOPSRC!=	cd ../..; pwd
 
 HOST_CC?=	cc
@@ -21,12 +25,17 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test font-sync
+check: lcdterm_test kbdreq_test font-sync
 	./lcdterm_test
-	${MAKE} mutants
+	./kbdreq_test
+	${MAKE} mutants kbdreq-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
+
+kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
+	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ kbdreq_test.c \
+	    ${DEV}/picokbd_req.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -61,8 +70,55 @@ mutant-bright:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    's/sgr_fg = v - 90 + 8;/sgr_fg = v - 90;/'
 
+KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
+		kbdreq_test.c
+
+KBDREQ_SRC=	picokbd_req.c picokbd_req.h
+
+kbdreq-mutants: kbdreq-mutant-write-bit kbdreq-mutant-echo \
+	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
+	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \
+	kbdreq-mutant-off-ceiling
+
+kbdreq-mutant-write-bit:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/q->reg | KBD_WRITE_BIT/q->reg/' ${KBDREQ_SRC}
+
+kbdreq-mutant-echo:
+	${KBDREQ_MUT} picokbd_req.c 's/if (b0 != q->reg)/if (0)/' \
+	    ${KBDREQ_SRC}
+
+kbdreq-mutant-retry:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/>= KBDREQ_TRIES/>= 100/' ${KBDREQ_SRC}
+
+kbdreq-mutant-expire-sent:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/ \&\& q->state != KR_SENT)/)/' ${KBDREQ_SRC}
+
+kbdreq-mutant-percent:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/return v \& ~KBD_BAT_CHARGING;/return v;/' ${KBDREQ_SRC}
+
+kbdreq-mutant-level:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/return v < 0 ? 0 : v > KBD_LEVEL_MAX/return v > KBD_LEVEL_MAX/' \
+	    ${KBDREQ_SRC}
+
+kbdreq-mutant-off-floor:
+	${KBDREQ_MUT} picokbd_req.h \
+	    's/KBD_OFF_MIN		6/KBD_OFF_MIN		1/' ${KBDREQ_SRC}
+
+kbdreq-mutant-off-ceiling:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/v > 255 ? 255 : v/v/' ${KBDREQ_SRC}
+
 clean:
-	rm -f lcdterm_test
+	rm -f lcdterm_test kbdreq_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
-	mutant-ctrl mutant-reverse-erase mutant-bright clean
+	mutant-ctrl mutant-reverse-erase mutant-bright clean \
+	kbdreq-mutants kbdreq-mutant-write-bit kbdreq-mutant-echo \
+	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
+	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \
+	kbdreq-mutant-off-ceiling

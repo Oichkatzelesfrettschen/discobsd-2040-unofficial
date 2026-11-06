@@ -371,6 +371,35 @@ main(void)
 	error_case("card error", r, EIO);
 	fail_sector = -1;
 
+	/*
+	 * DIOCREINIT replaces the table only when sector 0 reads: a failed
+	 * refresh keeps every open partition's mapping, a good one adopts the
+	 * rewritten table.
+	 */
+	fail_sector = 0;
+	check("reinit with a failing sector 0", sdioctl(0, DIOCREINIT, NULL, 0),
+	    EIO);
+	fail_sector = -1;
+	check("size of partition 1 after the failed reinit", (long)sdsize(1),
+	    16);
+	check("size of partition 2 after the failed reinit", (long)sdsize(2),
+	    10);
+	r = (struct req){ 1, B_READ, 0, 512 };
+	read_case("partition 1 block 0 after the failed reinit", r, 8, 1, 0);
+	r = (struct req){ 1, B_READ, 16, 1024 };
+	read_case("partition 1 odd tail after the failed reinit", r, 8 + 32, 1,
+	    512);
+	card[0][446 + 12] = 8;		/* dp_nsectors of entry 1: 33 -> 8. */
+	card[0][446 + 13] = 0;
+	check("reinit after the table was rewritten",
+	    sdioctl(0, DIOCREINIT, NULL, 0), 0);
+	check("size of partition 1 after the rewrite", (long)sdsize(1), 4);
+	check("size of partition 2 after the rewrite", (long)sdsize(2), 10);
+	memcpy(card, saved, sizeof(card));
+	check("reinit with the original table", sdioctl(0, DIOCREINIT, NULL, 0),
+	    0);
+	check("size of partition 1 restored", (long)sdsize(1), 16);
+
 	/* A partition nobody opened. */
 	r = (struct req){ 3, B_READ, 0, 512 };
 	error_case("unopened partition", r, ENXIO);

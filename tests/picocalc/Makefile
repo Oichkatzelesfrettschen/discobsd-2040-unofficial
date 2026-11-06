@@ -283,7 +283,9 @@ sdstrat-mutants: \
 	sdstrat-mutant-block-units \
 	sdstrat-mutant-direction \
 	sdstrat-mutant-card-changed \
-	sdstrat-mutant-open-check
+	sdstrat-mutant-open-check \
+	sdstrat-mutant-reinit-early-clear \
+	sdstrat-mutant-reinit-keep-old
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
@@ -332,6 +334,14 @@ sdstrat-mutant-card-changed:
 sdstrat-mutant-open-check:
 	${SDSTRAT_MUT} sd.c \
 	    's/(sd_openpart \& (1U << part)) == 0) {/0) {/' sd.c
+
+sdstrat-mutant-reinit-early-clear:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tbzero(pt, sizeof(pt));/\tbzero(pt, sizeof(pt)); bzero(sdpt, sizeof(sdpt));/' sd.c
+
+sdstrat-mutant-reinit-keep-old:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\t\tbcopy(pt, sdpt, sizeof(sdpt));/\t\t(void)0;/' sd.c
 
 
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
@@ -414,7 +424,9 @@ clean:
 	sdstrat-mutant-block-units \
 	sdstrat-mutant-direction \
 	sdstrat-mutant-card-changed \
-	sdstrat-mutant-open-check
+	sdstrat-mutant-open-check \
+	sdstrat-mutant-reinit-early-clear \
+	sdstrat-mutant-reinit-keep-old
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

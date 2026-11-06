@@ -163,31 +163,38 @@ sd_detect_poll(void)
 	}
 }
 
-/* Read the partition table from sector 0, keeping entries inside the card. */
+/*
+ * Read the partition table from sector 0, keeping entries inside the card.
+ * The table is built in a local copy and replaces sdpt only when the read
+ * succeeds, so a failed DIOCREINIT leaves the mappings of open partitions
+ * intact.
+ */
 static int
 sd_partitions(void)
 {
 	struct buf *bp = geteblk();
 	u_short *w = (u_short *)bp->b_addr;
+	struct diskpart pt[MAXPARTITIONS + 1];
 	int i, error = EIO;
 
-	bzero(sdpt, sizeof(sdpt));
-	sdpt[0].dp_nsectors = sdcard.nsectors;
+	bzero(pt, sizeof(pt));
+	pt[0].dp_nsectors = sdcard.nsectors;
 	if (sdspi_read(&sdcard, 0, (u_char *)bp->b_addr) == SDE_OK) {
 		error = 0;
 		if (w[255] == MBR_MAGIC)
-			bcopy(&w[223], &sdpt[1], 64);
+			bcopy(&w[223], &pt[1], 64);
 		for (i = 1; i <= MAXPARTITIONS; i++) {
-			if (sdpt[i].dp_offset > sdcard.nsectors ||
-			    sdpt[i].dp_nsectors >
-			    sdcard.nsectors - sdpt[i].dp_offset)
-				bzero(&sdpt[i], sizeof(sdpt[i]));
-			if (sdpt[i].dp_nsectors != 0)
+			if (pt[i].dp_offset > sdcard.nsectors ||
+			    pt[i].dp_nsectors >
+			    sdcard.nsectors - pt[i].dp_offset)
+				bzero(&pt[i], sizeof(pt[i]));
+			if (pt[i].dp_nsectors != 0)
 				printf("sd0%c: partition type %02x, sector %u, "
 				    "size %u kbytes\n", i + 'a' - 1,
-				    sdpt[i].dp_type, sdpt[i].dp_offset,
-				    sdpt[i].dp_nsectors / 2);
+				    pt[i].dp_type, pt[i].dp_offset,
+				    pt[i].dp_nsectors / 2);
 		}
+		bcopy(pt, sdpt, sizeof(sdpt));
 	}
 	brelse(bp);
 	return error;

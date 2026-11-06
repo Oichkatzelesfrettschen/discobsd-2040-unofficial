@@ -8,7 +8,7 @@ Three layers, each against the shipped sources:
     an oracle written from the datasheet, and the waveform is checked:
     command, address and data nibbles on SIO0-3 at each SCK rising edge,
     pins released before the device drives them, and every Table 10-5
-    timing the model enforces (tCSP, tCHD, tCPH, tCEM, clock period, setup
+    timing the model enforces (tCSP, tCHD, tCPH, tCEM, clock period and duty, setup
     and hold).
  2. psram_xfer.c, compiled for the host, runs through the same model:
     reset, identification, quad entry, and reads and writes of arbitrary
@@ -383,6 +383,31 @@ def test_chunks(lib):
     check(covered == 3000, "chunks cover the request exactly")
 
 
+def test_duty_rule():
+    """The 45%-55% band is applied to each phase against the cycle's own
+    period. The 32 ns cycle with an 8 ns high phase, which a check against
+    the 7 ns minimum period accepts, must be rejected, in either
+    orientation."""
+    for high, low, ok in (
+        (16.0, 16.0, True),
+        (14.4, 17.6, True),
+        (17.6, 14.4, True),
+        (14.0, 18.0, False),
+        (18.0, 14.0, False),
+        (8.0, 24.0, False),
+        (24.0, 8.0, False),
+        (16.0, 32.0, False),
+        (3.2, 3.8, True),
+    ):
+        got = pio_sim.duty_problem(high, low) is None
+        check(
+            got == ok,
+            "duty rule: %.1f ns high / %.1f ns low is %s, want %s"
+            % (high, low, "accepted" if got else "rejected",
+               "accepted" if ok else "rejected"),
+        )
+
+
 def test_block_offset(lib):
     """psramstrategy() turns b_blkno into a byte offset through
     psram_block_offset(); a block number outside the device must be refused
@@ -650,6 +675,7 @@ def main():
     test_waveforms(words, c)
     results["frame_limits"] = test_frame_limits(words, c)
     test_chunks(lib)
+    test_duty_rule()
     test_block_offset(lib)
     r = test_driver(a.lib, c)
     results["driver"] = {

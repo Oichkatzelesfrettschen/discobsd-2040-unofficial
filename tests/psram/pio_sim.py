@@ -38,6 +38,35 @@ IN_STAGES = 3  # two synchronizer flip-flops plus the input register stage
 T_CLK_MIN = 7.0  # 133 MHz
 T_CLK_PAGE = 1000.0 / 84.0  # 84 MHz when a burst crosses a 1 KB page
 T_CH_MIN = 0.45 * T_CLK_MIN
+# tCH and tCL, each 0.45 to 0.55 of the clock period (Table 10-5).
+DUTY_MIN = 0.45
+DUTY_MAX = 0.55
+# SCK clocks the master drives from the output loop before the first
+# turnaround or data clock of a read: quad 0xEB is 2 command and 6 address
+# nibbles; serial Read ID 0x9F is 8 command and 24 address bits, of which
+# the last is clocked by the turnaround loop because the driver releases
+# the pins one clock early (PSRAM_ID_WAIT). The state machine leaves the
+# output loop, releases the pins and loads the input counts with SCK low, so
+# the cycle that ends at the clock after this many is stretched by those
+# instructions. It is the only cycle of a frame the program may stretch.
+OUT_CLOCKS = {"qread": 8, "rdid": 31}
+
+
+def duty_problem(high, low):
+    """Describe how a clock cycle of the given high and low times (ns)
+    leaves the 45%-55% band of its own period, or return None."""
+    period = high + low
+    for name, part in (("high", high), ("low", low)):
+        frac = part / period
+        if not DUTY_MIN - 1e-9 <= frac <= DUTY_MAX + 1e-9:
+            return "SCK %s %.1f ns of a %.1f ns cycle is %.0f%%" % (
+                name,
+                part,
+                period,
+                100 * frac,
+            )
+    return None
+
 T_CPH = 50.0
 T_CEM = 8000.0
 T_CSP = 2.5
@@ -286,6 +315,7 @@ class Device:
             "t_fall": t,
             "rises": [],
             "falls": [],
+            "pauses": 0,
             "driving": None,
             "wins": [],
             "drive_from": None,
@@ -343,6 +373,17 @@ class Device:
                 self.flag(t, "SCK period %.1f ns below %.1f" % (period, limit))
         if self.last_fall is not None and t - self.last_fall < T_CH_MIN:
             self.flag(t, "SCK low %.1f ns" % (t - self.last_fall))
+        if self.last_rise is not None and self.last_fall is not None:
+            # The one stretched cycle per read, between the output loop and
+            # the turnaround, is the only place the program pauses SCK.
+            pause = OUT_CLOCKS.get(fr.get("kind")) == fr["pulses"]
+            problem = duty_problem(
+                self.last_fall - self.last_rise, t - self.last_fall
+            )
+            if problem is not None and not pause:
+                self.flag(t, problem)
+            if problem is not None and pause:
+                fr["pauses"] += 1
         self.last_rise = t
         fr["t_rise_last"] = t
         fr["rises"].append(t)
@@ -506,6 +547,8 @@ class Device:
             "wbytes": fr["wbytes"],
             "samples": fr["samples"],
             "rises": fr["rises"],
+            "falls": fr["falls"],
+            "pauses": fr["pauses"],
             "bits": list(fr["bits"]),
             "qpi": fr.get("qpi"),
         }

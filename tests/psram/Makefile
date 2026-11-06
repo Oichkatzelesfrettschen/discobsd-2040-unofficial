@@ -11,8 +11,9 @@
 # a 64-byte block, a word whose comment no longer matches it, a
 # turnaround one pass too long, a block number that is multiplied before it
 # is bounded, a length that is not bounded against the device end, and a
-# pad drive strength ORed into the reset field. A gate that passed them
-# would be checking nothing.
+# pad drive strength ORed into the reset field, and a clock whose low
+# phase is twice its high phase. A gate that passed them would be checking
+# nothing.
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -44,7 +45,7 @@ MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-tcem mutant-block mutant-comment mutant-turnaround \
-	mutant-blkrange mutant-blklen mutant-drive
+	mutant-blkrange mutant-blklen mutant-drive mutant-duty
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -103,9 +104,16 @@ mutant-drive:
 	${MUT} picocalc_reg.h \
 	    's/if ((pad & PC_PADS_DRIVE_MASK) != 0)/if (0)/'
 
+# One extra instruction slot in the low phase: SCK is high 16 ns of every
+# 48 ns, 33%, a period far above the 7 ns minimum that the old check read.
+mutant-duty:
+	${MUT} psram_pio.h \
+	    's/0x6004,\(.*\)out pins, 4             side 0 /0x6104,\1out pins, 4             side 0 [1] /'
+
 clean:
 	rm -f libpsram.so
 
 .PHONY: all check mutants mutant-sideset mutant-setup mutant-cs mutant-wait \
 	mutant-address mutant-tcem mutant-block mutant-comment \
-	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive clean
+	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive \
+	mutant-duty clean

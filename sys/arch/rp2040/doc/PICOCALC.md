@@ -40,7 +40,7 @@ name a file there, with a page for a PDF.
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
-| The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
+| The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |
 
 ## Pin map
 
@@ -76,7 +76,26 @@ connects VBUS to VSYS through the linear charger (AXP2101 datasheet 6.4,
 page 18), it runs from the higher of VBUS and the battery (6.5.1), and it
 starts the system when a good VBUS appears (6.5.3). The vendor assembly
 guide asks for a 5 V 2 A supply "to power and charge the product".
-A board booting with no 18650 cells installed settles the claim.
+
+The owner's PicoCalc stays off on USB-C with no 18650 cells installed and
+runs with cells, which contradicts the reading above. The keyboard
+firmware does not gate the Pico: its `setup()` raises PA13, the Pico
+enable, unconditionally (`picocalc_keyboard.ino`), so the inference is
+that no rail comes up at all, including DCDC1 (MCU_3V3) for the STM32.
+Two explanations fit, each with the measurement that separates them:
+
+- The USB-C receptacle lacks a 5.1 kOhm pull-down on each CC pin, so a
+  USB-C-to-C supply never switches VBUS on. A USB-A-to-C cable, which
+  carries VBUS unconditionally, powering a cell-less board confirms it.
+- The AXP2101 needs a power-key press or a battery to start, through
+  power-on defaults the board does not change. A cell-less board that
+  stays off on an A-to-C cable and starts after a press of the power key
+  confirms it.
+
+The Pico's own micro-USB port feeds the Pico module's VSYS through the
+module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32
+and the panel run from it is not measured. With cells installed, the
+micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
 

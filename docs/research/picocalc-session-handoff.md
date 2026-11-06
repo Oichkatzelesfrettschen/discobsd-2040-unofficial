@@ -118,7 +118,10 @@ Board runs, each waiting on the owner's opt-in:
    board photograph with a `DumpPpm` frame to settle orientation and color.
 6. `bc | dc` and `calc` on the PicoCalc, and the boot-ROM float provider
    against libcalc's contract (`docs/research/libcalc-implementation.md`).
-7. USB-C power alone, without a battery.
+7. USB-C power alone: the owner's board stays off on USB-C with no cells
+   (`PICOCALC.md`, "USB-C and power"); a USB-A-to-C cable and then the
+   power key separate a missing CC pull-down from the PMU's power-on
+   policy.
 
 PicoCalc drivers (designs in `PICOCALC.md`, "Next work"):
 

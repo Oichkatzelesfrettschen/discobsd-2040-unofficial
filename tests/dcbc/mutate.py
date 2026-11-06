@@ -79,7 +79,9 @@ MUTATIONS = (
         "stack_set_tos_copies_array",
         STACKC,
         "\t\tstack->stack[stack->sp] = *v;\n",
-        "\t\tstack->stack[stack->sp] = *v;\n\t\tstack->stack[stack->sp].array = v->array == NULL ?\n\t\t    NULL : array_dup(v->array);\n",
+        "\t\tstack->stack[stack->sp] = *v;\n"
+        "\t\tstack->stack[stack->sp].array = v->array == NULL ?\n"
+        "\t\t    NULL : array_dup(v->array);\n",
     ),
     (
         "names_compare_first_byte",

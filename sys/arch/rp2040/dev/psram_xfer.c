@@ -279,6 +279,27 @@ psram_write_chunk(unsigned int addr, const unsigned char *src, unsigned int n)
 	return psram_frame(psram_tx, 2 + words, psram_rx, 0);
 }
 
+/*
+ * Byte offset of a request for len bytes starting at block blkno of bsize
+ * bytes. The block number is bounded in blocks before it is multiplied, so
+ * the product cannot wrap the 32-bit offset onto a valid address, and the
+ * length is bounded against what remains of the device.
+ */
+int
+psram_block_offset(long blkno, unsigned int bsize, unsigned int len,
+    unsigned int *off)
+{
+	unsigned int addr;
+
+	if (blkno < 0 || (unsigned long)blkno > PSRAM_BYTES / bsize)
+		return PSRAM_E_RANGE;
+	addr = (unsigned int)blkno * bsize;
+	if (len > PSRAM_BYTES - addr)
+		return PSRAM_E_RANGE;
+	*off = addr;
+	return 0;
+}
+
 int
 psram_read(unsigned int addr, unsigned char *dst, unsigned int len)
 {

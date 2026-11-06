@@ -922,7 +922,7 @@ check-picocalc-host:	check-python
 		${MAKE} -C tests/picocalc check
 
 # The PicoCalc PSRAM driver against a PIO simulator and a timing model of
-# the ESP-PSRAM64H, and eight calibrating mutants; tests/psram/Makefile
+# the ESP-PSRAM64H, and calibrating mutants; tests/psram/Makefile
 # states each.
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check

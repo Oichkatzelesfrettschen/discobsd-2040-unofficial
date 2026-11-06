@@ -67,7 +67,11 @@ psramstrategy(struct buf *bp)
 		bp->b_error = ENXIO;
 		goto bad;
 	}
-	off = (unsigned int)bp->b_blkno * DEV_BSIZE;
+	err = psram_block_offset(bp->b_blkno, DEV_BSIZE, len, &off);
+	if (err != 0) {
+		bp->b_error = EINVAL;
+		goto bad;
+	}
 	storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READS :
 	    STORAGE_SWAP_WRITES, 1);
 	storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READ_BYTES :

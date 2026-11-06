@@ -383,6 +383,51 @@ def test_chunks(lib):
     check(covered == 3000, "chunks cover the request exactly")
 
 
+def test_block_offset(lib):
+    """psramstrategy() turns b_blkno into a byte offset through
+    psram_block_offset(); a block number outside the device must be refused
+    before the multiplication can wrap the 32-bit offset onto address 0."""
+    import ctypes
+
+    fn = lib.psram_block_offset
+    fn.restype = ctypes.c_int
+    fn.argtypes = [
+        ctypes.c_long,
+        ctypes.c_uint,
+        ctypes.c_uint,
+        ctypes.POINTER(ctypes.c_uint),
+    ]
+    bsize = 1024
+    blocks = (8 * 1024 * 1024) // bsize
+
+    def call(blk, ln):
+        off = ctypes.c_uint(0xDEADBEEF)
+        return fn(blk, bsize, ln, ctypes.byref(off)), off.value
+
+    for blk in (1 << 22, -(1 << 22), 1 << 31, -(1 << 31), (1 << 22) + 1, -1):
+        e, off = call(blk, bsize)
+        check(
+            e == -3 and off == 0xDEADBEEF,
+            "block %d is refused without an offset (%d, %#x)" % (blk, e, off),
+        )
+    for blk, ln in ((blocks + 1, 0), (blocks, 1), (blocks - 1, bsize + 1)):
+        e, _ = call(blk, ln)
+        check(e == -3, "block %d length %d runs past the end" % (blk, ln))
+    for blk, ln in (
+        (0, bsize),
+        (7, 3),
+        (blocks - 1, bsize),
+        (blocks, 0),
+        (blocks - 1, 1),
+    ):
+        e, off = call(blk, ln)
+        check(
+            e == 0 and off == blk * bsize,
+            "block %d length %d maps to offset %d (%d, %d)"
+            % (blk, ln, blk * bsize, e, off),
+        )
+
+
 def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
     r = new_rig(lib_path, access_ticks=access_ticks, **rig_kw)
     r.hw_init()
@@ -579,6 +624,7 @@ def main():
     test_waveforms(words, c)
     results["frame_limits"] = test_frame_limits(words, c)
     test_chunks(lib)
+    test_block_offset(lib)
     r = test_driver(a.lib, c)
     results["driver"] = {
         "frames": len(r.dev.frames),

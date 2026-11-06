@@ -46,6 +46,8 @@ extern unsigned char psram_mfid, psram_kgd;
 void psram_hw_init(void);
 int psram_device_init(void);
 unsigned int psram_chunk_len(unsigned int addr, unsigned int len);
+int psram_block_offset(long blkno, unsigned int bsize, unsigned int len,
+    unsigned int *off);
 int psram_read(unsigned int addr, unsigned char *dst, unsigned int len);
 int psram_write(unsigned int addr, const unsigned char *src,
     unsigned int len);

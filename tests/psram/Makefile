@@ -8,9 +8,10 @@
 # value that never raises SCK, data changed in the cycle SCK rises, chip
 # select left low, one turnaround clock too few, one address nibble
 # dropped, a frame long enough to pass tCEM, a frame that no longer stops at
-# a 64-byte block, a word whose comment no longer matches it, and a
-# turnaround one pass too long. A gate that passed them would be checking
-# nothing.
+# a 64-byte block, a word whose comment no longer matches it, a
+# turnaround one pass too long, a block number that is multiplied before it
+# is bounded, and a length that is not bounded against the device end. A
+# gate that passed them would be checking nothing.
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -41,7 +42,8 @@ libpsram.so: psram_host.c psram_host.h ${DEV}/psram_xfer.c \
 MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
-	mutant-tcem mutant-block mutant-comment mutant-turnaround
+	mutant-tcem mutant-block mutant-comment mutant-turnaround \
+	mutant-blkrange mutant-blklen
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -85,9 +87,19 @@ mutant-comment:
 mutant-turnaround:
 	${MUT} psram_pio.h 's/(wait) + 1) << 17/(wait) + 2) << 17/'
 
+# A block number multiplied before it is bounded: 4194304 blocks of 1024
+# bytes wrap the 32-bit offset to 0.
+mutant-blkrange:
+	${MUT} psram_xfer.c \
+	    's/if (blkno < 0 || (unsigned long)blkno > PSRAM_BYTES \/ bsize)/if (0)/'
+
+# A request that may run past the end of the device.
+mutant-blklen:
+	${MUT} psram_xfer.c 's/if (len > PSRAM_BYTES - addr)$$/if (0)/'
+
 clean:
 	rm -f libpsram.so
 
 .PHONY: all check mutants mutant-sideset mutant-setup mutant-cs mutant-wait \
 	mutant-address mutant-tcem mutant-block mutant-comment \
-	mutant-turnaround clean
+	mutant-turnaround mutant-blkrange mutant-blklen clean

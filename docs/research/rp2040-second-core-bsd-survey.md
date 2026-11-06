@@ -215,7 +215,9 @@ restarts them, and publishes the new endpoint to clients.
   handshake for flash writes, the supervisor, and the observer. Services plug
   in as dispatch table entries.
 - Tier C, both cores on the PicoCalc. Tier B plus the console service, which
-  owns SPI1, the panel and the cell store.
+  owns SPI1 and the panel and executes idempotent drawing commands. The
+  terminal parser and the cell store stay on core 0 (section 5.4 gives the
+  reason).
 
 ### 5.2 Message layer (LWKT-style ports over the SIO FIFO)
 
@@ -268,23 +270,88 @@ core-0 stall.
   declared masked-section name in watchdog scratch 1 (`include/watchdog.h`).
 - Crash by exception. Core 1's HardFault vector sets `svc_state = DEAD` and
   parks in RAM. This is the RS exit signal.
+- Operations are re-executable. `I:` every request a core-1 service accepts is
+  a pure function of its request slot: it reads caller-owned buffers and writes
+  a caller-owned output or an absolute hardware state (a pixel window, a scroll
+  start), so executing it twice leaves the same result as executing it once.
+  A service keeps no durable state that an operation updates in place. State
+  that changes incrementally (the terminal cell store, a cursor, a parser state)
+  stays with its core-0 owner. This rule replaces any need for exactly-once
+  delivery, which a restart cannot give: if core 1 dies after applying an
+  update and before replying, nothing outside core 1 can tell whether the
+  update happened.
+- Request completion state. `I:` each slot carries a 32-bit sequence number
+  that core 0 assigns, a state word (FREE, POSTED, DONE) and the epoch of the
+  instance that wrote DONE, then the result word: 12 bytes for each of the 32
+  slots, 384 bytes. Core 1 stores the result, issues `dmb`, then stores DONE
+  (the single-writer rule per field: core 0 writes sequence and POSTED, core 1
+  writes result and DONE). Core 0 accepts a reply only when sequence and
+  epoch match the slot; anything else is stale and dropped. The epoch
+  therefore rejects late replies from a dead instance and nothing more; it is
+  no deduplication, which the re-execution rule above makes unnecessary.
 - Restart. `S:` core 0 sets `PSM.FRCE_OFF` bit 16 (`PROC1`, datasheet table
   198, page 170), clears it, and relaunches through the boot ROM FIFO
   sequence, which the datasheet states is valid after a reset of core 1 alone
-  (2.8.2, page 131). Backoff is 1, 2, 4 periods with a budget
-  of three restarts; the fourth failure marks the service down and routes all
-  callers to the inline path. A restart increments an epoch number carried in
-  every request, so a late reply from the dead instance is discarded.
-- State handoff. The service writes its durable state into core-0-owned `.bss`
-  at message boundaries. For the console service that state is the cell store
-  (`dev/lcdterm.c`, `redraw_span`), the cursor, the attribute and the scroll
-  top. After a restart the service re-initializes the panel and redraws every
-  cell from the store; the parser state is reset, which `lcdabandon`
-  already does for a panic (`dev/lcdcons.c:52-54`). A mid-escape-sequence
-  restart can drop one sequence; the screen converges on the next redraw.
+  (2.8.2, page 131). Backoff is 1, 2, 4 periods with a budget of three
+  restarts; the fourth failure marks the service down and routes all callers
+  to the inline path. A restart increments the epoch and reposts every POSTED
+  slot in sequence order; a slot already DONE under the old epoch keeps its
+  result.
+- Ownership transfer to core 0. `I:` a timeout shows only that core 1 stopped
+  answering, not that it stopped touching shared state, so no timeout alone
+  moves ownership. The order is: (1) core 0 stops posting new requests and
+  marks the service SUSPECT; (2) core 0 sets `FRCE_OFF` bit 16 and reads it
+  back as set, the same wait `multicore_reset_core1()` performs, after which
+  core 1 executes nothing; (3) core 0 quiesces what core 1 left running
+  outside the core: it aborts every DMA channel the service owned
+  (`CHAN_ABORT`), resets SPI1 through the RESETS block so that a half-sent
+  panel transfer cannot continue, and checks `SPINLOCK_ST` for a lock the
+  service held (the design takes none); (4) only then does core 0 either
+  relaunch under the next epoch or run the inline path, which executes the
+  POSTED slots itself. Falsifier: a core-1 progress counter or a logic
+  capture on SPI1 shows activity after step (2) completes, or a slot executed
+  inline and again by the relaunched instance produces a different result.
+  Step (3) rests on an inference: table 198 gives `PROC1` its own bit apart
+  from the bus fabric and the peripherals, so forcing the core off does not
+  stop a DMA channel or reset SPI1. Not run: the datasheet does not say what
+  happens to an AHB transfer the core had in flight when `FRCE_OFF` takes it.
+- Console state. `I:` the terminal stays a core-0 object. `lcdterm.c` mutates
+  it in several steps with no commit point: `copy_row()` copies cells and
+  attributes one at a time, `scroll_up()` loops over rows and then blanks the
+  last, a full-screen scroll blanks row 0, advances `top` and reprograms the
+  panel in three separate steps, and `put_glyph()` runs `index_down()` (a
+  scroll) before it writes the glyph. A core-1 reset in the middle of a region
+  scroll leaves rows t+n through r+n copied up to t through r while the rows
+  below r stay unshifted: some rows appear twice and the n blank rows are
+  missing. A redraw from the store paints that inconsistent screen, and no
+  record says the scroll was half done, so the restart can neither finish nor
+  undo it; replaying the byte would apply the scroll a second time. That
+  exceeds the loss of one escape sequence. Core 1 therefore never writes the
+  store. Core 0 keeps parsing, mutating the store and choosing what to draw,
+  and ships the drawing as absolute commands: draw the cells (prow, column,
+  count) from the store as it stands when the command runs (core 1 reads the
+  store and never writes it; a read that races a core-0 write draws a stale
+  cell that the later command for the same cell repairs), fill (prow, column,
+  count, attribute), set the scroll start (prow). Each command names its target
+  by physical row and carries no delta, so replaying any prefix of the ring is
+  harmless, and the commands for one store write are issued after that write,
+  so the panel converges on the store once the ring drains. Each command packs
+  into the 32-bit argument of a ring entry (row 5 bits, column 6, count 6,
+  attribute 8). After a restart core 0 clears its cursor-drawn flag, sends
+  set-scroll-start and 32 row-draw commands (1,696 cells, about 207 ms at 122
+  microseconds a cell, `PICOCALC.md`), then resumes; no input is lost, because
+  the store was never at risk. The alternative, moving the store to core 1 with
+  a committed snapshot, costs a second copy of the cells and attributes (2 x 32
+  x 53 = 3,392 bytes) plus the parser and mode scalars and the ring cursor,
+  committed together at each sequence boundary, and it still leaves the kernel
+  `putc` path, `lcdabandon()` and `lcdterm_abort()` (all core-0 writers of the
+  same store, at interrupt level and during panic) either shipping to core 1 or
+  racing with it. That second writer is why the snapshot design does not
+  survive; the store stays where its writers are.
 - Client retry. A request that gets no reply within two periods, or a reply
-  with a stale epoch, is retried up to five times (the `bdev.c:36-57` bound)
-  before the caller runs the inline path.
+  with a stale epoch or sequence, is retried up to five times (the
+  `bdev.c:36-57` bound) before the caller runs the inline path, which first
+  completes the ownership transfer above.
 
 ### 5.5 Isolation on core 1 (the MPU as the privilege ACL)
 
@@ -304,9 +371,12 @@ would corrupt kernel `.bss`.
 | Limit | Tier A | Tier B (substrate + observer) | Tier C (adds console service) |
 |---|---|---|---|
 | 144 KB user window | untouched | untouched; no service data lives in the window | untouched |
-| 128 KB kernel flash (91.2 percent used on PicoCalc, 11,500 bytes free) | 0 | estimate 1.0 to 1.5 KB: launch, rings, doorbell, park, supervisor, observer (anchor: SwapRAM, a larger subsystem, is +4,148) | estimate +0 to +300 bytes on top: the service reuses `lcdterm.c` and `st7365p.c` text from the same image; the owner flag and deferred ring in `lcdcons.c:38-54, 68` become dead on the core-0 side and can be compiled out |
-| 264 KB SRAM | 0 | rings 1,024 bytes, slots and state under 512, observer stack 512: about 2 KB of the roughly 60 KB free | core-1 stack reuses the 2 KB `lcd_render_stack` (`dev/lcdcons.c:84-85`), net zero; font table 855 bytes copied to RAM only if the service runs during flash writes |
+| 128 KB kernel flash (91.2 percent used on PicoCalc, 11,500 bytes free) | 0 | estimate 1.0 to 1.5 KB: launch, rings, doorbell, park, supervisor, and the observer's 300 to 600 byte load image, which `kern.ldscript` stores in flash after `.data` and the boot copy loop moves to SRAM | not estimated: core 1 runs from SRAM only, so the panel draw path (`lcd_draw_cell`, `lcd_fill_cells`, `lcd_set_top` and the SPI byte writer in `st7365p.c`) and the font table must be linked into `.ramfunc` and stored in flash a second time. Measure with `arm-none-eabi-size` on `st7365p.o` before ranking this tier; the parser stays in the existing `lcdterm.c` text |
+| 264 KB SRAM | 0 | rings 1,024 bytes, slots and state 384, observer stack 512: about 2 KB of the roughly 60 KB free | core-1 stack reuses the 2 KB `lcd_render_stack` (`dev/lcdcons.c:84-85`), net zero; the cell store stays in place (no snapshot copy); the 855-byte font table and the draw path live in SRAM because core 1 never reads flash |
 | MPU per core, 8 regions | 4 used (`mpu.c:129-136`) | core 1 observer privileged, no regions required | six or seven regions on core 1 |
+
+Any code that core 1 executes counts twice: once as its load image in kernel
+flash and once as the SRAM copy. The observer is no exception.
 
 The "95 percent" flash claim in the brief was not reproduced; if a newer build
 is closer to full, the Tier C figures still hold because the reuse argument
@@ -341,7 +411,10 @@ Discarded, with reasons:
 | Credit flow control prevents ring deadlock | Any run where both rings reach capacity at once. |
 | Observer detects a core-0 hang inside two periods and names the section | Fault injection: `splhigh()` then spin, with and without a declared `WD_SITE`. A hang not reported, a legitimate 400 ms flash erase reported as a hang, or a wrong section name retires it. |
 | Observer failure never harms core 0 | Kill core 1 mid-run (PSM reset): core 0 loses diagnostics only; any user-visible effect retires it. |
-| Restart restores the console from the cell store | Kill core 1 at random points in a VT100 stream 1,000 times; compare the panel model after restart with the reference model that `check-picocalc-host` provides. A residual difference beyond the one dropped sequence retires it. |
+| Restart restores the console from the core-0 cell store | Kill core 1 at random points in a VT100 stream 1,000 times, including inside region scrolls; compare the panel model after the full repaint with the reference model that `check-picocalc-host` provides. Any residual difference retires it; no dropped sequence is allowed, because the store is never at risk. |
+| Drawing commands are idempotent | Replay each ring entry twice, and replay every prefix of a recorded stream after a restart; the panel model must equal the single-pass model. A difference retires the command set. |
+| Core 1 is quiescent before core 0 takes ownership | After `FRCE_OFF` reads back set and the DMA and SPI1 steps run, a logic capture of SPI1 and a core-1 progress counter show no activity; core 0 then draws inline. Activity after that point retires the transfer order. |
+| A request executed twice returns the same result | Kill core 1 between the result store and the DONE store, 10^5 times, for each opcode; the inline or relaunched result must be bit-identical. A difference marks the opcode as not re-executable, so it may not run on core 1. |
 | Console service lifts the render cost off core 0 | Run a fixed compute loop in a user process while `cat` of 100 KB drives the panel; iterations per second must exceed the polled path by the amount the 1-in-9 tick share predicts (I: about 5 to 8 times). Less than 2 times retires it. |
 | SPI1 DMA alone would not be enough (justifies core 1 for the panel) | A DMA-driven `lcdrender` on core 0 recovers more than 90 percent of the CPU share: then core 1 adds too little, and the console service is dropped in favor of DMA. |
 | Parking core 1 around flash writes costs no more than today's stall | Maximum service gap during `flash_erase` exceeds the erase time by more than one period. |
@@ -371,7 +444,10 @@ adds four constraints this design absorbs:
 - Single-core ceiling first. The report's instruction-level emulation puts the
   shipped packed-executable decoder at 387 cycles per expanded byte, 144 ms
   per pass over a 46,540-byte image, and attributes 54 percent of it to the bit
-  reader and 20 percent to the bit-serial CRC-32. `I:` a table CRC or a
+  reader and 20 percent to the bit-serial CRC-32. The sample, packer, harness
+  and model are in `docs/research/rp2040-second-core-emulation/`, whose
+  `build.sh` rebuilds them from tree sources and reproduces the figure; it is
+  an emulated cycle count, not a board measurement. `I:` a table CRC or a
   word-buffer bit reader may remove more than half of that on core 0 alone,
   which moves rank 3 (codec worker) behind a single-core optimization and
   sets its first falsifier: measure the decode on the board, then re-rank.
@@ -402,8 +478,14 @@ risk. Each entry gives precedent, mechanism, cost, benefit, risk, falsifier.
   core 0 and USB), then triggers the watchdog reset. The base watchdog reload
   stays with core 0's hardclock (the design `include/watchdog.h` records), so
   observer death removes diagnostics and nothing else.
-- Cost. `estimate:` 300 to 600 bytes of text in RAM, no flash growth when
-  copied from a linked blob at boot, about 512 bytes of RAM stack.
+- Cost. `estimate:` 300 to 600 bytes of code in SRAM, about 512 bytes of RAM
+  stack, and the same 300 to 600 bytes again in kernel flash: `kern.ldscript`
+  places `.ramfunc` at a load address after `.data` in flash, and the boot copy
+  loop moves it to SRAM, so a blob linked for SRAM is stored in flash. The
+  launch and reset code on core 0 adds its own text (the companion report
+  estimates 300 to 500 bytes), for 600 to 1,100 bytes of flash in all, which
+  is 9 to 17 percent of the roughly 6.5 KB the companion report counts free on
+  PicoCalc and 5 to 10 percent of the 11,500 bytes this report counts.
 - Benefit. `I:` converts the open wedge (`console-silent-after-web-session.md`
   records one occurrence with the cause "not established"; `usb-outwedge.md`
   models a related bulk-OUT wedge) from "device enumerated, console dead" into
@@ -423,18 +505,27 @@ risk. Each entry gives precedent, mechanism, cost, benefit, risk, falsifier.
   `4cdc1a6a981` of 2000-06-10: "Haven't solved the printf() problem yet");
   `S:` VAX 8600 console processor driven by command register, ready bit and
   interrupt-enable (`crl.c:145-165`, `STXCS_RDY`, `STXCS_IE`).
-- Mechanism. `I:` core 1 owns SPI1, the panel and the cell store. `lcdstart`
-  appends tty bytes to a request ring and rings the doorbell; kernel `putc`
-  appends to the same ring under PRIMASK on core 0. One owner removes the owner
-  flag and the deferred ring that exist only because two drawers share the
-  panel (`dev/lcdcons.c:38-54`). Backpressure: a full ring leaves the tty busy
-  until core 1 signals drained.
-- Cost. Section 5.6 column C. Panic printing needs a synchronous core-0 path
-  (park core 1, then the existing `lcdabandon` route).
+- Mechanism. `I:` core 1 owns SPI1 and the panel; core 0 keeps the parser and
+  the cell store (section 5.4, "Console state"). The renderer and kernel `putc`
+  on core 0 parse as today and, instead of calling `lcd_draw_cell()`,
+  `lcd_fill_cells()` and `lcd_set_top()`, append the matching absolute command
+  to the request ring under PRIMASK and ring the doorbell. One panel owner
+  removes the owner flag and the deferred ring that exist only because two
+  drawers share the panel (`dev/lcdcons.c:38-54`) from the panel side; they
+  remain as the serialization of core-0 writers to the ring and the store.
+  Backpressure: a full ring leaves the tty busy until core 1 signals drained.
+- Cost. Section 5.6 column C. Panic printing needs a synchronous core-0 path:
+  force core 1 off through the ownership transfer in section 5.4, reset SPI1,
+  then take the existing `lcdabandon` route, which now meets a store that no
+  core-1 reset can have left half updated.
 - Benefit. `S:` 115 microseconds per cell, 195 ms per full screen, CPU-polled
   (`picocalc-calculator-and-gui.md:331-336`). `I:` removes up to 89 percent of
   core 0 time during sustained output (8 ms slice per 1 ms tick,
-  `lcdcons.c:291`, `machparam.h:40`).
+  `lcdcons.c:291`, `machparam.h:40`), less the parse, store update and command
+  enqueue that stay on core 0, which no measurement bounds yet. Falsifier: if
+  that residual exceeds a quarter of today's per-byte cost (GPIO bracket around
+  `lcdterm_putc()` with and without the draw calls), the benefit falls below
+  what DMA on core 0 gives.
 - Risk. Medium: flash lockout, font rodata in flash, panic path, tty
   backpressure. The wire time (196 ms per full screen) does not shrink.
 - Falsifier. Section 5.8, the iterations-per-second row and the DMA row. SPI
@@ -456,8 +547,9 @@ risk. Each entry gives precedent, mechanism, cost, benefit, risk, falsifier.
   core-0 stack headroom cannot take; core 1 has its own stack. Parallelism
   comes from independent streams: the data, stack and u-area segments of one
   swapout (`swapram.c`), or the counting pass and the real pass.
-- Cost. `estimate:` +1.0 KB text beyond tier B plus 1,040 bytes of RAM; encoder
-  866 and decoder 582 bytes of text at `-Os` on the host compile.
+- Cost. `estimate:` +1.0 KB of core-1 code beyond tier B, held in kernel flash
+  as a load image and again in SRAM, plus 1,040 bytes of RAM; encoder 866 and
+  decoder 582 bytes of text at `-Os` on the host compile.
 - Benefit. `I:` weak. The segments are unequal (the data segment dominates), so
   a two-way split saves at most the smaller segment's time; `zswap.md`
   estimates 40 to 90 ms to compress an image against a 190 ms flash path, and

@@ -204,6 +204,12 @@ determinant and inverse use elimination, not cofactor recursion; the random stre
       logarithms of moduli. `calc__log1p` returns `log(x)` above 2^53.
     - `calc_rescale` and `calc_interp_table` form the ratio from halved differences when the range of the
       inputs exceeds DBL_MAX.
+27. **Contract narrowing.** The raw bilinear forms (`calc_dot`, `calc_cross3`, `calc_mat_mul`,
+    `calc_mat_vec`, `calc_rotate2d`, `calc_rotate2d_i32`, `calc_lerp`, `calc_blend`, `calc_quat_mul`,
+    `calc_quat_rotate`) evaluate the formula the header states. `calc_dot` of `(1e200, -1e200, 1)` with
+    `(1e200, 1e200, 1)` is NaN where the exact result is 1. Scaling each call costs a pass over the data per
+    call, so `mathematics.h` now limits the range promise for these routines to inputs whose documented
+    intermediate products and sums are finite.
 
 ## Findings about the tree's `lib/libm`
 
@@ -409,7 +415,7 @@ Each change answers a finding in `docs/research/calculator-and-games-review.md`.
 ## Revision after the second review
 
 The range, PID and NULL-pointer rows of the round 2 adjudication (`docs/research/calculator-and-games-review-round2.md`
-on the calculator-and-games branch) are implemented as decisions 20 and 24 to 26. The check count of
+on the calculator-and-games branch) are implemented as decisions 20 and 24 to 27. The check count of
 `calc_test` rose from 13511 to 14645 on the host variants and from 10654 to 11788 under qemu-arm. The new
 checks are: the NULL sweep (64 entry points, one call per required pointer); the exact scale relation at
 k = -1000, -500, 500 and 1000 for mean, median, standard deviation, variance (k = +-500, the result of
@@ -426,4 +432,4 @@ test run against the sources before the range fixes reports 281 failed checks on
 `calc_stddev` call with a NULL output, which the sweep recovers from as a fault.
 
 Not changed: the condition estimate is infinite for a matrix whose inverse 1-norm exceeds DBL_MAX (decision
-26).
+26), and the raw bilinear forms keep their narrowed promise (decision 27).

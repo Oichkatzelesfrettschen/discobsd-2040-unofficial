@@ -26,6 +26,14 @@
  *
  *   - A finite input of normal magnitude whose exact result is a normal
  *     double gives the documented value within the accuracy the tests state.
+ *     The routines that evaluate a formula the header states term by term
+ *     (calc_dot, calc_cross3, calc_mat_mul, calc_mat_vec, calc_rotate2d,
+ *     calc_rotate2d_i32, calc_lerp, calc_blend, calc_quat_mul and
+ *     calc_quat_rotate) keep the promise only when every documented
+ *     intermediate product and sum is itself finite: calc_dot of
+ *     (1e200, -1e200, 1) with (1e200, 1e200, 1) overflows in a product and
+ *     returns NaN where the exact result is 1. Scaling each call by its
+ *     largest operand would cost a pass over the data per call.
  *   - A NaN produced by arithmetic (0/0, inf - inf, inf * 0, a NaN summand)
  *     arrives as an infinity. The functions whose documented value is a NaN
  *     are calc_asinh, calc_acosh and calc_atanh outside their domains, the

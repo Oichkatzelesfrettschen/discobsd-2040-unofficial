@@ -158,8 +158,13 @@ def verify_signal_cleanup(
         stderr=subprocess.PIPE,
         env=environment,
     )
+    # sort creates and unlinks stm<pid>.probe before it installs its SIGTERM
+    # handler, and names each run stm<pid>.<n> only afterwards, so only a
+    # numbered run proves the handler is in place.
     deadline = time.monotonic() + 10
-    while process.poll() is None and not any(scratch_directory.iterdir()):
+    while process.poll() is None and not any(
+        entry.suffix[1:].isdigit() for entry in scratch_directory.iterdir()
+    ):
         if time.monotonic() >= deadline:
             process.kill()
             process.wait()

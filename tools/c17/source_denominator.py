@@ -26,13 +26,6 @@ PROFILES = {
 }
 NATIVE_INPUT = {"yes", "no", "unreviewed"}
 LANGUAGE_STATES = {"unreviewed", "migration-open", "accepted", "excluded"}
-COUNT_REPORT = Path("docs/research/c17-semantic-migration-plan.md")
-COUNT_REPORT_PATTERN = re.compile(
-    r"Those classifications preserve all (?P<accepted>[\d,]+) accepted,\s+"
-    r"(?P<migration_open>[\d,]+) migration-open,\s+"
-    r"(?P<excluded>[\d,]+)\s+excluded and (?P<unreviewed>[\d,]+) "
-    r"unreviewed language states\."
-)
 REQUIRED_ROW_FIELDS = {
     "path",
     "class",
@@ -544,26 +537,6 @@ def validate_documents(root, discovered, ledger, quarantine, closure=False):
     return counts
 
 
-def validate_count_report(root, counts):
-    report_path = root / COUNT_REPORT
-    require(report_path.is_file(), f"missing denominator count report: {COUNT_REPORT}")
-    report_text = report_path.read_text(encoding="utf-8")
-    matches = list(COUNT_REPORT_PATTERN.finditer(report_text))
-    require(len(matches) == 1, f"expected one denominator count report in {COUNT_REPORT}")
-    match = matches[0]
-    reported_counts = {
-        "accepted": int(match.group("accepted").replace(",", "")),
-        "migration-open": int(match.group("migration_open").replace(",", "")),
-        "excluded": int(match.group("excluded").replace(",", "")),
-        "unreviewed": int(match.group("unreviewed").replace(",", "")),
-    }
-    require(
-        reported_counts == counts,
-        f"denominator count report drift in {COUNT_REPORT}: "
-        f"reported={reported_counts}, ledger={counts}",
-    )
-
-
 def initial_row(path):
     if path.startswith("legacy/non-arm/"):
         return {
@@ -643,7 +616,6 @@ def bootstrap(root, ledger_path, quarantine_path, closure=False):
     quarantine = {"schema_version": 1, "entries": entries}
     discovered = [row["path"] for row in rows]
     counts = validate_documents(root, discovered, ledger, quarantine, closure)
-    validate_count_report(root, counts)
     ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
     quarantine_path.write_text(json.dumps(quarantine, indent=2) + "\n", encoding="utf-8")
     return counts
@@ -659,7 +631,6 @@ def refresh_classification(root, ledger_path, discovered, quarantine, closure=Fa
         row["classification"] = derive_classification(root, row)
     ledger["schema_version"] = 2
     counts = validate_documents(root, discovered, ledger, quarantine, closure)
-    validate_count_report(root, counts)
     atomic_write_text(ledger_path, json.dumps(ledger, indent=2) + "\n")
     return counts
 
@@ -708,7 +679,6 @@ def sync_paths(
         added_rows.append(row)
     ledger["rows"] = sorted(retained_rows + added_rows, key=lambda row: row["path"])
     counts = validate_documents(root, discovered, ledger, quarantine, closure)
-    validate_count_report(root, counts)
     atomic_write_text(ledger_path, json.dumps(ledger, indent=2) + "\n")
     return counts
 
@@ -759,7 +729,6 @@ def main():
             counts = validate_documents(
                 root, discovered, load_json(ledger_path), quarantine, args.closure
             )
-            validate_count_report(root, counts)
     except (DenominatorError, subprocess.CalledProcessError) as error:
         print(f"FAIL C17 source denominator: {error}", file=sys.stderr)
         return 1

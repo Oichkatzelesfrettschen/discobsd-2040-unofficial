@@ -29,15 +29,15 @@ SOURCE=		${LIBDIR}/bn.c
 HEADER=		${LIBDIR}/bn.h
 BASE_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-Wold-style-definition -Wshadow -Wconversion -O1 -I${LIBDIR}
-SAN_FLAGS=	-fsanitize=address,undefined -fno-sanitize-recover=all \
-		-fno-omit-frame-pointer
 TARGET_C17_FLAGS= -std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-Wold-style-definition -Os -ffreestanding -mcpu=cortex-m0plus \
 		-mthumb -mfloat-abi=soft
-QEMU_ARM!=	command -v qemu-arm 2>/dev/null || true
-SAN_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
 
 all: check
+
+# tools/host-test.mk supplies the sanitizer probe and the qemu-arm newlib
+# link shared with tests/libcalc and usr.bin/calc.
+include ${TOPSRC}/tools/host-test.mk
 
 vectors.txt: gen_vectors.py
 	${PYTHON} -I gen_vectors.py $@
@@ -99,11 +99,9 @@ check-cross: bn_target.o bad_lmul.o check_object.sh
 	@echo "libbn: symbol check rejects the 64-bit negative control"
 	sh ./check_object.sh ${GCCPREFIX}-nm ${GCCPREFIX}-size bn_target.o
 
-bn_test_arm: bn_test.c qemu_support.c ${SOURCE} ${HEADER}
-	${GCCPREFIX}-gcc -std=gnu17 -Wall -Wextra -Werror -Os \
-	    -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -I${LIBDIR} \
-	    -nostartfiles -Wl,-Ttext=0x20000 -o $@ bn_test.c qemu_support.c \
-	    -lc -lgcc
+bn_test_arm: bn_test.c ${QEMU_SUPPORT} ${SOURCE} ${HEADER}
+	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -I${LIBDIR} -o $@ bn_test.c \
+	    ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
 
 check-qemu: vectors.txt
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)

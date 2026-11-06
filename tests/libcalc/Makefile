@@ -35,21 +35,15 @@ HEADERS=	${LIBDIR}/mathematics.h ${LIBDIR}/calc_internal.h
 SPEC=		${TOPSRC}/docs/research/picomite-maths-clean-room-spec.md
 BASE_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror -Wshadow \
 		-Wconversion -Wold-style-definition -O1 -I${LIBDIR}
-SAN_FLAGS=	-fsanitize=address,undefined -fno-sanitize-recover=all \
-		-fno-omit-frame-pointer
 # x87 excess precision would change the rounding of an ILP32 host build, so
 # the 32-bit run uses SSE2 arithmetic as the double-precision reference.
 ILP32_FLAGS=	-m32 -msse2 -mfpmath=sse
-SAN_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
-QEMU_ARM!=	command -v qemu-arm 2>/dev/null || true
-# The Linux EABI system-call layer that tests/libbn already uses for its
-# qemu run: open, read, write, close, exit and a break area for newlib.
-QEMU_SUPPORT=	${TOPSRC}/tests/libbn/qemu_support.c
-OBJCOPY_OK!=	if command -v objcopy >/dev/null 2>&1; then echo yes; else echo no; fi
-TREELIBM=	sin sinh log exp atan sqrt pow hypot tanh asin floor fmod
-TREELIBM_OBJS=	${TREELIBM:S/^/tl_/:S/$/.o/} tl_errno.o
 
 all: check
+
+# tools/host-test.mk supplies the sanitizer probe, the tree libm objects and
+# the qemu-arm newlib link shared with tests/libbn and usr.bin/calc.
+include ${TOPSRC}/tools/host-test.mk
 
 # complex_vectors.h is committed; it changes only when the specification does.
 vectors:
@@ -63,20 +57,6 @@ calc_test32: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS}
 
 calc_test_san: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS}
 	${HOSTCC} ${BASE_FLAGS} ${SAN_FLAGS} -o $@ calc_test.c ${LIBSRCS} -lm
-
-# The tree libm is K&R C that predates the host dialect; its diagnostics are
-# not libcalc's. The objects are compiled without builtins so that the tree
-# routines, not inlined host versions, serve the calls, and errno is renamed
-# because the host errno is thread-local.
-.for f in ${TREELIBM}
-tl_${f}.o: ${TOPSRC}/lib/libm/${f}.c
-	${HOSTCC} -std=gnu89 -w -O1 -fno-builtin -I${TOPSRC}/include -c \
-	    ${TOPSRC}/lib/libm/${f}.c -o $@
-	objcopy --redefine-sym errno=tl_errno $@
-.endfor
-
-tl_errno.o: tl_errno.c
-	${HOSTCC} ${BASE_FLAGS} -c tl_errno.c -o $@
 
 calc_test_treelibm: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS} ${TREELIBM_OBJS}
 	${HOSTCC} ${BASE_FLAGS} -fno-builtin -o $@ calc_test.c ${LIBSRCS} \
@@ -144,11 +124,8 @@ check-cross: bad_malloc.o check_object.sh
 # catanh do not follow Annex G on the branch cuts, so they cannot serve as
 # the reference there. The Annex G table in complex_vectors.h still runs.
 calc_test_arm: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS} ${QEMU_SUPPORT}
-	${GCCPREFIX}-gcc -std=gnu17 -Wall -Wextra -Werror -Os \
-	    -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
-	    -DCALC_TEST_NO_HOST_COMPLEX -I${LIBDIR} \
-	    -nostartfiles -Wl,-Ttext=0x20000 -o $@ calc_test.c ${QEMU_SUPPORT} \
-	    ${LIBSRCS} -lm -lc -lgcc
+	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DCALC_TEST_NO_HOST_COMPLEX -I${LIBDIR} \
+	    -o $@ calc_test.c ${QEMU_SUPPORT} ${LIBSRCS} -lm ${QEMU_ARM_LIBS}
 
 check-qemu:
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)

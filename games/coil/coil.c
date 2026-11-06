@@ -533,7 +533,7 @@ static unsigned long last, acc;
 static unsigned char shadow[CL_H][CL_W];
 static unsigned char view[CL_H][CL_W];
 static long p_score = -1, p_left = -1, p_level = -1;
-static int p_state = -1;
+static int p_state = -1, p_next = -1;
 
 /* The one place a cell is drawn; code is a view code. */
 static void
@@ -607,7 +607,8 @@ draw_status(void)
 {
 	long left = game.supply + game.n;
 
-	if (p_score == (long)game.score && p_left == left && p_level == game.level)
+	if (p_score == (long)game.score && p_left == left &&
+	    p_level == game.level && p_next == game.next)
 		return;
 	gt_goto(1, 1);
 	gt_str("COIL  score ");
@@ -622,6 +623,7 @@ draw_status(void)
 	p_score = (long)game.score;
 	p_left = left;
 	p_level = game.level;
+	p_next = game.next;
 }
 
 static void
@@ -675,7 +677,7 @@ frame(int full)
 		draw_static();
 		memset(shadow, UNKNOWN, sizeof shadow);
 		p_score = p_left = p_level = -1;
-		p_state = -1;
+		p_state = p_next = -1;
 	}
 	compose();
 	draw_cells();

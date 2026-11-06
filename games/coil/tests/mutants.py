@@ -150,6 +150,12 @@ LOGIC = [
 # (name, old text, new text, play.py cases that must fail)
 PLAY = [
     (
+        "status-cache-ignores-the-next-shot",
+        "\t    p_level == game.level && p_next == game.next)",
+        "\t    p_level == game.level)",
+        ["miss"],
+    ),
+    (
         "wall-drawn-one-column-left",
         "#define WALL_R\t\t(CELL_COL + 2 * CL_W)",
         "#define WALL_R\t\t(CELL_COL + 2 * CL_W - 1)",

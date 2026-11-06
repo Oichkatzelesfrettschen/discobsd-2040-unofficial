@@ -292,11 +292,17 @@ def test_miss(prog):
     g.tick()
     g.send(b"\x1b[C", 4)
     before = t.cell(0, 0)
+    check(g.status().endswith("next ##"), "the next preview at the start: %r" % g.status())
     g.send(b" ")
+    # A miss changes neither the score, the count left nor the level, only the
+    # color queued after the one now loaded; the preview must follow it.
+    check(g.status().endswith("next @@"), "the next preview after a miss: %r" % g.status())
     check(
         t.cell(0, 0) == before and "left 1" in g.status(), "a shot into the open changed the chain"
     )
     check(t.cell(11, 8) == GLYPH[2], "the launcher reloads after a miss: %r" % t.cell(11, 8))
+    g.tick(3)
+    check(g.status().endswith("next @@"), "the next preview after ticks: %r" % g.status())
     check(g.finish() == 0, "the game did not exit cleanly")
 
 

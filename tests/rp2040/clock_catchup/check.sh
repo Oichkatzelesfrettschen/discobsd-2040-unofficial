@@ -17,13 +17,15 @@ trap 'exit 1' HUP INT TERM
 
 # Include roots that name the production header and the two kernel headers
 # the test needs without exposing the kernel's <sys/types.h> to the host.
+# Only machparam.h enters machine/: a host libc such as macOS's includes
+# <machine/signal.h> from <stdlib.h>, which must resolve to the host's.
 # The header under test is reached through "$1"/rp2040/rp2040.
 make_include_root()
 {
 	root=$1
 	header_dir=$2
-	mkdir -p "$root/sys" "$root/rp2040"
-	ln -s "$topsrc/sys/arch/rp2040/include" "$root/machine"
+	mkdir -p "$root/sys" "$root/rp2040" "$root/machine"
+	ln -s "$topsrc/sys/arch/rp2040/include/machparam.h" "$root/machine/machparam.h"
 	ln -s "$topsrc/sys/sys/callout.h" "$root/sys/callout.h"
 	ln -s "$header_dir" "$root/rp2040/rp2040"
 }

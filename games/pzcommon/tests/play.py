@@ -185,9 +185,18 @@ class Game:
         return self.wait()
 
     def wait(self):
+        """Exit status; a game that has not exited after five seconds is
+        killed and reported, so a missing exit cannot hang the test."""
         self.pull(0.3)
-        _, st = os.waitpid(self.pid, 0)
-        return os.waitstatus_to_exitcode(st)
+        end = time.time() + 5
+        while time.time() < end:
+            pid, st = os.waitpid(self.pid, os.WNOHANG)
+            if pid:
+                return os.waitstatus_to_exitcode(st)
+            self.pull(0.1)
+        os.kill(self.pid, signal.SIGKILL)
+        os.waitpid(self.pid, 0)
+        raise AssertionError("%s did not exit" % self.name)
 
 
 def size_of(game_id):

@@ -94,7 +94,7 @@ PLAY = [
      '\t\tif (strcmp(argv[ai], "-m") == 0) {\n\t\t\tmono = 1;', '\t\tif (strcmp(argv[ai], "-m") == 0) {\n\t\t\tmono = 0;',
      ["monochrome"]),
     ("", "pzcommon/pzfront.c", "title-not-drawn",
-     "\t\tput_title();\n", "",
+     "c = (*p >= 'a' && *p <= 'z') ? (char)(*p - 'a' + 'A') : *p;", "c = *p;",
      ["layout"]),
     ("", "pzcommon/pzfront.c", "test-hook-always-on",
      "\t\tif (testmode) {\n\t\t\tcmd_on = 1;", "\t\tif (!testmode) {\n\t\t\tcmd_on = 1;",
@@ -143,7 +143,7 @@ PLAY = [
      ["lightup_keys"]),
     ("lightup", "lightup/lightup.c", "lightup-script-keeps-the-solve-letter",
      "return dupstr(sol[0] == 'S' && sol[1] == ';' ? sol + 2 : sol);", "return dupstr(sol);",
-     ["solution_moves"]),
+     ["solution_moves", "undo_redo"]),
 ]
 
 
@@ -292,8 +292,12 @@ def play_mutants(src_games):
                 failures += 1
                 continue
             env = dict(os.environ, PZ_ONLY=puzzle)
-            r = subprocess.run([sys.executable, play, games] + cases, capture_output=True, text=True,
-                               timeout=600, env=env)
+            try:
+                r = subprocess.run([sys.executable, play, games] + cases, capture_output=True, text=True,
+                                   timeout=180, env=env)
+            except subprocess.TimeoutExpired:
+                print("play mutant %-40s rejected: the pty test timed out" % name)
+                continue
             if r.returncode == 0:
                 print("play mutant %-40s SURVIVED" % name)
                 failures += 1

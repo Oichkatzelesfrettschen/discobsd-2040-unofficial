@@ -1,7 +1,9 @@
 # PicoCalc games: source survey and game plan
 
-Status: design note, 2026-11-05. Of the games it plans, only the falling-block
-game is implemented, as `games/fourfall`. Every
+Status: design note, 2026-11-05, with an implementation record at the end
+(2026-11-06). Of the games it plans, rows 1 to 4 are implemented: `games/fourfall`,
+the Tatham text batch (`games/puzzlebox`), the hexagonal mode of `games/bubble`
+and `games/coil`. Every
 figure carries one of three marks: measured (a named command produced it for a
 named artifact), documented (a file or specification states it), or estimate
 (derived here, with the derivation). Board behavior is not measured anywhere in
@@ -370,6 +372,48 @@ design.
   object files and are not link results.
 - `docs/INDEX.md` does not list this note or the spec; the index update
   belongs in the commit that lands them.
+
+## Implementation record: rows 2, 3 and 4
+
+Row 3, `bubble -x`: written fresh (the `pb_core` licence stays an open owner
+decision and its source was not read). Staggered rows with seven bubbles in
+the shifted ones, six neighbors, a descent after eight shots without a pop
+that flips the stagger parity, loss when a bubble reaches the bottom row.
+`bubble.o` text 2,319 to 2,866 bytes (estimate was +1.2 KB). The host test
+(`games/bubble/tests/hex_test.c`) replays 111 vectors, among them the shot
+path of every aim for both stagger parities against an independently coded
+walk, instead of vectors derived from `pb_core`.
+
+Row 4, `coil`: the specified chain shooter with a 150-cell spiral, 16 aim
+directions, a straight integer shot line, insertion at the side of the hit
+ball nearer the shot's last free cell, runs of three, gap closing with the
+front part held, rejoin chain reactions at a combo that scores 10 per ball
+times the combo, win at an empty path and loss at the last path cell. Original
+name, glyphs and levels. `coil.o` text 4,993, bss 4,890 (estimate 3.5-4.5 KB
+and 0.9 KB). 90 golden vectors, 200 random games, 13 pty cases.
+
+Row 2, the Tatham batch. Source: `puzzles-20260923.616da16`, tarball SHA-256
+`cc419c8060b4e22be398aa03e30651fbce146eee510645c303fb6f5f1b77b78e`
+(fetched 2026-11-06 from
+`https://www.chiark.greenend.org.uk/~sgtatham/puzzles/puzzles.tar.gz`, a
+redirect to the dated name; the hash equals the one recorded above). Nine
+files are imported unchanged with the collection's `LICENCE`
+(`games/pzcommon/tatham`, per-file SHA-256 in `games/pzcommon/tatham.sha256`,
+`NOTICE` section 17). The collection's files carry no per-file header. The
+files are `puzzles.h`, `misc.c`, `random.c`, `malloc.c`, `combi.c` and the
+four puzzles; `dsf.c`, `tdq.c` and `midend.c` are not needed. The text front
+end is fresh (`games/pzcommon/pzfront.c`).
+
+The estimate that four puzzles reach about 32 KB of text held: standalone
+programs are 18,172 (`flood`), 17,320 (`samegame`), 20,692 (`unruly`) and
+23,064 (`lightup`) bytes raw, 73 packed blocks together, and the box
+`puzzlebox` measures 38,960 raw and 34,397 packed (35 blocks). Added to
+`gamebox` the nine games would exceed the 40 KB guideline, so the puzzles
+ship in a second box; the split is the owner's to review. The logic-only
+route needed `-fwhole-program` to drop the collection's drawing code, since
+a non-static puzzle table keeps every presentation function reachable.
+Samegame has no solver, so its host test carries one (a depth-first search
+over groups); the other three replay `solve_game`.
 
 ## Source index
 

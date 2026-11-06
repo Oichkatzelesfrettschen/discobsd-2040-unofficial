@@ -1,9 +1,9 @@
 # Root filesystem profiles: what an image carries, and what that costs
 
 The 1536 KB Dhara root yields 988 blocks of 1024 bytes. The maintained
-`full` image leaves 280 blocks free; an image that keeps only the base system
+`full` image leaves 240 blocks free; an image that keeps only the base system
 leaves 447. The default image excludes the PDP-11 emulator and V6 pack. An
-explicit `BUILD_PDP11_V6=yes` image adds both and leaves 111 blocks free with
+explicit `BUILD_PDP11_V6=yes` image adds both and leaves 71 blocks free with
 the `full` profile. This document is the authority for the closure markers in
 `distrib/rp2040/mi.rp2040`, the profile declarations in
 `distrib/rp2040/profiles`, the composer and checker
@@ -36,16 +36,16 @@ also a KiB count. The inode column is the difference in free inodes, which
 | Closure | Blocks | Inodes | Installs |
 | --- | --- | --- | --- |
 | `coremark` | 16 | 1 | `/usr/bin/coremark` |
-| `games` | 19 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
+| `games` | 59 | 3 | `/usr/games`, `gamebox` (23 packed blocks), `puzzlebox` (35), and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil`, `flood`, `samegame`, `unruly`, `lightup` |
 | `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
 | `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
 | `calc` | 32 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
-| all maintained closures | 237 | 14 | |
+| all maintained closures | 277 | 15 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
 Each closure row is measured against `base` alone, and the all-maintained
-row on one image that holds every closure. The closure rows sum to 238, one
+row on one image that holds every closure. The closure rows sum to 278, one
 block more than that image measures: a directory such as `/usr/bin` grows
 in whole blocks, so entries that two closures add can share a block that
 either closure alone allocates (inferred from the allocation unit, not
@@ -67,10 +67,10 @@ bytes.
 | --- | --- | --- | --- |
 | `base` | none | 447 | 43 |
 | `benchmark` | `coremark` | 431 | 42 |
-| `games` | `games` | 428 | 41 |
+| `games` | `games` | 388 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
-| `full` | every closure except the PicoCalc's | 280 | 33 |
-| `picocalc` | `full` plus `calc-bignum` and `calc` | 210 | 29 |
+| `full` | every closure except the PicoCalc's | 240 | 32 |
+| `picocalc` | `full` plus `calc-bignum` and `calc` | 170 | 28 |
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:
@@ -79,9 +79,14 @@ does not add another maintained profile or change what `full` means:
 | --- | ---: | ---: |
 | `base` | 276 | 40 |
 | `benchmark` | 261 | 39 |
-| `games` | 258 | 38 |
+| `games` | 218 | 37 |
 | `developer` | 144 | 33 |
-| `full` | 111 | 30 |
+| `full` | 71 | 29 |
+
+The `games` and `full` rows of this table are derived: the earlier measured
+values (258 and 111 blocks, 38 and 30 inodes) less the 40 blocks and 1 inode
+that `puzzlebox` and the larger `gamebox` added to the `games` closure. They
+were not rebuilt with `BUILD_PDP11_V6=yes`.
 
 `BOARD` picks the default profile. `distrib/rp2040/Makefile.inc` sets
 `BOARD?=PICO` and `PROFILE?=` the board's profile, `full` for the PICO board

@@ -40,17 +40,17 @@ Trees read, with the revision of each (git short hash unless noted):
 | 211bsd | `0a38e59` | |
 | 4.4BSD-Lite2 | `b10da344` | |
 | 386bsd | no git revision | |
-| MINIX 3, fetched read-only to `/tmp/minix-src/minix` | `4db99f4012570a577414fe2a43697b2f239b699e` (2018-11-04, "Remove building with NOCRYPTO option") | `git clone --depth 1` of the Stichting-MINIX-Research-Foundation repository |
+| MINIX 3, a read-only clone | `4db99f4012570a577414fe2a43697b2f239b699e` (2018-11-04, "Remove building with NOCRYPTO option") | `git clone --depth 1` of the Stichting-MINIX-Research-Foundation repository |
 
-Paths below are relative to the named tree. DragonFly paths are under
-`/home/eirikr/Github/BSD_Workspace/DragonFlyBSD/sys`, MINIX paths under
-`/tmp/minix-src/minix/minix`.
+Paths below are relative to the named tree: DragonFly paths are under
+`DragonFlyBSD/sys` and MINIX paths under `minix/` of the MINIX 3 repository
+at the revision above.
 
 Limits:
 
-- The RP2040 datasheet is not in this tree. Its text lives at
-  `/home/eirikr/Github/discobsd-2040-notes/docs/rp2040/rp2040-datasheet.txt`,
-  the file `sys/arch/rp2040/doc/DATASHEET-INDEX.md` indexes by line. Read and
+- The RP2040 datasheet is not in this tree. A text rendering of it is kept
+  beside the PDF in the owner's research notes; `sys/arch/rp2040/doc/DATASHEET-INDEX.md`
+  maps its sections to pages. Read and
   confirmed there: the FIFOs are 32 bits wide and eight deep per direction, the
   FIFO interrupt is the OR of VLD, ROE and WOF on IRQ 15 (core 0) and IRQ 16
   (core 1) (section 2.3.1.4, lines 2080-2118); 32 hardware spinlocks, a read
@@ -655,7 +655,7 @@ git -C netbsd-src log --reverse --format='%h %ad %s' --date=short \
     -- sys/kern/kern_lock.c
 git -C netbsd-src show 7f0784bda9e 7606076d3f3
 grep -n "ipiq\|windex\|rindex" DragonFlyBSD/sys/kern/lwkt_ipiq.c
-git -C /tmp/minix-src/minix rev-parse HEAD
+git -C minix rev-parse HEAD
 arm-none-eabi-gcc -mcpu=cortex-m0plus -mthumb -Os -c \
     sys/arch/rp2040/heatshrink/heatshrink_encoder.c \
     -Isys/arch/rp2040/heatshrink -Isys/arch/rp2040/heatshrink/compat

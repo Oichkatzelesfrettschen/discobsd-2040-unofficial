@@ -133,7 +133,7 @@ rawrw(dev_t dev, struct uio *uio, int flag __attribute__((unused)))
 			c = b.b_bcount;
 			sdstrategy(&b);
 			c -= b.b_resid;
-			iov->iov_base += c;
+			iov->iov_base = (char *)iov->iov_base + c;
 			iov->iov_len -= (size_t)c;
 			uio->uio_resid -= (u_int)c;
 			uio->uio_offset += c;

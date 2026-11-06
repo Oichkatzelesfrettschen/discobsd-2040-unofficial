@@ -1,0 +1,17 @@
+// The PicoCalc carrier added to the UART0 board description machine.resc
+// loads: the ST7365P panel on SPI1 and the keyboard controller on I2C1.
+//
+// The panel registers under spi1 as an SPI child, which the PL022 model
+// feeds frame by frame once tools/renode/patches/0008 is applied; chip
+// select, D/C and reset arrive as GPIO inputs 0, 1 and 2 from GP13, GP14
+// and GP15 (sys/arch/rp2040/dev/picocalc.h has the pin map). The keyboard
+// controller registers as an ordinary I2C child at the address picocalc.h
+// names (PICOCALC_KBD_ADDR, 0x1f).
+lcd: SPI.ST7365P @ spi1
+
+kbd: I2C.PicoCalcKeyboard @ i2c1 0x1f
+
+gpio:
+    13 -> lcd@0
+    14 -> lcd@1
+    15 -> lcd@2

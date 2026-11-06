@@ -1,0 +1,22 @@
+# The emulated PicoCalc, with nothing started.
+#
+# The UART0 machine of machine.resc plus the panel and keyboard models in
+# picocalc/ and the carrier description in picocalc.repl. picocalc.resc and
+# picocalc.robot both include this file, so the machine a person debugs is
+# the machine the gate asserts on.
+#
+# The kernel is PICOCALC, whose console is the panel and keyboard. Its
+# CDC-ACM device (uartusb) has no model behind it, and UART0 is the board's
+# CH340C-bridged /dev/tty0.
+
+$unix_bin ?= $ORIGIN/../../sys/arch/rp2040/compile/PICOCALC/unix.bin
+
+include $ORIGIN/machine.resc
+
+# Renode compiles these two files when the script reaches them; they need
+# the RP2040 models already loaded by machine.resc only for the type
+# registry, not for symbols.
+include $ORIGIN/picocalc/st7365p.cs
+include $ORIGIN/picocalc/picocalc_keyboard.cs
+
+machine LoadPlatformDescription $ORIGIN/picocalc.repl

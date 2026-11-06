@@ -1,9 +1,9 @@
 # Root filesystem profiles: what an image carries, and what that costs
 
 The 1536 KB Dhara root yields 988 blocks of 1024 bytes. The maintained
-`full` image leaves 280 blocks free; an image that keeps only the base system
+`full` image leaves 240 blocks free; an image that keeps only the base system
 leaves 447. The default image excludes the PDP-11 emulator and V6 pack. An
-explicit `BUILD_PDP11_V6=yes` image adds both and leaves 111 blocks free with
+explicit `BUILD_PDP11_V6=yes` image adds both and leaves 71 blocks free with
 the `full` profile. This document is the authority for the closure markers in
 `distrib/rp2040/mi.rp2040`, the profile declarations in
 `distrib/rp2040/profiles`, the composer and checker
@@ -17,7 +17,12 @@ the base system and always reaches the image. A closure opens more than
 once, because the directory, the binary and the hard links that belong to
 one feature sit in different sections of the manifest: `dir /usr/games`
 stands in the directory block, `pack /usr/games/gamebox` in the executable
-block, and the four entry points in the link block at the end.
+block, and the five entry points in the link block at the end. The
+`puzzles` closure follows the same layout for `puzzlebox` and its four
+entry points but creates no directory: it installs into `/usr/games`, which
+the `games` closure creates, so `distrib/rp2040/profiles` declares
+`closure puzzles needs closure games`. An image that leaves the puzzles
+out keeps the games; an image that names `puzzles` names `games` too.
 
 `tools/fsutil/manifest.c` skips a comment line whole, so the markers leave
 the manifest fsutil reads unchanged. `PROFILE=picocalc` names every
@@ -36,16 +41,19 @@ also a KiB count. The inode column is the difference in free inodes, which
 | Closure | Blocks | Inodes | Installs |
 | --- | --- | --- | --- |
 | `coremark` | 16 | 1 | `/usr/bin/coremark` |
-| `games` | 19 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall` |
+| `games` | 24 | 2 | `/usr/games`, `gamebox` (23 packed blocks), and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
+| `puzzles` | 35 | 1 | `puzzlebox` (35 packed blocks) and hard links `flood`, `samegame`, `unruly`, `lightup`; needs `games` |
 | `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
-| `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
+| `calc-bignum` | 59 | 3 | OpenBSD `bc` (31,176 bytes packed), `dc` (18,644) and `/usr/share/misc/bc.library` (5,125); PicoCalc only |
 | `calc` | 32 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
-| all maintained closures | 237 | 14 | |
+| all maintained closures | 298 | 15 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
 Each closure row is measured against `base` alone, and the all-maintained
-row on one image that holds every closure. The closure rows sum to 238, one
+row on one image that holds every closure. The `puzzles` row is the
+difference between an image that holds `games` and `puzzles` and one that
+holds `games`, because `puzzles` cannot stand alone. The closure rows sum to 299, one
 block more than that image measures: a directory such as `/usr/bin` grows
 in whole blocks, so entries that two closures add can share a block that
 either closure alone allocates (inferred from the allocation unit, not
@@ -67,10 +75,18 @@ bytes.
 | --- | --- | --- | --- |
 | `base` | none | 447 | 43 |
 | `benchmark` | `coremark` | 431 | 42 |
-| `games` | `games` | 428 | 41 |
+| `games` | `games`, `puzzles` | 388 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
-| `full` | every closure except the PicoCalc's | 280 | 33 |
-| `picocalc` | `full` plus `calc-bignum` and `calc` | 210 | 29 |
+| `full` | every closure except the PicoCalc's, including `puzzles` | 240 | 32 |
+| `picocalc` | `full` plus `calc-bignum` and `calc`, so also `puzzles` | 149 | 28 |
+
+Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
+by `tools/bin/rp2040/fsutil --verbose --partition=1
+distrib/rp2040/sdcard.img` on this tree; the `games` closure row is the
+`base` profile with `FS_SELECT_ARGS=--select-closure=games`. Splitting
+`puzzles` out of `games` composes the same manifest for every profile, so
+the free blocks and inodes of the six profiles equal their values before
+the split.
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:
@@ -79,9 +95,14 @@ does not add another maintained profile or change what `full` means:
 | --- | ---: | ---: |
 | `base` | 276 | 40 |
 | `benchmark` | 261 | 39 |
-| `games` | 258 | 38 |
+| `games` | 218 | 37 |
 | `developer` | 144 | 33 |
-| `full` | 111 | 30 |
+| `full` | 71 | 29 |
+
+The `games` and `full` rows of this table are derived: the earlier measured
+values (258 and 111 blocks, 38 and 30 inodes) less the 40 blocks and 1 inode
+that `puzzlebox` and the larger `gamebox` added to the `games` closure. They
+were not rebuilt with `BUILD_PDP11_V6=yes`.
 
 `BOARD` picks the default profile. `distrib/rp2040/Makefile.inc` sets
 `BOARD?=PICO` and `PROFILE?=` the board's profile, `full` for the PICO board
@@ -150,6 +171,8 @@ and `--selftest` in that order, and both halves must pass:
 | `toolchain` without `toolchainlib` | reject | needs closure toolchainlib |
 | `toolchainlib` without `toolchain` | reject | needs closure toolchain |
 | `games` with `pack /usr/games/gamebox` deleted | reject | hard link /usr/games/keen has no source |
+| `games` and `puzzles` with `pack /usr/games/puzzlebox` deleted | reject | hard link /usr/games/flood has no source |
+| `puzzles` without `games` | reject | needs closure games |
 | `toolchain` with `file /usr/lib/libc.a` deleted | reject | needs /usr/lib/libc.a |
 | `games` with `dir /usr/games` deleted | reject | needs directory /usr/games |
 
@@ -162,7 +185,7 @@ the same selftest adds three refusal cases:
 | PDP-11 closure without its emulator | reject | needs /usr/bin/pdp11 |
 | V6 closure without its guest pack | reject | needs /usr/v6/root.rk |
 
-The three deletion cases remove one directive from the composed manifest
+The deletion cases remove one directive from the composed manifest
 in memory, which is how a hand-edited manifest breaks a closure that the
 profile still names. `drop()` fails the run when its pattern matches
 anything other than exactly one line, so a renamed path retires the case

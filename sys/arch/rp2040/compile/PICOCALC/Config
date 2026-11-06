@@ -62,6 +62,11 @@ device          picocalc
 options         "CONS_MAJOR=LCDCONS_MAJOR"  # panel and keyboard
 options         "CONS_MINOR=0"
 
+# The board's ESP-PSRAM64H on GP2-GP5, GP20 and GP21, driven by PIO0. When it
+# identifies itself at boot it replaces fl1 as the 8 MB swap device behind the
+# SWAPRAM tier; otherwise swap stays on fl1.
+device          psram
+
 # The USB-C port reaches UART0 on GP0 and GP1 through a CH340C bridge
 # while DIP switch SW701 is in its default position; it is /dev/tty0.
 device          uart0

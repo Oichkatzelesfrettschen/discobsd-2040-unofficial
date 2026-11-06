@@ -67690,7 +67690,8 @@
             "dynamic-storage"
           ],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [],
           "variadic": []

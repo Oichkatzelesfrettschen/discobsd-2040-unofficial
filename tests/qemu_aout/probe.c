@@ -3,6 +3,7 @@
  * division through lib/libc/arm/gen/aeabi_div.S, single and double
  * arithmetic through the boot ROM float glue, and an exit status.
  */
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +46,68 @@ seek_probe(void)
 	return 0;
 }
 
+/*
+ * Fixtures written by the Makefile: LOOP_FIXTURE is a symbolic link to itself.
+ * The DiscoBSD errno values come from sys/sys/errno.h: ENOENT 2, ENOMEM 12,
+ * ELOOP 62, ENAMETOOLONG 63. A Linux number leaking through shows as 36 for
+ * the long name and 40 for the loop.
+ */
+#define LOOP_FIXTURE "loop.lnk"
+
+static int
+errno_probe(void)
+{
+	static char longname[300];
+	int fd;
+
+	memset(longname, 'n', sizeof longname - 1u);
+	errno = 0;
+	fd = open(longname, O_RDONLY);
+	printf("open long %d errno %d\n", fd, errno);
+	errno = 0;
+	fd = open(LOOP_FIXTURE, O_RDONLY);
+	printf("open loop %d errno %d\n", fd, errno);
+	errno = 0;
+	fd = open("no-such-file", O_RDONLY);
+	printf("open absent %d errno %d\n", fd, errno);
+	return 6;
+}
+
+/*
+ * brk() requests that lie outside the process window or leave the stack no
+ * room must fail with ENOMEM; 0xfffffc00 is the request whose sum with the
+ * 1024-byte stack reserve wraps to zero.
+ */
+static int
+brk_probe(void)
+{
+	static const unsigned long wild[] = {
+		0xfffffc00ul, 0xffffffffu, 0x20024000ul, 0x20024001ul
+	};
+	unsigned i;
+
+	for (i = 0; i < sizeof wild / sizeof wild[0]; i++) {
+		errno = 0;
+		printf("brk %08lx %s errno %d\n", wild[i],
+		    brk((void *)wild[i]) == (void *)-1 ? "refused" : "granted",
+		    errno);
+	}
+	printf("brk sbrk %s\n", sbrk(4096) == (void *)-1 ? "refused" : "granted");
+	return 7;
+}
+
+/* The Makefile passes the variable AOUT_BIG whose length is checked here. */
+static int
+env_probe(void)
+{
+	const char *v = getenv("AOUT_BIG");
+	const char *w = getenv("AOUT_BIG2");
+
+	printf("env %lu %lu\n", v ? (unsigned long)strlen(v) : 0ul,
+	    w ? (unsigned long)strlen(w) : 0ul);
+	return 8;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -55,6 +118,12 @@ main(int argc, char **argv)
 	char *heap;
 	int i;
 
+	if (argc == 2 && strcmp(argv[1], "errno") == 0)
+		return errno_probe();
+	if (argc == 2 && strcmp(argv[1], "brk") == 0)
+		return brk_probe();
+	if (argc == 2 && strcmp(argv[1], "env") == 0)
+		return env_probe();
 	printf("argc=%d\n", argc);
 	for (i = 0; i < argc; i++)
 		printf("argv[%d]=%s\n", i, argv[i]);

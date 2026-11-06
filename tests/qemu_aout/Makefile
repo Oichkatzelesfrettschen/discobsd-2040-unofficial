@@ -43,7 +43,16 @@ probe.sites: probe.elf
 seek.dat:
 	printf '0123456789' > $@
 
-check: aoutrun probe probe.sites seek.dat
+# Fixture for the symbolic-link-loop errno case in probe.c. A self-link never
+# stats as up to date, so the recipe replaces it on every run.
+loop.lnk:
+	ln -sf loop.lnk $@
+
+# The run line shared by the probe modes; the mode is its last argument.
+RUN=		${QEMU_ARM} -B ${GUEST_BASE} -cpu ${QEMU_ARM_CPU} ./aoutrun \
+		    probe.sites probe
+
+check: aoutrun probe probe.sites seek.dat loop.lnk
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
 	@echo "qemu a.out: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
 .elif empty(QEMU_ARM)
@@ -55,10 +64,41 @@ check: aoutrun probe probe.sites seek.dat
 		echo "qemu a.out: probe exited $$status, expected 3" >&2; exit 1; \
 	fi
 	diff probe.expected probe.out
+	@# Linux errno values reach the program as the DiscoBSD numbers.
+	@status=0; ${RUN} errno > errno.out || status=$$?; \
+	if [ "$$status" -ne 6 ]; then \
+		echo "qemu a.out: errno probe exited $$status, expected 6" >&2; exit 1; \
+	fi
+	diff errno.expected errno.out
+	@# brk() refuses a request outside the window, one near 2^32 included.
+	@status=0; ${RUN} brk > brk.out || status=$$?; \
+	if [ "$$status" -ne 7 ]; then \
+		echo "qemu a.out: brk probe exited $$status, expected 7" >&2; exit 1; \
+	fi
+	diff brk.expected brk.out
+	@# An environment far above the old 4096-byte stack reserve still arrives;
+	@# env -i fixes the size of everything else the guest inherits.
+	@big=$$(head -c 50000 /dev/zero | tr '\0' x); status=0; \
+	env -i AOUT_BIG=$$big AOUT_BIG2=$$big ${RUN} env > env.out || status=$$?; \
+	if [ "$$status" -ne 8 ]; then \
+		echo "qemu a.out: env probe exited $$status, expected 8" >&2; exit 1; \
+	fi
+	diff env.expected env.out
+	@# Strings that fit the window but not above the image (about 7.8 KB of
+	@# text, data and bss) end the run with the setup status instead of
+	@# overwriting the image.
+	@big=$$(head -c 71500 /dev/zero | tr '\0' x); status=0; \
+	env -i AOUT_BIG=$$big AOUT_BIG2=$$big ${RUN} env \
+	    > /dev/null 2> envfull.err || status=$$?; \
+	if [ "$$status" -ne 71 ]; then \
+		echo "qemu a.out: oversized environment exited $$status, expected 71" >&2; exit 1; \
+	fi
+	grep -q 'overlap the image' envfull.err
 	@echo "qemu a.out: ok"
 .endif
 
 clean:
-	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out seek.dat
+	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out seek.dat \
+	    loop.lnk errno.out brk.out env.out envfull.err
 
 .PHONY: all check clean

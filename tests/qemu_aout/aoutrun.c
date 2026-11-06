@@ -75,11 +75,21 @@ enum {
 	B_FSTAT = 62, B_BRK = 69, B_GETTIMEOFDAY = 116
 };
 
+#define E_IO 5
 #define E_NOTTY 25
 #define E_NOMEM 12
 #define E_NOSYS 78
 #define E_INVAL 22
 #define E_AGAIN 35
+#define E_OPNOTSUPP 45
+#define E_TIMEDOUT 60
+#define E_CONNREFUSED 61
+#define E_LOOP 62
+#define E_NAMETOOLONG 63
+#define E_NOTEMPTY 66
+#define E_DQUOT 69
+#define E_STALE 70
+#define E_NOLCK 77
 
 #define PSR_C (1u << 29)
 
@@ -194,16 +204,46 @@ struct lx_stat64 {
 	i64 st_ino;
 };
 
+/*
+ * Linux ARM EABI errno values to DiscoBSD's (sys/sys/errno.h). The two
+ * numberings agree from EPERM (1) through ERANGE (34) except EAGAIN, which
+ * the DiscoBSD libc spells EWOULDBLOCK (35). Linux numbers from 35 up name
+ * different conditions in DiscoBSD, so each one the served subset can
+ * produce is translated by name, and one without a DiscoBSD counterpart
+ * becomes EIO instead of a number that means something else.
+ */
 static int
 errno_to_bsd(int e)
 {
+	if (e >= 1 && e <= 34 && e != 11)
+		return e;
 	switch (e) {
 	case 11:
 		return E_AGAIN;
-	case 38:
+	case 35:	/* EDEADLK */
+		return E_AGAIN;
+	case 36:	/* ENAMETOOLONG */
+		return E_NAMETOOLONG;
+	case 37:	/* ENOLCK */
+		return E_NOLCK;
+	case 38:	/* ENOSYS */
 		return E_NOSYS;
+	case 39:	/* ENOTEMPTY */
+		return E_NOTEMPTY;
+	case 40:	/* ELOOP */
+		return E_LOOP;
+	case 95:	/* EOPNOTSUPP */
+		return E_OPNOTSUPP;
+	case 110:	/* ETIMEDOUT */
+		return E_TIMEDOUT;
+	case 111:	/* ECONNREFUSED */
+		return E_CONNREFUSED;
+	case 116:	/* ESTALE */
+		return E_STALE;
+	case 122:	/* EDQUOT */
+		return E_DQUOT;
 	default:
-		return e;
+		return E_IO;
 	}
 }
 
@@ -333,7 +373,9 @@ serve(u32 code, u32 *r, u32 sp, u32 *rv)
 		 */
 		u32 want = r[0];
 
-		if (want < brk_start || want + 1024u > sp)
+		/* Subtraction keeps a request near 2^32 from wrapping. */
+		if (want < brk_start || want > USER_DATA_END || want >= sp ||
+		    sp - want < 1024u)
 			return E_NOMEM;
 		brk_cur = want;
 		*rv = 0;
@@ -584,7 +626,7 @@ loader_main(u32 *sp0)
 	struct exec h;
 	long fd, n;
 	u8 *win;
-	u32 total, i, entry, top, spc;
+	u32 total, i, entry, top, spc, need;
 	char **uargv, **uenv;
 	char *ucp;
 	int uargc, envc = 0;
@@ -645,10 +687,29 @@ loader_main(u32 *sp0)
 	uargc = argc - 2;
 	top = USER_DATA_END - 4u;
 	spc = 0;
-	for (i = 0; i < (u32)uargc; i++)
+	for (i = 0; i < (u32)uargc; i++) {
 		spc += cstrlen(argv[2 + i]) + 1u;
-	for (i = 0; i < (u32)envc; i++)
+		if (spc > USER_DATA_SIZE)
+			die("aoutrun: arguments exceed the user window\n",
+			    LOADER_EXIT_SETUP);
+	}
+	for (i = 0; i < (u32)envc; i++) {
 		spc += cstrlen(envp[i]) + 1u;
+		if (spc > USER_DATA_SIZE)
+			die("aoutrun: environment exceeds the user window\n",
+			    LOADER_EXIT_SETUP);
+	}
+	/*
+	 * Strings, the two pointer vectors, the 8-byte alignment word and the
+	 * 64-byte entry frame must all lie above the break. spc is bounded by
+	 * the window and each string has at least one byte, so the sum cannot
+	 * wrap.
+	 */
+	need = ((spc + 3u) & ~3u) + (u32)(envc + 1) * 4u +
+	    (u32)(uargc + 1) * 4u + 4u + 64u;
+	if (need > top - brk_start)
+		die("aoutrun: arguments and environment overlap the image\n",
+		    LOADER_EXIT_SETUP);
 	ucp = (char *)(top - ((spc + 3u) & ~3u));
 	uenv = (char **)((u32)ucp - (u32)(envc + 1) * 4u);
 	uargv = (char **)((u32)uenv - (u32)(uargc + 1) * 4u);

@@ -22,13 +22,15 @@ def git(root, *args):
     )
 
 
-def run_case(files):
+def run_case(files, base_files=None):
     with tempfile.TemporaryDirectory() as work:
         root = Path(work)
         git(root, "init", "-q")
         git(root, "config", "user.email", "test@example.invalid")
         git(root, "config", "user.name", "test")
         (root / "base.md").write_text("Base text.\n")
+        for name, text in (base_files or {}).items():
+            (root / name).write_text(text)
         git(root, "add", ".")
         git(root, "commit", "-q", "-m", "base")
         for name, text in files.items():
@@ -53,6 +55,10 @@ CASES = (
     ("upstream message in quotes", {"a.md": 'It prints "not initialised".\n'}, 0, ()),
     ("copy review quotes upstream",
      {"docs/research/copy-reviews/r.md": "colour table\n"}, 0, ()),
+    ("British word in a new fenced block",
+     {"a.md": "Text.\n\n```c\nint colour;\n```\n"}, 0, ()),
+    ("British word after a closed fence",
+     {"a.md": "```\ncode\n```\nThe colour table.\n"}, 1, ("TX002_BRITISH_SPELLING a.md:4",)),
     ("British spelling in prose", {"a.md": "The colour table.\n"}, 1,
      ("TX002_BRITISH_SPELLING a.md:1",)),
     ("British spelling, capitalized", {"a.md": "Behaviour is fixed.\n"}, 1,
@@ -68,10 +74,20 @@ CASES = (
 )
 
 
+# An edit inside a fence the base already holds: the diff carries no fence line.
+EDIT_IN_FENCE = (
+    "British word edited inside an existing fence",
+    {"a.md": "Text.\n\n```\nint colour = 2;\n```\n"},
+    0,
+    (),
+    {"a.md": "Text.\n\n```\nint color = 1;\n```\n"},
+)
+
+
 def main():
     failures = 0
-    for label, files, status, codes in CASES:
-        got, out = run_case(files)
+    for label, files, status, codes, *base in (*CASES, EDIT_IN_FENCE):
+        got, out = run_case(files, base[0] if base else None)
         missing = [code for code in codes if code not in out]
         if got != status or missing:
             failures += 1
@@ -79,9 +95,9 @@ def main():
         else:
             print(f"ok {label}")
     if failures:
-        print(f"changed_text_test: {failures} of {len(CASES)} cases failed")
+        print(f"changed_text_test: {failures} of {len(CASES) + 1} cases failed")
         return 1
-    print(f"changed_text_test: {len(CASES)} cases pass")
+    print(f"changed_text_test: {len(CASES) + 1} cases pass")
     return 0
 
 

@@ -5,7 +5,8 @@ Two rules apply to the lines that BASE..HEAD adds:
 - TX001_WHITESPACE: `git diff --check` reports a whitespace error (trailing
   blanks, a space before a tab in the indent, a blank line at end of file).
 - TX002_BRITISH_SPELLING: an added prose line of a Markdown file uses a word
-  from BRITISH, outside a backtick code span and a double-quoted string.
+  from BRITISH, outside a fenced code block, a backtick code span and a
+  double-quoted string.
   The tree spells American English; an upstream identifier, filename or
   message keeps its owner's spelling inside a code span or quotation.
 
@@ -85,10 +86,42 @@ def added_markdown_lines(root, base, head):
             number += 1
 
 
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+
+
+def fenced_lines(root, head, path):
+    """Line numbers of path at head that lie inside a fenced code block.
+
+    The zero-context diff omits an unchanged fence, so membership comes from
+    the whole file at the revision, not from the added lines alone.
+    """
+    result = git(root, "show", f"{head}:{path}")
+    if result.returncode != 0:
+        raise InfrastructureError(result.stderr.strip() or f"cannot read {path}")
+    inside = set()
+    opener = None
+    for number, line in enumerate(result.stdout.splitlines(), start=1):
+        match = FENCE.match(line)
+        if opener is None:
+            if match:
+                opener = match.group(1)
+                inside.add(number)
+        else:
+            inside.add(number)
+            if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener):
+                opener = None
+    return inside
+
+
 def spelling_findings(root, base, head):
     findings = []
+    fences = {}
     for path, number, text in added_markdown_lines(root, base, head):
         if path.startswith(EXEMPT_PREFIXES):
+            continue
+        if path not in fences:
+            fences[path] = fenced_lines(root, head, path)
+        if number in fences[path]:
             continue
         for match in WORD.finditer(QUOTED.sub("", text)):
             findings.append(

@@ -23,9 +23,10 @@
  * delay in bytes, R1, trailing R3/R7 bytes, a data block or a data error
  * token, a write's data response and busy time). A command that departs from
  * the transcript, a command sent with chip select high, a CMD0 or CMD8 whose
- * CRC byte is not the fixed value the specification gives (7.2.2), a
- * start-up with fewer than 74 clocks, or a transcript left unconsumed fails
- * the scenario, so an extra, missing or mistimed command is caught as well
+ * CRC byte is not the fixed value the specification gives (Bus Transfer
+ * Protection), a start-up with fewer than 74 clocks, or a transcript left
+ * unconsumed fails the scenario, so an extra, missing or mistimed command
+ * is caught as well
  * as a wrong result. The model clock advances 20 microseconds per byte at
  * the initialization speed and 1 microsecond at the fast speed, so a
  * timeout is measured in the model's time and a missing timeout stops at a
@@ -134,7 +135,7 @@ respond(const struct step *s)
 		push(0xaa);
 		break;
 	case D_ERRTOK:
-		push(0x01);		/* Data error token (7.3.3.2). */
+		push(0x01);		/* Data Error Token. */
 		break;
 	default:
 		break;			/* D_NOTOKEN: the card stays silent. */
@@ -161,7 +162,7 @@ command_complete(void)
 	if ((frame[5] & 1) == 0)
 		fail(scenario, "end bit of the command frame", frame[5] & 1, 1);
 	if ((cmd == 0 && frame[5] != 0x95) || (cmd == 8 && frame[5] != 0x87)) {
-		/* A card that checks the CRC flags the error (7.2.2). */
+		/* A card that checks the CRC flags the error (Bus Transfer Protection). */
 		bad.r1 = 0x09;
 		respond(&bad);
 		return;
@@ -319,7 +320,7 @@ finish(void)
 }
 
 /*
- * CSD registers, decoded by hand from the field tables (5.3.2, 5.3.3).
+ * CSD registers, decoded by hand from the CSD Version 1.0 and 2.0 field tables.
  *
  * csd_v1_2gb: byte 0 = 0x00 is version 1.0; READ_BL_LEN is the low nibble
  * of byte 5, 0xa = 10 (1024-byte read blocks); C_SIZE is the two low bits of

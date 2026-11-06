@@ -285,16 +285,17 @@ select and GP22 as card detect. `sdspi.c` speaks the SD card's SPI mode over
 a byte transport and includes no kernel header, so `tests/picocalc` links
 it against a card model; `sd.c` supplies the transport (the PL022 of
 datasheet 4.4) and the disk driver. The specification is the SD Physical
-Layer Simplified Specification, Part 1: Chapter 7 for SPI mode and Chapter 5
-for the CSD register. It is not vendored in this tree, and the section
-numbers in the source and below follow its version 6.00 layout from memory;
-they were not checked against a copy here.
+Layer Simplified Specification, Part 1: its SPI Mode chapter and the CSD
+register description. The specification is not vendored in this tree, so
+the source and this section cite its sections by title.
 
-Initialization (7.2.1, 4.2.3): 80 clocks with chip select high, CMD0
+Initialization (Mode Selection and Initialization; Card Initialization
+and Identification Process): 80 clocks with chip select high, CMD0
 (CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), ACMD41 until the
 card leaves idle within one second, CMD58 for the OCR, CMD16 to 512 bytes for
 a byte-addressed card, and CMD9 for the capacity. CMD0 and CMD8 are the
-only commands that carry a checked CRC in SPI mode (7.2.2); every other
+only commands that carry a checked CRC in SPI mode (Bus Transfer
+Protection); every other
 command sends a dummy CRC and CRC checking stays off. CMD8 answered as an
 illegal command marks a version 1.x card and the OCR's CCS bit marks
 block addressing for a version 2.0 or later card; an echo that does not

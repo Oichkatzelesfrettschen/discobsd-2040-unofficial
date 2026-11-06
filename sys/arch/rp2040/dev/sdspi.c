@@ -14,7 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* SD card in SPI mode; see sdspi.h. */
+/*
+ * SD card in SPI mode; see sdspi.h. Section names refer to the SD
+ * Physical Layer Simplified Specification, Part 1, its SPI Mode chapter
+ * unless named otherwise.
+ */
 
 #include "sdspi.h"
 
@@ -32,18 +36,19 @@
 #define	R1_ILLEGAL		0x04
 #define	R1_NONE			0xff	/* No response arrived. */
 
-#define	TOKEN_START		0xfe	/* Single-block data start (7.3.3.1). */
+#define	TOKEN_START		0xfe	/* Start Block Token, single block. */
 #define	DATA_RESP_MASK		0x1f
-#define	DATA_ACCEPTED		0x05	/* xxx00101 (7.3.3.3). */
+#define	DATA_ACCEPTED		0x05	/* xxx00101, Data Response Token. */
 
-#define	NCR_MAX			8	/* Response delay in bytes (7.3.2.1). */
-#define	POWERUP_CLOCKS		10	/* 80 clocks; the card needs 74 (ch. 6). */
+#define	NCR_MAX			8	/* NCR, the response delay in bytes. */
+#define	POWERUP_CLOCKS		10	/* 80 clocks; Power Up asks for 74. */
 #define	CMD0_TRIES		5
 
 /*
- * Time limits. The card may take one second to leave idle after ACMD41
- * (7.2.1), 100 ms to start a read (7.2.3), and 250 ms to program a block
- * (7.2.4); one busy limit covers the longer of the ready and busy waits.
+ * Time limits ("Read, Write and Erase Timeout Conditions" and "Card
+ * Initialization and Identification Process"): one second to leave idle
+ * after ACMD41, 100 ms to start a read and 250 ms to program a block; one
+ * busy limit covers the longer of the ready and busy waits.
  */
 #define	INIT_US			1000000
 #define	READ_US			100000
@@ -73,7 +78,8 @@ sd_ready(const struct sdspi_ops *o)
  * Send one command and return its R1 byte, R1_NONE when none arrives.
  * Chip select stays low for the caller's data phase. Only CMD0 and CMD8
  * carry a checked CRC in SPI mode, where checking is off after reset
- * (7.2.2); every other command takes a dummy CRC with the end bit set.
+ * (Bus Transfer Protection); every other command takes a dummy CRC with
+ * the end bit set.
  */
 static unsigned char
 sd_cmd(const struct sdspi_ops *o, unsigned cmd, unsigned arg)
@@ -129,7 +135,7 @@ sd_rx(const struct sdspi_ops *o, unsigned char *buf, unsigned n)
 		if (o->micros() - t0 >= READ_US)
 			return SDE_TIMEOUT;
 	if (b != TOKEN_START)
-		return SDE_IO;		/* A data error token (7.3.3.2). */
+		return SDE_IO;		/* A Data Error Token. */
 	while (n-- > 0)
 		*buf++ = o->xfer(0xff);
 	(void)o->xfer(0xff);
@@ -143,11 +149,11 @@ sdspi_csd_sectors(const unsigned char csd[16])
 	unsigned c_size, mult, len;
 
 	switch (csd[0] >> 6) {
-	case 1:		/* CSD version 2.0, 5.3.3: (C_SIZE + 1) * 512 KiB. */
+	case 1:		/* CSD Register (CSD Version 2.0): (C_SIZE + 1) * 512 KiB. */
 		c_size = ((unsigned)(csd[7] & 0x3f) << 16) | (csd[8] << 8) |
 		    csd[9];
 		return (c_size + 1) << 10;
-	case 0:		/* CSD version 1.0, 5.3.2. */
+	case 0:		/* CSD Register (CSD Version 1.0). */
 		len = csd[5] & 0x0f;			/* READ_BL_LEN */
 		c_size = ((unsigned)(csd[6] & 3) << 10) | (csd[7] << 2) |
 		    (csd[8] >> 6);
@@ -175,7 +181,7 @@ sdspi_init(struct sdspi *sd)
 	for (i = 0; i < POWERUP_CLOCKS; i++)
 		(void)o->xfer(0xff);
 
-	/* 7.2.1: CMD0 with chip select low selects SPI mode. */
+	/* Mode Selection: CMD0 with chip select low selects SPI mode. */
 	for (i = 0; i < CMD0_TRIES && r != R1_IDLE; i++) {
 		r = sd_cmd(o, CMD0, 0);
 		sd_done(o);
@@ -183,7 +189,7 @@ sdspi_init(struct sdspi *sd)
 	if (r != R1_IDLE)
 		return r == R1_NONE ? SDE_NOCARD : SDE_UNSUPPORTED;
 
-	/* 4.3.13: a version 2.0 card echoes the voltage range and pattern. */
+	/* CMD8 (SEND_IF_COND): a version 2.0 card echoes range and pattern. */
 	r = sd_cmd(o, CMD8, 0x1aa);
 	if (r == R1_IDLE) {
 		sd_tail(o, echo, 4);
@@ -198,7 +204,7 @@ sdspi_init(struct sdspi *sd)
 	}
 	sd_done(o);
 
-	/* 4.2.3: ACMD41 until the card leaves idle; HCS only for version 2.0. */
+	/* ACMD41 until the card leaves idle; HCS only for version 2.0. */
 	hcs = v2 ? 0x40000000 : 0;
 	t0 = o->micros();
 	while ((r = sd_acmd(o, ACMD41, hcs)) != 0) {
@@ -208,7 +214,7 @@ sdspi_init(struct sdspi *sd)
 			return SDE_TIMEOUT;
 	}
 
-	/* 7.2.1: CCS in the OCR says block addressing. */
+	/* CCS in the OCR says block addressing. */
 	r = sd_cmd(o, CMD58, 0);
 	if (r == 0)
 		sd_tail(o, ocr, 4);
@@ -277,7 +283,7 @@ sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf)
 	(void)o->xfer(0xff);
 	(void)o->xfer(0xff);
 	if ((o->xfer(0xff) & DATA_RESP_MASK) == DATA_ACCEPTED) {
-		/* 7.2.4: the card holds DO low while it programs. */
+		/* Data Write: the card holds DO low while it programs. */
 		err = SDE_OK;
 		t0 = o->micros();
 		while (o->xfer(0xff) != 0xff)

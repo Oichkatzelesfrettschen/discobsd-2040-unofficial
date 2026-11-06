@@ -518,6 +518,42 @@ def test_solve_after_history_eviction(root):
     check(g.finish() == 0, "unruly: exit")
 
 
+def lamp_depth(root, spec, changes):
+    """Make `changes` lamp toggles on a white cell, then count the undo keys
+    that still change the board."""
+    g = Game(root, "lightup", ["-s", "hist", spec])
+    t = g.term
+    w, h = size_of(spec)
+    white = [(x, y) for y in range(h) for x in range(w) if t.style(x, y)[1] != 1]
+    check(white, "lightup %s: no white cell" % spec)
+    cur = cursor_at(g, w, h)[0]
+    move_cursor(g, cur[0], cur[1], white[0][0], white[0][1])
+    g.send(b"\r" * changes)
+    depth, board = 0, t.board(w, h)
+    for _ in range(changes):
+        g.send(b"u")
+        now = t.board(w, h)
+        if now == board:
+            break
+        depth += 1
+        board = now
+    check(g.finish() == 0, "lightup %s: exit" % spec)
+    return depth
+
+
+def test_history_budget(root):
+    # The undo history is bounded by heap bytes, not a state count alone: a
+    # 24 by 16 Light Up state owns two 384-element int arrays (about 3.1 KB on
+    # the target), so 48 of them would fill the 144 KB window, while a small
+    # board keeps its 48 states (47 undo levels).
+    if "lightup" not in PUZZLES:
+        return
+    small = lamp_depth(root, "7x7b20s0d0", 60)
+    check(small == 47, "lightup 7x7: %d undo levels, want 47" % small)
+    big = lamp_depth(root, "24x16b20s0d0", 60)
+    check(7 <= big <= 12, "lightup 24x16: %d undo levels, want 7 to 12" % big)
+
+
 def test_lightup_keys(root):
     if "lightup" not in PUZZLES:
         return

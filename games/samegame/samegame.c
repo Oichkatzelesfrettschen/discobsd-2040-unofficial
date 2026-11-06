@@ -180,12 +180,21 @@ w_status(const void *s)
 	return game_status(s);
 }
 
+static unsigned
+w_bytes(const void *sv)
+{
+	const game_state *s = sv;
+
+	return pz_heap(sizeof(game_state)) +
+	    pz_heap((unsigned)s->n * sizeof(int));
+}
+
 static const struct pz_ops samegame_ops = {
 	"samegame",
 	"Enter select, then remove  m c clear",
 	w_params, w_check, w_encode, w_new_desc, w_check_desc, w_new_game,
 	w_dup, w_free, w_new_ui, w_free_ui, w_changed, w_interpret, w_execute,
-	NULL, NULL, w_render, w_status
+	NULL, NULL, w_render, w_status, w_bytes
 };
 
 int

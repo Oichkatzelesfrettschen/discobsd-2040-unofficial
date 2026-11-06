@@ -208,12 +208,22 @@ w_status(const void *s)
 	return game_status(s);
 }
 
+static unsigned
+w_bytes(const void *sv)
+{
+	const game_state *s = sv;
+	unsigned n = (unsigned)(s->w * s->h);
+
+	return pz_heap(sizeof(game_state)) + pz_heap(n * sizeof(int)) +
+	    pz_heap(n * sizeof(unsigned int));
+}
+
 static const struct pz_ops lightup_ops = {
 	"lightup",
 	"Enter lamp  m mark no lamp  S solve",
 	w_params, w_check, w_encode, w_new_desc, w_check_desc, w_new_game,
 	w_dup, w_free, w_new_ui, w_free_ui, w_changed, w_interpret, w_execute,
-	w_solve, w_script, w_render, w_status
+	w_solve, w_script, w_render, w_status, w_bytes
 };
 
 int

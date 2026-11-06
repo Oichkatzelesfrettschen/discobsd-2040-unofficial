@@ -79,7 +79,23 @@ struct pz_ops {
 	char *(*script)(const void *state, const char *solution);
 	void (*render)(const void *state, const void *ui, struct pz_canvas *cv);
 	int (*status)(const void *state);	/* +1 solved, -1 lost, 0 playing */
+	/*
+	 * Heap bytes that holding one more state costs: every allocation
+	 * dup_game() makes for it, each sized with pz_heap(). Storage the
+	 * state shares with its copies (a reference-counted solution or clue
+	 * table) is excluded. The front end divides its history budget by
+	 * this figure.
+	 */
+	unsigned (*state_bytes)(const void *state);
 };
+
+/* Heap bytes the C library's allocator takes for a request of n bytes: the
+ * size rounded up to a word plus one header word (lib/libc/gen/malloc.c). */
+static inline unsigned
+pz_heap(unsigned n)
+{
+	return ((n + 3u) & ~3u) + 4u;
+}
 
 /*
  * Run one puzzle: usage is "name [-m] [-s seed] [params | params:desc]".

@@ -25,7 +25,18 @@
 #include "pzfront.h"
 #include "../gameterm.h"
 
-#define PZ_HIST		48	/* states kept for undo and redo */
+#define PZ_HIST		48	/* most states kept for undo and redo */
+#define PZ_HIST_MIN	2	/* fewest: the current state and one undo */
+/*
+ * Heap the undo history may hold, in the bytes op->state_bytes() reports.
+ * The process window is 147456 bytes for text, data, bss, heap and stack; the
+ * linked puzzlebox image takes about 46 KB of them, leaving about 100 KB. The
+ * generator and solver peak at about 8 KB on the largest board (24 by 16
+ * Light Up), the deepest frames come to about 3 KB, and the allocator's
+ * first-fit arena needs fragmentation slack, so a third of the window goes
+ * to history and the rest to those uses.
+ */
+#define PZ_HIST_BYTES	49152
 #define PZ_CMD		160	/* longest test move */
 #define PZ_TESTW	40	/* characters of the game ID or script per test line */
 
@@ -36,6 +47,7 @@ static void *ui;
 static void *orig;		/* the puzzle as dealt; never part of the history */
 static void *hist[PZ_HIST];
 static int nhist, cur;
+static int hist_max = PZ_HIST;	/* states the budget lets hist[] hold */
 static int mono;
 static int testmode;
 static const char *base_seed;
@@ -85,9 +97,9 @@ push(void *ns)
 
 	while (nhist > cur + 1)
 		op->free_game(hist[--nhist]);
-	if (nhist == PZ_HIST) {
+	if (nhist == hist_max) {
 		op->free_game(hist[0]);
-		memmove(&hist[0], &hist[1], (PZ_HIST - 1) * sizeof hist[0]);
+		memmove(&hist[0], &hist[1], (hist_max - 1) * sizeof hist[0]);
 		nhist--;
 	}
 	hist[nhist++] = ns;
@@ -143,6 +155,15 @@ start_game(const char *desc, const char **err)
 		op->free_ui(ui);	/* the old interface belongs to the old game */
 	ui = op->new_ui(s);
 	orig = op->dup_game(s);
+	/*
+	 * The dealt copy and the state a move builds before push() evicts the
+	 * oldest one stand outside the ring, so they come off the budget.
+	 */
+	hist_max = (int)(PZ_HIST_BYTES / op->state_bytes(s)) - 2;
+	if (hist_max > PZ_HIST)
+		hist_max = PZ_HIST;
+	if (hist_max < PZ_HIST_MIN)
+		hist_max = PZ_HIST_MIN;
 	hist[nhist++] = s;
 	op->changed(ui, NULL, s);
 	sfree(test_id);

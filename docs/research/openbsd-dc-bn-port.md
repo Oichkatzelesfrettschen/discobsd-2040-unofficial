@@ -225,8 +225,9 @@ tree sources through byacc passes the same 560 cases as the bison build.
 | `dc/mem.c` | `bn_check` and `bn_checkp` call `errx(1, "BN failure")`; `basprintf` replaces `asprintf` with two `vsnprintf` calls |
 | `dc/dc.c` | `basprintf`; `pledge` and the `__progname` declaration removed; `errc` becomes `errno = EISDIR; err(...)` |
 | `dc/main.c` | `setproctitle` and `pledge` removed |
-| `dc/bcode.c` | `uint` is `u_int`; the register table is paged (below); the sign, unused-parameter and `calloc` argument order diagnostics of `-Wall -Wextra` repaired with casts and a `(void)` use; the jump-table range test, always false for a `u_char`, removed |
-| `dc/inout.c`, `dc/stack.c` | one signedness cast each and an unused-parameter use |
+| `dc/bcode.c` | `uint` is `u_int`; the register table is paged (below); the sign, unused-parameter and `calloc` argument order diagnostics of `-Wall -Wextra` repaired with casts and a `(void)` use; the jump-table range test, always false for a `u_char`, removed; `skipN` frees the count `J` pops, as `quitN` does |
+| `dc/inout.c` | one signedness cast and an unused-parameter use |
+| `dc/stack.c` | one signedness cast; `stack_push` and `stack_set_tos` take over the array of the value they receive, which the pinned source copies and leaves the original unreachable |
 | `bc/bc.y` | `stdint.h` added for the name table's hash; `histedit.h`, `search.h`, `pledge`, `WCONTINUED`, the libedit setup, the dummy prompt and `__progname` removed; `asprintf` is `basprintf`; `hcreate`/`hsearch` are the name table below |
 | `bc/scan.l` | the `EditLine` input path, `bc_eof` and the `SIGTSTP` handler removed; `abort_line` keeps the `[\n]P` it writes to dc; `%option noinput` |
 | `bc/extern.h` | the `EditLine`, `termios` and `tty.c` declarations removed |

@@ -119,7 +119,7 @@ check-qemu:	require-python
 		@echo "SKIP calc qemu: qemu-arm unavailable; no ARM execution occurred"
 .else
 		@${MAKE} ${PROG}-arm
-		${PYTHON} -I tests/line.py "${QEMU_ARM} ./${PROG}-arm"
+		${PYTHON} -I tests/line.py "${QEMU_ARM_RUN} ./${PROG}-arm"
 .endif
 
 clean:

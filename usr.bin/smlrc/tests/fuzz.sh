@@ -30,6 +30,7 @@ W=${W:-/tmp/smlrc-thumb-fuzz}
 
 [ -x "$OUT/smlrc-host" ] || { echo "run.sh first: $OUT/smlrc-host is missing"; exit 1; }
 [ -f "$OUT/qemusys.o" ] || { echo "run.sh first: $OUT/qemusys.o is missing"; exit 1; }
+QEMU_ARM_CPU=${QEMU_ARM_CPU:-cortex-m0}
 command -v qemu-arm >/dev/null 2>&1 || { echo "qemu-arm absent: nothing to compare"; exit 0; }
 $HOST_CC -m32 -E - </dev/null >/dev/null 2>&1 || { echo "host cc lacks -m32: no oracle"; exit 0; }
 
@@ -54,7 +55,7 @@ for s in $(seq 1 "$COUNT"); do
 	    -L"$TOPSRC/lib" -lc -lgcc > "$W/log" 2>&1 ||
 	    { bad="$bad $s(ld)"; continue; }
 
-	qemu-arm "$W/d.elf" > "$W/got.out" 2>&1 || true
+	qemu-arm -cpu "$QEMU_ARM_CPU" "$W/d.elf" > "$W/got.out" 2>&1 || true
 	if cmp -s "$W/ref.out" "$W/got.out"; then
 		pass=$((pass + 1))
 	else

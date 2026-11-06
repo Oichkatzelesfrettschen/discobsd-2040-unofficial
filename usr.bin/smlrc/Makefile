@@ -1,5 +1,6 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
+include ${TOPSRC}/tools/qemu-arm.mk
 
 # The maintained machines use cgthumb.c and the tree's headers and libc. The
 # back end names the frame size with a forward .equ rather than seeking back
@@ -33,7 +34,7 @@ test:
 		TOPSRC=${TOPSRC} MACHINE=${MACHINE} CPU=${MACHINE_CPU} \
 		    TOOLBINDIR=${TOOLBINDIR} PYTHON="${PYTHON}" HOST_CC="${HOST_CC}" \
 			    DEVICE_CC="${CC}" DEVICE_LDFLAGS="${LDFLAGS}" \
-		    ${.CURDIR}/tests/run.sh
+		    QEMU_ARM_CPU="${QEMU_ARM_CPU}" ${.CURDIR}/tests/run.sh
 			TOPSRC=${TOPSRC} MACHINE=${MACHINE} CPU=${MACHINE_CPU} \
 			    TOOLBINDIR=${TOOLBINDIR} PYTHON="${PYTHON}" HOST_CC="${HOST_CC}" \
 			    DEVICE_CC="${CC}" DEVICE_LDFLAGS="${LDFLAGS}" \
@@ -43,7 +44,8 @@ test:
 # it needs qemu-arm and a host cc that can target 32 bits.
 fuzz:		test
 		TOPSRC=${TOPSRC} CPU=${MACHINE_CPU} PYTHON="${PYTHON}" \
-		    HOST_CC="${HOST_CC}" ${.CURDIR}/tests/fuzz.sh
+		    HOST_CC="${HOST_CC}" QEMU_ARM_CPU="${QEMU_ARM_CPU}" \
+		    ${.CURDIR}/tests/fuzz.sh
 
 clean:
 		rm -f *.o smlrc smlrc.dis smlrc.elf

@@ -1,0 +1,5 @@
+brk fffffc00 refused errno 12
+brk ffffffff refused errno 12
+brk 20024000 refused errno 12
+brk 20024001 refused errno 12
+brk sbrk granted

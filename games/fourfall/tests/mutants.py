@@ -18,6 +18,7 @@ import sys
 import tempfile
 
 CC = os.environ.get("HOSTCC", "cc")
+SAN_FLAGS = ["-fsanitize=address,undefined", "-fno-sanitize-recover=undefined"]
 FLAGS = [
     "-std=c17",
     "-pedantic",
@@ -26,9 +27,19 @@ FLAGS = [
     "-Werror",
     "-g",
     "-O1",
-    "-fsanitize=address,undefined",
-    "-fno-sanitize-recover=undefined",
 ]
+
+
+def sanitizers(src):
+    """SAN_FLAGS when tools/compiler-probe.sh builds and runs a program with
+    them, else [] after a SKIP line: the mutants then run unsanitized."""
+    probe = os.path.join(src, "..", "..", "tools", "compiler-probe.sh")
+    r = subprocess.run(["sh", probe, "native", CC] + SAN_FLAGS, capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip() == "yes":
+        return SAN_FLAGS
+    print("SKIP fourfall sanitizers: runtime unavailable; mutants run unsanitized")
+    return []
+
 
 SKIP_ROW = """\t\t\tn++;
 \t\t\tcontinue;"""
@@ -38,6 +49,32 @@ SKIP_ROW_MUT = """\t\t\tn++;
 \t\t\t\tmemcpy(b[w--], b[r], FF_COLS);
 \t\t\t}
 \t\t\tcontinue;"""
+
+# ff_tick with the key applied before the elapsed time is charged, the
+# order of the shipped front end loop.
+TICK_TAIL = (
+    "\t*last = now;\n"
+    "\tif (timed_out_ms > 0 && dt < timed_out_ms)\n"
+    "\t\tdt = timed_out_ms;\n"
+    "\tif (*mode == S_PLAY && clock_on) {\n"
+    "\t\tff_advance(g, dt);\n"
+    "\t\tif (g->over)\n"
+    "\t\t\t*mode = S_OVER;\n"
+    "\t}\n"
+    "\treturn key ? ff_key(g, mode, key) : 0;"
+)
+TICK_KEY_FIRST = (
+    "\tint plumb = key ? ff_key(g, mode, key) : 0;\n\n"
+    "\t*last = now;\n"
+    "\tif (timed_out_ms > 0 && dt < timed_out_ms)\n"
+    "\t\tdt = timed_out_ms;\n"
+    "\tif (*mode == S_PLAY && clock_on) {\n"
+    "\t\tff_advance(g, dt);\n"
+    "\t\tif (g->over)\n"
+    "\t\t\t*mode = S_OVER;\n"
+    "\t}\n"
+    "\treturn plumb;"
+)
 
 # (name, spec fault it models, old text, new text)
 MUTANTS = [
@@ -89,6 +126,25 @@ MUTANTS = [
         "extra",
         "\t\tif (r >= FF_HIDDEN)\n\t\t\tvisible = 1;",
         "\t\tif (r >= FF_HIDDEN + 1)\n\t\t\tvisible = 1;",
+    ),
+    ("tick-applies-key-before-charge", "extra", TICK_TAIL, TICK_KEY_FIRST),
+    (
+        "tick-charges-while-paused",
+        "extra",
+        "if (*mode == S_PLAY && clock_on) {",
+        "if (clock_on) {",
+    ),
+    (
+        "tick-wait-not-clamped",
+        "extra",
+        "int dt = span > (unsigned long)FF_DT_MAX ? FF_DT_MAX : (int)span;",
+        "int dt = (int)span;",
+    ),
+    (
+        "tick-expiry-not-trusted",
+        "extra",
+        "if (timed_out_ms > 0 && dt < timed_out_ms)",
+        "if (0)",
     ),
     ("score-not-saturated", "extra", "if (g->score > FF_SCORE_MAX)", "if (0)"),
     ("queue-keeps-one-piece", "extra", "while (g->qlen < 2)", "while (g->qlen < 1)"),
@@ -147,6 +203,10 @@ PLAY_FAST = [
     "pause_and_keys",
     "repaint",
     "signals",
+    "select_failure",
+    "job_control",
+    "escape_deadline",
+    "stalled_gravity",
 ]
 # Cases that show a front-end fault without running the whole list.
 LOOK = ["layout", "default_look", "color_mode", "plumb_line", "mono"]
@@ -161,12 +221,56 @@ PLAY_MUTANTS = [
     ),
     (
         "bare-esc-ignored",
-        "if (!pending())\n\t\treturn 'p';",
-        "if (!pending())\n\t\treturn K_NONE;",
+        "int k = esc_state == E_ESC ? 'p' : K_NONE;",
+        "int k = K_NONE;",
         PLAY_FAST,
     ),
-    ("f1-csi-code", "num == 11 ? 'p'", "num == 12 ? 'p'", PLAY_FAST),
-    ("sigterm-exit-status", "_exit(128 + sig);", "(void)sig;\n\t_exit(0);", PLAY_FAST),
+    ("f1-csi-code", "esc_num == 11 ? 'p'", "esc_num == 12 ? 'p'", PLAY_FAST),
+    ("sigterm-exit-status", "return 128 + (int)got_sig;", "return 0;", PLAY_FAST),
+    (
+        "sighup-default-action",
+        "signal(SIGHUP, on_exit_signal);",
+        "signal(SIGHUP, SIG_DFL);",
+        ["signals"],
+    ),
+    (
+        "sigquit-default-action",
+        "signal(SIGQUIT, on_exit_signal);",
+        "signal(SIGQUIT, SIG_DFL);",
+        ["signals"],
+    ),
+    (
+        "sigtstp-stops-in-raw-mode",
+        "\t\tgtty_restore();\n\t\traw_on = 0;\n\t}\n\t(void)write(1, park_seq",
+        "\t\traw_on = 0;\n\t}\n\t(void)write(1, park_seq",
+        ["job_control"],
+    ),
+    (
+        "sigcont-no-repaint",
+        "\t\t\tgot_cont = 0;\n\t\t\tframe(1);",
+        "\t\t\tgot_cont = 0;",
+        ["job_control"],
+    ),
+    (
+        "exit-leaves-tty-raw",
+        "static void\nterm_leave(void)\n{\n\tif (raw_on) {",
+        "static void\nterm_leave(void)\n{\n\tif (0) {",
+        ["signals", "select_failure", "exit_restores"],
+    ),
+    (
+        "exit-without-sgr-reset",
+        'leave_seq[] = "\\033[0m\\033[2J\\033[H";',
+        'leave_seq[] = "\\033[2J\\033[H";',
+        ["signals", "select_failure"],
+    ),
+    ("escape-deadline-4-s", "#define ESC_MS\t\t40", "#define ESC_MS\t\t4000", ["escape_deadline"]),
+    ("escape-deadline-5-ms", "#define ESC_MS\t\t40", "#define ESC_MS\t\t5", ["escape_deadline"]),
+    (
+        "stalled-sequence-freezes-loop",
+        "\t\tr = wait_input(tmo);\n\t\tif (got_sig)",
+        "\t\tr = esc_state != E_IDLE ? wait_input(-1) : wait_input(tmo);\n\t\tif (got_sig)",
+        ["escape_deadline", "stalled_gravity"],
+    ),
     (
         "resume-skips-repaint",
         "\t\t\tmemset(shadow, UNKNOWN, sizeof shadow);\n\t\t\tp_next[0] = p_next[1] = -1;",
@@ -182,17 +286,17 @@ PLAY_MUTANTS = [
     ),
     (
         "ctrl-l-ignored",
-        "case 014:\n\t\tframe(1);\n\t\treturn 0;",
-        "case 014:\n\t\treturn 0;",
+        "if (k == 014) {\n\t\t\tframe(1);\n\t\t\tk = K_NONE;",
+        "if (k == 014) {\n\t\t\tk = K_NONE;",
         PLAY_FAST,
     ),
     (
         "hard-drop-on-ctrl-key-only",
-        "\tcase ' ':\n\tcase '\\r':\n\tcase '\\n':\n\t\tff_hard_drop(&game);",
-        "\tcase ' ':\n\t\tff_hard_drop(&game);",
+        "\tcase ' ':\n\tcase '\\r':\n\tcase '\\n':\n\t\tff_hard_drop(g);",
+        "\tcase ' ':\n\t\tff_hard_drop(g);",
         PLAY_FAST,
     ),
-    ("gravity-never-advances", "ff_advance(&game, dt);", "ff_advance(&game, 0);", ["timed"]),
+    ("gravity-never-advances", "ff_advance(g, dt);", "ff_advance(g, 0);", ["timed"]),
     (
         "plumb-line-on-by-default",
         "static int plumb_on;",
@@ -297,9 +401,9 @@ def play_mutants(src):
     return 1 if failures else 0
 
 
-def build_run(srcdir, work, vectors):
+def build_run(srcdir, work, vectors, san):
     exe = os.path.join(work, "logic")
-    cmd = [CC] + FLAGS + ["-o", exe, os.path.join(work, "tests", "logic_test.c")]
+    cmd = [CC] + FLAGS + san + ["-o", exe, os.path.join(work, "tests", "logic_test.c")]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         return None, "compile error:\n" + r.stderr
@@ -320,13 +424,14 @@ def main():
     vectors = os.path.join(src, "tests", "vectors.txt")
     text = open(os.path.join(src, "fourfall.c")).read()
     failures = 0
+    san = sanitizers(src)
     with tempfile.TemporaryDirectory() as work:
         os.mkdir(os.path.join(work, "tests"))
         shutil.copy(
             os.path.join(src, "tests", "logic_test.c"), os.path.join(work, "tests", "logic_test.c")
         )
         shutil.copy(os.path.join(src, "fourfall.c"), os.path.join(work, "fourfall.c"))
-        rc, out = build_run(src, work, vectors)
+        rc, out = build_run(src, work, vectors, san)
         if rc != 0:
             print("baseline: the real sources do not pass:\n" + out)
             return 1
@@ -339,7 +444,7 @@ def main():
                 continue
             with open(os.path.join(work, "fourfall.c"), "w") as f:
                 f.write(text.replace(old, new))
-            rc, out = build_run(src, work, vectors)
+            rc, out = build_run(src, work, vectors, san)
             if rc is None:
                 print("mutant %-32s ERROR: %s" % (name, out.strip()))
                 failures += 1

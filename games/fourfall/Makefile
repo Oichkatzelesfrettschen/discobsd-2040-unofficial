@@ -1,6 +1,10 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
+# The image build accepts the dialect of the host build: strict C17, the
+# later flag winning over the tree default of gnu17.
+CFLAGS		+= -std=c17 -pedantic-errors
+
 BINDIR=		/usr/games
 PROG=		fourfall
 OBJS=		${PROG}.o
@@ -26,10 +30,19 @@ host:		${PROG}.c ${TOPSRC}/games/gametty.h
 # The rules half alone: tests/logic_test.c includes fourfall.c with
 # FOURFALL_LOGIC and runs every line of tests/vectors.txt plus the
 # property, gravity, lock-timer and queue checks, under strict C17
-# with AddressSanitizer and UndefinedBehaviorSanitizer.
+# with AddressSanitizer and UndefinedBehaviorSanitizer when
+# tools/compiler-probe.sh builds and runs a program with them. A host
+# without the runtime prints a SKIP line and runs the test unsanitized.
 ${LOGICBIN}:	${PROG}.c tests/logic_test.c
+		@san=; \
+		if [ "$$(sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SANITIZE})" = yes ]; then \
+			san="${SANITIZE}"; \
+		else \
+			echo "SKIP fourfall sanitizers: runtime unavailable; logic test runs unsanitized"; \
+		fi; \
+		echo "${HOSTCC} -std=c17 -pedantic-errors -Wall -Wextra -Werror -g -O1 $$san -o $@ tests/logic_test.c"; \
 		${HOSTCC} -std=c17 -pedantic-errors -Wall -Wextra -Werror -g -O1 \
-		    ${SANITIZE} -o $@ tests/logic_test.c
+		    $$san -o $@ tests/logic_test.c
 
 test-logic:	${LOGICBIN}
 		./${LOGICBIN} tests/vectors.txt

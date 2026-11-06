@@ -6,11 +6,11 @@
  *
  * Runs every line of tests/vectors.txt (SHAPE, COLL, KICK, CLEAR, SCORE,
  * LEVEL, GRAV, BAG, DROP, TOPOUT, SPAWN, SCREEN, NEXT, GLYPH, PLUMB,
- * REPLAY), the six
- * property checks, and checks of the gravity schedule, the lock timer
- * and the queue that need no vector. Prints the counts and exits
- * nonzero on any mismatch, on an unknown vector line, or when fewer
- * than EXPECTED_VECTORS vectors ran.
+ * REPLAY), the six property checks, and checks of the gravity
+ * schedule, the lock timer, the queue and the loop step (ff_tick) that
+ * need no vector. Prints the counts and exits nonzero on any mismatch,
+ * on an unknown vector line, or when fewer than EXPECTED_VECTORS
+ * vectors ran.
  */
 #define FOURFALL_LOGIC
 #include "../fourfall.c"
@@ -1161,6 +1161,111 @@ state_checks(void)
 	CHECK(g.score == 264, "score changed after game over: %lu", g.score);
 }
 
+/*
+ * ff_tick: the loop step charges the time since the last step before it
+ * applies a key. The shipped front end applied the key first, which let
+ * a lock-timer restart discard the time already waited and let the key
+ * that ends a pause charge the pause.
+ */
+static void
+tick_checks(void)
+{
+	struct ff_game g;
+	unsigned long last;
+	int mode, i, plumb;
+
+	/*
+	 * A piece resting on the floor has waited 400 ms of its 500 ms lock
+	 * delay when a move arrives. The 400 ms are charged to the old
+	 * position, then the move restarts the timer: the full FF_LOCK_MS
+	 * remains.
+	 */
+	ff_new(&g, 1, "O", NULL);
+	for (i = 0; i < FF_ROWS - 2; i++)
+		ff_soft_drop(&g);
+	CHECK(g.lock_on && g.lock_ms == 0 && g.locks == 0, "grounded: on %d ms %d", g.lock_on, g.lock_ms);
+	mode = S_PLAY;
+	last = 1000;
+	ff_tick(&g, &mode, 1, &last, 1400, 0, FF_KEY_RIGHT);
+	CHECK(last == 1400, "last %lu after the step", last);
+	CHECK(g.locks == 0 && g.lock_on && g.lock_ms == 0,
+	    "lock reset at 400 ms: locks %d on %d lock_ms %d", g.locks, g.lock_on, g.lock_ms);
+	CHECK(FF_LOCK_MS - g.lock_ms == 500, "lock time left %d, want %d", FF_LOCK_MS - g.lock_ms, FF_LOCK_MS);
+	CHECK(g.cur.col == 6, "the move did not apply: col %d", g.cur.col);
+
+	/* the same wait with no key locks nothing until the 500 ms are served */
+	ff_new(&g, 1, "O", NULL);
+	for (i = 0; i < FF_ROWS - 2; i++)
+		ff_soft_drop(&g);
+	mode = S_PLAY;
+	last = 0;
+	ff_tick(&g, &mode, 1, &last, 400, 0, 0);
+	CHECK(g.lock_ms == 400 && g.locks == 0, "400 ms charged: lock_ms %d", g.lock_ms);
+	ff_tick(&g, &mode, 1, &last, 500, 0, 0);
+	CHECK(g.locks == 1, "no lock at 500 ms");
+
+	/*
+	 * Resuming after a 5 s pause advances 0 ms: the wait ran in S_PAUSE,
+	 * so nothing is charged, and the next step starts from the resume.
+	 */
+	ff_new(&g, 1, "O", NULL);
+	mode = S_PLAY;
+	last = 0;
+	ff_tick(&g, &mode, 1, &last, 100, 0, 0);
+	ff_tick(&g, &mode, 1, &last, 150, 0, 'p');
+	CHECK(mode == S_PAUSE && g.grav_ms == 150, "pause: mode %d grav_ms %d", mode, g.grav_ms);
+	ff_tick(&g, &mode, 1, &last, 5150, 0, 'p');
+	CHECK(mode == S_PLAY && last == 5150, "resume: mode %d last %lu", mode, last);
+	CHECK(g.grav_ms == 150 && g.cur.row == 0, "5 s pause advanced the game: grav_ms %d row %d", g.grav_ms, g.cur.row);
+	ff_tick(&g, &mode, 1, &last, 5200, 0, 0);
+	CHECK(g.grav_ms == 200, "50 ms after resume: grav_ms %d", g.grav_ms);
+
+	/* a long wait in play is clamped to FF_DT_MAX: one 800 ms step and 200 ms over */
+	ff_new(&g, 1, "O", NULL);
+	mode = S_PLAY;
+	last = 0;
+	ff_tick(&g, &mode, 1, &last, 5000, 0, 0);
+	CHECK(g.cur.row == 1 && g.grav_ms == 200, "clamped wait: row %d grav_ms %d", g.cur.row, g.grav_ms);
+
+	/* an expired wait is trusted over a clock that read short */
+	ff_new(&g, 1, "O", NULL);
+	mode = S_PLAY;
+	last = 0;
+	ff_tick(&g, &mode, 1, &last, 3, 100, 0);
+	CHECK(g.grav_ms == 100, "expired 100 ms wait charged %d", g.grav_ms);
+
+	/* a clock that stepped back charges nothing and resets the baseline */
+	ff_tick(&g, &mode, 1, &last, 1, 0, 0);
+	CHECK(g.grav_ms == 100 && last == 1, "backward clock: grav_ms %d last %lu", g.grav_ms, last);
+
+	/* the frozen clock of the test mode charges nothing but tracks time */
+	ff_new(&g, 1, "O", NULL);
+	mode = S_PLAY;
+	last = 0;
+	ff_tick(&g, &mode, 0, &last, 900, 0, 0);
+	CHECK(g.grav_ms == 0 && last == 900, "frozen clock: grav_ms %d last %lu", g.grav_ms, last);
+
+	/* the plumb key is reported in play only */
+	plumb = ff_tick(&g, &mode, 0, &last, 901, 0, FF_KEY_PLUMB);
+	CHECK(plumb == 1, "plumb key in play");
+	ff_tick(&g, &mode, 0, &last, 902, 0, 'p');
+	plumb = ff_tick(&g, &mode, 0, &last, 903, 0, FF_KEY_PLUMB);
+	CHECK(plumb == 0 && mode == S_PAUSE, "plumb key reported while paused");
+
+	/* game over, then a restart key */
+	ff_new(&g, 1, "O", NULL);
+	mode = S_PLAY;
+	last = 0;
+	for (i = 0; i < 14 && mode == S_PLAY; i++)
+		ff_tick(&g, &mode, 0, &last, 0, 0, ' ');
+	CHECK(mode == S_OVER && g.over, "tower: mode %d", mode);
+	ff_tick(&g, &mode, 0, &last, 0, 0, FF_KEY_LEFT);
+	CHECK(mode == S_OVER, "a move key left S_OVER");
+	ff_tick(&g, &mode, 0, &last, 0, 0, ' ');
+	CHECK(mode == S_PLAY && !g.over && g.score == 0 && g.locks == 0,
+	    "restart: mode %d over %d score %lu", mode, g.over, g.score);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1178,6 +1283,7 @@ main(int argc, char **argv)
 	prop_hard_drop();
 	prop_bag();
 	state_checks();
+	tick_checks();
 	printf("checks: %d run, %d failed\n", nchk, nchk_bad);
 
 	if (nvec < EXPECTED_VECTORS) {

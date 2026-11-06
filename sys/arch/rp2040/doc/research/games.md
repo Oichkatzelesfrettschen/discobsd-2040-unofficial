@@ -224,15 +224,29 @@ convention (see `games/wump/Makefile`), so this ships at
 
 `games/fourfall` joins the box as a fourth tool (`TOOLS= fifteen keen
 bubble fourfall`) and `/usr/games/fourfall` as a fourth hard link. The
-box then measures 17,900 bytes raw and 15,968 packed, 17 root blocks
-(`hsaout -s games/gamebox/gamebox`), with text 17,660, data 208 and bss
-18,634. `share/mk/multicall-bss-overlay.mk` gives the four games'
-private bss one shared range sized by the largest, fourfall's 7,448
-bytes (bubble 1,952, keen 1,660, fifteen 78); the other 11,186 bytes
-belong to the shared libc and startup code. The `games` closure costs 18 root
-blocks (`sys/arch/rp2040/doc/PROFILES.md`). fourfall adds six libc
-members to the box's shared copy, `getpid.o`, `select.o`, `sigaction.o`,
-`signal.o`, `strchr.o` and `usleep.o` (`check-multicall-composition`'s
-member report). Like the other three it uses no floating point and no
+box then measures 18,464 bytes raw and 16,484 packed, 18 packed blocks
+and 20 raw blocks (`hsaout -s games/gamebox/gamebox`), with text 18,224,
+data 208 and bss 18,690. The previous front-end loop measured 17,900 raw and
+15,968 packed, 17 packed blocks, text 17,660 and bss 18,634 on the same
+toolchain and libc; the loop described below adds 564 bytes of text and
+crosses a block boundary, so the `games` closure in
+`sys/arch/rp2040/doc/PROFILES.md` (18 root blocks) is stale by about one block
+until an image build re-measures it. `share/mk/multicall-bss-overlay.mk` gives
+the four games' private bss one shared range sized by the largest, fourfall's
+7,476 bytes (bubble 1,952, keen 1,660, fifteen 78); the other 11,214 bytes
+belong to the shared libc and startup code. fourfall adds eight libc
+members to the box's shared copy, `getpid.o`, `kill.o`, `select.o`,
+`sigaction.o`, `signal.o`, `sigprocmask.o`, `strchr.o` and `usleep.o`
+(the undefined symbols of `fourfall.o`; the image-level member report of
+`check-multicall-composition` is `not run`). Like the other three it uses no floating point and no
 curses, and it draws through `games/gametty.h`; its rules, presentation
 and evidence are in `docs/research/fourfall-implementation.md`.
+
+The front-end loop waits in `select` for input, the next gravity or lock
+deadline or a stalled escape sequence, charges elapsed time before it applies
+a key (`ff_tick`), and leaves through one terminal-restore function on `q`,
+end of input, a select failure or a signal. On the target the sgtty RAW flag
+delivers ^C as the byte 3, so `q` is the keyboard quit and the signal handlers
+serve `kill(1)` and hangup. The image recipe builds with
+`-std=c17 -pedantic-errors`, which the sgtty headers accept on the cross
+compiler.

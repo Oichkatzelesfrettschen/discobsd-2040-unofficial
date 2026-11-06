@@ -36,14 +36,14 @@ every erase block.
 
 ## The multicall executables
 
-Seven multicall a.outs hold most of the root's commands, each dispatched
+Eight multicall a.outs hold most of the root's commands, each dispatched
 on the name it is invoked by and hard-linked under every name by the
 manifest: `sbin/box` (cat, cp, ls, rm and the other /bin tools; `[` is
 an alias of test), `sbin/sysbox` (date, dd, df, stty, mknod, mount,
 umount), `sbin/adminbox` (shutdown, reboot, halt, sysctl, true, false,
 nohup), `sbin/textbox` (the sbase text tools), `sbin/utilbox` (expr, id,
 sort, more, uniq, head, tr, wc and the rest of usr.bin), `sbin/grepbox`
-(grep, fgrep), and `games/gamebox`. Each tool's objects are combined with
+(grep, fgrep), `games/gamebox` and `games/puzzlebox`. Each tool's objects are combined with
 `ld -r`, `main` becomes `<tool>_main`, and every other global goes local,
 so the sources build on their own as well. A box's applet-private bss
 shares one overlaid extent (MULTICALL-BSS-OVERLAY.md), and every box is a

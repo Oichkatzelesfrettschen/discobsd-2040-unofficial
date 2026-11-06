@@ -1,0 +1,60 @@
+/*
+ * One a.out for the puzzles in games/flood, games/samegame, games/unruly
+ * and games/lightup, dispatched on the name it was invoked by. See
+ * sbin/box/box.c.in, whose generated copy this is: each tool's globals are
+ * localized and its main renamed by games/puzzlebox/Makefile, and the
+ * sources stay untouched.
+ */
+
+#include <string.h>
+#include <unistd.h>
+
+@DECLS@
+
+static const struct tool {
+	const char	*name;
+	int		(*main)(int, char **);
+} tools[] = {
+@TABLE@
+	{ 0, 0 }
+};
+
+int
+main(int argc, char **argv)
+{
+	const struct tool *t;
+	const char *name, *p;
+	size_t n;
+
+	name = argv[0];
+	for (p = name; *p; p++)
+		if (*p == '/')
+			name = p + 1;
+	/*
+	 * Invoked by the multiplexer's own name, which ends in "box": the
+	 * first argument names the tool, so "utilbox uname" runs uname.
+	 */
+	n = strlen(name);
+	if (n > 3 && strcmp(name + n - 3, "box") == 0 && argc > 1) {
+		argc--;
+		argv++;
+		name = argv[0];
+		for (p = name; *p; p++)
+			if (*p == '/')
+				name = p + 1;
+	}
+	for (t = tools; t->name; t++)
+		if (strcmp(name, t->name) == 0)
+			return t->main(argc, argv);
+	/*
+	 * No such tool: list what this binary provides, so its own name
+	 * typed alone shows its commands instead of an opaque error.
+	 */
+	write(2, "commands:", 9);
+	for (t = tools; t->name; t++) {
+		write(2, " ", 1);
+		write(2, t->name, strlen(t->name));
+	}
+	write(2, "\n", 1);
+	return 1;
+}

@@ -729,6 +729,11 @@ check-architecture-isolation:
 check-fgrep-capacity:
 		${MAKE} -C usr.bin/fgrep test
 
+# The CRC-32 shared by the packed executable loader and the packer, against
+# zlib, with mutants of the table and the shifts that must each be rejected.
+check-crc32:	check-python
+		${MAKE} -C tests/crc32 check
+
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
@@ -997,7 +1002,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-libc-tempfiles check-libcalc check-libbn \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
-		check-fgrep-capacity check-config-makefile check-swapram-evac \
+		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -1361,7 +1366,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
+		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \

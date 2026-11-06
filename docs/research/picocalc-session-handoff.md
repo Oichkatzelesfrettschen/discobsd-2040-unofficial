@@ -82,7 +82,7 @@ an earlier one.
 | qemu-user Thumb-1 | `check-qemu` | Code compiled for Cortex-M0+ executes on the ARMv6-M model: libcalc, libbn, calc, the libc contracts, the u-area exchange loop, Smaller C | runs in `logged-check` and CI | qemu-arm; `REQUIRE_QEMU=1` turns a missing emulator into a failure |
 | qemu a.out loader | `bmake -C tests/qemu_aout check` | A real DiscoBSD a.out runs its own libc and system calls | prototype, outside `check-qemu` | serves no fork, exec, signals, stat or tty ioctl |
 | Renode, bare Pico | `check-renode` | The PICO_UART kernel boots from the boot ROM to a shell, reports its capacity record and passes `mputest` and its residue probe | passes, 76 s wall, outside `check` | Renode and fetched models with patches through 0008 |
-| Renode, PicoCalc | `check-renode-picocalc` | The PICOCALC console path to a login and a typed command against panel and keyboard models | passes, 90 s wall, outside `check` | Renode, fetched models with patches through 0008 |
+| Renode, PicoCalc | `check-renode-picocalc` | The PICOCALC console path to a login and a typed command against panel and keyboard models, and the PL022 transmit-FIFO status bits and discarded writes of the SPI1 controller | passes, 90 s wall, outside `check` | Renode, fetched models with patches through 0008 |
 | Bare Pico board | `discobsd-flash` or `picotool`, then the drivers under `tests/rp2040` | Behavior on the measured silicon: flash, USB console, MPU, swap | not run for this work | the owner's explicit flash opt-in |
 | PicoCalc hardware | the bring-up order in `PICOCALC.md`, "Board bring-up of the console" | Panel, scroll, keyboard firmware, USB-C power, character rate | not run: no PicoCalc has booted this kernel | a PicoCalc on the bench and the owner's opt-in |
 
@@ -133,20 +133,39 @@ Software:
 9. Port OpenBSD dc and bc onto `lib/libbn`: a lazy register table in place
    of the 771 KB extended one, an `hcreate` replacement, libedit removed,
    then the -m32 differential (`docs/research/openbsd-dc-bn-port.md`).
-10. The target `%g` in `lib/libc/stdio/doprnt_float.c` counts leading
-    fraction zeros as significant digits (up to 4.5e-9 relative error at 12
-    digits); calc formats from `%e` around it. Fix the conversion and add a
-    contract test.
-11. `include/math.h` defines `HUGE_VAL` as the finite 3.40282347e+38, so
-    lib/libm's overflow returns look like ordinary results; calc and libcalc
-    guard their ranges before calling libm. Redefine it as an infinity
-    against a build of every libm caller.
+10. Done (PR #353): `%g` in `lib/libc/stdio/doprnt_float.c` runs
+    `general_cvt()`, which counts significant digits from the first nonzero
+    digit as C17 7.21.6.1p8 requires, and `check-libc-printf-g` rejects the
+    leading-zero mutant (`sys/arch/rp2040/doc/TESTING.md`). Open limits of
+    the tree formatter, measured on a host build of the tree sources: digits
+    beyond the 11th significant digit are not correctly rounded and an exact
+    tie rounds up; negative zero prints without its sign under every decimal
+    conversion; `%010.2f` of 3.14159 prints `      3.14` with space padding
+    where 7.21.6.1p6 asks for `0000003.14`. A `%lg` width defect named by an
+    earlier note is not reproduced: `%10lg` and `%-10lg` of 3.5 pad to ten
+    columns, so the failing input is still unidentified. calc formats from
+    `%e` and stays as it is.
+11. Done (PR #353): `include/math.h` defines `HUGE_VAL`, `HUGE_VALF`,
+    `HUGE_VALL` and `INFINITY` as infinities, and `check-libc-huge-val` holds
+    the overflow returns of lib/libm (`sys/arch/rp2040/doc/TESTING.md`).
+    Open limits: `exp()` compares its argument with `maxf`, which is
+    `DBL_MAX_10_EXP * 2.5` = 770, so an argument between 709.78 and 770
+    overflows inside `ldexp()` and gets its `ERANGE` there; `log(0)` sets
+    `EDOM` where C17 7.12.1 treats the pole error as a range error
+    (`ERANGE`). calc and libcalc still range-check before calling libm.
 12. The remaining games from `docs/research/picocalc-games-survey.md` and
     the tile-graphics device from `docs/research/picocalc-calculator-and-gui.md`.
 13. `sys/exec.h:51` declares an empty struct, a GNU extension that keeps
     `picokbd.c` and `lcdcons.c` off strict C17.
 14. Refresh the retained C17 shipped-source and shipped-resource baselines,
     which record an earlier tree and have no live gate.
+15. Follow the second-core plan in `docs/research/rp2040-second-core.md`
+    (PR #357): a board baseline of packed against raw `exec_hsaout`, then
+    single-core decoder and divider wins, then SPI1 DMA for the PicoCalc
+    panel, and only then a core-1 observer behind single-writer rings and a
+    SIO FIFO doorbell. The plan rules out a big-lock SMP kernel, keeps a
+    core-0 inline path under every core-1 service, and rests on source
+    readings and emulation, with the board measurements still to be taken.
 
 Open decisions and residuals:
 

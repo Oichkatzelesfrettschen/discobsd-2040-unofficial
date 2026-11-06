@@ -1271,9 +1271,14 @@ gets and why.
 `QEMU_ARM_CPU` selects the CPU model: `cortex-m0` is ARMv6-M, so a Thumb-2
 instruction raises SIGILL and an unaligned load raises SIGBUS, as on the
 RP2040's Cortex-M0+, where qemu-arm's default model accepts both.
-tests/qemu_cpu_model keeps that claim measured. The libc contract gates run on
-that model; the earlier gates (libbn, libcalc, calc) still run on the default
-model and pass on `cortex-m0` too (`QEMU_ARM="qemu-arm -cpu cortex-m0"`).
+tests/qemu_cpu_model keeps that claim measured. Every gate that runs a
+program under qemu-arm runs it on that model: tests/libc_contracts,
+tests/libbn, tests/libcalc and usr.bin/calc through `QEMU_ARM_RUN`
+(`qemu-arm -cpu ${QEMU_ARM_CPU}`), tests/rp2040/uarea_exchange through the
+same variable, usr.bin/smlrc through `QEMU_ARM_CPU` in `tests/run.sh` and
+`tests/fuzz.sh`, and tests/qemu_aout through `QEMU_ARM_CPU`. A different model
+is chosen with `QEMU_ARM_CPU=<model>` on the make command line; the emulator
+path stays in `QEMU_ARM`, which carries no arguments.
 `docs/research/qemu-thumb1-test-tier.md` records the survey of further gates,
 the DiscoBSD a.out loader prototype and the whole-kernel emulator options.
 

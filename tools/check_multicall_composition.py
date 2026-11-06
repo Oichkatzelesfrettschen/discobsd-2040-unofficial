@@ -505,7 +505,7 @@ def validate_clean_distribution_receipts(root, document):
         if not isinstance(receipt["receipt_path"], str):
             raise CompositionError(f"invalid {receipt_name} receipt path")
         receipt_path = (root / receipt["receipt_path"]).resolve()
-        if not receipt_path.is_relative_to(root):
+        if not receipt_path.is_relative_to(root.resolve()):
             raise CompositionError(f"invalid {receipt_name} receipt path")
         if (
             not isinstance(receipt["receipt_sha256"], str)

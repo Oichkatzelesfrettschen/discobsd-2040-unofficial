@@ -29,6 +29,8 @@
  * next character after the last one that was part of the
  * floating-point number.
  */
+#include <errno.h>
+#include <float.h>
 #include <stdlib.h>
 #include <ctype.h>
 
@@ -186,10 +188,16 @@ double strtod (const char *string, char **endPtr)
 	for (i=0; exp; exp>>=1, ++i)
 		if (exp & 01)
 			dblExp *= powersOf10[i];
-	if (expSign)
-		fraction /= dblExp;
-	else
-		fraction *= dblExp;
+	/* A zero significand stays zero; 0 * inf would be a NaN. */
+	if (fraction != 0.0) {
+		if (expSign)
+			fraction /= dblExp;
+		else
+			fraction *= dblExp;
+		/* C17 7.22.1.3p10: overflow returns HUGE_VAL, an infinity, with ERANGE. */
+		if (fraction > DBL_MAX)
+			errno = ERANGE;
+	}
 
 done:
 	if (endPtr)

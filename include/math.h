@@ -13,7 +13,26 @@ double  sinh(double), cosh(double), tanh(double);
 double  j0(double), j1(double), jn(int, double);
 double  y0(double), y1(double), yn(int, double);
 
-#define HUGE_VAL    3.40282347e+38 /* TBD??? use infinity? */
+/*
+ * C17 7.12p3-4 and Annex F.9: HUGE_VAL is a positive double constant
+ * expression, and under IEEE 754 arithmetic it is +infinity, so the
+ * overflowing result of a function is distinguishable from the largest
+ * finite value. HUGE_VALF and HUGE_VALL are the same value as float and
+ * long double, and INFINITY is the float infinity. GCC and Clang fold the
+ * builtins to constants; another compiler gets the product, which IEEE 754
+ * arithmetic evaluates to infinity.
+ */
+#if defined(__GNUC__)
+#define HUGE_VAL    (__builtin_huge_val())
+#define HUGE_VALF   (__builtin_huge_valf())
+#define HUGE_VALL   (__builtin_huge_vall())
+#define INFINITY    (__builtin_inff())
+#else
+#define HUGE_VAL    (1.0e308 * 1.0e308)
+#define HUGE_VALF   ((float)HUGE_VAL)
+#define HUGE_VALL   ((long double)HUGE_VAL)
+#define INFINITY    ((float)HUGE_VAL)
+#endif
 
 int isnanf(float x);
 int isnan(double x);

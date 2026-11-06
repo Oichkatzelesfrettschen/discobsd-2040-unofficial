@@ -192,20 +192,21 @@ hexcvt (double number, int prec, int sharpflag, unsigned char *negp,
 	return (int)(p - out);
 }
 
-int
-__doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp, unsigned char fmtch,
-	unsigned char *startp, unsigned char *endp)
+/*
+ * The f, e and E conversions. The result starts at startp + 1, or at startp
+ * after an f conversion rounds up into a new leading digit, and the return
+ * value is its length.
+ */
+static int
+decimal_cvt (double number, int prec, int sharpflag, unsigned char *negp,
+	unsigned char fmtch, unsigned char *startp, unsigned char *endp)
 {
 	unsigned char *p, *t;
 	double fract;
-	int dotrim, expcnt, gformat;
+	int expcnt;
 	double integer, tmp;
 
-	if (fmtch == 'a' || fmtch == 'A')
-		return hexcvt (number, prec, sharpflag, negp, fmtch, startp);
-
 	expcnt = 0;
-	dotrim = expcnt = gformat = 0;
 	fract = modf (number, &integer);
 
 	/*
@@ -257,7 +258,7 @@ __doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp, unsig
 		break;
 	case 'e':
 	case 'E':
-eformat:	if (expcnt) {
+		if (expcnt) {
 			*t++ = *++p;
 			if (prec || sharpflag) {
 				*t++ = '.';
@@ -328,87 +329,105 @@ eformat:	if (expcnt) {
 		 */
 		for (; prec--; *t++ = '0');
 
-		/*
-		 * unless alternate flag, trim any g/G format trailing 0's
-		 */
-		if (gformat && ! sharpflag) {
-			while (t > startp && *--t == '0');
-			if (*t == '.') {
-				--t;
-			}
-			++t;
-		}
 		t = exponent (t, expcnt, fmtch);
 		break;
-	case 'g':
-	case 'G':
-		/*
-		 * a precision of 0 is treated as a precision of 1
-		 */
-		if (!prec) {
-			++prec;
-		}
-
-		/*
-		 * ``The style used depends on the value converted; style e
-		 * will be used only if the exponent resulting from the
-		 * conversion is less than -4 or greater than the precision.''
-		 *	-- ANSI X3J11
-		 */
-		if (expcnt > prec || (! expcnt && fract && fract < .0001)) {
-			/*
-			 * g/G format counts "significant digits, not digits of
-			 * precision; for the e/E format, this just causes an
-			 * off-by-one problem, i.e. g/G considers the digit
-			 * before the decimal point significant and e/E doesn't
-			 * count it as precision.
-			 */
-			--prec;
-			fmtch -= 2;		/* G->E, g->e */
-			gformat = 1;
-			goto eformat;
-		}
-		/*
-		 * reverse integer into beginning of buffer,
-		 * note, decrement precision
-		 */
-		if (expcnt) {
-			for (; ++p < endp; *t++ = *p, --prec);
-		} else {
-			*t++ = '0';
-		}
-		/*
-		 * if precision required or alternate flag set, add in a
-		 * decimal point.  If no digits yet, add in leading 0.
-		 */
-		if (prec || sharpflag) {
-			dotrim = 1;
-			*t++ = '.';
-		} else {
-			dotrim = 0;
-		}
-		/*
-		 * if requires more precision and some fraction left
-		 */
-		while (prec && fract) {
-			fract = modf (fract * 10, &tmp);
-			*t++ = (int)tmp + '0';
-			prec--;
-		}
-		if (fract) {
-			startp = cvtround (fract, 0, startp, t - 1, '0', negp);
-		}
-		/*
-		 * alternate format, adds 0's for precision, else trim 0's
-		 */
-		if (sharpflag) {
-			for (; prec--; *t++ = '0');
-		} else if (dotrim) {
-			while (t > startp && *--t == '0');
-			if (*t != '.') {
-				++t;
-			}
-		}
 	}
 	return t - startp;
+}
+
+/*
+ * %g and %G, C17 7.21.6.1p8. The precision P (zero counts as one) is the
+ * number of significant digits. The value is converted in style e with
+ * P - 1 fraction digits; with X the exponent of that result, rounding
+ * carry included, style f with precision P - 1 - X is used when
+ * -4 <= X < P and style e otherwise. Both styles show the digits of the
+ * one style e conversion, so the choice of style cannot change a digit.
+ * Unless the # flag is given, trailing zeros of the fraction go, and the
+ * point goes with them when no fraction digit is left.
+ *
+ * The digit generators store at most DBL_DIG + 1 significant digits: the
+ * DBL_DIG fraction digits doprnt.c passes for style e, plus the leading
+ * one. The zeros that # requires beyond the digits placed in the buffer
+ * are not stored: they are returned in *extrap for the caller to print
+ * after the string (style f) or before the exponent (style e). Without #,
+ * the zeros are trailing zeros of the fraction and *extrap is zero.
+ */
+static int
+general_cvt (double number, int prec, int sharpflag, unsigned char *negp,
+	unsigned char fmtch, unsigned char *startp, unsigned char *endp,
+	int *extrap)
+{
+	unsigned char dig [DBL_DIG + 2];
+	unsigned char *p, *t, *end;
+	int nd, ndig, ex, exneg, i, len;
+
+	if (prec < 1)
+		prec = 1;
+	ndig = prec > DBL_DIG + 1 ? DBL_DIG + 1 : prec;
+	len = decimal_cvt (number, ndig - 1, 0, negp, fmtch - 2, startp, endp);
+
+	/* d[.ddd]e+XX: the digits, then the exponent */
+	p = startp + 1;
+	end = p + len;
+	nd = 0;
+	for (; *p != 'e' && *p != 'E'; ++p)
+		if (*p != '.')
+			dig [nd++] = *p;
+	exneg = *++p == '-';
+	for (ex = 0, ++p; p < end; ++p)
+		ex = ex * 10 + (*p - '0');
+	if (exneg)
+		ex = -ex;
+
+	/* trailing zeros of the fraction, unless # keeps them */
+	if (! sharpflag)
+		while (nd > 1 && dig [nd - 1] == '0')
+			--nd;
+
+	t = startp + 1;
+	*extrap = 0;
+	if (ex < -4 || ex >= prec) {
+		*t++ = dig [0];
+		if (nd > 1 || sharpflag)
+			*t++ = '.';
+		for (i = 1; i < nd; ++i)
+			*t++ = dig [i];
+		if (sharpflag)
+			*extrap = prec - nd;
+		t = exponent (t, ex, fmtch - 2);
+	} else if (ex < 0) {
+		*t++ = '0';
+		*t++ = '.';
+		for (i = -ex - 1; i > 0; --i)
+			*t++ = '0';
+		for (i = 0; i < nd; ++i)
+			*t++ = dig [i];
+		if (sharpflag)
+			*extrap = prec - nd;
+	} else {
+		/* ex + 1 integer digits, zero-filled past the digits generated */
+		for (i = 0; i <= ex; ++i)
+			*t++ = i < nd ? dig [i] : '0';
+		if (nd > ex + 1 || sharpflag)
+			*t++ = '.';
+		for (i = ex + 1; i < nd; ++i)
+			*t++ = dig [i];
+		if (sharpflag)
+			*extrap = prec - (nd > ex + 1 ? nd : ex + 1);
+	}
+	return (int) (t - startp - 1);
+}
+
+int
+__doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp,
+	unsigned char fmtch, unsigned char *startp, unsigned char *endp,
+	int *extrap)
+{
+	if (fmtch == 'a' || fmtch == 'A')
+		return hexcvt (number, prec, sharpflag, negp, fmtch, startp);
+	if (fmtch == 'g' || fmtch == 'G')
+		return general_cvt (number, prec, sharpflag, negp, fmtch,
+			startp, endp, extrap);
+	return decimal_cvt (number, prec, sharpflag, negp, fmtch, startp,
+		endp);
 }

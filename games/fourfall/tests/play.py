@@ -284,12 +284,18 @@ class Game:
 
     def send_timed(self, chunks, gap):
         """Write chunks with gap seconds between them; return the widest
-        gap the writes achieved, measured on the host clock."""
+        gap the writes achieved, measured on the host clock.
+
+        The gap is spun rather than slept: macOS rounds a 10 ms sleep up
+        past the 40 ms escape deadline often enough that five slept
+        attempts in a row overshot it on the CI runner."""
         stamps = []
         for chunk in chunks:
             os.write(self.fd, chunk)
             stamps.append(time.monotonic())
-            time.sleep(gap)
+            until = stamps[-1] + gap
+            while time.monotonic() < until:
+                pass
         return max((b - a for a, b in zip(stamps, stamps[1:])), default=0.0)
 
     def quit_within(self, limit):
@@ -785,18 +791,23 @@ ESC_MS_SECONDS = 0.040
 # The abandoned-sequence cases need q to quit well inside the 4 s stalled
 # deadline the escape mutants restore, and far outside a runner's stall.
 QUIT_LIMIT = 2.0
-SPLIT_ATTEMPTS = 5
+SPLIT_ATTEMPTS = 10
+# Between the 5 ms deadline the escape-deadline-5-ms mutant sets and the
+# real 40 ms, with room under the 30 ms discard threshold.
+SPLIT_GAP = 0.015
 
 
 def split_csi_case(prog, chunks, what, rotated):
-    """Send one CSI in pieces 10 ms apart and require it to parse as one key.
+    """Send one CSI in pieces SPLIT_GAP apart and require it to parse as one key.
 
     An attempt whose measured gap reached the deadline tests nothing and is
     repeated; the case fails if no attempt kept every gap under it."""
+    widths = []
     for _ in range(SPLIT_ATTEMPTS):
         g = Game(prog, test="I")
-        widest = g.send_timed(chunks, 0.01)
+        widest = g.send_timed(chunks, SPLIT_GAP)
         if widest >= ESC_MS_SECONDS * 0.75:
+            widths.append(widest)
             g.quit()
             continue
         g.keys(" ")
@@ -806,8 +817,9 @@ def split_csi_case(prog, chunks, what, rotated):
                 check(cell(g, r, 6) == "[]", "%s: rotated cell row %d missing" % (what, r))
         check(g.quit() == 0, "exit status %r" % g.status)
         return
-    check(False, "%s: no attempt in %d kept the gaps under %.0f ms"
-          % (what, SPLIT_ATTEMPTS, ESC_MS_SECONDS * 750))
+    check(False, "%s: no attempt in %d kept the gaps under %.0f ms (widest %s)"
+          % (what, SPLIT_ATTEMPTS, ESC_MS_SECONDS * 750,
+             ", ".join("%.0f ms" % (w * 1000) for w in widths)))
 
 
 def test_escape_deadline(prog):
@@ -823,12 +835,12 @@ def test_escape_deadline(prog):
         g.send(frag)
         time.sleep(0.2)
         check(g.quit_within(QUIT_LIMIT) == 0, "%r then q: exit %r" % (frag, g.status))
-    # A byte inside the sequence arrives within the deadline: ESC, a 10 ms
+    # A byte inside the sequence arrives within the deadline: ESC, a 15 ms
     # gap, then [A rotates. The claim holds only for gaps under the game's
     # 40 ms ESC_MS; a host that stalls a write past it delivers a bare Esc,
     # so such an attempt is discarded and repeated rather than judged.
     split_csi_case(prog, (ESC, b"[A"), "ESC gap [A", rotated=True)
-    # Every byte of one CSI split by 10 ms gaps still parses as one key.
+    # Every byte of one CSI split by 15 ms gaps still parses as one key.
     split_csi_case(prog, (b"\x1b", b"[", b"A"), "split CSI", rotated=False)
     # A bare Esc still pauses, after the deadline and not before a key follows.
     g = Game(prog, test="O")

@@ -1,4 +1,6 @@
 bubble
 bubble-host
+tests/hex_test
 *.o
 *.elf
+__pycache__/

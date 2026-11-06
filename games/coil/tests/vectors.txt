@@ -1,0 +1,121 @@
+# Golden vectors for tests/logic_test.c. The field is 23 columns by 17 rows;
+# path cell i is listed as x,y with y growing down. The launcher stands at
+# 11,8. Chains list pos:color from the front. The top row of the field is
+# path cells 0 to 22, so a chain there sits at x = pos, y = 0.
+#
+# The spiral: top row east, right column south, bottom row west, left
+# column north to row 2, then laps one cell inside the last (lanes of one
+# cell between laps) until 150 cells are laid.
+PATH-0    PATHCELL idx=0 -> xy=0,0
+PATH-22   PATHCELL idx=22 -> xy=22,0
+PATH-23   PATHCELL idx=23 -> xy=22,1
+PATH-38   PATHCELL idx=38 -> xy=22,16
+PATH-39   PATHCELL idx=39 -> xy=21,16
+PATH-60   PATHCELL idx=60 -> xy=0,16
+PATH-61   PATHCELL idx=61 -> xy=0,15
+PATH-74   PATHCELL idx=74 -> xy=0,2
+PATH-75   PATHCELL idx=75 -> xy=1,2
+PATH-94   PATHCELL idx=94 -> xy=20,2
+PATH-95   PATHCELL idx=95 -> xy=20,3
+PATH-106  PATHCELL idx=106 -> xy=20,14
+PATH-107  PATHCELL idx=107 -> xy=19,14
+PATH-124  PATHCELL idx=124 -> xy=2,14
+PATH-125  PATHCELL idx=125 -> xy=2,13
+PATH-134  PATHCELL idx=134 -> xy=2,4
+PATH-135  PATHCELL idx=135 -> xy=3,4
+PATH-149  PATHCELL idx=149 -> xy=17,4
+#
+# The shot line from the launcher: the longer axis steps one cell, the
+# shorter rounds to nearest. Directions run clockwise from straight up.
+RAY-0   RAY dir=0 -> cells=11,7;11,6;11,5;11,4;11,3;11,2;11,1;11,0
+RAY-1   RAY dir=1 -> cells=11,7;12,6;12,5;13,4;13,3;13,2;14,1;14,0
+RAY-2   RAY dir=2 -> cells=12,7;13,6;14,5;15,4;16,3;17,2;18,1;19,0
+RAY-3   RAY dir=3 -> cells=12,8;13,7;14,7;15,6;16,6;17,6;18,5;19,5;20,4;21,4;22,4
+RAY-4   RAY dir=4 -> cells=12,8;13,8;14,8;15,8;16,8;17,8;18,8;19,8;20,8;21,8;22,8
+RAY-5   RAY dir=5 -> cells=12,8;13,9;14,9;15,10;16,10;17,10;18,11;19,11;20,12;21,12;22,12
+RAY-6   RAY dir=6 -> cells=12,9;13,10;14,11;15,12;16,13;17,14;18,15;19,16
+RAY-7   RAY dir=7 -> cells=11,9;12,10;12,11;13,12;13,13;13,14;14,15;14,16
+RAY-9   RAY dir=9 -> cells=11,9;10,10;10,11;9,12;9,13;9,14;8,15;8,16
+RAY-10   RAY dir=10 -> cells=10,9;9,10;8,11;7,12;6,13;5,14;4,15;3,16
+RAY-11   RAY dir=11 -> cells=10,8;9,9;8,9;7,10;6,10;5,10;4,11;3,11;2,12;1,12;0,12
+RAY-13   RAY dir=13 -> cells=10,8;9,7;8,7;7,6;6,6;5,6;4,5;3,5;2,4;1,4;0,4
+RAY-14   RAY dir=14 -> cells=10,7;9,6;8,5;7,4;6,3;5,2;4,1;3,0
+RAY-8   RAY dir=8 -> cells=11,9;11,10;11,11;11,12;11,13;11,14;11,15;11,16
+RAY-12  RAY dir=12 -> cells=10,8;9,8;8,8;7,8;6,8;5,8;4,8;3,8;2,8;1,8;0,8
+RAY-15  RAY dir=15 -> cells=11,7;10,6;10,5;9,4;9,3;9,2;8,1;8,0
+#
+# Insertion index: ahead of ball k (m = k) or behind it (m = k + 1), by the
+# distance from the shot's last free cell to the path cell on each side.
+SLOT-TIE      SLOT chain=10:1 k=0 from=10,1 -> m=1
+SLOT-FRONT    SLOT chain=10:1 k=0 from=11,1 -> m=0
+SLOT-BACK     SLOT chain=10:1 k=0 from=9,1 -> m=1
+SLOT-ON-FRONT SLOT chain=10:1 k=0 from=11,0 -> m=0
+SLOT-ON-BACK  SLOT chain=10:1 k=0 from=9,0 -> m=1
+SLOT-LAST     SLOT chain=149:1 k=0 from=17,5 -> m=1
+SLOT-FIRST    SLOT chain=0:1 k=0 from=0,1 -> m=0
+#
+# Insertion with pushes. The new ball takes the cell before or after ball
+# k; balls it overlaps in front are pushed until a gap absorbs the push.
+INS-AHEAD        INSERT chain=10:1,9:2,8:1 k=1 m=1 color=3 -> result=11:1,10:3,9:2,8:1
+INS-BEHIND-TIGHT INSERT chain=10:1,9:2,8:1 k=1 m=2 color=3 -> result=11:1,10:2,9:3,8:1
+INS-BEHIND-FREE  INSERT chain=10:1,6:2 k=0 m=1 color=3 -> result=10:1,9:3,6:2
+INS-TAIL         INSERT chain=10:1,9:2 k=1 m=2 color=3 -> result=10:1,9:2,8:3
+INS-START        INSERT chain=1:1,0:2 k=1 m=2 color=3 -> result=2:1,1:2,0:3
+INS-PUSH-STOPS   INSERT chain=14:1,11:2,10:3,9:4 k=2 m=3 color=5 -> result=14:1,12:2,11:3,10:5,9:4
+INS-AHEAD-FREE   INSERT chain=12:1,9:2 k=1 m=1 color=3 -> result=12:1,10:3,9:2
+INS-AHEAD-FRONT  INSERT chain=10:1 k=0 m=0 color=2 -> result=11:2,10:1
+#
+# Runs: equal colors on adjacent cells, never across a gap.
+RUN-ALL    RUN chain=10:1,9:1,8:1 k=1 -> a=0 b=2
+RUN-GAP    RUN chain=10:1,9:1,7:1 k=0 -> a=0 b=1
+RUN-MIDDLE RUN chain=10:1,9:2,8:2,7:2,6:1 k=2 -> a=1 b=3
+RUN-ONE    RUN chain=10:1 k=0 -> a=0 b=0
+#
+# One shot along direction 0 meets the ball on cell 11 and arrives from
+# 11,1; the tie goes behind.
+FIRE-JOIN  FIRE chain=13:1,12:2,11:1,10:2 dir=0 shot=3 -> hit=1 result=14:1,13:2,12:1,11:3,10:2 score=0
+FIRE-CLEAR FIRE chain=13:1,12:2,11:2,10:3 dir=0 shot=2 shots=34 -> hit=1 result=14:1,10:3 score=30 combo=1 loaded=4 nextc=3
+FIRE-MISS  FIRE chain=20:1 dir=0 shot=2 shots=34 -> hit=0 result=20:1 score=0 loaded=4 nextc=3
+FIRE-WIN   FIRE chain=11:1,10:1 dir=0 shot=1 supply=0 -> hit=1 result=- score=30 state=1
+FIRE-PUSH-JOIN FIRE chain=14:1,13:2,11:2,10:3 dir=0 shot=2 -> hit=1 result=14:1,10:3 score=30 combo=1
+FIRE-REACT-FIRE FIRE chain=14:1,13:1,12:2,11:2,10:1 dir=0 shot=2 supply=0 -> hit=1 result=15:1,14:1,10:1 score=30 combo=1 state=0
+FIRE-AFTER-WIN FIRE chain=11:1 dir=0 shot=1 state=1 -> hit=0 result=11:1
+#
+# The clock. adv= ticks per advance, supply= balls waiting, spawn= their
+# colors; the front holds while any gap exists.
+TICK-ADV          TICK chain=3:1,2:2 n=1 adv=1 supply=0 -> result=4:1,3:2
+TICK-ADV-WAIT     TICK chain=3:1 n=2 adv=3 supply=0 -> result=3:1
+TICK-ADV-CLOCK    TICK chain=3:1 n=6 adv=3 supply=0 -> result=5:1
+TICK-ADV-DUE      TICK chain=3:1 n=3 adv=3 supply=0 -> result=4:1
+TICK-SPAWN-FIRST  TICK chain=- n=1 adv=1 supply=2 spawn=12 -> result=0:1 supply=1
+TICK-SPAWN-SECOND TICK chain=- n=2 adv=1 supply=2 spawn=12 -> result=1:1,0:2 supply=0
+TICK-NO-SPAWN     TICK chain=5:1 n=1 adv=1 supply=0 -> result=6:1 supply=0
+TICK-GAP-HOLDS    TICK chain=14:1,10:2 n=1 adv=1 supply=0 -> result=14:1,11:2
+TICK-GAP-CLOSES   TICK chain=14:1,10:2 n=3 adv=1 supply=0 combo=1 -> result=14:1,13:2 combo=0
+TICK-CLOCK-IDLE   TICK chain=14:1,10:2 n=6 adv=3 supply=0 -> result=15:1,14:2
+TICK-TWO-GAPS     TICK chain=20:1,16:2,12:3 n=2 adv=1 supply=0 -> result=20:1,18:2,14:3
+TICK-TWO-GAPS-1   TICK chain=20:1,16:2,12:3 n=3 adv=1 supply=0 -> result=20:1,19:2,15:3
+TICK-TWO-GAPS-2   TICK chain=20:1,16:2,12:3 n=4 adv=1 supply=0 -> result=20:1,19:2,16:3
+TICK-COMBO-ENDS   TICK chain=5:1 n=1 adv=1 supply=0 combo=1 -> result=6:1 combo=0
+TICK-LOSS         TICK chain=148:1 n=1 adv=1 supply=0 -> result=149:1 state=2
+TICK-LOSS-SUPPLY  TICK chain=148:1,147:2 n=1 adv=1 supply=3 spawn=123 -> result=149:1,148:2,0:1 state=2
+TICK-AFTER-LOSS   TICK chain=149:1 n=3 adv=1 supply=0 state=2 -> result=149:1 state=2
+TICK-EMPTY-WIN    TICK chain=- n=1 adv=1 supply=0 -> result=- state=1
+#
+# Rejoin and chain reaction: the gap behind a cleared run closes one cell a
+# tick; equal colors across the joint make a run that clears with combo 2.
+TICK-REJOIN-MID   TICK chain=15:1,14:1,10:1 n=2 adv=1 supply=0 score=30 combo=1 -> result=15:1,14:1,12:1 score=30 combo=1
+TICK-REJOIN-CLEAR TICK chain=15:1,14:1,10:1 n=3 adv=1 supply=0 score=30 combo=1 -> result=- score=90 combo=2 state=1
+TICK-REJOIN-TWO   TICK chain=15:1,14:1,10:1 n=3 adv=1 supply=5 score=30 combo=1 -> result=- score=90 combo=2 state=0
+TICK-REJOIN-DIFF  TICK chain=15:1,14:2,10:1 n=3 adv=1 supply=0 score=30 combo=1 -> result=15:1,14:2,13:1 score=30 combo=0
+TICK-REJOIN-PAIR  TICK chain=15:1,14:1,10:2 n=3 adv=1 supply=0 score=30 combo=1 -> result=15:1,14:1,13:2 score=30 combo=0
+TICK-REACTION-3   TICK chain=15:2,14:2,10:2,9:3 n=3 adv=1 supply=0 score=30 combo=1 -> result=12:3 score=90 combo=2
+#
+# Whole games: f fires, tN ticks, lN / rN turn. Turning a full circle of 16
+# steps leaves the direction unchanged.
+GAME-REACTION  REPLAY chain=14:1,13:1,12:2,11:2,10:1 shots=2 supply=0 ops=f,t3 -> result=- score=90 combo=2 state=1
+GAME-TURN-FIRE REPLAY chain=14:1,13:2,12:1,11:2 shots=3 supply=0 ops=r1,l1,f -> result=14:1,13:2,12:1,11:2,10:3 score=0
+GAME-TURN-LEFT-WRAP REPLAY chain=8:1 shots=2 supply=0 ops=l1,f -> result=8:1,7:2 score=0
+GAME-MISS-TURN REPLAY chain=11:1 shots=2 supply=0 ops=r4,f -> result=11:1 score=0
+GAME-LOSS      REPLAY chain=146:1,145:2 shots=1 supply=0 ops=t3 -> result=149:1,148:2 state=2
+GAME-SHOT-RING REPLAY chain=11:1 shots=21 supply=0 ops=l16,f -> result=11:1,10:2 score=0

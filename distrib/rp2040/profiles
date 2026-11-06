@@ -40,11 +40,17 @@ closure toolchain needs path /usr/libexec/smlrc
 closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
-# games/gamebox dispatches on argv[0]; fifteen, keen, bubble and fourfall
-# are hard links to it, and the manifest checker rejects a link whose source the
-# profile dropped.
+# games/gamebox dispatches on argv[0]; fifteen, keen, bubble, fourfall
+# and coil are hard links to it, and games/puzzlebox does the same for flood,
+# samegame, unruly and lightup; the manifest checker rejects a link whose
+# source the profile dropped. The puzzles closure carries puzzlebox and its
+# links and installs into /usr/games, which the games closure creates, so an
+# image that leaves the puzzles out keeps the games and one that keeps the
+# puzzles names both closures.
 #
 closure games needs path /usr/games/gamebox
+closure puzzles needs closure games
+closure puzzles needs path /usr/games/puzzlebox
 
 #
 # usr.bin/bc compiles its input to dc source and evaluates it with the dc
@@ -65,7 +71,8 @@ closure calc needs path /usr/bin/calc
 # base       the shell, /etc/rc, the multicall binaries and the editors
 # benchmark  base plus CoreMark, for a reported score on a bare board
 # developer  base plus the native compile chain and its link library
-# games      base plus gamebox and its four entry points
+# games      base plus gamebox and puzzlebox with their nine entry points
+#            (the games and puzzles closures)
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
@@ -75,6 +82,6 @@ closure calc needs path /usr/bin/calc
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
-profile games games
-profile full coremark toolchain toolchainlib games
-profile picocalc coremark toolchain toolchainlib games calc-bignum calc
+profile games games puzzles
+profile full coremark toolchain toolchainlib games puzzles
+profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc

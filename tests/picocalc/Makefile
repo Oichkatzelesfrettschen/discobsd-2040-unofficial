@@ -8,8 +8,9 @@
 # terminal whose full-screen scroll forgets the hardware scroll start, one
 # that skips the panel redraw after a region scroll, one that erases with
 # the stored rather than the displayed background under reverse video, one
-# that maps SGR 90-97 onto the base colors, and a keymap that ignores
-# Ctrl. A harness that passed them would be checking nothing.
+# that maps SGR 90-97 onto the base colors, a keymap that ignores Ctrl,
+# a terminal that drops BEL, and one that rings on every other control
+# byte. A harness that passed them would be checking nothing.
 #
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
@@ -48,7 +49,7 @@ font-sync:
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
 mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
-	mutant-bright
+	mutant-bright mutant-bell mutant-bell-any
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -69,6 +70,14 @@ mutant-reverse-erase:
 mutant-bright:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    's/sgr_fg = v - 90 + 8;/sgr_fg = v - 90;/'
+
+mutant-bell:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/lcd_bell();/(void)0;/'
+
+mutant-bell-any:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/break;\t\t\/\* SO, SI and the rest. \*\//lcd_bell(); break;/'
 
 KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
 		kbdreq_test.c
@@ -117,7 +126,8 @@ clean:
 	rm -f lcdterm_test kbdreq_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
-	mutant-ctrl mutant-reverse-erase mutant-bright clean \
+	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
+	mutant-bell-any clean \
 	kbdreq-mutants kbdreq-mutant-write-bit kbdreq-mutant-echo \
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
 	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \

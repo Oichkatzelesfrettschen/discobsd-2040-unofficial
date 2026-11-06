@@ -44,6 +44,10 @@
 #define	PICOCALC_KBD_SCL	7
 #define	PICOCALC_KBD_ADDR	0x1f
 
+/* Audio amplifier inputs, PWM slice 5 channels A (left) and B (right). */
+#define	PICOCALC_AUDIO_L	26
+#define	PICOCALC_AUDIO_R	27
+
 #ifdef KERNEL
 
 #include <sys/tty.h>

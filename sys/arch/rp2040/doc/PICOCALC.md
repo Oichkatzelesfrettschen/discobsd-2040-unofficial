@@ -42,6 +42,9 @@ name a file there, with a page for a PDF.
 | The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
 | `machdep.picocalc.*` compiles into PICOCALC only; PICO and PICO_UART keep their text, data and bss sizes and differ from the earlier build only inside `version[]` and `osversion[]` | build | observed: PICOCALC text +916 bytes, bss +16 over 119,316 and 45,888; PICO 108,480 and PICO_UART 96,062 unchanged |
 | The register mailbox (`picokbd_req.c`) encodes reads and writes as the vendor firmware's `receiveEvent` decodes them, keeps a request off the key exchange, retries a faulted exchange three times, and drops a reply that outlives its deadline | host | observed by `check-picocalc-host` against a model of the firmware's register handler; eight mutants fail it |
+| BEL (0x07) reaches the bell primitive once per byte, from the ground state and inside a control sequence, and draws, moves and scrolls nothing; other controls stay silent | host | observed by `check-picocalc-host` against the model panel; two mutants fail it |
+| `picoaudio.c` compiles into PICOCALC only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
+| The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 
 ## Pin map
@@ -58,7 +61,7 @@ table and the sources that agree):
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | none yet |
-| Audio, PWM | GP26 left, GP27 right | none yet |
+| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
 wires PWM_L to GP26, and GP28 reaches only the expansion header.
@@ -122,7 +125,9 @@ take the 53x32 size from `TIOCGWINSZ`, which the driver sets at open.
 (`usr.bin/login/login.c`), and a zero row or column count means the size is
 unknown, so the driver puts the panel's size in its place; a nonzero size
 a program sets is kept.
-The DEC line-drawing set maps to `+`, `-` and `|`.
+The DEC line-drawing set maps to `+`, `-` and `|`. BEL calls `lcd_bell()`
+in `picoaudio.c`, which starts a short tone from the output path without
+waiting for it (Audio, below).
 
 The cell store is 3,392 bytes: one character and one attribute per cell,
 kept as a ring of physical rows. A full-screen scroll blanks the row that
@@ -336,8 +341,15 @@ run settles whether they are.
 
 ### Audio
 
-PWM slices 5A (GP26) and 5B (GP27). A bell for BEL (0x07) is the
-smallest useful piece; a `/dev/audio` with a PCM ring is a larger one.
+BEL ships (see Console above): `lcd_bell()` in `picoaudio.c` starts a
+1 kHz square wave at 25 percent duty on both channels of PWM slice 5 and a
+callout stops it 100 ms later; a BEL that arrives while the tone
+sounds is absorbed, and a panic suppresses it because callouts no longer
+run. The 25 percent duty and the 100 ms length are unmeasured choices:
+the board run sets the loudness and checks that the amplifier is silent
+between tones. A `/dev/audio` with a PCM ring is the larger piece that
+remains; it needs a DMA or interrupt-fed sample path on the same slice and
+a decision on sample rate and format.
 
 ### Calculator application and tile graphics
 

@@ -89,6 +89,7 @@ arch/rp2040/dev/st7365p.c		optional picocalc
 arch/rp2040/dev/picokbd.c		optional picocalc
 arch/rp2040/dev/picokbd_map.c		optional picocalc
 arch/rp2040/dev/picokbd_req.c		optional picocalc
+arch/rp2040/dev/picoaudio.c		optional picocalc
 arch/rp2040/dev/flash.c			standard
 arch/rp2040/dev/flash_swap.c		standard
 arch/rp2040/dhara/error.c		standard

@@ -15,6 +15,10 @@ import re
 import subprocess
 import time
 
+# One line of Renode's log: a bracketed timestamp, a bracketed level, the
+# message and its newline. It can begin anywhere in a monitor line.
+LOG_LINE = re.compile(r"\[\d\d:\d\d:\d\d\.\d+\] \[[A-Z]+\][^\n]*\n")
+
 
 class RenodeError(Exception):
     """The emulator stopped answering."""
@@ -45,12 +49,16 @@ class Renode:
             raise RenodeError("Renode has no stdin")
         self.proc.stdin.write(f'{line}\necho "{mark}"\n'.encode())
         self.proc.stdin.flush()
-        pattern = re.compile(r"^" + re.escape(mark) + r"\s*$", re.M)
+        pattern = re.compile(r"^\r*" + re.escape(mark) + r"\s*$", re.M)
         while True:
-            text = self._text()
-            found = pattern.search(text, before)
+            # Renode writes its log to the same stdout from another thread,
+            # so a log line can land inside the echoed marker ("@@do[...]
+            # Machine paused.\nne-61"); the log lines are removed before
+            # the marker is matched, and from the output returned.
+            text = LOG_LINE.sub("", self._text()[before:])
+            found = pattern.search(text)
             if found:
-                return text[before:found.start()]
+                return text[:found.start()]
             if self.proc.poll() is not None:
                 raise RenodeError(f"Renode exited with {self.proc.returncode} during: {line}")
             if time.monotonic() > self.deadline:

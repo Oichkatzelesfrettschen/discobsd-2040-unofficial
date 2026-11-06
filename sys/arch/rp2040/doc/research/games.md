@@ -219,3 +219,20 @@ matching the `box`/`sysbox`/`textbox` convention exactly. `BINDIR`
 for each game's own Makefile is `/usr/games`, the tree's existing
 convention (see `games/wump/Makefile`), so this ships at
 `/usr/games/gamebox` rather than falling back to `/usr/bin`.
+
+## fourfall, the fourth game
+
+`games/fourfall` joins the box as a fourth tool (`TOOLS= fifteen keen
+bubble fourfall`) and `/usr/games/fourfall` as a fourth hard link. The
+box then measures 17,900 bytes raw and 15,968 packed, 17 root blocks
+(`hsaout -s games/gamebox/gamebox`), with text 17,660, data 208 and bss
+18,634. `share/mk/multicall-bss-overlay.mk` gives the four games'
+private bss one shared range sized by the largest, fourfall's 7,448
+bytes (bubble 1,952, keen 1,660, fifteen 78); the other 11,186 bytes
+belong to the shared libc and startup code. The `games` closure costs 18 root
+blocks (`sys/arch/rp2040/doc/PROFILES.md`). fourfall adds six libc
+members to the box's shared copy, `getpid.o`, `select.o`, `sigaction.o`,
+`signal.o`, `strchr.o` and `usleep.o` (`check-multicall-composition`'s
+member report). Like the other three it uses no floating point and no
+curses, and it draws through `games/gametty.h`; its rules, presentation
+and evidence are in `docs/research/fourfall-implementation.md`.

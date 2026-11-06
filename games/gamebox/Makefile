@@ -1,7 +1,7 @@
 #
-# A multicall binary of the three games in games/fifteen, games/keen
-# and games/bubble, dispatched on the name it was invoked by. See
-# sbin/textbox/Makefile, whose pattern this copies: each tool's own
+# A multicall binary of the four games in games/fifteen, games/keen,
+# games/bubble and games/fourfall, dispatched on the name it was invoked
+# by. See sbin/textbox/Makefile, whose pattern this copies: each tool's own
 # objects, already built in its directory, are combined with ld -r,
 # main is renamed to <tool>_main and every other global is made
 # local, and the results link once against libc. Each tool still
@@ -14,7 +14,7 @@ include ${TOPSRC}/share/mk/sys.mk
 OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 BINDIR=		/usr/games
 
-TOOLS=		fifteen keen bubble
+TOOLS=		fifteen keen bubble fourfall
 
 OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		gamebox

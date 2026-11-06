@@ -39,8 +39,8 @@ closure toolchain needs path /usr/libexec/smlrc
 closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
-# games/gamebox dispatches on argv[0]; fifteen, keen and bubble are hard
-# links to it, and the manifest checker rejects a link whose source the
+# games/gamebox dispatches on argv[0]; fifteen, keen, bubble and fourfall
+# are hard links to it, and the manifest checker rejects a link whose source the
 # profile dropped.
 #
 closure games needs path /usr/games/gamebox
@@ -51,7 +51,7 @@ closure games needs path /usr/games/gamebox
 # base       the shell, /etc/rc, the multicall binaries and the editors
 # benchmark  base plus CoreMark, for a reported score on a bare board
 # developer  base plus the native compile chain and its link library
-# games      base plus gamebox and its three entry points
+# games      base plus gamebox and its four entry points
 # full       every closure; the image the port ships
 #
 profile base

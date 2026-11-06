@@ -376,7 +376,10 @@ def test_clock(prog):
     g.pull(0.3)
     balls = sum(1 for x in range(23) if t.cell(x, 0) in GLYPH.values())
     check(balls >= 4, "after a second only %d balls entered" % balls)
-    check("left" in g.status(), "status line")
+    # The ball count has only a lower bound, because a loaded host can
+    # oversleep until level 1's 450 ms rate also shows four balls; the status
+    # line names the level the argument selected.
+    check(" level 9 " in g.status(), "status line: %r" % g.status())
     check(g.finish() == 0, "the game did not exit cleanly")
 
 

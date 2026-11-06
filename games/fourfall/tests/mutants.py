@@ -434,6 +434,9 @@ def build_run(srcdir, work, vectors, san):
 
 
 def main():
+    # One verdict line per mutant reaches the logged gate as it is decided,
+    # so a long play run does not read as idle (see games/mutlib.py).
+    sys.stdout.reconfigure(line_buffering=True)
     args = sys.argv[1:]
     play = "--play" in args
     args = [a for a in args if a != "--play"]

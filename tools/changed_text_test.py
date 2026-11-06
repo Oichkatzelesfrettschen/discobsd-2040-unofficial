@@ -58,6 +58,12 @@ CASES = (
     ("British spelling, capitalized", {"a.md": "Behaviour is fixed.\n"}, 1,
      ("TX002_BRITISH_SPELLING a.md:1",)),
     ("trailing blank", {"b.c": "int x; \n"}, 1, ("TX001_WHITESPACE",)),
+    (
+        "patch context line",
+        {"p/0001-fix.patch": "--- a/x\n+++ b/x\n@@ -1 +1 @@\n \n-a\n+b\n"},
+        0,
+        (),
+    ),
     ("space before tab", {"a.md": "text\n \tindented\n"}, 1, ("TX001_WHITESPACE",)),
 )
 

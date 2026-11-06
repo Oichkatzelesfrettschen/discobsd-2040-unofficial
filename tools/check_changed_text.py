@@ -10,7 +10,9 @@ Two rules apply to the lines that BASE..HEAD adds:
   message keeps its owner's spelling inside a code span or quotation.
 
 Markdown under docs/research/copy-reviews is exempt from the spelling rule:
-those files quote the reviewed sources verbatim.
+those files quote the reviewed sources verbatim. Patch files (*.patch,
+*.diff) are exempt from the whitespace rule: a unified diff's blank context
+line is a single space, and the patch must apply byte for byte.
 """
 
 import argparse
@@ -21,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT_PREFIXES = ("docs/research/copy-reviews/",)
+PATCH_EXCLUDES = (":(exclude)*.patch", ":(exclude)*.diff")
 BRITISH = (
     "analyse", "analysed", "analysing", "artefact", "artefacts", "behaviour",
     "behaviours", "catalogue", "catalogues", "centre", "centred", "centres",
@@ -50,7 +53,7 @@ def git(root, *args):
 
 
 def whitespace_findings(root, base, head):
-    result = git(root, "diff", "--check", base, head, "--")
+    result = git(root, "diff", "--check", base, head, "--", ".", *PATCH_EXCLUDES)
     if result.returncode not in (0, 2):
         raise InfrastructureError(result.stderr.strip() or "git diff --check failed")
     findings = []

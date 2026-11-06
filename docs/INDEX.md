@@ -197,6 +197,7 @@ Grouped by what they investigate.
 | `fourfall-implementation.md` | `games/fourfall` built from that specification: provenance, the monochrome presentation, the gate, and the five copying reviews under `copy-reviews/` |
 | `picomite-maths-clean-room-spec.md` | behavioral specification of a calculator mathematics library, written for clean-room reimplementation, with the reviewer's similarity checklist |
 | `libcalc-implementation.md` | `lib/libcalc` built from that specification: provenance, numeric decisions, the gate and its copying review (`copy-reviews/libcalc-vs-picomite-maths.txt`) |
+| `calc-implementation.md` | `usr.bin/calc` built on `lib/libcalc`: modes, grammar and unit table, design decisions, the target `%g` defect that the program works around, the gate with its mutants, the size against the plan and what no run covers |
 | `openbsd-dc-bn-port.md` | the BN_* subset OpenBSD dc(1) and bc(1) use, the clean-room `lib/libbn` that supplies it, its evidence and the remaining port steps |
 | `ondevice-c-compilers.md` | native C compilers that can run on the board |
 | `unifdef-off-manifest-measurement.md` | the bounded C17 unifdef port, its calibrated contracts, and its measured but unshipped RP2040 cost |

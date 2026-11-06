@@ -996,7 +996,7 @@ HOST_GATES=	check-architecture-isolation \
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host \
-		check-sh-editor \
+		check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
@@ -1069,6 +1069,9 @@ check-fifteen-host:
 
 check-fourfall-host:
 		${MAKE} -C games/fourfall test
+
+check-calc-host: check-python .WAIT symlinks
+		${MAKE} -C usr.bin/calc test
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -1199,12 +1202,14 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
-# qemu-arm: the u-area exchange loop, the Smaller C suite and the libcalc
-# and libbn tests executed as Thumb-1 programs rather than only linked.
+# qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
+# libbn tests and the calc line interface executed as Thumb-1 programs rather
+# than only linked.
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
@@ -1348,7 +1353,7 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host \
-		check-sh-editor check-tar-host \
+		check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \

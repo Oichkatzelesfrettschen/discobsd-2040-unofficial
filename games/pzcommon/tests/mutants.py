@@ -24,126 +24,289 @@ SAN_FLAGS = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
 
 # (puzzle, name, old text, new text) for tatham/<puzzle>.c
 LOGIC = [
-    ("flood", "completed-ignores-the-last-cell",
-     "for (i = 1; i < wh; i++)\n        if (grid[i] != grid[0])", "for (i = 1; i < wh - 1; i++)\n        if (grid[i] != grid[0])"),
-    ("flood", "fill-skips-the-east-neighbor",
-     "                if (grid[pos1] == oldcolour) {", "                if (grid[pos1] == oldcolour && dir != 0) {"),
-    ("flood", "win-needs-a-spare-move",
-     "if (state->complete && state->moves <= state->movelimit) {\n        return +1;",
-     "if (state->complete && state->moves < state->movelimit) {\n        return +1;"),
-    ("flood", "two-colors-allowed",
-     "params->colours < 3 ||", "params->colours < 2 ||"),
-    ("flood", "same-color-fill-accepted",
-     "        c != state->grid[FILLY * state->w + FILLX] &&\n", ""),
-    ("unruly", "three-in-a-row-needs-two",
-     "if (state->grid[i1] == check && state->grid[i2] == check\n                && state->grid[i3] == check) {",
-     "if (state->grid[i1] == check && state->grid[i2] == check) {"),
-    ("unruly", "column-count-off-by-one",
-     "if (scratch->ones_cols[i] > h) {", "if (scratch->ones_cols[i] >= h) {"),
-    ("unruly", "clue-cells-writable",
-     "        if (state->common->immutable[i]) {\n            free_game(ret);\n            return NULL;\n        }\n", ""),
-    ("unruly", "solve-move-not-marked-cheated",
-     "ret->completed = ret->cheated = true;", "ret->completed = true;"),
-    ("lightup", "dark-cells-allowed",
-     "if (GRID(state,lights,x,y) == 0)\n                return false;", "if (GRID(state,lights,x,y) == 0)\n                continue;"),
-    ("lightup", "lamp-on-black-accepted",
-     "if (flags & F_BLACK) goto badmove;", ""),
-    ("lightup", "every-move-completes",
-     "if (grid_correct(ret)) ret->completed = true;", "ret->completed = true;"),
-    ("lightup", "one-wide-grid-accepted",
-     "params->w < 2 || params->h < 2", "params->w < 1 || params->h < 1"),
-    ("samegame", "removal-scored-linearly",
-     "return (sdiff > 0) ? sdiff * sdiff : 0;", "return (sdiff > 0) ? sdiff : 0;"),
-    ("samegame", "cleared-board-not-complete",
-     "ret->complete = complete;", "ret->complete = complete && !complete;"),
-    ("samegame", "tiles-do-not-fall",
-     "SWAPTILE(ret,x,y,x,y-1);", "ndone += 0;"),
-    ("samegame", "move-index-unchecked",
-     "if (i < 0 || i >= ret->n) {", "if (i < 0) {"),
+    (
+        "flood",
+        "completed-ignores-the-last-cell",
+        "for (i = 1; i < wh; i++)\n        if (grid[i] != grid[0])",
+        "for (i = 1; i < wh - 1; i++)\n        if (grid[i] != grid[0])",
+    ),
+    (
+        "flood",
+        "fill-skips-the-east-neighbor",
+        "                if (grid[pos1] == oldcolour) {",
+        "                if (grid[pos1] == oldcolour && dir != 0) {",
+    ),
+    (
+        "flood",
+        "win-needs-a-spare-move",
+        "if (state->complete && state->moves <= state->movelimit) {\n        return +1;",
+        "if (state->complete && state->moves < state->movelimit) {\n        return +1;",
+    ),
+    ("flood", "two-colors-allowed", "params->colours < 3 ||", "params->colours < 2 ||"),
+    (
+        "flood",
+        "same-color-fill-accepted",
+        "        c != state->grid[FILLY * state->w + FILLX] &&\n",
+        "",
+    ),
+    (
+        "unruly",
+        "three-in-a-row-needs-two",
+        "if (state->grid[i1] == check && state->grid[i2] == check\n"
+        "                && state->grid[i3] == check) {",
+        "if (state->grid[i1] == check && state->grid[i2] == check) {",
+    ),
+    (
+        "unruly",
+        "column-count-off-by-one",
+        "if (scratch->ones_cols[i] > h) {",
+        "if (scratch->ones_cols[i] >= h) {",
+    ),
+    (
+        "unruly",
+        "clue-cells-writable",
+        "        if (state->common->immutable[i]) {\n"
+        "            free_game(ret);\n            return NULL;\n        }\n",
+        "",
+    ),
+    (
+        "unruly",
+        "solve-move-not-marked-cheated",
+        "ret->completed = ret->cheated = true;",
+        "ret->completed = true;",
+    ),
+    (
+        "lightup",
+        "dark-cells-allowed",
+        "if (GRID(state,lights,x,y) == 0)\n                return false;",
+        "if (GRID(state,lights,x,y) == 0)\n                continue;",
+    ),
+    ("lightup", "lamp-on-black-accepted", "if (flags & F_BLACK) goto badmove;", ""),
+    (
+        "lightup",
+        "every-move-completes",
+        "if (grid_correct(ret)) ret->completed = true;",
+        "ret->completed = true;",
+    ),
+    (
+        "lightup",
+        "one-wide-grid-accepted",
+        "params->w < 2 || params->h < 2",
+        "params->w < 1 || params->h < 1",
+    ),
+    (
+        "samegame",
+        "removal-scored-linearly",
+        "return (sdiff > 0) ? sdiff * sdiff : 0;",
+        "return (sdiff > 0) ? sdiff : 0;",
+    ),
+    (
+        "samegame",
+        "cleared-board-not-complete",
+        "ret->complete = complete;",
+        "ret->complete = complete && !complete;",
+    ),
+    ("samegame", "tiles-do-not-fall", "SWAPTILE(ret,x,y,x,y-1);", "ndone += 0;"),
+    ("samegame", "move-index-unchecked", "if (i < 0 || i >= ret->n) {", "if (i < 0) {"),
 ]
 
 # (puzzle, file relative to games/, name, old, new, cases, extra) for the front end
 # and the wrappers; puzzle "" means the change affects every puzzle and is
 # tried on flood.
 PLAY = [
-    ("", "pzcommon/pzfront.c", "wall-one-column-right",
-     "gt_goto(CELL_ROW + r, CELL_COL + 2 * cv.w);", "gt_goto(CELL_ROW + r, CELL_COL + 2 * cv.w + 1);",
-     ["layout"]),
-    ("", "pzcommon/pzfront.c", "cursor-not-highlighted",
-     "cv.cell[cv.cy][cv.cx].attr |= PZ_REV;", "cv.cell[cv.cy][cv.cx].attr |= 0;",
-     ["layout"]),
-    ("", "pzcommon/pzfront.c", "undo-ignored",
-     "\t\tif (cur > 0) {", "\t\tif (0) {",
-     ["undo_redo"]),
-    ("", "pzcommon/pzfront.c", "redo-ignored",
-     "\t\tif (cur + 1 < nhist) {", "\t\tif (0) {",
-     ["undo_redo"]),
-    ("", "pzcommon/pzfront.c", "solved-not-announced",
-     'strcpy(cv.message, "SOLVED  n: new game");', 'strcpy(cv.message, "");',
-     ["solution_moves", "flood_fixture"]),
-    ("", "pzcommon/pzfront.c", "new-game-repeats-the-seed",
-     'sprintf(seed, "%s.%d", base_seed, game_no++);', 'sprintf(seed, "%s.%d", base_seed, game_no++ * 0);',
-     ["new_game"]),
-    ("", "pzcommon/pzfront.c", "bad-id-exits-zero",
-     "\tif (err) {\n\t\tcomplain(err);\n\t\treturn 2;\n\t}", "\tif (err) {\n\t\tcomplain(err);\n\t\treturn 0;\n\t}",
-     ["bad_args", "too_big"]),
-    ("", "pzcommon/pzfront.c", "size-limit-ignored",
-     "if (!err && (w > PZ_MAXW || h > PZ_MAXH))", "if (0)",
-     ["too_big"]),
-    ("", "pzcommon/pzfront.c", "monochrome-flag-ignored",
-     '\t\tif (strcmp(argv[ai], "-m") == 0) {\n\t\t\tmono = 1;', '\t\tif (strcmp(argv[ai], "-m") == 0) {\n\t\t\tmono = 0;',
-     ["monochrome"]),
-    ("", "pzcommon/pzfront.c", "title-not-drawn",
-     "c = (*p >= 'a' && *p <= 'z') ? (char)(*p - 'a' + 'A') : *p;", "c = *p;",
-     ["layout"]),
-    ("", "pzcommon/pzfront.c", "test-hook-always-on",
-     "\t\tif (testmode) {\n\t\t\tcmd_on = 1;", "\t\tif (!testmode) {\n\t\t\tcmd_on = 1;",
-     ["solution_moves"]),
-    ("", "pzcommon/pzfront.c", "solve-key-ignored",
-     "\t\tif (!op->solve)\n\t\t\treturn 0;\n\t\tm = op->solve(hist[0], hist[cur], aux);",
-     "\t\treturn 0;\n\t\tm = op->solve(hist[0], hist[cur], aux);",
-     ["solve_key"]),
-    ("flood", "flood/flood.c", "flood-digit-off-by-one",
-     "\t\tc = key - '1';", "\t\tc = key - '0';",
-     ["flood_fixture"]),
-    ("flood", "flood/flood.c", "flood-region-not-bold",
-     "cell->attr = reach[y * s->w + x] ? PZ_BOLD : 0;", "cell->attr = 0;",
-     ["flood_fixture"]),
-    ("flood", "flood/flood.c", "flood-script-drops-the-move-letter",
-     "if (sol[-1] == 'S' || sol[-1] == ',')", "if (sol[-1] == 'S')",
-     ["solution_moves"]),
-    ("flood", "flood/flood.c", "flood-status-swapped",
-     'sprintf(cv->status, "moves %d/%d", s->moves, s->movelimit);',
-     'sprintf(cv->status, "moves %d/%d", s->movelimit, s->moves);',
-     ["flood_fixture"]),
-    ("samegame", "samegame/samegame.c", "samegame-selection-glyph",
-     "c->c[0] = '(';", "c->c[0] = '[';",
-     ["samegame_fixture"]),
-    ("samegame", "samegame/samegame.c", "samegame-clear-key-unmapped",
-     "int c = key == 'c' ? CURSOR_SELECT2 : pz_button(key);", "int c = pz_button(key);",
-     ["samegame_fixture"]),
-    ("samegame", "samegame/samegame.c", "samegame-score-not-shown",
-     'sprintf(cv->status, "score %d", s->score);', 'sprintf(cv->status, "score %d", 0);',
-     ["samegame_fixture"]),
-    ("unruly", "unruly/unruly.c", "unruly-digit-keys-unmapped",
-     "\tif (key == '0' || key == '1')\n\t\tc = key;\n\telse if", "\tif (0)\n\t\tc = key;\n\telse if",
-     ["unruly_keys"]),
-    ("unruly", "unruly/unruly.c", "unruly-clues-not-bold",
-     "c->attr = s->common->immutable[i] ? PZ_BOLD : 0;", "c->attr = 0;",
-     ["unruly_keys"]),
-    ("unruly", "unruly/unruly.c", "unruly-script-wrong-cell",
-     'o += sprintf(o, "P%c,%d,%d;", sol[1 + i], i % s->w2, i / s->w2);',
-     'o += sprintf(o, "P%c,%d,%d;", sol[1 + i], i / s->w2, i % s->w2);',
-     ["solution_moves"]),
-    ("lightup", "lightup/lightup.c", "lightup-lamp-glyph",
-     "c->c[0] = '<';", "c->c[0] = '[';",
-     ["lightup_keys"]),
-    ("lightup", "lightup/lightup.c", "lightup-lit-cells-plain",
-     "\t\t\tif (n > 0) {\n\t\t\t\tc->bg = PZ_YELLOW;", "\t\t\tif (n > 12345) {\n\t\t\t\tc->bg = PZ_YELLOW;",
-     ["lightup_keys"]),
-    ("lightup", "lightup/lightup.c", "lightup-script-keeps-the-solve-letter",
-     "return dupstr(sol[0] == 'S' && sol[1] == ';' ? sol + 2 : sol);", "return dupstr(sol);",
-     ["solution_moves", "undo_redo"]),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "wall-one-column-right",
+        "gt_goto(CELL_ROW + r, CELL_COL + 2 * cv.w);",
+        "gt_goto(CELL_ROW + r, CELL_COL + 2 * cv.w + 1);",
+        ["layout"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "cursor-not-highlighted",
+        "cv.cell[cv.cy][cv.cx].attr |= PZ_REV;",
+        "cv.cell[cv.cy][cv.cx].attr |= 0;",
+        ["layout"],
+    ),
+    ("", "pzcommon/pzfront.c", "undo-ignored", "\t\tif (cur > 0) {", "\t\tif (0) {", ["undo_redo"]),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "redo-ignored",
+        "\t\tif (cur + 1 < nhist) {",
+        "\t\tif (0) {",
+        ["undo_redo"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "solved-not-announced",
+        'strcpy(cv.message, "SOLVED  n: new game");',
+        'strcpy(cv.message, "");',
+        ["solution_moves", "flood_fixture"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "new-game-repeats-the-seed",
+        'sprintf(seed, "%s.%d", base_seed, game_no++);',
+        'sprintf(seed, "%s.%d", base_seed, game_no++ * 0);',
+        ["new_game"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "bad-id-exits-zero",
+        "\tif (err) {\n\t\tcomplain(err);\n\t\treturn 2;\n\t}",
+        "\tif (err) {\n\t\tcomplain(err);\n\t\treturn 0;\n\t}",
+        ["bad_args", "too_big"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "size-limit-ignored",
+        "if (!err && (w > PZ_MAXW || h > PZ_MAXH))",
+        "if (0)",
+        ["too_big"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "monochrome-flag-ignored",
+        '\t\tif (strcmp(argv[ai], "-m") == 0) {\n\t\t\tmono = 1;',
+        '\t\tif (strcmp(argv[ai], "-m") == 0) {\n\t\t\tmono = 0;',
+        ["monochrome"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "title-not-drawn",
+        "c = (*p >= 'a' && *p <= 'z') ? (char)(*p - 'a' + 'A') : *p;",
+        "c = *p;",
+        ["layout"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "test-hook-always-on",
+        "\t\tif (testmode) {\n\t\t\tcmd_on = 1;",
+        "\t\tif (!testmode) {\n\t\t\tcmd_on = 1;",
+        ["solution_moves"],
+    ),
+    (
+        "",
+        "pzcommon/pzfront.c",
+        "solve-key-ignored",
+        "\t\tif (!op->solve)\n\t\t\treturn 0;\n\t\tm = op->solve(hist[0], hist[cur], aux);",
+        "\t\treturn 0;\n\t\tm = op->solve(hist[0], hist[cur], aux);",
+        ["solve_key"],
+    ),
+    (
+        "flood",
+        "flood/flood.c",
+        "flood-digit-off-by-one",
+        "\t\tc = key - '1';",
+        "\t\tc = key - '0';",
+        ["flood_fixture"],
+    ),
+    (
+        "flood",
+        "flood/flood.c",
+        "flood-region-not-bold",
+        "cell->attr = reach[y * s->w + x] ? PZ_BOLD : 0;",
+        "cell->attr = 0;",
+        ["flood_fixture"],
+    ),
+    (
+        "flood",
+        "flood/flood.c",
+        "flood-script-drops-the-move-letter",
+        "if (sol[-1] == 'S' || sol[-1] == ',')",
+        "if (sol[-1] == 'S')",
+        ["solution_moves"],
+    ),
+    (
+        "flood",
+        "flood/flood.c",
+        "flood-status-swapped",
+        'sprintf(cv->status, "moves %d/%d", s->moves, s->movelimit);',
+        'sprintf(cv->status, "moves %d/%d", s->movelimit, s->moves);',
+        ["flood_fixture"],
+    ),
+    (
+        "samegame",
+        "samegame/samegame.c",
+        "samegame-selection-glyph",
+        "c->c[0] = '(';",
+        "c->c[0] = '[';",
+        ["samegame_fixture"],
+    ),
+    (
+        "samegame",
+        "samegame/samegame.c",
+        "samegame-clear-key-unmapped",
+        "int c = key == 'c' ? CURSOR_SELECT2 : pz_button(key);",
+        "int c = pz_button(key);",
+        ["samegame_fixture"],
+    ),
+    (
+        "samegame",
+        "samegame/samegame.c",
+        "samegame-score-not-shown",
+        'sprintf(cv->status, "score %d", s->score);',
+        'sprintf(cv->status, "score %d", 0);',
+        ["samegame_fixture"],
+    ),
+    (
+        "unruly",
+        "unruly/unruly.c",
+        "unruly-digit-keys-unmapped",
+        "\tif (key == '0' || key == '1')\n\t\tc = key;\n\telse if",
+        "\tif (0)\n\t\tc = key;\n\telse if",
+        ["unruly_keys"],
+    ),
+    (
+        "unruly",
+        "unruly/unruly.c",
+        "unruly-clues-not-bold",
+        "c->attr = s->common->immutable[i] ? PZ_BOLD : 0;",
+        "c->attr = 0;",
+        ["unruly_keys"],
+    ),
+    (
+        "unruly",
+        "unruly/unruly.c",
+        "unruly-script-wrong-cell",
+        'o += sprintf(o, "P%c,%d,%d;", sol[1 + i], i % s->w2, i / s->w2);',
+        'o += sprintf(o, "P%c,%d,%d;", sol[1 + i], i / s->w2, i % s->w2);',
+        ["solution_moves"],
+    ),
+    (
+        "lightup",
+        "lightup/lightup.c",
+        "lightup-lamp-glyph",
+        "c->c[0] = '<';",
+        "c->c[0] = '[';",
+        ["lightup_keys"],
+    ),
+    (
+        "lightup",
+        "lightup/lightup.c",
+        "lightup-lit-cells-plain",
+        "\t\t\tif (n > 0) {\n\t\t\t\tc->bg = PZ_YELLOW;",
+        "\t\t\tif (n > 12345) {\n\t\t\t\tc->bg = PZ_YELLOW;",
+        ["lightup_keys"],
+    ),
+    (
+        "lightup",
+        "lightup/lightup.c",
+        "lightup-script-keeps-the-solve-letter",
+        "return dupstr(sol[0] == 'S' && sol[1] == ';' ? sol + 2 : sol);",
+        "return dupstr(sol);",
+        ["solution_moves", "undo_redo"],
+    ),
 ]
 
 
@@ -162,8 +325,11 @@ def copy_tree(src_games, work):
     os.makedirs(dst)
     for h in ("gametty.h", "gameterm.h"):
         shutil.copy(os.path.join(src_games, h), dst)
-    shutil.copytree(os.path.join(src_games, "pzcommon"), os.path.join(dst, "pzcommon"),
-                    ignore=shutil.ignore_patterns("build", "*.o"))
+    shutil.copytree(
+        os.path.join(src_games, "pzcommon"),
+        os.path.join(dst, "pzcommon"),
+        ignore=shutil.ignore_patterns("build", "*.o"),
+    )
     for p in ("flood", "samegame", "unruly", "lightup"):
         os.makedirs(os.path.join(dst, p))
         shutil.copy(os.path.join(src_games, p, p + ".c"), os.path.join(dst, p))
@@ -182,11 +348,19 @@ def replace_once(path, old, new):
 
 def build_support(games, san, out):
     os.makedirs(out, exist_ok=True)
-    for src, obj, extra in (("support.c", "support.o", ["-ffunction-sections"]),
-                            ("tests/pztest_fatal.c", "fatal.o", [])):
-        r = subprocess.run([CC] + STRICT + san + extra + ["-c", "-o", os.path.join(out, obj),
-                                                          os.path.join(games, "pzcommon", src)],
-                           capture_output=True, text=True)
+    for src, obj, extra in (
+        ("support.c", "support.o", ["-ffunction-sections"]),
+        ("tests/pztest_fatal.c", "fatal.o", []),
+    ):
+        r = subprocess.run(
+            [CC]
+            + STRICT
+            + san
+            + extra
+            + ["-c", "-o", os.path.join(out, obj), os.path.join(games, "pzcommon", src)],
+            capture_output=True,
+            text=True,
+        )
         if r.returncode:
             raise SystemExit("cannot build %s:\n%s" % (src, r.stderr))
 
@@ -195,13 +369,28 @@ def run_logic(games, puzzle, san, out):
     harness = os.path.join(games, "pzcommon", "tests", "logic_%s.c" % puzzle)
     obj = os.path.join(out, "logic_%s.o" % puzzle)
     exe = os.path.join(out, "logic_" + puzzle)
-    r = subprocess.run([CC] + STRICT + san + ["-fwhole-program", "-c", "-o", obj, harness],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        [CC] + STRICT + san + ["-fwhole-program", "-c", "-o", obj, harness],
+        capture_output=True,
+        text=True,
+    )
     if r.returncode:
         return None, "compile error:\n" + r.stderr
-    r = subprocess.run([CC] + san + ["-Wl,--gc-sections", "-o", exe, obj,
-                                    os.path.join(out, "support.o"), os.path.join(out, "fatal.o"), "-lm"],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        [CC]
+        + san
+        + [
+            "-Wl,--gc-sections",
+            "-o",
+            exe,
+            obj,
+            os.path.join(out, "support.o"),
+            os.path.join(out, "fatal.o"),
+            "-lm",
+        ],
+        capture_output=True,
+        text=True,
+    )
     if r.returncode:
         return None, "link error:\n" + r.stderr
     env = dict(os.environ)
@@ -243,15 +432,29 @@ def logic_mutants(src_games):
                 print("mutant %-36s SURVIVED (the test cannot see it)" % (puzzle + ":" + name))
                 failures += 1
             else:
-                first = next((ln for ln in text.splitlines() if ln.startswith("FAIL") or "ERROR" in ln
-                              or "Assertion" in ln), "exit %d" % rc)
+                first = next(
+                    (
+                        ln
+                        for ln in text.splitlines()
+                        if ln.startswith("FAIL") or "ERROR" in ln or "Assertion" in ln
+                    ),
+                    "exit %d" % rc,
+                )
                 print("mutant %-36s rejected: %s" % (puzzle + ":" + name, first[:80]))
     print("logic mutants: %d tried, %d failures" % (len(LOGIC), failures))
     return 1 if failures else 0
 
 
 def build_host(games, puzzle, exe):
-    flags = ["-std=c17", "-pedantic-errors", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror", "-O1"]
+    flags = [
+        "-std=c17",
+        "-pedantic-errors",
+        "-D_DEFAULT_SOURCE",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-O1",
+    ]
     pz = os.path.join(games, "pzcommon")
     objs = os.path.join(os.path.dirname(exe), "obj-" + puzzle)
     os.makedirs(objs, exist_ok=True)
@@ -261,12 +464,20 @@ def build_host(games, puzzle, exe):
         (["-ffunction-sections"], os.path.join(pz, "support.c"), "support.o"),
     )
     for extra, src, obj in steps:
-        r = subprocess.run([CC] + flags + extra + ["-c", "-o", os.path.join(objs, obj), src],
-                           capture_output=True, text=True)
+        r = subprocess.run(
+            [CC] + flags + extra + ["-c", "-o", os.path.join(objs, obj), src],
+            capture_output=True,
+            text=True,
+        )
         if r.returncode:
             return r.stderr
-    r = subprocess.run([CC, "-Wl,--gc-sections", "-o", exe] + [os.path.join(objs, o) for o in
-                       ("wrap.o", "front.o", "support.o")] + ["-lm"], capture_output=True, text=True)
+    r = subprocess.run(
+        [CC, "-Wl,--gc-sections", "-o", exe]
+        + [os.path.join(objs, o) for o in ("wrap.o", "front.o", "support.o")]
+        + ["-lm"],
+        capture_output=True,
+        text=True,
+    )
     return r.stderr if r.returncode else None
 
 
@@ -279,7 +490,10 @@ def play_mutants(src_games):
             puzzle = puzzle or "flood"
             for p in ("flood", "samegame", "unruly", "lightup"):
                 shutil.copy(os.path.join(src_games, p, p + ".c"), os.path.join(games, p, p + ".c"))
-            shutil.copy(os.path.join(src_games, "pzcommon", "pzfront.c"), os.path.join(games, "pzcommon", "pzfront.c"))
+            shutil.copy(
+                os.path.join(src_games, "pzcommon", "pzfront.c"),
+                os.path.join(games, "pzcommon", "pzfront.c"),
+            )
             n = replace_once(os.path.join(games, rel), old, new)
             if n != 1:
                 print("play mutant %-40s ERROR: anchor occurs %d times" % (name, n))
@@ -293,8 +507,13 @@ def play_mutants(src_games):
                 continue
             env = dict(os.environ, PZ_ONLY=puzzle)
             try:
-                r = subprocess.run([sys.executable, play, games] + cases, capture_output=True, text=True,
-                                   timeout=180, env=env)
+                r = subprocess.run(
+                    [sys.executable, play, games] + cases,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                    env=env,
+                )
             except subprocess.TimeoutExpired:
                 print("play mutant %-40s rejected: the pty test timed out" % name)
                 continue

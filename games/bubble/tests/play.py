@@ -53,7 +53,7 @@ def strip_ansi(t):
 def last_frame(raw):
     """Lines of the final frame: the text after the last cursor-home."""
     i = raw.rfind(b"\x1b[H")
-    text = strip_ansi(raw[i + 3:].decode(errors="replace"))
+    text = strip_ansi(raw[i + 3 :].decode(errors="replace"))
     return [ln.rstrip("\r") for ln in text.split("\n")]
 
 
@@ -109,8 +109,7 @@ def test_square_trio(prog):
     check("score 0" in g.text(), "expected an empty starting board")
     g.keys(b" ", 3)
     check("score 30" in g.text(), "three matching shots did not pop (no score 30)")
-    check("hex" not in g.text() and "drop in" not in g.text(),
-          "square mode shows hexagonal status")
+    check("hex" not in g.text() and "drop in" not in g.text(), "square mode shows hexagonal status")
     check(g.finish() == 0, "the game did not exit cleanly")
 
 
@@ -122,9 +121,14 @@ def test_hex_stagger(prog):
     f = g.frame()
     row0, row1 = f[3], f[4]
     check(row0[cell_col(row0, 4, False)] == "@", "first bubble not at row 0 column 4: %r" % row0)
-    check(row1[cell_col(row1, 3, True)] == "@", "second bubble not at row 1 column 3 (shifted): %r" % row1)
-    check(cell_col(row1, 3, True) == cell_col(row0, 4, False) - 1,
-          "the shifted row does not sit one terminal column left of its parent")
+    check(
+        row1[cell_col(row1, 3, True)] == "@",
+        "second bubble not at row 1 column 3 (shifted): %r" % row1,
+    )
+    check(
+        cell_col(row1, 3, True) == cell_col(row0, 4, False) - 1,
+        "the shifted row does not sit one terminal column left of its parent",
+    )
     check("drop in 6" in "\n".join(f), "counter did not count two shots: %r" % f[0])
     check(g.finish() == 0, "the game did not exit cleanly")
 
@@ -165,7 +169,9 @@ def test_hex_descent(prog):
     check("".join(cells) == "@#O*@#O", "new ceiling row wrong: %r" % row0)
     check(row0[cell_col(row0, 0, True) - 1] == " ", "shifted ceiling row not indented")
     row1 = f[4]
-    check(row1[cell_col(row1, 4, False)] == "@", "old first bubble not at row 1 column 4: %r" % row1)
+    check(
+        row1[cell_col(row1, 4, False)] == "@", "old first bubble not at row 1 column 4: %r" % row1
+    )
     check(g.finish() == 0, "the game did not exit cleanly")
 
 
@@ -181,10 +187,10 @@ def test_frame_fits(prog):
         g = Game(prog, args, "1")
         f = g.frame()
         check(len(f) <= 24, "frame taller than 24 rows: %d" % len(f))
-        check(all(len(line) <= 53 for line in f),
-              "a frame line is wider than 53 columns: %r" % f)
-        check(all(len(line) <= 21 for line in f[2:15]),
-              "the board is wider than 21 columns: %r" % f)
+        check(all(len(line) <= 53 for line in f), "a frame line is wider than 53 columns: %r" % f)
+        check(
+            all(len(line) <= 21 for line in f[2:15]), "the board is wider than 21 columns: %r" % f
+        )
         g.finish()
 
 

@@ -59,8 +59,10 @@ def main():
             if not verify(copy):
                 print("FAIL the check accepted a %s copy" % name)
                 return 1
-    print("imported sources: %d files match tatham.sha256; changed and missing copies rejected"
-          % len(sums(os.path.join(root, "tatham.sha256"))))
+    print(
+        "imported sources: %d files match tatham.sha256; changed and missing copies rejected"
+        % len(sums(os.path.join(root, "tatham.sha256")))
+    )
     return 0
 
 

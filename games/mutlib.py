@@ -52,7 +52,13 @@ def logic(src, source, harness, vectors, mutants, top, extra=()):
         exe = os.path.join(work, "logic")
 
         def build_run():
-            cmd = [CC] + STRICT + san + list(extra) + ["-o", exe, os.path.join(work, "tests", harness)]
+            cmd = (
+                [CC]
+                + STRICT
+                + san
+                + list(extra)
+                + ["-o", exe, os.path.join(work, "tests", harness)]
+            )
             r = subprocess.run(cmd, capture_output=True, text=True)
             if r.returncode != 0:
                 return None, "compile error:\n" + r.stderr
@@ -82,8 +88,10 @@ def logic(src, source, harness, vectors, mutants, top, extra=()):
                 print("mutant %-34s SURVIVED (the test cannot see it)" % name)
                 failures += 1
             else:
-                first = next((ln for ln in out.splitlines() if ln.startswith("FAIL") or "Sanitizer" in ln),
-                             "exit %d" % rc)
+                first = next(
+                    (ln for ln in out.splitlines() if ln.startswith("FAIL") or "Sanitizer" in ln),
+                    "exit %d" % rc,
+                )
                 print("mutant %-34s rejected: %s" % (name, first[:90]))
     n = len(mutants)
     print("logic mutants: %d tried, %d rejected, %d failures" % (n, n - failures, failures))
@@ -113,15 +121,23 @@ def play(src, source, binary, mutants, host_flags=()):
             path = os.path.join(proj, "x", source)
             with open(path, "w") as f:
                 f.write(text.replace(old, new))
-            r = subprocess.run([CC, "-std=c17", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror",
-                                "-DHOSTBUILD"] + list(host_flags) + ["-o", exe, path],
-                               capture_output=True, text=True)
+            r = subprocess.run(
+                [CC, "-std=c17", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror", "-DHOSTBUILD"]
+                + list(host_flags)
+                + ["-o", exe, path],
+                capture_output=True,
+                text=True,
+            )
             if r.returncode != 0:
                 print("play mutant %-30s ERROR: compile\n%s" % (name, r.stderr))
                 failures += 1
                 continue
-            r = subprocess.run([sys.executable, script, exe] + list(cases),
-                               capture_output=True, text=True, timeout=300)
+            r = subprocess.run(
+                [sys.executable, script, exe] + list(cases),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
             if r.returncode == 0:
                 print("play mutant %-30s SURVIVED" % name)
                 failures += 1

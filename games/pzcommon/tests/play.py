@@ -124,10 +124,18 @@ class Term:
         return [[self.cell(x, y) for x in range(w)] for y in range(h)]
 
     def test_lines(self):
-        ids = ["".join(ln[8:] for ln in (self.line(r) for r in range(1, ROWS + 1))
-                       if ln.startswith("TEST id "))]
-        mv = "".join(ln[11:] for ln in (self.line(r) for r in range(1, ROWS + 1))
-                     if ln.startswith("TEST moves "))
+        ids = [
+            "".join(
+                ln[8:]
+                for ln in (self.line(r) for r in range(1, ROWS + 1))
+                if ln.startswith("TEST id ")
+            )
+        ]
+        mv = "".join(
+            ln[11:]
+            for ln in (self.line(r) for r in range(1, ROWS + 1))
+            if ln.startswith("TEST moves ")
+        )
         return (ids[0] or None), [m for m in mv.split(";") if m]
 
 
@@ -233,7 +241,9 @@ def test_layout(root):
         check(t.line(3 + h) == " '" + "-" * (2 * w) + "'", "%s: bottom border" % name)
         for y in range(h):
             row = t.line(3 + y)
-            check(row[1] == "|" and row[2 + 2 * w] == "|", "%s: walls on row %d: %r" % (name, y, row))
+            check(
+                row[1] == "|" and row[2 + 2 * w] == "|", "%s: walls on row %d: %r" % (name, y, row)
+            )
         check("arrows move" in t.line(3 + h + 3), "%s: help line" % name)
         check("q quit" in t.line(3 + h + 5), "%s: quit help: %r" % (name, t.line(3 + h + 5)))
         check(len(cursor_at(g, w, h)) == 1, "%s: expected one cursor cell" % name)
@@ -251,21 +261,34 @@ def test_fits_24_rows(root):
 
 
 def test_largest_boards(root):
-    cases = (("flood", "24x16c8m0"), ("samegame", "24x16c8s2"), ("unruly", "24x16"),
-             ("lightup", "24x8"))
+    cases = (
+        ("flood", "24x16c8m0"),
+        ("samegame", "24x16c8s2"),
+        ("unruly", "24x16"),
+        ("lightup", "24x8"),
+    )
     for name, spec in cases:
         if name not in PUZZLES:
             continue
         g = Game(root, name, ["-s", "big", spec])
-        check(g.term.max_row <= 24 and g.term.max_col <= 52,
-              "%s: %s drew to row %d column %d" % (name, spec, g.term.max_row, g.term.max_col))
-        check(g.term.line(2).startswith(" .-") and len(g.term.line(2)) == 51,
-              "%s: top border of %s: %r" % (name, spec, g.term.line(2)))
+        check(
+            g.term.max_row <= 24 and g.term.max_col <= 52,
+            "%s: %s drew to row %d column %d" % (name, spec, g.term.max_row, g.term.max_col),
+        )
+        check(
+            g.term.line(2).startswith(" .-") and len(g.term.line(2)) == 51,
+            "%s: top border of %s: %r" % (name, spec, g.term.line(2)),
+        )
         check(g.finish() == 0, "%s: exit" % name)
 
 
 def test_too_big(root):
-    for name, spec in (("flood", "25x5"), ("samegame", "5x17"), ("unruly", "26x6"), ("lightup", "10x17")):
+    for name, spec in (
+        ("flood", "25x5"),
+        ("samegame", "5x17"),
+        ("unruly", "26x6"),
+        ("lightup", "10x17"),
+    ):
         if name not in PUZZLES:
             continue
         g = Game(root, name, [spec])
@@ -340,8 +363,10 @@ def test_flood_fixture(root):
     g = Game(root, "flood", [], "3x3c3m0:010112200,3")
     t = g.term
     check(t.line(1) == "FLOOD  moves 0/3", "status: %r" % t.line(1))
-    check(t.board(3, 3) == [["11", "22", "11"], ["22", "22", "33"], ["33", "11", "11"]],
-          "board: %r" % t.board(3, 3))
+    check(
+        t.board(3, 3) == [["11", "22", "11"], ["22", "22", "33"], ["33", "11", "11"]],
+        "board: %r" % t.board(3, 3),
+    )
     fg, bg, attr = t.style(0, 0)
     check(bg == 2 and attr & BOLD and attr & REV, "region cell style %r" % ((fg, bg, attr),))
     check(t.style(2, 0)[2] & BOLD == 0, "cell outside the region is bold")
@@ -384,16 +409,27 @@ def test_samegame_fixture(root):
     check(t.board(3, 3)[1] == ["22"] * 3, "other rows change on select")
     check(t.line(1) == "SAMEGAME  score 0  group 3 (+1)", "group status: %r" % t.line(1))
     g.send(b"m")
-    check(t.board(3, 3)[0] == ["11"] * 3 and t.line(1) == "SAMEGAME  score 0", "m clears the selection")
+    check(
+        t.board(3, 3)[0] == ["11"] * 3 and t.line(1) == "SAMEGAME  score 0",
+        "m clears the selection",
+    )
     g.send(b"\r")
     g.send(b"c")
     check(t.board(3, 3)[0] == ["11"] * 3, "c clears the selection")
     g.send(b"\r\r")
-    check(t.board(3, 3)[0] == ["  "] * 3 and t.line(1) == "SAMEGAME  score 1", "removal: %r" % t.line(1))
+    check(
+        t.board(3, 3)[0] == ["  "] * 3 and t.line(1) == "SAMEGAME  score 1",
+        "removal: %r" % t.line(1),
+    )
     g.send(b"j\r\r")
-    check(t.board(3, 3)[1] == ["  "] * 3 and t.line(1) == "SAMEGAME  score 2", "second removal: %r" % t.line(1))
+    check(
+        t.board(3, 3)[1] == ["  "] * 3 and t.line(1) == "SAMEGAME  score 2",
+        "second removal: %r" % t.line(1),
+    )
     g.send(b"u")
-    check(t.board(3, 3)[1] == ["22"] * 3 and t.line(1) == "SAMEGAME  score 1", "undo: %r" % t.line(1))
+    check(
+        t.board(3, 3)[1] == ["22"] * 3 and t.line(1) == "SAMEGAME  score 1", "undo: %r" % t.line(1)
+    )
     g.send(b"y")
     g.send(b"j\r\r")
     check(g.message(3).startswith("SOLVED"), "message %r" % g.message(3))
@@ -402,8 +438,13 @@ def test_samegame_fixture(root):
     # Removing the pair leaves no two equal colors touching.
     g = Game(root, "samegame", [], "3x2c3s2:1,1,2,3,2,3")
     g.send(b"\r\r")
-    check(g.term.line(3 + 2 + 2).startswith("NO MOVES LEFT"), "no moves message: %r" % g.term.line(7))
-    check(g.term.board(3, 2) == [["  ", "  ", "22"], ["33", "22", "33"]], "board %r" % g.term.board(3, 2))
+    check(
+        g.term.line(3 + 2 + 2).startswith("NO MOVES LEFT"), "no moves message: %r" % g.term.line(7)
+    )
+    check(
+        g.term.board(3, 2) == [["  ", "  ", "22"], ["33", "22", "33"]],
+        "board %r" % g.term.board(3, 2),
+    )
     check(g.finish() == 0, "exit")
 
 
@@ -432,7 +473,12 @@ def test_unruly_keys(root):
     g.send(b" ")
     check(t.cell(x, y) == ". ", "space did not cycle to empty")
     # A clue cannot be changed: find one.
-    clue = [(cx, cy) for cy in range(h) for cx in range(w) if t.style(cx, cy)[2] & BOLD and t.cell(cx, cy) != ". "]
+    clue = [
+        (cx, cy)
+        for cy in range(h)
+        for cx in range(w)
+        if t.style(cx, cy)[2] & BOLD and t.cell(cx, cy) != ". "
+    ]
     check(clue, "no clue cells shown")
     cx, cy = clue[0]
     cur = cursor_at(g, w, h)[0]
@@ -515,8 +561,10 @@ def test_signals(root):
             g = Game(root, name, ["-s", "sig"])
             os.kill(g.pid, sig)
             check(g.wait() == code, "%s: signal %d exit" % (name, sig))
-            check(g.term.raw.endswith(b"\x1b[0m\x1b[2J\x1b[H"),
-                  "%s: the screen is not cleared after signal %d" % (name, sig))
+            check(
+                g.term.raw.endswith(b"\x1b[0m\x1b[2J\x1b[H"),
+                "%s: the screen is not cleared after signal %d" % (name, sig),
+            )
 
 
 def test_exit_restores(root):
@@ -524,7 +572,9 @@ def test_exit_restores(root):
         g = Game(root, name, ["-s", "exit"])
         g.send(b"q")
         check(g.wait() == 0, "%s: exit" % name)
-        check(g.term.raw.endswith(b"\x1b[0m\x1b[2J\x1b[H"), "%s: q does not clear the screen" % name)
+        check(
+            g.term.raw.endswith(b"\x1b[0m\x1b[2J\x1b[H"), "%s: q does not clear the screen" % name
+        )
 
 
 def test_escape_keys(root):

@@ -174,7 +174,9 @@ class Game:
 def test_layout(prog):
     g = Game(prog, [], "1221/2")
     t = g.term
-    check(t.line(1).startswith("COIL  score 0  level 1  left 4  next "), "status line: %r" % t.line(1))
+    check(
+        t.line(1).startswith("COIL  score 0  level 1  left 4  next "), "status line: %r" % t.line(1)
+    )
     check(t.text(2, 2, 2 + 2 * 23 + 1) == "." + "-" * 46 + ".", "top border: %r" % t.line(2))
     check(t.text(20, 2, 2 + 2 * 23 + 1) == "'" + "-" * 46 + "'", "bottom border: %r" % t.line(20))
     for y in range(17):
@@ -201,9 +203,15 @@ def test_spawn(prog):
     g.tick()
     check(t.cell(1, 0) == GLYPH[1] and t.cell(0, 0) == GLYPH[2], "chain after two ticks")
     g.tick()
-    check([t.cell(x, 0) for x in range(3)] == [GLYPH[3], GLYPH[2], GLYPH[1]], "chain after three ticks")
+    check(
+        [t.cell(x, 0) for x in range(3)] == [GLYPH[3], GLYPH[2], GLYPH[1]],
+        "chain after three ticks",
+    )
     g.tick(2)
-    check([t.cell(x, 0) for x in range(2, 5)] == [GLYPH[3], GLYPH[2], GLYPH[1]], "chain after five ticks")
+    check(
+        [t.cell(x, 0) for x in range(2, 5)] == [GLYPH[3], GLYPH[2], GLYPH[1]],
+        "chain after five ticks",
+    )
     check(t.cell(0, 0) == ". ", "the vacated path cell shows the path again")
     check(g.finish() == 0, "the game did not exit cleanly")
 
@@ -216,8 +224,10 @@ def test_color_and_mono(prog):
     check(g.finish() == 0, "exit")
     g = Game(prog, ["-m"], "12/1")
     g.tick()
-    check(g.term.cell_bg(0, 0) == 0 and not (g.term.sgr & set(range(40, 48))),
-          "monochrome mode set a background")
+    check(
+        g.term.cell_bg(0, 0) == 0 and not (g.term.sgr & set(range(40, 48))),
+        "monochrome mode set a background",
+    )
     check(g.term.cell(0, 0) == GLYPH[1], "monochrome glyph pair")
     check(g.finish() == 0, "exit")
 
@@ -226,8 +236,10 @@ def test_turn(prog):
     g = Game(prog, [], "123/1")
     t = g.term
     g.send(b"\x1b[C")
-    check(t.cell(11, 7)[0] == ":" and t.cell(12, 6)[0] == ":" and t.cell(14, 0)[0] == ":",
-          "direction 1 aim line")
+    check(
+        t.cell(11, 7)[0] == ":" and t.cell(12, 6)[0] == ":" and t.cell(14, 0)[0] == ":",
+        "direction 1 aim line",
+    )
     check(t.cell(11, 0) == ". ", "the old aim line is erased: %r" % t.cell(11, 0))
     g.send(b"\x1b[D", 2)
     check(t.cell(10, 6)[0] == ":" and t.cell(8, 0)[0] == ":", "direction 15 aim line")
@@ -248,12 +260,16 @@ def test_clear_and_reaction(prog):
     g = Game(prog, [], "11221/2")
     t = g.term
     run_to(g, 14)
-    check([t.cell(x, 0) for x in range(9, 14)] ==
-          [GLYPH[1], GLYPH[2], GLYPH[2], GLYPH[1], GLYPH[1]], "chain before the shot")
+    check(
+        [t.cell(x, 0) for x in range(9, 14)] == [GLYPH[1], GLYPH[2], GLYPH[2], GLYPH[1], GLYPH[1]],
+        "chain before the shot",
+    )
     g.send(b" ")
     check(t.cell(14, 0) == GLYPH[1] and t.cell(13, 0) == GLYPH[1], "front pair pushed ahead")
-    check(t.cell(10, 0) == ". " and t.cell(12, 0) == ". " and t.cell(11, 0) == ": ",
-          "the three twos vanished (cell 11 shows the aim line now): %r" % t.line(3))
+    check(
+        t.cell(10, 0) == ". " and t.cell(12, 0) == ". " and t.cell(11, 0) == ": ",
+        "the three twos vanished (cell 11 shows the aim line now): %r" % t.line(3),
+    )
     check("score 30" in g.status(), "the clear scored 30: %r" % g.status())
     g.tick()
     check(t.cell(10, 0) == GLYPH[1], "the rear part rolls forward one cell a tick")
@@ -262,7 +278,10 @@ def test_clear_and_reaction(prog):
     check(t.line(23).startswith("LEVEL CLEAR"), "level clear message: %r" % t.line(23))
     check("left 0" in g.status(), "nothing left")
     g.send(b"\r")
-    check("level 2" in g.status() and "score 90" in g.status(), "Enter starts level 2: %r" % g.status())
+    check(
+        "level 2" in g.status() and "score 90" in g.status(),
+        "Enter starts level 2: %r" % g.status(),
+    )
     check(t.line(23) == "", "the message is erased")
     check(g.finish() == 0, "the game did not exit cleanly")
 
@@ -274,7 +293,9 @@ def test_miss(prog):
     g.send(b"\x1b[C", 4)
     before = t.cell(0, 0)
     g.send(b" ")
-    check(t.cell(0, 0) == before and "left 1" in g.status(), "a shot into the open changed the chain")
+    check(
+        t.cell(0, 0) == before and "left 1" in g.status(), "a shot into the open changed the chain"
+    )
     check(t.cell(11, 8) == GLYPH[2], "the launcher reloads after a miss: %r" % t.cell(11, 8))
     check(g.finish() == 0, "the game did not exit cleanly")
 
@@ -291,8 +312,10 @@ def test_loss_and_restart(prog):
     g.send(b"x.")
     check(t.line(23).startswith("GAME OVER"), "keys other than Enter keep the screen")
     g.send(b"\r")
-    check("left 1" in g.status() and "level 1" in g.status() and "score 0" in g.status(),
-          "restart: %r" % g.status())
+    check(
+        "left 1" in g.status() and "level 1" in g.status() and "score 0" in g.status(),
+        "restart: %r" % g.status(),
+    )
     check(t.cell(17, 4) == "()", "the new game starts with an empty path")
     check(g.finish() == 0, "the game did not exit cleanly")
 
@@ -309,9 +332,15 @@ def test_restart_resets_score(prog):
     g.tick(135)
     check(t.line(23) == "", "still playing one tick before the end")
     g.tick()
-    check(t.line(23).startswith("GAME OVER") and "score 30" in g.status(), "lost with the score kept on screen")
+    check(
+        t.line(23).startswith("GAME OVER") and "score 30" in g.status(),
+        "lost with the score kept on screen",
+    )
     g.send(b" ")
-    check("score 0" in g.status() and "level 1" in g.status(), "a lost game restarts at zero: %r" % g.status())
+    check(
+        "score 0" in g.status() and "level 1" in g.status(),
+        "a lost game restarts at zero: %r" % g.status(),
+    )
     check(g.finish() == 0, "the game did not exit cleanly")
 
 
@@ -350,7 +379,10 @@ def test_signals(prog):
         g = Game(prog, [], "12/1")
         os.kill(g.pid, sig)
         check(g.wait() == code, "signal %d did not end the game with %d" % (sig, code))
-        check(g.term.raw.endswith(b"\x1b[0m\x1b[2J\x1b[H"), "the screen is not cleared after signal %d" % sig)
+        check(
+            g.term.raw.endswith(b"\x1b[0m\x1b[2J\x1b[H"),
+            "the screen is not cleared after signal %d" % sig,
+        )
 
 
 def test_exit_restores(prog):

@@ -16,6 +16,7 @@ class CompositionError(ValueError):
 
 
 ARCHIVE_MEMBER_PATTERN = re.compile(r"(?:^|[\s/])libc\.a\(([^()\s]+)\)")
+NON_MULTICALL_LINK_TARGETS = {"/usr/bin/compress", "/usr/bin/stevie"}
 
 
 def load_json(path):
@@ -598,14 +599,80 @@ def retained_source_bytes(root, document, path):
     return result.stdout
 
 
+def discover_live_boxes(root):
+    """Join overlay Makefiles to packed manifest link targets."""
+    packs, links = parse_manifest(root / "distrib/rp2040/mi.rp2040")
+    boxes = []
+    for makefile in sorted(root.rglob("Makefile")):
+        if any(part.startswith(".") for part in makefile.relative_to(root).parts):
+            continue
+        # Legacy Makefiles predate UTF-8; the include test needs ASCII only.
+        text = makefile.read_bytes().decode("utf-8", errors="replace")
+        if not any(
+            re.match(r'^ *\.?include\s+', line)
+            and "share/mk/multicall-bss-overlay.mk" in line.split("#", 1)[0]
+            for line in text.splitlines()
+        ):
+            continue
+        box = {"id": makefile.parent.name, "makefile": str(makefile.relative_to(root))}
+        program = read_make_variable(root, box, "PROG")
+        bindir = read_make_variable(root, box, "BINDIR")
+        if len(program) != 1 or re.fullmatch(r"[A-Za-z0-9_.+-]+", program[0]) is None:
+            raise CompositionError(f"{box['id']} PROG must name one executable")
+        if (len(bindir) != 1 or not bindir[0].startswith("/")
+                or str(Path(bindir[0])) != bindir[0] or ".." in Path(bindir[0]).parts):
+            raise CompositionError(f"{box['id']} BINDIR must name one absolute directory")
+        installed_path = bindir[0] + "/" + program[0]
+        require_equal(Path(installed_path).name, program[0], f"{box['id']} installed basename")
+        boxes.append({**box, "id": program[0], "program": program[0],
+                      "installed_path": installed_path, "link_map": program[0] + ".map"})
+    if not boxes:
+        raise CompositionError("live multicall boxes are absent")
+    for field in ("id", "installed_path"):
+        values = [box[field] for box in boxes]
+        if len(values) != len(set(values)):
+            raise CompositionError(f"duplicate live multicall {field}")
+    targets = set(links.values())
+    unpacked_targets = targets - set(packs)
+    if unpacked_targets:
+        raise CompositionError(f"manifest link targets are not packed: {sorted(unpacked_targets)}")
+    multicall_targets = targets - NON_MULTICALL_LINK_TARGETS
+    require_equal(
+        sorted(box["installed_path"] for box in boxes), sorted(multicall_targets),
+        "live multicall installed paths against packed link targets "
+        "(other targets require an explicit non-multicall declaration)",
+    )
+    return boxes
+
+
+def validate_link_map_recipe(root, consumer):
+    text = (root / consumer["makefile"]).read_text(encoding="utf-8")
+    if not any(
+        line.startswith("\t") and "${LINK_MAP_FLAG}" in line.split("#", 1)[0]
+        for line in text.splitlines()
+    ):
+        raise CompositionError(f"{consumer['id']} link does not consume LINK_MAP_FLAG")
+
+
 def validate_live_composition(root, boxes, exact):
     packs, links = parse_manifest(root / "distrib/rp2040/mi.rp2040")
+    discovered = discover_live_boxes(root)
+    if exact:
+        require_equal(
+            sorted((box["makefile"], box["installed_path"], box["id"]) for box in discovered),
+            sorted((box["makefile"], box["installed_path"], box["id"]) for box in boxes),
+            "exact live box identities",
+        )
+        by_makefile = {box["makefile"]: box for box in discovered}
+        discovered = [{**box, **by_makefile[box["makefile"]]} for box in boxes]
     live_boxes = []
     shipped_names = set()
-    for box in boxes:
+    dispatch_names = set()
+    for box in discovered:
         variables = {
             variable: read_make_variable(root, box, variable)
-            for variable in ("PROG", "TOOLS", "BUILTIN_TOOLS", "ALIASES")
+            for variable in ("PROG", "BINDIR", "TOOLS", "BUILTIN_TOOLS", "ALIASES",
+                             "UNSHIPPED_TOOLS")
         }
         if len(variables["PROG"]) != 1:
             raise CompositionError(f"{box['id']} PROG must name one executable")
@@ -616,9 +683,12 @@ def validate_live_composition(root, boxes, exact):
                 ("ALIASES", box.get("aliases", [])),
             ):
                 require_equal(variables[variable], expected, f"{box['id']} {variable}")
-        makefile_text = (root / box["makefile"]).read_text(encoding="utf-8")
-        if "${LINK_MAP_FLAG}" not in makefile_text:
-            raise CompositionError(f"{box['id']} link does not consume LINK_MAP_FLAG")
+        require_equal(Path(box["installed_path"]).name, variables["PROG"][0],
+                      f"{box['id']} installed basename")
+        require_equal(box["installed_path"],
+                      variables["BINDIR"][0] + "/" + variables["PROG"][0],
+                      f"{box['id']} installed path")
+        validate_link_map_recipe(root, box)
         aliases = variables["ALIASES"]
         if any(":" not in alias for alias in aliases):
             raise CompositionError(f"{box['id']} has an invalid alias")
@@ -628,6 +698,10 @@ def validate_live_composition(root, boxes, exact):
         )
         if len(dispatch) != len(set(dispatch)):
             raise CompositionError(f"{box['id']} has duplicate dispatch names")
+        overlap = sorted(dispatch_names & set(dispatch))
+        if overlap:
+            raise CompositionError(f"{box['id']} overlapping dispatch names: {overlap}")
+        dispatch_names.update(dispatch)
         if box["installed_path"] not in packs:
             raise CompositionError(f"{box['id']} is not a packed manifest executable")
         shipped = sorted(
@@ -643,10 +717,12 @@ def validate_live_composition(root, boxes, exact):
         if shipped_names & basenames:
             raise CompositionError("a shipped name belongs to multiple multicall boxes")
         shipped_names.update(basenames)
+        unshipped = sorted(set(dispatch) - basenames)
+        require_equal(unshipped, sorted(variables["UNSHIPPED_TOOLS"]),
+                      f"{box['id']} undeclared unshipped dispatch names")
         if exact:
             require_equal(shipped, box["shipped_names"], f"{box['id']} manifest links")
-        live_boxes.append({**box, "program": variables["PROG"][0],
-                           "tools": variables["TOOLS"]})
+        live_boxes.append({**box, "tools": variables["TOOLS"], "shipped_names": shipped})
     return live_boxes
 
 
@@ -675,6 +751,10 @@ def live_measurement_records(root, boxes):
                         directory = candidate
             if directory is None:
                 raise CompositionError(f"cannot locate standalone tool {program}")
+            if not (root / directory / "Makefile").is_file():
+                raise CompositionError(
+                    f"{program} standalone directory {directory} lacks a Makefile"
+                )
             records.append({
                 "kind": "standalone", "box": box["id"], "program": program,
                 "path": str(directory / program),
@@ -777,6 +857,7 @@ def validate_root_measurement(root, document, candidate_receipt, live, exact):
         or summary["captured_fsutil_sha256"] == "0" * 64
     ):
         raise CompositionError("invalid captured fsutil digest")
+    measured = None
     if live:
         image = candidate_receipt["root_image"]
         measured = measure_root_image(fsutil_path, root / image["path"])
@@ -787,9 +868,10 @@ def validate_root_measurement(root, document, candidate_receipt, live, exact):
         manifest["sha256"],
         "candidate retained manifest digest",
     )
+    return measured
 
 
-def validate_archive_summary(root, document, map_root, exact):
+def validate_archive_summary(root, document, map_root, exact, live_boxes):
     summary = document.get("archive_summary", {})
     inventory_path = root / summary.get("inventory_path", "")
     require_equal(
@@ -817,8 +899,21 @@ def validate_archive_summary(root, document, map_root, exact):
             len(members),
             f"{consumer['id']} archive-member count",
         )
-        if map_root is not None:
-            live_members = parse_libc_members(map_root / consumer["link_map"])
+    if map_root is not None:
+        consumers = [*live_boxes, {"id": "sh", "makefile": "bin/sh/Makefile",
+                                  "program": "sh", "link_map": "sh.map"}]
+        for consumer in consumers:
+            map_path = map_root / consumer["link_map"]
+            binary_path = root / Path(consumer["makefile"]).parent / consumer["program"]
+            try:
+                if map_path.stat().st_mtime_ns < binary_path.stat().st_mtime_ns:
+                    raise CompositionError(f"{consumer['id']} stale link map: {map_path}")
+            except OSError as error:
+                raise CompositionError(
+                    f"cannot check {consumer['id']} link-map freshness: {error}"
+                ) from error
+            members = consumer_members.get(consumer["id"], [])
+            live_members = parse_libc_members(map_path)
             added_members, removed_members = validate_live_archive_members(
                 tuple(members), live_members, exact,
                 f"{consumer['id']} live libc members",
@@ -991,15 +1086,13 @@ def validate_document(root, document, map_root=None):
             root, root / document["measurement_inventory"]["hsaout_path"], live_records
         )
         validate_live_measurements(live_records, live_boxes, measured, exact_measurement)
-    shell_makefile = (root / "bin/sh/Makefile").read_text(encoding="utf-8")
-    if "${LINK_MAP_FLAG}" not in shell_makefile:
-        raise CompositionError("shell link does not consume LINK_MAP_FLAG")
+    validate_link_map_recipe(root, {"id": "shell", "makefile": "bin/sh/Makefile"})
     archive_deltas = validate_archive_summary(
-        root, document, map_root, exact_measurement
+        root, document, map_root, exact_measurement, live_boxes
     )
     receipts = validate_clean_distribution_receipts(root, document)
     validate_root(document, links, receipts)
-    validate_root_measurement(
+    live_root = validate_root_measurement(
         root,
         document,
         receipts["candidate"],
@@ -1027,6 +1120,19 @@ def validate_document(root, document, map_root=None):
             "block savings, and root capacity without claiming exact "
             "archive-member or byte replay"
         )
+    retained_line = (
+        f"retained ledger: {len(boxes)} boxes, "
+        f"{denominator['multicall_hard_links']} shipped names, "
+        f"{document['root']['candidate']['free_blocks']} free blocks, "
+        f"{document['archive_summary']['distinct_members']} libc members"
+    )
+    if map_root is not None and not exact_measurement:
+        print("multicall composition: live denominator: "
+              f"{len(live_boxes)} boxes, "
+              f"{sum(len(box['shipped_names']) for box in live_boxes)} shipped names, "
+              f"{live_root['free_blocks']} free blocks; {retained_line}")
+    else:
+        print(f"multicall composition: {retained_line}")
 
 
 def parse_arguments():
@@ -1035,6 +1141,8 @@ def parse_arguments():
     parser.add_argument("--ledger", type=Path)
     parser.add_argument("--map-root", type=Path)
     parser.add_argument("--capture-inventory", type=Path)
+    parser.add_argument("--list-boxes", action="store_true",
+                        help="print live multicall directories, one per line")
     return parser.parse_args()
 
 
@@ -1045,6 +1153,10 @@ def main():
         root / "docs/research/dpucp-2024-multicall-composition.json"
     )
     try:
+        if arguments.list_boxes:
+            for box in discover_live_boxes(root):
+                print(Path(box["makefile"]).parent)
+            return 0
         document = load_json(ledger)
         if arguments.capture_inventory is not None:
             if arguments.map_root is None:
@@ -1057,12 +1169,6 @@ def main():
     except CompositionError as error:
         print(f"multicall composition: {error}")
         return 1
-    print(
-        "multicall composition: "
-        f"retained ledger: {document['denominator']['multicall_executables']} boxes, "
-        f"{document['denominator']['multicall_hard_links']} shipped names, "
-        f"{document['archive_summary']['distinct_members']} libc members"
-    )
     return 0
 
 

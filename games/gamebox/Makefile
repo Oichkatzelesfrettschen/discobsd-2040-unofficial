@@ -16,6 +16,11 @@ BINDIR=		/usr/games
 
 TOOLS=		fifteen keen bubble fourfall
 
+# Dispatch names the manifest deliberately leaves unlinked; the multicall
+# composition gate (tools/check_multicall_composition.py) rejects any
+# other dispatch name that ships no link.
+UNSHIPPED_TOOLS=
+
 OBJS=		${TOOLS:S/$/.tool.o/}
 PROG=		gamebox
 

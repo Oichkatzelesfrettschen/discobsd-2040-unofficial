@@ -752,24 +752,29 @@ check-battlestar-generation: check-python
 # the finite ledger compares dispatch names, manifest links, libc members and
 # packed-root arithmetic. The gate opens the root image directly, so its
 # dependency must build the image instead of accepting worktree residue. The
-# maps remain ignored build evidence.
+# maps remain ignored build evidence. Map timestamps record successful a.out
+# conversion, which finishes after the linker writes the map.
 check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 		@set -eu; \
 		map_root=${TOPSRC}/.build-logs/multicall-link-maps; \
 		mkdir -p "$$map_root"; \
-		for specification in \
-		    sbin/box:box sbin/sysbox:sysbox sbin/adminbox:adminbox \
-		    sbin/textbox:textbox sbin/utilbox:utilbox \
-		    sbin/grepbox:grepbox games/gamebox:gamebox; do \
-			directory=$${specification%%:*}; \
-			program=$${specification#*:}; \
-			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} clean; \
-			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} \
+		box_directories=$$(${PYTHON} tools/check_multicall_composition.py \
+		    --root ${TOPSRC} --list-boxes); \
+		for directory in $$box_directories; do \
+			program=$$(${MAKE} -C "${TOPSRC}/$$directory" MACHINE=${MACHINE} -V PROG); \
+			rm -f "$$map_root/$$program.map"; \
+			${MAKE} -C "${TOPSRC}/$$directory" MACHINE=${MACHINE} clean; \
+			${MAKE} -C "${TOPSRC}/$$directory" MACHINE=${MACHINE} \
 			    LINK_MAP="$$map_root/$$program.map" all; \
+			test -s "$$map_root/$$program.map"; \
+			touch "$$map_root/$$program.map"; \
 		done
+		rm -f "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean
 		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} all \
 		    LINK_MAP="${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
+		test -s "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
+		touch "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${PYTHON} tools/check_multicall_composition.py --root ${TOPSRC} \
 		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps
 		${PYTHON} tools/check_multicall_composition_test.py

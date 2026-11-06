@@ -44,18 +44,41 @@ and root counters with the ledger.
 
 A toolchain difference or any changed retained source selects live mode. The
 gate prints the changed source paths and reports a toolchain difference when
-present. Live mode reads `PROG`, `TOOLS`, `BUILTIN_TOOLS`, and `ALIASES` from
-each live box Makefile, requires unique dispatch names and consumption of
-`${LINK_MAP_FLAG}`, and checks the live manifest. Every box installed path
-must be a packed executable; each hard link targeting a box must name a live
-dispatch entry, and each shipped basename must belong to one box.
+present. The gate discovers every Makefile that includes
+`share/mk/multicall-bss-overlay.mk` and reads `BINDIR` and `PROG` through
+bmake. In both modes, each installed path must equal `BINDIR/PROG`, its
+basename must equal `PROG`, and the path must be packed in the live manifest.
+The manifest's packed hard-link targets must equal those installed paths
+after excluding the explicitly declared non-multicall targets
+`/usr/bin/compress` and `/usr/bin/stevie`. A new target requires a declaration
+or a discovered box; a box without manifest links fails the join.
+
+Live mode reads `TOOLS`, `BUILTIN_TOOLS`, `ALIASES`, and `UNSHIPPED_TOOLS`
+from each discovered box Makefile. Dispatch names must be unique within and
+across boxes. Every hard link targeting a box must name a dispatch entry,
+each shipped basename must belong to one box, and the dispatch names absent
+from shipped basenames must equal `UNSHIPPED_TOOLS`. Every box declares an
+empty `UNSHIPPED_TOOLS` list in the measured tree. The archive consumer set
+uses the same discovered boxes plus the separately linked `/bin/sh`.
+
+The `--list-boxes` command prints the discovered box directories, one per
+line, for the root Makefile's sequential relink loop. The loop deletes each
+map before relinking, requires a nonempty new map, and timestamps the map
+after successful a.out conversion. The checker rejects maps older than the
+binaries they describe and requires `${LINK_MAP_FLAG}` in recipe lines;
+comments cannot satisfy the recipe check. The shell follows the same map
+deletion and publication rules.
 
 The gate derives standalone paths using the applet directory search in the
-box Makefiles, builds each live primary tool through its directory's `all`
+box Makefiles, requires the resolved directory to contain a Makefile,
+builds each live primary tool through its directory's `all`
 target, and runs `hsaout -s` over each box and every live primary standalone
 image, including tools absent from the retained TSV. Each live box must use
 strictly fewer packed blocks than the sum of its live primary standalone
 tools. Built-in tools and aliases remain outside the standalone sum.
+The live-mode pass line prints the discovered box count, shipped-name count,
+and measured root free blocks beside the retained values. Exact replay
+prints the retained denominator.
 
 The JSON ledger stays the retained evidence of its recorded commits. Both
 modes validate its structure, inventory digests, receipt hashes, internal
@@ -134,13 +157,21 @@ runs the shell clean and link in separate recursive makes and relinks the other
 consumers sequentially. It then validates the source identities, dispatch and
 manifest denominators, archive inventory and live deltas, per-program image
 measurements, retained receipts, and root-image accounting. Nineteen document
-mutations and four Makefile structure controls reject conformance claims,
+mutations and seven Makefile structure controls reject conformance claims,
 denominator drift, unmeasured sizes, manifest and root drift, missing or forged
 receipts, source identity drift, stale link maps, and unsafe build ordering.
 Document-level calibration also rejects byte drift when both sources and
 toolchain match, accepts source drift with an added live tool and changed
 measurements, and rejects live manifest names outside dispatch, loss of strict
 packed-block savings, a missing link-map seam, and zero free root blocks.
+Additional live fixtures reject an unlisted packed target, a box without a
+manifest entry, an undeclared unshipped dispatch name, a `PROG`/installed-path
+mismatch, a comment-only link-map flag with a stale map, a stale map with a
+valid recipe, overlapping dispatch sets, and a `program2` directory without
+a Makefile. An added-box fixture verifies the expanded denominator and
+archive consumers, then rejects that box's empty map. Positive controls
+also exercise a changed `BINDIR` with matching manifest paths and an explicit
+unshipped declaration.
 `check-dpucp-profile` separately rejects removal or weakening of the `logname`
 compatibility binding.
 

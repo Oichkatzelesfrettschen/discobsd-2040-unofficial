@@ -311,6 +311,20 @@ MUTANTS = [
         "atanh within 2^-500 of a pole keeps 4x/d, which overflows",
     ),
     (
+        "hyp_mul_overflow",
+        "calc_complex.c",
+        "\tif (ay < 709.0) {",
+        "\tif (ay < 1e300) {",
+        "complex sin, cos, sinh and cosh form an overflowing cosh before the factor",
+    ),
+    (
+        "norm1_unscaled",
+        "calc_matrix.c",
+        "\tif (calc__isfinite(best))\n\t\treturn best;\n\tfor (i = 0; i < n * n; i++)",
+        "\treturn best;\n\tfor (i = 0; i < n * n; i++)",
+        "the condition estimate keeps a column sum that overflowed",
+    ),
+    (
         "cdiv_unscaled",
         "calc_complex.c",
         "\tif ((!calc__isfinite(den) || calc__fabs(den) < CALC_DBL_MIN) &&",

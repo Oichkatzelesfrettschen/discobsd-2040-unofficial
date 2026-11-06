@@ -255,12 +255,10 @@ calc_scale_i64(const int64_t *in, size_t n, double s, int64_t *out)
 /* Largest |exponent| for which pow_int runs: at most 32 squarings. */
 #define POW_INT_MAX	2147483648.0
 
-/* x^k for an integral exponent by repeated squaring; k may be negative. */
 static double
-pow_int(double x, double k)
+pow_mag(double base, double e)
 {
-	double r = 1.0, base = x;
-	double e = calc__fabs(k);
+	double r = 1.0;
 
 	while (e >= 1.0) {
 		if (e - 2.0 * floor(0.5 * e) >= 1.0)
@@ -268,7 +266,26 @@ pow_int(double x, double k)
 		base *= base;
 		e = floor(0.5 * e);
 	}
-	return k < 0.0 ? 1.0 / r : r;
+	return r;
+}
+
+/*
+ * x^k for an integral exponent by repeated squaring; k may be negative. A
+ * negative k takes the reciprocal of x^|k| while that power is a normal
+ * double, which rounds once; otherwise x^|k| left the normal range, which a
+ * flush-to-zero provider turns into 0 or which overflowed, and the power of
+ * 1 / x is formed instead.
+ */
+static double
+pow_int(double x, double k)
+{
+	double r = pow_mag(x, calc__fabs(k));
+
+	if (k >= 0.0)
+		return r;
+	if (calc__isfinite(r) && calc__fabs(r) >= CALC_DBL_MIN)
+		return 1.0 / r;
+	return pow_mag(1.0 / x, calc__fabs(k));
 }
 
 calc_status

@@ -384,6 +384,38 @@ norm1(const double *a, size_t n)
 }
 
 /*
+ * norm1(a) / 2^*e. A column sum overflows for entries near DBL_MAX while the
+ * condition number stays small, so when the plain norm is not finite the
+ * sums are taken over the entries divided by 2^e, e the exponent of the
+ * largest entry, which is exact; *e is 0 otherwise.
+ */
+static double
+norm1_scaled(const double *a, size_t n, int *e)
+{
+	double best = norm1(a, n), m = 0.0, s;
+	size_t i, j;
+
+	*e = 0;
+	if (calc__isfinite(best))
+		return best;
+	for (i = 0; i < n * n; i++)
+		if (calc__fabs(a[i]) > m)
+			m = calc__fabs(a[i]);
+	if (!calc__isfinite(m))
+		return best;
+	(void)calc__frexp1(m, e);
+	best = 0.0;
+	for (j = 0; j < n; j++) {
+		s = 0.0;
+		for (i = 0; i < n; i++)
+			s += calc__ldexp(calc__fabs(a[i * n + j]), -*e);
+		if (s > best)
+			best = s;
+	}
+	return best;
+}
+
+/*
  * 1-norm condition estimate of a from its factors in w. Non-zero when it
  * exceeds 1 / (n * eps), when it is not finite and when it is NaN: the
  * largest relative error the inverse can carry then reaches one.
@@ -392,7 +424,11 @@ static int
 ill_conditioned(const double *a, const double *w, size_t n, const size_t *perm,
     double *cond)
 {
-	double c = norm1(a, n) * inverse_norm1_estimate(w, n, perm);
+	int e;
+	double c = norm1_scaled(a, n, &e) * inverse_norm1_estimate(w, n, perm);
+
+	if (e != 0)
+		c = calc__ldexp(c, e);
 
 	if (cond != NULL)
 		*cond = c;

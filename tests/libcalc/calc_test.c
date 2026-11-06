@@ -798,6 +798,24 @@ test_matrices(void)
 		CHECK_NEAR(x[0], 2);
 		CHECK_NEAR(x[1], 2);
 		CHECK_ST(calc_mat_solve(sing, 2, bs, 1, work, x), CALC_E_SINGULAR);
+		/*
+		 * Column sums overflow while the condition number is 4: the norm is
+		 * taken over the entries scaled by the largest one's exponent, so
+		 * the estimate equals that of the same matrix at unit scale.
+		 */
+		{
+			static const double big[] = { 1e308, 0, 1e308, 1e308 };
+			static const double unit[] = { 1, 0, 1, 1 };
+			static const double bb[] = { 1e308, 1e308 };
+			double cond, cond_unit;
+
+			CHECK_ST(calc_mat_solve(big, 2, bb, 1, work, x), CALC_OK);
+			CHECK_NEAR(x[0], 1);
+			CHECK_NEAR(x[1], 0);
+			CHECK_ST(calc_mat_cond(big, 2, work, &cond), CALC_OK);
+			CHECK_ST(calc_mat_cond(unit, 2, work, &cond_unit), CALC_OK);
+			CHECK_NEAR(cond, cond_unit);
+		}
 		/* extra: two right-hand sides at once */
 		CHECK_ST(calc_mat_solve(a1, 3, bm, 2, work, x), CALC_OK);
 		CHECK_NEAR(x[0], 2);
@@ -1787,6 +1805,18 @@ test_lists(void)
 		CHECK_NEAR(r[2], -0.25);
 		CHECK_ST(calc_scale(s3, 1, 0, r), CALC_OK);
 		CHECK_NEAR(r[0], 0);
+		{
+			/*
+			 * 0.5^-1023 = 2^1023: the positive power 2^-1023 is subnormal,
+			 * which a flush-to-zero provider makes 0, so the reciprocal
+			 * base is raised instead.
+			 */
+			static const double h[] = { 0.5, -0.5 };
+			double hr[2];
+
+			CHECK_ST(calc_power(h, 2, -1023, hr), CALC_OK);
+			CHECK(hr[0] == 0x1p1023 && hr[1] == -0x1p1023);
+		}
 		CHECK_ST(calc_power(a, 3, 2, r), CALC_OK);
 		CHECK_NEAR(r[0], 1);
 		CHECK_NEAR(r[1], 4);
@@ -3061,6 +3091,21 @@ test_complex_poles(void)
 		CHECK_ST(calc_c_func(CALC_C_ASIN, calc_c_make(1.5e308, -1e308), &r), CALC_OK);
 		check_cplx(r, 0.98279372324732907, -710.47868332089684, TOL, __LINE__);
 	}
+
+	/*
+	 * sin, cos, sinh and cosh past the point where cosh and sinh overflow but
+	 * the trigonometric factor brings each component back into range (mpmath
+	 * references); one argument further out overflows for real.
+	 */
+	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(0.7853981633974483, 710.6), &r), CALC_OK);
+	check_cplx(r, 1.4391757976662107e308, 1.4391757976662108e308, TOL, __LINE__);
+	CHECK_ST(calc_c_func(CALC_C_COS, calc_c_make(0.7853981633974483, 710.6), &r), CALC_OK);
+	check_cplx(r, 1.4391757976662108e308, -1.4391757976662107e308, TOL, __LINE__);
+	CHECK_ST(calc_c_func(CALC_C_SINH, calc_c_make(710.6, 0.7853981633974483), &r), CALC_OK);
+	check_cplx(r, 1.4391757976662108e308, 1.4391757976662107e308, TOL, __LINE__);
+	CHECK_ST(calc_c_func(CALC_C_COSH, calc_c_make(710.6, 0.7853981633974483), &r), CALC_OK);
+	check_cplx(r, 1.4391757976662108e308, 1.4391757976662107e308, TOL, __LINE__);
+	CHECK_ST(calc_c_func(CALC_C_SIN, calc_c_make(1.0, -712.0), &r), CALC_E_RANGE);
 
 	/* A divisor whose Smith denominator overflows or leaves the normal range. */
 	CHECK_ST(calc_c_div(calc_c_make(1e308, 0.0), calc_c_make(1e308, 1e308), &r), CALC_OK);

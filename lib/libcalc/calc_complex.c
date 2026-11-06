@@ -223,22 +223,45 @@ csqrt_(calc_cplx z)
 	return cmk(scale * (b / (2.0 * t)), calc__copysign(scale * t, z.im));
 }
 
+/*
+ * *ch = fc cosh(y) and *sh = fs sinh(y). Past |y| = 709 cosh and sinh
+ * overflow while a factor below one can still bring the product into range,
+ * so there both are e^|y| / 2, formed as (f / 2) e^(|y|/2) e^(|y|/2) with the
+ * factor applied before the second exponential.
+ */
+static void
+hyp_mul(double y, double fc, double fs, double *ch, double *sh)
+{
+	double ay = calc__fabs(y), e;
+
+	if (ay < 709.0) {
+		*ch = fc * calc__cosh(y);
+		*sh = fs * calc__sinh(y);
+		return;
+	}
+	e = calc__exp(0.5 * ay);
+	*ch = (0.5 * fc * e) * e;
+	*sh = calc__copysign((0.5 * fs * e) * e, y);
+}
+
 static calc_cplx
 csin_(calc_cplx z)
 {
-	double s, c;
+	double s, c, re, im;
 
 	calc__sincos(z.re, &s, &c);
-	return cmk(s * calc__cosh(z.im), c * calc__sinh(z.im));
+	hyp_mul(z.im, s, c, &re, &im);
+	return cmk(re, im);
 }
 
 static calc_cplx
 ccos_(calc_cplx z)
 {
-	double s, c;
+	double s, c, re, im;
 
 	calc__sincos(z.re, &s, &c);
-	return cmk(c * calc__cosh(z.im), -(s * calc__sinh(z.im)));
+	hyp_mul(z.im, c, s, &re, &im);
+	return cmk(re, -im);
 }
 
 /*
@@ -262,19 +285,21 @@ ctan_(calc_cplx z)
 static calc_cplx
 csinh_(calc_cplx z)
 {
-	double s, c;
+	double s, c, re, im;
 
 	calc__sincos(z.im, &s, &c);
-	return cmk(calc__sinh(z.re) * c, calc__cosh(z.re) * s);
+	hyp_mul(z.re, s, c, &im, &re);
+	return cmk(re, im);
 }
 
 static calc_cplx
 ccosh_(calc_cplx z)
 {
-	double s, c;
+	double s, c, re, im;
 
 	calc__sincos(z.im, &s, &c);
-	return cmk(calc__cosh(z.re) * c, calc__sinh(z.re) * s);
+	hyp_mul(z.re, c, s, &re, &im);
+	return cmk(re, im);
 }
 
 /* tanh z = -i tan(i z) */

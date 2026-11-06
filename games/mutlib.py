@@ -18,6 +18,11 @@ CC = os.environ.get("HOSTCC", "cc")
 STRICT = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror", "-g", "-O1"]
 SAN_FLAGS = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
 
+# A mutant run prints one verdict line per mutant into a pipe that the logged
+# gate reads; block buffering would hold minutes of verdicts back and trip the
+# gate's idle timeout while the run is still making progress.
+sys.stdout.reconfigure(line_buffering=True)
+
 
 def sanitizers(top):
     """SAN_FLAGS when tools/compiler-probe.sh builds and runs a program with

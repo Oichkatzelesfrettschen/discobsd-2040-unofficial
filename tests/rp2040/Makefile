@@ -3,12 +3,13 @@
 # build". None is in the root manifest; stage one for a test image with a
 # "file /usr/bin/<name>" line in distrib/rp2040/mi.rp2040, or copy it to
 # the board over the console. The host-run checks (cache_footprint,
-# divider_ownership, elf2aout_layout, exec_spool, flash_swap and
-# uarea_exchange) are reached through the root Makefile's check targets.
+# divider_helpers, divider_ownership, elf2aout_layout, exec_spool,
+# flash_swap and uarea_exchange) are reached through the root Makefile's
+# check targets.
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-BOARD_PROGS=	exec_hsaout fptest romprobe sigtest streamtest stdio_capacity \
+BOARD_PROGS=	divtest exec_hsaout fptest romprobe sigtest streamtest stdio_capacity \
 		swapmaptest swapram_epoch swapram_evacuate swapram_large tartest
 BOARD_TARGETS=	${BOARD_PROGS:S/^/build-/}
 

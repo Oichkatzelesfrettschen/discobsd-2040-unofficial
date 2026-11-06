@@ -2,3 +2,4 @@
 *.elf
 *.stderr
 *.stdout
+user_helper_*.S

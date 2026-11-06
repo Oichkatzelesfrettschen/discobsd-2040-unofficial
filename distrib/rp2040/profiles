@@ -53,6 +53,11 @@ closure games needs path /usr/games/gamebox
 #
 closure calc-bignum needs path /usr/bin/bc /usr/bin/dc /usr/share/misc/lib.b
 
+# usr.bin/calc, the scientific calculator with the F-key item bar sized for
+# the PicoCalc's 53 by 32 console, is one self-contained program.
+#
+closure calc needs path /usr/bin/calc
+
 #
 # The compositions.
 #
@@ -63,11 +68,12 @@ closure calc-bignum needs path /usr/bin/bc /usr/bin/dc /usr/share/misc/lib.b
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
-#            arbitrary-precision calculator; the PICOCALC board's default
+#            arbitrary-precision calculator and the scientific calculator;
+#            the PICOCALC board's default
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games
 profile full coremark toolchain toolchainlib games
-profile picocalc coremark toolchain toolchainlib games calc-bignum
+profile picocalc coremark toolchain toolchainlib games calc-bignum calc

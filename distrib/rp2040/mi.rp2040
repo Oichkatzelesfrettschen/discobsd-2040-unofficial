@@ -188,6 +188,9 @@ pack /usr/bin/coremark
 pack /usr/bin/bc
 pack /usr/bin/dc
 #endclosure calc-bignum
+#closure calc
+pack /usr/bin/calc
+#endclosure calc
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find

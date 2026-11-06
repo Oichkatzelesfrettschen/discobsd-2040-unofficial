@@ -39,12 +39,13 @@ also a KiB count. The inode column is the difference in free inodes, which
 | `games` | 18 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall` |
 | `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
 | `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
-| all maintained closures | 204 | 13 | |
+| `calc` | 31 | 1 | `/usr/bin/calc` (30,000 bytes packed); PicoCalc only |
+| all maintained closures | 235 | 14 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
 Each closure row is measured against `base` alone, and the all-maintained
-row on one image that holds every closure. The closure rows sum to 205, one
+row on one image that holds every closure. The closure rows sum to 236, one
 block more than that image measures: a directory such as `/usr/bin` grows
 in whole blocks, so entries that two closures add can share a block that
 either closure alone allocates (inferred from the allocation unit, not
@@ -69,7 +70,7 @@ bytes.
 | `games` | `games` | 429 | 41 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's | 281 | 33 |
-| `picocalc` | `full` plus `calc-bignum` | 243 | 30 |
+| `picocalc` | `full` plus `calc-bignum` and `calc` | 212 | 29 |
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:

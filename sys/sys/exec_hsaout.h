@@ -48,7 +48,7 @@ struct hsx {
 #define HSX_HDRSIZE     (sizeof (struct exec) + sizeof (struct hsx))
 
 /*
- * CRC-32 (IEEE 802.3, reflected polynomial 0xedb88320), computed one bit
+ * CRC-32 (IEEE 802.3, reflected polynomial 0xedb88320), computed one nibble
  * at a time from subr_crc32.c. Start from CRC32_INIT, feed every byte,
  * and finish with CRC32_FIN; the result matches zlib's crc32().
  */

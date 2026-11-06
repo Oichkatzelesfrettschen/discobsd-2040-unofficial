@@ -66,7 +66,7 @@ artifact points at.
 | `audit-response.md` | how each ranked audit item was resolved or deferred | `tests/rp2040/fptest/Makefile` |
 | `benchmarks.md` | the CoreMark port and its reporting contract | `benchmarks/Makefile`, `benchmarks/coremark/Makefile` |
 | `board-libc.md` | how the board-native link library is composed | `distrib/rp2040/mkboardlibc.py`, `boardlibc-members` |
-| `emulation.md` | the Renode flow that boots the kernel off the real boot ROM | `tools/renode/boot.resc`, `boot.robot` |
+| `emulation.md` | the Renode flow that boots the kernel off the real boot ROM | `tools/renode/boot.resc`, `check-boot.py` |
 | `float-libs.md` | the Boot ROM float provider contract, bit-exact | `tests/rp2040/fptest/fptest.c` |
 | `games.md` | what `gamebox` carries and why | `distrib/rp2040/mi.rp2040` |
 | `menu-shell.md` | the Rockbox-shaped menu shell and its line editing | `bin/sh/edit.c` |
@@ -217,6 +217,7 @@ Grouped by what they investigate.
 | Document | Establishes |
 | --- | --- |
 | `arm-main-legacy-build-isolation.md` | the canonical ARM tuples, default-off legacy options, finite relocation proof, shared-artifact boundary, calibrated gates, and restoration criteria |
+| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a DiscoBSD a.out loader prototype, and the whole-kernel QEMU options |
 | `retrobsd-port-scope.md` | the original scoping of a RetroBSD/DiscoBSD port to this chip |
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |
@@ -245,6 +246,8 @@ names; a correction goes in a new document rather than in the ledger.
 | `audit-handbacks/step5-omagic-crosscheck-handback.md` | the OMAGIC candidate cross-check |
 | `audit-handbacks/step5-printf-float-handback.md` | printf floating conversion, its source and linkage |
 | `sixteen-bit-audit-response.md` | the 16-bit assumption audit ruled item by item: kernel items closed in `ce33939` with the `tsleep` bound gated since, the libtcl extent, cache, reference-count, separator, regexp and regsub defects, the `vmrate` counters and the `ps` UID width repaired with calibrated gates, retained narrow formats, and deferrals with their validation paths |
+| `picocalc-emulation.md` | the PicoCalc survey of emulators (Renode, rp2040js, QEMU), the Renode carrier model for the ST7365P panel and the keyboard controller, the four SPI-path corrections to the pinned RP2040 models, and the host-to-hardware test pipeline |
+| `picocalc-session-handoff.md` | the PicoCalc hand-off: what PRs #344, #345 and the test-pipeline PR put in the tree, the two board builds and what they share, every test stage from host to PicoCalc hardware with its state, and the ordered next work |
 | `renode-rp2040-upstream-reports.md` | two issue texts for matgla/Renode_RP2040 with their `git am` patch series and the board measurement behind them, unsent |
 
 ### Accounts, licensing and the host side

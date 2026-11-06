@@ -476,6 +476,11 @@ opt_argument_list
 
 
 argument_list	: expression
+		| LETTER LBRACKET RBRACKET
+			{
+				$$ = node(cs("l"), array_node($1), END_NODE);
+				free($1);
+			}
 		| argument_list COMMA expression
 			{
 				$$ = node($1, $3, END_NODE);

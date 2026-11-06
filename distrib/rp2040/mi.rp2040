@@ -184,6 +184,13 @@ pack /usr/bin/awk
 #closure coremark
 pack /usr/bin/coremark
 #endclosure coremark
+#closure calc-bignum
+pack /usr/bin/bc
+pack /usr/bin/dc
+#endclosure calc-bignum
+#closure calc
+pack /usr/bin/calc
+#endclosure calc
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find
@@ -239,6 +246,16 @@ file /usr/lib/libc.a
 #closure toolchainlib
 file /usr/lib/crt0.o
 #endclosure toolchainlib
+
+#
+# bc -l reads its function library from /usr/share/misc/lib.b, read-only
+# as usr.bin/bc/Makefile installs it.
+#
+default
+filemode 0444
+#closure calc-bignum
+file /usr/share/misc/lib.b
+#endclosure calc-bignum
 
 default
 filemode 0775
@@ -439,8 +456,8 @@ link /usr/bin/vim
 target /usr/bin/stevie
 
 #
-# /usr/games/gamebox holds fifteen, keen and
-# bubble, dispatched the same way as box, sysbox and textbox; the
+# /usr/games/gamebox holds fifteen, keen, bubble and
+# fourfall, dispatched the same way as box, sysbox and textbox; the
 # names below are hard links. See games/gamebox/Makefile and
 # sys/arch/rp2040/doc/research/games.md.
 #
@@ -450,6 +467,8 @@ target /usr/games/gamebox
 link /usr/games/keen
 target /usr/games/gamebox
 link /usr/games/bubble
+target /usr/games/gamebox
+link /usr/games/fourfall
 target /usr/games/gamebox
 #endclosure games
 

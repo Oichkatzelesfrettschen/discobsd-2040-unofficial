@@ -628,6 +628,8 @@ fi
 record_pass
 expect_equal "default manifest variant" "distrib/rp2040/_manifest.full" \
     "$("$make_command" -C "$source_root" MACHINE=rp2040 -V MI_MANIFEST)"
+expect_equal "PicoCalc board manifest variant" "distrib/rp2040/_manifest.picocalc" \
+    "$("$make_command" -C "$source_root" MACHINE=rp2040 BOARD=PICOCALC -V MI_MANIFEST)"
 expect_equal "default closure inputs" "distrib/rp2040/mi.rp2040" \
     "$(normalize_words "$("$make_command" -C "$source_root" MACHINE=rp2040 -V FS_CLOSURES)")"
 expect_equal "default profile inputs" "distrib/rp2040/profiles" \

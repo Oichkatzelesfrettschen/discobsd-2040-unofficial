@@ -1,0 +1,9 @@
+calc
+calc-host
+calc-host-san
+calc-arm
+*.o
+*.elf
+*.dis
+__pycache__/
+calc-host-treelibm

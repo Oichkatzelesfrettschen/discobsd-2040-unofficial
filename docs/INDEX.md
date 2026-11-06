@@ -91,6 +91,10 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
+| `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
+| `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
+| `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
 
 ### USB console
 
@@ -190,6 +194,12 @@ Grouped by what they investigate.
 | `posix-gap-tools.md` | five tools that close named POSIX gaps |
 | `editors-constrained.md` | screen editors surveyed against the constraint |
 | `vi-port.md` | modal vi/ex for this target |
+| `falling-block-clean-room-spec.md` | behavioral specification of a falling-block game for clean-room implementation on the PicoCalc console, with the reviewer's similarity checklist and calibrated shingle script |
+| `fourfall-implementation.md` | `games/fourfall` built from that specification: provenance, the monochrome presentation, the gate, and the five copying reviews under `copy-reviews/` |
+| `picomite-maths-clean-room-spec.md` | behavioral specification of a calculator mathematics library, written for clean-room reimplementation, with the reviewer's similarity checklist |
+| `libcalc-implementation.md` | `lib/libcalc` built from that specification: provenance, numeric decisions, the gate and its copying review (`copy-reviews/libcalc-vs-picomite-maths.txt`) |
+| `calc-implementation.md` | `usr.bin/calc` built on `lib/libcalc`: modes, grammar and unit table, design decisions, the target `%g` defect that the program works around, the gate with its mutants, the size against the plan and what no run covers |
+| `openbsd-dc-bn-port.md` | the BN_* subset OpenBSD dc(1) and bc(1) use, the clean-room `lib/libbn` that supplies it, its evidence and the remaining port steps |
 | `ondevice-c-compilers.md` | native C compilers that can run on the board |
 | `unifdef-off-manifest-measurement.md` | the bounded C17 unifdef port, its calibrated contracts, and its measured but unshipped RP2040 cost |
 | `smlrc-rp2040-tuning.md` | tuning the native Smaller C Thumb-1 back end |

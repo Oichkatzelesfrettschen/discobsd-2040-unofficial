@@ -384,6 +384,26 @@
       "from": "check-ilp32-execution-recipes",
       "to": "check-tar-host",
       "kind": "required tar hard-link identity native variant"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-libbn",
+      "kind": "required libbn variants"
+    },
+    {
+      "from": "check-libbn",
+      "to": "tests/libbn:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
+      "to": "check-libcalc",
+      "kind": "required libcalc variants"
+    },
+    {
+      "from": "check-libcalc",
+      "to": "tests/libcalc:check",
+      "kind": "recursive make"
     }
   ],
   "optional_investigations": [
@@ -3496,6 +3516,170 @@
       ],
       "script": "tests/sysctl_status/check.sh",
       "subject": "tests/sysctl_status/out/sysctl"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.native",
+      "width": "native",
+      "program": "bn_test",
+      "capability": "native compiler and runtime",
+      "target": "check-native",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libbn.native -- ./bn_test vectors.txt",
+      "prerequisites": [
+        "bn_test",
+        "vectors.txt"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.ilp32",
+      "width": "ilp32",
+      "program": "bn_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-ilp32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libbn.ilp32 -- ./bn_test32 vectors.txt",
+      "prerequisites": [
+        "bn_test32",
+        "vectors.txt"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.sanitized",
+      "width": "native",
+      "program": "bn_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-sanitized",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libbn.sanitized -- ./bn_test_san vectors.txt",
+      "prerequisites": [
+        "bn_test_san",
+        "vectors.txt"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libbn",
+      "makefile": "tests/libbn/Makefile",
+      "root_target": "check-libbn",
+      "aliases": [],
+      "id": "libbn.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "HOSTCC=${HOSTCC} ${TEST_EXECUTION} run libbn.negative -- sh ./check_mutants.sh vectors.txt ${LIBDIR}",
+      "prerequisites": [
+        "mutants.stamp",
+        "vectors.txt",
+        "bn_test.c",
+        "check_mutants.sh"
+      ],
+      "script": "tests/libbn/check_mutants.sh"
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libcalc",
+      "makefile": "tests/libcalc/Makefile",
+      "root_target": "check-libcalc",
+      "aliases": [],
+      "id": "libcalc.native",
+      "width": "native",
+      "program": "calc_test",
+      "capability": "native compiler and runtime",
+      "target": "check-native",
+      "condition": "unconditional",
+      "recipe": "${TEST_EXECUTION} run libcalc.native -- ./calc_test",
+      "prerequisites": [
+        "calc_test"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libcalc",
+      "makefile": "tests/libcalc/Makefile",
+      "root_target": "check-libcalc",
+      "aliases": [],
+      "id": "libcalc.ilp32",
+      "width": "ilp32",
+      "program": "calc_test32",
+      "capability": "compiler and executable runtime at -m32",
+      "target": "check-ilp32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "recipe": "${TEST_EXECUTION} run libcalc.ilp32 -- ./calc_test32",
+      "prerequisites": [
+        "calc_test32"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libcalc",
+      "makefile": "tests/libcalc/Makefile",
+      "root_target": "check-libcalc",
+      "aliases": [],
+      "id": "libcalc.sanitized",
+      "width": "native",
+      "program": "calc_test_san",
+      "capability": "native address and undefined sanitizer runtime",
+      "target": "check-sanitized",
+      "condition": "SAN_OK == yes; compiler-probe.sh executes a sanitized native binary",
+      "recipe": "ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ${TEST_EXECUTION} run libcalc.sanitized -- ./calc_test_san",
+      "prerequisites": [
+        "calc_test_san"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libcalc",
+      "makefile": "tests/libcalc/Makefile",
+      "root_target": "check-libcalc",
+      "aliases": [],
+      "id": "libcalc.treelibm",
+      "width": "native",
+      "program": "calc_test_treelibm",
+      "capability": "native compiler and runtime with objcopy",
+      "target": "check-treelibm",
+      "condition": "OBJCOPY_OK == yes",
+      "recipe": "${TEST_EXECUTION} run libcalc.treelibm -- ./calc_test_treelibm",
+      "prerequisites": [
+        "calc_test_treelibm"
+      ]
+    },
+    {
+      "owner": "firmware/posix-sh",
+      "directory": "tests/libcalc",
+      "makefile": "tests/libcalc/Makefile",
+      "root_target": "check-libcalc",
+      "aliases": [],
+      "id": "libcalc.negative",
+      "width": "native",
+      "program": "sh",
+      "capability": "native compiler and runtime",
+      "target": "check-mutants",
+      "condition": "unconditional",
+      "recipe": "HOSTCC=${HOSTCC} ${TEST_EXECUTION} run libcalc.negative -- sh ./check_mutants.sh mutants",
+      "prerequisites": [
+        "mutants.stamp",
+        "calc_test.c",
+        "complex_vectors.h",
+        "check_mutants.sh"
+      ],
+      "script": "tests/libcalc/check_mutants.sh"
     }
   ]
 }

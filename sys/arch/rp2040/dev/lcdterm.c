@@ -370,7 +370,17 @@ do_sgr(void)
 		nparam = 1, params[0] = 0;
 	for (i = 0; i < nparam; i++) {
 		v = params[i];
-		if (v == 0) {
+		/*
+		 * The bright codes branch off first so the chain below spans
+		 * 0-49 only; a wider span makes the compiler lower the chain
+		 * to a larger jump table.
+		 */
+		if (v >= 90) {
+			if (v <= 97)
+				sgr_fg = v - 90 + 8;
+			else if (v >= 100 && v <= 107)
+				sgr_bg = v - 100;
+		} else if (v == 0) {
 			sgr_fg = 7;
 			sgr_bg = 0;
 			sgr_bold = sgr_ul = sgr_rev = 0;

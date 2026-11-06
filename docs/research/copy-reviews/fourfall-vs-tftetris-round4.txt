@@ -1,0 +1,633 @@
+FOURFALL CLEAN-ROOM COPYING THIRD RE-REVIEW
+============================================
+
+VERDICT: NEEDS CHANGES
+
+The Fourfall source and tests pass the copying comparison. The review found no
+copied expressive identifier, literal, comment, ordered shape row, algorithm
+fingerprint, presentation structure, or normalized token span. The prescribed
+16-token comparison reports 48 of 1,791 candidate runs, or 2.7 percent, below
+the 5 percent rejection threshold. A comment-safe use of the same tokenizer
+reports 64 of 6,106 runs, or 1.0 percent. Manual review classifies every span
+as public tetromino geometry, ordinary C syntax, required headers, generic
+array syntax, or independently selected values erased by normalization.
+
+The clean-room package nevertheless needs three documentation/tooling changes:
+
+1. docs/research/fourfall-implementation.md:160 spells the commercial name in
+   a legal-case citation. The game tree has zero occurrences, but the literal
+   documentation prohibition therefore fails.
+2. The reviewer-only independence table at
+   docs/research/falling-block-clean-room-spec.md:636,645,647,687 describes the
+   superseded 10-by-20/color design rather than the current 12-by-22 textured,
+   grayscale-default presentation.
+3. The required shingle script at
+   docs/research/falling-block-clean-room-spec.md:741-745 removes // comments
+   before recognizing strings. The S-piece glyph literal "//" at
+   games/fourfall/fourfall.c:393 therefore truncates the token stream and makes
+   2.7 percent an incompletely lexed measurement.
+
+Those defects do not identify copying in fourfall.c. They prevent a CLEAN
+verdict for the complete code-plus-documentation clean-room package under the
+request's literal name and reproducibility gates.
+
+Scope and evidence boundary
+---------------------------
+
+The review read the complete 922-line GPLv2-or-later reference, the complete
+1,332-line Fourfall source, all text tests under games/fourfall/tests, the two
+retained generated test artifacts, both parts of the clean-room specification,
+the implementation record, and the prior Round 3 report. The review used no
+network service and issued no provider or hardware command.
+
+The only new files written by the review are this report and retained checker
+artifacts under the requested scratchpad. The final repository preservation
+observations appear at the end of the report.
+
+Reference verification
+----------------------
+
+Specified SHA-256:
+27aaba14c203ed90763e49707216d757ebe16f41127c6c88b1dc069e95eb4f54
+
+Measured SHA-256:
+27aaba14c203ed90763e49707216d757ebe16f41127c6c88b1dc069e95eb4f54
+
+Measured size and line count: 21,451 bytes and 922 lines. The digest, size,
+and line count match docs/research/falling-block-clean-room-spec.md:658-662.
+
+Shingle script, calibration, and candidate result
+-------------------------------------------------
+
+The review used:
+
+copyreview-fourfall/shingle.py
+
+The scratch script and specification lines 736-753 both have SHA-256
+75068665b8fca4820e064845fd52dda255c27a56f716e88c2fbf136713e83cc1.
+A zero-length diff confirmed byte identity. Python 3.14.9 ran the controls
+before the candidate:
+
+  known-bad renamed and brace-reflowed copy   2967/2967  100.0 percent
+  known-good games/keen/keen.c                  16/3762     0.4 percent
+  known-good games/bubble/bubble.c              12/2353     0.5 percent
+  known-good games/fifteen/fifteen.c             6/752      0.8 percent
+  known-good legacy gpanel/flappy.c              19/1395     1.4 percent
+
+Candidate and text-test results:
+
+  games/fourfall/fourfall.c                     48/1791     2.7 percent
+  games/fourfall/tests/logic_test.c              21/7220     0.3 percent
+  games/fourfall/tests/mutants.py                 0/1382     0.0 percent
+  games/fourfall/tests/play.py                    0/2034     0.0 percent
+  games/fourfall/tests/vectors.txt                 0/1241     0.0 percent
+
+The prescribed candidate result passes the 5 percent rejection threshold, but
+the script mistakes the literal "//" for a comment. Replacing only that glyph
+lexeme with another string before tokenization cannot change the intended
+normalized stream because every string becomes STR. That comment-safe sanity
+run reports 64/6106, or 1.0 percent. The additional spans remain non-expressive.
+
+Required changes
+----------------
+
+F1 -- literal commercial-name prohibition fails in the implementation record
+
+New: docs/research/fourfall-implementation.md:157-163
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:770
+Classification: EXPRESSIVE COMMERCIAL NAME IN DOCUMENTATION; game code absent.
+
+The implementation record names the rights holder while citing a 2012 case.
+The use is analytical rather than branding, and the game source, strings,
+Makefile, tests, binary test artifact, and Python bytecode contain zero
+case-insensitive occurrences. The specification nevertheless says the game's
+documentation must not use the name, and the request asks for absence in docs.
+
+Suggested rewrite: replace the named case at line 160 with "a 2012 District of
+New Jersey look-and-feel decision cited in the reviewer-only copying record."
+Keep the exact legal citation only in reviewer-only evidence, outside the game
+implementation record.
+
+F2 -- reviewer independence table describes the superseded presentation
+
+New: docs/research/falling-block-clean-room-spec.md:636,645,647,687
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:198-208,
+303-315,393-451
+Classification: EVIDENCE-RECORD DEFECT; not candidate copying.
+
+The table says 10 by 20, spawn columns 3 and 4, and colored console cells. The
+operative Part 1 and source use a 12-column well with 22 visible rows, spawn
+columns 4 and 5, textured glyphs, a grayscale default, and opt-in foreground
+color. The color checklist also says SGR 41-47 even though the current renderer
+uses foreground forms 31-37.
+
+Suggested rewrite: update the four rows to the current dimensions, spawn
+formula, glyph/default treatment, and foreground palette. Preserve the legacy
+facts and state why each current choice differs.
+
+F3 -- the prescribed lexer consumes a valid glyph string as a comment
+
+New: games/fourfall/fourfall.c:389-394
+Original: no corresponding original string; checker at specification:741-745
+Classification: REPRODUCIBILITY DEFECT; not candidate copying.
+
+The checker strips // comments before it tokenizes string literals. The literal
+"//" is valid C data, but the regex deletes the rest of that source line and
+changes the denominator from 6,106 intended runs to 1,791 reported runs.
+
+Suggested rewrite: lex comments, strings, character literals, identifiers, and
+operators in one left-to-right pass so comment markers inside literals remain
+data. Add a calibrated candidate containing "//", "/*", escaped quotes, and
+character literals. Retain the renamed-copy and unrelated-program controls.
+
+Shared-run review
+-----------------
+
+F4 -- macro chains normalize alike while their values and roles differ
+
+New: games/fourfall/fourfall.c:43-50,394-400
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:209-234
+Classification: FORCED C IDIOM; values are independently selected expression.
+
+Both files contain consecutive object-like macro definitions. Fourfall defines
+24 rows, 12 columns, two hidden rows, lock/scoring bounds, and ASCII layout
+positions. The reference defines 16-bit colors and pixel-display bounds. The
+normalizer maps every name to ID and every number to NUM, erasing all semantic
+differences.
+
+Suggested rewrite: retain the descriptive FF_* constants. A copying rewrite is
+unnecessary.
+
+F5 -- tetromino coordinates are forced; enumeration and representation differ
+
+New: games/fourfall/fourfall.c:88-110,135-151;
+games/fourfall/tests/logic_test.c:855-872;
+games/fourfall/tests/vectors.txt:1-28
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:254-318
+Classification: FORCED GEOMETRY; EXPRESSIVE ORDER AND TABLE STRUCTURE DISTINCT.
+
+The seven tetromino cell sets are the genre vocabulary. Fourfall stores one
+orientation per type and applies a matrix rule; the reference stores 19
+orientation rows and a separate orientation-count array. Comparison of all 28
+generated Fourfall orientations against every reference orientation found zero
+ordered coordinate-row matches, both before and after converting reference
+(x,y) pairs to (row,col). The O enumeration remains order-sensitive and differs.
+
+Suggested rewrite: retain the current base order, matrix rotation, and
+order-sensitive O test.
+
+F6 -- array declarations and numeric rows collide after value erasure
+
+New: games/fourfall/fourfall.c:102,113-115,697-699
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:315,318
+Classification: FORCED C ARRAY IDIOM; expressive values differ.
+
+The checker turns ff_box, the 13-entry gravity table, the eight-entry SGR
+palette, the reference seven-entry palette, and the orientation-count row into
+similar ID/NUM punctuation. The lengths, values, meanings, and semantic color
+assignments differ. Every Fourfall piece-to-color assignment differs from the
+reference mapping.
+
+Suggested rewrite: retain the current tables.
+
+F7 -- spawn initialization is ordinary structure assignment
+
+New: games/fourfall/fourfall.c:161-168
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:76-81,
+89-94,105-110,540-545
+Classification: FORCED C IDIOM AND PUBLIC SPAWN MECHANIC.
+
+Both programs assign fields in a structure. Fourfall returns a complete piece
+state centered by (12 - box side) / 2. The reference mutates globals and uses
+BOARD_WIDTH / 2 - 1.
+
+Suggested rewrite: retain ff_spawn_state().
+
+F8 -- collision return pattern implements a required public mechanic
+
+New: games/fourfall/fourfall.c:174-186
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:650-664
+Classification: FORCED MECHANIC AND C IDIOM; structure differs.
+
+Both implementations inspect four cells and return a Boolean result. Fourfall
+accepts a board and piece pointer and derives matrix-rotated cells. The
+reference takes three offsets, reads globals, and indexes a flat table with
+(rot * 4 + i) * 2. That signature and expression are absent from Fourfall.
+
+Suggested rewrite: retain ff_collides().
+
+F9 -- system-header sequence follows required APIs
+
+New: games/fourfall/fourfall.c:659-666
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:32-44
+Classification: FORCED C/API SURFACE.
+
+sys/ioctl.h, sys/time.h, sys/types.h, time.h, and unistd.h are required by the
+terminal, clock, process, and input APIs used by Fourfall. Header order carries
+no selectable game presentation.
+
+Suggested rewrite: retain the required headers.
+
+F10 -- differential-render loop is generic nested iteration
+
+New: games/fourfall/fourfall.c:869-885
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:674-683
+Classification: FORCED C LOOP IDIOM; rendering mechanism differs.
+
+The normalized span covers a row/column loop and an if statement. Fourfall
+compares a separate view with a shadow and writes changed terminal cells. The
+reference checks whether a game-board row is full.
+
+Suggested rewrite: retain the differential renderer.
+
+F11 -- local multi-dimensional declarations share punctuation only
+
+New: games/fourfall/fourfall.c:890-902;
+games/fourfall/tests/logic_test.c:738,857
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:254-318
+Classification: FORCED C DECLARATION/ARRAY IDIOM.
+
+Fourfall's box[2][4] is temporary preview occupancy, and the test's want[4][2]
+fixes the independent O enumeration. The reference declarations are the shape
+tables themselves. Names, dimensions, values, and uses differ.
+
+Suggested rewrite: retain the local arrays.
+
+F12 -- remaining test shingles are test setup and random-board syntax
+
+New: games/fourfall/tests/logic_test.c:430-435,772-775,849-850
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:78-112,
+305-311,468-469,541-545,645-647
+Classification: FORCED TEST/C IDIOM.
+
+The spans zero a board, assign piece fields, declare loop variables, and fill a
+random board. They do not reproduce a reference function, algorithm, table, or
+comment.
+
+Suggested rewrite: retain the tests.
+
+Identifier checklist
+--------------------
+
+Every distinctive identifier below is absent from fourfall.c and the four text
+tests unless a separate generic disposition follows:
+
+  Helpers, original lines 52-131: millis, lineh, linev, beep, boxb absent.
+  Input, original lines 39,137-168: Joystick_fire, Joystick_getX,
+  Joystick_getY, Joystick_waitForRelease, jx, jy absent.
+  Game functions, original lines 179-186,393,426,436,454,527-737,767,775:
+  randomizer, scoreBoard, moveDown, userInput, chooseNewShape, touches, hint,
+  gameLoop, drawPreGameScreen, gameOver, bcackground absent.
+  Text drawing, original lines 194-196,343-373,789: drawChar, drawString,
+  drawCenteredString, drawNumber, FONT_SPACE, FONT_X, simpleFont absent.
+  State, original lines 240,303,315,318,324,329-341: Backup, newShape,
+  lastInput, lastDrop, dropWait, next_c, all_shapes, colors absent.
+  Shape names, original lines 254-295: l_shape, j_shape, o_shape, s_shape,
+  z_shape, t_shape, i_shape absent.
+  Constants, original lines 189-250: DROP_WAIT_INIT, INPUT_WAIT_ROT,
+  INPUT_WAIT_MOVE, INPUT_WAIT_NEW_SHAPE, BOARD_WIDTH, BOARD_HEIGHT,
+  BLOCK_SIZE, BOARD_LEFT, BOARD_RIGHT, BOARD_TOP, BOARD_BOTTOM, LCD_WIDTH,
+  LCD_HEIGHT, PIT_COLOR, BG_COLOR absent.
+
+Generic identifier hits and dispositions:
+
+  delay -- new games/fourfall/tests/mutants.py:83; original tftetris.c:70.
+  The hit is a mutant label, lock-delay-400-ms, not a function. FORCED/GENERIC.
+  Suggested rewrite: retain.
+
+  box -- new fourfall.c:64,88,131,155-158,399-400,414-416,890,892,896,902;
+  logic_test.c:472,747,786,803; vectors.txt:135,138; original tftetris.c:101.
+  The executable hit is a 2-by-4 preview scratch array. The reference box() is
+  a six-argument pixel primitive. FORCED/GENERIC. Suggested rewrite: retain.
+
+  score -- new fourfall.c:76,428-430,501,912-915,936-937;
+  logic_test.c:606-607,1040,1054,1086,1088-1092,1099-1100,1106-1107,
+  1149,1161; mutants.py:55,93; play.py:230,240-241,250,256,260,262,273,
+  279,285,299,301,327,500,575,580,618,630,638,641,645;
+  vectors.txt:157-161; original tftetris.c:180,666. Fourfall stores points;
+  the reference score() removes rows and tracks only lines/level.
+  FORCED/GENERIC. Suggested rewrite: retain.
+
+  draw -- new fourfall.c:72,74,354,357,364,446,529,533;
+  logic_test.c:328; mutants.py:79-80; original tftetris.c:182,610.
+  Fourfall's draw callback returns a bounded random integer. The reference
+  draw() paints a falling pixel piece. GENERIC. Suggested rewrite: retain.
+
+  old -- new mutants.py:42,95,134,258-264,335-341; original tftetris.c:337.
+  Python mutation records use old for replacement text; the reference stores
+  an old piece position. GENERIC. Suggested rewrite: retain.
+
+  next -- new fourfall.c:70,400,415,478,501,600; logic_test.c:1018;
+  mutants.py:292,356; play.py:439; original tftetris.c:329. Most source hits
+  are prose; Python uses next(). GENERIC. Suggested rewrite: retain.
+
+  current -- new fourfall.c:82,501; original tftetris.c:324. Both hits are
+  prose naming the active piece. FORCED/GENERIC. Suggested rewrite: retain.
+
+  board -- new fourfall.c:24,64,68,84,172,240,263,292,396,402,465,493,
+  509,515,518,520,549,562,577,594,644,720,837,845,860,992-993;
+  logic_test.c:82,124,261,278,621,643,647,1045-1046,1075,1096-1097,
+  1103-1104,1109,1112-1113,1118-1120,1151; mutants.py:120,122,157;
+  play.py:129,216,221,242,339,418,492,544; vectors.txt:29-75,107-112,
+  117-120,128-134,148-156; original tftetris.c:334. A board is unavoidable
+  domain vocabulary; dimensions and algorithms differ. FORCED/GENERIC.
+  Suggested rewrite: retain.
+
+  shapes -- new fourfall.c:5; original tftetris.c:318. Prose only.
+  FORCED/GENERIC. Suggested rewrite: retain.
+
+  colors and hint -- original tftetris.c:315,436; absent from new source/tests.
+
+Tables, literals, and numeric checklist
+---------------------------------------
+
+Shape coordinate tables, original tftetris.c:254-299:
+New fourfall.c:92-102,135-151 uses coordinate-pair syntax because four-cell
+geometry requires coordinates, but it does not reproduce the seven
+per-orientation reference tables or their ordered rows. FORCED GEOMETRY;
+EXPRESSIVE REPRESENTATION DISTINCT. Suggested rewrite: retain.
+
+Orientation counts, original tftetris.c:318:
+The exact {4,4,1,2,2,4,2} row is absent. Fourfall generates four matrix
+orientations and fixes O enumeration. EXPRESSIVE TABLE ABSENT.
+
+Color/font data, original tftetris.c:211-235,315,789-887:
+ORANGE, LIGHTGREEN, DARKCYAN, GRAY1, GRAY2, GRAY3, all 16-bit color values,
+and the 95-row font are absent. New fourfall.c:697-699 has a distinct SGR
+foreground palette; the terminal supplies the font. EXPRESSIVE DATA DISTINCT.
+
+Exact reference strings, original tftetris.c:429-430,770-772,778:
+"Level", "Lines", "Tetris", "Move joystick to start",
+"http://vilaca.eu", and "Game Over" have zero exact quoted-literal matches in
+fourfall.c or any text test. New fourfall.c:965-971,1052-1054 uses generic
+upper-case state labels and different replay/quit wording. EXPRESSIVE STRINGS
+DISTINCT. Suggested rewrite: retain the game strings; apply F1 to documentation.
+
+Device paths, original tftetris.c:892,899,906:
+/dev/tft0, /dev/adc0, and /dev/adc1 are absent. EXPRESSIVE/PLATFORM STRINGS
+ABSENT.
+
+Numeric values:
+
+  1100 (original:245), 480 (:189), 350 (:733), 1500 (:600), and 50 (:693)
+  are absent from the candidate source/tests.
+
+  200 (original:247,781,783,785) occurs at logic_test.c:1135 as a randomized
+  iteration count. FORCED/GENERIC TEST VALUE. Suggested rewrite: retain.
+
+  100 (original:248) occurs at fourfall.c:329,333 as specified scoring;
+  logic_test.c:850,1071,1106; mutants.py:55,57-58; vectors.txt:76,94.
+  Different arithmetic roles. FORCED/GENERIC. Suggested rewrite: retain.
+
+  400 (original:250) occurs at logic_test.c:1061,1065 and mutants.py:83 as a
+  value that distinguishes the 500-ms lock timer, plus vectors.txt:95.
+  FORCED TEST FALSIFIER. Suggested rewrite: retain.
+
+  320 (original:190) occurs at fourfall.c:114 as the level-7 gravity interval.
+  The original value is a display dimension. COINCIDENTAL. Suggested rewrite:
+  retain.
+
+  11 (original:200) occurs at fourfall.c:1104,1142 as keyboard CSI F1 code 11;
+  remaining test hits are vector IDs, coordinates, or the phrase columns 8-11.
+  The candidate well has 12 columns. FORCED PLATFORM/TEST VALUE.
+
+  20 (original:201) occurs at fourfall.c:49 as the maximum level; tests use
+  row numbers, seeds, iterations, or expected levels. The candidate has 22
+  visible rows. GENRE/TEST VALUE. Suggested rewrite: retain.
+
+  25 (original:600) occurs at play.py:317 as a blank terminal row and at
+  vectors.txt:129,131 as terminal columns. GENERIC COORDINATE.
+
+  3000 (original:693) occurs at vectors.txt:83,85 as a score result; 600
+  (original:781,783,785) occurs at vectors.txt:78 as a score result. The
+  original values drive sound. DISTINCT ROLE.
+
+  300 (original:782,784) occurs at logic_test.c:1027-1028,1079 as timer
+  intervals, at logic_test.c:1099 and vectors.txt:77,80 as scoring, and at
+  mutants.py:286 as a subprocess timeout. GENERIC TEST/SCORING VALUES.
+
+  128 and 512 (original:145-163) occur at fourfall.c:1165 as the conventional
+  signal exit-status base, mutants.py:169 as a mutation anchor, and
+  logic_test.c:656 as a line-buffer size. They do not implement joystick ADC
+  thresholds. FORCED PLATFORM/BUFFER VALUES.
+
+Board sentinel 255, original tftetris.c:621,629:
+Decimal 255 is absent. New fourfall.c:680 uses 0xff as UNKNOWN only in the
+display shadow at fourfall.c:1028,1039; it never marks the game board.
+GENERIC CACHE SENTINEL; EXPRESSIVE ALGORITHM DISTINCT. Suggested rewrite:
+retain.
+
+Comment fingerprints, original tftetris.c:127,139,252,298,326-328,536,583,
+589,669,736:
+Case-insensitive fixed-string searches find none of TBD???, tetris guidelines
+have all 7 shapes, postioned, bellow, wont, BUG!!! was uninitialized, create a
+sequence of 7 random shapes, or shapes definitions in fourfall.c or its tests.
+EXPRESSIVE COMMENTS ABSENT.
+
+Algorithm fingerprints
+----------------------
+
+F13 -- line clearing uses whole-board compaction, not the reference scan
+
+New: games/fourfall/fourfall.c:281-326,990-1009
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:666-733
+Classification: EXPRESSIVE ALGORITHM DISTINCT.
+
+Fourfall scans all 24 rows, compacts with separate read/write indices, and
+renders a separate 150-ms flash. The reference scans at most four rows from the
+piece and redraws each pixel cell during each shift.
+
+Suggested rewrite: retain ff_clear() and flash_cleared().
+
+F14 -- collision API and shape lookup differ
+
+New: games/fourfall/fourfall.c:135-151,174-221
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:594,615,
+627,641,650-655
+Classification: EXPRESSIVE ALGORITHM DISTINCT; public collision mechanic.
+
+The three-offset touches(xi,yi,roti) signature and flattened
+(rot * 4 + i) * 2 indexing expression are absent.
+
+Suggested rewrite: retain the piece-state API and matrix-derived cells.
+
+F15 -- rendering keeps rule state separate from view and shadow state
+
+New: games/fourfall/fourfall.c:720-935,839-885
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:610-648
+Classification: EXPRESSIVE ALGORITHM DISTINCT.
+
+Fourfall composes a view and compares it with a shadow. The reference writes
+255 into the game board, erases the old pixel position, and clears the marker.
+
+Suggested rewrite: retain the current rendering architecture.
+
+F16 -- bag generation uses Fisher-Yates instead of duplicate rejection
+
+New: games/fourfall/fourfall.c:352-369,435-451
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:736-765
+Classification: FORCED/PUBLIC 7-BAG MECHANIC; EXPRESSIVE ALGORITHM DISTINCT.
+
+Suggested rewrite: retain Fisher-Yates.
+
+Test provenance and execution
+-----------------------------
+
+Exact quoted-literal intersection between the reference and each of
+fourfall.c, logic_test.c, mutants.py, play.py, and vectors.txt is empty.
+Whitespace-trimmed whole-line comparison finds zero nonempty lines in
+mutants.py, play.py, or vectors.txt. logic_test.c shares only ordinary C
+grammar and control lines such as braces, return 0, return 1, return, else,
+break, and continue, plus required includes/API spellings.
+
+The existing instrumented tests/logic_test binary ran all 161 vectors,
+including all 28 SHAPE rows and check_o_enumeration(), with zero failures. It
+reported 1,472,151 checks and zero failures. The binary's default LeakSanitizer
+shutdown cannot operate under the host ptrace environment; a read-only rerun
+with ASAN_OPTIONS=detect_leaks=0 exited clean while AddressSanitizer and
+UndefinedBehaviorSanitizer remained active. The review compiled nothing and
+wrote no build output.
+
+Presentation and trade-dress comparison
+---------------------------------------
+
+F17 -- well, frame, and panel visibly diverge
+
+New: games/fourfall/fourfall.c:43-45,396-400,946-976;
+games/fourfall/tests/play.py:309-365
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:198-208,
+393-451
+Classification: EXPRESSIVE PRESENTATION DISTINCT; bounded well is forced.
+
+The reference presents an 11-by-20 pixel grid toward the right, cyan bounds,
+gray internal grid lines, and a left-side score/preview panel. Fourfall presents
+a 12-by-22 visible ASCII well on the left, ! walls, an = floor, and an unboxed
+right-side panel. The title FOURFALL sits above the well.
+
+Suggested rewrite: retain the current layout.
+
+F18 -- glyph texture, brightness, and opt-in color diverge from solid fills
+
+New: games/fourfall/fourfall.c:387-394,694-699,789-828,1254-1261;
+games/fourfall/tests/play.py:376-412
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:131-135,
+303-315,610-621,710-717
+Classification: EXPRESSIVE PRESENTATION DISTINCT; tetromino identity forced.
+
+The reference draws solid colored pixel rectangles with the same color while
+falling and settled. Fourfall draws seven pairwise distinct ASCII textures,
+bold white while falling and gray after settlement by default. -c changes
+foreground strokes only, and every type-to-hue assignment differs from the
+reference. -m uses repeated letters without attributes.
+
+Suggested rewrite: retain the current rendering modes.
+
+F19 -- two unboxed previews differ from one framed preview
+
+New: games/fourfall/fourfall.c:398-423,888-929;
+games/fourfall/tests/play.py:324-336,358-363
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:436-451
+Classification: PUBLIC NEXT-PIECE MECHANIC; EXPRESSIVE COUNT, LOCATION,
+FRAMING, AND STYLE DISTINCT.
+
+Suggested rewrite: retain the two stacked, dim textured previews.
+
+F20 -- banners and input handling do not reproduce the reference sequence
+
+New: games/fourfall/fourfall.c:1030-1055,1168-1221;
+games/fourfall/tests/play.py:613-645
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:548-577,
+767-786
+Classification: GENERIC STATE WORDS; EXPRESSIVE LAYOUT/INPUT DISTINCT.
+
+The reference opens a white splash with a large blue commercial title, a
+joystick prompt, and an author URL, then draws a framed game-over panel and
+beep sequence. Fourfall starts directly with its plain title, uses keyboard
+controls, counterclockwise rotation, pause and plumb toggles, and displays
+centered PAUSED/GAME OVER/replay/quit text without the reference frame or sound.
+
+Suggested rewrite: retain the game-facing banners and key handling. Apply F1
+only to the implementation record.
+
+F21 -- plumb line and line-clear flash are distinct feedback mechanisms
+
+New: games/fourfall/fourfall.c:239-259,681,804-813,837-865,990-1009;
+games/fourfall/tests/play.py:415-510
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:705-733
+Classification: EXPRESSIVE PRESENTATION DISTINCT.
+
+Fourfall's opt-in aid draws vertical . columns below occupied piece columns and
+never outlines a landing piece. Cleared rows display ~~ for about 150 ms. The
+reference has neither aid and redraws shifted cells before a 350-ms delay.
+
+Suggested rewrite: retain both mechanisms.
+
+The resulting presentation remains recognizable because seven four-cell
+pieces fall, rotate, lock, clear filled rows, and feed a next-piece preview.
+Those mechanics are public genre vocabulary. The locally enumerated commercial
+trade-dress risk set -- 10-by-20 well, solid per-piece color, default outline
+ghost, single preview, and conventional frame -- is visibly displaced by the
+12-by-22 textured/grayscale-default design. The review did not consult an
+external screenshot corpus or perform legal analysis, so the conclusion is a
+bounded source-and-local-record comparison rather than legal clearance.
+
+Commercial-name search boundary
+-------------------------------
+
+A case-insensitive search finds zero occurrences under games/fourfall,
+including source, Makefile, text tests, tests/logic_test, and
+tests/__pycache__/play.cpython-314.pyc. The game title and all player-visible
+strings avoid the commercial name.
+
+The research layer contains evidentiary occurrences: the clean-room
+specification names the prohibition and reference, copying reports name the
+reference, the survey names excluded sources, and the implementation record
+names a legal case. Evidence documents may need to identify the excluded work,
+but the implementation record is also game documentation and therefore fails
+the literal request until F1 is applied.
+
+Residual uncertainty
+--------------------
+
+The review establishes the measured reference digest, calibrated token-screen
+results, source/test lexical absence, ordered table differences, algorithmic
+differences, and visible presentation differences for the local files at the
+recorded hashes. It does not establish that genre mechanics are free of
+third-party rights, replace legal review of the final Fourfall name, or compare
+against commercial materials absent from the checkout. The working name still
+has no recorded trademark search. A paraphrased structural copy can evade any
+fixed-width shingle gate; the manual fingerprint and presentation review is the
+control for that failure mode.
+
+Repository preservation observations
+------------------------------------
+
+The observations before and after the report write are identical:
+
+  HEAD
+  9f0152a238c27e63e25e886f2b2eb3860ebd08f6
+
+  index-entry stream SHA-256
+  140ab05215781ab302e0bde93c27967c84150333981cbc9ccd143bec76040877
+
+  tracked diff against HEAD SHA-256
+  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  (the SHA-256 of an empty stream)
+
+  cached diff SHA-256
+  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  (the SHA-256 of an empty stream)
+
+  local branch-ref stream SHA-256
+  8e7221d5cf2782c710d6e09ff07ccc8355a376577546c73f21e19cb9f9d404d5
+
+  porcelain-v2 status stream SHA-256, including pre-existing untracked files
+  1ecee83bc8c9c51c7bfd1694d393ab0077370987280515ffa1e79970e56378c6
+
+The clean-room specification, fourfall.c, and four text-test SHA-256 values
+also match the initial measurements. Git printed the checkout's pre-existing
+fsmonitor IPC warning while enumerating the index, but each command completed
+and the recorded index stream remained identical. These measurements establish
+unchanged tracked diffs, index entries, HEAD, local branch refs, status, and
+named review-input bytes. Unmeasured repository and host surfaces remain
+unknown. The review created no commit.

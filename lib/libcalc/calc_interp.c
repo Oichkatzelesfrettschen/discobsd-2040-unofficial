@@ -1,0 +1,117 @@
+/*
+ * Linear interpolation, table lookup and range rescaling.
+ */
+
+#include "calc_internal.h"
+
+double
+calc_lerp(double a, double b, double t)
+{
+	return (b - a) * t + a;
+}
+
+/*
+ * (x - lo) / span for span = hi - lo. When span exceeds DBL_MAX (halve != 0)
+ * the ratio comes from halved differences: halving is exact and gives the
+ * quotient the unbounded range would.
+ */
+static double
+fraction(double x, double lo, double hi, double span, int halve)
+{
+	if (halve)
+		return (0.5 * x - 0.5 * lo) / (0.5 * hi - 0.5 * lo);
+	return (x - lo) / span;
+}
+
+/*
+ * lo + (hi - lo) t for t in [0, 1]. When hi - lo exceeds DBL_MAX with both
+ * ends finite, the half difference h = hi / 2 - lo / 2 is exact and finite,
+ * and lo + t h + t h stays between lo and hi at every step.
+ */
+static double
+span_mix(double lo, double hi, double t)
+{
+	double d = hi - lo, h;
+
+	/* the ends exactly: hi - lo can round so that lo + (hi - lo) misses hi */
+	if (t == 0.0)
+		return lo;
+	if (t == 1.0)
+		return hi;
+	if (calc__isfinite(d) || !calc__isfinite(lo) || !calc__isfinite(hi))
+		return d * t + lo;
+	h = 0.5 * hi - 0.5 * lo;
+	return (lo + t * h) + t * h;
+}
+
+calc_status
+calc_rescale(const double *in, size_t n, double output_min, double output_max,
+    double *out, double *input_min, double *input_max)
+{
+	double lo, hi, span;
+	size_t i;
+	int halve;
+
+	if (in == NULL || out == NULL)
+		return CALC_E_ARG;
+	if (n == 0)
+		return CALC_E_SIZE;
+	if (calc__partial(in, out, n * sizeof(double)))
+		return CALC_E_ALIAS;
+	lo = hi = in[0];
+	for (i = 1; i < n; i++) {
+		if (in[i] < lo)
+			lo = in[i];
+		if (in[i] > hi)
+			hi = in[i];
+	}
+	span = hi - lo;
+	if (span == 0.0)
+		return CALC_E_DOMAIN;
+	halve = !calc__isfinite(span) && calc__isfinite(lo) && calc__isfinite(hi);
+	for (i = 0; i < n; i++)
+		out[i] = span_mix(output_min, output_max,
+		    fraction(in[i], lo, hi, span, halve));
+	if (input_min != NULL)
+		*input_min = lo;
+	if (input_max != NULL)
+		*input_max = hi;
+	return CALC_OK;
+}
+
+calc_status
+calc_interp_table(const double *xs, const double *ys, size_t n, double x, double *out)
+{
+	size_t lo, hi, mid, i;
+	double span, t;
+
+	if (xs == NULL || ys == NULL || out == NULL)
+		return CALC_E_ARG;
+	if (n < 2)
+		return CALC_E_SIZE;
+	for (i = 1; i < n; i++)
+		if (!(xs[i] > xs[i - 1]))
+			return CALC_E_ARG;
+	if (!(x >= xs[0] && x <= xs[n - 1]))
+		return CALC_E_DOMAIN;
+	/* Invariant: xs[lo] <= x <= xs[hi]. */
+	lo = 0;
+	hi = n - 1;
+	while (hi - lo > 1) {
+		mid = lo + (hi - lo) / 2;
+		if (xs[mid] <= x)
+			lo = mid;
+		else
+			hi = mid;
+	}
+	if (x == xs[lo]) {
+		*out = ys[lo];
+	} else if (x == xs[hi]) {
+		*out = ys[hi];
+	} else {
+		span = xs[hi] - xs[lo];
+		t = fraction(x, xs[lo], xs[hi], span, !calc__isfinite(span));
+		*out = span_mix(ys[lo], ys[hi], t);
+	}
+	return CALC_OK;
+}

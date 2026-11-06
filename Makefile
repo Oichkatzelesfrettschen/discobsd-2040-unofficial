@@ -177,14 +177,21 @@ distribution:	build
 .endif
 
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
-# images; check-uf2-images applies it to the built kernel and root pair that
-# discobsd-flash loads, so it follows `kernel` and `flash`.
+# images; check-uf2-images applies it to each kernel and root pair that
+# discobsd-flash loads, so it follows `kernel` and `flash`. Every board
+# kernel in MACHINE_KERNEL_CONFIGS pairs with distrib/rp2040/flash.uf2: the
+# root occupies the same flash region on every board and every kernel boots
+# every profile's root, while BOARD (distrib/rp2040/Makefile.inc) picks the
+# profile an unset PROFILE builds.
 check-uf2-validator: check-python
 		${PYTHON} tools/check_rp2040_uf2.py --self-test
 
 check-uf2-images: check-python
-		${PYTHON} tools/check_rp2040_uf2.py \
-		    sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			${PYTHON} tools/check_rp2040_uf2.py \
+			    sys/arch/rp2040/compile/$$configuration/unix.uf2 \
+			    distrib/rp2040/flash.uf2; \
+		done
 
 .PHONY: check-uf2-validator check-uf2-images
 
@@ -523,6 +530,22 @@ check-libc-casefold: check-python
 check-libc-casefold-cross: check-python
 		${MAKE} -C tests/libc_casefold check-cross
 
+# The tree-libm variant compiles lib/libm against include/, whose
+# include/machine link the symlinks target creates.
+check-libcalc: check-python .WAIT symlinks
+		${MAKE} -C tests/libcalc check
+
+check-libbn: check-python
+		${MAKE} -C tests/libbn check
+
+# Cortex-M0+ objects of the two libraries, each with its import allow-list
+# and a known-bad negative control.
+check-libcalc-cross: check-python .WAIT symlinks
+		${MAKE} -C tests/libcalc check-cross
+
+check-libbn-cross: check-python .WAIT symlinks
+		${MAKE} -C tests/libbn check-cross
+
 check-getwd-lifetime: check-python
 		${MAKE} -C tests/dirent_contracts check-getwd-lifetime
 
@@ -729,24 +752,29 @@ check-battlestar-generation: check-python
 # the finite ledger compares dispatch names, manifest links, libc members and
 # packed-root arithmetic. The gate opens the root image directly, so its
 # dependency must build the image instead of accepting worktree residue. The
-# maps remain ignored build evidence.
+# maps remain ignored build evidence. Map timestamps record successful a.out
+# conversion, which finishes after the linker writes the map.
 check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 		@set -eu; \
 		map_root=${TOPSRC}/.build-logs/multicall-link-maps; \
 		mkdir -p "$$map_root"; \
-		for specification in \
-		    sbin/box:box sbin/sysbox:sysbox sbin/adminbox:adminbox \
-		    sbin/textbox:textbox sbin/utilbox:utilbox \
-		    sbin/grepbox:grepbox games/gamebox:gamebox; do \
-			directory=$${specification%%:*}; \
-			program=$${specification#*:}; \
-			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} clean; \
-			${MAKE} -C ${TOPSRC}/$$directory MACHINE=${MACHINE} \
+		box_directories=$$(${PYTHON} tools/check_multicall_composition.py \
+		    --root ${TOPSRC} --list-boxes); \
+		for directory in $$box_directories; do \
+			program=$$(${MAKE} -C "${TOPSRC}/$$directory" MACHINE=${MACHINE} -V PROG); \
+			rm -f "$$map_root/$$program.map"; \
+			${MAKE} -C "${TOPSRC}/$$directory" MACHINE=${MACHINE} clean; \
+			${MAKE} -C "${TOPSRC}/$$directory" MACHINE=${MACHINE} \
 			    LINK_MAP="$$map_root/$$program.map" all; \
+			test -s "$$map_root/$$program.map"; \
+			touch "$$map_root/$$program.map"; \
 		done
+		rm -f "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} clean
 		${MAKE} -C ${TOPSRC}/bin/sh MACHINE=${MACHINE} all \
 		    LINK_MAP="${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
+		test -s "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
+		touch "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${PYTHON} tools/check_multicall_composition.py --root ${TOPSRC} \
 		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps
 		${PYTHON} tools/check_multicall_composition_test.py
@@ -774,6 +802,27 @@ check-changed-comments: check-python
 		    --revision ${CHANGED_COMMENT_HEAD:Q}
 
 .PHONY: check-comment-hygiene check-changed-comments
+
+# Added text: whitespace errors anywhere and British spellings in Markdown
+# prose (tools/check_changed_text.py). check-text-hygiene calibrates the
+# checker on throwaway repositories; check-changed-text enforces it on an
+# explicit commit range, the same pair of commits check-changed-comments
+# compares.
+check-text-hygiene: check-python
+		${PYTHON} tools/changed_text_test.py
+
+check-changed-text: check-python
+		@set -eu; \
+		if [ -z "${CHANGED_COMMENT_BASE}" ] || \
+		    [ -z "${CHANGED_COMMENT_HEAD}" ]; then \
+			echo "check-changed-text requires CHANGED_COMMENT_BASE and CHANGED_COMMENT_HEAD" >&2; \
+			exit 2; \
+		fi; \
+		${PYTHON} tools/check_changed_text.py --root ${TOPSRC} \
+		    --base ${CHANGED_COMMENT_BASE:Q} \
+		    --revision ${CHANGED_COMMENT_HEAD:Q}
+
+.PHONY: check-text-hygiene check-changed-text
 
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
@@ -919,7 +968,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
 		check-capacity-corpus \
-		check-comment-hygiene \
+		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \
@@ -935,7 +984,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
-		check-libc-tempfiles \
+		check-libc-tempfiles check-libcalc check-libbn \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
@@ -951,7 +1000,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-sh-editor \
+		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
@@ -967,6 +1017,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
 		check-dirent-contracts-cross check-getwd-lifetime-cross check-libc-output-cross check-board-libc-output check-libc-casefold-cross check-scandir-contracts-cross \
+		check-libcalc-cross check-libbn-cross \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
 		check-find-contracts-cross \
@@ -1020,6 +1071,12 @@ check-bubble-host:
 
 check-fifteen-host:
 		${MAKE} -C games/fifteen test
+
+check-fourfall-host:
+		${MAKE} -C games/fourfall test
+
+check-calc-host: check-python .WAIT symlinks
+		${MAKE} -C usr.bin/calc test
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -1111,7 +1168,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-tar-host check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-recovery-utility-contracts \
-		check-timeout-contracts
+		check-timeout-contracts check-libcalc check-libbn
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py
@@ -1150,11 +1207,15 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
-# qemu-arm: the u-area exchange loop and the Smaller C suite executed
-# rather than only linked.
+# qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
+# libbn tests and the calc line interface executed as Thumb-1 programs rather
+# than only linked.
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
+		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -1296,7 +1357,8 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-sh-editor check-tar-host \
+		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
@@ -1310,7 +1372,8 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
-.PHONY: check-libc-casefold check-libc-casefold-cross
+.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn \
+	check-libcalc-cross check-libbn-cross
 
 .PHONY: check-libc-output check-libc-output-cross
 

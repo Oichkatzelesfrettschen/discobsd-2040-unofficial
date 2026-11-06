@@ -8,15 +8,26 @@
 FS_KBYTES=	988
 SWAP_KBYTES=	0
 U_KBYTES=	0
+# The board. Every kernel in sys/arch/rp2040/compile boots any root image
+# below, so BOARD chooses only which kernel pairs with flash.uf2 and which
+# root profile an unset PROFILE builds: the PICO board's default is full,
+# the PicoCalc's is picocalc, which adds the closures that board carries.
+BOARD?=		PICO
+BOARDS=		PICO PICOCALC
+.if empty(BOARDS:M${BOARD})
+.error BOARD must be one of ${BOARDS}, not ${BOARD}
+.endif
+BOARD_PROFILE.PICO=	full
+BOARD_PROFILE.PICOCALC=	picocalc
+BOARD_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${BOARD}/unix.uf2
+
 # The root filesystem profile. distrib/rp2040/mi.rp2040 brackets each
 # optional feature between "#closure NAME" and "#endclosure NAME",
 # distrib/rp2040/profiles declares which closures a profile keeps and what
 # each closure depends on, and mkmanifest.py composes the manifest the
-# image rule reads. PROFILE=full names every closure, so an unset PROFILE
-# reproduces the shipped image line for line; the markers are comments,
-# which tools/fsutil/manifest.c skips whole.
-# sys/arch/rp2040/doc/PROFILES.md is the authority.
-PROFILE?=	full
+# image rule reads; the markers are comments, which tools/fsutil/manifest.c
+# skips whole. sys/arch/rp2040/doc/PROFILES.md is the authority.
+PROFILE?=	${BOARD_PROFILE.${BOARD}}
 FS_PROFILES=	distrib/rp2040/profiles
 FS_CLOSURES=	distrib/rp2040/mi.rp2040
 FS_PROFILE_ARGS=	--profiles=distrib/rp2040/profiles

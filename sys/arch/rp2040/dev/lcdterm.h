@@ -37,8 +37,9 @@
 
 /*
  * Cell attribute byte: foreground color index 0-15 in bits 0-3, where
- * 8-15 are the bold (bright) variants of 0-7; background color index
- * 0-7 in bits 4-6; underline in bit 7. Reverse video is resolved into
+ * 8-15 are the bright variants of 0-7 that bold or SGR 90-97 selects;
+ * background color index 0-7 in bits 4-6, so SGR 100-107 selects the
+ * base background; underline in bit 7. Reverse video is resolved into
  * the stored colors when the cell is written.
  */
 #define	LT_ATTR_FG(a)		((a) & 0x0f)

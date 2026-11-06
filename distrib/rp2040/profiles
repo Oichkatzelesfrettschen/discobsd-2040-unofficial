@@ -6,8 +6,9 @@
 # keeps; distrib/rp2040/mkmanifest.py emits the base lines plus the lines
 # of the named closures and refuses a composition whose hard links, parent
 # directories or declared dependencies do not resolve. The Makefile
-# variable PROFILE selects one, and its default is "full", which names
-# every closure and reproduces the image the port ships.
+# variable PROFILE selects one; when it is unset, BOARD picks the default
+# (distrib/rp2040/Makefile.inc): full for the PICO board, picocalc for the
+# PicoCalc, which names every closure.
 # sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme and
 # carries the measured block cost of each closure.
 #
@@ -39,11 +40,23 @@ closure toolchain needs path /usr/libexec/smlrc
 closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
-# games/gamebox dispatches on argv[0]; fifteen, keen and bubble are hard
-# links to it, and the manifest checker rejects a link whose source the
+# games/gamebox dispatches on argv[0]; fifteen, keen, bubble and fourfall
+# are hard links to it, and the manifest checker rejects a link whose source the
 # profile dropped.
 #
 closure games needs path /usr/games/gamebox
+
+#
+# usr.bin/bc compiles its input to dc source and runs /usr/bin/dc to
+# evaluate it, and bc -l first reads /usr/share/misc/lib.b, so the
+# arbitrary-precision calculator ships all three or none.
+#
+closure calc-bignum needs path /usr/bin/bc /usr/bin/dc /usr/share/misc/lib.b
+
+# usr.bin/calc, the scientific calculator with the F-key item bar sized for
+# the PicoCalc's 53 by 32 console, is one self-contained program.
+#
+closure calc needs path /usr/bin/calc
 
 #
 # The compositions.
@@ -51,11 +64,16 @@ closure games needs path /usr/games/gamebox
 # base       the shell, /etc/rc, the multicall binaries and the editors
 # benchmark  base plus CoreMark, for a reported score on a bare board
 # developer  base plus the native compile chain and its link library
-# games      base plus gamebox and its three entry points
-# full       every closure; the image the port ships
+# games      base plus gamebox and its four entry points
+# full       every closure a bare Raspberry Pi Pico ships; the image the
+#            PICO board builds by default
+# picocalc   full plus the ClockworkPi PicoCalc's own closures: the
+#            arbitrary-precision calculator and the scientific calculator;
+#            the PICOCALC board's default
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games
 profile full coremark toolchain toolchainlib games
+profile picocalc coremark toolchain toolchainlib games calc-bignum calc

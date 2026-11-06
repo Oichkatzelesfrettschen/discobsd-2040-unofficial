@@ -55,8 +55,10 @@ jobs:
       # pkg-config for the fuse flags, so libfuse-dev is a build dependency
       # of the host tools the kernel build runs first.
       # The tiers add: shellcheck and ruff (check-lint), qemu-user for
-      # qemu-arm (check-qemu), and capstone and pyelftools for the divider
-      # verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
+      # qemu-arm and libnewlib-arm-none-eabi for the C library the qemu-arm
+      # test programs link (check-qemu: libcalc, libbn, calc), which
+      # gcc-arm-none-eabi does not depend on, and capstone and pyelftools
+      # for the divider verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
       # packages no ruff and pip refuses the system interpreter. The 32-bit
       # shell conformance run is the posix-sh job below.
       - name: Install the host toolchain
@@ -64,7 +66,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bmake make build-essential cmake git clang \
-            gcc-arm-none-eabi binutils-arm-none-eabi \
+            gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
             shellcheck pipx qemu-user python3-capstone python3-pyelftools
@@ -200,6 +202,19 @@ jobs:
               CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
               check-changed-comments
 
+      - name: Check text added by the tested revision
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-changed-text \
+            --log .build-logs/linux-changed-text.log \
+            --status .build-logs/linux-changed-text.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 \
+              CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" \
+              CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
+              check-changed-text
+
       - name: Run the host tier
         timeout-minutes: 15
         run: |
@@ -244,6 +259,7 @@ jobs:
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 distrib/rp2040/flash.uf2
 
       - name: Retain build and gate logs
@@ -261,6 +277,7 @@ jobs:
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
+            sys/arch/rp2040/compile/PICOCALC/unix.uf2
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
@@ -467,7 +484,9 @@ jobs:
             -- bmake -C usr.bin/smlrc test
       - name: Confirm the images exist
         run: |
-          ls -l sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+          ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
+                distrib/rp2040/flash.uf2
       - name: Retain build and gate logs
         if: always()
         uses: actions/upload-artifact@v4

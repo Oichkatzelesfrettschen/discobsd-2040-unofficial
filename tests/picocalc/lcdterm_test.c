@@ -328,6 +328,13 @@ test_attributes(void)
 	expect_int("panel attr drawn", panel_at[(panel_top) % LT_ROWS][4], (int)a);
 	out("\033[0m\033(0lqk\033(B");
 	expect_line("line drawing", 0, "RVNUB+-+");
+
+	/* Bright foregrounds are palette 8-15; bright backgrounds fold to 0-7. */
+	out("\033[2;1H\033[90mG\033[97mW\033[0;101mX\033[0m");
+	expect_int("SGR 90 gray fg", LT_ATTR_FG(lcdterm_attr(1, 0)), 8);
+	expect_int("SGR 97 white fg", LT_ATTR_FG(lcdterm_attr(1, 1)), 15);
+	expect_int("SGR 101 bg", LT_ATTR_BG(lcdterm_attr(1, 2)), 1);
+	expect_int("SGR 101 keeps fg", LT_ATTR_FG(lcdterm_attr(1, 2)), 7);
 	expect_consistent("attributes");
 
 	/* Reverse video erases with the background it displays: red here. */

@@ -1,9 +1,9 @@
 # Root filesystem profiles: what an image carries, and what that costs
 
 The 1536 KB Dhara root yields 988 blocks of 1024 bytes. The maintained
-`full` image leaves 270 blocks free; an image that keeps only the base system
-leaves 445. The default image excludes the PDP-11 emulator and V6 pack. An
-explicit `BUILD_PDP11_V6=yes` image adds both and leaves 100 blocks free with
+`full` image leaves 280 blocks free; an image that keeps only the base system
+leaves 447. The default image excludes the PDP-11 emulator and V6 pack. An
+explicit `BUILD_PDP11_V6=yes` image adds both and leaves 111 blocks free with
 the `full` profile. This document is the authority for the closure markers in
 `distrib/rp2040/mi.rp2040`, the profile declarations in
 `distrib/rp2040/profiles`, the composer and checker
@@ -17,12 +17,13 @@ the base system and always reaches the image. A closure opens more than
 once, because the directory, the binary and the hard links that belong to
 one feature sit in different sections of the manifest: `dir /usr/games`
 stands in the directory block, `pack /usr/games/gamebox` in the executable
-block, and the three entry points in the link block at the end.
+block, and the four entry points in the link block at the end.
 
 `tools/fsutil/manifest.c` skips a comment line whole, so the markers leave
-the manifest fsutil reads unchanged. `PROFILE=full` names every closure,
-which makes the composed manifest byte-identical to the tracked manifest
-with its marker lines removed.
+the manifest fsutil reads unchanged. `PROFILE=picocalc` names every
+closure, which makes its composed manifest byte-identical to the tracked
+manifest with its marker lines removed; `full` names every closure except
+the PicoCalc's own.
 
 ## The closures, measured
 
@@ -34,48 +35,62 @@ also a KiB count. The inode column is the difference in free inodes, which
 
 | Closure | Blocks | Inodes | Installs |
 | --- | --- | --- | --- |
-| `coremark` | 15 | 1 | `/usr/bin/coremark` |
-| `games` | 14 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble` |
-| `toolchain` + `toolchainlib` | 146 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
-| all maintained closures | 175 | 10 | |
+| `coremark` | 16 | 1 | `/usr/bin/coremark` |
+| `games` | 19 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall` |
+| `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
+| `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
+| `calc` | 32 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
+| all maintained closures | 237 | 14 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
-| legacy `v6disk` | 156 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
+| legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
+
+Each closure row is measured against `base` alone, and the all-maintained
+row on one image that holds every closure. The closure rows sum to 238, one
+block more than that image measures: a directory such as `/usr/bin` grows
+in whole blocks, so entries that two closures add can share a block that
+either closure alone allocates (inferred from the allocation unit, not
+traced block by block).
 
 The two legacy rows are measured only in an image built with
 `BUILD_PDP11_V6=yes`; they are absent from the maintained manifest and
-profiles. `/usr/v6/root.rk` is 1024000 bytes of V6 pack and costs 156 blocks, not
+profiles. `/usr/v6/root.rk` is 1024000 bytes of V6 pack and its closure costs 157 blocks, not
 1000: `add_file()` in `tools/fsutil/fsutil.c` leaves a block of zeros
 unmapped, and the kernel's `bmap()` reads an unmapped block as zeros, so
 the pack's unused blocks occupy no flash. `toolchain` and `toolchainlib`
 carry one figure because each requires the other, so no image exists that
-holds one without the other; `/usr/lib/libc.a` alone installs at 56182
+holds one without the other; `/usr/lib/libc.a` alone installs at 43010
 bytes.
 
 ## The profiles
 
 | Profile | Closures | Free blocks | Free inodes |
 | --- | --- | --- | --- |
-| `base` | none | 445 | 43 |
-| `benchmark` | `coremark` | 430 | 42 |
-| `games` | `games` | 431 | 41 |
-| `developer` | `toolchain`, `toolchainlib` | 299 | 36 |
-| `full` | every maintained closure | 270 | 33 |
+| `base` | none | 447 | 43 |
+| `benchmark` | `coremark` | 431 | 42 |
+| `games` | `games` | 428 | 41 |
+| `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
+| `full` | every closure except the PicoCalc's | 280 | 33 |
+| `picocalc` | `full` plus `calc-bignum` and `calc` | 210 | 29 |
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:
 
 | Profile with `BUILD_PDP11_V6=yes` | Free blocks | Free inodes |
 | --- | ---: | ---: |
-| `base` | 275 | 40 |
-| `benchmark` | 260 | 39 |
-| `games` | 261 | 38 |
-| `developer` | 129 | 33 |
-| `full` | 100 | 30 |
+| `base` | 276 | 40 |
+| `benchmark` | 261 | 39 |
+| `games` | 258 | 38 |
+| `developer` | 144 | 33 |
+| `full` | 111 | 30 |
 
-`full` is the default. `distrib/rp2040/Makefile.inc` sets `PROFILE?=full`,
-so a build that names no profile writes the image the port ships:
+`BOARD` picks the default profile. `distrib/rp2040/Makefile.inc` sets
+`BOARD?=PICO` and `PROFILE?=` the board's profile, `full` for the PICO board
+and `picocalc` for the PicoCalc, and refuses any other `BOARD`. Every kernel
+boots every profile's root, so the board choice decides what the image
+carries, not whether it boots:
 
     bmake MACHINE=rp2040 distribution              # full
+    bmake MACHINE=rp2040 BOARD=PICOCALC distribution # picocalc
     bmake MACHINE=rp2040 PROFILE=base distribution # base
     bmake MACHINE=rp2040 PROFILE=base flash        # its UF2
     bmake MACHINE=rp2040 BUILD_PDP11_V6=yes \

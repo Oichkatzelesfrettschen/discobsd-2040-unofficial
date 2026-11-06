@@ -97,6 +97,14 @@ the two-step form does not.
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only
     discobsd-flash distrib/rp2040/flash.uf2                   # root only
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
+    discobsd-flash sys/arch/rp2040/compile/PICOCALC/unix.uf2 distrib/rp2040/flash.uf2
+
+Each kernel boots any root image, and each names its own console
+(`sys/arch/rp2040/doc/PICOCALC.md`). `BOARD=PICOCALC` builds the PicoCalc's
+default root, the `picocalc` profile, which adds the arbitrary-precision
+calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
+
+    bmake MACHINE=rp2040 BOARD=PICOCALC flash
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 ## Release artifacts

@@ -1,0 +1,404 @@
+FOURFALL CLEAN-ROOM COPYING RE-REVIEW
+======================================
+
+VERDICT: NEEDS CHANGES
+
+The implementation rework resolves the previous palette finding and the three
+stored base-row findings in fourfall.c and its tests. The complete review
+package remains unclean for two reasons. First, ff_cells() rotates the revised O
+base order back into the legacy program's exact O-row order at orientation 2.
+The O geometry is forced, but the enumeration order is selectable and
+unobservable. Second, the canonical clean-room specification still prescribes
+the legacy-correlated palette and retains the three legacy-correlated ordered
+rows. The implementation record now documents the revised choices, but its
+claim that all 132 vectors were transcribed verbatim is false for the 28 revised
+SHAPE lines.
+
+The normalized 16-token result passes the specified rejection gate: Fourfall
+shares 62 of 5,384 candidate runs, or 1.2 percent, against a 5 percent rejection
+threshold. The fixed-string, exact-string, algorithm-fingerprint, and
+game-facing trade-dress searches otherwise support clean-room independence.
+
+Scope and evidence boundary
+---------------------------
+
+The review read all 922 lines of the GPLv2-or-later reference, all 1,185 lines
+of fourfall.c, all text tests under games/fourfall/tests, the Makefile, the
+ignore file, the clean-room specification, the implementation record, and the
+previous review. Binary-safe searches also covered the existing Python
+bytecode. The review used no network service. The review wrote only scratch
+artifacts under the requested scratchpad and created no commit.
+
+Reference verification
+----------------------
+
+Specified SHA-256:
+27aaba14c203ed90763e49707216d757ebe16f41127c6c88b1dc069e95eb4f54
+
+Measured SHA-256:
+27aaba14c203ed90763e49707216d757ebe16f41127c6c88b1dc069e95eb4f54
+
+Measured size and line count: 21,451 bytes and 922 lines. The digest, size, and
+line count match docs/research/falling-block-clean-room-spec.md:538-542.
+
+Shingle script, calibration, and candidate results
+--------------------------------------------------
+
+The review used the specification script at:
+
+<review scratch directory>/copyreview-fourfall/shingle.py
+
+A zero-length diff against specification lines 616-633 confirms that the
+scratch copy is exact. Python 3.14.9 ran the calibration before the candidate:
+
+  known-bad renamed and brace-reflowed copy   2967/2967  100.0 percent
+  known-good games/keen/keen.c                  16/3762     0.4 percent
+  known-good games/bubble/bubble.c              12/2353     0.5 percent
+  known-good games/fifteen/fifteen.c             6/752      0.8 percent
+  known-good legacy gpanel/flappy.c              19/1395     1.4 percent
+
+Candidate and supplementary test results:
+
+  games/fourfall/fourfall.c                     62/5384     1.2 percent
+  games/fourfall/tests/logic_test.c              13/6253     0.2 percent
+  games/fourfall/tests/mutants.py                 0/1384     0.0 percent
+  games/fourfall/tests/play.py                    0/3837     0.0 percent
+  games/fourfall/tests/vectors.txt                 0/999      0.0 percent
+
+The source and every text test remain below the 5 percent threshold. The
+percentage is a screening instrument rather than a copying verdict. The review
+read each shared span and records its disposition below.
+
+Findings that require changes
+-----------------------------
+
+F1 -- the source palette changed, but the authoritative specification did not
+
+New: docs/research/falling-block-clean-room-spec.md:67-69
+Resolved implementation: games/fourfall/fourfall.c:620-624;
+games/fourfall/tests/play.py:302-323; games/fourfall/tests/mutants.py:141
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:315
+Classification: EXPRESSIVE.
+
+The new source maps I white, O blue, T green, S magenta, Z cyan, J red, and L
+yellow. Every semantic assignment differs from the original, so the source and
+its color assertions resolve previous finding F1. The specification still maps
+I cyan, O yellow, T magenta, S green, Z red, and J blue, the same semantic
+assignments as the original for six pieces. Seven console colors constrain the
+set but do not force its 7-factorial piece permutation.
+
+Suggested rewrite: update specification lines 67-69 to the implemented palette
+and state that the palette supersedes the first review draft. Keep monochrome
+mode unchanged.
+
+F2 -- the revised O base row rotates back into the legacy ordered row
+
+New: games/fourfall/fourfall.c:103,143-156;
+games/fourfall/tests/vectors.txt:5-8;
+docs/research/falling-block-clean-room-spec.md:54,285-288
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:272
+Classification: FORCED GEOMETRY, EXPRESSIVE ORDER.
+
+The stored O row at fourfall.c:103 is reverse row-major and resolves the exact
+stored-row match reported previously. Applying the uniform matrix rotation
+twice produces (0,0),(0,1),(1,0),(1,1), exactly the legacy line order. The O
+cell set is a public mechanic, but the order in which an implementation returns
+four indistinguishable cells is selectable. The SHAPE harness sorts both sides,
+so its passing result does not test this expression-level ordering. The
+specification also retains the original row-major text at lines 54 and 285-288.
+
+Suggested rewrite: choose an O base enumeration outside the four-order rotation
+orbit of the legacy row, for example (1,1),(0,0),(1,0),(0,1), then update the O
+SHAPE listings, tests, and implementation record. An alternative complete fix
+can preserve reverse row-major order while making ff_cells() keep the O cell
+enumeration fixed across rotations. Update the specification in the same
+change.
+
+F3 -- the Z source row changed, but the specification retains the old order
+
+New: games/fourfall/fourfall.c:106; games/fourfall/tests/vectors.txt:17;
+docs/research/falling-block-clean-room-spec.md:57,297
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:278
+Classification: FORCED GEOMETRY, EXPRESSIVE ORDER.
+
+The source and test now use reverse row-major order, and independent comparison
+finds no derived Z orientation that repeats a legacy orientation in line order.
+The source therefore resolves previous finding F3. The specification retains
+the raw ordered list (0,0),(0,1),(1,1),(1,2), which matches original line 278.
+
+Suggested rewrite: rewrite the specification's Z base and SHAPE rows in the
+implemented order, while preserving the same unordered cell sets.
+
+F4 -- the J source row changed, but the specification retains the old order
+
+New: games/fourfall/fourfall.c:107; games/fourfall/tests/vectors.txt:21;
+docs/research/falling-block-clean-room-spec.md:58,301
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:258
+Classification: FORCED GEOMETRY, EXPRESSIVE ORDER.
+
+The source and test now use reverse row-major order, and independent comparison
+finds no derived J orientation that repeats a legacy orientation in line order.
+The source therefore resolves previous finding F4. The specification retains
+the raw ordered list (0,0),(1,0),(1,1),(1,2), which matches original line 258.
+
+Suggested rewrite: rewrite the specification's J base and SHAPE rows in the
+implemented order, while preserving the same unordered cell sets.
+
+The specification correction should also repair
+docs/research/fourfall-implementation.md:19. The tests contain 132 vectors, but
+the 28 SHAPE lines are no longer verbatim copies of specification lines
+281-308. Suggested wording: "132 specification vectors; SHAPE cell sets use the
+implementation's independently selected enumeration order."
+
+Recorded overlaps that do not require a copying change
+-------------------------------------------------------
+
+F5 -- case-sensitive generic word in a test comment
+
+New: games/fourfall/tests/play.py:434
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:429
+Classification: FORCED OR GENERIC.
+Suggested rewrite: retain it. The new comment describes a gravity level; the
+original string labels a display. "At level 9" is an optional zero-hit rewrite.
+
+F6 -- functional state labels
+
+New: games/fourfall/fourfall.c:872,874,923
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:429-430,778
+Classification: FORCED OR GENERIC.
+Suggested rewrite: retain LEVEL, LINES, and GAME OVER. They name public state,
+use different case, and occur in a distinct terminal presentation. STACK FULL
+could replace GAME OVER if a future presentation review wants more distance,
+but copying evidence does not require that change.
+
+F7 -- generic identifiers have different signatures and roles
+
+New: games/fourfall/fourfall.c:78,80,82,84,86,322,329,392,469,799-811;
+games/fourfall/tests/mutants.py:56,84,173-179,207,250-271
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:101,180,
+182,303-318,329,334,610,666
+Classification: FORCED OR GENERIC.
+Suggested rewrite: retain them. New draw is a random callback, score is a state
+field, and box is a preview array. Board, next, old, current, colors, shapes,
+delay, and Python next are ordinary domain or language vocabulary. None shares
+a legacy signature or call shape.
+
+F8 -- required system headers occur in both C programs
+
+New: games/fourfall/fourfall.c:599-604
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:32-43
+Classification: FORCED C IDIOM.
+Suggested rewrite: retain the headers required by select, ioctl, time, and
+terminal I/O.
+
+F9 -- collision loops share a public mechanic and Boolean return idiom
+
+New: games/fourfall/fourfall.c:175-186
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:650-663
+Classification: FORCED MECHANIC AND C IDIOM.
+Suggested rewrite: retain ff_collides(board,piece). The new function accepts a
+complete board and piece state and computes cells. The original accepts three
+offsets, reads globals, and indexes a flat table with (rot * 4 + i) * 2. The
+legacy signature and indexing fingerprint are absent.
+
+F10 -- public screen concepts use a distinct rendering system
+
+New: games/fourfall/fourfall.c:644-650,713-814,852-933
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:393-450,
+610-648,767-779
+Classification: FORCED MECHANIC WITH DISTINCT EXPRESSION.
+Suggested rewrite: retain the terminal architecture. Fourfall composes separate
+view and shadow arrays and writes ANSI text. The original mutates the game board
+with 255, erases an old pixel position, and uses a bitmap font and panel device.
+
+F11 -- the 7-bag goal is public and the algorithms differ
+
+New: games/fourfall/fourfall.c:317-334
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:736-765
+Classification: FORCED PUBLIC MECHANIC WITH DISTINCT EXPRESSION.
+Suggested rewrite: retain Fisher-Yates. The original repeatedly draws and
+rejects duplicates; the rejection-loop fingerprint is absent.
+
+F12 -- rotation and kick mechanics use distinct structure
+
+New: games/fourfall/fourfall.c:100-118,137-158,189-223
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:254-299,
+650-663
+Classification: FORCED OR PUBLIC MECHANIC WITH DISTINCT EXPRESSION, except F2's
+O enumeration.
+Suggested rewrite: retain the matrix rotation and kick mechanism after fixing
+the O enumeration described in F2. The original stores every orientation and
+rejects blocked in-place rotations; it has no kick table.
+
+F13 -- numeric coincidences serve prescribed mechanics or different roles
+
+New: games/fourfall/fourfall.c:53-60,120-122,294-314,615,742,910,974,1012,
+1035; games/fourfall/tests/logic_test.c:636,921,963-1020;
+games/fourfall/tests/mutants.py:84; games/fourfall/tests/vectors.txt:29-132
+Original: legacy/non-arm/mips-pic32/share/examples/gpanel/tftetris.c:145-163,
+189-201,245-250,600,693,733,781-786
+Classification: FORCED, GENERIC, OR DIFFERENT ROLE.
+Suggested rewrite: retain values that implement the specification or unrelated
+test bounds. Examples include 100 for scoring rather than input delay, 320 for
+gravity rather than LCD height, 128 for signal exit status rather than joystick
+range, 512 for a test buffer rather than joystick center, and 200 for a property
+count rather than input delay. The values 1100, 480, 350, 1500, 25, 50, and
+decimal 255 are absent from the new source and text tests.
+
+Every shared 16-token run
+-------------------------
+
+The 62 unique source runs occupy eleven contiguous candidate spans:
+
+  new 53-60   / original 212-234: macro declaration grammar; different names
+               and values. FORCED C GRAMMAR. Retain.
+  new 100-109 / original 254-299: coordinate-initializer grammar. FORCED table
+               syntax with the expressive O issue isolated in F2. Apply F2.
+  new 110     / original 318: numeric-list grammar; box sides versus orientation
+               counts. FORCED C GRAMMAR. Retain.
+  new 121-122 / original 318: numeric-list grammar; gravity intervals versus
+               orientation counts. FORCED C GRAMMAR. Retain.
+  new 162-167 / original 76-112: local structure declaration and assignments.
+               FORCED C IDIOM. Retain.
+  new 183-187 / original 660-664: collision condition tail and Boolean return.
+               FORCED MECHANIC/C IDIOM; F9 resolves the API. Retain.
+  new 599-603 / original 41-44: required system includes. FORCED. Retain.
+  new 602-606 / original 32-36: required system includes and pragma boundary.
+               FORCED. Retain.
+  new 622-623 / original 318: normalized numeric-list grammar. The source
+               palette differs semantically; F1 covers the stale spec. Retain.
+  new 783-784 / original 678-680: nested board loop and conditional grammar.
+               FORCED C IDIOM. Retain.
+  new 799     / original 305-311: local array declarations and list grammar.
+               FORCED C IDIOM. Retain.
+
+The 13 logic-test runs occupy four spans:
+
+  new test 445-450 / original 78-112,541-545,645-647: zero a board and assign
+               piece fields. FORCED TEST/C IDIOM. Retain.
+  new test 714 / original 305-311: local scalar and coordinate-array
+               declarations. FORCED TEST/C IDIOM. Retain.
+  new test 748-751 / original 78-112,541-545,645-647: zero a board and assign
+               piece fields. FORCED TEST/C IDIOM. Retain.
+  new test 767-768 / original 468-469: iterate and fill board cells. FORCED
+               TEST/C IDIOM. Retain.
+
+Complete checklist disposition
+------------------------------
+
+Identifiers:
+
+* Helpers: millis, lineh, linev, beep, and boxb are absent. Generic delay and
+  box hits are resolved in F7.
+* Input: Joystick_fire, Joystick_getX, Joystick_getY,
+  Joystick_waitForRelease, jx, and jy are absent.
+* Game functions: randomizer, scoreBoard, moveDown, userInput, chooseNewShape,
+  touches, hint, gameLoop, drawPreGameScreen, gameOver, and bcackground are
+  absent. Generic score and draw hits are resolved in F7.
+* Text drawing: drawChar, drawString, drawCenteredString, drawNumber,
+  FONT_SPACE, FONT_X, and simpleFont are absent.
+* State: Backup, newShape, lastInput, lastDrop, dropWait, next_c, all_shapes,
+  and colors are absent. Generic next, old, current, board, and shapes hits are
+  resolved in F7.
+* Shape tables: l_shape, j_shape, o_shape, s_shape, z_shape, t_shape, and
+  i_shape are absent.
+* Constants: every named legacy constant in the checklist is absent.
+
+Tables and literals:
+
+* Independent ordered-pair comparison finds zero stored matches between the
+  seven ff_base rows or 28 stored SHAPE rows and the original's 19 orientation
+  rows. F2 records the single derived O-orientation match. F3 and F4 record the
+  stale specification rows.
+* The original orientation-count array {4,4,1,2,2,4,2} is absent. ff_box at
+  fourfall.c:110 holds box sides for a different purpose.
+* The original color macros, 16-bit values, and bitmap font are absent. F1
+  records the stale semantic palette in the specification.
+* Exact quoted-string intersection between the original and fourfall.c or any
+  text test is empty. F5 and F6 record generic case-changed words.
+* /dev/tft0, /dev/adc0, and /dev/adc1 are absent.
+* F13 accounts for the checklist numeric hits.
+* The original board sentinel 255 is absent. UNKNOWN at fourfall.c:615 is 0xff
+  and initializes only the display shadow at lines 904 and 914; the game board
+  never receives it.
+* Every listed comment phrase and misspelling is absent under a
+  case-insensitive fixed-string search.
+
+Algorithm fingerprints:
+
+* ff_clear() at fourfall.c:276-291 compacts all 22 rows with separate read and
+  write indices. The original scans at most four rows and redraws each cell
+  while shifting at original lines 669-719.
+* The original three-offset touches API and flat-table indexing expression are
+  absent. F9 and F12 describe the replacement.
+* The original board-marker renderer is absent. F10 describes the separate
+  view and shadow representation.
+* The original duplicate-rejection bag is absent. F11 describes Fisher-Yates.
+
+Test provenance and table execution:
+
+* Exact raw-line comparison finds only three unique nonblank lines shared by
+  logic_test.c and the original: /*, {, and }. The Python tests and vectors
+  share zero nonblank raw lines with the original. Exact quoted-string
+  intersection is empty for every test.
+* The current vectors intentionally preserve all specified unordered cell sets,
+  but the first 28 lines use the revised enumeration and therefore differ from
+  specification lines 281-308. The harness sorts the two cell sets at
+  logic_test.c:197-202.
+* A GCC 16.2.1 scratch-only build with strict C17, -Wall -Wextra -Werror,
+  AddressSanitizer, and UndefinedBehaviorSanitizer ran all 132 vectors and
+  1,257,671 checks with zero failures. This execution confirms the sets and
+  game logic; sorting means it does not resolve F2's expression-level order.
+
+Commercial name and trade-dress review
+--------------------------------------
+
+A case-insensitive, binary-safe whole-word search finds Tetris nowhere under
+games/fourfall, including source, strings, tests, and Python bytecode. The game
+tree also contains none of the original URL, joystick prompt, device paths,
+bitmap font, gradient, music, logo, or commercial title.
+
+The specification necessarily names Tetris at lines 26, 569, and 573 to state
+the prohibition and record the reviewer checklist. Those occurrences are
+review evidence, not game branding. The implementation record names only the
+legacy filename tftetris.c at lines 7 and 285 for provenance. Neither document
+presents the commercial name as Fourfall's name.
+
+The implemented presentation uses FOURFALL, a left-side ASCII board, a
+right-side text panel, and a palette whose seven semantic assignments all
+differ from the original. The original uses a right-side pixel board, a
+left-side panel, a bitmap font, a gradient, a commercial title, a URL, and
+joystick prompts. The generic state labels LEVEL, LINES, NEXT, and GAME OVER do
+not reproduce that overall presentation. The stale specification palette in
+F1 remains a tracked trade-dress risk and prevents a clean package verdict.
+
+Residual uncertainty
+--------------------
+
+The review establishes the measured digest, calibrated 16-token overlap,
+fixed-string results, ordered-table coincidences, listed algorithm differences,
+test provenance surfaces, and observed presentation. The review does not
+establish that public falling-block mechanics or the working name are free of
+third-party rights, and it does not replace legal review. The shingle
+normalizer can miss paraphrased structure; the manual pass covers every
+fingerprint named by the supplied checklist and the additional palette and
+derived-order comparisons above.
+
+Repository preservation measurements
+------------------------------------
+
+Before report writing, the checkout measured:
+
+  HEAD: 076675a87decc6705ce991f364fb33273f438607
+  tracked worktree diff SHA-256:
+    bdf6aa68ddaac4d0c3b59c9775b30f94a2d2ecf2a7a007088d84c23533bf9fd5
+  staged diff SHA-256:
+    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  index-entry listing SHA-256:
+    d8ecd750bb0524b66e1686255dd46f423193832273c703c4ca82812bd9ea81af
+
+After report writing, the checkout measured the same HEAD, tracked worktree
+diff SHA-256, staged diff SHA-256, index-entry listing SHA-256, and short-status
+entries. These measured surfaces establish that the review changed no tracked
+file, index entry, HEAD object ID, or reported worktree-status entry. Unmeasured
+repository and host surfaces remain outside that preservation claim.

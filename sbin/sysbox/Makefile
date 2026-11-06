@@ -12,11 +12,18 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
+BINDIR=		/bin
+
 OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
 TOOLS=		date dd df mknod mount umount stty
+
+# Dispatch names the manifest deliberately leaves unlinked; the multicall
+# composition gate (tools/check_multicall_composition.py) rejects any
+# other dispatch name that ships no link.
+UNSHIPPED_TOOLS=
 
 # Other names a tool answers to, as name:tool.
 ALIASES=
@@ -57,7 +64,7 @@ ${PROG}:	sysbox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 install:	all
-	${INSTALL} -m 755 ${PROG} ${DESTDIR}/bin/${PROG}
+	${INSTALL} -m 755 ${PROG} ${DESTDIR}${BINDIR}/${PROG}
 
 clean:
 	rm -f *.o *.r *.elf ${PROG} sysbox.c

@@ -1,0 +1,183 @@
+LIBCALC CLEAN-ROOM COPYING REVIEW
+
+VERDICT: CLEAN
+
+The reviewed implementation contains no expression copied from the supplied
+MATHS.c beyond functional predicates fixed by the clean-room specification,
+standard mathematical formulas, published algorithm structure, catalog
+constants, standardized alphabets, and trivial C loop or swap idioms. The
+review found no expressive overlap in naming, decomposition, comments, error
+text, table layout, dispatch structure, or operation ordering that requires a
+rewrite.
+
+Scope and method
+
+The original file's measured SHA-256 is
+80add18770e6b3af8db10796b4a5ce93292609145aabf7e8f9e184b8acfbe306,
+which matches the supplied digest. The review covered every .c and .h file in
+lib/libcalc, the C and header sources in tests/libcalc, and every text file in
+tests/libcalc for checklist searches. The mechanical comparison treated each
+new C or header file separately, so a shingle never crossed a file boundary.
+
+The request calls the similarity checklist section 5. The current specification
+places the similarity checklist in sections 6.1 through 6.5; section 5 contains
+acceptance vectors. This review covered sections 6.1 through 6.5.
+
+The tokenizer at copyreview/c_token_similarity.py strips C comments and
+whitespace. Its normalized pass preserves C keywords and punctuation, maps
+other identifiers to ID, and maps numeric tokens to NUM. Its verbatim pass
+preserves every non-comment token. A separate comment-word pass checks comment
+phrases. The script reports maximal shared token runs and weighted 16-token
+shingle overlap without joining files.
+
+Nontrivial shared-run findings
+
+1. lib/libcalc/calc_vector.c:107-109; original lines 1300-1302.
+   Shared text summary: the three Cartesian cross-product components appear in
+   the conventional determinant order. Classification: forced. The component
+   formulas are the definition of a three-dimensional cross product, and the
+   implementation separates temporary results from output writes to permit
+   aliasing. Suggested rewrite: none; an algebraic disguise would reduce
+   clarity without creating independent expression.
+
+2. lib/libcalc/calc_pid.c:71-73; original lines 960-962.
+   Shared text summary: the band-limited derivative-on-measurement recurrence
+   produces the 54-token normalized maximum. Classification: forced. The
+   clean-room specification states that recurrence exactly at lines 552-558,
+   and the recurrence is a standard discrete PID formula. The new code uses a
+   clamp helper, renamed fields, a different initialization interface, and a
+   different struct field order. Suggested rewrite: none; regrouping the
+   recurrence would change rounding while preserving only optical distance.
+
+3. lib/libcalc/calc_stats.c:425-449; original lines 2201-2205 and 2223-2230.
+   Shared text summary: the rising and falling crossing predicates compare the
+   same indexed samples in the same mathematical inequalities; the longest
+   normalized subruns are 27 tokens at new lines 442 and 449. Classification:
+   forced by functional behavior. The specification defines the two passes,
+   bounds, inequalities, direction mirrors, and returned indices explicitly at
+   lines 275-288. The new function removes the original float/integer dispatch
+   duplication and returns library statuses. Suggested rewrite: none; factoring
+   or reordering the side-effect-free conjunctions would change appearance but
+   would not change the source of the required predicate.
+
+4. lib/libcalc/calc_fft.c:69-71; original lines 2717-2719.
+   Shared text summary: an in-place permutation swaps two array elements through
+   a temporary. Classification: forced standard algorithm and trivial C idiom.
+   The surrounding implementations differ: the original computes each reversed
+   index and allocates an exponential table, while the new implementation uses
+   an incremental bit-reversal permutation and caller-provided or per-stage
+   twiddles. Suggested rewrite: none.
+
+5. lib/libcalc/calc_rng.c:51-69; original lines 153-169.
+   Shared text summary: MT19937 combines upper and lower word parts, applies the
+   matrix constant conditionally, and applies the four published tempering
+   operations. Classification: forced public algorithm. The new twist uses one
+   modular loop and the published 1812433253 seeding recurrence; the original
+   uses split loops, the nonstandard 6069 multiplier, and a 4357 fallback seed.
+   Suggested rewrite: none.
+
+6. lib/libcalc/calc_base64.c:25; original line 173.
+   Shared text summary: both files contain the RFC 4648 Base64 alphabet.
+   Classification: forced standardized literal. Suggested rewrite: none; a
+   different alphabet would implement a different encoding.
+
+7. lib/libcalc/calc_crc.c:30-40 and tests/libcalc/calc_test.c:1136-1162;
+   original lines 430-590.
+   Shared text summary: CRC names, polynomials, initial values, final XOR values,
+   and reflection flags overlap where catalog parameter sets require them.
+   Classification: forced public catalog facts. The new implementation uses one
+   width-parameterized Rocksoft recurrence rather than the original family of
+   width-specific wrappers and routines. Suggested rewrite: none.
+
+8. lib/libcalc/calc_base64.c:5-13, representative of the license headers in
+   every new source; original lines 419-427.
+   Shared text summary: the comment comparison found only six- to eight-word
+   fragments of standardized permission and warranty boilerplate, such as the
+   copyright-notice retention clause. Classification: forced standard legal
+   text, not program expression. The new files carry the project-required ISC
+   notice, while the matched original region is a third-party MIT notice.
+   Suggested rewrite: none; license text must remain canonical.
+
+All other reported normalized runs are trivial idioms or normalization
+collisions. They include a linear minimum/maximum scan at
+lib/libcalc/calc_interp.c:43-47 versus original lines 1774-1779; nested matrix
+loops and swaps at lib/libcalc/calc_matrix.c:52, 145-154, and 300-313 versus
+original lines 3152 onward; simple element-wise loops in
+lib/libcalc/calc_elem.c; heap and array swaps in lib/libcalc/calc_stats.c; and
+comma-separated declarations or calls in lib/libcalc/mathematics.h and the
+tests. Identifier and number normalization erases the semantics that distinguish
+those regions. The verbatim pass confirms that the only run longer than 16
+tokens is each standard cross-product component; the remaining 16-token runs
+are ordinary for-loops with i, n, and array indexing.
+
+Checklist results
+
+Section 6.2 -- distinctive identifiers: The searches found none of the
+distinctive internal families, including chitable, tagMTRand, g_myrand,
+m_seedRand, floatshellsort, the parse* interpreter helpers, cmd_math, fun_math,
+Fft_transformRadix2, exptable, the sensor-fusion locals, or the recursive
+minor/cofactor helpers. Ordinary uses of the word pi in mathematical comments
+do not reproduce the original PI global. The new PID state uses renamed fields
+and places period before the limit fields, so it does not reproduce the
+original 14-field layout. Deliberate public API terms use calc_ prefixes and
+follow the specification's API rather than the original internal names.
+
+Section 6.3 -- distinctive constants and values: The searches found no 6069
+seed multiplier, 4357 fallback seed, 0xffffffff uniform divisor, 1.5e308 or
+3.0e38 sentinels, chi-square table row, or SIZE_MAX/double-complex allocation
+guard. Occurrences of 0xFFFFFFFF belong to published CRC parameter sets, not to
+the forbidden RNG mapping. The MT19937 matrix and tempering constants and
+shifts are expected public algorithm facts.
+
+Section 6.4 -- strings: The searches found none of the listed original error
+messages or message families. Terms such as FFT, PID, magnitude, crossing, and
+Base64 occur as deliberate interface or algorithm names. They do not reproduce
+the original interpreter keyword dispatch or its error text.
+
+Section 6.5 -- code shapes: The new code contains no four-way integer/float
+dispatch, repeated fetch-three-arrays blocks, four copied CRC wrappers,
+chi-square table walk, four repeated power-of-two checks, or recursive
+minor/cofactor determinant. The FFT retains only the published iterative
+radix-2 structure and uses a different bit-reversal and twiddle-factor
+decomposition. Matrix determinant, inverse, and solve use shared LU
+factorization with partial pivoting.
+
+Legacy-defect audit
+
+- Integer OR and XOR do not perform AND. lib/libcalc/calc_elem.c:154 uses | and
+  line 165 uses ^; tests/libcalc/calc_test.c:1715-1720 distinguishes all three
+  operations.
+- CRC reflect-out reads spec->refout at lib/libcalc/calc_crc.c:88. The register
+  is masked on every shift at line 83. Output reflection precedes the final XOR
+  at lines 88-90. Tests at tests/libcalc/calc_test.c:1226-1248 distinguish the
+  flags, operation order, and 12-bit mask.
+- Axis-angle quaternion creation converts the complete half-angle once and
+  passes the same converted value to sine and cosine at
+  lib/libcalc/calc_quat.c:97-99. Degree vectors at
+  tests/libcalc/calc_test.c:1084-1089 exercise the conversion.
+- Chi-square probability uses an incomplete-gamma computation at
+  lib/libcalc/calc_stats.c:273-350, not a coarse table bracket. Continuous
+  probability checks and degrees of freedom beyond the original table appear
+  at tests/libcalc/calc_test.c:378-403.
+- The library implements neither Mahony nor Madgwick sensor fusion, so the
+  original stale-quaternion integration defect has no corresponding code path.
+
+The review executed the comparison script and Ruff against that script. The
+review did not build or execute the libcalc test binaries because the task set a
+read-only source-review boundary. Static source and test-oracle inspection
+supports the defect audit; it does not claim a fresh runtime test result.
+
+CALIBRATION AND SHINGLE NUMBERS
+
+Renamed copy calibration, original lines 430-629 (200 lines): normalized
+longest run 1226 tokens; normalized shared 16-token shingles 1211/1211,
+100.000000%; verbatim longest run 13 tokens; verbatim shared shingles 0/1211,
+0.000000%.
+
+Unrelated calibration, lib/libbn/bn.c: normalized longest run 25 tokens;
+normalized shared 16-token shingles 81/5046, 1.605232%; verbatim longest run 12
+tokens; verbatim shared shingles 0/5046, 0.000000%.
+
+Reviewed libcalc implementation and C/header tests: normalized longest run 54
+tokens; normalized shared 16-token shingles 824/41805, 1.971056%; verbatim
+longest run 21 tokens; verbatim shared shingles 23/41805, 0.055017%.

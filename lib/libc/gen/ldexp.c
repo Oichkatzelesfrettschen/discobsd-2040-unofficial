@@ -22,7 +22,7 @@ ldexp(fr, exp)
 		i = i-1;
 	}
 	exp = exp+i;
-	if (exp >= DBL_MAX_EXP) {
+	if (exp > DBL_MAX_EXP) {
 		if (neg)
 			return(-HUGE_VAL);
 		else

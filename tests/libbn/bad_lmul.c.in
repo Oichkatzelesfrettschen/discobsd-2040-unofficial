@@ -1,0 +1,9 @@
+/* Negative control for check_object.sh: a 64-bit product and quotient pull
+ * __aeabi_lmul and __aeabi_uldivmod into the object on Cortex-M0+. */
+#include <stdint.h>
+
+uint64_t
+widened(uint32_t a, uint32_t b, uint64_t c)
+{
+	return ((uint64_t)a * b) / c;
+}

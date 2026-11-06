@@ -18,6 +18,13 @@ from unittest.mock import patch
 
 import test_execution as execution
 
+# The process-group timeout tests start Python twice (a supervisor, then the
+# descendant that installs a SIGTERM handler) before the timeout must reach
+# them. A loaded macOS runner has taken longer than 0.2 s for that, and a
+# descendant killed before its handler exists writes no marker; two seconds
+# covers the start-up while still ending long before the descendant's 60 s.
+STARTUP_BOUND_SECONDS = 2.0
+
 
 class ExecutionTest(unittest.TestCase):
     def setUp(self):
@@ -723,7 +730,7 @@ class ExecutionTest(unittest.TestCase):
 
         returncode, termination = execution.run_bounded(
             [sys.executable, str(middle), str(marker), str(ready), str(group_file)],
-            0.3,
+            STARTUP_BOUND_SECONDS,
         )
 
         self.assertEqual(returncode, execution.TIMEOUT_EXIT)
@@ -849,7 +856,7 @@ class ExecutionTest(unittest.TestCase):
 
         self.assertEqual(
             execution.aggregate(
-                str(observer), report, aggregate_timeout_seconds=0.2
+                str(observer), report, aggregate_timeout_seconds=STARTUP_BOUND_SECONDS
             ),
             1,
         )
@@ -857,7 +864,7 @@ class ExecutionTest(unittest.TestCase):
         payload = json.loads(report.read_text(encoding="utf-8"))
         self.assertEqual(payload["returncode"], execution.TIMEOUT_EXIT)
         self.assertEqual(payload["termination"], "hard_timeout")
-        self.assertEqual(payload["timeout_seconds"], 0.2)
+        self.assertEqual(payload["timeout_seconds"], STARTUP_BOUND_SECONDS)
         self.assertTrue(marker.is_file())
 
     def test_probe_executes_and_checks_width(self):

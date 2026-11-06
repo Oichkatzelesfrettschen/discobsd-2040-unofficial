@@ -4,3 +4,7 @@
 # The instruction gate compares the generated compatibility copy byte for byte.
 /AGENTS.md text eol=lf
 /.claude/CLAUDE.md text eol=lf
+
+# The imported Tatham sources stay byte for byte as upstream wrote them,
+# trailing blanks included (games/pzcommon/tatham.sha256 pins them).
+/games/pzcommon/tatham/* -whitespace

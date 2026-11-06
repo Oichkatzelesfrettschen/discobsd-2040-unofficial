@@ -249,3 +249,56 @@ delivers ^C as the byte 3, so `q` is the keyboard quit and the signal handlers
 serve `kill(1)` and hangup. The image recipe builds with
 `-std=c17 -pedantic-errors`, which the sgtty headers accept on the cross
 compiler.
+
+## coil, hexagonal bubble and the puzzlebox
+
+`games/coil` joins `gamebox` as a fifth tool and `/usr/games/coil` as a fifth
+hard link. `games/bubble` gains a hexagonal mode (`bubble -x`) and is
+otherwise the same tool. Measured by `hsaout -s` and `arm-none-eabi-size` on
+the toolchain and libc of this tree: `gamebox` is 23,980 bytes raw and 21,693
+packed, 23 packed blocks and 25 raw blocks (text 23,720, data 228, bss
+23,600; before coil and the hexagonal mode: 18,464 raw and 16,484 packed, 18
+blocks). The object text of `bubble.o` grew from 2,319 to 2,866 bytes and
+`coil.o` is 4,993. coil's rules and front end share `games/gameterm.h`, the
+timed `select` loop, escape parser and signal handling that
+`games/fourfall` carries inline.
+
+`games/puzzlebox` is a second multicall box for four of Simon Tatham's
+puzzles (`flood`, `samegame`, `unruly`, `lightup`) behind one text front end
+(`games/pzcommon`). The split from `gamebox` is a measured choice: the four
+standalone programs are 18,172, 17,320, 20,692 and 23,064 bytes raw (17, 16,
+19 and 21 packed blocks, 73 in all), and `puzzlebox` is 38,960 raw and 34,397
+packed, 35 blocks. Put into `gamebox`, the five games and four puzzles would
+come to more than 50 KB raw, past the 40 KB guideline of `STORAGE.md`. The split
+is reversible: the four tools move to `games/gamebox/Makefile` `TOOLS`
+and the manifest links retarget, and the owner reviews it. The `games`
+closure holds `gamebox` and costs 24 root blocks and 2 inodes, and the
+`puzzles` closure holds `puzzlebox` and costs 35 blocks and 1 inode
+(`PROFILES.md`); the `full` and `picocalc` profiles keep both.
+
+A puzzle is its wrapper (`games/<name>/<name>.c`) plus the collection's
+source included into one translation unit built with `-fwhole-program`. The
+collection's `struct game` table then has internal linkage and no reference,
+so the compiler drops it and every presentation function it points to (they
+need the collection's graphics layer, floating point and `libm`). The shared
+object `games/pzcommon/pzcommon.o` keeps its globals, is built with a section
+per function, and the box and the standalone links add `-Wl,--gc-sections` to
+drop the support functions no puzzle reaches. `midend.c` is not linked.
+
+Open points. The imported unruly generator abandons a game state, with every
+block it owns, each time a candidate comes out too easy for the difficulty
+(`unruly.c`, `new_game_desc`; the easy and normal settings reject, trivial
+never does), and the `n` key repeats generation in one process, so the leaks
+accumulate toward the 144 KB window. The wrapper redirects the generator's
+allocator names to the tracking versions in `games/pzcommon/pzscope.h` and
+frees every block still recorded when generation returns, which leaves the
+imported file unchanged. Measured on the host heap over 100 games per size,
+an unreclaimed game leaks a mean of 26 to 262 bytes and at most 2.7 KB
+(6x6 normal 262 bytes, 24x16 normal 26 bytes); 280 further games at 6x6
+normal grew the data segment by 52 KB before the change and by none after.
+Within one generation the abandoned states still coexist until it returns,
+so the peak is the single-game figure. The host gate runs leak detection on
+all four puzzles. The collection's `flood.c` defines a non-static
+`check_recursion_depth`, which the whole-program build makes local.
+Board behavior of all four puzzles, of coil and of the hexagonal bubble mode
+is unmeasured.

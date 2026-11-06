@@ -409,6 +409,11 @@
 "out": "5\n",
 "rc": 0
 },
+"dc.arg_e_empty_array_copy": {
+"err": "",
+"out": "5\n",
+"rc": 0
+},
 "dc.arg_e_then_stdin": {
 "err": "",
 "out": "2\n",
@@ -447,6 +452,11 @@
 "dc.array_deep": {
 "err": "dc: idx too big\ndc: negative idx\n",
 "out": "6\n6\n6\n",
+"rc": 0
+},
+"dc.array_dup_empty": {
+"err": "",
+"out": "5\n5\n5\n5\n",
 "rc": 0
 },
 "dc.array_frame_move": {

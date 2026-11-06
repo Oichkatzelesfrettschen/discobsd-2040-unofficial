@@ -280,7 +280,13 @@ array_dup(const struct array *a)
 	if (a == NULL)
 		return NULL;
 	n = array_new();
-	array_grow(n, a->size);
+	/*
+	 * An empty source stays an empty copy: array_grow would request zero
+	 * bytes, and the C library's malloc(0) returns NULL, which
+	 * breallocarray treats as an allocation failure.
+	 */
+	if (a->size > 0)
+		array_grow(n, a->size);
 	for (i = 0; i < a->size; i++)
 		(void)stack_dup_value(&a->data[i], &n->data[i]);
 	return n;

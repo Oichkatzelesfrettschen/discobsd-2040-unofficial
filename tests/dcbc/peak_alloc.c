@@ -5,7 +5,8 @@
  * in a hidden header, tracks the largest live total, and writes
  * "peak=<bytes> blocks=<count>" to the file named by DCBC_PEAK_FILE when the
  * process exits. The figure counts requested bytes: allocator headers and
- * rounding on the target add to it.
+ * rounding on the target add to it. A zero-byte request returns NULL, and
+ * realloc(p, 0) frees p, as the tree's malloc does (see zero_alloc.c).
  */
 
 #include <stddef.h>
@@ -55,8 +56,11 @@ account(size_t added)
 void *
 __wrap_malloc(size_t n)
 {
-	struct hdr *h = __real_malloc(sizeof(*h) + n);
+	struct hdr *h;
 
+	if (n == 0)
+		return NULL;
+	h = __real_malloc(sizeof(*h) + n);
 	if (h == NULL)
 		return NULL;
 	h->size = n;
@@ -101,6 +105,10 @@ __wrap_realloc(void *p, size_t n)
 
 	if (p == NULL)
 		return __wrap_malloc(n);
+	if (n == 0) {
+		__wrap_free(p);
+		return NULL;
+	}
 	h = (struct hdr *)p - 1;
 	q = __wrap_malloc(n);
 	if (q == NULL)

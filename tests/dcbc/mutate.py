@@ -84,6 +84,12 @@ MUTATIONS = (
         "\t\t    NULL : array_dup(v->array);\n",
     ),
     (
+        "array_dup_grows_empty",
+        STACKC,
+        "\tif (a->size > 0)\n\t\tarray_grow(n, a->size);\n",
+        "\tarray_grow(n, a->size);\n",
+    ),
+    (
         "names_compare_first_byte",
         BCY,
         "while (table[i].key != NULL && strcmp(table[i].key, key) != 0)",
@@ -183,6 +189,12 @@ def main():
     ]
 
     support = [os.path.join(libbn, "bn.c"), os.path.join(here, "host_compat.c")]
+    # The tree's malloc(0) returns NULL; the dc and bc builds take that
+    # answer from zero_alloc.c, and the peak build from peak_alloc.c.
+    zero_alloc = [
+        os.path.join(here, "zero_alloc.c"),
+        "-Wl,--wrap=malloc,--wrap=realloc,--wrap=reallocarray",
+    ]
     scan = os.path.join(work, "scan.c")
     done = run([args.flex, "-o", scan, os.path.join(bcdir, "scan.l")], work)
     if done.returncode:
@@ -217,6 +229,7 @@ def main():
             ]
             + others
             + support
+            + zero_alloc
         )
         done = run(build, work)
         if done.returncode:
@@ -243,6 +256,7 @@ def main():
             ]
             + others
             + support
+            + zero_alloc
         )
         done = run(build, work)
         if done.returncode:

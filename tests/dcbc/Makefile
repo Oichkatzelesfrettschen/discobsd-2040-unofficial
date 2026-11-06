@@ -48,6 +48,9 @@ DC_FILES=	${DCDIR}/dc.c ${DCDIR}/bcode.c ${DCDIR}/inout.c ${DCDIR}/mem.c \
 		${DCDIR}/stack.c ${LIBBN}/bn.c host_compat.c
 DC_HEADERS=	${DCDIR}/compat.h ${DCDIR}/extern.h ${DCDIR}/bcode.h ${LIBBN}/bn.h
 BC_HEADERS=	${BCDIR}/extern.h ${BCDIR}/pathnames.h
+# The tree's malloc(0) returns NULL where a host C library returns a pointer;
+# zero_alloc.c restores the tree's answer in every dc and bc built here.
+ZERO_ALLOC=	zero_alloc.c -Wl,--wrap=malloc,--wrap=realloc,--wrap=reallocarray
 
 all: check
 
@@ -73,16 +76,16 @@ VARIANT_ilp32=	-m32
 VARIANT_san=	${SAN_FLAGS}
 
 .for v in native ilp32 san
-build/${v}/dc/dc: ${DCDIR}/main.c ${DC_FILES} ${DC_HEADERS} host_compat.h
+build/${v}/dc/dc: ${DCDIR}/main.c ${DC_FILES} ${DC_HEADERS} host_compat.h zero_alloc.c
 	mkdir -p build/${v}/dc
-	${HOSTCC} ${BASE_CFLAGS} ${VARIANT_${v}} -o $@ ${DCDIR}/main.c ${DC_FILES}
+	${HOSTCC} ${BASE_CFLAGS} ${VARIANT_${v}} -o $@ ${DCDIR}/main.c ${DC_FILES} ${ZERO_ALLOC}
 
 build/${v}/bc/bc: build/bc.c build/bc.h build/scan.c ${DC_FILES} ${DC_HEADERS} \
-		${BC_HEADERS} ${BCDIR}/bc.library host_compat.h
+		${BC_HEADERS} ${BCDIR}/bc.library host_compat.h zero_alloc.c
 	mkdir -p build/${v}/bc
 	${HOSTCC} ${BASE_CFLAGS} ${VARIANT_${v}} \
 	    -D'_PATH_LIBB="${BCDIR}/bc.library"' -Ibuild -I${BCDIR} -o $@ \
-	    build/bc.c build/scan.c ${DC_FILES}
+	    build/bc.c build/scan.c ${DC_FILES} ${ZERO_ALLOC}
 .endfor
 
 # dc with the allocation accounting of peak_alloc.c, for the heap figures.
@@ -176,13 +179,13 @@ getopt-arm.o: ${TOPSRC}/lib/libc/stdlib/getopt.c
 	    -include ${.CURDIR}/host_compat.h \
 	    -c -o $@ ${TOPSRC}/lib/libc/stdlib/getopt.c
 
-dc-arm: ${DCDIR}/main.c ${DC_FILES} ${DC_HEADERS} host_compat.h qemu_shim.c \
+dc-arm: ${DCDIR}/main.c ${DC_FILES} ${DC_HEADERS} host_compat.h qemu_shim.c zero_alloc.c \
 		qemu_shim/err.h getopt-arm.o ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -include ${.CURDIR}/host_compat.h \
 	    -I${.CURDIR}/qemu_shim -I${LIBBN} -I${DCDIR} -o $@ ${DCDIR}/main.c \
 	    ${DCDIR}/dc.c ${DCDIR}/bcode.c ${DCDIR}/inout.c ${DCDIR}/mem.c \
 	    ${DCDIR}/stack.c ${LIBBN}/bn.c qemu_shim.c getopt-arm.o ${QEMU_SUPPORT} \
-	    ${QEMU_ARM_LIBS}
+	    ${ZERO_ALLOC} ${QEMU_ARM_LIBS}
 
 check-qemu:
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)

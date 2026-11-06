@@ -261,6 +261,7 @@ DC_PROGRAMS = (
     ("gcd_macro", "1071 462 [dSarLa%d0<a]dsax+ p"),
     ("array_squares", "0si [li li * li :a li 1 + si li 20 >f]sf lfx 7;a p 19;a p"),
     ("nested_macro", "[[nested]p]sa [la x la x]sb lb x"),
+    ("array_dup_empty", "5sa 0;a R la p 5sa 0;a R la d f c"),
     ("quit_levels", "[1p q]x 2p"),
     ("quit_n", "[[3 Q] x 4p] x 5p"),
     ("cond_ops", "1 2 >a 2 1 >a [yes]sa 1 2 <a 2 2 =a 3 2 !=a 1 2 !<a 1 2 !>a"),
@@ -322,6 +323,9 @@ def dc_argument_cases():
     c = []
     c.append(_case("dc", "arg_e", "", ["-e", "2 3 + p"]))
     c.append(_case("dc", "arg_e_twice", "", ["-e", "2 sa", "-e", "la p"]))
+    # The register's array is empty when la copies the value, and the target's
+    # malloc(0) returns NULL for the copy's zero-byte array.
+    c.append(_case("dc", "arg_e_empty_array_copy", "", ["-e", "5sa 0;a R la p"]))
     c.append(_case("dc", "arg_e_then_stdin", "3 p\n", ["-e", "2 p"]))
     c.append(_case("dc", "arg_x_flag", "5 s\xff\x01\x02 l\xff\x01\x02 p\n", ["-x"]))
     c.append(_case("dc", "arg_dash", "4 p\n", ["-"], tier="host"))

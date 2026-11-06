@@ -12,6 +12,7 @@ process group, and the group is killed on a timeout.
 
     hsx_decoder_mutants.py --cc cc --topsrc DIR [--images DIR]
 """
+
 import argparse
 import os
 import signal
@@ -25,94 +26,144 @@ STR = "hsx_stream.c"
 # (name, file, fragment, replacement), grouped by what the mutant breaks.
 MUTANTS = (
     # bit reader refill
-    ("refill shift one bit high", DEC,
-     "acc |= (unsigned) *ip++ << sh;\n                sh -= 8;",
-     "acc |= (unsigned) *ip++ << (sh + 1);\n                sh -= 8;"),
-    ("refill adds seven bits per byte", DEC,
-     "sh -= 8;", "sh -= 7;"),
-    ("refill skipped at 17 valid bits", DEC,
-     "if (sh > 6) {", "if (sh > 7) {"),
-    ("refill reads past the chunk end", DEC,
-     "while (sh >= 0 && ip != ie) {", "while (sh >= 0) {"),
-    ("refill drops the byte when full", DEC,
-     "acc |= (unsigned) *ip++ << sh;", "acc = (unsigned) *ip++ << sh;"),
+    (
+        "refill shift one bit high",
+        DEC,
+        "acc |= (unsigned) *ip++ << sh;\n                sh -= 8;",
+        "acc |= (unsigned) *ip++ << (sh + 1);\n                sh -= 8;",
+    ),
+    ("refill adds seven bits per byte", DEC, "sh -= 8;", "sh -= 7;"),
+    ("refill skipped at 17 valid bits", DEC, "if (sh > 6) {", "if (sh > 7) {"),
+    ("refill reads past the chunk end", DEC, "while (sh >= 0 && ip != ie) {", "while (sh >= 0) {"),
+    (
+        "refill drops the byte when full",
+        DEC,
+        "acc |= (unsigned) *ip++ << sh;",
+        "acc = (unsigned) *ip++ << sh;",
+    ),
     # token fields
-    ("tag polarity reversed", DEC,
-     "if ((int) acc < 0) {", "if ((int) acc >= 0) {"),
-    ("literal from the wrong bits", DEC,
-     "(unsigned char) (acc >> 23)", "(unsigned char) (acc >> 22)"),
-    ("literal consumes eight bits", DEC,
-     "acc <<= 9;\n            sh += 9;", "acc <<= 8;\n            sh += 9;"),
-    ("literal accounting off by one", DEC,
-     "acc <<= 9;\n            sh += 9;", "acc <<= 9;\n            sh += 8;"),
+    ("tag polarity reversed", DEC, "if ((int) acc < 0) {", "if ((int) acc >= 0) {"),
+    (
+        "literal from the wrong bits",
+        DEC,
+        "(unsigned char) (acc >> 23)",
+        "(unsigned char) (acc >> 22)",
+    ),
+    (
+        "literal consumes eight bits",
+        DEC,
+        "acc <<= 9;\n            sh += 9;",
+        "acc <<= 8;\n            sh += 9;",
+    ),
+    (
+        "literal accounting off by one",
+        DEC,
+        "acc <<= 9;\n            sh += 9;",
+        "acc <<= 9;\n            sh += 8;",
+    ),
     # back-reference offset and length
-    ("distance without the plus one", DEC,
-     "(HSXD_WINDOW - 1)) + 1;", "(HSXD_WINDOW - 1));"),
-    ("distance mask of 8 bits", DEC,
-     "& (HSXD_WINDOW - 1)) + 1;", "& 255) + 1;"),
-    ("length without the plus one", DEC,
-     "((1u << lb) - 1)) + 1;", "((1u << lb) - 1));"),
-    ("length field one bit wide", DEC,
-     "((1u << lb) - 1)) + 1;", "((1u << (lb - 1)) - 1)) + 1;"),
-    ("token consumes one bit too few", DEC,
-     "acc <<= 1 + HSXD_WINDOW_BITS + lb;\n        sh += 1 + HSXD_WINDOW_BITS + lb;",
-     "acc <<= HSXD_WINDOW_BITS + lb;\n        sh += 1 + HSXD_WINDOW_BITS + lb;"),
-    ("length limit by output space dropped", DEC,
-     "if (n > cnt)\n            n = cnt;", ""),
-    ("copy past the output space", DEC,
-     "n = (unsigned) (lim - op);", "n = (unsigned) (lim - op) + 1;"),
-    ("pending back-reference lost", DEC,
-     "if (cnt != 0)\n        goto copy;", "if (0)\n        goto copy;"),
-    ("pending length not saved", DEC,
-     "d->cnt = cnt;", "d->cnt = 0;"),
-    ("bit buffer not saved", DEC,
-     "d->acc = acc;", "d->acc = 0;"),
-    ("position not advanced", DEC,
-     "d->pos += n;", "d->pos += n ? 1 : 0;"),
+    ("distance without the plus one", DEC, "(HSXD_WINDOW - 1)) + 1;", "(HSXD_WINDOW - 1));"),
+    ("distance mask of 8 bits", DEC, "& (HSXD_WINDOW - 1)) + 1;", "& 255) + 1;"),
+    ("length without the plus one", DEC, "((1u << lb) - 1)) + 1;", "((1u << lb) - 1));"),
+    ("length field one bit wide", DEC, "((1u << lb) - 1)) + 1;", "((1u << (lb - 1)) - 1)) + 1;"),
+    (
+        "token consumes one bit too few",
+        DEC,
+        "acc <<= 1 + HSXD_WINDOW_BITS + lb;\n        sh += 1 + HSXD_WINDOW_BITS + lb;",
+        "acc <<= HSXD_WINDOW_BITS + lb;\n        sh += 1 + HSXD_WINDOW_BITS + lb;",
+    ),
+    ("length limit by output space dropped", DEC, "if (n > cnt)\n            n = cnt;", ""),
+    (
+        "copy past the output space",
+        DEC,
+        "n = (unsigned) (lim - op);",
+        "n = (unsigned) (lim - op) + 1;",
+    ),
+    (
+        "pending back-reference lost",
+        DEC,
+        "if (cnt != 0)\n        goto copy;",
+        "if (0)\n        goto copy;",
+    ),
+    ("pending length not saved", DEC, "d->cnt = cnt;", "d->cnt = 0;"),
+    ("bit buffer not saved", DEC, "d->acc = acc;", "d->acc = 0;"),
+    ("position not advanced", DEC, "d->pos += n;", "d->pos += n ? 1 : 0;"),
     # window wrap and history before the first byte
-    ("window index not wrapped", DEC,
-     "*op++ = base[src++ & mask];", "*op++ = base[src++];"),
-    ("history before the start not zero", DEC,
-     "while (n != 0 && pos < off) {", "while (0) {"),
-    ("history boundary off by one", DEC,
-     "while (n != 0 && pos < off) {", "while (n != 0 && pos <= off) {"),
-    ("history boundary one early", DEC,
-     "while (n != 0 && pos < off) {", "while (n != 0 && pos + 1 < off) {"),
+    ("window index not wrapped", DEC, "*op++ = base[src++ & mask];", "*op++ = base[src++];"),
+    ("history before the start not zero", DEC, "while (n != 0 && pos < off) {", "while (0) {"),
+    (
+        "history boundary off by one",
+        DEC,
+        "while (n != 0 && pos < off) {",
+        "while (n != 0 && pos <= off) {",
+    ),
+    (
+        "history boundary one early",
+        DEC,
+        "while (n != 0 && pos < off) {",
+        "while (n != 0 && pos + 1 < off) {",
+    ),
     # end of input
-    ("literal accepted with eight bits", DEC,
-     "if (sh > 15)\n                break;", "if (sh > 16)\n                break;"),
-    ("literal refused with nine bits", DEC,
-     "if (sh > 15)\n                break;", "if (sh > 14)\n                break;"),
-    ("token accepted one bit short", DEC,
-     "if (sh > 14 - (int) lb)", "if (sh > 15 - (int) lb)"),
-    ("token refused when complete", DEC,
-     "if (sh > 14 - (int) lb)", "if (sh > 13 - (int) lb)"),
+    (
+        "literal accepted with eight bits",
+        DEC,
+        "if (sh > 15)\n                break;",
+        "if (sh > 16)\n                break;",
+    ),
+    (
+        "literal refused with nine bits",
+        DEC,
+        "if (sh > 15)\n                break;",
+        "if (sh > 14)\n                break;",
+    ),
+    ("token accepted one bit short", DEC, "if (sh > 14 - (int) lb)", "if (sh > 15 - (int) lb)"),
+    ("token refused when complete", DEC, "if (sh > 14 - (int) lb)", "if (sh > 13 - (int) lb)"),
     # stream loop
-    ("trailing token after the last byte ignored", STR,
-     "else if (room == 0)\n                    room = 1;",
-     "else if (room == 0)\n                    break;"),
-    ("short stream accepted", STR,
-     "if (out != rlen)\n        return -1;", "if (out > rlen)\n        return -1;"),
-    ("last input byte dropped", STR,
-     "hsx_dec_input (d, w->stage, avail);", "hsx_dec_input (d, w->stage, avail - 1);"),
-    ("one run per chunk", STR,
-     "} while (n == room);", "} while (0);"),
-    ("ring run crosses the ring end", STR,
-     "if (room > HSXD_WINDOW - (out & mask))",
-     "if (room > HSXD_WINDOW + 8 - (out & mask))"),
-    ("crc over one byte too few", STR,
-     "c = crc32_update (c, base + (out & mask), n);",
-     "c = crc32_update (c, base + (out & mask), n - 1);"),
-    ("input consumed twice", STR,
-     "in += avail;", "in += avail + (avail > 1);"),
+    (
+        "trailing token after the last byte ignored",
+        STR,
+        "else if (room == 0)\n                    room = 1;",
+        "else if (room == 0)\n                    break;",
+    ),
+    (
+        "short stream accepted",
+        STR,
+        "if (out != rlen)\n        return -1;",
+        "if (out > rlen)\n        return -1;",
+    ),
+    (
+        "last input byte dropped",
+        STR,
+        "hsx_dec_input (d, w->stage, avail);",
+        "hsx_dec_input (d, w->stage, avail - 1);",
+    ),
+    ("one run per chunk", STR, "} while (n == room);", "} while (0);"),
+    (
+        "ring run crosses the ring end",
+        STR,
+        "if (room > HSXD_WINDOW - (out & mask))",
+        "if (room > HSXD_WINDOW + 8 - (out & mask))",
+    ),
+    (
+        "crc over one byte too few",
+        STR,
+        "c = crc32_update (c, base + (out & mask), n);",
+        "c = crc32_update (c, base + (out & mask), n - 1);",
+    ),
+    ("input consumed twice", STR, "in += avail;", "in += avail + (avail > 1);"),
 )
 
 
 def run(cmd, timeout, **kw):
     """Run cmd in its own process group; kill the group on a timeout."""
-    proc = subprocess.Popen(cmd, start_new_session=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, **kw)
+    proc = subprocess.Popen(
+        cmd,
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        **kw,
+    )
     try:
         out, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -143,18 +194,29 @@ def main():
         DEC: os.path.join(krp, DEC),
         STR: os.path.join(krp, STR),
     }
-    flags = ["-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror",
-             "-idirafter", os.path.join(top, "tools/hsaout"),
-             "-idirafter", os.path.join(top, "sys"), "-I" + hs,
-             "-DHEATSHRINK_DYNAMIC_ALLOC=1"]
+    flags = [
+        "-std=gnu11",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-idirafter",
+        os.path.join(top, "tools/hsaout"),
+        "-idirafter",
+        os.path.join(top, "sys"),
+        "-I" + hs,
+        "-DHEATSHRINK_DYNAMIC_ALLOC=1",
+    ]
     with tempfile.TemporaryDirectory() as tmp:
         objs = {}
         for name, path in (
-                ("test", os.path.join(top, "tests/hsaout/hsx_decoder_diff.c")),
-                ("crc", os.path.join(top, "sys/kern/subr_crc32.c")),
-                ("refdec", os.path.join(hs, "heatshrink_decoder.c")),
-                ("refenc", os.path.join(hs, "heatshrink_encoder.c")),
-                (DEC, srcs[DEC]), (STR, srcs[STR])):
+            ("test", os.path.join(top, "tests/hsaout/hsx_decoder_diff.c")),
+            ("crc", os.path.join(top, "sys/kern/subr_crc32.c")),
+            ("refdec", os.path.join(hs, "heatshrink_decoder.c")),
+            ("refenc", os.path.join(hs, "heatshrink_encoder.c")),
+            (DEC, srcs[DEC]),
+            (STR, srcs[STR]),
+        ):
             objs[name] = os.path.join(tmp, name + ".o")
             extra = ["-Wno-implicit-fallthrough"] if name.startswith("ref") else []
             compile_obj(args.cc, flags + extra, path, objs[name])
@@ -182,8 +244,7 @@ def main():
             with open(srcs[fname], encoding="utf-8") as f:
                 text = f.read()
             if text.count(frag) != 1:
-                print("FAIL: mutant %r fragment occurs %d times" %
-                      (name, text.count(frag)))
+                print("FAIL: mutant %r fragment occurs %d times" % (name, text.count(frag)))
                 return 1
             mpath = os.path.join(tmp, "m%d_%s" % (n, fname))
             with open(mpath, "w", encoding="utf-8") as f:

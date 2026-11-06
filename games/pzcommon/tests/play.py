@@ -489,6 +489,35 @@ def test_unruly_keys(root):
     check(g.finish() == 0, "exit")
 
 
+def test_solve_after_history_eviction(root):
+    # Solving works from the puzzle as first dealt, not from the oldest state
+    # the bounded undo history still holds. One wrong digit is entered, then a
+    # second cell is cycled through far more states than the history keeps, so
+    # the dealt state has been evicted and the oldest kept state carries the
+    # wrong digit; S must still reach the solution.
+    if "unruly" not in PUZZLES:
+        return
+    g, gid, moves, w, h = start(root, "unruly")
+    t = g.term
+    cells = []
+    for mv in moves:
+        m = re.match(r"P(.),(\d+),(\d+)", mv)
+        if m:
+            cells.append((m.group(1), int(m.group(2)), int(m.group(3))))
+    check(len(cells) >= 2, "unruly: fewer than two empty cells in the solution")
+    (digit, x, y), (_, bx, by) = cells[0], cells[1]
+    cur = cursor_at(g, w, h)[0]
+    move_cursor(g, cur[0], cur[1], x, y)
+    wrong = "0" if digit == "1" else "1"
+    g.send(wrong.encode())
+    check(t.cell(x, y) == wrong * 2, "the wrong digit was not entered: %r" % t.cell(x, y))
+    move_cursor(g, x, y, bx, by)
+    g.send(b" ", repeat=120)
+    g.send(b"S")
+    check(g.message(h).startswith("SOLVED"), "S after the history wrapped: %r" % g.message(h))
+    check(g.finish() == 0, "unruly: exit")
+
+
 def test_lightup_keys(root):
     if "lightup" not in PUZZLES:
         return

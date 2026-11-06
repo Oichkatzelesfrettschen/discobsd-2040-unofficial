@@ -33,6 +33,7 @@ static const struct pz_ops *op;
 static void *params;
 static char *aux;
 static void *ui;
+static void *orig;		/* the puzzle as dealt; never part of the history */
 static void *hist[PZ_HIST];
 static int nhist, cur;
 static int mono;
@@ -72,6 +73,9 @@ history_clear(void)
 	while (nhist > 0)
 		op->free_game(hist[--nhist]);
 	cur = 0;
+	if (orig)
+		op->free_game(orig);
+	orig = NULL;
 }
 
 static void
@@ -138,6 +142,7 @@ start_game(const char *desc, const char **err)
 	if (ui)
 		op->free_ui(ui);	/* the old interface belongs to the old game */
 	ui = op->new_ui(s);
+	orig = op->dup_game(s);
 	hist[nhist++] = s;
 	op->changed(ui, NULL, s);
 	sfree(test_id);
@@ -388,7 +393,7 @@ event(int key, unsigned long now, int expired_ms)
 	case 'S':
 		if (!op->solve)
 			return 0;
-		m = op->solve(hist[0], hist[cur], aux);
+		m = op->solve(orig, hist[cur], aux);
 		if (m)
 			apply(m);
 		else

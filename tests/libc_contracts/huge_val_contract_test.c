@@ -19,7 +19,8 @@
 int tree_snprintf(char *, size_t, const char *, ...);
 extern int tree_errno;
 
-double tree_exp(double), tree_log(double), tree_pow(double, double);
+double tree_exp(double), tree_log(double), tree_log10(double);
+double tree_pow(double, double);
 double tree_sinh(double), tree_cosh(double), tree_tan(double);
 double tree_sqrt(double), tree_ldexp(double, int), tree_frexp(double, int *);
 double tree_y0(double), tree_y1(double), tree_yn(int, double);
@@ -67,6 +68,23 @@ check_call(const char *what, double value, int sign, int errno_expected)
 		    what, errno_expected, tree_errno);
 		check(tree_errno == errno_expected, message);
 	}
+}
+
+/*
+ * A finite result within a relative tolerance of an exact value. The exact
+ * values come from the decimal module's exp at 60 digits, rounded to the
+ * nearest double, and agree with CPython's math.exp.
+ */
+static void
+check_near(const char *what, double value, double want, double tolerance)
+{
+	char message[128];
+	double error = (value - want) / want;
+
+	snprintf(message, sizeof message, "%s is %.17g, exact %.17g", what,
+	    value, want);
+	check(value == value && value - value == 0.0 &&
+	    (error < 0.0 ? -error : error) <= tolerance, message);
 }
 
 #define CALL(expression, sign, errno_expected) \
@@ -160,6 +178,37 @@ main(void)
 	check(tree_exp(-1000.0) == 0.0, "exp(-1000) underflows to zero");
 	check(tree_exp(709.0) > 8.2e307 && tree_exp(709.0) < 8.3e307,
 	    "exp(709) stays finite");
+
+	/*
+	 * C17 7.12.6.1: exp overflows above ln(DBL_MAX) =
+	 * 709.782712893384 and not earlier, and is accurate across its range;
+	 * reduction by arg * log2e alone is 5e-14 off near 706.
+	 */
+	CALL(tree_exp(709.7827128933841), 1, erange);
+	CALL(tree_exp(709.783), 1, erange);
+	CALL(tree_exp(769.9), 1, erange);
+	CALL(tree_exp(771.0), 1, erange);
+	CALL(tree_exp(1e30), 1, erange);
+	tree_errno = 0;
+	check_near("exp(ln DBL_MAX)", tree_exp(709.782712893384),
+	    1.7976931348622732e+308, 2e-15);
+	check(tree_errno == 0, "exp(ln DBL_MAX) leaves errno alone");
+	check_near("exp(709)", tree_exp(709.0), 8.218407461554972e+307, 2e-15);
+	check_near("exp(706.73)", tree_exp(706.73), 8.490615916644771e+306, 2e-15);
+	check_near("exp(700)", tree_exp(700.0), 1.0142320547350045e+304, 2e-15);
+	check_near("exp(500)", tree_exp(500.0), 1.4035922178528375e+217, 2e-15);
+	check_near("exp(100)", tree_exp(100.0), 2.6881171418161356e+43, 2e-15);
+	check_near("exp(10)", tree_exp(10.0), 22026.465794806718, 2e-15);
+	check_near("exp(1)", tree_exp(1.0), 2.718281828459045, 2e-15);
+	check_near("exp(0.5)", tree_exp(0.5), 1.6487212707001282, 2e-15);
+	check_near("exp(-1)", tree_exp(-1.0), 0.36787944117144233, 2e-15);
+	check_near("exp(-300)", tree_exp(-300.0), 5.148200222412013e-131, 2e-15);
+	check_near("exp(-700)", tree_exp(-700.0), 9.85967654375977e-305, 2e-15);
+	/* the underflow side: results down to 2^-1024 are computed, the rest are zero */
+	check_near("exp(-709.5)", tree_exp(-709.5), 7.38014831401258e-309, 1e-14);
+	check(tree_exp(-745.2) == 0.0, "exp(-745.2) underflows to zero");
+	check(tree_exp(-800.0) == 0.0, "exp(-800) underflows to zero");
+	check(tree_exp(-1e30) == 0.0, "exp(-1e30) underflows to zero");
 	CALL(tree_pow(10.0, 400.0), 1, erange);
 	CALL(tree_pow(-10.0, 401.0), -1, erange);
 	CALL(tree_cosh(1000.0), 1, erange);
@@ -169,11 +218,31 @@ main(void)
 	CALL(tree_ldexp(1.0, 2000), 1, erange);
 	CALL(tree_ldexp(-1.0, 2000), -1, erange);
 	CALL(tree_ldexp(DBL_MAX, 1), 1, erange);
-	CALL(tree_log(0.0), -1, 0);
-	CALL(tree_y0(0.0), -1, 0);
-	CALL(tree_y1(0.0), -1, 0);
-	CALL(tree_yn(2, 0.0), -1, 0);
-	(void)edom;
+
+	/*
+	 * C17 7.12.1p4: a pole is a range error, ERANGE under this libc, and
+	 * Annex F returns an infinity of the sign of the limit; a negative
+	 * argument is a domain error, EDOM.
+	 */
+	CALL(tree_log(0.0), -1, erange);
+	CALL(tree_log(-1.0), -1, edom);
+	CALL(tree_log10(0.0), -1, erange);
+	CALL(tree_log10(-1.0), -1, edom);
+	CALL(tree_y0(0.0), -1, erange);
+	CALL(tree_y1(0.0), -1, erange);
+	CALL(tree_yn(2, 0.0), -1, erange);
+	CALL(tree_yn(-1, 0.0), -1, erange);
+	CALL(tree_y0(-1.0), -1, edom);
+	CALL(tree_y1(-1.0), -1, edom);
+	CALL(tree_yn(2, -3.0), -1, edom);
+	CALL(tree_pow(0.0, -1.0), 1, erange);
+	CALL(tree_pow(0.0, -2.5), 1, erange);
+	tree_errno = 0;
+	check(tree_pow(0.0, 0.0) == 1.0 && tree_errno == 0,
+	    "pow(0, 0) is 1 and leaves errno alone");
+	tree_errno = 0;
+	check(tree_pow(0.0, 2.0) == 0.0 && tree_pow(0.0, 0.5) == 0.0 &&
+	    tree_errno == 0, "pow(0, y) is 0 for positive y and leaves errno alone");
 	check(tree_ldexp(1.0, -2000) == 0.0, "ldexp(1, -2000) underflows to zero");
 	check(tree_ldexp(1.0, 10) == 1024.0, "ldexp(1, 10) is 1024");
 

@@ -80,7 +80,7 @@ yn(n,x) int n; double x;{
 	double y0(), y1();
 
 	if (x <= 0) {
-		errno = EDOM;
+		errno = x == 0 ? ERANGE : EDOM;
 		return(-HUGE_VAL);
 	}
 	sign = 1;

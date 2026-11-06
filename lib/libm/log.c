@@ -29,8 +29,13 @@ double arg;
 	double x,z, zsq, temp;
 	int exp;
 
+	/*
+	 * C17 7.12.6.7: a negative argument is a domain error; zero is a
+	 * pole, which 7.12.1p4 reports as a range error, and Annex F.10.3.7
+	 * returns -infinity for it.
+	 */
 	if(arg <= 0.) {
-		errno = EDOM;
+		errno = arg == 0. ? ERANGE : EDOM;
 		return(-HUGE_VAL);
 	}
 	if(arg > DBL_MAX)

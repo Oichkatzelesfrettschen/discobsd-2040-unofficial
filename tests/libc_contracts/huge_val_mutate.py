@@ -12,7 +12,9 @@ hangs counts as rejected.
 
 from __future__ import annotations
 
+import os
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -90,14 +92,13 @@ def build_and_run(
         check=True,
         cwd=test_directory,
     )
+    # The test runs in its own process group so that a hang is killed whole.
+    process = subprocess.Popen([str(executable)], stdout=subprocess.DEVNULL, start_new_session=True)
     try:
-        return subprocess.run(
-            [str(executable)],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            timeout=TIMEOUT_SECONDS,
-        ).returncode
+        return process.wait(timeout=TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
         return -1
 
 
@@ -123,6 +124,10 @@ def main() -> int:
     atof_c = text("lib/libc/gen/atof.c")
     strtod_c = text("lib/libc/stdlib/strtod.c")
     exp_c = text("lib/libm/exp.c")
+    pow_c = text("lib/libm/pow.c")
+    j0_c = text("lib/libm/j0.c")
+    j1_c = text("lib/libm/j1.c")
+    jn_c = text("lib/libm/jn.c")
     mutations = {
         "ldexp-overflow-finite": {
             "lib/libc/gen/ldexp.c": replace_once(
@@ -178,6 +183,87 @@ def main() -> int:
                 "\t\treturn(HUGE_VAL);",
                 "\t\treturn(DBL_MAX);",
                 "exp-overflow-finite",
+            )
+        },
+        # C17 7.12.1p4: a pole is a range error. Each mutant reports the
+        # pole as a domain error.
+        "log-pole-domain": {
+            "lib/libm/log.c": replace_once(
+                log_c,
+                "errno = arg == 0. ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "log-pole-domain",
+            )
+        },
+        "y0-pole-domain": {
+            "lib/libm/j0.c": replace_once(
+                j0_c,
+                "errno = arg == 0. ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "y0-pole-domain",
+            )
+        },
+        "y1-pole-domain": {
+            "lib/libm/j1.c": replace_once(
+                j1_c,
+                "errno = x == 0. ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "y1-pole-domain",
+            )
+        },
+        "yn-pole-domain": {
+            "lib/libm/jn.c": replace_once(
+                jn_c,
+                "errno = x == 0 ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "yn-pole-domain",
+            )
+        },
+        "pow-pole-domain": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\t\t\tif(arg2 < 0.) {\n\t\t\t\terrno = ERANGE;\n"
+                "\t\t\t\treturn(HUGE_VAL);\n\t\t\t}\n",
+                "\t\t\tif(arg2 < 0.)\n\t\t\t\tgoto domain;\n",
+                "pow-pole-domain",
+            )
+        },
+        "pow-zero-to-zero": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\t\t\tif(arg2 == 0.)\n\t\t\t\treturn(1.);\n",
+                "\t\t\tif(arg2 == 0.)\n\t\t\t\tgoto domain;\n",
+                "pow-zero-to-zero",
+            )
+        },
+        # exp: the reduction through arg * log2e alone, 5e-14 off near 706
+        # and an infinity one argument early at ln(DBL_MAX); an overflow
+        # guard under ln(DBL_MAX); an underflow guard above the results
+        # ldexp still represents. An overflow guard at 770 is not a mutant:
+        # ldexp returns the same HUGE_VAL and ERANGE for every argument
+        # between ln(DBL_MAX) and 770, so no observation separates the two.
+        "exp-imprecise-reduction": {
+            "lib/libm/exp.c": replace_once(
+                exp_c,
+                "\tent = floor(arg*log2e);\n\tfract = ((arg - ent*ln2hi) - ent*ln2lo)*log2e - 0.5;",
+                "\targ *= log2e;\n\tent = floor(arg);\n\tfract = (arg-ent) - 0.5;",
+                "exp-imprecise-reduction",
+            )
+        },
+        "exp-overflow-guard-low": {
+            "lib/libm/exp.c": replace_once(
+                exp_c,
+                "maxf	= 709.782712893384;",
+                "maxf	= 709.7;",
+                "exp-overflow-guard-low",
+            )
+        },
+        "exp-underflow-guard-high": {
+            "lib/libm/exp.c": replace_once(
+                exp_c,
+                "minf	= -745.14;",
+                "minf	= -709.0;",
+                "exp-underflow-guard-high",
             )
         },
         "finite-huge-val": {},

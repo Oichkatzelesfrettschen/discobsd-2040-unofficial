@@ -58,7 +58,7 @@ fail(const char *what, const char *format, double value, const char *got,
 /*
  * C17 7.21.6.1p13 asks for a correctly rounded result only up to
  * DECIMAL_DIG (17 for a double) significant digits; beyond them any decimal
- * between the two neighbours with 17 digits is allowed, so a host libc that
+ * between the two neighbors with 17 digits is allowed, so a host libc that
  * prints another such decimal is conforming and cannot judge the tree. The
  * macOS libc is not assumed to print the exact digits there, so a build with
  * HOST_DIGITS_LIMITED, defined by default under __APPLE__, asks the host

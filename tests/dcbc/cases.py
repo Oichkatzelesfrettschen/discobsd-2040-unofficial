@@ -289,6 +289,9 @@ DC_PROGRAMS = (
     ("obase_neg_frac", "16 o _255.5 p 2 o 5.75 p 5 k 10 o 1 7 / p"),
     ("count_digits", "1000000 Z p 0 Z p 0.001 Z p 123.456 Z p _12345 Z p"),
     ("long_line", "99999999999999999999 d * d * d * d * d * p"),
+    # The remainder keeps the operand scale of the pinned source: with scale 2,
+    # 1.235 % 1 prints .500, not the .005 that a - (a / b) * b gives.
+    ("rem_fraction_scale", "2 k 1.235 1 % p 1.235 1 ~ f"),
     (
         "array_frame_move",
         "7 0:a 8 3:a La 0;a pR Sa 0;a pR 3;a pR La d Sa Sa 0;a 3;a + pR La c 0;a pR 5 sb La sb Lb sa 0;a pR 3;a pR 4 1:a 1;a pR",
@@ -434,6 +437,14 @@ BC_PROGRAMS = (
     ("big_fraction", "scale=60\n1/3\n2/7\n10^30/7\n"),
     ("negative_scale_div", "scale=3\n-7/2\n7/-2\n-7/-2\n-7%2\n7%-2\n"),
     ("mod_scale", "scale=5\n7.5%2\n-7.5%2\n10%3.3\n"),
+    # The remainder keeps the operand scale of the pinned source, as in dc.
+    ("mod_fraction_scale", "scale=2\n1.235%1\n"),
+    # The grammar of the pinned source takes an array only after a comma:
+    # f(a[]) is a syntax error and f(x,a[]) calls.
+    (
+        "array_arg_position",
+        "define f(a[]) {\n return (a[0])\n}\ndefine g(x,a[]) {\n return (a[0]+x)\n}\nb[0]=7\ng(1,b[])\nf(b[])\n9\n",
+    ),
     ("div_zero", "1/0\n1%0\nscale=2\n5/0\n"),
     ("sqrt_negative", "sqrt(-4)\n"),
     ("undefined_function", "foo(3)\n"),

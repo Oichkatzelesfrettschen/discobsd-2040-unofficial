@@ -165,6 +165,27 @@ MUTANTS = [
         False,
     ),
     (
+        "sto-name-unchecked",
+        [("\tif (!validname(name))\n", "\tif (0 && !validname(name))\n")],
+        ["rpn"],
+        None,
+        False,
+    ),
+    (
+        "nonfinite-format-unguarded",
+        [
+            (
+                "\tif (!fin(x)) {\n\t\tsnprintf(buf, n, \"%s\", "
+                "x != x ? \"nan\" : x < 0.0 ? \"-inf\" : \"inf\");\n"
+                "\t\treturn;\n\t}\n",
+                "",
+            )
+        ],
+        ["stats"],
+        None,
+        False,
+    ),
+    (
         "stop-restore-skipped",
         [("\ttty_leave();\n\tsignal(sig, SIG_DFL);", "\tsignal(sig, SIG_DFL);")],
         [],
@@ -541,8 +562,15 @@ MUTANTS = [
         False,
     ),
     (
+        "negative-base-parity-dropped",
+        [("b - 2.0 * floor(0.5 * b) != 0.0", "0")],
+        ["alg"],
+        None,
+        False,
+    ),
+    (
         "negative-base-fractional-power-allowed",
-        [('\tif (a < 0.0)\n\t\tfail("domain error");\n\tif (a == 0.0) {', "\tif (a == 0.0) {")],
+        [('\t\tif (b != floor(b))\n\t\t\tfail("domain error");\n', "")],
         ["alg"],
         None,
         False,

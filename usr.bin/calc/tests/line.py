@@ -295,6 +295,16 @@ ALG = [
     err("1e308*10", "overflow"),
     err("10^400", "overflow"),
     err("sinh(1000)", "overflow"),
+    # lib/libm's exp returns the finite HUGE_VAL past its range; the power
+    # must still report overflow (the tree-libm run exercises that exp)
+    err("pow(1e200,2.5)", "overflow"),
+    err("1e200^2.5", "overflow"),
+    err("todeg(1e308)", "overflow"),
+    num("(-1)^1025", -1.0),
+    num("(-1)^2000", 1.0),
+    num("pow(-1,1025)", -1.0),
+    num("(-1)^1e300", 1.0),
+    err("(-2)^1025", "overflow"),
     err("2+", "syntax error"),
     err("(2", "syntax error"),
     err("2)", "syntax error"),
@@ -395,6 +405,13 @@ RPN = [
     ("drop", 2.0),
     ("drop drop", 1.0),
     ("drop", ("raw", "empty")),
+    # a sto name must be an identifier of at most 10 characters
+    (
+        "42 sto abcdefghijklmnopqrstuvwxyz",
+        ("raw", "error: invalid name: abcdefghijklmnopqrstuvwxyz"),
+    ),
+    ("42 sto 9x", ("raw", "error: invalid name: 9x")),
+    ("clear", ("raw", "stack cleared")),
     err("drop", "stack empty"),
     ("1 2 3 4", 4.0),
     ("roll", 3.0),
@@ -774,6 +791,11 @@ def test_stats(prog):
         }
         table = [num("%s(%s)" % (k, args), w) for k, w in fns.items()]
         session(prog, table)
+    # an overflowing moment prints as inf rather than a parsed garbage exponent
+    out, _, _ = run(prog, "stat 1e200 2e200\n")
+    cases += 1
+    check("var inf\n" in out and "varp inf\n" in out and "mean 1.5e+200" in out,
+          "stat of an overflowing variance: %r" % out)
     # a single value has no sample variance
     out, _, _ = run(prog, "stat 5\n")
     cases += 1

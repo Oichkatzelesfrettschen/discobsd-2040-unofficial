@@ -335,9 +335,20 @@ ipow(double a, long n)
 	return r;
 }
 
+/*
+ * An integral exponent up to 1024 multiplies; beyond that, and for a
+ * fractional one, the value comes from pow on |a|. A negative base takes its
+ * sign from the parity of an integral exponent; every double of magnitude
+ * 2^53 or more is even. lib/libm's exp returns the finite HUGE_VAL past its
+ * range instead of an infinity, so the logarithm of the result is compared
+ * with the largest finite double's before pow runs.
+ */
 static double
 dpow(double a, double b)
 {
+	double lg, m;
+	int neg = 0;
+
 	if (b == floor(b) && b >= -1024.0 && b <= 1024.0) {
 		long n = (long)b;
 
@@ -347,14 +358,22 @@ dpow(double a, double b)
 			fail("division by zero");
 		return ipow(chk(1.0 / a), -n);
 	}
-	if (a < 0.0)
-		fail("domain error");
 	if (a == 0.0) {
 		if (b < 0.0)
 			fail("division by zero");
 		return 0.0;
 	}
-	return chk(pow(a, b));
+	if (a < 0.0) {
+		if (b != floor(b))
+			fail("domain error");
+		neg = fabs(b) < 9007199254740992.0 && b - 2.0 * floor(0.5 * b) != 0.0;
+		a = -a;
+	}
+	lg = b * log(a);
+	if (lg > 709.782712893384)
+		fail("overflow");
+	m = lg < -745.2 ? 0.0 : pow(a, b);
+	return chk(neg ? -m : m);
 }
 
 static double
@@ -555,9 +574,9 @@ apply(int id, const double *a, int n)
 	case F_FACT:
 		return factorial(x);
 	case F_TORAD:
-		return calc_angle_to_rad(CALC_DEGREES, x);
+		return chk(calc_angle_to_rad(CALC_DEGREES, x));
 	case F_TODEG:
-		return calc_angle_from_rad(CALC_DEGREES, x);
+		return chk(calc_angle_from_rad(CALC_DEGREES, x));
 	case F_SUM:
 		cstatus(calc_sum(a, (size_t)n, &r));
 		return chk(r);
@@ -651,11 +670,32 @@ reserved(const char *name)
 	return 0;
 }
 
+/*
+ * A variable name as ident() reads one: a letter or '_' first, then letters,
+ * digits and '_', at most VNAME characters. The RPN sto word takes its name
+ * from a token, so setvar checks it before it touches vars[].
+ */
+static int
+validname(const char *name)
+{
+	size_t n;
+
+	if (!isalpha((unsigned char)name[0]) && name[0] != '_')
+		return 0;
+	for (n = 1; name[n] != '\0'; n++)
+		if (!isalnum((unsigned char)name[n]) && name[n] != '_')
+			return 0;
+	return n <= VNAME;
+}
+
 static void
 setvar(const char *name, double v)
 {
 	int i;
 
+	if (!validname(name))
+		failname("invalid name", name);
+	v = chk(v);
 	if (name[0] == 'm' && isdigit((unsigned char)name[1]) && name[2] == '\0') {
 		mem[name[1] - '0'] = v;
 		return;
@@ -1047,6 +1087,10 @@ fmtnum(char *buf, size_t n, double x)
 		snprintf(buf, n, "0");
 		return;
 	}
+	if (!fin(x)) {
+		snprintf(buf, n, "%s", x != x ? "nan" : x < 0.0 ? "-inf" : "inf");
+		return;
+	}
 	snprintf(raw, sizeof raw, "%.*e", digits - 1, x);
 	if (*p == '-') {
 		*o++ = '-';
@@ -1379,7 +1423,7 @@ push(double v)
 {
 	if (sp == STACKMAX)
 		fail("stack full");
-	stack[sp++] = v;
+	stack[sp++] = chk(v);
 }
 
 static char *

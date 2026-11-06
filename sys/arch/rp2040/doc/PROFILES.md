@@ -39,7 +39,7 @@ also a KiB count. The inode column is the difference in free inodes, which
 | `games` | 19 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall` |
 | `toolchain` + `toolchainlib` | 133 | 7 | `/usr/lib`, `cc`, `as`, `ld`, `smlrc`, `libc.a`, `crt0.o` |
 | `calc-bignum` | 38 | 3 | `bc` (17,042 bytes packed), `dc` (16,189) and `/usr/share/misc/lib.b`; PicoCalc only |
-| `calc` | 32 | 1 | `/usr/bin/calc` (31,014 bytes packed); PicoCalc only |
+| `calc` | 32 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
 | all maintained closures | 237 | 14 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |

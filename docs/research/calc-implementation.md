@@ -30,7 +30,7 @@ execution of the DiscoBSD a.out has happened. Every figure is marked measured
   sequences), keeps a scroll region above the bar and restores the terminal on
   every exit path. With a pipe, `-l`, or expression arguments it is line
   oriented and writes no escape sequence.
-- Measured size of the cross build: 39,140 bytes raw, 31,014 packed, 32
+- Measured size of the cross build: 39,588 bytes raw, 31,352 packed, 32
   root blocks (`hsaout -s`), about twice the plan's 20 KB estimate. The
   evidence section itemizes the cause.
 
@@ -124,17 +124,17 @@ All commands run from the repository root of this worktree with
 
 | Check | Result |
 | --- | --- |
-| `bmake -C usr.bin/calc test-line` (host, glibc libm) | 686 table cases, 781 checks, pass |
+| `bmake -C usr.bin/calc test-line` (host, glibc libm) | 698 table cases, 793 checks, pass |
 | `bmake -C usr.bin/calc test-line-san` (AddressSanitizer + UBSan) | same table, pass |
 | `bmake -C usr.bin/calc test-line-treelibm` (lib/libm sources on host IEEE hardware) | same table, pass |
 | `bmake -C usr.bin/calc test-play` (pty, 53 by 32 model) | 13 cases, 163 checks, pass |
 | `bmake -C usr.bin/calc check-qemu` (Thumb-1, newlib, `-DCALC_NO_TTY`) | same table, pass |
-| `bmake -C usr.bin/calc test-mutants` | 200 mutants tried, 200 rejected, 0 failures |
+| `bmake -C usr.bin/calc test-mutants` | 203 mutants tried, 203 rejected, 0 failures |
 | `bmake -C usr.bin/calc MACHINE=rp2040 all` | warning free under `-Wall -Wextra -Werror -std=c17 -pedantic-errors -nostdinc` |
 
 Size. `bmake -C usr.bin/calc MACHINE=rp2040 all` followed by
-`tools/bin/rp2040/hsaout -s usr.bin/calc/calc` reports 39,140 bytes raw and
-31,014 packed, 32 root blocks; the `calc` closure costs 32 free blocks and
+`tools/bin/rp2040/hsaout -s usr.bin/calc/calc` reports 39,588 bytes raw and
+31,352 packed, 32 root blocks; the `calc` closure costs 32 free blocks and
 one inode in the `picocalc` image (`sys/arch/rp2040/doc/PROFILES.md`). A map
 of an earlier build puts about 16 KB in `calc.o` (9.7 KB of code, the rest
 the unit, constant and function tables), about 7.3 KB in the libcalc

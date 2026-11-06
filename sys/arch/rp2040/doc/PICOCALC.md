@@ -20,8 +20,10 @@ The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
 runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
-the PICO board (`STORAGE.md`); swap moves to the board's PSRAM when it
-identifies itself at boot (below). This document is the authority for the pin
+the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
+(`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
+board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
+itself at boot (below). This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
@@ -34,7 +36,8 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 121,324 of 130,816 bytes (`RP2040.ld` FLASH), data 360, bss 46,032; the PSRAM driver accounts for 2,008, 56 and 144 of them |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 119,316 of 130,816 bytes (`RP2040.ld` FLASH), data 304, bss 45,888, equal to the kernel before the driver existed |
+| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` | build | observed: text 121,432 of 130,816 bytes, data 360, bss 46,032; the driver accounts for 2,096, 56 and 144 of them and the longer configuration name in `version` and `osversion` for 20 more text bytes |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -42,7 +45,7 @@ name a file there, with a page for a PDF.
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
 | `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and nine mutants | host | observed by `check-psram-pio` (1,141 checks); the model's pad delays and the clock of the two register stages are assumptions |
-| PICO and PICO_UART link unchanged by the PSRAM driver | build | observed: `size` equal, disassembly and read-only data equal except the version timestamp |
+| PICO, PICO_UART and PICOCALC link unchanged by the PSRAM driver | build | observed: `size` equal to the kernels built before the driver existed; PICO and PICO_UART disassembly and read-only data equal except the version timestamp |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | board | not run |
@@ -242,10 +245,24 @@ to the low count and SPKLEN + 7 to the high count, so SCL runs near
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     export PYTHON
-    bmake MACHINE=rp2040 kernel        # builds PICO, PICO_UART, PICOCALC
+    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM
 
 `sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
 image is the same `distrib/rp2040/flash.uf2` the PICO board uses.
+`sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2` holds the same kernel with
+the PSRAM driver. A board is selected by name: `BOARD=PICOCALC` pairs the
+driverless kernel with the `picocalc` root profile, and `BOARD=PICOCALC_PSRAM`
+pairs the PSRAM kernel with the same profile.
+
+    bmake MACHINE=rp2040 BOARD=PICOCALC distribution        # no PSRAM driver
+    bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution  # PSRAM swap
+
+Each kernel boots either root. The PSRAM kernel is a separate configuration
+because config(8) writes a Makefile from one Config with no include
+directive: a make-level switch would need a second generated Makefile or a
+regeneration per build. `tools/config/check_generated_sync.py` requires the
+two Config files to differ in the board line and the `device psram` line
+alone.
 Flashing follows `distrib/rp2040/host/DEVELOPMENT.md` and needs the
 board in BOOTSEL mode; a board run is an explicit opt-in.
 
@@ -285,7 +302,8 @@ recorded card transcript. Cost estimate: 3-4 KB text, 600 bytes bss.
 
 ### PSRAM as swap
 
-The ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
+The PICOCALC_PSRAM kernel carries the driver; PICOCALC does not. The
+ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
 set, so PIO0 state machine 0 clocks it; `docs/research/picocalc-psram.md`
 holds the datasheet pages, the program, the timing derivation and the
 evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
@@ -302,10 +320,10 @@ Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on
 clk_sys or on the state machine cycle (a scope capture of SCK against a read
 data line decides both, and whether the clock can rise), whether the part ignores a serial command cut
-short, and how a module in the shared header J703 loads the lines. Open
-for the owner: replacing `fl1` outright versus keeping it as a second tier
-behind PSRAM, and the cost of each (the research note's swap integration
-table).
+short, and how a module in the shared header J703 loads the lines. The owner
+chose replacing `fl1` over a second tier behind PSRAM, and chose the driver
+as a PicoCalc build option; the research note's swap integration table
+records the second-tier alternative.
 
 ### Battery, backlight and power-off
 

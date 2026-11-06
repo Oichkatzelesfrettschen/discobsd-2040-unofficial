@@ -105,6 +105,9 @@ default root, the `picocalc` profile, which adds the arbitrary-precision
 calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
 
     bmake MACHINE=rp2040 BOARD=PICOCALC flash
+
+`BOARD=PICOCALC_PSRAM` pairs the same root with the PicoCalc kernel that
+carries the PSRAM swap driver.
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 ## Release artifacts

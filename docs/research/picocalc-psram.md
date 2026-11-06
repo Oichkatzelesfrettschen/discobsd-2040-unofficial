@@ -12,11 +12,14 @@ The PicoCalc's ESP-PSRAM64H is a quad-I/O device on GP2-GP5 (SIO0-3), GP20
 of PIO0 clocks it. `psram_pio.h` holds a 19-word program, `psram_xfer.c`
 moves frames of at most 64 bytes through it, and `psram.c` makes the device
 a block device, major 3, that replaces `fl1` as the swap device when the
-part identifies itself at boot. A host simulator executes the shipped
-program words against a timing model of the part and passes 766 checks;
-eight mutants of the program and driver fail it. The PICOCALC kernel grows
-by 2,008 bytes of text, 56 of data and 144 of bss; PICO and PICO_UART link
-to the same text and data as before.
+part identifies itself at boot. The driver links only into the
+PICOCALC_PSRAM kernel configuration, selected by `BOARD=PICOCALC_PSRAM`; the
+PICOCALC kernel carries none and links to the size it had before the driver
+existed. A host simulator executes the shipped program words against a timing
+model of the part and passes 766 checks; eight mutants of the program and
+driver fail it. PICOCALC_PSRAM adds 2,096 bytes of text, 56 of data and 144
+of bss to PICOCALC; PICO, PICO_UART and PICOCALC link to the same text and
+data as before.
 
 ## Sources
 
@@ -236,9 +239,9 @@ each against the 2,008 bytes of this one:
 | 4.4BSD-style `swdevt[]` with interleaved devices | a table, a per-device map and `swfree` | the largest change; the interleave buys nothing when one device holds 8 MB |
 
 The replace-`fl1` choice made here is the one that ships without any of
-them. The open question for the owner is whether an unusable 384 KB flash
-region is acceptable once the PSRAM probes, or whether the second-tier
-design is worth its text.
+them, and the owner confirmed it for the PICOCALC_PSRAM configuration: an
+unused 384 KB flash region is acceptable once the PSRAM probes, and the
+second-tier design stays unbuilt.
 
 ## Evidence
 
@@ -259,11 +262,34 @@ simulator's pad delays at 3 ns each:
 | Clock duty | 241 of 244 cycles in initialization are 16 ns high and 16 ns low (50%); the 3 others are the stretched cycle between the output loop and the turnaround of a read, 16 ns high and 96 ns low |
 | Mutants | thirteen, each killed: SCK never rising, data changing in the rising cycle, CS left low, one wait clock short, one address nibble dropped, a 128-byte frame, a frame ignoring the 64-byte block, a word that no longer matches its comment, a turnaround one pass long, a block number multiplied before it is bounded, a length not bounded against the device end, a pad drive strength ORed into the reset field, a clock whose low phase is twice its high phase |
 
-Size, from `arm-none-eabi-size`, PICOCALC: text 119,316 to 121,324, data 304
-to 360, bss 45,888 to 46,032. The text budget was 3.5 KB. PICO (108,480
-text, 248 data, 39,848 bss) and PICO_UART (96,062, 192, 14,832) are
-unchanged, and their disassembly and read-only data differ from the
-baseline only in the build timestamp string.
+Size, from `arm-none-eabi-size`: PICOCALC text 119,316, data 304, bss
+45,888, equal to the kernel built from the commit before the driver; the
+PICOCALC_PSRAM kernel is text 121,432, data 360, bss 46,032. The driver
+accounts for 2,096 text bytes (121,412 with the PICOCALC name), and the
+longer name in `version` and `osversion` for 20 more. The text budget was
+3.5 KB. PICO (108,480 text, 248 data, 39,848 bss) and PICO_UART (96,062,
+192, 14,832) are unchanged, and their disassembly and read-only data differ
+from the baseline only in the build timestamp string. The symbol sizes of
+PICOCALC_PSRAM equal those of the driver-bearing PICOCALC link except
+`version` and `osversion`.
+
+### Build selection
+
+The owner chose the driver as a PicoCalc option: the default PicoCalc build
+keeps `fl1` swap with no driver. The driver is a separate kernel
+configuration, `sys/arch/rp2040/compile/PICOCALC_PSRAM`, for three reasons.
+config(8) turns one Config into one Makefile whose `PARAM` and object lists
+decide what links, so a make-level switch would need a second generated
+Makefile or a regeneration per build, and the tracked generated Makefile
+that `check-config-generated-sync` compares would stop describing the build.
+`PICO_UART` already sets the precedent of a variant configuration named for
+what it changes. And `MACHINE_KERNEL_CONFIGS` then carries the variant into
+`check-uf2-images`, the divider and SwapRAM verifiers and the CI UF2
+artifacts without a second enumeration. The cost is a repeated Config:
+config(8) has no include directive, so the generated-sync gate requires the
+PICOCALC_PSRAM Config to equal the PICOCALC Config plus its board line and
+`device psram`. `distrib/rp2040/Makefile.inc` selects it by name,
+`BOARD=PICOCALC_PSRAM`, with the `picocalc` root profile.
 
 ### What the simulator cannot establish
 
@@ -308,4 +334,5 @@ evidence.
 The gate compiles `psram_xfer.c` for the host with hooks that forward each
 register access to `tests/psram/pio_sim.py`, runs `tests/psram/test_psram.py`,
 and then runs each mutant. It writes `.build-logs/psram/psram-frames.json`.
-The kernel builds with `bmake MACHINE=rp2040 kernel`.
+The kernels build with `bmake MACHINE=rp2040 kernel`; the PSRAM kernel is
+`sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2`.

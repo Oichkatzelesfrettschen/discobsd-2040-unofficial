@@ -13,7 +13,8 @@
  * move the cursor, Enter or Space places or removes a lamp, m or i marks a
  * cell as holding no lamp, u undoes, y redoes, S solves, n starts a new game
  * and q quits. Lit cells are yellow, lamps are bold, two lamps that see
- * each other and a number that cannot be met are red.
+ * each other and a number that cannot be met are red. A black cell is ##, or
+ * its number, so the walls stay visible without color (-m).
  */
 #define NO_TGMATH_H
 
@@ -166,8 +167,12 @@ w_render(const void *sv, const void *uv, struct pz_canvas *cv)
 			if (f & F_BLACK) {
 				c->bg = PZ_BLACK;
 				c->fg = PZ_WHITE;
-				c->c[0] = c->c[1] = ' ';
+				/* A glyph, not only the black background: with -m
+				 * the colors are dropped and a wall would read as
+				 * a lit white cell. */
+				c->c[0] = c->c[1] = '#';
 				if (f & F_NUMBERED) {
+					c->c[1] = ' ';
 					c->c[0] = (char)('0' + n);
 					c->attr = PZ_BOLD;
 					if (number_wrong(s, x, y))

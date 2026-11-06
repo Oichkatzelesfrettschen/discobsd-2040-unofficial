@@ -587,6 +587,30 @@ def test_lightup_keys(root):
     check(g.finish() == 0, "exit")
 
 
+def test_lightup_walls_without_color(root):
+    # With -m the colors are dropped, so a black cell and a lit white cell may
+    # not share a glyph: both would be two plain spaces. The 3x3 board has
+    # black cells at (0, 1), (2, 1) and (1, 2); a lamp at (0, 0) lights
+    # (1, 0) and (2, 0).
+    if "lightup" not in PUZZLES:
+        return
+    g = Game(root, "lightup", ["-m", "3x3b20s0d0:cBaBaBa"])
+    t = g.term
+    g.send(b"\r")
+    check(t.cell(0, 0) == "<>", "the lamp was not placed: %r" % t.cell(0, 0))
+
+    def look(x, y):
+        return (t.cell(x, y), t.style(x, y)[0], t.style(x, y)[1], t.style(x, y)[2])
+
+    lit = [look(1, 0), look(2, 0)]
+    walls = [look(0, 1), look(2, 1), look(1, 2)]
+    check(lit[0] == lit[1], "lit cells differ: %r" % (lit,))
+    for wall in walls:
+        check(wall not in lit, "a wall looks like a lit cell: %r vs %r" % (wall, lit[0]))
+        check(wall[0] == "##", "a wall is %r, not ##" % (wall[0],))
+    check(g.finish() == 0, "exit")
+
+
 def test_monochrome(root):
     for name in PUZZLES:
         g = Game(root, name, ["-m", "-s", "mono"])

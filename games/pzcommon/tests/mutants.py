@@ -344,6 +344,14 @@ PLAY = [
     (
         "lightup",
         "lightup/lightup.c",
+        "lightup-wall-drawn-blank",
+        "\t\t\t\tc->c[0] = c->c[1] = '#';",
+        "\t\t\t\tc->c[0] = c->c[1] = ' ';",
+        ["lightup_walls_without_color"],
+    ),
+    (
+        "lightup",
+        "lightup/lightup.c",
         "lightup-lit-cells-plain",
         "\t\t\tif (n > 0) {\n\t\t\t\tc->bg = PZ_YELLOW;",
         "\t\t\tif (n > 12345) {\n\t\t\t\tc->bg = PZ_YELLOW;",

@@ -1077,10 +1077,8 @@ outf(const char *fmt, ...)
 /*
  * The text of x with at most `digits` significant digits, in the style of
  * printf("%.*g"): fixed notation for decimal exponents from -4 to digits - 1,
- * exponential otherwise, trailing zeros removed. The digits come from "%e".
- * The target's "%g" (lib/libc/stdio/doprnt_float.c) counts the zeros after
- * the decimal point of a value below 0.1 as significant digits and so prints
- * too few of them; its "%e" does not.
+ * exponential otherwise, trailing zeros removed. The digits come from "%e",
+ * so the text does not depend on how a C library chooses the style of "%g".
  */
 static void
 fmtnum(char *buf, size_t n, double x)

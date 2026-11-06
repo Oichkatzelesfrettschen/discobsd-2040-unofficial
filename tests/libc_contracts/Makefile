@@ -58,7 +58,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
-	check-vis \
+	check-vis check-printf-g \
 	check-qsort check-strtox check-string-security check-array-memory-line
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
@@ -1146,6 +1146,7 @@ clean:
 	rm -f malloc_test malloc_test32 ${MALLOC_OBJS} ${MALLOC_OBJS32}
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
+	rm -f printf_g_contract_test printf_g_contract_test_arm pg_*.o
 	rm -f printf_doprnt_llong.o printf_doprnt_llong32.o
 	rm -f syslog_contract_test syslog_syslog.o syslog_doprnt.o
 	rm -f vis_contract_test vis_vis.o
@@ -1183,7 +1184,7 @@ all: check
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \
-	check-printf-float check-rwmode check-scanf check-string-security \
+	check-printf-float check-printf-g check-rwmode check-scanf check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
 	check-syslog check-vis clean
 
@@ -1294,3 +1295,79 @@ ansi32_san_${_m}.o: ${PRINTF_DIR}/${_m}.c
 	${HOSTCC} ${ILP32} ${ANSI_SAN_FLAGS} ${ANSI_CFLAGS} ${ANSI_RENAMES} \
 	    -c -o $@ ${PRINTF_DIR}/${_m}.c
 .endfor
+
+# The tree formatter with its float member against a host C library oracle.
+# The stream and formatter names move aside (PRINTF_ORACLE_RENAMES) so the
+# host snprintf stays the host's and the test reaches the tree's as
+# tree_snprintf. check-printf-g runs the corpus natively; check-qemu runs the
+# same test with the tree sources built for Cortex-M0+ (Thumb-1, soft
+# float) under qemu-arm against newlib's snprintf; check-printf-g-mutants
+# rebuilds the tree's float member with one deliberate defect at a time and
+# requires the test to reject each.
+PRINTF_ORACLE_RENAMES=	-Dsnprintf=tree_snprintf -Dvsnprintf=tree_vsnprintf \
+		-D_doprnt=tree_doprnt -D_flsbuf=tree_flsbuf \
+		-D_fwalk=tree_fwalk -D_iob=tree_iob \
+		-Dfflush=tree_fflush -Dfclose=tree_fclose \
+		-Derrno=printf_test_errno
+PRINTF_ORACLE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES}
+PRINTF_ORACLE_MEMBERS=	snprintf vsnprintf flsbuf doprnt doprnt_float doprnt_llong
+PRINTF_ORACLE_OBJS=	${PRINTF_ORACLE_MEMBERS:C/^/pg_/:C/$/.o/} pg_stubs.o
+PRINTF_ORACLE_ARM_OBJS=	${PRINTF_ORACLE_MEMBERS:C/^/pg_arm_/:C/$/.o/} pg_arm_stubs.o
+
+check-printf-g: printf_g_contract_test check-printf-g-mutants
+	${TEST_EXECUTION} run libc.printf-g.native -- ./printf_g_contract_test
+
+check-printf-g-mutants: ${PRINTF_ORACLE_OBJS:Npg_doprnt_float.o} printf_g_contract_test.c
+	${PYTHON} ${.CURDIR}/printf_g_mutate.py ${TOPSRC} ${HOSTCC:Q} \
+	    ${PRINTF_ORACLE_CFLAGS:Q} printf_g_contract_test.c \
+	    ${PRINTF_ORACLE_OBJS:Npg_doprnt_float.o}
+
+printf_g_contract_test: printf_g_contract_test.c ${PRINTF_ORACLE_OBJS}
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ printf_g_contract_test.c \
+	    ${PRINTF_ORACLE_OBJS} -lm
+
+.for _m in ${PRINTF_ORACLE_MEMBERS}
+pg_${_m}.o: ${PRINTF_DIR}/${_m}.c
+	${HOSTCC} ${PRINTF_ORACLE_CFLAGS} -c -o $@ ${PRINTF_DIR}/${_m}.c
+.endfor
+
+pg_stubs.o: printf_oracle_stubs.c
+	${HOSTCC} ${PRINTF_ORACLE_CFLAGS} -c -o $@ printf_oracle_stubs.c
+
+# tools/host-test.mk supplies the qemu-arm newlib link; it is included last
+# because its tl_*.o rules would otherwise come before the default target.
+include ${TOPSRC}/tools/host-test.mk
+
+PRINTF_ORACLE_ARM_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Os \
+		-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -ffreestanding \
+		-nostdinc -isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES}
+
+.for _m in ${PRINTF_ORACLE_MEMBERS}
+pg_arm_${_m}.o: ${PRINTF_DIR}/${_m}.c
+	${QEMU_ARM_CC} ${PRINTF_ORACLE_ARM_CFLAGS} -c -o $@ ${PRINTF_DIR}/${_m}.c
+.endfor
+
+pg_arm_stubs.o: printf_oracle_stubs.c
+	${QEMU_ARM_CC} ${PRINTF_ORACLE_ARM_CFLAGS} -c -o $@ printf_oracle_stubs.c
+
+printf_g_contract_test_arm: printf_g_contract_test.c ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DPRINTF_G_ITERATIONS_DIVISOR=${PRINTF_G_ARM_DIVISOR} \
+	    -o $@ printf_g_contract_test.c ${PRINTF_ORACLE_ARM_OBJS} \
+	    ${QEMU_SUPPORT} -lm ${QEMU_ARM_LIBS}
+
+# The ARM run executes the corpus under software emulation of a software
+# floating-point library, so it draws every PRINTF_G_ARM_DIVISOR-th value.
+PRINTF_G_ARM_DIVISOR?=	8
+
+check-qemu:
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "libc_contracts qemu: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
+	@echo "SKIP libc_contracts qemu: qemu-arm unavailable; no ARM execution occurred"
+.else
+	@${MAKE} printf_g_contract_test_arm
+	${QEMU_ARM} ./printf_g_contract_test_arm
+.endif
+
+.PHONY: check-printf-g-mutants check-qemu

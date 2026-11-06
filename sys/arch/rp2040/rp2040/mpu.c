@@ -50,10 +50,14 @@
  * and only subregion 3, offsets 0x060 to 0x07f, is enabled, so the divider
  * is reachable and CPUID, the GPIO control registers, the inter-core FIFO,
  * the spinlocks and the interpolators next to it stay closed. XN is set
- * because no instruction is fetched from a peripheral. The divider has one
- * owner: the kernel, its interrupts and its callouts contain no divider
- * consumer, which tools/verify_rp2040_divider_ownership.py enforces on
- * every linked kernel.
+ * because no instruction is fetched from a peripheral. User code is the
+ * divider's only consumer, through that boot ROM division and the libc
+ * integer helpers (lib/libc/arm/gen/aeabi_div.S): the kernel, its
+ * interrupts and its callouts contain none, which
+ * tools/verify_rp2040_divider_ownership.py enforces on every linked
+ * kernel, and processes switch and signals arrive only on the return from a
+ * system call or fault, so a divide sequence is never split. Nothing saves
+ * the divider across a switch.
  *
  * The kernel runs privileged and MPU_CTRL.PRIVDEFENA keeps the default
  * memory map as its background region, so kernel text in XIP flash, kernel

@@ -27,6 +27,17 @@ registers the boot ROM's `fdiv_n` writes while it programs an MPU region over
 them. `source_negative.c` keeps its two findings in code, so the calibration
 that the source lane still rejects a real reference is unchanged.
 
+`--user-helper OBJECT` checks the libc division helpers the kernel gate leaves
+to user code. The Makefile assembles `lib/libc/arm/gen/aeabi_div.S` for
+Cortex-M0+ and requires `user_helper_entries=2 sio_accesses=8
+min_wait_cycles=8 user_helper_findings=0`, then `user_helper_mutants.sh`
+rebuilds the source with a branch removed from the wait, the result loads
+swapped, a CSR poll in a wait slot, an `svc`, a `bl`, a `push` and a `bkpt`
+inside the window, a wrong base constant and a helper symbol removed; each must
+exit 1 with its own finding. The window rule rests on the kernel switching
+processes and delivering signals only on the return from a system call or
+fault, which the kernel gate's no-consumer result and `MPU.md` argue.
+
 Run the integrated two-kernel gate from the repository root after selecting
 the RP2040 machine:
 

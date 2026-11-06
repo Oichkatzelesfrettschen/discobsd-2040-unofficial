@@ -396,6 +396,23 @@ def test_flood_fixture(root):
     check(g.finish() == 0, "exit")
 
 
+def test_flood_description_colors(root):
+    # The console draws eight colors. A supplied description may use the
+    # digits 0 to 7 only; 8 and 9 are refused before the game exists, even
+    # though the imported validator accepts ten colors.
+    if "flood" not in PUZZLES:
+        return
+    for desc in ("890012345,10", "000000009,10"):
+        g = Game(root, "flood", ["3x3c3m0:" + desc])
+        check(g.wait() == 2, "flood: description %s did not exit 2" % desc)
+        out = g.term.raw.decode(errors="replace")
+        check("at most 8 colors" in out, "flood: no color message for %s: %r" % (desc, out))
+    g = Game(root, "flood", ["3x3c3m0:777012345,10"])
+    check(g.term.line(1).startswith("FLOOD  moves 0/10"), "status: %r" % g.term.line(1))
+    check(g.term.board(3, 3)[0] == ["88", "88", "88"], "board: %r" % g.term.board(3, 3))
+    check(g.finish() == 0, "exit")
+
+
 def test_samegame_fixture(root):
     if "samegame" not in PUZZLES:
         return

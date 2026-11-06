@@ -79,10 +79,25 @@ w_new_desc(void *p, random_state *rs, char **aux)
 	return new_game_desc(p, rs, aux, false);
 }
 
+/*
+ * validate_desc() accepts the collection's ten colors whatever the parameters
+ * say, and new_game() takes the color count from the description, so the
+ * limit w_check() puts on the parameters does not bind a supplied game. The
+ * grid characters have passed validate_desc() by the time they are tested.
+ */
 static const char *
 w_check_desc(void *p, const char *desc)
 {
-	return validate_desc(p, desc);
+	const game_params *gp = p;
+	const char *e = validate_desc(p, desc);
+	int i;
+
+	if (e)
+		return e;
+	for (i = 0; i < gp->w * gp->h; i++)
+		if (desc[i] - '0' >= MAXPLAY)
+			return "at most 8 colors fit the console";
+	return NULL;
 }
 
 static void *

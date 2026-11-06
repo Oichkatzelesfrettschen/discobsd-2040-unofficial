@@ -264,6 +264,14 @@ PLAY = [
     (
         "flood",
         "flood/flood.c",
+        "flood-description-colors-unchecked",
+        "\t\tif (desc[i] - '0' >= MAXPLAY)",
+        "\t\tif (0)",
+        ["flood_description_colors"],
+    ),
+    (
+        "flood",
+        "flood/flood.c",
         "flood-region-not-bold",
         "cell->attr = reach[y * s->w + x] ? PZ_BOLD : 0;",
         "cell->attr = 0;",

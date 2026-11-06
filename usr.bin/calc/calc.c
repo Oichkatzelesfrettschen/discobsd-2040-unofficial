@@ -339,9 +339,9 @@ ipow(double a, long n)
  * An integral exponent up to 1024 multiplies; beyond that, and for a
  * fractional one, the value comes from pow on |a|. A negative base takes its
  * sign from the parity of an integral exponent; every double of magnitude
- * 2^53 or more is even. lib/libm's exp returns the finite HUGE_VAL past its
- * range instead of an infinity, so the logarithm of the result is compared
- * with the largest finite double's before pow runs.
+ * 2^53 or more is even. The logarithm of the result is compared with the
+ * largest finite double's before pow runs, so the overflow is reported the
+ * same way whichever value the C library's exp returns past its range.
  */
 static double
 dpow(double a, double b)

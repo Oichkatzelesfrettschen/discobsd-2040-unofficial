@@ -488,6 +488,11 @@ check-libc-printf-float:
 check-libc-printf-g:
 		${MAKE} -C tests/libc_contracts check-printf-g
 
+# HUGE_VAL as an infinity and the overflow returns of the tree libm, ldexp,
+# atof and strtod, with the mutants that each restore one defect.
+check-libc-huge-val:
+		${MAKE} -C tests/libc_contracts check-huge-val
+
 # The formatted input scanner at host width, at ILP32 and under the address
 # sanitizer. The sanitizer tier is the one that sees a scratch overrun
 # inside the scanner's own frame.
@@ -1213,7 +1218,8 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests, the tree formatter's float conversions against newlib's and the
+# libbn tests, the tree formatter's float conversions and math library returns
+# against newlib's and the
 # calc line interface executed as Thumb-1 programs rather than only linked.
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
@@ -1348,7 +1354,7 @@ installfs:
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-random check-libc-random-cross check-libc-scanf \
 		check-libc-rwmode check-libc-ansi check-libc-syslog check-libc-vis \
-		check-libc-printf-float check-libc-printf-g check-dirent-contracts \
+		check-libc-printf-float check-libc-printf-g check-libc-huge-val check-dirent-contracts \
 		check-dirent-contracts-cross check-scandir-contracts \
 		check-scandir-contracts-cross check-colrm-contracts \
 		check-colrm-contracts-cross check-unifdef-contracts \

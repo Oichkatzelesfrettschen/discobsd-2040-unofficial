@@ -58,7 +58,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
-	check-vis check-printf-g \
+	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
@@ -306,7 +306,8 @@ SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
 SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
 		-Dvscanf=db_vscanf -Dvfscanf=db_vfscanf -Dvsscanf=db_vsscanf \
 		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
-		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod
+		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod \
+		-Derrno=scanf_test_errno
 SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${SCANF_RENAMES}
 SCANF_OBJS=	scanf_doscan.o scanf_doscan_float.o scanf_scanf.o \
@@ -1147,6 +1148,7 @@ clean:
 	rm -f printf_contract_test printf_contract_test32 ${PRINTF_OBJS} ${PRINTF_OBJS32}
 	rm -f printf_float_contract_test printf_doprnt_fp.o printf_doprnt_float.o
 	rm -f printf_g_contract_test printf_g_contract_test_arm pg_*.o
+	rm -f huge_val_contract_test huge_val_contract_test_arm hv_*.o huge_val_header*.o
 	rm -f printf_doprnt_llong.o printf_doprnt_llong32.o
 	rm -f syslog_contract_test syslog_syslog.o syslog_doprnt.o
 	rm -f vis_contract_test vis_vis.o
@@ -1184,7 +1186,7 @@ all: check
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \
-	check-printf-float check-printf-g check-rwmode check-scanf check-string-security \
+	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
 	check-syslog check-vis clean
 
@@ -1313,7 +1315,8 @@ PRINTF_ORACLE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
 		-isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES}
 PRINTF_ORACLE_MEMBERS=	snprintf vsnprintf flsbuf doprnt doprnt_float doprnt_llong
 PRINTF_ORACLE_OBJS=	${PRINTF_ORACLE_MEMBERS:C/^/pg_/:C/$/.o/} pg_stubs.o
-PRINTF_ORACLE_ARM_OBJS=	${PRINTF_ORACLE_MEMBERS:C/^/pg_arm_/:C/$/.o/} pg_arm_stubs.o
+PRINTF_ORACLE_ARM_OBJS=	${PRINTF_ORACLE_MEMBERS:C/^/pg_arm_/:C/$/.o/} pg_arm_stubs.o \
+		pg_arm_isnan.o pg_arm_isinf.o
 
 check-printf-g: printf_g_contract_test check-printf-g-mutants
 	${TEST_EXECUTION} run libc.printf-g.native -- ./printf_g_contract_test
@@ -1339,9 +1342,13 @@ pg_stubs.o: printf_oracle_stubs.c
 # because its tl_*.o rules would otherwise come before the default target.
 include ${TOPSRC}/tools/host-test.mk
 
+# On the target the formatter classifies infinities and NaNs with the tree's
+# isinf and isnan, which read the double as two 32-bit words; at host width
+# they would read it as one long, so the host run keeps the host's.
 PRINTF_ORACLE_ARM_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Os \
 		-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -ffreestanding \
-		-nostdinc -isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES}
+		-nostdinc -isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES} \
+		-Disnan=tree_isnan -Disinf=tree_isinf
 
 .for _m in ${PRINTF_ORACLE_MEMBERS}
 pg_arm_${_m}.o: ${PRINTF_DIR}/${_m}.c
@@ -1350,6 +1357,12 @@ pg_arm_${_m}.o: ${PRINTF_DIR}/${_m}.c
 
 pg_arm_stubs.o: printf_oracle_stubs.c
 	${QEMU_ARM_CC} ${PRINTF_ORACLE_ARM_CFLAGS} -c -o $@ printf_oracle_stubs.c
+
+.for _m in isnan isinf
+pg_arm_${_m}.o: ${TOPSRC}/lib/libc/gen/${_m}.c
+	${QEMU_ARM_CC} ${PRINTF_ORACLE_ARM_CFLAGS} -fno-strict-aliasing -c -o $@ \
+	    ${TOPSRC}/lib/libc/gen/${_m}.c
+.endfor
 
 printf_g_contract_test_arm: printf_g_contract_test.c ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DPRINTF_G_ITERATIONS_DIVISOR=${PRINTF_G_ARM_DIVISOR} \
@@ -1366,8 +1379,91 @@ check-qemu:
 .elif empty(QEMU_ARM)
 	@echo "SKIP libc_contracts qemu: qemu-arm unavailable; no ARM execution occurred"
 .else
-	@${MAKE} printf_g_contract_test_arm
+	@${MAKE} printf_g_contract_test_arm huge_val_contract_test_arm
 	${QEMU_ARM} ./printf_g_contract_test_arm
+	${QEMU_ARM} ./huge_val_contract_test_arm
 .endif
 
-.PHONY: check-printf-g-mutants check-qemu
+.PHONY: check-printf-g-mutants check-huge-val check-huge-val-mutants check-qemu
+
+# HUGE_VAL and the overflow returns of the tree libm, libc ldexp, frexp, atof
+# and strtod, compiled from the tree under tree_ names (the sources are K&R
+# C, so the dialect and warning policy follow tools/host-test.mk), with the
+# header constants compiled as strict C17. The formatter objects are the
+# printf-g ones. check-huge-val-mutants restores one defect at a time and
+# requires the test to reject each.
+HV_NAMES=	exp log pow sinh cosh tan sin cos floor ceil ldexp frexp modf \
+		atof strtod j0 j1 jn y0 y1 yn sqrt atan atan2 asin acos tanh \
+		fabs hypot fmod erf erfc log10
+HV_RENAMES=	${HV_NAMES:@n@-D${n}=tree_${n}@} -Derrno=tree_errno
+HV_LIBM=	asin atan erf exp fabs floor fmod hypot j0 j1 jn log pow sin \
+		sinh sqrt tan tanh
+HV_GEN=		ldexp frexp modf atof
+HV_STDLIB=	strtod
+HV_CFLAGS=	-std=gnu89 -w -O1 -fno-builtin -nostdinc -Istrtox_include \
+		-isystem ${TOPSRC}/include ${HV_RENAMES}
+HV_OBJS=	${HV_LIBM:C/^/hv_/:C/$/.o/} ${HV_GEN:C/^/hv_/:C/$/.o/} \
+		${HV_STDLIB:C/^/hv_/:C/$/.o/}
+HV_ARM_OBJS=	${HV_LIBM:C/^/hv_arm_/:C/$/.o/} ${HV_GEN:C/^/hv_arm_/:C/$/.o/} \
+		${HV_STDLIB:C/^/hv_arm_/:C/$/.o/}
+HV_HEADER_CFLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror -nostdinc \
+		-isystem ${TOPSRC}/include
+
+check-huge-val: huge_val_contract_test check-huge-val-mutants
+	${TEST_EXECUTION} run libc.huge-val.native -- ./huge_val_contract_test
+
+check-huge-val-mutants: huge_val_header.c huge_val_stubs.c huge_val_contract_test.c \
+		${PRINTF_ORACLE_OBJS}
+	${PYTHON} ${.CURDIR}/huge_val_mutate.py ${TOPSRC} ${HOSTCC:Q} \
+	    ${HV_CFLAGS:Q} ${HV_HEADER_CFLAGS:Q} \
+	    ${PRINTF_ORACLE_OBJS} -- \
+	    ${HV_LIBM:C,^,lib/libm/,:C,$,.c,} ${HV_GEN:C,^,lib/libc/gen/,:C,$,.c,} \
+	    ${HV_STDLIB:C,^,lib/libc/stdlib/,:C,$,.c,}
+
+huge_val_contract_test: huge_val_contract_test.c huge_val_header.o huge_val_stubs.c \
+		${HV_OBJS} ${PRINTF_ORACLE_OBJS}
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ huge_val_contract_test.c \
+	    huge_val_header.o huge_val_stubs.c ${HV_OBJS} ${PRINTF_ORACLE_OBJS} -lm
+
+huge_val_header.o: huge_val_header.c ${TOPSRC}/include/math.h
+	${HOSTCC} ${HV_HEADER_CFLAGS} -c -o $@ huge_val_header.c
+
+.for _m in ${HV_LIBM}
+hv_${_m}.o: ${TOPSRC}/lib/libm/${_m}.c ${TOPSRC}/include/math.h
+	${HOSTCC} ${HV_CFLAGS} -c -o $@ ${TOPSRC}/lib/libm/${_m}.c
+.endfor
+.for _m in ${HV_GEN}
+hv_${_m}.o: ${TOPSRC}/lib/libc/gen/${_m}.c ${TOPSRC}/include/math.h
+	${HOSTCC} ${HV_CFLAGS} -c -o $@ ${TOPSRC}/lib/libc/gen/${_m}.c
+.endfor
+.for _m in ${HV_STDLIB}
+hv_${_m}.o: ${TOPSRC}/lib/libc/stdlib/${_m}.c ${TOPSRC}/include/math.h
+	${HOSTCC} ${HV_CFLAGS} -c -o $@ ${TOPSRC}/lib/libc/stdlib/${_m}.c
+.endfor
+
+HV_ARM_CFLAGS=	-std=gnu89 -w -Os -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
+		-ffreestanding -fno-builtin -nostdinc -Istrtox_include \
+		-isystem ${TOPSRC}/include ${HV_RENAMES}
+
+.for _m in ${HV_LIBM}
+hv_arm_${_m}.o: ${TOPSRC}/lib/libm/${_m}.c ${TOPSRC}/include/math.h
+	${QEMU_ARM_CC} ${HV_ARM_CFLAGS} -c -o $@ ${TOPSRC}/lib/libm/${_m}.c
+.endfor
+.for _m in ${HV_GEN}
+hv_arm_${_m}.o: ${TOPSRC}/lib/libc/gen/${_m}.c ${TOPSRC}/include/math.h
+	${QEMU_ARM_CC} ${HV_ARM_CFLAGS} -c -o $@ ${TOPSRC}/lib/libc/gen/${_m}.c
+.endfor
+.for _m in ${HV_STDLIB}
+hv_arm_${_m}.o: ${TOPSRC}/lib/libc/stdlib/${_m}.c ${TOPSRC}/include/math.h
+	${QEMU_ARM_CC} ${HV_ARM_CFLAGS} -c -o $@ ${TOPSRC}/lib/libc/stdlib/${_m}.c
+.endfor
+
+huge_val_header_arm.o: huge_val_header.c ${TOPSRC}/include/math.h
+	${QEMU_ARM_CC} ${HV_HEADER_CFLAGS} -mcpu=cortex-m0plus -mthumb \
+	    -mfloat-abi=soft -ffreestanding -Os -c -o $@ huge_val_header.c
+
+huge_val_contract_test_arm: huge_val_contract_test.c huge_val_header_arm.o \
+		huge_val_stubs.c ${HV_ARM_OBJS} ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ huge_val_contract_test.c \
+	    huge_val_header_arm.o huge_val_stubs.c ${HV_ARM_OBJS} \
+	    ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT} -lm ${QEMU_ARM_LIBS}

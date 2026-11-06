@@ -193,6 +193,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libc-huge-val",
+      "to": "tests/libc_contracts:check-huge-val",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-libc-scanf",
       "to": "tests/libc_contracts:check-scanf",
       "kind": "recursive make"
@@ -263,6 +268,7 @@
         "check-vis",
         "check-printf-float",
         "check-printf-g",
+        "check-huge-val",
         "check-printf",
         "check-scanf",
         "check-rwmode",
@@ -951,6 +957,26 @@
       "recipe": "${TEST_EXECUTION} run libc.printf-g.native -- ./printf_g_contract_test",
       "aliases": [
         "check-libc-printf-g"
+      ]
+    },
+    {
+      "id": "libc.huge-val.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-huge-val",
+      "root_target": "check-libc-host-contracts",
+      "program": "huge_val_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "huge_val_contract_test",
+        "check-huge-val-mutants"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.huge-val.native -- ./huge_val_contract_test",
+      "aliases": [
+        "check-libc-huge-val"
       ]
     },
     {

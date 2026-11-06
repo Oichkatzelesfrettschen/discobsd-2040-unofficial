@@ -40,7 +40,8 @@ SAN_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${SAN_FLAGS}
 OBJCOPY_OK!=	if command -v objcopy >/dev/null 2>&1; then echo yes; else echo no; fi
 TREELIBM=	sin sinh log exp atan sqrt pow hypot tanh asin floor fmod tan
 # lib/libm's exp scales its result with the tree libc's ldexp, which needs
-# frexp, so those two come from lib/libc/gen as well.
+# frexp and reports ERANGE through errno, so those two come from
+# lib/libc/gen as well and take the same errno rename.
 TREELIBC=	ldexp frexp
 TREELIBM_OBJS=	${TREELIBM:S/^/tl_/:S/$/.o/} ${TREELIBC:S/^/tl_/:S/$/.o/} tl_errno.o
 
@@ -59,6 +60,7 @@ tl_${f}.o:	${TOPSRC}/lib/libm/${f}.c
 tl_${f}.o:	${TOPSRC}/lib/libc/gen/${f}.c
 		${HOSTCC} -std=gnu89 -w -O1 -fno-builtin -I${TOPSRC}/include -c \
 		    ${TOPSRC}/lib/libc/gen/${f}.c -o $@
+		objcopy --redefine-sym errno=tl_errno $@
 .endfor
 
 tl_errno.o:	${TOPSRC}/tests/libcalc/tl_errno.c

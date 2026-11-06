@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <float.h>
 #include <math.h>
 
@@ -11,6 +12,9 @@ ldexp(fr, exp)
 
 	if (fr == 0)
 		return 0;
+	/* an infinity or a NaN scales to itself */
+	if (fr != fr || fr - fr != 0)
+		return fr;
 	neg = 0;
 	if (fr < 0) {
 		fr = -fr;
@@ -23,6 +27,7 @@ ldexp(fr, exp)
 	}
 	exp = exp+i;
 	if (exp > DBL_MAX_EXP) {
+		errno = ERANGE;
 		if (neg)
 			return(-HUGE_VAL);
 		else

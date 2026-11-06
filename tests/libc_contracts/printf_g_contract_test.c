@@ -204,17 +204,20 @@ main(void)
 	 * the dropped tail is a tie.
 	 */
 	for (int iteration = 0; iteration < 3000 / PRINTF_G_ITERATIONS_DIVISOR; iteration++) {
-		char text[64], digits[64];
+		char text[32], digits[16];
 		int ndigits = 1 + (int)(rng() % 12);
-		long mantissa = 0;
 		int exponent = (int)(rng() % 41) - 20;
 		double value;
 
+		/*
+		 * The digits are built as text: twelve decimal digits overflow
+		 * the 32-bit long of the Thumb-1 build this test also runs as.
+		 */
 		for (int i = 0; i < ndigits; i++)
-			mantissa = mantissa * 10 + (i == 0 ? 1 + (long)(rng() % 9) : (long)(rng() % 10));
-		snprintf(text, sizeof text, "%ldE%d", mantissa, exponent - ndigits + 1);
+			digits[i] = (char)('0' + (i == 0 ? 1 + (int)(rng() % 9) : (int)(rng() % 10)));
+		digits[ndigits] = '\0';
+		snprintf(text, sizeof text, "%sE%d", digits, exponent - ndigits + 1);
 		value = strtod(text, NULL);
-		snprintf(digits, sizeof digits, "%ld", mantissa);
 		if (iteration % 3 == 0)
 			value = -value;
 		for (size_t p = 0; p < sizeof precisions / sizeof precisions[0]; p++) {

@@ -19,6 +19,11 @@ frexp(x, i)
 
 	j = 0;
 	neg = 0;
+	/* An infinity or a NaN has no exponent to extract and halving never ends. */
+	if (x != x || x - x != 0) {
+		*i = 0;
+		return(x);
+	}
 	if (x < 0) {
 		x = -x;
 		neg = 1;

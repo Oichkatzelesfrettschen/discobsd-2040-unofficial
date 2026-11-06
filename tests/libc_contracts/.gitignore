@@ -172,3 +172,10 @@ string_memmem32_san.o
 strtox_test_arm
 random_contract_test_arm
 printf_contract_test_arm
+printf_g_contract_test
+printf_g_contract_test_arm
+pg_*.o
+huge_val_contract_test
+huge_val_contract_test_arm
+hv_*.o
+huge_val_header*.o

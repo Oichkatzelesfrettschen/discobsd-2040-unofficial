@@ -15,6 +15,11 @@ set -eu
 make=${1:-bmake}
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
+# The refusals below make a child make stop on an error. A child that
+# inherits the parent's job server (-j in MAKEFLAGS) broadcasts the stop to
+# every make sharing the server, which then exits without output, so each
+# child runs on its own: MAKEFLAGS is dropped and MACHINE named explicitly.
+unset MAKEFLAGS MFLAGS
 status=0
 
 fail() {
@@ -26,7 +31,7 @@ fail() {
 refuse() {
 	expected=$1
 	shift
-	if out=$("$make" "$@" check-image-selection 2>&1); then
+	if out=$("$make" MACHINE=rp2040 "$@" check-image-selection 2>&1); then
 		fail "$* must be refused, and was accepted"
 		return
 	fi
@@ -38,7 +43,7 @@ refuse() {
 
 # accept VARIABLE=VALUE ...: the selection must compose.
 accept() {
-	if "$make" "$@" check-image-selection >/dev/null 2>&1; then
+	if "$make" MACHINE=rp2040 "$@" check-image-selection >/dev/null 2>&1; then
 		echo "check-image-selection: accept $*"
 	else
 		fail "$* must compose, and does not"
@@ -50,7 +55,7 @@ members() {
 	variable=$1
 	expected=$2
 	shift 2
-	got=$("$make" "$@" -V "\${$variable}")
+	got=$("$make" MACHINE=rp2040 "$@" -V "\${$variable}")
 	if [ "$got" = "$expected" ]; then
 		echo "check-image-selection: $variable='$got' for $*"
 	else

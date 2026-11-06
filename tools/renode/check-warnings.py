@@ -46,6 +46,18 @@ HEX = re.compile(r"0x[0-9A-Fa-f]+")
 IDENTIFYING = ("at ", "byte: ")
 
 
+def occurrences(text):
+    """How many warnings one log line stands for.
+
+    Renode folds a run of identical consecutive messages into one line that
+    ends in the run's length in parentheses. Where the folds break depends
+    on how fast the host advances the emulator, so counting lines would
+    measure wall-clock pacing; the classes are tallied in occurrences.
+    """
+    folded = REPEAT_COUNT.search(text)
+    return int(folded.group(0).strip(" ()")) if folded else 1
+
+
 def normalize(text):
     """Drop what varies run to run and keep what names the class.
 
@@ -107,12 +119,13 @@ def main(argv):
             if not found:
                 continue
             text = normalize(found.group(1))
+            weight = occurrences(found.group(1))
             for index, (_, pattern, _) in enumerate(classes):
                 if pattern.search(text):
-                    counts[index] += 1
+                    counts[index] += weight
                     break
             else:
-                unmatched[text] = unmatched.get(text, 0) + 1
+                unmatched[text] = unmatched.get(text, 0) + weight
 
     failures = []
     for index, (ceiling, pattern, number) in enumerate(classes):

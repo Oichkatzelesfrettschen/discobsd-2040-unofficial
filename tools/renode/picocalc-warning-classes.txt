@@ -17,8 +17,9 @@
 # SSPICR (PL022 offset 0x20, datasheet 4.4.4) is not modeled: the driver
 # writes RORIC there after each drain to clear a receive overrun, and the
 # write reaches nothing. The model raises no overrun interrupt and the
-# driver reads none, so the lost write has no consequence.
-200     ^spi1: Unhandled write to offset 0xN, value 0xN\.
+# driver reads none, so the lost write has no consequence. One write per
+# drained transfer gives about 24,600 occurrences to the login.
+50000   ^spi1: Unhandled write to offset 0xN, value 0xN\.
 
 # IC_FS_SPKLEN (DW_apb_i2c, datasheet 4.3.14.1) is not implemented. picokbd.c
 # programs it with a spike-filter length for the real bus; the I2C model has

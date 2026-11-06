@@ -1,6 +1,7 @@
 # Host and qemu-arm test resources shared by the gates that check one body
-# of C on the build host and again as a Thumb-1 (ARMv6-M) program:
-# tests/libcalc, tests/libbn and usr.bin/calc. The including Makefile sets
+# of C on the build host, most of them again as a Thumb-1 (ARMv6-M)
+# program: tests/libcalc, tests/libbn, usr.bin/calc and games/fourfall
+# (sanitizers only). The including Makefile sets
 # TOPSRC and HOSTCC and includes this file after its default target, since
 # the first rule bmake reads becomes the default and this file defines the
 # tl_*.o rules.

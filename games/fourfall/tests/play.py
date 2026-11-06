@@ -136,11 +136,63 @@ class Term:
         return {self.grid[row][c][3] for c in range(c0, c1 + 1)}
 
 
+def run_in_own_group(prog, args, info_w):
+    """Runs in the pty child: fork the game into a new foreground process
+    group, report its pid on info_w, wait for it and exit with its status.
+    The waiting parent sits in the session's first group, so the game's
+    group has a parent outside it and is not orphaned."""
+    go_r, go_w = os.pipe()
+    gp = os.fork()
+    if gp == 0:
+        os.close(go_w)
+        os.setpgid(0, 0)
+        os.read(go_r, 1)  # until the group owns the terminal
+        os.close(go_r)
+        return
+    os.setpgid(gp, gp)
+    os.tcsetpgrp(0, gp)
+    os.write(info_w, str(gp).encode())
+    os.write(go_w, b"g")
+    status = 0
+    while True:
+        _, st = os.waitpid(gp, os.WUNTRACED)
+        if os.WIFSTOPPED(st):
+            continue
+        status = os.waitstatus_to_exitcode(st)
+        break
+    os._exit(status if status >= 0 else 128 - status)
+
+
+def proc_state(pid):
+    """The scheduler state letter of pid from /proc, or None."""
+    try:
+        with open("/proc/%d/stat" % pid) as f:
+            return f.read().rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return None
+
+
+def wait_state(pid, stopped, limit=3.0):
+    """Wait until pid is stopped (T) or no longer stopped."""
+    end = time.time() + limit
+    while time.time() < end:
+        if (proc_state(pid) in ("T", "t")) == stopped:
+            return True
+        time.sleep(0.01)
+    return False
+
+
 class Game:
-    def __init__(self, prog, args=(), test=None, env_extra=None):
+    def __init__(self, prog, args=(), test=None, env_extra=None, jobctl=False, close_stdin=False):
+        """jobctl runs the game in its own process group, led by a child of
+        a waiting parent, so the group is not orphaned and a SIGTSTP stops
+        it; self.gpid is the game's pid. close_stdin closes descriptor 0
+        before exec so select on it fails."""
         import pty
 
         self.term = Term()
+        self.gpid = None
+        info_r, info_w = os.pipe()
         env = dict(os.environ)
         env.pop("GAMEBOX_TEST", None)
         if test is not None:
@@ -151,7 +203,17 @@ class Game:
         if self.pid == 0:
             os.environ.clear()
             os.environ.update(env)
+            os.close(info_r)
+            if jobctl:
+                run_in_own_group(prog, args, info_w)
+            os.close(info_w)
+            if close_stdin:
+                os.close(0)
             os.execvp(prog, [prog] + list(args))
+        os.close(info_w)
+        if jobctl:
+            self.gpid = int(os.read(info_r, 32))
+        os.close(info_r)
         fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
         self.status = None
         self.settle(0.4)
@@ -196,6 +258,20 @@ class Game:
         _, st = os.waitpid(self.pid, 0)
         self.status = os.waitstatus_to_exitcode(st)
         return self.status
+
+    def quit_within(self, limit):
+        """Send q and require the exit within limit seconds; returns the
+        status. A game that does not leave is killed and the check fails."""
+        os.write(self.fd, b"q")
+        end = time.time() + limit
+        while time.time() < end:
+            self.settle(0.02, 0.05)
+            done, st = os.waitpid(self.pid, os.WNOHANG)
+            if done:
+                self.status = os.waitstatus_to_exitcode(st)
+                return self.status
+        self.kill()
+        raise AssertionError("q did not quit within %.2f s" % limit)
 
     def kill(self):
         try:
@@ -586,9 +662,25 @@ def test_repaint(prog):
     check(g.quit() == 0, "exit status %r" % g.status)
 
 
+# What every exit writes last: SGR reset, clear, cursor home.
+LEAVE = b"\x1b[0m\x1b[2J\x1b[H"
+
+
+def cooked(fd):
+    """True when ICANON and ECHO are both on, as after the restore."""
+    lflag = termios.tcgetattr(fd)[3]
+    return bool(lflag & termios.ICANON) and bool(lflag & termios.ECHO)
+
+
 def test_signals(prog):
-    for sig, want in ((signal.SIGINT, 130), (signal.SIGTERM, 143)):
+    for sig, want in (
+        (signal.SIGINT, 130),
+        (signal.SIGTERM, 143),
+        (signal.SIGHUP, 129),
+        (signal.SIGQUIT, 131),
+    ):
         g = Game(prog, test="O")
+        check(not cooked(g.fd), "signal %d: raw mode not entered" % sig)
         os.kill(g.pid, sig)
         g.settle(0.3)
         _, st = os.waitpid(g.pid, 0)
@@ -597,11 +689,108 @@ def test_signals(prog):
             "signal %d: exit %r" % (sig, os.waitstatus_to_exitcode(st)),
         )
         # the terminal mode is restored: echo and canonical mode are back on
-        attrs = termios.tcgetattr(g.fd)
-        check(
-            attrs[3] & termios.ECHO and attrs[3] & termios.ICANON,
-            "signal %d: terminal left in raw mode" % sig,
-        )
+        check(cooked(g.fd), "signal %d: terminal left in raw mode" % sig)
+        check(g.term.raw.endswith(LEAVE), "signal %d: no reset and home at exit" % sig)
+
+
+def test_select_failure(prog):
+    # Descriptor 0 closed: select fails with EBADF. The exit runs the same
+    # restore path as q and says why on stderr, with status 1.
+    g = Game(prog, test="O", close_stdin=True)
+    g.settle(0.5)
+    _, st = os.waitpid(g.pid, 0)
+    check(os.waitstatus_to_exitcode(st) == 1, "select failure: exit %r" % st)
+    check(b"fourfall: select failed" in g.term.raw, "no select failure message")
+    check(LEAVE in g.term.raw, "select failure left no reset and home")
+
+
+def test_job_control(prog):
+    g = Game(prog, test="O", jobctl=True)
+    gp = g.gpid
+    g.keys("jj")
+    check(not cooked(g.fd), "raw mode not entered")
+    os.kill(gp, signal.SIGTSTP)
+    check(wait_state(gp, True), "SIGTSTP did not stop the game (state %r)" % proc_state(gp))
+    check(cooked(g.fd), "stopped with the terminal still raw")
+    g.settle(0.2)
+    g.term = Term()  # a blank screen shows whether the resume repaints
+    os.kill(gp, signal.SIGCONT)
+    check(wait_state(gp, False), "SIGCONT did not resume the game")
+    g.settle(0.5)
+    check(not cooked(g.fd), "raw mode not re-entered after SIGCONT")
+    check(len(g.term.lit()) == 8, "no repaint after SIGCONT: %d lit cells" % len(g.term.lit()))
+    g.keys("h")
+    check(
+        g.term.text(2, 11, 14) == "####" or len(g.term.lit()) == 8,
+        "game ignores keys after SIGCONT",
+    )
+    # a SIGCONT without a stop repaints and leaves the saved mode alone
+    g.term = Term()
+    os.kill(gp, signal.SIGCONT)
+    g.settle(0.5)
+    check(len(g.term.lit()) == 8, "no repaint after a plain SIGCONT")
+    check(not cooked(g.fd), "plain SIGCONT changed the terminal mode")
+    os.kill(gp, signal.SIGTERM)
+    g.settle(0.3)
+    _, st = os.waitpid(g.pid, 0)
+    check(os.waitstatus_to_exitcode(st) == 143, "exit %r after SIGTERM" % st)
+    check(cooked(g.fd), "terminal not restored to the mode before the first stop")
+
+
+def test_escape_deadline(prog):
+    # A truncated sequence is abandoned at the deadline; the next q quits.
+    g = Game(prog, test="O")
+    g.send(ESC + b"[")
+    time.sleep(0.2)
+    check(g.quit_within(0.5) == 0, "ESC [ then q: exit %r" % g.status)
+    check(cooked(g.fd), "terminal not restored")
+    # The same for SS3 and a partial numeric CSI.
+    for frag in (ESC + b"O", ESC + b"[1", ESC + b"[11"):
+        g = Game(prog, test="O")
+        g.send(frag)
+        time.sleep(0.2)
+        check(g.quit_within(0.5) == 0, "%r then q: exit %r" % (frag, g.status))
+    # A byte inside the sequence arrives within the deadline: ESC, a 10 ms
+    # gap, then [A rotates.
+    g = Game(prog, test="I")
+    g.send(ESC, 0.01)
+    g.send(b"[A", 0.01)
+    g.keys(" ")
+    check(status_line(g) == "score 40 lines 0 level 1", "ESC gap [A: %r" % status_line(g))
+    for r in (20, 21, 22, 23):
+        check(cell(g, r, 6) == "[]", "ESC gap [A: rotated cell row %d missing" % r)
+    check(g.quit() == 0, "exit status %r" % g.status)
+    # Every byte of one CSI split by 10 ms gaps still parses as one key.
+    g = Game(prog, test="I")
+    for ch in (b"\x1b", b"[", b"A"):
+        g.send(ch, 0.01)
+    g.keys(" ")
+    check(status_line(g) == "score 40 lines 0 level 1", "split CSI: %r" % status_line(g))
+    check(g.quit() == 0, "exit status %r" % g.status)
+    # A bare Esc still pauses, after the deadline and not before a key follows.
+    g = Game(prog, test="O")
+    g.send(ESC)
+    g.settle(0.4)
+    check(g.term.text(13, 12, 17) == "PAUSED", "bare Esc did not pause")
+    check(g.quit() == 0, "exit status %r" % g.status)
+
+
+def test_stalled_gravity(prog):
+    # Gravity keeps running while a sequence is stalled: the piece falls and
+    # the game keeps drawing.
+    g = Game(prog, args=["9", "7"])
+    t = g.term
+    g.settle(0.3, 0.3)
+    g.send(ESC + b"[")
+    before = len(t.raw)
+    rows0 = [r for r in BOARD_ROWS if t.text(r, 3, 26).strip()]
+    g.settle(0.6, 0.6)
+    rows1 = [r for r in BOARD_ROWS if t.text(r, 3, 26).strip()]
+    check(len(t.raw) > before, "no output while the sequence was stalled")
+    check(
+        rows0 and rows1 and max(rows1) > max(rows0), "piece did not fall during a stalled sequence"
+    )
+    check(g.quit_within(0.5) == 0, "exit status %r" % g.status)
 
 
 def test_exit_restores(prog):
@@ -661,6 +850,10 @@ CASES = [
     test_pause_and_keys,
     test_repaint,
     test_signals,
+    test_select_failure,
+    test_job_control,
+    test_escape_deadline,
+    test_stalled_gravity,
     test_exit_restores,
     test_timed,
 ]

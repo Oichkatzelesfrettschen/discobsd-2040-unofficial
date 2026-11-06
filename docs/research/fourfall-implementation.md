@@ -52,10 +52,54 @@ Ctrl-L) of the empty board writes 1,543 bytes (1,939 with `-g`); a repaint of a
 full stack of 264 settled cells adds 11 bytes a cell, and `ob_put()` flushes
 early if a frame ever exceeds the buffer. Time comes from
 `gettimeofday()` and waiting from `select()` on descriptor 0 with the time
-to the nearest deadline. Keys are read by the game's own `readkey()` because
-`gtty_getkey()` blocks after a bare ESC; the shared header stays untouched
-and its two unused helpers are silenced for that include only with a
-`#pragma GCC diagnostic` pair.
+to the nearest deadline. Keys are parsed by the game's own incremental
+`esc_feed()` because `gtty_getkey()` blocks after a bare ESC; the shared
+header stays untouched and its two unused helpers are silenced for that
+include only with a `#pragma GCC diagnostic` pair.
+
+The loop step. Each pass waits in `wait_input()` until the earliest of three
+events: input, the next gravity or lock deadline (`ff_deadline()`), and the
+stall deadline of a pending escape sequence (`ESC_MS`, 40 ms). It then
+calls the logic-half step `ff_tick()`, which charges the time since the last
+step to the game first, against the mode the wait ran in, and applies the
+key second. The order matters in two places: a move that restarts the lock
+timer finds the 400 ms already waited charged to the old position, so the
+restart leaves the full `FF_LOCK_MS`; and the key that ends a pause finds the
+pause span uncharged, because the wait ran in `S_PAUSE`. The clock runs in
+`S_PLAY` only, a charge is clamped to `FF_DT_MAX` (1,000 ms), and a wait that
+expired is trusted over a clock that read short. `ff_tick()` and `ff_key()`
+sit in the logic half, so `tests/logic_test.c` checks the order directly and
+`tests/mutants.py` rejects a copy that applies the key first.
+
+The escape parser is a state machine fed one byte at a time (`E_IDLE`,
+`E_ESC`, `E_SS3`, `E_CSI`) and never reads. After an `ESC` byte the loop
+shortens its wait to the stall deadline; a byte that arrives inside it
+continues the sequence, and at the deadline `esc_abandon()` ends it: a lone
+`ESC` is a key press and pauses, a longer fragment is dropped. The loop never
+blocks in `read()` past `select()`, so gravity and the lock timer run during
+a stalled sequence. The 40 ms constant sits between the 8.3 ms byte spacing of
+a 1200 baud link and the 100 ms or more between a human Esc and the next key;
+a USB packet delivers a whole sequence at once. An unbounded wait (a pause, a
+game over) is capped at `SIGNAL_POLL_MS` (500 ms), because a signal that lands
+between the flag test and `select()` cannot interrupt it and the target libc
+has no `pselect` prototype.
+
+Every way out of the loop ends in `term_leave()`: it restores the tty when
+`raw_on` is set, then writes the SGR reset, clear screen and cursor home in one
+`write()`. The quit key, end of input, a `select()` failure (the message follows
+the restore) and a signal share it. SIGINT, SIGTERM, SIGHUP and SIGQUIT
+handlers are installed before raw mode and only record the signal number in a
+`volatile sig_atomic_t`; the loop sees it after `select()` returns `EINTR` and
+exits with status 128 plus the signal. SIGTSTP is the one handler that acts,
+because the stop happens inside its own `kill()` call: it restores the tty
+(`tcsetattr` is async-signal-safe, POSIX XSH 2.4.3, and the target `ioctl` is a
+direct trap), writes the cursor park, restores the default action, unblocks
+the signal and stops. The loop re-enters raw mode and repaints when it next
+runs, which is after SIGCONT; a SIGCONT without a stop only repaints, so the
+saved mode is never overwritten with the raw one. On the target the sgtty RAW
+flag delivers ^C as the byte 3, which no key acts on, so `q` is the keyboard
+quit there and the signal handlers serve `kill(1)` and hangup; the in-game help
+line reads `q  quit`.
 
 ## Decisions where the specification is silent or ambiguous
 
@@ -74,8 +118,9 @@ and its two unused helpers are silenced for that include only with a
 5. Lock-out ends the game before any line clear. Top-out and lock-out both set
    the active piece to none, so the final frame draws the board without a
    colliding piece.
-6. Esc and F1 map to the same key as `p` inside `readkey()`, so one handler
-   covers pause and resume. F2 to F10, other CSI and SS3 sequences, and Alt
+6. Esc and F1 map to the same key as `p` inside `esc_feed()` and
+   `esc_abandon()`, so one handler covers pause and resume. A bare Esc pauses
+   `ESC_MS` (40 ms) after it arrives. F2 to F10, other CSI and SS3 sequences, and Alt
    combinations are consumed and ignored.
 7. Pause blanks the board and both next-piece boxes, because the previews
    would otherwise give planning information the pause is meant to deny.
@@ -92,17 +137,22 @@ and its two unused helpers are silenced for that include only with a
     returns 15 bits.
 11. `GAMEBOX_TEST` empty or holding a character outside `IOTSZJL` selects the
     default `IOTSZJL` cycle; the other games in the tree set it to `1`.
-12. Time handling. One loop iteration advances gravity by at most 1,000 ms
-    (after a stall, no catch-up burst). When `select()` times out and the clock
-    reports less than the requested wait, the game trusts `select()` and
-    advances by the requested wait, so a coarse clock cannot spin the loop.
-13. `select()` failing with anything other than `EINTR` restores the terminal,
-    prints `fourfall: select failed` and exits 1. There is no polling
+12. Time handling. `ff_tick()` charges the elapsed time before it applies the
+    key. One step advances gravity by at most 1,000 ms (after a stall, no
+    catch-up burst), and a pause or game-over wait charges nothing. When
+    `select()` times out and the clock reports less than the requested wait,
+    the game trusts `select()` and advances by the requested wait, so a coarse
+    clock cannot spin the loop.
+13. `select()` failing with anything other than `EINTR` leaves through
+    `term_leave()` like every other exit, prints `fourfall: select failed` and
+    exits 1. There is no polling
     fallback; a console that cannot select needs a driver fix, and the board
     check below is `not run`.
-14. SIGINT and SIGTERM restore the terminal mode and exit with status 130 and
-    143. Normal exit (`q`, or end of input) restores the mode, resets
-    attributes and clears the screen.
+14. SIGINT, SIGTERM, SIGHUP and SIGQUIT leave through `term_leave()` and exit
+    with status 130, 143, 129 and 131. Normal exit (`q`, or end of input) takes
+    the same path: restore the mode, reset attributes, clear the screen and
+    home the cursor. SIGTSTP restores the mode and stops; SIGCONT re-enters raw
+    mode and repaints.
 15. Glyphs and colors. The default cell is a two-character glyph (I `[]`,
     O `##`, T `<>`, S `//`, Z `\\`, J `()`, L `{}`), bold white while falling and
     SGR 90 (bright black) once settled; the previews use the settled style.
@@ -228,12 +278,13 @@ Command: `bmake -C games/fourfall test` (runs the four gates below).
 
 | Gate | Result |
 | --- | --- |
-| `test-logic`: strict C17 (`-std=c17 -pedantic -Wall -Wextra -Werror`), AddressSanitizer and UndefinedBehaviorSanitizer with `-fno-sanitize-recover` | 161 vectors run, 0 failed (SHAPE 28, COLL 22, KICK 14, CLEAR 11, SCORE 13, LEVEL and GRAV 14, BAG 4, DROP 6, TOPOUT and SPAWN 15, SCREEN and NEXT 13, GLYPH 7, PLUMB 9, REPLAY 5); 1,472,151 checks, 0 failed |
+| `test-logic`: strict C17 (`-std=c17 -pedantic-errors -Wall -Wextra -Werror`), AddressSanitizer and UndefinedBehaviorSanitizer with `-fno-sanitize-recover` when `tools/compiler-probe.sh` builds and runs a program with them (a host without the runtime prints `SKIP fourfall sanitizers` and runs unsanitized; calibrated with a compiler wrapper that rejects `-fsanitize`) | 161 vectors run, 0 failed (SHAPE 28, COLL 22, KICK 14, CLEAR 11, SCORE 13, LEVEL and GRAV 14, BAG 4, DROP 6, TOPOUT and SPAWN 15, SCREEN and NEXT 13, GLYPH 7, PLUMB 9, REPLAY 5); 1,472,171 checks, 0 failed |
 | property checks 1 to 7 | pass; worst same-type gap over seeds 1 to 20 is 13 (limit 13); worst position and type deviation over seeds 1 to 20 is 9.2 percent (limit 15) |
+| loop-step checks (`tick_checks`) | a move at 400 ms of the lock delay leaves 500 ms (`lock_ms` 0); a resume after a 5 s pause advances 0 ms; a 5 s wait in play is clamped to 1,000 ms; an expired wait is trusted over a short clock; a backward clock charges nothing; the frozen test-mode clock charges nothing; the plumb key reports in play only; restart after game over |
 | gravity, lock-timer and queue checks | 800 ms first step and the level 9 step of 210 ms; 500 ms lock after landing; ten restarts then the eleventh adjustment leaves the timer running; sliding off a ledge stops the timer; soft and hard drop points; saturation at 99,999,999; clear scoring at the pre-update level; cyclic script queue; queue of at least two pieces over 7,000 spawns on 20 seeds; 200 stepping-equivalence games |
-| `test-mutants` | baseline passes; 32 of 32 mutants rejected |
-| `test-play` | 16 cases, 327 checks pass on `fourfall-host` |
-| `test-play-mutants` | 27 of 27 front-end mutants rejected |
+| `test-mutants` | baseline passes; 36 of 36 mutants rejected, including key applied before the charge, charge during a pause, an unclamped wait and an untrusted expiry |
+| `test-play` | 20 cases, 371 checks pass on `fourfall-host`, including SIGINT, SIGTERM, SIGHUP and SIGQUIT exits with the tty restored and the reset written, the select-failure exit, a SIGTSTP stop and SIGCONT resume in its own process group, and the escape deadline cases |
+| `test-play-mutants` | 36 of 36 front-end mutants rejected, including SIGHUP and SIGQUIT left at the default action, a stop with the tty raw, a resume without repaint, an exit that leaves the tty raw or omits the reset, escape deadlines of 4 s and 5 ms, and a stalled sequence that freezes the loop |
 | `test-play` against a sanitizer build of the host program | `not run` after the redesign |
 
 Mutants of the rules, all rejected (the first ten are the specification's
@@ -264,7 +315,10 @@ list, the rest are added calibration):
 
 Front-end mutants, all rejected by `play.py`: right wall at column 28, status
 line wording, pause that keeps the board, bare Esc ignored, wrong F1 CSI code,
-SIGTERM exit status 0, resume without repaint, T drawn yellow under `-c`,
+SIGTERM exit status 0, SIGHUP and SIGQUIT at the default action, SIGTSTP stopping
+with the tty raw, SIGCONT without a repaint, an exit that skips the tty restore
+or the SGR reset, escape deadlines of 4 s and 5 ms, a stalled sequence that
+freezes the loop, resume without repaint, T drawn yellow under `-c`,
 cursor parked on row 32, Ctrl-L ignored, Enter not a hard drop, gravity that
 never advances, plumb line on by default, color on by default, solid
 background cells, settled cells as bright as the falling piece, a 10-column
@@ -286,10 +340,22 @@ stopping on a stack; monochrome output and `-m` winning over `-c`; the clear
 flash (12 `~~` cells in one frame, a gap of 0.12 to 0.6 s to the next frame,
 board collapsed after); the usage exit status 2; pause and resume by `p`,
 `ESC O P`, `ESC [ 11 ~` and a bare Esc, with unknown sequences ignored; the
-Ctrl-L repaint; SIGINT and SIGTERM exit statuses with the terminal mode
-restored; and, without `GAMEBOX_TEST`, real gravity at level 9 (a falling
+Ctrl-L repaint; SIGINT, SIGTERM, SIGHUP and SIGQUIT exit statuses (130, 143,
+129, 131) with ICANON and ECHO restored and the reset written last; the
+select-failure exit (descriptor 0 closed: status 1, message, reset); a SIGTSTP
+stop with the tty restored and a SIGCONT resume with raw mode re-entered and the
+board repainted on a blank screen, run in a process group of its own because a
+session leader's group is orphaned and ignores a stop; a plain SIGCONT leaving
+the saved mode intact; `ESC [`, `ESC O`, `ESC [ 1` and `ESC [ 11` each abandoned
+after the deadline and followed by a quitting `q` within 0.5 s; `ESC`, a 10 ms
+gap, then `[A` rotating, and a CSI split into three single-byte writes 10 ms
+apart; a bare Esc pausing; the piece still falling and the screen still drawing
+during a stalled `ESC [`; and, without `GAMEBOX_TEST`, real gravity at level 9 (a falling
 piece, a lock followed by a status redraw, no plumb line, and no lock while
 paused).
+
+The pty tests that rely on `/proc` for the stopped state (`job_control`) need
+Linux.
 
 Lint: `ruff check`, `ruff format --check`, `flake8 --max-line-length=100` and
 `mypy` pass on the two Python files.
@@ -314,6 +380,21 @@ Of the bss, 6,144 bytes are the frame buffer; the rest is the game state
 (about 0.7 KB with the flash board), the shadow and view arrays (528 bytes)
 and panel caches. The multicall trial below predates the redesign and was not
 rerun; the object grew by 704 bytes of text and 496 bytes of bss.
+
+Loop revision. The image recipe now appends `-std=c17 -pedantic-errors` to
+`CFLAGS`; the sgtty headers (through `games/gametty.h`) and `include/signal.h` compile
+under it with the cross compiler, apart from the `sigaddset` and `sigemptyset`
+macros, whose comma expressions need a `(void)` cast under `-Werror`. This
+worktree built `lib/crt0.o`, `lib/libc.a` and `tools/bin/rp2040` itself, so the
+link needed no overrides. Standalone fourfall: text 6,832, data 8, bss 7,492
+(was 6,272, 8, 7,464 on the same libc); `fourfall.o` text 5,961, bss 7,476.
+`hsaout -s games/fourfall/fourfall`: 6,872 raw, 6,304 packed. The four-game
+`gamebox`: text 18,224, data 208, bss 18,690; 18,464 raw, 16,484 packed, 20 raw
+and 18 packed blocks, against 17,900 raw, 15,968 packed, 19 and 17 blocks for
+the previous loop on the same toolchain, which is 564 bytes of text and one
+block more. The growth pays for the escape parser, the loop step, and the
+signal and job-control handlers; `kill.o` and `sigprocmask.o` join the box's
+shared libc members.
 
 Multicall trial, outside the tree: a scratch copy of `games/` with symlinked `share`, `include`, `lib` and `tools`, `TOOLS`
 extended to `fifteen keen bubble fourfall`, and `bmake MACHINE=rp2040 gamebox`.
@@ -347,7 +428,7 @@ None of these files was edited.
 - Root `Makefile`: add
 
       check-fourfall-host:
-      		${MAKE} -C games/fourfall test
+		${MAKE} -C games/fourfall test
 
   and add `check-fourfall-host` to `HOST_PROGRAM_GATES` (line 946) and to the
   gate list near line 1292. `sys/arch/rp2040/doc/TESTING.md` line 576 lists the

@@ -283,13 +283,13 @@ statistics, complex and CRC objects. The largest frame is 256 bytes
 KB of twiddles, which a program must hold in bss or heap, not on the stack.
 libbn is 3,293 bytes of text; dc's 771 KB extended register table, not
 libbn, is the blocker for dc in the 144 KB window (`openbsd-dc-bn-port.md`,
-step 3). fourfall measures 5,536 text, 8 data, 6,968 bss as a standalone
-a.out (6,144 bytes are the frame buffer). The four-game `gamebox` measures
-17,900 bytes raw and 15,968 packed (17 blocks) with `hsaout -s`, against
+step 3). fourfall measures 6,872 bytes raw and 6,304 packed as a standalone
+a.out (`hsaout -s`; 6,144 bytes of its bss are the frame buffer). The four-game `gamebox` measures
+18,464 bytes raw and 16,484 packed (18 blocks) with `hsaout -s`, against
 12,248 bytes for the three-game box
 (`docs/research/c17-shipped-resource-baseline.json`, gamebox record); the
-`games` closure costs 18 blocks and the `full` profile keeps 281 free blocks
-(`sys/arch/rp2040/doc/PROFILES.md`, measured by `check-fs-profiles`).
+`games` closure costs 19 blocks and the `full` profile keeps 280 free blocks
+(`sys/arch/rp2040/doc/PROFILES.md`, measured with `fsutil` on built images).
 Neither library enters the image.
 
 **TF-3 minor, suspected: console behavior is unmeasured.**
@@ -474,7 +474,7 @@ disposition on branch `picocalc/calculator-and-games`:
 | T-2, T-3 | The FFT check covers n from 4 to 1024 on both twiddle paths against 4 eps log2(n) sqrt(n) times the input 2-norm. |
 | T-4, T-5, T-6 | `calc_quat_inverse` scales by the largest component; inverse and solve return `CALC_E_ILLCOND` above an estimated condition number of 1/(n eps); non-finite entries return `CALC_E_DOMAIN`. |
 | T-9 | `games/fourfall/Makefile` takes `PYTHON` from the caller and refuses an empty value. |
-| TF-2 | Measured: the `games` closure costs 18 root blocks and the `full` image leaves 281 (`sys/arch/rp2040/doc/PROFILES.md`). |
+| TF-2 | Measured: the `games` closure costs 19 root blocks and the `full` image leaves 280 (`sys/arch/rp2040/doc/PROFILES.md`). |
 | L-1 | Local paths and private repository names are removed from every committed file. |
 | L-2 | Owner ruling: new files outside `sys/arch/rp2040` carry no copyright header and fall under the repository `LICENSE`; the headers are removed and `NOTICE` needs no entry. |
 | L-5 | American spelling throughout. |

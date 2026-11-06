@@ -28,6 +28,14 @@
  * FOURFALL_LOGIC compiles that half alone so tests/logic_test.c can
  * include this file. The second half is the terminal front end.
  *
+ * The loop waits in select for input, the next gravity or lock
+ * deadline, or a stalled escape sequence, charges the elapsed time to
+ * the game with ff_tick() before it applies a key, and leaves through
+ * term_leave() on q, end of input, a select failure or a signal. On
+ * the target the sgtty RAW flag delivers ^C as the byte 3, which no key
+ * acts on, so q is the keyboard quit; SIGINT, SIGTERM, SIGHUP and
+ * SIGQUIT come from kill(1) or a hangup and end the game the same way.
+ *
  * Testing hook: if GAMEBOX_TEST is set, gravity and the lock timer are
  * off and the piece queue is the letters of its value (when it holds
  * only characters from IOTSZJL) repeated cyclically, else IOTSZJL
@@ -649,6 +657,109 @@ ff_advance(struct ff_game *g, int ms)
 	}
 }
 
+/* ------------------------------------------------------------------ */
+/* Loop step                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The front end is in one of three modes. The game clock runs in S_PLAY
+ * only; a wait that ends in S_PAUSE or S_OVER charges nothing.
+ */
+enum { S_PLAY, S_PAUSE, S_OVER };
+
+/* Longest span ff_tick charges to the game in one step, in ms. */
+#define FF_DT_MAX	1000
+
+/* Key codes the rules act on; the front end maps terminal input onto them. */
+#define FF_KEY_LEFT	'h'
+#define FF_KEY_DOWN	'j'
+#define FF_KEY_UP	'k'
+#define FF_KEY_RIGHT	'l'
+#define FF_KEY_PLUMB	'g'
+
+/*
+ * Apply key k to the game in mode *mode: moves, rotations and drops in
+ * S_PLAY, resume in S_PAUSE, restart in S_OVER. Returns 1 when the
+ * plumb-line key was accepted in S_PLAY, a toggle the front end owns.
+ */
+static int
+ff_key(struct ff_game *g, int *mode, int k)
+{
+	if (*mode == S_OVER) {
+		if (k == ' ' || k == '\r' || k == '\n') {
+			ff_new(g, g->start_level, g->script, g->draw);
+			*mode = S_PLAY;
+		}
+		return 0;
+	}
+	if (*mode == S_PAUSE) {
+		if (k == 'p' || k == ' ' || k == '\r' || k == '\n')
+			*mode = S_PLAY;
+		return 0;
+	}
+	switch (k) {
+	case FF_KEY_LEFT:
+		ff_move(g, -1);
+		break;
+	case FF_KEY_RIGHT:
+		ff_move(g, 1);
+		break;
+	case FF_KEY_UP:
+	case 'x':
+		ff_rotate(g, FF_CW);
+		break;
+	case 'z':
+		ff_rotate(g, FF_CCW);
+		break;
+	case FF_KEY_DOWN:
+		ff_soft_drop(g);
+		break;
+	case ' ':
+	case '\r':
+	case '\n':
+		ff_hard_drop(g);
+		break;
+	case 'p':
+		*mode = S_PAUSE;
+		break;
+	case FF_KEY_PLUMB:
+		return 1;
+	}
+	if (g->over)
+		*mode = S_OVER;
+	return 0;
+}
+
+/*
+ * One pass of the front end's loop after a wait ended at clock reading
+ * now (ms). The time since *last is charged to the game first, against
+ * the mode the wait ran in, and key (0 for none) is applied after it:
+ * a move that restarts the lock timer then leaves the full FF_LOCK_MS,
+ * and the key that resumes a pause finds the pause span uncharged.
+ * timed_out_ms is the length of a wait that expired without input, or 0;
+ * the expiry is trusted over a coarse clock, and a wait that long was
+ * real, so it is charged whole. clock_on is 0 in the test
+ * mode that freezes gravity and the lock timer. Returns what ff_key
+ * returns.
+ */
+static int
+ff_tick(struct ff_game *g, int *mode, int clock_on, unsigned long *last,
+    unsigned long now, int timed_out_ms, int key)
+{
+	unsigned long span = now >= *last ? now - *last : 0;
+	int dt = span > (unsigned long)FF_DT_MAX ? FF_DT_MAX : (int)span;
+
+	*last = now;
+	if (timed_out_ms > 0 && dt < timed_out_ms)
+		dt = timed_out_ms;
+	if (*mode == S_PLAY && clock_on) {
+		ff_advance(g, dt);
+		if (g->over)
+			*mode = S_OVER;
+	}
+	return key ? ff_key(g, mode, key) : 0;
+}
+
 #ifndef FOURFALL_LOGIC
 
 /* ------------------------------------------------------------------ */
@@ -667,6 +778,10 @@ ff_advance(struct ff_game *g, int ms)
 #pragma GCC diagnostic ignored "-Wunused-function"
 #include "../gametty.h"
 #pragma GCC diagnostic pop
+
+_Static_assert(GK_UP == FF_KEY_UP && GK_DOWN == FF_KEY_DOWN &&
+    GK_LEFT == FF_KEY_LEFT && GK_RIGHT == FF_KEY_RIGHT,
+    "the terminal arrow codes are the rules' key codes");
 
 #define OBUF		6144
 #define PANEL_COL	FF_PANEL_COL
@@ -688,8 +803,6 @@ ff_advance(struct ff_game *g, int ms)
 #define VC_FALL		8
 #define VC_PLUMB	16
 #define VC_FLASH	17
-
-enum { S_PLAY, S_PAUSE, S_OVER };
 
 /* Background color of each piece type (I white, O blue, T green,
  * S magenta, Z cyan, J red, L yellow); type 0 is empty. -c prints the
@@ -1072,6 +1185,15 @@ now_ms(void)
 	return (unsigned long)tv.tv_sec * 1000UL + (unsigned long)tv.tv_usec / 1000UL;
 }
 
+/*
+ * The longest wait when nothing else bounds it (a pause, a game over).
+ * A signal that lands between the loop's flag test and select cannot
+ * interrupt that select; the bound makes the loop see the flag within
+ * this many ms. Without pselect in the target libc the window cannot
+ * be closed atomically.
+ */
+#define SIGNAL_POLL_MS	500
+
 /* Wait for input for ms milliseconds, or without limit when ms < 0. */
 static int
 wait_input(int ms)
@@ -1096,56 +1218,113 @@ pending(void)
 	return ioctl(0, FIONREAD, &avail) == 0 && avail > 0;
 }
 
-#define K_NONE	0	/* a sequence to ignore */
-#define K_EOF	(-1)
+#define K_NONE	0	/* nothing to act on */
+#define K_MORE	(-2)	/* an escape sequence is incomplete */
 
 /*
- * Read one key. Arrows come back as k j l h as gtty_getkey folds them;
- * F1 (ESC O P or ESC [ 11 ~) and a bare Esc come back as p. Any other
- * escape sequence is consumed and returns K_NONE.
+ * The longest silence inside an escape sequence, in ms. A terminal
+ * emits a sequence back to back: the slowest link the console meets,
+ * 1200 baud, spaces bytes 8.3 ms apart, and a USB packet carries the
+ * whole sequence at once. A human pressing Esc and then another key
+ * takes well over 100 ms. 40 ms sits between the two; it is also the
+ * delay before a bare Esc pauses.
+ */
+#define ESC_MS		40
+
+/* Longest CSI parameter and intermediate run read before giving up. */
+#define CSI_MAX		8
+
+enum { E_IDLE, E_ESC, E_SS3, E_CSI };
+
+static int esc_state = E_IDLE;
+static int esc_num;		/* the first numeric parameter of a CSI */
+static int esc_len;		/* bytes consumed inside the CSI */
+static unsigned long esc_at;	/* clock reading at the last sequence byte */
+
+/*
+ * Feed one input byte to the escape parser. Returns the key (arrows
+ * come back as GK_UP and its siblings; F1 as ESC O P or ESC [ 11 ~, and
+ * a bare Esc, come back as p), K_NONE for a byte or a finished sequence
+ * with no meaning, or K_MORE while a sequence is incomplete. The parser
+ * never reads; the caller supplies bytes as they arrive and ends a
+ * stalled sequence with esc_abandon().
  */
 static int
-readkey(void)
+esc_feed(int c)
 {
-	unsigned char c;
-	int num = 0, n;
-
-	if (read(0, &c, 1) != 1)
-		return K_EOF;
-	if (c != 033)
-		return c;
-	if (!pending())
-		return 'p';
-	if (read(0, &c, 1) != 1)
-		return K_EOF;
-	if (c == 'O') {
-		if (read(0, &c, 1) != 1)
-			return K_EOF;
-		return c == 'P' ? 'p' : K_NONE;
-	}
-	if (c != '[')
+	switch (esc_state) {
+	case E_IDLE:
+		if (c != 033)
+			return c;
+		esc_state = E_ESC;
+		return K_MORE;
+	case E_ESC:
+		if (c == 'O') {
+			esc_state = E_SS3;
+			return K_MORE;
+		}
+		if (c == '[') {
+			esc_state = E_CSI;
+			esc_num = 0;
+			esc_len = 0;
+			return K_MORE;
+		}
+		esc_state = E_IDLE;
 		return K_NONE;
-	for (n = 0; n < 8; n++) {
-		if (read(0, &c, 1) != 1)
-			return K_EOF;
-		if (c >= '0' && c <= '9') {
-			num = num * 10 + (c - '0');
-			continue;
-		}
-		if (c == ';')
-			continue;
+	case E_SS3:
+		esc_state = E_IDLE;
+		return c == 'P' ? 'p' : K_NONE;
+	default:
+		break;
+	}
+	if (c >= '0' && c <= '9') {
+		esc_num = esc_num * 10 + (c - '0');
+	} else if (c != ';') {
 		switch (c) {
-		case 'A': return GK_UP;
-		case 'B': return GK_DOWN;
-		case 'C': return GK_RIGHT;
-		case 'D': return GK_LEFT;
-		case '~': return num == 11 ? 'p' : K_NONE;
+		case 'A': esc_state = E_IDLE; return GK_UP;
+		case 'B': esc_state = E_IDLE; return GK_DOWN;
+		case 'C': esc_state = E_IDLE; return GK_RIGHT;
+		case 'D': esc_state = E_IDLE; return GK_LEFT;
+		case '~':
+			esc_state = E_IDLE;
+			return esc_num == 11 ? 'p' : K_NONE;
 		default:
-			if (c >= 0x40 && c <= 0x7e)
+			if (c >= 0x40 && c <= 0x7e) {
+				esc_state = E_IDLE;
 				return K_NONE;
+			}
 		}
 	}
-	return K_NONE;
+	if (++esc_len >= CSI_MAX) {
+		esc_state = E_IDLE;
+		return K_NONE;
+	}
+	return K_MORE;
+}
+
+/*
+ * End a sequence that stalled for ESC_MS. A lone Esc is a key press
+ * and pauses; a longer fragment is dropped.
+ */
+static int
+esc_abandon(void)
+{
+	int k = esc_state == E_ESC ? 'p' : K_NONE;
+
+	esc_state = E_IDLE;
+	return k;
+}
+
+/*
+ * Milliseconds left before the pending sequence stalls, at clock
+ * reading now.
+ */
+static int
+esc_left(unsigned long now)
+{
+	unsigned long gone = now >= esc_at ? now - esc_at : 0;
+
+	return gone >= ESC_MS ? 0 : ESC_MS - (int)gone;
 }
 
 static void
@@ -1155,70 +1334,96 @@ new_game(void)
 	state = S_PLAY;
 }
 
-static void
-on_signal(int sig)
-{
-	static const char reset[] = "\033[0m\033[31;1H\r\n";
+/*
+ * Terminal ownership. raw_on is 1 while the tty is in the game's raw
+ * mode. Every way out of the loop ends in term_leave(), which restores
+ * the tty, resets the character attributes and clears the screen with
+ * the cursor home, whether the player quit, the input ended, select
+ * failed or a signal asked for the exit.
+ *
+ * SIGINT, SIGTERM, SIGHUP and SIGQUIT handlers only record the signal
+ * number in got_sig; the loop leaves after select returns EINTR, and
+ * term_leave() runs in ordinary context. On the target the sgtty RAW
+ * flag delivers ^C as the byte 3, which no key acts on, so q is the
+ * keyboard quit and these signals come from kill(1) or a hangup. On a
+ * host termios keeps ISIG on, so ^C and ^\ raise them.
+ *
+ * SIGTSTP is the one handler that acts: the stop happens inside the
+ * kill() in on_stop(), so the tty must be restored before it, from the
+ * handler. tcsetattr is async-signal-safe (POSIX XSH 2.4.3) and the
+ * target's ioctl is a direct trap. The handler marks raw_on clear; the
+ * loop re-enters raw mode and repaints when it next runs, which is
+ * after SIGCONT. A SIGCONT alone (after SIGSTOP, say) sets got_cont and
+ * only repaints.
+ */
+static volatile sig_atomic_t got_sig;
+static volatile sig_atomic_t got_cont;
+static volatile sig_atomic_t raw_on;
 
-	gtty_restore();
-	(void)write(1, reset, sizeof reset - 1);
-	_exit(128 + sig);
+static const char leave_seq[] = "\033[0m\033[2J\033[H";
+static const char park_seq[] = "\033[0m\033[31;1H\r\n";
+
+static void
+on_exit_signal(int sig)
+{
+	if (!got_sig)
+		got_sig = sig;
 }
 
-/* Returns 1 to quit. */
-static int
-handle(int k)
+static void
+on_cont(int sig)
 {
-	switch (k) {
-	case 'q':
-		return 1;
-	case 014:
-		frame(1);
-		return 0;
+	(void)sig;
+	got_cont = 1;
+}
+
+static void
+on_stop(int sig)
+{
+	sigset_t set;
+
+	(void)sig;
+	if (raw_on) {
+		gtty_restore();
+		raw_on = 0;
 	}
-	if (state == S_OVER) {
-		if (k == ' ' || k == '\r' || k == '\n') {
-			new_game();
-		}
-		return 0;
+	(void)write(1, park_seq, sizeof park_seq - 1);
+	(void)signal(SIGTSTP, SIG_DFL);
+	(void)sigemptyset(&set);
+	(void)sigaddset(&set, SIGTSTP);
+	(void)sigprocmask(SIG_UNBLOCK, &set, 0);
+	(void)kill(getpid(), SIGTSTP);
+	(void)signal(SIGTSTP, on_stop);
+}
+
+/* Enter raw mode with the handled signals held, so a stop cannot see a
+ * half-set tty and raw_on never trails the mode it describes. */
+static void
+term_enter(void)
+{
+	sigset_t all, old;
+
+	(void)sigemptyset(&all);
+	(void)sigaddset(&all, SIGINT);
+	(void)sigaddset(&all, SIGTERM);
+	(void)sigaddset(&all, SIGHUP);
+	(void)sigaddset(&all, SIGQUIT);
+	(void)sigaddset(&all, SIGTSTP);
+	(void)sigprocmask(SIG_BLOCK, &all, &old);
+	gtty_raw();
+	raw_on = 1;
+	(void)sigprocmask(SIG_SETMASK, &old, 0);
+}
+
+/* The single exit path of the terminal. */
+static void
+term_leave(void)
+{
+	if (raw_on) {
+		gtty_restore();
+		raw_on = 0;
 	}
-	if (state == S_PAUSE) {
-		if (k == 'p' || k == ' ' || k == '\r' || k == '\n')
-			state = S_PLAY;
-		return 0;
-	}
-	switch (k) {
-	case GK_LEFT:
-		ff_move(&game, -1);
-		break;
-	case GK_RIGHT:
-		ff_move(&game, 1);
-		break;
-	case GK_UP:
-	case 'x':
-		ff_rotate(&game, FF_CW);
-		break;
-	case 'z':
-		ff_rotate(&game, FF_CCW);
-		break;
-	case GK_DOWN:
-		ff_soft_drop(&game);
-		break;
-	case ' ':
-	case '\r':
-	case '\n':
-		ff_hard_drop(&game);
-		break;
-	case 'p':
-		state = S_PAUSE;
-		break;
-	case 'g':
-		plumb_on = !plumb_on;
-		break;
-	}
-	if (game.over)
-		state = S_OVER;
-	return 0;
+	(void)write(1, leave_seq, sizeof leave_seq - 1);
 }
 
 static int
@@ -1248,8 +1453,10 @@ main(int argc, char **argv)
 	const char *env;
 	unsigned long last, now;
 	unsigned seed;
-	int level = 1, k, r, tmo, dt, ai = 1;
-	const char *o;
+	unsigned char c = 0;
+	int level = 1, k, r, tmo, left, idle, status = 0, ai = 1;
+	ssize_t nread;
+	const char *o, *err = 0;
 
 	for (; ai < argc && argv[ai][0] == '-' && argv[ai][1]; ai++)
 		for (o = argv[ai] + 1; *o; o++) {
@@ -1285,48 +1492,86 @@ main(int argc, char **argv)
 		game.script = script_ok(env) ? env : FF_LETTERS;
 	new_game();
 
-	gtty_raw();
-	signal(SIGINT, on_signal);
-	signal(SIGTERM, on_signal);
+	signal(SIGINT, on_exit_signal);
+	signal(SIGTERM, on_exit_signal);
+	signal(SIGHUP, on_exit_signal);
+	signal(SIGQUIT, on_exit_signal);
+	signal(SIGTSTP, on_stop);
+	signal(SIGCONT, on_cont);
+	term_enter();
 	last = now_ms();
 	frame(1);
 	for (;;) {
+		if (got_sig)
+			break;
+		if (!raw_on) {
+			term_enter();	/* resumed after SIGTSTP */
+			got_cont = 1;
+		}
+		if (got_cont) {
+			got_cont = 0;
+			frame(1);
+			last = now_ms();
+		}
 		tmo = -1;
 		if (state == S_PLAY && !testmode)
 			tmo = ff_deadline(&game);
-		r = wait_input(tmo);
-		if (r < 0 && errno != EINTR) {
-			gtty_restore();
-			(void)write(2, "fourfall: select failed\n", 24);
-			return 1;
+		if (esc_state != E_IDLE) {
+			left = esc_left(now_ms());
+			if (tmo < 0 || left < tmo)
+				tmo = left;
 		}
-		if (r > 0) {
-			k = readkey();
-			if (k == K_EOF)
-				break;
-			if (k != K_NONE && handle(k))
-				break;
+		idle = tmo < 0;
+		if (idle)
+			tmo = SIGNAL_POLL_MS;
+		r = wait_input(tmo);
+		if (got_sig)
+			break;
+		if (r < 0) {
+			if (errno == EINTR)
+				continue;
+			err = "fourfall: select failed\n";
+			status = 1;
+			break;
 		}
 		now = now_ms();
-		dt = (int)(now - last);
-		last = now;
-		if (r == 0 && tmo > 0 && dt < tmo)
-			dt = tmo;	/* select timed out; trust it over a coarse clock */
-		if (state == S_PLAY && !testmode) {
-			if (dt > 1000)
-				dt = 1000;
-			ff_advance(&game, dt);
-			if (game.over)
-				state = S_OVER;
+		k = K_NONE;
+		if (r > 0) {
+			do {
+				nread = read(0, &c, 1);
+				if (nread != 1)
+					break;
+				k = esc_feed(c);
+				if (k == K_MORE)
+					esc_at = now;
+			} while (k == K_MORE && pending());
+			if (nread == 0 || (nread < 0 && errno != EINTR))
+				break;
+			if (nread < 0 || k == K_MORE)
+				k = K_NONE;
+		} else if (esc_state != E_IDLE && esc_left(now) == 0) {
+			k = esc_abandon();
 		}
+		if (r == 0 && idle && k == K_NONE)
+			continue;
+		if (k == 'q')
+			break;
+		if (k == 014) {
+			frame(1);
+			k = K_NONE;
+		}
+		if (ff_tick(&game, &state, !testmode, &last, now,
+		    r == 0 ? tmo : 0, k))
+			plumb_on = !plumb_on;
 		if (frame(0))
 			last = now_ms();
 	}
-	gtty_restore();
-	ob_str("\033[0m");
-	ob_flush();
-	gtty_clear();
-	return 0;
+	term_leave();
+	if (err)
+		(void)write(2, err, strlen(err));
+	if (got_sig)
+		return 128 + (int)got_sig;
+	return status;
 }
 
 #endif /* !FOURFALL_LOGIC */

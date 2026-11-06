@@ -375,7 +375,7 @@ design.
 
 ## Implementation record: rows 2, 3 and 4
 
-Row 3, `bubble -x`: written fresh (the `pb_core` licence stays an open owner
+Row 3, `bubble -x`: written fresh (the `pb_core` license stays an open owner
 decision and its source was not read). Staggered rows with seven bubbles in
 the shifted ones, six neighbors, a descent after eight shots without a pop
 that flips the stagger parity, loss when a bubble reaches the bottom row.

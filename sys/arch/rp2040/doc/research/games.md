@@ -283,10 +283,20 @@ object `games/pzcommon/pzcommon.o` keeps its globals, is built with a section
 per function, and the box and the standalone links add `-Wl,--gc-sections` to
 drop the support functions no puzzle reaches. `midend.c` is not linked.
 
-Open points. The imported unruly generator leaks a game state on a rejected
-attempt (`unruly.c`, `new_game_desc`); a game generates once per play, so the
-leak is bounded and the host gate turns leak detection off for that puzzle
-only. The collection's `flood.c` defines a non-static
+Open points. The imported unruly generator abandons a game state, with every
+block it owns, each time a candidate comes out too easy for the difficulty
+(`unruly.c`, `new_game_desc`; the easy and normal settings reject, trivial
+never does), and the `n` key repeats generation in one process, so the leaks
+accumulate toward the 144 KB window. The wrapper redirects the generator's
+allocator names to the tracking versions in `games/pzcommon/pzscope.h` and
+frees every block still recorded when generation returns, which leaves the
+imported file unchanged. Measured on the host heap over 100 games per size,
+an unreclaimed game leaks a mean of 26 to 262 bytes and at most 2.7 KB
+(6x6 normal 262 bytes, 24x16 normal 26 bytes); 280 further games at 6x6
+normal grew the data segment by 52 KB before the change and by none after.
+Within one generation the abandoned states still coexist until it returns,
+so the peak is the single-game figure. The host gate runs leak detection on
+all four puzzles. The collection's `flood.c` defines a non-static
 `check_recursion_depth`, which the whole-program build makes local.
 Board behavior of all four puzzles, of coil and of the hexagonal bubble mode
 is unmeasured.

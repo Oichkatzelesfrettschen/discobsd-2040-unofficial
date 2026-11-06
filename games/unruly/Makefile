@@ -27,8 +27,8 @@ ${PROG}:	${OBJS} common
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
 
-${OBJS}:	${PROG}.c ../pzcommon/pzfront.h ../pzcommon/tatham/${PROG}.c \
-		../pzcommon/tatham/puzzles.h
+${OBJS}:	${PROG}.c ../pzcommon/pzfront.h ../pzcommon/pzscope.h \
+		../pzcommon/tatham/${PROG}.c ../pzcommon/tatham/puzzles.h
 
 # Host build for the pty test: the puzzle unit with -fwhole-program, the
 # front end and the support code as ordinary units, linked with section
@@ -36,7 +36,7 @@ ${OBJS}:	${PROG}.c ../pzcommon/pzfront.h ../pzcommon/tatham/${PROG}.c \
 host:		${HOSTBIN}
 
 ${HOSTBIN}:	${PROG}.c ../pzcommon/pzfront.c ../pzcommon/support.c \
-		../pzcommon/pzfront.h ../gameterm.h ../gametty.h
+		../pzcommon/pzfront.h ../pzcommon/pzscope.h ../gameterm.h ../gametty.h
 		${HOSTCC} -std=c17 -pedantic-errors -D_DEFAULT_SOURCE -Wall -Wextra -Werror \
 		    -fwhole-program -O1 -c -o ${PROG}-host.o ${PROG}.c
 		${HOSTCC} -std=c17 -pedantic-errors -D_DEFAULT_SOURCE -Wall -Wextra -Werror \

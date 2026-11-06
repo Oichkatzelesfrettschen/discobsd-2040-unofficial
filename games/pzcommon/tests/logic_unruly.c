@@ -8,8 +8,13 @@
  * requires the puzzle to report completion only after the last cell, and
  * the S move to complete and mark the game as solved with help. Bad
  * parameters, descriptions and moves must be refused.
+ *
+ * The generator runs inside the bracket the unruly wrapper uses (pzscope.h),
+ * and a repeated-generation case at the easy and normal difficulties, which
+ * reject candidates, leaves nothing for the leak detector to report.
  */
 #include "pztest.h"
+#include "../pzscope.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -78,7 +83,7 @@ play_one(int preset, int seed)
 	w2 = p->w2;
 	h2 = p->h2;
 	unique = p->unique;
-	desc = new_game_desc(p, rs, &aux, false);
+	desc = PZ_SCOPED_DESC(new_game_desc, p, rs, &aux);
 	CHECK(validate_desc(p, desc) == NULL, "%s/%d: generated description", name, seed);
 	s0 = new_game(NULL, p, desc);
 	CHECK(!s0->completed && game_status(s0) == 0, "%s/%d: fresh game completed", name, seed);
@@ -159,7 +164,7 @@ refusals(void)
 	char *aux = NULL, *desc;
 
 	decode_params(p, "6x6");
-	desc = new_game_desc(p, rs, &aux, false);
+	desc = PZ_SCOPED_DESC(new_game_desc, p, rs, &aux);
 	s = new_game(NULL, p, desc);
 	sfree(desc);
 	sfree(aux);
@@ -183,6 +188,68 @@ refusals(void)
 	free_params(p);
 }
 
+/*
+ * The generator abandons a candidate state each time the solver at the next
+ * lower difficulty still solves it. Generate many games, each freed in full,
+ * at every size that rejects candidates; the leak detector reports whatever
+ * the bracket fails to reclaim.
+ */
+static void
+repeated_generation(void)
+{
+	static const char *const spec[] = {
+		"6x6de", "6x6dn", "8x8de", "8x8dn", "8x8udn", "10x10dn", "12x8de", "14x14dn"
+	};
+	size_t k;
+	int n;
+
+	for (k = 0; k < sizeof spec / sizeof spec[0]; k++) {
+		game_params *p = default_params();
+		random_state *rs = seeded("unruly-repeat", (int)k);
+
+		decode_params(p, spec[k]);
+		CHECK(validate_params(p, true) == NULL, "%s refused", spec[k]);
+		for (n = 0; n < 25; n++) {
+			char *aux = NULL, *desc = PZ_SCOPED_DESC(new_game_desc, p, rs, &aux);
+			game_state *s;
+
+			CHECK(validate_desc(p, desc) == NULL, "%s: description %d", spec[k], n);
+			s = new_game(NULL, p, desc);
+			free_game(s);
+			sfree(desc);
+			sfree(aux);
+		}
+		free_params(p);
+		random_free(rs);
+	}
+}
+
+/*
+ * The bracket's allocator on its own: a block that grows, one allocated by
+ * realloc of NULL, one freed by realloc to zero and one freed outright
+ * leave the list; finish frees the rest and returns the kept block intact. Unruly's generator calls no srealloc, so only this case reaches it.
+ */
+static void
+scope_allocator(void)
+{
+	char *a, *b, *c, *keep, *outside = smalloc(4);
+
+	pz_scope_begin();
+	a = smalloc(8);
+	b = smalloc(8);
+	c = srealloc(NULL, 16);
+	a = srealloc(a, 4096);
+	CHECK(srealloc(b, 0) == NULL, "realloc to zero returned a block");
+	sfree(outside);
+	keep = smalloc(8);
+	strcpy(keep, "kept");
+	c[0] = a[4095] = 1;
+	CHECK(pz_scope_finish(keep) == keep && strcmp(keep, "kept") == 0, "kept block changed");
+	sfree(keep);
+	pz_scope_begin();
+	sfree(pz_scope_finish(NULL));
+}
+
 static void
 run(void)
 {
@@ -192,6 +259,8 @@ run(void)
 		for (seed = 0; seed < NSEEDS; seed++)
 			play_one(preset, seed);
 	refusals();
+	repeated_generation();
+	scope_allocator();
 }
 
 RUN_PUZZLE_TEST("unruly")

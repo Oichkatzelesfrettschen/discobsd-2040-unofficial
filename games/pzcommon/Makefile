@@ -24,7 +24,7 @@ pzcommon.o:	${OBJS}
 		${LD} -r -o $@ ${OBJS}
 
 pzfront.o support.o: pzfront.h ../gameterm.h ../gametty.h
-support.o:	tatham/puzzles.h tatham/misc.c tatham/random.c tatham/malloc.c \
+support.o:	pzscope.h tatham/puzzles.h tatham/misc.c tatham/random.c tatham/malloc.c \
 		tatham/combi.c
 
 clean:
@@ -60,7 +60,7 @@ test-import:	require-python
 # puzzle table is static and unreferenced and its drawing functions never
 # reach the link; the support code is linked with section collection for the
 # same reason.
-${BUILD}/support.o: support.c tatham/puzzles.h tatham/misc.c tatham/random.c \
+${BUILD}/support.o: support.c pzscope.h tatham/puzzles.h tatham/misc.c tatham/random.c \
 		tatham/malloc.c tatham/combi.c
 		@mkdir -p ${BUILD}
 		${HOSTCC} ${HOSTWARN} ${SAN} -ffunction-sections -c -o $@ support.c
@@ -70,21 +70,17 @@ ${BUILD}/fatal.o: tests/pztest_fatal.c
 		${HOSTCC} ${HOSTWARN} ${SAN} -c -o $@ tests/pztest_fatal.c
 
 .for p in ${PUZZLES}
-${BUILD}/logic_${p}: tests/logic_${p}.c tests/pztest.h tatham/${p}.c \
+${BUILD}/logic_${p}: tests/logic_${p}.c tests/pztest.h pzscope.h tatham/${p}.c \
 		tatham/puzzles.h ${BUILD}/support.o ${BUILD}/fatal.o
 		${HOSTCC} ${HOSTWARN} ${SAN} -fwhole-program -c -o ${BUILD}/logic_${p}.o tests/logic_${p}.c
 		${HOSTCC} ${SAN} -Wl,--gc-sections -o $@ ${BUILD}/logic_${p}.o \
 		    ${BUILD}/support.o ${BUILD}/fatal.o -lm
 
-# The unruly generator in the imported source leaks a blank game state on a
-# rejected attempt (unruly.c, new_game_desc), so leak detection stays on for
-# the other three puzzles only.
+# Leak detection stays on for every puzzle: the unruly generator in the
+# imported source abandons a game state on each rejected attempt, and the
+# test reaches it through pzscope.h, which reclaims them.
 test-logic-${p}: ${BUILD}/logic_${p}
-.if ${p} == "unruly"
-		ASAN_OPTIONS=detect_leaks=0 ./${BUILD}/logic_${p}
-.else
 		./${BUILD}/logic_${p}
-.endif
 .endfor
 
 test-logic:	${PUZZLES:S/^/test-logic-/}

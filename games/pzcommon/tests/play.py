@@ -527,6 +527,47 @@ def test_unruly_keys(root):
     check(g.finish() == 0, "exit")
 
 
+def vm_data_kb(pid):
+    with open("/proc/%d/status" % pid) as f:
+        for line in f:
+            if line.startswith("VmData:"):
+                return int(line.split()[1])
+    raise AssertionError("no VmData line for process %d" % pid)
+
+
+def test_unruly_new_games_reclaim(root):
+    # Unruly's generator abandons a candidate state at the normal difficulty
+    # whenever it comes out too easy, and the imported source never frees it.
+    # The wrapper reclaims those blocks, so 280 further games leave the data
+    # segment where 20 games put it (allocator padding off, so the segment
+    # tracks the live heap). Unreclaimed, 6x6dn grows it by about 64 KB.
+    if "unruly" not in PUZZLES or not os.path.exists("/proc/self/status"):
+        return
+    saved = {k: os.environ.get(k) for k in ("MALLOC_TOP_PAD_", "MALLOC_TRIM_THRESHOLD_")}
+    os.environ["MALLOC_TOP_PAD_"] = os.environ["MALLOC_TRIM_THRESHOLD_"] = "0"
+    try:
+        g = Game(root, "unruly", ["-s", "reclaim", "6x6dn"])
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def new_games(count):
+        for _ in range(count // 10):
+            os.write(g.fd, b"n" * 10)
+            g.pull(1.0)
+        g.pull(0.5)
+
+    new_games(20)
+    early = vm_data_kb(g.pid)
+    new_games(280)
+    late = vm_data_kb(g.pid)
+    check(late - early <= 16, "unruly: 280 new games grew the data segment %d KB" % (late - early))
+    check(g.finish() == 0, "exit")
+
+
 def test_solve_after_history_eviction(root):
     # Solving works from the puzzle as first dealt, not from the oldest state
     # the bounded undo history still holds. One wrong digit is entered, then a

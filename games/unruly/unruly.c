@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "../pzcommon/pzfront.h"
+#include "../pzcommon/pzscope.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -63,10 +64,17 @@ w_encode(void *p)
 	return encode_params(p, true);
 }
 
+/*
+ * The generator abandons a candidate game state, and the blocks it owns, each
+ * time the candidate is too easy for the difficulty (the "de" and "dn"
+ * settings), and nothing frees them. pzscope.h redirects the generator's
+ * allocator calls so the bracket reclaims them, which keeps repeated games
+ * from growing the process window.
+ */
 static char *
 w_new_desc(void *p, random_state *rs, char **aux)
 {
-	return new_game_desc(p, rs, aux, false);
+	return PZ_SCOPED_DESC(new_game_desc, p, rs, aux);
 }
 
 static const char *

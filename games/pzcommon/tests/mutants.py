@@ -110,6 +110,48 @@ LOGIC = [
     ("samegame", "move-index-unchecked", "if (i < 0 || i >= ret->n) {", "if (i < 0) {"),
 ]
 
+# (name, file relative to games/pzcommon, old, new) for the allocator that
+# reclaims the unruly generator's abandoned states; each must fail the unruly
+# rule test, whose repeated-generation case runs under the leak detector.
+SCOPE = [
+    (
+        "scope-finish-reclaims-nothing",
+        "support.c",
+        "\t\tif (scope_live[i] != keep)\n\t\t\tsfree(scope_live[i]);",
+        "\t\tif (scope_live[i] == NULL)\n\t\t\tsfree(scope_live[i]);",
+    ),
+    (
+        "scope-finish-frees-the-result",
+        "support.c",
+        "if (scope_live[i] != keep)",
+        "if (scope_live[i] != NULL)",
+    ),
+    (
+        "scope-free-stays-recorded",
+        "support.c",
+        "\t\tif (i < scope_n)\n\t\t\tscope_forget(i);\n\t}\n\tsfree(p);",
+        "\t\tif (i < scope_n)\n\t\t\t(void)i;\n\t}\n\tsfree(p);",
+    ),
+    (
+        "scope-realloc-keeps-the-old-address",
+        "support.c",
+        "\t\tif (q)\n\t\t\tscope_live[i] = q;",
+        "\t\tif (q)\n\t\t\tscope_live[i] = p;",
+    ),
+    (
+        "scope-bracket-never-begins",
+        "pzscope.h",
+        "(pz_scope_begin(), pz_scope_finish(",
+        "(pz_scope_finish(",
+    ),
+    (
+        "scope-allocations-unrecorded",
+        "support.c",
+        "\tif (scope_on && p)\n\t\tscope_record(p);\n\treturn p;",
+        "\treturn p;",
+    ),
+]
+
 # (puzzle, file relative to games/, name, old, new, cases, extra) for the front end
 # and the wrappers; puzzle "" means the change affects every puzzle and is
 # tried on flood.
@@ -329,6 +371,14 @@ PLAY = [
     (
         "unruly",
         "unruly/unruly.c",
+        "unruly-generator-states-not-reclaimed",
+        "return PZ_SCOPED_DESC(new_game_desc, p, rs, aux);",
+        "return new_game_desc(p, rs, aux, false);",
+        ["unruly_new_games_reclaim"],
+    ),
+    (
+        "unruly",
+        "unruly/unruly.c",
         "unruly-digit-keys-unmapped",
         "\tif (key == '0' || key == '1')\n\t\tc = key;\n\telse if",
         "\tif (0)\n\t\tc = key;\n\telse if",
@@ -468,11 +518,8 @@ def run_logic(games, puzzle, san, out):
     )
     if r.returncode:
         return None, "link error:\n" + r.stderr
-    env = dict(os.environ)
-    if puzzle == "unruly":
-        env["ASAN_OPTIONS"] = "detect_leaks=0"
     try:
-        r = subprocess.run([exe], capture_output=True, text=True, timeout=30, env=env)
+        r = subprocess.run([exe], capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired:
         return 124, "timeout"
     return r.returncode, r.stdout + r.stderr
@@ -516,7 +563,35 @@ def logic_mutants(src_games):
                     "exit %d" % rc,
                 )
                 print("mutant %-36s rejected: %s" % (puzzle + ":" + name, first[:80]))
-    print("logic mutants: %d tried, %d failures" % (len(LOGIC), failures))
+        for name, rel, old, new in SCOPE:
+            target = os.path.join(games, "pzcommon", rel)
+            shutil.copy(os.path.join(src_games, "pzcommon", rel), target)
+            n = replace_once(target, old, new)
+            if n != 1:
+                print("mutant unruly:%-29s ERROR: anchor occurs %d times" % (name, n))
+                failures += 1
+                continue
+            build_support(games, san, out)
+            rc, text = run_logic(games, "unruly", san, out)
+            shutil.copy(os.path.join(src_games, "pzcommon", rel), target)
+            if rc is None:
+                print("mutant unruly:%-29s ERROR: %s" % (name, text.strip()[:200]))
+                failures += 1
+            elif rc == 0:
+                print("mutant unruly:%-29s SURVIVED (the test cannot see it)" % name)
+                failures += 1
+            else:
+                first = next(
+                    (
+                        ln
+                        for ln in text.splitlines()
+                        if ln.startswith("FAIL") or "ERROR" in ln or "Assertion" in ln
+                    ),
+                    "exit %d" % rc,
+                )
+                print("mutant unruly:%-29s rejected: %s" % (name, first[:80]))
+        build_support(games, san, out)
+    print("logic mutants: %d tried, %d failures" % (len(LOGIC) + len(SCOPE), failures))
     return 1 if failures else 0
 
 
